@@ -116,7 +116,13 @@ var strafe_direction: float = 0.0
 var strafe_timer: float = 0.0
 var shots_fired: int = 0
 var burst_count: int = 0
-var accuracy_modifier: float = 1.0
+var accuracy_modifier: float = 1.0     # per-frame scratch: range band x strafe x stillness
+var base_accuracy_modifier: float = 1.0  # archetype baseline from EnemyData, multiplied in
+var aggro_range: float = 50.0          # target-acquisition radius, from EnemyData.alert_range
+var d_flanks: bool = true              # archetype may flank
+var d_retreats_when_hurt: bool = false # archetype breaks when wounded
+var d_uses_cover: bool = true
+var d_retreat_hp: float = 0.25
 
 ## Reaction system
 var reaction_timer: float = 0.0
@@ -192,6 +198,17 @@ func _ready() -> void:
 			current_hp = max_hp
 			move_speed = enemy_data.move_speed
 			preferred_range = enemy_data.preferred_range
+			# Step 8: exports that were stored and ignored now drive behaviour.
+			base_accuracy_modifier = enemy_data.accuracy_modifier
+			aggro_range = enemy_data.alert_range * 2.0   # was a hardcoded ALERT_RANGE*2
+			d_flanks = enemy_data.flanks
+			d_retreats_when_hurt = enemy_data.retreats_when_hurt
+			d_uses_cover = enemy_data.uses_cover
+			d_retreat_hp = enemy_data.retreat_hp_threshold
+			# _apply_personality() ran first and randomised char_aggression into a
+			# disjoint band; bias it toward the archetype so a VC (0.45) and an NVA
+			# (0.65) actually differ instead of being pure personality noise.
+			char_aggression = lerpf(char_aggression, enemy_data.aggression, 0.6)
 
 			if not enemy_data.weapon_path.is_empty():
 				weapon_data = load(enemy_data.weapon_path)
@@ -595,7 +612,7 @@ func _find_best_target() -> void:
 
 			if not player_dead:
 				var dist := global_position.distance_to(player_node.global_position)
-				if dist < ALERT_RANGE * 2.0:
+				if dist < aggro_range:
 					var score: float = 100.0 / maxf(dist, 1.0)
 					if score > best_score:
 						best_score = score
@@ -609,7 +626,7 @@ func _find_best_target() -> void:
 			continue
 
 		var dist := global_position.distance_to((ally as Node3D).global_position)
-		if dist < ALERT_RANGE * 2.0:
+		if dist < aggro_range:
 			var score: float = 80.0 / maxf(dist, 1.0)  # Slightly lower priority than player
 			if score > best_score:
 				best_score = score
@@ -703,7 +720,7 @@ func _evaluate_goals() -> void:
 		cover_score += 0.3
 	if not has_cover:
 		cover_score += 0.2
-	scores[Enums.AIGoal.SEEK_COVER] = cover_score
+	scores[Enums.AIGoal.SEEK_COVER] = cover_score if d_uses_cover else -1.0
 
 	# SUPPRESS - pin down target
 	var suppress_score: float = 0.3
@@ -719,7 +736,7 @@ func _evaluate_goals() -> void:
 		flank_score += 0.3
 	if threat_level < 0.3:
 		flank_score += 0.2
-	scores[Enums.AIGoal.FLANK_TARGET] = flank_score
+	scores[Enums.AIGoal.FLANK_TARGET] = flank_score if d_flanks else -1.0
 
 	# ADVANCE - push forward
 	var advance_score: float = char_aggression * 0.5
@@ -732,8 +749,10 @@ func _evaluate_goals() -> void:
 	# RETREAT - fall back
 	var retreat_score: float = 0.0
 	if threat_level > 0.7:
-		retreat_score = 0.6
-	if float(current_hp) / float(max_hp) < 0.25:
+		retreat_score = 0.6  # tactical withdrawal under heavy fire - all archetypes
+	# The wounded-man break is what retreats_when_hurt gates; the tactical
+	# withdrawal above is separate (the export's NAME is "when hurt").
+	if d_retreats_when_hurt and float(current_hp) / float(max_hp) < d_retreat_hp:
 		retreat_score += 0.4
 	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation
 
@@ -900,14 +919,14 @@ func _execute_combat(delta: float) -> void:
 		if dist < preferred_range * 0.5:
 			# Too close - back up
 			move_dir = (global_position - target.global_position).normalized()
-			accuracy_modifier = 1.8
+			accuracy_modifier = base_accuracy_modifier * 1.8
 		elif dist > preferred_range * 1.3:
 			# Too far - advance slightly
 			move_dir = (target.global_position - global_position).normalized() * 0.5
-			accuracy_modifier = 1.3
+			accuracy_modifier = base_accuracy_modifier * 1.3
 		else:
 			# Good range - minimal movement
-			accuracy_modifier = 1.0 - (1.0 - suppression_level) * 0.2
+			accuracy_modifier = base_accuracy_modifier * (1.0 - (1.0 - suppression_level) * 0.2)
 
 		# Apply strafe
 		if strafe_direction != 0.0:
@@ -1359,7 +1378,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
 		is_crippled = true
 		move_speed *= 0.25
-		accuracy_modifier *= 1.6
+		base_accuracy_modifier *= 1.6  # crippled: durable, was wiped next tick
 		if sprite_actor != null:
 			sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "crippled"))
 		elif mesh:

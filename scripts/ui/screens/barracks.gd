@@ -57,22 +57,28 @@ func _add_row(target: Dictionary, label_name: String, is_player: bool) -> void:
 	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
 	var mos: String = str(target.get("mos", "RIFLEMAN"))
-	var skill_id: String = str(SkillCatalog.MOS_SKILL.get(mos, "small_arms"))
-	var skill_level: int = int((target.get("skills", {}) as Dictionary).get(skill_id, 0))
-	var info := "%-8s %-9s ST:%3d AG:%3d AL:%3d  %s L%d" % [
-		label_name, mos, int(target.get("st", 100)), int(target.get("ag", 100)),
-		int(target.get("al", 100)), str(SkillCatalog.SKILLS[skill_id].name), skill_level]
+	# The player buys the three body-owned skills; each squadmate buys the one his
+	# MOS actually uses (AUDIT-01: this row used to offer the player exactly one
+	# skill, small_arms, because MOS was pinned to RIFLEMAN and four of the six
+	# read sites queried player_data - which could never hold anything else).
+	var buyable: Array[String] = SkillCatalog.PLAYER_SKILLS if is_player else [str(SkillCatalog.MOS_SKILL.get(mos, "small_arms"))]
+	var info := "%-8s %-9s ST:%3d AG:%3d AL:%3d" % [
+		label_name, mos, int(target.get("st", 100)), int(target.get("ag", 100)), int(target.get("al", 100))]
 	if not is_player:
 		info += "  K:%d M:%d" % [int(target.get("kills", 0)), int(target.get("missions", 0))]
 	var info_label := ReconUI.make_label(info, 13, ReconUI.TEXT)
-	info_label.custom_minimum_size = Vector2(360, 0)
+	info_label.custom_minimum_size = Vector2(300, 0)
 	row.add_child(info_label)
 
-	var skill_btn := ReconUI.make_link_button("[+%s %d]" % [str(SkillCatalog.SKILLS[skill_id].name), int(SkillCatalog.SKILLS[skill_id].cost)], 12)
-	skill_btn.pressed.connect(func() -> void:
-		if SkillCatalog.buy_skill(target, skill_id):
-			_refresh())
-	row.add_child(skill_btn)
+	for skill_id in buyable:
+		var lvl: int = int((target.get("skills", {}) as Dictionary).get(skill_id, 0))
+		var btn := ReconUI.make_link_button("[%s L%d +%d]" % [
+			str(SkillCatalog.SKILLS[skill_id].name), lvl, int(SkillCatalog.SKILLS[skill_id].cost)], 12)
+		var sid: String = skill_id
+		btn.pressed.connect(func() -> void:
+			if SkillCatalog.buy_skill(target, sid):
+				_refresh())
+		row.add_child(btn)
 	for attr in ["st", "ag", "al"]:
 		var b := ReconUI.make_link_button("[+%s]" % attr.to_upper(), 12)
 		b.pressed.connect(func() -> void:

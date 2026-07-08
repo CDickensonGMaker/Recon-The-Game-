@@ -193,7 +193,12 @@ func request_fire_support(kind: String) -> void:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
 	fire_support[kind] = int(fire_support[kind]) - 1
-	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(CampaignState.player_skill("fo_fac")))
+	# FO/FAC is the RADIOMAN's skill, not yours -- and :182 already refused fire
+	# support when the RTO is dead, so making the player buy it contradicted a
+	# shipping guard. The RTO is reachable here.
+	var _rto := squad_system.member_by_mos("RTO") if squad_system != null else null
+	var _fo: int = SquadRoster.skill_level(_rto.member, "fo_fac") if _rto != null else 0
+	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(_fo))
 	match kind:
 		"bombs":
 			_launch_cas(target, CASAirplane.Ordnance.BOMB)

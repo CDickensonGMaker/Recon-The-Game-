@@ -25,7 +25,7 @@ func _check_trap() -> void:
 	if not is_trapped:
 		return
 	# Point man nearby spots the wire; Demolitions skill always spots it.
-	var spotted: bool = CampaignState.player_skill("demolitions") > 0
+	var spotted: bool = CampaignState.roster_skill("GRENADIER", "demolitions") > 0
 	if not spotted:
 		for a in get_tree().get_nodes_in_group("allies"):
 			var ally := a as AllyBase

@@ -17,6 +17,11 @@ const ATTRIBUTE_COST: int = 100
 const ATTRIBUTE_MAX: int = 200  # 2d100 ceiling (RECON)
 
 ## MOS -> the skill their role consumes.
+## The three skills whose EFFECT lives on the player's own body: his rifle
+## (small_arms, sniping) and his own footsteps (silent_movement). Everything else
+## belongs to a squadmate's role - see MOS_SKILL - and is bought on his row.
+const PLAYER_SKILLS: Array[String] = ["small_arms", "sniping", "silent_movement"]
+
 const MOS_SKILL := {
 	"POINT": "detect_ambush",
 	"RTO": "fo_fac",

@@ -15,7 +15,7 @@ extends Resource
 
 @export_group("Combat")
 @export var weapon_path: String = ""  ## Path to WeaponData resource
-@export var accuracy_modifier: float = 1.0  ## 1.0 = normal, <1 = less accurate
+@export var accuracy_modifier: float = 1.0  ## spread MULTIPLIER: >1 = LESS accurate (VC 1.15), <1 = crack shot (NVA 0.95)
 @export var aggression: float = 0.5  ## 0 = defensive, 1 = aggressive
 
 @export_group("Behavior")

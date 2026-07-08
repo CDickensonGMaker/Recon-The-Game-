@@ -41,6 +41,17 @@ func player_skill(skill: String) -> int:
 	return int((player_data.get("skills", {}) as Dictionary).get(skill, 0))
 
 
+## The living squadmate of a MOS owns his role's skill. Used at world-gen, before
+## SquadSystem has spawned any AllyBase - reads the persistent roster directly.
+## In-mission, prefer SquadRoster.skill_level(member_by_mos(mos).member, skill).
+func roster_skill(mos: String, skill: String) -> int:
+	for m in roster:
+		var d: Dictionary = m
+		if str(d.get("mos", "")) == mos and bool(d.get("alive", true)):
+			return int((d.get("skills", {}) as Dictionary).get(skill, 0))
+	return 0
+
+
 func _ready() -> void:
 	if is_test_run():
 		save_path = TEST_SAVE_PATH

@@ -359,7 +359,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 					plant_pos = plant_target.global_position
 				plant.global_position = _seat(world, plant_pos)
 				# W28: Demolitions skill plants faster.
-				plant.plant_seconds = 4.0 / (1.0 + 0.15 * float(CampaignState.player_skill("demolitions")))
+				plant.plant_seconds = 4.0 / (1.0 + 0.15 * float(CampaignState.roster_skill("GRENADIER", "demolitions")))
 				plant.is_trapped = rng.randf() < 0.3  # W52
 				plant.register(director)
 				plant.charge_planted.connect(_on_charge_planted.bind(plant_target))
