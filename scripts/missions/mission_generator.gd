@@ -3,12 +3,13 @@
 class_name MissionGenerator
 extends RefCounted
 
-enum MissionType { PATROL, VILLAGE_RAID, FIREBASE_DEFENSE }
+enum MissionType { PATROL, VILLAGE_RAID, FIREBASE_DEFENSE, ANTI_AA }
 
 const TYPE_NAMES := {
 	MissionType.PATROL: "PATROL",
 	MissionType.VILLAGE_RAID: "VILLAGE RAID",
 	MissionType.FIREBASE_DEFENSE: "FIREBASE DEFENSE",
+	MissionType.ANTI_AA: "ANTI-AA SWEEP",
 }
 
 const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
@@ -50,7 +51,30 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 			_plan_village(world, rng, planner, p)
 		MissionType.FIREBASE_DEFENSE:
 			_plan_firebase(world, rng, planner, p)
+		MissionType.ANTI_AA:
+			_plan_anti_aa(world, rng, planner, p)
 	return p
+
+
+static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
+	var lz_in: Vector3 = planner.find_site(rng, 16.0, 200.0)
+	var lz_out: Vector3 = planner.find_site(rng, 16.0, 200.0)
+	p["insertion_lz"] = lz_in
+	p["exfil_lz"] = lz_out
+	var site_count: int = rng.randi_range(2, 3)
+	var aa_centers: Array = []
+	for i in range(site_count):
+		var c: Vector3 = planner.find_site(rng, 12.0, 180.0)
+		aa_centers.append(c)
+		p.objectives.append({"kind": "plant", "pos": c, "title": "DESTROY AA GUN %s" % char(65 + i), "index": i, "required": true, "aa_index": i})
+		p.enemy_groups.append({"pos": c, "count": rng.randi_range(3, 4), "tag": "aa_crew_%d" % i, "lazy": false, "spread": 10.0})
+	p["aa_centers"] = aa_centers
+	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}]
+	for c in aa_centers:
+		p.sites.append({"kind": "aa_site", "center": c})
+	p["cas_budget"] = 0
+	p["is_anti_aa"] = true
+	p["intel"] = "Enemy AA battery is bleeding our birds. Satchel every gun. %d sites plotted." % site_count
 
 
 static func _passable_near(world: GameWorld, rng: RandomNumberGenerator, origin: Vector3, min_r: float, max_r: float, attempts: int = 60) -> Vector3:
@@ -133,10 +157,18 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	director.state.seed_value = int(p.seed)
 	director.cas_budget = int(p.get("cas_budget", 0))
 
+	if bool(p.get("is_anti_aa", false)):
+		director.state.flags["is_anti_aa"] = true
+
 	var built_sites: Array[Dictionary] = []
 	var cache_node: Node3D = null
+	var aa_guns: Array[Node3D] = []
 	for site in p.sites:
 		match str(site.kind):
+			"aa_site":
+				var aa: Dictionary = planner.stamp_aa_site(site.center, rng)
+				built_sites.append(aa)
+				aa_guns.append(aa.gun)
 			"village":
 				var v: Dictionary = planner.stamp_village(site.center, rng)
 				built_sites.append(v)
@@ -173,12 +205,16 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				plant.objective_index = int(obj.index)
 				plant.title = str(obj.title)
 				world.add_child(plant)
+				# Target: AA gun (by index), else the village cache/APC.
+				var plant_target: Node3D = cache_node
 				var plant_pos: Vector3 = obj.pos
-				if cache_node != null:
-					plant_pos = cache_node.global_position
+				if obj.has("aa_index") and int(obj.aa_index) < aa_guns.size():
+					plant_target = aa_guns[int(obj.aa_index)]
+				if plant_target != null:
+					plant_pos = plant_target.global_position
 				plant.global_position = _seat(world, plant_pos)
 				plant.register(director)
-				plant.charge_planted.connect(_on_charge_planted.bind(cache_node))
+				plant.charge_planted.connect(_on_charge_planted.bind(plant_target))
 				sensors.append(plant)
 			"kill":
 				var kc := KillCountObjective.new()
@@ -230,6 +266,22 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var data: String = ENEMY_DATA[rng.randi() % ENEMY_DATA.size()]
 				var enemy := director.spawn_tracked_enemy(pos, data, str(group.tag))
 				enemy.add_to_group(str(group.tag))
+
+	# W04: at HIGH campaign threat, opportunistic AA positions appear near the LZs.
+	if not bool(p.get("is_anti_aa", false)) and CampaignState.effective_threat() >= 0.5:
+		var aa_count: int = 1 if CampaignState.effective_threat() < 0.75 else 2
+		var anchors := [p.insertion_lz, p.exfil_lz]
+		for i in range(aa_count):
+			var near: Vector3 = anchors[i % anchors.size()]
+			var pos := _passable_near(world, rng, near, 150.0, 260.0)
+			var aa2: Dictionary = planner.stamp_aa_site(pos, rng)
+			built_sites.append(aa2)
+			(aa2.gun as DestructibleVehicle).destroyed.connect(func(_v: DestructibleVehicle) -> void:
+				director.state.flags["aa_killed"] = int(director.state.flags.get("aa_killed", 0)) + 1
+				director.toast.emit("AA GUN DESTROYED - THE NEXT BIRD THANKS YOU"))
+			for j in range(2):
+				var crew := director.spawn_tracked_enemy(pos + Vector3(2.0 + float(j) * 2.0, 0, 1.5), ENEMY_DATA[rng.randi() % 2], "aa_opportunistic")
+				crew.add_to_group("aa_opportunistic")
 
 	var exfil := ExfilZone.new()
 	exfil.use_bird = true

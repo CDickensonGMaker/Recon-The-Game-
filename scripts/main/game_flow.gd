@@ -106,6 +106,7 @@ func _on_mission_ended(result: Dictionary) -> void:
 	if _debrief_pending:
 		return
 	_debrief_pending = true
+	CampaignState.on_mission_end(result)
 	_show_debrief_delayed(result)
 
 

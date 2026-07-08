@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestcampaign01"]
+
+[ext_resource type="Script" path="res://tests/test_campaign_state.gd" id="1_tcp"]
+
+[node name="TestCampaignState" type="Node"]
+script = ExtResource("1_tcp")

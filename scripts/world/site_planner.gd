@@ -186,6 +186,25 @@ func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	return site
 
 
+## AA SITE (W03/W04): emplacement on a flattened pad + sandbag ring.
+## The gun is a DestructibleVehicle (satchel it) - mg_nest GLB as placeholder
+## until Caleb models a ZPU/DShK.
+func stamp_aa_site(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
+	clear_and_flatten(center, 10.0)
+	var nodes: Array[Node3D] = []
+	var gun := DestructibleVehicle.create(_parent,
+		"res://assets/models/structures/firebase/mg_nest.glb",
+		center, rng.randf_range(0, 360), _terrain)
+	nodes.append(gun)
+	for i in range(4):
+		var a := TAU * float(i) / 4.0 + 0.4
+		var pos := center + Vector3(cos(a), 0, sin(a)) * 5.0
+		nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
+	var site := {"kind": "aa_site", "center": center, "nodes": nodes, "gun": gun, "radius": 10.0}
+	placed_sites.append(site)
+	return site
+
+
 ## LZ: cleared flattened circle, no structures.
 func stamp_lz(center: Vector3) -> Dictionary:
 	clear_and_flatten(center, 16.0)

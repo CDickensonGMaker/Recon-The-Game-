@@ -37,6 +37,9 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 14)
 	root.add_child(box)
 	box.add_child(ReconUI.make_label("AVAILABLE OPERATIONS", 30, ReconUI.AMBER))
+	var threat_color := ReconUI.OLIVE if CampaignState.effective_threat() < 0.5 else Color(0.85, 0.4, 0.3)
+	box.add_child(ReconUI.make_label("AO ANTI-AIR THREAT: %s   //   MISSIONS FLOWN: %d   //   TEAM XP: %d" % [
+		CampaignState.threat_label(), CampaignState.missions_played, CampaignState.team_xp], 13, threat_color))
 	box.add_child(ReconUI.make_label("-------------------------------------------", 14, ReconUI.DIM))
 	for offer in offers:
 		var card := ReconUI.make_button("%s  //  %s  //  ENEMY: %s  //  %s" % [

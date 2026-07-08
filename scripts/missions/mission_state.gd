@@ -16,6 +16,7 @@ var start_time_ms: int = 0
 var emergency_exfil: bool = false
 var mission_type: String = ""
 var seed_value: int = 0
+var flags: Dictionary = {}  ## generator/system extras merged into the result
 
 
 func register_objective(index: int, title: String, required: bool = true) -> void:
@@ -65,6 +66,13 @@ func elapsed_seconds() -> float:
 
 
 func build_result(success: bool, reason: String = "") -> Dictionary:
+	var result := _base_result(success, reason)
+	for key in flags.keys():
+		result[key] = flags[key]
+	return result
+
+
+func _base_result(success: bool, reason: String) -> Dictionary:
 	return {
 		"success": success,
 		"reason": reason,
