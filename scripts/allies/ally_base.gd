@@ -351,6 +351,13 @@ func _move_toward(pos: Vector3, delta: float) -> void:
 	velocity.z = lerpf(velocity.z, direction.z * move_speed, delta * 8.0)
 
 
+## Gun muzzle world position (mirrors EnemyBase.get_muzzle_position).
+func get_muzzle_position(aim_dir: Vector3) -> Vector3:
+	var flat_aim := Vector3(aim_dir.x, 0.0, aim_dir.z).normalized()
+	var right := flat_aim.cross(Vector3.UP).normalized() * -0.22
+	return global_position + Vector3.UP * 1.35 + flat_aim * 0.55 + right
+
+
 func _fire_at_target() -> void:
 	if not weapon_data or not target:
 		return
@@ -369,8 +376,8 @@ func _fire_at_target() -> void:
 	final_aim.z += randf_range(-spread, spread)
 	final_aim = final_aim.normalized()
 
-	# Raycast for hit
-	var origin: Vector3 = global_position + Vector3.UP * 1.5
+	# Raycast from the gun muzzle (R03).
+	var origin: Vector3 = get_muzzle_position(final_aim)
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
@@ -380,6 +387,11 @@ func _fire_at_target() -> void:
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
+
+	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
+	if result:
+		tracer_end = result.position
+	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(1.0, 0.85, 0.4, 1.0))
 
 	if result:
 		var hit_target: Object = result.collider
