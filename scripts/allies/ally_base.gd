@@ -393,8 +393,6 @@ func _fire_at_target() -> void:
 				damage_multiplier = hitzone.get_damage_multiplier()
 			elif hit_target is Node and (hit_target as Node).is_in_group("enemies"):
 				damage_target = hit_target as Node
-			elif hit_target is Hurtbox:
-				damage_target = (hit_target as Hurtbox).owner_entity
 			elif hit_target is Node and (hit_target as Node).get_parent() and (hit_target as Node).get_parent().is_in_group("enemies"):
 				damage_target = (hit_target as Node).get_parent()
 

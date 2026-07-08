@@ -99,6 +99,10 @@ func _start_switch(new_slot: int) -> void:
 	if current_slot == 3 and health_system and health_system.is_healing:
 		health_system.cancel_healing()
 
+	# Weapon slots: drive the holder's swap now so both timers run concurrently
+	if new_slot <= 1 and weapon_holder:
+		weapon_holder.set_active_weapon_slot(new_slot)
+
 
 func _update_switch(delta: float) -> void:
 	if not is_switching:
@@ -112,20 +116,8 @@ func _update_switch(delta: float) -> void:
 func _finish_switch() -> void:
 	is_switching = false
 
-	var old_slot := current_slot
 	current_slot = pending_slot
 	pending_slot = -1
-
-	# Handle weapon switching
-	if current_slot <= 1 and old_slot <= 1:
-		# Switching between weapons - weapon_holder handles this
-		pass
-	elif current_slot <= 1:
-		# Switching to a weapon from non-weapon
-		weapon_holder.is_switching = false
-	elif old_slot <= 1:
-		# Switching from weapon to non-weapon
-		pass
 
 	slot_changed.emit(current_slot, get_slot_type(current_slot))
 

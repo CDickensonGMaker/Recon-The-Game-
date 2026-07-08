@@ -104,12 +104,7 @@ func _process(delta: float) -> void:
 
 
 func _handle_input() -> void:
-	# Weapon switching (only when not reloading or switching)
-	if not is_reloading and not is_switching:
-		if Input.is_action_just_pressed("slot_1") and current_slot != 0:
-			_start_weapon_switch(0)
-		elif Input.is_action_just_pressed("slot_2") and current_slot != 1:
-			_start_weapon_switch(1)
+	# Slot selection is owned by EquipmentManager (drives set_active_weapon_slot)
 
 	# Can't do anything while switching
 	if is_switching:
@@ -241,8 +236,6 @@ func _fire_shot() -> void:
 				zone_name = hitzone.get_zone_name()
 			elif hit_collider is Node and (hit_collider as Node).is_in_group("enemies"):
 				damage_target = hit_collider as Node
-			elif hit_collider is Hurtbox:
-				damage_target = (hit_collider as Hurtbox).owner_entity
 			elif hit_collider is Node and (hit_collider as Node).get_parent() and (hit_collider as Node).get_parent().is_in_group("enemies"):
 				damage_target = (hit_collider as Node).get_parent()
 
@@ -315,6 +308,14 @@ func _finish_reload() -> void:
 
 	weapon_reloaded.emit()
 	magazine_changed.emit(current_ammo, spare_magazines)
+
+
+## Called by EquipmentManager when the active slot changes to a weapon slot.
+## EquipmentManager gates input during reload/heal, so no reload check here.
+func set_active_weapon_slot(new_slot: int) -> void:
+	if new_slot == current_slot or is_switching:
+		return
+	_start_weapon_switch(new_slot)
 
 
 func _start_weapon_switch(new_slot: int) -> void:
