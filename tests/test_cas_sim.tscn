@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestcassim0001"]
+
+[ext_resource type="Script" path="res://tests/test_cas_sim.gd" id="1_tcs"]
+
+[node name="TestCasSim" type="Node"]
+script = ExtResource("1_tcs")

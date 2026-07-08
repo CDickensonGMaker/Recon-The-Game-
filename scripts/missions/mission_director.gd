@@ -83,21 +83,68 @@ func _on_player_died() -> void:
 
 
 ## ABORT: hold the radio key 2s anywhere -> emergency exfil (fail-forward).
+## CAS: press T while aiming at ground -> Skyraider run (budget-limited).
+const SKYRAIDER_SCENE := preload("res://scenes/vehicles/skyraider.tscn")
+
 var exfil_zone: ExfilZone
+var cas_budget: int = 0
 var _abort_hold: float = 0.0
+var _cas_cooldown: float = 0.0
 
 
 func _process(delta: float) -> void:
-	if _ended or exfil_zone == null:
+	if _ended:
 		return
-	if Input.is_action_pressed("radio") and GameManager.can_player_act():
-		_abort_hold += delta
-		if _abort_hold >= 2.0 and not state.emergency_exfil and not state.is_exfil_unlocked():
-			state.emergency_exfil = true
-			exfil_zone.force_unlock = true
-			toast.emit("ABORT ACKNOWLEDGED - EMERGENCY EXFIL AUTHORIZED")
-	else:
-		_abort_hold = 0.0
+	_cas_cooldown = maxf(0.0, _cas_cooldown - delta)
+	if exfil_zone != null:
+		if Input.is_action_pressed("radio") and GameManager.can_player_act():
+			_abort_hold += delta
+			if _abort_hold >= 2.0 and not state.emergency_exfil and not state.is_exfil_unlocked():
+				state.emergency_exfil = true
+				exfil_zone.force_unlock = true
+				toast.emit("ABORT ACKNOWLEDGED - EMERGENCY EXFIL AUTHORIZED")
+		else:
+			_abort_hold = 0.0
+	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
+		request_cas_strike()
+
+
+func request_cas_strike() -> void:
+	if cas_budget <= 0:
+		toast.emit("NO AIR SUPPORT REMAINING")
+		return
+	if _cas_cooldown > 0.0:
+		toast.emit("AIRCRAFT REARMING - STAND BY")
+		return
+	var target := _cas_ground_target()
+	if target == Vector3.ZERO:
+		toast.emit("NO TARGET - AIM AT THE GROUND")
+		return
+	cas_budget -= 1
+	_cas_cooldown = 25.0
+	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
+	world.add_child(plane)
+	var ordnance := CASAirplane.Ordnance.NAPALM if randf() < 0.5 else CASAirplane.Ordnance.BOMB
+	var run_dir := Vector3.ZERO
+	if world.player:
+		run_dir = target - world.player.global_position
+	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
+	toast.emit("FAST MOVER INBOUND - DANGER CLOSE (%d runs left)" % cas_budget)
+
+
+## March the camera ray onto the terrain surface.
+func _cas_ground_target() -> Vector3:
+	if world == null or world.player == null:
+		return Vector3.ZERO
+	var cam: Camera3D = world.player.get_node("Head/Camera3D")
+	var origin: Vector3 = cam.global_position
+	var dir: Vector3 = -cam.global_transform.basis.z
+	for i in range(1, 60):
+		var p := origin + dir * (float(i) * 8.0)
+		var ground: float = world.terrain_manager.get_height_at(p)
+		if p.y <= ground:
+			return Vector3(p.x, ground, p.z)
+	return Vector3.ZERO
 
 
 func is_ended() -> bool:

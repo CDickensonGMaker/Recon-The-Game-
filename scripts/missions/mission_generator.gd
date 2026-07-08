@@ -119,6 +119,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
 	director.state.mission_type = str(p.type_name)
 	director.state.seed_value = int(p.seed)
+	director.cas_budget = int(p.get("cas_budget", 0))
 
 	var built_sites: Array[Dictionary] = []
 	var cache_node: Node3D = null
