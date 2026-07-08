@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctesthueysim001"]
+
+[ext_resource type="Script" path="res://tests/test_huey_sim.gd" id="1_ths"]
+
+[node name="TestHueySim" type="Node"]
+script = ExtResource("1_ths")
