@@ -112,6 +112,11 @@ var grenade_cooldown: float = 0.0
 var grenades_left: int = 1
 var is_crippled: bool = false
 
+## Fairness (anti-instant-death): the first round fired at a newly acquired
+## target is a deliberate near-miss - the CRACK is your warning. Close-range
+## acquisitions also startle the shooter (+reaction time).
+var _first_shot_fired: bool = false
+
 ## Suppression system
 var suppression_level: float = 0.0  # 0-1, affects behavior
 var incoming_fire_timer: float = 0.0
@@ -418,9 +423,17 @@ func _update_perception() -> void:
 func _set_tier(tier: AlertTier) -> void:
 	if tier == alert_tier:
 		return
+	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
 	alert_tier = tier
 	if tier == AlertTier.COMBAT:
 		awareness = 1.0
+		_first_shot_fired = false  # new fight, new warning shot
+		# Bumping into each other at close range startles BOTH sides.
+		if was_cold:
+			var player := GameManager.player as Node3D
+			if player and global_position.distance_to(player.global_position) < 15.0:
+				has_reacted = false
+				reaction_timer = -randf_range(0.4, 0.7)  # extra startle delay
 		GunFX.play_combat_sting(get_tree().current_scene)  # W67: contact sting
 
 
@@ -936,6 +949,15 @@ func _fire_at_target() -> void:
 	final_aim.y += randf_range(-spread, spread)
 	final_aim.z += randf_range(-spread, spread)
 	final_aim = final_aim.normalized()
+
+	# First shot at this target: forced near-miss (the warning crack).
+	if not _first_shot_fired:
+		_first_shot_fired = true
+		var miss := deg_to_rad(randf_range(5.0, 9.0))
+		var miss_dir := randf_range(0.0, TAU)
+		final_aim.x += cos(miss_dir) * miss
+		final_aim.y += absf(sin(miss_dir)) * miss * 0.5 + 0.02  # bias high/wide
+		final_aim = final_aim.normalized()
 
 	# Raycast from the gun muzzle, not center mass (R03).
 	var origin: Vector3 = get_muzzle_position(final_aim)

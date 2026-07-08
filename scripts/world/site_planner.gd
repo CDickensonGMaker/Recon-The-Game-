@@ -226,6 +226,23 @@ func stamp_outpost(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	return site
 
 
+## Ancient Buddhist temple ruin POI (Caleb's cultist temple set) - overgrown,
+## lootable shrine, natural landmark and ambush magnet.
+func stamp_temple_ruin(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
+	clear_and_flatten(center, 14.0)
+	var nodes: Array[Node3D] = []
+	var temple := place_structure("res://assets/building models/structures/temple/cultist_temple2.glb", center, rng.randf_range(0, 360))
+	temple.add_to_group("temple_shrines")
+	nodes.append(temple)
+	for i in range(3):
+		var a := TAU * float(i) / 3.0 + rng.randf_range(-0.4, 0.4)
+		var pos := center + Vector3(cos(a), 0, sin(a)) * rng.randf_range(8.0, 12.0)
+		nodes.append(place_structure("res://assets/building models/structures/temple/ruins_corner.glb", pos, rad_to_deg(a) + rng.randf_range(-30, 30)))
+	var site := {"kind": "temple", "center": center, "nodes": nodes, "radius": 14.0}
+	placed_sites.append(site)
+	return site
+
+
 ## LZ: cleared flattened circle, no structures.
 func stamp_lz(center: Vector3) -> Dictionary:
 	clear_and_flatten(center, 16.0)

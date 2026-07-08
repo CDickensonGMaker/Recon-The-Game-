@@ -1,5 +1,5 @@
-﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 04:25:47 ===
---- RENDER us_grunt / m16a1 07/08/2026 04:25:47 ---
+﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 05:15:41 ===
+--- RENDER us_grunt / m16a1 07/08/2026 05:15:41 ---
 
 UNIT=us_grunt RIG=MixamoRig hidden=['VC1_Farmer', 'AK47_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']
 FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)
@@ -8,3 +8,48 @@ FRAMES DONE: death_forward (8 cols x 8 dirs)
 FRAMES DONE: death_from_right (8 cols x 8 dirs)
 FRAMES DONE: firing_rifle (8 cols x 8 dirs)
 FRAMES DONE: injured_walk_backwards (8 cols x 8 dirs)
+FRAMES DONE: kneeling_pointing (8 cols x 8 dirs)
+FRAMES DONE: laying_breathless (8 cols x 8 dirs)
+FRAMES DONE: pilot_flips_switches (8 cols x 8 dirs)
+FRAMES DONE: reloading (8 cols x 8 dirs)
+FRAMES DONE: rifle_aiming_idle (8 cols x 8 dirs)
+FRAMES DONE: rifle_crouch_idle_to_walk (8 cols x 8 dirs)
+FRAMES DONE: rifle_turn (8 cols x 8 dirs)
+FRAMES DONE: run_forward (8 cols x 8 dirs)
+FRAMES DONE: sitting (8 cols x 8 dirs)
+FRAMES DONE: stand_to_cover (8 cols x 8 dirs)
+FRAMES DONE: start_walking (8 cols x 8 dirs)
+FRAMES DONE: stop_walking_with_rifle (8 cols x 8 dirs)
+FRAMES DONE: strafe (8 cols x 8 dirs)
+FRAMES DONE: strafe_1 (8 cols x 8 dirs)
+FRAMES DONE: swimming (8 cols x 8 dirs)
+ALL FRAMES COMPLETE: 21
+
+
+--- ASSEMBLE us_grunt / m16a1 07/08/2026 05:20:27 ---
+
+ASSEMBLED: action_idle_to_standing_idle (8 cols)
+ASSEMBLED: brutal_assassination (8 cols)
+ASSEMBLED: death_forward (8 cols)
+ASSEMBLED: death_from_right (8 cols)
+ASSEMBLED: firing_rifle (8 cols)
+ASSEMBLED: injured_walk_backwards (8 cols)
+ASSEMBLED: kneeling_pointing (8 cols)
+ASSEMBLED: laying_breathless (8 cols)
+ASSEMBLED: pilot_flips_switches (8 cols)
+ASSEMBLED: reloading (8 cols)
+ASSEMBLED: rifle_aiming_idle (8 cols)
+ASSEMBLED: rifle_crouch_idle_to_walk (8 cols)
+ASSEMBLED: rifle_turn (8 cols)
+ASSEMBLED: run_forward (8 cols)
+ASSEMBLED: sitting (8 cols)
+ASSEMBLED: stand_to_cover (8 cols)
+ASSEMBLED: start_walking (8 cols)
+ASSEMBLED: stop_walking_with_rifle (8 cols)
+ASSEMBLED: strafe (8 cols)
+ASSEMBLED: strafe_1 (8 cols)
+ASSEMBLED: swimming (8 cols)
+DONE: 21 animations
+
+
+--- RENDER vc1_farmer / ak47 07/08/2026 05:21:40 ---

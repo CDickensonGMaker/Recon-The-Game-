@@ -175,6 +175,16 @@ func _try_field_interact() -> void:
 				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
 			_field_toast("TUNNEL CACHE - DOCUMENTS AND AMMO (+2 INTEL)")
 			return
+	# Temple shrine: one-time offering search (intel + flavor).
+	for t in get_tree().get_nodes_in_group("temple_shrines"):
+		var shrine := t as Node3D
+		if shrine and not shrine.has_meta("searched") \
+				and global_position.distance_to(shrine.global_position) < 4.0:
+			shrine.set_meta("searched", true)
+			CampaignState.intel_points += 1
+			CampaignState.save_campaign()
+			_field_toast("OLD SHRINE - SOMEONE LEFT MAPS HERE (+1 INTEL)")
+			return
 	# Tunnel entrance (topside).
 	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
 		var entrance := t as Node3D
@@ -423,8 +433,8 @@ func _handle_movement(delta: float) -> void:
 	if Input.is_action_just_pressed("prone"):
 		is_prone = not is_prone
 
-	# Smoke (W39).
-	if Input.is_action_just_pressed("throw_smoke"):
+	# Smoke (W39). (Key 5 belongs to the fire menu while it's open.)
+	if Input.is_action_just_pressed("throw_smoke") and not MissionDirector.any_fire_menu_open:
 		_throw_smoke()
 
 	# Claymore (W58): key 6, placed at your feet facing your aim.

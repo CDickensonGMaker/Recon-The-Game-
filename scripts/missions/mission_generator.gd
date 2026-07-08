@@ -62,7 +62,7 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 		"objectives": [],
 		"enemy_groups": [],
 		"sites": [],
-		"cas_budget": 0,
+		"fire_support": {"mortar": 1},
 	}
 	match type:
 		MissionType.PATROL:
@@ -90,7 +90,7 @@ static func _plan_rescue(world: GameWorld, rng: RandomNumberGenerator, planner: 
 	p.objectives.append({"kind": "rescue", "pos": camp, "title": "FREE THE POW", "index": 0, "required": true})
 	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
 	p["sites"] = [{"kind": "pow_camp", "center": camp}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
-	p["cas_budget"] = 0
+	p["fire_support"] = {"napalm": 1, "mortar": 1}
 	p["intel"] = "Downed aviator held at a jungle camp. %d guards estimated. Bring him home." % guard_count
 
 
@@ -111,7 +111,7 @@ static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
 	for c in aa_centers:
 		p.sites.append({"kind": "aa_site", "center": c})
-	p["cas_budget"] = 0
+	p["fire_support"] = {"mortar": 1}
 	p["is_anti_aa"] = true
 	p["intel"] = "Enemy AA battery is bleeding our birds. Satchel every gun. %d sites plotted." % site_count
 
@@ -174,7 +174,7 @@ static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE", "index": 1, "required": true, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
 	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
 	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
-	p["cas_budget"] = 1
+	p["fire_support"] = {"bombs": 1, "napalm": 1, "mortar": 2}
 	p["intel"] = "VC squad garrisons the ville. Arms cache concealed nearby. %d-%d fighters estimated." % [defender_count - 2, defender_count + 3]
 
 
@@ -186,7 +186,7 @@ static func _plan_firebase(world: GameWorld, rng: RandomNumberGenerator, planner
 	var wave_count: int = 3
 	p.objectives.append({"kind": "survive", "title": "HOLD THE FIREBASE", "index": 0, "required": true, "waves": wave_count, "per_wave_min": 5, "per_wave_max": 8})
 	p["sites"] = [{"kind": "firebase", "center": firebase}]
-	p["cas_budget"] = 3
+	p["fire_support"] = {"bombs": 2, "napalm": 1, "arty": 2, "mortar": 3, "spooky": 1}
 	p["ally_count"] = 5
 	p["intel"] = "Main Force battalion probing the wire tonight. %d assault waves expected. Air support on station." % wave_count
 
@@ -199,7 +199,9 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
 	director.state.mission_type = str(p.type_name)
 	director.state.seed_value = int(p.seed)
-	director.cas_budget = int(p.get("cas_budget", 0))
+	var fs: Dictionary = p.get("fire_support", {"mortar": 1})
+	for k in fs.keys():
+		director.fire_support[k] = int(fs[k])
 
 	if bool(p.get("is_anti_aa", false)):
 		director.state.flags["is_anti_aa"] = true
@@ -394,6 +396,12 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				lg_v.setup(director, int(p.seed) + hash(vc))
 				world.add_child(lg_v)
 				lg_v.global_position = _seat(world, vc + Vector3(10, 0, 5))
+		# Ancient temple ruin POI, ~50% of missions (landmark + shrine loot).
+		if rng.randf() < 0.5:
+			var tc: Vector3 = planner.find_site(rng, 15.0, 150.0)
+			if tc != Vector3.ZERO:
+				built_sites.append(planner.stamp_temple_ruin(tc, rng))
+
 		# 2-3 wandering patrols along the corridor.
 		for pi in range(rng.randi_range(2, 3)):
 			var t_frac: float = rng.randf_range(0.2, 0.8)

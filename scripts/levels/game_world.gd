@@ -170,6 +170,12 @@ func _on_terrain_ready() -> void:
 		spawn_player_at(spawn)
 
 	_start_ambience()
+
+	# PT5: near-player ground clutter (Caleb's tuft/rock/log sprites).
+	var clutter := GroundClutter.new()
+	add_child(clutter)
+	clutter.setup(self)
+
 	is_world_ready = true
 	world_ready.emit()
 

@@ -23,6 +23,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list
 	sensors = sensor_list
 	exfil_zone = exfil
 	director.toast.connect(show_toast)
+	director.fire_menu_changed.connect(_on_fire_menu_changed)
 	add_to_group("mission_hud")
 	_build()
 	# W41: topo map (M to toggle).
@@ -76,6 +77,38 @@ var _squad_poll: float = 0.0
 func set_prompt(text: String) -> void:
 	if _prompt:
 		_prompt.text = text
+
+
+## Fire-support menu (T): lists what's on call with budgets.
+var _fire_menu: VBoxContainer
+
+
+func _on_fire_menu_changed(open: bool) -> void:
+	if _fire_menu == null:
+		_fire_menu = VBoxContainer.new()
+		_fire_menu.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		_fire_menu.position = Vector2(40, -90)
+		_fire_menu.add_theme_constant_override("separation", 4)
+		add_child(_fire_menu)
+	_fire_menu.visible = open
+	if not open:
+		return
+	for c in _fire_menu.get_children():
+		c.queue_free()
+	_fire_menu.add_child(ReconUI.make_label("== FIRE SUPPORT ==", 16, ReconUI.AMBER))
+	var fs: Dictionary = director.fire_support
+	var rows := [
+		["1", "CAS - SNAKE EYE BOMBS", "bombs"],
+		["2", "CAS - NAPALM RUN", "napalm"],
+		["3", "ARTILLERY BARRAGE", "arty"],
+		["4", "MORTAR FIRE MISSION", "mortar"],
+		["5", "SPOOKY GUNSHIP", "spooky"],
+	]
+	for row in rows:
+		var count: int = int(fs.get(row[2], 0))
+		var color := ReconUI.OLIVE if count > 0 else ReconUI.DIM
+		_fire_menu.add_child(ReconUI.make_label("[%s] %-22s x%d" % [row[0], row[1], count], 14, color))
+	_fire_menu.add_child(ReconUI.make_label("AIM AT TARGET, PRESS NUMBER. [T] CLOSE", 11, ReconUI.DIM))
 
 
 ## PT8: slot slider - the kit at a glance, current slot highlighted.

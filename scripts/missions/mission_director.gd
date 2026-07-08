@@ -40,6 +40,41 @@ func _on_enemy_died(enemy: EnemyBase, group_tag: String) -> void:
 	state.record_kill()
 	_live_enemies.erase(enemy)
 	enemy_killed.emit(enemy, group_tag)
+	# Escalation (PT): first blood wakes the AO - hunter patrols start converging.
+	if not _escalation_active:
+		_escalation_active = true
+		_hunter_timer = randf_range(70.0, 110.0)
+
+
+## Hunter escalation: after first contact, patrols move in looking for you.
+## Finite pool - you can bleed the AO dry.
+var _escalation_active: bool = false
+var _hunter_timer: float = 0.0
+var _hunter_pool: int = 12
+
+
+func _process_escalation(delta: float) -> void:
+	if not _escalation_active or _hunter_pool <= 0 or _ended or world == null or world.player == null:
+		return
+	_hunter_timer -= delta
+	if _hunter_timer > 0.0:
+		return
+	_hunter_timer = randf_range(100.0, 160.0)
+	var count: int = mini(_hunter_pool, randi_range(2, 4))
+	_hunter_pool -= count
+	var a: float = randf_range(0.0, TAU)
+	var base: Vector3 = world.player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(180.0, 230.0)
+	base.x = clampf(base.x, 60.0, world.map_size - 60.0)
+	base.z = clampf(base.z, 60.0, world.map_size - 60.0)
+	for i in range(count):
+		var pos := base + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
+		var hunter := spawn_tracked_enemy(pos, "res://data/enemies/nva_regular.tres", "hunters")
+		hunter.add_to_group("hunters")
+		# They come looking: seed their search at your last position.
+		hunter.last_known_target_pos = world.player.global_position
+		hunter.target_last_seen_time = 0.0
+		hunter._set_tier(EnemyBase.AlertTier.ALERT)
+	toast.emit("MOVEMENT IN THE TREES - THEY'RE LOOKING FOR YOU")
 
 
 func live_enemy_count(group_tag: String = "") -> int:
@@ -96,6 +131,7 @@ func _process(delta: float) -> void:
 	if _ended:
 		return
 	_cas_cooldown = maxf(0.0, _cas_cooldown - delta)
+	_process_escalation(delta)
 	if exfil_zone != null:
 		if Input.is_action_pressed("radio") and GameManager.can_player_act():
 			_abort_hold += delta
@@ -105,12 +141,106 @@ func _process(delta: float) -> void:
 				toast.emit("ABORT ACKNOWLEDGED - EMERGENCY EXFIL AUTHORIZED")
 		else:
 			_abort_hold = 0.0
+	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
-		request_cas_strike()
+		fire_menu_open = not fire_menu_open
+		fire_menu_changed.emit(fire_menu_open)
+	if fire_menu_open and GameManager.can_player_act():
+		if Input.is_action_just_pressed("slot_1"):
+			request_fire_support("bombs")
+		elif Input.is_action_just_pressed("slot_2"):
+			request_fire_support("napalm")
+		elif Input.is_action_just_pressed("slot_3"):
+			request_fire_support("arty")
+		elif Input.is_action_just_pressed("slot_4"):
+			request_fire_support("mortar")
+		elif Input.is_action_just_pressed("wheel_up") or Input.is_action_just_pressed("wheel_down"):
+			pass  # keep wheel for kit even with menu open
+		elif Input.is_action_just_pressed("pop_flare"):
+			pass
+		elif Input.is_action_just_pressed("throw_smoke"):
+			request_fire_support("spooky")  # 5 = Spooky while menu is open
 	if Input.is_action_just_pressed("mortar_strike") and GameManager.can_player_act():
-		request_mortar_strike()
+		request_fire_support("mortar")
 	if Input.is_action_just_pressed("supply_drop") and GameManager.can_player_act():
 		request_supply_drop()
+
+
+## Unified call-for-fire (PT): budgets per mission, all RTO-gated.
+signal fire_menu_changed(open: bool)
+static var any_fire_menu_open: bool = false  ## input guard for kit keys
+var fire_menu_open: bool = false:
+	set(value):
+		fire_menu_open = value
+		any_fire_menu_open = value
+var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0}
+
+
+func request_fire_support(kind: String) -> void:
+	fire_menu_open = false
+	fire_menu_changed.emit(false)
+	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+		toast.emit("RADIO IS DEAD - NO FIRE SUPPORT")
+		return
+	if int(fire_support.get(kind, 0)) <= 0:
+		toast.emit("%s: NONE AVAILABLE" % kind.to_upper())
+		return
+	if _cas_cooldown > 0.0:
+		toast.emit("NET BUSY - STAND BY")
+		return
+	var target := _cas_ground_target()
+	if target == Vector3.ZERO:
+		toast.emit("NO TARGET - AIM AT THE GROUND")
+		return
+	fire_support[kind] = int(fire_support[kind]) - 1
+	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(CampaignState.player_skill("fo_fac")))
+	match kind:
+		"bombs":
+			_launch_cas(target, CASAirplane.Ordnance.BOMB)
+			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d left)" % fire_support[kind])
+		"napalm":
+			_launch_cas(target, CASAirplane.Ordnance.NAPALM)
+			toast.emit("NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
+		"arty":
+			toast.emit("BATTERY FIRE MISSION - SHOT OUT (%d left)" % fire_support[kind])
+			for i in range(6):
+				get_tree().create_timer(4.0 + float(i) * 0.7).timeout.connect(
+					_arty_impact.bind(target + Vector3(randf_range(-18, 18), 0, randf_range(-18, 18)), i % 3 == 0))
+		"mortar":
+			_run_mortar_mission(target)
+		"spooky":
+			SpookyGunship.call_in(world, world.terrain_manager, target)
+			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+
+
+func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
+	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
+	world.add_child(plane)
+	var run_dir := Vector3.ZERO
+	if world.player:
+		run_dir = target - world.player.global_position
+	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
+
+
+func _arty_impact(pos: Vector3, deform: bool) -> void:
+	if world == null:
+		return
+	var ground := pos
+	ground.y = world.terrain_manager.get_height_at(pos)
+	CombatManager.apply_explosion_damage(ground, 200, 60, 14.0, null)
+	if deform:  # crater cap: 2 of 6 rounds deform
+		DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.9)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
+
+
+func _run_mortar_mission(target: Vector3) -> void:
+	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
+	get_tree().create_timer(3.0).timeout.connect(func() -> void:
+		_mortar_impact(target + Vector3(randf_range(-15, 15), 0, randf_range(-15, 15)), 0.5))
+	for i in range(3):
+		get_tree().create_timer(6.0 + float(i)).timeout.connect(func() -> void:
+			_mortar_impact(target + Vector3(randf_range(-8, 8), 0, randf_range(-8, 8)), 1.0))
 
 
 ## W60: RTO-called resupply - pop smoke, bird drops a crate on it.
@@ -167,37 +297,6 @@ func _drop_supply_crate(pos: Vector3) -> void:
 	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
 
 
-## W53: mortar fire mission - spotting round, then the volley walks on.
-var mortar_budget: int = 2
-var _mortar_cooldown: float = 0.0
-
-
-func request_mortar_strike() -> void:
-	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
-		toast.emit("RADIO IS DEAD - NO FIRE MISSIONS")
-		return
-	if mortar_budget <= 0:
-		toast.emit("MORTARS DRY")
-		return
-	if _cas_cooldown > 0.0 or _mortar_cooldown > 0.0:
-		toast.emit("TUBE BUSY - STAND BY")
-		return
-	var target := _cas_ground_target()
-	if target == Vector3.ZERO:
-		toast.emit("NO TARGET - AIM AT THE GROUND")
-		return
-	mortar_budget -= 1
-	_mortar_cooldown = 20.0
-	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % mortar_budget)
-	# Spotting round at 3s, volley of 3 walking on at 6/7/8s.
-	get_tree().create_timer(3.0).timeout.connect(func() -> void:
-		_mortar_impact(target + Vector3(randf_range(-15, 15), 0, randf_range(-15, 15)), 0.5))
-	for i in range(3):
-		get_tree().create_timer(6.0 + float(i)).timeout.connect(func() -> void:
-			_mortar_impact(target + Vector3(randf_range(-8, 8), 0, randf_range(-8, 8)), 1.0))
-	get_tree().create_timer(10.0).timeout.connect(func() -> void: _mortar_cooldown = 0.0)
-
-
 func _mortar_impact(pos: Vector3, intensity: float) -> void:
 	if world == null:
 		return
@@ -211,34 +310,6 @@ func _mortar_impact(pos: Vector3, intensity: float) -> void:
 
 
 var squad_system: SquadSystem = null
-
-
-func request_cas_strike() -> void:
-	# W19: no radioman, no fast movers.
-	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
-		toast.emit("RADIO IS DEAD - NO COMMS, NO AIR")
-		return
-	if cas_budget <= 0:
-		toast.emit("NO AIR SUPPORT REMAINING")
-		return
-	if _cas_cooldown > 0.0:
-		toast.emit("AIRCRAFT REARMING - STAND BY")
-		return
-	var target := _cas_ground_target()
-	if target == Vector3.ZERO:
-		toast.emit("NO TARGET - AIM AT THE GROUND")
-		return
-	cas_budget -= 1
-	# W28: FO/FAC skill shortens the turnaround.
-	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(CampaignState.player_skill("fo_fac")))
-	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
-	world.add_child(plane)
-	var ordnance := CASAirplane.Ordnance.NAPALM if randf() < 0.5 else CASAirplane.Ordnance.BOMB
-	var run_dir := Vector3.ZERO
-	if world.player:
-		run_dir = target - world.player.global_position
-	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
-	toast.emit("FAST MOVER INBOUND - DANGER CLOSE (%d runs left)" % cas_budget)
 
 
 ## March the camera ray onto the terrain surface.

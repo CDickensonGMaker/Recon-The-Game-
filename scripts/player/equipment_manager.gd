@@ -58,6 +58,10 @@ func _handle_input() -> void:
 	if health_system and health_system.is_healing:
 		return
 
+	# Fire-support menu owns the number keys while open.
+	if MissionDirector.any_fire_menu_open:
+		return
+
 	# Slot selection via number keys
 	if Input.is_action_just_pressed("slot_1") and current_slot != 0:
 		_start_switch(0)

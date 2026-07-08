@@ -100,8 +100,8 @@ func set_chunk_size(size: float) -> void:
 
 ## Load billboard textures from assets
 func _load_billboard_textures() -> void:
-	# Tree billboards
-	for i in range(1, 5):
+	# Tree billboards (5-6 = Caleb's willow/jungle canopy set, PT5)
+	for i in range(1, 7):
 		var path := "res://terrain/textures/billboards/tree%d_billboard.png" % i
 		if ResourceLoader.exists(path):
 			_tree_textures.append(load(path))
@@ -114,8 +114,8 @@ func _load_billboard_textures() -> void:
 			_bamboo_textures.append(load(path))
 			print("[BillboardVegetation] Loaded: %s" % path)
 
-	# Bush billboards
-	for i in range(1, 4):
+	# Bush billboards (4-9 = Caleb's ground bush set, PT5)
+	for i in range(1, 10):
 		var path := "res://terrain/textures/billboards/bush%d_billboard.png" % i
 		if ResourceLoader.exists(path):
 			_bush_textures.append(load(path))
