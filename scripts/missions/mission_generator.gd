@@ -158,6 +158,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 					plant_pos = cache_node.global_position
 				plant.global_position = _seat(world, plant_pos)
 				plant.register(director)
+				plant.charge_planted.connect(_on_charge_planted.bind(cache_node))
 				sensors.append(plant)
 			"kill":
 				var kc := KillCountObjective.new()
@@ -204,3 +205,11 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 
 static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
 	return Vector3(pos.x, world.terrain_manager.get_height_at(pos), pos.z)
+
+
+## Planted demo charge detonates: real crater + the cache prop dies.
+static func _on_charge_planted(at_position: Vector3, cache_node: Node3D) -> void:
+	DamageSystem.apply_damage(at_position, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
+	CombatManager.apply_explosion_damage(at_position, 120, 30, 8.0, null)
+	if cache_node != null and is_instance_valid(cache_node):
+		cache_node.queue_free()

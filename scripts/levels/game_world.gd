@@ -163,12 +163,27 @@ func _on_terrain_ready() -> void:
 
 	# 5. Player, then vegetation cameras (they need the player camera).
 	if spawn_player_on_ready:
-		_spawn_player()
-		_wire_cameras(player.get_node("Head/Camera3D"))
-		_setup_hud()
+		var spawn := spawn_position_override
+		if spawn == Vector3.ZERO:
+			spawn = Vector3(map_size * 0.5, 0.0, map_size * 0.5)
+		spawn_player_at(spawn)
 
 	is_world_ready = true
 	world_ready.emit()
+
+
+## Public: spawn the player at a position (mission insertion). Wires cameras+HUD.
+func spawn_player_at(spawn: Vector3) -> void:
+	if player != null:
+		var gy: float = terrain_manager.get_height_at(spawn)
+		player.global_position = Vector3(spawn.x, gy + 1.0, spawn.z)
+		return
+	player = PLAYER_SCENE.instantiate()
+	add_child(player)
+	var ground_y: float = terrain_manager.get_height_at(spawn)
+	player.global_position = Vector3(spawn.x, ground_y + 1.0, spawn.z)
+	_wire_cameras(player.get_node("Head/Camera3D"))
+	_setup_hud()
 
 
 func _wire_cameras(cam: Camera3D) -> void:
@@ -225,16 +240,6 @@ func _on_vegetation_updated(_region: Rect2i) -> void:
 		)
 		var radius: float = maxf(_region.size.x, _region.size.y) * terrain_manager.map_size / 512.0
 		gameplay_grid.update_region(world_center, radius)
-
-
-func _spawn_player() -> void:
-	player = PLAYER_SCENE.instantiate()
-	add_child(player)
-	var spawn := spawn_position_override
-	if spawn == Vector3.ZERO:
-		spawn = Vector3(map_size * 0.5, 0.0, map_size * 0.5)
-	var ground_y: float = terrain_manager.get_height_at(spawn)
-	player.global_position = Vector3(spawn.x, ground_y + 1.0, spawn.z)
 
 
 func _setup_hud() -> void:

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestpatrolsim1"]
+
+[ext_resource type="Script" path="res://tests/test_patrol_sim.gd" id="1_tps"]
+
+[node name="TestPatrolSim" type="Node"]
+script = ExtResource("1_tps")
