@@ -5,6 +5,8 @@ extends Node
 signal health_changed(current: int, maximum: int)
 signal health_pack_changed(count: int)
 signal died
+signal downed_started(bleed_seconds: float)
+signal downed_ended(revived: bool)
 signal healing_started
 signal healing_progress(percent: float)
 signal healing_interrupted
@@ -223,16 +225,46 @@ func stabilize() -> void:
 	bleeding_stopped.emit()
 
 
+## Downed/revive layer (W17). A revive handler (SquadSystem) may intercept
+## death: player goes DOWNED and a medic gets a window to reach them.
+var revive_handler: Node = null
+var is_downed: bool = false
+const DOWNED_BLEED_SECONDS: float = 30.0
+
+
 ## Die
 func _die() -> void:
+	if not is_downed and revive_handler != null and is_instance_valid(revive_handler) \
+			and revive_handler.has_method("can_revive") and revive_handler.can_revive():
+		is_downed = true
+		is_bleeding = false
+		downed_started.emit(DOWNED_BLEED_SECONDS)
+		revive_handler.begin_revive(self)
+		return
+	force_death()
+
+
+## The real end (no medic, timer out, or no handler).
+func force_death() -> void:
+	is_downed = false
 	is_bleeding = false
 	died.emit()
 	GameManager.on_player_death()
 
 
+## Medic completed the channel: back on your feet.
+func revive(restored_hp: int) -> void:
+	is_downed = false
+	current_hp = mini(restored_hp, max_hp)
+	is_bleeding = false
+	bleeding_stopped.emit()
+	health_changed.emit(current_hp, max_hp)
+	downed_ended.emit(true)
+
+
 ## Check if dead
 func is_dead() -> bool:
-	return current_hp <= 0
+	return current_hp <= 0 and not is_downed
 
 
 ## Check if critically wounded (bleeding)

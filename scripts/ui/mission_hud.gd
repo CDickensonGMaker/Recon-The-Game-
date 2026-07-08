@@ -49,11 +49,40 @@ func _build() -> void:
 
 
 var _prompt: Label
+var squad: SquadSystem = null
+var _squad_strip: Label
+var _squad_poll: float = 0.0
 
 
 func set_prompt(text: String) -> void:
 	if _prompt:
 		_prompt.text = text
+
+
+func _update_squad_strip(delta: float) -> void:
+	if squad == null:
+		return
+	_squad_poll += delta
+	if _squad_poll < 0.5:
+		return
+	_squad_poll = 0.0
+	if _squad_strip == null:
+		_squad_strip = ReconUI.make_label("", 13, ReconUI.OLIVE)
+		_squad_strip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		_squad_strip.position = Vector2(12, -160)
+		add_child(_squad_strip)
+	var lines: Array[String] = []
+	for a in squad.members:
+		if not is_instance_valid(a):
+			continue
+		var m: Dictionary = a.member
+		var status := "KIA"
+		if not a.is_dead():
+			var hp_frac: float = float(a.current_hp) / float(a.max_hp)
+			status = "OK" if hp_frac > 0.6 else ("HIT" if hp_frac > 0.25 else "CRIT")
+		lines.append("%s %s [%s]" % [str(m.get("nick", "?")), str(m.get("mos", "")), status])
+	var fire_mode := "FREE" if squad.weapons_free else "TIGHT"
+	_squad_strip.text = "SQUAD (%s)\n%s" % [fire_mode, "\n".join(lines)]
 
 
 func show_toast(text: String) -> void:
@@ -72,6 +101,7 @@ const DIRS: Array[String] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 func _process(_delta: float) -> void:
 	if world == null or world.player == null:
 		return
+	_update_squad_strip(_delta)
 	var cam: Camera3D = world.player.get_node_or_null("Head/Camera3D")
 	if cam == null:
 		return

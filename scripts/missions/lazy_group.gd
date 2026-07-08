@@ -18,6 +18,10 @@ var _timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
 
+func _ready() -> void:
+	add_to_group("lazy_groups")
+
+
 func setup(mission_director: MissionDirector, rng_seed: int) -> void:
 	director = mission_director
 	_rng.seed = rng_seed

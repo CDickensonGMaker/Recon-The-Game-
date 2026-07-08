@@ -143,6 +143,17 @@ func _physics_process(delta: float) -> void:
 			global_position = _seat_node.global_position
 		return
 
+	# Downed (W17): on the deck waiting for Doc - no movement, low camera.
+	if health_system and health_system.is_downed:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		velocity.y -= 9.8 * delta
+		move_and_slide()
+		var head_node := get_node_or_null("Head") as Node3D
+		if head_node:
+			head_node.position.y = lerpf(head_node.position.y, 0.45, delta * 3.0)
+		return
+
 	# Cap delta for framerate independence (Quake 3 pattern - max 66ms)
 	var capped_delta: float = minf(delta, 0.066)
 

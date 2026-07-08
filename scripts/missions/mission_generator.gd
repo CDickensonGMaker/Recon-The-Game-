@@ -244,13 +244,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				sw.start(world, int(p.seed) + 4444)
 				sensors.append(sw)
 
-	# Firebase defense: allied squad inside the wire.
-	if p.has("ally_count"):
-		for i in range(int(p.get("ally_count", 0))):
-			var a := TAU * float(i) / maxf(1.0, float(p.ally_count))
-			var apos: Vector3 = p.firebase_center + Vector3(cos(a), 0, sin(a)) * 8.0
-			apos.y = world.terrain_manager.get_height_at(apos) + 0.5
-			AllyBase.spawn_ally(world, apos)
+	# Squad spawning is owned by SquadSystem (W13) - GameFlow attaches it.
 
 	for group in p.enemy_groups:
 		if bool(group.get("lazy", false)):

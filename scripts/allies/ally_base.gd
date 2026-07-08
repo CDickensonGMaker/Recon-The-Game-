@@ -40,6 +40,19 @@ var aim_speed: float = 7.0
 var follow_distance: float = 5.0
 var max_follow_distance: float = 15.0
 
+## Squad layer (W14-W16): roster identity + orders.
+enum OrderMode { FOLLOW, HOLD, MOVE_TO }
+var member: Dictionary = {}      ## roster entry (name/mos/stats)
+var order_mode: OrderMode = OrderMode.FOLLOW
+var order_pos: Vector3 = Vector3.ZERO
+var weapons_free: bool = true
+var fire_rate_mult: float = 1.0  ## Pigman sustained-fire bonus
+
+
+func set_order(mode: OrderMode, pos: Vector3 = Vector3.ZERO) -> void:
+	order_mode = mode
+	order_pos = pos
+
 ## Combat behavior
 var strafe_direction: float = 0.0
 var strafe_timer: float = 0.0
@@ -203,8 +216,8 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
-	# If we have a target with LOS, engage
-	if target and has_line_of_sight:
+	# If we have a target with LOS, engage (unless holding fire - W16)
+	if target and has_line_of_sight and weapons_free:
 		current_goal = Enums.AIGoal.ENGAGE_TARGET
 		_change_state(Enums.AIState.COMBAT)
 		return
@@ -247,16 +260,27 @@ func _update_aim(delta: float) -> void:
 
 
 func _execute_idle(delta: float) -> void:
-	# Follow player if too far
-	var player := GameManager.player
-	if player and is_instance_valid(player) and player is Node3D:
-		var dist := global_position.distance_to((player as Node3D).global_position)
+	match order_mode:
+		OrderMode.FOLLOW:
+			var player := GameManager.player
+			if player and is_instance_valid(player) and player is Node3D:
+				var dist := global_position.distance_to((player as Node3D).global_position)
+				if dist > follow_distance:
+					_move_toward((player as Node3D).global_position, delta)
+				else:
+					_settle(delta)
+		OrderMode.HOLD:
+			_settle(delta)
+		OrderMode.MOVE_TO:
+			if order_pos != Vector3.ZERO and global_position.distance_to(order_pos) > 2.0:
+				_move_toward(order_pos, delta)
+			else:
+				_settle(delta)
 
-		if dist > follow_distance:
-			_move_toward((player as Node3D).global_position, delta)
-		else:
-			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
-			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
+
+func _settle(delta: float) -> void:
+	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
+	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 
 
 func _execute_combat(delta: float) -> void:
@@ -359,11 +383,11 @@ func get_muzzle_position(aim_dir: Vector3) -> Vector3:
 
 
 func _fire_at_target() -> void:
-	if not weapon_data or not target:
+	if not weapon_data or not target or not weapons_free:
 		return
 
 	can_fire = false
-	fire_timer = weapon_data.get_fire_delay()
+	fire_timer = weapon_data.get_fire_delay() / maxf(0.5, fire_rate_mult)
 	shots_fired += 1
 
 	# Use smoothly interpolated aim

@@ -320,14 +320,17 @@ func _update_perception() -> void:
 	if player != null and is_instance_valid(player):
 		best_dist = global_position.distance_to(player.global_position)
 		candidate = player
-	for ally in get_tree().get_nodes_in_group("allies"):
-		var a := ally as Node3D
-		if a == null or (a.has_method("is_dead") and a.is_dead()):
-			continue
-		var d := global_position.distance_to(a.global_position)
-		if d < best_dist:
-			best_dist = d
-			candidate = a
+	# Buddy rule (W22): squadmates are perception-exempt until we're in COMBAT -
+	# the player's stealth is never broken by their AI pathing.
+	if alert_tier == AlertTier.COMBAT:
+		for ally in get_tree().get_nodes_in_group("allies"):
+			var a := ally as Node3D
+			if a == null or (a.has_method("is_dead") and a.is_dead()):
+				continue
+			var d := global_position.distance_to(a.global_position)
+			if d < best_dist:
+				best_dist = d
+				candidate = a
 
 	var gain: float = 0.0
 	if candidate != null:

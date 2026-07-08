@@ -109,7 +109,14 @@ func _process(delta: float) -> void:
 		request_cas_strike()
 
 
+var squad_system: SquadSystem = null
+
+
 func request_cas_strike() -> void:
+	# W19: no radioman, no fast movers.
+	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+		toast.emit("RADIO IS DEAD - NO COMMS, NO AIR")
+		return
 	if cas_budget <= 0:
 		toast.emit("NO AIR SUPPORT REMAINING")
 		return

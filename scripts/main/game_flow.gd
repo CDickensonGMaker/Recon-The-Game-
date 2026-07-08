@@ -7,6 +7,7 @@ var current_screen: Node = null
 var world: GameWorld = null
 var director: MissionDirector = null
 var mission_hud: MissionHUD = null
+var squad: SquadSystem = null
 var session_rng := RandomNumberGenerator.new()
 var current_offer: Dictionary = {}
 var _debrief_pending: bool = false
@@ -31,6 +32,7 @@ func _teardown_world() -> void:
 		world = null
 	director = null
 	mission_hud = null
+	squad = null
 	GameManager.player = null
 	GameManager.is_paused = false
 	get_tree().paused = false
@@ -101,6 +103,13 @@ func _run_mission(offer: Dictionary) -> void:
 	world.add_child(mission_hud)
 	mission_hud.setup(world, director, built.sensors, built.exfil_zone, plan)
 
+	# The squad rides with you (W13).
+	squad = SquadSystem.new()
+	world.add_child(squad)
+	squad.setup(world, director, spawn)
+	mission_hud.squad = squad
+	director.squad_system = squad
+
 	if plan.has("start_pad"):
 		var ride := InsertionRide.new()
 		world.add_child(ride)
@@ -116,6 +125,8 @@ func _on_mission_ended(result: Dictionary) -> void:
 	if _debrief_pending:
 		return
 	_debrief_pending = true
+	if squad != null and is_instance_valid(squad):
+		squad.on_mission_end()
 	CampaignState.on_mission_end(result)
 	_show_debrief_delayed(result)
 
