@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>US Grunt Sprite Viewer</title>
+<style>
+  body { background:#1a1d18; color:#cfd4c4; font-family:Consolas,monospace; margin:16px; }
+  h1 { font-size:18px; color:#8a8c77; }
+  .controls { position:sticky; top:0; background:#1a1d18; padding:8px 0; z-index:5;
+              display:flex; gap:18px; align-items:center; border-bottom:1px solid #333a2c; }
+  .card { margin:18px 0; padding:10px; background:#22261f; border:1px solid #333a2c; border-radius:6px; }
+  .card h2 { font-size:14px; margin:0 0 8px 0; color:#9ba48c; }
+  .dirs { display:flex; gap:6px; flex-wrap:wrap; }
+  .dir { text-align:center; }
+  .dir span { font-size:10px; color:#6b7358; display:block; margin-top:2px; }
+  canvas { background:#3a3f35; border:1px solid #2e3329; image-rendering:pixelated; }
+  input[type=range] { accent-color:#6b7358; }
+  label { font-size:12px; }
+  button { background:#333a2c; color:#cfd4c4; border:1px solid #4e5844; padding:4px 10px;
+           cursor:pointer; font-family:inherit; }
+  button.active { background:#4e6844; }
+</style>
+</head>
+<body>
+<h1>US GRUNT — 21 animations × 8 directions</h1>
+<div class="controls">
+  <label>FPS <input type="range" id="fps" min="2" max="24" value="10">
+         <span id="fpsval">10</span></label>
+  <label>Zoom <input type="range" id="zoom" min="1" max="3" value="1">
+         <span id="zoomval">1x</span></label>
+  <button id="qbtn" class="active">Quantized</button>
+  <button id="rbtn">Raw</button>
+</div>
+<div id="cards"></div>
+<script>
+const ANIMS = ["action_idle_to_standing_idle","brutal_assassination","death_forward",
+  "death_from_right","firing_rifle","injured_walk_backwards","kneeling_pointing",
+  "laying_breathless","pilot_flips_switches","reloading","rifle_aiming_idle",
+  "rifle_crouch_idle_to_walk","rifle_turn","run_forward","sitting","stand_to_cover",
+  "start_walking","stop_walking_with_rifle","strafe","strafe_1","swimming"];
+const DIRS = ["front","front_right","right","back_right","back","back_left","left","front_left"];
+const W = 128, H = 160, COLS = 8;
+let fps = 10, zoom = 1, suffix = "_q";
+const imgs = {};
+
+function loadAll() {
+  ANIMS.forEach(a => {
+    const im = new Image();
+    im.src = a + "/" + a + "_ALL" + suffix + ".png";
+    imgs[a] = im;
+  });
+}
+
+const cards = document.getElementById('cards');
+ANIMS.forEach(a => {
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = '<h2>' + a + '</h2>';
+  const row = document.createElement('div'); row.className = 'dirs';
+  DIRS.forEach((d, di) => {
+    const wrap = document.createElement('div'); wrap.className = 'dir';
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    cv.dataset.anim = a; cv.dataset.dir = di;
+    wrap.appendChild(cv);
+    const lb = document.createElement('span'); lb.textContent = d;
+    wrap.appendChild(lb);
+    row.appendChild(wrap);
+  });
+  card.appendChild(row);
+  cards.appendChild(card);
+});
+
+let frame = 0, last = 0;
+function tick(t) {
+  if (t - last >= 1000 / fps) {
+    last = t; frame++;
+    document.querySelectorAll('canvas').forEach(cv => {
+      const im = imgs[cv.dataset.anim];
+      if (!im || !im.complete || !im.naturalWidth) return;
+      const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(im, (frame % COLS) * W, cv.dataset.dir * H, W, H,
+                    0, 0, cv.width, cv.height);
+    });
+  }
+  requestAnimationFrame(tick);
+}
+
+function setZoom(z) {
+  document.querySelectorAll('canvas').forEach(cv => {
+    cv.style.width = (W * z) + 'px'; cv.style.height = (H * z) + 'px';
+  });
+}
+
+document.getElementById('fps').oninput = e => {
+  fps = +e.target.value; document.getElementById('fpsval').textContent = fps; };
+document.getElementById('zoom').oninput = e => {
+  zoom = +e.target.value; document.getElementById('zoomval').textContent = zoom + 'x'; setZoom(zoom); };
+document.getElementById('qbtn').onclick = () => {
+  suffix = '_q'; loadAll();
+  document.getElementById('qbtn').classList.add('active');
+  document.getElementById('rbtn').classList.remove('active'); };
+document.getElementById('rbtn').onclick = () => {
+  suffix = ''; loadAll();
+  document.getElementById('rbtn').classList.add('active');
+  document.getElementById('qbtn').classList.remove('active'); };
+
+loadAll();
+setZoom(1);
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
