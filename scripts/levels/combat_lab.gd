@@ -32,6 +32,17 @@ const BILLBOARD_DIR := "res://terrain/textures/billboards/"
 const BUSHES: Array[String] = ["bush1", "bush2", "bush3", "bush4", "bush5", "bush6", "bush7", "bush8", "bush9"]
 const TREES: Array[String] = ["tree1", "tree2", "tree3", "tree4", "tree5", "tree6"]
 
+## LAB ONLY. Nothing here changes the shipped game: EnemyBase always builds a
+## SpriteActor. The lab tears that down and rebuilds, so you can A/B the 8-dir
+## billboards against the 3D models against the old capsules -- look, feel, and
+## cost -- with the draw-call and primitive counters right there in the HUD.
+enum VisualMode { SPRITE, MODEL, CAPSULE }
+const MODEL_DIR := "res://assets/NPCs/models/"   ## <sprite_unit>.glb
+const TARGET_HEIGHT_M: float = 1.7132            ## manifests' character_height_m
+
+var visual_mode: VisualMode = VisualMode.SPRITE
+var _model_warned: Dictionary = {}
+
 var player: CharacterBody3D = null  ## player.gd has no class_name; it extends CharacterBody3D
 var _hud: Label = null
 var _help: Label = null
@@ -246,7 +257,125 @@ func spawn_enemy(data_path: String = VC, pos: Vector3 = Vector3.INF) -> EnemyBas
 	e.died.connect(_on_enemy_died)
 	if _frozen:
 		e.set_physics_process(false)
+	await get_tree().process_frame   # let _ready() build the default visual
+	_apply_visual_mode(e)
 	return e
+
+
+# ------------------------------------------------------- A/B visual swapper
+func _mode_name() -> String:
+	return ["SPRITE", "MODEL", "CAPSULE"][int(visual_mode)]
+
+
+func _cycle_visual_mode() -> void:
+	visual_mode = ((int(visual_mode) + 1) % 3) as VisualMode
+	for n in get_tree().get_nodes_in_group("enemies"):
+		var e := n as EnemyBase
+		if e != null and not e.is_dead():
+			_apply_visual_mode(e)
+	print("[COMBAT LAB] visual mode -> %s" % _mode_name())
+
+
+func _strip_visual(e: EnemyBase) -> void:
+	if e.sprite_actor != null:
+		e.sprite_actor.queue_free()
+		e.sprite_actor = null
+	if e.mesh != null:
+		e.mesh.queue_free()
+		e.mesh = null
+	var old := e.get_node_or_null("LabModel")
+	if old != null:
+		old.free()
+
+
+func _apply_visual_mode(e: EnemyBase) -> void:
+	if e == null or not is_instance_valid(e) or e.enemy_data == null:
+		return
+	_strip_visual(e)
+	match visual_mode:
+		VisualMode.SPRITE:
+			e._setup_visual()
+		VisualMode.MODEL:
+			if not _build_model(e):
+				e._setup_visual()   # no glb yet - show the sprite rather than nothing
+		VisualMode.CAPSULE:
+			_build_capsule(e)
+
+
+func _build_capsule(e: EnemyBase) -> void:
+	e.mesh = MeshInstance3D.new()
+	var capsule := CapsuleMesh.new()
+	capsule.radius = 0.4
+	capsule.height = 1.8
+	e.mesh.mesh = capsule
+	e.mesh.position.y = 0.9
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = e.enemy_data.color
+	e.mesh.material_override = mat
+	e.add_child(e.mesh)
+
+
+## Looks for assets/NPCs/models/<sprite_unit>.glb, normalises it to the sprites'
+## 1.7132m so silhouettes are comparable, seats it on the feet, and autoplays an
+## idle clip if the rig ships one.
+func _build_model(e: EnemyBase) -> bool:
+	var unit: String = str(e.enemy_data.sprite_unit)
+	if unit.is_empty():
+		return false
+	var path: String = MODEL_DIR + unit + ".glb"
+	if not ResourceLoader.exists(path):
+		if not _model_warned.has(unit):
+			_model_warned[unit] = true
+			print("[COMBAT LAB] no 3D model for '%s' - drop one at %s" % [unit, path])
+		return false
+	var packed: PackedScene = load(path)
+	if packed == null:
+		return false
+
+	var holder := Node3D.new()
+	holder.name = "LabModel"
+	e.add_child(holder)
+	var inst := packed.instantiate() as Node3D
+	holder.add_child(inst)
+
+	# Normalise height so a 3D model and a sprite occupy the same silhouette.
+	var aabb := _aabb_of(inst)
+	if aabb.size.y > 0.01:
+		var k: float = TARGET_HEIGHT_M / aabb.size.y
+		inst.scale = Vector3(k, k, k)
+		inst.position.y = -aabb.position.y * k   # seat the feet on y=0
+
+	var anim := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if anim != null:
+		for want in ["idle", "Idle", "rifle_aiming_idle"]:
+			if anim.has_animation(want):
+				anim.play(want)
+				break
+	return true
+
+
+func _aabb_of(root: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for n in _walk(root):
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var a: AABB = mi.get_aabb()
+		a.position += mi.position
+		if first:
+			out = a
+			first = false
+		else:
+			out = out.merge(a)
+	return out
+
+
+func _walk(n: Node) -> Array[Node]:
+	var out: Array[Node] = [n]
+	for c in n.get_children():
+		out.append_array(_walk(c))
+	return out
 
 
 func spawn_ally() -> void:
@@ -372,8 +501,12 @@ func _update_hud() -> void:
 
 	var hit_pct: float = (100.0 * float(_hits) / float(_shots)) if _shots > 0 else 0.0
 	var lines: Array[String] = []
-	lines.append("COMBAT LAB   fps %d   %s%s%s" % [
+	lines.append("COMBAT LAB   [%s]   fps %d   draws %d  prims %d  vram %.0fMB   %s%s%s" % [
+		_mode_name(),
 		Engine.get_frames_per_second(),
+		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+		Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
 		"[AI FROZEN] " if _frozen else "",
 		"[GOD] " if _god else "",
 		"[SLOWMO %.2fx] " % Engine.time_scale if not is_equal_approx(Engine.time_scale, 1.0) else "",
@@ -398,6 +531,7 @@ func _update_hud() -> void:
 
 	lines.append("")
 	lines.append("1 VC  2 x3  3 ally  4 NVA  5 farmer  6 sapper(RPD)  7 rocketeer(RPG)")
+	lines.append("M cycle visual (SPRITE/MODEL/CAPSULE)   C reload sprite cache")
 	lines.append("R reset  K kill all  F freeze  G god  H hud  [ / ] timescale")
 	_hud.text = "\n".join(lines)
 
@@ -435,6 +569,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			_god = not _god
 		KEY_H:
 			_hud.visible = not _hud.visible
+		KEY_M:
+			_cycle_visual_mode()
+		KEY_C:
+			# Sheets are being re-rendered while we work; drop the cache so the
+			# next spawn picks up the new PNGs without restarting the lab.
+			SpriteLibrary.clear()
+			_model_warned.clear()
+			print("[COMBAT LAB] sprite cache cleared")
 		KEY_BRACKETLEFT:
 			Engine.time_scale = maxf(0.05, Engine.time_scale * 0.5)
 		KEY_BRACKETRIGHT:
