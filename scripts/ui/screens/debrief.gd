@@ -36,14 +36,16 @@ func _ready() -> void:
 	var root := ReconUI.make_screen_root()
 	add_child(root)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.add_theme_constant_override("separation", 10)
-	root.add_child(box)
-	var head_color := ReconUI.AMBER if bool(result.success) else Color(0.8, 0.35, 0.25)
-	box.add_child(ReconUI.make_label("AFTER ACTION REPORT", 28, head_color))
-	box.add_child(ReconUI.make_label(_rank_word(), 20, head_color))
-	box.add_child(ReconUI.make_label("-------------------------------------", 14, ReconUI.DIM))
+	var outer := VBoxContainer.new()
+	outer.set_anchors_preset(Control.PRESET_CENTER)
+	outer.add_theme_constant_override("separation", 14)
+	root.add_child(outer)
+	var head_color := ReconUI.AMBER if bool(result.success) else ReconUI.ALERT
+	outer.add_child(ReconUI.make_header("AFTER ACTION REPORT", 28))
+	outer.add_child(ReconUI.make_label(_rank_word(), 20, head_color))
+
+	var panel := ReconUI.make_panel()
+	outer.add_child(panel)
 	var lines := [
 		"MISSION:      %s (SEED %d)" % [result.mission_type, int(result.seed)],
 		"OBJECTIVES:   %d / %d  (x100)" % [int(result.objectives_done), int(result.objectives_total)],
@@ -58,9 +60,9 @@ func _ready() -> void:
 		lines.append("THE PILOT DIDN'T MAKE IT: -100")
 	if bool(result.emergency_exfil):
 		lines.append("EMERGENCY EXFIL: -50")
-	box.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))
-	box.add_child(ReconUI.make_label("SCORE: %d" % compute_score(result), 24, head_color))
-	box.add_child(ReconUI.make_label(" ", 8))
-	var cont := ReconUI.make_button("[ CONTINUE ]")
+	panel.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))
+
+	outer.add_child(ReconUI.make_label("SCORE: %d" % compute_score(result), 24, head_color))
+	var cont := ReconUI.make_card_button("[ CONTINUE ]", 18)
 	cont.pressed.connect(func() -> void: continue_pressed.emit())
-	box.add_child(cont)
+	outer.add_child(cont)

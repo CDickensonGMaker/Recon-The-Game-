@@ -67,38 +67,14 @@ func _ready() -> void:
 
 ## Menu row with the mockup's olive highlight bar on hover/focus.
 func _add_menu_button(parent: Control, text: String, action: Callable) -> void:
-	var b := Button.new()
-	b.text = "  %s" % text
-	b.flat = true
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.custom_minimum_size = Vector2(330, 40)
-	b.add_theme_font_override("font", ReconUI.mono_font())
-	b.add_theme_font_size_override("font_size", 21)
-	b.add_theme_color_override("font_color", Color(0.8, 0.79, 0.72))
-	b.add_theme_color_override("font_hover_color", Color(0.1, 0.1, 0.08))
-	b.add_theme_color_override("font_focus_color", Color(0.1, 0.1, 0.08))
-	var hover := StyleBoxFlat.new()
-	hover.bg_color = Color(0.55, 0.58, 0.36)  # olive highlight bar
-	hover.set_content_margin_all(4)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("focus", hover)
-	var flat := StyleBoxEmpty.new()
-	b.add_theme_stylebox_override("normal", flat)
-	b.add_theme_stylebox_override("pressed", hover)
-	b.pressed.connect(action)
+	var b := ReconUI.make_menu_button(text, action)
 	parent.add_child(b)
 	_buttons.append(b)
 
 
 ## Bottom-right INTEL BRIEFING panel (mockup): teases the next operation.
 func _build_intel_panel() -> void:
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.055, 0.045, 0.85)
-	style.border_color = Color(0.4, 0.42, 0.3)
-	style.set_border_width_all(1)
-	style.set_content_margin_all(14)
-	panel.add_theme_stylebox_override("panel", style)
+	var panel := ReconUI.make_panel()
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel.position = Vector2(-420, -220)
 	panel.custom_minimum_size = Vector2(370, 0)

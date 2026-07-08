@@ -1,5 +1,5 @@
-﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 05:15:41 ===
---- RENDER us_grunt / m16a1 07/08/2026 05:15:41 ---
+﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 10:08:26 ===
+--- RENDER us_grunt / m16a1 07/08/2026 10:08:26 ---
 
 UNIT=us_grunt RIG=MixamoRig hidden=['VC1_Farmer', 'AK47_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']
 FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)
@@ -26,7 +26,7 @@ FRAMES DONE: swimming (8 cols x 8 dirs)
 ALL FRAMES COMPLETE: 21
 
 
---- ASSEMBLE us_grunt / m16a1 07/08/2026 05:20:27 ---
+--- ASSEMBLE us_grunt / m16a1 07/08/2026 10:08:36 ---
 
 ASSEMBLED: action_idle_to_standing_idle (8 cols)
 ASSEMBLED: brutal_assassination (8 cols)
@@ -52,4 +52,7 @@ ASSEMBLED: swimming (8 cols)
 DONE: 21 animations
 
 
---- RENDER vc1_farmer / ak47 07/08/2026 05:21:40 ---
+--- RENDER vc1_farmer / ak47 07/08/2026 10:09:56 ---
+
+UNIT=vc1_farmer RIG=MixamoRig_VC1 hidden=['US_Grunt_Rigged', 'M16A1_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']
+FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)

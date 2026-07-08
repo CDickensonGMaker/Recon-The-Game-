@@ -9,11 +9,18 @@ func _ready() -> void:
 	var root := ReconUI.make_screen_root()
 	add_child(root)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	var outer := VBoxContainer.new()
+	outer.set_anchors_preset(Control.PRESET_CENTER)
+	outer.add_theme_constant_override("separation", 14)
+	root.add_child(outer)
+	outer.add_child(ReconUI.make_header("SETTINGS", 28))
+
+	var panel := ReconUI.make_panel()
+	outer.add_child(panel)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.add_theme_constant_override("separation", 14)
-	root.add_child(box)
-	box.add_child(ReconUI.make_label("SETTINGS", 28, ReconUI.AMBER))
+	box.custom_minimum_size = Vector2(360, 0)
+	panel.add_child(box)
 
 	box.add_child(ReconUI.make_label("MOUSE SENSITIVITY", 13, ReconUI.DIM))
 	var sens := HSlider.new()
@@ -40,7 +47,7 @@ func _ready() -> void:
 		GameSettings.save_settings())
 	box.add_child(vol)
 
-	var diff := ReconUI.make_button("DIFFICULTY: %s" % GameSettings.DIFFICULTY_NAMES[GameSettings.difficulty], 16)
+	var diff := ReconUI.make_link_button("DIFFICULTY: %s" % GameSettings.DIFFICULTY_NAMES[GameSettings.difficulty], 16)
 	diff.pressed.connect(func() -> void:
 		GameSettings.difficulty = (GameSettings.difficulty + 1) % 3
 		diff.text = "DIFFICULTY: %s" % GameSettings.DIFFICULTY_NAMES[GameSettings.difficulty]
@@ -57,6 +64,6 @@ func _ready() -> void:
 		GameSettings.save_settings())
 	box.add_child(hardcore)
 
-	var back := ReconUI.make_button("[ BACK ]", 16)
+	var back := ReconUI.make_link_button("< BACK", 16)
 	back.pressed.connect(func() -> void: back_pressed.emit())
-	box.add_child(back)
+	outer.add_child(back)

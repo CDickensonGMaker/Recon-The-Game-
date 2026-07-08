@@ -38,11 +38,14 @@ func _build() -> void:
 	_marker_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_marker_box)
 
+	var compass_panel := ReconUI.make_panel()
+	compass_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	compass_panel.position = Vector2(-70, 4)
+	compass_panel.custom_minimum_size = Vector2(140, 0)
+	add_child(compass_panel)
 	_compass = ReconUI.make_label("", 16, ReconUI.AMBER)
-	_compass.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_compass.position.y = 8.0
 	_compass.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_compass)
+	compass_panel.add_child(_compass)
 
 	_toast_box = VBoxContainer.new()
 	_toast_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -70,7 +73,6 @@ func _build() -> void:
 
 var _prompt: Label
 var squad: SquadSystem = null
-var _squad_strip: Label
 var _squad_poll: float = 0.0
 
 
@@ -83,19 +85,24 @@ func set_prompt(text: String) -> void:
 var _fire_menu: VBoxContainer
 
 
+var _fire_panel: PanelContainer
+
+
 func _on_fire_menu_changed(open: bool) -> void:
-	if _fire_menu == null:
+	if _fire_panel == null:
+		_fire_panel = ReconUI.make_panel()
+		_fire_panel.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		_fire_panel.position = Vector2(40, -110)
 		_fire_menu = VBoxContainer.new()
-		_fire_menu.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-		_fire_menu.position = Vector2(40, -90)
 		_fire_menu.add_theme_constant_override("separation", 4)
-		add_child(_fire_menu)
-	_fire_menu.visible = open
+		_fire_panel.add_child(_fire_menu)
+		add_child(_fire_panel)
+	_fire_panel.visible = open
 	if not open:
 		return
 	for c in _fire_menu.get_children():
 		c.queue_free()
-	_fire_menu.add_child(ReconUI.make_label("== FIRE SUPPORT ==", 16, ReconUI.AMBER))
+	_fire_menu.add_child(ReconUI.make_header("CALL FOR FIRE", 16))
 	var fs: Dictionary = director.fire_support
 	var rows := [
 		["1", "CAS - SNAKE EYE BOMBS", "bombs"],
@@ -151,17 +158,31 @@ func _show_slot_slider() -> void:
 	_slider_tween.tween_property(_slot_slider, "modulate:a", 0.0, 0.4)
 
 
-## W66: red pip on a ring around center pointing at incoming fire.
+## W66: red wedge on a ring around center pointing at incoming fire.
 func show_damage_direction(rel_angle: float) -> void:
-	var pip := ReconUI.make_label("|", 26, Color(0.9, 0.2, 0.15))
+	var pip := ReconUI.make_label("▲", 30, Color(0.95, 0.25, 0.15))
 	pip.set_anchors_preset(Control.PRESET_CENTER)
-	var radius: float = 110.0
-	pip.position = Vector2(sin(rel_angle), -cos(rel_angle)) * radius - Vector2(4, 14)
+	var radius: float = 130.0
+	pip.position = Vector2(sin(rel_angle), -cos(rel_angle)) * radius - Vector2(10, 16)
 	pip.rotation = rel_angle
 	add_child(pip)
 	var tween := create_tween()
-	tween.tween_property(pip, "modulate:a", 0.0, 0.7)
+	tween.tween_interval(0.15)
+	tween.tween_property(pip, "modulate:a", 0.0, 0.55)
 	tween.tween_callback(pip.queue_free)
+
+
+var _squad_panel: PanelContainer
+var _squad_header: Label
+var _squad_rows: VBoxContainer
+
+
+const STATUS_COLOR := {
+	"OK": Color(0.6, 0.82, 0.5),
+	"HIT": Color(0.88, 0.75, 0.3),
+	"CRIT": Color(0.9, 0.45, 0.25),
+	"KIA": Color(0.5, 0.5, 0.5),
+}
 
 
 func _update_squad_strip(delta: float) -> void:
@@ -171,12 +192,23 @@ func _update_squad_strip(delta: float) -> void:
 	if _squad_poll < 0.5:
 		return
 	_squad_poll = 0.0
-	if _squad_strip == null:
-		_squad_strip = ReconUI.make_label("", 13, ReconUI.OLIVE)
-		_squad_strip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		_squad_strip.position = Vector2(12, -160)
-		add_child(_squad_strip)
-	var lines: Array[String] = []
+	if _squad_panel == null:
+		_squad_panel = ReconUI.make_panel()
+		_squad_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		_squad_panel.position = Vector2(12, -190)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 3)
+		_squad_panel.add_child(col)
+		_squad_header = ReconUI.make_label("", 13, ReconUI.AMBER)
+		col.add_child(_squad_header)
+		_squad_rows = VBoxContainer.new()
+		_squad_rows.add_theme_constant_override("separation", 2)
+		col.add_child(_squad_rows)
+		add_child(_squad_panel)
+	var fire_mode := "WEAPONS FREE" if squad.weapons_free else "WEAPONS TIGHT"
+	_squad_header.text = "SQUAD // %s" % fire_mode
+	for c in _squad_rows.get_children():
+		c.queue_free()
 	for a in squad.members:
 		if not is_instance_valid(a):
 			continue
@@ -185,9 +217,8 @@ func _update_squad_strip(delta: float) -> void:
 		if not a.is_dead():
 			var hp_frac: float = float(a.current_hp) / float(a.max_hp)
 			status = "OK" if hp_frac > 0.6 else ("HIT" if hp_frac > 0.25 else "CRIT")
-		lines.append("%s %s [%s]" % [str(m.get("nick", "?")), str(m.get("mos", "")), status])
-	var fire_mode := "FREE" if squad.weapons_free else "TIGHT"
-	_squad_strip.text = "SQUAD (%s)\n%s" % [fire_mode, "\n".join(lines)]
+		var line := "%-10s %-8s %s" % [str(m.get("nick", "?")), str(m.get("mos", "")), status]
+		_squad_rows.add_child(ReconUI.make_label(line, 12, STATUS_COLOR.get(status, ReconUI.OLIVE)))
 
 
 func show_toast(text: String) -> void:

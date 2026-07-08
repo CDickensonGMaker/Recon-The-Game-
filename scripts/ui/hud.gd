@@ -7,9 +7,9 @@ extends CanvasLayer
 @onready var hp_label: Label = $MarginContainer/VBoxContainer/TopRow/HPBar/HPLabel
 @onready var bleed_container: Control = $MarginContainer/VBoxContainer/TopRow/BleedContainer
 @onready var bleed_label: Label = $MarginContainer/VBoxContainer/TopRow/BleedContainer/BleedLabel
-@onready var weapon_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponInfo/WeaponLabel
-@onready var ammo_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponInfo/AmmoLabel
-@onready var mag_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponInfo/MagLabel
+@onready var weapon_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/WeaponLabel
+@onready var ammo_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/AmmoLabel
+@onready var mag_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/MagLabel
 @onready var grenade_label: Label = $MarginContainer/VBoxContainer/BottomRow/GrenadeLabel
 @onready var medkit_label: Label = $MarginContainer/VBoxContainer/BottomRow/MedkitLabel
 @onready var healing_bar: ProgressBar = $MarginContainer/VBoxContainer/HealingBar
@@ -117,7 +117,7 @@ func _on_weapon_switched(_weapon_data: WeaponData) -> void:
 
 func _update_weapon_display() -> void:
 	if weapon_holder and weapon_holder.current_weapon:
-		weapon_label.text = weapon_holder.current_weapon.display_name
+		weapon_label.text = weapon_holder.current_weapon.display_name.to_upper()
 
 
 func _on_slot_changed(_slot_index: int, _slot_type: Enums.SlotType) -> void:

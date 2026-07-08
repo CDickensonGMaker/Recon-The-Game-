@@ -14,16 +14,15 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.add_theme_constant_override("separation", 8)
+	box.custom_minimum_size = Vector2(760, 0)
+	box.add_theme_constant_override("separation", 10)
 	root.add_child(box)
-	box.add_child(ReconUI.make_label("BARRACKS - RECON TEAM", 28, ReconUI.AMBER))
+	box.add_child(ReconUI.make_header("BARRACKS - RECON TEAM", 28))
 	_xp_label = ReconUI.make_label("", 16, ReconUI.OLIVE)
 	box.add_child(_xp_label)
-	box.add_child(ReconUI.make_label("------------------------------------------------------------", 12, ReconUI.DIM))
 	_rows = VBoxContainer.new()
 	_rows.add_theme_constant_override("separation", 6)
 	box.add_child(_rows)
-	box.add_child(ReconUI.make_label(" ", 6))
 
 	var iron := CheckBox.new()
 	iron.text = "IRON MAN (death archives the campaign)"
@@ -35,7 +34,7 @@ func _ready() -> void:
 		CampaignState.save_campaign())
 	box.add_child(iron)
 
-	var back := ReconUI.make_button("[ BACK ]", 16)
+	var back := ReconUI.make_link_button("< BACK", 16)
 	back.pressed.connect(func() -> void: back_pressed.emit())
 	box.add_child(back)
 	_refresh()
@@ -53,8 +52,10 @@ func _refresh() -> void:
 
 
 func _add_row(target: Dictionary, label_name: String, is_player: bool) -> void:
+	var panel := ReconUI.make_panel()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
+	panel.add_child(row)
 	var mos: String = str(target.get("mos", "RIFLEMAN"))
 	var skill_id: String = str(SkillCatalog.MOS_SKILL.get(mos, "small_arms"))
 	var skill_level: int = int((target.get("skills", {}) as Dictionary).get(skill_id, 0))
@@ -63,17 +64,19 @@ func _add_row(target: Dictionary, label_name: String, is_player: bool) -> void:
 		int(target.get("al", 100)), str(SkillCatalog.SKILLS[skill_id].name), skill_level]
 	if not is_player:
 		info += "  K:%d M:%d" % [int(target.get("kills", 0)), int(target.get("missions", 0))]
-	row.add_child(ReconUI.make_label(info, 13, ReconUI.OLIVE))
+	var info_label := ReconUI.make_label(info, 13, ReconUI.TEXT)
+	info_label.custom_minimum_size = Vector2(360, 0)
+	row.add_child(info_label)
 
-	var skill_btn := ReconUI.make_button("[+%s %d]" % [str(SkillCatalog.SKILLS[skill_id].name), int(SkillCatalog.SKILLS[skill_id].cost)], 12)
+	var skill_btn := ReconUI.make_link_button("[+%s %d]" % [str(SkillCatalog.SKILLS[skill_id].name), int(SkillCatalog.SKILLS[skill_id].cost)], 12)
 	skill_btn.pressed.connect(func() -> void:
 		if SkillCatalog.buy_skill(target, skill_id):
 			_refresh())
 	row.add_child(skill_btn)
 	for attr in ["st", "ag", "al"]:
-		var b := ReconUI.make_button("[+%s]" % attr.to_upper(), 12)
+		var b := ReconUI.make_link_button("[+%s]" % attr.to_upper(), 12)
 		b.pressed.connect(func() -> void:
 			if SkillCatalog.buy_attribute(target, attr):
 				_refresh())
 		row.add_child(b)
-	_rows.add_child(row)
+	_rows.add_child(panel)
