@@ -139,6 +139,10 @@ func _finish_healing() -> void:
 	_hide_medkit()
 	health_packs -= 1
 
+	# W37: a full medkit treatment clears limb wounds too.
+	if controller and controller.has_method("clear_wounds"):
+		controller.clear_wounds()
+
 	# Stop bleeding and restore health
 	is_bleeding = false
 	bleeding_stopped.emit()

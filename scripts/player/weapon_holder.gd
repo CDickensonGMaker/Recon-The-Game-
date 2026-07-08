@@ -141,10 +141,12 @@ func _update_ads(delta: float) -> void:
 	var target := 1.0 if is_aiming else 0.0
 	ads_transition = lerp(ads_transition, target, delta * ADS_SPEED)
 
-	# FOV stays constant at BASE_FOV for consistency with viewmodel editor
-	# (ads_fov zoom disabled for now)
+	# W40: ADS FOV zoom re-enabled (per-weapon ads_fov; 0 = no zoom).
 	if camera:
-		camera.fov = BASE_FOV
+		var zoom_fov: float = BASE_FOV
+		if current_weapon and current_weapon.ads_fov > 10.0:
+			zoom_fov = current_weapon.ads_fov
+		camera.fov = lerpf(BASE_FOV, zoom_fov, ads_transition)
 
 	# Apply movement speed modifier to controller
 	if controller and current_weapon:
@@ -152,11 +154,19 @@ func _update_ads(delta: float) -> void:
 		# Speed modifier is applied through equipment_manager
 
 
+signal target_hit(killed: bool)
+var _burst_left: int = 0
+
+
 func _update_firing(delta: float) -> void:
 	if fire_timer > 0:
 		fire_timer -= delta
 		if fire_timer <= 0:
 			can_fire = true
+			# Burst continuation (W40): remaining rounds fire on cadence.
+			if _burst_left > 0 and current_ammo > 0 and not is_reloading:
+				_fire_shot()
+				_burst_left -= 1
 
 
 func _try_fire() -> void:
@@ -168,7 +178,7 @@ func _try_fire() -> void:
 			GunFX.play_click(self)
 		return
 
-	# Check firing mode
+	# Check firing mode (W40: real bolt-cycle + 3-round burst)
 	match current_weapon.firing_mode:
 		Enums.FiringMode.SEMI_AUTO:
 			if not Input.is_action_just_pressed("fire"):
@@ -180,10 +190,13 @@ func _try_fire() -> void:
 			if not Input.is_action_just_pressed("fire"):
 				return
 			_fire_shot()
+			fire_timer = current_weapon.get_fire_delay() * 2.5  # work the bolt
 		Enums.FiringMode.BURST:
-			if not Input.is_action_just_pressed("fire"):
+			if not Input.is_action_just_pressed("fire") or _burst_left > 0:
 				return
+			_burst_left = 3
 			_fire_shot()
+			_burst_left -= 1
 
 
 func _fire_shot() -> void:
@@ -194,6 +207,12 @@ func _fire_shot() -> void:
 	# Calculate spread (W28: Small Arms skill tightens the cone)
 	var spread := current_weapon.get_spread(ads_transition)
 	spread *= 1.0 / (1.0 + 0.06 * float(CampaignState.player_skill("small_arms")))
+	# W34/W37: prone steadies, arm wounds shake.
+	if controller:
+		if "is_prone" in controller and controller.is_prone:
+			spread *= 0.6
+		if "wounded_arms" in controller and controller.wounded_arms:
+			spread *= 1.35
 	var spread_rad := deg_to_rad(spread)
 
 	# Get fire direction with spread
@@ -264,11 +283,12 @@ func _fire_shot() -> void:
 				var final_damage := int(base_damage * damage_multiplier)
 				damage_target.take_damage(final_damage, current_weapon.damage_type, controller)
 
-				# Print hit feedback (debug)
+				# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone).
+				var killed: bool = damage_target.has_method("is_dead") and damage_target.is_dead()
+				target_hit.emit(killed)
+
 				if zone_name == "HEAD":
 					print("[HIT] HEADSHOT! %d damage" % final_damage)
-				else:
-					print("[HIT] %s - %d damage" % [zone_name, final_damage])
 
 		# TODO: Impact effect at result.position
 

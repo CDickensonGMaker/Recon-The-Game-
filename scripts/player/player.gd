@@ -41,8 +41,37 @@ var hitzones: Array[Hitzone] = []
 ## State tracking
 var is_crouching: bool = false
 var is_sprinting: bool = false
+var is_prone: bool = false
 var lean_amount: float = 0.0
 var current_speed: float = WALK_SPEED
+
+## Stamina (W33): sprint drains, St scales the pool, winded blocks sprint.
+const PRONE_HEIGHT: float = 0.5
+const PRONE_SPEED: float = 1.0
+var stamina: float = 100.0
+var stamina_max: float = 100.0
+const STAMINA_DRAIN: float = 18.0    ## per second sprinting
+const STAMINA_REGEN: float = 10.0    ## per second otherwise
+var _winded: bool = false
+
+## Wound effects (W37): limbs degrade function until a medkit heal.
+var wounded_legs: bool = false
+var wounded_arms: bool = false
+
+
+func apply_wound(zone_name: String) -> void:
+	match zone_name:
+		"LIMB_LEG", "LEG":
+			if not wounded_legs:
+				wounded_legs = true
+		"LIMB_ARM", "ARM", "LIMB":
+			if not wounded_arms:
+				wounded_arms = true
+
+
+func clear_wounds() -> void:
+	wounded_legs = false
+	wounded_arms = false
 
 ## Camera rotation limits
 var camera_rotation_x: float = 0.0
@@ -70,10 +99,12 @@ func _ready() -> void:
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
 	grenade_handler.setup(self, equipment_manager)
 
-	# W29: Strength scales HP (RECON: St IS your damage capacity).
+	# W29: Strength scales HP + stamina (RECON: St IS your capacity).
 	var st: float = float(CampaignState.player_data.get("st", 100))
 	health_system.max_hp = int(50.0 + st * 0.5)
 	health_system.current_hp = health_system.max_hp
+	stamina_max = 60.0 + st * 0.4
+	stamina = stamina_max
 	weapon_holder.equipment_manager = equipment_manager
 
 
@@ -185,11 +216,28 @@ func _handle_movement(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	# Check if we can sprint (not healing, not crouching)
-	var can_sprint := not is_crouching and not health_system.is_healing
+	# Prone toggle (W34).
+	if Input.is_action_just_pressed("prone"):
+		is_prone = not is_prone
+
+	# Stamina + wounds gate sprinting (W33/W37).
+	if _winded and stamina > stamina_max * 0.35:
+		_winded = false
+	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
+		and not wounded_legs and not _winded and stamina > 0.0
 	is_sprinting = Input.is_action_pressed("sprint") and can_sprint and input_dir.y < 0
 
-	if is_crouching:
+	if is_sprinting:
+		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
+		if stamina <= 0.0:
+			_winded = true
+			is_sprinting = false
+	else:
+		stamina = minf(stamina_max, stamina + STAMINA_REGEN * delta)
+
+	if is_prone:
+		current_speed = PRONE_SPEED
+	elif is_crouching:
 		current_speed = CROUCH_SPEED
 	elif is_sprinting:
 		current_speed = SPRINT_SPEED
@@ -213,13 +261,19 @@ func _handle_movement(delta: float) -> void:
 		velocity.x = lerpf(velocity.x, 0.0, delta * DECELERATION)
 		velocity.z = lerpf(velocity.z, 0.0, delta * DECELERATION)
 
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching:
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_prone:
 		velocity.y = JUMP_VELOCITY
 
 
 func _handle_crouch(delta: float) -> void:
-	is_crouching = Input.is_action_pressed("crouch")
-	var target_height := CROUCH_HEIGHT if is_crouching else STAND_HEIGHT
+	is_crouching = Input.is_action_pressed("crouch") and not is_prone
+	if is_crouching:
+		is_prone = false
+	var target_height := STAND_HEIGHT
+	if is_prone:
+		target_height = PRONE_HEIGHT
+	elif is_crouching:
+		target_height = CROUCH_HEIGHT
 
 	if collision_shape.shape is CapsuleShape3D:
 		var capsule := collision_shape.shape as CapsuleShape3D

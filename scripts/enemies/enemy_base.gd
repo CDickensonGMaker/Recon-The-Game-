@@ -348,7 +348,9 @@ func _update_perception() -> void:
 				# Base gain by proximity; stance/motion modifiers for the player.
 				gain = clampf(1.5 * (1.0 - best_dist / cap) + 0.25, 0.2, 2.0)
 				if candidate == player:
-					if "is_crouching" in player and player.is_crouching:
+					if "is_prone" in player and player.is_prone:
+						gain *= 0.35
+					elif "is_crouching" in player and player.is_crouching:
 						gain *= 0.5
 					if player.has_method("is_moving"):
 						gain *= 1.5 if player.is_moving() else 0.6
@@ -940,6 +942,10 @@ func _fire_at_target() -> void:
 				var base_damage := weapon_data.roll_damage()
 				var final_damage := int(base_damage * damage_multiplier)
 				damage_target.take_damage(final_damage, weapon_data.damage_type, self)
+
+				# W37: limb hits wound (arm = shaky aim, leg = no sprint).
+				if zone_name == "LIMB" and damage_target.has_method("apply_wound"):
+					damage_target.apply_wound("LIMB_LEG" if randf() < 0.5 else "LIMB_ARM")
 
 				if zone_name == "HEAD":
 					print("[ENEMY] HEADSHOT! %d damage" % final_damage)

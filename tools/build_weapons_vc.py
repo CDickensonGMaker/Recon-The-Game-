@@ -13,9 +13,11 @@ from mathutils import Vector
 sys.path.insert(0, r'C:\Users\caleb\RECONgame\tools')
 from weapon_builder import build_weapon, build_part, MM
 
-# ---------- clean scene ----------
-for ob in list(bpy.data.objects):
-    bpy.data.objects.remove(ob, do_unlink=True)
+# ---------- clean scene (skipped in LIVE mode: building alongside v1 guns) ----------
+LIVE = globals().get('LIVE', False)
+if not LIVE:
+    for ob in list(bpy.data.objects):
+        bpy.data.objects.remove(ob, do_unlink=True)
 
 # ---------- materials ----------
 def mat(name, hexs, rough, metal):
@@ -223,18 +225,22 @@ drum('PPSh41_drum', 358, 1.0, -108, 76, 34, BLUED)
 drum('RPD_drum',    575, 1.5, -140, 85, 75, DRUMOL)
 
 # ---------- camera + sun (same armory setup as weapons_us) ----------
-cam_data = bpy.data.cameras.new('ArmoryCam')
-cam = bpy.data.objects.new('ArmoryCam', cam_data)
-bpy.context.scene.collection.objects.link(cam)
+cam = bpy.data.objects.get('ArmoryCam')
+if cam is None:
+    cam_data = bpy.data.cameras.new('ArmoryCam')
+    cam = bpy.data.objects.new('ArmoryCam', cam_data)
+    bpy.context.scene.collection.objects.link(cam)
 cam.data.type = 'ORTHO'
 cam.data.ortho_scale = 1.45
 cam.data.clip_start = 1.85
 cam.data.clip_end = 2.2
 cam.rotation_euler = (math.radians(90), 0, 0)
-sun_data = bpy.data.lights.new('ArmorySun', 'SUN')
-sun_data.energy = 4.0
-sun = bpy.data.objects.new('ArmorySun', sun_data)
-bpy.context.scene.collection.objects.link(sun)
+sun = bpy.data.objects.get('ArmorySun')
+if sun is None:
+    sun_data = bpy.data.lights.new('ArmorySun', 'SUN')
+    sun = bpy.data.objects.new('ArmorySun', sun_data)
+    bpy.context.scene.collection.objects.link(sun)
+sun.data.energy = 4.0
 sun.rotation_euler = (math.radians(65), 0, 0)
 w = bpy.context.scene.world
 if w is None:
@@ -249,8 +255,9 @@ sc.render.engine = 'BLENDER_EEVEE'
 sc.view_settings.view_transform = 'Standard'
 sc.camera = cam
 
-bpy.ops.wm.save_as_mainfile(filepath=r'C:\Users\caleb\RECONgame\art_source\characters\blends\weapons_vc.blend')
-print('WEAPONS_VC BUILT + SAVED', flush=True)
+if not LIVE:
+    bpy.ops.wm.save_as_mainfile(filepath=r'C:\Users\caleb\RECONgame\art_source\characters\blends\weapons_vc.blend')
+print('WEAPONS_VC BUILT' + ('' if LIVE else ' + SAVED'), flush=True)
 
 # side-view study renders to scratchpad
 SCRATCH = r'C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\3228d38b-3e88-4945-9793-943544d95b3f\scratchpad'

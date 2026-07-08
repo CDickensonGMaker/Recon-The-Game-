@@ -56,6 +56,8 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	health_system.health_changed.connect(_on_health_changed)
 	health_system.health_pack_changed.connect(_on_health_pack_changed)
 	health_system.died.connect(_on_player_died)
+	if weapon_holder.has_signal("target_hit"):
+		weapon_holder.target_hit.connect(_on_target_hit)
 	health_system.healing_started.connect(_on_healing_started)
 	health_system.healing_progress.connect(_on_healing_progress)
 	health_system.healing_interrupted.connect(_on_healing_stopped)
@@ -193,6 +195,31 @@ func _on_bleeding_progress(time_remaining: float) -> void:
 func _on_bleeding_stopped() -> void:
 	if bleed_container:
 		bleed_container.visible = false
+
+
+## W38: hitmarker - brief X at the crosshair + audio tick (deeper on kill).
+var _hitmarker: Label = null
+
+
+func _on_target_hit(killed: bool) -> void:
+	if _hitmarker == null:
+		_hitmarker = Label.new()
+		_hitmarker.text = "x"
+		_hitmarker.add_theme_font_size_override("font_size", 26)
+		_hitmarker.set_anchors_preset(Control.PRESET_CENTER)
+		_hitmarker.position += Vector2(8, -14)
+		add_child(_hitmarker)
+	_hitmarker.add_theme_color_override("font_color", Color(1, 0.3, 0.2) if killed else Color(1, 1, 1, 0.9))
+	_hitmarker.modulate.a = 1.0
+	var tween := create_tween()
+	tween.tween_property(_hitmarker, "modulate:a", 0.0, 0.25)
+	var tick := AudioStreamPlayer.new()
+	tick.stream = GunFX.IMPACT_HARD
+	tick.volume_db = -8.0
+	tick.pitch_scale = 0.7 if killed else 1.4
+	add_child(tick)
+	tick.play()
+	tick.finished.connect(tick.queue_free)
 
 
 func _on_player_died() -> void:
