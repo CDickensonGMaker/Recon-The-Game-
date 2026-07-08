@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://d3phjib8pr8uh"]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "thompson"
+display_name = "Thompson M1A1"
+description = ".45 ACP submachine gun. Two rounds center mass will drop a man."
+firing_mode = 1
+fire_rate = 700.0
+base_damage = Array[int]([1, 6, 45])
+recoil_horizontal = 0.8
+projectile_speed = 280.0
+model_path = "res://scenes/weapons/thompson_viewmodel.tscn"
+viewmodel_scale = 1.0
+hip_position = Vector3(0.250, -0.300, -0.400)
+ads_position = Vector3(0.000, -0.246, -0.899)
+hip_rotation = Vector3(0.0, 0.0, 0.0)
+ads_rotation = Vector3(0.9, 0.0, 0.1)

@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[node name="MedkitViewmodel" type="Node3D"]
+transform = Transform3D(0.03, 0, 0, 0, 0.03, 0, 0, 0, 0.03, 0, 0, 0)
+
+[node name="Model" type="Node3D" parent="."]
+
+[node name="Box" type="CSGBox3D" parent="Model"]
+size = Vector3(0.4, 0.25, 0.3)
+
+[node name="Cross" type="CSGBox3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.151)
+size = Vector3(0.15, 0.05, 0.01)
+
+[node name="Cross2" type="CSGBox3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.151)
+size = Vector3(0.05, 0.15, 0.01)

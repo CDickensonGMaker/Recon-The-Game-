@@ -1,0 +1,12 @@
+# Godot cache
+.godot/
+*.blend1
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

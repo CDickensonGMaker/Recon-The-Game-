@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "m26_grenade"
+display_name = "M26 Frag Grenade"
+description = "American fragmentation grenade. Cook before throwing for airburst."
+firing_mode = 0
+fire_rate = 30.0
+magazine_size = 1
+reload_time = 0.0
+base_damage = Array[int]([10, 10, 0])
+damage_type = 1
+base_spread = 0.0
+ads_spread_mult = 1.0
+recoil_vertical = 0.0
+recoil_horizontal = 0.0
+ads_fov = 75.0
+ads_move_mult = 1.0
+effective_range = 5.0
+max_range = 5.0
+projectile_speed = 15.0
+model_path = ""
+hip_position = Vector3(0.2, -0.15, -0.3)
+ads_position = Vector3(0.2, -0.15, -0.3)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

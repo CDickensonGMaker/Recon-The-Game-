@@ -1,0 +1,627 @@
+{
+  "accessors": [
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 754,
+      "max": [
+        0.035118330270051956,
+        0.035118330270051956,
+        0.03366568684577942
+      ],
+      "min": [
+        -0.035118330270051956,
+        -0.035118330270051956,
+        -0.055966056883335114
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 9048,
+      "componentType": 5126,
+      "count": 754,
+      "max": [
+        0.9238797426223755,
+        0.9238798022270203,
+        1.0
+      ],
+      "min": [
+        -0.9238797426223755,
+        -0.9238798022270203,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 754,
+      "max": [
+        1.0,
+        1.0
+      ],
+      "min": [
+        0.0,
+        0.01000000536441803
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 852,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 18096,
+      "componentType": 5126,
+      "count": 854,
+      "max": [
+        0.013524110428988934,
+        0.02174447290599346,
+        0.05935464799404144
+      ],
+      "min": [
+        -0.013524110428988934,
+        -0.0214985441416502,
+        0.03366399556398392
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 28344,
+      "componentType": 5126,
+      "count": 854,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 6032,
+      "componentType": 5126,
+      "count": 854,
+      "max": [
+        1.0,
+        1.0
+      ],
+      "min": [
+        0.0,
+        0.0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 3408,
+      "componentType": 5125,
+      "count": 1020,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 38592,
+      "componentType": 5126,
+      "count": 1265,
+      "max": [
+        0.009800171479582787,
+        0.05887887254357338,
+        0.0028099827468395233
+      ],
+      "min": [
+        -0.009800171479582787,
+        -0.0019529571291059256,
+        -0.11395835876464844
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 53772,
+      "componentType": 5126,
+      "count": 1265,
+      "max": [
+        1.0,
+        0.999865710735321,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 12864,
+      "componentType": 5126,
+      "count": 1265,
+      "max": [
+        1.0,
+        1.0
+      ],
+      "min": [
+        0.0,
+        0.0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 7488,
+      "componentType": 5125,
+      "count": 1344,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 68952,
+      "componentType": 5126,
+      "count": 804,
+      "max": [
+        0.013965901918709278,
+        0.0006319456733763218,
+        0.008758394047617912
+      ],
+      "min": [
+        -0.012150789611041546,
+        -0.0006319456151686609,
+        -0.008758394047617912
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 78600,
+      "componentType": 5126,
+      "count": 804,
+      "max": [
+        0.9371259212493896,
+        0.9238799810409546,
+        0.9989075660705566
+      ],
+      "min": [
+        -0.922870934009552,
+        -0.9238799214363098,
+        -0.9989075660705566
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 22984,
+      "componentType": 5126,
+      "count": 804,
+      "max": [
+        1.0,
+        1.0
+      ],
+      "min": [
+        0.0,
+        0.01000000536441803
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 12864,
+      "componentType": 5125,
+      "count": 804,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 88248,
+      "componentType": 5126,
+      "count": 265,
+      "max": [
+        0.03345242515206337,
+        0.017291832715272903,
+        0.0009796838276088238
+      ],
+      "min": [
+        -0.0011312421411275864,
+        -0.017291832715272903,
+        -0.0009796838276088238
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 91428,
+      "componentType": 5126,
+      "count": 265,
+      "max": [
+        0.8151648640632629,
+        0.8151654005050659,
+        1.0
+      ],
+      "min": [
+        -0.8151652812957764,
+        -0.8151649236679077,
+        -1.0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 29416,
+      "componentType": 5126,
+      "count": 265,
+      "max": [
+        1.0,
+        1.0
+      ],
+      "min": [
+        0.0,
+        -1.1102230246251565e-16
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 16080,
+      "componentType": 5125,
+      "count": 288,
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "GoldbergR (https://sketchfab.com/GoldbergR)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/m26-grenade-low-poly-8a862cee4e4e40bb9c554889b3b5f9ba",
+      "title": "M26 Grenade (Low-Poly)"
+    },
+    "generator": "Sketchfab-16.95.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 17232,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 31536,
+      "byteOffset": 17232,
+      "byteStride": 8,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 94608,
+      "byteOffset": 48768,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 143376,
+      "uri": "scene.bin"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "M26_Grenade_1_Material_1",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.0609698,
+          0.0816487,
+          0.0264958,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.9836162569257118
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "M26_Grenade_1_Material_2",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.31267,
+          0.31267,
+          0.31267,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.9300848625475141
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "M26_Grenade_1_Material_3",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.140991,
+          0.140991,
+          0.140991,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.9684734539784328
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "M26 Grenade 1_M26 Grenade 1 Material 1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "M26 Grenade 1_M26 Grenade 1 Material 2_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 5,
+            "POSITION": 4,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "M26 Grenade 1 Pin 1_M26 Grenade 1 Material 1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 9,
+            "POSITION": 8,
+            "TEXCOORD_0": 10
+          },
+          "indices": 11,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "M26 Grenade 1 Safety Pin 1_M26 Grenade 1 Material 3_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 13,
+            "POSITION": 12,
+            "TEXCOORD_0": 14
+          },
+          "indices": 15,
+          "material": 2,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "M26 Grenade 1 Safety Pin 1 Handle 1_M26 Grenade 1 Material 3_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 17,
+            "POSITION": 16,
+            "TEXCOORD_0": 18
+          },
+          "indices": 19,
+          "material": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.220446049250313e-16,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.220446049250313e-16,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "Sketchfab_model"
+    },
+    {
+      "children": [
+        2
+      ],
+      "matrix": [
+        0.009999999776482582,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.009999999776482582,
+        0.0,
+        0.0,
+        -0.009999999776482582,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "5272618a86764297add19a0ee7d0782d.fbx"
+    },
+    {
+      "children": [
+        3
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        4,
+        5,
+        6,
+        8
+      ],
+      "matrix": [
+        100.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.629206793918314e-05,
+        -99.99999999999868,
+        0.0,
+        0.0,
+        99.99999999999868,
+        -1.629206793918314e-05,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "M26 Grenade 1"
+    },
+    {
+      "mesh": 0,
+      "name": "M26 Grenade 1_M26 Grenade 1 Material 1_0"
+    },
+    {
+      "mesh": 1,
+      "name": "M26 Grenade 1_M26 Grenade 1 Material 2_0"
+    },
+    {
+      "children": [
+        7
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        -2.646977960169688e-23,
+        0.0,
+        0.0,
+        2.646977960169688e-23,
+        1.0,
+        0.0,
+        1.2711222434556435e-17,
+        -0.01941830664873123,
+        0.05724626034498215,
+        1.0
+      ],
+      "name": "M26 Grenade 1 Pin 1"
+    },
+    {
+      "mesh": 2,
+      "name": "M26 Grenade 1 Pin 1_M26 Grenade 1 Material 1_0"
+    },
+    {
+      "children": [
+        9,
+        10
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        -2.646977960169688e-23,
+        0.0,
+        0.0,
+        2.646977960169688e-23,
+        1.0,
+        0.0,
+        1.066826912846583e-17,
+        0.010327835567295551,
+        0.04804561287164688,
+        1.0
+      ],
+      "name": "M26 Grenade 1 Safety Pin 1"
+    },
+    {
+      "mesh": 3,
+      "name": "M26 Grenade 1 Safety Pin 1_M26 Grenade 1 Material 3_0"
+    },
+    {
+      "children": [
+        11
+      ],
+      "matrix": [
+        0.4999999747632168,
+        0.0,
+        -0.8660254183549018,
+        0.0,
+        -4.584700622070505e-23,
+        1.0,
+        -2.646977960169686e-23,
+        0.0,
+        0.8660254183549018,
+        5.293956187544221e-23,
+        0.4999999747632168,
+        0.0,
+        0.011101404204964638,
+        1.648440957069397e-07,
+        3.8743019104003906e-07,
+        1.0
+      ],
+      "name": "M26 Grenade 1 Safety Pin 1 Handle 1"
+    },
+    {
+      "mesh": 4,
+      "name": "M26 Grenade 1 Safety Pin 1 Handle 1_M26 Grenade 1 Material 3_0"
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Sketchfab_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ]
+}

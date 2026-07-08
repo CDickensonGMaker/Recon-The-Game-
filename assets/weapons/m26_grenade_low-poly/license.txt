@@ -1,0 +1,11 @@
+Model Information:
+* title:	M26 Grenade (Low-Poly)
+* source:	https://sketchfab.com/3d-models/m26-grenade-low-poly-8a862cee4e4e40bb9c554889b3b5f9ba
+* author:	GoldbergR (https://sketchfab.com/GoldbergR)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "M26 Grenade (Low-Poly)" (https://sketchfab.com/3d-models/m26-grenade-low-poly-8a862cee4e4e40bb9c554889b3b5f9ba) by GoldbergR (https://sketchfab.com/GoldbergR) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

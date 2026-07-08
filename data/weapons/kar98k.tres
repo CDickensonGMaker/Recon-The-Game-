@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "kar98k"
+display_name = "Kar 98k"
+description = "7.92mm Mauser rifle. One shot, one kill at any range."
+firing_mode = 2
+fire_rate = 15.0
+magazine_size = 5
+reload_time = 3.5
+base_damage = Array[int]([1, 10, 70])
+damage_type = 0
+base_spread = 0.5
+ads_spread_mult = 0.1
+recoil_vertical = 8.0
+recoil_horizontal = 0.5
+ads_fov = 40.0
+ads_move_mult = 0.5
+effective_range = 150.0
+max_range = 300.0
+projectile_speed = 760.0
+model_path = "res://scenes/weapons/kar98k_viewmodel.tscn"
+viewmodel_scale = 1.1
+hip_position = Vector3(0.3, -0.25, -0.5)
+ads_position = Vector3(0, -0.1, -0.4)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "RECONgame",
+  "project_id": "37540849-584b-4256-95d4-b9f85153a25b"
+}
