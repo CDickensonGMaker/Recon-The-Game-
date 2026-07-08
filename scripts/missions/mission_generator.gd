@@ -15,9 +15,10 @@ const TYPE_NAMES := {
 const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
 const CODENAME_B: Array[String] = ["LANCE", "TIGER", "ARROW", "SABRE", "HAMMER", "SERPENT", "TALON", "BUFFALO", "DAGGER", "PYTHON"]
 
+## W35: Vietnam enemy set (Local Force SKS / NVA AK).
 const ENEMY_DATA: Array[String] = [
-	"res://data/enemies/german_rifleman.tres",
-	"res://data/enemies/german_smg.tres",
+	"res://data/enemies/vc_rifleman.tres",
+	"res://data/enemies/nva_regular.tres",
 ]
 
 

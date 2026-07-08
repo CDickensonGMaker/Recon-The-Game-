@@ -80,7 +80,7 @@ func _ready() -> void:
 	controller = get_parent().get_parent().get_parent()
 
 	# Load default weapons
-	primary_weapon = load("res://data/weapons/thompson.tres")
+	primary_weapon = load("res://data/weapons/m16a1.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
 	current_ammo = primary_ammo[0]

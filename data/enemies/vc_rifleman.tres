@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dvcrifleman001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_rifleman"
+display_name = "VC Rifleman"
+description = "Local Force guerrilla with an SKS."
+max_hp = 70
+move_speed = 4.0
+preferred_range = 18.0
+alert_range = 20.0
+weapon_path = "res://data/weapons/sks.tres"
+accuracy_modifier = 1.15
+aggression = 0.45
+color = Color(0.25, 0.22, 0.18, 1)

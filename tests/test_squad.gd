@@ -77,7 +77,7 @@ func _run() -> void:
 	squad.weapons_free = false
 	for a in squad.members:
 		a.weapons_free = false
-	var dummy := director.spawn_tracked_enemy(world.player.global_position + Vector3(10, 0, 0), "res://data/enemies/german_rifleman.tres")
+	var dummy := director.spawn_tracked_enemy(world.player.global_position + Vector3(10, 0, 0), "res://data/enemies/vc_rifleman.tres")
 	await get_tree().create_timer(2.5).timeout
 	if dummy.is_dead():
 		print("FAIL: hold-fire squad killed the target")

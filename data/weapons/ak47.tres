@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://dak47rifle0001"]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ak47"
+display_name = "AK-47"
+description = "7.62x39 assault rifle. RECON 4d10. Its crack does not give you away as American."
+firing_mode = 1
+fire_rate = 600.0
+magazine_size = 30
+reload_time = 2.6
+base_damage = Array[int]([4, 10, 0])
+base_spread = 2.2
+recoil_vertical = 1.5
+recoil_horizontal = 0.9
+ads_fov = 62.0
+effective_range = 250.0
+max_range = 400.0
+projectile_speed = 715.0
+model_path = "res://scenes/weapons/mp40_viewmodel.tscn"
+viewmodel_scale = 1.0
+hip_position = Vector3(0.250, -0.300, -0.400)
+ads_position = Vector3(0.000, -0.246, -0.899)
+hip_rotation = Vector3(0.0, 0.0, 0.0)
+ads_rotation = Vector3(0.9, 0.0, 0.1)

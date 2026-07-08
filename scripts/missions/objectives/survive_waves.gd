@@ -15,8 +15,8 @@ signal wave_cleared(wave_number: int)
 @export var initial_delay: float = 12.0
 
 const DATA_PATHS: Array[String] = [
-	"res://data/enemies/german_rifleman.tres",
-	"res://data/enemies/german_smg.tres",
+	"res://data/enemies/vc_rifleman.tres",
+	"res://data/enemies/nva_regular.tres",
 ]
 
 var world: GameWorld

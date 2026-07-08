@@ -8,8 +8,8 @@ extends Node3D
 @export var activation_range: float = 120.0
 @export var spread: float = 12.0
 @export var data_paths: Array[String] = [
-	"res://data/enemies/german_rifleman.tres",
-	"res://data/enemies/german_smg.tres",
+	"res://data/enemies/vc_rifleman.tres",
+	"res://data/enemies/nva_regular.tres",
 ]
 
 var director: MissionDirector

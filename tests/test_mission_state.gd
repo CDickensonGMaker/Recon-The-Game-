@@ -2,7 +2,7 @@
 ## Run: godot --headless --path . res://tests/test_mission_state.tscn
 extends Node3D
 
-const ENEMY_DATA := "res://data/enemies/german_rifleman.tres"
+const ENEMY_DATA := "res://data/enemies/vc_rifleman.tres"
 
 
 func _ready() -> void:

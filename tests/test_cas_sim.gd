@@ -30,7 +30,7 @@ func _run() -> void:
 	target.y = world.terrain_manager.get_height_at(target)
 	var victims: Array[EnemyBase] = []
 	for i in range(3):
-		victims.append(director.spawn_tracked_enemy(target + Vector3(float(i) * 3.0 - 3.0, 0, 0), "res://data/enemies/german_rifleman.tres"))
+		victims.append(director.spawn_tracked_enemy(target + Vector3(float(i) * 3.0 - 3.0, 0, 0), "res://data/enemies/vc_rifleman.tres"))
 	await get_tree().create_timer(0.5).timeout
 
 	# BOMB run.
@@ -62,7 +62,7 @@ func _run() -> void:
 	# NAPALM fire hazard burns a fresh enemy standing in it.
 	var burn_pos := world.player.global_position + Vector3(-80, 0, 40)
 	burn_pos.y = world.terrain_manager.get_height_at(burn_pos)
-	var burn_victim := director.spawn_tracked_enemy(burn_pos, "res://data/enemies/german_smg.tres")
+	var burn_victim := director.spawn_tracked_enemy(burn_pos, "res://data/enemies/nva_regular.tres")
 	await get_tree().create_timer(0.4).timeout
 	var hp_before: int = burn_victim.current_hp
 	FireHazard.create_at(world, burn_pos, 10.0, 8.0)

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://dm16a1rifle001"]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "m16a1"
+display_name = "M16A1"
+description = "5.56mm assault rifle. The tumbling round - RECON rates it 5d10."
+firing_mode = 1
+fire_rate = 700.0
+magazine_size = 20
+reload_time = 2.4
+base_damage = Array[int]([5, 10, 0])
+base_spread = 1.6
+recoil_vertical = 1.1
+recoil_horizontal = 0.5
+ads_fov = 60.0
+effective_range = 300.0
+max_range = 460.0
+projectile_speed = 990.0
+model_path = "res://scenes/weapons/thompson_viewmodel.tscn"
+viewmodel_scale = 1.0
+hip_position = Vector3(0.250, -0.300, -0.400)
+ads_position = Vector3(0.000, -0.246, -0.899)
+hip_rotation = Vector3(0.0, 0.0, 0.0)
+ads_rotation = Vector3(0.9, 0.0, 0.1)

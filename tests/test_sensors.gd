@@ -2,7 +2,7 @@
 ## Run: godot --headless --path . res://tests/test_sensors.tscn
 extends Node3D
 
-const ENEMY_DATA := "res://data/enemies/german_smg.tres"
+const ENEMY_DATA := "res://data/enemies/nva_regular.tres"
 
 ## Member vars (GDScript lambdas capture locals by value).
 var mission_done: bool = false

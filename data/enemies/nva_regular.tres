@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dnvaregular001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_regular"
+display_name = "NVA Regular"
+description = "Main Force soldier with an AK-47. Best jungle fighter in the world."
+max_hp = 85
+move_speed = 4.4
+preferred_range = 22.0
+alert_range = 24.0
+weapon_path = "res://data/weapons/ak47.tres"
+accuracy_modifier = 0.95
+aggression = 0.65
+color = Color(0.35, 0.4, 0.3, 1)
