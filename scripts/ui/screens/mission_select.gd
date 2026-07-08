@@ -16,14 +16,25 @@ func roll_offers(rng: RandomNumberGenerator) -> void:
 	var types := [MissionGenerator.MissionType.PATROL, MissionGenerator.MissionType.VILLAGE_RAID,
 		MissionGenerator.MissionType.FIREBASE_DEFENSE, MissionGenerator.MissionType.ANTI_AA,
 		MissionGenerator.MissionType.RESCUE]
-	types.shuffle()
+	# Array.shuffle() draws from the GLOBAL rng, so roll_offers() was not
+	# reproducible even when handed a seeded generator. PROVEN: the same rng seed
+	# produced types [3,1,0] then [0,1,4] (probe_smoke_all section C).
+	for i in range(types.size() - 1, 0, -1):
+		var j: int = rng.randi() % (i + 1)
+		var tmp: Variant = types[i]
+		types[i] = types[j]
+		types[j] = tmp
 	for i in range(3):
 		var mission_seed: int = rng.randi() % 100000
 		var conditions: Dictionary = MissionGenerator.conditions_for(mission_seed)
 		offers.append({
 			"type": types[i],
 			"type_name": str(MissionGenerator.TYPE_NAMES[types[i]]),
-			"world_seed": rng.randi() % 100000,
+			# R88: ONE seed identifies ONE operation. world_seed used to be an
+			# independent rng.randi(), while the debrief printed mission_seed and
+			# the replay row fed that single number to both -- so typing the seed
+			# your friend shared gave you different terrain.
+			"world_seed": mission_seed,
 			"mission_seed": mission_seed,
 			"codename": MissionGenerator.codename_for(mission_seed),
 			"terrain_hint": TERRAIN_HINTS[rng.randi() % TERRAIN_HINTS.size()],

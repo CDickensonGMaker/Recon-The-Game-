@@ -440,19 +440,24 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 		EnemyMortarTeam.spawn(world, mortar_pos, director, int(p.seed) + 555, ENEMY_DATA)
 
 	# W04: at HIGH campaign threat, opportunistic AA positions appear near the LZs.
+	# 4b: these draws are CONDITIONAL ON CAMPAIGN STATE. Taking them from the
+	# shared `rng` shifted everything generated afterwards, so the same seed built
+	# a different AO at threat 0.4 vs 0.6. Give them their own stream.
+	var aa_rng := RandomNumberGenerator.new()
+	aa_rng.seed = int(p.seed) + 31337
 	if not bool(p.get("is_anti_aa", false)) and CampaignState.effective_threat() >= 0.5:
 		var aa_count: int = 1 if CampaignState.effective_threat() < 0.75 else 2
 		var anchors := [p.insertion_lz, p.exfil_lz]
 		for i in range(aa_count):
 			var near: Vector3 = anchors[i % anchors.size()]
-			var pos := _passable_near(world, rng, near, 150.0, 260.0)
-			var aa2: Dictionary = planner.stamp_aa_site(pos, rng)
+			var pos := _passable_near(world, aa_rng, near, 150.0, 260.0)
+			var aa2: Dictionary = planner.stamp_aa_site(pos, aa_rng)
 			built_sites.append(aa2)
 			(aa2.gun as DestructibleVehicle).destroyed.connect(func(_v: DestructibleVehicle) -> void:
 				director.state.flags["aa_killed"] = int(director.state.flags.get("aa_killed", 0)) + 1
 				director.toast.emit("AA GUN DESTROYED - THE NEXT BIRD THANKS YOU"))
 			for j in range(2):
-				var crew := director.spawn_tracked_enemy(pos + Vector3(2.0 + float(j) * 2.0, 0, 1.5), ENEMY_DATA[rng.randi() % 2], "aa_opportunistic")
+				var crew := director.spawn_tracked_enemy(pos + Vector3(2.0 + float(j) * 2.0, 0, 1.5), ENEMY_DATA[aa_rng.randi() % ENEMY_DATA.size()], "aa_opportunistic")
 				crew.add_to_group("aa_opportunistic")
 
 	# PT4: ambient life so the walk is never dead - extra villages + patrols
@@ -523,6 +528,18 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	# Fallback (final) LZ: pre-planned secondary 300-600m from the primary.
 	var fb := _passable_near(world, rng, p.exfil_lz, 300.0, 600.0)
 	planner.stamp_lz(fb)
+
+	# NAV: after every stamp (built_sites is complete, including the opportunistic
+	# AA sites) and after the R72 pre-existing craters have already mutated the
+	# heightmap - so the nav surface matches the final terrain for free.
+	var nav_baker: NavBaker = null
+	if WorldConfig.NAV_ENABLED:
+		nav_baker = NavBaker.new()
+		nav_baker.name = "NavBaker"
+		world.add_child(nav_baker)
+		nav_baker.setup(world.terrain_manager)
+		nav_baker.queue_sites(built_sites, _enemy_anchors(p))
+
 	exfil.fallback_pos = fb
 
 	var watchdog := TerrainWatchdog.new()
@@ -608,3 +625,15 @@ static func _on_charge_planted(at_position: Vector3, cache_node: Node3D) -> void
 	CombatManager.apply_explosion_damage(at_position, 120, 30, 8.0, null)
 	if cache_node != null and is_instance_valid(cache_node):
 		cache_node.queue_free()
+
+
+## Where the fighting will be. NavBaker bakes a site only if someone is near it.
+static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for g in p.get("enemy_groups", []):
+		var d: Dictionary = g
+		out.append(d.get("pos", Vector3.ZERO))
+	for key in ["firebase_center", "camp_center", "village_center"]:
+		if p.has(key):
+			out.append(p[key])
+	return out

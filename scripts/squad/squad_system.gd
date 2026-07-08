@@ -216,6 +216,8 @@ func _grenadier_tick() -> void:
 			var impact: Vector3 = enemy.global_position
 			director.toast.emit("%s: THUMPER OUT!" % str(thumper.member.nick))
 			get_tree().create_timer(1.2).timeout.connect(func() -> void:
+				if world == null or not is_instance_valid(world) or not is_instance_valid(thumper):
+					return
 				CombatManager.apply_explosion_damage(impact, 90, 25, 7.0, thumper)
 				GunFX.play_explosion_3d(world, impact)
 				NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, impact, 0))

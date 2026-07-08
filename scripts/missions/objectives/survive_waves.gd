@@ -34,11 +34,16 @@ func start(game_world: GameWorld, rng_seed: int) -> void:
 	_run_waves()
 
 
+## Every await below can resume on a node whose world GameFlow already freed.
+## stop() had zero callers before MissionScope existed.
 func _run_waves() -> void:
+	add_to_group("wave_runners")
 	# W58: prep phase toast (claymores out, sectors set).
 	if director and initial_delay > 20.0:
 		director.toast.emit("PREP THE LINE - CLAYMORES [6], SMOKE [5] - %ds TO CONTACT" % int(initial_delay))
 	await get_tree().create_timer(initial_delay).timeout
+	if not _alive():
+		return
 	for wave in range(1, wave_count + 1):
 		_current_wave = wave
 		var sector_angle: float = _rng.randf_range(0.0, TAU)
@@ -49,12 +54,16 @@ func _run_waves() -> void:
 		# Wait for the wave to die.
 		while _wave_live > 0 and _running:
 			await get_tree().create_timer(0.5).timeout
-		if not _running:
+			if not _alive():
+				return
+		if not _alive():
 			return
 		wave_cleared.emit(wave)
 		if director and wave < wave_count:
 			director.toast.emit("WAVE %d REPELLED" % wave)
 			await get_tree().create_timer(lull_seconds).timeout
+			if not _alive():
+				return
 	if director:
 		director.toast.emit("FINAL WAVE REPELLED - FIREBASE HELD")
 	complete()
@@ -124,3 +133,9 @@ func _direction_text(angle: float) -> String:
 
 func stop() -> void:
 	_running = false
+
+
+## The node may have been freed while a SceneTreeTimer held a reference to this
+## coroutine. is_inside_tree() is false the moment queue_free() lands.
+func _alive() -> bool:
+	return _running and is_instance_valid(self) and is_inside_tree()

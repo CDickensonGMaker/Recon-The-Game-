@@ -272,6 +272,10 @@ func request_supply_drop() -> void:
 
 
 func _drop_supply_crate(pos: Vector3) -> void:
+	# Board the exfil bird within 20s of calling resupply and `world` is gone.
+	# _arty_impact() and _mortar_impact() both guard; this one did not.
+	if world == null or not is_instance_valid(world):
+		return
 	var crate := StaticBody3D.new()
 	crate.collision_layer = 1
 	var col := CollisionShape3D.new()

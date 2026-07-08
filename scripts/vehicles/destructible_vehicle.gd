@@ -25,6 +25,8 @@ static func create(parent: Node, model_path: String, world_pos: Vector3, rotatio
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = entry.box
+	vehicle.add_to_group("nav_blockers")   # NavBaker carves it; APCs and AA guns block a path
+	vehicle.set_meta("nav_box", entry.box)
 	shape.shape = box
 	shape.position = Vector3(0, float(entry.y_offset), 0)
 	vehicle.add_child(shape)

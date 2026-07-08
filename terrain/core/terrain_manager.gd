@@ -49,7 +49,6 @@ var near_water_mask: PackedByteArray  # for rice paddy clustering near rivers
 
 # Deferred rebuild queue for async operations
 var _rebuild_queue: Array[Vector2i] = []
-var _rebuild_accumulator: float = 0.0
 const REBUILD_BUDGET_MS := 8.0  # Max rebuild time per frame
 
 
@@ -287,8 +286,9 @@ func _load_chunk(coord: Vector2i) -> void:
 	# Create collision for raycasting
 	chunk.create_raycast_collision()
 
-	# Bake navigation (optional - can be deferred)
-	# chunk.bake_navigation()
+	# (Navigation is NOT baked per chunk. A 256m chunk at the nav map's 0.25 cell
+	#  size is a 1024x1024 Recast heightfield, x25, over jungle nobody paths
+	#  through - and chunks do not know where the structures are. See NavBaker.)
 
 	# Register
 	chunks[coord] = chunk

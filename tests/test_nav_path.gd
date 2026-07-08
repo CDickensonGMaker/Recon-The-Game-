@@ -70,6 +70,20 @@ func _run() -> void:
 	var a: Vector3 = _seat(world, center + Vector3(0, 0, -APPROACH))
 	var b: Vector3 = _seat(world, center + Vector3(0, 0, APPROACH))
 
+	# Bake a region over the hut, exactly as MissionGenerator.build() does.
+	var baker := NavBaker.new()
+	world.add_child(baker)
+	baker.setup(world.terrain_manager)
+	baker.queue_site(center, 20.0)
+	var waited: float = 0.0
+	while baker.regions_live == 0 and waited < 30.0:
+		await get_tree().create_timer(0.25).timeout
+		waited += 0.25
+	if baker.regions_live == 0:
+		_fail("NavBaker produced no region in 30s")
+		_finish(world)
+		return
+
 	var map: RID = world.get_world_3d().navigation_map
 	NavigationServer3D.map_force_update(map)
 
@@ -89,16 +103,43 @@ func _run() -> void:
 	if min_dist <= CLEARANCE:
 		_fail("path crosses hut footprint (structures not carved into navmesh) - closest approach %.2fm, need > %.2fm" % [min_dist, CLEARANCE])
 
-	# --- Assertion 3: the detour is real. -------------------------------------
+	# --- Assertion 3: the path bends, rather than passing straight through. ----
+	# A 4m hut skirted from 12m out only adds ~0.8m, so the length delta is small;
+	# the load-bearing checks are Assertion 2 (clearance) and Assertion 4 (a real
+	# enemy walks around and arrives). This is just "it is not a straight line".
 	var straight: float = Vector2(a.x - b.x, a.z - b.z).length()
 	var walked: float = _xz_path_length(path)
-	if walked <= straight + 2.0:
-		_fail("path length %.1fm barely exceeds straight line %.1fm - not funnelling around the hut" % [walked, straight])
+	if walked <= straight + 0.2:
+		_fail("path length %.1fm is a straight line through %.1fm - not routing around the hut" % [walked, straight])
 
 	print("path: %d pts, %.1fm walked vs %.1fm straight, closest approach %.2fm" % [
 		path.size(), walked, straight, min_dist])
 
-	# --- Assertion 4 (Step 6): drive a real EnemyBase through it. -------------
+	# --- Assertion 4: drive a real EnemyBase past the hut. --------------------
+	# The one that matters: proves _move_toward() actually CONSUMES the navmesh.
+	# Today's bee-line code fails both halves - it jams on the hut and never
+	# arrives.
+	var enemy := EnemyBase.spawn_enemy(world, a, "res://data/enemies/vc_rifleman.tres")
+	await get_tree().process_frame
+	enemy.set_physics_process(false)  # we drive it by hand at a fixed step
+	enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
+	var closest: float = INF
+	var reached: bool = false
+	for i in range(1200):  # up to 20s @ 60Hz
+		enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
+		enemy._move_toward(b, 1.0 / 60.0)
+		enemy.move_and_slide()
+		closest = minf(closest, Vector2(enemy.global_position.x - center.x, enemy.global_position.z - center.z).length())
+		if enemy.global_position.distance_to(b) < 4.0:
+			reached = true
+			break
+	print("enemy: closest approach to hut %.2fm, reached target %s" % [closest, reached])
+	if closest <= CLEARANCE:
+		_fail("enemy walked through the hut (closest %.2fm) - agent not using the navmesh" % closest)
+	if not reached:
+		_fail("enemy never reached the target - path stalled")
+
+
 	# Deliberately absent until NavBaker lands. Assertions 1-3 prove the navmesh;
 	# Assertion 4 proves _move_toward() actually consumes it, which is the bug.
 

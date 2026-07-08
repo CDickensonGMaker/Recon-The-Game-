@@ -86,7 +86,7 @@ var aim_speed: float = 8.0  # Radians per second - varies by skill
 var aim_error: Vector3 = Vector3.ZERO  # Current aim offset
 
 ## Navigation
-@onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
+@onready var nav_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D")
 var move_target: Vector3 = Vector3.ZERO
 var is_moving: bool = false
 
@@ -171,6 +171,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 ## Visual
 var mesh: MeshInstance3D
 var sprite_actor: SpriteActor = null  ## null when the unit has no rendered sheets
+var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
+var _nav_warned: bool = false
 var last_hit_dir: Vector3 = Vector3.FORWARD  ## world dir from attacker -> us; picks the death clip
 
 
@@ -373,6 +375,7 @@ func _update_decay(delta: float) -> void:
 ## ============================================
 
 func _think() -> void:
+	_nav_box = NavBaker.box_index_at(global_position) if WorldConfig.NAV_ENABLED else -1
 	_check_spider_hole()
 	_check_tunnel_retreat()
 	if is_spider_hole and not _spider_triggered:
@@ -1051,15 +1054,30 @@ func _change_state(new_state: Enums.AIState) -> void:
 	state_changed.emit(new_state)
 
 
-## R16: routed through the baked chunk navmesh so patrols/pursuers path around
-## huts, temple ruins and terrain instead of bee-lining into walls.
+## R16 (for real this time): routed through NavBaker's per-site navmesh so
+## pursuers path around huts, bunkers and vehicles. The original claim shipped
+## against a nav map with zero polygons.
 func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	var direction: Vector3 = pos - global_position
-	if nav_agent != null:
-		if nav_agent.target_position.distance_squared_to(pos) > 4.0:
-			nav_agent.target_position = pos
+	# Nav only when BOTH endpoints sit inside the SAME baked region. Outside one,
+	# direct steering is the intended behaviour, not a fallback -- which is the
+	# distinction the old code could not make. With no navmesh at all,
+	# is_navigation_finished() returned true instantly, the branch below never
+	# ran, and R16 shipped as a silent no-op with a green suite.
+	#
+	# The same-box test also prevents a bug the site-region design would otherwise
+	# introduce: an enemy inside a region chasing a target 300m outside it would
+	# have its path clamped to the region edge, is_navigation_finished() would fire
+	# there, and he would stop dead.
+	if WorldConfig.NAV_ENABLED and nav_agent != null and _nav_box >= 0 and NavBaker.box_contains(_nav_box, pos):
+		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
+			nav_agent.target_position = pos   # each restake is a map_get_path()
 		if not nav_agent.is_navigation_finished():
 			direction = nav_agent.get_next_path_position() - global_position
+		elif OS.is_debug_build() and direction.length_squared() > 25.0 and not _nav_warned:
+			_nav_warned = true
+			push_error("[NAV] enemy inside baked region %d, %.1fm to target, no path - navmesh missing or region not merged" % [
+				_nav_box, direction.length()])
 	direction.y = 0
 	if direction.length() > 0.1:
 		direction = direction.normalized()
@@ -1194,7 +1212,7 @@ func _fire_at_target() -> void:
 			var fx: Vector3 = get_muzzle_visual(final_aim)
 			CombatManager.spawn_projectile(pdata, self, origin, final_aim, target)
 			NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
-			GunFX.play_shot_3d(get_tree().current_scene, fx, weapon_data.resource_path)
+			GunFX.play_shot_3d(get_tree().current_scene, fx, weapon_data)
 			GunFX.muzzle_flash(get_tree().current_scene, fx)
 			return
 		push_error("[EnemyBase] %s names a projectile that will not load: %s" % [
@@ -1217,7 +1235,7 @@ func _fire_at_target() -> void:
 	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
 	BulletTracer.spawn_tracer(get_tree().current_scene, fx_origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
-	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data.resource_path)
+	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
 	if result and not (result.collider is Hitzone):
 		GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
@@ -1244,8 +1262,9 @@ func _fire_at_target() -> void:
 					damage_target = parent
 
 			if damage_target and damage_target.has_method("take_damage"):
-				var base_damage := weapon_data.roll_damage()
-				var final_damage := int(base_damage * damage_multiplier)
+				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
+				var base_damage: int = weapon_data.roll_damage()
+				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
 				damage_target.take_damage(final_damage, weapon_data.damage_type, self)
 
 				# W37: limb hits wound (arm = shaky aim, leg = no sprint).
@@ -1484,9 +1503,20 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 	col.position.y = 0.9
 	enemy.add_child(col)
 
-	var nav := NavigationAgent3D.new()
-	nav.name = "NavigationAgent3D"
-	enemy.add_child(nav)
+	if WorldConfig.NAV_ENABLED:
+		var nav := NavigationAgent3D.new()
+		nav.name = "NavigationAgent3D"
+		# INVARIANT: these must match NavBaker's AGENT_RADIUS / AGENT_HEIGHT, or
+		# the agent walks corridors the navmesh never carved. Not a single one of
+		# these was set before - everything ran on engine defaults (radius 0.5,
+		# avoidance off but unstated).
+		nav.radius = NavBaker.AGENT_RADIUS
+		nav.height = NavBaker.AGENT_HEIGHT
+		nav.path_desired_distance = 0.7
+		nav.target_desired_distance = 1.0
+		nav.path_max_distance = 5.0
+		nav.avoidance_enabled = false   # explicit: RVO is a second silent no-op
+		enemy.add_child(nav)
 
 	enemy.collision_layer = 4
 	enemy.collision_mask = 1

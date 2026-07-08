@@ -24,7 +24,9 @@ if ($Filter) { $tests = $tests | Where-Object { $_.BaseName -like "*$Filter*" } 
 # and DOES break the build -- that forces you to delete it from this list the
 # moment the underlying bug is fixed. The list is the scoreboard, not an excuse.
 $KnownRed = @(
-    "test_nav_path"   # ctz: enemies bee-line; no navmesh is ever baked. Fixed in Step 6.
+    # test_nav_path graduated: NavBaker bakes per-site navmesh, enemies path
+    # around structures. Kept empty rather than deleted so the next known-red
+    # test has a home.
 )
 
 # Substrings that mean "the engine complained". Any hit = FAIL, regardless of exit code.

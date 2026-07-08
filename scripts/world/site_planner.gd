@@ -107,6 +107,10 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 		_apply_visibility_range(visual)  # R92: cull distant structure geometry
 	var box_size: Vector3 = entry.box
 	if box_size.length() > 0.01:
+		# NavBaker carves these out of the site navmesh. punji_trap has a zero box
+		# and is correctly skipped by this same guard.
+		body.add_to_group("nav_blockers")
+		body.set_meta("nav_box", box_size)
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		box.size = box_size

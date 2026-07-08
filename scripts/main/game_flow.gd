@@ -36,9 +36,10 @@ func _teardown_world() -> void:
 	GameManager.player = null
 	GameManager.is_paused = false
 	get_tree().paused = false
-	# A 1024x1280 RGBA8 sheet is 5.24 MB of VRAM; 7 units x 20 clips would sit
-	# at ~730 MB if we never let go.
-	SpriteLibrary.clear()
+	MissionScope.reset()
+	# Whatever the mission changed (KIA, replacements, intel) commits here or not
+	# at all. on_mission_end() has already run for a completed op.
+	CampaignState.commit_mission()
 
 
 func show_menu() -> void:
@@ -88,6 +89,19 @@ func show_briefing(offer: Dictionary) -> void:
 
 
 func start_mission(offer: Dictionary) -> void:
+	# Godot auto-randomizes the GLOBAL rng at startup, and most gameplay draws
+	# from it: enemy personality (enemy_base.gd:180 pick_random), the crippled and
+	# surrender rolls, whether the exfil bird is SHOT DOWN (exfil_zone.gd:67),
+	# whether you CRASH on insertion (insertion_ride.gd:166-179), hunter
+	# escalation timing, ordnance dispersion. Seeding it per mission makes all of
+	# that reproducible from the seed the debrief prints.
+	#
+	# Honest scope: this makes generation and spawn deterministic. Per-frame draws
+	# (bullet spread) still depend on execution order, which depends on frame
+	# timing. Same seed = same world, same enemies, same events - not the same
+	# bullet holes.
+	seed(hash(int(offer.get("mission_seed", 0))))
+	CampaignState.begin_mission()
 	var loading := ReconUI.make_screen_root()
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)

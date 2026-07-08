@@ -4,6 +4,8 @@ extends Node
 
 signal threat_changed(effective: float)
 
+## Bump when the on-disk shape changes, and add a branch to _migrate().
+const SAVE_VERSION: int = 1
 const DEFAULT_SAVE_PATH := "user://campaign.cfg"
 const TEST_SAVE_PATH := "user://campaign_test.cfg"
 const BASE_THREAT: float = 0.35
@@ -14,6 +16,15 @@ const BASE_THREAT: float = 0.35
 ## test_huey_ride all call reset_campaign(), and test_full_loop runs three
 ## real missions to debrief).
 var save_path: String = DEFAULT_SAVE_PATH
+
+## Mid-mission writes are held in memory until the debrief commits them.
+##
+## squad_system.gd:246 marks a dead squadmate `alive = false` on a live reference
+## into CampaignState.roster and immediately saved. Alt-F4 at minute three and Doc
+## was permanently KIA and replaced, while team_xp, missions_played and the
+## mission log never advanced. A mission is now all-or-nothing.
+var _defer_saves: bool = false
+var _dirty: bool = false
 
 var threat_level: float = BASE_THREAT
 var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason: String}]
@@ -68,6 +79,10 @@ func add_threat_modifier(delta: float, missions: int, reason: String) -> void:
 
 ## Called by GameFlow at debrief time (W02 plumbing).
 func on_mission_end(result: Dictionary) -> void:
+	# The mission is over: writes go through again, and the save_campaign() at the
+	# bottom of this function is the one that commits everything the op changed.
+	_defer_saves = false
+	_dirty = false
 	missions_played += 1
 	# Decay modifiers.
 	var kept: Array = []
@@ -100,8 +115,27 @@ func on_mission_end(result: Dictionary) -> void:
 	save_campaign()
 
 
+## Called by GameFlow when a mission starts. Everything written between here and
+## commit_mission() stays in memory.
+func begin_mission() -> void:
+	_defer_saves = true
+	_dirty = false
+
+
+## Called at the debrief (or on abort). Flushes whatever the mission changed.
+func commit_mission() -> void:
+	_defer_saves = false
+	if _dirty:
+		_dirty = false
+		save_campaign()
+
+
 func save_campaign() -> void:
+	if _defer_saves:
+		_dirty = true
+		return
 	var cfg := ConfigFile.new()
+	cfg.set_value("campaign", "version", SAVE_VERSION)
 	cfg.set_value("campaign", "threat_level", threat_level)
 	cfg.set_value("campaign", "threat_modifiers", threat_modifiers)
 	cfg.set_value("campaign", "team_xp", team_xp)
@@ -120,11 +154,22 @@ func load_campaign() -> void:
 	var cfg := ConfigFile.new()
 	var err: int = cfg.load(save_path)
 	if err != OK:
-		# ERR_FILE_NOT_FOUND is the normal first-boot path. Anything else means
-		# the file exists and is unreadable - say so, don't silently overwrite it.
+		# ERR_FILE_NOT_FOUND is the normal first-boot path. Anything else means the
+		# file exists and is unreadable. Keep a copy before we overwrite it.
 		if err != ERR_FILE_NOT_FOUND:
-			push_error("[SAVE] %s exists but failed to load (err %d) - starting fresh, existing file will be overwritten on next save" % [save_path, err])
+			var bak := save_path + ".bak"
+			if FileAccess.file_exists(save_path):
+				DirAccess.copy_absolute(save_path, bak)
+			push_error("[SAVE] %s failed to load (err %d). Backed up to %s; starting fresh." % [save_path, err, bak])
 		return
+
+	var file_version: int = int(cfg.get_value("campaign", "version", 0))
+	if file_version > SAVE_VERSION:
+		push_error("[SAVE] %s is version %d, this build understands %d. Refusing to load rather than corrupt it." % [
+			save_path, file_version, SAVE_VERSION])
+		return
+	if file_version < SAVE_VERSION:
+		_migrate(cfg, file_version)
 	threat_level = float(cfg.get_value("campaign", "threat_level", BASE_THREAT))
 	threat_modifiers = cfg.get_value("campaign", "threat_modifiers", [])
 	team_xp = int(cfg.get_value("campaign", "team_xp", 0))
@@ -136,7 +181,17 @@ func load_campaign() -> void:
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 
 
+## v0 (unversioned) had no `version` key and no sprite fields on the roster.
+## Nothing structural changed, so v0 loads as-is. The branch exists so the NEXT
+## shape change has somewhere to live instead of silently half-loading.
+func _migrate(_cfg: ConfigFile, from_version: int) -> void:
+	push_warning("[SAVE] migrating campaign save v%d -> v%d" % [from_version, SAVE_VERSION])
+
+
 func reset_campaign() -> void:
+	# A wipe must hit the disk even if a mission is mid-flight (Iron Man death).
+	_defer_saves = false
+	_dirty = false
 	threat_level = BASE_THREAT
 	threat_modifiers = []
 	team_xp = 0

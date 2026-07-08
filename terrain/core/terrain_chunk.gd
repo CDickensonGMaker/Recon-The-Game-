@@ -3,7 +3,6 @@ class_name TerrainChunk
 ## A single terrain chunk (256m x 256m) with mesh, collision, and navigation
 
 signal mesh_ready
-signal nav_ready
 
 # Chunk identity
 var coord: Vector2i  # Chunk grid coordinates
@@ -13,7 +12,6 @@ var grid_resolution: int = 128  # Vertices per side (256m / 2m)
 
 # Components
 var mesh_instance: MeshInstance3D
-var nav_region: NavigationRegion3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
 # State
@@ -39,9 +37,6 @@ func _ready() -> void:
 	add_child(mesh_instance)
 
 	# Create navigation region
-	nav_region = NavigationRegion3D.new()
-	nav_region.name = "NavRegion"
-	add_child(nav_region)
 
 	# Position chunk at world coordinates
 	var world_x: float = coord.x * chunk_size
@@ -257,34 +252,6 @@ func create_raycast_collision() -> void:
 	add_child(collision_body)
 
 
-## Bake navigation mesh for pathfinding
-func bake_navigation() -> void:
-	if not mesh_instance.mesh:
-		return
-
-	var nav_mesh := NavigationMesh.new()
-
-	# Configure for RTS pathfinding
-	nav_mesh.agent_radius = 1.0
-	nav_mesh.agent_height = 2.0
-	nav_mesh.agent_max_climb = 0.5
-	nav_mesh.agent_max_slope = 45.0
-	nav_mesh.cell_size = 0.5
-	nav_mesh.cell_height = 0.25
-
-	# Source geometry from mesh
-	var source := NavigationMeshSourceGeometryData3D.new()
-	source.add_mesh(mesh_instance.mesh, mesh_instance.global_transform)
-
-	# Bake (synchronous for now - could be async in future)
-	NavigationServer3D.bake_from_source_geometry_data(nav_mesh, source)
-
-	nav_region.navigation_mesh = nav_mesh
-	nav_ready.emit()
-
-	print("[TerrainChunk] Chunk %s navigation baked" % [coord])
-
-
 ## Unload chunk (free resources)
 func unload() -> void:
 	if mesh_instance:
@@ -292,8 +259,6 @@ func unload() -> void:
 	if collision_body:
 		collision_body.queue_free()
 		collision_body = null
-	if nav_region:
-		nav_region.navigation_mesh = null
 	is_loaded = false
 
 

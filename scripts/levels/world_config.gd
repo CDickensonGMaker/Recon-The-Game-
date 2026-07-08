@@ -21,3 +21,10 @@ const OCEAN_EDGES: int = 0b0000  # inland AO
 ## Debug
 const LOG_FPS: bool = true
 const FPS_LOG_INTERVAL: float = 2.0
+
+
+## NS04 perf-gate fallback ladder, rung 0. If FPS craters on the Intel UHD, set
+## this false: NavBaker is never constructed, no NavigationRegion3D exists, and
+## _move_toward() short-circuits to the byte-for-byte pre-existing direct steer.
+const NAV_ENABLED: bool = true
+const NAV_SITE_KINDS: Array[String] = ["village", "firebase", "aa_site", "outpost", "temple", "pow_camp"]

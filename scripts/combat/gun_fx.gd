@@ -15,7 +15,26 @@ const COMBAT_STING := preload("res://assets/audio/sfx/combat_sting.wav")
 static var _sting_cooldown_until: int = 0
 
 
+## _sting_cooldown_until is an ABSOLUTE Time.get_ticks_msec(), so a contact sting
+## fired at the end of one mission suppresses the drum for the first seconds of
+## the next. Called from MissionScope.reset().
+static func reset_session() -> void:
+	_sting_cooldown_until = 0
+	_active_flashes = 0
+	_active_impacts = 0
+	if _sting_player != null and is_instance_valid(_sting_player):
+		_sting_player.stop()
+		_sting_player.queue_free()
+	_sting_player = null
+
+
 ## W67: contact! drum sting, throttled.
+## Parented to get_tree().current_scene, which is main.tscn's GameFlow root and
+## SURVIVES _teardown_world(). Left untracked, a sting fired seconds before exfil
+## keeps playing over the debrief screen. Tracked so MissionScope can cut it.
+static var _sting_player: AudioStreamPlayer = null
+
+
 static func play_combat_sting(parent: Node) -> void:
 	var now := Time.get_ticks_msec()
 	if now < _sting_cooldown_until:
@@ -24,9 +43,12 @@ static func play_combat_sting(parent: Node) -> void:
 	var p := AudioStreamPlayer.new()
 	p.stream = COMBAT_STING
 	p.volume_db = -4.0
+	if AudioServer.get_bus_index("Music") >= 0:
+		p.bus = "Music"
 	parent.add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)
+	_sting_player = p
 
 
 static var _active_flashes: int = 0
@@ -39,34 +61,29 @@ static func shot_stream_for(weapon_name: String) -> AudioStream:
 	var n := weapon_name.to_lower()
 	if n.contains("1911") or n.contains("pistol"):
 		return SHOT_PISTOL
-	if n.contains("thompson") or n.contains("mp40") or n.contains("smg"):
+	if n.contains("thompson") or n.contains("mp40") or n.contains("ppsh") or n.contains("smg"):
 		return SHOT_SMG
 	return SHOT_RIFLE
 
 
-## 3D positional gunshot (NPCs) - fire-and-forget.
-static func play_shot_3d(parent: Node, pos: Vector3, weapon_name: String, volume_db: float = 2.0) -> void:
-	var p := AudioStreamPlayer3D.new()
-	p.stream = shot_stream_for(weapon_name)
-	p.volume_db = volume_db
-	p.max_distance = 220.0
-	p.unit_size = 14.0
-	p.pitch_scale = randf_range(0.94, 1.06)
-	parent.add_child(p)
-	p.global_position = pos
-	p.play()
-	p.finished.connect(p.queue_free)
+## 3D positional gunshot (NPCs/allies). `data` is a WeaponData (preferred) or a
+## String id/path. Delegates to AudioManager's pooled, distance-layered voices.
+## `parent` is ignored (AudioManager owns the voice nodes) but kept for callers.
+static func play_shot_3d(parent: Node, pos: Vector3, data: Variant, volume_db: float = 0.0) -> void:
+	AudioManager.play_shot_3d(pos, data, volume_db)
 
 
-## 2D player-weapon shot (always crisp in your ears).
-static func play_shot_2d(parent: Node, weapon_name: String) -> void:
-	var p := AudioStreamPlayer.new()
-	p.stream = shot_stream_for(weapon_name)
-	p.volume_db = -2.0
-	p.pitch_scale = randf_range(0.96, 1.04)
-	parent.add_child(p)
-	p.play()
-	p.finished.connect(p.queue_free)
+## 2D player-weapon shot (dedicated, never-stolen slot).
+static func play_shot_2d(_parent: Node, data: Variant) -> void:
+	AudioManager.play_shot_player(data)
+
+
+static func play_bolt_2d(_parent: Node, data: Variant) -> void:
+	AudioManager.play_bolt_player(data)
+
+
+static func play_reload_2d(_parent: Node, data: Variant) -> void:
+	AudioManager.play_reload_player(data)
 
 
 static func play_click(parent: Node) -> void:
@@ -77,16 +94,8 @@ static func play_click(parent: Node) -> void:
 	p.finished.connect(p.queue_free)
 
 
-static func play_explosion_3d(parent: Node, pos: Vector3) -> void:
-	var p := AudioStreamPlayer3D.new()
-	p.stream = EXPLOSION
-	p.volume_db = 6.0
-	p.max_distance = 400.0
-	p.unit_size = 25.0
-	parent.add_child(p)
-	p.global_position = pos
-	p.play()
-	p.finished.connect(p.queue_free)
+static func play_explosion_3d(_parent: Node, pos: Vector3, kind: String = "explosion_grenade") -> void:
+	AudioManager.play_explosion_3d(pos, kind)
 
 
 ## Muzzle flash: warm omni light + emissive billboard quad, 45ms.
@@ -150,6 +159,8 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = fal
 	p.volume_db = -4.0
 	p.max_distance = 40.0
 	p.pitch_scale = randf_range(0.9, 1.1)
+	if AudioServer.get_bus_index("Impacts") >= 0:
+		p.bus = "Impacts"
 	parent.add_child(p)
 	p.global_position = pos
 	p.play()
