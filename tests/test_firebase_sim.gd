@@ -48,6 +48,11 @@ func _run() -> void:
 	var built: Dictionary = MissionGenerator.build(world, director, plan)
 	world.spawn_player_at(plan.firebase_center + Vector3(4, 0, 0))
 	var player: CharacterBody3D = world.player
+	# Squad is owned by SquadSystem now (W13).
+	CampaignState.reset_campaign()
+	var squad := SquadSystem.new()
+	world.add_child(squad)
+	squad.setup(world, director, plan.firebase_center)
 
 	var sw: SurviveWaves = null
 	for s in built.sensors:

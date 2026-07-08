@@ -72,7 +72,7 @@ print("AK47_Rifle placed", flush=True)
 
 # ---------- 5. v2 M16A1, joined, floating in front of the grunt ----------
 with bpy.data.libraries.load(WUS) as (df, dt):
-    dt.objects = [n for n in dt.objects if n.startswith('M16A1_')]
+    dt.objects = [n for n in df.objects if n.startswith('M16A1_')]
 m16_parts = []
 for ob in bpy.data.objects:
     if ob.name.startswith('M16A1_') and ob.name != 'M16A1_Rifle':
