@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cprobelabmodel1"]
+[gd_scene format=3 uid="uid://csulltmp4wyeq"]
 [ext_resource type="Script" path="res://tests/probe_lab_model.gd" id="1_plm"]
 [node name="ProbeLabModel" type="Node"]
 script = ExtResource("1_plm")

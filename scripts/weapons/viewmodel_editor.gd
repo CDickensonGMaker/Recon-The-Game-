@@ -68,11 +68,24 @@ func _ready() -> void:
 
 
 func _load_default_weapons() -> void:
+	# Full roster so every gun can have its hip/ADS/sight alignment tuned here.
 	var weapon_paths: Array[String] = [
 		"res://data/weapons/thompson.tres",
 		"res://data/weapons/m1911.tres",
+		"res://data/weapons/m16a1.tres",
+		"res://data/weapons/car15.tres",
+		"res://data/weapons/m60.tres",
+		"res://data/weapons/sks.tres",
+		"res://data/weapons/ak47.tres",
+		"res://data/weapons/rpd.tres",
+		"res://data/weapons/ppsh41.tres",
 		"res://data/weapons/kar98k.tres",
-		"res://data/weapons/mp40.tres"
+		"res://data/weapons/mosin.tres",
+		"res://data/weapons/mp40.tres",
+		"res://data/weapons/m79.tres",
+		"res://data/weapons/m72_law.tres",
+		"res://data/weapons/rpg2.tres",
+		"res://data/weapons/rpg7.tres",
 	]
 
 	for path in weapon_paths:

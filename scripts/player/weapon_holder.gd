@@ -108,8 +108,9 @@ func _ready() -> void:
 	# Controller is the root Player node - go up: WeaponHolder -> Camera3D -> Head -> Player
 	controller = get_parent().get_parent().get_parent()
 
-	# Load default weapons
-	primary_weapon = load("res://data/weapons/m16a1.tres")
+	# Load default weapons. Default primary is the Thompson: its viewmodel is the
+	# one that's actually rigged, and the .45 report/bolt-clatter audio matches it.
+	primary_weapon = load("res://data/weapons/thompson.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
 	current_ammo = primary_ammo[0]
