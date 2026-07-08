@@ -128,6 +128,9 @@ func _run_mission(offer: Dictionary) -> void:
 		ride.setup(world, director, plan.start_pad, plan.insertion_lz)
 		ride.prompt_changed.connect(mission_hud.set_prompt)
 
+	WeaponHolder.session_shots = 0
+	WeaponHolder.session_hits = 0
+	CampaignState.intel_points = 0  # briefing intel is spent going in (W80)
 	_swap_screen(null)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	director.toast.emit("%s - %s" % [plan.codename, plan.type_name])
@@ -139,6 +142,9 @@ func _on_mission_ended(result: Dictionary) -> void:
 	_debrief_pending = true
 	if squad != null and is_instance_valid(squad):
 		squad.on_mission_end()
+	# W75: marksmanship into the report.
+	result["shots"] = WeaponHolder.session_shots
+	result["hits"] = WeaponHolder.session_hits
 	# W25: debrief score banks as team XP.
 	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
 	CampaignState.on_mission_end(result)

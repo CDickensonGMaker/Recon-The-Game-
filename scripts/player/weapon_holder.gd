@@ -157,6 +157,10 @@ func _update_ads(delta: float) -> void:
 signal target_hit(killed: bool)
 var _burst_left: int = 0
 
+## W75: session marksmanship counters (reset by GameFlow per mission).
+static var session_shots: int = 0
+static var session_hits: int = 0
+
 
 func _update_firing(delta: float) -> void:
 	if fire_timer > 0:
@@ -203,6 +207,7 @@ func _fire_shot() -> void:
 	current_ammo -= 1
 	can_fire = false
 	fire_timer = current_weapon.get_fire_delay()
+	session_shots += 1
 
 	# Calculate spread (W28: Small Arms skill tightens the cone)
 	var spread := current_weapon.get_spread(ads_transition)
@@ -285,6 +290,7 @@ func _fire_shot() -> void:
 
 				# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone).
 				var killed: bool = damage_target.has_method("is_dead") and damage_target.is_dead()
+				session_hits += 1
 				target_hit.emit(killed)
 
 				if zone_name == "HEAD":
@@ -435,6 +441,11 @@ func _update_weapon_position(delta: float) -> void:
 				# Apply offset - move weapon up and forward
 				target_pos.y += PITCH_OFFSET_UP * pitch_factor
 				target_pos.z -= PITCH_OFFSET_FORWARD * pitch_factor
+
+	# W72: weapon lowers while sprinting (readability + feel).
+	if controller and "is_sprinting" in controller and controller.is_sprinting:
+		target_pos.y -= 0.08
+		target_rot.x -= 12.0
 
 	# Viewmodel fire punch (R07): sharp kick back+up, fast recovery.
 	_punch = maxf(0.0, _punch - delta * 9.0)

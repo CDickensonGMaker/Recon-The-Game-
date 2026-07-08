@@ -51,6 +51,11 @@ func _ready() -> void:
 		"WOUNDS TAKEN: -%d" % int(result.damage_taken),
 		"TIME:         %d:%02d" % [int(result.time_sec) / 60, int(result.time_sec) % 60],
 	]
+	if int(result.get("shots", 0)) > 0:
+		lines.append("MARKSMANSHIP: %d/%d ROUNDS ON TARGET (%.0f%%)" % [
+			int(result.hits), int(result.shots), 100.0 * float(result.hits) / float(result.shots)])
+	if bool(result.get("pow_lost", false)):
+		lines.append("THE PILOT DIDN'T MAKE IT: -100")
 	if bool(result.emergency_exfil):
 		lines.append("EMERGENCY EXFIL: -50")
 	box.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))

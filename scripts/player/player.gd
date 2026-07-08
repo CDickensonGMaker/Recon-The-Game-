@@ -64,6 +64,41 @@ var smoke_count: int = 2
 var claymore_count: int = 2
 
 
+## W69: surface-matched footstep audio (dirt / grass / water via GameplayGrid).
+const STEP_DIRT := preload("res://assets/audio/sfx/step_dirt.wav")
+const STEP_GRASS := preload("res://assets/audio/sfx/step_grass.wav")
+const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
+var _wade_timer: float = 0.0
+
+
+func _play_footstep_sound() -> void:
+	var stream: AudioStream = STEP_DIRT
+	var gw := get_tree().get_first_node_in_group("game_world")
+	if gw != null and "gameplay_grid" in gw and gw.gameplay_grid != null:
+		var grid: GameplayGrid = gw.gameplay_grid
+		if grid.is_water(global_position):
+			stream = STEP_WATER
+			_wade_timer += 0.5
+			# W71: leeches - linger in the water and pay for it.
+			if _wade_timer > 20.0:
+				_wade_timer = 0.0
+				_field_toast("LEECHES. GODDAMN LEECHES.")
+				if health_system:
+					health_system.take_damage(3, Enums.DamageType.PHYSICAL, null)
+		else:
+			_wade_timer = maxf(0.0, _wade_timer - 1.0)
+			var t: int = grid.get_terrain_type(global_position)
+			if t == GameplayGrid.TerrainType.GRASSLAND or t == GameplayGrid.TerrainType.RICE_PADDY:
+				stream = STEP_GRASS
+	var p := AudioStreamPlayer.new()
+	p.stream = stream
+	p.volume_db = -16.0 if is_crouching else -10.0
+	p.pitch_scale = randf_range(0.9, 1.1)
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+
+
 func _field_toast(text: String) -> void:
 	var hud_node := get_tree().get_first_node_in_group("mission_hud")
 	if hud_node and hud_node.has_method("show_toast"):
@@ -232,6 +267,7 @@ func _emit_footsteps(delta: float) -> void:
 	if _footstep_timer > 0.0:
 		return
 	_footstep_timer = 0.35 if is_sprinting else 0.55
+	_play_footstep_sound()
 	# W28: Silent Movement skill shrinks every footstep radius.
 	var quiet_mult: float = 1.0 / (1.0 + 0.12 * float(CampaignState.player_skill("silent_movement")))
 	if is_crouching:
@@ -430,6 +466,17 @@ func apply_recoil(vertical: float, horizontal: float) -> void:
 
 ## Take damage - forwarded from health system
 func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null) -> int:
+	# W66: directional damage indicator - where is it coming from?
+	if attacker is Node3D and camera:
+		var to_attacker: Vector3 = ((attacker as Node3D).global_position - global_position)
+		to_attacker.y = 0.0
+		if to_attacker.length() > 0.5:
+			var fwd: Vector3 = -camera.global_transform.basis.z
+			fwd.y = 0.0
+			var rel: float = fwd.normalized().signed_angle_to(to_attacker.normalized(), Vector3.UP)
+			var hud_node := get_tree().get_first_node_in_group("mission_hud")
+			if hud_node and hud_node.has_method("show_damage_direction"):
+				hud_node.show_damage_direction(-rel)
 	return health_system.take_damage(amount, damage_type, attacker)
 
 

@@ -153,6 +153,21 @@ def combat_sting():
     return [s / peak * 0.9 for s in out]
 
 
+def footstep(tone, crunch, length=0.11):
+    n = int(SR * length)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = (random.random() * 2 - 1) * crunch * env(t, 0.002, 0.02)
+        s += math.sin(2 * math.pi * tone * t) * 0.35 * env(t, 0.002, 0.03)
+        out.append(s)
+    return lowpass(out, 0.45)
+
+
+write_wav("step_dirt.wav", footstep(110, 0.5))
+write_wav("step_grass.wav", lowpass(footstep(90, 0.7), 0.25))
+write_wav("step_water.wav", footstep(220, 0.9, 0.16))
+
 write_wav("jungle_loop.wav", jungle_loop())
 write_wav("distant_war_loop.wav", distant_war_loop())
 write_wav("radio_crackle.wav", radio_crackle())

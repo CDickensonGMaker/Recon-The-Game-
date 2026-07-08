@@ -67,6 +67,19 @@ func set_prompt(text: String) -> void:
 		_prompt.text = text
 
 
+## W66: red pip on a ring around center pointing at incoming fire.
+func show_damage_direction(rel_angle: float) -> void:
+	var pip := ReconUI.make_label("|", 26, Color(0.9, 0.2, 0.15))
+	pip.set_anchors_preset(Control.PRESET_CENTER)
+	var radius: float = 110.0
+	pip.position = Vector2(sin(rel_angle), -cos(rel_angle)) * radius - Vector2(4, 14)
+	pip.rotation = rel_angle
+	add_child(pip)
+	var tween := create_tween()
+	tween.tween_property(pip, "modulate:a", 0.0, 0.7)
+	tween.tween_callback(pip.queue_free)
+
+
 func _update_squad_strip(delta: float) -> void:
 	if squad == null:
 		return
