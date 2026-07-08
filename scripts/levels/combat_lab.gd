@@ -37,7 +37,7 @@ const TREES: Array[String] = ["tree1", "tree2", "tree3", "tree4", "tree5", "tree
 ## billboards against the 3D models against the old capsules -- look, feel, and
 ## cost -- with the draw-call and primitive counters right there in the HUD.
 enum VisualMode { SPRITE, MODEL, CAPSULE }
-const MODEL_DIR := "res://assets/NPCs/models/"   ## <sprite_unit>.glb
+const MODEL_DIR := "res://assets/models/characters/"   ## <sprite_unit>.glb, rigged, 21 clips
 const TARGET_HEIGHT_M: float = 1.7132            ## manifests' character_height_m
 
 var visual_mode: VisualMode = VisualMode.SPRITE
@@ -347,11 +347,47 @@ func _build_model(e: EnemyBase) -> bool:
 
 	var anim := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if anim != null:
-		for want in ["idle", "Idle", "rifle_aiming_idle"]:
-			if anim.has_animation(want):
-				anim.play(want)
-				break
+		holder.set_meta("anim_player", anim)
+		e.set_meta("lab_anim", anim)
+		if anim.has_animation("rifle_aiming_idle"):
+			anim.play("rifle_aiming_idle")
 	return true
+
+
+## MODEL mode: drive the rigged AnimationPlayer off the same intent the sprites
+## use, so the A/B compares like animation states, not a static pose vs a movie.
+func _drive_model_anims() -> void:
+	if visual_mode != VisualMode.MODEL:
+		return
+	for n in get_tree().get_nodes_in_group("enemies"):
+		var e := n as EnemyBase
+		if e == null or not e.has_meta("lab_anim"):
+			continue
+		var anim := e.get_meta("lab_anim") as AnimationPlayer
+		if anim == null or not is_instance_valid(anim):
+			continue
+		var speed: float = Vector3(e.velocity.x, 0.0, e.velocity.z).length()
+		var firing: bool = not e.can_fire and e.fire_timer < 0.12
+		var intent: String = SpriteStateMap.intent_for(e.current_state, e.is_crippled, e.is_surrendered, firing, speed)
+		# The models carry the ORIGINAL clip names, not the sprite fallbacks, so
+		# resolve() would miss - map the intent to the richest clip each has.
+		var clip: String = _model_clip_for(intent)
+		if anim.has_animation(clip) and anim.current_animation != clip:
+			anim.play(clip)
+
+
+func _model_clip_for(intent: String) -> String:
+	match intent:
+		"fire": return "firing_rifle"
+		"reload": return "reloading"
+		"run", "walk", "patrol": return "run_forward"
+		"strafe": return "strafe"
+		"retreat", "crippled": return "injured_walk_backwards"
+		"cover": return "kneeling_pointing"
+		"death_forward": return "death_forward"
+		"death_right": return "death_from_right"
+		"surrender": return "kneeling_pointing"
+		_: return "rifle_aiming_idle"
 
 
 func _aabb_of(root: Node) -> AABB:
@@ -584,6 +620,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	_drive_model_anims()
 	if _god and player != null:
 		# get_health_system() is another dead function -- zero callers in the game.
 		var hs: HealthSystem = player.get_health_system()
