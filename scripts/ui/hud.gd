@@ -18,6 +18,9 @@ extends CanvasLayer
 @onready var slot_indicator: Label = $MarginContainer/VBoxContainer/BottomRow/SlotIndicator
 @onready var action_progress: ActionProgress = $ActionProgress
 
+## When true, GameFlow owns death UX (fail-forward debrief) - hide restart UI.
+var managed_by_flow: bool = false
+
 ## Player references
 var health_system: HealthSystem
 var weapon_holder: WeaponHolder
@@ -193,6 +196,11 @@ func _on_bleeding_stopped() -> void:
 
 
 func _on_player_died() -> void:
+	if managed_by_flow:
+		# GameFlow routes death to the debrief (fail-forward); no restart UI.
+		if bleed_container:
+			bleed_container.visible = false
+		return
 	death_screen.visible = true
 	if bleed_container:
 		bleed_container.visible = false
@@ -200,6 +208,8 @@ func _on_player_died() -> void:
 
 
 func _on_restart_pressed() -> void:
+	if managed_by_flow:
+		return
 	death_screen.visible = false
 	get_tree().reload_current_scene()
 

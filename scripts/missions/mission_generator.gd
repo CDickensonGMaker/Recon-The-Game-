@@ -20,6 +20,14 @@ const ENEMY_DATA: Array[String] = [
 ]
 
 
+## Codename derivable without a world (briefing screens) - MUST match plan()'s
+## first two rng draws.
+static func codename_for(seed_value: int) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	return "OPERATION %s %s" % [CODENAME_A[rng.randi() % CODENAME_A.size()], CODENAME_B[rng.randi() % CODENAME_B.size()]]
+
+
 ## PLAN: deterministic per (world seed, mission seed, type). Positions only.
 static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
