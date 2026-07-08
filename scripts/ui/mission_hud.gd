@@ -14,6 +14,9 @@ var _marker_box: Control
 var _markers: Dictionary = {}  # sensor -> Label
 
 
+var topo_map: TopoMap
+
+
 func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list: Array, exfil: ExfilZone, _plan: Dictionary) -> void:
 	world = game_world
 	director = mission_director
@@ -21,6 +24,10 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list
 	exfil_zone = exfil
 	director.toast.connect(show_toast)
 	_build()
+	# W41: topo map (M to toggle).
+	topo_map = TopoMap.new()
+	add_child(topo_map)
+	topo_map.setup(world, director, sensors, exfil)
 
 
 func _build() -> void:
