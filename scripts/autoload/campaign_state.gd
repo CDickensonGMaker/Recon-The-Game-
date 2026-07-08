@@ -4,8 +4,16 @@ extends Node
 
 signal threat_changed(effective: float)
 
-const SAVE_PATH := "user://campaign.cfg"
+const DEFAULT_SAVE_PATH := "user://campaign.cfg"
+const TEST_SAVE_PATH := "user://campaign_test.cfg"
 const BASE_THREAT: float = 0.35
+
+## Resolved in _ready() BEFORE load_campaign(). The headless suite passes
+## `-- --test-save` so tests can never touch the player's real campaign
+## (test_campaign_state / test_xp_spend / test_squad / test_firebase_sim /
+## test_huey_ride all call reset_campaign(), and test_full_loop runs three
+## real missions to debrief).
+var save_path: String = DEFAULT_SAVE_PATH
 
 var threat_level: float = BASE_THREAT
 var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason: String}]
@@ -23,7 +31,16 @@ func player_skill(skill: String) -> int:
 
 
 func _ready() -> void:
+	if is_test_run():
+		save_path = TEST_SAVE_PATH
+		# Never inherit a previous run's leftovers - the suite must start clean.
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE_PATH))
 	load_campaign()
+
+
+## True when launched by run_all_tests.ps1 (`-- --test-save`).
+static func is_test_run() -> bool:
+	return OS.get_cmdline_user_args().has("--test-save")
 
 
 func effective_threat() -> float:
@@ -94,12 +111,19 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "iron_man", iron_man)
 	cfg.set_value("campaign", "player_data", player_data)
 	cfg.set_value("campaign", "intel_points", intel_points)
-	cfg.save(SAVE_PATH)
+	var err: int = cfg.save(save_path)
+	if err != OK:
+		push_error("[SAVE] could not write %s (err %d) - campaign progress lost" % [save_path, err])
 
 
 func load_campaign() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
+	var err: int = cfg.load(save_path)
+	if err != OK:
+		# ERR_FILE_NOT_FOUND is the normal first-boot path. Anything else means
+		# the file exists and is unreadable - say so, don't silently overwrite it.
+		if err != ERR_FILE_NOT_FOUND:
+			push_error("[SAVE] %s exists but failed to load (err %d) - starting fresh, existing file will be overwritten on next save" % [save_path, err])
 		return
 	threat_level = float(cfg.get_value("campaign", "threat_level", BASE_THREAT))
 	threat_modifiers = cfg.get_value("campaign", "threat_modifiers", [])
@@ -119,6 +143,9 @@ func reset_campaign() -> void:
 	roster = []
 	missions_played = 0
 	mission_log = []
-	iron_man = false
+	# iron_man is a PLAYER SETTING, not campaign progress. It used to be cleared
+	# here, which meant an Iron Man death silently disabled the mode that caused
+	# the wipe - the next campaign was not Iron Man unless you re-ticked the box.
 	player_data = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
+	intel_points = 0
 	save_campaign()
