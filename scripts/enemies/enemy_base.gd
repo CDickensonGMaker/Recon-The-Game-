@@ -906,6 +906,7 @@ func _fire_at_target() -> void:
 	var accumulated_spread: float = minf(float(shots_fired) * 0.08, 0.8)
 	var total_spread: float = base_spread * accuracy_modifier * (1.0 + accumulated_spread)
 	total_spread *= (2.0 - char_accuracy)  # Apply characteristic
+	total_spread *= GameSettings.enemy_spread_mult()  # W82 difficulty
 	var spread: float = deg_to_rad(total_spread)
 
 	final_aim.x += randf_range(-spread, spread)

@@ -123,6 +123,13 @@ func _process(_delta: float) -> void:
 	if world == null or world.player == null:
 		return
 	_update_squad_strip(_delta)
+	# W82: HARDCORE strips navigation aids.
+	if GameSettings.hardcore:
+		_compass.visible = false
+		_marker_box.visible = false
+		return
+	_compass.visible = true
+	_marker_box.visible = true
 	var cam: Camera3D = world.player.get_node_or_null("Head/Camera3D")
 	if cam == null:
 		return

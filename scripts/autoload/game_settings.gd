@@ -1,0 +1,50 @@
+## game_settings.gd - Persisted user settings (W82/W83): sensitivity, volume,
+## difficulty, HARDCORE mode.
+extends Node
+
+const PATH := "user://settings.cfg"
+
+var mouse_sensitivity: float = 0.002
+var master_volume_db: float = 0.0
+var difficulty: int = 1  ## 0 EASY / 1 NORMAL / 2 HARD
+var hardcore: bool = false  ## no compass, no markers, faster bleed
+
+const DIFFICULTY_NAMES: Array[String] = ["EASY", "NORMAL", "HARD"]
+
+
+func _ready() -> void:
+	load_settings()
+	apply_audio()
+
+
+## Enemy accuracy scale per difficulty (spread multiplier - higher = worse aim).
+func enemy_spread_mult() -> float:
+	return [1.5, 1.0, 0.7][clampi(difficulty, 0, 2)]
+
+
+## Damage the player takes.
+func player_damage_mult() -> float:
+	return [0.7, 1.0, 1.3][clampi(difficulty, 0, 2)]
+
+
+func apply_audio() -> void:
+	AudioServer.set_bus_volume_db(0, master_volume_db)
+
+
+func save_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("settings", "mouse_sensitivity", mouse_sensitivity)
+	cfg.set_value("settings", "master_volume_db", master_volume_db)
+	cfg.set_value("settings", "difficulty", difficulty)
+	cfg.set_value("settings", "hardcore", hardcore)
+	cfg.save(PATH)
+
+
+func load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(PATH) != OK:
+		return
+	mouse_sensitivity = float(cfg.get_value("settings", "mouse_sensitivity", 0.002))
+	master_volume_db = float(cfg.get_value("settings", "master_volume_db", 0.0))
+	difficulty = int(cfg.get_value("settings", "difficulty", 1))
+	hardcore = bool(cfg.get_value("settings", "hardcore", false))

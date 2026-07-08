@@ -44,6 +44,8 @@ func show_menu() -> void:
 	var menu := MainMenuScreen.new()
 	menu.start_pressed.connect(show_select)
 	menu.barracks_pressed.connect(show_barracks)
+	menu.record_pressed.connect(show_service_record)
+	menu.settings_pressed.connect(show_settings)
 	_swap_screen(menu)
 
 
@@ -51,6 +53,18 @@ func show_barracks() -> void:
 	var barracks := BarracksScreen.new()
 	barracks.back_pressed.connect(show_menu)
 	_swap_screen(barracks)
+
+
+func show_service_record() -> void:
+	var record := ServiceRecordScreen.new()
+	record.back_pressed.connect(show_menu)
+	_swap_screen(record)
+
+
+func show_settings() -> void:
+	var settings := SettingsScreen.new()
+	settings.back_pressed.connect(show_menu)
+	_swap_screen(settings)
 
 
 func show_select() -> void:
@@ -74,10 +88,35 @@ func start_mission(offer: Dictionary) -> void:
 	var loading := ReconUI.make_screen_root()
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.add_child(ReconUI.make_label("INSERTING...", 30, ReconUI.AMBER))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 20)
+	col.add_child(ReconUI.make_label("INSERTING...", 30, ReconUI.AMBER))
+	var tip := ReconUI.make_label(LOADING_TIPS[randi() % LOADING_TIPS.size()], 13, ReconUI.DIM)
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(tip)
+	center.add_child(col)
 	loading.add_child(center)
 	_swap_screen(loading)
 	_run_mission(offer)
+
+
+## W84: field-manual wisdom on the way in.
+const LOADING_TIPS: Array[String] = [
+	"\"WHEN IN DOUBT, TRUST YOUR ALERTNESS.\" - RECON FIELD MANUAL, 1982",
+	"CROUCH IN THE GREEN. THE JUNGLE HIDES THE PATIENT MAN.",
+	"YOUR FIRST SHOT TELLS EVERYONE WHERE YOU ARE. MAKE IT COUNT.",
+	"F1 ON ME. F2 HOLD. F3 MOVE THERE. F4 HOLD FIRE. YOUR SQUAD LISTENS.",
+	"DOC CAN ONLY PATCH YOU TWICE. DON'T MAKE HIM RUN.",
+	"NO RADIO, NO AIR. KEEP YOUR RTO BREATHING.",
+	"THE POINT MAN SEES THE AMBUSH FIRST - IF YOU LET HIM WALK POINT.",
+	"AK FIRE DOESN'T MARK YOU AS AMERICAN. THINK ABOUT IT.",
+	"POP SMOKE [5] SO THE BIRD KNOWS WHERE YOU ARE.",
+	"CLAYMORES [6]: FRONT TOWARD ENEMY.",
+	"MORTARS [Y] NEED A SPOTTING ROUND. WALK THEM ON.",
+	"HOT LZ? THE FALLBACK LZ IS FINAL. DON'T BE LATE.",
+	"AN INFORMER ONLY NEEDS 25 SECONDS. STOP HIM OR MOVE FAST.",
+	"LOOT THE DEAD [E]. DOCUMENTS SHARPEN TOMORROW'S BRIEFING.",
+]
 
 
 func _run_mission(offer: Dictionary) -> void:

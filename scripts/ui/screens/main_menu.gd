@@ -40,9 +40,17 @@ func _ready() -> void:
 	var barracks := ReconUI.make_button("[ BARRACKS ]")
 	barracks.pressed.connect(func() -> void: barracks_pressed.emit())
 	box.add_child(barracks)
+	var record := ReconUI.make_button("[ SERVICE RECORD ]")
+	record.pressed.connect(func() -> void: record_pressed.emit())
+	box.add_child(record)
+	var settings := ReconUI.make_button("[ SETTINGS ]")
+	settings.pressed.connect(func() -> void: settings_pressed.emit())
+	box.add_child(settings)
 	var quit := ReconUI.make_button("[ QUIT ]")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	box.add_child(quit)
 
 
 signal barracks_pressed
+signal record_pressed
+signal settings_pressed

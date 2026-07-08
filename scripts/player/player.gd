@@ -239,6 +239,7 @@ const RECOIL_RECOVERY_SPEED: float = 5.0  # How fast camera recovers
 func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
+	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
 
 	# Register with managers
 	GameManager.register_player(self)

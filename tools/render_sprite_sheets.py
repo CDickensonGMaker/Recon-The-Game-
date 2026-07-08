@@ -14,9 +14,10 @@ import numpy as np
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 UNIT = argv[0] if argv else 'us_grunt'
-RIG_NAME = argv[1] if len(argv) > 1 else 'MixamoRig'
-HIDE = argv[2].split(',') if len(argv) > 2 else []
-TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}"
+WEAPON = argv[1] if len(argv) > 1 else 'm16a1'
+RIG_NAME = argv[2] if len(argv) > 2 else 'MixamoRig'
+HIDE = argv[3].split(',') if len(argv) > 3 else []
+TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}\{WEAPON}"
 os.makedirs(TMP, exist_ok=True)
 
 W, H = 128, 160

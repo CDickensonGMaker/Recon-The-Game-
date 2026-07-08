@@ -178,7 +178,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if is_healing:
 		_interrupt_healing()
 
-	var actual_damage := amount
+	var actual_damage := int(float(amount) * GameSettings.player_damage_mult())  # W82
 	current_hp -= actual_damage
 
 	# Clamp HP
