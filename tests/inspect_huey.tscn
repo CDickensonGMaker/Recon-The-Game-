@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cinspecthuey001"]
+
+[ext_resource type="Script" path="res://tests/inspect_huey.gd" id="1_ih"]
+
+[node name="InspectHuey" type="Node3D"]
+script = ExtResource("1_ih")

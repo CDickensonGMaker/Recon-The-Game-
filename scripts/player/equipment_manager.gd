@@ -67,6 +67,11 @@ func _handle_input() -> void:
 		_start_switch(2)
 	elif Input.is_action_just_pressed("slot_4") and current_slot != 3:
 		_start_switch(3)
+	# PT8: mouse wheel cycles the kit.
+	elif Input.is_action_just_pressed("wheel_down"):
+		_start_switch((current_slot + 1) % 4)
+	elif Input.is_action_just_pressed("wheel_up"):
+		_start_switch((current_slot + 3) % 4)
 
 	# Handle fire input based on current slot
 	_handle_slot_action()

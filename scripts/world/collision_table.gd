@@ -40,7 +40,7 @@ const STRUCTURES := {
 	"m151_mutt_gun_jeep": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
 	"us_jeep_s3o": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
 	"us_m4_sherman": {"box": Vector3(3, 2.8, 6), "y_offset": 1.4, "footprint": Vector2(7, 4), "scale": 1.0},
-	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 0.55},  # raw GLB is 30.7m; 0.55 -> ~17m
+	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},  # duplicate fuselage stripped at runtime; single body ~17m
 	"ch47_chinook": {"box": Vector3(4, 4, 16), "y_offset": 2.0, "footprint": Vector2(18, 18), "scale": 1.0},
 }
 

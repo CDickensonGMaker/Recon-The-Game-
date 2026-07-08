@@ -207,6 +207,25 @@ func stamp_aa_site(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	return site
 
 
+## PT6: small friendly OUTPOST for the insertion staging pad - helipad,
+## hootches, tower, sandbag line. Home base feel without a full firebase.
+func stamp_outpost(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
+	clear_and_flatten(center, 22.0)
+	var nodes: Array[Node3D] = []
+	nodes.append(place_structure("res://assets/building models/structures/firebase/observation_tower.glb", center + Vector3(-10, 0, -8), 0.0))
+	nodes.append(place_structure("res://assets/building models/structures/firebase/hootch.glb", center + Vector3(-12, 0, 4), 15.0))
+	nodes.append(place_structure("res://assets/building models/structures/firebase/hootch.glb", center + Vector3(-8, 0, 12), -20.0))
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		var pos := center + Vector3(cos(a), 0, sin(a)) * 18.0
+		if not _grid.is_water(pos):
+			nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
+	nodes.append(place_structure("res://assets/building models/vehicles/m151_mutt_gun_jeep.glb", center + Vector3(8, 0, -8), rng.randf_range(0, 360)))
+	var site := {"kind": "outpost", "center": center, "nodes": nodes, "radius": 22.0}
+	placed_sites.append(site)
+	return site
+
+
 ## LZ: cleared flattened circle, no structures.
 func stamp_lz(center: Vector3) -> Dictionary:
 	clear_and_flatten(center, 16.0)

@@ -126,6 +126,13 @@ func begin_revive(_health_system: HealthSystem) -> void:
 	director.toast.emit("MAN DOWN! DOC IS MOVING TO YOU (%d revives left)" % revives_left)
 
 
+## PT2: first revive of the mission patches you to FULL; the second is field-dressing.
+func _revive_heal_amount(medic_skill: int) -> int:
+	if revives_left == REVIVES_PER_MISSION - 1:
+		return 999  # clamped to max_hp by HealthSystem.revive
+	return 40 + medic_skill * 5
+
+
 func _process_revive(delta: float) -> void:
 	if not _reviving or _health == null:
 		return
@@ -145,7 +152,7 @@ func _process_revive(delta: float) -> void:
 		_revive_timer += delta
 		if _revive_timer >= channel:
 			_reviving = false
-			var heal: int = 40 + medic_skill * 5
+			var heal: int = _revive_heal_amount(medic_skill)
 			_health.revive(heal)
 			medic.set_order(AllyBase.OrderMode.FOLLOW)
 			director.toast.emit("DOC: YOU'RE GOOD - ON YOUR FEET!")

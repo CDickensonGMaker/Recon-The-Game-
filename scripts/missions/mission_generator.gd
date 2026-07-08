@@ -249,7 +249,11 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			"firebase":
 				built_sites.append(planner.stamp_firebase(site.center, rng))
 			"lz":
-				built_sites.append(planner.stamp_lz(site.center))
+				# PT6: the staging pad is a friendly outpost, not bare dirt.
+				if p.has("start_pad") and (site.center as Vector3).distance_to(p.start_pad) < 1.0:
+					built_sites.append(planner.stamp_outpost(site.center, rng))
+				else:
+					built_sites.append(planner.stamp_lz(site.center))
 			"vc_props":
 				planner.place_structure(SiteLayouts.CACHE_MODEL, site.center, rng.randf_range(0, 360))
 				planner.place_structure(SiteLayouts.TUNNEL_MODEL, site.center + Vector3(4, 0, 3), 0.0)
@@ -363,6 +367,45 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			for j in range(2):
 				var crew := director.spawn_tracked_enemy(pos + Vector3(2.0 + float(j) * 2.0, 0, 1.5), ENEMY_DATA[rng.randi() % 2], "aa_opportunistic")
 				crew.add_to_group("aa_opportunistic")
+
+	# PT4: ambient life so the walk is never dead - extra villages + patrols
+	# along the insertion->objective corridor (not on firebase defense).
+	if p.has("start_pad"):
+		var corridor_a: Vector3 = p.insertion_lz
+		var corridor_b: Vector3 = p.exfil_lz
+		if p.objectives.size() > 0 and p.objectives[0].has("pos") and p.objectives[0].pos != Vector3.ZERO:
+			corridor_b = p.objectives[0].pos
+		# 1-2 ambient villages (no objectives; a few civvies, maybe a lazy defender pair).
+		for _av in range(rng.randi_range(1, 2)):
+			var vc: Vector3 = planner.find_site(rng, 24.0, 150.0)
+			if vc == Vector3.ZERO:
+				continue
+			var av_site: Dictionary = planner.stamp_village(vc, rng)
+			built_sites.append(av_site)
+			for ci in range(rng.randi_range(2, 3)):
+				var ca2 := rng.randf_range(0.0, TAU)
+				var cpos2: Vector3 = vc + Vector3(cos(ca2), 0, sin(ca2)) * rng.randf_range(2.0, 10.0)
+				cpos2.y = world.terrain_manager.get_height_at(cpos2) + 0.5
+				Civilian.spawn(world, cpos2, director, rng.randf() < 0.3)
+			if rng.randf() < 0.5:
+				var lg_v := LazyGroup.new()
+				lg_v.enemy_count = 2
+				lg_v.group_tag = "ambient_village_guard"
+				lg_v.setup(director, int(p.seed) + hash(vc))
+				world.add_child(lg_v)
+				lg_v.global_position = _seat(world, vc + Vector3(10, 0, 5))
+		# 2-3 wandering patrols along the corridor.
+		for pi in range(rng.randi_range(2, 3)):
+			var t_frac: float = rng.randf_range(0.2, 0.8)
+			var mid: Vector3 = corridor_a.lerp(corridor_b, t_frac)
+			var ppos := _passable_near(world, rng, mid, 40.0, 140.0)
+			var lg_p := LazyGroup.new()
+			lg_p.enemy_count = rng.randi_range(2, 4)
+			lg_p.group_tag = "ambient_patrol_%d" % pi
+			lg_p.activation_range = 140.0
+			lg_p.setup(director, int(p.seed) + 31 * pi)
+			world.add_child(lg_p)
+			lg_p.global_position = _seat(world, ppos)
 
 	var exfil := ExfilZone.new()
 	exfil.use_bird = true

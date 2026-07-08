@@ -55,6 +55,17 @@ func _build() -> void:
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_prompt)
 
+	# PT8: right-side slot slider (appears on wheel/key switch, fades out).
+	_slot_slider = VBoxContainer.new()
+	_slot_slider.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_slot_slider.position = Vector2(-190, -70)
+	_slot_slider.add_theme_constant_override("separation", 4)
+	_slot_slider.modulate.a = 0.0
+	add_child(_slot_slider)
+	var equip := world.player.get_node_or_null("EquipmentManager") as EquipmentManager
+	if equip:
+		equip.slot_changed.connect(func(_i: int, _t: Enums.SlotType) -> void: _show_slot_slider())
+
 
 var _prompt: Label
 var squad: SquadSystem = null
@@ -65,6 +76,46 @@ var _squad_poll: float = 0.0
 func set_prompt(text: String) -> void:
 	if _prompt:
 		_prompt.text = text
+
+
+## PT8: slot slider - the kit at a glance, current slot highlighted.
+var _slot_slider: VBoxContainer
+var _slider_tween: Tween
+
+
+func _show_slot_slider() -> void:
+	if _slot_slider == null or world == null or world.player == null:
+		return
+	for c in _slot_slider.get_children():
+		c.queue_free()
+	var equip := world.player.get_node_or_null("EquipmentManager") as EquipmentManager
+	var wh := world.player.get_node_or_null("Head/Camera3D/WeaponHolder") as WeaponHolder
+	var hs := world.player.get_node_or_null("HealthSystem") as HealthSystem
+	if equip == null:
+		return
+	var target_slot: int = equip.pending_slot if equip.pending_slot >= 0 else equip.current_slot
+	var names := [
+		"1 %s" % (wh.primary_weapon.display_name if wh and wh.primary_weapon else "RIFLE"),
+		"2 %s" % (wh.secondary_weapon.display_name if wh and wh.secondary_weapon else "PISTOL"),
+		"3 FRAG x%d" % (equip.grenade_count),
+		"4 MEDKIT x%d" % (hs.health_packs if hs else 0),
+	]
+	for i in range(4):
+		var row := ReconUI.make_label(str(names[i]), 15,
+			Color(0.1, 0.1, 0.08) if i == target_slot else Color(0.75, 0.74, 0.66))
+		if i == target_slot:
+			var bgr := ColorRect.new()
+			bgr.color = Color(0.55, 0.58, 0.36)
+			bgr.show_behind_parent = true
+			bgr.set_anchors_preset(Control.PRESET_FULL_RECT)
+			row.add_child(bgr)
+		_slot_slider.add_child(row)
+	_slot_slider.modulate.a = 1.0
+	if _slider_tween:
+		_slider_tween.kill()
+	_slider_tween = create_tween()
+	_slider_tween.tween_interval(1.6)
+	_slider_tween.tween_property(_slot_slider, "modulate:a", 0.0, 0.4)
 
 
 ## W66: red pip on a ring around center pointing at incoming fire.
@@ -156,13 +207,24 @@ func _update_markers(cam: Camera3D) -> void:
 			(_markers[key] as Label).queue_free()
 			_markers.erase(key)
 
+	# PT1: distant squadmates get markers too - never lose your team.
+	if squad != null:
+		for a in squad.members:
+			if is_instance_valid(a) and not a.is_dead() \
+					and a.global_position.distance_to(world.player.global_position) > 20.0:
+				targets.append(a)
+
 	for t in targets:
 		var node := t as Node3D
 		if not _markers.has(t):
 			var title := "EXFIL"
+			var color := Color(0.5, 0.9, 0.5)
 			if t is ObjectiveSensor:
 				title = (t as ObjectiveSensor).title
-			var l := ReconUI.make_label(title, 13, Color(0.5, 0.9, 0.5))
+			elif t is AllyBase:
+				title = str((t as AllyBase).member.get("nick", "SQUAD"))
+				color = Color(0.65, 0.7, 0.45)
+			var l := ReconUI.make_label(title, 13, color)
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_marker_box.add_child(l)
 			_markers[t] = l
@@ -173,6 +235,10 @@ func _update_markers(cam: Camera3D) -> void:
 		if not behind:
 			var screen: Vector2 = cam.unproject_position(pos)
 			var dist: float = world.player.global_position.distance_to(node.global_position)
-			var title2 := "EXFIL" if t is ExfilZone else (t as ObjectiveSensor).title
+			var title2 := "EXFIL"
+			if t is ObjectiveSensor:
+				title2 = (t as ObjectiveSensor).title
+			elif t is AllyBase:
+				title2 = str((t as AllyBase).member.get("nick", "SQUAD"))
 			label.text = "v %s %dm" % [title2, int(dist)]
 			label.position = screen - Vector2(label.size.x * 0.5, 0)

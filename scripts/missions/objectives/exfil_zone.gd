@@ -135,7 +135,7 @@ func _board() -> void:
 		var seat := Marker3D.new()
 		seat.name = "SeatDoorLeft"
 		_bird.add_child(seat)
-		seat.position = Vector3(-1.1, 1.0, 0.4)
+		seat.position = Vector3(-0.85, 1.35, 0.6)
 		player.enter_seat(seat)
 	elif player:
 		player.visible = false

@@ -65,7 +65,7 @@ var _chunk_grass: Dictionary = {}  # Grass patches
 var _chunk_placements: Dictionary = {}
 
 const TREE_CANDIDATES_PER_CHUNK := 1200  # FPS fork: reduced from RTS 2000
-const GRASS_CANDIDATES_PER_CHUNK := 1200  # FPS fork: reduced from RTS 3000
+const GRASS_CANDIDATES_PER_CHUNK := 2000  # PT5: more ground cover (was 1200)
 
 # Grass acceptance thresholds per terrain type
 const GRASS_ACCEPT := {

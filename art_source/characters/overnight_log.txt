@@ -1,2 +1,10 @@
 ﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 04:25:47 ===
 --- RENDER us_grunt / m16a1 07/08/2026 04:25:47 ---
+
+UNIT=us_grunt RIG=MixamoRig hidden=['VC1_Farmer', 'AK47_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']
+FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)
+FRAMES DONE: brutal_assassination (8 cols x 8 dirs)
+FRAMES DONE: death_forward (8 cols x 8 dirs)
+FRAMES DONE: death_from_right (8 cols x 8 dirs)
+FRAMES DONE: firing_rifle (8 cols x 8 dirs)
+FRAMES DONE: injured_walk_backwards (8 cols x 8 dirs)

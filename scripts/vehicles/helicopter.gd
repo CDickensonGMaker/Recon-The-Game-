@@ -23,6 +23,26 @@ var _lz: LandingZone
 var _land_y: float = 0.0
 
 
+## PT7: the source GLB ships a duplicate blank fuselage + spare skid parts at
+## x=-7.7 and the real bird at x=+8.3. Strip the junk and recenter the model.
+func _ready() -> void:
+	var model := get_node_or_null("Model")
+	if model == null:
+		return
+	var junk_prefixes := ["Huey_Copy", "New_Skid", "Cross_", "Strut_"]
+	var root := model.get_child(0) if model.get_child_count() > 0 else model
+	for child in root.get_children():
+		for prefix in junk_prefixes:
+			if str(child.name).begins_with(prefix):
+				child.queue_free()
+				break
+	# Recenter: the real Body sits ~+8.26 on X in the source.
+	var body := root.find_child("Body", true, false) as Node3D
+	if body != null:
+		root.position.x -= body.position.x
+		root.position.z -= body.position.z
+
+
 func setup(terrain_manager: TerrainManager) -> void:
 	terrain = terrain_manager
 
@@ -76,7 +96,8 @@ func _process_crashing(delta: float) -> void:
 	if global_position.y <= ground + 0.5:
 		global_position.y = ground + 0.5
 		state = State.DESTROYED
-		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.2)
+		# PT3: shallow scar, not a pit trap - survivors must be able to walk out.
+		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 		CombatManager.apply_explosion_damage(global_position, 150, 40, 10.0, null)
 		crashed.emit(self)
 

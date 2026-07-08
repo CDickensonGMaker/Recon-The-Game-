@@ -45,11 +45,12 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, start_pad: 
 ## sockets named SeatPilot / SeatCopilot / SeatDoorLeft / SeatDoorRight /
 ## DoorGunMount - this code looks for them by name before using fallbacks.
 func _build_seats_and_crew() -> void:
-	door_seat = _socket("SeatDoorLeft", Vector3(-1.1, 1.0, 0.4))
+	# PT7: seats tucked INSIDE the cabin (body is ~3.3m wide, floor ~1m up).
+	door_seat = _socket("SeatDoorLeft", Vector3(-0.85, 1.35, 0.6))
 	var crew_seats := [
-		_socket("SeatPilot", Vector3(0.45, 1.15, -2.4)),
-		_socket("SeatCopilot", Vector3(-0.45, 1.15, -2.4)),
-		_socket("SeatDoorRight", Vector3(1.1, 1.0, 0.4)),
+		_socket("SeatPilot", Vector3(0.5, 1.5, -3.6)),
+		_socket("SeatCopilot", Vector3(-0.5, 1.5, -3.6)),
+		_socket("SeatDoorRight", Vector3(0.85, 1.35, 0.6)),
 	]
 	for seat in crew_seats:
 		var crew := MeshInstance3D.new()
@@ -202,7 +203,9 @@ func _poll_dismount() -> void:
 func dismount(from_crash: bool) -> void:
 	if state == RideState.DISMOUNTED:
 		return
-	var out := heli.global_position + heli.global_transform.basis.x * -2.5
+	# PT3: after a crash, come out well clear of the crater rim.
+	var side_dist: float = 8.0 if from_crash else 2.5
+	var out := heli.global_position + heli.global_transform.basis.x * -side_dist
 	out.y = world.terrain_manager.get_height_at(out) + 1.0
 	world.player.exit_seat(out)
 	_stow_allies(false)
