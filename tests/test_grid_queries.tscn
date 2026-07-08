@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestgridquery1"]
+
+[ext_resource type="Script" path="res://tests/test_grid_queries.gd" id="1_tgq"]
+
+[node name="TestGridQueries" type="Node"]
+script = ExtResource("1_tgq")

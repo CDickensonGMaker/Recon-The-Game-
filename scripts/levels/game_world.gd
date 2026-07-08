@@ -1,5 +1,6 @@
-## game_world.gd - Generated AO gameplay scene: terrain + player + HUD.
-## The terrain-FPS bridge. Mission systems attach on top of this (NS07+).
+## game_world.gd - Generated AO gameplay scene: terrain + water + vegetation +
+## gameplay grid + player + HUD. The terrain-FPS bridge (NS02/NS03).
+## Mission systems attach on top of this (NS07+).
 class_name GameWorld
 extends Node3D
 
@@ -9,12 +10,21 @@ const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
 const TerrainManagerScript := preload("res://terrain/core/terrain_manager.gd")
 const TerrainChunkScript := preload("res://terrain/core/terrain_chunk.gd")
+const VegetationManagerScript := preload("res://terrain/vegetation/vegetation_manager.gd")
+const BillboardVegetationScript := preload("res://terrain/vegetation/billboard_vegetation.gd")
+const WaterSystemScript := preload("res://terrain/water/water_system.gd")
+const GameplayGridScript := preload("res://terrain/core/gameplay_grid.gd")
 
 @export var mission_seed: int = 12345
 @export var map_size: float = 1280.0
 @export var spawn_position_override: Vector3 = Vector3.ZERO  ## zero = AO center
+@export var spawn_player_on_ready: bool = true
 
 var terrain_manager: TerrainManager
+var vegetation_manager: VegetationManager
+var billboard_vegetation: BillboardVegetation
+var water_system: WaterSystem
+var gameplay_grid: GameplayGrid
 var player: CharacterBody3D
 var hud: HUD
 var is_world_ready: bool = false
@@ -70,17 +80,150 @@ func _setup_terrain() -> void:
 	terrain_manager.load_distance = 2
 	terrain_manager.unload_distance = 3
 	add_child(terrain_manager)
+
+	vegetation_manager = VegetationManagerScript.new()
+	vegetation_manager.name = "VegetationManager"
+	add_child(vegetation_manager)
+
+	billboard_vegetation = BillboardVegetationScript.new()
+	billboard_vegetation.name = "BillboardVegetation"
+	add_child(billboard_vegetation)
+
+	water_system = WaterSystemScript.new()
+	water_system.name = "WaterSystem"
+	add_child(water_system)
+
 	terrain_manager.terrain_ready.connect(_on_terrain_ready)
-	# Shared chunk material must exist before chunks build or terrain renders white.
-	TerrainChunkScript._create_shared_material()
+	terrain_manager.chunk_loaded.connect(_on_chunk_loaded)
+
+	_setup_default_shader_textures()
+
+	# Wire vegetation to terrain BEFORE generation (rice-paddy vertex coloring
+	# happens during mesh build; water-proximity checks need the back-reference).
+	terrain_manager.vegetation_manager = vegetation_manager
+	vegetation_manager._terrain_manager = terrain_manager
+
 	await terrain_manager.generate_terrain(mission_seed)
 
 
+## Default neutral shader textures BEFORE generation prevent white terrain
+## from unbound samplers (pattern from terrain_lab).
+func _setup_default_shader_textures() -> void:
+	var default_height := Image.create(4, 4, false, Image.FORMAT_RF)
+	default_height.fill(Color(0.5, 0.5, 0.5, 1.0))
+	var height_tex := ImageTexture.create_from_image(default_height)
+
+	var default_veg := Image.create(4, 4, false, Image.FORMAT_RF)
+	default_veg.fill(Color(1.0, 1.0, 1.0, 1.0))
+	var veg_tex := ImageTexture.create_from_image(default_veg)
+
+	var default_clear := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	default_clear.fill(Color(0, 0, 0, 0))
+	var clear_tex := ImageTexture.create_from_image(default_clear)
+
+	TerrainChunkScript._create_shared_material()
+	TerrainChunkScript.set_shader_parameters({
+		"heightmap": height_tex,
+		"vegetation_texture": veg_tex,
+		"clearing_texture": clear_tex,
+		"terrain_size": 385,
+		"cell_size": 4.0,
+		"height_scale": 280.0,
+	})
+
+
 func _on_terrain_ready() -> void:
-	_spawn_player()
-	_setup_hud()
+	# 1. Damage + clearing systems (autoloads) get their terrain references.
+	DamageSystem.set_terrain_manager(terrain_manager)
+	DamageSystem.set_vegetation_manager(vegetation_manager)
+	DamageSystem.set_billboard_vegetation(billboard_vegetation)
+	ClearingSystem.set_terrain_manager(terrain_manager)
+	if ClearingSystem.has_signal("vegetation_updated"):
+		ClearingSystem.vegetation_updated.connect(_on_vegetation_updated)
+
+	# 2. Real shader textures now that the heightmap exists.
+	_setup_terrain_shader_textures()
+
+	# 3. Water BEFORE gameplay grid (grid needs accurate water cells).
+	water_system.initialize(terrain_manager.heightmap, terrain_manager.chunk_size)
+	water_system.ocean_edges = 0b0000  # inland AO - rivers/ponds only
+	water_system.sea_level = 15.0
+	water_system.generate_water_bodies()
+	var wetness_tex: ImageTexture = water_system.generate_wetness_texture(16.0)
+	if wetness_tex:
+		TerrainChunkScript.set_shader_texture("wetness_texture", wetness_tex)
+
+	# 4. Gameplay grid (site planning, spawn queries, LOS).
+	gameplay_grid = GameplayGridScript.new(terrain_manager.map_size, 256)
+	gameplay_grid.set_heightmap(terrain_manager.heightmap)
+	gameplay_grid.set_clearing_system(ClearingSystem)
+	gameplay_grid.set_water_system(water_system)
+	gameplay_grid.build_from_terrain()
+
+	# 5. Player, then vegetation cameras (they need the player camera).
+	if spawn_player_on_ready:
+		_spawn_player()
+		_wire_cameras(player.get_node("Head/Camera3D"))
+		_setup_hud()
+
 	is_world_ready = true
 	world_ready.emit()
+
+
+func _wire_cameras(cam: Camera3D) -> void:
+	terrain_manager.set_camera(cam)
+	vegetation_manager.set_camera(cam)
+	vegetation_manager.set_chunk_size(terrain_manager.chunk_size)
+	billboard_vegetation.set_camera(cam)
+	billboard_vegetation.set_chunk_size(terrain_manager.chunk_size)
+	billboard_vegetation.set_terrain_manager(terrain_manager)
+	billboard_vegetation.set_vegetation_manager(vegetation_manager)
+
+
+func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
+	if is_playable and vegetation_manager._chunk_terrain.has(coord):
+		billboard_vegetation.generate_for_chunk(
+			coord,
+			terrain_manager.heightmap,
+			vegetation_manager._chunk_terrain[coord]
+		)
+
+
+func _setup_terrain_shader_textures() -> void:
+	if not TerrainChunkScript.is_using_shader():
+		return
+	var params := {}
+	if terrain_manager.heightmap:
+		var heightmap_tex: ImageTexture = terrain_manager.heightmap.get_texture()
+		if heightmap_tex:
+			params["heightmap"] = heightmap_tex
+		params["terrain_size"] = terrain_manager.heightmap.size
+	params["cell_size"] = terrain_manager.cell_size
+	params["height_scale"] = terrain_manager.height_scale
+	var veg_tex: ImageTexture = ClearingSystem.get_vegetation_texture()
+	if veg_tex:
+		params["vegetation_texture"] = veg_tex
+	var clear_tex: ImageTexture = ClearingSystem.get_clearing_texture()
+	if clear_tex:
+		params["clearing_texture"] = clear_tex
+	TerrainChunkScript.set_shader_parameters(params)
+
+
+func _on_vegetation_updated(_region: Rect2i) -> void:
+	var veg_tex: ImageTexture = ClearingSystem.get_vegetation_texture()
+	if veg_tex:
+		TerrainChunkScript.set_shader_texture("vegetation_texture", veg_tex)
+	var clear_tex: ImageTexture = ClearingSystem.get_clearing_texture()
+	if clear_tex:
+		TerrainChunkScript.set_shader_texture("clearing_texture", clear_tex)
+	if gameplay_grid:
+		var world_center := Vector3(
+			(_region.position.x + _region.size.x / 2.0) * terrain_manager.map_size / 512.0,
+			0,
+			(_region.position.y + _region.size.y / 2.0) * terrain_manager.map_size / 512.0
+		)
+		var radius: float = maxf(_region.size.x, _region.size.y) * terrain_manager.map_size / 512.0
+		gameplay_grid.update_region(world_center, radius)
 
 
 func _spawn_player() -> void:
@@ -91,8 +234,6 @@ func _spawn_player() -> void:
 		spawn = Vector3(map_size * 0.5, 0.0, map_size * 0.5)
 	var ground_y: float = terrain_manager.get_height_at(spawn)
 	player.global_position = Vector3(spawn.x, ground_y + 1.0, spawn.z)
-	var cam: Camera3D = player.get_node("Head/Camera3D")
-	terrain_manager.set_camera(cam)
 
 
 func _setup_hud() -> void:
