@@ -129,10 +129,20 @@ func _on_bird_landed(_h: Helicopter, _lz_node: LandingZone) -> void:
 func _board() -> void:
 	_bird_state = 3
 	director.toast.emit("EXTRACTION - DUSTOFF")
-	# Hide the player "aboard" the bird.
+	# Ride out in the door seat (W12) - the climb-out is the closing shot.
 	var player := GameManager.player as Node3D
-	if player:
+	if player and player.has_method("enter_seat"):
+		var seat := Marker3D.new()
+		seat.name = "SeatDoorLeft"
+		_bird.add_child(seat)
+		seat.position = Vector3(-1.1, 1.0, 0.4)
+		player.enter_seat(seat)
+	elif player:
 		player.visible = false
+	# Squad climbs aboard too.
+	for a in player.get_tree().get_nodes_in_group("allies"):
+		(a as Node3D).visible = false
+		(a as Node).set_physics_process(false)
 	_bird.take_off()
 
 

@@ -1,20 +1,23 @@
 ﻿"""Assemble organized sprite-sheet folders from cached frame renders.
 
-Reads:  renders/sprites/sheets/_frames/<action>_<dir>_<col>.png
-Writes: renders/sprites/sheets/<action>/
+Reads:  art_source/characters/sprite_frames/<unit>/<action>_<dir>_<col>.png
+Writes: assets/characters/sprites/<unit>/<action>/
           <action>_ALL.png / _ALL_q.png          combined sheet (dir rows, frame cols)
           <action>_<dirlabel>.png / _q.png       one horizontal strip per direction
           <action>.json                          manifest
 
-Run:  blender -b -P assemble_sheets.py
+Run (unit name after --):  blender -b -P assemble_sheets.py -- us_grunt
 (Frame pixels are kept in Blender's native bottom-up row order throughout,
 then written back the same way - no flips, no upside-down output.)
 """
-import bpy, os, re, json, glob
+import bpy, os, re, sys, json, glob
 import numpy as np
 
-BASE = r"C:\Users\caleb\RECONgame\assets\characters\source\renders\sprites\sheets"
-TMP = os.path.join(BASE, "_frames")
+argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+UNIT = argv[0] if argv else 'us_grunt'
+BASE = rf"C:\Users\caleb\RECONgame\assets\characters\sprites\{UNIT}"
+TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}"
+os.makedirs(BASE, exist_ok=True)
 W, H, DIRS = 128, 160, 8
 DIR_LABELS = ['front', 'front_right', 'right', 'back_right',
               'back', 'back_left', 'left', 'front_left']

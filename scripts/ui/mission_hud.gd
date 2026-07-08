@@ -41,6 +41,20 @@ func _build() -> void:
 	_toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(_toast_box)
 
+	_prompt = ReconUI.make_label("", 20, Color(0.95, 0.9, 0.6))
+	_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt.position.y = -120.0
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(_prompt)
+
+
+var _prompt: Label
+
+
+func set_prompt(text: String) -> void:
+	if _prompt:
+		_prompt.text = text
+
 
 func show_toast(text: String) -> void:
 	var l := ReconUI.make_label(text, 17, Color(0.95, 0.85, 0.5))

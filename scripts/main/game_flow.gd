@@ -89,13 +89,23 @@ func _run_mission(offer: Dictionary) -> void:
 
 	var plan: Dictionary = MissionGenerator.plan(world, int(offer.mission_seed), int(offer.type) as MissionGenerator.MissionType)
 	var built: Dictionary = MissionGenerator.build(world, director, plan)
-	world.spawn_player_at(plan.insertion_lz)
+	# Ride in on the Huey when the plan has a start pad (all types but firebase).
+	var spawn: Vector3 = plan.insertion_lz
+	if plan.has("start_pad"):
+		spawn = plan.start_pad
+	world.spawn_player_at(spawn)
 	if world.hud != null:
 		world.hud.managed_by_flow = true
 
 	mission_hud = MissionHUD.new()
 	world.add_child(mission_hud)
 	mission_hud.setup(world, director, built.sensors, built.exfil_zone, plan)
+
+	if plan.has("start_pad"):
+		var ride := InsertionRide.new()
+		world.add_child(ride)
+		ride.setup(world, director, plan.start_pad, plan.insertion_lz)
+		ride.prompt_changed.connect(mission_hud.set_prompt)
 
 	_swap_screen(null)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

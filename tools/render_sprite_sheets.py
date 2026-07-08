@@ -1,20 +1,20 @@
-﻿"""Batch-render 8-direction sprite FRAMES for every action in unit_us_grunt.blend.
+﻿"""Batch-render 8-direction sprite FRAMES for every action in a unit blend.
 
-Run headless:
-  blender -b unit_us_grunt.blend -P render_sprite_sheets.py
+Run headless (unit name after --):
+  blender -b art_source/characters/blends/unit_us_grunt.blend -P render_sprite_sheets.py -- us_grunt
 Then assemble organized per-animation folders:
-  blender -b -P assemble_sheets.py
+  blender -b -P assemble_sheets.py -- us_grunt
 
-This script only renders frames to sheets/_frames/<action>_<dir>_<col>.png
+Frames cache to art_source/characters/sprite_frames/<unit>/<action>_<dir>_<col>.png
 (cached: existing frames are skipped, so re-runs are cheap).
 Layout/strips/palette live in assemble_sheets.py.
 """
-import bpy, os, math, json
+import bpy, os, sys, math, json
 import numpy as np
 
-OUT = r"C:\Users\caleb\RECONgame\assets\characters\source\renders\sprites\sheets"
-TMP = os.path.join(OUT, "_frames")
-os.makedirs(OUT, exist_ok=True)
+argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+UNIT = argv[0] if argv else 'us_grunt'
+TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}"
 os.makedirs(TMP, exist_ok=True)
 
 W, H = 128, 160

@@ -88,6 +88,30 @@ func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	# head.rotation.x is set in _handle_recoil to combine base rotation + recoil
 
 
+## Seated mode (W05): glued to a seat marker, head-look only, no collision.
+var is_seated: bool = false
+var _seat_node: Node3D = null
+
+
+func enter_seat(seat: Node3D) -> void:
+	is_seated = true
+	_seat_node = seat
+	velocity = Vector3.ZERO
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col:
+		col.disabled = true
+
+
+func exit_seat(ground_pos: Vector3) -> void:
+	is_seated = false
+	_seat_node = null
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col:
+		col.disabled = false
+	global_position = ground_pos
+	velocity = Vector3.ZERO
+
+
 var _footstep_timer: float = 0.0
 
 
@@ -111,6 +135,12 @@ func _emit_footsteps(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	if not GameManager.can_player_act():
+		return
+
+	# Seated (Huey ride): follow the seat, keep head-look, skip movement.
+	if is_seated:
+		if _seat_node != null and is_instance_valid(_seat_node):
+			global_position = _seat_node.global_position
 		return
 
 	# Cap delta for framerate independence (Quake 3 pattern - max 66ms)

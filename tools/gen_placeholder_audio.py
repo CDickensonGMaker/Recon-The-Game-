@@ -74,3 +74,22 @@ write_wav("impact_dirt.wav", impact(0.08, 150.0))
 write_wav("impact_hard.wav", impact(0.06, 320.0))
 write_wav("dry_click.wav", click())
 write_wav("explosion.wav", lowpass(gunshot(55.0, 0.9, 0.9, 0.22), 0.2))
+
+
+def rotor_loop(length=2.0, blade_hz=10.8, base_hz=32.0):
+    """Loopable Huey whump: pulse-train amplitude mod over low drone + noise."""
+    n = int(SR * length)
+    out = []
+    for i in range(n):
+        t = i / SR
+        pulse = 0.55 + 0.45 * max(0.0, math.sin(2 * math.pi * blade_hz * t)) ** 3
+        drone = math.sin(2 * math.pi * base_hz * t) * 0.5 + math.sin(2 * math.pi * base_hz * 2.02 * t) * 0.25
+        wind = (random.random() * 2 - 1) * 0.25
+        out.append((drone + wind) * pulse)
+    out = lowpass(out, 0.25)
+    peak = max(abs(s) for s in out)
+    return [s / peak * 0.85 for s in out]
+
+
+write_wav("rotor_loop.wav", rotor_loop())
+write_wav("wind_loop.wav", lowpass([(random.random() * 2 - 1) * 0.6 for _ in range(int(SR * 2.0))], 0.15))

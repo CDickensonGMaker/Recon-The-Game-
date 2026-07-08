@@ -3,7 +3,7 @@ Run: blender -b -P fix_unit_files.py
 """
 import bpy, glob
 
-for path in sorted(glob.glob(r"C:\Users\caleb\RECONgame\assets\characters\source\units\unit_*.blend")):
+for path in sorted(glob.glob(r"C:\Users\caleb\RECONgame\art_source\characters\units\unit_*.blend")):
     bpy.ops.wm.open_mainfile(filepath=path)
     sc = bpy.context.scene
     linked = 0

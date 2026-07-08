@@ -69,7 +69,8 @@ static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner:
 		p.objectives.append({"kind": "plant", "pos": c, "title": "DESTROY AA GUN %s" % char(65 + i), "index": i, "required": true, "aa_index": i})
 		p.enemy_groups.append({"pos": c, "count": rng.randi_range(3, 4), "tag": "aa_crew_%d" % i, "lazy": false, "spread": 10.0})
 	p["aa_centers"] = aa_centers
-	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}]
+	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
+	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
 	for c in aa_centers:
 		p.sites.append({"kind": "aa_site", "center": c})
 	p["cas_budget"] = 0
@@ -110,7 +111,8 @@ static func _plan_patrol(world: GameWorld, rng: RandomNumberGenerator, planner: 
 	p.objectives.append({"kind": "reach", "pos": cache_pos, "title": "LOCATE VC CACHE (BONUS)", "index": index, "required": false})
 	index += 1
 	p["exfil_lz"] = planner.find_site(rng, 16.0, 150.0)
-	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": p.exfil_lz}, {"kind": "vc_props", "center": cache_pos}]
+	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
+	p["sites"] = [{"kind": "lz", "center": lz_in}, {"kind": "lz", "center": p.exfil_lz}, {"kind": "lz", "center": p.start_pad}, {"kind": "vc_props", "center": cache_pos}]
 	p["intel"] = "Local Force elements reported along the route. Expect trail watchers."
 
 
@@ -129,7 +131,8 @@ static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner:
 	var target_title := "DESTROY THE CAPTURED APC" if target_is_vehicle else "DESTROY WEAPONS CACHE"
 	p.objectives.append({"kind": "plant", "pos": Vector3.ZERO, "title": target_title, "index": 0, "required": true})  # pos resolved at build
 	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE", "index": 1, "required": true, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
-	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}]
+	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
+	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
 	p["cas_budget"] = 1
 	p["intel"] = "VC squad garrisons the ville. Arms cache concealed nearby. %d-%d fighters estimated." % [defender_count - 2, defender_count + 3]
 

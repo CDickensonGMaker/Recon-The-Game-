@@ -110,6 +110,12 @@ func _handle_input() -> void:
 	if is_switching:
 		return
 
+	# Seated in the bird (W05): weapon down, no firing this version.
+	if controller and "is_seated" in controller and controller.is_seated:
+		is_aiming = false
+		is_firing = false
+		return
+
 	# Block input if not on weapon slot (grenade/medkit selected)
 	var on_weapon_slot: bool = not equipment_manager or equipment_manager.is_weapon_slot()
 	if not on_weapon_slot:
