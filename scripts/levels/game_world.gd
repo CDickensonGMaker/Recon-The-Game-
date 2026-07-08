@@ -169,8 +169,24 @@ func _on_terrain_ready() -> void:
 			spawn = Vector3(map_size * 0.5, 0.0, map_size * 0.5)
 		spawn_player_at(spawn)
 
+	_start_ambience()
 	is_world_ready = true
 	world_ready.emit()
+
+
+## W44/W67: jungle bed + distant-war layer (looping placeholder beds).
+func _start_ambience() -> void:
+	for cfg in [["res://assets/audio/sfx/jungle_loop.wav", -14.0], ["res://assets/audio/sfx/distant_war_loop.wav", -20.0]]:
+		var stream := load(str(cfg[0])) as AudioStreamWAV
+		if stream == null:
+			continue
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_end = stream.data.size() / 2
+		var p := AudioStreamPlayer.new()
+		p.stream = stream
+		p.volume_db = float(cfg[1])
+		add_child(p)
+		p.play()
 
 
 ## Public: spawn the player at a position (mission insertion). Wires cameras+HUD.

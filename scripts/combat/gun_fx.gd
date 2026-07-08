@@ -11,6 +11,24 @@ const IMPACT_HARD := preload("res://assets/audio/sfx/impact_hard.wav")
 const DRY_CLICK := preload("res://assets/audio/sfx/dry_click.wav")
 const EXPLOSION := preload("res://assets/audio/sfx/explosion.wav")
 
+const COMBAT_STING := preload("res://assets/audio/sfx/combat_sting.wav")
+static var _sting_cooldown_until: int = 0
+
+
+## W67: contact! drum sting, throttled.
+static func play_combat_sting(parent: Node) -> void:
+	var now := Time.get_ticks_msec()
+	if now < _sting_cooldown_until:
+		return
+	_sting_cooldown_until = now + 25000
+	var p := AudioStreamPlayer.new()
+	p.stream = COMBAT_STING
+	p.volume_db = -4.0
+	parent.add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+
+
 static var _active_flashes: int = 0
 static var _active_impacts: int = 0
 const MAX_FLASHES: int = 8

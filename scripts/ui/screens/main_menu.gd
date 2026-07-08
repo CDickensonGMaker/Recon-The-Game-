@@ -6,6 +6,19 @@ signal start_pressed
 
 
 func _ready() -> void:
+	# W68: menu soundscape - idle rotor far off + radio net crackle.
+	for cfg in [["res://assets/audio/sfx/rotor_loop.wav", -18.0, 0.8], ["res://assets/audio/sfx/radio_crackle.wav", -16.0, 1.0]]:
+		var stream := load(str(cfg[0])) as AudioStreamWAV
+		if stream:
+			stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			stream.loop_end = stream.data.size() / 2
+			var p := AudioStreamPlayer.new()
+			p.stream = stream
+			p.volume_db = float(cfg[1])
+			p.pitch_scale = float(cfg[2])
+			add_child(p)
+			p.play()
+
 	var root := ReconUI.make_screen_root()
 	add_child(root)
 	set_anchors_preset(Control.PRESET_FULL_RECT)

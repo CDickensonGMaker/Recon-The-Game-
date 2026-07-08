@@ -93,3 +93,67 @@ def rotor_loop(length=2.0, blade_hz=10.8, base_hz=32.0):
 
 write_wav("rotor_loop.wav", rotor_loop())
 write_wav("wind_loop.wav", lowpass([(random.random() * 2 - 1) * 0.6 for _ in range(int(SR * 2.0))], 0.15))
+
+
+def jungle_loop(length=12.0):
+    """Jungle bed: soft broadband hiss + insect shimmer + sparse bird chirps."""
+    n = int(SR * length)
+    out = lowpass([(random.random() * 2 - 1) * 0.28 for _ in range(n)], 0.08)
+    # Insect shimmer: high sine warble.
+    for i in range(n):
+        t = i / SR
+        out[i] += math.sin(2 * math.pi * 5200 * t + 3 * math.sin(2 * math.pi * 7 * t)) * 0.045
+    # Sparse chirps.
+    for _ in range(10):
+        start = random.randint(0, n - SR // 3)
+        f = random.uniform(1400, 3200)
+        for j in range(SR // 6):
+            t = j / SR
+            out[start + j] += math.sin(2 * math.pi * (f + 600 * math.sin(12 * t)) * t) * 0.12 * env(t, 0.01, 0.05)
+    peak = max(abs(s) for s in out)
+    return [s / peak * 0.6 for s in out]
+
+
+def distant_war_loop(length=16.0):
+    """Far-off artillery rumbles, irregular."""
+    n = int(SR * length)
+    out = [0.0] * n
+    for _ in range(6):
+        start = random.randint(0, n - SR)
+        f = random.uniform(38, 60)
+        for j in range(SR):
+            t = j / SR
+            out[start + j] += math.sin(2 * math.pi * f * t) * 0.5 * env(t, 0.03, 0.35)
+    out = lowpass(out, 0.1)
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.7 for s in out]
+
+
+def radio_crackle(length=6.0):
+    n = int(SR * length)
+    out = []
+    for i in range(n):
+        s = (random.random() * 2 - 1) * 0.12
+        if random.random() < 0.0015:
+            s += (random.random() * 2 - 1) * 0.6
+        out.append(s)
+    return lowpass(out, 0.4)
+
+
+def combat_sting():
+    """Two low tom hits - contact!"""
+    n = int(SR * 0.9)
+    out = [0.0] * n
+    for k, start_s in enumerate([0.0, 0.28]):
+        start = int(SR * start_s)
+        for j in range(int(SR * 0.4)):
+            t = j / SR
+            out[start + j] += math.sin(2 * math.pi * (95 - k * 15) * t) * env(t, 0.005, 0.09)
+    peak = max(abs(s) for s in out)
+    return [s / peak * 0.9 for s in out]
+
+
+write_wav("jungle_loop.wav", jungle_loop())
+write_wav("distant_war_loop.wav", distant_war_loop())
+write_wav("radio_crackle.wav", radio_crackle())
+write_wav("combat_sting.wav", combat_sting())

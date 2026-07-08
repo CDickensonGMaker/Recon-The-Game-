@@ -389,6 +389,7 @@ func _set_tier(tier: AlertTier) -> void:
 	alert_tier = tier
 	if tier == AlertTier.COMBAT:
 		awareness = 1.0
+		GunFX.play_combat_sting(get_tree().current_scene)  # W67: contact sting
 
 
 ## Heard something (R13). Investigation goes to the NOISE, not the source.
