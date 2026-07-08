@@ -43,7 +43,14 @@ func show_menu() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	var menu := MainMenuScreen.new()
 	menu.start_pressed.connect(show_select)
+	menu.barracks_pressed.connect(show_barracks)
 	_swap_screen(menu)
+
+
+func show_barracks() -> void:
+	var barracks := BarracksScreen.new()
+	barracks.back_pressed.connect(show_menu)
+	_swap_screen(barracks)
 
 
 func show_select() -> void:
@@ -127,7 +134,13 @@ func _on_mission_ended(result: Dictionary) -> void:
 	_debrief_pending = true
 	if squad != null and is_instance_valid(squad):
 		squad.on_mission_end()
+	# W25: debrief score banks as team XP.
+	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
 	CampaignState.on_mission_end(result)
+	# W32: Iron Man - KIA archives the whole campaign.
+	if CampaignState.iron_man and not bool(result.get("success", true)) and str(result.get("reason", "")) == "KIA":
+		result["iron_man_wipe"] = true
+		CampaignState.reset_campaign()
 	_show_debrief_delayed(result)
 
 

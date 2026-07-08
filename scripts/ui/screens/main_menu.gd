@@ -24,6 +24,12 @@ func _ready() -> void:
 	var start := ReconUI.make_button("[ START OPERATION ]")
 	start.pressed.connect(func() -> void: start_pressed.emit())
 	box.add_child(start)
+	var barracks := ReconUI.make_button("[ BARRACKS ]")
+	barracks.pressed.connect(func() -> void: barracks_pressed.emit())
+	box.add_child(barracks)
 	var quit := ReconUI.make_button("[ QUIT ]")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	box.add_child(quit)
+
+
+signal barracks_pressed

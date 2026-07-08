@@ -128,7 +128,8 @@ func request_cas_strike() -> void:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
 	cas_budget -= 1
-	_cas_cooldown = 25.0
+	# W28: FO/FAC skill shortens the turnaround.
+	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(CampaignState.player_skill("fo_fac")))
 	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
 	world.add_child(plane)
 	var ordnance := CASAirplane.Ordnance.NAPALM if randf() < 0.5 else CASAirplane.Ordnance.BOMB

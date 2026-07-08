@@ -14,6 +14,11 @@ var roster: Array = []            ## SquadMember dicts (W14)
 var missions_played: int = 0
 var mission_log: Array = []       ## trimmed result dicts
 var iron_man: bool = false
+var player_data: Dictionary = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
+
+
+func player_skill(skill: String) -> int:
+	return int((player_data.get("skills", {}) as Dictionary).get(skill, 0))
 
 
 func _ready() -> void:
@@ -86,6 +91,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "missions_played", missions_played)
 	cfg.set_value("campaign", "mission_log", mission_log)
 	cfg.set_value("campaign", "iron_man", iron_man)
+	cfg.set_value("campaign", "player_data", player_data)
 	cfg.save(SAVE_PATH)
 
 
@@ -100,6 +106,7 @@ func load_campaign() -> void:
 	missions_played = int(cfg.get_value("campaign", "missions_played", 0))
 	mission_log = cfg.get_value("campaign", "mission_log", [])
 	iron_man = bool(cfg.get_value("campaign", "iron_man", false))
+	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
 
 
 func reset_campaign() -> void:
@@ -110,4 +117,5 @@ func reset_campaign() -> void:
 	missions_played = 0
 	mission_log = []
 	iron_man = false
+	player_data = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
 	save_campaign()

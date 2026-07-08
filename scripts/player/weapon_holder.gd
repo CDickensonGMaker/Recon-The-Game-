@@ -191,8 +191,9 @@ func _fire_shot() -> void:
 	can_fire = false
 	fire_timer = current_weapon.get_fire_delay()
 
-	# Calculate spread
+	# Calculate spread (W28: Small Arms skill tightens the cone)
 	var spread := current_weapon.get_spread(ads_transition)
+	spread *= 1.0 / (1.0 + 0.06 * float(CampaignState.player_skill("small_arms")))
 	var spread_rad := deg_to_rad(spread)
 
 	# Get fire direction with spread
@@ -295,7 +296,9 @@ func _start_reload() -> void:
 		return
 
 	is_reloading = true
-	reload_timer = current_weapon.reload_time
+	# W29: Agility speeds reloads (cap at 60% of book time).
+	var ag: float = float(CampaignState.player_data.get("ag", 100))
+	reload_timer = current_weapon.reload_time * clampf(1.0 - (ag - 100.0) * 0.003, 0.6, 1.1)
 	is_aiming = false
 	reload_started.emit()
 

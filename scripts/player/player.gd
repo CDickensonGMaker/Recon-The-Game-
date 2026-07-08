@@ -69,6 +69,11 @@ func _ready() -> void:
 	health_system.setup(self, equipment_manager)
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
 	grenade_handler.setup(self, equipment_manager)
+
+	# W29: Strength scales HP (RECON: St IS your damage capacity).
+	var st: float = float(CampaignState.player_data.get("st", 100))
+	health_system.max_hp = int(50.0 + st * 0.5)
+	health_system.current_hp = health_system.max_hp
 	weapon_holder.equipment_manager = equipment_manager
 
 
@@ -125,12 +130,16 @@ func _emit_footsteps(delta: float) -> void:
 	if _footstep_timer > 0.0:
 		return
 	_footstep_timer = 0.35 if is_sprinting else 0.55
+	# W28: Silent Movement skill shrinks every footstep radius.
+	var quiet_mult: float = 1.0 / (1.0 + 0.12 * float(CampaignState.player_skill("silent_movement")))
 	if is_crouching:
-		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, 3.0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, 3.0 * quiet_mult)
 	elif is_sprinting:
-		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP_SPRINT, global_position, 0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP_SPRINT, global_position, 0,
+			float(NoiseBus.RADII[NoiseBus.NoiseType.FOOTSTEP_SPRINT]) * quiet_mult)
 	else:
-		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0,
+			float(NoiseBus.RADII[NoiseBus.NoiseType.FOOTSTEP]) * quiet_mult)
 
 
 func _physics_process(delta: float) -> void:
