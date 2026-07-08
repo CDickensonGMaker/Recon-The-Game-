@@ -342,7 +342,10 @@ func _update_perception() -> void:
 				var to_c := (candidate.global_position - global_position).normalized()
 				var flat_facing := Vector3(facing_dir.x, 0, facing_dir.z).normalized()
 				in_fov = flat_facing.dot(Vector3(to_c.x, 0, to_c.z).normalized()) > cos(deg_to_rad(_fov_deg() * 0.5))
-			if in_fov and CombatManager.has_line_of_sight(
+			if in_fov and not SmokeCloud.blocks_sight(
+					global_position + Vector3.UP * 1.5,
+					candidate.global_position + Vector3.UP * 1.0) \
+				and CombatManager.has_line_of_sight(
 					global_position + Vector3.UP * 1.5,
 					candidate.global_position + Vector3.UP * 1.0, [self]):
 				# Base gain by proximity; stance/motion modifiers for the player.

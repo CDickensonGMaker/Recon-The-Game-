@@ -58,6 +58,37 @@ var _winded: bool = false
 var wounded_legs: bool = false
 var wounded_arms: bool = false
 
+## Smoke grenades (W39): key 5 lobs marking/concealment smoke.
+var smoke_count: int = 2
+
+
+func _throw_smoke() -> void:
+	if smoke_count <= 0 or not GameManager.can_player_act() or is_seated:
+		return
+	smoke_count -= 1
+	var dir: Vector3 = get_aim_direction()
+	var body := RigidBody3D.new()
+	var col := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.1
+	col.shape = sphere
+	body.add_child(col)
+	var vis := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.05
+	cyl.bottom_radius = 0.05
+	cyl.height = 0.14
+	vis.mesh = cyl
+	body.add_child(vis)
+	get_tree().current_scene.add_child(body)
+	body.global_position = get_camera_position() + dir * 0.5
+	body.linear_velocity = dir * 13.0 + Vector3(0, 3.5, 0)
+	get_tree().create_timer(2.2).timeout.connect(func() -> void:
+		if is_instance_valid(body):
+			SmokeCloud.spawn_at(get_tree().current_scene, body.global_position)
+			NoiseBus.emit_noise(NoiseBus.NoiseType.IMPACT, body.global_position, 0)
+			body.queue_free())
+
 
 func apply_wound(zone_name: String) -> void:
 	match zone_name:
@@ -219,6 +250,10 @@ func _handle_movement(delta: float) -> void:
 	# Prone toggle (W34).
 	if Input.is_action_just_pressed("prone"):
 		is_prone = not is_prone
+
+	# Smoke (W39).
+	if Input.is_action_just_pressed("throw_smoke"):
+		_throw_smoke()
 
 	# Stamina + wounds gate sprinting (W33/W37).
 	if _winded and stamina > stamina_max * 0.35:
