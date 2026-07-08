@@ -30,6 +30,7 @@ func roll_offers(rng: RandomNumberGenerator) -> void:
 			"strength": STRENGTHS[rng.randi() % STRENGTHS.size()],
 			"weather": str(conditions.weather),
 			"time": str(conditions.time),
+			"complications": MissionGenerator.complications_for(mission_seed),
 		})
 
 
@@ -47,10 +48,12 @@ func _ready() -> void:
 	box.add_child(ReconUI.make_label("AO ANTI-AIR THREAT: %s   //   MISSIONS FLOWN: %d   //   TEAM XP: %d" % [
 		CampaignState.threat_label(), CampaignState.missions_played, CampaignState.team_xp], 13, threat_color))
 	for offer in offers:
-		# W76: condition chips right on the card.
-		var card := ReconUI.make_card_button("%s\n%s  //  ENEMY: %s  //  %s\n%s %s" % [
+		# W76/R79: condition + complication chips right on the card.
+		var comps: Array = offer.get("complications", [])
+		var comp_line := "  //  %s" % " / ".join(comps) if not comps.is_empty() else ""
+		var card := ReconUI.make_card_button("%s\n%s  //  ENEMY: %s  //  %s\n%s %s%s" % [
 			offer.codename, offer.type_name, offer.strength, offer.terrain_hint,
-			offer.get("time", "DAY"), offer.get("weather", "CLEAR")], 15, 64.0)
+			offer.get("time", "DAY"), offer.get("weather", "CLEAR"), comp_line], 15, 64.0)
 		card.pressed.connect(_on_card.bind(offer))
 		box.add_child(card)
 	var back := ReconUI.make_link_button("< BACK", 14)

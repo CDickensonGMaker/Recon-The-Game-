@@ -26,6 +26,34 @@ const ENEMY_DATA: Array[String] = [
 const WEATHER_TABLE: Array[String] = ["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
 const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
 
+## R79: 0-2 complications per mission. Each has a real mechanical bite (applied
+## in build()), not just flavor text - see offer cards / briefing for the tell.
+const COMPLICATIONS: Array[String] = [
+	"BAD INTEL", "REINFORCED GARRISON", "NO AIR SUPPORT", "HEAVY FOG ROLLING IN", "AA THREAT SPIKE",
+]
+
+
+## Derived on its own draw stream (offset seed) so offer cards/briefings can
+## show complications without touching plan()'s exact draw-order contract.
+static func complications_for(seed_value: int) -> Array[String]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value + 7919
+	var roll: float = rng.randf()
+	var count: int = 0
+	if roll > 0.55:
+		count = 1
+	if roll > 0.85:
+		count = 2
+	var pool: Array[String] = COMPLICATIONS.duplicate()
+	var picked: Array[String] = []
+	for _i in range(count):
+		if pool.is_empty():
+			break
+		var idx: int = rng.randi() % pool.size()
+		picked.append(pool[idx])
+		pool.remove_at(idx)
+	return picked
+
 
 ## Codename derivable without a world (briefing screens) - MUST match plan()'s
 ## first two rng draws.
@@ -75,6 +103,7 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 			_plan_anti_aa(world, rng, planner, p)
 		MissionType.RESCUE:
 			_plan_rescue(world, rng, planner, p)
+	p["complications"] = complications_for(seed_value)
 	return p
 
 
@@ -205,6 +234,20 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 
 	if bool(p.get("is_anti_aa", false)):
 		director.state.flags["is_anti_aa"] = true
+
+	# R79: mission complications - real mechanical effects, not just flavor.
+	var comps: Array = p.get("complications", [])
+	director.state.flags["complications"] = comps
+	if "NO AIR SUPPORT" in comps:
+		for k2 in director.fire_support.keys():
+			if k2 != "mortar":
+				director.fire_support[k2] = 0
+	if "REINFORCED GARRISON" in comps:
+		director._hunter_pool += 6
+	if "HEAVY FOG ROLLING IN" in comps:
+		p["weather"] = "FOG"
+	if "AA THREAT SPIKE" in comps:
+		CampaignState.add_threat_modifier(0.25, 1, "complication: AA threat spike")
 
 	var built_sites: Array[Dictionary] = []
 	var cache_node: Node3D = null

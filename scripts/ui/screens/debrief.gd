@@ -11,6 +11,13 @@ func set_result(r: Dictionary) -> void:
 	result = r
 
 
+## R83: weapons-tight/ROE bonus - a quiet, disciplined run (few shots per
+## objective) pays like a clean sweep, not just a fast one.
+static func _ghost_bonus(r: Dictionary) -> bool:
+	var shots: int = int(r.get("shots", 0))
+	return bool(r.get("success", false)) and shots > 0 and shots <= 15 * maxi(1, int(r.objectives_done))
+
+
 static func compute_score(r: Dictionary) -> int:
 	var score: int = int(r.objectives_done) * 100
 	score += int(r.kills) * 10
@@ -19,6 +26,8 @@ static func compute_score(r: Dictionary) -> int:
 		score += 50
 	if bool(r.emergency_exfil):
 		score -= 50
+	if _ghost_bonus(r):
+		score += 75
 	return score
 
 
@@ -60,6 +69,8 @@ func _ready() -> void:
 		lines.append("THE PILOT DIDN'T MAKE IT: -100")
 	if bool(result.emergency_exfil):
 		lines.append("EMERGENCY EXFIL: -50")
+	if _ghost_bonus(result):
+		lines.append("ROE - WEAPONS DISCIPLINE: +75")
 	panel.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))
 
 	outer.add_child(ReconUI.make_label("SCORE: %d" % compute_score(result), 24, head_color))

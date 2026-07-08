@@ -46,6 +46,11 @@ func force_spawn() -> void:
 	if _spawned:
 		return
 	_spawned = true
+	# R18/R33: ambient corridor patrols wander a trail loop instead of standing put.
+	var is_patrol := group_tag.begins_with("ambient_patrol")
+	var route: Array[Vector3] = []
+	if is_patrol:
+		route = EnemyBase.make_patrol_route(global_position, _rng)
 	for i in range(enemy_count):
 		var a: float = _rng.randf_range(0.0, TAU)
 		var r: float = _rng.randf_range(2.0, spread)
@@ -54,4 +59,7 @@ func force_spawn() -> void:
 		var enemy := director.spawn_tracked_enemy(pos, data, group_tag)
 		if not group_tag.is_empty():
 			enemy.add_to_group(group_tag)
+		if is_patrol and not route.is_empty():
+			enemy.patrol_route = route.duplicate()
+			enemy._patrol_index = i % route.size()
 	set_physics_process(false)

@@ -68,6 +68,23 @@ var flare_count: int = 3
 var _binocs_active: bool = false
 var _mark_timer: float = 0.0
 
+## R52: hold-breath - short meter, big sway/spread cut while aiming.
+var breath_meter: float = 100.0
+const BREATH_MAX: float = 100.0
+const BREATH_DRAIN: float = 30.0
+const BREATH_REGEN: float = 22.0
+var is_holding_breath: bool = false
+
+
+func _update_hold_breath(delta: float) -> void:
+	var want: bool = Input.is_action_pressed("hold_breath") and weapon_holder \
+		and weapon_holder.is_aiming and breath_meter > 0.0
+	is_holding_breath = want
+	if want:
+		breath_meter = maxf(0.0, breath_meter - BREATH_DRAIN * delta)
+	else:
+		breath_meter = minf(BREATH_MAX, breath_meter + BREATH_REGEN * delta)
+
 
 func _update_binoculars(delta: float) -> void:
 	var want: bool = Input.is_action_pressed("binoculars") and not is_seated
@@ -228,11 +245,17 @@ func _try_field_interact() -> void:
 		if global_position.distance_to(corpse.global_position) < 2.5 and not corpse.has_meta("looted"):
 			corpse.set_meta("looted", true)
 			var roll := randf()
-			if roll < 0.5 and weapon_holder:
+			# R57: their weapon is on the table too - take it, and it sounds
+			# friendly to their side afterward (visual detection still applies).
+			if roll < 0.2 and weapon_holder and corpse.weapon_data != null \
+					and corpse.weapon_data != weapon_holder.primary_weapon:
+				weapon_holder.equip_captured_weapon(corpse.weapon_data)
+				_field_toast("PICKED UP THEIR %s" % corpse.weapon_data.display_name.to_upper())
+			elif roll < 0.6 and weapon_holder:
 				weapon_holder.spare_magazines += 1
 				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
 				_field_toast("SCAVENGED A MAGAZINE")
-			elif roll < 0.75 and equipment_manager:
+			elif roll < 0.8 and equipment_manager:
 				equipment_manager.add_grenade(1)
 				_field_toast("FOUND A GRENADE")
 			else:
@@ -411,6 +434,7 @@ func _physics_process(delta: float) -> void:
 	var capped_delta: float = minf(delta, 0.066)
 
 	_emit_footsteps(delta)
+	_update_hold_breath(capped_delta)
 
 	_handle_gravity(capped_delta)
 	_handle_movement(capped_delta)

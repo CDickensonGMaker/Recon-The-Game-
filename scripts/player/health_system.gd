@@ -24,6 +24,14 @@ var health_packs: int = 3
 const HEAL_AMOUNT: int = 100  ## Full heal when you use a medkit
 const HEAL_TIME: float = 3.0
 
+## R58: bandage vs medkit split - same item, context picks the treatment.
+## Still bleeding but not critical -> quick bandage (stops the clock fast,
+## partial heal, wounds stay). Safe/topping off -> full slow treatment.
+const BANDAGE_TIME: float = 1.3
+const BANDAGE_HEAL_FRAC: float = 0.55
+var _is_bandage: bool = false
+var _heal_time_this: float = HEAL_TIME
+
 ## Healing state
 var is_healing: bool = false
 var heal_timer: float = 0.0
@@ -105,6 +113,8 @@ func start_healing() -> void:
 
 	is_healing = true
 	heal_timer = 0.0
+	_is_bandage = is_bleeding and float(current_hp) / float(max_hp) > 0.35
+	_heal_time_this = BANDAGE_TIME if _is_bandage else HEAL_TIME
 	_show_medkit()
 	healing_started.emit()
 
@@ -122,9 +132,9 @@ func _update_healing(delta: float) -> void:
 		return
 
 	heal_timer += delta
-	healing_progress.emit(heal_timer / HEAL_TIME)
+	healing_progress.emit(heal_timer / _heal_time_this)
 
-	if heal_timer >= HEAL_TIME:
+	if heal_timer >= _heal_time_this:
 		_finish_healing()
 
 
@@ -139,19 +149,24 @@ func _finish_healing() -> void:
 	_hide_medkit()
 	health_packs -= 1
 
-	# W37: a full medkit treatment clears limb wounds too.
-	if controller and controller.has_method("clear_wounds"):
-		controller.clear_wounds()
-
-	# Stop bleeding and restore health
+	# Stop bleeding either way - that's the point of reaching for it.
 	is_bleeding = false
 	bleeding_stopped.emit()
 
-	current_hp = max_hp  ## Full heal
+	if _is_bandage:
+		# R58: quick bandage - stops the bleed, partial heal, wounds stay.
+		current_hp = maxi(current_hp, int(float(max_hp) * BANDAGE_HEAL_FRAC))
+	else:
+		# Full medkit treatment: full heal, clears limb wounds too (W37).
+		current_hp = max_hp
+		if controller and controller.has_method("clear_wounds"):
+			controller.clear_wounds()
 
 	healing_finished.emit()
 	health_changed.emit(current_hp, max_hp)
 	health_pack_changed.emit(health_packs)
+	if controller and controller.has_method("_field_toast"):
+		controller._field_toast("BANDAGED - BLEEDING STOPPED" if _is_bandage else "FULL TREATMENT - BACK IN THE FIGHT")
 
 	# Auto-switch back to primary
 	if equipment_manager:

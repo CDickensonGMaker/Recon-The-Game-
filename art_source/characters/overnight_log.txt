@@ -56,3 +56,37 @@ DONE: 21 animations
 
 UNIT=vc1_farmer RIG=MixamoRig_VC1 hidden=['US_Grunt_Rigged', 'M16A1_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']
 FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)
+FRAMES DONE: brutal_assassination (8 cols x 8 dirs)
+FRAMES DONE: death_forward (8 cols x 8 dirs)
+FRAMES DONE: death_from_right (8 cols x 8 dirs)
+FRAMES DONE: firing_rifle (8 cols x 8 dirs)
+FRAMES DONE: injured_walk_backwards (8 cols x 8 dirs)
+FRAMES DONE: kneeling_pointing (8 cols x 8 dirs)
+FRAMES DONE: laying_breathless (8 cols x 8 dirs)
+FRAMES DONE: pilot_flips_switches (8 cols x 8 dirs)
+FRAMES DONE: reloading (8 cols x 8 dirs)
+FRAMES DONE: rifle_aiming_idle (8 cols x 8 dirs)
+FRAMES DONE: rifle_crouch_idle_to_walk (8 cols x 8 dirs)
+FRAMES DONE: rifle_turn (8 cols x 8 dirs)
+FRAMES DONE: run_forward (8 cols x 8 dirs)
+FRAMES DONE: sitting (8 cols x 8 dirs)
+FRAMES DONE: stand_to_cover (8 cols x 8 dirs)
+FRAMES DONE: start_walking (8 cols x 8 dirs)
+FRAMES DONE: stop_walking_with_rifle (8 cols x 8 dirs)
+FRAMES DONE: strafe (8 cols x 8 dirs)
+FRAMES DONE: strafe_1 (8 cols x 8 dirs)
+FRAMES DONE: swimming (8 cols x 8 dirs)
+ALL FRAMES COMPLETE: 21
+
+
+--- ASSEMBLE vc1_farmer / ak47 07/08/2026 10:53:56 ---
+
+00:05.109  image.read       | ERROR IMB_load_image_from_file_descriptor: couldn't get mapping for 
+"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\vc1_farmer\ak47\action_idle_to_standing_idle_7_6.png"
+00:05.109  image.read       | ERROR IMB_load_image_from_file_descriptor: couldn't get mapping for 
+"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\vc1_farmer\ak47\action_idle_to_standing_idle_7_6.png"
+Traceback (most recent call last):
+ValueError: cannot reshape array of size 0 into shape (160,128,4)
+
+
+--- RENDER vc2_mainforce / mosin 07/08/2026 10:54:01 ---

@@ -43,6 +43,35 @@ var is_firing: bool = false
 var can_fire: bool = true
 var fire_timer: float = 0.0
 
+## R09: rare stoppage - a bad round jams the action. No bang, needs a manual
+## clear (tap reload) instead of a normal fire cycle.
+var is_jammed: bool = false
+var _clearing_jam: bool = false
+signal weapon_jammed
+
+## R52: idle weapon sway, tightened by ADS and killed almost entirely by
+## holding your breath (player.gd: is_holding_breath).
+var _sway_time: float = 0.0
+
+## R57: a captured enemy weapon in the primary slot sounds friendly to their
+## side at range (NoiseBus team match) - visual detection still works fine.
+var primary_is_captured: bool = false
+
+
+func equip_captured_weapon(data: WeaponData) -> void:
+	if data == null:
+		return
+	primary_weapon = data
+	primary_ammo = [data.magazine_size, 3]
+	primary_is_captured = true
+	if current_slot == 0:
+		current_weapon = primary_weapon
+		current_ammo = primary_ammo[0]
+		spare_magazines = primary_ammo[1]
+		_load_weapon_model(current_weapon)
+		weapon_switched.emit(current_weapon)
+		magazine_changed.emit(current_ammo, spare_magazines)
+
 ## Reload state
 var is_reloading: bool = false
 var reload_timer: float = 0.0
@@ -174,6 +203,10 @@ func _update_firing(delta: float) -> void:
 
 
 func _try_fire() -> void:
+	if is_jammed:
+		if Input.is_action_just_pressed("fire"):
+			GunFX.play_click(self)
+		return
 	if not can_fire or is_reloading or is_switching:
 		return
 
@@ -209,6 +242,16 @@ func _fire_shot() -> void:
 	fire_timer = current_weapon.get_fire_delay()
 	session_shots += 1
 
+	# R09: rare stoppage - the round fails to feed. Costs the round, no shot.
+	var jam_chance: float = 0.015 / (1.0 + 0.05 * float(CampaignState.player_skill("small_arms")))
+	if randf() < jam_chance:
+		is_jammed = true
+		GunFX.play_click(self)
+		_hud_toast("WEAPON JAMMED - HIT RELOAD TO CLEAR")
+		weapon_jammed.emit()
+		magazine_changed.emit(current_ammo, spare_magazines)
+		return
+
 	# Calculate spread (W28: Small Arms skill tightens the cone)
 	var spread := current_weapon.get_spread(ads_transition)
 	spread *= 1.0 / (1.0 + 0.06 * float(CampaignState.player_skill("small_arms")))
@@ -218,6 +261,9 @@ func _fire_shot() -> void:
 			spread *= 0.6
 		if "wounded_arms" in controller and controller.wounded_arms:
 			spread *= 1.35
+		# R52: holding your breath while aiming cuts spread hard, briefly.
+		if "is_holding_breath" in controller and controller.is_holding_breath:
+			spread *= 0.4
 	var spread_rad := deg_to_rad(spread)
 
 	# Get fire direction with spread
@@ -244,7 +290,9 @@ func _fire_shot() -> void:
 
 	# Shot feedback: sound, flash, viewmodel punch (RTCW-tight, R06/R07/R31)
 	var muzzle_pos: Vector3 = _get_muzzle_position()
-	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, 0)
+	# R57: firing their own captured weapon doesn't read as hostile on sound alone.
+	var noise_team: int = 1 if (current_slot == 0 and primary_is_captured) else 0
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, noise_team)
 	GunFX.play_shot_2d(self, current_weapon.display_name if "display_name" in current_weapon else current_weapon.resource_path)
 	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
 	_punch = 1.0
@@ -316,11 +364,21 @@ func _fire_shot() -> void:
 
 
 func _start_reload() -> void:
+	if is_jammed:
+		# R09: clearing a jam is a quick tap-rack, not a full mag swap.
+		is_jammed = false
+		_clearing_jam = true
+		is_reloading = true
+		reload_timer = 1.1
+		is_aiming = false
+		reload_started.emit()
+		return
 	if spare_magazines <= 0:
 		return
 	if current_ammo >= current_weapon.magazine_size:
 		return
 
+	_clearing_jam = false
 	is_reloading = true
 	# W29: Agility speeds reloads (cap at 60% of book time).
 	var ag: float = float(CampaignState.player_data.get("ag", 100))
@@ -343,6 +401,12 @@ func _update_reload(delta: float) -> void:
 
 func _finish_reload() -> void:
 	is_reloading = false
+	if _clearing_jam:
+		_clearing_jam = false
+		weapon_reloaded.emit()
+		magazine_changed.emit(current_ammo, spare_magazines)
+		return
+
 	spare_magazines -= 1
 	current_ammo = current_weapon.magazine_size
 
@@ -356,6 +420,12 @@ func _finish_reload() -> void:
 
 	weapon_reloaded.emit()
 	magazine_changed.emit(current_ammo, spare_magazines)
+
+
+func _hud_toast(text: String) -> void:
+	var hud_node := get_tree().get_first_node_in_group("mission_hud")
+	if hud_node and hud_node.has_method("show_toast"):
+		hud_node.show_toast(text)
 
 
 ## Called by EquipmentManager when the active slot changes to a weapon slot.
@@ -446,6 +516,14 @@ func _update_weapon_position(delta: float) -> void:
 	if controller and "is_sprinting" in controller and controller.is_sprinting:
 		target_pos.y -= 0.08
 		target_rot.x -= 12.0
+
+	# R52: idle sway - tighter aiming, nearly gone while holding your breath.
+	_sway_time += delta
+	var sway_amp: float = lerpf(0.014, 0.004, ads_transition)
+	if controller and "is_holding_breath" in controller and controller.is_holding_breath:
+		sway_amp *= 0.15
+	target_pos.x += sin(_sway_time * 1.3) * sway_amp
+	target_pos.y += sin(_sway_time * 0.9) * sway_amp * 0.6
 
 	# Viewmodel fire punch (R07): sharp kick back+up, fast recovery.
 	_punch = maxf(0.0, _punch - delta * 9.0)

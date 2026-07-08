@@ -32,8 +32,11 @@ func _briefing_text() -> String:
 			special = "FRIENDLY SQUAD IN POSITION. DO NOT LET THE WIRE FALL."
 			support = "3 CAS SORTIES ON STATION. [T] TO CALL."
 	var est: int = rng.randi_range(4, 12)
-	# W80: gathered intel sharpens the estimate.
+	# W80/R79: gathered intel sharpens the estimate; BAD INTEL widens it back out.
+	var comps: Array = offer.get("complications", [])
 	var fuzz_span: float = 0.4 / (1.0 + 0.5 * float(CampaignState.intel_points))
+	if "BAD INTEL" in comps:
+		fuzz_span = maxf(fuzz_span, 0.4) * 1.6
 	var fuzz: float = 1.0 + rng.randf_range(-fuzz_span, fuzz_span)
 	var lines := [
 		"%s" % offer.codename,
@@ -41,13 +44,18 @@ func _briefing_text() -> String:
 		"",
 		"1. INSERTION:  HELIBORNE, SINGLE LZ. WALK-ON THIS OPERATION.",
 		"2. FIRE SUPPORT:  %s" % support,
-		"3. ENEMY:  %s ACTIVITY. EST %d-%d FIGHTERS IN AO. INTEL CONFIDENCE: MARGINAL." % [offer.strength, int(float(est) * fuzz * 0.7), int(float(est) * fuzz * 1.5)],
+		"3. ENEMY:  %s ACTIVITY. EST %d-%d FIGHTERS IN AO. INTEL CONFIDENCE: %s." % [
+			offer.strength, int(float(est) * fuzz * 0.7), int(float(est) * fuzz * 1.5),
+			"POOR" if "BAD INTEL" in comps else "MARGINAL"],
 		"4. TERRAIN/WX:  %s. VISIBILITY LIMITED UNDER CANOPY." % offer.terrain_hint,
 		"5. OBJECTIVES:  %s" % objectives,
 		"6. SPECIAL:  %s" % special,
 		"7. EXTRACTION:  BIRD ON CALL AT MARKED LZ. FALLBACK LZ DESIGNATED.",
 		"   HOLD [G] TO ABORT MISSION - EMERGENCY EXFIL.",
 	]
+	if not comps.is_empty():
+		lines.append("")
+		lines.append("COMPLICATIONS: %s" % " / ".join(comps))
 	return "\n".join(lines)
 
 

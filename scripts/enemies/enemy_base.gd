@@ -90,10 +90,26 @@ var aim_error: Vector3 = Vector3.ZERO  # Current aim offset
 var move_target: Vector3 = Vector3.ZERO
 var is_moving: bool = false
 
-## Cover system
+## Cover system (R15): dynamic point discovery + a shared claim broker so two
+## enemies never stack on the same rock/sandbag.
 var current_cover: Vector3 = Vector3.ZERO
 var has_cover: bool = false
 var cover_quality: float = 0.0
+var _moving_to_cover: bool = false
+var _cover_search_timer: float = 0.0
+static var _cover_claims: Dictionary = {}  # Vector3i cell -> {enemy: EnemyBase}
+const COVER_CELL: float = 2.0
+const COVER_SEARCH_OFFSETS: Array[Vector3] = [
+	Vector3(3, 0, 0), Vector3(-3, 0, 0), Vector3(0, 0, 3), Vector3(0, 0, -3),
+	Vector3(2.2, 0, 2.2), Vector3(-2.2, 0, 2.2), Vector3(2.2, 0, -2.2), Vector3(-2.2, 0, -2.2),
+	Vector3(6, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 6), Vector3(0, 0, -6),
+]
+
+## R18/R33: assigned wandering trail (ambient corridor patrols); sentries pause
+## and glance around at each waypoint instead of marching on a fixed clock.
+var patrol_route: Array[Vector3] = []
+var _patrol_index: int = 0
+var _patrol_pause: float = 0.0
 
 ## Combat behavior
 var strafe_direction: float = 0.0
@@ -632,6 +648,8 @@ func _evaluate_goals() -> void:
 
 
 func _set_goal(new_goal: Enums.AIGoal) -> void:
+	if current_goal == Enums.AIGoal.SEEK_COVER and new_goal != Enums.AIGoal.SEEK_COVER:
+		_release_cover()
 	current_goal = new_goal
 	goal_timer = 0.0
 
@@ -734,6 +752,9 @@ func _update_aim(delta: float) -> void:
 
 
 func _execute_idle(delta: float) -> void:
+	if not patrol_route.is_empty():
+		_execute_patrol(delta)
+		return
 	# Decelerate
 	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
@@ -839,7 +860,26 @@ func _execute_seeking_cover(delta: float) -> void:
 	if not target:
 		return
 
-	# Move perpendicular to threat
+	if not has_cover:
+		if _moving_to_cover:
+			if global_position.distance_to(current_cover) < 1.5:
+				_moving_to_cover = false
+				has_cover = true
+				cover_quality = 0.7
+			else:
+				_move_toward(current_cover, delta)
+				return
+		else:
+			_cover_search_timer -= delta
+			if _cover_search_timer <= 0.0:
+				_cover_search_timer = 1.0
+				var point := _find_cover_point()
+				if point != Vector3.ZERO:
+					current_cover = point
+					_moving_to_cover = true
+					return
+
+	# No cover found (or already covered): duck-and-dodge perpendicular to threat.
 	var to_target := (target.global_position - global_position).normalized()
 	var perpendicular := Vector3(-to_target.z, 0, to_target.x)
 
@@ -913,13 +953,97 @@ func _change_state(new_state: Enums.AIState) -> void:
 	state_changed.emit(new_state)
 
 
-func _move_toward(pos: Vector3, delta: float) -> void:
-	var direction := (pos - global_position).normalized()
+## R16: routed through the baked chunk navmesh so patrols/pursuers path around
+## huts, temple ruins and terrain instead of bee-lining into walls.
+func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
+	var direction: Vector3 = pos - global_position
+	if nav_agent != null:
+		if nav_agent.target_position.distance_squared_to(pos) > 4.0:
+			nav_agent.target_position = pos
+		if not nav_agent.is_navigation_finished():
+			direction = nav_agent.get_next_path_position() - global_position
 	direction.y = 0
-	velocity.x = lerpf(velocity.x, direction.x * move_speed, delta * 8.0)
-	velocity.z = lerpf(velocity.z, direction.z * move_speed, delta * 8.0)
 	if direction.length() > 0.1:
+		direction = direction.normalized()
 		facing_dir = direction  # eyes follow movement (perception FOV)
+	velocity.x = lerpf(velocity.x, direction.x * move_speed * speed_mult, delta * 8.0)
+	velocity.z = lerpf(velocity.z, direction.z * move_speed * speed_mult, delta * 8.0)
+
+
+## ---------- COVER (R15) ----------
+
+static func _cover_key(pos: Vector3) -> Vector3i:
+	return Vector3i(roundi(pos.x / COVER_CELL), roundi(pos.y / COVER_CELL), roundi(pos.z / COVER_CELL))
+
+
+static func _claim_cover(pos: Vector3, enemy: EnemyBase) -> bool:
+	var key := _cover_key(pos)
+	var existing: Dictionary = _cover_claims.get(key, {})
+	var owner: EnemyBase = existing.get("enemy")
+	if owner != null and is_instance_valid(owner) and owner != enemy and not owner.is_dead():
+		return false
+	_cover_claims[key] = {"enemy": enemy}
+	return true
+
+
+func _release_cover() -> void:
+	if current_cover != Vector3.ZERO:
+		var key := EnemyBase._cover_key(current_cover)
+		if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
+			EnemyBase._cover_claims.erase(key)
+	has_cover = false
+	cover_quality = 0.0
+	_moving_to_cover = false
+
+
+## Sample nearby points that block line-of-sight to the threat; claim the
+## closest unclaimed one. Uses live raycasts against world geometry so it
+## works in jungle, village, and firebase alike with no authored markers.
+func _find_cover_point() -> Vector3:
+	var threat_pos: Vector3 = last_known_target_pos if last_known_target_pos != Vector3.ZERO else global_position
+	var space_state := get_world_3d().direct_space_state
+	var candidates: Array[Vector3] = []
+	for off in COVER_SEARCH_OFFSETS:
+		var candidate: Vector3 = global_position + off
+		var query := PhysicsRayQueryParameters3D.create(
+			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+		query.exclude = [self]
+		if space_state.intersect_ray(query):
+			candidates.append(candidate)
+	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	for c in candidates:
+		if EnemyBase._claim_cover(c, self):
+			return c
+	return Vector3.ZERO
+
+
+## ---------- PATROL (R18/R33) ----------
+
+## Loop of waypoints around a center; deterministic per the caller's rng so
+## mission sims stay reproducible.
+static func make_patrol_route(center: Vector3, rng: RandomNumberGenerator, point_count: int = 4, radius: float = 16.0) -> Array[Vector3]:
+	var pts: Array[Vector3] = []
+	var base_angle: float = rng.randf_range(0.0, TAU)
+	for i in range(point_count):
+		var a: float = base_angle + (TAU / float(point_count)) * float(i) + rng.randf_range(-0.3, 0.3)
+		var r: float = radius * rng.randf_range(0.6, 1.0)
+		pts.append(center + Vector3(cos(a) * r, 0.0, sin(a) * r))
+	return pts
+
+
+func _execute_patrol(delta: float) -> void:
+	if _patrol_pause > 0.0:
+		_patrol_pause -= delta
+		velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
+		velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
+		return
+	var wp: Vector3 = patrol_route[_patrol_index]
+	if global_position.distance_to(wp) < 2.5:
+		_patrol_index = (_patrol_index + 1) % patrol_route.size()
+		_patrol_pause = randf_range(2.5, 6.0)  # sentry boredom: glance around, then move on
+		return
+	_move_toward(wp, delta, 0.5)
 
 
 ## ============================================
@@ -1138,6 +1262,7 @@ func apply_stagger(power: float) -> void:
 
 func _die() -> void:
 	_change_state(Enums.AIState.DEAD)
+	_release_cover()
 	CombatManager.unregister_enemy(self)
 	died.emit(self)
 
