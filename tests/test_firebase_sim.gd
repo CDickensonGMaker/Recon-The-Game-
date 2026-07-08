@@ -69,14 +69,20 @@ func _run() -> void:
 	# Fight the waves (force-kill each as it spawns).
 	var deadline: float = 120.0
 	var t: float = 0.0
-	while not mission_done and t < deadline:
+	while not director.state.is_exfil_unlocked() and t < deadline:
 		await get_tree().create_timer(0.5).timeout
 		t += 0.5
 		for e in get_tree().get_nodes_in_group("enemies"):
 			var enemy := e as EnemyBase
 			if enemy and not enemy.is_dead():
 				enemy.take_damage(200, Enums.DamageType.PHYSICAL, player)
-	# Mission completes when player stands at exfil (firebase center) with all done.
+	# Exfil bird cycle: stand glued to the exfil zone until boarded.
+	var exfil: ExfilZone = built.exfil_zone
+	var wait: float = 0.0
+	while not mission_done and wait < 90.0:
+		player.global_position = exfil.global_position + Vector3(0, 1, 0)
+		await get_tree().create_timer(0.5).timeout
+		wait += 0.5
 
 	print("waves_seen=%s kills=%d done=%s" % [waves_seen, director.state.kills, mission_done])
 	if waves_seen != [1, 2, 3]:

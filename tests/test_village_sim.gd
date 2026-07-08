@@ -88,9 +88,12 @@ func _run() -> void:
 		print("FAIL: plant objective incomplete")
 		failures += 1
 
-	# Exfil now completes.
-	player.global_position = exfil.global_position + Vector3(0, 1, 0)
-	await get_tree().create_timer(1.0).timeout
+	# Exfil now completes (bird cycle: call, land, board).
+	var wait: float = 0.0
+	while not mission_done and wait < 90.0:
+		player.global_position = exfil.global_position + Vector3(0, 1, 0)
+		await get_tree().create_timer(0.5).timeout
+		wait += 0.5
 	if not mission_done or not bool(mission_result.success):
 		print("FAIL: mission did not complete after objectives")
 		failures += 1
