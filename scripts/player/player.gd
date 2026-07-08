@@ -152,8 +152,25 @@ func _field_toast(text: String) -> void:
 		hud_node.show_toast(text)
 
 
-## W61/W63: interact near a surrendered enemy = capture; near a corpse = loot.
+## W61/W63/W60: interact = capture prisoner / loot corpse / open supply crate.
 func _try_field_interact() -> void:
+	for c in get_tree().get_nodes_in_group("supply_crates"):
+		var crate := c as Node3D
+		if crate and global_position.distance_to(crate.global_position) < 3.0:
+			if weapon_holder:
+				weapon_holder.spare_magazines += 3
+				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+			if equipment_manager:
+				equipment_manager.add_grenade(2)
+			if health_system:
+				health_system.health_packs = mini(3, health_system.health_packs + 2)
+				health_system.health_pack_changed.emit(health_system.health_packs)
+			smoke_count = 2
+			claymore_count = 2
+			flare_count = 3
+			_field_toast("RESUPPLIED - MAGS, FRAGS, MEDKITS, KIT")
+			crate.queue_free()
+			return
 	for e in get_tree().get_nodes_in_group("surrendered"):
 		var prisoner := e as EnemyBase
 		if prisoner and global_position.distance_to(prisoner.global_position) < 2.8:

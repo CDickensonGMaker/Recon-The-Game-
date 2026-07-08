@@ -37,6 +37,28 @@ var think_timer: float = 0.0
 const THINK_INTERVAL: float = 0.15  # 6-7 Hz thinking, execution every frame
 var last_think_time: float = 0.0
 
+## W86: think-LOD - distant brains tick slower (checked every 2s).
+var _think_interval_current: float = THINK_INTERVAL
+var _lod_timer: float = 0.0
+
+
+func _update_think_lod(delta: float) -> void:
+	_lod_timer += delta
+	if _lod_timer < 2.0:
+		return
+	_lod_timer = 0.0
+	var player := GameManager.player as Node3D
+	if player == null:
+		_think_interval_current = 0.6
+		return
+	var d: float = global_position.distance_to(player.global_position)
+	if d > 150.0:
+		_think_interval_current = 0.6
+	elif d > 80.0:
+		_think_interval_current = 0.3
+	else:
+		_think_interval_current = THINK_INTERVAL
+
 ## Target tracking
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
@@ -246,9 +268,10 @@ func _physics_process(delta: float) -> void:
 	# Decay systems
 	_update_decay(capped_delta)
 
-	# Think on schedule (like Quake 3 bots - not every frame)
+	# Think on schedule (like Quake 3 bots - not every frame); W86 LOD-scaled.
+	_update_think_lod(capped_delta)
 	think_timer += capped_delta
-	if think_timer >= THINK_INTERVAL:
+	if think_timer >= _think_interval_current:
 		think_timer = 0.0
 		_think()
 

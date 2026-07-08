@@ -213,8 +213,21 @@ func _wire_cameras(cam: Camera3D) -> void:
 	billboard_vegetation.set_vegetation_manager(vegetation_manager)
 
 
+## W49: billboard generation is queued 1/frame instead of bursting on chunk
+## load (kills the min-FPS spikes during streaming).
+var _billboard_queue: Array[Vector2i] = []
+
+
 func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
-	if is_playable and vegetation_manager._chunk_terrain.has(coord):
+	if is_playable:
+		_billboard_queue.append(coord)
+
+
+func _process_billboard_queue() -> void:
+	if _billboard_queue.is_empty():
+		return
+	var coord: Vector2i = _billboard_queue.pop_front()
+	if vegetation_manager._chunk_terrain.has(coord):
 		billboard_vegetation.generate_for_chunk(
 			coord,
 			terrain_manager.heightmap,
@@ -273,6 +286,7 @@ var _fps_log_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
+	_process_billboard_queue()
 	if not WorldConfig.LOG_FPS or not is_world_ready:
 		return
 	_fps_log_timer += delta

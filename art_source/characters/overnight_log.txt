@@ -1,2 +1,4 @@
 ﻿=== OVERNIGHT SPRITE RUN start 07/08/2026 04:14:25 ===
 --- RENDER us_grunt / m16a1 07/08/2026 04:14:25 ---
+
+UNIT=us_grunt RIG=MixamoRig hidden=['VC1_Farmer', 'AK47_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC', 'VC5_NVA', 'PPSh41_Gun']

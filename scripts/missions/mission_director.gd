@@ -109,6 +109,62 @@ func _process(delta: float) -> void:
 		request_cas_strike()
 	if Input.is_action_just_pressed("mortar_strike") and GameManager.can_player_act():
 		request_mortar_strike()
+	if Input.is_action_just_pressed("supply_drop") and GameManager.can_player_act():
+		request_supply_drop()
+
+
+## W60: RTO-called resupply - pop smoke, bird drops a crate on it.
+var supply_used: bool = false
+
+
+func request_supply_drop() -> void:
+	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+		toast.emit("RADIO IS DEAD - NO RESUPPLY")
+		return
+	if supply_used:
+		toast.emit("RESUPPLY ALREADY FLOWN")
+		return
+	if world == null or world.player == null:
+		return
+	# Needs your smoke on the ground nearby.
+	var smoke_pos := Vector3.ZERO
+	for cloud in SmokeCloud.active_clouds:
+		if is_instance_valid(cloud) and cloud.global_position.distance_to(world.player.global_position) < 20.0:
+			smoke_pos = cloud.global_position
+			break
+	if smoke_pos == Vector3.ZERO:
+		toast.emit("POP SMOKE [5] FIRST - THE BIRD NEEDS A MARK")
+		return
+	supply_used = true
+	toast.emit("RESUPPLY INBOUND ON YOUR SMOKE - 20 SECONDS")
+	get_tree().create_timer(20.0).timeout.connect(func() -> void:
+		_drop_supply_crate(smoke_pos))
+
+
+func _drop_supply_crate(pos: Vector3) -> void:
+	var crate := StaticBody3D.new()
+	crate.collision_layer = 1
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.2, 1.0, 1.2)
+	col.shape = box
+	col.position = Vector3(0, 0.5, 0)
+	crate.add_child(col)
+	var mesh := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.2, 1.0, 1.2)
+	mesh.mesh = bm
+	mesh.position = Vector3(0, 0.5, 0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.35, 0.4, 0.28)
+	mesh.material_override = mat
+	crate.add_child(mesh)
+	crate.add_to_group("supply_crates")
+	world.add_child(crate)
+	var ground := pos
+	ground.y = world.terrain_manager.get_height_at(pos)
+	crate.global_position = ground
+	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
 
 
 ## W53: mortar fire mission - spotting round, then the volley walks on.
