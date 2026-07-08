@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cgameworld0001"]
+
+[ext_resource type="Script" path="res://scripts/levels/game_world.gd" id="1_gw"]
+
+[node name="GameWorld" type="Node3D"]
+script = ExtResource("1_gw")
