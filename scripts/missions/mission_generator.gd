@@ -212,9 +212,17 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				enemy.add_to_group(str(group.tag))
 
 	var exfil := ExfilZone.new()
+	exfil.use_bird = true
+	exfil.complete_on_enter = false
+	exfil.world = world
 	world.add_child(exfil)
 	exfil.global_position = _seat(world, p.exfil_lz)
 	exfil.register(director)
+	director.exfil_zone = exfil
+	# Fallback (final) LZ: pre-planned secondary 300-600m from the primary.
+	var fb := _passable_near(world, rng, p.exfil_lz, 300.0, 600.0)
+	planner.stamp_lz(fb)
+	exfil.fallback_pos = fb
 
 	var watchdog := TerrainWatchdog.new()
 	world.add_child(watchdog)

@@ -69,10 +69,16 @@ func _run() -> void:
 	var enemies: int = get_tree().get_nodes_in_group("enemies").size()
 	print("enemies spawned by proximity: %d" % enemies)
 
-	# Exfil.
+	# Exfil: stand on the LZ, wait for the bird, board it.
 	var exfil_pos: Vector3 = plan.exfil_lz
 	player.global_position = Vector3(exfil_pos.x, world.terrain_manager.get_height_at(exfil_pos) + 1.0, exfil_pos.z)
-	await get_tree().create_timer(1.0).timeout
+	var wait: float = 0.0
+	while not mission_done and wait < 90.0:
+		await get_tree().create_timer(0.5).timeout
+		wait += 0.5
+		# Stay glued to the LZ center so the boarding radius check passes.
+		player.global_position = Vector3(exfil_pos.x, world.terrain_manager.get_height_at(exfil_pos) + 1.0, exfil_pos.z)
+	print("exfil cycle took %.1fs" % wait)
 
 	if mission_done and bool(mission_result.success):
 		print("result: %s" % [mission_result])

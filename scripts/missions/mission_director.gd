@@ -82,5 +82,23 @@ func _on_player_died() -> void:
 	fail_mission("KIA")
 
 
+## ABORT: hold the radio key 2s anywhere -> emergency exfil (fail-forward).
+var exfil_zone: ExfilZone
+var _abort_hold: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if _ended or exfil_zone == null:
+		return
+	if Input.is_action_pressed("radio") and GameManager.can_player_act():
+		_abort_hold += delta
+		if _abort_hold >= 2.0 and not state.emergency_exfil and not state.is_exfil_unlocked():
+			state.emergency_exfil = true
+			exfil_zone.force_unlock = true
+			toast.emit("ABORT ACKNOWLEDGED - EMERGENCY EXFIL AUTHORIZED")
+	else:
+		_abort_hold = 0.0
+
+
 func is_ended() -> bool:
 	return _ended

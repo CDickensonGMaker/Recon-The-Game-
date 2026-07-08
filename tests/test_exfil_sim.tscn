@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestexfilsim01"]
+
+[ext_resource type="Script" path="res://tests/test_exfil_sim.gd" id="1_tes"]
+
+[node name="TestExfilSim" type="Node"]
+script = ExtResource("1_tes")

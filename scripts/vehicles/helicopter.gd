@@ -7,8 +7,9 @@ extends Node3D
 signal arrived_at_destination
 signal landed(heli: Helicopter, lz: LandingZone)
 signal took_off(heli: Helicopter)
+signal crashed(heli: Helicopter)
 
-enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF }
+enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 
 @export var cruise_altitude: float = 30.0
 @export var max_speed: float = 50.0
@@ -55,6 +56,29 @@ func _physics_process(delta: float) -> void:
 			_process_landing(delta)
 		State.TAKING_OFF:
 			_process_takeoff(delta)
+		State.CRASHING:
+			_process_crashing(delta)
+
+
+## Shot down: uncontrolled descent with forward drift, then wreck.
+func shoot_down() -> void:
+	if state == State.CRASHING or state == State.DESTROYED:
+		return
+	state = State.CRASHING
+
+
+func _process_crashing(delta: float) -> void:
+	var forward := -global_transform.basis.z
+	global_position += forward * 18.0 * delta
+	global_position.y -= 16.0 * delta
+	rotation.z = lerpf(rotation.z, 0.6, 1.5 * delta)
+	var ground: float = _ground_y(global_position)
+	if global_position.y <= ground + 0.5:
+		global_position.y = ground + 0.5
+		state = State.DESTROYED
+		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.2)
+		CombatManager.apply_explosion_damage(global_position, 150, 40, 10.0, null)
+		crashed.emit(self)
 
 
 func _process_flying(delta: float) -> void:
