@@ -243,6 +243,22 @@ func _try_field_interact() -> void:
 			prisoner.died.emit(prisoner)  # counts for mission tallies
 			prisoner.queue_free()
 			return
+	# PT9: recover a fallen squadmate's kit (ammo/frags only - not their weapon,
+	# that's yours to carry forward, not theirs to leave behind).
+	for a in get_tree().get_nodes_in_group("ally_corpses"):
+		var fallen := a as Node3D
+		if fallen == null or not is_instance_valid(fallen) or fallen.has_meta("looted"):
+			continue
+		if global_position.distance_to(fallen.global_position) < 2.5:
+			fallen.set_meta("looted", true)
+			var nick: String = str(fallen.get("member").get("nick", "HE")) if "member" in fallen else "HE"
+			if weapon_holder:
+				weapon_holder.spare_magazines += 2
+				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+			if equipment_manager:
+				equipment_manager.add_grenade(1)
+			_field_toast("%s'S KIT - MAGS AND A FRAG RECOVERED" % nick.to_upper())
+			return
 	for e in get_tree().get_nodes_in_group("lootable_corpses"):
 		var corpse := e as EnemyBase
 		if corpse == null or not is_instance_valid(corpse):
@@ -421,8 +437,47 @@ func _emit_footsteps(delta: float) -> void:
 			float(NoiseBus.RADII[NoiseBus.NoiseType.FOOTSTEP]) * quiet_mult)
 
 
+## R96: photo mode - free-fly spectator cam. No combat, no HUD, snap back to
+## where you toggled it on (no fall damage from wherever you flew off to).
+var _photo_mode: bool = false
+var _photo_saved_pos: Vector3 = Vector3.ZERO
+const PHOTO_FLY_SPEED: float = 9.0
+
+
+func _toggle_photo_mode() -> void:
+	_photo_mode = not _photo_mode
+	if _photo_mode:
+		_photo_saved_pos = global_position
+		if weapon_holder and weapon_holder.weapon_model:
+			weapon_holder.weapon_model.visible = false
+	else:
+		global_position = _photo_saved_pos
+		velocity = Vector3.ZERO
+		if weapon_holder and weapon_holder.weapon_model:
+			weapon_holder.weapon_model.visible = true
+	for group in ["mission_hud", "combat_hud"]:
+		var node := get_tree().get_first_node_in_group(group)
+		if node:
+			node.visible = not _photo_mode
+
+
+func _update_photo_fly(delta: float) -> void:
+	head.rotation.x = camera_rotation_x
+	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	var vertical: float = (1.0 if Input.is_action_pressed("jump") else 0.0) - (1.0 if Input.is_action_pressed("crouch") else 0.0)
+	var move: Vector3 = camera.global_transform.basis * Vector3(input_dir.x, 0, input_dir.y)
+	global_position += (move + Vector3.UP * vertical) * PHOTO_FLY_SPEED * delta
+
+
 func _physics_process(delta: float) -> void:
 	if not GameManager.can_player_act():
+		return
+
+	if Input.is_action_just_pressed("photo_mode") and not is_seated \
+			and not (health_system and health_system.is_downed):
+		_toggle_photo_mode()
+	if _photo_mode:
+		_update_photo_fly(minf(delta, 0.066))
 		return
 
 	# Seated (Huey ride): follow the seat, keep head-look, skip movement.

@@ -483,7 +483,9 @@ func _die() -> void:
 	if mesh:
 		mesh.rotation_degrees.x = 90
 
-	get_tree().create_timer(5.0).timeout.connect(queue_free)
+	# PT9: their kit is still on the ground - a real window to recover it.
+	add_to_group("ally_corpses")
+	get_tree().create_timer(45.0).timeout.connect(queue_free)
 
 
 func is_dead() -> bool:

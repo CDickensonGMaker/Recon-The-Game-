@@ -35,6 +35,7 @@ func _ready() -> void:
 	healing_bar.visible = false
 	if bleed_container:
 		bleed_container.visible = false
+	add_to_group("combat_hud")  # R96: photo mode hides this
 
 
 func _process(delta: float) -> void:

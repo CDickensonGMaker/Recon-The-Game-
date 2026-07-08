@@ -1,0 +1,29 @@
+{
+ "action": "strafe_1",
+ "cell": [
+  128,
+  160
+ ],
+ "columns": 8,
+ "directions": [
+  "front",
+  "front_right",
+  "right",
+  "back_right",
+  "back",
+  "back_left",
+  "left",
+  "front_left"
+ ],
+ "combined_row_order_top_to_bottom": [
+  "front",
+  "front_right",
+  "right",
+  "back_right",
+  "back",
+  "back_left",
+  "left",
+  "front_left"
+ ],
+ "strip_frame_order": "left to right"
+}
