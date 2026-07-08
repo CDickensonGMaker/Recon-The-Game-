@@ -332,16 +332,21 @@ func clear_wounds() -> void:
 var camera_rotation_x: float = 0.0
 const MAX_LOOK_ANGLE: float = 89.0
 
-## Recoil system
-var recoil_offset: float = 0.0  # Current recoil offset (added to camera)
-var target_recoil: float = 0.0  # Target recoil to lerp toward
-const RECOIL_SPEED: float = 15.0  # How fast recoil kicks up
-const RECOIL_RECOVERY_SPEED: float = 5.0  # How fast camera recovers
+## Recoil system. Additive view offsets in radians that decay back to zero;
+## they NEVER touch camera_rotation_x / _yaw_base, so the shot recovers to the
+## exact aim the player held. The kick is applied INSTANTLY in apply_recoil (a
+## lerped rise peaked at ~60% of the authored degrees and felt like foam).
+var _recoil_pitch: float = 0.0
+var _recoil_yaw: float = 0.0
+var _recoil_recovery: float = 12.0  # exp decay per second, set per shot
+var _yaw_base: float = 0.0          # body yaw from mouse look, before recoil
+const RECOIL_MAX_PITCH: float = 0.35  # rad (~20 deg)
 
 func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
 	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
+	_yaw_base = rotation.y  # seed recoil-recoverable yaw from spawn orientation
 
 	# Register with managers
 	GameManager.register_player(self)
@@ -378,10 +383,19 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_mouse_look(mouse_delta: Vector2) -> void:
-	rotate_y(-mouse_delta.x * mouse_sensitivity)
+	_yaw_base -= mouse_delta.x * mouse_sensitivity
 	camera_rotation_x -= mouse_delta.y * mouse_sensitivity
-	camera_rotation_x = clamp(camera_rotation_x, deg_to_rad(-MAX_LOOK_ANGLE), deg_to_rad(MAX_LOOK_ANGLE))
-	# head.rotation.x is set in _handle_recoil to combine base rotation + recoil
+	camera_rotation_x = clampf(camera_rotation_x, deg_to_rad(-MAX_LOOK_ANGLE), deg_to_rad(MAX_LOOK_ANGLE))
+	_apply_look()
+
+
+## Single writer for view angles. Called from mouse look (poll rate) AND recoil
+## recovery (physics rate) so pitch is no longer 60Hz-quantized while yaw is smooth.
+func _apply_look() -> void:
+	head.rotation.x = clampf(
+		camera_rotation_x + _recoil_pitch,
+		deg_to_rad(-MAX_LOOK_ANGLE), deg_to_rad(MAX_LOOK_ANGLE))
+	rotation.y = _yaw_base + _recoil_yaw
 
 
 ## Seated mode (W05): glued to a seat marker, head-look only, no collision.
@@ -653,26 +667,21 @@ func get_current_speed() -> float:
 
 ## Handle recoil recovery
 func _handle_recoil(delta: float) -> void:
-	# Lerp recoil offset toward target
-	if abs(recoil_offset - target_recoil) > 0.001:
-		recoil_offset = lerpf(recoil_offset, target_recoil, delta * RECOIL_SPEED)
-
-	# Recover target recoil back to zero when not firing
-	if target_recoil > 0:
-		target_recoil = lerpf(target_recoil, 0.0, delta * RECOIL_RECOVERY_SPEED)
-
-	# Apply recoil offset to head rotation (positive recoil = kick view UP)
-	head.rotation.x = camera_rotation_x + recoil_offset
+	# Framerate-exact exponential decay back to the held aim.
+	var decay: float = 1.0 - exp(-_recoil_recovery * delta)
+	_recoil_pitch = lerpf(_recoil_pitch, 0.0, decay)
+	_recoil_yaw = lerpf(_recoil_yaw, 0.0, decay)
+	_apply_look()
 
 
-## Apply recoil to camera (called when firing)
-func apply_recoil(vertical: float, horizontal: float) -> void:
-	# Add to target recoil (positive value kicks view UP)
-	target_recoil += deg_to_rad(vertical)
-	target_recoil = minf(target_recoil, deg_to_rad(30.0))  # Cap max recoil
-
-	# Horizontal recoil - random left/right
-	rotate_y(deg_to_rad(randf_range(-horizontal, horizontal)))
+## Apply recoil to the view (called by WeaponHolder on every round). The kick is
+## INSTANT; only the recovery is smoothed. Yaw is recoverable (decays to zero)
+## instead of permanently spinning the body like the old rotate_y did.
+func apply_recoil(vertical: float, horizontal: float, recovery: float = 12.0) -> void:
+	_recoil_pitch = minf(_recoil_pitch + deg_to_rad(vertical), RECOIL_MAX_PITCH)
+	_recoil_yaw += deg_to_rad(randf_range(-horizontal, horizontal))
+	_recoil_recovery = recovery
+	_apply_look()
 
 
 ## Take damage - forwarded from health system

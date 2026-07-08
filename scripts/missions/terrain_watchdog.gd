@@ -44,7 +44,12 @@ func _physics_process(delta: float) -> void:
 				elif suspended and dist < RESUME_DIST:
 					body.remove_meta("suspended")
 					body.set_physics_process(true)
-					body.visible = true
+					# R64: a spider-hole ambusher must STAY hidden until it triggers
+					# at 7m. The blanket visible=true here revealed it standing in
+					# the open from ~210m and defeated the mechanic on the exact
+					# mission type (VILLAGE_RAID) it was written for.
+					var hidden_hole: bool = body.get("is_spider_hole") and not body.get("_spider_triggered")
+					body.visible = not hidden_hole
 					body.global_position.y = terrain.get_height_at(body.global_position) + 0.5
 				elif suspended:
 					continue

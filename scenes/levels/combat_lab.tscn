@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ccombatlab00001"]
+[gd_scene format=3 uid="uid://b7rkonbeft8xo"]
 
 [ext_resource type="Script" path="res://scripts/levels/combat_lab.gd" id="1_lab"]
 

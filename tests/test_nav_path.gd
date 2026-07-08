@@ -84,8 +84,17 @@ func _run() -> void:
 		_finish(world)
 		return
 
+	# regions_live means the mesh was ASSIGNED; the nav map has not necessarily
+	# SYNCED it yet. Under suite load that race made this test flaky. Force a sync
+	# and wait until map_get_path actually returns something before asserting.
 	var map: RID = world.get_world_3d().navigation_map
-	NavigationServer3D.map_force_update(map)
+	var settle: float = 0.0
+	while settle < 5.0:
+		NavigationServer3D.map_force_update(map)
+		await get_tree().physics_frame
+		if NavigationServer3D.map_get_path(map, a, b, true).size() >= 2:
+			break
+		settle += 1.0 / 60.0
 
 	# --- Assertion 1: a navmesh exists at all. --------------------------------
 	# With no baked region, map_get_path returns an EMPTY PackedVector3Array.

@@ -69,6 +69,7 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 
 	weapon_holder.magazine_changed.connect(_on_magazine_changed)
 	weapon_holder.weapon_switched.connect(_on_weapon_switched)
+	weapon_holder.weapon_jammed.connect(_on_weapon_jammed)   # R09 emitted this into the void
 	weapon_holder.reload_started.connect(_on_reload_started)
 	weapon_holder.reload_progress.connect(_on_reload_progress)
 	weapon_holder.weapon_reloaded.connect(_on_reload_finished)
@@ -155,6 +156,15 @@ func _on_healing_stopped() -> void:
 	healing_bar.visible = false
 	if action_progress:
 		action_progress.finish_action()
+
+
+## R09: the jam roll fired but the HUD never said so - the round simply did not
+## leave and the player had no idea why. A dry click + the reload ring is the
+## tell that it is a jam, not an empty mag.
+func _on_weapon_jammed() -> void:
+	GunFX.play_click(self)
+	if action_progress:
+		action_progress.start_action(ActionProgress.ActionType.RELOAD)
 
 
 func _on_reload_started() -> void:

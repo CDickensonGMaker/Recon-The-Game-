@@ -285,7 +285,7 @@ func _apply_aoe_damage() -> void:
 		projectile_data.aoe_radius,
 		owner_entity,
 		maxf(projectile_data.knockback_force, 1.0))
-	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_rocket")
 	if DamageSystem.has_method("apply_damage"):
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 

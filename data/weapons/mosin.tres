@@ -1,16 +1,16 @@
 [gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 id = "mosin"
 display_name = "Mosin-Nagant 91/30"
-description = "7.62x54mmR bolt rifle. Slow, loud, and it only needs to work once."
+description = "7.62x54mmR bolt rifle. The deepest, sharpest report in the valley. Slow, loud, and it only needs to work once."
 firing_mode = 2
-fire_rate = 14.0
+fire_rate = 35.0
 magazine_size = 5
-reload_time = 3.8
+reload_time = 5.0
 base_damage = Array[int]([1, 10, 68])
 damage_type = 0
 base_spread = 0.6
@@ -21,7 +21,18 @@ ads_fov = 40.0
 ads_move_mult = 0.5
 effective_range = 140.0
 max_range = 300.0
-projectile_speed = 800.0
+min_damage_mult = 0.85
+projectile_speed = 865.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.0
+recoil_climb_per_shot = 0.0
+recoil_climb_max = 1.0
+recoil_recovery = 9.0
+fire_volume_db = 2.0
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = true
 model_path = "res://scenes/weapons/kar98k_viewmodel.tscn"
 viewmodel_scale = 1.1
 hip_position = Vector3(0.3, -0.25, -0.5)

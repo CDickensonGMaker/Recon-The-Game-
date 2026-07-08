@@ -31,10 +31,36 @@ extends Resource
 @export_group("Range")
 @export var effective_range: float = 50.0  ## Meters - full damage range
 @export var max_range: float = 100.0  ## Meters - damage falloff beyond
+## Damage retained at max_range (linear falloff from effective_range). Author
+## HIGH for rifles (a Mauser stays lethal), LOW for pistols/SMG. 1.0 = no falloff.
+@export_range(0.2, 1.0) var min_damage_mult: float = 0.6
 
 @export_group("Projectile")
 @export var projectile_speed: float = 400.0  ## m/s
 @export var projectile_data_path: String = ""  ## Path to ProjectileData resource
+
+@export_group("Feel")
+## First aimed shot kicks harder than sustained fire - rewards trigger discipline.
+@export var recoil_first_shot_mult: float = 1.5
+## Muzzle climb per round under sustained auto fire (+fraction/round).
+@export var recoil_climb_per_shot: float = 0.06
+@export var recoil_climb_max: float = 1.8
+## Exponential recovery constant (per second). Higher = snappier return to aim.
+@export var recoil_recovery: float = 12.0
+
+@export_group("Audio")
+## Audio is resolved BY CONVENTION from `id`: AudioManager looks for
+## res://assets/audio/sfx/weapons/fire_<id>_1..3.wav, fire_<id>_dist.wav,
+## mech_<id>.wav, reload_<id>.wav, bolt_<id>.wav. Drop a real recording at the
+## same path to replace the synth render -- no code or resource change.
+## These fields are just the per-weapon mix.
+@export_range(-24.0, 12.0) var fire_volume_db: float = 0.0
+@export_range(0.0, 0.25) var fire_pitch_variance: float = 0.04
+@export var audio_max_distance: float = 350.0
+@export var audio_unit_size: float = 16.0
+## Supersonic rounds add a ballistic crack for shots passing near the listener.
+## .45 ACP / 9mm ball are subsonic -> false -> muzzle report only.
+@export var is_supersonic: bool = true
 
 @export_group("Visuals")
 @export var model_path: String = ""  ## Path to weapon GLTF model
@@ -51,7 +77,19 @@ func roll_damage() -> int:
 	for i in range(base_damage[0]):
 		total += randi_range(1, base_damage[1])
 	total += base_damage[2]
-	return max(1, total)
+	return maxi(1, total)
+
+
+## Damage scale at a given distance. Full damage to effective_range, then linear
+## falloff to min_damage_mult at max_range. Applied to the raw dice roll BEFORE
+## the hitzone multiplier, so a headshot stays a headshot at any range.
+func damage_multiplier_at(distance: float) -> float:
+	if distance <= effective_range:
+		return 1.0
+	if distance >= max_range:
+		return min_damage_mult
+	var t: float = (distance - effective_range) / maxf(0.001, max_range - effective_range)
+	return lerpf(1.0, min_damage_mult, t)
 
 
 ## Get damage string for UI display (e.g., "2d6+6")

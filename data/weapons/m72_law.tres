@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "m72_law"
+display_name = "M72 LAW"
+description = "66mm disposable rocket. A hissing roar and a backblast that names your position to the whole AO."
+firing_mode = 0
+fire_rate = 12.0
+magazine_size = 1
+reload_time = 0.0
+base_damage = Array[int]([4, 10, 50])
+damage_type = 1
+base_spread = 1.8
+ads_spread_mult = 0.5
+recoil_vertical = 6.0
+recoil_horizontal = 1.0
+ads_fov = 60.0
+ads_move_mult = 0.5
+effective_range = 150.0
+max_range = 250.0
+min_damage_mult = 1.0
+projectile_speed = 145.0
+projectile_data_path = "res://data/projectiles/rpg2_rocket.tres"
+recoil_first_shot_mult = 1.0
+recoil_climb_per_shot = 0.0
+recoil_climb_max = 1.0
+recoil_recovery = 6.0
+fire_volume_db = 2.0
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = false
+model_path = ""
+viewmodel_scale = 1.0
+hip_position = Vector3(0.3, -0.25, -0.5)
+ads_position = Vector3(0, -0.1, -0.4)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

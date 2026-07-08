@@ -1,12 +1,12 @@
 [gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 id = "ppsh41"
 display_name = "PPSh-41"
-description = "7.62x25mm burp gun. 71-round drum, murderous up close, useless past the treeline."
+description = "7.62x25mm burp gun. A thin, tearing snap at 900rpm. Murderous up close, useless past the treeline."
 firing_mode = 1
 fire_rate = 900.0
 magazine_size = 71
@@ -15,13 +15,24 @@ base_damage = Array[int]([1, 6, 34])
 damage_type = 0
 base_spread = 2.2
 ads_spread_mult = 0.35
-recoil_vertical = 1.6
+recoil_vertical = 1.4
 recoil_horizontal = 0.9
 ads_fov = 58.0
 ads_move_mult = 0.65
-effective_range = 30.0
-max_range = 70.0
-projectile_speed = 490.0
+effective_range = 80.0
+max_range = 180.0
+min_damage_mult = 0.4
+projectile_speed = 488.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.2
+recoil_climb_per_shot = 0.05
+recoil_climb_max = 1.6
+recoil_recovery = 11.0
+fire_volume_db = 0.0
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = true
 model_path = "res://scenes/weapons/mp40_viewmodel.tscn"
 viewmodel_scale = 0.9
 hip_position = Vector3(0.469, -0.627, -0.849)

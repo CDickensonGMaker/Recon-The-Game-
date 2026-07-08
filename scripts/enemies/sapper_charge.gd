@@ -30,7 +30,7 @@ func _physics_process(_delta: float) -> void:
 		var pos: Vector3 = enemy.global_position
 		CombatManager.apply_explosion_damage(pos, 180, 60, 10.0, enemy)
 		DamageSystem.apply_damage(pos, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
-		GunFX.play_explosion_3d(get_tree().current_scene, pos)
+		GunFX.play_explosion_3d(get_tree().current_scene, pos, "explosion_heavy")
 		NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, pos, 1)
 		enemy.take_damage(9999, Enums.DamageType.EXPLOSIVE, enemy)
 		set_physics_process(false)

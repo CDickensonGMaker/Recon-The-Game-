@@ -146,3 +146,613 @@ DONE: 21 animations
 
 UNIT=vc5_nva RIG=RigVC5 hidden=['US_Grunt_Rigged', 'M16A1_Rifle', 'VC1_Farmer', 'AK47_Rifle', 'VC2_MainForce', 'Mosin_Rifle_VC']
 FRAMES DONE: action_idle_to_standing_idle (8 cols x 8 dirs)
+FRAMES DONE: brutal_assassination (8 cols x 8 dirs)
+FRAMES DONE: death_forward (8 cols x 8 dirs)
+FRAMES DONE: death_from_right (8 cols x 8 dirs)
+FRAMES DONE: firing_rifle (8 cols x 8 dirs)
+FRAMES DONE: injured_walk_backwards (8 cols x 8 dirs)
+FRAMES DONE: kneeling_pointing (8 cols x 8 dirs)
+FRAMES DONE: laying_breathless (8 cols x 8 dirs)
+FRAMES DONE: pilot_flips_switches (8 cols x 8 dirs)
+FRAMES DONE: reloading (8 cols x 8 dirs)
+FRAMES DONE: rifle_aiming_idle (8 cols x 8 dirs)
+FRAMES DONE: rifle_crouch_idle_to_walk (8 cols x 8 dirs)
+FRAMES DONE: rifle_turn (8 cols x 8 dirs)
+FRAMES DONE: run_forward (8 cols x 8 dirs)
+FRAMES DONE: sitting (8 cols x 8 dirs)
+FRAMES DONE: stand_to_cover (8 cols x 8 dirs)
+FRAMES DONE: start_walking (8 cols x 8 dirs)
+FRAMES DONE: stop_walking_with_rifle (8 cols x 8 dirs)
+FRAMES DONE: strafe (8 cols x 8 dirs)
+FRAMES DONE: strafe_1 (8 cols x 8 dirs)
+FRAMES DONE: swimming (8 cols x 8 dirs)
+ALL FRAMES COMPLETE: 21
+
+
+--- ASSEMBLE vc5_nva / ppsh41 07/08/2026 12:25:59 ---
+
+ASSEMBLED: action_idle_to_standing_idle (8 cols)
+ASSEMBLED: brutal_assassination (8 cols)
+ASSEMBLED: death_forward (8 cols)
+ASSEMBLED: death_from_right (8 cols)
+ASSEMBLED: firing_rifle (8 cols)
+ASSEMBLED: injured_walk_backwards (8 cols)
+ASSEMBLED: kneeling_pointing (8 cols)
+ASSEMBLED: laying_breathless (8 cols)
+ASSEMBLED: pilot_flips_switches (8 cols)
+ASSEMBLED: reloading (8 cols)
+ASSEMBLED: rifle_aiming_idle (8 cols)
+ASSEMBLED: rifle_crouch_idle_to_walk (8 cols)
+ASSEMBLED: rifle_turn (8 cols)
+ASSEMBLED: run_forward (8 cols)
+ASSEMBLED: sitting (8 cols)
+ASSEMBLED: stand_to_cover (8 cols)
+ASSEMBLED: start_walking (8 cols)
+ASSEMBLED: stop_walking_with_rifle (8 cols)
+ASSEMBLED: strafe (8 cols)
+ASSEMBLED: strafe_1 (8 cols)
+ASSEMBLED: swimming (8 cols)
+DONE: 21 animations
+
+
+=== OVERNIGHT RUN COMPLETE 07/08/2026 12:27:13 ===
+--- RENDER vc1_farmer,vc2_mainforce,vc5_nva 07/08/2026 13:27:03 ---
+--- ASSEMBLE vc1_farmer,vc2_mainforce,vc5_nva 07/08/2026 13:27:06 ---
+ 
+ T r a c e b a c k   ( m o s t   r e c e n t   c a l l   l a s t ) :  
+ K e y E r r o r :   ' v c 1 _ f a r m e r , v c 2 _ m a i n f o r c e , v c 5 _ n v a '  
+  
+  
+ === FINISH_UNITS COMPLETE 07/08/2026 13:27:09 ===
+--- RENDER vc1_farmer 07/08/2026 13:29:53 ---
+ 
+ U N I T = v c 1 _ f a r m e r   W E A P O N = a k 4 7   R I G = M i x a m o R i g _ V C 1   h i d   1 2 9   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 7 3 2 ,   0 . 0 0 9 ,   0 . 0 5 5 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc1_farmer 07/08/2026 13:30:45 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc2_mainforce 07/08/2026 13:31:26 ---
+ 
+ U N I T = v c 2 _ m a i n f o r c e   W E A P O N = m o s i n   R I G = R i g V C 2   h i d   1 2 3   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 1 8 7 ,   - 0 . 4 9 5 ,   0 . 0 1 1 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc2_mainforce 07/08/2026 13:31:55 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc5_nva 07/08/2026 13:32:37 ---
+ 
+ U N I T = v c 5 _ n v a   W E A P O N = p p s h 4 1   R I G = R i g V C 5   h i d   1 2 1   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 7 4 3 ,   - 1 . 0 1 3 ,   0 . 0 7 5 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc5_nva 07/08/2026 13:33:03 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER us_grunt_black 07/08/2026 13:33:43 ---
+ 
+ U N I T = u s _ g r u n t _ b l a c k   W E A P O N = m 6 0   R I G = R i g U S M 6 0   h i d   1 5 3   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 2 8 ,   0 . 0 0 9 ,   0 . 0 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE us_grunt_black 07/08/2026 14:16:07 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc3_sapper 07/08/2026 14:17:02 ---
+ 
+ U N I T = v c 3 _ s a p p e r   W E A P O N = r p d   R I G = R i g V C 3   h i d   1 2 8   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 1 6 5 ,   0 . 0 0 5 ,   - 0 . 0 )  
+ --- RENDER vc1_farmer 07/08/2026 14:19:54 ---
+ 
+ U N I T = v c 1 _ f a r m e r   W E A P O N = a k 4 7   R I G = M i x a m o R i g _ V C 1   h i d   1 2 9   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 7 3 2 ,   0 . 0 0 9 ,   0 . 0 5 5 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc1_farmer 07/08/2026 14:20:21 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc2_mainforce 07/08/2026 14:21:12 ---
+ 
+ U N I T = v c 2 _ m a i n f o r c e   W E A P O N = m o s i n   R I G = R i g V C 2   h i d   1 2 3   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 1 8 7 ,   - 0 . 4 9 5 ,   0 . 0 1 1 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc2_mainforce 07/08/2026 14:21:47 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc5_nva 07/08/2026 14:23:01 ---
+ 
+ U N I T = v c 5 _ n v a   W E A P O N = p p s h 4 1   R I G = R i g V C 5   h i d   1 2 1   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 7 4 3 ,   - 1 . 0 1 3 ,   0 . 0 7 5 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc5_nva 07/08/2026 14:23:30 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER us_grunt_black 07/08/2026 14:24:24 ---
+ 
+ U N I T = u s _ g r u n t _ b l a c k   W E A P O N = m 6 0   R I G = R i g U S M 6 0   h i d   1 5 3   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 2 8 ,   0 . 0 0 9 ,   0 . 0 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE us_grunt_black 07/08/2026 14:25:00 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc3_sapper 07/08/2026 14:26:15 ---
+ 
+ U N I T = v c 3 _ s a p p e r   W E A P O N = r p d   R I G = R i g V C 3   h i d   1 2 8   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 1 6 5 ,   0 . 0 0 5 ,   - 0 . 0 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc3_sapper 07/08/2026 15:19:40 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ --- RENDER vc6_heavy 07/08/2026 15:20:23 ---
+ 
+ U N I T = v c 6 _ h e a v y   W E A P O N = r p g 2   R I G = R i g V C 6   h i d   1 2 3   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 7 0 2 ,   0 . 0 0 4 ,   - 0 . 0 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ t u r n   ( 8   c o l s   x   8   d i r s ,   4 . 5 7 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r u n _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   1 4 . 7 6 9   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s i t t i n g   ( 8   c o l s   x   8   d i r s ,   1 . 3 4 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t a n d _ t o _ c o v e r   ( 8   c o l s   x   8   d i r s ,   6 . 8 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t a r t _ w a l k i n g   ( 8   c o l s   x   8   d i r s ,   2 . 7 0 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s   x   8   d i r s ,   3 . 4 9 1   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   s t r a f e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s t r a f e _ 1   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   s w i m m i n g   ( 8   c o l s   x   8   d i r s ,   1 . 7 6 1   f p s ,   l o o p = T r u e )  
+ A L L   F R A M E S   C O M P L E T E :   2 0  
+  
+  
+ --- ASSEMBLE vc6_heavy 07/08/2026 16:06:34 ---
+ 
+ A S S E M B L E D :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s ,   f p s = 8 . 3 4 8 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s ,   f p s = 1 . 6 1 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f o r w a r d   ( 8   c o l s ,   f p s = 2 . 4 9 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s ,   f p s = 2 . 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   f i r i n g _ r i f l e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s ,   f p s = 4 . 6 8 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s ,   f p s = 2 . 0 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s ,   f p s = 9 . 1 4 3 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r e l o a d i n g   ( 8   c o l s ,   f p s = 2 . 1 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s ,   f p s = 2 . 5 6 ,   l o o p = T r u e )  
+ A S S E M B L E D :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s ,   f p s = 3 . 2 5 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r i f l e _ t u r n   ( 8   c o l s ,   f p s = 4 . 5 7 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   r u n _ f o r w a r d   ( 8   c o l s ,   f p s = 1 4 . 7 6 9 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s i t t i n g   ( 8   c o l s ,   f p s = 1 . 3 4 3 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t a n d _ t o _ c o v e r   ( 8   c o l s ,   f p s = 6 . 8 5 7 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t a r t _ w a l k i n g   ( 8   c o l s ,   f p s = 2 . 7 0 4 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t o p _ w a l k i n g _ w i t h _ r i f l e   ( 8   c o l s ,   f p s = 3 . 4 9 1 ,   l o o p = F a l s e )  
+ A S S E M B L E D :   s t r a f e   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s t r a f e _ 1   ( 8   c o l s ,   f p s = 6 . 6 2 1 ,   l o o p = T r u e )  
+ A S S E M B L E D :   s w i m m i n g   ( 8   c o l s ,   f p s = 1 . 7 6 1 ,   l o o p = T r u e )  
+ D O N E :   2 0   a n i m a t i o n s  
+  
+  
+ === FINISH_UNITS COMPLETE 07/08/2026 16:07:38 ===
+--- RENDER vc3_sapper 07/08/2026 16:26:02 ---
+ 
+ U N I T = v c 3 _ s a p p e r   W E A P O N = r p d   R I G = R i g V C 3   h i d   1 2 8   o b j e c t s  
+ m u z z l e   l o c a l   ( - 0 . 1 6 5 ,   0 . 0 0 5 ,   - 0 . 0 )  
+ F R A M E S   D O N E :   a c t i o n _ i d l e _ t o _ s t a n d i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   8 . 3 4 8   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   b r u t a l _ a s s a s s i n a t i o n   ( 8   c o l s   x   8   d i r s ,   1 . 6 1 3   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f o r w a r d   ( 8   c o l s   x   8   d i r s ,   2 . 4 9 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   d e a t h _ f r o m _ r i g h t   ( 8   c o l s   x   8   d i r s ,   2 . 4   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   f i r i n g _ r i f l e   ( 8   c o l s   x   8   d i r s ,   6 . 6 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   i n j u r e d _ w a l k _ b a c k w a r d s   ( 8   c o l s   x   8   d i r s ,   4 . 6 8 3   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   k n e e l i n g _ p o i n t i n g   ( 8   c o l s   x   8   d i r s ,   2 . 0 2 1   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   l a y i n g _ b r e a t h l e s s   ( 8   c o l s   x   8   d i r s ,   9 . 1 4 3   f p s ,   l o o p = F a l s e )  
+ S K I P P E D   ( n o t   r e n d e r e d ) :   p i l o t _ f l i p s _ s w i t c h e s  
+ F R A M E S   D O N E :   r e l o a d i n g   ( 8   c o l s   x   8   d i r s ,   2 . 1 5 7   f p s ,   l o o p = F a l s e )  
+ F R A M E S   D O N E :   r i f l e _ a i m i n g _ i d l e   ( 8   c o l s   x   8   d i r s ,   2 . 5 6   f p s ,   l o o p = T r u e )  
+ F R A M E S   D O N E :   r i f l e _ c r o u c h _ i d l e _ t o _ w a l k   ( 8   c o l s   x   8   d i r s ,   3 . 2 5 4   f p s ,   l o o p = F a l s e )  
+ 

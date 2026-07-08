@@ -6,6 +6,9 @@ const PATH := "user://settings.cfg"
 
 var mouse_sensitivity: float = 0.002
 var master_volume_db: float = 0.0
+var sfx_volume_db: float = 0.0
+var ambience_volume_db: float = 0.0
+var music_volume_db: float = -3.0
 var difficulty: int = 1  ## 0 EASY / 1 NORMAL / 2 HARD
 var hardcore: bool = false  ## no compass, no markers, faster bleed
 
@@ -28,13 +31,27 @@ func player_damage_mult() -> float:
 
 
 func apply_audio() -> void:
-	AudioServer.set_bus_volume_db(0, master_volume_db)
+	_set_bus("Master", master_volume_db)
+	_set_bus("SFX", sfx_volume_db)
+	_set_bus("Ambience", ambience_volume_db)
+	_set_bus("Music", music_volume_db)
+
+
+func _set_bus(name: String, db: float) -> void:
+	var idx: int = AudioServer.get_bus_index(name)
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, db)
+	elif name == "Master":
+		AudioServer.set_bus_volume_db(0, db)
 
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("settings", "mouse_sensitivity", mouse_sensitivity)
 	cfg.set_value("settings", "master_volume_db", master_volume_db)
+	cfg.set_value("settings", "sfx_volume_db", sfx_volume_db)
+	cfg.set_value("settings", "ambience_volume_db", ambience_volume_db)
+	cfg.set_value("settings", "music_volume_db", music_volume_db)
 	cfg.set_value("settings", "difficulty", difficulty)
 	cfg.set_value("settings", "hardcore", hardcore)
 	cfg.save(PATH)
@@ -46,5 +63,8 @@ func load_settings() -> void:
 		return
 	mouse_sensitivity = float(cfg.get_value("settings", "mouse_sensitivity", 0.002))
 	master_volume_db = float(cfg.get_value("settings", "master_volume_db", 0.0))
+	sfx_volume_db = float(cfg.get_value("settings", "sfx_volume_db", 0.0))
+	ambience_volume_db = float(cfg.get_value("settings", "ambience_volume_db", 0.0))
+	music_volume_db = float(cfg.get_value("settings", "music_volume_db", -3.0))
 	difficulty = int(cfg.get_value("settings", "difficulty", 1))
 	hardcore = bool(cfg.get_value("settings", "hardcore", false))

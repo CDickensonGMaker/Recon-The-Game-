@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "m79"
+display_name = "M79 Grenade Launcher"
+description = "40mm break-open launcher. The Blooper. A hollow THOONK, then silence, then the ground opens up downrange."
+firing_mode = 0
+fire_rate = 15.0
+magazine_size = 1
+reload_time = 4.0
+base_damage = Array[int]([8, 10, 0])
+damage_type = 1
+base_spread = 1.0
+ads_spread_mult = 0.5
+recoil_vertical = 5.0
+recoil_horizontal = 1.0
+ads_fov = 65.0
+ads_move_mult = 0.6
+effective_range = 100.0
+max_range = 150.0
+min_damage_mult = 1.0
+projectile_speed = 76.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.0
+recoil_climb_per_shot = 0.0
+recoil_climb_max = 1.0
+recoil_recovery = 6.0
+fire_volume_db = 1.0
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = false
+model_path = "res://scenes/weapons/mp40_viewmodel.tscn"
+viewmodel_scale = 0.9
+hip_position = Vector3(0.469, -0.627, -0.849)
+ads_position = Vector3(0.000, -0.508, -0.755)
+hip_rotation = Vector3(-4.7, 80.6, 0.0)
+ads_rotation = Vector3(0.0, 90.0, 0.0)

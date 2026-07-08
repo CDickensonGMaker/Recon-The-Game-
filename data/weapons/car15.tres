@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "car15"
+display_name = "CAR-15 / XM177"
+description = "Cut-down carbine. Deafening, concussive, brutal up close. RECON 5d10."
+firing_mode = 1
+fire_rate = 800.0
+magazine_size = 20
+reload_time = 2.4
+base_damage = Array[int]([5, 10, 0])
+damage_type = 0
+base_spread = 2.0
+ads_spread_mult = 0.3
+recoil_vertical = 1.3
+recoil_horizontal = 0.7
+ads_fov = 60.0
+ads_move_mult = 0.65
+effective_range = 200.0
+max_range = 350.0
+min_damage_mult = 0.55
+projectile_speed = 838.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.4
+recoil_climb_per_shot = 0.06
+recoil_climb_max = 1.7
+recoil_recovery = 13.0
+fire_volume_db = 1.5
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = true
+model_path = "res://scenes/weapons/thompson_viewmodel.tscn"
+viewmodel_scale = 1.0
+hip_position = Vector3(0.250, -0.300, -0.400)
+ads_position = Vector3(0.000, -0.246, -0.899)
+hip_rotation = Vector3(0.0, 0.0, 0.0)
+ads_rotation = Vector3(0.9, 0.0, 0.1)

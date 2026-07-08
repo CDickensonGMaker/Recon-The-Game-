@@ -265,18 +265,21 @@ func _update_markers(cam: Camera3D) -> void:
 	if exfil_zone != null and is_instance_valid(exfil_zone) and director.state.is_exfil_unlocked():
 		targets.append(exfil_zone)
 
-	# Prune dead markers.
-	for key in _markers.keys():
-		if not targets.has(key):
-			(_markers[key] as Label).queue_free()
-			_markers.erase(key)
-
 	# PT1: distant squadmates get markers too - never lose your team.
 	if squad != null:
 		for a in squad.members:
 			if is_instance_valid(a) and not a.is_dead() \
 					and a.global_position.distance_to(world.player.global_position) > 20.0:
 				targets.append(a)
+
+	# Prune dead markers - AFTER squad is appended. It used to run first, so every
+	# ally marker was freed and re-created every rendered frame (~300 Labels/s):
+	# squadmates were never in `targets` when the prune ran, so they always failed
+	# the has() check.
+	for key in _markers.keys():
+		if not targets.has(key):
+			(_markers[key] as Label).queue_free()
+			_markers.erase(key)
 
 	for t in targets:
 		var node := t as Node3D

@@ -1,27 +1,38 @@
 [gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 id = "mp40"
 display_name = "MP40"
-description = "9mm Parabellum SMG. Slightly less stopping power than .45 ACP."
+description = "9mm Parabellum SMG. A slow, deliberate chug. Slightly less stopping power than .45 ACP."
 firing_mode = 1
 fire_rate = 500.0
 magazine_size = 32
-reload_time = 2.8
+reload_time = 3.2
 base_damage = Array[int]([1, 6, 38])
 damage_type = 0
 base_spread = 1.5
 ads_spread_mult = 0.3
-recoil_vertical = 2.0
+recoil_vertical = 1.8
 recoil_horizontal = 0.6
 ads_fov = 55.0
 ads_move_mult = 0.6
-effective_range = 40.0
-max_range = 80.0
-projectile_speed = 400.0
+effective_range = 60.0
+max_range = 150.0
+min_damage_mult = 0.4
+projectile_speed = 380.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.2
+recoil_climb_per_shot = 0.05
+recoil_climb_max = 1.5
+recoil_recovery = 12.0
+fire_volume_db = 0.0
+fire_pitch_variance = 0.04
+audio_max_distance = 350.0
+audio_unit_size = 16.0
+is_supersonic = false
 model_path = "res://scenes/weapons/mp40_viewmodel.tscn"
 viewmodel_scale = 0.9
 hip_position = Vector3(0.469, -0.627, -0.849)
