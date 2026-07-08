@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestdetect0001"]
+
+[ext_resource type="Script" path="res://tests/test_detection.gd" id="1_tdt"]
+
+[node name="TestDetection" type="Node3D"]
+script = ExtResource("1_tdt")

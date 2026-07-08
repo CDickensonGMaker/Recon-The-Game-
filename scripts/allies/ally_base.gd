@@ -392,6 +392,7 @@ func _fire_at_target() -> void:
 	if result:
 		tracer_end = result.position
 	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(1.0, 0.85, 0.4, 1.0))
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
 
 	if result:
 		var hit_target: Object = result.collider

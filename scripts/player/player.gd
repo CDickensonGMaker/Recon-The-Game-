@@ -88,12 +88,35 @@ func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	# head.rotation.x is set in _handle_recoil to combine base rotation + recoil
 
 
+var _footstep_timer: float = 0.0
+
+
+## Footstep noise for the AI ears (R13). Crouch-walk is near-silent.
+func _emit_footsteps(delta: float) -> void:
+	var flat_speed: float = Vector2(velocity.x, velocity.z).length()
+	if not is_on_floor() or flat_speed < 1.0:
+		_footstep_timer = 0.0
+		return
+	_footstep_timer -= delta
+	if _footstep_timer > 0.0:
+		return
+	_footstep_timer = 0.35 if is_sprinting else 0.55
+	if is_crouching:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, 3.0)
+	elif is_sprinting:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP_SPRINT, global_position, 0)
+	else:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0)
+
+
 func _physics_process(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
 
 	# Cap delta for framerate independence (Quake 3 pattern - max 66ms)
 	var capped_delta: float = minf(delta, 0.066)
+
+	_emit_footsteps(delta)
 
 	_handle_gravity(capped_delta)
 	_handle_movement(capped_delta)

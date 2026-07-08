@@ -44,6 +44,19 @@ var target_last_seen_time: float = 0.0
 var has_line_of_sight: bool = false
 var target_visible_duration: float = 0.0  # How long we've had eyes on target
 
+## Alert tiers + perception (R12/R13/R14). Orthogonal to the goal FSM: the tier
+## gates target ACQUISITION; once in COMBAT the existing goal brain takes over.
+enum AlertTier { RELAXED, SUSPICIOUS, ALERT, COMBAT }
+var alert_tier: AlertTier = AlertTier.RELAXED
+var awareness: float = 0.0            ## 0..1 visibility accumulator
+const AWARENESS_DECAY: float = 0.25   ## per second when candidate unseen
+const SUSPICIOUS_THRESHOLD: float = 0.45
+var facing_dir: Vector3 = Vector3.FORWARD
+var _combat_lost_time: float = 0.0
+var _grid: GameplayGrid = null        ## fetched from game_world group (sight caps)
+const SIGHT_CAP_OPEN: float = 140.0
+const SIGHT_CAP_JUNGLE: float = 45.0
+
 ## Aim interpolation (smooth aiming like Quake 3 bots)
 var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
@@ -127,6 +140,13 @@ func _ready() -> void:
 	# Initialize aim direction
 	current_aim_dir = -global_transform.basis.z
 	target_aim_dir = current_aim_dir
+	facing_dir = current_aim_dir
+
+	# Perception wiring (R12/R13)
+	NoiseBus.noise_emitted.connect(_on_noise_heard)
+	var gw := get_tree().get_first_node_in_group("game_world")
+	if gw != null and "gameplay_grid" in gw:
+		_grid = gw.gameplay_grid
 
 
 func _apply_personality() -> void:
@@ -256,8 +276,12 @@ func _update_decay(delta: float) -> void:
 ## ============================================
 
 func _think() -> void:
-	# Find and evaluate target
-	_find_best_target()
+	# Perception first: the alert tier gates whether we may acquire targets.
+	_update_perception()
+	if alert_tier == AlertTier.COMBAT:
+		_find_best_target()
+	elif target != null:
+		target = null  # not aware enough to have a hard target
 	_update_line_of_sight()
 	_assess_threat()
 
@@ -266,6 +290,114 @@ func _think() -> void:
 
 	# Update state based on goal
 	_update_state_for_goal()
+
+
+## ---------- PERCEPTION (R12/R13/R14) ----------
+
+## Local sight cap from vegetation density (RECON terrain caps, tuned up).
+func _sight_cap(at: Vector3) -> float:
+	if _grid == null:
+		return SIGHT_CAP_OPEN
+	var veg: float = maxf(_grid.get_vegetation(global_position), _grid.get_vegetation(at))
+	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0))
+
+
+func _fov_deg() -> float:
+	match alert_tier:
+		AlertTier.RELAXED:
+			return 100.0
+		AlertTier.SUSPICIOUS, AlertTier.ALERT:
+			return 150.0
+		_:
+			return 360.0
+
+
+func _update_perception() -> void:
+	# Candidate: nearest living hostile (player weighted first).
+	var candidate: Node3D = null
+	var best_dist: float = 99999.0
+	var player := GameManager.player as Node3D
+	if player != null and is_instance_valid(player):
+		best_dist = global_position.distance_to(player.global_position)
+		candidate = player
+	for ally in get_tree().get_nodes_in_group("allies"):
+		var a := ally as Node3D
+		if a == null or (a.has_method("is_dead") and a.is_dead()):
+			continue
+		var d := global_position.distance_to(a.global_position)
+		if d < best_dist:
+			best_dist = d
+			candidate = a
+
+	var gain: float = 0.0
+	if candidate != null:
+		var cap := _sight_cap(candidate.global_position)
+		if best_dist <= cap:
+			# FOV cone (COMBAT = all-round awareness).
+			var in_fov := true
+			if alert_tier != AlertTier.COMBAT:
+				var to_c := (candidate.global_position - global_position).normalized()
+				var flat_facing := Vector3(facing_dir.x, 0, facing_dir.z).normalized()
+				in_fov = flat_facing.dot(Vector3(to_c.x, 0, to_c.z).normalized()) > cos(deg_to_rad(_fov_deg() * 0.5))
+			if in_fov and CombatManager.has_line_of_sight(
+					global_position + Vector3.UP * 1.5,
+					candidate.global_position + Vector3.UP * 1.0, [self]):
+				# Base gain by proximity; stance/motion modifiers for the player.
+				gain = clampf(1.5 * (1.0 - best_dist / cap) + 0.25, 0.2, 2.0)
+				if candidate == player:
+					if "is_crouching" in player and player.is_crouching:
+						gain *= 0.5
+					if player.has_method("is_moving"):
+						gain *= 1.5 if player.is_moving() else 0.6
+				if best_dist < 10.0:
+					gain = 3.0  # inner detection bubble: near-instant
+
+	if gain > 0.0:
+		awareness = minf(1.0, awareness + gain * THINK_INTERVAL)
+		last_known_target_pos = candidate.global_position
+		target_last_seen_time = 0.0
+	else:
+		awareness = maxf(0.0, awareness - AWARENESS_DECAY * THINK_INTERVAL)
+
+	# Tier transitions.
+	match alert_tier:
+		AlertTier.RELAXED, AlertTier.SUSPICIOUS, AlertTier.ALERT:
+			if awareness >= 1.0:
+				_set_tier(AlertTier.COMBAT)
+			elif awareness >= SUSPICIOUS_THRESHOLD and alert_tier == AlertTier.RELAXED:
+				_set_tier(AlertTier.SUSPICIOUS)
+		AlertTier.COMBAT:
+			if target == null or not is_instance_valid(target):
+				_combat_lost_time += THINK_INTERVAL
+				if _combat_lost_time > 8.0 and awareness <= 0.0:
+					_set_tier(AlertTier.ALERT)  # never back to RELAXED
+			else:
+				_combat_lost_time = 0.0
+
+
+func _set_tier(tier: AlertTier) -> void:
+	if tier == alert_tier:
+		return
+	alert_tier = tier
+	if tier == AlertTier.COMBAT:
+		awareness = 1.0
+
+
+## Heard something (R13). Investigation goes to the NOISE, not the source.
+func _on_noise_heard(_type: int, position: Vector3, radius: float, source_team: int) -> void:
+	if source_team == 1:  # our own side
+		return
+	if current_state == Enums.AIState.DEAD:
+		return
+	if global_position.distance_to(position) > radius:
+		return
+	last_known_target_pos = position
+	target_last_seen_time = 0.0
+	awareness = minf(1.0, awareness + 0.35)
+	if alert_tier == AlertTier.RELAXED:
+		_set_tier(AlertTier.SUSPICIOUS)
+	elif alert_tier == AlertTier.SUSPICIOUS:
+		_set_tier(AlertTier.ALERT)
 
 
 func _find_best_target() -> void:
@@ -544,6 +676,7 @@ func _update_aim(delta: float) -> void:
 	flat_aim.y = 0
 	if flat_aim.length() > 0.1:
 		look_at(global_position + flat_aim)
+		facing_dir = current_aim_dir
 
 
 func _execute_idle(delta: float) -> void:
@@ -725,6 +858,8 @@ func _move_toward(pos: Vector3, delta: float) -> void:
 	direction.y = 0
 	velocity.x = lerpf(velocity.x, direction.x * move_speed, delta * 8.0)
 	velocity.z = lerpf(velocity.z, direction.z * move_speed, delta * 8.0)
+	if direction.length() > 0.1:
+		facing_dir = direction  # eyes follow movement (perception FOV)
 
 
 ## ============================================
@@ -771,6 +906,7 @@ func _fire_at_target() -> void:
 	if result:
 		tracer_end = result.position
 	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 
 	if result:
 		var hit_target: Object = result.collider
@@ -829,6 +965,12 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			if mesh and mesh.material_override:
 				mesh.material_override.albedo_color = Color(0.4, 0.4, 0.3)
 		)
+
+	# Getting shot = instant COMBAT tier (R12), whatever we were doing.
+	_set_tier(AlertTier.COMBAT)
+	if attacker is Node3D:
+		last_known_target_pos = (attacker as Node3D).global_position
+		target_last_seen_time = 0.0
 
 	# Alert and acquire target
 	if current_state == Enums.AIState.IDLE:

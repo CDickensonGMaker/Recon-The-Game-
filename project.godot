@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 GameEnums="*res://data/vietnam/game_enums.gd"
 GameManager="*res://scripts/autoload/game_manager.gd"
+NoiseBus="*res://scripts/autoload/noise_bus.gd"
 CombatManager="*res://scripts/autoload/combat_manager.gd"
 TerrainEngine="*res://terrain/core/terrain_engine.gd"
 DamageSystem="*res://terrain/systems/damage_system.gd"

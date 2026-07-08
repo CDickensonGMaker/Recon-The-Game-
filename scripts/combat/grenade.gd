@@ -82,6 +82,8 @@ func _explode() -> void:
 	if DamageSystem.has_method("apply_damage"):
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.9)
 
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
+
 	# TODO: Spawn explosion effect
 
 	exploded.emit(global_position)

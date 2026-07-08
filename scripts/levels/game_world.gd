@@ -35,6 +35,7 @@ var _reseat_timer: float = 0.0
 
 
 func _ready() -> void:
+	add_to_group("game_world")
 	_setup_environment()
 	_setup_terrain()
 

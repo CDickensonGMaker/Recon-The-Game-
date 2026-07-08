@@ -213,6 +213,7 @@ func _fire_shot() -> void:
 	# Spawn bullet tracer
 	if TRACER_ENABLED:
 		var muzzle_pos: Vector3 = _get_muzzle_position()
+		NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, 0)
 		var tracer_end: Vector3
 		if result:
 			tracer_end = result.position
