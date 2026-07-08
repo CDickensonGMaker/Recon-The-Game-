@@ -51,14 +51,16 @@ func _test_spawn_has_sprite() -> void:
 		_bad("vc_rifleman has no SpriteActor (sprite_unit=%s)" % e.enemy_data.sprite_unit)
 		return
 	if not e.sprite_actor.has_visual():
-		_bad("SpriteActor has no texture")
+		_bad("visual actor has no mesh/texture")
 		return
 	if e.mesh != null:
-		_bad("capsule mesh was built alongside the sprite")
-	print("  vc_rifleman -> %s/%s clip=%s frame=%d" % [
-		e.sprite_actor.unit, e.sprite_actor.weapon, e.sprite_actor.current_action, e.sprite_actor.sprite.frame])
+		_bad("capsule mesh was built alongside the visual")
+	print("  vc_rifleman -> %s  is_model=%s  clip=%s" % [
+		e.enemy_data.sprite_unit, e._visual_is_model, e.sprite_actor.current_action])
 	if e.sprite_actor.current_action != "rifle_aiming_idle":
 		_bad("idle clip is %s" % e.sprite_actor.current_action)
+	if not e._visual_is_model:
+		_bad("vc_rifleman should default to the 3D model (vc2_mainforce.glb exists)")
 	e.queue_free()
 	await get_tree().process_frame
 
@@ -97,8 +99,10 @@ func _test_ballistic_origin_is_camera_independent() -> void:
 
 	if a.distance_to(b) > 0.001:
 		_bad("hitscan origin moved %.3fm when the camera moved" % a.distance_to(b))
-	if va.distance_to(vb) < 0.001:
-		_bad("tracer origin ignored the camera")
+	# A sprite's visual muzzle is camera-relative (Y-billboard); a MODEL's is
+	# world-fixed. Only assert the sprite case.
+	if not e._visual_is_model and va.distance_to(vb) < 0.001:
+		_bad("sprite tracer origin ignored the camera")
 	print("  muzzle: ballistic %s stable | visual %s -> %s" % [a, va, vb])
 
 	# restore
@@ -133,7 +137,9 @@ func _test_directional_death() -> void:
 			_bad("death did not play a death clip, got %s" % clip)
 		elif clip != want_clip:
 			_bad("shot from %s should play %s, played %s (death direction inverted)" % [shot_from, want_clip, clip])
-		if not e.sprite_actor.finished and e.sprite_actor._m != null and e.sprite_actor._m.loop:
+		# SpriteActor tracks finished/_m; a model just plays the clip. Either way
+		# the clip name must be a death clip (asserted above).
+		if not e._visual_is_model and not e.sprite_actor.finished and e.sprite_actor._m != null and e.sprite_actor._m.loop:
 			_bad("death clip loops")
 		attacker.queue_free()
 		e.queue_free()
@@ -151,16 +157,23 @@ func _test_corpse_animates_with_physics_off() -> void:
 	await get_tree().process_frame
 	if e.is_physics_processing():
 		_bad("dead enemy still physics-processing")
-	var f0: int = e.sprite_actor.sprite.frame
-	for i in range(200):
-		e.sprite_actor._process(1.0 / 60.0)
-	var f1: int = e.sprite_actor.sprite.frame
-	print("  corpse: physics_process=%s  frame %d -> %d (finished=%s)" % [
-		e.is_physics_processing(), f0, f1, e.sprite_actor.finished])
-	if f1 == f0:
-		_bad("corpse frame never advanced - death animation frozen")
-	if not e.sprite_actor.finished:
-		_bad("death clip never reached its last frame")
+	if e._visual_is_model:
+		# Model: AnimationPlayer drives the corpse; assert a death clip is playing
+		# and that it kept its own _process alive with physics off.
+		print("  corpse (model): physics=%s clip=%s" % [e.is_physics_processing(), e.sprite_actor.current_action])
+		if not str(e.sprite_actor.current_action).begins_with("death"):
+			_bad("corpse is not playing a death clip: %s" % e.sprite_actor.current_action)
+	else:
+		var f0: int = e.sprite_actor.sprite.frame
+		for i in range(200):
+			e.sprite_actor._process(1.0 / 60.0)
+		var f1: int = e.sprite_actor.sprite.frame
+		print("  corpse (sprite): physics=%s frame %d -> %d finished=%s" % [
+			e.is_physics_processing(), f0, f1, e.sprite_actor.finished])
+		if f1 == f0:
+			_bad("corpse frame never advanced - death animation frozen")
+		if not e.sprite_actor.finished:
+			_bad("death clip never reached its last frame")
 	attacker.queue_free()
 	e.queue_free()
 	await get_tree().process_frame

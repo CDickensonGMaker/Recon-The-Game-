@@ -69,7 +69,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 ## Visual
 var mesh: MeshInstance3D
-var sprite_actor: SpriteActor = null
+var sprite_actor: Node3D = null  ## ModelActor (default) or SpriteActor (fallback)
+var _visual_is_model: bool = false
 var last_hit_dir: Vector3 = Vector3.FORWARD
 ## Which rendered unit this man wears. SquadSystem overrides for the PIGMAN,
 ## who carries an M60 and was rendered as a separate unit.
@@ -93,13 +94,23 @@ func _ready() -> void:
 
 func _setup_visual() -> void:
 	if not sprite_unit.is_empty():
-		sprite_actor = SpriteActor.new()
-		add_child(sprite_actor)
-		sprite_actor.setup(sprite_faction, sprite_unit, sprite_weapon)
-		if sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, "idle")):
+		if ModelActor.model_exists(sprite_unit):
+			var ma := ModelActor.new()
+			add_child(ma)
+			if ma.setup(sprite_unit):
+				sprite_actor = ma
+				_visual_is_model = true
+				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
+				return
+			ma.queue_free()
+		var sa := SpriteActor.new()
+		add_child(sa)
+		sa.setup(sprite_faction, sprite_unit, sprite_weapon)
+		if sa.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, "idle")):
+			sprite_actor = sa
+			_visual_is_model = false
 			return
-		sprite_actor.queue_free()
-		sprite_actor = null
+		sa.queue_free()
 
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
@@ -148,7 +159,7 @@ func _update_sprite() -> void:
 	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
 	var firing: bool = not can_fire and fire_timer < 0.12
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed)
-	sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, intent))
+	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
 
 
 func _setup_hurtbox() -> void:
@@ -549,7 +560,7 @@ func _die() -> void:
 	if sprite_actor != null:
 		var to_attacker: Vector3 = -last_hit_dir
 		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
-		sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon,
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
 			"death_right" if from_right else "death_forward"), true)
 	elif mesh:
 		mesh.rotation_degrees.x = 90

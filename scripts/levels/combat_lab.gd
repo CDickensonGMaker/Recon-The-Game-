@@ -40,7 +40,7 @@ enum VisualMode { SPRITE, MODEL, CAPSULE }
 const MODEL_DIR := "res://assets/models/characters/"   ## <sprite_unit>.glb, rigged, 21 clips
 const TARGET_HEIGHT_M: float = 1.7132            ## manifests' character_height_m
 
-var visual_mode: VisualMode = VisualMode.SPRITE
+var visual_mode: VisualMode = VisualMode.MODEL  ## 3D is the game default now
 var _model_warned: Dictionary = {}
 
 var player: CharacterBody3D = null  ## player.gd has no class_name; it extends CharacterBody3D

@@ -177,7 +177,10 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 ## Visual
 var mesh: MeshInstance3D
-var sprite_actor: SpriteActor = null  ## null when the unit has no rendered sheets
+## The visual: a ModelActor (default) or SpriteActor (far-LOD / no-model
+## fallback), or null -> capsule. Both share play/set_facing/flash/muzzle_*.
+var sprite_actor: Node3D = null
+var _visual_is_model: bool = false
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
 var _nav_warned: bool = false
 var _scan_phase: float = 0.0
@@ -269,15 +272,26 @@ func _apply_personality() -> void:
 ## way, so a half-rendered art pass cannot crash the game.
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
-		sprite_actor = SpriteActor.new()
-		add_child(sprite_actor)
-		sprite_actor.setup(str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon))
-		if sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "idle")):
+		var unit: String = str(enemy_data.sprite_unit)
+		# 3D model is the default renderer (Caleb, locked). Sprite is the
+		# fallback when a unit has no .glb yet; capsule if neither.
+		if ModelActor.model_exists(unit):
+			var ma := ModelActor.new()
+			add_child(ma)
+			if ma.setup(unit):
+				sprite_actor = ma
+				_visual_is_model = true
+				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
+				return
+			ma.queue_free()
+		var sa := SpriteActor.new()
+		add_child(sa)
+		sa.setup(str(enemy_data.sprite_faction), unit, str(enemy_data.sprite_weapon))
+		if sa.play(SpriteStateMap.resolve(str(enemy_data.sprite_faction), unit, str(enemy_data.sprite_weapon), "idle")):
+			sprite_actor = sa
+			_visual_is_model = false
 			return
-		# Sheets missing on disk - fall through to the capsule rather than
-		# rendering an invisible enemy.
-		sprite_actor.queue_free()
-		sprite_actor = null
+		sa.queue_free()
 
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
@@ -305,7 +319,7 @@ func _update_sprite() -> void:
 	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
 	var firing: bool = not can_fire and fire_timer < 0.12
 	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed)
-	sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, intent))
+	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
 
 
 func _setup_hurtbox() -> void:
@@ -1401,7 +1415,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		move_speed *= 0.25
 		base_accuracy_modifier *= 1.6  # crippled: durable, was wiped next tick
 		if sprite_actor != null:
-			sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "crippled"))
+			sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
 		elif mesh:
 			mesh.scale.y = 0.45
 			mesh.position.y = -0.35
@@ -1480,7 +1494,7 @@ func _die() -> void:
 		var to_attacker: Vector3 = -last_hit_dir
 		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 		var intent: String = "death_right" if from_right else "death_forward"
-		sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, intent), true)
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 
@@ -1507,7 +1521,7 @@ func try_surrender() -> bool:
 	set_physics_process(false)
 	velocity = Vector3.ZERO
 	if sprite_actor != null:
-		sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "surrender"), true)
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "surrender"), true)
 		sprite_actor.set_base_modulate(Color(1.15, 1.15, 0.95))
 	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color(0.7, 0.7, 0.6)

@@ -84,3 +84,28 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 			if speed > 0.3:
 				return "patrol"
 			return "idle"
+
+## Models carry all 21 authored clips, so they skip the sprite fallback CHAINS
+## and map an intent straight to a clip they are guaranteed to have.
+const MODEL_CLIP: Dictionary = {
+	"idle": "rifle_aiming_idle", "aim": "rifle_aiming_idle",
+	"fire": "firing_rifle", "reload": "reloading",
+	"run": "run_forward", "walk": "run_forward", "patrol": "run_forward",
+	"strafe": "strafe", "cover": "kneeling_pointing",
+	"retreat": "injured_walk_backwards", "crippled": "injured_walk_backwards",
+	"surrender": "kneeling_pointing",
+	"death_forward": "death_forward", "death_right": "death_from_right",
+	"flinch": "rifle_aiming_idle",
+}
+
+
+static func model_clip_for(intent: String) -> String:
+	return str(MODEL_CLIP.get(intent, "rifle_aiming_idle"))
+
+
+## One entry point both renderers use. is_model picks the model clip map (all 21
+## clips present) vs the sprite fallback chain (only what was rendered).
+static func clip_for(is_model: bool, faction: String, unit: String, weapon: String, intent: String) -> String:
+	if is_model:
+		return model_clip_for(intent)
+	return resolve(faction, unit, weapon, intent)
