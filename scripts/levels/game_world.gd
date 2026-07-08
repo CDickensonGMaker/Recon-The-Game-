@@ -302,6 +302,9 @@ func _physics_process(delta: float) -> void:
 	if _reseat_timer < 2.0:
 		return
 	_reseat_timer = 0.0
+	# W51: never re-seat a tunnel rat.
+	if "_in_tunnel" in player and player._in_tunnel != null:
+		return
 	var ground_y: float = terrain_manager.get_height_at(player.global_position)
 	if player.global_position.y < ground_y - RESEAT_DEPTH:
 		player.global_position.y = ground_y + 1.0

@@ -152,8 +152,39 @@ func _field_toast(text: String) -> void:
 		hud_node.show_toast(text)
 
 
-## W61/W63/W60: interact = capture prisoner / loot corpse / open supply crate.
+## W51: tunnel state.
+var _in_tunnel: TunnelRoom = null
+
+
+## W61/W63/W60/W51: interact = capture / loot / crate / tunnel enter-exit.
 func _try_field_interact() -> void:
+	# Tunnel exit (when underground).
+	if _in_tunnel != null:
+		if global_position.distance_to(_in_tunnel.ladder_point()) < 2.5:
+			global_position = _in_tunnel.surface_return
+			velocity = Vector3.ZERO
+			_field_toast("BACK IN THE GREEN")
+			_in_tunnel = null
+			return
+		if not _in_tunnel.looted and global_position.distance_to(_in_tunnel.cache_point()) < 2.2:
+			_in_tunnel.looted = true
+			CampaignState.intel_points += 2
+			CampaignState.save_campaign()
+			if weapon_holder:
+				weapon_holder.spare_magazines += 2
+				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+			_field_toast("TUNNEL CACHE - DOCUMENTS AND AMMO (+2 INTEL)")
+			return
+	# Tunnel entrance (topside).
+	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
+		var entrance := t as Node3D
+		if entrance and global_position.distance_to(entrance.global_position) < 3.0:
+			var room := TunnelRoom.get_or_create(get_tree().current_scene, entrance)
+			_in_tunnel = room
+			global_position = room.entry_point()
+			velocity = Vector3.ZERO
+			_field_toast("GOING DOWN. TIGHT IN HERE.")
+			return
 	for c in get_tree().get_nodes_in_group("supply_crates"):
 		var crate := c as Node3D
 		if crate and global_position.distance_to(crate.global_position) < 3.0:

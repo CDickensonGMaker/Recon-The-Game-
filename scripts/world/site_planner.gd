@@ -116,6 +116,8 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	var ground_y: float = _terrain.get_height_at(world_pos)
 	body.global_position = Vector3(world_pos.x, ground_y, world_pos.z)
 	body.rotation_degrees = Vector3(0, rotation_deg, 0)
+	if model_name.contains("tunnel"):
+		body.add_to_group("tunnel_entrances")  # W51
 	return body
 
 
