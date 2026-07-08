@@ -91,7 +91,11 @@ static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["village_center"] = village
 	var defender_count: int = rng.randi_range(6, 10)
 	p.enemy_groups.append({"pos": village, "count": defender_count, "tag": "village_defenders", "lazy": false, "spread": 22.0})
-	p.objectives.append({"kind": "plant", "pos": Vector3.ZERO, "title": "DESTROY WEAPONS CACHE", "index": 0, "required": true})  # pos resolved at build from stamped cache
+	# 50/50 target variant: hidden arms cache vs captured APC (objective variety).
+	var target_is_vehicle: bool = rng.randf() < 0.5
+	p["village_target"] = "vehicle" if target_is_vehicle else "cache"
+	var target_title := "DESTROY THE CAPTURED APC" if target_is_vehicle else "DESTROY WEAPONS CACHE"
+	p.objectives.append({"kind": "plant", "pos": Vector3.ZERO, "title": target_title, "index": 0, "required": true})  # pos resolved at build
 	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE", "index": 1, "required": true, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
 	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}]
 	p["cas_budget"] = 1
@@ -129,6 +133,13 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var v: Dictionary = planner.stamp_village(site.center, rng)
 				built_sites.append(v)
 				cache_node = v.cache
+				if str(p.get("village_target", "cache")) == "vehicle":
+					# Swap the cache for a captured APC at the same spot.
+					var cache_pos: Vector3 = (v.cache as Node3D).global_position
+					(v.cache as Node3D).queue_free()
+					cache_node = DestructibleVehicle.create(world,
+						"res://assets/models/vehicles/m113_apc.glb",
+						cache_pos, rng.randf_range(0, 360), world.terrain_manager)
 			"firebase":
 				built_sites.append(planner.stamp_firebase(site.center, rng))
 			"lz":
@@ -236,8 +247,11 @@ static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
 	return Vector3(pos.x, world.terrain_manager.get_height_at(pos), pos.z)
 
 
-## Planted demo charge detonates: real crater + the cache prop dies.
+## Planted demo charge detonates: real crater + the target prop dies.
 static func _on_charge_planted(at_position: Vector3, cache_node: Node3D) -> void:
+	if cache_node is DestructibleVehicle:
+		(cache_node as DestructibleVehicle).destroy()
+		return
 	DamageSystem.apply_damage(at_position, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
 	CombatManager.apply_explosion_damage(at_position, 120, 30, 8.0, null)
 	if cache_node != null and is_instance_valid(cache_node):

@@ -174,12 +174,13 @@ func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 		if _grid.is_water(pos):
 			continue
 		nodes.append(place_structure(SiteLayouts.FIREBASE_WIRE, pos, rad_to_deg(a) + 90.0))
-	# Helipad pad (extra flatten) + parked vehicles.
+	# Helipad pad (extra flatten) + parked vehicles + a static Chinook for flavor.
 	var helipad := center + Vector3(SiteLayouts.FIREBASE_HELIPAD_OFFSET.x, 0, SiteLayouts.FIREBASE_HELIPAD_OFFSET.y)
 	clear_and_flatten(helipad, 9.0)
 	for i in range(SiteLayouts.FIREBASE_VEHICLES.size()):
 		var pos := center + Vector3(-6.0 + float(i) * 5.0, 0, -14.0)
-		nodes.append(place_structure(SiteLayouts.FIREBASE_VEHICLES[i], pos, 90.0))
+		nodes.append(DestructibleVehicle.create(_parent, SiteLayouts.FIREBASE_VEHICLES[i], pos, 90.0, _terrain))
+	nodes.append(place_structure("res://assets/models/vehicles/ch47_chinook.glb", helipad + Vector3(0, 0, -2), 45.0))
 	var site := {"kind": "firebase", "center": center, "nodes": nodes, "helipad": helipad, "mg_positions": mg_positions, "radius": SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0}
 	placed_sites.append(site)
 	return site
