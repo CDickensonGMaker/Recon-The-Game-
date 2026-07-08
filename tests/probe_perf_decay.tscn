@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://btmkyubajgs07"]
+
+[ext_resource type="Script" path="res://tests/probe_perf_decay.gd" id="1_ppd"]
+
+[node name="ProbePerfDecay" type="Node"]
+script = ExtResource("1_ppd")

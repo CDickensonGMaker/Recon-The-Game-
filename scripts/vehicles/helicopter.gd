@@ -16,31 +16,92 @@ enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 @export var landing_speed: float = 6.0
 @export var climb_speed: float = 10.0
 
+## Rotor spin (rad/s at full RPM). Real UH-1 main rotor is ~324 RPM = 34 rad/s,
+## but a two-blade rotor strobes horribly at 60Hz, so we run it slower on purpose.
+const MAIN_ROTOR_SPEED: float = 22.0
+const TAIL_ROTOR_SPEED: float = 48.0
+const SPOOL_RATE: float = 0.35  ## how fast RPM chases its target (0-1 per second-ish)
+
 var state: State = State.IDLE
 var terrain: TerrainManager
 var _target: Vector3 = Vector3.ZERO
 var _lz: LandingZone
 var _land_y: float = 0.0
 
+var _main_rotor: Node3D = null   ## New_Blade_1 - parent of New_Blade_2 + New_Rotor_Hub
+var _tail_rotor: Node3D = null   ## New_TailBlade_2.002 - parent of the tail hub + blade
+var _rotor_rpm: float = 0.0      ## 0..1, spools up/down with state
 
-## PT7: the source GLB ships a duplicate blank fuselage + spare skid parts at
-## x=-7.7 and the real bird at x=+8.3. Strip the junk and recenter the model.
+
+## The source GLB used to contain TWO helicopters: Caleb's animated bird
+## (Huey_Copy + New_* nodes, at x=-7.74) and an older un-animated one (Body,
+## Blade, Rotor, Skies, Name_Plate, at x=+8.26). PT7 stripped the WRONG one --
+## it deleted Huey_Copy/skids/struts (the real fuselage), kept "Body", and left
+## New_Blade_1/doors/windshield orphaned ~16m to the side. That is the "green
+## one next to the white one".
+##
+## huey.glb is now huey_helicopter.glb from RealVietnamRTS: the solo bird, no
+## stowaway, 13.6 x 4.1 x 16.8m. No stripping needed. We recenter on the
+## fuselage and drive the rotors in code (the GLB's six baked rotation/scale
+## clips would need an AnimationTree to play together, and code lets us spool).
 func _ready() -> void:
-	var model := get_node_or_null("Model")
-	if model == null:
+	# The GLB's scene root IS the "Model" node (its first child is Huey_Copy, the
+	# fuselage). The old code took get_child(0) and searched inside the fuselage,
+	# which found nothing -- which is why the stowaway was never actually stripped.
+	var root := get_node_or_null("Model") as Node3D
+	if root == null:
 		return
-	var junk_prefixes := ["Huey_Copy", "New_Skid", "Cross_", "Strut_"]
-	var root := model.get_child(0) if model.get_child_count() > 0 else model
-	for child in root.get_children():
-		for prefix in junk_prefixes:
-			if str(child.name).begins_with(prefix):
-				child.queue_free()
-				break
-	# Recenter: the real Body sits ~+8.26 on X in the source.
-	var body := root.find_child("Body", true, false) as Node3D
-	if body != null:
-		root.position.x -= body.position.x
-		root.position.z -= body.position.z
+
+	# The imported AnimationPlayer would fight our code-driven rotation.
+	var anim := root.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if anim != null:
+		anim.stop()
+		anim.active = false
+
+	# NOTE: Godot's GLB importer rewrites '.' to '_' in node names, so the
+	# authored "New_TailBlade_2.002" arrives as "New_TailBlade_2_002". Looking up
+	# the authored name silently returns null and the rotor just never turns --
+	# so we push_warning on a miss rather than failing quietly.
+	_main_rotor = root.find_child("New_Blade_1", true, false) as Node3D
+	_tail_rotor = root.find_child("New_TailBlade_2_002", true, false) as Node3D
+	if _main_rotor == null:
+		push_warning("[Huey] main rotor 'New_Blade_1' not found - blades will not spin")
+	if _tail_rotor == null:
+		push_warning("[Huey] tail rotor 'New_TailBlade_2_002' not found - tail will not spin")
+
+	# Recenter on the fuselage's AABB centre (not its node origin - the mesh
+	# origin sits ~2m forward of the hull's true centre, which would offset the
+	# CollisionTable box).
+	var fuselage := root.find_child("Huey_Copy", true, false) as MeshInstance3D
+	if fuselage != null:
+		var centre: Vector3 = fuselage.position + fuselage.get_aabb().get_center()
+		root.position.x -= centre.x
+		root.position.z -= centre.z
+
+
+## Blades spin whenever the bird is not parked. Idle on the pad still turns
+## slowly - a Huey at rest with rotors stopped reads as wreckage.
+func _target_rpm() -> float:
+	match state:
+		State.DESTROYED:
+			return 0.0
+		State.CRASHING:
+			return 0.35
+		State.IDLE, State.LANDED:
+			return 0.30
+		_:
+			return 1.0
+
+
+func _spin_rotors(delta: float) -> void:
+	_rotor_rpm = lerpf(_rotor_rpm, _target_rpm(), clampf(SPOOL_RATE * delta * 4.0, 0.0, 1.0))
+	if _rotor_rpm < 0.001:
+		return
+	if _main_rotor != null:
+		_main_rotor.rotate_y(MAIN_ROTOR_SPEED * _rotor_rpm * delta)
+	if _tail_rotor != null:
+		# Tail boom runs along -Z, so the tail rotor turns about X.
+		_tail_rotor.rotate_x(TAIL_ROTOR_SPEED * _rotor_rpm * delta)
 
 
 func setup(terrain_manager: TerrainManager) -> void:
@@ -69,6 +130,7 @@ func _ground_y(pos: Vector3) -> float:
 
 
 func _physics_process(delta: float) -> void:
+	_spin_rotors(delta)
 	match state:
 		State.FLYING:
 			_process_flying(delta)
