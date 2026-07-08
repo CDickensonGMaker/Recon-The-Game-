@@ -16,7 +16,8 @@ import numpy as np
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 UNIT = argv[0] if argv else 'us_grunt'
 WEAPON = argv[1] if len(argv) > 1 else 'm16a1'
-BASE = rf"C:\Users\caleb\RECONgame\assets\NPCs\{UNIT}\{WEAPON}"
+FACTION = argv[2] if len(argv) > 2 else 'US Army and Co'
+BASE = rf"C:\Users\caleb\RECONgame\assets\NPCs\{FACTION}\{UNIT}\{WEAPON}"
 TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}\{WEAPON}"
 os.makedirs(BASE, exist_ok=True)
 W, H, DIRS = 128, 160, 8
