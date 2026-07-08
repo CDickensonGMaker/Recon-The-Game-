@@ -171,7 +171,27 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				kc.register(director)
 				sensors.append(kc)
 			"survive":
-				pass  # SurviveWaves attached in NS12
+				var sw := SurviveWaves.new()
+				sw.objective_index = int(obj.index)
+				sw.title = str(obj.title)
+				sw.wave_count = int(obj.get("waves", 3))
+				sw.per_wave_min = int(obj.get("per_wave_min", 5))
+				sw.per_wave_max = int(obj.get("per_wave_max", 8))
+				sw.lull_seconds = float(obj.get("lull", 20.0))
+				sw.initial_delay = float(obj.get("initial_delay", 12.0))
+				world.add_child(sw)
+				sw.global_position = _seat(world, p.firebase_center)
+				sw.register(director)
+				sw.start(world, int(p.seed) + 4444)
+				sensors.append(sw)
+
+	# Firebase defense: allied squad inside the wire.
+	if p.has("ally_count"):
+		for i in range(int(p.get("ally_count", 0))):
+			var a := TAU * float(i) / maxf(1.0, float(p.ally_count))
+			var apos: Vector3 = p.firebase_center + Vector3(cos(a), 0, sin(a)) * 8.0
+			apos.y = world.terrain_manager.get_height_at(apos) + 0.5
+			AllyBase.spawn_ally(world, apos)
 
 	for group in p.enemy_groups:
 		if bool(group.get("lazy", false)):
