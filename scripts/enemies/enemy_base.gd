@@ -85,6 +85,11 @@ var reaction_timer: float = 0.0
 var has_reacted: bool = false
 const BASE_REACTION_TIME: float = 0.25  # Faster = deadlier
 
+## W45: grenades to flush cover. W46: crippled crawl state.
+var grenade_cooldown: float = 0.0
+var grenades_left: int = 1
+var is_crippled: bool = false
+
 ## Suppression system
 var suppression_level: float = 0.0  # 0-1, affects behavior
 var incoming_fire_timer: float = 0.0
@@ -767,6 +772,12 @@ func _execute_combat(delta: float) -> void:
 				fire_timer = randf_range(0.4, 1.2)
 				burst_count = 0
 	else:
+		# W45: target hiding behind cover - flush with a grenade.
+		grenade_cooldown = maxf(0.0, grenade_cooldown - delta)
+		if grenades_left > 0 and grenade_cooldown <= 0.0 and target_last_seen_time < 3.0:
+			var throw_dist := global_position.distance_to(last_known_target_pos)
+			if throw_dist > 8.0 and throw_dist < 30.0 and randf() < 0.02:
+				_throw_grenade()
 		# Lost LOS - move to last known
 		has_reacted = false
 		reaction_timer = 0.0
@@ -955,6 +966,36 @@ func _fire_at_target() -> void:
 					print("[ENEMY] HEADSHOT! %d damage" % final_damage)
 
 
+## W45: telegraph shout, then lob a real grenade at the last-known position.
+func _throw_grenade() -> void:
+	grenades_left -= 1
+	grenade_cooldown = 15.0
+	# Telegraph: shout (noise event draws attention both ways) + floating text.
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
+	var shout := Label3D.new()
+	shout.text = "LUU DAN!"
+	shout.font_size = 26
+	shout.pixel_size = 0.005
+	shout.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	shout.modulate = Color(1.0, 0.6, 0.3)
+	add_child(shout)
+	shout.position = Vector3(0, 2.4, 0)
+	get_tree().create_timer(1.2).timeout.connect(shout.queue_free)
+	# The lob (1s windup).
+	var throw_target := last_known_target_pos
+	get_tree().create_timer(1.0).timeout.connect(func() -> void:
+		if current_state == Enums.AIState.DEAD or not is_inside_tree():
+			return
+		var grenade := Grenade.new()
+		grenade.owner_entity = self
+		get_tree().current_scene.add_child(grenade)
+		grenade.global_position = global_position + Vector3.UP * 1.6
+		var to_target := throw_target - grenade.global_position
+		var flat := Vector3(to_target.x, 0, to_target.z)
+		grenade.linear_velocity = flat.normalized() * minf(flat.length() * 0.55, 14.0) + Vector3(0, 6.0, 0)
+		grenade.remaining_fuse = 3.0)
+
+
 ## Gun muzzle world position: shoulder height, pushed out along the aim with a
 ## right-hand offset. Sprite states will refine per-frame offsets later (R21/R28).
 func get_muzzle_position(aim_dir: Vector3) -> Vector3:
@@ -982,6 +1023,16 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			if mesh and mesh.material_override:
 				mesh.material_override.albedo_color = Color(0.4, 0.4, 0.3)
 		)
+
+	# W46: gutshot men go down crawling - slow, loud, drawing their buddies.
+	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
+		is_crippled = true
+		move_speed *= 0.25
+		accuracy_modifier *= 1.6
+		if mesh:
+			mesh.scale.y = 0.45
+			mesh.position.y = -0.35
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
 
 	# Getting shot = instant COMBAT tier (R12), whatever we were doing.
 	_set_tier(AlertTier.COMBAT)

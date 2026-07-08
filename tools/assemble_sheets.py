@@ -15,7 +15,7 @@ import numpy as np
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 UNIT = argv[0] if argv else 'us_grunt'
-BASE = rf"C:\Users\caleb\RECONgame\assets\characters\sprites\{UNIT}"
+BASE = rf"C:\Users\caleb\RECONgame\assets\NPCs\{UNIT}"
 TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}"
 os.makedirs(BASE, exist_ok=True)
 W, H, DIRS = 128, 160, 8

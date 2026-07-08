@@ -35,6 +35,9 @@ func start(game_world: GameWorld, rng_seed: int) -> void:
 
 
 func _run_waves() -> void:
+	# W58: prep phase toast (claymores out, sectors set).
+	if director and initial_delay > 20.0:
+		director.toast.emit("PREP THE LINE - CLAYMORES [6], SMOKE [5] - %ds TO CONTACT" % int(initial_delay))
 	await get_tree().create_timer(initial_delay).timeout
 	for wave in range(1, wave_count + 1):
 		_current_wave = wave
@@ -72,6 +75,14 @@ func _spawn_wave(wave: int, sector_angle: float) -> void:
 		var data: String = DATA_PATHS[_rng.randi() % DATA_PATHS.size()]
 		var enemy := director.spawn_tracked_enemy(pos, data, tag)
 		enemy.add_to_group(tag)
+		# W57: final wave brings sappers - fast crawlers with satchel charges.
+		if wave == wave_count and _rng.randf() < 0.3:
+			enemy.move_speed *= 1.35
+			enemy.max_hp = int(enemy.max_hp * 0.6)
+			enemy.current_hp = enemy.max_hp
+			var sapper := SapperCharge.new()
+			enemy.add_child(sapper)
+			sapper.setup(global_position, director)
 		spawned += 1
 	if spawned == 0:
 		# Emergency: spawn close, guaranteed (never soft-lock the wave).

@@ -60,6 +60,8 @@ var wounded_arms: bool = false
 
 ## Smoke grenades (W39): key 5 lobs marking/concealment smoke.
 var smoke_count: int = 2
+## Claymores (W58): key 6.
+var claymore_count: int = 2
 
 
 func _throw_smoke() -> void:
@@ -254,6 +256,12 @@ func _handle_movement(delta: float) -> void:
 	# Smoke (W39).
 	if Input.is_action_just_pressed("throw_smoke"):
 		_throw_smoke()
+
+	# Claymore (W58): key 6, placed at your feet facing your aim.
+	if Input.is_action_just_pressed("place_claymore") and claymore_count > 0 and is_on_floor():
+		claymore_count -= 1
+		var aim := get_aim_direction()
+		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
 
 	# Stamina + wounds gate sprinting (W33/W37).
 	if _winded and stamina > stamina_max * 0.35:
