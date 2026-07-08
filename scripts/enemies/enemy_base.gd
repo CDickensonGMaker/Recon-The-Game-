@@ -907,6 +907,10 @@ func _fire_at_target() -> void:
 		tracer_end = result.position
 	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
+	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data.resource_path)
+	GunFX.muzzle_flash(get_tree().current_scene, origin)
+	if result and not (result.collider is Hitzone):
+		GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
 
 	if result:
 		var hit_target: Object = result.collider

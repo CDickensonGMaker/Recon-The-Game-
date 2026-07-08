@@ -158,7 +158,8 @@ func _try_fire() -> void:
 		return
 
 	if current_ammo <= 0:
-		# Click sound / empty magazine
+		if Input.is_action_just_pressed("fire"):
+			GunFX.play_click(self)
 		return
 
 	# Check firing mode
@@ -210,16 +211,27 @@ func _fire_shot() -> void:
 
 	var result := space_state.intersect_ray(query)
 
+	# Shot feedback: sound, flash, viewmodel punch (RTCW-tight, R06/R07/R31)
+	var muzzle_pos: Vector3 = _get_muzzle_position()
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, 0)
+	GunFX.play_shot_2d(self, current_weapon.display_name if "display_name" in current_weapon else current_weapon.resource_path)
+	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
+	_punch = 1.0
+
 	# Spawn bullet tracer
 	if TRACER_ENABLED:
-		var muzzle_pos: Vector3 = _get_muzzle_position()
-		NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, 0)
 		var tracer_end: Vector3
 		if result:
 			tracer_end = result.position
 		else:
 			tracer_end = origin + final_dir * current_weapon.max_range
 		BulletTracer.spawn_tracer(get_tree().current_scene, muzzle_pos, tracer_end, TRACER_COLOR)
+
+	# Impact effects at whatever we hit.
+	if result:
+		var flesh: bool = (result.collider is Hitzone) or (result.collider is Node and (result.collider as Node).is_in_group("enemies"))
+		if not flesh:
+			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
 
 	if result:
 		var hit_collider: Object = result.collider
@@ -367,6 +379,9 @@ func _finish_switch() -> void:
 	magazine_changed.emit(current_ammo, spare_magazines)
 
 
+var _punch: float = 0.0
+
+
 func _update_weapon_position(delta: float) -> void:
 	if not weapon_model or not current_weapon:
 		return
@@ -391,6 +406,13 @@ func _update_weapon_position(delta: float) -> void:
 				# Apply offset - move weapon up and forward
 				target_pos.y += PITCH_OFFSET_UP * pitch_factor
 				target_pos.z -= PITCH_OFFSET_FORWARD * pitch_factor
+
+	# Viewmodel fire punch (R07): sharp kick back+up, fast recovery.
+	_punch = maxf(0.0, _punch - delta * 9.0)
+	var punch_amt: float = _punch * _punch  # ease-out curve
+	target_pos.z += punch_amt * 0.05
+	target_pos.y += punch_amt * 0.012
+	target_rot.x += punch_amt * 3.5
 
 	weapon_model.position = weapon_model.position.lerp(target_pos, delta * ADS_SPEED)
 	weapon_model.rotation_degrees = weapon_model.rotation_degrees.lerp(target_rot, delta * ADS_SPEED)
