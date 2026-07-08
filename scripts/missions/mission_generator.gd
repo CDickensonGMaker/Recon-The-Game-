@@ -3,13 +3,14 @@
 class_name MissionGenerator
 extends RefCounted
 
-enum MissionType { PATROL, VILLAGE_RAID, FIREBASE_DEFENSE, ANTI_AA }
+enum MissionType { PATROL, VILLAGE_RAID, FIREBASE_DEFENSE, ANTI_AA, RESCUE }
 
 const TYPE_NAMES := {
 	MissionType.PATROL: "PATROL",
 	MissionType.VILLAGE_RAID: "VILLAGE RAID",
 	MissionType.FIREBASE_DEFENSE: "FIREBASE DEFENSE",
 	MissionType.ANTI_AA: "ANTI-AA SWEEP",
+	MissionType.RESCUE: "POW RESCUE",
 }
 
 const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
@@ -72,7 +73,25 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 			_plan_firebase(world, rng, planner, p)
 		MissionType.ANTI_AA:
 			_plan_anti_aa(world, rng, planner, p)
+		MissionType.RESCUE:
+			_plan_rescue(world, rng, planner, p)
 	return p
+
+
+static func _plan_rescue(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
+	var camp: Vector3 = planner.find_site(rng, 22.0, 200.0)
+	var lz_in: Vector3 = planner.find_site(rng, 16.0, 200.0)
+	var lz_out: Vector3 = planner.find_site(rng, 16.0, 200.0)
+	p["insertion_lz"] = lz_in
+	p["exfil_lz"] = lz_out
+	p["camp_center"] = camp
+	var guard_count: int = rng.randi_range(5, 8)
+	p.enemy_groups.append({"pos": camp, "count": guard_count, "tag": "pow_guards", "lazy": false, "spread": 16.0})
+	p.objectives.append({"kind": "rescue", "pos": camp, "title": "FREE THE POW", "index": 0, "required": true})
+	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
+	p["sites"] = [{"kind": "pow_camp", "center": camp}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
+	p["cas_budget"] = 0
+	p["intel"] = "Downed aviator held at a jungle camp. %d guards estimated. Bring him home." % guard_count
 
 
 static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
@@ -124,10 +143,13 @@ static func _plan_patrol(world: GameWorld, rng: RandomNumberGenerator, planner: 
 		if rng.randf() < 0.6:
 			var contact_pos := _passable_near(world, rng, cursor, 20.0, 60.0)
 			p.enemy_groups.append({"pos": contact_pos, "count": rng.randi_range(2, 4), "tag": "patrol_contact_%d" % i, "lazy": true})
-	# Optional bonus cache.
+	# Optional bonus: locate the cache, or photograph it (W64) - 50/50.
 	var cache_pos := _passable_near(world, rng, cursor, 80.0, 160.0)
 	p["cache_pos"] = cache_pos
-	p.objectives.append({"kind": "reach", "pos": cache_pos, "title": "LOCATE VC CACHE (BONUS)", "index": index, "required": false})
+	if rng.randf() < 0.5:
+		p.objectives.append({"kind": "photo", "pos": cache_pos, "title": "PHOTOGRAPH VC CACHE (BONUS)", "index": index, "required": false})
+	else:
+		p.objectives.append({"kind": "reach", "pos": cache_pos, "title": "LOCATE VC CACHE (BONUS)", "index": index, "required": false})
 	index += 1
 	p["exfil_lz"] = planner.find_site(rng, 16.0, 150.0)
 	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
@@ -187,6 +209,12 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	var aa_guns: Array[Node3D] = []
 	for site in p.sites:
 		match str(site.kind):
+			"pow_camp":
+				# Small guard camp: two hootches + cage spot (RescueObjective adds the cage).
+				planner.clear_and_flatten(site.center, 18.0)
+				planner.place_structure("res://assets/building models/structures/firebase/hootch.glb", site.center + Vector3(-8, 0, -4), 20.0)
+				planner.place_structure("res://assets/building models/structures/firebase/hootch.glb", site.center + Vector3(7, 0, -6), -35.0)
+				planner.place_structure("res://assets/building models/structures/vc_nva/tunnel_entrance_hidden.glb", site.center + Vector3(0, 0, 9), 0.0)
 			"aa_site":
 				var aa: Dictionary = planner.stamp_aa_site(site.center, rng)
 				built_sites.append(aa)
@@ -250,6 +278,24 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				world.add_child(kc)
 				kc.register(director)
 				sensors.append(kc)
+			"photo":
+				var photo := PhotoObjective.new()
+				photo.objective_index = int(obj.index)
+				photo.title = str(obj.title)
+				photo.required = bool(obj.required)
+				world.add_child(photo)
+				photo.global_position = _seat(world, obj.pos)
+				photo.register(director)
+				sensors.append(photo)
+			"rescue":
+				var rescue := RescueObjective.new()
+				rescue.objective_index = int(obj.index)
+				rescue.title = str(obj.title)
+				world.add_child(rescue)
+				rescue.global_position = _seat(world, obj.pos)
+				rescue.register(director)
+				rescue.setup_camp(world)
+				sensors.append(rescue)
 			"survive":
 				var sw := SurviveWaves.new()
 				sw.objective_index = int(obj.index)

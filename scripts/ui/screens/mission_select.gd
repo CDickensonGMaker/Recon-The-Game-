@@ -13,7 +13,9 @@ const STRENGTHS: Array[String] = ["LIGHT", "MODERATE", "HEAVY"]
 
 func roll_offers(rng: RandomNumberGenerator) -> void:
 	offers.clear()
-	var types := [MissionGenerator.MissionType.PATROL, MissionGenerator.MissionType.VILLAGE_RAID, MissionGenerator.MissionType.FIREBASE_DEFENSE]
+	var types := [MissionGenerator.MissionType.PATROL, MissionGenerator.MissionType.VILLAGE_RAID,
+		MissionGenerator.MissionType.FIREBASE_DEFENSE, MissionGenerator.MissionType.ANTI_AA,
+		MissionGenerator.MissionType.RESCUE]
 	types.shuffle()
 	for i in range(3):
 		var mission_seed: int = rng.randi() % 100000

@@ -14,6 +14,8 @@ import numpy as np
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 UNIT = argv[0] if argv else 'us_grunt'
+RIG_NAME = argv[1] if len(argv) > 1 else 'MixamoRig'
+HIDE = argv[2].split(',') if len(argv) > 2 else []
 TMP = rf"C:\Users\caleb\RECONgame\art_source\characters\sprite_frames\{UNIT}"
 os.makedirs(TMP, exist_ok=True)
 
@@ -30,7 +32,16 @@ PAL = np.array([[int(h[i:i+2],16)/255 for i in (0,2,4)] for h in PAL_HEX])
 sc = bpy.context.scene
 rig = bpy.data.objects['SpriteRig']
 cam = bpy.data.objects['SpriteCam']
-arm = bpy.data.objects['MixamoRig']
+arm = bpy.data.objects[RIG_NAME]
+
+# hide the other unit(s): names may be collections or objects
+for h in HIDE:
+    if h in bpy.data.collections:
+        for ob in bpy.data.collections[h].objects:
+            ob.hide_render = True
+    if h in bpy.data.objects:
+        bpy.data.objects[h].hide_render = True
+print(f"UNIT={UNIT} RIG={RIG_NAME} hidden={HIDE}", flush=True)
 
 cam.data.type = 'ORTHO'
 cam.data.ortho_scale = ORTHO
