@@ -1060,6 +1060,17 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if current_hp <= 0:
 		current_hp = 0
 		_die()
+	elif not is_surrendered and personality == Enums.AIPersonality.DEFENSIVE \
+			and current_hp < max_hp / 3 and randf() < 0.15:
+		# W63: shaken defensive fighters may quit when nearly alone.
+		var living_nearby: int = 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var other := e as EnemyBase
+			if other != self and other and not other.is_dead() \
+					and other.global_position.distance_to(global_position) < 30.0:
+				living_nearby += 1
+		if living_nearby == 0:
+			try_surrender()
 
 	return amount
 
@@ -1087,7 +1098,40 @@ func _die() -> void:
 	if mesh:
 		mesh.rotation_degrees.x = 90
 
-	get_tree().create_timer(5.0).timeout.connect(queue_free)
+	add_to_group("lootable_corpses")  # W61
+	get_tree().create_timer(45.0).timeout.connect(queue_free)
+
+
+## W63: broken men throw their hands up. Interact to capture (intel), shoot
+## to... live with it.
+var is_surrendered: bool = false
+
+
+func try_surrender() -> bool:
+	if is_surrendered or is_dead():
+		return false
+	# Never inside wave/objective-critical groups (would soft-lock counters
+	# unless captured; capture does count, but don't gamble the mission on it).
+	for g in get_groups():
+		if str(g).begins_with("wave_"):
+			return false
+	is_surrendered = true
+	weapon_data = null
+	target = null
+	set_physics_process(false)
+	velocity = Vector3.ZERO
+	if mesh and mesh.material_override:
+		mesh.material_override.albedo_color = Color(0.7, 0.7, 0.6)
+	var shout := Label3D.new()
+	shout.text = "CHIEU HOI!"
+	shout.font_size = 24
+	shout.pixel_size = 0.005
+	shout.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	shout.modulate = Color(0.9, 0.9, 0.7)
+	add_child(shout)
+	shout.position = Vector3(0, 2.4, 0)
+	add_to_group("surrendered")
+	return true
 
 
 func is_dead() -> bool:

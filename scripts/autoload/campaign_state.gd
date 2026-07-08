@@ -15,6 +15,7 @@ var missions_played: int = 0
 var mission_log: Array = []       ## trimmed result dicts
 var iron_man: bool = false
 var player_data: Dictionary = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
+var intel_points: int = 0  ## W80: looted docs/captures sharpen the next briefing
 
 
 func player_skill(skill: String) -> int:
@@ -92,6 +93,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "mission_log", mission_log)
 	cfg.set_value("campaign", "iron_man", iron_man)
 	cfg.set_value("campaign", "player_data", player_data)
+	cfg.set_value("campaign", "intel_points", intel_points)
 	cfg.save(SAVE_PATH)
 
 
@@ -107,6 +109,7 @@ func load_campaign() -> void:
 	mission_log = cfg.get_value("campaign", "mission_log", [])
 	iron_man = bool(cfg.get_value("campaign", "iron_man", false))
 	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
+	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 
 
 func reset_campaign() -> void:

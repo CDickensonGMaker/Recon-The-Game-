@@ -32,7 +32,9 @@ func _briefing_text() -> String:
 			special = "FRIENDLY SQUAD IN POSITION. DO NOT LET THE WIRE FALL."
 			support = "3 CAS SORTIES ON STATION. [T] TO CALL."
 	var est: int = rng.randi_range(4, 12)
-	var fuzz: float = 1.0 + rng.randf_range(-0.4, 0.4)
+	# W80: gathered intel sharpens the estimate.
+	var fuzz_span: float = 0.4 / (1.0 + 0.5 * float(CampaignState.intel_points))
+	var fuzz: float = 1.0 + rng.randf_range(-fuzz_span, fuzz_span)
 	var lines := [
 		"%s" % offer.codename,
 		"CLASSIFICATION: SECRET // MACV-SOG",

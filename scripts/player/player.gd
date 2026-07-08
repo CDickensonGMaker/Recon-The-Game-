@@ -64,6 +64,44 @@ var smoke_count: int = 2
 var claymore_count: int = 2
 
 
+func _field_toast(text: String) -> void:
+	var hud_node := get_tree().get_first_node_in_group("mission_hud")
+	if hud_node and hud_node.has_method("show_toast"):
+		hud_node.show_toast(text)
+
+
+## W61/W63: interact near a surrendered enemy = capture; near a corpse = loot.
+func _try_field_interact() -> void:
+	for e in get_tree().get_nodes_in_group("surrendered"):
+		var prisoner := e as EnemyBase
+		if prisoner and global_position.distance_to(prisoner.global_position) < 2.8:
+			CampaignState.intel_points += 1
+			CampaignState.save_campaign()
+			_field_toast("PRISONER SECURED - INTEL GAINED (+1)")
+			prisoner.died.emit(prisoner)  # counts for mission tallies
+			prisoner.queue_free()
+			return
+	for e in get_tree().get_nodes_in_group("lootable_corpses"):
+		var corpse := e as EnemyBase
+		if corpse == null or not is_instance_valid(corpse):
+			continue
+		if global_position.distance_to(corpse.global_position) < 2.5 and not corpse.has_meta("looted"):
+			corpse.set_meta("looted", true)
+			var roll := randf()
+			if roll < 0.5 and weapon_holder:
+				weapon_holder.spare_magazines += 1
+				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+				_field_toast("SCAVENGED A MAGAZINE")
+			elif roll < 0.75 and equipment_manager:
+				equipment_manager.add_grenade(1)
+				_field_toast("FOUND A GRENADE")
+			else:
+				CampaignState.intel_points += 1
+				CampaignState.save_campaign()
+				_field_toast("DOCUMENTS RECOVERED - INTEL GAINED (+1)")
+			return
+
+
 func _throw_smoke() -> void:
 	if smoke_count <= 0 or not GameManager.can_player_act() or is_seated:
 		return
@@ -262,6 +300,10 @@ func _handle_movement(delta: float) -> void:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
+
+	# Corpse loot + prisoner capture (W61/W63/W80).
+	if Input.is_action_just_pressed("interact"):
+		_try_field_interact()
 
 	# Stamina + wounds gate sprinting (W33/W37).
 	if _winded and stamina > stamina_max * 0.35:

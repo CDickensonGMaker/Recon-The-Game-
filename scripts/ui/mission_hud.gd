@@ -23,6 +23,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list
 	sensors = sensor_list
 	exfil_zone = exfil
 	director.toast.connect(show_toast)
+	add_to_group("mission_hud")
 	_build()
 	# W41: topo map (M to toggle).
 	topo_map = TopoMap.new()
