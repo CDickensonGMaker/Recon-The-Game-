@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestcrater0001"]
+
+[ext_resource type="Script" path="res://tests/test_crater.gd" id="1_tcr"]
+
+[node name="TestCrater" type="Node"]
+script = ExtResource("1_tcr")

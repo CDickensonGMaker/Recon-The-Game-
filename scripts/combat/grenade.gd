@@ -77,6 +77,11 @@ func _explode() -> void:
 		owner_entity
 	)
 
+	# Destructible terrain: real crater (rate-limited globally by DamageSystem
+	# being one-at-a-time; small type keeps chunk rebuilds cheap).
+	if DamageSystem.has_method("apply_damage"):
+		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.9)
+
 	# TODO: Spawn explosion effect
 
 	exploded.emit(global_position)
