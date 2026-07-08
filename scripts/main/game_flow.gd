@@ -110,6 +110,11 @@ func _run_mission(offer: Dictionary) -> void:
 	world.add_child(mission_hud)
 	mission_hud.setup(world, director, built.sensors, built.exfil_zone, plan)
 
+	# Weather + time of day from the briefing roll (W42/W43).
+	var weather := MissionWeather.new()
+	world.add_child(weather)
+	weather.setup(world, str(plan.get("weather", "CLEAR")), str(plan.get("time", "DAY")))
+
 	# The squad rides with you (W13).
 	squad = SquadSystem.new()
 	world.add_child(squad)

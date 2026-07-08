@@ -22,12 +22,28 @@ const ENEMY_DATA: Array[String] = [
 ]
 
 
+const WEATHER_TABLE: Array[String] = ["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
+const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
+
+
 ## Codename derivable without a world (briefing screens) - MUST match plan()'s
 ## first two rng draws.
 static func codename_for(seed_value: int) -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	return "OPERATION %s %s" % [CODENAME_A[rng.randi() % CODENAME_A.size()], CODENAME_B[rng.randi() % CODENAME_B.size()]]
+
+
+## Weather/time rolls: draws 3 and 4 in the seed sequence (after codename's 2).
+static func conditions_for(seed_value: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	rng.randi()
+	rng.randi()
+	return {
+		"weather": WEATHER_TABLE[rng.randi() % WEATHER_TABLE.size()],
+		"time": TIME_TABLE[rng.randi() % TIME_TABLE.size()],
+	}
 
 
 ## PLAN: deterministic per (world seed, mission seed, type). Positions only.
@@ -40,6 +56,8 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 		"type": type,
 		"type_name": str(TYPE_NAMES[type]),
 		"codename": "OPERATION %s %s" % [CODENAME_A[rng.randi() % CODENAME_A.size()], CODENAME_B[rng.randi() % CODENAME_B.size()]],
+		"weather": WEATHER_TABLE[rng.randi() % WEATHER_TABLE.size()],
+		"time": TIME_TABLE[rng.randi() % TIME_TABLE.size()],
 		"objectives": [],
 		"enemy_groups": [],
 		"sites": [],

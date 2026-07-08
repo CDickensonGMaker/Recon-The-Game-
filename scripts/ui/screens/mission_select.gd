@@ -17,6 +17,7 @@ func roll_offers(rng: RandomNumberGenerator) -> void:
 	types.shuffle()
 	for i in range(3):
 		var mission_seed: int = rng.randi() % 100000
+		var conditions: Dictionary = MissionGenerator.conditions_for(mission_seed)
 		offers.append({
 			"type": types[i],
 			"type_name": str(MissionGenerator.TYPE_NAMES[types[i]]),
@@ -25,6 +26,8 @@ func roll_offers(rng: RandomNumberGenerator) -> void:
 			"codename": MissionGenerator.codename_for(mission_seed),
 			"terrain_hint": TERRAIN_HINTS[rng.randi() % TERRAIN_HINTS.size()],
 			"strength": STRENGTHS[rng.randi() % STRENGTHS.size()],
+			"weather": str(conditions.weather),
+			"time": str(conditions.time),
 		})
 
 
@@ -42,8 +45,10 @@ func _ready() -> void:
 		CampaignState.threat_label(), CampaignState.missions_played, CampaignState.team_xp], 13, threat_color))
 	box.add_child(ReconUI.make_label("-------------------------------------------", 14, ReconUI.DIM))
 	for offer in offers:
-		var card := ReconUI.make_button("%s  //  %s  //  ENEMY: %s  //  %s" % [
-			offer.codename, offer.type_name, offer.strength, offer.terrain_hint], 16)
+		# W76: condition chips right on the card.
+		var card := ReconUI.make_button("%s  //  %s  //  ENEMY: %s  //  %s  //  %s %s" % [
+			offer.codename, offer.type_name, offer.strength, offer.terrain_hint,
+			offer.get("time", "DAY"), offer.get("weather", "CLEAR")], 15)
 		card.pressed.connect(_on_card.bind(offer))
 		box.add_child(card)
 	box.add_child(ReconUI.make_label(" ", 10))
