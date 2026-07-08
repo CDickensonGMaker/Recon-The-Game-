@@ -181,7 +181,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 					var cache_pos: Vector3 = (v.cache as Node3D).global_position
 					(v.cache as Node3D).queue_free()
 					cache_node = DestructibleVehicle.create(world,
-						"res://assets/models/vehicles/m113_apc.glb",
+						"res://assets/building models/vehicles/m113_apc.glb",
 						cache_pos, rng.randf_range(0, 360), world.terrain_manager)
 			"firebase":
 				built_sites.append(planner.stamp_firebase(site.center, rng))

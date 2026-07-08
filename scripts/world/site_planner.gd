@@ -180,7 +180,7 @@ func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	for i in range(SiteLayouts.FIREBASE_VEHICLES.size()):
 		var pos := center + Vector3(-6.0 + float(i) * 5.0, 0, -14.0)
 		nodes.append(DestructibleVehicle.create(_parent, SiteLayouts.FIREBASE_VEHICLES[i], pos, 90.0, _terrain))
-	nodes.append(place_structure("res://assets/models/vehicles/ch47_chinook.glb", helipad + Vector3(0, 0, -2), 45.0))
+	nodes.append(place_structure("res://assets/building models/vehicles/ch47_chinook.glb", helipad + Vector3(0, 0, -2), 45.0))
 	var site := {"kind": "firebase", "center": center, "nodes": nodes, "helipad": helipad, "mg_positions": mg_positions, "radius": SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0}
 	placed_sites.append(site)
 	return site
@@ -193,7 +193,7 @@ func stamp_aa_site(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	clear_and_flatten(center, 10.0)
 	var nodes: Array[Node3D] = []
 	var gun := DestructibleVehicle.create(_parent,
-		"res://assets/models/structures/firebase/mg_nest.glb",
+		"res://assets/building models/structures/firebase/mg_nest.glb",
 		center, rng.randf_range(0, 360), _terrain)
 	nodes.append(gun)
 	for i in range(4):
