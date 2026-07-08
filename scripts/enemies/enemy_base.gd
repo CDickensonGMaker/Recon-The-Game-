@@ -301,10 +301,14 @@ func _think() -> void:
 
 ## Local sight cap from vegetation density (RECON terrain caps, tuned up).
 func _sight_cap(at: Vector3) -> float:
+	var mult: float = MissionWeather.sight_mult
+	# W54: illumination strips darkness for anyone standing in the light.
+	if mult < 0.9 and IllumFlare.is_lit(at):
+		mult = maxf(mult, 0.9)
 	if _grid == null:
-		return SIGHT_CAP_OPEN * MissionWeather.sight_mult
+		return SIGHT_CAP_OPEN * mult
 	var veg: float = maxf(_grid.get_vegetation(global_position), _grid.get_vegetation(at))
-	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0)) * MissionWeather.sight_mult
+	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0)) * mult
 
 
 func _fov_deg() -> float:

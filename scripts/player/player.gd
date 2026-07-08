@@ -62,6 +62,53 @@ var wounded_arms: bool = false
 var smoke_count: int = 2
 ## Claymores (W58): key 6.
 var claymore_count: int = 2
+## Pop flares (W54): key 7.
+var flare_count: int = 3
+## Binoculars (W55).
+var _binocs_active: bool = false
+var _mark_timer: float = 0.0
+
+
+func _update_binoculars(delta: float) -> void:
+	var want: bool = Input.is_action_pressed("binoculars") and not is_seated
+	if want != _binocs_active:
+		_binocs_active = want
+	if camera:
+		var target_fov: float = 18.0 if _binocs_active else 75.0
+		if _binocs_active or absf(camera.fov - 75.0) > 0.5:
+			if not (weapon_holder and weapon_holder.is_aiming):
+				camera.fov = lerpf(camera.fov, target_fov, delta * 8.0)
+	if not _binocs_active:
+		return
+	# Mark whatever you're glassing (2s dwell tags them for the team).
+	_mark_timer += delta
+	if _mark_timer < 0.5:
+		return
+	_mark_timer = 0.0
+	var origin := get_camera_position()
+	var dir := get_aim_direction()
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * 200.0, 1 | 4)
+	query.exclude = [self]
+	var result := space.intersect_ray(query)
+	if result and result.collider is EnemyBase:
+		var enemy := result.collider as EnemyBase
+		if not enemy.has_meta("marked"):
+			enemy.set_meta("marked", true)
+			var mark := Label3D.new()
+			mark.text = "v"
+			mark.font_size = 30
+			mark.pixel_size = 0.006
+			mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			mark.modulate = Color(1.0, 0.4, 0.3)
+			enemy.add_child(mark)
+			mark.position = Vector3(0, 2.6, 0)
+			_field_toast("TARGET MARKED")
+			get_tree().create_timer(10.0).timeout.connect(func() -> void:
+				if is_instance_valid(enemy):
+					enemy.remove_meta("marked")
+				if is_instance_valid(mark):
+					mark.queue_free())
 
 
 ## W69: surface-matched footstep audio (dirt / grass / water via GameplayGrid).
@@ -340,6 +387,16 @@ func _handle_movement(delta: float) -> void:
 	# Corpse loot + prisoner capture (W61/W63/W80).
 	if Input.is_action_just_pressed("interact"):
 		_try_field_interact()
+
+	# Pop flare (W54): key 7, night tool.
+	if Input.is_action_just_pressed("pop_flare") and flare_count > 0:
+		flare_count -= 1
+		var aim7 := get_aim_direction()
+		IllumFlare.pop(get_tree().current_scene, global_position + Vector3(aim7.x, 0, aim7.z).normalized() * 30.0)
+		_field_toast("FLARE OUT")
+
+	# Binoculars (W55): hold B - zoom + mark what you glass.
+	_update_binoculars(delta)
 
 	# Stamina + wounds gate sprinting (W33/W37).
 	if _winded and stamina > stamina_max * 0.35:

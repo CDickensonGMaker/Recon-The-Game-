@@ -107,6 +107,51 @@ func _process(delta: float) -> void:
 			_abort_hold = 0.0
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		request_cas_strike()
+	if Input.is_action_just_pressed("mortar_strike") and GameManager.can_player_act():
+		request_mortar_strike()
+
+
+## W53: mortar fire mission - spotting round, then the volley walks on.
+var mortar_budget: int = 2
+var _mortar_cooldown: float = 0.0
+
+
+func request_mortar_strike() -> void:
+	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+		toast.emit("RADIO IS DEAD - NO FIRE MISSIONS")
+		return
+	if mortar_budget <= 0:
+		toast.emit("MORTARS DRY")
+		return
+	if _cas_cooldown > 0.0 or _mortar_cooldown > 0.0:
+		toast.emit("TUBE BUSY - STAND BY")
+		return
+	var target := _cas_ground_target()
+	if target == Vector3.ZERO:
+		toast.emit("NO TARGET - AIM AT THE GROUND")
+		return
+	mortar_budget -= 1
+	_mortar_cooldown = 20.0
+	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % mortar_budget)
+	# Spotting round at 3s, volley of 3 walking on at 6/7/8s.
+	get_tree().create_timer(3.0).timeout.connect(func() -> void:
+		_mortar_impact(target + Vector3(randf_range(-15, 15), 0, randf_range(-15, 15)), 0.5))
+	for i in range(3):
+		get_tree().create_timer(6.0 + float(i)).timeout.connect(func() -> void:
+			_mortar_impact(target + Vector3(randf_range(-8, 8), 0, randf_range(-8, 8)), 1.0))
+	get_tree().create_timer(10.0).timeout.connect(func() -> void: _mortar_cooldown = 0.0)
+
+
+func _mortar_impact(pos: Vector3, intensity: float) -> void:
+	if world == null:
+		return
+	var ground := pos
+	ground.y = world.terrain_manager.get_height_at(pos)
+	CombatManager.apply_explosion_damage(ground, int(140 * intensity), 40, 10.0, null)
+	if intensity >= 1.0:
+		DamageSystem.apply_damage(ground, DamageSystem.DamageType.SMALL_EXPLOSION, intensity)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
 
 
 var squad_system: SquadSystem = null
