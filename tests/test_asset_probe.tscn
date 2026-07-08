@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestassetprobe"]
+
+[ext_resource type="Script" path="res://tests/test_asset_probe.gd" id="1_tap"]
+
+[node name="TestAssetProbe" type="Node3D"]
+script = ExtResource("1_tap")
