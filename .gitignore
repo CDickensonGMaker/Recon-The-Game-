@@ -10,3 +10,7 @@ desktop.ini
 .dolt/
 *.db
 .beads-credential-key
+
+# W87: sprite-pipeline intermediates + debug captures (final sheets stay tracked)
+assets/characters/source/renders/sprites/**/_frames/
+screenshots/
