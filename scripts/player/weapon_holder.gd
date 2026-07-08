@@ -199,7 +199,7 @@ func _update_ads(delta: float) -> void:
 		# Speed modifier is applied through equipment_manager
 
 
-signal target_hit(killed: bool)
+signal target_hit(killed: bool, headshot: bool)
 var _burst_left: int = 0
 ## Rounds fired since the trigger was last idle. Drives first-shot kick and
 ## sustained muzzle climb. Reset by the idle guard in _process.
@@ -326,20 +326,24 @@ func _fire_shot() -> void:
 	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
 	_punch = 1.0
 
-	# Spawn bullet tracer
+	# Spawn bullet tracer. Real belts are ~1-in-4 tracer; all-tracer reads arcade
+	# and kills the night payoff. Auto weapons skip 3 of 4; bolt/semi always show.
 	if TRACER_ENABLED:
-		var tracer_end: Vector3
-		if result:
-			tracer_end = result.position
-		else:
-			tracer_end = origin + final_dir * current_weapon.max_range
-		BulletTracer.spawn_tracer(get_tree().current_scene, muzzle_pos, tracer_end, TRACER_COLOR)
+		var is_auto: bool = current_weapon.firing_mode == Enums.FiringMode.FULL_AUTO
+		if not is_auto or (_sustained_shots % 4) == 0:
+			var tracer_end: Vector3 = result.position if result else origin + final_dir * current_weapon.max_range
+			BulletTracer.spawn_tracer(get_tree().current_scene, muzzle_pos, tracer_end, TRACER_COLOR)
 
-	# Impact effects at whatever we hit.
+	# Impact effects at whatever we hit. Flesh gets blood (used to get NOTHING);
+	# world gets a dust puff + a persistent bullet hole.
 	if result:
 		var flesh: bool = (result.collider is Hitzone) or (result.collider is Node and (result.collider as Node).is_in_group("enemies"))
-		if not flesh:
-			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
+		if flesh:
+			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+		else:
+			var hard: bool = _surface_is_hard(result.collider)
+			GunFX.impact(get_tree().current_scene, result.position, result.normal, hard)
+			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
 
 	# Damage resolves against the world the player SAW (the ray above), but the
 	# consequence is delayed by the round's flight time (W36: projectile_speed is
@@ -410,13 +414,11 @@ func _resolve_hit(hit: Dictionary, origin: Vector3, weapon: WeaponData, attacker
 		var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
 		damage_target.take_damage(final_damage, weapon.damage_type, attacker)
 
-		# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone).
+		# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone; headshot
+		# = distinct marker). zone_name now travels to the HUD instead of a print.
 		var killed: bool = damage_target.has_method("is_dead") and damage_target.is_dead()
 		session_hits += 1
-		target_hit.emit(killed)
-
-		if zone_name == "HEAD":
-			print("[HIT] HEADSHOT! %d damage" % final_damage)
+		target_hit.emit(killed, zone_name == "HEAD")
 
 
 func _start_reload() -> void:
@@ -651,3 +653,15 @@ func _get_muzzle_position() -> Vector3:
 
 	# Ultimate fallback: use camera position
 	return controller.get_camera_position()
+
+
+## Cheap surface guess for impact flavour: named/grouped hard surfaces spark,
+## everything else puffs dirt. A full material-tag pass is a later item.
+func _surface_is_hard(col: Object) -> bool:
+	if col is Node:
+		var n := col as Node
+		if n.is_in_group("hard_surface"):
+			return true
+		var nm := str(n.name).to_lower()
+		return "rock" in nm or "metal" in nm or "bunker" in nm or "vehicle" in nm or "truck" in nm
+	return false

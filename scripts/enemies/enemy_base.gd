@@ -182,6 +182,12 @@ var mesh: MeshInstance3D
 var sprite_actor: Node3D = null
 var _visual_is_model: bool = false
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
+var squad_id: int = -1     ## EnemySquad coordination group; -1 = lone wolf
+
+## Detection beacon: the last time ANY enemy entered COMBAT. The mission director
+## polls this to raise the AO alarm on DETECTION, so a silent, unwitnessed kill
+## no longer summons the QRF (stealth becomes an economy, not a fail gate).
+static var last_combat_contact_ms: float = -1.0
 var _nav_warned: bool = false
 var _scan_phase: float = 0.0
 var _home_facing: Vector3 = Vector3.FORWARD  ## the direction to sweep around
@@ -433,6 +439,9 @@ func _think() -> void:
 	# Update state based on goal
 	_update_state_for_goal()
 
+	# Fireteam layer: share what I see, pull what the squad knows.
+	_squad_sync()
+
 
 ## R64: pop the ambush the moment the player closes to trigger range.
 func _check_spider_hole() -> void:
@@ -491,6 +500,26 @@ func _sight_cap(at: Vector3) -> float:
 		return SIGHT_CAP_OPEN * mult
 	var veg: float = maxf(_grid.get_vegetation(global_position), _grid.get_vegetation(at))
 	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0)) * mult
+
+
+## Share what I see, pull what the squad knows (EnemySquad). This is the layer
+## that turns "individuals who happen to be nearby" into a fireteam.
+func _squad_sync() -> void:
+	if squad_id < 0:
+		return
+	var now: float = float(Time.get_ticks_msec())
+	if target != null and is_instance_valid(target) and has_line_of_sight:
+		# I have eyes on: designate for the squad + lay a breadcrumb trail.
+		EnemySquad.report_contact(squad_id, target, target.global_position, now)
+	elif target == null and EnemySquad.has_fresh_intel(squad_id, now):
+		# A buddy sees the enemy; I don't. Adopt the squad's contact and wake up -
+		# no more lone blind man standing next to a firefight.
+		var st := EnemySquad.shared_target(squad_id)
+		if st != null:
+			last_known_target_pos = EnemySquad.shared_last_known(squad_id)
+			target_last_seen_time = 0.0
+			if alert_tier < AlertTier.ALERT and global_position.distance_to(last_known_target_pos) < EnemySquad.SHARE_RANGE * 2.0:
+				_set_tier(AlertTier.ALERT)
 
 
 func _fov_deg() -> float:
@@ -580,6 +609,8 @@ func _update_perception() -> void:
 
 
 func _set_tier(tier: AlertTier) -> void:
+	if tier == AlertTier.COMBAT:
+		EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
 	if tier == alert_tier:
 		return
 	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
@@ -916,13 +947,19 @@ func _execute_idle(delta: float) -> void:
 
 
 func _execute_alert(delta: float) -> void:
-	# Move toward last known position
-	if last_known_target_pos != Vector3.ZERO:
-		var dist := global_position.distance_to(last_known_target_pos)
-		if dist > 2.0:
-			_move_toward(last_known_target_pos, delta)
+	# Search the breadcrumb trail - chase where they WENT, newest crumb not yet
+	# reached, not the single last pixel they were seen at. Falls back to the
+	# lone last-known point when there is no squad / no trail.
+	var goal_pos: Vector3 = last_known_target_pos
+	if squad_id >= 0:
+		var sp := EnemySquad.search_point(squad_id, global_position, 3.0)
+		if sp != Vector3.ZERO:
+			goal_pos = sp
+	if goal_pos != Vector3.ZERO:
+		if global_position.distance_to(goal_pos) > 2.0:
+			_move_toward(goal_pos, delta)
 		else:
-			# Reached position, slow down
+			# Reached the crumb - slow and let the sentry scan sweep for them.
 			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 

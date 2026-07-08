@@ -275,6 +275,16 @@ func play_shot_player(data: Variant) -> void:
 		_p_mech.stream = mech
 		_p_mech.volume_db = -8.0
 		_p_mech.play()
+	# Tail/echo layer - the crack's decay is what gives a rifle weight and reads
+	# the environment. The WeaponsTail bus + player were built and never played.
+	if _p_tail != null:
+		var tail: AudioStream = _single(wid, "tail")
+		if tail == null:
+			tail = stream   # reuse the report, quieter/lower, as a slap-back
+		_p_tail.stream = tail
+		_p_tail.volume_db = -16.0
+		_p_tail.pitch_scale = 0.72
+		_p_tail.play()
 	duck_ambience()
 
 

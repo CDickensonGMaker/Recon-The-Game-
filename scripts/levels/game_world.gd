@@ -180,19 +180,69 @@ func _on_terrain_ready() -> void:
 	world_ready.emit()
 
 
-## W44/W67: jungle bed + distant-war layer (looping placeholder beds).
+## Ambience is now POSITIONAL, not one global 2D loop.
+##
+## The director's "constant single bird" was the 2D jungle_loop playing at the
+## same volume everywhere on a 1.28km map. Now: a quiet 2D floor (broadband
+## insect hiss, which SHOULD be omnipresent) + a ring of AudioStreamPlayer3D
+## emitters around the player that drift and re-seat, each pitch-varied so the
+## soundscape comes FROM PLACES. Melodic multi-note bird motifs still want real
+## samples (filed) - this makes the placeholder read as a living treeline, not a
+## chirp in your skull.
+const AMBIENCE_EMITTERS: int = 4
+const AMBIENCE_RING_MIN: float = 12.0
+const AMBIENCE_RING_MAX: float = 45.0
+var _amb_emitters: Array[AudioStreamPlayer3D] = []
+var _amb_reseat_t: float = 0.0
+
 func _start_ambience() -> void:
-	for cfg in [["res://assets/audio/sfx/jungle_loop.wav", -14.0], ["res://assets/audio/sfx/distant_war_loop.wav", -20.0]]:
-		var stream := load(str(cfg[0])) as AudioStreamWAV
-		if stream == null:
+	# 2D floor: only the broadband bed belongs everywhere. Kept quiet.
+	var floor_s := load("res://assets/audio/sfx/jungle_loop.wav") as AudioStreamWAV
+	if floor_s != null:
+		floor_s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		floor_s.loop_end = floor_s.data.size() / 2
+		var fp := AudioStreamPlayer.new()
+		fp.stream = floor_s
+		fp.volume_db = -22.0   # was -14 and full-front; now a faint bed under the 3D layer
+		add_child(fp)
+		fp.play()
+	# Distant war stays 2D (it IS meant to be everywhere and directionless).
+	var war_s := load("res://assets/audio/sfx/distant_war_loop.wav") as AudioStreamWAV
+	if war_s != null:
+		war_s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		war_s.loop_end = war_s.data.size() / 2
+		var wp := AudioStreamPlayer.new()
+		wp.stream = war_s
+		wp.volume_db = -20.0
+		add_child(wp)
+		wp.play()
+	# Positional wildlife emitters.
+	for i in range(AMBIENCE_EMITTERS):
+		var e := AudioStreamPlayer3D.new()
+		e.stream = floor_s
+		e.volume_db = -16.0
+		e.unit_size = 14.0
+		e.max_distance = AMBIENCE_RING_MAX + 20.0
+		e.pitch_scale = randf_range(0.8, 1.5)   # each "voice" different
+		add_child(e)
+		_amb_emitters.append(e)
+		e.play()
+	_reseat_ambience()
+
+## Drift the emitters onto a fresh ring around the player so wildlife seems to
+## be all around and moving, not nailed to spawn.
+func _reseat_ambience() -> void:
+	if player == null:
+		return
+	for e in _amb_emitters:
+		if not is_instance_valid(e):
 			continue
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_end = stream.data.size() / 2
-		var p := AudioStreamPlayer.new()
-		p.stream = stream
-		p.volume_db = float(cfg[1])
-		add_child(p)
-		p.play()
+		var a: float = randf() * TAU
+		var r: float = randf_range(AMBIENCE_RING_MIN, AMBIENCE_RING_MAX)
+		var pos: Vector3 = player.global_position + Vector3(cos(a), 0.0, sin(a)) * r
+		if terrain_manager != null:
+			pos.y = terrain_manager.get_height_at(pos) + randf_range(2.0, 8.0)  # up in the canopy
+		e.global_position = pos
 
 
 ## R77: called by GameFlow once the weather/time roll is known - crickets and
@@ -308,6 +358,11 @@ var _fps_log_timer: float = 0.0
 
 func _process(delta: float) -> void:
 	_process_billboard_queue()
+	if not _amb_emitters.is_empty():
+		_amb_reseat_t += delta
+		if _amb_reseat_t >= 6.0:   # re-seat every 6s so the treeline "moves"
+			_amb_reseat_t = 0.0
+			_reseat_ambience()
 	if not WorldConfig.LOG_FPS or not is_world_ready:
 		return
 	_fps_log_timer += delta

@@ -34,8 +34,10 @@ static func reset() -> void:
 	MissionDirector.any_fire_menu_open = false
 	EnemyBase._cover_claims.clear()
 	GunFX.reset_session()
+	GunFX.clear_decals()
 	SpriteLibrary.clear()
-	NavBaker.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
+	NavBaker.clear()
+	EnemySquad.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
 
 	var dmg: Node = Engine.get_main_loop().root.get_node_or_null("DamageSystem")
 	if dmg != null and dmg.has_method("clear_all_damage"):

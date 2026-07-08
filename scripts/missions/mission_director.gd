@@ -16,7 +16,12 @@ var _ended: bool = false
 var _live_enemies: Array[EnemyBase] = []
 
 
+var _detect_baseline_ms: float = 0.0
+
 func setup(game_world: GameWorld) -> void:
+	# Ignore any COMBAT contact from a previous mission (the beacon is static).
+	_detect_baseline_ms = float(Time.get_ticks_msec())
+	EnemyBase.last_combat_contact_ms = -1.0
 	world = game_world
 	state.start_time_ms = Time.get_ticks_msec()
 	if not GameManager.player_died.is_connected(_on_player_died):
@@ -31,6 +36,9 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 		seated.y = world.terrain_manager.get_height_at(pos) + 0.5
 	var parent: Node = world if world != null else get_parent()
 	var enemy: EnemyBase = EnemyBase.spawn_enemy(parent, seated, data_path)
+	# Same group_tag -> same fireteam. hash gives a stable per-group id; lone
+	# spawns (empty tag) stay -1 (no coordination).
+	enemy.squad_id = hash(group_tag) if not group_tag.is_empty() else -1
 	enemy.died.connect(_on_enemy_died.bind(group_tag))
 	_live_enemies.append(enemy)
 	return enemy
@@ -40,10 +48,10 @@ func _on_enemy_died(enemy: EnemyBase, group_tag: String) -> void:
 	state.record_kill()
 	_live_enemies.erase(enemy)
 	enemy_killed.emit(enemy, group_tag)
-	# Escalation (PT): first blood wakes the AO - hunter patrols start converging.
-	if not _escalation_active:
-		_escalation_active = true
-		_hunter_timer = randf_range(70.0, 110.0)
+	# NOTE: escalation is NO LONGER triggered by the kill itself - see
+	# _check_detection(). A silent, unwitnessed kill leaves the AO cold; only
+	# being DETECTED (an enemy reaching COMBAT, incl. from hearing the shot)
+	# wakes the hunters. That makes stealth an economy (RTCW 5.5).
 
 
 ## Hunter escalation: after first contact, patrols move in looking for you.
@@ -53,7 +61,18 @@ var _hunter_timer: float = 0.0
 var _hunter_pool: int = 12
 
 
+## Raise the alarm the first time the player is DETECTED (any enemy in COMBAT).
+func _check_detection() -> void:
+	if _escalation_active:
+		return
+	if EnemyBase.last_combat_contact_ms > _detect_baseline_ms:
+		_escalation_active = true
+		_hunter_timer = randf_range(70.0, 110.0)
+		toast.emit("YOU'VE BEEN MADE - THEY'RE MOVING TO CONTACT")
+
+
 func _process_escalation(delta: float) -> void:
+	_check_detection()
 	if not _escalation_active or _hunter_pool <= 0 or _ended or world == null or world.player == null:
 		return
 	_hunter_timer -= delta

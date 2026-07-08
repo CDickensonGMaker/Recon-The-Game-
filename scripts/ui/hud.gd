@@ -212,22 +212,34 @@ func _on_bleeding_stopped() -> void:
 var _hitmarker: Label = null
 
 
-func _on_target_hit(killed: bool) -> void:
+func _on_target_hit(killed: bool, headshot: bool = false) -> void:
 	if _hitmarker == null:
 		_hitmarker = Label.new()
-		_hitmarker.text = "x"
 		_hitmarker.add_theme_font_size_override("font_size", 26)
 		_hitmarker.set_anchors_preset(Control.PRESET_CENTER)
 		_hitmarker.position += Vector2(8, -14)
 		add_child(_hitmarker)
-	_hitmarker.add_theme_color_override("font_color", Color(1, 0.3, 0.2) if killed else Color(1, 1, 1, 0.9))
+	# Distinct read per outcome: kill = red X, headshot = yellow bigger, hit = white.
+	var col: Color
+	var size: int
+	if killed:
+		_hitmarker.text = "X"; col = Color(1, 0.25, 0.15); size = 34
+	elif headshot:
+		_hitmarker.text = "x"; col = Color(1.0, 0.85, 0.2); size = 32
+	else:
+		_hitmarker.text = "x"; col = Color(1, 1, 1, 0.9); size = 26
+	_hitmarker.add_theme_font_size_override("font_size", size)
+	_hitmarker.add_theme_color_override("font_color", col)
 	_hitmarker.modulate.a = 1.0
+	_hitmarker.scale = Vector2(1.4, 1.4) if killed else Vector2.ONE
 	var tween := create_tween()
-	tween.tween_property(_hitmarker, "modulate:a", 0.0, 0.25)
+	tween.set_parallel(true)
+	tween.tween_property(_hitmarker, "modulate:a", 0.0, 0.28)
+	tween.tween_property(_hitmarker, "scale", Vector2.ONE, 0.15)
 	var tick := AudioStreamPlayer.new()
 	tick.stream = GunFX.IMPACT_HARD
-	tick.volume_db = -8.0
-	tick.pitch_scale = 0.7 if killed else 1.4
+	tick.volume_db = -6.0 if (killed or headshot) else -9.0
+	tick.pitch_scale = 0.65 if killed else (1.7 if headshot else 1.4)
 	add_child(tick)
 	tick.play()
 	tick.finished.connect(tick.queue_free)

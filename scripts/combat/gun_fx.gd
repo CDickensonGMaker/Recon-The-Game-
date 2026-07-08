@@ -55,6 +55,7 @@ static var _active_flashes: int = 0
 static var _active_impacts: int = 0
 const MAX_FLASHES: int = 8
 const MAX_IMPACTS: int = 12
+const MAX_DECALS: int = 48   ## bullet holes, FIFO-recycled
 
 
 static func shot_stream_for(weapon_name: String) -> AudioStream:
@@ -165,3 +166,68 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = fal
 	p.global_position = pos
 	p.play()
 	p.finished.connect(p.queue_free)
+
+
+## Flesh hit: red-brown spray + wet tick. MoHAA's single biggest "shooting a body
+## feels different from shooting a wall" cue. weapon_holder used to spawn NOTHING
+## on flesh (only the non-flesh dirt puff).
+static func blood(parent: Node, pos: Vector3, normal: Vector3) -> void:
+	if _active_impacts < MAX_IMPACTS:
+		_active_impacts += 1
+		var ps := CPUParticles3D.new()
+		ps.emitting = false
+		ps.one_shot = true
+		ps.amount = 14
+		ps.lifetime = 0.5
+		ps.direction = normal
+		ps.spread = 45.0
+		ps.initial_velocity_min = 2.0
+		ps.initial_velocity_max = 5.0
+		ps.gravity = Vector3(0, -9.8, 0)
+		ps.scale_amount_min = 0.03
+		ps.scale_amount_max = 0.09
+		ps.color = Color(0.55, 0.05, 0.04)
+		parent.add_child(ps)
+		ps.global_position = pos + normal * 0.05
+		ps.emitting = true
+		ps.get_tree().create_timer(0.7).timeout.connect(func() -> void:
+			_active_impacts -= 1
+			ps.queue_free())
+	var a := AudioStreamPlayer3D.new()
+	a.stream = IMPACT_DIRT   # placeholder wet tick until a flesh sample exists
+	a.volume_db = -6.0
+	a.max_distance = 30.0
+	a.pitch_scale = randf_range(1.3, 1.6)
+	parent.add_child(a)
+	a.global_position = pos
+	a.play()
+	a.finished.connect(a.queue_free)
+
+
+## Persistent bullet-hole decal, oriented to the surface. FIFO-recycled and
+## cleared by MissionScope so it never leaks across missions.
+static var _decals: Array[Decal] = []
+
+static func bullet_hole(parent: Node, pos: Vector3, normal: Vector3) -> void:
+	var d := Decal.new()
+	d.size = Vector3(0.12, 0.3, 0.12)
+	d.modulate = Color(0.05, 0.04, 0.03)
+	d.albedo_mix = 0.9
+	parent.add_child(d)
+	d.global_position = pos + normal * 0.02
+	# Point the decal's -Y down the surface normal.
+	if absf(normal.dot(Vector3.UP)) < 0.99:
+		d.look_at(pos - normal, Vector3.UP)
+		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	_decals.append(d)
+	while _decals.size() > MAX_DECALS:
+		var old: Decal = _decals.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+
+
+static func clear_decals() -> void:
+	for d in _decals:
+		if is_instance_valid(d):
+			d.queue_free()
+	_decals.clear()
