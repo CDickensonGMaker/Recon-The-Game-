@@ -1,12 +1,120 @@
-## main_menu.gd - Title screen (NS18).
+## main_menu.gd - Title screen built to Caleb's mockups (W-menu / UI pass v1):
+## full-bleed key art, left menu column w/ olive highlight, intel briefing panel.
 class_name MainMenuScreen
 extends Control
 
 signal start_pressed
+signal barracks_pressed
+signal record_pressed
+signal settings_pressed
+
+const BG := preload("res://assets/ui/menu_bg.png")
+
+var _buttons: Array[Button] = []
 
 
 func _ready() -> void:
-	# W68: menu soundscape - idle rotor far off + radio net crackle.
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_soundscape()
+
+	# Full-bleed key art.
+	var bg := TextureRect.new()
+	bg.texture = BG
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	add_child(bg)
+
+	# Left column scrim so the menu reads over the art.
+	var scrim := ColorRect.new()
+	scrim.color = Color(0.04, 0.045, 0.035, 0.72)
+	scrim.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	scrim.custom_minimum_size = Vector2(430, 0)
+	add_child(scrim)
+
+	# Left column content.
+	var col := VBoxContainer.new()
+	col.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	col.position = Vector2(56, 48)
+	col.add_theme_constant_override("separation", 4)
+	add_child(col)
+
+	var title := ReconUI.make_label("RECON", 84, Color(0.88, 0.86, 0.78))
+	col.add_child(title)
+	col.add_child(ReconUI.make_label("OPEN PROCEDURAL CAMPAIGN", 15, ReconUI.OLIVE))
+	col.add_child(ReconUI.make_label("VIETNAM FPS/RPG", 15, ReconUI.DIM))
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 36)
+	col.add_child(spacer)
+
+	_add_menu_button(col, "CONTINUE CAMPAIGN", func() -> void: start_pressed.emit())
+	_add_menu_button(col, "NEW CAMPAIGN", func() -> void:
+		CampaignState.reset_campaign()
+		start_pressed.emit())
+	_add_menu_button(col, "SOLDIER", func() -> void: barracks_pressed.emit())
+	_add_menu_button(col, "SERVICE RECORD", func() -> void: record_pressed.emit())
+	_add_menu_button(col, "OPTIONS", func() -> void: settings_pressed.emit())
+	_add_menu_button(col, "EXIT", func() -> void: get_tree().quit())
+
+	# Version tag, bottom-left (mockup).
+	var version := ReconUI.make_label("v0.3 DEV\nRECON 1969 SYSTEMS", 11, ReconUI.DIM)
+	version.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	version.position = Vector2(56, -70)
+	add_child(version)
+
+	_build_intel_panel()
+
+
+## Menu row with the mockup's olive highlight bar on hover/focus.
+func _add_menu_button(parent: Control, text: String, action: Callable) -> void:
+	var b := Button.new()
+	b.text = "  %s" % text
+	b.flat = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(330, 40)
+	b.add_theme_font_override("font", ReconUI.mono_font())
+	b.add_theme_font_size_override("font_size", 21)
+	b.add_theme_color_override("font_color", Color(0.8, 0.79, 0.72))
+	b.add_theme_color_override("font_hover_color", Color(0.1, 0.1, 0.08))
+	b.add_theme_color_override("font_focus_color", Color(0.1, 0.1, 0.08))
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.55, 0.58, 0.36)  # olive highlight bar
+	hover.set_content_margin_all(4)
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("focus", hover)
+	var flat := StyleBoxEmpty.new()
+	b.add_theme_stylebox_override("normal", flat)
+	b.add_theme_stylebox_override("pressed", hover)
+	b.pressed.connect(action)
+	parent.add_child(b)
+	_buttons.append(b)
+
+
+## Bottom-right INTEL BRIEFING panel (mockup): teases the next operation.
+func _build_intel_panel() -> void:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.055, 0.045, 0.85)
+	style.border_color = Color(0.4, 0.42, 0.3)
+	style.set_border_width_all(1)
+	style.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	panel.position = Vector2(-420, -220)
+	panel.custom_minimum_size = Vector2(370, 0)
+	add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	panel.add_child(box)
+	box.add_child(ReconUI.make_label("INTEL BRIEFING", 16, ReconUI.OLIVE))
+	var teaser_seed: int = int(Time.get_unix_time_from_system()) % 100000
+	box.add_child(ReconUI.make_label(MissionGenerator.codename_for(teaser_seed), 13, Color(0.85, 0.82, 0.72)))
+	box.add_child(ReconUI.make_label("THREAT: %s  //  MISSIONS FLOWN: %d" % [
+		CampaignState.threat_label(), CampaignState.missions_played], 12, ReconUI.DIM))
+	box.add_child(ReconUI.make_label("ENEMY ACTIVITY INCREASED ALONG ROUTE 9.\nLOCAL MILITIA REPORT NVA PRESENCE\nNEAR THE AO. RECON AND REPORT.", 12, Color(0.7, 0.68, 0.6)))
+
+
+func _soundscape() -> void:
 	for cfg in [["res://assets/audio/sfx/rotor_loop.wav", -18.0, 0.8], ["res://assets/audio/sfx/radio_crackle.wav", -16.0, 1.0]]:
 		var stream := load(str(cfg[0])) as AudioStreamWAV
 		if stream:
@@ -18,39 +126,3 @@ func _ready() -> void:
 			p.pitch_scale = float(cfg[2])
 			add_child(p)
 			p.play()
-
-	var root := ReconUI.make_screen_root()
-	add_child(root)
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 18)
-	root.add_child(box)
-	var title := ReconUI.make_label("R E C O N", 72, ReconUI.OLIVE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
-	var sub := ReconUI.make_label("MILITARY ASSISTANCE COMMAND, VIETNAM - STUDIES AND OBSERVATIONS", 12, ReconUI.DIM)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(sub)
-	box.add_child(Control.new())
-	var start := ReconUI.make_button("[ START OPERATION ]")
-	start.pressed.connect(func() -> void: start_pressed.emit())
-	box.add_child(start)
-	var barracks := ReconUI.make_button("[ BARRACKS ]")
-	barracks.pressed.connect(func() -> void: barracks_pressed.emit())
-	box.add_child(barracks)
-	var record := ReconUI.make_button("[ SERVICE RECORD ]")
-	record.pressed.connect(func() -> void: record_pressed.emit())
-	box.add_child(record)
-	var settings := ReconUI.make_button("[ SETTINGS ]")
-	settings.pressed.connect(func() -> void: settings_pressed.emit())
-	box.add_child(settings)
-	var quit := ReconUI.make_button("[ QUIT ]")
-	quit.pressed.connect(func() -> void: get_tree().quit())
-	box.add_child(quit)
-
-
-signal barracks_pressed
-signal record_pressed
-signal settings_pressed
