@@ -1,17 +1,18 @@
-"""Batch-render 8-direction sprite sheets for every action in unit_us_grunt.blend.
+﻿"""Batch-render 8-direction sprite FRAMES for every action in unit_us_grunt.blend.
 
 Run headless:
   blender -b unit_us_grunt.blend -P render_sprite_sheets.py
+Then assemble organized per-animation folders:
+  blender -b -P assemble_sheets.py
 
-Output per action (in assets/characters/source/renders/sprites/sheets/):
-  usgrunt_<action>_sheet.png       raw render sheet   (rows = 8 directions, cols = frames)
-  usgrunt_<action>_sheet_q.png     palette-quantized sheet
-  usgrunt_<action>.json            manifest (frames, source range, cell size)
+This script only renders frames to sheets/_frames/<action>_<dir>_<col>.png
+(cached: existing frames are skipped, so re-runs are cheap).
+Layout/strips/palette live in assemble_sheets.py.
 """
 import bpy, os, math, json
 import numpy as np
 
-OUT = r"C:\Users\caleb\HellOfDuty\assets\characters\source\renders\sprites\sheets"
+OUT = r"C:\Users\caleb\RECONgame\assets\characters\source\renders\sprites\sheets"
 TMP = os.path.join(OUT, "_frames")
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(TMP, exist_ok=True)
@@ -62,45 +63,20 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
     count = min(MAX_FRAMES, n)
     frames = [f0 + round(i * (n - 1) / max(count - 1, 1)) for i in range(count)]
 
-    sheet = np.zeros((H * DIRS, W * count, 4), dtype=np.float32)
     for d in range(DIRS):
         rig.rotation_euler = (0, 0, math.radians(45 * d))
         for i, f in enumerate(frames):
+            path = os.path.join(TMP, f"{name}_{d}_{i}.png")
+            if os.path.exists(path):    # resume: reuse frames from prior runs
+                continue
             sc.frame_set(f)
             bpy.context.view_layer.update()
             track_hips()
-            path = os.path.join(TMP, f"{name}_{d}_{i}.png")
             sc.render.filepath = path
             bpy.ops.render.render(write_still=True)
-            img = bpy.data.images.load(path)
-            px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
-            bpy.data.images.remove(img)
-            row = DIRS - 1 - d   # row 0 (top) = direction 0
-            sheet[row * H:(row + 1) * H, i * W:(i + 1) * W] = px
 
-    # raw sheet (linear -> sRGB approx)
-    rgb = np.clip(sheet[:, :, :3], 0, 1) ** (1 / 2.2)
-    a = (sheet[:, :, 3:] > 0.5).astype(np.float32)
-
-    def save_img(arr_rgb, suffix):
-        out = np.concatenate([arr_rgb, a], axis=2)
-        im = bpy.data.images.new('tmp_sheet', W * count, H * DIRS, alpha=True)
-        # numpy row 0 = bottom in blender; flip so our row order lands top-down
-        im.pixels.foreach_set(np.flipud(out).ravel())
-        im.filepath_raw = os.path.join(OUT, f"usgrunt_{name}{suffix}.png")
-        im.file_format = 'PNG'
-        im.save()
-        bpy.data.images.remove(im)
-
-    save_img(rgb, '_sheet')
-    save_img(quantize(rgb), '_sheet_q')
-
-    manifest = {"action": name, "cell": [W, H], "directions": DIRS,
-                "columns": count, "source_frames": frames,
-                "source_range": [f0, f1], "row0": "facing camera, rotates 45deg CW per row"}
-    with open(os.path.join(OUT, f"usgrunt_{name}.json"), 'w') as fp:
-        json.dump(manifest, fp, indent=1)
     results.append((name, count))
-    print(f"SHEET DONE: {name} ({count} cols)", flush=True)
+    print(f"FRAMES DONE: {name} ({count} cols x {DIRS} dirs)", flush=True)
 
-print("ALL SHEETS COMPLETE:", len(results), flush=True)
+print("ALL FRAMES COMPLETE:", len(results), flush=True)
+

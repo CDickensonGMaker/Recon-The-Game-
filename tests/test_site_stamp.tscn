@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestsitestamp1"]
+
+[ext_resource type="Script" path="res://tests/test_site_stamp.gd" id="1_tss"]
+
+[node name="TestSiteStamp" type="Node"]
+script = ExtResource("1_tss")
