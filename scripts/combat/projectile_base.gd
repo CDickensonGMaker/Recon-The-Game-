@@ -33,7 +33,7 @@ func _ready() -> void:
 	monitoring = true
 	monitorable = false
 	collision_layer = 256  # Layer 9 - projectiles
-	collision_mask = 0
+	collision_mask = 0     # set per-projectile in initialize(), from hits_* flags
 
 	area_entered.connect(_on_area_entered)
 	body_entered.connect(_on_body_entered)
@@ -88,10 +88,55 @@ func initialize(data: ProjectileData, source: Node, dir: Vector3, _target: Node3
 	velocity = direction * current_speed
 
 
+## _ready() gives every projectile a 2cm sphere and _setup_visuals() only scaled
+## it, so a rocket would have flown as a pinhead. mesh_path was declared and never
+## read. Nobody noticed because spawn() had no callers anywhere in the project
+## (AUDIT-03) - the pool allocated 50 of these on every boot and used none.
 func _setup_visuals() -> void:
 	if not projectile_data:
 		return
 	mesh_instance.scale = projectile_data.scale
+	if not projectile_data.mesh_path.is_empty():
+		var packed: PackedScene = load(projectile_data.mesh_path)
+		if packed != null:
+			for c in mesh_instance.get_children():
+				c.queue_free()
+			mesh_instance.add_child(packed.instantiate())
+			mesh_instance.mesh = null
+			return
+	mesh_instance.mesh = _rocket_mesh() if projectile_data.aoe_radius > 0.0 else _bullet_mesh()
+
+
+## Warhead: a fat cone with a bright, unshaded skin so it reads at 100m through
+## jungle. No light - perf-first rule, and the trail already sells it.
+static func _rocket_mesh() -> Mesh:
+	var m := CylinderMesh.new()
+	m.top_radius = 0.0
+	m.bottom_radius = 0.09
+	m.height = 0.34
+	m.radial_segments = 8
+	m.rings = 1
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.30, 0.29, 0.24)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.55, 0.15)
+	mat.emission_energy_multiplier = 2.2
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	m.material = mat
+	return m
+
+
+static func _bullet_mesh() -> Mesh:
+	var m := SphereMesh.new()
+	m.radius = 0.03
+	m.height = 0.06
+	m.radial_segments = 6
+	m.rings = 3
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.85, 0.4)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material = mat
+	return m
 
 
 func _setup_trail() -> void:
@@ -116,8 +161,29 @@ func _setup_trail() -> void:
 	mat.color = projectile_data.trail_color
 	trail.process_material = mat
 
+	# Rockets get a fat, drifting smoke column; bullets keep the fine tracer dust.
+	var is_rocket: bool = projectile_data.aoe_radius > 0.0
+	if is_rocket:
+		trail.amount = 48
+		trail.lifetime = maxf(projectile_data.trail_lifetime, 1.1)
+		mat.initial_velocity_min = 0.2
+		mat.initial_velocity_max = 0.9
+		mat.gravity = Vector3(0, 0.35, 0)          # smoke rises
+		mat.scale_min = projectile_data.trail_width
+		mat.scale_max = projectile_data.trail_width * 3.2
+		mat.damping_min = 0.4
+		mat.damping_max = 1.2
+
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.02, 0.02)
+	var s: float = 0.16 if is_rocket else 0.02
+	quad.size = Vector2(s, s)
+	var qmat := StandardMaterial3D.new()
+	qmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	qmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	qmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	qmat.vertex_color_use_as_albedo = true
+	qmat.albedo_color = projectile_data.trail_color
+	quad.material = qmat
 	trail.draw_pass_1 = quad
 
 	add_child(trail)
@@ -205,28 +271,23 @@ func _on_hit_world() -> void:
 	_expire()
 
 
+## This used to call CombatManager.get_enemies_in_range(), so an ENEMY's rocket
+## would only wound other enemies and never touch the player. Route through the
+## same 8-point-visibility explosion the grenades use: it is faction-blind, does
+## knockback, and respects cover.
 func _apply_aoe_damage() -> void:
-	var enemies: Array[Node] = CombatManager.get_enemies_in_range(global_position, projectile_data.aoe_radius)
 	var base_damage: int = projectile_data.roll_damage()
-
-	for enemy in enemies:
-		if enemy in hit_targets:
-			continue
-		if not enemy is Node3D:
-			continue
-
-		var dist: float = global_position.distance_to((enemy as Node3D).global_position)
-		var damage: int = base_damage
-
-		if projectile_data.aoe_damage_falloff:
-			var falloff: float = 1.0 - (dist / projectile_data.aoe_radius)
-			damage = int(damage * falloff)
-
-		damage = maxi(1, damage)
-
-		if enemy.has_method("take_damage"):
-			enemy.take_damage(damage, projectile_data.damage_type, owner_entity)
-			hit_targets.append(enemy)
+	var min_damage: int = maxi(1, int(float(base_damage) * 0.25))
+	CombatManager.apply_explosion_damage(
+		global_position,
+		base_damage,
+		min_damage,
+		projectile_data.aoe_radius,
+		owner_entity,
+		maxf(projectile_data.knockback_force, 1.0))
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
+	if DamageSystem.has_method("apply_damage"):
+		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 
 
 func _expire() -> void:

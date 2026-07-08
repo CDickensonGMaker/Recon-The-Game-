@@ -69,6 +69,13 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 ## Visual
 var mesh: MeshInstance3D
+var sprite_actor: SpriteActor = null
+var last_hit_dir: Vector3 = Vector3.FORWARD
+## Which rendered unit this man wears. SquadSystem overrides for the PIGMAN,
+## who carries an M60 and was rendered as a separate unit.
+var sprite_faction: String = "US Army and Co"
+var sprite_unit: String = "us_grunt"
+var sprite_weapon: String = "m16a1"
 
 
 func _ready() -> void:
@@ -85,6 +92,15 @@ func _ready() -> void:
 
 
 func _setup_visual() -> void:
+	if not sprite_unit.is_empty():
+		sprite_actor = SpriteActor.new()
+		add_child(sprite_actor)
+		sprite_actor.setup(sprite_faction, sprite_unit, sprite_weapon)
+		if sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, "idle")):
+			return
+		sprite_actor.queue_free()
+		sprite_actor = null
+
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
 	capsule.radius = 0.4
@@ -97,6 +113,42 @@ func _setup_visual() -> void:
 	mesh.material_override = mat
 
 	add_child(mesh)
+
+
+## SquadSystem assigns MOS AFTER spawn_ally() has already run _ready(), so the
+## Pigman's M60 sheets have to swap in after the fact. Rebuilds the actor.
+func set_sprite(unit: String, weapon: String, faction: String = "US Army and Co") -> void:
+	if unit == sprite_unit and weapon == sprite_weapon:
+		return
+	sprite_faction = faction
+	sprite_unit = unit
+	sprite_weapon = weapon
+	if sprite_actor != null:
+		sprite_actor.queue_free()
+		sprite_actor = null
+	if mesh != null:
+		mesh.queue_free()
+		mesh = null
+	_setup_visual()
+
+
+## AllyBase has no facing_dir (EnemyBase does, at :76). Derive it: aim at a
+## target if we have one, otherwise face where we are walking.
+func _update_sprite() -> void:
+	if sprite_actor == null:
+		return
+	var facing: Vector3 = current_aim_dir
+	if target == null:
+		var vel := Vector3(velocity.x, 0.0, velocity.z)
+		if vel.length_squared() > 0.09:
+			facing = vel
+	sprite_actor.set_facing(facing)
+	if current_state == Enums.AIState.DEAD:
+		return
+	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
+	var firing: bool = not can_fire and fire_timer < 0.12
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed)
+	sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, intent))
 
 
 func _setup_hurtbox() -> void:
@@ -228,6 +280,7 @@ func _evaluate_goals() -> void:
 
 
 func _execute(delta: float) -> void:
+	_update_sprite()
 	state_timer += delta
 
 	# Update aim
@@ -378,8 +431,16 @@ func _move_toward(pos: Vector3, delta: float) -> void:
 ## Gun muzzle world position (mirrors EnemyBase.get_muzzle_position).
 func get_muzzle_position(aim_dir: Vector3) -> Vector3:
 	var flat_aim := Vector3(aim_dir.x, 0.0, aim_dir.z).normalized()
+	if sprite_actor != null:
+		return sprite_actor.muzzle_ballistic(flat_aim, 0.55)  # camera-independent: this is the ray origin
 	var right := flat_aim.cross(Vector3.UP).normalized() * -0.22
 	return global_position + Vector3.UP * 1.35 + flat_aim * 0.55 + right
+
+
+func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
+	if sprite_actor != null:
+		return sprite_actor.muzzle_visual()
+	return get_muzzle_position(aim_dir)
 
 
 func _fire_at_target() -> void:
@@ -443,15 +504,19 @@ func _fire_at_target() -> void:
 
 ## Take damage
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null) -> int:
+	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
+		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:
 		return 0
 
 	current_hp -= amount
 
 	# Visual feedback
-	if mesh and mesh.material_override:
+	if sprite_actor != null:
+		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
+	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color.RED
-		get_tree().create_timer(0.1).timeout.connect(func():
+		get_tree().create_timer(0.1).timeout.connect(func() -> void:
 			if mesh and mesh.material_override:
 				mesh.material_override.albedo_color = Color(0.3, 0.35, 0.25)
 		)
@@ -480,7 +545,12 @@ func _die() -> void:
 	collision_layer = 0
 	collision_mask = 0
 
-	if mesh:
+	if sprite_actor != null:
+		var to_attacker: Vector3 = -last_hit_dir
+		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
+		sprite_actor.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon,
+			"death_right" if from_right else "death_forward"), true)
+	elif mesh:
 		mesh.rotation_degrees.x = 90
 
 	# PT9: their kit is still on the ground - a real window to recover it.

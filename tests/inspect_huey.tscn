@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cinspecthuey001"]
+[gd_scene format=3 uid="uid://kkjwvsku3ur5"]
 
 [ext_resource type="Script" path="res://tests/inspect_huey.gd" id="1_ih"]
 

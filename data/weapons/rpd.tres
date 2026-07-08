@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "rpd"
+display_name = "RPD"
+description = "7.62x39mm belt-fed. It does not stop, and it does not care what it is shooting through."
+firing_mode = 1
+fire_rate = 650.0
+magazine_size = 100
+reload_time = 7.0
+base_damage = Array[int]([1, 8, 42])
+damage_type = 0
+base_spread = 2.4
+ads_spread_mult = 0.4
+recoil_vertical = 2.2
+recoil_horizontal = 0.8
+ads_fov = 60.0
+ads_move_mult = 0.45
+effective_range = 90.0
+max_range = 200.0
+projectile_speed = 735.0
+model_path = ""
+viewmodel_scale = 1.0
+hip_position = Vector3(0.3, -0.25, -0.5)
+ads_position = Vector3(0, -0.1, -0.4)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

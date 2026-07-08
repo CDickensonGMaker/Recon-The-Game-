@@ -170,6 +170,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 ## Visual
 var mesh: MeshInstance3D
+var sprite_actor: SpriteActor = null  ## null when the unit has no rendered sheets
+var last_hit_dir: Vector3 = Vector3.FORWARD  ## world dir from attacker -> us; picks the death clip
 
 
 func _ready() -> void:
@@ -235,7 +237,22 @@ func _apply_personality() -> void:
 			aim_speed = randf_range(5.0, 8.0)
 
 
+## 8-dir billboard sprite when the unit has been rendered; the old capsule
+## otherwise (vc3_sapper/vc6_heavy are still rendering, and the WW2 holdovers
+## have no sprite at all). Every mesh mutation site below is guarded the same
+## way, so a half-rendered art pass cannot crash the game.
 func _setup_visual() -> void:
+	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
+		sprite_actor = SpriteActor.new()
+		add_child(sprite_actor)
+		sprite_actor.setup(str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon))
+		if sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "idle")):
+			return
+		# Sheets missing on disk - fall through to the capsule rather than
+		# rendering an invisible enemy.
+		sprite_actor.queue_free()
+		sprite_actor = null
+
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
 	capsule.radius = 0.4
@@ -244,10 +261,25 @@ func _setup_visual() -> void:
 	mesh.position.y = 0.9
 
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.4, 0.4, 0.3)
+	mat.albedo_color = enemy_data.color if enemy_data != null else Color(0.4, 0.4, 0.3)
 	mesh.material_override = mat
 
 	add_child(mesh)
+
+
+## Drive the clip from the AI. Called every frame from _execute(), never from
+## _think() - think is LOD-throttled to 0.6s past 150m and animation would run
+## at 1.6 fps.
+func _update_sprite() -> void:
+	if sprite_actor == null:
+		return
+	sprite_actor.set_facing(facing_dir)
+	if current_state == Enums.AIState.DEAD or is_surrendered:
+		return  # the death / surrender clip was already latched; do not restart it
+	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
+	var firing: bool = not can_fire and fire_timer < 0.12
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed)
+	sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, intent))
 
 
 func _setup_hurtbox() -> void:
@@ -755,6 +787,7 @@ func _update_state_for_goal() -> void:
 
 func _execute(delta: float) -> void:
 	state_timer += delta
+	_update_sprite()
 
 	# Update aim interpolation (smooth like Quake 3)
 	_update_aim(delta)
@@ -1150,6 +1183,23 @@ func _fire_at_target() -> void:
 
 	# Raycast from the gun muzzle, not center mass (R03).
 	var origin: Vector3 = get_muzzle_position(final_aim)
+
+	# AUDIT-03: the projectile pool has been allocating 50 nodes on every boot
+	# with zero callers. A weapon that names a ProjectileData fires a real
+	# travelling round instead of a hitscan ray -- the RPG-2 needs travel time,
+	# drop, a visible warhead and a smoke trail that gives the shooter away.
+	if weapon_data != null and not weapon_data.projectile_data_path.is_empty():
+		var pdata: ProjectileData = load(weapon_data.projectile_data_path)
+		if pdata != null:
+			var fx: Vector3 = get_muzzle_visual(final_aim)
+			CombatManager.spawn_projectile(pdata, self, origin, final_aim, target)
+			NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
+			GunFX.play_shot_3d(get_tree().current_scene, fx, weapon_data.resource_path)
+			GunFX.muzzle_flash(get_tree().current_scene, fx)
+			return
+		push_error("[EnemyBase] %s names a projectile that will not load: %s" % [
+			weapon_data.id, weapon_data.projectile_data_path])
+
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
@@ -1164,10 +1214,11 @@ func _fire_at_target() -> void:
 	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
 	if result:
 		tracer_end = result.position
-	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
+	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
+	BulletTracer.spawn_tracer(get_tree().current_scene, fx_origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
-	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data.resource_path)
-	GunFX.muzzle_flash(get_tree().current_scene, origin)
+	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data.resource_path)
+	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
 	if result and not (result.collider is Hitzone):
 		GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
 
@@ -1239,8 +1290,23 @@ func _throw_grenade() -> void:
 ## right-hand offset. Sprite states will refine per-frame offsets later (R21/R28).
 func get_muzzle_position(aim_dir: Vector3) -> Vector3:
 	var flat_aim := Vector3(aim_dir.x, 0.0, aim_dir.z).normalized()
+	if sprite_actor != null:
+		# Manifest height, enemy-local forward bias, NO lateral term. This value
+		# is the intersect_ray() origin below, not just the tracer spawn - a
+		# camera-relative lateral offset would make an enemy's bullet origin (and
+		# whether it clears a rock) depend on where the player happens to look.
+		return sprite_actor.muzzle_ballistic(flat_aim, 0.55)
 	var right := flat_aim.cross(Vector3.UP).normalized() * -0.22
 	return global_position + Vector3.UP * 1.35 + flat_aim * 0.55 + right
+
+
+## Where the tracer and muzzle flash APPEAR. Camera-relative, because the quad is
+## Y-billboarded and muzzle_px is measured in that plane. Never feed this to a
+## raycast.
+func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
+	if sprite_actor != null:
+		return sprite_actor.muzzle_visual()
+	return get_muzzle_position(aim_dir)
 
 
 ## ============================================
@@ -1255,10 +1321,17 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	damage_taken_recently += amount
 	damage_decay_timer = 0.0
 
+	# Remember where it came from so _die() can pick death_forward vs
+	# death_from_right. take_damage() knew this all along and threw it away.
+	if attacker != null and is_instance_valid(attacker) and attacker is Node3D:
+		last_hit_dir = (global_position - (attacker as Node3D).global_position).normalized()
+
 	# Visual feedback
-	if mesh and mesh.material_override:
+	if sprite_actor != null:
+		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
+	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color.RED
-		get_tree().create_timer(0.1).timeout.connect(func():
+		get_tree().create_timer(0.1).timeout.connect(func() -> void:
 			if mesh and mesh.material_override:
 				mesh.material_override.albedo_color = Color(0.4, 0.4, 0.3)
 		)
@@ -1268,7 +1341,9 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		is_crippled = true
 		move_speed *= 0.25
 		accuracy_modifier *= 1.6
-		if mesh:
+		if sprite_actor != null:
+			sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "crippled"))
+		elif mesh:
 			mesh.scale.y = 0.45
 			mesh.position.y = -0.35
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
@@ -1335,7 +1410,19 @@ func _die() -> void:
 	collision_layer = 0
 	collision_mask = 0
 
-	if mesh:
+	if sprite_actor != null:
+		# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so the
+		# shooter lies along -last_hit_dir. A round arriving from the man's own
+		# right means the attacker sits on +basis.x. Testing last_hit_dir directly
+		# inverts it, and the result looks plausible: everyone falls forward.
+		#
+		# Only two death clips exist. A shot from the left plays death_forward
+		# rather than a mirrored death_from_right; derive death_from_left later.
+		var to_attacker: Vector3 = -last_hit_dir
+		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
+		var intent: String = "death_right" if from_right else "death_forward"
+		sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, intent), true)
+	elif mesh:
 		mesh.rotation_degrees.x = 90
 
 	add_to_group("lootable_corpses")  # W61
@@ -1360,7 +1447,10 @@ func try_surrender() -> bool:
 	target = null
 	set_physics_process(false)
 	velocity = Vector3.ZERO
-	if mesh and mesh.material_override:
+	if sprite_actor != null:
+		sprite_actor.play(SpriteStateMap.resolve(sprite_actor.faction, sprite_actor.unit, sprite_actor.weapon, "surrender"), true)
+		sprite_actor.set_base_modulate(Color(1.15, 1.15, 0.95))
+	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color(0.7, 0.7, 0.6)
 	var shout := Label3D.new()
 	shout.text = "CHIEU HOI!"

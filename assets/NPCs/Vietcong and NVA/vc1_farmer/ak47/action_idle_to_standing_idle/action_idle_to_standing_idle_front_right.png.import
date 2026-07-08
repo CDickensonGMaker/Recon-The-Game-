@@ -2,12 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dfsvvkoixmd45"
-valid=false
+uid="uid://ba0hpy4av2cas"
+path="res://.godot/imported/action_idle_to_standing_idle_front_right.png-599a7a1ca9f1d851d182c0b51598c915.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/NPCs/Vietcong and NVA/vc1_farmer/ak47/action_idle_to_standing_idle/action_idle_to_standing_idle_front_right.png"
+dest_files=["res://.godot/imported/action_idle_to_standing_idle_front_right.png-599a7a1ca9f1d851d182c0b51598c915.ctex"]
 
 [params]
 
@@ -33,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

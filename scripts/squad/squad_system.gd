@@ -37,6 +37,9 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		ally.member = m
 		if str(m.mos) == "PIGMAN":
 			ally.fire_rate_mult = 1.6
+			# The Pig is a separate rendered unit: us_grunt_black holds the M60.
+			# spawn_ally() already ran _setup_visual(), so this must rebuild.
+			ally.set_sprite("us_grunt_black", "m60")
 		_attach_name_tag(ally, "%s (%s)" % [str(m.nick), str(m.mos)])
 		ally.died.connect(_on_member_died)
 		members.append(ally)

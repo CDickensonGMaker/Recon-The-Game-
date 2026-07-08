@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_sapper"
+display_name = "VC Sapper"
+description = "Main Force machine gunner. Belt-fed, aggressive, hard to suppress."
+max_hp = 80
+move_speed = 4.1
+preferred_range = 24.0
+alert_range = 22.0
+weapon_path = "res://data/weapons/rpd.tres"
+accuracy_modifier = 1.05
+aggression = 0.7
+uses_cover = true
+flanks = true
+retreats_when_hurt = false
+retreat_hp_threshold = 0.2
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc3_sapper"
+sprite_weapon = "rpd"
+color = Color(0.28, 0.3, 0.22, 1)

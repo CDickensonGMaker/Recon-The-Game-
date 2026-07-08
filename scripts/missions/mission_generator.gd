@@ -16,10 +16,20 @@ const TYPE_NAMES := {
 const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
 const CODENAME_B: Array[String] = ["LANCE", "TIGER", "ARROW", "SABRE", "HAMMER", "SERPENT", "TALON", "BUFFALO", "DAGGER", "PYTHON"]
 
-## W35: Vietnam enemy set (Local Force SKS / NVA AK).
+## Vietnam enemy set. Each archetype's sprite holds the weapon its .tres names.
 const ENEMY_DATA: Array[String] = [
+	# Weighted by repetition: the pool is sampled uniformly, so a bare list of five
+	# archetypes would put an RPG in one hand out of five. Local Force are the
+	# bulk; the rocketeer is the exception you remember.
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/nva_regular.tres",
+	"res://data/enemies/nva_regular.tres",
+	"res://data/enemies/vc_sapper.tres",
+	"res://data/enemies/nva_rpg.tres",
 ]
 
 

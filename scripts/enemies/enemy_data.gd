@@ -25,5 +25,19 @@ extends Resource
 @export var retreat_hp_threshold: float = 0.25
 
 @export_group("Visuals")
-@export var model_path: String = ""  ## Path to character GLTF
-@export var color: Color = Color(0.4, 0.4, 0.3)  ## Fallback color for placeholder
+## 8-directional billboard sprites, NOT a GLTF. Resolves to
+## res://assets/NPCs/<sprite_faction>/<sprite_unit>/<sprite_weapon>/<action>/
+##
+## Three fields rather than one path string: SpriteLibrary needs the unit id for
+## its cache key anyway, and a single path invites typos that fail silently at
+## runtime. Leave sprite_unit empty to keep the capsule placeholder (units that
+## are still rendering, or the WW2 holdovers).
+##
+## NOTE the hard pairing: each unit was rendered holding exactly one weapon, so
+## sprite_weapon and weapon_path must be kept consistent by hand. A sprite
+## holding a PPSh while the ballistics say AK-47 is the kind of thing nobody
+## notices for six months and then cannot unsee.
+@export var sprite_faction: String = ""   ## "Vietcong and NVA"
+@export var sprite_unit: String = ""      ## "vc1_farmer"
+@export var sprite_weapon: String = ""    ## "ak47"
+@export var color: Color = Color(0.4, 0.4, 0.3)  ## capsule placeholder tint, and sprite base modulate

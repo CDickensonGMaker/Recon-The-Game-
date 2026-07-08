@@ -8,8 +8,18 @@ extends Node3D
 @export var activation_range: float = 120.0
 @export var spread: float = 12.0
 @export var data_paths: Array[String] = [
+	# Weighted by repetition: the pool is sampled uniformly, so a bare list of five
+	# archetypes would put an RPG in one hand out of five. Local Force are the
+	# bulk; the rocketeer is the exception you remember.
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_farmer.tres",
+	"res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/nva_regular.tres",
+	"res://data/enemies/nva_regular.tres",
+	"res://data/enemies/vc_sapper.tres",
+	"res://data/enemies/nva_rpg.tres",
 ]
 
 var director: MissionDirector

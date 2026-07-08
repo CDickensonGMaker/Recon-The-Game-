@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ppsh41"
+display_name = "PPSh-41"
+description = "7.62x25mm burp gun. 71-round drum, murderous up close, useless past the treeline."
+firing_mode = 1
+fire_rate = 900.0
+magazine_size = 71
+reload_time = 3.4
+base_damage = Array[int]([1, 6, 34])
+damage_type = 0
+base_spread = 2.2
+ads_spread_mult = 0.35
+recoil_vertical = 1.6
+recoil_horizontal = 0.9
+ads_fov = 58.0
+ads_move_mult = 0.65
+effective_range = 30.0
+max_range = 70.0
+projectile_speed = 490.0
+model_path = "res://scenes/weapons/mp40_viewmodel.tscn"
+viewmodel_scale = 0.9
+hip_position = Vector3(0.469, -0.627, -0.849)
+ads_position = Vector3(0.000, -0.508, -0.755)
+hip_rotation = Vector3(-4.7, 80.6, 0.0)
+ads_rotation = Vector3(0.0, 90.0, 0.0)

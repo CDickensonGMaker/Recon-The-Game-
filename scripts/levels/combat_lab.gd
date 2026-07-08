@@ -24,6 +24,9 @@ const LAB_SEED: int = 20260708
 
 const VC := "res://data/enemies/vc_rifleman.tres"
 const NVA := "res://data/enemies/nva_regular.tres"
+const FARMER := "res://data/enemies/vc_farmer.tres"
+const SAPPER := "res://data/enemies/vc_sapper.tres"
+const RPG := "res://data/enemies/nva_rpg.tres"
 
 const BILLBOARD_DIR := "res://terrain/textures/billboards/"
 const BUSHES: Array[String] = ["bush1", "bush2", "bush3", "bush4", "bush5", "bush6", "bush7", "bush8", "bush9"]
@@ -56,7 +59,7 @@ func _ready() -> void:
 	_build_lighting()
 	_spawn_player()
 	_build_hud()
-	print("[COMBAT LAB] ready. 1/2 enemies, 3 ally, 4 NVA, R reset, F freeze AI, G god, H hud")
+	print("[COMBAT LAB] ready. 1 VC 2 x3 3 ally 4 NVA 5 farmer 6 sapper 7 rocketeer | R reset F freeze G god H hud")
 
 
 # ------------------------------------------------------------------ geometry
@@ -394,7 +397,8 @@ func _update_hud() -> void:
 			e.accuracy_modifier, dist, tgt])
 
 	lines.append("")
-	lines.append("1 enemy  2 x3  3 ally  4 NVA  |  R reset  K kill all  F freeze  G god  H hud  [ / ] timescale")
+	lines.append("1 VC  2 x3  3 ally  4 NVA  5 farmer  6 sapper(RPD)  7 rocketeer(RPG)")
+	lines.append("R reset  K kill all  F freeze  G god  H hud  [ / ] timescale")
 	_hud.text = "\n".join(lines)
 
 
@@ -413,6 +417,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			spawn_ally()
 		KEY_4:
 			spawn_enemy(NVA)
+		KEY_5:
+			spawn_enemy(FARMER)
+		KEY_6:
+			spawn_enemy(SAPPER)
+		KEY_7:
+			spawn_enemy(RPG, Vector3(_rng.randf_range(-14.0, 14.0), 1.0, -17.0))
 		KEY_K:
 			_kill_all_enemies()
 		KEY_R:

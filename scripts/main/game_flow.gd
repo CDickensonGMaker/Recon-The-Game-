@@ -36,6 +36,9 @@ func _teardown_world() -> void:
 	GameManager.player = null
 	GameManager.is_paused = false
 	get_tree().paused = false
+	# A 1024x1280 RGBA8 sheet is 5.24 MB of VRAM; 7 units x 20 clips would sit
+	# at ~730 MB if we never let go.
+	SpriteLibrary.clear()
 
 
 func show_menu() -> void:

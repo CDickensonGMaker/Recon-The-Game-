@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_farmer"
+display_name = "VC Local Force"
+description = "A farmer until dusk. Sloppy, brave, and there are always more of him."
+max_hp = 65
+move_speed = 4.0
+preferred_range = 16.0
+alert_range = 18.0
+weapon_path = "res://data/weapons/ak47.tres"
+accuracy_modifier = 1.2
+aggression = 0.45
+uses_cover = true
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.25
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc1_farmer"
+sprite_weapon = "ak47"
+color = Color(0.25, 0.22, 0.18, 1)

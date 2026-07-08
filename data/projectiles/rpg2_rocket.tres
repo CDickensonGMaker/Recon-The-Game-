@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ProjectileData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/projectile_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "rpg2_rocket"
+display_name = "PG-2 Rocket"
+speed = 84.0
+gravity_scale = 0.12
+lifetime = 5.0
+base_damage = Array[int]([4, 10, 40])
+damage_type = 2
+stagger_power = 1.0
+knockback_force = 6.0
+aoe_radius = 6.5
+aoe_damage_falloff = true
+collision_radius = 0.18
+hits_enemies = true
+hits_players = true
+hits_world = true
+mesh_path = ""
+scale = Vector3(1, 1, 1)
+has_trail = true
+trail_color = Color(0.72, 0.7, 0.66, 0.55)
+trail_lifetime = 1.4
+trail_width = 0.09
