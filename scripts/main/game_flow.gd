@@ -153,6 +153,8 @@ func _run_mission(offer: Dictionary) -> void:
 	var weather := MissionWeather.new()
 	world.add_child(weather)
 	weather.setup(world, str(plan.get("weather", "CLEAR")), str(plan.get("time", "DAY")))
+	if MissionWeather.is_night:
+		world.start_night_ambience()
 
 	# The squad rides with you (W13).
 	squad = SquadSystem.new()

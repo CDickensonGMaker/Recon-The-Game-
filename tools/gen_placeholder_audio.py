@@ -114,6 +114,31 @@ def jungle_loop(length=12.0):
     return [s / peak * 0.6 for s in out]
 
 
+def night_insects_loop(length=14.0):
+    """R77: dense cricket/frog chorus - night jungle bed, no daytime birds."""
+    n = int(SR * length)
+    out = lowpass([(random.random() * 2 - 1) * 0.1 for _ in range(n)], 0.05)
+    # Cricket chirp trains: rapid rhythmic pulses at a fixed-ish pitch.
+    for _ in range(5):
+        f = random.uniform(3800, 5200)
+        pulse_len = SR // 22
+        cursor = random.randint(0, n - SR)
+        while cursor < n - pulse_len:
+            for j in range(pulse_len):
+                t = j / SR
+                out[cursor + j] += math.sin(2 * math.pi * f * t) * 0.14 * env(t, 0.005, 0.03)
+            cursor += pulse_len + random.randint(pulse_len, pulse_len * 3)
+    # Low frog croaks, sparse.
+    for _ in range(6):
+        start = random.randint(0, n - SR // 4)
+        f = random.uniform(140, 220)
+        for j in range(SR // 5):
+            t = j / SR
+            out[start + j] += math.sin(2 * math.pi * f * t) * 0.2 * env(t, 0.02, 0.08)
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.55 for s in out]
+
+
 def distant_war_loop(length=16.0):
     """Far-off artillery rumbles, irregular."""
     n = int(SR * length)
@@ -172,3 +197,4 @@ write_wav("jungle_loop.wav", jungle_loop())
 write_wav("distant_war_loop.wav", distant_war_loop())
 write_wav("radio_crackle.wav", radio_crackle())
 write_wav("combat_sting.wav", combat_sting())
+write_wav("night_insects_loop.wav", night_insects_loop())

@@ -133,14 +133,16 @@ const STEP_DIRT := preload("res://assets/audio/sfx/step_dirt.wav")
 const STEP_GRASS := preload("res://assets/audio/sfx/step_grass.wav")
 const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
 var _wade_timer: float = 0.0
+var _grid: GameplayGrid = null
+## R73: are we currently wading a flooded paddy (slow, loud, exposed)?
+var _in_rice_paddy: bool = false
 
 
 func _play_footstep_sound() -> void:
 	var stream: AudioStream = STEP_DIRT
-	var gw := get_tree().get_first_node_in_group("game_world")
-	if gw != null and "gameplay_grid" in gw and gw.gameplay_grid != null:
-		var grid: GameplayGrid = gw.gameplay_grid
-		if grid.is_water(global_position):
+	_in_rice_paddy = false
+	if _grid != null:
+		if _grid.is_water(global_position):
 			stream = STEP_WATER
 			_wade_timer += 0.5
 			# W71: leeches - linger in the water and pay for it.
@@ -151,9 +153,12 @@ func _play_footstep_sound() -> void:
 					health_system.take_damage(3, Enums.DamageType.PHYSICAL, null)
 		else:
 			_wade_timer = maxf(0.0, _wade_timer - 1.0)
-			var t: int = grid.get_terrain_type(global_position)
+			var t: int = _grid.get_terrain_type(global_position)
 			if t == GameplayGrid.TerrainType.GRASSLAND or t == GameplayGrid.TerrainType.RICE_PADDY:
 				stream = STEP_GRASS
+			if t == GameplayGrid.TerrainType.RICE_PADDY:
+				stream = STEP_WATER  # R73: the paddy is flooded - it sounds like a wade, not a step
+				_in_rice_paddy = true
 	var p := AudioStreamPlayer.new()
 	p.stream = stream
 	p.volume_db = -16.0 if is_crouching else -10.0
@@ -342,6 +347,10 @@ func _ready() -> void:
 	stamina = stamina_max
 	weapon_holder.equipment_manager = equipment_manager
 
+	var gw := get_tree().get_first_node_in_group("game_world")
+	if gw != null and "gameplay_grid" in gw:
+		_grid = gw.gameplay_grid
+
 
 func _input(event: InputEvent) -> void:
 	if not GameManager.can_player_act():
@@ -399,6 +408,9 @@ func _emit_footsteps(delta: float) -> void:
 	_play_footstep_sound()
 	# W28: Silent Movement skill shrinks every footstep radius.
 	var quiet_mult: float = 1.0 / (1.0 + 0.12 * float(CampaignState.player_skill("silent_movement")))
+	# R73: wading a rice paddy throws a wake - louder than dry ground, no hiding it.
+	if _in_rice_paddy:
+		quiet_mult *= 2.2
 	if is_crouching:
 		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, 3.0 * quiet_mult)
 	elif is_sprinting:
@@ -504,6 +516,10 @@ func _handle_movement(delta: float) -> void:
 		current_speed = SPRINT_SPEED
 	else:
 		current_speed = WALK_SPEED
+
+	# R73: flooded rice paddy drags at your legs.
+	if _grid != null and _grid.get_terrain_type(global_position) == GameplayGrid.TerrainType.RICE_PADDY:
+		current_speed /= float(GameplayGrid.MOVEMENT_COSTS[GameplayGrid.TerrainType.RICE_PADDY])
 
 	# Apply ADS speed modifier
 	if weapon_holder and equipment_manager.is_weapon_slot():

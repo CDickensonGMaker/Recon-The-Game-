@@ -195,6 +195,21 @@ func _start_ambience() -> void:
 		p.play()
 
 
+## R77: called by GameFlow once the weather/time roll is known - crickets and
+## frogs replace the birdless jungle bed on NIGHT missions.
+func start_night_ambience() -> void:
+	var stream := load("res://assets/audio/sfx/night_insects_loop.wav") as AudioStreamWAV
+	if stream == null:
+		return
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_end = stream.data.size() / 2
+	var p := AudioStreamPlayer.new()
+	p.stream = stream
+	p.volume_db = -12.0
+	add_child(p)
+	p.play()
+
+
 ## Public: spawn the player at a position (mission insertion). Wires cameras+HUD.
 func spawn_player_at(spawn: Vector3) -> void:
 	if player != null:

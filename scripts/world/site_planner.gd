@@ -104,6 +104,7 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 		if s != 1.0:
 			visual.scale = Vector3(s, s, s)
 		body.add_child(visual)
+		_apply_visibility_range(visual)  # R92: cull distant structure geometry
 	var box_size: Vector3 = entry.box
 	if box_size.length() > 0.01:
 		var shape := CollisionShape3D.new()
@@ -121,6 +122,22 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	return body
 
 
+## R92: fade structure geometry out beyond ~230m - a 1.28km AO has dozens of
+## these live at once, and most are never close enough to matter.
+const STRUCTURE_VISIBILITY_END: float = 230.0
+const STRUCTURE_VISIBILITY_MARGIN: float = 25.0
+
+
+func _apply_visibility_range(node: Node) -> void:
+	if node is GeometryInstance3D:
+		var gi := node as GeometryInstance3D
+		gi.visibility_range_end = STRUCTURE_VISIBILITY_END
+		gi.visibility_range_end_margin = STRUCTURE_VISIBILITY_MARGIN
+		gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	for child in node.get_children():
+		_apply_visibility_range(child)
+
+
 ## VILLAGE: ring of huts + center feature + weapons cache (+ hidden tunnel).
 func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	var nodes: Array[Node3D] = []
@@ -130,7 +147,9 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 		var r := rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MIN, SiteLayouts.VILLAGE_RING_RADIUS_MAX)
 		var pos := center + Vector3(cos(a), 0, sin(a)) * r
 		var model: String = SiteLayouts.VILLAGE_HUT_MODELS[rng.randi() % SiteLayouts.VILLAGE_HUT_MODELS.size()]
-		nodes.append(place_structure(model, pos, rad_to_deg(a) + 90.0 + rng.randf_range(-15, 15)))
+		var hut := place_structure(model, pos, rad_to_deg(a) + 90.0 + rng.randf_range(-15, 15))
+		hut.add_to_group("flammable_structures")  # R71: thatch catches fire
+		nodes.append(hut)
 	var center_model: String = SiteLayouts.VILLAGE_CENTER_MODELS[rng.randi() % SiteLayouts.VILLAGE_CENTER_MODELS.size()]
 	nodes.append(place_structure(center_model, center, rng.randf_range(0, 360)))
 	# Cache tucked behind a random hut.

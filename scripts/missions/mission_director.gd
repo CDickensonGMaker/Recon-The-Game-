@@ -297,6 +297,12 @@ func _drop_supply_crate(pos: Vector3) -> void:
 	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
 
 
+## R66: public hook for EnemyMortarTeam - same impact FX/damage as the
+## player-called fire mission, just aimed the other way.
+func enemy_mortar_impact(pos: Vector3) -> void:
+	_mortar_impact(pos, 0.8)
+
+
 func _mortar_impact(pos: Vector3, intensity: float) -> void:
 	if world == null:
 		return

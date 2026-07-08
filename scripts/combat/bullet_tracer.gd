@@ -32,7 +32,9 @@ func _create_mesh() -> void:
 	material.albedo_color = tracer_color
 	material.emission_enabled = true
 	material.emission = tracer_color
-	material.emission_energy_multiplier = 2.0
+	# R78: tracers read much brighter at night (real ones do too) - cheap win,
+	# no dynamic lights needed (stays perf-safe under heavy fire).
+	material.emission_energy_multiplier = 4.5 if MissionWeather.is_night else 2.0
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 

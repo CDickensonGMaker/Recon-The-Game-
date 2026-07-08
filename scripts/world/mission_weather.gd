@@ -6,6 +6,8 @@ extends Node
 
 ## Global perception multiplier consumed by enemy sight caps.
 static var sight_mult: float = 1.0
+## R78: true during NIGHT missions - tracers/muzzle flashes read brighter.
+static var is_night: bool = false
 
 const WEATHER := {
 	"CLEAR": {"fog": 0.004, "fog_color": Color(0.75, 0.78, 0.7), "light": 1.0, "sight": 1.0, "noise": 1.0, "rain": 0.0},
@@ -46,6 +48,7 @@ func setup(world: GameWorld, weather_id: String, time_id: String) -> void:
 
 	sight_mult = float(w.sight) * float(t.sight)
 	NoiseBus.radius_multiplier = float(w.noise)
+	is_night = time_id == "NIGHT"
 
 	if float(w.rain) > 0.0:
 		_spawn_rain(float(w.rain))
@@ -91,3 +94,4 @@ func _process(delta: float) -> void:
 func _exit_tree() -> void:
 	sight_mult = 1.0
 	NoiseBus.radius_multiplier = 1.0
+	is_night = false

@@ -99,5 +99,19 @@ func _drop_napalm_strip() -> void:
 			ground.y = terrain.get_height_at(pos) if terrain else pos.y
 			CombatManager.apply_explosion_damage(ground, 90, 30, 10.0, null)
 			FireHazard.create_at(get_tree().current_scene, ground, 10.0, 15.0)
+			_ignite_nearby_structures(ground)  # R71: thatch huts catch fire
 			if is_center:
 				DamageSystem.apply_damage(ground, DamageSystem.DamageType.NAPALM, 1.0))
+
+
+## R71: any nearby thatch hut catches fire too - a bigger, longer-lived blaze
+## right at the structure instead of just the ground patch.
+func _ignite_nearby_structures(impact: Vector3) -> void:
+	for s in get_tree().get_nodes_in_group("flammable_structures"):
+		var structure := s as Node3D
+		if structure == null or structure.has_meta("burned"):
+			continue
+		if structure.global_position.distance_to(impact) > 14.0:
+			continue
+		structure.set_meta("burned", true)
+		FireHazard.create_at(get_tree().current_scene, structure.global_position, 6.0, 40.0)

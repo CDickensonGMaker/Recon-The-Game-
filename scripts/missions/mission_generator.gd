@@ -145,6 +145,26 @@ static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["intel"] = "Enemy AA battery is bleeding our birds. Satchel every gun. %d sites plotted." % site_count
 
 
+## R72: a shallow, muddy water disc sitting in an old crater bowl.
+static func _spawn_crater_water(world: GameWorld, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var disc := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	var r: float = rng.randf_range(3.0, 5.0)
+	cyl.top_radius = r
+	cyl.bottom_radius = r
+	cyl.height = 0.05
+	disc.mesh = cyl
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.22, 0.28, 0.2, 0.8)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.roughness = 0.15
+	mat.metallic = 0.1
+	disc.material_override = mat
+	world.add_child(disc)
+	var ground_y: float = world.terrain_manager.get_height_at(pos)
+	disc.global_position = Vector3(pos.x, ground_y + 0.05, pos.z)
+
+
 static func _passable_near(world: GameWorld, rng: RandomNumberGenerator, origin: Vector3, min_r: float, max_r: float, attempts: int = 60) -> Vector3:
 	var map_size: float = world.terrain_manager.map_size
 	for _i in range(attempts):
@@ -397,6 +417,18 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var enemy := director.spawn_tracked_enemy(pos, data, str(group.tag))
 				enemy.add_to_group(str(group.tag))
 
+	# R64/R66: village raids and firebase defense get a nasty surprise or two.
+	if int(p.type) == MissionType.VILLAGE_RAID or int(p.type) == MissionType.FIREBASE_DEFENSE:
+		var anchor: Vector3 = p.get("village_center", p.get("firebase_center", p.insertion_lz))
+		for i in range(rng.randi_range(1, 2)):
+			var a3 := rng.randf_range(0.0, TAU)
+			var hole_pos: Vector3 = anchor + Vector3(cos(a3), 0, sin(a3)) * rng.randf_range(8.0, 20.0)
+			var hole := director.spawn_tracked_enemy(hole_pos, ENEMY_DATA[rng.randi() % ENEMY_DATA.size()], "spider_hole")
+			hole.is_spider_hole = true
+	if int(p.type) == MissionType.FIREBASE_DEFENSE:
+		var mortar_pos: Vector3 = _passable_near(world, rng, p.firebase_center, 90.0, 160.0)
+		EnemyMortarTeam.spawn(world, mortar_pos, director, int(p.seed) + 555, ENEMY_DATA)
+
 	# W04: at HIGH campaign threat, opportunistic AA positions appear near the LZs.
 	if not bool(p.get("is_anti_aa", false)) and CampaignState.effective_threat() >= 0.5:
 		var aa_count: int = 1 if CampaignState.effective_threat() < 0.75 else 2
@@ -444,6 +476,18 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			var tc: Vector3 = planner.find_site(rng, 15.0, 150.0)
 			if tc != Vector3.ZERO:
 				built_sites.append(planner.stamp_temple_ruin(tc, rng))
+
+		# R72: old B-52 arclight craters, scattered before you ever touched down -
+		# some have gone stagnant with rainwater.
+		for _oc in range(rng.randi_range(2, 4)):
+			var oc_t: float = rng.randf()
+			var oc_center: Vector3 = corridor_a.lerp(corridor_b, oc_t)
+			var oc_pos: Vector3 = _passable_near(world, rng, oc_center, 30.0, 220.0)
+			if oc_pos == Vector3.ZERO:
+				continue
+			DamageSystem.apply_damage(oc_pos, DamageSystem.DamageType.LARGE_EXPLOSION, rng.randf_range(0.8, 1.3))
+			if rng.randf() < 0.4:
+				_spawn_crater_water(world, oc_pos, rng)
 
 		# 2-3 wandering patrols along the corridor.
 		for pi in range(rng.randi_range(2, 3)):

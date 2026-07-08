@@ -128,6 +128,16 @@ var grenade_cooldown: float = 0.0
 var grenades_left: int = 1
 var is_crippled: bool = false
 
+## R64: spider-hole ambusher - hidden (no mesh/collision) until the player
+## closes to trigger range, then pops straight to COMBAT. Set by the spawner.
+var is_spider_hole: bool = false
+var _spider_triggered: bool = false
+const SPIDER_TRIGGER_RANGE: float = 7.0
+
+## R67: crippled fighters near a tunnel entrance slip underground and vanish
+## rather than crawl forever.
+var _tunnel_retreat_queued: bool = false
+
 ## Fairness (anti-instant-death): the first round fired at a newly acquired
 ## target is a deliberate near-miss - the CRACK is your warning. Close-range
 ## acquisitions also startle the shooter (+reaction time).
@@ -195,6 +205,12 @@ func _ready() -> void:
 	var gw := get_tree().get_first_node_in_group("game_world")
 	if gw != null and "gameplay_grid" in gw:
 		_grid = gw.gameplay_grid
+
+	# R64: spider-hole starts hidden and inert until triggered.
+	if is_spider_hole:
+		visible = false
+		collision_layer = 0
+		collision_mask = 1
 
 
 func _apply_personality() -> void:
@@ -325,6 +341,10 @@ func _update_decay(delta: float) -> void:
 ## ============================================
 
 func _think() -> void:
+	_check_spider_hole()
+	_check_tunnel_retreat()
+	if is_spider_hole and not _spider_triggered:
+		return  # still buried - no perception, no movement
 	# Perception first: the alert tier gates whether we may acquire targets.
 	_update_perception()
 	if alert_tier == AlertTier.COMBAT:
@@ -339,6 +359,51 @@ func _think() -> void:
 
 	# Update state based on goal
 	_update_state_for_goal()
+
+
+## R64: pop the ambush the moment the player closes to trigger range.
+func _check_spider_hole() -> void:
+	if not is_spider_hole or _spider_triggered:
+		return
+	var player := GameManager.player as Node3D
+	if player == null:
+		return
+	if global_position.distance_to(player.global_position) > SPIDER_TRIGGER_RANGE:
+		return
+	_spider_triggered = true
+	visible = true
+	collision_layer = 4
+	collision_mask = 1
+	target = player
+	last_known_target_pos = player.global_position
+	_set_tier(AlertTier.COMBAT)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
+
+
+## R67: a crippled fighter near a tunnel entrance slips underground and is
+## gone for good instead of crawling forever.
+func _check_tunnel_retreat() -> void:
+	if not is_crippled or _tunnel_retreat_queued:
+		return
+	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
+		var entrance := t as Node3D
+		if entrance == null:
+			continue
+		if global_position.distance_to(entrance.global_position) > 8.0:
+			continue
+		_tunnel_retreat_queued = true
+		var shout := Label3D.new()
+		shout.text = "DI DI MAU!"
+		shout.font_size = 22
+		shout.pixel_size = 0.005
+		shout.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		shout.modulate = Color(0.85, 0.75, 0.5)
+		add_child(shout)
+		shout.position = Vector3(0, 2.2, 0)
+		get_tree().create_timer(1.6).timeout.connect(func() -> void:
+			if not is_dead():
+				_die())
+		return
 
 
 ## ---------- PERCEPTION (R12/R13/R14) ----------
