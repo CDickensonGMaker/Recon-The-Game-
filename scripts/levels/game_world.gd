@@ -16,7 +16,7 @@ const WaterSystemScript := preload("res://terrain/water/water_system.gd")
 const GameplayGridScript := preload("res://terrain/core/gameplay_grid.gd")
 
 @export var mission_seed: int = 12345
-@export var map_size: float = 1280.0
+@export var map_size: float = WorldConfig.MAP_SIZE
 @export var spawn_position_override: Vector3 = Vector3.ZERO  ## zero = AO center
 @export var spawn_player_on_ready: bool = true
 
@@ -43,8 +43,8 @@ func _setup_environment() -> void:
 	var light := DirectionalLight3D.new()
 	light.name = "SunLight"
 	light.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
-	light.shadow_enabled = true
-	light.directional_shadow_max_distance = 250.0
+	# Perf-first (Intel UHD class hardware): no dynamic shadows for now.
+	light.shadow_enabled = false
 	add_child(light)
 
 	var sky_material := ProceduralSkyMaterial.new()
@@ -75,14 +75,15 @@ func _setup_terrain() -> void:
 	terrain_manager = TerrainManagerScript.new()
 	terrain_manager.name = "TerrainManager"
 	terrain_manager.map_size = map_size
-	terrain_manager.chunk_size = 256.0
-	terrain_manager.cell_size = 4.0
-	terrain_manager.load_distance = 2
-	terrain_manager.unload_distance = 3
+	terrain_manager.chunk_size = WorldConfig.CHUNK_SIZE
+	terrain_manager.cell_size = WorldConfig.CELL_SIZE
+	terrain_manager.load_distance = WorldConfig.LOAD_DISTANCE
+	terrain_manager.unload_distance = WorldConfig.UNLOAD_DISTANCE
 	add_child(terrain_manager)
 
 	vegetation_manager = VegetationManagerScript.new()
 	vegetation_manager.name = "VegetationManager"
+	vegetation_manager.patch_seed = mission_seed
 	add_child(vegetation_manager)
 
 	billboard_vegetation = BillboardVegetationScript.new()
@@ -146,8 +147,8 @@ func _on_terrain_ready() -> void:
 
 	# 3. Water BEFORE gameplay grid (grid needs accurate water cells).
 	water_system.initialize(terrain_manager.heightmap, terrain_manager.chunk_size)
-	water_system.ocean_edges = 0b0000  # inland AO - rivers/ponds only
-	water_system.sea_level = 15.0
+	water_system.ocean_edges = WorldConfig.OCEAN_EDGES
+	water_system.sea_level = WorldConfig.SEA_LEVEL
 	water_system.generate_water_bodies()
 	var wetness_tex: ImageTexture = water_system.generate_wetness_texture(16.0)
 	if wetness_tex:
@@ -244,6 +245,18 @@ func _setup_hud() -> void:
 	var equipment_manager: EquipmentManager = player.get_node("EquipmentManager")
 	var grenade_handler: GrenadeHandler = player.get_node("Head/Camera3D/GrenadeHandler")
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
+
+
+var _fps_log_timer: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if not WorldConfig.LOG_FPS or not is_world_ready:
+		return
+	_fps_log_timer += delta
+	if _fps_log_timer >= WorldConfig.FPS_LOG_INTERVAL:
+		_fps_log_timer = 0.0
+		print("[PERF] FPS=%.0f" % Engine.get_frames_per_second())
 
 
 func _physics_process(delta: float) -> void:

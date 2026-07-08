@@ -22,6 +22,13 @@ const BUNDLE_SIZE := 2
 ## Maximum slope for vegetation
 @export var max_slope_degrees: float = 50.0
 
+## FPS fork: patch-noise jungle distribution (coherent thickets + open ground).
+@export var patch_noise_frequency: float = 0.012
+@export var open_patch_threshold: float = -0.18
+@export var heavy_patch_threshold: float = 0.28
+@export var patch_seed: int = 0
+var _patch_noise: FastNoiseLite = null
+
 ## Use external models (disabled - too heavy for Intel UHD)
 @export var use_external_models: bool = false
 
@@ -57,8 +64,8 @@ var _chunk_grass: Dictionary = {}  # Grass patches
 # Placement cache - built once per chunk, survives terrain changes
 var _chunk_placements: Dictionary = {}
 
-const TREE_CANDIDATES_PER_CHUNK := 2000
-const GRASS_CANDIDATES_PER_CHUNK := 3000
+const TREE_CANDIDATES_PER_CHUNK := 1200  # FPS fork: reduced from RTS 2000
+const GRASS_CANDIDATES_PER_CHUNK := 1200  # FPS fork: reduced from RTS 3000
 
 # Grass acceptance thresholds per terrain type
 const GRASS_ACCEPT := {
@@ -137,7 +144,7 @@ func _update_frustum_culling() -> void:
 			coord.y * _chunk_size + _chunk_size * 0.5
 		)
 		var dist := cam_pos.distance_to(chunk_center)
-		var grass_visible := in_frustum and dist < 100.0
+		var grass_visible := in_frustum and dist < 60.0  # FPS fork: was 100m
 
 		# Apply visibility
 		if _chunk_instances.has(coord):
@@ -308,11 +315,19 @@ func _determine_terrain_type(height: float, slope_dot: float, rng: RandomNumberG
 	if slope_dot > 0.98 and rng.randf() < 0.2:
 		return TerrainType.GRASSLAND
 
-	# Random jungle density
-	var density_roll := rng.randf()
-	if density_roll < 0.2:
-		return TerrainType.LIGHT_JUNGLE
-	elif density_roll < 0.5:
+	# FPS fork: patch-noise jungle. Low-frequency noise carves coherent open
+	# patches and dense thickets instead of the RTS blanket-jungle roll.
+	if _patch_noise == null:
+		_patch_noise = FastNoiseLite.new()
+		_patch_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		_patch_noise.frequency = patch_noise_frequency
+		_patch_noise.seed = patch_seed
+	var patch: float = _patch_noise.get_noise_2d(world_x, world_z)
+	if patch < open_patch_threshold:
+		return TerrainType.GRASSLAND if rng.randf() < 0.7 else TerrainType.CLEAR
+	elif patch < 0.05:
+		return TerrainType.LIGHT_JUNGLE if rng.randf() < 0.75 else TerrainType.MEDIUM_JUNGLE
+	elif patch < heavy_patch_threshold:
 		return TerrainType.MEDIUM_JUNGLE
 	else:
 		return TerrainType.HEAVY_JUNGLE

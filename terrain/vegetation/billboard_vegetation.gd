@@ -4,9 +4,9 @@ class_name BillboardVegetation
 ## Uses 5 intersecting quads (cross/star formation) for 3D depth illusion
 ## Provides LOD between full 3D trees and distant fog
 
-const BILLBOARD_RANGE_MIN := 80.0   # Start showing billboards
-const BILLBOARD_RANGE_MAX := 800.0  # Stop showing billboards (extended range, no fog)
-const BILLBOARDS_PER_CHUNK := 6000  # High candidate pool - most filtered by terrain type
+const BILLBOARD_RANGE_MIN := 60.0   # FPS fork: was 80 (3D trees own the near field)
+const BILLBOARD_RANGE_MAX := 500.0  # FPS fork: was 800 (fog covers the rest)
+const BILLBOARDS_PER_CHUNK := 3000  # FPS fork: reduced from RTS 6000
 
 # Per-tier acceptance rates for billboards (0=CLEAR to 5=HEAVY_JUNGLE)
 const TIER_ACCEPT := {
