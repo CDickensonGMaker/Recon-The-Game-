@@ -254,6 +254,15 @@ func spawn_enemy(data_path: String = VC, pos: Vector3 = Vector3.INF) -> EnemyBas
 	if pos == Vector3.INF:
 		pos = Vector3(_rng.randf_range(-16.0, 16.0), 1.0, _rng.randf_range(-18.0, -10.0))
 	var e := EnemyBase.spawn_enemy(self, pos, data_path)
+	# Combat test: orient them at the player so we are exercising the FIGHT, not
+	# the stealth-approach. (In the real game the mission director / patrol facing
+	# handles this; a bare spawn defaults to -Z.)
+	if player != null:
+		var to_p: Vector3 = (player.global_position - pos)
+		to_p.y = 0.0
+		if to_p.length() > 0.1:
+			e.facing_dir = to_p.normalized()
+			e._home_facing = e.facing_dir
 	e.died.connect(_on_enemy_died)
 	if _frozen:
 		e.set_physics_process(false)
@@ -265,6 +274,39 @@ func spawn_enemy(data_path: String = VC, pos: Vector3 = Vector3.INF) -> EnemyBas
 # ------------------------------------------------------- A/B visual swapper
 func _mode_name() -> String:
 	return ["SPRITE", "MODEL", "CAPSULE"][int(visual_mode)]
+
+
+## Arena weapon test: V cycles the primary through the whole roster so you can
+## feel every gun's rate, recoil weight and audio without a loadout menu.
+const WEAPON_ROSTER: Array[String] = [
+	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41",
+	"thompson", "mp40", "kar98k", "mosin", "m79", "m72_law", "rpg2", "rpg7",
+]
+var _weapon_idx: int = 0
+
+
+func _cycle_weapon() -> void:
+	if player == null:
+		return
+	var wh: WeaponHolder = player.get("weapon_holder")
+	if wh == null:
+		return
+	_weapon_idx = (_weapon_idx + 1) % WEAPON_ROSTER.size()
+	var wid: String = WEAPON_ROSTER[_weapon_idx]
+	var wd: WeaponData = load("res://data/weapons/%s.tres" % wid) as WeaponData
+	if wd == null:
+		return
+	wh.primary_weapon = wd
+	wh.primary_ammo = [wd.magazine_size, 6]
+	if wh.current_slot == 0:
+		wh.current_weapon = wd
+		wh.current_ammo = wd.magazine_size
+		wh.spare_magazines = 6
+		wh._load_weapon_model(wd)
+		wh.weapon_switched.emit(wd)
+		wh.magazine_changed.emit(wh.current_ammo, wh.spare_magazines)
+	print("[COMBAT LAB] primary -> %s (%.0f rpm, %s)" % [
+		wd.display_name, wd.fire_rate, wd.get_damage_string()])
 
 
 func _cycle_visual_mode() -> void:
@@ -567,7 +609,7 @@ func _update_hud() -> void:
 
 	lines.append("")
 	lines.append("1 VC  2 x3  3 ally  4 NVA  5 farmer  6 sapper(RPD)  7 rocketeer(RPG)")
-	lines.append("M cycle visual (SPRITE/MODEL/CAPSULE)   C reload sprite cache")
+	lines.append("V cycle weapon (all 15 firearms)   M cycle visual   C reload sprite cache")
 	lines.append("R reset  K kill all  F freeze  G god  H hud  [ / ] timescale")
 	_hud.text = "\n".join(lines)
 
@@ -607,6 +649,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_hud.visible = not _hud.visible
 		KEY_M:
 			_cycle_visual_mode()
+		KEY_V:
+			_cycle_weapon()
 		KEY_C:
 			# Sheets are being re-rendered while we work; drop the cache so the
 			# next spawn picks up the new PNGs without restarting the lab.

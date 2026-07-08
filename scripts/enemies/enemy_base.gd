@@ -78,6 +78,7 @@ var _combat_lost_time: float = 0.0
 var _grid: GameplayGrid = null        ## fetched from game_world group (sight caps)
 const SIGHT_CAP_OPEN: float = 140.0
 const SIGHT_CAP_JUNGLE: float = 45.0
+const CLOSE_SENSE_RANGE: float = 10.0  ## contacts inside this are felt regardless of facing
 
 ## Aim interpolation (smooth aiming like Quake 3 bots)
 var current_aim_dir: Vector3 = Vector3.FORWARD
@@ -179,6 +180,10 @@ var mesh: MeshInstance3D
 var sprite_actor: SpriteActor = null  ## null when the unit has no rendered sheets
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
 var _nav_warned: bool = false
+var _scan_phase: float = 0.0
+var _home_facing: Vector3 = Vector3.FORWARD  ## the direction to sweep around
+const SCAN_SPEED: float = 0.7
+const SCAN_ARC: float = 2.45  ## +/- 140deg sweep - only a narrow wedge behind stays blind
 var last_hit_dir: Vector3 = Vector3.FORWARD  ## world dir from attacker -> us; picks the death clip
 
 
@@ -213,6 +218,8 @@ func _ready() -> void:
 			if not enemy_data.weapon_path.is_empty():
 				weapon_data = load(enemy_data.weapon_path)
 
+	_home_facing = facing_dir
+	_scan_phase = randf() * TAU   # desync guards so they do not sweep in lockstep
 	_setup_visual()
 	_setup_hurtbox()
 
@@ -512,7 +519,12 @@ func _update_perception() -> void:
 				var to_c := (candidate.global_position - global_position).normalized()
 				var flat_facing := Vector3(facing_dir.x, 0, facing_dir.z).normalized()
 				in_fov = flat_facing.dot(Vector3(to_c.x, 0, to_c.z).normalized()) > cos(deg_to_rad(_fov_deg() * 0.5))
-			if in_fov and not SmokeCloud.blocks_sight(
+			# A contact this close is FELT regardless of facing - you hear boots,
+			# gear, breathing at 8m. Without this an enemy stared past a player
+			# stood 3m off its shoulder forever (they only "walked around"), which
+			# is exactly what read as broken AI. LOS still required (a wall hides).
+			var point_blank: bool = best_dist < CLOSE_SENSE_RANGE
+			if (in_fov or point_blank) and not SmokeCloud.blocks_sight(
 					global_position + Vector3.UP * 1.5,
 					candidate.global_position + Vector3.UP * 1.0) \
 				and CombatManager.has_line_of_sight(
@@ -527,7 +539,7 @@ func _update_perception() -> void:
 						gain *= 0.5
 					if player.has_method("is_moving"):
 						gain *= 1.5 if player.is_moving() else 0.6
-				if best_dist < 10.0:
+				if point_blank:
 					gain = 3.0  # inner detection bubble: near-instant
 
 	if gain > 0.0:
@@ -878,6 +890,15 @@ func _execute_idle(delta: float) -> void:
 	# Decelerate
 	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
+	# Sentry scan: a standing guard sweeps his gaze so he can actually notice a
+	# player approaching from off-axis. Without this, perception is FOV-gated and
+	# an idle enemy facing the wrong way is blind forever - it never turns because
+	# it has no target, and it has no target because it never turns.
+	if target == null and alert_tier <= AlertTier.SUSPICIOUS:
+		_scan_phase += delta * SCAN_SPEED
+		var base_yaw: float = atan2(_home_facing.x, _home_facing.z)
+		var yaw: float = base_yaw + sin(_scan_phase) * SCAN_ARC
+		facing_dir = Vector3(sin(yaw), 0.0, cos(yaw))
 
 
 func _execute_alert(delta: float) -> void:
