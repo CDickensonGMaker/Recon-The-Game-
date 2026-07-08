@@ -223,6 +223,22 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var v: Dictionary = planner.stamp_village(site.center, rng)
 				built_sites.append(v)
 				cache_node = v.cache
+				# W47: villagers (one may be an informer). W56: night cooking fire.
+				var civ_count: int = rng.randi_range(3, 5)
+				var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
+				for ci in range(civ_count):
+					var ca := rng.randf_range(0.0, TAU)
+					var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
+					cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
+					Civilian.spawn(world, cpos, director, ci == informer_idx)
+				if str(p.get("time", "DAY")) in ["NIGHT", "DUSK", "DAWN"]:
+					_add_campfire(world, site.center + Vector3(2, 0, 2))
+				# W78: chickens - live noise traps.
+				for _ck in range(rng.randi_range(2, 4)):
+					var ka := rng.randf_range(0.0, TAU)
+					var kpos: Vector3 = site.center + Vector3(cos(ka), 0, sin(ka)) * rng.randf_range(3.0, 10.0)
+					kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
+					_add_chicken(world, kpos)
 				if str(p.get("village_target", "cache")) == "vehicle":
 					# Swap the cache for a captured APC at the same spot.
 					var cache_pos: Vector3 = (v.cache as Node3D).global_position
@@ -369,6 +385,69 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 
 static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
 	return Vector3(pos.x, world.terrain_manager.get_height_at(pos), pos.z)
+
+
+## W56: flickering campfire - a beacon you can read at range at night.
+static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
+	var fire := Node3D.new()
+	world.add_child(fire)
+	fire.global_position = _seat(world, pos) + Vector3(0, 0.3, 0)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.25)
+	light.light_energy = 1.8
+	light.omni_range = 14.0
+	fire.add_child(light)
+	var particles := CPUParticles3D.new()
+	particles.amount = 14
+	particles.lifetime = 1.4
+	particles.direction = Vector3.UP
+	particles.initial_velocity_min = 1.0
+	particles.initial_velocity_max = 2.2
+	particles.scale_amount_min = 0.08
+	particles.scale_amount_max = 0.2
+	particles.color = Color(1.0, 0.55, 0.15, 0.8)
+	fire.add_child(particles)
+	# Flicker.
+	var flicker := Timer.new()
+	flicker.wait_time = 0.12
+	flicker.autostart = true
+	fire.add_child(flicker)
+	flicker.timeout.connect(func() -> void: light.light_energy = randf_range(1.4, 2.2))
+
+
+## W78: chickens - they scatter loudly when anyone gets close. Noise traps.
+static func _add_chicken(world: GameWorld, pos: Vector3) -> void:
+	var chicken := Node3D.new()
+	world.add_child(chicken)
+	chicken.global_position = _seat(world, pos) + Vector3(0, 0.2, 0)
+	var mesh := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.15
+	sphere.height = 0.3
+	mesh.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.9, 0.88, 0.8)
+	mesh.material_override = mat
+	chicken.add_child(mesh)
+	var scan := Timer.new()
+	scan.wait_time = 0.6
+	scan.autostart = true
+	chicken.add_child(scan)
+	scan.timeout.connect(func() -> void:
+		if chicken.has_meta("spooked"):
+			return
+		for body_group in ["player", "enemies", "allies"]:
+			for b in chicken.get_tree().get_nodes_in_group(body_group):
+				var n := b as Node3D
+				if n and n.global_position.distance_to(chicken.global_position) < 3.0:
+					chicken.set_meta("spooked", true)
+					NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, chicken.global_position, 0, 25.0)
+					var flee := (chicken.global_position - n.global_position).normalized()
+					var tween := chicken.create_tween()
+					tween.tween_property(chicken, "global_position",
+						chicken.global_position + flee * 8.0 + Vector3(0, 0.1, 0), 1.2)
+					tween.tween_callback(func() -> void: chicken.remove_meta("spooked"))
+					return)
 
 
 ## Planted demo charge detonates: real crater + the target prop dies.
