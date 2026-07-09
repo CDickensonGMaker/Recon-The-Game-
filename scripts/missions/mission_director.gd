@@ -223,8 +223,8 @@ func request_fire_support(kind: String) -> void:
 			_launch_cas(target, CASAirplane.Ordnance.BOMB)
 			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d left)" % fire_support[kind])
 		"napalm":
-			_launch_cas(target, CASAirplane.Ordnance.NAPALM)
-			toast.emit("NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
+			_launch_flyby(target, CASAirplane.Ordnance.NAPALM)
+			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
 		"arty":
 			toast.emit("BATTERY FIRE MISSION - SHOT OUT (%d left)" % fire_support[kind])
 			for i in range(6):
@@ -244,6 +244,17 @@ func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	if world.player:
 		run_dir = target - world.player.global_position
 	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
+
+
+## F-4 fast horizontal flyby (napalm/CBU) - screams in low, pickles on the pass,
+## climbs out into the clouds. Same plane scene as a stand-in until an F-4 model exists.
+func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
+	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
+	world.add_child(plane)
+	var run_dir := Vector3.ZERO
+	if world.player:
+		run_dir = target - world.player.global_position
+	plane.call_flyby(world.terrain_manager, target, ordnance, run_dir)
 
 
 func _arty_impact(pos: Vector3, deform: bool) -> void:

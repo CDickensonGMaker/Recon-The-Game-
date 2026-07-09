@@ -7,7 +7,7 @@ extends Node3D
 
 signal run_complete
 
-enum Ordnance { BOMB, NAPALM }
+enum Ordnance { BOMB, NAPALM, CBU }
 enum Phase { APPROACH, DIVE, RELEASE, CLIMB, DONE }
 
 const APPROACH_ALT: float = 80.0
@@ -17,6 +17,15 @@ const NAPALM_DROPS: int = 5
 const NAPALM_SPACING: float = 15.0
 const DROP_STAGGER: float = 0.4
 
+# F-4 fast horizontal flyby profile (call_flyby): screams in low & fast ~200m out,
+# pickles on the pass, then climbs out and vanishes into the cloud deck.
+const F4_SPEED: float = 250.0
+const FLYBY_ALT: float = 34.0
+const FLYBY_SPAWN_DIST: float = 200.0
+const CLOUD_DECK_Y: float = 185.0
+const CBU_BOMBLETS: int = 16
+const CBU_SPREAD: float = 22.0
+
 var terrain: TerrainManager
 var phase: Phase = Phase.APPROACH
 var _target: Vector3 = Vector3.ZERO
@@ -24,6 +33,7 @@ var _run_dir: Vector3 = Vector3.FORWARD
 var _ordnance: Ordnance = Ordnance.BOMB
 var _released: bool = false
 var _climb_time: float = 0.0
+var _flyby: bool = false
 
 
 func call_strike(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordnance, run_dir: Vector3 = Vector3.ZERO) -> void:
@@ -42,7 +52,29 @@ func call_strike(terrain_manager: TerrainManager, target: Vector3, ordnance: Ord
 	phase = Phase.APPROACH
 
 
+## F-4 fast horizontal flyby: spawns ~200m out, screams in low and fast, pickles its
+## ordnance across the target on the pass, then climbs and vanishes into the clouds.
+func call_flyby(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordnance, run_dir: Vector3 = Vector3.ZERO) -> void:
+	terrain = terrain_manager
+	_target = target
+	_target.y = terrain.get_height_at(target)
+	_ordnance = ordnance
+	_flyby = true
+	_run_dir = run_dir
+	if _run_dir.length() < 0.1:
+		_run_dir = Vector3(randf_range(-1, 1), 0, randf_range(-1, 1))
+	_run_dir.y = 0.0
+	_run_dir = _run_dir.normalized()
+	global_position = _target - _run_dir * FLYBY_SPAWN_DIST + Vector3(0, FLYBY_ALT, 0)
+	global_position.y = maxf(global_position.y, terrain.get_height_at(global_position) + FLYBY_ALT)
+	look_at(global_position + _run_dir, Vector3.UP)
+	phase = Phase.DIVE
+
+
 func _physics_process(delta: float) -> void:
+	if _flyby:
+		_fly_flyby(delta)
+		return
 	match phase:
 		Phase.APPROACH, Phase.DIVE:
 			_fly_run(delta)
@@ -71,12 +103,34 @@ func _fly_run(delta: float) -> void:
 		phase = Phase.CLIMB
 
 
+## Flat, fast, low: pickle on the pass, then climb out and despawn into the cloud deck.
+func _fly_flyby(delta: float) -> void:
+	global_position += _run_dir * F4_SPEED * delta
+	var along: float = (global_position - _target).dot(_run_dir)  # signed dist past target
+	if phase != Phase.CLIMB:
+		var desired_y: float = (terrain.get_height_at(global_position) + FLYBY_ALT) if terrain else global_position.y
+		global_position.y = lerpf(global_position.y, desired_y, 3.0 * delta)
+		if not _released and along >= -6.0:  # pickle just as it reaches the target
+			_released = true
+			_release_ordnance()
+		if along > 20.0:  # past the target -> climb out
+			phase = Phase.CLIMB
+	else:
+		global_position.y += 60.0 * delta
+		if along > 100.0 and global_position.y >= CLOUD_DECK_Y:  # 100m+ past, into the clouds -> gone
+			phase = Phase.DONE
+			run_complete.emit()
+			queue_free()
+
+
 func _release_ordnance() -> void:
 	match _ordnance:
 		Ordnance.BOMB:
 			_drop_bomb()
 		Ordnance.NAPALM:
 			_drop_napalm_strip()
+		Ordnance.CBU:
+			_drop_cluster()
 
 
 func _drop_bomb() -> void:
@@ -102,6 +156,24 @@ func _drop_napalm_strip() -> void:
 			_ignite_nearby_structures(ground)  # R71: thatch huts catch fire
 			if is_center:
 				DamageSystem.apply_damage(ground, DamageSystem.DamageType.NAPALM, 1.0))
+
+
+## CBU cluster canister: opens over the target into many small AP bursts scattered
+## across an ellipse along the run. One crater (honors the crater cap); no fire.
+func _drop_cluster() -> void:
+	var side := _run_dir.cross(Vector3.UP).normalized()
+	for i in range(CBU_BOMBLETS):
+		var ang := TAU * float(i) / float(CBU_BOMBLETS) + randf() * 0.6
+		var rad := CBU_SPREAD * sqrt(randf())
+		var pos := _target + _run_dir * (rad * cos(ang)) + side * (rad * 0.6 * sin(ang))
+		var delay := 0.8 + float(i) * 0.05
+		var is_first := (i == 0)
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			var ground := pos
+			ground.y = terrain.get_height_at(pos) if terrain else pos.y
+			CombatManager.apply_explosion_damage(ground, 55, 15, 5.0, null)
+			if is_first:
+				DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.7))
 
 
 ## R71: any nearby thatch hut catches fire too - a bigger, longer-lived blaze
