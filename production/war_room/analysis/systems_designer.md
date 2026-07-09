@@ -1,213 +1,154 @@
-# SYSTEMS DESIGNER — Living Squad XP + Radio Fire Support
-
-*Lens: mechanics / economy / balance. All numbers concrete and tuned to ship today.
-Ground truth verified against `skill_catalog.gd`, `squad_roster.gd`, `campaign_state.gd`,
-`mission_director.gd`, `mission_generator.gd`, `cas_airplane.gd`, `RECON_ADAPTATION.md`.*
+# SYSTEMS DESIGNER — Full-Game Audit (2026-07-09)
+Lens: mechanics, balance, economy. Branch `overnight-claude`. All claims file:line grounded.
 
 ---
 
-## 1. LIVING SQUAD XP
+## (a) Top 5 Strengths
 
-### 1.1 Starting-skill roll (in `SquadRoster.generate_member`, after attrs are rolled)
+1. **The firing model is genuinely rigorous.** Framerate-independent RPM via a negative-remainder
+   accumulator with hitch capping (`scripts/player/weapon_holder.gd:129-141, 245-249, 265-270`),
+   favor-the-shooter delayed hit resolution scaled by real `projectile_speed`
+   (`weapon_holder.gd:359-370`), first-shot kick / sustained climb / per-weapon recovery
+   (`weapon_data.gd:43-49`, `weapon_holder.gd:374-386`). This is a Pillar-1 backbone most
+   prototypes never get right.
 
-Governing attribute per skill (the stat that "carries" the skill):
+2. **Detection is designed as an economy, not a switch.** Four alert tiers with one-way COMBAT
+   memory (`scripts/enemies/enemy_base.gd:71, 596-606`), vegetation sight caps 140m→45m
+   (`enemy_base.gd:79-80, 494-502`), stance/motion awareness modifiers (prone 0.35x, moving 1.5x,
+   `enemy_base.gd:578-584`), point-blank sense bubble (`enemy_base.gd:569, 586`), noise
+   investigation that goes to the sound not the source (`enemy_base.gd:631-644`), and a **finite
+   hunter pool of 12** so a blown op can be bled dry (`scripts/missions/mission_director.gd:62,
+   74-96`). Weather scales all noise radii through one multiplier (`scripts/autoload/noise_bus.gd:22`).
 
-| Skill | Gov attr | Rationale |
-|---|---|---|
-| small_arms, sniping, silent_movement | **ag** | hands / feet / steadiness |
-| detect_ambush, medic, fo_fac, demolitions | **al** | wits / alertness / training |
+3. **The squad XP economy has the right shape.** Learn-by-doing with a steepening cumulative curve
+   (`scripts/squad/skill_catalog.gd:22`), role-gated credit hooks — medic +3/revive
+   (`scripts/squad/squad_system.gd:161`), point +2/warning (`squad_system.gd:198`), RTO +2/call
+   (`mission_director.gd:277`), ally small-arms +1/kill (`enemy_base.gd:1541`) — plus no-blank-recruits
+   starting rolls weighted by the RECON `al` attribute (`scripts/squad/squad_roster.gd:40-58`).
+   Skills live on the man, so KIA = lost investment: the death penalty IS the RPG (Pillar 4).
 
-**Rule A — guaranteed MOS skill.** Every recruit arrives already competent at his job:
-```
-gov  = gov_attr(MOS_SKILL[mos])
-L_mos = 1 + int(gov >= 120) + int(gov >= 155)      # → 1..3
-skills[MOS_SKILL[mos]] = L_mos
-```
-So a sharp point man (al 150) starts DETECT_AMBUSH 3; a green one (al 95) starts at 1.
+4. **Fire support is laddered and friction-priced, not a win button.** Budgets scale by mission
+   type: patrol `{mortar:1}` (`scripts/missions/mission_generator.gd:103`) → village
+   `{bombs:1,napalm:1,mortar:2}` (`:236`) → firebase 10 calls (`:248`). Every call requires a
+   *living* RTO within 10m (`mission_director.gd:170-175, 215`), the rifle physically drops while
+   on the handset (`weapon_holder.gd:173-179, 590-593`), one shared 10-25s cooldown
+   (`mission_director.gd:250`), and danger-close needs a second deliberate press
+   (`mission_director.gd:239-241`). FO/FAC skill tightening the sheaf (lerp 1.0→0.45,
+   `mission_director.gd:262, 329`) makes the radioman's growth *visible in the dirt*.
 
-**Rule B — bonus skills, count keyed on `al` (the "savvy" stat).** Roll `r = randi(1,100)`:
-
-| al bracket | 0 extras | 1 extra | 2 extras | 3 extras |
-|---|---|---|---|---|
-| al < 100 (rookie) | 65% | 35% | – | – |
-| al 100–139 | 25% | 55% | 20% | – |
-| al ≥ 140 (veteran) | – | 45% | 45% | 10% |
-
-Each extra: pick a skill **not already owned** from a weighted pool (universal soldier skills
-weighted highest so everyone can shoot/sneak):
-`small_arms ×3, silent_movement ×3, detect_ambush ×2, medic ×1, fo_fac ×1, demolitions ×1, sniping ×1`.
-Each extra starts at **level 1**.
-
-Result: nobody arrives blank (fixes the `skills:{}` empty-roster problem), specialists feel like
-specialists, and high-`al` men read as grizzled without touching their attributes. Cap total starting
-levels so no rookie is a god: MOS skill ≤3, extras ≤1 each.
-
-### 1.2 Per-soldier XP + learn-by-doing curves
-
-**Data:** each member gets `skill_uses: {skill_id: float}` (use-points accumulator). A skill auto-levels
-when its accumulator crosses the threshold for its **current** level. Level cap **8** (matches
-`SKILLS[*].max`). Diminishing returns baked into a rising cumulative table:
-
-| Reach level | Cumulative use-pts | Δ from prev |
-|---|---|---|
-| L2 | 10 | 10 |
-| L3 | 25 | 15 |
-| L4 | 45 | 20 |
-| L5 | 70 | 25 |
-| L6 | 105 | 35 |
-| L7 | 155 | 50 |
-| L8 (cap) | 225 | 70 |
-
-Formula if you prefer code over a const table: `Δ(L→L+1) = 10 + 5·(L−1)` for L≤4, then `×1.4` steps.
-
-**Use-credit per event** (how many use-points an action grants the acting soldier):
-
-| Skill (MOS) | Event that credits it | Use-pts | Anti-grind gate |
-|---|---|---|---|
-| **small_arms** (PIGMAN/RIFLEMAN) | enemy KILL by that soldier w/ small arms | **+1** | only genuine hostile deaths (engine already gates via `take_damage` death); no credit on already-downed |
-| **sniping** (SNIPER) | KILL at range **≥120 m while ADS** | **+1** | close kills route to small_arms instead → natural specialization, no double-count |
-| **detect_ambush** (POINT) | a `_point_scan` warning that resolves to a **real** enemy inside the warned radius | **+1** | rising-edge only, deduped per enemy group — NOT per scan tick |
-| **fo_fac** (RTO) | fire mission that lands **≥1 effect** (kill/suppression) on a hostile | **+2** | wasted calls into empty jungle credit **0** — ties growth to *effective* use |
-| **medic** (MEDIC) | successful revive of an **enemy-downed** teammate | **+3** | `REVIVES_PER_MISSION = 2` hard cap; no friendly-down mechanic exists → can't farm |
-| **demolitions** (GRENADIER) | charge planted/detonated on an objective | **+2** | objective-gated (1–3/mission) |
-| **silent_movement** | per contact **AVOIDED** (stealth economy) | **+1** to POINT + player | capped 3/mission |
-
-**Per-mission yield is roughly flat (2–6 use-pts/skill), thresholds rise.** Consequence:
-L1→L3 in ~2–3 missions (fast, satisfying early), L7→L8 takes ~15+ missions (elite is earned).
-This is exactly RECON's "shallow by design" (RECON_ADAPTATION L176: 35 pts → +5%).
-
-**Kill-farming is structurally impossible** because generated missions spawn **finite** enemies
-(`mission_generator`: 2–10 per group, fixed). You cannot respawn-farm. Escalation reinforcements
-exist but each raises `threat_level` (campaign heat, `on_mission_end`) — grinding *costs* you.
-**Revive-farming** is blocked by the 2/mission cap + enemy-inflicted-only requirement + no way to
-wound your own men.
-
-Auto-level on credit:
-```
-skill_uses[id] += pts
-while skills.get(id,0) < 8 and skill_uses[id] >= THRESHOLD[skills.get(id,0)+1]:
-    skills[id] += 1
-    toast: "%s — %s ▲ %d" % [nick, SKILLS[id].name, skills[id]]   # diegetic feedback, Pillar 2
-```
-
-### 1.3 Fate of the barracks shared `team_xp` — **HYBRID (repurpose, don't delete)**
-
-Skills and XP must never touch the same number (no double-dip). Clean split:
-
-- **SKILLS → earned in the field only** (learn-by-doing above). This *is* Pillar 4 — the squad
-  improves by DOING. `buy_skill` **stops spending `team_xp` on squadmate MOS skills**.
-- **`team_xp` → a requisition / training currency** with its own sinks that never overlap skills:
-  - **Attributes** (RECON-faithful): `buy_attribute` stays — 100 pts → +5 st/ag/al, cap 200. Keep.
-  - **Extra fire-support charge** before a mission (e.g. +1 mortar = 80 pts) — feeds §2.
-  - **Medevac** a bleeding-out veteran at debrief so he isn't KIA (saves attachment; Pillar 5).
-- **Minimal shippable line for TODAY:** keep `buy_skill` working **only for the player's own three
-  `PLAYER_SKILLS`** (his body — small_arms/sniping/silent_movement), make **squadmate** skills
-  learn-by-doing only. `buy_attribute` unchanged. Zero double-dip, least code.
-  *(Better next step: give the player the same learn-by-doing loop — `player_data` already has
-  `skills:{}` — and demote `team_xp` to pure requisition. Not required day one.)*
-
-The team-pool debrief math (RECON_ADAPTATION L134–142) stays as the **`team_xp` faucet**; it no
-longer buys skills, it funds requisition/attributes. Optionally deposit each member's *share* into
-`member.xp` for the **retirement mechanic** (L143: near-cap veterans rotate stateside — permadeath-lite).
-
-### 1.4 Data model + save compatibility
-
-Add to `generate_member` dict **and** `player_data`:
-```
-"xp": 0,                 # lifetime, for retirement/service-record flavor
-"skill_uses": {},        # skill_id -> float use-points  (drives auto level-up)
-```
-`skills:{}` **shape is unchanged** → save-compatible.
-
-**Persistence:** bump `CampaignState.SAVE_VERSION 1 → 2` and add a `_migrate` branch that backfills
-`xp:0, skill_uses:{}` on every roster member + `player_data` (the code's own comments demand a real
-migration branch rather than silent half-load). Loader reads are additive/defaulted
-(`m.get("skill_uses", {})`), so old v1 saves load clean.
-
-### 1.5 Attributes: growth too? — **No. Skills only.**
-
-- Skills grow by doing; **attributes stay purchase-only** (`team_xp`, 100/pt, +5, cap 200).
-- Rationale: st/ag/al are *who the man is*, rolled at birth. Letting them grind erodes the
-  "a 130-St pigman is a tank, a 91-St rookie is fragile" identity (RECON_ADAPTATION L32) and would
-  strip the one meaningful `team_xp` sink. Keep attributes rare, bought, precious.
-- Optional flavor (NOT today): a soldier who survives N missions earns a one-time +Al "combat wisdom."
+5. **Campaign loops actually close.** Threat responds to playstyle (12+ kills +0.05, clean ≤3
+   kills −0.03, `scripts/autoload/campaign_state.gd:106-110`), ANTI-AA pays −0.25 for 3 missions
+   (`:112-115`), high threat spawns opportunistic AA on its own RNG stream so seeds stay stable
+   (`mission_generator.gd:446-461`), complications have mechanical bite not flavor
+   (`mission_generator.gd:268-280`), and the all-or-nothing mission commit kills Alt-F4 scumming
+   (`campaign_state.gd:24-27, 131-141`).
 
 ---
 
-## 2. RADIO FIRE SUPPORT
+## (b) Top 5 Weaknesses (ranked)
 
-### 2.1 Are the current budgets right? — **Mostly yes; leave the shape, tune fo_fac.**
+### 1. The stealth economy is voided by one line: every hit stamps COMBAT contact.
+`enemy_base.gd` `take_damage()` unconditionally calls `_set_tier(AlertTier.COMBAT)` on the victim
+("Getting shot = instant COMBAT tier, whatever we were doing", ~`enemy_base.gd:1481`), and
+`_set_tier` writes the static `EnemyBase.last_combat_contact_ms` **before** the same-tier early
+return (`enemy_base.gd:611-613`). `MissionDirector._check_detection()` treats any contact newer
+than the mission baseline as "YOU'VE BEEN MADE" and starts hunter escalation
+(`mission_director.gd:65-71`). Net effect: a clean, unwitnessed one-shot kill of a lone sentry —
+the exact case the code comment promises "leaves the AO cold" (`mission_director.gd:52-55`) —
+triggers mission-wide escalation on your **first bullet**. Everything priced against stealth
+(ghost bonus, threat cooling, silent_movement, captured-weapon noise trick R57) is undermined.
+Compounding it: AI ears hear gunshots at only 55m (`noise_bus.gd:14`) while players hear them at
+350m (`weapon_data.gd:59`), so *legitimate* acoustic detection of long shots never happens — the
+bug is doing the detection work the noise system should be doing.
 
-Current per-mission budgets (`mission_generator`):
+### 2. Two incompatible damage grammars coexist, and the WRONG one is the player's default.
+Vietnam guns use RECON dice (AK 4d10 avg 22, M16/CAR-15/M60 5d10 avg 27.5 —
+`data/weapons/ak47.tres:10`, `m16a1.tres:10`) per DESIGN 4.3. The HoD holdovers still use
+flat-legacy (Thompson 1d6+45 avg 48.5, MP40 1d6+38, Mosin 1d10+68, **RPD 1d8+42 avg 46.5** —
+`data/weapons/thompson.tres`, `rpd.tres:10`). Consequences:
+- The **default player primary is the Thompson** (`weapon_holder.gd:113`), out-damaging the M16
+  per round by ~76% with near-zero variance. There is no loadout screen; M16/CAR-15 are
+  unreachable except in the combat lab (`scripts/levels/combat_lab.gd:282`).
+- The enemy RPD sapper deals ~46.5/round vs the M60's ~27.5 — the enemy belt-fed hits ~1.7x
+  harder per bullet than ours.
+- Allies declare `sprite_weapon = "m16a1"` but load `thompson.tres` ballistics
+  (`scripts/allies/ally_base.gd:89` vs `:97`) — the exact sprite/ballistics drift
+  `enemy_data.gd`'s own comment warns "nobody notices for six months."
+- Vs the 100 HP player (`scripts/player/health_system.gd:19`), Mosin torso = avg 110 (1-shot
+  down) while AK torso = avg 33 (3-4 shots): lethality asymmetry exists, but by *accident of
+  data lineage*, not design.
 
-| Mission (RECON category) | Budget | Verdict |
-|---|---|---|
-| PATROL / RECON (SECURITY) | `{mortar:1}` (default) | **Correct** — you're not meant to level the jungle |
-| ANTI_AA (stealth RAID) | `{mortar:1}` | **Correct** — a satchel job, air would blow the sneak |
-| RESCUE (TRANSPORT) | `{napalm:1, mortar:1}` | **Correct** — one panic button |
-| VILLAGE_RAID (RAID) | `{bombs:1, napalm:1, mortar:2}` | **Correct** — a real strike package |
-| FIREBASE_DEFENSE (HOLD) | `{bombs:2, napalm:1, arty:2, mortar:3, spooky:1}` | **Correct** — set-piece arsenal |
+### 3. The three-situation asymmetry (DESIGN 4.3) does not exist.
+Zero hits for any initiator/ambush effectiveness system in `scripts/` (grep: `asymmetry`,
+`initiator`, `ambush_penalty`). What exists is fragments: enemy first-shot forced near-miss
+(`enemy_base.gd:~1285`), close-range startle delay (`enemy_base.gd:620-626`), player suppression
+spread bloom (`weapon_holder.gd:300-304`). There is no "undetected initiator gets full
+effectiveness / ambushed side suffers heavy penalty until in cover" — which DESIGN.md:66 names as
+**where HLL lethality comes from**. Also from 4.3, still missing: ~10 hitzones with wound effects
+beyond arm/leg, diegetic ammo, and per-magazine weapon-weighted stoppages (current jam is a flat
+1.5%/shot for all 17 weapons, `weapon_holder.gd:275` — the M16's early-Vietnam reputation and the
+AK's reliability are the same number).
 
-The scaling (SECURITY starved, RAID/HOLD armed) already honors Pillar 3 (escalation, not a win-button)
-and the RECON taxonomy (RECON_ADAPTATION L168). **Do not inflate these.**
+### 4. XP economy: the two acquisition paths are priced against each other, and one skill is dead.
+Buying is flat 100-150/level (`skill_catalog.gd:6-16`) while use-thresholds steepen to 320
+(`skill_catalog.gd:22`). At the top, L7→L8 costs 100 team XP **or** 95 use-points ≈ **32 medic
+revives / 95 ally kills** — buying dominates lategame, so learn-by-doing quietly stops mattering
+exactly when players are attached to their veterans. The curve's own comment ("~2-3 missions to
+L3") doesn't survive the credit rates: L3 = 45 points = 45 ally kills or 15 revives (revives are
+capped at 2/mission, `squad_system.gd:16`) — realistically 5-8+ missions. And **demolitions has
+no `credit_use` call anywhere** (only readers: `mission_generator.gd:362`,
+`objectives/plant_charge.gd:28`) — the GRENADIER can never learn his own MOS skill by doing; the
+player plants the charge and no one gets credit. Team XP inflow (~200-400/mission via
+`scripts/ui/screens/debrief.gd:21-31`, awarded `scripts/main/game_flow.gd:207`) buys 2-3 levels a
+mission across a 6-man roster with 7 skills + 3 attributes each — the sink is fine, the faucet is
+fine, the *relative pricing* is not.
 
-### 2.2 fo_fac (RTO's learned skill) should do more than cut cooldown
-
-Today: `_cas_cooldown = maxf(10.0, 25.0 - 2.0·fo)` (fo0→25s, fo8→10s). Keep that, **add**:
-
-1. **Scatter → accuracy (the headline RTO payoff).** Multiply every impact-offset range by
-   `scatter_mult = lerpf(1.0, 0.45, fo/8.0)`:
-   - Arty `±18 → ±8` at fo8; mortar cluster `±8 → ±3.6`, spot `±15 → ±6.75`.
-   - A veteran RTO calls **tight** fire — this is what "the radioman got good" *feels* like, and it's
-     the enabler for danger-close (§2.4).
-2. **One extra charge at fo ≥ 5** — `+1 mortar` at mission start only (the RTO "knows the battery").
-   One type, small — not a budget explosion.
-3. **(Optional) shorter turnaround** — spot-round delay `3.0s → 2.0s` at high fo. Minor polish.
-
-Because fo_fac is now learn-by-doing (**+2 per effective fire mission**, §1.2) and budgets are ~1–3
-calls/mission, an RTO climbs fo over a campaign — the *same radioman* visibly sharpens. Pillar 4.
-
-### 2.3 Expose CBU — **its own budget key + menu line, reuse `_launch_flyby`**
-
-CBU is already built (`cas_airplane.gd`: 16 bomblets, 22 m spread, 55 dmg/15 falloff/5 m each, no
-fire, one crater) but bound to no menu. It is the **"troops in the open" anti-personnel** answer,
-distinct from SNAKE-EYE bombs (hard target) and napalm (area denial + fire).
-
-Recommendation — cleanest buildable-today:
-- Add key `"cbu"` to the `fire_support` dict; generator grants it on RAID/defense only:
-  VILLAGE_RAID `+cbu:1`, FIREBASE_DEFENSE `+cbu:1`. Nothing to SECURITY missions.
-- Expose it as a **6th line in the T-menu**, dispatched via existing
-  `_launch_flyby(target, CASAirplane.Ordnance.CBU)` (the F-4 flyby path already handles CBU).
-  Bind to `slot_6` if it exists; otherwise a menu-cycle on the bombs family (Snake-Eye ↔ CBU).
-  Toast: `"FAST MOVER — CLUSTER RUN — GET DOWN (%d left)"`.
-
-### 2.4 Danger-close rules (keeps CBU/arty from being a win-button — Pillar 3)
-
-- Define per-ordnance danger radius: **CBU 40 m, arty 30 m, bombs 25 m, napalm 35 m, mortar 20 m**.
-- If `_cas_ground_target()` is **within** that radius of the player, the first press arms a
-  **"DANGER CLOSE — CONFIRM [T]"** prompt; the strike only launches on a **second** press.
-- Friendly fire is **LIVE**: bomblets/HE call `apply_explosion_damage(..., null)` (no attacker
-  filter) → they hurt the player and squad. This is the self-limiter — you *can* wipe a position on
-  top of yourself, and it'll cost you.
-- **No laze / no reach-around:** `_cas_ground_target()` raycasts from the camera, so you can only
-  strike ground you can **see**. You cannot erase an objective from behind a hill. Keeps it tactical.
-- CBU has **no fire and one crater** → it clears infantry but does **not** destroy hard objectives;
-  you still plant charges. A support tool, never an "I win." Fits Pillar 3.
-
-### 2.5 Escalation fit (already wired, note the loop)
-
-Every strike emits `NoiseBus.EXPLOSION` → draws enemies (escalation). `on_mission_end` bumps
-`threat_level +0.05` when `kills ≥ 12` → louder AO = harder next mission. The **campaign economy
-already taxes over-reliance** on fire support; no per-call nerf needed. Recommend the "loud" nudge
-also counts fire-support kills so a bomb-heavy op raises heat like a firefight does.
+### 5. Dead numbers and unpriced consequences (the tuning debt list).
+- **Civilian kills cost nothing**: `civ_casualties` is flagged and the toast says "THAT FOLLOWS
+  YOU HOME" (`scripts/world/civilian.gd:124-125`) but `compute_score()` never reads it and
+  neither does the threat model (`debrief.gd:21-31`, `campaign_state.gd:92-126`). Napalm on the
+  ville is score-optimal.
+- **Score mildly pays loud over quiet**: kills ×10 uncapped vs ghost bonus +75 flat
+  (`debrief.gd:16-31`); 10 kills already out-earns the ghost route, threat −0.03 is the only
+  counterweight.
+- **`m26_grenade.tres` dice (10d10) are dead data** — grenades resolve through hardcoded
+  `apply_explosion_damage` tuples; explosion power lives as 12 scattered literals
+  (arty 200/60/14 `mission_director.gd:319`, mortar 140/40/10 `:407`, bomb 220/60/16
+  `cas_airplane.gd:140`, CBU 55/15/5 `:174`, grenade `grenade.gd:72`...) with no shared table.
+- **Danger-close checks squadmates only, never the player** (`mission_director.gd:303-311`) —
+  you can confirm-free drop arty on your own head.
+- **Rifle falloff is mostly unreachable**: AK/M16 `effective_range` 250-300m vs the 45m jungle
+  sight cap (`enemy_base.gd:80`) — `min_damage_mult` almost never engages in actual play.
+- **No healing calendar**: squadmates are binary alive/dead (`squad_roster.gd:94-96`); wounds
+  don't persist between missions and replacements are free and instant — losing a rookie costs
+  literally nothing.
 
 ---
 
-## Buildable-today checklist (systems)
-1. `generate_member`: add starting-skill roll (§1.1) + `xp:0, skill_uses:{}` fields.
-2. New `SquadRoster.credit_use(member, skill, pts)` helper: accumulate + auto-level + toast.
-3. Wire credit calls at the existing hooks (kill attribution, `_point_scan`, revive, fire dispatch, avoided-contact).
-4. `buy_skill`: restrict `team_xp` spend to player's `PLAYER_SKILLS` only.
-5. `CampaignState`: SAVE_VERSION 1→2 + `_migrate` backfill.
-6. `mission_director`: fo_fac scatter mult, +charge at fo5, danger-close confirm, CBU line.
-7. `mission_generator`: add `cbu:1` to village/firebase budgets.
+## (c) The ONE next build/fix
+
+**Fix the detection stamp (Weakness #1): make a kill that leaves no living, aware witness stay
+silent.** Concretely — in `take_damage()`, only stamp `last_combat_contact_ms` if the victim
+*survives* the hit, and separately let living enemies stamp it when they perceive the death
+(they already have the machinery: noise investigation `enemy_base.gd:631-644`, squad intel
+sharing `enemy_base.gd:507-522`); raise `NoiseBus` GUNSHOT toward its audible truth (55m → ~150m+,
+weapon-scaled, suppressed stays 3m) so *sound* becomes the real stealth price instead of the bug.
+
+Why this one: it is the cheapest fix on this list and it re-activates the largest amount of
+already-shipped design — the ghost bonus, threat cooling, silent_movement, captured-weapon audio
+deception, the finite hunter pool, and the entire "escalation not fail-states" pillar all assume
+a stealth economy that currently cannot exist past the first trigger pull. (Runner-up, and the
+biggest *build*: unify all 17 weapons onto RECON dice + add the loadout/armory screen — that is
+the Pillar 1 debt, but it's a week, not an afternoon.)
+
+---
+
+## (d) Pillar Scorecard (systems lens, 1-5)
+
+| # | Pillar | Score | One-liner |
+|---|--------|-------|-----------|
+| 1 | Outstanding gunplay | **3** | World-class feel plumbing (RPM accumulator, recoil model, travel time) carrying a split damage grammar, a WW2 default loadout, and no DESIGN-4.3 asymmetry. |
+| 2 | Atmosphere | **4** | Systems sell it — chickens as noise traps, weather-scaled ears, campfire beacons, crater water — atmosphere is *mechanized*, not just painted. |
+| 3 | Freedom / escalation not fail-states | **3** | The architecture (finite hunters, abort-anytime exfil, one-way alert memory) is exactly right, but the COMBAT-stamp bug forces escalation on first blood — stealth is currently a fiction. |
+| 4 | The squad is the RPG | **4** | Learn-by-doing on the man, role-gated credits, skills-die-with-him — genuinely the game's best economy; docked for curve/credit-rate mismatch and the dead demolitions path. |
+| 5 | Fail forward | **4** | Bleed-out/revive chain, emergency exfil at −50, all-or-nothing commit, opt-in Iron Man — failure is priced, not fatal; free instant replacements slightly cheapen the fall. |
