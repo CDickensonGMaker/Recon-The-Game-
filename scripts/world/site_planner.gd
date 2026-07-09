@@ -163,6 +163,13 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	nodes.append(cache)
 	var tunnel_pos := center + Vector3(cos(cache_a + PI), 0, sin(cache_a + PI)) * (SiteLayouts.VILLAGE_RING_RADIUS_MAX + 6.0)
 	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, tunnel_pos, 0.0))
+	# VC punji traps on the approaches (booby trap for US troops - Point man / careful
+	# movement is the counterplay). Just outside the hut ring, avoiding water.
+	for _t in range(rng.randi_range(1, 2)):
+		var ta := rng.randf() * TAU
+		var tp := center + Vector3(cos(ta), 0, sin(ta)) * rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MAX + 3.0, SiteLayouts.VILLAGE_RING_RADIUS_MAX + 12.0)
+		if not _grid.is_water(tp):
+			nodes.append(PunjiTrap.place(_parent, _terrain, tp, ta))
 	var site := {"kind": "village", "center": center, "nodes": nodes, "cache": cache, "cache_pos": cache_pos, "radius": SiteLayouts.VILLAGE_RING_RADIUS_MAX + 8.0}
 	placed_sites.append(site)
 	return site
