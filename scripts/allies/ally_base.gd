@@ -516,7 +516,8 @@ func _fire_at_target() -> void:
 			var np: Node = n.get_parent()
 			is_flesh = n.is_in_group("enemies") or (np != null and np.is_in_group("enemies"))
 		if is_flesh:
-			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+			var victim: Node = (hit_col as Hitzone).owner_entity if hit_col is Hitzone else hit_col as Node
+			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_aim, victim)
 		else:
 			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
 			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
@@ -580,6 +581,7 @@ func apply_suppression(amount: float) -> void:
 
 
 func _die() -> void:
+	GunFX.blood_pool(get_tree().current_scene, global_position)  # a man bleeding out is a place
 	_change_state(Enums.AIState.DEAD)
 	CombatManager.unregister_ally(self)
 	died.emit(self)

@@ -250,28 +250,95 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = fal
 ## Flesh hit: red-brown spray + wet tick. MoHAA's single biggest "shooting a body
 ## feels different from shooting a wall" cue. weapon_holder used to spawn NOTHING
 ## on flesh (only the non-flesh dirt puff).
-static func blood(parent: Node, pos: Vector3, normal: Vector3) -> void:
+## Blood v2 (Phase 1, our generated textures): HLL-style layered hit -
+## flipbook MIST puff + fine droplets + a splat decal on the surface BEHIND the
+## target + persistent wound blood ON the victim (readability: see who is hurt).
+const MAX_BLOOD_DECALS: int = 24
+const MAX_BLOOD_POOLS: int = 12
+static var _blood_decals: Array[Decal] = []
+static var _blood_pools: Array[Decal] = []
+static var _blood_tex: Dictionary = {}
+
+
+static func _btex(tex_name: String) -> Texture2D:
+	if not _blood_tex.has(tex_name):
+		_blood_tex[tex_name] = load("res://assets/textures/fx/blood/%s.png" % tex_name)
+	return _blood_tex[tex_name]
+
+
+static func blood(parent: Node, pos: Vector3, normal: Vector3, shot_dir: Vector3 = Vector3.ZERO, victim: Node = null) -> void:
 	if _active_impacts < MAX_IMPACTS:
 		_active_impacts += 1
-		var ps := CPUParticles3D.new()
-		ps.emitting = false
-		ps.one_shot = true
-		ps.amount = 14
-		ps.lifetime = 0.5
-		ps.direction = normal
-		ps.spread = 45.0
-		ps.initial_velocity_min = 2.0
-		ps.initial_velocity_max = 5.0
-		ps.gravity = Vector3(0, -9.8, 0)
-		ps.scale_amount_min = 0.03
-		ps.scale_amount_max = 0.09
-		ps.color = Color(0.55, 0.05, 0.04)
-		parent.add_child(ps)
-		ps.global_position = pos + normal * 0.05
-		ps.emitting = true
-		ps.get_tree().create_timer(0.7).timeout.connect(func() -> void:
+		var root := Node3D.new()
+		parent.add_child(root)
+		root.global_position = pos + normal * 0.05
+
+		# 1. the mist: 8-frame flipbook puff that blooms and dissipates (~0.45s)
+		var mist := CPUParticles3D.new()
+		mist.one_shot = true
+		mist.amount = 3
+		mist.lifetime = 0.45
+		mist.direction = shot_dir if shot_dir.length() > 0.1 else normal
+		mist.spread = 25.0
+		mist.initial_velocity_min = 0.4
+		mist.initial_velocity_max = 1.4
+		mist.gravity = Vector3(0, -0.5, 0)
+		mist.scale_amount_min = 0.5
+		mist.scale_amount_max = 0.9
+		mist.anim_speed_min = 1.0
+		mist.anim_speed_max = 1.0
+		var mq := QuadMesh.new()
+		mq.size = Vector2(1, 1)
+		var mm := StandardMaterial3D.new()
+		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mm.particles_anim_h_frames = 4
+		mm.particles_anim_v_frames = 2
+		mm.particles_anim_loop = false
+		mm.albedo_texture = _btex("blood_mist_sheet")
+		mm.vertex_color_use_as_albedo = true
+		mq.material = mm
+		mist.mesh = mq
+		root.add_child(mist)
+		mist.emitting = true
+
+		# 2. fine droplets streaking out with gravity
+		var drops := CPUParticles3D.new()
+		drops.one_shot = true
+		drops.amount = 10
+		drops.lifetime = 0.5
+		drops.direction = shot_dir if shot_dir.length() > 0.1 else normal
+		drops.spread = 40.0
+		drops.initial_velocity_min = 2.5
+		drops.initial_velocity_max = 5.5
+		drops.gravity = Vector3(0, -11.0, 0)
+		drops.scale_amount_min = 0.06
+		drops.scale_amount_max = 0.14
+		var dq := QuadMesh.new()
+		dq.size = Vector2(1, 1)
+		var dm := StandardMaterial3D.new()
+		dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		dm.albedo_texture = _btex("blood_droplet")
+		dq.material = dm
+		drops.mesh = dq
+		root.add_child(drops)
+		drops.emitting = true
+
+		root.get_tree().create_timer(0.8).timeout.connect(func() -> void:
 			_active_impacts -= 1
-			ps.queue_free())
+			root.queue_free())
+
+	# 3. exit splat on whatever is behind the target (wall/floor/tree)
+	if shot_dir.length() > 0.1:
+		_blood_splat_behind(parent, pos, shot_dir.normalized())
+
+	# 4. persistent wound blood on the victim - see who is hurt at a glance
+	if victim != null and is_instance_valid(victim):
+		blood_wound(victim, pos)
+
 	var a := AudioStreamPlayer3D.new()
 	a.stream = IMPACT_DIRT   # placeholder wet tick until a flesh sample exists
 	a.volume_db = -6.0
@@ -281,6 +348,97 @@ static func blood(parent: Node, pos: Vector3, normal: Vector3) -> void:
 	a.global_position = pos
 	a.play()
 	a.finished.connect(a.queue_free)
+
+
+## Raycast past the victim and paint the surface behind with one of our splats.
+static func _blood_splat_behind(parent: Node, pos: Vector3, dir: Vector3) -> void:
+	var vp := parent.get_viewport()
+	if vp == null:
+		return
+	var w3d := vp.find_world_3d()
+	if w3d == null:
+		return
+	var query := PhysicsRayQueryParameters3D.create(pos + dir * 0.15, pos + dir * 3.2, 1)
+	var hit: Dictionary = w3d.direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return
+	var d := Decal.new()
+	var s: float = randf_range(0.45, 0.85)
+	d.size = Vector3(s, 0.25, s)
+	d.texture_albedo = _btex("blood_splat_%d" % (randi() % 3 + 1))
+	d.albedo_mix = 1.0
+	parent.add_child(d)
+	var n: Vector3 = hit.normal
+	d.global_position = hit.position + n * 0.02
+	if absf(n.dot(Vector3.UP)) < 0.99:
+		d.look_at(hit.position - n, Vector3.UP)
+		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	d.rotate_object_local(Vector3.UP, randf_range(0, TAU))
+	_blood_decals.append(d)
+	while _blood_decals.size() > MAX_BLOOD_DECALS:
+		var old: Decal = _blood_decals.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+
+
+## Persistent blood ON a unit while it lives (max 3 marks). 3D-model units get a
+## stuck-on decal at the hit spot; sprite units blend toward a bloodied modulate.
+static func blood_wound(unit: Node, world_pos: Vector3) -> void:
+	if not (unit is Node3D):
+		return
+	var wounds: int = int(unit.get_meta("blood_wounds", 0))
+	if wounds >= 3:
+		return
+	unit.set_meta("blood_wounds", wounds + 1)
+	var is_model: bool = bool(unit.get("_visual_is_model"))
+	if is_model:
+		var d := Decal.new()
+		d.size = Vector3(0.34, 0.5, 0.34)
+		d.texture_albedo = _btex("blood_splat_%d" % (randi() % 3 + 1))
+		d.albedo_mix = 1.0
+		unit.add_child(d)
+		var local := (unit as Node3D).to_local(world_pos)
+		local.y = clampf(local.y, 0.4, 1.6)
+		d.position = local
+		# project inward toward the body core so the splat wraps the mesh
+		var inward := Vector3(-local.x, 0, -local.z)
+		if inward.length() < 0.05:
+			inward = Vector3.FORWARD
+		d.look_at(unit.global_position + Vector3(0, local.y, 0), Vector3.UP)
+		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	else:
+		var actor: Variant = unit.get("sprite_actor")
+		if actor is Object and (actor as Object).has_method("set_base_modulate"):
+			var t: float = float(wounds + 1) / 3.0
+			(actor as Object).call("set_base_modulate", Color(1.0, 1.0 - 0.35 * t, 1.0 - 0.35 * t))
+
+
+## Spreading pool under a kill: our 4-stage sheet, swapped as it grows (~3s).
+static func blood_pool(parent: Node, ground_pos: Vector3) -> void:
+	var d := Decal.new()
+	d.size = Vector3(0.6, 0.3, 0.6)
+	d.albedo_mix = 1.0
+	var sheet := _btex("blood_pool_sheet")
+	var stage := func(i: int) -> AtlasTexture:
+		var at := AtlasTexture.new()
+		at.atlas = sheet
+		at.region = Rect2(i * 256, 0, 256, 256)
+		return at
+	d.texture_albedo = stage.call(0)
+	parent.add_child(d)
+	d.global_position = ground_pos + Vector3(0, 0.05, 0)
+	d.rotate_y(randf_range(0, TAU))
+	for i in range(1, 4):
+		parent.get_tree().create_timer(0.9 * float(i)).timeout.connect(func() -> void:
+			if is_instance_valid(d):
+				d.texture_albedo = stage.call(i)
+				var s: float = 0.6 + 0.35 * float(i)
+				d.size = Vector3(s, 0.3, s))
+	_blood_pools.append(d)
+	while _blood_pools.size() > MAX_BLOOD_POOLS:
+		var old: Decal = _blood_pools.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
 
 
 ## Persistent bullet-hole decal, oriented to the surface. FIFO-recycled and
@@ -306,6 +464,14 @@ static func bullet_hole(parent: Node, pos: Vector3, normal: Vector3) -> void:
 
 
 static func clear_decals() -> void:
+	for bd in _blood_decals:
+		if is_instance_valid(bd):
+			bd.queue_free()
+	_blood_decals.clear()
+	for bp in _blood_pools:
+		if is_instance_valid(bp):
+			bp.queue_free()
+	_blood_pools.clear()
 	for d in _decals:
 		if is_instance_valid(d):
 			d.queue_free()

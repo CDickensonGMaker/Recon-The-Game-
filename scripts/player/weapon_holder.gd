@@ -351,7 +351,8 @@ func _fire_shot() -> void:
 	if result:
 		var flesh: bool = (result.collider is Hitzone) or (result.collider is Node and (result.collider as Node).is_in_group("enemies"))
 		if flesh:
-			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+			var victim: Node = (result.collider as Hitzone).owner_entity if result.collider is Hitzone else result.collider as Node
+			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_dir, victim)
 		else:
 			var hard: bool = _surface_is_hard(result.collider)
 			GunFX.impact(get_tree().current_scene, result.position, result.normal, hard)

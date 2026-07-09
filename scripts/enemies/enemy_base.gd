@@ -1360,7 +1360,8 @@ func _fire_at_target() -> void:
 			is_flesh = n.is_in_group("player") or n.is_in_group("allies") \
 				or (np != null and (np.is_in_group("player") or np.is_in_group("allies")))
 		if is_flesh:
-			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+			var victim: Node = (hit_col as Hitzone).owner_entity if hit_col is Hitzone else hit_col as Node
+			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_aim, victim)
 		else:
 			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
 			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
@@ -1598,6 +1599,7 @@ func apply_stagger(power: float) -> void:
 
 
 func _die() -> void:
+	GunFX.blood_pool(get_tree().current_scene, global_position)  # kill pool spreads under him
 	_change_state(Enums.AIState.DEAD)
 	_release_cover()
 	CombatManager.unregister_enemy(self)
