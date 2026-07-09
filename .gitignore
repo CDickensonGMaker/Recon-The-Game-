@@ -18,3 +18,8 @@ screenshots/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Piper TTS binary + voice models (700MB, downloadable - never commit)
+tools/tts/
+# generated voice-over wavs (regenerated from voice_studio.py)
+assets/audio/vo/

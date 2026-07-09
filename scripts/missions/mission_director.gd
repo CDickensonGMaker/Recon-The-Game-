@@ -138,7 +138,8 @@ func _on_player_died() -> void:
 
 ## ABORT: hold the radio key 2s anywhere -> emergency exfil (fail-forward).
 ## CAS: press T while aiming at ground -> Skyraider run (budget-limited).
-const SKYRAIDER_SCENE := preload("res://scenes/vehicles/skyraider.tscn")
+const SKYRAIDER_SCENE := preload("res://scenes/vehicles/skyraider.tscn")  # A-1, dive-bomb
+const F4_SCENE := preload("res://scenes/vehicles/f4_phantom.tscn")  # F-4, fast horizontal flyby
 
 var exfil_zone: ExfilZone
 var cas_budget: int = 0
@@ -288,9 +289,9 @@ func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 
 
 ## F-4 fast horizontal flyby (napalm/CBU) - screams in low, pickles on the pass,
-## climbs out into the clouds. Same plane scene as a stand-in until an F-4 model exists.
+## climbs out into the clouds. Real F-4 Phantom model (copied from RealVietnamRTS).
 func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
-	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
+	var plane: CASAirplane = F4_SCENE.instantiate()
 	world.add_child(plane)
 	var run_dir := Vector3.ZERO
 	if world.player:

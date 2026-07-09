@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3 uid="uid://cf4phantom0001"]
+
+[ext_resource type="Script" path="res://scripts/vehicles/cas_airplane.gd" id="1_cas"]
+[ext_resource type="PackedScene" path="res://assets/building models/aircraft/f4_phantom.glb" id="2_glb"]
+
+[node name="F4Phantom" type="Node3D"]
+script = ExtResource("1_cas")
+
+[node name="Model" parent="." instance=ExtResource("2_glb")]
