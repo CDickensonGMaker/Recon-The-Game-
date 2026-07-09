@@ -83,9 +83,7 @@ func _explode() -> void:
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.9)
 
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
-	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
-
-	# TODO: Spawn explosion effect
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position)  # now spawns flash+fireball+smoke
 
 	exploded.emit(global_position)
 

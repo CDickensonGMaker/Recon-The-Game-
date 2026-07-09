@@ -22,6 +22,7 @@ static func reset_session() -> void:
 	_sting_cooldown_until = 0
 	_active_flashes = 0
 	_active_impacts = 0
+	_active_explosions = 0
 	if _sting_player != null and is_instance_valid(_sting_player):
 		_sting_player.stop()
 		_sting_player.queue_free()
@@ -53,8 +54,10 @@ static func play_combat_sting(parent: Node) -> void:
 
 static var _active_flashes: int = 0
 static var _active_impacts: int = 0
+static var _active_explosions: int = 0
 const MAX_FLASHES: int = 8
 const MAX_IMPACTS: int = 12
+const MAX_EXPLOSIONS: int = 6   ## concurrent explosion visuals
 const MAX_DECALS: int = 48   ## bullet holes, FIFO-recycled
 
 
@@ -95,8 +98,84 @@ static func play_click(parent: Node) -> void:
 	p.finished.connect(p.queue_free)
 
 
-static func play_explosion_3d(_parent: Node, pos: Vector3, kind: String = "explosion_grenade") -> void:
+static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explosion_grenade") -> void:
 	AudioManager.play_explosion_3d(pos, kind)
+	_spawn_explosion_visual(parent, pos)
+
+
+## Procedural explosion visual (was a TODO - explosions had audio + a crater but no
+## FIRE): a bright flash light, an expanding emissive fireball, a rising smoke puff,
+## and a dirt/debris kick. No art needed. Every explosion caller gets it through here.
+static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
+	if parent == null or _active_explosions >= MAX_EXPLOSIONS:
+		return
+	_active_explosions += 1
+	var root := Node3D.new()
+	parent.add_child(root)
+	root.global_position = pos
+
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.25)
+	light.light_energy = 8.0
+	light.omni_range = 16.0
+	root.add_child(light)
+
+	var quad := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.2, 1.2)
+	quad.mesh = qm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 0.75, 0.35, 1.0)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.55, 0.15)
+	mat.emission_energy_multiplier = 6.0
+	quad.material_override = mat
+	quad.position.y = 0.6
+	root.add_child(quad)
+
+	var smoke := CPUParticles3D.new()
+	smoke.one_shot = true
+	smoke.amount = 16
+	smoke.lifetime = 1.2
+	smoke.direction = Vector3.UP
+	smoke.spread = 40.0
+	smoke.initial_velocity_min = 1.5
+	smoke.initial_velocity_max = 4.0
+	smoke.gravity = Vector3(0, 1.0, 0)
+	smoke.scale_amount_min = 0.4
+	smoke.scale_amount_max = 0.9
+	smoke.color = Color(0.14, 0.13, 0.11, 0.85)
+	smoke.position.y = 0.5
+	root.add_child(smoke)
+	smoke.emitting = true
+
+	var debris := CPUParticles3D.new()
+	debris.one_shot = true
+	debris.amount = 20
+	debris.lifetime = 0.8
+	debris.direction = Vector3.UP
+	debris.spread = 60.0
+	debris.initial_velocity_min = 4.0
+	debris.initial_velocity_max = 9.0
+	debris.gravity = Vector3(0, -12, 0)
+	debris.scale_amount_min = 0.05
+	debris.scale_amount_max = 0.14
+	debris.color = Color(0.4, 0.34, 0.25)
+	root.add_child(debris)
+	debris.emitting = true
+
+	# Fireball expands fast then fades; the flash light decays quicker.
+	var tw := root.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.35).from(Vector3(0.6, 0.6, 0.6))
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
+	tw.tween_property(light, "light_energy", 0.0, 0.25)
+	root.get_tree().create_timer(1.4).timeout.connect(func() -> void:
+		_active_explosions -= 1
+		root.queue_free())
 
 
 ## Muzzle flash: warm omni light + emissive billboard quad, 45ms.
