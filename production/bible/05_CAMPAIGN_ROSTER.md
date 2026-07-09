@@ -5,20 +5,29 @@
 
 ---
 
-## Operation Style — the campaign front door (NEW)
+## The core experience — US Army grunt (base game)
 
-The **first choice of a campaign**, before any mission. Picks the identity you play the whole campaign as.
-It is not cosmetic — it reshapes offers, kit, roster, and models.
+**Decision 2026-07-08:** the base game IS the **Regular Army grunt** experience — one faction, no
+operation-style front-door at launch. You play a draftee/volunteer line grunt: standard 4-man fireteam,
+M16 / M60 / M79 kit, search-and-destroy / firebase-defense / convoy-escort / ville-sweep offers.
 
-| Style | Feel | Squad size / MOS lean | Kit | Mission-offer weighting | Models needed |
-|-------|------|----------------------|-----|-------------------------|---------------|
-| **Special Forces (MACV-SOG)** | small, deniable, deep | 2–4, heavy on Point/RTO/Demo | CAR-15, suppressed, sterile | recon, snatch, cross-border, sabotage | SF: boonie/beret, tiger-stripe, light rig |
-| **Regular Army** | line infantry, supported | 4, standard fireteam | M16, M60, M79 | search-and-destroy, firebase defense, convoy escort | Army: M1 helmet, OG-107, ALICE-ish |
-| **Marines** | aggressive, up north (I Corps) | 4, assault lean | M16, heavier organic firepower | clear-and-hold, hill fights, ville sweeps | USMC: own helmet cover, cammo |
+**Tonal north star (grunt-infantry canon):** **Platoon · Hamburger Hill · Apocalypse Now** — attrition,
+dread, moral weight, the boredom-then-terror rhythm, the squad as your only anchor. Worn, muddy,
+unglamorous. NOT the SF/recon glamour fantasy. Reinforces Pillars 2 (atmosphere), 4 (attachment), 5 (fail forward).
 
-**Decision status:** ⚠️ this changes the loop structure and commits us to ≥3 faction model sets.
-**Run a War Room before building it** (Arbiter + game-designer + systems-designer + devils_advocate).
-Named per `ROADMAP.md` as the gate before M8-campaign work.
+### Operation Styles → POST-LAUNCH DLC (deferred)
+Special Forces (MACV-SOG) and Marines were considered as a campaign front-door; **deferred to DLC.**
+They remain in the design as future forks, not launch scope — this keeps launch to **ONE model set** and
+removes the loop-structure risk.
+
+| Style | Ships | Feel | Kit | Models |
+|-------|-------|------|-----|--------|
+| **Regular Army (grunt)** | **BASE** | line infantry, attrition | M16 / M60 / M79 | Army grunt — the one base set |
+| Special Forces (SOG) | DLC | small, deniable, deep | CAR-15, suppressed, sterile | SF kit (later) |
+| Marines | DLC | aggressive, I Corps hill fights | heavier organic | USMC kit (later) |
+
+**No War Room gate for launch** (single-faction grunt = no loop-structure change). A War Room convenes only
+if/when the DLC styles are greenlit — those DO fork the loop.
 
 ---
 

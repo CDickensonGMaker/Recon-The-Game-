@@ -47,6 +47,10 @@ The five, from `DESIGN.md §1`. **Test every decision against these; the Arbiter
 
 **Fairness law (DESIGN §4.2):** alert ≠ accuracy; AI accuracy ramps with player exposure; first shot at an unaware player is a near-miss; muzzle flash / tracers / vocalizations always telegraph.
 
+**Tonal north star:** the **grunt-infantry film canon — Platoon · Hamburger Hill · Apocalypse Now** (plus
+Men of Valor / SOCOM flavor from DESIGN §1). Attrition, dread, moral weight, boredom-then-terror, the squad
+as your only anchor. Worn and unglamorous — you are a line grunt, not a clean-kit operator. (SF/Marines = DLC.)
+
 **Process law:** finished work closes its bead with a one-line resolution; the Bible is amended by explicit decision, never by drift.
 
 ---

@@ -28,11 +28,12 @@ falloff (player/enemy/ally). KEYSTONE beads open: detection alarm+ambience (`r6q
 4. **Playtest bug sweep** — `e6qc` combat-lab bugs, softlocks; keep beads lean (close on fix).
 5. **hi9c firebase variety** — make `stamp_firebase()` actually use its `rng` (P2, cosmetic).
 
-## ⚠️ GATE — War Room before the campaign build
+## Scope lock — base game is the US Army grunt (2026-07-08)
 
-**Operation Style front door (SF / Regular Army / Marines)** changes the loop structure AND commits us to
-≥3 faction model sets. Do NOT build it until a War Room signs off (Arbiter + game-designer + systems-designer
-+ devils_advocate). Decide: is style a full front-door fork, or a lighter modifier on one loop? This gates M8.
+Launch = **one faction, the Army grunt** (Platoon / Hamburger Hill / Apocalypse Now tone). No operation-style
+front-door, **no War Room gate** — single-faction keeps the loop simple and launch to ONE model set.
+**Special Forces + Marines are deferred to post-launch DLC** (a War Room convenes only if/when they're
+greenlit, since they DO fork the loop). Bible 05.
 
 ## CODE track — M6/M7/M8 systems (post-gate)
 
@@ -41,8 +42,8 @@ falloff (player/enemy/ally). KEYSTONE beads open: detection alarm+ambience (`r6q
    Ties to BATTLE DIRECTOR epic (`ccqv`).
 7. **M7 live insertion + vehicles** — Huey ride/door-gun/AA/hot-LZ; **driveable vehicles** + **manned turret
    emplacements** (vehicles bead; ties RIDE OR WALK epic `8oki`). **Barbwire hazard** = damage-on-contact obstacle.
-8. **M8 campaign layer** — province map, war state, HQ tent hub UI, roster management, mission offers by region,
-   Operation Style selection wired to loadout/offers. Epic `4i60` + RPG-loop epic `m177` + CAPTURE epic `iyuh`.
+8. **M8 campaign layer** — province map, war state, HQ tent hub UI, roster management, mission offers by region
+   (single-faction grunt; no style select at launch). Epic `4i60` + RPG-loop epic `m177` + CAPTURE epic `iyuh`.
 
 ---
 
@@ -52,7 +53,8 @@ falloff (player/enemy/ally). KEYSTONE beads open: detection alarm+ambience (`r6q
 - **A. Fix the "chonky" base mesh** — slimmer proportions + better low-poly topology. Do this FIRST; the whole
   roster reuses the base. (bead, `4i60` child)
 - **B. Modular soldier kit** — helmet / torso / arm / face swap slots keyed to roster `portrait_keys`.
-- **C. Faction model sets** — SF, Regular Army, Marines (helmet/torso swaps on the slim base). Gated by the War Room.
+- **C. Army grunt set only (launch)** — perfect the one grunt silhouette on the slim base; all bio variety
+  from helmet/torso/arm/face swaps. SF + Marines sets are **DLC**, built later on the same base.
 - **D. Civilians + event actors** — roaming villagers, suicide-bomber-as-civilian for scripted events.
 - **E. FP viewmodels remaining** (epic `36pk`) — rifles done (M14/Mosin/AK/M16). Left: M60/RPD (LMG hold),
   PPSh (SMG), RPG-2 (over-shoulder), shotgun+sniper (reuse semi-auto pose). Then Godot procedural feel controller.

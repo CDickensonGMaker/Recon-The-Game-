@@ -36,13 +36,16 @@ Swappable slots keyed by the roster's `portrait_keys` (Bible 05):
 - **Arms** — a few (sleeved / rolled / bare), skin tone matched to face.
 - **Face** — the existing face-texture set; skin-matched body.
 
-## Faction model types (operation styles)
+## Faction model types — Army grunt at launch, SF/Marines = DLC
 
-Each Operation Style (Bible 05) needs its own soldier look, built from the US grunt base:
-- **Special Forces** — boonie/beret, tiger-stripe, light rig, sterile.
-- **Regular Army** — M1 helmet, OG-107, standard load.
-- **Marines** — USMC helmet cover + cammo, heavier organic kit.
-Build as helmet/torso swaps on the shared slimmer base where possible; bespoke only where silhouette demands.
+**Launch = ONE set: the US Army grunt** (M1 helmet, OG-107, standard load) on the slimmer base. All roster
+variety for the 100 bios comes from the modular kit above (helmet/torso/arm/face swaps) **within** the grunt
+set — plenty of variety, one silhouette to perfect.
+- **Special Forces** (boonie/beret, tiger-stripe, light rig) and **Marines** (USMC cover, cammo) are
+  **deferred to DLC** — helmet/torso swaps on the same slim base when built. Not launch scope.
+
+**Tone reference for the grunt look:** Platoon / Hamburger Hill / Apocalypse Now — worn, muddy, sweat-soaked,
+unglamorous. Not clean-kit operators.
 
 ## Civilians & event actors (NEW, for scripted events)
 
