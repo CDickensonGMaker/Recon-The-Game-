@@ -110,6 +110,7 @@ func _on_fire_menu_changed(open: bool) -> void:
 		["3", "ARTILLERY BARRAGE", "arty"],
 		["4", "MORTAR FIRE MISSION", "mortar"],
 		["5", "SPOOKY GUNSHIP", "spooky"],
+		["6", "CAS - CLUSTER (CBU)", "cbu"],
 	]
 	for row in rows:
 		var count: int = int(fs.get(row[2], 0))

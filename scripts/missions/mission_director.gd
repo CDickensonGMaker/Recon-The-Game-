@@ -179,6 +179,8 @@ func _process(delta: float) -> void:
 			pass
 		elif Input.is_action_just_pressed("throw_smoke"):
 			request_fire_support("spooky")  # 5 = Spooky while menu is open
+		elif Input.is_action_just_pressed("cbu_strike"):
+			request_fire_support("cbu")  # 6 = CBU cluster run
 	if Input.is_action_just_pressed("mortar_strike") and GameManager.can_player_act():
 		request_fire_support("mortar")
 	if Input.is_action_just_pressed("supply_drop") and GameManager.can_player_act():
@@ -192,7 +194,7 @@ var fire_menu_open: bool = false:
 	set(value):
 		fire_menu_open = value
 		any_fire_menu_open = value
-var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0}
+var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
 
 
 func request_fire_support(kind: String) -> void:
@@ -235,6 +237,9 @@ func request_fire_support(kind: String) -> void:
 		"spooky":
 			SpookyGunship.call_in(world, world.terrain_manager, target)
 			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+		"cbu":
+			_launch_flyby(target, CASAirplane.Ordnance.CBU)
+			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
 	# Learn-by-doing: the RADIOMAN gets better at calling fire the more he does it. A
 	# maxed "STEEL RAIN" radioman drops tight fire-for-effect; losing him hurts (Pillar 4).
 	if _rto != null:

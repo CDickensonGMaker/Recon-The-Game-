@@ -245,7 +245,7 @@ static func _plan_firebase(world: GameWorld, rng: RandomNumberGenerator, planner
 	var wave_count: int = 3
 	p.objectives.append({"kind": "survive", "title": "HOLD THE FIREBASE", "index": 0, "required": true, "waves": wave_count, "per_wave_min": 5, "per_wave_max": 8})
 	p["sites"] = [{"kind": "firebase", "center": firebase}]
-	p["fire_support"] = {"bombs": 2, "napalm": 1, "arty": 2, "mortar": 3, "spooky": 1}
+	p["fire_support"] = {"bombs": 2, "napalm": 1, "arty": 2, "mortar": 3, "spooky": 1, "cbu": 1}
 	p["ally_count"] = 5
 	p["intel"] = "Main Force battalion probing the wire tonight. %d assault waves expected. Air support on station." % wave_count
 
