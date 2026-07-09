@@ -1499,6 +1499,13 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	can_fire = false
 	fire_timer = maxf(fire_timer, 0.25)
 
+	# Pain-quota stagger (DESIGN 4.3): a solid hit (>= a third of max HP) that does
+	# not kill jolts them into a brief SUPPRESSED stagger + a pain grunt, selling the
+	# impact and buying the player a beat. Reuses apply_stagger() (was never called).
+	if current_hp > 0 and amount >= max_hp / 3:
+		apply_stagger(1.0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0)
+
 	# Check death
 	if current_hp <= 0:
 		current_hp = 0
