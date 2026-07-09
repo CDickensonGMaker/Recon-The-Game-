@@ -293,6 +293,11 @@ func _fire_shot() -> void:
 		# R52: holding your breath while aiming cuts spread hard, briefly.
 		if "is_holding_breath" in controller and controller.is_holding_breath:
 			spread *= 0.4
+		# R11: being suppressed blooms the cone - you cannot hold a bead while
+		# rounds are cracking past. Makes suppression a real pressure, not decor;
+		# the answer is the same as the fantasy: get down and out of the fire.
+		if "suppression" in controller:
+			spread *= 1.0 + controller.suppression * 0.9
 	var spread_rad := deg_to_rad(spread)
 
 	# Get fire direction with spread

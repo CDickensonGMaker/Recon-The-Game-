@@ -1319,6 +1319,12 @@ func _fire_at_target() -> void:
 
 	var result := space_state.intersect_ray(query)
 
+	# Suppression (R11): if this round CRACKED PAST the player without hitting
+	# them, press them. The shot line is origin -> tracer_end; measure the
+	# player's perpendicular distance to it. A hit is not a near-miss (that is
+	# damage, handled below). This is what makes the player want to get down.
+	_suppress_player_if_near(origin, final_aim, result)
+
 	# Visible tracer from the muzzle (also the "muzzle flash reveals position" tell).
 	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
 	if result:
@@ -1616,3 +1622,32 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 	enemy.global_position = pos
 
 	return enemy
+
+
+## A round from origin along dir cracked by - if it passed close to the player
+## and did NOT hit them, add suppression. NEAR_MISS_RADIUS is generous (the
+## snap of a supersonic round is felt wider than its miss distance).
+const NEAR_MISS_RADIUS: float = 2.2
+
+func _suppress_player_if_near(origin: Vector3, dir: Vector3, hit: Dictionary) -> void:
+	var pl := GameManager.player as Node3D
+	if pl == null or not is_instance_valid(pl):
+		return
+	# If the ray actually hit the player, that is damage, not a near-miss.
+	if hit and hit.get("collider") != null:
+		var c = hit.collider
+		if c is Node and ((c as Node).is_in_group("player") or ((c as Node).get_parent() and (c as Node).get_parent().is_in_group("player"))):
+			return
+	# Perpendicular distance from the player (centre mass) to the shot line.
+	var to_p: Vector3 = (pl.global_position + Vector3.UP * 1.0) - origin
+	var along: float = to_p.dot(dir)
+	if along <= 0.0:
+		return  # shot went the other way
+	var closest: Vector3 = origin + dir * along
+	var d: float = closest.distance_to(pl.global_position + Vector3.UP * 1.0)
+	if d < NEAR_MISS_RADIUS and pl.has_method("add_suppression"):
+		# Closer cracks press harder.
+		pl.add_suppression(SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS))
+
+
+const SUPPRESS_ON_MISS: float = 0.34

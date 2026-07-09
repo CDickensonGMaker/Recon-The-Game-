@@ -75,6 +75,21 @@ const BREATH_DRAIN: float = 30.0
 const BREATH_REGEN: float = 22.0
 var is_holding_breath: bool = false
 
+## --- Suppression (R11): the player-side "under heavy fire" feel. Rounds that
+## crack past you (near-misses from enemy fire) drive this 0..1 up; it drains
+## fast when you break contact and FASTER when you get low. Screen greys out +
+## vignettes, the camera shakes, audio muffles. The point: it makes taking cover
+## and crawling out of the beaten zone feel necessary, not optional. ---
+var suppression: float = 0.0
+const SUPPRESS_DECAY: float = 0.55          ## per second, standing
+const SUPPRESS_DECAY_LOW: float = 1.3       ## per second, prone/crouched (reward getting down)
+const SUPPRESS_PER_NEARMISS: float = 0.34   ## a round cracking past adds this
+const SUPPRESS_SHAKE_MAX: float = 0.06      ## camera h/v offset metres at full
+var _shake_seed: float = 0.0
+var _supp_rect: ColorRect = null
+var _supp_mat: ShaderMaterial = null
+var _supp_lowpass_idx: int = -1
+
 
 func _update_hold_breath(delta: float) -> void:
 	var want: bool = Input.is_action_pressed("hold_breath") and weapon_holder \
@@ -343,6 +358,7 @@ var _yaw_base: float = 0.0          # body yaw from mouse look, before recoil
 const RECOIL_MAX_PITCH: float = 0.35  # rad (~20 deg)
 
 func _ready() -> void:
+	_setup_suppression()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
 	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
@@ -493,6 +509,8 @@ func _physics_process(delta: float) -> void:
 	if _photo_mode:
 		_update_photo_fly(minf(delta, 0.066))
 		return
+
+	_update_suppression(minf(delta, 0.066))
 
 	# Seated (Huey ride): follow the seat, keep head-look, skip movement.
 	if is_seated:
@@ -752,3 +770,62 @@ func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, h
 
 	add_child(hitzone)
 	hitzones.append(hitzone)
+
+
+func _setup_suppression() -> void:
+	# Full-screen overlay on its own layer, built in code (no scene edit).
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	_supp_rect = ColorRect.new()
+	_supp_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_supp_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_supp_mat = ShaderMaterial.new()
+	_supp_mat.shader = load("res://terrain/shaders/suppression.gdshader")
+	_supp_mat.set_shader_parameter("amount", 0.0)
+	_supp_rect.material = _supp_mat
+	layer.add_child(_supp_rect)
+
+	# One lowpass on Master, wide open until suppression closes it (everything
+	# goes underwater under heavy fire).
+	var mi := AudioServer.get_bus_index("Master")
+	if mi >= 0:
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 20500.0
+		AudioServer.add_bus_effect(mi, lp)
+		_supp_lowpass_idx = AudioServer.get_bus_effect_count(mi) - 1
+
+
+## A round cracked past. Called by enemies on a near-miss of the player.
+func add_suppression(amount: float = SUPPRESS_PER_NEARMISS) -> void:
+	suppression = clampf(suppression + amount, 0.0, 1.0)
+
+
+## Drives the overlay, camera shake and audio muffle every frame, then decays.
+func _update_suppression(delta: float) -> void:
+	if _supp_mat != null:
+		_supp_mat.set_shader_parameter("amount", suppression)
+
+	# Camera shake: pure-visual h/v offset jitter (never touches aim direction).
+	if camera != null:
+		if suppression > 0.02:
+			_shake_seed += delta * 34.0
+			var s := suppression * suppression * SUPPRESS_SHAKE_MAX  # ramp late
+			camera.h_offset = sin(_shake_seed) * s
+			camera.v_offset = cos(_shake_seed * 1.37) * s
+		elif absf(camera.h_offset) > 0.0001 or absf(camera.v_offset) > 0.0001:
+			camera.h_offset = 0.0
+			camera.v_offset = 0.0
+
+	# Audio muffle: high cutoff = clear, drops toward 600Hz at full suppression.
+	if _supp_lowpass_idx >= 0:
+		var mi := AudioServer.get_bus_index("Master")
+		if mi >= 0:
+			var eff := AudioServer.get_bus_effect(mi, _supp_lowpass_idx) as AudioEffectLowPassFilter
+			if eff != null:
+				eff.cutoff_hz = lerpf(20500.0, 650.0, suppression)
+
+	# Decay - faster when you got low. This is the payoff: crawling out of the
+	# beaten zone actively clears the effect.
+	var low: bool = is_prone or is_crouching
+	suppression = maxf(0.0, suppression - (SUPPRESS_DECAY_LOW if low else SUPPRESS_DECAY) * delta)
