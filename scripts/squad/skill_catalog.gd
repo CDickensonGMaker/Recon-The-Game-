@@ -16,6 +16,20 @@ const SKILLS := {
 const ATTRIBUTE_COST: int = 100
 const ATTRIBUTE_MAX: int = 200  # 2d100 ceiling (RECON)
 
+## Learn-by-doing curve (War Room decree): cumulative use-points to REACH each level.
+## Index = level; L0 is free. ~2-3 missions to L3, ~15+ to L8. Grind is blocked by
+## structure (finite enemies, revive cap), not by this table.
+const USE_THRESHOLDS: Array[int] = [0, 10, 25, 45, 70, 105, 155, 225, 320]
+
+
+## Cumulative use-points required to reach `level` (clamped to the curve).
+static func uses_for_level(level: int) -> int:
+	if level <= 0:
+		return 0
+	if level >= USE_THRESHOLDS.size():
+		return USE_THRESHOLDS[USE_THRESHOLDS.size() - 1]
+	return USE_THRESHOLDS[level]
+
 ## MOS -> the skill their role consumes.
 ## The three skills whose EFFECT lives on the player's own body: his rifle
 ## (small_arms, sniping) and his own footsteps (silent_movement). Everything else
