@@ -14,3 +14,7 @@ desktop.ini
 # W87: sprite-pipeline intermediates + debug captures (final sheets stay tracked)
 assets/characters/source/renders/sprites/**/_frames/
 screenshots/
+
+# Python bytecode
+__pycache__/
+*.pyc
