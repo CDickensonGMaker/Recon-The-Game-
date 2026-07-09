@@ -32,14 +32,23 @@ Every art asset we've identified, from code placeholders + design discussions. S
 - ⬜ **Driveable vehicle variants** — jeep/truck/APC (currently destructible props: M151, M113, Chinook exist as props)
 - ⬜ **Helipad** model — currently just flattened dirt + a parked Chinook
 
-## WORLD / STRUCTURES
-- ⬜ **Rubble/debris** models — destroyed structures just vanish now; need a rubble+scorch remnant
-- 🔴 **POW cage / rice-storage crib** — box placeholder (`rescue_objective.gd:17`)
-- 🔴 **MG nest** — placeholder
-- ⬜ **Tunnel interior kit** (interior-mode) — entrance, rooms, ladders, props; `tunnel_room.gd` uses box placeholders now
-- ⬜ **Building interiors** (interior-mode CQB) — current building models are solid exterior props
-- ⬜ **Barbwire hazard variant** — concertina structure exists; a damaged/tangle piece for the hazard
-- ⬜ **Roads** — muddy laterite road strip material + tire-track decal textures (mostly textures, not models)
+## WORLD / STRUCTURES  —  ⭐ MOSTLY COVERED BY RealVietnamRTS (copy-in, don't model)
+The RTS has ~103 Vietnam structures. These fill our gaps directly (copy from
+`RealVietnamRTS/assets/models/structures/`, never edit the RTS):
+- 🟢 **Rubble/debris** → `ruins/rubble_pile.glb`, `ruins/burned_hut.glb`, `ruins/destroyed_bunker.glb`
+- 🟢 **POW cage** → `village/rice_storage.glb` (the placeholder is literally a rice crib)
+- 🟢 **MG nest** → `firebase/mg_nest.glb`
+- 🟢 **Helipad** → `converted/helipad.glb` / `airfield/psp_helipad.glb`
+- 🟢 **Barbwire hazard** → `converted/barbed_wire.glb`, `firebase/barbed_wire_coil.glb`
+- 🟢 **Tunnel entrance + an interior room** → `vc_nva/tunnel_entrance_hidden.glb`, `vc_nva/underground_hospital.glb`
+- 🟢 **Firebase variety (~25)** → aid_station, ammo/commo/conex bunkers, toc, mess_hall, mortar_pit, quonset_hut, trench_modular, gate_entrance…
+- 🟢 **Village variety (9)** → thatched_hut, stilt_house, three_room_house, communal_house, pagoda, bell_tower, well
+- 🟢 **Colonial buildings** → plantation_house, villa, government_building (towns/rich villages)
+- 🟢 **Airfield** → control_tower, hangar, radar_dome, runway_section (a US airbase install type)
+- 🟢 **Bridges (4)** → wooden/stone/army (roads-over-rivers)
+- 🟢 **Ordnance props** → 500lb bombs, Napalm BLU-27, rocket pods (hang under the F-4 / dropped props)
+- ⬜ **Building INTERIORS** (interior-mode CQB) — RTS buildings are exterior shells; enterable interiors still need authoring
+- ⬜ **Roads** — muddy laterite strip material + tire-track decal *textures* (not models)
 
 ## SPRITES (parallel pipeline)
 - 🟡 **Sprite render matrix** — 8-dir sprites for VC/NVA units × weapons × anims, rendered from the 3D models (partly done; consumer code + dedup owed)
