@@ -61,6 +61,13 @@ const DAMAGE_PROFILES: Dictionary = {
 var damage_zones: Array[Dictionary] = []
 var scar_decals: Array[Decal] = []
 
+## Per-mission crater ceiling (War Room decree, perf): the shipped cap is per-strike;
+## this bounds the AGGREGATE terrain deforms so more exposed ordnance (CBU/napalm/arty)
+## can't spike chunk rebuilds. Reset each mission in clear_all_damage(). Generous - normal
+## play won't hit it; only sustained ordnance spam does, and then it degrades gracefully.
+const MAX_DEFORMS_PER_MISSION: int = 40
+var _deforms_this_mission: int = 0
+
 # Reference to terrain manager (set by terrain_lab)
 var terrain_manager: Node
 var vegetation_manager: Node
@@ -131,8 +138,11 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 	var cell_size: float = terrain_manager.cell_size
 	var radius_meters: float = radius * cell_size
 
-	# Apply to terrain manager's heightmap (this also rebuilds affected chunks)
-	terrain_manager.modify_terrain(world_pos, radius_meters, crater_func)
+	# Apply to terrain manager's heightmap (this also rebuilds affected chunks). Past the
+	# per-mission ceiling, skip the expensive dig but keep the cheap veg-clear + scar below.
+	if _deforms_this_mission < MAX_DEFORMS_PER_MISSION:
+		_deforms_this_mission += 1
+		terrain_manager.modify_terrain(world_pos, radius_meters, crater_func)
 
 	# Clear vegetation in damaged area. Pass heightmap so clear_area re-materializes
 	# the surviving (non-cleared) bundles; otherwise the MultiMesh stays wiped.
@@ -290,6 +300,7 @@ func apply_bombardment(center: Vector3, radius: float, count: int, type: DamageT
 ## Clear all damage (for testing reset)
 func clear_all_damage() -> void:
 	damage_zones.clear()
+	_deforms_this_mission = 0  # fresh crater budget each mission
 
 	# Remove all scar decals
 	for decal in scar_decals:
