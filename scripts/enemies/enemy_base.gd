@@ -1509,6 +1509,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	# Check death
 	if current_hp <= 0:
 		current_hp = 0
+		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered and personality == Enums.AIPersonality.DEFENSIVE \
 			and current_hp < max_hp / 3 and randf() < 0.15:
@@ -1523,6 +1524,23 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			try_surrender()
 
 	return amount
+
+
+## Learn-by-doing: credit the killing squadmate's Small Arms + tally his kill. The player
+## grows via team_xp, not this, so only allies (who carry a `member` dict) are credited.
+func _credit_killer(attacker: Node) -> void:
+	if attacker == null or not is_instance_valid(attacker):
+		return
+	var mv: Variant = attacker.get("member")
+	if not (mv is Dictionary):
+		return
+	var m: Dictionary = mv
+	if m.is_empty():
+		return
+	m["kills"] = int(m.get("kills", 0)) + 1
+	var promo: int = SquadRoster.credit_use(m, "small_arms", 1)
+	if promo > 0 and attacker.has_method("on_skill_up"):
+		attacker.on_skill_up("small_arms", promo)
 
 
 func apply_suppression(amount: float) -> void:

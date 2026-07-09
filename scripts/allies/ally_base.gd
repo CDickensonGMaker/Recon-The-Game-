@@ -42,7 +42,17 @@ var max_follow_distance: float = 15.0
 
 ## Squad layer (W14-W16): roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
-var member: Dictionary = {}      ## roster entry (name/mos/stats)
+var member: Dictionary = {}      ## roster entry (name/mos/stats) - IS the roster dict
+var director: MissionDirector = null  ## toast channel for learn-by-doing promotion barks
+
+
+## Promotion bark surfaced at the moment of the deed (War Room decree - visibility is
+## 90% of the value). Called when this soldier's skill levels up from doing the thing.
+func on_skill_up(skill_id: String, level: int) -> void:
+	if director == null:
+		return
+	var sk_name: String = str(SkillCatalog.SKILLS.get(skill_id, {}).get("name", skill_id))
+	director.toast.emit("%s — %s ★%d" % [str(member.get("nick", "GRUNT")), sk_name, level])
 var order_mode: OrderMode = OrderMode.FOLLOW
 var order_pos: Vector3 = Vector3.ZERO
 var weapons_free: bool = true

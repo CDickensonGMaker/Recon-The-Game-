@@ -235,6 +235,12 @@ func request_fire_support(kind: String) -> void:
 		"spooky":
 			SpookyGunship.call_in(world, world.terrain_manager, target)
 			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+	# Learn-by-doing: the RADIOMAN gets better at calling fire the more he does it. A
+	# maxed "STEEL RAIN" radioman drops tight fire-for-effect; losing him hurts (Pillar 4).
+	if _rto != null:
+		var fp: int = SquadRoster.credit_use(_rto.member, "fo_fac", 2)
+		if fp > 0 and _rto.has_method("on_skill_up"):
+			_rto.on_skill_up("fo_fac", fp)
 
 
 func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:

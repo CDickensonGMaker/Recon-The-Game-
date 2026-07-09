@@ -35,6 +35,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		pos.y = world.terrain_manager.get_height_at(pos) + 0.5
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
+		ally.director = director  ## toast channel for promotion barks
 		if str(m.mos) == "PIGMAN":
 			ally.fire_rate_mult = 1.6
 			# The Pig is a separate rendered unit: us_grunt_black holds the M60.
@@ -157,6 +158,9 @@ func _process_revive(delta: float) -> void:
 			_reviving = false
 			var heal: int = _revive_heal_amount(medic_skill)
 			_health.revive(heal)
+			var mp: int = SquadRoster.credit_use(medic.member, "medic", 3)  # learn-by-doing
+			if mp > 0:
+				medic.on_skill_up("medic", mp)
 			medic.set_order(AllyBase.OrderMode.FOLLOW)
 			director.toast.emit("DOC: YOU'RE GOOD - ON YOUR FEET!")
 	else:
@@ -191,6 +195,9 @@ func _point_scan() -> void:
 			continue
 		if point.global_position.distance_to(group.global_position) <= radius:
 			_point_warned[group.get_instance_id()] = true
+			var pp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)  # learn-by-doing
+			if pp > 0:
+				point.on_skill_up("detect_ambush", pp)
 			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % str(point.member.nick))
 
 
