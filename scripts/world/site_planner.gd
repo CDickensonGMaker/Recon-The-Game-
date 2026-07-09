@@ -173,39 +173,50 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	clear_and_flatten(center, SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0)
 	var nodes: Array[Node3D] = []
+	# hi9c: every firebase gets a random orientation + density so no two are identical.
+	# The whole layout rotates together by base_rot, keeping the interior coherent.
+	var base_rot: float = rng.randf() * TAU
+	var base_deg: float = rad_to_deg(base_rot)
 	for item in SiteLayouts.FIREBASE_INTERIOR:
-		var off: Vector2 = item[1]
-		nodes.append(place_structure(item[0], center + Vector3(off.x, 0, off.y), float(item[2])))
-	# MG nests north/south on the perimeter, facing out.
+		var off: Vector2 = (item[1] as Vector2).rotated(base_rot)
+		nodes.append(place_structure(item[0], center + Vector3(off.x, 0, off.y), float(item[2]) + base_deg))
+	# MG nests on opposite sides of the perimeter, facing out (the pair rotates as one).
 	var mg_positions: Array[Vector3] = []
-	for a in [0.0, PI]:
+	for a0 in [0.0, PI]:
+		var a: float = a0 + base_rot
 		var pos: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * SiteLayouts.FIREBASE_PERIMETER_RADIUS
 		nodes.append(place_structure(SiteLayouts.FIREBASE_MG_NEST, pos, rad_to_deg(a)))
 		mg_positions.append(pos)
-	# Sandbag ring (skip MG slots), wire ring outside.
-	var ring_count: int = 14
+	# Sandbag ring (skip MG slots), wire ring outside. Counts jitter per firebase.
+	var ring_count: int = rng.randi_range(12, 16)
 	for i in range(ring_count):
-		var a := TAU * float(i) / float(ring_count)
-		if absf(a) < 0.3 or absf(a - PI) < 0.3:
-			continue
+		var rel := TAU * float(i) / float(ring_count)
+		if rel < 0.3 or absf(rel - PI) < 0.3:
+			continue  # leave the two MG slots open
+		var a := base_rot + rel
 		var pos := center + Vector3(cos(a), 0, sin(a)) * SiteLayouts.FIREBASE_PERIMETER_RADIUS
 		if _grid.is_water(pos):
 			continue  # gap in the line beats sandbags in a pond
 		nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
-	var wire_count: int = 20
+	var wire_count: int = rng.randi_range(18, 22)
 	for i in range(wire_count):
-		var a := TAU * float(i) / float(wire_count)
+		var a := base_rot + TAU * float(i) / float(wire_count)
 		var pos := center + Vector3(cos(a), 0, sin(a)) * SiteLayouts.FIREBASE_WIRE_RADIUS
 		if _grid.is_water(pos):
 			continue
 		nodes.append(place_structure(SiteLayouts.FIREBASE_WIRE, pos, rad_to_deg(a) + 90.0))
 	# Helipad pad (extra flatten) + parked vehicles + a static Chinook for flavor.
-	var helipad := center + Vector3(SiteLayouts.FIREBASE_HELIPAD_OFFSET.x, 0, SiteLayouts.FIREBASE_HELIPAD_OFFSET.y)
+	# Helipad + vehicles ride the same rotation so they stay clear of the interior.
+	var hp_off: Vector2 = (SiteLayouts.FIREBASE_HELIPAD_OFFSET as Vector2).rotated(base_rot)
+	var helipad := center + Vector3(hp_off.x, 0, hp_off.y)
 	clear_and_flatten(helipad, 9.0)
+	var veh_base := Vector2(-6.0, -14.0).rotated(base_rot)
+	var veh_step := Vector2(5.0, 0.0).rotated(base_rot)
 	for i in range(SiteLayouts.FIREBASE_VEHICLES.size()):
-		var pos := center + Vector3(-6.0 + float(i) * 5.0, 0, -14.0)
-		nodes.append(DestructibleVehicle.create(_parent, SiteLayouts.FIREBASE_VEHICLES[i], pos, 90.0, _terrain))
-	nodes.append(place_structure("res://assets/building models/vehicles/ch47_chinook.glb", helipad + Vector3(0, 0, -2), 45.0))
+		var vo := veh_base + veh_step * float(i)
+		nodes.append(DestructibleVehicle.create(_parent, SiteLayouts.FIREBASE_VEHICLES[i], center + Vector3(vo.x, 0, vo.y), 90.0 + base_deg, _terrain))
+	var chin_off := Vector2(0.0, -2.0).rotated(base_rot)
+	nodes.append(place_structure("res://assets/building models/vehicles/ch47_chinook.glb", helipad + Vector3(chin_off.x, 0, chin_off.y), 45.0 + base_deg))
 	var site := {"kind": "firebase", "center": center, "nodes": nodes, "helipad": helipad, "mg_positions": mg_positions, "radius": SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0}
 	placed_sites.append(site)
 	return site
