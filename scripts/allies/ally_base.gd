@@ -465,8 +465,12 @@ func _fire_at_target() -> void:
 	# Use smoothly interpolated aim
 	var final_aim: Vector3 = current_aim_dir
 
-	# Add spread
+	# Add spread. W28: this soldier's OWN Small Arms skill tightens their cone - was
+	# ignored (only the player's skill mattered), so a veteran rifleman now shoots
+	# measurably tighter than a rookie. Same formula the player uses (weapon_holder).
 	var spread: float = deg_to_rad(weapon_data.base_spread * 1.2 + float(shots_fired) * 0.05)
+	var sa: int = SquadRoster.skill_level(member, "small_arms") if not member.is_empty() else 0
+	spread *= 1.0 / (1.0 + 0.06 * float(sa))
 	final_aim.x += randf_range(-spread, spread)
 	final_aim.y += randf_range(-spread, spread)
 	final_aim.z += randf_range(-spread, spread)
