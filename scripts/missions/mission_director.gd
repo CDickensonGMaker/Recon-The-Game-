@@ -163,10 +163,15 @@ func _process(delta: float) -> void:
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		if not fire_menu_open:
-			# Getting on the net requires the radio - a living RTO (Pillar 4: lose the
-			# radioman, lose the verbs). Opening it lowers your rifle - you're committed.
-			if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+			# Getting on the net requires the radio - a LIVING RTO you're standing near.
+			# The radio is on his back (RTO_RADIO_RANGE), so you must keep your radioman
+			# close and alive to have fire support at all (Pillar 4: protect the man).
+			var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
+			var pl: Node3D = world.player if world != null else null
+			if rto == null:
 				toast.emit("NO RADIO - RTO IS DOWN")
+			elif pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
+				toast.emit("TOO FAR FROM THE RADIO - GET TO YOUR RTO (%dm)" % int(RTO_RADIO_RANGE))
 			else:
 				fire_menu_open = true
 				fire_menu_changed.emit(true)
@@ -206,6 +211,7 @@ var fire_menu_open: bool = false:
 		any_fire_menu_open = value
 var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
 const DANGER_CLOSE_M: float = 45.0
+const RTO_RADIO_RANGE: float = 10.0  ## must be this close to the living RTO to use the radio
 var _pending_danger_close: String = ""  ## the call awaiting a danger-close confirm press
 
 
