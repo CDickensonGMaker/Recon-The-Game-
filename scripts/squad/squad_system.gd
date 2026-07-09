@@ -41,7 +41,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 			# The Pig is a separate rendered unit: us_grunt_black holds the M60.
 			# spawn_ally() already ran _setup_visual(), so this must rebuild.
 			ally.set_sprite("us_grunt_black", "m60")
-		_attach_name_tag(ally, "%s (%s)" % [str(m.nick), str(m.mos)])
+		_attach_name_tag(ally, "%s %s (%s)" % [SquadRoster.rank_for(m), str(m.nick), str(m.mos)])
 		ally.died.connect(_on_member_died)
 		members.append(ally)
 	# Medic revive hook.
@@ -262,7 +262,9 @@ func _on_member_died(ally: AllyBase) -> void:
 	var m: Dictionary = ally.member
 	m["alive"] = false
 	director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
-	director.toast.emit("%s IS DOWN - %s KIA" % [str(m.nick), str(m.name)])
+	# Memorial beat (War Room decree): the rank + confirmed kills make the loss land as
+	# story, not a data op. A maxed veteran's death should hurt (Pillar 4 / fail-forward).
+	director.toast.emit("KIA: %s %s (%s) - %d confirmed" % [SquadRoster.rank_for(m), str(m.name), str(m.nick), int(m.get("kills", 0))])
 	CampaignState.save_campaign()
 	squad_changed.emit()
 

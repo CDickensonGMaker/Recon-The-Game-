@@ -119,5 +119,20 @@ static func ensure_roster(rng_seed: int) -> Array:
 	return living
 
 
+## Earned rank by missions survived (visibility - a veteran reads at a glance, and the
+## KIA memorial hits harder for a SGT than a fresh PVT).
+static func rank_for(member: Dictionary) -> String:
+	var missions: int = int(member.get("missions", 0))
+	if missions >= 12:
+		return "SSG"
+	if missions >= 7:
+		return "SGT"
+	if missions >= 4:
+		return "CPL"
+	if missions >= 1:
+		return "PFC"
+	return "PVT"
+
+
 static func skill_level(member: Dictionary, skill: String) -> int:
 	return int((member.get("skills", {}) as Dictionary).get(skill, 0))
