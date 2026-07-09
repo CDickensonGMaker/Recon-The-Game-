@@ -23,7 +23,8 @@ const LINE_COOLDOWN_S: float = 4.0
 
 var _cache: Dictionary = {}          # path -> AudioStream (or null after a failed load)
 var _line_next_ok: Dictionary = {}   # line key -> msec when it may fire again
-var _radio: AudioStreamPlayer = null
+var _radio: AudioStreamPlayer = null      # in-ear: player holding the handset
+var _radio3d: AudioStreamPlayer3D = null  # the PRC-25 on the RTO's back
 
 
 func _ready() -> void:
@@ -31,17 +32,29 @@ func _ready() -> void:
 	_radio.bus = "Voice" if AudioServer.get_bus_index("Voice") >= 0 else "Master"
 	_radio.volume_db = -2.0
 	add_child(_radio)
+	_radio3d = AudioStreamPlayer3D.new()
+	_radio3d.bus = _radio.bus
+	_radio3d.max_distance = 26.0  # a radio speaker, not a voice - audible near the RTO
+	_radio3d.unit_size = 4.0
+	add_child(_radio3d)
 
 
-## RTO radio traffic (2D - it's in your ear). e.g. play_radio("fire_mission").
-func play_radio(line_id: String) -> void:
-	if _radio.playing:
+## RTO radio traffic. Diegetic sourcing (Caleb): the chatter comes FROM the radio -
+## positional at the RTO's backpack (`source_pos`) so it fades with distance in a
+## firefight. Only when the player is ON THE NET (handset in hand) is it in-ear 2D.
+func play_radio(line_id: String, source_pos: Variant = null) -> void:
+	if _radio.playing or _radio3d.playing:
 		return  # one net, one voice - never talk over an active transmission
 	var stream := _load(RADIO_DIR, "radio_%s" % line_id)
 	if stream == null or _on_cooldown("radio_" + line_id):
 		return
-	_radio.stream = stream
-	_radio.play()
+	if MissionDirector.any_fire_menu_open or not (source_pos is Vector3):
+		_radio.stream = stream
+		_radio.play()
+	else:
+		_radio3d.global_position = source_pos
+		_radio3d.stream = stream
+		_radio3d.play()
 
 
 ## Squad field bark, positional at the speaking soldier. `member` picks the voice

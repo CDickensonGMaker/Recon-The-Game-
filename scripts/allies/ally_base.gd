@@ -94,7 +94,7 @@ func _ready() -> void:
 	CombatManager.register_ally(self)
 
 	# Load Thompson as default weapon for allies
-	weapon_data = load("res://data/weapons/thompson.tres")
+	weapon_data = load("res://data/weapons/m16a1.tres")  # matches the m16 sprites (audit)
 
 	_setup_visual()
 	_setup_hurtbox()
@@ -494,6 +494,7 @@ func _fire_at_target() -> void:
 		origin + final_aim * weapon_data.max_range,
 		1 | 4 | 64  # World, enemies, enemy hurtboxes
 	)
+	query.collide_with_areas = true  # enemy hitzones are Area3D (sponge fix)
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
@@ -525,11 +526,13 @@ func _fire_at_target() -> void:
 		if hit_target:
 			var damage_target: Node = null
 			var damage_multiplier: float = 1.0
+			var zone_name: String = "BODY"
 
 			if hit_target is Hitzone:
 				var hitzone := hit_target as Hitzone
 				damage_target = hitzone.owner_entity
 				damage_multiplier = hitzone.get_damage_multiplier()
+				zone_name = hitzone.get_zone_name()
 			elif hit_target is Node and (hit_target as Node).is_in_group("enemies"):
 				damage_target = hit_target as Node
 			elif hit_target is Node and (hit_target as Node).get_parent() and (hit_target as Node).get_parent().is_in_group("enemies"):
@@ -539,11 +542,11 @@ func _fire_at_target() -> void:
 				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
 				var base_damage: int = weapon_data.roll_damage()
 				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-				damage_target.take_damage(final_damage, weapon_data.damage_type, self)
+				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
 
 
 ## Take damage
-func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null) -> int:
+func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:

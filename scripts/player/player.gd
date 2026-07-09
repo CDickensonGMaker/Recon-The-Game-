@@ -329,6 +329,35 @@ func _throw_smoke() -> void:
 			body.queue_free())
 
 
+## Standing-pose hitzones (v1: they do not track crouch/prone - enemies aim center
+## mass, so the error stays small; revisit with ragdoll bones as zones).
+func _setup_hitzones() -> void:
+	_add_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
+	_add_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.3, 0), 0.3, 0.35)
+	_add_hitzone(Hitzone.ZoneType.GUT, Vector3(0, 0.9, 0), 0.28, 0.3)
+	_add_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.12, 0.4, 0), 0.12, 0.8)
+	_add_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.12, 0.4, 0), 0.12, 0.8)
+
+
+func _add_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, height: float = -1.0) -> void:
+	var hz := Hitzone.new()
+	hz.zone_type = zone_type
+	hz.set_owner_entity(self)
+	var col := CollisionShape3D.new()
+	if height > 0.0:
+		var cap := CapsuleShape3D.new()
+		cap.radius = radius
+		cap.height = height
+		col.shape = cap
+	else:
+		var sph := SphereShape3D.new()
+		sph.radius = radius
+		col.shape = sph
+	col.position = pos
+	hz.add_child(col)
+	add_child(hz)
+
+
 func apply_wound(zone_name: String) -> void:
 	match zone_name:
 		"LIMB_LEG", "LEG":
@@ -361,6 +390,9 @@ func _ready() -> void:
 	_setup_suppression()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
+	# Locational damage on YOU too (anti-sponge, both directions): head/chest/gut/
+	# legs zones. Enemy rays resolve these exactly like yours resolve theirs.
+	_setup_hitzones()
 	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
 	_yaw_base = rotation.y  # seed recoil-recoverable yaw from spawn orientation
 
@@ -712,7 +744,7 @@ func apply_recoil(vertical: float, horizontal: float, recovery: float = 12.0) ->
 
 
 ## Take damage - forwarded from health system
-func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null) -> int:
+func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, _zone: String = "BODY") -> int:
 	# W66: directional damage indicator - where is it coming from?
 	if attacker is Node3D and camera:
 		var to_attacker: Vector3 = ((attacker as Node3D).global_position - global_position)

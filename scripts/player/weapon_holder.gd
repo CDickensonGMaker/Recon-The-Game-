@@ -108,9 +108,9 @@ func _ready() -> void:
 	# Controller is the root Player node - go up: WeaponHolder -> Camera3D -> Head -> Player
 	controller = get_parent().get_parent().get_parent()
 
-	# Load default weapons. Default primary is the Thompson: its viewmodel is the
-	# one that's actually rigged, and the .45 report/bolt-clatter audio matches it.
-	primary_weapon = load("res://data/weapons/thompson.tres")
+	# Default primary: the M16A1 (RECON 5d10). The WW2 Thompson holdover and its
+	# flat HoD dice are retired from the default loadout (audit: damage unification).
+	primary_weapon = load("res://data/weapons/m16a1.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
 	current_ammo = primary_ammo[0]
@@ -322,6 +322,9 @@ func _fire_shot() -> void:
 		origin + final_dir * current_weapon.max_range,
 		1 | 4 | 64  # World, enemies, enemy hurtboxes
 	)
+	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
+	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.
+	query.collide_with_areas = true
 	query.exclude = [controller]
 
 	var result := space_state.intersect_ray(query)
@@ -421,7 +424,7 @@ func _resolve_hit(hit: Dictionary, origin: Vector3, weapon: WeaponData, attacker
 		var falloff: float = weapon.damage_multiplier_at(origin.distance_to(hit.position))
 		var base_damage: int = weapon.roll_damage()
 		var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-		damage_target.take_damage(final_damage, weapon.damage_type, attacker)
+		damage_target.take_damage(final_damage, weapon.damage_type, attacker, zone_name)
 
 		# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone; headshot
 		# = distinct marker). zone_name now travels to the HUD instead of a print.

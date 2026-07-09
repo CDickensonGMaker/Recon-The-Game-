@@ -4,9 +4,10 @@ extends Area3D
 
 ## Zone types with damage multipliers
 enum ZoneType {
-	HEAD,      # 4x damage - instant kill
-	TORSO,     # 1.5x damage - center mass
-	LIMB       # 0.6x damage - arms/legs
+	HEAD,      # fatal on enemies - a headshot is a headshot, no dice save you
+	TORSO,     # 2.0x - center mass (chest). 1-2 rifle rounds
+	GUT,       # 1.75x + bleed-out - devastating, downs a man fast
+	LIMB       # 0.75x - rarely lethal, but the man is CHANGED (wounds/cripple)
 }
 
 @export var zone_type: ZoneType = ZoneType.TORSO
@@ -14,8 +15,9 @@ enum ZoneType {
 ## Damage multipliers
 const MULTIPLIERS := {
 	ZoneType.HEAD: 4.0,
-	ZoneType.TORSO: 1.5,
-	ZoneType.LIMB: 0.6
+	ZoneType.TORSO: 2.0,
+	ZoneType.GUT: 1.75,
+	ZoneType.LIMB: 0.75
 }
 
 ## Owner reference
@@ -59,6 +61,8 @@ func get_zone_name() -> String:
 			return "HEAD"
 		ZoneType.TORSO:
 			return "BODY"
+		ZoneType.GUT:
+			return "GUT"
 		ZoneType.LIMB:
 			return "LIMB"
 		_:
@@ -67,4 +71,9 @@ func get_zone_name() -> String:
 
 ## Check if this is a critical hit zone
 func is_critical_zone() -> bool:
+	return zone_type == ZoneType.HEAD
+
+
+## Zones that kill an enemy outright regardless of damage dice.
+func is_fatal_zone() -> bool:
 	return zone_type == ZoneType.HEAD

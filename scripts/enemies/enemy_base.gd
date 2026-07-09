@@ -152,6 +152,8 @@ var _first_shot_fired: bool = false
 
 ## Suppression system
 var suppression_level: float = 0.0  # 0-1, affects behavior
+var _gut_bleed_dps: float = 0.0     # locational: gutshot bleed-out rate
+var _bleed_accum: float = 0.0
 var incoming_fire_timer: float = 0.0
 const SUPPRESSION_DECAY: float = 0.3  # Per second
 
@@ -330,7 +332,8 @@ func _update_sprite() -> void:
 
 func _setup_hurtbox() -> void:
 	_create_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
-	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.1, 0), 0.3, 0.6)
+	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.3, 0), 0.3, 0.35)
+	_create_hitzone(Hitzone.ZoneType.GUT, Vector3(0, 0.9, 0), 0.28, 0.3)
 	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.35, 1.0, 0), 0.12, 0.5)
 	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.35, 1.0, 0), 0.12, 0.5)
 	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.12, 0.4, 0), 0.12, 0.8)
@@ -400,6 +403,16 @@ func _update_decay(delta: float) -> void:
 	# Decay suppression
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * delta)
+	# Gutshot bleed-out: no medic is coming for him.
+	if _gut_bleed_dps > 0.0 and current_state != Enums.AIState.DEAD:
+		_bleed_accum += _gut_bleed_dps * delta
+		if _bleed_accum >= 1.0:
+			var _tick := int(_bleed_accum)
+			_bleed_accum -= float(_tick)
+			current_hp -= _tick
+			if current_hp <= 0:
+				current_hp = 0
+				_die()
 
 	# Decay recent damage tracking
 	damage_decay_timer += delta
@@ -1316,6 +1329,7 @@ func _fire_at_target() -> void:
 		origin + final_aim * weapon_data.max_range,
 		1 | 2 | 32
 	)
+	query.collide_with_areas = true  # player/ally hitzones are Area3D (sponge fix)
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
@@ -1376,7 +1390,7 @@ func _fire_at_target() -> void:
 				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
 				var base_damage: int = weapon_data.roll_damage()
 				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-				damage_target.take_damage(final_damage, weapon_data.damage_type, self)
+				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
 
 				# W37: limb hits wound (arm = shaky aim, leg = no sprint).
 				if zone_name == "LIMB" and damage_target.has_method("apply_wound"):
@@ -1444,9 +1458,12 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 ## DAMAGE AND DEATH
 ## ============================================
 
-func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null) -> int:
+func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, zone: String = "BODY") -> int:
 	if current_state == Enums.AIState.DEAD:
 		return 0
+	# Locational outcome (anti-sponge decree): a headshot is a headshot.
+	if zone == "HEAD":
+		amount = current_hp + 999
 
 	current_hp -= amount
 	damage_taken_recently += amount
@@ -1467,17 +1484,13 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 				mesh.material_override.albedo_color = Color(0.4, 0.4, 0.3)
 		)
 
-	# W46: gutshot men go down crawling - slow, loud, drawing their buddies.
+	# GUT: devastating - immediate crawl + bleed-out. Untreated he dies in ~15-20s.
+	if zone == "GUT" and current_hp > 0 and _gut_bleed_dps <= 0.0:
+		_gut_bleed_dps = 4.0
+		_become_crippled()
+	# W46: badly shot men may go down crawling - slow, loud, drawing their buddies.
 	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
-		is_crippled = true
-		move_speed *= 0.25
-		base_accuracy_modifier *= 1.6  # crippled: durable, was wiped next tick
-		if sprite_actor != null:
-			sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
-		elif mesh:
-			mesh.scale.y = 0.45
-			mesh.position.y = -0.35
-		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
+		_become_crippled()
 
 	# Getting shot = instant COMBAT tier (R12), whatever we were doing.
 	_set_tier(AlertTier.COMBAT)
@@ -1543,6 +1556,34 @@ func _credit_killer(attacker: Node) -> void:
 	var promo: int = SquadRoster.credit_use(m, "small_arms", 1)
 	if promo > 0 and attacker.has_method("on_skill_up"):
 		attacker.on_skill_up("small_arms", promo)
+
+
+## Crawling, slow, loud - the shared "down but not out" state (W46 + gutshot).
+func _become_crippled() -> void:
+	if is_crippled:
+		return
+	is_crippled = true
+	move_speed *= 0.25
+	base_accuracy_modifier *= 1.6  # crippled: durable, was wiped next tick
+	if sprite_actor != null:
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
+	elif mesh:
+		mesh.scale.y = 0.45
+		mesh.position.y = -0.35
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
+
+
+## W37/locational: limb hits degrade the man - arm = shaky aim, leg = slowed;
+## a second leg wound puts him down crawling. Mirrors the player's apply_wound.
+var _leg_wounds: int = 0
+func apply_wound(zone_name: String) -> void:
+	if zone_name == "LIMB_ARM":
+		base_accuracy_modifier *= 1.35
+	else:
+		move_speed = maxf(move_speed * 0.6, 0.8)
+		_leg_wounds += 1
+		if _leg_wounds >= 2:
+			_become_crippled()
 
 
 func apply_suppression(amount: float) -> void:
