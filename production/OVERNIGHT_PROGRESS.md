@@ -21,7 +21,16 @@ Status of the 50 tasks in `OVERNIGHT_50.md`. Updated as I go.
 - #31 ✅ functional VC punji traps (new PunjiTrap actor on claymore pattern + village placement)
 - **Full project validated headless (Godot 4.6.2) — no script errors.**
 
-### Queued next
-- #36 F-4 fast flyby (research ready, reuses CASAirplane) · #37 napalm strip terrain · #26 fire VFX wire
-- #46 detect_ambush/al pip · #47 squad-member stats · #50 WIRING_STATUS.md · #44 100 bios
-- ⏸ GATE (Blender/textures/audio): #35 claymore model, #20/22/23 blood textures+audio, #24 ragdoll rig verify, #41/43 VO
+- #36+38 ✅ F-4 fast horizontal flyby + CBU cluster ordnance (napalm menu now routes through the dramatic
+  flyby; spawns 200m out, low+fast, pickles on the pass, climbs and despawns into the clouds 100m+ past)
+- #47 ✅ allies use their OWN Small Arms skill (veteran riflemen shoot tighter; was player-only)
+- #50 ✅ WIRING_STATUS.md (full wired/stubbed/missing map + "how much before scaling")
+- #46 ✅ (skill half) detect_ambush wired to POINT-man warning radius (was buyable-but-dead)
+
+### Queued next (safe code)
+- #46 remainder: player `al` → "being-noticed" HUD pip · #32/#33 tripwire + toe-popper traps (like punji)
+- #44 100 bios data file (batchable) · #26 fire VFX wire (terrain_vfx NAPALM_FIRE — cross-subsystem)
+- #37 napalm strip wider burn — HELD: touches the deliberate perf "crater cap", needs runtime perf test (⏸)
+
+### ⏸ GATE (Blender/textures/audio/perf — need you or MCP)
+- #35 claymore + F-4 models · #20/22/23 blood textures+audio · #24 ragdoll rig verify · #41/43 voice VO · #37 perf test

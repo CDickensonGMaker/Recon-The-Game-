@@ -181,7 +181,10 @@ func _point_scan() -> void:
 	var point := member_by_mos("POINT")
 	if point == null:
 		return
-	var radius: float = 30.0 + float(int(point.member.get("al", 100))) * 0.15
+	# Alertness (attribute) sets the base; the POINT man's Detect Ambush SKILL extends it
+	# so a trained scout calls movement much earlier. detect_ambush was buyable-but-dead.
+	var det: int = SquadRoster.skill_level(point.member, "detect_ambush")
+	var radius: float = 30.0 + float(int(point.member.get("al", 100))) * 0.15 + float(det) * 8.0
 	for lg in get_tree().get_nodes_in_group("lazy_groups"):
 		var group := lg as LazyGroup
 		if group == null or _point_warned.has(group.get_instance_id()):
