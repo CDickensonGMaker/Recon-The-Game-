@@ -26,7 +26,7 @@ this Bible is the *enforced detail* per section. If code contradicts the Bible, 
 | 05 | Campaign & Roster | `05_CAMPAIGN_ROSTER.md` | ✅ | operation styles (SF/Army/Marines), HQ tent, province/war-state, 100 bios, persistence, XP economy |
 | 06 | Mission Generation | `06_MISSION_GEN.md` | ⬜ | taxonomy, 2–4 objectives, site pass, contact deck, **scripted events**, intensity curve, rolls |
 | 07 | Insertion & Exfil | `07_INSERT_EXFIL.md` | ⬜ | Huey ride, AA/hot-LZ, exfil archetypes, **driveable vehicles**, boarding dash |
-| 08 | World & Terrain | `08_WORLD_TERRAIN.md` | ⬜ | TerrainEngine FPS profile, site stamps, firebase realism, **barbwire/hazards**, sight caps |
+| 08 | World & Terrain | `08_WORLD_TERRAIN.md` | 🌱 | TerrainEngine FPS profile, site stamps, **roads**, firebase realism, **barbwire/hazards**, sight caps |
 | 09 | Characters & Art | `09_CHARACTERS_ART.md` | ✅ | 3D + FP viewmodel pipeline, **faction models, soldier variety, slimmer topology**, civilians, sprites |
 | 10 | UI & Audio | `10_UI_AUDIO.md` | ⬜ | diegetic-first HUD, barks, jungle beds, weapon synth bank, radio VO |
 | 11 | Support & Fire Missions | `11_SUPPORT_FIRE.md` | ⬜ | RTO-gated arty (spot→correct), TACAIR, illum, enemy mortars |
@@ -57,6 +57,25 @@ The five, from `DESIGN.md §1`. **Test every decision against these; the Arbiter
 **Operation Style** — Special Forces / Regular Army / Marines. It sets: soldier model set, starting
 kit + requisition, MOS mix, mission-offer weighting, and flavor. This wraps the existing loop; it is a
 **loop-structure change** and must pass a War Room gate before build (see `ROADMAP.md`). Canon detail: `05`.
+
+---
+
+## 08 · World & Terrain — Roads (🌱 seed — promote to `08_WORLD_TERRAIN.md`)
+
+**Roads give vehicles a reason.** Dirt roads run from the **firebase** to nearby **villages/outposts**,
+so driving has a destination and the convoy car-bomb event has a road to stage on.
+- **Tech (borrowed from RealVietnamRTS, copied-in — never edit the RTS):** `road_network.gd`
+  (waypoint graph, road types dirt-trail→PSP, states intact/damaged/**cratered**/blocked, `find_path()`)
+  + `road_segment_node.gd` (path-following mesh strip + vehicle speed bonus).
+- **Generation:** a road pass in `site_planner.gd` after sites stamp — route `firebase.center → site.center`
+  through the `GameplayGrid`, avoiding WATER/CLIFF (same query `find_site` uses). Endpoints live in `placed_sites[]`.
+- **Visual:** muddy **laterite (red-clay)** road material; **tire-track decals** scattered along it via the
+  `ground_clutter.gd` pattern — random offset/yaw, **color-matched to the mud so they blend, colors kept consistent**.
+- **Later:** explosions crater the road (DamageSystem hook), slowing/blocking convoys. Bead: `RECONgame` ROADS.
+
+Other 08 canon (barbwire hazard, sight caps, firebase realism, FPS terrain profile) still to write.
+
+---
 
 **Campaign layer (the "open world," DESIGN §2):** persistent province map (villages, firebases,
 VC/NVA zones, trails, a war state that shifts with outcomes). From the **HQ tent / firebase hub**:
