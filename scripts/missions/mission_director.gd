@@ -229,11 +229,14 @@ func request_fire_support(kind: String) -> void:
 			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
 		"arty":
 			toast.emit("BATTERY FIRE MISSION - SHOT OUT (%d left)" % fire_support[kind])
+			# fo_fac tightens the sheaf: a green radioman scatters wide, a veteran walks
+			# it onto the target (lerp 1.0 -> 0.45 across 8 skill levels).
+			var scat: float = lerpf(1.0, 0.45, clampf(float(_fo) / 8.0, 0.0, 1.0))
 			for i in range(6):
 				get_tree().create_timer(4.0 + float(i) * 0.7).timeout.connect(
-					_arty_impact.bind(target + Vector3(randf_range(-18, 18), 0, randf_range(-18, 18)), i % 3 == 0))
+					_arty_impact.bind(target + Vector3(randf_range(-18, 18) * scat, 0, randf_range(-18, 18) * scat), i % 3 == 0))
 		"mortar":
-			_run_mortar_mission(target)
+			_run_mortar_mission(target, _fo)
 		"spooky":
 			SpookyGunship.call_in(world, world.terrain_manager, target)
 			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
@@ -280,13 +283,16 @@ func _arty_impact(pos: Vector3, deform: bool) -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
 
 
-func _run_mortar_mission(target: Vector3) -> void:
+func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
+	# fo_fac tightens the sheaf and, for a veteran radioman (fo>=5), adds a 4th round.
+	var scat: float = lerpf(1.0, 0.45, clampf(float(fo) / 8.0, 0.0, 1.0))
+	var rounds: int = 3 + (1 if fo >= 5 else 0)
 	get_tree().create_timer(3.0).timeout.connect(func() -> void:
-		_mortar_impact(target + Vector3(randf_range(-15, 15), 0, randf_range(-15, 15)), 0.5))
-	for i in range(3):
+		_mortar_impact(target + Vector3(randf_range(-15, 15) * scat, 0, randf_range(-15, 15) * scat), 0.5))
+	for i in range(rounds):
 		get_tree().create_timer(6.0 + float(i)).timeout.connect(func() -> void:
-			_mortar_impact(target + Vector3(randf_range(-8, 8), 0, randf_range(-8, 8)), 1.0))
+			_mortar_impact(target + Vector3(randf_range(-8, 8) * scat, 0, randf_range(-8, 8) * scat), 1.0))
 
 
 ## W60: RTO-called resupply - pop smoke, bird drops a crate on it.
