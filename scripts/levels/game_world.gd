@@ -194,18 +194,34 @@ const AMBIENCE_RING_MIN: float = 12.0
 const AMBIENCE_RING_MAX: float = 45.0
 var _amb_emitters: Array[AudioStreamPlayer3D] = []
 var _amb_reseat_t: float = 0.0
+## Everything WILDLIFE (birds/insects) - ducked while it rains, because rain
+## silences the jungle. The distant-war bed is NOT wildlife and never ducks.
+var _wildlife: Array[Node] = []
 
 func _start_ambience() -> void:
-	# 2D floor: only the broadband bed belongs everywhere. Kept quiet.
+	# The real jungle bed: 1 hour of birds/insects/crickets (streamed MP3), started
+	# at a RANDOM OFFSET so no two missions open on the same minute of jungle.
+	# Dev asset (license-unclear) - falls back to the old synth loop if absent.
+	var bed: AudioStream = null
+	if ResourceLoader.exists("res://assets/audio/ambience/jungle_day.mp3"):
+		var mp3 := load("res://assets/audio/ambience/jungle_day.mp3") as AudioStreamMP3
+		if mp3 != null:
+			mp3.loop = true
+			bed = mp3
 	var floor_s := load("res://assets/audio/sfx/jungle_loop.wav") as AudioStreamWAV
 	if floor_s != null:
 		floor_s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		floor_s.loop_end = floor_s.data.size() / 2
+	if bed == null:
+		bed = floor_s
+	if bed != null:
 		var fp := AudioStreamPlayer.new()
-		fp.stream = floor_s
-		fp.volume_db = -22.0   # was -14 and full-front; now a faint bed under the 3D layer
+		fp.stream = bed
+		fp.volume_db = -14.0 if bed is AudioStreamMP3 else -22.0
 		add_child(fp)
-		fp.play()
+		fp.play(randf() * maxf(1.0, bed.get_length() - 60.0) if bed is AudioStreamMP3 else 0.0)
+		fp.set_meta("base_db", fp.volume_db)
+		_wildlife.append(fp)
 	# Distant war stays 2D (it IS meant to be everywhere and directionless).
 	var war_s := load("res://assets/audio/sfx/distant_war_loop.wav") as AudioStreamWAV
 	if war_s != null:
@@ -226,8 +242,22 @@ func _start_ambience() -> void:
 		e.pitch_scale = randf_range(0.8, 1.5)   # each "voice" different
 		add_child(e)
 		_amb_emitters.append(e)
+		e.set_meta("base_db", e.volume_db)
+		_wildlife.append(e)
 		e.play()
 	_reseat_ambience()
+
+
+## Rain silences the jungle (Caleb): duck the wildlife fast when a squall opens
+## (~3s - birds shut up quick), fade back SLOWLY when it ends (~14s - they return
+## hesitantly). Called by MissionWeather on squall transitions.
+func set_wildlife_ducked(ducked: bool) -> void:
+	for w in _wildlife:
+		if not is_instance_valid(w):
+			continue
+		var base: float = float(w.get_meta("base_db", -16.0))
+		var tw := create_tween()
+		tw.tween_property(w, "volume_db", -58.0 if ducked else base, 3.0 if ducked else 14.0)
 
 ## Drift the emitters onto a fresh ring around the player so wildlife seems to
 ## be all around and moving, not nailed to spawn.
@@ -258,6 +288,8 @@ func start_night_ambience() -> void:
 	p.volume_db = -12.0
 	add_child(p)
 	p.play()
+	p.set_meta("base_db", p.volume_db)
+	_wildlife.append(p)  # crickets go quiet in the rain too
 
 
 ## Public: spawn the player at a position (mission insertion). Wires cameras+HUD.

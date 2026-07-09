@@ -25,6 +25,10 @@ const TIMES := {
 }
 
 var _rain: GPUParticles3D
+var _rain_audio: AudioStreamPlayer = null
+var _squalls: bool = false          # RAIN = comes in waves; MONSOON = constant
+var _squall_timer: float = 0.0
+static var rain_active: bool = false
 var _world: GameWorld
 
 
@@ -52,6 +56,39 @@ func setup(world: GameWorld, weather_id: String, time_id: String) -> void:
 
 	if float(w.rain) > 0.0:
 		_spawn_rain(float(w.rain))
+		_start_rain_audio()
+		if weather_id == "RAIN":
+			# Squalls: the downpour comes in waves. Opens raining, then breaks -
+			# and the jungle slowly finds its voice again until the next cell hits.
+			_squalls = true
+			_squall_timer = randf_range(50.0, 110.0)
+		_set_raining(true)
+	else:
+		rain_active = false
+
+
+func _start_rain_audio() -> void:
+	var s := load("res://assets/audio/sfx/rain_loop.wav") as AudioStreamWAV
+	if s == null:
+		return
+	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	s.loop_end = s.data.size() / 2
+	_rain_audio = AudioStreamPlayer.new()
+	_rain_audio.stream = s
+	_rain_audio.volume_db = -60.0
+	add_child(_rain_audio)
+	_rain_audio.play()
+
+
+func _set_raining(on: bool) -> void:
+	rain_active = on
+	if _rain != null:
+		_rain.emitting = on
+	if _rain_audio != null:
+		var tw := create_tween()
+		tw.tween_property(_rain_audio, "volume_db", -10.0 if on else -60.0, 2.5 if on else 6.0)
+	if _world != null and is_instance_valid(_world):
+		_world.set_wildlife_ducked(on)
 
 
 func _spawn_rain(intensity: float) -> void:
@@ -83,6 +120,17 @@ var _follow_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
+	# Squall cycle (RAIN weather): downpours come in waves; wildlife ducks during,
+	# fades back slowly after (see GameWorld.set_wildlife_ducked).
+	if _squalls:
+		_squall_timer -= delta
+		if _squall_timer <= 0.0:
+			if rain_active:
+				_set_raining(false)
+				_squall_timer = randf_range(70.0, 150.0)   # the break between cells
+			else:
+				_set_raining(true)
+				_squall_timer = randf_range(50.0, 110.0)   # the next downpour
 	if _rain == null or _world == null or _world.player == null:
 		return
 	_follow_timer += delta

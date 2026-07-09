@@ -23,3 +23,6 @@ __pycache__/
 tools/tts/
 # generated voice-over wavs (regenerated from voice_studio.py)
 assets/audio/vo/
+
+# 55MB YouTube-sourced dev ambience - license-unclear, replace for release (bead xu94)
+assets/audio/ambience/jungle_day.mp3
