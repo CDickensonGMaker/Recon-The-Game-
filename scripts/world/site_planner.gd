@@ -111,12 +111,16 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 		# and is correctly skipped by this same guard.
 		body.add_to_group("nav_blockers")
 		body.set_meta("nav_box", box_size)
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = box_size
-		shape.shape = box
-		shape.position = Vector3(0, float(entry.y_offset), 0)
-		body.add_child(shape)
+		# mesh: true -> the GLB carries -col trimesh nodes (pow_cage, ruins). The
+		# authored box would double the collision AND block doorways/breaches, so
+		# skip it; the box entry above still drives the nav carve. [bead sjup]
+		if not bool(entry.get("mesh", false)):
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = box_size
+			shape.shape = box
+			shape.position = Vector3(0, float(entry.y_offset), 0)
+			body.add_child(shape)
 	_parent.add_child(body)
 	var ground_y: float = _terrain.get_height_at(world_pos)
 	body.global_position = Vector3(world_pos.x, ground_y, world_pos.z)
@@ -214,9 +218,20 @@ func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 		nodes.append(place_structure(SiteLayouts.FIREBASE_WIRE, pos, rad_to_deg(a) + 90.0))
 	# Helipad pad (extra flatten) + parked vehicles + a static Chinook for flavor.
 	# Helipad + vehicles ride the same rotation so they stay clear of the interior.
+	# Interior extras (aid station / ammo bunker / mess hall / TOC...): 2-4 rolled
+	# per firebase into spare slots - the RTS variety we were sitting on. [swap pass]
+	var slots: Array = SiteLayouts.FIREBASE_EXTRA_SLOTS.duplicate()
+	var extras_n: int = rng.randi_range(2, mini(4, slots.size()))
+	for _e in range(extras_n):
+		var si: int = rng.randi() % slots.size()
+		var slot: Vector2 = (slots.pop_at(si) as Vector2).rotated(base_rot)
+		var em: String = SiteLayouts.FIREBASE_EXTRA_MODELS[rng.randi() % SiteLayouts.FIREBASE_EXTRA_MODELS.size()]
+		nodes.append(place_structure(em, center + Vector3(slot.x, 0, slot.y), rng.randf_range(0, 360)))
 	var hp_off: Vector2 = (SiteLayouts.FIREBASE_HELIPAD_OFFSET as Vector2).rotated(base_rot)
 	var helipad := center + Vector3(hp_off.x, 0, hp_off.y)
 	clear_and_flatten(helipad, 9.0)
+	# Real PSP helipad pad (zero-collision walkable) instead of bare flattened dirt.
+	nodes.append(place_structure(SiteLayouts.FIREBASE_HELIPAD_MODEL, helipad, base_deg))
 	var veh_base := Vector2(-6.0, -14.0).rotated(base_rot)
 	var veh_step := Vector2(5.0, 0.0).rotated(base_rot)
 	for i in range(SiteLayouts.FIREBASE_VEHICLES.size()):

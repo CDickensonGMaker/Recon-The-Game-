@@ -13,6 +13,8 @@ const VILLAGE_HUT_MODELS: Array[String] = [
 const VILLAGE_CENTER_MODELS: Array[String] = [
 	"res://assets/building models/structures/village/well.glb",
 	"res://assets/building models/structures/village/communal_house.glb",
+	"res://assets/building models/structures/village/pagoda.glb",
+	"res://assets/building models/structures/village/bell_tower.glb",
 ]
 
 const CACHE_MODEL: String = "res://assets/building models/structures/vc_nva/weapons_cache.glb"
@@ -31,6 +33,25 @@ const FIREBASE_INTERIOR := [
 const FIREBASE_MG_NEST: String = "res://assets/building models/structures/firebase/mg_nest.glb"
 const FIREBASE_SANDBAG: String = "res://assets/building models/structures/firebase/sandbag_light.glb"
 const FIREBASE_WIRE: String = "res://assets/building models/structures/firebase/triple_concertina.glb"
+const FIREBASE_HELIPAD_MODEL: String = "res://assets/building models/structures/airfield/psp_helipad.glb"
+
+## Optional interior extras: each firebase rolls 2-4 of these into spare slots so
+## no two bases read the same (RTS copy-ins, previously unused).
+const FIREBASE_EXTRA_MODELS: Array[String] = [
+	"res://assets/building models/structures/firebase/aid_station.glb",
+	"res://assets/building models/structures/firebase/ammo_bunker.glb",
+	"res://assets/building models/structures/firebase/commo_bunker.glb",
+	"res://assets/building models/structures/firebase/mess_hall.glb",
+	"res://assets/building models/structures/firebase/mortar_pit.glb",
+	"res://assets/building models/structures/firebase/latrine.glb",
+	"res://assets/building models/structures/firebase/quonset_hut.glb",
+	"res://assets/building models/structures/firebase/toc.glb",
+	"res://assets/building models/structures/firebase/supply_depot.glb",
+]
+## Spare interior slots (clear of tower/hootches/bunkers/vehicles/helipad).
+const FIREBASE_EXTRA_SLOTS: Array[Vector2] = [
+	Vector2(0, 14), Vector2(-18, 0), Vector2(14, -2), Vector2(-4, -20), Vector2(-20, 12),
+]
 
 ## Vehicle props parked in firebases.
 const FIREBASE_VEHICLES: Array[String] = [
