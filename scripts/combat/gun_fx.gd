@@ -23,6 +23,7 @@ static func reset_session() -> void:
 	_active_flashes = 0
 	_active_impacts = 0
 	_active_explosions = 0
+	_blood_tex.clear()  # static cache would otherwise hold textures to process exit (leak scan)
 	if _sting_player != null and is_instance_valid(_sting_player):
 		_sting_player.stop()
 		_sting_player.queue_free()
@@ -402,7 +403,9 @@ static func blood_wound(unit: Node, world_pos: Vector3) -> void:
 	if wounds >= 3:
 		return
 	unit.set_meta("blood_wounds", wounds + 1)
-	var is_model: bool = bool(unit.get("_visual_is_model"))
+	# unit.get() returns null when the property is absent (the PLAYER has no
+	# _visual_is_model) and bool(null) is a runtime crash - compare instead.
+	var is_model: bool = unit.get("_visual_is_model") == true
 	if is_model:
 		var d := Decal.new()
 		d.size = Vector3(0.34, 0.5, 0.34)
