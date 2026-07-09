@@ -163,16 +163,14 @@ func _process(delta: float) -> void:
 			_abort_hold = 0.0
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
+		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
 		if not fire_menu_open:
-			# Getting on the net requires the radio - a LIVING RTO you're standing near.
-			# The radio is on his back (RTO_RADIO_RANGE), so you must keep your radioman
-			# close and alive to have fire support at all (Pillar 4: protect the man).
-			var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
-			var pl: Node3D = world.player if world != null else null
-			if rto == null:
-				toast.emit("NO RADIO - RTO IS DOWN")
-			elif pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
-				toast.emit("TOO FAR FROM THE RADIO - GET TO YOUR RTO (%dm)" % int(RTO_RADIO_RANGE))
+			# Getting on the net requires the radio - a LIVING RTO you're standing near
+			# (the radio is on his back). Same check gates the Y/O shortcuts inside
+			# request_fire_support, so nothing bypasses the leash.
+			var err := _radio_check()
+			if err != "":
+				toast.emit(err)
 			else:
 				fire_menu_open = true
 				fire_menu_changed.emit(true)
@@ -213,14 +211,19 @@ var fire_menu_open: bool = false:
 var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
 const DANGER_CLOSE_M: float = 45.0
 const RTO_RADIO_RANGE: float = 10.0  ## must be this close to the living RTO to use the radio
+const DANGER_CLOSE_CONFIRM_S: float = 5.0  ## confirm window; a stale pend must never pre-confirm
 var _pending_danger_close: String = ""  ## the call awaiting a danger-close confirm press
+var _pending_dc_at_ms: int = 0  ## when the pend was raised (Time.get_ticks_msec)
 
 
 func request_fire_support(kind: String) -> void:
-	fire_menu_open = false
-	fire_menu_changed.emit(false)
-	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
-		toast.emit("RADIO IS DEAD - NO FIRE SUPPORT")
+	# AUDIT FIX: the menu used to close on the FIRST line, which made the danger-close
+	# confirm unreachable (the second press fell through to weapon keys). Now the net
+	# stays open through soft failures and the confirm; it closes only on dispatch.
+	var err := _radio_check()  # RTO alive + within 10m - also gates the Y/O shortcuts
+	if err != "":
+		_close_net()
+		toast.emit(err)
 		return
 	if int(fire_support.get(kind, 0)) <= 0:
 		toast.emit("%s: NONE AVAILABLE" % kind.to_upper())
@@ -233,14 +236,18 @@ func request_fire_support(kind: String) -> void:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
 	# Danger-close confirm (War Room decree): if the aim point is near a living
-	# squadmate, require a second press of the SAME call before it goes out - you
-	# should have to look at your own men and mean it. (Allies also take reduced
-	# blast, see CombatManager - threat, not a delete button.)
-	if _danger_close_to_squad(target) and _pending_danger_close != kind:
+	# squadmate, require a second press of the SAME call, within a short window -
+	# you should have to look at your own men and mean it. A stale or different-kind
+	# pend never pre-confirms.
+	var pend_fresh: bool = _pending_danger_close == kind \
+		and (Time.get_ticks_msec() - _pending_dc_at_ms) < int(DANGER_CLOSE_CONFIRM_S * 1000.0)
+	if _danger_close_to_squad(target) and not pend_fresh:
 		_pending_danger_close = kind
-		toast.emit("DANGER CLOSE - MEN NEAR THE TARGET - PRESS AGAIN TO CONFIRM")
+		_pending_dc_at_ms = Time.get_ticks_msec()
+		toast.emit("DANGER CLOSE - MEN NEAR THE TARGET - PRESS %s AGAIN TO CONFIRM" % kind.to_upper())
 		return
 	_pending_danger_close = ""
+	_close_net()  # call is going out - off the horn
 	fire_support[kind] = int(fire_support[kind]) - 1
 	# FO/FAC is the RADIOMAN's skill, not yours -- and :182 already refused fire
 	# support when the RTO is dead, so making the player buy it contradicted a
@@ -299,6 +306,25 @@ func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	plane.call_flyby(world.terrain_manager, target, ordnance, run_dir)
 
 
+## The radio is a man: a LIVING RTO within RTO_RADIO_RANGE. Returns "" when usable,
+## else the toast to show. Called by the net toggle AND every fire request, so the
+## Y-mortar / supply-drop shortcuts can't bypass the leash. [audit fix]
+func _radio_check() -> String:
+	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
+	if rto == null:
+		return "NO RADIO - RTO IS DOWN"
+	var pl: Node3D = world.player if world != null else null
+	if pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
+		return "TOO FAR FROM THE RADIO - GET TO YOUR RTO (%dm)" % int(RTO_RADIO_RANGE)
+	return ""
+
+
+func _close_net() -> void:
+	if fire_menu_open:
+		fire_menu_open = false
+		fire_menu_changed.emit(false)
+
+
 ## True if any living squadmate is within DANGER_CLOSE_M of the aim point (gates the confirm).
 func _danger_close_to_squad(target: Vector3) -> bool:
 	if squad_system == null or not is_instance_valid(squad_system):
@@ -340,8 +366,9 @@ var supply_used: bool = false
 
 
 func request_supply_drop() -> void:
-	if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
-		toast.emit("RADIO IS DEAD - NO RESUPPLY")
+	var err := _radio_check()  # living RTO within 10m - shortcut can't bypass the leash
+	if err != "":
+		toast.emit(err)
 		return
 	if supply_used:
 		toast.emit("RESUPPLY ALREADY FLOWN")

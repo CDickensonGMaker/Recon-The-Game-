@@ -560,8 +560,11 @@ func _handle_movement(delta: float) -> void:
 	if Input.is_action_just_pressed("throw_smoke") and not MissionDirector.any_fire_menu_open:
 		_throw_smoke()
 
-	# Claymore (W58): key 6, placed at your feet facing your aim.
-	if Input.is_action_just_pressed("place_claymore") and claymore_count > 0 and is_on_floor():
+	# Claymore (W58): key 6, placed at your feet facing your aim. Key 6 doubles as
+	# CBU while ON THE NET (cbu_strike shares the physical key), so the guard below
+	# keeps one press from doing both. [audit fix: key-6 double-bind]
+	if Input.is_action_just_pressed("place_claymore") and claymore_count > 0 and is_on_floor() \
+			and not MissionDirector.any_fire_menu_open:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)

@@ -17,6 +17,7 @@ var _sprung: bool = false
 
 static func place(parent: Node, terrain: Node, world_pos: Vector3, facing: float = 0.0) -> PunjiTrap:
 	var trap := PunjiTrap.new()
+	trap.add_to_group("punji_traps")  # the POINT man's detect_ambush scan spots these
 	parent.add_child(trap)
 	var gy: float = world_pos.y
 	if terrain != null and terrain.has_method("get_height_at"):

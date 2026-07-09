@@ -173,7 +173,12 @@ func _physics_process(delta: float) -> void:
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)
 	_process_revive(delta)
-	_point_scan()
+	# Point scan on a 0.4s cadence, not 60Hz - it walks every lazy group + trap.
+	# (_point_scan_timer existed but was never used. [audit fix])
+	_point_scan_timer += delta
+	if _point_scan_timer >= 0.4:
+		_point_scan_timer = 0.0
+		_point_scan()
 	_grenadier_tick()
 	_contact_barks()
 
@@ -199,6 +204,18 @@ func _point_scan() -> void:
 			if pp > 0:
 				point.on_skill_up("detect_ambush", pp)
 			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % str(point.member.nick))
+	# Punji/trap spotting: the counterplay the traps promised. Harder than spotting
+	# men (60% radius), and the trap is called out once. [audit fix]
+	for t in get_tree().get_nodes_in_group("punji_traps"):
+		var trap := t as Node3D
+		if trap == null or _point_warned.has(trap.get_instance_id()):
+			continue
+		if point.global_position.distance_to(trap.global_position) <= radius * 0.6:
+			_point_warned[trap.get_instance_id()] = true
+			var tp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)
+			if tp > 0:
+				point.on_skill_up("detect_ambush", tp)
+			director.toast.emit("%s: TRAP! WATCH YOUR STEP - SPIKES" % str(point.member.nick))
 
 
 func _grenadier_tick() -> void:
