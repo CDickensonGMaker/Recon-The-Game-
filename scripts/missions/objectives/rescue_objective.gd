@@ -14,18 +14,24 @@ var _cage: Node3D = null
 
 func setup_camp(game_world: GameWorld) -> void:
 	world = game_world
-	# Cage placeholder: a rice-storage crib. The POW paces inside (capsule).
-	var planner_cage := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(2.2, 1.8, 2.2)
-	planner_cage.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.35, 0.28, 0.18, 0.8)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	planner_cage.material_override = mat
-	add_child(planner_cage)
-	planner_cage.position = Vector3(0, 0.9, 0)
-	_cage = planner_cage
+	# Real bamboo POW cage (was a box placeholder). The POW paces inside.
+	var cage_scene: PackedScene = load("res://assets/building models/structures/vc_nva/pow_cage.glb")
+	if cage_scene:
+		_cage = cage_scene.instantiate()
+		add_child(_cage)
+	else:
+		# fallback to the old translucent box if the model is ever missing
+		var planner_cage := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(2.2, 1.8, 2.2)
+		planner_cage.mesh = box
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.35, 0.28, 0.18, 0.8)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		planner_cage.material_override = mat
+		planner_cage.position = Vector3(0, 0.9, 0)
+		add_child(planner_cage)
+		_cage = planner_cage
 
 
 func _physics_process(delta: float) -> void:
