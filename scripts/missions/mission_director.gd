@@ -195,6 +195,8 @@ var fire_menu_open: bool = false:
 		fire_menu_open = value
 		any_fire_menu_open = value
 var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
+const DANGER_CLOSE_M: float = 45.0
+var _pending_danger_close: String = ""  ## the call awaiting a danger-close confirm press
 
 
 func request_fire_support(kind: String) -> void:
@@ -213,6 +215,15 @@ func request_fire_support(kind: String) -> void:
 	if target == Vector3.ZERO:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
+	# Danger-close confirm (War Room decree): if the aim point is near a living
+	# squadmate, require a second press of the SAME call before it goes out - you
+	# should have to look at your own men and mean it. (Allies also take reduced
+	# blast, see CombatManager - threat, not a delete button.)
+	if _danger_close_to_squad(target) and _pending_danger_close != kind:
+		_pending_danger_close = kind
+		toast.emit("DANGER CLOSE - MEN NEAR THE TARGET - PRESS AGAIN TO CONFIRM")
+		return
+	_pending_danger_close = ""
 	fire_support[kind] = int(fire_support[kind]) - 1
 	# FO/FAC is the RADIOMAN's skill, not yours -- and :182 already refused fire
 	# support when the RTO is dead, so making the player buy it contradicted a
@@ -269,6 +280,18 @@ func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	if world.player:
 		run_dir = target - world.player.global_position
 	plane.call_flyby(world.terrain_manager, target, ordnance, run_dir)
+
+
+## True if any living squadmate is within DANGER_CLOSE_M of the aim point (gates the confirm).
+func _danger_close_to_squad(target: Vector3) -> bool:
+	if squad_system == null or not is_instance_valid(squad_system):
+		return false
+	for a in squad_system.members:
+		var ally := a as AllyBase
+		if ally != null and is_instance_valid(ally) and not ally.is_dead():
+			if ally.global_position.distance_to(target) <= DANGER_CLOSE_M:
+				return true
+	return false
 
 
 func _arty_impact(pos: Vector3, deform: bool) -> void:

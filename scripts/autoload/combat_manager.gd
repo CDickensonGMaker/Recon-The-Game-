@@ -147,6 +147,12 @@ func apply_explosion_damage(
 			if _can_damage_multipoint(space_state, center, ally_pos, ally):
 				var falloff: float = 1.0 - (dist / radius)
 				var damage: int = maxi(1, int(lerpf(float(min_damage), float(max_damage), falloff)))
+				# Asymmetric danger-close (War Room decree): indirect / ordnance fire
+				# (attacker == null - arty, CAS, napalm, CBU, placed charges) does only
+				# ~0.4x to your own men, so a called strike THREATENS but doesn't delete
+				# the veterans you've grown to love. Direct fire (a real attacker) is full.
+				if attacker == null:
+					damage = maxi(1, int(float(damage) * 0.4))
 
 				if ally.has_method("take_damage"):
 					ally.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)
