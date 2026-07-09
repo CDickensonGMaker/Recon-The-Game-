@@ -162,8 +162,18 @@ func _process(delta: float) -> void:
 			_abort_hold = 0.0
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
-		fire_menu_open = not fire_menu_open
-		fire_menu_changed.emit(fire_menu_open)
+		if not fire_menu_open:
+			# Getting on the net requires the radio - a living RTO (Pillar 4: lose the
+			# radioman, lose the verbs). Opening it lowers your rifle - you're committed.
+			if squad_system != null and is_instance_valid(squad_system) and not squad_system.is_rto_alive():
+				toast.emit("NO RADIO - RTO IS DOWN")
+			else:
+				fire_menu_open = true
+				fire_menu_changed.emit(true)
+				toast.emit("ON THE HORN - SEND YOUR FIRE MISSION")
+		else:
+			fire_menu_open = false
+			fire_menu_changed.emit(false)
 	if fire_menu_open and GameManager.can_player_act():
 		if Input.is_action_just_pressed("slot_1"):
 			request_fire_support("bombs")

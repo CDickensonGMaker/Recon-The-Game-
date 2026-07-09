@@ -584,7 +584,8 @@ func _handle_movement(delta: float) -> void:
 	if _winded and stamina > stamina_max * 0.35:
 		_winded = false
 	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
-		and not wounded_legs and not _winded and stamina > 0.0
+		and not wounded_legs and not _winded and stamina > 0.0 \
+		and not MissionDirector.any_fire_menu_open
 	is_sprinting = Input.is_action_pressed("sprint") and can_sprint and input_dir.y < 0
 
 	if is_sprinting:
@@ -603,6 +604,11 @@ func _handle_movement(delta: float) -> void:
 		current_speed = SPRINT_SPEED
 	else:
 		current_speed = WALK_SPEED
+
+	# On the radio (handset up): you can only shuffle - slowed and exposed while you
+	# call it in. "Getting on the net" is a real commitment, not a free action.
+	if MissionDirector.any_fire_menu_open:
+		current_speed = minf(current_speed, CROUCH_SPEED)
 
 	# R73: flooded rice paddy drags at your legs.
 	if _grid != null and _grid.get_terrain_type(global_position) == GameplayGrid.TerrainType.RICE_PADDY:

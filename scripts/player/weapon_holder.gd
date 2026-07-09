@@ -168,11 +168,15 @@ func _handle_input() -> void:
 		is_firing = false
 		return
 
+	# On the radio (handset up): the rifle is down - no aiming, no firing. You're
+	# committed to the call and exposed. The whole point of "getting on the net".
+	var on_radio: bool = MissionDirector.any_fire_menu_open
+
 	# ADS input
-	is_aiming = Input.is_action_pressed("aim") and not is_reloading
+	is_aiming = Input.is_action_pressed("aim") and not is_reloading and not on_radio
 
 	# Fire input
-	if Input.is_action_pressed("fire") and not is_reloading:
+	if Input.is_action_pressed("fire") and not is_reloading and not on_radio:
 		_try_fire()
 	else:
 		is_firing = false
@@ -580,6 +584,13 @@ func _update_weapon_position(delta: float) -> void:
 	if controller and "is_sprinting" in controller and controller.is_sprinting:
 		target_pos.y -= 0.08
 		target_rot.x -= 12.0
+
+	# On the radio: rifle drops right out of the fight - you've raised the handset.
+	# Deeper than the sprint-lower so it reads unmistakably as "on the net, exposed".
+	if MissionDirector.any_fire_menu_open:
+		target_pos.y -= 0.30
+		target_pos.z += 0.14
+		target_rot.x -= 60.0
 
 	# R52: idle sway - tighter aiming, nearly gone while holding your breath.
 	_sway_time += delta

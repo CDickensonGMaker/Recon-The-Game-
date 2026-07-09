@@ -102,7 +102,7 @@ func _on_fire_menu_changed(open: bool) -> void:
 		return
 	for c in _fire_menu.get_children():
 		c.queue_free()
-	_fire_menu.add_child(ReconUI.make_header("CALL FOR FIRE", 16))
+	_fire_menu.add_child(ReconUI.make_header("ON THE NET - FIRE MISSION", 16))
 	var fs: Dictionary = director.fire_support
 	var rows := [
 		["1", "CAS - SNAKE EYE BOMBS", "bombs"],
@@ -116,7 +116,7 @@ func _on_fire_menu_changed(open: bool) -> void:
 		var count: int = int(fs.get(row[2], 0))
 		var color := ReconUI.OLIVE if count > 0 else ReconUI.DIM
 		_fire_menu.add_child(ReconUI.make_label("[%s] %-22s x%d" % [row[0], row[1], count], 14, color))
-	_fire_menu.add_child(ReconUI.make_label("AIM AT TARGET, PRESS NUMBER. [T] CLOSE", 11, ReconUI.DIM))
+	_fire_menu.add_child(ReconUI.make_label("RIFLE DOWN - AIM AT TARGET, PRESS NUMBER. [T] OFF NET", 11, ReconUI.DIM))
 
 
 ## PT8: slot slider - the kit at a glance, current slot highlighted.
