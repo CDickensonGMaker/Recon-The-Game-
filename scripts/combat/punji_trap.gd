@@ -27,8 +27,15 @@ static func place(parent: Node, terrain: Node, world_pos: Vector3, facing: float
 	var scene: PackedScene = load(MODEL_PATH)
 	if scene:
 		trap.add_child(scene.instantiate())
-	# brief arming delay so it can never spring on the frame it spawns
-	trap.get_tree().create_timer(1.0).timeout.connect(func() -> void: trap._armed = true)
+	# brief arming delay so it can never spring on the frame it spawns. Timer is a
+	# CHILD (dies with the trap) - a scene-timer lambda dangles if the site is torn
+	# down inside the window (test_site_stamp caught exactly that).
+	var arm_t := Timer.new()
+	arm_t.one_shot = true
+	arm_t.wait_time = 1.0
+	trap.add_child(arm_t)
+	arm_t.timeout.connect(func() -> void: trap._armed = true)
+	arm_t.start()
 	return trap
 
 

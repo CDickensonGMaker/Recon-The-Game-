@@ -173,9 +173,21 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.35).from(Vector3(0.6, 0.6, 0.6))
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
 	tw.tween_property(light, "light_energy", 0.0, 0.25)
-	root.get_tree().create_timer(1.4).timeout.connect(func() -> void:
+	_expire(root, 1.4, func() -> void:
 		_active_explosions -= 1
 		root.queue_free())
+
+
+## Self-contained expiry: a Timer CHILD of `node` (dies with it - a scene-tree
+## timer lambda would dangle if the node is freed first, e.g. mission teardown,
+## and the engine error-spams "Lambda capture was freed"). [test_site_stamp fix]
+static func _expire(node: Node, seconds: float, cb: Callable) -> void:
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = seconds
+	node.add_child(t)
+	t.timeout.connect(cb)
+	t.start()
 
 
 ## Muzzle flash: warm omni light + emissive billboard quad, 45ms.
@@ -206,7 +218,7 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	quad.material_override = mat
 	quad.rotation_degrees = Vector3(0, 0, randf_range(0, 360))
 	root.add_child(quad)
-	root.get_tree().create_timer(0.045).timeout.connect(func() -> void:
+	_expire(root, 0.045, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())
 
@@ -231,7 +243,7 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = fal
 		parent.add_child(particles)
 		particles.global_position = pos + normal * 0.05
 		particles.emitting = true
-		particles.get_tree().create_timer(0.6).timeout.connect(func() -> void:
+		_expire(particles, 0.6, func() -> void:
 			_active_impacts -= 1
 			particles.queue_free())
 	var p := AudioStreamPlayer3D.new()
@@ -327,7 +339,7 @@ static func blood(parent: Node, pos: Vector3, normal: Vector3, shot_dir: Vector3
 		root.add_child(drops)
 		drops.emitting = true
 
-		root.get_tree().create_timer(0.8).timeout.connect(func() -> void:
+		_expire(root, 0.8, func() -> void:
 			_active_impacts -= 1
 			root.queue_free())
 
@@ -413,26 +425,27 @@ static func blood_wound(unit: Node, world_pos: Vector3) -> void:
 			(actor as Object).call("set_base_modulate", Color(1.0, 1.0 - 0.35 * t, 1.0 - 0.35 * t))
 
 
-## Spreading pool under a kill: our 4-stage sheet, swapped as it grows (~3s).
+## Spreading pool under a kill: 4 standalone stage textures swapped as it grows
+## (~3s). Decals cannot sample AtlasTexture, and units can die while the scene is
+## tearing down - both learned from test_cas_sim. Guards accordingly.
 static func blood_pool(parent: Node, ground_pos: Vector3) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
 	var d := Decal.new()
 	d.size = Vector3(0.6, 0.3, 0.6)
 	d.albedo_mix = 1.0
-	var sheet := _btex("blood_pool_sheet")
-	var stage := func(i: int) -> AtlasTexture:
-		var at := AtlasTexture.new()
-		at.atlas = sheet
-		at.region = Rect2(i * 256, 0, 256, 256)
-		return at
-	d.texture_albedo = stage.call(0)
+	d.texture_albedo = _btex("blood_pool_1")
 	parent.add_child(d)
+	if not d.is_inside_tree():
+		d.queue_free()
+		return
 	d.global_position = ground_pos + Vector3(0, 0.05, 0)
 	d.rotate_y(randf_range(0, TAU))
-	for i in range(1, 4):
-		parent.get_tree().create_timer(0.9 * float(i)).timeout.connect(func() -> void:
-			if is_instance_valid(d):
-				d.texture_albedo = stage.call(i)
-				var s: float = 0.6 + 0.35 * float(i)
+	for i in range(2, 5):
+		_expire(d, 0.9 * float(i - 1), func() -> void:
+			if is_instance_valid(d) and d.is_inside_tree():
+				d.texture_albedo = _btex("blood_pool_%d" % i)
+				var s: float = 0.6 + 0.35 * float(i - 1)
 				d.size = Vector3(s, 0.3, s))
 	_blood_pools.append(d)
 	while _blood_pools.size() > MAX_BLOOD_POOLS:

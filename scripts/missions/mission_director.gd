@@ -331,7 +331,10 @@ func _radio_check() -> String:
 ## the handset, then it's in-ear (VOManager handles that split).
 func _radio_vo(line_id: String) -> void:
 	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
-	VOManager.play_radio(line_id, rto.global_position if rto != null else null)
+	var src: Variant = null
+	if rto != null:
+		src = rto.global_position
+	VOManager.play_radio(line_id, src)
 
 
 func _close_net() -> void:

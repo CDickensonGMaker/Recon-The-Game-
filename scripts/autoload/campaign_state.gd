@@ -190,6 +190,10 @@ func load_campaign() -> void:
 	iron_man = bool(cfg.get_value("campaign", "iron_man", false))
 	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
+	# Persist a migrated save immediately - otherwise the migrate warning fires on
+	# EVERY boot until the next natural save.
+	if file_version < SAVE_VERSION:
+		save_campaign()
 
 
 ## v0 (unversioned) had no `version` key and no sprite fields on the roster.

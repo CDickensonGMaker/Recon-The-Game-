@@ -160,6 +160,9 @@ def main() -> None:
         save_rgba(os.path.join(OUT, f"blood_splat_{i + 1}.png"), *s)
     pool = gen_pool()
     save_rgba(os.path.join(OUT, "blood_pool_sheet.png"), *sheet(pool, 4, 256))
+    # Decals can't sample AtlasTexture - each pool stage also ships standalone.
+    for i, p in enumerate(pool):
+        save_rgba(os.path.join(OUT, f"blood_pool_{i + 1}.png"), *p)
 
     # contact sheet on jungle-ish grey-green so alpha reads
     bg = np.array([0.42, 0.45, 0.38])
