@@ -1,7 +1,31 @@
 # Overnight Claude — progress log (2026-07-08 → morning)
 
 Branch: `overnight-claude`. Discipline: reuse existing systems, verify-before-writing, commit each task.
-Status of the 50 tasks in `OVERNIGHT_50.md`. Updated as I go.
+Status of the 50 tasks in `OVERNIGHT_50.md`.
+
+## MORNING SUMMARY — 13 tasks done, all validated headless & pushed
+**5 research docs** (`production/research/`): squad mechanics, coop feasibility, air support, gore FX, ragdoll —
+each grounded in the actual code, each proposing REUSE of existing systems (not rewrites).
+**8 code/doc tasks**, one commit each, every one passing a full-project headless compile (Godot 4.6.2):
+1. Enemies + allies bleed on flesh hits (was player-only) — reuses `GunFX.blood`
+2. Firebase interior variety — `stamp_firebase` uses its rng (closed bead `hi9c`)
+3. Pain-quota stagger on solid hits — wired the dead `apply_stagger()`
+4. Functional VC punji traps — new `PunjiTrap` actor (claymore pattern) + village placement
+5. **F-4 fast horizontal flyby + CBU cluster** — your headline: 200m spawn, low+fast, pickles on the pass,
+   climbs and despawns into the clouds; napalm menu now routes through it
+6. Allies use their OWN Small Arms skill (veterans shoot tighter; was player-only)
+7. `WIRING_STATUS.md` — the "how much before scaling" map you asked for
+8. `detect_ambush` skill wired to POINT-man warning radius (was buyable-but-dead)
+
+**No new duplicate systems** — every code task extended something that already existed. Stopped short of a
+toe-popper mine (would ~90% duplicate the punji actor — needs a shared base, better with you awake) and of the
+fire-VFX/bios/napalm-perf tasks (medium-risk, want you or a runtime perf test). Nothing left half-wired.
+
+**Discipline notes below.**
+
+---
+
+Updated as I go.
 
 ## Legend: ✅ done · 🔄 in progress · ⏳ queued · ⏸ gated (needs you/Blender)
 
