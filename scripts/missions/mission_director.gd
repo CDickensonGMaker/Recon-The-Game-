@@ -175,6 +175,7 @@ func _process(delta: float) -> void:
 				fire_menu_open = true
 				fire_menu_changed.emit(true)
 				toast.emit("ON THE HORN - SEND YOUR FIRE MISSION")
+				VOManager.play_radio("on_the_horn")
 		else:
 			fire_menu_open = false
 			fire_menu_changed.emit(false)
@@ -245,6 +246,7 @@ func request_fire_support(kind: String) -> void:
 		_pending_danger_close = kind
 		_pending_dc_at_ms = Time.get_ticks_msec()
 		toast.emit("DANGER CLOSE - MEN NEAR THE TARGET - PRESS %s AGAIN TO CONFIRM" % kind.to_upper())
+		VOManager.play_radio("danger_close")
 		return
 	_pending_danger_close = ""
 	_close_net()  # call is going out - off the horn
@@ -259,11 +261,14 @@ func request_fire_support(kind: String) -> void:
 		"bombs":
 			_launch_cas(target, CASAirplane.Ordnance.BOMB)
 			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d left)" % fire_support[kind])
+			VOManager.play_radio("snake_eye")
 		"napalm":
 			_launch_flyby(target, CASAirplane.Ordnance.NAPALM)
 			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
+			VOManager.play_radio("napalm_run")
 		"arty":
 			toast.emit("BATTERY FIRE MISSION - SHOT OUT (%d left)" % fire_support[kind])
+			VOManager.play_radio("arty_barrage")
 			# fo_fac tightens the sheaf: a green radioman scatters wide, a veteran walks
 			# it onto the target (lerp 1.0 -> 0.45 across 8 skill levels).
 			var scat: float = lerpf(1.0, 0.45, clampf(float(_fo) / 8.0, 0.0, 1.0))
@@ -275,9 +280,11 @@ func request_fire_support(kind: String) -> void:
 		"spooky":
 			SpookyGunship.call_in(world, world.terrain_manager, target)
 			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+			VOManager.play_radio("spooky")
 		"cbu":
 			_launch_flyby(target, CASAirplane.Ordnance.CBU)
 			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
+			VOManager.play_radio("cbu_cluster")
 	# Learn-by-doing: the RADIOMAN gets better at calling fire the more he does it. A
 	# maxed "STEEL RAIN" radioman drops tight fire-for-effect; losing him hurts (Pillar 4).
 	if _rto != null:
@@ -351,6 +358,7 @@ func _arty_impact(pos: Vector3, deform: bool) -> void:
 
 func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
+	VOManager.play_radio("mortar_mission")
 	# fo_fac tightens the sheaf and, for a veteran radioman (fo>=5), adds a 4th round.
 	var scat: float = lerpf(1.0, 0.45, clampf(float(fo) / 8.0, 0.0, 1.0))
 	var rounds: int = 3 + (1 if fo >= 5 else 0)

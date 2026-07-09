@@ -474,6 +474,7 @@ func _check_tunnel_retreat() -> void:
 		if global_position.distance_to(entrance.global_position) > 8.0:
 			continue
 		_tunnel_retreat_queued = true
+		VOManager.play_enemy("retreat", self)
 		var shout := Label3D.new()
 		shout.text = "DI DI MAU!"
 		shout.font_size = 22
@@ -1391,6 +1392,7 @@ func _throw_grenade() -> void:
 	grenade_cooldown = 15.0
 	# Telegraph: shout (noise event draws attention both ways) + floating text.
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
+	VOManager.play_enemy("grenade", self)
 	var shout := Label3D.new()
 	shout.text = "LUU DAN!"
 	shout.font_size = 26
@@ -1606,6 +1608,7 @@ func try_surrender() -> bool:
 		sprite_actor.set_base_modulate(Color(1.15, 1.15, 0.95))
 	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color(0.7, 0.7, 0.6)
+	VOManager.play_enemy("surrender", self)
 	var shout := Label3D.new()
 	shout.text = "CHIEU HOI!"
 	shout.font_size = 24

@@ -41,6 +41,7 @@ CombatManager="*res://scripts/autoload/combat_manager.gd"
 TerrainEngine="*res://terrain/core/terrain_engine.gd"
 DamageSystem="*res://terrain/systems/damage_system.gd"
 ClearingSystem="*res://terrain/systems/clearing_system.gd"
+VOManager="*res://scripts/autoload/vo_manager.gd"
 
 [display]
 

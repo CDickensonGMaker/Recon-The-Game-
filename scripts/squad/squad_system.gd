@@ -92,6 +92,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if is_instance_valid(a):
 				a.weapons_free = weapons_free
 		director.toast.emit("SQUAD: WEAPONS %s" % ("FREE" if weapons_free else "TIGHT - HOLD FIRE"))
+		VOManager.play_squad("weapons_free" if weapons_free else "weapons_tight")
 
 
 func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> void:
@@ -128,6 +129,10 @@ func begin_revive(_health_system: HealthSystem) -> void:
 	_downed_clock = 0.0
 	revives_left -= 1
 	director.toast.emit("MAN DOWN! DOC IS MOVING TO YOU (%d revives left)" % revives_left)
+	var _vo_doc := member_by_mos("MEDIC")
+	if _vo_doc != null:
+		VOManager.play_squad("man_down", {}, _vo_doc.global_position)
+		VOManager.play_squad("doc_moving", _vo_doc.member, _vo_doc.global_position)
 
 
 ## PT2: first revive of the mission patches you to FULL; the second is field-dressing.
@@ -163,6 +168,7 @@ func _process_revive(delta: float) -> void:
 				medic.on_skill_up("medic", mp)
 			medic.set_order(AllyBase.OrderMode.FOLLOW)
 			director.toast.emit("DOC: YOU'RE GOOD - ON YOUR FEET!")
+			VOManager.play_squad("on_your_feet", medic.member, medic.global_position)
 	else:
 		_revive_timer = 0.0
 
@@ -204,6 +210,7 @@ func _point_scan() -> void:
 			if pp > 0:
 				point.on_skill_up("detect_ambush", pp)
 			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % str(point.member.nick))
+			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 	# Punji/trap spotting: the counterplay the traps promised. Harder than spotting
 	# men (60% radius), and the trap is called out once. [audit fix]
 	for t in get_tree().get_nodes_in_group("punji_traps"):
@@ -242,6 +249,7 @@ func _grenadier_tick() -> void:
 			_thumper_cooldown = 14.0
 			var impact: Vector3 = enemy.global_position
 			director.toast.emit("%s: THUMPER OUT!" % str(thumper.member.nick))
+			VOManager.play_squad("thumper_out", thumper.member, thumper.global_position)
 			get_tree().create_timer(1.2).timeout.connect(func() -> void:
 				if world == null or not is_instance_valid(world) or not is_instance_valid(thumper):
 					return
@@ -270,6 +278,7 @@ func _contact_barks() -> void:
 				break
 		if caller:
 			director.toast.emit("%s: CONTACT!" % str(caller.member.nick))
+			VOManager.play_squad("contact_front" if randf() < 0.5 else "contact", caller.member, caller.global_position)
 	_last_combat_count = in_combat
 
 
