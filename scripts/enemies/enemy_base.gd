@@ -1334,8 +1334,21 @@ func _fire_at_target() -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
-	if result and not (result.collider is Hitzone):
-		GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
+	# Flesh gets blood (used to get NOTHING — only the player spawned blood); world
+	# gets a dust puff + persistent hole. Mirrors weapon_holder's player path.
+	if result:
+		var hit_col: Object = result.collider
+		var is_flesh: bool = hit_col is Hitzone
+		if not is_flesh and hit_col is Node:
+			var n := hit_col as Node
+			var np: Node = n.get_parent()
+			is_flesh = n.is_in_group("player") or n.is_in_group("allies") \
+				or (np != null and (np.is_in_group("player") or np.is_in_group("allies")))
+		if is_flesh:
+			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+		else:
+			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
+			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
 
 	if result:
 		var hit_target: Object = result.collider

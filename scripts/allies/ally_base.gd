@@ -492,6 +492,20 @@ func _fire_at_target() -> void:
 	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, origin)
 
+	# Flesh gets blood; world gets a dust puff + hole (allies spawned no impact FX before).
+	if result:
+		var hit_col: Object = result.collider
+		var is_flesh: bool = hit_col is Hitzone
+		if not is_flesh and hit_col is Node:
+			var n := hit_col as Node
+			var np: Node = n.get_parent()
+			is_flesh = n.is_in_group("enemies") or (np != null and np.is_in_group("enemies"))
+		if is_flesh:
+			GunFX.blood(get_tree().current_scene, result.position, result.normal)
+		else:
+			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
+			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
+
 	if result:
 		var hit_target: Object = result.collider
 		if hit_target:
