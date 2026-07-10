@@ -29,12 +29,13 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 - [ ] FP radio handset raise (reuses the RTO handset asset)
 
 ## 4. PROPS / VEHICLES (one Blender session each)
-- [ ] **us_grunt_v2 export cleanup** (gib code VERIFIED working 2026-07-10 — these are the
-      remaining export oddities, all confirmed by probe/dump):
-      1. `cap_leg_l` exported as an EMPTY node outside the Skeleton (every other cap is a
-         skinned mesh) → left-leg stump renders hollow. Probe `test_gore_rig` WARNs until fixed.
-      2. `us_grunt_joined` (the uncut original body, 842 tris) still ships in the glb —
-         engine hides it at runtime now, but exclude it from export (dead weight + z-fight risk).
+- [ ] **us_grunt_v2 source cleanup** (gib code VERIFIED working 2026-07-10; the export itself
+      is FINE — engine now re-applies your viewport intent: joined body renders, grunt_* gib
+      donors hidden. These are .blend-side items, confirmed by MCP scene inspection):
+      1. `cap_leg_l` has **0 vertices in the .blend** (never modeled — cap_leg_r has its 4).
+         Model the cap quad or the left-leg stump renders hollow. `test_gore_rig` WARNs until then.
+      2. Stray `canteen_l.001` is unparented (the other five are bone-parented to Hips) —
+         parent it or delete it.
       3. Height: exports at 1.88m (k=0.913). Author AT 1.7132 per GAME_SCALE_STANDARD =
          zero rescale, hitzones land exactly.
       4. File is 13.4MB (mostly embedded texture) → the ar5c crop/downscale pass, target <2MB.

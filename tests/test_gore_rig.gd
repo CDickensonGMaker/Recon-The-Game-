@@ -29,12 +29,22 @@ func _ready() -> void:
 	var root: Node3D = dummy.model.instance_root()
 	var skel: Skeleton3D = dummy.model.skeleton()
 
-	# --- gib-rig contract: the duplicate uncut body must be hidden ----------
+	# --- gib-rig contract (artist intent): joined = live body, donors hidden -
 	var joined: MeshInstance3D = root.find_child("us_grunt_joined", true, false) as MeshInstance3D
-	if joined != null and joined.visible:
-		_bad("us_grunt_joined still visible - double-render ('multi arms') bug")
-	elif joined != null:
-		print("  duplicate uncut body hidden (contract OK)")
+	if joined == null:
+		print("WARN: no us_grunt_joined body in rig - contract not applicable")
+	elif not joined.visible:
+		_bad("us_grunt_joined (the live body) is hidden - soldier is invisible")
+	var donors_visible: int = 0
+	for donor in ["grunt_forearm_l", "grunt_forearm_r", "grunt_uparm_l", "grunt_uparm_r",
+			"grunt_leg_l", "grunt_leg_r", "grunt_head", "grunt_torso"]:
+		var dm: MeshInstance3D = root.find_child(donor, true, false) as MeshInstance3D
+		if dm != null and dm.visible:
+			donors_visible += 1
+	if donors_visible > 0:
+		_bad("%d gib-donor meshes visible at setup - double-render ('multi arms') bug" % donors_visible)
+	else:
+		print("  contract OK: joined body visible, %d donors hidden" % 8)
 
 	# --- cap coverage (stumps) --------------------------------------------
 	for cap in ["cap_head", "cap_torso", "cap_forearm_l", "cap_forearm_r",

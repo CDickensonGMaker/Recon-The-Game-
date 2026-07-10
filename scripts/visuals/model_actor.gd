@@ -57,22 +57,36 @@ func setup(unit_id: String) -> bool:
 	return true
 
 
-## Gib-rig contract (bead 1xqs / us_grunt_v2): rigs that carry pre-cut SKINNED
-## region meshes (grunt_*) ALSO carry the original uncut body ("us_grunt_joined"
-## or "<unit>_joined") - both visible = the double-render / "multi arms" bug.
-## The cut pieces are the live body (hide one piece + its cap shows = the gib
-## swap); the joined original gets hidden. Rigs without the contract: no-op.
+## Gib-rig contract (bead 1xqs / us_grunt_v2, ARTIST INTENT verified in the
+## .blend 2026-07-10): the *_joined mesh is the LIVE body (visible in Blender);
+## the pre-cut region meshes (grunt_*) are GIB DONORS, viewport-hidden in
+## Blender - but Blender viewport-hide does not survive glTF export, so both
+## arrive visible = the double-render / "multi arms" bug. Godot re-applies the
+## intent: donors hidden, joined body renders. Dismemberment collapses the
+## bone chain (removes the limb from the joined body + gear on that chain)
+## and spawns the hidden donor mesh as the flying gib. Non-contract rigs: no-op.
 func _apply_gib_rig_contract() -> void:
 	if _inst == null:
 		return
-	var has_region_pieces: bool = _inst.find_child("grunt_forearm_l", true, false) != null
-	if not has_region_pieces:
-		return
+	var has_joined_body: bool = false
 	for n in _walk(_inst):
 		var mi := n as MeshInstance3D
 		if mi != null and mi.name.ends_with("_joined"):
+			has_joined_body = true
+			break
+	if not has_joined_body:
+		return
+	var hidden: int = 0
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null:
+			continue
+		var nm := String(mi.name)
+		if nm.begins_with("grunt_") and not nm.ends_with("_joined"):
 			mi.visible = false
-			print("[MODEL] %s: hid duplicate uncut body '%s' (gib-rig contract)" % [unit, mi.name])
+			hidden += 1
+	if hidden > 0:
+		print("[MODEL] %s: hid %d gib-donor region meshes (gib-rig contract; joined body renders)" % [unit, hidden])
 
 
 func has_visual() -> bool:
