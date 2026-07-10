@@ -47,7 +47,7 @@ func setup(unit_id: String) -> bool:
 		var k: float = TARGET_HEIGHT_M / aabb.size.y
 		_inst.scale = Vector3(k, k, k)
 		_inst.position.y = -aabb.position.y * k
-		print("[MODEL] %s aabb_h=%.2f k=%.3f (tiny-model hunt: k far from ~0.9 = bad export)" % [unit_id, aabb.size.y, k])
+		print("[MODEL] %s instance_h=%.2f k=%.3f (k far from ~0.9 = off-spec export; see GAME_SCALE_STANDARD)" % [unit_id, aabb.size.y, k])
 
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
@@ -135,20 +135,34 @@ func muzzle_visual() -> Vector3:
 	return global_position + Vector3.UP * 1.35 + _facing * 0.4
 
 
-func _aabb_of(root: Node) -> AABB:
+## Instance-space AABB of the model, ALL transforms accumulated from `root`
+## down (armature/export-compensation scale included; root's own transform
+## excluded, since that is what setup() rescales). Measuring raw mesh-space
+## AABBs here was the speck-soldier bug (n2ij / ADR-002): a rig exported with
+## FBX-style compensation reports a 60m mesh box on a ~1.9m model, so the
+## normaliser shrank correct characters 30x. Guarded by test_model_scale.
+func _aabb_of(root: Node3D) -> AABB:
 	var out := AABB()
 	var first := true
-	for n in _walk(root):
+	var stack: Array = [[root, Transform3D.IDENTITY]]
+	while not stack.is_empty():
+		var entry: Array = stack.pop_back()
+		var n: Node = entry[0]
+		var xf: Transform3D = entry[1]
+		var n3 := n as Node3D
+		var here: Transform3D = xf
+		if n3 != null and n != root:
+			here = xf * n3.transform
+		for c in n.get_children():
+			stack.push_back([c, here])
 		var mi := n as MeshInstance3D
-		if mi == null or mi.mesh == null:
-			continue
-		var a: AABB = mi.get_aabb()
-		a.position += mi.position
-		if first:
-			out = a
-			first = false
-		else:
-			out = out.merge(a)
+		if mi != null and mi.mesh != null:
+			var a: AABB = here * mi.get_aabb()
+			if first:
+				out = a
+				first = false
+			else:
+				out = out.merge(a)
 	return out
 
 

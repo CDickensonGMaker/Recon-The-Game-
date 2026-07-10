@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cmodelscale002a"]
+
+[ext_resource type="Script" path="res://tests/test_model_scale.gd" id="1_ms"]
+
+[node name="TestModelScale" type="Node3D"]
+script = ExtResource("1_ms")
