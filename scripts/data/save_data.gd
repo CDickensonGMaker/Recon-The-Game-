@@ -1,0 +1,168 @@
+## save_data.gd - Typed save schema (Catacombs of Gore architecture, ported).
+## One inner class per system, each with symmetric to_dict()/from_dict() and a
+## DEFAULT for every field (a partial or old save must never crash a load).
+## SaveManager brokers these dicts; systems never touch the file format.
+class_name SaveData
+extends RefCounted
+
+const SCHEMA_VERSION: int = 1
+
+var version: int = SCHEMA_VERSION
+var campaign := CampaignSection.new()
+var player := PlayerSection.new()
+var hub := HubSection.new()
+var meta := MetaSection.new()
+## MissionSection reserved for Phase E (full save-anywhere): objective mask,
+## live enemies, craters, heat. Schema slot exists so migration is a no-op later.
+var mission: Dictionary = {}
+
+
+func to_dict() -> Dictionary:
+	return {
+		"version": version,
+		"campaign": campaign.to_dict(),
+		"player": player.to_dict(),
+		"hub": hub.to_dict(),
+		"meta": meta.to_dict(),
+		"mission": mission,
+	}
+
+
+static func from_dict(d: Dictionary) -> SaveData:
+	var s := SaveData.new()
+	s.version = int(d.get("version", 1))
+	s.campaign = CampaignSection.from_dict(d.get("campaign", {}))
+	s.player = PlayerSection.from_dict(d.get("player", {}))
+	s.hub = HubSection.from_dict(d.get("hub", {}))
+	s.meta = MetaSection.from_dict(d.get("meta", {}))
+	s.mission = d.get("mission", {})
+	return s
+
+
+func is_valid() -> bool:
+	return version >= 1 and campaign != null and player != null
+
+
+## ------------------------------------------------------------------ sections
+
+## The campaign layer - brokers CampaignState's existing dict wholesale so the
+## proven cfg-era fields (roster, xp, threat, log) ride along unchanged.
+class CampaignSection:
+	var data: Dictionary = {}
+
+	func to_dict() -> Dictionary:
+		return data
+
+	static func from_dict(d: Dictionary) -> CampaignSection:
+		var c := CampaignSection.new()
+		c.data = d if d is Dictionary else {}
+		return c
+
+
+## Where you are and what you carry. `context` says where the save happened:
+## "hub" (firebase), "mission" (checkpoint/save-anywhere), "menu".
+class PlayerSection:
+	var context: String = "menu"
+	var position: Vector3 = Vector3.ZERO
+	var rotation_y: float = 0.0
+	var hp: int = 100
+	var health_packs: int = 3
+	var stamina: float = 100.0
+	var primary_path: String = ""
+	var secondary_path: String = ""
+	var primary_ammo: Array = [30, 4]
+	var secondary_ammo: Array = [7, 3]
+	var grenade_count: int = 2
+	var smoke_count: int = 2
+	var claymore_count: int = 2
+	var flare_count: int = 3
+	# Survival v1 (Phase C)
+	var hunger: float = 100.0
+	var weapon_condition: float = 100.0
+	var ration_count: int = 2
+	var repair_kit_count: int = 1
+
+	func to_dict() -> Dictionary:
+		return {
+			"context": context,
+			"pos": [position.x, position.y, position.z],
+			"rot_y": rotation_y,
+			"hp": hp, "health_packs": health_packs, "stamina": stamina,
+			"primary_path": primary_path, "secondary_path": secondary_path,
+			"primary_ammo": primary_ammo, "secondary_ammo": secondary_ammo,
+			"grenade_count": grenade_count, "smoke_count": smoke_count,
+			"claymore_count": claymore_count, "flare_count": flare_count,
+			"hunger": hunger, "weapon_condition": weapon_condition,
+			"ration_count": ration_count, "repair_kit_count": repair_kit_count,
+		}
+
+	static func from_dict(d: Dictionary) -> PlayerSection:
+		var p := PlayerSection.new()
+		p.context = str(d.get("context", "menu"))
+		var pos: Array = d.get("pos", [0, 0, 0])
+		if pos.size() == 3:
+			p.position = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
+		p.rotation_y = float(d.get("rot_y", 0.0))
+		p.hp = int(d.get("hp", 100))
+		p.health_packs = int(d.get("health_packs", 3))
+		p.stamina = float(d.get("stamina", 100.0))
+		p.primary_path = str(d.get("primary_path", ""))
+		p.secondary_path = str(d.get("secondary_path", ""))
+		p.primary_ammo = d.get("primary_ammo", [30, 4])
+		p.secondary_ammo = d.get("secondary_ammo", [7, 3])
+		p.grenade_count = int(d.get("grenade_count", 2))
+		p.smoke_count = int(d.get("smoke_count", 2))
+		p.claymore_count = int(d.get("claymore_count", 2))
+		p.flare_count = int(d.get("flare_count", 3))
+		p.hunger = float(d.get("hunger", 100.0))
+		p.weapon_condition = float(d.get("weapon_condition", 100.0))
+		p.ration_count = int(d.get("ration_count", 2))
+		p.repair_kit_count = int(d.get("repair_kit_count", 1))
+		return p
+
+
+## The firebase hub: which operation, its seed (the hub world regenerates
+## deterministically from it), the offers on the board, any accepted offer,
+## and a checkpoint offer for the HARD-tier mission resume.
+class HubSection:
+	var operation_seed: int = 0
+	var operation_name: String = ""
+	var offers: Array = []          # the 3 rolled offer dicts on the TOC board
+	var accepted_offer: Dictionary = {}
+	var checkpoint_offer: Dictionary = {}  # Phase D: wheels-down mission checkpoint
+
+	func to_dict() -> Dictionary:
+		return {
+			"operation_seed": operation_seed, "operation_name": operation_name,
+			"offers": offers, "accepted_offer": accepted_offer,
+			"checkpoint_offer": checkpoint_offer,
+		}
+
+	static func from_dict(d: Dictionary) -> HubSection:
+		var h := HubSection.new()
+		h.operation_seed = int(d.get("operation_seed", 0))
+		h.operation_name = str(d.get("operation_name", ""))
+		h.offers = d.get("offers", [])
+		h.accepted_offer = d.get("accepted_offer", {})
+		h.checkpoint_offer = d.get("checkpoint_offer", {})
+		return h
+
+
+## Slot-browser metadata (read without a full deserialize via get_save_info).
+class MetaSection:
+	var save_name: String = ""
+	var timestamp: int = 0
+	var missions_played: int = 0
+	var playtime_s: float = 0.0
+
+	func to_dict() -> Dictionary:
+		return {"save_name": save_name, "timestamp": timestamp,
+			"missions_played": missions_played, "playtime_s": playtime_s}
+
+	static func from_dict(d: Dictionary) -> MetaSection:
+		var m := MetaSection.new()
+		m.save_name = str(d.get("save_name", ""))
+		m.timestamp = int(d.get("timestamp", 0))
+		m.missions_played = int(d.get("missions_played", 0))
+		m.playtime_s = float(d.get("playtime_s", 0.0))
+		return m

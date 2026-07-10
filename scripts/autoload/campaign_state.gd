@@ -203,6 +203,36 @@ func _migrate(_cfg: ConfigFile, from_version: int) -> void:
 	push_warning("[SAVE] migrating campaign save v%d -> v%d" % [from_version, SAVE_VERSION])
 
 
+## SaveData contract (SaveManager slots). Mirrors exactly what the cfg persists,
+## so the two stores can never disagree about what campaign state IS.
+func to_dict() -> Dictionary:
+	return {
+		"threat_level": threat_level,
+		"threat_modifiers": threat_modifiers.duplicate(true),
+		"team_xp": team_xp,
+		"roster": roster.duplicate(true),
+		"missions_played": missions_played,
+		"mission_log": mission_log.duplicate(true),
+		"iron_man": iron_man,
+		"player_data": player_data.duplicate(true),
+		"intel_points": intel_points,
+	}
+
+
+func from_dict(d: Dictionary) -> void:
+	if d.is_empty():
+		return
+	threat_level = float(d.get("threat_level", BASE_THREAT))
+	threat_modifiers = d.get("threat_modifiers", [])
+	team_xp = int(d.get("team_xp", 0))
+	roster = d.get("roster", [])
+	missions_played = int(d.get("missions_played", 0))
+	mission_log = d.get("mission_log", [])
+	iron_man = bool(d.get("iron_man", false))
+	player_data = d.get("player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
+	intel_points = int(d.get("intel_points", 0))
+
+
 func reset_campaign() -> void:
 	# A wipe must hit the disk even if a mission is mid-flight (Iron Man death).
 	_defer_saves = false

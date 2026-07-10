@@ -14,6 +14,7 @@ var _debrief_pending: bool = false
 
 
 func _ready() -> void:
+	add_to_group("game_flow")
 	session_rng.randomize()
 	show_menu()
 
