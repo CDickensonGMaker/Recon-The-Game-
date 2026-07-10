@@ -29,6 +29,13 @@ func _ready() -> void:
 	var root: Node3D = dummy.model.instance_root()
 	var skel: Skeleton3D = dummy.model.skeleton()
 
+	# --- gib-rig contract: the duplicate uncut body must be hidden ----------
+	var joined: MeshInstance3D = root.find_child("us_grunt_joined", true, false) as MeshInstance3D
+	if joined != null and joined.visible:
+		_bad("us_grunt_joined still visible - double-render ('multi arms') bug")
+	elif joined != null:
+		print("  duplicate uncut body hidden (contract OK)")
+
 	# --- cap coverage (stumps) --------------------------------------------
 	for cap in ["cap_head", "cap_torso", "cap_forearm_l", "cap_forearm_r",
 			"cap_uparm_l", "cap_uparm_r", "cap_leg_l", "cap_leg_r"]:

@@ -78,6 +78,16 @@ func _spawn_player() -> void:
 	player.global_position = Vector3(0, 1.0, 8.0)
 	GameManager.player = player
 
+	# The REAL game HUD (same wiring as game_world.gd) - the lab must read
+	# exactly like the shipped game, not a mock.
+	var hud: HUD = load("res://scenes/ui/hud.tscn").instantiate() as HUD
+	add_child(hud)
+	var health_system: HealthSystem = player.get_node("HealthSystem")
+	var weapon_holder: WeaponHolder = player.get_node("Head/Camera3D/WeaponHolder")
+	var equipment_manager: EquipmentManager = player.get_node("EquipmentManager")
+	var grenade_handler: GrenadeHandler = player.get_node("Head/Camera3D/GrenadeHandler")
+	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
+
 
 func _spawn_dummy() -> void:
 	dummy = GoreDummy.new()
@@ -101,10 +111,14 @@ func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 1
 	add_child(layer)
+	# Lab status rides top-right so the REAL game HUD owns its normal corners.
 	_hud = Label.new()
-	_hud.position = Vector2(16, 16)
-	_hud.add_theme_font_size_override("font_size", 14)
-	_hud.add_theme_color_override("font_color", Color(0.92, 0.9, 0.8))
+	_hud.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_hud.position = Vector2(-620, 12)
+	_hud.custom_minimum_size = Vector2(600, 0)
+	_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hud.add_theme_font_size_override("font_size", 13)
+	_hud.add_theme_color_override("font_color", Color(0.92, 0.9, 0.8, 0.85))
 	layer.add_child(_hud)
 
 

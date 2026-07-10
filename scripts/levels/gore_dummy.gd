@@ -40,9 +40,35 @@ func _ready() -> void:
 		return
 	for clip in ["idle", "rifle_idle", "Idle"]:
 		if model.play(clip):
+			print("[GORE LAB] dummy playing '%s'" % clip)
 			break
+	if model.current_action == "":
+		print("[GORE LAB] RIG WARN: no idle clip found - dummy will T-pose (export missing anims?)")
 
+	_report_gear_rigging()
 	_build_hitzones()
+
+
+## Rig-contract report: gear must ride BoneAttachment3D nodes or it renders as
+## a frozen T-pose shell over the animated body (the exact 2026-07-10 export
+## regression). WARNs loudly so the Blender side knows what to re-export.
+func _report_gear_rigging() -> void:
+	var root: Node3D = model.instance_root()
+	if root == null:
+		return
+	for gear_name in ["helmet_camo_shell", "m16_world", "ruck_bag", "bandolier"]:
+		var g: Node = root.find_child(gear_name, true, false)
+		if g == null:
+			continue
+		var n: Node = g
+		var attached: bool = false
+		while n != null and n != root:
+			if n is BoneAttachment3D:
+				attached = true
+				break
+			n = n.get_parent()
+		if not attached:
+			print("[GORE LAB] RIG WARN: gear '%s' is NOT bone-attached in this export - it will float at T-pose (re-export with bone parenting)" % gear_name)
 
 
 ## Same bands as EnemyBase._setup_hurtbox (GAME_SCALE_STANDARD), but each zone

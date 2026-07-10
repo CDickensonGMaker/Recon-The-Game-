@@ -37,7 +37,8 @@ func _dump(n: Node, depth: int) -> void:
 	var extra := ""
 	if n is MeshInstance3D:
 		var mi := n as MeshInstance3D
-		extra = " [MESH tris~%s vis=%s]" % [str(mi.mesh.get_faces().size() / 3) if mi.mesh else "?", str(mi.visible)]
+		var skinned := "SKINNED" if mi.skin != null or not mi.skeleton.is_empty() else "STATIC"
+		extra = " [MESH tris~%s vis=%s %s]" % [str(mi.mesh.get_faces().size() / 3) if mi.mesh else "?", str(mi.visible), skinned]
 	elif n is Node3D:
 		extra = " pos=%s" % str((n as Node3D).position)
 	print("%s%s (%s)%s" % [pad, n.name, n.get_class(), extra])

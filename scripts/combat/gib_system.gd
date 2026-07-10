@@ -72,13 +72,18 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 
 	# 2. spawn the gibs: region meshes, then gear as its own lighter piece.
 	var spawned: bool = false
+	# Place the gib at the limb's CURRENT animated pose: the mesh's vertices are
+	# authored at REST, so the gib root gets the delta (current pose x inverse
+	# rest) - rest-space geometry lands where the animated limb actually is.
+	var pose_delta: Transform3D = skel.get_bone_global_pose(bone_idx) * skel.get_bone_global_rest(bone_idx).affine_inverse()
+	var gib_at: Transform3D = skel.global_transform * pose_delta
 	for mesh_name: String in spec["meshes"]:
 		var mi: MeshInstance3D = root.find_child(str(mesh_name), true, false) as MeshInstance3D
 		if mi == null or mi.mesh == null:
 			print("[GORE] %s: region mesh '%s' missing - OFF-CONTRACT" % [model.unit, mesh_name])
 			continue
 		mi.visible = false
-		_spawn_gib(mi.mesh, skel.global_transform, hit_dir, 3.5, gib_parent)
+		_spawn_gib(mi.mesh, gib_at, hit_dir, 3.5, gib_parent)
 		spawned = true
 	for gear_name: String in spec["gear"]:
 		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
