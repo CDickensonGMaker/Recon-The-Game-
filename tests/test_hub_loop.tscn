@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctesthubloop01"]
+
+[ext_resource type="Script" path="res://tests/test_hub_loop.gd" id="1_thl"]
+
+[node name="TestHubLoop" type="Node"]
+script = ExtResource("1_thl")
