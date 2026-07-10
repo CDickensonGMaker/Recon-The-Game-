@@ -637,3 +637,27 @@ static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
 		if p.has(key):
 			out.append(p[key])
 	return out
+
+
+## THE HUB (Phase B): the operation's home firebase - a PLACE, not a mission.
+## No objectives, no enemies. Stamped deterministically from the operation seed
+## so every return lands on the same base. The HQ tent (TOC) is guaranteed.
+static func build_hub(world: GameWorld, operation_seed: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = operation_seed + 4242
+	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
+	var center: Vector3 = planner.find_site(rng, 44.0)
+	center.y = world.terrain_manager.get_height_at(center)
+	var site: Dictionary = planner.stamp_firebase(center, rng)
+	# Guaranteed, deterministic HQ tent (the random firebase extras are not reliable).
+	var tent: Node3D = planner.place_structure(
+		"res://assets/building models/structures/firebase/toc.glb",
+		center + Vector3(8, 0, -10), 180.0)
+	tent.add_to_group("hq_tent")
+	# The bird waits beside the pad (clear of the parked Chinook prop).
+	var huey: Node3D = (load("res://scenes/vehicles/huey.tscn") as PackedScene).instantiate()
+	world.add_child(huey)
+	var pad: Vector3 = site.helipad + Vector3(7, 0, 6)
+	pad.y = world.terrain_manager.get_height_at(pad) + 0.5
+	huey.global_position = pad
+	return {"center": center, "tent": tent, "huey": huey, "helipad": site.helipad}

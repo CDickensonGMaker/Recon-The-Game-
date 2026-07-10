@@ -45,9 +45,12 @@ func _teardown_world() -> void:
 
 func show_menu() -> void:
 	_teardown_world()
+	SaveManager.context = "menu"
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	var menu := MainMenuScreen.new()
-	menu.start_pressed.connect(show_select)
+	menu.start_pressed.connect(show_select)  # legacy path (seed-replay dev tool)
+	menu.continue_pressed.connect(continue_campaign)
+	menu.new_pressed.connect(show_operation_select)
 	menu.barracks_pressed.connect(show_barracks)
 	menu.record_pressed.connect(show_service_record)
 	menu.settings_pressed.connect(show_settings)
@@ -102,6 +105,7 @@ func start_mission(offer: Dictionary) -> void:
 	# timing. Same seed = same world, same enemies, same events - not the same
 	# bullet holes.
 	seed(hash(int(offer.get("mission_seed", 0))))
+	SaveManager.context = "mission"
 	CampaignState.begin_mission()
 	var loading := ReconUI.make_screen_root()
 	var center := CenterContainer.new()
@@ -154,6 +158,8 @@ func _run_mission(offer: Dictionary) -> void:
 	director.mission_failed.connect(_on_mission_ended)
 
 	var plan: Dictionary = MissionGenerator.plan(world, int(offer.mission_seed), int(offer.type) as MissionGenerator.MissionType)
+	if bool(offer.get("from_hub", false)):
+		plan.erase("start_pad")  # you already boarded at the firebase - wheels-down at the LZ
 	var built: Dictionary = MissionGenerator.build(world, director, plan)
 	# Ride in on the Huey when the plan has a start pad (all types but firebase).
 	var spawn: Vector3 = plan.insertion_lz
@@ -221,5 +227,118 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 	_teardown_world()
 	var debrief := DebriefScreen.new()
 	debrief.set_result(result)
-	debrief.continue_pressed.connect(show_menu)
+	var back_to_hub: bool = int(SaveManager.hub_snapshot.get("operation_seed", 0)) != 0 \
+		and not bool(result.get("iron_man_wipe", false))
+	debrief.continue_pressed.connect(enter_hub if back_to_hub else show_menu)
 	_swap_screen(debrief)
+
+
+## ---------------- THE FIREBASE HUB LOOP (Phase B) ----------------
+## menu -> pick an OPERATION -> live at its firebase -> get briefed in the TOC ->
+## board the bird -> mission (the ride disguises the world load) -> exfil ->
+## back at the firebase. CONTINUE restores you to the hub from the newest save.
+
+func show_operation_select() -> void:
+	var root := ReconUI.make_screen_root()
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	center.add_child(col)
+	col.add_child(ReconUI.make_header("CHOOSE YOUR OPERATION", 30))
+	col.add_child(ReconUI.make_label("EACH OPERATION IS A FIREBASE AND ITS AO. MISSIONS ARE PICKED AT THE TOC.", 13, ReconUI.DIM))
+	col.add_child(ReconUI.make_divider())
+	for i in range(3):
+		var op_seed: int = session_rng.randi() % 100000
+		var op_name: String = "OPERATION %s" % MissionGenerator.codename_for(op_seed)
+		var region: String = MissionOffers.TERRAIN_HINTS[session_rng.randi() % MissionOffers.TERRAIN_HINTS.size()]
+		var card := ReconUI.make_card_button("%s\n%s" % [op_name, region], 16, 64.0)
+		card.pressed.connect(func() -> void: _begin_operation(op_seed, op_name))
+		col.add_child(card)
+	var back := ReconUI.make_button("BACK", 16)
+	back.pressed.connect(show_menu)
+	col.add_child(back)
+	_swap_screen(root)
+
+
+func _begin_operation(op_seed: int, op_name: String) -> void:
+	SaveManager.hub_snapshot = {
+		"operation_seed": op_seed, "operation_name": op_name,
+		"offers": [], "accepted_offer": {}, "checkpoint_offer": {},
+	}
+	enter_hub()
+
+
+func continue_campaign() -> void:
+	var slot := SaveManager.latest_slot()
+	if slot < 0:
+		show_operation_select()
+		return
+	load_from_slot(slot)
+
+
+func load_from_slot(slot: int) -> void:
+	var s: SaveData = SaveManager.load_game(slot)
+	if s == null:
+		show_menu()
+		return
+	SaveManager.apply(s)
+	if int(SaveManager.hub_snapshot.get("operation_seed", 0)) == 0:
+		show_operation_select()
+		return
+	enter_hub()
+
+
+func launch_accepted() -> void:
+	var offer: Dictionary = SaveManager.hub_snapshot.get("accepted_offer", {})
+	if offer.is_empty():
+		return
+	offer["from_hub"] = true
+	SaveManager.hub_snapshot["accepted_offer"] = {}
+	SaveManager.hub_snapshot["offers"] = []  # fresh board when you get back
+	start_mission(offer)
+
+
+func enter_hub() -> void:
+	_teardown_world()
+	SaveManager.context = "hub"
+	var op_seed: int = int(SaveManager.hub_snapshot.get("operation_seed", 0))
+	var op_name: String = str(SaveManager.hub_snapshot.get("operation_name", "OPERATION"))
+	var loading := ReconUI.make_screen_root()
+	var lc := CenterContainer.new()
+	lc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lc.add_child(ReconUI.make_label("RETURNING TO %s..." % op_name, 26, ReconUI.AMBER))
+	loading.add_child(lc)
+	_swap_screen(loading)
+	world = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld
+	world.mission_seed = op_seed
+	world.spawn_player_on_ready = false
+	add_child(world)
+	while not world.is_world_ready:
+		await get_tree().create_timer(0.25).timeout
+		if world == null:
+			return
+	director = MissionDirector.new()
+	world.add_child(director)
+	director.setup(world)
+	director.state.seed_value = op_seed
+	var hub: Dictionary = MissionGenerator.build_hub(world, op_seed)
+	var spawn: Vector3 = (hub.center as Vector3) + Vector3(4, 0, 6)
+	world.spawn_player_at(spawn)
+	if world.hud != null:
+		world.hud.managed_by_flow = true
+	squad = SquadSystem.new()
+	world.add_child(squad)
+	squad.setup(world, director, spawn)
+	director.squad_system = squad
+	var weather := MissionWeather.new()
+	world.add_child(weather)
+	weather.setup(world, "CLEAR", "DAY")
+	var hc := HubController.new()
+	world.add_child(hc)
+	hc.setup(world, self, hub.tent, hub.huey, op_name)
+	SaveManager.apply_pending_player(world.player)
+	_swap_screen(null)
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	SaveManager.save_game(SaveManager.AUTOSAVE_SLOT, "FIREBASE")

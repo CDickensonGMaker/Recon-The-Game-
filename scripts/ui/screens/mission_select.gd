@@ -12,7 +12,10 @@ const STRENGTHS: Array[String] = ["LIGHT", "MODERATE", "HEAVY"]
 
 
 func roll_offers(rng: RandomNumberGenerator) -> void:
-	offers.clear()
+	# Single source of truth: the same roll the HQ-tent board uses.
+	offers = MissionOffers.roll(rng)
+	return
+
 	var types := [MissionGenerator.MissionType.PATROL, MissionGenerator.MissionType.VILLAGE_RAID,
 		MissionGenerator.MissionType.FIREBASE_DEFENSE, MissionGenerator.MissionType.ANTI_AA,
 		MissionGenerator.MissionType.RESCUE]

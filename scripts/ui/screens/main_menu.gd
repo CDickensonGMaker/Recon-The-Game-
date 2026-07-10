@@ -4,6 +4,8 @@ class_name MainMenuScreen
 extends Control
 
 signal start_pressed
+signal continue_pressed
+signal new_pressed
 signal barracks_pressed
 signal record_pressed
 signal settings_pressed
@@ -47,10 +49,10 @@ func _ready() -> void:
 	spacer.custom_minimum_size = Vector2(0, 36)
 	col.add_child(spacer)
 
-	_add_menu_button(col, "CONTINUE CAMPAIGN", func() -> void: start_pressed.emit())
+	_add_menu_button(col, "CONTINUE CAMPAIGN", func() -> void: continue_pressed.emit())
 	_add_menu_button(col, "NEW CAMPAIGN", func() -> void:
 		CampaignState.reset_campaign()
-		start_pressed.emit())
+		new_pressed.emit())
 	_add_menu_button(col, "SOLDIER", func() -> void: barracks_pressed.emit())
 	_add_menu_button(col, "SERVICE RECORD", func() -> void: record_pressed.emit())
 	_add_menu_button(col, "OPTIONS", func() -> void: settings_pressed.emit())
