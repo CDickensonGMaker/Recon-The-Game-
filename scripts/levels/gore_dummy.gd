@@ -14,14 +14,25 @@ signal died
 const UNIT := "us_grunt_v2"
 const MAX_HP: int = 85
 
+## The dummy runs Caleb's clip library so you shoot a LIVING target, not a
+## statue - cycles every few seconds; the lab HUD names the playing clip.
+const PLAYLIST: Array[String] = [
+	"idle", "idle_aiming", "idle_crouching", "crouching_turn_90_left",
+	"reloading", "run_forward", "firing_rifle", "idle_unarmed",
+]
+const CLIP_CYCLE_S: float = 4.0
+
 var hp: int = MAX_HP
 var model: ModelActor = null
 var _removed: Array[String] = []
 var _dead: bool = false
+var _clip_idx: int = 0
+var _clip_timer: float = 0.0
 
 
 func _ready() -> void:
 	add_to_group("enemies")  # hitzone layers + player rays treat it as a target
+	CombatManager.register_enemy(self)  # explosions damage via active_enemies
 	collision_layer = 4      # layer 3: enemies
 	collision_mask = 1
 
@@ -38,12 +49,8 @@ func _ready() -> void:
 	if not model.setup(UNIT):
 		push_error("[GORE LAB] %s.glb missing - nothing to test" % UNIT)
 		return
-	for clip in ["idle", "rifle_idle", "Idle"]:
-		if model.play(clip):
-			print("[GORE LAB] dummy playing '%s'" % clip)
-			break
-	if model.current_action == "":
-		print("[GORE LAB] RIG WARN: no idle clip found - dummy will T-pose (export missing anims?)")
+	if not model.play(PLAYLIST[0]):
+		print("[GORE LAB] RIG WARN: no '%s' clip - dummy will T-pose (export missing anims?)" % PLAYLIST[0])
 
 	_report_gear_rigging()
 	_build_hitzones()
@@ -107,6 +114,24 @@ func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: fl
 	add_child(hz)
 
 
+func _physics_process(delta: float) -> void:
+	if _dead or model == null:
+		return
+	_clip_timer += delta
+	if _clip_timer >= CLIP_CYCLE_S:
+		_clip_timer = 0.0
+		for _attempt in range(PLAYLIST.size()):
+			_clip_idx = (_clip_idx + 1) % PLAYLIST.size()
+			if model.play(PLAYLIST[_clip_idx]):
+				break
+
+
+func current_clip() -> String:
+	if model == null:
+		return "-"
+	return model.current_action
+
+
 func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone: String = "BODY") -> void:
 	var dir: Vector3 = -global_transform.basis.z
 	if attacker is Node3D:
@@ -137,6 +162,18 @@ func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone
 		_:
 			hp = maxi(0, hp - amount)
 			print("[GORE LAB] %s hit, dmg %d, HP %d/%d" % [zone, amount, hp, MAX_HP])
+			# GORE_WORKFLOW: kill by explosion at close range -> multi-gib.
+			if hp <= 0 and _damage_type == Enums.DamageType.EXPLOSIVE:
+				var to_pop: Array[String] = []
+				for r in ["ARM_L", "ARM_R", "LEG_L", "LEG_R", "HEAD"]:
+					if not _removed.has(r):
+						to_pop.append(r)
+				to_pop.shuffle()
+				var count: int = mini(2 + randi_range(0, 2), to_pop.size())
+				for i in range(count):
+					if GibSystem.dismember(model, to_pop[i], dir + Vector3.UP * 0.5, get_parent()):
+						_removed.append(to_pop[i])
+				print("[GORE LAB] EXPLOSION KILL - %d parts gibbed" % count)
 			if hp <= 0 and not _dead:
 				_die(dir)
 
@@ -147,6 +184,7 @@ func regions_removed() -> Array[String]:
 
 func _die(dir: Vector3) -> void:
 	_dead = true
+	CombatManager.unregister_enemy(self)
 	for clip in ["death", "death_1", "die", "Death"]:
 		if model != null and model.play(clip):
 			break

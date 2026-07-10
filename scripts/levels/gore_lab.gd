@@ -16,7 +16,8 @@ extends Node3D
 
 const ARENA: float = 24.0
 const DUMMY_POS := Vector3(0, 0.1, -6.0)
-const RESPAWN_S: float = 3.0
+const RESPAWN_S: float = 10.0   # long enough to walk up and inspect the result
+const LAB_GRENADES: int = 25
 
 var player: CharacterBody3D = null
 var dummy: GoreDummy = null
@@ -25,12 +26,13 @@ var _spawned: int = 0
 
 
 func _ready() -> void:
+	GibSystem.gib_lifetime_s = 25.0  # gibs linger for inspection (game default 12)
 	_build_range()
 	_build_lighting()
 	_spawn_player()
 	_spawn_dummy()
 	_build_hud()
-	print("[GORE LAB] ready - shoot limbs/head; dummy respawns. Watch the caps + helmet.")
+	print("[GORE LAB] ready - shoot limbs/head, frag with [3]; dummy respawns %.0fs." % RESPAWN_S)
 
 
 func _build_range() -> void:
@@ -88,6 +90,9 @@ func _spawn_player() -> void:
 	var grenade_handler: GrenadeHandler = player.get_node("Head/Camera3D/GrenadeHandler")
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
 
+	# Explosion-gib testing needs ordnance: top the player up well past field load.
+	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
+
 
 func _spawn_dummy() -> void:
 	dummy = GoreDummy.new()
@@ -104,7 +109,12 @@ func _on_dummy_died() -> void:
 	timer.timeout.connect(func() -> void:
 		if is_instance_valid(dummy):
 			dummy.queue_free()
-		_spawn_dummy())
+		_spawn_dummy()
+		# keep the frag supply topped up between dummies
+		if is_instance_valid(player):
+			var em: EquipmentManager = player.get_node("EquipmentManager")
+			if em.get_grenade_count() < 5:
+				em.add_grenade(5 - em.get_grenade_count()))
 
 
 func _build_hud() -> void:
@@ -127,12 +137,14 @@ func _process(_delta: float) -> void:
 		return
 	var removed: String = "none"
 	var hp_txt: String = "-"
+	var clip: String = "-"
 	if is_instance_valid(dummy):
 		var r: Array[String] = dummy.regions_removed()
 		if not r.is_empty():
 			removed = ", ".join(r)
 		hp_txt = "%d/%d" % [dummy.hp, GoreDummy.MAX_HP]
+		clip = dummy.current_clip()
 	_hud.text = "GORE LAB - us_grunt_v2 rig verification
-M16: shoot ARMS / LEGS -> limb pops off, cap shows | HEAD -> kill + helmet flies
-HP %s   removed: %s   dummy #%d
-bench rules exaggerated; console prints the live-threshold verdict" % [hp_txt, removed, _spawned]
+M16: ARMS / LEGS -> limb pops | HEAD -> kill + helmet flies | frag [3] -> multi-gib
+HP %s   removed: %s   clip: %s   dummy #%d
+bench rules exaggerated; console prints the live-threshold verdict" % [hp_txt, removed, clip, _spawned]

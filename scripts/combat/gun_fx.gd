@@ -191,7 +191,46 @@ static func _expire(node: Node, seconds: float, cb: Callable) -> void:
 	t.start()
 
 
-## Muzzle flash: warm omni light + emissive billboard quad, 45ms.
+## Cached radial falloff texture for the muzzle flash - built once, hot white
+## core fading to transparent, so the flash reads as a burst, not a square.
+static var _flash_tex: GradientTexture2D = null
+
+static func _get_flash_tex() -> GradientTexture2D:
+	if _flash_tex == null:
+		var grad := Gradient.new()
+		grad.offsets = PackedFloat32Array([0.0, 0.25, 0.6, 1.0])
+		grad.colors = PackedColorArray([
+			Color(1.0, 0.98, 0.85, 1.0),   # white-hot core
+			Color(1.0, 0.8, 0.35, 0.9),    # orange body
+			Color(1.0, 0.5, 0.1, 0.35),    # red-orange fringe
+			Color(1.0, 0.4, 0.0, 0.0),     # transparent edge
+		])
+		_flash_tex = GradientTexture2D.new()
+		_flash_tex.gradient = grad
+		_flash_tex.fill = GradientTexture2D.FILL_RADIAL
+		_flash_tex.fill_from = Vector2(0.5, 0.5)
+		_flash_tex.fill_to = Vector2(0.5, 0.0)
+		_flash_tex.width = 64
+		_flash_tex.height = 64
+	return _flash_tex
+
+
+static func _flash_mat() -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.albedo_texture = _get_flash_tex()
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.7, 0.2)
+	mat.emission_energy_multiplier = 4.0
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	return mat
+
+
+## Muzzle flash: warm omni light + a radial burst with a star cross - two
+## billboard quads (round core + elongated spike pair), random roll + size
+## jitter so no two shots read identical. 45ms. (Was: a flat yellow square.)
 static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
@@ -204,21 +243,24 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	light.light_energy = 3.0
 	light.omni_range = 7.0
 	root.add_child(light)
-	var quad := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(0.55, 0.55)
-	quad.mesh = qm
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.albedo_color = Color(1.0, 0.85, 0.4, 0.9)
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.7, 0.2)
-	mat.emission_energy_multiplier = 4.0
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	quad.material_override = mat
-	quad.rotation_degrees = Vector3(0, 0, randf_range(0, 360))
-	root.add_child(quad)
+
+	var size_jitter: float = randf_range(0.85, 1.25)
+	var core := MeshInstance3D.new()
+	var core_mesh := QuadMesh.new()
+	core_mesh.size = Vector2(0.5, 0.5) * size_jitter
+	core.mesh = core_mesh
+	core.material_override = _flash_mat()
+	core.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
+	root.add_child(core)
+
+	var spikes := MeshInstance3D.new()
+	var spike_mesh := QuadMesh.new()
+	spike_mesh.size = Vector2(1.0, 0.16) * size_jitter
+	spikes.mesh = spike_mesh
+	spikes.material_override = _flash_mat()
+	spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
+	root.add_child(spikes)
+
 	_expire(root, 0.045, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())

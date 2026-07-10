@@ -293,8 +293,8 @@ func _fire_shot() -> void:
 	_sustained_shots += 1
 	session_shots += 1
 
-	# Fouling: every round dirties the action; monsoon rain is worse. A filthy
-	# weapon jams up to ~5x more. Clean it with a kit [0] or free at the firebase.
+	# Fouling: every round dirties the action; monsoon rain is worse.
+	# Clean it with a kit [0] or free at the firebase.
 	var foul: float = 0.15 + (0.10 if MissionWeather.rain_active else 0.0)
 	weapon_condition = maxf(0.0, weapon_condition - foul)
 	if weapon_condition < 60.0 and not _condition_warned_60:
@@ -303,9 +303,13 @@ func _fire_shot() -> void:
 	if weapon_condition < 30.0 and not _condition_warned_30:
 		_condition_warned_30 = true
 		_hud_toast("WEAPON FOULED - IT WILL JAM. FIELD-STRIP IT [0]")
-	# R09: rare stoppage - the round fails to feed. Costs the round, no shot.
-	var jam_chance: float = 0.015 / (1.0 + 0.05 * float(CampaignState.player_skill("small_arms")))
-	jam_chance *= 1.0 + (100.0 - weapon_condition) * 0.055
+	# Stoppage (Caleb gore-lab retune 2026-07-10): a clean weapon effectively
+	# never jams (~1 in 1000); jams are CONDITION-DRIVEN, ramping quadratically
+	# once fouled below 75 (~0.6% at 50, ~1.9% at 30, ~3.8% at 10). Old curve
+	# jammed 1-in-67 on a CLEAN gun - felt broken, not hardcore.
+	var fouled: float = maxf(0.0, 75.0 - weapon_condition) / 75.0
+	var jam_chance: float = 0.001 + fouled * fouled * 0.05
+	jam_chance /= 1.0 + 0.05 * float(CampaignState.player_skill("small_arms"))
 	if randf() < jam_chance:
 		is_jammed = true
 		GunFX.play_click(self)

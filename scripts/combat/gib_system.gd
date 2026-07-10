@@ -14,7 +14,8 @@ class_name GibSystem
 extends Object
 
 const MAX_LIVE_GIBS: int = 12
-const GIB_LIFETIME_S: float = 12.0
+## Seconds a gib lies around. The gore lab raises this so rigs can be inspected.
+static var gib_lifetime_s: float = 12.0
 
 ## Region contract: bone chain root to collapse, region meshes to hide/spawn,
 ## bone-attached gear meshes that fly off as their own gib (helmet money shot).
@@ -132,7 +133,7 @@ static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, 
 		var oldest: Node = _live_gibs.pop_front()
 		if is_instance_valid(oldest):
 			oldest.queue_free()
-	var timer: SceneTreeTimer = body.get_tree().create_timer(GIB_LIFETIME_S)
+	var timer: SceneTreeTimer = body.get_tree().create_timer(gib_lifetime_s)
 	timer.timeout.connect(func() -> void:
 		if is_instance_valid(body):
 			_live_gibs.erase(body)

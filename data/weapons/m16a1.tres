@@ -37,5 +37,5 @@ model_path = "res://scenes/weapons/m16a1_arms_viewmodel.tscn"
 viewmodel_scale = 1.0
 hip_position = Vector3(0.000, 0.000, 0.000)
 ads_position = Vector3(0.000, 0.050, 0.080)
-hip_rotation = Vector3(0.0, 0.0, 0.0)
-ads_rotation = Vector3(0.0, 0.0, 0.0)
+hip_rotation = Vector3(4.0, 0.0, 0.0)
+ads_rotation = Vector3(4.0, 0.0, 0.0)
