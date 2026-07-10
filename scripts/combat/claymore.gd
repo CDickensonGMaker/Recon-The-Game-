@@ -15,15 +15,20 @@ static func place(parent: Node, pos: Vector3, facing: Vector3) -> Claymore:
 	mine.global_position = pos
 	if facing.length() > 0.1:
 		mine.look_at(pos + Vector3(facing.x, 0, facing.z).normalized(), Vector3.UP)
-	var vis := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.22, 0.14, 0.04)
-	vis.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.15, 0.2, 0.12)
-	vis.material_override = mat
-	vis.position = Vector3(0, 0.1, 0)
-	mine.add_child(vis)
+	# Real M18A1 model (Caleb, 2026-07-10). Green-box fallback kept for safety.
+	var scene: PackedScene = load("res://assets/models/props/claymore.glb")
+	if scene != null:
+		mine.add_child(scene.instantiate())
+	else:
+		var vis := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.22, 0.14, 0.04)
+		vis.mesh = box
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.15, 0.2, 0.12)
+		vis.material_override = mat
+		vis.position = Vector3(0, 0.1, 0)
+		mine.add_child(vis)
 	mine.get_tree().create_timer(2.0).timeout.connect(func() -> void: mine._armed = true)
 	return mine
 
