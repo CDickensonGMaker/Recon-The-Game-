@@ -78,7 +78,12 @@ func _process_escalation(delta: float) -> void:
 	_hunter_timer -= delta
 	if _hunter_timer > 0.0:
 		return
-	_hunter_timer = randf_range(100.0, 160.0)
+	# The longer you are in the field, the harder the AO leans on you (survival v1).
+	var field_mult: float = 1.0
+	if state != null:
+		var mins: float = state.elapsed_seconds() / 60.0
+		field_mult = clampf(1.0 - (mins - 15.0) * 0.02, 0.6, 1.0)  # -2%/min past 15min, floor 0.6
+	_hunter_timer = randf_range(100.0, 160.0) * field_mult
 	var count: int = mini(_hunter_pool, randi_range(2, 4))
 	_hunter_pool -= count
 	var a: float = randf_range(0.0, TAU)

@@ -107,6 +107,11 @@ func start_mission(offer: Dictionary) -> void:
 	seed(hash(int(offer.get("mission_seed", 0))))
 	SaveManager.context = "mission"
 	CampaignState.begin_mission()
+	# HARD-tier wheels-down checkpoint (Phase D): the world is seed-deterministic,
+	# so offer + carried state is a complete resume point. Written at launch.
+	if bool(offer.get("from_hub", false)) and SaveManager.tier() == SaveManager.Tier.HARD:
+		SaveManager.hub_snapshot["checkpoint_offer"] = offer.duplicate(true)
+		SaveManager.save_game(5, "CHECKPOINT")
 	var loading := ReconUI.make_screen_root()
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -213,6 +218,7 @@ func _on_mission_ended(result: Dictionary) -> void:
 	# W25: debrief score banks as team XP.
 	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
 	CampaignState.on_mission_end(result)
+	SaveManager.hub_snapshot["checkpoint_offer"] = {}  # mission resolved - checkpoint spent
 	# W32: Iron Man - KIA archives the whole campaign.
 	if CampaignState.iron_man and not bool(result.get("success", true)) and str(result.get("reason", "")) == "KIA":
 		result["iron_man_wipe"] = true
@@ -287,6 +293,12 @@ func load_from_slot(slot: int) -> void:
 	if int(SaveManager.hub_snapshot.get("operation_seed", 0)) == 0:
 		show_operation_select()
 		return
+	# HARD-tier resume: an unresolved checkpoint re-runs its mission from wheels-down
+	# (deterministic seed = same world), carrying the saved loadout/condition/hunger.
+	var checkpoint: Dictionary = SaveManager.hub_snapshot.get("checkpoint_offer", {})
+	if not checkpoint.is_empty():
+		start_mission(checkpoint)
+		return
 	enter_hub()
 
 
@@ -339,6 +351,14 @@ func enter_hub() -> void:
 	world.add_child(hc)
 	hc.setup(world, self, hub.tent, hub.huey, op_name)
 	SaveManager.apply_pending_player(world.player)
+	# The firebase takes care of you: hot chow and an armorer's bench.
+	if world.player != null:
+		world.player.set("hunger", 100.0)
+		var wh: Node = world.player.get_node_or_null("Head/Camera3D/WeaponHolder")
+		if wh != null:
+			wh.set("weapon_condition", 100.0)
+			if wh.has_method("refresh_after_load"):
+				wh.call("refresh_after_load")
 	_swap_screen(null)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	SaveManager.save_game(SaveManager.AUTOSAVE_SLOT, "FIREBASE")

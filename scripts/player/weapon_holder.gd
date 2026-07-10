@@ -46,6 +46,11 @@ var fire_timer: float = 0.0
 ## R09: rare stoppage - a bad round jams the action. No bang, needs a manual
 ## clear (tap reload) instead of a normal fire cycle.
 var is_jammed: bool = false
+## Survival v1: weapon condition 0-100. Fouling from firing (worse in rain)
+## multiplies the jam chance - the RIFLE gets unreliable, you don't lose damage.
+var weapon_condition: float = 100.0
+var _condition_warned_60: bool = false
+var _condition_warned_30: bool = false
 var _clearing_jam: bool = false
 signal weapon_jammed
 
@@ -56,6 +61,23 @@ var _sway_time: float = 0.0
 ## R57: a captured enemy weapon in the primary slot sounds friendly to their
 ## side at range (NoiseBus team match) - visual detection still works fine.
 var primary_is_captured: bool = false
+
+
+## Re-sync transient state after a load or a hub clean (SaveManager calls this).
+func refresh_after_load() -> void:
+	_condition_warned_60 = weapon_condition < 60.0
+	_condition_warned_30 = weapon_condition < 30.0
+	if current_slot == 0:
+		current_weapon = primary_weapon
+		current_ammo = primary_ammo[0]
+		spare_magazines = primary_ammo[1]
+	else:
+		current_weapon = secondary_weapon
+		current_ammo = secondary_ammo[0]
+		spare_magazines = secondary_ammo[1]
+	_load_weapon_model(current_weapon)
+	weapon_switched.emit(current_weapon)
+	magazine_changed.emit(current_ammo, spare_magazines)
 
 
 func equip_captured_weapon(data: WeaponData) -> void:
@@ -271,8 +293,19 @@ func _fire_shot() -> void:
 	_sustained_shots += 1
 	session_shots += 1
 
+	# Fouling: every round dirties the action; monsoon rain is worse. A filthy
+	# weapon jams up to ~5x more. Clean it with a kit [0] or free at the firebase.
+	var foul: float = 0.15 + (0.10 if MissionWeather.rain_active else 0.0)
+	weapon_condition = maxf(0.0, weapon_condition - foul)
+	if weapon_condition < 60.0 and not _condition_warned_60:
+		_condition_warned_60 = true
+		_hud_toast("WEAPON'S GETTING DIRTY - CLEAN IT WHEN YOU CAN [0]")
+	if weapon_condition < 30.0 and not _condition_warned_30:
+		_condition_warned_30 = true
+		_hud_toast("WEAPON FOULED - IT WILL JAM. FIELD-STRIP IT [0]")
 	# R09: rare stoppage - the round fails to feed. Costs the round, no shot.
 	var jam_chance: float = 0.015 / (1.0 + 0.05 * float(CampaignState.player_skill("small_arms")))
+	jam_chance *= 1.0 + (100.0 - weapon_condition) * 0.055
 	if randf() < jam_chance:
 		is_jammed = true
 		GunFX.play_click(self)

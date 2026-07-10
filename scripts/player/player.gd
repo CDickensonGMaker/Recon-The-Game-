@@ -60,6 +60,12 @@ var wounded_arms: bool = false
 
 ## Smoke grenades (W39): key 5 lobs marking/concealment smoke.
 var smoke_count: int = 2
+## Survival v1 (Phase C): hunger drains with field time; rations restore it.
+## Low hunger saps your wind (stamina), not your health - you get sloppy, not dead.
+var hunger: float = 100.0
+var ration_count: int = 2
+var repair_kit_count: int = 1
+var _hunger_warned: bool = false
 ## Claymores (W58): key 6.
 var claymore_count: int = 2
 ## Pop flares (W54): key 7.
@@ -246,7 +252,9 @@ func _try_field_interact() -> void:
 			smoke_count = 2
 			claymore_count = 2
 			flare_count = 3
-			_field_toast("RESUPPLIED - MAGS, FRAGS, MEDKITS, KIT")
+			ration_count = mini(4, ration_count + 2)
+			repair_kit_count = mini(2, repair_kit_count + 1)
+			_field_toast("RESUPPLIED - MAGS, FRAGS, MEDKITS, CHOW, KIT")
 			crate.queue_free()
 			return
 	for e in get_tree().get_nodes_in_group("surrendered"):
@@ -299,6 +307,47 @@ func _try_field_interact() -> void:
 				CampaignState.save_campaign()
 				_field_toast("DOCUMENTS RECOVERED - INTEL GAINED (+1)")
 			return
+
+
+## Hunger drains over ~45 minutes of field time. Called from _physics_process.
+func _tick_hunger(delta: float) -> void:
+	if SaveManager.context != "mission":
+		return  # the firebase feeds you
+	hunger = maxf(0.0, hunger - delta * (100.0 / (45.0 * 60.0)))
+	if hunger < 25.0 and not _hunger_warned:
+		_hunger_warned = true
+		_field_toast("YOU NEED CHOW - YOUR HANDS ARE GETTING SHAKY [9]")
+
+
+## 1.0 fed -> 0.55 starving. Applied to stamina_max (you get winded, not wounded).
+func hunger_stamina_mult() -> float:
+	if hunger >= 50.0:
+		return 1.0
+	return lerpf(0.55, 1.0, hunger / 50.0)
+
+
+func _eat_ration() -> void:
+	if ration_count <= 0:
+		_field_toast("NO RATIONS LEFT")
+		return
+	if hunger > 90.0:
+		return
+	ration_count -= 1
+	hunger = minf(100.0, hunger + 45.0)
+	_hunger_warned = false
+	_field_toast("C-RATS DOWN. (%d left)" % ration_count)
+
+
+func _use_repair_kit() -> void:
+	if repair_kit_count <= 0:
+		_field_toast("NO CLEANING KIT")
+		return
+	if weapon_holder == null or float(weapon_holder.get("weapon_condition")) > 90.0:
+		_field_toast("WEAPON'S CLEAN ENOUGH")
+		return
+	repair_kit_count -= 1
+	weapon_holder.set("weapon_condition", minf(100.0, float(weapon_holder.get("weapon_condition")) + 45.0))
+	_field_toast("WEAPON CLEANED. (%d kits left)" % repair_kit_count)
 
 
 func _throw_smoke() -> void:
@@ -380,7 +429,7 @@ func _ready() -> void:
 	var st: float = float(CampaignState.player_data.get("st", 100))
 	health_system.max_hp = int(50.0 + st * 0.5)
 	health_system.current_hp = health_system.max_hp
-	stamina_max = 60.0 + st * 0.4
+	stamina_max = (60.0 + st * 0.4) * hunger_stamina_mult()
 	stamina = stamina_max
 	weapon_holder.equipment_manager = equipment_manager
 
@@ -511,6 +560,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_update_suppression(minf(delta, 0.066))
+	_tick_hunger(delta)
 
 	# Seated (Huey ride): follow the seat, keep head-look, skip movement.
 	if is_seated:
@@ -559,6 +609,12 @@ func _handle_movement(delta: float) -> void:
 	# Smoke (W39). (Key 5 belongs to the fire menu while it's open.)
 	if Input.is_action_just_pressed("throw_smoke") and not MissionDirector.any_fire_menu_open:
 		_throw_smoke()
+
+	# Survival v1: chow down [9] / field-strip the weapon [0].
+	if Input.is_action_just_pressed("use_ration"):
+		_eat_ration()
+	if Input.is_action_just_pressed("use_repair_kit"):
+		_use_repair_kit()
 
 	# Claymore (W58): key 6, placed at your feet facing your aim. Key 6 doubles as
 	# CBU while ON THE NET (cbu_strike shares the physical key), so the guard below
