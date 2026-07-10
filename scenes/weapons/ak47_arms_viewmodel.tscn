@@ -5,4 +5,4 @@
 [node name="AKArmsViewmodel" type="Node3D"]
 
 [node name="Model" parent="." instance=ExtResource("1")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.42, 0.12)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -1.81, 0)

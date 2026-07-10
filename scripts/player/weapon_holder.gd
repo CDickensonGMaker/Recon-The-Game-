@@ -636,6 +636,11 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 			weapon_model.position = weapon_data.hip_position
 			weapon_model.rotation_degrees = weapon_data.hip_rotation
 			# Scale is baked into viewmodel scene - don't override here
+			# Arms viewmodels carry a posed idle clip - play it or the rig renders
+			# in bind pose (the invisible-arms bug was ALSO this + facing +Z).
+			var vm_anim := weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if vm_anim != null and vm_anim.has_animation("rifle_idle"):
+				vm_anim.play("rifle_idle")
 
 
 ## Get current ADS amount for other systems
