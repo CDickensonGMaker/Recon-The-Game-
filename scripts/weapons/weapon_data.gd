@@ -14,8 +14,10 @@ extends Resource
 @export var reload_time: float = 2.5  ## Seconds
 
 @export_group("Damage")
-## Dice notation: [num_dice, die_size, flat_bonus] e.g., [2, 6, 6] = 2d6+6
-@export var base_damage: Array[int] = [2, 6, 6]
+## ADR-016: flat base damage per hit — deterministic. All variance comes from
+## range falloff, hitzone multipliers, and the situation sim (never from rolls).
+## Values derived from the retired RECON dice averages (e.g. 5d10 -> 28).
+@export var base_damage: int = 20
 @export var damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL
 
 @export_group("Accuracy")
@@ -71,17 +73,13 @@ extends Resource
 @export var ads_rotation: Vector3 = Vector3(0, 0, 0)
 
 
-## Roll damage using the dice notation
-func roll_damage() -> int:
-	var total := 0
-	for i in range(base_damage[0]):
-		total += randi_range(1, base_damage[1])
-	total += base_damage[2]
-	return maxi(1, total)
+## Flat per-hit damage (ADR-016). Deterministic — same weapon, same base, every hit.
+func get_damage() -> int:
+	return maxi(1, base_damage)
 
 
 ## Damage scale at a given distance. Full damage to effective_range, then linear
-## falloff to min_damage_mult at max_range. Applied to the raw dice roll BEFORE
+## falloff to min_damage_mult at max_range. Applied to the flat base BEFORE
 ## the hitzone multiplier, so a headshot stays a headshot at any range.
 func damage_multiplier_at(distance: float) -> float:
 	if distance <= effective_range:
@@ -92,14 +90,9 @@ func damage_multiplier_at(distance: float) -> float:
 	return lerpf(1.0, min_damage_mult, t)
 
 
-## Get damage string for UI display (e.g., "2d6+6")
+## Get damage string for UI display (e.g., "28")
 func get_damage_string() -> String:
-	var s := "%dd%d" % [base_damage[0], base_damage[1]]
-	if base_damage[2] > 0:
-		s += "+%d" % base_damage[2]
-	elif base_damage[2] < 0:
-		s += "%d" % base_damage[2]
-	return s
+	return "%d" % base_damage
 
 
 ## Get fire rate in seconds between shots

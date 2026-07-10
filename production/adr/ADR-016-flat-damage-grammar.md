@@ -1,0 +1,82 @@
+# ADR-016: Flat base damage × zone — the dice are retired
+**Date:** 2026-07-10 · **Status:** Accepted — **SUMMONER-DECREED, verbatim:** *"Pure flat base × zone —
+deterministic per hit; all variance from range, zone, and sim. Cleanest for Pillar 1; drops the dice
+entirely."* · **Supersedes/Amends:** **ADR-003** (RECON dice as sole grammar — its "one grammar" and
+locational-override rules survive; its dice-pool core is replaced) · CLAUDE.md damage law · GAME_GUIDE §4.1
+
+## Context
+ADR-003 unified the game on RECON dice pools (M16 5d10, AK 4d10…) — the tabletop's grammar carried into
+realtime. The audit that ratified it also exposed the cost: per-shot rolls made time-to-kill *feel*
+random at HLL lethality (two torso hits sometimes killed, sometimes didn't), the swing existed on top of
+three other variance sources that FPS players actually read (range falloff, hitzone multipliers, the
+three-situation asymmetry), and the one catastrophic data bug of the era — the Mosin 1d10+68 one-shot —
+was only possible because a dice array could smuggle a flat modifier past review.
+
+The charter (v0.3, Summoner-provided) logged a flat-base candidate as "ADR-016, profiler → War Room."
+Before the profiler ran, the Summoner exercised final authority (Law 3) and decreed the direction
+directly on 2026-07-10. The council's WHETHER debate is closed; this record captures the decision, the
+conversion law, and what was sacrificed.
+
+The tabletop soul is preserved where it belongs: **the flat values ARE the dice averages.** RECON's
+numbers still define the game's lethality; only the per-shot randomness is gone. Where a tabletop needs
+dice to simulate situation, a realtime sim *has* the situation.
+
+## Decision
+**Every weapon deals a flat, deterministic base damage per hit. All variance comes from range falloff,
+hitzone multipliers, and the simulation (exposure, suppression, situation asymmetry) — never from rolls.**
+
+- `WeaponData.base_damage` and `ProjectileData.base_damage` are `int` (flat). The dice array
+  `[count, sides, modifier]` schema is deleted. `roll_damage()` is renamed `get_damage()` and is pure.
+- **Conversion law:** flat = retired dice average, rounded (.5 up). Values of record:
+  M16A1/CAR-15/M60 **28** (5d10) · AK-47/SKS/RPD **22** (4d10) · PPSh-41 **17** (3d10) · M1911 **11**
+  (2d10) · M79 **44** · M26 **55** · M72 LAW **72** · RPG-2 (+rocket) **62** · RPG-7 **73**.
+- **Retuned on conversion (the two legacy HoD outliers had no dice lineage to average):**
+  Mosin-Nagant **32** (full-power bolt rifle: above the intermediate 22s, torso ×2.0 = 64 — hits hard,
+  cannot one-shot the player) · Thompson **17** (.45 SMG, PPSh class).
+- **Retired outright:** MP40 and Kar98k `.tres` deleted (off the Vietnam design's weapon set; their
+  shared viewmodel scenes remain for the weapons that reuse them). Mosin and Thompson **stay** — both
+  are period-correct in Vietnam and both have live asset/code references (Mosin FP viewmodel; Thompson
+  in the lab roster).
+- The locational model (ADR-003's second half) is UNCHANGED and now carries the structure dice used to:
+  HEAD fatal · TORSO ×2.0 · GUT ×1.75 + bleed · LIMB ×0.75; player 100 HP, enemies 65–85.
+- Loadout honesty (decree item 4): vc_rifleman now fires the SKS its description names; nva_regular's
+  description now names the PPSh-41 it fires. (NVA→AK-47 archetype upgrade is future enemy work, beaded.)
+- **Verification of record:** `tests/test_flat_damage.tscn` asserts determinism, the decreed values,
+  the retired grammar's absence, and the lethality guards (rifles ≤2 torso hits vs enemies, ≤3 vs
+  player, nothing one-shots the player's torso). Changing a value without amending this ADR turns the
+  suite red by design.
+
+## Consequences
+**Buys:** learnable, consistent gunfeel (Pillar 1) — a weapon's kill pattern is knowable, so death reads
+as *situation* (the pillar's own words), not roll luck. The Mosin one-shot bug class becomes structurally
+impossible: no dice array can hide a modifier again. UI can print honest damage numbers. Tuning is one
+integer per weapon.
+
+**Costs (named — no free lunches):** per-shot unpredictability is gone — the wounded-not-dead variance
+that fed the medic economy now comes only from zone geometry and range, which is coarser than dice were.
+RECON fidelity narrows from "we roll their dice" to "we use their averages" — a real identity trade,
+accepted by decree. The tabletop's 2d100-class extreme swings (.50, point-blank 12ga) have no analogue;
+if those weapons ever ship, their identity must come from the sim (penetration, suppression), not swing.
+
+**Work created:** none blocking — migration shipped with this ADR (schema, 16 resources, 6 call sites,
+lab/editor/test rosters, stale comments/labels, CLAUDE.md law). The charter's damage-profiler probe bead
+closes as superseded (the decision it was evidence for has been made; its verification role shipped as
+`test_flat_damage`). Follow-on beaded: NVA AK-47 archetype upgrade.
+
+## Evidence
+- Decree: Summoner message 2026-07-10 (quoted verbatim above); charter §10.2 sequencing honored — probe
+  shipped as the regression test, migration done once.
+- `scripts/weapons/weapon_data.gd` — `base_damage: int`, `get_damage()`, flat damage string
+- `scripts/combat/projectile_data.gd` — same; `data/projectiles/rpg2_rocket.tres` = 62
+- Call sites migrated: `weapon_holder.gd`, `ally_base.gd`, `enemy_base.gd`, `projectile_base.gd` (×2)
+- `data/weapons/*.tres` — 15 flat values as decreed; mp40/kar98k deleted
+- `data/enemies/vc_rifleman.tres` → sks; `nva_regular.tres` description → PPSh-41
+- Probe: `tests/test_flat_damage.tscn` — PASS 2026-07-10 (deterministic ×100, values, guards);
+  headless boot clean on Godot 4.7
+- `tests/test_ballistics.gd` rosters updated; `run_all_tests.ps1` now runs the 4.7 console exe
+
+## Related
+- **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
+- **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015
+  (verification law — this ADR shipped WITH its probe); ADR-011 (explosive damage values feed AOE)
+- **Beads:** xkn1 (decree item 4 — completed by this migration) · btnm (profiler — superseded by decree)

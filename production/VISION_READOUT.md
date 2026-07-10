@@ -57,8 +57,10 @@ the squad boards by role under covering fire, you last.
 ## The systems, as envisioned
 
 ### Gunplay & damage — "the perception economy shoots back"
-RECON dice, pure pools with no flat modifiers, against 65–85-point enemies and a 100-point player:
-AK/SKS 4d10, 5.56 5d10 (the tumbling round), M60 5d10, .50 and point-blank 12-gauge 2d100. Two to three torso rifle hits down a man; the head is instantly fatal;
+Flat, deterministic base damage per hit — the RECON tabletop lives on as the *averages*, not the rolls
+(AK/SKS 22, the tumbling 5.56 at 28, Mosin 32) against 65–85-point enemies and a 100-point player.
+Every scrap of variance sits where an FPS player can read it — range, hitzone, situation — never in
+dice (ADR-016, Summoner-decreed). Two to three torso rifle hits down a man; the head is instantly fatal;
 limbs *wound and degrade* — arm hits ruin weapon handling, leg hits kill your sprint and give you a
 limp, a larynx hit silences a man's callouts. Deliberately wound-friendly: **the medic economy needs
 wounded men, not corpses** — and the bleed-out clock is the medic's deadline. Projectile ballistics for rifles up; per-magazine stoppage rolls on fouled

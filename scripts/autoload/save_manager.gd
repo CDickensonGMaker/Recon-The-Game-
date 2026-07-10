@@ -156,17 +156,21 @@ func load_game(slot: int) -> SaveData:
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		return null
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	# Instance JSON.parse(), NOT static parse_string(): a corrupt save is a
+	# HANDLED runtime condition, and parse_string() pushes an engine ERROR on
+	# bad input (louder on 4.7), which reads as a crash in logs/test scans.
+	var json := JSON.new()
+	var parse_err: Error = json.parse(f.get_as_text())
 	f.close()
-	if not (parsed is Dictionary):
-		push_error("[SAVE] slot %d is corrupt" % slot)
+	if parse_err != OK or not (json.data is Dictionary):
+		print("[SAVE] slot %d is corrupt - load refused (handled)" % slot)
 		return null
-	var d: Dictionary = parsed
+	var d: Dictionary = json.data
 	if int(d.get("version", 1)) < SaveData.SCHEMA_VERSION:
 		d = _migrate(d, int(d.get("version", 1)))
 	var s := SaveData.from_dict(d)
 	if not s.is_valid():
-		push_error("[SAVE] slot %d failed validation" % slot)
+		print("[SAVE] slot %d failed validation - load refused (handled)" % slot)
 		return null
 	return s
 

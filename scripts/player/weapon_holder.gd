@@ -130,8 +130,8 @@ func _ready() -> void:
 	# Controller is the root Player node - go up: WeaponHolder -> Camera3D -> Head -> Player
 	controller = get_parent().get_parent().get_parent()
 
-	# Default primary: the M16A1 (RECON 5d10). The WW2 Thompson holdover and its
-	# flat HoD dice are retired from the default loadout (audit: damage unification).
+	# Default primary: the M16A1 (flat 28 — ADR-016, derived from the retired
+	# RECON 5d10 average). The WW2 Thompson holdover left the default loadout (audit).
 	primary_weapon = load("res://data/weapons/m16a1.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
@@ -433,7 +433,7 @@ func _fire_shot() -> void:
 
 
 ## Apply damage from a resolved raycast. Split out of _fire_shot so it can be
-## deferred by projectile travel time. Distance falloff scales the dice roll
+## deferred by projectile travel time. Distance falloff scales the flat base
 ## before the hitzone multiplier, so a headshot stays a headshot at any range.
 func _resolve_hit(hit: Dictionary, origin: Vector3, weapon: WeaponData, attacker: Node) -> void:
 	var hit_collider: Object = hit.get("collider")
@@ -456,7 +456,7 @@ func _resolve_hit(hit: Dictionary, origin: Vector3, weapon: WeaponData, attacker
 
 	if damage_target and is_instance_valid(damage_target) and damage_target.has_method("take_damage"):
 		var falloff: float = weapon.damage_multiplier_at(origin.distance_to(hit.position))
-		var base_damage: int = weapon.roll_damage()
+		var base_damage: int = weapon.get_damage()
 		var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
 		damage_target.take_damage(final_damage, weapon.damage_type, attacker, zone_name)
 

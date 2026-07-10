@@ -93,8 +93,8 @@ func _ready() -> void:
 	add_to_group("allies")
 	CombatManager.register_ally(self)
 
-	# Load Thompson as default weapon for allies
-	weapon_data = load("res://data/weapons/m16a1.tres")  # matches the m16 sprites (audit)
+	# Default ally weapon: M16A1 (matches the m16 models/sprites — audit)
+	weapon_data = load("res://data/weapons/m16a1.tres")
 
 	_setup_visual()
 	_setup_hurtbox()
@@ -541,7 +541,7 @@ func _fire_at_target() -> void:
 
 			if damage_target and damage_target.has_method("take_damage"):
 				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
-				var base_damage: int = weapon_data.roll_damage()
+				var base_damage: int = weapon_data.get_damage()
 				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
 				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
 

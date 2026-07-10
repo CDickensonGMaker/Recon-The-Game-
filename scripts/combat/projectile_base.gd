@@ -244,7 +244,7 @@ func _handle_collision(target: Node) -> void:
 		return
 
 	hit_targets.append(target)
-	var damage: int = projectile_data.roll_damage()
+	var damage: int = projectile_data.get_damage()
 
 	if target.has_method("take_damage"):
 		target.take_damage(damage, projectile_data.damage_type, owner_entity)
@@ -276,7 +276,7 @@ func _on_hit_world() -> void:
 ## same 8-point-visibility explosion the grenades use: it is faction-blind, does
 ## knockback, and respects cover.
 func _apply_aoe_damage() -> void:
-	var base_damage: int = projectile_data.roll_damage()
+	var base_damage: int = projectile_data.get_damage()
 	var min_damage: int = maxi(1, int(float(base_damage) * 0.25))
 	CombatManager.apply_explosion_damage(
 		global_position,

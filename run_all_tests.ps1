@@ -14,7 +14,7 @@ param([string]$Filter = "", [switch]$Verbose1)
 
 $ErrorActionPreference = 'Continue'
 
-$godot = "C:\Users\caleb\Downloads\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
+$godot = "C:\Users\caleb\Downloads\Godot_v4.7-stable_win64.exe\Godot_v4.7-stable_win64_console.exe"
 $root = $PSScriptRoot
 $tests = Get-ChildItem "$root\tests" -Filter "test_*.tscn" | Sort-Object Name
 if ($Filter) { $tests = $tests | Where-Object { $_.BaseName -like "*$Filter*" } }

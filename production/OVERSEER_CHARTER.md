@@ -83,14 +83,14 @@ Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation
 
 | Domain | As-built | Deviations / open work |
 |---|---|---|
-| **Gunplay & Damage** (ADR-003/004) | RECON dice grammar; per-weapon ADS FOV ratified; locational model live (HEAD fatal / TORSO 2.0 / GUT 1.75+bleed / LIMB 0.75; player 100, enemy 65–85) | ⚠ 4 WW2 flat `.tres` remain; vc_rifleman Mosin **one-shots player** (build item 4). **PROPOSED: ADR-016 flat-base-damage candidate** — profiler probe (bead below) → War Room → only then supersedes ADR-003 (see §10) |
+| **Gunplay & Damage** (ADR-016/003/004) | **Flat base × zone grammar (ADR-016, Summoner-decreed 2026-07-10)** — deterministic per hit, values = retired dice averages; per-weapon ADS FOV ratified; locational model live (HEAD fatal / TORSO 2.0 / GUT 1.75+bleed / LIMB 0.75; player 100, enemy 65–85) | ✅ Build item 4 DONE with ADR-016: WW2 .tres out (MP40/Kar98k deleted; Mosin 32 / Thompson 17 retuned), vc_rifleman→SKS, descriptions honest, CLAUDE.md rewritten. Guarded by `test_flat_damage` |
 | **Stealth & Detection** (ADR-005/006) | 4-tier accumulator, NoiseBus, believed-position, sentry boredom | ⚠ **Witness rule NOT implemented** — silent kill still trips "YOU'VE BEEN MADE" (o18o, **build item 1, the headline wound**); ±25 scoring not implemented; detection pip unshipped |
 | **Enemy AI** | Hybrid goal-FSM + situation-priority stack; personalities; suppression; grenade telegraphs | Open keystones: squad coordinator (gpvb), smart patrol/teamwork (0623), detection ambience (r6qe); ⚠ `MAX_THINK_TIME` declared-unused (perf day) |
 | **Squad RPG** (ADR-012) | 5-man MOS fireteam; orders F1–F4 + C/H/X/N; learn-by-doing XP; permadeath | ⚠ **Loss is costless** (instant free rookies) — campaign-debt gap; squad keys never verified on Caleb's keyboard (R3 checklist) |
 | **Fire Support** (ADR-011) | RTO-gated, budgets, danger-close double-press — verified genuinely fixed | ⚠ Danger-close must also check the **player's** distance (squad-only today) |
 | **Insertion & Exfil** (ADR-008) | Walkable firebase hub ratified | ⚠ **Hub conditions unmet**: 7-element briefing skipped; live Huey ride deleted from campaign path (kills the AA economy) — **build item 5** |
 | **Campaign & Saves** (ADR-007/010) | Persistent hub; one-seed determinism; all-or-nothing exfil commit; 3 save tiers | ⚠ Offer labels ("ENEMY: HEAVY") never read by generator → campaign is flat; saves need atomic writes, future-version reject, visible feedback, pause menu (item 3) |
-| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ⚠ ModelActor **speck-soldier** AABB bug (k 0.02–0.20; item 2); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3) |
+| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off + renderer A/B still open (item 2 remainder) |
 | **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number; last measured 19–25 FPS**, `rendering_method` unset — Trust-Restoration Day (item 2). Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
 | **QA / Verification** (ADR-015) | GATE bead + verification/truth laws; headless-boot validation | PLAYTEST **R3 (ida9) is the session entry gate**; test suite still needs rendered-scale probe + gating FPS number |
 
@@ -120,7 +120,7 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 1. **Stealth restoration bundle** — real witness guard + delete lying comments + GUNSHOT 55→150m + ±25 scoring + optional village clear (o18o, pwu5).
 2. **Trust-restoration day (measured)** — set `rendering_method`; ModelActor AABB fix (k≈0.9); streaming off ≤2km; wire `MAX_THINK_TIME` (mhfv; closes 8pbo, n2ij 1-2).
 3. **Player-State HUD layer (fmc8 m0)** — condition/consumables/stamina/breath + detection pip + save/load feedback + pause menu + prompt-key truth (fy45).
-4. **Damage data finish** — WW2 `.tres` out, vc_rifleman→SKS, descriptions honest, CLAUDE.md rewritten (xkn1). *(Sequenced behind the ADR-016 decision — probe first, so the migration is done once.)*
+4. ~~**Damage data finish**~~ ✅ **DONE 2026-07-10** — executed with ADR-016 in one migration (xkn1 closed; probe `test_flat_damage` PASS).
 5. **Hub conditions** — RECON 7-element briefing in the TOC + Huey ride restored (4q4i).
 6. **Jungle feel pass** — priced by #2's numbers (ge6g).
 7. **Law & ledger cleanup** — dead code purge, roadmaps consolidated, PLAYER_MANUAL corrected (e99w).
@@ -135,20 +135,31 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 - **Feature gate:** ACTIVE. Feature epics blocked while the 7 P1s are open.
 - **Where the build lags the vision (vision wins, all beaded):** witness rule (o18o), scoring economy (ADR-006), hub 7-element briefing + Huey ride (item 5), detection pip, damage-finish (item 4), speck-soldier scale (item 2), jungle feel (item 6).
 - **Biggest single wound:** the stealth economy — the witness rule is law but unimplemented; a silent kill still raises the alarm, which voids Pillar 3's whole economy. Build item 1.
-- **Live design decision in flight:** damage grammar — flat-base candidate (proposed ADR-016), profiler probe beaded; **ADR-003 remains law until a War Room supersedes it.**
+- ~~Live design decision in flight~~ **DECIDED 2026-07-10: ADR-016 ratified by direct Summoner decree**
+  ("pure flat base × zone; drops the dice entirely") and shipped same-day with its probe. ADR-003's
+  dice core is superseded; its locational model and one-grammar law survive.
 
 ---
 
 ## 10. Open questions — the few that remain
 
 1. ~~**Overseer ↔ §10 Director seed.**~~ **RESOLVED (v0.3.1, default):** one role, two layers — the installed agent definition is the compressed seed; this charter is its operating manual. Summoner may override.
-2. **Damage grammar (ADR-016).** Build the damage-profiling probe (exempt evidence-gathering — bead created), read the current dice swing, then War Room → ADR-016 (supersede 003) *before* build item 4 runs, or the migration is done twice. **Probe first; War Room pending.**
+2. ~~**Damage grammar (ADR-016).**~~ **RESOLVED 2026-07-10 by direct Summoner decree** — flat base ×
+   zone, dice dropped. The planned profiler became the regression probe (`test_flat_damage`); the
+   migration ran once, with build item 4 folded in. Bead btnm closed as superseded.
 3. ~~**Overseer ↔ `bd`.**~~ **RESOLVED (v0.3.1, default):** the Overseer drives `bd` directly — `bd init` + `bd prime` at session start, creates/closes/links beads itself. (Repo CLAUDE.md already mandates this for any agent in the repo.) Summoner may override.
 
 ---
 
 ## 11. Changelog
 
+- **v0.3.2 (2026-07-10)** — ADR-016 decided and shipped.
+  - The Summoner decreed the damage grammar directly: pure flat base × zone, dice dropped entirely.
+    Migration executed same-day (schema, 16 resources, 6 call sites, rosters, CLAUDE.md law) with
+    build item 4 folded in; verified by headless boot + `tests/test_flat_damage.tscn` (PASS).
+  - §5 Gunplay row, §8 item 4, §9 ledger, and §10.2 updated to DONE/RESOLVED. Beads: xkn1 closed
+    (proof: probe), btnm closed (superseded by decree; probe role shipped as the regression test).
+  - Test harness moved to the Godot 4.7 console exe (was still invoking 4.6.2).
 - **v0.3.1 (2026-07-10)** — Installed by the War Room session that ratified audit #2.
   - Agent definition created at `.claude/agents/recon-overseer.md` (the compressed §10-seed layer); `GAME_GUIDE §10` now points here; global war-council config routes RECONgame work to this role.
   - **ADR-016 status corrected to PROPOSED** (no such ADR exists yet; the 15 stand; ADR-003 remains law). The damage-profiling probe is now a real bead (exempt evidence-gathering); build item 4 sequenced behind that decision.

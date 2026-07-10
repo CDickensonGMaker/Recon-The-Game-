@@ -1,5 +1,5 @@
 # ADR-003: One damage grammar: RECON dice + locational overrides
-**Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends `CLAUDE.md` "Damage System" section (rewrite ordered); completes the damage-unification decree closed prematurely in commit `96114f5`; part of the ADR-002/003 locational-damage family ratified retroactively in the audit #2 decree.
+**Date:** 2026-07-10 · **Status:** ⚠ **PARTIALLY SUPERSEDED by ADR-016 (same day, Summoner decree):** the RECON-dice core is retired — damage is now flat base × zone, with flat values derived from these dice averages. **What survives of this ADR as law:** ONE damage grammar only (no parallel systems), the locational model (HEAD fatal / TORSO 2.0 / GUT 1.75+bleed / LIMB 0.75), the HP bands (player 100, enemy 65–85), and the WW2-legacy purge. Read ADR-016 for the grammar of record. · **Supersedes/Amends:** Amends `CLAUDE.md` "Damage System" section (rewrite ordered); completes the damage-unification decree closed prematurely in commit `96114f5`; part of the ADR-002/003 locational-damage family ratified retroactively in the audit #2 decree.
 
 ## Context
 

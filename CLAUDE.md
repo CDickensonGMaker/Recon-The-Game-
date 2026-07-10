@@ -1,6 +1,9 @@
 # RECONgame - Claude Development Guidelines
 
-**RECONgame** is a hardcore Vietnam War mission-based tactical FPS (Godot 4.5+/4.6, GDScript): randomized insertion → 2–4 generated objectives in an open AO → exfil. Arma/OFP sandbox bones, SOCOM/Vietcong flavor, RECON RPG (1982) rules backbone, HLL lethality, AI fireteam, 8-directional billboard sprite characters (CULTIC-style).
+**RECONgame** is a hardcore Vietnam War mission-based tactical FPS (Godot 4.7 stable, GDScript): randomized insertion → 2–4 generated objectives in an open AO → exfil. Arma/OFP sandbox bones, SOCOM/Vietcong flavor, RECON RPG (1982) numbers backbone, HLL lethality, AI fireteam, PSX low-poly 3D characters (ADR-001 — the sprite renderer is dead; 3D models for everything).
+
+**CANON (ADR-014):** `production/GAME_GUIDE.md` + `production/adr/` outrank this file. If this file
+contradicts an ADR, the ADR wins and this file gets corrected.
 
 **Read these before designing anything:**
 - `DESIGN.md` — vision, pillars, game loop, system specs, M0–M8 roadmap (APPROVED)
@@ -166,11 +169,14 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 | 7 | enemy_hurtbox | Enemy damage receivers |
 | 9 | projectiles | Bullets, grenades |
 
-### Damage System
-- Weapons use dice notation: `[count, sides, modifier]`
-- Example: `[1, 6, 45]` = 1d6+45 = 46-51 damage
-- Body multipliers: HEAD (4x), TORSO (1.5x), LIMB (0.6x)
-- Player HP: 100, Enemy HP: 60-80
+### Damage System (ADR-016 — flat base × zone, deterministic)
+- `WeaponData.base_damage` is a flat `int` per hit. NO dice, NO rolls, NO flat-modifier arrays.
+  `get_damage()` is pure; all variance comes from range falloff, hitzones, and the situation sim.
+- Values of record (= retired RECON dice averages): M16/CAR-15/M60 28 · AK/SKS/RPD 22 ·
+  PPSh/Thompson 17 · Mosin 32 · M1911 11 · M79 44 · M26 55 · LAW 72 · RPG-2 62 · RPG-7 73.
+- Zone multipliers: HEAD = fatal (bypass) · TORSO ×2.0 · GUT ×1.75 + bleed · LIMB ×0.75
+- Player HP: 100 · Enemy HP: 65–85
+- Guarded by `tests/test_flat_damage.tscn` — retuning a value without amending ADR-016 turns the suite red.
 
 ### Key Classes
 - `Hitzone` - Body part damage detection (extends Area3D)
@@ -195,7 +201,7 @@ The viewmodel editor and in-game camera must stay perfectly synchronized:
 
 **Rules:**
 1. WeaponHolder must have identity transform (no offset) in both scenes
-2. FOV locked at 75.0 everywhere (no ADS zoom)
+2. Base/hip FOV is 75.0; ADS uses per-weapon `ads_fov` from the .tres (ADR-004 — e.g. M16 60, binocs 18)
 3. Weapon positions set in WeaponData .tres files, not in scene transforms
 4. Scale baked into viewmodel .tscn root node, not applied at runtime
 

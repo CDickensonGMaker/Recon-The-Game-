@@ -1389,7 +1389,7 @@ func _fire_at_target() -> void:
 
 			if damage_target and damage_target.has_method("take_damage"):
 				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
-				var base_damage: int = weapon_data.roll_damage()
+				var base_damage: int = weapon_data.get_damage()
 				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
 				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
 

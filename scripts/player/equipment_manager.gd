@@ -6,7 +6,7 @@ signal slot_changed(slot_index: int, slot_type: Enums.SlotType)
 signal grenade_count_changed(count: int)
 
 ## Slot data
-## Slot 0 = Primary weapon (Thompson)
+## Slot 0 = Primary weapon (M16A1 default)
 ## Slot 1 = Secondary weapon (M1911)
 ## Slot 2 = Grenade
 ## Slot 3 = Medkit

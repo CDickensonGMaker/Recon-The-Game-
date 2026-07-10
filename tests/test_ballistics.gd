@@ -8,8 +8,8 @@
 extends Node
 
 const WEAPONS := [
-	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41", "mosin", "kar98k",
-	"m1911", "thompson", "mp40", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
+	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41", "mosin",
+	"m1911", "thompson", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
 ]
 
 
@@ -59,7 +59,7 @@ func _run() -> void:
 		print("  %s: %.0f rpm authored -> %d/%d rounds @60/144fps in 3s" % [wid, wd.fire_rate, n60, n144])
 
 	# --- 3. bolt guns cycle in a usable time (the *2.5 bug made it 10s) ----
-	for wid in ["kar98k", "mosin"]:
+	for wid in ["mosin"]:
 		if not loaded.has(wid):
 			continue
 		var wd: WeaponData = loaded[wid]
@@ -99,11 +99,11 @@ func _run() -> void:
 			prev = m
 
 	# --- 5. subsonic weapons flagged correctly (no crack) -----------------
-	for wid in ["m1911", "thompson", "mp40"]:
+	for wid in ["m1911", "thompson"]:
 		if loaded.has(wid) and loaded[wid].is_supersonic:
 			print("FAIL: %s (subsonic round) marked supersonic" % wid)
 			failures += 1
-	for wid in ["m16a1", "ak47", "kar98k"]:
+	for wid in ["m16a1", "ak47", "mosin"]:
 		if loaded.has(wid) and not loaded[wid].is_supersonic:
 			print("FAIL: %s (supersonic round) not marked supersonic" % wid)
 			failures += 1

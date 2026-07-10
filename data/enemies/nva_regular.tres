@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "nva_regular"
 display_name = "NVA Regular"
-description = "Main Force soldier with an AK-47. Best jungle fighter in the world."
+description = "Main Force soldier with a PPSh-41. Best jungle fighter in the world."
 max_hp = 85
 move_speed = 4.4
 preferred_range = 22.0

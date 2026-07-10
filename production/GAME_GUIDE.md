@@ -90,8 +90,11 @@ heat-scaled exfil → boarding catharsis.
 
 The **⚠ lines are the audit's verified deviations** — each is beaded; fixing them is the build order (§8).
 
-### 4.1 Gunplay & damage (Pillars 1, ADR-003/004)
-- **One grammar: RECON dice** (M16 5d10, AK 4d10, .50 2d100…). Default primary: **M16**.
+### 4.1 Gunplay & damage (Pillar 1, ADR-016/003/004)
+- **One grammar: flat base × zone (ADR-016, Summoner-decreed).** Deterministic per hit; ALL variance
+  from range falloff, hitzones, and the situation sim — never rolls. Flat values = the retired RECON
+  dice averages (M16/CAR-15/M60 28 · AK/SKS/RPD 22 · PPSh/Thompson 17 · Mosin 32 · M1911 11).
+  Default primary: **M16**. Guarded by `tests/test_flat_damage.tscn`.
 - **Locational model (code truth, ratified):** HEAD = fatal · TORSO ×2.0 · GUT ×1.75 + bleed · LIMB ×0.75.
   Player HP 100; enemy HP 65–85. Bleed-out timer = the medic deadline. Pain-quota stagger for hit feedback.
 - **ADS: per-weapon `ads_fov`** (base 75, M16 ≈ 60, binocs 18). M60/RPD hip-fire; RPG-2 sight-raise.
@@ -99,8 +102,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 - Weapon condition degrades per shot; fouling → jams (kept, weapon-weight it — ADR-009). Cleaning kits [0].
 - Three-situation asymmetry (undetected initiator wins the opening; the ambushed side is penalized until
   in cover) is the design's lethality engine — RECON_ADAPTATION.md is the numbers source.
-- ⚠ **4 legacy WW2 flat-damage .tres remain; vc_rifleman fires a Mosin 1d10+68 that one-shots the player
-  at all ranges while elite NVA fire PPSh (avg 16.5).** Delete/convert; descriptions must match loadouts.
+- ~~⚠ 4 legacy WW2 .tres / Mosin one-shot~~ **RESOLVED with ADR-016 (2026-07-10):** MP40/Kar98k deleted,
+  Mosin retuned to 32 and Thompson to 17, vc_rifleman fires its stated SKS, descriptions honest.
 - ⚠ No gating FPS number exists; last measured 19–25 FPS with `rendering_method` unset (ADR-015/§8.2).
 
 ### 4.2 Detection & stealth (Pillar 3, ADR-005/006)
@@ -168,7 +171,9 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   tiles is the terrain-pop root cause). Streaming returns only time-budgeted, for 3km+ AOs.
 - **Scale contract: 1.7132m characters** (`GAME_SCALE_STANDARD.md`), instance-space AABB normalization,
   acceptance k ∈ [0.8, 1.0] enforced by probe.
-- ⚠ `ModelActor._aabb_of` measures mesh space → speck soldiers (observed k 0.02–0.20). Build item #2.
+- ~~⚠ ModelActor mesh-space AABB → speck soldiers~~ **FIXED 2026-07-10:** instance-space measurement;
+  all 9 characters render at exactly 1.7132m, guarded by `tests/test_model_scale.tscn` (the ADR-002
+  rendered-scale probe). Caleb's in-game confirm pending (n2ij item 1).
 - ⚠ Jungle feel fails ground truth ("a white kid in america made"): needs wind-sway shader, undergrowth
   layers, wilder composition — after the perf day prices it.
 
@@ -213,8 +218,9 @@ A frozen epic thaws only by explicit decree — a bead in `bd ready` is not a th
 
 The next project prompt must **not** carry these forward (all verified false 2026-07-10):
 1. ~~"8-directional billboard sprite characters (CULTIC-style)"~~ → 3D PSX models are the renderer (ADR-001).
-2. ~~HEAD 4×/TORSO 1.5×/LIMB 0.6×, `[1,6,45]` examples, enemy HP 60–80, Thompson default~~ → RECON dice
-   only; HEAD fatal/TORSO 2.0/GUT 1.75+bleed/LIMB 0.75; enemy HP 65–85; M16 default (ADR-003).
+2. ~~HEAD 4×/TORSO 1.5×/LIMB 0.6×, `[1,6,45]` examples, enemy HP 60–80, Thompson default~~ → **flat
+   base × zone** (ADR-016; dice fully retired); HEAD fatal/TORSO 2.0/GUT 1.75+bleed/LIMB 0.75; enemy
+   HP 65–85; M16 default. *(Rewritten in CLAUDE.md 2026-07-10.)*
 3. ~~"FOV locked at 75.0 everywhere (no ADS zoom), DO NOT CHANGE"~~ → per-weapon ADS FOV ratified (ADR-004).
 4. ~~Viewmodel recipe (scale 0.03, editor fine-tune)~~ → superseded by the fp_arms GLB pipeline
    (Bible 09; `IDLE_ANIM_SPEC.md`, `rifle_pose.py`, matrix_basis bake law).
@@ -303,3 +309,4 @@ below; the charter is the manual it loads at session start.
 | 013 | World streaming policy: small maps load whole |
 | 014 | Documentation hierarchy: CANON / LOG / DEAD |
 | 015 | Verification law + mechanical gate |
+| 016 | Flat base damage × zone — dice retired (supersedes 003's dice core) |

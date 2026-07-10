@@ -4,7 +4,7 @@ extends Area3D
 
 ## Zone types with damage multipliers
 enum ZoneType {
-	HEAD,      # fatal on enemies - a headshot is a headshot, no dice save you
+	HEAD,      # fatal on enemies - a headshot is a headshot, nothing saves you
 	TORSO,     # 2.0x - center mass (chest). 1-2 rifle rounds
 	GUT,       # 1.75x + bleed-out - devastating, downs a man fast
 	LIMB       # 0.75x - rarely lethal, but the man is CHANGED (wounds/cripple)
@@ -74,6 +74,6 @@ func is_critical_zone() -> bool:
 	return zone_type == ZoneType.HEAD
 
 
-## Zones that kill an enemy outright regardless of damage dice.
+## Zones that kill an enemy outright regardless of damage value.
 func is_fatal_zone() -> bool:
 	return zone_type == ZoneType.HEAD

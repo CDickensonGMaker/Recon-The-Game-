@@ -280,7 +280,7 @@ func _mode_name() -> String:
 ## feel every gun's rate, recoil weight and audio without a loadout menu.
 const WEAPON_ROSTER: Array[String] = [
 	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41",
-	"thompson", "mp40", "kar98k", "mosin", "m79", "m72_law", "rpg2", "rpg7",
+	"thompson", "mosin", "m79", "m72_law", "rpg2", "rpg7",
 ]
 var _weapon_idx: int = 0
 

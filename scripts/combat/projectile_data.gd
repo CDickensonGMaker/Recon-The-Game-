@@ -12,7 +12,8 @@ extends Resource
 @export var lifetime: float = 3.0  ## Max time before expiring
 
 @export_group("Damage")
-@export var base_damage: Array[int] = [2, 6, 0]  ## [num_dice, die_size, flat_bonus]
+## ADR-016: flat base damage per hit — deterministic (see WeaponData.base_damage).
+@export var base_damage: int = 8
 @export var damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL
 
 @export_group("Status Effects")
@@ -40,20 +41,11 @@ extends Resource
 @export var trail_width: float = 0.02
 
 
-## Roll damage for this projectile
-func roll_damage() -> int:
-	var total := 0
-	for i in range(base_damage[0]):
-		total += randi_range(1, base_damage[1])
-	total += base_damage[2]
-	return max(1, total)
+## Flat per-hit damage (ADR-016). Deterministic.
+func get_damage() -> int:
+	return maxi(1, base_damage)
 
 
 ## Get damage string for UI
 func get_damage_string() -> String:
-	var s := "%dd%d" % [base_damage[0], base_damage[1]]
-	if base_damage[2] > 0:
-		s += "+%d" % base_damage[2]
-	elif base_damage[2] < 0:
-		s += "%d" % base_damage[2]
-	return s
+	return "%d" % base_damage
