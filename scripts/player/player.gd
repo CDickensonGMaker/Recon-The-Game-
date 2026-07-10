@@ -144,8 +144,8 @@ func _update_binoculars(delta: float) -> void:
 
 
 ## W69: surface-matched footstep audio (dirt / grass / water via GameplayGrid).
-const STEP_DIRT := preload("res://assets/audio/sfx/step_dirt.wav")
-const STEP_GRASS := preload("res://assets/audio/sfx/step_grass.wav")
+const STEP_DIRT := preload("res://assets/audio/sfx/step_real.wav")  # real recording (Catacombs port) - synth shuffle retired
+const STEP_GRASS := preload("res://assets/audio/sfx/step_real.wav")
 const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
 var _wade_timer: float = 0.0
 var _grid: GameplayGrid = null

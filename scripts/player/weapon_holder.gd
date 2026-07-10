@@ -664,7 +664,7 @@ func get_reload_progress() -> float:
 func _get_muzzle_position() -> Vector3:
 	if weapon_model:
 		# Try to find MuzzlePoint marker in the weapon model
-		var muzzle: Node3D = weapon_model.get_node_or_null("MuzzlePoint")
+		var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
 		if muzzle:
 			return muzzle.global_position
 

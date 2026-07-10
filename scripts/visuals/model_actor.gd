@@ -47,6 +47,7 @@ func setup(unit_id: String) -> bool:
 		var k: float = TARGET_HEIGHT_M / aabb.size.y
 		_inst.scale = Vector3(k, k, k)
 		_inst.position.y = -aabb.position.y * k
+		print("[MODEL] %s aabb_h=%.2f k=%.3f (tiny-model hunt: k far from ~0.9 = bad export)" % [unit_id, aabb.size.y, k])
 
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D

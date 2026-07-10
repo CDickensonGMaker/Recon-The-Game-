@@ -232,8 +232,9 @@ func _start_ambience() -> void:
 		wp.volume_db = -20.0
 		add_child(wp)
 		wp.play()
-	# Positional wildlife emitters.
-	for i in range(AMBIENCE_EMITTERS):
+	# Positional wildlife emitters - SYNTH birds, retired when the real recorded
+	# bed is present (Caleb: 'remove the original bird noises we generated').
+	for i in range(AMBIENCE_EMITTERS if not (bed is AudioStreamMP3) else 0):
 		var e := AudioStreamPlayer3D.new()
 		e.stream = floor_s
 		e.volume_db = -16.0

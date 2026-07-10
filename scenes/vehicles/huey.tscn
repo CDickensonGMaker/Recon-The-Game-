@@ -7,3 +7,4 @@
 script = ExtResource("1_heli")
 
 [node name="Model" parent="." instance=ExtResource("2_glb")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
