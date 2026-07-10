@@ -1,0 +1,63 @@
+{
+  "description": "Placement templates for composing ruin sets from individual ruin/rubble GLBs at runtime. Each piece: [model, offset_x, offset_y, rotation_deg] relative to the set anchor. Snap EACH piece to terrain height individually (get_height_at per piece) - this is why templates beat merged GLBs on uneven ground. The merged ruinset_*.glb files are the same arrangements pre-baked for flat pads / quick placement.",
+  "pieces_dir": "res://assets/building models/structures/ruins/",
+  "sets": {
+    "compound": {
+      "footprint": [11, 8],
+      "pieces": [
+        ["ruin_house_half", 0.0, 0.0, 0],
+        ["ruin_house_shell", 7.5, 2.5, 180],
+        ["wall_straight_door", 3.5, -2.5, 0],
+        ["rubble_field_wide", 4.0, 0.5, 30],
+        ["brick_pile", 1.5, 2.0, 70],
+        ["rubble_scatter_tiny", 6.0, -1.5, 0]
+      ]
+    },
+    "street_row": {
+      "footprint": [12, 5],
+      "pieces": [
+        ["wall_straight_door", 0.0, 0.0, 0],
+        ["wall_corner_tall", 4.5, 0.2, 0],
+        ["wall_straight_door", 8.5, 0.0, 180],
+        ["rubble_heap_tall", 2.5, 1.2, 0],
+        ["rubble_pile_medium", 6.5, -0.8, 90],
+        ["rubble_scatter_tiny", 1.0, -1.2, 45],
+        ["brick_pile", 9.5, 1.5, 20]
+      ]
+    },
+    "courtyard": {
+      "footprint": [8, 7],
+      "pieces": [
+        ["wall_u_ruin", 0.0, 0.0, 0],
+        ["wall_corner_tall", 4.5, -3.0, 90],
+        ["wall_straight_door", 0.5, -4.5, 0],
+        ["rubble_pile_medium", 2.0, -2.0, 40],
+        ["brick_pile", 0.5, -3.0, 120],
+        ["rubble_scatter_tiny", 3.5, -0.5, 200]
+      ]
+    },
+    "collapsed_block": {
+      "footprint": [12, 8],
+      "pieces": [
+        ["ruin_house_shell", 0.0, 0.0, 0],
+        ["rubble_field_wide", 6.0, -0.5, 0],
+        ["rubble_field_wide", 2.0, -3.5, 75],
+        ["rubble_heap_tall", 5.0, 1.5, 0],
+        ["rubble_pile_medium", 8.5, -3.0, 160],
+        ["wall_corner_tall", 9.0, 1.0, 270],
+        ["brick_pile", 3.5, -1.5, 300]
+      ]
+    },
+    "defense_corner": {
+      "footprint": [9, 7],
+      "pieces": [
+        ["wall_corner_tall", 0.0, 0.0, 0],
+        ["wall_straight_door", 4.0, -0.2, 0],
+        ["wall_u_ruin", 2.0, 3.5, 180],
+        ["rubble_heap_tall", 1.0, 1.8, 0],
+        ["rubble_scatter_tiny", 3.5, 1.0, 90],
+        ["rubble_pile_medium", -1.0, -1.7, 220]
+      ]
+    }
+  }
+}

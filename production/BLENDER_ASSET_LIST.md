@@ -16,7 +16,7 @@ Every art asset we've identified, from code placeholders + design discussions. S
 - ⬜ **M60** + **RPD** viewmodels (LMG hold — support hand on barrel/carry-handle)
 - ⬜ **PPSh** viewmodel (SMG — support hand on drum)
 - ⬜ **RPG-2** viewmodel (over-shoulder)
-- ⬜ **FP radio handset** — the handset prop raised in first-person for the "on the net" state (reuse the RTO handset)
+- ⬜ **FP radio handset** — the handset prop raised in first-person for the "on the net" state (reuse the RTO's PRC-25 handset) — this is how the player calls in airstrikes/support (bead RECONgame-i1vu)
 - ⬜ **Per-gun idle animations** — idle/fidget/check/inspect per weapon (see `IDLE_ANIM_SPEC.md` + `IK_ANIMATION_WORKFLOW.md`)
 - ✅ done: M14, M16, AK, Mosin viewmodels (+ MuzzlePoints); semi-auto rifle pose
 
@@ -26,17 +26,20 @@ Every art asset we've identified, from code placeholders + design discussions. S
 - ✅ punji_trap.glb exists (now wired to gameplay)
 
 ## VEHICLES / AIRCRAFT
-- 🔴 **F-4 Phantom** (jet) — Skyraider is the stand-in for the fast flyby (`mission_director.gd:291`)
+- 🟡 **F-4 Phantom** — GLB already in project (`aircraft/f4_phantom.glb`); needs wiring into the flyby (`mission_director.gd:291`, bead RECONgame-qs6l)
 - 🔴 **C-47 "Spooky" gunship** — stretched-box placeholder (`spooky_gunship.gd:29`)
 - 🔴 **ZPU / DShK AA gun** — mg_nest GLB placeholder (`site_planner.gd:233`)
-- ⬜ **Driveable vehicle variants** — jeep/truck/APC (currently destructible props: M151, M113, Chinook exist as props)
-- ⬜ **Helipad** model — currently just flattened dirt + a parked Chinook
+- 🟡 **Driveable vehicle variants** — GLBs copied from RTS 2026-07-09: m35_deuce_truck, us_jeep, uh1_huey, us_bulldozer (+ M151/M113/Chinook already here); driveable *code* is bead RECONgame-2kcp
+- ✅ **Helipad** — copied from RTS 2026-07-09 (`converted/helipad.glb`, `airfield/psp_helipad.glb`); needs placement wiring
+- ⬜ **Mountable M60 + pintle mount** — modular gun/mount for bunkers, jeep/APC ring, Huey door (Batch 2, bead RECONgame-4nkw; socket code bead RECONgame-izmf)
 
 ## WORLD / STRUCTURES  —  ⭐ MOSTLY COVERED BY RealVietnamRTS (copy-in, don't model)
 The RTS has ~103 Vietnam structures. These fill our gaps directly (copy from
 `RealVietnamRTS/assets/models/structures/`, never edit the RTS):
-- 🟢 **Rubble/debris** → `ruins/rubble_pile.glb`, `ruins/burned_hut.glb`, `ruins/destroyed_bunker.glb`
-- 🟢 **POW cage** → `village/rice_storage.glb` (the placeholder is literally a rice crib)
+**→ FULL COPY DONE 2026-07-09**: all missing structure files (285) + vehicles (44) copied into
+`assets/building models/` — every 🟢 below is now in-project; remaining work is wiring/placement.
+- ✅ **Rubble/debris** → RTS ruins set COPIED IN 2026-07-09 (`ruins/rubble_pile.glb`, `burned_hut.glb`, `destroyed_bunker.glb`, `bomb_crater.glb`, `cham_temple_ruin.glb`) **+ 3 new FPS-scale pieces modeled**: `ruins/rubble_debris_small.glb`, `rubble_debris_large.glb`, `wall_remnant.glb` (pending review; destruction-swap code bead RECONgame-8tly)
+- ✅ **POW cage** → proper bamboo cage MODELED 2026-07-09: `vc_nva/pow_cage.glb` (sized to the 2.2×1.8×2.2 placeholder; `village/rice_storage.glb` also available as alt) — pending review + wiring into `rescue_objective.gd:17`
 - 🟢 **MG nest** → `firebase/mg_nest.glb`
 - 🟢 **Helipad** → `converted/helipad.glb` / `airfield/psp_helipad.glb`
 - 🟢 **Barbwire hazard** → `converted/barbed_wire.glb`, `firebase/barbed_wire_coil.glb`
