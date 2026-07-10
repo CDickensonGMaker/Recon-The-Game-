@@ -29,8 +29,12 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 - [ ] FP radio handset raise (reuses the RTO handset asset)
 
 ## 4. PROPS / VEHICLES (one Blender session each)
-- [ ] **The gib set** — gib_arm/leg/head + 2-3 chunks + gore texture (unlocks dismemberment;
-      everything else is already coded-ready per `GORE_WORKFLOW.md`)
+- [ ] **FIX `cap_leg_l` in us_grunt_v2.blend** — it exported as an EMPTY Node3D outside the
+      Skeleton (every other cap is a skinned mesh); the left-leg stump renders hollow in the
+      gore lab. Probe `test_gore_rig` warns on it until fixed.
+- [ ] **The gib set** — gib_arm/leg/head + 2-3 chunks + gore texture (game-side gib-swap v1
+      NOW SHIPPED — `gib_system.gd` + `scenes/levels/gore_lab.tscn` bench; these standalone
+      chunks upgrade explosions/multi-gib per `GORE_WORKFLOW.md` Phase 2)
 - [ ] Claymore model (green box in-game) + Ka-Bar knife redo
 - [ ] C-47 for Spooky (box placeholder) · ZPU/DShK AA gun (mg_nest stand-in)
 - [ ] Optional: TOC interior dressing (map table, radios) — the HQ tent is now walk-up-and-brief

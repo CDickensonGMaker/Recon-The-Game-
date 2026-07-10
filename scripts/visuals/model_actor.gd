@@ -16,6 +16,7 @@ const MODEL_DIR := "res://assets/models/characters/"
 const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
 
 var unit: String = ""
+var norm_k: float = 1.0   ## normalization scale applied to the instance (ADR-002)
 var _inst: Node3D = null
 var _anim: AnimationPlayer = null
 var _skel: Skeleton3D = null
@@ -45,6 +46,7 @@ func setup(unit_id: String) -> bool:
 	var aabb := _aabb_of(_inst)
 	if aabb.size.y > 0.01:
 		var k: float = TARGET_HEIGHT_M / aabb.size.y
+		norm_k = k
 		_inst.scale = Vector3(k, k, k)
 		_inst.position.y = -aabb.position.y * k
 		print("[MODEL] %s instance_h=%.2f k=%.3f (k far from ~0.9 = off-spec export; see GAME_SCALE_STANDARD)" % [unit_id, aabb.size.y, k])
@@ -56,6 +58,15 @@ func setup(unit_id: String) -> bool:
 
 func has_visual() -> bool:
 	return _inst != null
+
+
+## Rig access for the gore system (GORE_WORKFLOW Phase 3).
+func skeleton() -> Skeleton3D:
+	return _skel
+
+
+func instance_root() -> Node3D:
+	return _inst
 
 
 ## World-space forward. The body is rotated to face it (unlike the billboard
