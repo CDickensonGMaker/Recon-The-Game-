@@ -210,8 +210,7 @@ func _spawn_allies() -> void:
 			continue
 		a.set_order(AllyBase.OrderMode.FOLLOW)
 		if i == 0:
-			a.set_sprite("us_grunt_black", "m60")  # the pig
-			a.fire_rate_mult = 1.6
+			a.fire_rate_mult = 1.6  # the pig's rate; v2 grunt model like the rest (Caleb)
 		_allies.append(a)
 
 

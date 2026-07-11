@@ -99,6 +99,32 @@ const MODEL_CLIP: Dictionary = {
 }
 
 
+## Rigs ship different clip generations (us_grunt v1: rifle_aiming_idle/
+## strafe/kneeling_pointing; us_grunt_v2: idle_aiming/run_left/idle_crouching).
+## ModelActor.play() consults this when the asked-for clip is missing, so any
+## caller can ask in either generation's names and every rig answers.
+const MODEL_ALIASES: Dictionary = {
+	# v1 name -> v2 equivalents
+	"rifle_aiming_idle": ["idle_aiming", "idle"],
+	"strafe": ["run_left", "run_forward"],
+	"strafe_1": ["run_right", "run_forward"],
+	"kneeling_pointing": ["idle_crouching_aiming", "idle_crouching"],
+	"injured_walk_backwards": ["run_backward", "run_backward_left"],
+	"death_forward": ["death_from_the_front"],
+	"stand_to_cover": ["idle_crouching", "idle_crouching_aiming"],
+	"start_walking": ["run_forward"],
+	# v2 name -> v1 equivalents
+	"idle": ["rifle_aiming_idle"],
+	"idle_aiming": ["rifle_aiming_idle"],
+	"idle_crouching": ["kneeling_pointing"],
+	"idle_crouching_aiming": ["kneeling_pointing"],
+	"run_backward": ["injured_walk_backwards"],
+	"death_from_the_front": ["death_forward"],
+	"sprint_forward": ["run_forward"],
+	"falling_to_roll": ["stand_to_cover", "kneeling_pointing"],
+}
+
+
 static func model_clip_for(intent: String) -> String:
 	return str(MODEL_CLIP.get(intent, "rifle_aiming_idle"))
 

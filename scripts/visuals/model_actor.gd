@@ -252,13 +252,22 @@ func set_facing(dir: Vector3) -> void:
 
 
 ## Play a clip by the intent-resolved name. No-ops if already playing it.
+## Missing clips resolve through SpriteStateMap.MODEL_ALIASES (v1/v2 rigs
+## carry different clip generations - callers ask in either, every rig answers).
 func play(clip: String, restart: bool = false) -> bool:
 	if _anim == null:
 		return false
 	if clip == _current_clip and not restart:
 		return true
 	if not _anim.has_animation(clip):
-		return false
+		for alias in SpriteStateMap.MODEL_ALIASES.get(clip, []):
+			if _anim.has_animation(str(alias)):
+				clip = str(alias)
+				break
+		if not _anim.has_animation(clip):
+			return false
+		if clip == _current_clip and not restart:
+			return true
 	_current_clip = clip
 	_anim.play(clip)
 	return true

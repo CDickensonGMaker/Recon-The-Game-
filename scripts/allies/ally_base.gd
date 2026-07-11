@@ -103,7 +103,9 @@ var last_hit_dir: Vector3 = Vector3.FORWARD
 ## Which rendered unit this man wears. SquadSystem overrides for the PIGMAN,
 ## who carries an M60 and was rendered as a separate unit.
 var sprite_faction: String = "US Army and Co"
-var sprite_unit: String = "us_grunt"
+## us_grunt_v2 (Caleb): the gib-rig grunt is THE squadmate model - full gore
+## contract, the big clip library, and the cover/crouch animation set.
+var sprite_unit: String = "us_grunt_v2"
 var sprite_weapon: String = "m16a1"
 
 
