@@ -26,6 +26,7 @@ var drag_body: GoreDummy = null
 var _hud: Label = null
 var _spawned: int = 0
 var _drag_bone: PhysicalBone3D = null
+var _drag_bone2: PhysicalBone3D = null  # chest - the second tow point that stops the fold-in
 
 
 func _ready() -> void:
@@ -154,6 +155,7 @@ func _try_toggle_grab() -> void:
 		return
 	# grab the nearest ragdolled body's hips within reach
 	var best: PhysicalBone3D = null
+	var best2: PhysicalBone3D = null
 	var best_d: float = 2.6
 	for b in [drag_body, dummy]:
 		if not is_instance_valid(b) or b.model == null or not b.model.has_ragdoll():
@@ -165,9 +167,11 @@ func _try_toggle_grab() -> void:
 		if d < best_d:
 			best_d = d
 			best = hips
+			best2 = b.model.ragdoll_bone("Spine2")
 			b.model.wake_ragdoll()
 	if best != null:
 		_drag_bone = best
+		_drag_bone2 = best2
 		if player != null:
 			player.set("external_speed_mult", 0.5)  # saving a man SLOWS you (design)
 		print("[GORE LAB] grabbed the body - walk to drag (50 pct speed), [F] to release")
@@ -209,19 +213,26 @@ func _physics_process(_delta: float) -> void:
 	if not is_instance_valid(_drag_bone) or player == null:
 		_release_grip("grip lost")
 		return
-	# pull the hips to your heels - SHORT leash, strong grip: the body stays
-	# with you (Caleb: it lagged meters behind on the old numbers)
-	var anchor: Vector3 = player.global_position + (-player.global_transform.basis.z) * 0.6
+	# TWO-POINT TOW (Caleb: single-point folded the body in on itself):
+	# hips to your heels; chest held ~0.4m further back along the drag line,
+	# so the body stays stretched out flat like a real casualty drag.
+	var back: Vector3 = -player.global_transform.basis.z
+	var anchor: Vector3 = player.global_position + back * 0.6
 	anchor.y = _drag_bone.global_position.y * 0.5 + (player.global_position.y - 0.7) * 0.5
 	var to_anchor: Vector3 = anchor - _drag_bone.global_position
 	if to_anchor.length() > 2.2:
 		_release_grip("grip lost - yanked too hard")
 		return
 	_drag_bone.linear_velocity = (to_anchor * 10.0).limit_length(6.0)
+	if _drag_bone2 != null and is_instance_valid(_drag_bone2):
+		var anchor2: Vector3 = anchor + back * 0.4
+		anchor2.y = anchor.y
+		_drag_bone2.linear_velocity = ((anchor2 - _drag_bone2.global_position) * 7.0).limit_length(5.0)
 
 
 func _release_grip(reason: String) -> void:
 	_drag_bone = null
+	_drag_bone2 = null
 	if is_instance_valid(player):
 		player.set("external_speed_mult", 1.0)
 	print("[GORE LAB] %s" % reason)

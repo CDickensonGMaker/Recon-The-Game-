@@ -5,9 +5,12 @@ extends RigidBody3D
 signal exploded(position: Vector3)
 
 ## Configuration
-const EXPLOSION_RADIUS: float = 5.0
-const MAX_DAMAGE: int = 100
-const MIN_DAMAGE: int = 20
+# M26 frag (Caleb gore-lab retune): bigger, deadlier. Real M26 casualty
+# radius ~15m; game-tuned to 8m so cover play stays meaningful indoors.
+# 130 center = no survivors point-blank; 25 at the rim = wounded, not shrugged.
+const EXPLOSION_RADIUS: float = 8.0
+const MAX_DAMAGE: int = 130
+const MIN_DAMAGE: int = 25
 
 ## State
 var remaining_fuse: float = 4.0
