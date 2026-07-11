@@ -482,3 +482,17 @@ func _cas_ground_target() -> Vector3:
 
 func is_ended() -> bool:
 	return _ended
+
+
+## ---------------------------------------------------------------------------
+## Scripted-events registry (infra hook ONLY - see mission_trigger.gd /
+## scripted_sequence.gd). Lets a generated mission enumerate its event pieces
+## for debrief/tooling. Deliberately zero behavior: the director never drives a
+## trigger or sequence - they run themselves, watched or not (Pillar 3).
+var scripted_events: Array[Node] = []
+
+
+func register_scripted_event(node: Node) -> void:
+	if node == null or scripted_events.has(node):
+		return
+	scripted_events.append(node)

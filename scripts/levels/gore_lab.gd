@@ -46,6 +46,7 @@ func _ready() -> void:
 	_build_range()
 	_build_cover()
 	_build_lighting()
+	_plant_vegetation()
 	_spawn_player()
 	_spawn_allies()
 	_spawn_wave()
@@ -118,6 +119,132 @@ func _build_lighting() -> void:
 	e.ambient_light_energy = 0.9
 	env.environment = e
 	add_child(env)
+
+
+## ---------- VEGETATION (jungle batch bench) ----------
+## Palms + swaying grass from tools/make_jungle_vegetation.py so the batch is
+## visible next playtest. Everything hugs the arena walls - the cover field
+## (+-19) and the wave spawn lanes stay clear.
+
+const VEG_DIR := "res://assets/models/vegetation/"
+const PALM_VARIANTS: Array[String] = [
+	"jungle_palm_a1", "jungle_palm_a2", "jungle_palm_a3",
+	"jungle_palm_b1", "jungle_palm_b2", "jungle_palm_b3",
+]
+## Wall-margin ring: between the inner wall face (+-21.8) and the cover field.
+const PALM_SPOTS: Array[Vector3] = [
+	Vector3(-18.0, 0.0, -20.3), Vector3(-7.0, 0.0, -20.6),
+	Vector3(3.5, 0.0, -20.2), Vector3(14.0, 0.0, -20.5),
+	Vector3(-14.0, 0.0, 20.5), Vector3(-3.0, 0.0, 20.2),
+	Vector3(8.0, 0.0, 20.6), Vector3(18.0, 0.0, 20.3),
+	Vector3(-20.5, 0.0, 9.0), Vector3(20.4, 0.0, -5.0),
+]
+
+var _sway_mats: Dictionary = {}  # material name -> shared ShaderMaterial
+
+
+func _plant_vegetation() -> void:
+	if not ResourceLoader.exists(VEG_DIR + PALM_VARIANTS[0] + ".glb"):
+		push_warning("[GORE LAB] vegetation GLBs missing - run tools/make_jungle_vegetation.py")
+		return
+	var planted: int = 0
+	for i in range(PALM_SPOTS.size()):
+		var variant: String = PALM_VARIANTS[i % PALM_VARIANTS.size()]
+		var packed: PackedScene = load(VEG_DIR + variant + ".glb") as PackedScene
+		if packed == null:
+			continue
+		var palm := packed.instantiate() as Node3D
+		if palm == null:
+			continue
+		add_child(palm)
+		palm.global_position = PALM_SPOTS[i]
+		palm.rotation.y = _rng.randf_range(0.0, TAU)
+		_apply_sway(palm)
+		_add_trunk_collider(palm)
+		planted += 1
+	var fans: int = _plant_grass()
+	print("[GORE LAB] vegetation planted: %d palms, %d grass fans (sway shader live)" % [planted, fans])
+
+
+## Swap the imported GLB materials for the shared vegetation_sway shader
+## (two materials total across every palm - the batch de-dup carried through).
+func _apply_sway(root: Node3D) -> void:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for s in range(mi.mesh.get_surface_count()):
+			var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
+			if src == null:
+				continue
+			var key: String = src.resource_name
+			if not _sway_mats.has(key):
+				var leaf: bool = key.findn("leaf") != -1
+				var flutter: float = 0.09 if leaf else 0.015
+				var scissor: float = 0.4 if leaf else 0.05
+				_sway_mats[key] = GroundClutter.make_sway_material(
+					src.albedo_texture, 0.35, flutter, scissor)
+			var sway: ShaderMaterial = _sway_mats[key]
+			mi.set_surface_override_material(s, sway)
+
+
+## Thin static cylinder so bullets/grenades/men respect the trunk.
+func _add_trunk_collider(palm: Node3D) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 0.3
+	cyl.height = 3.0
+	cs.shape = cyl
+	cs.position.y = 1.5
+	body.add_child(cs)
+	palm.add_child(body)
+
+
+## Four swaying grass strips, one along each wall (6-tri star-fans, MultiMesh).
+func _plant_grass() -> int:
+	var fan_mesh: Mesh = GroundClutter.load_glb_mesh(VEG_DIR + "grass_fan.glb")
+	if fan_mesh == null:
+		return 0
+	var tex: Texture2D = load("res://terrain/textures/clutter/grassland_2.png") as Texture2D
+	var mat: ShaderMaterial = GroundClutter.make_sway_material(tex, 0.18, 0.05)
+	var half: float = ARENA * 0.5
+	## Rect2: (x, z, width, depth) strips just inside the walls.
+	var strips: Array[Rect2] = [
+		Rect2(-half + 0.6, -half + 0.6, ARENA - 1.2, 2.2),
+		Rect2(-half + 0.6, half - 2.8, ARENA - 1.2, 2.2),
+		Rect2(-half + 0.6, -half + 2.8, 2.2, ARENA - 5.6),
+		Rect2(half - 2.8, -half + 2.8, 2.2, ARENA - 5.6),
+	]
+	var total: int = 0
+	for strip in strips:
+		var mmi := MultiMeshInstance3D.new()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.instance_count = 90
+		mm.mesh = fan_mesh
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
+		for i in range(mm.instance_count):
+			var pos := Vector3(
+				_rng.randf_range(strip.position.x, strip.position.x + strip.size.x),
+				0.0,
+				_rng.randf_range(strip.position.y, strip.position.y + strip.size.y))
+			var basis := Basis(Vector3.UP, _rng.randf_range(0.0, TAU))
+			var s: float = _rng.randf_range(0.9, 1.6)
+			basis = basis.scaled(Vector3(1.2 * s, 0.9 * s, 1.2 * s))
+			mm.set_instance_transform(i, Transform3D(basis, pos))
+		total += mm.instance_count
+	return total
 
 
 func _spawn_player() -> void:
@@ -325,6 +452,39 @@ func _build_debug_vis() -> void:
 	m.no_depth_test = true
 	_dbg_mesh.material_override = m
 	add_child(_dbg_mesh)
+	_zone_im = ImmediateMesh.new()
+	var zm := MeshInstance3D.new()
+	zm.mesh = _zone_im
+	zm.material_override = m
+	add_child(zm)
+
+
+## H toggles live hitzone wireframes on every agent (bead yd83). The lab's
+## no-gameplay-keys rule holds: H collides with nothing bound in-game.
+var _zone_im: ImmediateMesh = null
+var _zones_visible: bool = false
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == KEY_H:
+		_zones_visible = not _zones_visible
+
+
+func _update_zone_vis() -> void:
+	if _zone_im == null:
+		return
+	_zone_im.clear_surfaces()
+	if not _zones_visible:
+		return
+	_zone_im.surface_begin(Mesh.PRIMITIVE_LINES)
+	_zone_im.surface_set_color(Color(0, 0, 0, 0))
+	_zone_im.surface_add_vertex(Vector3.ZERO)
+	_zone_im.surface_set_color(Color(0, 0, 0, 0))
+	_zone_im.surface_add_vertex(Vector3.ZERO)
+	for hz in get_tree().get_nodes_in_group("hitzone"):
+		if hz is Area3D and is_instance_valid(hz):
+			HitzoneBuilder.draw_zone_wire(_zone_im, hz as Area3D)
+	_zone_im.surface_end()
 
 
 func _dbg_label_for(agent: Node3D) -> Label3D:
@@ -415,6 +575,7 @@ func _update_debug_vis() -> void:
 
 func _process(_delta: float) -> void:
 	_update_debug_vis()
+	_update_zone_vis()
 	# wave respawn: last man down -> fresh fireteam after a breather
 	if not _wave_pending and _alive_enemies() == 0 and not _enemies.is_empty():
 		_wave_pending = true
