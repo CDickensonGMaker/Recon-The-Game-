@@ -181,21 +181,22 @@ for o in bpy.data.objects:
     o.hide_set(False)
 
 def body_bbox():
-    """Bounds of the CHARACTER only (Base_Human: body+helmet+gear).
-    Never the whole scene — the splayed gib meshes parked around the origin
-    would inflate the box and shrink/offset the character (that bug shipped
-    once; don't reintroduce it)."""
+    """Bounds of the CHARACTER only: the vc_* body parts (head/torso/arms/
+    legs/feet). Never the whole scene — gib donors and the gun would skew
+    the box (that bug shipped once on the grunt; don't reintroduce it)."""
     dg = bpy.context.evaluated_depsgraph_get()
     mn = Vector((1e9,) * 3)
     mx = Vector((-1e9,) * 3)
-    o = bpy.data.objects["Base_Human"]
-    ev = o.evaluated_get(dg)
-    me = ev.to_mesh()
-    for v in me.vertices:
-        w = ev.matrix_world @ v.co
-        mn = Vector(map(min, mn, w))
-        mx = Vector(map(max, mx, w))
-    ev.to_mesh_clear()
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or not o.name.startswith("vc_"):
+            continue
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        for v in me.vertices:
+            w = ev.matrix_world @ v.co
+            mn = Vector(map(min, mn, w))
+            mx = Vector(map(max, mx, w))
+        ev.to_mesh_clear()
     return mn, mx
 
 # measure in rest pose so animation state doesn't skew the bbox

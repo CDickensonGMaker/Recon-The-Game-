@@ -36,8 +36,26 @@ CAP_ANCHOR = {"head": "mixamorig:Neck", "torso": "mixamorig:Hips",
               "forearm_l": "mixamorig:LeftArm", "forearm_r": "mixamorig:RightArm",
               "leg_l": "mixamorig:Hips", "leg_r": "mixamorig:Hips"}
 
-body = bpy.data.objects[BODY]
 rig = bpy.data.objects[RIG]
+body = bpy.data.objects.get(BODY)
+_tmp_join = False
+if body is None:
+    # body lives as split vc_* parts now — join temp copies to cut gibs from
+    parts = [o for o in bpy.data.objects if o.type == 'MESH' and o.name.startswith("vc_")]
+    dups = []
+    for o in parts:
+        d = o.copy(); d.data = o.data.copy()
+        bpy.context.scene.collection.objects.link(d)
+        dups.append(d)
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    for d in dups: d.select_set(True)
+    bpy.context.view_layer.objects.active = dups[0]
+    bpy.ops.object.join()
+    body = bpy.context.view_layer.objects.active
+    body.name = "_gib_source_tmp"
+    _tmp_join = True
 
 def hx(h):
     h = h.lstrip('#')
@@ -165,4 +183,6 @@ for region in REGION_BONES:
     cap.hide_render = False
     made.append((cap.name, len(order)))
 
+if _tmp_join:
+    bpy.data.objects.remove(body, do_unlink=True)
 print("generated:", made)
