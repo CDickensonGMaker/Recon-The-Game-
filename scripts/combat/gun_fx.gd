@@ -429,11 +429,16 @@ static func _blood_splat_behind(parent: Node, pos: Vector3, dir: Vector3) -> voi
 		d.look_at(hit.position - n, Vector3.UP)
 		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 	d.rotate_object_local(Vector3.UP, randf_range(0, TAU))
+	# Purge entries whose nodes died with a scene reload FIRST: popping a freed
+	# instance into a TYPED var is a script error in 4.7 (the gore-lab spam bug).
+	for i in range(_blood_decals.size() - 1, -1, -1):
+		if not is_instance_valid(_blood_decals[i]):
+			_blood_decals.remove_at(i)
 	_blood_decals.append(d)
 	while _blood_decals.size() > MAX_BLOOD_DECALS:
-		var old: Decal = _blood_decals.pop_front()
+		var old: Variant = _blood_decals.pop_front()
 		if is_instance_valid(old):
-			old.queue_free()
+			(old as Decal).queue_free()
 
 
 ## Persistent blood ON a unit while it lives (max 3 marks). 3D-model units get a
@@ -492,11 +497,14 @@ static func blood_pool(parent: Node, ground_pos: Vector3) -> void:
 				d.texture_albedo = _btex("blood_pool_%d" % i)
 				var s: float = 0.6 + 0.35 * float(i - 1)
 				d.size = Vector3(s, 0.3, s))
+	for i in range(_blood_pools.size() - 1, -1, -1):
+		if not is_instance_valid(_blood_pools[i]):
+			_blood_pools.remove_at(i)
 	_blood_pools.append(d)
 	while _blood_pools.size() > MAX_BLOOD_POOLS:
-		var old: Decal = _blood_pools.pop_front()
+		var old: Variant = _blood_pools.pop_front()
 		if is_instance_valid(old):
-			old.queue_free()
+			(old as Decal).queue_free()
 
 
 ## Persistent bullet-hole decal, oriented to the surface. FIFO-recycled and
@@ -514,11 +522,14 @@ static func bullet_hole(parent: Node, pos: Vector3, normal: Vector3) -> void:
 	if absf(normal.dot(Vector3.UP)) < 0.99:
 		d.look_at(pos - normal, Vector3.UP)
 		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	for i in range(_decals.size() - 1, -1, -1):
+		if not is_instance_valid(_decals[i]):
+			_decals.remove_at(i)
 	_decals.append(d)
 	while _decals.size() > MAX_DECALS:
-		var old: Decal = _decals.pop_front()
+		var old: Variant = _decals.pop_front()
 		if is_instance_valid(old):
-			old.queue_free()
+			(old as Decal).queue_free()
 
 
 static func clear_decals() -> void:

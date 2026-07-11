@@ -2,9 +2,9 @@
 class_name HUD
 extends CanvasLayer
 
-## References to UI elements
-@onready var hp_bar: ProgressBar = $MarginContainer/VBoxContainer/TopRow/HPBar
-@onready var hp_label: Label = $MarginContainer/VBoxContainer/TopRow/HPBar/HPLabel
+## References to UI elements. NO HP BAR by design (Caleb, gore lab): pain is
+## diegetic - the hurt vignette deepens as HP drops, the bleed warning is the
+## only numeric death clock the player sees.
 @onready var bleed_container: Control = $MarginContainer/VBoxContainer/TopRow/BleedContainer
 @onready var bleed_label: Label = $MarginContainer/VBoxContainer/TopRow/BleedContainer/BleedLabel
 @onready var weapon_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/WeaponLabel
@@ -103,17 +103,13 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 
 
 func _on_health_changed(current: int, maximum: int) -> void:
-	hp_bar.max_value = maximum
-	hp_bar.value = current
-	hp_label.text = "%d / %d" % [current, maximum]
-
-	# Color code based on health
-	if current <= maximum * 0.25:
-		hp_bar.modulate = Color.RED
-	elif current <= maximum * 0.5:
-		hp_bar.modulate = Color.YELLOW
-	else:
-		hp_bar.modulate = Color.GREEN
+	# No HP bar (diegetic pain): the player carries the state - the hurt
+	# vignette (player.gd suppression overlay, `hurt` uniform) deepens with
+	# lost HP and pulses on each hit. This handler just forwards the fraction.
+	if health_system != null and health_system.controller != null:
+		var c: Node = health_system.controller
+		if c.has_method("set_hurt_level"):
+			c.set_hurt_level(1.0 - float(current) / maxf(1.0, float(maximum)))
 
 
 func _on_health_pack_changed(count: int) -> void:

@@ -1,11 +1,10 @@
-## gore_lab.gd - GORE TEST SITE: verify the us_grunt_v2 gib rigging with live fire.
+## gore_lab.gd - COMBAT BENCH: squad-vs-squad on a covered range.
 ##
-## One us_grunt_v2 dummy on a gridded range, you with the M16 (the shipped
-## default loadout). Shoot limbs - they pop and the gore caps become stumps;
-## shoot the head - it kills, the head pops, the helmet flies (bone-attached
-## gear separating is the whole point of the rig contract). Dummy respawns 3s
-## after death. Bench rules are exaggerated (every limb hit pops) - the console
-## prints what the LIVE GORE_WORKFLOW thresholds would have done.
+## Your 5-man squad (one pigman) vs a 7-man VC/NVA wave, on the combat-lab
+## cover field, with the full gore stack, HLL AI doctrine, and floating AI
+## state text + vision lines so you can SEE what every brain is doing.
+## Fresh enemy wave 8s after the last man drops; fallen allies replaced
+## between waves. Frags on [3], medkit [4] + hold [F].
 ##
 ## No custom keybinds (e6qc law: lab commands must not collide with gameplay
 ## keys) - everything is shoot-driven and auto-respawning.
@@ -16,25 +15,29 @@ extends Node3D
 
 const ARENA: float = 44.0
 const WALL_H: float = 4.0
-const DUMMY_POS := Vector3(0, 0.1, -6.0)
-const RESPAWN_S: float = 10.0   # long enough to walk up and inspect the result
 const LAB_GRENADES: int = 25
 
 const VC := "res://data/enemies/vc_rifleman.tres"
 const NVA := "res://data/enemies/nva_regular.tres"
-const WAVE: Array[String] = [VC, VC, VC, NVA]
+const SAPPER := "res://data/enemies/vc_sapper.tres"
+## 5 vs 7 (Caleb): four riflemen, two NVA regulars, one belt-fed sapper.
+const WAVE: Array[String] = [VC, VC, VC, VC, NVA, NVA, SAPPER]
 const WAVE_RESPAWN_S: float = 8.0
 
 var player: CharacterBody3D = null
-var dummy: GoreDummy = null
 var _hud: Label = null
-var _spawned: int = 0
-var _drag_bone: PhysicalBone3D = null  # the HEAD - pinned to the player (Caleb: attach, don't pull)
-var _drag_joint: PinJoint3D = null
 var _enemies: Array[Node] = []
+var _allies: Array[Node] = []
+## AI debug vis (Caleb): floating state text above every head + live vision
+## lines. Lab-only - reads AI fields, changes nothing.
+var _dbg_labels: Dictionary = {}   # instance_id -> Label3D
+var _dbg_mesh: MeshInstance3D = null
+var _dbg_im: ImmediateMesh = null
 var _wave: int = 0
 var _wave_pending: bool = false
 var _rng := RandomNumberGenerator.new()
+
+const ALLY_COUNT: int = 5  # the full squad (Caleb)
 
 
 func _ready() -> void:
@@ -44,10 +47,11 @@ func _ready() -> void:
 	_build_cover()
 	_build_lighting()
 	_spawn_player()
-	_spawn_dummy()
+	_spawn_allies()
 	_spawn_wave()
 	_build_hud()
-	print("[GORE LAB] combat bench ready - live VC/NVA waves + the gib dummy. Frags on [3].")
+	_build_debug_vis()
+	print("[GORE LAB] combat bench ready - 5-man squad vs 7-man waves. Frags [3], medkit [4]+[F].")
 
 
 func _build_range() -> void:
@@ -146,16 +150,6 @@ func _spawn_player() -> void:
 		weapon_holder.secondary_ammo = [shotty.magazine_size, 8]
 
 
-func _spawn_dummy() -> void:
-	dummy = GoreDummy.new()
-	add_child(dummy)
-	dummy.global_position = DUMMY_POS
-	if player != null:
-		dummy.look_at(Vector3(player.global_position.x, dummy.global_position.y, player.global_position.z), Vector3.UP)
-	dummy.died.connect(_on_dummy_died)
-	_spawned += 1
-
-
 ## Cover at the combat lab's four deliberate heights (0.5 prone / 1.0 crouch /
 ## 1.5 standing chest / 2.5 full LOS block) so the AI has real geometry to use
 ## and you have maneuvering room.
@@ -202,6 +196,33 @@ func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
 	return body
 
 
+## Your fireteam (Caleb: "with more allies on my side this combat will feel
+## more rounded out"). Fights with no SquadSystem: targeting rides
+## CombatManager.active_enemies; FOLLOW rides GameManager.player. One pigman.
+func _spawn_allies() -> void:
+	for i in range(ALLY_COUNT):
+		if _alive_allies() >= ALLY_COUNT:
+			break
+		# arc around the player spawn (-9, 4.5), tucked behind the hard block
+		var pos := Vector3(-11.5 + float(i) * 1.3, 1.0, 5.8 + 0.6 * float(i % 2))
+		var a := AllyBase.spawn_ally(self, pos)
+		if a == null:
+			continue
+		a.set_order(AllyBase.OrderMode.FOLLOW)
+		if i == 0:
+			a.set_sprite("us_grunt_black", "m60")  # the pig
+			a.fire_rate_mult = 1.6
+		_allies.append(a)
+
+
+func _alive_allies() -> int:
+	var n: int = 0
+	for a in _allies:
+		if is_instance_valid(a) and not a.is_dead():
+			n += 1
+	return n
+
+
 ## Live enemy fireteam at the far end - the combat-feel overlay. A fresh wave
 ## walks in after the last man drops.
 func _spawn_wave() -> void:
@@ -228,52 +249,6 @@ func _alive_enemies() -> int:
 	return n
 
 
-## Polled, not _unhandled_input: the player's own interact raycast consumes
-## the event before the lab would see it. Polling cannot be shadowed.
-func _try_toggle_grab() -> void:
-	if _drag_bone != null:
-		_release_grip("released the body")
-		return
-	# grab the nearest ragdolled body's HEAD within reach and PIN it to the
-	# player (Caleb: hard attach - the most consistent grip; the constraint
-	# solver hauls the body, the spine trails out straight behind the head)
-	var best: PhysicalBone3D = null
-	var best_d: float = 2.6
-	for b in [dummy]:
-		if not is_instance_valid(b) or b.model == null or not b.model.has_ragdoll():
-			continue
-		var head: PhysicalBone3D = b.model.ragdoll_bone("Head")
-		if head == null or player == null:
-			continue
-		var d: float = head.global_position.distance_to(player.global_position)
-		if d < best_d:
-			best_d = d
-			best = head
-			b.model.wake_ragdoll()
-	if best != null:
-		_drag_bone = best
-		_drag_joint = PinJoint3D.new()
-		add_child(_drag_joint)
-		_drag_joint.global_position = best.global_position  # pin where he lies - no snap
-		_drag_joint.node_a = player.get_path()
-		_drag_joint.node_b = best.get_path()
-		player.set("external_speed_mult", 0.5)  # saving a man SLOWS you (design)
-		print("[GORE LAB] grabbed him by the collar - walk to drag (50 pct speed), [F] to release")
-
-
-func _on_dummy_died() -> void:
-	var timer: SceneTreeTimer = get_tree().create_timer(RESPAWN_S)
-	timer.timeout.connect(func() -> void:
-		if is_instance_valid(dummy):
-			dummy.queue_free()
-		_spawn_dummy()
-		# keep the frag supply topped up between dummies
-		if is_instance_valid(player):
-			var em: EquipmentManager = player.get_node("EquipmentManager")
-			if em.get_grenade_count() < 5:
-				em.add_grenade(5 - em.get_grenade_count()))
-
-
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 1
@@ -289,51 +264,131 @@ func _build_hud() -> void:
 	layer.add_child(_hud)
 
 
-func _physics_process(_delta: float) -> void:
-	if Input.is_action_just_pressed("interact"):
-		_try_toggle_grab()
-	if _drag_bone == null:
-		return
-	if not is_instance_valid(_drag_bone) or player == null:
-		_release_grip("grip lost")
-		return
-	# Pinned drag: the joint does the hauling. We only watch for a fumbled
-	# grip (solver snagged on geometry and the head is left far behind).
-	if _drag_bone.global_position.distance_to(player.global_position) > 2.5:
-		_release_grip("grip lost - he snagged on something")
+## ---------- AI DEBUG VIS ----------
+
+const TIER_COLORS: Array[Color] = [
+	Color(0.5, 0.9, 0.5),   # RELAXED - green
+	Color(0.95, 0.9, 0.4),  # SUSPICIOUS - yellow
+	Color(1.0, 0.6, 0.2),   # ALERT - orange
+	Color(1.0, 0.25, 0.25), # COMBAT - red
+]
 
 
-func _release_grip(reason: String) -> void:
-	_drag_bone = null
-	if _drag_joint != null and is_instance_valid(_drag_joint):
-		_drag_joint.queue_free()
-	_drag_joint = null
-	if is_instance_valid(player):
-		player.set("external_speed_mult", 1.0)
-	print("[GORE LAB] %s" % reason)
+func _build_debug_vis() -> void:
+	_dbg_im = ImmediateMesh.new()
+	_dbg_mesh = MeshInstance3D.new()
+	_dbg_mesh.mesh = _dbg_im
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	m.no_depth_test = true
+	_dbg_mesh.material_override = m
+	add_child(_dbg_mesh)
+
+
+func _dbg_label_for(agent: Node3D) -> Label3D:
+	var key: int = agent.get_instance_id()
+	if _dbg_labels.has(key) and is_instance_valid(_dbg_labels[key]):
+		return _dbg_labels[key]
+	var l := Label3D.new()
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.fixed_size = true
+	l.pixel_size = 0.0006
+	l.font_size = 30
+	l.outline_size = 8
+	l.position = Vector3(0, 2.15, 0)
+	agent.add_child(l)
+	_dbg_labels[key] = l
+	return l
+
+
+func _name_of(n: Node) -> String:
+	if n == null or not is_instance_valid(n):
+		return "-"
+	if n.is_in_group("player"):
+		return "PLAYER"
+	if n.is_in_group("allies"):
+		return "ALLY"
+	if n is GoreDummy:
+		return "DUMMY"
+	return "VC"
+
+
+func _update_debug_vis() -> void:
+	_dbg_im.clear_surfaces()
+	var lines: Array = []  # [from, to, color]
+
+	for e in _enemies:
+		if not is_instance_valid(e):
+			continue
+		var lbl := _dbg_label_for(e)
+		if e.is_dead():
+			lbl.text = "DEAD"
+			lbl.modulate = Color(0.5, 0.5, 0.5, 0.6)
+			continue
+		var tier: int = clampi(int(e.alert_tier), 0, 3)
+		var state_name: String = Enums.AIState.keys()[int(e.current_state)]
+		var goal_name: String = Enums.AIGoal.keys()[int(e.current_goal)]
+		lbl.text = "%s | %s\n%s  tgt:%s%s\ncov:%s sup:%.1f exp:x%.1f" % [
+			EnemyBase.AlertTier.keys()[tier], state_name, goal_name,
+			_name_of(e.target), " (LOS)" if e.has_line_of_sight else "",
+			"Y" if e.has_cover else "n", e.suppression_level, e._exposure_spread_mult()]
+		lbl.modulate = TIER_COLORS[tier]
+		if e.target != null and is_instance_valid(e.target):
+			var from: Vector3 = e.global_position + Vector3.UP * 1.5
+			if e.has_line_of_sight:
+				lines.append([from, e.target.global_position + Vector3.UP * 1.0, Color(1.0, 0.2, 0.2, 0.85)])
+			elif e.last_known_target_pos != Vector3.ZERO:
+				lines.append([from, e.last_known_target_pos + Vector3.UP * 1.0, Color(1.0, 0.6, 0.2, 0.35)])
+
+	for a in _allies:
+		if not is_instance_valid(a):
+			continue
+		var lbl := _dbg_label_for(a)
+		if a.is_dead():
+			lbl.text = "KIA"
+			lbl.modulate = Color(0.5, 0.5, 0.5, 0.6)
+			continue
+		var state_name: String = Enums.AIState.keys()[int(a.current_state)]
+		var order_name: String = AllyBase.OrderMode.keys()[int(a.order_mode)]
+		lbl.text = "ALLY | %s\n%s  tgt:%s%s  cov:%s wf:%s" % [
+			state_name, order_name, _name_of(a.target),
+			" (LOS)" if a.has_line_of_sight else "", "Y" if a.has_cover else "n",
+			"Y" if a.weapons_free else "HOLD"]
+		lbl.modulate = Color(0.45, 0.75, 1.0)
+		if a.target != null and is_instance_valid(a.target) and a.has_line_of_sight:
+			lines.append([a.global_position + Vector3.UP * 1.5,
+				a.target.global_position + Vector3.UP * 1.0, Color(0.3, 0.7, 1.0, 0.75)])
+
+	if lines.is_empty():
+		return
+	_dbg_im.surface_begin(Mesh.PRIMITIVE_LINES)
+	for ln in lines:
+		_dbg_im.surface_set_color(ln[2])
+		_dbg_im.surface_add_vertex(ln[0])
+		_dbg_im.surface_set_color(ln[2])
+		_dbg_im.surface_add_vertex(ln[1])
+	_dbg_im.surface_end()
 
 
 func _process(_delta: float) -> void:
+	_update_debug_vis()
 	# wave respawn: last man down -> fresh fireteam after a breather
 	if not _wave_pending and _alive_enemies() == 0 and not _enemies.is_empty():
 		_wave_pending = true
 		var t: SceneTreeTimer = get_tree().create_timer(WAVE_RESPAWN_S)
 		t.timeout.connect(func() -> void:
 			_enemies = _enemies.filter(func(e: Node) -> bool: return is_instance_valid(e))
+			_allies = _allies.filter(func(a: Node) -> bool: return is_instance_valid(a))
+			_spawn_allies()  # replace the fallen between waves
+			if is_instance_valid(player):
+				var em: EquipmentManager = player.get_node("EquipmentManager")
+				if em.get_grenade_count() < 5:
+					em.add_grenade(5 - em.get_grenade_count())
 			_spawn_wave())
 	if _hud == null:
 		return
-	var removed: String = "none"
-	var hp_txt: String = "-"
-	var clip: String = "-"
-	if is_instance_valid(dummy):
-		var r: Array[String] = dummy.regions_removed()
-		if not r.is_empty():
-			removed = ", ".join(r)
-		hp_txt = "%d/%d" % [dummy.hp, GoreDummy.MAX_HP]
-		clip = dummy.current_clip()
-	var drag_txt: String = "DRAGGING (50% speed) - [F] release" if _drag_bone != null else "[F] near the downed dummy: grab + drag (slows you 50%)"
-	_hud.text = "GORE LAB - combat bench (wave %d, enemies alive: %d)
-M16: ARMS / LEGS -> limb pops | HEAD -> kill + helmet flies | frag [3] -> multi-gib
-dummy HP %s   removed: %s   clip: %s   dummy #%d
-%s" % [_wave, _alive_enemies(), hp_txt, removed, clip, _spawned, drag_txt]
+	_hud.text = "COMBAT BENCH - wave %d | enemies: %d | squad: %d/5
+frag [3] | medkit [4] + hold [F] | AI labels: state | goal | target" % [
+		_wave, _alive_enemies(), _alive_allies()]

@@ -39,8 +39,10 @@ var heal_timer: float = 0.0
 ## Bleed-out system
 var is_bleeding: bool = false
 var bleed_timer: float = 0.0
-var bleed_duration: float = 20.0  ## Seconds to heal before death
-const MIN_BLEED_TIME: float = 10.0
+var bleed_duration: float = 25.0  ## Seconds to heal before death
+## Caleb (gore lab): ~30s fighting chance. Floor raised 10->25 so even a
+## low-HP first hit leaves a real window to reach cover and patch up.
+const MIN_BLEED_TIME: float = 25.0
 const MAX_BLEED_TIME: float = 30.0
 
 ## Reference to player controller for movement check
@@ -216,9 +218,11 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		bleed_timer = bleed_duration
 		bleeding_started.emit(bleed_duration)
 	else:
-		# Already bleeding - reduce remaining time based on damage
-		var time_reduction := amount * 0.5  # Lose 0.5 seconds per damage point
-		bleed_timer = max(3.0, bleed_timer - time_reduction)  # Minimum 3 seconds
+		# Already bleeding - further hits pressure the clock, but can never
+		# collapse it below a heal-able window (Caleb: "you should have ~30
+		# seconds... a fighting chance"; bandage channel is 1.3s).
+		var time_reduction := amount * 0.15
+		bleed_timer = max(8.0, bleed_timer - time_reduction)
 		bleeding_progress.emit(bleed_timer)
 
 	return actual_damage

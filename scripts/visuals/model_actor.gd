@@ -130,6 +130,15 @@ func clip_names() -> PackedStringArray:
 	return _anim.get_animation_list()
 
 
+## Play the first clip this rig actually has (rigs differ: v1 grunt carries
+## stand_to_cover, v2 the crouch set). Returns the clip played, or "".
+func play_first(clips: Array[String], restart: bool = false) -> String:
+	for c in clips:
+		if play(c, restart):
+			return c
+	return ""
+
+
 func stop_anim() -> void:
 	if _anim != null:
 		_anim.pause()

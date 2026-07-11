@@ -41,6 +41,8 @@ var _zone_bones: Array = []
 func _ready() -> void:
 	add_to_group("enemies")  # hitzone group wiring
 	CombatManager.register_enemy(self)  # explosions damage via active_enemies
+	# Allies must NOT execute the practice dummy (it parks beside the squad).
+	set_meta("non_hostile", true)
 	# LAYER 0: the movement capsule must be INVISIBLE to bullets. On layer 3 it
 	# physically shadowed the (smaller) hitzones inside it - every round hit the
 	# capsule first and resolved as flat no-multiplier BODY damage (28x3=84 ~ 85

@@ -24,6 +24,15 @@ extends Resource
 @export var retreats_when_hurt: bool = false
 @export var retreat_hp_threshold: float = 0.25
 
+@export_group("Tuning")
+## Seconds of CONTINUOUS exposure before this archetype's fire converges to
+## full accuracy (DESIGN 4.2: accuracy ramps with exposure time, never with
+## alertness). NVA lock on fast; a farmer gives you a long window.
+@export var exposure_ramp_time: float = 2.5
+## 0 = timid, 1 = fearless. Inverse-biases char_self_preservation the same way
+## aggression biases char_aggression - archetype identity, not pure spawn RNG.
+@export var courage: float = 0.5
+
 @export_group("Visuals")
 ## 8-directional billboard sprites, NOT a GLTF. Resolves to
 ## res://assets/NPCs/<sprite_faction>/<sprite_unit>/<sprite_weapon>/<action>/

@@ -74,6 +74,24 @@ const MAX_BURST: int = 6
 var suppression_level: float = 0.0
 const SUPPRESSION_DECAY: float = 0.4
 
+## ---- COVER (squad parity with EnemyBase R15, Caleb 2026-07-10) ----
+## Same raycast LOS-block sampling + the SAME claim broker as enemies, so
+## friend and foe never stack on one rock. Cover-first doctrine: in contact
+## and in the open -> reach cover, THEN fight from it.
+var has_cover: bool = false
+var current_cover: Vector3 = Vector3.ZERO
+var _moving_to_cover: bool = false
+var _cover_search_timer: float = 0.0
+var _cover_fail_count: int = 0
+## Animation override for cover behavior (leap in, crouch-hold, peek). Rigs
+## differ, so these are fallback chains resolved by ModelActor.play_first.
+var _anim_override: String = ""
+var _leap_until_ms: float = -1e9
+const LEAP_CLIPS: Array[String] = ["falling_to_roll", "stand_to_cover", "idle_crouching", "kneeling_pointing"]
+const COVER_HOLD_CLIPS: Array[String] = ["idle_crouching_aiming", "kneeling_pointing", "idle_crouching", "rifle_aiming_idle"]
+const COVER_PEEK_CLIPS: Array[String] = ["idle_aiming", "rifle_aiming_idle", "firing_rifle"]
+const RUSH_CLIPS: Array[String] = ["sprint_forward", "run_forward", "start_walking"]
+
 ## Physics
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -168,6 +186,11 @@ func _update_sprite() -> void:
 		return
 	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
 	var firing: bool = not can_fire and fire_timer < 0.12
+	# Cover behavior owns the clip while an override is set (leap / crouch-hold
+	# / peek) - the state map would stomp it every frame otherwise.
+	if _anim_override != "" and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play(_anim_override)
+		return
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed)
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
 
@@ -259,6 +282,8 @@ func _find_target() -> void:
 			continue
 		if enemy.has_method("is_dead") and enemy.is_dead():
 			continue
+		if enemy.has_meta("non_hostile"):
+			continue  # practice dummies / surrendered - not a squad target
 
 		var dist := global_position.distance_to((enemy as Node3D).global_position)
 		if dist < closest_dist:
@@ -289,8 +314,14 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
-	# If we have a target with LOS, engage (unless holding fire - W16)
+	# If we have a target with LOS, engage (unless holding fire - W16).
+	# COVER-FIRST (squad parity): caught in the open on contact, reach cover
+	# before settling into the duel - unless two searches came up dry.
 	if target and has_line_of_sight and weapons_free:
+		if not has_cover and _cover_fail_count < 2:
+			current_goal = Enums.AIGoal.SEEK_COVER
+			_change_state(Enums.AIState.SEEKING_COVER)
+			return
 		current_goal = Enums.AIGoal.ENGAGE_TARGET
 		_change_state(Enums.AIState.COMBAT)
 		return
@@ -389,6 +420,21 @@ func _execute_combat(delta: float) -> void:
 			var strafe_vec := transform.basis.x * strafe_direction
 			move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
+		# Covered men HOLD their piece of cover - crouch behind it, peek up to
+		# fire (the leap clip finishes first), drift releases the claim.
+		var firing_now: bool = not can_fire and fire_timer > 0.0
+		if has_cover:
+			if current_cover != Vector3.ZERO and global_position.distance_to(current_cover) > 2.5:
+				_release_cover()
+			else:
+				move_dir *= 0.1
+				if float(Time.get_ticks_msec()) > _leap_until_ms:
+					if sprite_actor is ModelActor:
+						var chain: Array[String] = COVER_PEEK_CLIPS if (firing_now or burst_count > 0) else COVER_HOLD_CLIPS
+						_anim_override = (sprite_actor as ModelActor).play_first(chain)
+		else:
+			_anim_override = ""
+
 		move_dir.y = 0
 		if move_dir.length() > 0.1:
 			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * 0.6, delta * 8.0)
@@ -417,21 +463,84 @@ func _execute_combat(delta: float) -> void:
 
 
 func _execute_seeking_cover(delta: float) -> void:
-	# Move perpendicular to nearest enemy
+	if _moving_to_cover:
+		if global_position.distance_to(current_cover) < 1.4:
+			# LEAP INTO COVER (Caleb): one-shot arrival clip, then crouch-hold.
+			_moving_to_cover = false
+			has_cover = true
+			var leap: String = ""
+			if sprite_actor is ModelActor:
+				leap = (sprite_actor as ModelActor).play_first(LEAP_CLIPS, true)
+			_anim_override = leap
+			_leap_until_ms = float(Time.get_ticks_msec()) + 900.0
+			_change_state(Enums.AIState.COMBAT if target != null else Enums.AIState.IDLE)
+			return
+		# Sprint the rush.
+		_anim_override = RUSH_CLIPS[0]
+		_move_toward(current_cover, delta)
+		return
+
+	# Throttled raycast search (same 1Hz budget as enemies).
+	_cover_search_timer -= delta
+	if _cover_search_timer <= 0.0:
+		_cover_search_timer = 1.0
+		var p := _find_cover_point()
+		if p != Vector3.ZERO:
+			current_cover = p
+			_moving_to_cover = true
+			return
+		_cover_fail_count += 1
+
+	# No point found (yet): old perpendicular duck-and-dodge.
 	if target:
 		var to_target := (target.global_position - global_position).normalized()
 		var perpendicular := Vector3(-to_target.z, 0, to_target.x)
-
 		if strafe_direction == 0.0:
 			strafe_direction = [-1.0, 1.0].pick_random()
-
 		var move_dir := (perpendicular * strafe_direction - to_target * 0.2).normalized()
 		velocity.x = move_dir.x * move_speed
 		velocity.z = move_dir.z * move_speed
 
 	# Exit after moving
 	if state_timer > 2.0:
+		_anim_override = ""
 		_change_state(Enums.AIState.IDLE)
+
+
+## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
+func _find_cover_point() -> Vector3:
+	var threat_pos: Vector3 = Vector3.ZERO
+	if target != null and is_instance_valid(target):
+		threat_pos = target.global_position
+	elif last_known_target_pos != Vector3.ZERO:
+		threat_pos = last_known_target_pos
+	else:
+		return Vector3.ZERO
+	var space_state := get_world_3d().direct_space_state
+	var candidates: Array[Vector3] = []
+	for off in EnemyBase.COVER_SEARCH_OFFSETS:
+		var candidate: Vector3 = global_position + off
+		var query := PhysicsRayQueryParameters3D.create(
+			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+		query.exclude = [self]
+		if space_state.intersect_ray(query):
+			candidates.append(candidate)
+	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	for c in candidates:
+		if EnemyBase._claim_cover(c, self):
+			return c
+	return Vector3.ZERO
+
+
+func _release_cover() -> void:
+	if current_cover != Vector3.ZERO:
+		var key := EnemyBase._cover_key(current_cover)
+		if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
+			EnemyBase._cover_claims.erase(key)
+	has_cover = false
+	_moving_to_cover = false
+	_anim_override = ""
 
 
 func _change_state(new_state: Enums.AIState) -> void:
@@ -582,6 +691,7 @@ func apply_suppression(amount: float) -> void:
 
 func _die() -> void:
 	GunFX.blood_pool(get_tree().current_scene, global_position)  # a man bleeding out is a place
+	_release_cover()
 	_change_state(Enums.AIState.DEAD)
 	CombatManager.unregister_ally(self)
 	died.emit(self)

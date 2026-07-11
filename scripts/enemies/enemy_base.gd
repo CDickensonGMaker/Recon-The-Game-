@@ -124,6 +124,16 @@ var d_flanks: bool = true              # archetype may flank
 var d_retreats_when_hurt: bool = false # archetype breaks when wounded
 var d_uses_cover: bool = true
 var d_retreat_hp: float = 0.25
+var d_exposure_ramp: float = 2.5       # seconds of exposure to full accuracy (EnemyData)
+
+## DESIGN 4.2 fairness (the exposure ramp, formerly dead code): x3.0 spread at
+## fresh exposure, converging near ramp end via (1 - t^2) - the safe window
+## after repositioning stays safe for most of the ramp, then the noose closes.
+const EXPOSURE_SPREAD_BONUS: float = 2.0
+
+func _exposure_spread_mult() -> float:
+	var t: float = clampf(target_visible_duration / maxf(d_exposure_ramp, 0.1), 0.0, 1.0)
+	return 1.0 + EXPOSURE_SPREAD_BONUS * (1.0 - t * t)
 
 ## Reaction system
 var reaction_timer: float = 0.0
@@ -225,6 +235,10 @@ func _ready() -> void:
 			# disjoint band; bias it toward the archetype so a VC (0.45) and an NVA
 			# (0.65) actually differ instead of being pure personality noise.
 			char_aggression = lerpf(char_aggression, enemy_data.aggression, 0.6)
+			# Same anchor for nerve: courage inverse-biases self-preservation, so
+			# a sapper's steadiness is archetype identity, not spawn RNG.
+			char_self_preservation = lerpf(char_self_preservation, 1.0 - enemy_data.courage, 0.6)
+			d_exposure_ramp = enemy_data.exposure_ramp_time
 
 			if not enemy_data.weapon_path.is_empty():
 				weapon_data = load(enemy_data.weapon_path)
@@ -525,6 +539,9 @@ func _squad_sync() -> void:
 	if target != null and is_instance_valid(target) and has_line_of_sight:
 		# I have eyes on: designate for the squad + lay a breadcrumb trail.
 		EnemySquad.report_contact(squad_id, target, target.global_position, now)
+		# Census for honest attention: who is already covered by squadmates
+		# scores lower in _target_score - squads SPREAD, they don't laser one man.
+		EnemySquad.report_engagement(squad_id, self, target, now)
 	elif target == null and EnemySquad.has_fresh_intel(squad_id, now):
 		# A buddy sees the enemy; I don't. Adopt the squad's contact and wake up -
 		# no more lone blind man standing next to a firefight.
@@ -658,51 +675,82 @@ func _on_noise_heard(_type: int, position: Vector3, radius: float, source_team: 
 		_set_tier(AlertTier.ALERT)
 
 
+## HONEST ATTENTION (HLL doctrine pass, DESIGN 4.5 "honest enemy threat
+## distribution"): no intrinsic player bias, no sticky-until-dead lock.
+## Rescored every RETARGET_INTERVAL (pure distance math, zero new rays) or
+## immediately when the target dies / someone new hurts us.
+const RETARGET_INTERVAL: float = 2.0
+const TARGET_MEMORY: float = 8.0
+var _retarget_timer: float = 0.0
+var _last_attacker: Node3D = null
+var _last_attacker_ms: float = -1e9
+
+
+func _target_score(candidate: Node3D, dist: float, now_ms: float) -> float:
+	var score: float = 10.0 / maxf(dist, 2.0)              # proximity - NO player bias
+	if candidate == _last_attacker and now_ms - _last_attacker_ms < 6000.0:
+		score *= 2.5                                       # he is shooting ME
+	if candidate == target:
+		score *= 1.3                                       # mild stickiness, not a lock
+		if target_last_seen_time > 5.0:
+			score *= 0.5                                   # ghost: let a visible fight win
+	var others: int = EnemySquad.count_engaging(squad_id, candidate, self, now_ms)
+	return score / (1.0 + 0.2 * float(others))             # crowded targets less interesting
+
+
+func _candidate_dead(c: Node3D) -> bool:
+	if c.has_method("is_dead"):
+		return c.is_dead()
+	if c.has_node("HealthSystem"):
+		var hs := c.get_node("HealthSystem")
+		if hs.has_method("is_dead"):
+			return hs.is_dead()
+	return false
+
+
 func _find_best_target() -> void:
-	if target and is_instance_valid(target):
-		if target.has_method("is_dead"):
-			if not target.is_dead():
-				return
-		else:
-			return
+	var now_ms: float = float(Time.get_ticks_msec())
+	_retarget_timer += _think_interval_current
+	var target_alive: bool = target != null and is_instance_valid(target) and not _candidate_dead(target)
+	var freshly_shot: bool = _last_attacker != null and now_ms - _last_attacker_ms < 1000.0 \
+		and _last_attacker != target
+
+	# Slip-away rule: unseen too long and not hurting us -> drop to the blind
+	# hunt (INVESTIGATE on last-known + breadcrumbs). COMBAT can finally decay.
+	if target_alive and target_last_seen_time > TARGET_MEMORY \
+			and not (target == _last_attacker and now_ms - _last_attacker_ms < 6000.0):
+		target = null
+		target_alive = false
+
+	if target_alive and _retarget_timer < RETARGET_INTERVAL and not freshly_shot:
+		return
+	_retarget_timer = 0.0
 
 	var best_target: Node3D = null
 	var best_score: float = 0.0
 
-	# Check player
+	var candidates: Array[Node3D] = []
 	if GameManager.player and is_instance_valid(GameManager.player):
-		var player_node := GameManager.player as Node3D
-		if player_node:
-			var player_dead := false
-			if player_node.has_method("is_dead"):
-				player_dead = player_node.is_dead()
-			elif player_node.has_node("HealthSystem"):
-				var hs := player_node.get_node("HealthSystem")
-				if hs.has_method("is_dead"):
-					player_dead = hs.is_dead()
-
-			if not player_dead:
-				var dist := global_position.distance_to(player_node.global_position)
-				if dist < aggro_range:
-					var score: float = 100.0 / maxf(dist, 1.0)
-					if score > best_score:
-						best_score = score
-						best_target = player_node
-
-	# Check allies
+		var pn := GameManager.player as Node3D
+		if pn != null:
+			candidates.append(pn)
 	for ally in get_tree().get_nodes_in_group("allies"):
-		if not is_instance_valid(ally) or not ally is Node3D:
-			continue
-		if ally.has_method("is_dead") and ally.is_dead():
-			continue
+		if is_instance_valid(ally) and ally is Node3D:
+			candidates.append(ally as Node3D)
 
-		var dist := global_position.distance_to((ally as Node3D).global_position)
-		if dist < aggro_range:
-			var score: float = 80.0 / maxf(dist, 1.0)  # Slightly lower priority than player
-			if score > best_score:
-				best_score = score
-				best_target = ally as Node3D
+	for c in candidates:
+		if _candidate_dead(c):
+			continue
+		var dist := global_position.distance_to(c.global_position)
+		if dist >= aggro_range:
+			continue
+		var score: float = _target_score(c, dist, now_ms)
+		if score > best_score:
+			best_score = score
+			best_target = c
 
+	if best_target != target:
+		target_visible_duration = 0.0  # a new victim gets a fresh exposure clock
 	target = best_target
 
 
@@ -717,16 +765,18 @@ func _update_line_of_sight() -> void:
 
 	var new_los := CombatManager.has_line_of_sight(eye_pos, target_pos, [self])
 
+	# Exposure clock (DESIGN 4.2 fairness: accuracy ramps with EXPOSURE TIME).
+	# Ticks in real time (_think_interval_current - think LOD runs slower at
+	# range). LOS loss DRAINS at 3x build rate instead of hard-resetting: brief
+	# foliage blinks keep most of the ramp, ~0.8s truly broken zeroes it -
+	# repositioning resets your death clock, peek-strobing does not.
 	if new_los:
-		if not has_line_of_sight:
-			target_visible_duration = 0.0
-		else:
-			target_visible_duration += THINK_INTERVAL
+		target_visible_duration += _think_interval_current
 		last_known_target_pos = target.global_position
 		target_last_seen_time = 0.0
 	else:
-		target_last_seen_time += THINK_INTERVAL
-		target_visible_duration = 0.0
+		target_last_seen_time += _think_interval_current
+		target_visible_duration = maxf(0.0, target_visible_duration - _think_interval_current * 3.0)
 
 	has_line_of_sight = new_los
 
@@ -753,6 +803,16 @@ func _assess_threat() -> void:
 	threat_level = clampf(threat_level, 0.0, 1.0)
 
 
+## HLL doctrine state (2026-07-10 pass): how long we've been in contact with
+## the current target, and how many cover searches came up dry (escape hatch
+## so the cover-first doctrine can't produce passive cowards).
+var _contact_time: float = 0.0
+var _cover_fail_count: int = 0
+var _bound_point: Vector3 = Vector3.ZERO
+var _bound_pause: float = 0.0
+var _bound_fail_count: int = 0
+
+
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
 
@@ -765,6 +825,8 @@ func _evaluate_goals() -> void:
 
 	# No target - investigate or hold
 	if not target or not is_instance_valid(target):
+		_contact_time = 0.0
+		_cover_fail_count = 0
 		if last_known_target_pos != Vector3.ZERO and target_last_seen_time < 5.0:
 			best_goal = Enums.AIGoal.INVESTIGATE
 		else:
@@ -772,25 +834,35 @@ func _evaluate_goals() -> void:
 		_set_goal(best_goal)
 		return
 
+	_contact_time += _think_interval_current
 	var dist := global_position.distance_to(target.global_position)
+	var now_ms: float = float(Time.get_ticks_msec())
 
 	# Evaluate each possible goal
 	var scores: Dictionary = {}
 
-	# ENGAGE - direct combat
+	# ENGAGE - direct combat. COVER-FIRST DOCTRINE (Caleb/HLL): caught in the
+	# open on fresh contact, the duel can wait - reach cover or concealment
+	# first. Fighting FROM cover is the preferred engagement.
 	var engage_score: float = 0.5
 	if has_line_of_sight:
 		engage_score += 0.3
 	if dist < preferred_range * 1.2 and dist > preferred_range * 0.5:
 		engage_score += 0.2  # In comfortable range
+	if has_cover:
+		engage_score += 0.15
+	elif _contact_time < 5.0 and char_aggression < 0.75 and _cover_fail_count < 2:
+		engage_score *= 0.55
 	scores[Enums.AIGoal.ENGAGE_TARGET] = engage_score * (1.0 - threat_level * 0.3)
 
-	# SEEK COVER - when threatened
+	# SEEK COVER - preemptive on fresh contact in the open, not just reactive.
 	var cover_score: float = threat_level * 0.7 + char_self_preservation * 0.3
 	if suppression_level > 0.5:
 		cover_score += 0.3
 	if not has_cover:
 		cover_score += 0.2
+		if _contact_time < 6.0 and _cover_fail_count < 2:
+			cover_score += 0.4 * (1.0 - char_aggression * 0.7)
 	scores[Enums.AIGoal.SEEK_COVER] = cover_score if d_uses_cover else -1.0
 
 	# SUPPRESS - pin down target
@@ -809,12 +881,18 @@ func _evaluate_goals() -> void:
 		flank_score += 0.2
 	scores[Enums.AIGoal.FLANK_TARGET] = flank_score if d_flanks else -1.0
 
-	# ADVANCE - push forward
-	var advance_score: float = char_aggression * 0.5
+	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering
+	# fire from a squadmate (fire-and-maneuver) or real aggression; a lone
+	# unsupported man holds and shoots instead of charging.
+	var advance_score: float = char_aggression * 0.4
 	if dist > preferred_range * 1.5:
-		advance_score += 0.3
-	if threat_level < 0.2:
+		advance_score += 0.25
+	if threat_level < 0.2 and dist < preferred_range * 2.0:
+		advance_score += 0.15
+	if EnemySquad.has_covering_fire(squad_id, self, now_ms):
 		advance_score += 0.2
+	elif char_aggression < 0.7:
+		advance_score *= 0.45
 	scores[Enums.AIGoal.ADVANCE] = advance_score
 
 	# RETREAT - fall back
@@ -827,6 +905,11 @@ func _evaluate_goals() -> void:
 		retreat_score += 0.4
 	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation
 
+	# Incumbent hysteresis: the current goal keeps a 15% edge so the thinner
+	# doctrine margins don't dither between cover and engage every tick.
+	if scores.has(current_goal):
+		scores[current_goal] *= 1.15
+
 	# Find best goal
 	for goal in scores:
 		if scores[goal] > best_score:
@@ -838,8 +921,18 @@ func _evaluate_goals() -> void:
 
 
 func _set_goal(new_goal: Enums.AIGoal) -> void:
-	if current_goal == Enums.AIGoal.SEEK_COVER and new_goal != Enums.AIGoal.SEEK_COVER:
+	# Keep the cover claim when transitioning into a FIGHTING goal - releasing
+	# it on SEEK_COVER->ENGAGE made has_cover flip false and the goals oscillate
+	# (reach cover, engage, lose claim, seek cover again, forever).
+	if current_goal == Enums.AIGoal.SEEK_COVER \
+			and new_goal != Enums.AIGoal.SEEK_COVER \
+			and new_goal != Enums.AIGoal.ENGAGE_TARGET \
+			and new_goal != Enums.AIGoal.SUPPRESS_TARGET:
 		_release_cover()
+	if current_goal == Enums.AIGoal.ADVANCE and new_goal != Enums.AIGoal.ADVANCE:
+		if _bound_point != Vector3.ZERO:
+			_release_cover_point(_bound_point)
+			_bound_point = Vector3.ZERO
 	current_goal = new_goal
 	goal_timer = 0.0
 
@@ -1014,10 +1107,21 @@ func _execute_combat(delta: float) -> void:
 			# Good range - minimal movement
 			accuracy_modifier = base_accuracy_modifier * (1.0 - (1.0 - suppression_level) * 0.2)
 
+		# Covered men HOLD their cover: damp the wander hard while has_cover
+		# (this IS the engage-from-cover feel); drifting off invalidates it.
+		if has_cover:
+			if current_cover != Vector3.ZERO and global_position.distance_to(current_cover) > 2.5:
+				_release_cover()
+			else:
+				move_dir *= 0.15
+
 		# Apply strafe
 		if strafe_direction != 0.0:
 			var strafe_vec := transform.basis.x * strafe_direction
-			move_dir = (move_dir + strafe_vec * 0.4).normalized()
+			if has_cover:
+				move_dir = move_dir + strafe_vec * 0.1  # micro-shuffle in place
+			else:
+				move_dir = (move_dir + strafe_vec * 0.4).normalized()
 			accuracy_modifier *= 1.15
 
 		move_dir.y = 0
@@ -1040,10 +1144,14 @@ func _execute_combat(delta: float) -> void:
 				burst_count = 0
 	else:
 		# W45: target hiding behind cover - flush with a grenade.
+		# ANTI-SPAM (Caleb): the old roll ran per-FRAME (~70%/sec!). Hazard-rate
+		# roll (~1.7s expected beat) + the squad/global broker: max one grenade
+		# in the AO per 5s, one per squad per 12s, one per man per 15s.
 		grenade_cooldown = maxf(0.0, grenade_cooldown - delta)
 		if grenades_left > 0 and grenade_cooldown <= 0.0 and target_last_seen_time < 3.0:
 			var throw_dist := global_position.distance_to(last_known_target_pos)
-			if throw_dist > 8.0 and throw_dist < 30.0 and randf() < 0.02:
+			if throw_dist > 8.0 and throw_dist < 30.0 and randf() < 0.35 * delta \
+					and EnemySquad.grenade_ready(squad_id, float(Time.get_ticks_msec())):
 				_throw_grenade()
 		# Lost LOS - move to last known
 		has_reacted = false
@@ -1084,6 +1192,17 @@ func _execute_seeking_cover(delta: float) -> void:
 					current_cover = point
 					_moving_to_cover = true
 					return
+				else:
+					_cover_fail_count += 1  # doctrine escape hatch: 2 dry searches lift cover-first
+
+	# Concealment fallback (zero raycasts): deep vegetation counts as soft
+	# cover - the man melts into the bush instead of dancing in the open.
+	if not has_cover and not _moving_to_cover and _grid != null \
+			and _grid.get_vegetation(global_position) > 0.6:
+		has_cover = true
+		cover_quality = 0.4
+		current_cover = global_position
+		return
 
 	# No cover found (or already covered): duck-and-dodge perpendicular to threat.
 	var to_target := (target.global_position - global_position).normalized()
@@ -1118,18 +1237,71 @@ func _execute_flanking(delta: float) -> void:
 		_fire_at_target()
 
 
+## BOUNDING ADVANCE (HLL doctrine, Caleb: "they don't just run out in the
+## open"): rush cover-to-cover toward the target - sprint to a bound point,
+## pause, burst, next bound. Two dry bound searches -> the old straight
+## advance at reduced speed (open crossers exist, and they die fast).
 func _execute_advancing(delta: float) -> void:
 	if not target:
 		return
 
 	var to_target := (target.global_position - global_position).normalized()
 
-	# Add slight strafe while advancing
+	# Pause at the bound: settle, shoot, then pick the next rush.
+	if _bound_pause > 0.0:
+		_bound_pause -= delta
+		velocity.x = lerpf(velocity.x, 0.0, delta * 8.0)
+		velocity.z = lerpf(velocity.z, 0.0, delta * 8.0)
+		accuracy_modifier = base_accuracy_modifier * 1.1
+		if has_line_of_sight and can_fire and has_reacted:
+			if burst_count < 3:
+				_fire_at_target()
+				burst_count += 1
+			else:
+				can_fire = false
+				fire_timer = randf_range(0.3, 0.8)
+				burst_count = 0
+		return
+
+	if _bound_point != Vector3.ZERO:
+		if global_position.distance_to(_bound_point) < 1.2:
+			_release_cover_point(_bound_point)
+			_bound_point = Vector3.ZERO
+			_bound_pause = randf_range(0.8, 1.6)
+			return
+		# Sprint the rush: full speed, honest fire penalty on the move.
+		_move_toward(_bound_point, delta, 1.0)
+		accuracy_modifier = base_accuracy_modifier * 1.6
+		if has_line_of_sight and can_fire and has_reacted and burst_count < 2:
+			_fire_at_target()
+			burst_count += 1
+		return
+
+	# Need a bound point (throttled: <=12 rays at <=1Hz, only while advancing).
+	if _bound_fail_count < 2:
+		_cover_search_timer -= delta
+		if _cover_search_timer <= 0.0:
+			_cover_search_timer = 1.0
+			var p := _find_bound_point(to_target)
+			if p != Vector3.ZERO:
+				_bound_point = p
+				_bound_fail_count = 0
+				return
+			else:
+				_bound_fail_count += 1
+		velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
+		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
+		if has_line_of_sight and can_fire and has_reacted and burst_count < 3:
+			_fire_at_target()
+			burst_count += 1
+		return
+
+	# Fallback: the old straight advance, slower - crossing open ground for real.
 	var perpendicular := Vector3(-to_target.z, 0, to_target.x) * strafe_direction * 0.2
 	var move_dir := (to_target + perpendicular).normalized()
 
-	velocity.x = move_dir.x * move_speed
-	velocity.z = move_dir.z * move_speed
+	velocity.x = move_dir.x * move_speed * 0.85
+	velocity.z = move_dir.z * move_speed * 0.85
 
 	# Fire while advancing
 	if has_line_of_sight and can_fire and has_reacted:
@@ -1197,13 +1369,16 @@ static func _cover_key(pos: Vector3) -> Vector3i:
 	return Vector3i(roundi(pos.x / COVER_CELL), roundi(pos.y / COVER_CELL), roundi(pos.z / COVER_CELL))
 
 
-static func _claim_cover(pos: Vector3, enemy: EnemyBase) -> bool:
+## Claimant loosened to Node: ALLIES share this broker now (squad cover
+## parity, Caleb) - friend and foe never stack on the same rock.
+static func _claim_cover(pos: Vector3, claimant: Node) -> bool:
 	var key := _cover_key(pos)
 	var existing: Dictionary = _cover_claims.get(key, {})
-	var owner: EnemyBase = existing.get("enemy")
-	if owner != null and is_instance_valid(owner) and owner != enemy and not owner.is_dead():
+	var owner: Node = existing.get("enemy")
+	if owner != null and is_instance_valid(owner) and owner != claimant \
+			and not (owner.has_method("is_dead") and owner.is_dead()):
 		return false
-	_cover_claims[key] = {"enemy": enemy}
+	_cover_claims[key] = {"enemy": claimant}
 	return true
 
 
@@ -1215,6 +1390,41 @@ func _release_cover() -> void:
 	has_cover = false
 	cover_quality = 0.0
 	_moving_to_cover = false
+
+
+## Release a specific claimed point (bound points use the same claim broker
+## as cover so two men never rush the same rock).
+func _release_cover_point(pos: Vector3) -> void:
+	if pos == Vector3.ZERO:
+		return
+	var key := EnemyBase._cover_key(pos)
+	if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
+		EnemyBase._cover_claims.erase(key)
+
+
+## A bound point: cover ~5m TOWARD the target (fire-and-maneuver step), found
+## with the same LOS-blocking raycast test + claim broker as _find_cover_point.
+func _find_bound_point(to_target: Vector3) -> Vector3:
+	var threat_pos: Vector3 = last_known_target_pos if last_known_target_pos != Vector3.ZERO else global_position
+	var center: Vector3 = global_position + to_target * 5.0
+	var space_state := get_world_3d().direct_space_state
+	var candidates: Array[Vector3] = []
+	for off in COVER_SEARCH_OFFSETS:
+		var candidate: Vector3 = center + off
+		# a bound must actually gain ground
+		if candidate.distance_to(threat_pos) >= global_position.distance_to(threat_pos) - 1.0:
+			continue
+		var query := PhysicsRayQueryParameters3D.create(
+			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+		query.exclude = [self]
+		if space_state.intersect_ray(query):
+			candidates.append(candidate)
+	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+	for c in candidates:
+		if EnemyBase._claim_cover(c, self):
+			return c
+	return Vector3.ZERO
 
 
 ## Sample nearby points that block line-of-sight to the threat; claim the
@@ -1287,8 +1497,10 @@ func _fire_at_target() -> void:
 	var accumulated_spread: float = minf(float(shots_fired) * 0.08, 0.8)
 	var total_spread: float = base_spread * accuracy_modifier * (1.0 + accumulated_spread)
 	total_spread *= (2.0 - char_accuracy)  # Apply characteristic
+	total_spread *= _exposure_spread_mult()  # DESIGN 4.2: accuracy ramps with exposure, alert != accuracy
 	total_spread *= GameSettings.enemy_spread_mult()  # W82 difficulty
 	var spread: float = deg_to_rad(total_spread)
+	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
 
 	final_aim.x += randf_range(-spread, spread)
 	final_aim.y += randf_range(-spread, spread)
@@ -1405,6 +1617,7 @@ func _fire_at_target() -> void:
 func _throw_grenade() -> void:
 	grenades_left -= 1
 	grenade_cooldown = 15.0
+	EnemySquad.claim_grenade(squad_id, float(Time.get_ticks_msec()))
 	# Telegraph: shout (noise event draws attention both ways) + floating text.
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
 	VOManager.play_enemy("grenade", self)
@@ -1474,6 +1687,10 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	# death_from_right. take_damage() knew this all along and threw it away.
 	if attacker != null and is_instance_valid(attacker) and attacker is Node3D:
 		last_hit_dir = (global_position - (attacker as Node3D).global_position).normalized()
+		# Honest attention: whoever is HURTING me outranks whoever is closest.
+		if (attacker as Node).is_in_group("player") or (attacker as Node).is_in_group("allies"):
+			_last_attacker = attacker as Node3D
+			_last_attacker_ms = float(Time.get_ticks_msec())
 
 	# Visual feedback
 	if sprite_actor != null:

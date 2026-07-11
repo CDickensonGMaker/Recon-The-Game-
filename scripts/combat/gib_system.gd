@@ -137,11 +137,14 @@ static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, 
 	body.linear_velocity = d * force + Vector3.UP * 2.8 + Vector3(randf() - 0.5, 0.0, randf() - 0.5)
 	body.angular_velocity = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 8.0
 
+	for i in range(_live_gibs.size() - 1, -1, -1):
+		if not is_instance_valid(_live_gibs[i]):
+			_live_gibs.remove_at(i)
 	_live_gibs.append(body)
 	while _live_gibs.size() > MAX_LIVE_GIBS:
-		var oldest: Node = _live_gibs.pop_front()
+		var oldest: Variant = _live_gibs.pop_front()
 		if is_instance_valid(oldest):
-			oldest.queue_free()
+			(oldest as Node).queue_free()
 	var timer: SceneTreeTimer = body.get_tree().create_timer(gib_lifetime_s)
 	timer.timeout.connect(func() -> void:
 		if is_instance_valid(body):

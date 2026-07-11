@@ -794,6 +794,14 @@ func get_health_system() -> HealthSystem:
 	return health_system
 
 
+## Enemies drop a target only via has_method("is_dead") + is_dead() - the
+## player never HAD this method, so corpses kept eating fire at the KIA screen
+## (Caleb, gore lab). Downed counts too: the AI breaks off during the medic
+## window and shifts to living threats.
+func is_dead() -> bool:
+	return health_system != null and (health_system.is_dead() or health_system.is_downed)
+
+
 ## Setup body part hitzones for damage detection
 func _setup_hitzones() -> void:
 	# Head - critical hit zone (4x damage)
@@ -874,10 +882,25 @@ func add_suppression(amount: float = SUPPRESS_PER_NEARMISS) -> void:
 	suppression = clampf(suppression + amount, 0.0, 1.0)
 
 
+## Diegetic pain (no HP bar by design): base level = missing HP fraction, set
+## by the HUD on every health change; a pulse rides on top of each fresh hit
+## and decays in ~1.5s. Both feed the shader's `hurt` uniform.
+var _hurt_level: float = 0.0
+var _hurt_pulse: float = 0.0
+
+func set_hurt_level(missing_fraction: float) -> void:
+	if missing_fraction > _hurt_level + 0.001:
+		_hurt_pulse = 1.0  # fresh wound - flash
+	_hurt_level = clampf(missing_fraction, 0.0, 1.0)
+
+
 ## Drives the overlay, camera shake and audio muffle every frame, then decays.
 func _update_suppression(delta: float) -> void:
 	if _supp_mat != null:
 		_supp_mat.set_shader_parameter("amount", suppression)
+		_hurt_pulse = maxf(0.0, _hurt_pulse - delta / 1.5)
+		var hurt: float = clampf(_hurt_level * 0.8 + _hurt_pulse * 0.45, 0.0, 1.0)
+		_supp_mat.set_shader_parameter("hurt", hurt)
 
 	# Camera shake: pure-visual h/v offset jitter (never touches aim direction).
 	if camera != null:
