@@ -220,6 +220,12 @@ if SAVE_BLEND:
     if os.path.exists(vpath) and 'force' not in argv:
         print(f"REFUSING to overwrite {vpath} - it may hold hand edits. Pass 'force' to regenerate.", flush=True)
         sys.exit(3)
+    # The variant's gun must be visible in the edit blend (invisible-Mosin
+    # bug class: eye-hide survives save_blend; the unhide-all lives in the
+    # normalize section which save_blend never reaches).
+    gun.hide_set(False)
+    gun.hide_viewport = False
+    gun.hide_render = False
     bpy.ops.wm.save_as_mainfile(filepath=vpath)
     print(f"SAVE_BLEND COMPLETE -> {vpath}", flush=True)
     sys.exit(0)
