@@ -49,13 +49,98 @@ func setup(unit_id: String) -> bool:
 		norm_k = k
 		_inst.scale = Vector3(k, k, k)
 		_inst.position.y = -aabb.position.y * k
-		print("[MODEL] %s instance_h=%.2f k=%.3f (k far from ~0.9 = off-spec export; see GAME_SCALE_STANDARD)" % [unit_id, aabb.size.y, k])
+		print("[MODEL] %s instance_h=%.2f k=%.3f (v2 exports land at 1.7132m so k~1.00; far off = off-spec export, catch it HERE not in playtest; v1 rigs read ~0.9)" % [unit_id, aabb.size.y, k])
 
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
+	_merge_shared_library()
 	_apply_loop_modes()
 	_apply_gib_rig_contract()
+	_apply_psx_filtering()
 	return true
+
+
+## ---- shared animation library (bead 00qp) -----------------------------------
+## anim_library.glb carries every clip ONCE (91); character exports go mesh-only
+## (EXPORT_ANIMATIONS=False in the exporters) and borrow them here, so a
+## character re-export takes seconds instead of 11 minutes and anim fixes
+## propagate to the whole roster from one file.
+##
+## THE NAME IS A CONTRACT: both exporters keep the armature node named "PSXRig",
+## so every library track resolves as PSXRig/Skeleton3D:mixamorig_* on every
+## character. Rename the rig in either export script and the entire library
+## goes silent (T-pose).
+const ANIM_LIBRARY_PATH := MODEL_DIR + "anim_library.glb"
+static var _shared_lib: AnimationLibrary = null
+static var _shared_lib_tried: bool = false
+
+
+static func _load_shared_library() -> AnimationLibrary:
+	if _shared_lib != null or _shared_lib_tried:
+		return _shared_lib
+	_shared_lib_tried = true
+	if not ResourceLoader.exists(ANIM_LIBRARY_PATH):
+		push_warning("[MODEL] anim_library.glb missing - mesh-only characters will T-pose")
+		return null
+	var packed: PackedScene = load(ANIM_LIBRARY_PATH)
+	if packed == null:
+		return null
+	var inst: Node = packed.instantiate()
+	var ap: AnimationPlayer = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap != null and ap.has_animation_library(""):
+		# AnimationLibrary is a refcounted Resource - it outlives the instance
+		_shared_lib = ap.get_animation_library("")
+	inst.free()
+	return _shared_lib
+
+
+## Merge, don't replace: clips baked into the character GLB win; the library
+## fills every gap. Transition-era exports (73 baked clips) and mesh-only
+## exports (no AnimationPlayer at all) both come out with the full clip set.
+## MUST run before _apply_loop_modes() so borrowed idles loop too - otherwise
+## they freeze on their last frame and read as T-pose.
+func _merge_shared_library() -> void:
+	var lib: AnimationLibrary = ModelActor._load_shared_library()
+	if lib == null or _inst == null:
+		return
+	if _anim == null:
+		if _skel == null:
+			return  # not a character rig - nothing to animate
+		# Mesh-only export: create the player in the exporters' layout
+		# (beside PSXRig, root_node "..") so library track paths resolve.
+		_anim = AnimationPlayer.new()
+		_anim.name = "AnimationPlayer"
+		_inst.add_child(_anim)
+		_anim.root_node = NodePath("..")
+	var own: AnimationLibrary
+	if _anim.has_animation_library(""):
+		own = _anim.get_animation_library("")
+	else:
+		own = AnimationLibrary.new()
+		_anim.add_animation_library("", own)
+	var added: int = 0
+	for key in lib.get_animation_list():
+		if not own.has_animation(key):
+			own.add_animation(key, lib.get_animation(key))
+			added += 1
+	if added > 0:
+		print("[MODEL] %s: +%d clips from shared anim library" % [unit, added])
+
+
+## PSX crunch: Godot re-imports GLB textures bilinear regardless of Blender's
+## nearest setting - faces render smeared without this. Same convention as
+## ground_clutter.gd / sprite_actor.gd.
+func _apply_psx_filtering() -> void:
+	if _inst == null:
+		return
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for s in range(mi.mesh.get_surface_count()):
+			var mat := mi.get_active_material(s) as BaseMaterial3D
+			if mat != null:
+				mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 
 ## glTF carries NO loop flag, so every imported clip is play-once: an idle
@@ -90,13 +175,24 @@ func _apply_loop_modes() -> void:
 func _apply_gib_rig_contract() -> void:
 	if _inst == null:
 		return
-	var has_joined_body: bool = false
+	# Trigger: donors present AND a live body to render instead. The body is
+	# either a *_joined mesh (us_grunt_v2) or vc_*-style part meshes (any
+	# non-donor, non-cap mesh) - the VC exports ship parts, not a joined body
+	# (bead i3b0: requiring _joined left VC donors doubled inside the body).
+	var has_body: bool = false
+	var has_donors: bool = false
 	for n in _walk(_inst):
 		var mi := n as MeshInstance3D
-		if mi != null and mi.name.ends_with("_joined"):
-			has_joined_body = true
-			break
-	if not has_joined_body:
+		if mi == null:
+			continue
+		var mesh_name := String(mi.name)
+		if mesh_name.ends_with("_joined"):
+			has_body = true
+		elif mesh_name.begins_with("grunt_"):
+			has_donors = true
+		elif not mesh_name.begins_with("cap_"):
+			has_body = true
+	if not (has_body and has_donors):
 		return
 	var hidden: int = 0
 	for n in _walk(_inst):
