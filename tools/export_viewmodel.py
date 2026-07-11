@@ -54,7 +54,12 @@ else:
 mesh.hide_select = False
 for o in bpy.data.objects:
     o.hide_set(False); o.hide_viewport = False
-bpy.ops.object.select_all(action='DESELECT')
+# file may be saved in pose mode; ops need OBJECT mode and a valid active object
+bpy.context.view_layer.objects.active = arm
+if bpy.context.mode != 'OBJECT':
+    bpy.ops.object.mode_set(mode='OBJECT')
+for o in bpy.data.objects:
+    o.select_set(False)
 export_set = [arm, mesh, gun]
 if muz: export_set.append(muz)
 for o in export_set:
