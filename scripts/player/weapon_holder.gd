@@ -106,12 +106,15 @@ const SWITCH_TIME: float = 0.5
 ## Weapon model
 var weapon_model: Node3D = null
 
-## Viewmodel pitch compensation (prevents floor clipping when looking down)
+## Viewmodel pitch compensation (prevents floor clipping when looking down).
+## Retuned for the full ARMS rigs (Caleb, gore lab): the old 0.8m lift from
+## -20 deg was gun-only-era tuning - at close range (looking down at a target)
+## it yanked the arms to the top of the screen.
 const PITCH_OFFSET_ENABLED: bool = true
-const PITCH_OFFSET_START: float = -20.0  ## Start offsetting at this pitch (degrees)
-const PITCH_OFFSET_MAX: float = -70.0  ## Maximum pitch before full offset
-const PITCH_OFFSET_UP: float = 0.8  ## How much to move weapon up
-const PITCH_OFFSET_FORWARD: float = 0.5  ## How much to move weapon forward
+const PITCH_OFFSET_START: float = -38.0  ## Start offsetting at this pitch (degrees)
+const PITCH_OFFSET_MAX: float = -75.0  ## Maximum pitch before full offset
+const PITCH_OFFSET_UP: float = 0.22  ## How much to move weapon up
+const PITCH_OFFSET_FORWARD: float = 0.15  ## How much to move weapon forward
 
 ## Raycasting
 var ray_origin: Vector3

@@ -64,12 +64,21 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 		return false
 
 	# 1. collapse the bone chain - every skinned mesh AND bone-attached gear on
-	#    that chain vanishes together (children bones inherit the scale).
+	#    that chain vanishes together (children bones inherit the scale). The
+	#    SeveredBonesModifier re-applies this AFTER any ragdoll sim each frame,
+	#    or a blown-off head comes back the moment physics takes the skeleton.
 	var bone_idx: int = skel.find_bone(str(spec["bone"]))
 	if bone_idx < 0:
 		print("[GORE] %s: rig has no bone '%s' - OFF-CONTRACT" % [model.unit, spec["bone"]])
 		return false
 	skel.set_bone_pose_scale(bone_idx, Vector3.ONE * 0.0001)
+	var sever_mod: SeveredBonesModifier = skel.find_child("SeveredBones", false, false) as SeveredBonesModifier
+	if sever_mod == null:
+		sever_mod = SeveredBonesModifier.new()
+		sever_mod.name = "SeveredBones"
+		skel.add_child(sever_mod)
+	sever_mod.sever(bone_idx)
+	skel.move_child(sever_mod, skel.get_child_count() - 1)  # AFTER any ragdoll sim
 
 	# 2. spawn the gibs: region meshes, then gear as its own lighter piece.
 	var spawned: bool = false

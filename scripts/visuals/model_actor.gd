@@ -162,6 +162,10 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	var sim := (load(RAGDOLL_SCENE_PATH) as PackedScene).instantiate() as PhysicalBoneSimulator3D
 	_skel.add_child(sim)
 	_ragdoll_sim = sim
+	# severed-bone modifier must stay LAST so dismembered parts survive the sim
+	var sever_mod: Node = _skel.find_child("SeveredBones", false, false)
+	if sever_mod != null:
+		_skel.move_child(sever_mod, _skel.get_child_count() - 1)
 	sim.physical_bones_start_simulation()  # start FIRST, then impulse (same frame)
 	var spine := sim.find_child("Spine2", true, false) as PhysicalBone3D
 	if spine == null:

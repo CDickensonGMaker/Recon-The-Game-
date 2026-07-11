@@ -268,18 +268,17 @@ func regions_removed() -> Array[String]:
 	return _removed
 
 
-## Death doctrine (Caleb, gore lab): gibbed or blown up -> RAGDOLL (the body
-## crumples with the hit, sells the dismemberment, and is what drag-to-cover
-## will grab). Clean kill -> a RANDOM death clip from the rig's death set.
+## Death doctrine (Caleb, gore lab round 7):
+##   clean kill        -> RAGDOLL, always (dead weight just drops)
+##   explosion kill    -> multi-gib + RAGDOLL flung by the blast (the
+##                        SeveredBones modifier keeps ripped parts gone)
+##   bullet-gibbed kill-> random death ANIMATION (the performance beat)
 func _die(dir: Vector3, explosive: bool = false) -> void:
 	_dead = true
 	CombatManager.unregister_enemy(self)
 	var ragdolled: bool = false
-	if model != null and (explosive or not _removed.is_empty()):
-		ragdolled = model.start_ragdoll(dir, 10.0 if explosive else 7.0)
-	elif model != null and randf() < 0.4:
-		# Caleb: some clean kills just DROP - dead weight, no performance.
-		ragdolled = model.start_ragdoll(dir, 5.0)
+	if model != null and (explosive or _removed.is_empty()):
+		ragdolled = model.start_ragdoll(dir, 12.0 if explosive else 6.0)
 	if not ragdolled and model != null:
 		var deaths: Array[String] = []
 		for c in model.clip_names():
