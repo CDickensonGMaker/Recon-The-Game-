@@ -23,10 +23,25 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 ## 3. FIRST-PERSON
 - [ ] **Verify the arms placement** (my fix is a math guess — in-game eyes needed; tell me
       high/low/close and I nudge). Then: do the hands feel right at 75 FOV?
-- [ ] Remaining viewmodels: **M60, RPD (LMG holds), PPSh (drum), RPG-2 (shoulder)** — new poses
+- [x] ~~Remaining viewmodels: M60, RPD, PPSh, RPG-2~~ **DONE 2026-07-10 night** — plus
+      Ithaca 37, M70 sniper, Colt 45: ALL hand-set + exported (ppsh/m60/rpg2/rpd/ithaca/
+      m70/colt45`_fp.glb`, rifle_idle + MuzzlePoint contract, pose jsons captured)
+- [ ] **Tunnel rat viewmodel**: pistol + MX-991 flashlight two-prop export (flashlight modeled
+      w/ lens LightOrigin; hold staged; needs exporter two-prop extension + Caleb final pose)
+- [ ] **M26 grenade hold + export** (model done, imported to arms file with nodes)
+- [ ] Engine wiring for the 7 new viewmodels: `*_arms_viewmodel.tscn` + tres (pattern = m16/ak/mosin);
+      shotgun also needs `shotgun.tres` + pellet-damage decision vs ADR-016
 - [ ] Per-gun idle/fidget/check animations — specs ready in `fp_arms/IDLE_ANIM_SPEC.md` +
       `IK_ANIMATION_WORKFLOW.md` (follow-the-recipe now)
 - [ ] FP radio handset raise (reuses the RTO handset asset)
+
+## 3b. MODELED 2026-07-10 NIGHT (weapons_us.blend — all saved/committed)
+- M26 hand grenade (lemon body/spoon/ring, 106v) · Colt 45 M1911 (research-based, Caleb-refined,
+  M60-steel finish, 176v) · M79 rebuilt from ref photos (belly stock/ladder sight/40mm tube, 206v) ·
+  MX-991 angle-head flashlight (112v, in fp_arms file) · fixed M60 w/ tracer belt swapped into batch ·
+  Ithaca 37 completed (Caleb stock transplant) · M70 sniper rebuilt lean (212v, Caleb) ·
+  guns relabeled/joined one-object-each · grunt animation pass same day (fixed reload, 23 new clips,
+  jump_loop deleted, shared anim_library.glb pipeline + .bat export buttons)
 
 ## 4. PROPS / VEHICLES (one Blender session each)
 - [ ] **us_grunt_v2 source cleanup** (gib code VERIFIED working 2026-07-10; the export itself
