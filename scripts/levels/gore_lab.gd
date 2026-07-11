@@ -20,24 +20,34 @@ const DUMMY_POS := Vector3(0, 0.1, -6.0)
 const RESPAWN_S: float = 10.0   # long enough to walk up and inspect the result
 const LAB_GRENADES: int = 25
 
+const VC := "res://data/enemies/vc_rifleman.tres"
+const NVA := "res://data/enemies/nva_regular.tres"
+const WAVE: Array[String] = [VC, VC, VC, NVA]
+const WAVE_RESPAWN_S: float = 8.0
+
 var player: CharacterBody3D = null
 var dummy: GoreDummy = null
-var drag_body: GoreDummy = null
 var _hud: Label = null
 var _spawned: int = 0
 var _drag_bone: PhysicalBone3D = null  # the HEAD - pinned to the player (Caleb: attach, don't pull)
 var _drag_joint: PinJoint3D = null
+var _enemies: Array[Node] = []
+var _wave: int = 0
+var _wave_pending: bool = false
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	GibSystem.gib_lifetime_s = 25.0  # gibs linger for inspection (game default 12)
+	_rng.seed = 20260710
 	_build_range()
+	_build_cover()
 	_build_lighting()
 	_spawn_player()
 	_spawn_dummy()
-	_spawn_drag_body()
+	_spawn_wave()
 	_build_hud()
-	print("[GORE LAB] ready - shoot limbs/head, frag with [3]; dummy respawns %.0fs." % RESPAWN_S)
+	print("[GORE LAB] combat bench ready - live VC/NVA waves + the gib dummy. Frags on [3].")
 
 
 func _build_range() -> void:
@@ -137,14 +147,73 @@ func _spawn_dummy() -> void:
 	_spawned += 1
 
 
-## The drag-test casualty: an unconscious man already down - walk up, [F] to
-## grab, walk to pull him, [F] to let go. Proves the ragdoll IS the draggable
-## body (the medic drag-to-cover beat).
-func _spawn_drag_body() -> void:
-	drag_body = GoreDummy.new()
-	drag_body.unconscious = true
-	add_child(drag_body)
-	drag_body.global_position = Vector3(6.0, 0.1, -2.0)
+## Cover at the combat lab's four deliberate heights (0.5 prone / 1.0 crouch /
+## 1.5 standing chest / 2.5 full LOS block) so the AI has real geometry to use
+## and you have maneuvering room.
+func _build_cover() -> void:
+	var heights: Array[float] = [0.5, 1.0, 1.5, 2.5]
+	var tints: Array[Color] = [
+		Color(0.80, 0.84, 0.88), Color(0.72, 0.78, 0.84),
+		Color(0.64, 0.72, 0.80), Color(0.52, 0.60, 0.70),
+	]
+	for i in range(26):
+		var idx: int = _rng.randi() % heights.size()
+		var hgt: float = heights[idx]
+		var w: float = _rng.randf_range(0.8, 2.4)
+		var d: float = _rng.randf_range(0.8, 2.4)
+		var pos := Vector3(_rng.randf_range(-19.0, 19.0), hgt * 0.5, _rng.randf_range(-19.0, 19.0))
+		if Vector2(pos.x, pos.z).length() < 4.0:
+			continue  # keep the middle open
+		var b := _cover_box(Vector3(w, hgt, d), pos, tints[idx])
+		b.rotation.y = _rng.randf_range(0.0, TAU)
+	# two hard blocks for real LOS breaks
+	_cover_box(Vector3(6.0, 3.0, 1.0), Vector3(-9.0, 1.5, 2.0), tints[3])
+	_cover_box(Vector3(1.0, 3.0, 6.0), Vector3(8.0, 1.5, -6.0), tints[3])
+
+
+func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mi.material_override = mat
+	body.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
+	body.global_position = pos
+	return body
+
+
+## Live enemy fireteam at the far end - the combat-feel overlay. A fresh wave
+## walks in after the last man drops.
+func _spawn_wave() -> void:
+	_wave += 1
+	_wave_pending = false
+	for data_path in WAVE:
+		var pos := Vector3(_rng.randf_range(-16.0, 16.0), 1.0, _rng.randf_range(-19.0, -12.0))
+		var e := EnemyBase.spawn_enemy(self, pos, data_path)
+		if e != null:
+			_enemies.append(e)
+			if player != null:
+				e.look_at(Vector3(player.global_position.x, pos.y, player.global_position.z), Vector3.UP)
+	print("[GORE LAB] wave %d inbound: %d men" % [_wave, WAVE.size()])
+
+
+func _alive_enemies() -> int:
+	var n: int = 0
+	for e in _enemies:
+		if is_instance_valid(e) and not e.is_dead():
+			n += 1
+	return n
 
 
 ## Polled, not _unhandled_input: the player's own interact raycast consumes
@@ -158,7 +227,7 @@ func _try_toggle_grab() -> void:
 	# solver hauls the body, the spine trails out straight behind the head)
 	var best: PhysicalBone3D = null
 	var best_d: float = 2.6
-	for b in [drag_body, dummy]:
+	for b in [dummy]:
 		if not is_instance_valid(b) or b.model == null or not b.model.has_ragdoll():
 			continue
 		var head: PhysicalBone3D = b.model.ragdoll_bone("Head")
@@ -233,6 +302,13 @@ func _release_grip(reason: String) -> void:
 
 
 func _process(_delta: float) -> void:
+	# wave respawn: last man down -> fresh fireteam after a breather
+	if not _wave_pending and _alive_enemies() == 0 and not _enemies.is_empty():
+		_wave_pending = true
+		var t: SceneTreeTimer = get_tree().create_timer(WAVE_RESPAWN_S)
+		t.timeout.connect(func() -> void:
+			_enemies = _enemies.filter(func(e: Node) -> bool: return is_instance_valid(e))
+			_spawn_wave())
 	if _hud == null:
 		return
 	var removed: String = "none"
@@ -244,9 +320,8 @@ func _process(_delta: float) -> void:
 			removed = ", ".join(r)
 		hp_txt = "%d/%d" % [dummy.hp, GoreDummy.MAX_HP]
 		clip = dummy.current_clip()
-	var drag_txt: String = "DRAGGING (50% speed) - [F] release" if _drag_bone != null else "[F] near a downed body: grab + drag (slows you 50%)"
-	_hud.text = "GORE LAB - us_grunt_v2 rig verification
+	var drag_txt: String = "DRAGGING (50% speed) - [F] release" if _drag_bone != null else "[F] near the downed dummy: grab + drag (slows you 50%)"
+	_hud.text = "GORE LAB - combat bench (wave %d, enemies alive: %d)
 M16: ARMS / LEGS -> limb pops | HEAD -> kill + helmet flies | frag [3] -> multi-gib
-HP %s   removed: %s   clip: %s   dummy #%d
-%s
-bench rules exaggerated; console prints the live-threshold verdict" % [hp_txt, removed, clip, _spawned, drag_txt]
+dummy HP %s   removed: %s   clip: %s   dummy #%d
+%s" % [_wave, _alive_enemies(), hp_txt, removed, clip, _spawned, drag_txt]
