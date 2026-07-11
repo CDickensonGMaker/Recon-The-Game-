@@ -209,14 +209,15 @@ func _physics_process(_delta: float) -> void:
 	if not is_instance_valid(_drag_bone) or player == null:
 		_release_grip("grip lost")
 		return
-	# pull the hips toward a point at your heels - the body trails as you walk
-	var anchor: Vector3 = player.global_position + (-player.global_transform.basis.z) * 0.9
+	# pull the hips to your heels - SHORT leash, strong grip: the body stays
+	# with you (Caleb: it lagged meters behind on the old numbers)
+	var anchor: Vector3 = player.global_position + (-player.global_transform.basis.z) * 0.6
 	anchor.y = _drag_bone.global_position.y * 0.5 + (player.global_position.y - 0.7) * 0.5
 	var to_anchor: Vector3 = anchor - _drag_bone.global_position
-	if to_anchor.length() > 3.5:
+	if to_anchor.length() > 2.2:
 		_release_grip("grip lost - yanked too hard")
 		return
-	_drag_bone.linear_velocity = (to_anchor * 6.0).limit_length(4.5)
+	_drag_bone.linear_velocity = (to_anchor * 10.0).limit_length(6.0)
 
 
 func _release_grip(reason: String) -> void:

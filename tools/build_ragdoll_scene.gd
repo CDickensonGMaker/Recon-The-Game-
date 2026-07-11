@@ -12,10 +12,10 @@ const OUT := "res://scenes/characters/ragdoll_mixamo.tscn"
 
 ## bone -> [child_bone_for_length, joint, radius, mass]
 const BONES := {
-	"mixamorig_Hips":         ["mixamorig_Spine", "none", 0.14, 10.0],
-	"mixamorig_Spine":        ["mixamorig_Spine1", "cone", 0.13, 8.0],
-	"mixamorig_Spine1":       ["mixamorig_Spine2", "cone", 0.13, 8.0],
-	"mixamorig_Spine2":       ["mixamorig_Neck", "cone", 0.13, 8.0],
+	"mixamorig_Hips":         ["mixamorig_Spine", "none", 0.12, 10.0],
+	"mixamorig_Spine":        ["mixamorig_Spine1", "cone", 0.11, 8.0],
+	"mixamorig_Spine1":       ["mixamorig_Spine2", "cone", 0.11, 8.0],
+	"mixamorig_Spine2":       ["mixamorig_Neck", "cone", 0.11, 8.0],
 	"mixamorig_Head":         ["mixamorig_HeadTop_End", "cone", 0.10, 5.0],
 	"mixamorig_LeftArm":      ["mixamorig_LeftForeArm", "cone", 0.06, 3.0],
 	"mixamorig_RightArm":     ["mixamorig_RightForeArm", "cone", 0.06, 3.0],

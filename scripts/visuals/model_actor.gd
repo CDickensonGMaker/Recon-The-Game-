@@ -181,6 +181,17 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	var sim := (load(RAGDOLL_SCENE_PATH) as PackedScene).instantiate() as PhysicalBoneSimulator3D
 	_skel.add_child(sim)
 	_ragdoll_sim = sim
+	# A corpse must not collide with ITSELF: joints only exclude adjacent
+	# pairs, so overlapping non-adjacent capsules (stacked spine, arm-vs-torso)
+	# de-penetrate violently every frame = the flailing/flying bug. Full
+	# mutual exception = calm body; limbs may clip the torso (fine at PSX).
+	var bones: Array = []
+	for c in sim.get_children():
+		if c is PhysicalBone3D:
+			bones.append(c)
+	for i in range(bones.size()):
+		for j in range(i + 1, bones.size()):
+			(bones[i] as PhysicalBone3D).add_collision_exception_with(bones[j] as PhysicalBone3D)
 	# severed-bone modifier must stay LAST so dismembered parts survive the sim
 	var sever_mod: Node = _skel.find_child("SeveredBones", false, false)
 	if sever_mod != null:
