@@ -57,7 +57,15 @@ func _init() -> void:
 		var pb := PhysicalBone3D.new()
 		pb.name = String(bone_name).replace("mixamorig_", "")
 		pb.bone_name = bone_name
-		pb.mass = float(spec[3])
+		# WEIGHT (Caleb: "bounces around crazy"): heavier bodies, strong damping,
+		# zero bounce - a corpse thuds and settles, it does not pinball.
+		pb.mass = float(spec[3]) * 1.6
+		pb.linear_damp = 1.2
+		pb.angular_damp = 4.0
+		var pmat := PhysicsMaterial.new()
+		pmat.friction = 1.2
+		pmat.bounce = 0.0
+		pb.set("physics_material_override", pmat)
 		pb.collision_layer = 1
 		pb.collision_mask = 1
 		match str(spec[1]):

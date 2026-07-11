@@ -39,17 +39,21 @@ var _zone_bones: Array = []
 
 
 func _ready() -> void:
-	add_to_group("enemies")  # hitzone layers + player rays treat it as a target
+	add_to_group("enemies")  # hitzone group wiring
 	CombatManager.register_enemy(self)  # explosions damage via active_enemies
-	collision_layer = 4      # layer 3: enemies
+	# LAYER 0: the movement capsule must be INVISIBLE to bullets. On layer 3 it
+	# physically shadowed the (smaller) hitzones inside it - every round hit the
+	# capsule first and resolved as flat no-multiplier BODY damage (28x3=84 ~ 85
+	# HP = the "headshots take 3 shots" bug). Zones are the only shot surface.
+	collision_layer = 0
 	collision_mask = 1
 
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.35
-	cap.height = 1.7
+	cap.radius = 0.3
+	cap.height = 1.6
 	col.shape = cap
-	col.position = Vector3(0, 0.9, 0)
+	col.position = Vector3(0, 0.85, 0)
 	add_child(col)
 
 	model = ModelActor.new()

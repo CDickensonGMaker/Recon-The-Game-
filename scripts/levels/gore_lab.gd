@@ -146,9 +146,9 @@ func _spawn_drag_body() -> void:
 	drag_body.global_position = Vector3(6.0, 0.1, -2.0)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("interact"):
-		return
+## Polled, not _unhandled_input: the player's own interact raycast consumes
+## the event before the lab would see it. Polling cannot be shadowed.
+func _try_toggle_grab() -> void:
 	if _drag_bone != null:
 		_drag_bone = null
 		print("[GORE LAB] released the body")
@@ -201,6 +201,8 @@ func _build_hud() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if Input.is_action_just_pressed("interact"):
+		_try_toggle_grab()
 	if _drag_bone == null:
 		return
 	if not is_instance_valid(_drag_bone) or player == null:
