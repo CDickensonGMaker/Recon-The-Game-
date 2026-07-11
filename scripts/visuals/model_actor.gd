@@ -183,6 +183,21 @@ func _release_ragdoll_slot() -> void:
 		_ragdoll_sim = null
 
 
+## A named PhysicalBone3D from the live ragdoll ("Hips", "Spine2"...) - the
+## drag mechanic grabs these.
+func ragdoll_bone(bone: String) -> PhysicalBone3D:
+	if _ragdoll_sim == null:
+		return null
+	return _ragdoll_sim.find_child(bone, true, false) as PhysicalBone3D
+
+
+## Re-wake a settled ragdoll (the settle-stop parks corpses; grabbing one
+## needs the solver running again).
+func wake_ragdoll() -> void:
+	if _ragdoll_sim != null and not _ragdoll_sim.is_simulating_physics():
+		_ragdoll_sim.physical_bones_start_simulation()
+
+
 ## World-space forward. The body is rotated to face it (unlike the billboard
 ## sprite, a 3D model must actually turn).
 func set_facing(dir: Vector3) -> void:

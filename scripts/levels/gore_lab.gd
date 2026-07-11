@@ -22,8 +22,10 @@ const LAB_GRENADES: int = 25
 
 var player: CharacterBody3D = null
 var dummy: GoreDummy = null
+var drag_body: GoreDummy = null
 var _hud: Label = null
 var _spawned: int = 0
+var _drag_bone: PhysicalBone3D = null
 
 
 func _ready() -> void:
@@ -32,6 +34,7 @@ func _ready() -> void:
 	_build_lighting()
 	_spawn_player()
 	_spawn_dummy()
+	_spawn_drag_body()
 	_build_hud()
 	print("[GORE LAB] ready - shoot limbs/head, frag with [3]; dummy respawns %.0fs." % RESPAWN_S)
 
@@ -133,6 +136,42 @@ func _spawn_dummy() -> void:
 	_spawned += 1
 
 
+## The drag-test casualty: an unconscious man already down - walk up, [F] to
+## grab, walk to pull him, [F] to let go. Proves the ragdoll IS the draggable
+## body (the medic drag-to-cover beat).
+func _spawn_drag_body() -> void:
+	drag_body = GoreDummy.new()
+	drag_body.unconscious = true
+	add_child(drag_body)
+	drag_body.global_position = Vector3(6.0, 0.1, -2.0)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("interact"):
+		return
+	if _drag_bone != null:
+		_drag_bone = null
+		print("[GORE LAB] released the body")
+		return
+	# grab the nearest ragdolled body's hips within reach
+	var best: PhysicalBone3D = null
+	var best_d: float = 2.6
+	for b in [drag_body, dummy]:
+		if not is_instance_valid(b) or b.model == null or not b.model.has_ragdoll():
+			continue
+		var hips: PhysicalBone3D = b.model.ragdoll_bone("Hips")
+		if hips == null or player == null:
+			continue
+		var d: float = hips.global_position.distance_to(player.global_position)
+		if d < best_d:
+			best_d = d
+			best = hips
+			b.model.wake_ragdoll()
+	if best != null:
+		_drag_bone = best
+		print("[GORE LAB] grabbed the body - walk to drag, [F] to release")
+
+
 func _on_dummy_died() -> void:
 	var timer: SceneTreeTimer = get_tree().create_timer(RESPAWN_S)
 	timer.timeout.connect(func() -> void:
@@ -161,6 +200,23 @@ func _build_hud() -> void:
 	layer.add_child(_hud)
 
 
+func _physics_process(_delta: float) -> void:
+	if _drag_bone == null:
+		return
+	if not is_instance_valid(_drag_bone) or player == null:
+		_drag_bone = null
+		return
+	# pull the hips toward a point at your heels - the body trails as you walk
+	var anchor: Vector3 = player.global_position + (-player.global_transform.basis.z) * 0.9
+	anchor.y = _drag_bone.global_position.y * 0.5 + (player.global_position.y - 0.7) * 0.5
+	var to_anchor: Vector3 = anchor - _drag_bone.global_position
+	if to_anchor.length() > 3.5:
+		_drag_bone = null  # yanked free
+		print("[GORE LAB] grip lost")
+		return
+	_drag_bone.linear_velocity = (to_anchor * 6.0).limit_length(4.5)
+
+
 func _process(_delta: float) -> void:
 	if _hud == null:
 		return
@@ -173,7 +229,9 @@ func _process(_delta: float) -> void:
 			removed = ", ".join(r)
 		hp_txt = "%d/%d" % [dummy.hp, GoreDummy.MAX_HP]
 		clip = dummy.current_clip()
+	var drag_txt: String = "DRAGGING - [F] release" if _drag_bone != null else "[F] near a downed body: grab + drag"
 	_hud.text = "GORE LAB - us_grunt_v2 rig verification
 M16: ARMS / LEGS -> limb pops | HEAD -> kill + helmet flies | frag [3] -> multi-gib
 HP %s   removed: %s   clip: %s   dummy #%d
-bench rules exaggerated; console prints the live-threshold verdict" % [hp_txt, removed, clip, _spawned]
+%s
+bench rules exaggerated; console prints the live-threshold verdict" % [hp_txt, removed, clip, _spawned, drag_txt]

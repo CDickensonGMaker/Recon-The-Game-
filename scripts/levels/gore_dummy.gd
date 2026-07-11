@@ -22,6 +22,10 @@ const PLAYLIST: Array[String] = [
 ]
 const CLIP_CYCLE_S: float = 4.0
 
+## Spawn as an already-down, ragdolled body (the drag-test casualty): no AI,
+## no playlist, no combat registration - just a physical man on the ground.
+var unconscious: bool = false
+
 var hp: int = MAX_HP
 var model: ModelActor = null
 var _removed: Array[String] = []
@@ -53,6 +57,14 @@ func _ready() -> void:
 	if not model.setup(UNIT):
 		push_error("[GORE LAB] %s.glb missing - nothing to test" % UNIT)
 		return
+	if unconscious:
+		_dead = true
+		CombatManager.unregister_enemy(self)
+		_build_hitzones()
+		# collapse where he stands - the drag-test casualty
+		model.start_ragdoll.call_deferred(Vector3(0.2, 0, 0.1), 1.0)
+		return
+
 	if not model.play(PLAYLIST[0]):
 		print("[GORE LAB] RIG WARN: no '%s' clip - dummy will T-pose (export missing anims?)" % PLAYLIST[0])
 
@@ -82,18 +94,62 @@ func _report_gear_rigging() -> void:
 			print("[GORE LAB] RIG WARN: gear '%s' is NOT bone-attached in this export - it will float at T-pose (re-export with bone parenting)" % gear_name)
 
 
-## Same bands as EnemyBase._setup_hurtbox (GAME_SCALE_STANDARD), each zone
-## carrying its REGION - and each zone BONE-SYNCED (position follows the
-## skeleton every tick), so crouch/run/sway keep the zones on the body.
-## Falls back to the static layout when the rig is missing.
+## Zones are MEASURED FROM THE RIG (Caleb: "match the body parts with this
+## model, not the other way around") - every size/center derives from actual
+## bone spans in world scale, so any export at the contract height fits
+## automatically. Each zone is bone-synced per tick. Static bands remain only
+## as the no-rig fallback.
 func _build_hitzones() -> void:
-	_zone(Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15, -1.0, "mixamorig_Head", Vector3(0, 0.06, 0))
-	_zone(Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.35, "mixamorig_Spine1")
-	_zone(Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.9, 0), 0.28, 0.3, "mixamorig_Hips")
-	_zone(Hitzone.ZoneType.LIMB, "ARM_L", Vector3(0.35, 1.0, 0), 0.14, 0.55, "mixamorig_LeftForeArm")
-	_zone(Hitzone.ZoneType.LIMB, "ARM_R", Vector3(-0.35, 1.0, 0), 0.14, 0.55, "mixamorig_RightForeArm")
-	_zone(Hitzone.ZoneType.LIMB, "LEG_L", Vector3(0.12, 0.4, 0), 0.13, 0.8, "mixamorig_LeftLeg")
-	_zone(Hitzone.ZoneType.LIMB, "LEG_R", Vector3(-0.12, 0.4, 0), 0.13, 0.8, "mixamorig_RightLeg")
+	var skel: Skeleton3D = model.skeleton() if model != null else null
+	if skel == null:
+		_zone(Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15)
+		_zone(Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.35)
+		_zone(Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.9, 0), 0.28, 0.3)
+		_zone(Hitzone.ZoneType.LIMB, "ARM_L", Vector3(0.35, 1.0, 0), 0.12, 0.5)
+		_zone(Hitzone.ZoneType.LIMB, "ARM_R", Vector3(-0.35, 1.0, 0), 0.12, 0.5)
+		_zone(Hitzone.ZoneType.LIMB, "LEG_L", Vector3(0.12, 0.4, 0), 0.12, 0.8)
+		_zone(Hitzone.ZoneType.LIMB, "LEG_R", Vector3(-0.12, 0.4, 0), 0.12, 0.8)
+		return
+
+	# world-space rest position of a bone (includes the rig's normalization scale)
+	var bw := func(bone: String) -> Vector3:
+		var bi: int = skel.find_bone(bone)
+		return (skel.global_transform * skel.get_bone_global_rest(bi).origin) if bi >= 0 else Vector3.ZERO
+
+	# HEAD: sphere spanning skull base -> crown, centered mid-skull. Covers the
+	# face because it's sized from the head's real extent, not a guess.
+	var head_base: Vector3 = bw.call("mixamorig_Head")
+	var head_top: Vector3 = bw.call("mixamorig_HeadTop_End")
+	var skull: float = maxf(0.18, head_base.distance_to(head_top))
+	_zone(Hitzone.ZoneType.HEAD, "HEAD", Vector3.ZERO, skull * 0.72, -1.0,
+		"mixamorig_Head", Vector3(0, skull * 0.5, 0))
+
+	# TORSO: capsule spanning Spine -> just below the Neck, radius from real
+	# shoulder width, top CLAMPED under the chin so it can never eat face shots.
+	var spine_lo: Vector3 = bw.call("mixamorig_Spine")
+	var neck: Vector3 = bw.call("mixamorig_Neck")
+	var shoulder_half: float = bw.call("mixamorig_LeftArm").distance_to(bw.call("mixamorig_RightArm")) * 0.5
+	var chest_len: float = maxf(0.25, spine_lo.distance_to(neck) - 0.04)
+	_zone(Hitzone.ZoneType.TORSO, "BODY", Vector3.ZERO, minf(shoulder_half * 0.8, chest_len * 0.5), chest_len,
+		"mixamorig_Spine1")
+
+	# GUT: hips -> spine base.
+	var hips: Vector3 = bw.call("mixamorig_Hips")
+	var gut_len: float = maxf(0.18, hips.distance_to(spine_lo) + 0.10)
+	_zone(Hitzone.ZoneType.GUT, "GUT", Vector3.ZERO, shoulder_half * 0.62, gut_len, "mixamorig_Hips")
+
+	# ARMS/LEGS: capsules sized from real joint-to-joint spans, riding the
+	# mid-limb bone (elbow/knee) so they track the swing.
+	for side in ["Left", "Right"]:
+		var tag: String = "L" if side == "Left" else "R"
+		var arm_len: float = bw.call("mixamorig_%sArm" % side).distance_to(bw.call("mixamorig_%sHand" % side))
+		_zone(Hitzone.ZoneType.LIMB, "ARM_%s" % tag, Vector3.ZERO, maxf(0.06, arm_len * 0.14), arm_len,
+			"mixamorig_%sForeArm" % side)
+		var leg_len: float = bw.call("mixamorig_%sUpLeg" % side).distance_to(bw.call("mixamorig_%sFoot" % side))
+		_zone(Hitzone.ZoneType.LIMB, "LEG_%s" % tag, Vector3.ZERO, maxf(0.07, leg_len * 0.13), leg_len,
+			"mixamorig_%sLeg" % side)
+
+	print("[GORE LAB] zones from rig: skull=%.2f chest=%.2f shoulder_half=%.2f" % [skull, chest_len, shoulder_half])
 
 
 func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: float, height: float = -1.0, bone: String = "", bone_offset: Vector3 = Vector3.ZERO) -> void:
@@ -217,6 +273,9 @@ func _die(dir: Vector3, explosive: bool = false) -> void:
 	var ragdolled: bool = false
 	if model != null and (explosive or not _removed.is_empty()):
 		ragdolled = model.start_ragdoll(dir, 10.0 if explosive else 7.0)
+	elif model != null and randf() < 0.4:
+		# Caleb: some clean kills just DROP - dead weight, no performance.
+		ragdolled = model.start_ragdoll(dir, 5.0)
 	if not ragdolled and model != null:
 		var deaths: Array[String] = []
 		for c in model.clip_names():
