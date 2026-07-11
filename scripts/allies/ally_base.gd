@@ -32,6 +32,8 @@ var last_known_target_pos: Vector3 = Vector3.ZERO
 ## Seconds since we last had eyes on the target (mirrors EnemyBase) - recent
 ## contact keeps a follower FIGHTING instead of falling back to heel.
 var target_last_seen_time: float = 999.0
+## Human beat between acquiring a new target and the first aimed shot.
+var _aim_settle: float = 0.0
 var has_line_of_sight: bool = false
 
 ## Aim interpolation
@@ -300,6 +302,11 @@ func _find_target() -> void:
 			closest_dist = dist
 			closest_enemy = enemy as Node3D
 
+	# Aim settle: a NEW target costs a human beat before the first shot (the
+	# enemies pay reaction + first-miss + exposure ramp; the squad shouldn't
+	# be an instant laser - Caleb: waves were deleted before firing back).
+	if closest_enemy != target and closest_enemy != null:
+		_aim_settle = randf_range(0.45, 0.9)
 	target = closest_enemy
 
 
@@ -465,8 +472,10 @@ func _execute_combat(delta: float) -> void:
 			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 
-		# Fire at target
-		if can_fire and suppression_level < 0.5:
+		# Fire at target (after the aim settles on a fresh acquisition)
+		if _aim_settle > 0.0:
+			_aim_settle -= delta
+		elif can_fire and suppression_level < 0.5:
 			if burst_count < MAX_BURST:
 				_fire_at_target()
 				burst_count += 1

@@ -227,17 +227,36 @@ func _alive_allies() -> int:
 func _spawn_wave() -> void:
 	_wave += 1
 	_wave_pending = false
+	# Wave 1 spawns RELAXED (the sneaking bench). REINFORCEMENT waves arrive
+	# ALERT with a rough fix on the battle - men walking INTO a known firefight
+	# don't stroll in daydreaming (Caleb: wave 2 got deleted at spawn while its
+	# perception ladder was still waking up). Entries staggered so seven men
+	# don't materialize as one volley target.
+	var idx: int = 0
 	for data_path in WAVE:
 		var pos := Vector3(_rng.randf_range(-16.0, 16.0), 1.0, _rng.randf_range(-19.0, -12.0))
-		var e := EnemyBase.spawn_enemy(self, pos, data_path)
-		if e != null:
-			_enemies.append(e)
-			# SNEAKING BENCH (Caleb: no superman AI): random facing, RELAXED -
-			# the detection ladder (eyes, ears, your first shot) wakes them,
-			# not the spawner. The combat lab's aim-at-player line was for
-			# fight-testing; here stealth is part of the feel.
-			e.rotation.y = _rng.randf_range(0.0, TAU)
-	print("[GORE LAB] wave %d inbound: %d men" % [_wave, WAVE.size()])
+		var delay: float = 0.0 if _wave == 1 else 0.6 * float(idx)
+		idx += 1
+		var dp: String = data_path
+		if delay <= 0.0:
+			_spawn_wave_man(dp, pos)
+		else:
+			get_tree().create_timer(delay).timeout.connect(func() -> void:
+				_spawn_wave_man(dp, pos))
+	print("[GORE LAB] wave %d inbound: %d men%s" % [_wave, WAVE.size(),
+		"" if _wave == 1 else " (ALERT - they heard the battle)"])
+
+
+func _spawn_wave_man(data_path: String, pos: Vector3) -> void:
+	var e := EnemyBase.spawn_enemy(self, pos, data_path)
+	if e == null:
+		return
+	_enemies.append(e)
+	e.rotation.y = _rng.randf_range(0.0, TAU)
+	if _wave > 1 and is_instance_valid(player):
+		e.alert_tier = EnemyBase.AlertTier.ALERT
+		e.last_known_target_pos = player.global_position + \
+			Vector3(_rng.randf_range(-6.0, 6.0), 0.0, _rng.randf_range(-6.0, 6.0))
 
 
 func _alive_enemies() -> int:
