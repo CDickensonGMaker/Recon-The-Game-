@@ -124,6 +124,65 @@ func instance_root() -> Node3D:
 	return _inst
 
 
+func clip_names() -> PackedStringArray:
+	if _anim == null:
+		return PackedStringArray()
+	return _anim.get_animation_list()
+
+
+func stop_anim() -> void:
+	if _anim != null:
+		_anim.pause()
+
+
+# ---- ragdoll (research/ragdoll.md: shared 13-bone physical skeleton) --------
+## One authored PhysicalBoneSimulator3D scene fits every Mixamo rig. Mode A:
+## stop the clip, start the sim on the current pose, shove the spine. Capped
+## globally so a grenade killing a squad can't spike the solver; corpses stop
+## simulating after a settle window and sleep as static bodies.
+const RAGDOLL_SCENE_PATH := "res://scenes/characters/ragdoll_mixamo.tscn"
+const MAX_ACTIVE_RAGDOLLS: int = 8
+const RAGDOLL_SETTLE_S: float = 4.0
+static var _active_ragdolls: int = 0
+var _ragdoll_sim: PhysicalBoneSimulator3D = null
+
+
+func has_ragdoll() -> bool:
+	return _ragdoll_sim != null
+
+
+func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
+	if _skel == null or _ragdoll_sim != null:
+		return false
+	if _active_ragdolls >= MAX_ACTIVE_RAGDOLLS:
+		return false
+	if not ResourceLoader.exists(RAGDOLL_SCENE_PATH):
+		return false
+	stop_anim()  # research 3, Mode A: the clip must stop driving bone poses
+	var sim := (load(RAGDOLL_SCENE_PATH) as PackedScene).instantiate() as PhysicalBoneSimulator3D
+	_skel.add_child(sim)
+	_ragdoll_sim = sim
+	sim.physical_bones_start_simulation()  # start FIRST, then impulse (same frame)
+	var spine := sim.find_child("Spine2", true, false) as PhysicalBone3D
+	if spine == null:
+		spine = sim.find_child("Hips", true, false) as PhysicalBone3D
+	if spine != null:
+		spine.apply_central_impulse(impulse_dir.normalized() * force + Vector3.UP * 1.5)
+	_active_ragdolls += 1
+	tree_exited.connect(_release_ragdoll_slot)
+	var settle: SceneTreeTimer = get_tree().create_timer(RAGDOLL_SETTLE_S)
+	settle.timeout.connect(func() -> void:
+		if is_instance_valid(sim) and sim.is_simulating_physics():
+			sim.physical_bones_stop_simulation())
+	return true
+
+
+func _release_ragdoll_slot() -> void:
+	if _ragdoll_sim != null:
+		_active_ragdolls = maxi(0, _active_ragdolls - 1)
+		_ragdoll_sim = null
+
+
 ## World-space forward. The body is rotated to face it (unlike the billboard
 ## sprite, a 3D model must actually turn).
 func set_facing(dir: Vector3) -> void:

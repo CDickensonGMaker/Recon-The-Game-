@@ -188,7 +188,8 @@ func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone
 			hp = maxi(0, hp - amount)
 			print("[GORE LAB] %s hit, dmg %d, HP %d/%d" % [zone, amount, hp, MAX_HP])
 			# GORE_WORKFLOW: kill by explosion at close range -> multi-gib.
-			if hp <= 0 and _damage_type == Enums.DamageType.EXPLOSIVE:
+			var explosive: bool = _damage_type == Enums.DamageType.EXPLOSIVE
+			if hp <= 0 and explosive:
 				var to_pop: Array[String] = []
 				for r in ["ARM_L", "ARM_R", "LEG_L", "LEG_R", "HEAD"]:
 					if not _removed.has(r):
@@ -200,19 +201,35 @@ func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone
 						_removed.append(to_pop[i])
 				print("[GORE LAB] EXPLOSION KILL - %d parts gibbed" % count)
 			if hp <= 0 and not _dead:
-				_die(dir)
+				_die(dir, explosive)
 
 
 func regions_removed() -> Array[String]:
 	return _removed
 
 
-func _die(dir: Vector3) -> void:
+## Death doctrine (Caleb, gore lab): gibbed or blown up -> RAGDOLL (the body
+## crumples with the hit, sells the dismemberment, and is what drag-to-cover
+## will grab). Clean kill -> a RANDOM death clip from the rig's death set.
+func _die(dir: Vector3, explosive: bool = false) -> void:
 	_dead = true
 	CombatManager.unregister_enemy(self)
-	for clip in ["death", "death_1", "die", "Death"]:
-		if model != null and model.play(clip):
-			break
+	var ragdolled: bool = false
+	if model != null and (explosive or not _removed.is_empty()):
+		ragdolled = model.start_ragdoll(dir, 10.0 if explosive else 7.0)
+	if not ragdolled and model != null:
+		var deaths: Array[String] = []
+		for c in model.clip_names():
+			if String(c).begins_with("death"):
+				deaths.append(String(c))
+		if deaths.is_empty():
+			print("[GORE LAB] RIG WARN: no death_* clips in export")
+		else:
+			var pick: String = deaths[randi_range(0, deaths.size() - 1)]
+			model.play(pick, true)
+			print("[GORE LAB] death anim: %s" % pick)
+	elif ragdolled:
+		print("[GORE LAB] death: RAGDOLL (impulse %.0f)" % (10.0 if explosive else 7.0))
 	GunFX.blood_pool(get_parent(), global_position)
 	GunFX.blood(get_parent(), global_position + Vector3.UP * 0.9, Vector3.UP, dir, self)
 	died.emit()

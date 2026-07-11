@@ -1,0 +1,248 @@
+[gd_scene format=3]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_nrisy"]
+radius = 0.14
+height = 0.294
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_cqg2t"]
+radius = 0.13
+height = 0.273
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xm8dd"]
+radius = 0.13
+height = 0.273
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_asrg1"]
+radius = 0.13
+height = 0.273
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ikfsl"]
+radius = 0.1
+height = 0.21000001
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_f3m3d"]
+radius = 0.06
+height = 0.29840407
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ksw6s"]
+radius = 0.06
+height = 0.2983876
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e8k80"]
+radius = 0.05
+height = 0.26035887
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1mfsc"]
+radius = 0.05
+height = 0.26036185
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_cv1uu"]
+radius = 0.08
+height = 0.45728013
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_hutwv"]
+radius = 0.08
+height = 0.45728004
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_d7j46"]
+radius = 0.06
+height = 0.45662218
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1eqlo"]
+radius = 0.06
+height = 0.45662874
+
+[node name="RagdollSim" type="PhysicalBoneSimulator3D" unique_id=703978359]
+
+[node name="Hips" type="PhysicalBone3D" parent="." unique_id=1252273086]
+transform = Transform3D(0, 0, 1, -0.9986993, -0.05098823, 0, 0.050988235, -0.99869925, 0, 0, 0.012102397, -1.0448503)
+mass = 10.0
+bone_name = "mixamorig_Hips"
+
+[node name="@CollisionShape3D@2" type="CollisionShape3D" parent="Hips" unique_id=1566820213]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+shape = SubResource("CapsuleShape3D_nrisy")
+
+[node name="Spine" type="PhysicalBone3D" parent="." unique_id=1723506265]
+transform = Transform3D(0, 0, 1, -0.9986993, -0.05098825, 0, 0.050988253, -0.99869925, 0, 0, 0.0074408464, -1.1361555)
+joint_type = 2
+mass = 8.0
+bone_name = "mixamorig_Spine"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@3" type="CollisionShape3D" parent="Spine" unique_id=993699388]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+shape = SubResource("CapsuleShape3D_cqg2t")
+
+[node name="Spine1" type="PhysicalBone3D" parent="." unique_id=1341256742]
+transform = Transform3D(0, 0, 1, -0.99869925, -0.05098834, 0, 0.05098834, -0.99869925, 0, 0, 0.0020023552, -1.2426784)
+joint_type = 2
+mass = 8.0
+bone_name = "mixamorig_Spine1"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@4" type="CollisionShape3D" parent="Spine1" unique_id=199895563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.060949333, 0)
+shape = SubResource("CapsuleShape3D_xm8dd")
+
+[node name="Spine2" type="PhysicalBone3D" parent="." unique_id=545394718]
+transform = Transform3D(0, 0, 1, -0.99869925, -0.05098829, 0, 0.05098829, -0.99869925, 0, 0, -0.004213055, -1.3644185)
+joint_type = 2
+mass = 8.0
+bone_name = "mixamorig_Spine2"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@5" type="CollisionShape3D" parent="Spine2" unique_id=170278146]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06856819, 0)
+shape = SubResource("CapsuleShape3D_asrg1")
+
+[node name="Head" type="PhysicalBone3D" parent="." unique_id=243162113]
+transform = Transform3D(-1, 0, 0, 0, 0.2053501, -0.9786886, 0, -0.97868854, -0.20535012, 0, 0.012798082, -1.6157758)
+joint_type = 2
+mass = 5.0
+bone_name = "mixamorig_Head"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@6" type="CollisionShape3D" parent="Head" unique_id=972125447]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.091404885, 0)
+shape = SubResource("CapsuleShape3D_ikfsl")
+
+[node name="LeftArm" type="PhysicalBone3D" parent="." unique_id=1406566040]
+transform = Transform3D(0.01940857, 0.8475712, 0.53032666, 0.99981165, -0.016453244, -0.010294821, 0, 0.53042656, -0.84773093, 0.16503122, -0.010733038, -1.4443055)
+joint_type = 2
+mass = 3.0
+bone_name = "mixamorig_LeftArm"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@7" type="CollisionShape3D" parent="LeftArm" unique_id=1878759623]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14920203, 0)
+shape = SubResource("CapsuleShape3D_f3m3d")
+
+[node name="RightArm" type="PhysicalBone3D" parent="." unique_id=1554089277]
+transform = Transform3D(0.01494595, -0.8476181, -0.5303962, -0.99988836, -0.0126698725, -0.007928161, 0, 0.53045547, -0.8477128, -0.16503112, -0.011677761, -1.4443054)
+joint_type = 2
+mass = 3.0
+bone_name = "mixamorig_RightArm"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@8" type="CollisionShape3D" parent="RightArm" unique_id=1034432187]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1491938, 0)
+shape = SubResource("CapsuleShape3D_ksw6s")
+
+[node name="LeftForeArm" type="PhysicalBone3D" parent="." unique_id=1591957493]
+transform = Transform3D(0.0006744835, 0.84672344, 0.53203297, 0.99999976, -0.0005711011, -0.00035884752, 0, 0.5320331, -0.8467236, 0.41794991, -0.015642753, -1.2860241)
+joint_type = 3
+mass = 2.0
+bone_name = "mixamorig_LeftForeArm"
+joint_constraints/angular_limit_enabled = true
+joint_constraints/angular_limit_upper = 2.094395
+joint_constraints/angular_limit_lower = -0.08726645
+joint_constraints/angular_limit_bias = 0.3
+joint_constraints/angular_limit_softness = 0.9
+joint_constraints/angular_limit_relaxation = 1.0
+
+[node name="@CollisionShape3D@9" type="CollisionShape3D" parent="LeftForeArm" unique_id=1414658779]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13017944, 0)
+shape = SubResource("CapsuleShape3D_e8k80")
+
+[node name="RightForeArm" type="PhysicalBone3D" parent="." unique_id=40540378]
+transform = Transform3D(-0.0059946403, -0.8467121, -0.53201747, -0.99998206, 0.005075826, 0.0031893107, 0, 0.53202695, -0.84672743, -0.41794986, -0.015458293, -1.2860241)
+joint_type = 3
+mass = 2.0
+bone_name = "mixamorig_RightForeArm"
+joint_constraints/angular_limit_enabled = true
+joint_constraints/angular_limit_upper = 2.094395
+joint_constraints/angular_limit_lower = -0.08726645
+joint_constraints/angular_limit_bias = 0.3
+joint_constraints/angular_limit_softness = 0.9
+joint_constraints/angular_limit_relaxation = 1.0
+
+[node name="@CollisionShape3D@10" type="CollisionShape3D" parent="RightForeArm" unique_id=71840401]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13018093, 0)
+shape = SubResource("CapsuleShape3D_1mfsc")
+
+[node name="LeftUpLeg" type="PhysicalBone3D" parent="." unique_id=995584048]
+transform = Transform3D(0, 0.08273473, 0.99657166, 0.99998647, -0.005184586, 0.00043042094, 0.005202422, 0.9965581, -0.08273361, 0.08698801, 0.016105419, -0.9940677)
+joint_type = 2
+mass = 7.0
+bone_name = "mixamorig_LeftUpLeg"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@11" type="CollisionShape3D" parent="LeftUpLeg" unique_id=1584271338]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22864006, 0)
+shape = SubResource("CapsuleShape3D_cv1uu")
+
+[node name="RightUpLeg" type="PhysicalBone3D" parent="." unique_id=676958912]
+transform = Transform3D(0, -0.08273469, 0.99657166, 0.9999864, -0.0051885485, -0.0004307498, 0.005206398, 0.99655807, 0.08273357, -0.08698801, 0.015908914, -0.9940677)
+joint_type = 2
+mass = 7.0
+bone_name = "mixamorig_RightUpLeg"
+joint_constraints/swing_span = 0.6981316
+joint_constraints/twist_span = 0.4363323
+joint_constraints/bias = 0.3
+joint_constraints/softness = 0.8
+joint_constraints/relaxation = 1.0
+
+[node name="@CollisionShape3D@12" type="CollisionShape3D" parent="RightUpLeg" unique_id=627189760]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22864002, 0)
+shape = SubResource("CapsuleShape3D_hutwv")
+
+[node name="LeftLeg" type="PhysicalBone3D" parent="." unique_id=842370456]
+transform = Transform3D(0, 0.08506285, 0.9963756, 0.9995467, -0.02999504, 0.0025607448, 0.030104147, 0.995924, -0.0850243, 0.124820955, 0.013734611, -0.5383615)
+joint_type = 3
+mass = 4.0
+bone_name = "mixamorig_LeftLeg"
+joint_constraints/angular_limit_enabled = true
+joint_constraints/angular_limit_upper = 2.094395
+joint_constraints/angular_limit_lower = -0.08726645
+joint_constraints/angular_limit_bias = 0.3
+joint_constraints/angular_limit_softness = 0.9
+joint_constraints/angular_limit_relaxation = 1.0
+
+[node name="@CollisionShape3D@13" type="CollisionShape3D" parent="LeftLeg" unique_id=1536200970]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22831109, 0)
+shape = SubResource("CapsuleShape3D_d7j46")
+
+[node name="RightLeg" type="PhysicalBone3D" parent="." unique_id=476015692]
+transform = Transform3D(0, -0.08506171, 0.99637574, 0.99953246, -0.030465493, -0.0026008731, 0.03057631, 0.99590987, 0.085021935, -0.12482093, 0.013536294, -0.5383616)
+joint_type = 3
+mass = 4.0
+bone_name = "mixamorig_RightLeg"
+joint_constraints/angular_limit_enabled = true
+joint_constraints/angular_limit_upper = 2.094395
+joint_constraints/angular_limit_lower = -0.08726645
+joint_constraints/angular_limit_bias = 0.3
+joint_constraints/angular_limit_softness = 0.9
+joint_constraints/angular_limit_relaxation = 1.0
+
+[node name="@CollisionShape3D@14" type="CollisionShape3D" parent="RightLeg" unique_id=514094044]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22831437, 0)
+shape = SubResource("CapsuleShape3D_1eqlo")
