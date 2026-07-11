@@ -36,6 +36,31 @@ var target_last_seen_time: float = 999.0
 var _aim_settle: float = 0.0
 ## Debounced eyes-on 0-1 (war-room decree): goals read THIS, never raw LOS.
 var contact_conf: float = 0.0
+## Animation intent debounce (0.25s) - band-edge flicker guard.
+var _last_intent: String = ""
+var _intent_ms: float = -1e9
+
+## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
+var _stuck_pos: Vector3 = Vector3.ZERO
+var _stuck_t: float = 0.0
+var _unstick_t: float = 0.0
+var _unstick_dir: float = 1.0
+
+func _update_unstick(delta: float) -> void:
+	if _unstick_t > 0.0:
+		_unstick_t -= delta
+		var side := global_transform.basis.x * _unstick_dir
+		velocity.x = side.x * move_speed
+		velocity.z = side.z * move_speed
+		return
+	_stuck_t += delta
+	if _stuck_t >= 1.0:
+		var wants_move: bool = Vector2(velocity.x, velocity.z).length() > 1.0
+		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
+			_unstick_t = 0.6
+			_unstick_dir = -_unstick_dir
+		_stuck_pos = global_position
+		_stuck_t = 0.0
 ## Goal dwell + contact clock (decree: ~1s reactive dwell, Class-A interrupts).
 var goal_timer: float = 99.0
 var _contact_time: float = 0.0
@@ -238,6 +263,15 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).play(_anim_override)
 		return
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral)
+	# 0.25s intent debounce (council spec): speed hovering at a band edge must
+	# not flicker the clip every frame. Fire/death always switch immediately.
+	var now: float = float(Time.get_ticks_msec())
+	if intent != _last_intent:
+		if intent != "fire" and intent != "death_forward" and now - _intent_ms < 250.0:
+			intent = _last_intent
+		else:
+			_last_intent = intent
+			_intent_ms = now
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
 
 
@@ -309,6 +343,7 @@ func _physics_process(delta: float) -> void:
 	# Execute every frame
 	_execute(capped_delta)
 
+	_update_unstick(capped_delta)
 	move_and_slide()
 
 

@@ -170,8 +170,17 @@ func _build_cover() -> void:
 		var pos := Vector3(_rng.randf_range(-19.0, 19.0), hgt * 0.5, _rng.randf_range(-19.0, 19.0))
 		if Vector2(pos.x, pos.z).length() < 4.0:
 			continue  # keep the middle open
+		# Min spacing (Caleb: units getting stuck) - overlapping rotated boxes
+		# made wedge pockets that pin capsules.
+		var crowded: bool = false
+		for existing in _cover_spots:
+			if Vector2(pos.x - existing.x, pos.z - existing.z).length() < 3.5:
+				crowded = true
+				break
+		if crowded:
+			continue
 		var b := _cover_box(Vector3(w, hgt, d), pos, tints[idx])
-		b.rotation.y = _rng.randf_range(0.0, TAU)
+		b.rotation.y = float(_rng.randi() % 4) * PI * 0.5  # axis-aligned: no wedge corners
 		_cover_spots.append(pos)
 	# two hard blocks for real LOS breaks
 	_cover_box(Vector3(6.0, 3.0, 1.0), Vector3(-9.0, 1.5, 2.0), tints[3])

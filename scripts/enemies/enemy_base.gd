@@ -126,6 +126,31 @@ var d_uses_cover: bool = true
 var d_retreat_hp: float = 0.25
 var d_exposure_ramp: float = 2.5       # seconds of exposure to full accuracy (EnemyData)
 var contact_conf: float = 0.0          # debounced eyes-on 0-1 (goals read THIS, not raw LOS)
+var _last_intent: String = ""          # anim intent debounce (0.25s band-edge guard)
+var _intent_ms: float = -1e9
+
+## Stuck watchdog (Caleb: units wedging on cover collision): commanded to move
+## but not moving for ~1s -> sidestep for a beat. No navmesh required.
+var _stuck_pos: Vector3 = Vector3.ZERO
+var _stuck_t: float = 0.0
+var _unstick_t: float = 0.0
+var _unstick_dir: float = 1.0
+
+func _update_unstick(delta: float) -> void:
+	if _unstick_t > 0.0:
+		_unstick_t -= delta
+		var side := global_transform.basis.x * _unstick_dir
+		velocity.x = side.x * move_speed
+		velocity.z = side.z * move_speed
+		return
+	_stuck_t += delta
+	if _stuck_t >= 1.0:
+		var wants_move: bool = Vector2(velocity.x, velocity.z).length() > 1.0
+		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
+			_unstick_t = 0.6
+			_unstick_dir = -_unstick_dir  # alternate sides so corners release
+		_stuck_pos = global_position
+		_stuck_t = 0.0
 
 ## DESIGN 4.2 fairness (the exposure ramp, formerly dead code): x3.0 spread at
 ## fresh exposure, converging near ramp end via (1 - t^2) - the safe window
@@ -347,6 +372,14 @@ func _update_sprite() -> void:
 		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
 	var firing: bool = not can_fire and fire_timer < 0.12
 	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral)
+	# 0.25s intent debounce (council spec) - band-edge flicker guard.
+	var now: float = float(Time.get_ticks_msec())
+	if intent != _last_intent:
+		if intent != "fire" and intent != "death_forward" and now - _intent_ms < 250.0:
+			intent = _last_intent
+		else:
+			_last_intent = intent
+			_intent_ms = now
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
 
 
@@ -416,6 +449,7 @@ func _physics_process(delta: float) -> void:
 	# Execute movement and aiming every frame (smooth)
 	_execute(capped_delta)
 
+	_update_unstick(capped_delta)
 	move_and_slide()
 
 

@@ -270,7 +270,9 @@ func play(clip: String, restart: bool = false) -> bool:
 		if clip == _current_clip and not restart:
 			return true
 	_current_clip = clip
-	_anim.play(clip)
+	# 0.18s crossfade: hard cuts between clips read as pops/odd transitions
+	# (Caleb). Deaths/one-shots blend in too - it only smooths the seam.
+	_anim.play(clip, 0.18)
 	return true
 
 
