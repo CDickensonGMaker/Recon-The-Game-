@@ -6,14 +6,14 @@
 script = ExtResource("1")
 id = "shotgun"
 display_name = "Ithaca 37"
-description = "12-gauge trench pump. Eight balls of 00 buck - a wall of lead to ten meters, a suggestion past twenty. Point-blank, RECON rated it 2d100."
+description = "12-gauge slug gun. One massive lead slug - devastating to 70 meters, a freight train with a bead on it. The execution weapon."
 firing_mode = 2
 fire_rate = 70.0
 magazine_size = 5
 reload_time = 3.2
-base_damage = 20
+base_damage = 100
 damage_type = 0
-pellet_count = 8
+pellet_count = 1
 pellet_spread_deg = 5.5
 base_spread = 1.2
 ads_spread_mult = 0.5

@@ -16,7 +16,7 @@ const EXPECTED := {
 	"ak47": 22, "sks": 22, "rpd": 22,
 	"ppsh41": 17, "thompson": 17, "m1911": 11, "mosin": 32,
 	"m79": 44, "m26_grenade": 55, "m72_law": 72, "rpg2": 62, "rpg7": 73,
-	"shotgun": 20,  # PER PELLET x8 (ADR-016 Amendment A; Caleb retune 2026-07-10)
+	"shotgun": 100,  # SLUG - single 100-damage round (Summoner devastation decree)
 }
 ## Retired by ADR-016 - loading one of these is a FAIL.
 const RETIRED := ["mp40", "kar98k"]
@@ -86,6 +86,9 @@ func _run() -> void:
 	for wid: String in EXPECTED.keys():
 		if wid in ["m79", "m26_grenade", "m72_law", "rpg2", "rpg7"]:
 			continue  # explosives resolve through AOE, not a torso ray
+		if wid == "shotgun":
+			continue  # the slug SHOULD end you (Summoner devastation decree) -
+			          # the Mosin guard is for standard rifles only
 		if int(float(EXPECTED[wid]) * 2.0) >= 100:
 			print("FAIL: %s one-shots the player's torso (the old Mosin bug class)" % wid)
 			failures += 1

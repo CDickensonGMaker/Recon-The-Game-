@@ -80,9 +80,13 @@ Shotguns fire `pellet_count` rays per trigger pull with `base_damage` PER PELLET
 aim-space variance (same class as the existing spread cone), NOT a damage roll — determinism holds
 per pellet. Damage aggregates per target+zone into one hit event so locational multipliers and the
 GORE_WORKFLOW single-hit thresholds behave. Record: `war_room/quick_2026-07-10_shotgun_pellets.md`.
-**Summoner retune (same day, bench-tested):** 8 × **20** (was 13), full damage to **70m**, falloff to
-×0.45 at 110m — "damage a lot higher, drop off after 70m." Point-blank sum 160; range attrition still
-emergent from the 5.5° cone (few pellets connect past mid-range regardless of the damage curve).
+**Summoner retune (same day, bench-tested):** full damage to **70m**, falloff to ×0.45 at 110m —
+"damage a lot higher, drop off after 70m." Range attrition still emergent from the 5.5° cone.
+**Summoner devastation decree (final form, same day): the Ithaca fires SLUGS** — `pellet_count = 1`,
+flat **100** per round (torso ×2 = 200: one round ends anything to 70m). Matches the tabletop's
+2d100 point-blank spirit (~101 avg) as a single freight-train projectile. The pellet-cluster
+machinery (Amendment A above) stays in WeaponData for future buckshot variants; the probe's
+one-shot-torso guard exempts the shotgun by design — it is the execution weapon.
 
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
