@@ -63,7 +63,7 @@ The **mechanical gunplay loop is real and good**: input → hitscan with travel-
 | UI | ~30% | menus only |
 | Audio | ~10% | 1 real ambience bed; all SFX procedural placeholders |
 
-**Cleanup lever:** ~145MB redundant in characters/emplacements (loose 8.6MB source sheets ×10 duplicating embedded copies + orphaned GLBs). Bead ar5c quantified.
+**Cleanup lever (CORRECTED same-day):** the loose 8.6MB sheets ×10 are NOT redundant — the GLB imports reference them as external texture dependencies (purge attempted, test_anim_library went red, restored, probe green). The real savings is ar5c: crop/downscale the 3600×5700 faction sheets in Blender + re-export (target <2MB/character). Orphaned variant GLBs stay pending lfdg re-pointing.
 
 ## 5. SHIPPED TODAY (this session)
 
