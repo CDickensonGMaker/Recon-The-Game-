@@ -14,7 +14,8 @@ ALLOW = ("LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
          "RightShoulder", "RightArm", "RightForeArm", "RightHand")
 
 argv = sys.argv[sys.argv.index('--') + 1:]
-with open(argv[0]) as f:
+# utf-8-sig: PowerShell writes BOMs; plain utf-8 json.load dies on them
+with open(argv[0], encoding='utf-8-sig') as f:
     spec = json.load(f)
 
 # singular (base_clip/new_clip) or batch ("clips": [{base, new}..]) spec
