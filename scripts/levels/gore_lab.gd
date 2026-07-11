@@ -120,7 +120,9 @@ func _spawn_player() -> void:
 	var scene: PackedScene = load("res://scenes/player/player.tscn")
 	player = scene.instantiate() as CharacterBody3D
 	add_child(player)
-	player.global_position = Vector3(0, 1.0, 8.0)
+	# spawn BEHIND the big hard block at (-9, 2) - 3m of cover between you and
+	# the enemy side; step out to engage
+	player.global_position = Vector3(-9.0, 1.0, 4.5)
 	GameManager.player = player
 
 	# The REAL game HUD (same wiring as game_world.gd) - the lab must read
