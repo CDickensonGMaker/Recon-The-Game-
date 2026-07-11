@@ -44,6 +44,9 @@ var is_sprinting: bool = false
 var is_prone: bool = false
 var lean_amount: float = 0.0
 var current_speed: float = WALK_SPEED
+## External movement multiplier - dragging a casualty (0.5 per design: saving
+## a man SLOWS you), carrying loads, future encumbrance. Systems set/restore it.
+var external_speed_mult: float = 1.0
 
 ## Stamina (W33): sprint drains, St scales the pool, winded blocks sprint.
 const PRONE_HEIGHT: float = 0.5
@@ -682,6 +685,9 @@ func _handle_movement(delta: float) -> void:
 	# Apply lean speed penalty
 	if abs(lean_amount) > 0.1:
 		current_speed *= LEAN_MOVE_MULT
+
+	# External systems (dragging a casualty, carrying): last so it stacks.
+	current_speed *= external_speed_mult
 
 	if direction:
 		velocity.x = lerpf(velocity.x, direction.x * current_speed, delta * ACCELERATION)

@@ -60,8 +60,9 @@ func _init() -> void:
 		# WEIGHT (Caleb: "bounces around crazy"): heavier bodies, strong damping,
 		# zero bounce - a corpse thuds and settles, it does not pinball.
 		pb.mass = float(spec[3]) * 1.6
-		pb.linear_damp = 1.2
-		pb.angular_damp = 4.0
+		pb.linear_damp = 2.2
+		pb.angular_damp = 7.0
+		pb.can_sleep = true
 		var pmat := PhysicsMaterial.new()
 		pmat.friction = 1.2
 		pmat.bounce = 0.0

@@ -135,6 +135,25 @@ func stop_anim() -> void:
 		_anim.pause()
 
 
+## Freeze the skeleton at the LAST frame of a clip - e.g. the end of a death
+## anim = a flat, lying pose. Used to spawn casualties already down, and as
+## the launch pose for a calm (non-exploding) ragdoll.
+func pose_end_of(clip: String) -> bool:
+	if _anim == null or not _anim.has_animation(clip):
+		return false
+	_anim.play(clip)
+	_anim.seek(maxf(0.0, _anim.get_animation(clip).length - 0.01), true)
+	_anim.pause()
+	_current_clip = clip
+	return true
+
+
+## Park a live ragdoll (stop solving; pose stays). wake_ragdoll() resumes.
+func sleep_ragdoll() -> void:
+	if _ragdoll_sim != null and _ragdoll_sim.is_simulating_physics():
+		_ragdoll_sim.physical_bones_stop_simulation()
+
+
 # ---- ragdoll (research/ragdoll.md: shared 13-bone physical skeleton) --------
 ## One authored PhysicalBoneSimulator3D scene fits every Mixamo rig. Mode A:
 ## stop the clip, start the sim on the current pose, shove the spine. Capped

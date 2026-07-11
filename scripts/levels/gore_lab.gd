@@ -150,8 +150,7 @@ func _spawn_drag_body() -> void:
 ## the event before the lab would see it. Polling cannot be shadowed.
 func _try_toggle_grab() -> void:
 	if _drag_bone != null:
-		_drag_bone = null
-		print("[GORE LAB] released the body")
+		_release_grip("released the body")
 		return
 	# grab the nearest ragdolled body's hips within reach
 	var best: PhysicalBone3D = null
@@ -169,7 +168,9 @@ func _try_toggle_grab() -> void:
 			b.model.wake_ragdoll()
 	if best != null:
 		_drag_bone = best
-		print("[GORE LAB] grabbed the body - walk to drag, [F] to release")
+		if player != null:
+			player.set("external_speed_mult", 0.5)  # saving a man SLOWS you (design)
+		print("[GORE LAB] grabbed the body - walk to drag (50 pct speed), [F] to release")
 
 
 func _on_dummy_died() -> void:
@@ -206,17 +207,23 @@ func _physics_process(_delta: float) -> void:
 	if _drag_bone == null:
 		return
 	if not is_instance_valid(_drag_bone) or player == null:
-		_drag_bone = null
+		_release_grip("grip lost")
 		return
 	# pull the hips toward a point at your heels - the body trails as you walk
 	var anchor: Vector3 = player.global_position + (-player.global_transform.basis.z) * 0.9
 	anchor.y = _drag_bone.global_position.y * 0.5 + (player.global_position.y - 0.7) * 0.5
 	var to_anchor: Vector3 = anchor - _drag_bone.global_position
 	if to_anchor.length() > 3.5:
-		_drag_bone = null  # yanked free
-		print("[GORE LAB] grip lost")
+		_release_grip("grip lost - yanked too hard")
 		return
 	_drag_bone.linear_velocity = (to_anchor * 6.0).limit_length(4.5)
+
+
+func _release_grip(reason: String) -> void:
+	_drag_bone = null
+	if is_instance_valid(player):
+		player.set("external_speed_mult", 1.0)
+	print("[GORE LAB] %s" % reason)
 
 
 func _process(_delta: float) -> void:
@@ -231,7 +238,7 @@ func _process(_delta: float) -> void:
 			removed = ", ".join(r)
 		hp_txt = "%d/%d" % [dummy.hp, GoreDummy.MAX_HP]
 		clip = dummy.current_clip()
-	var drag_txt: String = "DRAGGING - [F] release" if _drag_bone != null else "[F] near a downed body: grab + drag"
+	var drag_txt: String = "DRAGGING (50% speed) - [F] release" if _drag_bone != null else "[F] near a downed body: grab + drag (slows you 50%)"
 	_hud.text = "GORE LAB - us_grunt_v2 rig verification
 M16: ARMS / LEGS -> limb pops | HEAD -> kill + helmet flies | frag [3] -> multi-gib
 HP %s   removed: %s   clip: %s   dummy #%d

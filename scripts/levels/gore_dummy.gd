@@ -65,8 +65,18 @@ func _ready() -> void:
 		_dead = true
 		CombatManager.unregister_enemy(self)
 		_build_hitzones()
-		# collapse where he stands - the drag-test casualty
-		model.start_ragdoll.call_deferred(Vector3(0.2, 0, 0.1), 1.0)
+		# FLAT casualty (Caleb): freeze at the end of a death clip (a lying
+		# pose), ragdoll gently FROM that pose, then park the solver - a calm
+		# flat body, not a crumpled heap. Grabbing him wakes the physics.
+		for c in model.clip_names():
+			if String(c).begins_with("death"):
+				model.pose_end_of(String(c))
+				break
+		model.start_ragdoll.call_deferred(Vector3(0.05, 0, 0.05), 0.3)
+		var settle: SceneTreeTimer = get_tree().create_timer(1.2)
+		settle.timeout.connect(func() -> void:
+			if is_instance_valid(self) and model != null:
+				model.sleep_ragdoll())
 		return
 
 	if not model.play(PLAYLIST[0]):
@@ -278,7 +288,7 @@ func _die(dir: Vector3, explosive: bool = false) -> void:
 	CombatManager.unregister_enemy(self)
 	var ragdolled: bool = false
 	if model != null and (explosive or _removed.is_empty()):
-		ragdolled = model.start_ragdoll(dir, 12.0 if explosive else 6.0)
+		ragdolled = model.start_ragdoll(dir, 9.0 if explosive else 4.5)
 	if not ragdolled and model != null:
 		var deaths: Array[String] = []
 		for c in model.clip_names():
