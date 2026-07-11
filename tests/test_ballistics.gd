@@ -9,7 +9,7 @@ extends Node
 
 const WEAPONS := [
 	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41", "mosin",
-	"m1911", "thompson", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
+	"m1911", "thompson", "shotgun", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
 ]
 
 

@@ -138,6 +138,13 @@ func _spawn_player() -> void:
 	# Explosion-gib testing needs ordnance: top the player up well past field load.
 	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
 
+	# Shotgun on slot [2] for the pellet-cluster bench (Caleb is building the
+	# real model; kar98k viewmodel stands in until then).
+	var shotty: WeaponData = load("res://data/weapons/shotgun.tres")
+	if shotty != null:
+		weapon_holder.secondary_weapon = shotty
+		weapon_holder.secondary_ammo = [shotty.magazine_size, 8]
+
 
 func _spawn_dummy() -> void:
 	dummy = GoreDummy.new()

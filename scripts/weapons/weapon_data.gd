@@ -19,6 +19,12 @@ extends Resource
 ## Values derived from the retired RECON dice averages (e.g. 5d10 -> 28).
 @export var base_damage: int = 20
 @export var damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL
+## ADR-016 amendment (shotguns): >1 = fire this many rays per trigger pull,
+## base_damage is PER PELLET, and damage aggregates per target+zone so
+## locational rules and gore thresholds see one hit event. Spread is spatial
+## variance (like recoil), not a damage roll — determinism holds per pellet.
+@export var pellet_count: int = 1
+@export var pellet_spread_deg: float = 5.5
 
 @export_group("Accuracy")
 @export var base_spread: float = 2.0  ## Degrees of spread at hip

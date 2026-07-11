@@ -402,7 +402,11 @@ func _fire_shot() -> void:
 	# consequence is delayed by the round's flight time (W36: projectile_speed is
 	# no longer dead data). Favor-the-shooter: at 735 m/s a 100 m hit lands ~136ms
 	# after the flash, which is why long-range duels feel like duels.
-	if result:
+	# Pellet weapons resolve through the cluster path instead - the main ray
+	# above still provided the feedback line (tracer/impact/blood).
+	if current_weapon.pellet_count > 1:
+		_fire_pellet_cluster(origin, aim_dir, right, up)
+	elif result:
 		var travel: float = origin.distance_to(result.position) / maxf(1.0, current_weapon.projectile_speed)
 		if travel > 0.03:
 			var hit: Dictionary = result.duplicate()
@@ -437,6 +441,70 @@ func _fire_shot() -> void:
 
 	weapon_fired.emit()
 	magazine_changed.emit(current_ammo, spare_magazines)
+
+
+## PELLET CLUSTER (ADR-016 amendment / war-room quick 2026-07-10): N rays in a
+## cone; base_damage is per pellet; damage AGGREGATES per target+zone so the
+## locational grammar and the gore single-hit thresholds (limb-off >= ~45) see
+## one hit event - point-blank buckshot takes the arm, rim pellets sting.
+func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up: Vector3) -> void:
+	var space_state := get_world_3d().direct_space_state
+	var cone: float = deg_to_rad(current_weapon.pellet_spread_deg)
+	var pellet_dmg: int = current_weapon.get_damage()
+	var buckets: Dictionary = {}  # instance_id|zone -> [target, mult, zone, hits, dist_sum]
+	var fx_budget: int = 4
+	for _i in range(current_weapon.pellet_count):
+		var px := randf_range(-cone, cone)
+		var py := randf_range(-cone, cone)
+		var dir: Vector3 = (aim_dir + right * tan(px) + up * tan(py)).normalized()
+		var query := PhysicsRayQueryParameters3D.create(
+			origin, origin + dir * current_weapon.max_range, 1 | 4 | 64)
+		query.collide_with_areas = true
+		query.exclude = [controller]
+		var r := space_state.intersect_ray(query)
+		if not r:
+			continue
+		var target: Node = null
+		var mult: float = 1.0
+		var zone: String = "BODY"
+		var col: Object = r.collider
+		if col is Hitzone:
+			var hz := col as Hitzone
+			target = hz.owner_entity
+			mult = hz.get_damage_multiplier()
+			zone = hz.get_zone_name()
+		elif col is Node and (col as Node).is_in_group("enemies"):
+			target = col as Node
+		if target != null and is_instance_valid(target) and target.has_method("take_damage"):
+			var key := "%d|%s" % [target.get_instance_id(), zone]
+			if not buckets.has(key):
+				buckets[key] = [target, mult, zone, 0, 0.0]
+			var b: Array = buckets[key]
+			b[3] = int(b[3]) + 1
+			b[4] = float(b[4]) + origin.distance_to(r.position)
+			if fx_budget > 0:
+				GunFX.blood(get_tree().current_scene, r.position, r.normal, dir, target)
+				fx_budget -= 1
+		elif fx_budget > 0:
+			GunFX.impact(get_tree().current_scene, r.position, r.normal, _surface_is_hard(col))
+			fx_budget -= 1
+	for key: String in buckets.keys():
+		var b: Array = buckets[key]
+		var target: Node = b[0]
+		var n: int = int(b[3])
+		var avg_dist: float = float(b[4]) / maxf(1.0, float(n))
+		var falloff: float = current_weapon.damage_multiplier_at(avg_dist)
+		var final_damage: int = maxi(1, int(float(pellet_dmg * n) * falloff * float(b[1])))
+		var zone: String = str(b[2])
+		var travel: float = avg_dist / maxf(1.0, current_weapon.projectile_speed)
+		var wd: WeaponData = current_weapon
+		var atk: Node = controller
+		if travel > 0.03:
+			get_tree().create_timer(travel, false).timeout.connect(func() -> void:
+				if is_instance_valid(target) and target.has_method("take_damage"):
+					target.take_damage(final_damage, wd.damage_type, atk, zone))
+		else:
+			target.take_damage(final_damage, wd.damage_type, atk, zone)
 
 
 ## Apply damage from a resolved raycast. Split out of _fire_shot so it can be

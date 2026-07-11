@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://dshotgun12ga01"]
+
+[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "shotgun"
+display_name = "Ithaca 37"
+description = "12-gauge trench pump. Eight balls of 00 buck - a wall of lead to ten meters, a suggestion past twenty. Point-blank, RECON rated it 2d100."
+firing_mode = 2
+fire_rate = 70.0
+magazine_size = 5
+reload_time = 3.2
+base_damage = 13
+damage_type = 0
+pellet_count = 8
+pellet_spread_deg = 5.5
+base_spread = 1.2
+ads_spread_mult = 0.5
+recoil_vertical = 3.4
+recoil_horizontal = 0.9
+ads_fov = 65.0
+ads_move_mult = 0.6
+effective_range = 12.0
+max_range = 28.0
+min_damage_mult = 0.5
+projectile_speed = 400.0
+projectile_data_path = ""
+recoil_first_shot_mult = 1.2
+recoil_climb_per_shot = 0.0
+recoil_climb_max = 1.0
+recoil_recovery = 9.0
+fire_volume_db = 2.0
+fire_pitch_variance = 0.05
+audio_max_distance = 380.0
+audio_unit_size = 18.0
+is_supersonic = false
+model_path = "res://scenes/weapons/kar98k_viewmodel.tscn"
+viewmodel_scale = 1.0
+hip_position = Vector3(0.000, 0.000, 0.000)
+ads_position = Vector3(0.000, 0.050, 0.080)
+hip_rotation = Vector3(4.0, 0.0, 0.0)
+ads_rotation = Vector3(4.0, 0.0, 0.0)
