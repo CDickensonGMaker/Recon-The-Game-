@@ -20,5 +20,5 @@ retreats_when_hurt = false
 courage = 0.65
 exposure_ramp_time = 2.2
 sprite_faction = "Vietcong and NVA"
-sprite_unit = "vc5_nva"
+sprite_unit = "vc_guerilla_ppsh"
 sprite_weapon = "ppsh41"

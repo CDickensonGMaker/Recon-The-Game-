@@ -14,15 +14,26 @@ Engine contract (same as export_units_gltf.py — do not drift):
 Never saves the .blend.
     blender -b art_source/characters/base_psx/vc_guerilla_v2.blend -P tools/export_vc_guerilla.py
 """
-import bpy, os, math
+import bpy, os, math, sys
 from mathutils import Vector, Matrix, Quaternion
 
-OUT = r"C:\Users\caleb\RECONgame\assets\models\characters\vc_guerilla.glb"
+# variant args:  -- <gun_world_object> <out_name> <face_cell>
+# defaults reproduce the AK guerilla. All four guns live in the master blend;
+# the chosen one ships, the others are deleted from the export copy.
+argv = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
+GUN = argv[0] if argv else 'ak47_world'
+OUTNAME = argv[1] if len(argv) > 1 else 'vc_guerilla'
+FACE = argv[2] if len(argv) > 2 else 'vnm_mid'
+
+ALL_GUNS = ["ak47_world", "mosin_world", "ppsh_world", "rpd_world"]
+FACES_V2 = {"vnm_older": (6,6,90,126), "vnm_mid": (102,6,186,126), "vnm_young": (198,6,282,126),
+            "vnm_woman": (300,10,378,120), "nva_1": (102,390,186,510), "nva_2": (198,390,282,510)}
+
+OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 # Set False once the engine plays clips from the shared anim_library.glb —
 # the export then ships meshes/skeleton/sockets only and takes seconds.
 EXPORT_ANIMATIONS = True
-GUN = "ak47_world"
 RIG = "PSXRig"
 SOCKETS = {
     'HandR': 'mixamorig:RightHand',
@@ -35,15 +46,48 @@ sc = bpy.context.scene
 rig = bpy.data.objects[RIG]
 gun = bpy.data.objects[GUN]
 
-# Authoring-only strays that must never ship. NOTE: in the VC file Base_Human
-# IS the body (unlike the grunt file where it was an excluded duplicate).
-EXCLUDE = []
-print("=== 0. drop authoring-only objects ===", flush=True)
+# Drop the guns this variant doesn't carry (export copy only).
+EXCLUDE = [g for g in ALL_GUNS if g != GUN]
+print(f"=== 0. variant {OUTNAME}: gun={GUN} face={FACE} ===", flush=True)
 for name in EXCLUDE:
     o = bpy.data.objects.get(name)
     if o:
         bpy.data.objects.remove(o, do_unlink=True)
-print(f"  removed {len(EXCLUDE)} (export copy only)", flush=True)
+    a = bpy.data.actions.get(f"{name}_visibility_reel")
+    if a:
+        a.use_fake_user = False
+        bpy.data.actions.remove(a)
+print(f"  removed {len(EXCLUDE)} other guns", flush=True)
+
+# per-variant face: remap the face-patch polys onto the chosen atlas cell
+px0, py0, px1, py1 = FACES_V2[FACE]
+_AW, _AH = 576.0, 640.0
+_u0, _u1 = px0/_AW, px1/_AW
+_vt, _vb = 1 - py0/_AH, 1 - py1/_AH
+fam = bpy.data.materials.get("face_atlas_mat")
+for hname in ("vc_head", "grunt_head"):
+    ho = bpy.data.objects.get(hname)
+    if not ho or fam is None:
+        continue
+    hme = ho.data
+    fam_idx = next((i for i, s in enumerate(ho.material_slots) if s.material == fam), None)
+    if fam_idx is None or not hme.uv_layers:
+        continue
+    fps = [p for p in hme.polygons if p.material_index == fam_idx]
+    if not fps:
+        continue
+    xs = [hme.vertices[i].co.x for p in fps for i in p.vertices]
+    zs = [hme.vertices[i].co.z for p in fps for i in p.vertices]
+    X0, X1, Z0, Z1 = min(xs), max(xs), min(zs), max(zs)
+    uvl = hme.uv_layers[0]
+    for p in fps:
+        for li in range(p.loop_start, p.loop_start + p.loop_total):
+            c = hme.vertices[hme.loops[li].vertex_index].co
+            a_ = (c.x - X0) / (X1 - X0)
+            b_ = (c.z - Z0) / (Z1 - Z0)
+            uvl.data[li].uv = (_u0 + a_*(_u1-_u0), _vb + b_*(_vt - _vb))
+    hme.update()
+    print(f"  {hname}: face -> {FACE}", flush=True)
 
 # ---------------------------------------------------------------- actions
 print("=== 1. reduce to reel actions, strip _fixed ===", flush=True)
