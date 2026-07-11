@@ -42,6 +42,7 @@ var _cand_intent: String = ""
 var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9
 var _cover_pose_until_ms: float = -1e9  # T1.5a: min hold before hold/peek re-pick
+var _hitzone_sync: Array = []           # [[hz, bone_idx, offset]..] - zones ride bones
 
 ## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
 var _stuck_pos: Vector3 = Vector3.ZERO
@@ -290,45 +291,18 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
+## Bone-measured, bone-synced zones on model units (beads 90gj/yd83).
+## Allies use player hurtbox layer 32 (enemies shoot at them too); no GUT
+## (ally damage has no gut handling - BODY spans hips to neck instead).
 func _setup_hurtbox() -> void:
-	_create_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
-	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.1, 0), 0.3, 0.6)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.35, 1.0, 0), 0.12, 0.5)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.35, 1.0, 0), 0.12, 0.5)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.12, 0.4, 0), 0.12, 0.8)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.12, 0.4, 0), 0.12, 0.8)
-
-
-func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, height: float = -1.0) -> void:
-	var hitzone := Hitzone.new()
-	hitzone.zone_type = zone_type
-	hitzone.set_owner_entity(self)
-
-	var col := CollisionShape3D.new()
-	if height > 0:
-		var shape := CapsuleShape3D.new()
-		shape.radius = radius
-		shape.height = height
-		col.shape = shape
-	else:
-		var shape := SphereShape3D.new()
-		shape.radius = radius
-		col.shape = shape
-
-	col.position = pos
-	hitzone.add_child(col)
-
-	# Allies use player hurtbox layer (enemies shoot at them too)
-	hitzone.collision_layer = 32  # Layer 6: player_hurtbox
-	hitzone.collision_mask = 16   # Layer 5: enemy_hitbox
-
-	hitzone.add_to_group("ally_hurtbox")
-	hitzone.add_to_group("hitzone")
-
-	add_child(hitzone)
+	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
+	_hitzone_sync = HitzoneBuilder.build(self, ma, 32, 16, ["ally_hurtbox", "hitzone"], false)
 
 
 func _physics_process(delta: float) -> void:
+	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
+	if _visual_is_model:
+		HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 	if current_state == Enums.AIState.DEAD:
 		return
 

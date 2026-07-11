@@ -130,6 +130,7 @@ var _last_intent: String = ""          # committed anim intent (stability filter
 var _cand_intent: String = ""          # challenger intent + when it started winning
 var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9      # T1.3: fire pose follows the SHOT, 350ms
+var _hitzone_sync: Array = []          # [[hz, bone_idx, offset]..] - zones ride bones
 
 ## Stuck watchdog (Caleb: units wedging on cover collision): commanded to move
 ## but not moving for ~1s -> sidestep for a beat. No navmesh required.
@@ -364,8 +365,8 @@ func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
 	sprite_actor.set_facing(facing_dir)
-	if current_state == Enums.AIState.DEAD or is_surrendered:
-		return  # the death / surrender clip was already latched; do not restart it
+	if current_state == Enums.AIState.DEAD or is_surrendered or is_downed:
+		return  # the death / surrender / downed clip was latched; do not restart it
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
 	var lateral: float = 0.0
@@ -396,42 +397,12 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
+## Bone-measured, bone-synced zones on model units (beads 90gj/yd83); the
+## legacy static bands only for sprite/capsule units. HitzoneBuilder is the
+## single authority - do not hand-place zones here again.
 func _setup_hurtbox() -> void:
-	_create_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
-	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.3, 0), 0.3, 0.35)
-	_create_hitzone(Hitzone.ZoneType.GUT, Vector3(0, 0.9, 0), 0.28, 0.3)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.35, 1.0, 0), 0.12, 0.5)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.35, 1.0, 0), 0.12, 0.5)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.12, 0.4, 0), 0.12, 0.8)
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.12, 0.4, 0), 0.12, 0.8)
-
-
-func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, height: float = -1.0) -> void:
-	var hitzone := Hitzone.new()
-	hitzone.zone_type = zone_type
-	hitzone.set_owner_entity(self)
-
-	var col := CollisionShape3D.new()
-	if height > 0:
-		var shape := CapsuleShape3D.new()
-		shape.radius = radius
-		shape.height = height
-		col.shape = shape
-	else:
-		var shape := SphereShape3D.new()
-		shape.radius = radius
-		col.shape = shape
-
-	col.position = pos
-	hitzone.add_child(col)
-
-	hitzone.collision_layer = 64
-	hitzone.collision_mask = 16
-
-	hitzone.add_to_group("enemy_hurtbox")
-	hitzone.add_to_group("hitzone")
-
-	add_child(hitzone)
+	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
+	_hitzone_sync = HitzoneBuilder.build(self, ma, 64, 16, ["enemy_hurtbox", "hitzone"], true)
 
 
 ## ============================================
@@ -439,7 +410,24 @@ func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, h
 ## ============================================
 
 func _physics_process(delta: float) -> void:
+	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
+	if _visual_is_model:
+		HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 	if current_state == Enums.AIState.DEAD:
+		return
+	if is_downed:
+		# Dying, not dead: no AI, no movement - just the bleed clock and the
+		# aliveness signals (pool grows, he stays audible).
+		var down_dt: float = minf(delta, 0.066)
+		_downed_bleed_s -= down_dt
+		_downed_fx_s -= down_dt
+		if _downed_fx_s <= 0.0:
+			_downed_fx_s = randf_range(4.0, 9.0)
+			GunFX.blood_pool(get_tree().current_scene, global_position)
+			NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 15.0)
+			VOManager.play_enemy("pain", self)
+		if _downed_bleed_s <= 0.0:
+			_die()
 		return
 
 	# Cap delta for framerate independence (Quake 3 pattern)
@@ -1786,6 +1774,12 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, zone: String = "BODY") -> int:
 	if current_state == Enums.AIState.DEAD:
 		return 0
+	# FINISH verb: any further damage on a downed man is final.
+	if is_downed:
+		current_hp = 0
+		_credit_killer(attacker)
+		_die()
+		return amount
 	# Locational outcome (anti-sponge decree): a headshot is a headshot.
 	if zone == "HEAD":
 		amount = current_hp + 999
@@ -1853,7 +1847,18 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 	# Check death
 	if current_hp <= 0:
+		var overkill: int = -current_hp
 		current_hp = 0
+		# DOWN-NOT-DEAD v1 (bead 5iha): a barely-lethal hit can leave a man
+		# dying but not dead. Never on headshots (fatal is fatal), explosives,
+		# or the surrendered. Overkill margin weights the roll: 35% at zero
+		# margin, fading to 0 at 40+ overkill damage.
+		if zone != "HEAD" and not is_surrendered \
+				and _damage_type == Enums.DamageType.PHYSICAL:
+			var down_chance: float = clampf(0.35 * (1.0 - float(overkill) / 40.0), 0.0, 0.35)
+			if randf() < down_chance:
+				_become_downed()
+				return amount
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:
@@ -1941,16 +1946,71 @@ func apply_stagger(power: float) -> void:
 		_change_state(Enums.AIState.SUPPRESSED)
 
 
+## DOWN-NOT-DEAD v1 (bead 5iha, research sec 9): dying, not dead. IRON LAW:
+## he never re-fights. Bleeds out in 45-90s unless SECURED; further damage =
+## the FINISH verb. Growing blood pool + audible pain are the honest
+## aliveness signals that separate him from a corpse.
+var is_downed: bool = false
+var _downed_bleed_s: float = 0.0
+var _downed_fx_s: float = 0.0
+var _died_emitted: bool = false
+
+
+func _become_downed() -> void:
+	is_downed = true
+	current_hp = 1
+	_downed_bleed_s = randf_range(45.0, 90.0)
+	_downed_fx_s = randf_range(1.5, 4.0)
+	weapon_data = null
+	target = null
+	contact_conf = 0.0
+	velocity = Vector3.ZERO
+	_release_cover()
+	# Out of the FIGHT immediately: squads stop counting him, allies stop
+	# shooting (is_dead() true), wave counters advance.
+	CombatManager.unregister_enemy(self)
+	if not _died_emitted:
+		_died_emitted = true
+		died.emit(self)
+	if sprite_actor != null and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("laying_breathless", true)
+	elif sprite_actor != null:
+		sprite_actor.play(SpriteStateMap.clip_for(false, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
+	VOManager.play_enemy("pain", self)
+
+
+## SECURE verb: stabilize + capture a downed man. Feeds the same intel /
+## capture economy as surrender (W63).
+func secure() -> bool:
+	# NOTE: is_dead() is true while downed (by design) - check the real state.
+	if not is_downed or current_state == Enums.AIState.DEAD:
+		return false
+	_downed_bleed_s = 9e9
+	add_to_group("surrendered")
+	add_to_group("captured")
+	return true
+
+
 func _die() -> void:
 	GunFX.blood_pool(get_tree().current_scene, global_position)  # kill pool spreads under him
 	_change_state(Enums.AIState.DEAD)
 	_release_cover()
 	CombatManager.unregister_enemy(self)
-	died.emit(self)
+	if not _died_emitted:
+		_died_emitted = true
+		died.emit(self)
 
 	set_physics_process(false)
 	collision_layer = 0
 	collision_mask = 0
+
+	if is_downed:
+		# He was already lying in laying_breathless - do not whip a standing
+		# death clip over the pose. The pool and stillness read the change.
+		is_downed = false
+		add_to_group("lootable_corpses")
+		get_tree().create_timer(45.0).timeout.connect(queue_free)
+		return
 
 	if sprite_actor != null:
 		# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so the
@@ -2008,7 +2068,9 @@ func try_surrender() -> bool:
 
 
 func is_dead() -> bool:
-	return current_state == Enums.AIState.DEAD
+	# Downed counts: he is out of the fight (targeting drops him, waves count
+	# him) even though the body is warm - mirrors the player's is_dead().
+	return current_state == Enums.AIState.DEAD or is_downed
 
 
 ## ============================================
