@@ -157,7 +157,10 @@ const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe"
 ## to PERSISTENT intents (retreat/crippled/cover/surrender) - play-once meant
 ## a retreating man froze mid-stride and slid: THE gliding statue.
 ## laying_breathless stays one-shot deliberately.
-const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing"]
+## sitting/cockpit_idle: seated Huey occupants (SeatSystem §7) - play-once froze
+## them into statues after ~2s; looping gives the idle sway for free.
+const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing",
+	"sitting", "cockpit_idle"]
 
 func _apply_loop_modes() -> void:
 	if _anim == null:
@@ -203,7 +206,7 @@ func _apply_gib_rig_contract() -> void:
 		var mesh_name := String(mi.name)
 		if mesh_name.ends_with("_joined"):
 			has_body = true
-		elif mesh_name.begins_with("grunt_"):
+		elif mesh_name.begins_with("grunt_") or mesh_name.begins_with("head_frag_"):
 			has_donors = true
 		elif not mesh_name.begins_with("cap_"):
 			has_body = true
@@ -215,7 +218,7 @@ func _apply_gib_rig_contract() -> void:
 		if mi == null:
 			continue
 		var nm := String(mi.name)
-		if nm.begins_with("grunt_") and not nm.ends_with("_joined"):
+		if (nm.begins_with("grunt_") or nm.begins_with("head_frag_")) and not nm.ends_with("_joined"):
 			mi.visible = false
 			hidden += 1
 	if hidden > 0:

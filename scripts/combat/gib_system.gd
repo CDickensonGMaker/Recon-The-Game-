@@ -109,6 +109,110 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 	return spawned
 
 
+## ---- HEAD BURST variant (bead rc55) -----------------------------------------
+## If the rig ships cell-fractured head_frag_* donor meshes (Blender: 6-12
+## chunks at rest pose, interiors on gore_tex), the skull bursts into flying
+## fragments instead of popping as one piece. Occasional by design - the
+## CALLER rolls the dice (~25% on heavy fatal headshots). Returns false when
+## the rig has no fragments yet, so callers fall back to dismember("HEAD").
+const MAX_LIVE_FRAGS: int = 16
+static var _live_frags: Array[Node] = []
+
+
+static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent: Node) -> bool:
+	if model == null or not model.has_visual():
+		return false
+	var skel: Skeleton3D = model.skeleton()
+	var root: Node3D = model.instance_root()
+	if skel == null or root == null:
+		return false
+	var frags: Array[MeshInstance3D] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		var mi := n as MeshInstance3D
+		if mi != null and mi.mesh != null and String(mi.name).begins_with("head_frag_"):
+			frags.append(mi)
+	if frags.is_empty():
+		return false
+
+	# Collapse the head chain exactly like dismember("HEAD").
+	var spec: Dictionary = REGIONS["HEAD"]
+	var bone_idx: int = skel.find_bone(str(spec["bone"]))
+	if bone_idx < 0:
+		return false
+	skel.set_bone_pose_scale(bone_idx, Vector3.ONE * 0.0001)
+	var sever_mod: SeveredBonesModifier = skel.find_child("SeveredBones", false, false) as SeveredBonesModifier
+	if sever_mod == null:
+		sever_mod = SeveredBonesModifier.new()
+		sever_mod.name = "SeveredBones"
+		skel.add_child(sever_mod)
+	sever_mod.sever(bone_idx)
+	skel.move_child(sever_mod, skel.get_child_count() - 1)
+
+	# The one-piece head donor stays hidden - burst and pop are exclusive.
+	for mesh_name: String in spec["meshes"]:
+		var solid: MeshInstance3D = root.find_child(str(mesh_name), true, false) as MeshInstance3D
+		if solid != null:
+			solid.visible = false
+
+	var pose_delta: Transform3D = skel.get_bone_global_pose(bone_idx) * skel.get_bone_global_rest(bone_idx).affine_inverse()
+	var gib_at: Transform3D = skel.global_transform * pose_delta
+	for f in frags:
+		f.visible = false
+		_spawn_frag(f.mesh, gib_at, hit_dir, gib_parent)
+	# Gear (helmet) flies as its own lighter piece.
+	for gear_name: String in spec["gear"]:
+		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
+		if gm != null and gm.mesh != null:
+			var gxf: Transform3D = gm.global_transform
+			gm.visible = false
+			_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.9, 3.0, gib_parent)
+	var stump: Vector3 = skel.global_transform * skel.get_bone_global_pose(bone_idx).origin
+	GunFX.blood(gib_parent, stump, -hit_dir.normalized(), hit_dir.normalized())
+	GunFX.blood(gib_parent, stump, Vector3.UP, hit_dir.normalized())
+	return true
+
+
+## Small fast fragment: sphere collider, radial spray, own FIFO so a burst
+## can't flush the body-part gib budget.
+static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node) -> void:
+	var body := RigidBody3D.new()
+	body.collision_layer = 0
+	body.collision_mask = 1
+	body.mass = 0.3
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	body.add_child(mi)
+	var aabb: AABB = mesh.get_aabb()
+	var cs := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = maxf(0.02, aabb.size.length() * 0.25)
+	cs.shape = sphere
+	cs.position = aabb.get_center()
+	body.add_child(cs)
+	parent.add_child(body)
+	body.global_transform = at
+	var radial := Vector3(randf() - 0.5, randf() * 0.7, randf() - 0.5).normalized()
+	body.linear_velocity = (dir.normalized() * 0.6 + radial).normalized() * randf_range(3.5, 7.5) + Vector3.UP * randf_range(1.0, 3.0)
+	body.angular_velocity = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 14.0
+	for i in range(_live_frags.size() - 1, -1, -1):
+		if not is_instance_valid(_live_frags[i]):
+			_live_frags.remove_at(i)
+	_live_frags.append(body)
+	while _live_frags.size() > MAX_LIVE_FRAGS:
+		var oldest: Variant = _live_frags.pop_front()
+		if is_instance_valid(oldest):
+			(oldest as Node).queue_free()
+	var timer: SceneTreeTimer = body.get_tree().create_timer(gib_lifetime_s)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(body):
+			_live_frags.erase(body)
+			body.queue_free())
+
+
 ## A skinned mesh re-instanced WITHOUT its skeleton renders at bind pose in the
 ## rig's own space, so parenting the gib at the skeleton's global transform puts
 ## it exactly where the limb stood (v1: rest-pose placement, good enough at

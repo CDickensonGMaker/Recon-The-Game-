@@ -1781,6 +1781,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_die()
 		return amount
 	# Locational outcome (anti-sponge decree): a headshot is a headshot.
+	var raw_amount: int = amount  # pre-override weapon damage (head burst gate)
 	if zone == "HEAD":
 		amount = current_hp + 999
 
@@ -1859,6 +1860,11 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			if randf() < down_chance:
 				_become_downed()
 				return amount
+		# HEAD BURST (bead rc55): heavy fatal headshots (60+ raw - the shotgun
+		# slug execution class) occasionally shatter. No-ops silently until a
+		# rig ships head_frag_* fragments; one-piece pop stays the default.
+		if zone == "HEAD" and _visual_is_model and raw_amount >= 60 and randf() < 0.25:
+			GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:

@@ -104,6 +104,11 @@ func _spin_rotors(delta: float) -> void:
 		_tail_rotor.rotate_x(TAIL_ROTOR_SPEED * _rotor_rpm * delta)
 
 
+## The 10-seat SeatSystem child (huey.tscn "Seats") - null on seatless vehicles.
+func seats() -> SeatSystem:
+	return get_node_or_null("Seats") as SeatSystem
+
+
 func setup(terrain_manager: TerrainManager) -> void:
 	terrain = terrain_manager
 
