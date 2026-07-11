@@ -1,16 +1,17 @@
 ## seat_system.gd - HUEY SEATSYSTEM v1 (research batch §7).
 ## Manages the 10-soul UH-1 slick seat contract on a vehicle: 2 pilots +
-## 2 door gunners + 6 pax. Seats are Marker3D sockets found ANYWHERE under the
-## vehicle by exact name:
+## 2 door gunners + 6 pax. Seats are Node3D sockets found ANYWHERE under the
+## vehicle by exact name (GLB-exported empties import as plain Node3D, NOT
+## Marker3D - the scan accepts any Node3D; fallback markers are Marker3D):
 ##   seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..6
 ##
-## FALLBACK CONTRACT (the reason this ships today): huey.glb has NO sockets yet
-## (CALEB_TODO §2). If the vehicle lacks them, _ready() auto-generates all 10
-## from a hardcoded UH-1 layout table measured against the actual huey.glb
+## FALLBACK CONTRACT: huey.glb now ships the 10 sockets + cabin interior
+## (tools/make_huey_interior.py). If a vehicle lacks them, _ready()
+## auto-generates all 10 from a hardcoded UH-1 layout table measured against huey.glb
 ## (fuselage 3.3m wide, 16.8m long incl. tail boom, cabin floor ~1.3m up,
 ## doors at heli-space z -3.4..-1.9 after helicopter.gd's recenter; nose = -Z,
-## Door_Left side = +X). The moment Caleb exports real seat_* Marker3Ds inside
-## the GLB, the scan finds them first and the table silently retires.
+## Door_Left side = +X). huey.glb's real seat_* sockets sit at EXACTLY these
+## coordinates, so the scan finding them changes nothing positionally.
 ##
 ## SOCKET ORIENTATION CONTRACT: the occupant faces the socket's LOCAL +Z
 ## (characters are authored facing +Z; ModelActor yaw 0 == facing +Z).
@@ -79,7 +80,7 @@ const EXIT_PUSH_M: float = 2.5       ## how far outside the door you land
 var auto_generated: bool = false     ## true until Caleb's real sockets land
 
 var _vehicle: Node3D = null
-var _sockets: Dictionary = {}        ## StringName -> Marker3D
+var _sockets: Dictionary = {}        ## StringName -> Node3D
 var _occupants: Dictionary = {}      ## StringName -> {body, glue, shapes, was_physics, was_process}
 var _prompt: Label = null
 var _prompt_text: String = ""
@@ -112,7 +113,8 @@ func _scan_sockets() -> void:
 	_scanned = true
 	var generated: int = 0
 	for seat_name in SEAT_NAMES:
-		var existing := _vehicle.find_child(String(seat_name), true, false) as Marker3D
+		# GLB empties arrive as plain Node3D - never type-check for Marker3D here.
+		var existing := _vehicle.find_child(String(seat_name), true, false) as Node3D
 		if existing != null:
 			_sockets[seat_name] = existing
 			continue
@@ -170,9 +172,9 @@ func seat_of(body: Node3D) -> StringName:
 	return &""
 
 
-func socket(seat_name: StringName) -> Marker3D:
+func socket(seat_name: StringName) -> Node3D:
 	_scan_sockets()
-	return _sockets.get(seat_name) as Marker3D
+	return _sockets.get(seat_name) as Node3D
 
 
 ## Seat a body in a named socket. Returns false if the seat is unknown,
@@ -185,7 +187,7 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 		return false
 	if seat_of(body) != &"":
 		return false
-	var sock: Marker3D = _sockets[seat_name]
+	var sock: Node3D = _sockets[seat_name]
 	var rec: Dictionary = {"body": body}
 
 	if body.has_method("enter_seat"):
@@ -322,7 +324,7 @@ func _next_free_passenger_seat() -> StringName:
 ## World-space point EXIT_PUSH_M outside the left door - allies stage here,
 ## the player dismounts here.
 func door_staging_pos() -> Vector3:
-	var sock: Marker3D = _sockets.get(&"seat_gunner_l") as Marker3D
+	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
 	if sock != null:
 		# Gunner sockets face outward: local +Z is straight out the door.
 		return sock.global_position + sock.global_transform.basis.z * EXIT_PUSH_M

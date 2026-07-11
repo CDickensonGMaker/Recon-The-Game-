@@ -48,39 +48,45 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 		var bi: int = skel.find_bone(bone)
 		return (skel.global_transform * skel.get_bone_global_rest(bi).origin) if bi >= 0 else Vector3.ZERO
 
+	# Span measurement with missing-bone honesty: a rig missing either bone
+	# (v1 rigs lack mixamorig_HeadTop_End) returns the fallback instead of
+	# measuring against the world origin, and every span is clamped to a human
+	# window - a bad rig can never balloon a zone (the r=1.245 head bug).
+	var span := func(bone_a: String, bone_b: String, fallback: float, lo: float, hi: float) -> float:
+		if skel.find_bone(bone_a) < 0 or skel.find_bone(bone_b) < 0:
+			return fallback
+		var a: Vector3 = bw.call(bone_a)
+		var b: Vector3 = bw.call(bone_b)
+		return clampf(a.distance_to(b), lo, hi)
+
 	# HEAD: sphere spanning skull base -> crown.
-	var head_base: Vector3 = bw.call("mixamorig_Head")
-	var head_top: Vector3 = bw.call("mixamorig_HeadTop_End")
-	var skull: float = maxf(0.18, head_base.distance_to(head_top))
+	var skull: float = span.call("mixamorig_Head", "mixamorig_HeadTop_End", 0.24, 0.18, 0.45)
 	_zone(body, skel, entries, tuning, Hitzone.ZoneType.HEAD, "HEAD",
 		skull * 0.72, -1.0, "mixamorig_Head", Vector3(0, skull * 0.5, 0), layer, mask, groups)
 
-	var spine_lo: Vector3 = bw.call("mixamorig_Spine")
-	var neck: Vector3 = bw.call("mixamorig_Neck")
-	var hips: Vector3 = bw.call("mixamorig_Hips")
-	var shoulder_half: float = bw.call("mixamorig_LeftArm").distance_to(bw.call("mixamorig_RightArm")) * 0.5
+	var shoulder_half: float = span.call("mixamorig_LeftArm", "mixamorig_RightArm", 0.44, 0.24, 0.7) * 0.5
 	if with_gut:
 		# TORSO: Spine -> just below the Neck, top clamped under the chin.
-		var chest_len: float = maxf(0.25, spine_lo.distance_to(neck) - 0.04)
+		var chest_len: float = span.call("mixamorig_Spine", "mixamorig_Neck", 0.4, 0.25, 0.7) - 0.04
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.TORSO, "BODY",
 			minf(shoulder_half * 0.8, chest_len * 0.5), chest_len, "mixamorig_Spine1", Vector3.ZERO, layer, mask, groups)
 		# GUT: hips -> spine base.
-		var gut_len: float = maxf(0.18, hips.distance_to(spine_lo) + 0.10)
+		var gut_len: float = span.call("mixamorig_Hips", "mixamorig_Spine", 0.2, 0.18, 0.5) + 0.10
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.GUT, "GUT",
 			shoulder_half * 0.62, gut_len, "mixamorig_Hips", Vector3.ZERO, layer, mask, groups)
 	else:
 		# No GUT consumer: one BODY capsule covers hips -> neck.
-		var trunk_len: float = maxf(0.4, hips.distance_to(neck) - 0.04)
+		var trunk_len: float = span.call("mixamorig_Hips", "mixamorig_Neck", 0.55, 0.4, 0.9) - 0.04
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.TORSO, "BODY",
 			minf(shoulder_half * 0.8, trunk_len * 0.42), trunk_len, "mixamorig_Spine", Vector3.ZERO, layer, mask, groups)
 
 	# ARMS/LEGS: capsules from real joint spans, riding elbow/knee.
 	for side in ["Left", "Right"]:
 		var tag: String = "L" if side == "Left" else "R"
-		var arm_len: float = bw.call("mixamorig_%sArm" % side).distance_to(bw.call("mixamorig_%sHand" % side))
+		var arm_len: float = span.call("mixamorig_%sArm" % side, "mixamorig_%sHand" % side, 0.55, 0.3, 0.9)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.LIMB, "ARM_%s" % tag,
 			maxf(0.06, arm_len * 0.14), arm_len, "mixamorig_%sForeArm" % side, Vector3.ZERO, layer, mask, groups)
-		var leg_len: float = bw.call("mixamorig_%sUpLeg" % side).distance_to(bw.call("mixamorig_%sFoot" % side))
+		var leg_len: float = span.call("mixamorig_%sUpLeg" % side, "mixamorig_%sFoot" % side, 0.85, 0.4, 1.1)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.LIMB, "LEG_%s" % tag,
 			maxf(0.07, leg_len * 0.13), leg_len, "mixamorig_%sLeg" % side, Vector3.ZERO, layer, mask, groups)
 	return entries

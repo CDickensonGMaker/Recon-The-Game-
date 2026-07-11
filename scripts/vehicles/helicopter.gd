@@ -71,10 +71,15 @@ func _ready() -> void:
 
 	# Recenter on the fuselage's AABB centre (not its node origin - the mesh
 	# origin sits ~2m forward of the hull's true centre, which would offset the
-	# CollisionTable box).
+	# CollisionTable box). BASIS-AWARE: huey.tscn rotates Model 180 degrees
+	# about Y, so the fuselage centre must be mapped through the basis before
+	# subtracting - a raw "-= centre" DOUBLES the offset instead of cancelling
+	# it (the mesh sat ~17m from the node origin, probe 2026-07-11). The GLB's
+	# seat_* sockets ride inside Model, so they land in this recentered frame
+	# at exactly the FALLBACK_LAYOUT coordinates.
 	var fuselage := root.find_child("Huey_Copy", true, false) as MeshInstance3D
 	if fuselage != null:
-		var centre: Vector3 = fuselage.position + fuselage.get_aabb().get_center()
+		var centre: Vector3 = root.transform.basis * (fuselage.position + fuselage.get_aabb().get_center())
 		root.position.x -= centre.x
 		root.position.z -= centre.z
 

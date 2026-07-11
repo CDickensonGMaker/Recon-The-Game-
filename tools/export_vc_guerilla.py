@@ -17,13 +17,20 @@ Never saves the .blend.
 import bpy, os, math, sys
 from mathutils import Vector, Matrix, Quaternion
 
-# variant args:  -- <gun_world_object> <out_name> <face_cell>
-# defaults reproduce the AK guerilla. All four guns live in the master blend;
-# the chosen one ships, the others are deleted from the export copy.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from make_head_frags import build_head_frags
+import append_gun
+
+# variant args:  -- <gun> <out_name> <face_cell> [mesh_only]
+# defaults reproduce the AK guerilla. <gun> is either a gun object in the
+# master blend (all four ship there; the chosen one stays, the others are
+# deleted from the export copy) or an armory key from append_gun.GUNS
+# (e.g. 'rpg2'), which appends the gun and attaches it AK-style.
 argv = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 GUN = argv[0] if argv else 'ak47_world'
 OUTNAME = argv[1] if len(argv) > 1 else 'vc_guerilla'
 FACE = argv[2] if len(argv) > 2 else 'vnm_mid'
+MESH_ONLY = 'mesh_only' in argv[3:]
 
 ALL_GUNS = ["ak47_world", "mosin_world", "ppsh_world", "rpd_world"]
 FACES_V2 = {"vnm_older": (6,6,90,126), "vnm_mid": (102,6,186,126), "vnm_young": (198,6,282,126),
@@ -33,7 +40,9 @@ OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 # Set False once the engine plays clips from the shared anim_library.glb —
 # the export then ships meshes/skeleton/sockets only and takes seconds.
-EXPORT_ANIMATIONS = True
+# The shipped roster (vc_guerilla/_mosin/_ppsh/_rpd) still bakes clips; NEW
+# gun variants pass 'mesh_only' (probe-proven: tests/test_anim_library.tscn).
+EXPORT_ANIMATIONS = not MESH_ONLY
 RIG = "PSXRig"
 SOCKETS = {
     'HandR': 'mixamorig:RightHand',
@@ -44,11 +53,17 @@ SOCKETS = {
 
 sc = bpy.context.scene
 rig = bpy.data.objects[RIG]
-gun = bpy.data.objects[GUN]
+IS_ARMORY_GUN = GUN not in ALL_GUNS
+if IS_ARMORY_GUN:
+    # armory key: append + attach exactly like the AK, drop all native guns
+    gun = append_gun.bring(GUN, ref_gun='ak47_world', rig=rig)
+    EXCLUDE = list(ALL_GUNS)
+else:
+    gun = bpy.data.objects[GUN]
+    EXCLUDE = [g for g in ALL_GUNS if g != GUN]
 
 # Drop the guns this variant doesn't carry (export copy only).
-EXCLUDE = [g for g in ALL_GUNS if g != GUN]
-print(f"=== 0. variant {OUTNAME}: gun={GUN} face={FACE} ===", flush=True)
+print(f"=== 0. variant {OUTNAME}: gun={gun.name} face={FACE} anims={EXPORT_ANIMATIONS} ===", flush=True)
 for name in EXCLUDE:
     o = bpy.data.objects.get(name)
     if o:
@@ -88,6 +103,11 @@ for hname in ("vc_head", "grunt_head"):
             uvl.data[li].uv = (_u0 + a_*(_u1-_u0), _vb + b_*(_vt - _vb))
     hme.update()
     print(f"  {hname}: face -> {FACE}", flush=True)
+
+# head fracture chunks (bead rc55) - after the face remap so the fragments
+# inherit this variant's face UVs; skips cleanly on rigs without grunt_head
+print("=== 0.5 head fragments (rc55) ===", flush=True)
+build_head_frags()
 
 # ---------------------------------------------------------------- actions
 print("=== 1. reduce to reel actions, strip _fixed ===", flush=True)
@@ -169,6 +189,12 @@ da = (gun.matrix_world @ end_a - hand_w).length
 db = (gun.matrix_world @ end_b - hand_w).length
 muzzle_local = end_a if da > db else end_b
 bore = (muzzle_local - (end_b if da > db else end_a)).normalized()
+if IS_ARMORY_GUN:
+    # appended meshes keep the armory rack orientation: muzzle is ALWAYS the
+    # -X end (the hand-distance heuristic flips on the RPG-2, whose grip is
+    # near the front of the tube)
+    muzzle_local, rear = (end_a, end_b) if end_a.x < end_b.x else (end_b, end_a)
+    bore = (muzzle_local - rear).normalized()
 mz.matrix_parent_inverse = Matrix.Identity(4)
 mz.location = muzzle_local
 mz.rotation_mode = 'QUATERNION'

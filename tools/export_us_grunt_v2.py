@@ -14,15 +14,29 @@ Engine contract (same as export_units_gltf.py — do not drift):
 Never saves the .blend.
     blender -b art_source/characters/base_psx/us_grunt_v2.blend -P tools/export_us_grunt_v2.py
 """
-import bpy, os, math
+import bpy, os, math, sys
 from mathutils import Vector, Matrix, Quaternion
 
-OUT = r"C:\Users\caleb\RECONgame\assets\models\characters\us_grunt_v2.glb"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from make_head_frags import build_head_frags
+import append_gun
+
+# variant args:  -- <gun> <out_name> [mesh_only]
+# no args reproduces the shipped us_grunt_v2 (M16 + baked clips). <gun> is
+# 'm16_world' or an armory key from append_gun.GUNS (e.g. 'm60', 'm79'),
+# which appends the gun and attaches it with the M16's exact matrices.
+argv = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
+GUN = argv[0] if argv else 'm16_world'
+OUTNAME = argv[1] if len(argv) > 1 else 'us_grunt_v2'
+MESH_ONLY = 'mesh_only' in argv[2:]
+
+OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 # Set False once the engine plays clips from the shared anim_library.glb —
 # the export then ships meshes/skeleton/sockets only and takes seconds.
-EXPORT_ANIMATIONS = True
-GUN = "m16_world"
+# The shipped us_grunt_v2 still bakes clips; NEW gun variants pass
+# 'mesh_only' (probe-proven: tests/test_anim_library.tscn).
+EXPORT_ANIMATIONS = not MESH_ONLY
 RIG = "PSXRig"
 SOCKETS = {
     'HandR': 'mixamorig:RightHand',

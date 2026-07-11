@@ -92,7 +92,8 @@ func _run() -> void:
 	if avail.size() != 10:
 		_fail("expected 10 available seats, got %d" % avail.size())
 	for seat_name in SeatSystem.SEAT_NAMES:
-		var sock: Marker3D = seats.socket(seat_name)
+		# GLB sockets are plain Node3D (empties), fallback sockets are Marker3D.
+		var sock: Node3D = seats.socket(seat_name)
 		if sock == null:
 			_fail("socket %s missing" % seat_name)
 		elif not heli.is_ancestor_of(sock):
@@ -111,7 +112,7 @@ func _run() -> void:
 			continue
 		if body.is_physics_processing():
 			_fail("%s occupant still physics-processing" % seat_name)
-		var sock2: Marker3D = seats.socket(seat_name)
+		var sock2: Node3D = seats.socket(seat_name)
 		if body.global_position.distance_to(sock2.global_position) > 0.05:
 			_fail("%s occupant not glued to socket (%.2fm off)" % [seat_name, body.global_position.distance_to(sock2.global_position)])
 		if seats.occupant(seat_name) != body:
