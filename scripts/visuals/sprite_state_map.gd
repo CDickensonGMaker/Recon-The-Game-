@@ -97,8 +97,11 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 const MODEL_CLIP: Dictionary = {
 	"idle": "rifle_aiming_idle", "aim": "rifle_aiming_idle",
 	"fire": "firing_rifle", "reload": "reloading",
-	"run": "run_forward", "walk": "run_forward", "patrol": "run_forward",
-	"aim_walk": "run_forward",  # slow aimed movement; dedicated clip later
+	"run": "run_forward",
+	# T1.6: the walk band plays an actual walk cycle now (the library ships a
+	# full walk_* family) - run_forward at walk speed was half the skating.
+	"walk": "walk_forward", "patrol": "walk_forward",
+	"aim_walk": "walk_forward",  # dedicated aimed-walk clip on the art wishlist
 	"strafe": "strafe", "strafe_l": "run_left", "strafe_r": "run_right",
 	"cover": "kneeling_pointing",
 	"retreat": "injured_walk_backwards", "crippled": "injured_walk_backwards",
@@ -126,6 +129,7 @@ const MODEL_ALIASES: Dictionary = {
 	"stand_to_cover": ["idle_crouching", "idle_crouching_aiming"],
 	"start_walking": ["run_forward"],
 	# v2 name -> v1 equivalents
+	"walk_forward": ["start_walking", "run_forward"],  # v1 rigs have no walk loop
 	"idle": ["rifle_aiming_idle"],
 	"idle_aiming": ["rifle_aiming_idle"],
 	"idle_crouching": ["kneeling_pointing"],

@@ -126,8 +126,10 @@ var d_uses_cover: bool = true
 var d_retreat_hp: float = 0.25
 var d_exposure_ramp: float = 2.5       # seconds of exposure to full accuracy (EnemyData)
 var contact_conf: float = 0.0          # debounced eyes-on 0-1 (goals read THIS, not raw LOS)
-var _last_intent: String = ""          # anim intent debounce (0.25s band-edge guard)
-var _intent_ms: float = -1e9
+var _last_intent: String = ""          # committed anim intent (stability filter)
+var _cand_intent: String = ""          # challenger intent + when it started winning
+var _cand_since: float = -1e9
+var _fired_until_ms: float = -1e9      # T1.3: fire pose follows the SHOT, 350ms
 
 ## Stuck watchdog (Caleb: units wedging on cover collision): commanded to move
 ## but not moving for ~1s -> sidestep for a beat. No navmesh required.
@@ -370,17 +372,28 @@ func _update_sprite() -> void:
 	if speed > 0.1:
 		var fwd := Vector3(facing_dir.x, 0.0, facing_dir.z).normalized()
 		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
-	var firing: bool = not can_fire and fire_timer < 0.12
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral)
-	# 0.25s intent debounce (council spec) - band-edge flicker guard.
 	var now: float = float(Time.get_ticks_msec())
+	# T1.3: latch set at the actual shot - the old cooldown-tail window put the
+	# fire pose BEFORE the bang and flapped fire<->aim around every shot.
+	var firing: bool = now < _fired_until_ms
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral)
+	# T1.4 stability filter: an intent must WIN continuously for 180ms before
+	# the clip commits - a 1-frame blip can never grab the clip and lock it
+	# (the old debounce accepted blips instantly, then refused the real intent
+	# for 250ms). Fire/death still switch immediately.
 	if intent != _last_intent:
-		if intent != "fire" and intent != "death_forward" and now - _intent_ms < 250.0:
-			intent = _last_intent
-		else:
+		if intent != _cand_intent:
+			_cand_intent = intent
+			_cand_since = now
+		if intent == "fire" or intent.begins_with("death") or now - _cand_since >= 180.0:
 			_last_intent = intent
-			_intent_ms = now
+		else:
+			intent = _last_intent
+	else:
+		_cand_intent = intent
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
+	if sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
 func _setup_hurtbox() -> void:
@@ -1615,6 +1628,7 @@ func _fire_at_target() -> void:
 			NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 			GunFX.play_shot_3d(get_tree().current_scene, fx, weapon_data)
 			GunFX.muzzle_flash(get_tree().current_scene, fx)
+			_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 			return
 		push_error("[EnemyBase] %s names a projectile that will not load: %s" % [
 			weapon_data.id, weapon_data.projectile_data_path])
@@ -1657,6 +1671,7 @@ func _fire_at_target() -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
+	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	# Flesh gets blood (used to get NOTHING — only the player spawned blood); world
 	# gets a dust puff + persistent hole. Mirrors weapon_holder's player path.
 	if result:

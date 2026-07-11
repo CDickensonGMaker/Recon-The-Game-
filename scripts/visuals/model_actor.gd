@@ -103,6 +103,11 @@ func _merge_shared_library() -> void:
 	var lib: AnimationLibrary = ModelActor._load_shared_library()
 	if lib == null or _inst == null:
 		return
+	# PSXRig contract guard: v1-era rigs (Mixamo node names) would accept the
+	# merged clips but their track paths resolve to NOTHING - playing a merged
+	# clip on them freezes the pose. Only merge where the paths can land.
+	if _inst.get_node_or_null("PSXRig/Skeleton3D") == null:
+		return
 	if _anim == null:
 		if _skel == null:
 			return  # not a character rig - nothing to animate
@@ -148,12 +153,22 @@ func _apply_psx_filtering() -> void:
 ## Mark the cyclic clips looping at load. One-shots (deaths, jumps, turns,
 ## transitions) stay play-once.
 const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe", "swim", "firing"]
+## T1.1: cyclic clips whose names the prefix heuristic misses. These are wired
+## to PERSISTENT intents (retreat/crippled/cover/surrender) - play-once meant
+## a retreating man froze mid-stride and slid: THE gliding statue.
+## laying_breathless stays one-shot deliberately.
+const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing"]
 
 func _apply_loop_modes() -> void:
 	if _anim == null:
 		return
 	for clip_name in _anim.get_animation_list():
 		var nm := String(clip_name)
+		if nm in _LOOP_NAMES:
+			var a_named: Animation = _anim.get_animation(clip_name)
+			if a_named != null:
+				a_named.loop_mode = Animation.LOOP_LINEAR
+			continue
 		if nm.contains("turn") or nm.contains("_to_") or nm.contains("jump"):
 			continue
 		for p in _LOOP_PREFIXES:
@@ -343,9 +358,22 @@ func wake_ragdoll() -> void:
 ## wrong on enemies (they fight toward +Z; allies toward -Z masked it).
 func set_facing(dir: Vector3) -> void:
 	var flat := Vector3(dir.x, 0.0, dir.z)
-	if flat.length_squared() > 0.0001:
-		_facing = flat.normalized()
-		global_rotation.y = atan2(_facing.x, _facing.z)
+	if flat.length_squared() <= 0.0001:
+		return
+	_facing = flat.normalized()
+	var target_yaw: float = atan2(_facing.x, _facing.z)
+	if not _facing_init:
+		_facing_init = true
+		global_rotation.y = target_yaw
+		return
+	# T1.2 (smoothness plan): frame-rate-independent damped turn. The facing
+	# SOURCE switches discontinuously (aim lerp <-> raw nav step <-> stale
+	# aim) - smoothing at the single yaw owner kills every 180-degree
+	# single-frame body whip at once. k=12: fast but visible.
+	var dt: float = get_physics_process_delta_time()
+	global_rotation.y = lerp_angle(global_rotation.y, target_yaw, 1.0 - exp(-12.0 * dt))
+
+var _facing_init: bool = false
 
 
 ## Play a clip by the intent-resolved name. No-ops if already playing it.
@@ -366,10 +394,67 @@ func play(clip: String, restart: bool = false) -> bool:
 		if clip == _current_clip and not restart:
 			return true
 	_current_clip = clip
+	# T1.7: preserve cycle phase across loop->loop switches (walk->run->strafe)
+	# so feet stay on the same beat instead of teleporting to frame 0 under
+	# the blend. One-shots and loop->one-shot start at 0 as authored.
+	var from_loop: bool = _anim.current_animation != "" and _clip_loops(_anim.current_animation)
+	var old_pos: float = _anim.current_animation_position if from_loop else 0.0
+	var old_len: float = _anim.current_animation_length if from_loop else 0.0
 	# 0.18s crossfade: hard cuts between clips read as pops/odd transitions
 	# (Caleb). Deaths/one-shots blend in too - it only smooths the seam.
 	_anim.play(clip, 0.18)
+	if from_loop and old_len > 0.01 and _clip_loops(clip):
+		var new_len: float = _anim.get_animation(clip).length
+		if new_len > 0.01:
+			_anim.seek(fposmod(old_pos / old_len, 1.0) * new_len, false)
 	return true
+
+
+func _clip_loops(clip: String) -> bool:
+	var a: Animation = _anim.get_animation(clip)
+	return a != null and a.loop_mode == Animation.LOOP_LINEAR
+
+
+## Length in seconds of a clip (alias-resolved); 0.0 if the rig lacks it.
+## Used to size override windows (ally cover leap) from the actual clip.
+func clip_length(clip: String) -> float:
+	if _anim == null:
+		return 0.0
+	if not _anim.has_animation(clip):
+		for alias in SpriteStateMap.MODEL_ALIASES.get(clip, []):
+			if _anim.has_animation(str(alias)):
+				clip = str(alias)
+				break
+	if not _anim.has_animation(clip):
+		return 0.0
+	return _anim.get_animation(clip).length
+
+
+## Authored ground speeds (m/s) per locomotion loop - starting nominals from
+## the smoothness plan, retune from the bench eyeball pass.
+const _CLIP_SPEED: Dictionary = {
+	"run_forward": 4.2, "run_forward_left": 4.0, "run_forward_right": 4.0,
+	"run_left": 2.8, "run_right": 2.8,
+	"run_backward": 2.4, "run_backward_left": 2.4, "run_backward_right": 2.4,
+	"sprint_forward": 5.5, "strafe": 2.5, "strafe_1": 2.5, "strafe_2": 2.5,
+	"walk_forward": 1.6, "walk_left": 1.4, "walk_right": 1.4,
+	"walk_backward": 1.3, "start_walking": 1.6,
+	"injured_walk_backwards": 1.2,
+}
+
+
+## T1.6 (highest-leverage smoothness fix): match playback rate to actual
+## ground speed so feet plant instead of skating - combat/patrol movement
+## runs at 0.5-0.6x move_speed and previously played every cycle at 1.0x.
+## Non-locomotion clips reset to authored rate.
+func set_locomotion_speed(mps: float) -> void:
+	if _anim == null:
+		return
+	var ref: float = float(_CLIP_SPEED.get(_current_clip, 0.0))
+	if ref > 0.0:
+		_anim.speed_scale = clampf(mps / ref, 0.6, 1.4)
+	else:
+		_anim.speed_scale = 1.0
 
 
 ## Parity with SpriteActor for code + tests that read the playing clip.

@@ -36,9 +36,12 @@ var target_last_seen_time: float = 999.0
 var _aim_settle: float = 0.0
 ## Debounced eyes-on 0-1 (war-room decree): goals read THIS, never raw LOS.
 var contact_conf: float = 0.0
-## Animation intent debounce (0.25s) - band-edge flicker guard.
+## Animation intent stability filter + fire latch (smoothness plan T1.3/T1.4).
 var _last_intent: String = ""
-var _intent_ms: float = -1e9
+var _cand_intent: String = ""
+var _cand_since: float = -1e9
+var _fired_until_ms: float = -1e9
+var _cover_pose_until_ms: float = -1e9  # T1.5a: min hold before hold/peek re-pick
 
 ## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
 var _stuck_pos: Vector3 = Vector3.ZERO
@@ -243,7 +246,10 @@ func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
 	var facing: Vector3 = current_aim_dir
-	if target == null:
+	# T1.2 stale-aim fix: without LOS, current_aim_dir never updates - an ally
+	# chasing last-known ran sideways facing his OLD aim, then snapped when
+	# LOS returned. Moving without eyes-on = face where you're going.
+	if target == null or not has_line_of_sight:
 		var vel := Vector3(velocity.x, 0.0, velocity.z)
 		if vel.length_squared() > 0.09:
 			facing = vel
@@ -256,23 +262,32 @@ func _update_sprite() -> void:
 	if speed > 0.1:
 		var fwd := Vector3(facing.x, 0.0, facing.z).normalized()
 		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
-	var firing: bool = not can_fire and fire_timer < 0.12
+	var now: float = float(Time.get_ticks_msec())
+	# T1.3: fire pose follows the actual shot (350ms latch), not the cooldown
+	# tail before the NEXT shot.
+	var firing: bool = now < _fired_until_ms
 	# Cover behavior owns the clip while an override is set (leap / crouch-hold
 	# / peek) - the state map would stomp it every frame otherwise.
 	if _anim_override != "" and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play(_anim_override)
+		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 		return
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral)
-	# 0.25s intent debounce (council spec): speed hovering at a band edge must
-	# not flicker the clip every frame. Fire/death always switch immediately.
-	var now: float = float(Time.get_ticks_msec())
+	# T1.4 stability filter: intent must win continuously for 180ms before the
+	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:
-		if intent != "fire" and intent != "death_forward" and now - _intent_ms < 250.0:
-			intent = _last_intent
-		else:
+		if intent != _cand_intent:
+			_cand_intent = intent
+			_cand_since = now
+		if intent == "fire" or intent.begins_with("death") or now - _cand_since >= 180.0:
 			_last_intent = intent
-			_intent_ms = now
+		else:
+			intent = _last_intent
+	else:
+		_cand_intent = intent
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
+	if sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
 func _setup_hurtbox() -> void:
@@ -549,17 +564,25 @@ func _execute_combat(delta: float) -> void:
 
 		# Covered men HOLD their piece of cover: leash RE-ANCHORS (never
 		# releases by drift - the release loop was the cover-obsession bug).
-		var firing_now: bool = not can_fire and fire_timer > 0.0
+		# T1.3 latch replaces the 1-frame cooldown boolean that flipped the
+		# cover pose every burst cycle (bypassing the intent filter entirely).
+		var now_ms: float = float(Time.get_ticks_msec())
+		var firing_now: bool = now_ms < _fired_until_ms or burst_count > 0
 		if has_cover:
 			var leash: float = global_position.distance_to(current_cover) if current_cover != Vector3.ZERO else 0.0
 			if leash > 1.5:
 				move_dir = (current_cover - global_position).normalized()  # step back to the rock
 			else:
 				move_dir *= 0.1
-				if float(Time.get_ticks_msec()) > _leap_until_ms:
+				# T1.5a pose latch: hold a chosen cover pose >=600ms before
+				# re-picking - covered men change stance deliberately.
+				if now_ms > _leap_until_ms and now_ms > _cover_pose_until_ms:
 					if sprite_actor is ModelActor:
-						var chain: Array[String] = COVER_PEEK_CLIPS if (firing_now or burst_count > 0) else COVER_HOLD_CLIPS
+						var chain: Array[String] = COVER_PEEK_CLIPS if firing_now else COVER_HOLD_CLIPS
+						var prev_override: String = _anim_override
 						_anim_override = (sprite_actor as ModelActor).play_first(chain)
+						if _anim_override != prev_override:
+							_cover_pose_until_ms = now_ms + 600.0
 		else:
 			_anim_override = ""
 
@@ -602,7 +625,12 @@ func _execute_seeking_cover(delta: float) -> void:
 			if sprite_actor is ModelActor:
 				leap = (sprite_actor as ModelActor).play_first(LEAP_CLIPS, true)
 			_anim_override = leap
-			_leap_until_ms = float(Time.get_ticks_msec()) + 900.0
+			# T1.5c: window sized by the actual clip (fixed 900ms froze short
+			# fallback clips and cut long ones mid-roll).
+			var leap_len: float = 0.9
+			if leap != "" and sprite_actor is ModelActor:
+				leap_len = clampf((sprite_actor as ModelActor).clip_length(leap), 0.4, 1.5)
+			_leap_until_ms = float(Time.get_ticks_msec()) + leap_len * 1000.0
 			_change_state(Enums.AIState.COMBAT if target != null else Enums.AIState.IDLE)
 			return
 		# Sprint the rush.
@@ -681,6 +709,15 @@ func _release_cover() -> void:
 func _change_state(new_state: Enums.AIState) -> void:
 	if new_state == current_state:
 		return
+	# T1.5b: the cover claim + anim override must not outlive the fight. They
+	# leaked on COMBAT->IDLE (target died), leaving allies gliding after the
+	# player in a frozen crouch and leashed to a rock hundreds of meters back.
+	var was_fighting: bool = current_state == Enums.AIState.COMBAT \
+		or current_state == Enums.AIState.SEEKING_COVER
+	var still_fighting: bool = new_state == Enums.AIState.COMBAT \
+		or new_state == Enums.AIState.SEEKING_COVER
+	if was_fighting and not still_fighting:
+		_release_cover()  # also clears _anim_override
 	current_state = new_state
 	state_timer = 0.0
 	state_changed.emit(new_state)
@@ -767,6 +804,7 @@ func _fire_at_target() -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
 	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, origin)
+	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 
 	# Flesh gets blood; world gets a dust puff + hole (allies spawned no impact FX before).
 	if result:

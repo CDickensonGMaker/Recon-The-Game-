@@ -274,6 +274,10 @@ pause={
 3d_physics/layer_7="enemy_hurtbox"
 3d_physics/layer_9="projectiles"
 
+[physics]
+
+common/physics_interpolation=true
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
