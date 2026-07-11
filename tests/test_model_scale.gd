@@ -43,8 +43,13 @@ func _run() -> void:
 			print("  %s: no model / failed setup - skipped" % unit)
 			actor.queue_free()
 			continue
+		var h_probe: float = _instance_height(actor)
+		if h_probe <= 0.001:
+			print("  %-16s no mesh content (animation library?) - skipped" % unit)
+			actor.queue_free()
+			continue
 		checked += 1
-		var h: float = _instance_height(actor)
+		var h: float = h_probe
 		var foot: float = _instance_foot(actor)
 		var target: float = ModelActor.TARGET_HEIGHT_M
 		var ok_h: bool = absf(h - target) <= target * TOLERANCE

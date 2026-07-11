@@ -53,8 +53,30 @@ func setup(unit_id: String) -> bool:
 
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
+	_apply_loop_modes()
 	_apply_gib_rig_contract()
 	return true
+
+
+## glTF carries NO loop flag, so every imported clip is play-once: an idle
+## plays ~2s then FREEZES on its last frame - which reads as a T-pose/statue.
+## Mark the cyclic clips looping at load. One-shots (deaths, jumps, turns,
+## transitions) stay play-once.
+const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe", "swim", "firing"]
+
+func _apply_loop_modes() -> void:
+	if _anim == null:
+		return
+	for clip_name in _anim.get_animation_list():
+		var nm := String(clip_name)
+		if nm.contains("turn") or nm.contains("_to_") or nm.contains("jump"):
+			continue
+		for p in _LOOP_PREFIXES:
+			if nm.begins_with(p):
+				var a: Animation = _anim.get_animation(clip_name)
+				if a != null:
+					a.loop_mode = Animation.LOOP_LINEAR
+				break
 
 
 ## Gib-rig contract (bead 1xqs / us_grunt_v2, ARTIST INTENT verified in the

@@ -14,7 +14,8 @@
 class_name GoreLab
 extends Node3D
 
-const ARENA: float = 24.0
+const ARENA: float = 44.0
+const WALL_H: float = 4.0
 const DUMMY_POS := Vector3(0, 0.1, -6.0)
 const RESPAWN_S: float = 10.0   # long enough to walk up and inspect the result
 const LAB_GRENADES: int = 25
@@ -54,6 +55,34 @@ func _build_range() -> void:
 	cs.position.y = -0.1
 	floor_body.add_child(cs)
 	add_child(floor_body)
+
+	# Perimeter walls - grenades bounce and roll; without these they leave the
+	# collision floor and fall into the void.
+	var half: float = ARENA * 0.5
+	for w in [
+		[Vector3(0, WALL_H * 0.5, -half), Vector3(ARENA, WALL_H, 0.4)],
+		[Vector3(0, WALL_H * 0.5, half), Vector3(ARENA, WALL_H, 0.4)],
+		[Vector3(-half, WALL_H * 0.5, 0), Vector3(0.4, WALL_H, ARENA)],
+		[Vector3(half, WALL_H * 0.5, 0), Vector3(0.4, WALL_H, ARENA)],
+	]:
+		var wall := StaticBody3D.new()
+		wall.collision_layer = 1
+		wall.collision_mask = 0
+		var wmi := MeshInstance3D.new()
+		var wm := BoxMesh.new()
+		wm.size = w[1]
+		wmi.mesh = wm
+		var wmat := StandardMaterial3D.new()
+		wmat.albedo_color = Color(0.55, 0.58, 0.62)
+		wmi.material_override = wmat
+		wall.add_child(wmi)
+		var wcs := CollisionShape3D.new()
+		var wbox := BoxShape3D.new()
+		wbox.size = w[1]
+		wcs.shape = wbox
+		wall.add_child(wcs)
+		add_child(wall)
+		wall.position = w[0]
 
 
 func _build_lighting() -> void:
