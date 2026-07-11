@@ -388,6 +388,13 @@ func play(clip: String, restart: bool = false) -> bool:
 	if clip == _current_clip and not restart:
 		return true
 	if not _anim.has_animation(clip):
+		# Weapon-family hold ("firing_rifle__smg"): strip the suffix and fall
+		# back to the base clip until Batch 7 authors the family variant.
+		if clip.contains("__"):
+			clip = clip.split("__")[0]
+			if clip == _current_clip and not restart:
+				return true
+	if not _anim.has_animation(clip):
 		for alias in SpriteStateMap.MODEL_ALIASES.get(clip, []):
 			if _anim.has_animation(str(alias)):
 				clip = str(alias)

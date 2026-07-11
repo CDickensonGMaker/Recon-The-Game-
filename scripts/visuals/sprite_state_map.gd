@@ -145,9 +145,28 @@ static func model_clip_for(intent: String) -> String:
 	return str(MODEL_CLIP.get(intent, "rifle_aiming_idle"))
 
 
+## Per-weapon hold families (Caleb: "the way I'd hold the PPSh is different
+## than the Mosin"). The funnel asks for "<clip>__<family>" first; ModelActor
+## strips the suffix and falls back when the family clip does not exist yet -
+## so Batch 7 clips (bead ou5q) light up the moment they land in the library,
+## zero further engine work. Rifle is the default hold = no suffix.
+const WEAPON_FAMILY: Dictionary = {
+	"ppsh": "smg", "ppsh41": "smg", "thompson": "smg", "mat49": "smg",
+	"mosin": "bolt", "kar98k": "bolt", "m70": "bolt",
+	"m60": "mg", "rpd": "mg",
+	"rpg": "launcher", "rpg2": "launcher", "rpg7": "launcher", "m72_law": "launcher",
+	"m79": "launcher",
+	"m1911": "pistol", "colt45": "pistol", "nagant": "pistol",
+}
+
+
 ## One entry point both renderers use. is_model picks the model clip map (all 21
 ## clips present) vs the sprite fallback chain (only what was rendered).
 static func clip_for(is_model: bool, faction: String, unit: String, weapon: String, intent: String) -> String:
 	if is_model:
-		return model_clip_for(intent)
+		var base: String = model_clip_for(intent)
+		var family: String = str(WEAPON_FAMILY.get(weapon, ""))
+		if not family.is_empty():
+			return base + "__" + family
+		return base
 	return resolve(faction, unit, weapon, intent)
