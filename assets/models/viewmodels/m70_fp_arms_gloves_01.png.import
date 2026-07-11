@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bek1qfuv6v3fv"
-path.s3tc="res://.godot/imported/ak_fp_arms_gloves_01.png-ccfd51f0910f2db5fdd86e336508e0cc.s3tc.ctex"
+uid="uid://belci17engahk"
+path.s3tc="res://.godot/imported/m70_fp_arms_gloves_01.png-ef4d618910238238b407db1e114bdd6f.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -14,8 +14,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://assets/models/viewmodels/ak_fp_arms_gloves_01.png"
-dest_files=["res://.godot/imported/ak_fp_arms_gloves_01.png-ccfd51f0910f2db5fdd86e336508e0cc.s3tc.ctex"]
+source_file="res://assets/models/viewmodels/m70_fp_arms_gloves_01.png"
+dest_files=["res://.godot/imported/m70_fp_arms_gloves_01.png-ef4d618910238238b407db1e114bdd6f.s3tc.ctex"]
 
 [params]
 
