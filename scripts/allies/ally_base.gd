@@ -693,6 +693,10 @@ func _fire_at_target() -> void:
 	# Personality skill (decree): the bad soldier sprays wide ("and miss but
 	# maybe hit"), the natural shoots tight. x1.6 at skill 0 -> x0.8 at skill 1.
 	spread *= (1.6 - skill * 0.8)
+	# Fire-and-move is allowed but costs accuracy (Caleb) - same idea as the
+	# enemy's x1.6 bounding-fire penalty.
+	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.5:
+		spread *= 1.5
 	final_aim.x += randf_range(-spread, spread)
 	final_aim.y += randf_range(-spread, spread)
 	final_aim.z += randf_range(-spread, spread)

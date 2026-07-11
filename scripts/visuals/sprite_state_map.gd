@@ -64,14 +64,13 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		Enums.AIState.DEAD:
 			return "death_forward"
 		Enums.AIState.COMBAT:
-			if is_firing:
-				return "fire"
-			# War-room anim policy (Caleb: run/aim-walk dominant, strafe rare):
-			# still = aim; genuinely lateral-and-slow = strafe (L/R honest);
-			# slow forward = aim-walk; fast = run. Deadband raised 0.3 -> 0.5
-			# so the covered micro-shuffle stops flickering the clip.
+			# War-room anim policy (Caleb): MOVEMENT OWNS THE LEGS. A moving
+			# man never plays the stationary fire pose (that was the gliding-
+			# statue bug) - muzzle flash/tracers sell the shooting; the fire
+			# clip is only for a planted man. Still = aim; lateral-and-slow =
+			# strafe (L/R honest); slow forward = aim-walk; fast = run.
 			if speed <= 0.5:
-				return "aim"
+				return "fire" if is_firing else "aim"
 			if speed <= 3.2 and absf(lateral) > 0.7:
 				return "strafe_l" if lateral > 0.0 else "strafe_r"
 			if speed <= 3.2:
