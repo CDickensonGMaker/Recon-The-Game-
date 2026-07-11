@@ -14,6 +14,19 @@ func _bad(msg: String) -> void:
 	_fail += 1
 
 
+## Rigs ship different clip-name generations (v1 death_forward == v2
+## death_from_the_front); ModelActor.play resolves via MODEL_ALIASES and
+## reports the resolved name. Accept either generation - direction semantics
+## survive because aliases never cross directions.
+func _clip_matches(want: String, got: String) -> bool:
+	if got == want:
+		return true
+	for alias in SpriteStateMap.MODEL_ALIASES.get(want, []):
+		if got == str(alias):
+			return true
+	return false
+
+
 func _ready() -> void:
 	var cam := Camera3D.new()
 	add_child(cam)
@@ -57,7 +70,7 @@ func _test_spawn_has_sprite() -> void:
 		_bad("capsule mesh was built alongside the visual")
 	print("  vc_rifleman -> %s  is_model=%s  clip=%s" % [
 		e.enemy_data.sprite_unit, e._visual_is_model, e.sprite_actor.current_action])
-	if e.sprite_actor.current_action != "rifle_aiming_idle":
+	if not _clip_matches("rifle_aiming_idle", str(e.sprite_actor.current_action)):
 		_bad("idle clip is %s" % e.sprite_actor.current_action)
 	if not e._visual_is_model:
 		_bad("vc_rifleman should default to the 3D model (vc2_mainforce.glb exists)")
@@ -135,7 +148,7 @@ func _test_directional_death() -> void:
 		print("  shot from %s -> last_hit_dir.x=%+.2f -> clip=%s" % [shot_from, dot, clip])
 		if not clip.begins_with("death"):
 			_bad("death did not play a death clip, got %s" % clip)
-		elif clip != want_clip:
+		elif not _clip_matches(want_clip, clip):
 			_bad("shot from %s should play %s, played %s (death direction inverted)" % [shot_from, want_clip, clip])
 		# SpriteActor tracks finished/_m; a model just plays the clip. Either way
 		# the clip name must be a death clip (asserted above).
