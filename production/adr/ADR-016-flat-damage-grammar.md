@@ -76,11 +76,13 @@ closes as superseded (the decision it was evidence for has been made; its verifi
 - `tests/test_ballistics.gd` rosters updated; `run_all_tests.ps1` now runs the 4.7 console exe
 
 ## Amendment A (2026-07-10, war-room quick): pellet weapons
-Shotguns fire `pellet_count` rays per trigger pull with `base_damage` PER PELLET (shotgun: 8 × 13 —
-point-blank sum 104 ≈ the tabletop's 2d100 average, honoring the conversion law). Pellet spread is
+Shotguns fire `pellet_count` rays per trigger pull with `base_damage` PER PELLET. Pellet spread is
 aim-space variance (same class as the existing spread cone), NOT a damage roll — determinism holds
 per pellet. Damage aggregates per target+zone into one hit event so locational multipliers and the
 GORE_WORKFLOW single-hit thresholds behave. Record: `war_room/quick_2026-07-10_shotgun_pellets.md`.
+**Summoner retune (same day, bench-tested):** 8 × **20** (was 13), full damage to **70m**, falloff to
+×0.45 at 110m — "damage a lot higher, drop off after 70m." Point-blank sum 160; range attrition still
+emergent from the 5.5° cone (few pellets connect past mid-range regardless of the damage curve).
 
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)

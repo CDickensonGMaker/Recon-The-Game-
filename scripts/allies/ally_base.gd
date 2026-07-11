@@ -55,6 +55,9 @@ func on_skill_up(skill_id: String, level: int) -> void:
 	director.toast.emit("%s — %s ★%d" % [str(member.get("nick", "GRUNT")), sk_name, level])
 var order_mode: OrderMode = OrderMode.FOLLOW
 var order_pos: Vector3 = Vector3.ZERO
+## Personal formation slot around the player (rolled once) - the squad spreads
+## into an arc instead of stacking on the player's back (Caleb).
+var _follow_offset: Vector3 = Vector3.ZERO
 var weapons_free: bool = true
 var fire_rate_mult: float = 1.0  ## Pigman sustained-fire bonus
 
@@ -112,6 +115,8 @@ var sprite_weapon: String = "m16a1"
 func _ready() -> void:
 	add_to_group("allies")
 	CombatManager.register_ally(self)
+	var slot_angle: float = randf_range(0.0, TAU)
+	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
 
 	# Default ally weapon: M16A1 (matches the m16 models/sprites — audit)
 	weapon_data = load("res://data/weapons/m16a1.tres")
@@ -277,7 +282,7 @@ func _think() -> void:
 func _find_target() -> void:
 	# Find closest living enemy
 	var closest_enemy: Node3D = null
-	var closest_dist: float = 40.0
+	var closest_dist: float = 60.0  # was 40 - squadmates spotted contacts late (Caleb)
 
 	for enemy in CombatManager.active_enemies:
 		if not is_instance_valid(enemy) or not enemy is Node3D:
@@ -316,10 +321,13 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
-	# If we have a target with LOS, engage (unless holding fire - W16).
+	# In contact = FIGHT (Caleb: "even if they are told to follow me their
+	# goal should be to engage the enemy and survive"). LOS lost seconds ago
+	# still counts as contact - the combat executor maneuvers to regain it
+	# instead of the man falling back to trail the player mid-firefight.
 	# COVER-FIRST (squad parity): caught in the open on contact, reach cover
 	# before settling into the duel - unless two searches came up dry.
-	if target and has_line_of_sight and weapons_free:
+	if target and weapons_free and (has_line_of_sight or target_last_seen_time < 6.0):
 		if not has_cover and _cover_fail_count < 2:
 			current_goal = Enums.AIGoal.SEEK_COVER
 			_change_state(Enums.AIState.SEEKING_COVER)
@@ -371,9 +379,12 @@ func _execute_idle(delta: float) -> void:
 		OrderMode.FOLLOW:
 			var player := GameManager.player
 			if player and is_instance_valid(player) and player is Node3D:
-				var dist := global_position.distance_to((player as Node3D).global_position)
+				# Formation slot, not a conga line: each man holds his own
+				# offset around the player so the squad has spacing and arcs.
+				var slot: Vector3 = (player as Node3D).global_position + _follow_offset
+				var dist := global_position.distance_to(slot)
 				if dist > follow_distance:
-					_move_toward((player as Node3D).global_position, delta)
+					_move_toward(slot, delta)
 				else:
 					_settle(delta)
 		OrderMode.HOLD:

@@ -16,7 +16,7 @@ const EXPECTED := {
 	"ak47": 22, "sks": 22, "rpd": 22,
 	"ppsh41": 17, "thompson": 17, "m1911": 11, "mosin": 32,
 	"m79": 44, "m26_grenade": 55, "m72_law": 72, "rpg2": 62, "rpg7": 73,
-	"shotgun": 13,  # PER PELLET x8 (ADR-016 amendment: pellet cluster)
+	"shotgun": 20,  # PER PELLET x8 (ADR-016 Amendment A; Caleb retune 2026-07-10)
 }
 ## Retired by ADR-016 - loading one of these is a FAIL.
 const RETIRED := ["mp40", "kar98k"]
