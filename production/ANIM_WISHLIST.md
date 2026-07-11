@@ -1,4 +1,4 @@
-# ANIMATION WISHLIST — Blender work for Caleb
+# ANIMATION + MODEL WISHLIST — Blender work for Caleb
 
 All work lands in `anim_library.blend` → one re-export propagates roster-wide
 (mesh-only character contract). Ordered by payoff. Sources: smoothness plan
@@ -33,6 +33,25 @@ decree, current library audit (91 clips, listed via `tools/list_clips.gd`).
 | C2 | **Hips detrend instead of delete** (plan T3.5) | Exporters currently strip hips lateral sway along with travel — gaits read "on rails". Subtract the travel component, keep the weight-shift. A/B one unit. |
 | C3 | **Medic rig decision**: export_medic_gltf.py targets `MixamoRig`, not `PSXRig` | Medic clips don't match the shared-library contract. Rename (2 lines) or declare standalone. |
 | C4 | **Post-export GLB assert** (plan T2.7b) | Assert 123 channels/clip + expected clip names — the pipeline's crossfade immunity is one "optimize size" checkbox away from silently breaking. |
+
+## E. WEAPON MODELS (WW2 batch — replace oversized downloaded stand-ins)
+
+| # | Model | Faction | Status in game data |
+|---|-------|---------|---------------------|
+| E1 | **Thompson M1928/M1A1** | US | Weapon EXISTS (17 dmg, thompson.tres) — just needs your model to replace the downloaded one. World model + FP arms variant. |
+| E2 | **BAR M1918** | US | NEW weapon — no .tres. Damage value-of-record is a Summoner/ADR-016 call (suggest M60-class 28, slower handling). |
+| E3 | **Kar98k** | VC (captured/French-supplied) | Scene name exists only as a borrowed stand-in viewmodel. NEW weapon data needed (suggest near Mosin 32). |
+| E4 | **Nagant M1895 revolver** (assumed from "hover revolver" — confirm) | VC | NEW weapon — no .tres (suggest M1911-class 11, 7-round, slow reload). |
+
+Per-gun scope: world mesh (PSX budget) + `*_fp.glb` arms export on the proven
+fp_arms pipeline + MuzzlePoint. Engine wiring (scenes/tres/alignment bench)
+is Claude's side, same as the 7-viewmodel batch.
+
+## F. ANIMS SURFACED BY THE BATCH RESEARCH (v2 items — every v1 ships without them)
+- **heli_board + heli_exit** (author LEFT side only; mirror is free) — Huey v2
+- **medic kneel-aid** — after the medic rig fix (C3)
+- **wounded writhe on back** — optional; downed-enemy v1 uses laying_breathless + procedural chest-rise
+- (wounded_crawl A4 and surrender idle A3 above both got PRIORITY UPGRADES — downed-enemy + capture systems consume them)
 
 ## D. ALREADY COVERED — do NOT make these
 - Flinch clips → procedural FlinchModifier (bead xphx).
