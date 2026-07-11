@@ -35,6 +35,20 @@ sc = bpy.context.scene
 rig = bpy.data.objects[RIG]
 gun = bpy.data.objects[GUN]
 
+# Authoring-only objects that must never ship. Base_Human is a second body
+# co-located with the soldier (it masks the gib swap in-engine); splay_* is
+# the sprawled gib layout parked beside the character; the rest are strays.
+# This list reproduces the node set of the known-good GLB (commit 627421e).
+EXCLUDE = ["Base_Human", "canteen_l.001", "target_handguard",
+           "splay_head", "splay_torso", "splay_uparm_l", "splay_uparm_r",
+           "splay_forearm_l", "splay_forearm_r", "splay_leg_l", "splay_leg_r"]
+print("=== 0. drop authoring-only objects ===", flush=True)
+for name in EXCLUDE:
+    o = bpy.data.objects.get(name)
+    if o:
+        bpy.data.objects.remove(o, do_unlink=True)
+print(f"  removed {len(EXCLUDE)} (export copy only)", flush=True)
+
 # ---------------------------------------------------------------- actions
 print("=== 1. reduce to reel actions, strip _fixed ===", flush=True)
 track = rig.animation_data.nla_tracks["rifle_reel"]
