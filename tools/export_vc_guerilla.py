@@ -276,7 +276,28 @@ mn, mx = body_bbox()
 h = mx.z - mn.z
 s = TARGET_HEIGHT / h
 M = Matrix.Scale(s, 4) @ Matrix.Translation(Vector((-(mn.x+mx.x)/2, -(mn.y+mx.y)/2, -mn.z)))
-exportables = [o for o in bpy.data.objects if o.type in ('MESH', 'ARMATURE', 'EMPTY')]
+# RIG-MEMBERSHIP FILTER (lineup-review bug): export ONLY what belongs to the
+# character - the everything-in-the-blend sweep shipped a hidden 2m reference
+# Icosphere inside every GLB (the normalize step unhides all; Blender hide
+# never survives glTF).
+def _belongs_to_rig(o):
+    p = o
+    while p is not None:
+        if p == rig:
+            return True
+        p = p.parent
+    for m in getattr(o, "modifiers", []):
+        if m.type == 'ARMATURE' and m.object == rig:
+            return True
+    return False
+
+exportables = [o for o in bpy.data.objects
+               if o.type in ('MESH', 'ARMATURE', 'EMPTY')
+               and (o == rig or _belongs_to_rig(o))]
+_skipped = [o.name for o in bpy.data.objects
+            if o.type in ('MESH', 'ARMATURE', 'EMPTY') and o not in exportables]
+if _skipped:
+    print("  export filter skipped non-rig objects:", _skipped, flush=True)
 names = {o.name for o in exportables}
 roots = [o for o in exportables if o.parent is None or o.parent.name not in names]
 for o in roots:
