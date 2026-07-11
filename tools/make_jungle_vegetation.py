@@ -321,11 +321,31 @@ def import_donor():
         ob = new_mesh_object("palm_arch_%d" % ai, verts, faces, mats, uvs,
                              [bark_mat, leaf_mat], colors)
         ground_and_normalize(ob.data, kinds)
+        droop_crown(ob.data, kinds)
         paint_palm_colors(ob.data, kinds)
         archetypes.append({"object": ob, "kinds": kinds,
                            "bark": bark_mat, "leaf": leaf_mat})
     bpy.data.objects.remove(src, do_unlink=True)
     return archetypes
+
+
+def droop_crown(me, kinds, amount=0.9):
+    """Caleb: fronds should HANG down. Pull leaf verts toward the ground by
+    horizontal distance from the crown axis - tips droop hardest, the frond
+    attachment at the trunk stays put. Runs AFTER ground_and_normalize so the
+    amount is in canonical-height meters."""
+    leaf_idx = [i for i, k in enumerate(kinds) if k == 'L']
+    if not leaf_idx:
+        return
+    cos = [me.vertices[i].co for i in leaf_idx]
+    cx = sum(c.x for c in cos) / len(cos)
+    cy = sum(c.y for c in cos) / len(cos)
+    r_max = max(((c.x - cx) ** 2 + (c.y - cy) ** 2) ** 0.5 for c in cos) or 1.0
+    for i in leaf_idx:
+        co = me.vertices[i].co
+        r = ((co.x - cx) ** 2 + (co.y - cy) ** 2) ** 0.5
+        co.z -= amount * (r / r_max) ** 1.5
+    me.update()
 
 
 def ground_and_normalize(me, kinds):
@@ -386,7 +406,7 @@ def procedural_archetypes():
             a = fi / float(n_fronds) * math.tau
             d = Vector((math.cos(a), math.sin(a), 0.0))
             side = Vector((-d.y, d.x, 0.0)) * 0.28
-            droops = (0.25, 0.05, -0.35, -0.85)
+            droops = (0.25, 0.05, -0.35, -0.85)  # droop_crown adds the hang on top
             base_i = len(verts)
             for si_, frac in enumerate((0.0, 0.34, 0.67, 1.0)):
                 p = crown + d * (f_len * frac)
@@ -405,6 +425,7 @@ def procedural_archetypes():
         ob = new_mesh_object("palm_arch_%d" % ai, verts, faces, mats, uvs,
                              [bark_mat, leaf_mat], colors)
         ground_and_normalize(ob.data, kinds)
+        droop_crown(ob.data, kinds)
         paint_palm_colors(ob.data, kinds)
         archetypes.append({"object": ob, "kinds": kinds,
                            "bark": bark_mat, "leaf": leaf_mat})
