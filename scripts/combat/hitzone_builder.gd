@@ -59,40 +59,56 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 		var b: Vector3 = bw.call(bone_b)
 		return clampf(a.distance_to(b), lo, hi)
 
-	# HEAD: sphere spanning skull base -> crown.
+	# HEAD: sphere centered mid-skull (the joint-pair midpoint).
 	var skull: float = span.call("mixamorig_Head", "mixamorig_HeadTop_End", 0.24, 0.18, 0.45)
 	_zone(body, skel, entries, tuning, Hitzone.ZoneType.HEAD, "HEAD",
-		skull * 0.72, -1.0, "mixamorig_Head", Vector3(0, skull * 0.5, 0), layer, mask, groups)
+		skull * 0.72, -1.0, "mixamorig_Head", "mixamorig_HeadTop_End", Vector3.ZERO, layer, mask, groups)
 
 	var shoulder_half: float = span.call("mixamorig_LeftArm", "mixamorig_RightArm", 0.44, 0.24, 0.7) * 0.5
 	if with_gut:
-		# TORSO: Spine -> just below the Neck, top clamped under the chin.
-		var chest_len: float = span.call("mixamorig_Spine", "mixamorig_Neck", 0.4, 0.25, 0.7) - 0.04
+		# TORSO: radius from real shoulder width (Caleb: the old chest-length
+		# cap starved it to a rail - "the torso doesn't have anything"). The
+		# capsule height stretches to fit the radius when the chest is short.
+		var chest_len: float = span.call("mixamorig_Spine", "mixamorig_Neck", 0.4, 0.25, 0.7)
+		# x1.15: arm-socket bones sit inboard of the visual shoulders on this
+		# rig - measured half-width reads ~0.15 on a ~0.18 chest.
+		var body_r: float = clampf(shoulder_half * 1.15, 0.15, 0.24)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.TORSO, "BODY",
-			minf(shoulder_half * 0.8, chest_len * 0.5), chest_len, "mixamorig_Spine1", Vector3.ZERO, layer, mask, groups)
-		# GUT: hips -> spine base.
-		var gut_len: float = span.call("mixamorig_Hips", "mixamorig_Spine", 0.2, 0.18, 0.5) + 0.10
+			body_r, chest_len + body_r * 0.8, "mixamorig_Spine", "mixamorig_Neck", Vector3.ZERO, layer, mask, groups)
+		# GUT: spans hips->spine, nudged down so the belly AND groin are
+		# covered (a gut shot is a gut shot).
+		var gut_len: float = span.call("mixamorig_Hips", "mixamorig_Spine", 0.2, 0.18, 0.5) + 0.14
+		var gut_r: float = clampf(shoulder_half * 1.0, 0.13, 0.22)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.GUT, "GUT",
-			shoulder_half * 0.62, gut_len, "mixamorig_Hips", Vector3.ZERO, layer, mask, groups)
+			gut_r, gut_len, "mixamorig_Hips", "mixamorig_Spine", Vector3(0, -0.07, 0), layer, mask, groups)
 	else:
 		# No GUT consumer: one BODY capsule covers hips -> neck.
-		var trunk_len: float = span.call("mixamorig_Hips", "mixamorig_Neck", 0.55, 0.4, 0.9) - 0.04
+		var trunk_len: float = span.call("mixamorig_Hips", "mixamorig_Neck", 0.55, 0.4, 0.9)
+		var trunk_r: float = clampf(shoulder_half * 1.15, 0.15, 0.24)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.TORSO, "BODY",
-			minf(shoulder_half * 0.8, trunk_len * 0.42), trunk_len, "mixamorig_Spine", Vector3.ZERO, layer, mask, groups)
+			trunk_r, trunk_len + trunk_r * 0.6, "mixamorig_Hips", "mixamorig_Neck", Vector3.ZERO, layer, mask, groups)
 
-	# ARMS/LEGS: capsules from real joint spans, riding elbow/knee.
+	# ARMS/LEGS: capsules spanning the full limb joint-to-joint (midpoint
+	# centered by sync - an anchor-centered capsule flared its far half out
+	# past the hip on bent knees).
 	for side in ["Left", "Right"]:
 		var tag: String = "L" if side == "Left" else "R"
 		var arm_len: float = span.call("mixamorig_%sArm" % side, "mixamorig_%sHand" % side, 0.55, 0.3, 0.9)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.LIMB, "ARM_%s" % tag,
-			maxf(0.06, arm_len * 0.14), arm_len, "mixamorig_%sForeArm" % side, Vector3.ZERO, layer, mask, groups)
+			maxf(0.06, arm_len * 0.14), arm_len, "mixamorig_%sArm" % side, "mixamorig_%sHand" % side, Vector3.ZERO, layer, mask, groups)
 		var leg_len: float = span.call("mixamorig_%sUpLeg" % side, "mixamorig_%sFoot" % side, 0.85, 0.4, 1.1)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.LIMB, "LEG_%s" % tag,
-			maxf(0.07, leg_len * 0.13), leg_len, "mixamorig_%sLeg" % side, Vector3.ZERO, layer, mask, groups)
+			maxf(0.07, leg_len * 0.13), leg_len, "mixamorig_%sUpLeg" % side, "mixamorig_%sFoot" % side, Vector3.ZERO, layer, mask, groups)
 	return entries
 
 
-## Ride the bones. Call every physics tick, BEFORE any DEAD early-return.
+## Ride the bones - position AND orientation. Each capsule aims its Y axis
+## down the REAL joint-to-joint line (elbow->hand, knee->foot, spine->neck),
+## computed live per tick - bone local axes are NOT trustworthy across export
+## generations (Spine1's basis lay sideways on the v2 rig and turned the chest
+## capsule horizontal). An angled limb keeps its zone in any pose.
+## Offsets are zone-space (Y = along the limb). Call every physics tick,
+## BEFORE any DEAD early-return.
 static func sync(model: ModelActor, entries: Array) -> void:
 	if model == null or entries.is_empty():
 		return
@@ -103,13 +119,29 @@ static func sync(model: ModelActor, entries: Array) -> void:
 		var hz: Area3D = entry[0]
 		var bi: int = entry[1]
 		var off: Vector3 = entry[2]
-		if is_instance_valid(hz):
-			hz.global_position = skel.global_transform * skel.get_bone_global_pose(bi).origin + off
+		var aim_bi: int = entry[3]
+		if not is_instance_valid(hz):
+			continue
+		var anchor: Vector3 = skel.global_transform * skel.get_bone_global_pose(bi).origin
+		var origin: Vector3 = anchor
+		var basis := Basis.IDENTITY
+		if aim_bi >= 0:
+			var to: Vector3 = skel.global_transform * skel.get_bone_global_pose(aim_bi).origin
+			# MIDPOINT-SPANNING: the capsule bridges the two joints exactly,
+			# in every pose - anchor-centered zones flared their far half.
+			origin = (anchor + to) * 0.5
+			var y: Vector3 = to - anchor
+			if y.length_squared() > 0.0001:
+				y = y.normalized()
+				var ref: Vector3 = Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+				var x: Vector3 = y.cross(ref).normalized()
+				basis = Basis(x, y, x.cross(y))
+		hz.global_transform = Transform3D(basis, origin + basis * off)
 
 
 static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: HitzoneTuning,
 		zone_type: Hitzone.ZoneType, region: String, radius: float, height: float,
-		bone: String, bone_offset: Vector3, layer: int, mask: int, groups: Array[String]) -> void:
+		bone: String, aim_bone: String, bone_offset: Vector3, layer: int, mask: int, groups: Array[String]) -> void:
 	# Measured baselines, stashed so the bench can compute save-deltas.
 	var base_radius: float = radius
 	var base_height: float = height
@@ -146,7 +178,7 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 		hz.add_to_group(g)
 	body.add_child(hz)
 	if bi >= 0:
-		entries.append([hz, bi, bone_offset])
+		entries.append([hz, bi, bone_offset, skel.find_bone(aim_bone)])
 
 
 ## Legacy static bands - sprite/capsule units only.
@@ -211,9 +243,14 @@ static func draw_zone_wire(im: ImmediateMesh, hz: Area3D) -> void:
 	elif shape is CapsuleShape3D:
 		var cap := shape as CapsuleShape3D
 		var half: float = maxf(0.0, cap.height * 0.5 - cap.radius)
+		# Rings at cylinder ends AND cap crowns + 8 struts, so stubby capsules
+		# read as volumes instead of a coincident ring pair.
 		_wire_circle(im, xf, Vector3(0, half, 0), cap.radius, 1, color)
 		_wire_circle(im, xf, Vector3(0, -half, 0), cap.radius, 1, color)
-		for a in [0.0, PI * 0.5, PI, PI * 1.5]:
+		_wire_circle(im, xf, Vector3(0, half + cap.radius * 0.7, 0), cap.radius * 0.7, 1, color)
+		_wire_circle(im, xf, Vector3(0, -half - cap.radius * 0.7, 0), cap.radius * 0.7, 1, color)
+		for i in range(8):
+			var a: float = TAU * float(i) / 8.0
 			var p := Vector3(cos(a) * cap.radius, 0, sin(a) * cap.radius)
 			im.surface_set_color(color)
 			im.surface_add_vertex(xf * (p + Vector3(0, half, 0)))

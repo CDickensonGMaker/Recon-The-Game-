@@ -37,12 +37,15 @@ func _ready() -> void:
 	_build_scene()
 	_scan_units()
 	if not _units.is_empty():
-		_load_unit(0)
+		# Open on the bona fide rig (Caleb): us_grunt_v2 is the reference model
+		# hitboxes are tuned against - v1 rigs are legacy fallbacks.
+		_load_unit(maxi(0, _units.find("us_grunt_v2")))
 
 
 func _build_scene() -> void:
 	var cam := Camera3D.new()
-	cam.position = Vector3(0.0, 1.15, 3.4)
+	cam.position = Vector3(0.0, 1.05, 2.6)
+	cam.fov = 50.0
 	cam.current = true
 	add_child(cam)
 	var light := DirectionalLight3D.new()
