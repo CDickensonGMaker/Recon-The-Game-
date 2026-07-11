@@ -29,6 +29,9 @@ const THINK_INTERVAL: float = 0.15
 ## Target (enemies)
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
+## Seconds since we last had eyes on the target (mirrors EnemyBase) - recent
+## contact keeps a follower FIGHTING instead of falling back to heel.
+var target_last_seen_time: float = 999.0
 var has_line_of_sight: bool = false
 
 ## Aim interpolation
@@ -303,12 +306,18 @@ func _find_target() -> void:
 func _update_line_of_sight() -> void:
 	if not target:
 		has_line_of_sight = false
+		target_last_seen_time = 999.0
 		return
 
 	var eye_pos := global_position + Vector3.UP * 1.5
 	var target_pos := target.global_position + Vector3.UP * 1.0
 
 	has_line_of_sight = CombatManager.has_line_of_sight(eye_pos, target_pos, [self])
+
+	if has_line_of_sight:
+		target_last_seen_time = 0.0
+	else:
+		target_last_seen_time += THINK_INTERVAL
 
 	if has_line_of_sight:
 		last_known_target_pos = target.global_position
