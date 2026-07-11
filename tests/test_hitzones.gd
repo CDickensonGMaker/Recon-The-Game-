@@ -3,7 +3,8 @@
 ##   2. Zones RIDE the bones: after playing a clip and advancing, sync() moves
 ##      the head zone with the skeleton (static bands never moved - the bug).
 ##   3. Bench tuning roundtrip: a saved HitzoneTuning override is applied on
-##      the next build (radius absolute, offset delta).
+##      the next build (radius absolute, offset delta, damage/fatal overrides
+##      per ADR-016 Amendment B; untouched zones keep values-of-record).
 ## Run: godot --headless --path . res://tests/test_hitzones.tscn
 extends Node3D
 
@@ -89,7 +90,7 @@ func _run() -> void:
 	# --- 3. tuning roundtrip
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://data/hitzones"))
 	var tuning := HitzoneTuning.new()
-	tuning.zones["HEAD"] = {"radius": 0.5, "offset": Vector3(0, 0.2, 0)}
+	tuning.zones["HEAD"] = {"radius": 0.5, "offset": Vector3(0, 0.2, 0), "damage": 2.5, "fatal": false}
 	var tpath: String = HitzoneBuilder.TUNING_DIR + "us_grunt_v2.tres"
 	var save_err: int = ResourceSaver.save(tuning, tpath)
 	if save_err != OK:
@@ -103,17 +104,37 @@ func _run() -> void:
 		model3.setup("us_grunt_v2")
 		var entries3: Array = HitzoneBuilder.build(holder3, model3, 0, 0, ["hitzone_probe"], true)
 		var applied: bool = false
+		var dmg_ok: bool = false
+		var fatal_ok: bool = false
+		var body_law_ok: bool = false
 		for c in holder3.get_children():
 			if c is Area3D and str(c.get_meta("region", "")) == "HEAD":
 				for cc in c.get_children():
 					if cc is CollisionShape3D and (cc as CollisionShape3D).shape is SphereShape3D:
 						var r: float = ((cc as CollisionShape3D).shape as SphereShape3D).radius
 						applied = absf(r - 0.5) < 0.001
+				var hzc := c as Hitzone
+				if hzc != null:
+					dmg_ok = absf(hzc.get_damage_multiplier() - 2.5) < 0.001
+					fatal_ok = not hzc.is_fatal_zone()
+			elif c is Area3D and str(c.get_meta("region", "")) == "BODY":
+				var bzc := c as Hitzone
+				if bzc != null:
+					body_law_ok = absf(bzc.get_damage_multiplier() - 2.0) < 0.001 and not bzc.is_fatal_zone()
 		if not applied:
 			print("FAIL: tuning override radius not applied on rebuild")
 			failures += 1
-		else:
-			print("  tuning roundtrip OK (HEAD r=0.5 applied)")
+		if not dmg_ok:
+			print("FAIL: damage override 2.5 not applied to HEAD on rebuild")
+			failures += 1
+		if not fatal_ok:
+			print("FAIL: fatal=false override not applied to HEAD on rebuild")
+			failures += 1
+		if not body_law_ok:
+			print("FAIL: untouched BODY zone drifted from ADR-016 law (x2.0, non-fatal)")
+			failures += 1
+		if applied and dmg_ok and fatal_ok and body_law_ok:
+			print("  tuning roundtrip OK (HEAD r=0.5, dmg x2.5, non-fatal; BODY kept law)")
 		holder3.queue_free()
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tpath))
 

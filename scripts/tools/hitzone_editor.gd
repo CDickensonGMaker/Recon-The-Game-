@@ -7,6 +7,7 @@
 ## Keys: Z/X character  [/] clip  P pause  Q/E rotate
 ##       1-7 select zone (HEAD BODY GUT ARM_L ARM_R LEG_L LEG_R)
 ##       Arrows offset X/Y  PgUp/PgDn offset Z  +/- radius  Shift fine
+##       ,/. damage mult down/up (Shift fine)  F toggle fatal
 ##       Ctrl+S save data/hitzones/<unit>.tres   R revert (delete overrides)
 extends Node3D
 
@@ -212,6 +213,21 @@ func _handle_input(delta: float) -> void:
 	var hz: Area3D = _zone_for(REGION_ORDER[_selected])
 	if hz == null:
 		return
+
+	# Damage threshold editing (ADR-016 Amendment B): ,/. mult, F fatal toggle.
+	var zh := hz as Hitzone
+	if zh != null:
+		var dstep: float = 0.05 if Input.is_key_pressed(KEY_SHIFT) else 0.25
+		if _pressed_once(KEY_COMMA):
+			zh.damage_mult_override = maxf(0.0, zh.get_damage_multiplier() - dstep)
+			_touched[REGION_ORDER[_selected]] = true
+		if _pressed_once(KEY_PERIOD):
+			zh.damage_mult_override = zh.get_damage_multiplier() + dstep
+			_touched[REGION_ORDER[_selected]] = true
+		if _pressed_once(KEY_F):
+			zh.fatal_override = 0 if zh.is_fatal_zone() else 1
+			_touched[REGION_ORDER[_selected]] = true
+
 	var fine: float = 0.15 if Input.is_key_pressed(KEY_SHIFT) else 1.0
 	var off_delta := Vector3.ZERO
 	if Input.is_key_pressed(KEY_LEFT):
@@ -271,9 +287,25 @@ func _save_tuning() -> void:
 				var sh: Shape3D = (c as CollisionShape3D).shape
 				cur_r = (sh as SphereShape3D).radius if sh is SphereShape3D else (sh as CapsuleShape3D).radius
 		var delta_off: Vector3 = cur_off - base_off
-		if delta_off.length() < 0.001 and absf(cur_r - base_r) < 0.001:
+		# Damage overrides persist only when they differ from ADR-016 law.
+		var zhz := hz as Hitzone
+		var dmg_diff: bool = false
+		var fatal_diff: bool = false
+		if zhz != null:
+			var def_mult: float = float(Hitzone.MULTIPLIERS.get(zhz.zone_type, 1.0))
+			dmg_diff = zhz.damage_mult_override >= 0.0 \
+				and absf(zhz.damage_mult_override - def_mult) > 0.001
+			var law_fatal: bool = zhz.zone_type == Hitzone.ZoneType.HEAD
+			fatal_diff = zhz.fatal_override >= 0 and (zhz.fatal_override == 1) != law_fatal
+		if delta_off.length() < 0.001 and absf(cur_r - base_r) < 0.001 \
+				and not dmg_diff and not fatal_diff:
 			continue
-		tuning.zones[region] = {"radius": cur_r, "offset": delta_off}
+		var zone_entry: Dictionary = {"radius": cur_r, "offset": delta_off}
+		if dmg_diff:
+			zone_entry["damage"] = zhz.damage_mult_override
+		if fatal_diff:
+			zone_entry["fatal"] = zhz.fatal_override == 1
+		tuning.zones[region] = zone_entry
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://data/hitzones"))
 	var path: String = HitzoneBuilder.TUNING_DIR + _units[_unit_idx] + ".tres"
 	var err: int = ResourceSaver.save(tuning, path)
@@ -332,9 +364,14 @@ func _update_hud() -> void:
 			if c is CollisionShape3D and (c as CollisionShape3D).shape != null:
 				var sh: Shape3D = (c as CollisionShape3D).shape
 				r = (sh as SphereShape3D).radius if sh is SphereShape3D else (sh as CapsuleShape3D).radius
-		lines.append("%s%d %s  r=%.3f%s" % [marker, i + 1, region, r, "  *" if _touched.has(region) else ""])
+		var zh := hz as Hitzone
+		var dmg_str: String = ""
+		if zh != null:
+			dmg_str = "  FATAL" if zh.is_fatal_zone() else "  dmg x%.2f" % zh.get_damage_multiplier()
+		lines.append("%s%d %s  r=%.3f%s%s" % [marker, i + 1, region, r, dmg_str, "  *" if _touched.has(region) else ""])
 	lines.append("")
 	lines.append("Z/X unit  [/] clip  P pause  Q/E rotate")
 	lines.append("1-7 zone  arrows/PgUpDn offset  +/- radius  Shift fine")
+	lines.append(",/. damage mult (Shift fine)  F fatal toggle")
 	lines.append("Ctrl+S save   R revert")
 	_hud.text = "\n".join(lines)

@@ -20,6 +20,13 @@ const MULTIPLIERS := {
 	ZoneType.LIMB: 0.75
 }
 
+## Per-unit overrides (ADR-016 Amendment B), authored in the hitzone bench and
+## applied by HitzoneBuilder from data/hitzones/<unit>.tres. Negative = no
+## override, ADR-016 defaults rule.
+var damage_mult_override: float = -1.0
+## -1 = law default (HEAD fatal, rest not) · 0 = forced non-fatal · 1 = forced fatal
+var fatal_override: int = -1
+
 ## Owner reference
 var owner_entity: Node = null
 
@@ -46,6 +53,8 @@ func _setup_groups() -> void:
 
 ## Get damage multiplier for this zone
 func get_damage_multiplier() -> float:
+	if damage_mult_override >= 0.0:
+		return damage_mult_override
 	return MULTIPLIERS.get(zone_type, 1.0)
 
 
@@ -76,4 +85,6 @@ func is_critical_zone() -> bool:
 
 ## Zones that kill an enemy outright regardless of damage value.
 func is_fatal_zone() -> bool:
+	if fatal_override >= 0:
+		return fatal_override == 1
 	return zone_type == ZoneType.HEAD

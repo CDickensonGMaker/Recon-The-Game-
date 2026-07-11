@@ -148,13 +148,19 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 	var base_offset: Vector3 = bone_offset
 	# Bench overrides win over measurement, key by key (radius/height absolute,
 	# offset is a delta on the measured bone offset).
+	var ov: Dictionary = {}
 	if tuning != null and tuning.zones.has(region):
-		var ov: Dictionary = tuning.zones[region]
+		ov = tuning.zones[region]
 		radius = float(ov.get("radius", radius))
 		height = float(ov.get("height", height))
 		bone_offset = bone_offset + Vector3(ov.get("offset", Vector3.ZERO))
 	var hz := Hitzone.new()
 	hz.zone_type = zone_type
+	# Damage overrides (ADR-016 Amendment B): per-unit multiplier / fatality.
+	if ov.has("damage"):
+		hz.damage_mult_override = maxf(0.0, float(ov["damage"]))
+	if ov.has("fatal"):
+		hz.fatal_override = 1 if bool(ov["fatal"]) else 0
 	hz.set_owner_entity(body)
 	hz.set_meta("region", region)
 	hz.set_meta("base_radius", base_radius)

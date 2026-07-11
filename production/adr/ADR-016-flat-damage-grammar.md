@@ -88,6 +88,18 @@ flat **100** per round (torso ×2 = 200: one round ends anything to 70m). Matche
 machinery (Amendment A above) stays in WeaponData for future buckshot variants; the probe's
 one-shot-torso guard exempts the shotgun by design — it is the execution weapon.
 
+## Amendment B (2026-07-11, Summoner-directed): per-unit zone override layer
+The locational values of record (HEAD fatal · TORSO ×2.0 · GUT ×1.75 · LIMB ×0.75) remain the law and
+the defaults. On top of them, a **per-unit override layer** now exists: `data/hitzones/<unit>.tres`
+(`HitzoneTuning`) may carry per-zone `damage` (multiplier replacing the default) and `fatal` (bool,
+overriding HEAD-fatal — e.g. a future helmeted heavy). Overrides are authored ONLY in the hitzone
+bench (`hitzone_editor.bat` — `,`/`.` mult, `F` fatal, Ctrl+S), applied by `HitzoneBuilder._zone()`,
+and consumed through the existing `Hitzone.get_damage_multiplier()`/`is_fatal_zone()` seams — no call
+site changes. Determinism holds: overrides are static data, not rolls. A unit with no tuning file, or
+a tuning entry without damage keys, behaves exactly per the law above; the bench refuses to persist
+values equal to the law (no silent no-op files). Probe: `tests/test_hitzones.tscn` roundtrips
+radius + damage + fatal and asserts untouched zones keep the values of record. Bead: 5if4.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015
