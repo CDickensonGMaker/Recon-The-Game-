@@ -354,13 +354,16 @@ func _fire_shot() -> void:
 
 	var final_dir: Vector3 = (aim_dir + right * tan(spread_x) + up * tan(spread_y)).normalized()
 
-	# Raycast for hit detection
+	# Raycast for hit detection. FULL-REALISM FRIENDLY FIRE (Summoner decree):
+	# ally hurtboxes (32) are in the mask - your rounds hurt your men at full
+	# damage. Ally BODY capsules (layer 2) stay out on purpose: they would
+	# shadow the hitzones (the 3-shot-headshot bug class).
 	var origin: Vector3 = controller.get_camera_position()
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_dir * current_weapon.max_range,
-		1 | 4 | 64  # World, enemies, enemy hurtboxes
+		1 | 4 | 32 | 64  # World, enemies, ally hurtboxes, enemy hurtboxes
 	)
 	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
 	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.

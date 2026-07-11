@@ -54,7 +54,7 @@ static func resolve(faction: String, unit: String, weapon: String, intent: Strin
 ##  - is_surrendered / is_crippled are FLAGS, not states (enemy_base.gd:129,1347)
 ##  - DEAD needs the hit direction, which _die() must pass in
 static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
-		is_firing: bool, speed: float) -> String:
+		is_firing: bool, speed: float, lateral: float = 0.0) -> String:
 	if is_surrendered:
 		return "surrender"
 	if is_crippled:
@@ -66,9 +66,17 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		Enums.AIState.COMBAT:
 			if is_firing:
 				return "fire"
-			if speed > 0.3:
-				return "strafe"
-			return "aim"
+			# War-room anim policy (Caleb: run/aim-walk dominant, strafe rare):
+			# still = aim; genuinely lateral-and-slow = strafe (L/R honest);
+			# slow forward = aim-walk; fast = run. Deadband raised 0.3 -> 0.5
+			# so the covered micro-shuffle stops flickering the clip.
+			if speed <= 0.5:
+				return "aim"
+			if speed <= 3.2 and absf(lateral) > 0.7:
+				return "strafe_l" if lateral > 0.0 else "strafe_r"
+			if speed <= 3.2:
+				return "aim_walk"
+			return "run"
 		Enums.AIState.SUPPRESSED:
 			return "cover"
 		Enums.AIState.SEEKING_COVER, Enums.AIState.FLANKING, Enums.AIState.ADVANCING:
@@ -91,7 +99,9 @@ const MODEL_CLIP: Dictionary = {
 	"idle": "rifle_aiming_idle", "aim": "rifle_aiming_idle",
 	"fire": "firing_rifle", "reload": "reloading",
 	"run": "run_forward", "walk": "run_forward", "patrol": "run_forward",
-	"strafe": "strafe", "cover": "kneeling_pointing",
+	"aim_walk": "run_forward",  # slow aimed movement; dedicated clip later
+	"strafe": "strafe", "strafe_l": "run_left", "strafe_r": "run_right",
+	"cover": "kneeling_pointing",
 	"retreat": "injured_walk_backwards", "crippled": "injured_walk_backwards",
 	"surrender": "kneeling_pointing",
 	"death_forward": "death_forward", "death_right": "death_from_right",
@@ -104,6 +114,9 @@ const MODEL_CLIP: Dictionary = {
 ## ModelActor.play() consults this when the asked-for clip is missing, so any
 ## caller can ask in either generation's names and every rig answers.
 const MODEL_ALIASES: Dictionary = {
+	# strafe family (v1 has strafe/strafe_1; v2 has run_left/run_right)
+	"run_left": ["strafe", "run_forward"],
+	"run_right": ["strafe_1", "strafe", "run_forward"],
 	# v1 name -> v2 equivalents
 	"rifle_aiming_idle": ["idle_aiming", "idle"],
 	"strafe": ["run_left", "run_forward"],

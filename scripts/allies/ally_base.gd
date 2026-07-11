@@ -34,6 +34,32 @@ var last_known_target_pos: Vector3 = Vector3.ZERO
 var target_last_seen_time: float = 999.0
 ## Human beat between acquiring a new target and the first aimed shot.
 var _aim_settle: float = 0.0
+## Debounced eyes-on 0-1 (war-room decree): goals read THIS, never raw LOS.
+var contact_conf: float = 0.0
+## Goal dwell + contact clock (decree: ~1s reactive dwell, Class-A interrupts).
+var goal_timer: float = 99.0
+var _contact_time: float = 0.0
+
+## ---- PERSONALITY SPECTRUM (Summoner: "everyone's goal is to survive...
+## there can be men that cower or anchor and complain and miss, and total
+## go-getters getting kills"). Rolled random per man, per playthrough.
+## courage: <0.35 = the coward (anchors deep, suppressive fire, sluggish),
+##          >0.70 = the go-getter (pushes with the player, skips the cover trip)
+## skill:   scales personal spread (0 = sprays, 1 = deadly)
+var courage: float = 0.5
+var skill: float = 0.5
+const RALLY_RADIUS: float = 6.0
+const RALLY_BONUS: float = 0.25  # presence rally (Army doctrine): lead from the front
+
+
+## Effective nerve right now - the player standing close steadies a man.
+func effective_courage() -> float:
+	var c: float = courage
+	var p := GameManager.player
+	if p != null and is_instance_valid(p) and p is Node3D:
+		if global_position.distance_to((p as Node3D).global_position) < RALLY_RADIUS:
+			c += RALLY_BONUS
+	return clampf(c, 0.0, 1.0)
 var has_line_of_sight: bool = false
 
 ## Aim interpolation
@@ -122,6 +148,9 @@ func _ready() -> void:
 	CombatManager.register_ally(self)
 	var slot_angle: float = randf_range(0.0, TAU)
 	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
+	# The man he is this playthrough (decree: random spectrum, roster later).
+	courage = randf()
+	skill = randf()
 
 	# Default ally weapon: M16A1 (matches the m16 models/sprites — audit)
 	weapon_data = load("res://data/weapons/m16a1.tres")
@@ -196,14 +225,19 @@ func _update_sprite() -> void:
 	sprite_actor.set_facing(facing)
 	if current_state == Enums.AIState.DEAD:
 		return
-	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
+	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
+	var speed: float = vel_flat.length()
+	var lateral: float = 0.0
+	if speed > 0.1:
+		var fwd := Vector3(facing.x, 0.0, facing.z).normalized()
+		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
 	var firing: bool = not can_fire and fire_timer < 0.12
 	# Cover behavior owns the clip while an override is set (leap / crouch-hold
 	# / peek) - the state map would stomp it every frame otherwise.
 	if _anim_override != "" and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play(_anim_override)
 		return
-	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed)
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral)
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
 
 
@@ -323,28 +357,51 @@ func _update_line_of_sight() -> void:
 
 	if has_line_of_sight:
 		target_last_seen_time = 0.0
+		contact_conf = minf(1.0, contact_conf + THINK_INTERVAL / 0.3)
 	else:
 		target_last_seen_time += THINK_INTERVAL
+		contact_conf = maxf(0.0, contact_conf - THINK_INTERVAL / 2.0)
 
 	if has_line_of_sight:
 		last_known_target_pos = target.global_position
 
 
 func _evaluate_goals() -> void:
-	# If suppressed, seek cover
-	if suppression_level > 0.6:
+	goal_timer += THINK_INTERVAL
+
+	# Contact clock + new-contact reset (fixes the never-reset fail counter).
+	if target != null and is_instance_valid(target):
+		if _contact_time == 0.0:
+			_cover_fail_count = 0
+		_contact_time += THINK_INTERVAL
+	else:
+		_contact_time = 0.0
+
+	# Dwell ~1s (Summoner's reactive dial); Class-A interrupts (take_damage)
+	# force past the gate. A cover rush COMPLETES (cap 4s).
+	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
+		return
+	if current_state == Enums.AIState.SEEKING_COVER and _moving_to_cover and goal_timer < 4.0:
+		return
+	goal_timer = 0.0
+
+	var nerve: float = effective_courage()
+
+	# Suppression band with HYSTERESIS (enter >0.6, exit <0.35 - no boundary
+	# flicker). Suppressed WITH cover = hunker where you are (decree), never
+	# relocate under fire.
+	var supp_gate: float = 0.35 if current_state == Enums.AIState.SEEKING_COVER else 0.6
+	if suppression_level > supp_gate and not has_cover:
 		current_goal = Enums.AIGoal.SEEK_COVER
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
-	# In contact = FIGHT (Caleb: "even if they are told to follow me their
-	# goal should be to engage the enemy and survive"). LOS lost seconds ago
-	# still counts as contact - the combat executor maneuvers to regain it
-	# instead of the man falling back to trail the player mid-firefight.
-	# COVER-FIRST (squad parity): caught in the open on contact, reach cover
-	# before settling into the duel - unless two searches came up dry.
-	if target and weapons_free and (has_line_of_sight or target_last_seen_time < 6.0):
-		if not has_cover and _cover_fail_count < 2:
+	# In contact = FIGHT (Caleb). Reads the DEBOUNCED confidence, never raw
+	# LOS - a leaf can't send a man back to heel. COVER-FIRST is personality-
+	# gated: go-getters (nerve >= 0.75) skip the cover trip and push; everyone
+	# else covers once, on fresh contact only (<5s), fail-count escapes apply.
+	if target and weapons_free and (contact_conf > 0.4 or target_last_seen_time < 6.0):
+		if not has_cover and _cover_fail_count < 2 and _contact_time < 5.0 and nerve < 0.75:
 			current_goal = Enums.AIGoal.SEEK_COVER
 			_change_state(Enums.AIState.SEEKING_COVER)
 			return
@@ -436,11 +493,17 @@ func _execute_combat(delta: float) -> void:
 		strafe_timer = randf_range(1.5, 3.0)
 
 	if has_line_of_sight:
-		# Movement based on range
+		# Movement based on range - PERSONALITY-SHAPED (decree): the go-getter
+		# (nerve >= 0.7) closes distance and pushes; the coward (nerve < 0.35)
+		# ANCHORS - he is not leaving his rock to close distance, he suppresses
+		# from where he is. The middle holds the base of fire.
 		var move_dir := Vector3.ZERO
+		var nerve: float = effective_courage()
+		var advance_band: float = 0.9 if nerve >= 0.7 else 1.2
 
-		if dist > preferred_range * 1.2:
-			move_dir = (target.global_position - global_position).normalized()
+		if dist > preferred_range * advance_band:
+			if not (nerve < 0.35 and has_cover):
+				move_dir = (target.global_position - global_position).normalized()
 		elif dist < preferred_range * 0.6:
 			move_dir = (global_position - target.global_position).normalized()
 
@@ -449,12 +512,13 @@ func _execute_combat(delta: float) -> void:
 			var strafe_vec := transform.basis.x * strafe_direction
 			move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
-		# Covered men HOLD their piece of cover - crouch behind it, peek up to
-		# fire (the leap clip finishes first), drift releases the claim.
+		# Covered men HOLD their piece of cover: leash RE-ANCHORS (never
+		# releases by drift - the release loop was the cover-obsession bug).
 		var firing_now: bool = not can_fire and fire_timer > 0.0
 		if has_cover:
-			if current_cover != Vector3.ZERO and global_position.distance_to(current_cover) > 2.5:
-				_release_cover()
+			var leash: float = global_position.distance_to(current_cover) if current_cover != Vector3.ZERO else 0.0
+			if leash > 1.5:
+				move_dir = (current_cover - global_position).normalized()  # step back to the rock
 			else:
 				move_dir *= 0.1
 				if float(Time.get_ticks_msec()) > _leap_until_ms:
@@ -532,10 +596,14 @@ func _execute_seeking_cover(delta: float) -> void:
 		velocity.x = move_dir.x * move_speed
 		velocity.z = move_dir.z * move_speed
 
-	# Exit after moving
+	# Exit after moving - to the FIGHT if we still have one (the old exit to
+	# IDLE mid-firefight was half the cover-thrash loop).
 	if state_timer > 2.0:
 		_anim_override = ""
-		_change_state(Enums.AIState.IDLE)
+		if target != null and is_instance_valid(target):
+			_change_state(Enums.AIState.COMBAT)
+		else:
+			_change_state(Enums.AIState.IDLE)
 
 
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
@@ -557,7 +625,8 @@ func _find_cover_point() -> Vector3:
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
+			< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
 	for c in candidates:
 		if EnemyBase._claim_cover(c, self):
 			return c
@@ -621,23 +690,36 @@ func _fire_at_target() -> void:
 	var spread: float = deg_to_rad(weapon_data.base_spread * 1.2 + float(shots_fired) * 0.05)
 	var sa: int = SquadRoster.skill_level(member, "small_arms") if not member.is_empty() else 0
 	spread *= 1.0 / (1.0 + 0.06 * float(sa))
+	# Personality skill (decree): the bad soldier sprays wide ("and miss but
+	# maybe hit"), the natural shoots tight. x1.6 at skill 0 -> x0.8 at skill 1.
+	spread *= (1.6 - skill * 0.8)
 	final_aim.x += randf_range(-spread, spread)
 	final_aim.y += randf_range(-spread, spread)
 	final_aim.z += randf_range(-spread, spread)
 	final_aim = final_aim.normalized()
 
-	# Raycast from the gun muzzle (R03).
+	# Raycast from the gun muzzle (R03). FULL-REALISM FF (decree): the ray
+	# sees the player (2) and fellow-ally hurtboxes (32) too.
 	var origin: Vector3 = get_muzzle_position(final_aim)
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_aim * weapon_data.max_range,
-		1 | 4 | 64  # World, enemies, enemy hurtboxes
+		1 | 2 | 4 | 32 | 64
 	)
 	query.collide_with_areas = true  # enemy hitzones are Area3D (sponge fix)
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
+
+	# MUZZLE DISCIPLINE (decree): the player or a squadmate in the lane =
+	# don't squeeze. The skipped round costs cadence, not ammo.
+	if result:
+		var lane: Object = result.collider
+		var lane_owner: Node = (lane as Hitzone).owner_entity if lane is Hitzone else lane as Node
+		if lane_owner != null and lane_owner != self and is_instance_valid(lane_owner) \
+				and (lane_owner.is_in_group("player") or lane_owner.is_in_group("allies")):
+			return
 
 	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
 	if result:
@@ -688,6 +770,7 @@ func _fire_at_target() -> void:
 
 ## Take damage
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
+	goal_timer = 99.0  # Class-A interrupt (decree): getting hit may always re-plan
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:

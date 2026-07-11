@@ -70,6 +70,7 @@ func _ready() -> void:
 	farmer.target = mock_player
 	mock_player.global_position = farmer.global_position + Vector3(farmer.preferred_range, 0, 0)
 	farmer.has_line_of_sight = true
+	farmer.contact_conf = 1.0  # goals read the debounced confidence (decree)
 	farmer.threat_level = 0.1
 	farmer.suppression_level = 0.0
 	farmer.char_aggression = 0.4

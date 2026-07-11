@@ -153,6 +153,9 @@ func _spawn_player() -> void:
 ## Cover at the combat lab's four deliberate heights (0.5 prone / 1.0 crouch /
 ## 1.5 standing chest / 2.5 full LOS block) so the AI has real geometry to use
 ## and you have maneuvering room.
+var _cover_spots: Array[Vector3] = []
+
+
 func _build_cover() -> void:
 	var heights: Array[float] = [0.5, 1.0, 1.5, 2.5]
 	var tints: Array[Color] = [
@@ -169,9 +172,11 @@ func _build_cover() -> void:
 			continue  # keep the middle open
 		var b := _cover_box(Vector3(w, hgt, d), pos, tints[idx])
 		b.rotation.y = _rng.randf_range(0.0, TAU)
+		_cover_spots.append(pos)
 	# two hard blocks for real LOS breaks
 	_cover_box(Vector3(6.0, 3.0, 1.0), Vector3(-9.0, 1.5, 2.0), tints[3])
 	_cover_box(Vector3(1.0, 3.0, 6.0), Vector3(8.0, 1.5, -6.0), tints[3])
+	_cover_spots.append(Vector3(8.0, 0.0, -6.0))
 
 
 func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
@@ -232,9 +237,18 @@ func _spawn_wave() -> void:
 	# don't stroll in daydreaming (Caleb: wave 2 got deleted at spawn while its
 	# perception ladder was still waking up). Entries staggered so seven men
 	# don't materialize as one volley target.
+	# Arrivals spawn COVER-ADJACENT (decree: no more materializing in the wide
+	# open) - within ~3m of a cover piece on the north half.
+	var north_cover: Array[Vector3] = []
+	for c in _cover_spots:
+		if c.z < -4.0:
+			north_cover.append(c)
 	var idx: int = 0
 	for data_path in WAVE:
 		var pos := Vector3(_rng.randf_range(-16.0, 16.0), 1.0, _rng.randf_range(-19.0, -12.0))
+		if not north_cover.is_empty():
+			var spot: Vector3 = north_cover[_rng.randi() % north_cover.size()]
+			pos = spot + Vector3(_rng.randf_range(-3.0, 3.0), 1.0, _rng.randf_range(-3.0, -0.5))
 		var delay: float = 0.0 if _wave == 1 else 0.6 * float(idx)
 		idx += 1
 		var dp: String = data_path
@@ -370,8 +384,8 @@ func _update_debug_vis() -> void:
 			continue
 		var state_name: String = Enums.AIState.keys()[int(a.current_state)]
 		var order_name: String = AllyBase.OrderMode.keys()[int(a.order_mode)]
-		lbl.text = "ALLY | %s\n%s  tgt:%s%s  cov:%s wf:%s" % [
-			state_name, order_name, _name_of(a.target),
+		lbl.text = "ALLY c%.1f s%.1f | %s\n%s  tgt:%s%s  cov:%s wf:%s" % [
+			a.courage, a.skill, state_name, order_name, _name_of(a.target),
 			" (LOS)" if a.has_line_of_sight else "", "Y" if a.has_cover else "n",
 			"Y" if a.weapons_free else "HOLD"]
 		lbl.modulate = Color(0.45, 0.75, 1.0)

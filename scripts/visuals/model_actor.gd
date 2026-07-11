@@ -241,14 +241,15 @@ func wake_ragdoll() -> void:
 		_ragdoll_sim.physical_bones_start_simulation()
 
 
-## World-space forward. The body is rotated to face it (unlike the billboard
-## sprite, a 3D model must actually turn).
+## World-space forward. ONE yaw owner (war room AI decree): this sets GLOBAL
+## yaw, so it is correct regardless of what the parent body's look_at did -
+## the old LOCAL yaw compounded with the body rotation and read ~180 degrees
+## wrong on enemies (they fight toward +Z; allies toward -Z masked it).
 func set_facing(dir: Vector3) -> void:
 	var flat := Vector3(dir.x, 0.0, dir.z)
 	if flat.length_squared() > 0.0001:
 		_facing = flat.normalized()
-		# Model authored facing -Z (Godot forward); rotate so -Z aligns to facing.
-		rotation.y = atan2(_facing.x, _facing.z)
+		global_rotation.y = atan2(_facing.x, _facing.z)
 
 
 ## Play a clip by the intent-resolved name. No-ops if already playing it.

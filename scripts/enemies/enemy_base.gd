@@ -125,6 +125,7 @@ var d_retreats_when_hurt: bool = false # archetype breaks when wounded
 var d_uses_cover: bool = true
 var d_retreat_hp: float = 0.25
 var d_exposure_ramp: float = 2.5       # seconds of exposure to full accuracy (EnemyData)
+var contact_conf: float = 0.0          # debounced eyes-on 0-1 (goals read THIS, not raw LOS)
 
 ## DESIGN 4.2 fairness (the exposure ramp, formerly dead code): x3.0 spread at
 ## fresh exposure, converging near ramp end via (1 - t^2) - the safe window
@@ -338,9 +339,14 @@ func _update_sprite() -> void:
 	sprite_actor.set_facing(facing_dir)
 	if current_state == Enums.AIState.DEAD or is_surrendered:
 		return  # the death / surrender clip was already latched; do not restart it
-	var speed: float = Vector3(velocity.x, 0.0, velocity.z).length()
+	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
+	var speed: float = vel_flat.length()
+	var lateral: float = 0.0
+	if speed > 0.1:
+		var fwd := Vector3(facing_dir.x, 0.0, facing_dir.z).normalized()
+		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
 	var firing: bool = not can_fire and fire_timer < 0.12
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed)
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral)
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
 
 
@@ -778,6 +784,16 @@ func _update_line_of_sight() -> void:
 		target_last_seen_time += _think_interval_current
 		target_visible_duration = maxf(0.0, target_visible_duration - _think_interval_current * 3.0)
 
+	# CONTACT CONFIDENCE (war-room decree): the debounced "I see him" that
+	# GOALS read - builds full in ~0.3s of eyes-on, drains empty over ~2.0s
+	# blind. LOS flicker can no longer flip a decision; only FIRING reads the
+	# raw boolean. Deliberately slower than the exposure drain, so accuracy
+	# forgives a repositioning player before intent gives up on him.
+	if new_los:
+		contact_conf = minf(1.0, contact_conf + _think_interval_current / 0.3)
+	else:
+		contact_conf = maxf(0.0, contact_conf - _think_interval_current / 2.0)
+
 	has_line_of_sight = new_los
 
 
@@ -816,8 +832,15 @@ var _bound_fail_count: int = 0
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
 
-	# Don't switch goals too frequently
-	if goal_timer < 0.5 and current_goal != Enums.AIGoal.NONE:
+	# Dwell (Summoner: highly reactive dial = ~1s; smoothness comes from the
+	# contact-confidence debounce, not long commitments). Class-A interrupts
+	# (taking damage) force goal_timer past this gate from take_damage().
+	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
+		return
+
+	# A rush COMPLETES: while moving to claimed cover, hold the goal until
+	# arrival (cap 4s so a blocked path can't lock a man forever).
+	if current_goal == Enums.AIGoal.SEEK_COVER and _moving_to_cover and goal_timer < 4.0:
 		return
 
 	var best_goal: Enums.AIGoal = Enums.AIGoal.NONE
@@ -841,11 +864,15 @@ func _evaluate_goals() -> void:
 	# Evaluate each possible goal
 	var scores: Dictionary = {}
 
+	# Goals read the DEBOUNCED contact confidence, never raw LOS (decree):
+	# a leaf blinking the ray cannot flip a man's plan.
+	var eyes_on: bool = contact_conf > 0.5
+
 	# ENGAGE - direct combat. COVER-FIRST DOCTRINE (Caleb/HLL): caught in the
 	# open on fresh contact, the duel can wait - reach cover or concealment
 	# first. Fighting FROM cover is the preferred engagement.
 	var engage_score: float = 0.5
-	if has_line_of_sight:
+	if eyes_on:
 		engage_score += 0.3
 	if dist < preferred_range * 1.2 and dist > preferred_range * 0.5:
 		engage_score += 0.2  # In comfortable range
@@ -867,7 +894,7 @@ func _evaluate_goals() -> void:
 
 	# SUPPRESS - pin down target
 	var suppress_score: float = 0.3
-	if has_line_of_sight and weapon_data and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO:
+	if eyes_on and weapon_data and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO:
 		suppress_score += 0.3
 	if dist > preferred_range:
 		suppress_score += 0.2  # Good at range
@@ -875,7 +902,7 @@ func _evaluate_goals() -> void:
 
 	# FLANK - move to better position
 	var flank_score: float = char_aggression * 0.4
-	if not has_line_of_sight and target_last_seen_time < 3.0:
+	if not eyes_on and target_last_seen_time < 3.0:
 		flank_score += 0.3
 	if threat_level < 0.3:
 		flank_score += 0.2
@@ -905,10 +932,10 @@ func _evaluate_goals() -> void:
 		retreat_score += 0.4
 	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation
 
-	# Incumbent hysteresis: the current goal keeps a 15% edge so the thinner
-	# doctrine margins don't dither between cover and engage every tick.
+	# Incumbent hysteresis 25% (council: 15% was smaller than the input swing
+	# it guarded against; with confidence-smoothed inputs, 25% actually holds).
 	if scores.has(current_goal):
-		scores[current_goal] *= 1.15
+		scores[current_goal] *= 1.25
 
 	# Find best goal
 	for goal in scores:
@@ -1315,10 +1342,19 @@ func _execute_advancing(delta: float) -> void:
 
 
 func _execute_retreating(delta: float) -> void:
-	if not target:
+	# Routed men have no target (they dropped the fight) - flee the last
+	# known threat instead of freezing (morale decree).
+	var threat: Vector3 = Vector3.ZERO
+	if target != null and is_instance_valid(target):
+		threat = target.global_position
+	elif last_known_target_pos != Vector3.ZERO:
+		threat = last_known_target_pos
+	else:
+		velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
+		velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 		return
 
-	var away_from_target := (global_position - target.global_position).normalized()
+	var away_from_target := (global_position - threat).normalized()
 	velocity.x = away_from_target.x * move_speed
 	velocity.z = away_from_target.z * move_speed
 
@@ -1371,6 +1407,18 @@ static func _cover_key(pos: Vector3) -> Vector3i:
 
 ## Claimant loosened to Node: ALLIES share this broker now (squad cover
 ## parity, Caleb) - friend and foe never stack on the same rock.
+## Crowding cost for DISPERSION (decree: no corner piles) - claimed points
+## within 4m make a candidate expensive. Distance math only, zero raycasts.
+static func _crowding_cost(pos: Vector3) -> float:
+	var cost: float = 0.0
+	for key in _cover_claims.keys():
+		var claim_pos := Vector3(float((key as Vector3i).x), float((key as Vector3i).y), float((key as Vector3i).z)) * COVER_CELL
+		var d: float = pos.distance_to(claim_pos)
+		if d < 4.0:
+			cost += 6.0 * (1.0 - d / 4.0)
+	return cost
+
+
 static func _claim_cover(pos: Vector3, claimant: Node) -> bool:
 	var key := _cover_key(pos)
 	var existing: Dictionary = _cover_claims.get(key, {})
@@ -1420,7 +1468,8 @@ func _find_bound_point(to_target: Vector3) -> Vector3:
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
+			< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
 	for c in candidates:
 		if EnemyBase._claim_cover(c, self):
 			return c
@@ -1442,7 +1491,8 @@ func _find_cover_point() -> Vector3:
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return global_position.distance_squared_to(a) < global_position.distance_squared_to(b))
+		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
+			< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
 	for c in candidates:
 		if EnemyBase._claim_cover(c, self):
 			return c
@@ -1536,15 +1586,27 @@ func _fire_at_target() -> void:
 			weapon_data.id, weapon_data.projectile_data_path])
 
 	var space_state := get_world_3d().direct_space_state
+	# FULL-REALISM FRIENDLY FIRE (Summoner decree): the ray sees EVERYONE -
+	# world, player, enemies, both hurtbox layers. Muzzle discipline below
+	# keeps the AI from massacring its own squad.
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_aim * weapon_data.max_range,
-		1 | 2 | 32
+		1 | 2 | 4 | 32 | 64
 	)
 	query.collide_with_areas = true  # player/ally hitzones are Area3D (sponge fix)
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
+
+	# MUZZLE DISCIPLINE: a squadmate in the lane = don't squeeze. The skipped
+	# round costs cadence, not ammo - reads as trigger discipline.
+	if result:
+		var lane: Object = result.collider
+		var lane_owner: Node = (lane as Hitzone).owner_entity if lane is Hitzone else lane as Node
+		if lane_owner != null and lane_owner != self and is_instance_valid(lane_owner) \
+				and lane_owner.is_in_group("enemies") and lane_owner != target:
+			return
 
 	# Suppression (R11): if this round CRACKED PAST the player without hitting
 	# them, press them. The shot line is origin -> tracer_end; measure the
@@ -1682,6 +1744,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	current_hp -= amount
 	damage_taken_recently += amount
 	damage_decay_timer = 0.0
+	goal_timer = 99.0  # Class-A interrupt (decree): getting HIT may always re-plan
 
 	# Remember where it came from so _die() can pick death_forward vs
 	# death_from_right. take_damage() knew this all along and threw it away.
@@ -1744,17 +1807,31 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		current_hp = 0
 		_credit_killer(attacker)
 		_die()
-	elif not is_surrendered and personality == Enums.AIPersonality.DEFENSIVE \
-			and current_hp < max_hp / 3 and randf() < 0.15:
-		# W63: shaken defensive fighters may quit when nearly alone.
-		var living_nearby: int = 0
-		for e in get_tree().get_nodes_in_group("enemies"):
-			var other := e as EnemyBase
-			if other != self and other and not other.is_dead() \
-					and other.global_position.distance_to(global_position) < 30.0:
-				living_nearby += 1
-		if living_nearby == 0:
-			try_surrender()
+	elif not is_surrendered:
+		# MORALE (war-room decree, Summoner: "in war everyone's goal is to
+		# survive"): courage-powered break ladder. Low-courage men (Local
+		# Force) BREAK under pressure - rout (forced retreat, drop the fight)
+		# or, badly wounded and shaken, throw the rifle down (Chieu Hoi).
+		# NVA/sapper courage holds the line (canon: Local Force breaks, NVA
+		# doesn't). Uses existing threat_level - no new perception work.
+		var courage: float = enemy_data.courage if enemy_data != null else 0.5
+		var pressure: float = threat_level + (1.0 - float(current_hp) / float(max_hp)) * 0.5
+		if pressure > 0.7 + courage * 0.6 and randf() < 0.25:
+			var living_nearby: int = 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var other := e as EnemyBase
+				if other != self and other and not other.is_dead() \
+						and other.global_position.distance_to(global_position) < 30.0:
+					living_nearby += 1
+			if living_nearby == 0 and current_hp < max_hp / 3 and randf() < 0.4:
+				try_surrender()  # alone, hurt, broken: hands up
+			else:
+				# ROUT: drop the fight and run for the rear.
+				target = null
+				contact_conf = 0.0
+				_set_goal(Enums.AIGoal.RETREAT)
+				goal_timer = -3.0  # committed flight - no re-plan for ~4s
+				VOManager.play_enemy("retreat", self)
 
 	return amount
 
