@@ -61,6 +61,35 @@ def _strip_deform(bm):
             v[dl].clear()
 
 
+def _fill_cut(bm, cut_edges):
+    """Seal a bisect cut. The head donors are NOT clean manifolds (hair shell
+    over the skull, open neck ring), so holes_fill/triangle_fill see no 'hole'
+    and produce nothing - contextual_create on each connected edge loop is the
+    only op that caps these cuts (the loops are planar by construction)."""
+    faces = []
+    remaining = set(cut_edges)
+    while remaining:
+        seed = remaining.pop()
+        comp = [seed]
+        stack = [seed]
+        while stack:
+            e = stack.pop()
+            for v in e.verts:
+                for e2 in v.link_edges:
+                    if e2 in remaining:
+                        remaining.discard(e2)
+                        comp.append(e2)
+                        stack.append(e2)
+        if len(comp) < 3:
+            continue
+        try:
+            r = bmesh.ops.contextual_create(bm, geom=comp)
+            faces += r.get('faces', [])
+        except RuntimeError:
+            pass  # open chain (e.g. across the neck ring) - leave it raw
+    return faces
+
+
 def _split(big, co, no):
     """Bisect one chunk into two sealed halves. Returns [bm, bm] or None if
     either half degenerates (plane missed or sliced off a sliver)."""
@@ -74,8 +103,7 @@ def _split(big, co, no):
         cut = [e for e in res['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
         if cut:
             gl = bm.faces.layers.int[GORE_LAYER]
-            fill = bmesh.ops.holes_fill(bm, edges=cut, sides=0)
-            for f in fill['faces']:
+            for f in _fill_cut(bm, cut):
                 f[gl] = 1
         loose = [v for v in bm.verts if not v.link_faces]
         if loose:
@@ -171,7 +199,11 @@ def build_head_frags(head_name=HEAD, rig_name=RIG, target=TARGET_CHUNKS, seed=SE
         bpy.context.scene.collection.objects.link(ob)
         ob.parent = rig
         ob.parent_type = 'OBJECT'
-        vg = ob.vertex_groups.new(name=bone)
+        # Blender 5 stores vertex-group NAMES on the mesh, so the src copy
+        # already carries the head's 34 groups - new(name=...) would silently
+        # mint 'mixamorig:Head.001' (no matching bone -> weightless export,
+        # glTF fabricates a neutral_bone). Reuse the existing group.
+        vg = ob.vertex_groups.get(bone) or ob.vertex_groups.new(name=bone)
         vg.add(list(range(len(me.vertices))), 1.0, 'REPLACE')
         mod = ob.modifiers.new("Armature", 'ARMATURE')
         mod.object = rig

@@ -47,7 +47,6 @@ SOCKETS = {
 
 sc = bpy.context.scene
 rig = bpy.data.objects[RIG]
-gun = bpy.data.objects[GUN]
 
 # Authoring-only objects that must never ship. Base_Human is a second body
 # co-located with the soldier (it masks the gib swap in-engine); splay_* is
@@ -56,12 +55,24 @@ gun = bpy.data.objects[GUN]
 EXCLUDE = ["Base_Human", "canteen_l.001", "target_handguard",
            "splay_head", "splay_torso", "splay_uparm_l", "splay_uparm_r",
            "splay_forearm_l", "splay_forearm_r", "splay_leg_l", "splay_leg_r"]
-print("=== 0. drop authoring-only objects ===", flush=True)
+print(f"=== 0. variant {OUTNAME}: gun={GUN} anims={EXPORT_ANIMATIONS} ===", flush=True)
+IS_ARMORY_GUN = GUN != 'm16_world'
+if IS_ARMORY_GUN:
+    # armory key: append + attach with the M16's exact matrices, then the
+    # M16 itself joins the export-copy exclusions
+    gun = append_gun.bring(GUN, ref_gun='m16_world', rig=rig)
+    EXCLUDE = EXCLUDE + ["m16_world"]
+else:
+    gun = bpy.data.objects[GUN]
 for name in EXCLUDE:
     o = bpy.data.objects.get(name)
     if o:
         bpy.data.objects.remove(o, do_unlink=True)
 print(f"  removed {len(EXCLUDE)} (export copy only)", flush=True)
+
+# head fracture chunks (bead rc55) - skips cleanly on rigs without grunt_head
+print("=== 0.5 head fragments (rc55) ===", flush=True)
+build_head_frags()
 
 # ---------------------------------------------------------------- actions
 print("=== 1. reduce to reel actions, strip _fixed ===", flush=True)
@@ -143,6 +154,11 @@ da = (gun.matrix_world @ end_a - hand_w).length
 db = (gun.matrix_world @ end_b - hand_w).length
 muzzle_local = end_a if da > db else end_b
 bore = (muzzle_local - (end_b if da > db else end_a)).normalized()
+if IS_ARMORY_GUN:
+    # appended meshes keep the armory rack orientation: muzzle is ALWAYS the
+    # -X end (the hand-distance heuristic can flip on stubby/odd-grip guns)
+    muzzle_local, rear = (end_a, end_b) if end_a.x < end_b.x else (end_b, end_a)
+    bore = (muzzle_local - rear).normalized()
 mz.matrix_parent_inverse = Matrix.Identity(4)
 mz.location = muzzle_local
 mz.rotation_mode = 'QUATERNION'
