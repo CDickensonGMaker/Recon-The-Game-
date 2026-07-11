@@ -39,17 +39,34 @@ func _ready() -> void:
 
 	add_child(mesh)
 
-	# Create collision shape
+	# Collision: a BOX, deliberately not a sphere - spheres roll forever
+	# (physics has no rolling resistance) and the frag slid across the map
+	# like a curling stone (Caleb, gore lab). A box lands, hops once or
+	# twice, tumbles a few cm and STOPS - the M26 'thunk' feel.
 	var col := CollisionShape3D.new()
-	var shape := SphereShape3D.new()
-	shape.radius = 0.05
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.09, 0.06, 0.06)
 	col.shape = shape
 	add_child(col)
 
-	# Set physics properties
+	# Set physics properties: small lively bounces, dead quickly.
 	gravity_scale = 1.0
-	linear_damp = 0.5
-	angular_damp = 0.5
+	linear_damp = 0.6
+	angular_damp = 2.0
+	var pm := PhysicsMaterial.new()
+	pm.friction = 1.0
+	pm.bounce = 0.3
+	physics_material_override = pm
+	# Each ground contact bleeds energy fast - by the second hop it's done.
+	contact_monitor = true
+	max_contacts_reported = 4
+	body_entered.connect(_on_touched_world)
+
+
+func _on_touched_world(_body: Node) -> void:
+	# progressive energy bleed: 1st touch damps, 2nd+ kills the slide
+	linear_damp = minf(linear_damp + 2.5, 8.0)
+	angular_damp = minf(angular_damp + 4.0, 12.0)
 
 
 func _physics_process(delta: float) -> void:

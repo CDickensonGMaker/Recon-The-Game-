@@ -28,6 +28,10 @@ var _removed: Array[String] = []
 var _dead: bool = false
 var _clip_idx: int = 0
 var _clip_timer: float = 0.0
+## zone Area3D -> skeleton bone index; synced every physics tick so hitzones
+## FOLLOW THE ANIMATION. Static zones + an animated body = rounds pass through
+## the picture of the man and hit nothing (the gore-lab "no lethality" bug).
+var _zone_bones: Array = []
 
 
 func _ready() -> void:
@@ -78,23 +82,31 @@ func _report_gear_rigging() -> void:
 			print("[GORE LAB] RIG WARN: gear '%s' is NOT bone-attached in this export - it will float at T-pose (re-export with bone parenting)" % gear_name)
 
 
-## Same bands as EnemyBase._setup_hurtbox (GAME_SCALE_STANDARD), but each zone
-## carries its REGION so the gib system knows WHICH limb the round took.
+## Same bands as EnemyBase._setup_hurtbox (GAME_SCALE_STANDARD), each zone
+## carrying its REGION - and each zone BONE-SYNCED (position follows the
+## skeleton every tick), so crouch/run/sway keep the zones on the body.
+## Falls back to the static layout when the rig is missing.
 func _build_hitzones() -> void:
-	_zone(Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15)
-	_zone(Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.35)
-	_zone(Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.9, 0), 0.28, 0.3)
-	_zone(Hitzone.ZoneType.LIMB, "ARM_L", Vector3(0.35, 1.0, 0), 0.12, 0.5)
-	_zone(Hitzone.ZoneType.LIMB, "ARM_R", Vector3(-0.35, 1.0, 0), 0.12, 0.5)
-	_zone(Hitzone.ZoneType.LIMB, "LEG_L", Vector3(0.12, 0.4, 0), 0.12, 0.8)
-	_zone(Hitzone.ZoneType.LIMB, "LEG_R", Vector3(-0.12, 0.4, 0), 0.12, 0.8)
+	_zone(Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15, -1.0, "mixamorig_Head", Vector3(0, 0.06, 0))
+	_zone(Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.35, "mixamorig_Spine1")
+	_zone(Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.9, 0), 0.28, 0.3, "mixamorig_Hips")
+	_zone(Hitzone.ZoneType.LIMB, "ARM_L", Vector3(0.35, 1.0, 0), 0.14, 0.55, "mixamorig_LeftForeArm")
+	_zone(Hitzone.ZoneType.LIMB, "ARM_R", Vector3(-0.35, 1.0, 0), 0.14, 0.55, "mixamorig_RightForeArm")
+	_zone(Hitzone.ZoneType.LIMB, "LEG_L", Vector3(0.12, 0.4, 0), 0.13, 0.8, "mixamorig_LeftLeg")
+	_zone(Hitzone.ZoneType.LIMB, "LEG_R", Vector3(-0.12, 0.4, 0), 0.13, 0.8, "mixamorig_RightLeg")
 
 
-func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: float, height: float = -1.0) -> void:
+func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: float, height: float = -1.0, bone: String = "", bone_offset: Vector3 = Vector3.ZERO) -> void:
 	var hz := GoreLabHitzone.new()
 	hz.zone_type = zone_type
 	hz.region = region
 	hz.set_owner_entity(self)
+	var synced: bool = false
+	if bone != "" and model != null and model.skeleton() != null:
+		var bi: int = model.skeleton().find_bone(bone)
+		if bi >= 0:
+			_zone_bones.append([hz, bi, bone_offset])
+			synced = true
 	var col := CollisionShape3D.new()
 	if height > 0.0:
 		var shape := CapsuleShape3D.new()
@@ -105,7 +117,9 @@ func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: fl
 		var sphere := SphereShape3D.new()
 		sphere.radius = radius
 		col.shape = sphere
-	col.position = pos
+	# bone-synced zones ride the Area3D origin (the bone); static fallback
+	# zones keep the old fixed band offsets.
+	col.position = Vector3.ZERO if synced else pos
 	hz.add_child(col)
 	hz.collision_layer = 64
 	hz.collision_mask = 16
@@ -115,7 +129,18 @@ func _zone(zone_type: Hitzone.ZoneType, region: String, pos: Vector3, radius: fl
 
 
 func _physics_process(delta: float) -> void:
-	if _dead or model == null:
+	if model == null:
+		return
+	# zones ride the skeleton even on the corpse (shooting bodies stays honest)
+	var skel: Skeleton3D = model.skeleton()
+	if skel != null:
+		for entry in _zone_bones:
+			var hz: Area3D = entry[0]
+			var bi: int = entry[1]
+			var off: Vector3 = entry[2]
+			if is_instance_valid(hz):
+				hz.global_position = skel.global_transform * skel.get_bone_global_pose(bi).origin + off
+	if _dead:
 		return
 	_clip_timer += delta
 	if _clip_timer >= CLIP_CYCLE_S:
