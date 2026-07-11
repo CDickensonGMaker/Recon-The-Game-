@@ -29,6 +29,7 @@ argv = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 GUN = argv[0] if argv else 'm16_world'
 OUTNAME = argv[1] if len(argv) > 1 else 'us_grunt_v2'
 MESH_ONLY = 'mesh_only' in argv[2:]
+SAVE_BLEND = 'save_blend' in argv
 
 OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
@@ -207,6 +208,21 @@ for m in bpy.data.materials:
         nt.links.remove(l)
     bc.default_value = (*avg, 1.0)
     print(f"  {m.name}: flattened ({avg[0]:.2f},{avg[1]:.2f},{avg[2]:.2f})", flush=True)
+
+# ------------------------------------------------------------- save_blend
+# Variant workbench (Caleb): assemble, then SAVE an editable .blend instead
+# of exporting - grip/texture fixes happen there; export_edited_blend.py
+# ships it WYSIWYG. Pre-normalize on purpose.
+if SAVE_BLEND:
+    vdir = r"C:\Users\caleb\RECONgame\art_source\characters\variants"
+    os.makedirs(vdir, exist_ok=True)
+    vpath = os.path.join(vdir, OUTNAME + ".blend")
+    if os.path.exists(vpath) and 'force' not in argv:
+        print(f"REFUSING to overwrite {vpath} - it may hold hand edits. Pass 'force' to regenerate.", flush=True)
+        sys.exit(3)
+    bpy.ops.wm.save_as_mainfile(filepath=vpath)
+    print(f"SAVE_BLEND COMPLETE -> {vpath}", flush=True)
+    sys.exit(0)
 
 # ---------------------------------------------------------------- normalize
 print("=== 5. normalize height ===", flush=True)

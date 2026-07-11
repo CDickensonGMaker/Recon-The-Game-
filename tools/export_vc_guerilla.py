@@ -31,6 +31,7 @@ GUN = argv[0] if argv else 'ak47_world'
 OUTNAME = argv[1] if len(argv) > 1 else 'vc_guerilla'
 FACE = argv[2] if len(argv) > 2 else 'vnm_mid'
 MESH_ONLY = 'mesh_only' in argv[3:]
+SAVE_BLEND = 'save_blend' in argv
 
 ALL_GUNS = ["ak47_world", "mosin_world", "ppsh_world", "rpd_world"]
 FACES_V2 = {"vnm_older": (6,6,90,126), "vnm_mid": (102,6,186,126), "vnm_young": (198,6,282,126),
@@ -243,6 +244,23 @@ for m in bpy.data.materials:
         nt.links.remove(l)
     bc.default_value = (*avg, 1.0)
     print(f"  {m.name}: flattened ({avg[0]:.2f},{avg[1]:.2f},{avg[2]:.2f})", flush=True)
+
+# ------------------------------------------------------------- save_blend
+# Variant workbench (Caleb): assemble the variant, then SAVE an editable
+# .blend instead of exporting - he opens it, fixes textures + hand/grip
+# placement per weapon, saves; tools/export_edited_blend.py ships it
+# WYSIWYG (no reassembly). Pre-normalize on purpose: editing happens in
+# the master's natural scale.
+if SAVE_BLEND:
+    vdir = r"C:\Users\caleb\RECONgame\art_source\characters\variants"
+    os.makedirs(vdir, exist_ok=True)
+    vpath = os.path.join(vdir, OUTNAME + ".blend")
+    if os.path.exists(vpath) and 'force' not in argv:
+        print(f"REFUSING to overwrite {vpath} - it may hold hand edits. Pass 'force' to regenerate.", flush=True)
+        sys.exit(3)
+    bpy.ops.wm.save_as_mainfile(filepath=vpath)
+    print(f"SAVE_BLEND COMPLETE -> {vpath}", flush=True)
+    sys.exit(0)
 
 # ---------------------------------------------------------------- normalize
 print("=== 5. normalize height ===", flush=True)
