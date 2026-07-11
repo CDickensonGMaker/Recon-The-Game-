@@ -205,8 +205,11 @@ func _spawn_wave() -> void:
 		var e := EnemyBase.spawn_enemy(self, pos, data_path)
 		if e != null:
 			_enemies.append(e)
-			if player != null:
-				e.look_at(Vector3(player.global_position.x, pos.y, player.global_position.z), Vector3.UP)
+			# SNEAKING BENCH (Caleb: no superman AI): random facing, RELAXED -
+			# the detection ladder (eyes, ears, your first shot) wakes them,
+			# not the spawner. The combat lab's aim-at-player line was for
+			# fight-testing; here stealth is part of the feel.
+			e.rotation.y = _rng.randf_range(0.0, TAU)
 	print("[GORE LAB] wave %d inbound: %d men" % [_wave, WAVE.size()])
 
 

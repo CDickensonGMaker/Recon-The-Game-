@@ -30,6 +30,9 @@ var grenade_handler: GrenadeHandler
 ## Bleed flash effect
 var bleed_flash_timer: float = 0.0
 
+## "HOLD [F] TO PATCH UP" - shown while the medkit is out and idle
+var _heal_prompt: Label = null
+
 func _ready() -> void:
 	death_screen.visible = false
 	healing_bar.visible = false
@@ -66,6 +69,17 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	health_system.bleeding_started.connect(_on_bleeding_started)
 	health_system.bleeding_progress.connect(_on_bleeding_progress)
 	health_system.bleeding_stopped.connect(_on_bleeding_stopped)
+
+	# Medkit affordance (r4bk law: no prompt = the feature doesn't exist).
+	equipment_manager.slot_changed.connect(_on_slot_changed_prompt)
+	_heal_prompt = Label.new()
+	_heal_prompt.text = "HOLD [F] TO PATCH UP"
+	_heal_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_heal_prompt.position = Vector2(-120, -140)
+	_heal_prompt.add_theme_font_size_override("font_size", 18)
+	_heal_prompt.add_theme_color_override("font_color", Color(0.85, 0.95, 0.8, 0.95))
+	_heal_prompt.visible = false
+	add_child(_heal_prompt)
 
 	weapon_holder.magazine_changed.connect(_on_magazine_changed)
 	weapon_holder.weapon_switched.connect(_on_weapon_switched)
@@ -139,7 +153,17 @@ func _on_grenade_count_changed(count: int) -> void:
 	grenade_label.text = "GREN: %d" % count
 
 
+func _on_slot_changed_prompt(_slot_index: int, slot_type: Enums.SlotType) -> void:
+	if _heal_prompt == null:
+		return
+	var packs: int = health_system.health_packs if health_system else 0
+	_heal_prompt.text = "HOLD [F] TO PATCH UP  (x%d)" % packs
+	_heal_prompt.visible = slot_type == Enums.SlotType.MEDKIT and packs > 0
+
+
 func _on_healing_started() -> void:
+	if _heal_prompt:
+		_heal_prompt.visible = false
 	healing_bar.visible = true
 	healing_bar.value = 0
 	if action_progress:
@@ -153,6 +177,10 @@ func _on_healing_progress(percent: float) -> void:
 
 
 func _on_healing_stopped() -> void:
+	if _heal_prompt and equipment_manager and equipment_manager.get_current_slot_type() == Enums.SlotType.MEDKIT \
+			and health_system and health_system.health_packs > 0:
+		_heal_prompt.text = "HOLD [F] TO PATCH UP  (x%d)" % health_system.health_packs
+		_heal_prompt.visible = true
 	healing_bar.visible = false
 	if action_progress:
 		action_progress.finish_action()

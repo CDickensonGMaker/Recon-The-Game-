@@ -91,11 +91,12 @@ func _handle_slot_action() -> void:
 					grenade_handler.start_cooking()
 				elif Input.is_action_just_released("fire") and grenade_handler.is_cooking:
 					grenade_handler.throw()
-		3:  # Medkit
+		3:  # Medkit - hold FIRE or INTERACT [F] (Caleb: "hold F to heal")
 			if health_system:
-				if Input.is_action_pressed("fire") and not health_system.is_healing:
+				var heal_held: bool = Input.is_action_pressed("fire") or Input.is_action_pressed("interact")
+				if heal_held and not health_system.is_healing:
 					health_system.start_healing()
-				elif Input.is_action_just_released("fire") and health_system.is_healing:
+				elif not heal_held and health_system.is_healing:
 					health_system.cancel_healing()
 
 
