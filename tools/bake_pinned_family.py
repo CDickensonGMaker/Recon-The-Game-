@@ -88,17 +88,61 @@ def write_channel(act, bone, quats_by_frame):
         fc.update()
 
 
-# temp IK rig: unparented empty, repositioned per frame in world space
+# temp IK rig: unparented empties, repositioned per frame in world space
 grip_empty = bpy.data.objects.new("GripTarget_tmp", None)
 bpy.context.scene.collection.objects.link(grip_empty)
+pole_empty = bpy.data.objects.new("PoleTarget_tmp", None)
+bpy.context.scene.collection.objects.link(pole_empty)
 lf = rig.pose.bones["mixamorig:LeftForeArm"]
 ik = lf.constraints.new('IK')
 ik.target = grip_empty
 ik.chain_count = 2  # forearm + upper arm; shoulder stays FK (constant delta)
 ik.use_tail = True
+# ELBOW LOCK (Caleb: "you're still moving the elbow"): without a pole the
+# solver re-picks the elbow direction every frame - hand pinned, elbow
+# orbiting. The pole rides the right hand at HIS captured elbow position,
+# so the elbow holds formation relative to the gun.
+ELBOW = Vector(spec["elbow_hint"])
+ik.pole_target = pole_empty
 
 rh = rig.pose.bones["mixamorig:RightHand"]
 lh = rig.pose.bones["mixamorig:LeftHand"]
+
+
+def place_targets():
+    grip_pose = rh.matrix @ GRIP
+    grip_empty.matrix_world = rig.matrix_world @ grip_pose
+    pole_pose = rh.matrix @ ELBOW
+    # push the pole OUT along the elbow direction from the chain midline so
+    # the solver has a clear preference
+    pole_empty.matrix_world = rig.matrix_world @ Matrix.Translation(pole_pose)
+    bpy.context.view_layer.update()
+    return grip_pose
+
+
+# CALIBRATE pole_angle: sample angles, pick the one whose solved elbow lands
+# on Caleb's captured elbow position (frame 30 of the aiming idle).
+import math
+cal_act = bpy.data.actions.get("idle_aiming").copy()
+cal_act.name = "__cal_tmp"
+apply_const_deltas(cal_act)
+rig.animation_data.action = cal_act
+if hasattr(rig.animation_data, "action_slot") and cal_act.slots:
+    rig.animation_data.action_slot = cal_act.slots[0]
+bpy.context.scene.frame_set(int(spec.get("cal_frame", 30)))
+bpy.context.view_layer.update()
+best = (1e9, 0.0)
+for deg in range(-180, 180, 5):
+    ik.pole_angle = math.radians(deg)
+    place_targets()
+    expected = rh.matrix @ ELBOW
+    got = rig.pose.bones["mixamorig:LeftForeArm"].matrix.translation
+    err = (expected - got).length
+    if err < best[0]:
+        best = (err, ik.pole_angle)
+ik.pole_angle = best[1]
+print("pole_angle calibrated: %.0f deg (elbow error %.3fm)" % (math.degrees(best[1]), best[0]))
+bpy.data.actions.remove(cal_act)
 
 for pair in PAIRS:
     base_act = bpy.data.actions.get(pair["base"])
@@ -122,10 +166,8 @@ for pair in PAIRS:
     for f in range(int(fr[0]), int(fr[1]) + 1):
         bpy.context.scene.frame_set(f)
         bpy.context.view_layer.update()
-        # grip point rides the (delta-corrected) right hand = the gun
-        grip_pose = rh.matrix @ GRIP
-        grip_empty.matrix_world = rig.matrix_world @ grip_pose
-        bpy.context.view_layer.update()
+        # grip + pole ride the (delta-corrected) right hand = the gun
+        grip_pose = place_targets()
         for bname in ["mixamorig:LeftArm", "mixamorig:LeftForeArm"]:
             pb = rig.pose.bones[bname]
             loc = rig.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL')
@@ -138,8 +180,9 @@ for pair in PAIRS:
         write_channel(act, bname, solved[bname])
     print("PINNED CLIP '%s' <- '%s' (%d frames, left arm IK-locked to grip)" % (pair["new"], pair["base"], int(fr[1]) - int(fr[0]) + 1))
 
-# cleanup: constraint + empty out, library stays ordinary FK
+# cleanup: constraint + empties out, library stays ordinary FK
 lf.constraints.remove(ik)
 bpy.data.objects.remove(grip_empty, do_unlink=True)
+bpy.data.objects.remove(pole_empty, do_unlink=True)
 bpy.ops.wm.save_mainfile()
 print("library master SAVED (%d pinned clips)" % len(PAIRS))
