@@ -272,6 +272,15 @@ func _load_weapon(index: int) -> void:
 		if scene:
 			weapon_model = scene.instantiate()
 			weapon_holder.add_child(weapon_model)
+			# WYSIWYG, the hard way. The game gets its "gun close to the screen"
+			# lens by SCALING the model by tan(world_fov/2)/tan(viewmodel_fov/2)
+			# inside the world camera. If the bench instead narrowed its OWN
+			# camera to viewmodel_fov, the two would agree on the gun's SIZE and
+			# disagree on its POSITION - the same 1cm nudge walks the gun ~33%
+			# further across the screen at 60 deg than at 75. Every offset dialled
+			# here would then be wrong in game. So the bench does exactly what the
+			# game does: same camera FOV, same scaled model.
+			weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
 			# Mirror the game (weapon_holder.gd): without the idle clip a
 			# rigged arms viewmodel renders in bind pose
 			var vm_anim: AnimationPlayer = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
@@ -693,17 +702,16 @@ func _on_mode_toggle() -> void:
 
 ## Hip = game BASE_FOV. ADS = the weapon's real ads_fov, exactly like
 ## weapon_holder.gd _update_ads - tuning ADS at 75 was silently wrong.
-## WYSIWYG: the bench must show the gun through the SAME lens the game renders it
-## with, or every offset you dial here is dialled against a different focal
-## length. In game the viewmodel gets its own camera at WeaponData.viewmodel_fov
-## (default 60) - so the hip preview uses that, not the world's 75.
+## The camera stays the PLAYER's camera: hip = the world's 75, ADS = the weapon's
+## zoom. The viewmodel lens is applied to the MODEL (scaled on load), exactly as
+## the game does it - see _load_model(). Narrowing this camera instead would make
+## the bench lie about position. (CLAUDE.md sync contract: what you dial here is
+## what ships.)
 func _update_camera_fov() -> void:
 	if not camera:
 		return
 	if preview_mode == 1 and current_weapon and current_weapon.ads_fov > 1.0:
 		camera.fov = current_weapon.ads_fov
-	elif current_weapon and current_weapon.viewmodel_fov > 1.0:
-		camera.fov = current_weapon.viewmodel_fov
 	else:
 		camera.fov = BASE_FOV
 

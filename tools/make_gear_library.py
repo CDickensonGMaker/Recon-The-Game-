@@ -305,35 +305,69 @@ def build_all(rig):
         p.tube((sx, 0.150, 1.470), (sx * 0.5, -0.060, 1.470), 0.010, 0.010, "canvas")
     parts.append(p)
 
-    # ---- rice sickle (liem). REBUILT: v1 was a 10mm tube and it VANISHED at PSX
-    # range - a farmer holding an invisible tool is a farmer holding nothing. A
-    # sickle is a flat CRESCENT PLATE, and the plate is the whole read: it has to
-    # break the silhouette of his arm or it may as well not exist.
+    # ---- rice sickle (LIEM). RESEARCHED REBUILD.
+    #
+    # v1 was a 10mm tube and it VANISHED at PSX range. v2 was a constant-width crescent
+    # slab with a stick crossing it - it read as a "C" and a toothpick, and the handle
+    # did not even JOIN the blade, it passed through the hollow.
+    #
+    # What a real liem is (sickle refs: blade 15-30cm, curvature radius ~15cm, single-
+    # bevelled and SHARPENED ON THE CONCAVE inner edge, tapering to a point that starts
+    # the cut at soil level, short wooden handle):
+    #   * the blade GROWS OUT OF the handle - it is one line, haft into tang into blade,
+    #     not two objects crossing
+    #   * it TAPERS. Wide at the tang, needle at the tip. A constant-width band is a
+    #     croissant, not a tool.
+    #   * the cutting edge is the INSIDE of the hook. So the blade is thick along its
+    #     back (the arc) and thin at the inner edge - a wedge in cross-section.
+    #   * it HOOKS: ~195 degrees, so the tip curls back toward the hand. That hook is
+    #     what gathers the stalks, and it is the whole silhouette.
     p = Part("rice_sickle", "mixamorig:RightHand")
-    g = hand_r
-    # haft: fat enough to see, through the fist
-    p.tube(tuple(g + Vector((0.0, 0.055, -0.030))),
-           tuple(g + Vector((0.0, -0.055, -0.030))), 0.019, 0.017, "wood", sides=6)
-    # blade: a crescent in the VERTICAL plane facing the camera (thickness in Y),
-    # hooking inboard and up out of the fist.
-    cx, cy, cz = g.x - 0.055, g.y, g.z + 0.020
-    R_out, R_in, TH = 0.150, 0.098, 0.005
-    N = 7
-    a0, a1 = math.radians(-62.0), math.radians(88.0)
+
+    R = 0.078                      # 26cm of blade along the arc - dead centre of the refs
+    SWEEP = math.radians(195.0)
+    N = 10
+    W_TANG, W_TIP = 0.046, 0.006   # blade width: broad at the tang, needle at the tip
+    T_BACK, T_EDGE = 0.0040, 0.0012  # thick at the spine, thin at the cutting edge
+
+    # Local frame, then dropped into his fist: handle runs along Y (that is how a fist
+    # holds a tool when the arm is out), blade curves in the YZ plane so it hooks up and
+    # back toward him.
+    grip = hand_r + Vector((0.0, 0.0, -0.012))
+    base = grip + Vector((0.0, -0.075, 0.0))       # where the blade leaves the handle
+    C = base + Vector((0.0, 0.0, R))               # centre of the blade's arc
+
+    # handle: tapered, and it ENDS at the tang. Butt is fatter - that is what stops it
+    # sliding out of a wet hand.
+    p.tube(tuple(grip + Vector((0.0, 0.062, 0.0))), tuple(base), 0.020, 0.015,
+           "wood", sides=6)
+    # ferrule: the metal band that holds the tang. Small, but it is the join, and
+    # without it the blade looks stuck on.
+    p.tube(tuple(base + Vector((0.0, 0.016, 0.0))), tuple(base + Vector((0.0, -0.004, 0.0))),
+           0.0165, 0.0155, "brass", sides=6)
+
     v, f = [], []
     for i in range(N + 1):
-        a = a0 + (a1 - a0) * i / N
+        t = i / N
+        a = math.radians(-90.0) - SWEEP * t        # sweeps FORWARD out of the fist
         ca, sa = math.cos(a), math.sin(a)
-        for r in (R_out, R_in):
-            for ty in (-TH, TH):
-                v.append((cx + r * ca, cy + ty, cz + r * sa))
-    # index: i*4 + (0 outer-back, 1 outer-front, 2 inner-back, 3 inner-front)
+        out = Vector((0.0, ca, sa))                # radially outward from the arc centre
+        spine = C + out * R                        # the BACK of the blade (the arc)
+        w = W_TANG + (W_TIP - W_TANG) * (t ** 0.75)   # taper, biased so it stays broad
+        edge = C + out * (R - w)                   # the CONCAVE cutting edge
+        th_b = T_BACK * (1.0 - 0.55 * t)           # and it thins toward the tip too
+        th_e = T_EDGE * (1.0 - 0.55 * t)
+        for pt, th in ((spine, th_b), (edge, th_e)):
+            for tx in (-th, th):
+                v.append((pt.x + tx, pt.y, pt.z))
+    # per ring: 0 spine-, 1 spine+, 2 edge-, 3 edge+
     for i in range(N):
         b0, b1 = i * 4, (i + 1) * 4
-        f.append([b0 + 0, b1 + 0, b1 + 1, b0 + 1])      # outer edge (the cutting edge)
-        f.append([b0 + 2, b0 + 3, b1 + 3, b1 + 2])      # inner edge
-        f.append([b0 + 1, b1 + 1, b1 + 3, b0 + 3])      # front face
-        f.append([b0 + 0, b0 + 2, b1 + 2, b1 + 0])      # back face
+        f.append([b0 + 0, b1 + 0, b1 + 1, b0 + 1])   # the spine (blunt back)
+        f.append([b0 + 2, b0 + 3, b1 + 3, b1 + 2])   # the cutting edge
+        f.append([b0 + 1, b1 + 1, b1 + 3, b0 + 3])   # one face
+        f.append([b0 + 0, b0 + 2, b1 + 2, b1 + 0])   # the other
+    f.append([0, 1, 3, 2])                           # cap the tang end
     p.add(v, f, "steel")
     parts.append(p)
 
