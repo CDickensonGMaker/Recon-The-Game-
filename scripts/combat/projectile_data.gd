@@ -24,6 +24,22 @@ extends Resource
 @export var aoe_radius: float = 0.0  ## 0 = no AOE (for grenades/explosives)
 @export var aoe_damage_falloff: bool = true
 
+@export_group("Fuze")
+## ARMING DISTANCE, metres (Summoner: "you can't just shoot it at the ground at
+## your feet and expect it to blow up"). A real RPG warhead is DROP-SAFE: the
+## PG-2's piezo fuze arms only after launch and a short travel, via setback
+## acceleration; the PG-7's arms between 3 and 15m and its base switch closes at
+## booster burnout. Inside this distance the round is an inert lump of steel: it
+## strikes, it does NOT detonate. 0 = armed at the muzzle (thrown grenades run on
+## a TIME fuze instead and are unaffected).
+@export var arming_distance: float = 0.0
+## Kinetic bite of an UNARMED strike, as a fraction of base_damage. A 1.8kg
+## warhead at 84 m/s still ruins the man it hits - it just does not explode.
+@export_range(0.0, 1.0) var dud_impact_frac: float = 0.2
+## Self-destruct at the end of the run (real PG-7 rounds burn out and detonate
+## at 3.8-6s). Requires the round to have ARMED first; a dud never blows.
+@export var self_destruct: bool = true
+
 @export_group("Collision")
 @export var collision_radius: float = 0.05  ## Bullet is small
 @export var hits_enemies: bool = true

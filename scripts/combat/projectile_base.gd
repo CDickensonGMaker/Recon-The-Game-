@@ -26,6 +26,20 @@ var trail: GPUParticles3D = null
 var gravity_value: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var velocity: Vector3 = Vector3.ZERO
 
+## FUZE STATE: how far this warhead has flown, and whether that was far enough
+## to arm it. A real RPG round is drop-safe and arms on setback + a few metres of
+## travel - fire it into the dirt at your feet and you get a clang, not a crater.
+var traveled: float = 0.0
+
+
+## The shooter and his own hitzones - a warhead must not detonate on the man
+## who fired it as it leaves the tube.
+var _exclude_rids: Array[RID] = []
+
+
+func is_armed() -> bool:
+	return projectile_data == null or traveled >= projectile_data.arming_distance
+
 ## Pool reference
 var _pool: Node = null
 
@@ -64,7 +78,15 @@ func initialize(data: ProjectileData, source: Node, dir: Vector3, _target: Node3
 
 	current_speed = data.speed
 	lifetime_timer = 0.0
+	traveled = 0.0          # fresh fuze: the metres start counting at the muzzle
 	hit_targets.clear()
+	_exclude_rids.clear()
+	if source is CollisionObject3D:
+		_exclude_rids.append((source as CollisionObject3D).get_rid())
+	if source is Node:
+		for c in (source as Node).get_children():
+			if c is CollisionObject3D:   # the shooter's own hitzones
+				_exclude_rids.append((c as CollisionObject3D).get_rid())
 
 	if collision_shape and collision_shape.shape is SphereShape3D:
 		(collision_shape.shape as SphereShape3D).radius = data.collision_radius
@@ -197,10 +219,9 @@ func _physics_process(delta: float) -> void:
 	if lifetime_timer >= projectile_data.lifetime:
 		# SELF-DESTRUCT, not a silent vanish (Caleb: "there is no explosion with
 		# the RPG"). A warhead that reaches the end of its run detonates - real
-		# RPG rounds do exactly this. Before, a rocket that hit nothing simply
-		# blinked out of existence, so a shot that sailed over a man had no
-		# consequence anywhere in the world.
-		if projectile_data.aoe_radius > 0.0:
+		# PG-7 rounds burn out and self-destruct at 3.8-6s. A round that never
+		# armed is just falling scrap: it does not blow.
+		if projectile_data.aoe_radius > 0.0 and projectile_data.self_destruct and is_armed():
 			_apply_aoe_damage()
 		_expire()
 		return
@@ -209,8 +230,35 @@ func _physics_process(delta: float) -> void:
 	if projectile_data.gravity_scale > 0:
 		velocity.y -= gravity_value * projectile_data.gravity_scale * delta
 
-	# Move
-	global_position += velocity * delta
+	# SEGMENT CAST, not overlap (the bug that made rockets ghosts): at 84 m/s a
+	# warhead crosses 1.4m per physics tick, so Area3D overlap detection simply
+	# MISSED anything thinner than that - a rocket flew through a solid wall, a
+	# man, a hitzone, and expired in the distance having touched nothing. Same
+	# fix BulletSystem uses: sweep the step and stop at what it crosses.
+	var step: Vector3 = velocity * delta
+	var from: Vector3 = global_position
+	var to: Vector3 = from + step
+	var q := PhysicsRayQueryParameters3D.create(from, to, collision_mask)
+	q.collide_with_areas = true
+	q.collide_with_bodies = true
+	q.exclude = _exclude_rids
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		traveled += from.distance_to(hit.position)
+		global_position = hit.position
+		var col: Object = hit.collider
+		var struck: Node = null
+		if col is Hitzone:
+			struck = (col as Hitzone).owner_entity
+		elif col is Area3D:
+			struck = (col as Area3D).get_parent()
+		elif col is Node:
+			struck = col as Node
+		_handle_collision(struck)
+		return
+
+	traveled += step.length()   # the fuze counts metres, not seconds
+	global_position = to
 
 	# Face movement direction
 	if velocity.length() > 0.1:
@@ -251,6 +299,18 @@ func _handle_collision(target: Node) -> void:
 		return
 
 	hit_targets.append(target)
+
+	# DUD: the fuze never armed (fired at something inside the arming distance).
+	# The warhead still ARRIVES - 1.8kg of steel at 84 m/s ruins the man it hits -
+	# it simply does not detonate. No AOE, no fireball, no crater.
+	if not is_armed():
+		var kinetic: int = maxi(1, int(float(projectile_data.get_damage()) * projectile_data.dud_impact_frac))
+		if target.has_method("take_damage"):
+			target.take_damage(kinetic, Enums.DamageType.PHYSICAL, owner_entity)
+			hit_target.emit(target, kinetic)
+		_dud_impact()
+		return
+
 	var damage: int = projectile_data.get_damage()
 
 	if target.has_method("take_damage"):
@@ -273,8 +333,24 @@ func _handle_collision(target: Node) -> void:
 
 
 func _on_hit_world() -> void:
+	# Fire it into the dirt at your feet and you get a CLANG, not a crater.
+	if not is_armed():
+		_dud_impact()
+		return
 	if projectile_data.aoe_radius > 0:
 		_apply_aoe_damage()
+	_expire()
+
+
+## An unarmed warhead striking anything: a hard impact, a puff, and a piece of
+## ordnance lying there inert. The soldier who fired it learns the lesson the
+## real ones teach - do not shoot a rocket at something in your lap.
+func _dud_impact() -> void:
+	var scene: Node = get_tree().current_scene
+	var n: Vector3 = -velocity.normalized() if velocity.length() > 0.1 else Vector3.UP
+	GunFX.impact(scene, global_position, n, true)
+	print("[FUZE] %s struck at %.1fm - UNARMED (arms at %.1fm): no detonation" % [
+		projectile_data.id, traveled, projectile_data.arming_distance])
 	_expire()
 
 
