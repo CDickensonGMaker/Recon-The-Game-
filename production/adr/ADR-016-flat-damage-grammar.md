@@ -189,6 +189,22 @@ had been lying for months.
 - Guards: `test_flat_damage` carries the new record; `tools/probe_grenade.tscn` (fireteam wipe) and
   `tools/probe_fuze.tscn` (drop-safe arming) both stay green.
 
+## Amendment G (2026-07-12, Summoner-decreed): the .45 ACP class, and the Ithaca's magazine
+Decree: *"the pistol should be doing 20 dmg a shot… a .45 round ain't no joke. Also the Thompson,
+when it's working, is shooting .45 rounds. And the shotgun should have 8 rounds in a magazine, 5 is
+too small."*
+- **New value of record: M1911 = 20** (was 11). Torso ×2.5 = **50** — two centre hits kill a
+  65–85hp man and two kill the player. A heavy, slow, big-bore round: few shots, each one serious.
+  The one-shot-player guard still holds (50 < 100).
+- **`.45 ACP` is now a CARTRIDGE CLASS, not one gun's number.** Any weapon firing it inherits **20**.
+  That names the **Thompson** in advance: it stays retired by Amendment C (no FP arms export exists,
+  and Amendment C's law is that the arms models ARE the armory) — but the moment a Thompson arms
+  model ships, its value is already decreed at 20 and needs no new amendment. Same rule would give a
+  future M3 "Grease Gun" 20.
+- **Ithaca 37 magazine 5 → 8.** The trench-gun tube fits it and it is the Summoner's call; the
+  weapon's identity is CQB dominance, and reloading after five was clipping that fantasy short.
+- Guard: `test_flat_damage` EXPECTED carries M1911 = 20.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015

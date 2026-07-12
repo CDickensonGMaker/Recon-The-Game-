@@ -17,7 +17,7 @@ extends Node
 const EXPECTED := {
 	"m16a1": 28, "m14": 28, "m60": 28,
 	"ak47": 22, "rpd": 22,
-	"ppsh41": 17, "m1911": 11, "mosin": 32, "m70": 32,
+	"ppsh41": 17, "m1911": 20, "mosin": 32, "m70": 32,
 	"m79": 150, "m26_grenade": 190, "m72_law": 250, "rpg2": 250, "rpg7": 290,
 	"shotgun": 35,  # BUCKSHOT (Amendment E + Summoner devastator retune) - 8 x 35
 }
