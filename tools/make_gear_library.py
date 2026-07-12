@@ -41,6 +41,10 @@ PALETTE = {
     "black_rub":  (0.020, 0.020, 0.022),   # handset, cord
     "straw":      (0.230, 0.185, 0.090),   # conical hat
     "brass":      (0.170, 0.130, 0.050),
+    # village tools
+    "bamboo":     (0.205, 0.180, 0.075),   # split bamboo - poles, basket rims
+    "wood":       (0.085, 0.050, 0.026),   # a worn tool haft
+    "rice":       (0.260, 0.235, 0.135),   # cut stalks, threshed grain
 }
 PAL = list(PALETTE.keys())
 PIDX = {n: i for i, n in enumerate(PAL)}
@@ -274,6 +278,71 @@ def build_all(rig):
     p = Part("entrench_shovel", "mixamorig:Hips")
     p.tube((-0.155, 0.115, 1.150), (-0.155, 0.115, 0.980), 0.014, 0.014, "leather", sides=4)
     p.box((-0.155, 0.115, 0.935), (0.048, 0.010, 0.055), "steel")
+    parts.append(p)
+
+    # ============================================================ VILLAGE TOOLS
+    # A civilian standing empty-handed in a paddy is a target. A civilian with a
+    # SICKLE in his fist and a basket on his hip is a person doing a job, and the
+    # player has to decide about him. These are the props that make a village read
+    # as inhabited instead of populated.
+    #
+    # They obey the same contract as everything else in this locker: rigid,
+    # bone-parented, unskinned, and named with a word HitzoneBuilder knows, so they
+    # ride the man and contribute ZERO hitbox. You can hang them on any model on the
+    # standard rig - farmer, elder, or a VC pretending to be one.
+    hand_r = rig.matrix_world @ rig.pose.bones["mixamorig:RightHand"].head
+    hand_l = rig.matrix_world @ rig.pose.bones["mixamorig:LeftHand"].head
+
+    # ---- rice basket, worn on the back (a gio, woven split bamboo)
+    p = Part("rice_basket_back", "mixamorig:Spine2")
+    cz, cy = 1.290, 0.190
+    for i, (r, z) in enumerate([(0.075, 1.120), (0.135, 1.230), (0.150, 1.330),
+                                (0.130, 1.430)]):
+        p.tube((0.0, cy, z), (0.0, cy, z + 0.001), r, r, "straw", sides=10)
+    p.tube((0.0, cy, 1.115), (0.0, cy, 1.440), 0.150, 0.128, "straw", sides=10)
+    p.tube((0.0, cy, 1.435), (0.0, cy, 1.455), 0.132, 0.140, "bamboo", sides=10)  # rim
+    for sx in (-0.105, 0.105):                                        # shoulder cords
+        p.tube((sx, 0.150, 1.470), (sx * 0.5, -0.060, 1.470), 0.010, 0.010, "canvas")
+    parts.append(p)
+
+    # ---- rice sickle (liem): short wooden haft, hard-curved blade
+    p = Part("rice_sickle", "mixamorig:RightHand")
+    g = hand_r + Vector((0.02, 0.0, 0.0))
+    p.tube(tuple(g + Vector((0, 0, -0.055))), tuple(g + Vector((0, 0, 0.065))),
+           0.016, 0.014, "wood", sides=6)
+    prev = g + Vector((0.0, 0.0, 0.070))
+    for i in range(1, 7):                       # the blade sweeps forward and round
+        t = i / 6.0
+        a = math.radians(115.0 * t)
+        nxt = g + Vector((0.0, -0.150 * math.sin(a), 0.070 + 0.135 * (1 - math.cos(a))))
+        p.tube(tuple(prev), tuple(nxt), 0.011 - 0.001 * i, 0.010 - 0.001 * i,
+               "steel", sides=4)
+        prev = nxt
+    parts.append(p)
+
+    # ---- don ganh: the shoulder pole, with a basket swinging off each end. The
+    # single most recognisable silhouette on a paddy dyke.
+    p = Part("carry_pole", "mixamorig:Spine2")
+    p.tube((-0.780, 0.020, 1.545), (0.780, 0.020, 1.545), 0.017, 0.017, "bamboo", sides=6)
+    for sx in (-0.640, 0.640):
+        for cx in (sx - 0.075, sx + 0.075):     # the two cords per end
+            p.tube((cx, 0.020, 1.535), (cx, 0.020, 1.195), 0.005, 0.005, "canvas_drk",
+                   sides=4)
+        p.tube((sx, 0.020, 1.190), (sx, 0.020, 1.075), 0.155, 0.115, "straw", sides=10)
+        p.tube((sx, 0.020, 1.185), (sx, 0.020, 1.196), 0.158, 0.150, "bamboo", sides=10)
+        p.tube((sx, 0.020, 1.170), (sx, 0.020, 1.176), 0.140, 0.140, "rice", sides=10)
+    parts.append(p)
+
+    # ---- a sheaf of cut rice, carried in the off hand
+    p = Part("rice_bundle", "mixamorig:LeftHand")
+    g = hand_l + Vector((-0.02, 0.0, 0.0))
+    p.tube(tuple(g + Vector((0, 0, -0.030))), tuple(g + Vector((0, 0, 0.030))),
+           0.040, 0.045, "canvas_drk", sides=6)                   # the tie
+    for i in range(7):                                            # the stalks, splayed
+        a = math.tau * i / 7.0
+        tip = g + Vector((0.055 * math.cos(a), 0.055 * math.sin(a), 0.240))
+        p.tube(tuple(g + Vector((0, 0, 0.020))), tuple(tip), 0.012, 0.006, "rice",
+               sides=4)
     parts.append(p)
 
     return parts

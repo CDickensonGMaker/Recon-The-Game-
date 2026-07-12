@@ -94,35 +94,72 @@ FACE_CELLS = [
 ]
 GRUNT_FACE = 0
 
-# cloth colours are LINEAR (they get sRGB-encoded on the way into the image)
-UNITS = {
-    "civ_farmer_m": dict(bare=BARE_PEASANT, face=6,  hat="conical",
-                         cloth=(0.030, 0.030, 0.035), skin=(0.36, 0.20, 0.11),
-                         head=1.00, shoulders=1.00, girth=1.00),
-    "civ_farmer_f": dict(bare=BARE_PEASANT, face=8,  hat="conical",
-                         cloth=(0.028, 0.030, 0.045), skin=(0.38, 0.22, 0.13),
-                         head=1.00, shoulders=0.90, girth=0.96),
-    "civ_elder":    dict(bare=BARE_PEASANT, face=7,  hat="conical",
-                         cloth=(0.34, 0.31, 0.24), skin=(0.34, 0.19, 0.11),
-                         head=1.00, shoulders=0.94, girth=0.90),
-    "civ_kid":      dict(bare=BARE_PEASANT, face=9,  hat=None,
-                         cloth=(0.10, 0.13, 0.17), skin=(0.38, 0.22, 0.13),
-                         head=1.28, shoulders=0.88, girth=0.94),
-    "us_pilot_white": dict(bare=BARE_BOOTED, face=1, hat="flight",
-                           cloth=(0.075, 0.080, 0.045), skin=(0.55, 0.33, 0.22),
-                           head=1.00, shoulders=1.00, girth=1.00),
-    "us_pilot_black": dict(bare=BARE_BOOTED, face=4, hat="flight",
-                           cloth=(0.075, 0.080, 0.045), skin=(0.10, 0.055, 0.032),
-                           head=1.00, shoulders=1.00, girth=1.00),
+# ---------------------------------------------------------------- the village
+# VARIANTS, not clones. A village of identical men in identical black reads as a
+# spawner, not a place. Each type gets several dye lots and, for most of them, a
+# JOB - a sickle in the fist, a basket on the back, the shoulder pole. A civilian
+# standing empty-handed in a paddy is a target; a civilian doing a job is a person,
+# and the player has to make a decision about him.
+#
+# Props come out of the LOCKER (gear_library.blend), bone-attached and hitbox-free,
+# so the same sickle hangs on a farmer, an elder, or a VC pretending to be one.
+PROP_BONE = {
+    "rice_basket_back": "mixamorig:Spine2",
+    "rice_sickle":      "mixamorig:RightHand",
+    "carry_pole":       "mixamorig:Spine2",
+    "rice_bundle":      "mixamorig:LeftHand",
 }
 
+# base type -> (face, hat, skin, head, shoulders, girth, bare)
+_TYPES = {
+    "civ_farmer_m": dict(bare=BARE_PEASANT, face=6, hat="conical",
+                         skin=(0.36, 0.20, 0.11), head=1.00, shoulders=1.00, girth=1.00),
+    "civ_farmer_f": dict(bare=BARE_PEASANT, face=8, hat="conical",
+                         skin=(0.38, 0.22, 0.13), head=1.00, shoulders=0.90, girth=0.96),
+    "civ_elder":    dict(bare=BARE_PEASANT, face=7, hat="conical",
+                         skin=(0.34, 0.19, 0.11), head=1.00, shoulders=0.94, girth=0.90),
+    "civ_kid":      dict(bare=BARE_PEASANT, face=9, hat=None,
+                         skin=(0.38, 0.22, 0.13), head=1.28, shoulders=0.88, girth=0.94),
+}
 
-# CALEB'S EYE, 2026-07-12. He hand-placed the hats in the review scene and they
-# were right, so the numbers are his, not mine: every hat came FORWARD 1.6cm and
-# DOWN ~6cm from where the builder was putting it. Measured off his file and folded
-# back in here, because a correction that only lives in a review scene is a
-# correction you make again next week.
-HAT_NUDGE = Vector((0.0, -0.017, -0.060))
+# suffix -> (cloth [LINEAR], prop). Cloth colours are hand-dye lots: black ba-ba,
+# brown homespun, indigo, and the faded ones that have been washed in a river for
+# ten years.
+_VARIANTS = {
+    "civ_farmer_m": [("",   (0.030, 0.030, 0.035), None),               # black ba-ba
+                     ("_b", (0.055, 0.040, 0.026), "rice_sickle"),      # brown, cutting
+                     ("_c", (0.025, 0.032, 0.050), "rice_basket_back")],  # indigo, hauling
+    "civ_farmer_f": [("",   (0.028, 0.030, 0.045), None),               # indigo
+                     ("_b", (0.030, 0.030, 0.033), "carry_pole"),       # black, the don ganh
+                     ("_c", (0.070, 0.035, 0.032), "rice_bundle")],     # faded maroon
+    "civ_elder":    [("",   (0.340, 0.310, 0.240), None),               # cream
+                     ("_b", (0.150, 0.140, 0.120), "rice_basket_back")],  # grey
+    "civ_kid":      [("",   (0.100, 0.130, 0.170), None),               # faded blue
+                     ("_b", (0.170, 0.140, 0.090), "rice_bundle")],     # dirty tan
+}
+
+UNITS = {}
+for _t, _spec in _TYPES.items():
+    for _sfx, _cloth, _prop in _VARIANTS[_t]:
+        UNITS[_t + _sfx] = dict(_spec, cloth=_cloth, prop=_prop)
+
+UNITS["us_pilot_white"] = dict(bare=BARE_BOOTED, face=1, hat="flight", prop=None,
+                               cloth=(0.075, 0.080, 0.045), skin=(0.55, 0.33, 0.22),
+                               head=1.00, shoulders=1.00, girth=1.00)
+UNITS["us_pilot_black"] = dict(bare=BARE_BOOTED, face=4, hat="flight", prop=None,
+                               cloth=(0.075, 0.080, 0.045), skin=(0.10, 0.055, 0.032),
+                               head=1.00, shoulders=1.00, girth=1.00)
+
+
+# CALEB'S EYE, 2026-07-12. He hand-placed the hats twice and he was right twice, so
+# these numbers are his, not mine. Measured off his review file both times and folded
+# back in here - a correction that only lives in a review scene is a correction you
+# make again next week.
+#   pass 1: forward 1.7cm, down 6.0cm
+#   pass 2: forward 1.3cm, down 5.1cm MORE
+# A non la is worn LOW. It is a sunshade, not a cap, and it wants to sit down over
+# the brow. My instinct kept perching it on the crown; his eye kept pulling it down.
+HAT_NUDGE = Vector((0.0, -0.030, -0.111))
 
 
 def _srgb(c):
@@ -383,6 +420,39 @@ def repoint_slot(slot_name, new_mat):
                 s.material = new_mat
                 n += 1
     return n
+
+
+LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
+
+
+def give_prop(rig, name):
+    """Hang a tool off the locker onto this man.
+
+    The locker's pieces are authored in WORLD/REST space and sit at IDENTITY, so
+    once appended they only need re-hanging on THIS rig's bone. Same contract as
+    everything else worn: rigid, unskinned, gear-named -> it moves with him and
+    contributes no hitbox. Shoot the sickle, hit nothing."""
+    if not name:
+        return None
+    before = set(bpy.data.objects)
+    with bpy.data.libraries.load(LOCKER, link=False) as (src, dst):
+        dst.objects = [n for n in src.objects if n == name]
+    for o in dst.objects:
+        if o is not None:
+            bpy.context.scene.collection.objects.link(o)
+    new = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+    if not new:
+        print("      (locker has no %s - skipped)" % name)
+        return None
+    ob = new[0]
+    ob.parent = rig
+    ob.parent_type = 'BONE'
+    ob.parent_bone = PROP_BONE[name]
+    ob.matrix_parent_inverse = Matrix.Identity(4)
+    bpy.context.view_layer.update()
+    ob.matrix_world = Matrix.Identity(4)
+    bpy.context.view_layer.update()
+    return ob
 
 
 def bone_head(rig, name):
@@ -821,8 +891,11 @@ def build(unit, spec):
     # cavity shading + paddy mud + sun-bleach, baked into COLOR_0
     grime(bpy.data.objects[BODY], rig)
 
-    # 5. headgear
+    # 5. headgear + the job in his hands
     hat = add_hat(spec["hat"], rig) if spec["hat"] else None
+    prop = give_prop(rig, spec.get("prop"))
+    if prop is not None:
+        print("      prop: %s on %s" % (prop.name, spec["prop"]))
 
     rig.data.pose_position = 'POSE'
     if rig.animation_data:

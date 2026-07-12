@@ -64,7 +64,11 @@ const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
 	# gear library (batch 1): a name that misses this list gets harvested into
 	# the hurtbox - i.e. the player could shoot a man's ANTENNA and hurt him.
 	"radio", "antenna", "handset", "cord", "satchel", "rig", "entrench",
-	"cover", "shovel", "canteen"]
+	"cover", "shovel", "canteen",
+	# village tools (batch 2): a farmer carrying a sickle must not have a
+	# shootable sickle. Same rule as the antenna - if the name misses this list,
+	# the prop gets harvested straight into his hurtbox.
+	"basket", "sickle", "pole", "bundle", "jug", "hoe", "yoke"]
 
 ## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points,
 ## harvested once per unit type - spawning 20 enemies costs one extraction.
