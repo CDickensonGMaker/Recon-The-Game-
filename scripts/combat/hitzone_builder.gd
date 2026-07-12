@@ -42,7 +42,7 @@ const TUNING_DIR := "res://data/hitzones/"
 ## hard to HIT; he just stops being immune where his own arm meets his chest).
 ## The VC's residual holes are the 8-loose-parts body - Blender fix, VC_FIX_LIST.
 ## Per-unit bench tuning still overrides this.
-const DEFAULT_INFLATE: float = 0.03
+const DEFAULT_INFLATE: float = 0.01
 
 ## Region color code, shared by every overlay/bench so the language is stable.
 ## Legacy 4-limb names kept for the static bands + gore_dummy overlay.
@@ -314,7 +314,7 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 ## same skin math the renderer uses (rigid to the dominant bone):
 ## v_rest = bone_rest x bind_pose x v. Unskinned meshes (rare hit_ overrides)
 ## keep the plain relative transform.
-static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: PackedStringArray,
+static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 		frames: Dictionary, pts: Dictionary, forced: String, k: float) -> void:
 	var sk: Skin = mi.skin
 	var xforms: Array = _bind_rest_xforms(sk, skel) if sk != null else []
@@ -338,25 +338,33 @@ static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: PackedS
 					if w > best_w:
 						best_w = w
 						best_b = bones[vi * influences + j]
-			var region: String = forced
-			if region.is_empty():
-				if best_b < 0 or best_b >= bind_regions.size():
+				# A vertex lands in its own region AND in the neighbour across the
+				# joint (the interlock), so the hulls OVERLAP and cannot leave a hole
+				# at the waist, the armpit or the hip.
+				var regions: PackedStringArray
+				if not forced.is_empty():
+					regions = PackedStringArray([forced])
+				else:
+					if best_b < 0 or best_b >= bind_regions.size():
+						continue
+					regions = bind_regions[best_b]
+				if regions.is_empty():
 					continue
-				region = bind_regions[best_b]
-			if region.is_empty() or not frames.has(region):
-				continue
-			var v_rest: Vector3
-			if best_b >= 0 and best_b < xforms.size():
-				v_rest = (xforms[best_b] as Transform3D) * verts[vi]
-			else:
-				v_rest = to_skel * verts[vi]
-			var frame: Transform3D = frames[region]
-			var local: Vector3 = frame.affine_inverse() * v_rest
-			# Plain Array on purpose: Packed*Array is copy-on-write - appending
-			# through a Dictionary cast mutates a temporary, not the stored one.
-			if not pts.has(region):
-				pts[region] = []
-			(pts[region] as Array).append(local * k)
+				var v_rest: Vector3
+				if best_b >= 0 and best_b < xforms.size():
+					v_rest = (xforms[best_b] as Transform3D) * verts[vi]
+				else:
+					v_rest = to_skel * verts[vi]
+				for region in regions:
+					if not frames.has(region):
+						continue
+					var frame: Transform3D = frames[region]
+					var local: Vector3 = frame.affine_inverse() * v_rest
+					# Plain Array on purpose: Packed*Array is copy-on-write -
+					# appending through a Dictionary cast mutates a temporary.
+					if not pts.has(region):
+						pts[region] = []
+					(pts[region] as Array).append(local * k)
 
 
 ## Per-bind-slot rest-space skinning transform: bone_global_rest x bind_pose,
@@ -376,15 +384,78 @@ static func _bind_rest_xforms(sk: Skin, skel: Skeleton3D) -> Array:
 
 ## Skin bind slot -> region name (ARRAY_BONES indices are skin-relative, NOT
 ## skeleton bone indices - mapping through bind names is the honest path).
-static func _bind_regions(sk: Skin, skel: Skeleton3D, with_gut: bool) -> PackedStringArray:
-	var regions := PackedStringArray()
+## Bind slot -> EVERY region that slot's vertices belong to (primary + the
+## interlock neighbour across the joint). ARRAY_BONES indices are skin-relative,
+## NOT skeleton bone indices - mapping through bind names is the honest path.
+static func _bind_regions(sk: Skin, skel: Skeleton3D, with_gut: bool) -> Array:
+	var regions: Array = []
 	for i in range(sk.get_bind_count()):
 		var bn: String = sk.get_bind_name(i)
 		if bn.is_empty():
 			var bi: int = sk.get_bind_bone(i)
 			bn = skel.get_bone_name(bi) if bi >= 0 and bi < skel.get_bone_count() else ""
-		regions.append(_bone_region(bn, with_gut))
+		regions.append(_bone_regions(bn, with_gut))
 	return regions
+
+
+## INTERLOCK (2026-07-12, after the VC re-export proved the seam margin was a
+## band-aid). A vertex belongs to its dominant bone's region - but a vertex on a
+## JOINT bone also belongs to the neighbouring region, so the two hulls OVERLAP
+## across the joint instead of butting against it.
+##
+## Why: eleven convex hulls cut from one body cannot tile it. Where two shells
+## meet across a concave wedge - the waist, the armpit, the hip - neither owns
+## the gap, and a round goes through the man and hits nothing. Measured on the
+## re-exported (joined, single-mesh) VC: 10.2% of frontal hits landed on NOTHING,
+## and 57% of those sat in ONE 10cm band at the waist, exactly where his BODY
+## hull (0.34m tall) failed to reach his GUT hull (0.30m). The grunt hides the
+## same flaw only because his chest hull happens to be 0.57m tall and overlaps
+## anyway. Growing every hull outward (the old DEFAULT_INFLATE) papered over the
+## symptom on one rig and left the other bleeding.
+##
+## Sharing the joint bone fixes it at the source, on every rig, forever: the
+## chest reaches down into the gut, the shoulder into the chest, the hip into the
+## thigh. Overlap is the SAFE side of this trade - a round in the overlap hits
+## whichever zone the ray meets first, and both are flesh.
+static func _bone_regions(bone_name: String, with_gut: bool) -> PackedStringArray:
+	var out := PackedStringArray()
+	var primary: String = _bone_region(bone_name, with_gut)
+	if primary.is_empty():
+		return out
+	out.append(primary)
+	var b: String = bone_name.trim_prefix("mixamorig_")
+	# The waist: the spine ring belongs to the chest AND the gut.
+	if b == "Spine" and with_gut:
+		out.append("BODY")
+	elif b == "Spine1" and with_gut:
+		out.append("GUT")
+	# The neck: the head reaches down, the chest reaches up.
+	elif b == "Neck":
+		out.append("HEAD")
+	# The shoulders and armpits: the arm root belongs to the chest too.
+	elif b == "LeftShoulder":
+		out.append("ARM_L_UP")
+	elif b == "RightShoulder":
+		out.append("ARM_R_UP")
+	elif b == "LeftArm":
+		out.append("BODY")
+	elif b == "RightArm":
+		out.append("BODY")
+	# The elbows and knees: each lower segment reaches back into its upper.
+	elif b == "LeftForeArm":
+		out.append("ARM_L_UP")
+	elif b == "RightForeArm":
+		out.append("ARM_R_UP")
+	elif b == "LeftLeg":
+		out.append("LEG_L_UP")
+	elif b == "RightLeg":
+		out.append("LEG_R_UP")
+	# The hips: the thigh roots belong to the gut/trunk too.
+	elif b == "LeftUpLeg":
+		out.append("GUT" if with_gut else "BODY")
+	elif b == "RightUpLeg":
+		out.append("GUT" if with_gut else "BODY")
+	return out
 
 
 static func _bone_region(bone_name: String, with_gut: bool) -> String:
