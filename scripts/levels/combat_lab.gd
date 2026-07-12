@@ -278,9 +278,12 @@ func _mode_name() -> String:
 
 ## Arena weapon test: V cycles the primary through the whole roster so you can
 ## feel every gun's rate, recoil weight and audio without a loadout menu.
+## ARMORY TRUTH (Summoner decree 2026-07-11, ADR-016 Amendment C): only guns
+## with real FP arms - "the existing arm models are the core of truth of guns
+## the player can use and pick up." The WW2 stand-ins are archived.
 const WEAPON_ROSTER: Array[String] = [
-	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41",
-	"thompson", "mosin", "shotgun", "m79", "m72_law", "rpg2", "rpg7",
+	"m16a1", "m14", "m60", "ak47", "rpd", "ppsh41",
+	"mosin", "m70", "shotgun", "rpg2",
 ]
 var _weapon_idx: int = 0
 

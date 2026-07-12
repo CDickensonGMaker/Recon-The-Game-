@@ -8,8 +8,8 @@
 extends Node
 
 const WEAPONS := [
-	"m16a1", "car15", "m60", "sks", "ak47", "rpd", "ppsh41", "mosin",
-	"m1911", "thompson", "shotgun", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
+	"m16a1", "m14", "m60", "ak47", "rpd", "ppsh41", "mosin", "m70",
+	"m1911", "shotgun", "m79", "m72_law", "rpg2", "rpg7", "m26_grenade",
 ]
 
 

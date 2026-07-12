@@ -194,8 +194,9 @@ func _test_corpse_animates_with_physics_off() -> void:
 
 ## The sprite holds a weapon. The ballistics must agree with it.
 func _test_sprite_ballistics_agree() -> void:
-	# vc_rifleman moved mosin -> sks with ADR-016 (loadout matches its description).
-	var pairs := [[VC, "sks"], [NVA, "ppsh41"]]
+	# vc_rifleman fires the Mosin his model visibly carries (ADR-016 Amendment C
+	# armory truth: SKS retired - no FP arms, and the export IS a Mosin).
+	var pairs := [[VC, "mosin"], [NVA, "ppsh41"]]
 	for pair in pairs:
 		var data: EnemyData = load(str(pair[0]))
 		var want: String = str(pair[1])

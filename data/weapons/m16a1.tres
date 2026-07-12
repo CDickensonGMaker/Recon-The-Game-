@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3 uid="uid://dm16a1rifle001"]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
-[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -12,32 +12,23 @@ fire_rate = 750.0
 magazine_size = 20
 reload_time = 2.4
 base_damage = 28
-damage_type = 0
 base_spread = 1.6
 ads_spread_mult = 0.25
 recoil_vertical = 1.1
-recoil_horizontal = 0.5
 ads_fov = 60.0
-ads_move_mult = 0.6
 effective_range = 300.0
 max_range = 460.0
 min_damage_mult = 0.65
 projectile_speed = 948.0
-projectile_data_path = ""
+tracer_ratio = 5
+tracer_color = Color(1, 0.42, 0.3, 1)
 recoil_first_shot_mult = 1.4
 recoil_climb_per_shot = 0.05
 recoil_climb_max = 1.7
 recoil_recovery = 14.0
-fire_volume_db = 0.0
-fire_pitch_variance = 0.04
-audio_max_distance = 350.0
-audio_unit_size = 16.0
-is_supersonic = true
 model_path = "res://scenes/weapons/m16a1_arms_viewmodel.tscn"
-viewmodel_scale = 1.0
-hip_position = Vector3(0.000, 0.000, 0.000)
-ads_position = Vector3(0.000, 0.050, 0.080)
-hip_rotation = Vector3(4.0, 0.0, 0.0)
-ads_rotation = Vector3(4.0, 0.0, 0.0)
-tracer_ratio = 5
-tracer_color = Color(1, 0.42, 0.3, 1)
+bore_dir = Vector3(-0.15954481, -0.07876544, -0.9840435)
+hip_position = Vector3(0, 0, -0.10379301)
+ads_position = Vector3(0, 0.05, 0.08)
+hip_rotation = Vector3(4.8755007, -8.87962, 0)
+ads_rotation = Vector3(4, 0, 0)

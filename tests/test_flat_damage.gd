@@ -10,16 +10,20 @@
 ## Run: godot --headless --path . res://tests/test_flat_damage.tscn
 extends Node
 
-## The decreed values (ADR-016). Change ONLY with an ADR amendment.
+## The decreed values (ADR-016 + Amendment C armory truth pass). Change ONLY
+## with an ADR amendment. m14 = 28 (7.62 NATO, M60 cartridge class); m70 = 32
+## (full-power bolt, Mosin class).
 const EXPECTED := {
-	"m16a1": 28, "car15": 28, "m60": 28,
-	"ak47": 22, "sks": 22, "rpd": 22,
-	"ppsh41": 17, "thompson": 17, "m1911": 11, "mosin": 32,
+	"m16a1": 28, "m14": 28, "m60": 28,
+	"ak47": 22, "rpd": 22,
+	"ppsh41": 17, "m1911": 11, "mosin": 32, "m70": 32,
 	"m79": 44, "m26_grenade": 55, "m72_law": 72, "rpg2": 62, "rpg7": 73,
 	"shotgun": 100,  # SLUG - single 100-damage round (Summoner devastation decree)
 }
-## Retired by ADR-016 - loading one of these is a FAIL.
-const RETIRED := ["mp40", "kar98k"]
+## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016;
+## car15/sks/thompson by Amendment C (no FP arms = not a gun in this game;
+## vc_rifleman now fires the Mosin his model carries).
+const RETIRED := ["mp40", "kar98k", "car15", "sks", "thompson"]
 
 const ZONE_MULTS := {"TORSO": 2.0, "GUT": 1.75, "LIMB": 0.75}
 const HP_BANDS := {"player": 100, "enemy_lo": 65, "enemy_hi": 85}
@@ -75,7 +79,7 @@ func _run() -> void:
 			wid, dmg, torso, stk_p, stk_lo, stk_hi])
 	# HLL-lethality guards: rifles must down an enemy in <=2 torso hits and the
 	# player in <=3; nothing one-shots the player's torso (situation kills, not stats).
-	for wid: String in ["m16a1", "ak47", "sks"]:
+	for wid: String in ["m16a1", "ak47", "m14"]:
 		var torso: int = int(float(EXPECTED[wid]) * 2.0)
 		if int(ceil(85.0 / float(torso))) > 2:
 			print("FAIL: %s needs >2 torso hits vs 85hp enemy - not HLL-lethal" % wid)

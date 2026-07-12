@@ -1,18 +1,16 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
-[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 id = "m1911"
 display_name = "M1911 Pistol"
 description = ".45 ACP pistol. A flat, subsonic boom - no crack. Same stopping power as the Thompson, fewer rounds."
-firing_mode = 0
 fire_rate = 300.0
 magazine_size = 7
 reload_time = 2.2
 base_damage = 11
-damage_type = 0
 base_spread = 1.0
 ads_spread_mult = 0.2
 recoil_vertical = 5.0
@@ -23,20 +21,16 @@ effective_range = 30.0
 max_range = 50.0
 min_damage_mult = 0.3
 projectile_speed = 253.0
-projectile_data_path = ""
+tracer_ratio = 0
 recoil_first_shot_mult = 1.2
 recoil_climb_per_shot = 0.0
 recoil_climb_max = 1.0
 recoil_recovery = 10.0
 fire_volume_db = 0.5
-fire_pitch_variance = 0.04
-audio_max_distance = 350.0
-audio_unit_size = 16.0
 is_supersonic = false
 model_path = "res://scenes/weapons/colt45_arms_viewmodel.tscn"
-viewmodel_scale = 1.0
-hip_position = Vector3(0.000, 0.000, 0.000)
-ads_position = Vector3(0.000, 0.050, 0.080)
-hip_rotation = Vector3(4.0, 0.0, 0.0)
-ads_rotation = Vector3(4.0, 0.0, 0.0)
-tracer_ratio = 0
+bore_dir = Vector3(0.14540301, -0.07212381, -0.98674023)
+hip_position = Vector3(0.052024998, 0, -0.136465)
+ads_position = Vector3(0, 0.05, 0.08)
+hip_rotation = Vector3(4.4046593, 8.47451, 0)
+ads_rotation = Vector3(4, 0, 0)

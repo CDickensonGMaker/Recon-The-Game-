@@ -100,6 +100,24 @@ a tuning entry without damage keys, behaves exactly per the law above; the bench
 values equal to the law (no silent no-op files). Probe: `tests/test_hitzones.tscn` roundtrips
 radius + damage + fatal and asserts untouched zones keep the values of record. Bead: 5if4.
 
+## Amendment C (2026-07-11, Summoner-decreed): armory truth — arms models define the guns
+Decree verbatim intent: *"the existing arm models will be all the guns that truly exist in the
+game... that's the core of truth of guns the player can use and pick up. More will be added."*
+- **The player-reachable armory = the 11 FP arms exports:** M16A1, M14, M60, AK-47, RPD, PPSh-41,
+  Mosin, M70, Ithaca (slug), RPG-2, M1911/Colt45. The lab roster, loadouts, and capture can only
+  hand the player these.
+- **New values of record (cartridge-class conversion, same law as the original table):**
+  **M14 = 28** (7.62 NATO — the M60's cartridge class) · **M70 Winchester = 32** (full-power bolt —
+  Mosin class; the Summoner's own 071v suggestion).
+- **Retired outright:** `car15.tres` (Thompson stand-in), `thompson.tres` (WW2 holdover),
+  `sks.tres` (Kar98k stand-in). **vc_rifleman now fires the Mosin his model visibly carries**
+  (loadout honesty — the vc_guerilla_mosin export was already in his hands).
+- **NPC-side/future data may exist without arms** (m79 — ally verb; rpg7/m72_law — future) but is
+  not player-reachable and carries NO stand-in viewmodel (`m79.tres` model_path cleared).
+- **WW2 stand-in assets archived** to `Base Game Assets/RECONgame/ww2_standins/` (kar98/mp40/
+  thompson gltf sets + superseded m1911/m16a1 single-gun scenes) — ~43MB out of the project.
+- Probe updated: `tests/test_flat_damage.tscn` roster + retired list enforce this amendment.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015
