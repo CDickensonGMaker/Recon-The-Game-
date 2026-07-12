@@ -12,6 +12,28 @@ The engine auto-normalizes any character to 1.7132 (it rescales by AABB), so a
 1.9m export won't *break* — but exporting AT 1.7132 means zero rescale and the
 hitzones/eye-lines land exactly where authored. **Author to 1.7132.**
 
+### Amendment (2026-07-12): non-combatants may declare their own height
+1.7132 is the **combatant** standard and every soldier on the roster still obeys
+it. It cannot be universal: the normalizer rescales *every* skeleton to its
+target, so under one global number a child is not a child — he is a 1.71 m adult
+wearing a child's mesh, and a stooped elder stands up straight. A village of
+grunt-sized "kids" is the failure this prevents.
+
+A unit that is not a soldier declares its authored height in
+`ModelActor.UNIT_HEIGHT_M`; anything absent from that table falls back to 1.7132,
+so adding a model never silently changes its scale.
+
+| Unit | Height | Source |
+|---|---|---|
+| every combatant (US, VC, NVA, aircrew) | 1.7132 | helmet top — aircrew's flight helmet is the top of the silhouette, same as a steel pot |
+| `civ_farmer_m` | 1.62 | 1960s–70s rural Vietnamese adult male |
+| `civ_farmer_f` | 1.52 | adult female |
+| `civ_elder` | 1.55 | with a stoop |
+| `civ_kid` | 1.26 | ~9 years old |
+
+**Author each civilian AT its declared height**, same rule as before — matching
+the target means zero rescale, and the hitzones land where authored.
+
 ## Character export contract (unchanged)
 Feet at world origin (0,0,0) · face **−Z** · 1.7132 tall · Mixamo rig, named
 animations · sockets `MuzzlePoint / HandR / HandL / Head / Chest` · ~3–6k tris.

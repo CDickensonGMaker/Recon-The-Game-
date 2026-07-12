@@ -15,6 +15,32 @@ extends Node3D
 const MODEL_DIR := "res://assets/models/characters/"
 const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
 
+## Per-unit authored height, in metres. A COMBATANT is 1.7132 to the helmet top
+## and needs no entry here - that is the standard (production/GAME_SCALE_STANDARD.md)
+## and every soldier on the roster honours it.
+##
+## Non-combatants need an entry, because _normalize_height() rescales EVERY
+## skeleton to its target. With one global target, a child is not a child - he is
+## a 1.71m adult wearing a child's mesh, and a stooped elder stands up straight.
+## Villages full of grunt-sized "kids" is what this table exists to prevent.
+##
+## Figures are 1960s-70s Vietnamese rural adults (men ~1.60-1.63, women ~1.50-1.52),
+## an elder with a stoop, and a ~9-year-old. US aircrew keep the standard: their
+## flight helmet is the top of the silhouette, exactly like a grunt's steel pot.
+const UNIT_HEIGHT_M: Dictionary = {
+	"civ_farmer_m": 1.62,
+	"civ_farmer_f": 1.52,
+	"civ_elder":    1.55,
+	"civ_kid":      1.26,
+}
+
+
+## The height THIS unit was authored to. Unknown unit -> the roster standard, so
+## adding a model never silently changes its scale.
+static func target_height(unit_id: String) -> float:
+	return float(UNIT_HEIGHT_M.get(unit_id, TARGET_HEIGHT_M))
+
+
 var unit: String = ""
 var norm_k: float = 1.0   ## normalization scale applied to the instance (ADR-002)
 ## Bind-to-rest size ratio: gib donor meshes store BIND-space verts while the
@@ -64,6 +90,7 @@ func setup(unit_id: String) -> bool:
 func _normalize_height() -> void:
 	if _inst == null:
 		return
+	var target: float = target_height(unit)     # 1.7132 for every combatant
 	if _skel != null:
 		var top: int = _skel.find_bone("mixamorig_HeadTop_End")
 		var toe: int = _skel.find_bone("mixamorig_LeftToeBase")
@@ -80,18 +107,18 @@ func _normalize_height() -> void:
 			var top_y: float = (to_inst * _skel.get_bone_global_rest(top).origin).y
 			var toe_y: float = (to_inst * _skel.get_bone_global_rest(toe).origin).y
 			if top_y - toe_y > 0.01:
-				var k: float = TARGET_HEIGHT_M / (top_y - toe_y)
+				var k: float = target / (top_y - toe_y)
 				norm_k = k
 				var bind_aabb := _aabb_of(_inst)
 				if bind_aabb.size.y > 0.01:
 					gib_scale = clampf((top_y - toe_y) / bind_aabb.size.y, 0.05, 1.0)
 				_inst.scale = Vector3(k, k, k)
 				_inst.position.y = -toe_y * k
-				print("[MODEL] %s rest-span %.2f k=%.3f gib_scale=%.2f (skeleton-ruled height; bind AABB lies on off-spec exports)" % [unit, top_y - toe_y, k, gib_scale])
+				print("[MODEL] %s rest-span %.2f k=%.3f gib_scale=%.2f -> %.2fm (skeleton-ruled height; bind AABB lies on off-spec exports)" % [unit, top_y - toe_y, k, gib_scale, target])
 				return
 	var aabb := _aabb_of(_inst)
 	if aabb.size.y > 0.01:
-		var k2: float = TARGET_HEIGHT_M / aabb.size.y
+		var k2: float = target / aabb.size.y
 		norm_k = k2
 		_inst.scale = Vector3(k2, k2, k2)
 		_inst.position.y = -aabb.position.y * k2
