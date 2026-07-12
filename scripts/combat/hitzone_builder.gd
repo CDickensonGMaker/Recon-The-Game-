@@ -44,7 +44,11 @@ const REGION_COLORS: Dictionary = {
 ## Mesh-name fragments that mark gear/headgear - never harvested into hulls.
 const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
 	"rice", "gear", "pack", "pouch", "belt", "canteen", "strap", "webbing",
-	"bandolier", "glasses"]
+	"bandolier", "glasses",
+	# gear library (batch 1): a name that misses this list gets harvested into
+	# the hurtbox - i.e. the player could shoot a man's ANTENNA and hurt him.
+	"radio", "antenna", "handset", "cord", "satchel", "rig", "entrench",
+	"cover", "shovel", "canteen"]
 
 ## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points,
 ## harvested once per unit type - spawning 20 enemies costs one extraction.
