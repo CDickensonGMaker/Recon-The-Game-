@@ -61,6 +61,35 @@ func record_kill() -> void:
 	kills += 1
 
 
+## CONTACT LEDGER (ADR-006, audit L4). The scoring economy that GAME_GUIDE names
+## - +25 avoided, -25 detected - had no numbers to score, because nobody counted.
+## An enemy GROUP is "detected" the first time any of its men reaches COMBAT with
+## eyes on you; a group you leave the AO without ever alerting is "avoided". The
+## ledger is per-group and one-way: once they've seen you, that contact is spent.
+var contacts_detected: int = 0
+var _detected_groups: Dictionary = {}   ## instance_id -> true
+var _known_groups: Dictionary = {}      ## every group that ever existed
+
+
+## Called by an enemy the moment he goes loud on the player.
+func report_detected(group_id: int) -> void:
+	_known_groups[group_id] = true
+	if _detected_groups.has(group_id):
+		return
+	_detected_groups[group_id] = true
+	contacts_detected += 1
+
+
+## Called when a group is spawned/registered, so it can be scored as AVOIDED if
+## it never sees you.
+func register_group(group_id: int) -> void:
+	_known_groups[group_id] = true
+
+
+func contacts_avoided() -> int:
+	return maxi(0, _known_groups.size() - _detected_groups.size())
+
+
 func elapsed_seconds() -> float:
 	return float(Time.get_ticks_msec() - start_time_ms) / 1000.0
 
@@ -84,4 +113,7 @@ func _base_result(success: bool, reason: String) -> Dictionary:
 		"objectives_done": objectives_done(),
 		"objectives_total": objectives_total(),
 		"emergency_exfil": emergency_exfil,
+		# ADR-006: what the debrief actually pays on.
+		"contacts_detected": contacts_detected,
+		"contacts_avoided": contacts_avoided(),
 	}

@@ -18,9 +18,20 @@ static func _ghost_bonus(r: Dictionary) -> bool:
 	return bool(r.get("success", false)) and shots > 0 and shots <= 15 * maxi(1, int(r.objectives_done))
 
 
+## ADR-006 SCORING (audit L4). The old economy paid +10 per KILL, so the optimal
+## XP strategy was to be LOUD - the exact inverse of Pillar 3, in a game whose
+## whole fantasy is a recon element that is never seen. Kills earn NOTHING now.
+## What earns is CONTACT DISCIPLINE: +25 for every enemy group you slipped past
+## unseen, -25 for every one that got eyes on you. A firefight you had to have is
+## not punished (you still bank the objectives); a firefight you CHOSE costs you.
+const CONTACT_AVOIDED: int = 25
+const CONTACT_DETECTED: int = -25
+
+
 static func compute_score(r: Dictionary) -> int:
 	var score: int = int(r.objectives_done) * 100
-	score += int(r.kills) * 10
+	score += int(r.get("contacts_avoided", 0)) * CONTACT_AVOIDED
+	score += int(r.get("contacts_detected", 0)) * CONTACT_DETECTED
 	score -= int(r.damage_taken)
 	if float(r.time_sec) < 900.0 and bool(r.success):
 		score += 50
@@ -28,6 +39,10 @@ static func compute_score(r: Dictionary) -> int:
 		score -= 50
 	if _ghost_bonus(r):
 		score += 75
+	# The AAR printed "THE PILOT DIDN'T MAKE IT: -100" and then never subtracted
+	# it - the debrief was lying to the player about his own score.
+	if bool(r.get("pow_lost", false)):
+		score -= 100
 	return score
 
 
@@ -58,7 +73,11 @@ func _ready() -> void:
 	var lines := [
 		"MISSION:      %s (SEED %d)" % [result.mission_type, int(result.seed)],
 		"OBJECTIVES:   %d / %d  (x100)" % [int(result.objectives_done), int(result.objectives_total)],
-		"ENEMY KIA:    %d  (x10)" % int(result.kills),
+		# ADR-006: the AAR now names what it PAYS for. Kills are reported because
+		# a recon element still counts bodies - they just do not buy anything.
+		"CONTACTS AVOIDED: %d  (+25 each)" % int(result.get("contacts_avoided", 0)),
+		"CONTACTS DETECTED: %d  (-25 each)" % int(result.get("contacts_detected", 0)),
+		"ENEMY KIA:    %d  (no XP - you were seen)" % int(result.kills),
 		"WOUNDS TAKEN: -%d" % int(result.damage_taken),
 		"TIME:         %d:%02d" % [int(result.time_sec) / 60, int(result.time_sec) % 60],
 	]

@@ -215,7 +215,17 @@ static func _get_flash_tex() -> GradientTexture2D:
 	return _flash_tex
 
 
+## ONE material for every muzzle flash in the game. This used to mint a fresh
+## StandardMaterial3D on every call - and it is called TWICE per shot (core +
+## spike), so an M60 at 550rpm was allocating ~18 materials a second, each a new
+## RID and uniform set. The flashes differ by mesh size and roll, not by
+## material, so they can all share this one. (perf audit)
+static var _shared_flash_mat: StandardMaterial3D = null
+
+
 static func _flash_mat() -> StandardMaterial3D:
+	if _shared_flash_mat != null:
+		return _shared_flash_mat
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -225,7 +235,8 @@ static func _flash_mat() -> StandardMaterial3D:
 	mat.emission_energy_multiplier = 4.0
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	return mat
+	_shared_flash_mat = mat
+	return _shared_flash_mat
 
 
 ## Muzzle flash: warm omni light + a radial burst with a star cross - two

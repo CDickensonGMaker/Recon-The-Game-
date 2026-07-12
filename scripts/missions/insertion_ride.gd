@@ -1,4 +1,4 @@
-## insertion_ride.gd - Huey insertion ride v1 (W06/W07/W09/W10/W11).
+﻿## insertion_ride.gd - Huey insertion ride v1 (W06/W07/W09/W10/W11).
 ## Walk up -> board (E/F) -> door seat, head-look -> flight with AA threat rolls
 ## -> touchdown -> dismount. Shoot-down = hard crash, mission continues (E&E).
 class_name InsertionRide
@@ -36,6 +36,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, start_pad: 
 	heli.setup(world.terrain_manager)
 	var pad_y: float = world.terrain_manager.get_height_at(start_pad)
 	heli.global_position = Vector3(start_pad.x, pad_y + 0.5, start_pad.z)
+	heli.reset_physics_interpolation()
 	heli.state = Helicopter.State.LANDED
 	_build_seats_and_crew()
 	_start_rotor(0.85)
@@ -154,6 +155,7 @@ func _stow_allies(aboard: bool) -> void:
 			var pos: Vector3 = heli.global_position + off
 			pos.y = world.terrain_manager.get_height_at(pos) + 0.5
 			ally.global_position = pos
+		ally.reset_physics_interpolation()
 
 
 ## W09: AA rolls while inbound, scaled by campaign threat.

@@ -1,30 +1,43 @@
-"""CIVILIAN ANIMATIONS - work and fear, the two things the library has none of.
+"""CIVILIAN ANIMATIONS - work and fear, the two things the shared library has none of.
 
     blender -b -P tools/make_civilian_anims.py
 
 Authored on ONE reference body (civ_farmer_m) and written to a workbench blend for
 Caleb to scrub and correct. Once he signs them off they get merged into
 anim_library.glb, and EVERY civilian - and the VC, who share the same PSXRig - picks
-them up for free. That is the whole point of the shared library: author once, and the
+them up for free. That is the point of the shared library: author once, and the
 skeleton is the contract.
 
 DERIVED, NOT KEYED FROM SCRATCH. Each clip starts from an existing clip and rewrites
-only what has to change: panic_run keeps running_unarmed's LEGS (which are good, and
-are Caleb's) and rewrites the upper body into a panic. A hand-keyed run built from a
-blank timeline would look like a puppet, and the legs are the hardest part.
+only what must change: civ_panic_run keeps running_unarmed's LEGS (which are good,
+and are Caleb's) and rewrites the upper body into a panic. A run hand-keyed from a
+blank timeline looks like a puppet, and the legs are the hardest part of a run.
 
-THE AXES ARE MEASURED, NOT ASSUMED (hard rule: never guess in Blender). A +30 degree
-test rotation on each bone's local axis, reading where the tip actually went:
+------------------------------------------------------------------------------
+HARD RULE: NEVER GUESS IN BLENDER. Two things here are measured, not assumed:
 
-    spine / neck / head    +X = bend FORWARD          +Z = lean to his RIGHT
-    arms                   +X = LOWER the arm         (so raising it is -X)
-    left arm               +Z = swing FORWARD
-    RIGHT arm              +Z = swing BACKWARD        (mirrored! -Z is forward)
-    hips / knees           +X = swing the limb FORWARD (so bending a knee is -X)
-    every bone             +Y = roll about its own length (the tip does not move)
+1. THE BONE AXES. A +30 degree test rotation on each bone's local axis, reading
+   where the tip actually went:
+       spine / neck / head   +X = bend FORWARD        +Z = lean to his RIGHT
+       arms                  +X = LOWER the arm       (so raising it is -X)
+       LEFT arm              +Z = swing FORWARD
+       RIGHT arm             +Z = swing BACKWARD      (mirrored - -Z is forward)
+       hips / knees          +X = swing the limb FORWARD (so a knee bends on -X)
+       every bone            +Y = roll about its own length; the tip does not move
+   Three of those are the opposite of the naive guess.
 
-Every one of those would have been a coin-flip by assumption, and three of them are
-the opposite of the naive guess.
+2. THE ARMS ARE SOLVED, NOT POSED. Arm angles live in the bone's LOCAL frame, and
+   that frame rides the spine. Bend the torso 47 degrees and "raise the arm" no
+   longer sends the hand up - it sends it up and BEHIND him. My first pass authored
+   arm ANGLES and the cower came out as a swan dive and the transplant came out with
+   his arms pointing backwards. So the clips now state WHERE THE HAND GOES, in world
+   space, against the already-posed torso, and a solver works out the shoulder and
+   elbow. You cannot author an arm against a moving parent by eye.
+
+3. THE FEET ARE GROUNDED BY MEASUREMENT. For the static clips the hips drop is not
+   hand-tuned - the toes are measured after posing and the hips are dropped by
+   exactly enough to put the lowest one on the deck.
+------------------------------------------------------------------------------
 """
 import bpy, math, os
 from mathutils import Vector, Quaternion, Euler
@@ -33,7 +46,6 @@ SRC = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_farmer_m.bl
 OUT = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
 RIG = "PSXRig"
 M = "mixamorig:"
-
 TAU = math.tau
 
 
@@ -41,208 +53,220 @@ def rad(d):
     return math.radians(d)
 
 
-# ---------------------------------------------------------------- the clips
-# offset(bone) -> (rx, ry, rz) in RADIANS, in the bone's LOCAL frame, as a function
-# of phase t (0..1 through the clip). Returned angles are ADDED on top of the source
-# clip's pose, so the source's motion survives underneath.
-def panic_run(t):
-    """Not a soldier's sprint. Arms up and flailing, head snapping back over the
-    shoulder to see what is chasing him. The legs are running_unarmed's, untouched."""
+def W(rig, bone):
+    return rig.matrix_world @ rig.pose.bones[M + bone].head
+
+
+# MEASURED on this rig: upper arm 0.298 + forearm 0.260 = 0.559 m, shoulder to
+# hand. A target past that is not a pose, it is a wish - the solver reports a
+# 60cm miss and the arm locks out straight, pointing at nothing. That is exactly
+# what "hands in the water" was: unreachable, so the arm just aimed at it.
+REACH = 0.559
+
+
+def reach(rig, side, target, frac=0.93):
+    """Pull a target back onto the sphere the hand can actually get to."""
+    sh = W(rig, side + "Arm")
+    d = target - sh
+    lim = REACH * frac
+    return sh + d.normalized() * lim if d.length > lim else target
+
+
+# ============================================================ THE CLIPS
+# rot(t)   -> {bone: (rx, ry, rz)} radians, LOCAL frame, ADDED on top of the source.
+#             Spine, neck, head and legs only. NEVER arms - see the header.
+# hands(rig, t) -> {"Left": world Vector, "Right": world Vector}. Evaluated AFTER the
+#             torso is posed, so it can hang targets off the head, the hips, the knee.
+
+def rot_panic(t):
+    look = math.sin(t * TAU)
+    return {M + "Spine": (rad(12), 0, 0),
+            M + "Spine1": (rad(7), 0, 0),
+            M + "Neck": (rad(-6), 0, rad(20 * look)),
+            M + "Head": (rad(-10), 0, rad(34 * look))}       # snapping a look back
+
+
+def hands_panic(rig, t):
     flail = math.sin(t * TAU * 2.0)
-    look = math.sin(t * TAU)          # head sweeps back and forth
-    return {
-        M + "Spine":        (rad(10), 0, 0),                 # thrown forward
-        M + "Spine1":       (rad(6), 0, 0),
-        M + "LeftArm":      (rad(-95 + 12 * flail), 0, rad(25)),
-        M + "RightArm":     (rad(-95 - 12 * flail), 0, rad(-25)),
-        M + "LeftForeArm":  (rad(-55 - 15 * flail), 0, 0),
-        M + "RightForeArm": (rad(-55 + 15 * flail), 0, 0),
-        M + "Neck":         (rad(-5), 0, rad(18 * look)),
-        M + "Head":         (rad(-8), 0, rad(30 * look)),    # looking BACK
-    }
+    h = W(rig, "Head")
+    return {"Left":  reach(rig, "Left",  h + Vector((0.34, -0.02, 0.16 + 0.10 * flail))),
+            "Right": reach(rig, "Right", h + Vector((-0.34, -0.02, 0.16 - 0.10 * flail)))}
 
 
-def cower(t):
-    """Curled down, arms clamped over the head. The single most important civilian
-    pose in the game: it is what he does when the shooting starts, and it is what the
-    player sees before he decides."""
-    tremble = math.sin(t * TAU * 6.0) * 0.35 + math.sin(t * TAU * 11.0) * 0.2
-    return {
-        M + "Spine":        (rad(28), 0, 0),
-        M + "Spine1":       (rad(22), 0, 0),
-        M + "Spine2":       (rad(16), 0, 0),
-        M + "Neck":         (rad(20), 0, 0),
-        M + "Head":         (rad(18), 0, 0),                 # tucked
-        M + "LeftArm":      (rad(-125 + tremble), 0, rad(38)),
-        M + "RightArm":     (rad(-125 + tremble), 0, rad(-38)),
-        M + "LeftForeArm":  (rad(-105), 0, 0),               # forearms over the skull
-        M + "RightForeArm": (rad(-105), 0, 0),
-    }
+def rot_cower(t):
+    tr = math.sin(t * TAU * 6.0) * rad(1.2) + math.sin(t * TAU * 11.0) * rad(0.7)
+    return {M + "Spine": (rad(30) + tr, 0, 0),
+            M + "Spine1": (rad(24), 0, 0),
+            M + "Spine2": (rad(14), 0, 0),
+            M + "Neck": (rad(22), 0, 0),
+            M + "Head": (rad(20), 0, 0),                     # skull tucked down
+            M + "LeftUpLeg": (rad(20), 0, 0),
+            M + "RightUpLeg": (rad(20), 0, 0),
+            M + "LeftLeg": (rad(-30), 0, 0),
+            M + "RightLeg": (rad(-30), 0, 0)}
 
 
-def hands_up(t):
-    """Surrender. Standing, arms up, elbows bent. He is showing you his hands."""
-    sway = math.sin(t * TAU) * 2.0
-    return {
-        M + "Spine":        (rad(-3), 0, 0),
-        M + "LeftArm":      (rad(-118), 0, rad(22 + sway)),
-        M + "RightArm":     (rad(-118), 0, rad(-22 - sway)),
-        M + "LeftForeArm":  (rad(-88), 0, 0),
-        M + "RightForeArm": (rad(-88), 0, 0),
-        M + "Head":         (rad(-6), 0, 0),                 # chin up, watching you
-    }
+def hands_cower(rig, t):
+    tr = math.sin(t * TAU * 7.0) * 0.012
+    top = W(rig, "HeadTop_End")
+    return {"Left":  reach(rig, "Left",  top + Vector((0.17, -0.02, 0.01 + tr))),
+            "Right": reach(rig, "Right", top + Vector((-0.17, -0.02, 0.01 - tr)))}
 
 
-def squat_idle(t):
-    """The villager squat - heels down, backside near the ankles. You see it on every
-    doorstep and every dyke in the country, and nobody in a war game ever animates it."""
-    breathe = math.sin(t * TAU) * 1.5
-    return {
-        M + "LeftUpLeg":    (rad(78), 0, rad(14)),           # thighs up and splayed
-        M + "RightUpLeg":   (rad(78), 0, rad(-14)),
-        M + "LeftLeg":      (rad(-125), 0, 0),               # knees folded HARD
-        M + "RightLeg":     (rad(-125), 0, 0),
-        M + "LeftFoot":     (rad(38), 0, 0),
-        M + "RightFoot":    (rad(38), 0, 0),
-        M + "Spine":        (rad(14 + breathe), 0, 0),
-        M + "Spine1":       (rad(8), 0, 0),
-        M + "LeftArm":      (rad(28), 0, rad(12)),           # forearms on the knees
-        M + "RightArm":     (rad(28), 0, rad(-12)),
-        M + "LeftForeArm":  (rad(-62), 0, 0),
-        M + "RightForeArm": (rad(-62), 0, 0),
-    }
+def rot_hands_up(t):
+    return {M + "Spine": (rad(-2), 0, 0),
+            M + "Head": (rad(-8), 0, 0)}                      # chin up, watching you
 
 
-def farm_transplant(t):
-    """Bent double, planting seedlings into water. The back does the work and the
-    arms just dip. This is the pose the whole country was in."""
-    dip = math.sin(t * TAU)                    # one plant per cycle
-    return {
-        M + "Spine":        (rad(46 + 5 * dip), 0, 0),
-        M + "Spine1":       (rad(30 + 4 * dip), 0, 0),
-        M + "Spine2":       (rad(16), 0, 0),
-        M + "Neck":         (rad(10), 0, 0),
-        M + "Head":         (rad(8), 0, 0),                  # eyes on the water
-        M + "LeftUpLeg":    (rad(12), 0, 0),                 # knees soft
-        M + "RightUpLeg":   (rad(12), 0, 0),
-        M + "LeftLeg":      (rad(-16), 0, 0),
-        M + "RightLeg":     (rad(-16), 0, 0),
-        M + "LeftArm":      (rad(52 + 14 * dip), 0, rad(20)),
-        M + "RightArm":     (rad(52 - 14 * dip), 0, rad(-20)),
-        M + "LeftForeArm":  (rad(-38 - 18 * dip), 0, 0),
-        M + "RightForeArm": (rad(-38 + 18 * dip), 0, 0),
-    }
+def hands_hands_up(rig, t):
+    sway = math.sin(t * TAU) * 0.012
+    ls, rs = W(rig, "LeftArm"), W(rig, "RightArm")
+    return {"Left":  reach(rig, "Left",  ls + Vector((0.14 + sway, -0.14, 0.40))),
+            "Right": reach(rig, "Right", rs + Vector((-0.14 - sway, -0.14, 0.40)))}
 
 
-def farm_harvest(t):
-    """Left hand gathers a fistful of stalks, right hand sweeps the sickle through
-    them. One cut per cycle. The sickle is bone-parented to the right hand, so it
-    comes along for free - that is what the locker is FOR."""
+def rot_squat(t):
+    br = math.sin(t * TAU) * rad(1.5)
+    # a real squat: thigh comes up to horizontal, knee folds hard, ankle lets the
+    # heel stay down. Derived from `idle` (STRAIGHT legs) - deriving it from
+    # idle_crouching stacked a second bend on an already-bent knee and folded him in
+    # half on the floor.
+    # MEASURED, not eyeballed: at 96/-138 his hips sat at 0.20 m - that is not a
+    # squat, that is sitting on his heels in a ball. A man squatting on a dyke rides
+    # about 0.35 m. Backed the fold off until the measurement said so.
+    return {M + "LeftUpLeg": (rad(82), 0, rad(15)),
+            M + "RightUpLeg": (rad(82), 0, rad(-15)),
+            M + "LeftLeg": (rad(-112), 0, 0),
+            M + "RightLeg": (rad(-112), 0, 0),
+            M + "LeftFoot": (rad(32), 0, 0),
+            M + "RightFoot": (rad(32), 0, 0),
+            M + "Spine": (rad(16) + br, 0, 0),
+            M + "Spine1": (rad(9), 0, 0)}
+
+
+def hands_squat(rig, t):
+    lk, rk = W(rig, "LeftLeg"), W(rig, "RightLeg")            # the knees
+    return {"Left":  reach(rig, "Left",  lk + Vector((0.03, -0.03, 0.03))),
+            "Right": reach(rig, "Right", rk + Vector((-0.03, -0.03, 0.03)))}
+
+
+def rot_transplant(t):
+    dip = math.sin(t * TAU)
+    # A transplanting back is near HORIZONTAL - about 90 degrees of total spine
+    # bend - with soft knees. Anything less and the hands physically cannot get
+    # to the water, which is what the 60cm IK miss was telling me.
+    return {M + "Spine": (rad(40 + 4 * dip), 0, 0),
+            M + "Spine1": (rad(34 + 3 * dip), 0, 0),
+            M + "Spine2": (rad(20), 0, 0),
+            M + "Neck": (rad(-8), 0, 0),
+            M + "Head": (rad(-10), 0, 0),
+            M + "LeftUpLeg": (rad(26), 0, 0),
+            M + "RightUpLeg": (rad(26), 0, 0),
+            M + "LeftLeg": (rad(-36), 0, 0),
+            M + "RightLeg": (rad(-36), 0, 0)}
+
+
+def hands_transplant(rig, t):
+    dip = math.sin(t * TAU)
+    out = {}
+    for side, sx in (("Left", 1.0), ("Right", -1.0)):
+        sh = W(rig, side + "Arm")
+        d = Vector((sx * 0.22, -0.30, -0.92 + 0.18 * dip * sx)).normalized()
+        out[side] = sh + d * (REACH * 0.94)     # the arm HANGS to the water
+    return out
+
+
+def rot_harvest(t):
     sweep = math.sin(t * TAU)
-    grab = math.cos(t * TAU)
-    return {
-        M + "Spine":        (rad(38), 0, rad(-6 * sweep)),
-        M + "Spine1":       (rad(24), 0, 0),
-        M + "Spine2":       (rad(12), 0, 0),
-        M + "Neck":         (rad(12), 0, 0),
-        M + "Head":         (rad(10), 0, 0),
-        M + "LeftUpLeg":    (rad(10), 0, 0),
-        M + "RightUpLeg":   (rad(10), 0, 0),
-        M + "LeftLeg":      (rad(-14), 0, 0),
-        M + "RightLeg":     (rad(-14), 0, 0),
-        M + "LeftArm":      (rad(58 + 8 * grab), 0, rad(26)),
-        M + "LeftForeArm":  (rad(-46), 0, 0),
-        # the cutting arm: LOWER (+X) and sweep. Right arm's -Z is FORWARD (measured).
-        M + "RightArm":     (rad(50), 0, rad(-30 - 30 * sweep)),
-        M + "RightForeArm": (rad(-58 + 20 * sweep), 0, 0),
-    }
+    return {M + "Spine": (rad(34), 0, rad(-7 * sweep)),
+            M + "Spine1": (rad(28), 0, 0),
+            M + "Spine2": (rad(16), 0, 0),
+            M + "Neck": (rad(-10), 0, 0),
+            M + "Head": (rad(-12), 0, 0),
+            M + "LeftUpLeg": (rad(22), 0, 0),
+            M + "RightUpLeg": (rad(22), 0, 0),
+            M + "LeftLeg": (rad(-32), 0, 0),
+            M + "RightLeg": (rad(-32), 0, 0)}
 
 
-def carry_pole_walk(t):
-    """Walking under the don ganh. The pole rides the shoulders; the hands go up to
-    steady it, and the whole body has to stay stacked under the load."""
-    return {
-        M + "Spine":        (rad(4), 0, 0),
-        M + "LeftArm":      (rad(-58), 0, rad(6)),           # hands up to the pole
-        M + "RightArm":     (rad(-58), 0, rad(-6)),
-        M + "LeftForeArm":  (rad(-52), 0, 0),
-        M + "RightForeArm": (rad(-52), 0, 0),
-        M + "Neck":         (rad(-4), 0, 0),
-    }
+def hands_harvest(rig, t):
+    sweep = math.sin(t * TAU)
+    shl, shr = W(rig, "LeftArm"), W(rig, "RightArm")
+    # left fist holds the standing stalks steady, low and forward
+    dl = Vector((0.30, -0.55, -0.78)).normalized()
+    # right hand sweeps the sickle THROUGH them, right to left
+    dr = Vector((-0.62 + 1.15 * (sweep * 0.5 + 0.5), -0.52, -0.62)).normalized()
+    return {"Left":  shl + dl * (REACH * 0.92),
+            "Right": shr + dr * (REACH * 0.90)}
+
+
+def rot_pole(t):
+    return {M + "Spine": (rad(5), 0, 0),
+            M + "Neck": (rad(-4), 0, 0)}
+
+
+def hands_pole(rig, t):
+    s2 = W(rig, "Spine2")
+    return {"Left":  reach(rig, "Left",  s2 + Vector((0.36, 0.02, 0.19))),
+            "Right": reach(rig, "Right", s2 + Vector((-0.36, 0.02, 0.19)))}
 
 
 CLIPS = [
-    # name,                source clip,        offset fn,        frames, hips_dz
-    ("civ_panic_run",      "running_unarmed",  panic_run,        None,   0.0),
-    ("civ_cower",          "idle_crouching",   cower,            48,     -0.10),
-    ("civ_hands_up",       "idle_unarmed",     hands_up,         48,     0.0),
-    ("civ_squat_idle",     "idle_crouching",   squat_idle,       64,     -0.26),
-    ("civ_farm_transplant","idle_unarmed",     farm_transplant,  56,     -0.06),
-    ("civ_farm_harvest",   "idle_unarmed",     farm_harvest,     56,     -0.04),
-    ("civ_carry_pole_walk","walking_unarmed",  carry_pole_walk,  None,   0.0),
+    # name,               source,            rot,            hands,           frames, ground
+    ("civ_panic_run",     "running_unarmed", rot_panic,      hands_panic,     None,  False),
+    ("civ_cower",         "idle",            rot_cower,      hands_cower,     48,    True),
+    ("civ_hands_up",      "idle_unarmed",    rot_hands_up,   hands_hands_up,  48,    True),
+    ("civ_squat_idle",    "idle",            rot_squat,      hands_squat,     64,    True),
+    ("civ_farm_transplant", "idle",          rot_transplant, hands_transplant, 56,   True),
+    ("civ_farm_harvest",  "idle",            rot_harvest,    hands_harvest,   56,    True),
+    ("civ_carry_pole_walk", "walking_unarmed", rot_pole,     hands_pole,      None,  False),
 ]
 
 
-def solve_arm(rig, side, target, tries=140):
-    """Put the HAND where it needs to be, and let the shoulder and elbow work it out.
-
-    WHY THIS EXISTS: arm angles are expressed in the bone's LOCAL frame, and that
-    frame rides the spine. Bend the torso 47 degrees forward and "raise the arm"
-    (-X, measured) no longer sends the hand up - it sends it up and BEHIND him. That
-    is how the cower came out as a swan dive and the transplant came out with his
-    arms pointing backwards. You cannot author arm angles against a moving parent by
-    eye; you can only state where the hand goes and solve.
-
-    Coordinate descent on (arm.x, arm.z, forearm.x). Crude, deterministic, and it
-    converges in a few dozen evaluations because the arm is a 2-link chain.
-    """
+# ============================================================ machinery
+def solve_arm(rig, side, target, tries=90):
+    """Put the HAND where it needs to be; let the shoulder and elbow work it out.
+    Coordinate descent on (arm.x, arm.z, forearm.x) - crude, deterministic, and it
+    converges fast because the arm is only a 2-link chain."""
     arm = rig.pose.bones[M + side + "Arm"]
     fore = rig.pose.bones[M + side + "ForeArm"]
     hand = rig.pose.bones[M + side + "Hand"]
     for pb in (arm, fore):
         pb.rotation_mode = 'XYZ'
+        pb.rotation_euler = (0.0, 0.0, 0.0)
 
-    best = [arm.rotation_euler.x, arm.rotation_euler.z, fore.rotation_euler.x]
+    # 4 DOF: shoulder pitch, shoulder yaw, elbow, and shoulder ROLL. The roll is
+    # what lets the elbow point somewhere sane; without it the solver stalls
+    # short on anything overhead.
+    best = [0.0, 0.0, 0.0, 0.0]
 
     def err(p):
-        arm.rotation_euler = Euler((p[0], 0.0, p[1]), 'XYZ')
+        arm.rotation_euler = Euler((p[0], p[3], p[1]), 'XYZ')
         fore.rotation_euler = Euler((p[2], 0.0, 0.0), 'XYZ')
         bpy.context.view_layer.update()
         return ((rig.matrix_world @ hand.head) - target).length
 
     e = err(best)
-    step = [rad(50), rad(50), rad(50)]
+    step = [rad(60)] * 4
     for _ in range(tries):
-        improved = False
-        for i in range(3):
+        moved = False
+        for i in range(4):
             for s in (+1, -1):
                 cand = list(best)
-                cand[i] += s * step[i]
-                cand[i] = max(-math.pi, min(math.pi, cand[i]))
+                cand[i] = max(-math.pi, min(math.pi, cand[i] + s * step[i]))
                 ce = err(cand)
                 if ce < e - 1e-5:
                     best, e = cand, ce
-                    improved = True
-        if not improved:
+                    moved = True
+        if not moved:
             step = [s * 0.55 for s in step]
-            if max(step) < rad(0.4):
+            if max(step) < rad(0.5):
                 break
     err(best)
     return best, e
 
 
-def channelbag(action, rig):
-    """Blender 5 slotted actions: the F-curves live in a channelbag."""
-    if not action.layers:
-        return None
-    strip = action.layers[0].strips[0]
-    slot = action.slots[0] if len(action.slots) else None
-    return strip.channelbag(slot) if slot else None
-
-
-def sample(rig, action, n_frames):
-    """Bake the SOURCE clip: read every bone's pose at every frame. Never trust an
-    F-curve to exist for a bone you want - sample the evaluated pose instead."""
+def sample(rig, action, n):
     if rig.animation_data is None:
         rig.animation_data_create()
     rig.animation_data.action = action
@@ -250,28 +274,32 @@ def sample(rig, action, n_frames):
         rig.animation_data.action_slot = action.slots[0]
     rig.data.pose_position = 'POSE'
     f0, f1 = int(action.frame_range[0]), int(action.frame_range[1])
-    src_n = f1 - f0 + 1
+    span = f1 - f0 + 1
     out = []
-    for i in range(n_frames):
-        f = f0 + (i % src_n)
-        bpy.context.scene.frame_set(f)
+    for i in range(n):
+        bpy.context.scene.frame_set(f0 + (i % span))
         bpy.context.view_layer.update()
-        pose = {}
-        for pb in rig.pose.bones:
-            pb.rotation_mode = 'QUATERNION'
-            pose[pb.name] = (pb.rotation_quaternion.copy(), pb.location.copy())
-        out.append(pose)
+        out.append({pb.name: (pb.rotation_quaternion.copy(), pb.location.copy())
+                    for pb in rig.pose.bones})
     return out
 
 
-def build(rig, name, src_name, fn, n_frames, hips_dz):
+def build(rig, name, src_name, rot_fn, hands_fn, n, ground):
     src = bpy.data.actions.get(src_name)
     if src is None:
-        print("  SKIP %s: no source clip %s" % (name, src_name))
-        return None
-    if n_frames is None:
-        n_frames = int(src.frame_range[1] - src.frame_range[0]) + 1
-    frames = sample(rig, src, n_frames)
+        print("  SKIP %s: no source clip '%s'" % (name, src_name))
+        return None, None
+    if n is None:
+        n = int(src.frame_range[1] - src.frame_range[0]) + 1
+    frames = sample(rig, src, n)
+    rig.animation_data.action = None
+    # FLUSH IT. Clearing the action is not enough: the depsgraph has not processed
+    # the removal yet, so the FIRST view_layer.update() inside the loop still has the
+    # source clip driving and it overwrites the pose we just hand-set. The result was
+    # frame 1 of every clip silently keying the UNPOSED source - a standing man at the
+    # head of a cower, a transplant, a squat. Measured: at i=0 the spine went
+    # +0.046 -> +0.303 (offset applied) -> +0.046 (clobbered). At i=1 it held.
+    bpy.context.view_layer.update()
 
     old = bpy.data.actions.get(name)
     if old:
@@ -279,87 +307,113 @@ def build(rig, name, src_name, fn, n_frames, hips_dz):
     act = bpy.data.actions.new(name)
     act.use_fake_user = True
     slot = act.slots.new('OBJECT', "Rig")
-    layer = act.layers.new("base")
-    strip = layer.strips.new(type='KEYFRAME')
+    strip = act.layers.new("base").strips.new(type='KEYFRAME')
     cbag = strip.channelbag(slot, ensure=True)
 
-    hips = M + "Hips"
+    hips_b = rig.data.bones[M + "Hips"]
+    rest3 = hips_b.matrix_local.to_3x3()
+    w2a = rig.matrix_world.to_3x3().inverted()
+    worst_err = 0.0
+
     for i, pose in enumerate(frames):
-        t = i / float(n_frames)          # phase, 0..1
-        off = fn(t)
+        t = i / float(n)
+        off = rot_fn(t)
+
+        # 1. lay down the source pose, then the torso/leg offsets
+        for pb in rig.pose.bones:
+            pb.rotation_mode = 'QUATERNION'
+            q, loc = pose[pb.name]
+            pb.rotation_quaternion = q
+            pb.location = loc
+        for bone, (rx, ry, rz) in off.items():
+            pb = rig.pose.bones[bone]
+            pb.rotation_quaternion = (pb.rotation_quaternion
+                                      @ Euler((rx, ry, rz), 'XYZ').to_quaternion())
+        bpy.context.view_layer.update()
+
+        # 2. NOW solve the arms, against the torso as it actually stands
+        arms = {}
+        if hands_fn is not None:
+            tg = hands_fn(rig, t)
+            for side in ("Left", "Right"):
+                p, e = solve_arm(rig, side, tg[side])
+                worst_err = max(worst_err, e)
+                arms[side] = p
+
+        # 3. feet on the deck, by measurement, not by hand-tuned hip drops
+        dz = 0.0
+        if ground:
+            toe = min((rig.matrix_world @ rig.pose.bones[M + s + "ToeBase"].head).z
+                      for s in ("Left", "Right"))
+            dz = -toe
+
+        # 4. key it
         f = i + 1
-        for bone, (q, loc) in pose.items():
-            q2 = q.copy()
-            if bone in off:
-                rx, ry, rz = off[bone]
-                q2 = q2 @ Euler((rx, ry, rz), 'XYZ').to_quaternion()
-            path = 'pose.bones["%s"].rotation_quaternion' % bone
-            for idx, val in enumerate((q2.w, q2.x, q2.y, q2.z)):
+        for pb in rig.pose.bones:
+            nm = pb.name
+            if nm in (M + "LeftArm", M + "RightArm", M + "LeftForeArm", M + "RightForeArm") and arms:
+                side = "Left" if "Left" in nm else "Right"
+                p = arms[side]
+                q = (Euler((p[0], p[3], p[1]), 'XYZ').to_quaternion() if "ForeArm" not in nm
+                     else Euler((p[2], 0.0, 0.0), 'XYZ').to_quaternion())
+            else:
+                q = pb.rotation_quaternion.copy()
+            path = 'pose.bones["%s"].rotation_quaternion' % nm
+            for idx, val in enumerate((q.w, q.x, q.y, q.z)):
                 fc = cbag.fcurves.find(path, index=idx) or cbag.fcurves.new(path, index=idx)
                 fc.keyframe_points.insert(f, val, options={'FAST'})
-            if bone == hips:
-                lpath = 'pose.bones["%s"].location' % bone
-                l = loc.copy()
-                # Hips location is in the HIPS' OWN rest frame, not world. Convert the
-                # world-space drop we want into that frame or the man leans instead of
-                # crouching. (Same trap as fix_laying_breathless.)
-                rest = rig.data.bones[hips].matrix_local.to_3x3()
-                w2a = rig.matrix_world.to_3x3().inverted()
-                l += rest.inverted() @ (w2a @ Vector((0.0, 0.0, hips_dz)))
+            if nm == M + "Hips":
+                l = pose[nm][1].copy()
+                if dz:
+                    l += rest3.inverted() @ (w2a @ Vector((0.0, 0.0, dz)))
+                lp = 'pose.bones["%s"].location' % nm
                 for idx, val in enumerate((l.x, l.y, l.z)):
-                    fc = cbag.fcurves.find(lpath, index=idx) or cbag.fcurves.new(lpath, index=idx)
+                    fc = cbag.fcurves.find(lp, index=idx) or cbag.fcurves.new(lp, index=idx)
                     fc.keyframe_points.insert(f, val, options={'FAST'})
     for fc in cbag.fcurves:
         fc.update()
-    return act
+    return act, worst_err
 
 
 def measure(rig, act):
-    """VERIFY, do not assert. Read the pose back out of the finished clip in WORLD
-    space: how far is he bent, where are his hands, which way is he looking."""
+    """Verify by reading the finished clip back in WORLD space."""
     rig.animation_data.action = act
     if len(act.slots):
         rig.animation_data.action_slot = act.slots[0]
     f0, f1 = int(act.frame_range[0]), int(act.frame_range[1])
-    mid = (f0 + f1) // 2
-    bpy.context.scene.frame_set(mid)
+    bpy.context.scene.frame_set((f0 + f1) // 2)
     bpy.context.view_layer.update()
-
-    def w(b):
-        return rig.matrix_world @ rig.pose.bones[M + b].head
-
-    hips, neck = w("Hips"), w("Neck")
-    spine = (neck - hips)
-    pitch = math.degrees(math.atan2(-spine.y, spine.z))       # + = bent forward
-    lh, rh = w("LeftHand"), w("RightHand")
-    head_dir = (rig.matrix_world.to_3x3()
-                @ rig.pose.bones[M + "Head"].matrix.to_3x3() @ Vector((0, 1, 0)))
-    yaw = math.degrees(math.atan2(head_dir.x, -head_dir.y))
-    return dict(pitch=pitch, hip_z=hips.z, lh_z=lh.z, rh_z=rh.z, yaw=yaw)
+    hips, neck = W(rig, "Hips"), W(rig, "Neck")
+    sp = neck - hips
+    pitch = math.degrees(math.atan2(-sp.y, sp.z))
+    toe = min((rig.matrix_world @ rig.pose.bones[M + s + "ToeBase"].head).z
+              for s in ("Left", "Right"))
+    return dict(pitch=pitch, hip=hips.z, toe=toe,
+                lh=W(rig, "LeftHand").z, rh=W(rig, "RightHand").z)
 
 
 def main():
     bpy.ops.wm.open_mainfile(filepath=SRC)
     rig = bpy.data.objects[RIG]
     print("=== civilian clips, authored on civ_farmer_m ===\n")
-    print("%-20s %-18s %6s %8s %8s %8s %8s"
-          % ("clip", "derived from", "frames", "torso", "hip z", "handL z", "head yaw"))
+    print("%-21s %-16s %5s %7s %6s %6s %6s %7s"
+          % ("clip", "from", "frms", "torso", "hip z", "toe z", "handL", "IK err"))
     made = []
-    for name, src, fn, n, dz in CLIPS:
-        act = build(rig, name, src, fn, n, dz)
+    for name, src, rf, hf, n, gr in CLIPS:
+        act, err = build(rig, name, src, rf, hf, n, gr)
         if act is None:
             continue
         m = measure(rig, act)
         made.append(name)
-        print("%-20s %-18s %6d %7.0f%s %8.2f %8.2f %8.0f%s"
-              % (name, src, int(act.frame_range[1]), m["pitch"], "d",
-                 m["hip_z"], m["lh_z"], m["yaw"], "d"))
-
+        print("%-21s %-16s %5d %6.0fd %6.2f %6.3f %6.2f %6.1fcm"
+              % (name, src, int(act.frame_range[1]), m["pitch"], m["hip"], m["toe"],
+                 m["lh"], err * 100.0))
     rig.animation_data.action = None
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=OUT)
     print("\n%d clips -> %s" % (len(made), OUT))
-    print("(torso: + = bent forward, 0 = upright.  hip z: standing is ~1.05)")
+    print("torso: + = bent forward.  toe z should be ~0.00 on the grounded clips.")
+    print("IK err = how far the solver missed the hand target by.")
 
 
 if __name__ == "__main__":

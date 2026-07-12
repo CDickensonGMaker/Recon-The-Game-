@@ -80,7 +80,11 @@ func _run() -> void:
 		_fail("mission world has no objectives")
 	else:
 		print("mission OK: %s launched from the hub with objectives" % str(offers[0].get("type_name")))
-	# from_hub missions must NOT have an outpost ride (you boarded at the firebase)
+	# THE BIRD FLIES (ADR-008 condition 2). This assertion used to be the exact
+	# INVERSE - it demanded the ride NOT spawn - which is how a fully built
+	# insertion (boarding, flight, AA fire, shoot-down, crash E&E) sat dead in
+	# the repo while every reachable launch skipped it. The hub launch IS the
+	# ride: you board at the firebase and you fly in.
 	var ride_found := false
 	if flow.world != null:
 		var stack2: Array[Node] = [flow.world]
@@ -91,8 +95,10 @@ func _run() -> void:
 				break
 			for c2 in n2.get_children():
 				stack2.append(c2)
-	if ride_found:
-		_fail("from_hub mission still spawned an InsertionRide")
+	if not ride_found:
+		_fail("hub launch did not spawn an InsertionRide - the bird must fly (ADR-008)")
+	else:
+		print("insertion OK: the Huey ride is live on the campaign path")
 
 	_finish()
 

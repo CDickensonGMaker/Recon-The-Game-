@@ -187,11 +187,18 @@ func _physics_process(delta: float) -> void:
 	if _point_scan_timer >= 0.4:
 		_point_scan_timer = 0.0
 		_point_scan()
-	_grenadier_tick()
+	# Same 0.4s gate for the grenadier: _grenadier_tick walks every enemy against
+	# every OTHER enemy (an O(n^2) cluster search) and it was running at 60Hz.
+	# The scan above got this treatment in a past audit; this one was missed.
+	_grenadier_timer += delta
+	if _grenadier_timer >= 0.4:
+		_grenadier_timer = 0.0
+		_grenadier_tick()
 	_contact_barks()
 
 
 var _point_scan_timer: float = 0.0
+var _grenadier_timer: float = 0.0
 
 
 func _point_scan() -> void:

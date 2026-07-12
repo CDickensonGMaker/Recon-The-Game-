@@ -76,8 +76,29 @@ func _open_briefing() -> void:
 	var panel := HubBriefing.new()
 	add_child(panel)
 	panel.open(operation_name, offers)
+	# THE TOC BRIEFS YOU PROPERLY (ADR-008 condition 1, audit L3). Picking a card
+	# used to accept the mission on the spot; the real 7-element RECON briefing
+	# (BriefingScreen) was unreachable because nothing ever emitted the signal
+	# that led to it. Now the board offers, and the TOC briefs.
 	panel.accepted.connect(func(offer: Dictionary) -> void:
+		panel.queue_free()
+		_show_full_briefing(offer))
+	panel.closed.connect(func() -> void: _briefing_open = false)
+
+
+## The 7-element briefing, read at the tent before you take the mission.
+func _show_full_briefing(offer: Dictionary) -> void:
+	var brief := BriefingScreen.new()
+	brief.set_offer(offer)
+	add_child(brief)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	brief.deploy_pressed.connect(func() -> void:
+		brief.queue_free()
 		_briefing_open = false
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 		SaveManager.hub_snapshot["accepted_offer"] = offer
 		SaveManager.save_game(SaveManager.AUTOSAVE_SLOT, "FIREBASE"))
-	panel.closed.connect(func() -> void: _briefing_open = false)
+	brief.back_pressed.connect(func() -> void:
+		brief.queue_free()
+		_briefing_open = false
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED))

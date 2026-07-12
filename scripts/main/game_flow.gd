@@ -12,10 +12,82 @@ var session_rng := RandomNumberGenerator.new()
 var current_offer: Dictionary = {}
 var _debrief_pending: bool = false
 
+## THE WAY OUT (audit L1). Esc paused the tree and showed nothing; Barracks lived
+## only on the main menu, so XP earned in a campaign could not be spent without
+## killing the process. GameFlow owns the pause menu because GameFlow is the only
+## thing that knows where you are and what leaving means.
+var _pause_menu: PauseMenu = null
+var _in_world: bool = false     ## a mission or the hub is loaded
+var _in_mission: bool = false   ## ...and it is a MISSION (not the hub)
+
 
 func _ready() -> void:
 	add_to_group("game_flow")
+	process_mode = Node.PROCESS_MODE_ALWAYS   # Esc must work while paused
 	session_rng.randomize()
+	show_menu()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("pause") or not _in_world:
+		return
+	get_viewport().set_input_as_handled()
+	if _pause_menu != null:
+		_close_pause()
+	else:
+		_open_pause()
+
+
+func _open_pause() -> void:
+	if _pause_menu != null:
+		return
+	GameManager.pause_game()
+	_pause_menu = PauseMenu.new()
+	add_child(_pause_menu)
+	_pause_menu.build(_in_mission)
+	_pause_menu.resume_pressed.connect(_close_pause)
+	_pause_menu.barracks_pressed.connect(_pause_barracks)
+	_pause_menu.save_pressed.connect(_pause_save)
+	_pause_menu.abandon_pressed.connect(_pause_abandon)
+	_pause_menu.quit_to_menu_pressed.connect(_pause_quit)
+
+
+func _close_pause() -> void:
+	if _pause_menu != null:
+		_pause_menu.queue_free()
+		_pause_menu = null
+	GameManager.resume_game()
+
+
+## Barracks OVER the paused world: spend XP without leaving the campaign. The
+## world stays loaded underneath; BACK returns to the pause menu.
+func _pause_barracks() -> void:
+	if _pause_menu != null:
+		_pause_menu.teardown()
+	var barracks := BarracksScreen.new()
+	barracks.process_mode = Node.PROCESS_MODE_ALWAYS
+	barracks.back_pressed.connect(func() -> void:
+		barracks.queue_free()
+		if _pause_menu != null:
+			_pause_menu.build(_in_mission))
+	add_child(barracks)
+
+
+func _pause_save() -> void:
+	SaveManager.save_to_slot(SaveManager.latest_slot() if SaveManager.latest_slot() >= 0 else 0)
+	_close_pause()
+
+
+## Abandoning is a DEBRIEF, not a delete (Pillar 5: fail forward). Route through
+## the director's own abort so the roster consequences are the real ones.
+func _pause_abandon() -> void:
+	_close_pause()
+	if director != null and director.has_method("fail_mission"):
+		director.fail_mission("ABANDONED")
+
+
+func _pause_quit() -> void:
+	_close_pause()
 	show_menu()
 
 
@@ -28,6 +100,11 @@ func _swap_screen(screen: Node) -> void:
 
 
 func _teardown_world() -> void:
+	if _pause_menu != null:
+		_pause_menu.queue_free()
+		_pause_menu = null
+	_in_world = false
+	_in_mission = false
 	if world != null:
 		world.queue_free()
 		world = null
@@ -163,8 +240,11 @@ func _run_mission(offer: Dictionary) -> void:
 	director.mission_failed.connect(_on_mission_ended)
 
 	var plan: Dictionary = MissionGenerator.plan(world, int(offer.mission_seed), int(offer.type) as MissionGenerator.MissionType)
-	if bool(offer.get("from_hub", false)):
-		plan.erase("start_pad")  # you already boarded at the firebase - wheels-down at the LZ
+	# THE BIRD FLIES (ADR-008 condition 2, audit L2). This used to erase start_pad
+	# for every hub launch - and every reachable launch IS a hub launch - so the
+	# InsertionRide (boarding, flight, AA fire, shoot-down, crash E&E) never ran
+	# once in the shipped game, and the whole AA-threat economy had no consumer.
+	# The ride IS the insertion; you board at the firebase and you fly in.
 	var built: Dictionary = MissionGenerator.build(world, director, plan)
 	# Ride in on the Huey when the plan has a start pad (all types but firebase).
 	var spawn: Vector3 = plan.insertion_lz
@@ -202,6 +282,8 @@ func _run_mission(offer: Dictionary) -> void:
 	WeaponHolder.session_hits = 0
 	CampaignState.intel_points = 0  # briefing intel is spent going in (W80)
 	_swap_screen(null)
+	_in_world = true
+	_in_mission = true    # Esc now opens a real pause menu with a way out
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	director.toast.emit("%s - %s" % [plan.codename, plan.type_name])
 
@@ -360,5 +442,7 @@ func enter_hub() -> void:
 			if wh.has_method("refresh_after_load"):
 				wh.call("refresh_after_load")
 	_swap_screen(null)
+	_in_world = true
+	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	SaveManager.save_game(SaveManager.AUTOSAVE_SLOT, "FIREBASE")

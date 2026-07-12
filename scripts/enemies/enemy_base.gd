@@ -1,4 +1,4 @@
-## enemy_base.gd - Goal-driven tactical AI for deadly WW2 combat
+﻿## enemy_base.gd - Goal-driven tactical AI for deadly WW2 combat
 ## Architecture inspired by Quake 3/Spearmint: separate think rate from execution
 class_name EnemyBase
 extends CharacterBody3D
@@ -185,6 +185,10 @@ const SPIDER_TRIGGER_RANGE: float = 7.0
 var _tunnel_retreat_queued: bool = false
 ## Arrival-beat window: while now < this, the man is planting his feet.
 var _arrive_until_ms: float = 0.0
+## Corpse hitzone re-sync clock (6Hz - a dead man is not in a hurry).
+var _corpse_sync_t: float = 0.0
+## The launcher round this man carries, resolved ONCE (was load()ed on every shot).
+var _proj_cache: ProjectileData = null
 ## Numbers are nerve (Caleb decree): local force ratio, refreshed each goal
 ## think, feeds retreat scoring and the rout ladder. >1 = we have the numbers.
 var _last_force_ratio: float = 1.0
@@ -448,8 +452,19 @@ func _setup_hurtbox() -> void:
 
 func _physics_process(delta: float) -> void:
 	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
+	# But a CORPSE does not need it at 60Hz forever: bodies are lootable and
+	# persist, so every dead man was paying a full skeleton->hitzone sync every
+	# tick for the rest of the mission - an unbounded, growing cost. A settled
+	# corpse re-syncs at 6Hz, which is plenty for a body that only moves when
+	# a ragdoll nudges it. (Live men keep the every-tick sync.)
 	if _visual_is_model:
-		HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
+		if current_state == Enums.AIState.DEAD:
+			_corpse_sync_t += delta
+			if _corpse_sync_t >= 0.16:
+				_corpse_sync_t = 0.0
+				HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
+		else:
+			HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 	if current_state == Enums.AIState.DEAD:
 		return
 	if is_downed:
@@ -720,6 +735,13 @@ func _update_perception() -> void:
 func _set_tier(tier: AlertTier) -> void:
 	if tier == AlertTier.COMBAT:
 		EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
+		# CONTACT LEDGER (ADR-006): this man just went loud on you, so his whole
+		# group is DETECTED and it costs you -25 at the debrief. A group you
+		# never wake is +25. Kills pay nothing now - being unseen is the score.
+		# Group identity = the squad he coordinates with; a lone wolf is his own.
+		var d: Node = get_tree().get_first_node_in_group("mission_director")
+		if d != null and d.has_method("report_contact"):
+			d.call("report_contact", squad_id if squad_id >= 0 else get_instance_id())
 	if tier == alert_tier:
 		return
 	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
@@ -1663,6 +1685,17 @@ func _execute_patrol(delta: float) -> void:
 ## COMBAT - Firing
 ## ============================================
 
+## This man's launcher round, resolved once. load() in the firing path was a
+## string hash + path resolve on EVERY shot (perf audit).
+func _projectile() -> ProjectileData:
+	if _proj_cache != null:
+		return _proj_cache
+	if weapon_data == null or weapon_data.projectile_data_path.is_empty():
+		return null
+	_proj_cache = load(weapon_data.projectile_data_path) as ProjectileData
+	return _proj_cache
+
+
 func _fire_at_target() -> void:
 	if not weapon_data or not target:
 		return
@@ -1706,12 +1739,11 @@ func _fire_at_target() -> void:
 		var hold: float = weapon_data.elevation_for(t_dist)
 		# A LAUNCHER is not a rifle: the rocket carries its own (much weaker)
 		# gravity, so laying it with rifle maths threw enemy rockets 8x too high.
-		if not weapon_data.projectile_data_path.is_empty():
-			var pd: ProjectileData = load(weapon_data.projectile_data_path)
-			if pd != null:
-				var ge: float = 9.8 * maxf(0.0, pd.gravity_scale)
-				var pv: float = maxf(1.0, pd.speed)
-				hold = (ge * t_dist) / (2.0 * pv * pv)
+		var pd: ProjectileData = _projectile()   # cached, not load()ed per shot
+		if pd != null:
+			var ge: float = 9.8 * maxf(0.0, pd.gravity_scale)
+			var pv: float = maxf(1.0, pd.speed)
+			hold = (ge * t_dist) / (2.0 * pv * pv)
 		final_aim = (final_aim + e_up * tan(hold)).normalized()
 
 	# First shot at this target: forced near-miss (the warning crack).
@@ -1731,7 +1763,7 @@ func _fire_at_target() -> void:
 	# travelling round instead of a hitscan ray -- the RPG-2 needs travel time,
 	# drop, a visible warhead and a smoke trail that gives the shooter away.
 	if weapon_data != null and not weapon_data.projectile_data_path.is_empty():
-		var pdata: ProjectileData = load(weapon_data.projectile_data_path)
+		var pdata: ProjectileData = _projectile()
 		if pdata != null:
 			var fx: Vector3 = get_muzzle_visual(final_aim)
 			CombatManager.spawn_projectile(pdata, self, origin, final_aim, target)
@@ -2262,6 +2294,7 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 
 	parent.add_child(enemy)
 	enemy.global_position = pos
+	enemy.reset_physics_interpolation()
 
 	return enemy
 

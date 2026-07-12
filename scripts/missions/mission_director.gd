@@ -19,6 +19,7 @@ var _live_enemies: Array[EnemyBase] = []
 var _detect_baseline_ms: float = 0.0
 
 func setup(game_world: GameWorld) -> void:
+	add_to_group("mission_director")   # enemies report contact through this
 	# Ignore any COMBAT contact from a previous mission (the beacon is static).
 	_detect_baseline_ms = float(Time.get_ticks_msec())
 	EnemyBase.last_combat_contact_ms = -1.0
@@ -41,7 +42,18 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 	enemy.squad_id = hash(group_tag) if not group_tag.is_empty() else -1
 	enemy.died.connect(_on_enemy_died.bind(group_tag))
 	_live_enemies.append(enemy)
+	# CONTACT LEDGER (ADR-006): every group that exists in the AO is one you can
+	# either slip past (+25) or wake (-25). Register it the moment it spawns, or
+	# there is nothing to have avoided.
+	state.register_group(enemy.squad_id if enemy.squad_id >= 0 else enemy.get_instance_id())
 	return enemy
+
+
+## An enemy went loud on the player - his whole group is spent (see MissionState).
+func report_contact(group_id: int) -> void:
+	if _ended:
+		return
+	state.report_detected(group_id)
 
 
 func _on_enemy_died(enemy: EnemyBase, group_tag: String) -> void:

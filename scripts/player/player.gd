@@ -1,4 +1,4 @@
-## player.gd - Player root node that coordinates all player systems
+﻿## player.gd - Player root node that coordinates all player systems
 extends CharacterBody3D
 
 ## Movement speeds
@@ -208,6 +208,7 @@ func _try_field_interact() -> void:
 	if _in_tunnel != null:
 		if global_position.distance_to(_in_tunnel.ladder_point()) < 2.5:
 			global_position = _in_tunnel.surface_return
+			reset_physics_interpolation()  # teleport: do not streak across the map
 			velocity = Vector3.ZERO
 			_field_toast("BACK IN THE GREEN")
 			_in_tunnel = null
@@ -238,6 +239,7 @@ func _try_field_interact() -> void:
 			var room := TunnelRoom.get_or_create(get_tree().current_scene, entrance)
 			_in_tunnel = room
 			global_position = room.entry_point()
+			reset_physics_interpolation()
 			velocity = Vector3.ZERO
 			_field_toast("GOING DOWN. TIGHT IN HERE.")
 			return
@@ -496,6 +498,7 @@ func exit_seat(ground_pos: Vector3) -> void:
 	if col:
 		col.disabled = false
 	global_position = ground_pos
+	reset_physics_interpolation()
 	velocity = Vector3.ZERO
 
 
@@ -543,6 +546,7 @@ func _toggle_photo_mode() -> void:
 			weapon_holder.weapon_model.visible = false
 	else:
 		global_position = _photo_saved_pos
+		reset_physics_interpolation()
 		velocity = Vector3.ZERO
 		if weapon_holder and weapon_holder.weapon_model:
 			weapon_holder.weapon_model.visible = true
@@ -578,6 +582,7 @@ func _physics_process(delta: float) -> void:
 	if is_seated:
 		if _seat_node != null and is_instance_valid(_seat_node):
 			global_position = _seat_node.global_position
+			reset_physics_interpolation()
 		return
 
 	# Downed (W17): on the deck waiting for Doc - no movement, low camera.
