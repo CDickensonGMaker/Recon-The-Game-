@@ -781,14 +781,32 @@ func _fire_at_target() -> void:
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
-	# Enemy BODY capsules (4) OUT of the round's mask: a capsule shadows the
-	# hitzones inside it and every ally hit lands flat 1.0x center-mass -
-	# allies that cannot kill. Player body (2) stays: he has no hitzone areas.
+	# Rounds touch flesh ONLY through hitzone areas - the player wears zones
+	# now too (all models bleed the same), so every body-capsule layer is out
+	# of the mask. A capsule in the mask eats the hit before the zones inside
+	# it and the hit lands flat 1.0x.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 2 | 32 | 64, [self], show_tracer)
+		1 | 32 | 64, [self], show_tracer)
 
 
 ## Take damage
+## GORE_WORKFLOW ledger + explosive-kill flag (same doctrine as every model).
+var _removed: Array[String] = []
+var _killed_explosive: bool = false
+
+
+## Region-resolved gore channel (BulletSystem): one hit >= 45 takes the limb.
+## Allies bleed like everyone - "all models treated the same" (Caleb).
+func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
+	if not _visual_is_model or sprite_actor == null:
+		return
+	var limb: String = HitzoneBuilder.base_region(region)
+	if limb in ["ARM_L", "ARM_R", "LEG_L", "LEG_R"] \
+			and amount >= GibSystem.LIMB_POP_HIT and not _removed.has(limb):
+		if GibSystem.dismember(sprite_actor as ModelActor, limb, dir, get_tree().current_scene):
+			_removed.append(limb)
+
+
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
 	goal_timer = 99.0  # Class-A interrupt (decree): getting hit may always re-plan
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
@@ -796,6 +814,8 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if current_state == Enums.AIState.DEAD:
 		return 0
 
+	if current_hp - amount <= 0:
+		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
 	current_hp -= amount
 
 	# Visual feedback
@@ -835,10 +855,23 @@ func _die() -> void:
 	collision_mask = 0
 
 	if sprite_actor != null:
-		var to_attacker: Vector3 = -last_hit_dir
-		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
-		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
-			"death_right" if from_right else "death_forward"), true)
+		# GORE_WORKFLOW death doctrine - allies are treated exactly like every
+		# other model: explosion kill -> multi-gib + flung ragdoll; clean kill
+		# -> ragdoll (dead weight); gibbed kill -> death clip (ragdoll fallback).
+		var ma := sprite_actor as ModelActor
+		if _killed_explosive and _visual_is_model and ma != null:
+			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
+		elif _visual_is_model and ma != null and _removed.is_empty() \
+				and ma.start_ragdoll(last_hit_dir, 4.5):
+			pass
+		else:
+			var to_attacker: Vector3 = -last_hit_dir
+			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
+			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
+				"death_right" if from_right else "death_forward"), true)
+			if played is bool and not played and _visual_is_model:
+				if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
+					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

@@ -54,6 +54,34 @@ const REGIONS: Dictionary = {
 
 static var _live_gibs: Array[Node] = []
 
+## ---- GORE_WORKFLOW live rules + death doctrine (ONE authority) --------------
+## Tuned on the gore dummy, law for EVERY model (Caleb: "all units moving
+## forward need the gibbing death rates we figured out with the grunt"):
+##   LIMB single hit >= LIMB_POP_HIT  -> that limb pops
+##   killing HEAD hit >= HEAD_POP_KILL -> head pops (burst variant by chance)
+##   clean kill      -> RAGDOLL always (dead weight drops)
+##   explosion kill  -> explosion_kill(): 2-4 regions pop + ragdoll flung
+##   bullet-gibbed   -> caller plays its death performance clip
+const LIMB_POP_HIT: int = 45
+const HEAD_POP_KILL: int = 60
+
+
+## Explosion kill: pop 2-4 of whatever regions remain, then fling the ragdoll.
+## `removed` is the caller's gone-region ledger; popped regions are appended.
+static func explosion_kill(model: ModelActor, removed: Array, dir: Vector3, parent: Node) -> void:
+	if model == null:
+		return
+	var to_pop: Array[String] = []
+	for r in ["ARM_L", "ARM_R", "LEG_L", "LEG_R", "HEAD"]:
+		if not removed.has(r):
+			to_pop.append(r)
+	to_pop.shuffle()
+	var count: int = mini(2 + randi_range(0, 2), to_pop.size())
+	for i in range(count):
+		if dismember(model, to_pop[i], dir + Vector3.UP * 0.5, parent):
+			removed.append(to_pop[i])
+	model.start_ragdoll(dir, 9.0)
+
 
 ## Pop a region off a ModelActor-rendered character. Returns false when the rig
 ## lacks the contract pieces (old models, capsules) - caller just skips gore.

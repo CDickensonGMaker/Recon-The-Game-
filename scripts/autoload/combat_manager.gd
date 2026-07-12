@@ -21,8 +21,12 @@ var _cleanup_timer: float = 0.0
 const CLEANUP_INTERVAL: float = 5.0
 
 ## Knockback settings (Quake 3 inspired)
-const KNOCKBACK_SCALE: float = 1.0
-const MAX_KNOCKBACK: float = 200.0
+## Blast shove, not blast LAUNCH (realistic-combat pillar): the old 1.0x scale
+## with a 200 m/s cap fired living men across the arena off one grenade. A
+## near miss now staggers a man a step; the dead crumple via the ragdoll
+## doctrine instead of flying.
+const KNOCKBACK_SCALE: float = 0.05
+const MAX_KNOCKBACK: float = 6.0
 
 
 func _ready() -> void:
@@ -113,6 +117,18 @@ func _apply_knockback(target: Node, direction: Vector3, force: float, damage: in
 	body.velocity += knockback_vel
 
 
+## Blast damage curve: FULL damage inside the kill plateau (40% of radius - a
+## grenade in a fireteam's lap WIPES it, HLL-style), linear taper to the edge.
+## Pure linear falloff let men 4m from an M26 shrug it off (Caleb: "a grenade
+## thrown at 4 guys didn't really do anything").
+func _explosion_damage_at(dist: float, radius: float, max_damage: int, min_damage: int) -> int:
+	var plateau: float = radius * 0.4
+	if dist <= plateau:
+		return max_damage
+	var t: float = clampf((dist - plateau) / maxf(0.01, radius - plateau), 0.0, 1.0)
+	return maxi(1, int(lerpf(float(max_damage), float(min_damage), t)))
+
+
 ## Apply explosion damage with multi-point visibility (Quake 3 CanDamage pattern)
 func apply_explosion_damage(
 	center: Vector3,
@@ -131,8 +147,7 @@ func apply_explosion_damage(
 		if dist <= radius:
 			# Multi-point visibility check (Quake 3 pattern)
 			if _can_damage_multipoint(space_state, center, player_pos, player):
-				var falloff: float = 1.0 - (dist / radius)
-				var damage: int = maxi(1, int(lerpf(float(min_damage), float(max_damage), falloff)))
+				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
 
 				if player.has_method("take_damage"):
 					player.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)
@@ -143,16 +158,17 @@ func apply_explosion_damage(
 					knockback_dir = Vector3.UP
 				_apply_knockback(player, knockback_dir, knockback_scale * 2.0, damage)
 
-	# Damage allies in range
-	for ally in active_allies:
+	# Damage allies in range. ITERATE A SNAPSHOT: a kill unregisters the man
+	# from this very array mid-loop, which shifts it and SKIPS his neighbor -
+	# the "grenade at 4 guys did nothing" bug (every other man untouched).
+	for ally in active_allies.duplicate():
 		if not is_instance_valid(ally) or not ally is Node3D:
 			continue
 		var ally_pos: Vector3 = (ally as Node3D).global_position
 		var dist: float = center.distance_to(ally_pos)
 		if dist <= radius:
 			if _can_damage_multipoint(space_state, center, ally_pos, ally):
-				var falloff: float = 1.0 - (dist / radius)
-				var damage: int = maxi(1, int(lerpf(float(min_damage), float(max_damage), falloff)))
+				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
 				# Asymmetric danger-close (War Room decree): indirect / ordnance fire
 				# (attacker == null - arty, CAS, napalm, CBU, placed charges) does only
 				# ~0.4x to your own men, so a called strike THREATENS but doesn't delete
@@ -168,16 +184,15 @@ func apply_explosion_damage(
 					knockback_dir = Vector3.UP
 				_apply_knockback(ally, knockback_dir, knockback_scale * 2.0, damage)
 
-	# Damage enemies in range
-	for enemy in active_enemies:
+	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
+	for enemy in active_enemies.duplicate():
 		if not is_instance_valid(enemy) or not enemy is Node3D:
 			continue
 		var enemy_pos: Vector3 = (enemy as Node3D).global_position
 		var dist: float = center.distance_to(enemy_pos)
 		if dist <= radius:
 			if _can_damage_multipoint(space_state, center, enemy_pos, enemy):
-				var falloff: float = 1.0 - (dist / radius)
-				var damage: int = maxi(1, int(lerpf(float(min_damage), float(max_damage), falloff)))
+				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
 
 				if enemy.has_method("take_damage"):
 					enemy.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)

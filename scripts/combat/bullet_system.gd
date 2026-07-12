@@ -122,6 +122,11 @@ func _impact(b: Dictionary, hit: Dictionary) -> void:
 		var falloff: float = wd.damage_multiplier_at(dist)
 		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult))
 		target.take_damage(dmg, wd.damage_type, shooter, zone)
+		# GORE channel: hand the struck zone's REGION (ARM_L_UP...) to the
+		# target so the one gore authority can pop the right limb. The zone
+		# STRING above stays the 4-name law for damage/wound logic.
+		if col is Hitzone and target.has_method("on_zone_hit"):
+			target.on_zone_hit(str((col as Hitzone).get_meta("region", "")), dmg, travel_dir)
 		# W37 parity: limb hits wound (arm = shaky aim, leg = no sprint).
 		if zone == "LIMB" and target.has_method("apply_wound"):
 			target.apply_wound("LIMB_LEG" if randf() < 0.5 else "LIMB_ARM")

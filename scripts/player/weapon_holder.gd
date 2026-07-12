@@ -384,7 +384,7 @@ func _fire_shot() -> void:
 	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
 	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.
 	query.collide_with_areas = true
-	query.exclude = [controller]
+	query.exclude = _self_exclusions()
 	var aim_hit := space_state.intersect_ray(query)
 	var aim_point: Vector3 = aim_hit.position if aim_hit else origin + final_dir * 2000.0
 
@@ -416,7 +416,7 @@ func _fire_shot() -> void:
 		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
 			and (session_shots % current_weapon.tracer_ratio) == 0
 		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, muzzle_dir,
-			1 | 32 | 64, [controller], show_tracer)
+			1 | 32 | 64, _self_exclusions(), show_tracer)
 
 	# Apply recoil (W-feel: first shot kicks hardest, sustained fire climbs,
 	# per-weapon recovery snaps the view back).
@@ -448,6 +448,19 @@ func _fire_shot() -> void:
 ## cone; base_damage is per pellet; damage AGGREGATES per target+zone so the
 ## locational grammar and the gore single-hit thresholds (limb-off >= ~45) see
 ## one hit event - point-blank buckshot takes the arm, rim pellets sting.
+## The muzzle sits INSIDE the player's own HEAD zone band (camera height) -
+## his rounds and aim ray must ignore his own hitzone areas or every trigger
+## pull is a self-headshot. Player body + his zones, one exclusion list.
+func _self_exclusions() -> Array:
+	var excl: Array = [controller]
+	var hz_list: Variant = controller.get("hitzones")
+	if hz_list is Array:
+		for hz in hz_list:
+			if is_instance_valid(hz):
+				excl.append(hz)
+	return excl
+
+
 func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up: Vector3) -> void:
 	var space_state := get_world_3d().direct_space_state
 	var cone: float = deg_to_rad(current_weapon.pellet_spread_deg)
@@ -463,7 +476,7 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var query := PhysicsRayQueryParameters3D.create(
 			origin, origin + dir * current_weapon.max_range, 1 | 64)
 		query.collide_with_areas = true
-		query.exclude = [controller]
+		query.exclude = _self_exclusions()
 		var r := space_state.intersect_ray(query)
 		if not r:
 			continue

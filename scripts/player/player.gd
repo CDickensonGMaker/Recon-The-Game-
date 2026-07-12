@@ -413,6 +413,15 @@ func _ready() -> void:
 	_setup_suppression()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
+	# ALL MODELS BLEED THE SAME (Caleb decree): the player wears the same
+	# static hitzone bands as any rigless unit - head/torso/gut/limbs with
+	# ADR-016 multipliers. Enemy rounds now resolve zones on YOU exactly as
+	# yours do on them: a head hit lands x4, a leg graze x1. Bands are fixed
+	# to the standing capsule (crouch offset is a beaded refinement).
+	HitzoneBuilder._build_static(self, 32, 16, ["player_hurtbox", "hitzone"], true)
+	for c in get_children():
+		if c is Hitzone:
+			hitzones.append(c)
 	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
 	_yaw_base = rotation.y  # seed recoil-recoverable yaw from spawn orientation
 
@@ -786,7 +795,46 @@ func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.P
 			var hud_node := get_tree().get_first_node_in_group("mission_hud")
 			if hud_node and hud_node.has_method("show_damage_direction"):
 				hud_node.show_damage_direction(-rel)
-	return health_system.take_damage(amount, damage_type, attacker)
+	var dealt: int = health_system.take_damage(amount, damage_type, attacker)
+	if is_dead():
+		var dir: Vector3 = -global_transform.basis.z
+		if attacker is Node3D:
+			dir = (global_position - (attacker as Node3D).global_position).normalized()
+		_collapse_camera(dir)
+	return dealt
+
+
+var _collapsed: bool = false
+
+## Death collapse (Caleb: "the player capsule should ragdoll down when killed
+## - the sense of death or unconscious"): there is no player body model, so
+## the CAMERA becomes the falling weight. A native RigidBody3D head drops from
+## eye height, kicked by the killing hit, rolls and settles on the floor -
+## you watch the world tip over as you go down. The KIA flow runs unchanged.
+func _collapse_camera(hit_dir: Vector3) -> void:
+	if _collapsed or camera == null:
+		return
+	_collapsed = true
+	set_physics_process(false)
+	set_process_input(false)
+	set_process_unhandled_input(false)
+	var vm: Node3D = camera.get_node_or_null("WeaponHolder") as Node3D
+	if vm != null:
+		vm.visible = false  # dying men do not hold a perfect sight picture
+	var head_body := RigidBody3D.new()
+	head_body.collision_layer = 0
+	head_body.collision_mask = 1
+	head_body.mass = 5.0
+	var cs := CollisionShape3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.18
+	cs.shape = sph
+	head_body.add_child(cs)
+	get_tree().current_scene.add_child(head_body)
+	head_body.global_position = camera.global_position
+	camera.reparent(head_body, true)
+	head_body.apply_central_impulse(hit_dir.normalized() * 8.0 + Vector3.UP * 1.0)
+	head_body.apply_torque_impulse(Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5)))
 
 
 ## Get health system

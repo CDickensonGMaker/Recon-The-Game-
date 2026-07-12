@@ -241,6 +241,10 @@ var _home_facing: Vector3 = Vector3.FORWARD  ## the direction to sweep around
 const SCAN_SPEED: float = 0.7
 const SCAN_ARC: float = 2.45  ## +/- 140deg sweep - only a narrow wedge behind stays blind
 var last_hit_dir: Vector3 = Vector3.FORWARD  ## world dir from attacker -> us; picks the death clip
+## GORE_WORKFLOW ledger: regions already popped off this man (4-limb names).
+var _removed: Array[String] = []
+## The killing blow was explosive -> _die() runs the blast doctrine.
+var _killed_explosive: bool = false
 
 
 func _ready() -> void:
@@ -1719,13 +1723,13 @@ func _fire_at_target() -> void:
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
-	# FULL-REALISM FRIENDLY FIRE, minus body-capsule shadowing: enemy bodies
-	# (4) OUT of the round's mask - a capsule in the mask eats the hit before
-	# the hitzones inside it and FF lands flat 1.0x. Friendly fire still
-	# works through squadmate hurtboxes (64); player body (2) stays because
-	# the player has no hitzone areas.
+	# FULL-REALISM FRIENDLY FIRE, zero body-capsule shadowing: rounds touch
+	# flesh ONLY through hitzone areas - the player wears zones now too
+	# (all models bleed the same), so his body layer (2) is out with the
+	# rest. A capsule in the mask eats the hit before the zones inside it
+	# and everything lands flat 1.0x.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 2 | 32 | 64, [self], show_tracer)
+		1 | 32 | 64, [self], show_tracer)
 
 
 ## W45: telegraph shout, then lob a real grenade at the last-known position.
@@ -1786,6 +1790,20 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 ## ============================================
 ## DAMAGE AND DEATH
 ## ============================================
+
+## Region-resolved gore channel: BulletSystem feeds the struck Hitzone's
+## REGION here (the zone STRING stays the 4-name law for damage/wound logic).
+## GORE_WORKFLOW live rule, same as the dummy: one hit >= 45 takes the limb.
+## Works on corpses too - shooting bodies stays honest.
+func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
+	if not _visual_is_model or sprite_actor == null:
+		return
+	var limb: String = HitzoneBuilder.base_region(region)
+	if limb in ["ARM_L", "ARM_R", "LEG_L", "LEG_R"] \
+			and amount >= GibSystem.LIMB_POP_HIT and not _removed.has(limb):
+		if GibSystem.dismember(sprite_actor as ModelActor, limb, dir, get_tree().current_scene):
+			_removed.append(limb)
+
 
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, zone: String = "BODY") -> int:
 	if current_state == Enums.AIState.DEAD:
@@ -1876,11 +1894,16 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			if randf() < down_chance:
 				_become_downed()
 				return amount
-		# HEAD BURST (bead rc55): heavy fatal headshots (60+ raw - the shotgun
-		# slug execution class) occasionally shatter. No-ops silently until a
-		# rig ships head_frag_* fragments; one-piece pop stays the default.
-		if zone == "HEAD" and _visual_is_model and raw_amount >= 60 and randf() < 0.25:
-			GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
+		# HEAD POP on heavy fatal headshots (>= HEAD_POP_KILL raw), same rule
+		# as the gore dummy: burst (skull fragments) 25% of the time, one-piece
+		# pop otherwise. Burst no-ops silently until a rig ships head_frag_*.
+		if zone == "HEAD" and _visual_is_model and raw_amount >= GibSystem.HEAD_POP_KILL:
+			if randf() < 0.25:
+				GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
+				_removed.append("HEAD")
+			elif GibSystem.dismember(sprite_actor as ModelActor, "HEAD", last_hit_dir, get_tree().current_scene):
+				_removed.append("HEAD")
+		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:
@@ -2038,24 +2061,29 @@ func _die() -> void:
 		return
 
 	if sprite_actor != null:
-		# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so the
-		# shooter lies along -last_hit_dir. A round arriving from the man's own
-		# right means the attacker sits on +basis.x. Testing last_hit_dir directly
-		# inverts it, and the result looks plausible: everyone falls forward.
-		#
-		# Only two death clips exist. A shot from the left plays death_forward
-		# rather than a mirrored death_from_right; derive death_from_left later.
-		var to_attacker: Vector3 = -last_hit_dir
-		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
-		var intent: String = "death_right" if from_right else "death_forward"
-		var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
-		# DEAD MEN FALL, whatever the export shipped: a rig without the death
-		# clip used to just STAND there in the DEAD state. If the clip refuses,
-		# hand the body to the engine's ragdoll - gravity needs no animation.
-		if played is bool and not played and _visual_is_model:
-			var ma := sprite_actor as ModelActor
-			if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
-				push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
+		# GORE_WORKFLOW death doctrine (ONE authority with the gore dummy):
+		#   explosion kill -> multi-gib + ragdoll flung by the blast
+		#   clean kill     -> RAGDOLL always (dead weight just drops)
+		#   gibbed kill    -> the death performance clip (fallback: ragdoll)
+		var ma := sprite_actor as ModelActor
+		if _killed_explosive and _visual_is_model and ma != null:
+			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
+		elif _visual_is_model and ma != null and _removed.is_empty() \
+				and ma.start_ragdoll(last_hit_dir, 4.5):
+			pass  # dead weight dropped - the ragdoll owns the body now
+		else:
+			# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so
+			# the shooter lies along -last_hit_dir. Only two death clips exist;
+			# a shot from the left plays death_forward for now.
+			var to_attacker: Vector3 = -last_hit_dir
+			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
+			var intent: String = "death_right" if from_right else "death_forward"
+			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
+			# DEAD MEN FALL, whatever the export shipped: if the clip refuses,
+			# hand the body to the engine's ragdoll - gravity needs no clips.
+			if played is bool and not played and _visual_is_model:
+				if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
+					push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

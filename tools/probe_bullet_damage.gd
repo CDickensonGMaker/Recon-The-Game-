@@ -32,7 +32,10 @@ func _ready() -> void:
 	for hz in get_tree().get_nodes_in_group("hitzone"):
 		if hz is Area3D:
 			zones += 1
-	var chest: Vector3 = (e as Node3D).global_position + Vector3(0, 1.25, 0)
+	# Aim at the HEAD sphere: chest-line shots can legitimately catch an arm
+	# hull (LIMB x1.0 = flat-looking 28) depending on the idle pose. A head
+	# hit is unambiguous - fatal or the mask is broken.
+	var chest: Vector3 = (e as Node3D).global_position + Vector3(0, 1.52, 0)
 	print("  enemy at %s, %d hitzones live, aiming at %s" % [(e as Node3D).global_position, zones, chest])
 	var q := PhysicsRayQueryParameters3D.create(Vector3(0, chest.y, 0), chest + Vector3(0, 0, -2), 1 | 32 | 64)
 	q.collide_with_areas = true
@@ -47,9 +50,10 @@ func _ready() -> void:
 		(chest - Vector3(0, chest.y, 0)).normalized(), 1 | 32 | 64, [], false)
 	await get_tree().create_timer(0.5).timeout
 	var dealt: int = hp0 - e.current_hp
-	print("  vc_rifleman hp %d -> %d (dealt %d; flat M16 = 28, torso x2.5 = 70)" % [hp0, e.current_hp, dealt])
-	if dealt >= 63:  # x2.25 gut graze or better - the multiplier reached the round
-		print("PASS: bullet resolved against a hitzone (multiplier applied)")
+	var neutralized: bool = e.is_dead() or bool(e.get("is_downed"))
+	print("  vc_rifleman hp %d -> %d (dealt %d), dead/downed: %s" % [hp0, e.current_hp, dealt, neutralized])
+	if neutralized or dealt >= 63:
+		print("PASS: bullet resolved against a hitzone (headshot lands as a headshot)")
 		get_tree().quit(0)
 	elif dealt <= 0:
 		print("FAIL: round hit nothing (aim or zone coverage)")
