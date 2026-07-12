@@ -10,9 +10,11 @@
 ## the rotation, then Ctrl+S to write straight back into the .tres. Z/X cycle
 ## the whole armory. The weapon list is auto-discovered from data/weapons/.
 ##
-## In-game bullets originate from CAMERA CENTER (weapon_holder.gd _fire_shot),
-## so this alignment is visual truth: the goal is the gun POINTING where the
-## rounds go.
+## In-game bullets are REAL projectiles now (7ks, BulletSystem): they spawn at
+## the gun's MuzzlePoint and converge onto the crosshair's aim point
+## (weapon_holder.gd _fire_shot). Alignment here matters MORE than under
+## hitscan - a misaligned gun visibly lofts its round sideways into the
+## convergence line. Goal unchanged: the bore laser dot ON the crosshair.
 extends Node3D
 
 ## Weapon data resources for preview (auto-discovered when empty)
@@ -318,18 +320,21 @@ func _save_weapon() -> void:
 
 ## ---------------------------------------------------------------- bore laser
 
-## [origin, direction] of the bore in GLOBAL space. Mirrors the game's muzzle
-## logic (weapon_holder.gd _get_muzzle_position): MuzzlePoint marker if the
-## viewmodel has one, else half a meter down the model's -Z.
+## [origin, direction] of the bore in GLOBAL space. Origin = the MuzzlePoint
+## marker (the same node the game spawns bullets at). Direction = the
+## VIEWMODEL CONTRACT axis (viewmodel root -Z = barrel, CLAUDE.md scene
+## structure) - NOT the marker's own basis: the Blender muzzle empties are
+## POSITION markers, never aimed down the bore, and trusting their
+## orientation fired the bench laser out of the top of the gun
+## (Caleb 2026-07-11). normalized(): the global basis carries the baked root
+## scale (~0.03), which otherwise breaks the board-plane t bound.
 func _bore_ray() -> Array:
 	if not weapon_model:
 		return []
+	var fdir: Vector3 = (-weapon_model.global_transform.basis.z).normalized()
 	var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
 	if muzzle:
-		# normalized(): the global basis carries the baked root scale (~0.03),
-		# which otherwise breaks the board-plane t bound
-		return [muzzle.global_position, (-muzzle.global_transform.basis.z).normalized()]
-	var fdir: Vector3 = (-weapon_model.global_transform.basis.z).normalized()
+		return [muzzle.global_position, fdir]
 	return [weapon_model.global_position + fdir * 0.5, fdir]
 
 
