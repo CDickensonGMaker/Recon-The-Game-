@@ -57,8 +57,16 @@ EXCLUDE = ["Base_Human", "canteen_l.001", "target_handguard",
            "splay_head", "splay_torso", "splay_uparm_l", "splay_uparm_r",
            "splay_forearm_l", "splay_forearm_r", "splay_leg_l", "splay_leg_r"]
 print(f"=== 0. variant {OUTNAME}: gun={GUN} anims={EXPORT_ANIMATIONS} ===", flush=True)
-IS_ARMORY_GUN = GUN != 'm16_world'
-if IS_ARMORY_GUN:
+# UNARMED (civilians, prisoners, aircrew on foot): GUN='none'. A civilian with
+# no weapon has no MuzzlePoint either - the socket is a property of the gun, and
+# an empty parented to nothing would export at the origin and read as a muzzle
+# at his feet.
+UNARMED = GUN == 'none'
+IS_ARMORY_GUN = (not UNARMED) and GUN != 'm16_world'
+if UNARMED:
+    gun = None
+    EXCLUDE = EXCLUDE + ["m16_world"]
+elif IS_ARMORY_GUN:
     # armory key: append + attach with the M16's exact matrices, then the
     # M16 itself joins the export-copy exclusions
     gun = append_gun.bring(GUN, ref_gun='m16_world', rig=rig)
@@ -92,10 +100,11 @@ for a in bpy.data.actions:
 print(f"  {len(bpy.data.actions)} clips", flush=True)
 
 # gun visibility was reel-preview only; make sure the gun exports visible
-if gun.animation_data:
-    gun.animation_data_clear()
-gun.hide_viewport = False
-gun.hide_render = False
+if gun is not None:
+    if gun.animation_data:
+        gun.animation_data_clear()
+    gun.hide_viewport = False
+    gun.hide_render = False
 
 def channelbag(act):
     return act.layers[0].strips[0].channelbag(act.slots[0])
@@ -135,37 +144,40 @@ for name, bone in SOCKETS.items():
 old = bpy.data.objects.get("MuzzlePoint")
 if old:
     bpy.data.objects.remove(old, do_unlink=True)
-mz = bpy.data.objects.new("MuzzlePoint", None)
-mz.empty_display_type = 'ARROWS'
-mz.empty_display_size = 0.06
-sc.collection.objects.link(mz)
-mz.parent = gun
-bb = gun.bound_box
-ext = [max(c[i] for c in bb) - min(c[i] for c in bb) for i in range(3)]
-ax = ext.index(max(ext))
-lo = Vector([min(c[i] for c in bb) for i in range(3)])
-hi = Vector([max(c[i] for c in bb) for i in range(3)])
-end_a, end_b = lo.copy(), lo.copy()
-end_a[ax], end_b[ax] = lo[ax], hi[ax]
-mid = (lo + hi) / 2
-end_a[(ax+1)%3] = end_b[(ax+1)%3] = mid[(ax+1)%3]
-end_a[(ax+2)%3] = end_b[(ax+2)%3] = mid[(ax+2)%3]
-hand_w = rig.matrix_world @ rig.pose.bones[SOCKETS['HandR']].head
-da = (gun.matrix_world @ end_a - hand_w).length
-db = (gun.matrix_world @ end_b - hand_w).length
-muzzle_local = end_a if da > db else end_b
-bore = (muzzle_local - (end_b if da > db else end_a)).normalized()
-if IS_ARMORY_GUN:
-    # appended meshes keep the armory rack orientation: muzzle is ALWAYS the
-    # -X end (the hand-distance heuristic can flip on stubby/odd-grip guns)
-    muzzle_local, rear = (end_a, end_b) if end_a.x < end_b.x else (end_b, end_a)
-    bore = (muzzle_local - rear).normalized()
-mz.matrix_parent_inverse = Matrix.Identity(4)
-mz.location = muzzle_local
-mz.rotation_mode = 'QUATERNION'
-mz.rotation_quaternion = Vector((0, 1, 0)).rotation_difference(bore)
-made.append(mz)
-print(f"  {len(made)} sockets (muzzle at gun-local {tuple(round(v,3) for v in muzzle_local)})", flush=True)
+if gun is None:
+    print(f"  {len(made)} sockets (UNARMED - no MuzzlePoint)", flush=True)
+else:
+  mz = bpy.data.objects.new("MuzzlePoint", None)
+  mz.empty_display_type = 'ARROWS'
+  mz.empty_display_size = 0.06
+  sc.collection.objects.link(mz)
+  mz.parent = gun
+  bb = gun.bound_box
+  ext = [max(c[i] for c in bb) - min(c[i] for c in bb) for i in range(3)]
+  ax = ext.index(max(ext))
+  lo = Vector([min(c[i] for c in bb) for i in range(3)])
+  hi = Vector([max(c[i] for c in bb) for i in range(3)])
+  end_a, end_b = lo.copy(), lo.copy()
+  end_a[ax], end_b[ax] = lo[ax], hi[ax]
+  mid = (lo + hi) / 2
+  end_a[(ax+1)%3] = end_b[(ax+1)%3] = mid[(ax+1)%3]
+  end_a[(ax+2)%3] = end_b[(ax+2)%3] = mid[(ax+2)%3]
+  hand_w = rig.matrix_world @ rig.pose.bones[SOCKETS['HandR']].head
+  da = (gun.matrix_world @ end_a - hand_w).length
+  db = (gun.matrix_world @ end_b - hand_w).length
+  muzzle_local = end_a if da > db else end_b
+  bore = (muzzle_local - (end_b if da > db else end_a)).normalized()
+  if IS_ARMORY_GUN:
+      # appended meshes keep the armory rack orientation: muzzle is ALWAYS the
+      # -X end (the hand-distance heuristic can flip on stubby/odd-grip guns)
+      muzzle_local, rear = (end_a, end_b) if end_a.x < end_b.x else (end_b, end_a)
+      bore = (muzzle_local - rear).normalized()
+  mz.matrix_parent_inverse = Matrix.Identity(4)
+  mz.location = muzzle_local
+  mz.rotation_mode = 'QUATERNION'
+  mz.rotation_quaternion = Vector((0, 1, 0)).rotation_difference(bore)
+  made.append(mz)
+  print(f"  {len(made)} sockets (muzzle at gun-local {tuple(round(v,3) for v in muzzle_local)})", flush=True)
 
 # ---------------------------------------------------------------- materials
 print("=== 4. flatten procedural materials ===", flush=True)
@@ -223,9 +235,10 @@ if SAVE_BLEND:
     # The variant's gun must be visible in the edit blend (invisible-Mosin
     # bug class: eye-hide survives save_blend; the unhide-all lives in the
     # normalize section which save_blend never reaches).
-    gun.hide_set(False)
-    gun.hide_viewport = False
-    gun.hide_render = False
+    if gun is not None:
+        gun.hide_set(False)
+        gun.hide_viewport = False
+        gun.hide_render = False
     bpy.ops.wm.save_as_mainfile(filepath=vpath)
     print(f"SAVE_BLEND COMPLETE -> {vpath}", flush=True)
     sys.exit(0)
