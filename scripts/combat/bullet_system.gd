@@ -51,6 +51,11 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		"vel": dir.normalized() * maxf(50.0, wd.projectile_speed),
 		"wd": wd, "shooter": shooter, "mask": mask, "exclude": excl_rids,
 		"traveled": 0.0, "age": 0.0, "visual": null,
+		# Limb over-penetration budget: a round through an arm carries into
+		# the chest behind it at reduced energy (TTK consistency - the arms
+		# ride across the chest, and a full stop there made the same aim kill
+		# in 1 or sponge in 4 depending on the pose frame).
+		"pen_left": 1, "dmg_scale": 1.0,
 	}
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
@@ -75,7 +80,14 @@ func _physics_process(delta: float) -> void:
 		q.exclude = b.exclude
 		var hit: Dictionary = space.intersect_ray(q)
 		if not hit.is_empty():
-			_impact(b, hit)
+			if _impact(b, hit):
+				# Limb over-penetration: the round resumes 6cm past the wound
+				# (inside the limb hull - rays ignore shapes they start in, so
+				# it exits clean and can find the torso behind).
+				b.traveled = float(b.traveled) + from.distance_to(hit.position)
+				b.pos = (hit.position as Vector3) + (b.vel as Vector3).normalized() * 0.06
+				i += 1
+				continue
 			_finish(b)
 			_bullets.remove_at(i)
 			continue
@@ -91,8 +103,9 @@ func _physics_process(delta: float) -> void:
 
 ## Arrival resolution - the union of the three retired hitscan resolvers
 ## (weapon_holder/_resolve_hit, enemy_base, ally_base): one honest path for
-## every shooter in the game.
-func _impact(b: Dictionary, hit: Dictionary) -> void:
+## every shooter in the game. Returns true when the round OVER-PENETRATES a
+## limb and keeps flying (caller resumes the flight past the wound).
+func _impact(b: Dictionary, hit: Dictionary) -> bool:
 	var wd: WeaponData = b.wd
 	var shooter: Node = b.shooter
 	var col: Object = hit.collider
@@ -120,7 +133,7 @@ func _impact(b: Dictionary, hit: Dictionary) -> void:
 		GunFX.blood(scene, hit.position, hit.normal, travel_dir, target)
 		var dist: float = float(b.traveled) + (b.pos as Vector3).distance_to(hit.position)
 		var falloff: float = wd.damage_multiplier_at(dist)
-		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult))
+		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult * float(b.dmg_scale)))
 		target.take_damage(dmg, wd.damage_type, shooter, zone)
 		# GORE channel: hand the struck zone's REGION (ARM_L_UP...) to the
 		# target so the one gore authority can pop the right limb. The zone
@@ -133,9 +146,19 @@ func _impact(b: Dictionary, hit: Dictionary) -> void:
 		if shooter != null and is_instance_valid(shooter) and shooter.is_in_group("player"):
 			var killed: bool = target.has_method("is_dead") and target.is_dead()
 			player_bullet_hit.emit(killed, zone == "HEAD")
+		# LIMB OVER-PENETRATION: arms/legs wound the round through - it exits
+		# at 75% energy and may find the torso behind (head/torso/gut stop it:
+		# center mass is mass). One limb per flight, or a grazing round could
+		# stitch a whole rank.
+		if col is Hitzone and (col as Hitzone).zone_type == Hitzone.ZoneType.LIMB \
+				and int(b.pen_left) > 0:
+			b.pen_left = int(b.pen_left) - 1
+			b.dmg_scale = float(b.dmg_scale) * 0.75
+			return true
 	else:
 		GunFX.impact(scene, hit.position, hit.normal, _surface_is_hard(col))
 		GunFX.bullet_hole(scene, hit.position, hit.normal)
+	return false
 
 
 ## Cheap surface guess for impact flavour (moved from weapon_holder so every

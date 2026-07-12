@@ -2032,7 +2032,19 @@ func _become_downed() -> void:
 		_died_emitted = true
 		died.emit(self)
 	if sprite_actor != null and sprite_actor is ModelActor:
-		(sprite_actor as ModelActor).play("laying_breathless", true)
+		var ma := sprite_actor as ModelActor
+		# A DOWNED man must be ON THE GROUND. A rig without the breathless clip
+		# left him standing in the open at 1 HP - reading as a broken corpse.
+		# Fallback ladder: breathless clip -> freeze at a death clip's end (a
+		# lying pose) -> gentle ragdoll. Gravity is the last word.
+		if not ma.play("laying_breathless", true):
+			var posed: bool = false
+			for c in ma.clip_names():
+				if String(c).begins_with("death"):
+					posed = ma.pose_end_of(String(c))
+					break
+			if not posed:
+				ma.start_ragdoll(last_hit_dir, 1.5)
 	elif sprite_actor != null:
 		sprite_actor.play(SpriteStateMap.clip_for(false, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
 	VOManager.play_enemy("pain", self)
@@ -2065,8 +2077,13 @@ func _die() -> void:
 
 	if is_downed:
 		# He was already lying in laying_breathless - do not whip a standing
-		# death clip over the pose. The pool and stillness read the change.
+		# death clip over the pose. But INSURE the ground: a gentle ragdoll
+		# from a lying pose is a calm settle, and from the standing-downed
+		# bug pose it is the fall that should have happened.
 		is_downed = false
+		var mad := sprite_actor as ModelActor
+		if _visual_is_model and mad != null and not mad.has_ragdoll():
+			mad.start_ragdoll(last_hit_dir, 1.5)
 		add_to_group("lootable_corpses")
 		get_tree().create_timer(45.0).timeout.connect(queue_free)
 		return
