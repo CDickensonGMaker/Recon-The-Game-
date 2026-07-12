@@ -141,8 +141,16 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 				hulls.get(s[0], PackedVector3Array()))
 	# Same-frame honesty: the physics tick alone trails the render-frame anim
 	# pose by up to a frame - at HLL lethality that frame is a miss on a
-	# running man. Re-sync the moment the skeleton lands its pose.
-	skel.skeleton_updated.connect(func() -> void: sync(model, entries))
+	# running man. Re-sync the moment the skeleton lands its pose. Rebuilds
+	# (bench revert) retire the prior zone set's callback first - one skeleton,
+	# one live sync.
+	if skel.has_meta("hz_sync_cb"):
+		var stale: Callable = skel.get_meta("hz_sync_cb")
+		if skel.skeleton_updated.is_connected(stale):
+			skel.skeleton_updated.disconnect(stale)
+	var cb: Callable = func() -> void: sync(model, entries)
+	skel.skeleton_updated.connect(cb)
+	skel.set_meta("hz_sync_cb", cb)
 	return entries
 
 

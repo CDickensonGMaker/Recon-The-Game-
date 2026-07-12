@@ -5,7 +5,10 @@
 ## so Caleb can SEE them ride the animation and fine-tune every zone.
 ##
 ## Mouse: LEFT-CLICK a zone to select it. LEFT-DRAG moves it in the camera
-##        plane. RIGHT-DRAG rotates it (tilt to fit the limb). Shift = fine.
+##        plane. RIGHT-DRAG horizontal TWISTS around the limb axis, vertical
+##        TILTS toward/away the camera (screen-space from any view). Starting
+##        any drag pauses the clip so the box holds still (P resumes).
+##        Shift = fine.
 ## Keys:  Z/X character  [/] clip  P pause  Q/E rotate model  TAB cycle zone
 ##        1-9,0 select zone   Arrows offset X/Y  PgUp/PgDn offset Z
 ##        +/- inflate (hull) or radius (capsule)  Shift fine
@@ -30,7 +33,7 @@ var _model: ModelActor = null
 var _sync: Array = []
 var _selected: int = 0
 var _touched: Dictionary = {}   # region -> true (nudged this session)
-var _rot: Dictionary = {}       # region -> Vector3 radians (bench rotation)
+var _rot: Dictionary = {}       # region -> Basis (accumulated bench rotation)
 var _paused: bool = false
 var _held: Dictionary = {}
 var _drag_mode: int = 0         # 0 none, 1 move (LMB), 2 rotate (RMB)
@@ -127,17 +130,9 @@ func _load_unit(idx: int) -> void:
 	_model = ModelActor.new()
 	_holder.add_child(_model)
 	_sync = []
-	_touched = {}
-	_rot = {}
 	if not _model.setup(_units[_unit_idx]):
 		return
-	_sync = HitzoneBuilder.build(_holder, _model, BENCH_LAYER, 0, ["hitzone"], true)
-	# Seed bench rotation state from saved overrides (builder stamps rot_deg).
-	for c in _holder.get_children():
-		if c is Area3D:
-			var rd: Vector3 = c.get_meta("rot_deg", Vector3.ZERO)
-			if rd != Vector3.ZERO:
-				_rot[str(c.get_meta("region", ""))] = rd * (PI / 180.0)
+	_rebuild_zones()
 	_clips = _model.clip_names()
 	_clip_idx = maxi(0, _clips.find("idle"))
 	_play_current_clip()
@@ -147,6 +142,26 @@ func _play_current_clip() -> void:
 	if _model == null or _clips.is_empty():
 		return
 	_model.play(str(_clips[_clip_idx]), true)
+
+
+## Drop and rebuild the zone set on the LIVE model - the clip keeps playing.
+## (A full _load_unit reload T-pose-flashed the rig just to swap zones.)
+func _rebuild_zones() -> void:
+	if _holder == null or _model == null:
+		return
+	for c in _holder.get_children():
+		if c is Area3D:
+			_holder.remove_child(c)
+			c.queue_free()
+	_touched = {}
+	_rot = {}
+	_sync = HitzoneBuilder.build(_holder, _model, BENCH_LAYER, 0, ["hitzone"], true)
+	# Seed bench rotation state from saved overrides (builder stamps rot_deg).
+	for c in _holder.get_children():
+		if c is Area3D:
+			var rd: Vector3 = c.get_meta("rot_deg", Vector3.ZERO)
+			if rd != Vector3.ZERO:
+				_rot[str(c.get_meta("region", ""))] = Basis.from_euler(rd * (PI / 180.0))
 
 
 func _zone_for(region: String) -> Area3D:
@@ -214,6 +229,12 @@ func _input(event: InputEvent) -> void:
 					_drag_mode = 1 if hit != null else 0
 				else:
 					_drag_mode = 2
+				# Hold the pose while editing - dragging a box that is riding
+				# a run cycle is chasing a moving target. P resumes.
+				if _drag_mode != 0 and not _paused:
+					_paused = true
+					if _model != null:
+						_model.stop_anim()
 			else:
 				_drag_mode = 0
 	elif event is InputEventMouseMotion and _drag_mode != 0:
@@ -267,13 +288,22 @@ func _drag_rotate(rel: Vector2) -> void:
 	var entry: Array = _sync_entry_for(hz)
 	if entry.is_empty():
 		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
 	var fine: float = 0.25 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-	var r: Vector3 = _rot.get(region, Vector3.ZERO)
-	r.x += -rel.y * 0.008 * fine   # tilt toward/away camera
-	r.z += -rel.x * 0.008 * fine   # lean sideways
-	_rot[region] = r
-	entry[4] = Basis.from_euler(r)
-	hz.set_meta("rot_deg", r * (180.0 / PI))
+	var rot: Basis = _rot.get(region, Basis.IDENTITY)
+	# Horizontal TWISTS around the zone's own long axis (the missing third
+	# axis - fitting a hull to a leg IS a twist). Vertical TILTS around the
+	# camera's right, mapped into zone space, so "drag up = lean away" holds
+	# from any viewpoint and any model yaw.
+	var local_right: Vector3 = (hz.global_transform.basis.inverse()
+		* cam.global_transform.basis.x).normalized()
+	rot = rot * Basis(Vector3.UP, -rel.x * 0.008 * fine) \
+		* Basis(local_right, -rel.y * 0.008 * fine)
+	_rot[region] = rot
+	entry[4] = rot
+	hz.set_meta("rot_deg", rot.get_euler() * (180.0 / PI))
 	_touched[region] = true
 
 
@@ -395,8 +425,9 @@ func _save_tuning() -> void:
 		var delta_off: Vector3 = cur_off - base_off
 		if delta_off.length() >= 0.001:
 			zone_entry["offset"] = delta_off
-		# Rotation (bench-authored, degrees).
-		var rot_rad: Vector3 = _rot.get(region, Vector3.ZERO)
+		# Rotation (bench-authored Basis, saved as euler degrees - same .tres
+		# format the builder has always consumed).
+		var rot_rad: Vector3 = (_rot.get(region, Basis.IDENTITY) as Basis).get_euler()
 		if rot_rad.length() >= 0.001:
 			zone_entry["rotation"] = rot_rad * (180.0 / PI)
 		# Shape size: inflate for hulls, radius for capsule fallbacks.
@@ -438,8 +469,8 @@ func _revert_tuning() -> void:
 	var path: String = HitzoneBuilder.TUNING_DIR + _units[_unit_idx] + ".tres"
 	if ResourceLoader.exists(path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_rebuild_zones()
 	_flash("REVERTED to measured zones")
-	_load_unit(_unit_idx)
 
 
 func _flash(text: String) -> void:
@@ -494,12 +525,13 @@ func _update_hud() -> void:
 		if zh != null:
 			dmg_str = "  FATAL" if zh.is_fatal_zone() else "  dmg x%.2f" % zh.get_damage_multiplier()
 		var rot_str: String = ""
-		var rr: Vector3 = _rot.get(region, Vector3.ZERO)
+		var rr: Vector3 = (_rot.get(region, Basis.IDENTITY) as Basis).get_euler()
 		if rr.length() > 0.001:
 			rot_str = "  rot(%.0f,%.0f,%.0f)" % [rad_to_deg(rr.x), rad_to_deg(rr.y), rad_to_deg(rr.z)]
 		lines.append("%s%s %s  %s%s%s%s" % [marker, key_label, region, size_str, dmg_str, rot_str, "  *" if _touched.has(region) else ""])
 	lines.append("")
-	lines.append("CLICK select   L-drag move   R-drag rotate   Shift fine")
+	lines.append("CLICK select   L-drag move   R-drag twist(H)/tilt(V)   Shift fine")
+	lines.append("drag pauses the clip - P resumes")
 	lines.append("Z/X unit  [/] clip  P pause  Q/E spin  TAB/1-0 zone")
 	lines.append("arrows/PgUpDn offset  +/- inflate|radius  ,/. dmg  F fatal")
 	lines.append("Ctrl+S save   R revert")
