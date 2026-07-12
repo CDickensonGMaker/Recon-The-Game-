@@ -1,4 +1,4 @@
-## hitzone_builder.gd - ONE hitzone authority (beads 90gj + yd83 + trqx).
+﻿## hitzone_builder.gd - ONE hitzone authority (beads 90gj + yd83 + trqx).
 ##
 ## HITZONE 2.0 (trqx): zones are CONVEX HULLS cut from the character's actual
 ## body mesh - every vertex claimed by its dominant skin bone, bones grouped
@@ -27,6 +27,22 @@ class_name HitzoneBuilder
 extends RefCounted
 
 const TUNING_DIR := "res://data/hitzones/"
+
+## SEAM MARGIN (coverage audit 2026-07-12, tools/probe_hitbox_coverage.gd).
+## Eleven convex hulls cut from one body do NOT tile it: at every joint - the
+## armpit, the hip, the shoulder - two convex shells meet across a concave
+## wedge that neither owns. Measured with zero margin: 12.9% of frontal rays
+## that struck the grunt's rendered body hit NO zone at all (22.3% on the VC).
+## That is not "small hitboxes are honest", it is a bullet passing through a
+## man and the game shrugging.
+##
+## Every hull is grown 3cm outward - the width of two fingers. Measured result:
+## grunt frontal coverage 87.1% -> 96%+, side 96.3% -> ~100%. The shell stays
+## well inside the silhouette a shooter reads (the enemy is still exactly as
+## hard to HIT; he just stops being immune where his own arm meets his chest).
+## The VC's residual holes are the 8-loose-parts body - Blender fix, VC_FIX_LIST.
+## Per-unit bench tuning still overrides this.
+const DEFAULT_INFLATE: float = 0.03
 
 ## Region color code, shared by every overlay/bench so the language is stable.
 ## Legacy 4-limb names kept for the static bands + gore_dummy overlay.
@@ -474,7 +490,7 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 		height = float(ov.get("height", height))
 		bone_offset = bone_offset + Vector3(ov.get("offset", Vector3.ZERO))
 	var rot_deg: Vector3 = Vector3(ov.get("rotation", Vector3.ZERO))
-	var inflate: float = float(ov.get("inflate", 0.0))
+	var inflate: float = float(ov.get("inflate", DEFAULT_INFLATE))
 	var hz := Hitzone.new()
 	hz.zone_type = zone_type
 	# Damage overrides (ADR-016 Amendment B): per-unit multiplier / fatality.

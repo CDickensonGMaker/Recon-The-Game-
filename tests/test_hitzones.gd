@@ -1,4 +1,4 @@
-## test_hitzones.gd - HitzoneBuilder probe (beads 90gj/yd83/trqx).
+﻿## test_hitzones.gd - HitzoneBuilder probe (beads 90gj/yd83/trqx).
 ##   1. HITZONE 2.0 build on a rigged v2 unit yields all 11 zones (limbs split
 ##      upper/lower), all bone-synced, and the core zones are MESH HULLS
 ##      (ConvexPolygonShape3D cut from the body mesh), not formula capsules.
@@ -100,15 +100,17 @@ func _run() -> void:
 		else:
 			print("FAIL: %s is not a mesh hull on us_grunt_v2 (got %s)" % [r, str(sh)])
 			failures += 1
-	# Hull honesty: the BODY hull must be TIGHTER than the old fattened capsule
-	# (diameter = 2 * measured base radius) - that oversize was the complaint.
-	var body_hz: Area3D = regions_found.get("BODY")
+	# Hull honesty: the BODY zone must be a MAN'S CHEST, not a formula-fattened
+	# barrel. The old guard compared against a bone-span capsule, but the arm
+	# BONES sit inboard of the deltoids - a correct chest hull is legitimately
+	# wider than that capsule, and the seam margin (DEFAULT_INFLATE, coverage
+	# audit) widens it another 6cm across. Guard the human window instead: a
+	# chest is 25-60cm across, and nothing outside that is honest.
 	var body_sh: Shape3D = _shape_of(holder, "BODY")
-	if body_hz != null and body_sh is ConvexPolygonShape3D:
+	if body_sh is ConvexPolygonShape3D:
 		var body_aabb: AABB = _hull_aabb(body_sh as ConvexPolygonShape3D)
-		var cap_diam: float = float(body_hz.get_meta("base_radius", 0.2)) * 2.0
-		if body_aabb.size.x > cap_diam + 0.05:
-			print("FAIL: BODY hull wider than the old capsule (%.3f vs %.3f)" % [body_aabb.size.x, cap_diam])
+		if body_aabb.size.x < 0.25 or body_aabb.size.x > 0.60:
+			print("FAIL: BODY hull %.3fm wide - not a human chest (0.25-0.60m)" % body_aabb.size.x)
 			failures += 1
 
 	# --- 2. zones ride the bones
@@ -174,8 +176,10 @@ func _run() -> void:
 	# --- 3. tuning roundtrip (offset + rotation + inflate + damage + fatal)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://data/hitzones"))
 	var tuning := HitzoneTuning.new()
+	# inflate 0.12 (not 0.05): zones now ship with DEFAULT_INFLATE baked in, so
+	# the override must clear the default by a visible margin to prove it lands.
 	tuning.zones["HEAD"] = {"offset": Vector3(0, 0.2, 0), "damage": 2.5, "fatal": false,
-		"inflate": 0.05, "rotation": Vector3(0, 0, 20)}
+		"inflate": 0.12, "rotation": Vector3(0, 0, 20)}
 	var tpath: String = HitzoneBuilder.TUNING_DIR + "us_grunt_v2.tres"
 	var save_err: int = ResourceSaver.save(tuning, tpath)
 	if save_err != OK:
@@ -220,7 +224,7 @@ func _run() -> void:
 			print("FAIL: fatal=false override not applied to HEAD on rebuild")
 			failures += 1
 		if not inflate_ok:
-			print("FAIL: inflate 0.05 did not grow the HEAD hull (base %.3f)" % base_head_aabb.size.x)
+			print("FAIL: inflate 0.12 override did not grow the HEAD hull past the default margin (base %.3f)" % base_head_aabb.size.x)
 			failures += 1
 		if not rot_ok:
 			print("FAIL: rotation override not composed into the HEAD sync entry")
