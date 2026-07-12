@@ -35,7 +35,17 @@ const CHAINS: Dictionary = {
 	"death_forward": ["death_forward", "laying_breathless"],
 	"death_right": ["death_from_right", "death_forward", "laying_breathless"],
 	"flinch": ["rifle_aiming_idle"],  # no flinch clip yet
+	# Sprite renderers never got sprint/sneak/arrive art - nearest energy wins.
+	"sprint": ["run_forward", "rifle_aiming_idle"],
+	"sneak_l": ["stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
+	"sneak_r": ["stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
+	"arrive": ["rifle_aiming_idle"],
 }
+
+## Above this ground speed a man reads as SPRINTING (enemy move_speed is
+## 4.0-4.4; only boosted movement - the numbers-press rush, the rout - gets
+## here, so the sprint clip marks genuine urgency).
+const SPRINT_SPEED_MIN: float = 4.6
 
 
 ## Speed below which "running" reads as a walk. Enemy move_speed is 4.0-4.4 m/s.
@@ -54,7 +64,7 @@ static func resolve(faction: String, unit: String, weapon: String, intent: Strin
 ##  - is_surrendered / is_crippled are FLAGS, not states (enemy_base.gd:129,1347)
 ##  - DEAD needs the hit direction, which _die() must pass in
 static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
-		is_firing: bool, speed: float, lateral: float = 0.0) -> String:
+		is_firing: bool, speed: float, lateral: float = 0.0, sneaking: bool = false) -> String:
 	if is_surrendered:
 		return "surrender"
 	if is_crippled:
@@ -79,9 +89,22 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		Enums.AIState.SUPPRESSED:
 			return "cover"
 		Enums.AIState.SEEKING_COVER, Enums.AIState.FLANKING, Enums.AIState.ADVANCING:
+			# The rush reads as a RUSH: boosted movement (numbers-press bounds)
+			# plays the sprint family. A cautious unshot approach SNEAKS -
+			# lateral sneak clips by direction; no forward-sneak loop is
+			# authored yet, so slow forward reads as the walk.
+			if speed > SPRINT_SPEED_MIN:
+				return "sprint"
+			if sneaking:
+				if absf(lateral) > 0.7:
+					return "sneak_l" if lateral > 0.0 else "sneak_r"
+				if speed <= WALK_SPEED_MAX:
+					return "walk"
 			return "run"
 		Enums.AIState.RETREATING:
-			return "retreat"
+			# A ROUTED man (boosted flight) sprints for the rear; the tactical
+			# withdrawal keeps the wary backward hobble.
+			return "sprint" if speed > SPRINT_SPEED_MIN else "retreat"
 		Enums.AIState.ALERT:
 			# Walking to last_known_target_pos. (There is no INVESTIGATING state;
 			# INVESTIGATE is an AIGoal, and it maps onto AIState.ALERT.)
@@ -108,6 +131,10 @@ const MODEL_CLIP: Dictionary = {
 	"surrender": "kneeling_pointing",
 	"death_forward": "death_forward", "death_right": "death_from_right",
 	"flinch": "rifle_aiming_idle",
+	# 2026-07-12 audit wiring: the library authored these; nothing asked.
+	"sprint": "sprint_forward",
+	"sneak_l": "cover_sneak_left", "sneak_r": "cover_sneak_right",
+	"arrive": "run_to_stop",
 }
 
 

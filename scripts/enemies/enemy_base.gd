@@ -183,6 +183,8 @@ const SPIDER_TRIGGER_RANGE: float = 7.0
 ## R67: crippled fighters near a tunnel entrance slip underground and vanish
 ## rather than crawl forever.
 var _tunnel_retreat_queued: bool = false
+## Arrival-beat window: while now < this, the man is planting his feet.
+var _arrive_until_ms: float = 0.0
 ## Numbers are nerve (Caleb decree): local force ratio, refreshed each goal
 ## think, feeds retreat scoring and the rout ladder. >1 = we have the numbers.
 var _last_force_ratio: float = 1.0
@@ -394,7 +396,12 @@ func _update_sprite() -> void:
 	# T1.3: latch set at the actual shot - the old cooldown-tail window put the
 	# fire pose BEFORE the bang and flapped fire<->aim around every shot.
 	var firing: bool = now < _fired_until_ms
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral)
+	# A man moving to cover BEFORE the shooting starts creeps, he doesn't jog -
+	# the sneak set reads as caution (audit wiring: clips existed, unasked).
+	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
+		and alert_tier <= AlertTier.SUSPICIOUS
+	var prev_intent: String = _last_intent
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking)
 	# T1.4 stability filter: an intent must WIN continuously for 180ms before
 	# the clip commits - a 1-frame blip can never grab the clip and lock it
 	# (the old debounce accepted blips instantly, then refused the real intent
@@ -409,6 +416,19 @@ func _update_sprite() -> void:
 			intent = _last_intent
 	else:
 		_cand_intent = intent
+	# ARRIVAL BEAT (audit wiring): a fast man settling into a stationary pose
+	# plants his feet (run_to_stop) instead of teleporting into the idle -
+	# the skating stop was half of "they don't look like they're thinking".
+	# Display-only: the latch state above stays honest.
+	if _arrive_until_ms > now:
+		if intent == "fire" or intent.begins_with("death"):
+			_arrive_until_ms = 0.0  # shooting/dying outranks footwork
+		else:
+			intent = "arrive"
+	elif (prev_intent == "run" or prev_intent == "sprint") \
+			and (intent == "aim" or intent == "idle" or intent == "cover"):
+		_arrive_until_ms = now + 450.0
+		intent = "arrive"
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
 	if sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
@@ -1381,8 +1401,10 @@ func _execute_advancing(delta: float) -> void:
 			_bound_point = Vector3.ZERO
 			_bound_pause = randf_range(0.8, 1.6)
 			return
-		# Sprint the rush: full speed, honest fire penalty on the move.
-		_move_toward(_bound_point, delta, 1.0)
+		# Sprint the rush: full speed, honest fire penalty on the move. With
+		# the numbers the rush CHARGES (1.3x crosses the sprint-clip band -
+		# seven men bounding at a lone shooter should look like it).
+		_move_toward(_bound_point, delta, 1.3 if _last_force_ratio >= 2.0 else 1.0)
 		accuracy_modifier = base_accuracy_modifier * 1.6
 		if has_line_of_sight and can_fire and has_reacted and burst_count < 2:
 			_fire_at_target()
@@ -1456,8 +1478,12 @@ func _execute_retreating(delta: float) -> void:
 		else:
 			var t: Vector3 = n.cross(Vector3.UP).normalized()
 			_retreat_bearing = t if t.dot(away_from_target) >= 0.0 else -t
-	velocity.x = _retreat_bearing.x * move_speed
-	velocity.z = _retreat_bearing.z * move_speed
+	# A ROUTED man (dropped the fight, no target) FLEES - 1.25x crosses the
+	# sprint band so the break reads as a break. Tactical withdrawal (still
+	# has a target) keeps the wary hobble pace.
+	var flee_speed: float = move_speed * (1.25 if target == null else 1.0)
+	velocity.x = _retreat_bearing.x * flee_speed
+	velocity.z = _retreat_bearing.z * flee_speed
 
 
 func _change_state(new_state: Enums.AIState) -> void:
