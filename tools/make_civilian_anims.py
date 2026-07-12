@@ -40,7 +40,7 @@ HARD RULE: NEVER GUESS IN BLENDER. Two things here are measured, not assumed:
 ------------------------------------------------------------------------------
 """
 import bpy, math, os
-from mathutils import Vector, Quaternion, Euler
+from mathutils import Vector, Quaternion, Euler, Matrix
 
 SRC = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_farmer_m.blend"
 OUT = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
@@ -392,6 +392,39 @@ def measure(rig, act):
                 lh=W(rig, "LeftHand").z, rh=W(rig, "RightHand").z)
 
 
+LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
+BENCH_PROPS = {"rice_sickle": "RightHand", "carry_pole": "Spine2",
+               "rice_basket_back": "Spine2", "rice_bundle": "LeftHand"}
+
+
+def add_bench_props(rig):
+    """Hang every prop on the reference body, HIDDEN.
+
+    Caleb has to judge civ_farm_harvest against an actual sickle and
+    civ_carry_pole_walk against an actual pole - a hand closing on thin air tells
+    you nothing about whether the grip is right. Unhide the one you are working on."""
+    n = 0
+    for name, bone in BENCH_PROPS.items():
+        before = set(bpy.data.objects)
+        with bpy.data.libraries.load(LOCKER, link=False) as (src, dst):
+            dst.objects = [o for o in src.objects if o == name]
+        for o in dst.objects:
+            if o is None:
+                continue
+            bpy.context.scene.collection.objects.link(o)
+            o.parent = rig
+            o.parent_type = 'BONE'
+            o.parent_bone = M + bone
+            o.matrix_parent_inverse = Matrix.Identity(4)
+            bpy.context.view_layer.update()
+            o.matrix_world = Matrix.Identity(4)   # locker verts are world/rest space
+            bpy.context.view_layer.update()
+            o.hide_set(True)
+            o.hide_render = True
+            n += 1
+    return n
+
+
 def main():
     bpy.ops.wm.open_mainfile(filepath=SRC)
     rig = bpy.data.objects[RIG]
@@ -408,9 +441,11 @@ def main():
         print("%-21s %-16s %5d %6.0fd %6.2f %6.3f %6.2f %6.1fcm"
               % (name, src, int(act.frame_range[1]), m["pitch"], m["hip"], m["toe"],
                  m["lh"], err * 100.0))
+    np = add_bench_props(rig)
     rig.animation_data.action = None
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=OUT)
+    print("(%d props hung on the bench body, hidden - unhide the one you are judging)" % np)
     print("\n%d clips -> %s" % (len(made), OUT))
     print("torso: + = bent forward.  toe z should be ~0.00 on the grounded clips.")
     print("IK err = how far the solver missed the hand target by.")
