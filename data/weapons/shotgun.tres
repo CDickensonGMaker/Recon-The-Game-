@@ -20,6 +20,7 @@ ads_spread_mult = 0.5
 recoil_vertical = 3.4
 recoil_horizontal = 0.9
 ads_fov = 65.0
+viewmodel_fov = 58.0
 effective_range = 25.0
 max_range = 60.0
 min_damage_mult = 0.3

@@ -909,6 +909,26 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 		if scene:
 			weapon_model = scene.instantiate()
 			add_child(weapon_model)
+			# THE VIEWMODEL LENS, without a second camera (Caleb: "put the gun
+			# closer to the screen, like HL/CS").
+			#
+			# Those games render the gun with its own NARROWER camera (CS2: 68 vs
+			# a 90 world). We get the same apparent size with pure maths: an
+			# object seen at fov_v instead of fov_w looks
+			#     tan(fov_w/2) / tan(fov_v/2)
+			# times bigger. At our 75 world and a 60 gun lens that is x1.33 - so
+			# scaling the model by that ratio in the SHARED camera reproduces the
+			# framing exactly, and the muzzle point rides along because it is a
+			# child of the model.
+			#
+			# Why not the real second camera: it needs a transparent SubViewport,
+			# and the project's default environment paints an opaque backdrop into
+			# it - the first attempt framed the rifle perfectly on a pitch-black
+			# world. That path is beaded; this one ships today and is honest about
+			# what it is: a very close approximation (the only difference is how
+			# much the near edge flares, and at 20cm that is invisible).
+			var lens: float = _lens_ratio(weapon_data)
+			weapon_model.scale *= lens
 
 			# Set initial position and rotation from weapon data
 			weapon_model.position = weapon_data.hip_position
@@ -942,6 +962,16 @@ func get_reload_progress() -> float:
 	if not is_reloading:
 		return 0.0
 	return 1.0 - (reload_timer / current_weapon.reload_time)
+
+
+## How much bigger the gun reads when shot through its own (narrower) lens
+## instead of the world's. 1.0 = no change; >1 = closer to the screen.
+static func _lens_ratio(wd: WeaponData) -> float:
+	if wd == null or wd.viewmodel_fov <= 1.0:
+		return 1.0
+	var world_half: float = tan(deg_to_rad(BASE_FOV) * 0.5)
+	var vm_half: float = tan(deg_to_rad(wd.viewmodel_fov) * 0.5)
+	return clampf(world_half / maxf(0.01, vm_half), 0.6, 2.2)
 
 
 ## Get the muzzle position for tracer spawning

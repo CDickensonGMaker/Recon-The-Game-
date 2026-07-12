@@ -32,6 +32,17 @@ extends Resource
 @export var recoil_vertical: float = 2.5  ## Degrees kick up
 @export var recoil_horizontal: float = 0.5  ## Degrees random horizontal
 
+## THE VIEWMODEL LENS (Caleb: "guns look small - other games put them way closer
+## to the screen, you see little of the arms"). That look is not a POSITION, it
+## is a FOCAL LENGTH: the gun is rendered by its own camera with a NARROWER field
+## of view than the world. A wide world lens (75) makes anything near it look
+## small and far; a 60 lens magnifies the receiver toward the screen and crops
+## the arms out of frame, which is exactly the Half-Life / Counter-Strike read.
+## CS2 ships 68 (54-68 range) against a 90 world; CoD-likes sit near 65.
+## LOWER = bigger, closer, more in-your-face. Per weapon, because a pistol wants
+## a different framing than an M60.
+@export_range(35.0, 90.0) var viewmodel_fov: float = 60.0
+
 @export_group("ADS Properties")
 @export var ads_fov: float = 55.0  ## FOV when aiming down sights
 @export var ads_move_mult: float = 0.6  ## Movement speed multiplier when ADS

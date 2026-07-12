@@ -693,11 +693,17 @@ func _on_mode_toggle() -> void:
 
 ## Hip = game BASE_FOV. ADS = the weapon's real ads_fov, exactly like
 ## weapon_holder.gd _update_ads - tuning ADS at 75 was silently wrong.
+## WYSIWYG: the bench must show the gun through the SAME lens the game renders it
+## with, or every offset you dial here is dialled against a different focal
+## length. In game the viewmodel gets its own camera at WeaponData.viewmodel_fov
+## (default 60) - so the hip preview uses that, not the world's 75.
 func _update_camera_fov() -> void:
 	if not camera:
 		return
 	if preview_mode == 1 and current_weapon and current_weapon.ads_fov > 1.0:
 		camera.fov = current_weapon.ads_fov
+	elif current_weapon and current_weapon.viewmodel_fov > 1.0:
+		camera.fov = current_weapon.viewmodel_fov
 	else:
 		camera.fov = BASE_FOV
 

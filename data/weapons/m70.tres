@@ -17,6 +17,7 @@ ads_spread_mult = 0.08
 recoil_vertical = 8.0
 recoil_horizontal = 0.5
 ads_fov = 40.0
+viewmodel_fov = 62.0
 ads_move_mult = 0.5
 effective_range = 180.0
 max_range = 400.0
