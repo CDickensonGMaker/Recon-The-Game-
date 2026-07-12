@@ -158,8 +158,12 @@ def rot_transplant(t):
     return {M + "Spine": (rad(40 + 4 * dip), 0, 0),
             M + "Spine1": (rad(34 + 3 * dip), 0, 0),
             M + "Spine2": (rad(20), 0, 0),
-            M + "Neck": (rad(-8), 0, 0),
-            M + "Head": (rad(-10), 0, 0),
+            # MEASURED: with the spine at ~94deg the skull came out at 99-106deg
+            # from vertical - bent PAST face-down. He has to LIFT his head to look
+            # at the water, and that is also what stops the hat tipping off his
+            # face. Neck and head lift hard against the spine.
+            M + "Neck": (rad(-30), 0, 0),
+            M + "Head": (rad(-26), 0, 0),
             M + "LeftUpLeg": (rad(26), 0, 0),
             M + "RightUpLeg": (rad(26), 0, 0),
             M + "LeftLeg": (rad(-36), 0, 0),
@@ -181,8 +185,8 @@ def rot_harvest(t):
     return {M + "Spine": (rad(34), 0, rad(-7 * sweep)),
             M + "Spine1": (rad(28), 0, 0),
             M + "Spine2": (rad(16), 0, 0),
-            M + "Neck": (rad(-10), 0, 0),
-            M + "Head": (rad(-12), 0, 0),
+            M + "Neck": (rad(-26), 0, 0),
+            M + "Head": (rad(-24), 0, 0),
             M + "LeftUpLeg": (rad(22), 0, 0),
             M + "RightUpLeg": (rad(22), 0, 0),
             M + "LeftLeg": (rad(-32), 0, 0),
@@ -339,6 +343,22 @@ def build(rig, name, src_name, rot_fn, hands_fn, n, ground):
                 p, e = solve_arm(rig, side, tg[side])
                 worst_err = max(worst_err, e)
                 arms[side] = p
+                # PUT THE BONES BACK INTO QUATERNION MODE AND BAKE THE SOLVE IN.
+                # solve_arm works in euler, and a pose bone in EULER mode IGNORES
+                # its quaternion channels entirely - so every quaternion key I
+                # wrote for the four arm bones was dead on arrival and the arms
+                # were never animated at all. They just sat in whatever leftover
+                # euler the solver last tried. Caleb saw it instantly: hands at
+                # hip height, right hand behind his back.
+                a = rig.pose.bones[M + side + "Arm"]
+                fb = rig.pose.bones[M + side + "ForeArm"]
+                qa = Euler((p[0], p[3], p[1]), 'XYZ').to_quaternion()
+                qf = Euler((p[2], 0.0, 0.0), 'XYZ').to_quaternion()
+                a.rotation_mode = 'QUATERNION'
+                a.rotation_quaternion = qa
+                fb.rotation_mode = 'QUATERNION'
+                fb.rotation_quaternion = qf
+            bpy.context.view_layer.update()
 
         # 3. feet on the deck, by measurement, not by hand-tuned hip drops
         dz = 0.0
@@ -351,13 +371,9 @@ def build(rig, name, src_name, rot_fn, hands_fn, n, ground):
         f = i + 1
         for pb in rig.pose.bones:
             nm = pb.name
-            if nm in (M + "LeftArm", M + "RightArm", M + "LeftForeArm", M + "RightForeArm") and arms:
-                side = "Left" if "Left" in nm else "Right"
-                p = arms[side]
-                q = (Euler((p[0], p[3], p[1]), 'XYZ').to_quaternion() if "ForeArm" not in nm
-                     else Euler((p[2], 0.0, 0.0), 'XYZ').to_quaternion())
-            else:
-                q = pb.rotation_quaternion.copy()
+            # every bone is back in QUATERNION mode now, arms included, so there
+            # is no special case: read the pose and key it.
+            q = pb.rotation_quaternion.copy()
             path = 'pose.bones["%s"].rotation_quaternion' % nm
             for idx, val in enumerate((q.w, q.x, q.y, q.z)):
                 fc = cbag.fcurves.find(path, index=idx) or cbag.fcurves.new(path, index=idx)
@@ -381,7 +397,12 @@ def measure(rig, act):
     if len(act.slots):
         rig.animation_data.action_slot = act.slots[0]
     f0, f1 = int(act.frame_range[0]), int(act.frame_range[1])
-    bpy.context.scene.frame_set((f0 + f1) // 2)
+    mid = (f0 + f1) // 2
+    # step OFF the frame first: frame_set() to the frame the scene is already on
+    # is a no-op, the depsgraph never re-evaluates, and this read the PREVIOUS
+    # clip's pose. The reported table was lying.
+    bpy.context.scene.frame_set(f1 if mid != f1 else f0)
+    bpy.context.scene.frame_set(mid)
     bpy.context.view_layer.update()
     hips, neck = W(rig, "Hips"), W(rig, "Neck")
     sp = neck - hips
