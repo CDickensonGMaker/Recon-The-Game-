@@ -27,3 +27,10 @@ assets/audio/vo/
 # 55MB YouTube-sourced dev ambience - license-unclear, replace for release (bead xu94)
 assets/audio/ambience/jungle_day.mp3
 .beads/.~*
+
+# Derived character blends - regenerated from the tracked truth source, ~90 MB each.
+# us_base_v3.blend is a pure function of us_grunt_v2.blend + tools/make_base_v3.py.
+# Committing it would repeat the 165 MB blob mistake (RECONgame-t04t).
+art_source/characters/base_psx/us_base_v3.blend
+art_source/characters/lineup_review.blend
+art_source/characters/variants/

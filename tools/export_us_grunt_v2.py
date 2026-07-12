@@ -244,14 +244,23 @@ def body_bbox():
     dg = bpy.context.evaluated_depsgraph_get()
     mn = Vector((1e9,) * 3)
     mx = Vector((-1e9,) * 3)
-    o = bpy.data.objects["us_grunt_joined"]
-    ev = o.evaluated_get(dg)
-    me = ev.to_mesh()
-    for v in me.vertices:
-        w = ev.matrix_world @ v.co
-        mn = Vector(map(min, mn, w))
-        mx = Vector(map(max, mx, w))
-    ev.to_mesh_clear()
+    # The gear must be IN the box. TARGET_HEIGHT is measured to the HELMET TOP,
+    # and on the v3 base the helmet is no longer welded into us_grunt_joined - it
+    # is a bone-parented `helmet_shell_worn`. Measure the body alone and the
+    # normalizer puts his BARE SKULL at 1.7132 m, quietly growing every grunt by
+    # the height of a helmet. Anything named *_worn is part of the silhouette for
+    # scale, even though it is deliberately NOT part of the hurtbox.
+    parts = [bpy.data.objects["us_grunt_joined"]]
+    parts += [o for o in bpy.data.objects
+              if o.type == 'MESH' and o.name.endswith("_worn")]
+    for o in parts:
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        for v in me.vertices:
+            w = ev.matrix_world @ v.co
+            mn = Vector(map(min, mn, w))
+            mx = Vector(map(max, mx, w))
+        ev.to_mesh_clear()
     return mn, mx
 
 # measure in rest pose so animation state doesn't skew the bbox
