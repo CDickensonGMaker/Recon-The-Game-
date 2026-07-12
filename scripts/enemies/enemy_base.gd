@@ -2069,7 +2069,14 @@ func _become_downed() -> void:
 		# left him standing in the open at 1 HP - reading as a broken corpse.
 		# Fallback ladder: breathless clip -> freeze at a death clip's end (a
 		# lying pose) -> gentle ragdoll. Gravity is the last word.
-		if not ma.play("laying_breathless", true):
+		if ma.play("laying_breathless", true):
+			# The clip lies him down 1m OFF THE FLOOR (probe_lying_height -
+			# Blender re-export pending). Pin the pose to the ground once the
+			# skeleton lands it.
+			get_tree().create_timer(0.15).timeout.connect(func() -> void:
+				if is_instance_valid(ma) and is_downed:
+					ma.ground_current_pose())
+		else:
 			var posed: bool = false
 			for c in ma.clip_names():
 				if String(c).begins_with("death"):

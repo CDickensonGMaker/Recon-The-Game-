@@ -392,6 +392,22 @@ func _release_ragdoll_slot() -> void:
 		_active_ragdolls = maxi(0, _active_ragdolls - 1)
 
 
+## Pin the CURRENT pose to the ground: shift the visual down so the lowest
+## bone touches the body's floor plane. For clips authored off the floor -
+## laying_breathless lies the man 1.02m in the air (probe_lying_height) -
+## until the Blender re-export. Elevation-safe: measures against this node's
+## own origin (the feet plane), not world zero.
+func ground_current_pose() -> void:
+	if _skel == null or _inst == null:
+		return
+	var base: float = global_position.y
+	var lo: float = INF
+	for bi in range(_skel.get_bone_count()):
+		lo = minf(lo, (_skel.global_transform * _skel.get_bone_global_pose(bi).origin).y - base)
+	if lo < INF and absf(lo) > 0.05:
+		_inst.position.y -= lo - 0.02
+
+
 ## Any death clip this rig can actually play (shared library included) - the
 ## last-resort death performance when the unit's mapped clip name is missing.
 func play_any_death() -> bool:

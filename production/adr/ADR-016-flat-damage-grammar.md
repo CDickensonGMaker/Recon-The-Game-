@@ -144,6 +144,17 @@ the execution-range devastation survives the slug's retirement, and the cone res
 attrition the slug never had. Probe updated (EXPECTED 20; the one-shot-player exemption now names
 buckshot aggregation instead of the slug).
 
+**Devastator retune (same day, bench-tested by the Summoner):** the first buckshot pass whiffed —
+the cone was implemented as a per-axis half-angle (an 11°+ pattern, three shells at 14m) and
+uniform-random pellets made it a slot machine (a jackpot one-shot at 30m). Fixes + retune, all of
+record: cone semantics corrected (`pellet_spread_deg` = full angle), **deterministic star pattern**
+(1 center / 3 at 40% / 4 at the edge, ~0.3° jitter — same aim, same cluster), **base_damage 20 →
+35** per pellet, pellets **bucket per region** and feed the gore channel (a leg-full of buck pops
+the leg), pellets **penetrate one body** at ×0.65 into the man behind (*"could even kill two
+people at the same time and totally gib them apart"* — walls still stop lead), and single
+body-zone kills ≥ 90 raw run the blast-butchery doctrine (no rifle chest hit reaches it). Probe
+EXPECTED = 35.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015

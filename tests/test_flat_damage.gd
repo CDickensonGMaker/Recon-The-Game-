@@ -19,7 +19,7 @@ const EXPECTED := {
 	"ak47": 22, "rpd": 22,
 	"ppsh41": 17, "m1911": 11, "mosin": 32, "m70": 32,
 	"m79": 44, "m26_grenade": 55, "m72_law": 72, "rpg2": 62, "rpg7": 73,
-	"shotgun": 20,  # BUCKSHOT restored (Amendment E) - 8 pellets x 20 per shell
+	"shotgun": 35,  # BUCKSHOT (Amendment E + Summoner devastator retune) - 8 x 35
 }
 ## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016;
 ## car15/sks/thompson by Amendment C (no FP arms = not a gun in this game;

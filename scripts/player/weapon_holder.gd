@@ -526,23 +526,46 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 			# channel knows WHICH leg.
 			var key := "%d|%s" % [target.get_instance_id(), region if region != "" else zone]
 			if not buckets.has(key):
-				buckets[key] = [target, mult, zone, 0, 0.0, region]
+				buckets[key] = [target, mult, zone, 0.0, 0.0, region]
 			var b: Array = buckets[key]
-			b[3] = int(b[3]) + 1
+			b[3] = float(b[3]) + 1.0
 			b[4] = float(b[4]) + origin.distance_to(r.position)
 			if fx_budget > 0:
 				GunFX.blood(get_tree().current_scene, r.position, r.normal, dir, target)
 				fx_budget -= 1
+			# BUCK PENETRATES MEN (Summoner: "could even kill two people at
+			# the same time and totally gib them apart"): the pellet carries
+			# through the first body at 65% into whoever stands behind. One
+			# body deep; walls still stop lead.
+			var q2 := PhysicsRayQueryParameters3D.create(
+				r.position + dir * 0.35, origin + dir * current_weapon.max_range, 1 | 64)
+			q2.collide_with_areas = true
+			q2.exclude = _self_exclusions()
+			var r2 := space_state.intersect_ray(q2)
+			if r2 and r2.collider is Hitzone:
+				var hz2 := r2.collider as Hitzone
+				var t2: Node = hz2.owner_entity
+				if t2 != null and is_instance_valid(t2) and t2 != target and t2.has_method("take_damage"):
+					var reg2: String = str(hz2.get_meta("region", ""))
+					var key2 := "%d|%s" % [t2.get_instance_id(), reg2 if reg2 != "" else hz2.get_zone_name()]
+					if not buckets.has(key2):
+						buckets[key2] = [t2, hz2.get_damage_multiplier(), hz2.get_zone_name(), 0.0, 0.0, reg2]
+					var b2: Array = buckets[key2]
+					b2[3] = float(b2[3]) + 0.65
+					b2[4] = float(b2[4]) + origin.distance_to(r2.position)
+					if fx_budget > 0:
+						GunFX.blood(get_tree().current_scene, r2.position, r2.normal, dir, t2)
+						fx_budget -= 1
 		elif fx_budget > 0:
 			GunFX.impact(get_tree().current_scene, r.position, r.normal, _surface_is_hard(col))
 			fx_budget -= 1
 	for key: String in buckets.keys():
 		var b: Array = buckets[key]
 		var target: Node = b[0]
-		var n: int = int(b[3])
-		var avg_dist: float = float(b[4]) / maxf(1.0, float(n))
+		var n: float = float(b[3])  # penetration hits weigh 0.65
+		var avg_dist: float = float(b[4]) / maxf(1.0, ceilf(n))
 		var falloff: float = current_weapon.damage_multiplier_at(avg_dist)
-		var final_damage: int = maxi(1, int(float(pellet_dmg * n) * falloff * float(b[1])))
+		var final_damage: int = maxi(1, int(float(pellet_dmg) * n * falloff * float(b[1])))
 		var zone: String = str(b[2])
 		var region: String = str(b[5])
 		var travel: float = avg_dist / maxf(1.0, current_weapon.projectile_speed)
