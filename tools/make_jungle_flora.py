@@ -48,6 +48,15 @@ _mats = {}
 _atlas = [None]
 
 
+def _srgb(c):
+    """Linear -> sRGB encode. The PALETTE is authored in LINEAR (same numbers a
+    Principled Base Color takes), but the atlas is an sRGB image and BOTH
+    Blender and Godot (`source_color` in the sway shader) will decode it back to
+    linear when they sample it. Store the raw linear values and that decode
+    darkens everything a second time - the whole jungle renders near-black."""
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
 def palette_image():
     """One texel per palette colour. Every plant then needs exactly ONE
     material and ONE surface -> one draw call per patch instead of eight.
@@ -56,10 +65,11 @@ def palette_image():
     if _atlas[0] is not None:
         return _atlas[0]
     img = bpy.data.images.new("jungle_palette", len(PAL_ORDER), 1, alpha=True)
+    img.colorspace_settings.name = 'sRGB'
     px = []
     for n in PAL_ORDER:
         r, g, b = PALETTE[n]
-        px += [r, g, b, 1.0]
+        px += [_srgb(r), _srgb(g), _srgb(b), 1.0]
     img.pixels = px
     img.pack()
     _atlas[0] = img
