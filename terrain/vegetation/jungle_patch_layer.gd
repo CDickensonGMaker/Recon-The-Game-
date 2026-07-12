@@ -32,18 +32,26 @@ const T_HEAVY_JUNGLE := 5
 
 ## Which density classes may serve each terrain type (weighted by repetition).
 const TYPE_DENSITY := {
+	T_RICE_PADDY: ["paddy"],
 	T_GRASSLAND: ["open", "open", "light"],
 	T_LIGHT_JUNGLE: ["light", "light", "medium"],
 	T_MEDIUM_JUNGLE: ["medium", "medium", "light", "dense"],
 	T_HEAVY_JUNGLE: ["dense", "dense", "wall", "medium"],
 }
 
+## Jitter each tile off its grid node and spin it freely. The patches now
+## OVERHANG their tile (plants sampled past the edge), so they interlock instead
+## of sitting in their own square - which is what made the first pass read as a
+## grid of blobs. Snapping to 90 degrees would still repeat the overhang pattern,
+## so we take any angle.
+@export var tile_jitter: float = 2.2
+
 @export var tile_meters: float = 12.0
 @export var enabled: bool = true
 ## Skip patches on ground steeper than this (they are modelled flat-footed).
 @export var max_slope_degrees: float = 26.0
 ## Chance a legal cell actually gets a patch. < 1.0 opens the jungle up.
-@export var fill_chance: float = 0.85
+@export var fill_chance: float = 0.78
 @export var wind_strength: float = 0.30
 @export var flutter_strength: float = 0.07
 
@@ -56,9 +64,9 @@ const TYPE_DENSITY := {
 ## Raise view_distance for beefy GPUs; drop it (or fill_chance) for weak ones.
 @export var subcell_meters: float = 36.0
 ## Full-detail patches (grass, fern, bush, moss + structure) out to here...
-@export var near_distance: float = 52.0
+@export var near_distance: float = 46.0
 ## ...then the structure-only `_far` twin (trees, bamboo, vines) out to here.
-@export var view_distance: float = 140.0
+@export var view_distance: float = 128.0
 @export var view_fade_margin: float = 14.0
 
 var _by_density: Dictionary = {}          ## density -> Array[String] names

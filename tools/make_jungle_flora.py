@@ -41,6 +41,11 @@ PALETTE = {
     "grass_dry":   (0.190, 0.180, 0.085),   # elephant grass goes strawy
     "rot_wood":    (0.075, 0.062, 0.045),
     "moss":        (0.055, 0.105, 0.038),   # wet ground moss / litter
+    "rice_green":  (0.165, 0.255, 0.070),   # young rice - the bright acid green
+    "rice_ripe":   (0.255, 0.235, 0.090),   # ripening rice, strawy
+    "paddy_water": (0.150, 0.205, 0.185),   # murky, but it reflects the sky
+    "paddy_mud":   (0.185, 0.150, 0.105),   # sunlit bund earth
+    "liana":       (0.070, 0.058, 0.040),   # woody climbing vine
 }
 PAL_ORDER = list(PALETTE.keys())
 PAL_INDEX = {n: i for i, n in enumerate(PAL_ORDER)}
@@ -167,6 +172,14 @@ class Plant:
             #   COLOR.r = master sway  (0 at the roots -> 1 at the tips)
             #   COLOR.g = flutter mask (frond TIPS / vine ends only, fast freq)
             # G must fall off far harder than R or whole trunks shimmy.
+            #
+            # WARNING - COLOR_0 IS NOT A COLOUR HERE. The glTF spec says COLOR_0
+            # multiplies base colour, so any spec-abiding viewer (Blender's
+            # importer included) renders this jungle with black roots and no
+            # blue channel at all. Godot does NOT: the sway shader reads COLOR
+            # only in vertex() and sets ALBEDO straight from the palette atlas.
+            # If you preview these GLBs in Blender, bypass the vertex-colour
+            # multiply on the material or you will "fix" a bug that isn't there.
             col.data[i].color = (s, s ** 3.0, 0.0, 1.0)
         me.color_attributes.active_color = col
         ob = bpy.data.objects.new(self.name, me)
@@ -564,6 +577,110 @@ def hanging_vine(rng, length=2.8, leaves=18):
     return p
 
 
+def tall_grass(rng, height=1.3, blades=22):
+    """Upright field grass. Distinct from elephant_grass (which arches and
+    slashes) - this stands straighter and packs denser. Comes in ankle, knee
+    and chest heights so a field can grade."""
+    p = Plant("tall_grass")
+    for i in range(blades):
+        yaw = rng.uniform(0, math.tau)
+        h = height * rng.uniform(0.65, 1.2)
+        v, f, s = blade(h, height * 0.028, segs=4,
+                        curve=rng.uniform(0.25, 0.55),      # stands up
+                        twist=rng.uniform(-0.7, 0.7))
+        tilt = math.radians(rng.uniform(2, 20))
+        o = (rng.uniform(-0.10, 0.10), rng.uniform(-0.10, 0.10), 0.0)
+        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f,
+              "grass_dry" if i % 5 == 0 else "grass_blade", s, detail=True)
+    return p
+
+
+def rice_clump(rng, height=0.75, stalks=14, ripe=False):
+    """A hill of rice. Farmers transplant in clumps, so a paddy reads as rows
+    of little fountains, not a lawn."""
+    p = Plant("rice")
+    col = "rice_ripe" if ripe else "rice_green"
+    for i in range(stalks):
+        yaw = rng.uniform(0, math.tau)
+        h = height * rng.uniform(0.75, 1.15)
+        v, f, s = blade(h, height * 0.035, segs=3,
+                        curve=rng.uniform(0.35, 0.7), twist=rng.uniform(-0.4, 0.4))
+        tilt = math.radians(rng.uniform(6, 30))
+        o = (rng.uniform(-0.06, 0.06), rng.uniform(-0.06, 0.06), 0.0)
+        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f, col, s, detail=True)
+    return p
+
+
+def liana(rng, length=6.0, thick=0.075, leaves=10):
+    """A WOODY climbing vine - 'thick as a thigh', looping between trees like a
+    living cable. Research says lianas are up to 40% of canopy leaf area and are
+    what makes the mid-levels read as tangled. My old vines were string."""
+    p = Plant("liana")
+    segs = max(8, int(length * 2))
+    verts, faces, sway = [], [], []
+    sides = 4
+    for i in range(segs + 1):
+        t = i / segs
+        # a slack, wandering hang
+        x = math.sin(t * 5.0 + 1.0) * 0.35 * length * 0.18
+        y = math.cos(t * 3.7) * 0.28 * length * 0.14
+        z = -length * t
+        r = thick * (1.0 - 0.35 * t)
+        for k in range(sides):
+            a = math.tau * k / sides
+            verts.append((x + r * math.cos(a), y + r * math.sin(a), z))
+            sway.append(t * 0.8)
+        if i:
+            b0 = (i - 1) * sides
+            b1 = i * sides
+            for k in range(sides):
+                kn = (k + 1) % sides
+                faces.append([b0 + k, b0 + kn, b1 + kn, b1 + k])
+    p.add(verts, faces, "liana", sway)
+    for _ in range(leaves):
+        t = rng.uniform(0.15, 1.0)
+        lx = math.sin(t * 5.0 + 1.0) * 0.35 * length * 0.18
+        ly = math.cos(t * 3.7) * 0.28 * length * 0.14
+        lv, lf, ls = paddle(rng.uniform(0.16, 0.28), 0.10, segs=2, curve=0.5)
+        p.add(place(lv, yaw=rng.uniform(0, math.tau), tilt=rng.uniform(1.3, 2.5),
+                    origin=(lx, ly, -length * t)), lf,
+              "leaf_mid" if _ % 2 else "leaf_deep", [t] * len(ls), detail=True)
+    return p
+
+
+def paddy_dike(rng, length=11.0, width=0.9, height=0.34):
+    """Earth bund. A paddy is DEFINED by these - they hold the 5-10cm of water
+    in and double as the only footpath through a flooded field."""
+    p = Plant("dike")
+    segs = 8
+    verts, faces, sway = [], [], []
+    for i in range(segs + 1):
+        t = i / segs
+        x = length * (t - 0.5)
+        wob = math.sin(t * 4.0) * 0.10          # hand-built, never straight
+        h = height * rng.uniform(0.85, 1.1)
+        w = width * 0.5
+        verts += [(x, wob - w, 0.0), (x, wob - w * 0.42, h),
+                  (x, wob + w * 0.42, h), (x, wob + w, 0.0)]
+        sway += [0.0, 0.0, 0.0, 0.0]
+        if i:
+            b = (i - 1) * 4
+            for k in range(3):
+                faces.append([b + k, b + k + 1, b + 4 + k + 1, b + 4 + k])
+    p.add(verts, faces, "paddy_mud", sway)
+    return p
+
+
+def paddy_water(rng, size=11.0):
+    """The flooded pan itself - a shallow sheet a few cm above the mud."""
+    p = Plant("water")
+    h = 0.055
+    r = size * 0.5
+    p.add([(-r, -r, h), (r, -r, h), (r, r, h), (-r, r, h)],
+          [[0, 1, 2, 3]], "paddy_water", [0.0] * 4)
+    return p
+
+
 # --------------------------------------------------------------------- main
 SPECIES = [
     # (name, builder, base kwargs, [(suffix, scale)])
@@ -579,6 +696,9 @@ SPECIES = [
     ("vine",           hanging_vine,   dict(length=2.8),   [("_a", 0.8), ("_b", 1.25)]),
     ("trunk_vine",     trunk_vine,     dict(height=4.0),   [("_a", 0.8), ("_b", 1.3)]),
     ("moss",           moss_patch,     dict(size=1.1),     [("_a", 0.8), ("_b", 1.3)]),
+    ("tall_grass",     tall_grass,     dict(height=1.3),   [("_a", 0.68), ("_b", 1.0), ("_c", 1.38)]),
+    ("rice",           rice_clump,     dict(height=0.75),  [("_a", 0.85), ("_b", 1.15)]),
+    ("liana",          liana,          dict(length=6.0),   [("_a", 0.8), ("_b", 1.25)]),
 ]
 
 
