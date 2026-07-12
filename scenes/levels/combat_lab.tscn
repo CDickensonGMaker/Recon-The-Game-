@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://b7rkonbeft8xo"]
-
-[ext_resource type="Script" path="res://scripts/levels/combat_lab.gd" id="1_lab"]
-
-[node name="CombatLab" type="Node3D"]
-script = ExtResource("1_lab")
