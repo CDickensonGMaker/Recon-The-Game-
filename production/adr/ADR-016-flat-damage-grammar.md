@@ -134,6 +134,16 @@ to MATTER more.
 - Guards updated in lockstep: `test_flat_damage` (ZONE_MULTS record + a new drift assertion tying
   `Hitzone.MULTIPLIERS` to this table) and `test_hitzones` (BODY law ×2.5).
 
+## Amendment E (2026-07-11, Summoner-decreed): the Ithaca is buckshot again
+Decree: *"we should make the shotgun a pellet spread again like it originally was."* The slug
+(Amendment A final form) is retired from the Ithaca; the bench-tested buckshot retune returns as the
+values of record: **pellet_count 8 × base_damage 20** per shell, 5.5° cone, full damage to 70m,
+×0.45 at 110m. Per-pellet determinism and the per-target aggregation grammar are unchanged
+(Amendment A machinery). With Amendment D zones, a full point-blank torso pattern is 8×20×2.5 —
+the execution-range devastation survives the slug's retirement, and the cone restores range
+attrition the slug never had. Probe updated (EXPECTED 20; the one-shot-player exemption now names
+buckshot aggregation instead of the slug).
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015
