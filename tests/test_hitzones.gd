@@ -212,7 +212,7 @@ func _run() -> void:
 			elif c is Area3D and str(c.get_meta("region", "")) == "BODY":
 				var bzc := c as Hitzone
 				if bzc != null:
-					body_law_ok = absf(bzc.get_damage_multiplier() - 2.0) < 0.001 and not bzc.is_fatal_zone()
+					body_law_ok = absf(bzc.get_damage_multiplier() - 2.5) < 0.001 and not bzc.is_fatal_zone()
 		if not dmg_ok:
 			print("FAIL: damage override 2.5 not applied to HEAD on rebuild")
 			failures += 1
@@ -226,7 +226,7 @@ func _run() -> void:
 			print("FAIL: rotation override not composed into the HEAD sync entry")
 			failures += 1
 		if not body_law_ok:
-			print("FAIL: untouched BODY zone drifted from ADR-016 law (x2.0, non-fatal)")
+			print("FAIL: untouched BODY zone drifted from ADR-016 law (x2.5, non-fatal)")
 			failures += 1
 		if dmg_ok and fatal_ok and inflate_ok and rot_ok and body_law_ok:
 			print("  tuning roundtrip OK (HEAD offset/rot/inflate/dmg x2.5/non-fatal; BODY kept law)")

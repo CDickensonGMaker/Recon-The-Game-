@@ -174,7 +174,7 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
   `get_damage()` is pure; all variance comes from range falloff, hitzones, and the situation sim.
 - Values of record (= retired RECON dice averages): M16/CAR-15/M60 28 · AK/SKS/RPD 22 ·
   PPSh/Thompson 17 · Mosin 32 · M1911 11 · M79 44 · M26 55 · LAW 72 · RPG-2 62 · RPG-7 73.
-- Zone multipliers: HEAD = fatal (bypass) · TORSO ×2.0 · GUT ×1.75 + bleed · LIMB ×0.75
+- Zone multipliers (Amendment D): HEAD = fatal (bypass) · TORSO ×2.5 · GUT ×2.25 + bleed · LIMB ×1.0
 - Player HP: 100 · Enemy HP: 65–85
 - Guarded by `tests/test_flat_damage.tscn` — retuning a value without amending ADR-016 turns the suite red.
 

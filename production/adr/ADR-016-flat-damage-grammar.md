@@ -118,6 +118,22 @@ game... that's the core of truth of guns the player can use and pick up. More wi
   thompson gltf sets + superseded m1911/m16a1 single-gun scenes) — ~43MB out of the project.
 - Probe updated: `tests/test_flat_damage.tscn` roster + retired list enforce this amendment.
 
+## Amendment D (2026-07-11, Summoner-decreed): punishing zones — the multipliers rise
+Decree verbatim: *"i want to turn up all the damage for all the hitzones. weapons should be more
+punishing."* Context: the roster-wide model-scale fix landed the same day (men render true 1.71m and
+zones hug them exactly — RECONgame-jkbv), so hits now land where aimed; the Summoner wants each hit
+to MATTER more.
+- **New locational values of record:** HEAD **fatal** (unchanged; ×4.0 vs the player) ·
+  TORSO **×2.5** (was 2.0) · GUT **×2.25** + bleed (was 1.75) · LIMB **×1.0** (was 0.75).
+- **Resulting feel:** M16-class 28 → torso 70 (one round drops a 65hp Local Force man, two end
+  anyone, player dies in two); Mosin/M70 32 → torso 80 (still no one-shot on the player — the
+  Mosin-bug guard holds); limbs now deal full pass-through damage, so wounding fire attrites.
+- **Cuts both ways by design:** the player takes the same multipliers — "punishing" is the war,
+  not a player buff. Pairs with the numbers-aware morale change (same session): the wave presses
+  instead of routing, so lethality is mutual and intensity comes back.
+- Guards updated in lockstep: `test_flat_damage` (ZONE_MULTS record + a new drift assertion tying
+  `Hitzone.MULTIPLIERS` to this table) and `test_hitzones` (BODY law ×2.5).
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015

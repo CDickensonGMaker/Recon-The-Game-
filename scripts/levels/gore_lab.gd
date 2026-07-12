@@ -54,7 +54,8 @@ func _ready() -> void:
 	_spawn_wave()
 	_build_hud()
 	_build_debug_vis()
-	print("[GORE LAB] combat bench ready - 5-man squad vs 7-man waves. Frags [3], medkit [4]+[F].")
+	var side: String = "SOLO" if ALLY_COUNT == 0 else "%d-man squad" % ALLY_COUNT
+	print("[GORE LAB] combat bench ready - %s vs 7-man waves. Frags [3], medkit [4]+[F]." % side)
 
 
 func _build_range() -> void:

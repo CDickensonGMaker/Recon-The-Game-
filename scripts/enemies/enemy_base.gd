@@ -183,6 +183,12 @@ const SPIDER_TRIGGER_RANGE: float = 7.0
 ## R67: crippled fighters near a tunnel entrance slip underground and vanish
 ## rather than crawl forever.
 var _tunnel_retreat_queued: bool = false
+## Numbers are nerve (Caleb decree): local force ratio, refreshed each goal
+## think, feeds retreat scoring and the rout ladder. >1 = we have the numbers.
+var _last_force_ratio: float = 1.0
+## Current flight bearing while RETREATING - slides along walls instead of
+## grinding into them.
+var _retreat_bearing: Vector3 = Vector3.ZERO
 
 ## Fairness (anti-instant-death): the first round fired at a newly acquired
 ## target is a deliberate near-miss - the CRACK is your warning. Close-range
@@ -944,6 +950,11 @@ func _evaluate_goals() -> void:
 		flank_score += 0.2
 	scores[Enums.AIGoal.FLANK_TARGET] = flank_score if d_flanks else -1.0
 
+	# NUMBERS ARE NERVE (Caleb decree, asymmetric combat): a man reads his
+	# side's local weight before his own fear. Refreshed here on the think
+	# cadence; the rout ladder in take_damage reuses it.
+	_last_force_ratio = _local_force_ratio()
+
 	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering
 	# fire from a squadmate (fire-and-maneuver) or real aggression; a lone
 	# unsupported man holds and shoots instead of charging.
@@ -956,6 +967,8 @@ func _evaluate_goals() -> void:
 		advance_score += 0.2
 	elif char_aggression < 0.7:
 		advance_score *= 0.45
+	if _last_force_ratio >= 2.0:
+		advance_score += 0.15  # weight of numbers: press the lone shooter
 	scores[Enums.AIGoal.ADVANCE] = advance_score
 
 	# RETREAT - fall back
@@ -966,7 +979,10 @@ func _evaluate_goals() -> void:
 	# withdrawal above is separate (the export's NAME is "when hurt").
 	if d_retreats_when_hurt and float(current_hp) / float(max_hp) < d_retreat_hp:
 		retreat_score += 0.4
-	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation
+	# Outnumbering men hold: ~3:1 quarters the retreat urge, outnumbered men
+	# break easier. Seven rifles do not rout off one shooter's fire.
+	var numbers_mult: float = clampf(1.6 - _last_force_ratio * 0.45, 0.25, 1.4)
+	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation * numbers_mult
 
 	# Incumbent hysteresis 25% (council: 15% was smaller than the input swing
 	# it guarded against; with confidence-smoothed inputs, 25% actually holds).
@@ -981,6 +997,27 @@ func _evaluate_goals() -> void:
 
 	if best_goal != current_goal:
 		_set_goal(best_goal)
+
+
+## Local force ratio: shooters I can count on within 25m (me included) vs the
+## opposition still standing (player + his allies). Local on purpose - thirty
+## men across the AO steel nobody's nerve at THIS treeline.
+func _local_force_ratio() -> float:
+	var friends: int = 1
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var other := e as EnemyBase
+		if other != null and other != self and not other.is_dead() \
+				and other.global_position.distance_to(global_position) < 25.0:
+			friends += 1
+	var foes: int = 0
+	var p: Node = GameManager.player
+	if p != null and is_instance_valid(p) and p is Node3D:
+		foes += 1
+	for a in get_tree().get_nodes_in_group("allies"):
+		if is_instance_valid(a) and a is Node3D \
+				and a.has_method("is_dead") and not a.is_dead():
+			foes += 1
+	return float(friends) / float(maxi(1, foes))
 
 
 func _set_goal(new_goal: Enums.AIGoal) -> void:
@@ -998,6 +1035,8 @@ func _set_goal(new_goal: Enums.AIGoal) -> void:
 			_bound_point = Vector3.ZERO
 	current_goal = new_goal
 	goal_timer = 0.0
+	if new_goal == Enums.AIGoal.RETREAT:
+		_retreat_bearing = Vector3.ZERO  # fresh flight line each rout
 
 	# Reset reaction when changing goals
 	if new_goal == Enums.AIGoal.ENGAGE_TARGET or new_goal == Enums.AIGoal.SUPPRESS_TARGET:
@@ -1391,8 +1430,24 @@ func _execute_retreating(delta: float) -> void:
 		return
 
 	var away_from_target := (global_position - threat).normalized()
-	velocity.x = away_from_target.x * move_speed
-	velocity.z = away_from_target.z * move_speed
+	# Fleeing men read the wall, not the map: the bearing starts pure-away and
+	# decays back toward it, but wall contact slides it along the surface
+	# (dead-square hits pick the tangent that keeps distance from the threat).
+	# No more grinding into the arena wall while the shooter lines up.
+	if _retreat_bearing == Vector3.ZERO:
+		_retreat_bearing = away_from_target
+	_retreat_bearing = _retreat_bearing.slerp(away_from_target, minf(delta * 0.6, 1.0)).normalized()
+	if is_on_wall():
+		var n: Vector3 = get_wall_normal()
+		var slid: Vector3 = _retreat_bearing - n * _retreat_bearing.dot(n)
+		slid.y = 0.0
+		if slid.length() > 0.15:
+			_retreat_bearing = slid.normalized()
+		else:
+			var t: Vector3 = n.cross(Vector3.UP).normalized()
+			_retreat_bearing = t if t.dot(away_from_target) >= 0.0 else -t
+	velocity.x = _retreat_bearing.x * move_speed
+	velocity.z = _retreat_bearing.z * move_speed
 
 
 func _change_state(new_state: Enums.AIState) -> void:
@@ -1833,7 +1888,10 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		# doesn't). Uses existing threat_level - no new perception work.
 		var courage: float = enemy_data.courage if enemy_data != null else 0.5
 		var pressure: float = threat_level + (1.0 - float(current_hp) / float(max_hp)) * 0.5
-		if pressure > 0.7 + courage * 0.6 and randf() < 0.25:
+		# Numbers stiffen the spine: a man with six friends up does not rout
+		# off one shooter's pressure (capped so lone-man breaks stay intact).
+		var nerve: float = clampf((_last_force_ratio - 1.0) * 0.15, 0.0, 0.35)
+		if pressure > 0.7 + courage * 0.6 + nerve and randf() < 0.25:
 			var living_nearby: int = 0
 			for e in get_tree().get_nodes_in_group("enemies"):
 				var other := e as EnemyBase

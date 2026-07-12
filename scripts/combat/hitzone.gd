@@ -2,22 +2,22 @@
 class_name Hitzone
 extends Area3D
 
-## Zone types with damage multipliers
+## Zone types with damage multipliers (ADR-016 Amendment D: punishing)
 enum ZoneType {
 	HEAD,      # fatal on enemies - a headshot is a headshot, nothing saves you
-	TORSO,     # 2.0x - center mass (chest). 1-2 rifle rounds
-	GUT,       # 1.75x + bleed-out - devastating, downs a man fast
-	LIMB       # 0.75x - rarely lethal, but the man is CHANGED (wounds/cripple)
+	TORSO,     # 2.5x - center mass. One rifle round drops the weak, two end anyone
+	GUT,       # 2.25x + bleed-out - devastating, downs a man fast
+	LIMB       # 1.0x - full pass-through damage; the man is CHANGED (wounds/cripple)
 }
 
 @export var zone_type: ZoneType = ZoneType.TORSO
 
-## Damage multipliers
+## Damage multipliers (values of record: ADR-016 Amendment D, 2026-07-11)
 const MULTIPLIERS := {
 	ZoneType.HEAD: 4.0,
-	ZoneType.TORSO: 2.0,
-	ZoneType.GUT: 1.75,
-	ZoneType.LIMB: 0.75
+	ZoneType.TORSO: 2.5,
+	ZoneType.GUT: 2.25,
+	ZoneType.LIMB: 1.0
 }
 
 ## Per-unit overrides (ADR-016 Amendment B), authored in the hitzone bench and

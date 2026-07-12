@@ -6,7 +6,8 @@
 ##   3. No legacy dice grammar survives: base_damage is an int on every
 ##      WeaponData/ProjectileData in data/.
 ##   4. Shots-to-kill sanity vs the HP bands of record (player 100, enemy 65-85)
-##      through the hitzone multipliers (TORSO 2.0 / GUT 1.75 / LIMB 0.75).
+##      through the hitzone multipliers (TORSO 2.5 / GUT 2.25 / LIMB 1.0 -
+##      ADR-016 Amendment D).
 ## Run: godot --headless --path . res://tests/test_flat_damage.tscn
 extends Node
 
@@ -25,7 +26,10 @@ const EXPECTED := {
 ## vc_rifleman now fires the Mosin his model carries).
 const RETIRED := ["mp40", "kar98k", "car15", "sks", "thompson"]
 
-const ZONE_MULTS := {"TORSO": 2.0, "GUT": 1.75, "LIMB": 0.75}
+## Values of record: ADR-016 Amendment D (2026-07-11, Summoner: "weapons
+## should be more punishing"). Duplicated here ON PURPOSE - retuning the law
+## without amending the ADR turns this suite red.
+const ZONE_MULTS := {"TORSO": 2.5, "GUT": 2.25, "LIMB": 1.0}
 const HP_BANDS := {"player": 100, "enemy_lo": 65, "enemy_hi": 85}
 
 
@@ -66,12 +70,20 @@ func _run() -> void:
 		print("FAIL: rpg2_rocket flat damage %d != decreed 62" % proj.get_damage())
 		failures += 1
 
+	# --- 3.5 the live locational law matches this ADR record -----------------
+	if absf(float(Hitzone.MULTIPLIERS[Hitzone.ZoneType.TORSO]) - float(ZONE_MULTS["TORSO"])) > 0.001 \
+			or absf(float(Hitzone.MULTIPLIERS[Hitzone.ZoneType.GUT]) - float(ZONE_MULTS["GUT"])) > 0.001 \
+			or absf(float(Hitzone.MULTIPLIERS[Hitzone.ZoneType.LIMB]) - float(ZONE_MULTS["LIMB"])) > 0.001:
+		print("FAIL: Hitzone.MULTIPLIERS drifted from the ADR-016 Amendment D record")
+		failures += 1
+
 	# --- 4. shots-to-kill matrix (sanity + printed record) ------------------
 	# HEAD is fatal by rule (hitzone.is_fatal_zone), so only body zones matter.
-	print("  STK matrix (torso x2.0), point blank:")
+	var tm: float = float(ZONE_MULTS["TORSO"])
+	print("  STK matrix (torso x%.2f), point blank:" % tm)
 	for wid: String in ["m16a1", "ak47", "mosin", "ppsh41", "m1911"]:
 		var dmg: int = int(EXPECTED[wid])
-		var torso: int = int(float(dmg) * 2.0)
+		var torso: int = int(float(dmg) * tm)
 		var stk_p: int = int(ceil(100.0 / float(torso)))
 		var stk_lo: int = int(ceil(65.0 / float(torso)))
 		var stk_hi: int = int(ceil(85.0 / float(torso)))
@@ -80,7 +92,7 @@ func _run() -> void:
 	# HLL-lethality guards: rifles must down an enemy in <=2 torso hits and the
 	# player in <=3; nothing one-shots the player's torso (situation kills, not stats).
 	for wid: String in ["m16a1", "ak47", "m14"]:
-		var torso: int = int(float(EXPECTED[wid]) * 2.0)
+		var torso: int = int(float(EXPECTED[wid]) * tm)
 		if int(ceil(85.0 / float(torso))) > 2:
 			print("FAIL: %s needs >2 torso hits vs 85hp enemy - not HLL-lethal" % wid)
 			failures += 1
@@ -93,7 +105,7 @@ func _run() -> void:
 		if wid == "shotgun":
 			continue  # the slug SHOULD end you (Summoner devastation decree) -
 			          # the Mosin guard is for standard rifles only
-		if int(float(EXPECTED[wid]) * 2.0) >= 100:
+		if int(float(EXPECTED[wid]) * tm) >= 100:
 			print("FAIL: %s one-shots the player's torso (the old Mosin bug class)" % wid)
 			failures += 1
 
