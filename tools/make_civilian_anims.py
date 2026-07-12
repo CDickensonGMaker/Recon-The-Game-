@@ -87,10 +87,17 @@ def rot_panic(t):
 
 
 def hands_panic(rig, t):
+    """Hands up by his head as he runs. ANCHOR TO THE NECK, not the head - his head
+    is WHIPPING BACK AND FORTH in this clip (that is the point of it), and a target
+    hung off a whipping head whips too, which drags the arms after it. The neck is
+    the stable thing to hang off. Measured: 35.8 deg/frame of arm snap before, and
+    the target was doing it, not the solver."""
     flail = math.sin(t * TAU * 2.0)
-    h = W(rig, "Head")
-    return {"Left":  reach(rig, "Left",  h + Vector((0.34, -0.02, 0.16 + 0.10 * flail))),
-            "Right": reach(rig, "Right", h + Vector((-0.34, -0.02, 0.16 - 0.10 * flail)))}
+    nk = W(rig, "Neck")
+    return {"Left":  reach(rig, "Left",
+                           nk + Vector((0.26, -0.10, 0.22 + 0.06 * flail))),
+            "Right": reach(rig, "Right",
+                           nk + Vector((-0.26, -0.10, 0.22 - 0.06 * flail)))}
 
 
 def rot_cower(t):
@@ -269,46 +276,77 @@ CLIPS = [
 
 
 # ============================================================ machinery
-def solve_arm(rig, side, target, tries=90):
+def solve_arm(rig, side, target, seed=None, tries=70):
     """Put the HAND where it needs to be; let the shoulder and elbow work it out.
-    Coordinate descent on (arm.x, arm.z, forearm.x) - crude, deterministic, and it
-    converges fast because the arm is only a 2-link chain."""
+
+    THIS USED TO MAKE THE ARMS FLAIL. Solved cold on every frame, coordinate descent
+    lands in a DIFFERENT local minimum from one frame to the next, and the arm snaps
+    between them. Measured on the old clips: adjacent frames jumping 196, 307, 312
+    degrees. Caleb: "you have the arms going all over the place."
+
+    Three things fix it, and they are all about the arm having MORE FREEDOM THAN THE
+    HAND NEEDS - a 2-link arm reaching a point has one whole redundant degree of
+    freedom, and that DOF is the elbow swinging round the shoulder-to-hand axis:
+
+      1. SEED FROM THE PREVIOUS FRAME. The solve starts where the last one ended, so
+         it stays in the same basin instead of hopping to a new one.
+      2. PENALISE SHOULDER ROLL. arm.y is the redundant DOF - it moves the ELBOW and
+         does almost nothing to the hand. Left free, the elbow windmills. Caleb:
+         "the elbows dont need to move all over the place."
+      3. PENALISE MOVING AT ALL. A small cost on drifting from the seed, so of two
+         equally good solutions it takes the one nearest where the arm already was.
+
+    The hand still lands on target - these costs are ~1cm-scale next to the distance
+    term. They only pick BETWEEN solutions that all hit it.
+    """
     arm = rig.pose.bones[M + side + "Arm"]
     fore = rig.pose.bones[M + side + "ForeArm"]
     hand = rig.pose.bones[M + side + "Hand"]
     for pb in (arm, fore):
         pb.rotation_mode = 'XYZ'
-        pb.rotation_euler = (0.0, 0.0, 0.0)
 
-    # 4 DOF: shoulder pitch, shoulder yaw, elbow, and shoulder ROLL. The roll is
-    # what lets the elbow point somewhere sane; without it the solver stalls
-    # short on anything overhead.
-    best = [0.0, 0.0, 0.0, 0.0]
+    # [shoulder pitch, shoulder yaw, ELBOW, shoulder roll]
+    LO = [rad(-175), rad(-150), rad(-150), rad(-45)]
+    HI = [rad(175), rad(150), rad(150), rad(45)]     # roll clamped HARD: no windmill
+    best = list(seed) if seed is not None else [0.0, 0.0, 0.0, 0.0]
+    best = [max(LO[i], min(HI[i], best[i])) for i in range(4)]
+    ref = list(best)
+
+    W_ROLL = 0.30        # metres of "error" per radian of shoulder roll
+    W_DRIFT = 0.05       # ... and per radian of moving away from last frame
 
     def err(p):
         arm.rotation_euler = Euler((p[0], p[3], p[1]), 'XYZ')
         fore.rotation_euler = Euler((p[2], 0.0, 0.0), 'XYZ')
         bpy.context.view_layer.update()
-        return ((rig.matrix_world @ hand.head) - target).length
+        d = ((rig.matrix_world @ hand.head) - target).length
+        d += W_ROLL * abs(p[3])
+        if seed is not None:
+            d += W_DRIFT * sum(abs(p[i] - ref[i]) for i in range(4))
+        return d
 
     e = err(best)
-    step = [rad(60)] * 4
+    step = [rad(35)] * 4
     for _ in range(tries):
         moved = False
         for i in range(4):
-            for s in (+1, -1):
+            for sg in (+1, -1):
                 cand = list(best)
-                cand[i] = max(-math.pi, min(math.pi, cand[i] + s * step[i]))
+                cand[i] = max(LO[i], min(HI[i], cand[i] + sg * step[i]))
                 ce = err(cand)
                 if ce < e - 1e-5:
                     best, e = cand, ce
                     moved = True
         if not moved:
-            step = [s * 0.55 for s in step]
-            if max(step) < rad(0.5):
+            step = [x * 0.55 for x in step]
+            if max(step) < rad(0.3):
                 break
-    err(best)
-    return best, e
+    # report the TRUE hand miss, not the penalised score
+    arm.rotation_euler = Euler((best[0], best[3], best[1]), 'XYZ')
+    fore.rotation_euler = Euler((best[2], 0.0, 0.0), 'XYZ')
+    bpy.context.view_layer.update()
+    miss = ((rig.matrix_world @ hand.head) - target).length
+    return best, miss
 
 
 def sample(rig, action, n):
@@ -355,6 +393,7 @@ def build(rig, name, src_name, rot_fn, hands_fn, n, ground):
     strip = act.layers.new("base").strips.new(type='KEYFRAME')
     cbag = strip.channelbag(slot, ensure=True)
 
+    prev_arms = {}          # last frame's solve, per side - the seed
     hips_b = rig.data.bones[M + "Hips"]
     rest3 = hips_b.matrix_local.to_3x3()
     w2a = rig.matrix_world.to_3x3().inverted()
@@ -381,9 +420,10 @@ def build(rig, name, src_name, rot_fn, hands_fn, n, ground):
         if hands_fn is not None:
             tg = hands_fn(rig, t)
             for side in ("Left", "Right"):
-                p, e = solve_arm(rig, side, tg[side])
+                p, e = solve_arm(rig, side, tg[side], seed=prev_arms.get(side))
                 worst_err = max(worst_err, e)
                 arms[side] = p
+                prev_arms[side] = p
                 # PUT THE BONES BACK INTO QUATERNION MODE AND BAKE THE SOLVE IN.
                 # solve_arm works in euler, and a pose bone in EULER mode IGNORES
                 # its quaternion channels entirely - so every quaternion key I
