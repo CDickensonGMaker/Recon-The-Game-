@@ -47,6 +47,6 @@ extends Resource
 ## holding a PPSh while the ballistics say AK-47 is the kind of thing nobody
 ## notices for six months and then cannot unsee.
 @export var sprite_faction: String = ""   ## "Vietcong and NVA"
-@export var sprite_unit: String = ""      ## "vc1_farmer"
+@export var sprite_unit: String = ""      ## "vc_guerilla"
 @export var sprite_weapon: String = ""    ## "ak47"
 @export var color: Color = Color(0.4, 0.4, 0.3)  ## capsule placeholder tint, and sprite base modulate

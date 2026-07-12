@@ -21,6 +21,6 @@ retreat_hp_threshold = 0.35
 courage = 0.4
 exposure_ramp_time = 3
 sprite_faction = "Vietcong and NVA"
-sprite_unit = "vc_guerilla_rpd"
+sprite_unit = "vc_guerilla_rpg"
 sprite_weapon = "rpg2"
 color = Color(0.33, 0.36, 0.28, 1)

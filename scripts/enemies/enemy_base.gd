@@ -317,10 +317,11 @@ func _apply_personality() -> void:
 			aim_speed = randf_range(5.0, 8.0)
 
 
-## 8-dir billboard sprite when the unit has been rendered; the old capsule
-## otherwise (vc3_sapper/vc6_heavy are still rendering, and the WW2 holdovers
-## have no sprite at all). Every mesh mutation site below is guarded the same
-## way, so a half-rendered art pass cannot crash the game.
+## 3D model when the unit has one (vc_guerilla_* / us_grunt_* v2 exports);
+## the old capsule otherwise (WW2 holdovers have no model at all; the v1
+## blocky troops are archived in Base Game Assets). Every mesh mutation site
+## below is guarded the same way, so a half-rendered art pass cannot crash
+## the game.
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
 		var unit: String = str(enemy_data.sprite_unit)

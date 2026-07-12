@@ -38,9 +38,11 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		ally.director = director  ## toast channel for promotion barks
 		if str(m.mos) == "PIGMAN":
 			ally.fire_rate_mult = 1.6
-			# The Pig is a separate rendered unit: us_grunt_black holds the M60.
+			# The Pig is a separate rendered unit: us_grunt_m60 holds the M60
+			# (v2 rig - takes the shared anim library + family clips; the old
+			# us_grunt_black v1 rig is archived in Base Game Assets).
 			# spawn_ally() already ran _setup_visual(), so this must rebuild.
-			ally.set_sprite("us_grunt_black", "m60")
+			ally.set_sprite("us_grunt_m60", "m60")
 		_attach_name_tag(ally, "%s %s (%s)" % [SquadRoster.rank_for(m), str(m.nick), str(m.mos)])
 		ally.died.connect(_on_member_died)
 		members.append(ally)

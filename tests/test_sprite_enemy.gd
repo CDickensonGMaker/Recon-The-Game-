@@ -73,7 +73,7 @@ func _test_spawn_has_sprite() -> void:
 	if not _clip_matches("rifle_aiming_idle", str(e.sprite_actor.current_action)):
 		_bad("idle clip is %s" % e.sprite_actor.current_action)
 	if not e._visual_is_model:
-		_bad("vc_rifleman should default to the 3D model (vc2_mainforce.glb exists)")
+		_bad("vc_rifleman should default to the 3D model (vc_guerilla_mosin.glb exists)")
 	e.queue_free()
 	await get_tree().process_frame
 
