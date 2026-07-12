@@ -12,6 +12,7 @@ fire_rate = 70.0
 magazine_size = 5
 reload_time = 3.2
 base_damage = 35
+zero_range = 50.0
 pellet_count = 8
 pellet_spread_deg = 5.5
 base_spread = 1.2

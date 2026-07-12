@@ -743,10 +743,19 @@ func _fire_at_target() -> void:
 	# enemy's x1.6 bounding-fire penalty.
 	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.5:
 		spread *= 1.5
-	final_aim.x += randf_range(-spread, spread)
-	final_aim.y += randf_range(-spread, spread)
-	final_aim.z += randf_range(-spread, spread)
-	final_aim = final_aim.normalized()
+	# Bounded, center-weighted, angular - and hold over for the range (the same
+	# ballistics-audit fixes the enemies got; your men shoot like men, not like
+	# a random number generator, and they can reach past the arena).
+	spread = minf(spread, deg_to_rad(1.2))
+	var a_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
+	var a_up: Vector3 = a_right.cross(final_aim).normalized()
+	var a_ang: float = randf() * TAU
+	var a_mag: float = minf(absf(randfn(0.0, 0.45)), 1.0) * spread
+	final_aim = (final_aim + a_right * tan(cos(a_ang) * a_mag) \
+		+ a_up * tan(sin(a_ang) * a_mag)).normalized()
+	if target != null and is_instance_valid(target) and target is Node3D:
+		var td: float = global_position.distance_to((target as Node3D).global_position)
+		final_aim = (final_aim + a_up * tan(weapon_data.elevation_for(td))).normalized()
 
 	# Raycast from the gun muzzle (R03). FULL-REALISM FF (decree): the ray
 	# sees the player (2) and fellow-ally hurtboxes (32) too.

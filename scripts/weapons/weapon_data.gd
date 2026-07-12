@@ -45,6 +45,12 @@ extends Resource
 
 @export_group("Projectile")
 @export var projectile_speed: float = 400.0  ## m/s
+## SIGHT ZERO (ballistics audit 2026-07-12, F2): the sights are zeroed at this
+## range - the muzzle rides fractionally high so the falling round crosses the
+## sightline HERE. Without it a rifle shoots 0.5m low at 300m and cannot hit a
+## standing man (we were effectively zeroed at 0m). Every reference milsim
+## zeroes: Red Orchestra, Arma, HLL. Beyond the zero you hold over, as in life.
+@export var zero_range: float = 200.0  ## m (pistols ~25, MGs ~300)
 @export var projectile_data_path: String = ""  ## Path to ProjectileData resource
 
 @export_group("Tracer")
@@ -123,3 +129,21 @@ func get_fire_delay() -> float:
 ## Calculate spread based on ADS state (0-1 lerp value)
 func get_spread(ads_amount: float) -> float:
 	return base_spread * lerp(1.0, ads_spread_mult, ads_amount)
+
+
+## Sight-zero elevation (radians): the flat-fire launch angle that puts the
+## round back on the sightline at zero_range. theta = g*R / (2*v^2) - exact
+## enough at rifle speeds, and it is the same maths the armorer uses.
+func zero_elevation() -> float:
+	if projectile_speed < 1.0 or zero_range < 1.0:
+		return 0.0
+	return (9.8 * zero_range) / (2.0 * projectile_speed * projectile_speed)
+
+
+## Elevation to put the round ON a target at `dist` (the trained soldier's
+## hold-over). AI uses this; the player gets the fixed zero above and holds
+## over himself.
+func elevation_for(dist: float) -> float:
+	if projectile_speed < 1.0 or dist < 1.0:
+		return 0.0
+	return (9.8 * dist) / (2.0 * projectile_speed * projectile_speed)

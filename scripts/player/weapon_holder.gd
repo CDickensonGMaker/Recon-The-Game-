@@ -244,6 +244,8 @@ var _sustained_shots: int = 0
 
 ## W75: session marksmanship counters (reset by GameFlow per mission).
 static var session_shots: int = 0
+## Trigger cadence, for the first-settled-shot rule (audit F3).
+var _last_shot_ms: float = -9999.0
 static var session_hits: int = 0
 
 
@@ -303,6 +305,8 @@ func _fire_shot() -> void:
 	fire_timer += current_weapon.get_fire_delay()
 	_sustained_shots += 1
 	session_shots += 1
+	var _prev_shot_ms: float = _last_shot_ms
+	_last_shot_ms = float(Time.get_ticks_msec())
 
 	# Fouling: every round dirties the action; monsoon rain is worse.
 	# Clean it with a kit [0] or free at the firebase.
@@ -350,17 +354,38 @@ func _fire_shot() -> void:
 		# the answer is the same as the fantasy: get down and out of the fire.
 		if "suppression" in controller:
 			spread *= 1.0 + controller.suppression * 0.9
+	# FIRST SETTLED SHOT LANDS ON THE SIGHTS (ballistics audit F3 - the Arma/HLL
+	# law). Fully on the glass, standing still, not spraying: the mechanical
+	# cone all but vanishes. Every remaining source of variance - recoil climb,
+	# sway, suppression, wounds, stance - is a system the player can READ and
+	# CONTROL. The dice are not.
+	var settled: bool = ads_transition > 0.9 \
+		and float(Time.get_ticks_msec()) - _prev_shot_ms > 400.0 \
+		and (controller == null or Vector3(controller.velocity.x, 0.0, controller.velocity.z).length() < 0.6)
+	if settled:
+		spread *= 0.12
 	var spread_rad := deg_to_rad(spread)
 
 	# Get fire direction with spread
 	var aim_dir: Vector3 = controller.get_aim_direction()
-	var spread_x := randf_range(-spread_rad, spread_rad)
-	var spread_y := randf_range(-spread_rad, spread_rad)
-
 	var right: Vector3 = aim_dir.cross(Vector3.UP).normalized()
 	var up: Vector3 = right.cross(aim_dir).normalized()
 
+	# CENTER-WEIGHTED CONE, not a uniform square (audit F3): a real weapon's
+	# rounds cluster at the point of aim and thin toward the edge. The old
+	# per-axis uniform draw made the rim as likely as the bullseye - a lottery
+	# ticket per trigger pull.
+	var ang: float = randf() * TAU
+	var mag: float = absf(randfn(0.0, 0.45))  # ~99% inside the cone
+	mag = minf(mag, 1.0) * spread_rad
+	var spread_x: float = cos(ang) * mag
+	var spread_y: float = sin(ang) * mag
+
 	var final_dir: Vector3 = (aim_dir + right * tan(spread_x) + up * tan(spread_y)).normalized()
+	# SIGHT ZERO (audit F2): ride the muzzle up by the zero angle so the falling
+	# round crosses the sightline at zero_range. Inside the zero you shoot a
+	# hair high (centimetres); past it you hold over, as in life.
+	final_dir = (final_dir + up * tan(current_weapon.zero_elevation())).normalized()
 
 	# AIM RAY - no damage, no FX. The crosshair's truth: find the point the
 	# player is actually aiming at so the muzzle-spawned round converges onto

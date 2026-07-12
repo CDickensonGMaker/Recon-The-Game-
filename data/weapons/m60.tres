@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
 
 [ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -14,7 +14,7 @@ reload_time = 6.5
 base_damage = 28
 damage_type = 0
 base_spread = 2.6
-ads_spread_mult = 0.4
+ads_spread_mult = 0.096
 recoil_vertical = 2.8
 recoil_horizontal = 1.0
 ads_fov = 60.0
@@ -23,6 +23,7 @@ effective_range = 300.0
 max_range = 500.0
 min_damage_mult = 0.7
 projectile_speed = 853.0
+zero_range = 300.0
 projectile_data_path = ""
 recoil_first_shot_mult = 1.3
 recoil_climb_per_shot = 0.045

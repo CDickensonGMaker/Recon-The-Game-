@@ -1681,13 +1681,29 @@ func _fire_at_target() -> void:
 	total_spread *= (2.0 - char_accuracy)  # Apply characteristic
 	total_spread *= _exposure_spread_mult()  # DESIGN 4.2: accuracy ramps with exposure, alert != accuracy
 	total_spread *= GameSettings.enemy_spread_mult()  # W82 difficulty
+	# Bounded cone (ballistics audit F5): the old stack could open an AK past 3
+	# degrees - 5m of scatter at 100m, i.e. enemy fire was NOISE in the open.
+	# A soldier is inaccurate, not blind. 1.2 deg = ~2m at 100m: dangerous,
+	# survivable, and it lets a firefight exist beyond the arena.
+	total_spread = minf(total_spread, 1.2)
 	var spread: float = deg_to_rad(total_spread)
 	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
 
-	final_aim.x += randf_range(-spread, spread)
-	final_aim.y += randf_range(-spread, spread)
-	final_aim.z += randf_range(-spread, spread)
-	final_aim = final_aim.normalized()
+	# ANGULAR spread in the aim basis, center-weighted (audit F6): the old code
+	# added raw RNG to a normalized vector's x/y/z - skewed to the diagonals
+	# and double-counted the error.
+	var e_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
+	var e_up: Vector3 = e_right.cross(final_aim).normalized()
+	var e_ang: float = randf() * TAU
+	var e_mag: float = minf(absf(randfn(0.0, 0.45)), 1.0) * spread
+	final_aim = (final_aim + e_right * tan(cos(e_ang) * e_mag) \
+		+ e_up * tan(sin(e_ang) * e_mag)).normalized()
+	# HOLD-OVER (audit F2/F5): a trained man elevates for the range. Without
+	# this the AI shot 0.5m low at 300m and was harmless in the open - the
+	# firefight only existed because the arena is 44m across.
+	if target != null and is_instance_valid(target):
+		var t_dist: float = global_position.distance_to((target as Node3D).global_position)
+		final_aim = (final_aim + e_up * tan(weapon_data.elevation_for(t_dist))).normalized()
 
 	# First shot at this target: forced near-miss (the warning crack).
 	if not _first_shot_fired:

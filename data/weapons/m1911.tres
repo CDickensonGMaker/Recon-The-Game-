@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -21,6 +21,7 @@ effective_range = 30.0
 max_range = 50.0
 min_damage_mult = 0.3
 projectile_speed = 253.0
+zero_range = 25.0
 tracer_ratio = 0
 recoil_first_shot_mult = 1.2
 recoil_climb_per_shot = 0.0

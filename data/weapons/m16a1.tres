@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -13,13 +13,14 @@ magazine_size = 20
 reload_time = 2.4
 base_damage = 28
 base_spread = 1.6
-ads_spread_mult = 0.25
+ads_spread_mult = 0.0625
 recoil_vertical = 1.1
 ads_fov = 60.0
 effective_range = 300.0
 max_range = 460.0
 min_damage_mult = 0.65
 projectile_speed = 948.0
+zero_range = 250.0
 tracer_ratio = 5
 tracer_color = Color(1, 0.42, 0.3, 1)
 recoil_first_shot_mult = 1.4
