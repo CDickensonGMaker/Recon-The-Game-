@@ -471,13 +471,32 @@ func _self_exclusions() -> Array:
 
 func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up: Vector3) -> void:
 	var space_state := get_world_3d().direct_space_state
-	var cone: float = deg_to_rad(current_weapon.pellet_spread_deg)
+	# pellet_spread_deg is the FULL cone angle. The old code used it as a
+	# PER-AXIS half-angle (a +-5.5deg square = an 11deg+ pattern): at 14m
+	# that is a 2.7m-wide wall of mostly air - under ONE expected pellet on a
+	# man per shell (Caleb: "three shells at 14m"). Half of the authored
+	# angle per axis restores an honest pattern.
+	var cone: float = deg_to_rad(current_weapon.pellet_spread_deg * 0.5)
 	var pellet_dmg: int = current_weapon.get_damage()
 	var buckets: Dictionary = {}  # instance_id|zone -> [target, mult, zone, hits, dist_sum]
 	var fx_budget: int = 4
+	# DETERMINISTIC PATTERN (T1 law: same aim = same result). Uniform-random
+	# spread made the gun a slot machine - three whiffed shells at 14m, then
+	# a jackpot one-shot at 30m. Fixed star: 1 center, 3 at 40% cone, 4 at
+	# the edge, each jittered a hair (~0.3deg). A centered shell at CQB range
+	# lands the same murderous cluster every time; range fade comes from the
+	# ring walking off the silhouette, not from luck.
+	var star: Array[Vector2] = [Vector2.ZERO]
+	for i in range(3):
+		var a: float = TAU * float(i) / 3.0
+		star.append(Vector2(cos(a), sin(a)) * 0.4)
+	for i in range(4):
+		var a2: float = TAU * (float(i) + 0.5) / 4.0
+		star.append(Vector2(cos(a2), sin(a2)))
 	for _i in range(current_weapon.pellet_count):
-		var px := randf_range(-cone, cone)
-		var py := randf_range(-cone, cone)
+		var o: Vector2 = star[_i % star.size()] * cone
+		var px := o.x + randf_range(-0.005, 0.005)
+		var py := o.y + randf_range(-0.005, 0.005)
 		var dir: Vector3 = (aim_dir + right * tan(px) + up * tan(py)).normalized()
 		# World + enemy hurtboxes only - enemy body capsules (4) shadow the
 		# zones inside them and pellets land flat 1.0x (the sponge bug class).
