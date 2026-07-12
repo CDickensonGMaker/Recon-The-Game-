@@ -56,6 +56,10 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		# ride across the chest, and a full stop there made the same aim kill
 		# in 1 or sponge in 4 depending on the pose frame).
 		"pen_left": 1, "dmg_scale": 1.0,
+		# SOFT COVER: thatch, bamboo, hooch wall, brush. Lead goes THROUGH it -
+		# in this war "cover" is mostly concealment, and a bamboo wall stopping
+		# a 7.62 was a lie. Two layers per round, 20% of its energy each.
+		"soft_left": 2,
 	}
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
@@ -158,6 +162,15 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 	else:
 		GunFX.impact(scene, hit.position, hit.normal, _surface_is_hard(col))
 		GunFX.bullet_hole(scene, hit.position, hit.normal)
+		# SOFT COVER PUNCH-THROUGH: thatch, bamboo, a hooch wall, dense brush.
+		# The round keeps going at reduced energy. A man hiding behind a grass
+		# wall is CONCEALED, not covered - which is the whole reason a grunt
+		# carried a 12-gauge into the bush (00 buck: nine 0.33in pellets, each
+		# a 9mm-class ball that punches brush).
+		if col is Node and (col as Node).is_in_group("soft_cover") and int(b.soft_left) > 0:
+			b.soft_left = int(b.soft_left) - 1
+			b.dmg_scale = float(b.dmg_scale) * 0.8
+			return true
 	return false
 
 

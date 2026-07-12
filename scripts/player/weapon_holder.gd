@@ -604,11 +604,32 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var dir: Vector3 = (aim_dir + right * tan(px) + up * tan(py)).normalized()
 		# World + enemy hurtboxes only - enemy body capsules (4) shadow the
 		# zones inside them and pellets land flat 1.0x (the sponge bug class).
-		var query := PhysicsRayQueryParameters3D.create(
-			origin, origin + dir * current_weapon.max_range, 1 | 64)
-		query.collide_with_areas = true
-		query.exclude = _self_exclusions()
-		var r := space_state.intersect_ray(query)
+		# BRUSH PUNCH-THROUGH: each 00 pellet is a 0.33in ball - a 9mm-class
+		# projectile - and nine of them go through thatch, bamboo and brush.
+		# That is the historical reason a point man carried a shotgun. Every
+		# pellet punches its own way through up to two soft layers.
+		var soft_left: int = 2
+		var pellet_scale: float = 1.0
+		var start: Vector3 = origin
+		var r: Dictionary = {}
+		while true:
+			var query := PhysicsRayQueryParameters3D.create(
+				start, origin + dir * current_weapon.max_range, 1 | 64)
+			query.collide_with_areas = true
+			query.exclude = _self_exclusions()
+			r = space_state.intersect_ray(query)
+			if not r:
+				break
+			var c0: Object = r.collider
+			if c0 is Node and (c0 as Node).is_in_group("soft_cover") and soft_left > 0:
+				soft_left -= 1
+				pellet_scale *= 0.8
+				if fx_budget > 0:
+					GunFX.impact(get_tree().current_scene, r.position, r.normal, false)
+					fx_budget -= 1
+				start = (r.position as Vector3) + dir * 0.08   # out the far side
+				continue
+			break
 		if not r:
 			continue
 		var target: Node = null
@@ -632,7 +653,7 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 			if not buckets.has(key):
 				buckets[key] = [target, mult, zone, 0.0, 0.0, region]
 			var b: Array = buckets[key]
-			b[3] = float(b[3]) + 1.0
+			b[3] = float(b[3]) + pellet_scale   # brush eats energy, not the pellet
 			b[4] = float(b[4]) + origin.distance_to(r.position)
 			if fx_budget > 0:
 				GunFX.blood(get_tree().current_scene, r.position, r.normal, dir, target)

@@ -89,6 +89,25 @@ func clear_and_flatten(center: Vector3, radius: float) -> void:
 		_grid.update_region(center, radius)
 
 
+## SOFT COVER: what lead goes THROUGH. In this war most "walls" are thatch,
+## bamboo and palm leaf - concealment, not cover - and a hooch wall stopping a
+## 7.62 was a lie the physics told. Bunkers, rock and vehicles are NOT on this
+## list: those actually stop a round. (00 buck - nine 0.33in balls - punches
+## brush better than anything else a man can carry, which is the historical
+## reason a point man in the bush carried a 12-gauge.)
+const _SOFT_NAME_HINTS: Array[String] = ["hooch", "hut", "thatch", "bamboo",
+	"fence", "shack", "lean_to", "leanto", "basket", "drying", "rack", "hedge",
+	"brush", "crate", "cart"]
+
+
+static func _is_soft_cover(model_name: String) -> bool:
+	var n: String = model_name.to_lower()
+	for h in _SOFT_NAME_HINTS:
+		if n.contains(h):
+			return true
+	return false
+
+
 ## Place one structure: StaticBody3D root (layer 1) + GLB visual + authored box.
 func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
 	var model_name := model_path.get_file().get_basename()
@@ -97,6 +116,8 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	body.name = model_name
 	body.collision_layer = 1
 	body.collision_mask = 0
+	if _is_soft_cover(model_name):
+		body.add_to_group("soft_cover")   # rounds punch through it
 	var scene: PackedScene = load(model_path)
 	if scene:
 		var visual := scene.instantiate()
