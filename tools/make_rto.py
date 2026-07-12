@@ -19,8 +19,8 @@ import bpy, os
 from mathutils import Matrix
 
 BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
-GEAR = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\gear_library.blend"
-OUT = r"C:\Users\caleb\RECONgame\art_source\characters\variants\us_rto.blend"
+GEAR = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
+OUT = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops\us_rto.blend"
 RIG = "PSXRig"
 
 DROP = ["ruck_pack_worn"]                       # the ruck comes off

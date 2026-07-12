@@ -40,7 +40,15 @@ import bpy, bmesh, os, math
 from mathutils import Vector, Matrix
 
 BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
-OUTDIR = r"C:\Users\caleb\RECONgame\art_source\characters\civilians"
+
+# WORKSPACES (Caleb, 2026-07-12): one folder per family, so a change to the
+# farmers can never reach into the fireteam.
+#   civilians/  farmers, elder, kid
+#   us_troops/  the v3 base and every US variant (grunt, RTO, pilots, gun variants)
+#   enemies/    VC and NVA
+#   locker/     ALL equipment - bone-attachable, hitbox-free (gear_library.blend)
+CIV_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\civilians"
+US_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops"
 RIG = "PSXRig"
 BODY = "us_grunt_joined"
 
@@ -61,28 +69,146 @@ BARE_PEASANT = ("Hand", "Foot", "ToeBase")
 BARE_BOOTED = ("Hand",)
 BOOT_BONES = ("Foot", "ToeBase")
 
-# name -> spec. `cloth`/`skin` are linear-ish PSX flats; `face_tint` multiplies
-# the shared face atlas so one texture serves every skin tone.
+# THE FACE ATLAS ALREADY HAS THE RIGHT FACES. It carries 11 faces along its
+# bottom row - white, black, Asian male, Asian female, Asian youth - and every
+# unit I built was pinned to face 0 (the grunt's scarred white face) and then
+# TINTED brown to fake it. That is why "they all have US male faces". Use the
+# faces that are there.
+#
+# The bottom row is NOT on the 10x96px grid the rest of the atlas uses - the
+# faces are packed at irregular widths (44px to 99px). These bounds are MEASURED
+# from the pixels, not derived from a grid; re-measure if the atlas is repainted.
+# (u0, u1, v0, v1)
+FACE_CELLS = [
+    (0.0042, 0.0958, 0.0000, 0.1429),   #  0  scarred white male  <- the grunt
+    (0.1010, 0.1469, 0.0000, 0.1429),   #  1  pale white male
+    (0.1500, 0.1990, 0.0000, 0.1429),   #  2  old bald man, white beard
+    (0.2146, 0.2854, 0.0000, 0.1429),   #  3  black man, beard + headset
+    (0.3125, 0.3844, 0.0000, 0.1429),   #  4  black man, clean shaven
+    (0.3969, 0.5000, 0.0000, 0.1429),   #  5  Asian male, young
+    (0.5010, 0.6000, 0.0000, 0.1429),   #  6  Asian male, moustache
+    (0.6167, 0.6865, 0.0000, 0.1429),   #  7  Asian male, gaunt, long hair
+    (0.7177, 0.7823, 0.0000, 0.1429),   #  8  Asian female, bob
+    (0.8042, 0.8958, 0.0000, 0.1429),   #  9  Asian youth
+    (0.8990, 0.9990, 0.0000, 0.1429),   # 10  Asian female, tied back
+]
+GRUNT_FACE = 0
+
+# cloth colours are LINEAR (they get sRGB-encoded on the way into the image)
 UNITS = {
-    "civ_farmer_m": dict(bare=BARE_PEASANT, cloth=(0.09, 0.09, 0.10), skin=(0.72, 0.56, 0.42),
-                         face_tint=(0.86, 0.78, 0.68), hat="conical",
-                         head=1.0, shoulders=1.0, girth=1.0),
-    "civ_farmer_f": dict(bare=BARE_PEASANT, cloth=(0.10, 0.10, 0.14), skin=(0.74, 0.58, 0.44),
-                         face_tint=(0.88, 0.80, 0.70), hat="conical",
-                         head=1.0, shoulders=0.90, girth=0.96),
-    "civ_elder":    dict(bare=BARE_PEASANT, cloth=(0.62, 0.58, 0.48), skin=(0.70, 0.55, 0.43),
-                         face_tint=(0.84, 0.78, 0.70), hat="conical",
-                         head=1.0, shoulders=0.94, girth=0.90),
-    "civ_kid":      dict(bare=BARE_PEASANT, cloth=(0.35, 0.42, 0.50), skin=(0.74, 0.58, 0.44),
-                         face_tint=(0.88, 0.80, 0.70), hat=None,
-                         head=1.30, shoulders=0.88, girth=0.94),
-    "us_pilot_white": dict(bare=BARE_BOOTED, cloth=(0.30, 0.31, 0.22), skin=(0.85, 0.68, 0.57),
-                           face_tint=(1.0, 1.0, 1.0), hat="flight",
-                           head=1.0, shoulders=1.0, girth=1.0),
-    "us_pilot_black": dict(bare=BARE_BOOTED, cloth=(0.30, 0.31, 0.22), skin=(0.36, 0.25, 0.19),
-                           face_tint=(0.44, 0.38, 0.34), hat="flight",
-                           head=1.0, shoulders=1.0, girth=1.0),
+    "civ_farmer_m": dict(bare=BARE_PEASANT, face=6,  hat="conical",
+                         cloth=(0.030, 0.030, 0.035), skin=(0.36, 0.20, 0.11),
+                         head=1.00, shoulders=1.00, girth=1.00),
+    "civ_farmer_f": dict(bare=BARE_PEASANT, face=8,  hat="conical",
+                         cloth=(0.028, 0.030, 0.045), skin=(0.38, 0.22, 0.13),
+                         head=1.00, shoulders=0.90, girth=0.96),
+    "civ_elder":    dict(bare=BARE_PEASANT, face=7,  hat="conical",
+                         cloth=(0.34, 0.31, 0.24), skin=(0.34, 0.19, 0.11),
+                         head=1.00, shoulders=0.94, girth=0.90),
+    "civ_kid":      dict(bare=BARE_PEASANT, face=9,  hat=None,
+                         cloth=(0.10, 0.13, 0.17), skin=(0.38, 0.22, 0.13),
+                         head=1.28, shoulders=0.88, girth=0.94),
+    "us_pilot_white": dict(bare=BARE_BOOTED, face=1, hat="flight",
+                           cloth=(0.075, 0.080, 0.045), skin=(0.55, 0.33, 0.22),
+                           head=1.00, shoulders=1.00, girth=1.00),
+    "us_pilot_black": dict(bare=BARE_BOOTED, face=4, hat="flight",
+                           cloth=(0.075, 0.080, 0.045), skin=(0.10, 0.055, 0.032),
+                           head=1.00, shoulders=1.00, girth=1.00),
 }
+
+
+def _srgb(c):
+    """Linear -> sRGB. Blender reads an sRGB image's pixels as ALREADY encoded, so
+    writing linear values straight in gets them decoded a second time and the whole
+    unit renders near-black. This bit us on the jungle; do not lose it again."""
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
+def fabric(name, rgb, seed, weave=0.05, blotch=0.17):
+    """A woven cloth texture, generated. The grunt's body samples a PHOTO of OD-green
+    fabric - that is why he reads as cloth and why a flat colour reads as plastic.
+    Civilians get the same treatment: full-bleed fabric, so wherever the body's UVs
+    land they land on cloth. No UV work needed.
+
+    Low-frequency blotches = wear and sun-fade. High-frequency grain + a 3px weave
+    = the thread. Deterministic per unit (seeded), so a rebuild is byte-identical."""
+    import random
+    rnd = random.Random(seed)
+    S, G = 256, 16
+    grid = [[rnd.uniform(-1.0, 1.0) for _ in range(G + 1)] for _ in range(G + 1)]
+    px = [0.0] * (S * S * 4)
+    for y in range(S):
+        fy = y * G / S
+        y0 = int(fy)
+        ty = fy - y0
+        for x in range(S):
+            fx = x * G / S
+            x0 = int(fx)
+            tx = fx - x0
+            a = grid[y0][x0] * (1 - tx) + grid[y0][x0 + 1] * tx
+            b = grid[y0 + 1][x0] * (1 - tx) + grid[y0 + 1][x0 + 1] * tx
+            v = 1.0 + (a * (1 - ty) + b * ty) * blotch
+            v += rnd.uniform(-1.0, 1.0) * 0.045                 # thread grain
+            v += (weave if (x % 3 == 0) != (y % 3 == 0) else -weave)
+            i = ((y * S) + x) * 4
+            px[i]     = _srgb(rgb[0] * v)
+            px[i + 1] = _srgb(rgb[1] * v)
+            px[i + 2] = _srgb(rgb[2] * v)
+            px[i + 3] = 1.0
+    img = bpy.data.images.new(name, S, S, alpha=False)
+    img.pixels.foreach_set(px)
+    img.pack()
+    return img
+
+
+def cloth_mat(name, rgb, seed):
+    """Principled with the fabric wired STRAIGHT into Base Color - a texture with a
+    mix node in front of it does not survive glTF."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get("Principled BSDF")
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = fabric(name + "_tex", rgb, seed)
+    tex.interpolation = 'Closest'          # PSX: no bilinear mush
+    nt.links.new(tex.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.92
+    if "Specular IOR Level" in b.inputs:
+        b.inputs["Specular IOR Level"].default_value = 0.0
+    return m
+
+
+def remap_face_uvs(unit, cell):
+    """Point the head at a DIFFERENT face in the atlas.
+
+    The head's UVs are laid out inside face 0's box. Rescale that box onto the
+    target face's box and every feature - eyes, mouth, hair - lands correctly,
+    because the atlas faces are all registered the same way inside their cells.
+    Runs on the body AND the head gib donors, so the head that gets blown off a
+    farmer is the same man's head."""
+    su0, su1, sv0, sv1 = FACE_CELLS[GRUNT_FACE]
+    du0, du1, dv0, dv1 = FACE_CELLS[cell]
+    sw, sh = su1 - su0, sv1 - sv0
+    dw, dh = du1 - du0, dv1 - dv0
+    touched = 0
+    for ob in bpy.data.objects:
+        if ob.type != 'MESH' or not ob.data.uv_layers:
+            continue
+        mats = [s.material.name if s.material else "" for s in ob.material_slots]
+        fi = [i for i, m in enumerate(mats) if m.startswith("face_atlas")]
+        if not fi:
+            continue
+        uv = ob.data.uv_layers.active
+        for p in ob.data.polygons:
+            if p.material_index not in fi:
+                continue
+            for li in p.loop_indices:
+                u, v = uv.data[li].uv
+                uv.data[li].uv = (du0 + (u - su0) / sw * dw,
+                                  dv0 + (v - sv0) / sh * dh)
+                touched += 1
+    return touched
 
 
 def flat_mat(name, rgb):
@@ -96,50 +222,6 @@ def flat_mat(name, rgb):
     if "Specular IOR Level" in b.inputs:
         b.inputs["Specular IOR Level"].default_value = 0.0
     return m
-
-
-def face_texture_nodes():
-    """Every TEX_IMAGE node that actually feeds a face material, and the image it
-    is wired to. Do NOT go looking for an image *named* face_atlas: this blend
-    carries several (v2 and v3), and the first one by name is not the one the
-    material uses. Ask the material what it is showing."""
-    nodes, img = [], None
-    for m in bpy.data.materials:
-        if not (m.use_nodes and m.name.startswith("face_atlas")):
-            continue
-        for n in m.node_tree.nodes:
-            if n.type == 'TEX_IMAGE' and n.image is not None and n.image.size[0] > 0:
-                nodes.append(n)
-                img = n.image
-    return nodes, img
-
-
-def tint_face_atlas(unit, src, tint):
-    """One face atlas, many skin tones: copy the image and multiply its RGB.
-    A tint node between the texture and Base Color would not reliably survive
-    glTF, so bake it into pixels.
-
-    Read the pixels from the SOURCE, never from the copy. A fresh copy's pixel
-    buffer reads back as all-zeros until Blender fills it, so `list(cp.pixels)`
-    hands you black, and multiplying black by a tint gives you black - which is
-    exactly the featureless head this comment exists to prevent."""
-    if src is None or tint == (1.0, 1.0, 1.0):
-        return src
-    n = len(src.pixels)                      # touching .pixels forces the load
-    if n == 0:
-        return src
-    buf = [0.0] * n
-    src.pixels.foreach_get(buf)
-    for i in range(0, n, 4):
-        buf[i]     *= tint[0]
-        buf[i + 1] *= tint[1]
-        buf[i + 2] *= tint[2]
-    cp = src.copy()
-    cp.name = "%s_face" % unit
-    cp.pixels.foreach_set(buf)
-    cp.pack()
-    cp.update()
-    return cp
 
 
 def repoint_slot(slot_name, new_mat):
@@ -237,6 +319,9 @@ def move_height_ruler(rig, factor, pivot):
 
 
 def cone(name, r_top, r_bot, h, seg=10):
+    # cap_ends: the underside disc is what the head pokes through, and it is what
+    # reads as the BRIM RING around the face. Without it you see straight up into
+    # a hollow cone.
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=seg,
                           radius1=r_bot, radius2=r_top, depth=h)
@@ -296,14 +381,24 @@ def add_hat(kind, rig):
     centre, r, crown = skull(rig)
 
     if kind == "conical":
-        # non la: a shallow straw cone, ~40cm across, brim riding just below the
-        # crown. The silhouette IS the unit - at PSX range this cone is how the
-        # player reads "civilian, do not shoot".
-        me = cone("hat_conical_worn", 0.005, max(0.20, r * 2.1), 0.13, seg=12)
-        m = flat_mat("hat_straw", (0.78, 0.68, 0.42))
+        # NON LA. The old one FLOATED: it was a small cone parked above the crown,
+        # so you could see daylight between hat and head.
+        #
+        # A real conical hat is ~40cm across and its BRIM COMES DOWN TO THE BROW -
+        # the head sits up INSIDE the cone. That is what kills the gap: from any
+        # angle you see hat, then face. You never see the join.
+        #   brim: just above the eyes (skull centre + 2cm), radius 0.21
+        #   apex: 5cm clear of the crown
+        brim_z = centre.z + 0.020
+        apex_z = crown + 0.055
+        depth = apex_z - brim_z
+        me = cone("hat_conical_worn", 0.014, 0.215, depth, seg=14)
+        m = flat_mat("hat_straw", (0.30, 0.22, 0.09))
         me.materials.append(m)
         ob = bpy.data.objects.new("hat_conical_worn", me)
-        w = Matrix.Translation(Vector((centre.x, centre.y, crown - 0.015 + 0.065)))
+        # a few degrees of forward tilt - nothing on a working man sits square
+        w = (Matrix.Translation(Vector((centre.x, centre.y, (brim_z + apex_z) * 0.5)))
+             @ Matrix.Rotation(math.radians(-5.0), 4, 'X'))
         bone_attach(ob, rig, "mixamorig:Head", w)
         return ob
 
@@ -370,20 +465,15 @@ def build(unit, spec):
         bpy.data.objects.remove(o, do_unlink=True)
 
     # 2. clothe him - repoint the shared slot, so donors and caps follow
-    cloth = flat_mat(unit + "_cloth", spec["cloth"])
+    cloth = cloth_mat(unit + "_cloth", spec["cloth"], seed=abs(hash(unit)) % 9973)
     repoint_slot("us_grunt_mat", cloth)
-    nodes, src = face_texture_nodes()
-    atlas = tint_face_atlas(unit, src, spec["face_tint"])
-    if atlas is not None:
-        for n in nodes:
-            n.image = atlas
-    print("      face atlas: %s -> %s (tint %s)"
-          % (src.name if src else "NONE", atlas.name if atlas else "NONE",
-             spec["face_tint"]))
+    n_uv = remap_face_uvs(unit, spec["face"])
+    print("      face -> atlas cell %d  (%d head UVs remapped)  cloth: woven"
+          % (spec["face"], n_uv))
 
     # 3. bare skin where a peasant shows it
     skin = flat_mat(unit + "_skin", spec["skin"])
-    boot = flat_mat(unit + "_boot", (0.12, 0.10, 0.08))
+    boot = flat_mat(unit + "_boot", (0.02, 0.016, 0.012))
     faces = 0
     for ob in skinned_meshes():
         faces += assign_by_bone(ob, skin, spec["bare"])
@@ -406,8 +496,10 @@ def build(unit, spec):
         rig.animation_data.action = None
     bpy.context.scene.frame_set(1)
 
-    os.makedirs(OUTDIR, exist_ok=True)
-    path = os.path.join(OUTDIR, unit + ".blend")
+    # aircrew are US troops, not civilians - they live with the fireteam
+    outdir = US_DIR if unit.startswith("us_") else CIV_DIR
+    os.makedirs(outdir, exist_ok=True)
+    path = os.path.join(outdir, unit + ".blend")
     bpy.ops.wm.save_as_mainfile(filepath=path)
     print("  %-15s stripped %2d US items | skin faces %3d | hat %-8s -> %s"
           % (unit, len(gone), faces, str(spec["hat"]), os.path.basename(path)))

@@ -36,3 +36,10 @@ art_source/characters/lineup_review.blend
 art_source/characters/variants/
 art_source/characters/civilians/
 art_source/characters/review/
+
+# Character workspaces (Caleb 2026-07-12): one folder per family. All DERIVED -
+# regenerated from the tracked truth source by tools/make_*.py. ~90 MB a piece.
+art_source/characters/civilians/
+art_source/characters/us_troops/
+art_source/characters/enemies/
+art_source/characters/locker/

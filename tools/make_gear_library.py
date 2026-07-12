@@ -26,7 +26,7 @@ import bpy, bmesh, math, os, sys
 from mathutils import Vector, Matrix
 
 BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_grunt_v2.blend"
-OUT_BLEND = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\gear_library.blend"
+OUT_BLEND = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
 OUT_GLB = r"C:\Users\caleb\RECONgame\assets\models\gear"
 RIG = "PSXRig"
 
