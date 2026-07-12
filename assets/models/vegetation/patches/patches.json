@@ -1,0 +1,195 @@
+{
+  "tile_m": 12.0,
+  "patches": [
+    {
+      "name": "patch_open",
+      "density": "open",
+      "desc": "near-bare: crater / paddy edge / burn",
+      "tile_m": 12.0,
+      "verts": 4294,
+      "tris": 3742,
+      "far_tris": 1074,
+      "height_m": 12.31
+    },
+    {
+      "name": "patch_clearing",
+      "density": "open",
+      "desc": "sightlines, firefight room",
+      "tile_m": 12.0,
+      "verts": 9043,
+      "tris": 7526,
+      "far_tris": 2146,
+      "height_m": 11.98
+    },
+    {
+      "name": "patch_scrub",
+      "density": "light",
+      "desc": "knee-to-waist regrowth",
+      "tile_m": 12.0,
+      "verts": 9663,
+      "tris": 7900,
+      "far_tris": 720,
+      "height_m": 10.85
+    },
+    {
+      "name": "patch_trail",
+      "density": "light",
+      "desc": "walkable lane, jungle crowding both sides",
+      "tile_m": 12.0,
+      "verts": 9458,
+      "tris": 8460,
+      "far_tris": 1704,
+      "height_m": 11.85
+    },
+    {
+      "name": "patch_fern_floor",
+      "density": "light",
+      "desc": "fern carpet under high canopy",
+      "tile_m": 12.0,
+      "verts": 13237,
+      "tris": 10750,
+      "far_tris": 2520,
+      "height_m": 10.68
+    },
+    {
+      "name": "patch_palm",
+      "density": "medium",
+      "desc": "palm cluster",
+      "tile_m": 12.0,
+      "verts": 8084,
+      "tris": 6332,
+      "far_tris": 1248,
+      "height_m": 4.46
+    },
+    {
+      "name": "patch_banana",
+      "density": "medium",
+      "desc": "banana grove",
+      "tile_m": 12.0,
+      "verts": 7390,
+      "tris": 6500,
+      "far_tris": 1584,
+      "height_m": 3.02
+    },
+    {
+      "name": "patch_deadfall",
+      "density": "medium",
+      "desc": "crossed fallen logs, ferns colonising",
+      "tile_m": 12.0,
+      "verts": 10723,
+      "tris": 9333,
+      "far_tris": 1760,
+      "height_m": 11.99
+    },
+    {
+      "name": "patch_canopy",
+      "density": "medium",
+      "desc": "3 big trees, vines strung between them",
+      "tile_m": 12.0,
+      "verts": 10289,
+      "tris": 9131,
+      "far_tris": 3114,
+      "height_m": 12.58
+    },
+    {
+      "name": "patch_vine_hall",
+      "density": "medium",
+      "desc": "4-tree ring, vines criss-crossed overhead",
+      "tile_m": 12.0,
+      "verts": 9974,
+      "tris": 8728,
+      "far_tris": 4444,
+      "height_m": 12.13
+    },
+    {
+      "name": "patch_edge",
+      "density": "medium",
+      "desc": "thick on -X, open on +X: jungle boundary",
+      "tile_m": 12.0,
+      "verts": 10912,
+      "tris": 9840,
+      "far_tris": 1656,
+      "height_m": 11.89
+    },
+    {
+      "name": "patch_grove",
+      "density": "dense",
+      "desc": "THICK MIX: trees + bamboo + bush, vined",
+      "tile_m": 12.0,
+      "verts": 18394,
+      "tris": 17000,
+      "far_tris": 4632,
+      "height_m": 11.28
+    },
+    {
+      "name": "patch_bamboo_grove",
+      "density": "dense",
+      "desc": "bamboo woven through standing timber",
+      "tile_m": 12.0,
+      "verts": 18268,
+      "tris": 17331,
+      "far_tris": 6058,
+      "height_m": 11.75
+    },
+    {
+      "name": "patch_bamboo",
+      "density": "dense",
+      "desc": "bamboo grove",
+      "tile_m": 12.0,
+      "verts": 12247,
+      "tris": 11284,
+      "far_tris": 3670,
+      "height_m": 8.64
+    },
+    {
+      "name": "patch_elephant",
+      "density": "dense",
+      "desc": "chest-high elephant grass sea",
+      "tile_m": 12.0,
+      "verts": 12212,
+      "tris": 10252,
+      "far_tris": 736,
+      "height_m": 8.93
+    },
+    {
+      "name": "patch_mixed",
+      "density": "dense",
+      "desc": "everything at once",
+      "tile_m": 12.0,
+      "verts": 15352,
+      "tris": 13800,
+      "far_tris": 3372,
+      "height_m": 10.98
+    },
+    {
+      "name": "patch_thicket",
+      "density": "wall",
+      "desc": "no sightlines - where an ambush lives",
+      "tile_m": 12.0,
+      "verts": 14534,
+      "tris": 12804,
+      "far_tris": 856,
+      "height_m": 11.41
+    },
+    {
+      "name": "patch_tangle",
+      "density": "wall",
+      "desc": "MAX THICK: trees+bamboo+bush+vines, cut through it",
+      "tile_m": 12.0,
+      "verts": 28597,
+      "tris": 26456,
+      "far_tris": 6950,
+      "height_m": 12.59
+    },
+    {
+      "name": "patch_bamboo_wall",
+      "density": "wall",
+      "desc": "bamboo brake, near-impassable",
+      "tile_m": 12.0,
+      "verts": 17034,
+      "tris": 16458,
+      "far_tris": 6460,
+      "height_m": 9.63
+    }
+  ]
+}

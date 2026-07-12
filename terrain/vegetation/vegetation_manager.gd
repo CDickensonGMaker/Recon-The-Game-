@@ -32,6 +32,14 @@ var _patch_noise: FastNoiseLite = null
 ## Use external models (disabled - too heavy for Intel UHD)
 @export var use_external_models: bool = false
 
+## Authored 12m jungle patches (tools/make_jungle_patches.py) instead of lone
+## procedural trees. The patches CARRY their own trees, bamboo, thickets, vines
+## and moss, so the single-tree layer is suppressed while this is on.
+## Turn off for the old sparse-tree look (or if a weak GPU chokes).
+@export var use_jungle_patches: bool = true
+const JunglePatchLayerScript := preload("res://terrain/vegetation/jungle_patch_layer.gd")
+var _patch_layer: JunglePatchLayer = null
+
 # Bundle size in meters
 var bundle_meters: float:
 	get: return cell_size * BUNDLE_SIZE
@@ -98,6 +106,10 @@ const FRUSTUM_UPDATE_INTERVAL := 0.1  # 10Hz
 func _ready() -> void:
 	_min_slope_dot = cos(deg_to_rad(max_slope_degrees))
 	_load_vegetation_meshes()
+	if use_jungle_patches:
+		_patch_layer = JunglePatchLayerScript.new()
+		_patch_layer.name = "JunglePatchLayer"
+		add_child(_patch_layer)
 
 
 func _process(delta: float) -> void:
@@ -126,6 +138,17 @@ func set_chunk_size(size: float) -> void:
 func _update_frustum_culling() -> void:
 	var frustum := _camera.get_frustum()
 	var cam_pos := _camera.global_position
+
+	# Jungle patches live in their own layer, and when they are on _chunk_instances
+	# is empty (the lone-tree layer is suppressed) - so they need their own pass
+	# or nothing would ever cull.
+	if _patch_layer != null and _patch_layer.enabled:
+		for coord: Vector2i in _chunk_terrain:
+			var paabb := AABB(
+				Vector3(coord.x * _chunk_size, -50, coord.y * _chunk_size),
+				Vector3(_chunk_size, 400.0, _chunk_size)
+			)
+			_patch_layer.set_chunk_visible(coord, _aabb_in_frustum(paabb, frustum))
 
 	for coord: Vector2i in _chunk_instances:
 		# Calculate chunk AABB
@@ -289,7 +312,14 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 		_build_placement_cache(chunk_coord, heightmap, chunk_size)
 
 	# Materialize from cache
-	_materialize_vegetation(chunk_coord, heightmap)
+	if _patch_layer != null and _patch_layer.enabled:
+		# Authored patches bring their own trees - the lone-tree layer would
+		# double the canopy and blow the tri budget, so it stays off.
+		_patch_layer.generate_for_chunk(
+			chunk_coord, _chunk_terrain[chunk_coord],
+			_bundles_per_chunk, bundle_meters, heightmap, chunk_size)
+	else:
+		_materialize_vegetation(chunk_coord, heightmap)
 	_materialize_grass(chunk_coord, heightmap)
 
 
@@ -837,6 +867,8 @@ func clear_chunk_visuals(chunk_coord: Vector2i) -> void:
 		if is_instance_valid(grass):
 			grass.queue_free()
 		_chunk_grass.erase(chunk_coord)
+	if _patch_layer != null:
+		_patch_layer.clear_chunk(chunk_coord)
 	# NOTE: Does NOT erase _chunk_terrain or _chunk_placements
 
 
