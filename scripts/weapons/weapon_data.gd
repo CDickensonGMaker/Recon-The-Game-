@@ -80,6 +80,12 @@ extends Resource
 
 @export_group("Visuals")
 @export var model_path: String = ""  ## Path to weapon GLTF model
+## Bench-calibrated bore direction, viewmodel-local (viewmodel_editor I/K/U/O:
+## lay the laser along the barrel by eye, Ctrl+S persists). ZERO = fall back
+## to the contract axis (root -Z). Needed because arms viewmodels are baked
+## POSED holds - no scene axis is guaranteed parallel to the barrel, and the
+## Blender muzzle empties were never aimed down the bore (2026-07-11).
+@export var bore_dir: Vector3 = Vector3.ZERO
 @export var viewmodel_scale: float = 1.0  ## Relative scale (1.0 = reference size like Thompson)
 @export var hip_position: Vector3 = Vector3(0.3, -0.2, -0.4)
 @export var ads_position: Vector3 = Vector3(0, -0.15, -0.3)

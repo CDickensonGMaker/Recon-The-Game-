@@ -55,6 +55,7 @@ var _held: Dictionary = {}
 ## Range visuals
 var _laser_node: MeshInstance3D = null
 var _laser_mesh: ImmediateMesh = null
+var _grid_node: MeshInstance3D = null
 var _no_model_label: Label = null
 var _save_button: Button = null
 var _bore_offset: Vector2 = Vector2.ZERO  ## meters on the board plane
@@ -95,6 +96,7 @@ func _ready() -> void:
 	_build_no_model_label()
 	_build_range()
 	_build_laser()
+	_build_grid()
 
 	if not weapons.is_empty():
 		_load_weapon(0)
@@ -189,12 +191,42 @@ func _handle_input(delta: float) -> void:
 		edit_rotation += rot_input * ROTATE_SPEED * speed_mult * delta
 		_apply_edit()
 
+	# BORE CALIBRATION (I/K/U/O): lay the laser along the barrel BY EYE, once
+	# per gun - Ctrl+S persists it (WeaponData.bore_dir, viewmodel-local).
+	# The baked posed holds give no data axis to trust; your eye is the truth
+	# source here, and B then auto-aligns against the calibrated bore.
+	var bore_input := Vector2.ZERO   # x = yaw (U/O), y = pitch (I/K)
+	if not Input.is_key_pressed(KEY_CTRL):
+		if Input.is_key_pressed(KEY_I):
+			bore_input.y += 1.0
+		if Input.is_key_pressed(KEY_K):
+			bore_input.y -= 1.0
+		if Input.is_key_pressed(KEY_U):
+			bore_input.x += 1.0
+		if Input.is_key_pressed(KEY_O):
+			bore_input.x -= 1.0
+	if bore_input != Vector2.ZERO and current_weapon != null:
+		var b: Vector3 = current_weapon.bore_dir
+		if b == Vector3.ZERO:
+			b = Vector3(0, 0, -1)
+		var bstep: float = deg_to_rad(20.0) * speed_mult * delta
+		b = b.rotated(Vector3.RIGHT, bore_input.y * bstep)
+		b = b.rotated(Vector3.UP, bore_input.x * bstep)
+		current_weapon.bore_dir = b.normalized()
+
 	if _pressed_once(KEY_R) and not Input.is_key_pressed(KEY_CTRL):
 		_revert_to_snapshot()
 	if _pressed_once(KEY_B):
-		_auto_align()
+		if Input.is_key_pressed(KEY_SHIFT):
+			if current_weapon != null:
+				current_weapon.bore_dir = Vector3.ZERO
+				_flash("BORE reset to contract axis (-Z)")
+		else:
+			_auto_align()
 	if _pressed_once(KEY_C) and not Input.is_key_pressed(KEY_CTRL):
 		_on_copy_values()
+	if _pressed_once(KEY_G) and _grid_node != null:
+		_grid_node.visible = not _grid_node.visible
 
 
 ## Poll a key but fire once per press (editor convention: no InputMap actions).
@@ -322,16 +354,20 @@ func _save_weapon() -> void:
 
 ## [origin, direction] of the bore in GLOBAL space. Origin = the MuzzlePoint
 ## marker (the same node the game spawns bullets at). Direction = the
-## VIEWMODEL CONTRACT axis (viewmodel root -Z = barrel, CLAUDE.md scene
-## structure) - NOT the marker's own basis: the Blender muzzle empties are
-## POSITION markers, never aimed down the bore, and trusting their
-## orientation fired the bench laser out of the top of the gun
-## (Caleb 2026-07-11). normalized(): the global basis carries the baked root
-## scale (~0.03), which otherwise breaks the board-plane t bound.
+## CALIBRATED bore (WeaponData.bore_dir, authored here with I/K/U/O), falling
+## back to the contract axis (root -Z). NOT the marker's own basis (the
+## Blender muzzle empties are position markers, never aimed - the laser fired
+## out of gun tops) and NOT blindly the contract axis either (arms viewmodels
+## are baked POSED holds - the barrel sits wherever the hand holds it).
+## normalized(): the global basis carries the baked root scale (~0.03), which
+## otherwise breaks the board-plane t bound.
 func _bore_ray() -> Array:
 	if not weapon_model:
 		return []
-	var fdir: Vector3 = (-weapon_model.global_transform.basis.z).normalized()
+	var local_bore: Vector3 = Vector3(0, 0, -1)
+	if current_weapon != null and current_weapon.bore_dir != Vector3.ZERO:
+		local_bore = current_weapon.bore_dir.normalized()
+	var fdir: Vector3 = (weapon_model.global_transform.basis * local_bore).normalized()
 	var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
 	if muzzle:
 		return [muzzle.global_position, fdir]
@@ -405,6 +441,69 @@ func _auto_align() -> void:
 		edit_rotation.y += d_yaw
 		_apply_edit()
 	_flash("AUTO-ALIGNED bore to crosshair (B)")
+
+
+## CALIBRATION GRID (Caleb 2026-07-11): a shooting-tunnel lattice so "even"
+## is judged against straight lines, not open air. Depth rails run from the
+## firing line to the board - the laser must run PARALLEL to them; any cant
+## reads instantly against the converging perspective. The eye-height center
+## rail (the true aim line, x=0 y=1.7) is highlighted. Cross-frames every 5m
+## give depth reference; graph lines on the board give the dot a ruler.
+## G toggles.
+func _build_grid() -> void:
+	var im := ImmediateMesh.new()
+	_grid_node = MeshInstance3D.new()
+	_grid_node.mesh = im
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.vertex_color_use_as_albedo = true
+	_grid_node.material_override = mat
+	add_child(_grid_node)
+	var dim := Color(0.28, 0.36, 0.30)
+	var bright := Color(0.55, 0.80, 0.55)
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	# Depth rails (0.5m lattice, firing line -> board).
+	for xi in range(-4, 5):
+		for yi in range(0, 8):
+			var x: float = float(xi) * 0.5
+			var y: float = float(yi) * 0.5
+			im.surface_set_color(dim)
+			im.surface_add_vertex(Vector3(x, y, 0.0))
+			im.surface_set_color(dim)
+			im.surface_add_vertex(Vector3(x, y, -BOARD_DIST))
+	# The true aim rail: eye height, dead center - where a perfect bore lives.
+	im.surface_set_color(bright)
+	im.surface_add_vertex(Vector3(0.0, 1.7, 0.0))
+	im.surface_set_color(bright)
+	im.surface_add_vertex(Vector3(0.0, 1.7, -BOARD_DIST))
+	# Cross-frames every 5m for depth reference.
+	for zi in range(1, 5):
+		var z: float = -5.0 * float(zi)
+		var corners: Array[Vector3] = [
+			Vector3(-2.0, 0.0, z), Vector3(2.0, 0.0, z),
+			Vector3(2.0, 0.0, z), Vector3(2.0, 3.5, z),
+			Vector3(2.0, 3.5, z), Vector3(-2.0, 3.5, z),
+			Vector3(-2.0, 3.5, z), Vector3(-2.0, 0.0, z),
+		]
+		for p in corners:
+			im.surface_set_color(dim)
+			im.surface_add_vertex(p)
+	# Board graph paper (0.25m ruling, just off the board plane).
+	var bz: float = -BOARD_DIST + 0.03
+	for gx in range(-12, 13):
+		var x2: float = float(gx) * 0.25
+		im.surface_set_color(bright if gx == 0 else dim)
+		im.surface_add_vertex(Vector3(x2, 0.0, bz))
+		im.surface_set_color(bright if gx == 0 else dim)
+		im.surface_add_vertex(Vector3(x2, 3.5, bz))
+	for gy in range(0, 15):
+		var y2: float = float(gy) * 0.25
+		var row_col: Color = bright if absf(y2 - 1.75) < 0.13 else dim
+		im.surface_set_color(row_col)
+		im.surface_add_vertex(Vector3(-3.0, y2, bz))
+		im.surface_set_color(row_col)
+		im.surface_add_vertex(Vector3(3.0, y2, bz))
+	im.surface_end()
 
 
 ## ---------------------------------------------------------------- the range
@@ -561,6 +660,11 @@ func _update_position_display() -> void:
 	lines.append("")
 	lines.append("pos Vector3(%.3f, %.3f, %.3f)" % [edit_position.x, edit_position.y, edit_position.z])
 	lines.append("rot Vector3(%.1f, %.1f, %.1f)" % [edit_rotation.x, edit_rotation.y, edit_rotation.z])
+	if current_weapon.bore_dir != Vector3.ZERO:
+		lines.append("bore CALIBRATED (%.2f, %.2f, %.2f)   Shift+B reset" % [
+			current_weapon.bore_dir.x, current_weapon.bore_dir.y, current_weapon.bore_dir.z])
+	else:
+		lines.append("bore = contract -Z   I/K/U/O: calibrate to barrel")
 	lines.append("")
 	if _bore_valid:
 		var mrad: float = _bore_offset.length() / BOARD_DIST * 1000.0
@@ -641,7 +745,9 @@ ROTATION   Arrows pitch/yaw  PgUp/Dn roll
            Shift = fine (x0.1)
 
 ALIGN      B - auto-align bore to crosshair
-           L - toggle laser
+           I/K/U/O - calibrate bore to barrel
+           Shift+B - reset bore   L - laser
+           G - toggle alignment grid
 
 SAVE       Ctrl+S - write into the .tres
            R - revert to saved
