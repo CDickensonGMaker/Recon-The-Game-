@@ -374,7 +374,12 @@ func _fire_shot() -> void:
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_dir * 2000.0,
-		1 | 4 | 32 | 64  # World, enemies, ally hurtboxes, enemy hurtboxes
+		# World + hurtbox AREAS only. Enemy BODY capsules (layer 3) are OUT for
+		# the same reason ally capsules are: a capsule in the mask shadows the
+		# hitzones inside it and every hit resolves flat 1.0x center-mass (the
+		# "shooting people and they aren't dying" bug). Native physics
+		# filtering does the work - zones are the only flesh a round can touch.
+		1 | 32 | 64  # World, ally hurtboxes, enemy hurtboxes
 	)
 	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
 	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.
@@ -411,7 +416,7 @@ func _fire_shot() -> void:
 		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
 			and (session_shots % current_weapon.tracer_ratio) == 0
 		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, muzzle_dir,
-			1 | 4 | 32 | 64, [controller], show_tracer)
+			1 | 32 | 64, [controller], show_tracer)
 
 	# Apply recoil (W-feel: first shot kicks hardest, sustained fire climbs,
 	# per-weapon recovery snaps the view back).
@@ -453,8 +458,10 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var px := randf_range(-cone, cone)
 		var py := randf_range(-cone, cone)
 		var dir: Vector3 = (aim_dir + right * tan(px) + up * tan(py)).normalized()
+		# World + enemy hurtboxes only - enemy body capsules (4) shadow the
+		# zones inside them and pellets land flat 1.0x (the sponge bug class).
 		var query := PhysicsRayQueryParameters3D.create(
-			origin, origin + dir * current_weapon.max_range, 1 | 4 | 64)
+			origin, origin + dir * current_weapon.max_range, 1 | 64)
 		query.collide_with_areas = true
 		query.exclude = [controller]
 		var r := space_state.intersect_ray(query)

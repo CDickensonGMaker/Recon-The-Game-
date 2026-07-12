@@ -781,8 +781,11 @@ func _fire_at_target() -> void:
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
+	# Enemy BODY capsules (4) OUT of the round's mask: a capsule shadows the
+	# hitzones inside it and every ally hit lands flat 1.0x center-mass -
+	# allies that cannot kill. Player body (2) stays: he has no hitzone areas.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 2 | 4 | 32 | 64, [self], show_tracer)
+		1 | 2 | 32 | 64, [self], show_tracer)
 
 
 ## Take damage

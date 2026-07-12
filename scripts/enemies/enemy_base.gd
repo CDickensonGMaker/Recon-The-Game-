@@ -1719,9 +1719,13 @@ func _fire_at_target() -> void:
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
-	# FULL-REALISM FRIENDLY FIRE mask ports verbatim from the retired ray.
+	# FULL-REALISM FRIENDLY FIRE, minus body-capsule shadowing: enemy bodies
+	# (4) OUT of the round's mask - a capsule in the mask eats the hit before
+	# the hitzones inside it and FF lands flat 1.0x. Friendly fire still
+	# works through squadmate hurtboxes (64); player body (2) stays because
+	# the player has no hitzone areas.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 2 | 4 | 32 | 64, [self], show_tracer)
+		1 | 2 | 32 | 64, [self], show_tracer)
 
 
 ## W45: telegraph shout, then lob a real grenade at the last-known position.
@@ -2044,7 +2048,14 @@ func _die() -> void:
 		var to_attacker: Vector3 = -last_hit_dir
 		var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 		var intent: String = "death_right" if from_right else "death_forward"
-		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
+		var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
+		# DEAD MEN FALL, whatever the export shipped: a rig without the death
+		# clip used to just STAND there in the DEAD state. If the clip refuses,
+		# hand the body to the engine's ragdoll - gravity needs no animation.
+		if played is bool and not played and _visual_is_model:
+			var ma := sprite_actor as ModelActor
+			if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
+				push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 
