@@ -147,13 +147,23 @@ class Part:
                 uv.data[li].uv = (u, 0.5)
         ob = bpy.data.objects.new(self.name, me)
         bpy.context.scene.collection.objects.link(ob)
-        # rigid bone attach - exactly how the grunt's helmet/ruck/canteens ride
+        # Rigid bone attach - exactly how the grunt's helmet/ruck/canteens ride.
+        #
+        # The verts are already authored in WORLD/REST space, so the finished
+        # object must sit at IDENTITY. Get there by parenting FIRST and setting
+        # matrix_world AFTERWARDS, letting Blender solve the basis. Hand-rolling
+        # the parent inverse does not work: bone parenting adds a bone-LENGTH tail
+        # offset that (rig.matrix_world @ pose.matrix).inverted() does not account
+        # for, and the whole kit slides off the man and onto the floor. That bug
+        # shipped in this file once - the radio was 1.5m out in front of him with
+        # its verts still saying "on his back".
         ob.parent = rig
         ob.parent_type = 'BONE'
         ob.parent_bone = self.bone
+        ob.matrix_parent_inverse = Matrix.Identity(4)
+        bpy.context.view_layer.update()
         ob.matrix_world = Matrix.Identity(4)   # built in world/rest space already
-        ob.matrix_parent_inverse = (rig.matrix_world
-                                    @ rig.pose.bones[self.bone].matrix).inverted()
+        bpy.context.view_layer.update()
         return ob
 
 
