@@ -1651,66 +1651,22 @@ func _fire_at_target() -> void:
 	# damage, handled below). This is what makes the player want to get down.
 	_suppress_player_if_near(origin, final_aim, result)
 
-	# Visible tracer from the muzzle (also the "muzzle flash reveals position" tell).
-	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
-	if result:
-		tracer_end = result.position
+	# REAL PROJECTILES (7ks): the round is a live BulletSystem bullet - muzzle
+	# spawn, gravity drop, travel time, arrival damage/FX through the shared
+	# resolver (zone mults, W37 wound rolls, blood at the point of arrival).
+	# The tracer IS the bullet; color/ratio come from WeaponData (nx9n - the
+	# hardcoded every-round green dies here). Muzzle flash still betrays the
+	# shooter's position; the lane-check ray above still enforces discipline.
 	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
-	BulletTracer.spawn_tracer(get_tree().current_scene, fx_origin, tracer_end, Color(0.4, 1.0, 0.5, 1.0))
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
-	# Flesh gets blood (used to get NOTHING — only the player spawned blood); world
-	# gets a dust puff + persistent hole. Mirrors weapon_holder's player path.
-	if result:
-		var hit_col: Object = result.collider
-		var is_flesh: bool = hit_col is Hitzone
-		if not is_flesh and hit_col is Node:
-			var n := hit_col as Node
-			var np: Node = n.get_parent()
-			is_flesh = n.is_in_group("player") or n.is_in_group("allies") \
-				or (np != null and (np.is_in_group("player") or np.is_in_group("allies")))
-		if is_flesh:
-			var victim: Node = (hit_col as Hitzone).owner_entity if hit_col is Hitzone else hit_col as Node
-			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_aim, victim)
-		else:
-			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
-			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
-
-	if result:
-		var hit_target: Object = result.collider
-		if hit_target:
-			var damage_target: Node = null
-			var damage_multiplier: float = 1.0
-			var zone_name: String = "BODY"
-
-			if hit_target is Hitzone:
-				var hitzone := hit_target as Hitzone
-				damage_target = hitzone.owner_entity
-				damage_multiplier = hitzone.get_damage_multiplier()
-				zone_name = hitzone.get_zone_name()
-			elif hit_target is Node and (hit_target as Node).is_in_group("player"):
-				damage_target = hit_target as Node
-			elif hit_target is Node and (hit_target as Node).is_in_group("allies"):
-				damage_target = hit_target as Node
-			elif hit_target is Node and (hit_target as Node).get_parent():
-				var parent: Node = (hit_target as Node).get_parent()
-				if parent.is_in_group("player") or parent.is_in_group("allies"):
-					damage_target = parent
-
-			if damage_target and damage_target.has_method("take_damage"):
-				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
-				var base_damage: int = weapon_data.get_damage()
-				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
-
-				# W37: limb hits wound (arm = shaky aim, leg = no sprint).
-				if zone_name == "LIMB" and damage_target.has_method("apply_wound"):
-					damage_target.apply_wound("LIMB_LEG" if randf() < 0.5 else "LIMB_ARM")
-
-				if zone_name == "HEAD":
-					print("[ENEMY] HEADSHOT! %d damage" % final_damage)
+	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
+		and (shots_fired % weapon_data.tracer_ratio) == 0
+	# FULL-REALISM FRIENDLY FIRE mask ports verbatim from the retired ray.
+	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
+		1 | 2 | 4 | 32 | 64, [self], show_tracer)
 
 
 ## W45: telegraph shout, then lob a real grenade at the last-known position.

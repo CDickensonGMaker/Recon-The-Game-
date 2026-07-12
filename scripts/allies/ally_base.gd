@@ -771,52 +771,18 @@ func _fire_at_target() -> void:
 				and (lane_owner.is_in_group("player") or lane_owner.is_in_group("allies")):
 			return
 
-	var tracer_end: Vector3 = origin + final_aim * weapon_data.max_range
-	if result:
-		tracer_end = result.position
-	BulletTracer.spawn_tracer(get_tree().current_scene, origin, tracer_end, Color(1.0, 0.85, 0.4, 1.0))
+	# REAL PROJECTILES (7ks): live BulletSystem round - muzzle spawn, drop,
+	# travel, arrival damage/FX through the shared resolver. Tracer IS the
+	# bullet, color/ratio from WeaponData (nx9n). Lane-check ray above still
+	# enforces muzzle discipline. FULL-REALISM FF mask ports verbatim.
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
 	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, origin)
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
-
-	# Flesh gets blood; world gets a dust puff + hole (allies spawned no impact FX before).
-	if result:
-		var hit_col: Object = result.collider
-		var is_flesh: bool = hit_col is Hitzone
-		if not is_flesh and hit_col is Node:
-			var n := hit_col as Node
-			var np: Node = n.get_parent()
-			is_flesh = n.is_in_group("enemies") or (np != null and np.is_in_group("enemies"))
-		if is_flesh:
-			var victim: Node = (hit_col as Hitzone).owner_entity if hit_col is Hitzone else hit_col as Node
-			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_aim, victim)
-		else:
-			GunFX.impact(get_tree().current_scene, result.position, result.normal, false)
-			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
-
-	if result:
-		var hit_target: Object = result.collider
-		if hit_target:
-			var damage_target: Node = null
-			var damage_multiplier: float = 1.0
-			var zone_name: String = "BODY"
-
-			if hit_target is Hitzone:
-				var hitzone := hit_target as Hitzone
-				damage_target = hitzone.owner_entity
-				damage_multiplier = hitzone.get_damage_multiplier()
-				zone_name = hitzone.get_zone_name()
-			elif hit_target is Node and (hit_target as Node).is_in_group("enemies"):
-				damage_target = hit_target as Node
-			elif hit_target is Node and (hit_target as Node).get_parent() and (hit_target as Node).get_parent().is_in_group("enemies"):
-				damage_target = (hit_target as Node).get_parent()
-
-			if damage_target and damage_target.has_method("take_damage"):
-				var falloff: float = weapon_data.damage_multiplier_at(origin.distance_to(result.position))
-				var base_damage: int = weapon_data.get_damage()
-				var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-				damage_target.take_damage(final_damage, weapon_data.damage_type, self, zone_name)
+	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
+		and (shots_fired % weapon_data.tracer_ratio) == 0
+	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
+		1 | 2 | 4 | 32 | 64, [self], show_tracer)
 
 
 ## Take damage

@@ -39,3 +39,4 @@ hip_position = Vector3(0.3, -0.25, -0.5)
 ads_position = Vector3(0, -0.1, -0.4)
 hip_rotation = Vector3(0, 0, 0)
 ads_rotation = Vector3(0, 0, 0)
+tracer_ratio = 0

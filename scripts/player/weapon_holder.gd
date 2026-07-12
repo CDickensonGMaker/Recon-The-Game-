@@ -120,9 +120,8 @@ const PITCH_OFFSET_FORWARD: float = 0.15  ## How much to move weapon forward
 var ray_origin: Vector3
 var ray_end: Vector3
 
-## Tracer settings
-const TRACER_ENABLED: bool = true
-const TRACER_COLOR: Color = Color(1.0, 0.85, 0.4, 1.0)  ## Yellow tracer
+## Tracers are data-driven per weapon now (WeaponData.tracer_ratio/color, nx9n)
+## and the streak IS the round (BulletSystem, 7ks).
 
 ## Viewmodel scaling
 const BASE_VIEWMODEL_SCALE: float = 0.1  ## Base scale applied to all viewmodels
@@ -144,6 +143,15 @@ func _ready() -> void:
 
 	# Load initial weapon model
 	_load_weapon_model(current_weapon)
+
+	# Hitmarker feed: bullets resolve at ARRIVAL now (7ks), so the HUD tick
+	# comes back from the BulletSystem when a player round actually lands.
+	CombatManager.bullets.player_bullet_hit.connect(_on_player_bullet_hit)
+
+
+func _on_player_bullet_hit(killed: bool, headshot: bool) -> void:
+	session_hits += 1
+	target_hit.emit(killed, headshot)
 
 
 func _process(delta: float) -> void:
@@ -354,23 +362,26 @@ func _fire_shot() -> void:
 
 	var final_dir: Vector3 = (aim_dir + right * tan(spread_x) + up * tan(spread_y)).normalized()
 
-	# Raycast for hit detection. FULL-REALISM FRIENDLY FIRE (Summoner decree):
-	# ally hurtboxes (32) are in the mask - your rounds hurt your men at full
-	# damage. Ally BODY capsules (layer 2) stay out on purpose: they would
-	# shadow the hitzones (the 3-shot-headshot bug class).
+	# AIM RAY - no damage, no FX. The crosshair's truth: find the point the
+	# player is actually aiming at so the muzzle-spawned round converges onto
+	# it (muzzle and camera are ~half a meter apart; without convergence every
+	# close shot lands low-right of the crosshair). Same FULL-REALISM FRIENDLY
+	# FIRE mask as the round itself: ally hurtboxes (32) are in - your rounds
+	# hurt your men. Ally BODY capsules (layer 2) stay out on purpose: they
+	# would shadow the hitzones (the 3-shot-headshot bug class).
 	var origin: Vector3 = controller.get_camera_position()
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
-		origin + final_dir * current_weapon.max_range,
+		origin + final_dir * 2000.0,
 		1 | 4 | 32 | 64  # World, enemies, ally hurtboxes, enemy hurtboxes
 	)
 	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
 	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.
 	query.collide_with_areas = true
 	query.exclude = [controller]
-
-	var result := space_state.intersect_ray(query)
+	var aim_hit := space_state.intersect_ray(query)
+	var aim_point: Vector3 = aim_hit.position if aim_hit else origin + final_dir * 2000.0
 
 	# Shot feedback: sound, flash, viewmodel punch (RTCW-tight, R06/R07/R31)
 	var muzzle_pos: Vector3 = _get_muzzle_position()
@@ -381,44 +392,26 @@ func _fire_shot() -> void:
 	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
 	_punch = 1.0
 
-	# Spawn bullet tracer. Real belts are ~1-in-4 tracer; all-tracer reads arcade
-	# and kills the night payoff. Auto weapons skip 3 of 4; bolt/semi always show.
-	if TRACER_ENABLED:
-		var is_auto: bool = current_weapon.firing_mode == Enums.FiringMode.FULL_AUTO
-		if not is_auto or (_sustained_shots % 4) == 0:
-			var tracer_end: Vector3 = result.position if result else origin + final_dir * current_weapon.max_range
-			BulletTracer.spawn_tracer(get_tree().current_scene, muzzle_pos, tracer_end, TRACER_COLOR)
-
-	# Impact effects at whatever we hit. Flesh gets blood (used to get NOTHING);
-	# world gets a dust puff + a persistent bullet hole.
-	if result:
-		var flesh: bool = (result.collider is Hitzone) or (result.collider is Node and (result.collider as Node).is_in_group("enemies"))
-		if flesh:
-			var victim: Node = (result.collider as Hitzone).owner_entity if result.collider is Hitzone else result.collider as Node
-			GunFX.blood(get_tree().current_scene, result.position, result.normal, final_dir, victim)
+	# REAL PROJECTILES (7ks, Summoner decree - hitscan is dead): rockets fly
+	# through ProjectileBase (so a captured RPG-2 finally fires a rocket, bead
+	# vfnt), buckshot keeps the pellet-cluster grammar (ADR-016 Amendment A),
+	# and every bullet is a live BulletSystem round - drop, travel time, and
+	# arrival damage/FX. Impact feedback happens when the round LANDS.
+	var muzzle_dir: Vector3 = (aim_point - muzzle_pos).normalized()
+	if not current_weapon.projectile_data_path.is_empty():
+		var pdata: ProjectileData = load(current_weapon.projectile_data_path)
+		if pdata != null:
+			CombatManager.spawn_projectile(pdata, controller, muzzle_pos, muzzle_dir)
 		else:
-			var hard: bool = _surface_is_hard(result.collider)
-			GunFX.impact(get_tree().current_scene, result.position, result.normal, hard)
-			GunFX.bullet_hole(get_tree().current_scene, result.position, result.normal)
-
-	# Damage resolves against the world the player SAW (the ray above), but the
-	# consequence is delayed by the round's flight time (W36: projectile_speed is
-	# no longer dead data). Favor-the-shooter: at 735 m/s a 100 m hit lands ~136ms
-	# after the flash, which is why long-range duels feel like duels.
-	# Pellet weapons resolve through the cluster path instead - the main ray
-	# above still provided the feedback line (tracer/impact/blood).
-	if current_weapon.pellet_count > 1:
+			push_error("[WeaponHolder] %s names a projectile that will not load: %s" % [
+				current_weapon.id, current_weapon.projectile_data_path])
+	elif current_weapon.pellet_count > 1:
 		_fire_pellet_cluster(origin, aim_dir, right, up)
-	elif result:
-		var travel: float = origin.distance_to(result.position) / maxf(1.0, current_weapon.projectile_speed)
-		if travel > 0.03:
-			var hit: Dictionary = result.duplicate()
-			var wd: WeaponData = current_weapon
-			var atk: Node = controller
-			get_tree().create_timer(travel, false).timeout.connect(
-				func() -> void: _resolve_hit(hit, origin, wd, atk))
-		else:
-			_resolve_hit(result, origin, current_weapon, controller)
+	else:
+		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
+			and (session_shots % current_weapon.tracer_ratio) == 0
+		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, muzzle_dir,
+			1 | 4 | 32 | 64, [controller], show_tracer)
 
 	# Apply recoil (W-feel: first shot kicks hardest, sustained fire climbs,
 	# per-weapon recovery snaps the view back).
@@ -508,41 +501,6 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 					target.take_damage(final_damage, wd.damage_type, atk, zone))
 		else:
 			target.take_damage(final_damage, wd.damage_type, atk, zone)
-
-
-## Apply damage from a resolved raycast. Split out of _fire_shot so it can be
-## deferred by projectile travel time. Distance falloff scales the flat base
-## before the hitzone multiplier, so a headshot stays a headshot at any range.
-func _resolve_hit(hit: Dictionary, origin: Vector3, weapon: WeaponData, attacker: Node) -> void:
-	var hit_collider: Object = hit.get("collider")
-	if hit_collider == null or not is_instance_valid(hit_collider):
-		return
-
-	var damage_target: Node = null
-	var damage_multiplier: float = 1.0
-	var zone_name: String = "BODY"
-
-	if hit_collider is Hitzone:
-		var hitzone := hit_collider as Hitzone
-		damage_target = hitzone.owner_entity
-		damage_multiplier = hitzone.get_damage_multiplier()
-		zone_name = hitzone.get_zone_name()
-	elif hit_collider is Node and (hit_collider as Node).is_in_group("enemies"):
-		damage_target = hit_collider as Node
-	elif hit_collider is Node and (hit_collider as Node).get_parent() and (hit_collider as Node).get_parent().is_in_group("enemies"):
-		damage_target = (hit_collider as Node).get_parent()
-
-	if damage_target and is_instance_valid(damage_target) and damage_target.has_method("take_damage"):
-		var falloff: float = weapon.damage_multiplier_at(origin.distance_to(hit.position))
-		var base_damage: int = weapon.get_damage()
-		var final_damage: int = maxi(1, int(float(base_damage) * falloff * damage_multiplier))
-		damage_target.take_damage(final_damage, weapon.damage_type, attacker, zone_name)
-
-		# W38: hitmarker feedback (HUD flash + tick; kill = deeper tone; headshot
-		# = distinct marker). zone_name now travels to the HUD instead of a print.
-		var killed: bool = damage_target.has_method("is_dead") and damage_target.is_dead()
-		session_hits += 1
-		target_hit.emit(killed, zone_name == "HEAD")
 
 
 func _start_reload() -> void:

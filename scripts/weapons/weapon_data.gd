@@ -47,6 +47,14 @@ extends Resource
 @export var projectile_speed: float = 400.0  ## m/s
 @export var projectile_data_path: String = ""  ## Path to ProjectileData resource
 
+@export_group("Tracer")
+## nx9n (data-driven tracers): every Nth round streaks (1 = all, 0 = never).
+## The streak IS the bullet (BulletSystem) - it flies at projectile_speed.
+## Doctrine: MG belts 1-in-4, rifles 1-in-5, bolt guns and pistols dark.
+@export var tracer_ratio: int = 4
+## US = red-orange, ComBloc = green (nx9n; kills the hardcoded enemy green).
+@export var tracer_color: Color = Color(1.0, 0.5, 0.3, 1.0)
+
 @export_group("Feel")
 ## First aimed shot kicks harder than sustained fire - rewards trigger discipline.
 @export var recoil_first_shot_mult: float = 1.5

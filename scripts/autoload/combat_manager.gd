@@ -13,6 +13,9 @@ var player: Node = null
 ## Projectile pool for all projectiles in the game
 var projectile_pool: ProjectilePool = null
 
+## Real bullet simulation (7ks) - every small-arms round in the game.
+var bullets: BulletSystem = null
+
 ## Cleanup timer for invalid entities
 var _cleanup_timer: float = 0.0
 const CLEANUP_INTERVAL: float = 5.0
@@ -26,6 +29,9 @@ func _ready() -> void:
 	projectile_pool = ProjectilePool.new()
 	projectile_pool.name = "ProjectilePool"
 	add_child(projectile_pool)
+	bullets = BulletSystem.new()
+	bullets.name = "BulletSystem"
+	add_child(bullets)
 
 
 func _process(delta: float) -> void:
@@ -316,3 +322,5 @@ func spawn_projectile_at_target(data: ProjectileData, source: Node, spawn_positi
 func clear_all_projectiles() -> void:
 	if projectile_pool:
 		projectile_pool.clear_all()
+	if bullets:
+		bullets.clear_all()

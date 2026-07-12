@@ -39,3 +39,5 @@ hip_position = Vector3(0.250, -0.300, -0.400)
 ads_position = Vector3(0.000, -0.246, -0.899)
 hip_rotation = Vector3(0.0, 0.0, 0.0)
 ads_rotation = Vector3(0.9, 0.0, 0.1)
+tracer_ratio = 5
+tracer_color = Color(0.4, 1, 0.45, 1)
