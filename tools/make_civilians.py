@@ -117,6 +117,14 @@ UNITS = {
 }
 
 
+# CALEB'S EYE, 2026-07-12. He hand-placed the hats in the review scene and they
+# were right, so the numbers are his, not mine: every hat came FORWARD 1.6cm and
+# DOWN ~6cm from where the builder was putting it. Measured off his file and folded
+# back in here, because a correction that only lives in a review scene is a
+# correction you make again next week.
+HAT_NUDGE = Vector((0.0, -0.017, -0.060))
+
+
 def _srgb(c):
     """Linear -> sRGB. Blender reads an sRGB image's pixels as ALREADY encoded, so
     writing linear values straight in gets them decoded a second time and the whole
@@ -125,19 +133,11 @@ def _srgb(c):
     return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
 
 
-def fabric(name, rgb, seed, weave=0.05, blotch=0.17):
-    """A woven cloth texture, generated. The grunt's body samples a PHOTO of OD-green
-    fabric - that is why he reads as cloth and why a flat colour reads as plastic.
-    Civilians get the same treatment: full-bleed fabric, so wherever the body's UVs
-    land they land on cloth. No UV work needed.
-
-    Low-frequency blotches = wear and sun-fade. High-frequency grain + a 3px weave
-    = the thread. Deterministic per unit (seeded), so a rebuild is byte-identical."""
-    import random
-    rnd = random.Random(seed)
-    S, G = 256, 16
+def _valnoise(rnd, S, G):
+    """Bilinear value noise, G cells across S pixels. Cheap, and it tiles nowhere
+    near well enough to matter at PSX range."""
     grid = [[rnd.uniform(-1.0, 1.0) for _ in range(G + 1)] for _ in range(G + 1)]
-    px = [0.0] * (S * S * 4)
+    out = [0.0] * (S * S)
     for y in range(S):
         fy = y * G / S
         y0 = int(fy)
@@ -148,18 +148,163 @@ def fabric(name, rgb, seed, weave=0.05, blotch=0.17):
             tx = fx - x0
             a = grid[y0][x0] * (1 - tx) + grid[y0][x0 + 1] * tx
             b = grid[y0 + 1][x0] * (1 - tx) + grid[y0 + 1][x0 + 1] * tx
-            v = 1.0 + (a * (1 - ty) + b * ty) * blotch
-            v += rnd.uniform(-1.0, 1.0) * 0.045                 # thread grain
-            v += (weave if (x % 3 == 0) != (y % 3 == 0) else -weave)
-            i = ((y * S) + x) * 4
-            px[i]     = _srgb(rgb[0] * v)
-            px[i + 1] = _srgb(rgb[1] * v)
-            px[i + 2] = _srgb(rgb[2] * v)
-            px[i + 3] = 1.0
+            out[y * S + x] = a * (1 - ty) + b * ty
+    return out
+
+
+def fabric(name, rgb, seed):
+    """HAND-LOOMED COTTON, generated. The grunt's body samples a PHOTO of OD-green
+    fabric - that is why he reads as cloth and why a flat colour reads as plastic.
+
+    A flat weave of even threads reads as CG, so this is built the way the real
+    cloth is wrong:
+      * PLAIN WEAVE - warp over weft, alternating, 2px, so the surface has a grain
+        with a direction instead of uniform noise
+      * SLUB - the threads are hand-spun, so they vary in thickness along their
+        length. Slub is the single thing that separates homespun from nylon.
+      * UNEVEN DYE - indigo dipped by hand blotches at two scales, and sun-bleaches
+      * FADE - a slow drift, because no garment out here is one colour
+
+    Full-bleed, so wherever the body's UVs land they land on cloth. There is NO real
+    UV unwrap on this body (it samples arbitrary patches of a photo sheet), which is
+    exactly why grime cannot be painted at the knees - that is what the vertex-colour
+    grime pass is for."""
+    import random
+    rnd = random.Random(seed)
+    S = 512
+    dye_lo = _valnoise(rnd, S, 6)      # big blotches: the dye vat
+    dye_hi = _valnoise(rnd, S, 28)     # small mottling
+    slub_w = _valnoise(rnd, S, 90)     # thread thickness along the warp
+    slub_f = _valnoise(rnd, S, 90)     # ... and the weft
+    px = [0.0] * (S * S * 4)
+    for y in range(S):
+        for x in range(S):
+            i = y * S + x
+            # plain weave: which thread is on top at this crossing
+            over = ((x // 2) + (y // 2)) % 2 == 0
+            warp = 1.0 + slub_w[i] * 0.22          # hand-spun: uneven thickness
+            weft = 1.0 + slub_f[i] * 0.22
+            thread = warp if over else weft
+            shade = 1.0 + (0.055 if over else -0.055) * thread
+            # the gap between threads is darker than the threads themselves
+            if (x % 2 == 0) and (y % 2 == 0):
+                shade *= 0.90
+            v = shade
+            v *= 1.0 + dye_lo[i] * 0.17 + dye_hi[i] * 0.07
+            v *= 1.0 + rnd.uniform(-1.0, 1.0) * 0.025
+            j = i * 4
+            px[j]     = _srgb(rgb[0] * v)
+            px[j + 1] = _srgb(rgb[1] * v)
+            px[j + 2] = _srgb(rgb[2] * v)
+            px[j + 3] = 1.0
     img = bpy.data.images.new(name, S, S, alpha=False)
     img.pixels.foreach_set(px)
     img.pack()
     return img
+
+
+def grime(body, rig):
+    """Wear and mud, baked into VERTEX COLOURS.
+
+    This body has no usable UV unwrap - it samples patches of a photo sheet - so
+    grime cannot be painted onto the knees or the hem in the texture. But glTF's
+    COLOR_0 multiplies albedo, and Godot honours that, so vertex colour IS a second
+    albedo channel we already own. (Blender's own preview lies about this. Godot is
+    the one that is right - we learned that the hard way on the jungle.)
+
+    Three layers, multiplied:
+      * CAVITY - creases and folds darken, so the shirt stops looking shrink-wrapped
+      * PADDY MUD - dark at the ankle, fading out by the knee. A man who works in
+        water is filthy from the shins down and nowhere else.
+      * SUN - the shoulders and the top of the hat are bleached lighter
+
+    The FACE is forced to white: COLOR_0 hits every material on the mesh, and a man
+    with a shadow baked into his cheekbones looks embalmed."""
+    me = body.data
+    if not me.color_attributes:
+        me.color_attributes.new(name="Col", type='BYTE_COLOR', domain='CORNER')
+    col = me.color_attributes[0]
+
+    mats = [s.material.name if s.material else "" for s in body.material_slots]
+    face_slots = {i for i, m in enumerate(mats) if m.startswith("face_atlas")}
+
+    ws = [body.matrix_world @ v.co for v in me.vertices]
+    zmin = min(w.z for w in ws)
+    zmax = max(w.z for w in ws)
+
+    # crude cavity: a vert surrounded by neighbours that lean away from it sits in
+    # a crease. Cheap, and at PSX vertex density it is all the fold shading we need.
+    nbr = {i: set() for i in range(len(me.vertices))}
+    for e in me.edges:
+        a, b = e.vertices
+        nbr[a].add(b)
+        nbr[b].add(a)
+    cav = [1.0] * len(me.vertices)
+    for i, v in enumerate(me.vertices):
+        if not nbr[i]:
+            continue
+        n = Vector(v.normal)
+        acc = 0.0
+        for j in nbr[i]:
+            d = (me.vertices[j].co - v.co)
+            if d.length > 1e-6:
+                acc += n.dot(d.normalized())
+        acc /= len(nbr[i])
+        cav[i] = 1.0 + max(-0.5, min(0.0, acc)) * 0.55     # concave -> darker
+
+    for p in me.polygons:
+        white = p.material_index in face_slots
+        for li in p.loop_indices:
+            vi = me.loops[li].vertex_index
+            if white:
+                col.data[li].color = (1.0, 1.0, 1.0, 1.0)
+                continue
+            z = ws[vi].z
+            t = (z - zmin) / max(1e-6, zmax - zmin)
+            mud = 1.0 - 0.42 * max(0.0, 1.0 - t / 0.24) ** 1.5     # shin-deep
+            sun = 1.0 + 0.10 * max(0.0, (t - 0.72) / 0.28)         # bleached top
+            v = max(0.25, min(1.25, cav[vi] * mud * sun))
+            col.data[li].color = (v, v, v, 1.0)
+    me.update()
+    return len(col.data)
+
+
+def skin_tex(name, rgb, seed):
+    """Skin, mottled. Same reasoning as the cloth: a flat fill is plastic. Sun on the
+    forearms, a little unevenness, nothing clever."""
+    import random
+    rnd = random.Random(seed)
+    S = 128
+    lo = _valnoise(rnd, S, 5)
+    hi = _valnoise(rnd, S, 20)
+    px = [0.0] * (S * S * 4)
+    for i in range(S * S):
+        v = 1.0 + lo[i] * 0.10 + hi[i] * 0.045 + rnd.uniform(-1.0, 1.0) * 0.02
+        j = i * 4
+        px[j]     = _srgb(rgb[0] * v)
+        px[j + 1] = _srgb(rgb[1] * v)
+        px[j + 2] = _srgb(rgb[2] * v)
+        px[j + 3] = 1.0
+    img = bpy.data.images.new(name, S, S, alpha=False)
+    img.pixels.foreach_set(px)
+    img.pack()
+    return img
+
+
+def textured_mat(name, img, rgb):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get("Principled BSDF")
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    tex.interpolation = 'Closest'
+    nt.links.new(tex.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.92
+    if "Specular IOR Level" in b.inputs:
+        b.inputs["Specular IOR Level"].default_value = 0.0
+    m.diffuse_color = (rgb[0], rgb[1], rgb[2], 1.0)
+    return m
 
 
 def cloth_mat(name, rgb, seed):
@@ -221,6 +366,7 @@ def flat_mat(name, rgb):
     b.inputs["Roughness"].default_value = 0.9
     if "Specular IOR Level" in b.inputs:
         b.inputs["Specular IOR Level"].default_value = 0.0
+    m.diffuse_color = (rgb[0], rgb[1], rgb[2], 1.0)   # so previews stop lying
     return m
 
 
@@ -237,6 +383,176 @@ def repoint_slot(slot_name, new_mat):
                 s.material = new_mat
                 n += 1
     return n
+
+
+def bone_head(rig, name):
+    return rig.matrix_world @ rig.pose.bones[name].head
+
+
+def tailor(rig):
+    """Turn the GRUNT's body into PEASANT CLOTHES.
+
+    Everything below this line was the real complaint: a farmer in a recoloured
+    fatigue silhouette is still a soldier. Ba-ba pyjamas are LOOSE - baggy trousers,
+    a wide untucked shirt, no military collar - and no texture work fixes a shape.
+
+    Each limb is puffed about ITS OWN axis, not the body centre. Scale both legs
+    about the pelvis and you do not get baggy trousers, you get a wider stance."""
+    L, R = "mixamorig:Left", "mixamorig:Right"
+
+    # baggy trousers: widen each leg about its own vertical axis
+    for s in (L, R):
+        scale_region((s + "UpLeg", s + "Leg"), 1.16,
+                     bone_head(rig, s + "UpLeg"), axes=(0, 1))
+    # loose sleeves: the arms run along X in rest, so puff Y and Z
+    for s in (L, R):
+        scale_region((s + "Arm", s + "ForeArm"), 1.15,
+                     bone_head(rig, s + "Arm"), axes=(1, 2))
+    # a wide shirt, not a tunic-fit tunic
+    scale_region(("Spine", "Spine1", "Spine2"), 1.09,
+                 bone_head(rig, "mixamorig:Spine"), axes=(0, 1))
+    # kill the military collar: the grunt's fatigue collar stands up around the
+    # neck. A peasant shirt has none - pull it in against the throat.
+    scale_region(("Neck",), 0.80, bone_head(rig, "mixamorig:Neck"), axes=(0, 1))
+    # BARE FEET, not boots painted skin-colour: crush the sole and narrow the last
+    for s in (L, R):
+        scale_region((s + "Foot", s + "ToeBase"), 0.72,
+                     bone_head(rig, s + "Foot"), axes=(2,))
+        scale_region((s + "Foot", s + "ToeBase"), 0.86,
+                     bone_head(rig, s + "Foot"), axes=(0,))
+
+
+def shirt_hem(body, drop=0.13, flare=1.22):
+    """Hang the shirt OVER the trousers.
+
+    The torso is its own island and its bottom rim is an OPEN boundary loop, tucked
+    up inside the tops of the legs where nobody ever saw it. That rim is exactly a
+    waist, so extrude it: down, and outward. The result is an untucked shirt with a
+    hem - the single silhouette cue that separates a peasant from a soldier at
+    fifty metres.
+
+    New verts inherit the weights of the rim vert they came from, so the hem swings
+    with the hips instead of hanging in space."""
+    me = body.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    dvert = bm.verts.layers.deform.verify()
+    uvlay = bm.loops.layers.uv.active
+
+    # every boundary loop, then keep the one that is a WAIST: low on the torso,
+    # wide, and owned by the spine/hips.
+    spine_gi = {g.index for g in body.vertex_groups
+                if any(b in g.name for b in ("Spine", "Hips"))}
+    bnd = [e for e in bm.edges if len(e.link_faces) == 1]
+    seen, loops = set(), []
+    for e in bnd:
+        if e in seen:
+            continue
+        stack, loop = [e], []
+        while stack:
+            c = stack.pop()
+            if c in seen:
+                continue
+            seen.add(c)
+            loop.append(c)
+            for v in c.verts:
+                for ne in v.link_edges:
+                    if ne not in seen and len(ne.link_faces) == 1:
+                        stack.append(ne)
+        loops.append(loop)
+
+    # There are TWO rims at the waist: the bottom of the TORSO tube and the top of
+    # the LEGS, tucked inside each other. Do not tell them apart by vertex weight -
+    # the waist verts belong to the legs on both. Tell them apart by WHERE THE
+    # GEOMETRY IS: the torso's rim has the torso above it; the legs' rim has the
+    # legs below it. We want the one with body above - that is the hem line.
+    best, best_score = None, -1.0
+    for lp in loops:
+        vs = {v for e in lp for v in e.verts}
+        if len(vs) < 6:
+            continue
+        ws = [body.matrix_world @ v.co for v in vs]
+        z = sum(w.z for w in ws) / len(ws)
+        if not (0.80 < z < 1.05):                  # waist height, not a wrist
+            continue
+        faces = {f for e in lp for f in e.link_faces}
+        fz = sum((body.matrix_world @ f.calc_center_median()).z for f in faces) / len(faces)
+        if fz < z:                                 # geometry hangs BELOW -> leg top
+            continue
+        rad = max((w - Vector((0, 0, w.z))).length for w in ws)
+        if rad > best_score:
+            best, best_score = lp, rad
+    if best is None:
+        print("      (no waist loop found - shirt hem skipped)")
+        bm.free()
+        return 0
+
+    # walk the loop into an ordered ring
+    ring, vset = [], {v for e in best for v in e.verts}
+    start = next(iter(vset))
+    prev, cur = None, start
+    while True:
+        ring.append(cur)
+        nxt = None
+        for e in cur.link_edges:
+            if len(e.link_faces) != 1:
+                continue
+            o = e.other_vert(cur)
+            if o in vset and o is not prev:
+                nxt = o
+                break
+        if nxt is None or nxt is start:
+            break
+        prev, cur = cur, nxt
+    if len(ring) < 6:
+        bm.free()
+        return 0
+
+    inv = body.matrix_world.inverted()
+    ws = [body.matrix_world @ v.co for v in ring]
+    cx = sum(w.x for w in ws) / len(ws)
+    cy = sum(w.y for w in ws) / len(ws)
+
+    new = []
+    for v, w in zip(ring, ws):
+        p = Vector((cx + (w.x - cx) * flare,
+                    cy + (w.y - cy) * flare,
+                    w.z - drop))
+        nv = bm.verts.new(inv @ p)
+        nv[dvert].clear()
+        for g, wt in v[dvert].items():          # the hem swings with the hips
+            nv[dvert][g] = wt
+        new.append(nv)
+    bm.verts.ensure_lookup_table()
+
+    made = 0
+    hem_faces = []
+    for i in range(len(ring)):
+        j = (i + 1) % len(ring)
+        try:
+            f = bm.faces.new((ring[i], ring[j], new[j], new[i]))
+        except ValueError:
+            continue
+        f.material_index = 0                    # the cloth slot
+        if uvlay is not None:
+            for lo in f.loops:
+                lo[uvlay].uv = (0.5, 0.5)       # full-bleed fabric: any UV is cloth
+        f.smooth = True            # bmesh spells it `smooth`, not `use_smooth`.
+                                   # The body is smooth-shaded, and a FLAT hem lights
+                                   # up like a lampshade - which is exactly what the
+                                   # "light grey skirt" in the render was.
+        hem_faces.append(f)
+        made += 1
+    # The ring is walked in whatever order the boundary happened to connect, so half
+    # the time the new quads are wound backwards and the OUTSIDE of the shirt renders
+    # as a backface. Let bmesh settle it against the rest of the mesh.
+    bmesh.ops.recalc_face_normals(bm, faces=hem_faces)
+    bm.normal_update()
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+    return made
 
 
 def assign_by_bone(ob, mat, bones):
@@ -389,15 +705,17 @@ def add_hat(kind, rig):
         # angle you see hat, then face. You never see the join.
         #   brim: just above the eyes (skull centre + 2cm), radius 0.21
         #   apex: 5cm clear of the crown
-        brim_z = centre.z + 0.020
-        apex_z = crown + 0.055
+        brim_z = centre.z + 0.020 + HAT_NUDGE.z
+        apex_z = crown + 0.055 + HAT_NUDGE.z
         depth = apex_z - brim_z
         me = cone("hat_conical_worn", 0.014, 0.215, depth, seg=14)
         m = flat_mat("hat_straw", (0.30, 0.22, 0.09))
         me.materials.append(m)
         ob = bpy.data.objects.new("hat_conical_worn", me)
         # a few degrees of forward tilt - nothing on a working man sits square
-        w = (Matrix.Translation(Vector((centre.x, centre.y, (brim_z + apex_z) * 0.5)))
+        w = (Matrix.Translation(Vector((centre.x,
+                                        centre.y + HAT_NUDGE.y,
+                                        (brim_z + apex_z) * 0.5)))
              @ Matrix.Rotation(math.radians(-5.0), 4, 'X'))
         bone_attach(ob, rig, "mixamorig:Head", w)
         return ob
@@ -472,7 +790,10 @@ def build(unit, spec):
           % (spec["face"], n_uv))
 
     # 3. bare skin where a peasant shows it
-    skin = flat_mat(unit + "_skin", spec["skin"])
+    skin = textured_mat(unit + "_skin",
+                        skin_tex(unit + "_skin_tex", spec["skin"],
+                                 seed=abs(hash(unit + "skin")) % 9973),
+                        spec["skin"])
     boot = flat_mat(unit + "_boot", (0.02, 0.016, 0.012))
     faces = 0
     for ob in skinned_meshes():
@@ -487,6 +808,18 @@ def build(unit, spec):
     move_height_ruler(rig, spec["head"], neck)   # keep the skeleton's ruler on the skull
     scale_region(("Shoulder", "Arm"), spec["shoulders"], chest, axes=(0,))
     scale_region(("Spine", "Hips"), spec["girth"], chest, axes=(0, 1))
+
+    # 4b. TAILORING. A recoloured fatigue silhouette is still a soldier - the
+    # clothes have to be a different SHAPE. Peasants only: aircrew wear a fitted
+    # flight suit and boots, which is what the grunt's body already is.
+    hem = 0
+    if spec["bare"] is BARE_PEASANT:
+        tailor(rig)
+        hem = shirt_hem(bpy.data.objects[BODY])
+        print("      tailored: baggy trousers, loose sleeves, no collar, bare feet"
+              " | shirt hem %d faces" % hem)
+    # cavity shading + paddy mud + sun-bleach, baked into COLOR_0
+    grime(bpy.data.objects[BODY], rig)
 
     # 5. headgear
     hat = add_hat(spec["hat"], rig) if spec["hat"] else None
