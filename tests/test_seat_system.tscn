@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestseatsys001"]
+[gd_scene format=3 uid="uid://cac5i1qudwlka"]
 
 [ext_resource type="Script" path="res://tests/test_seat_system.gd" id="1_tss"]
 
