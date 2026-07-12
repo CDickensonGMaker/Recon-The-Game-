@@ -581,13 +581,18 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 	var fx_budget: int = 4
 	# DETERMINISTIC PATTERN (T1 law: same aim = same result). Uniform-random
 	# spread made the gun a slot machine - three whiffed shells at 14m, then
-	# a jackpot one-shot at 30m. Fixed star: 1 center, 3 at 40% cone, 4 at
-	# the edge, each jittered a hair (~0.3deg). A centered shell at CQB range
-	# lands the same murderous cluster every time; range fade comes from the
-	# ring walking off the silhouette, not from luck.
+	# a jackpot one-shot at 30m.
+	#
+	# 9 pellets (real 00 buck), laid as 1 centre + 4 at 40% + 4 at the rim.
+	# Caleb: "irl the spread would grab and hit him." He is right, and the cure
+	# is a TIGHTER cone, not a wider one: real buckshot opens about an inch per
+	# yard (~1.6 deg), so at 14m the cloud is ~40cm and a chest eats most of it.
+	# Our old 5.5 deg cone threw a 1.2m pattern at that range - the pellets flew
+	# PAST both his shoulders and nothing connected. Eight thin rays sampling a
+	# huge circle is a colander, not a shotgun.
 	var star: Array[Vector2] = [Vector2.ZERO]
-	for i in range(3):
-		var a: float = TAU * float(i) / 3.0
+	for i in range(4):
+		var a: float = TAU * float(i) / 4.0
 		star.append(Vector2(cos(a), sin(a)) * 0.4)
 	for i in range(4):
 		var a2: float = TAU * (float(i) + 0.5) / 4.0

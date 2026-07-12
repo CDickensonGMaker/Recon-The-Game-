@@ -155,6 +155,18 @@ people at the same time and totally gib them apart"* — walls still stop lead),
 body-zone kills ≥ 90 raw run the blast-butchery doctrine (no rifle chest hit reaches it). Probe
 EXPECTED = 35.
 
+**Pattern retune (2026-07-12, Summoner: *"the shotgun should have a larger spread… irl the spread
+would grab and hit the opponent"*).** He was right about the symptom and the cure was the opposite of
+the instinct: real 00 buck opens about **an inch per yard (~1.6°)**, so at 14m the cloud is ~40cm and
+a chest eats most of it. Our 5.5° cone threw a **1.2m** pattern at that range — with only 8 thin rays
+sampling it, the pellets flew *past both shoulders* and nothing connected. A colander, not a shotgun.
+New values of record: **9 pellets** (real 00 buck count) × 35, **3.0° cone** (double-real, forgiving
+but not straddling), star laid 1 centre / 4 at 40% / 4 at the rim. Range re-cut so a tight pattern
+does not make it a sniper: **full damage to 25m, ×0.30 at 60m** (was 70m/110m — a slug's envelope).
+Measured on a real man (`tools/probe_buckshot.tscn`): 5m **9/9 pellets, 577 applied** (butchery) ·
+10–25m **4–5 pellets, ~280-320** (kills) · 30m **102** (kills) · 40m **49** (wounds) · 50m **42**
+(wounds). Murderous inside 25m, a wounding cloud past 30 — which is what a 12-gauge is.
+
 ## Amendment F (2026-07-12, Summoner-decreed): explosives kill — and rockets outclass grenades
 Decree: *"rockets should be more lethal than a grenade… scale grenades to 190 dmg and an RPG should
 deal like 250 with splash damage… to demonstrate the effects of shrapnel."* Context: the fuze work
