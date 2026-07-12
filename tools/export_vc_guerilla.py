@@ -81,7 +81,10 @@ _AW, _AH = 576.0, 640.0
 _u0, _u1 = px0/_AW, px1/_AW
 _vt, _vb = 1 - py0/_AH, 1 - py1/_AH
 fam = bpy.data.materials.get("face_atlas_mat")
-for hname in ("vc_head", "grunt_head"):
+# the body is ONE joined skinned mesh now (vc_guerilla_joined); the face
+# polys are found by material inside it, so the old per-object "vc_head"
+# lookup would silently no-op and every VC would wear the same face.
+for hname in ("vc_guerilla_joined", "grunt_head"):
     ho = bpy.data.objects.get(hname)
     if not ho or fam is None:
         continue
@@ -282,7 +285,7 @@ def body_bbox():
     mn = Vector((1e9,) * 3)
     mx = Vector((-1e9,) * 3)
     for o in bpy.data.objects:
-        if o.type != 'MESH' or not o.name.startswith("vc_"):
+        if o.type != 'MESH' or o.name != "vc_guerilla_joined":
             continue
         ev = o.evaluated_get(dg)
         me = ev.to_mesh()

@@ -3,8 +3,20 @@
 ## sees - height, shoulder width, body depth, and where the lowest vertex
 ## sits relative to the man's origin (his feet plane).
 ## Bone rigs can be identical while the MESHES that hang on them are not.
+##
+## This probe now FAILS the run (non-zero exit) when a character renders as more
+## than one skinned body part. It used to only print, which is exactly how the
+## VC shipped as 8 loose meshes for months while the grunt was one: nothing was
+## watching. A body split across surfaces does not share a skin, so its joints
+## gap and interpenetrate on every animated frame.
 ##   godot --headless --path . -s res://tools/probe_silhouette.gd
 extends SceneTree
+
+## A rendered character must be ONE skinned mesh (gear is bone-attached and
+## unskinned, so it never counts here).
+const MAX_BODY_PARTS := 1
+
+var _violations: Array[String] = []
 
 
 func _initialize() -> void:
