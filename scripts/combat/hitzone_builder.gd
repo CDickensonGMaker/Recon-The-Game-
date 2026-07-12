@@ -11,8 +11,11 @@
 ## hit_<REGION> in the GLB overrides that region's auto-hull outright (and is
 ## hidden - it is collision, not render).
 ##
-## Zones ride their bones every physics tick (sync) - position AND
-## orientation - with optional per-zone rotation overrides from the bench.
+## Zones ride their bones the instant a pose lands (Skeleton3D.skeleton_updated,
+## wired by build()) - position AND orientation - with optional per-zone
+## rotation overrides from the bench. Callers ALSO call sync() every physics
+## tick: that fallback covers parent motion the skeleton never sees (holder
+## rotation, corpse slides) and keeps zones honest when no clip is playing.
 ## Per-unit overrides: data/hitzones/<unit>.tres (HitzoneTuning), authored in
 ## the hitzone bench: offset/rotation both shape families, inflate (hull,
 ## meters outward) or radius/height (capsule), damage/fatal (ADR-016
@@ -136,6 +139,10 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 				clampf(seg_len * float(s[4]), float(s[5]), float(s[6])), seg_len,
 				s[1], s[2], Vector3.ZERO, layer, mask, groups,
 				hulls.get(s[0], PackedVector3Array()))
+	# Same-frame honesty: the physics tick alone trails the render-frame anim
+	# pose by up to a frame - at HLL lethality that frame is a miss on a
+	# running man. Re-sync the moment the skeleton lands its pose.
+	skel.skeleton_updated.connect(func() -> void: sync(model, entries))
 	return entries
 
 
@@ -153,6 +160,13 @@ static func sync(model: ModelActor, entries: Array) -> void:
 	var skel: Skeleton3D = model.skeleton()
 	if skel == null:
 		return
+	# Roll references live in MODEL space, not world space: harvested hulls are
+	# framed against skeleton-space rest bones (_rest_frames), so the live roll
+	# must turn with the character. A world-space ref left every non-symmetric
+	# hull facing the same compass direction while the body yawed under it.
+	var sb: Basis = skel.global_transform.basis.orthonormalized()
+	var fwd: Vector3 = sb * Vector3.FORWARD
+	var rgt: Vector3 = sb * Vector3.RIGHT
 	for entry in entries:
 		var hz: Area3D = entry[0]
 		var bi: int = entry[1]
@@ -172,7 +186,9 @@ static func sync(model: ModelActor, entries: Array) -> void:
 			var y: Vector3 = to - anchor
 			if y.length_squared() > 0.0001:
 				y = y.normalized()
-				var ref: Vector3 = Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+				# Same branch rule as _rest_frames (rotation preserves the dot),
+				# so harvest frame and live frame agree at every yaw.
+				var ref: Vector3 = fwd if absf(y.dot(fwd)) < 0.9 else rgt
 				var x: Vector3 = y.cross(ref).normalized()
 				basis = Basis(x, y, x.cross(y))
 		basis = basis * rot

@@ -112,6 +112,22 @@ func _run() -> void:
 		if head_zone.global_position.distance_to(head_bone_pos) > 0.5:
 			print("FAIL: HEAD zone %.2fm from head bone" % head_zone.global_position.distance_to(head_bone_pos))
 			failures += 1
+		# 2b. zones ride the YAW: hull roll must turn with the character, not
+		# stay compass-locked (the bench "boxes swim when I spin the model" bug).
+		# Head bone is near-vertical, so a world-space roll ref barely moves its
+		# basis x-axis under yaw; a model-space ref turns it with the body.
+		HitzoneBuilder.sync(model, entries)
+		var x_before: Vector3 = head_zone.global_transform.basis.x
+		holder.rotation.y = PI * 0.5
+		HitzoneBuilder.sync(model, entries)
+		var x_after: Vector3 = head_zone.global_transform.basis.x
+		var x_expected: Vector3 = Basis(Vector3.UP, PI * 0.5) * x_before
+		holder.rotation.y = 0.0
+		if x_after.dot(x_expected) < 0.9:
+			print("FAIL: HEAD zone roll did not ride a 90-deg yaw (dot %.2f)" % x_after.dot(x_expected))
+			failures += 1
+		else:
+			print("  HEAD zone roll rode the yaw (dot %.2f)" % x_after.dot(x_expected))
 	holder.queue_free()
 
 	# --- no-gut variant (allies): 10 zones, no GUT
