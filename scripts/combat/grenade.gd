@@ -4,13 +4,26 @@ extends RigidBody3D
 
 signal exploded(position: Vector3)
 
-## Configuration
-# M26 frag (Caleb gore-lab retune): bigger, deadlier. Real M26 casualty
-# radius ~15m; game-tuned to 8m so cover play stays meaningful indoors.
-# 130 center = no survivors point-blank; 25 at the rim = wounded, not shrugged.
-const EXPLOSION_RADIUS: float = 8.0
-const MAX_DAMAGE: int = 130
-const MIN_DAMAGE: int = 25
+## SHRAPNEL (ADR-016 Amendment F, Summoner-decreed). The M26 is a FRAG grenade:
+## its killing is done by wire-coil fragments, not blast. Real casualty radius is
+## ~15m; 10m keeps cover play meaningful while letting the fragments reach.
+##
+## The damage of record lives in data/weapons/m26_grenade.tres like every other
+## weapon (ADR-016 grammar: base_damage is the flat value). This file used to
+## hardcode 130 while the .tres said 55 - the data was a lie for months. One
+## number, one law: the .tres rules and this constant is only the fallback.
+const EXPLOSION_RADIUS: float = 10.0
+const FALLBACK_DAMAGE: int = 190
+## Rim damage as a fraction of centre: the far fragments WOUND, they do not kill.
+const RIM_FRAC: float = 0.13
+
+static var _m26: WeaponData = null
+
+
+static func _grenade_damage() -> int:
+	if _m26 == null:
+		_m26 = load("res://data/weapons/m26_grenade.tres") as WeaponData
+	return _m26.base_damage if _m26 != null else FALLBACK_DAMAGE
 
 ## State
 var remaining_fuse: float = 4.0
@@ -88,11 +101,12 @@ func _explode() -> void:
 
 	has_exploded = true
 
-	# Apply explosion damage
+	# Apply explosion damage - centre kills outright, the rim wounds (shrapnel).
+	var centre: int = _grenade_damage()
 	CombatManager.apply_explosion_damage(
 		global_position,
-		MAX_DAMAGE,
-		MIN_DAMAGE,
+		centre,
+		maxi(1, int(float(centre) * RIM_FRAC)),
 		EXPLOSION_RADIUS,
 		owner_entity
 	)

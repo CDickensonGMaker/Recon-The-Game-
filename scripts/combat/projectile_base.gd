@@ -359,8 +359,11 @@ func _dud_impact() -> void:
 ## same 8-point-visibility explosion the grenades use: it is faction-blind, does
 ## knockback, and respects cover.
 func _apply_aoe_damage() -> void:
+	# ADR-016 Amendment F: a rocket outclasses a grenade. The centre is death;
+	# the rim still puts a man down (0.15 of centre = ~38 from a PG-2 - fragments
+	# and overpressure, not a scratch).
 	var base_damage: int = projectile_data.get_damage()
-	var min_damage: int = maxi(1, int(float(base_damage) * 0.25))
+	var min_damage: int = maxi(1, int(float(base_damage) * 0.15))
 	CombatManager.apply_explosion_damage(
 		global_position,
 		base_damage,

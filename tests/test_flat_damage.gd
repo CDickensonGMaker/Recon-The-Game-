@@ -1,4 +1,4 @@
-## test_flat_damage.gd - ADR-016 verification probe (Summoner decree 2026-07-10).
+﻿## test_flat_damage.gd - ADR-016 verification probe (Summoner decree 2026-07-10).
 ## Locks in the flat-base damage grammar that replaced RECON dice:
 ##   1. get_damage() is DETERMINISTIC - same value on every call, per weapon.
 ##   2. Every weapon carries its decreed flat value (derived from the retired
@@ -18,7 +18,7 @@ const EXPECTED := {
 	"m16a1": 28, "m14": 28, "m60": 28,
 	"ak47": 22, "rpd": 22,
 	"ppsh41": 17, "m1911": 11, "mosin": 32, "m70": 32,
-	"m79": 44, "m26_grenade": 55, "m72_law": 72, "rpg2": 62, "rpg7": 73,
+	"m79": 150, "m26_grenade": 190, "m72_law": 250, "rpg2": 250, "rpg7": 290,
 	"shotgun": 35,  # BUCKSHOT (Amendment E + Summoner devastator retune) - 8 x 35
 }
 ## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016;
@@ -66,8 +66,8 @@ func _run() -> void:
 	if proj == null:
 		print("FAIL: rpg2_rocket.tres did not load as ProjectileData")
 		failures += 1
-	elif proj.get_damage() != 62:
-		print("FAIL: rpg2_rocket flat damage %d != decreed 62" % proj.get_damage())
+	elif proj.get_damage() != 250:
+		print("FAIL: rpg2_rocket flat damage %d != decreed 250" % proj.get_damage())
 		failures += 1
 
 	# --- 3.5 the live locational law matches this ADR record -----------------

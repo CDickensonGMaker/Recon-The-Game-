@@ -155,6 +155,28 @@ people at the same time and totally gib them apart"* — walls still stop lead),
 body-zone kills ≥ 90 raw run the blast-butchery doctrine (no rifle chest hit reaches it). Probe
 EXPECTED = 35.
 
+## Amendment F (2026-07-12, Summoner-decreed): explosives kill — and rockets outclass grenades
+Decree: *"rockets should be more lethal than a grenade… scale grenades to 190 dmg and an RPG should
+deal like 250 with splash damage… to demonstrate the effects of shrapnel."* Context: the fuze work
+exposed that an armed PG-2 detonating 1.2m from a 70hp man left him **alive** (base 62), and that a
+thrown grenade was silently hitting for a hardcoded 130 while its own `.tres` claimed 55 — the data
+had been lying for months.
+
+- **New values of record (flat, per ADR-016 grammar — the `.tres` is the single source):**
+  M26 frag **190** (was 55/130) · M79 HE **150** (44) · M72 LAW **250** (72) · RPG-2 **250** (62) ·
+  RPG-7 **290** (73). `rpg2_rocket.tres` (ProjectileData) matches at **250**, blast radius **8m**.
+- **The grenade's hardcoded constants are dead:** `grenade.gd` now reads `m26_grenade.tres`
+  (`_grenade_damage()`), so one number rules the weapon. Radius **10m** (real M26 casualty radius is
+  ~15m; 10 keeps cover meaningful), rim damage **13%** of centre.
+- **Shrapnel shape:** the blast keeps its kill plateau (full damage inside 40% of radius, the
+  fireteam-in-the-lap wipe) and tapers to the rim, where fragments **wound rather than kill** —
+  M26 rim ≈ 25, PG-2 rim ≈ 38. Cover still blocks it (the 8-point visibility check is unchanged),
+  so the counter to shrapnel remains geometry, not hit points.
+- **Cuts both ways:** the player has 100 HP. A frag at his feet is death, at the rim a serious
+  wound. Ordnance is now the most dangerous thing on the battlefield — for everyone.
+- Guards: `test_flat_damage` carries the new record; `tools/probe_grenade.tscn` (fireteam wipe) and
+  `tools/probe_fuze.tscn` (drop-safe arming) both stay green.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
 
 [ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -11,7 +11,7 @@ firing_mode = 0
 fire_rate = 12.0
 magazine_size = 1
 reload_time = 0.0
-base_damage = 72
+base_damage = 250
 damage_type = 1
 base_spread = 1.8
 ads_spread_mult = 0.5
