@@ -195,6 +195,13 @@ func _physics_process(delta: float) -> void:
 
 	lifetime_timer += delta
 	if lifetime_timer >= projectile_data.lifetime:
+		# SELF-DESTRUCT, not a silent vanish (Caleb: "there is no explosion with
+		# the RPG"). A warhead that reaches the end of its run detonates - real
+		# RPG rounds do exactly this. Before, a rocket that hit nothing simply
+		# blinked out of existence, so a shot that sailed over a man had no
+		# consequence anywhere in the world.
+		if projectile_data.aoe_radius > 0.0:
+			_apply_aoe_damage()
 		_expire()
 		return
 

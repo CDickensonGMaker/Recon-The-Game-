@@ -158,6 +158,8 @@ func _process(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
 
+	_refresh_warhead()   # loaded tube vs empty tube (no-op on every other gun)
+
 	# Quake 3 timestep cap: a frame hitch must not credit a burst of fire.
 	var dt: float = minf(delta, 0.066)
 
@@ -246,6 +248,62 @@ var _sustained_shots: int = 0
 static var session_shots: int = 0
 ## Trigger cadence, for the first-settled-shot rule (audit F3).
 var _last_shot_ms: float = -9999.0
+
+## LOADED WARHEAD (Caleb): the rocket must LEAVE THE TUBE when you fire it -
+## a launcher that still shows its warhead after the shot reads as broken. The
+## RPG viewmodel is one mesh, but the warhead is its own SURFACE (material
+## "WarheadOD"), so it can be hidden without touching the art. Any launcher
+## whose warhead material carries "warhead" in the name gets this for free.
+var _warhead_fired: bool = false
+var _warhead_surfaces: Array = []   # [[MeshInstance3D, surface_idx], ...]
+var _warhead_hidden: bool = false
+static var _invisible_mat: StandardMaterial3D = null
+
+
+static func _hide_material() -> StandardMaterial3D:
+	if _invisible_mat == null:
+		_invisible_mat = StandardMaterial3D.new()
+		_invisible_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_invisible_mat.albedo_color = Color(0, 0, 0, 0)
+		_invisible_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_invisible_mat.no_depth_test = false
+	return _invisible_mat
+
+
+## Find the warhead surfaces in whatever viewmodel just got loaded.
+func _scan_warhead(root: Node) -> void:
+	_warhead_surfaces.clear()
+	_warhead_hidden = false
+	_warhead_fired = false
+	if root == null:
+		return
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for s in range(mi.mesh.get_surface_count()):
+			var mat: Material = mi.mesh.surface_get_material(s)
+			if mat != null and str(mat.resource_name).to_lower().contains("warhead"):
+				_warhead_surfaces.append([mi, s])
+
+
+## Loaded launcher shows its warhead; a fired one shows an empty tube.
+func _refresh_warhead() -> void:
+	if _warhead_surfaces.is_empty():
+		return
+	var want_hidden: bool = _warhead_fired and not is_reloading
+	if want_hidden == _warhead_hidden:
+		return
+	_warhead_hidden = want_hidden
+	for entry in _warhead_surfaces:
+		var mi: MeshInstance3D = entry[0]
+		if is_instance_valid(mi):
+			mi.set_surface_override_material(int(entry[1]),
+				_hide_material() if want_hidden else null)
 static var session_hits: int = 0
 
 
@@ -381,11 +439,11 @@ func _fire_shot() -> void:
 	var spread_x: float = cos(ang) * mag
 	var spread_y: float = sin(ang) * mag
 
+	# THE SIGHT LINE: where the shooter is LOOKING. The zero elevation is NOT in
+	# here - it belongs to the launch, not to the eye. (It was: the aim ray rode
+	# 8 degrees up on an RPG, so the "aim point" sat 3.5m over a man 25m away and
+	# the rocket was dutifully thrown at it. That is the parabola Caleb saw.)
 	var final_dir: Vector3 = (aim_dir + right * tan(spread_x) + up * tan(spread_y)).normalized()
-	# SIGHT ZERO (audit F2): ride the muzzle up by the zero angle so the falling
-	# round crosses the sightline at zero_range. Inside the zero you shoot a
-	# hair high (centimetres); past it you hold over, as in life.
-	final_dir = (final_dir + up * tan(current_weapon.zero_elevation())).normalized()
 
 	# AIM RAY - no damage, no FX. The crosshair's truth: find the point the
 	# player is actually aiming at so the muzzle-spawned round converges onto
@@ -439,16 +497,32 @@ func _fire_shot() -> void:
 	if not current_weapon.projectile_data_path.is_empty():
 		var pdata: ProjectileData = load(current_weapon.projectile_data_path)
 		if pdata != null:
-			CombatManager.spawn_projectile(pdata, controller, muzzle_pos, muzzle_dir)
+			# LAUNCHER SIGHT: a rocket is not a rifle round. It is slow, it carries
+			# its OWN gravity (ProjectileData.gravity_scale), and a gunner lays it
+			# for the range he sees - so elevate for the ACTUAL distance to the aim
+			# point, not for a fixed rifle zero. Point at a man 25m out and the
+			# rocket goes into him; point at a bunker 200m out and it arcs onto it.
+			var g_eff: float = 9.8 * maxf(0.0, pdata.gravity_scale)
+			var dist: float = muzzle_pos.distance_to(aim_point)
+			var elev: float = 0.0
+			if pdata.speed > 1.0 and g_eff > 0.0:
+				elev = (g_eff * dist) / (2.0 * pdata.speed * pdata.speed)
+			var rocket_dir: Vector3 = (muzzle_dir + up * tan(elev)).normalized()
+			CombatManager.spawn_projectile(pdata, controller, muzzle_pos, rocket_dir)
+			_warhead_fired = true   # the tube is empty until you reload it
 		else:
 			push_error("[WeaponHolder] %s names a projectile that will not load: %s" % [
 				current_weapon.id, current_weapon.projectile_data_path])
 	elif current_weapon.pellet_count > 1:
 		_fire_pellet_cluster(origin, aim_dir, right, up)
 	else:
+		# SIGHT ZERO (audit F2) belongs HERE - on the round that flies, not on the
+		# eye that aims: the muzzle rides up by the zero angle so the falling round
+		# crosses the sightline at zero_range.
+		var zeroed_dir: Vector3 = (muzzle_dir + up * tan(current_weapon.zero_elevation())).normalized()
 		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
 			and (session_shots % current_weapon.tracer_ratio) == 0
-		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, muzzle_dir,
+		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, zeroed_dir,
 			1 | 32 | 64, _self_exclusions(), show_tracer)
 
 	# Apply recoil (W-feel: first shot kicks hardest, sustained fire climbs,
@@ -650,6 +724,7 @@ func _update_reload(delta: float) -> void:
 
 func _finish_reload() -> void:
 	is_reloading = false
+	_warhead_fired = false   # a fresh rocket goes down the tube
 	if _clearing_jam:
 		_clearing_jam = false
 		weapon_reloaded.emit()
@@ -818,6 +893,7 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 			var vm_anim := weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			if vm_anim != null and vm_anim.has_animation("rifle_idle"):
 				vm_anim.play("rifle_idle")
+			_scan_warhead(weapon_model)   # a fresh launcher comes loaded
 
 
 ## Get current ADS amount for other systems

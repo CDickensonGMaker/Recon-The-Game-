@@ -1703,7 +1703,16 @@ func _fire_at_target() -> void:
 	# firefight only existed because the arena is 44m across.
 	if target != null and is_instance_valid(target):
 		var t_dist: float = global_position.distance_to((target as Node3D).global_position)
-		final_aim = (final_aim + e_up * tan(weapon_data.elevation_for(t_dist))).normalized()
+		var hold: float = weapon_data.elevation_for(t_dist)
+		# A LAUNCHER is not a rifle: the rocket carries its own (much weaker)
+		# gravity, so laying it with rifle maths threw enemy rockets 8x too high.
+		if not weapon_data.projectile_data_path.is_empty():
+			var pd: ProjectileData = load(weapon_data.projectile_data_path)
+			if pd != null:
+				var ge: float = 9.8 * maxf(0.0, pd.gravity_scale)
+				var pv: float = maxf(1.0, pd.speed)
+				hold = (ge * t_dist) / (2.0 * pv * pv)
+		final_aim = (final_aim + e_up * tan(hold)).normalized()
 
 	# First shot at this target: forced near-miss (the warning crack).
 	if not _first_shot_fired:
