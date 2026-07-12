@@ -218,11 +218,16 @@ func _apply_gib_rig_contract() -> void:
 		if mi == null:
 			continue
 		var nm := String(mi.name)
-		if (nm.begins_with("grunt_") or nm.begins_with("head_frag_")) and not nm.ends_with("_joined"):
+		# Caps hide too: they are wound cross-sections (dark meat discs) that
+		# GibSystem.dismember reveals on the pop. Left visible, any cap the
+		# export skinned off-joint renders as floating gore beside the living
+		# man (the VC "floating gib pieces" bug).
+		if (nm.begins_with("grunt_") or nm.begins_with("head_frag_") or nm.begins_with("cap_")) \
+				and not nm.ends_with("_joined"):
 			mi.visible = false
 			hidden += 1
 	if hidden > 0:
-		print("[MODEL] %s: hid %d gib-donor region meshes (gib-rig contract; joined body renders)" % [unit, hidden])
+		print("[MODEL] %s: hid %d gib-donor/cap meshes (gib-rig contract; live body renders)" % [unit, hidden])
 
 
 func has_visual() -> bool:

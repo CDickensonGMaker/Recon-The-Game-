@@ -30,11 +30,23 @@ func _ready() -> void:
 	for i in range(frames):
 		await get_tree().process_frame
 
-	if OS.get_environment("SHOT_CAM") == "overview":
+	# SHOT_CAM: "overview" = high vantage; "x,y,z@tx,ty,tz" = free camera at
+	# position looking at target (close-ups of one model, corner checks, ...).
+	var cam_env: String = OS.get_environment("SHOT_CAM")
+	if cam_env == "overview" or cam_env.contains("@"):
+		var pos := Vector3(16.0, 10.0, 20.0)
+		var aim := Vector3(0.0, 1.0, -2.0)
+		if cam_env.contains("@"):
+			var halves: PackedStringArray = cam_env.split("@")
+			var p: PackedStringArray = halves[0].split(",")
+			var t: PackedStringArray = halves[1].split(",")
+			if p.size() == 3 and t.size() == 3:
+				pos = Vector3(float(p[0]), float(p[1]), float(p[2]))
+				aim = Vector3(float(t[0]), float(t[1]), float(t[2]))
 		var cam := Camera3D.new()
 		add_child(cam)
-		cam.global_position = Vector3(16.0, 10.0, 20.0)
-		cam.look_at(Vector3(0.0, 1.0, -2.0))
+		cam.global_position = pos
+		cam.look_at(aim)
 		cam.fov = 60.0
 		cam.make_current()
 		# Show the hitzone wireframes in the lab shot if the scene supports it

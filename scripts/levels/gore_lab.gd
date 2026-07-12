@@ -37,7 +37,9 @@ var _wave: int = 0
 var _wave_pending: bool = false
 var _rng := RandomNumberGenerator.new()
 
-const ALLY_COUNT: int = 5  # the full squad (Caleb)
+## 0 = solo bench (Caleb 2026-07-11: "i dont want my squad" - reading combat
+## feel needs YOUR fights, not the squad's). Restore 5 for squad runs.
+const ALLY_COUNT: int = 0
 
 
 func _ready() -> void:
@@ -591,6 +593,7 @@ func _process(_delta: float) -> void:
 			_spawn_wave())
 	if _hud == null:
 		return
-	_hud.text = "COMBAT BENCH - wave %d | enemies: %d | squad: %d/5
-frag [3] | medkit [4] + hold [F] | AI labels: state | goal | target" % [
-		_wave, _alive_enemies(), _alive_allies()]
+	var squad_str: String = "" if ALLY_COUNT == 0 else " | squad: %d/%d" % [_alive_allies(), ALLY_COUNT]
+	_hud.text = "COMBAT BENCH - wave %d | enemies: %d%s
+frag [3] | medkit [4] + hold [F] | AI labels: state | goal | target | H hitzones" % [
+		_wave, _alive_enemies(), squad_str]

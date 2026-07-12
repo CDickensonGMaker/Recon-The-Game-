@@ -24,26 +24,31 @@ const REGIONS: Dictionary = {
 		"bone": "mixamorig_Neck",
 		"meshes": ["grunt_head"],
 		"gear": ["helmet_camo_shell", "helmet_bugjuice"],
+		"caps": ["cap_head"],
 	},
 	"ARM_L": {
 		"bone": "mixamorig_LeftForeArm",
 		"meshes": ["grunt_forearm_l"],
 		"gear": [],
+		"caps": ["cap_forearm_l"],
 	},
 	"ARM_R": {
 		"bone": "mixamorig_RightForeArm",
 		"meshes": ["grunt_forearm_r"],
 		"gear": [],
+		"caps": ["cap_forearm_r"],
 	},
 	"LEG_L": {
 		"bone": "mixamorig_LeftUpLeg",
 		"meshes": ["grunt_leg_l"],
 		"gear": [],
+		"caps": ["cap_leg_l"],
 	},
 	"LEG_R": {
 		"bone": "mixamorig_RightUpLeg",
 		"meshes": ["grunt_leg_r"],
 		"gear": [],
+		"caps": ["cap_leg_r"],
 	},
 }
 
@@ -102,6 +107,13 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 		var gxf: Transform3D = gm.global_transform
 		gm.visible = false
 		_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.6, 2.2, gib_parent)
+
+	# 2.5 reveal the stump cap - caps ship hidden (setup hides them with the
+	# donors; off-joint-skinned caps floated beside living VC otherwise).
+	for cap_name: String in spec.get("caps", []):
+		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
+		if cm != null:
+			cm.visible = true
 
 	# 3. blood burst at the stump (Phase-1 pipeline).
 	var stump: Vector3 = skel.global_transform * skel.get_bone_global_pose(bone_idx).origin
@@ -170,6 +182,10 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 			var gxf: Transform3D = gm.global_transform
 			gm.visible = false
 			_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.9, 3.0, gib_parent)
+	for cap_name: String in spec.get("caps", []):
+		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
+		if cm != null:
+			cm.visible = true
 	var stump: Vector3 = skel.global_transform * skel.get_bone_global_pose(bone_idx).origin
 	GunFX.blood(gib_parent, stump, -hit_dir.normalized(), hit_dir.normalized())
 	GunFX.blood(gib_parent, stump, Vector3.UP, hit_dir.normalized())
