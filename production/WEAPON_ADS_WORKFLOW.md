@@ -65,3 +65,17 @@ blade points is where rounds land.
   ADS irons pass + markers + weld into one object.
 - **All other roster guns** — need the ADS pass (steps 3–5) retrofitted; they have designs
   but no constructed sight lines. Track per-gun in beads.
+
+## Addendum (2026-07-12, learned on the M16)
+
+- **Verify see-through with raycasts, not renders.** Cast rays from a realistic ADS eye
+  (~20 cm behind the aperture, ±2-3 mm pupil offsets) toward the front post via
+  `scene.ray_cast` on a FRESH depsgraph (`view_layer.update()` first — stale depsgraphs
+  lie). Majority of rays must run clear/hit the post. A render taken exactly on the ideal
+  line will hide blockers.
+- **Nothing ahead of the aperture may rise above the sight line.** Clamp handle/rail
+  geometry at least ~3 mm below it.
+- **Reference models beat parametric guessing.** The M16A1 base mesh was adopted from
+  Caleb's downloaded example (Downloads/low-poly-m16, M16A1.fbx) — transplanted into our
+  object conventions with materials remapped and markers re-planted. Check licensing/
+  attribution needs before shipping (bead this at release).
