@@ -151,15 +151,27 @@ UNITS["us_pilot_black"] = dict(bare=BARE_BOOTED, face=4, hat="flight", prop=None
                                head=1.00, shoulders=1.00, girth=1.00)
 
 
-# CALEB'S EYE, 2026-07-12. He hand-placed the hats twice and he was right twice, so
-# these numbers are his, not mine. Measured off his review file both times and folded
-# back in here - a correction that only lives in a review scene is a correction you
-# make again next week.
+# CALEB'S EYE. He hand-placed the hats THREE times and was right three times, so
+# these numbers are his. Measured off his review file each time and folded back in -
+# a correction that only lives in a review scene is a correction you make again next
+# week.
 #   pass 1: forward 1.7cm, down 6.0cm
-#   pass 2: forward 1.3cm, down 5.1cm MORE
-# A non la is worn LOW. It is a sunshade, not a cap, and it wants to sit down over
-# the brow. My instinct kept perching it on the crown; his eye kept pulling it down.
-HAT_NUDGE = Vector((0.0, -0.030, -0.111))
+#   pass 2: forward 1.3cm, down 5.1cm more
+#   pass 3: forward 5.0cm more, and a per-TYPE vertical trim (below)
+# A non la is worn LOW and FORWARD. It is a sunshade, not a cap - it wants to sit
+# down over the brow and out over the eyes. My instinct kept perching it on the
+# crown and pulling it back; his eye kept dragging it down and forward. His pass 3
+# forward nudge was IDENTICAL on all eight units, which is what a systematic error
+# looks like - mine.
+HAT_NUDGE = Vector((0.0, -0.0795, -0.111))
+
+# ...and the vertical was NOT uniform: he trimmed each type differently. That is
+# taste, not a bug, so it lives per-type.
+HAT_DZ = {
+    "civ_elder":    +0.006,
+    "civ_farmer_f": -0.030,
+    "civ_farmer_m": -0.010,
+}
 
 
 def _srgb(c):
@@ -762,7 +774,7 @@ def skull(rig):
     return centre, radius, hi.z
 
 
-def add_hat(kind, rig):
+def add_hat(kind, rig, dz=0.0):
     """Headgear as `*_worn`: rigid, unskinned, gear-named -> renders, never a hurtbox."""
     centre, r, crown = skull(rig)
 
@@ -775,8 +787,8 @@ def add_hat(kind, rig):
         # angle you see hat, then face. You never see the join.
         #   brim: just above the eyes (skull centre + 2cm), radius 0.21
         #   apex: 5cm clear of the crown
-        brim_z = centre.z + 0.020 + HAT_NUDGE.z
-        apex_z = crown + 0.055 + HAT_NUDGE.z
+        brim_z = centre.z + 0.020 + HAT_NUDGE.z + dz
+        apex_z = crown + 0.055 + HAT_NUDGE.z + dz
         depth = apex_z - brim_z
         me = cone("hat_conical_worn", 0.014, 0.215, depth, seg=14)
         m = flat_mat("hat_straw", (0.30, 0.22, 0.09))
@@ -892,7 +904,8 @@ def build(unit, spec):
     grime(bpy.data.objects[BODY], rig)
 
     # 5. headgear + the job in his hands
-    hat = add_hat(spec["hat"], rig) if spec["hat"] else None
+    base_type = unit.rsplit("_b", 1)[0].rsplit("_c", 1)[0]
+    hat = add_hat(spec["hat"], rig, HAT_DZ.get(base_type, 0.0)) if spec["hat"] else None
     prop = give_prop(rig, spec.get("prop"))
     if prop is not None:
         print("      prop: %s on %s" % (prop.name, spec["prop"]))

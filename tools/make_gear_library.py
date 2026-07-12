@@ -305,19 +305,36 @@ def build_all(rig):
         p.tube((sx, 0.150, 1.470), (sx * 0.5, -0.060, 1.470), 0.010, 0.010, "canvas")
     parts.append(p)
 
-    # ---- rice sickle (liem): short wooden haft, hard-curved blade
+    # ---- rice sickle (liem). REBUILT: v1 was a 10mm tube and it VANISHED at PSX
+    # range - a farmer holding an invisible tool is a farmer holding nothing. A
+    # sickle is a flat CRESCENT PLATE, and the plate is the whole read: it has to
+    # break the silhouette of his arm or it may as well not exist.
     p = Part("rice_sickle", "mixamorig:RightHand")
-    g = hand_r + Vector((0.02, 0.0, 0.0))
-    p.tube(tuple(g + Vector((0, 0, -0.055))), tuple(g + Vector((0, 0, 0.065))),
-           0.016, 0.014, "wood", sides=6)
-    prev = g + Vector((0.0, 0.0, 0.070))
-    for i in range(1, 7):                       # the blade sweeps forward and round
-        t = i / 6.0
-        a = math.radians(115.0 * t)
-        nxt = g + Vector((0.0, -0.150 * math.sin(a), 0.070 + 0.135 * (1 - math.cos(a))))
-        p.tube(tuple(prev), tuple(nxt), 0.011 - 0.001 * i, 0.010 - 0.001 * i,
-               "steel", sides=4)
-        prev = nxt
+    g = hand_r
+    # haft: fat enough to see, through the fist
+    p.tube(tuple(g + Vector((0.0, 0.055, -0.030))),
+           tuple(g + Vector((0.0, -0.055, -0.030))), 0.019, 0.017, "wood", sides=6)
+    # blade: a crescent in the VERTICAL plane facing the camera (thickness in Y),
+    # hooking inboard and up out of the fist.
+    cx, cy, cz = g.x - 0.055, g.y, g.z + 0.020
+    R_out, R_in, TH = 0.150, 0.098, 0.005
+    N = 7
+    a0, a1 = math.radians(-62.0), math.radians(88.0)
+    v, f = [], []
+    for i in range(N + 1):
+        a = a0 + (a1 - a0) * i / N
+        ca, sa = math.cos(a), math.sin(a)
+        for r in (R_out, R_in):
+            for ty in (-TH, TH):
+                v.append((cx + r * ca, cy + ty, cz + r * sa))
+    # index: i*4 + (0 outer-back, 1 outer-front, 2 inner-back, 3 inner-front)
+    for i in range(N):
+        b0, b1 = i * 4, (i + 1) * 4
+        f.append([b0 + 0, b1 + 0, b1 + 1, b0 + 1])      # outer edge (the cutting edge)
+        f.append([b0 + 2, b0 + 3, b1 + 3, b1 + 2])      # inner edge
+        f.append([b0 + 1, b1 + 1, b1 + 3, b0 + 3])      # front face
+        f.append([b0 + 0, b0 + 2, b1 + 2, b1 + 0])      # back face
+    p.add(v, f, "steel")
     parts.append(p)
 
     # ---- don ganh: the shoulder pole, with a basket swinging off each end. The
