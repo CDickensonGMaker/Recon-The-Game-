@@ -402,7 +402,15 @@ func _fire_shot() -> void:
 	# vfnt), buckshot keeps the pellet-cluster grammar (ADR-016 Amendment A),
 	# and every bullet is a live BulletSystem round - drop, travel time, and
 	# arrival damage/FX. Impact feedback happens when the round LANDS.
+	# DOWN THE SIGHTS = DOWN THE SIGHTLINE: aimed rounds leave the CAMERA along
+	# the crosshair ray, so a mid-rework viewmodel muzzle can never bend an
+	# aimed shot (offset-left ADS models were converging rounds onto arms -
+	# "the gun feels less powerful when I aim"). Hip fire keeps muzzle spawn
+	# + convergence: viewmodel positions are cosmetic again, dial them freely.
 	var muzzle_dir: Vector3 = (aim_point - muzzle_pos).normalized()
+	if ads_transition > 0.6:
+		muzzle_pos = origin
+		muzzle_dir = final_dir
 	if not current_weapon.projectile_data_path.is_empty():
 		var pdata: ProjectileData = load(current_weapon.projectile_data_path)
 		if pdata != null:
