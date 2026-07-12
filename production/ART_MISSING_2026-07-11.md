@@ -4,8 +4,10 @@ Everything below is verified absent (or stand-in) as of audit #3. Ordered by imp
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 
 ## 1. CHARACTERS (the biggest gap — ~55%)
-- **Civilians / villagers** — ZERO models; villages populate with capsules. Farmer m/f, elder, kid
-  would transform village missions. Source `unit_vc4_female.blend` exists, never exported. [4o7e]
+- ~~**Civilians / villagers**~~ — **DONE 2026-07-12** (commit 5949b50). `civ_farmer_m` 1.62 /
+  `civ_farmer_f` 1.52 / `civ_elder` 1.55 / `civ_kid` 1.26, barefoot under conical hats, plus
+  `us_pilot_white` / `us_pilot_black`. Built on the v3 gear-cut base by `tools/make_civilians.py`,
+  so they inherit the 100-clip library and the gib contract. Villages no longer need capsules. [4o7e]
 - **RTO + PRC-25 radio backpack** — needed twice: worn by the RTO ally AND the handset reused as the
   player's FP support-call viewmodel. [i1vu, w8ep]
 - **Slim-base remake of the 8 v1-rig characters** (us_grunt, us_grunt_black, us_medic, vc1/2/3/5/6) —

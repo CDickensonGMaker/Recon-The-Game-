@@ -10,7 +10,7 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
       character rigs (your words: "align all the weapons up right")
 - [ ] **Radioman (RTO)** — grunt + PRC-25 backpack + handset on a cord (the 10m radio leash +
       the FP handset raise both wait on this asset)
-- [ ] Civilians (men/women/kids) — scripted events + village life need them
+- [x] Civilians (men/women/kids) — DONE 2026-07-12: civ_farmer_m/f, civ_elder, civ_kid + US pilots (black/white). `tools/make_civilians.py`
 - [ ] Modular kit when ready: helmet/torso/arm variants for roster variety
 
 ## 2. HELICOPTER FLESH-OUT
