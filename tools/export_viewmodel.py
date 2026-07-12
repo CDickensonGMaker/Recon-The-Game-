@@ -34,6 +34,17 @@ if len(idle.slots):
     arm.animation_data.action_slot = idle.slots[0]
 bpy.context.scene.frame_set(1)
 
+# strip ALL pose-bone constraints (staging locks, arm IK, finger COPY_ROTATION)
+# so sampling reads the idle action verbatim. Every *_idle is a visual-keyed
+# full bake of all 52 bones, so the constraints are redundant here and live
+# staging locks (e.g. handIK.L -> grip_L_<staged gun>) would corrupt the pose.
+stripped = 0
+for pb in arm.pose.bones:
+    for con in list(pb.constraints):
+        pb.constraints.remove(con)
+        stripped += 1
+print(f"stripped {stripped} pose-bone constraints (export reads action verbatim)")
+
 # keep ONLY this gun's idle, renamed to 'rifle_idle' so every viewmodel has the same clip name
 for a in list(bpy.data.actions):
     if a.name != IDLE:

@@ -27,6 +27,15 @@ if len(idle.slots):
     arm.animation_data.action_slot = idle.slots[0]
 bpy.context.scene.frame_set(1)
 
+# strip ALL pose-bone constraints so sampling reads the idle action verbatim
+# (every *_idle is a visual-keyed full bake; live staging locks would corrupt the pose)
+stripped = 0
+for pb in arm.pose.bones:
+    for con in list(pb.constraints):
+        pb.constraints.remove(con)
+        stripped += 1
+print(f"stripped {stripped} pose-bone constraints (export reads action verbatim)")
+
 # keep ONLY the idle, renamed to 'rifle_idle' (the shared viewmodel clip name)
 for a in list(bpy.data.actions):
     if a.name != IDLE:
