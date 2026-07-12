@@ -162,23 +162,54 @@ for pair in PAIRS:
     if hasattr(rig.animation_data, "action_slot") and act.slots:
         rig.animation_data.action_slot = act.slots[0]
     fr = act.frame_range
+    f0, f1 = int(fr[0]), int(fr[1])
+
+    # AUTO-RELEASE (reload class, Caleb: "start in our position, then do the
+    # pull-away and slap-in"): where the BASE clip's left hand leaves the
+    # weapon, the pin fades out and the authored choreography plays raw;
+    # it fades back in as the hand returns. Weight from the base clip's own
+    # hand-to-hand distance.
+    auto_release = bool(pair.get("auto_release", False))
+    weights = {}
+    if auto_release:
+        ik.influence = 0.0
+        raw_d = {}
+        for f in range(f0, f1 + 1):
+            bpy.context.scene.frame_set(f)
+            bpy.context.view_layer.update()
+            raw_d[f] = (lh.matrix.translation - rh.matrix.translation).length
+        d_ref = raw_d[f0]
+        on = {f: (raw_d[f] < d_ref * 1.35) for f in raw_d}
+        for f in range(f0, f1 + 1):  # box-smooth over +/-2 frames
+            vals = [1.0 if on.get(k, True) else 0.0 for k in range(f - 2, f + 3)]
+            weights[f] = sum(vals) / len(vals)
+        released = sum(1 for f in weights if weights[f] < 0.5)
+        print("  auto-release: %d/%d frames off-grip (pull-away window)" % (released, f1 - f0 + 1))
+
     solved = {b: {} for b in LEFT_CHAIN}
-    for f in range(int(fr[0]), int(fr[1]) + 1):
+    for f in range(f0, f1 + 1):
+        w = weights.get(f, 1.0)
         bpy.context.scene.frame_set(f)
+        # raw pass for the hand blend (and to give the solver its FK start)
+        ik.influence = 0.0
         bpy.context.view_layer.update()
-        # grip + pole ride the (delta-corrected) right hand = the gun
+        raw_lh = rig.convert_space(pose_bone=lh, matrix=lh.matrix, from_space='POSE', to_space='LOCAL').to_quaternion().normalized()
+        # pinned pass: solver blends the arm internally by influence
+        ik.influence = w
         grip_pose = place_targets()
         for bname in ["mixamorig:LeftArm", "mixamorig:LeftForeArm"]:
             pb = rig.pose.bones[bname]
             loc = rig.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL')
             solved[bname][f] = list(loc.to_quaternion().normalized())
-        # hand follows the grip orientation exactly (knuckles stay wrapped)
-        lh_local = rig.convert_space(pose_bone=lh, matrix=grip_pose, from_space='POSE', to_space='LOCAL')
-        solved["mixamorig:LeftHand"][f] = list(lh_local.to_quaternion().normalized())
+        # hand: blend raw clip wrist vs grip-following wrist by the same weight
+        grip_lh = rig.convert_space(pose_bone=lh, matrix=grip_pose, from_space='POSE', to_space='LOCAL').to_quaternion().normalized()
+        solved["mixamorig:LeftHand"][f] = list(raw_lh.slerp(grip_lh, w).normalized())
+    ik.influence = 1.0
 
     for bname in LEFT_CHAIN:
         write_channel(act, bname, solved[bname])
-    print("PINNED CLIP '%s' <- '%s' (%d frames, left arm IK-locked to grip)" % (pair["new"], pair["base"], int(fr[1]) - int(fr[0]) + 1))
+    print("PINNED CLIP '%s' <- '%s' (%d frames%s)" % (pair["new"], pair["base"], f1 - f0 + 1,
+        ", auto-release reload" if auto_release else ", left arm IK-locked to grip"))
 
 # cleanup: constraint + empties out, library stays ordinary FK
 lf.constraints.remove(ik)
