@@ -1941,6 +1941,12 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			elif GibSystem.dismember(sprite_actor as ModelActor, "HEAD", last_hit_dir, get_tree().current_scene):
 				_removed.append("HEAD")
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
+		# MASSIVE TRAUMA (Caleb: "my shotgun should be gibbing anyone it makes
+		# contact with"): a single body-zone event >= 90 - point-blank buck,
+		# nothing a rifle chest hit reaches (max 80) - butchers like a blast.
+		if not _killed_explosive and raw_amount >= 90 \
+				and (zone == "BODY" or zone == "GUT" or zone == "TORSO"):
+			_killed_explosive = true  # reuse the blast doctrine in _die()
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:

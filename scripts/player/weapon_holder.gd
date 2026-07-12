@@ -492,17 +492,22 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var mult: float = 1.0
 		var zone: String = "BODY"
 		var col: Object = r.collider
+		var region: String = ""
 		if col is Hitzone:
 			var hz := col as Hitzone
 			target = hz.owner_entity
 			mult = hz.get_damage_multiplier()
 			zone = hz.get_zone_name()
+			region = str(hz.get_meta("region", ""))
 		elif col is Node and (col as Node).is_in_group("enemies"):
 			target = col as Node
 		if target != null and is_instance_valid(target) and target.has_method("take_damage"):
-			var key := "%d|%s" % [target.get_instance_id(), zone]
+			# Bucket per REGION (not per 4-name zone) so a leg-full of buck is
+			# ONE trauma event that can cross the gib threshold, and the gore
+			# channel knows WHICH leg.
+			var key := "%d|%s" % [target.get_instance_id(), region if region != "" else zone]
 			if not buckets.has(key):
-				buckets[key] = [target, mult, zone, 0, 0.0]
+				buckets[key] = [target, mult, zone, 0, 0.0, region]
 			var b: Array = buckets[key]
 			b[3] = int(b[3]) + 1
 			b[4] = float(b[4]) + origin.distance_to(r.position)
@@ -520,15 +525,23 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var falloff: float = current_weapon.damage_multiplier_at(avg_dist)
 		var final_damage: int = maxi(1, int(float(pellet_dmg * n) * falloff * float(b[1])))
 		var zone: String = str(b[2])
+		var region: String = str(b[5])
 		var travel: float = avg_dist / maxf(1.0, current_weapon.projectile_speed)
 		var wd: WeaponData = current_weapon
 		var atk: Node = controller
+		var pdir: Vector3 = aim_dir
+		# GORE channel parity with BulletSystem: the aggregated bucket IS one
+		# trauma event - a leg-full of buck (>=45) takes the leg.
 		if travel > 0.03:
 			get_tree().create_timer(travel, false).timeout.connect(func() -> void:
 				if is_instance_valid(target) and target.has_method("take_damage"):
-					target.take_damage(final_damage, wd.damage_type, atk, zone))
+					target.take_damage(final_damage, wd.damage_type, atk, zone)
+					if region != "" and target.has_method("on_zone_hit"):
+						target.on_zone_hit(region, final_damage, pdir))
 		else:
 			target.take_damage(final_damage, wd.damage_type, atk, zone)
+			if region != "" and target.has_method("on_zone_hit"):
+				target.on_zone_hit(region, final_damage, pdir)
 
 
 func _start_reload() -> void:
