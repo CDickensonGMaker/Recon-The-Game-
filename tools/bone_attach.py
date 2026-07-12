@@ -50,21 +50,29 @@ class AttachError(RuntimeError):
     pass
 
 
-def _centre(ob):
+def _nearest(ob, point):
+    """Distance from `point` to the CLOSEST vertex of `ob`.
+
+    NOT the centre. A prc25_antenna is a metre-long whip that arcs up over the
+    shoulder, so its CENTRE sits 0.84m from the spine it hangs on - and a centre-based
+    check calls that "off the bone" and cries wolf. The question is not "is its midpoint
+    near the bone", it is "does any part of this thing TOUCH the man". A prop that is
+    genuinely detached is far from its bone by every vertex; a long prop is only far by
+    its middle."""
     if ob.type != 'MESH' or not ob.data.vertices:
-        return ob.matrix_world.translation.copy()
-    ws = [ob.matrix_world @ v.co for v in ob.data.vertices]
-    return sum(ws, Vector()) / len(ws)
+        return (ob.matrix_world.translation - point).length
+    return min((ob.matrix_world @ v.co - point).length for v in ob.data.vertices)
 
 
-def attach(ob, rig, bone, world=None, max_from_bone=0.60):
+def attach(ob, rig, bone, world=None, max_from_bone=0.35):
     """Hang `ob` rigidly on `rig`'s `bone`.
 
     world  -- the world matrix the object should END UP AT. Default = identity, which
               is right for anything whose verts are authored in WORLD/REST space (the
               whole locker, and every piece cut out of a body).
-    max_from_bone -- sanity limit. A prop more than this far from the bone it hangs on
-              is not a prop, it is a bug. Raises rather than shipping it.
+    max_from_bone -- sanity limit, measured to the CLOSEST vertex (see _nearest). A prop
+              whose nearest point is this far from its bone is not attached, it is lying
+              on the floor next to him. Raises rather than shipping it.
 
     Returns the measured distance from the object's centre to the bone head.
     """
@@ -108,7 +116,7 @@ def attach(ob, rig, bone, world=None, max_from_bone=0.60):
                 "almost always a stale depsgraph." % (ob.name, err))
 
         head = rig.matrix_world @ rig.data.bones[bone].head_local
-        d = (_centre(ob) - head).length
+        d = _nearest(ob, head)
         if d > max_from_bone:
             raise AttachError(
                 "%s is %.3f m from bone %s (limit %.2f). It is not attached, it is "
@@ -124,13 +132,29 @@ def attach(ob, rig, bone, world=None, max_from_bone=0.60):
         bpy.context.view_layer.update()
 
 
-def verify_all(rig, max_from_bone=0.60, quiet=False):
-    """Every bone-parented mesh on this rig: is it actually ON its bone?
+def verify_all(rig, expect=None, quiet=False):
+    """Every bone-parented mesh on this rig: is it EXACTLY where it was authored?
 
-    Run this before you save ANY blend that has props on a rig. It is the gate that
-    would have caught all three shipped instances of this bug on the spot, instead of
-    a render catching it weeks later.
+    DISTANCE IS THE WRONG TEST, and I got there by trying it and watching it cry wolf
+    twice in a row:
+      * prc25_antenna is a metre-long whip - its CENTRE sits 0.84m from the spine, and
+        a centre check called it detached.
+      * carry_pole is a 6-sided tube with verts ONLY AT ITS TWO ENDS - so its NEAREST
+        vertex to the spine is 0.52m away, even though the bar passes right over his
+        shoulders. A nearest-vertex check called that detached too.
+    Long props are far from their bone. Thin props have no vertices in the middle.
+    There is no threshold that separates "detached" from "long", because the geometry
+    of an honest prop is unbounded.
+
+    THE REAL INVARIANT IS EXACT. Every locker prop is authored in WORLD/REST space, so
+    once it is hung on its bone, its matrix_world must come back to IDENTITY. If it is
+    anything else, it has been displaced - and that is exactly what the three shipped
+    bugs were. No thresholds, no false alarms, no judgement call.
+
+    expect -- the world matrix each prop should sit at. Default identity.
     """
+    if expect is None:
+        expect = Matrix.Identity(4)
     prev = rig.data.pose_position
     prev_act = rig.animation_data.action if rig.animation_data else None
     rig.data.pose_position = 'REST'
@@ -146,13 +170,12 @@ def verify_all(rig, max_from_bone=0.60, quiet=False):
             bad.append((ob.name, ob.parent_bone or "<none>", -1.0))
             continue
         checked += 1
-        head = rig.matrix_world @ rig.data.bones[ob.parent_bone].head_local
-        d = (_centre(ob) - head).length
-        if d > max_from_bone:
-            bad.append((ob.name, ob.parent_bone, d))
+        m = ob.matrix_world
+        err = max(abs(m[i][j] - expect[i][j]) for i in range(4) for j in range(4))
+        if err > 1e-3:
+            bad.append((ob.name, ob.parent_bone, err))
         elif not quiet:
-            print("    ok  %-22s %.3f m from %s"
-                  % (ob.name, d, ob.parent_bone.replace("mixamorig:", "")))
+            print("    ok  %-22s on %s" % (ob.name, ob.parent_bone.replace("mixamorig:", "")))
 
     rig.data.pose_position = prev
     if rig.animation_data and prev_act is not None:
@@ -160,13 +183,14 @@ def verify_all(rig, max_from_bone=0.60, quiet=False):
     bpy.context.view_layer.update()
 
     if bad:
-        lines = ["\n*** %d BONE-PARENTED OBJECT(S) ARE NOT ON THEIR BONE ***" % len(bad)]
-        for n, b, d in bad:
-            lines.append("      %-22s %s  %s" % (
+        lines = ["*** %d BONE-PARENTED OBJECT(S) HAVE BEEN DISPLACED ***" % len(bad)]
+        for n, b, e in bad:
+            lines.append("      %-22s %-12s %s" % (
                 n, b.replace("mixamorig:", ""),
-                "NO SUCH BONE" if d < 0 else "%.3f m away" % d))
-        lines.append("    They are lying on the floor next to him. Attach in REST via")
-        lines.append("    bone_attach.attach() - do not hand-roll matrix_parent_inverse.")
+                "NO SUCH BONE" if e < 0 else "matrix_world off by %.4f" % e))
+        lines.append("    Their verts are authored in world/rest space, so attached they")
+        lines.append("    must sit at IDENTITY. They do not. Attach via bone_attach.attach()")
+        lines.append("    with the rig in REST - do not hand-roll matrix_parent_inverse.")
         raise AttachError("\n".join(lines))
-    print("  bone-attach gate: %d props, all on their bones" % checked)
+    print("  bone-attach gate: %d props, all exactly where they were authored" % checked)
     return checked
