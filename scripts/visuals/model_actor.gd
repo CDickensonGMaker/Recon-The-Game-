@@ -17,6 +17,10 @@ const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
 
 var unit: String = ""
 var norm_k: float = 1.0   ## normalization scale applied to the instance (ADR-002)
+## Bind-to-rest size ratio: gib donor meshes store BIND-space verts while the
+## man renders at REST scale - GibSystem scales spawned pieces by this so a
+## popped forearm matches the arm it came off. 1.0 on healthy exports.
+var gib_scale: float = 1.0
 var _inst: Node3D = null
 var _anim: AnimationPlayer = null
 var _skel: Skeleton3D = null
@@ -41,23 +45,57 @@ func setup(unit_id: String) -> bool:
 	_inst = packed.instantiate() as Node3D
 	add_child(_inst)
 
-	# Normalise height + seat feet on this node's origin (which sits at the
-	# CharacterBody3D's feet), so hitzones and the 1.7m HEAD zone line up.
-	var aabb := _aabb_of(_inst)
-	if aabb.size.y > 0.01:
-		var k: float = TARGET_HEIGHT_M / aabb.size.y
-		norm_k = k
-		_inst.scale = Vector3(k, k, k)
-		_inst.position.y = -aabb.position.y * k
-		print("[MODEL] %s instance_h=%.2f k=%.3f (v2 exports land at 1.7132m so k~1.00; far off = off-spec export, catch it HERE not in playtest; v1 rigs read ~0.9)" % [unit_id, aabb.size.y, k])
-
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
+	_normalize_height()
 	_merge_shared_library()
 	_apply_loop_modes()
 	_apply_gib_rig_contract()
 	_apply_psx_filtering()
 	return true
+
+
+## Height normalization (ADR-002): the RENDERED man must stand exactly
+## TARGET_HEIGHT_M with his soles on this node's origin. Skinned verts render
+## pulled to the REST skeleton, so the skeleton is the only honest ruler - the
+## mesh AABB measures the BIND pose, which the current exports bake ~2x larger
+## and offset from rest (every man rendered 0.84m tall floating 0.82m up).
+## AABB remains the fallback for rigless props.
+func _normalize_height() -> void:
+	if _inst == null:
+		return
+	if _skel != null:
+		var top: int = _skel.find_bone("mixamorig_HeadTop_End")
+		var toe: int = _skel.find_bone("mixamorig_LeftToeBase")
+		if toe < 0:
+			toe = _skel.find_bone("mixamorig_LeftFoot")
+		if top >= 0 and toe >= 0:
+			# Skeleton -> _inst space via LOCAL transforms (global transforms
+			# race on the session's first build).
+			var to_inst := Transform3D.IDENTITY
+			var n: Node3D = _skel
+			while n != null and n != _inst:
+				to_inst = n.transform * to_inst
+				n = n.get_parent() as Node3D
+			var top_y: float = (to_inst * _skel.get_bone_global_rest(top).origin).y
+			var toe_y: float = (to_inst * _skel.get_bone_global_rest(toe).origin).y
+			if top_y - toe_y > 0.01:
+				var k: float = TARGET_HEIGHT_M / (top_y - toe_y)
+				norm_k = k
+				var bind_aabb := _aabb_of(_inst)
+				if bind_aabb.size.y > 0.01:
+					gib_scale = clampf((top_y - toe_y) / bind_aabb.size.y, 0.05, 1.0)
+				_inst.scale = Vector3(k, k, k)
+				_inst.position.y = -toe_y * k
+				print("[MODEL] %s rest-span %.2f k=%.3f gib_scale=%.2f (skeleton-ruled height; bind AABB lies on off-spec exports)" % [unit, top_y - toe_y, k, gib_scale])
+				return
+	var aabb := _aabb_of(_inst)
+	if aabb.size.y > 0.01:
+		var k2: float = TARGET_HEIGHT_M / aabb.size.y
+		norm_k = k2
+		_inst.scale = Vector3(k2, k2, k2)
+		_inst.position.y = -aabb.position.y * k2
+		print("[MODEL] %s instance_h=%.2f k=%.3f (AABB fallback - no usable rig)" % [unit, aabb.size.y, k2])
 
 
 ## ---- shared animation library (bead 00qp) -----------------------------------

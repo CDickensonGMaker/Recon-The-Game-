@@ -284,41 +284,70 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 
 ## Dominant-bone vertex claim: each vertex joins the region of its heaviest
 ## skin weight. forced != "" routes every vertex to that region (hit_ meshes).
+##
+## Verts are stored in BIND space, but the man RENDERS pulled to the REST
+## skeleton - and the current exports bake bind ~2x rest. Points must ride the
+## same skin math the renderer uses (rigid to the dominant bone):
+## v_rest = bone_rest x bind_pose x v. Unskinned meshes (rare hit_ overrides)
+## keep the plain relative transform.
 static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: PackedStringArray,
 		frames: Dictionary, pts: Dictionary, forced: String, k: float) -> void:
+	var sk: Skin = mi.skin
+	var xforms: Array = _bind_rest_xforms(sk, skel) if sk != null else []
 	var to_skel: Transform3D = skel.global_transform.affine_inverse() * mi.global_transform
 	for s in range(mi.mesh.get_surface_count()):
 		var arrays: Array = mi.mesh.surface_get_arrays(s)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		var bones: PackedInt32Array = PackedInt32Array()
 		var weights = arrays[Mesh.ARRAY_WEIGHTS]
-		if forced.is_empty():
+		if sk != null:
 			bones = arrays[Mesh.ARRAY_BONES]
-			if bones.is_empty() or weights == null or verts.is_empty():
-				continue
-		var influences: int = (bones.size() / verts.size()) if (forced.is_empty() and verts.size() > 0) else 0
+		if forced.is_empty() and (bones.is_empty() or weights == null or verts.is_empty()):
+			continue
+		var influences: int = (bones.size() / verts.size()) if verts.size() > 0 else 0
 		for vi in range(verts.size()):
-			var region: String = forced
-			if region.is_empty():
+			var best_b: int = -1
+			if influences > 0:
 				var best_w: float = -1.0
-				var best_b: int = -1
 				for j in range(influences):
 					var w: float = float(weights[vi * influences + j])
 					if w > best_w:
 						best_w = w
 						best_b = bones[vi * influences + j]
+			var region: String = forced
+			if region.is_empty():
 				if best_b < 0 or best_b >= bind_regions.size():
 					continue
 				region = bind_regions[best_b]
 			if region.is_empty() or not frames.has(region):
 				continue
+			var v_rest: Vector3
+			if best_b >= 0 and best_b < xforms.size():
+				v_rest = (xforms[best_b] as Transform3D) * verts[vi]
+			else:
+				v_rest = to_skel * verts[vi]
 			var frame: Transform3D = frames[region]
-			var local: Vector3 = frame.affine_inverse() * (to_skel * verts[vi])
+			var local: Vector3 = frame.affine_inverse() * v_rest
 			# Plain Array on purpose: Packed*Array is copy-on-write - appending
 			# through a Dictionary cast mutates a temporary, not the stored one.
 			if not pts.has(region):
 				pts[region] = []
 			(pts[region] as Array).append(local * k)
+
+
+## Per-bind-slot rest-space skinning transform: bone_global_rest x bind_pose,
+## exactly what the renderer applies at rest. Bind slots map to skeleton bones
+## by name (ARRAY_BONES indices are skin-relative, not skeleton indices).
+static func _bind_rest_xforms(sk: Skin, skel: Skeleton3D) -> Array:
+	var out: Array = []
+	for i in range(sk.get_bind_count()):
+		var bn: String = sk.get_bind_name(i)
+		var bi: int = skel.find_bone(bn) if not bn.is_empty() else sk.get_bind_bone(i)
+		var rest: Transform3D = Transform3D.IDENTITY
+		if bi >= 0 and bi < skel.get_bone_count():
+			rest = skel.get_bone_global_rest(bi)
+		out.append(rest * sk.get_bind_pose(i))
+	return out
 
 
 ## Skin bind slot -> region name (ARRAY_BONES indices are skin-relative, NOT

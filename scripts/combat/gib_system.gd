@@ -98,7 +98,7 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 			print("[GORE] %s: region mesh '%s' missing - OFF-CONTRACT" % [model.unit, mesh_name])
 			continue
 		mi.visible = false
-		_spawn_gib(mi.mesh, gib_at, hit_dir, 3.5, gib_parent)
+		_spawn_gib(mi.mesh, gib_at, hit_dir, 3.5, gib_parent, model.gib_scale)
 		spawned = true
 	for gear_name: String in spec["gear"]:
 		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
@@ -174,7 +174,7 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 	var gib_at: Transform3D = skel.global_transform * pose_delta
 	for f in frags:
 		f.visible = false
-		_spawn_frag(f.mesh, gib_at, hit_dir, gib_parent)
+		_spawn_frag(f.mesh, gib_at, hit_dir, gib_parent, model.gib_scale)
 	# Gear (helmet) flies as its own lighter piece.
 	for gear_name: String in spec["gear"]:
 		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
@@ -194,20 +194,22 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 
 ## Small fast fragment: sphere collider, radial spray, own FIFO so a burst
 ## can't flush the body-part gib budget.
-static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node) -> void:
+static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node,
+		mesh_scale: float = 1.0) -> void:
 	var body := RigidBody3D.new()
 	body.collision_layer = 0
 	body.collision_mask = 1
 	body.mass = 0.3
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	mi.scale = Vector3.ONE * mesh_scale
 	body.add_child(mi)
 	var aabb: AABB = mesh.get_aabb()
 	var cs := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
-	sphere.radius = maxf(0.02, aabb.size.length() * 0.25)
+	sphere.radius = maxf(0.02, aabb.size.length() * mesh_scale * 0.25)
 	cs.shape = sphere
-	cs.position = aabb.get_center()
+	cs.position = aabb.get_center() * mesh_scale
 	body.add_child(cs)
 	parent.add_child(body)
 	body.global_transform = at
@@ -233,22 +235,26 @@ static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node)
 ## rig's own space, so parenting the gib at the skeleton's global transform puts
 ## it exactly where the limb stood (v1: rest-pose placement, good enough at
 ## PSX fidelity) and inherits the export-compensation + ADR-002 normalization.
-static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, parent: Node) -> void:
+static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, parent: Node,
+		mesh_scale: float = 1.0) -> void:
 	var body := RigidBody3D.new()
 	body.collision_layer = 0
 	body.collision_mask = 1  # world only - gibs never block bullets or feet
 	body.mass = 2.0
 
+	# mesh_scale: donor verts are BIND-space; the man renders at REST scale.
+	# Scale the MESH child, never the RigidBody (physics hates scaled bodies).
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	mi.scale = Vector3.ONE * mesh_scale
 	body.add_child(mi)
 
 	var aabb: AABB = mesh.get_aabb()
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = aabb.size.max(Vector3.ONE * 0.02)
+	shape.size = (aabb.size * mesh_scale).max(Vector3.ONE * 0.02)
 	cs.shape = shape
-	cs.position = aabb.get_center()
+	cs.position = aabb.get_center() * mesh_scale
 	body.add_child(cs)
 
 	parent.add_child(body)
