@@ -10,6 +10,13 @@ class_name GoreDummy
 extends CharacterBody3D
 
 signal died
+## Every hit, with the zone and what it cost him - the gun range's telemetry
+## feed (zone, damage, hp left).
+signal hit_taken(zone: String, amount: int, hp_left: int)
+
+## Range mode: stand still (no clip cycling) so the shooter tests AIM, not
+## tracking. The dummy still bleeds, gibs and dies exactly as in the game.
+@export var idle_only: bool = false
 
 ## Which rig stands on the range - labs set this before add_child.
 @export var unit_id: String = "us_grunt_v2"
@@ -128,7 +135,7 @@ func _physics_process(delta: float) -> void:
 		return
 	# zones ride the skeleton even on the corpse (shooting bodies stays honest)
 	HitzoneBuilder.sync(model, _zone_sync)
-	if _dead:
+	if _dead or idle_only:
 		return
 	_clip_timer += delta
 	if _clip_timer >= CLIP_CYCLE_S:
@@ -152,6 +159,7 @@ func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone
 	var hit_pos: Vector3 = global_position + Vector3.UP * 1.2
 
 	GunFX.blood(get_parent(), hit_pos, -dir, dir, self)
+	hit_taken.emit(zone, amount, maxi(0, hp - amount))
 
 	# Builder zones report segment regions (ARM_L_UP/_LO); gibs speak 4-limb.
 	var limb: String = HitzoneBuilder.base_region(zone)
