@@ -132,6 +132,16 @@ func _load_unit(idx: int) -> void:
 	_sync = []
 	if not _model.setup(_units[_unit_idx]):
 		return
+	# See-through body: x-ray wires carry no depth cue, so a box can LOOK on
+	# the leg while floating a meter toward the camera. A translucent mesh
+	# puts depth back in the picture.
+	var stack: Array = [_model as Node]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).transparency = 0.45
 	_rebuild_zones()
 	_clips = _model.clip_names()
 	_clip_idx = maxi(0, _clips.find("idle"))
@@ -185,6 +195,33 @@ func _col_for(hz: Area3D) -> CollisionShape3D:
 		if c is CollisionShape3D:
 			return c
 	return null
+
+
+## How far the zone's shape center sits from the bone segment it guards -
+## the live floating-box alarm (a zone off its limb = free misses in game).
+func _zone_float_m(hz: Area3D) -> float:
+	var entry: Array = _sync_entry_for(hz)
+	if entry.is_empty() or _model == null:
+		return 0.0
+	var skel: Skeleton3D = _model.skeleton()
+	if skel == null:
+		return 0.0
+	var a: Vector3 = skel.global_transform * skel.get_bone_global_pose(entry[1]).origin
+	var b: Vector3 = a
+	if int(entry[3]) >= 0:
+		b = skel.global_transform * skel.get_bone_global_pose(entry[3]).origin
+	var center: Vector3 = hz.global_position
+	if hz.has_meta("hull_points"):
+		var csum := Vector3.ZERO
+		var pts: PackedVector3Array = hz.get_meta("hull_points")
+		for p in pts:
+			csum += p
+		center = hz.global_transform * (csum / float(pts.size()))
+	var seg: Vector3 = b - a
+	var t: float = 0.0
+	if seg.length_squared() > 0.0001:
+		t = clampf((center - a).dot(seg) / seg.length_squared(), 0.0, 1.0)
+	return center.distance_to(a + seg * t)
 
 
 func _pressed_once(keycode: int) -> bool:
@@ -299,8 +336,14 @@ func _drag_rotate(rel: Vector2) -> void:
 	# from any viewpoint and any model yaw.
 	var local_right: Vector3 = (hz.global_transform.basis.inverse()
 		* cam.global_transform.basis.x).normalized()
-	rot = rot * Basis(Vector3.UP, -rel.x * 0.008 * fine) \
+	var delta_rot: Basis = Basis(Vector3.UP, -rel.x * 0.008 * fine) \
 		* Basis(local_right, -rel.y * 0.008 * fine)
+	rot = rot * delta_rot
+	# Pivot IN PLACE: the offset lives in the rotated frame, so rotating a
+	# displaced zone orbits it around the joint - the drag-rotate-drag spiral
+	# that ballooned offsets past a meter. Counter-rotate the offset so the
+	# box spins about its own center and position holds.
+	entry[2] = delta_rot.inverse() * Vector3(entry[2])
 	_rot[region] = rot
 	entry[4] = rot
 	hz.set_meta("rot_deg", rot.get_euler() * (180.0 / PI))
@@ -335,6 +378,8 @@ func _handle_input(delta: float) -> void:
 		_selected = (_selected + 1) % REGION_ORDER.size()
 	if Input.is_key_pressed(KEY_CTRL) and _pressed_once(KEY_S):
 		_save_tuning()
+	if Input.is_key_pressed(KEY_CTRL) and _pressed_once(KEY_D):
+		_save_tuning(true)
 	if _pressed_once(KEY_R) and not Input.is_key_pressed(KEY_CTRL):
 		_revert_tuning()
 
@@ -407,7 +452,10 @@ func _handle_input(delta: float) -> void:
 			cap.radius = maxf(0.03, cap.radius + r_delta * RADIUS_STEP * fine * delta)
 
 
-func _save_tuning() -> void:
+## Ctrl+S writes this unit's file; Ctrl+D (as_default) writes _default.tres,
+## which every unit WITHOUT its own file inherits - tune the reference rig
+## once and the whole roster lines up (per-unit saves still win).
+func _save_tuning(as_default: bool = false) -> void:
 	if _model == null:
 		return
 	var tuning := HitzoneTuning.new()
@@ -457,10 +505,14 @@ func _save_tuning() -> void:
 		if not zone_entry.is_empty():
 			tuning.zones[region] = zone_entry
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://data/hitzones"))
-	var path: String = HitzoneBuilder.TUNING_DIR + _units[_unit_idx] + ".tres"
+	var fname: String = "_default" if as_default else _units[_unit_idx]
+	var path: String = HitzoneBuilder.TUNING_DIR + fname + ".tres"
 	var err: int = ResourceSaver.save(tuning, path)
 	if err == OK:
-		_flash("SAVED -> %s (%d zones)" % [path, tuning.zones.size()])
+		if as_default:
+			_flash("SAVED DEFAULT -> %s (%d zones, inherited by every unit without its own file)" % [path, tuning.zones.size()])
+		else:
+			_flash("SAVED -> %s (%d zones)" % [path, tuning.zones.size()])
 	else:
 		_flash("SAVE FAILED (err %d)" % err)
 
@@ -528,11 +580,13 @@ func _update_hud() -> void:
 		var rr: Vector3 = (_rot.get(region, Basis.IDENTITY) as Basis).get_euler()
 		if rr.length() > 0.001:
 			rot_str = "  rot(%.0f,%.0f,%.0f)" % [rad_to_deg(rr.x), rad_to_deg(rr.y), rad_to_deg(rr.z)]
-		lines.append("%s%s %s  %s%s%s%s" % [marker, key_label, region, size_str, dmg_str, rot_str, "  *" if _touched.has(region) else ""])
+		var float_m: float = _zone_float_m(hz)
+		var float_str: String = "  !!OFF-BODY %.2fm" % float_m if float_m > 0.35 else ""
+		lines.append("%s%s %s  %s%s%s%s%s" % [marker, key_label, region, size_str, dmg_str, rot_str, float_str, "  *" if _touched.has(region) else ""])
 	lines.append("")
 	lines.append("CLICK select   L-drag move   R-drag twist(H)/tilt(V)   Shift fine")
 	lines.append("drag pauses the clip - P resumes")
 	lines.append("Z/X unit  [/] clip  P pause  Q/E spin  TAB/1-0 zone")
 	lines.append("arrows/PgUpDn offset  +/- inflate|radius  ,/. dmg  F fatal")
-	lines.append("Ctrl+S save   R revert")
+	lines.append("Ctrl+S save unit   Ctrl+D save as DEFAULT (all units)   R revert")
 	_hud.text = "\n".join(lines)

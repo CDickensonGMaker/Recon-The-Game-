@@ -39,8 +39,29 @@ func _shape_of(holder: Node3D, region: String) -> Shape3D:
 	return null
 
 
+## Live data/hitzones files are moved aside for the run (and restored on any
+## exit): the suite exercises measured baselines + its own fixtures, and it
+## must never eat or be skewed by Caleb's real tuning.
+var _live: Dictionary = {}
+
+
+func _isolate_live_tuning() -> void:
+	for f in ["us_grunt_v2", "us_grunt_m14", "_default"]:
+		var g: String = ProjectSettings.globalize_path(HitzoneBuilder.TUNING_DIR + f + ".tres")
+		if FileAccess.file_exists(g):
+			DirAccess.rename_absolute(g, g + ".bak")
+			_live[f] = g
+
+
+func _restore_live_tuning() -> void:
+	for f in _live:
+		DirAccess.rename_absolute(String(_live[f]) + ".bak", String(_live[f]))
+	_live = {}
+
+
 func _run() -> void:
 	var failures: int = 0
+	_isolate_live_tuning()
 
 	# --- 1. build on a rigged unit: 11 zones, all synced, hulls on the core
 	var holder := Node3D.new()
@@ -49,6 +70,7 @@ func _run() -> void:
 	holder.add_child(model)
 	if not model.setup("us_grunt_v2"):
 		print("FAIL: us_grunt_v2 setup failed")
+		_restore_live_tuning()
 		get_tree().quit(1)
 		return
 	var entries: Array = HitzoneBuilder.build(holder, model, 0, 0, ["hitzone_probe"], true)
@@ -211,6 +233,38 @@ func _run() -> void:
 		holder3.queue_free()
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tpath))
 
+	# --- 4. default inheritance: a unit with NO file of its own inherits
+	# _default.tres (tune the reference once, the roster lines up).
+	var dflt := HitzoneTuning.new()
+	dflt.zones["HEAD"] = {"damage": 3.0}
+	var dpath: String = HitzoneBuilder.TUNING_DIR + "_default.tres"
+	if ResourceSaver.save(dflt, dpath) != OK:
+		print("FAIL: default tuning save failed")
+		failures += 1
+	else:
+		var holder4 := Node3D.new()
+		add_child(holder4)
+		var model4 := ModelActor.new()
+		holder4.add_child(model4)
+		if not model4.setup("us_grunt_m14"):
+			print("FAIL: us_grunt_m14 setup failed for default-inheritance case")
+			failures += 1
+		else:
+			HitzoneBuilder.build(holder4, model4, 0, 0, ["hitzone_probe"], true)
+			var inherited: bool = false
+			for c in holder4.get_children():
+				if c is Area3D and str(c.get_meta("region", "")) == "HEAD":
+					var h4 := c as Hitzone
+					inherited = h4 != null and absf(h4.get_damage_multiplier() - 3.0) < 0.001
+			if inherited:
+				print("  default inheritance OK (m14 picked up _default HEAD dmg x3.0)")
+			else:
+				print("FAIL: unit without its own tuning did not inherit _default.tres")
+				failures += 1
+		holder4.queue_free()
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(dpath))
+
+	_restore_live_tuning()
 	if failures == 0:
 		print("PASS: hitzone builder (mesh hulls + 11 regions + bone-sync + tuning) OK")
 	else:

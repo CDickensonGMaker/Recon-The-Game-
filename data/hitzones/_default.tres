@@ -1,0 +1,61 @@
+[gd_resource type="Resource" script_class="HitzoneTuning" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/hitzone_tuning.gd" id="1_abncn"]
+
+[resource]
+script = ExtResource("1_abncn")
+zones = {
+"ARM_L_LO": {
+"inflate": 0.02337472000000001,
+"offset": Vector3(-0.5149495, -0.33614215, 0.47075495),
+"rotation": Vector3(-26.177341, -171.74193, -38.543503)
+},
+"ARM_L_UP": {
+"inflate": 0.01587268,
+"offset": Vector3(-0.603823, -0.3280929, 0.5474151),
+"rotation": Vector3(-13.7422695, 115.26462, -66.200455)
+},
+"ARM_R_LO": {
+"inflate": 0.024078560000000002,
+"offset": Vector3(0.5011554, -0.33176026, 0.5121319),
+"rotation": Vector3(-24.451218, -49.073822, 44.43002)
+},
+"ARM_R_UP": {
+"inflate": 0.01008052,
+"offset": Vector3(0.60749775, -0.34982178, 0.5583095),
+"rotation": Vector3(-28.869799, 162.23218, 26.267115)
+},
+"BODY": {
+"inflate": -0.011749760000000001,
+"offset": Vector3(0.5817996, 0.6533169, 0.0028911268)
+},
+"GUT": {
+"offset": Vector3(0.45252874, 0.64066553, -0.019538658)
+},
+"HEAD": {
+"inflate": -0.004025799999999999,
+"offset": Vector3(0.9327109, 0.6653501, 0.008828174),
+"rotation": Vector3(16.946505, 75.51455, -72.508896)
+},
+"LEG_L_LO": {
+"damage": 1.5,
+"inflate": 0.027485440000000003,
+"offset": Vector3(-0.3352228, -0.18025652, -0.033899654),
+"rotation": Vector3(-28.481537, -34.649746, 80.580124)
+},
+"LEG_L_UP": {
+"inflate": 0.010767320000000007,
+"offset": Vector3(-0.5189659, -0.37779415, 0.10048062),
+"rotation": Vector3(-35.971645, 15.536023, -84.60918)
+},
+"LEG_R_LO": {
+"inflate": 0.0020993599999999902,
+"offset": Vector3(-0.11443613, -0.17480008, -0.0109412735),
+"rotation": Vector3(-4.0359225, 145.25697, 88.776825)
+},
+"LEG_R_UP": {
+"inflate": 0.04988463999999998,
+"offset": Vector3(-0.33686388, -0.36548987, -0.026321584),
+"rotation": Vector3(-3.3285532, -171.32231, -97.48429)
+}
+}

@@ -57,6 +57,19 @@ static func base_region(region: String) -> String:
 	return region.trim_suffix("_UP").trim_suffix("_LO")
 
 
+## Skeleton world scale from LOCAL transforms up the chain. The global
+## transform RACES on the first build of a session - it reads 1.0 before the
+## ModelActor rescale propagates, which shipped the first-spawned unit with
+## double-size, meter-displaced zones. Local scales are always current.
+static func _skel_world_scale(skel: Skeleton3D) -> float:
+	var s: float = 1.0
+	var n: Node3D = skel
+	while n != null:
+		s *= n.scale.x
+		n = n.get_parent() as Node3D
+	return s
+
+
 ## Build zones on `body`. Returns bone-sync entries
 ## [[hz, bone_idx, offset, aim_bone_idx, rot_basis]..] (empty when the static
 ## fallback was used); feed them to sync() each physics tick.
@@ -71,15 +84,23 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 
 	var tuning: HitzoneTuning = null
 	if model != null and not model.unit.is_empty():
+		# Per-unit file wins; otherwise every unit inherits the reference
+		# tuning (_default.tres, bench Ctrl+D) - tune the reference rig once,
+		# the whole roster lines up.
 		var tpath: String = TUNING_DIR + model.unit + ".tres"
+		if not ResourceLoader.exists(tpath):
+			tpath = TUNING_DIR + "_default.tres"
 		if ResourceLoader.exists(tpath):
 			tuning = load(tpath) as HitzoneTuning
 
 	var hulls: Dictionary = _hulls_for(model, skel, with_gut)
 	var entries: Array = []
+	# Rest joints in skeleton space x race-free scale: spans only need world
+	# DISTANCES, and skel.global_transform lies on the session's first build.
+	var kk: float = _skel_world_scale(skel)
 	var bw := func(bone: String) -> Vector3:
 		var bi: int = skel.find_bone(bone)
-		return (skel.global_transform * skel.get_bone_global_rest(bi).origin) if bi >= 0 else Vector3.ZERO
+		return (skel.get_bone_global_rest(bi).origin * kk) if bi >= 0 else Vector3.ZERO
 
 	# Span measurement with missing-bone honesty: a rig missing either bone
 	# (v1 rigs lack mixamorig_HeadTop_End) returns the fallback instead of
@@ -217,7 +238,7 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 	var root: Node3D = model.instance_root()
 	if root != null:
 		var frames: Dictionary = _rest_frames(skel, with_gut)
-		var k: float = skel.global_transform.basis.get_scale().x
+		var k: float = _skel_world_scale(skel)
 		var pts: Dictionary = {}
 		var overrides: Array = []
 		var stack: Array = [root]
