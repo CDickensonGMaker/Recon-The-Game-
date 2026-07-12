@@ -94,23 +94,64 @@ def hands_panic(rig, t):
 
 
 def rot_cower(t):
-    tr = math.sin(t * TAU * 6.0) * rad(1.2) + math.sin(t * TAU * 11.0) * rad(0.7)
-    return {M + "Spine": (rad(30) + tr, 0, 0),
-            M + "Spine1": (rad(24), 0, 0),
-            M + "Spine2": (rad(14), 0, 0),
-            M + "Neck": (rad(22), 0, 0),
-            M + "Head": (rad(20), 0, 0),                     # skull tucked down
-            M + "LeftUpLeg": (rad(20), 0, 0),
-            M + "RightUpLeg": (rad(20), 0, 0),
-            M + "LeftLeg": (rad(-30), 0, 0),
-            M + "RightLeg": (rad(-30), 0, 0)}
+    """A cower is not a POSE, it is a man flinching.
+
+    v1 was a static curl with a 1-degree jitter on it - a statue with a tic. What a
+    man under fire actually does is CYCLE: he tightens (shoulders to his ears, head
+    deeper, spine curls harder), holds it, then eases off a fraction because he
+    cannot hold that hard forever - and then something lands and he tightens again.
+    That cycle is the whole read. It is also what tells the player he is ALIVE and
+    not a prop, which is the entire reason the player has to decide about him.
+
+    Two rhythms on top of each other:
+      * FLINCH   ~2.5s, the big tighten-and-ease. This is the animation.
+      * TREMBLE  fast, small, never still. This is what says he is terrified.
+
+    HEAD: v1 tucked the skull to 122 degrees - past face-down - which threw the hat
+    round the back of his skull and made it look like it had come off. He tucks his
+    chin, he does not fold his neck in half. Measured back to ~95.
+    """
+    flinch = (math.sin(t * TAU - math.pi / 2.0) * 0.5 + 0.5) ** 2.2   # sharp in, slow out
+    tremble = (math.sin(t * TAU * 9.0) * rad(0.9)
+               + math.sin(t * TAU * 14.0) * rad(0.5))
+    return {M + "Spine": (rad(20 + 7 * flinch) + tremble, 0, rad(2 * flinch)),
+            M + "Spine1": (rad(15 + 5 * flinch), 0, 0),
+            M + "Spine2": (rad(10 + 4 * flinch), 0, 0),
+            # A LIGHT chin tuck. v1 folded the neck to 122 deg - past face-down - and
+            # the hat went round the front of his skull. Measured back to ~60.
+            M + "Neck": (rad(5 + 4 * flinch), 0, 0),
+            M + "Head": (rad(4 + 3 * flinch), 0, 0),
+            # the crouch does the work: he gets SMALL, he does not fold in half
+            M + "LeftUpLeg": (rad(30 + 12 * flinch), 0, rad(5)),
+            M + "RightUpLeg": (rad(30 + 12 * flinch), 0, rad(-5)),
+            M + "LeftLeg": (rad(-48 - 16 * flinch), 0, 0),
+            M + "RightLeg": (rad(-48 - 16 * flinch), 0, 0),
+            M + "LeftFoot": (rad(18 + 6 * flinch), 0, 0),
+            M + "RightFoot": (rad(18 + 6 * flinch), 0, 0),
+            M + "LeftShoulder": (rad(-9 * flinch), 0, 0),
+            M + "RightShoulder": (rad(-9 * flinch), 0, 0)}
 
 
 def hands_cower(rig, t):
-    tr = math.sin(t * TAU * 7.0) * 0.012
-    top = W(rig, "HeadTop_End")
-    return {"Left":  reach(rig, "Left",  top + Vector((0.17, -0.02, 0.01 + tr))),
-            "Right": reach(rig, "Right", top + Vector((-0.17, -0.02, 0.01 - tr)))}
+    """Forearms clamped over the crown, pressing HARDER on the flinch.
+
+    ANCHOR TO THE NECK, NOT THE HEAD-TOP. HeadTop_End rides the skull, and a cowering
+    man's skull is TUCKED - so HeadTop_End swings forward past his face, and "just
+    above the head-top" becomes "out in front of his nose". That is exactly what it
+    did: his arms came out in a stiff-arm instead of clamping down. The NECK does not
+    tilt with the skull, so it is the only stable thing to hang a target off.
+
+    A man protecting his head puts his hands on the crown in WORLD space - on top of
+    whatever the skull is currently doing - so the target is straight up off the neck."""
+    flinch = (math.sin(t * TAU - math.pi / 2.0) * 0.5 + 0.5) ** 2.2
+    tr = math.sin(t * TAU * 11.0) * 0.010
+    nk = W(rig, "Neck")
+    up = 0.17 - 0.04 * flinch          # hands press DOWN onto the crown as he tightens
+    fwd = 0.03 + 0.03 * flinch
+    return {"Left":  reach(rig, "Left",
+                           nk + Vector((0.13, fwd, up + tr))),
+            "Right": reach(rig, "Right",
+                           nk + Vector((-0.13, fwd, up - tr)))}
 
 
 def rot_hands_up(t):
@@ -218,7 +259,7 @@ def hands_pole(rig, t):
 CLIPS = [
     # name,               source,            rot,            hands,           frames, ground
     ("civ_panic_run",     "running_unarmed", rot_panic,      hands_panic,     None,  False),
-    ("civ_cower",         "idle",            rot_cower,      hands_cower,     48,    True),
+    ("civ_cower",         "idle",            rot_cower,      hands_cower,     60,    True),
     ("civ_hands_up",      "idle_unarmed",    rot_hands_up,   hands_hands_up,  48,    True),
     ("civ_squat_idle",    "idle",            rot_squat,      hands_squat,     64,    True),
     ("civ_farm_transplant", "idle",          rot_transplant, hands_transplant, 56,   True),
