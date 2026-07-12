@@ -24,6 +24,10 @@ const MULTIPLIERS := {
 ## applied by HitzoneBuilder from data/hitzones/<unit>.tres. Negative = no
 ## override, ADR-016 defaults rule.
 var damage_mult_override: float = -1.0
+## Lab-only: when set, get_zone_name() reports THIS (e.g. "ARM_L_UP") instead
+## of the type name. Ships empty - live wound/damage logic keys on the four
+## type names and must never see region strings.
+var zone_label_override: String = ""
 ## -1 = law default (HEAD fatal, rest not) · 0 = forced non-fatal · 1 = forced fatal
 var fatal_override: int = -1
 
@@ -65,6 +69,8 @@ func set_owner_entity(entity: Node) -> void:
 
 ## Get zone name for hit feedback
 func get_zone_name() -> String:
+	if zone_label_override != "":
+		return zone_label_override
 	match zone_type:
 		ZoneType.HEAD:
 			return "HEAD"
