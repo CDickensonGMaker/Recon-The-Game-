@@ -28,12 +28,16 @@ import bpy, math, json, os
 from mathutils import Vector, Quaternion, Euler
 
 WB = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
-POSE = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_transplant_pose.json"
+POSE = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_work_pose.json"
 RIG = "PSXRig"
 M = "mixamorig:"
 TAU = math.tau
 
-NAME = "civ_farm_transplant"
+# Caleb: "that animation works and can be used for any civilian working job."
+# So it is not a transplant clip, it is a WORK clip - and with a sickle in his
+# fist the same dip reads as CUTTING (verified by rendering it), which makes a
+# separate harvest clip redundant. One clip, any job.
+NAME = "civ_work"
 FRAMES = 40                 # ~1.7s: one plant per hand per cycle
 DIP_M = 0.18                # how far the hand travels, vertically. MEASURED, not guessed.
 FORE_FRAC = 0.45            # forearm counter-rotation, as a fraction of the shoulder
