@@ -1,19 +1,25 @@
-## hitzone_editor.gd - HITZONE TUNING BENCH (bead yd83).
+## hitzone_editor.gd - HITZONE TUNING BENCH (beads yd83 + trqx).
 ##
 ## Launch outside the game (hitzone_editor.bat). Loads any character, plays
-## any of the 91 library clips, and overlays the bone-synced hitzones as
-## wireframes so Caleb can SEE them ride the animation and fine-tune.
+## any library clip, and overlays the mesh-hull/capsule hitzones as wireframes
+## so Caleb can SEE them ride the animation and fine-tune every zone.
 ##
-## Keys: Z/X character  [/] clip  P pause  Q/E rotate
-##       1-7 select zone (HEAD BODY GUT ARM_L ARM_R LEG_L LEG_R)
-##       Arrows offset X/Y  PgUp/PgDn offset Z  +/- radius  Shift fine
-##       ,/. damage mult down/up (Shift fine)  F toggle fatal
-##       Ctrl+S save data/hitzones/<unit>.tres   R revert (delete overrides)
+## Mouse: LEFT-CLICK a zone to select it. LEFT-DRAG moves it in the camera
+##        plane. RIGHT-DRAG rotates it (tilt to fit the limb). Shift = fine.
+## Keys:  Z/X character  [/] clip  P pause  Q/E rotate model  TAB cycle zone
+##        1-9,0 select zone   Arrows offset X/Y  PgUp/PgDn offset Z
+##        +/- inflate (hull) or radius (capsule)  Shift fine
+##        ,/. damage mult down/up (Shift fine)  F toggle fatal
+##        Ctrl+S save data/hitzones/<unit>.tres   R revert (delete overrides)
 extends Node3D
 
-const REGION_ORDER: Array[String] = ["HEAD", "BODY", "GUT", "ARM_L", "ARM_R", "LEG_L", "LEG_R"]
+const REGION_ORDER: Array[String] = ["HEAD", "BODY", "GUT",
+	"ARM_L_UP", "ARM_L_LO", "ARM_R_UP", "ARM_R_LO",
+	"LEG_L_UP", "LEG_L_LO", "LEG_R_UP", "LEG_R_LO"]
 const NUDGE: float = 0.15      # m/s of key hold
 const RADIUS_STEP: float = 0.08
+const INFLATE_STEP: float = 0.04   # m/s of key hold (hull margin)
+const BENCH_LAYER: int = 1 << 10   # zones collide on this layer for mouse picking
 
 var _units: Array[String] = []
 var _unit_idx: int = 0
@@ -24,8 +30,10 @@ var _model: ModelActor = null
 var _sync: Array = []
 var _selected: int = 0
 var _touched: Dictionary = {}   # region -> true (nudged this session)
+var _rot: Dictionary = {}       # region -> Vector3 radians (bench rotation)
 var _paused: bool = false
 var _held: Dictionary = {}
+var _drag_mode: int = 0         # 0 none, 1 move (LMB), 2 rotate (RMB)
 
 var _wire_node: MeshInstance3D = null
 var _wire_mesh: ImmediateMesh = null
@@ -120,9 +128,16 @@ func _load_unit(idx: int) -> void:
 	_holder.add_child(_model)
 	_sync = []
 	_touched = {}
+	_rot = {}
 	if not _model.setup(_units[_unit_idx]):
 		return
-	_sync = HitzoneBuilder.build(_holder, _model, 0, 0, ["hitzone"], true)
+	_sync = HitzoneBuilder.build(_holder, _model, BENCH_LAYER, 0, ["hitzone"], true)
+	# Seed bench rotation state from saved overrides (builder stamps rot_deg).
+	for c in _holder.get_children():
+		if c is Area3D:
+			var rd: Vector3 = c.get_meta("rot_deg", Vector3.ZERO)
+			if rd != Vector3.ZERO:
+				_rot[str(c.get_meta("region", ""))] = rd * (PI / 180.0)
 	_clips = _model.clip_names()
 	_clip_idx = maxi(0, _clips.find("idle"))
 	_play_current_clip()
@@ -150,6 +165,13 @@ func _sync_entry_for(hz: Area3D) -> Array:
 	return []
 
 
+func _col_for(hz: Area3D) -> CollisionShape3D:
+	for c in hz.get_children():
+		if c is CollisionShape3D:
+			return c
+	return null
+
+
 func _pressed_once(keycode: int) -> bool:
 	if Input.is_key_pressed(keycode):
 		if not bool(_held.get(keycode, false)):
@@ -175,6 +197,86 @@ func _physics_process(_delta: float) -> void:
 		HitzoneBuilder.sync(_model, _sync)
 
 
+## ---- mouse: click-select, left-drag move, right-drag rotate ----------------
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
+			if mb.pressed:
+				var hit: Area3D = _pick_zone(mb.position)
+				if hit != null:
+					var idx: int = REGION_ORDER.find(str(hit.get_meta("region", "")))
+					if idx >= 0:
+						_selected = idx
+				# LMB only drags a zone you actually grabbed; RMB rotates the
+				# selected zone from anywhere (free mouse room to spin).
+				if mb.button_index == MOUSE_BUTTON_LEFT:
+					_drag_mode = 1 if hit != null else 0
+				else:
+					_drag_mode = 2
+			else:
+				_drag_mode = 0
+	elif event is InputEventMouseMotion and _drag_mode != 0:
+		var mm := event as InputEventMouseMotion
+		if _drag_mode == 1:
+			_drag_move(mm.relative)
+		else:
+			_drag_rotate(mm.relative)
+
+
+func _pick_zone(screen_pos: Vector2) -> Area3D:
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return null
+	var from: Vector3 = cam.project_ray_origin(screen_pos)
+	var dir: Vector3 = cam.project_ray_normal(screen_pos)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 30.0)
+	q.collide_with_areas = true
+	q.collide_with_bodies = false
+	q.collision_mask = BENCH_LAYER
+	var res: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	if res.is_empty():
+		return null
+	var hit: Object = res.collider
+	return hit as Area3D
+
+
+func _drag_move(rel: Vector2) -> void:
+	var region: String = REGION_ORDER[_selected]
+	var hz: Area3D = _zone_for(region)
+	if hz == null:
+		return
+	var entry: Array = _sync_entry_for(hz)
+	if entry.is_empty():
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	var fine: float = 0.25 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	var dist: float = cam.global_position.distance_to(hz.global_position)
+	var px_to_m: float = dist * 0.0016 * fine
+	var world_delta: Vector3 = cam.global_transform.basis.x * rel.x * px_to_m \
+		- cam.global_transform.basis.y * rel.y * px_to_m
+	entry[2] = Vector3(entry[2]) + hz.global_transform.basis.inverse() * world_delta
+	_touched[region] = true
+
+
+func _drag_rotate(rel: Vector2) -> void:
+	var region: String = REGION_ORDER[_selected]
+	var hz: Area3D = _zone_for(region)
+	if hz == null:
+		return
+	var entry: Array = _sync_entry_for(hz)
+	if entry.is_empty():
+		return
+	var fine: float = 0.25 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	var r: Vector3 = _rot.get(region, Vector3.ZERO)
+	r.x += -rel.y * 0.008 * fine   # tilt toward/away camera
+	r.z += -rel.x * 0.008 * fine   # lean sideways
+	_rot[region] = r
+	entry[4] = Basis.from_euler(r)
+	hz.set_meta("rot_deg", r * (180.0 / PI))
+	_touched[region] = true
+
+
 func _handle_input(delta: float) -> void:
 	if _pressed_once(KEY_Z):
 		_load_unit(_unit_idx - 1)
@@ -193,9 +295,14 @@ func _handle_input(delta: float) -> void:
 				_model.stop_anim()
 			else:
 				_play_current_clip()
-	for i in range(REGION_ORDER.size()):
-		if _pressed_once(KEY_1 + i):
+	# Zone select: 1-9 then 0 = tenth; TAB cycles all 11; mouse clicks anything.
+	for i in range(9):
+		if _pressed_once(KEY_1 + i) and i < REGION_ORDER.size():
 			_selected = i
+	if _pressed_once(KEY_0) and REGION_ORDER.size() > 9:
+		_selected = 9
+	if _pressed_once(KEY_TAB):
+		_selected = (_selected + 1) % REGION_ORDER.size()
 	if Input.is_key_pressed(KEY_CTRL) and _pressed_once(KEY_S):
 		_save_tuning()
 	if _pressed_once(KEY_R) and not Input.is_key_pressed(KEY_CTRL):
@@ -251,15 +358,18 @@ func _handle_input(delta: float) -> void:
 		return
 	_touched[REGION_ORDER[_selected]] = true
 	var entry: Array = _sync_entry_for(hz)
-	if not entry.is_empty():
+	if not entry.is_empty() and off_delta != Vector3.ZERO:
 		entry[2] = Vector3(entry[2]) + off_delta * NUDGE * fine * delta
-	var col: CollisionShape3D = null
-	for c in hz.get_children():
-		if c is CollisionShape3D:
-			col = c
-			break
+	var col: CollisionShape3D = _col_for(hz)
 	if col != null and r_delta != 0.0:
-		if col.shape is SphereShape3D:
+		if hz.has_meta("hull_points"):
+			# Hull zone: +/- drives the inflate margin (fairness pad).
+			var inflate: float = float(hz.get_meta("inflate", 0.0)) + r_delta * INFLATE_STEP * fine * delta
+			inflate = clampf(inflate, -0.05, 0.25)
+			hz.set_meta("inflate", inflate)
+			col.shape = HitzoneBuilder._hull_shape(hz.get_meta("hull_points"), inflate)
+			hz.remove_meta("wire_pts")
+		elif col.shape is SphereShape3D:
 			var s := col.shape as SphereShape3D
 			s.radius = maxf(0.03, s.radius + r_delta * RADIUS_STEP * fine * delta)
 		elif col.shape is CapsuleShape3D:
@@ -278,34 +388,43 @@ func _save_tuning() -> void:
 		if hz == null:
 			continue
 		var entry: Array = _sync_entry_for(hz)
+		var zone_entry: Dictionary = {}
+		# Offset delta vs the measured bone offset.
 		var base_off: Vector3 = hz.get_meta("base_offset", Vector3.ZERO)
-		var base_r: float = hz.get_meta("base_radius", 0.0)
 		var cur_off: Vector3 = Vector3(entry[2]) if not entry.is_empty() else base_off
-		var cur_r: float = base_r
-		for c in hz.get_children():
-			if c is CollisionShape3D and (c as CollisionShape3D).shape != null:
-				var sh: Shape3D = (c as CollisionShape3D).shape
-				cur_r = (sh as SphereShape3D).radius if sh is SphereShape3D else (sh as CapsuleShape3D).radius
 		var delta_off: Vector3 = cur_off - base_off
+		if delta_off.length() >= 0.001:
+			zone_entry["offset"] = delta_off
+		# Rotation (bench-authored, degrees).
+		var rot_rad: Vector3 = _rot.get(region, Vector3.ZERO)
+		if rot_rad.length() >= 0.001:
+			zone_entry["rotation"] = rot_rad * (180.0 / PI)
+		# Shape size: inflate for hulls, radius for capsule fallbacks.
+		if hz.has_meta("hull_points"):
+			var inflate: float = float(hz.get_meta("inflate", 0.0))
+			if absf(inflate) >= 0.0005:
+				zone_entry["inflate"] = inflate
+		else:
+			var base_r: float = hz.get_meta("base_radius", 0.0)
+			var cur_r: float = base_r
+			var col: CollisionShape3D = _col_for(hz)
+			if col != null and col.shape != null:
+				var sh: Shape3D = col.shape
+				cur_r = (sh as SphereShape3D).radius if sh is SphereShape3D else (sh as CapsuleShape3D).radius
+			if absf(cur_r - base_r) >= 0.001:
+				zone_entry["radius"] = cur_r
 		# Damage overrides persist only when they differ from ADR-016 law.
 		var zhz := hz as Hitzone
-		var dmg_diff: bool = false
-		var fatal_diff: bool = false
 		if zhz != null:
 			var def_mult: float = float(Hitzone.MULTIPLIERS.get(zhz.zone_type, 1.0))
-			dmg_diff = zhz.damage_mult_override >= 0.0 \
-				and absf(zhz.damage_mult_override - def_mult) > 0.001
+			if zhz.damage_mult_override >= 0.0 \
+					and absf(zhz.damage_mult_override - def_mult) > 0.001:
+				zone_entry["damage"] = zhz.damage_mult_override
 			var law_fatal: bool = zhz.zone_type == Hitzone.ZoneType.HEAD
-			fatal_diff = zhz.fatal_override >= 0 and (zhz.fatal_override == 1) != law_fatal
-		if delta_off.length() < 0.001 and absf(cur_r - base_r) < 0.001 \
-				and not dmg_diff and not fatal_diff:
-			continue
-		var zone_entry: Dictionary = {"radius": cur_r, "offset": delta_off}
-		if dmg_diff:
-			zone_entry["damage"] = zhz.damage_mult_override
-		if fatal_diff:
-			zone_entry["fatal"] = zhz.fatal_override == 1
-		tuning.zones[region] = zone_entry
+			if zhz.fatal_override >= 0 and (zhz.fatal_override == 1) != law_fatal:
+				zone_entry["fatal"] = zhz.fatal_override == 1
+		if not zone_entry.is_empty():
+			tuning.zones[region] = zone_entry
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://data/hitzones"))
 	var path: String = HitzoneBuilder.TUNING_DIR + _units[_unit_idx] + ".tres"
 	var err: int = ResourceSaver.save(tuning, path)
@@ -359,19 +478,29 @@ func _update_hud() -> void:
 		if hz == null:
 			continue
 		var marker: String = ">> " if i == _selected else "   "
-		var r: float = 0.0
-		for c in hz.get_children():
-			if c is CollisionShape3D and (c as CollisionShape3D).shape != null:
-				var sh: Shape3D = (c as CollisionShape3D).shape
+		var key_label: String = str(i + 1) if i < 9 else ("0" if i == 9 else "-")
+		var size_str: String
+		if hz.has_meta("hull_points"):
+			size_str = "hull %dpt infl %+.3f" % [(hz.get_meta("hull_points") as PackedVector3Array).size(), float(hz.get_meta("inflate", 0.0))]
+		else:
+			var r: float = 0.0
+			var col: CollisionShape3D = _col_for(hz)
+			if col != null and col.shape != null:
+				var sh: Shape3D = col.shape
 				r = (sh as SphereShape3D).radius if sh is SphereShape3D else (sh as CapsuleShape3D).radius
+			size_str = "caps r=%.3f" % r
 		var zh := hz as Hitzone
 		var dmg_str: String = ""
 		if zh != null:
 			dmg_str = "  FATAL" if zh.is_fatal_zone() else "  dmg x%.2f" % zh.get_damage_multiplier()
-		lines.append("%s%d %s  r=%.3f%s%s" % [marker, i + 1, region, r, dmg_str, "  *" if _touched.has(region) else ""])
+		var rot_str: String = ""
+		var rr: Vector3 = _rot.get(region, Vector3.ZERO)
+		if rr.length() > 0.001:
+			rot_str = "  rot(%.0f,%.0f,%.0f)" % [rad_to_deg(rr.x), rad_to_deg(rr.y), rad_to_deg(rr.z)]
+		lines.append("%s%s %s  %s%s%s%s" % [marker, key_label, region, size_str, dmg_str, rot_str, "  *" if _touched.has(region) else ""])
 	lines.append("")
-	lines.append("Z/X unit  [/] clip  P pause  Q/E rotate")
-	lines.append("1-7 zone  arrows/PgUpDn offset  +/- radius  Shift fine")
-	lines.append(",/. damage mult (Shift fine)  F fatal toggle")
+	lines.append("CLICK select   L-drag move   R-drag rotate   Shift fine")
+	lines.append("Z/X unit  [/] clip  P pause  Q/E spin  TAB/1-0 zone")
+	lines.append("arrows/PgUpDn offset  +/- inflate|radius  ,/. dmg  F fatal")
 	lines.append("Ctrl+S save   R revert")
 	_hud.text = "\n".join(lines)
