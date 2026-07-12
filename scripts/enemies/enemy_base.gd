@@ -247,9 +247,15 @@ var _removed: Array[String] = []
 var _killed_explosive: bool = false
 
 
+## The lab scenes bake a NavigationRegion3D over the arena (group
+## "lab_navmesh") - when one exists, _move_toward routes on it everywhere.
+var _lab_nav: bool = false
+
+
 func _ready() -> void:
 	add_to_group("enemies")
 	CombatManager.register_enemy(self)
+	_lab_nav = get_tree().get_first_node_in_group("lab_navmesh") != null
 
 	# Randomize personality
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
@@ -1477,7 +1483,12 @@ func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	# introduce: an enemy inside a region chasing a target 300m outside it would
 	# have its path clamped to the region edge, is_navigation_finished() would fire
 	# there, and he would stop dead.
-	if WorldConfig.NAV_ENABLED and nav_agent != null and _nav_box >= 0 and NavBaker.box_contains(_nav_box, pos):
+	# LAB navmesh (native NavigationRegion3D baked by the lab scene) covers the
+	# whole arena - no NavBaker boxes there, agents route on it directly.
+	var use_nav: bool = WorldConfig.NAV_ENABLED and _nav_box >= 0 and NavBaker.box_contains(_nav_box, pos)
+	if _lab_nav:
+		use_nav = true
+	if nav_agent != null and use_nav:
 		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
 			nav_agent.target_position = pos   # each restake is a map_get_path()
 		if not nav_agent.is_navigation_finished():
@@ -2079,10 +2090,11 @@ func _die() -> void:
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 			var intent: String = "death_right" if from_right else "death_forward"
 			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
-			# DEAD MEN FALL, whatever the export shipped: if the clip refuses,
-			# hand the body to the engine's ragdoll - gravity needs no clips.
-			if played is bool and not played and _visual_is_model:
-				if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
+			# DEAD MEN FALL, whatever the export shipped: mapped clip -> any
+			# death clip in the library -> ragdoll. A standing corpse walking
+			# into a wall is a broken promise, not a performance.
+			if played is bool and not played and _visual_is_model and ma != null:
+				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90

@@ -49,6 +49,7 @@ func _ready() -> void:
 	_build_cover()
 	_build_lighting()
 	_plant_vegetation()
+	_bake_navmesh()
 	_spawn_player()
 	_spawn_allies()
 	_spawn_wave()
@@ -62,6 +63,7 @@ func _build_range() -> void:
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1
 	floor_body.collision_mask = 0
+	floor_body.add_to_group("nav_source")
 	var mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(ARENA, ARENA)
@@ -90,6 +92,7 @@ func _build_range() -> void:
 		var wall := StaticBody3D.new()
 		wall.collision_layer = 1
 		wall.collision_mask = 0
+		wall.add_to_group("nav_source")
 		var wmi := MeshInstance3D.new()
 		var wm := BoxMesh.new()
 		wm.size = w[1]
@@ -201,6 +204,7 @@ func _add_trunk_collider(palm: Node3D) -> void:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0
+	body.add_to_group("nav_source")
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = 0.3
@@ -248,6 +252,29 @@ func _plant_grass() -> int:
 			mm.set_instance_transform(i, Transform3D(basis, pos))
 		total += mm.instance_count
 	return total
+
+
+## Native pathfinding (Caleb: "use the godot tools" / "AI still getting stuck
+## on boxes"): bake a NavigationRegion3D over the arena's static colliders so
+## every enemy's NavigationAgent3D routes AROUND cover and walls instead of
+## face-planting into them. Runs after cover + vegetation so trunks and boxes
+## are carved out of the walkable surface.
+func _bake_navmesh() -> void:
+	var region := NavigationRegion3D.new()
+	region.add_to_group("lab_navmesh")
+	var nm := NavigationMesh.new()
+	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	# The default source mode parses the REGION's own children (none here) -
+	# 0 polys. Parse the arena bodies tagged nav_source instead.
+	nm.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	nm.geometry_source_group_name = "nav_source"
+	nm.agent_radius = 0.45
+	nm.agent_height = 1.8
+	nm.agent_max_climb = 0.3
+	region.navigation_mesh = nm
+	add_child(region)
+	region.bake_navigation_mesh(false)  # sync at boot - the arena is small
+	print("[GORE LAB] navmesh baked: %d polys" % region.navigation_mesh.get_polygon_count())
 
 
 func _spawn_player() -> void:
@@ -322,6 +349,7 @@ func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0
+	body.add_to_group("nav_source")
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size

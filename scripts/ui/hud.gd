@@ -39,6 +39,9 @@ func _ready() -> void:
 	if bleed_container:
 		bleed_container.visible = false
 	add_to_group("combat_hud")  # R96: photo mode hides this
+	if crosshair:
+		# Green reads against jungle + PSX dither where white vanishes (Caleb).
+		crosshair.modulate = Color(0.35, 1.0, 0.35, 0.95)
 
 
 func _process(delta: float) -> void:

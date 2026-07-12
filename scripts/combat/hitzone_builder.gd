@@ -510,7 +510,10 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 			Basis.from_euler(rot_deg * (PI / 180.0))])
 
 
-## Legacy static bands - sprite/capsule units only (coarse 4-limb layout).
+## Legacy static bands - sprite/capsule units + the player (coarse 4-limb
+## layout). Bands SEAM: torso reaches into the gut band, the gut reaches the
+## leg tops - a round through the hip line must land on flesh (Caleb: "the
+## body hitbox needs to be longer, there's a gap between legs and body").
 static func _build_static(body: Node3D, layer: int, mask: int, groups: Array[String], with_gut: bool) -> void:
 	var bands: Array = [
 		[Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15, -1.0],
@@ -520,10 +523,10 @@ static func _build_static(body: Node3D, layer: int, mask: int, groups: Array[Str
 		[Hitzone.ZoneType.LIMB, "LEG_R", Vector3(-0.12, 0.4, 0), 0.12, 0.8],
 	]
 	if with_gut:
-		bands.append([Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.35])
-		bands.append([Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.9, 0), 0.28, 0.3])
+		bands.append([Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.3, 0), 0.3, 0.6])
+		bands.append([Hitzone.ZoneType.GUT, "GUT", Vector3(0, 0.85, 0), 0.28, 0.6])
 	else:
-		bands.append([Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.1, 0), 0.3, 0.6])
+		bands.append([Hitzone.ZoneType.TORSO, "BODY", Vector3(0, 1.1, 0), 0.3, 0.95])
 	for b in bands:
 		var hz := Hitzone.new()
 		hz.zone_type = b[0]

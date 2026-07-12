@@ -869,8 +869,8 @@ func _die() -> void:
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
 				"death_right" if from_right else "death_forward"), true)
-			if played is bool and not played and _visual_is_model:
-				if ma == null or not ma.start_ragdoll(last_hit_dir, 4.5):
+			if played is bool and not played and _visual_is_model and ma != null:
+				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90

@@ -369,18 +369,39 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	if spine != null:
 		spine.apply_central_impulse(impulse_dir.normalized() * force + Vector3.UP * 1.5)
 	_active_ragdolls += 1
+	_ragdoll_slot_held = true
 	tree_exited.connect(_release_ragdoll_slot)
 	var settle: SceneTreeTimer = get_tree().create_timer(RAGDOLL_SETTLE_S)
 	settle.timeout.connect(func() -> void:
 		if is_instance_valid(sim) and sim.is_simulating_physics():
-			sim.physical_bones_stop_simulation())
+			sim.physical_bones_stop_simulation()
+		# The cap gates CONCURRENT solvers, not parked corpses: a settled body
+		# costs nothing, so its slot frees HERE. Counting 45s corpses starved
+		# the pool - the 9th man in a big fight could not fall and stood there
+		# walking into walls in the DEAD state.
+		_release_ragdoll_slot())
 	return true
 
 
+var _ragdoll_slot_held: bool = false
+
+
 func _release_ragdoll_slot() -> void:
-	if _ragdoll_sim != null:
+	if _ragdoll_slot_held:
+		_ragdoll_slot_held = false
 		_active_ragdolls = maxi(0, _active_ragdolls - 1)
-		_ragdoll_sim = null
+
+
+## Any death clip this rig can actually play (shared library included) - the
+## last-resort death performance when the unit's mapped clip name is missing.
+func play_any_death() -> bool:
+	var deaths: Array[String] = []
+	for c in clip_names():
+		if String(c).begins_with("death"):
+			deaths.append(String(c))
+	if deaths.is_empty():
+		return false
+	return play(deaths[randi_range(0, deaths.size() - 1)], true)
 
 
 ## A named PhysicalBone3D from the live ragdoll ("Hips", "Spine2"...) - the
