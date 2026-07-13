@@ -173,7 +173,15 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 - `WeaponData.base_damage` is a flat `int` per hit. NO dice, NO rolls, NO flat-modifier arrays.
   `get_damage()` is pure; all variance comes from range falloff, hitzones, and the situation sim.
 - Values of record (= retired RECON dice averages): M16/CAR-15/M60 28 · AK/SKS/RPD 22 ·
-  PPSh/Thompson 17 · Mosin 32 · M1911 11 · M79 44 · M26 55 · LAW 72 · RPG-2 62 · RPG-7 73.
+  PPSh/Thompson 17 · Mosin 32 · **M1911 20** (a .45 is no joke).
+- **EXPLOSIVES — the Summoner's lethality decree (ADR-016 line 178). THESE ARE THE VALUES OF RECORD.
+  The old table (M79 44 · M26 55 · LAW 72 · RPG-2 62 · RPG-7 73) is SUPERSEDED — do not "fix" a
+  weapon back to it:**
+  **M26 frag 190 · M79 HE 150 · M72 LAW 250 · RPG-2 250 · RPG-7 290.** A rocket is more lethal than
+  a grenade, and shrapnel is the point.
+  *(This line was stale for weeks, and because CLAUDE.md is injected into EVERY session, it made two
+  War Room architects independently "verify" a canon violation that did not exist. A stale CLAUDE.md
+  is not a wrong note — it is a DRIFT GENERATOR.)*
 - Zone multipliers (Amendment D): HEAD = fatal (bypass) · TORSO ×2.5 · GUT ×2.25 + bleed · LIMB ×1.0
 - Player HP: 100 · Enemy HP: 65–85
 - Guarded by `tests/test_flat_damage.tscn` — retuning a value without amending ADR-016 turns the suite red.
@@ -223,6 +231,35 @@ WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## THE WAR ROOM IS THE DEFAULT PROCESS — for ANY change, not just big ones
+
+**Summoner's standing law, 2026-07-12:** *"make that the key workflow when we do any big run of
+anything OR ANY SMALL FIX AT ALL."*
+
+Convene the council **before building**, even for a small fix. It is not ceremony — on 2026-07-12 it
+caught, in a single session:
+- a standing **P0 GATE bead** that mechanically forbade the feature about to be built (ADR-015),
+- a **live shipping bug** nobody had noticed (one grenade converted 256m of authored jungle into
+  procedural palms — `vegetation_manager.clear_area()`),
+- a **landmine in the plan's own "highest-value fix"** that would have set the entire map to a 45m
+  sight cap (`ClearingSystem`'s map is `fill(1.0)` — a clearing MASK, not a density),
+- and two **wrong council claims** the Arbiter had to overrule. The process cuts both ways.
+
+**How:**
+1. Summon 3–4 architects **in parallel, with no cross-talk.** That independence IS the value — when
+   they converge from different doors, it is the strongest signal this process produces.
+2. Each **reads the code, never the plan.** Three times in one day the codebase beat the document.
+3. They write full analyses to `production/war_room/analysis/` and return **only a short verdict**,
+   so the Arbiter's context survives.
+4. Arbiter weaves a synthesis, **names what is sacrificed** (no free lunches — the law binds the
+   Arbiter too), and beads the outcome.
+
+**Load into every architect brief:** `~/.claude/architect_knowledge/GodotPrompter/skills/<topic>/`
+(51 domain skills, Godot 4.3–4.7), `godot_4.7_features.md`, and `godot_standards.md`. The Summoner
+added these deliberately and asked that they be used.
+
+---
+
 ## Beads Issue Tracker
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
