@@ -43,6 +43,21 @@ const T_LIGHT_JUNGLE := 3
 const T_MEDIUM_JUNGLE := 4
 const T_HEAVY_JUNGLE := 5
 
+## PADDY TILES ARE NOT INTERCHANGEABLE, so they do not go through the density pool.
+## The wet variants can sit anywhere in a field; the treeline tile can only sit at its
+## EDGE, facing out. Picking from one bag would stand a wall of trees in open water.
+const INTERIOR_PADDIES: Array[String] = [
+	"patch_paddy", "patch_paddy", "patch_paddy_quad",
+	"patch_paddy_fallow", "patch_paddy_grove",
+]
+const EDGE_PATCH := "patch_paddy_edge"
+
+## Height quantisation for paddy tiles, metres. A paddy holds a flat sheet of water, so
+## neighbours must be COPLANAR or their bunds step apart. Snapping to a step makes gentle
+## ground come out level and real slopes come out TERRACED - which is what a paddy field
+## on a hillside actually is.
+@export var paddy_terrace_step: float = 0.35
+
 ## Which density classes may serve each terrain type (weighted by repetition).
 const TYPE_DENSITY := {
 	T_RICE_PADDY: ["paddy"],
@@ -240,25 +255,61 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 			if normal.dot(Vector3.UP) < min_dot:
 				continue                      # too steep - patches are flat-footed
 
-			var pool := TYPE_DENSITY[ttype] as Array
-			var density := String(pool[rng.randi_range(0, pool.size() - 1)])
-			var names := _by_density.get(density, []) as Array
-			if names.is_empty():
-				continue
-			var nm := String(names[rng.randi_range(0, names.size() - 1)])
+			var nm := ""
+			var quarter_turns := rng.randi_range(0, 3)
+
+			if is_paddy:
+				# WHICH WAY IS OUT OF THE FIELD? A paddy tile with a TREELINE on it
+				# (patch_paddy_edge) belongs at the EDGE of the field, facing out - not
+				# dropped at random into the middle of open water, rotated at random, so
+				# the player finds a wall of trees standing in a paddy. Left to the
+				# generic pool that is exactly what happens, because "paddy" now holds
+				# five variants and the layer just picks one.
+				var out_dir := _paddy_open_side(terrain, bundles, bx, bz)
+				if out_dir >= 0:
+					# an edge tile, TURNED so its dry bank + treeline face out of the field
+					nm = EDGE_PATCH
+					quarter_turns = out_dir
+				else:
+					# interior: any of the wet variants, any rotation. Their bund rings are
+					# 4-fold symmetric, so a quarter turn maps them onto themselves.
+					nm = INTERIOR_PADDIES[rng.randi_range(0, INTERIOR_PADDIES.size() - 1)]
+				if not _mesh.has(nm):
+					continue
+			else:
+				var pool := TYPE_DENSITY[ttype] as Array
+				var density := String(pool[rng.randi_range(0, pool.size() - 1)])
+				var names := _by_density.get(density, []) as Array
+				if names.is_empty():
+					continue
+				nm = String(names[rng.randi_range(0, names.size() - 1)])
 
 			var h := heightmap.sample_world(wx, wz) as float
 			var xf := Transform3D()
 			# 90-degree steps only: the patches are authored to tile that way.
-			# A paddy's bund ring is 4-fold symmetric, so a quarter turn maps it onto
-			# itself and the bunds still meet their neighbours.
-			xf = xf.rotated(Vector3.UP, TAU * 0.25 * rng.randi_range(0, 3))
+			xf = xf.rotated(Vector3.UP, TAU * 0.25 * float(quarter_turns))
 			if not is_paddy:
 				# THE SCALE JITTER MUST NOT TOUCH A PADDY. It is what stops a jungle
 				# looking stamped - but it turns a 12 m tile into an 11.0-13.2 m tile,
 				# and a bund that is meant to butt against its neighbour's then misses by
 				# up to a metre. A paddy field is a grid; a grid has to be on the grid.
 				xf = xf.scaled(Vector3.ONE * rng.randf_range(0.92, 1.10))
+			else:
+				# PADDIES TERRACE, THEY DO NOT DRAPE.
+				#
+				# Every other patch takes the ground height at its own centre and lets its
+				# corners float or sink a little - grass hides it. A paddy cannot: it is a
+				# hard bund ring holding a FLAT SHEET OF WATER. Two neighbouring tiles at
+				# even slightly different heights means the bunds do not meet vertically
+				# and the water sheets step apart. Two degrees of slope across a 12 m tile
+				# is a 40 cm ledge, and you would see it from across the valley.
+				#
+				# So paddy heights are QUANTISED. Neighbours on gentle ground land on the
+				# same level and their bunds meet exactly; where the ground really does
+				# fall away, they drop a whole step at once - which is precisely what a
+				# real terraced paddy field does. The fix and the reference are the same
+				# thing.
+				h = roundf(h / paddy_terrace_step) * paddy_terrace_step
 			xf.origin = Vector3(wx, h, wz)
 
 			var sub := Vector2i(int(lx / subcell_meters), int(lz / subcell_meters))
