@@ -62,9 +62,25 @@ unfinished work, not shipped work.
 
 ---
 
-## 3 · The game loop (as ratified, ADR-008)
+## 3 · The game loop (as ratified, ADR-008 → **amended by ADR-017, THE LIVING WAR, 2026-07-12**)
 
-### Campaign spine — the walkable firebase hub
+### ⚠ THE LOOP CHANGED. Read ADR-017 before touching world/flow code.
+The loop is no longer a hub-and-mission-select. It is a **persistent province**
+(`war_room/synthesis_living_war.md`):
+
+`NEW CAMPAIGN (rolls ONE province seed — random per campaign, fixed within it) → THE PROVINCE (data:
+districts, villages, VC bases, trails, a firebase — generated once, never again) → LIVING FIREBASE
+(inside the AO, running a 24h clock) → HQ BOARD (pick a mission) → WALK OUT THE WIRE **or** ride the
+bird → THE AO WINDOW (1.5km, rendered from province_seed + district) → exfil → back → THE LEDGER
+REMEMBERS (allegiance, VC manpower, what you blew) → repeat`
+
+- **The province persists as DATA; the scene is rebuilt on demand** (`generate(seed)` + `apply(ledger)`).
+  Determinism stops being aspirational: the two-generation hash probe is a **ship gate** (ADR-017 §8).
+- **The firebase lives INSIDE the AO.** "Patrol" = you walk out the wire. No load, no ride.
+- **Destruction is temporary; attrition is permanent.** Bases rebuild; men don't (ADR-019).
+- Mission length is **geography, not a dial**: 20–60 min, player-paced (§4.6).
+
+### Campaign spine — the walkable firebase hub (superseded shape, kept for context)
 `MAIN MENU → NEW CAMPAIGN / CONTINUE → pick operation → LIVE FIREBASE (walkable hub) → TOC briefing →
 board the bird → MISSION → exfil → wheels-down back at base (HARD checkpoint) → repeat`
 
@@ -134,9 +150,17 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   lose CAS/mortars/resupply), **Medic** (revive chain, 2/mission, 30s clock), Pigman, Grenadier.
 - Orders: FOLLOW / HOLD / MOVE-TO / FIRE-TOGGLE on **F1–F4** + secondary **C/H/X/N** (dual-bind law,
   ADR-012). Buddy rules: never break player stealth, never block trails/muzzles, no kill-stealing.
-- Learn-by-doing squad XP + debrief pool spend (St/Ag/Al + skills). Permadeath; wounded heal ~2 St/day;
-  veterans rotate; replacements arrive. **Loss is still costless (instant free rookies) — campaign-layer
-  debt, ADR-006 adjacent.**
+- **PROGRESSION — REWRITTEN BY ADR-018 (2026-07-12). The old St/Ag/Al pool spend is dead for the PLAYER.**
+  - **Player stats: KILLED.** No progression may touch accuracy, recoil, sway, handling, health or
+    stamina. Ever. (A player-accuracy stat is hit-point math, and Pillar 1 forbids it.)
+  - **Squad XP: kept, but SILENT and BEHAVIORAL** — never a number. A veteran point man *stops and holds
+    up a fist before the trip wire*; a green one walks you into it. **This is Pillar 4's teeth**: a free
+    rookie must be visibly, audibly worse.
+  - **Player RANK: NEW. It gates AUTHORITY, never ABILITY** — fire-support tier (60mm+smoke → 105s →
+    fast movers/napalm → Arc Light), mission types you're trusted with, armory/ruck, cosmetics.
+    **THE LADDER LAW: rank gates how BIG, never WHETHER.** ADR-011 stands — the RTO still gates it all.
+- Permadeath; wounded heal ~2 St/day; veterans rotate; replacements arrive. **Loss is still costless
+  (instant free rookies) — the debt ADR-018's silent veterancy exists to pay.**
 - ⚠ Squad-key input verified clean in code twice, never verified on Caleb's keyboard — R3 checklist item.
 
 ### 4.5 Fire support (ADR-011)
@@ -145,6 +169,15 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 - ⚠ Danger-close must also check the PLAYER's distance (currently squad-only).
 
 ### 4.6 Missions & generation (M6 target)
+- **MISSION LENGTH IS GEOGRAPHY, NOT A DIAL (ADR-017).** Objective count scales by type; target average
+  **20–60 min, player-paced.** This amends the flat "2–4 objectives" below:
+
+  | Type | AO window | Insertion | Objectives | Minutes |
+  |---|---|---|---|---|
+  | **PATROL** | contains the firebase | **walk out the wire** | 1–2 | 20–30 |
+  | **VILLAGE RAID** | a few klicks out | ride or walk (player's call) | 2–3 | 30–45 |
+  | **AIR ASSAULT** | across the province | Huey (the load mask) | 3–4 | 45–60 |
+
 - Taxonomy RAID/SECURITY/TRANSPORTATION → 2–4 objectives (DESTROY, RETRIEVE, ASSASSINATE, RESCUE, RECON,
   HOLD; no dupes, RECON first-only, ≤1 HOLD); site pass stamps compounds/villes/LZs; contact deck gives
   the AO ambient jobs; weather/moon/intel rolls; exfil archetypes + fallback LZ ladder.
@@ -203,11 +236,24 @@ the divergence is named in an ADR, never silent.
 
 ## 6 · Scope law (what we are NOT building)
 
+### 6.0 THE SLICE (ADR-017/018/019/020 — the build target, 2026-07-12)
+
+The Summoner named the disease himself, in a rival game: *"expanding the content too much and not making
+a good game."* **The Arbiter holds this line.** The question is never "can we have all this" — it is
+**what is the smallest version that ALREADY FEELS LIKE THIS?**
+
+> **One province. One firebase, inside the AO, running its clock. A VC organization living in that same
+> province — bases, patrols, and a night attack that can come to your wire. Three mission types:
+> PATROL / VILLAGE RAID / BASE ASSAULT. Village allegiance. Rank.**
+
+**If that grips for ten hours, everything else is content bolted onto a working game. If it doesn't,
+tunnels won't save it.**
+
 | Ruling | Items |
 |---|---|
-| **KILLED** | 8-directional sprite render matrix (ADR-001) · operation-style front door at launch (single faction) |
+| **KILLED** | 8-directional sprite render matrix (ADR-001) · operation-style front door at launch (single faction) · **player stat progression (ADR-018)** |
 | **PARKED** | hunger (ADR-009) · SF/Marines (DLC) |
-| **FROZEN (post-core)** | coop · interior/tunnel mode · driveable vehicles · capture/POW epic · battle director · RPG shop · ride-or-walk |
+| **FROZEN (post-core)** | **tunnel INTERIORS** (a second game: different movement, light, combat — it eats a year. **Tunnel MOUTHS you mark and satchel are IN SCOPE TODAY.** Going down the hole is the FIRST THAW once the core is undeniable.) · supply-logistics sim · coop · driveable/flyable vehicles · riverine · capture/POW epic · full-volume battle director · RPG shop · ride-or-walk |
 | **SHRUNK** | 100 bios → 20 great ones · HQ interactions stay walk-up-simple |
 
 A frozen epic thaws only by explicit decree — a bead in `bd ready` is not a thaw.
@@ -310,3 +356,7 @@ below; the charter is the manual it loads at session start.
 | 014 | Documentation hierarchy: CANON / LOG / DEAD |
 | 015 | Verification law + mechanical gate |
 | 016 | Flat base damage × zone — dice retired (supersedes 003's dice core) |
+| **017** | **The Persistent Province + the AO Window** — the loop changed (amends 008/010) |
+| **018** | **Progression: rank gates AUTHORITY, never ABILITY. Player stats killed.** |
+| **019** | **Hearts & Minds: village allegiance drives VC manpower. The war is the story.** |
+| **020** | **The Authored Threshold: guarantees, not rails. + The Ambience Law.** |
