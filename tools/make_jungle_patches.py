@@ -34,7 +34,7 @@ import bpy, sys, os, math, json, random
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import make_jungle_flora as F
 
-OUT_DIR = r"C:\Users\caleb\RECONgame\assets\models\vegetation\patches"
+OUT_DIR = r"C:\Users\caleb\RECONgame\assets\world\vegetation\patches"
 TILE = 12.0                      # metres square
 SEED = 990012
 

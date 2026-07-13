@@ -1,6 +1,6 @@
 ﻿extends SceneTree
 func _init() -> void:
-	var ps: PackedScene = load("res://assets/models/characters/anim_library.glb")
+	var ps: PackedScene = load("res://assets/shared/anim_library.glb")
 	var inst: Node = ps.instantiate()
 	var ap: AnimationPlayer = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	for a in ap.get_animation_list():

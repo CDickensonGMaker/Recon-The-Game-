@@ -20,11 +20,7 @@ var _violations: Array[String] = []
 
 
 func _initialize() -> void:
-	var dir := DirAccess.open("res://assets/models/characters")
-	var units: Array[String] = []
-	for f in dir.get_files():
-		if f.ends_with(".glb") and not f.begins_with("anim_library"):
-			units.append(f.trim_suffix(".glb"))
+	var units: Array[String] = ModelActor.all_units()
 	units.sort()
 	print("unit                     height  shoulders  depth   lowest_y  parts")
 	for unit in units:

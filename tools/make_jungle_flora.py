@@ -22,7 +22,7 @@ repurpose them for tint; tint lives in the materials.
 import bpy, bmesh, math, os, random
 from mathutils import Vector, Matrix, Euler
 
-OUT_DIR = r"C:\Users\caleb\RECONgame\assets\models\vegetation"
+OUT_DIR = r"C:\Users\caleb\RECONgame\assets\world\vegetation"
 COL_ATTR = "Col"
 UV_LAYER = "UVMap"
 SEED = 20260712

@@ -42,6 +42,17 @@ ClearingSystem="*res://terrain/systems/clearing_system.gd"
 VOManager="*res://scripts/autoload/vo_manager.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 
+[filesystem]
+
+; Source .blend files live NEXT TO the .glb they produce, one folder per faction
+; (assets/us, assets/nva_vc, assets/civilians). That is the whole point of the
+; single asset tree - open the source, export, done, no hunting a parallel
+; art_source/ mirror.
+;
+; Godot must NOT import them. Blender import would re-import 43 multi-hundred-MB
+; blends through Blender on every filesystem scan. The .glb IS the import.
+import/blender/enabled=false
+
 [debug]
 
 file_logging/enable_file_logging=true

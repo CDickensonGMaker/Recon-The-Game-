@@ -7,9 +7,9 @@ extends SceneTree
 
 func _init() -> void:
 	var paths: Array[String] = [
-		"res://assets/models/characters/anim_library.glb",
-		"res://assets/models/characters/us_grunt_v2.glb",
-		"res://assets/models/characters/vc_guerilla_mosin.glb",
+		"res://assets/shared/anim_library.glb",
+		"res://assets/us/characters/us_grunt_v2.glb",
+		"res://assets/nva_vc/characters/vc_guerilla_mosin.glb",
 	]
 	for path in paths:
 		print("=== ", path)

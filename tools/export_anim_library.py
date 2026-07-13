@@ -16,7 +16,7 @@ Policy applied on the throwaway export copy (never saved):
 """
 import bpy, os
 
-OUT = r"C:\Users\caleb\RECONgame\assets\models\characters\anim_library.glb"
+OUT = r"C:\Users\caleb\RECONgame\assets\shared\anim_library.glb"
 
 # ---------------------------------------------------------------- rig only
 rig = next(o for o in bpy.data.objects if o.type == 'ARMATURE')

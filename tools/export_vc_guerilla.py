@@ -37,7 +37,7 @@ ALL_GUNS = ["ak47_world", "mosin_world", "ppsh_world", "rpd_world"]
 FACES_V2 = {"vnm_older": (6,6,90,126), "vnm_mid": (102,6,186,126), "vnm_young": (198,6,282,126),
             "vnm_woman": (300,10,378,120), "nva_1": (102,390,186,510), "nva_2": (198,390,282,510)}
 
-OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
+OUT = rf"C:\Users\caleb\RECONgame\assets\nva_vc\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 # Set False once the engine plays clips from the shared anim_library.glb —
 # the export then ships meshes/skeleton/sockets only and takes seconds.

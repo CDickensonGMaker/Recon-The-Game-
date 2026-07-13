@@ -23,8 +23,8 @@ a glance and at distance, that this one is not a threat.
 import bpy, math, json, os
 from mathutils import Quaternion
 
-WB = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
-ARMS_JSON = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_panic_arms.json"
+WB = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
+ARMS_JSON = r"C:\Users\caleb\RECONgame\assets\civilians\characters\caleb_panic_arms.json"
 RIG = "PSXRig"
 M = "mixamorig:"
 NAME = "civ_panic_run"

@@ -33,7 +33,7 @@ from mathutils import Vector, Matrix
 sys.path.insert(0, r'C:\Users\caleb\RECONgame\tools')
 from unit_registry import UNITS
 
-OUT_DIR = r"C:\Users\caleb\RECONgame\assets\models\characters"
+OUT_DIR = r"C:\Users\caleb\RECONgame\assets\us\characters"
 TARGET_HEIGHT = 1.7132
 HAND_BONE = 'mixamorig:RightHand'
 SOCKETS = {                       # empty name -> bone

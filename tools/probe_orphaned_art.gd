@@ -27,7 +27,6 @@
 ##   godot --headless --path . res://tools/probe_orphaned_art.tscn
 extends Node
 
-const MODEL_DIR := "res://assets/models/characters/"
 
 ## Scanned for a reference to each model's unit_id.
 const SEARCH_DIRS: Array[String] = ["res://scripts/", "res://data/", "res://scenes/"]
@@ -112,17 +111,7 @@ func _read(path: String) -> String:
 
 
 func _list_models() -> Array[String]:
-	var out: Array[String] = []
-	var d := DirAccess.open(MODEL_DIR)
-	if d == null:
-		return out
-	d.list_dir_begin()
-	var n: String = d.get_next()
-	while n != "":
-		if n.ends_with(".glb"):
-			out.append(n.get_basename())
-		n = d.get_next()
-	d.list_dir_end()
+	var out: Array[String] = ModelActor.all_units()
 	out.sort()
 	return out
 

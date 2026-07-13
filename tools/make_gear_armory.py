@@ -45,8 +45,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bone_attach import attach, verify_all, AttachError
 
 LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
-ARMORY = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_armory.blend"
-BODY_SRC = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
+ARMORY = r"C:\Users\caleb\RECONgame\assets\us\characters\gear_armory.blend"
+BODY_SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 RIG = "PSXRig"
 
 COLS = 6

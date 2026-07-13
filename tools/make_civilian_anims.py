@@ -42,8 +42,8 @@ HARD RULE: NEVER GUESS IN BLENDER. Two things here are measured, not assumed:
 import bpy, math, os
 from mathutils import Vector, Quaternion, Euler, Matrix
 
-SRC = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_farmer_m.blend"
-OUT = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
+SRC = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_farmer_m.blend"
+OUT = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
 RIG = "PSXRig"
 M = "mixamorig:"
 TAU = math.tau

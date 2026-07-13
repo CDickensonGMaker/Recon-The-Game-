@@ -132,7 +132,7 @@ func _build_lighting() -> void:
 ## visible next playtest. Everything hugs the arena walls - the cover field
 ## (+-19) and the wave spawn lanes stay clear.
 
-const VEG_DIR := "res://assets/models/vegetation/"
+const VEG_DIR := "res://assets/world/vegetation/"
 const PALM_VARIANTS: Array[String] = [
 	"jungle_palm_a1", "jungle_palm_a2", "jungle_palm_a3",
 	"jungle_palm_b1", "jungle_palm_b2", "jungle_palm_b3",

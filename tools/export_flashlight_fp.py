@@ -10,7 +10,7 @@ Runs headless on fp_arms_rifle.blend, never saves it.
 import bpy, os
 
 IDLE = 'flashlight_idle'
-OUT = r"C:\Users\caleb\RECONgame\assets\models\viewmodels\flashlight_fp.glb"
+OUT = r"C:\Users\caleb\RECONgame\assets\player\viewmodels\flashlight_fp.glb"
 
 arm = bpy.data.objects['ArmsRig']
 mesh = bpy.data.objects['ArmsMesh']

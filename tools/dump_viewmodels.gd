@@ -6,7 +6,7 @@ extends SceneTree
 func _init() -> void:
 	var names: Array[String] = ["ppsh_fp", "m60_fp", "rpg2_fp", "rpd_fp", "ithaca_fp", "m70_fp", "colt45_fp", "m16_fp"]
 	for nm in names:
-		var path: String = "res://assets/models/viewmodels/" + nm + ".glb"
+		var path: String = "res://assets/player/viewmodels/" + nm + ".glb"
 		print("=== ", path)
 		if not ResourceLoader.exists(path):
 			print("  MISSING")

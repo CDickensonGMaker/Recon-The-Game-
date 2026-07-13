@@ -31,7 +31,7 @@ OUTNAME = argv[1] if len(argv) > 1 else 'us_grunt_v2'
 MESH_ONLY = 'mesh_only' in argv[2:]
 SAVE_BLEND = 'save_blend' in argv
 
-OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
+OUT = rf"C:\Users\caleb\RECONgame\assets\us\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 # Set False once the engine plays clips from the shared anim_library.glb —
 # the export then ships meshes/skeleton/sockets only and takes seconds.

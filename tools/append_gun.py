@@ -29,8 +29,8 @@ import bpy
 import bmesh
 from mathutils import Matrix, Vector
 
-W1 = r"C:\Users\caleb\RECONgame\art_source\characters\us units\weapons_v1.blend"
-WUS = r"C:\Users\caleb\RECONgame\art_source\characters\us units\weapons_us.blend"
+W1 = r"C:\Users\caleb\RECONgame\assets\us\characters\weapons_v1.blend"
+WUS = r"C:\Users\caleb\RECONgame\assets\us\characters\weapons_us.blend"
 
 # key -> armory blend, object selection, trigger position in armory world
 GUNS = {

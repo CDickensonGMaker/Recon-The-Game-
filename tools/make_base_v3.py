@@ -34,8 +34,8 @@ TWO PASSES, because the modeller was not consistent:
 import bpy, bmesh
 from mathutils import Matrix
 
-SRC = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_grunt_v2.blend"
-DST = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
+SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
+DST = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 BODY = "us_grunt_joined"
 RIG = "PSXRig"
 

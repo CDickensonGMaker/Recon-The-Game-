@@ -20,14 +20,10 @@ const DIRECT_CALLS: Array[String] = ["laying_breathless"]
 
 
 func _initialize() -> void:
-	var dir := DirAccess.open("res://assets/models/characters")
-	if dir == null:
+	var units: Array[String] = ModelActor.all_units()
+	if units.is_empty():
 		quit(1)
 		return
-	var units: Array[String] = []
-	for f in dir.get_files():
-		if f.ends_with(".glb") and not f.begins_with("anim_library"):
-			units.append(f.trim_suffix(".glb"))
 	units.sort()
 	for unit in units:
 		await _audit(unit)

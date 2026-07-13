@@ -16,7 +16,7 @@ static func place(parent: Node, pos: Vector3, facing: Vector3) -> Claymore:
 	if facing.length() > 0.1:
 		mine.look_at(pos + Vector3(facing.x, 0, facing.z).normalized(), Vector3.UP)
 	# Real M18A1 model (Caleb, 2026-07-10). Green-box fallback kept for safety.
-	var scene: PackedScene = load("res://assets/models/props/claymore.glb")
+	var scene: PackedScene = load("res://assets/world/props/claymore.glb")
 	if scene != null:
 		mine.add_child(scene.instantiate())
 	else:

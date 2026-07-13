@@ -8,7 +8,7 @@ extends SceneTree
 
 func _initialize() -> void:
 	for unit in ["us_grunt_v2", "us_grunt_v3"]:
-		var ps: PackedScene = load("res://assets/models/characters/%s.glb" % unit)
+		var ps: PackedScene = load(ModelActor.model_path(unit))
 		var root: Node3D = ps.instantiate()
 		get_root().add_child(root)
 		var skel: Skeleton3D = _find_skel(root)

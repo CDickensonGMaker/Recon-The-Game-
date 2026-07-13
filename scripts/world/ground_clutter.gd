@@ -10,7 +10,7 @@ extends Node3D
 const RADIUS: float = 45.0
 const RESCATTER_DIST: float = 22.0
 
-const FAN_MESH_PATH := "res://assets/models/vegetation/grass_fan.glb"
+const FAN_MESH_PATH := "res://assets/world/vegetation/grass_fan.glb"
 const SWAY_SHADER_PATH := "res://terrain/shaders/vegetation_sway.gdshader"
 
 ## texture path, count, quad size (w,h), y_sink, jungle-only, star-fan mesh

@@ -16,8 +16,8 @@ var _failures: int = 0
 
 func _init() -> void:
 	for nm in PALMS:
-		_probe("res://assets/models/vegetation/" + nm + ".glb", 4.0, 10.0)
-	_probe("res://assets/models/vegetation/grass_fan.glb", 0.5, 1.5)
+		_probe("res://assets/world/vegetation/" + nm + ".glb", 4.0, 10.0)
+	_probe("res://assets/world/vegetation/grass_fan.glb", 0.5, 1.5)
 	if _failures > 0:
 		print("[VEG PROBE] FAILED - %d problem(s)" % _failures)
 		quit(1)

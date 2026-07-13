@@ -29,8 +29,8 @@ from mathutils import Vector, Quaternion, Euler
 # Open the WORKBENCH, not the source body: the workbench already holds the other six
 # clips and Caleb's hat. Opening civ_farmer_m and saving over the workbench would
 # delete his six other clips - and his hat.
-SRC = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
-POSE = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_cower_pose.json"
+SRC = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
+POSE = r"C:\Users\caleb\RECONgame\assets\civilians\characters\caleb_cower_pose.json"
 OUT = SRC
 RIG = "PSXRig"
 M = "mixamorig:"

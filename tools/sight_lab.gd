@@ -28,7 +28,7 @@ extends Node3D
 
 const TILE: float = 12.0        ## patches are 12m tiles
 const FIELD: int = 9            ## 9x9 tiles = 108m of jungle around you
-const PATCH_DIR := "res://assets/models/vegetation/patches/"
+const PATCH_DIR := "res://assets/world/vegetation/patches/"
 
 ## name, density class, and the vegetation_density the GRID gives that class.
 ## cap = lerp(140, 45, density) - the exact lerp enemy_base._sight_cap() uses.

@@ -29,11 +29,7 @@ func _initialize() -> void:
 		return
 	print("\n=== REFERENCE %s ===" % REF)
 	_print_unit(ref, ref)
-	var dir := DirAccess.open("res://assets/models/characters")
-	for f in dir.get_files():
-		if not f.ends_with(".glb") or f.begins_with("anim_library"):
-			continue
-		var unit: String = f.trim_suffix(".glb")
+	for unit in ModelActor.all_units():
 		if unit == REF:
 			continue
 		var m: Dictionary = await _measure(unit)
@@ -98,7 +94,7 @@ func _print_unit(m: Dictionary, ref: Dictionary) -> void:
 
 func _audit_library() -> void:
 	print("\n=== anim_library track types ===")
-	var packed: PackedScene = load("res://assets/models/characters/anim_library.glb")
+	var packed: PackedScene = load("res://assets/shared/anim_library.glb")
 	if packed == null:
 		print("  library did not load")
 		return

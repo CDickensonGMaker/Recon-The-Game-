@@ -20,7 +20,7 @@ from mathutils import Vector
 sys.path.insert(0, r'C:\Users\caleb\RECONgame\tools')
 import vc_builder as V
 
-OUT = r"C:\Users\caleb\RECONgame\art_source\characters\us units\unit_us_pilot_helo.blend"
+OUT = r"C:\Users\caleb\RECONgame\assets\us\characters\unit_us_pilot_helo.blend"
 
 # Streamlined = MORE bevel segments at the SAME width. Widening the bevel (an
 # earlier attempt used 1.35x) eats the part's volume and turns it into a blob.

@@ -35,7 +35,7 @@ import bpy, sys, os, math, random
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import make_jungle_flora as F
 
-OUT_DIR = r"C:\Users\caleb\RECONgame\assets\models\vegetation"
+OUT_DIR = r"C:\Users\caleb\RECONgame\assets\world\vegetation"
 SEED = 771104
 # Read them from the ONE place that defines a tree. Hardcoding these here is how the
 # felled tree ends up a different size and thickness from the tree it replaced.

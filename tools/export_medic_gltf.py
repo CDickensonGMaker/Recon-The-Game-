@@ -13,7 +13,7 @@ Run headless (never saves the .blend):
 import bpy, os
 from mathutils import Vector, Matrix
 
-OUT = r"C:\Users\caleb\RECONgame\assets\models\characters\us_medic.glb"
+OUT = r"C:\Users\caleb\RECONgame\assets\us\characters\us_medic.glb"
 TARGET_HEIGHT = 1.7132
 RIG = 'MixamoRig'
 SOCKETS = {'HandR': 'mixamorig:RightHand', 'HandL': 'mixamorig:LeftHand',

@@ -27,8 +27,8 @@ So: HIS POSE, HELD, and the arms dip. That is the whole clip.
 import bpy, math, json, os
 from mathutils import Vector, Quaternion, Euler
 
-WB = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
-POSE = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_work_pose.json"
+WB = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
+POSE = r"C:\Users\caleb\RECONgame\assets\civilians\characters\caleb_work_pose.json"
 RIG = "PSXRig"
 M = "mixamorig:"
 TAU = math.tau

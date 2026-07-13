@@ -39,7 +39,7 @@ elder's stoop) belongs in an animation clip, not in the rest skeleton.
 import bpy, bmesh, os, math
 from mathutils import Vector, Matrix
 
-BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
+BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 
 # WORKSPACES (Caleb, 2026-07-12): one folder per family, so a change to the
 # farmers can never reach into the fireteam.
@@ -47,7 +47,7 @@ BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blen
 #   us_troops/  the v3 base and every US variant (grunt, RTO, pilots, gun variants)
 #   enemies/    VC and NVA
 #   locker/     ALL equipment - bone-attachable, hitbox-free (gear_library.blend)
-CIV_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\civilians"
+CIV_DIR = r"C:\Users\caleb\RECONgame\assets\civilians\characters"
 US_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops"
 RIG = "PSXRig"
 BODY = "us_grunt_joined"

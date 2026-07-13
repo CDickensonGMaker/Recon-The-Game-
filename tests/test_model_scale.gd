@@ -21,19 +21,11 @@ func _ready() -> void:
 func _run() -> void:
 	var failures: int = 0
 	var checked: int = 0
-	var dir := DirAccess.open("res://assets/models/characters")
-	if dir == null:
-		print("FAIL: characters model dir missing")
+	var units: Array[String] = ModelActor.all_units()
+	if units.is_empty():
+		print("FAIL: no characters found in any faction folder")
 		get_tree().quit(1)
 		return
-	var units: Array[String] = []
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if fname.ends_with(".glb"):
-			units.append(fname.trim_suffix(".glb"))
-		fname = dir.get_next()
-	dir.list_dir_end()
 	units.sort()
 
 	for unit in units:

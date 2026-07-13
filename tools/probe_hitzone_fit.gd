@@ -13,11 +13,8 @@ func _initialize() -> void:
 	var units: PackedStringArray = PackedStringArray()
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.is_empty():
-		var dir := DirAccess.open("res://assets/models/characters")
-		if dir != null:
-			for f in dir.get_files():
-				if f.ends_with(".glb") and not f.begins_with("anim_library"):
-					units.append(f.trim_suffix(".glb"))
+		for unit in ModelActor.all_units():
+			units.append(unit)
 	else:
 		units = args
 	var floaters: int = 0

@@ -13,7 +13,7 @@ sys.path.insert(0, r'C:\Users\caleb\RECONgame\tools')
 import derive_actions
 importlib.reload(derive_actions)
 
-OUT = r"C:\Users\caleb\RECONgame\art_source\characters\us units\unit_us_pilot.blend"
+OUT = r"C:\Users\caleb\RECONgame\assets\us\characters\unit_us_pilot.blend"
 
 # 1. derive the new animations onto this file's actions
 derive_actions.build_all()

@@ -11,7 +11,7 @@
 """
 import bpy, os
 
-SRC = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_grunt_v2.blend"
+SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
 
 # actions the grunt file owns that the library should carry
 before = {a.name for a in bpy.data.actions}

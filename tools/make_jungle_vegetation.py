@@ -33,7 +33,7 @@ from mathutils import Matrix, Vector
 
 # ---------------------------------------------------------------- constants
 SRC_GLB = r"C:\Users\caleb\RealVietnamRTS\assets\models\terrain\foliage\jungle_medium.glb"
-OUT_DIR = r"C:\Users\caleb\RECONgame\assets\models\vegetation"
+OUT_DIR = r"C:\Users\caleb\RECONgame\assets\world\vegetation"
 GRASS_TEX = r"C:\Users\caleb\RECONgame\terrain\textures\clutter\grassland_2.png"
 
 CANON_HEIGHT = 6.5          # canonical palm height (m); variants scale 0.8-1.4

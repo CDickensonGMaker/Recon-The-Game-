@@ -111,13 +111,7 @@ func _build_scene() -> void:
 
 
 func _scan_units() -> void:
-	var dir := DirAccess.open("res://assets/models/characters")
-	if dir == null:
-		return
-	for f in dir.get_files():
-		if f.ends_with(".glb") and not f.begins_with("anim_library"):
-			var unit: String = f.trim_suffix(".glb")
-			_units.append(unit)
+	_units.append_array(ModelActor.all_units())
 	_units.sort()
 
 

@@ -17,7 +17,7 @@
 class_name JunglePatchLayer
 extends Node3D
 
-const PATCH_DIR := "res://assets/models/vegetation/patches/"
+const PATCH_DIR := "res://assets/world/vegetation/patches/"
 const MANIFEST := PATCH_DIR + "patches.json"
 const SWAY_SHADER := "res://terrain/shaders/vegetation_sway.gdshader"
 

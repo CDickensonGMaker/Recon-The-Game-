@@ -9,9 +9,9 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		unit = args[0]
-	var path := "res://assets/models/characters/%s.glb" % unit
-	if not ResourceLoader.exists(path):
-		print("NO SUCH MODEL: ", path)
+	var path := ModelActor.model_path(unit)
+	if path.is_empty():
+		print("NO SUCH MODEL: ", unit)
 		quit(1)
 		return
 	var packed: PackedScene = load(path)

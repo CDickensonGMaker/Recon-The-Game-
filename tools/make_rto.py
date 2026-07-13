@@ -18,7 +18,7 @@ fit his own aerial inside 1.7132 m.
 import bpy, os
 from mathutils import Matrix
 
-BASE = r"C:\Users\caleb\RECONgame\art_source\characters\base_psx\us_base_v3.blend"
+BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 GEAR = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
 OUT = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops\us_rto.blend"
 RIG = "PSXRig"

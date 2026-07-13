@@ -14,7 +14,7 @@ Works in any project that has the PSX arms rig (same bone names).
 import bpy, json, os
 from mathutils import Quaternion
 
-POSE_JSON = r"C:\Users\caleb\RECONgame\art_source\characters\fp_arms\semi_auto_rifle_pose.json"
+POSE_JSON = r"C:\Users\caleb\RECONgame\assets\player\arms\semi_auto_rifle_pose.json"
 
 def load(path=POSE_JSON):
     with open(path) as f:

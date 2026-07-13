@@ -16,7 +16,7 @@ captured from the hand-authored M14 pose.
 import bpy, json, os
 from mathutils import Vector, Matrix, Quaternion
 
-REF = r"C:\Users\caleb\RECONgame\art_source\characters\fp_arms\rifle_grip.json"
+REF = r"C:\Users\caleb\RECONgame\assets\player\arms\rifle_grip.json"
 
 def _load():
     with open(REF) as f:

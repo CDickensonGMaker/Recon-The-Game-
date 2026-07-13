@@ -45,7 +45,7 @@ BASE   = os.path.join(ROOT, "assets", "models", "characters", "us_grunt_v3.glb")
 # on disk. Rescued out to its own file via the Blender MCP, without saving or touching
 # his working gear_armory.blend.
 LOCKER = os.path.join(ROOT, r"art_source\characters\locker\satchel_medic.blend")
-OUT    = os.path.join(ROOT, r"assets\models\characters\us_medic.glb")
+OUT    = os.path.join(ROOT, r"assets\us\characters\us_medic.glb")
 
 # THE BAG IS BUILT HERE, NOT IMPORTED.
 #

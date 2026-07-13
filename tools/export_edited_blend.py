@@ -11,7 +11,7 @@ from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUTNAME = argv[0] if argv else os.path.splitext(os.path.basename(bpy.data.filepath))[0]
-OUT = rf"C:\Users\caleb\RECONgame\assets\models\characters\{OUTNAME}.glb"
+OUT = rf"C:\Users\caleb\RECONgame\assets\us\characters\{OUTNAME}.glb"
 TARGET_HEIGHT = 1.7132
 
 rig = bpy.data.objects["PSXRig"]

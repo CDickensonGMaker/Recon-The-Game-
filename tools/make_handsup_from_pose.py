@@ -36,8 +36,8 @@ ALONG the bone. But the FACE yaws a full 30 deg. Watch the face, not the tip.
 import bpy, math, json, os
 from mathutils import Vector, Quaternion, Euler
 
-WB = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\civ_anim_workbench.blend"
-POSE = r"C:\Users\caleb\RECONgame\art_source\characters\civilians\caleb_handsup_pose.json"
+WB = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
+POSE = r"C:\Users\caleb\RECONgame\assets\civilians\characters\caleb_handsup_pose.json"
 RIG = "PSXRig"
 M = "mixamorig:"
 TAU = math.tau

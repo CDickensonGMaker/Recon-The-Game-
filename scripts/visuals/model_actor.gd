@@ -6,14 +6,48 @@
 ## change, and a future distance-LOD can hold BOTH and cross-fade.
 ##
 ## The logic is promoted verbatim from the combat lab, where it was proven: load
-## assets/models/characters/<unit>.glb, normalise to character_height_m, seat the
+## the unit's .glb from its faction folder, normalise to character_height_m, seat the
 ## feet, and drive the rigged AnimationPlayer off SpriteStateMap intents so the
 ## model animates from the same AI the sprites did.
 class_name ModelActor
 extends Node3D
 
-const MODEL_DIR := "res://assets/models/characters/"
+## Characters live in one folder per faction, so a change to the farmers can
+## never reach into the fireteam. A unit_id is unique across all of them, so
+## resolution is a search, not a guess - and model_path() is the ONLY way to
+## turn a unit_id into a .glb. Hardcode a character path anywhere else and the
+## next faction re-org silently breaks it.
+const MODEL_DIRS: Array[String] = [
+	"res://assets/us/characters/",
+	"res://assets/nva_vc/characters/",
+	"res://assets/civilians/characters/",
+]
 const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
+
+
+## The .glb for a unit_id, or "" if no faction folder holds one.
+static func model_path(unit_id: String) -> String:
+	if unit_id.is_empty():
+		return ""
+	for d in MODEL_DIRS:
+		var p: String = d + unit_id + ".glb"
+		if ResourceLoader.exists(p):
+			return p
+	return ""
+
+
+## Every character unit_id on disk, across all factions. anim_library is not a
+## character - it is the shared clip bank - so it never appears here.
+static func all_units() -> Array[String]:
+	var out: Array[String] = []
+	for d in MODEL_DIRS:
+		var dir := DirAccess.open(d)
+		if dir == null:
+			continue
+		for f in dir.get_files():
+			if f.ends_with(".glb") and not f.begins_with("anim_library"):
+				out.append(f.trim_suffix(".glb"))
+	return out
 
 ## Per-unit authored height, in metres. A COMBATANT is 1.7132 to the helmet top
 ## and needs no entry here - that is the standard (production/GAME_SCALE_STANDARD.md)
@@ -61,7 +95,7 @@ var _facing: Vector3 = Vector3.FORWARD
 
 
 static func model_exists(unit_id: String) -> bool:
-	return not unit_id.is_empty() and ResourceLoader.exists(MODEL_DIR + unit_id + ".glb")
+	return not ModelActor.model_path(unit_id).is_empty()
 
 
 ## Returns false if the unit has no .glb - caller falls back to SpriteActor.
@@ -69,7 +103,7 @@ func setup(unit_id: String) -> bool:
 	unit = unit_id
 	if not ModelActor.model_exists(unit_id):
 		return false
-	var packed: PackedScene = load(MODEL_DIR + unit_id + ".glb")
+	var packed: PackedScene = load(ModelActor.model_path(unit_id))
 	if packed == null:
 		return false
 	_inst = packed.instantiate() as Node3D
@@ -139,7 +173,7 @@ func _normalize_height() -> void:
 ## so every library track resolves as PSXRig/Skeleton3D:mixamorig_* on every
 ## character. Rename the rig in either export script and the entire library
 ## goes silent (T-pose).
-const ANIM_LIBRARY_PATH := MODEL_DIR + "anim_library.glb"
+const ANIM_LIBRARY_PATH := "res://assets/shared/anim_library.glb"
 static var _shared_lib: AnimationLibrary = null
 static var _shared_lib_tried: bool = false
 

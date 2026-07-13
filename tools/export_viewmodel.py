@@ -15,7 +15,7 @@ argv = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 GUN = argv[0] if argv else 'M14_Rifle'
 OUTNAME = argv[1] if len(argv) > 1 else 'm14'
 IDLE = argv[2] if len(argv) > 2 else 'rifle_idle'   # per-gun arm pose action
-OUT = rf"C:\Users\caleb\RECONgame\assets\models\viewmodels\{OUTNAME}_fp.glb"
+OUT = rf"C:\Users\caleb\RECONgame\assets\player\viewmodels\{OUTNAME}_fp.glb"
 
 arm = bpy.data.objects['ArmsRig']
 mesh = bpy.data.objects['ArmsMesh']

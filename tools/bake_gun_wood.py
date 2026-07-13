@@ -15,7 +15,7 @@ Split shared materials once first: bake_gun_wood.split_shared()
 """
 import bpy, os
 
-BAKE_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\fp_arms\gun_bakes"
+BAKE_DIR = r"C:\Users\caleb\RECONgame\assets\player\arms\gun_bakes"
 SIZE = 512
 
 def _is_proc(m):
