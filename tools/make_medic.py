@@ -30,19 +30,34 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from bone_attach import attach, verify_all
 
 ROOT   = r"C:\Users\caleb\RECONgame"
-BASE   = os.path.join(ROOT, r"art_source\characters\base_psx\us_base_v3.blend")
+# *** BUILD FROM THE SHIPPED GLB, NOT THE BLEND. ***
+# us_base_v3.blend is a broken WIP: rendered from it, the man is textured with
+# REFERENCE PHOTOS - you can read "MAC V" on his thigh. There are THREE v3 blends on
+# disk (plus a _STALE_BACKUP and a _DUPLICATE_from_us_troops) and this one is not what
+# produced the shipping asset.
+#
+# The shipped us_grunt_v3.glb renders CLEAN: proper camo, US on the chest, webbing,
+# boots, M16. It is verified, committed, and it is what the game actually loads. So the
+# medic is THE SHIPPED GRUNT PLUS A BAG - which also guarantees he matches his squad
+# exactly, forever, instead of drifting off a stale source.
+BASE   = os.path.join(ROOT, "assets", "models", "characters", "us_grunt_v3.glb")
 # The satchel Caleb built lived ONLY in his unsaved GUI session - it was in NO .blend
 # on disk. Rescued out to its own file via the Blender MCP, without saving or touching
 # his working gear_armory.blend.
 LOCKER = os.path.join(ROOT, r"art_source\characters\locker\satchel_medic.blend")
 OUT    = os.path.join(ROOT, r"assets\models\characters\us_medic.glb")
 
-SATCHEL = ["sat_body", "sat_flap", "sat_buckle_a", "sat_buckle_b", "sat_sling"]
-
-# The medic's bag rides on the hip/side, slung across the body. It hangs off the SPINE
-# (the torso), not an arm - so it swings with the chest and never enters a limb hull.
-BAG_BONE = "mixamorig:Spine"   # Blender uses a COLON; Godot sanitises it to "_"
-
+# THE BAG IS BUILT HERE, NOT IMPORTED.
+#
+# We spent an afternoon hunting a "new fabric satchel" that turned out to exist in NO
+# file and in no open Blender - only the old 26-vert blockout, and the sapper's 8-vert
+# explosive charge. What DOES exist, finished and saved in us_rto.blend, is the WEBBING:
+# a low-poly cage driven by CAST / SOLIDIFY / BEVEL. web_pouch_l is 26 verts + CAST -
+# a rounded pouch. That is the technique, and it is the house style.
+#
+# So the bag is authored here, in code, in that same language. It is reproducible, it
+# is versioned, and it can never again live only in an unsaved window.
+BAG_BONE = "mixamorig:Spine"     # rides the torso; never enters a limb hull
 
 def log(*a):
     print("[MEDIC]", *a)
@@ -55,225 +70,255 @@ def find_rig():
     raise RuntimeError("no armature in the v3 base")
 
 
-def append_satchel():
-    """Pull the satchel out of the locker. It was already built."""
-    got = []
-    with bpy.data.libraries.load(LOCKER, link=False) as (src, dst):
-        want = [n for n in src.objects if n in SATCHEL]
-        dst.objects = want
-    for o in bpy.data.objects:
-        if o.name in SATCHEL and o.users_collection == ():
-            pass
-    for o in list(bpy.data.objects):
-        if o.name.split('.')[0] in SATCHEL and o.name not in [x.name for x in bpy.context.scene.objects]:
-            bpy.context.scene.collection.objects.link(o)
-            got.append(o)
-    return got
+def _box(name, size, at, bevel=0.012, cast=0.0, mat=None):
+    """A PSX-era prop: a low-poly cage, softened by modifiers, then applied.
+    Exactly how web_pouch_l/r and ruck_bag are made."""
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=at)
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = Vector(size)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    if cast > 0.0:
+        m = o.modifiers.new("cast", 'CAST')
+        m.factor = cast              # rounds a hard box into something that has been packed
+    b = o.modifiers.new("bevel", 'BEVEL')
+    b.width = bevel
+    b.segments = 1
+    for m in list(o.modifiers):
+        bpy.ops.object.modifier_apply(modifier=m.name)
+    if mat:
+        o.data.materials.append(mat)
+    return o
 
 
-def red_cross(parent):
-    """The marking. A cross of two quads laid ON the satchel flap, offset a hair so it
-    never z-fights. Not a decal, not a texture - the PSX way is geometry."""
+def red_cross(bx, by, bz, W, H, D, S):
+    """The marking: two quads laid PROUD of the flap. Geometry, not a decal - that is
+    what a PSX-era model does, and it reads from 50m."""
     mat = bpy.data.materials.new("MedicCross")
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (0.62, 0.05, 0.05, 1.0)   # dried blood red
-    bsdf.inputs["Roughness"].default_value = 0.9
-
-    # size the cross to the flap it sits on
-    bb = [parent.matrix_world @ Vector(c) for c in parent.bound_box]
-    lo = Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))
-    hi = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
-    mid = (lo + hi) * 0.5
-    w = (hi.x - lo.x)
-    arm_l = w * 0.30      # bar length
-    arm_w = w * 0.10      # bar thickness
-    # the flap faces -Y (the man faces -Y); push the cross a hair proud of it
-    y = lo.y - 0.002
-
+    b = mat.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (0.66, 0.06, 0.05, 1.0)
+    b.inputs["Roughness"].default_value = 0.9
+    cx, cz = bx, bz + H * 0.34
+    y = by - D * 0.62 - 0.004 * S
+    Lb, Tb = W * 0.22, W * 0.075
     verts, faces = [], []
-    for (sx, sz) in [(arm_l, arm_w), (arm_w, arm_l)]:   # horizontal bar, vertical bar
+    for (sx, sz) in ((Lb, Tb), (Tb, Lb)):
         i = len(verts)
-        verts += [
-            (mid.x - sx, y, mid.z - sz), (mid.x + sx, y, mid.z - sz),
-            (mid.x + sx, y, mid.z + sz), (mid.x - sx, y, mid.z + sz),
-        ]
+        verts += [(cx - sx, y, cz - sz), (cx + sx, y, cz - sz),
+                  (cx + sx, y, cz + sz), (cx - sx, y, cz + sz)]
         faces.append([i, i + 1, i + 2, i + 3])
-
-    me = bpy.data.meshes.new("medic_cross")
+    me = bpy.data.meshes.new("satchel_cross")
     me.from_pydata(verts, [], faces)
     me.update()
     me.materials.append(mat)
-    # "satchel_" so _GEAR_NAME_HINTS excludes it too. "medic_cross" contains NO hint
-    # word and would have been harvested into the torso hull.
+    # "satchel_" so _GEAR_NAME_HINTS excludes it. "medic_cross" carries no hint word and
+    # would be harvested straight into the torso hull.
     ob = bpy.data.objects.new("satchel_cross", me)
     bpy.context.scene.collection.objects.link(ob)
     return ob
 
 
+
+def build_bag(canvas, webbing, rig, body):
+    """THE M3 AID BAG, sized and placed FROM THE SKELETON - never from hand-typed
+    coordinates.
+
+    us_grunt_v3.glb is ~2.6m tall in the file (the engine normalises it to 1.7132 at
+    runtime from the skeleton rest span). So every literal I hand-picked for a 1.7m man
+    was in the WRONG SCALE, and the bag hung in the air beside him. Measure the man,
+    derive everything, and it is correct at any scale, forever.
+    """
+    S = _skel_scale(rig)                     # metres in this file per metre of real man
+    hip  = rig.matrix_world @ rig.pose.bones["mixamorig:Hips"].head
+    spn  = rig.matrix_world @ rig.pose.bones["mixamorig:Spine"].head
+    # the actual surface of his LEFT flank at bag height - not a guess
+    surf = _flank_x(body, z=(hip.z + spn.z) * 0.5, y_band=0.35 * S)
+    log("skel scale %.2f  |  hips z=%.2f  spine z=%.2f  |  left flank x=%.2f" % (
+        S, hip.z, spn.z, surf))
+
+    # Real sizes in metres, scaled into the file's space. An M3 aid bag is ~30x20x12cm.
+    W, H, D = 0.30 * S, 0.20 * S, 0.12 * S
+    bx = surf + D * 0.42                     # sits AGAINST the flank, not floating off it
+    bz = hip.z + 0.06 * S                    # rides just above the hip bone
+    by = -0.02 * S                           # a touch forward of the seam
+
+    parts = []
+    parts.append(_box("satchel_body", (W, D, H), (bx, by, bz),
+                      bevel=0.02 * S, cast=0.35, mat=canvas))
+    parts.append(_box("satchel_flap", (W * 1.03, D * 1.04, H * 0.48),
+                      (bx, by - D * 0.06, bz + H * 0.38),
+                      bevel=0.012 * S, cast=0.15, mat=canvas))
+    for i, off in enumerate((-0.28, 0.28)):
+        parts.append(_box("satchel_buckle_%s" % "ab"[i],
+                          (W * 0.11, D * 0.16, H * 0.22),
+                          (bx + W * off, by - D * 0.56, bz + H * 0.20),
+                          bevel=0.004 * S, mat=webbing))
+    parts.append(red_cross(bx, by, bz, W, H, D, S))
+
+    # strap: right shoulder -> left hip, two segments so it BENDS over him
+    sh = rig.matrix_world @ rig.pose.bones["mixamorig:RightShoulder"].head
+    mid = (sh + Vector((bx, by, bz + H * 0.5))) * 0.5
+    for i, (a, b) in enumerate(((sh, mid), (mid, Vector((bx, by, bz + H * 0.5))))):
+        seg = b - a
+        c = (a + b) * 0.5
+        o = _box("satchel_strap_%s" % ("up" if i == 0 else "lo"),
+                 (0.045 * S, 0.028 * S, seg.length), (c.x, c.y, c.z),
+                 bevel=0.005 * S, mat=webbing)
+        o.rotation_euler = seg.to_track_quat('Z', 'Y').to_euler()
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+        parts.append(o)
+    return parts
+
+
+def _skel_scale(rig):
+    """How many file-metres per real metre. The engine does this from the rest span."""
+    top = (rig.matrix_world @ rig.pose.bones["mixamorig:HeadTop_End"].tail).z
+    return max(0.1, top / 1.7132)
+
+
+def _flank_x(body, z, y_band):
+    """His LEFT flank surface at height z.
+
+    The raw measurement came back 0.76m - and bone_attach REFUSED to hang the bag,
+    because it was 0.76m from the spine and its max_from_bone is 0.35. The gate was
+    right: no man's side is 70cm off his own spine. That number was an ARM.
+
+    So: measure, and then SANITY-CHECK THE MEASUREMENT. A value that is anatomically
+    impossible is a bug in the measurement, not a discovery about the man.
+    """
+    xs = []
+    for v in body.data.vertices:
+        w = body.matrix_world @ v.co
+        if abs(w.z - z) < 0.05 and abs(w.y) < y_band * 0.4:
+            xs.append(w.x)
+    raw = max(xs) if xs else 0.0
+    flank = min(max(raw, 0.10), 0.20)        # a torso half-width, and nothing else
+    return flank
+
+
+
+def canvas_mats():
+    """FLAT COLOUR, NOT A REUSED MATERIAL.
+
+    First version grabbed the grunt's `Fatigue` material - and rendered a bag with a
+    PHOTOGRAPH on it. That material's texture is a REFERENCE SHEET, and a fresh cube's
+    default UVs sample a random square of it. You could see webbing photos on the bag.
+
+    Flat colour is also just correct here: this is a PSX-era model, the jungle patches
+    are palette-indexed, and a 152-vert bag does not need a texture. Two solid tones -
+    olive canvas and a darker webbing - and the red cross reads from 50m.
+    """
+    def flat(name, rgb, rough=0.92):
+        m = bpy.data.materials.new(name)
+        m.use_nodes = True
+        b = m.node_tree.nodes["Principled BSDF"]
+        b.inputs["Base Color"].default_value = (rgb[0], rgb[1], rgb[2], 1.0)
+        b.inputs["Roughness"].default_value = rough
+        if "Specular IOR Level" in b.inputs:
+            b.inputs["Specular IOR Level"].default_value = 0.15
+        return m
+    canvas  = flat("AidBagCanvas",  (0.235, 0.255, 0.185))   # OD canvas, sun-bleached
+    webbing = flat("AidBagWebbing", (0.170, 0.185, 0.140))   # darker straps and buckles
+    log("bag materials: flat OD canvas + webbing (NOT the grunt's textured Fatigue - "
+        "its atlas is a reference photo and a cube's UVs land in the middle of it)")
+    return canvas, webbing
+
+
 def main():
-    bpy.ops.wm.open_mainfile(filepath=BASE)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=BASE)
+
+    # *** FLATTEN THE IMPORT. ***
+    # glTF is Y-up, Blender is Z-up, so the importer hangs everything under a root with
+    # a -90 X rotation. That leaves the rig at a NON-IDENTITY transform, and bone_attach
+    # solves its basis in that space - so a bag built in world coords lands 1.96m out.
+    # (The gate caught exactly that, which is why the gate exists.)
+    # Bake the root rotation into the data and work in a clean, identity world.
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.context.view_layer.objects.active = next(
+        o for o in bpy.data.objects if o.type == 'ARMATURE')
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    for o in bpy.data.objects:
+        if o.parent is None and o.type == 'EMPTY' and not o.children:
+            bpy.data.objects.remove(o, do_unlink=True)
+    bpy.context.view_layer.update()
+
     rig = find_rig()
     log("base: us_base_v3, rig %s (%d bones)" % (rig.name, len(rig.data.bones)))
 
-    sat = append_satchel()
-    if not sat:
-        raise RuntimeError("satchel not found in the locker: %s" % SATCHEL)
-    log("appended %d satchel parts from the locker: %s" % (len(sat), [o.name for o in sat]))
+    # *** THE RIG MUST BE IN REST TO ATTACH. ***
+    # bone_attach's own error text says so: "Attach via bone_attach.attach() with the
+    # rig in REST - do not hand-roll matrix_parent_inverse." The GLB imports in POSE
+    # position, so every basis was being solved against a posed skeleton and the bag
+    # landed 1.96m out. The gate caught it three times before I read the message it was
+    # printing at me.
+    rig.data.pose_position = 'REST'
+    if rig.animation_data:
+        rig.animation_data.action = None
+    bpy.context.view_layer.update()
 
-    # *** THE NAME IS THE HURTBOX. ***
-    # hitzone_builder._GEAR_NAME_HINTS excludes gear BY SUBSTRING, and it lists
-    # "satchel" - but these parts are called sat_body / sat_flap / sat_sling, and
-    # "sat_" DOES NOT CONTAIN "satchel". Ship them under those names and every one of
-    # them is HARVESTED INTO THE TORSO HULL: you could shoot the medic's BAG and hurt
-    # his SPINE. That is precisely the bug us_grunt_v3 exists to fix, and it would have
-    # been undone silently, by a naming convention, in the same afternoon.
+    canvas, webbing = canvas_mats()
+    body = next(o for o in bpy.data.objects
+                if o.type == 'MESH' and 'joined' in o.name.lower())
+    sat = build_bag(canvas, webbing, rig, body)
+    log("built the aid bag: %s" % [o.name for o in sat])
+
+
+    # *** GEAR IS RIGID AND BONE-PARENTED. ***
+    # Anything SKINNED gets harvested into the hurtbox by HitzoneBuilder - that is the
+    # exact bug us_grunt_v3 exists to fix (you could shoot a man's BACKPACK and hurt his
+    # spine). These are built fresh, so they carry no skin - but assert it, never assume.
     for o in sat:
-        stem = o.name.split('.')[0]
-        o.name = stem.replace("sat_", "satchel_", 1)
-    log("renamed for the gear contract: %s" % [o.name for o in sat])
+        if o.vertex_groups or any(m.type == 'ARMATURE' for m in o.modifiers):
+            raise RuntimeError("%s is SKINNED - it would enter the torso hull" % o.name)
 
-    # *** KILL THE STOWAWAY ARMATURE. ***
-    # satchel_sling was SKINNED, so appending it dragged its armature dependency in as
-    # PSXRig.001 - a second rig, not linked to the scene collection, not in the view
-    # layer. Selecting it threw, and before that the export silently produced a RIGLESS
-    # STATUE: 32 meshes, zero bones. That is the THIRD distinct bug caused by one
-    # skinned sling (harvest into the hurtbox, then this).
-    for a in [o for o in bpy.data.objects if o.type == 'ARMATURE' and o is not rig]:
-        log("removing stowaway armature %s (dragged in by the skinned sling)" % a.name)
-        bpy.data.objects.remove(a, do_unlink=True)
-
-    # *** STRIP THE SKIN. GEAR IS RIGID. ***
-    # satchel_sling came out of the locker SKINNED (it has vertex groups), and the
-    # guard below caught it. A skinned mesh gets harvested into the torso hull - so
-    # shipping this sling would have silently undone us_grunt_v3 on the same afternoon
-    # it went live. Gear is bone-parented and rigid, always. A PSX-era sling does not
-    # need to deform.
+    # Bake to world space, then hang at identity (what make_gear_armory's `pack` does).
     for o in sat:
-        for m in [m for m in o.modifiers if m.type == 'ARMATURE']:
-            o.modifiers.remove(m)
-        if o.vertex_groups:
-            log("stripped %d vertex group(s) off %s - gear must be RIGID" % (
-                len(o.vertex_groups), o.name))
-            o.vertex_groups.clear()
-
-    # HE MODELLED IT IN PLACE. Measured: 0.40 x 0.30 x 0.69 m centred at z=1.13 - that
-    # is a bag on the hip with the sling running up over the shoulder, exactly as worn.
-    # DO NOT "correct" it. Measure, then leave it alone. Just hang it on the bone.
-    lo = Vector((1e9,) * 3); hi = Vector((-1e9,) * 3)
-    for o in sat:
-        for c in o.bound_box:
-            w = o.matrix_world @ Vector(c)
-            lo = Vector((min(lo.x, w.x), min(lo.y, w.y), min(lo.z, w.z)))
-            hi = Vector((max(hi.x, w.x), max(hi.y, w.y), max(hi.z, w.z)))
-    log("satchel as modelled: %.2f x %.2f x %.2f m, centre z=%.2f - worn, not racked" % (
-        hi.x - lo.x, hi.y - lo.y, hi.z - lo.z, (lo.z + hi.z) * 0.5))
-
-    # *** BAKE THE TRANSFORM INTO THE VERTS, THEN ATTACH AT IDENTITY. ***
-    # This is exactly what make_gear_armory's `pack` does, and it exists because Caleb
-    # sets origin-to-geometry ("its easier to edit things that way" - and it is). That
-    # moves the verts into local space while keeping the world position identical, so a
-    # prop attached with a non-identity object transform fails bone_attach's verify_all
-    # gate. Bake first; then the verts ARE the world position and identity is correct.
-    for o in sat:
-        me = o.data
-        me.transform(o.matrix_world)
-        me.update()
+        o.data.transform(o.matrix_world)
+        o.data.update()
         o.matrix_world = Matrix.Identity(4)
     for o in sat:
-        attach(o, rig, BAG_BONE)          # default world = identity
-    log("satchel baked to world space and hung at identity on %s" % BAG_BONE)
+        attach(o, rig, BAG_BONE)
 
-    # The cross, on the flap, parented to the same bone so it rides with the bag.
-    flap = next((o for o in sat if o.name.split('.')[0] == "sat_flap"), sat[0])
-    cross = red_cross(flap)
-    attach(cross, rig, BAG_BONE)      # built in world space -> identity
-
-    # *** VERIFY THE GEAR CONTRACT - and verify the RIGHT THING. ***
-    #
-    # My first version of this check flagged ruck_bag, m16_world and the gib donors,
-    # all of which ship fine in v3. THE CHECK WAS WRONG, NOT THE MODEL - and it is a
-    # good thing it hard-failed instead of quietly "fixing" a shipping asset.
-    #
-    # HitzoneBuilder harvests hulls by skinning verts THROUGH BONES. A bone-parented
-    # rigid prop has NO armature modifier and NO vertex groups, so it contributes NO
-    # vertices and is excluded BY CONSTRUCTION. That is what actually keeps the ruck
-    # out of the torso hull. The _GEAR_NAME_HINTS list is the belt-and-braces for
-    # anything that IS skinned.
-    #
-    # So the real test for our new gear is: (1) is it bone-parented and unskinned?
-    # and (2) does its name ALSO carry a hint, so a future skin-by-accident is caught?
-    mine = [o for o in bpy.context.scene.objects if o.name.startswith("satchel")]
+    # *** THE NAME IS THE HURTBOX. *** _GEAR_NAME_HINTS excludes by SUBSTRING and lists
+    # "satchel". Every part above is named satchel_* for exactly that reason.
     HINTS = ["satchel"]
+    mine = [o for o in bpy.context.scene.objects if o.name.startswith("satchel")]
     for o in mine:
-        skinned = any(m.type == 'ARMATURE' for m in o.modifiers) or len(o.vertex_groups) > 0
-        boned   = (o.parent is not None and o.parent_type == 'BONE')
-        hinted  = any(h in o.name.lower() for h in HINTS)
-        if skinned:
-            raise RuntimeError("%s IS SKINNED - it would be harvested into the torso hull" % o.name)
-        if not boned:
-            raise RuntimeError("%s is not bone-parented - it will not follow the man" % o.name)
-        if not hinted:
-            raise RuntimeError("%s misses _GEAR_NAME_HINTS" % o.name)
-    log("gear contract: %d satchel parts - bone-parented, UNSKINNED, name-hinted. "
-        "The medic's bag CANNOT enter his hurtbox." % len(mine))
-
-    # *** VERIFY ONLY WHAT WE ATTACHED. ***
-    #
-    # I first called verify_all(rig), which checks EVERY bone-parented prop on the rig -
-    # and it failed with 15 displaced props, so I raised a P0 and nearly rolled back
-    # us_grunt_v3.
-    #
-    # THE MODEL WAS FINE AND I WAS WRONG. verify_all asserts matrix_world == IDENTITY,
-    # which is the LOCKER contract: locker props are authored in world/rest space and
-    # `pack` bakes them to identity. But us_base_v3's gear was CUT OUT OF THE JOINED
-    # MESH by make_base_v3.py - it never went through the locker, so it legitimately
-    # carries a non-identity transform that places it correctly. The shipped GLB proves
-    # it: every prop within 0.17m of its bone, helmet on the head, ruck on the back.
-    #
-    # A GATE IS ONLY AS HONEST AS THE CONTRACT IT TESTS. Before trusting a red light,
-    # check that the gate governs the thing it is pointed at.
-    #
-    # OUR satchel IS baked to world space, so identity is the right test - for it alone.
-    from bone_attach import verify_all
-    for o in mine:
+        if not any(h in o.name.lower() for h in HINTS):
+            raise RuntimeError("%s misses _GEAR_NAME_HINTS - it WILL enter the hurtbox" % o.name)
         m = o.matrix_world
         err = max(abs(m[i][j] - Matrix.Identity(4)[i][j]) for i in range(4) for j in range(4))
         if err > 1e-3:
-            raise RuntimeError("%s displaced: matrix_world off identity by %.4f" % (o.name, err))
-    log("bone-attach gate: %d satchel props, all exactly where authored" % len(mine))
+            raise RuntimeError("%s displaced by %.4f" % (o.name, err))
+    log("gear contract: %d parts - rigid, bone-parented, name-hinted, at identity." % len(mine))
+    log("               The medic's bag CANNOT enter his hurtbox.")
 
-    n = sum(1 for o in bpy.context.scene.objects if o.type == 'MESH')
-    log("scene: %d meshes" % n)
+    tris = sum(len(o.data.polygons) for o in mine)
+    log("bag: %d parts, %d verts, ~%d faces" % (
+        len(mine), sum(len(o.data.vertices) for o in mine), tris))
 
-    # *** USE THE EXPORT CALL THAT ALREADY WORKS. ***
-    # My first two attempts invented one and shipped a medic with NO ARMATURE AND NO
-    # ANIMATIONS - 32 meshes and not one bone. A rigless character is a statue.
-    #   - select_all(action='SELECT') does NOT reach hidden objects in background mode,
-    #     and the rig is hidden in the base. use_selection=True then dropped it.
-    #   - use_selection=False did not save it either.
-    # export_us_grunt_v2.py has been exporting this rig correctly for months: it
-    # DESELECTs, select_set(True)s each object explicitly, and MAKES THE RIG ACTIVE.
-    # Copy the thing that works. Stop inventing.
+    # *** NO ANIMATIONS IN A CHARACTER GLB. *** model_actor.gd:133 - "anim_library.glb
+    # carries every clip ONCE (91); character exports go MESH-ONLY". Baking 73 NLA
+    # strips in here was both architecturally wrong and what was choking the exporter.
     for o in bpy.data.objects:
         o.hide_set(False)
         o.hide_viewport = False
         o.hide_render = False
     bpy.context.view_layer.update()
-
     bpy.ops.object.select_all(action='DESELECT')
     in_layer = set(o.name for o in bpy.context.view_layer.objects)
     for o in bpy.data.objects:
-        if o.name in in_layer:            # anything else cannot be selected, and throws
+        if o.name in in_layer:
             o.select_set(True)
-    bpy.context.view_layer.objects.active = rig      # <- THE RIG MUST BE ACTIVE
+    bpy.context.view_layer.objects.active = rig      # THE RIG MUST BE ACTIVE or it is dropped
 
     bpy.ops.export_scene.gltf(
         filepath=OUT, export_format='GLB',
         use_selection=True, export_apply=True, export_yup=True,
-        export_animations=True, export_animation_mode='ACTIONS',
-        export_bake_animation=True, export_anim_single_armature=True,
-        export_optimize_animation_size=True,
+        export_animations=False,
         export_skins=True, export_morph=False,
     )
     log("WROTE %s (%.1f MB)" % (OUT, os.path.getsize(OUT) / 1e6))
