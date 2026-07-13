@@ -168,7 +168,22 @@ var last_hit_dir: Vector3 = Vector3.FORWARD
 var sprite_faction: String = "US Army and Co"
 ## us_grunt_v2 (Caleb): the gib-rig grunt is THE squadmate model - full gore
 ## contract, the big clip library, and the cover/crouch animation set.
-var sprite_unit: String = "us_grunt_v2"
+## RATIFIED BY THE SUMMONER 2026-07-13 (bead frsw, open since 07-12): the live
+## squadmate is now us_grunt_v3.
+##
+## v3 IS A BUG FIX, NOT A NERF. The hurtbox hulls shrink because they STOP ENCLOSING
+## HIS LUGGAGE:
+##     HEAD   0.0126 -> 0.0067 m3  (-47%)  the HELMET leaves the hurtbox
+##     TORSO  0.0566 -> 0.0206 m3  (-64%)  the RUCK and BANDOLIER leave it
+## Before this you could shoot a man's BACKPACK and kill him - and the hitzone_builder
+## contract says so in as many words ("the player could shoot a man's ANTENNA and hurt
+## him"). The hulls have not collapsed; every zone still sits <=0.06m off its bone
+## segment (probe_hitzone_fit). They have stopped covering his gear.
+##
+## THE BILL, PAID KNOWINGLY: enemies are harder to kill, most noticeably from BEHIND
+## and at GRAZING ANGLES. That is Pillar 1 working - death should come from the
+## situation, not from a lucky round through a rucksack.
+var sprite_unit: String = "us_grunt_v3"
 var sprite_weapon: String = "m16a1"
 
 

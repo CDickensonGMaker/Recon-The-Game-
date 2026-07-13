@@ -19,7 +19,7 @@ signal hit_taken(zone: String, amount: int, hp_left: int)
 @export var idle_only: bool = false
 
 ## Which rig stands on the range - labs set this before add_child.
-@export var unit_id: String = "us_grunt_v2"
+@export var unit_id: String = "us_grunt_v3"   # the LIVE rig (frsw, 2026-07-13)
 const MAX_HP: int = 85
 
 ## The dummy runs Caleb's clip library so you shoot a LIVING target, not a
