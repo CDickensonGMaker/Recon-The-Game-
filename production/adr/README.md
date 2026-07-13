@@ -27,6 +27,7 @@ Every citation was independently re-verified against source at writing time.
 | [018](ADR-018-progression-rank-not-stats.md) | **Progression: rank gates AUTHORITY, never ABILITY** | **Player stats KILLED. Squad XP goes silent/behavioral.** |
 | [019](ADR-019-hearts-and-minds.md) | **Hearts & Minds: allegiance drives VC manpower** | **The mechanical answer to "the war is the story."** |
 | [020](ADR-020-authored-threshold.md) | **The Authored Threshold: guarantees, not rails + the Ambience Law** | **The test every set-piece must pass.** |
+| [021](ADR-021-patrols.md) | **Patrols: routes that rotate, and the promotion that is the tutorial** | **Closes 0623 gap #1. Rank's flagship: FOLLOW -> LEAD.** |
 | [015](ADR-015-verification-and-gate-law.md) | Verification law + mechanical gate | GATE epic = RECONgame-97u3 |
 | [016](ADR-016-flat-damage-grammar.md) | Flat base damage × zone — the dice are retired | Summoner-decreed; shipped with probe `test_flat_damage` |
 

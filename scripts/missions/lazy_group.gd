@@ -7,6 +7,10 @@ extends Node3D
 @export var group_tag: String = ""
 @export var activation_range: float = 120.0
 @export var spread: float = 12.0
+## THE CIRCUIT (ADR-021). A route across the AO through real features, handed down
+## by the generator. Empty = fall back to the old local 16m sentry beat.
+var patrol_circuit: Array[Vector3] = []
+
 @export var data_paths: Array[String] = [
 	# Weighted by repetition: the pool is sampled uniformly, so a bare list of five
 	# archetypes would put an RPG in one hand out of five. Local Force are the
@@ -60,7 +64,10 @@ func force_spawn() -> void:
 	var is_patrol := group_tag.begins_with("ambient_patrol")
 	var route: Array[Vector3] = []
 	if is_patrol:
-		route = EnemyBase.make_patrol_route(global_position, _rng)
+		# ADR-021: walk the real CIRCUIT if the generator handed us one (across the AO,
+		# through actual features). The 16m local beat is only the fallback.
+		route = patrol_circuit.duplicate() if not patrol_circuit.is_empty() \
+			else EnemyBase.make_patrol_route(global_position, _rng)
 	for i in range(enemy_count):
 		var a: float = _rng.randf_range(0.0, TAU)
 		var r: float = _rng.randf_range(2.0, spread)
@@ -71,5 +78,18 @@ func force_spawn() -> void:
 			enemy.add_to_group(group_tag)
 		if is_patrol and not route.is_empty():
 			enemy.patrol_route = route.duplicate()
-			enemy._patrol_index = i % route.size()
+			# SINGLE FILE, not four strangers orbiting the same bush in opposite
+			# directions (exactly what `_patrol_index = i % size` produced).
+			# One point man walks the waypoint; the rest trail him down the leg.
+			enemy.patrol_file_slot = i
+			enemy._patrol_index = 0
+		elif not is_patrol:
+			# SENTRY FACING (bead 0623 gap #1): a guard faces OUTWARD from what he is
+			# posted on. Facing was random, so half a garrison stood staring into the
+			# hut behind them.
+			var out: Vector3 = pos - global_position
+			out.y = 0.0
+			if out.length() > 0.5:
+				enemy.facing_dir = out.normalized()
+				enemy._home_facing = enemy.facing_dir
 	set_physics_process(false)

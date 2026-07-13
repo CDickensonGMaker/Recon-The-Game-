@@ -241,6 +241,40 @@ static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["intel"] = "VC squad garrisons the ville. Arms cache concealed nearby. %d-%d fighters estimated." % [defender_count - 2, defender_count + 3]
 
 
+
+
+## THE PATROL ANCHOR POOL (ADR-021). Patrol nodes must hang on THINGS - a cache, a
+## ville, a ford, a trail junction, an LZ - because a route that connects things is a
+## route the player can learn, predict, and ambush. That is the whole intel economy.
+## A ring of random points around a spawn is not a patrol; it is a man pacing his
+## own doorstep.
+static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGenerator) -> Array[Vector3]:
+	var pool: Array[Vector3] = []
+	# Real mission features first - these are the ones worth walking to.
+	for s in p.get("sites", []):
+		var site: Dictionary = s
+		if site.has("center"):
+			pool.append(site.center as Vector3)
+	for key in ["village_center", "firebase_center", "camp_center", "insertion_lz", "exfil_lz"]:
+		if p.has(key):
+			pool.append(p[key] as Vector3)
+	# ...then fill out to a usable pool with passable ground spread across the AO, so
+	# the circuit spans the map (Summoner: "various distances that zig zag across the
+	# map") instead of hugging the objective.
+	var centre: Vector3 = p.get("insertion_lz", Vector3.ZERO)
+	var guard: int = 0
+	while pool.size() < 10 and guard < 40:
+		guard += 1
+		var cand: Vector3 = _passable_near(world, rng, centre, 120.0, 480.0)
+		var ok: bool = true
+		for e in pool:
+			if e.distance_to(cand) < 60.0:   # nodes must be far enough apart to be legs
+				ok = false
+				break
+		if ok:
+			pool.append(cand)
+	return pool
+
 static func _plan_firebase(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
 	var firebase: Vector3 = planner.find_site(rng, 44.0, 200.0)
 	p["firebase_center"] = firebase
@@ -518,6 +552,11 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			lg_p.group_tag = "ambient_patrol_%d" % pi
 			lg_p.activation_range = 140.0
 			lg_p.setup(director, int(p.seed) + 31 * pi)
+			# ADR-021: a real circuit across the AO through actual features. Every
+			# patrol gets its OWN zig-zag (rng advances), so two patrols do not walk
+			# the same line - and the player can learn each of them separately.
+			lg_p.patrol_circuit = EnemyBase.make_patrol_circuit(
+				_patrol_anchors(world, p, rng), rng, rng.randi_range(5, 8))
 			world.add_child(lg_p)
 			lg_p.global_position = _seat(world, ppos)
 

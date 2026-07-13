@@ -113,6 +113,14 @@ const COVER_SEARCH_OFFSETS: Array[Vector3] = [
 var patrol_route: Array[Vector3] = []
 var _patrol_index: int = 0
 var _patrol_pause: float = 0.0
+## SINGLE FILE (ADR-021 / VISION_READOUT: "jungle single-file is *very* Vietnam").
+## A patrol is a UNIT that moves together, not four men scattered around a loop.
+## Slot 0 walks point; the rest trail him in a staggered column. Before this the
+## group shared one route and each man started at a different index, so a "patrol"
+## was four strangers orbiting the same bush in opposite directions.
+var patrol_file_slot: int = 0
+const FILE_SPACING: float = 4.0     ## metres between men in the column
+const FILE_STAGGER: float = 1.1     ## lateral weave, so it is a file and not a queue
 
 ## Combat behavior
 var strafe_direction: float = 0.0
@@ -1802,8 +1810,63 @@ func _find_cover_point() -> Vector3:
 
 ## ---------- PATROL (R18/R33) ----------
 
+## THE PATROL CIRCUIT (ADR-021). Summoner: "we generate 5 to 10 patrol points that
+## are in various distances that ZIG ZAG ACROSS THE MAP and the unit loops those
+## patrol points."
+##
+## make_patrol_route() below walks a 16m CIRCLE around a spawn point - a man pacing
+## his own doorstep. That is not a patrol and it is not learnable. A patrol connects
+## THINGS (a cache, a ville, a ford, a trail junction) over real distance, and the
+## player is meant to learn it, predict it, and kill it.
+##
+## Zig-zag by construction: order the anchors by bearing around their centroid, then
+## walk them as a STAR POLYGON (step ~n/2, coprime with n so every node is visited
+## exactly once). Consecutive legs therefore cross the middle of the AO instead of
+## tracing a tidy convex ring. Deterministic from the caller's rng (ADR-010).
+static func make_patrol_circuit(anchors: Array[Vector3], rng: RandomNumberGenerator, count: int = 7) -> Array[Vector3]:
+	var pool: Array[Vector3] = anchors.duplicate()
+	if pool.size() < 3:
+		return pool
+	# Sample without replacement.
+	var n: int = clampi(count, 5, mini(10, pool.size()))
+	var picked: Array[Vector3] = []
+	for i in range(n):
+		picked.append(pool.pop_at(rng.randi() % pool.size()))
+
+	# Order by bearing around the centroid.
+	var c := Vector3.ZERO
+	for v in picked:
+		c += v
+	c /= float(n)
+	picked.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return atan2(a.x - c.x, a.z - c.z) < atan2(b.x - c.x, b.z - c.z))
+
+	# Star step: the biggest stride under n/2 that is coprime with n. gcd == 1 is what
+	# guarantees the walk touches every node instead of closing early on a sub-loop.
+	var step: int = 1
+	for k in range(int(n / 2), 1, -1):
+		if _coprime(k, n):
+			step = k
+			break
+	var route: Array[Vector3] = []
+	var idx: int = 0
+	for i in range(n):
+		route.append(picked[idx])
+		idx = (idx + step) % n
+	return route
+
+
+static func _coprime(a: int, b: int) -> bool:
+	while b != 0:
+		var t: int = b
+		b = a % b
+		a = t
+	return a == 1
+
+
 ## Loop of waypoints around a center; deterministic per the caller's rng so
-## mission sims stay reproducible.
+## mission sims stay reproducible. LOCAL loop - a sentry beat, not a patrol.
+## For a real patrol across the AO use make_patrol_circuit().
 static func make_patrol_route(center: Vector3, rng: RandomNumberGenerator, point_count: int = 4, radius: float = 16.0) -> Array[Vector3]:
 	var pts: Array[Vector3] = []
 	var base_angle: float = rng.randf_range(0.0, TAU)
@@ -1821,9 +1884,28 @@ func _execute_patrol(delta: float) -> void:
 		velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 		return
 	var wp: Vector3 = patrol_route[_patrol_index]
+	# MY PLACE IN THE FILE. The point man walks the waypoint; everyone else trails him
+	# down the leg, weaving slightly. Offsets are in the frame of the CURRENT LEG, so
+	# the column bends around corners instead of cutting them.
+	if patrol_file_slot > 0 and patrol_route.size() > 1:
+		var prev: Vector3 = patrol_route[(_patrol_index - 1 + patrol_route.size()) % patrol_route.size()]
+		var leg: Vector3 = wp - prev
+		leg.y = 0.0
+		if leg.length() > 0.5:
+			var fwd: Vector3 = leg.normalized()
+			var right: Vector3 = fwd.cross(Vector3.UP).normalized()
+			var side: float = 1.0 if (patrol_file_slot % 2) == 1 else -1.0
+			wp = wp - fwd * (FILE_SPACING * float(patrol_file_slot)) 				+ right * (side * FILE_STAGGER)
 	if global_position.distance_to(wp) < 2.5:
-		_patrol_index = (_patrol_index + 1) % patrol_route.size()
-		_patrol_pause = randf_range(2.5, 6.0)  # sentry boredom: glance around, then move on
+		# Only the POINT MAN advances the waypoint - otherwise the tail would flip the
+		# index the moment it reached its own trailing offset and the file would eat
+		# itself. The column follows him.
+		if patrol_file_slot == 0:
+			_patrol_index = (_patrol_index + 1) % patrol_route.size()
+			_patrol_pause = randf_range(2.5, 6.0)  # sentry boredom: glance around, then move on
+		else:
+			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
+			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 		return
 	_move_toward(wp, delta, 0.5)
 
