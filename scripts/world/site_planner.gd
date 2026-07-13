@@ -116,8 +116,14 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	body.name = model_name
 	body.collision_layer = 1
 	body.collision_mask = 0
-	if _is_soft_cover(model_name):
-		body.add_to_group("soft_cover")   # rounds punch through it
+	# MATERIAL IS AUTHORED DATA, NOT A GUESS ABOUT THE FILENAME (war room 2026-07-12).
+	# CollisionTable.is_soft() is the one authority, and it push_warning()s loudly for
+	# any model it has no material for - so a gap is NOISY instead of silently making
+	# a bunker shootable through because its name contains "rack".
+	if CollisionTable.is_soft(model_name):
+		body.add_to_group("soft_cover")   # rounds punch through it (x0.8, soft_left=2)
+	else:
+		body.add_to_group("hard_surface")  # stops the round - and finally SPARKS
 	var scene: PackedScene = load(model_path)
 	if scene:
 		var visual := scene.instantiate()

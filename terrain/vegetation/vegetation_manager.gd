@@ -311,16 +311,8 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 	if not _chunk_placements.has(chunk_coord):
 		_build_placement_cache(chunk_coord, heightmap, chunk_size)
 
-	# Materialize from cache
-	if _patch_layer != null and _patch_layer.enabled:
-		# Authored patches bring their own trees - the lone-tree layer would
-		# double the canopy and blow the tri budget, so it stays off.
-		_patch_layer.generate_for_chunk(
-			chunk_coord, _chunk_terrain[chunk_coord],
-			_bundles_per_chunk, bundle_meters, heightmap, chunk_size)
-	else:
-		_materialize_vegetation(chunk_coord, heightmap)
-	_materialize_grass(chunk_coord, heightmap)
+	# Materialize from cache - ONE branch, shared with clear_area() (see _rematerialize).
+	_rematerialize(chunk_coord, heightmap, chunk_size)
 
 
 ## Determine terrain type for a bundle
@@ -762,14 +754,38 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 			_chunk_terrain[chunk_coord] = terrain
 			affected_chunks.append(chunk_coord)
 
-	# Re-materialize affected chunks from cache
+	# Re-materialize affected chunks from cache.
+	#
+	# THE BUG (Technical Director, war room 2026-07-12): this used to call
+	# _materialize_vegetation() UNCONDITIONALLY - the LEGACY PROCEDURAL PALM PATH -
+	# and never re-ran the patch layer. So ONE GRENADE turned a 256m chunk of the
+	# authored jungle (23 hand-composed patches, Poisson-spaced, palette-atlased,
+	# LOD-twinned) into procedural palm trees. And it fires on every SitePlanner
+	# stamp too, so every LZ, firebase and outpost did it as well.
+	#
+	# generate_for_chunk() has always branched correctly (see :314). This is the
+	# same branch. It should never have been written twice.
 	for chunk_coord in affected_chunks:
 		clear_chunk_visuals(chunk_coord)
 		if heightmap:
-			_materialize_vegetation(chunk_coord, heightmap)
-			_materialize_grass(chunk_coord, heightmap)
+			_rematerialize(chunk_coord, heightmap, chunk_size)
 
 	return cleared
+
+
+## ONE place that decides how a chunk's vegetation is built. Called by
+## generate_for_chunk() and by clear_area(), which is the whole point: two copies of
+## this branch is how the jungle quietly turned into palm trees.
+func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
+	if _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
+		# Authored patches bring their own trees - the lone-tree layer would double
+		# the canopy and blow the tri budget, so it stays off.
+		_patch_layer.generate_for_chunk(
+			chunk_coord, _chunk_terrain[chunk_coord],
+			_bundles_per_chunk, bundle_meters, heightmap, chunk_size)
+	else:
+		_materialize_vegetation(chunk_coord, heightmap)
+	_materialize_grass(chunk_coord, heightmap)
 
 
 ## Check if position blocks LOS (heavy/medium jungle)

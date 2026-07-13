@@ -138,3 +138,106 @@ const STRUCTURES := {
 
 static func get_entry(model_name: String) -> Dictionary:
 	return STRUCTURES.get(model_name, {"box": Vector3(3, 2, 3), "y_offset": 1.0, "footprint": Vector2(4, 4), "scale": 1.0})
+
+
+## ============================ MATERIAL, AUTHORED ============================
+##
+## THE BUG THIS REPLACES (war room, 2026-07-12). A structure's BALLISTICS were decided
+## by `site_planner._SOFT_NAME_HINTS` doing SUBSTRING MATCHING ON THE GLB FILENAME.
+## Verified against the real assets on disk:
+##
+##   barracks_bunker.glb  -> SOFT COVER   (matched "rack")   *** A BUNKER ***
+##   french_barracks.glb  -> SOFT COVER   (matched "rack")
+##   us_halftrack.glb     -> SOFT COVER   (matched "rack")   *** AN ARMOURED VEHICLE ***
+##   quonset_hut.glb      -> SOFT COVER   (matched "hut")    *** CORRUGATED STEEL ***
+##   bomb_crater.glb      -> SOFT COVER   (matched "crate")  *** A HOLE IN THE GROUND ***
+##
+## That is not a naming convention. It is a landmine, and it was about to have a
+## hundred more models dropped on it.
+##
+## MATERIAL IS AUTHORED DATA. It is never a guess about what somebody typed when they
+## saved the file. `soft` means lead goes THROUGH it - and probe_penetration measured
+## exactly what that costs: x0.79 the first layer, x0.61 the second, and the THIRD
+## layer stops the round (soft_left = 2).
+##
+## In this war most "walls" are thatch, bamboo and palm leaf: CONCEALMENT, NOT COVER.
+## A hooch wall stopping a 7.62 was always a lie the physics told.
+enum Mat { THATCH, WOOD, EARTH, MASONRY, METAL, CONCRETE }
+
+## Which materials lead goes through.
+const SOFT_MATS: Array = [Mat.THATCH, Mat.WOOD]
+
+const MATERIALS := {
+	# --- SOFT: lead goes through. Thatch, palm, bamboo, thin plank, cloth. ---
+	"thatched_hut": Mat.THATCH, "stilt_house": Mat.THATCH, "hootch": Mat.THATCH,
+	"rice_storage": Mat.THATCH, "communal_house": Mat.THATCH, "market_hall": Mat.THATCH,
+	"latrine": Mat.THATCH, "shower_point": Mat.THATCH, "tent": Mat.THATCH,
+	"burned_hut": Mat.WOOD, "gate_fence": Mat.WOOD, "dock_pier": Mat.WOOD,
+	"wooden_bridge": Mat.WOOD, "pow_cage": Mat.WOOD, "weapons_cache": Mat.WOOD,
+	"three_room_house": Mat.WOOD, "plantation_house": Mat.WOOD, "barracks": Mat.WOOD,
+	"french_barracks": Mat.WOOD, "mess_hall": Mat.WOOD, "aid_station": Mat.WOOD,
+	"barbed_wire": Mat.WOOD, "barbed_wire_coil": Mat.WOOD, "barbwire_tangle": Mat.WOOD,
+	"triple_concertina": Mat.WOOD, "claymore_line": Mat.WOOD, "tank_trap": Mat.WOOD,
+	"punji_pit": Mat.WOOD, "punji_trap": Mat.WOOD, "spider_hole": Mat.WOOD,
+
+	# --- HARD: stops the round. Earth, sandbag, timber-and-earth bunker, stone. ---
+	"bunker": Mat.EARTH, "barracks_bunker": Mat.EARTH, "ammo_bunker": Mat.EARTH,
+	"commo_bunker": Mat.EARTH, "conex_bunker": Mat.EARTH, "powder_bunker": Mat.EARTH,
+	"sandbag_bunker": Mat.EARTH, "destroyed_bunker": Mat.EARTH,
+	"sandbag_heavy": Mat.EARTH, "sandbag_light": Mat.EARTH, "foxhole_sandbags": Mat.EARTH,
+	"mg_nest": Mat.EARTH, "mg_nest_sandbag": Mat.EARTH, "mortar_pit": Mat.EARTH,
+	"artillery_pit": Mat.EARTH, "trench_modular": Mat.EARTH, "bomb_crater": Mat.EARTH,
+	"tunnel_entrance_hidden": Mat.EARTH, "underground_hospital": Mat.EARTH,
+	"aircraft_revetment": Mat.EARTH, "tank_revetment": Mat.EARTH, "helipad": Mat.EARTH,
+	"psp_helipad": Mat.EARTH, "runway_section": Mat.EARTH,
+
+	"pagoda": Mat.MASONRY, "village_pagoda": Mat.MASONRY, "bell_tower": Mat.MASONRY,
+	"well": Mat.MASONRY, "cham_temple_ruin": Mat.MASONRY, "cultist_temple2": Mat.MASONRY,
+	"stone_arch_bridge": Mat.MASONRY, "us_army_bridge": Mat.MASONRY,
+	"government_building": Mat.MASONRY, "villa": Mat.MASONRY, "fire_station": Mat.MASONRY,
+	"wall_straight_door": Mat.MASONRY, "wall_corner_tall": Mat.MASONRY,
+	"wall_remnant": Mat.MASONRY, "wall_u_ruin": Mat.MASONRY, "ruins_corner": Mat.MASONRY,
+	"ruin_house_half": Mat.MASONRY, "ruin_house_shell": Mat.MASONRY,
+	"ruinset_collapsed_block": Mat.MASONRY, "ruinset_compound": Mat.MASONRY,
+	"ruinset_courtyard": Mat.MASONRY, "ruinset_defense_corner": Mat.MASONRY,
+	"ruinset_street_row": Mat.MASONRY, "rubble_pile": Mat.MASONRY,
+	"rubble_pile_medium": Mat.MASONRY, "rubble_heap_tall": Mat.MASONRY,
+	"rubble_debris_large": Mat.MASONRY, "rubble_debris_small": Mat.MASONRY,
+	"rubble_field_wide": Mat.MASONRY, "rubble_scatter_tiny": Mat.MASONRY,
+	"brick_pile": Mat.MASONRY, "gate_entrance": Mat.MASONRY,
+	"gate_entrance_lowpoly": Mat.MASONRY,
+
+	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
+	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
+	"zpu_aa_gun": Mat.METAL, "m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
+	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
+	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE, "toc": Mat.CONCRETE,
+	"fire_direction_center": Mat.CONCRETE, "operations_building": Mat.CONCRETE,
+}
+
+
+## THE ONE AUTHORITY on whether lead goes through a structure.
+##
+## Unknown models fall back to the old filename heuristic - but they do it LOUDLY.
+## A gap in the table must be a WARNING IN THE LOG, never a structure that is silently
+## bulletproof (or silently made of paper).
+static func is_soft(model_name: String) -> bool:
+	if MATERIALS.has(model_name):
+		return int(MATERIALS[model_name]) in SOFT_MATS
+	var guess: bool = _filename_guess(model_name)
+	push_warning("[CollisionTable] '%s' has NO AUTHORED MATERIAL. Guessing %s from its FILENAME - which is how a bunker ends up shootable through because it contains 'rack'. Add it to MATERIALS." % [
+		model_name, "SOFT" if guess else "HARD"])
+	return guess
+
+
+## The retired heuristic. Kept ONLY as a loud fallback. Do not extend it.
+const _SOFT_NAME_HINTS: Array[String] = ["hooch", "hootch", "hut", "thatch", "bamboo",
+	"fence", "shack", "lean_to", "leanto", "basket", "drying", "hedge", "brush", "cart"]
+
+
+static func _filename_guess(model_name: String) -> bool:
+	var n: String = model_name.to_lower()
+	for h in _SOFT_NAME_HINTS:
+		if n.contains(h):
+			return true
+	return false

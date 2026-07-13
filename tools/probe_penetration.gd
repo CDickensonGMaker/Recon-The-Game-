@@ -66,9 +66,36 @@ func _ready() -> void:
 	print("")
 	print("  no cover %3d  |  1 thatch %3d  |  2 thatch %3d  |  3 thatch %3d  |  sandbag %3d" % [
 		base, s1, s2, s3, hard])
+	# ============ THE FILENAME FOOTGUN (war room 2026-07-12) ============
+	# A structure's BALLISTICS used to be decided by substring-matching the GLB
+	# filename (site_planner._SOFT_NAME_HINTS). Verified on the real assets:
+	#   barracks_bunker  -> SOFT (matched "rack")   A BUNKER
+	#   us_halftrack     -> SOFT (matched "rack")   AN ARMOURED VEHICLE
+	#   quonset_hut      -> SOFT (matched "hut")    CORRUGATED STEEL
+	#   bomb_crater      -> SOFT (matched "crate")  A HOLE IN THE GROUND
+	# Material is authored data now. This lane makes sure it stays that way.
+	print("
+-- THE FILENAME FOOTGUN: material is AUTHORED, not guessed --")
+	var must_stop: Array[String] = ["barracks_bunker", "us_halftrack", "quonset_hut",
+		"bomb_crater", "sandbag_bunker", "mg_nest"]
+	var must_pass: Array[String] = ["thatched_hut", "hootch", "tent", "gate_fence"]
+	var bad: int = 0
+	for m in must_stop:
+		if CollisionTable.is_soft(m):
+			bad += 1
+			print("      *** %s IS STILL SOFT COVER ***" % m)
+	_check("a BUNKER, a HALFTRACK and a STEEL HUT all STOP the round", bad == 0,
+		"%d of %d still shootable through" % [bad, must_stop.size()])
+	var soft_ok: int = 0
+	for m in must_pass:
+		if CollisionTable.is_soft(m):
+			soft_ok += 1
+	_check("...and a thatch hooch is still CONCEALMENT, not cover",
+		soft_ok == must_pass.size(), "%d/%d soft" % [soft_ok, must_pass.size()])
+
 	print("")
 	if _fails == 0:
-		print("*** PENETRATION IS REAL. A hooch wall is concealment, not cover. ***")
+		print("*** PENETRATION IS REAL. A hooch is concealment. A bunker is a bunker. ***")
 	else:
 		print("*** %d FAILURE(S) ***" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
