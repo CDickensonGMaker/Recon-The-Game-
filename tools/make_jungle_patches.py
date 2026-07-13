@@ -53,8 +53,10 @@ class Patch(F.Plant):
     def __init__(self, name):
         super().__init__(name)
         self.detail = []
-        # A DECLARED WATER VOLUME, not baked geometry. See declare_water().
-        self.water = None
+        # DECLARED WATER VOLUMES, not baked geometry. A LIST - a paddy tile split into
+        # four pans by a cross-bund has four separate sheets of water, each held by its
+        # own ring. See declare_water().
+        self.water = []
 
     def declare_water(self, level, half, at=(0.0, 0.0)):
         """This patch has a flooded pan. DO NOT bake a water quad into the mesh.
@@ -74,12 +76,16 @@ class Patch(F.Plant):
         So the patch now DECLARES its water and the game renders it with the terrain's
         own water. One source of truth for water in the whole game.
 
+        Call it ONCE PER PAN. A tile cross-bunded into four smaller pans holds four
+        separate sheets of water, each at its own level inside its own ring - which is
+        why this appends instead of assigning.
+
         level -- surface height above the tile floor, metres
         half  -- half-extent of the pan, metres
         at    -- pan centre within the tile, metres
         """
-        self.water = dict(level=round(level, 3), half=round(half, 3),
-                          at=[round(at[0], 3), round(at[1], 3)])
+        self.water.append(dict(level=round(level, 3), half=round(half, 3),
+                               at=[round(at[0], 3), round(at[1], 3)]))
 
     def stamp(self, plant, at=(0, 0, 0), yaw=0.0, scale=1.0, detail=False):
         base = len(self.verts)
@@ -281,17 +287,86 @@ def patch_grassfield(p, rng):
     trees(p, rng, 1, ring=(6.5, HALF))
 
 
-# ================================================================= PADDY (2)
+# ================================================================= PADDY (5)
+HALF_BUND = 0.45          # two tiles butt -> a 0.9 m footpath between neighbouring pans
+
+
+def paddy_ring(p, rng, half_bund=HALF_BUND):
+    """The closed bund ring EVERY paddy variant must have to stack into a field.
+
+    Factored out on purpose: a paddy tile only tiles if its ring obeys three rules, and
+    a variant that reinvents its own bunds will quietly break all three. Build the ring
+    here, once, and every variant inherits a tile that stacks.
+
+    1. ALL FOUR EDGES, so the ring is 4-fold symmetric. jungle_patch_layer rotates every
+       tile by a random 90-degree step; a symmetric ring maps onto itself, so the bunds
+       still meet their neighbours whichever way the tile landed.
+    2. EACH TILE OWNS HALF A BUND, inset just inside its own edge. Butt two tiles and the
+       half-bunds meet into one double-width bund - which is what the fat bund between two
+       real pans IS: the footpath. (Bunding the boundary LINE would put two tiles'
+       geometry in the same place and z-fight.)
+    3. EXACTLY TILE LONG. No overhang, so the ends meet at the corner and stop.
+
+    Returns the pan's inner half-extent - i.e. how much water and rice the ring can hold.
+    """
+    inset = TILE * 0.5 - half_bund * 0.5
+    for k in (-1, 1):
+        p.stamp(F.paddy_dike(rng, length=TILE, width=half_bund), at=(0, k * inset, 0))
+        p.stamp(F.paddy_dike(rng, length=TILE, width=half_bund),
+                at=(k * inset, 0, 0), yaw=math.pi / 2)
+    return TILE * 0.5 - half_bund
+
+
+def sow_rice(p, rng, n, cx, cy, half, ripe):
+    """Transplanted clumps inside one pan. NEVER pass detail=True to the stamp - stamp()
+    ORs its flag over the plant's own, which would throw away the structure stalks that
+    rice_clump keeps so the crop still stands (and sways) past the 46 m LOD line."""
+    for (x, y) in scatter_pts(rng, n, GAP["rice"], half=half):
+        p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85), ripe=ripe),
+                at=(cx + x, cy + y, 0.02), yaw=rng.uniform(0, math.tau),
+                scale=rng.uniform(0.85, 1.2))
+
+
 def patch_paddy(p, rng):
     """Bunds holding a shallow pan of water, rice transplanted in clumps. The
-    dikes are the only dry footing - that is the tactical point of a paddy."""
-    p.stamp(F.paddy_water(rng, size=TILE + 2.0), at=(0, 0, 0))
+    dikes are the only dry footing - that is the tactical point of a paddy.
+
+    THIS TILE IS BUILT TO BE STACKED. A single paddy is not a thing you find in the
+    world; a paddy FIELD is - a mosaic of bunded pans stitched across a flat valley
+    floor. So the tile has to survive being laid next to copies of itself.
+
+    Three rules make that work, and the old tile broke all three:
+
+    1. A CLOSED RING, ON ALL FOUR EDGES. The old tile bunded only three (two on Y, one
+       on +X), so the fourth side was open and the water had nowhere to be held. It also
+       meant the tile was NOT 4-fold symmetric - and jungle_patch_layer rotates every
+       tile by a random 90-degree step, so the missing side landed in a different place
+       each time. Now every edge has a bund, so a rotation maps the ring onto itself.
+
+    2. EACH TILE OWNS HALF A BUND. Each bund is INSET to sit in the strip just inside
+       its own tile edge. Butt two tiles together and their half-bunds meet at the
+       boundary to form one bund of double width - which is exactly what a real paddy
+       field looks like: the fat bund between two pans IS the footpath. The outer rim of
+       the field is left a single width, which is also right: nobody walks the outside.
+       (Bunding the tile's own boundary line instead would put two tiles' geometry in
+       the same place and z-fight.)
+
+    3. NOTHING OVERHANGS. The old bunds were TILE + 3.0 m long on a 12 m tile - a 1.5 m
+       overhang at each end, so stacked tiles grew a lattice of crossing bund stubs.
+       They are exactly TILE long now, so ends meet at the corner and stop.
+    """
+    HALF_BUND = 0.45                 # two tiles butt -> a 0.9 m footpath between pans
+    inset = TILE * 0.5 - HALF_BUND * 0.5
+    # water stops just under the bund's inner foot, so there is no dry seam at the edge
+    p.declare_water(level=0.055, half=TILE * 0.5 - 0.20, at=(0.0, 0.0))
     for k in (-1, 1):
-        p.stamp(F.paddy_dike(rng, length=TILE + 3.0), at=(0, k * TILE * 0.5, 0))
-    p.stamp(F.paddy_dike(rng, length=TILE + 3.0), at=(TILE * 0.5, 0, 0),
-            yaw=math.pi / 2)
+        p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND),
+                at=(0, k * inset, 0))
+        p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND),
+                at=(k * inset, 0, 0), yaw=math.pi / 2)
     ripe = rng.random() < 0.4
-    for (x, y) in scatter_pts(rng, 130, GAP["rice"], half=TILE * 0.46):
+    # keep the rice INSIDE the ring - rice does not grow on the footpath
+    for (x, y) in scatter_pts(rng, 130, GAP["rice"], half=TILE * 0.5 - HALF_BUND - 0.25):
         # NO detail=True HERE. stamp() ORs its flag over the plant's own
         # (`self.detail.append(detail or own)`), so forcing it True would throw away
         # the structure stalks rice_clump deliberately keeps, and the far paddy would
@@ -304,7 +379,7 @@ def patch_paddy(p, rng):
 def patch_paddy_edge(p, rng):
     """Where the paddy stops and the treeline starts - the classic killing
     ground: you are in the open, wet and slow, and they are in the green."""
-    p.stamp(F.paddy_water(rng, size=TILE * 0.95), at=(0, -TILE * 0.26, 0))
+    p.declare_water(level=0.055, half=TILE * 0.95 * 0.5, at=(0.0, -TILE * 0.26))
     p.stamp(F.paddy_dike(rng, length=TILE + 3.0), at=(0, TILE * 0.16, 0))
     for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=TILE * 0.44):
         if y > TILE * 0.10:
@@ -556,9 +631,14 @@ def main():
         pf = p.bake_far()
         far_tris = sum(max(0, len(f) - 2) for f in pf.faces)
         export(pf.bake(flat=False), os.path.join(OUT_DIR, name + "_far.glb"))
-        manifest.append(dict(name=name, density=density, desc=desc, tile_m=TILE,
-                             verts=len(p.verts), tris=tris, far_tris=far_tris,
-                             height_m=round(max(zs) - min(zs), 2)))
+        entry = dict(name=name, density=density, desc=desc, tile_m=TILE,
+                     verts=len(p.verts), tris=tris, far_tris=far_tris,
+                     height_m=round(max(zs) - min(zs), 2))
+        if p.water:
+            # The game reads this and renders the pan with the TERRAIN's swamp water.
+            # No water geometry ships in the patch mesh.
+            entry["water"] = p.water
+        manifest.append(entry)
         rows.append((name, density, len(p.verts), tris, far_tris,
                      round(max(zs), 1), desc))
         for o in list(bpy.data.objects):

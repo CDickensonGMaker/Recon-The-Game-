@@ -670,14 +670,24 @@ def liana(rng, length=6.0, thick=0.075, leaves=10):
 
 def paddy_dike(rng, length=11.0, width=0.9, height=0.34):
     """Earth bund. A paddy is DEFINED by these - they hold the 5-10cm of water
-    in and double as the only footpath through a flooded field."""
+    in and double as the only footpath through a flooded field.
+
+    THE ENDS MUST BE EXACT. A bund is only useful if tiles can be stacked into a field,
+    and that means one tile's bund has to BUTT cleanly against its neighbour's. The
+    wobble that keeps it from looking machine-made used to be a raw sine, which is zero
+    at t=0 but lands at -7.5 cm at t=1 - so every bund ended 7.5 cm off its own line and
+    no two ever met. The wobble is now enveloped to zero at BOTH ends: the middle still
+    meanders like something a farmer piled up by hand, and the ends are dead on the mark.
+    """
     p = Plant("dike")
     segs = 8
     verts, faces, sway = [], [], []
     for i in range(segs + 1):
         t = i / segs
         x = length * (t - 0.5)
-        wob = math.sin(t * 4.0) * 0.10          # hand-built, never straight
+        # sin(pi*t) is 0 at both ends and 1 in the middle - it pins the ends without
+        # flattening the run.
+        wob = math.sin(t * 4.0) * 0.10 * math.sin(math.pi * t)
         h = height * rng.uniform(0.85, 1.1)
         w = width * 0.5
         verts += [(x, wob - w, 0.0), (x, wob - w * 0.42, h),
@@ -692,13 +702,23 @@ def paddy_dike(rng, length=11.0, width=0.9, height=0.34):
 
 
 def paddy_water(rng, size=11.0):
-    """The flooded pan itself - a shallow sheet a few cm above the mud."""
-    p = Plant("water")
-    h = 0.055
-    r = size * 0.5
-    p.add([(-r, -r, h), (r, -r, h), (r, r, h), (-r, r, h)],
-          [[0, 1, 2, 3]], "paddy_water", [0.0] * 4)
-    return p
+    """DEAD. Do not use. Kept only so an old call fails loudly instead of silently
+    baking a black quad back into a paddy.
+
+    This used to stamp a flat quad with the `paddy_water` palette colour into the patch
+    mesh. That quad was then merged into the one big vegetation surface and rendered
+    through vegetation_sway.gdshader - which is OPAQUE, alpha-scissored and lambert-lit.
+    So it was not water. It was a dark leaf lying flat: no transparency, no depth, no
+    ripple, no shore. A rice paddy read as a black hole in the ground.
+
+    Water is now DECLARED by the patch (Patch.declare_water) and rendered by the game
+    with terrain/water/water_swamp.gdshader - the terrain's own "shallow, vegetated
+    wetland" shader, which is precisely what a paddy is. One source of truth for water.
+    """
+    raise RuntimeError(
+        "paddy_water() is dead - it baked a black quad into the vegetation surface. "
+        "Use Patch.declare_water(level, half, at) and let the terrain's water_swamp "
+        "shader render the pan.")
 
 
 # --------------------------------------------------------------------- main

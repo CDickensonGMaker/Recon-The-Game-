@@ -16,8 +16,12 @@ class_name EnemySquad
 extends RefCounted
 
 const SHARE_RANGE: float = 30.0        ## a spotter wakes squadmates within this
-const CRUMB_INTERVAL: float = 1.0      ## seconds between trail crumbs
-const CRUMB_MAX: int = 5               ## trail length
+## THE TRAIL (Summoner, 2026-07-12, watching the patrol lab: "even the most
+## searching unit stops after their circles hit. i think the nva should get more
+## additional breadcrumbs to follow"). Five crumbs at 1/sec was FIVE SECONDS of
+## your path - not a trail, a rounding error. You could outrun it at a walk.
+const CRUMB_INTERVAL: float = 0.6      ## seconds between trail crumbs
+const CRUMB_MAX: int = 20              ## ~12 seconds of the player's actual path
 const KNOWLEDGE_TTL: float = 12.0      ## squad "loses the scent" after this
 
 ## HLL doctrine pass (2026-07-10): fire-and-maneuver + anti-spam brokers.
@@ -194,11 +198,58 @@ const HUNT_GROWTH: float = 1.4        ## m/s the ring pushes outward (x determin
                                       ## player to the outer ring. A sweep CLEARS GROUND -
                                       ## close in first, then wider. ~17m at 5s, 42m at 20s,
                                       ## 70m by 45s. Slow enough to be menacing.
-const HUNT_R_MAX: float = 70.0
+const HUNT_R_MAX: float = 70.0        ## ...for an average man; scaled by determination below
+## THE NET ADVANCES. It does not just inflate. The anchor SLIDES down the heading -
+## they extrapolate your run and push the whole sweep after you. Without this the
+## hunt was a donut that grew to its cap and then sat there while a timer ran out,
+## which is exactly what the lab showed.
+const HUNT_ADVANCE: float = 1.1        ## m/s the anchor slides along the trail (x determination)
+const HUNT_ADVANCE_MAX: float = 130.0  ## ...but they cannot chase you to the horizon
 const HUNT_ARC_DEG: float = 80.0      ## half-angle of the search cone about the heading
 const HUNT_STEP_DEG: float = 32.0     ## angular gap between adjacent searchers
 const HUNT_BASE_S: float = 25.0       ## everyone hunts at least this long
 const HUNT_DET_S: float = 65.0        ## ...plus this much, scaled by determination
+
+
+## WHICH WAY WAS HE RUNNING? The crumb trail, read oldest -> newest, IS his course.
+##
+## THE BUG THIS REPLACES (found 2026-07-12 in the patrol lab): enemy_base built the
+## heading from search_point(), which walks crumbs NEWEST->OLDEST and returns the
+## second-newest. So `heading = older_crumb - last_known` - it pointed where he had
+## COME FROM. The net has been sweeping backwards since the day it shipped, and
+## probe_hunt never saw it because the probe passed the heading in by hand and only
+## ever tested EnemySquad in isolation. Test the WIRING, not just the part.
+static func trail_heading(id: int) -> Vector3:
+	if id < 0 or not _squads.has(id):
+		return Vector3.ZERO
+	var crumbs: Array = _squads[id].crumbs
+	if crumbs.size() < 2:
+		return Vector3.ZERO
+	var newest: Vector3 = crumbs[crumbs.size() - 1]
+	var older: Vector3 = crumbs[maxi(0, crumbs.size() - 4)]   # a few back: smooth out jinking
+	var h: Vector3 = newest - older
+	h.y = 0.0
+	return h.normalized() if h.length() > 0.5 else Vector3.ZERO
+
+
+## How much of the trail THIS MAN can actually read. A farmer sees churned mud. An
+## NVA regular reads the whole run: how many, how fast, how long ago.
+## (Summoner: "the nva should get more additional breadcrumbs to follow.")
+static func readable_crumbs(determination: float) -> int:
+	return clampi(int(lerpf(4.0, float(CRUMB_MAX), clampf(determination, 0.0, 1.0))), 4, CRUMB_MAX)
+
+
+## The centre of the net RIGHT NOW - it slides down the trail as they push after you.
+static func hunt_anchor_now(id: int, now_ms: float, determination: float) -> Vector3:
+	if id < 0 or not _squads.has(id):
+		return Vector3.ZERO
+	var sq: Dictionary = _squads[id]
+	if float(sq.get("hunt_start", 0.0)) <= 0.0:
+		return Vector3.ZERO
+	var elapsed: float = (now_ms - float(sq.hunt_start)) / 1000.0
+	var det: float = clampf(determination, 0.0, 1.0)
+	var advance: float = minf(HUNT_ADVANCE_MAX, HUNT_ADVANCE * elapsed * (0.4 + det))
+	return (sq.hunt_anchor as Vector3) + (sq.hunt_heading as Vector3) * advance
 
 
 ## Contact broken. Start the net at `anchor`, pushing along `heading` (where he was
@@ -266,9 +317,7 @@ static func hunt_point(id: int, me: Object, now_ms: float, determination: float)
 		slots[mid] = slots.size()   # first come, first sector - and he KEEPS it
 	var slot: int = int(slots[mid])
 
-	var elapsed: float = (now_ms - float(sq.hunt_start)) / 1000.0
-	var radius: float = minf(HUNT_R_MAX,
-		HUNT_R0 + HUNT_GROWTH * elapsed * (0.6 + clampf(determination, 0.0, 1.0)))
+	var radius: float = hunt_radius(id, now_ms, determination)
 
 	# ALTERNATING FAN, opening outward from the heading:
 	#   slot 0 -> dead ahead   1 -> +step   2 -> -step   3 -> +2step   4 -> -2step
@@ -286,7 +335,8 @@ static func hunt_point(id: int, me: Object, now_ms: float, determination: float)
 
 	var heading: Vector3 = sq.hunt_heading
 	var yaw: float = atan2(heading.x, heading.z) + deg_to_rad(off_deg)
-	var anchor: Vector3 = sq.hunt_anchor
+	# The net's centre has MOVED - they are chasing, not circling a memory.
+	var anchor: Vector3 = hunt_anchor_now(id, now_ms, determination)
 	return anchor + Vector3(sin(yaw), 0.0, cos(yaw)) * radius
 
 
@@ -298,4 +348,8 @@ static func hunt_radius(id: int, now_ms: float, determination: float) -> float:
 	if start <= 0.0:
 		return 0.0
 	var elapsed: float = (now_ms - start) / 1000.0
-	return minf(HUNT_R_MAX, HUNT_R0 + HUNT_GROWTH * elapsed * (0.6 + clampf(determination, 0.0, 1.0)))
+	var det: float = clampf(determination, 0.0, 1.0)
+	# A determined man casts a WIDER net as well as a longer one: 45m for a farmer,
+	# ~88m for an NVA regular.
+	var cap: float = HUNT_R_MAX * (0.65 + 0.6 * det)
+	return minf(cap, HUNT_R0 + HUNT_GROWTH * elapsed * (0.6 + det))

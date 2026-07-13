@@ -286,16 +286,30 @@ func _process(_d: float) -> void:
 				_line(man.global_position, route[man._patrol_index],
 					Color(col.r, col.g, col.b, 0.25))
 
-		# THE NET. The ring they are pushing outward, and where it is anchored.
+		# THE TRAIL. Your actual path, as they read it. The NVA read 18 crumbs of it;
+		# a farmer reads 8. This is the thing that lets them CHASE instead of search.
+		var hs: Dictionary = EnemySquad._squads.get(sq.id, {})
+		var crumbs: Array = hs.get("crumbs", [])
+		var readable: int = EnemySquad.readable_crumbs(det)
+		for ci in range(crumbs.size()):
+			var fresh: bool = ci >= crumbs.size() - readable
+			var cc: Color = Color(0.95, 0.9, 0.4, 0.8) if fresh else Color(0.4, 0.4, 0.35, 0.35)
+			_ring(crumbs[ci] as Vector3, 1.6, cc, 8)
+			if ci > 0:
+				_line(crumbs[ci - 1] as Vector3, crumbs[ci] as Vector3, cc)
+
+		# THE NET, and the fact that IT IS MOVING. The anchor slides down your escape
+		# route - that is the whole difference between a search and being hunted.
 		if hunting:
 			var r: float = EnemySquad.hunt_radius(sq.id, now, det)
 			if r > 0.0:
-				var anchor: Vector3 = EnemySquad.shared_last_known(sq.id)
-				var hs: Dictionary = EnemySquad._squads.get(sq.id, {})
-				if hs.has("hunt_anchor"):
-					anchor = hs.hunt_anchor
+				var anchor: Vector3 = EnemySquad.hunt_anchor_now(sq.id, now, det)
+				var origin: Vector3 = hs.get("hunt_anchor", anchor)
 				_ring(anchor, r, Color(1.0, 0.35, 0.1, 0.55), 48)
-				_ring(anchor, 2.0, Color(1.0, 0.35, 0.1, 0.9))
+				_ring(anchor, 2.5, Color(1.0, 0.35, 0.1, 0.95))
+				# where the hunt STARTED vs where the net is NOW - the chase, drawn
+				_ring(origin, 2.0, Color(0.6, 0.25, 0.1, 0.5), 10)
+				_line(origin, anchor, Color(1.0, 0.35, 0.1, 0.8))
 
 	_im.surface_end()
 	_hud.text = _readout(now)
@@ -322,8 +336,10 @@ func _readout(now: float) -> String:
 			var persist: float = EnemySquad.HUNT_BASE_S + EnemySquad.HUNT_DET_S * det
 			var start: float = float(EnemySquad._squads[sq.id].get("hunt_start", 0.0))
 			var left: float = persist - (now - start) / 1000.0
-			hunt = "   net %.0fm, gives up in %.0fs" % [
-				EnemySquad.hunt_radius(sq.id, now, det), maxf(0.0, left)]
+			var origin2: Vector3 = EnemySquad._squads[sq.id].get("hunt_anchor", Vector3.ZERO)
+			var pushed: float = origin2.distance_to(EnemySquad.hunt_anchor_now(sq.id, now, det))
+			hunt = "   HUNTING: net %.0fm, pushed %.0fm down your trail, gives up in %.0fs" % [
+				EnemySquad.hunt_radius(sq.id, now, det), pushed, maxf(0.0, left)]
 		s += "SQUAD %d  %-12s  %d men  det %.2f  %s%s\n" % [
 			sq.id, sq.archetype, alive, det, tier_name, hunt]
 	s += "\nBreak line of sight and WATCH: they fan into wedges and the net grows.\n"

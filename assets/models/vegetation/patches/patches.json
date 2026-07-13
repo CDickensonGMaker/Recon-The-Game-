@@ -36,20 +36,36 @@
       "density": "paddy",
       "desc": "rice paddy: bunds, water, transplanted clumps",
       "tile_m": 12.0,
-      "verts": 14672,
-      "tris": 11066,
-      "far_tris": 2486,
-      "height_m": 0.87
+      "verts": 14704,
+      "tris": 11112,
+      "far_tris": 2532,
+      "height_m": 0.88,
+      "water": {
+        "level": 0.055,
+        "half": 5.8,
+        "at": [
+          0.0,
+          0.0
+        ]
+      }
     },
     {
       "name": "patch_paddy_edge",
       "density": "paddy",
       "desc": "paddy meets treeline - the killing ground",
       "tile_m": 12.0,
-      "verts": 14129,
-      "tris": 12390,
-      "far_tris": 2830,
-      "height_m": 9.99
+      "verts": 14125,
+      "tris": 12388,
+      "far_tris": 2828,
+      "height_m": 9.99,
+      "water": {
+        "level": 0.055,
+        "half": 5.7,
+        "at": [
+          0.0,
+          -3.12
+        ]
+      }
     },
     {
       "name": "patch_understory",

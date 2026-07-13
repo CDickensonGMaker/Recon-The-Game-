@@ -20,6 +20,19 @@ extends Node3D
 const PATCH_DIR := "res://assets/models/vegetation/patches/"
 const MANIFEST := PATCH_DIR + "patches.json"
 const SWAY_SHADER := "res://terrain/shaders/vegetation_sway.gdshader"
+
+## THE PADDY WATER. A rice paddy is a flooded pan, and the terrain already knows how to
+## render exactly that: water_swamp.gdshader describes itself as "shallow, vegetated
+## wetland" and has ripples, muck, depth fade and a shore fade.
+##
+## The patches used to BAKE a flat quad of water into the vegetation mesh. That quad got
+## merged into the one big patch surface and rendered through vegetation_sway.gdshader -
+## which is OPAQUE, alpha-scissored and lambert-lit. So the water was not water. It was a
+## dark leaf lying flat, and a rice paddy read as a black hole in the ground.
+##
+## Now the patch DECLARES its pan in patches.json ("water": {level, half, at}) and we
+## render it here with the terrain's own water shader. One source of truth for water.
+const WATER_SHADER := "res://terrain/water/water_swamp.gdshader"
 const PALETTE_TEX := PATCH_DIR + "jungle_palette.png"
 
 ## Terrain types (mirrors GameplayGrid.TerrainType - kept local to avoid a hard dep)
@@ -76,6 +89,12 @@ var _material: ShaderMaterial
 var _chunk_nodes: Dictionary = {}         ## Vector2i -> Array[MultiMeshInstance3D]
 var _loaded := false
 
+## name -> {level: float, half: float, at: [x, y]} for patches that declare a flooded pan.
+var _water: Dictionary = {}
+## name -> PlaneMesh sized to that patch's pan.
+var _water_mesh: Dictionary = {}
+var _water_material: ShaderMaterial = null
+
 
 func _ready() -> void:
 	_load_patches()
@@ -112,6 +131,19 @@ func _load_patches() -> void:
 			_by_density[density] = []
 		(_by_density[density] as Array).append(nm)
 
+		# a flooded pan, declared by the patch and rendered with the terrain's water
+		if entry.has("water"):
+			var w := entry["water"] as Dictionary
+			_water[nm] = w
+			var pm := PlaneMesh.new()
+			var side := float(w.get("half", 6.0)) * 2.0
+			pm.size = Vector2(side, side)
+			# a few cuts so the shader's ripple has vertices to move and the shore fade
+			# has somewhere to fade ACROSS. A single quad would band.
+			pm.subdivide_width = 6
+			pm.subdivide_depth = 6
+			_water_mesh[nm] = pm
+
 	_material = ShaderMaterial.new()
 	_material.shader = load(SWAY_SHADER)
 	_material.set_shader_parameter("wind_strength", wind_strength)
@@ -128,6 +160,16 @@ func _load_patches() -> void:
 		enabled = false
 		return
 	_material.set_shader_parameter("albedo_tex", pal)
+
+	if not _water.is_empty():
+		var wsh := load(WATER_SHADER) as Shader
+		if wsh == null:
+			# Do not silently fall back to a black quad - that is the bug we just fixed.
+			push_error("[JunglePatch] %s missing - paddies would render dry" % WATER_SHADER)
+		else:
+			_water_material = ShaderMaterial.new()
+			_water_material.shader = wsh
+			_water_material.render_priority = 1   # draw after the vegetation it sits under
 
 	if _mesh.is_empty():
 		push_warning("[JunglePatch] no patch meshes loaded - patch layer OFF")
@@ -179,8 +221,6 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 
 	for cz in cells:
 		for cx in cells:
-			if rng.randf() > fill_chance:
-				continue
 			var lx := (cx + 0.5) * tile_meters
 			var lz := (cz + 0.5) * tile_meters
 			var wx := origin.x + lx
@@ -191,7 +231,15 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 			var bz := clampi(int(lz / bundle_m), 0, bundles - 1)
 			var ttype := int(terrain[bz * bundles + bx])
 			if not TYPE_DENSITY.has(ttype):
-				continue                      # CLEAR / RICE_PADDY / water: bare
+				continue                      # CLEAR / water: bare
+
+			# A PADDY FIELD IS CONTIGUOUS. Every other density is a scatter, and skipping
+			# a tile just thins the jungle - fine. But a paddy is a MOSAIC OF BUNDED PANS:
+			# skip one and you punch a hole in the middle of the field where the water
+			# drains out and the bunds run into nothing. So paddies always fill.
+			var is_paddy := ttype == T_RICE_PADDY
+			if not is_paddy and rng.randf() > fill_chance:
+				continue
 
 			var normal := heightmap.get_normal_world(wx, wz) as Vector3
 			if normal.dot(Vector3.UP) < min_dot:
@@ -206,9 +254,16 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 
 			var h := heightmap.sample_world(wx, wz) as float
 			var xf := Transform3D()
-			# 90-degree steps only: the patches are authored to tile that way
+			# 90-degree steps only: the patches are authored to tile that way.
+			# A paddy's bund ring is 4-fold symmetric, so a quarter turn maps it onto
+			# itself and the bunds still meet their neighbours.
 			xf = xf.rotated(Vector3.UP, TAU * 0.25 * rng.randi_range(0, 3))
-			xf = xf.scaled(Vector3.ONE * rng.randf_range(0.92, 1.10))
+			if not is_paddy:
+				# THE SCALE JITTER MUST NOT TOUCH A PADDY. It is what stops a jungle
+				# looking stamped - but it turns a 12 m tile into an 11.0-13.2 m tile,
+				# and a bund that is meant to butt against its neighbour's then misses by
+				# up to a metre. A paddy field is a grid; a grid has to be on the grid.
+				xf = xf.scaled(Vector3.ONE * rng.randf_range(0.92, 1.10))
 			xf.origin = Vector3(wx, h, wz)
 
 			var sub := Vector2i(int(lx / subcell_meters), int(lz / subcell_meters))
@@ -248,7 +303,46 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 			nodes.append(_make_bucket(
 				"%s_%s_%d_%d_far" % [nm, parts[0], chunk_coord.x, chunk_coord.y],
 				_mesh_far[nm], local, centre, near_distance, view_distance))
+
+		# THE FLOODED PAN. One extra MultiMesh per paddy patch type per chunk - so a
+		# whole chunk of rice paddy costs ONE more draw call, not one per tile.
+		# No near/far split: water has no detail to drop, and a paddy that dried up at
+		# 46m would be far more noticeable than the triangles it saved.
+		if _water.has(nm) and _water_material != null:
+			var w := _water[nm] as Dictionary
+			var at: Array = w.get("at", [0.0, 0.0])
+			# the pan sits INSIDE the tile, so it rides the patch's own yaw
+			var offset := Vector3(float(at[0]), float(w.get("level", 0.05)), float(at[1]))
+			var wx: Array[Transform3D] = []
+			for i in local.size():
+				var t := local[i] as Transform3D
+				wx.append(Transform3D(t.basis, t.origin + t.basis * offset))
+			nodes.append(_make_water_bucket(
+				"%s_%s_%d_%d_water" % [nm, parts[0], chunk_coord.x, chunk_coord.y],
+				_water_mesh[nm], wx, centre))
 	_chunk_nodes[chunk_coord] = nodes
+
+
+func _make_water_bucket(nm: String, mesh: Mesh, xforms: Array[Transform3D],
+		centre: Vector3) -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = nm
+	mmi.multimesh = mm
+	mmi.material_override = _water_material
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.position = centre
+	# runs to the full view distance - see the note at the call site
+	mmi.visibility_range_end = view_distance
+	mmi.visibility_range_end_margin = view_fade_margin
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	add_child(mmi)
+	return mmi
 
 
 func _make_bucket(nm: String, mesh: Mesh, xforms: Array[Transform3D],

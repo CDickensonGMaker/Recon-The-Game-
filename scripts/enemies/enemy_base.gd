@@ -1084,9 +1084,18 @@ func _evaluate_goals() -> void:
 		# DETERMINATION. NVA do not go home.
 		var now_h: float = float(Time.get_ticks_msec())
 		if squad_id >= 0 and last_known_target_pos != Vector3.ZERO and alert_tier >= AlertTier.ALERT:
-			# Heading = where he WENT (crumb trail), not where he was standing.
-			var heading: Vector3 = EnemySquad.search_point(squad_id, last_known_target_pos, 0.5) - last_known_target_pos
+			# WHICH WAY WAS HE RUNNING. Read the crumb trail oldest -> newest.
+			#
+			# THIS LINE WAS BACKWARDS UNTIL 2026-07-12. It used search_point(), which
+			# walks the trail NEWEST->OLDEST and hands back the second-newest crumb - so
+			# `heading = older - last_known` pointed where he had COME FROM, and the whole
+			# net swept away from him. probe_hunt never caught it because the probe passed
+			# a heading in BY HAND and only ever tested EnemySquad in isolation. The bug
+			# lived in the WIRING, which is the one place nothing was looking.
+			var heading: Vector3 = EnemySquad.trail_heading(squad_id)
 			if heading.length() < 0.5:
+				# No usable trail (he was seen once and vanished): push away from us, which
+				# is the only direction he can possibly have gone.
 				heading = last_known_target_pos - global_position
 			EnemySquad.begin_hunt(squad_id, last_known_target_pos, heading, now_h)
 		var hunting: bool = squad_id >= 0 and EnemySquad.hunt_active(squad_id, now_h, _determination())
