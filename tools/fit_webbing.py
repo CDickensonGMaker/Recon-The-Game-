@@ -45,6 +45,12 @@ from mathutils.bvhtree import BVHTree
 
 ROOT = r"C:\Users\caleb\RECONgame\art_source\characters"
 ARMORY = os.path.join(ROOT, "locker", "gear_armory.blend")
+# THE AID BAG lives in its own locker (tools/make_satchel.py). It is authored to this
+# exact contract - sat_sling is a STRAP with a LIVE shrinkwrap; the bag, flap, buckles
+# and cross are RIDERS that wear the sling's weights. It is a separate file only
+# because gear_armory.blend was open and unsaved when it was written, and clobbering a
+# man's working file is not a fitting strategy.
+SATCHEL = os.path.join(ROOT, "locker", "satchel_m3.blend")
 ANIMLIB = os.path.join(ROOT, "base_psx", "anim_library.blend")
 RIG = "PSXRig"
 
@@ -68,6 +74,14 @@ RIDES_ON = {
     "web_flap_r":   "web_pouch_r",
     "web_snap_l":   "web_pouch_l",
     "web_snap_r":   "web_pouch_r",
+    # THE AID BAG. The bag rides the SLING, exactly as a pouch rides the belt. The flap
+    # rides the bag; the buckles and the cross ride the flap. Order matters - a host
+    # must be weighted before its rider samples it, and dicts keep insertion order.
+    "sat_body":     "sat_sling",
+    "sat_flap":     "sat_body",
+    "sat_buckle_a": "sat_flap",
+    "sat_buckle_b": "sat_flap",
+    "sat_cross":    "sat_flap",
 }
 
 # WHAT COUNTS AS FAILURE - and why these numbers and not tighter ones.
@@ -176,15 +190,18 @@ def fit(unit_path):
     for o in list(bpy.data.objects):
         if o.name.startswith("web_"):
             bpy.data.objects.remove(o, do_unlink=True)
-    with bpy.data.libraries.load(ARMORY, link=False) as (src, dst):
-        dst.objects = [n for n in src.objects if n.startswith("web_")]
     web = {}
-    for o in dst.objects:
-        if o is None:
+    for locker, prefix in ((ARMORY, "web_"), (SATCHEL, "sat_")):
+        if not os.path.exists(locker):
             continue
-        scn.collection.objects.link(o)
-        o.parent = None
-        web[o.name] = o
+        with bpy.data.libraries.load(locker, link=False) as (src, dst):
+            dst.objects = [n for n in src.objects if n.startswith(prefix)]
+        for o in dst.objects:
+            if o is None:
+                continue
+            scn.collection.objects.link(o)
+            o.parent = None
+            web[o.name] = o
     if not web:
         raise FitError("no web_* objects in %s" % ARMORY)
     print("  appended %d harness pieces" % len(web))
@@ -233,10 +250,51 @@ def fit(unit_path):
 
     # ---- 3b. the harness must now be ON HIM, in world space, before we skin anything.
     #          Check the GEOMETRY, not the transform.
+    # A SLUNG BAG HANGS. A BELT DOES NOT.
+    #
+    # This check exists to catch the gear-at-the-feet bug, and it does it by asserting
+    # every harness piece has a vertex within 12cm of the body. That is TRUE OF WEBBING
+    # - a belt, a yoke, a pouch on a belt all lie ON him. It is NOT true of an aid bag:
+    # the M3 is 12cm deep, so a buckle on the FRONT of its flap is legitimately ~13cm
+    # off his flank, and the gate failed it.
+    #
+    # The gate was not wrong; it was pointed at something it does not govern. So the
+    # BAG'S OWN RIDERS are measured against THEIR HOST instead - which is the stronger
+    # test anyway, because "did the bag come off its sling" is the thing that actually
+    # matters. sat_sling itself is still measured against the BODY, because a sling
+    # that is not on him is exactly the bug this check was written for.
+    HANGS = {"sat_body", "sat_flap", "sat_buckle_a", "sat_buckle_b", "sat_cross"}
+
     dg = bpy.context.evaluated_depsgraph_get()
     bverts = [body.matrix_world @ v.co for v in body.data.vertices]
     worst, worst_n = 0.0, ""
     for n, o in web.items():
+        if n in HANGS:
+            host = web.get(RIDES_ON.get(n, ""))
+            if host is None:
+                continue
+            # MEASURE AGAINST THE HOST'S SURFACE, NOT ITS VERTICES.
+            # This file already learned that lesson once, for drift: "a 64-vert belt
+            # ring has sparse verts and the nearest-vertex jumps as it bends, which is
+            # what produced a bogus 23mm reading."
+            # I re-made the same mistake here and got a bogus 103mm: sat_cross is a
+            # small quad lying FLAT in the middle of a 36cm flap, so its nearest
+            # VERTEX is a flap CORNER 18cm away - while the cross is sitting 3mm off
+            # the flap's face. It had not come off anything. Use a BVH.
+            hb = BVHTree.FromPolygons(
+                [tuple(host.matrix_world @ v.co) for v in host.data.vertices],
+                [tuple(pp.vertices) for pp in host.data.polygons])
+            d = 0.0
+            for v in o.data.vertices:
+                hit, _, _, _ = hb.find_nearest(o.matrix_world @ v.co)
+                if hit is not None:
+                    d = max(d, ((o.matrix_world @ v.co) - hit).length)
+            if d > 0.06:
+                raise FitError(
+                    "%s has come OFF its host %s: nearest vertex is %.0f mm away. "
+                    "A rider must touch the thing it hangs from."
+                    % (n, RIDES_ON[n], d * 1000))
+            continue
         vs = [o.matrix_world @ v.co for v in o.data.vertices]
         d = min(min((v - b).length for b in bverts) for v in vs)
         if d > worst:
