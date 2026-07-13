@@ -134,12 +134,64 @@ already fires** (the HUD subscribes to four of them). Plus five changes in `weap
 
 ---
 
-## 7 · THE COST, STATED HONESTLY
+## 7 · THE COST — and the Arbiter overturning his own council
 
-**Putting the gun on the rig invalidates all 13 `*_fp.glb` exports and their `.tscn` wrappers**, and
-`export_viewmodel.py` must **skin** the gun instead of selecting it as a static object.
+**The two architects disagreed, and the one who MEASURED the meshes is right.**
 
-**Unavoidable — and far cheaper NOW, before eight clips per weapon exist, than it will ever be again.**
+- **Godot Specialist:** *"the gun-as-bones change invalidates all 13 `*_fp.glb` exports."*
+- **Technical Artist (measured every gun mesh):** **FALSE.** *"**All 13 existing idle clips keep working
+  untouched.**"*
+
+**The Technical Artist wins, and it makes this dramatically cheaper.** The rig change is **ADDITIVE**:
+
+> ### THE MINIMUM RIG CHANGE IS **TWO BONES.**
+> `weapon` + `mag` (its child) on `ArmsRig`. **52 bones → 54.**
+>
+> **The gun stays ONE mesh**, rigidly skinned (weight 1.0, one bone per vertex). **The magazine is a
+> VERTEX GROUP, not an object split** — because **glTF cannot animate node re-parenting**, so splitting
+> the gun into objects *loses*.
+>
+> Re-parent the `muzzle_/grip_/sight_` empties to the `weapon` bone. **Existing clips only touch arm
+> bones, so they survive untouched.**
+
+*(The §1 chain — `gun → magwell → gun_mag` — is still the RIGHT shape once you want a shared cross-gun
+library. But you do not need it to start. Two bones gets you a playing jam and a playing reload on the
+M16 this week.)*
+
+---
+
+## 7b · WHAT THE TECHNICAL ARTIST MEASURED — the things that would have cost you a week
+
+**Your mental model was ~80% right, and where it's wrong, it's wrong in your favour:**
+
+- **The support hand does NOT lock to the gun during a reload — THAT IS WHAT A RELOAD IS.** The lock
+  **hands off**: the gun goes to the trigger hand, the support hand goes to the magazine. You were
+  reaching for a lock that has to *break*.
+- **You independently reinvented key-pose blocking**, which is the actual professional method. Trust it.
+
+**And four measured landmines:**
+
+| | |
+|---|---|
+| **Every gun is one welded, UNPARENTED mesh in world space.** No vertex groups, no armature modifier. | **The gun literally cannot move today.** Every reload begins with the weapon tilting inboard, and **there is currently no channel that can express that.** |
+| **A `CHILD_OF` constraint with keyed 0→1 influence ALWAYS POPS** (stale inverse matrix). | Do not use one. **Bake the mag's follow in world space with the offset captured *at the handoff frame*** — then the seam is continuous by construction. |
+| **IK and `COPY_ROTATION` do not survive glTF.** | Every clip must be **baked with visual keying**. (Your pipeline already assumes this — keep it.) |
+| **The Mosin has non-uniform scale (0.957, 1.022, 1.043).** | **It will silently corrupt a skinned glTF export unless applied first.** Silently. |
+
+*(Also found: a live stale `handIK.L → COPY_TRANSFORMS → grip_L_M60_MG` constraint sitting in the blend,
+and a 156-bone unused Rigify rig.)*
+
+### The magazines, located and measured — start where it's free
+
+| Gun | Mag | Difficulty |
+|---|---|---|
+| **M16A1** (`AluMag.001`), **M14** (`AluMag`), **RPD** (`DrumOlive`) | one-material pick | **trivial — start here** |
+| AK47 (island 16), PPSh (island 4) | clean, needs an island-index pick | easy |
+| **M60** | **the belt is 69 islands** | **defer** |
+| **Colt .45** | **the mag is fused into the grip frame** | needs modelling |
+| Mosin, Ithaca | no removable magazine at all | n/a — stripper clips / shell-by-shell |
+
+**The M16 is a one-material pick. It is the pilot gun, and it costs you almost nothing to try.**
 
 ---
 
@@ -148,12 +200,13 @@ already fires** (the HUD subscribes to four of them). Plus five changes in `weap
 | # | Step | Whose |
 |---|---|---|
 | 0 | **`remove_immutable_tracks = false`** on every `*_fp.glb` | mine, 5 min |
-| 1 | **Rig the gun as bones** on `ArmsRig` (`gun → magwell → gun_mag`, bolt, charging handle). Re-export one gun — the **M16** — as the pilot. | **yours** |
+| 1 | **Add TWO bones** (`weapon` + `mag`) to `ArmsRig`. Skin the M16 rigidly to `weapon`; make its magazine (`AluMag.001` — a one-material pick) a **vertex group** on `mag`. Re-parent the muzzle/grip/sight empties to `weapon`. **Existing clips survive untouched.** | **yours** |
 | 2 | Cache the AnimationPlayer + `viewmodel_anim.gd` + fire `reload_cancelled` + MuzzlePoint on the bone | mine |
 | 3 | **Author `jam`** (30 frames) on the M16. **Watch it play in-game.** | **yours** |
 | 4 | Then `reload` and `reload_empty` on the M16 | **yours** |
 | 5 | Roll the rig change to the other 12; author the 8 family libraries | **yours** |
 | 6 | `TwoBoneIK3D` on the live `handIK` bones + `SpringBoneSimulator3D` on the sling | mine |
+| 7 | *Only when you want ONE reload to serve a whole family:* add the `magwell` offset bone (§1) | later |
 
 **Step 3 is the whole point of this ordering.** You will see a clip you made *play in the game* before you
 have invested a week in animation — which is the exact failure you asked me to fix.
