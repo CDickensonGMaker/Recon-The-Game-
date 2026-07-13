@@ -18,6 +18,7 @@ color = Color(0.25, 0.22, 0.18, 1)
 flanks = false
 retreats_when_hurt = true
 courage = 0.45
+determination = 0.45
 exposure_ramp_time = 3.0
 sprite_faction = "Vietcong and NVA"
 sprite_unit = "vc_guerilla_mosin"

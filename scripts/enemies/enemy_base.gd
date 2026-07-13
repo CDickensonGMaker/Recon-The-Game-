@@ -744,6 +744,11 @@ func _check_corpse_discovery() -> void:
 		awareness = maxf(awareness, 0.6)
 		last_known_target_pos = body   # they sweep outward from where he fell
 		target_last_seen_time = 0.0
+		# THE HUNT AND THE WITNESS RULE ARE ONE SYSTEM: fresh sign moves the whole net
+		# onto the body and restarts the clock. Leaving him in the open costs you twice.
+		if squad_id >= 0:
+			EnemySquad.begin_hunt(squad_id, body, body - global_position, float(Time.get_ticks_msec()))
+			EnemySquad.reanchor_hunt(squad_id, body, float(Time.get_ticks_msec()))
 		VOManager.play_enemy("contact", self)
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
 		return
@@ -834,6 +839,14 @@ func _update_perception() -> void:
 ##   - a man who FINDS A BODY you left behind   (_check_corpse_discovery)
 ## A silent, unwitnessed kill is SILENT. That is the whole economy: the jungle,
 ## the suppressor, and the angle you took are worth something now.
+## How hard this man hunts you once he has lost you (bead 0623). NOT courage -
+## courage is whether he breaks under fire. This is whether he goes home.
+func _determination() -> float:
+	if enemy_data != null and "determination" in enemy_data:
+		return float(enemy_data.determination)
+	return 0.5
+
+
 func _stamp_contact() -> void:
 	EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
 	# CONTACT LEDGER (ADR-006): this man just went loud on you, so his whole
@@ -1055,9 +1068,25 @@ func _evaluate_goals() -> void:
 	if not target or not is_instance_valid(target):
 		_contact_time = 0.0
 		_cover_fail_count = 0
-		if last_known_target_pos != Vector3.ZERO and target_last_seen_time < 5.0:
+		# CONTACT BROKEN -> THE HUNT BEGINS (bead 0623, "a tough searching mechanism
+		# when you are evading them"). This used to be a 5-second amnesia: the goal
+		# scorer dropped INVESTIGATE after target_last_seen_time > 5 and the man went
+		# back to holding, so evading a squad meant walking behind a tree and waiting.
+		# Now the squad opens a net that EXPANDS, and how long it stays open is his
+		# DETERMINATION. NVA do not go home.
+		var now_h: float = float(Time.get_ticks_msec())
+		if squad_id >= 0 and last_known_target_pos != Vector3.ZERO and alert_tier >= AlertTier.ALERT:
+			# Heading = where he WENT (crumb trail), not where he was standing.
+			var heading: Vector3 = EnemySquad.search_point(squad_id, last_known_target_pos, 0.5) - last_known_target_pos
+			if heading.length() < 0.5:
+				heading = last_known_target_pos - global_position
+			EnemySquad.begin_hunt(squad_id, last_known_target_pos, heading, now_h)
+		var hunting: bool = squad_id >= 0 and EnemySquad.hunt_active(squad_id, now_h, _determination())
+		if last_known_target_pos != Vector3.ZERO and (hunting or target_last_seen_time < 5.0):
 			best_goal = Enums.AIGoal.INVESTIGATE
 		else:
+			if squad_id >= 0:
+				EnemySquad.end_hunt(squad_id)   # he is done. He goes home.
 			best_goal = Enums.AIGoal.HOLD_POSITION
 		_set_goal(best_goal)
 		return
@@ -1324,9 +1353,16 @@ func _execute_alert(delta: float) -> void:
 	# lone last-known point when there is no squad / no trail.
 	var goal_pos: Vector3 = last_known_target_pos
 	if squad_id >= 0:
-		var sp := EnemySquad.search_point(squad_id, global_position, 3.0)
-		if sp != Vector3.ZERO:
-			goal_pos = sp
+		# MY WEDGE OF THE NET. Every man holds a stable sector and the ring grows with
+		# time, so five searchers sweep outward line-abreast instead of piling onto one
+		# breadcrumb and forgetting about you (which is exactly what they used to do).
+		var hp := EnemySquad.hunt_point(squad_id, self, float(Time.get_ticks_msec()), _determination())
+		if hp != Vector3.ZERO:
+			goal_pos = hp
+		else:
+			var sp := EnemySquad.search_point(squad_id, global_position, 3.0)
+			if sp != Vector3.ZERO:
+				goal_pos = sp
 	if goal_pos != Vector3.ZERO:
 		if global_position.distance_to(goal_pos) > 2.0:
 			_move_toward(goal_pos, delta)

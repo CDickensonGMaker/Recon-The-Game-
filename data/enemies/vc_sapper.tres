@@ -19,6 +19,7 @@ flanks = true
 retreats_when_hurt = false
 retreat_hp_threshold = 0.2
 courage = 0.75
+determination = 0.7
 exposure_ramp_time = 2.5
 sprite_faction = "Vietcong and NVA"
 sprite_unit = "vc_guerilla_rpd"

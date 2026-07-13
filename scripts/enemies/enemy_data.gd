@@ -32,6 +32,13 @@ extends Resource
 ## 0 = timid, 1 = fearless. Inverse-biases char_self_preservation the same way
 ## aggression biases char_aggression - archetype identity, not pure spawn RNG.
 @export var courage: float = 0.5
+## DETERMINATION (Summoner, bead 0623): "the NVA were not militarily strong but
+## made up in DETERMINATION and tactics." Courage is whether he BREAKS under fire.
+## Determination is whether he KEEPS LOOKING FOR YOU. They are not the same trait
+## and a farmer can be brave and still go home. This drives the hunt: how long he
+## searches after losing you, and how far out he pushes the net.
+##   0.25 farmer (gives up) .. 0.45 VC .. 0.7 sapper .. 0.9 NVA (does NOT stop)
+@export_range(0.0, 1.0) var determination: float = 0.5
 
 @export_group("Visuals")
 ## 8-directional billboard sprites, NOT a GLTF. Resolves to
