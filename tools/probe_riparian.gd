@@ -112,7 +112,46 @@ func _ready() -> void:
 	print("  sight cap INLAND ............ %.0fm" % _cap(l))
 	print("")
 
+	# THE ROOF. A narrow creek in the forest must be COVERED - you wade a green tunnel.
+	# A wide river is open sky. Water cells used to be flat 0.0 density = a 140m firing
+	# lane cut through the best cover on the map, which is also the ONE escape route.
+	# SEGMENT THE WATER. Averaging across ALL of it is meaningless - this map is
+	# mostly lakes and wide rivers, and those SHOULD be open sky. The question is
+	# whether the CREEKS - the shallow, wadeable channels that are the escape route -
+	# run under a canopy.
+	var creek_veg: float = 0.0
+	var creek_cells: int = 0
+	var deep_veg: float = 0.0
+	var deep_cells: int = 0
+	var roofed: int = 0
+	for gz2 in range(n):
+		for gx2 in range(n):
+			var k: int = gz2 * n + gx2
+			if is_wet[k] == 0:
+				continue
+			if grid.is_passable[k] == 1:          # wadeable => a creek
+				creek_veg += grid.vegetation_density[k]
+				creek_cells += 1
+				if grid.vegetation_density[k] >= 0.6:
+					roofed += 1
+			else:                                  # deep => river / lake / pond
+				deep_veg += grid.vegetation_density[k]
+				deep_cells += 1
+	var cv: float = creek_veg / maxf(1.0, float(creek_cells))
+	var dv: float = deep_veg / maxf(1.0, float(deep_cells))
+	print("  WADEABLE CREEKS .... %d cells   density %.2f  ->  sight cap %.0fm   (%d roofed)" % [
+		creek_cells, cv, _cap(cv), roofed])
+	print("  DEEP WATER ......... %d cells   density %.2f  ->  sight cap %.0fm   (open sky, as it should be)" % [
+		deep_cells, dv, _cap(dv)])
+	print("")
+
 	_check("the terrain generates real watercourses", water > 200, "%d water cells" % water)
+	_check("CREEKS ARE ROOFED (you wade a green tunnel, not a firing lane)",
+		roofed > creek_cells / 3, "%d of %d creek cells under canopy" % [roofed, creek_cells])
+	_check("a creek hides you (not a 140m firing lane through your best cover)",
+		_cap(cv) < 95.0, "%.0fm in the creek" % _cap(cv))
+	_check("DEEP water stays OPEN SKY (a river is exposure - that is the trade)",
+		_cap(dv) > _cap(cv), "river %.0fm vs creek %.0fm" % [_cap(dv), _cap(cv)])
 	_check("SHALLOW water is WADEABLE (a creek is not a wall)", wadeable > 0,
 		"%d/%d passable" % [wadeable, water])
 	_check("THE BANKS ARE THICK (gallery forest)", b >= 0.7,

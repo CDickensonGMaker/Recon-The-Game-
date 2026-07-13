@@ -191,3 +191,59 @@ that is a lie.
 5. Only then: **Level 3 hero assets** — a buttress-root tree worth hiding behind.
 
 *The chase is built and it is coming. Model the escape routes.*
+
+
+---
+
+## 9 · **THE BLENDER EXPORT ANSWER** — what actually matters for the E&E loop
+
+*Caleb, 2026-07-12: "is there something more specific i need to do while exporting these models to help
+with this E&E loop we're designing?"*
+
+**Short answer: almost nothing — and that IS the answer.**
+
+The stealth economy runs on `vegetation_density`. **The terrain generates that number; your art does not
+feed it, it FOLLOWS it.** The grid says HEAVY_JUNGLE, the patch layer picks a `dense` patch to match, and
+the AI acts on the number no matter what you modelled. So there is **no `conceal` property to tag, no
+collision to add to leaves, no LOD to author** (your `_far` twins already exist), and no material work
+(the palette atlas already gives you one draw call).
+
+**Three things in the export matter. Only three.**
+
+### (1) Does `dense` / `wall` ACTUALLY block a sightline at 45m? — *a calibration, not a flag*
+The AI has been told it can only see **45m** in heavy jungle. If `patch_tangle` does not genuinely obscure
+a man at 45m, **the game lies to the player**: he believes he is hidden and he is shot through a bush.
+
+**The check:** stand in the patch, look 45m, see if you can pick out a man-sized target. That single test is
+worth more than any export setting on this page.
+
+### (2) TRUNK COLLIDERS — **the one genuinely missing export**
+Patch meshes carry **no collision at all**. That is correct for leaves (foliage blocks sight, never bullets
+— the Fairness Law). But it means **the tree you dive behind during a chase does not stop a bullet.** That
+is cover that lies, and in an E&E run it is the difference between living and dying.
+
+**In `make_jungle_patches.py`:** emit a list of trunk `(x, z, radius, height)` for every bole over ~0.25m
+into `patches.json`; `jungle_patch_layer.gd` spawns a capsule per trunk on **layer 1**. That is the concrete
+export change, and it is the highest-value one on the list.
+
+### (3) `lz: true` — **the bird needs a hole**
+The climax of an E&E run is sprinting for a hole in the canopy with the net closing behind you. **There are
+currently no holes** — nothing tells the engine a Huey can get down anywhere. One boolean in `patches.json`
+on the canopy-free patches, plus a few clearings authored on purpose. **There should never be many.**
+
+---
+
+## 10 · The trade that fell out of the physics (2026-07-12, measured)
+
+Nobody designed this. It emerged once the creeks were roofed and the banks were greened:
+
+| Route | They see you at | The trail you leave |
+|---|---|---|
+| **Walk the BANK** (gallery forest, density 0.90) | **55m** — you are well hidden | **a full trail.** The net follows it at up to **169m/min** |
+| **Wade the CREEK** (density 0.50, 92m) | **92m** — you are more exposed | **NOTHING.** Water breaks trail. |
+| **A ROOFED creek** (47% of them) | **~55m** — hidden *and* wet | nothing. **This is the jackpot, and you have to find it.** |
+| **A deep RIVER** (139m, open sky) | **139m** — you are naked | nothing — but you are swimming, and everyone can see you |
+
+**Hide, or vanish. Pick one — unless you can find a creek with a roof on it.**
+
+That is the E&E loop, and it is now a real decision made out of real terrain.

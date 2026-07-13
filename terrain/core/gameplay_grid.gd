@@ -158,6 +158,7 @@ func build_from_terrain() -> void:
 				vegetation_density[idx] = _estimate_vegetation(ttype)
 
 	_apply_riparian_belt()
+	_roof_the_creeks()
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
 	print("[GameplayGrid] Grid built in %dms" % elapsed)
@@ -181,8 +182,30 @@ func build_from_terrain() -> void:
 ##
 ## Now the creek both ERASES YOUR TRAIL and HIDES YOU, and the hydrology network the
 ## terrain already generates becomes the E&E network.
-const RIPARIAN_M: float = 22.0    ## how far the gallery forest reaches from the bank
-const WADE_DEPTH_M: float = 1.2   ## deeper than this and you are swimming, not wading
+## ========================= THE DENSITY KNOBS =========================
+## vegetation_density (0-1) is THE number the AI reads. enemy_base._sight_cap()
+## lerps 140m (open) -> 45m (deep jungle) straight off it. Turn these and you turn
+## how far the enemy can see you, everywhere, at once.
+##
+## FOUR TABLES DECIDE WHAT THE JUNGLE IS. They are separate and they CAN disagree:
+##   1. _determine_terrain_type()  (below)  elevation/slope -> WHICH terrain type
+##   2. _estimate_vegetation()     (below)  terrain type    -> the AI's density   <-- THE ONE THAT MATTERS
+##   3. JunglePatchLayer.TYPE_DENSITY       terrain type    -> which 12m patches get stamped
+##   4. VegetationManager.TYPE_PROPS        terrain type    -> how many loose plants get drawn
+## 2 is the truth the AI plays against. 3 and 4 are what the player SEES. If they
+## drift apart, the jungle lies: it looks thick and they shoot you through it.
+const RIPARIAN_M: float = 22.0     ## how far gallery forest reaches from the bank
+const GALLERY_MIN: float = 0.55    ## density at the OUTER edge of the belt
+const GALLERY_MAX: float = 0.95    ## density right at the waterline
+const WADE_DEPTH_M: float = 1.2    ## deeper than this and you are swimming, not wading
+
+## THE ROOF. A narrow creek in the forest is COVERED - the canopy from both banks
+## meets over the water. A wide river is open to the sky. This is the difference
+## between a stream you can escape down and a stream that gets you killed.
+const ROOF_SAMPLE_M: float = 11.0  ## how far out we look to decide "is this narrow?"
+const ROOF_NARROW: float = 0.72    ## land fraction at/above which the canopy fully closes
+const ROOF_WIDE: float = 0.30      ## land fraction at/below which it is open sky
+const ROOF_FACTOR: float = 0.95    ## the canopy closes, but never quite like solid ground
 
 func _apply_riparian_belt() -> void:
 	var reach: int = maxi(1, int(ceil(RIPARIAN_M / cell_size_meters)))
@@ -229,6 +252,62 @@ func _apply_riparian_belt() -> void:
 					banks += 1
 		frontier = next
 	print("[GameplayGrid] Gallery forest: %d bank cells greened (reach %.0fm)" % [banks, RIPARIAN_M])
+
+
+## CREEKS IN THE FOREST — put the roof back on.
+##
+## Water cells got vegetation_density 0.0 (they fell through _estimate_vegetation's
+## default) and JunglePatchLayer.TYPE_DENSITY has no WATER entry, so NOTHING was ever
+## stamped on them. A creek was a bald 140m firing lane cut through the middle of the
+## best cover on the map - and since wading is how you break the enemy's breadcrumb
+## trail, the one escape route in the game was also the one place you could be seen
+## from six times further away.
+##
+## In a real jungle the canopy CLOSES OVER a narrow stream. You wade a green tunnel.
+## A wide river is open to the sky and you are naked in it - and that asymmetry is
+## exactly the choice we want the player making.
+##
+## So each water cell is re-scored by HOW NARROW IT IS: look ROOF_SAMPLE_M around it,
+## measure what fraction is land, and inherit that land's canopy. A 4m creek between
+## two walls of gallery forest is roofed. A 40m river is not.
+func _roof_the_creeks() -> void:
+	var r: int = maxi(1, int(round(ROOF_SAMPLE_M / cell_size_meters)))
+	var roofed: int = 0
+	var open_water: int = 0
+	var src: PackedFloat32Array = vegetation_density.duplicate()
+	for gz in range(grid_size):
+		for gx in range(grid_size):
+			var i: int = gz * grid_size + gx
+			if terrain_type[i] != TerrainType.WATER:
+				continue
+			var land: int = 0
+			var total: int = 0
+			var land_veg: float = 0.0
+			for oz in range(-r, r + 1):
+				for ox in range(-r, r + 1):
+					var nx: int = gx + ox
+					var nz: int = gz + oz
+					if nx < 0 or nz < 0 or nx >= grid_size or nz >= grid_size:
+						continue
+					var n: int = nz * grid_size + nx
+					total += 1
+					if terrain_type[n] != TerrainType.WATER:
+						land += 1
+						land_veg += src[n]
+			if total == 0 or land == 0:
+				open_water += 1
+				continue
+			var land_frac: float = float(land) / float(total)
+			# Narrow -> the canopy closes. Wide -> open sky. Smooth between.
+			var roof: float = smoothstep(ROOF_WIDE, ROOF_NARROW, land_frac)
+			var canopy: float = (land_veg / float(land)) * roof * ROOF_FACTOR
+			vegetation_density[i] = maxf(vegetation_density[i], canopy)
+			if canopy >= 0.6:
+				roofed += 1
+			else:
+				open_water += 1
+	print("[GameplayGrid] Creeks roofed: %d water cells under canopy, %d open to the sky" % [
+		roofed, open_water])
 	grid_updated.emit(Rect2i(0, 0, grid_size, grid_size))
 
 
@@ -275,6 +354,10 @@ func _estimate_vegetation(ttype: int) -> float:
 		TerrainType.LIGHT_JUNGLE: return 0.5
 		TerrainType.MEDIUM_JUNGLE: return 0.7
 		TerrainType.HEAVY_JUNGLE: return 0.95
+		# WATER is left at 0 HERE and then RE-SCORED by _roof_the_creeks(): a narrow
+		# channel under jungle is roofed and conceals you; a wide river is open sky.
+		# It used to fall through to 0.0 and STAY there, so a creek was a 140m firing
+		# lane running through the middle of your best cover.
 		_: return 0.0
 
 
