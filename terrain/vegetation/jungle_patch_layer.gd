@@ -131,18 +131,13 @@ func _load_patches() -> void:
 			_by_density[density] = []
 		(_by_density[density] as Array).append(nm)
 
-		# a flooded pan, declared by the patch and rendered with the terrain's water
+		# Flooded pans, declared by the patch and rendered with the terrain's water.
+		# A LIST: patch_paddy_quad is cross-bunded into FOUR pans, each its own sheet.
 		if entry.has("water"):
-			var w := entry["water"] as Dictionary
-			_water[nm] = w
-			var pm := PlaneMesh.new()
-			var side := float(w.get("half", 6.0)) * 2.0
-			pm.size = Vector2(side, side)
-			# a few cuts so the shader's ripple has vertices to move and the shore fade
-			# has somewhere to fade ACROSS. A single quad would band.
-			pm.subdivide_width = 6
-			pm.subdivide_depth = 6
-			_water_mesh[nm] = pm
+			var pans := entry["water"] as Array
+			if not pans.is_empty():
+				_water[nm] = pans
+				_water_mesh[nm] = _build_pan_mesh(pans)
 
 	_material = ShaderMaterial.new()
 	_material.shader = load(SWAY_SHADER)
@@ -304,23 +299,70 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 				"%s_%s_%d_%d_far" % [nm, parts[0], chunk_coord.x, chunk_coord.y],
 				_mesh_far[nm], local, centre, near_distance, view_distance))
 
-		# THE FLOODED PAN. One extra MultiMesh per paddy patch type per chunk - so a
-		# whole chunk of rice paddy costs ONE more draw call, not one per tile.
-		# No near/far split: water has no detail to drop, and a paddy that dried up at
-		# 46m would be far more noticeable than the triangles it saved.
+		# THE FLOODED PANS. All of a patch's pans are baked into ONE mesh, so a
+		# cross-bunded tile with four sheets still costs a single MultiMesh - and a whole
+		# chunk of rice paddy costs ONE extra draw call, not one per tile, let alone one
+		# per pan.
+		#
+		# The pans ride the tile's own transform, so they inherit its 90-degree yaw and
+		# stay inside their bunds whichever way it landed.
+		#
+		# No near/far split: water has no detail to drop, and a paddy that DRIED UP at
+		# 46 m would be far more noticeable than the triangles it saved.
 		if _water.has(nm) and _water_material != null:
-			var w := _water[nm] as Dictionary
-			var at: Array = w.get("at", [0.0, 0.0])
-			# the pan sits INSIDE the tile, so it rides the patch's own yaw
-			var offset := Vector3(float(at[0]), float(w.get("level", 0.05)), float(at[1]))
-			var wx: Array[Transform3D] = []
-			for i in local.size():
-				var t := local[i] as Transform3D
-				wx.append(Transform3D(t.basis, t.origin + t.basis * offset))
 			nodes.append(_make_water_bucket(
 				"%s_%s_%d_%d_water" % [nm, parts[0], chunk_coord.x, chunk_coord.y],
-				_water_mesh[nm], wx, centre))
+				_water_mesh[nm], local, centre))
 	_chunk_nodes[chunk_coord] = nodes
+
+
+## One mesh holding every pan this patch declares, in the patch's own local space.
+func _build_pan_mesh(pans: Array) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var idx := PackedInt32Array()
+	# Each pan is subdivided rather than a single quad: the swamp shader ripples the
+	# surface and fades it at the shore, and both need vertices to work with. A bare quad
+	# would band across a 12 m pan.
+	const CUTS := 6
+	for pan_v: Variant in pans:
+		var pan := pan_v as Dictionary
+		var at: Array = pan.get("at", [0.0, 0.0])
+		var cx := float(at[0])
+		var cz := float(at[1])
+		var y := float(pan.get("level", 0.055))
+		# half is [hx, hy] - a paddy that is only wet on one side of the tile has a
+		# RECTANGULAR pan, not a square one.
+		var hh: Array = pan.get("half", [6.0, 6.0])
+		var hx := float(hh[0])
+		var hy := float(hh[1])
+		var base := verts.size()
+		for r in range(CUTS + 1):
+			for c in range(CUTS + 1):
+				var u := float(c) / float(CUTS)
+				var v := float(r) / float(CUTS)
+				verts.append(Vector3(cx + (u - 0.5) * hx * 2.0, y,
+					cz + (v - 0.5) * hy * 2.0))
+				normals.append(Vector3.UP)
+				uvs.append(Vector2(u, v))
+		for r in range(CUTS):
+			for c in range(CUTS):
+				var i0 := base + r * (CUTS + 1) + c
+				var i1 := i0 + 1
+				var i2 := i0 + CUTS + 1
+				var i3 := i2 + 1
+				idx.append_array([i0, i2, i1, i1, i2, i3])
+
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = normals
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
 
 
 func _make_water_bucket(nm: String, mesh: Mesh, xforms: Array[Transform3D],

@@ -642,7 +642,10 @@ func _squad_sync() -> void:
 	var now: float = float(Time.get_ticks_msec())
 	if target != null and is_instance_valid(target) and has_line_of_sight:
 		# I have eyes on: designate for the squad + lay a breadcrumb trail.
-		EnemySquad.report_contact(squad_id, target, target.global_position, now)
+		# WATER BREAKS TRAIL (E&E). He is in the creek: we can SEE him, but he is
+		# leaving no sign to follow when he goes. The freshest crumb stays at the bank.
+		var leaves_sign: bool = _grid == null or not _grid.is_water(target.global_position)
+		EnemySquad.report_contact(squad_id, target, target.global_position, now, leaves_sign)
 		# Census for honest attention: who is already covered by squadmates
 		# scores lower in _target_score - squads SPREAD, they don't laser one man.
 		EnemySquad.report_engagement(squad_id, self, target, now)

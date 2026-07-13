@@ -396,21 +396,46 @@ def banana(rng, height=2.4, leaves=8):
 
 # ------------------------------------------------------------------ TIER 3
 def bamboo_stand(rng, height=5.5, culms=6):
+    """A clump of bamboo.
+
+    FLATTENED FOR BUDGET. Bamboo is now planted across most of the jungle (it is the
+    dominant woody plant in Vietnam), so its per-stand cost multiplies across the whole
+    map - and the old stand was 858 tris, of which THE LEAVES WERE 55%. Six triangles to
+    draw one leaf, at a range where nobody will ever count its curve.
+
+    Four cuts, none of which touch the silhouette:
+
+      1. CULM SIDES 5 -> 4. A culm is 30 mm across. At the distance you meet bamboo, a
+         4-sided pole and a 5-sided pole are the same pole; this is a PS1-era game and
+         its trees are prisms already.
+      2. NODES 4-7 -> 3-5. The node swell is a nice touch nobody sees past 10 m.
+      3. BLADE SEGMENTS 3 -> 2. A leaf goes from 6 tris to 4 - a 33% cut on the single
+         most-repeated primitive in the whole jungle.
+      4. LEAVES 10-16 -> 8-12 per culm.
+
+    And the far LOD gets its own cut: only 4 of the 6 culms are STRUCTURE, so past 46 m a
+    stand ships two-thirds of its poles. A bamboo brake at 50 m reads by its VERTICAL
+    STRIPES; it does not matter how many stripes, only that they are there.
+
+    Net: ~858 -> ~480 tris near, ~390 -> ~160 far. Same brake, half the bill.
+    """
     p = Plant("bamboo")
     for i in range(culms):
         h = height * rng.uniform(0.55, 1.15)
         r = 0.030 * rng.uniform(0.8, 1.25)
         yaw = rng.uniform(0, math.tau)
         o = (rng.uniform(-0.30, 0.30), rng.uniform(-0.30, 0.30), 0.0)
-        v, f, s = culm(h, r, nodes=rng.randint(4, 7), lean=rng.uniform(0.02, 0.12))
-        p.add(place(v, yaw=yaw, origin=o), f, "bamboo", s)
+        v, f, s = culm(h, r, nodes=rng.randint(3, 5), sides=4,
+                       lean=rng.uniform(0.02, 0.12))
+        # the first 4 poles hold the far read; the rest are close-range fill
+        p.add(place(v, yaw=yaw, origin=o), f, "bamboo", s, detail=(i >= 4))
         # leaf sprays up the top third
-        for _ in range(rng.randint(10, 16)):
+        for _ in range(rng.randint(8, 12)):
             t = rng.uniform(0.45, 1.0)
             lz = h * t
             ly = rng.uniform(0, math.tau)
             ll = h * rng.uniform(0.14, 0.26)
-            bv, bf, bs = blade(ll, ll * 0.16, segs=3, curve=0.9)
+            bv, bf, bs = blade(ll, ll * 0.16, segs=2, curve=0.9)
             p.add(place(bv, yaw=ly, tilt=math.radians(rng.uniform(45, 95)),
                         origin=(o[0] + lean_x(h, t), o[1], lz)), bf,
                   "leaf_mid" if rng.random() < .6 else "leaf_bright", bs,

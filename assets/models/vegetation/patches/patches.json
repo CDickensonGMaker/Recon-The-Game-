@@ -34,188 +34,300 @@
     {
       "name": "patch_paddy",
       "density": "paddy",
-      "desc": "rice paddy: bunds, water, transplanted clumps",
+      "desc": "rice paddy: one worked pan, bunds, transplanted clumps",
       "tile_m": 12.0,
       "verts": 14704,
       "tris": 11112,
       "far_tris": 2532,
       "height_m": 0.88,
-      "water": {
-        "level": 0.055,
-        "half": 5.8,
-        "at": [
-          0.0,
-          0.0
-        ]
-      }
+      "water": [
+        {
+          "level": 0.055,
+          "half": [
+            5.8,
+            5.8
+          ],
+          "at": [
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "patch_paddy_quad",
+      "density": "paddy",
+      "desc": "four small pans on a cross-bund - twice the dry footing, channels movement",
+      "tile_m": 12.0,
+      "verts": 12760,
+      "tris": 9696,
+      "far_tris": 2304,
+      "height_m": 0.87,
+      "water": [
+        {
+          "level": 0.055,
+          "half": [
+            2.75,
+            2.75
+          ],
+          "at": [
+            -3.0,
+            -3.0
+          ]
+        },
+        {
+          "level": 0.055,
+          "half": [
+            2.75,
+            2.75
+          ],
+          "at": [
+            -3.0,
+            3.0
+          ]
+        },
+        {
+          "level": 0.055,
+          "half": [
+            2.75,
+            2.75
+          ],
+          "at": [
+            3.0,
+            -3.0
+          ]
+        },
+        {
+          "level": 0.055,
+          "half": [
+            2.75,
+            2.75
+          ],
+          "at": [
+            3.0,
+            3.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "patch_paddy_fallow",
+      "density": "paddy",
+      "desc": "gone to seed: reeds and grass in the water, bunds overgrown - the ONE paddy you can cross unseen",
+      "tile_m": 12.0,
+      "verts": 17082,
+      "tris": 14248,
+      "far_tris": 804,
+      "height_m": 1.77,
+      "water": [
+        {
+          "level": 0.055,
+          "half": [
+            5.8,
+            5.8
+          ],
+          "at": [
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "patch_paddy_grove",
+      "density": "paddy",
+      "desc": "worked pan with palms and banana on the bunds - the paddy tile with a skyline",
+      "tile_m": 12.0,
+      "verts": 13572,
+      "tris": 10992,
+      "far_tris": 2344,
+      "height_m": 2.47,
+      "water": [
+        {
+          "level": 0.055,
+          "half": [
+            5.8,
+            5.8
+          ],
+          "at": [
+            0.0,
+            0.0
+          ]
+        }
+      ]
     },
     {
       "name": "patch_paddy_edge",
       "density": "paddy",
       "desc": "paddy meets treeline - the killing ground",
       "tile_m": 12.0,
-      "verts": 14125,
-      "tris": 12388,
-      "far_tris": 2828,
-      "height_m": 9.99,
-      "water": {
-        "level": 0.055,
-        "half": 5.7,
-        "at": [
-          0.0,
-          -3.12
-        ]
-      }
+      "verts": 14283,
+      "tris": 12912,
+      "far_tris": 3302,
+      "height_m": 10.98,
+      "water": [
+        {
+          "level": 0.055,
+          "half": [
+            5.8,
+            3.275
+          ],
+          "at": [
+            0.0,
+            -2.525
+          ]
+        }
+      ]
     },
     {
       "name": "patch_understory",
       "density": "light",
       "desc": "PRIMARY forest: big boles, bare floor, lianas",
       "tile_m": 12.0,
-      "verts": 10943,
-      "tris": 10166,
-      "far_tris": 5194,
-      "height_m": 13.18
+      "verts": 11502,
+      "tris": 10668,
+      "far_tris": 4660,
+      "height_m": 11.8
     },
     {
       "name": "patch_fern_floor",
       "density": "light",
       "desc": "fern carpet under a high canopy",
       "tile_m": 12.0,
-      "verts": 12940,
-      "tris": 11015,
-      "far_tris": 3414,
-      "height_m": 12.15
+      "verts": 13568,
+      "tris": 11627,
+      "far_tris": 3958,
+      "height_m": 12.25
     },
     {
       "name": "patch_scrub",
       "density": "light",
       "desc": "knee-to-waist regrowth",
       "tile_m": 12.0,
-      "verts": 15035,
-      "tris": 12802,
-      "far_tris": 2302,
-      "height_m": 11.69
+      "verts": 17125,
+      "tris": 14848,
+      "far_tris": 3024,
+      "height_m": 10.0
     },
     {
       "name": "patch_trail",
       "density": "light",
       "desc": "walkable lane, jungle on both shoulders",
       "tile_m": 12.0,
-      "verts": 16294,
-      "tris": 14896,
-      "far_tris": 3706,
-      "height_m": 12.94
+      "verts": 15261,
+      "tris": 13844,
+      "far_tris": 3166,
+      "height_m": 12.65
     },
     {
       "name": "patch_canopy",
       "density": "medium",
       "desc": "closed canopy, lianas strung between crowns",
       "tile_m": 12.0,
-      "verts": 13963,
-      "tris": 13110,
-      "far_tris": 5080,
-      "height_m": 12.15
+      "verts": 15972,
+      "tris": 14818,
+      "far_tris": 5696,
+      "height_m": 11.78
     },
     {
       "name": "patch_deadfall",
       "density": "medium",
       "desc": "blowdown: crossed logs, ferns colonising",
       "tile_m": 12.0,
-      "verts": 12822,
-      "tris": 11708,
-      "far_tris": 3476,
-      "height_m": 12.52
+      "verts": 12462,
+      "tris": 11318,
+      "far_tris": 2968,
+      "height_m": 13.74
     },
     {
       "name": "patch_palmgrove",
       "density": "medium",
       "desc": "palms + banana",
       "tile_m": 12.0,
-      "verts": 9207,
-      "tris": 7664,
-      "far_tris": 3412,
-      "height_m": 12.94
+      "verts": 9480,
+      "tris": 7916,
+      "far_tris": 3592,
+      "height_m": 12.53
     },
     {
       "name": "patch_vine_hall",
       "density": "medium",
       "desc": "tree ring, lianas criss-crossed overhead",
       "tile_m": 12.0,
-      "verts": 14057,
-      "tris": 13364,
-      "far_tris": 7166,
-      "height_m": 13.07
+      "verts": 14244,
+      "tris": 13568,
+      "far_tris": 7316,
+      "height_m": 13.44
     },
     {
       "name": "patch_grove",
       "density": "dense",
       "desc": "THICK MIX: canopy + bamboo + bush",
       "tile_m": 12.0,
-      "verts": 21452,
-      "tris": 19982,
-      "far_tris": 5786,
-      "height_m": 12.16
+      "verts": 21082,
+      "tris": 19422,
+      "far_tris": 5102,
+      "height_m": 13.35
     },
     {
       "name": "patch_bamboo_grove",
       "density": "dense",
       "desc": "bamboo woven through standing timber",
       "tile_m": 12.0,
-      "verts": 19369,
-      "tris": 18621,
-      "far_tris": 7016,
-      "height_m": 9.14
+      "verts": 15704,
+      "tris": 14485,
+      "far_tris": 4280,
+      "height_m": 11.99
     },
     {
       "name": "patch_secondary",
       "density": "dense",
       "desc": "SECONDARY GROWTH: broken canopy, riot of light",
       "tile_m": 12.0,
-      "verts": 23923,
-      "tris": 21600,
-      "far_tris": 3610,
-      "height_m": 10.81
+      "verts": 28351,
+      "tris": 25554,
+      "far_tris": 4488,
+      "height_m": 9.51
     },
     {
       "name": "patch_elephant",
       "density": "dense",
       "desc": "elephant grass sea",
       "tile_m": 12.0,
-      "verts": 15643,
-      "tris": 13128,
-      "far_tris": 976,
-      "height_m": 10.77
+      "verts": 15800,
+      "tris": 13268,
+      "far_tris": 988,
+      "height_m": 8.68
     },
     {
       "name": "patch_thicket",
       "density": "wall",
       "desc": "no sightlines - where an ambush lives",
       "tile_m": 12.0,
-      "verts": 21316,
-      "tris": 19124,
-      "far_tris": 2646,
-      "height_m": 12.44
+      "verts": 24944,
+      "tris": 22544,
+      "far_tris": 3773,
+      "height_m": 12.94
     },
     {
       "name": "patch_tangle",
       "density": "wall",
       "desc": "MAX THICK: cut through it",
       "tile_m": 12.0,
-      "verts": 29677,
-      "tris": 27900,
-      "far_tris": 7848,
-      "height_m": 13.16
+      "verts": 29981,
+      "tris": 28026,
+      "far_tris": 7448,
+      "height_m": 12.81
     },
     {
       "name": "patch_bamboo_wall",
       "density": "wall",
       "desc": "bamboo brake, near-impassable",
       "tile_m": 12.0,
-      "verts": 20623,
-      "tris": 19902,
-      "far_tris": 6970,
-      "height_m": 9.41
+      "verts": 14272,
+      "tris": 13030,
+      "far_tris": 2840,
+      "height_m": 9.84
     }
   ]
 }

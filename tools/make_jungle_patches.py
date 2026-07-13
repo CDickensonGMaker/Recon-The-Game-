@@ -81,10 +81,18 @@ class Patch(F.Plant):
         why this appends instead of assigning.
 
         level -- surface height above the tile floor, metres
-        half  -- half-extent of the pan, metres
+        half  -- half-extent. A number for a square pan, or (hx, hy) for a rectangular
+                 one. patch_paddy_edge is only wet on ONE SIDE of the tile, so its pan is
+                 a long rectangle, not a square - forcing it square shrank it to 4.8 m in
+                 a 12 m tile and left most of the paddy dry.
         at    -- pan centre within the tile, metres
         """
-        self.water.append(dict(level=round(level, 3), half=round(half, 3),
+        try:
+            hx, hy = float(half[0]), float(half[1])
+        except TypeError:
+            hx = hy = float(half)
+        self.water.append(dict(level=round(level, 3),
+                               half=[round(hx, 3), round(hy, 3)],
                                at=[round(at[0], 3), round(at[1], 3)]))
 
     def stamp(self, plant, at=(0, 0, 0), yaw=0.0, scale=1.0, detail=False):
@@ -244,10 +252,29 @@ def lianas(patch, rng, tops, chance=0.7):
                         yaw=rng.uniform(0, math.tau))
 
 
-def bamboos(patch, rng, n, avoid=None, lo=5.0, hi=8.5):
-    for (x, y) in scatter_pts(rng, n, GAP["bamboo"], avoid=avoid):
+def bamboos(patch, rng, n, avoid=None, ring=None, lo=5.0, hi=8.5, only=None):
+    """Bamboo stands.
+
+    BAMBOO IS NOT A GARNISH IN VIETNAM. It is the dominant woody plant across a huge
+    share of the country's forest, and it OWNS disturbed ground - burn a patch, bomb it,
+    farm it and walk away, and bamboo is what comes back, because it grows from rhizome
+    and outruns everything else to the light. So the patches that should be thickest with
+    it are exactly the ones that had none: `secondary` (the canopy was broken), `thicket`
+    (the ambush ground) and `trail` (bamboo crowds every path).
+
+    `only(x, y) -> bool` rejects ground it must not stand on - a flooded pan, say. Same
+    contract as trees(), which bamboos() was missing, so it could not be used on any patch
+    that has water in it.
+    """
+    placed = 0
+    for (x, y) in scatter_pts(rng, n * 3, GAP["bamboo"], avoid=avoid, ring=ring):
+        if only and not only(x, y):
+            continue
         patch.stamp(F.bamboo_stand(rng, height=rng.uniform(lo, hi)),
                     at=(x, y, 0), yaw=rng.uniform(0, math.tau))
+        placed += 1
+        if placed >= n:
+            break
 
 
 def logs(patch, rng, n, avoid=None):
@@ -355,50 +382,151 @@ def patch_paddy(p, rng):
        overhang at each end, so stacked tiles grew a lattice of crossing bund stubs.
        They are exactly TILE long now, so ends meet at the corner and stop.
     """
-    HALF_BUND = 0.45                 # two tiles butt -> a 0.9 m footpath between pans
-    inset = TILE * 0.5 - HALF_BUND * 0.5
+    inner = paddy_ring(p, rng)
     # water stops just under the bund's inner foot, so there is no dry seam at the edge
-    p.declare_water(level=0.055, half=TILE * 0.5 - 0.20, at=(0.0, 0.0))
-    for k in (-1, 1):
-        p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND),
-                at=(0, k * inset, 0))
-        p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND),
-                at=(k * inset, 0, 0), yaw=math.pi / 2)
+    p.declare_water(level=0.055, half=inner + 0.25, at=(0.0, 0.0))
+    # rice stays INSIDE the ring - rice does not grow on the footpath
+    sow_rice(p, rng, 130, 0.0, 0.0, inner - 0.25, rng.random() < 0.4)
+
+
+def patch_paddy_quad(p, rng):
+    """ONE TILE, FOUR PANS. A cross-bund splits the tile into four smaller paddies.
+
+    Real paddy fields are not a regular grid of identical squares - pan size follows the
+    land and the family that owns it, so a big pan sits next to four small ones. Dropping
+    this variant in among patch_paddy is what stops a generated field reading as graph
+    paper.
+
+    It is also the more DANGEROUS tile to cross: twice as many bunds means twice as much
+    dry footing, so it channels movement - and anything that channels movement is where
+    an ambush goes.
+
+    The interior cross-bund is FULL width (0.9 m). It is not shared with a neighbouring
+    tile, so it does not get halved - it is a whole footpath in its own right. The outer
+    ring is still half-width, so the tile stacks exactly like every other paddy."""
+    inner = paddy_ring(p, rng)
+    cross_w = HALF_BUND * 2.0
+    p.stamp(F.paddy_dike(rng, length=TILE, width=cross_w), at=(0, 0, 0))
+    p.stamp(F.paddy_dike(rng, length=TILE, width=cross_w), at=(0, 0, 0),
+            yaw=math.pi / 2)
+    # four pans, one per quadrant, between the cross-bund and the ring
+    lo = cross_w * 0.5
+    pan_half = (inner - lo) * 0.5
+    pan_c = lo + pan_half
     ripe = rng.random() < 0.4
-    # keep the rice INSIDE the ring - rice does not grow on the footpath
-    for (x, y) in scatter_pts(rng, 130, GAP["rice"], half=TILE * 0.5 - HALF_BUND - 0.25):
-        # NO detail=True HERE. stamp() ORs its flag over the plant's own
-        # (`self.detail.append(detail or own)`), so forcing it True would throw away
-        # the structure stalks rice_clump deliberately keeps, and the far paddy would
-        # go back to being bare mud. Let the clump decide which stalks survive.
-        p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85), ripe=ripe),
-                at=(x, y, 0.02), yaw=rng.uniform(0, math.tau),
-                scale=rng.uniform(0.85, 1.2))
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cx, cy = sx * pan_c, sy * pan_c
+            p.declare_water(level=0.055, half=pan_half + 0.20, at=(cx, cy))
+            sow_rice(p, rng, 28, cx, cy, pan_half - 0.25, ripe)
+
+
+def patch_paddy_fallow(p, rng):
+    """A pan gone to seed. Nobody has worked this one in a season: the rice has thinned
+    and weeds, reeds and grass have taken the water. The bunds have grown over.
+
+    Tactically this is the one that MATTERS. A worked paddy is shin-deep and empty - you
+    are naked in it. A fallow one is chest-high in reeds, so it is the only paddy you can
+    actually cross unseen. It also breaks the read: a field of identical worked pans is a
+    farm, and a field with a couple of fallow ones is a PLACE."""
+    inner = paddy_ring(p, rng)
+    p.declare_water(level=0.055, half=inner + 0.25, at=(0.0, 0.0))
+    sow_rice(p, rng, 34, 0.0, 0.0, inner - 0.3, ripe=True)     # what is left, and it is ripe
+    # reeds and grass have taken the water
+    sow(p, rng, F.tall_grass, 40, 0.9, 1.5, "height", GAP["grass"], ring=(0.0, inner - 0.4))
+    sow(p, rng, F.elephant_grass, 10, 1.3, 1.9, "height", GAP["elephant"],
+        ring=(0.0, inner - 0.8))
+    # and the bunds have grown over - the footpath is disappearing
+    for _ in range(10):
+        s = rng.choice((-1, 1))
+        a = rng.uniform(-inner, inner)
+        x, y = (a, s * inner) if rng.random() < 0.5 else (s * inner, a)
+        p.stamp(F.bush(rng, height=rng.uniform(0.7, 1.3)), at=(x, y, 0.1),
+                yaw=rng.uniform(0, math.tau), detail=True)
+
+
+def patch_paddy_grove(p, rng):
+    """A worked pan with the farm's trees standing on its bunds - palms and banana over
+    the footpath, the way a real field has shade and fruit along every walkable line.
+
+    This is the paddy tile with a SKYLINE. A field of nothing but flat pans has no
+    cover and nothing to break sightlines, which makes the whole valley read as a
+    parking lot. A few of these scattered through it give the player something to move
+    between - and give the VC somewhere to be."""
+    inner = paddy_ring(p, rng)
+    p.declare_water(level=0.055, half=inner + 0.25, at=(0.0, 0.0))
+    sow_rice(p, rng, 100, 0.0, 0.0, inner - 0.3, rng.random() < 0.4)
+    # trees stand ON the bunds - the only dry ground there is
+    corners = [(inner, inner), (-inner, inner), (inner, -inner), (-inner, -inner)]
+    rng.shuffle(corners)
+    for (x, y) in corners[:rng.randint(2, 3)]:
+        jx, jy = x + rng.uniform(-0.8, 0.8), y + rng.uniform(-0.8, 0.8)
+        if rng.random() < 0.55:
+            p.stamp(F.palm_sapling(rng, height=rng.uniform(3.4, 5.2)), at=(jx, jy, 0.15),
+                    yaw=rng.uniform(0, math.tau))
+        else:
+            p.stamp(F.banana(rng, height=rng.uniform(2.6, 3.6)), at=(jx, jy, 0.15),
+                    yaw=rng.uniform(0, math.tau))
+    for _ in range(8):
+        s = rng.choice((-1, 1))
+        a = rng.uniform(-inner, inner)
+        x, y = (a, s * inner) if rng.random() < 0.5 else (s * inner, a)
+        p.stamp(F.bush(rng, height=rng.uniform(0.6, 1.1)), at=(x, y, 0.12),
+                yaw=rng.uniform(0, math.tau), detail=True)
 
 
 def patch_paddy_edge(p, rng):
     """Where the paddy stops and the treeline starts - the classic killing
-    ground: you are in the open, wet and slow, and they are in the green."""
-    p.declare_water(level=0.055, half=TILE * 0.95 * 0.5, at=(0.0, -TILE * 0.26))
-    p.stamp(F.paddy_dike(rng, length=TILE + 3.0), at=(0, TILE * 0.16, 0))
-    for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=TILE * 0.44):
-        if y > TILE * 0.10:
-            continue
-        # same as patch_paddy: let the clump keep its own structure stalks
-        p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.8)),
-                at=(x, y, 0.02), yaw=rng.uniform(0, math.tau))
+    ground: you are in the open, wet and slow, and they are in the green.
+
+    It carries the SAME bund ring as every other paddy tile, so it butts cleanly against
+    them - it is the wall of the field, not a different kind of object.
+
+    EVERYTHING STAYS INSIDE THE RING. The old version scattered its trees, bushes and
+    ferns out to HALF (6.0 m) - but the bund occupies 5.55-6.0 m, so the treeline grew
+    straight THROUGH its own bund and the lianas were strung across it. A tree standing
+    in a dike is not a treeline, it is a mistake. The dry bank is the ground INSIDE the
+    ring on the far side of the divider; that is where the jungle gets to grow.
+    """
+    inner = paddy_ring(p, rng)
+    # Wet on ONE side only, dry bank on the other - so the pan is a RECTANGLE spanning the
+    # full width of the tile and a bit over half its depth. (It used to be forced square,
+    # which shrank a 12 m paddy to a 4.8 m puddle with dry mud all round it.)
+    bank = 0.5                        # where the water stops and the dry bank begins
+    hy = (bank + inner) * 0.5
+    cy = (bank - inner) * 0.5
+    p.declare_water(level=0.055, half=(inner + 0.25, hy + 0.25), at=(0.0, cy))
+
+    # THE DIVIDER. A full-width bund holding the water off the bank - and it is the only
+    # dry line across the field. This IS the killing ground: the one path out of the
+    # water runs along it, in the open, straight at the treeline.
+    p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND * 2.0), at=(0, bank, 0))
+
+    for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=inner - 0.3):
+        if y > bank - HALF_BUND - 0.3:
+            continue                  # no rice on the divider or the bank
+        p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85)),
+                at=(x, y, 0.02), yaw=rng.uniform(0, math.tau),
+                scale=rng.uniform(0.85, 1.2))
+
+    # the dry bank: the strip between the divider and the far bund. Everything here is
+    # clamped INSIDE the ring so nothing grows out of a dike.
+    b0 = bank + HALF_BUND + 0.4
+    b1 = inner - 0.5
+    xr = inner - 0.5
     for _ in range(14):
-        x, y = rng.uniform(-HALF, HALF), rng.uniform(TILE * 0.24, HALF)
-        p.stamp(F.bush(rng, height=rng.uniform(1.2, 1.9)), at=(x, y, 0),
+        p.stamp(F.bush(rng, height=rng.uniform(1.2, 1.9)),
+                at=(rng.uniform(-xr, xr), rng.uniform(b0, b1), 0),
                 yaw=rng.uniform(0, math.tau), detail=True)
     for _ in range(12):
-        x, y = rng.uniform(-HALF, HALF), rng.uniform(TILE * 0.22, HALF)
-        p.stamp(F.fern(rng, height=rng.uniform(1.0, 1.6)), at=(x, y, 0),
+        p.stamp(F.fern(rng, height=rng.uniform(1.0, 1.6)),
+                at=(rng.uniform(-xr, xr), rng.uniform(b0, b1), 0),
                 yaw=rng.uniform(0, math.tau), detail=True)
-    # trees ONLY on the dry bank - they were standing in the water
-    tops = trees(p, rng, 4, ring=(TILE * 0.34, HALF),
-                 only=lambda x, y: y > TILE * 0.20)
+    # the treeline itself - standing ON the bank, not in the dike
+    tops = trees(p, rng, 4, ring=(0.0, xr), only=lambda x, y: b0 < y < b1)
     lianas(p, rng, tops, chance=0.7)
+    # and bamboo, because in Vietnam the treeline usually IS bamboo
+    bamboos(p, rng, 3, ring=(0.0, xr), only=lambda x, y: b0 < y < b1)
 
 
 # ================================================================= LIGHT (4)
@@ -406,6 +534,8 @@ def patch_understory(p, rng):
     """PRIMARY forest. The canopy takes 95-99% of the light so the floor is
     nearly BARE: big boles, deep shade, lianas hanging through. This is the
     jungle you can actually move in - and the old batch had none of it."""
+    # even under a closed primary canopy there are bamboo clumps in the light gaps
+    bamboos(p, rng, 3, lo=6.5, hi=9.5)
     tops = trees(p, rng, 4, lo=11.0, hi=14.5, dress=0.9)
     lianas(p, rng, tops, chance=0.85)
     sow(p, rng, F.fern, 9, 0.9, 1.5, "height", GAP["fern"] * 1.6)
@@ -427,6 +557,7 @@ def patch_fern_floor(p, rng):
 
 def patch_scrub(p, rng):
     """Knee-to-waist regrowth. Cover if you go prone, not if you stand."""
+    bamboos(p, rng, 4, lo=3.5, hi=5.5)
     sow(p, rng, F.grass_tuft, 30, 0.5, 0.9, "height", GAP["grass"])
     sow(p, rng, F.tall_grass, 14, 0.9, 1.5, "height", GAP["tall_grass"])
     sow(p, rng, F.fern, 12, 0.8, 1.3, "height", GAP["fern"])
@@ -451,6 +582,7 @@ def patch_trail(p, rng):
 
 # ================================================================ MEDIUM (4)
 def patch_canopy(p, rng):
+    bamboos(p, rng, 4, lo=6.0, hi=9.0)
     tops = trees(p, rng, 4, dress=0.8)
     lianas(p, rng, tops, chance=0.85)
     sow(p, rng, F.fern, 14, 1.0, 1.7, "height", GAP["fern"])
@@ -496,7 +628,7 @@ def patch_grove(p, rng):
     """The thick mix: canopy, bamboo and bush all fighting for the same light."""
     tops = trees(p, rng, 3, dress=0.95)
     lianas(p, rng, tops, chance=0.8)
-    bamboos(p, rng, 5)
+    bamboos(p, rng, 8)
     sow(p, rng, F.bush, 15, 1.3, 2.0, "height", GAP["bush"])
     sow(p, rng, F.fern, 13, 1.0, 1.7, "height", GAP["fern"])
     sow(p, rng, F.palm_sapling, 4, 1.8, 2.6, "height", GAP["sapling"])
@@ -520,6 +652,11 @@ def patch_secondary(p, rng):
     """SECONDARY GROWTH - the canopy was broken (bomb, fire, farm), light floods
     in and the ground answers with a riot. THIS, not primary forest, is the
     jungle that eats patrols."""
+    # THE BIG ONE. Secondary growth is ground where the canopy was BROKEN - bombed,
+    # burned, farmed and abandoned. Bamboo owns that ground: it spreads by rhizome
+    # and outruns every tree to the light, so a cut-over hillside in Vietnam comes
+    # back as bamboo, not as forest. This patch had ZERO.
+    bamboos(p, rng, 11, lo=5.0, hi=8.0)
     sow(p, rng, F.bush, 22, 1.4, 2.2, "height", GAP["bush"] * 0.9)
     sow(p, rng, F.tall_grass, 20, 1.2, 1.9, "height", GAP["tall_grass"])
     sow(p, rng, F.fern, 16, 1.1, 1.8, "height", GAP["fern"])
@@ -542,6 +679,10 @@ def patch_elephant(p, rng):
 # ================================================================== WALL (3)
 def patch_thicket(p, rng):
     """No sightlines. Where an ambush lives."""
+    # THICKET = AMBUSH GROUND, and in Vietnam that is a bamboo brake. Bamboo grows
+    # in dense clumps you cannot see through OR push through - which is the entire
+    # point of this tile, and it had none.
+    bamboos(p, rng, 8, lo=4.5, hi=7.0)
     sow(p, rng, F.bush, 24, 1.4, 2.2, "height", GAP["bush"] * 0.85)
     sow(p, rng, F.fern, 18, 1.1, 1.8, "height", GAP["fern"] * 0.9)
     sow(p, rng, F.palm_sapling, 6, 1.8, 2.6, "height", GAP["sapling"])
@@ -556,7 +697,7 @@ def patch_tangle(p, rng):
     """Maximum thickness. You cut through this, you do not walk it."""
     tops = trees(p, rng, 4, dress=1.0)
     lianas(p, rng, tops, chance=1.0)
-    bamboos(p, rng, 7)
+    bamboos(p, rng, 11)          # tangle: you cut through this, and it is bamboo you cut
     sow(p, rng, F.bush, 24, 1.5, 2.2, "height", GAP["bush"] * 0.85)
     sow(p, rng, F.fern, 18, 1.1, 1.8, "height", GAP["fern"] * 0.9)
     sow(p, rng, F.elephant_grass, 12, 1.7, 2.3, "height", GAP["elephant"])
@@ -580,7 +721,10 @@ PATCHES = [
     ("patch_open",         patch_open,         "open",   "crater / burn / bare ground"),
     ("patch_clearing",     patch_clearing,     "open",   "light gets in: grass + scrub, trees at the rim"),
     ("patch_grassfield",   patch_grassfield,   "open",   "chest-high field grass - crouch and vanish"),
-    ("patch_paddy",        patch_paddy,        "paddy",  "rice paddy: bunds, water, transplanted clumps"),
+    ("patch_paddy",        patch_paddy,        "paddy",  "rice paddy: one worked pan, bunds, transplanted clumps"),
+    ("patch_paddy_quad",   patch_paddy_quad,   "paddy",  "four small pans on a cross-bund - twice the dry footing, channels movement"),
+    ("patch_paddy_fallow", patch_paddy_fallow, "paddy",  "gone to seed: reeds and grass in the water, bunds overgrown - the ONE paddy you can cross unseen"),
+    ("patch_paddy_grove",  patch_paddy_grove,  "paddy",  "worked pan with palms and banana on the bunds - the paddy tile with a skyline"),
     ("patch_paddy_edge",   patch_paddy_edge,   "paddy",  "paddy meets treeline - the killing ground"),
     ("patch_understory",   patch_understory,   "light",  "PRIMARY forest: big boles, bare floor, lianas"),
     ("patch_fern_floor",   patch_fern_floor,   "light",  "fern carpet under a high canopy"),
@@ -635,8 +779,9 @@ def main():
                      verts=len(p.verts), tris=tris, far_tris=far_tris,
                      height_m=round(max(zs) - min(zs), 2))
         if p.water:
-            # The game reads this and renders the pan with the TERRAIN's swamp water.
-            # No water geometry ships in the patch mesh.
+            # The game reads these and renders the pans with the TERRAIN's swamp water.
+            # No water geometry ships in the patch mesh. A LIST - a cross-bunded tile
+            # holds four separate sheets.
             entry["water"] = p.water
         manifest.append(entry)
         rows.append((name, density, len(p.verts), tris, far_tris,

@@ -31,6 +31,7 @@ func _ready() -> void:
 	_t_the_net_chases()
 	_t_the_trail_points_the_right_way()
 	_t_nva_read_more_trail()
+	_t_water_breaks_trail()
 	print("")
 	if _fails == 0:
 		print("*** THE HUNT HOLDS. They chase. Getting out alive is the game. ***")
@@ -221,3 +222,48 @@ func _t_nva_read_more_trail() -> void:
 			float(EnemySquad.CRUMB_MAX) * EnemySquad.CRUMB_INTERVAL])
 	_check("THE NVA READS FAR MORE OF IT THAN THE FARMER", nva > farmer * 2,
 		"%d vs %d crumbs" % [nva, farmer])
+
+
+## ================== WATER BREAKS TRAIL ==================
+## The counterplay that makes a 169m/minute chase survivable, and the thing the real
+## SOG teams actually did. Wade the creek and you lay no sign: the freshest crumb
+## stays at the bank where you went IN, so the net anchors on the water and loses
+## the thread. Honest price: water is OPEN, SLOW, LOUD, and full of leeches.
+func _t_water_breaks_trail() -> void:
+	print("
+-- 8. WATER BREAKS TRAIL (the only way out of a real chase) --")
+	EnemySquad.clear()
+	var ghost := Node3D.new()
+	add_child(ghost)
+	var t: float = 1000.0
+
+	# He runs north up the bank, laying sign, and enters the creek at z = 30.
+	for i in range(6):
+		EnemySquad.report_contact(31, ghost, Vector3(0, 0, float(i) * 6.0), t, true)
+		t += EnemySquad.CRUMB_INTERVAL * 1000.0
+	var on_land: int = (EnemySquad._squads[31].crumbs as Array).size()
+
+	# Now he is IN the water, and he wades 60m east. They can still SEE him -
+	# but he is leaving nothing to follow.
+	for i in range(10):
+		EnemySquad.report_contact(31, ghost, Vector3(float(i) * 6.0, 0, 30.0), t, false)
+		t += EnemySquad.CRUMB_INTERVAL * 1000.0
+	var after_wade: int = (EnemySquad._squads[31].crumbs as Array).size()
+
+	_check("wading lays NO new sign", after_wade == on_land,
+		"%d crumbs before the creek, %d after wading 60m" % [on_land, after_wade])
+
+	var crumbs: Array = EnemySquad._squads[31].crumbs
+	var freshest: Vector3 = crumbs[crumbs.size() - 1]
+	_check("the trail ENDS AT THE BANK where he went in", freshest.z <= 30.1 and freshest.x < 1.0,
+		"freshest sign at (%.0f, %.0f)" % [freshest.x, freshest.z])
+
+	# So when they lose him, the hunt anchors on the bank - not on where he actually is.
+	var h := EnemySquad.trail_heading(31)
+	EnemySquad.begin_hunt(31, freshest, h, t)
+	var net: Vector3 = EnemySquad.hunt_anchor_now(31, t + 40000.0, 0.9)
+	var truth := Vector3(54, 0, 30)          # where he actually came out
+	_check("the NET GOES THE WRONG WAY (he is 54m east; they sweep north)",
+		net.distance_to(truth) > 40.0,
+		"net at (%.0f, %.0f), he is at (%.0f, %.0f)" % [net.x, net.z, truth.x, truth.z])
+	print("      even an NVA sweep is hunting empty jungle. THAT is how you get out alive.")

@@ -119,7 +119,19 @@ static func claim_grenade(id: int, now_ms: float) -> void:
 
 ## A member with eyes on reports the contact. Designates the squad target, drops
 ## a breadcrumb trail, and stamps the time so the knowledge decays.
-static func report_contact(id: int, target: Node3D, pos: Vector3, now_ms: float) -> void:
+## `leaves_trail = false` means: they SEE him, but he is LEAVING NO SIGN.
+##
+## WATER BREAKS TRAIL. It is what the SOG teams actually did, and it is the one
+## counterplay that makes a 169m/minute chase survivable. Wade a creek and no crumbs
+## are laid; the freshest crumb stays at the bank where you went IN. Come out
+## somewhere else and the trail simply stops - the net anchors on the water and
+## loses the thread.
+##
+## The trade is honest and entirely historical: water is OPEN (it conceals nothing),
+## SLOW (you are wading), LOUD (you are splashing), and it has leeches. It buys you
+## exactly one thing, and it is the thing you need: IT ERASES YOU.
+static func report_contact(id: int, target: Node3D, pos: Vector3, now_ms: float,
+		leaves_trail: bool = true) -> void:
 	if id < 0 or target == null:
 		return
 	var sq := _s(id)
@@ -127,6 +139,8 @@ static func report_contact(id: int, target: Node3D, pos: Vector3, now_ms: float)
 	sq.last_known = pos
 	sq.updated = now_ms
 	sq["hunt_start"] = 0.0   # found him. The hunt is over; the fight is on.
+	if not leaves_trail:
+		return               # eyes on, but no sign. The trail ends at the bank.
 	if now_ms - float(sq.last_crumb) >= CRUMB_INTERVAL * 1000.0:
 		sq.last_crumb = now_ms
 		var crumbs: Array = sq.crumbs
