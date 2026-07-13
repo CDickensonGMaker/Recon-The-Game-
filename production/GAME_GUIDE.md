@@ -367,3 +367,4 @@ below; the charter is the manual it loads at session start.
 | **019** | **Hearts & Minds: village allegiance drives VC manpower. The war is the story.** |
 | **020** | **The Authored Threshold: guarantees, not rails. + The Ambience Law.** |
 | **021** | **Patrols: routes that rotate + THE PROMOTION IS THE TUTORIAL (follow -> lead)** |
+| **022** | **The map is your memory: he marks it, and the game NEVER corrects him** |
