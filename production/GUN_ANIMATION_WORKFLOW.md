@@ -68,11 +68,38 @@ a way that looks like a rigging error and isn't.
 
 ---
 
-## 2 · YES, YOU CAN AUTHOR A RELOAD ONCE — per **family**, not per gun
+## 2 · ⚠ TWO RIGS. THEY SHARE NOTHING. DO NOT CONFLATE THEM.
 
-**`ArmsRig` is already identical across all 13 viewmodels.** The precondition for a shared library is
-already met, for free. Put the gun on the rig and every track becomes `ArmsRig/Skeleton3D:gun_mag` —
-**gun-agnostic** — exactly the `PSXRig` contract your characters already use.
+**(Summoner's correction, 2026-07-13 — and it is load-bearing.)**
+
+| | **PSXRig** | **ArmsRig** |
+|---|---|---|
+| **what** | NPCs and characters — **third person** | FP viewmodel **arms + gun** — first person |
+| **clips live in** | `anim_library.blend` → **ONE shared rig-only GLB**; every character GLB reads it (`model_actor.gd:143 _load_shared_library()`) | baked **per viewmodel** today (`export_viewmodel.py`, `rifle_pose.py`, `fp_grip.py`) |
+| **its clips** | walk, cower, `civ_panic_run`, hands_up, deaths, crawl, work | `rifle_idle` — **and that is currently the entire list** |
+
+**They share NO skeleton, NO clips, and NO library, and they never will.** A PSXRig track path inside a
+viewmodel clip is a broken viewmodel; the reverse is a broken character. **Never point one at the other.**
+
+### What that means for the backlog — they are TWO separate work streams
+
+- **Deaths · wounded · crawling · the medic** → **PSXRig**, into the existing `anim_library.blend`. Every
+  character gets them for free. *(This is where tonight's civilian clips already live and already play.)*
+- **Jam · reload · fire · inspect** → **ArmsRig**, into a **NEW, SECOND library of its own.**
+- **And note the trap:** an *ally reloading* is a **PSXRig** clip. **Your** reload is an **ArmsRig** clip.
+  **They are two different animations of the same action, and you have to author both.**
+
+---
+
+## 2b · YES, YOU CAN AUTHOR A RELOAD ONCE — per **family**, not per gun
+
+**`ArmsRig` is already identical across all 13 viewmodels.** The precondition for a shared library is met
+for free — so **build ArmsRig its own second library**, applying the *same pattern* PSXRig uses (one
+skeleton, one clip file, no re-export to add an animation). **Same pattern. Different rig. Different
+file. Never the same library.**
+
+Put the gun on the rig and every track becomes `ArmsRig/Skeleton3D:gun_mag` — **gun-agnostic** across the
+weapons on that rig.
 
 **Author the AR reload once → M16, CAR-15 and M14 all get it.**
 
