@@ -15,6 +15,20 @@
 ##   R      re-stand every target, clear the board
 ##   B      toggle bullet-drop cheat sheet (per-weapon zero + holdover)
 ##
+## THE PENETRATION ROW (Caleb: "i need to add surfaces for dummies to be behind
+## for us to prove the penetration coding you said existed"). Walk RIGHT. Nine
+## parallel lanes, each with a material panel and a man standing behind it.
+##
+## The code being proved (bullet_system.gd): a round that hits `soft_cover`
+## KEEPS GOING at x0.8 energy, at most `soft_left = 2` times. Anything else stops
+## it dead. So a hooch wall is CONCEALMENT, not cover - and the THIRD layer of
+## thatch is what finally eats the bullet.
+##
+## Before this row existed the system had NEVER BEEN EXERCISED: exactly one thing
+## in the whole game was in the `soft_cover` group (site_planner.gd:120), and the
+## `hard_surface` group had ZERO members, so no impact in the game has ever thrown
+## a spark. Now shoot the panels and watch the damage that reaches the man.
+##
 ## Run: gun_range.bat  /  godot --path . res://scenes/levels/gun_range.tscn
 class_name GunRange
 extends Node3D
@@ -49,6 +63,7 @@ func _ready() -> void:
 	_spawn_player()
 	for r in TARGET_RANGES:
 		_spawn_target(r)
+	_build_pen_row()
 	_build_hud()
 	_equip(0)
 	print("[GUN RANGE] %d targets, %d guns. [ ] weapon | H zones | R reset | B drop sheet" % [
@@ -305,3 +320,147 @@ func _process(_delta: float) -> void:
 		_sheet.visible = _sheet_visible
 		if _sheet_visible and _holder != null:
 			_sheet.text = _drop_sheet(_holder.current_weapon)
+
+
+## ================= THE PENETRATION ROW =================
+## Walk right. Shoot THROUGH things. Watch what reaches the man.
+##
+## Each lane is a material panel with a docile VC behind it. The label over his head
+## states the DOCTRINE ("rounds punch through" / "stops the round") and then reports
+## what ACTUALLY happened. If those two disagree, the bullet code is lying, and you
+## can see it from the firing line.
+##
+## Expected, with an M16 (base 28, torso x2.5 = 70 at point blank):
+##   no cover      70      the control
+##   1 x thatch    56      x0.8
+##   2 x thatch    45      x0.64
+##   3 x thatch     0      SOFT BUDGET SPENT (soft_left = 2). The third layer eats it.
+##   sandbag        0      hard cover stops it
+const PEN_X0: float = 34.0      ## first lane, right of the main range
+const PEN_SPACING: float = 6.0
+const PEN_PANEL_Z: float = -16.0
+const PEN_MAN_Z: float = -19.0
+
+## name, layers, soft?, doctrine
+const PEN_LANES: Array = [
+	["NO COVER",     0, false, "control - this is the raw number"],
+	["THATCH",       1, true,  "SOFT: lead goes through"],
+	["BAMBOO",       1, true,  "SOFT: lead goes through"],
+	["BRUSH",        1, true,  "SOFT: concealment, not cover"],
+	["CRATE",        1, true,  "SOFT: lead goes through"],
+	["THATCH x2",    2, true,  "SOFT x2: through both, x0.64"],
+	["THATCH x3",    3, true,  "SOFT x3: BUDGET SPENT - the 3rd layer STOPS it"],
+	["SANDBAG",      1, false, "HARD: stops the round"],
+	["BUNKER LOG",   1, false, "HARD: stops the round"],
+]
+
+var _pen: Array = []    ## [{name, soft, layers, doctrine, man, label, last, hits}]
+
+
+func _build_pen_row() -> void:
+	var sign_l := Label3D.new()
+	sign_l.text = "PENETRATION ROW  >>  SHOOT THROUGH THE COVER"
+	sign_l.font_size = 80
+	sign_l.pixel_size = 0.012
+	sign_l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sign_l.modulate = Color(1.0, 0.75, 0.3)
+	sign_l.outline_size = 20
+	sign_l.position = Vector3(PEN_X0 + PEN_SPACING * 4.0, 6.5, PEN_PANEL_Z - 2.0)
+	add_child(sign_l)
+
+	for i in range(PEN_LANES.size()):
+		var spec: Array = PEN_LANES[i]
+		var lane_x: float = PEN_X0 + PEN_SPACING * float(i)
+		var nm: String = str(spec[0])
+		var layers: int = int(spec[1])
+		var soft: bool = bool(spec[2])
+
+		# The panels. Stacked back-to-front so a multi-layer lane is a real wall
+		# of thatch, not one box pretending to be three.
+		for k in range(layers):
+			_build_panel(lane_x, PEN_PANEL_Z + float(k) * 0.7, nm, soft)
+
+		# The man behind it.
+		var man := GoreDummy.new()
+		man.unit_id = "vc_guerilla"
+		man.idle_only = true
+		add_child(man)
+		man.global_position = Vector3(lane_x, 0.0, PEN_MAN_Z)
+		man.rotation.y = PI
+
+		var lbl := Label3D.new()
+		lbl.font_size = 48
+		lbl.pixel_size = 0.006
+		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lbl.outline_size = 14
+		lbl.position = Vector3(0, 3.0, 0)
+		man.add_child(lbl)
+
+		var rec: Dictionary = {"name": nm, "soft": soft, "layers": layers,
+			"doctrine": str(spec[3]), "man": man, "label": lbl, "last": 0, "hits": 0}
+		_pen.append(rec)
+		var idx: int = _pen.size() - 1
+		man.hit_taken.connect(func(zone: String, amount: int, _hp: int) -> void:
+			var r: Dictionary = _pen[idx]
+			r.last = amount
+			r.hits = int(r.hits) + 1
+			_log_line("PEN  %-11s  %-5s  %3d dmg   (%d hits through)" % [
+				r.name, zone, amount, r.hits])
+			_refresh_pen(idx))
+		# He re-stands: a dead man behind a panel proves nothing twice.
+		man.died.connect(func() -> void:
+			_log_line("PEN  %-11s  >>> DOWN <<<" % nm))
+		_refresh_pen(idx)
+
+
+func _build_panel(x: float, z: float, nm: String, soft: bool) -> void:
+	var body := StaticBody3D.new()
+	body.name = "panel_%s" % nm.to_lower().replace(" ", "_")
+	body.collision_layer = 1     # the layer LOS and bullets test against
+	body.collision_mask = 0
+	# THE WHOLE POINT. bullet_system reads these GROUPS - not the mesh, not the
+	# material, not the name. Before this row, `soft_cover` had ONE member in the
+	# entire game and `hard_surface` had NONE.
+	if soft:
+		body.add_to_group("soft_cover")
+	else:
+		body.add_to_group("hard_surface")
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(1.8, 2.0, 0.2)
+	col.shape = shape
+	body.add_child(col)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = shape.size
+	mi.mesh = bm
+	var mat := StandardMaterial3D.new()
+	# Soft = straw yellow. Hard = grey stone. Readable from the firing line.
+	mat.albedo_color = Color(0.72, 0.60, 0.30) if soft else Color(0.42, 0.44, 0.46)
+	mi.material_override = mat
+	body.add_child(mi)
+	body.position = Vector3(x, 1.0, z)
+	add_child(body)
+
+
+func _refresh_pen(i: int) -> void:
+	var r: Dictionary = _pen[i]
+	var lbl := r.label as Label3D
+	var hits: int = int(r.hits)
+	var last: int = int(r.last)
+	var soft: bool = bool(r.soft)
+	var layers: int = int(r.layers)
+	# The verdict. Doctrine says what SHOULD happen; the man says what DID.
+	# soft_left = 2, so three soft layers must stop the round.
+	var should_pass: bool = layers == 0 or (soft and layers <= 2)
+	var verdict: String = "- no rounds yet -"
+	if hits > 0:
+		verdict = "PENETRATED" if should_pass else "*** BUG: got through! ***"
+	elif not should_pass:
+		verdict = "STOPPED (shoot it to confirm)"
+	lbl.modulate = Color(0.9, 0.95, 0.6) if should_pass else Color(0.75, 0.8, 0.85)
+	if hits > 0 and not should_pass:
+		lbl.modulate = Color(1.0, 0.3, 0.25)   # a bug, and you can see it from the line
+	lbl.text = "%s
+%s
+%s   dmg %d   hits %d" % [r.name, r.doctrine, verdict, last, hits]

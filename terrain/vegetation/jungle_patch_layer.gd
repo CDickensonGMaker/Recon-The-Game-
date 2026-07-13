@@ -367,6 +367,30 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 	_chunk_nodes[chunk_coord] = nodes
 
 
+## Is this paddy cell on the EDGE of the field, and if so which way is out?
+##
+## Returns the number of quarter-turns to rotate patch_paddy_edge by so its dry bank and
+## treeline face the open side, or -1 if the cell is surrounded by paddy (interior).
+##
+## patch_paddy_edge is authored with its water on -Y and its dry bank + treeline on +Y.
+## A yaw of TAU/4 * k rotates local +Y toward:  k=0 -> +Z, 1 -> -X, 2 -> -Z, 3 -> +X
+## (Godot yaw about +Y turns +Z toward +X at k=3... so we map explicitly rather than
+## trusting a sign - this is exactly the kind of thing that ships backwards.)
+func _paddy_open_side(terrain: PackedByteArray, bundles: int, bx: int, bz: int) -> int:
+	# grid +Z / -Z / +X / -X, in the same order as the quarter-turn that faces them
+	const PROBE: Array[Vector2i] = [
+		Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(1, 0),
+	]
+	for k in range(PROBE.size()):
+		var nx := bx + PROBE[k].x
+		var nz := bz + PROBE[k].y
+		if nx < 0 or nz < 0 or nx >= bundles or nz >= bundles:
+			continue     # off the chunk - we cannot see the neighbour, so do not guess
+		if int(terrain[nz * bundles + nx]) != T_RICE_PADDY:
+			return k     # dry land that way: this is the field's edge, face it
+	return -1
+
+
 ## One mesh holding every pan this patch declares, in the patch's own local space.
 func _build_pan_mesh(pans: Array) -> ArrayMesh:
 	var verts := PackedVector3Array()
