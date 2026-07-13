@@ -23,6 +23,7 @@ func setup(game_world: GameWorld) -> void:
 	# Ignore any COMBAT contact from a previous mission (the beacon is static).
 	_detect_baseline_ms = float(Time.get_ticks_msec())
 	EnemyBase.last_combat_contact_ms = -1.0
+	EnemyBase.unreported_corpses.clear()   # bodies do not haunt the next mission
 	world = game_world
 	state.start_time_ms = Time.get_ticks_msec()
 	if not GameManager.player_died.is_connected(_on_player_died):

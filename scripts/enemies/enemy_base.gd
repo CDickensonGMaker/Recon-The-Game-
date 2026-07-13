@@ -78,6 +78,8 @@ var _combat_lost_time: float = 0.0
 var _grid: GameplayGrid = null        ## fetched from game_world group (sight caps)
 const SIGHT_CAP_OPEN: float = 140.0
 const SIGHT_CAP_JUNGLE: float = 45.0
+## How close a man must come to NOTICE a body (he still needs eyes on it).
+const CORPSE_NOTICE_RANGE: float = 22.0
 const CLOSE_SENSE_RANGE: float = 10.0  ## contacts inside this are felt regardless of facing
 
 ## Aim interpolation (smooth aiming like Quake 3 bots)
@@ -546,6 +548,7 @@ func _think() -> void:
 		return  # still buried - no perception, no movement
 	# Perception first: the alert tier gates whether we may acquire targets.
 	_update_perception()
+	_check_corpse_discovery()   # a body you left is a clock (ADR-005)
 	if alert_tier == AlertTier.COMBAT:
 		_find_best_target()
 	elif target != null:
@@ -656,6 +659,96 @@ func _fov_deg() -> float:
 			return 360.0
 
 
+## ---------- THE WITNESS RULE (ADR-005, decree pwu5) ----------
+
+## Bodies you leave behind. A kill nobody saw does not raise the alarm - but the
+## corpse is still lying there, and whoever walks up on it later WILL. This is the
+## "bodies are a liability" rule the canon has promised since day one and never had.
+## Cleared per mission by MissionDirector.
+static var unreported_corpses: Array[Vector3] = []
+
+## Can this man actually SEE that point? Sight cap (vegetation + weather) + his
+## facing cone + smoke + a real ray. The same honesty _update_perception uses.
+func _can_witness(at: Vector3) -> bool:
+	var eye: Vector3 = global_position + Vector3.UP * 1.5
+	var tgt: Vector3 = at + Vector3.UP * 1.0
+	if global_position.distance_to(at) > _sight_cap(at):
+		return false
+	if alert_tier != AlertTier.COMBAT:
+		var to_c: Vector3 = (at - global_position).normalized()
+		var flat: Vector3 = Vector3(facing_dir.x, 0, facing_dir.z).normalized()
+		if flat.dot(Vector3(to_c.x, 0, to_c.z).normalized()) <= cos(deg_to_rad(_fov_deg() * 0.5)):
+			return false
+	if SmokeCloud.blocks_sight(eye, tgt):
+		return false
+	return CombatManager.has_line_of_sight(eye, tgt, [self])
+
+
+## A DEAD MAN TELLS NO TALES - but the man who WATCHED HIM DROP does.
+## Called from _die(). If any living enemy could genuinely see this kill happen, HE
+## raises the alarm and he knows roughly which way it came from. If nobody saw it,
+## the AO learns NOTHING and the body goes on the liability list.
+##
+## Before this existed, take_damage() stamped the detection beacon before the death
+## check, so a suppressed one-shot on a lone sentry in deep jungle still shouted
+## "YOU'VE BEEN MADE." Pillar 3 (stealth is an economy, never a gate) had no economy
+## at all: there was nothing a silent kill could buy you.
+func _witness_check(killer: Node) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var w := e as EnemyBase
+		if w == null or w == self or w.is_dead() or w.is_surrendered:
+			continue
+		if w.alert_tier == AlertTier.COMBAT:
+			return  # someone is already fighting. The alarm rang long ago.
+		# EYES ON, or CLOSE ENOUGH TO HEAR HIM FALL. A man does not need to be
+		# looking at his buddy to know he just dropped - a body going down in brush
+		# at arm's length is loud, and the same point-blank sense already governs
+		# _update_perception (a sentry who ignores a man breathing on his shoulder
+		# is what reads as broken AI). LOS is still required either way: a wall hides
+		# the sound of a fall as surely as the sight of it.
+		var heard_him_fall: bool = w.global_position.distance_to(global_position) < CLOSE_SENSE_RANGE 			and CombatManager.has_line_of_sight(
+				w.global_position + Vector3.UP * 1.5, global_position + Vector3.UP * 1.0, [w, self])
+		if not heard_him_fall and not w._can_witness(global_position):
+			continue
+		# He watched his buddy fold (or heard him hit the dirt). He does not know
+		# exactly where you are - but he knows roughly, and he is telling everyone NOW.
+		w._stamp_contact()
+		w._set_tier(AlertTier.ALERT, false)
+		w.awareness = maxf(w.awareness, 0.8)
+		if killer is Node3D:
+			w.last_known_target_pos = (killer as Node3D).global_position
+			w.target_last_seen_time = 0.0
+		else:
+			w.last_known_target_pos = global_position
+		VOManager.play_enemy("contact", w)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, w.global_position, 1, 30.0)
+		return
+	# NOBODY SAW IT. The kill is clean. But he is still lying there.
+	EnemyBase.unreported_corpses.append(global_position)
+
+
+## Walking up on a dead friend. The delayed price of a body you did not hide:
+## this is what turns "silent kill" from a free pass into a CLOCK.
+func _check_corpse_discovery() -> void:
+	if alert_tier == AlertTier.COMBAT or EnemyBase.unreported_corpses.is_empty():
+		return
+	for i in range(EnemyBase.unreported_corpses.size()):
+		var body: Vector3 = EnemyBase.unreported_corpses[i]
+		if global_position.distance_to(body) > CORPSE_NOTICE_RANGE:
+			continue
+		if not _can_witness(body):
+			continue
+		EnemyBase.unreported_corpses.remove_at(i)
+		_stamp_contact()               # YOU'VE BEEN MADE - by a corpse.
+		_set_tier(AlertTier.ALERT, false)
+		awareness = maxf(awareness, 0.6)
+		last_known_target_pos = body   # they sweep outward from where he fell
+		target_last_seen_time = 0.0
+		VOManager.play_enemy("contact", self)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
+		return
+
+
 func _update_perception() -> void:
 	# Candidate: nearest living hostile (player weighted first).
 	var candidate: Node3D = null
@@ -732,16 +825,34 @@ func _update_perception() -> void:
 				_combat_lost_time = 0.0
 
 
-func _set_tier(tier: AlertTier) -> void:
-	if tier == AlertTier.COMBAT:
-		EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
-		# CONTACT LEDGER (ADR-006): this man just went loud on you, so his whole
-		# group is DETECTED and it costs you -25 at the debrief. A group you
-		# never wake is +25. Kills pay nothing now - being unseen is the score.
-		# Group identity = the squad he coordinates with; a lone wolf is his own.
-		var d: Node = get_tree().get_first_node_in_group("mission_director")
-		if d != null and d.has_method("report_contact"):
-			d.call("report_contact", squad_id if squad_id >= 0 else get_instance_id())
+## THE WITNESS RULE (ADR-005, decree pwu5). THE alarm is not "someone got hurt" —
+## it is "someone LIVED TO TELL IT." Stamping the global beacon + the contact
+## ledger is therefore its own act, and only a WITNESS may perform it:
+##   - a man who SEES you                       (_perceive -> COMBAT)
+##   - a man you shot who SURVIVES              (take_damage, he lived)
+##   - a man who watches his buddy drop         (_witness_check on death)
+##   - a man who FINDS A BODY you left behind   (_check_corpse_discovery)
+## A silent, unwitnessed kill is SILENT. That is the whole economy: the jungle,
+## the suppressor, and the angle you took are worth something now.
+func _stamp_contact() -> void:
+	EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
+	# CONTACT LEDGER (ADR-006): this man just went loud on you, so his whole
+	# group is DETECTED and it costs you -25 at the debrief. A group you
+	# never wake is +25. Kills pay nothing now - being unseen is the score.
+	# Group identity = the squad he coordinates with; a lone wolf is his own.
+	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	if d != null and d.has_method("report_contact"):
+		d.call("report_contact", squad_id if squad_id >= 0 else get_instance_id())
+
+
+## `witnessed` = false means "go loud LOCALLY, but you are not proof of anything."
+## Used by take_damage: a man being shot fights back instantly, but a corpse does
+## not raise an alarm. Before this, take_damage stamped the beacon BEFORE the death
+## check ran — so a silent one-shot kill on a lone sentry still shouted
+## "YOU'VE BEEN MADE", and Pillar 3 was broken at the root for the whole project.
+func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
+	if tier == AlertTier.COMBAT and witnessed:
+		_stamp_contact()
 	if tier == alert_tier:
 		return
 	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
@@ -1945,8 +2056,11 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
 		_become_crippled()
 
-	# Getting shot = instant COMBAT tier (R12), whatever we were doing.
-	_set_tier(AlertTier.COMBAT)
+	# Getting shot = instant COMBAT tier (R12), whatever we were doing — but
+	# LOCALLY ONLY. He fights back; he does not yet prove anything to anyone.
+	# Whether the AO learns about it is decided below, by whether he LIVES
+	# (and, if he doesn't, by _die() -> _witness_check). THE WITNESS RULE.
+	_set_tier(AlertTier.COMBAT, false)
 	if attacker is Node3D:
 		last_known_target_pos = (attacker as Node3D).global_position
 		target_last_seen_time = 0.0
@@ -1987,6 +2101,9 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			var down_chance: float = clampf(0.35 * (1.0 - float(overkill) / 40.0), 0.0, 0.35)
 			if randf() < down_chance:
 				_become_downed()
+				# He is down but ALIVE - crawling, screaming, drawing his buddies.
+				# That is a witness. You wanted him DEAD. (THE WITNESS RULE)
+				_stamp_contact()
 				return amount
 		# HEAD POP on heavy fatal headshots (>= HEAD_POP_KILL raw), same rule
 		# as the gore dummy: burst (skull fragments) 25% of the time, one-piece
@@ -2007,6 +2124,10 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:
+		# HE LIVED. A man you shot who survives WILL tell everyone - he shouts,
+		# he shoots back, he gets on the radio. Surviving your attack is exactly
+		# what makes it WITNESSED. (ADR-005)
+		_stamp_contact()
 		# MORALE (war-room decree, Summoner: "in war everyone's goal is to
 		# survive"): courage-powered break ladder. Low-courage men (Local
 		# Force) BREAK under pressure - rout (forced retreat, drop the fight)
@@ -2159,6 +2280,9 @@ func secure() -> bool:
 
 
 func _die() -> void:
+	# THE WITNESS RULE: did anyone actually SEE this happen? If not, the AO learns
+	# nothing and this body becomes a liability instead. (ADR-005)
+	_witness_check(_last_attacker)
 	GunFX.blood_pool(get_tree().current_scene, global_position)  # kill pool spreads under him
 	_change_state(Enums.AIState.DEAD)
 	_release_cover()

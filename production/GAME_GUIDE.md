@@ -131,10 +131,16 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   with radio/flare (killable counterplay). Civilians inform on a timer.
 - **Scoring pays avoidance:** +25/contact avoided, −25/detected (replaces kills×10 — ADR-006). Loud stays
   viable; it stops being the optimal XP strategy.
-- ⚠ **`take_damage()` still stamps the COMBAT beacon before the death check (enemy_base.gd:1497) — a
-  silent one-shot kill still triggers "YOU'VE BEEN MADE". Comments claiming this is fixed LIE. Bead o18o
-  is open. This is build-order item #1.**
-- ⚠ Debrief currently tracks zero contacts; VILLAGE_RAID demands 80% body count (becomes optional).
+- ~~⚠ `take_damage()` stamps the COMBAT beacon before the death check~~ **FIXED 2026-07-12 (bead pwu5),
+  and PROVEN by `tools/probe_witness.tscn` (11/11).** THE WITNESS RULE is live: only a man who **lives to
+  tell it** raises the alarm — he SEES you, he SURVIVES your shot, he WATCHES his buddy drop (or hears him
+  fall inside 10m), or he **FINDS A BODY you left lying there** (`unreported_corpses` — bodies are finally
+  a liability). An unwitnessed kill is now genuinely silent. **GUNSHOT 55m → 150m**: sound wakes the AO to
+  ALERT but never to COMBAT, so a loud kill gets you made *in a few seconds, not instantly* — and those
+  seconds are the game.
+- ~~⚠ VILLAGE_RAID demands 80% body count~~ **FIXED 2026-07-12:** clearing the ville is now **OPTIONAL**;
+  destroying the cache/APC remains the required objective. A raid can be done quietly (Pillar 3: stealth
+  is never gated) — a mandatory body count contradicted "kills pay zero" outright.
 - ⚠ The "being noticed" detection pip (DESIGN §4.10) is unshipped after two decrees.
 
 ### 4.3 Enemy AI (Pillar 1/2)

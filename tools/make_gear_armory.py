@@ -6,18 +6,34 @@
 Same idea as the gun armory in weapons_us.blend: each piece laid out in the open where
 you can see it and edit it, instead of buried on a character.
 
-THE ONE THING THIS MUST NOT BREAK
-Every locker prop's VERTICES are authored in WORLD/REST SPACE - that is the whole
-contract, and it is why a prop hangs correctly off a bone with matrix_world = identity.
-So the rack CANNOT move vertices. It moves the OBJECT (its transform) onto a rack slot
-and leaves the mesh data untouched. Caleb edits geometry in that local space; `pack`
-sets every object transform back to identity and re-attaches, and his edited geometry
-lands exactly where the old geometry was.
+HOW THIS SURVIVES "ORIGIN TO GEOMETRY"
+The first version of this tool assumed every prop's VERTICES stay in world/rest space,
+so `pack` could just zero the object transform and everything would land back where it
+belonged. That assumption was garbage, because Caleb does this:
 
-    build  ->  unparent, record the bone in obj["attach_bone"], slide the object onto a
-               rack slot. Mesh data NOT touched.
-    pack   ->  location back to zero, re-attach to obj["attach_bone"] via bone_attach
-               (which forces REST and checks itself), verify_all, save the locker.
+    "i set the origin to the geometry because its easier to edit things that way"
+
+...which is correct - it IS easier - and it moves the verts into local space while
+keeping the world position identical. Under the old `pack`, that put the radio at his
+FEET, because zeroing the transform of a re-originned mesh throws the position away.
+
+So the rack no longer cares where the origin is. At build it records the exact world
+translation it slid the prop by:
+
+    obj["rack_delta"] = (the vector from the WORN position to the RACK slot)
+
+and `pack` simply undoes that translation in WORLD space, bakes the object transform
+into the vertices, and hangs the result at identity. Move the origin, scale it, rotate
+it, apply transforms - none of it matters, because we never assume anything about the
+object's local space. We only ever ask for its matrix_world.
+
+    build  ->  unparent, record obj["attach_bone"] + obj["rack_delta"], slide onto a slot
+    pack   ->  undo rack_delta in world, bake matrix into verts, attach at identity,
+               verify_all, save the locker.
+
+LEGACY PROPS: anything racked before rack_delta existed has no such key. For those we
+recover the delta by comparing the prop's current world bbox centre against the same
+prop's centre in gear_library.blend. Rebuild the rack once and this goes away.
 
 The rig and the body stand at the origin as a size reference - hidden from selection so
 you cannot grab them by accident.
@@ -26,7 +42,7 @@ import bpy, sys, os
 from mathutils import Vector, Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bone_attach import attach, verify_all
+from bone_attach import attach, verify_all, AttachError
 
 LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
 ARMORY = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_armory.blend"
@@ -39,8 +55,11 @@ SPACING_Y = 0.70
 RACK_Z = 1.05          # eye height: you are not crouching to look at a sickle
 
 
-def bbox_centre(ob):
-    vs = [v.co for v in ob.data.vertices]
+def world_centre(ob):
+    """The prop's bbox centre IN WORLD SPACE. Never ask where its origin is - that is
+    Caleb's business, and he moves it, because origin-to-geometry is easier to model
+    with. Only ever ask matrix_world."""
+    vs = [ob.matrix_world @ v.co for v in ob.data.vertices]
     lo = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
     hi = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
     return (lo + hi) * 0.5
@@ -88,9 +107,13 @@ def build():
         slot = Vector((-((COLS - 1) * SPACING_X) * 0.5 + col * SPACING_X,
                        -1.30 - row * SPACING_Y,
                        RACK_Z))
-        # slide the OBJECT so the mesh's bbox centre lands on the slot. The mesh data
-        # is untouched - only obj.location moves - so `pack` can simply zero it again.
-        ob.location = slot - bbox_centre(ob)
+        # Slide the OBJECT so the prop's world centre lands on the slot, and REMEMBER the
+        # translation. pack() undoes exactly this, in world space, so it does not matter
+        # what Caleb does to the origin in between.
+        worn_centre = world_centre(ob)
+        delta = slot - worn_centre
+        ob.location = ob.location + delta
+        ob["rack_delta"] = tuple(delta)
         ob.hide_select = False
         ob.display_type = 'TEXTURED'
         print("%-22s %-12s (%+.2f, %+.2f, %.2f)"
@@ -108,16 +131,48 @@ def pack():
     props = [o for o in bpy.data.objects
              if o.type == 'MESH' and "attach_bone" in o.keys()]
     props.sort(key=lambda o: o.name)
+    # legacy fallback: props racked before rack_delta existed
+    legacy = [o for o in props if "rack_delta" not in o.keys()]
+    worn = {}
+    if legacy:
+        print("%d prop(s) have no rack_delta (racked by the old tool). Recovering their")
+        print("worn positions from gear_library.blend by bbox centre.\n" % len(legacy))
+        tmp = bpy.data.objects[:]
+        with bpy.data.libraries.load(LOCKER, link=False) as (src, dst):
+            dst.objects = [o.name for o in legacy if o.name in src.objects]
+        for o in dst.objects:
+            if o is None:
+                continue
+            bpy.context.scene.collection.objects.link(o)
+            bpy.context.view_layer.update()
+            worn[o.name] = world_centre(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+
     print("PACKING %d props back onto the rig\n" % len(props))
     for ob in props:
         bone = ob["attach_bone"]
-        # back to the authored space: the verts never moved, so identity puts the piece
-        # exactly where it belongs.
-        ob.location = Vector((0.0, 0.0, 0.0))
-        ob.rotation_euler = (0.0, 0.0, 0.0)
-        ob.scale = Vector((1.0, 1.0, 1.0))
-        d = attach(ob, rig, bone)                 # forces REST, checks itself
-        print("   %-22s -> %-12s ok" % (ob.name, bone.replace("mixamorig:", "")))
+        if "rack_delta" in ob.keys():
+            delta = Vector(tuple(ob["rack_delta"]))
+        elif ob.name in worn:
+            delta = world_centre(ob) - worn[ob.name]
+        else:
+            raise AttachError(
+                "%s has no rack_delta and is not in the locker, so there is no way to "
+                "know where it is WORN. Refusing to guess - it would land at his feet."
+                % ob.name)
+
+        # Undo the rack slide IN WORLD SPACE, then bake the whole transform into the
+        # vertices. We never assume anything about the origin, so origin-to-geometry,
+        # applied scales and rotations are all fine.
+        ob.matrix_world = Matrix.Translation(-delta) @ ob.matrix_world
+        bpy.context.view_layer.update()
+        ob.data.transform(ob.matrix_world)
+        ob.matrix_world = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+
+        attach(ob, rig, bone)                 # forces REST, and checks itself
+        print("   %-22s -> %-12s  (undid rack slide %.2f m)"
+              % (ob.name, bone.replace("mixamorig:", ""), delta.length))
 
     # drop the reference body - it is not part of the locker
     body = bpy.data.objects.get("us_grunt_joined")

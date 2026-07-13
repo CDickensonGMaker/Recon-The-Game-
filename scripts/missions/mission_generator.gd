@@ -230,7 +230,11 @@ static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["village_target"] = "vehicle" if target_is_vehicle else "cache"
 	var target_title := "DESTROY THE CAPTURED APC" if target_is_vehicle else "DESTROY WEAPONS CACHE"
 	p.objectives.append({"kind": "plant", "pos": Vector3.ZERO, "title": target_title, "index": 0, "required": true})  # pos resolved at build
-	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE", "index": 1, "required": true, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
+	# ADR-006 / decree pwu5: CLEARING IS OPTIONAL. A mandatory 80% body count made
+	# the loud path the ONLY path and turned a raid into an extermination quota -
+	# which contradicts "kills pay zero" and Pillar 3 (stealth is never gated).
+	# Take the cache and walk out, or level the place. Both are the mission.
+	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE (OPTIONAL)", "index": 1, "required": false, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
 	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
 	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
 	p["fire_support"] = {"bombs": 1, "napalm": 1, "mortar": 2}
