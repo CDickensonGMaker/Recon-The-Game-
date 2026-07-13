@@ -150,12 +150,8 @@ func build_from_terrain() -> void:
 				impassable = get_water_depth(Vector3(world_x, 0.0, world_z)) > WADE_DEPTH_M
 			is_passable[idx] = 0 if impassable else 1
 
-			# Get vegetation density from clearing system if available
-			if clearing_system and clearing_system.has_method("get_density_at"):
-				vegetation_density[idx] = clearing_system.get_density_at(world_x, world_z)
-			else:
-				# Estimate from terrain type
-				vegetation_density[idx] = _estimate_vegetation(ttype)
+			# Biome density, MINUS whatever has been cleared here (see _density_at).
+			vegetation_density[idx] = _density_at(ttype, world_x, world_z)
 
 	_apply_riparian_belt()
 	_roof_the_creeks()
@@ -206,6 +202,45 @@ const ROOF_SAMPLE_M: float = 11.0  ## how far out we look to decide "is this nar
 const ROOF_NARROW: float = 0.72    ## land fraction at/above which the canopy fully closes
 const ROOF_WIDE: float = 0.30      ## land fraction at/below which it is open sky
 const ROOF_FACTOR: float = 0.95    ## the canopy closes, but never quite like solid ground
+
+
+## WHAT THE PLAYER (AND HIS ORDNANCE) CUT DOWN.
+##
+## THE BUG: both call sites guarded on `clearing_system.has_method("get_density_at")`
+## and THAT METHOD DOES NOT EXIST ANYWHERE. The guard was permanently false, so
+## update_region() ran its body NEVER, mark_cleared() was called by NOTHING, and
+## TerrainType.CLEAR could not exist at runtime.
+##
+## Consequence: EVERY LZ IN THE GAME WAS A LIE. stamp_lz() flattens the ground and
+## deletes the plants, so it LOOKS like a clearing - but the grid still reported the
+## pre-clear jungle density, and enemy_base._sight_cap() read that number. The player
+## stood in a bald 16m disc while the AI behaved as though he were under triple canopy
+## (45m instead of 140m).
+##
+## ⚠ AND THE OBVIOUS FIX IS A LANDMINE. DESTRUCTIBLE_JUNGLE_PLAN called this "the
+## one-word bug" and prescribed swapping in get_vegetation_density(). Do that and the
+## game breaks WORSE, because:
+##   clearing_system.gd:81  vegetation_map.fill(Color(1,1,1,1))   # FULL VEGETATION
+## ClearingSystem's map starts at 1.0 EVERYWHERE and is only ever LOWERED inside a
+## clearing zone (:242). IT IS A CLEARING MASK, NOT A DENSITY - it is never populated
+## from the terrain. A straight swap returns 1.0 for every cell on the map: a 45m
+## sight cap over open paddy, grassland, river and bald clearing alike, every biome
+## erased, and the gallery forest and roofed creeks silently overridden.
+## (It is not even a rename: get_vegetation_density takes ONE Vector3; these sites
+## passed TWO floats.)
+##
+## SO IT IS A MERGE, NOT A REPLACEMENT. Clearing only ever SUBTRACTS. It is a
+## MINIMUM, never a source of truth:
+##     uncleared -> min(biome, 1.0) = the biome, untouched
+##     cleared   -> min(biome, 0.0) = zero
+## Every LZ becomes real, and the world survives.
+func _density_at(ttype: int, world_x: float, world_z: float) -> float:
+	var d: float = _estimate_vegetation(ttype)
+	if clearing_system != null and clearing_system.has_method("get_vegetation_density"):
+		var mask: float = float(clearing_system.get_vegetation_density(
+			Vector3(world_x, 0.0, world_z)))
+		d = minf(d, clampf(mask, 0.0, 1.0))
+	return d
 
 func _apply_riparian_belt() -> void:
 	var reach: int = maxi(1, int(ceil(RIPARIAN_M / cell_size_meters)))
@@ -576,9 +611,12 @@ func update_region(center: Vector3, radius_meters: float) -> void:
 			var world_x: float = (gx + 0.5) * cell_size_meters
 			var world_z: float = (gz + 0.5) * cell_size_meters
 
-			# Re-sample vegetation
-			if clearing_system and clearing_system.has_method("get_density_at"):
-				var density: float = clearing_system.get_density_at(world_x, world_z)
+			# Re-sample vegetation. THIS BODY HAS NEVER RUN until today - the guard it
+			# used to sit behind tested for a method that does not exist, so every
+			# stamp_lz() / stamp_firebase() / stamp_outpost() emitted grid_updated and
+			# changed nothing at all.
+			if true:
+				var density: float = _density_at(terrain_type[idx], world_x, world_z)
 				vegetation_density[idx] = density
 
 				# Update terrain type based on new vegetation

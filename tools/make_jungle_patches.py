@@ -57,6 +57,8 @@ class Patch(F.Plant):
         # four pans by a cross-bund has four separate sheets of water, each held by its
         # own ring. See declare_water().
         self.water = []
+        # DECLARED TREES the game can collide with and fell. See record_tree().
+        self.trees = []
 
     def declare_water(self, level, half, at=(0.0, 0.0)):
         """This patch has a flooded pan. DO NOT bake a water quad into the mesh.
@@ -95,16 +97,48 @@ class Patch(F.Plant):
                                half=[round(hx, 3), round(hy, 3)],
                                at=[round(at[0], 3), round(at[1], 3)]))
 
-    def stamp(self, plant, at=(0, 0, 0), yaw=0.0, scale=1.0, detail=False):
+    def stamp(self, plant, at=(0, 0, 0), yaw=0.0, scale=1.0, detail=False, tree_slot=0):
+        """tree_slot > 0 tags every vertex of this plant as belonging to destructible
+        tree `tree_slot`. It rides COLOR.b out to the game (see Plant.bake). Note this
+        method does NOT go through Plant.add(), so the slot list has to be extended by
+        hand here - miss it and COLOR.b goes out of step with the vertices, and the game
+        fells the wrong tree."""
         base = len(self.verts)
         self.verts += F.place(plant.verts, yaw=yaw, origin=at, scale=scale)
         self.sway += list(plant.sway)
+        self.tree += [tree_slot] * len(plant.verts)
         pdet = getattr(plant, "detail", None)
         for i, f in enumerate(plant.faces):
             self.faces.append([base + j for j in f])
             self.mats.append(plant.mats[i])          # palette index
             own = bool(pdet[i]) if pdet and i < len(pdet) else False
             self.detail.append(detail or own)
+
+    def record_tree(self, x, y, radius, bole_h, tree_h, slot):
+        """Declare a tree the GAME can collide with and blow down.
+
+        BROADLEAF ONLY. Its bole is F.TRUNK_RADIUS - 64 cm across at the reference height -
+        a tree you can genuinely put your body behind. Bamboo culms are 0.03 m and palm
+        saplings 0.045 m: they are NOT cover, and giving them colliders would be a lie in
+        the other direction (a rifle round goes through bamboo, and the game should let it).
+
+        WHAT THE GAME DOES WITH EACH FIELD:
+          at    where it stands in the tile
+          r     the trunk COLLIDER radius (a CylinderShape3D on layer 1)
+          h     the BOLE height - how tall that collider is
+          th    the WHOLE TREE's height. The game scales felled_tree.glb by
+                th / tree_ref.height, so the tree that falls is the tree that was standing.
+                Miss this and a 13 m tree dies and a stock 10 m one falls over in its place.
+          slot  which bit to flip to make this tree, and only this tree, collapse
+        """
+        if len(self.trees) >= F.Plant.MAX_TREES:
+            raise RuntimeError(
+                "%s wants more than %d destructible trees. The game packs one BIT PER "
+                "TREE into a float32 of MultiMesh custom data, so %d is a hard ceiling."
+                % (self.name, F.Plant.MAX_TREES, F.Plant.MAX_TREES))
+        self.trees.append(dict(at=[round(x, 3), round(y, 3)],
+                               r=round(radius, 3), h=round(bole_h, 2),
+                               th=round(tree_h, 2), slot=slot))
 
     def add(self, verts, faces, mname, sway, detail=False):
         n0 = len(self.faces)
@@ -119,6 +153,10 @@ class Patch(F.Plant):
         far = F.Plant(self.name + "_far")
         far.verts = [self.verts[j] for j in used]
         far.sway = [self.sway[j] for j in used]
+        # The far LOD keeps a SUBSET of the vertices, so the slot list has to be
+        # re-indexed with them. Forget this and COLOR.b goes out of step in the far mesh:
+        # the game would fell a tree at distance and watch a fern disappear.
+        far.tree = [self.tree[j] for j in used]
         far.faces = [[remap[j] for j in f] for f in keep]
         far.mats = kept_mats
         return far
@@ -168,12 +206,73 @@ def vine_bridge(patch, p0, p1, rng, sag=0.35, leaves=12):
 OVERHANG = 1.8
 HALF = TILE * 0.5 + OVERHANG          # 7.8m: content spills into the neighbours
 
+## Where the edge feather begins, as a fraction of HALF.
+##
+## The obvious value is (TILE*0.5)/HALF = 0.77 - "start fading exactly at the tile line".
+## It is too late. It leaves the inner 77% of the tile at full density, so an isolated
+## patch is still a hard-edged box with a soft rim painted on it - and you can see the
+## square from across the valley.
+##
+## 0.58 puts the fade well INSIDE the tile, so the density is already falling before it
+## reaches the boundary and the patch has no edge to speak of. That does NOT thin a tiled
+## field, because neighbouring tiles overlap by OVERHANG*2 = 3.6 m and their ramps
+## overlap in the same world space - so the middle of a jungle stays thick and only the
+## OUTSIDE of the whole mass feathers away. Which is exactly what a treeline does.
+CORE = 0.58
+## How hard the boundary is warped by noise. This is what turns a soft SQUARE into an
+## irregular blob - without it the falloff is radial and you have just rounded the corners
+## of the box you were trying to get rid of.
+EDGE_WARP = 0.30
 
-def scatter_pts(rng, n, min_dist, half=HALF, avoid=None, ring=None):
+## Set once per patch in main(). Every scatter in a patch reads the SAME clump field, so
+## a thicket has trees AND bush AND grass in it, and the gaps between them are genuinely
+## open. Give each species its own noise and you get three independent clouds that average
+## back out to the uniform mush we are trying to get rid of.
+_CLUMP_SEED = [0.0]
+
+
+def _noise2(x, y, seed):
+    """Deterministic smooth 2D field, 0..1. Three detuned sines - no dependencies, and at
+    a 12 m tile the eye cannot tell it from Perlin."""
+    v = (math.sin(x * 0.37 + y * 0.21 + seed) * 0.50
+         + math.sin(x * 0.19 - y * 0.44 + seed * 1.7 + 2.1) * 0.30
+         + math.sin(x * 0.71 + y * 0.13 + seed * 0.6 + 4.3) * 0.20)
+    return 0.5 + 0.5 * v
+
+
+def scatter_pts(rng, n, min_dist, half=HALF, avoid=None, ring=None,
+                feather=True, clump=0.55):
     """n points, no two closer than min_dist (Poisson-disc by dart throwing).
-    `avoid` = [(x,y,r)] keep-out circles (a trail lane). `ring` = (in, out) to
-    hug the rim instead of filling."""
-    pts, tries, cap = [], 0, n * 60
+
+    `avoid` = [(x,y,r)] keep-out circles (a trail lane). `ring` = (in, out) to hug the rim.
+
+    ------------------------------------------------------------------------------------
+    THE BOX PROBLEM. This used to sample UNIFORMLY in a square and space the results
+    EVENLY (Poisson). So every patch was a uniformly dense square of vegetation. The 1.8 m
+    overhang hid the seam between two full tiles - but the FOOTPRINT was still a hard
+    square, and the moment a tile sat next to an empty one (which `fill_chance` guarantees)
+    you got a straight edge of jungle across open ground. Put one lone tree on it and it
+    read as exactly what it was: a box with a tree on the corner. In a 12 m grid stretching
+    to the horizon, that is unmissable.
+
+    Two fixes, and they are the same fix - stop pretending vegetation is uniform:
+
+    FEATHER (`feather`) - density ramps linearly to zero across the overhang band. The ramp
+      is complementary: tile A's outer band and tile B's outer band overlap in the same
+      world space and SUM BACK TO FULL, so a tiled field is seamless and even. But a tile
+      with no neighbour keeps its soft, ragged edge - so an isolated patch is an organic
+      blob, not a box.
+
+    CLUMP (`clump`) - a low-frequency noise field modulates local density, so the interior
+      grows THICKETS AND GAPS instead of an even carpet. Real plants compete for light and
+      root room; they do not sit on a lattice. This is also the single biggest thing that
+      makes a patch look grown rather than stamped.
+
+    Set `feather=False` for anything whose extent is deliberate and must not be softened -
+    a paddy's bund ring, for instance, which has to butt exactly against its neighbour.
+    """
+    pts, tries, cap = [], 0, n * 140    # rejection sampling needs more darts
+    seed = _CLUMP_SEED[0]
     while len(pts) < n and tries < cap:
         tries += 1
         if ring:
@@ -183,6 +282,25 @@ def scatter_pts(rng, n, min_dist, half=HALF, avoid=None, ring=None):
         else:
             x = rng.uniform(-half, half)
             y = rng.uniform(-half, half)
+
+        # --- feather the edge so the tile has no hard boundary
+        if feather and not ring:
+            # Chebyshev distance (the square's own metric), then WARPED BY NOISE so the
+            # boundary is an irregular curve. Skip the warp and you have merely rounded
+            # the corners of the box you were trying to get rid of.
+            r = max(abs(x), abs(y)) / half
+            r += EDGE_WARP * (_noise2(x * 1.15, y * 1.15, seed + 9.0) - 0.5)
+            if r > CORE:
+                keep = 1.0 - (r - CORE) / (1.0 - CORE)
+                if rng.random() > max(0.0, keep):
+                    continue
+
+        # --- clump the interior: thickets and gaps, not a carpet
+        if clump > 0.0:
+            c = _noise2(x, y, seed)
+            if rng.random() > (1.0 - clump) + clump * c:
+                continue
+
         if avoid and any((x - ax) ** 2 + (y - ay) ** 2 < ar * ar
                          for ax, ay, ar in avoid):
             continue
@@ -198,10 +316,12 @@ GAP = {
     "tree": 4.6, "bamboo": 2.6, "banana": 2.0, "sapling": 1.7, "log": 3.0,
     "bush": 1.5, "fern": 1.05, "grass": 0.72, "tall_grass": 0.80,
     "elephant": 0.85, "moss": 1.25, "rice": 0.70,
+    "cogon": 0.78, "reed": 0.95,
 }
 
 DETAIL_BUILDERS = (F.grass_tuft, F.fern, F.bush, F.moss_patch,
-                   F.elephant_grass, F.palm_sapling, F.tall_grass, F.rice_clump)
+                   F.elephant_grass, F.palm_sapling, F.tall_grass, F.rice_clump,
+                   F.cogon_grass, F.reed_bed)
 
 
 def sow(patch, rng, builder, n, lo, hi, key, gap, detail=None, avoid=None,
@@ -226,11 +346,29 @@ def trees(patch, rng, n, avoid=None, ring=None, lo=9.0, hi=13.5, dress=0.55,
         if len(tops) >= n:
             break
         h = rng.uniform(lo, hi)
+
+        # This tree gets a SLOT. Everything it is made of - bole, buttress roots, canopy -
+        # is tagged with it, so the game can collapse the whole tree by flipping one bit
+        # and nothing else in the tile so much as twitches.
+        slot = len(patch.trees) + 1          # 1-based; 0 means "not a tree"
         patch.stamp(F.broadleaf_tree(rng, height=h), at=(x, y, 0),
-                    yaw=rng.uniform(0, math.tau))
+                    yaw=rng.uniform(0, math.tau), tree_slot=slot)
+
+        # The vine strangling the trunk belongs to the tree and falls with it.
         if rng.random() < dress:
             patch.stamp(F.trunk_vine(rng, height=h * rng.uniform(0.4, 0.7)),
-                        at=(x, y, 0), yaw=rng.uniform(0, math.tau))
+                        at=(x, y, 0), yaw=rng.uniform(0, math.tau), tree_slot=slot)
+
+        # The COLLIDER is the bole, and the trunk THICKENS WITH THE TREE - so read the
+        # radius from the one place that defines it rather than hardcoding it a third time.
+        # `th` (the whole tree's height) is what the game scales felled_tree.glb by, so
+        # THE TREE THAT FALLS IS THE TREE THAT WAS STANDING.
+        patch.record_tree(x, y,
+                          radius=F.TRUNK_RADIUS * (h / F.TREE_REF_HEIGHT),
+                          bole_h=h * F.BOLE_FRACTION,
+                          tree_h=h,
+                          slot=slot)
+
         tops.append((x, y, h * 0.72 * rng.uniform(0.8, 0.95)))
     return tops
 
@@ -287,6 +425,8 @@ def logs(patch, rng, n, avoid=None):
 def patch_open(p, rng):
     """Crater / burn / bare ground. The eye needs rest and a firefight needs
     somewhere to happen."""
+    # cogon is the weed that owns burned ground - a crater grows it back first
+    sow(p, rng, F.cogon_grass, 7, 1.6, 2.4, "height", GAP["cogon"])
     sow(p, rng, F.grass_tuft, 30, 0.4, 0.8, "height", GAP["grass"])
     sow(p, rng, F.bush, 3, 0.9, 1.3, "height", GAP["bush"], ring=(6.0, HALF))
     trees(p, rng, 1, ring=(6.5, HALF))
@@ -296,6 +436,7 @@ def patch_open(p, rng):
 
 def patch_clearing(p, rng):
     """Light gets in, so the floor answers: grass and scrub, trees at the rim."""
+    sow(p, rng, F.cogon_grass, 9, 1.8, 2.5, "height", GAP["cogon"])
     sow(p, rng, F.grass_tuft, 40, 0.5, 0.9, "height", GAP["grass"])
     sow(p, rng, F.tall_grass, 12, 0.8, 1.3, "height", GAP["tall_grass"])
     sow(p, rng, F.fern, 6, 0.9, 1.4, "height", GAP["fern"], ring=(5.0, HALF))
@@ -307,6 +448,7 @@ def patch_clearing(p, rng):
 def patch_grassfield(p, rng):
     """Open but TALL - chest-high field grass. Cross it standing and you are
     seen; crouch and you vanish."""
+    sow(p, rng, F.cogon_grass, 12, 1.9, 2.6, "height", GAP["cogon"])
     sow(p, rng, F.tall_grass, 46, 1.1, 1.9, "height", GAP["tall_grass"])
     sow(p, rng, F.grass_tuft, 22, 0.5, 0.8, "height", GAP["grass"])
     sow(p, rng, F.elephant_grass, 8, 1.6, 2.1, "height", GAP["elephant"],
@@ -348,7 +490,11 @@ def sow_rice(p, rng, n, cx, cy, half, ripe):
     """Transplanted clumps inside one pan. NEVER pass detail=True to the stamp - stamp()
     ORs its flag over the plant's own, which would throw away the structure stalks that
     rice_clump keeps so the crop still stands (and sways) past the 46 m LOD line."""
-    for (x, y) in scatter_pts(rng, n, GAP["rice"], half=half):
+    # NO FEATHER, LIGHT CLUMP. A paddy is a planted crop inside a bund ring: its
+    # extent is deliberate, and softening it would thin the rice against the bund and
+    # leave a dry margin. Farmers transplant in rows, not thickets - but not on a
+    # perfect lattice either, so keep a little clump.
+    for (x, y) in scatter_pts(rng, n, GAP["rice"], half=half, feather=False, clump=0.18):
         p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85), ripe=ripe),
                 at=(cx + x, cy + y, 0.02), yaw=rng.uniform(0, math.tau),
                 scale=rng.uniform(0.85, 1.2))
@@ -433,7 +579,11 @@ def patch_paddy_fallow(p, rng):
     p.declare_water(level=0.055, half=inner + 0.25, at=(0.0, 0.0))
     sow_rice(p, rng, 34, 0.0, 0.0, inner - 0.3, ripe=True)     # what is left, and it is ripe
     # reeds and grass have taken the water
-    sow(p, rng, F.tall_grass, 40, 0.9, 1.5, "height", GAP["grass"], ring=(0.0, inner - 0.4))
+    # REEDS. This tile exists to be the ONE paddy a man can cross unseen, and reeds
+    # are what makes that literally true - dead-vertical, chest-to-head high, growing
+    # straight out of the water. Without them a fallow paddy is ankle-deep and naked.
+    sow(p, rng, F.reed_bed, 26, 2.0, 3.0, "height", GAP["reed"], ring=(0.0, inner - 0.5))
+    sow(p, rng, F.tall_grass, 26, 0.9, 1.5, "height", GAP["grass"], ring=(0.0, inner - 0.4))
     sow(p, rng, F.elephant_grass, 10, 1.3, 1.9, "height", GAP["elephant"],
         ring=(0.0, inner - 0.8))
     # and the bunds have grown over - the footpath is disappearing
@@ -502,7 +652,7 @@ def patch_paddy_edge(p, rng):
     # water runs along it, in the open, straight at the treeline.
     p.stamp(F.paddy_dike(rng, length=TILE, width=HALF_BUND * 2.0), at=(0, bank, 0))
 
-    for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=inner - 0.3):
+    for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=inner - 0.3, feather=False, clump=0.18):
         if y > bank - HALF_BUND - 0.3:
             continue                  # no rice on the divider or the bank
         p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85)),
@@ -521,6 +671,12 @@ def patch_paddy_edge(p, rng):
     for _ in range(12):
         p.stamp(F.fern(rng, height=rng.uniform(1.0, 1.6)),
                 at=(rng.uniform(-xr, xr), rng.uniform(b0, b1), 0),
+                yaw=rng.uniform(0, math.tau), detail=True)
+    # reeds crowd the waterline where the pan meets the bank - the last thing you have
+    # to break cover from before the open water
+    for _ in range(10):
+        p.stamp(F.reed_bed(rng, height=rng.uniform(1.8, 2.6)),
+                at=(rng.uniform(-xr, xr), rng.uniform(bank - 1.4, bank - 0.5), 0.03),
                 yaw=rng.uniform(0, math.tau), detail=True)
     # the treeline itself - standing ON the bank, not in the dike
     tops = trees(p, rng, 4, ring=(0.0, xr), only=lambda x, y: b0 < y < b1)
@@ -557,6 +713,7 @@ def patch_fern_floor(p, rng):
 
 def patch_scrub(p, rng):
     """Knee-to-waist regrowth. Cover if you go prone, not if you stand."""
+    sow(p, rng, F.cogon_grass, 8, 1.5, 2.2, "height", GAP["cogon"])
     bamboos(p, rng, 4, lo=3.5, hi=5.5)
     sow(p, rng, F.grass_tuft, 30, 0.5, 0.9, "height", GAP["grass"])
     sow(p, rng, F.tall_grass, 14, 0.9, 1.5, "height", GAP["tall_grass"])
@@ -652,6 +809,7 @@ def patch_secondary(p, rng):
     """SECONDARY GROWTH - the canopy was broken (bomb, fire, farm), light floods
     in and the ground answers with a riot. THIS, not primary forest, is the
     jungle that eats patrols."""
+    sow(p, rng, F.cogon_grass, 10, 1.7, 2.4, "height", GAP["cogon"])
     # THE BIG ONE. Secondary growth is ground where the canopy was BROKEN - bombed,
     # burned, farmed and abandoned. Bamboo owns that ground: it spreads by rhizome
     # and outruns every tree to the light, so a cut-over hillside in Vietnam comes
@@ -669,6 +827,11 @@ def patch_secondary(p, rng):
 
 def patch_elephant(p, rng):
     """Chest-high grass sea. You cannot see a crouching man in this."""
+    # Two grasses, not one. Elephant grass arches into a soft mound; cogon stands
+    # HEAD HIGH and dead straight. At PSX range silhouette is all you get, so two
+    # grasses that arch the same way are one grass with two names - and this tile
+    # is supposed to be the one a patrol vanishes into.
+    sow(p, rng, F.cogon_grass, 20, 2.0, 2.8, "height", GAP["cogon"])
     sow(p, rng, F.elephant_grass, 40, 1.7, 2.5, "height", GAP["elephant"])
     sow(p, rng, F.tall_grass, 18, 1.1, 1.7, "height", GAP["tall_grass"])
     sow(p, rng, F.grass_tuft, 20, 0.5, 0.8, "height", GAP["grass"])
@@ -766,6 +929,12 @@ def main():
     manifest, rows = [], []
     for i, (name, fn, density, desc) in enumerate(PATCHES):
         rng = random.Random(SEED + i * 101)
+        # ONE clump field per patch, shared by every species in it. That is the whole
+        # point: a thicket has trees AND bush AND grass in it, and the gaps between the
+        # thickets are genuinely open. Give each species its own noise and you get three
+        # independent clouds that average straight back out to the uniform mush we are
+        # trying to get rid of.
+        _CLUMP_SEED[0] = rng.uniform(0.0, 100.0)
         p = Patch(name)
         fn(p, rng)
         ob = p.bake(flat=False)
@@ -783,13 +952,33 @@ def main():
             # No water geometry ships in the patch mesh. A LIST - a cross-bunded tile
             # holds four separate sheets.
             entry["water"] = p.water
+        if p.trees:
+            # The game spawns a trunk COLLIDER per tree (so the tree you dive behind
+            # actually stops a bullet - today nothing in the jungle has any collision at
+            # all) and gives each one hit points, so an RPG can fell it. `slot` indexes
+            # the bit the game flips to make this tree, and only this tree, collapse.
+            entry["trees"] = p.trees
         manifest.append(entry)
         rows.append((name, density, len(p.verts), tris, far_tris,
                      round(max(zs), 1), desc))
         for o in list(bpy.data.objects):
             bpy.data.objects.remove(o, do_unlink=True)
     with open(os.path.join(OUT_DIR, "patches.json"), "w") as f:
-        json.dump(dict(tile_m=TILE, patches=manifest), f, indent=2)
+        json.dump(dict(
+            tile_m=TILE,
+            # THE REFERENCE TREE. felled_tree.glb / felled_trunk.glb / tree_stump.glb are
+            # authored at exactly these numbers. The game scales them by
+            #     tree["th"] / tree_ref["height"]
+            # so THE TREE THAT FALLS IS THE TREE THAT WAS STANDING. Without this the game
+            # has to guess what the GLB was authored at, and the day the guess is wrong a
+            # 13 m tree dies and a stock 10 m one falls over in its place.
+            tree_ref=dict(height=F.TREE_REF_HEIGHT,
+                          bole_h=round(F.TREE_REF_HEIGHT * F.BOLE_FRACTION, 3),
+                          trunk_r=F.TRUNK_RADIUS,
+                          model="res://assets/models/vegetation/felled_tree.glb",
+                          trunk_model="res://assets/models/vegetation/felled_trunk.glb",
+                          stump_model="res://assets/models/vegetation/tree_stump.glb"),
+            patches=manifest), f, indent=2)
     print("\n%-19s %-7s %6s %6s %7s %6s  %s"
           % ("patch", "density", "verts", "tris", "fartris", "top_m", "role"))
     for r in rows:

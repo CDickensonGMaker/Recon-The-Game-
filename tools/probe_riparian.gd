@@ -161,9 +161,45 @@ func _ready() -> void:
 	_check("a creek is a CONCEALED corridor, not a firing lane", _cap(b) < 70.0,
 		"%.0fm on the bank" % _cap(b))
 
+	# ===================== 0B REGRESSION: THE LZ IS REAL =====================
+	# gameplay_grid guarded on clearing_system.has_method("get_density_at") - a method
+	# that does not exist - so the guard was permanently false, mark_cleared() was
+	# called by nothing, and EVERY LZ IN THE GAME WAS A LIE: stamp_lz() deleted the
+	# plants but the grid still reported jungle, so the AI's sight cap was 45m inside
+	# a bald 16m clearing.
+	#
+	# AND THE OBVIOUS FIX WAS A LANDMINE: ClearingSystem's map is fill(1.0) and is only
+	# ever LOWERED - it is a clearing MASK, not a density. A straight swap returns 1.0
+	# everywhere = a 45m sight cap over open paddy and river alike. So this probe holds
+	# BOTH ends: the clearing must become real, AND THE WORLD MUST SURVIVE.
+	print("
+-- 0B: CLEARING (the LZ was a lie, and the fix was a landmine) --")
+	var mid := Vector3(float(n) * cell * 0.5, 0.0, float(n) * cell * 0.5)
+	var before_veg: float = grid.get_vegetation(mid)
+	var zone: int = ClearingSystem.create_zone(mid, 16.0, "circle")
+	ClearingSystem.set_zone_stage(zone, ClearingSystem.ClearingStage.CLEARED)
+	grid.update_region(mid, 24.0)
+	await get_tree().process_frame
+	var after_veg: float = grid.get_vegetation(mid)
+
+	_check("clearing an LZ actually DROPS the density the AI reads",
+		after_veg < before_veg - 0.3, "%.2f -> %.2f" % [before_veg, after_veg])
+	_check("...so the AI can SEE across its own clearing", _cap(after_veg) > 110.0,
+		"sight cap %.0fm -> %.0fm" % [_cap(before_veg), _cap(after_veg)])
+
+	# THE ANTI-LANDMINE. If the naive fix had shipped, EVERY cell would read 1.0 and
+	# this would fail: an untouched paddy or river would report deep jungle.
+	var far: Vector3 = Vector3(float(n) * cell * 0.12, 0.0, float(n) * cell * 0.12)
+	var far_veg: float = grid.get_vegetation(far)
+	var uncleared_ok: bool = absf(far_veg - _cap_inv(far)) < 0.001 or far_veg < 0.999
+	_check("THE WORLD SURVIVED: ground nobody cleared kept its BIOME (not 1.0)",
+		far_veg < 0.999, "untouched cell density %.2f" % far_veg)
+	_check("...and the map is not uniformly triple canopy", l < 0.98,
+		"mean inland %.2f" % l)
+
 	print("")
 	if _fails == 0:
-		print("*** THE CREEKS ARE GREEN TUNNELS. Water erases your trail AND hides you. ***")
+		print("*** THE CREEKS ARE GREEN TUNNELS. The LZ is real. The world survived. ***")
 	else:
 		print("*** %d FAILURE(S) - water is still a death trap ***" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
@@ -172,6 +208,10 @@ func _ready() -> void:
 ## The same lerp enemy_base._sight_cap() uses: 140m open -> 45m deep jungle.
 func _cap(veg: float) -> float:
 	return lerpf(140.0, 45.0, clampf(veg, 0.0, 1.0))
+
+
+func _cap_inv(_p: Vector3) -> float:
+	return -1.0
 
 
 func _check(what: String, ok: bool, detail: String = "") -> void:

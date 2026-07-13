@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d3ycqccfxkp5p"
-path="res://.godot/imported/patch_grove_jungle_palette.png-4d5c8e16f6b6c669e1b8efbb001e4154.ctex"
+path.s3tc="res://.godot/imported/patch_grove_jungle_palette.png-4d5c8e16f6b6c669e1b8efbb001e4154.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f06a4b7c4e78f340e07847a6e0f6454a"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/vegetation/patches/patch_grove_jungle_palette.png"
-dest_files=["res://.godot/imported/patch_grove_jungle_palette.png-4d5c8e16f6b6c669e1b8efbb001e4154.ctex"]
+dest_files=["res://.godot/imported/patch_grove_jungle_palette.png-4d5c8e16f6b6c669e1b8efbb001e4154.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

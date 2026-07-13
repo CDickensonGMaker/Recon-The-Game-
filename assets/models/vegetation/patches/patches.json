@@ -1,35 +1,89 @@
 {
   "tile_m": 12.0,
+  "tree_ref": {
+    "height": 10.0,
+    "bole_h": 7.2,
+    "trunk_r": 0.32,
+    "model": "res://assets/models/vegetation/felled_tree.glb",
+    "trunk_model": "res://assets/models/vegetation/felled_trunk.glb",
+    "stump_model": "res://assets/models/vegetation/tree_stump.glb"
+  },
   "patches": [
     {
       "name": "patch_open",
       "density": "open",
       "desc": "crater / burn / bare ground",
       "tile_m": 12.0,
-      "verts": 3919,
-      "tris": 3203,
-      "far_tris": 1338,
-      "height_m": 10.72
+      "verts": 4168,
+      "tris": 3111,
+      "far_tris": 1016,
+      "height_m": 12.9,
+      "trees": [
+        {
+          "at": [
+            7.091,
+            -0.769
+          ],
+          "r": 0.404,
+          "h": 9.08,
+          "th": 12.62,
+          "slot": 1
+        }
+      ]
     },
     {
       "name": "patch_clearing",
       "density": "open",
       "desc": "light gets in: grass + scrub, trees at the rim",
       "tile_m": 12.0,
-      "verts": 7704,
-      "tris": 5872,
-      "far_tris": 2056,
-      "height_m": 12.95
+      "verts": 8919,
+      "tris": 6794,
+      "far_tris": 2284,
+      "height_m": 13.94,
+      "trees": [
+        {
+          "at": [
+            4.545,
+            5.73
+          ],
+          "r": 0.418,
+          "h": 9.39,
+          "th": 13.05,
+          "slot": 1
+        },
+        {
+          "at": [
+            -1.734,
+            -6.652
+          ],
+          "r": 0.337,
+          "h": 7.58,
+          "th": 10.52,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_grassfield",
       "density": "open",
       "desc": "chest-high field grass - crouch and vanish",
       "tile_m": 12.0,
-      "verts": 8008,
-      "tris": 5156,
-      "far_tris": 870,
-      "height_m": 13.05
+      "verts": 8932,
+      "tris": 5568,
+      "far_tris": 728,
+      "height_m": 10.94,
+      "trees": [
+        {
+          "at": [
+            -7.113,
+            1.945
+          ],
+          "r": 0.35,
+          "h": 7.87,
+          "th": 10.93,
+          "slot": 1
+        }
+      ]
     },
     {
       "name": "patch_paddy",
@@ -62,7 +116,7 @@
       "verts": 9624,
       "tris": 6560,
       "far_tris": 1632,
-      "height_m": 0.83,
+      "height_m": 0.89,
       "water": [
         {
           "level": 0.055,
@@ -115,10 +169,10 @@
       "density": "paddy",
       "desc": "gone to seed: reeds and grass in the water, bunds overgrown - the ONE paddy you can cross unseen",
       "tile_m": 12.0,
-      "verts": 9929,
-      "tris": 6832,
+      "verts": 11128,
+      "tris": 7248,
       "far_tris": 600,
-      "height_m": 1.92,
+      "height_m": 4.66,
       "water": [
         {
           "level": 0.055,
@@ -138,10 +192,10 @@
       "density": "paddy",
       "desc": "worked pan with palms and banana on the bunds - the paddy tile with a skyline",
       "tile_m": 12.0,
-      "verts": 9956,
-      "tris": 7104,
-      "far_tris": 1568,
-      "height_m": 2.33,
+      "verts": 10186,
+      "tris": 7292,
+      "far_tris": 1716,
+      "height_m": 2.99,
       "water": [
         {
           "level": 0.055,
@@ -161,10 +215,10 @@
       "density": "paddy",
       "desc": "paddy meets treeline - the killing ground",
       "tile_m": 12.0,
-      "verts": 10575,
-      "tris": 8732,
-      "far_tris": 1906,
-      "height_m": 10.6,
+      "verts": 13846,
+      "tris": 11538,
+      "far_tris": 3444,
+      "height_m": 12.56,
       "water": [
         {
           "level": 0.055,
@@ -177,6 +231,28 @@
             -2.525
           ]
         }
+      ],
+      "trees": [
+        {
+          "at": [
+            2.192,
+            2.707
+          ],
+          "r": 0.399,
+          "h": 8.98,
+          "th": 12.47,
+          "slot": 1
+        },
+        {
+          "at": [
+            -3.004,
+            3.668
+          ],
+          "r": 0.315,
+          "h": 7.09,
+          "th": 9.84,
+          "slot": 2
+        }
       ]
     },
     {
@@ -184,150 +260,558 @@
       "density": "light",
       "desc": "PRIMARY forest: big boles, bare floor, lianas",
       "tile_m": 12.0,
-      "verts": 11552,
-      "tris": 10744,
-      "far_tris": 5327,
-      "height_m": 13.35
+      "verts": 11745,
+      "tris": 11006,
+      "far_tris": 5434,
+      "height_m": 13.79,
+      "trees": [
+        {
+          "at": [
+            1.348,
+            1.975
+          ],
+          "r": 0.4,
+          "h": 9.01,
+          "th": 12.51,
+          "slot": 1
+        },
+        {
+          "at": [
+            -2.36,
+            -1.648
+          ],
+          "r": 0.411,
+          "h": 9.26,
+          "th": 12.86,
+          "slot": 2
+        },
+        {
+          "at": [
+            6.854,
+            0.807
+          ],
+          "r": 0.42,
+          "h": 9.45,
+          "th": 13.13,
+          "slot": 3
+        },
+        {
+          "at": [
+            4.462,
+            -3.688
+          ],
+          "r": 0.37,
+          "h": 8.33,
+          "th": 11.57,
+          "slot": 4
+        }
+      ]
     },
     {
       "name": "patch_fern_floor",
       "density": "light",
       "desc": "fern carpet under a high canopy",
       "tile_m": 12.0,
-      "verts": 12956,
-      "tris": 11015,
-      "far_tris": 3958,
-      "height_m": 12.6
+      "verts": 12724,
+      "tris": 10757,
+      "far_tris": 3916,
+      "height_m": 11.99,
+      "trees": [
+        {
+          "at": [
+            5.177,
+            4.206
+          ],
+          "r": 0.363,
+          "h": 8.18,
+          "th": 11.36,
+          "slot": 1
+        },
+        {
+          "at": [
+            -1.045,
+            -3.868
+          ],
+          "r": 0.328,
+          "h": 7.37,
+          "th": 10.24,
+          "slot": 2
+        },
+        {
+          "at": [
+            0.611,
+            7.162
+          ],
+          "r": 0.396,
+          "h": 8.92,
+          "th": 12.38,
+          "slot": 3
+        }
+      ]
     },
     {
       "name": "patch_scrub",
       "density": "light",
       "desc": "knee-to-waist regrowth",
       "tile_m": 12.0,
-      "verts": 12798,
-      "tris": 10318,
-      "far_tris": 2598,
-      "height_m": 9.77
+      "verts": 14151,
+      "tris": 11380,
+      "far_tris": 2938,
+      "height_m": 12.81,
+      "trees": [
+        {
+          "at": [
+            2.19,
+            7.099
+          ],
+          "r": 0.425,
+          "h": 9.56,
+          "th": 13.28,
+          "slot": 1
+        },
+        {
+          "at": [
+            -7.115,
+            0.812
+          ],
+          "r": 0.398,
+          "h": 8.96,
+          "th": 12.44,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_trail",
       "density": "light",
       "desc": "walkable lane, jungle on both shoulders",
       "tile_m": 12.0,
-      "verts": 13073,
-      "tris": 11182,
-      "far_tris": 3558,
-      "height_m": 13.93
+      "verts": 13171,
+      "tris": 11402,
+      "far_tris": 3844,
+      "height_m": 12.93,
+      "trees": [
+        {
+          "at": [
+            -1.45,
+            6.614
+          ],
+          "r": 0.415,
+          "h": 9.34,
+          "th": 12.97,
+          "slot": 1
+        },
+        {
+          "at": [
+            -5.268,
+            -5.497
+          ],
+          "r": 0.406,
+          "h": 9.13,
+          "th": 12.67,
+          "slot": 2
+        },
+        {
+          "at": [
+            3.901,
+            -3.908
+          ],
+          "r": 0.345,
+          "h": 7.76,
+          "th": 10.78,
+          "slot": 3
+        }
+      ]
     },
     {
       "name": "patch_canopy",
       "density": "medium",
       "desc": "closed canopy, lianas strung between crowns",
       "tile_m": 12.0,
-      "verts": 13654,
-      "tris": 12260,
-      "far_tris": 5455,
-      "height_m": 12.44
+      "verts": 14548,
+      "tris": 13224,
+      "far_tris": 5776,
+      "height_m": 12.42,
+      "trees": [
+        {
+          "at": [
+            4.153,
+            -6.158
+          ],
+          "r": 0.383,
+          "h": 8.62,
+          "th": 11.97,
+          "slot": 1
+        },
+        {
+          "at": [
+            5.939,
+            1.37
+          ],
+          "r": 0.382,
+          "h": 8.6,
+          "th": 11.94,
+          "slot": 2
+        },
+        {
+          "at": [
+            1.501,
+            5.107
+          ],
+          "r": 0.344,
+          "h": 7.75,
+          "th": 10.76,
+          "slot": 3
+        },
+        {
+          "at": [
+            0.656,
+            -0.996
+          ],
+          "r": 0.351,
+          "h": 7.89,
+          "th": 10.96,
+          "slot": 4
+        }
+      ]
     },
     {
       "name": "patch_deadfall",
       "density": "medium",
       "desc": "blowdown: crossed logs, ferns colonising",
       "tile_m": 12.0,
-      "verts": 10966,
-      "tris": 9580,
-      "far_tris": 3122,
-      "height_m": 12.56
+      "verts": 10690,
+      "tris": 9236,
+      "far_tris": 2684,
+      "height_m": 11.85,
+      "trees": [
+        {
+          "at": [
+            4.505,
+            6.003
+          ],
+          "r": 0.364,
+          "h": 8.2,
+          "th": 11.38,
+          "slot": 1
+        },
+        {
+          "at": [
+            -2.844,
+            -4.63
+          ],
+          "r": 0.311,
+          "h": 6.99,
+          "th": 9.71,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_palmgrove",
       "density": "medium",
       "desc": "palms + banana",
       "tile_m": 12.0,
-      "verts": 7863,
-      "tris": 6230,
-      "far_tris": 3000,
-      "height_m": 12.54
+      "verts": 8508,
+      "tris": 6912,
+      "far_tris": 3322,
+      "height_m": 13.0,
+      "trees": [
+        {
+          "at": [
+            -1.661,
+            6.867
+          ],
+          "r": 0.398,
+          "h": 8.96,
+          "th": 12.45,
+          "slot": 1
+        }
+      ]
     },
     {
       "name": "patch_vine_hall",
       "density": "medium",
       "desc": "tree ring, lianas criss-crossed overhead",
       "tile_m": 12.0,
-      "verts": 13145,
-      "tris": 12332,
-      "far_tris": 7316,
-      "height_m": 13.71
+      "verts": 11953,
+      "tris": 11082,
+      "far_tris": 6377,
+      "height_m": 13.52,
+      "trees": [
+        {
+          "at": [
+            5.443,
+            -4.229
+          ],
+          "r": 0.412,
+          "h": 9.28,
+          "th": 12.89,
+          "slot": 1
+        },
+        {
+          "at": [
+            -4.307,
+            -1.851
+          ],
+          "r": 0.336,
+          "h": 7.57,
+          "th": 10.51,
+          "slot": 2
+        },
+        {
+          "at": [
+            2.467,
+            6.339
+          ],
+          "r": 0.394,
+          "h": 8.86,
+          "th": 12.3,
+          "slot": 3
+        },
+        {
+          "at": [
+            5.166,
+            1.32
+          ],
+          "r": 0.418,
+          "h": 9.41,
+          "th": 13.06,
+          "slot": 4
+        },
+        {
+          "at": [
+            -1.353,
+            -7.169
+          ],
+          "r": 0.42,
+          "h": 9.45,
+          "th": 13.12,
+          "slot": 5
+        }
+      ]
     },
     {
       "name": "patch_grove",
       "density": "dense",
       "desc": "THICK MIX: canopy + bamboo + bush",
       "tile_m": 12.0,
-      "verts": 17709,
-      "tris": 15536,
-      "far_tris": 5054,
-      "height_m": 14.05
+      "verts": 17369,
+      "tris": 15252,
+      "far_tris": 4796,
+      "height_m": 11.96,
+      "trees": [
+        {
+          "at": [
+            4.751,
+            5.519
+          ],
+          "r": 0.347,
+          "h": 7.82,
+          "th": 10.86,
+          "slot": 1
+        },
+        {
+          "at": [
+            -0.025,
+            -7.197
+          ],
+          "r": 0.377,
+          "h": 8.49,
+          "th": 11.79,
+          "slot": 2
+        },
+        {
+          "at": [
+            1.765,
+            -0.354
+          ],
+          "r": 0.291,
+          "h": 6.54,
+          "th": 9.09,
+          "slot": 3
+        }
+      ]
     },
     {
       "name": "patch_bamboo_grove",
       "density": "dense",
       "desc": "bamboo woven through standing timber",
       "tile_m": 12.0,
-      "verts": 12963,
-      "tris": 11545,
-      "far_tris": 4176,
-      "height_m": 12.32
+      "verts": 13453,
+      "tris": 12071,
+      "far_tris": 4304,
+      "height_m": 13.26,
+      "trees": [
+        {
+          "at": [
+            3.903,
+            -5.324
+          ],
+          "r": 0.427,
+          "h": 9.61,
+          "th": 13.35,
+          "slot": 1
+        },
+        {
+          "at": [
+            3.996,
+            5.332
+          ],
+          "r": 0.306,
+          "h": 6.89,
+          "th": 9.57,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_secondary",
       "density": "dense",
       "desc": "SECONDARY GROWTH: broken canopy, riot of light",
       "tile_m": 12.0,
-      "verts": 22682,
-      "tris": 19356,
-      "far_tris": 4854,
-      "height_m": 9.65
+      "verts": 23659,
+      "tris": 19794,
+      "far_tris": 4600,
+      "height_m": 9.54,
+      "trees": [
+        {
+          "at": [
+            -3.645,
+            -6.105
+          ],
+          "r": 0.265,
+          "h": 5.97,
+          "th": 8.3,
+          "slot": 1
+        },
+        {
+          "at": [
+            7.658,
+            0.018
+          ],
+          "r": 0.259,
+          "h": 5.84,
+          "th": 8.11,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_elephant",
       "density": "dense",
       "desc": "elephant grass sea",
       "tile_m": 12.0,
-      "verts": 8397,
-      "tris": 5762,
-      "far_tris": 936,
-      "height_m": 9.82
+      "verts": 10223,
+      "tris": 6720,
+      "far_tris": 968,
+      "height_m": 12.86,
+      "trees": [
+        {
+          "at": [
+            6.934,
+            -1.721
+          ],
+          "r": 0.409,
+          "h": 9.21,
+          "th": 12.79,
+          "slot": 1
+        }
+      ]
     },
     {
       "name": "patch_thicket",
       "density": "wall",
       "desc": "no sightlines - where an ambush lives",
       "tile_m": 12.0,
-      "verts": 20122,
-      "tris": 17008,
-      "far_tris": 3682,
-      "height_m": 13.12
+      "verts": 20079,
+      "tris": 16982,
+      "far_tris": 3548,
+      "height_m": 10.86,
+      "trees": [
+        {
+          "at": [
+            -2.447,
+            -6.136
+          ],
+          "r": 0.339,
+          "h": 7.63,
+          "th": 10.6,
+          "slot": 1
+        },
+        {
+          "at": [
+            5.572,
+            4.486
+          ],
+          "r": 0.291,
+          "h": 6.54,
+          "th": 9.08,
+          "slot": 2
+        }
+      ]
     },
     {
       "name": "patch_tangle",
       "density": "wall",
       "desc": "MAX THICK: cut through it",
       "tile_m": 12.0,
-      "verts": 24479,
-      "tris": 21898,
-      "far_tris": 7400,
-      "height_m": 13.51
+      "verts": 24213,
+      "tris": 21492,
+      "far_tris": 6940,
+      "height_m": 13.44,
+      "trees": [
+        {
+          "at": [
+            0.861,
+            -0.118
+          ],
+          "r": 0.363,
+          "h": 8.16,
+          "th": 11.34,
+          "slot": 1
+        },
+        {
+          "at": [
+            -2.824,
+            4.937
+          ],
+          "r": 0.333,
+          "h": 7.48,
+          "th": 10.39,
+          "slot": 2
+        },
+        {
+          "at": [
+            -3.938,
+            0.24
+          ],
+          "r": 0.401,
+          "h": 9.03,
+          "th": 12.54,
+          "slot": 3
+        },
+        {
+          "at": [
+            2.396,
+            6.553
+          ],
+          "r": 0.299,
+          "h": 6.74,
+          "th": 9.36,
+          "slot": 4
+        }
+      ]
     },
     {
       "name": "patch_bamboo_wall",
       "density": "wall",
       "desc": "bamboo brake, near-impassable",
       "tile_m": 12.0,
-      "verts": 12058,
-      "tris": 10586,
-      "far_tris": 2928,
-      "height_m": 10.27
+      "verts": 11955,
+      "tris": 10486,
+      "far_tris": 2864,
+      "height_m": 10.1
     }
   ]
 }

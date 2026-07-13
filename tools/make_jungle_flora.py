@@ -124,12 +124,22 @@ def clean():
 class Plant:
     """Accumulates geometry + per-vertex sway weight, then bakes to an object."""
 
+    ## A tile may hold at most this many individually-destructible trees. The game packs
+    ## one BIT PER TREE into a MultiMesh instance's custom-data float, and a float32
+    ## represents a 24-bit integer exactly - so 24 is the hard ceiling, not a guess.
+    ## The fattest patch we ship plants 5.
+    MAX_TREES = 24
+
     def __init__(self, name):
         self.name = name
         self.verts = []
         self.faces = []
         self.mats = []
         self.sway = []
+        # PER-VERTEX TREE SLOT. 0 = this vertex is not part of a destructible tree
+        # (grass, fern, bamboo, rice, liana - everything). 1..MAX_TREES = it belongs to
+        # that tree. Baked into COLOR.b; see bake().
+        self.tree = []
         self.matlist = []
         self.detail = []          # per-face: drop me from the far LOD
         self._mi = {}
@@ -146,6 +156,7 @@ class Plant:
         mi = self._mat_index(mname)
         self.verts += [tuple(v) for v in verts]
         self.sway += list(sway)
+        self.tree += [0] * len(verts)       # not a tree unless a Patch says otherwise
         for f in faces:
             self.faces.append([base + i for i in f])
             self.mats.append(mi)
@@ -167,11 +178,29 @@ class Plant:
             for li in poly.loop_indices:
                 uv.data[li].uv = (u, 0.5)
         col = me.color_attributes.new(COL_ATTR, 'FLOAT_COLOR', 'POINT')
+        if len(self.tree) != len(self.verts):
+            raise RuntimeError(
+                "%s: tree-slot list is %d long but there are %d verts. Some code path "
+                "appended vertices without a slot - COLOR.b would be misaligned and the "
+                "game would fell the WRONG TREE."
+                % (self.name, len(self.tree), len(self.verts)))
         for i, s in enumerate(self.sway):
             # vegetation_sway.gdshader contract:
             #   COLOR.r = master sway  (0 at the roots -> 1 at the tips)
             #   COLOR.g = flutter mask (frond TIPS / vine ends only, fast freq)
+            #   COLOR.b = DESTRUCTIBLE-TREE SLOT   <- new
             # G must fall off far harder than R or whole trunks shimmy.
+            #
+            # COLOR.b: 0.0 means "not a tree" - grass, fern, bamboo, rice, liana. A
+            # nonzero value is (slot + 1) / MAX_TREES and says this vertex belongs to
+            # that tree. The game packs a bit per dead tree into each MultiMesh
+            # instance's custom data and the vertex shader collapses any vertex whose
+            # slot bit is set. That is what lets ONE tree fall out of a merged patch
+            # mesh that is instanced forty times across the chunk, without touching
+            # geometry and without felling its forty twins.
+            #
+            # The +1 matters: without it, slot 0 would be indistinguishable from "not
+            # a tree" and every blade of grass in the tile would fall over with it.
             #
             # WARNING - COLOR_0 IS NOT A COLOUR HERE. The glTF spec says COLOR_0
             # multiplies base colour, so any spec-abiding viewer (Blender's
@@ -180,7 +209,9 @@ class Plant:
             # only in vertex() and sets ALBEDO straight from the palette atlas.
             # If you preview these GLBs in Blender, bypass the vertex-colour
             # multiply on the material or you will "fix" a bug that isn't there.
-            col.data[i].color = (s, s ** 3.0, 0.0, 1.0)
+            slot = self.tree[i]
+            b = 0.0 if slot <= 0 else float(slot) / float(Plant.MAX_TREES)
+            col.data[i].color = (s, s ** 3.0, b, 1.0)
         me.color_attributes.active_color = col
         ob = bpy.data.objects.new(self.name, me)
         bpy.context.scene.collection.objects.link(ob)
@@ -347,6 +378,76 @@ def elephant_grass(rng, height=1.9, blades=16):
     return p
 
 
+def cogon_grass(rng, height=2.3, blades=18):
+    """COGON / saw grass - the tall stuff, and the one that actually hides a man.
+
+    Elephant grass is chest-high and arches over. Cogon stands HEAD HIGH and stands
+    STRAIGHT, in a tight column, and it is what a patrol disappears into. It is also the
+    grass that took over every burned-off hillside in Vietnam - it is a fire-climax weed,
+    so it belongs anywhere the canopy went away.
+
+    The silhouette difference is the whole point: elephant grass reads as a soft mound,
+    cogon reads as a wall of vertical lines. At PSX range, silhouette is all you get, so
+    two grasses that arch the same way are one grass with two names.
+    """
+    p = Plant("cogon_grass")
+    for i in range(blades):
+        yaw = rng.uniform(0, math.tau)
+        h = height * rng.uniform(0.78, 1.15)
+        # narrow, stiff, barely bent - a spear, not a ribbon
+        v, f, s = blade(h, height * 0.020, segs=rng.choice((1, 1, 2)),
+                        curve=rng.uniform(0.10, 0.32), twist=rng.uniform(-0.3, 0.3))
+        tilt = math.radians(rng.uniform(1, 11))            # near vertical
+        o = (rng.uniform(-0.07, 0.07), rng.uniform(-0.07, 0.07), 0.0)
+        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f,
+              "grass_dry" if i % 3 == 0 else "grass_blade", s)
+    # seed heads - the pale plume on top is the tell, and it catches the light
+    for _ in range(max(2, blades // 4)):
+        h = height * rng.uniform(0.92, 1.18)
+        v, f, s = blade(h * 0.16, height * 0.028, segs=1, curve=0.15)
+        p.add(place(v, yaw=rng.uniform(0, math.tau),
+                    tilt=math.radians(rng.uniform(0, 8)),
+                    origin=(rng.uniform(-0.06, 0.06), rng.uniform(-0.06, 0.06), h)),
+              f, "grass_dry", [1.0] * len(v), detail=True)
+    return p
+
+
+def reed_bed(rng, height=2.6, stems=14):
+    """REEDS - the water-edge grass. Dead vertical, no arch at all, in a loose stand.
+
+    This is what grows out of a fallow paddy and along every creek and swamp margin, and
+    it is the only thing that gives a WET tile any height. Without it a flooded field is
+    ankle-deep and naked; with it, a fallow paddy is the one paddy you can actually cross
+    unseen - which is exactly the tactical hole patch_paddy_fallow exists to punch.
+    """
+    p = Plant("reed_bed")
+    for i in range(stems):
+        yaw = rng.uniform(0, math.tau)
+        h = height * rng.uniform(0.70, 1.15)
+        # a stem: a single stiff line, cheapest possible
+        v, f, s = blade(h, height * 0.014, segs=1, curve=0.06)
+        tilt = math.radians(rng.uniform(0, 7))
+        o = (rng.uniform(-0.16, 0.16), rng.uniform(-0.16, 0.16), 0.0)
+        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f, "grass_blade", s)
+        # one drooping leaf partway up - what makes it a reed and not a stick
+        if rng.random() < 0.7:
+            t = rng.uniform(0.35, 0.75)
+            lv, lf, ls = blade(h * rng.uniform(0.18, 0.30), height * 0.020,
+                               segs=1, curve=0.85)
+            p.add(place(lv, yaw=yaw + rng.uniform(-1.2, 1.2),
+                        tilt=math.radians(rng.uniform(55, 100)),
+                        origin=(o[0], o[1], h * t)),
+                  lf, "grass_blade", [t] * len(lv), detail=True)
+    # brown seed heads, a few, standing proud of the stand
+    for _ in range(max(2, stems // 4)):
+        h = height * rng.uniform(0.95, 1.2)
+        v, f, s = blade(h * 0.13, height * 0.022, segs=1, curve=0.10)
+        p.add(place(v, yaw=rng.uniform(0, math.tau), tilt=math.radians(rng.uniform(0, 6)),
+                    origin=(rng.uniform(-0.14, 0.14), rng.uniform(-0.14, 0.14), h)),
+              f, "grass_dry", [1.0] * len(v), detail=True)
+    return p
+
+
 def fern(rng, height=0.75, fronds=8):
     p = Plant("fern")
     for i in range(fronds):
@@ -463,11 +564,39 @@ def palm_sapling(rng, height=1.6, fronds=7):
 
 
 # ------------------------------------------------------------------ TIER 4
+## THE REFERENCE TREE. Everything about a canopy tree is defined here, once, because the
+## same numbers are load-bearing in three separate places and the day they drift is the
+## day the game drops the wrong tree:
+##
+##   * TRUNK_RADIUS is the bole you dive behind - so it is the COLLIDER radius
+##     (make_jungle_patches.record_tree -> patches.json -> the game's CylinderShape3D).
+##   * Doubled, it is the height of the LOG the tree leaves when it falls - the cover you
+##     go prone behind (make_felled_tree).
+##   * TREE_REF_HEIGHT is the height felled_tree.glb is AUTHORED at. The game scales that
+##     GLB by (this tree's height / TREE_REF_HEIGHT) so THE TREE THAT FALLS IS THE TREE
+##     THAT WAS STANDING. Author the GLB at one height and plant trees at another and the
+##     tree visibly changes size at the moment it dies.
+##
+## The radius was 0.20 - a 40 cm tree, which is a sapling. A canopy giant with buttress
+## roots (which we model) is 60-100 cm through at the base, and at 40 cm the fallen log was
+## 40 cm of "cover" you could not get a helmet behind.
+TRUNK_RADIUS = 0.32          # at TREE_REF_HEIGHT. Scales with the tree - see below.
+TREE_REF_HEIGHT = 10.0       # felled_tree.glb is authored at exactly this
+BOLE_FRACTION = 0.72         # bare trunk, then canopy on top
+
+
 def broadleaf_tree(rng, height=9.0):
-    """The silhouette the palms can't give us: a branching canopy tree."""
+    """The silhouette the palms can't give us: a branching canopy tree.
+
+    THE TRUNK THICKENS WITH THE TREE. It used to be a fixed 0.20 m whatever the height,
+    which is both wrong (a 13 m tree is not as thin as a 9 m one) and BREAKS THE FALL: the
+    game replaces a dying tree with a uniformly-scaled felled_tree.glb, so if the standing
+    trunk did not scale with height, the falling one comes out fatter than the tree it
+    replaced. Scale it here and a uniform scale in the game is exactly right."""
     p = Plant("broadleaf")
-    th = height * 0.72                       # bare bole, then canopy on top
-    v, f, s = trunk(th, 0.20, 0.10, sides=6, bend=rng.uniform(-0.04, 0.04))
+    th = height * BOLE_FRACTION              # bare bole, then canopy on top
+    r = TRUNK_RADIUS * (height / TREE_REF_HEIGHT)
+    v, f, s = trunk(th, r, r * 0.5, sides=6, bend=rng.uniform(-0.04, 0.04))
     p.add(v, f, "bark_grey", s)
     # buttress roots - a fin: tall at the trunk, dying out at the ground.
     # jungle giants have them and they read hard at eye level.
