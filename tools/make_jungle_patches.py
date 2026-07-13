@@ -53,6 +53,33 @@ class Patch(F.Plant):
     def __init__(self, name):
         super().__init__(name)
         self.detail = []
+        # A DECLARED WATER VOLUME, not baked geometry. See declare_water().
+        self.water = None
+
+    def declare_water(self, level, half, at=(0.0, 0.0)):
+        """This patch has a flooded pan. DO NOT bake a water quad into the mesh.
+
+        The old paddies stamped a flat quad with a `paddy_water` palette colour straight
+        into the patch. That quad then got merged into the one big vegetation surface and
+        rendered through vegetation_sway.gdshader - which is OPAQUE, alpha-scissored and
+        lambert-lit. So the "water" was not water. It was a dark leaf lying flat: no
+        transparency, no depth, no ripple, no shore. That is why a rice paddy read as a
+        black hole in the ground.
+
+        Meanwhile terrain/water/water_swamp.gdshader already exists and is described, in
+        its own header, as "shallow, vegetated wetland" - with ripples, muck, depth fade
+        and a shore fade. That IS a rice paddy. We were shipping a black quad next to the
+        exact shader we needed.
+
+        So the patch now DECLARES its water and the game renders it with the terrain's
+        own water. One source of truth for water in the whole game.
+
+        level -- surface height above the tile floor, metres
+        half  -- half-extent of the pan, metres
+        at    -- pan centre within the tile, metres
+        """
+        self.water = dict(level=round(level, 3), half=round(half, 3),
+                          at=[round(at[0], 3), round(at[1], 3)])
 
     def stamp(self, plant, at=(0, 0, 0), yaw=0.0, scale=1.0, detail=False):
         base = len(self.verts)
@@ -265,9 +292,13 @@ def patch_paddy(p, rng):
             yaw=math.pi / 2)
     ripe = rng.random() < 0.4
     for (x, y) in scatter_pts(rng, 130, GAP["rice"], half=TILE * 0.46):
+        # NO detail=True HERE. stamp() ORs its flag over the plant's own
+        # (`self.detail.append(detail or own)`), so forcing it True would throw away
+        # the structure stalks rice_clump deliberately keeps, and the far paddy would
+        # go back to being bare mud. Let the clump decide which stalks survive.
         p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.85), ripe=ripe),
                 at=(x, y, 0.02), yaw=rng.uniform(0, math.tau),
-                scale=rng.uniform(0.85, 1.2), detail=True)
+                scale=rng.uniform(0.85, 1.2))
 
 
 def patch_paddy_edge(p, rng):
@@ -278,8 +309,9 @@ def patch_paddy_edge(p, rng):
     for (x, y) in scatter_pts(rng, 70, GAP["rice"], half=TILE * 0.44):
         if y > TILE * 0.10:
             continue
+        # same as patch_paddy: let the clump keep its own structure stalks
         p.stamp(F.rice_clump(rng, height=rng.uniform(0.55, 0.8)),
-                at=(x, y, 0.02), yaw=rng.uniform(0, math.tau), detail=True)
+                at=(x, y, 0.02), yaw=rng.uniform(0, math.tau))
     for _ in range(14):
         x, y = rng.uniform(-HALF, HALF), rng.uniform(TILE * 0.24, HALF)
         p.stamp(F.bush(rng, height=rng.uniform(1.2, 1.9)), at=(x, y, 0),

@@ -38,7 +38,7 @@
       "tile_m": 12.0,
       "verts": 14672,
       "tris": 11066,
-      "far_tris": 146,
+      "far_tris": 2486,
       "height_m": 0.87
     },
     {
@@ -48,7 +48,7 @@
       "tile_m": 12.0,
       "verts": 14129,
       "tris": 12390,
-      "far_tris": 2002,
+      "far_tris": 2830,
       "height_m": 9.99
     },
     {

@@ -595,9 +595,27 @@ def tall_grass(rng, height=1.3, blades=22):
     return p
 
 
-def rice_clump(rng, height=0.75, stalks=14, ripe=False):
+def rice_clump(rng, height=0.75, stalks=14, ripe=False, keep=3):
     """A hill of rice. Farmers transplant in clumps, so a paddy reads as rows
-    of little fountains, not a lawn."""
+    of little fountains, not a lawn.
+
+    `keep` -- how many of the stalks are STRUCTURE (detail=False) and therefore
+    survive bake_far() into the distant LOD.
+
+    THIS IS NOT A TUNING KNOB, IT IS A BUG FIX. Every stalk used to be detail=True,
+    so bake_far() threw away ALL of them: past the 46 m LOD line a rice paddy
+    deflated from 0.87 m of standing crop to 0.37 m of bare mud, and stopped swaying
+    while every plant around it kept moving. A paddy is 74% rice by vertex count -
+    strip the rice and there is nothing left. (patch_paddy_edge got away with it
+    because it also has dikes and a treeline to hold up its silhouette.)
+
+    And a rice paddy is precisely the thing you look ACROSS at distance. The far LOD
+    is where it LIVES, and that is where it was broken.
+
+    Keeping a few stalks from EVERY clump - rather than keeping a few whole clumps -
+    matters: drop whole clumps and the paddy visibly THINS as you back away, which is
+    a density pop you cannot un-see. Thin each clump instead and the crop stays full
+    to the horizon; at 46 m nobody is counting stalks."""
     p = Plant("rice")
     col = "rice_ripe" if ripe else "rice_green"
     for i in range(stalks):
@@ -607,7 +625,9 @@ def rice_clump(rng, height=0.75, stalks=14, ripe=False):
                         curve=rng.uniform(0.35, 0.7), twist=rng.uniform(-0.4, 0.4))
         tilt = math.radians(rng.uniform(6, 30))
         o = (rng.uniform(-0.06, 0.06), rng.uniform(-0.06, 0.06), 0.0)
-        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f, col, s, detail=True)
+        # the first `keep` stalks are the ones that stand at distance. They carry
+        # their sway masks with them, so the far paddy still ripples in the wind.
+        p.add(place(v, yaw=yaw, tilt=tilt, origin=o), f, col, s, detail=(i >= keep))
     return p
 
 
