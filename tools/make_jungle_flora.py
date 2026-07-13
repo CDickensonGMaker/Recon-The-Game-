@@ -322,7 +322,7 @@ def grass_tuft(rng, height=0.45, blades=13, spread=0.30):
     for i in range(blades):
         yaw = rng.uniform(0, math.tau)
         h = height * rng.uniform(0.6, 1.25)
-        v, f, s = blade(h, height * 0.060, segs=3,
+        v, f, s = blade(h, height * 0.060, segs=rng.choice((1, 1, 2)),
                         curve=rng.uniform(0.45, 0.85), twist=rng.uniform(-0.5, 0.5))
         tilt = math.radians(rng.uniform(8, 38))             # splay out from centre
         o = (rng.uniform(-1, 1) * spread * 0.10, rng.uniform(-1, 1) * spread * 0.10, 0.0)
@@ -338,7 +338,7 @@ def elephant_grass(rng, height=1.9, blades=16):
     for i in range(blades):
         yaw = rng.uniform(0, math.tau)
         h = height * rng.uniform(0.62, 1.12)
-        v, f, s = blade(h, height * 0.032, segs=5,
+        v, f, s = blade(h, height * 0.032, segs=rng.choice((1, 2, 2)),
                         curve=rng.uniform(0.35, 0.75), twist=rng.uniform(-0.8, 0.8))
         tilt = math.radians(rng.uniform(4, 26))             # stands tall, tips flop
         o = (rng.uniform(-0.09, 0.09), rng.uniform(-0.09, 0.09), 0.0)
@@ -369,7 +369,7 @@ def bush(rng, height=1.1, leaves=18):
         yaw = rng.uniform(0, math.tau)
         z = height * rng.uniform(0.15, 0.60)
         ll = height * rng.uniform(0.40, 0.70)
-        v, f, s = paddle(ll, ll * rng.uniform(0.30, 0.42), segs=3,
+        v, f, s = paddle(ll, ll * rng.uniform(0.30, 0.42), segs=rng.choice((1, 2)),
                          curve=rng.uniform(0.6, 1.0))
         tilt = math.radians(rng.uniform(20, 70))
         p.add(place(v, yaw=yaw, tilt=tilt,
@@ -385,7 +385,7 @@ def banana(rng, height=2.4, leaves=8):
     for i in range(leaves):
         yaw = math.tau * i / leaves + rng.uniform(-0.2, 0.2)
         ll = height * rng.uniform(0.55, 0.80)
-        v, f, s = paddle(ll, ll * 0.32, fold=0.30, segs=4,
+        v, f, s = paddle(ll, ll * 0.32, fold=0.30, segs=rng.choice((1, 1, 2)),
                          curve=rng.uniform(0.7, 1.05))      # big leaves flop hard
         tilt = math.radians(rng.uniform(15, 55))
         p.add(place(v, yaw=yaw, tilt=tilt,
@@ -435,7 +435,7 @@ def bamboo_stand(rng, height=5.5, culms=6):
             lz = h * t
             ly = rng.uniform(0, math.tau)
             ll = h * rng.uniform(0.14, 0.26)
-            bv, bf, bs = blade(ll, ll * 0.16, segs=2, curve=0.9)
+            bv, bf, bs = blade(ll, ll * 0.16, segs=rng.choice((1, 1, 2)), curve=0.9)
             p.add(place(bv, yaw=ly, tilt=math.radians(rng.uniform(45, 95)),
                         origin=(o[0] + lean_x(h, t), o[1], lz)), bf,
                   "leaf_mid" if rng.random() < .6 else "leaf_bright", bs,
@@ -610,7 +610,7 @@ def tall_grass(rng, height=1.3, blades=22):
     for i in range(blades):
         yaw = rng.uniform(0, math.tau)
         h = height * rng.uniform(0.65, 1.2)
-        v, f, s = blade(h, height * 0.028, segs=4,
+        v, f, s = blade(h, height * 0.028, segs=rng.choice((1, 2)),
                         curve=rng.uniform(0.25, 0.55),      # stands up
                         twist=rng.uniform(-0.7, 0.7))
         tilt = math.radians(rng.uniform(2, 20))
@@ -646,7 +646,7 @@ def rice_clump(rng, height=0.75, stalks=14, ripe=False, keep=3):
     for i in range(stalks):
         yaw = rng.uniform(0, math.tau)
         h = height * rng.uniform(0.75, 1.15)
-        v, f, s = blade(h, height * 0.035, segs=3,
+        v, f, s = blade(h, height * 0.035, segs=2,
                         curve=rng.uniform(0.35, 0.7), twist=rng.uniform(-0.4, 0.4))
         tilt = math.radians(rng.uniform(6, 30))
         o = (rng.uniform(-0.06, 0.06), rng.uniform(-0.06, 0.06), 0.0)

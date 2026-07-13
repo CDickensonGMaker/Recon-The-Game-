@@ -141,8 +141,14 @@ func build_from_terrain() -> void:
 			var ttype: int = _determine_terrain_type(h, slope_val, world_x, world_z)
 			terrain_type[idx] = ttype
 
-			# Set passability
-			is_passable[idx] = 1 if ttype != TerrainType.WATER and ttype != TerrainType.CLIFF else 0
+			# Passability. WATER used to be a flat NO - a knee-deep creek and a 50m river
+			# were the same wall. But the creeks ARE the escape routes (water breaks the
+			# breadcrumb trail - EnemySquad, ADR-021/LW-12), and a barrier you cannot enter
+			# cannot save you. So: WADE THE SHALLOWS, ford the deep.
+			var impassable: bool = ttype == TerrainType.CLIFF
+			if ttype == TerrainType.WATER:
+				impassable = get_water_depth(Vector3(world_x, 0.0, world_z)) > WADE_DEPTH_M
+			is_passable[idx] = 0 if impassable else 1
 
 			# Get vegetation density from clearing system if available
 			if clearing_system and clearing_system.has_method("get_density_at"):
@@ -151,8 +157,78 @@ func build_from_terrain() -> void:
 				# Estimate from terrain type
 				vegetation_density[idx] = _estimate_vegetation(ttype)
 
+	_apply_riparian_belt()
+
 	var elapsed: int = Time.get_ticks_msec() - start_time
 	print("[GameplayGrid] Grid built in %dms" % elapsed)
+
+
+## GALLERY FOREST — the green tunnel along every watercourse.
+##
+## THE BUG THIS FIXES. _determine_terrain_type() reads elevation and slope ONLY. A
+## creek valley is low and flat, so its BANKS classified as RICE_PADDY (density 0.2)
+## or GRASSLAND (0.3) — a sight cap around 130m. Every stream in the game ran through
+## OPEN GROUND.
+##
+## Which made water a DEATH TRAP instead of an escape route: wading breaks the enemy's
+## breadcrumb trail (shipped 2026-07-12), but you were doing it slow, loud, and visible
+## from 130m. The exact opposite of the thing it exists for.
+##
+## In life it is the other way round. Water plus edge-light is a riot of growth: a
+## watercourse is the DENSEST vegetation in the jungle, and a Vietnamese stream is a
+## tunnel of green. This dilates the water mask outward and grows real gallery forest
+## on the banks, densest at the water and thinning with distance.
+##
+## Now the creek both ERASES YOUR TRAIL and HIDES YOU, and the hydrology network the
+## terrain already generates becomes the E&E network.
+const RIPARIAN_M: float = 22.0    ## how far the gallery forest reaches from the bank
+const WADE_DEPTH_M: float = 1.2   ## deeper than this and you are swimming, not wading
+
+func _apply_riparian_belt() -> void:
+	var reach: int = maxi(1, int(ceil(RIPARIAN_M / cell_size_meters)))
+	# Multi-source BFS out from every water cell: O(cells), once, at generation.
+	var dist := PackedInt32Array()
+	dist.resize(terrain_type.size())
+	dist.fill(-1)
+	var frontier: Array[int] = []
+	for i in range(terrain_type.size()):
+		if terrain_type[i] == TerrainType.WATER:
+			dist[i] = 0
+			frontier.append(i)
+	if frontier.is_empty():
+		return
+
+	var banks: int = 0
+	while not frontier.is_empty():
+		var next: Array[int] = []
+		for idx in frontier:
+			var d: int = dist[idx]
+			if d >= reach:
+				continue
+			var gx: int = idx % grid_size
+			var gz: int = idx / grid_size
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nx: int = gx + o.x
+				var nz: int = gz + o.y
+				if nx < 0 or nz < 0 or nx >= grid_size or nz >= grid_size:
+					continue
+				var n: int = nz * grid_size + nx
+				if dist[n] != -1:
+					continue
+				dist[n] = d + 1
+				next.append(n)
+				# Cliffs stay cliffs; water stays water. Everything else greens up.
+				if terrain_type[n] == TerrainType.CLIFF or terrain_type[n] == TerrainType.WATER:
+					continue
+				# Densest at the bank, thinning outward.
+				var t: float = 1.0 - float(d + 1) / float(reach)
+				var gallery: float = lerpf(0.55, 0.95, clampf(t, 0.0, 1.0))
+				if gallery > vegetation_density[n]:
+					vegetation_density[n] = gallery
+					terrain_type[n] = TerrainType.HEAVY_JUNGLE if gallery >= 0.85 						else (TerrainType.MEDIUM_JUNGLE if gallery >= 0.65 else TerrainType.LIGHT_JUNGLE)
+					banks += 1
+		frontier = next
+	print("[GameplayGrid] Gallery forest: %d bank cells greened (reach %.0fm)" % [banks, RIPARIAN_M])
 	grid_updated.emit(Rect2i(0, 0, grid_size, grid_size))
 
 
