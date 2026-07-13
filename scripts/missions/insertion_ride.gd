@@ -53,7 +53,24 @@ func _build_seats_and_crew() -> void:
 		_socket("SeatCopilot", Vector3(-0.5, 1.5, -3.6)),
 		_socket("SeatDoorRight", Vector3(0.85, 1.35, 0.6)),
 	]
-	for seat in crew_seats:
+	# REAL AIRCREW. us_pilot_white.glb and us_pilot_black.glb have been finished and
+	# sitting in assets/models/characters/ with ZERO references anywhere in the
+	# codebase - while the player has ridden to EVERY mission in this game seated
+	# behind two olive capsules. (The mystery "green body" in playtest bug a2qb is,
+	# almost certainly, one of these.)
+	var crew_models: Array[String] = ["us_pilot_white", "us_pilot_black", "us_pilot_white"]
+	for i in range(crew_seats.size()):
+		var seat: Marker3D = crew_seats[i]
+		var actor := ModelActor.new()
+		seat.add_child(actor)
+		if actor.setup(crew_models[i % crew_models.size()]):
+			# Seated: he flies the aircraft, he does not stand in it.
+			actor.play_first(["sit", "sitting", "seated", "idle_seated", "idle"])
+			continue
+		# Model missing -> fall back to the capsule, but LOUDLY. A silent fallback is
+		# how two olive pills flew this helicopter for months.
+		push_warning("[InsertionRide] no model for '%s' - the aircrew are CAPSULES again." % crew_models[i % crew_models.size()])
+		actor.queue_free()
 		var crew := MeshInstance3D.new()
 		var capsule := CapsuleMesh.new()
 		capsule.radius = 0.28

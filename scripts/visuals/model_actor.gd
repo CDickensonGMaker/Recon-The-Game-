@@ -28,10 +28,14 @@ const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
 ## an elder with a stoop, and a ~9-year-old. US aircrew keep the standard: their
 ## flight helmet is the top of the silhouette, exactly like a grunt's steel pot.
 const UNIT_HEIGHT_M: Dictionary = {
-	"civ_farmer_m": 1.62,
-	"civ_farmer_f": 1.52,
-	"civ_elder":    1.55,
-	"civ_kid":      1.26,
+	"civ_farmer_m": 1.62, "civ_farmer_m_b": 1.60, "civ_farmer_m_c": 1.65,
+	"civ_farmer_f": 1.52, "civ_farmer_f_b": 1.50, "civ_farmer_f_c": 1.55,
+	"civ_elder":    1.55, "civ_elder_b":    1.53,
+	"civ_kid":      1.26, "civ_kid_b":      1.30,
+	# US aircrew keep the grunt standard - the flight helmet is the top of the
+	# silhouette, exactly like a steel pot.
+	"us_pilot_white": 1.7132, "us_pilot_black": 1.7132,
+	"us_rto":         1.7132,
 }
 
 
