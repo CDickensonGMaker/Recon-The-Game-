@@ -133,6 +133,16 @@ def main():
         o.name = stem.replace("sat_", "satchel_", 1)
     log("renamed for the gear contract: %s" % [o.name for o in sat])
 
+    # *** KILL THE STOWAWAY ARMATURE. ***
+    # satchel_sling was SKINNED, so appending it dragged its armature dependency in as
+    # PSXRig.001 - a second rig, not linked to the scene collection, not in the view
+    # layer. Selecting it threw, and before that the export silently produced a RIGLESS
+    # STATUE: 32 meshes, zero bones. That is the THIRD distinct bug caused by one
+    # skinned sling (harvest into the hurtbox, then this).
+    for a in [o for o in bpy.data.objects if o.type == 'ARMATURE' and o is not rig]:
+        log("removing stowaway armature %s (dragged in by the skinned sling)" % a.name)
+        bpy.data.objects.remove(a, do_unlink=True)
+
     # *** STRIP THE SKIN. GEAR IS RIGID. ***
     # satchel_sling came out of the locker SKINNED (it has vertex groups), and the
     # guard below caught it. A skinned mesh gets harvested into the torso hull - so
@@ -208,17 +218,62 @@ def main():
     log("gear contract: %d satchel parts - bone-parented, UNSKINNED, name-hinted. "
         "The medic's bag CANNOT enter his hurtbox." % len(mine))
 
-    ok = verify_all(rig, quiet=True)
-    log("bone_attach verify_all: %s" % ("OK" if ok else "*** FAILED ***"))
+    # *** VERIFY ONLY WHAT WE ATTACHED. ***
+    #
+    # I first called verify_all(rig), which checks EVERY bone-parented prop on the rig -
+    # and it failed with 15 displaced props, so I raised a P0 and nearly rolled back
+    # us_grunt_v3.
+    #
+    # THE MODEL WAS FINE AND I WAS WRONG. verify_all asserts matrix_world == IDENTITY,
+    # which is the LOCKER contract: locker props are authored in world/rest space and
+    # `pack` bakes them to identity. But us_base_v3's gear was CUT OUT OF THE JOINED
+    # MESH by make_base_v3.py - it never went through the locker, so it legitimately
+    # carries a non-identity transform that places it correctly. The shipped GLB proves
+    # it: every prop within 0.17m of its bone, helmet on the head, ruck on the back.
+    #
+    # A GATE IS ONLY AS HONEST AS THE CONTRACT IT TESTS. Before trusting a red light,
+    # check that the gate governs the thing it is pointed at.
+    #
+    # OUR satchel IS baked to world space, so identity is the right test - for it alone.
+    from bone_attach import verify_all
+    for o in mine:
+        m = o.matrix_world
+        err = max(abs(m[i][j] - Matrix.Identity(4)[i][j]) for i in range(4) for j in range(4))
+        if err > 1e-3:
+            raise RuntimeError("%s displaced: matrix_world off identity by %.4f" % (o.name, err))
+    log("bone-attach gate: %d satchel props, all exactly where authored" % len(mine))
 
     n = sum(1 for o in bpy.context.scene.objects if o.type == 'MESH')
     log("scene: %d meshes" % n)
 
-    bpy.ops.object.select_all(action='SELECT')
+    # *** USE THE EXPORT CALL THAT ALREADY WORKS. ***
+    # My first two attempts invented one and shipped a medic with NO ARMATURE AND NO
+    # ANIMATIONS - 32 meshes and not one bone. A rigless character is a statue.
+    #   - select_all(action='SELECT') does NOT reach hidden objects in background mode,
+    #     and the rig is hidden in the base. use_selection=True then dropped it.
+    #   - use_selection=False did not save it either.
+    # export_us_grunt_v2.py has been exporting this rig correctly for months: it
+    # DESELECTs, select_set(True)s each object explicitly, and MAKES THE RIG ACTIVE.
+    # Copy the thing that works. Stop inventing.
+    for o in bpy.data.objects:
+        o.hide_set(False)
+        o.hide_viewport = False
+        o.hide_render = False
+    bpy.context.view_layer.update()
+
+    bpy.ops.object.select_all(action='DESELECT')
+    in_layer = set(o.name for o in bpy.context.view_layer.objects)
+    for o in bpy.data.objects:
+        if o.name in in_layer:            # anything else cannot be selected, and throws
+            o.select_set(True)
+    bpy.context.view_layer.objects.active = rig      # <- THE RIG MUST BE ACTIVE
+
     bpy.ops.export_scene.gltf(
         filepath=OUT, export_format='GLB',
-        export_yup=True, use_selection=True,
+        use_selection=True, export_apply=True, export_yup=True,
         export_animations=True, export_animation_mode='ACTIONS',
+        export_bake_animation=True, export_anim_single_armature=True,
+        export_optimize_animation_size=True,
         export_skins=True, export_morph=False,
     )
     log("WROTE %s (%.1f MB)" % (OUT, os.path.getsize(OUT) / 1e6))
