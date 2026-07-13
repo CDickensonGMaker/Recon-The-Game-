@@ -357,6 +357,19 @@ func _apply_personality() -> void:
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
 		var unit: String = str(enemy_data.sprite_unit)
+		# ART-AHEAD WIRING. An archetype may name a model that does not exist YET; if
+		# it is missing we fall back to `sprite_unit_fallback` and say so LOUDLY.
+		#
+		# THIS IS HOW THE NVA STOP WEARING VC BLACK PYJAMAS. nva_regular currently
+		# renders as vc_guerilla_ppsh - so the man who hunts you for 84 SECONDS and
+		# drives a net 169m down your trail looks IDENTICAL to the farmer who quits
+		# at 41. The moment nva_regular.glb lands in assets/models/characters/, he
+		# puts on the khaki and the pith helmet. No code change, no bead at P2.
+		if not ModelActor.model_exists(unit) and "sprite_unit_fallback" in enemy_data:
+			var fb: String = str(enemy_data.sprite_unit_fallback)
+			if not fb.is_empty() and ModelActor.model_exists(fb):
+				push_warning("[Enemy] '%s' has no model yet - wearing '%s'. Export it and he changes." % [unit, fb])
+				unit = fb
 		# 3D model is the default renderer (Caleb, locked). Sprite is the
 		# fallback when a unit has no .glb yet; capsule if neither.
 		if ModelActor.model_exists(unit):

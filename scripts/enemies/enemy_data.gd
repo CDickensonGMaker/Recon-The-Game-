@@ -55,5 +55,9 @@ extends Resource
 ## notices for six months and then cannot unsee.
 @export var sprite_faction: String = ""   ## "Vietcong and NVA"
 @export var sprite_unit: String = ""      ## "vc_guerilla"
+## ART-AHEAD WIRING: what he wears until `sprite_unit` actually exists on disk.
+## Lets an archetype be pointed at art that is still being made, so the model lands
+## and the man simply puts it on - no code change, no wiring bead sinking to P2.
+@export var sprite_unit_fallback: String = ""
 @export var sprite_weapon: String = ""    ## "ak47"
 @export var color: Color = Color(0.4, 0.4, 0.3)  ## capsule placeholder tint, and sprite base modulate

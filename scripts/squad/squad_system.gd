@@ -28,6 +28,10 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 	world = game_world
 	director = mission_director
 	var roster: Array = SquadRoster.ensure_roster(int(director.state.seed_value) + 12345)
+	# MOS -> the body he wears and the gun he carries. A missing model degrades to the
+	# generic grunt (ally_base._setup_visual guards on ModelActor.model_exists), so an
+	# entry may be added BEFORE its art exists - which is the point: the art lands and
+	# the man puts it on, with no code change and no bead sinking to P2.
 	for i in range(mini(5, roster.size())):
 		var m: Dictionary = roster[i]
 		var a := TAU * float(i) / 5.0
@@ -36,13 +40,21 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
 		ally.director = director  ## toast channel for promotion barks
-		if str(m.mos) == "PIGMAN":
-			ally.fire_rate_mult = 1.6
-			# The Pig is a separate rendered unit: us_grunt_m60 holds the M60
-			# (v2 rig - takes the shared anim library + family clips; the old
-			# us_grunt_black v1 rig is archived in Base Game Assets).
-			# spawn_ally() already ran _setup_visual(), so this must rebuild.
-			ally.set_sprite("us_grunt_m60", "m60")
+		# EVERY MOS GETS ITS OWN BODY. The Pigman was the ONLY role with a distinct
+		# model - Point, RTO, Medic and Grenadier all wore the generic grunt, while
+		# us_rto.glb and us_grunt_m79.glb sat finished and unreferenced on disk.
+		# (ART WITHOUT AN INSTANTIATOR DOES NOT EXIST - probe_orphaned_art.)
+		#
+		# set_sprite() falls back to the generic grunt if the model is missing, so a
+		# role whose art has not landed yet simply looks ordinary - it never breaks.
+		# THE MOMENT us_medic.glb IS EXPORTED, THE MEDIC PUTS IT ON. No code change.
+		var mos: String = str(m.mos)
+		var body: Dictionary = MOS_BODY.get(mos, {}) as Dictionary
+		if not body.is_empty():
+			if mos == "PIGMAN":
+				ally.fire_rate_mult = 1.6
+			# spawn_ally() already ran _setup_visual(), so this rebuilds it.
+			ally.set_sprite(str(body.unit), str(body.weapon))
 		_attach_name_tag(ally, "%s %s (%s)" % [SquadRoster.rank_for(m), str(m.nick), str(m.mos)])
 		ally.died.connect(_on_member_died)
 		members.append(ally)
@@ -51,6 +63,20 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		_health = world.player.get_node_or_null("HealthSystem") as HealthSystem
 		if _health:
 			_health.revive_handler = self
+
+
+## The five MOS, and the body each one wears.
+##   PIGMAN     us_grunt_m60   ON DISK, and the only one that was ever wired.
+##   GRENADIER  us_grunt_m79   ON DISK - and was ORPHANED. Nothing spawned it.
+##   RTO        us_rto         ON DISK (built 2026-07-12) - and was ORPHANED.
+##   MEDIC      us_medic       *** NOT YET MADE. The one MOS with no body. ***
+##   POINT      (generic)      the base grunt is correct for him.
+const MOS_BODY: Dictionary = {
+	"PIGMAN":    {"unit": "us_grunt_m60", "weapon": "m60"},
+	"GRENADIER": {"unit": "us_grunt_m79", "weapon": "m79"},
+	"RTO":       {"unit": "us_rto",       "weapon": "m16a1"},
+	"MEDIC":     {"unit": "us_medic",     "weapon": "m16a1"},
+}
 
 
 func _attach_name_tag(ally: Node3D, text: String) -> void:
