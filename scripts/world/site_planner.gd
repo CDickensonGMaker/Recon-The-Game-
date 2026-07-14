@@ -176,7 +176,7 @@ func _apply_visibility_range(node: Node) -> void:
 ## VILLAGE: ring of huts + center feature + weapons cache (+ hidden tunnel).
 func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	var nodes: Array[Node3D] = []
-	var hut_count: int = rng.randi_range(5, 8)
+	var hut_count: int = rng.randi_range(7, 10)
 	for i in range(hut_count):
 		var a := TAU * float(i) / float(hut_count) + rng.randf_range(-0.2, 0.2)
 		var r := rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MIN, SiteLayouts.VILLAGE_RING_RADIUS_MAX)
@@ -194,6 +194,13 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	nodes.append(cache)
 	var tunnel_pos := center + Vector3(cos(cache_a + PI), 0, sin(cache_a + PI)) * (SiteLayouts.VILLAGE_RING_RADIUS_MAX + 6.0)
 	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, tunnel_pos, 0.0))
+	# VC scatter props: 0-2 spider holes / punji pits tucked between huts.
+	for _s in range(rng.randi_range(0, 2)):
+		var sa := rng.randf() * TAU
+		var sr := rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MIN * 0.5, SiteLayouts.VILLAGE_RING_RADIUS_MAX * 0.9)
+		var sp := center + Vector3(cos(sa), 0, sin(sa)) * sr
+		var sm: String = SiteLayouts.VILLAGE_SCATTER_MODELS[rng.randi() % SiteLayouts.VILLAGE_SCATTER_MODELS.size()]
+		nodes.append(place_structure(sm, sp, rng.randf_range(0, 360)))
 	# VC punji traps on the approaches (booby trap for US troops - Point man / careful
 	# movement is the counterplay). Just outside the hut ring, avoiding water.
 	for _t in range(rng.randi_range(1, 2)):
