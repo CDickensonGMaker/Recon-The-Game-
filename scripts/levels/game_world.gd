@@ -1,6 +1,5 @@
 ## game_world.gd - Generated AO gameplay scene: terrain + water + vegetation +
-## gameplay grid + player + HUD. The terrain-FPS bridge (NS02/NS03).
-## Mission systems attach on top of this (NS07+).
+## gameplay grid + player + HUD. Mission systems attach on top of this.
 class_name GameWorld
 extends Node3D
 
@@ -14,6 +13,7 @@ const VegetationManagerScript := preload("res://terrain/vegetation/vegetation_ma
 const BillboardVegetationScript := preload("res://terrain/vegetation/billboard_vegetation.gd")
 const WaterSystemScript := preload("res://terrain/water/water_system.gd")
 const GameplayGridScript := preload("res://terrain/core/gameplay_grid.gd")
+const VillageSpawnerScript := preload("res://terrain/world/village_spawner.gd")
 
 @export var mission_seed: int = 12345
 @export var map_size: float = WorldConfig.MAP_SIZE
@@ -85,10 +85,12 @@ func _setup_terrain() -> void:
 	vegetation_manager = VegetationManagerScript.new()
 	vegetation_manager.name = "VegetationManager"
 	vegetation_manager.patch_seed = mission_seed
+	vegetation_manager.mission_seed = mission_seed
 	add_child(vegetation_manager)
 
 	billboard_vegetation = BillboardVegetationScript.new()
 	billboard_vegetation.name = "BillboardVegetation"
+	billboard_vegetation.mission_seed = mission_seed
 	add_child(billboard_vegetation)
 
 	water_system = WaterSystemScript.new()
@@ -108,8 +110,8 @@ func _setup_terrain() -> void:
 	await terrain_manager.generate_terrain(mission_seed)
 
 
-## Default neutral shader textures BEFORE generation prevent white terrain
-## from unbound samplers (pattern from terrain_lab).
+## Neutral shader textures MUST be bound before generation, or unbound samplers
+## render the terrain white.
 func _setup_default_shader_textures() -> void:
 	var default_height := Image.create(4, 4, false, Image.FORMAT_RF)
 	default_height.fill(Color(0.5, 0.5, 0.5, 1.0))
@@ -157,10 +159,28 @@ func _on_terrain_ready() -> void:
 
 	# 4. Gameplay grid (site planning, spawn queries, LOS).
 	gameplay_grid = GameplayGridScript.new(terrain_manager.map_size, 256)
+	gameplay_grid.mission_seed = mission_seed
 	gameplay_grid.set_heightmap(terrain_manager.heightmap)
 	gameplay_grid.set_clearing_system(ClearingSystem)
 	gameplay_grid.set_water_system(water_system)
 	gameplay_grid.build_from_terrain()
+
+	# 4b. Village + hideout spawner smoke (RECONgame-bx2m). Runs every boot so
+	# we can see the procedural output in the log; later this feeds MissionDirector.
+	var smoke_firebases: Array[Vector2] = [Vector2(map_size * 0.5, map_size * 0.5)]
+	var villages: Array = VillageSpawnerScript.sample_world(mission_seed, map_size, smoke_firebases)
+	print("[VillageSpawner] mission_seed=%d produced %d villages" % [mission_seed, villages.size()])
+	for v in villages:
+		print("  %s pos=%s families=%d villagers=%d VC=%d hideouts=%d" % [
+			v.village_id, str(v.world_position), v.families.size(),
+			v.total_villagers(), v.total_vc(), v.linked_hideouts.size()
+		])
+		for h in v.linked_hideouts:
+			var tname: String = "CAMP" if h.type == 0 else "TUNNEL"
+			print("    %s %s pos=%s dist=%.0fm angle=%.0fdeg defenders=%d" % [
+				h.hideout_id, tname, str(h.world_position),
+				h.distance_from_village, h.angle_from_village, h.defender_count
+			])
 
 	# 5. Player, then vegetation cameras (they need the player camera).
 	if spawn_player_on_ready:
@@ -171,7 +191,6 @@ func _on_terrain_ready() -> void:
 
 	_start_ambience()
 
-	# PT5: near-player ground clutter (Caleb's tuft/rock/log sprites).
 	var clutter := GroundClutter.new()
 	add_child(clutter)
 	clutter.setup(self)
@@ -180,15 +199,9 @@ func _on_terrain_ready() -> void:
 	world_ready.emit()
 
 
-## Ambience is now POSITIONAL, not one global 2D loop.
-##
-## The director's "constant single bird" was the 2D jungle_loop playing at the
-## same volume everywhere on a 1.28km map. Now: a quiet 2D floor (broadband
-## insect hiss, which SHOULD be omnipresent) + a ring of AudioStreamPlayer3D
-## emitters around the player that drift and re-seat, each pitch-varied so the
-## soundscape comes FROM PLACES. Melodic multi-note bird motifs still want real
-## samples (filed) - this makes the placeholder read as a living treeline, not a
-## chirp in your skull.
+## Ambience is POSITIONAL: a quiet 2D floor (broadband insect hiss, which should
+## be omnipresent) plus a ring of AudioStreamPlayer3D emitters around the player
+## that drift and re-seat, each pitch-varied, so the sound comes FROM PLACES.
 const AMBIENCE_EMITTERS: int = 4
 const AMBIENCE_RING_MIN: float = 12.0
 const AMBIENCE_RING_MAX: float = 45.0
@@ -199,9 +212,8 @@ var _amb_reseat_t: float = 0.0
 var _wildlife: Array[Node] = []
 
 func _start_ambience() -> void:
-	# The real jungle bed: 1 hour of birds/insects/crickets (streamed MP3), started
-	# at a RANDOM OFFSET so no two missions open on the same minute of jungle.
-	# Dev asset (license-unclear) - falls back to the old synth loop if absent.
+	# The jungle bed streams from a RANDOM OFFSET so no two missions open on the same
+	# minute. Dev asset, license unclear - falls back to the synth loop if absent.
 	var bed: AudioStream = null
 	if ResourceLoader.exists("res://assets/audio/ambience/jungle_day.mp3"):
 		var mp3 := load("res://assets/audio/ambience/jungle_day.mp3") as AudioStreamMP3
@@ -232,8 +244,7 @@ func _start_ambience() -> void:
 		wp.volume_db = -20.0
 		add_child(wp)
 		wp.play()
-	# Positional wildlife emitters - SYNTH birds, retired when the real recorded
-	# bed is present (Caleb: 'remove the original bird noises we generated').
+	# Synth bird emitters: only when the real recorded bed is absent.
 	for i in range(AMBIENCE_EMITTERS if not (bed is AudioStreamMP3) else 0):
 		var e := AudioStreamPlayer3D.new()
 		e.stream = floor_s
@@ -249,9 +260,8 @@ func _start_ambience() -> void:
 	_reseat_ambience()
 
 
-## Rain silences the jungle (Caleb): duck the wildlife fast when a squall opens
-## (~3s - birds shut up quick), fade back SLOWLY when it ends (~14s - they return
-## hesitantly). Called by MissionWeather on squall transitions.
+## Rain silences the jungle: duck the wildlife fast when a squall opens (~3s),
+## fade back slowly when it ends (~14s). Called by MissionWeather on transitions.
 func set_wildlife_ducked(ducked: bool) -> void:
 	for w in _wildlife:
 		if not is_instance_valid(w):
@@ -260,8 +270,7 @@ func set_wildlife_ducked(ducked: bool) -> void:
 		var tw := create_tween()
 		tw.tween_property(w, "volume_db", -58.0 if ducked else base, 3.0 if ducked else 14.0)
 
-## Drift the emitters onto a fresh ring around the player so wildlife seems to
-## be all around and moving, not nailed to spawn.
+## Drift the emitters onto a fresh ring around the player so the wildlife moves.
 func _reseat_ambience() -> void:
 	if player == null:
 		return
@@ -276,8 +285,8 @@ func _reseat_ambience() -> void:
 		e.global_position = pos
 
 
-## R77: called by GameFlow once the weather/time roll is known - crickets and
-## frogs replace the birdless jungle bed on NIGHT missions.
+## Called by GameFlow once the weather/time roll is known: crickets and frogs
+## replace the jungle bed on NIGHT missions.
 func start_night_ambience() -> void:
 	var stream := load("res://assets/audio/sfx/night_insects_loop.wav") as AudioStreamWAV
 	if stream == null:
@@ -317,8 +326,8 @@ func _wire_cameras(cam: Camera3D) -> void:
 	billboard_vegetation.set_vegetation_manager(vegetation_manager)
 
 
-## W49: billboard generation is queued 1/frame instead of bursting on chunk
-## load (kills the min-FPS spikes during streaming).
+## Billboard generation is queued 1/frame, not burst on chunk load: the burst
+## craters min-FPS during streaming.
 var _billboard_queue: Array[Vector2i] = []
 
 
@@ -411,7 +420,7 @@ func _physics_process(delta: float) -> void:
 	if _reseat_timer < 2.0:
 		return
 	_reseat_timer = 0.0
-	# W51: never re-seat a tunnel rat.
+	# Never re-seat a tunnel rat.
 	if "_in_tunnel" in player and player._in_tunnel != null:
 		return
 	var ground_y: float = terrain_manager.get_height_at(player.global_position)
