@@ -1,5 +1,4 @@
 ﻿## enemy_base.gd - Goal-driven tactical AI for deadly WW2 combat
-## Architecture inspired by Quake 3/Spearmint: separate think rate from execution
 class_name EnemyBase
 extends CharacterBody3D
 
@@ -10,13 +9,11 @@ signal state_changed(new_state: Enums.AIState)
 @export var enemy_data_path: String = ""
 var enemy_data: EnemyData = null
 
-## Stats
 var max_hp: int = 80
 var current_hp: int = 80
 var move_speed: float = 4.0
 var preferred_range: float = 15.0
 
-## Weapon
 var weapon_data: WeaponData = null
 var fire_timer: float = 0.0
 var can_fire: bool = true
@@ -25,19 +22,16 @@ var can_fire: bool = true
 ## GOAL-DRIVEN AI SYSTEM (Quake 3 inspired)
 ## ============================================
 
-## Current goal and state
 var current_goal: Enums.AIGoal = Enums.AIGoal.NONE
 var current_state: Enums.AIState = Enums.AIState.IDLE
 var personality: Enums.AIPersonality = Enums.AIPersonality.BALANCED
 var state_timer: float = 0.0
 var goal_timer: float = 0.0
 
-## Think system - separate from execution (like Quake 3 bots)
 var think_timer: float = 0.0
 const THINK_INTERVAL: float = 0.15  # 6-7 Hz thinking, execution every frame
 var last_think_time: float = 0.0
 
-## W86: think-LOD - distant brains tick slower (checked every 2s).
 var _think_interval_current: float = THINK_INTERVAL
 var _lod_timer: float = 0.0
 
@@ -59,15 +53,14 @@ func _update_think_lod(delta: float) -> void:
 	else:
 		_think_interval_current = THINK_INTERVAL
 
-## Target tracking
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
 var target_last_seen_time: float = 0.0
 var has_line_of_sight: bool = false
-var target_visible_duration: float = 0.0  # How long we've had eyes on target
+var target_visible_duration: float = 0.0
 
-## Alert tiers + perception (R12/R13/R14). Orthogonal to the goal FSM: the tier
-## gates target ACQUISITION; once in COMBAT the existing goal brain takes over.
+## Alert tiers + perception. Orthogonal to the goal FSM: the tier gates target
+## ACQUISITION; once in COMBAT the goal brain takes over.
 enum AlertTier { RELAXED, SUSPICIOUS, ALERT, COMBAT }
 var alert_tier: AlertTier = AlertTier.RELAXED
 var awareness: float = 0.0            ## 0..1 visibility accumulator
@@ -82,19 +75,16 @@ const SIGHT_CAP_JUNGLE: float = 45.0
 const CORPSE_NOTICE_RANGE: float = 22.0
 const CLOSE_SENSE_RANGE: float = 10.0  ## contacts inside this are felt regardless of facing
 
-## Aim interpolation (smooth aiming like Quake 3 bots)
 var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
 var aim_speed: float = 8.0  # Radians per second - varies by skill
-var aim_error: Vector3 = Vector3.ZERO  # Current aim offset
+var aim_error: Vector3 = Vector3.ZERO
 
-## Navigation
 @onready var nav_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D")
 var move_target: Vector3 = Vector3.ZERO
 var is_moving: bool = false
 
-## Cover system (R15): dynamic point discovery + a shared claim broker so two
-## enemies never stack on the same rock/sandbag.
+## Cover: a shared claim broker keeps two units off the same rock/sandbag.
 var current_cover: Vector3 = Vector3.ZERO
 var has_cover: bool = false
 var cover_quality: float = 0.0
@@ -108,21 +98,30 @@ const COVER_SEARCH_OFFSETS: Array[Vector3] = [
 	Vector3(6, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 6), Vector3(0, 0, -6),
 ]
 
-## R18/R33: assigned wandering trail (ambient corridor patrols); sentries pause
-## and glance around at each waypoint instead of marching on a fixed clock.
 var patrol_route: Array[Vector3] = []
 var _patrol_index: int = 0
 var _patrol_pause: float = 0.0
-## SINGLE FILE (ADR-021 / VISION_READOUT: "jungle single-file is *very* Vietnam").
-## A patrol is a UNIT that moves together, not four men scattered around a loop.
-## Slot 0 walks point; the rest trail him in a staggered column. Before this the
-## group shared one route and each man started at a different index, so a "patrol"
-## was four strangers orbiting the same bush in opposite directions.
+## Slot 0 walks point; the rest trail him in a staggered column.
 var patrol_file_slot: int = 0
 const FILE_SPACING: float = 4.0     ## metres between men in the column
 const FILE_STAGGER: float = 1.1     ## lateral weave, so it is a file and not a queue
 
-## Combat behavior
+## Camp role. The CampDirector writes this; the man's anim name is derived from it.
+## Roles: "guard" (default), "patrol", "cook", "sleep", "talk".
+var camp_role: String = "guard"
+
+
+## Region-LOD hooks called by WorldSim. Abstract = not visible to the player;
+## skip physics + model updates. Live = full simulation.
+func set_lod_live() -> void:
+	set_physics_process(true)
+	visible = true
+
+
+func set_lod_abstract() -> void:
+	set_physics_process(false)
+	visible = false
+
 var strafe_direction: float = 0.0
 var strafe_timer: float = 0.0
 var shots_fired: int = 0
@@ -130,8 +129,8 @@ var burst_count: int = 0
 var accuracy_modifier: float = 1.0     # per-frame scratch: range band x strafe x stillness
 var base_accuracy_modifier: float = 1.0  # archetype baseline from EnemyData, multiplied in
 var aggro_range: float = 50.0          # target-acquisition radius, from EnemyData.alert_range
-var d_flanks: bool = true              # archetype may flank
-var d_retreats_when_hurt: bool = false # archetype breaks when wounded
+var d_flanks: bool = true
+var d_retreats_when_hurt: bool = false
 var d_uses_cover: bool = true
 var d_retreat_hp: float = 0.25
 var d_exposure_ramp: float = 2.5       # seconds of exposure to full accuracy (EnemyData)
@@ -139,11 +138,10 @@ var contact_conf: float = 0.0          # debounced eyes-on 0-1 (goals read THIS,
 var _last_intent: String = ""          # committed anim intent (stability filter)
 var _cand_intent: String = ""          # challenger intent + when it started winning
 var _cand_since: float = -1e9
-var _fired_until_ms: float = -1e9      # T1.3: fire pose follows the SHOT, 350ms
+var _fired_until_ms: float = -1e9      # fire pose follows the SHOT, 350ms
 var _hitzone_sync: Array = []          # [[hz, bone_idx, offset]..] - zones ride bones
 
-## Stuck watchdog (Caleb: units wedging on cover collision): commanded to move
-## but not moving for ~1s -> sidestep for a beat. No navmesh required.
+## Stuck watchdog: commanded to move but not moving for ~1s -> sidestep for a beat.
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
 var _unstick_t: float = 0.0
@@ -153,8 +151,8 @@ func _update_unstick(delta: float) -> void:
 	if _unstick_t > 0.0:
 		_unstick_t -= delta
 		var side := global_transform.basis.x * _unstick_dir
-		velocity.x = side.x * move_speed
-		velocity.z = side.z * move_speed
+		velocity.x = side.x * move_speed * _suppression_move_mult()
+		velocity.z = side.z * move_speed * _suppression_move_mult()
 		return
 	_stuck_t += delta
 	if _stuck_t >= 1.0:
@@ -165,80 +163,63 @@ func _update_unstick(delta: float) -> void:
 		_stuck_pos = global_position
 		_stuck_t = 0.0
 
-## DESIGN 4.2 fairness (the exposure ramp, formerly dead code): x3.0 spread at
-## fresh exposure, converging near ramp end via (1 - t^2) - the safe window
-## after repositioning stays safe for most of the ramp, then the noose closes.
+## Fairness ramp: x3.0 spread at fresh exposure, converging to 1.0 at ramp end.
 const EXPOSURE_SPREAD_BONUS: float = 2.0
 
 func _exposure_spread_mult() -> float:
 	var t: float = clampf(target_visible_duration / maxf(d_exposure_ramp, 0.1), 0.0, 1.0)
 	return 1.0 + EXPOSURE_SPREAD_BONUS * (1.0 - t * t)
 
-## Reaction system
 var reaction_timer: float = 0.0
 var has_reacted: bool = false
-const BASE_REACTION_TIME: float = 0.25  # Faster = deadlier
+const BASE_REACTION_TIME: float = 0.25
 
-## W45: grenades to flush cover. W46: crippled crawl state.
 var grenade_cooldown: float = 0.0
 var grenades_left: int = 1
 var is_crippled: bool = false
 
-## R64: spider-hole ambusher - hidden (no mesh/collision) until the player
-## closes to trigger range, then pops straight to COMBAT. Set by the spawner.
+## Spider-hole ambusher: hidden (no mesh/collision) until triggered. Set by the spawner.
 var is_spider_hole: bool = false
 var _spider_triggered: bool = false
 const SPIDER_TRIGGER_RANGE: float = 7.0
 
-## R67: crippled fighters near a tunnel entrance slip underground and vanish
-## rather than crawl forever.
 var _tunnel_retreat_queued: bool = false
 ## Arrival-beat window: while now < this, the man is planting his feet.
 var _arrive_until_ms: float = 0.0
 ## Corpse hitzone re-sync clock (6Hz - a dead man is not in a hurry).
 var _corpse_sync_t: float = 0.0
-## The launcher round this man carries, resolved ONCE (was load()ed on every shot).
+## The launcher round this man carries, resolved ONCE.
 var _proj_cache: ProjectileData = null
-## Numbers are nerve (Caleb decree): local force ratio, refreshed each goal
-## think, feeds retreat scoring and the rout ladder. >1 = we have the numbers.
+## Local force ratio, refreshed each goal think. >1 = we have the numbers.
 var _last_force_ratio: float = 1.0
-## Current flight bearing while RETREATING - slides along walls instead of
-## grinding into them.
+## Current flight bearing while RETREATING - slides along walls.
 var _retreat_bearing: Vector3 = Vector3.ZERO
 
-## Fairness (anti-instant-death): the first round fired at a newly acquired
-## target is a deliberate near-miss - the CRACK is your warning. Close-range
-## acquisitions also startle the shooter (+reaction time).
+## Fairness: the first round at a newly acquired target is a deliberate near-miss.
 var _first_shot_fired: bool = false
 
-## Suppression system
 var suppression_level: float = 0.0  # 0-1, affects behavior
 var _gut_bleed_dps: float = 0.0     # locational: gutshot bleed-out rate
 var _bleed_accum: float = 0.0
 var incoming_fire_timer: float = 0.0
 const SUPPRESSION_DECAY: float = 0.3  # Per second
 
-## Threat assessment
-var threat_level: float = 0.0  # How dangerous current situation is
+var threat_level: float = 0.0
 var damage_taken_recently: int = 0
 var damage_decay_timer: float = 0.0
 
-## Characteristics (like Quake 3 bot characteristics)
 var char_aggression: float = 0.5      # 0-1: tendency to advance/flank
 var char_accuracy: float = 0.7        # 0-1: base accuracy
 var char_reaction: float = 0.6        # 0-1: reaction speed
 var char_self_preservation: float = 0.5  # 0-1: tendency to seek cover
 
-## Constants
 const MAX_BURST: int = 5
 const ALERT_RANGE: float = 25.0
 const AGGRO_RANGE: float = 18.0
-const MAX_THINK_TIME: float = 0.2  # Cap think time (like Quake 3's 200ms)
+const MAX_THINK_TIME: float = 0.2
 
-## Physics
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-## Visual
 var mesh: MeshInstance3D
 ## The visual: a ModelActor (default) or SpriteActor (far-LOD / no-model
 ## fallback), or null -> capsule. Both share play/set_facing/flash/muzzle_*.
@@ -247,9 +228,7 @@ var _visual_is_model: bool = false
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
 var squad_id: int = -1     ## EnemySquad coordination group; -1 = lone wolf
 
-## Detection beacon: the last time ANY enemy entered COMBAT. The mission director
-## polls this to raise the AO alarm on DETECTION, so a silent, unwitnessed kill
-## no longer summons the QRF (stealth becomes an economy, not a fail gate).
+## Detection beacon: the last time ANY enemy entered COMBAT (polled by MissionDirector).
 static var last_combat_contact_ms: float = -1.0
 var _nav_warned: bool = false
 var _scan_phase: float = 0.0
@@ -273,11 +252,9 @@ func _ready() -> void:
 	CombatManager.register_enemy(self)
 	_lab_nav = get_tree().get_first_node_in_group("lab_navmesh") != null
 
-	# Randomize personality
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
 	_apply_personality()
 
-	# Load enemy data
 	if not enemy_data_path.is_empty():
 		enemy_data = load(enemy_data_path)
 		if enemy_data:
@@ -285,19 +262,14 @@ func _ready() -> void:
 			current_hp = max_hp
 			move_speed = enemy_data.move_speed
 			preferred_range = enemy_data.preferred_range
-			# Step 8: exports that were stored and ignored now drive behaviour.
 			base_accuracy_modifier = enemy_data.accuracy_modifier
-			aggro_range = enemy_data.alert_range * 2.0   # was a hardcoded ALERT_RANGE*2
+			aggro_range = enemy_data.alert_range * 2.0
 			d_flanks = enemy_data.flanks
 			d_retreats_when_hurt = enemy_data.retreats_when_hurt
 			d_uses_cover = enemy_data.uses_cover
 			d_retreat_hp = enemy_data.retreat_hp_threshold
-			# _apply_personality() ran first and randomised char_aggression into a
-			# disjoint band; bias it toward the archetype so a VC (0.45) and an NVA
-			# (0.65) actually differ instead of being pure personality noise.
+			# _apply_personality() ran first: bias its RNG toward the archetype (ordering matters).
 			char_aggression = lerpf(char_aggression, enemy_data.aggression, 0.6)
-			# Same anchor for nerve: courage inverse-biases self-preservation, so
-			# a sapper's steadiness is archetype identity, not spawn RNG.
 			char_self_preservation = lerpf(char_self_preservation, 1.0 - enemy_data.courage, 0.6)
 			d_exposure_ramp = enemy_data.exposure_ramp_time
 
@@ -309,18 +281,15 @@ func _ready() -> void:
 	_setup_visual()
 	_setup_hurtbox()
 
-	# Initialize aim direction
 	current_aim_dir = -global_transform.basis.z
 	target_aim_dir = current_aim_dir
 	facing_dir = current_aim_dir
 
-	# Perception wiring (R12/R13)
 	NoiseBus.noise_emitted.connect(_on_noise_heard)
 	var gw := get_tree().get_first_node_in_group("game_world")
 	if gw != null and "gameplay_grid" in gw:
 		_grid = gw.gameplay_grid
 
-	# R64: spider-hole starts hidden and inert until triggered.
 	if is_spider_hole:
 		visible = false
 		collision_layer = 0
@@ -349,29 +318,17 @@ func _apply_personality() -> void:
 			aim_speed = randf_range(5.0, 8.0)
 
 
-## 3D model when the unit has one (vc_guerilla_* / us_grunt_* v2 exports);
-## the old capsule otherwise (WW2 holdovers have no model at all; the v1
-## blocky troops are archived in Base Game Assets). Every mesh mutation site
-## below is guarded the same way, so a half-rendered art pass cannot crash
-## the game.
+## 3D model when the unit has one; SpriteActor then capsule as fallbacks.
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
 		var unit: String = str(enemy_data.sprite_unit)
 		# ART-AHEAD WIRING. An archetype may name a model that does not exist YET; if
 		# it is missing we fall back to `sprite_unit_fallback` and say so LOUDLY.
-		#
-		# THIS IS HOW THE NVA STOP WEARING VC BLACK PYJAMAS. nva_regular currently
-		# renders as vc_guerilla_ppsh - so the man who hunts you for 84 SECONDS and
-		# drives a net 169m down your trail looks IDENTICAL to the farmer who quits
-		# at 41. The moment nva_regular.glb lands in assets/models/characters/, he
-		# puts on the khaki and the pith helmet. No code change, no bead at P2.
 		if not ModelActor.model_exists(unit) and "sprite_unit_fallback" in enemy_data:
 			var fb: String = str(enemy_data.sprite_unit_fallback)
 			if not fb.is_empty() and ModelActor.model_exists(fb):
 				push_warning("[Enemy] '%s' has no model yet - wearing '%s'. Export it and he changes." % [unit, fb])
 				unit = fb
-		# 3D model is the default renderer (Caleb, locked). Sprite is the
-		# fallback when a unit has no .glb yet; capsule if neither.
 		if ModelActor.model_exists(unit):
 			var ma := ModelActor.new()
 			add_child(ma)
@@ -420,19 +377,13 @@ func _update_sprite() -> void:
 		var fwd := Vector3(facing_dir.x, 0.0, facing_dir.z).normalized()
 		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
 	var now: float = float(Time.get_ticks_msec())
-	# T1.3: latch set at the actual shot - the old cooldown-tail window put the
-	# fire pose BEFORE the bang and flapped fire<->aim around every shot.
 	var firing: bool = now < _fired_until_ms
-	# A man moving to cover BEFORE the shooting starts creeps, he doesn't jog -
-	# the sneak set reads as caution (audit wiring: clips existed, unasked).
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and alert_tier <= AlertTier.SUSPICIOUS
 	var prev_intent: String = _last_intent
 	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking)
-	# T1.4 stability filter: an intent must WIN continuously for 180ms before
-	# the clip commits - a 1-frame blip can never grab the clip and lock it
-	# (the old debounce accepted blips instantly, then refused the real intent
-	# for 250ms). Fire/death still switch immediately.
+	# Stability filter: an intent must WIN continuously for 180ms before the clip
+	# commits. Fire and death still switch immediately.
 	if intent != _last_intent:
 		if intent != _cand_intent:
 			_cand_intent = intent
@@ -443,9 +394,7 @@ func _update_sprite() -> void:
 			intent = _last_intent
 	else:
 		_cand_intent = intent
-	# ARRIVAL BEAT (audit wiring): a fast man settling into a stationary pose
-	# plants his feet (run_to_stop) instead of teleporting into the idle -
-	# the skating stop was half of "they don't look like they're thinking".
+	# ARRIVAL BEAT: a fast man settling into a stationary pose plants his feet.
 	# Display-only: the latch state above stays honest.
 	if _arrive_until_ms > now:
 		if intent == "fire" or intent.begins_with("death"):
@@ -461,9 +410,7 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
-## Bone-measured, bone-synced zones on model units (beads 90gj/yd83); the
-## legacy static bands only for sprite/capsule units. HitzoneBuilder is the
-## single authority - do not hand-place zones here again.
+## HitzoneBuilder is the single authority for zones - do not hand-place them here.
 func _setup_hurtbox() -> void:
 	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
 	_hitzone_sync = HitzoneBuilder.build(self, ma, 64, 16, ["enemy_hurtbox", "hitzone"], true)
@@ -474,12 +421,7 @@ func _setup_hurtbox() -> void:
 ## ============================================
 
 func _physics_process(delta: float) -> void:
-	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
-	# But a CORPSE does not need it at 60Hz forever: bodies are lootable and
-	# persist, so every dead man was paying a full skeleton->hitzone sync every
-	# tick for the rest of the mission - an unbounded, growing cost. A settled
-	# corpse re-syncs at 6Hz, which is plenty for a body that only moves when
-	# a ragdoll nudges it. (Live men keep the every-tick sync.)
+	# Zones ride the skeleton even on the corpse; a settled corpse re-syncs at 6Hz.
 	if _visual_is_model:
 		if current_state == Enums.AIState.DEAD:
 			_corpse_sync_t += delta
@@ -505,24 +447,20 @@ func _physics_process(delta: float) -> void:
 			_die()
 		return
 
-	# Cap delta for framerate independence (Quake 3 pattern)
+	# Cap delta for framerate independence.
 	var capped_delta: float = minf(delta, 0.066)
 
-	# Apply gravity
 	if not is_on_floor():
 		velocity.y -= gravity * capped_delta
 
-	# Decay systems
 	_update_decay(capped_delta)
 
-	# Think on schedule (like Quake 3 bots - not every frame); W86 LOD-scaled.
 	_update_think_lod(capped_delta)
 	think_timer += capped_delta
 	if think_timer >= _think_interval_current:
 		think_timer = 0.0
 		_think()
 
-	# Execute movement and aiming every frame (smooth)
 	_execute(capped_delta)
 
 	_update_unstick(capped_delta)
@@ -530,10 +468,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_decay(delta: float) -> void:
-	# Decay suppression
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * delta)
-	# Gutshot bleed-out: no medic is coming for him.
 	if _gut_bleed_dps > 0.0 and current_state != Enums.AIState.DEAD:
 		_bleed_accum += _gut_bleed_dps * delta
 		if _bleed_accum >= 1.0:
@@ -544,13 +480,11 @@ func _update_decay(delta: float) -> void:
 				current_hp = 0
 				_die()
 
-	# Decay recent damage tracking
 	damage_decay_timer += delta
 	if damage_decay_timer >= 2.0:
 		damage_taken_recently = 0
 		damage_decay_timer = 0.0
 
-	# Fire timer
 	if not can_fire:
 		fire_timer -= delta
 		if fire_timer <= 0:
@@ -569,7 +503,7 @@ func _think() -> void:
 		return  # still buried - no perception, no movement
 	# Perception first: the alert tier gates whether we may acquire targets.
 	_update_perception()
-	_check_corpse_discovery()   # a body you left is a clock (ADR-005)
+	_check_corpse_discovery()
 	if alert_tier == AlertTier.COMBAT:
 		_find_best_target()
 	elif target != null:
@@ -577,17 +511,14 @@ func _think() -> void:
 	_update_line_of_sight()
 	_assess_threat()
 
-	# Evaluate and potentially change goal
 	_evaluate_goals()
 
-	# Update state based on goal
 	_update_state_for_goal()
 
-	# Fireteam layer: share what I see, pull what the squad knows.
 	_squad_sync()
 
 
-## R64: pop the ambush the moment the player closes to trigger range.
+## Pop the ambush the moment the player closes to trigger range.
 func _check_spider_hole() -> void:
 	if not is_spider_hole or _spider_triggered:
 		return
@@ -606,8 +537,7 @@ func _check_spider_hole() -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
 
 
-## R67: a crippled fighter near a tunnel entrance slips underground and is
-## gone for good instead of crawling forever.
+## A crippled fighter near a tunnel entrance slips underground and is gone.
 func _check_tunnel_retreat() -> void:
 	if not is_crippled or _tunnel_retreat_queued:
 		return
@@ -633,12 +563,11 @@ func _check_tunnel_retreat() -> void:
 		return
 
 
-## ---------- PERCEPTION (R12/R13/R14) ----------
+## ---------- PERCEPTION ----------
 
-## Local sight cap from vegetation density (RECON terrain caps, tuned up).
+## Local sight cap from vegetation density.
 func _sight_cap(at: Vector3) -> float:
 	var mult: float = MissionWeather.sight_mult
-	# W54: illumination strips darkness for anyone standing in the light.
 	if mult < 0.9 and IllumFlare.is_lit(at):
 		mult = maxf(mult, 0.9)
 	if _grid == null:
@@ -647,24 +576,20 @@ func _sight_cap(at: Vector3) -> float:
 	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0)) * mult
 
 
-## Share what I see, pull what the squad knows (EnemySquad). This is the layer
-## that turns "individuals who happen to be nearby" into a fireteam.
+## Share what I see, pull what the squad knows (EnemySquad).
 func _squad_sync() -> void:
 	if squad_id < 0:
 		return
 	var now: float = float(Time.get_ticks_msec())
 	if target != null and is_instance_valid(target) and has_line_of_sight:
-		# I have eyes on: designate for the squad + lay a breadcrumb trail.
-		# WATER BREAKS TRAIL (E&E). He is in the creek: we can SEE him, but he is
-		# leaving no sign to follow when he goes. The freshest crumb stays at the bank.
+		# Eyes on: designate for the squad + lay a breadcrumb trail.
+		# WATER BREAKS TRAIL: a man in the creek leaves no sign to follow.
 		var leaves_sign: bool = _grid == null or not _grid.is_water(target.global_position)
 		EnemySquad.report_contact(squad_id, target, target.global_position, now, leaves_sign)
-		# Census for honest attention: who is already covered by squadmates
-		# scores lower in _target_score - squads SPREAD, they don't laser one man.
+		# Census: men already covered by squadmates score lower in _target_score.
 		EnemySquad.report_engagement(squad_id, self, target, now)
 	elif target == null and EnemySquad.has_fresh_intel(squad_id, now):
-		# A buddy sees the enemy; I don't. Adopt the squad's contact and wake up -
-		# no more lone blind man standing next to a firefight.
+		# A buddy sees the enemy; I don't. Adopt the squad's contact and wake up.
 		var st := EnemySquad.shared_target(squad_id)
 		if st != null:
 			last_known_target_pos = EnemySquad.shared_last_known(squad_id)
@@ -683,16 +608,13 @@ func _fov_deg() -> float:
 			return 360.0
 
 
-## ---------- THE WITNESS RULE (ADR-005, decree pwu5) ----------
+## ---------- THE WITNESS RULE (ADR-005) ----------
 
-## Bodies you leave behind. A kill nobody saw does not raise the alarm - but the
-## corpse is still lying there, and whoever walks up on it later WILL. This is the
-## "bodies are a liability" rule the canon has promised since day one and never had.
+## Bodies nobody reported. A kill nobody saw does not raise the alarm; the body will.
 ## Cleared per mission by MissionDirector.
 static var unreported_corpses: Array[Vector3] = []
 
-## Can this man actually SEE that point? Sight cap (vegetation + weather) + his
-## facing cone + smoke + a real ray. The same honesty _update_perception uses.
+## Can this man actually SEE that point? Sight cap + facing cone + smoke + a real ray.
 func _can_witness(at: Vector3) -> bool:
 	var eye: Vector3 = global_position + Vector3.UP * 1.5
 	var tgt: Vector3 = at + Vector3.UP * 1.0
@@ -712,30 +634,21 @@ func _can_witness(at: Vector3) -> bool:
 ## Called from _die(). If any living enemy could genuinely see this kill happen, HE
 ## raises the alarm and he knows roughly which way it came from. If nobody saw it,
 ## the AO learns NOTHING and the body goes on the liability list.
-##
-## Before this existed, take_damage() stamped the detection beacon before the death
-## check, so a suppressed one-shot on a lone sentry in deep jungle still shouted
-## "YOU'VE BEEN MADE." Pillar 3 (stealth is an economy, never a gate) had no economy
-## at all: there was nothing a silent kill could buy you.
 func _witness_check(killer: Node) -> void:
+	if killer != null and not is_instance_valid(killer):
+		killer = null
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var w := e as EnemyBase
 		if w == null or w == self or w.is_dead() or w.is_surrendered:
 			continue
 		if w.alert_tier == AlertTier.COMBAT:
 			return  # someone is already fighting. The alarm rang long ago.
-		# EYES ON, or CLOSE ENOUGH TO HEAR HIM FALL. A man does not need to be
-		# looking at his buddy to know he just dropped - a body going down in brush
-		# at arm's length is loud, and the same point-blank sense already governs
-		# _update_perception (a sentry who ignores a man breathing on his shoulder
-		# is what reads as broken AI). LOS is still required either way: a wall hides
-		# the sound of a fall as surely as the sight of it.
+		# EYES ON, or CLOSE ENOUGH TO HEAR HIM FALL. LOS is still required either way:
+		# a wall hides the sound of a fall as surely as the sight of it.
 		var heard_him_fall: bool = w.global_position.distance_to(global_position) < CLOSE_SENSE_RANGE 			and CombatManager.has_line_of_sight(
 				w.global_position + Vector3.UP * 1.5, global_position + Vector3.UP * 1.0, [w, self])
 		if not heard_him_fall and not w._can_witness(global_position):
 			continue
-		# He watched his buddy fold (or heard him hit the dirt). He does not know
-		# exactly where you are - but he knows roughly, and he is telling everyone NOW.
 		w._stamp_contact()
 		w._set_tier(AlertTier.ALERT, false)
 		w.awareness = maxf(w.awareness, 0.8)
@@ -751,8 +664,7 @@ func _witness_check(killer: Node) -> void:
 	EnemyBase.unreported_corpses.append(global_position)
 
 
-## Walking up on a dead friend. The delayed price of a body you did not hide:
-## this is what turns "silent kill" from a free pass into a CLOCK.
+## Walking up on a dead friend: the delayed price of a body you did not hide.
 func _check_corpse_discovery() -> void:
 	if alert_tier == AlertTier.COMBAT or EnemyBase.unreported_corpses.is_empty():
 		return
@@ -763,13 +675,11 @@ func _check_corpse_discovery() -> void:
 		if not _can_witness(body):
 			continue
 		EnemyBase.unreported_corpses.remove_at(i)
-		_stamp_contact()               # YOU'VE BEEN MADE - by a corpse.
+		_stamp_contact()
 		_set_tier(AlertTier.ALERT, false)
 		awareness = maxf(awareness, 0.6)
 		last_known_target_pos = body   # they sweep outward from where he fell
 		target_last_seen_time = 0.0
-		# THE HUNT AND THE WITNESS RULE ARE ONE SYSTEM: fresh sign moves the whole net
-		# onto the body and restarts the clock. Leaving him in the open costs you twice.
 		if squad_id >= 0:
 			EnemySquad.begin_hunt(squad_id, body, body - global_position, float(Time.get_ticks_msec()))
 			EnemySquad.reanchor_hunt(squad_id, body, float(Time.get_ticks_msec()))
@@ -786,8 +696,8 @@ func _update_perception() -> void:
 	if player != null and is_instance_valid(player):
 		best_dist = global_position.distance_to(player.global_position)
 		candidate = player
-	# Buddy rule (W22): squadmates are perception-exempt until we're in COMBAT -
-	# the player's stealth is never broken by their AI pathing.
+	# Buddy rule: squadmates are perception-exempt until we are in COMBAT, so the
+	# player's stealth is never broken by their AI pathing.
 	if alert_tier == AlertTier.COMBAT:
 		for ally in get_tree().get_nodes_in_group("allies"):
 			var a := ally as Node3D
@@ -808,10 +718,8 @@ func _update_perception() -> void:
 				var to_c := (candidate.global_position - global_position).normalized()
 				var flat_facing := Vector3(facing_dir.x, 0, facing_dir.z).normalized()
 				in_fov = flat_facing.dot(Vector3(to_c.x, 0, to_c.z).normalized()) > cos(deg_to_rad(_fov_deg() * 0.5))
-			# A contact this close is FELT regardless of facing - you hear boots,
-			# gear, breathing at 8m. Without this an enemy stared past a player
-			# stood 3m off its shoulder forever (they only "walked around"), which
-			# is exactly what read as broken AI. LOS still required (a wall hides).
+			# A contact this close is FELT regardless of facing (boots, gear, breathing).
+			# LOS is still required: a wall hides.
 			var point_blank: bool = best_dist < CLOSE_SENSE_RANGE
 			if (in_fov or point_blank) and not SmokeCloud.blocks_sight(
 					global_position + Vector3.UP * 1.5,
@@ -838,7 +746,6 @@ func _update_perception() -> void:
 	else:
 		awareness = maxf(0.0, awareness - AWARENESS_DECAY * THINK_INTERVAL)
 
-	# Tier transitions.
 	match alert_tier:
 		AlertTier.RELAXED, AlertTier.SUSPICIOUS, AlertTier.ALERT:
 			if awareness >= 1.0:
@@ -854,17 +761,8 @@ func _update_perception() -> void:
 				_combat_lost_time = 0.0
 
 
-## THE WITNESS RULE (ADR-005, decree pwu5). THE alarm is not "someone got hurt" —
-## it is "someone LIVED TO TELL IT." Stamping the global beacon + the contact
-## ledger is therefore its own act, and only a WITNESS may perform it:
-##   - a man who SEES you                       (_perceive -> COMBAT)
-##   - a man you shot who SURVIVES              (take_damage, he lived)
-##   - a man who watches his buddy drop         (_witness_check on death)
-##   - a man who FINDS A BODY you left behind   (_check_corpse_discovery)
-## A silent, unwitnessed kill is SILENT. That is the whole economy: the jungle,
-## the suppressor, and the angle you took are worth something now.
-## How hard this man hunts you once he has lost you (bead 0623). NOT courage -
-## courage is whether he breaks under fire. This is whether he goes home.
+## How hard this man hunts you once he has lost you - NOT courage (which is
+## whether he breaks under fire). This is whether he goes home.
 func _determination() -> float:
 	if enemy_data != null and "determination" in enemy_data:
 		return float(enemy_data.determination)
@@ -873,9 +771,7 @@ func _determination() -> float:
 
 func _stamp_contact() -> void:
 	EnemyBase.last_combat_contact_ms = float(Time.get_ticks_msec())
-	# CONTACT LEDGER (ADR-006): this man just went loud on you, so his whole
-	# group is DETECTED and it costs you -25 at the debrief. A group you
-	# never wake is +25. Kills pay nothing now - being unseen is the score.
+	# CONTACT LEDGER (ADR-006): this man went loud, so his whole group is DETECTED.
 	# Group identity = the squad he coordinates with; a lone wolf is his own.
 	var d: Node = get_tree().get_first_node_in_group("mission_director")
 	if d != null and d.has_method("report_contact"):
@@ -883,10 +779,7 @@ func _stamp_contact() -> void:
 
 
 ## `witnessed` = false means "go loud LOCALLY, but you are not proof of anything."
-## Used by take_damage: a man being shot fights back instantly, but a corpse does
-## not raise an alarm. Before this, take_damage stamped the beacon BEFORE the death
-## check ran — so a silent one-shot kill on a lone sentry still shouted
-## "YOU'VE BEEN MADE", and Pillar 3 was broken at the root for the whole project.
+## Used by take_damage: a man being shot fights back, but a corpse raises no alarm.
 func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 	if tier == AlertTier.COMBAT and witnessed:
 		_stamp_contact()
@@ -903,10 +796,10 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 			if player and global_position.distance_to(player.global_position) < 15.0:
 				has_reacted = false
 				reaction_timer = -randf_range(0.4, 0.7)  # extra startle delay
-		GunFX.play_combat_sting(get_tree().current_scene)  # W67: contact sting
+		GunFX.play_combat_sting(get_tree().current_scene)
 
 
-## Heard something (R13). Investigation goes to the NOISE, not the source.
+## Heard something. Investigation goes to the NOISE, not the source.
 func _on_noise_heard(_type: int, position: Vector3, radius: float, source_team: int) -> void:
 	if source_team == 1:  # our own side
 		return
@@ -923,10 +816,8 @@ func _on_noise_heard(_type: int, position: Vector3, radius: float, source_team: 
 		_set_tier(AlertTier.ALERT)
 
 
-## HONEST ATTENTION (HLL doctrine pass, DESIGN 4.5 "honest enemy threat
-## distribution"): no intrinsic player bias, no sticky-until-dead lock.
-## Rescored every RETARGET_INTERVAL (pure distance math, zero new rays) or
-## immediately when the target dies / someone new hurts us.
+## HONEST ATTENTION: no intrinsic player bias, no sticky-until-dead lock. Rescored
+## every RETARGET_INTERVAL, or immediately when the target dies / someone hurts us.
 const RETARGET_INTERVAL: float = 2.0
 const TARGET_MEMORY: float = 8.0
 var _retarget_timer: float = 0.0
@@ -963,8 +854,7 @@ func _find_best_target() -> void:
 	var freshly_shot: bool = _last_attacker != null and now_ms - _last_attacker_ms < 1000.0 \
 		and _last_attacker != target
 
-	# Slip-away rule: unseen too long and not hurting us -> drop to the blind
-	# hunt (INVESTIGATE on last-known + breadcrumbs). COMBAT can finally decay.
+	# Slip-away rule: unseen too long and not hurting us -> drop to the blind hunt.
 	if target_alive and target_last_seen_time > TARGET_MEMORY \
 			and not (target == _last_attacker and now_ms - _last_attacker_ms < 6000.0):
 		target = null
@@ -1013,11 +903,8 @@ func _update_line_of_sight() -> void:
 
 	var new_los := CombatManager.has_line_of_sight(eye_pos, target_pos, [self])
 
-	# Exposure clock (DESIGN 4.2 fairness: accuracy ramps with EXPOSURE TIME).
-	# Ticks in real time (_think_interval_current - think LOD runs slower at
-	# range). LOS loss DRAINS at 3x build rate instead of hard-resetting: brief
-	# foliage blinks keep most of the ramp, ~0.8s truly broken zeroes it -
-	# repositioning resets your death clock, peek-strobing does not.
+	# Exposure clock: accuracy ramps with EXPOSURE TIME; LOS loss DRAINS at 3x the
+	# build rate (a foliage blink keeps most of the ramp; ~0.8s blind zeroes it).
 	if new_los:
 		target_visible_duration += _think_interval_current
 		last_known_target_pos = target.global_position
@@ -1026,11 +913,8 @@ func _update_line_of_sight() -> void:
 		target_last_seen_time += _think_interval_current
 		target_visible_duration = maxf(0.0, target_visible_duration - _think_interval_current * 3.0)
 
-	# CONTACT CONFIDENCE (war-room decree): the debounced "I see him" that
-	# GOALS read - builds full in ~0.3s of eyes-on, drains empty over ~2.0s
-	# blind. LOS flicker can no longer flip a decision; only FIRING reads the
-	# raw boolean. Deliberately slower than the exposure drain, so accuracy
-	# forgives a repositioning player before intent gives up on him.
+	# CONTACT CONFIDENCE: the debounced "I see him" that GOALS read - full in ~0.3s
+	# of eyes-on, empty over ~2.0s blind. Only FIRING reads the raw LOS boolean.
 	if new_los:
 		contact_conf = minf(1.0, contact_conf + _think_interval_current / 0.3)
 	else:
@@ -1042,28 +926,23 @@ func _update_line_of_sight() -> void:
 func _assess_threat() -> void:
 	threat_level = 0.0
 
-	# Factor in suppression
 	threat_level += suppression_level * 0.4
 
-	# Factor in recent damage
 	var damage_ratio: float = float(damage_taken_recently) / float(max_hp)
 	threat_level += damage_ratio * 0.5
 
-	# Factor in low health
 	var health_ratio: float = float(current_hp) / float(max_hp)
 	if health_ratio < 0.3:
 		threat_level += 0.3
 
-	# Factor in exposed position (no cover)
 	if not has_cover:
 		threat_level += 0.2
 
 	threat_level = clampf(threat_level, 0.0, 1.0)
 
 
-## HLL doctrine state (2026-07-10 pass): how long we've been in contact with
-## the current target, and how many cover searches came up dry (escape hatch
-## so the cover-first doctrine can't produce passive cowards).
+## Contact time + dry cover searches (the escape hatch that stops cover-first
+## doctrine producing passive cowards).
 var _contact_time: float = 0.0
 var _cover_fail_count: int = 0
 var _bound_point: Vector3 = Vector3.ZERO
@@ -1074,9 +953,8 @@ var _bound_fail_count: int = 0
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
 
-	# Dwell (Summoner: highly reactive dial = ~1s; smoothness comes from the
-	# contact-confidence debounce, not long commitments). Class-A interrupts
-	# (taking damage) force goal_timer past this gate from take_damage().
+	# Dwell ~1s. Class-A interrupts (taking damage) force goal_timer past this gate
+	# from take_damage().
 	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
 		return
 
@@ -1088,26 +966,13 @@ func _evaluate_goals() -> void:
 	var best_goal: Enums.AIGoal = Enums.AIGoal.NONE
 	var best_score: float = 0.0
 
-	# No target - investigate or hold
 	if not target or not is_instance_valid(target):
 		_contact_time = 0.0
 		_cover_fail_count = 0
-		# CONTACT BROKEN -> THE HUNT BEGINS (bead 0623, "a tough searching mechanism
-		# when you are evading them"). This used to be a 5-second amnesia: the goal
-		# scorer dropped INVESTIGATE after target_last_seen_time > 5 and the man went
-		# back to holding, so evading a squad meant walking behind a tree and waiting.
-		# Now the squad opens a net that EXPANDS, and how long it stays open is his
-		# DETERMINATION. NVA do not go home.
+		# CONTACT BROKEN -> THE HUNT BEGINS. How long the net stays open is his DETERMINATION.
 		var now_h: float = float(Time.get_ticks_msec())
 		if squad_id >= 0 and last_known_target_pos != Vector3.ZERO and alert_tier >= AlertTier.ALERT:
 			# WHICH WAY WAS HE RUNNING. Read the crumb trail oldest -> newest.
-			#
-			# THIS LINE WAS BACKWARDS UNTIL 2026-07-12. It used search_point(), which
-			# walks the trail NEWEST->OLDEST and hands back the second-newest crumb - so
-			# `heading = older - last_known` pointed where he had COME FROM, and the whole
-			# net swept away from him. probe_hunt never caught it because the probe passed
-			# a heading in BY HAND and only ever tested EnemySquad in isolation. The bug
-			# lived in the WIRING, which is the one place nothing was looking.
 			var heading: Vector3 = EnemySquad.trail_heading(squad_id)
 			if heading.length() < 0.5:
 				# No usable trail (he was seen once and vanished): push away from us, which
@@ -1119,7 +984,7 @@ func _evaluate_goals() -> void:
 			best_goal = Enums.AIGoal.INVESTIGATE
 		else:
 			if squad_id >= 0:
-				EnemySquad.end_hunt(squad_id)   # he is done. He goes home.
+				EnemySquad.end_hunt(squad_id)
 			best_goal = Enums.AIGoal.HOLD_POSITION
 		_set_goal(best_goal)
 		return
@@ -1128,21 +993,18 @@ func _evaluate_goals() -> void:
 	var dist := global_position.distance_to(target.global_position)
 	var now_ms: float = float(Time.get_ticks_msec())
 
-	# Evaluate each possible goal
 	var scores: Dictionary = {}
 
-	# Goals read the DEBOUNCED contact confidence, never raw LOS (decree):
-	# a leaf blinking the ray cannot flip a man's plan.
+	# Goals read the DEBOUNCED contact confidence, never raw LOS.
 	var eyes_on: bool = contact_conf > 0.5
 
-	# ENGAGE - direct combat. COVER-FIRST DOCTRINE (Caleb/HLL): caught in the
-	# open on fresh contact, the duel can wait - reach cover or concealment
-	# first. Fighting FROM cover is the preferred engagement.
+	# ENGAGE - direct combat. COVER-FIRST: caught in the open on fresh contact the
+	# duel can wait; fighting FROM cover is the preferred engagement.
 	var engage_score: float = 0.5
 	if eyes_on:
 		engage_score += 0.3
 	if dist < preferred_range * 1.2 and dist > preferred_range * 0.5:
-		engage_score += 0.2  # In comfortable range
+		engage_score += 0.2
 	if has_cover:
 		engage_score += 0.15
 	elif _contact_time < 5.0 and char_aggression < 0.75 and _cover_fail_count < 2:
@@ -1164,7 +1026,7 @@ func _evaluate_goals() -> void:
 	if eyes_on and weapon_data and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO:
 		suppress_score += 0.3
 	if dist > preferred_range:
-		suppress_score += 0.2  # Good at range
+		suppress_score += 0.2
 	scores[Enums.AIGoal.SUPPRESS_TARGET] = suppress_score * (1.0 - char_aggression * 0.3)
 
 	# FLANK - move to better position
@@ -1175,14 +1037,12 @@ func _evaluate_goals() -> void:
 		flank_score += 0.2
 	scores[Enums.AIGoal.FLANK_TARGET] = flank_score if d_flanks else -1.0
 
-	# NUMBERS ARE NERVE (Caleb decree, asymmetric combat): a man reads his
-	# side's local weight before his own fear. Refreshed here on the think
-	# cadence; the rout ladder in take_damage reuses it.
+	# Local force ratio, refreshed on the think cadence; the rout ladder in
+	# take_damage reuses it.
 	_last_force_ratio = _local_force_ratio()
 
-	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering
-	# fire from a squadmate (fire-and-maneuver) or real aggression; a lone
-	# unsupported man holds and shoots instead of charging.
+	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering fire
+	# or real aggression; a lone unsupported man holds and shoots.
 	var advance_score: float = char_aggression * 0.4
 	if dist > preferred_range * 1.5:
 		advance_score += 0.25
@@ -1204,17 +1064,14 @@ func _evaluate_goals() -> void:
 	# withdrawal above is separate (the export's NAME is "when hurt").
 	if d_retreats_when_hurt and float(current_hp) / float(max_hp) < d_retreat_hp:
 		retreat_score += 0.4
-	# Outnumbering men hold: ~3:1 quarters the retreat urge, outnumbered men
-	# break easier. Seven rifles do not rout off one shooter's fire.
+	# Outnumbering men hold: ~3:1 quarters the retreat urge; outnumbered men break.
 	var numbers_mult: float = clampf(1.6 - _last_force_ratio * 0.45, 0.25, 1.4)
 	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation * numbers_mult
 
-	# Incumbent hysteresis 25% (council: 15% was smaller than the input swing
-	# it guarded against; with confidence-smoothed inputs, 25% actually holds).
+	# Incumbent hysteresis 25%.
 	if scores.has(current_goal):
 		scores[current_goal] *= 1.25
 
-	# Find best goal
 	for goal in scores:
 		if scores[goal] > best_score:
 			best_score = scores[goal]
@@ -1225,8 +1082,7 @@ func _evaluate_goals() -> void:
 
 
 ## Local force ratio: shooters I can count on within 25m (me included) vs the
-## opposition still standing (player + his allies). Local on purpose - thirty
-## men across the AO steel nobody's nerve at THIS treeline.
+## opposition still standing (player + his allies). Local on purpose.
 func _local_force_ratio() -> float:
 	var friends: int = 1
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -1246,9 +1102,8 @@ func _local_force_ratio() -> float:
 
 
 func _set_goal(new_goal: Enums.AIGoal) -> void:
-	# Keep the cover claim when transitioning into a FIGHTING goal - releasing
-	# it on SEEK_COVER->ENGAGE made has_cover flip false and the goals oscillate
-	# (reach cover, engage, lose claim, seek cover again, forever).
+	# Keep the cover claim when transitioning into a FIGHTING goal: releasing it on
+	# SEEK_COVER->ENGAGE flips has_cover false and the goals oscillate forever.
 	if current_goal == Enums.AIGoal.SEEK_COVER \
 			and new_goal != Enums.AIGoal.SEEK_COVER \
 			and new_goal != Enums.AIGoal.ENGAGE_TARGET \
@@ -1263,7 +1118,6 @@ func _set_goal(new_goal: Enums.AIGoal) -> void:
 	if new_goal == Enums.AIGoal.RETREAT:
 		_retreat_bearing = Vector3.ZERO  # fresh flight line each rout
 
-	# Reset reaction when changing goals
 	if new_goal == Enums.AIGoal.ENGAGE_TARGET or new_goal == Enums.AIGoal.SUPPRESS_TARGET:
 		if not has_reacted:
 			reaction_timer = 0.0
@@ -1302,10 +1156,8 @@ func _execute(delta: float) -> void:
 	state_timer += delta
 	_update_sprite()
 
-	# Update aim interpolation (smooth like Quake 3)
 	_update_aim(delta)
 
-	# Execute based on current state
 	match current_state:
 		Enums.AIState.IDLE:
 			_execute_idle(delta)
@@ -1329,7 +1181,6 @@ func _update_aim(delta: float) -> void:
 	if not target or not has_line_of_sight:
 		return
 
-	# Calculate desired aim direction
 	var target_pos: Vector3 = target.global_position + Vector3.UP * 1.0
 	var eye_pos: Vector3 = global_position + Vector3.UP * 1.5
 
@@ -1343,11 +1194,9 @@ func _update_aim(delta: float) -> void:
 
 	target_aim_dir = (target_pos - eye_pos).normalized()
 
-	# Smooth aim interpolation (like Quake 3 bot view changes)
 	var aim_delta: float = aim_speed * delta
 	current_aim_dir = current_aim_dir.lerp(target_aim_dir, aim_delta).normalized()
 
-	# Add aim error based on accuracy
 	var error_scale: float = (1.0 - char_accuracy) * 0.1
 	aim_error = aim_error.lerp(
 		Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * error_scale,
@@ -1366,13 +1215,10 @@ func _execute_idle(delta: float) -> void:
 	if not patrol_route.is_empty():
 		_execute_patrol(delta)
 		return
-	# Decelerate
 	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
-	# Sentry scan: a standing guard sweeps his gaze so he can actually notice a
-	# player approaching from off-axis. Without this, perception is FOV-gated and
-	# an idle enemy facing the wrong way is blind forever - it never turns because
-	# it has no target, and it has no target because it never turns.
+	# Sentry scan: a standing guard sweeps his gaze, or an idle enemy facing the
+	# wrong way is blind forever (perception is FOV-gated).
 	if target == null and alert_tier <= AlertTier.SUSPICIOUS:
 		_scan_phase += delta * SCAN_SPEED
 		var base_yaw: float = atan2(_home_facing.x, _home_facing.z)
@@ -1381,14 +1227,12 @@ func _execute_idle(delta: float) -> void:
 
 
 func _execute_alert(delta: float) -> void:
-	# Search the breadcrumb trail - chase where they WENT, newest crumb not yet
-	# reached, not the single last pixel they were seen at. Falls back to the
-	# lone last-known point when there is no squad / no trail.
+	# Search the breadcrumb trail - chase where they WENT, not the last pixel they
+	# were seen at. Falls back to last-known when there is no squad / no trail.
 	var goal_pos: Vector3 = last_known_target_pos
 	if squad_id >= 0:
-		# MY WEDGE OF THE NET. Every man holds a stable sector and the ring grows with
-		# time, so five searchers sweep outward line-abreast instead of piling onto one
-		# breadcrumb and forgetting about you (which is exactly what they used to do).
+		# MY WEDGE OF THE NET: every man holds a stable sector and the ring grows with
+		# time, so searchers sweep outward line-abreast instead of piling on one crumb.
 		var hp := EnemySquad.hunt_point(squad_id, self, float(Time.get_ticks_msec()), _determination())
 		if hp != Vector3.ZERO:
 			goal_pos = hp
@@ -1419,14 +1263,12 @@ func _execute_combat(delta: float) -> void:
 			has_reacted = true
 		return
 
-	# Strafe pattern
 	strafe_timer -= delta
 	if strafe_timer <= 0:
 		strafe_direction = [-1.0, 0.0, 0.0, 1.0].pick_random()  # More likely to stop
 		strafe_timer = randf_range(0.8, 2.0)
 
 	if has_line_of_sight:
-		# Calculate movement based on range
 		var move_dir := Vector3.ZERO
 
 		if dist < preferred_range * 0.5:
@@ -1449,7 +1291,6 @@ func _execute_combat(delta: float) -> void:
 			else:
 				move_dir *= 0.15
 
-		# Apply strafe
 		if strafe_direction != 0.0:
 			var strafe_vec := transform.basis.x * strafe_direction
 			if has_cover:
@@ -1460,14 +1301,13 @@ func _execute_combat(delta: float) -> void:
 
 		move_dir.y = 0
 		if move_dir.length() > 0.1:
-			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * 0.5, delta * 8.0)
-			velocity.z = lerpf(velocity.z, move_dir.z * move_speed * 0.5, delta * 8.0)
+			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * 0.5 * _suppression_move_mult(), delta * 8.0)
+			velocity.z = lerpf(velocity.z, move_dir.z * move_speed * 0.5 * _suppression_move_mult(), delta * 8.0)
 		else:
 			velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
 			velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
 			accuracy_modifier *= 0.8  # More accurate when still
 
-		# Fire at target
 		if can_fire and suppression_level < 0.8:
 			if burst_count < MAX_BURST:
 				_fire_at_target()
@@ -1477,10 +1317,9 @@ func _execute_combat(delta: float) -> void:
 				fire_timer = randf_range(0.4, 1.2)
 				burst_count = 0
 	else:
-		# W45: target hiding behind cover - flush with a grenade.
-		# ANTI-SPAM (Caleb): the old roll ran per-FRAME (~70%/sec!). Hazard-rate
-		# roll (~1.7s expected beat) + the squad/global broker: max one grenade
-		# in the AO per 5s, one per squad per 12s, one per man per 15s.
+		# Target hiding behind cover - flush with a grenade. Hazard-rate roll (~1.7s
+		# expected beat) + the squad/global broker: one grenade per AO/5s, per
+		# squad/12s, per man/15s.
 		grenade_cooldown = maxf(0.0, grenade_cooldown - delta)
 		if grenades_left > 0 and grenade_cooldown <= 0.0 and target_last_seen_time < 3.0:
 			var throw_dist := global_position.distance_to(last_known_target_pos)
@@ -1494,11 +1333,9 @@ func _execute_combat(delta: float) -> void:
 
 
 func _execute_suppressed(delta: float) -> void:
-	# Hunker down
 	velocity.x = lerpf(velocity.x, 0.0, delta * 10.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 10.0)
 
-	# Reset combat state
 	shots_fired = 0
 	burst_count = 0
 	has_reacted = false
@@ -1529,8 +1366,7 @@ func _execute_seeking_cover(delta: float) -> void:
 				else:
 					_cover_fail_count += 1  # doctrine escape hatch: 2 dry searches lift cover-first
 
-	# Concealment fallback (zero raycasts): deep vegetation counts as soft
-	# cover - the man melts into the bush instead of dancing in the open.
+	# Concealment fallback: deep vegetation counts as soft cover.
 	if not has_cover and not _moving_to_cover and _grid != null \
 			and _grid.get_vegetation(global_position) > 0.6:
 		has_cover = true
@@ -1546,35 +1382,30 @@ func _execute_seeking_cover(delta: float) -> void:
 		strafe_direction = [-1.0, 1.0].pick_random()
 
 	var move_dir := (perpendicular * strafe_direction - to_target * 0.3).normalized()
-	velocity.x = move_dir.x * move_speed
-	velocity.z = move_dir.z * move_speed
+	velocity.x = move_dir.x * move_speed * _suppression_move_mult()
+	velocity.z = move_dir.z * move_speed * _suppression_move_mult()
 
 
 func _execute_flanking(delta: float) -> void:
 	if not target:
 		return
 
-	# Move to side of target
 	var to_target := (target.global_position - global_position).normalized()
 	var perpendicular := Vector3(-to_target.z, 0, to_target.x)
 
 	if strafe_direction == 0.0:
 		strafe_direction = [-1.0, 1.0].pick_random()
 
-	# Flank = move sideways + forward
 	var move_dir := (perpendicular * strafe_direction * 0.7 + to_target * 0.5).normalized()
-	velocity.x = move_dir.x * move_speed
-	velocity.z = move_dir.z * move_speed
+	velocity.x = move_dir.x * move_speed * _suppression_move_mult()
+	velocity.z = move_dir.z * move_speed * _suppression_move_mult()
 
-	# Fire while flanking if we have LOS
 	if has_line_of_sight and can_fire and has_reacted:
 		_fire_at_target()
 
 
-## BOUNDING ADVANCE (HLL doctrine, Caleb: "they don't just run out in the
-## open"): rush cover-to-cover toward the target - sprint to a bound point,
-## pause, burst, next bound. Two dry bound searches -> the old straight
-## advance at reduced speed (open crossers exist, and they die fast).
+## BOUNDING ADVANCE: rush cover-to-cover toward the target - sprint to a bound
+## point, pause, burst, next bound. Two dry searches -> straight advance, slower.
 func _execute_advancing(delta: float) -> void:
 	if not target:
 		return
@@ -1603,9 +1434,8 @@ func _execute_advancing(delta: float) -> void:
 			_bound_point = Vector3.ZERO
 			_bound_pause = randf_range(0.8, 1.6)
 			return
-		# Sprint the rush: full speed, honest fire penalty on the move. With
-		# the numbers the rush CHARGES (1.3x crosses the sprint-clip band -
-		# seven men bounding at a lone shooter should look like it).
+		# Sprint the rush: full speed, honest fire penalty on the move. With the
+		# numbers, 1.3x crosses the sprint-clip animation band.
 		_move_toward(_bound_point, delta, 1.3 if _last_force_ratio >= 2.0 else 1.0)
 		accuracy_modifier = base_accuracy_modifier * 1.6
 		if has_line_of_sight and can_fire and has_reacted and burst_count < 2:
@@ -1632,14 +1462,13 @@ func _execute_advancing(delta: float) -> void:
 			burst_count += 1
 		return
 
-	# Fallback: the old straight advance, slower - crossing open ground for real.
+	# Fallback: straight advance, slower - crossing open ground for real.
 	var perpendicular := Vector3(-to_target.z, 0, to_target.x) * strafe_direction * 0.2
 	var move_dir := (to_target + perpendicular).normalized()
 
-	velocity.x = move_dir.x * move_speed * 0.85
-	velocity.z = move_dir.z * move_speed * 0.85
+	velocity.x = move_dir.x * move_speed * 0.85 * _suppression_move_mult()
+	velocity.z = move_dir.z * move_speed * 0.85 * _suppression_move_mult()
 
-	# Fire while advancing
 	if has_line_of_sight and can_fire and has_reacted:
 		if burst_count < 3:  # Shorter bursts while moving
 			_fire_at_target()
@@ -1652,7 +1481,7 @@ func _execute_advancing(delta: float) -> void:
 
 func _execute_retreating(delta: float) -> void:
 	# Routed men have no target (they dropped the fight) - flee the last
-	# known threat instead of freezing (morale decree).
+	# known threat instead of freezing.
 	var threat: Vector3 = Vector3.ZERO
 	if target != null and is_instance_valid(target):
 		threat = target.global_position
@@ -1664,10 +1493,8 @@ func _execute_retreating(delta: float) -> void:
 		return
 
 	var away_from_target := (global_position - threat).normalized()
-	# Fleeing men read the wall, not the map: the bearing starts pure-away and
-	# decays back toward it, but wall contact slides it along the surface
-	# (dead-square hits pick the tangent that keeps distance from the threat).
-	# No more grinding into the arena wall while the shooter lines up.
+	# Fleeing men read the wall, not the map: the bearing starts pure-away, and wall
+	# contact slides it along the surface (dead-square hits pick the tangent away).
 	if _retreat_bearing == Vector3.ZERO:
 		_retreat_bearing = away_from_target
 	_retreat_bearing = _retreat_bearing.slerp(away_from_target, minf(delta * 0.6, 1.0)).normalized()
@@ -1680,10 +1507,9 @@ func _execute_retreating(delta: float) -> void:
 		else:
 			var t: Vector3 = n.cross(Vector3.UP).normalized()
 			_retreat_bearing = t if t.dot(away_from_target) >= 0.0 else -t
-	# A ROUTED man (dropped the fight, no target) FLEES - 1.25x crosses the
-	# sprint band so the break reads as a break. Tactical withdrawal (still
-	# has a target) keeps the wary hobble pace.
-	var flee_speed: float = move_speed * (1.25 if target == null else 1.0)
+	# A ROUTED man (no target) FLEES - 1.25x crosses the sprint-clip band. Tactical
+	# withdrawal (still has a target) keeps the wary pace.
+	var flee_speed: float = move_speed * (1.25 if target == null else 1.0) * _suppression_move_mult()
 	velocity.x = _retreat_bearing.x * flee_speed
 	velocity.z = _retreat_bearing.z * flee_speed
 
@@ -1696,53 +1522,68 @@ func _change_state(new_state: Enums.AIState) -> void:
 	state_changed.emit(new_state)
 
 
-## R16 (for real this time): routed through NavBaker's per-site navmesh so
-## pursuers path around huts, bunkers and vehicles. The original claim shipped
-## against a nav map with zero polygons.
+## Routed through NavBaker's per-site navmesh so pursuers path around obstacles.
 func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	var direction: Vector3 = pos - global_position
 	# Nav only when BOTH endpoints sit inside the SAME baked region. Outside one,
-	# direct steering is the intended behaviour, not a fallback -- which is the
-	# distinction the old code could not make. With no navmesh at all,
-	# is_navigation_finished() returned true instantly, the branch below never
-	# ran, and R16 shipped as a silent no-op with a green suite.
-	#
-	# The same-box test also prevents a bug the site-region design would otherwise
-	# introduce: an enemy inside a region chasing a target 300m outside it would
-	# have its path clamped to the region edge, is_navigation_finished() would fire
-	# there, and he would stop dead.
+	# direct steering is the intended behaviour, not a fallback. The same-box test
+	# also stops an enemy chasing a target outside his region having his path
+	# clamped to the region edge, where is_navigation_finished() fires and he stops.
 	# LAB navmesh (native NavigationRegion3D baked by the lab scene) covers the
 	# whole arena - no NavBaker boxes there, agents route on it directly.
 	var use_nav: bool = WorldConfig.NAV_ENABLED and _nav_box >= 0 and NavBaker.box_contains(_nav_box, pos)
 	if _lab_nav:
 		use_nav = true
 	if nav_agent != null and use_nav:
+		# Clamp the target to the navmesh. Off-mesh points (LP behind a wall,
+		# cover point on a berm, agent on a navmesh-eroded vertex) reach
+		# is_navigation_finished() while still meters from the original target.
+		var map: RID = nav_agent.get_navigation_map()
+		if map.is_valid():
+			var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
+			if pos.distance_to(clamped) < 4.0:
+				pos = clamped
 		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
 			nav_agent.target_position = pos   # each restake is a map_get_path()
 		if not nav_agent.is_navigation_finished():
 			direction = nav_agent.get_next_path_position() - global_position
 		elif OS.is_debug_build() and direction.length_squared() > 25.0 and not _nav_warned:
 			_nav_warned = true
-			push_error("[NAV] enemy inside baked region %d, %.1fm to target, no path - navmesh missing or region not merged" % [
+			push_warning("[NAV] enemy inside baked region %d, %.1fm to target, no path - falling back to direct steering" % [
 				_nav_box, direction.length()])
 	direction.y = 0
 	if direction.length() > 0.1:
 		direction = direction.normalized()
 		facing_dir = direction  # eyes follow movement (perception FOV)
-	velocity.x = lerpf(velocity.x, direction.x * move_speed * speed_mult, delta * 8.0)
-	velocity.z = lerpf(velocity.z, direction.z * move_speed * speed_mult, delta * 8.0)
+	var suppress_mult: float = _suppression_move_mult()
+	velocity.x = lerpf(velocity.x, direction.x * move_speed * speed_mult * suppress_mult, delta * 8.0)
+	velocity.z = lerpf(velocity.z, direction.z * move_speed * speed_mult * suppress_mult, delta * 8.0)
 
 
-## ---------- COVER (R15) ----------
+## 0-1 suppression multiplier. Light suppression (below 0.5) is only a slight
+## pace cut; heavy suppression pins men to a crawl or freezes them in place.
+## This makes automatic fire matter: pinning an enemy keeps him from sprinting
+## to cover and forces him to return fire slowly from where he is.
+func _suppression_move_mult() -> float:
+	if suppression_level <= 0.0:
+		return 1.0
+	if suppression_level >= 0.85:
+		return 0.05  # pinned: barely able to shift position
+	if suppression_level >= 0.5:
+		# 0.5 -> 0.4, 0.85 -> 0.05
+		return lerpf(0.4, 0.05, (suppression_level - 0.5) / 0.35)
+	# 0.0 -> 1.0, 0.5 -> 0.4
+	return lerpf(1.0, 0.4, suppression_level / 0.5)
+
+
+## ---------- COVER ----------
 
 static func _cover_key(pos: Vector3) -> Vector3i:
 	return Vector3i(roundi(pos.x / COVER_CELL), roundi(pos.y / COVER_CELL), roundi(pos.z / COVER_CELL))
 
 
-## Claimant loosened to Node: ALLIES share this broker now (squad cover
-## parity, Caleb) - friend and foe never stack on the same rock.
-## Crowding cost for DISPERSION (decree: no corner piles) - claimed points
-## within 4m make a candidate expensive. Distance math only, zero raycasts.
+## Crowding cost for DISPERSION: claimed points within 4m make a candidate
+## expensive. Distance math only, zero raycasts. Allies share this broker too.
 static func _crowding_cost(pos: Vector3) -> float:
 	var cost: float = 0.0
 	for key in _cover_claims.keys():
@@ -1811,8 +1652,7 @@ func _find_bound_point(to_target: Vector3) -> Vector3:
 
 
 ## Sample nearby points that block line-of-sight to the threat; claim the
-## closest unclaimed one. Uses live raycasts against world geometry so it
-## works in jungle, village, and firebase alike with no authored markers.
+## closest unclaimed one. Live raycasts against world geometry, no authored markers.
 func _find_cover_point() -> Vector3:
 	var threat_pos: Vector3 = last_known_target_pos if last_known_target_pos != Vector3.ZERO else global_position
 	var space_state := get_world_3d().direct_space_state
@@ -1833,17 +1673,8 @@ func _find_cover_point() -> Vector3:
 	return Vector3.ZERO
 
 
-## ---------- PATROL (R18/R33) ----------
+## ---------- PATROL ----------
 
-## THE PATROL CIRCUIT (ADR-021). Summoner: "we generate 5 to 10 patrol points that
-## are in various distances that ZIG ZAG ACROSS THE MAP and the unit loops those
-## patrol points."
-##
-## make_patrol_route() below walks a 16m CIRCLE around a spawn point - a man pacing
-## his own doorstep. That is not a patrol and it is not learnable. A patrol connects
-## THINGS (a cache, a ville, a ford, a trail junction) over real distance, and the
-## player is meant to learn it, predict it, and kill it.
-##
 ## Zig-zag by construction: order the anchors by bearing around their centroid, then
 ## walk them as a STAR POLYGON (step ~n/2, coprime with n so every node is visited
 ## exactly once). Consecutive legs therefore cross the middle of the AO instead of
@@ -1909,9 +1740,8 @@ func _execute_patrol(delta: float) -> void:
 		velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 		return
 	var wp: Vector3 = patrol_route[_patrol_index]
-	# MY PLACE IN THE FILE. The point man walks the waypoint; everyone else trails him
-	# down the leg, weaving slightly. Offsets are in the frame of the CURRENT LEG, so
-	# the column bends around corners instead of cutting them.
+	# The point man walks the waypoint; everyone else trails him down the leg.
+	# Offsets are in the frame of the CURRENT LEG, so the column bends round corners.
 	if patrol_file_slot > 0 and patrol_route.size() > 1:
 		var prev: Vector3 = patrol_route[(_patrol_index - 1 + patrol_route.size()) % patrol_route.size()]
 		var leg: Vector3 = wp - prev
@@ -1922,9 +1752,8 @@ func _execute_patrol(delta: float) -> void:
 			var side: float = 1.0 if (patrol_file_slot % 2) == 1 else -1.0
 			wp = wp - fwd * (FILE_SPACING * float(patrol_file_slot)) 				+ right * (side * FILE_STAGGER)
 	if global_position.distance_to(wp) < 2.5:
-		# Only the POINT MAN advances the waypoint - otherwise the tail would flip the
-		# index the moment it reached its own trailing offset and the file would eat
-		# itself. The column follows him.
+		# Only the POINT MAN advances the waypoint, or the tail would flip the index
+		# the moment it reached its own trailing offset and the file would eat itself.
 		if patrol_file_slot == 0:
 			_patrol_index = (_patrol_index + 1) % patrol_route.size()
 			_patrol_pause = randf_range(2.5, 6.0)  # sentry boredom: glance around, then move on
@@ -1939,8 +1768,7 @@ func _execute_patrol(delta: float) -> void:
 ## COMBAT - Firing
 ## ============================================
 
-## This man's launcher round, resolved once. load() in the firing path was a
-## string hash + path resolve on EVERY shot (perf audit).
+## This man's launcher round, resolved once - never load() in the firing path.
 func _projectile() -> ProjectileData:
 	if _proj_cache != null:
 		return _proj_cache
@@ -1958,42 +1786,35 @@ func _fire_at_target() -> void:
 	fire_timer = weapon_data.get_fire_delay()
 	shots_fired += 1
 
-	# Use smoothly interpolated aim direction + error
 	var final_aim: Vector3 = (current_aim_dir + aim_error).normalized()
 
-	# Add weapon spread
 	var base_spread: float = weapon_data.base_spread * 1.3
 	var accumulated_spread: float = minf(float(shots_fired) * 0.08, 0.8)
 	var total_spread: float = base_spread * accuracy_modifier * (1.0 + accumulated_spread)
-	total_spread *= (2.0 - char_accuracy)  # Apply characteristic
+	total_spread *= (2.0 - char_accuracy)
 	total_spread *= _exposure_spread_mult()  # DESIGN 4.2: accuracy ramps with exposure, alert != accuracy
-	total_spread *= GameSettings.enemy_spread_mult()  # W82 difficulty
-	# Bounded cone (ballistics audit F5): the old stack could open an AK past 3
-	# degrees - 5m of scatter at 100m, i.e. enemy fire was NOISE in the open.
-	# A soldier is inaccurate, not blind. 1.2 deg = ~2m at 100m: dangerous,
-	# survivable, and it lets a firefight exist beyond the arena.
+	total_spread *= GameSettings.enemy_spread_mult()
+	# Bounded cone: 1.2 deg = ~2m of scatter at 100m - dangerous, survivable, and it
+	# lets a firefight exist beyond the arena. A soldier is inaccurate, not blind.
 	total_spread = minf(total_spread, 1.2)
 	var spread: float = deg_to_rad(total_spread)
 	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
 
-	# ANGULAR spread in the aim basis, center-weighted (audit F6): the old code
-	# added raw RNG to a normalized vector's x/y/z - skewed to the diagonals
-	# and double-counted the error.
+	# ANGULAR spread in the aim basis, center-weighted (never add raw RNG to a
+	# normalized vector's x/y/z: it skews to the diagonals and double-counts).
 	var e_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
 	var e_up: Vector3 = e_right.cross(final_aim).normalized()
 	var e_ang: float = randf() * TAU
 	var e_mag: float = minf(absf(randfn(0.0, 0.45)), 1.0) * spread
 	final_aim = (final_aim + e_right * tan(cos(e_ang) * e_mag) \
 		+ e_up * tan(sin(e_ang) * e_mag)).normalized()
-	# HOLD-OVER (audit F2/F5): a trained man elevates for the range. Without
-	# this the AI shot 0.5m low at 300m and was harmless in the open - the
-	# firefight only existed because the arena is 44m across.
+	# HOLD-OVER: a trained man elevates for the range, or he shoots low past ~100m.
 	if target != null and is_instance_valid(target):
 		var t_dist: float = global_position.distance_to((target as Node3D).global_position)
 		var hold: float = weapon_data.elevation_for(t_dist)
 		# A LAUNCHER is not a rifle: the rocket carries its own (much weaker)
 		# gravity, so laying it with rifle maths threw enemy rockets 8x too high.
-		var pd: ProjectileData = _projectile()   # cached, not load()ed per shot
+		var pd: ProjectileData = _projectile()
 		if pd != null:
 			var ge: float = 9.8 * maxf(0.0, pd.gravity_scale)
 			var pv: float = maxf(1.0, pd.speed)
@@ -2009,13 +1830,11 @@ func _fire_at_target() -> void:
 		final_aim.y += absf(sin(miss_dir)) * miss * 0.5 + 0.02  # bias high/wide
 		final_aim = final_aim.normalized()
 
-	# Raycast from the gun muzzle, not center mass (R03).
+	# Raycast from the gun muzzle, not center mass.
 	var origin: Vector3 = get_muzzle_position(final_aim)
 
-	# AUDIT-03: the projectile pool has been allocating 50 nodes on every boot
-	# with zero callers. A weapon that names a ProjectileData fires a real
-	# travelling round instead of a hitscan ray -- the RPG-2 needs travel time,
-	# drop, a visible warhead and a smoke trail that gives the shooter away.
+	# A weapon that names a ProjectileData fires a real travelling round instead of a
+	# hitscan ray - the RPG-2 needs travel time, drop, a warhead and a smoke trail.
 	if weapon_data != null and not weapon_data.projectile_data_path.is_empty():
 		var pdata: ProjectileData = _projectile()
 		if pdata != null:
@@ -2030,9 +1849,8 @@ func _fire_at_target() -> void:
 			weapon_data.id, weapon_data.projectile_data_path])
 
 	var space_state := get_world_3d().direct_space_state
-	# FULL-REALISM FRIENDLY FIRE (Summoner decree): the ray sees EVERYONE -
-	# world, player, enemies, both hurtbox layers. Muzzle discipline below
-	# keeps the AI from massacring its own squad.
+	# FULL-REALISM FRIENDLY FIRE: the ray sees EVERYONE - world, player, enemies,
+	# both hurtbox layers. Muzzle discipline below keeps the AI off its own squad.
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_aim * weapon_data.max_range,
@@ -2052,18 +1870,13 @@ func _fire_at_target() -> void:
 				and lane_owner.is_in_group("enemies") and lane_owner != target:
 			return
 
-	# Suppression (R11): if this round CRACKED PAST the player without hitting
-	# them, press them. The shot line is origin -> tracer_end; measure the
-	# player's perpendicular distance to it. A hit is not a near-miss (that is
-	# damage, handled below). This is what makes the player want to get down.
+	# Suppression: a round that CRACKS PAST the player without hitting presses them.
+	# A hit is not a near-miss (that is damage, handled below).
 	_suppress_player_if_near(origin, final_aim, result)
 
-	# REAL PROJECTILES (7ks): the round is a live BulletSystem bullet - muzzle
-	# spawn, gravity drop, travel time, arrival damage/FX through the shared
-	# resolver (zone mults, W37 wound rolls, blood at the point of arrival).
-	# The tracer IS the bullet; color/ratio come from WeaponData (nx9n - the
-	# hardcoded every-round green dies here). Muzzle flash still betrays the
-	# shooter's position; the lane-check ray above still enforces discipline.
+	# The round is a live BulletSystem bullet - muzzle spawn, gravity drop, travel
+	# time, arrival damage/FX through the shared resolver. The tracer IS the bullet;
+	# color and ratio come from WeaponData.
 	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 1)
 	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
@@ -2071,16 +1884,14 @@ func _fire_at_target() -> void:
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
-	# FULL-REALISM FRIENDLY FIRE, zero body-capsule shadowing: rounds touch
-	# flesh ONLY through hitzone areas - the player wears zones now too
-	# (all models bleed the same), so his body layer (2) is out with the
-	# rest. A capsule in the mask eats the hit before the zones inside it
+	# Rounds touch flesh ONLY through hitzone areas - the player's body layer (2) is
+	# OUT of the mask on purpose: a capsule eats the hit before the zones inside it
 	# and everything lands flat 1.0x.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
 		1 | 32 | 64, [self], show_tracer)
 
 
-## W45: telegraph shout, then lob a real grenade at the last-known position.
+## Telegraph shout, then lob a real grenade at the last-known position.
 func _throw_grenade() -> void:
 	grenades_left -= 1
 	grenade_cooldown = 15.0
@@ -2113,7 +1924,7 @@ func _throw_grenade() -> void:
 
 
 ## Gun muzzle world position: shoulder height, pushed out along the aim with a
-## right-hand offset. Sprite states will refine per-frame offsets later (R21/R28).
+## right-hand offset.
 func get_muzzle_position(aim_dir: Vector3) -> Vector3:
 	var flat_aim := Vector3(aim_dir.x, 0.0, aim_dir.z).normalized()
 	if sprite_actor != null:
@@ -2139,10 +1950,9 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 ## DAMAGE AND DEATH
 ## ============================================
 
-## Region-resolved gore channel: BulletSystem feeds the struck Hitzone's
-## REGION here (the zone STRING stays the 4-name law for damage/wound logic).
-## GORE_WORKFLOW live rule, same as the dummy: one hit >= 45 takes the limb.
-## Works on corpses too - shooting bodies stays honest.
+## Region-resolved gore channel: BulletSystem feeds the struck Hitzone's REGION
+## here (the zone STRING stays the 4-name law for damage/wound logic). One hit
+## >= 45 takes the limb; works on corpses too.
 func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 	if not _visual_is_model or sprite_actor == null:
 		return
@@ -2162,7 +1972,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_credit_killer(attacker)
 		_die()
 		return amount
-	# Locational outcome (anti-sponge decree): a headshot is a headshot.
+	# Locational outcome: a headshot is a headshot.
 	var raw_amount: int = amount  # pre-override weapon damage (head burst gate)
 	if zone == "HEAD":
 		amount = current_hp + 999
@@ -2170,10 +1980,9 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	current_hp -= amount
 	damage_taken_recently += amount
 	damage_decay_timer = 0.0
-	goal_timer = 99.0  # Class-A interrupt (decree): getting HIT may always re-plan
+	goal_timer = 99.0  # Class-A interrupt: getting HIT may always re-plan
 
-	# Remember where it came from so _die() can pick death_forward vs
-	# death_from_right. take_damage() knew this all along and threw it away.
+	# Remember where it came from so _die() can pick death_forward vs death_right.
 	if attacker != null and is_instance_valid(attacker) and attacker is Node3D:
 		last_hit_dir = (global_position - (attacker as Node3D).global_position).normalized()
 		# Honest attention: whoever is HURTING me outranks whoever is closest.
@@ -2181,7 +1990,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			_last_attacker = attacker as Node3D
 			_last_attacker_ms = float(Time.get_ticks_msec())
 
-	# Visual feedback
 	if sprite_actor != null:
 		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
 	elif mesh and mesh.material_override:
@@ -2195,20 +2003,18 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	if zone == "GUT" and current_hp > 0 and _gut_bleed_dps <= 0.0:
 		_gut_bleed_dps = 4.0
 		_become_crippled()
-	# W46: badly shot men may go down crawling - slow, loud, drawing their buddies.
+	# Badly shot men may go down crawling - slow, loud, drawing their buddies.
 	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
 		_become_crippled()
 
-	# Getting shot = instant COMBAT tier (R12), whatever we were doing — but
-	# LOCALLY ONLY. He fights back; he does not yet prove anything to anyone.
-	# Whether the AO learns about it is decided below, by whether he LIVES
-	# (and, if he doesn't, by _die() -> _witness_check). THE WITNESS RULE.
+	# Getting shot = instant COMBAT tier, but LOCALLY ONLY (witnessed=false): he
+	# fights back without proving anything. Whether the AO learns is decided by
+	# whether he LIVES (below), or by _die() -> _witness_check. THE WITNESS RULE.
 	_set_tier(AlertTier.COMBAT, false)
 	if attacker is Node3D:
 		last_known_target_pos = (attacker as Node3D).global_position
 		target_last_seen_time = 0.0
 
-	# Alert and acquire target
 	if current_state == Enums.AIState.IDLE:
 		if attacker is Node3D:
 			target = attacker as Node3D
@@ -2216,7 +2022,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		current_goal = Enums.AIGoal.ENGAGE_TARGET
 		_change_state(Enums.AIState.COMBAT)
 
-	# Suppression from damage
 	var suppress_amount: float = float(amount) / float(max_hp) * 0.5
 	suppression_level = minf(1.0, suppression_level + suppress_amount)
 
@@ -2224,33 +2029,28 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	can_fire = false
 	fire_timer = maxf(fire_timer, 0.25)
 
-	# Pain-quota stagger (DESIGN 4.3): a solid hit (>= a third of max HP) that does
-	# not kill jolts them into a brief SUPPRESSED stagger + a pain grunt, selling the
-	# impact and buying the player a beat. Reuses apply_stagger() (was never called).
+	# Pain-quota stagger: a solid hit (>= a third of max HP) that does not kill jolts
+	# them into a brief SUPPRESSED stagger + a pain grunt.
 	if current_hp > 0 and amount >= max_hp / 3:
 		apply_stagger(1.0)
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0)
 
-	# Check death
 	if current_hp <= 0:
 		var overkill: int = -current_hp
 		current_hp = 0
-		# DOWN-NOT-DEAD v1 (bead 5iha): a barely-lethal hit can leave a man
-		# dying but not dead. Never on headshots (fatal is fatal), explosives,
-		# or the surrendered. Overkill margin weights the roll: 35% at zero
-		# margin, fading to 0 at 40+ overkill damage.
+		# DOWN-NOT-DEAD: a barely-lethal hit can leave a man dying but not dead. Never
+		# on headshots, explosives, or the surrendered. Overkill weights the roll: 35%
+		# at zero margin, fading to 0 at 40+ overkill damage.
 		if zone != "HEAD" and not is_surrendered \
 				and _damage_type == Enums.DamageType.PHYSICAL:
 			var down_chance: float = clampf(0.35 * (1.0 - float(overkill) / 40.0), 0.0, 0.35)
 			if randf() < down_chance:
 				_become_downed()
-				# He is down but ALIVE - crawling, screaming, drawing his buddies.
-				# That is a witness. You wanted him DEAD. (THE WITNESS RULE)
+				# He is down but ALIVE - a witness. (THE WITNESS RULE)
 				_stamp_contact()
 				return amount
-		# HEAD POP on heavy fatal headshots (>= HEAD_POP_KILL raw), same rule
-		# as the gore dummy: burst (skull fragments) 25% of the time, one-piece
-		# pop otherwise. Burst no-ops silently until a rig ships head_frag_*.
+		# HEAD POP on heavy fatal headshots (>= HEAD_POP_KILL raw): burst 25% of the
+		# time, one-piece pop otherwise. Burst no-ops until a rig ships head_frag_*.
 		if zone == "HEAD" and _visual_is_model and raw_amount >= GibSystem.HEAD_POP_KILL:
 			if randf() < 0.25:
 				GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
@@ -2258,25 +2058,18 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			elif GibSystem.dismember(sprite_actor as ModelActor, "HEAD", last_hit_dir, get_tree().current_scene):
 				_removed.append("HEAD")
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
-		# MASSIVE TRAUMA (Caleb: "my shotgun should be gibbing anyone it makes
-		# contact with"): a single body-zone event >= 90 - point-blank buck,
-		# nothing a rifle chest hit reaches (max 80) - butchers like a blast.
+		# MASSIVE TRAUMA: a single body-zone event >= 90 (point-blank buck; no rifle
+		# chest hit reaches it, max 80) butchers like a blast.
 		if not _killed_explosive and raw_amount >= 90 \
 				and (zone == "BODY" or zone == "GUT" or zone == "TORSO"):
 			_killed_explosive = true  # reuse the blast doctrine in _die()
 		_credit_killer(attacker)
 		_die()
 	elif not is_surrendered:
-		# HE LIVED. A man you shot who survives WILL tell everyone - he shouts,
-		# he shoots back, he gets on the radio. Surviving your attack is exactly
-		# what makes it WITNESSED. (ADR-005)
+		# HE LIVED: surviving your attack is what makes it WITNESSED. (ADR-005)
 		_stamp_contact()
-		# MORALE (war-room decree, Summoner: "in war everyone's goal is to
-		# survive"): courage-powered break ladder. Low-courage men (Local
-		# Force) BREAK under pressure - rout (forced retreat, drop the fight)
-		# or, badly wounded and shaken, throw the rifle down (Chieu Hoi).
-		# NVA/sapper courage holds the line (canon: Local Force breaks, NVA
-		# doesn't). Uses existing threat_level - no new perception work.
+		# MORALE: courage-powered break ladder. Low-courage men (Local Force) BREAK
+		# under pressure - rout, or throw the rifle down (Chieu Hoi). NVA courage holds.
 		var courage: float = enemy_data.courage if enemy_data != null else 0.5
 		var pressure: float = threat_level + (1.0 - float(current_hp) / float(max_hp)) * 0.5
 		# Numbers stiffen the spine: a man with six friends up does not rout
@@ -2319,13 +2112,13 @@ func _credit_killer(attacker: Node) -> void:
 		attacker.on_skill_up("small_arms", promo)
 
 
-## Crawling, slow, loud - the shared "down but not out" state (W46 + gutshot).
+## Crawling, slow, loud - the shared "down but not out" state.
 func _become_crippled() -> void:
 	if is_crippled:
 		return
 	is_crippled = true
 	move_speed *= 0.25
-	base_accuracy_modifier *= 1.6  # crippled: durable, was wiped next tick
+	base_accuracy_modifier *= 1.6
 	if sprite_actor != null:
 		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
 	elif mesh:
@@ -2334,8 +2127,8 @@ func _become_crippled() -> void:
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
 
 
-## W37/locational: limb hits degrade the man - arm = shaky aim, leg = slowed;
-## a second leg wound puts him down crawling. Mirrors the player's apply_wound.
+## Limb hits degrade the man: arm = shaky aim, leg = slowed; a second leg wound
+## puts him down crawling.
 var _leg_wounds: int = 0
 func apply_wound(zone_name: String) -> void:
 	if zone_name == "LIMB_ARM":
@@ -2358,10 +2151,8 @@ func apply_stagger(power: float) -> void:
 		_change_state(Enums.AIState.SUPPRESSED)
 
 
-## DOWN-NOT-DEAD v1 (bead 5iha, research sec 9): dying, not dead. IRON LAW:
-## he never re-fights. Bleeds out in 45-90s unless SECURED; further damage =
-## the FINISH verb. Growing blood pool + audible pain are the honest
-## aliveness signals that separate him from a corpse.
+## DOWN-NOT-DEAD: dying, not dead. IRON LAW: he never re-fights. Bleeds out in
+## 45-90s unless SECURED; further damage = the FINISH verb.
 var is_downed: bool = false
 var _downed_bleed_s: float = 0.0
 var _downed_fx_s: float = 0.0
@@ -2386,14 +2177,11 @@ func _become_downed() -> void:
 		died.emit(self)
 	if sprite_actor != null and sprite_actor is ModelActor:
 		var ma := sprite_actor as ModelActor
-		# A DOWNED man must be ON THE GROUND. A rig without the breathless clip
-		# left him standing in the open at 1 HP - reading as a broken corpse.
-		# Fallback ladder: breathless clip -> freeze at a death clip's end (a
-		# lying pose) -> gentle ragdoll. Gravity is the last word.
+		# A DOWNED man must be ON THE GROUND. Fallback ladder: breathless clip ->
+		# freeze at a death clip's end (a lying pose) -> gentle ragdoll.
 		if ma.play("laying_breathless", true):
-			# The clip lies him down 1m OFF THE FLOOR (probe_lying_height -
-			# Blender re-export pending). Pin the pose to the ground once the
-			# skeleton lands it.
+			# The clip lies him down 1m OFF THE FLOOR (Blender re-export pending): pin
+			# the pose to the ground once the skeleton lands it.
 			get_tree().create_timer(0.15).timeout.connect(func() -> void:
 				if is_instance_valid(ma) and is_downed:
 					ma.ground_current_pose())
@@ -2410,8 +2198,7 @@ func _become_downed() -> void:
 	VOManager.play_enemy("pain", self)
 
 
-## SECURE verb: stabilize + capture a downed man. Feeds the same intel /
-## capture economy as surrender (W63).
+## SECURE verb: stabilize + capture a downed man (same economy as surrender).
 func secure() -> bool:
 	# NOTE: is_dead() is true while downed (by design) - check the real state.
 	if not is_downed or current_state == Enums.AIState.DEAD:
@@ -2425,8 +2212,11 @@ func secure() -> bool:
 func _die() -> void:
 	# THE WITNESS RULE: did anyone actually SEE this happen? If not, the AO learns
 	# nothing and this body becomes a liability instead. (ADR-005)
-	_witness_check(_last_attacker)
-	GunFX.blood_pool(get_tree().current_scene, global_position)  # kill pool spreads under him
+	var killer: Node = null
+	if is_instance_valid(_last_attacker):
+		killer = _last_attacker
+	_witness_check(killer)
+	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_change_state(Enums.AIState.DEAD)
 	_release_cover()
 	CombatManager.unregister_enemy(self)
@@ -2439,10 +2229,8 @@ func _die() -> void:
 	collision_mask = 0
 
 	if is_downed:
-		# He was already lying in laying_breathless - do not whip a standing
-		# death clip over the pose. But INSURE the ground: a gentle ragdoll
-		# from a lying pose is a calm settle, and from the standing-downed
-		# bug pose it is the fall that should have happened.
+		# He was already lying in laying_breathless - do not whip a standing death clip
+		# over the pose. Insure the ground with a gentle ragdoll.
 		is_downed = false
 		var mad := sprite_actor as ModelActor
 		if _visual_is_model and mad != null and not mad.has_ragdoll():
@@ -2470,21 +2258,19 @@ func _die() -> void:
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 			var intent: String = "death_right" if from_right else "death_forward"
 			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
-			# DEAD MEN FALL, whatever the export shipped: mapped clip -> any
-			# death clip in the library -> ragdoll. A standing corpse walking
-			# into a wall is a broken promise, not a performance.
+			# DEAD MEN FALL, whatever the export shipped: mapped clip -> any death clip
+			# in the library -> ragdoll.
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 
-	add_to_group("lootable_corpses")  # W61
+	add_to_group("lootable_corpses")
 	get_tree().create_timer(45.0).timeout.connect(queue_free)
 
 
-## W63: broken men throw their hands up. Interact to capture (intel), shoot
-## to... live with it.
+## Broken men throw their hands up. Interact to capture (intel).
 var is_surrendered: bool = false
 
 
@@ -2546,8 +2332,6 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 		nav.name = "NavigationAgent3D"
 		# INVARIANT: these must match NavBaker's AGENT_RADIUS / AGENT_HEIGHT, or
 		# the agent walks corridors the navmesh never carved. Not a single one of
-		# these was set before - everything ran on engine defaults (radius 0.5,
-		# avoidance off but unstated).
 		nav.radius = NavBaker.AGENT_RADIUS
 		nav.height = NavBaker.AGENT_HEIGHT
 		nav.path_desired_distance = 0.7
