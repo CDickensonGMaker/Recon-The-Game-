@@ -1083,6 +1083,7 @@ func _spawn_player() -> void:
 	var scene: PackedScene = load("res://scenes/player/player.tscn")
 	player = scene.instantiate() as CharacterBody3D
 	add_child(player)
+	player.set("allow_photo_mode", false)  # a stray P must not drone off mid-firefight
 	player.global_position = Vector3(-35.0, 1.0, 35.0)  # firebase overlook
 	GameManager.player = player
 

@@ -21,8 +21,8 @@ const CROUCH_HEIGHT: float = 0.9
 const CROUCH_TRANSITION_SPEED: float = 10.0
 
 ## Lean settings
-const LEAN_ANGLE: float = -18.0  ## Negative so lean_right tilts right (increased 20%)
-const LEAN_OFFSET: float = 0.36  ## Positive so lean_right moves right (increased 20%)
+const LEAN_ANGLE: float = -18.0  ## Negative so lean_right tilts right
+const LEAN_OFFSET: float = 0.36  ## Positive so lean_right moves right
 const LEAN_SPEED: float = 12.0
 const LEAN_MOVE_MULT: float = 0.8
 
@@ -44,11 +44,21 @@ var is_sprinting: bool = false
 var is_prone: bool = false
 var lean_amount: float = 0.0
 var current_speed: float = WALK_SPEED
-## External movement multiplier - dragging a casualty (0.5 per design: saving
-## a man SLOWS you), carrying loads, future encumbrance. Systems set/restore it.
+## External movement multiplier (casualty drag, loads). Systems set and restore it.
 var external_speed_mult: float = 1.0
 
-## Stamina (W33): sprint drains, St scales the pool, winded blocks sprint.
+## ADR-018: every grunt has the same body. These are constants, not a stat pool -
+## no progression may raise them. Player HP 100 is ADR-016's value of record.
+const BASE_HP: int = 100
+const BASE_STAMINA: float = 100.0
+
+## A field kit is a stopgap: 25% for 12 seconds. Only the armorer's bench (20s at
+## the firebase) takes a rifle back to 100.
+const FIELD_REPAIR_PCT: float = 25.0
+const FIELD_REPAIR_SECONDS: float = 12.0
+var _repair_progress: float = 0.0
+
+## Stamina: sprinting drains it; being winded blocks sprint until it recovers.
 const PRONE_HEIGHT: float = 0.5
 const PRONE_SPEED: float = 1.0
 var stamina: float = 100.0
@@ -57,38 +67,34 @@ const STAMINA_DRAIN: float = 18.0    ## per second sprinting
 const STAMINA_REGEN: float = 10.0    ## per second otherwise
 var _winded: bool = false
 
-## Wound effects (W37): limbs degrade function until a medkit heal.
+## Limb wounds degrade function until a medkit heal.
 var wounded_legs: bool = false
 var wounded_arms: bool = false
 
-## Smoke grenades (W39): key 5 lobs marking/concealment smoke.
+## Smoke grenades (key 5).
 var smoke_count: int = 2
-## Survival v1 (Phase C): hunger drains with field time; rations restore it.
-## Low hunger saps your wind (stamina), not your health - you get sloppy, not dead.
+## Hunger drains with field time. Low hunger saps stamina, never health.
 var hunger: float = 100.0
 var ration_count: int = 2
 var repair_kit_count: int = 1
 var _hunger_warned: bool = false
-## Claymores (W58): key 6.
+## Claymores (key 6).
 var claymore_count: int = 2
-## Pop flares (W54): key 7.
+## Pop flares (key 7).
 var flare_count: int = 3
-## Binoculars (W55).
+## Binoculars.
 var _binocs_active: bool = false
 var _mark_timer: float = 0.0
 
-## R52: hold-breath - short meter, big sway/spread cut while aiming.
+## Hold-breath: short meter, big sway/spread cut while aiming.
 var breath_meter: float = 100.0
 const BREATH_MAX: float = 100.0
 const BREATH_DRAIN: float = 30.0
 const BREATH_REGEN: float = 22.0
 var is_holding_breath: bool = false
 
-## --- Suppression (R11): the player-side "under heavy fire" feel. Rounds that
-## crack past you (near-misses from enemy fire) drive this 0..1 up; it drains
-## fast when you break contact and FASTER when you get low. Screen greys out +
-## vignettes, the camera shakes, audio muffles. The point: it makes taking cover
-## and crawling out of the beaten zone feel necessary, not optional. ---
+## Suppression 0..1: near-miss enemy rounds drive it up, and it decays FASTER
+## while prone/crouched. Drives the screen shader, camera shake and audio muffle.
 var suppression: float = 0.0
 const SUPPRESS_DECAY: float = 0.55          ## per second, standing
 const SUPPRESS_DECAY_LOW: float = 1.3       ## per second, prone/crouched (reward getting down)
@@ -121,7 +127,7 @@ func _update_binoculars(delta: float) -> void:
 				camera.fov = lerpf(camera.fov, target_fov, delta * 8.0)
 	if not _binocs_active:
 		return
-	# Mark whatever you're glassing (2s dwell tags them for the team).
+	# Mark whatever you are glassing - it tags the target for the team.
 	_mark_timer += delta
 	if _mark_timer < 0.5:
 		return
@@ -152,13 +158,13 @@ func _update_binoculars(delta: float) -> void:
 					mark.queue_free())
 
 
-## W69: surface-matched footstep audio (dirt / grass / water via GameplayGrid).
-const STEP_DIRT := preload("res://assets/audio/sfx/step_real.wav")  # real recording (Catacombs port) - synth shuffle retired
+## Surface-matched footstep audio (dirt / grass / water via GameplayGrid).
+const STEP_DIRT := preload("res://assets/audio/sfx/step_real.wav")
 const STEP_GRASS := preload("res://assets/audio/sfx/step_real.wav")
 const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
 var _wade_timer: float = 0.0
 var _grid: GameplayGrid = null
-## R73: are we currently wading a flooded paddy (slow, loud, exposed)?
+## Wading a flooded paddy: slow, loud, exposed.
 var _in_rice_paddy: bool = false
 
 
@@ -169,7 +175,7 @@ func _play_footstep_sound() -> void:
 		if _grid.is_water(global_position):
 			stream = STEP_WATER
 			_wade_timer += 0.5
-			# W71: leeches - linger in the water and pay for it.
+			# Leeches: linger in the water and pay for it.
 			if _wade_timer > 20.0:
 				_wade_timer = 0.0
 				_field_toast("LEECHES. GODDAMN LEECHES.")
@@ -181,7 +187,7 @@ func _play_footstep_sound() -> void:
 			if t == GameplayGrid.TerrainType.GRASSLAND or t == GameplayGrid.TerrainType.RICE_PADDY:
 				stream = STEP_GRASS
 			if t == GameplayGrid.TerrainType.RICE_PADDY:
-				stream = STEP_WATER  # R73: the paddy is flooded - it sounds like a wade, not a step
+				stream = STEP_WATER  # a flooded paddy sounds like a wade, not a step
 				_in_rice_paddy = true
 	var p := AudioStreamPlayer.new()
 	p.stream = stream
@@ -198,11 +204,11 @@ func _field_toast(text: String) -> void:
 		hud_node.show_toast(text)
 
 
-## W51: tunnel state.
+## Tunnel state.
 var _in_tunnel: TunnelRoom = null
 
 
-## W61/W63/W60/W51: interact = capture / loot / crate / tunnel enter-exit.
+## Interact: capture / loot / crate / tunnel enter-exit.
 func _try_field_interact() -> void:
 	# Tunnel exit (when underground).
 	if _in_tunnel != null:
@@ -271,8 +277,7 @@ func _try_field_interact() -> void:
 			prisoner.died.emit(prisoner)  # counts for mission tallies
 			prisoner.queue_free()
 			return
-	# PT9: recover a fallen squadmate's kit (ammo/frags only - not their weapon,
-	# that's yours to carry forward, not theirs to leave behind).
+	# A fallen squadmate's kit yields ammo and frags only, never their weapon.
 	for a in get_tree().get_nodes_in_group("ally_corpses"):
 		var fallen := a as Node3D
 		if fallen == null or not is_instance_valid(fallen) or fallen.has_meta("looted"):
@@ -294,8 +299,6 @@ func _try_field_interact() -> void:
 		if global_position.distance_to(corpse.global_position) < 2.5 and not corpse.has_meta("looted"):
 			corpse.set_meta("looted", true)
 			var roll := randf()
-			# R57: their weapon is on the table too - take it, and it sounds
-			# friendly to their side afterward (visual detection still applies).
 			if roll < 0.2 and weapon_holder and corpse.weapon_data != null \
 					and corpse.weapon_data != weapon_holder.primary_weapon:
 				weapon_holder.equip_captured_weapon(corpse.weapon_data)
@@ -343,16 +346,39 @@ func _eat_ration() -> void:
 	_field_toast("C-RATS DOWN. (%d left)" % ration_count)
 
 
-func _use_repair_kit() -> void:
+## A kit is a stopgap, never a fix: 25% and twelve seconds on your knees in the weeds.
+## The armorer's bench is the only full clean, and it is back at the firebase.
+## Let go and you lose the progress but keep the kit.
+func _advance_repair_kit(delta: float) -> void:
+	if weapon_holder == null:
+		return
 	if repair_kit_count <= 0:
-		_field_toast("NO CLEANING KIT")
+		if _repair_progress == 0.0:
+			_field_toast("NO CLEANING KIT")
+		_repair_progress = 0.0
 		return
-	if weapon_holder == null or float(weapon_holder.get("weapon_condition")) > 90.0:
-		_field_toast("WEAPON'S CLEAN ENOUGH")
+	if float(weapon_holder.get("weapon_condition")) >= 99.99:
+		_field_toast("WEAPON'S CLEAN")
+		_repair_progress = 0.0
 		return
+
+	_repair_progress += delta / FIELD_REPAIR_SECONDS
+	if _repair_progress < 1.0:
+		_field_toast("FIELD-STRIPPING... %d%%" % int(_repair_progress * 100.0))
+		return
+
+	_repair_progress = 0.0
 	repair_kit_count -= 1
-	weapon_holder.set("weapon_condition", minf(100.0, float(weapon_holder.get("weapon_condition")) + 45.0))
-	_field_toast("WEAPON CLEANED. (%d kits left)" % repair_kit_count)
+	var cond: float = float(weapon_holder.get("weapon_condition"))
+	weapon_holder.set("weapon_condition", minf(100.0, cond + FIELD_REPAIR_PCT))
+	_field_toast("WEAPON CLEANED TO %d%%. (%d kits left)" % [
+		int(minf(100.0, cond + FIELD_REPAIR_PCT)), repair_kit_count])
+
+
+func _cancel_repair_kit() -> void:
+	if _repair_progress > 0.0:
+		_repair_progress = 0.0
+		_field_toast("FIELD-STRIP INTERRUPTED")
 
 
 func _throw_smoke() -> void:
@@ -401,10 +427,9 @@ func clear_wounds() -> void:
 var camera_rotation_x: float = 0.0
 const MAX_LOOK_ANGLE: float = 89.0
 
-## Recoil system. Additive view offsets in radians that decay back to zero;
-## they NEVER touch camera_rotation_x / _yaw_base, so the shot recovers to the
-## exact aim the player held. The kick is applied INSTANTLY in apply_recoil (a
-## lerped rise peaked at ~60% of the authored degrees and felt like foam).
+## Recoil system. Additive view offsets in RADIANS that decay back to zero. They
+## must NEVER touch camera_rotation_x / _yaw_base, so the shot always recovers to
+## the exact aim the player held.
 var _recoil_pitch: float = 0.0
 var _recoil_yaw: float = 0.0
 var _recoil_recovery: float = 12.0  # exp decay per second, set per shot
@@ -415,35 +440,29 @@ func _ready() -> void:
 	_setup_suppression()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
-	# ALL MODELS BLEED THE SAME (Caleb decree): the player wears the same
-	# static hitzone bands as any rigless unit - head/torso/gut/limbs with
-	# ADR-016 multipliers. Enemy rounds now resolve zones on YOU exactly as
-	# yours do on them: a head hit lands x4, a leg graze x1. Bands are fixed
-	# to the standing capsule (crouch offset is a beaded refinement).
+	# The player wears the same static hitzone bands as any rigless unit, so enemy
+	# rounds resolve zones on HIM exactly as his do on them. Bands are fixed to the
+	# standing capsule.
 	HitzoneBuilder._build_static(self, 32, 16, ["player_hurtbox", "hitzone"], true)
 	for c in get_children():
 		if c is Hitzone:
 			hitzones.append(c)
-	mouse_sensitivity = GameSettings.mouse_sensitivity  # W83
+	mouse_sensitivity = GameSettings.mouse_sensitivity
 	_yaw_base = rotation.y  # seed recoil-recoverable yaw from spawn orientation
 
-	# Register with managers
 	GameManager.register_player(self)
 	CombatManager.register_player(self)
 
-	# Setup body part hitzones
 	_setup_hitzones()
 
-	# Setup cross-references
 	health_system.setup(self, equipment_manager)
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
 	grenade_handler.setup(self, equipment_manager)
 
-	# W29: Strength scales HP + stamina (RECON: St IS your capacity).
-	var st: float = float(CampaignState.player_data.get("st", 100))
-	health_system.max_hp = int(50.0 + st * 0.5)
+	# ADR-018: every grunt has the same body. No progression touches health or stamina.
+	health_system.max_hp = BASE_HP
 	health_system.current_hp = health_system.max_hp
-	stamina_max = (60.0 + st * 0.4) * hunger_stamina_mult()
+	stamina_max = BASE_STAMINA * hunger_stamina_mult()
 	stamina = stamina_max
 	weapon_holder.equipment_manager = equipment_manager
 
@@ -468,8 +487,9 @@ func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	_apply_look()
 
 
-## Single writer for view angles. Called from mouse look (poll rate) AND recoil
-## recovery (physics rate) so pitch is no longer 60Hz-quantized while yaw is smooth.
+## THE SINGLE WRITER for view angles - called from mouse look (poll rate) and
+## recoil recovery (physics rate). Nothing else may write head.rotation.x or
+## rotation.y directly.
 func _apply_look() -> void:
 	head.rotation.x = clampf(
 		camera_rotation_x + _recoil_pitch,
@@ -477,7 +497,7 @@ func _apply_look() -> void:
 	rotation.y = _yaw_base + _recoil_yaw
 
 
-## Seated mode (W05): glued to a seat marker, head-look only, no collision.
+## Seated mode: glued to a seat marker, head-look only, no collision.
 var is_seated: bool = false
 var _seat_node: Node3D = null
 
@@ -505,7 +525,7 @@ func exit_seat(ground_pos: Vector3) -> void:
 var _footstep_timer: float = 0.0
 
 
-## Footstep noise for the AI ears (R13). Crouch-walk is near-silent.
+## Footstep noise for the AI ears. Crouch-walk is near-silent.
 func _emit_footsteps(delta: float) -> void:
 	var flat_speed: float = Vector2(velocity.x, velocity.z).length()
 	if not is_on_floor() or flat_speed < 1.0:
@@ -516,9 +536,9 @@ func _emit_footsteps(delta: float) -> void:
 		return
 	_footstep_timer = 0.35 if is_sprinting else 0.55
 	_play_footstep_sound()
-	# W28: Silent Movement skill shrinks every footstep radius.
-	var quiet_mult: float = 1.0 / (1.0 + 0.12 * float(CampaignState.player_skill("silent_movement")))
-	# R73: wading a rice paddy throws a wake - louder than dry ground, no hiding it.
+	# ADR-018: how quiet you are is stance, ground and speed. Never a purchased stat.
+	var quiet_mult: float = 1.0
+	# Wading a rice paddy throws a wake - louder than dry ground.
 	if _in_rice_paddy:
 		quiet_mult *= 2.2
 	if is_crouching:
@@ -531,14 +551,18 @@ func _emit_footsteps(delta: float) -> void:
 			float(NoiseBus.RADII[NoiseBus.NoiseType.FOOTSTEP]) * quiet_mult)
 
 
-## R96: photo mode - free-fly spectator cam. No combat, no HUD, snap back to
-## where you toggled it on (no fall damage from wherever you flew off to).
+## Photo mode: free-fly spectator cam. No combat, no HUD; snaps back to where it
+## was toggled on, so there is no fall damage from wherever you flew.
 var _photo_mode: bool = false
 var _photo_saved_pos: Vector3 = Vector3.ZERO
 const PHOTO_FLY_SPEED: float = 9.0
+## Combat benches disable the free-fly photo cam so a stray P can't drone off mid-firefight.
+var allow_photo_mode: bool = true
 
 
 func _toggle_photo_mode() -> void:
+	if not allow_photo_mode:
+		return
 	_photo_mode = not _photo_mode
 	if _photo_mode:
 		_photo_saved_pos = global_position
@@ -585,7 +609,7 @@ func _physics_process(delta: float) -> void:
 			reset_physics_interpolation()
 		return
 
-	# Downed (W17): on the deck waiting for Doc - no movement, low camera.
+	# Downed: on the deck waiting for the medic - no movement, low camera.
 	if health_system and health_system.is_downed:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -619,44 +643,43 @@ func _handle_movement(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	# Prone toggle (W34).
 	if Input.is_action_just_pressed("prone"):
 		is_prone = not is_prone
 
-	# Smoke (W39). (Key 5 belongs to the fire menu while it's open.)
+	# Key 5 belongs to the fire menu while it is open.
 	if Input.is_action_just_pressed("throw_smoke") and not MissionDirector.any_fire_menu_open:
 		_throw_smoke()
 
-	# Survival v1: chow down [9] / field-strip the weapon [0].
 	if Input.is_action_just_pressed("use_ration"):
 		_eat_ration()
-	if Input.is_action_just_pressed("use_repair_kit"):
-		_use_repair_kit()
 
-	# Claymore (W58): key 6, placed at your feet facing your aim. Key 6 doubles as
-	# CBU while ON THE NET (cbu_strike shares the physical key), so the guard below
-	# keeps one press from doing both. [audit fix: key-6 double-bind]
+	# HOLD, not press. Cleaning a rifle in the field takes twelve seconds you may
+	# not have - firing or sprinting drops it, and you keep the kit.
+	if Input.is_action_pressed("use_repair_kit") and not is_sprinting \
+			and GameManager.can_player_act():
+		_advance_repair_kit(get_physics_process_delta_time())
+	else:
+		_cancel_repair_kit()
+
+	# Key 6 doubles as CBU while the fire menu is open (cbu_strike shares the
+	# physical key), so this guard keeps one press from doing both.
 	if Input.is_action_just_pressed("place_claymore") and claymore_count > 0 and is_on_floor() \
 			and not MissionDirector.any_fire_menu_open:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
 
-	# Corpse loot + prisoner capture (W61/W63/W80).
 	if Input.is_action_just_pressed("interact"):
 		_try_field_interact()
 
-	# Pop flare (W54): key 7, night tool.
 	if Input.is_action_just_pressed("pop_flare") and flare_count > 0:
 		flare_count -= 1
 		var aim7 := get_aim_direction()
 		IllumFlare.pop(get_tree().current_scene, global_position + Vector3(aim7.x, 0, aim7.z).normalized() * 30.0)
 		_field_toast("FLARE OUT")
 
-	# Binoculars (W55): hold B - zoom + mark what you glass.
 	_update_binoculars(delta)
 
-	# Stamina + wounds gate sprinting (W33/W37).
 	if _winded and stamina > stamina_max * 0.35:
 		_winded = false
 	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
@@ -681,26 +704,23 @@ func _handle_movement(delta: float) -> void:
 	else:
 		current_speed = WALK_SPEED
 
-	# On the radio (handset up): you can only shuffle - slowed and exposed while you
-	# call it in. "Getting on the net" is a real commitment, not a free action.
+	# On the radio you can only shuffle.
 	if MissionDirector.any_fire_menu_open:
 		current_speed = minf(current_speed, CROUCH_SPEED)
 
-	# R73: flooded rice paddy drags at your legs.
+	# A flooded rice paddy drags at your legs.
 	if _grid != null and _grid.get_terrain_type(global_position) == GameplayGrid.TerrainType.RICE_PADDY:
 		current_speed /= float(GameplayGrid.MOVEMENT_COSTS[GameplayGrid.TerrainType.RICE_PADDY])
 
-	# Apply ADS speed modifier
 	if weapon_holder and equipment_manager.is_weapon_slot():
 		var ads_move: float = weapon_holder.current_weapon.ads_move_mult if weapon_holder.current_weapon else 0.6
 		var ads_mult: float = lerpf(1.0, ads_move, weapon_holder.get_ads_amount())
 		current_speed *= ads_mult
 
-	# Apply lean speed penalty
 	if abs(lean_amount) > 0.1:
 		current_speed *= LEAN_MOVE_MULT
 
-	# External systems (dragging a casualty, carrying): last so it stacks.
+	# External systems (casualty drag, carrying) go LAST so they stack on top.
 	current_speed *= external_speed_mult
 
 	if direction:
@@ -748,27 +768,22 @@ func _handle_lean(delta: float) -> void:
 	camera.position.x = lean_amount * LEAN_OFFSET
 
 
-## Get the aim direction from camera
 func get_aim_direction() -> Vector3:
 	return -camera.global_transform.basis.z
 
 
-## Get the camera's global position
 func get_camera_position() -> Vector3:
 	return camera.global_position
 
 
-## Check if player is moving
 func is_moving() -> bool:
 	return velocity.length() > 0.5
 
 
-## Get current movement speed
 func get_current_speed() -> float:
 	return current_speed
 
 
-## Handle recoil recovery
 func _handle_recoil(delta: float) -> void:
 	# Framerate-exact exponential decay back to the held aim.
 	var decay: float = 1.0 - exp(-_recoil_recovery * delta)
@@ -777,9 +792,8 @@ func _handle_recoil(delta: float) -> void:
 	_apply_look()
 
 
-## Apply recoil to the view (called by WeaponHolder on every round). The kick is
-## INSTANT; only the recovery is smoothed. Yaw is recoverable (decays to zero)
-## instead of permanently spinning the body like the old rotate_y did.
+## Called by WeaponHolder on every round. The kick is INSTANT; only the recovery
+## is smoothed. Yaw decays back to zero - it must never permanently spin the body.
 func apply_recoil(vertical: float, horizontal: float, recovery: float = 12.0) -> void:
 	_recoil_pitch = minf(_recoil_pitch + deg_to_rad(vertical), RECOIL_MAX_PITCH)
 	_recoil_yaw += deg_to_rad(randf_range(-horizontal, horizontal))
@@ -789,7 +803,6 @@ func apply_recoil(vertical: float, horizontal: float, recovery: float = 12.0) ->
 
 ## Take damage - forwarded from health system
 func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, _zone: String = "BODY") -> int:
-	# W66: directional damage indicator - where is it coming from?
 	if attacker is Node3D and camera:
 		var to_attacker: Vector3 = ((attacker as Node3D).global_position - global_position)
 		to_attacker.y = 0.0
@@ -811,11 +824,9 @@ func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.P
 
 var _collapsed: bool = false
 
-## Death collapse (Caleb: "the player capsule should ragdoll down when killed
-## - the sense of death or unconscious"): there is no player body model, so
-## the CAMERA becomes the falling weight. A native RigidBody3D head drops from
-## eye height, kicked by the killing hit, rolls and settles on the floor -
-## you watch the world tip over as you go down. The KIA flow runs unchanged.
+## Death collapse: there is no player body model, so the CAMERA becomes the
+## falling weight - it reparents onto a RigidBody3D "head" kicked by the killing
+## hit. The KIA flow is unaffected.
 func _collapse_camera(hit_dir: Vector3) -> void:
 	if _collapsed or camera == null:
 		return
@@ -842,26 +853,24 @@ func _collapse_camera(hit_dir: Vector3) -> void:
 	head_body.apply_torque_impulse(Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5)))
 
 
-## Get health system
 func get_health_system() -> HealthSystem:
 	return health_system
 
 
-## Enemies drop a target only via has_method("is_dead") + is_dead() - the
-## player never HAD this method, so corpses kept eating fire at the KIA screen
-## (Caleb, gore lab). Downed counts too: the AI breaks off during the medic
-## window and shifts to living threats.
+## The AI drops a target via has_method("is_dead") + is_dead(), so this MUST
+## exist or corpses keep eating fire. Downed counts as dead: the AI breaks off
+## during the medic window and shifts to living threats.
 func is_dead() -> bool:
 	return health_system != null and (health_system.is_dead() or health_system.is_downed)
 
 
-## Setup body part hitzones for damage detection
+## Body-part hitzones. Multipliers live on Hitzone (ADR-016), never here.
 func _setup_hitzones() -> void:
-	# Head - critical hit zone (4x damage)
+	# Head
 	_create_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
-	# Chest - center mass (2.0x)
+	# Chest
 	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.3, 0), 0.3, 0.35)
-	# Gut - devastating (1.75x). Locational parity with enemies: you are as mortal.
+	# Gut
 	_create_hitzone(Hitzone.ZoneType.GUT, Vector3(0, 0.9, 0), 0.28, 0.3)
 	# Left arm
 	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.35, 1.0, 0), 0.12, 0.5)
@@ -881,13 +890,11 @@ func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, h
 
 	var col := CollisionShape3D.new()
 	if height > 0:
-		# Capsule shape for elongated body parts (torso, arms, legs)
 		var shape := CapsuleShape3D.new()
 		shape.radius = radius
 		shape.height = height
 		col.shape = shape
 	else:
-		# Sphere for head
 		var shape := SphereShape3D.new()
 		shape.radius = radius
 		col.shape = shape
@@ -895,7 +902,6 @@ func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, h
 	col.position = pos
 	hitzone.add_child(col)
 
-	# Set collision layers for player hitzone
 	hitzone.collision_layer = 32  # Layer 6: player_hurtbox
 	hitzone.collision_mask = 16   # Layer 5: enemy_hitbox
 
@@ -920,8 +926,7 @@ func _setup_suppression() -> void:
 	_supp_rect.material = _supp_mat
 	layer.add_child(_supp_rect)
 
-	# One lowpass on Master, wide open until suppression closes it (everything
-	# goes underwater under heavy fire).
+	# One lowpass on Master, wide open until suppression closes it.
 	var mi := AudioServer.get_bus_index("Master")
 	if mi >= 0:
 		var lp := AudioEffectLowPassFilter.new()
@@ -935,9 +940,9 @@ func add_suppression(amount: float = SUPPRESS_PER_NEARMISS) -> void:
 	suppression = clampf(suppression + amount, 0.0, 1.0)
 
 
-## Diegetic pain (no HP bar by design): base level = missing HP fraction, set
-## by the HUD on every health change; a pulse rides on top of each fresh hit
-## and decays in ~1.5s. Both feed the shader's `hurt` uniform.
+## Diegetic pain (no HP bar): base level = missing HP fraction, set by the HUD on
+## every health change; a pulse rides on each fresh hit and decays in ~1.5s. Both
+## feed the shader's `hurt` uniform.
 var _hurt_level: float = 0.0
 var _hurt_pulse: float = 0.0
 
@@ -974,7 +979,5 @@ func _update_suppression(delta: float) -> void:
 			if eff != null:
 				eff.cutoff_hz = lerpf(20500.0, 650.0, suppression)
 
-	# Decay - faster when you got low. This is the payoff: crawling out of the
-	# beaten zone actively clears the effect.
 	var low: bool = is_prone or is_crouching
 	suppression = maxf(0.0, suppression - (SUPPRESS_DECAY_LOW if low else SUPPRESS_DECAY) * delta)
