@@ -25,26 +25,30 @@ uniform float flutter_strength : hint_range(0.0, 0.5) = 0.06;
 uniform float flutter_speed : hint_range(0.0, 16.0) = 5.0;
 
 void vertex() {
-	vec3 origin = MODEL_MATRIX[3].xyz; // per-instance world origin
-	float phase = origin.x * 0.37 + origin.z * 0.53;
-	vec2 wdir = normalize(wind_dir + vec2(1e-4));
+	// Shadow maps don't need the sway animated - skip the wind math in the shadow
+	// pass (4.7 IN_SHADOW_PASS): foliage casts a resting shadow, vertex work saved.
+	if (!IN_SHADOW_PASS) {
+		vec3 origin = MODEL_MATRIX[3].xyz; // per-instance world origin
+		float phase = origin.x * 0.37 + origin.z * 0.53;
+		vec2 wdir = normalize(wind_dir + vec2(1e-4));
 
-	// slow trunk lean: two detuned sines read as gusts, not a metronome
-	float t = TIME * wind_speed + phase;
-	float lean = sin(t) * 0.64 + sin(t * 0.313 + 1.7) * 0.36;
-	vec3 sway = vec3(wdir.x, 0.0, wdir.y) * (lean * wind_strength * COLOR.r);
+		// slow trunk lean: two detuned sines read as gusts, not a metronome
+		float t = TIME * wind_speed + phase;
+		float lean = sin(t) * 0.64 + sin(t * 0.313 + 1.7) * 0.36;
+		vec3 sway = vec3(wdir.x, 0.0, wdir.y) * (lean * wind_strength * COLOR.r);
 
-	// fast frond flutter: per-vertex phase so tips shimmer independently
-	float f = sin(TIME * flutter_speed + phase
-		+ VERTEX.x * 2.3 + VERTEX.y * 1.1 + VERTEX.z * 1.9);
-	sway += vec3(wdir.x, -0.5, wdir.y) * (f * flutter_strength * COLOR.g);
+		// fast frond flutter: per-vertex phase so tips shimmer independently
+		float f = sin(TIME * flutter_speed + phase
+			+ VERTEX.x * 2.3 + VERTEX.y * 1.1 + VERTEX.z * 1.9);
+		sway += vec3(wdir.x, -0.5, wdir.y) * (f * flutter_strength * COLOR.g);
 
-	// world-space wind -> model space (transpose rotation, re-normalised so
-	// instance scale never squares into the amplitude)
-	float amp = length(sway);
-	if (amp > 1e-6) {
-		vec3 model_dir = normalize((vec4(sway, 0.0) * MODEL_MATRIX).xyz);
-		VERTEX += model_dir * amp;
+		// world-space wind -> model space (transpose rotation, re-normalised so
+		// instance scale never squares into the amplitude)
+		float amp = length(sway);
+		if (amp > 1e-6) {
+			vec3 model_dir = normalize((vec4(sway, 0.0) * MODEL_MATRIX).xyz);
+			VERTEX += model_dir * amp;
+		}
 	}
 }
 

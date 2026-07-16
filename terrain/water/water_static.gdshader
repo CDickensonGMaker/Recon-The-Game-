@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode depth_draw_always, cull_disabled;
+render_mode depth_draw_always;
 
 // Include shared water utilities
 #include "res://terrain/water/water_common.gdshaderinc"

@@ -4,17 +4,14 @@ class_name TerrainChunk
 
 signal mesh_ready
 
-# Chunk identity
 var coord: Vector2i  # Chunk grid coordinates
 var chunk_size: float = 256.0  # Meters
 var cell_size: float = 2.0  # Meters per vertex
 var grid_resolution: int = 128  # Vertices per side (256m / 2m)
 
-# Components
 var mesh_instance: MeshInstance3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
-# State
 var is_loaded: bool = false
 var height_scale: float = 280.0
 
@@ -31,14 +28,11 @@ func _init(chunk_coord: Vector2i, size: float = 256.0, c_size: float = 2.0) -> v
 
 
 func _ready() -> void:
-	# Create mesh instance
 	mesh_instance = MeshInstance3D.new()
 	mesh_instance.name = "Mesh"
 	add_child(mesh_instance)
 
-	# Create navigation region
 
-	# Position chunk at world coordinates
 	var world_x: float = coord.x * chunk_size
 	var world_z: float = coord.y * chunk_size
 	position = Vector3(world_x, 0, world_z)
@@ -63,7 +57,6 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetat
 	var step: float = chunk_size / float(grid_resolution)
 	var data_width: int = grid_resolution + 1
 
-	# Generate vertices in a grid
 	var vertices: Array[Vector3] = []
 	var colors: Array[Color] = []
 
@@ -81,7 +74,6 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetat
 		for x in range(grid_resolution):
 			var i: int = z * data_width + x
 
-			# Get 4 corners of this quad
 			var v0: Vector3 = vertices[i]
 			var v1: Vector3 = vertices[i + 1]
 			var v2: Vector3 = vertices[i + data_width]
@@ -116,9 +108,9 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetat
 			st.set_color(c2)
 			st.add_vertex(v2)
 
+	st.index()
 	mesh_instance.mesh = st.commit()
 
-	# Apply shared material
 	if not shared_material:
 		_create_shared_material()
 	mesh_instance.material_override = shared_material
@@ -132,7 +124,6 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetat
 ## Create shared material for all chunks
 ## Uses terrain shader with vertex colors if available, falls back to StandardMaterial3D
 static func _create_shared_material() -> void:
-	# Try to load terrain shader
 	var shader_path := "res://terrain/shaders/terrain.gdshader"
 	if ResourceLoader.exists(shader_path):
 		var shader := load(shader_path) as Shader
@@ -163,17 +154,15 @@ static func _create_shared_material() -> void:
 					shader_mat.set_shader_parameter("ground_roughness", rough_tex)
 					print("[TerrainChunk] Loaded ground roughness texture")
 
-			# Set texture parameters
 			shader_mat.set_shader_parameter("ground_texture_scale", 0.08)  # ~12m per tile
 			shader_mat.set_shader_parameter("ground_texture_blend", 0.35)  # Subtle blend
-			shader_mat.set_shader_parameter("height_scale", 280.0)  # Match terrain height scale
+			shader_mat.set_shader_parameter("height_scale", 350.0)  # Match TerrainManager.WORLD_HEIGHT_MAX
 
 			shared_material = shader_mat
 			_using_shader = true
 			print("[TerrainChunk] Using terrain shader with ground textures")
 			return
 
-	# Fallback to basic material
 	var fallback_mat := StandardMaterial3D.new()
 	fallback_mat.albedo_color = Color(0.3, 0.5, 0.2)
 	fallback_mat.roughness = 0.9
@@ -185,12 +174,10 @@ static func _create_shared_material() -> void:
 	print("[TerrainChunk] Using fallback standard material")
 
 
-## Check if using shader material
 static func is_using_shader() -> bool:
 	return _using_shader
 
 
-## Update shader parameter (for clearing/vegetation textures)
 static func set_shader_texture(param_name: String, texture: Texture2D) -> void:
 	if not _using_shader or not shared_material:
 		return
@@ -199,7 +186,6 @@ static func set_shader_texture(param_name: String, texture: Texture2D) -> void:
 		shader_mat.set_shader_parameter(param_name, texture)
 
 
-## Update multiple shader parameters at once
 static func set_shader_parameters(params: Dictionary) -> void:
 	if not _using_shader or not shared_material:
 		return
@@ -213,7 +199,6 @@ static func set_shader_parameters(params: Dictionary) -> void:
 ## VegetationManager.TerrainType values:
 ## 0=CLEAR, 1=RICE_PADDY, 2=GRASSLAND, 3=LIGHT_JUNGLE, 4=MEDIUM_JUNGLE, 5=HEAVY_JUNGLE
 func _get_terrain_color(_h: float, _normalized_h: float, local_x: float, local_z: float, vegetation_terrain: PackedByteArray, bundles_per_chunk: int) -> Color:
-	# Vegetation overrides still work
 	if not vegetation_terrain.is_empty() and bundles_per_chunk > 0:
 		var bundle_meters: float = chunk_size / float(bundles_per_chunk)
 		var bx: int = int(local_x / bundle_meters)
@@ -252,7 +237,6 @@ func create_raycast_collision() -> void:
 	add_child(collision_body)
 
 
-## Unload chunk (free resources)
 func unload() -> void:
 	if mesh_instance:
 		mesh_instance.mesh = null
@@ -262,7 +246,6 @@ func unload() -> void:
 	is_loaded = false
 
 
-## Get world bounds of this chunk
 func get_world_bounds() -> AABB:
 	var origin := Vector3(coord.x * chunk_size, 0, coord.y * chunk_size)
 	return AABB(origin, Vector3(chunk_size, height_scale, chunk_size))

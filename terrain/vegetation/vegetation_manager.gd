@@ -951,7 +951,7 @@ func _create_procedural_tree() -> ArrayMesh:
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.9
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 	var mesh := st.commit()
 	mesh.surface_set_material(0, mat)
@@ -967,7 +967,7 @@ func _create_procedural_grass() -> ArrayMesh:
 	var grass_mat := StandardMaterial3D.new()
 	grass_mat.albedo_color = Color(0.2, 0.4, 0.12)  # Jungle grass green
 	grass_mat.roughness = 0.9
-	grass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	grass_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)

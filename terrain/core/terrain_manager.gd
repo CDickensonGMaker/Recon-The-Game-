@@ -6,45 +6,37 @@ class_name TerrainManager
 const HeightmapStorageClass := preload("res://terrain/core/heightmap_storage.gd")
 const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
 const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
-const RiverMeshClass := preload("res://terrain/water/river_mesh.gd")
 
 signal terrain_ready
 signal chunk_loaded(coord: Vector2i, is_playable: bool)
 signal chunk_unloaded(coord: Vector2i)
 signal generation_progress(stage: String, percent: float)
 
-# Map configuration
 @export var map_size: float = 3000.0  # Playable map size in meters
 @export var chunk_size: float = 256.0  # Chunk size in meters
 @export var cell_size: float = 2.0    # Height sample resolution
-@export var height_scale: float = 280.0  # Max terrain height
+const WORLD_HEIGHT_MAX: float = 350.0  # Shader/world height cap.
+@export var height_scale: float = 280.0  # Max terrain height (legacy; see WORLD_HEIGHT_MAX)
 
-# Streaming configuration
 @export var load_distance: int = 3     # Chunks to load around camera
 @export var unload_distance: int = 5   # Chunks to unload beyond this
 
-# River configuration
 @export var rivers_enabled: bool = true
 @export var river_count: int = 6  # Number of rivers to generate
 
-# Terrain data
 var heightmap: RefCounted  # HeightmapStorage
 var chunks: Dictionary = {}  # Vector2i -> TerrainChunk
 var loading_chunks: Array[Vector2i] = []
 
-# State
 var is_ready: bool = false
 var chunks_per_side: int  # Chunks per side
 var chunk_cells: int
 
-# Reference
 var camera: Camera3D
 var terrain_generator: Node  # TerrainEngine autoload
 var vegetation_manager: Node  # VegetationManager - set externally for rice paddy coloring
 
-# Rivers
 var river_paths: Array = []
-var river_meshes: Array = []
 var near_water_mask: PackedByteArray  # for rice paddy clustering near rivers
 
 # Deferred rebuild queue for async operations
@@ -53,7 +45,6 @@ const REBUILD_BUDGET_MS := 8.0  # Max rebuild time per frame
 
 
 func _ready() -> void:
-	# Calculate grid dimensions
 	chunks_per_side = int(ceil(map_size / chunk_size))
 	chunk_cells = int(chunk_size / cell_size) + 1  # +1 for edge overlap
 
@@ -61,10 +52,8 @@ func _ready() -> void:
 		map_size, chunks_per_side, chunks_per_side
 	])
 
-	# Get terrain generator
 	terrain_generator = get_node_or_null("/root/TerrainEngine")
 
-	# Create heightmap storage
 	heightmap = HeightmapStorageClass.new(map_size, cell_size)
 
 
@@ -72,10 +61,8 @@ func _process(delta: float) -> void:
 	if not is_ready:
 		return
 
-	# Process deferred chunk rebuilds (prevents frame spikes)
 	_process_rebuild_queue()
 
-	# Stream chunks around camera
 	if camera:
 		_stream_chunks_around_camera()
 
@@ -87,7 +74,6 @@ func _process_rebuild_queue() -> void:
 
 	var start_time := Time.get_ticks_msec()
 	while not _rebuild_queue.is_empty():
-		# Check time budget
 		if Time.get_ticks_msec() - start_time > REBUILD_BUDGET_MS:
 			break  # Continue next frame
 
@@ -101,7 +87,6 @@ func queue_chunk_rebuild(coord: Vector2i) -> void:
 		_rebuild_queue.append(coord)
 
 
-## Immediately rebuild a single chunk
 func _rebuild_chunk_immediate(coord: Vector2i) -> void:
 	if not chunks.has(coord):
 		return
@@ -129,24 +114,32 @@ func generate_terrain(seed_value: int = -1) -> void:
 	await get_tree().process_frame
 
 	if terrain_generator:
-		# Configure generator for large map
 		terrain_generator.terrain_size = heightmap.size
 		terrain_generator.cell_size = cell_size
-		terrain_generator.height_scale = height_scale
 
-		# Generate heightmap
+		# AO archetype: derive preset from mission seed. Deterministic by construction —
+		# the same seed always produces the same AO. (RECONgame-xo7i, RECONgame-5r4y)
+		var preset: int = _derive_ao_preset(seed_value)
+		var preset_scale: float = _preset_height_scale(preset)
+		terrain_generator.set_preset(preset)
+		terrain_generator.height_scale = WORLD_HEIGHT_MAX
+		terrain_generator.target_relief = preset_scale / WORLD_HEIGHT_MAX
+
 		generation_progress.emit("Generating heightmap", 0.1)
 		await get_tree().process_frame
 		terrain_generator.generate(seed_value)
 
-		# Copy data to storage
 		heightmap.data = terrain_generator.heightmap_data.duplicate()
-		heightmap.height_scale = height_scale
+		# Mesh and shader both use the same world-space cap; the actual occupied
+		# relief is the fraction `target_relief` stored in the heightmap data.
+		heightmap.height_scale = WORLD_HEIGHT_MAX
+
+		# Ensure the terrain shader uses the same world-space scale as the mesh.
+		TerrainChunkClass.set_shader_parameters({"height_scale": WORLD_HEIGHT_MAX})
 
 		generation_progress.emit("Heightmap complete", 0.5)
 		await get_tree().process_frame
 	else:
-		# Fallback: generate simple noise terrain
 		_generate_fallback_terrain()
 
 	heightmap.print_stats()
@@ -159,16 +152,9 @@ func generate_terrain(seed_value: int = -1) -> void:
 		_build_water_proximity_mask()
 		await get_tree().process_frame
 
-	# Load initial chunks (async with frame yields)
 	generation_progress.emit("Loading chunks", 0.6)
 	await get_tree().process_frame
 	await _load_initial_chunks_async()
-
-	# Build river water surface meshes
-	if rivers_enabled:
-		generation_progress.emit("Building water", 0.9)
-		await get_tree().process_frame
-		_build_river_meshes()
 
 	is_ready = true
 	generation_progress.emit("Complete", 1.0)
@@ -218,7 +204,6 @@ func _load_initial_chunks_async() -> void:
 				_load_chunk(coord)
 				loaded += 1
 
-				# Yield every N chunks to update loading screen
 				if loaded % chunks_per_frame == 0:
 					var progress: float = 0.6 + (float(loaded) / float(total_chunks)) * 0.3
 					generation_progress.emit("Loading chunks %d/%d" % [loaded, total_chunks], progress)
@@ -227,46 +212,37 @@ func _load_initial_chunks_async() -> void:
 	print("[TerrainManager] Loaded %d chunks" % loaded)
 
 
-## Stream chunks based on camera position
 func _stream_chunks_around_camera() -> void:
 	var camera_chunk := _world_to_chunk(camera.global_position)
 
-	# Load nearby chunks
 	_load_chunks_around(camera_chunk, load_distance)
 
-	# Unload distant chunks
 	_unload_distant_chunks(camera_chunk, unload_distance)
 
 
-## Load all chunks within radius of center
 func _load_chunks_around(center: Vector2i, radius: int) -> void:
 	for dz in range(-radius, radius + 1):
 		for dx in range(-radius, radius + 1):
 			var coord := center + Vector2i(dx, dz)
 
-			# Skip if out of bounds
 			if coord.x < 0 or coord.x >= chunks_per_side:
 				continue
 			if coord.y < 0 or coord.y >= chunks_per_side:
 				continue
 
-			# Skip if already loaded or loading
 			if chunks.has(coord) or coord in loading_chunks:
 				continue
 
 			_load_chunk(coord)
 
 
-## Load a single chunk
 func _load_chunk(coord: Vector2i) -> void:
 	loading_chunks.append(coord)
 
-	# Extract heightmap region for this chunk
 	var start_x: int = coord.x * int(chunk_size / cell_size)
 	var start_z: int = coord.y * int(chunk_size / cell_size)
 	var region: PackedFloat32Array = heightmap.extract_region(start_x, start_z, chunk_cells)
 
-	# Create chunk
 	var chunk := TerrainChunkClass.new(coord, chunk_size, cell_size)
 	chunk.name = "Chunk_%d_%d" % [coord.x, coord.y]
 	add_child(chunk)
@@ -280,32 +256,26 @@ func _load_chunk(coord: Vector2i) -> void:
 			veg_bytes = vegetation_manager._chunk_terrain[coord]
 			bundles_per_chunk = vegetation_manager._bundles_per_chunk
 
-	# Build mesh with vegetation bytes for rice paddy coloring
-	chunk.build_mesh(region, height_scale, veg_bytes, bundles_per_chunk)
+	chunk.build_mesh(region, heightmap.height_scale, veg_bytes, bundles_per_chunk)
 
-	# Create collision for raycasting
 	chunk.create_raycast_collision()
 
 	# (Navigation is NOT baked per chunk. A 256m chunk at the nav map's 0.25 cell
 	#  size is a 1024x1024 Recast heightfield, x25, over jungle nobody paths
 	#  through - and chunks do not know where the structures are. See NavBaker.)
 
-	# Register
 	chunks[coord] = chunk
 	loading_chunks.erase(coord)
 
-	# Emit with playable flag
 	var is_playable: bool = is_playable_chunk(coord)
 	chunk_loaded.emit(coord, is_playable)
 
 
-## Unload chunks beyond distance from center
 ## Uses Chebyshev distance (max of dx, dy) to match the square loading pattern
 func _unload_distant_chunks(center: Vector2i, max_distance: int) -> void:
 	var to_unload: Array[Vector2i] = []
 
 	for coord in chunks:
-		# Use Chebyshev distance (max of absolute differences) to match square load pattern
 		var dist := maxi(absi(coord.x - center.x), absi(coord.y - center.y))
 		if dist > max_distance:
 			to_unload.append(coord)
@@ -314,7 +284,6 @@ func _unload_distant_chunks(center: Vector2i, max_distance: int) -> void:
 		_unload_chunk(coord)
 
 
-## Unload a single chunk
 func _unload_chunk(coord: Vector2i) -> void:
 	if not chunks.has(coord):
 		return
@@ -331,7 +300,6 @@ func _unload_chunk(coord: Vector2i) -> void:
 	chunk_unloaded.emit(coord)
 
 
-## Convert world position to chunk coordinates
 func _world_to_chunk(world_pos: Vector3) -> Vector2i:
 	return Vector2i(
 		int(floor(world_pos.x / chunk_size)),
@@ -345,19 +313,16 @@ func get_height_at(world_pos: Vector3) -> float:
 	return heightmap.sample_world(world_pos.x, world_pos.z)
 
 
-## Get terrain normal at world position
 func get_normal_at(world_pos: Vector3) -> Vector3:
 	return heightmap.get_normal_world(world_pos.x, world_pos.z)
 
 
-## Modify terrain in a region (for damage/clearing)
 func modify_terrain(center: Vector3, radius_meters: float, modifier: Callable) -> void:
 	var cell_center: Vector2i = heightmap.world_to_cell(center.x, center.z)
 	var cell_radius: int = int(ceil(radius_meters / cell_size))
 
 	var affected: Rect2i = heightmap.modify_region(cell_center, cell_radius, modifier)
 
-	# Rebuild affected chunks
 	_rebuild_chunks_in_region(affected)
 
 
@@ -385,7 +350,6 @@ func _rebuild_chunks_in_region(cell_region: Rect2i) -> void:
 				_rebuild_chunk_immediate(coord)
 
 
-## Set camera for streaming
 func set_camera(cam: Camera3D) -> void:
 	camera = cam
 
@@ -395,12 +359,52 @@ func is_playable_chunk(coord: Vector2i) -> bool:
 	return coord.x >= 0 and coord.x < chunks_per_side and coord.y >= 0 and coord.y < chunks_per_side
 
 
-## Get playable world bounds (for camera clamping)
+# AO archetype mapping. The 40/60 split:
+#   40% INHABITED — COASTAL_HILLS, RIVER_VALLEY (paddy country, low relief, witnessable)
+#   60% EMPTY     — ROLLING_HILLS, STEEP_MOUNTAINS (jungle highlands, triple canopy)
+# PLATEAU is a rare roll (1-in-5 of the empty 60% branch).
+# Deterministic: same seed -> same preset, always. (RECONgame-5r4y)
+const AO_INHABITED := [0, 1]  # COASTAL_HILLS, RIVER_VALLEY
+const AO_EMPTY := [2, 3, 4]   # ROLLING_HILLS, STEEP_MOUNTAINS, PLATEAU
+
+
+func _derive_ao_preset(seed_value: int) -> int:
+	if seed_value < 0:
+		seed_value = 0
+	var roll: int = seed_value % 100
+	if roll < 40:
+		# 0-39 = inhabited, 50/50 split between COASTAL_HILLS and RIVER_VALLEY
+		return AO_INHABITED[seed_value % 2]
+	# 40-99 = empty; 80% ROLLING_HILLS / STEEP_MOUNTAINS, 20% PLATEAU
+	var sub: int = seed_value % 5
+	if sub == 4:
+		return 4  # PLATEAU
+	return 2 + (seed_value % 2)  # ROLLING_HILLS or STEEP_MOUNTAINS
+
+
+static func _preset_height_scale(preset: int) -> float:
+	## Per-preset target peak-to-valley relief in meters.
+	## Tied directly to the relief budgets in tests/test_terrain_relief_bounds.gd.
+	## (RECONgame-p7wx)
+	match preset:
+		0:  # COASTAL_HILLS — flat coastal plain, paddies
+			return 25.0
+		1:  # RIVER_VALLEY — low center, gentle ridges
+			return 40.0
+		2:  # ROLLING_HILLS — gentle highlands
+			return 90.0
+		3:  # STEEP_MOUNTAINS — dramatic peaks
+			return 300.0
+		4:  # PLATEAU — flat top, cliff edges
+			return 160.0
+		_:
+			return 90.0
+
+
 func get_playable_bounds() -> Rect2:
 	return Rect2(Vector2.ZERO, Vector2(map_size, map_size))
 
 
-## Get all loaded chunk coordinates
 func get_loaded_chunks() -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	for coord in chunks:
@@ -408,7 +412,6 @@ func get_loaded_chunks() -> Array[Vector2i]:
 	return result
 
 
-## Get total loaded chunk count
 func get_loaded_chunk_count() -> int:
 	return chunks.size()
 
@@ -418,7 +421,6 @@ func get_chunk(coord: Vector2i) -> Node3D:  # TerrainChunk
 	return chunks.get(coord)
 
 
-## Force load all chunks (for small maps or loading screens)
 func load_all_chunks() -> void:
 	for z in range(chunks_per_side):
 		for x in range(chunks_per_side):
@@ -433,13 +435,7 @@ func load_all_chunks() -> void:
 # RIVER SYSTEM
 # ============================================================================
 
-## Extract rivers from heightmap and carve riverbeds
 func _extract_and_carve_rivers() -> void:
-	# Free prior river meshes
-	for rm in river_meshes:
-		if is_instance_valid(rm):
-			rm.queue_free()
-	river_meshes.clear()
 	river_paths.clear()
 
 	var gen := RiverGeneratorClass.new()
@@ -454,7 +450,6 @@ func _extract_and_carve_rivers() -> void:
 	for path in river_paths:
 		_smooth_river_path(path)
 
-	# Carve riverbeds into heightmap
 	for path in river_paths:
 		_carve_riverbed(path)
 
@@ -499,19 +494,6 @@ func _carve_riverbed(path) -> void:
 				var current: float = heightmap.get_cell(nx, nz)
 				var depth_normalized: float = (carve_depth_meters * falloff) / height_scale
 				heightmap.set_cell(nx, nz, maxf(0.0, current - depth_normalized))
-
-
-## Build river water surface meshes after terrain chunks are loaded
-func _build_river_meshes() -> void:
-	for path in river_paths:
-		if path.size() < 2:
-			continue
-		var rm = RiverMeshClass.new()
-		rm.name = "River_%d" % river_meshes.size()
-		add_child(rm)
-		rm.build_from_path(path.points, path.widths, heightmap)
-		river_meshes.append(rm)
-	print("[TerrainManager] Built %d river meshes" % river_meshes.size())
 
 
 ## Build proximity mask for rice paddy clustering near rivers
