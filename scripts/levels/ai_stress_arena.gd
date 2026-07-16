@@ -20,9 +20,22 @@ class TerrainManagerStub extends Node:
 		pass
 
 
-const ARENA: float = 120.0
+const ARENA: float = 200.0
 const WALL_H: float = 4.0
 const LAB_GRENADES: int = 25
+
+## Ruined-building / rubble GLBs shipped by bead sra5. Village and central contact
+## zone draw from these for hard urban cover instead of gray primitive boxes.
+const RUIN_DIR: String = "res://assets/building models/structures/ruins/"
+const VILLAGE_RUINS: Array[String] = [
+	"ruinset_street_row", "ruinset_compound", "ruinset_courtyard",
+	"ruin_house_shell", "ruin_house_half", "destroyed_bunker",
+	"wall_u_ruin", "cham_temple_ruin",
+]
+const CONTACT_RUBBLE: Array[String] = [
+	"wall_remnant", "wall_corner_tall", "rubble_heap_tall",
+	"rubble_pile_medium", "brick_pile", "bomb_crater", "rubble_field_wide",
+]
 
 ## Squad structure for the arena. Names are MOS strings that map through
 ## SquadSystem helpers to weapons and bodies.
@@ -45,19 +58,28 @@ const VC_PATHS: Array[String] = [
 	"res://data/enemies/vc_rifleman.tres",
 ]
 
-## Force configuration. Defaults give an 18v18 start with reserves for a 3-5m fight.
+## Force configuration. Defaults give a 3x6 = 18-per-side start (a reinforced
+## Vietnam patrol, both sides kept even for a fair stress test). Tunable in the
+## inspector; keep men_per_squad * squads_active in the 16-18 band per side.
 @export var us_squads_active: int = 3
 @export var vc_squads_active: int = 3
 @export var men_per_squad: int = 6
+## Reinforcement WAVES held in reserve per side. Each wave lands 16 + 1d10 men
+## (see _wave_size); reserves gate how many such waves can still arrive.
 @export var us_reserve_squads: int = 2
 @export var vc_reserve_squads: int = 2
 @export var round_max_seconds: float = 300.0  ## 5 minute hard cap
 @export var spawn_player: bool = true
 @export var spawn_hud: bool = true
 ## If true, every agent is seeded with a nearest-enemy target and pushed into COMBAT
-## on spawn. Used by headless probes and quick sanity checks; the normal scene lets
-## forces move-to-contact for an emergent start.
+## on spawn. Used by headless probes and quick sanity checks. Overrides patrol_mode.
 @export var hot_start: bool = false
+## THE headline scenario. When true (and not hot_start), both sides START in
+## PATROL/IDLE at opposite ends of the map and must DEVELOP contact: US advance in
+## MOVE_TO toward the centre, VC walk patrol routes toward it, and both transition
+## patrol -> alert -> combat naturally through perception (US via contact_conf,
+## VC via the arena spotting feed into the awareness accumulator + return fire).
+@export var patrol_mode: bool = true
 
 ## --- TUNING LEVERS (arena-local, do not leak into campaign) ---
 ## AI health scaling. Controls how long AI-vs-AI fights last.
@@ -84,9 +106,21 @@ const MIRROR_WEAPON: String = "res://data/weapons/mosin.tres"
 const MIRROR_HP: int = 80
 const MIRROR_ACC: float = 0.7
 
+## Central contact objective both sides move toward in patrol_mode.
+const CONTACT_POINT: Vector3 = Vector3(0.0, 1.0, 0.0)
+## Patrol-mode spotting feed (arena-local). Core enemy perception exempts allies
+## as candidates until COMBAT (the buddy-rule that guards player stealth), so in an
+## AI-vs-AI patrol the VC would never awareness-ramp on the US. This feeds a visible
+## US contact into the EXISTING awareness accumulator so the ramp is real and the
+## VC promote themselves to COMBAT through their own state machine at awareness>=1.
+const SPOT_RANGE: float = 72.0
+const SPOT_GAIN: float = 0.85  ## per second of sustained LOS; beats AWARENESS_DECAY (0.25)
+const SPOT_CONE_DOT: float = -0.17  ## cos(~100deg): generous frontal arc, sentry scan fills the rest
+
 var player: CharacterBody3D = null
 var _rng := RandomNumberGenerator.new()
 var _nav_region: NavigationRegion3D = null
+var _patrol_active: bool = false  ## resolved in _ready: patrol_mode and not hot_start
 
 ## Live agents, grouped by squad index.
 var _us_squads: Array[Array] = []   # Array[Array[AllyBase]]
@@ -125,6 +159,7 @@ var _dbg_im: ImmediateMesh = null
 
 func _ready() -> void:
 	_rng.seed = rng_seed
+	_patrol_active = patrol_mode and not hot_start
 	GibSystem.gib_lifetime_s = 25.0
 	# The arena is the tuning lab for the one firefight-length dial (C2).
 	GameSettings.ai_vs_ai_cone_mult = ai_vs_ai_cone_mult
@@ -154,7 +189,8 @@ func _ready() -> void:
 	_build_debug_vis()
 	_wire_telemetry()
 
-	print("[AI STRESS ARENA] ready - %d US squads + %d reserves vs %d VC squads + %d reserves" % [
+	print("[AI STRESS ARENA] ready - mode=%s | %d US squads + %d wave(s) vs %d VC squads + %d wave(s)" % [
+		"PATROL" if _patrol_active else ("HOT" if hot_start else "MOVE-TO-CONTACT"),
 		us_squads_active, us_reserve_squads, vc_squads_active, vc_reserve_squads])
 
 
@@ -163,6 +199,8 @@ func _process(delta: float) -> void:
 		return
 	_sim_time += delta
 
+	if _patrol_active:
+		_update_patrol_contact(delta)
 	_update_reinforcements(delta)
 	_update_telemetry(delta)
 	_update_debug_vis()
@@ -235,8 +273,8 @@ func _build_walls() -> void:
 
 
 func _build_firebase() -> void:
-	# SW corner perimeter: sandbag wall segments.
-	var origin := Vector3(-45.0, 0.0, 45.0)
+	# SW perimeter (US home end): sandbag wall segments.
+	var origin := Vector3(-62.0, 0.0, 62.0)
 	var segments: Array[Vector3] = [
 		Vector3(-30, 0, 0), Vector3(-15, 0, 0), Vector3(0, 0, 0), Vector3(15, 0, 0),
 		Vector3(0, 0, -15), Vector3(0, 0, -30),
@@ -251,19 +289,29 @@ func _build_firebase() -> void:
 	_fighting_hole(origin + Vector3(10, 0, -20))
 
 	# A simple resupply/landing zone platform.
-	_platform(origin + Vector3(-5, 0, -45), Vector3(12, 0.2, 8))
+	_platform(origin + Vector3(-5, 0, -33), Vector3(12, 0.2, 8))
 
 
 func _build_village() -> void:
-	var origin := Vector3(35.0, 0.0, -35.0)
-	# 4 simple buildings.
-	for i in range(4):
-		var x := float(i % 2) * 18.0
-		var z := float(i / 2) * 18.0
-		var pos := origin + Vector3(x, 0.0, z)
+	# VC home end: a ruined hamlet built from the shipped ruins GLBs (bead sra5),
+	# with a couple of intact blockhouses for hard corners.
+	var origin := Vector3(55.0, 0.0, -55.0)
+	for i in range(2):
+		var x := float(i) * 20.0
+		var pos := origin + Vector3(x, 0.0, 18.0)
 		_building(pos, Vector3(_rng.randf_range(5.0, 8.0), 3.2, _rng.randf_range(5.0, 8.0)))
 
-	# Paths and sandbag positions around the village.
+	# Ruined buildings scattered across the hamlet footprint.
+	var ruin_spots: Array[Vector3] = [
+		Vector3(-14, 0, -6), Vector3(6, 0, -12), Vector3(24, 0, -2),
+		Vector3(-6, 0, 6), Vector3(16, 0, 10), Vector3(30, 0, 20),
+		Vector3(2, 0, 24), Vector3(-18, 0, 16),
+	]
+	for i in range(ruin_spots.size()):
+		var model: String = VILLAGE_RUINS[i % VILLAGE_RUINS.size()]
+		_place_ruin(model, origin + ruin_spots[i], _rng.randf_range(0.0, TAU), _rng.randf_range(1.1, 1.7))
+
+	# Paths and sandbag positions around the hamlet.
 	for offset in [Vector3(-10, 0, -10), Vector3(25, 0, -10), Vector3(-10, 0, 25), Vector3(25, 0, 25)]:
 		_sandbag_wall(Vector3(3.0, 1.0, 0.8), origin + offset + Vector3(0, 0.5, 0))
 
@@ -272,46 +320,58 @@ func _build_central_ridge() -> void:
 	# A low winding berm across the middle of the arena. It is partial cover:
 	# crouched men hide, standing men can see/shoot over it. Gaps force flanking
 	# and prove the navigation/LOS systems can route around obstacles.
-	var ridge_z: float = 0.0
 	var segments: Array[Dictionary] = [
-		{"x0": -55.0, "x1": -14.0, "z": 0.0},
+		{"x0": -88.0, "x1": -14.0, "z": 0.0},
 		{"x0":  -4.0, "x1":   4.0, "z": 0.0},
-		{"x0":  14.0, "x1":  55.0, "z": 0.0},
+		{"x0":  14.0, "x1":  88.0, "z": 0.0},
 	]
 	for seg in segments:
 		var length: float = float(seg["x1"]) - float(seg["x0"])
 		var mid: float = (float(seg["x0"]) + float(seg["x1"])) * 0.5
 		# Meander the Z so it is not a straight shooting gallery.
-		var z_off: float = _rng.randf_range(-2.0, 2.0)
+		var z_off: float = _rng.randf_range(-3.0, 3.0)
 		_berm_segment(Vector3(mid, 0.0, float(seg["z"]) + z_off), Vector3(length, 1.3, 3.5))
 
-	# Two short cross-berms to create corner cover and break up diagonal fire lanes.
-	_berm_segment(Vector3(-20.0, 0.0, -12.0), Vector3(10.0, 1.0, 2.5), 0.4)
-	_berm_segment(Vector3(20.0, 0.0, 12.0), Vector3(10.0, 1.0, 2.5), -0.4)
+	# Cross-berms create corner cover and break up diagonal fire lanes.
+	_berm_segment(Vector3(-32.0, 0.0, -18.0), Vector3(12.0, 1.0, 2.5), 0.4)
+	_berm_segment(Vector3(32.0, 0.0, 18.0), Vector3(12.0, 1.0, 2.5), -0.4)
+	_berm_segment(Vector3(-24.0, 0.0, 24.0), Vector3(10.0, 1.0, 2.5), -0.3)
+	_berm_segment(Vector3(24.0, 0.0, -24.0), Vector3(10.0, 1.0, 2.5), 0.3)
 
 
 func _build_tree_lines() -> void:
 	# North and south tree lines with gaps. They provide concealment and force
 	# fire teams to use the cleared flanks or push through intermittent cover.
 	for side in [-1, 1]:
-		var z_base: float = float(side) * 50.0
-		for i in range(7):
-			var x: float = -45.0 + float(i) * 15.0
-			if i == 3:
+		var z_base: float = float(side) * 84.0
+		for i in range(9):
+			var x: float = -88.0 + float(i) * 22.0
+			if i == 4:
 				continue  # deliberate lane through the tree line
-			_tree_clump(Vector3(x + _rng.randf_range(-3.0, 3.0), 0.0, z_base + _rng.randf_range(-5.0, 5.0)))
+			_tree_clump(Vector3(x + _rng.randf_range(-4.0, 4.0), 0.0, z_base + _rng.randf_range(-6.0, 6.0)))
 
 	# Elephant-grass strips along the flanks for hiding/low movement.
-	_elephant_grass_strip(Rect2(-55, -52, 110, 6))
-	_elephant_grass_strip(Rect2(-55, 46, 110, 6))
+	_elephant_grass_strip(Rect2(-92, -88, 184, 8))
+	_elephant_grass_strip(Rect2(-92, 80, 184, 8))
 
 
 func _build_wrecked_cover() -> void:
-	# Central contact zone: broken walls and fallen logs that create short-range
-	# fire-and-maneuver positions without turning the fight into a flat shootout.
-	for offset in [Vector3(-8, 0, -8), Vector3(8, 0, 8), Vector3(-8, 0, 8), Vector3(8, 0, -8)]:
-		_fallen_log(offset + Vector3(_rng.randf_range(-2.0, 2.0), 0.0, _rng.randf_range(-2.0, 2.0)), _rng.randf_range(0.0, TAU))
-		_wrecked_wall(offset + Vector3(_rng.randf_range(-3.0, 3.0), 0.0, _rng.randf_range(-3.0, 3.0)), _rng.randf_range(0.0, TAU))
+	# Central contact zone: broken walls, rubble and fallen logs that create
+	# short-range fire-and-maneuver positions without a flat shootout.
+	for offset in [Vector3(-14, 0, -14), Vector3(14, 0, 14), Vector3(-14, 0, 14), Vector3(14, 0, -14)]:
+		_fallen_log(offset + Vector3(_rng.randf_range(-3.0, 3.0), 0.0, _rng.randf_range(-3.0, 3.0)), _rng.randf_range(0.0, TAU))
+		_wrecked_wall(offset + Vector3(_rng.randf_range(-4.0, 4.0), 0.0, _rng.randf_range(-4.0, 4.0)), _rng.randf_range(0.0, TAU))
+
+	# Rubble and wall remnants (bead sra5) give the centre urban hard cover to
+	# fight through. Kept off the exact centre line so the ridge gap stays a lane.
+	var rubble_spots: Array[Vector3] = [
+		Vector3(-20, 0, 8), Vector3(18, 0, -10), Vector3(-10, 0, -22),
+		Vector3(22, 0, 20), Vector3(-26, 0, -6), Vector3(8, 0, 26),
+		Vector3(-8, 0, 20), Vector3(26, 0, -20),
+	]
+	for i in range(rubble_spots.size()):
+		var model: String = CONTACT_RUBBLE[i % CONTACT_RUBBLE.size()]
+		_place_ruin(model, rubble_spots[i], _rng.randf_range(0.0, TAU), _rng.randf_range(1.0, 1.5))
 
 	# Bamboo clusters around the ridge gaps for close-concealment approaches.
 	for pos in [Vector3(-10, 0, 0), Vector3(10, 0, 0)]:
@@ -321,13 +381,13 @@ func _build_wrecked_cover() -> void:
 func _build_cover_clusters() -> void:
 	# Scatter rocks and small sandbags along the flanks and firebase/village
 	# approaches. Keep the central ridge and contact zone clear for wrecked cover.
-	for i in range(18):
-		var pos := Vector3(_rng.randf_range(-55.0, 55.0), 0.0, _rng.randf_range(-55.0, 55.0))
-		if absf(pos.x) < 12.0 and absf(pos.z) < 12.0:
+	for i in range(34):
+		var pos := Vector3(_rng.randf_range(-92.0, 92.0), 0.0, _rng.randf_range(-92.0, 92.0))
+		if absf(pos.x) < 34.0 and absf(pos.z) < 34.0:
 			continue  # leave the central ridge/contact zone to wrecked cover
-		if pos.distance_to(Vector3(-45.0, 0.0, 45.0)) < 12.0:
+		if pos.distance_to(Vector3(-62.0, 0.0, 62.0)) < 16.0:
 			continue  # firebase LZ
-		if pos.distance_to(Vector3(35.0, 0.0, -35.0)) < 14.0:
+		if pos.distance_to(Vector3(55.0, 0.0, -55.0)) < 20.0:
 			continue  # village
 		var h: float = _rng.randf_range(0.6, 1.6)
 		var w: float = _rng.randf_range(1.2, 3.0)
@@ -531,12 +591,12 @@ func _plant_vegetation() -> void:
 		var mesh: Mesh = GroundClutter.load_glb_mesh(rice_dir + patch + ".glb")
 		if mesh == null:
 			continue
-		for rect in [Rect2(-55, -55, 25, 25), Rect2(30, 30, 25, 25)]:
-			_varray_multimesh(mesh, rect, 40, Color(0.55, 0.65, 0.35))
+		for rect in [Rect2(-92, -92, 34, 34), Rect2(58, 58, 34, 34)]:
+			_varray_multimesh(mesh, rect, 55, Color(0.55, 0.65, 0.35))
 
 	# Palm clusters at firebase and village edges.
 	var palm_variants: Array[String] = ["jungle_palm_a1", "jungle_palm_a2", "jungle_palm_a3"]
-	for base in [Vector3(-45, 0, 45), Vector3(35, 0, -35)]:
+	for base in [Vector3(-62, 0, 62), Vector3(55, 0, -55)]:
 		for i in range(6):
 			var variant: String = palm_variants[i % palm_variants.size()]
 			if not ResourceLoader.exists("res://assets/world/vegetation/" + variant + ".glb"):
@@ -589,6 +649,63 @@ func _add_trunk_collider(palm: Node3D) -> void:
 	palm.add_child(body)
 
 
+## Instance a ruins GLB (bead sra5) and wrap it in a footprint box collider so it
+## is hard cover, blocks LOS, and bakes into the navmesh. Interiors read as solid
+## (footprint collision only) - fine for a stress lab; walkable interiors are future work.
+func _place_ruin(model: String, pos: Vector3, yaw: float, scale_mult: float) -> void:
+	var path: String = RUIN_DIR + model + ".glb"
+	if not ResourceLoader.exists(path):
+		return
+	var packed: PackedScene = load(path)
+	if packed == null:
+		return
+	var ruin := packed.instantiate() as Node3D
+	if ruin == null:
+		return
+	add_child(ruin)
+	ruin.global_position = pos
+	ruin.rotation.y = yaw
+	ruin.scale = Vector3.ONE * scale_mult
+	_add_aabb_collider(ruin)
+
+
+## Compute the visual AABB across a node's MeshInstance3D descendants and add a
+## StaticBody3D box collider matching that footprint, tagged for nav baking.
+func _add_aabb_collider(root: Node3D) -> void:
+	var aabb := AABB()
+	var found: bool = false
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var mi := n as MeshInstance3D
+		if mi != null and mi.mesh != null:
+			var local: AABB = mi.get_aabb()
+			# Transform the mesh AABB into root space so a multi-part ruin sums up.
+			var xform: Transform3D = root.global_transform.affine_inverse() * mi.global_transform
+			var world_box: AABB = xform * local
+			if not found:
+				aabb = world_box
+				found = true
+			else:
+				aabb = aabb.merge(world_box)
+		for c in n.get_children():
+			stack.append(c)
+	if not found or aabb.size.length() < 0.1:
+		return
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.add_to_group("nav_source")
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	# Shrink the footprint slightly so agents can hug the wall without clipping.
+	box.size = Vector3(maxf(0.3, aabb.size.x - 0.2), maxf(0.3, aabb.size.y), maxf(0.3, aabb.size.z - 0.2))
+	cs.shape = box
+	cs.position = aabb.position + aabb.size * 0.5
+	body.add_child(cs)
+	root.add_child(body)
+
+
 func _bake_navmesh() -> void:
 	var region := NavigationRegion3D.new()
 	_nav_region = region
@@ -636,33 +753,46 @@ func _spawn_initial_forces() -> void:
 	_us_reinforce_cd = 0.0
 	_vc_reinforce_cd = 0.0
 
-	# US squads around firebase, mostly holding or moving to forward positions.
-	var us_bases: Array[Vector3] = [
-		Vector3(-40, 1.0, 40), Vector3(-25, 1.0, 25), Vector3(-40, 1.0, 20),
-	]
+	# hot_start is an immediate-combat sanity mode: spawn near the centre so contact
+	# is instant. Patrol / move-to-contact use opposite ends with a wide no-contact gap.
+	var us_bases: Array[Vector3]
+	var vc_bases: Array[Vector3]
+	if hot_start:
+		us_bases = [Vector3(-40, 1.0, 40), Vector3(-25, 1.0, 25), Vector3(-40, 1.0, 20)]
+		vc_bases = [Vector3(35, 1.0, -35), Vector3(45, 1.0, -25), Vector3(25, 1.0, -45)]
+	else:
+		us_bases = [Vector3(-70, 1.0, 70), Vector3(-55, 1.0, 80), Vector3(-80, 1.0, 55)]
+		vc_bases = [Vector3(70, 1.0, -70), Vector3(80, 1.0, -55), Vector3(55, 1.0, -80)]
+
 	for i in range(us_squads_active):
 		var center: Vector3 = us_bases[i % us_bases.size()] + Vector3(_rng.randf_range(-4, 4), 0, _rng.randf_range(-4, 4))
-		var order := AllyBase.OrderMode.HOLD if i == 0 else AllyBase.OrderMode.MOVE_TO
-		var order_pos := center if order == AllyBase.OrderMode.HOLD else Vector3(-20.0 + float(i) * 8.0, 1.0, 10.0)
-		_spawn_us_squad(center, order, order_pos)
+		# Patrol: everyone advances toward the centre so contact must develop.
+		# Non-patrol: squad 0 holds the firebase, the rest push a forward line.
+		var order: AllyBase.OrderMode
+		var order_pos: Vector3
+		if _patrol_active:
+			order = AllyBase.OrderMode.MOVE_TO
+			order_pos = CONTACT_POINT + Vector3(_rng.randf_range(-14, 14), 0, _rng.randf_range(-14, 14))
+		elif i == 0:
+			order = AllyBase.OrderMode.HOLD
+			order_pos = center
+		else:
+			order = AllyBase.OrderMode.MOVE_TO
+			order_pos = Vector3(-20.0 + float(i) * 8.0, 1.0, 10.0)
+		_spawn_us_squad(center, order, order_pos, men_per_squad)
 
-	# VC squads at village / north tree line, facing the firebase.
-	var vc_bases: Array[Vector3] = [
-		Vector3(35, 1.0, -35), Vector3(45, 1.0, -25), Vector3(25, 1.0, -45),
-	]
 	for i in range(vc_squads_active):
 		var center: Vector3 = vc_bases[i % vc_bases.size()] + Vector3(_rng.randf_range(-5, 5), 0, _rng.randf_range(-5, 5))
-		_spawn_vc_squad(center, i)
+		_spawn_vc_squad(center, i, men_per_squad, _patrol_active)
 
 
-func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vector3) -> void:
+func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vector3, count: int) -> void:
 	var squad: Array[AllyBase] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.seed + _us_squads.size() * 97
-	for i in range(men_per_squad):
+	for i in range(count):
 		var mos: String = US_SQUAD_MOS[i % US_SQUAD_MOS.size()]
-		var offset := Vector3(cos(float(i) * TAU / 6.0) * 3.0, 0.0, sin(float(i) * TAU / 6.0) * 3.0)
-		var pos := center + offset
+		var pos := center + _ring_offset(i)
 		var ally := AllyBase.spawn_ally(self, pos)
 		if ally == null:
 			continue
@@ -675,24 +805,45 @@ func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vect
 	_us_squads.append(squad)
 
 
-func _spawn_vc_squad(center: Vector3, squad_idx: int) -> void:
+## Concentric rings of 8 so a wave of up to 26 men spreads out instead of stacking.
+func _ring_offset(i: int) -> Vector3:
+	var ring: int = i / 8
+	var slot: int = i % 8
+	var r: float = 3.0 + float(ring) * 3.0
+	var ang: float = float(slot) * TAU / 8.0 + float(ring) * 0.4
+	return Vector3(cos(ang) * r, 0.0, sin(ang) * r)
+
+
+func _spawn_vc_squad(center: Vector3, squad_idx: int, count: int, patrol: bool) -> void:
 	var squad: Array[EnemyBase] = []
 	var squad_id: int = 1000 + squad_idx
-	for i in range(men_per_squad):
+	# One patrol route per squad, from the spawn toward the central contact zone.
+	var route: Array[Vector3] = []
+	if patrol:
+		var mid: Vector3 = center * 0.5
+		var near_centre: Vector3 = CONTACT_POINT + Vector3(_rng.randf_range(-12, 12), 0, _rng.randf_range(-12, 12))
+		route = [center, mid, near_centre]
+	for i in range(count):
 		var dp: String = VC_PATHS[i % VC_PATHS.size()]
-		var offset := Vector3(cos(float(i) * TAU / 6.0) * 4.0, 0.0, sin(float(i) * TAU / 6.0) * 4.0)
-		var pos := center + offset
+		var pos := center + _ring_offset(i)
 		var enemy := EnemyBase.spawn_enemy(self, pos, dp)
 		if enemy == null:
 			continue
 		enemy.squad_id = squad_id
-		enemy.alert_tier = EnemyBase.AlertTier.ALERT  # they know a fight is coming
-		# Seed VC with a last-known point in the central contact zone so they move
-		# toward the US advance even when no player is present.
-		enemy.last_known_target_pos = Vector3(-10.0 + float(squad_idx % maxi(1, us_squads_active)) * 8.0, 0.0, 5.0)
-		enemy.target_last_seen_time = 0.0
-		# Rough facing toward firebase.
-		enemy.rotation.y = atan2(35.0 - pos.z, -35.0 - pos.x)
+		if patrol:
+			# PATROL start: relaxed, walking the route toward contact. They ramp to
+			# COMBAT through perception (arena spotting feed) or incoming fire.
+			enemy.alert_tier = EnemyBase.AlertTier.RELAXED
+			enemy.patrol_route = route.duplicate()
+			enemy.patrol_file_slot = i
+		else:
+			enemy.alert_tier = EnemyBase.AlertTier.ALERT  # they know a fight is coming
+			# Seed a last-known point in the central contact zone so they move toward
+			# the US advance even when no player is present.
+			enemy.last_known_target_pos = CONTACT_POINT + Vector3(_rng.randf_range(-10, 10), 0, _rng.randf_range(-10, 10))
+			enemy.target_last_seen_time = 0.0
+		# Rough facing toward the firebase (US home end).
+		enemy.rotation.y = atan2(-62.0 - pos.x, 62.0 - pos.z)
 		# Bind the agent to the arena's baked nav map explicitly. Without this,
 		# runtime-spawned agents sometimes fail to resolve a map until a frame later.
 		var nav_agent := enemy.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
@@ -724,9 +875,11 @@ func _hot_start_combat() -> void:
 				continue
 			var nearest := _nearest_us(e.global_position)
 			if nearest != null:
-				e.alert_tier = EnemyBase.AlertTier.COMBAT
+				e.target = nearest
 				e.last_known_target_pos = nearest.global_position
+				e.target_last_seen_time = 0.0
 				e._set_tier(EnemyBase.AlertTier.COMBAT, false)
+				e._change_state(Enums.AIState.COMBAT)
 
 
 func _finish_agent_setup() -> void:
@@ -811,6 +964,13 @@ func _nearest_us(from: Vector3) -> Node3D:
 	return best
 
 
+## A reinforcement wave: 16 + 1d10 men (17-26). Drawn from the arena-local stream,
+## never the shared combat-spread stream. Both sides draw independently, matched in
+## expectation. This is the per-wave force, replacing the old fixed reserve-squad size.
+func _wave_size() -> int:
+	return 16 + (_rng.randi() % 10) + 1
+
+
 func _update_reinforcements(delta: float) -> void:
 	var spawned: bool = false
 	var interval_min: float = REINFORCE_INTERVAL_MIN / maxf(0.1, reserve_rate_multiplier)
@@ -820,23 +980,84 @@ func _update_reinforcements(delta: float) -> void:
 		if _us_reinforce_cd <= 0.0 and _living_us() < us_squads_active * men_per_squad * 0.5:
 			_us_reserves_left -= 1
 			_us_reinforce_cd = _rng.randf_range(interval_min, interval_max)
-			var center := Vector3(-45.0 + _rng.randf_range(-6, 6), 1.0, 45.0 + _rng.randf_range(-6, 6))
-			_spawn_us_squad(center, AllyBase.OrderMode.MOVE_TO, Vector3(0.0, 1.0, 0.0))
+			var n: int = debug_spawn_wave(true)
 			spawned = true
-			print("[AI STRESS ARENA] US reinforcements arrived (%d reserves left)" % _us_reserves_left)
+			print("[AI STRESS ARENA] US reinforcement wave: %d men (%d wave(s) left)" % [n, _us_reserves_left])
 
 	if _vc_reserves_left > 0:
 		_vc_reinforce_cd -= delta
 		if _vc_reinforce_cd <= 0.0 and _living_vc() < vc_squads_active * men_per_squad * 0.5:
 			_vc_reserves_left -= 1
 			_vc_reinforce_cd = _rng.randf_range(interval_min, interval_max)
-			var center := Vector3(45.0 + _rng.randf_range(-6, 6), 1.0, -45.0 + _rng.randf_range(-6, 6))
-			_spawn_vc_squad(center, 2000 + _vc_squads.size())
+			var n: int = debug_spawn_wave(false)
 			spawned = true
-			print("[AI STRESS ARENA] VC reinforcements arrived (%d reserves left)" % _vc_reserves_left)
+			print("[AI STRESS ARENA] VC reinforcement wave: %d men (%d wave(s) left)" % [n, _vc_reserves_left])
 
 	if spawned:
 		call_deferred("_finish_agent_setup")
+
+
+## Spawn one reinforcement wave for a side and return the man count. Reinforcements
+## arrive ALERT and move to contact (the fight is already on). Also the probe seam
+## for verifying wave size independent of the attrition trigger.
+func debug_spawn_wave(is_us: bool) -> int:
+	var n: int = _wave_size()
+	if is_us:
+		var center := Vector3(-70.0 + _rng.randf_range(-6, 6), 1.0, 70.0 + _rng.randf_range(-6, 6))
+		_spawn_us_squad(center, AllyBase.OrderMode.MOVE_TO, CONTACT_POINT, n)
+	else:
+		var center := Vector3(70.0 + _rng.randf_range(-6, 6), 1.0, -70.0 + _rng.randf_range(-6, 6))
+		_spawn_vc_squad(center, 2000 + _vc_squads.size(), n, false)
+	call_deferred("_finish_agent_setup")
+	return n
+
+
+## Patrol-mode only. Core enemy perception (enemy_base._update_perception) exempts
+## allies as candidates until COMBAT so a friendly AI never breaks player stealth;
+## in an AI-vs-AI patrol that means VC would never notice US. This feeds a visible,
+## in-arc US contact into the enemy's OWN awareness accumulator, so the VC ramp
+## through SUSPICIOUS and promote themselves to COMBAT via their own state machine.
+func _update_patrol_contact(delta: float) -> void:
+	for squad in _vc_squads:
+		for e in squad:
+			if not is_instance_valid(e) or e.is_dead():
+				continue
+			if e.alert_tier == EnemyBase.AlertTier.COMBAT:
+				continue
+			var seen: Node3D = _spotted_us_for(e)
+			if seen != null:
+				e.awareness = minf(1.0, e.awareness + SPOT_GAIN * delta)
+				e.last_known_target_pos = seen.global_position
+				e.target_last_seen_time = 0.0
+
+
+## Nearest living US ally this enemy can actually see: within SPOT_RANGE, inside a
+## generous frontal arc (or point-blank), and with a clear line of sight.
+func _spotted_us_for(e: EnemyBase) -> Node3D:
+	var eye: Vector3 = e.global_position + Vector3.UP * 1.5
+	var facing: Vector3 = Vector3(e.facing_dir.x, 0.0, e.facing_dir.z)
+	if facing.length() < 0.01:
+		facing = Vector3.FORWARD
+	facing = facing.normalized()
+	var best: Node3D = null
+	var best_d: float = SPOT_RANGE
+	for squad in _us_squads:
+		for a in squad:
+			if not is_instance_valid(a) or a.is_dead():
+				continue
+			var to: Vector3 = a.global_position - e.global_position
+			var d: float = to.length()
+			if d > best_d:
+				continue
+			var flat: Vector3 = Vector3(to.x, 0.0, to.z)
+			var in_arc: bool = d < 10.0 or (flat.length() > 0.01 and facing.dot(flat.normalized()) > SPOT_CONE_DOT)
+			if not in_arc:
+				continue
+			if not CombatManager.has_line_of_sight(eye, a.global_position + Vector3.UP * 1.0, [e]):
+				continue
+			best_d = d
+			best = a as Node3D
+	return best
 
 
 func _living_us() -> int:
