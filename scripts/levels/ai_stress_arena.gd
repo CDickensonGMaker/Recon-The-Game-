@@ -20,6 +20,27 @@ class TerrainManagerStub extends Node:
 		pass
 
 
+## A GameplayGrid whose origin sits at the arena CENTRE. The base grid maps world x=0
+## to cell 0 and clamps negatives, but the arena spans -ARENA/2..+ARENA/2, so every
+## negative coordinate would collapse onto cell 0. Shifting the sample by world_size*0.5
+## puts the whole span on the grid. Vegetation density is stamped directly (this grid is
+## authored by _stamp_veg_*, never by build_from_terrain), so grid_to_world is overridden
+## to match for any future reader.
+class ArenaGrid extends GameplayGrid:
+	func world_to_grid(world_pos: Vector3) -> Vector2i:
+		var off: float = world_size * 0.5
+		return Vector2i(
+			clampi(int((world_pos.x + off) / cell_size_meters), 0, grid_size - 1),
+			clampi(int((world_pos.z + off) / cell_size_meters), 0, grid_size - 1))
+
+	func grid_to_world(grid_pos: Vector2i) -> Vector3:
+		var off: float = world_size * 0.5
+		return Vector3(
+			(grid_pos.x + 0.5) * cell_size_meters - off,
+			0.0,
+			(grid_pos.y + 0.5) * cell_size_meters - off)
+
+
 const ARENA: float = 200.0
 const WALL_H: float = 4.0
 const LAB_GRENADES: int = 25
@@ -117,6 +138,21 @@ const SPOT_RANGE: float = 72.0
 const SPOT_GAIN: float = 0.85  ## per second of sustained LOS; beats AWARENESS_DECAY (0.25)
 const SPOT_CONE_DOT: float = -0.17  ## cos(~100deg): generous frontal arc, sentry scan fills the rest
 
+## Vegetation/sight grid, read by enemy_base._sight_cap() and player.gd via the
+## "game_world" group. Density is stamped where foliage is planted (see _stamp_veg_*),
+## so wherever the eye sees jungle the AI's sight cap is genuinely reduced.
+var gameplay_grid: GameplayGrid = null
+
+## Grid resolution: ARENA(200m) / 64 cells = 3.125m cells. Fine enough that a clump
+## stamps several cells; coarse enough to stay cheap.
+const GRID_CELLS: int = 64
+## Concealment values. enemy_base's concealment-cover fallback uses a STRICT veg > 0.6
+## test, so anything meant to conceal must exceed 0.6 (0.65), never sit at it.
+const VEG_HEAVY: float = 0.95    ## tree-line canopy -> sight cap ~50m (near SIGHT_CAP_JUNGLE)
+const VEG_CONCEAL: float = 0.65  ## grass/bamboo: conceals a man, clears the >0.6 fallback
+const VEG_PALM: float = 0.5      ## scattered palms: mild sight reduction, no hard concealment
+const VEG_RICE: float = 0.2      ## paddy: token cover only
+
 var player: CharacterBody3D = null
 var _rng := RandomNumberGenerator.new()
 var _nav_region: NavigationRegion3D = null
@@ -163,6 +199,11 @@ func _ready() -> void:
 	GibSystem.gib_lifetime_s = 25.0
 	# The arena is the tuning lab for the one firefight-length dial (C2).
 	GameSettings.ai_vs_ai_cone_mult = ai_vs_ai_cone_mult
+
+	# enemy_base/player resolve the sight grid from this group; build it before any
+	# environment (the veg planters stamp into it) and before any agent spawns.
+	add_to_group("game_world")
+	_build_gameplay_grid()
 
 	# Plug a terrain stub into the autoload so grenades don't spam warnings.
 	var terrain_stub := TerrainManagerStub.new()
@@ -219,6 +260,52 @@ func _build_environment() -> void:
 	_build_wrecked_cover()
 	_build_cover_clusters()
 	_plant_vegetation()
+
+
+## ---------- GAMEPLAY GRID (vegetation / sight) ----------
+
+func _build_gameplay_grid() -> void:
+	gameplay_grid = ArenaGrid.new(ARENA, GRID_CELLS)
+	# Open ground everywhere (base grid fills 0.5); veg is stamped on top by the planters.
+	# 0.0 -> the AI's sight cap is the full SIGHT_CAP_OPEN (140m) outside foliage.
+	gameplay_grid.vegetation_density.fill(0.0)
+
+
+## Raise density to `value` in a world-space disc, taking the MAXIMUM so overlapping
+## foliage never lowers an already-dense cell.
+func _stamp_veg_circle(center: Vector3, radius: float, value: float) -> void:
+	if gameplay_grid == null:
+		return
+	var cell: float = gameplay_grid.cell_size_meters
+	var gc: Vector2i = gameplay_grid.world_to_grid(center)
+	var r_cells: int = int(ceil(radius / cell))
+	for dz in range(-r_cells, r_cells + 1):
+		for dx in range(-r_cells, r_cells + 1):
+			if Vector2(float(dx) * cell, float(dz) * cell).length() > radius:
+				continue
+			var gx: int = gc.x + dx
+			var gz: int = gc.y + dz
+			if gx < 0 or gz < 0 or gx >= gameplay_grid.grid_size or gz >= gameplay_grid.grid_size:
+				continue
+			var idx: int = gz * gameplay_grid.grid_size + gx
+			if value > gameplay_grid.vegetation_density[idx]:
+				gameplay_grid.vegetation_density[idx] = value
+
+
+## Raise density to `value` across a world-space XZ rectangle (max-blend).
+func _stamp_veg_rect(rect: Rect2, value: float) -> void:
+	if gameplay_grid == null:
+		return
+	var lo: Vector2i = gameplay_grid.world_to_grid(Vector3(rect.position.x, 0.0, rect.position.y))
+	var hi: Vector2i = gameplay_grid.world_to_grid(
+		Vector3(rect.position.x + rect.size.x, 0.0, rect.position.y + rect.size.y))
+	for gz in range(mini(lo.y, hi.y), maxi(lo.y, hi.y) + 1):
+		for gx in range(mini(lo.x, hi.x), maxi(lo.x, hi.x) + 1):
+			if gx < 0 or gz < 0 or gx >= gameplay_grid.grid_size or gz >= gameplay_grid.grid_size:
+				continue
+			var idx: int = gz * gameplay_grid.grid_size + gx
+			if value > gameplay_grid.vegetation_density[idx]:
+				gameplay_grid.vegetation_density[idx] = value
 
 
 func _build_floor() -> void:
@@ -451,6 +538,8 @@ func _tree_clump(pos: Vector3) -> void:
 	tree.rotation.y = _rng.randf_range(0.0, TAU)
 	tree.scale = Vector3.ONE * _rng.randf_range(0.85, 1.25)
 	_add_trunk_collider(tree)
+	# Canopy conceals: stamp heavy density so a man in this clump has a ~50m sight cap.
+	_stamp_veg_circle(pos, 9.0, VEG_HEAVY)
 
 
 func _fallen_log(pos: Vector3, rot: float) -> void:
@@ -503,6 +592,9 @@ func _bamboo_clump(pos: Vector3) -> void:
 		shoot.rotation.y = _rng.randf_range(0.0, TAU)
 		shoot.scale = Vector3.ONE * _rng.randf_range(0.9, 1.3)
 		_add_trunk_collider(shoot)
+	# Concealment for the whole thicket (incl. the ridge-gap clumps at +/-10,0 that sit
+	# right on the contact approaches, so the sight cap bites where units actually fight).
+	_stamp_veg_circle(pos, 5.0, VEG_CONCEAL)
 
 
 func _elephant_grass_strip(rect: Rect2) -> void:
@@ -510,6 +602,7 @@ func _elephant_grass_strip(rect: Rect2) -> void:
 	if mesh == null:
 		return
 	_varray_multimesh(mesh, rect, 80, Color(0.45, 0.55, 0.25))
+	_stamp_veg_rect(rect, VEG_CONCEAL)
 
 
 func _sandbag_wall(size: Vector3, pos: Vector3) -> void:
@@ -593,6 +686,7 @@ func _plant_vegetation() -> void:
 			continue
 		for rect in [Rect2(-92, -92, 34, 34), Rect2(58, 58, 34, 34)]:
 			_varray_multimesh(mesh, rect, 55, Color(0.55, 0.65, 0.35))
+			_stamp_veg_rect(rect, VEG_RICE)
 
 	# Palm clusters at firebase and village edges.
 	var palm_variants: Array[String] = ["jungle_palm_a1", "jungle_palm_a2", "jungle_palm_a3"]
@@ -609,6 +703,7 @@ func _plant_vegetation() -> void:
 			palm.global_position = base + Vector3(_rng.randf_range(-10, 10), 0, _rng.randf_range(-10, 10))
 			palm.rotation.y = _rng.randf_range(0.0, TAU)
 			_add_trunk_collider(palm)
+			_stamp_veg_circle(palm.global_position, 4.0, VEG_PALM)
 
 
 func _varray_multimesh(mesh: Mesh, rect: Rect2, count: int, tint: Color) -> void:
@@ -1207,14 +1302,20 @@ func _update_telemetry(delta: float) -> void:
 	_accum_suppression_time(delta, us_sup, vc_sup)
 	_count_retreats()
 
+	var cover_avg: float = _avg_cover_density()
+	var los: Vector2i = _los_counts()
+	var contacts: int = los.x + los.y
+	var blk_pct: float = 100.0 * float(los.y) / float(maxi(1, contacts))
+
 	if _hud != null:
-		_hud.text = "AI STRESS ARENA - %02d:%02d / %02d:%02d\nUS  alive: %d/%d | VC  alive: %d/%d\nUS  reserves: %d | VC reserves: %d\nUS  kills: %d | VC kills: %d\nUS  sup: %.2f | VC sup: %.2f\nUS  dist: %.1fm | VC dist: %.1fm\nUS  states: %s\nVC states: %s" % [
+		_hud.text = "AI STRESS ARENA - %02d:%02d / %02d:%02d\nUS  alive: %d/%d | VC  alive: %d/%d\nUS  reserves: %d | VC reserves: %d\nUS  kills: %d | VC kills: %d\nUS  sup: %.2f | VC sup: %.2f\nUS  dist: %.1fm | VC dist: %.1fm\nCOVER veg(avg): %.2f | LOS clear:%d blocked:%d (%.0f%% blk)\nUS  states: %s\nVC states: %s" % [
 			m, s, int(round_max_seconds) / 60, int(round_max_seconds) % 60,
 			us_alive, _total_us(), vc_alive, _total_vc(),
 			_us_reserves_left, _vc_reserves_left,
 			_us_kills, _vc_kills,
 			us_sup, vc_sup,
 			us_dist, vc_dist,
+			cover_avg, los.x, los.y, blk_pct,
 			str(us_states), str(vc_states)]
 
 	# 30-second stdout summary for evidence-based tuning.
@@ -1293,6 +1394,43 @@ func _avg_distance_to_target(us: bool) -> float:
 				total += agent.global_position.distance_to(t.global_position)
 				count += 1
 	return total / float(maxi(1, count))
+
+
+## Average vegetation density under living units (0 = open, 1 = deep jungle). Proves the
+## grid is live and shows how much foliage the fight is actually happening in.
+func _avg_cover_density() -> float:
+	if gameplay_grid == null:
+		return 0.0
+	var total: float = 0.0
+	var count: int = 0
+	for us in [true, false]:
+		for squad in (_us_squads if us else _vc_squads):
+			for agent in squad:
+				if not is_instance_valid(agent) or agent.is_dead():
+					continue
+				total += gameplay_grid.get_vegetation(agent.global_position)
+				count += 1
+	return total / float(maxi(1, count))
+
+
+## Among agents that currently have a living target, how many have a clear line of sight
+## vs. a blocked one. A rising blocked count is cover (terrain/trunks/sight-cap) working.
+func _los_counts() -> Vector2i:
+	var clear: int = 0
+	var blocked: int = 0
+	for us in [true, false]:
+		for squad in (_us_squads if us else _vc_squads):
+			for agent in squad:
+				if not is_instance_valid(agent) or agent.is_dead():
+					continue
+				var t: Node3D = agent.target
+				if t == null or not is_instance_valid(t) or t.is_dead():
+					continue
+				if agent.has_line_of_sight:
+					clear += 1
+				else:
+					blocked += 1
+	return Vector2i(clear, blocked)
 
 
 ## ---------- DEBUG VISUALIZATION ----------

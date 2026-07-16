@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cvegcov16arena0"]
+
+[ext_resource type="Script" path="res://tests/test_veg_cover.gd" id="1_vc"]
+
+[node name="TestVegCover" type="Node3D"]
+script = ExtResource("1_vc")
