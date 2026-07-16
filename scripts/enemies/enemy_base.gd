@@ -78,7 +78,6 @@ const CLOSE_SENSE_RANGE: float = 10.0  ## contacts inside this are felt regardle
 var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
 var aim_speed: float = 8.0  # Radians per second - varies by skill
-var aim_error: Vector3 = Vector3.ZERO
 
 @onready var nav_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D")
 var move_target: Vector3 = Vector3.ZERO
@@ -162,13 +161,6 @@ func _update_unstick(delta: float) -> void:
 			_unstick_dir = -_unstick_dir  # alternate sides so corners release
 		_stuck_pos = global_position
 		_stuck_t = 0.0
-
-## Fairness ramp: x3.0 spread at fresh exposure, converging to 1.0 at ramp end.
-const EXPOSURE_SPREAD_BONUS: float = 2.0
-
-func _exposure_spread_mult() -> float:
-	var t: float = clampf(target_visible_duration / maxf(d_exposure_ramp, 0.1), 0.0, 1.0)
-	return 1.0 + EXPOSURE_SPREAD_BONUS * (1.0 - t * t)
 
 var reaction_timer: float = 0.0
 var has_reacted: bool = false
@@ -1197,12 +1189,6 @@ func _update_aim(delta: float) -> void:
 	var aim_delta: float = aim_speed * delta
 	current_aim_dir = current_aim_dir.lerp(target_aim_dir, aim_delta).normalized()
 
-	var error_scale: float = (1.0 - char_accuracy) * 0.1
-	aim_error = aim_error.lerp(
-		Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * error_scale,
-		delta * 2.0
-	)
-
 	# Face the aim direction (Y axis only for body)
 	var flat_aim: Vector3 = current_aim_dir
 	flat_aim.y = 0
@@ -1786,28 +1772,16 @@ func _fire_at_target() -> void:
 	fire_timer = weapon_data.get_fire_delay()
 	shots_fired += 1
 
-	var final_aim: Vector3 = (current_aim_dir + aim_error).normalized()
-
-	var base_spread: float = weapon_data.base_spread * 1.3
-	var accumulated_spread: float = minf(float(shots_fired) * 0.08, 0.8)
-	var total_spread: float = base_spread * accuracy_modifier * (1.0 + accumulated_spread)
-	total_spread *= (2.0 - char_accuracy)
-	total_spread *= _exposure_spread_mult()  # DESIGN 4.2: accuracy ramps with exposure, alert != accuracy
-	total_spread *= GameSettings.enemy_spread_mult()
-	# Bounded cone: 1.2 deg = ~2m of scatter at 100m - dangerous, survivable, and it
-	# lets a firefight exist beyond the arena. A soldier is inaccurate, not blind.
-	total_spread = minf(total_spread, 1.2)
-	var spread: float = deg_to_rad(total_spread)
+	var moving: bool = Vector3(velocity.x, 0.0, velocity.z).length() > 0.5
+	var exposure_t: float = clampf(target_visible_duration / maxf(d_exposure_ramp, 0.1), 0.0, 1.0)
+	var pre_cap: float = AIMarksmanship.cone_spread_deg(
+		weapon_data.base_spread, char_accuracy, shots_fired, moving, accuracy_modifier)
 	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
+	var final_aim: Vector3 = AIMarksmanship.aim_with_spread(
+		current_aim_dir, pre_cap, _target_is_player(), exposure_t, not _first_shot_fired)
+	if not _first_shot_fired:
+		_first_shot_fired = true
 
-	# ANGULAR spread in the aim basis, center-weighted (never add raw RNG to a
-	# normalized vector's x/y/z: it skews to the diagonals and double-counts).
-	var e_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
-	var e_up: Vector3 = e_right.cross(final_aim).normalized()
-	var e_ang: float = randf() * TAU
-	var e_mag: float = minf(absf(randfn(0.0, 0.45)), 1.0) * spread
-	final_aim = (final_aim + e_right * tan(cos(e_ang) * e_mag) \
-		+ e_up * tan(sin(e_ang) * e_mag)).normalized()
 	# HOLD-OVER: a trained man elevates for the range, or he shoots low past ~100m.
 	if target != null and is_instance_valid(target):
 		var t_dist: float = global_position.distance_to((target as Node3D).global_position)
@@ -1819,16 +1793,8 @@ func _fire_at_target() -> void:
 			var ge: float = 9.8 * maxf(0.0, pd.gravity_scale)
 			var pv: float = maxf(1.0, pd.speed)
 			hold = (ge * t_dist) / (2.0 * pv * pv)
-		final_aim = (final_aim + e_up * tan(hold)).normalized()
-
-	# First shot at this target: forced near-miss (the warning crack).
-	if not _first_shot_fired:
-		_first_shot_fired = true
-		var miss := deg_to_rad(randf_range(5.0, 9.0))
-		var miss_dir := randf_range(0.0, TAU)
-		final_aim.x += cos(miss_dir) * miss
-		final_aim.y += absf(sin(miss_dir)) * miss * 0.5 + 0.02  # bias high/wide
-		final_aim = final_aim.normalized()
+		var hold_up: Vector3 = final_aim.cross(Vector3.UP).normalized().cross(final_aim).normalized()
+		final_aim = (final_aim + hold_up * tan(hold)).normalized()
 
 	# Raycast from the gun muzzle, not center mass.
 	var origin: Vector3 = get_muzzle_position(final_aim)
@@ -2309,6 +2275,14 @@ func is_dead() -> bool:
 	# Downed counts: he is out of the fight (targeting drops him, waves count
 	# him) even though the body is warm - mirrors the player's is_dead().
 	return current_state == Enums.AIState.DEAD or is_downed
+
+
+## Is the current target the human player? Gates the Fairness-Law fire profile (near-miss +
+## exposure ramp) and, by its negation, the AI-vs-AI firefight widen. Allies are never the player.
+func _target_is_player() -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	return target == GameManager.player or target.is_in_group("player")
 
 
 ## ============================================

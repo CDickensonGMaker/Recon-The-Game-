@@ -1,15 +1,6 @@
-## gore_lab.gd - COMBAT BENCH: squad-vs-squad on a covered range.
-##
-## Your 5-man squad (one pigman) vs a 7-man VC/NVA wave, on the combat-lab
-## cover field, with the full gore stack, HLL AI doctrine, and floating AI
-## state text + vision lines so you can SEE what every brain is doing.
-## Fresh enemy wave 8s after the last man drops; fallen allies replaced
-## between waves. Frags on [3], medkit [4] + hold [F].
-##
-## No custom keybinds (e6qc law: lab commands must not collide with gameplay
-## keys) - everything is shoot-driven and auto-respawning.
-##
-## Run: godot --path . res://scenes/levels/gore_lab.tscn
+## gore_lab.gd - COMBAT BENCH: player (+optional squad) vs auto-respawning
+## VC/NVA waves on a cover field, with AI state/vision debug overlays.
+## Lab keys must not collide with gameplay keys.
 class_name GoreLab
 extends Node3D
 
@@ -20,7 +11,6 @@ const LAB_GRENADES: int = 25
 const VC := "res://data/enemies/vc_rifleman.tres"
 const NVA := "res://data/enemies/nva_regular.tres"
 const SAPPER := "res://data/enemies/vc_sapper.tres"
-## 5 vs 7 (Caleb): four riflemen, two NVA regulars, one belt-fed sapper.
 const WAVE: Array[String] = [VC, VC, VC, VC, NVA, NVA, SAPPER]
 const WAVE_RESPAWN_S: float = 8.0
 
@@ -28,8 +18,7 @@ var player: CharacterBody3D = null
 var _hud: Label = null
 var _enemies: Array[Node] = []
 var _allies: Array[Node] = []
-## AI debug vis (Caleb): floating state text above every head + live vision
-## lines. Lab-only - reads AI fields, changes nothing.
+## AI debug vis: lab-only - reads AI fields, changes nothing.
 var _dbg_labels: Dictionary = {}   # instance_id -> Label3D
 var _dbg_mesh: MeshInstance3D = null
 var _dbg_im: ImmediateMesh = null
@@ -37,8 +26,7 @@ var _wave: int = 0
 var _wave_pending: bool = false
 var _rng := RandomNumberGenerator.new()
 
-## 0 = solo bench (Caleb 2026-07-11: "i dont want my squad" - reading combat
-## feel needs YOUR fights, not the squad's). Restore 5 for squad runs.
+## 0 = solo bench; set 5 for squad runs.
 const ALLY_COUNT: int = 0
 
 
@@ -80,8 +68,7 @@ func _build_range() -> void:
 	floor_body.add_child(cs)
 	add_child(floor_body)
 
-	# Perimeter walls - grenades bounce and roll; without these they leave the
-	# collision floor and fall into the void.
+	# Perimeter walls: without them grenades roll off the collision floor into the void.
 	var half: float = ARENA * 0.5
 	for w in [
 		[Vector3(0, WALL_H * 0.5, -half), Vector3(ARENA, WALL_H, 0.4)],
@@ -127,11 +114,8 @@ func _build_lighting() -> void:
 	add_child(env)
 
 
-## ---------- VEGETATION (jungle batch bench) ----------
-## Palms + swaying grass from tools/make_jungle_vegetation.py so the batch is
-## visible next playtest. Everything hugs the arena walls - the cover field
-## (+-19) and the wave spawn lanes stay clear.
-
+## Vegetation hugs the arena walls: the cover field (+-19) and the wave spawn
+## lanes must stay clear.
 const VEG_DIR := "res://assets/world/vegetation/"
 const PALM_VARIANTS: Array[String] = [
 	"jungle_palm_a1", "jungle_palm_a2", "jungle_palm_a3",
@@ -172,8 +156,7 @@ func _plant_vegetation() -> void:
 	print("[GORE LAB] vegetation planted: %d palms, %d grass fans (sway shader live)" % [planted, fans])
 
 
-## Swap the imported GLB materials for the shared vegetation_sway shader
-## (two materials total across every palm - the batch de-dup carried through).
+## Swap the imported GLB materials for the shared vegetation_sway shader.
 func _apply_sway(root: Node3D) -> void:
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():
@@ -254,11 +237,8 @@ func _plant_grass() -> int:
 	return total
 
 
-## Native pathfinding (Caleb: "use the godot tools" / "AI still getting stuck
-## on boxes"): bake a NavigationRegion3D over the arena's static colliders so
-## every enemy's NavigationAgent3D routes AROUND cover and walls instead of
-## face-planting into them. Runs after cover + vegetation so trunks and boxes
-## are carved out of the walkable surface.
+## Bake a NavigationRegion3D over the arena's static colliders. MUST run after
+## cover + vegetation so trunks and boxes are carved out of the walkable surface.
 func _bake_navmesh() -> void:
 	var region := NavigationRegion3D.new()
 	region.add_to_group("lab_navmesh")
@@ -281,13 +261,10 @@ func _spawn_player() -> void:
 	var scene: PackedScene = load("res://scenes/player/player.tscn")
 	player = scene.instantiate() as CharacterBody3D
 	add_child(player)
-	# spawn BEHIND the big hard block at (-9, 2) - 3m of cover between you and
-	# the enemy side; step out to engage
+	# behind the big hard block at (-9, 2): 3m of cover, step out to engage
 	player.global_position = Vector3(-9.0, 1.0, 4.5)
 	GameManager.player = player
 
-	# The REAL game HUD (same wiring as game_world.gd) - the lab must read
-	# exactly like the shipped game, not a mock.
 	var hud: HUD = load("res://scenes/ui/hud.tscn").instantiate() as HUD
 	add_child(hud)
 	var health_system: HealthSystem = player.get_node("HealthSystem")
@@ -296,20 +273,15 @@ func _spawn_player() -> void:
 	var grenade_handler: GrenadeHandler = player.get_node("Head/Camera3D/GrenadeHandler")
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
 
-	# Explosion-gib testing needs ordnance: top the player up well past field load.
 	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
 
-	# Shotgun on slot [2] for the pellet-cluster bench (Caleb is building the
-	# real model; kar98k viewmodel stands in until then).
 	var shotty: WeaponData = load("res://data/weapons/shotgun.tres")
 	if shotty != null:
 		weapon_holder.secondary_weapon = shotty
 		weapon_holder.secondary_ammo = [shotty.magazine_size, 8]
 
 
-## Cover at the combat lab's four deliberate heights (0.5 prone / 1.0 crouch /
-## 1.5 standing chest / 2.5 full LOS block) so the AI has real geometry to use
-## and you have maneuvering room.
+## Cover heights: 0.5 prone / 1.0 crouch / 1.5 standing chest / 2.5 full LOS block.
 var _cover_spots: Array[Vector3] = []
 
 
@@ -327,8 +299,7 @@ func _build_cover() -> void:
 		var pos := Vector3(_rng.randf_range(-19.0, 19.0), hgt * 0.5, _rng.randf_range(-19.0, 19.0))
 		if Vector2(pos.x, pos.z).length() < 4.0:
 			continue  # keep the middle open
-		# Min spacing (Caleb: units getting stuck) - overlapping rotated boxes
-		# made wedge pockets that pin capsules.
+		# Min spacing: overlapping rotated boxes make wedge pockets that pin capsules.
 		var crowded: bool = false
 		for existing in _cover_spots:
 			if Vector2(pos.x - existing.x, pos.z - existing.z).length() < 3.5:
@@ -368,9 +339,8 @@ func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
 	return body
 
 
-## Your fireteam (Caleb: "with more allies on my side this combat will feel
-## more rounded out"). Fights with no SquadSystem: targeting rides
-## CombatManager.active_enemies; FOLLOW rides GameManager.player. One pigman.
+## Allies fight with no SquadSystem: targeting rides CombatManager.active_enemies,
+## FOLLOW rides GameManager.player.
 func _spawn_allies() -> void:
 	for i in range(ALLY_COUNT):
 		if _alive_allies() >= ALLY_COUNT:
@@ -382,7 +352,7 @@ func _spawn_allies() -> void:
 			continue
 		a.set_order(AllyBase.OrderMode.FOLLOW)
 		if i == 0:
-			a.fire_rate_mult = 1.6  # the pig's rate; v2 grunt model like the rest (Caleb)
+			a.fire_rate_mult = 1.6  # the pig's rate
 		_allies.append(a)
 
 
@@ -394,18 +364,12 @@ func _alive_allies() -> int:
 	return n
 
 
-## Live enemy fireteam at the far end - the combat-feel overlay. A fresh wave
-## walks in after the last man drops.
 func _spawn_wave() -> void:
 	_wave += 1
 	_wave_pending = false
-	# Wave 1 spawns RELAXED (the sneaking bench). REINFORCEMENT waves arrive
-	# ALERT with a rough fix on the battle - men walking INTO a known firefight
-	# don't stroll in daydreaming (Caleb: wave 2 got deleted at spawn while its
-	# perception ladder was still waking up). Entries staggered so seven men
-	# don't materialize as one volley target.
-	# Arrivals spawn COVER-ADJACENT (decree: no more materializing in the wide
-	# open) - within ~3m of a cover piece on the north half.
+	# Wave 1 spawns RELAXED (the sneaking bench); reinforcement waves arrive ALERT
+	# with a rough fix on the battle. Entries staggered, and cover-adjacent (~3m of
+	# a cover piece on the north half) so nobody materializes in the wide open.
 	var north_cover: Array[Vector3] = []
 	for c in _cover_spots:
 		if c.z < -4.0:
@@ -463,8 +427,6 @@ func _build_hud() -> void:
 	layer.add_child(_hud)
 
 
-## ---------- AI DEBUG VIS ----------
-
 const TIER_COLORS: Array[Color] = [
 	Color(0.5, 0.9, 0.5),   # RELAXED - green
 	Color(0.95, 0.9, 0.4),  # SUSPICIOUS - yellow
@@ -490,8 +452,7 @@ func _build_debug_vis() -> void:
 	add_child(zm)
 
 
-## H toggles live hitzone wireframes on every agent (bead yd83). The lab's
-## no-gameplay-keys rule holds: H collides with nothing bound in-game.
+## H toggles hitzone wireframes (must not collide with a bound gameplay key).
 var _zone_im: ImmediateMesh = null
 var _zones_visible: bool = false
 
@@ -562,10 +523,11 @@ func _update_debug_vis() -> void:
 		var tier: int = clampi(int(e.alert_tier), 0, 3)
 		var state_name: String = Enums.AIState.keys()[int(e.current_state)]
 		var goal_name: String = Enums.AIGoal.keys()[int(e.current_goal)]
-		lbl.text = "%s | %s\n%s  tgt:%s%s\ncov:%s sup:%.1f exp:x%.1f" % [
+		var exp_t: float = clampf(e.target_visible_duration / maxf(e.d_exposure_ramp, 0.1), 0.0, 1.0)
+		lbl.text = "%s | %s\n%s  tgt:%s%s\ncov:%s sup:%.1f exp:%.2f" % [
 			EnemyBase.AlertTier.keys()[tier], state_name, goal_name,
 			_name_of(e.target), " (LOS)" if e.has_line_of_sight else "",
-			"Y" if e.has_cover else "n", e.suppression_level, e._exposure_spread_mult()]
+			"Y" if e.has_cover else "n", e.suppression_level, exp_t]
 		lbl.modulate = TIER_COLORS[tier]
 		if e.target != null and is_instance_valid(e.target):
 			var from: Vector3 = e.global_position + Vector3.UP * 1.5
@@ -607,7 +569,6 @@ func _update_debug_vis() -> void:
 func _process(_delta: float) -> void:
 	_update_debug_vis()
 	_update_zone_vis()
-	# wave respawn: last man down -> fresh fireteam after a breather
 	if not _wave_pending and _alive_enemies() == 0 and not _enemies.is_empty():
 		_wave_pending = true
 		var t: SceneTreeTimer = get_tree().create_timer(WAVE_RESPAWN_S)

@@ -740,27 +740,17 @@ func _fire_at_target() -> void:
 
 	var final_aim: Vector3 = current_aim_dir
 
-	# Spread: this soldier's OWN Small Arms skill tightens the cone (same formula
-	# the player uses in weapon_holder).
-	var spread: float = deg_to_rad(weapon_data.base_spread * 1.2 + float(shots_fired) * 0.05)
+	# Shared AI spread model (Fossil Law: one cone path for both sides). Small Arms skill folds
+	# into ONE accuracy scalar so a mirror match against the enemy path trends 1:1.
 	var sa: int = SquadRoster.skill_level(member, "small_arms") if not member.is_empty() else 0
-	spread *= 1.0 / (1.0 + 0.06 * float(sa))
-	# Personality skill: x1.6 spread at skill 0 -> x0.8 at skill 1.
-	spread *= (1.6 - skill * 0.8)
-	# Fire-and-move is allowed, but it costs accuracy.
-	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.5:
-		spread *= 1.5
-	# Bounded, center-weighted, angular - and hold over for the range (mirrors the
-	# enemy ballistics: 1.2 deg cap, so men can reach past the arena).
-	spread = minf(spread, deg_to_rad(1.2))
-	var a_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
-	var a_up: Vector3 = a_right.cross(final_aim).normalized()
-	var a_ang: float = randf() * TAU
-	var a_mag: float = minf(absf(randfn(0.0, 0.45)), 1.0) * spread
-	final_aim = (final_aim + a_right * tan(cos(a_ang) * a_mag) \
-		+ a_up * tan(sin(a_ang) * a_mag)).normalized()
+	var acc01: float = clampf(skill + 0.04 * float(sa), 0.0, 1.0)
+	var moving: bool = Vector3(velocity.x, 0.0, velocity.z).length() > 0.5
+	var pre_cap: float = AIMarksmanship.cone_spread_deg(
+		weapon_data.base_spread, acc01, shots_fired, moving, 1.0)
+	final_aim = AIMarksmanship.aim_with_spread(final_aim, pre_cap, _target_is_player(), 1.0, false)
 	if target != null and is_instance_valid(target) and target is Node3D:
 		var td: float = global_position.distance_to((target as Node3D).global_position)
+		var a_up: Vector3 = final_aim.cross(Vector3.UP).normalized().cross(final_aim).normalized()
 		final_aim = (final_aim + a_up * tan(weapon_data.elevation_for(td))).normalized()
 
 	# Raycast from the gun muzzle. FULL-REALISM FF: the ray sees the player (2)
@@ -799,6 +789,15 @@ func _fire_at_target() -> void:
 	# zones inside it and the hit lands flat 1.0x.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
 		1 | 32 | 64, [self], show_tracer)
+
+
+## Is the current target the human player? Allies engage the enemy, never the player, so this is
+## effectively always false - but the shared fire model requires the flag, and honesty beats a
+## hardcoded false if a future friendly-fire path ever aims one at the player.
+func _target_is_player() -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	return target == GameManager.player or target.is_in_group("player")
 
 
 ## GORE_WORKFLOW ledger + explosive-kill flag (same doctrine as every model).

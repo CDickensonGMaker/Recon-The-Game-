@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8m1r2r0match1"]
+
+[ext_resource type="Script" path="res://tests/test_mirror_match.gd" id="1_mm"]
+
+[node name="TestMirrorMatch" type="Node3D"]
+script = ExtResource("1_mm")

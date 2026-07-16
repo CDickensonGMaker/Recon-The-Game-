@@ -1,4 +1,4 @@
-## game_settings.gd - Persisted user settings (W82/W83): sensitivity, volume,
+## game_settings.gd - persisted user settings: sensitivity, volume,
 ## difficulty, HARDCORE mode.
 extends Node
 
@@ -11,6 +11,11 @@ var ambience_volume_db: float = 0.0
 var music_volume_db: float = -3.0
 var difficulty: int = 1  ## 0 EASY / 1 NORMAL / 2 HARD
 var hardcore: bool = false  ## no compass, no markers, faster bleed
+
+## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
+## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
+## fire. It only ever scales the non-player cone cap - AI-vs-player lethality is untouched.
+var ai_vs_ai_cone_mult: float = 1.0
 
 const DIFFICULTY_NAMES: Array[String] = ["EASY", "NORMAL", "HARD"]
 
