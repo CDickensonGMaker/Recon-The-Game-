@@ -1,6 +1,9 @@
 ## world_config.gd - Single tuning point for AO generation + performance.
-## NS04 perf-gate fallback ladder: if FPS < 30 sustained ->
-##   1) VEGETATION_DENSITY_MULT 0.6   2) MAP_SIZE 1024 + BILLBOARD_DISTANCE_MULT 0.7
+## PERF QUALITY LADDER: VEGETATION_DENSITY_MULT scales billboard/grass/tree candidate
+## counts; BILLBOARD_DISTANCE_MULT scales billboard draw range. Manual quality dial for
+## now (edit + reboot). Weak-GPU rung: VEGETATION_DENSITY_MULT 0.6, then MAP_SIZE 1024 +
+## BILLBOARD_DISTANCE_MULT 0.7. NOTE: primitive/draw-call count is NOT the jungle's
+## bottleneck (measured — bead t5mo); render scale + renderer are the real FPS levers.
 class_name WorldConfig
 extends RefCounted
 
@@ -23,8 +26,7 @@ const LOG_FPS: bool = true
 const FPS_LOG_INTERVAL: float = 2.0
 
 
-## NS04 perf-gate fallback ladder, rung 0. If FPS craters on the Intel UHD, set
-## this false: NavBaker is never constructed, no NavigationRegion3D exists, and
-## _move_toward() short-circuits to the byte-for-byte pre-existing direct steer.
+## Perf escape hatch, rung 0: set false and NavBaker is never constructed, no
+## NavigationRegion3D exists, and _move_toward() falls back to direct steer.
 const NAV_ENABLED: bool = true
 const NAV_SITE_KINDS: Array[String] = ["village", "firebase", "aa_site", "outpost", "temple", "pow_camp"]

@@ -2,10 +2,9 @@ extends Node3D
 class_name BillboardVegetation
 ## Billboard vegetation system for mid-distance tree rendering
 ## Uses 5 intersecting quads (cross/star formation) for 3D depth illusion
-## Provides LOD between full 3D trees and distant fog
 
-const BILLBOARD_RANGE_MIN := 60.0   # FPS fork: was 80 (3D trees own the near field)
-const BILLBOARD_RANGE_MAX := 500.0  # FPS fork: was 800 (fog covers the rest)
+const BILLBOARD_RANGE_MIN := 80.0  # Patches own 0-80m (3D trees take over earlier; PNGs only as long-range fallback)
+const BILLBOARD_RANGE_MAX := 350.0  # Beyond this, fog (density 0.004) already hides >75% of the card
 const BILLBOARDS_PER_CHUNK := 3000  # FPS fork: reduced from RTS 6000
 
 # Per-tier acceptance rates for billboards (0=CLEAR to 5=HEAVY_JUNGLE)
@@ -22,7 +21,6 @@ const TIER_ACCEPT := {
 var _tree_meshes: Array[ArrayMesh] = []
 var _bush_mesh: ArrayMesh
 
-# Loaded textures
 var _tree_textures: Array[Texture2D] = []
 var _bamboo_textures: Array[Texture2D] = []
 var _bush_textures: Array[Texture2D] = []
@@ -31,7 +29,6 @@ var _rice_textures: Array[Texture2D] = []
 # Rice billboard meshes (separate from trees for paddy-only placement)
 var _rice_meshes: Array[ArrayMesh] = []
 
-# Billboard materials
 var _tree_materials: Array[StandardMaterial3D] = []
 var _bush_material: StandardMaterial3D
 
@@ -42,28 +39,33 @@ var _chunk_billboards: Dictionary = {}  # Vector2i -> Node3D (container)
 # coord -> Array of placement dicts {position, rot_y, scale, mesh_idx, bundle_x, bundle_z}
 var _chunk_placements: Dictionary = {}
 
-# Reference to terrain system
+## Mission seed — set externally. Wired into the density noise so the billboard
+## density field varies by mission. (RECONgame-cp3s, RECONgame-5r4y)
+var mission_seed: int = 0
 var _terrain_manager: Node
 var _vegetation_manager: Node
 var _camera: Camera3D
 
-# Chunk size
 var _chunk_size: float = 256.0
 
 # Density noise for organic clumping
 var _density_noise: FastNoiseLite
 
-# Update accumulator
 var _lod_accumulator: float = 0.0
 const LOD_UPDATE_INTERVAL := 0.1  # 10Hz
 
+## Perf-attribution toggle (perf_probe.gd): force every chunk hidden so the frame
+## cost of this system can be measured by difference.
+var render_disabled: bool = false
+
 
 func _ready() -> void:
-	# Initialize density noise for organic clumping
 	_density_noise = FastNoiseLite.new()
 	_density_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 	_density_noise.frequency = 0.005
-	_density_noise.seed = 12345
+	# Density seed follows mission seed so two boots with the same mission produce
+	# the same density field across all billboards. (RECONgame-cp3s)
+	_density_noise.seed = mission_seed if mission_seed != 0 else 12345
 
 	_load_billboard_textures()
 	_create_billboard_meshes()
@@ -81,7 +83,6 @@ func _process(delta: float) -> void:
 	_update_billboard_visibility()
 
 
-## Set references
 func set_terrain_manager(manager: Node) -> void:
 	_terrain_manager = manager
 
@@ -98,9 +99,7 @@ func set_chunk_size(size: float) -> void:
 	_chunk_size = size
 
 
-## Load billboard textures from assets
 func _load_billboard_textures() -> void:
-	# Tree billboards (5-6 = Caleb's willow/jungle canopy set, PT5)
 	for i in range(1, 7):
 		var path := "res://terrain/textures/billboards/tree%d_billboard.png" % i
 		if ResourceLoader.exists(path):
@@ -114,7 +113,6 @@ func _load_billboard_textures() -> void:
 			_bamboo_textures.append(load(path))
 			print("[BillboardVegetation] Loaded: %s" % path)
 
-	# Bush billboards (4-9 = Caleb's ground bush set, PT5)
 	for i in range(1, 10):
 		var path := "res://terrain/textures/billboards/bush%d_billboard.png" % i
 		if ResourceLoader.exists(path):
@@ -147,14 +145,12 @@ func _create_cross_billboard_mesh(tex: Texture2D, width: float, height: float) -
 		var dir := Vector3(cos(angle), 0, sin(angle))
 		var perp := Vector3(-dir.z, 0, dir.x)
 
-		# Quad corners
 		var half_w := width * 0.5
 		var bottom_left := perp * -half_w
 		var bottom_right := perp * half_w
 		var top_left := perp * -half_w + Vector3(0, height, 0)
 		var top_right := perp * half_w + Vector3(0, height, 0)
 
-		# Normal facing one direction
 		var normal := dir
 
 		# Front face
@@ -191,11 +187,13 @@ func _create_cross_billboard_mesh(tex: Texture2D, width: float, height: float) -
 
 	var mesh := st.commit()
 
-	# Create material
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	mat.alpha_scissor_threshold = 0.5
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# The mesh authors front AND back faces per plane (opposite winding), so CULL_BACK
+	# still shows every card from both sides while culling the coincident away-facing
+	# tris — half the fill of CULL_DISABLED, same silhouette.
+	mat.cull_mode = BaseMaterial3D.CULL_BACK
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
 	mat.albedo_texture = tex
 	mesh.surface_set_material(0, mat)
@@ -203,7 +201,6 @@ func _create_cross_billboard_mesh(tex: Texture2D, width: float, height: float) -
 	return mesh
 
 
-## Create billboard meshes from loaded textures
 func _create_billboard_meshes() -> void:
 	# Create tree billboard meshes (tall)
 	for tex in _tree_textures:
@@ -247,14 +244,16 @@ func generate_for_chunk(coord: Vector2i, heightmap: Object, vegetation_terrain: 
 ## Build placement cache - RNG lives here, called once per chunk
 func _build_placements(coord: Vector2i, heightmap: Object) -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(coord) + 9999  # Different seed than 3D trees
+	# Seed derived from mission + chunk coord. Same mission -> same billboards. (cp3s)
+	rng.seed = hash([coord, mission_seed]) + 9999
 
 	var placements: Array = []
 	var world_offset_x := coord.x * _chunk_size
 	var world_offset_z := coord.y * _chunk_size
 	var bundles_per_side := int(_chunk_size / 8.0)
 
-	for i in BILLBOARDS_PER_CHUNK:
+	var count: int = int(round(float(BILLBOARDS_PER_CHUNK) * WorldConfig.VEGETATION_DENSITY_MULT))
+	for i in count:
 		var local_x := rng.randf() * _chunk_size
 		var local_z := rng.randf() * _chunk_size
 		var world_x := world_offset_x + local_x
@@ -307,7 +306,6 @@ func _materialize_chunk(coord: Vector2i, vegetation_terrain: PackedByteArray) ->
 			continue
 		var terrain_type: int = vegetation_terrain[bundle_idx]
 
-		# Get base acceptance rate for this terrain tier
 		var accept: float = TIER_ACCEPT.get(terrain_type, 0.0)
 		if accept <= 0.0:
 			continue
@@ -333,7 +331,6 @@ func _materialize_chunk(coord: Vector2i, vegetation_terrain: PackedByteArray) ->
 				transforms_by_mesh[p.mesh_idx] = []
 			transforms_by_mesh[p.mesh_idx].append(t)
 
-	# Count totals for logging
 	var tree_count := 0
 	var rice_count := 0
 	for mesh_idx in transforms_by_mesh:
@@ -345,12 +342,10 @@ func _materialize_chunk(coord: Vector2i, vegetation_terrain: PackedByteArray) ->
 	if total_count == 0:
 		return
 
-	# Create a container for this chunk's billboards
 	var container := Node3D.new()
 	container.name = "Billboard_%d_%d" % [coord.x, coord.y]
 	add_child(container)
 
-	# Create MultiMesh for each tree mesh type
 	for mesh_idx: int in transforms_by_mesh:
 		var group_transforms: Array = transforms_by_mesh[mesh_idx]
 		if group_transforms.is_empty():
@@ -379,7 +374,6 @@ func _materialize_chunk(coord: Vector2i, vegetation_terrain: PackedByteArray) ->
 		mm_instance.name = "BB_Tree_%d" % mesh_idx
 		container.add_child(mm_instance)
 
-	# Create MultiMesh for each rice mesh type
 	for mesh_idx: int in rice_transforms_by_mesh:
 		var group_transforms: Array = rice_transforms_by_mesh[mesh_idx]
 		if group_transforms.is_empty():
@@ -429,7 +423,6 @@ func clear_chunk(coord: Vector2i) -> void:
 	_chunk_placements.erase(coord)
 
 
-## Clear all billboards and caches
 func clear_all() -> void:
 	for container: Node3D in _chunk_billboards.values():
 		if is_instance_valid(container):
@@ -438,13 +431,16 @@ func clear_all() -> void:
 	_chunk_placements.clear()
 
 
-## Update billboard visibility based on camera distance
 func _update_billboard_visibility() -> void:
 	var cam_pos := _camera.global_position
 
 	for coord: Vector2i in _chunk_billboards:
 		var container: Node3D = _chunk_billboards[coord]
 		if not is_instance_valid(container):
+			continue
+
+		if render_disabled:
+			container.visible = false
 			continue
 
 		var chunk_center := Vector3(
@@ -458,10 +454,10 @@ func _update_billboard_visibility() -> void:
 		# Near: 3D trees visible (handled by vegetation_manager)
 		# Mid: Billboards visible
 		# Far: Fog + terrain shader takes over
-		container.visible = dist >= BILLBOARD_RANGE_MIN and dist < BILLBOARD_RANGE_MAX
+		var range_max: float = BILLBOARD_RANGE_MAX * WorldConfig.BILLBOARD_DISTANCE_MULT
+		container.visible = dist >= BILLBOARD_RANGE_MIN and dist < range_max
 
 
-## Get billboard instance count for performance monitoring
 func get_total_billboard_count() -> int:
 	var total := 0
 	for coord in _chunk_billboards:

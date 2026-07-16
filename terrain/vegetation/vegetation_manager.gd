@@ -3,7 +3,6 @@ extends Node3D
 ## Grid-based vegetation with terrain types and density zones.
 ## Uses 2x2 cell bundles for efficient clearing and LOS.
 
-## Terrain/Vegetation types
 enum TerrainType {
 	CLEAR,          # No vegetation (roads, clearings)
 	RICE_PADDY,     # Flat water/crops - no trees
@@ -27,15 +26,16 @@ const BUNDLE_SIZE := 2
 @export var open_patch_threshold: float = -0.18
 @export var heavy_patch_threshold: float = 0.28
 @export var patch_seed: int = 0
+## Mission seed — flows from game_world.gd. Wired into ALL chunk RNGs so two boots
+## with the same seed produce a byte-identical world. (RECONgame-cp3s, RECONgame-5r4y)
+@export var mission_seed: int = 0
 var _patch_noise: FastNoiseLite = null
 
 ## Use external models (disabled - too heavy for Intel UHD)
 @export var use_external_models: bool = false
 
-## Authored 12m jungle patches (tools/make_jungle_patches.py) instead of lone
-## procedural trees. The patches CARRY their own trees, bamboo, thickets, vines
-## and moss, so the single-tree layer is suppressed while this is on.
-## Turn off for the old sparse-tree look (or if a weak GPU chokes).
+## Authored 12m jungle patches (tools/make_jungle_patches.py) instead of lone trees.
+## The patches carry their own trees, so the single-tree layer stays off while this is on.
 @export var use_jungle_patches: bool = true
 const JunglePatchLayerScript := preload("res://terrain/vegetation/jungle_patch_layer.gd")
 var _patch_layer: JunglePatchLayer = null
@@ -46,7 +46,6 @@ var bundle_meters: float:
 
 # Terrain type properties: [tree_chance, tree_count_min, tree_count_max, blocks_los, move_speed]
 # move_speed: 1.0 = full speed, 0.5 = half speed, etc.
-# RESTORED DENSITY - billboards provide thick jungle illusion at distance
 const TYPE_PROPS := {
 	TerrainType.CLEAR:         [0.00, 0, 0, false, 1.0],
 	TerrainType.RICE_PADDY:    [0.00, 0, 0, false, 0.4],   # Water/mud - very slow
@@ -56,7 +55,6 @@ const TYPE_PROPS := {
 	TerrainType.HEAVY_JUNGLE:  [0.80, 2, 4, true,  0.3],   # Dense canopy
 }
 
-# Loaded vegetation meshes
 var _meshes: Array[Mesh] = []  # Tree meshes
 var _grass_mesh: Mesh  # Grass patch mesh
 var _fallback_mesh: ArrayMesh
@@ -88,10 +86,8 @@ const GRASS_ACCEPT := {
 # Bundles per chunk side
 var _bundles_per_chunk: int
 
-# Slope threshold
 var _min_slope_dot: float
 
-# Camera reference for frustum culling
 var _camera: Camera3D
 var _chunk_size: float = 256.0
 
@@ -101,6 +97,11 @@ var _terrain_manager: Node = null
 # Frustum culling accumulator (don't check every frame)
 var _frustum_accumulator: float = 0.0
 const FRUSTUM_UPDATE_INTERVAL := 0.1  # 10Hz
+
+## Perf-attribution toggles (perf_probe.gd): force grass / jungle patches hidden so
+## each system's frame cost can be measured by difference.
+var grass_disabled: bool = false
+var patches_disabled: bool = false
 
 
 func _ready() -> void:
@@ -124,17 +125,14 @@ func _process(delta: float) -> void:
 	_update_frustum_culling()
 
 
-## Set camera for frustum culling and LOD
 func set_camera(cam: Camera3D) -> void:
 	_camera = cam
 
 
-## Set chunk size for culling calculations
 func set_chunk_size(size: float) -> void:
 	_chunk_size = size
 
 
-## Update visibility based on frustum and distance
 func _update_frustum_culling() -> void:
 	var frustum := _camera.get_frustum()
 	var cam_pos := _camera.global_position
@@ -148,16 +146,15 @@ func _update_frustum_culling() -> void:
 				Vector3(coord.x * _chunk_size, -50, coord.y * _chunk_size),
 				Vector3(_chunk_size, 400.0, _chunk_size)
 			)
-			_patch_layer.set_chunk_visible(coord, _aabb_in_frustum(paabb, frustum))
+			var patch_vis := _aabb_in_frustum(paabb, frustum) and not patches_disabled
+			_patch_layer.set_chunk_visible(coord, patch_vis)
 
 	for coord: Vector2i in _chunk_instances:
-		# Calculate chunk AABB
 		var aabb := AABB(
 			Vector3(coord.x * _chunk_size, -50, coord.y * _chunk_size),
 			Vector3(_chunk_size, 400.0, _chunk_size)
 		)
 
-		# Check if in frustum
 		var in_frustum := _aabb_in_frustum(aabb, frustum)
 
 		# Distance-based grass culling (grass only visible within 100m)
@@ -167,16 +164,14 @@ func _update_frustum_culling() -> void:
 			coord.y * _chunk_size + _chunk_size * 0.5
 		)
 		var dist := cam_pos.distance_to(chunk_center)
-		var grass_visible := in_frustum and dist < 60.0  # FPS fork: was 100m
+		var grass_visible := in_frustum and dist < 60.0 and not grass_disabled  # FPS fork: was 100m
 
-		# Apply visibility
 		if _chunk_instances.has(coord):
 			_chunk_instances[coord].visible = in_frustum
 		if _chunk_grass.has(coord):
 			_chunk_grass[coord].visible = grass_visible
 
 
-## Test if AABB is inside or intersects frustum
 func _aabb_in_frustum(aabb: AABB, frustum: Array[Plane]) -> bool:
 	for plane: Plane in frustum:
 		# Get the positive vertex (furthest in plane normal direction)
@@ -195,24 +190,20 @@ func _aabb_in_frustum(aabb: AABB, frustum: Array[Plane]) -> bool:
 	return true
 
 
-## Load vegetation meshes
 func _load_vegetation_meshes() -> void:
 	_meshes.clear()
 
-	# Try loading palm tree first as primary tree mesh
 	if use_external_models:
 		var palm := _load_first_mesh("res://terrain/vegetation/models/palm_tree.blend")
 		if palm:
 			_meshes.append(palm)
 			print("[VegetationManager] Using palm tree as primary mesh")
 
-	# Fallback to procedural tree if no external tree loaded
 	if _meshes.is_empty():
 		_fallback_mesh = _create_procedural_tree()
 		_meshes.append(_fallback_mesh)
 		print("[VegetationManager] Using procedural tree as primary mesh")
 
-	# Try loading grass patch
 	_grass_mesh = _load_first_mesh("res://terrain/vegetation/models/grass/grass_patch.fbx")
 	if not _grass_mesh:
 		_grass_mesh = _create_procedural_grass()
@@ -260,7 +251,6 @@ func _find_first_mesh(node: Node) -> Mesh:
 	return null
 
 
-## Generate vegetation for a chunk
 func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
 	clear_chunk_visuals(chunk_coord)  # Clear visuals, keep cache
 
@@ -269,7 +259,6 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 
 	_bundles_per_chunk = int(chunk_size / bundle_meters)
 
-	# Build terrain types if not cached
 	if not _chunk_terrain.has(chunk_coord):
 		var world_offset := Vector3(
 			chunk_coord.x * chunk_size,
@@ -277,15 +266,14 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 			chunk_coord.y * chunk_size
 		)
 
-		# Create terrain type grid for this chunk
 		var terrain := PackedByteArray()
 		terrain.resize(_bundles_per_chunk * _bundles_per_chunk)
 
-		# RNG seeded by chunk coord for consistency
+		# RNG seeded by chunk coord + mission seed. Same mission_seed -> identical
+		# chunk. Different mission_seed -> different jungle. (RECONgame-cp3s)
 		var rng := RandomNumberGenerator.new()
-		rng.seed = hash(chunk_coord)
+		rng.seed = hash([chunk_coord, mission_seed])
 
-		# Assign terrain types based on height/slope/noise
 		for bz in _bundles_per_chunk:
 			for bx in _bundles_per_chunk:
 				var bundle_idx := bz * _bundles_per_chunk + bx
@@ -296,18 +284,15 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 				var world_x := world_offset.x + local_x
 				var world_z := world_offset.z + local_z
 
-				# Sample terrain
 				var height := heightmap.sample_world(world_x, world_z) as float
 				var normal := heightmap.get_normal_world(world_x, world_z) as Vector3
 				var slope_dot := normal.dot(Vector3.UP)
 
-				# Determine terrain type based on conditions
 				var terrain_type := _determine_terrain_type(height, slope_dot, rng, world_x, world_z)
 				terrain[bundle_idx] = terrain_type
 
 		_chunk_terrain[chunk_coord] = terrain
 
-	# Build placement cache if not cached
 	if not _chunk_placements.has(chunk_coord):
 		_build_placement_cache(chunk_coord, heightmap, chunk_size)
 
@@ -315,7 +300,6 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 	_rematerialize(chunk_coord, heightmap, chunk_size)
 
 
-## Determine terrain type for a bundle
 ## world_x/world_z are passed for water proximity checks
 func _determine_terrain_type(height: float, slope_dot: float, rng: RandomNumberGenerator, world_x: float = 0.0, world_z: float = 0.0) -> int:
 	# Steep slopes = clear
@@ -327,18 +311,15 @@ func _determine_terrain_type(height: float, slope_dot: float, rng: RandomNumberG
 	if _terrain_manager and _terrain_manager.has_method("is_near_water"):
 		near_water = _terrain_manager.is_near_water(world_x, world_z)
 
-	# Low flat areas have chance of rice paddy - higher near water
 	if height < 30.0 and slope_dot > 0.93:
 		var paddy_chance: float = 0.7 if near_water else 0.15
 		if rng.randf() < paddy_chance:
 			return TerrainType.RICE_PADDY
 
-	# Very flat = grassland chance
 	if slope_dot > 0.98 and rng.randf() < 0.2:
 		return TerrainType.GRASSLAND
 
-	# FPS fork: patch-noise jungle. Low-frequency noise carves coherent open
-	# patches and dense thickets instead of the RTS blanket-jungle roll.
+	# Low-frequency patch noise carves coherent open patches and dense thickets.
 	if _patch_noise == null:
 		_patch_noise = FastNoiseLite.new()
 		_patch_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
@@ -355,7 +336,6 @@ func _determine_terrain_type(height: float, slope_dot: float, rng: RandomNumberG
 		return TerrainType.HEAVY_JUNGLE
 
 
-## Generate vegetation meshes for chunk
 func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
 	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
 
@@ -383,10 +363,8 @@ func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_
 			if tree_chance <= 0.0 or rng.randf() > tree_chance:
 				continue
 
-			# Number of trees in this bundle
 			var tree_count := rng.randi_range(count_min, count_max)
 
-			# Place trees within the 2x2 bundle
 			for _t in tree_count:
 				var local_x := bx * bundle_meters + rng.randf() * bundle_meters
 				var local_z := bz * bundle_meters + rng.randf() * bundle_meters
@@ -397,13 +375,11 @@ func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_
 
 				var inst_transform := Transform3D.IDENTITY
 
-				# Random lean/tilt for natural variety (up to 15 degrees)
 				var tilt_x := rng.randf_range(-0.26, 0.26)  # ~15 degrees in radians
 				var tilt_z := rng.randf_range(-0.26, 0.26)
 				inst_transform = inst_transform.rotated(Vector3.RIGHT, tilt_x)
 				inst_transform = inst_transform.rotated(Vector3.FORWARD, tilt_z)
 
-				# Random Y rotation
 				inst_transform = inst_transform.rotated(Vector3.UP, rng.randf() * TAU)
 
 				# Palm tree is ~10m tall, scale 0.7-1.3 for variety
@@ -416,13 +392,11 @@ func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_
 	if transforms.is_empty():
 		return
 
-	# Create MultiMesh with optimized buffer upload
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.mesh = _meshes[0]
 	multimesh.instance_count = transforms.size()
 
-	# Build buffer directly instead of per-instance set_instance_transform calls
 	# Format: 12 floats per instance (basis rows + origin components)
 	var buffer := PackedFloat32Array()
 	buffer.resize(transforms.size() * 12)
@@ -444,13 +418,11 @@ func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_
 
 	_chunk_instances[chunk_coord] = mm_instance
 
-	# Generate grass patches
 	_generate_chunk_grass(chunk_coord, heightmap, chunk_size)
 
 	print("[VegetationManager] Chunk %s: %d trees placed" % [chunk_coord, transforms.size()])
 
 
-## Generate grass patches for chunk
 func _generate_chunk_grass(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
 	if not _grass_mesh:
 		return
@@ -468,17 +440,14 @@ func _generate_chunk_grass(chunk_coord: Vector2i, heightmap: Object, chunk_size:
 
 	var grass_transforms: Array[Transform3D] = []
 
-	# Grass is more frequent but only in vegetated areas
 	for bz in _bundles_per_chunk:
 		for bx in _bundles_per_chunk:
 			var bundle_idx := bz * _bundles_per_chunk + bx
 			var terrain_type: int = terrain[bundle_idx]
 
-			# Only place grass in jungle/grassland areas
 			if terrain_type == TerrainType.CLEAR or terrain_type == TerrainType.RICE_PADDY:
 				continue
 
-			# More grass in heavier jungle
 			var grass_count := 0
 			match terrain_type:
 				TerrainType.GRASSLAND: grass_count = rng.randi_range(1, 2)
@@ -497,7 +466,6 @@ func _generate_chunk_grass(chunk_coord: Vector2i, heightmap: Object, chunk_size:
 				var inst_transform := Transform3D.IDENTITY
 				inst_transform = inst_transform.rotated(Vector3.UP, rng.randf() * TAU)
 
-				# Grass patches scaled 0.8-1.5
 				var grass_scale := rng.randf_range(0.8, 1.5)
 				inst_transform = inst_transform.scaled(Vector3.ONE * grass_scale)
 				inst_transform.origin = Vector3(world_x, height, world_z)
@@ -507,13 +475,11 @@ func _generate_chunk_grass(chunk_coord: Vector2i, heightmap: Object, chunk_size:
 	if grass_transforms.is_empty():
 		return
 
-	# Create grass MultiMesh with optimized buffer upload
 	var grass_mm := MultiMesh.new()
 	grass_mm.transform_format = MultiMesh.TRANSFORM_3D
 	grass_mm.mesh = _grass_mesh
 	grass_mm.instance_count = grass_transforms.size()
 
-	# Build buffer directly instead of per-instance set_instance_transform calls
 	var buffer := PackedFloat32Array()
 	buffer.resize(grass_transforms.size() * 12)
 	for i in grass_transforms.size():
@@ -544,9 +510,11 @@ func _build_placement_cache(chunk_coord: Vector2i, _heightmap: Object, chunk_siz
 
 	# TREE CANDIDATES
 	var tree_rng := RandomNumberGenerator.new()
-	tree_rng.seed = hash(chunk_coord) + 1000
+	tree_rng.seed = hash([chunk_coord, mission_seed]) + 1000
 
-	for i in TREE_CANDIDATES_PER_CHUNK:
+	var density_mult: float = WorldConfig.VEGETATION_DENSITY_MULT
+	var tree_count: int = int(round(float(TREE_CANDIDATES_PER_CHUNK) * density_mult))
+	for i in tree_count:
 		var local_x := tree_rng.randf() * chunk_size
 		var local_z := tree_rng.randf() * chunk_size
 		var world_x := world_offset_x + local_x
@@ -571,9 +539,10 @@ func _build_placement_cache(chunk_coord: Vector2i, _heightmap: Object, chunk_siz
 
 	# GRASS CANDIDATES
 	var grass_rng := RandomNumberGenerator.new()
-	grass_rng.seed = hash(chunk_coord) + 5000
+	grass_rng.seed = hash([chunk_coord, mission_seed]) + 5000
 
-	for i in GRASS_CANDIDATES_PER_CHUNK:
+	var grass_count: int = int(round(float(GRASS_CANDIDATES_PER_CHUNK) * density_mult))
+	for i in grass_count:
 		var local_x := grass_rng.randf() * chunk_size
 		var local_z := grass_rng.randf() * chunk_size
 		var world_x := world_offset_x + local_x
@@ -636,7 +605,6 @@ func _materialize_vegetation(chunk_coord: Vector2i, heightmap: Object) -> void:
 	if transforms.is_empty():
 		return
 
-	# Build MultiMesh
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.mesh = _meshes[0]
@@ -697,7 +665,6 @@ func _materialize_grass(chunk_coord: Vector2i, heightmap: Object) -> void:
 	if grass_transforms.is_empty():
 		return
 
-	# Create grass MultiMesh
 	var grass_mm := MultiMesh.new()
 	grass_mm.transform_format = MultiMesh.TRANSFORM_3D
 	grass_mm.mesh = _grass_mesh
@@ -755,16 +722,6 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 			affected_chunks.append(chunk_coord)
 
 	# Re-materialize affected chunks from cache.
-	#
-	# THE BUG (Technical Director, war room 2026-07-12): this used to call
-	# _materialize_vegetation() UNCONDITIONALLY - the LEGACY PROCEDURAL PALM PATH -
-	# and never re-ran the patch layer. So ONE GRENADE turned a 256m chunk of the
-	# authored jungle (23 hand-composed patches, Poisson-spaced, palette-atlased,
-	# LOD-twinned) into procedural palm trees. And it fires on every SitePlanner
-	# stamp too, so every LZ, firebase and outpost did it as well.
-	#
-	# generate_for_chunk() has always branched correctly (see :314). This is the
-	# same branch. It should never have been written twice.
 	for chunk_coord in affected_chunks:
 		clear_chunk_visuals(chunk_coord)
 		if heightmap:
@@ -773,9 +730,8 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 	return cleared
 
 
-## ONE place that decides how a chunk's vegetation is built. Called by
-## generate_for_chunk() and by clear_area(), which is the whole point: two copies of
-## this branch is how the jungle quietly turned into palm trees.
+## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
+## and by clear_area() -- never duplicate this branch.
 func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
 	if _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
 		# Authored patches bring their own trees - the lone-tree layer would double
@@ -815,7 +771,6 @@ func blocks_los(world_pos: Vector3, chunk_size: float) -> bool:
 	return props[3]  # blocks_los
 
 
-## Get terrain type at world position
 func get_terrain_type_at(world_pos: Vector3, chunk_size: float) -> int:
 	var chunk_coord := Vector2i(
 		int(floor(world_pos.x / chunk_size)),
@@ -847,7 +802,6 @@ func get_movement_multiplier_at(world_pos: Vector3, chunk_size: float) -> float:
 	return props[4]  # movement_speed
 
 
-## Set terrain type at world position
 func set_terrain_type_at(world_pos: Vector3, chunk_size: float, new_type: int) -> void:
 	var chunk_coord := Vector2i(
 		int(floor(world_pos.x / chunk_size)),
@@ -900,7 +854,6 @@ func clear_chunk(chunk_coord: Vector2i) -> void:
 	clear_chunk_full(chunk_coord)
 
 
-## Clear all vegetation
 func clear_all() -> void:
 	for instance: MultiMeshInstance3D in _chunk_instances.values():
 		if is_instance_valid(instance):
@@ -914,13 +867,11 @@ func clear_all() -> void:
 	_chunk_placements.clear()
 
 
-## Create procedural palm tree mesh - Vietnam jungle style
 ## OPTIMIZED: Single surface with vertex colors to reduce draw calls from 9 to 1
 func _create_procedural_tree() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	# Colors for trunk and fronds
 	var trunk_color := Color(0.35, 0.28, 0.2)  # Palm bark color
 	var frond_color := Color(0.15, 0.35, 0.1)  # Bright palm green
 
@@ -994,11 +945,9 @@ func _create_procedural_tree() -> ArrayMesh:
 		st.add_vertex(tip)
 		st.add_vertex(mid + perp * 0.8)
 
-	# Generate normals and index the mesh
 	st.generate_normals()
 	st.index()
 
-	# Create material with vertex colors
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.9
@@ -1007,13 +956,11 @@ func _create_procedural_tree() -> ArrayMesh:
 	var mesh := st.commit()
 	mesh.surface_set_material(0, mat)
 
-	# Verify single surface
 	assert(mesh.get_surface_count() == 1, "Tree mesh should have exactly 1 surface")
 
 	return mesh
 
 
-## Create procedural grass patch mesh
 func _create_procedural_grass() -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 
@@ -1026,7 +973,6 @@ func _create_procedural_grass() -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_material(grass_mat)
 
-	# Create a cluster of grass blades
 	var blade_count := 5
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345  # Consistent for all grass meshes
@@ -1037,7 +983,6 @@ func _create_procedural_grass() -> ArrayMesh:
 		var height := rng.randf_range(0.4, 0.8)
 		var lean := rng.randf_range(-0.15, 0.15)
 
-		# Grass blade - thin triangle
 		var base1 := Vector3(offset_x - 0.03, 0, offset_z)
 		var base2 := Vector3(offset_x + 0.03, 0, offset_z)
 		var tip := Vector3(offset_x + lean, height, offset_z + lean * 0.5)
