@@ -21,6 +21,7 @@ func _ready() -> void:
 	_arena.set("hot_start", true)
 	_arena.set("spawn_player", false)
 	_arena.set("spawn_hud", false)
+	_arena.set("bench_dressing", false)
 	_arena.set("us_squads_active", 3)
 	_arena.set("vc_squads_active", 3)
 	_arena.set("men_per_squad", 6)

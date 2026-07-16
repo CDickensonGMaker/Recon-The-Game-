@@ -20,6 +20,16 @@ class TerrainManagerStub extends Node:
 		pass
 
 
+## Flat ground for the vegetation layers: every cell is placeable, no slope. The arena
+## has no real heightmap, so JunglePatchLayer and BillboardVegetation sample this.
+class FlatHeightmap:
+	func sample_world(_x: float, _z: float) -> float:
+		return 0.0
+
+	func get_normal_world(_x: float, _z: float) -> Vector3:
+		return Vector3.UP
+
+
 ## A GameplayGrid whose origin sits at the arena CENTRE. The base grid maps world x=0
 ## to cell 0 and clamps negatives, but the arena spans -ARENA/2..+ARENA/2, so every
 ## negative coordinate would collapse onto cell 0. Shifting the sample by world_size*0.5
@@ -101,6 +111,10 @@ const VC_PATHS: Array[String] = [
 ## patrol -> alert -> combat naturally through perception (US via contact_conf,
 ## VC via the arena spotting feed into the awareness accumulator + return fire).
 @export var patrol_mode: bool = true
+## Night lighting + dense jungle + billboards + flares/fires + the live profiling
+## overlay. The playable bench boots with this ON; headless behaviour/perf probes set
+## it OFF so they measure the bare arena they were written against.
+@export var bench_dressing: bool = true
 
 ## --- TUNING LEVERS (arena-local, do not leak into campaign) ---
 ## AI health scaling. Controls how long AI-vs-AI fights last.
@@ -157,6 +171,16 @@ var player: CharacterBody3D = null
 var _rng := RandomNumberGenerator.new()
 var _nav_region: NavigationRegion3D = null
 var _patrol_active: bool = false  ## resolved in _ready: patrol_mode and not hot_start
+
+## Bench dressing + profiling instrument (only live when bench_dressing).
+var _jungle_layer: JunglePatchLayer = null
+var _sun: DirectionalLight3D = null
+var _clutter_root: Node3D = null       ## grass/rice multimeshes, toggled as one
+var _lights_root: Node3D = null        ## campfires + illum flares, toggled as one
+var _perf_overlay: ArenaPerfOverlay = null
+var _debug_vis_enabled: bool = true
+var _flare_cd: float = 0.0
+const FLARE_INTERVAL: float = 18.0
 
 ## Live agents, grouped by squad index.
 var _us_squads: Array[Array] = []   # Array[Array[AllyBase]]
@@ -229,6 +253,10 @@ func _ready() -> void:
 	_build_hud()
 	_build_debug_vis()
 	_wire_telemetry()
+	if bench_dressing and spawn_hud:
+		_perf_overlay = ArenaPerfOverlay.new()
+		add_child(_perf_overlay)
+		_perf_overlay.setup(self, _jungle_layer, _clutter_root, _lights_root, _sun)
 
 	print("[AI STRESS ARENA] ready - mode=%s | %d US squads + %d wave(s) vs %d VC squads + %d wave(s)" % [
 		"PATROL" if _patrol_active else ("HOT" if hot_start else "MOVE-TO-CONTACT"),
@@ -240,17 +268,82 @@ func _process(delta: float) -> void:
 		return
 	_sim_time += delta
 
+	# Time each arena-owned manager so the overlay can name a CPU spike's subsystem.
+	# The overlay (a child) reads these the same frame, right after this runs.
+	var t0: int = Time.get_ticks_usec()
 	if _patrol_active:
 		_update_patrol_contact(delta)
+	var t1: int = Time.get_ticks_usec()
 	_update_reinforcements(delta)
+	var t2: int = Time.get_ticks_usec()
 	_update_telemetry(delta)
+	var t3: int = Time.get_ticks_usec()
 	_update_debug_vis()
+	var t4: int = Time.get_ticks_usec()
+	if bench_dressing:
+		_update_flares(delta)
 	_check_round_end()
+
+	if _perf_overlay != null:
+		_perf_overlay.report_cpu_bucket("patrol", float(t1 - t0) / 1000.0)
+		_perf_overlay.report_cpu_bucket("reinforce", float(t2 - t1) / 1000.0)
+		_perf_overlay.report_cpu_bucket("telemetry", float(t3 - t2) / 1000.0)
+		_perf_overlay.report_cpu_bucket("debug_vis", float(t4 - t3) / 1000.0)
+
+
+## Keep an illum flare or two burning over the contact zone so the many-lights night
+## load is sustained (each flare is an OmniLight; they drift down and expire in 25s).
+func _update_flares(delta: float) -> void:
+	_flare_cd -= delta
+	if _flare_cd > 0.0:
+		return
+	_flare_cd = FLARE_INTERVAL
+	var pos: Vector3 = CONTACT_POINT + Vector3(
+		_rng.randf_range(-20.0, 20.0), 0.0, _rng.randf_range(-20.0, 20.0))
+	IllumFlare.pop(_lights_root, pos)
+	if _perf_overlay != null:
+		_perf_overlay.note_event("flare pop")
+
+
+## Live attribution toggle (overlay F5): freeze + hide every agent so the AI/physics
+## CPU cost and the skinned-character draw cost drop out of the numbers at once.
+func set_characters_active(active: bool) -> void:
+	for us in [true, false]:
+		for squad in (_us_squads if us else _vc_squads):
+			for a in squad:
+				if not is_instance_valid(a):
+					continue
+				a.visible = active
+				a.set_process(active)
+				a.set_physics_process(active)
+
+
+## Live attribution toggle (overlay F6): hide the LOS/state debug overlay and stop
+## rebuilding it, so its per-frame ImmediateMesh + Label3D cost drops out.
+func set_debug_vis_active(active: bool) -> void:
+	_debug_vis_enabled = active
+	if _dbg_mesh != null:
+		_dbg_mesh.visible = active
+		if not active and _dbg_im != null:
+			_dbg_im.clear_surfaces()
+	for key_v: Variant in _dbg_labels:
+		var l: Label3D = _dbg_labels[key_v]
+		if is_instance_valid(l):
+			l.visible = active
 
 
 ## ---------- ENVIRONMENT ----------
 
 func _build_environment() -> void:
+	_clutter_root = Node3D.new()
+	_clutter_root.name = "GroundClutter"
+	add_child(_clutter_root)
+	_lights_root = Node3D.new()
+	_lights_root.name = "BenchLights"
+	add_child(_lights_root)
+	if bench_dressing:
+		MissionWeather.is_night = true
+		_build_night_env()
 	_build_floor()
 	_build_walls()
 	_build_firebase()
@@ -260,6 +353,158 @@ func _build_environment() -> void:
 	_build_wrecked_cover()
 	_build_cover_clusters()
 	_plant_vegetation()
+	if bench_dressing:
+		_build_jungle()
+		_scatter_ground_plants()
+		_build_campfires()
+
+
+## Dim moon: the NIGHT preset numbers from mission_weather.gd (sun energy 0.08,
+## moonlight-blue, ambient 0.15) applied directly, plus a bluish fog for depth.
+func _build_night_env() -> void:
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.02, 0.03, 0.05)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.45, 0.55, 0.75)
+	env.ambient_light_energy = 0.15
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.10, 0.14, 0.22)
+	env.fog_density = 0.006
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	var we := WorldEnvironment.new()
+	we.name = "WorldEnvironment"
+	we.environment = env
+	add_child(we)
+
+	var sun := DirectionalLight3D.new()
+	sun.name = "SunLight"
+	sun.rotation_degrees = Vector3(-35.0, 40.0, 0.0)
+	sun.light_energy = 0.08
+	sun.light_color = Color(0.6, 0.7, 0.95)
+	sun.shadow_enabled = true
+	add_child(sun)
+	_sun = sun
+
+
+## Plant real dense jungle across the whole play area by driving JunglePatchLayer with a
+## synthetic all-HEAVY_JUNGLE tile grid on the flat stub. The layer node is offset to the
+## arena's SW corner so its 0..chunk_size local tiles land on the -ARENA/2..+ARENA/2 span.
+func _build_jungle() -> void:
+	_jungle_layer = JunglePatchLayer.new()
+	_jungle_layer.name = "JunglePatchLayer"
+	_jungle_layer.fill_chance = 0.95
+	_jungle_layer.position = Vector3(-ARENA * 0.5, 0.0, -ARENA * 0.5)
+	add_child(_jungle_layer)
+	_jungle_layer._load_patches()
+	if not _jungle_layer.enabled:
+		push_warning("[ARENA] jungle patch layer failed to load - no dense jungle")
+		return
+	var bundles := 25
+	var bundle_m: float = ARENA / float(bundles)
+	var terrain := PackedByteArray()
+	terrain.resize(bundles * bundles)
+	terrain.fill(JunglePatchLayer.T_HEAVY_JUNGLE)
+	_jungle_layer.generate_for_chunk(Vector2i(0, 0), terrain, bundles, bundle_m,
+			FlatHeightmap.new(), ARENA)
+	# Wherever the eye sees jungle the AI's sight cap must drop to match: stamp heavy
+	# density across the whole play area so the fight happens in genuine concealment.
+	_stamp_veg_rect(Rect2(-ARENA * 0.5, -ARENA * 0.5, ARENA, ARENA), VEG_HEAVY)
+
+
+## Ground density between the patch tiles, MultiMesh-instanced from Caleb's OWN individual
+## plant GLBs (real low-poly geometry, materials preserved - NOT procedural sprite cards).
+## One MultiMesh per variant = one draw call each; a short visibility range keeps the far
+## field cheap. Instances stay identifiable pieces so destructible foliage stays possible.
+const GROUND_PLANTS: Array[String] = [
+	"fern_a", "fern_b", "fern_c",
+	"elephant_grass_a", "elephant_grass_b", "elephant_grass_c",
+	"bush_a", "bush_b", "bush_c",
+	"grass_tuft_a", "grass_tuft_b", "grass_tuft_c",
+	"tall_grass_a", "tall_grass_b", "tall_grass_c",
+	"broadleaf_a", "broadleaf_b", "broadleaf_c",
+]
+const GROUND_PLANT_COUNT: int = 110
+const GROUND_PLANT_VIEW: float = 65.0
+
+
+func _scatter_ground_plants() -> void:
+	var half: float = ARENA * 0.5 - 5.0
+	var swayed: int = 0
+	for variant in GROUND_PLANTS:
+		var mesh: Mesh = GroundClutter.load_glb_mesh("res://assets/world/vegetation/" + variant + ".glb")
+		if mesh == null:
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = GROUND_PLANT_COUNT
+		for i in GROUND_PLANT_COUNT:
+			var pos := Vector3(_rng.randf_range(-half, half), 0.0, _rng.randf_range(-half, half))
+			var basis := Basis(Vector3.UP, _rng.randf_range(0.0, TAU))
+			var s: float = _rng.randf_range(0.85, 1.35)
+			basis = basis.scaled(Vector3(s, s, s))
+			mm.set_instance_transform(i, Transform3D(basis, pos))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "ground_" + variant
+		mmi.multimesh = mm
+		# Wind: ride vegetation_sway on the plant's OWN texture, but only where the model
+		# carries the R/G sway mask (COLOR). No mask -> the whole plant would slide, so
+		# that one keeps its static GLB material instead.
+		if _sway_material_for(mesh) != null:
+			mmi.material_override = _sway_material_for(mesh)
+			swayed += 1
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = GROUND_PLANT_VIEW
+		mmi.visibility_range_end_margin = 10.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		_clutter_root.add_child(mmi)
+	print("[AI STRESS ARENA] ground plants scattered - %d/%d variants sway in wind"
+			% [swayed, GROUND_PLANTS.size()])
+
+
+## A vegetation_sway material bound to this mesh's own albedo texture, or null if the
+## mesh has no per-vertex sway mask (COLOR) - in which case wind would slide the roots.
+func _sway_material_for(mesh: Mesh) -> ShaderMaterial:
+	if mesh.get_surface_count() == 0:
+		return null
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	if colors == null or colors.is_empty():
+		return null
+	var src := mesh.surface_get_material(0) as BaseMaterial3D
+	var tex: Texture2D = src.albedo_texture if src != null else null
+	return GroundClutter.make_sway_material(tex, 0.16, 0.05)
+
+
+func _build_campfires() -> void:
+	var village := Vector3(55.0, 0.0, -55.0)
+	for offset in [Vector3(-8, 0, -4), Vector3(10, 0, 6), Vector3(0, 0, 14), Vector3(20, 0, -8)]:
+		_add_bench_campfire(village + offset)
+	# Two flares already burning over the contact zone at boot.
+	IllumFlare.pop(_lights_root, CONTACT_POINT + Vector3(-12, 0, 8))
+	IllumFlare.pop(_lights_root, CONTACT_POINT + Vector3(14, 0, -10))
+
+
+func _add_bench_campfire(pos: Vector3) -> void:
+	var fire := Node3D.new()
+	_lights_root.add_child(fire)
+	fire.global_position = pos + Vector3(0, 0.3, 0)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.25)
+	light.light_energy = 1.8
+	light.omni_range = 14.0
+	fire.add_child(light)
+	var particles := CPUParticles3D.new()
+	particles.amount = 14
+	particles.lifetime = 1.4
+	particles.direction = Vector3.UP
+	particles.initial_velocity_min = 1.0
+	particles.initial_velocity_max = 2.0
+	particles.scale_amount_min = 0.15
+	particles.scale_amount_max = 0.4
+	particles.color = Color(1.0, 0.55, 0.2)
+	fire.add_child(particles)
 
 
 ## ---------- GAMEPLAY GRID (vegetation / sight) ----------
@@ -317,9 +562,18 @@ func _build_floor() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(ARENA, ARENA)
 	mi.mesh = plane
-	var sm := ShaderMaterial.new()
-	sm.shader = load("res://terrain/shaders/lab_grid.gdshader")
-	mi.material_override = sm
+	if bench_dressing:
+		# The lab_grid shader is unshaded and blazing white - it ignores the moonlight
+		# and destroys the night look. The bench uses a dark, LIT jungle-floor material
+		# so the dim moon + campfires + flares actually read on the ground.
+		var gm := StandardMaterial3D.new()
+		gm.albedo_color = Color(0.06, 0.07, 0.05)
+		gm.roughness = 1.0
+		mi.material_override = gm
+	else:
+		var sm := ShaderMaterial.new()
+		sm.shader = load("res://terrain/shaders/lab_grid.gdshader")
+		mi.material_override = sm
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -717,7 +971,10 @@ func _varray_multimesh(mesh: Mesh, rect: Rect2, count: int, tint: Color) -> void
 	mat.albedo_color = tint
 	mmi.material_override = mat
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mmi)
+	if _clutter_root != null:
+		_clutter_root.add_child(mmi)
+	else:
+		add_child(mmi)
 	for i in range(count):
 		var pos := Vector3(
 			_rng.randf_range(rect.position.x, rect.position.x + rect.size.x),
@@ -828,6 +1085,12 @@ func _spawn_player() -> void:
 	add_child(player)
 	player.global_position = Vector3(-35.0, 1.0, 35.0)  # firebase overlook
 	GameManager.player = player
+
+	# The player camera renders the scene; make it current explicitly so a boot
+	# never lands on the grey no-camera void.
+	var cam := player.get_node_or_null("Head/Camera3D") as Camera3D
+	if cam != null:
+		cam.current = true
 
 	if not spawn_hud:
 		return
@@ -1090,6 +1353,8 @@ func _update_reinforcements(delta: float) -> void:
 
 	if spawned:
 		call_deferred("_finish_agent_setup")
+		if _perf_overlay != null:
+			_perf_overlay.note_event("wave spawn")
 
 
 ## Spawn one reinforcement wave for a side and return the man count. Reinforcements
@@ -1219,6 +1484,12 @@ func _print_final_summary() -> void:
 	print("[AI STRESS ARENA] FINAL | %s | duration %.1fs | US %d alive / %d killed | VC %d alive / %d killed | reserves US:%d VC:%d" % [
 		"US WINS" if vc_alive == 0 else ("VC WINS" if us_alive == 0 else "TIME LIMIT"),
 		_sim_time, us_alive, _us_kills, vc_alive, _vc_kills, _us_reserves_left, _vc_reserves_left])
+
+
+func _exit_tree() -> void:
+	# MissionWeather.is_night is a global static; the bench set it, the bench clears it.
+	if bench_dressing:
+		MissionWeather.is_night = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1473,7 +1744,7 @@ func _dbg_label_for(agent: Node3D) -> Label3D:
 
 
 func _update_debug_vis() -> void:
-	if _dbg_im == null:
+	if _dbg_im == null or not _debug_vis_enabled:
 		return
 	_dbg_im.clear_surfaces()
 	var lines: Array = []

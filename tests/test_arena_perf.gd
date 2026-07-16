@@ -28,6 +28,7 @@ func _ready() -> void:
 	_arena.set("round_max_seconds", WARMUP + SAMPLE + 30.0)
 	_arena.set("spawn_player", false)
 	_arena.set("spawn_hud", false)
+	_arena.set("bench_dressing", false)
 	add_child(_arena)
 
 
