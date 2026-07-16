@@ -1,6 +1,6 @@
-﻿[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
-[ext_resource type="Script" uid="uid://2eaahkhc4qim" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -11,35 +11,29 @@ firing_mode = 1
 fire_rate = 550.0
 magazine_size = 100
 reload_time = 6.5
-base_damage = 28
-damage_type = 0
+base_damage = 42
 base_spread = 2.6
 ads_spread_mult = 0.096
 recoil_vertical = 2.8
 recoil_horizontal = 1.0
-ads_fov = 60.0
 viewmodel_fov = 66.0
+ads_fov = 60.0
 ads_move_mult = 0.4
 effective_range = 300.0
 max_range = 500.0
 min_damage_mult = 0.7
 projectile_speed = 853.0
 zero_range = 300.0
-projectile_data_path = ""
+tracer_color = Color(1, 0.42, 0.3, 1)
 recoil_first_shot_mult = 1.3
 recoil_climb_per_shot = 0.045
 recoil_climb_max = 1.7
 recoil_recovery = 8.0
 fire_volume_db = 2.0
-fire_pitch_variance = 0.04
-audio_max_distance = 350.0
-audio_unit_size = 16.0
-is_supersonic = true
 model_path = "res://scenes/weapons/m60_arms_viewmodel.tscn"
-viewmodel_scale = 1.0
-hip_position = Vector3(0.000, 0.000, 0.000)
-ads_position = Vector3(0.000, 0.050, 0.080)
-hip_rotation = Vector3(4.0, 0.0, 0.0)
-ads_rotation = Vector3(4.0, 0.0, 0.0)
-tracer_ratio = 4
-tracer_color = Color(1, 0.42, 0.3, 1)
+bore_dir = Vector3(0.0819395, 0.01255735, -0.99655825)
+ads_bore_dir = Vector3(0.06891688, 0.017595902, -0.9974672)
+hip_position = Vector3(0, 0, 0)
+ads_position = Vector3(0, 0.05, -0.014608005)
+hip_rotation = Vector3(-0.20504715, 5.099191, 0)
+ads_rotation = Vector3(0.1743377, 4.407379, -9.96624)

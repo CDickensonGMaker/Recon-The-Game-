@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -10,13 +10,13 @@ description = ".45 ACP pistol. A flat, subsonic boom - no crack. Same stopping p
 fire_rate = 300.0
 magazine_size = 7
 reload_time = 2.2
-base_damage = 20
+base_damage = 27
 base_spread = 1.0
 ads_spread_mult = 0.2
 recoil_vertical = 5.0
 recoil_horizontal = 1.0
-ads_fov = 65.0
 viewmodel_fov = 55.0
+ads_fov = 65.0
 ads_move_mult = 0.8
 effective_range = 30.0
 max_range = 50.0
@@ -32,7 +32,8 @@ fire_volume_db = 0.5
 is_supersonic = false
 model_path = "res://scenes/weapons/colt45_arms_viewmodel.tscn"
 bore_dir = Vector3(0.14540301, -0.07212381, -0.98674023)
+ads_bore_dir = Vector3(0.11574857, -0.042514183, -0.9923683)
 hip_position = Vector3(0.052024998, 0, -0.136465)
 ads_position = Vector3(0, 0.05, 0.08)
-hip_rotation = Vector3(4.4046593, 8.47451, 0)
-ads_rotation = Vector3(4, 0, 0)
+hip_rotation = Vector3(4.510921, 8.471505, 0)
+ads_rotation = Vector3(2.7164655, 6.6912613, 0)

@@ -172,8 +172,11 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 ### Damage System (ADR-016 — flat base × zone, deterministic)
 - `WeaponData.base_damage` is a flat `int` per hit. NO dice, NO rolls, NO flat-modifier arrays.
   `get_damage()` is pure; all variance comes from range falloff, hitzones, and the situation sim.
-- Values of record (= retired RECON dice averages): M16/CAR-15/M60 28 · AK/SKS/RPD 22 ·
-  PPSh/Thompson 17 · Mosin 32 · **M1911 20** (a .45 is no joke).
+- Values of record (ADR-016 Amendment H — the great flattening, 2026-07-16, fun>realism, rounds even):
+  **Base = 27 for EVERY rifle/SMG/pistol** (M16 · M14 · AK · PPSh · M1911 · Mosin, and any future
+  base gun) · **MG class = 42** (M60 AND RPD) · **Sniper = 87** (M70 only; the Mosin stays 27 as the
+  VC line rifle) · **Shotgun 35/pellet** (buckshot, unchanged, out of scope). Weapon identity now lives
+  in accuracy/fire-rate/handling/recoil — NOT damage.
 - **EXPLOSIVES — the Summoner's lethality decree (ADR-016 line 178). THESE ARE THE VALUES OF RECORD.
   The old table (M79 44 · M26 55 · LAW 72 · RPG-2 62 · RPG-7 73) is SUPERSEDED — do not "fix" a
   weapon back to it:**
@@ -231,6 +234,75 @@ WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## COMMENT DISCIPLINE — stop narrating (Summoner's law, 2026-07-13)
+
+**Summoner:** *"not put so many notes into the code as we are writing it — i think itll cut down on
+our project time in half."*
+
+Measured when he said it: **20% of this codebase is comments** (6,508 / 32,141 lines). Worst files run
+37–54%. **285 are tombstone comments** — prose narrating the project's past *inside the source*:
+`## this file used to hardcode 130` · `## GUNSHOT was 55m` · `# was a hardcoded ALERT_RANGE*2`.
+
+**None of that documents the code. It documents the pull request** — the agent explaining to a reviewer
+why its change was right. That belongs in the commit message and the ADR. Both already exist here.
+
+**And it is not merely noise — it camouflages fossils.** `# was a hardcoded ALERT_RANGE*2` is the exact
+comment that hid the dead `ALERT_RANGE` const from the fossil probe. **A tombstone comment hides the
+corpse it marks.** Comment discipline and the FOSSIL LAW are the same law.
+
+**THE RULE.** Write a comment ONLY to state a constraint the code cannot show — a units contract, a
+non-obvious invariant, "do not reorder these two lines, and here is the physical reason."
+**NEVER** to say what the next line does · where the code came from · what it used to be · why the
+change is correct · which bead it came from. No `## WHY:` essays. No changelogs in file headers.
+When tempted to explain history: **put it in the commit message or the ADR.**
+
+---
+
+## THE FOSSIL LAW — delete the old system when you replace it (ADR-023)
+
+**Summoner's standing law, 2026-07-13:** *"when we improve or fix a system we always need to clean up
+the old system so we don't have multiple things that could accidentally be interpreted by you as the
+same thing when coding."*
+
+**A system's replacement is not shipped until its predecessor is DELETED.** Fix the thing, then bury
+the corpse — in the same change, not "later".
+
+**This law exists because of YOU, the agent reading this.** A **fossil** — a const nobody reads, a
+signal nobody connects, a function nobody calls — is not a bug. The game runs fine with it. It is
+worse than a bug: **it is a lie in the map.** It reads as load-bearing and it survives every grep,
+and you cannot tell it from live code. You will use the wrong one. That has already happened here.
+
+Found on 2026-07-13, five systems, one session — **and the game worked the whole time:**
+- `ALERT_RANGE` / `AGGRO_RANGE` — superseded by `enemy_data.alert_range`. *The replacement's own
+  comment says so.* Never deleted.
+- `MAX_THINK_TIME` — a Quake-3 pattern never wired. `last_think_time` never even assigned.
+- `CombatManager.apply_bullet_damage` — **a whole damage router the bullets route around.**
+- `.gitignore` rules naming `art_source/` — a tree that was deleted. The rule didn't fail, **it
+  stopped matching**, and swallowed 1.66 GB.
+- the GATE bead — `k77e` was never `bd dep`-linked. **A gate that blocked nothing**, for ~95 commits.
+
+**Nothing was broken. Everything was a lie about what the code means.** This project's problem is not
+fractures — it is fossils.
+
+**THE MACHINE (because a law in Markdown is just the next fossil):** `tests/test_fossils.tscn`, in the
+suite. The **79 existing fossils** are grandfathered in `tests/fossil_baseline.json`. **A NEW fossil
+FAILS THE BUILD.** The register **only shrinks.** Regenerating the baseline to silence a failure is
+**the one forbidden move** — it is a debt register, not a snooze button.
+
+Two rules the probe had to learn, and they are the law in miniature:
+1. **A comment is a tombstone, not a caller.** `# was a hardcoded ALERT_RANGE*2` was counted as a
+   reference — *the sentence recording the const's death was keeping it off the death list.*
+2. **The death register is not a caller.** The baseline names all 79; tallying it resurrected them
+   all. **The fossil detector was defeated by its own record.**
+
+Dead ≠ delete. Triage first: **FOSSIL** (superseded → delete) · **UNFINISHED** (built ahead of its
+wiring → wire or cut) · **MISSING FEATURE** (documented, never built → build it, e.g. `world_config`'s
+FPS-fallback ladder is read by *nothing* while perf is the top systemic risk). Deleting on a
+zero-reference count alone is how you lose the game: **913 of 1,291 assets have zero grep hits**, and
+`ModelActor` resolves the entire cast from bare `unit_id` strings.
+
+---
+
 ## THE WAR ROOM IS THE DEFAULT PROCESS — for ANY change, not just big ones
 
 **Summoner's standing law, 2026-07-12:** *"make that the key workflow when we do any big run of

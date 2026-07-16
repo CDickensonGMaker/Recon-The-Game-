@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -11,12 +11,11 @@ firing_mode = 1
 fire_rate = 750.0
 magazine_size = 20
 reload_time = 2.4
-base_damage = 28
+base_damage = 27
 base_spread = 1.6
 ads_spread_mult = 0.0625
 recoil_vertical = 1.1
 ads_fov = 60.0
-viewmodel_fov = 60.0
 effective_range = 300.0
 max_range = 460.0
 min_damage_mult = 0.65
@@ -29,8 +28,9 @@ recoil_climb_per_shot = 0.05
 recoil_climb_max = 1.7
 recoil_recovery = 14.0
 model_path = "res://scenes/weapons/m16a1_arms_viewmodel.tscn"
-bore_dir = Vector3(-0.15954481, -0.07876544, -0.9840435)
+bore_dir = Vector3(-0.17169897, -0.07876544, -0.9819957)
+ads_bore_dir = Vector3(-0.23741315, -0.0900081, -0.9672298)
 hip_position = Vector3(0, 0, -0.10379301)
-ads_position = Vector3(0, 0.05, 0.08)
-hip_rotation = Vector3(4.8755007, -8.87962, 0)
-ads_rotation = Vector3(4, 0, 0)
+ads_position = Vector3(-0.26867452, 0.113232985, 0.08)
+hip_rotation = Vector3(4.9836044, -9.4521, 0)
+ads_rotation = Vector3(5.4138026, -13.728982, 0)

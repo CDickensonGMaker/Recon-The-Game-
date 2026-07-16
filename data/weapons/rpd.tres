@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -11,13 +11,13 @@ firing_mode = 1
 fire_rate = 650.0
 magazine_size = 100
 reload_time = 7.0
-base_damage = 22
+base_damage = 42
 base_spread = 2.4
 ads_spread_mult = 0.092
 recoil_vertical = 2.2
 recoil_horizontal = 0.8
-ads_fov = 60.0
 viewmodel_fov = 64.0
+ads_fov = 60.0
 ads_move_mult = 0.45
 effective_range = 200.0
 max_range = 350.0
@@ -31,7 +31,8 @@ recoil_recovery = 9.0
 fire_volume_db = 1.0
 model_path = "res://scenes/weapons/rpd_arms_viewmodel.tscn"
 bore_dir = Vector3(0.0008815891, -0.072919235, -0.99733746)
+ads_bore_dir = Vector3(0, -0.058710866, -0.99827504)
 hip_position = Vector3(0, 0, -0.09319498)
 ads_position = Vector3(0, 0.05, 0.08)
 hip_rotation = Vector3(4.484715, 0.3969902, 0)
-ads_rotation = Vector3(4, 0, 0)
+ads_rotation = Vector3(3.6612642, 0.42504242, 0)

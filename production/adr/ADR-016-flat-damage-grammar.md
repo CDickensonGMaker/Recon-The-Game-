@@ -205,6 +205,47 @@ too small."*
   weapon's identity is CQB dominance, and reloading after five was clipping that fantasy short.
 - Guard: `test_flat_damage` EXPECTED carries M1911 = 20.
 
+## Amendment H (2026-07-16, Summoner-decreed): the great flattening — fun over realism, every gun even
+Decree: *fun > realism, every gun deadly, rounds even.* This also settles the damage half of the arena's
+US-killing-2:1 asymmetry (both sides now hit for the same base). Weapon identity NO LONGER lives in
+damage — it moves entirely to accuracy, fire-rate, handling, recoil, and range. The per-cartridge spread
+of the original table (28/22/17/20/32) is retired.
+
+**New values of record (flat, per the ADR-016 grammar):**
+- **Base = 27 — every rifle / SMG / pistol:** M16A1 · M14 · AK-47 · PPSh-41 · M1911 · **Mosin-Nagant.**
+  (The `.45 ACP` class of Amendment G and the cartridge classes of Amendments A–C are all subsumed into
+  the flat 27 — a future Thompson/M3/SKS/CAR-15 inherits 27 with no new amendment.)
+- **MG class = 42** (27 + 15): **M60 AND RPD.** The Summoner named "M60 +15" explicitly; the bump is
+  applied to BOTH sides' light MGs to keep the rounds EVEN per his stated principle. *(Interpretation
+  flagged for correction: if he meant the M60 literally only, revert RPD to 27.)*
+- **Sniper class = 87** (27 + 60): **M70 Winchester only.** Its record is "the sniper's bolt gun… the
+  one-shot conversation ender" — the unambiguous scoped/marksman role. **The Mosin does NOT join the
+  sniper class:** it is the weapon `vc_rifleman` (Local Force guerrilla) visibly carries and fires, so an
+  87 Mosin would make every standard VC grunt a one-shot-the-player sniper — the opposite of "even" and a
+  Fairness-Law violation. It stays base 27 as a VC line rifle. A future *scoped* VC sniper variant would
+  get its own 87 `.tres`. *(Choice flagged for Summoner correction.)*
+- **Shotgun UNCHANGED — out of scope.** The Ithaca is a per-pellet buckshot weapon (9 × 35, its own
+  bench-tested devastator envelope, Amendments E/F), not a base rifle/SMG/pistol. The decree named the
+  base guns; 27-per-pellet would silently rewrite the buckshot pattern. Left at 35, flagged.
+- **Explosives UNCHANGED** — M26 190 · M79 150 · LAW 250 · RPG-2 250 · RPG-7 290 (Amendment F) stand.
+- The script default `WeaponData.base_damage` moves 20 → 27 so no stale pistol default lingers as a
+  drift generator; M1911 (which relied on the default) now carries an explicit `base_damage = 27`.
+
+**Feel / consequences:** 27 × TORSO 2.5 = **67** — one aimed torso round drops a 65-hp Local Force man
+and two end anyone; HEAD stays fatal. **The no-one-shot-player-torso rail now binds ONLY the base-27
+class.** By decree the heavy classes DO one-shot the player torso: MG 42 × 2.5 = **105**, sniper
+87 × 2.5 = **217** — they are the execution weapons at their ranges, exactly as the buckshot already was.
+The Mosin-bug guard (a *base rifle* smuggling a one-shot) still holds, because the base class is 67.
+
+**Sacrifice (named):** weapon-identity-through-damage is gone entirely — every rifleman's round is
+interchangeable, so a weapon now matters only through how it *shoots*, not how hard it *hits*. The
+tabletop cartridge fidelity that survived every prior amendment is spent here by decree. If damage-side
+identity is ever wanted back, it must return as a class system, not per-gun tuning.
+
+**Guards:** `tests/test_flat_damage.tscn` EXPECTED carries the new table; a new `HEAVY_ONESHOT` exempt
+list (m60/rpd/m70/shotgun) lets the base-class one-shot rail stay strict while the heavy classes are
+allowed their decreed lethality.
+
 ## Related
 - **Pillars served:** 1 (outstanding gunplay — the decree's own rationale); 5 (honest, learnable death)
 - **ADRs:** supersedes ADR-003's dice core (locational model and one-grammar law survive); ADR-015

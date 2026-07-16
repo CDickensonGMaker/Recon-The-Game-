@@ -11,16 +11,20 @@
 ## Run: godot --headless --path . res://tests/test_flat_damage.tscn
 extends Node
 
-## The decreed values (ADR-016 + Amendment C armory truth pass). Change ONLY
-## with an ADR amendment. m14 = 28 (7.62 NATO, M60 cartridge class); m70 = 32
-## (full-power bolt, Mosin class).
+## The decreed values (ADR-016 Amendment H — the great flattening, 2026-07-16).
+## Change ONLY with an ADR amendment. Base = 27 for every rifle/SMG/pistol;
+## MG class = 42 (27+15, M60 AND RPD); sniper = 87 (27+60, M70 only — the
+## Mosin stays base 27 as the VC line rifle vc_rifleman carries).
 const EXPECTED := {
-	"m16a1": 28, "m14": 28, "m60": 28,
-	"ak47": 22, "rpd": 22,
-	"ppsh41": 17, "m1911": 20, "mosin": 32, "m70": 32,
+	"m16a1": 27, "m14": 27, "m60": 42,
+	"ak47": 27, "rpd": 42,
+	"ppsh41": 27, "m1911": 27, "mosin": 27, "m70": 87,
 	"m79": 150, "m26_grenade": 190, "m72_law": 250, "rpg2": 250, "rpg7": 290,
-	"shotgun": 35,  # BUCKSHOT (Amendment E + Summoner devastator retune) - 8 x 35
+	"shotgun": 35,  # BUCKSHOT (Amendment E + Summoner devastator retune) - 9 x 35
 }
+## Heavy classes that one-shot the player torso BY DECREE (Amendment H) — exempt
+## from the base-class no-one-shot rail below, exactly as the shotgun is.
+const HEAVY_ONESHOT := ["m60", "rpd", "m70", "shotgun"]
 ## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016;
 ## car15/sks/thompson by Amendment C (no FP arms = not a gun in this game;
 ## vc_rifleman now fires the Mosin his model carries).
@@ -102,9 +106,9 @@ func _run() -> void:
 	for wid: String in EXPECTED.keys():
 		if wid in ["m79", "m26_grenade", "m72_law", "rpg2", "rpg7"]:
 			continue  # explosives resolve through AOE, not a torso ray
-		if wid == "shotgun":
-			continue  # point-blank buckshot aggregates 8 pellets and SHOULD
-			          # end you - the Mosin guard is for standard rifles only
+		if wid in HEAVY_ONESHOT:
+			continue  # MG/sniper/buckshot are the execution weapons - they one-shot
+			          # the player torso by decree; the rail binds only the base-27 class
 		if int(float(EXPECTED[wid]) * tm) >= 100:
 			print("FAIL: %s one-shots the player's torso (the old Mosin bug class)" % wid)
 			failures += 1
