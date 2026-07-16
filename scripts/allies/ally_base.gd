@@ -1,47 +1,41 @@
 ## ally_base.gd - Allied soldier AI that fights alongside the player
-## Goal-driven architecture matching enemy AI for tactical combat
 class_name AllyBase
 extends CharacterBody3D
 
 signal died(ally: AllyBase)
 signal state_changed(new_state: Enums.AIState)
 
-## Stats
 var max_hp: int = 80
 var current_hp: int = 80
 var move_speed: float = 4.5
 var preferred_range: float = 12.0
 
-## Weapon
 var weapon_data: WeaponData = null
 var fire_timer: float = 0.0
 var can_fire: bool = true
 
-## AI State
 var current_state: Enums.AIState = Enums.AIState.IDLE
 var current_goal: Enums.AIGoal = Enums.AIGoal.NONE
 var state_timer: float = 0.0
 
-## Think system (like Quake 3 - separate from execution)
 var think_timer: float = 0.0
 const THINK_INTERVAL: float = 0.15
 
-## Target (enemies)
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
-## Seconds since we last had eyes on the target (mirrors EnemyBase) - recent
-## contact keeps a follower FIGHTING instead of falling back to heel.
+## Seconds since we last had eyes on the target. Recent contact keeps a follower
+## FIGHTING instead of falling back to heel.
 var target_last_seen_time: float = 999.0
 ## Human beat between acquiring a new target and the first aimed shot.
 var _aim_settle: float = 0.0
-## Debounced eyes-on 0-1 (war-room decree): goals read THIS, never raw LOS.
+## Debounced eyes-on 0-1: goals read THIS, never raw LOS.
 var contact_conf: float = 0.0
-## Animation intent stability filter + fire latch (smoothness plan T1.3/T1.4).
+## Animation intent stability filter + fire latch.
 var _last_intent: String = ""
 var _cand_intent: String = ""
 var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9
-var _cover_pose_until_ms: float = -1e9  # T1.5a: min hold before hold/peek re-pick
+var _cover_pose_until_ms: float = -1e9  # min hold before hold/peek re-pick
 var _hitzone_sync: Array = []           # [[hz, bone_idx, offset]..] - zones ride bones
 
 ## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
@@ -65,13 +59,11 @@ func _update_unstick(delta: float) -> void:
 			_unstick_dir = -_unstick_dir
 		_stuck_pos = global_position
 		_stuck_t = 0.0
-## Goal dwell + contact clock (decree: ~1s reactive dwell, Class-A interrupts).
+## Goal dwell + contact clock (~1s reactive dwell, Class-A interrupts).
 var goal_timer: float = 99.0
 var _contact_time: float = 0.0
 
-## ---- PERSONALITY SPECTRUM (Summoner: "everyone's goal is to survive...
-## there can be men that cower or anchor and complain and miss, and total
-## go-getters getting kills"). Rolled random per man, per playthrough.
+## ---- PERSONALITY SPECTRUM ---- rolled random per man, per playthrough.
 ## courage: <0.35 = the coward (anchors deep, suppressive fire, sluggish),
 ##          >0.70 = the go-getter (pushes with the player, skips the cover trip)
 ## skill:   scales personal spread (0 = sprays, 1 = deadly)
@@ -91,23 +83,20 @@ func effective_courage() -> float:
 	return clampf(c, 0.0, 1.0)
 var has_line_of_sight: bool = false
 
-## Aim interpolation
 var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
 var aim_speed: float = 7.0
 
-## Follow player
 var follow_distance: float = 5.0
 var max_follow_distance: float = 15.0
 
-## Squad layer (W14-W16): roster identity + orders.
+## Squad layer: roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
 var member: Dictionary = {}      ## roster entry (name/mos/stats) - IS the roster dict
 var director: MissionDirector = null  ## toast channel for learn-by-doing promotion barks
 
 
-## Promotion bark surfaced at the moment of the deed (War Room decree - visibility is
-## 90% of the value). Called when this soldier's skill levels up from doing the thing.
+## Promotion bark. Called when this soldier's skill levels up from doing the thing.
 func on_skill_up(skill_id: String, level: int) -> void:
 	if director == null:
 		return
@@ -116,7 +105,7 @@ func on_skill_up(skill_id: String, level: int) -> void:
 var order_mode: OrderMode = OrderMode.FOLLOW
 var order_pos: Vector3 = Vector3.ZERO
 ## Personal formation slot around the player (rolled once) - the squad spreads
-## into an arc instead of stacking on the player's back (Caleb).
+## into an arc instead of stacking on the player's back.
 var _follow_offset: Vector3 = Vector3.ZERO
 var weapons_free: bool = true
 var fire_rate_mult: float = 1.0  ## Pigman sustained-fire bonus
@@ -126,18 +115,16 @@ func set_order(mode: OrderMode, pos: Vector3 = Vector3.ZERO) -> void:
 	order_mode = mode
 	order_pos = pos
 
-## Combat behavior
 var strafe_direction: float = 0.0
 var strafe_timer: float = 0.0
 var shots_fired: int = 0
 var burst_count: int = 0
 const MAX_BURST: int = 6
 
-## Suppression
 var suppression_level: float = 0.0
 const SUPPRESSION_DECAY: float = 0.4
 
-## ---- COVER (squad parity with EnemyBase R15, Caleb 2026-07-10) ----
+## ---- COVER ----
 ## Same raycast LOS-block sampling + the SAME claim broker as enemies, so
 ## friend and foe never stack on one rock. Cover-first doctrine: in contact
 ## and in the open -> reach cover, THEN fight from it.
@@ -150,39 +137,32 @@ var _cover_fail_count: int = 0
 ## differ, so these are fallback chains resolved by ModelActor.play_first.
 var _anim_override: String = ""
 var _leap_until_ms: float = -1e9
-const LEAP_CLIPS: Array[String] = ["falling_to_roll", "stand_to_cover", "idle_crouching", "kneeling_pointing"]
+## Cover-arrival posture. A controlled crouch-down is the default; the dive-roll
+## is the rare exception, rationed so a whole squad never rolls in unison.
+const STAND_COVER_CLIPS: Array[String] = ["stand_to_cover", "stand_to_cover_2", "stand_to_cover_3"]
+const COVER_ARRIVAL_FALLBACK: Array[String] = ["idle_crouching", "kneeling_pointing"]
+const ROLL_URGENT_DIST: float = 18.0
+const ROLL_LOW_COURAGE: float = 0.3
+const ROLL_BASE_CHANCE: float = 0.15
+const ROLL_COOLDOWN_MS: float = 8000.0
+const SQUAD_ROLL_WINDOW_MS: float = 1500.0
+static var _squad_last_roll_ms: float = -1.0e9
+var _last_roll_ms: float = -1.0e9
+var _cover_rush_dist: float = 0.0
+var _cover_arrivals: int = 0
 const COVER_HOLD_CLIPS: Array[String] = ["idle_crouching_aiming", "kneeling_pointing", "idle_crouching", "rifle_aiming_idle"]
 const COVER_PEEK_CLIPS: Array[String] = ["idle_aiming", "rifle_aiming_idle", "firing_rifle"]
 const RUSH_CLIPS: Array[String] = ["sprint_forward", "run_forward", "start_walking"]
 
-## Physics
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-## Visual
 var mesh: MeshInstance3D
 var sprite_actor: Node3D = null  ## ModelActor (default) or SpriteActor (fallback)
 var _visual_is_model: bool = false
 var last_hit_dir: Vector3 = Vector3.FORWARD
-## Which rendered unit this man wears. SquadSystem overrides for the PIGMAN,
-## who carries an M60 and was rendered as a separate unit.
+## Which rendered unit this man wears. SquadSystem overrides it per MOS.
 var sprite_faction: String = "US Army and Co"
-## us_grunt_v2 (Caleb): the gib-rig grunt is THE squadmate model - full gore
-## contract, the big clip library, and the cover/crouch animation set.
-## RATIFIED BY THE SUMMONER 2026-07-13 (bead frsw, open since 07-12): the live
-## squadmate is now us_grunt_v3.
-##
-## v3 IS A BUG FIX, NOT A NERF. The hurtbox hulls shrink because they STOP ENCLOSING
-## HIS LUGGAGE:
-##     HEAD   0.0126 -> 0.0067 m3  (-47%)  the HELMET leaves the hurtbox
-##     TORSO  0.0566 -> 0.0206 m3  (-64%)  the RUCK and BANDOLIER leave it
-## Before this you could shoot a man's BACKPACK and kill him - and the hitzone_builder
-## contract says so in as many words ("the player could shoot a man's ANTENNA and hurt
-## him"). The hulls have not collapsed; every zone still sits <=0.06m off its bone
-## segment (probe_hitzone_fit). They have stopped covering his gear.
-##
-## THE BILL, PAID KNOWINGLY: enemies are harder to kill, most noticeably from BEHIND
-## and at GRAZING ANGLES. That is Pillar 1 working - death should come from the
-## situation, not from a lucky round through a rucksack.
+## The gib-rig grunt: full gore contract, big clip library, cover/crouch anim set.
 var sprite_unit: String = "us_grunt_v3"
 var sprite_weapon: String = "m16a1"
 
@@ -192,11 +172,10 @@ func _ready() -> void:
 	CombatManager.register_ally(self)
 	var slot_angle: float = randf_range(0.0, TAU)
 	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
-	# The man he is this playthrough (decree: random spectrum, roster later).
+	# The man he is this playthrough: a random point on the spectrum.
 	courage = randf()
 	skill = randf()
 
-	# Default ally weapon: M16A1 (matches the m16 models/sprites — audit)
 	weapon_data = load("res://data/weapons/m16a1.tres")
 
 	_setup_visual()
@@ -256,15 +235,14 @@ func set_sprite(unit: String, weapon: String, faction: String = "US Army and Co"
 	_setup_visual()
 
 
-## AllyBase has no facing_dir (EnemyBase does, at :76). Derive it: aim at a
-## target if we have one, otherwise face where we are walking.
+## AllyBase has no facing_dir. Derive it: aim at a target if we have one,
+## otherwise face where we are walking.
 func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
 	var facing: Vector3 = current_aim_dir
-	# T1.2 stale-aim fix: without LOS, current_aim_dir never updates - an ally
-	# chasing last-known ran sideways facing his OLD aim, then snapped when
-	# LOS returned. Moving without eyes-on = face where you're going.
+	# Without LOS, current_aim_dir never updates - so moving without eyes-on must
+	# face where you are going, or the man runs sideways facing his OLD aim.
 	if target == null or not has_line_of_sight:
 		var vel := Vector3(velocity.x, 0.0, velocity.z)
 		if vel.length_squared() > 0.09:
@@ -279,8 +257,7 @@ func _update_sprite() -> void:
 		var fwd := Vector3(facing.x, 0.0, facing.z).normalized()
 		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
 	var now: float = float(Time.get_ticks_msec())
-	# T1.3: fire pose follows the actual shot (350ms latch), not the cooldown
-	# tail before the NEXT shot.
+	# Fire pose follows the actual shot (350ms latch), not the cooldown tail.
 	var firing: bool = now < _fired_until_ms
 	# Cover behavior owns the clip while an override is set (leap / crouch-hold
 	# / peek) - the state map would stomp it every frame otherwise.
@@ -289,7 +266,7 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 		return
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral)
-	# T1.4 stability filter: intent must win continuously for 180ms before the
+	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:
 		if intent != _cand_intent:
@@ -306,9 +283,8 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
 
-## Bone-measured, bone-synced zones on model units (beads 90gj/yd83).
-## Allies use player hurtbox layer 32 (enemies shoot at them too); no GUT
-## (ally damage has no gut handling - BODY spans hips to neck instead).
+## Allies use the player hurtbox layer 32 (enemies shoot at them too); no GUT
+## zone - ally damage has no gut handling, so BODY spans hips to neck instead.
 func _setup_hurtbox() -> void:
 	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
 	_hitzone_sync = HitzoneBuilder.build(self, ma, 32, 16, ["ally_hurtbox", "hitzone"], false)
@@ -324,27 +300,22 @@ func _physics_process(delta: float) -> void:
 	# Cap delta for framerate independence
 	var capped_delta: float = minf(delta, 0.066)
 
-	# Apply gravity
 	if not is_on_floor():
 		velocity.y -= gravity * capped_delta
 
-	# Decay suppression
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * capped_delta)
 
-	# Update fire timer
 	if not can_fire:
 		fire_timer -= capped_delta
 		if fire_timer <= 0:
 			can_fire = true
 
-	# Think on schedule
 	think_timer += capped_delta
 	if think_timer >= THINK_INTERVAL:
 		think_timer = 0.0
 		_think()
 
-	# Execute every frame
 	_execute(capped_delta)
 
 	_update_unstick(capped_delta)
@@ -358,9 +329,8 @@ func _think() -> void:
 
 
 func _find_target() -> void:
-	# Find closest living enemy
 	var closest_enemy: Node3D = null
-	var closest_dist: float = 60.0  # was 40 - squadmates spotted contacts late (Caleb)
+	var closest_dist: float = 60.0
 
 	for enemy in CombatManager.active_enemies:
 		if not is_instance_valid(enemy) or not enemy is Node3D:
@@ -375,9 +345,8 @@ func _find_target() -> void:
 			closest_dist = dist
 			closest_enemy = enemy as Node3D
 
-	# Aim settle: a NEW target costs a human beat before the first shot (the
-	# enemies pay reaction + first-miss + exposure ramp; the squad shouldn't
-	# be an instant laser - Caleb: waves were deleted before firing back).
+	# Aim settle: a NEW target costs a human beat before the first shot, so the
+	# squad is not an instant laser.
 	if closest_enemy != target and closest_enemy != null:
 		_aim_settle = randf_range(0.45, 0.9)
 	target = closest_enemy
@@ -408,7 +377,7 @@ func _update_line_of_sight() -> void:
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
 
-	# Contact clock + new-contact reset (fixes the never-reset fail counter).
+	# Contact clock + new-contact reset of the cover fail counter.
 	if target != null and is_instance_valid(target):
 		if _contact_time == 0.0:
 			_cover_fail_count = 0
@@ -416,8 +385,8 @@ func _evaluate_goals() -> void:
 	else:
 		_contact_time = 0.0
 
-	# Dwell ~1s (Summoner's reactive dial); Class-A interrupts (take_damage)
-	# force past the gate. A cover rush COMPLETES (cap 4s).
+	# Dwell ~1s. Class-A interrupts (take_damage) force past the gate.
+	# A cover rush COMPLETES (cap 4s).
 	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
 		return
 	if current_state == Enums.AIState.SEEKING_COVER and _moving_to_cover and goal_timer < 4.0:
@@ -427,7 +396,7 @@ func _evaluate_goals() -> void:
 	var nerve: float = effective_courage()
 
 	# Suppression band with HYSTERESIS (enter >0.6, exit <0.35 - no boundary
-	# flicker). Suppressed WITH cover = hunker where you are (decree), never
+	# flicker). Suppressed WITH cover = hunker where you are, never
 	# relocate under fire.
 	var supp_gate: float = 0.35 if current_state == Enums.AIState.SEEKING_COVER else 0.6
 	if suppression_level > supp_gate and not has_cover:
@@ -435,10 +404,9 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
-	# In contact = FIGHT (Caleb). Reads the DEBOUNCED confidence, never raw
-	# LOS - a leaf can't send a man back to heel. COVER-FIRST is personality-
-	# gated: go-getters (nerve >= 0.75) skip the cover trip and push; everyone
-	# else covers once, on fresh contact only (<5s), fail-count escapes apply.
+	# In contact = FIGHT. Reads the DEBOUNCED confidence, never raw LOS.
+	# COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover
+	# trip and push; everyone else covers once, on fresh contact only (<5s).
 	if target and weapons_free and (contact_conf > 0.4 or target_last_seen_time < 6.0):
 		if not has_cover and _cover_fail_count < 2 and _contact_time < 5.0 and nerve < 0.75:
 			current_goal = Enums.AIGoal.SEEK_COVER
@@ -448,7 +416,6 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.COMBAT)
 		return
 
-	# Otherwise follow player
 	current_goal = Enums.AIGoal.HOLD_POSITION
 	_change_state(Enums.AIState.IDLE)
 
@@ -457,7 +424,6 @@ func _execute(delta: float) -> void:
 	_update_sprite()
 	state_timer += delta
 
-	# Update aim
 	_update_aim(delta)
 
 	match current_state:
@@ -479,7 +445,6 @@ func _update_aim(delta: float) -> void:
 	target_aim_dir = (target_pos - eye_pos).normalized()
 	current_aim_dir = current_aim_dir.lerp(target_aim_dir, aim_speed * delta).normalized()
 
-	# Face target
 	var flat_aim: Vector3 = current_aim_dir
 	flat_aim.y = 0
 	if flat_aim.length() > 0.1:
@@ -525,17 +490,14 @@ func _execute_combat(delta: float) -> void:
 
 	var dist := global_position.distance_to(target.global_position)
 
-	# Update strafe timer
 	strafe_timer -= delta
 	if strafe_timer <= 0:
 		strafe_direction = [-1.0, 0.0, 1.0].pick_random()
 		strafe_timer = randf_range(1.5, 3.0)
 
 	if has_line_of_sight:
-		# Movement based on range - PERSONALITY-SHAPED (decree): the go-getter
-		# (nerve >= 0.7) closes distance and pushes; the coward (nerve < 0.35)
-		# ANCHORS - he is not leaving his rock to close distance, he suppresses
-		# from where he is. The middle holds the base of fire.
+		# Movement by range, PERSONALITY-SHAPED: the go-getter (nerve >= 0.7) closes
+		# and pushes; the coward (nerve < 0.35) ANCHORS - he will not leave his rock.
 		var move_dir := Vector3.ZERO
 		var nerve: float = effective_courage()
 		var advance_band: float = 0.9 if nerve >= 0.7 else 1.2
@@ -546,15 +508,12 @@ func _execute_combat(delta: float) -> void:
 		elif dist < preferred_range * 0.6:
 			move_dir = (global_position - target.global_position).normalized()
 
-		# Apply strafe
 		if strafe_direction != 0.0:
 			var strafe_vec := transform.basis.x * strafe_direction
 			move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
-		# Covered men HOLD their piece of cover: leash RE-ANCHORS (never
-		# releases by drift - the release loop was the cover-obsession bug).
-		# T1.3 latch replaces the 1-frame cooldown boolean that flipped the
-		# cover pose every burst cycle (bypassing the intent filter entirely).
+		# Covered men HOLD their piece of cover: the leash RE-ANCHORS and never
+		# releases by drift (that release loop was the cover-obsession bug).
 		var now_ms: float = float(Time.get_ticks_msec())
 		var firing_now: bool = now_ms < _fired_until_ms or burst_count > 0
 		if has_cover:
@@ -563,7 +522,7 @@ func _execute_combat(delta: float) -> void:
 				move_dir = (current_cover - global_position).normalized()  # step back to the rock
 			else:
 				move_dir *= 0.1
-				# T1.5a pose latch: hold a chosen cover pose >=600ms before
+				# Pose latch: hold a chosen cover pose >=600ms before re-picking -
 				# re-picking - covered men change stance deliberately.
 				if now_ms > _leap_until_ms and now_ms > _cover_pose_until_ms:
 					if sprite_actor is ModelActor:
@@ -607,15 +566,13 @@ func _execute_combat(delta: float) -> void:
 func _execute_seeking_cover(delta: float) -> void:
 	if _moving_to_cover:
 		if global_position.distance_to(current_cover) < 1.4:
-			# LEAP INTO COVER (Caleb): one-shot arrival clip, then crouch-hold.
+			# LEAP INTO COVER: one-shot arrival clip, then crouch-hold.
 			_moving_to_cover = false
 			has_cover = true
-			var leap: String = ""
-			if sprite_actor is ModelActor:
-				leap = (sprite_actor as ModelActor).play_first(LEAP_CLIPS, true)
-			_anim_override = leap
-			# T1.5c: window sized by the actual clip (fixed 900ms froze short
-			# fallback clips and cut long ones mid-roll).
+			_anim_override = _pick_cover_arrival_clip()
+			var leap: String = _anim_override
+			# Window sized by the ACTUAL clip length: a fixed window freezes short
+			# fallback clips and cuts long ones mid-roll.
 			var leap_len: float = 0.9
 			if leap != "" and sprite_actor is ModelActor:
 				leap_len = clampf((sprite_actor as ModelActor).clip_length(leap), 0.4, 1.5)
@@ -634,11 +591,12 @@ func _execute_seeking_cover(delta: float) -> void:
 		var p := _find_cover_point()
 		if p != Vector3.ZERO:
 			current_cover = p
+			_cover_rush_dist = global_position.distance_to(p)
 			_moving_to_cover = true
 			return
 		_cover_fail_count += 1
 
-	# No point found (yet): old perpendicular duck-and-dodge.
+	# No point found (yet): perpendicular duck-and-dodge.
 	if target:
 		var to_target := (target.global_position - global_position).normalized()
 		var perpendicular := Vector3(-to_target.z, 0, to_target.x)
@@ -648,14 +606,53 @@ func _execute_seeking_cover(delta: float) -> void:
 		velocity.x = move_dir.x * move_speed
 		velocity.z = move_dir.z * move_speed
 
-	# Exit after moving - to the FIGHT if we still have one (the old exit to
-	# IDLE mid-firefight was half the cover-thrash loop).
+	# Exit after moving - to the FIGHT if we still have one (exiting to IDLE
+	# mid-firefight is half the cover-thrash loop).
 	if state_timer > 2.0:
 		_anim_override = ""
 		if target != null and is_instance_valid(target):
 			_change_state(Enums.AIState.COMBAT)
 		else:
 			_change_state(Enums.AIState.IDLE)
+
+
+## Cover-arrival clip. Default is a per-man crouch-down variant; the dive-roll
+## fires only on an urgent long sprint-in or a shaken man, at low odds, gated by
+## a per-man cooldown and a squad-wide window so at most one ally rolls at a time.
+## Deterministic per (man, arrival) - no shared-RNG draw (ADR-010).
+func _pick_cover_arrival_clip() -> String:
+	if not (sprite_actor is ModelActor):
+		return ""
+	var ma := sprite_actor as ModelActor
+	_cover_arrivals += 1
+	var now: float = float(Time.get_ticks_msec())
+	var urgent: bool = _cover_rush_dist >= ROLL_URGENT_DIST
+	var shaken: bool = courage < ROLL_LOW_COURAGE
+	var cooled: bool = now - _last_roll_ms >= ROLL_COOLDOWN_MS
+	var window_open: bool = now - _squad_last_roll_ms >= SQUAD_ROLL_WINDOW_MS
+	if (urgent or shaken) and cooled and window_open:
+		var chance: float = ROLL_BASE_CHANCE + (0.2 if shaken else 0.0)
+		if _arrival_hash() < chance:
+			_last_roll_ms = now
+			_squad_last_roll_ms = now
+			var roll_clips: Array[String] = ["falling_to_roll", "stand_to_cover"]
+			roll_clips.append_array(COVER_ARRIVAL_FALLBACK)
+			return ma.play_first(roll_clips, true)
+	var v: int = int(get_instance_id() % 3)
+	var clips: Array[String] = [
+		STAND_COVER_CLIPS[v],
+		STAND_COVER_CLIPS[(v + 1) % 3],
+		STAND_COVER_CLIPS[(v + 2) % 3],
+	]
+	clips.append_array(COVER_ARRIVAL_FALLBACK)
+	return ma.play_first(clips, true)
+
+
+## Deterministic pseudo-random in [0,1) keyed to this man and this arrival.
+## Not the shared gameplay RNG - clip choice is presentation, not a sim event.
+func _arrival_hash() -> float:
+	var h: int = hash([get_instance_id(), _cover_arrivals])
+	return float(h & 0xFFFFFF) / float(0x1000000)
 
 
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
@@ -698,9 +695,8 @@ func _release_cover() -> void:
 func _change_state(new_state: Enums.AIState) -> void:
 	if new_state == current_state:
 		return
-	# T1.5b: the cover claim + anim override must not outlive the fight. They
-	# leaked on COMBAT->IDLE (target died), leaving allies gliding after the
-	# player in a frozen crouch and leashed to a rock hundreds of meters back.
+	# The cover claim + anim override must NOT outlive the fight: leaking them on
+	# COMBAT->IDLE leaves allies gliding in a frozen crouch, leashed to a far rock.
 	var was_fighting: bool = current_state == Enums.AIState.COMBAT \
 		or current_state == Enums.AIState.SEEKING_COVER
 	var still_fighting: bool = new_state == Enums.AIState.COMBAT \
@@ -742,25 +738,20 @@ func _fire_at_target() -> void:
 	fire_timer = weapon_data.get_fire_delay() / maxf(0.5, fire_rate_mult)
 	shots_fired += 1
 
-	# Use smoothly interpolated aim
 	var final_aim: Vector3 = current_aim_dir
 
-	# Add spread. W28: this soldier's OWN Small Arms skill tightens their cone - was
-	# ignored (only the player's skill mattered), so a veteran rifleman now shoots
-	# measurably tighter than a rookie. Same formula the player uses (weapon_holder).
+	# Spread: this soldier's OWN Small Arms skill tightens the cone (same formula
+	# the player uses in weapon_holder).
 	var spread: float = deg_to_rad(weapon_data.base_spread * 1.2 + float(shots_fired) * 0.05)
 	var sa: int = SquadRoster.skill_level(member, "small_arms") if not member.is_empty() else 0
 	spread *= 1.0 / (1.0 + 0.06 * float(sa))
-	# Personality skill (decree): the bad soldier sprays wide ("and miss but
-	# maybe hit"), the natural shoots tight. x1.6 at skill 0 -> x0.8 at skill 1.
+	# Personality skill: x1.6 spread at skill 0 -> x0.8 at skill 1.
 	spread *= (1.6 - skill * 0.8)
-	# Fire-and-move is allowed but costs accuracy (Caleb) - same idea as the
-	# enemy's x1.6 bounding-fire penalty.
+	# Fire-and-move is allowed, but it costs accuracy.
 	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.5:
 		spread *= 1.5
-	# Bounded, center-weighted, angular - and hold over for the range (the same
-	# ballistics-audit fixes the enemies got; your men shoot like men, not like
-	# a random number generator, and they can reach past the arena).
+	# Bounded, center-weighted, angular - and hold over for the range (mirrors the
+	# enemy ballistics: 1.2 deg cap, so men can reach past the arena).
 	spread = minf(spread, deg_to_rad(1.2))
 	var a_right: Vector3 = final_aim.cross(Vector3.UP).normalized()
 	var a_up: Vector3 = a_right.cross(final_aim).normalized()
@@ -772,8 +763,8 @@ func _fire_at_target() -> void:
 		var td: float = global_position.distance_to((target as Node3D).global_position)
 		final_aim = (final_aim + a_up * tan(weapon_data.elevation_for(td))).normalized()
 
-	# Raycast from the gun muzzle (R03). FULL-REALISM FF (decree): the ray
-	# sees the player (2) and fellow-ally hurtboxes (32) too.
+	# Raycast from the gun muzzle. FULL-REALISM FF: the ray sees the player (2)
+	# and fellow-ally hurtboxes (32) too.
 	var origin: Vector3 = get_muzzle_position(final_aim)
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
@@ -781,13 +772,13 @@ func _fire_at_target() -> void:
 		origin + final_aim * weapon_data.max_range,
 		1 | 2 | 4 | 32 | 64
 	)
-	query.collide_with_areas = true  # enemy hitzones are Area3D (sponge fix)
+	query.collide_with_areas = true  # enemy hitzones are Area3D
 	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
 
-	# MUZZLE DISCIPLINE (decree): the player or a squadmate in the lane =
-	# don't squeeze. The skipped round costs cadence, not ammo.
+	# MUZZLE DISCIPLINE: the player or a squadmate in the lane = don't squeeze.
+	# The skipped round costs cadence, not ammo.
 	if result:
 		var lane: Object = result.collider
 		var lane_owner: Node = (lane as Hitzone).owner_entity if lane is Hitzone else lane as Node
@@ -795,32 +786,28 @@ func _fire_at_target() -> void:
 				and (lane_owner.is_in_group("player") or lane_owner.is_in_group("allies")):
 			return
 
-	# REAL PROJECTILES (7ks): live BulletSystem round - muzzle spawn, drop,
-	# travel, arrival damage/FX through the shared resolver. Tracer IS the
-	# bullet, color/ratio from WeaponData (nx9n). Lane-check ray above still
-	# enforces muzzle discipline. FULL-REALISM FF mask ports verbatim.
+	# Live BulletSystem round - muzzle spawn, drop, travel, arrival damage/FX
+	# through the shared resolver. The tracer IS the bullet; color from WeaponData.
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
 	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data)
 	GunFX.muzzle_flash(get_tree().current_scene, origin)
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
-	# Rounds touch flesh ONLY through hitzone areas - the player wears zones
-	# now too (all models bleed the same), so every body-capsule layer is out
-	# of the mask. A capsule in the mask eats the hit before the zones inside
-	# it and the hit lands flat 1.0x.
+	# Rounds touch flesh ONLY through hitzone areas: every body-capsule layer is
+	# OUT of the mask on purpose. A capsule in the mask eats the hit before the
+	# zones inside it and the hit lands flat 1.0x.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
 		1 | 32 | 64, [self], show_tracer)
 
 
-## Take damage
 ## GORE_WORKFLOW ledger + explosive-kill flag (same doctrine as every model).
 var _removed: Array[String] = []
 var _killed_explosive: bool = false
 
 
 ## Region-resolved gore channel (BulletSystem): one hit >= 45 takes the limb.
-## Allies bleed like everyone - "all models treated the same" (Caleb).
+## Allies bleed like everyone else.
 func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 	if not _visual_is_model or sprite_actor == null:
 		return
@@ -832,7 +819,7 @@ func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 
 
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
-	goal_timer = 99.0  # Class-A interrupt (decree): getting hit may always re-plan
+	goal_timer = 99.0  # Class-A interrupt: getting hit may always re-plan
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:
@@ -842,7 +829,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
 	current_hp -= amount
 
-	# Visual feedback
 	if sprite_actor != null:
 		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
 	elif mesh and mesh.material_override:
@@ -852,10 +838,8 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 				mesh.material_override.albedo_color = Color(0.3, 0.35, 0.25)
 		)
 
-	# Add suppression
 	suppression_level = minf(1.0, suppression_level + 0.3)
 
-	# Check death
 	if current_hp <= 0:
 		current_hp = 0
 		_die()
@@ -868,7 +852,7 @@ func apply_suppression(amount: float) -> void:
 
 
 func _die() -> void:
-	GunFX.blood_pool(get_tree().current_scene, global_position)  # a man bleeding out is a place
+	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_release_cover()
 	_change_state(Enums.AIState.DEAD)
 	CombatManager.unregister_ally(self)
@@ -899,7 +883,7 @@ func _die() -> void:
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 
-	# PT9: their kit is still on the ground - a real window to recover it.
+	# Their kit is still on the ground - a real window to recover it.
 	add_to_group("ally_corpses")
 	get_tree().create_timer(45.0).timeout.connect(queue_free)
 

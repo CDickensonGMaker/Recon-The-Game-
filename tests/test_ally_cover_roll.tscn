@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ballycoverroll1b"]
+
+[ext_resource type="Script" path="res://tests/test_ally_cover_roll.gd" id="1"]
+
+[node name="TestAllyCoverRoll" type="Node3D"]
+script = ExtResource("1")
