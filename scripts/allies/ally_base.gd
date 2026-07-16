@@ -137,6 +137,14 @@ var _cover_fail_count: int = 0
 ## differ, so these are fallback chains resolved by ModelActor.play_first.
 var _anim_override: String = ""
 var _leap_until_ms: float = -1e9
+var _low_posture: bool = false         # crouch-walk this frame (heavy pin / eyes-off cover move, B2)
+var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
+var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
+## See EnemyBase.CROUCH_SPEED_CAP - the move-side half of B2 so the crouch does
+## not ice-skate. Allies default aggressive, so low_posture is a high bar below.
+const CROUCH_SPEED_CAP: float = 1.9
+const COVER_EXIT_DEBOUNCE_MS: float = 1500.0
+const LOW_POSTURE_SUPPRESS: float = 0.6  # heavy pin; allies have no SUPPRESSED state
 ## Cover-arrival posture. A controlled crouch-down is the default; the dive-roll
 ## is the rare exception, rationed so a whole squad never rolls in unison.
 const STAND_COVER_CLIPS: Array[String] = ["stand_to_cover", "stand_to_cover_2", "stand_to_cover_3"]
@@ -237,6 +245,19 @@ func set_sprite(unit: String, weapon: String, faction: String = "US Army and Co"
 
 ## AllyBase has no facing_dir. Derive it: aim at a target if we have one,
 ## otherwise face where we are walking.
+## Low-posture (Track B2): allies default to the aggressive stand-and-push the
+## Summoner liked, so this is a HIGH bar - only a heavy pin, or a careful eyes-off
+## move into cover, drops them low. No alert tiers / no SUPPRESSED state here.
+func _is_low_posture(firing: bool) -> bool:
+	if firing:
+		return false
+	if suppression_level >= LOW_POSTURE_SUPPRESS:
+		return true
+	if current_state == Enums.AIState.SEEKING_COVER and not has_line_of_sight:
+		return true
+	return false
+
+
 func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
@@ -249,6 +270,11 @@ func _update_sprite() -> void:
 			facing = vel
 	sprite_actor.set_facing(facing)
 	if current_state == Enums.AIState.DEAD:
+		return
+	# Cover-exit one-shot (Track B3): stand up before moving off. Self-clearing,
+	# outranks the cover _anim_override (which _release_cover just cleared).
+	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("cover_to_stand")
 		return
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
@@ -265,7 +291,8 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).play(_anim_override)
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 		return
-	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral)
+	_low_posture = _is_low_posture(firing)
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, false, _low_posture)
 	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:
@@ -319,6 +346,13 @@ func _physics_process(delta: float) -> void:
 	_execute(capped_delta)
 
 	_update_unstick(capped_delta)
+	# Move-side of low-posture (B2): cap ground speed so the crouch reads, not skates.
+	if _low_posture:
+		var flat := Vector2(velocity.x, velocity.z)
+		if flat.length() > CROUCH_SPEED_CAP:
+			flat = flat.normalized() * CROUCH_SPEED_CAP
+			velocity.x = flat.x
+			velocity.z = flat.y
 	move_and_slide()
 
 
@@ -683,6 +717,7 @@ func _find_cover_point() -> Vector3:
 
 
 func _release_cover() -> void:
+	var was_covered: bool = has_cover
 	if current_cover != Vector3.ZERO:
 		var key := EnemyBase._cover_key(current_cover)
 		if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
@@ -690,6 +725,14 @@ func _release_cover() -> void:
 	has_cover = false
 	_moving_to_cover = false
 	_anim_override = ""
+	# Cover-exit stand-up (B3): a living man who actually held cover. Debounced so
+	# cover-thrash can't stutter a perpetual half-rise.
+	if was_covered and current_state != Enums.AIState.DEAD:
+		var now: float = float(Time.get_ticks_msec())
+		if now - _last_cover_exit_ms > COVER_EXIT_DEBOUNCE_MS and sprite_actor is ModelActor:
+			var l: float = (sprite_actor as ModelActor).clip_length("cover_to_stand")
+			_cover_exit_until_ms = now + (l if l > 0.0 else 0.8) * 1000.0
+			_last_cover_exit_ms = now
 
 
 func _change_state(new_state: Enums.AIState) -> void:

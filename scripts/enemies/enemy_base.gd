@@ -138,6 +138,15 @@ var _last_intent: String = ""          # committed anim intent (stability filter
 var _cand_intent: String = ""          # challenger intent + when it started winning
 var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9      # fire pose follows the SHOT, 350ms
+var _low_posture: bool = false         # crouch-walk this frame (caution/pin, Track B2)
+var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
+var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
+## Planar speed cap while low_posture is on. Below LOW_POSTURE_SPEED_MAX so the
+## crouch clip always resolves, and near the crouch clips' authored 1.3 mps so
+## feet plant (set_locomotion_speed clamps at 1.4x). This is the move-side half
+## of B2: "move low" must actually mean "move slow" or the crouch ice-skates.
+const CROUCH_SPEED_CAP: float = 1.9
+const COVER_EXIT_DEBOUNCE_MS: float = 1500.0
 var _hitzone_sync: Array = []          # [[hz, bone_idx, offset]..] - zones ride bones
 
 ## Stuck watchdog: commanded to move but not moving for ~1s -> sidestep for a beat.
@@ -353,6 +362,23 @@ func _setup_visual() -> void:
 	add_child(mesh)
 
 
+## Low-posture (Track B2): move low and careful. Keyed STRICTLY on caution or a
+## real pin - a firing or confirmed-hostile push stays upright, so the aggression
+## the Summoner liked stays the default. Suppression is deliberately NOT a key
+## here: it spikes on a single hit mid-assault; the >0.7 SUPPRESSED state already
+## owns heavy fire. This is the enemy half; AllyBase has its own (no alert tiers).
+func _is_low_posture(firing: bool) -> bool:
+	if firing:
+		return false
+	if current_state == Enums.AIState.SUPPRESSED:
+		return true
+	if current_state == Enums.AIState.SEEKING_COVER \
+			or current_state == Enums.AIState.ADVANCING \
+			or current_state == Enums.AIState.FLANKING:
+		return alert_tier <= AlertTier.SUSPICIOUS
+	return false
+
+
 ## Drive the clip from the AI. Called every frame from _execute(), never from
 ## _think() - think is LOD-throttled to 0.6s past 150m and animation would run
 ## at 1.6 fps.
@@ -362,6 +388,11 @@ func _update_sprite() -> void:
 	sprite_actor.set_facing(facing_dir)
 	if current_state == Enums.AIState.DEAD or is_surrendered or is_downed:
 		return  # the death / surrender / downed clip was latched; do not restart it
+	# Cover-exit one-shot (Track B3): a man leaving cover stands up before he moves.
+	# Self-clearing window - no _anim_override, so no "frozen crouch statue" leak.
+	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("cover_to_stand")
+		return
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
 	var lateral: float = 0.0
@@ -372,8 +403,9 @@ func _update_sprite() -> void:
 	var firing: bool = now < _fired_until_ms
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and alert_tier <= AlertTier.SUSPICIOUS
+	_low_posture = _is_low_posture(firing)
 	var prev_intent: String = _last_intent
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking)
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture)
 	# Stability filter: an intent must WIN continuously for 180ms before the clip
 	# commits. Fire and death still switch immediately.
 	if intent != _last_intent:
@@ -456,6 +488,15 @@ func _physics_process(delta: float) -> void:
 	_execute(capped_delta)
 
 	_update_unstick(capped_delta)
+	# Move-side of low-posture (B2): cap ground speed so the crouch clip reads as a
+	# crouch and not a skate. Only cautious/pinned men are low_posture, so this
+	# never throttles a firing assault. Applied after _execute sets velocity.
+	if _low_posture:
+		var flat := Vector2(velocity.x, velocity.z)
+		if flat.length() > CROUCH_SPEED_CAP:
+			flat = flat.normalized() * CROUCH_SPEED_CAP
+			velocity.x = flat.x
+			velocity.z = flat.y
 	move_and_slide()
 
 
@@ -1592,6 +1633,7 @@ static func _claim_cover(pos: Vector3, claimant: Node) -> bool:
 
 
 func _release_cover() -> void:
+	var was_covered: bool = has_cover
 	if current_cover != Vector3.ZERO:
 		var key := EnemyBase._cover_key(current_cover)
 		if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
@@ -1599,6 +1641,14 @@ func _release_cover() -> void:
 	has_cover = false
 	cover_quality = 0.0
 	_moving_to_cover = false
+	# Cover-exit stand-up (B3): only a living man who actually held cover. Death
+	# paths also route through here - a corpse must not stand up. Debounced.
+	if was_covered and current_state != Enums.AIState.DEAD and not is_downed:
+		var now: float = float(Time.get_ticks_msec())
+		if now - _last_cover_exit_ms > COVER_EXIT_DEBOUNCE_MS and sprite_actor is ModelActor:
+			var l: float = (sprite_actor as ModelActor).clip_length("cover_to_stand")
+			_cover_exit_until_ms = now + (l if l > 0.0 else 0.8) * 1000.0
+			_last_cover_exit_ms = now
 
 
 ## Release a specific claimed point (bound points use the same claim broker

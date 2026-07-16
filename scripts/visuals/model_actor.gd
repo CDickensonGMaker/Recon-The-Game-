@@ -1,28 +1,21 @@
-## model_actor.gd - rigged 3D character, the DEFAULT renderer.
+## model_actor.gd - rigged 3D character, the default renderer.
 ##
-## Decision (Caleb, locked): 3D models are the normal, sprites are the far-LOD /
-## fallback. This mirrors SpriteActor's interface (setup/play/set_facing/flash/
-## muzzle_*) so EnemyBase and AllyBase swap one for the other with no other
-## change, and a future distance-LOD can hold BOTH and cross-fade.
-##
-## The logic is promoted verbatim from the combat lab, where it was proven: load
-## the unit's .glb from its faction folder, normalise to character_height_m, seat the
-## feet, and drive the rigged AnimationPlayer off SpriteStateMap intents so the
-## model animates from the same AI the sprites did.
+## Mirrors SpriteActor's interface (setup/play/set_facing/flash/muzzle_*) so
+## EnemyBase and AllyBase swap one for the other with no other change - keep the
+## two interfaces in step.
 class_name ModelActor
 extends Node3D
 
-## Characters live in one folder per faction, so a change to the farmers can
-## never reach into the fireteam. A unit_id is unique across all of them, so
-## resolution is a search, not a guess - and model_path() is the ONLY way to
-## turn a unit_id into a .glb. Hardcode a character path anywhere else and the
-## next faction re-org silently breaks it.
+## One characters folder per faction. A unit_id is unique across all of them, so
+## resolution is a search - and model_path() is the ONLY sanctioned unit_id ->
+## .glb path. Hardcode a character path elsewhere and the next faction re-org
+## silently breaks it.
 const MODEL_DIRS: Array[String] = [
 	"res://assets/us/characters/",
 	"res://assets/nva_vc/characters/",
 	"res://assets/civilians/characters/",
 ]
-const TARGET_HEIGHT_M: float = 1.7132   ## == manifests' character_height_m
+const TARGET_HEIGHT_M: float = 1.7132   ## metres; ADR-002 scale contract (== manifests' character_height_m)
 
 
 ## The .glb for a unit_id, or "" if no faction folder holds one.
@@ -49,24 +42,18 @@ static func all_units() -> Array[String]:
 				out.append(f.trim_suffix(".glb"))
 	return out
 
-## Per-unit authored height, in metres. A COMBATANT is 1.7132 to the helmet top
-## and needs no entry here - that is the standard (production/GAME_SCALE_STANDARD.md)
-## and every soldier on the roster honours it.
+## Per-unit authored height, in METRES. A combatant is 1.7132 to the helmet top
+## (ADR-002 / production/GAME_SCALE_STANDARD.md) and needs no entry here.
 ##
-## Non-combatants need an entry, because _normalize_height() rescales EVERY
-## skeleton to its target. With one global target, a child is not a child - he is
-## a 1.71m adult wearing a child's mesh, and a stooped elder stands up straight.
-## Villages full of grunt-sized "kids" is what this table exists to prevent.
-##
-## Figures are 1960s-70s Vietnamese rural adults (men ~1.60-1.63, women ~1.50-1.52),
-## an elder with a stoop, and a ~9-year-old. US aircrew keep the standard: their
-## flight helmet is the top of the silhouette, exactly like a grunt's steel pot.
+## A non-combatant MUST have an entry: _normalize_height() rescales EVERY skeleton
+## to its target, so without one a child is not a child - he is a 1.71m adult
+## wearing a child's mesh, and a stooped elder stands up straight.
 const UNIT_HEIGHT_M: Dictionary = {
 	"civ_farmer_m": 1.62, "civ_farmer_m_b": 1.60, "civ_farmer_m_c": 1.65,
 	"civ_farmer_f": 1.52, "civ_farmer_f_b": 1.50, "civ_farmer_f_c": 1.55,
 	"civ_elder":    1.55, "civ_elder_b":    1.53,
 	"civ_kid":      1.26, "civ_kid_b":      1.30,
-	# US aircrew keep the grunt standard - the flight helmet is the top of the
+	# Aircrew keep the combatant standard - the flight helmet is the top of the
 	# silhouette, exactly like a steel pot.
 	"us_pilot_white": 1.7132, "us_pilot_black": 1.7132,
 	"us_rto":         1.7132,
@@ -81,9 +68,9 @@ static func target_height(unit_id: String) -> float:
 
 var unit: String = ""
 var norm_k: float = 1.0   ## normalization scale applied to the instance (ADR-002)
-## Bind-to-rest size ratio: gib donor meshes store BIND-space verts while the
-## man renders at REST scale - GibSystem scales spawned pieces by this so a
-## popped forearm matches the arm it came off. 1.0 on healthy exports.
+## Bind-to-rest size ratio: gib donor meshes store BIND-space verts while the man
+## renders at REST scale, so GibSystem scales spawned pieces by this to make a
+## popped forearm match the arm it came off. 1.0 on healthy exports.
 var gib_scale: float = 1.0
 var _inst: Node3D = null
 var _anim: AnimationPlayer = null
@@ -115,6 +102,8 @@ func setup(unit_id: String) -> bool:
 	_merge_shared_library()
 	_apply_loop_modes()
 	_apply_gib_rig_contract()
+	_apply_optional_gear()
+	_hide_export_duplicates()
 	_apply_psx_filtering()
 	return true
 
@@ -122,9 +111,7 @@ func setup(unit_id: String) -> bool:
 ## Height normalization (ADR-002): the RENDERED man must stand exactly
 ## TARGET_HEIGHT_M with his soles on this node's origin. Skinned verts render
 ## pulled to the REST skeleton, so the skeleton is the only honest ruler - the
-## mesh AABB measures the BIND pose, which the current exports bake ~2x larger
-## and offset from rest (every man rendered 0.84m tall floating 0.82m up).
-## AABB remains the fallback for rigless props.
+## mesh AABB measures the BIND pose. AABB stays the fallback for rigless props.
 func _normalize_height() -> void:
 	if _inst == null:
 		return
@@ -135,8 +122,8 @@ func _normalize_height() -> void:
 		if toe < 0:
 			toe = _skel.find_bone("mixamorig_LeftFoot")
 		if top >= 0 and toe >= 0:
-			# Skeleton -> _inst space via LOCAL transforms (global transforms
-			# race on the session's first build).
+			# Skeleton -> _inst space via LOCAL transforms: the global
+			# transform is stale on the session's first build.
 			var to_inst := Transform3D.IDENTITY
 			var n: Node3D = _skel
 			while n != null and n != _inst:
@@ -163,15 +150,13 @@ func _normalize_height() -> void:
 		print("[MODEL] %s instance_h=%.2f k=%.3f (AABB fallback - no usable rig)" % [unit, aabb.size.y, k2])
 
 
-## ---- shared animation library (bead 00qp) -----------------------------------
-## anim_library.glb carries every clip ONCE (91); character exports go mesh-only
-## (EXPORT_ANIMATIONS=False in the exporters) and borrow them here, so a
-## character re-export takes seconds instead of 11 minutes and anim fixes
-## propagate to the whole roster from one file.
+## ---- shared animation library -----------------------------------------------
+## anim_library.glb carries every clip ONCE; character exports are mesh-only
+## (EXPORT_ANIMATIONS=False in the exporters) and borrow them here.
 ##
-## THE NAME IS A CONTRACT: both exporters keep the armature node named "PSXRig",
-## so every library track resolves as PSXRig/Skeleton3D:mixamorig_* on every
-## character. Rename the rig in either export script and the entire library
+## THE RIG NAME IS A CONTRACT: both exporters keep the armature node named
+## "PSXRig", so every library track resolves as PSXRig/Skeleton3D:mixamorig_* on
+## every character. Rename the rig in either export script and the entire library
 ## goes silent (T-pose).
 const ANIM_LIBRARY_PATH := "res://assets/shared/anim_library.glb"
 static var _shared_lib: AnimationLibrary = null
@@ -197,18 +182,16 @@ static func _load_shared_library() -> AnimationLibrary:
 	return _shared_lib
 
 
-## Merge, don't replace: clips baked into the character GLB win; the library
-## fills every gap. Transition-era exports (73 baked clips) and mesh-only
-## exports (no AnimationPlayer at all) both come out with the full clip set.
-## MUST run before _apply_loop_modes() so borrowed idles loop too - otherwise
-## they freeze on their last frame and read as T-pose.
+## Merge, don't replace: clips baked into the character GLB win, the library fills
+## every gap. MUST run BEFORE _apply_loop_modes(), so borrowed idles get looped
+## too - otherwise they freeze on their last frame and read as a T-pose.
 func _merge_shared_library() -> void:
 	var lib: AnimationLibrary = ModelActor._load_shared_library()
 	if lib == null or _inst == null:
 		return
-	# PSXRig contract guard: v1-era rigs (Mixamo node names) would accept the
-	# merged clips but their track paths resolve to NOTHING - playing a merged
-	# clip on them freezes the pose. Only merge where the paths can land.
+	# PSXRig contract guard: a rig with other node names accepts the merged clips
+	# but their track paths resolve to NOTHING, freezing the pose. Only merge
+	# where the paths can land.
 	if _inst.get_node_or_null("PSXRig/Skeleton3D") == null:
 		return
 	if _anim == null:
@@ -235,9 +218,8 @@ func _merge_shared_library() -> void:
 		print("[MODEL] %s: +%d clips from shared anim library" % [unit, added])
 
 
-## PSX crunch: Godot re-imports GLB textures bilinear regardless of Blender's
-## nearest setting - faces render smeared without this. Same convention as
-## ground_clutter.gd / sprite_actor.gd.
+## PSX crunch: Godot re-imports GLB textures BILINEAR regardless of Blender's
+## nearest setting - faces render smeared without this.
 func _apply_psx_filtering() -> void:
 	if _inst == null:
 		return
@@ -251,17 +233,14 @@ func _apply_psx_filtering() -> void:
 				mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 
-## glTF carries NO loop flag, so every imported clip is play-once: an idle
-## plays ~2s then FREEZES on its last frame - which reads as a T-pose/statue.
-## Mark the cyclic clips looping at load. One-shots (deaths, jumps, turns,
-## transitions) stay play-once.
+## glTF carries NO loop flag, so every imported clip arrives play-once and a
+## cyclic clip FREEZES on its last frame (reads as a T-pose/statue). Mark the
+## cyclic ones looping at load; one-shots (deaths, jumps, turns, transitions)
+## stay play-once.
 const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe", "swim", "firing"]
-## T1.1: cyclic clips whose names the prefix heuristic misses. These are wired
-## to PERSISTENT intents (retreat/crippled/cover/surrender) - play-once meant
-## a retreating man froze mid-stride and slid: THE gliding statue.
-## laying_breathless stays one-shot deliberately.
-## sitting/cockpit_idle: seated Huey occupants (SeatSystem §7) - play-once froze
-## them into statues after ~2s; looping gives the idle sway for free.
+## Cyclic clips the prefix heuristic misses. All are wired to PERSISTENT intents
+## (retreat/crippled/cover/surrender/seated), so play-once would freeze them
+## mid-stride. laying_breathless stays one-shot deliberately.
 const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing",
 	"sitting", "cockpit_idle"]
 
@@ -285,21 +264,116 @@ func _apply_loop_modes() -> void:
 				break
 
 
-## Gib-rig contract (bead 1xqs / us_grunt_v2, ARTIST INTENT verified in the
-## .blend 2026-07-10): the *_joined mesh is the LIVE body (visible in Blender);
-## the pre-cut region meshes (grunt_*) are GIB DONORS, viewport-hidden in
-## Blender - but Blender viewport-hide does not survive glTF export, so both
-## arrive visible = the double-render / "multi arms" bug. Godot re-applies the
-## intent: donors hidden, joined body renders. Dismemberment collapses the
-## bone chain (removes the limb from the joined body + gear on that chain)
-## and spawns the hidden donor mesh as the flying gib. Non-contract rigs: no-op.
+## Gib-rig contract: the *_joined mesh (or, on part-based exports, the part
+## meshes) is the LIVE body; the pre-cut region meshes (grunt_*) are GIB DONORS,
+## viewport-hidden in Blender. Blender viewport-hide does NOT survive glTF export,
+## so both arrive visible - the double-render / "multi arms" bug. Godot re-applies
+## the intent: donors hidden, body renders. Dismemberment collapses the bone chain
+## and spawns the hidden donor as the flying gib. Non-contract rigs: no-op.
+## The PRC-25 ships inside the rifleman and pointman GLBs so GruntDresser can promote
+## either to radioman at spawn - but it must NOT render unless he is one. Fire support
+## is RTO-gated (ADR-011): if every man visibly wears a radio, the player cannot pick
+## out the RTO to kill him and the gate is unenforceable.
+const OPTIONAL_GEAR_PREFIXES: Array[String] = ["prc25_"]
+
+## Carries it with no dresser call.
+const CARRIES_RADIO: Array[String] = ["us_grunt_rto", "us_rto"]
+
+## No PRC-25 in their mesh at all (tools/export_us_squad.py NO_RADIO), so promoting
+## one of these to radioman would silently do nothing. GruntDresser refuses instead.
+const RADIO_FORBIDDEN: Array[String] = [
+	"us_grunt_marksman", "us_grunt_mg", "us_grunt_grenadier",
+]
+
+
+## Hide opt-in gear on anyone not issued it. GruntDresser can switch it back on.
+func _apply_optional_gear() -> void:
+	if _inst == null or unit in CARRIES_RADIO:
+		return
+	var hidden: int = 0
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null:
+			continue
+		for p: String in OPTIONAL_GEAR_PREFIXES:
+			if String(mi.name).begins_with(p):
+				mi.visible = false
+				hidden += 1
+				break
+	if hidden > 0:
+		print("[MODEL] %s: hid %d opt-in gear meshes (not the radioman)" % [unit, hidden])
+
+
+## Some exports ship with both a worn live mesh and its donor/constituent parts
+## visible at once, or with numbered duplicates (canteen_l.002 .. .006). Hide the
+## leftovers so finished Blender work renders correctly while the exporter is
+## tightened. This only touches meshes whose names match the known bad patterns.
+const _GEAR_DONOR_PARTS: Dictionary = {
+	"bandolier_worn": ["bandolier", "bando_mag0", "bando_mag1", "bando_mag2"],
+	"ruck_pack_worn": ["ruck_bag", "ruck_crossbar", "ruck_rail_l", "ruck_rail_r"],
+}
+
+
+func _hide_export_duplicates() -> void:
+	if _inst == null:
+		return
+	var all := _all_mesh_instances(_inst)
+	var by_name: Dictionary = {}
+	for mi in all:
+		by_name[mi.name] = mi
+
+	var hidden: int = 0
+
+	# 1. If a *_worn mesh exists, hide its plain/donor counterparts.
+	for worn_name: String in _GEAR_DONOR_PARTS.keys():
+		if not by_name.has(worn_name):
+			continue
+		for donor_name: String in _GEAR_DONOR_PARTS[worn_name]:
+			if by_name.has(donor_name):
+				(by_name[donor_name] as MeshInstance3D).visible = false
+				hidden += 1
+
+	# 2. Collapse numbered duplicates (canteen_l.002, canteen_l.003, ...): keep the
+	# lowest suffix, hide the rest. This is a common exporter-side duplicate name.
+	var numbered: Dictionary = {}
+	var re_num := RegEx.new()
+	re_num.compile(r"^(.+)\.(\d+)$")
+	for n: String in by_name.keys():
+		var m := re_num.search(n)
+		if m == null:
+			continue
+		var base: String = m.get_string(1)
+		var suffix: int = int(m.get_string(2))
+		if not numbered.has(base):
+			numbered[base] = {}
+		numbered[base][suffix] = by_name[n]
+	for base: String in numbered.keys():
+		var by_suffix: Dictionary = numbered[base]
+		var suffixes: Array = by_suffix.keys()
+		suffixes.sort()
+		for i in range(1, suffixes.size()):
+			(by_suffix[suffixes[i]] as MeshInstance3D).visible = false
+			hidden += 1
+
+	if hidden > 0:
+		print("[MODEL] %s: hid %d duplicate gear meshes (export cleanup)" % [unit, hidden])
+
+
+func _all_mesh_instances(root: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for n in _walk(root):
+		var mi := n as MeshInstance3D
+		if mi != null:
+			out.append(mi)
+	return out
+
+
 func _apply_gib_rig_contract() -> void:
 	if _inst == null:
 		return
 	# Trigger: donors present AND a live body to render instead. The body is
-	# either a *_joined mesh (us_grunt_v2) or vc_*-style part meshes (any
-	# non-donor, non-cap mesh) - the VC exports ship parts, not a joined body
-	# (bead i3b0: requiring _joined left VC donors doubled inside the body).
+	# either a *_joined mesh or part meshes (any non-donor, non-cap mesh) - not
+	# every export ships a joined body.
 	var has_body: bool = false
 	var has_donors: bool = false
 	for n in _walk(_inst):
@@ -315,29 +389,39 @@ func _apply_gib_rig_contract() -> void:
 			has_body = true
 	if not (has_body and has_donors):
 		return
+	# Every mesh GibSystem throws as gear is ALSO a donor and must not render on the
+	# living man. helmet_camo_shell / helmet_bugjuice do not begin with grunt_ or
+	# cap_, so they slipped this net and every grunt shipped wearing TWO helmets -
+	# the real one and the donor stacked inside it. Read the names off the gib
+	# contract rather than re-listing them here, so the two can never drift apart.
+	var gib_gear: Dictionary = {}
+	for region: String in GibSystem.REGIONS:
+		for g: String in GibSystem.REGIONS[region].get("gear", []):
+			gib_gear[String(g)] = true
+
 	var hidden: int = 0
 	for n in _walk(_inst):
 		var mi := n as MeshInstance3D
 		if mi == null:
 			continue
 		var nm := String(mi.name)
-		# Caps hide too: they are wound cross-sections (dark meat discs) that
-		# GibSystem.dismember reveals on the pop. Left visible, any cap the
-		# export skinned off-joint renders as floating gore beside the living
-		# man (the VC "floating gib pieces" bug).
-		if (nm.begins_with("grunt_") or nm.begins_with("head_frag_") or nm.begins_with("cap_")) \
-				and not nm.ends_with("_joined"):
+		# Caps hide too: they are wound cross-sections that GibSystem.dismember
+		# reveals on the pop. Left visible, a cap the export skinned off-joint
+		# renders as floating gore beside the living man.
+		var is_donor: bool = (nm.begins_with("grunt_") or nm.begins_with("head_frag_")
+				or nm.begins_with("cap_")) and not nm.ends_with("_joined")
+		if is_donor or gib_gear.has(nm):
 			mi.visible = false
 			hidden += 1
 	if hidden > 0:
-		print("[MODEL] %s: hid %d gib-donor/cap meshes (gib-rig contract; live body renders)" % [unit, hidden])
+		print("[MODEL] %s: hid %d gib-donor/cap/gear meshes (gib-rig contract; live body renders)" % [unit, hidden])
 
 
 func has_visual() -> bool:
 	return _inst != null
 
 
-## Rig access for the gore system (GORE_WORKFLOW Phase 3).
+## Rig access for the gore system.
 func skeleton() -> Skeleton3D:
 	return _skel
 
@@ -385,11 +469,11 @@ func sleep_ragdoll() -> void:
 		_ragdoll_sim.physical_bones_stop_simulation()
 
 
-# ---- ragdoll (research/ragdoll.md: shared 13-bone physical skeleton) --------
-## One authored PhysicalBoneSimulator3D scene fits every Mixamo rig. Mode A:
-## stop the clip, start the sim on the current pose, shove the spine. Capped
-## globally so a grenade killing a squad can't spike the solver; corpses stop
-## simulating after a settle window and sleep as static bodies.
+# ---- ragdoll ----------------------------------------------------------------
+## One authored PhysicalBoneSimulator3D scene fits every Mixamo rig: stop the
+## clip, start the sim on the current pose, shove the spine. Capped globally so a
+## grenade killing a squad cannot spike the solver; corpses stop simulating after
+## a settle window and sleep as static bodies.
 const RAGDOLL_SCENE_PATH := "res://scenes/characters/ragdoll_mixamo.tscn"
 const MAX_ACTIVE_RAGDOLLS: int = 8
 const RAGDOLL_SETTLE_S: float = 4.0
@@ -408,14 +492,14 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 		return false
 	if not ResourceLoader.exists(RAGDOLL_SCENE_PATH):
 		return false
-	stop_anim()  # research 3, Mode A: the clip must stop driving bone poses
+	stop_anim()  # the clip must stop driving bone poses before the sim starts
 	var sim := (load(RAGDOLL_SCENE_PATH) as PackedScene).instantiate() as PhysicalBoneSimulator3D
 	_skel.add_child(sim)
 	_ragdoll_sim = sim
-	# A corpse must not collide with ITSELF: joints only exclude adjacent
-	# pairs, so overlapping non-adjacent capsules (stacked spine, arm-vs-torso)
-	# de-penetrate violently every frame = the flailing/flying bug. Full
-	# mutual exception = calm body; limbs may clip the torso (fine at PSX).
+	# A corpse must not collide with ITSELF: joints only exclude ADJACENT pairs,
+	# so overlapping non-adjacent capsules (stacked spine, arm-vs-torso)
+	# de-penetrate violently every frame and the body flails. Full mutual
+	# exception = calm body; limbs may clip the torso, which is fine at PSX.
 	var bones: Array = []
 	for c in sim.get_children():
 		if c is PhysicalBone3D:
@@ -441,9 +525,7 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 		if is_instance_valid(sim) and sim.is_simulating_physics():
 			sim.physical_bones_stop_simulation()
 		# The cap gates CONCURRENT solvers, not parked corpses: a settled body
-		# costs nothing, so its slot frees HERE. Counting 45s corpses starved
-		# the pool - the 9th man in a big fight could not fall and stood there
-		# walking into walls in the DEAD state.
+		# costs nothing, so its slot frees HERE, not when the corpse despawns.
 		_release_ragdoll_slot())
 	return true
 
@@ -457,11 +539,10 @@ func _release_ragdoll_slot() -> void:
 		_active_ragdolls = maxi(0, _active_ragdolls - 1)
 
 
-## Pin the CURRENT pose to the ground: shift the visual down so the lowest
-## bone touches the body's floor plane. For clips authored off the floor -
-## laying_breathless lies the man 1.02m in the air (probe_lying_height) -
-## until the Blender re-export. Elevation-safe: measures against this node's
-## own origin (the feet plane), not world zero.
+## Pin the CURRENT pose to the ground: shift the visual down so the lowest bone
+## touches the body's floor plane. For clips authored off the floor (some death
+## clips lie the man a metre in the air). Elevation-safe: measures against this
+## node's own origin (the feet plane), NOT world zero.
 func ground_current_pose() -> void:
 	if _skel == null or _inst == null:
 		return
@@ -500,10 +581,8 @@ func wake_ragdoll() -> void:
 		_ragdoll_sim.physical_bones_start_simulation()
 
 
-## World-space forward. ONE yaw owner (war room AI decree): this sets GLOBAL
-## yaw, so it is correct regardless of what the parent body's look_at did -
-## the old LOCAL yaw compounded with the body rotation and read ~180 degrees
-## wrong on enemies (they fight toward +Z; allies toward -Z masked it).
+## World-space forward. This is the ONE yaw owner, and it sets GLOBAL yaw - never
+## local, which would compound with the parent body's own rotation.
 func set_facing(dir: Vector3) -> void:
 	var flat := Vector3(dir.x, 0.0, dir.z)
 	if flat.length_squared() <= 0.0001:
@@ -514,10 +593,9 @@ func set_facing(dir: Vector3) -> void:
 		_facing_init = true
 		global_rotation.y = target_yaw
 		return
-	# T1.2 (smoothness plan): frame-rate-independent damped turn. The facing
-	# SOURCE switches discontinuously (aim lerp <-> raw nav step <-> stale
-	# aim) - smoothing at the single yaw owner kills every 180-degree
-	# single-frame body whip at once. k=12: fast but visible.
+	# Frame-rate-independent damped turn. The facing SOURCE switches
+	# discontinuously (aim lerp <-> raw nav step <-> stale aim), so smoothing at
+	# the single yaw owner kills every single-frame body whip at once.
 	var dt: float = get_physics_process_delta_time()
 	global_rotation.y = lerp_angle(global_rotation.y, target_yaw, 1.0 - exp(-12.0 * dt))
 
@@ -533,8 +611,8 @@ func play(clip: String, restart: bool = false) -> bool:
 	if clip == _current_clip and not restart:
 		return true
 	if not _anim.has_animation(clip):
-		# Weapon-family hold ("firing_rifle__smg"): strip the suffix and fall
-		# back to the base clip until Batch 7 authors the family variant.
+		# Weapon-family clip ("firing_rifle__smg"): strip the suffix and fall
+		# back to the base clip when the family variant is not authored.
 		if clip.contains("__"):
 			clip = clip.split("__")[0]
 			if clip == _current_clip and not restart:
@@ -549,14 +627,13 @@ func play(clip: String, restart: bool = false) -> bool:
 		if clip == _current_clip and not restart:
 			return true
 	_current_clip = clip
-	# T1.7: preserve cycle phase across loop->loop switches (walk->run->strafe)
-	# so feet stay on the same beat instead of teleporting to frame 0 under
-	# the blend. One-shots and loop->one-shot start at 0 as authored.
+	# Preserve cycle phase across loop->loop switches (walk->run->strafe) so feet
+	# stay on the same beat instead of teleporting to frame 0 under the blend.
+	# One-shots and loop->one-shot start at 0 as authored.
 	var from_loop: bool = _anim.current_animation != "" and _clip_loops(_anim.current_animation)
 	var old_pos: float = _anim.current_animation_position if from_loop else 0.0
 	var old_len: float = _anim.current_animation_length if from_loop else 0.0
-	# 0.18s crossfade: hard cuts between clips read as pops/odd transitions
-	# (Caleb). Deaths/one-shots blend in too - it only smooths the seam.
+	# 0.18s crossfade - hard cuts between clips read as pops.
 	_anim.play(clip, 0.18)
 	if from_loop and old_len > 0.01 and _clip_loops(clip):
 		var new_len: float = _anim.get_animation(clip).length
@@ -585,8 +662,7 @@ func clip_length(clip: String) -> float:
 	return _anim.get_animation(clip).length
 
 
-## Authored ground speeds (m/s) per locomotion loop - starting nominals from
-## the smoothness plan, retune from the bench eyeball pass.
+## Authored ground speed of each locomotion loop, in METRES PER SECOND.
 const _CLIP_SPEED: Dictionary = {
 	"run_forward": 4.2, "run_forward_left": 4.0, "run_forward_right": 4.0,
 	"run_left": 2.8, "run_right": 2.8,
@@ -595,13 +671,13 @@ const _CLIP_SPEED: Dictionary = {
 	"walk_forward": 1.6, "walk_left": 1.4, "walk_right": 1.4,
 	"walk_backward": 1.3, "start_walking": 1.6,
 	"injured_walk_backwards": 1.2,
+	"walk_crouching_forward": 1.3, "walk_crouching_backward": 1.1,
+	"walk_crouching_left": 1.1, "walk_crouching_right": 1.1,
 }
 
 
-## T1.6 (highest-leverage smoothness fix): match playback rate to actual
-## ground speed so feet plant instead of skating - combat/patrol movement
-## runs at 0.5-0.6x move_speed and previously played every cycle at 1.0x.
-## Non-locomotion clips reset to authored rate.
+## Match playback rate to the actual ground speed (mps, METRES PER SECOND) so
+## feet plant instead of skating. Non-locomotion clips reset to authored rate.
 func set_locomotion_speed(mps: float) -> void:
 	if _anim == null:
 		return
@@ -621,8 +697,8 @@ func has_clip(clip: String) -> bool:
 	return _anim != null and _anim.has_animation(clip)
 
 
-## Hit flash - tint every material briefly. (Sprite used modulate; a lit model
-## uses an emission bump so it reads in shade.)
+## Hit flash - tint every material briefly. A lit model needs an emission bump
+## (not a modulate) so the flash reads in shade.
 func flash(color: Color, seconds: float = 0.1) -> void:
 	if _inst == null:
 		return
@@ -654,10 +730,9 @@ func _process(delta: float) -> void:
 				m.emission_enabled = false
 
 
-# ---- muzzle: models have a real hand bone, so this can be exact later --------
-## For now, mirror the sprite's camera-independent ballistic origin so gunplay
-## is identical across renderers. When the weapon socket / MuzzlePoint is wired
-## on the rig, override this with the bone transform.
+# ---- muzzle -----------------------------------------------------------------
+## A camera-independent ballistic origin, so gunplay is identical across
+## renderers. Override with the bone transform once the rig has a weapon socket.
 func muzzle_ballistic(flat_aim: Vector3, forward_bias: float = 0.55) -> Vector3:
 	return global_position + Vector3.UP * 1.35 + flat_aim * forward_bias
 
@@ -666,12 +741,11 @@ func muzzle_visual() -> Vector3:
 	return global_position + Vector3.UP * 1.35 + _facing * 0.4
 
 
-## Instance-space AABB of the model, ALL transforms accumulated from `root`
-## down (armature/export-compensation scale included; root's own transform
-## excluded, since that is what setup() rescales). Measuring raw mesh-space
-## AABBs here was the speck-soldier bug (n2ij / ADR-002): a rig exported with
-## FBX-style compensation reports a 60m mesh box on a ~1.9m model, so the
-## normaliser shrank correct characters 30x. Guarded by test_model_scale.
+## Instance-space AABB of the model, ALL transforms accumulated from `root` down
+## (armature/export-compensation scale included; root's own transform excluded,
+## since that is what setup() rescales). Raw mesh-space AABBs are NOT usable here:
+## an FBX-compensated rig reports a 60m mesh box on a ~1.9m model. ADR-002,
+## guarded by test_model_scale.
 func _aabb_of(root: Node3D) -> AABB:
 	var out := AABB()
 	var first := true
