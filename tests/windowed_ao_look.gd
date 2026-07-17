@@ -52,18 +52,60 @@ func _ready() -> void:
 	world.add_child(weather)
 	weather.setup(world, "CLEAR", "DAY")
 
-	# Stand IN the ville (not the far insertion pad).
-	var vc2: Vector3 = plan.village_center
-	world.spawn_player_at(vc2 + Vector3(6, 0, 8))
+	# A SAFE VANTAGE overlooking the hamlet: close enough to SEE the village + paddies +
+	# jungle, far enough that the (asleep-until-~140m) defenders don't shoot at spawn.
+	# Spawning at village_center walks you onto the 6 defenders and you die instantly; the
+	# real insertion_lz is ~1km off (no view). Pick the closest passable ring point that is
+	# a safe stand-off from EVERY enemy.
+	var spawn: Vector3 = _safe_vantage(world, plan.village_center)
+	world.spawn_player_at(spawn)
 
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 
-	_report(world, seed_used, plan)
+	_report(world, seed_used, plan, spawn)
 	print("[AOLOOK] HOLDING window for Caleb's eyes - stop_project when done.")
 
 
-func _report(world: GameWorld, seed_used: int, plan: Dictionary) -> void:
+## Closest passable ring point around the hamlet that is >= SAFE_STANDOFF from every enemy.
+## Expands the ring until one is found; falls back to a far offset if the AO is crowded.
+const SAFE_STANDOFF: float = 155.0
+func _safe_vantage(world: GameWorld, village: Vector3) -> Vector3:
+	for dist: float in [200.0, 240.0, 290.0, 350.0, 430.0]:
+		for a in range(12):
+			var ang: float = TAU * float(a) / 12.0
+			var cand: Vector3 = village + Vector3(cos(ang), 0.0, sin(ang)) * dist
+			cand.x = clampf(cand.x, 24.0, world.map_size - 24.0)
+			cand.z = clampf(cand.z, 24.0, world.map_size - 24.0)
+			cand.y = world.terrain_manager.get_height_at(cand) + 1.6
+			if world.gameplay_grid != null and not world.gameplay_grid.is_position_passable(cand):
+				continue
+			if _nearest_enemy(world, cand).dist >= SAFE_STANDOFF:
+				return cand
+	return village + Vector3(430, 0, 0)  # crowded AO fallback
+
+
+## Nearest enemy to a point - the safety check. Walks the tree for every EnemyBase so it
+## catches defenders AND ambient patrols/spider-holes/mortar/AA, not just one group.
+func _nearest_enemy(world: GameWorld, spawn: Vector3) -> Dictionary:
+	var stack: Array[Node] = [world]
+	var best: float = INF
+	var count: int = 0
+	var who: String = "none"
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is EnemyBase and (n as Node3D).is_inside_tree():
+			count += 1
+			var d: float = spawn.distance_to((n as Node3D).global_position)
+			if d < best:
+				best = d
+				who = (n as Node3D).name
+		for c in n.get_children():
+			stack.push_back(c)
+	return {"dist": best, "count": count, "who": who}
+
+
+func _report(world: GameWorld, seed_used: int, plan: Dictionary, spawn: Vector3) -> void:
 	var vm: Node = world.vegetation_manager
 	var tc: Node = vm.get_node_or_null("TreeCoverLayer")
 	var species: int = tc._solid_mesh.size() if tc != null else -1
@@ -78,8 +120,13 @@ func _report(world: GameWorld, seed_used: int, plan: Dictionary) -> void:
 	print("=== AO LOOK (seed %d, VILLAGE_RAID) ===" % seed_used)
 	print("[AOLOOK] canopy=%s | tree_cover species=%d nodes=%d colliders=%d | clutter=%d" % [
 		"TREE_COVER" if WorldConfig.USE_TREE_COVER else "JUNGLE_PATCH", species, tc_nodes, colliders, clutter])
-	print("[AOLOOK] village_center=%s | defenders=%d civilians=%d" % [
-		str(plan.village_center), defenders, civilians])
+	var near: Dictionary = _nearest_enemy(world, spawn)
+	var vdist: float = spawn.distance_to(plan.village_center)
+	print("[AOLOOK] spawn=%s | village_center=%s (%.0fm away) | defenders=%d civilians=%d" % [
+		str(spawn.round()), str(plan.village_center.round()), vdist, defenders, civilians])
+	print("[AOLOOK] SAFETY: nearest of %d enemies is %.0fm away (%s) - %s" % [
+		near.count, near.dist, near.who,
+		"SAFE" if near.dist > 100.0 else "TOO CLOSE - player may be shot at spawn"])
 	print("[AOLOOK] draw_calls=%d prims=%d" % [
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
