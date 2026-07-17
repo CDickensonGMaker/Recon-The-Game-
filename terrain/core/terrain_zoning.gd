@@ -34,10 +34,10 @@ static var _noise: FastNoiseLite = null
 static var _noise_seed: int = 0
 
 
-static func classify(height: float, world_x: float, world_z: float, seed: int) -> int:
+static func classify(height: float, world_x: float, world_z: float, world_seed: int) -> int:
 	if height < LOWLAND_MAX_H:
-		return RICE_PADDY if _paddy_roll(world_x, world_z, seed) < PADDY_FRACTION else GRASSLAND
-	var patch: float = _patch_noise(seed).get_noise_2d(world_x, world_z)
+		return RICE_PADDY if _paddy_roll(world_x, world_z, world_seed) < PADDY_FRACTION else GRASSLAND
+	var patch: float = _patch_noise(world_seed).get_noise_2d(world_x, world_z)
 	if patch < OPEN_THRESHOLD:
 		return GRASSLAND
 	elif patch < LIGHT_THRESHOLD:
@@ -49,17 +49,17 @@ static func classify(height: float, world_x: float, world_z: float, seed: int) -
 
 ## Per-cell paddy draw. Fresh RNG seeded by (cell, seed) so the result is a pure function
 ## of position, not of iteration order.
-static func _paddy_roll(world_x: float, world_z: float, seed: int) -> float:
+static func _paddy_roll(world_x: float, world_z: float, world_seed: int) -> float:
 	var r := RandomNumberGenerator.new()
-	r.seed = hash([Vector2(world_x, world_z), seed])
+	r.seed = hash([Vector2(world_x, world_z), world_seed])
 	return r.randf()
 
 
-static func _patch_noise(seed: int) -> FastNoiseLite:
-	if _noise == null or _noise_seed != seed:
+static func _patch_noise(world_seed: int) -> FastNoiseLite:
+	if _noise == null or _noise_seed != world_seed:
 		_noise = FastNoiseLite.new()
 		_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 		_noise.frequency = PATCH_FREQUENCY
-		_noise.seed = seed
-		_noise_seed = seed
+		_noise.seed = world_seed
+		_noise_seed = world_seed
 	return _noise
