@@ -119,3 +119,30 @@ Summoner bless (see FORKS).**
 - **F3 — FPS levers (ADR-026).** Sun shadow in the shipped night world? Mobile renderer (test the muzzle
   flash first — Fairness Law)? Both are yours.
 - **F4 — Delete `SquadLeader`?** Genuine fossil, but your recent unpushed work. Cut or wire.
+
+---
+
+## F1 — RESOLVED (Summoner-blessed 2026-07-17, commit `34cc91b2`)
+
+The classifier unification shipped. Council reconvened (determinism/save lens) before code.
+
+- **Canonical source:** new `class_name TerrainZoning` — ONE pure, per-cell, deterministic classifier.
+  Owns the patch-noise jungle model (the visible one) + the ADR-027-D lowland-paddy branch. Both
+  `GameplayGrid` and `VegetationManager` delegate LAND classification to it; each keeps its own
+  WATER/CLIFF/slope override. Old divergent bodies deleted (fossil law); `JunglePatchLayer` and
+  `billboard_vegetation` ride VegManager's verdict, so all four "tables" now agree.
+- **ADR-010:** honored, not violated — the contract binds the *mechanism* (pure function of one seed),
+  not any particular map. The new classifier is pure per (cell, mission_seed), *better* than the
+  stream-ordered RNG it replaced. No golden-hash test exists; saves regenerate the world from seed, so
+  **no save desync**. Determinism tradeoff named: every existing seed now generates a different-looking
+  (still-deterministic) map — acceptable because no map is persisted.
+- **ADR-027:** **no amendment needed.** Settlement-first/relief/water are upstream and orthogonal. The
+  one hard dependency — the paddy branch that `paddy_stamper` reads for village anchors — was preserved
+  **byte-identical** (verified: same 13 paddies / 7 anchors on seeds 1/7/42/99/256, pre and post).
+- **Intended consequence (ADR-027-B aligned):** lowland (<50m) is now uniformly open paddy/grass in
+  *both* systems; visible jungle recedes to the hills (≥50m). The low-elevation patch-noise jungle
+  VegManager used to instance is gone — the inhabited-war lowland is open by design.
+- **Honest ratcheting probe:** `tests/test_one_classifier` — 10,000 land cells, **0 disagreements, 0
+  determinism breaks, all 5 land types present**. Stays in the suite; reds if either system re-grows
+  divergent terrain logic. Boot 0 SCRIPT ERROR; grid_queries + veg_cover PASS; fossils neutral.
+- **Not pushed** (standing instruction). Trees/FPS forks (F2/F3) remain frozen; F4 unaddressed.
