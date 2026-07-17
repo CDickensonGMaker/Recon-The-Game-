@@ -129,6 +129,11 @@ Step 2 builds the *ground* they stand on. These hang off it, and each is its own
 4. **`water_map` is a 3-bit type + 0.5 m depth quantum**, and the **heightmap cell is 4 m.** *This is
    why the terracing/bund design was cut — it is not representable.*
 5. **Widening the fossil probe too early reds the build.** Hence step 7, not step 1.
+6. **A windowed FPS bench with Blender OPEN is a lying number — CONFIRMED 2026-07-17.** A jungle A/B ran
+   with Blender open reported **GPU 224ms on the LOWEST geometry** (physically impossible) and CPU 3–4×
+   baseline. Every future windowed FPS confirm MUST run with **Blender closed** and, for a jungle-GPU
+   isolation, a **0-fighter arena** (the 18v18 AI cost — `ai/agents` 25–192ms — swamps the ~10ms jungle
+   signal). Headless-verifiable logic never needs the window; only a final FPS confirm does.
 
 ## WHAT IS SACRIFICED
 
