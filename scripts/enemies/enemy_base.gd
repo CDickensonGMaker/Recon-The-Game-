@@ -1146,6 +1146,10 @@ func _evaluate_goals() -> void:
 	# withdrawal above is separate (the export's NAME is "when hurt").
 	if d_retreats_when_hurt and float(current_hp) / float(max_hp) < d_retreat_hp:
 		retreat_score += 0.4
+	# 4utx: a combat-ineffective squad (below its strength threshold) breaks as a
+	# body. Layered on the individual ladder above, not a competing authority.
+	if EnemySquad.is_broken(squad_id):
+		retreat_score += 0.7
 	# Outnumbering men hold: ~3:1 quarters the retreat urge; outnumbered men break.
 	var numbers_mult: float = clampf(1.6 - _last_force_ratio * 0.45, 0.25, 1.4)
 	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation * numbers_mult

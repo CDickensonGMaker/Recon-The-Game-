@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b4utxsqbreak01"]
+
+[ext_resource type="Script" path="res://tests/test_squad_break.gd" id="1_sb"]
+
+[node name="TestSquadBreak" type="Node"]
+script = ExtResource("1_sb")

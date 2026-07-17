@@ -95,6 +95,62 @@ static func clear() -> void:
 	_last_grenade_global_ms = -1e9
 
 
+## ---- squad strength & break (4utx) ----------------------------------------
+## A squad that has lost too many men breaks: the collective goal biases to
+## withdrawal (layered on the individual courage rout ladder, not replacing it).
+## Strength = living members / peak ever fielded (a squad only shrinks). Cached
+## ~1s - never scanned per man per frame (that is the O(n2) the hot-set kills).
+const BREAK_RATIO: float = 0.45          ## breaks below this fraction of peak strength
+const STRENGTH_TTL_MS: float = 1000.0    ## recompute cadence
+
+## Pure break math (both sides reuse it, allies over SquadSystem.members).
+## ratio = live / peak; threshold = 0.45 shifted by courage - elite/NVA (high
+## courage) hold longer (lower threshold), green/Local Force break earlier.
+static func break_state(live: int, peak: int, avg_courage: float) -> Dictionary:
+	var ratio: float = float(live) / float(maxi(1, peak))
+	var threshold: float = clampf(BREAK_RATIO + (0.5 - avg_courage) * 0.4, 0.20, 0.65)
+	return {"ratio": ratio, "threshold": threshold, "broken": ratio < threshold}
+
+
+static func _strength(id: int) -> Dictionary:
+	var s: Dictionary = _s(id)
+	var now: float = float(Time.get_ticks_msec())
+	if now - float(s.get("str_t", -1e9)) < STRENGTH_TTL_MS:
+		return s
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	var live: int = 0
+	var courage_sum: float = 0.0
+	if tree != null:
+		for n: Node in tree.get_nodes_in_group("enemies"):
+			var e := n as EnemyBase
+			if e != null and e.squad_id == id and not e.is_dead():
+				live += 1
+				courage_sum += e.enemy_data.courage if e.enemy_data != null else 0.5
+	var peak: int = maxi(int(s.get("peak", 0)), live)
+	var bs: Dictionary = break_state(live, peak, courage_sum / float(maxi(1, live)))
+	s["peak"] = peak
+	s["live"] = live
+	s["str_t"] = now
+	s["ratio"] = bs.ratio
+	s["threshold"] = bs.threshold
+	return s
+
+
+## Living members / peak strength (1.0 = full, lower = attrited). 1.0 for a lone wolf.
+static func strength_ratio(id: int) -> float:
+	if id < 0:
+		return 1.0
+	return float(_strength(id).get("ratio", 1.0))
+
+
+## True once the squad is combat-ineffective (below its courage-modulated threshold).
+static func is_broken(id: int) -> bool:
+	if id < 0:
+		return false
+	var s: Dictionary = _strength(id)
+	return float(s.get("ratio", 1.0)) < float(s.get("threshold", BREAK_RATIO))
+
+
 static func _s(id: int) -> Dictionary:
 	if not _squads.has(id):
 		_squads[id] = {"target": null, "last_known": Vector3.ZERO, "updated": 0.0,
