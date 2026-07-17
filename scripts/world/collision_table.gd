@@ -208,6 +208,7 @@ const MATERIALS := {
 	"gate_entrance_lowpoly": Mat.MASONRY,
 
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
+	"ch47_chinook": Mat.METAL,
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
 	"zpu_aa_gun": Mat.METAL, "m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
