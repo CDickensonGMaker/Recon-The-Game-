@@ -29,6 +29,11 @@ func _ready() -> void:
 	vm.mission_seed = SEED
 	# _ready() (not run off-tree) is the only thing that sets this; do it by hand.
 	vm._min_slope_dot = cos(deg_to_rad(vm.max_slope_degrees))
+	# The lowland paddy gate is now RELATIVE (configured per-map from the heightmap). This
+	# synthetic band (2..400m) has no heightmap, so fix the ceiling inside the band: heights
+	# below are lowland (paddy/grass), above are jungle. Both classifiers read this same
+	# static, which is exactly the 6od4 agreement under test.
+	TerrainZoning._lowland_ceiling = 60.0
 
 	var compared: int = 0
 	var disagreements: int = 0

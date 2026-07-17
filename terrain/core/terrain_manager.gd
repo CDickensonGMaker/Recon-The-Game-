@@ -151,6 +151,10 @@ func generate_terrain(seed_value: int = -1) -> void:
 
 	heightmap.print_stats()
 
+	# The one classifier's lowland ceiling is derived from THIS map's relief. Must be set
+	# before any classify() call (veg runs during chunk load below; the AI grid later).
+	TerrainZoning.configure(heightmap)
+
 	# Extract rivers and carve riverbeds BEFORE building chunks (optional - slow on large maps)
 	if rivers_enabled:
 		generation_progress.emit("Extracting rivers", 0.55)

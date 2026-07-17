@@ -11,7 +11,8 @@ extends RefCounted
 ## callers apply BEFORE calling classify(); this function only zones walkable land.
 ##
 ## Pure function of (world position, seed) per ADR-010 — no global RNG, no per-frame draw,
-## no stream order. Same seed + same cell -> same zone, forever.
+## no stream order. The per-map lowland ceiling is seed-derived (configure() reads the
+## seed-generated heightmap once); same seed + same cell -> same zone, forever.
 
 const RICE_PADDY := 1
 const GRASSLAND := 2
@@ -19,33 +20,61 @@ const LIGHT_JUNGLE := 3
 const MEDIUM_JUNGLE := 4
 const HEAVY_JUNGLE := 5
 
-## ADR-027-B: lowland is the open, inhabited rice plain; jungle begins in the hills.
-const LOWLAND_MAX_H := 50.0
-## ADR-027-D: rice-paddy fraction of the lowland (the +50% pass, 0.30 -> 0.45).
-const PADDY_FRACTION := 0.45
+## Lowland (paddy country) is the low fraction of THIS map's own relief, not an absolute
+## height. On a 132-207m highland map nothing is ever below an absolute 50m, so the old
+## fixed gate produced zero paddies. configure() sets the ceiling from the heightmap.
+const LOWLAND_RELIEF_FRACTION := 0.18
 
-## Patch-noise: low-frequency field carves coherent thickets and clearings.
-const PATCH_FREQUENCY := 0.012
-const OPEN_THRESHOLD := -0.18
-const LIGHT_THRESHOLD := 0.05
-const HEAVY_THRESHOLD := 0.28
+## Patch-noise carves coherent jungle thickets and open clearings. MEDIUM is the default
+## cover the player moves through; GRASSLAND clearings and their LIGHT treeline rings break
+## it up; HEAVY is the minority (it carries the LOS-block roll and the collider cost).
+const PATCH_FREQUENCY := 0.010
+const OPEN_THRESHOLD := -0.37
+const LIGHT_THRESHOLD := -0.16
+const HEAVY_THRESHOLD := 0.19
+
+## Within lowland, a coarse noise band carves CONTIGUOUS paddy fields (below the threshold)
+## with grassy margins (above), instead of a per-cell salt-and-pepper checkerboard.
+const PADDY_NOISE_FREQUENCY := 0.006
+const PADDY_THRESHOLD := 0.02
 
 static var _noise: FastNoiseLite = null
+static var _paddy_noise: FastNoiseLite = null
 static var _noise_seed: int = 0
+## Meters. INF until configure() runs; a cell is lowland when its height is below this.
+static var _lowland_ceiling: float = INF
 
 
-## ADR-010: the patch-noise field is a static that outlives mission teardown. MissionScope
-## calls this on reset so the next mission rebuilds it from its own seed, never inheriting
-## the last mission's field. (The seed-guard in _patch_noise self-heals in practice; this
-## makes the contract explicit rather than incidental.)
+## Compute the per-map lowland ceiling ONCE from the heightmap, before any classify() call.
+## Deterministic: the heightmap is seed-derived, so the ceiling is a pure function of the
+## seed. terrain_manager.generate_terrain() calls this before chunk load; reset() clears it.
+static func configure(heightmap: Object) -> void:
+	var scale: float = heightmap.height_scale
+	var mn: float = INF
+	var mx: float = -INF
+	for h: float in heightmap.data:
+		mn = minf(mn, h)
+		mx = maxf(mx, h)
+	if mn == INF:
+		_lowland_ceiling = INF
+		return
+	_lowland_ceiling = (mn + LOWLAND_RELIEF_FRACTION * (mx - mn)) * scale
+
+
+## ADR-010: the noise fields and the lowland ceiling are statics that outlive mission
+## teardown. MissionScope.reset() calls this so the next mission rebuilds them from its own
+## seed/heightmap, never inheriting the last mission's world.
 static func reset() -> void:
 	_noise = null
+	_paddy_noise = null
 	_noise_seed = 0
+	_lowland_ceiling = INF
 
 
 static func classify(height: float, world_x: float, world_z: float, world_seed: int) -> int:
-	if height < LOWLAND_MAX_H:
-		return RICE_PADDY if _paddy_roll(world_x, world_z, world_seed) < PADDY_FRACTION else GRASSLAND
+	if height < _lowland_ceiling:
+		var pn: float = _paddy_field_noise(world_seed).get_noise_2d(world_x, world_z)
+		return RICE_PADDY if pn < PADDY_THRESHOLD else GRASSLAND
 	var patch: float = _patch_noise(world_seed).get_noise_2d(world_x, world_z)
 	if patch < OPEN_THRESHOLD:
 		return GRASSLAND
@@ -56,19 +85,26 @@ static func classify(height: float, world_x: float, world_z: float, world_seed: 
 	return HEAVY_JUNGLE
 
 
-## Per-cell paddy draw. Fresh RNG seeded by (cell, seed) so the result is a pure function
-## of position, not of iteration order.
-static func _paddy_roll(world_x: float, world_z: float, world_seed: int) -> float:
-	var r := RandomNumberGenerator.new()
-	r.seed = hash([Vector2(world_x, world_z), world_seed])
-	return r.randf()
-
-
 static func _patch_noise(world_seed: int) -> FastNoiseLite:
 	if _noise == null or _noise_seed != world_seed:
-		_noise = FastNoiseLite.new()
-		_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		_noise.frequency = PATCH_FREQUENCY
-		_noise.seed = world_seed
-		_noise_seed = world_seed
+		_rebuild_noise(world_seed)
 	return _noise
+
+
+static func _paddy_field_noise(world_seed: int) -> FastNoiseLite:
+	if _paddy_noise == null or _noise_seed != world_seed:
+		_rebuild_noise(world_seed)
+	return _paddy_noise
+
+
+## Both fields share the seed-guard so one rebuild reseeds both coherently.
+static func _rebuild_noise(world_seed: int) -> void:
+	_noise = FastNoiseLite.new()
+	_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_noise.frequency = PATCH_FREQUENCY
+	_noise.seed = world_seed
+	_paddy_noise = FastNoiseLite.new()
+	_paddy_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_paddy_noise.frequency = PADDY_NOISE_FREQUENCY
+	_paddy_noise.seed = world_seed + 917  # decorrelate the paddy field from the patch field
+	_noise_seed = world_seed

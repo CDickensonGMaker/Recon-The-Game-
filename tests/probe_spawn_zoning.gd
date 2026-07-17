@@ -37,7 +37,7 @@ func _ready() -> void:
 	print("[MAP] size=%dx%d cells, height_scale=%.0fm" % [mss, mss, hscale])
 	print("[MAP] whole-map height: min=%.1fm max=%.1fm relief=%.1fm" % [
 		mn * hscale, mx * hscale, (mx - mn) * hscale])
-	print("[MAP] LOWLAND_MAX_H gate = %.0fm (below = paddy/grassland, above = jungle)" % TerrainZoning.LOWLAND_MAX_H)
+	print("[MAP] lowland ceiling = %.1fm (below = paddy/grassland, above = jungle)" % TerrainZoning._lowland_ceiling)
 
 	# Spawn chunk = the 256m chunk containing AO center (map*0.5).
 	var cs: float = world.terrain_manager.chunk_size
