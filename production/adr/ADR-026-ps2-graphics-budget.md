@@ -116,5 +116,47 @@ OmniLights (+their CPUParticles) are worth ~+8.6 fps on this bench — the #1 PS
 
 - **Cap the fighters (~8-16 active), stage the rest as illusion.** REJECTED by Summoner decree: firefight
   scale is a pillar. Replaced by Part B (uncapped bodies, budgeted compute).
-- **Switch Forward+ → Mobile renderer.** Deferred; A/B pending. Mobile drops volumetric fog / SDFGI /
-  SSR (a PSX game uses none) but is a larger change than this wave.
+- **Switch Forward+ → Mobile renderer.** REJECTED — see Amendment A.
+
+---
+
+## Amendment A — RATIFIED 2026-07-17: Forward+ is the renderer, full stop
+
+**Summoner decree (2026-07-17):** the renderer is **`forward_plus`**, ratified canon. The Mobile A/B is
+**closed and rejected** — do not evaluate, propose, or draft a renderer switch again. The FPS job is to
+claw the frame budget back **within Forward+**, never by changing renderer.
+
+- **Already live** (`project.godot`): `renderer/rendering_method="forward_plus"`, `scaling_3d/mode=5`
+  (nearest), `scaling_3d/scale=0.75`. MSAA is off (default); `mesh_lod/lod_change/threshold_pixels=2.0`.
+  Part A.4 (sub-native render scale) is therefore shipped.
+- **Sun shadow — the truth (measured 2026-07-17):** the shipped mission world already runs the sun with
+  **`shadow_enabled = false`** (`game_world.gd:48`, "perf-first"), which is the **OFF** option Part A.1
+  already permits. The −12.17ms "sun-shadow win" from the 2026-07-16 bench was a **bench artifact**: only
+  `ai_stress_arena.gd:390` set the sun shadow ON, and unbounded (not the ≤40m Part A.1 allows), so the
+  bench was ~12ms harder than anything that ships. **There is no shipped sun-shadow FPS win to claim — it
+  is already off.** This wave brings the bench to ship parity (arena sun `shadow_enabled = false`; the F6
+  overlay toggle still turns it on to measure the cost). Future bench numbers will read ~12ms faster than
+  the 2026-07-16 rows because they now reflect ship.
+- **Where the frame actually is:** with the shadow off (ship config), the remaining GPU bomb is the
+  **jungle — 71% of frame geometry** (−12.26ms, −572,438 primitives, measured 2026-07-16). That, plus the
+  Part B CPU wall, is the whole target. See "Next wave" below.
+
+### Next wave — the Forward+ jungle attack (targets; each ms delta needs the windowed bench)
+
+The jungle is instanced as merged 12m patch meshes via `JunglePatchLayer` (near full-detail + a
+structure-only `_far` twin). Levers, ordered by expected win, all inside Forward+:
+
+1. **Foliage `view_distance` 128m → ~80m** (`jungle_patch_layer.gd:73`). Part A.2 targets ~80m; 128m is
+   60% over. Cuts the far-twin draw by ~(80/128)² ≈ 40% of far-patch area. Guard-rail (Part A.2): this is
+   FOLIAGE distance, independent of the unit draw-distance floor (units render to the 140m sight cap);
+   keep foliage fade < fog wall (~90m).
+2. **`fill_chance` 0.78 → ~0.6** (`jungle_patch_layer.gd:58`). Fewer patch instances overall. Direct
+   instance-count cut; costs canopy density (Pillar 2) — must be judged by eye on the window, not just fps.
+3. **Far-twin simplification / hard-snap tuning** (`near_distance` 46m). PS2 hard LOD; verify the snap
+   reads as PS2, not pop.
+4. **Part B (activity-tiered AI)** for the CPU half — separate wave (ADR-025 LOD-tier), not a GPU lever.
+
+**These are BLOCKED on a windowed bench** (`night_jungle_bench.bat` + F1–F6 overlay; GPU-ms reads 0
+headless). Each lever must be A/B'd (same timepoint) for fps + draw-calls + primitives AND eyeballed for
+Pillar 2, per the 2026-07-16 method-debt lesson (a live-firefight toggle-diff conflates the toggle with
+the clock).

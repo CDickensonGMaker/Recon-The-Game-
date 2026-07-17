@@ -387,7 +387,9 @@ func _build_night_env() -> void:
 	sun.rotation_degrees = Vector3(-35.0, 40.0, 0.0)
 	sun.light_energy = 0.08
 	sun.light_color = Color(0.6, 0.7, 0.95)
-	sun.shadow_enabled = true
+	# Ship parity (ADR-026 Amendment A): game_world ships the sun shadowless. The F6
+	# overlay toggle turns this on to MEASURE the ~12ms shadow cost; it is not a shipped cost.
+	sun.shadow_enabled = false
 	add_child(sun)
 	_sun = sun
 
