@@ -30,6 +30,13 @@ const COVER_TRUNK := {
 const COVER_COLLISION_LAYER: int = 1
 const TRUNK_HEIGHT: float = 3.0
 
+## Deterministic per-chunk cover-collider cap. The AO is resident (ADR-013), so an uncapped
+## trunk-per-instance would build 17k+ StaticBody3D across the map and blow Jolt's body limit.
+## Capping PER CHUNK (not globally) keeps it deterministic - a global cap would drop bodies by
+## chunk load order (ADR-010 violation). The player-keyed pooled ring (bead 503b) supersedes
+## this cap with coherent near-player cover; until then this ships bounded cover without a crash.
+const MAX_TRUNKS_PER_CHUNK: int = 150
+
 @export var near_distance: float = 46.0   ## solid render + collision ring
 @export var view_distance: float = 80.0   ## card render ring
 @export var fade_margin: float = 12.0
@@ -71,6 +78,7 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		by_name[nm].append(e.get("xf", Transform3D.IDENTITY))
 
 	var nodes: Array[Node] = []
+	var trunks: int = 0  # per-chunk collider budget (see MAX_TRUNKS_PER_CHUNK)
 	for nm: String in by_name:
 		var xforms: Array = by_name[nm]
 		# NEAR: the real solid.
@@ -78,11 +86,14 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		# FAR: the impostor card (if this species has one).
 		if _card_mesh.has(nm):
 			nodes.append(_multimesh(_card_mesh[nm], xforms, near_distance, view_distance))
-		# COVER: a trunk collider per instance (cover-givers only).
+		# COVER: a trunk collider per instance (cover-givers only), capped per chunk.
 		if COVER_TRUNK.has(nm):
 			var r: float = float(COVER_TRUNK[nm])
 			for xf: Transform3D in xforms:
+				if trunks >= MAX_TRUNKS_PER_CHUNK:
+					break
 				nodes.append(_trunk_body(xf.origin, r))
+				trunks += 1
 
 	for node: Node in nodes:
 		add_child(node)
