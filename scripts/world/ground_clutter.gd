@@ -1,19 +1,27 @@
-## ground_clutter.gd - Near-player ground-cover pass (PT5): grass tufts, rocks,
-## fallen logs, mushrooms, flowers as billboard quads. One MultiMesh per
-## texture, re-scattered deterministically as the player moves.
-## Grass layers ride the 6-tri star-fan mesh (grass_fan.glb, batch-built by
-## tools/make_jungle_vegetation.py) with the vegetation_sway wind shader;
-## billboard quads remain the fallback if the GLB is absent.
+## ground_clutter.gd - Resident near-ground cover: grass tufts, rocks, fallen logs,
+## mushrooms, flowers. Scattered ONCE across the AO behind the loading screen and bucketed
+## per sub-cell, each bucket carrying a visibility_range so only the near ring ever draws
+## (ADR-013 resident world; ADR-010 deterministic from mission_seed). Grass rides the 6-tri
+## star-fan mesh (grass_fan.glb) with the vegetation_sway wind shader; the other layers are
+## alpha-scissored billboard quads.
 class_name GroundClutter
 extends Node3D
 
-const RADIUS: float = 45.0
-const RESCATTER_DIST: float = 22.0
+## Sub-cell edge, metres. visibility_range culls a whole bucket by its CENTRE, so this dials
+## LOD granularity against node count. NEAR_END is the bucket draw radius (the near ring the
+## player sees), tuned to the old moving-ring reach so the near look is unchanged.
+const SUBCELL: float = 32.0
+const NEAR_END: float = 42.0
+const NEAR_FADE: float = 8.0
+
+## Per-sub-cell instance counts are the LAYERS ring-counts scaled by area from the old 45m
+## ring, so resident density matches what the moving ring used to show at any instant.
+const RING_AREA: float = 6361.73  # PI * 45 * 45
 
 const FAN_MESH_PATH := "res://assets/world/vegetation/grass_fan.glb"
 const SWAY_SHADER_PATH := "res://terrain/shaders/vegetation_sway.gdshader"
 
-## texture path, count, quad size (w,h), y_sink, jungle-only, star-fan mesh
+## texture path, ring-count, quad size (w,h), y_sink, jungle-only, star-fan mesh
 const LAYERS := [
 	["res://terrain/textures/clutter/grassland_2.png", 160, Vector2(1.4, 1.1), 0.05, false, true],
 	["res://terrain/textures/clutter/grassland_1.png", 90, Vector2(1.0, 0.9), 0.05, false, true],
@@ -26,14 +34,10 @@ const LAYERS := [
 ]
 
 var world: GameWorld
-var _mmis: Array[MultiMeshInstance3D] = []
-var _fan_layers: Array[bool] = []
-var _last_center: Vector3 = Vector3(99999, 0, 99999)
 
 
-## Shared PSX wind material: sway masked by vertex color (R lean / G flutter),
-## scissor + cull off + nearest to match the billboard clutter recipe.
-## gore_lab.gd reuses this for its bench palms and grass patches.
+## Shared PSX wind material: sway masked by vertex color (R lean / G flutter), scissor +
+## cull off + nearest. gore_lab.gd and ai_stress_arena.gd call this - keep the signature.
 static func make_sway_material(tex: Texture2D, wind_strength: float = 0.35,
 		flutter_strength: float = 0.06, alpha_scissor: float = 0.4) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
@@ -46,7 +50,7 @@ static func make_sway_material(tex: Texture2D, wind_strength: float = 0.35,
 	return mat
 
 
-## First MeshInstance3D mesh inside a GLB scene (null if missing/empty).
+## First MeshInstance3D mesh inside a GLB scene (null if missing/empty). Reused by callers.
 static func load_glb_mesh(path: String) -> Mesh:
 	if not ResourceLoader.exists(path):
 		return null
@@ -73,19 +77,20 @@ func setup(game_world: GameWorld) -> void:
 	var fan_mesh: Mesh = load_glb_mesh(FAN_MESH_PATH)
 	if fan_mesh == null:
 		push_warning("[CLUTTER] grass_fan.glb missing - grass falls back to billboards")
-	for layer in LAYERS:
+
+	# One shared mesh+material template per layer; every bucket reuses these resources.
+	var templates: Array = []
+	for layer: Array in LAYERS:
 		var use_fan: bool = bool(layer[5]) and fan_mesh != null
-		var mmi := MultiMeshInstance3D.new()
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.instance_count = int(layer[1])
+		var size: Vector2 = layer[2]
+		var mesh: Mesh
+		var override_mat: Material = null
 		if use_fan:
-			mm.mesh = fan_mesh
-			var fan_tex: Texture2D = load(str(layer[0])) as Texture2D
-			mmi.material_override = make_sway_material(fan_tex, 0.18, 0.05)
+			mesh = fan_mesh
+			override_mat = make_sway_material(load(str(layer[0])) as Texture2D, 0.18, 0.05)
 		else:
 			var quad := QuadMesh.new()
-			quad.size = layer[2]
+			quad.size = size
 			var mat := StandardMaterial3D.new()
 			mat.albedo_texture = load(str(layer[0]))
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
@@ -94,62 +99,74 @@ func setup(game_world: GameWorld) -> void:
 			mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST  # PS1 crunch
 			quad.material = mat
-			mm.mesh = quad
-		mmi.multimesh = mm
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mmi)
-		_mmis.append(mmi)
-		_fan_layers.append(use_fan)
+			mesh = quad
+		var per_cell: int = int(ceil(float(int(layer[1])) * (SUBCELL * SUBCELL) / RING_AREA))
+		templates.append({
+			"mesh": mesh, "override": override_mat, "fan": use_fan, "size": size,
+			"y_sink": float(layer[3]), "jungle_only": bool(layer[4]), "per_cell": per_cell,
+		})
+
+	_scatter_resident(templates)
 
 
-var _poll: float = 0.0
+func _scatter_resident(templates: Array) -> void:
+	var bounds: float = world.map_size
+	var subcells: int = int(ceil(bounds / SUBCELL))
+	for sz in range(subcells):
+		for sx in range(subcells):
+			var origin_x: float = sx * SUBCELL
+			var origin_z: float = sz * SUBCELL
+			var centre := Vector3(origin_x + SUBCELL * 0.5, 0.0, origin_z + SUBCELL * 0.5)
+			for li in range(templates.size()):
+				var t: Dictionary = templates[li]
+				var rng := RandomNumberGenerator.new()
+				rng.seed = hash([Vector2i(sx, sz), li, world.mission_seed])
+				var xforms: Array[Transform3D] = []
+				for _i in range(int(t.per_cell)):
+					var pos := Vector3(origin_x + rng.randf() * SUBCELL, 0.0, origin_z + rng.randf() * SUBCELL)
+					if not _accept(pos, bool(t.jungle_only)):
+						continue
+					var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
+					var scale: float = rng.randf_range(0.75, 1.3)
+					var size: Vector2 = t.size
+					if bool(t.fan):
+						# star-fan: origin at the feet, stretched to the card size on the ground
+						pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
+						basis = basis.scaled(Vector3(size.x * scale, size.y * scale, size.x * scale))
+					else:
+						pos.y = world.terrain_manager.get_height_at(pos) + size.y * 0.5 - float(t.y_sink)
+						basis = basis.scaled(Vector3.ONE * scale)
+					pos -= centre  # visibility_range measures from the bucket origin
+					xforms.append(Transform3D(basis, pos))
+				if not xforms.is_empty():
+					_add_bucket(t, xforms, centre)
 
 
-func _process(delta: float) -> void:
-	if world == null or world.player == null:
-		return
-	_poll += delta
-	if _poll < 0.5:
-		return
-	_poll = 0.0
-	var center := world.player.global_position
-	if center.distance_to(_last_center) < RESCATTER_DIST:
-		return
-	_last_center = center
-	_scatter(center)
+## Water is never clutter; jungle-only layers need real jungle density (matches the old ring).
+func _accept(pos: Vector3, jungle_only: bool) -> bool:
+	if world.gameplay_grid == null:
+		return true
+	if world.gameplay_grid.is_water(pos):
+		return false
+	if jungle_only and world.gameplay_grid.get_vegetation(pos) < 0.3:
+		return false
+	return true
 
 
-func _scatter(center: Vector3) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(Vector2i(int(center.x / RESCATTER_DIST), int(center.z / RESCATTER_DIST)))
-	for li in range(LAYERS.size()):
-		var layer: Array = LAYERS[li]
-		var mm: MultiMesh = _mmis[li].multimesh
-		var jungle_only: bool = layer[4]
-		var half_h: float = (layer[2] as Vector2).y * 0.5
-		for i in range(mm.instance_count):
-			var a := rng.randf_range(0.0, TAU)
-			var r := sqrt(rng.randf()) * RADIUS
-			var pos := center + Vector3(cos(a) * r, 0.0, sin(a) * r)
-			var ok := true
-			if world.gameplay_grid != null:
-				if world.gameplay_grid.is_water(pos):
-					ok = false
-				elif jungle_only and world.gameplay_grid.get_vegetation(pos) < 0.3:
-					ok = false
-			if not ok:
-				# park it out of sight
-				mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0, -500, 0)))
-				continue
-			var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
-			var scale := rng.randf_range(0.75, 1.3)
-			if _fan_layers[li]:
-				# star-fan mesh: origin at the feet, unit 1m x 1m - stretch to
-				# the layer's card size and plant on the ground
-				var size: Vector2 = layer[2]
-				pos.y = world.terrain_manager.get_height_at(pos) - float(layer[3])
-				basis = basis.scaled(Vector3(size.x * scale, size.y * scale, size.x * scale))
-			else:
-				pos.y = world.terrain_manager.get_height_at(pos) + half_h - float(layer[3])
-				basis = basis.scaled(Vector3(scale, scale, scale))
-			mm.set_instance_transform(i, Transform3D(basis, pos))
+func _add_bucket(t: Dictionary, xforms: Array[Transform3D], centre: Vector3) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = t.mesh
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	if t.override != null:
+		mmi.material_override = t.override
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.position = centre
+	mmi.visibility_range_end = NEAR_END
+	mmi.visibility_range_end_margin = NEAR_FADE
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	add_child(mmi)

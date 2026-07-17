@@ -1,6 +1,6 @@
 {
   "_comment": "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. Adding to it to silence a failure is the one forbidden move.",
-  "count": 146,
+  "count": 145,
   "fossils": [
     "scripts/allies/ally_base.gd|signal|state_changed",
     "scripts/autoload/campaign_state.gd|signal|threat_changed",
@@ -130,7 +130,6 @@
     "terrain/systems/terrain_vfx.gd|signal|effect_started",
     "terrain/ui/terrain_lab_ui.gd|func|_on_regenerate_pressed",
     "terrain/ui/terrain_lab_ui.gd|func|is_clearing_mode",
-    "terrain/vegetation/vegetation_manager.gd|func|_generate_chunk_vegetation",
     "terrain/vegetation/vegetation_manager.gd|func|blocks_los",
     "terrain/vegetation/vegetation_manager.gd|func|get_movement_multiplier_at",
     "terrain/vegetation/vegetation_manager.gd|func|set_terrain_type_at",

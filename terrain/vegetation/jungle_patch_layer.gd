@@ -52,6 +52,9 @@ const TYPE_DENSITY := {
 
 @export var tile_meters: float = 12.0
 @export var enabled: bool = true
+## Folded into the per-chunk placement RNG so two boots with the same mission seed produce
+## a byte-identical canopy (ADR-010). VegetationManager sets this before generate_for_chunk.
+var mission_seed: int = 0
 ## Skip patches on ground steeper than this (they are modelled flat-footed).
 @export var max_slope_degrees: float = 26.0
 ## Chance a legal cell actually gets a patch. < 1.0 opens the jungle up.
@@ -195,7 +198,7 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 	clear_chunk(chunk_coord)
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(chunk_coord) ^ 0x5EED
+	rng.seed = hash([chunk_coord, mission_seed])
 	var min_dot := cos(deg_to_rad(max_slope_degrees))
 	var origin := Vector3(chunk_coord.x * chunk_size, 0.0, chunk_coord.y * chunk_size)
 	var cells := int(chunk_size / tile_meters)

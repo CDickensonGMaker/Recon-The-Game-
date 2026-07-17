@@ -34,6 +34,15 @@ static var _noise: FastNoiseLite = null
 static var _noise_seed: int = 0
 
 
+## ADR-010: the patch-noise field is a static that outlives mission teardown. MissionScope
+## calls this on reset so the next mission rebuilds it from its own seed, never inheriting
+## the last mission's field. (The seed-guard in _patch_noise self-heals in practice; this
+## makes the contract explicit rather than incidental.)
+static func reset() -> void:
+	_noise = null
+	_noise_seed = 0
+
+
 static func classify(height: float, world_x: float, world_z: float, world_seed: int) -> int:
 	if height < LOWLAND_MAX_H:
 		return RICE_PADDY if _paddy_roll(world_x, world_z, world_seed) < PADDY_FRACTION else GRASSLAND

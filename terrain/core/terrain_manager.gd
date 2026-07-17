@@ -1,7 +1,8 @@
 extends Node3D
 class_name TerrainManager
-## Manages terrain chunks for large maps (3km x 3km)
-## Streams chunks around camera for performance
+## Manages terrain chunks. On maps <= 2km the whole grid loads once, behind the loading
+## screen, and stays resident for the mission (ADR-013) - chunk count is invariant after
+## terrain_ready. The streaming path below is dormant, kept for future 3km+ AOs.
 
 const HeightmapStorageClass := preload("res://terrain/core/heightmap_storage.gd")
 const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
@@ -19,6 +20,9 @@ const WORLD_HEIGHT_MAX: float = 350.0  # Shader/world height cap.
 
 @export var load_distance: int = 3     # Chunks to load around camera
 @export var unload_distance: int = 5   # Chunks to unload beyond this
+
+## ADR-013: maps at or below this size load whole and never stream (resident world).
+const STREAMING_MIN_MAP_SIZE: float = 2000.0
 
 @export var rivers_enabled: bool = true
 @export var river_count: int = 6  # Number of rivers to generate
@@ -60,9 +64,13 @@ func _process(delta: float) -> void:
 	if not is_ready:
 		return
 
+	# Explosion/clearing rebuilds stay live on every map size: _rebuild_chunk_immediate
+	# erases and re-adds the SAME coord, so the resident chunk count is unchanged.
 	_process_rebuild_queue()
 
-	if camera:
+	# ADR-013: streaming is disabled on <= 2km AOs - the world is fully resident and
+	# chunk count must not change after terrain_ready. Kept live only for 3km+ maps.
+	if camera and map_size > STREAMING_MIN_MAP_SIZE:
 		_stream_chunks_around_camera()
 
 
