@@ -70,7 +70,7 @@ const TYPE_DENSITY := {
 ## Full-detail patches (grass, fern, bush, moss + structure) out to here...
 @export var near_distance: float = 46.0
 ## ...then the structure-only `_far` twin (trees, bamboo, vines) out to here.
-@export var view_distance: float = 128.0
+@export var view_distance: float = 80.0
 @export var view_fade_margin: float = 14.0
 
 var _by_density: Dictionary = {}          ## density -> Array[String] names

@@ -146,12 +146,13 @@ claw the frame budget back **within Forward+**, never by changing renderer.
 The jungle is instanced as merged 12m patch meshes via `JunglePatchLayer` (near full-detail + a
 structure-only `_far` twin). Levers, ordered by expected win, all inside Forward+:
 
-1. **Foliage `view_distance` 128m → ~80m** (`jungle_patch_layer.gd:73`). Part A.2 targets ~80m; 128m is
-   60% over. Cuts the far-twin draw by ~(80/128)² ≈ 40% of far-patch area. Guard-rail (Part A.2): this is
-   FOLIAGE distance, independent of the unit draw-distance floor (units render to the 140m sight cap);
-   keep foliage fade < fog wall (~90m).
-2. **`fill_chance` 0.78 → ~0.6** (`jungle_patch_layer.gd:58`). Fewer patch instances overall. Direct
-   instance-count cut; costs canopy density (Pillar 2) — must be judged by eye on the window, not just fps.
+1. **Foliage `view_distance` 128m → 80m — LANDED 2026-07-17** (`jungle_patch_layer.gd:73`). The A.2
+   target; look-verified identical to 128 in night/fog (far foliage invisible anyway) and cuts ~22% of
+   primitives. Shipped as low-risk hygiene. FOLIAGE distance only — independent of the unit draw-distance
+   floor (units render to the 140m sight cap); fade (80m) stays under the fog wall (~90m).
+2. **`fill_chance` 0.78 → 0.6 — REJECTED 2026-07-17.** Fails the Pillar-2 gate: at 0.6 the canopy
+   visibly thins (open ground and long sightlines appear where dense bamboo walls stood). No trustworthy
+   perf case to justify the atmosphere loss (the frame is CPU-bound; see below). `fill_chance` stays 0.78.
 3. **Far-twin simplification / hard-snap tuning** (`near_distance` 46m). PS2 hard LOD; verify the snap
    reads as PS2, not pop.
 4. **Part B (activity-tiered AI)** for the CPU half — separate wave (ADR-025 LOD-tier), not a GPU lever.
