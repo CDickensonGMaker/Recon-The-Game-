@@ -10,10 +10,8 @@ const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
 const TerrainManagerScript := preload("res://terrain/core/terrain_manager.gd")
 const TerrainChunkScript := preload("res://terrain/core/terrain_chunk.gd")
 const VegetationManagerScript := preload("res://terrain/vegetation/vegetation_manager.gd")
-const BillboardVegetationScript := preload("res://terrain/vegetation/billboard_vegetation.gd")
 const WaterSystemScript := preload("res://terrain/water/water_system.gd")
 const GameplayGridScript := preload("res://terrain/core/gameplay_grid.gd")
-const VillageSpawnerScript := preload("res://terrain/world/village_spawner.gd")
 
 @export var mission_seed: int = 12345
 @export var map_size: float = WorldConfig.MAP_SIZE
@@ -22,7 +20,6 @@ const VillageSpawnerScript := preload("res://terrain/world/village_spawner.gd")
 
 var terrain_manager: TerrainManager
 var vegetation_manager: VegetationManager
-var billboard_vegetation: BillboardVegetation
 var water_system: WaterSystem
 var gameplay_grid: GameplayGrid
 var player: CharacterBody3D
@@ -62,9 +59,17 @@ func _setup_environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = 0.9
+	# Short-draw jungle haze (ADR-026 A.2). Density stays UNDER the fairness floor:
+	# an open-ground enemy at the 140m AI sight cap (enemy_base.SIGHT_CAP_OPEN) is
+	# still a visible hazy silhouette at this density, so the fog never hides a
+	# shootable target. MissionWeather reassigns fog_density/fog_light_color per
+	# weather; it never touches the aerial/sky/scatter terms, so those survive.
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.75, 0.78, 0.7)
-	env.fog_density = 0.004
+	env.fog_density = 0.0065
+	env.fog_aerial_perspective = 1.0
+	env.fog_sky_affect = 0.5
+	env.fog_sun_scatter = 0.1
 
 	var world_env := WorldEnvironment.new()
 	world_env.name = "WorldEnvironment"
@@ -87,17 +92,11 @@ func _setup_terrain() -> void:
 	vegetation_manager.mission_seed = mission_seed
 	add_child(vegetation_manager)
 
-	billboard_vegetation = BillboardVegetationScript.new()
-	billboard_vegetation.name = "BillboardVegetation"
-	billboard_vegetation.mission_seed = mission_seed
-	add_child(billboard_vegetation)
-
 	water_system = WaterSystemScript.new()
 	water_system.name = "WaterSystem"
 	add_child(water_system)
 
 	terrain_manager.terrain_ready.connect(_on_terrain_ready)
-	terrain_manager.chunk_loaded.connect(_on_chunk_loaded)
 
 	_setup_default_shader_textures()
 
@@ -139,7 +138,6 @@ func _on_terrain_ready() -> void:
 	# 1. Damage + clearing systems (autoloads) get their terrain references.
 	DamageSystem.set_terrain_manager(terrain_manager)
 	DamageSystem.set_vegetation_manager(vegetation_manager)
-	DamageSystem.set_billboard_vegetation(billboard_vegetation)
 	ClearingSystem.set_terrain_manager(terrain_manager)
 	if ClearingSystem.has_signal("vegetation_updated"):
 		ClearingSystem.vegetation_updated.connect(_on_vegetation_updated)
@@ -163,23 +161,6 @@ func _on_terrain_ready() -> void:
 	gameplay_grid.set_clearing_system(ClearingSystem)
 	gameplay_grid.set_water_system(water_system)
 	gameplay_grid.build_from_terrain()
-
-	# 4b. Village + hideout spawner smoke (RECONgame-bx2m). Runs every boot so
-	# we can see the procedural output in the log; later this feeds MissionDirector.
-	var smoke_firebases: Array[Vector2] = [Vector2(map_size * 0.5, map_size * 0.5)]
-	var villages: Array = VillageSpawnerScript.sample_world(mission_seed, map_size, smoke_firebases)
-	print("[VillageSpawner] mission_seed=%d produced %d villages" % [mission_seed, villages.size()])
-	for v in villages:
-		print("  %s pos=%s families=%d villagers=%d VC=%d hideouts=%d" % [
-			v.village_id, str(v.world_position), v.families.size(),
-			v.total_villagers(), v.total_vc(), v.linked_hideouts.size()
-		])
-		for h in v.linked_hideouts:
-			var tname: String = "CAMP" if h.type == 0 else "TUNNEL"
-			print("    %s %s pos=%s dist=%.0fm angle=%.0fdeg defenders=%d" % [
-				h.hideout_id, tname, str(h.world_position),
-				h.distance_from_village, h.angle_from_village, h.defender_count
-			])
 
 	# 5. Player, then vegetation cameras (they need the player camera).
 	if spawn_player_on_ready:
@@ -319,32 +300,6 @@ func _wire_cameras(cam: Camera3D) -> void:
 	terrain_manager.set_camera(cam)
 	vegetation_manager.set_camera(cam)
 	vegetation_manager.set_chunk_size(terrain_manager.chunk_size)
-	billboard_vegetation.set_camera(cam)
-	billboard_vegetation.set_chunk_size(terrain_manager.chunk_size)
-	billboard_vegetation.set_terrain_manager(terrain_manager)
-	billboard_vegetation.set_vegetation_manager(vegetation_manager)
-
-
-## Billboard generation is queued 1/frame, not burst on chunk load: the burst
-## craters min-FPS during streaming.
-var _billboard_queue: Array[Vector2i] = []
-
-
-func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
-	if is_playable:
-		_billboard_queue.append(coord)
-
-
-func _process_billboard_queue() -> void:
-	if _billboard_queue.is_empty():
-		return
-	var coord: Vector2i = _billboard_queue.pop_front()
-	if vegetation_manager._chunk_terrain.has(coord):
-		billboard_vegetation.generate_for_chunk(
-			coord,
-			terrain_manager.heightmap,
-			vegetation_manager._chunk_terrain[coord]
-		)
 
 
 func _setup_terrain_shader_textures() -> void:
@@ -398,7 +353,6 @@ var _fps_log_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
-	_process_billboard_queue()
 	if not _amb_emitters.is_empty():
 		_amb_reseat_t += delta
 		if _amb_reseat_t >= 6.0:   # re-seat every 6s so the treeline "moves"

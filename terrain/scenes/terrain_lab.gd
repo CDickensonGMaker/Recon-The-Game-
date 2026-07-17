@@ -4,7 +4,6 @@ extends Node3D
 const TerrainManagerClass := preload("res://terrain/core/terrain_manager.gd")
 const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
 const VegetationManagerClass := preload("res://terrain/vegetation/vegetation_manager.gd")
-const BillboardVegetationClass := preload("res://terrain/vegetation/billboard_vegetation.gd")
 const PoissonSamplerClass := preload("res://terrain/vegetation/poisson_sampler.gd")
 const EngineeringSystemClass := preload("res://terrain/systems/engineering_system.gd")
 const TerrainVFXClass := preload("res://terrain/systems/terrain_vfx.gd")
@@ -22,7 +21,6 @@ const WaterSystemClass := preload("res://terrain/water/water_system.gd")
 
 var terrain_manager: Node3D  # TerrainManager
 var vegetation_manager: Node3D  # VegetationManager
-var billboard_vegetation: Node3D  # BillboardVegetation
 var quality_settings: Node  # QualitySettings
 
 var pan_speed: float = 50.0
@@ -87,10 +85,6 @@ func _ready() -> void:
 	vegetation_manager.name = "VegetationManager"
 	add_child(vegetation_manager)
 
-	billboard_vegetation = BillboardVegetationClass.new()
-	billboard_vegetation.name = "BillboardVegetation"
-	add_child(billboard_vegetation)
-
 	quality_settings = QualitySettingsClass.new()
 	quality_settings.name = "QualitySettings"
 	add_child(quality_settings)
@@ -113,7 +107,6 @@ func _ready() -> void:
 
 	terrain_manager.terrain_ready.connect(_on_terrain_ready)
 	terrain_manager.generation_progress.connect(_on_generation_progress)
-	terrain_manager.chunk_loaded.connect(_on_chunk_loaded)
 
 	_connect_ui()
 
@@ -286,8 +279,6 @@ func _on_terrain_ready() -> void:
 	if damage_system:
 		damage_system.set_terrain_manager(terrain_manager)
 		damage_system.set_vegetation_manager(vegetation_manager)
-		if billboard_vegetation:
-			damage_system.set_billboard_vegetation(billboard_vegetation)
 	if clearing_system:
 		clearing_system.set_terrain_manager(terrain_manager)
 		if clearing_system.has_signal("vegetation_updated"):
@@ -333,24 +324,6 @@ func _on_terrain_ready() -> void:
 	if vegetation_manager:
 		vegetation_manager.set_camera(camera)
 		vegetation_manager.set_chunk_size(terrain_manager.chunk_size)
-
-	if billboard_vegetation:
-		billboard_vegetation.set_camera(camera)
-		billboard_vegetation.set_chunk_size(terrain_manager.chunk_size)
-		billboard_vegetation.set_terrain_manager(terrain_manager)
-		billboard_vegetation.set_vegetation_manager(vegetation_manager)
-
-
-func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
-	# Vegetation is classified in terrain_manager._load_chunk BEFORE mesh build (so rice
-	# paddies can be coloured). Only billboards are generated here.
-	if is_playable:
-		if billboard_vegetation and vegetation_manager._chunk_terrain.has(coord):
-			billboard_vegetation.generate_for_chunk(
-				coord,
-				terrain_manager.heightmap,
-				vegetation_manager._chunk_terrain[coord]
-			)
 
 
 func _input(event: InputEvent) -> void:
@@ -516,24 +489,6 @@ func _start_clearing(pos: Vector3) -> void:
 
 		vegetation_manager.clear_area(pos, 30.0, terrain_manager.chunk_size)
 
-		if billboard_vegetation:
-			var radius: float = 30.0
-			var chunk_size: float = terrain_manager.chunk_size
-			var min_cx := int(floor((pos.x - radius) / chunk_size))
-			var max_cx := int(floor((pos.x + radius) / chunk_size))
-			var min_cz := int(floor((pos.z - radius) / chunk_size))
-			var max_cz := int(floor((pos.z + radius) / chunk_size))
-
-			for cz in range(min_cz, max_cz + 1):
-				for cx in range(min_cx, max_cx + 1):
-					var coord := Vector2i(cx, cz)
-					if vegetation_manager._chunk_terrain.has(coord):
-						billboard_vegetation.generate_for_chunk(
-							coord,
-							terrain_manager.heightmap,
-							vegetation_manager._chunk_terrain[coord]
-						)
-
 		print("Clearing zone created at: ", pos)
 
 
@@ -562,8 +517,6 @@ func _on_regenerate() -> void:
 	loading_ui.visible = true
 
 	vegetation_manager.clear_all()
-	if billboard_vegetation:
-		billboard_vegetation.clear_all()
 
 	if water_system:
 		water_system.clear()

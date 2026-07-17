@@ -63,8 +63,8 @@ const TYPE_DENSITY := {
 ## A patch is ~6-26k tris. A 256m chunk is 21x21 tiles, so a chunk of solid
 ## jungle is MILLIONS of triangles - far past what this game's GPU target eats.
 ## So patches are bucketed into sub-cells and given a hard visibility range:
-## only the buckets near the camera ever draw, and BillboardVegetation carries
-## the far field (that is exactly what it is for).
+## only the buckets near the camera ever draw. Past view_distance there is no
+## far-field veg - the short-draw fog (ADR-026 A.2) hazes the bare ground.
 ## Raise view_distance for beefy GPUs; drop it (or fill_chance) for weak ones.
 @export var subcell_meters: float = 36.0
 ## Full-detail patches (grass, fern, bush, moss + structure) out to here...

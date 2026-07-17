@@ -10,8 +10,8 @@ static var sight_mult: float = 1.0
 static var is_night: bool = false
 
 const WEATHER := {
-	"CLEAR": {"fog": 0.004, "fog_color": Color(0.75, 0.78, 0.7), "light": 1.0, "sight": 1.0, "noise": 1.0, "rain": 0.0},
-	"CLOUDY": {"fog": 0.007, "fog_color": Color(0.7, 0.72, 0.68), "light": 0.75, "sight": 0.9, "noise": 1.0, "rain": 0.0},
+	"CLEAR": {"fog": 0.0065, "fog_color": Color(0.75, 0.78, 0.7), "light": 1.0, "sight": 1.0, "noise": 1.0, "rain": 0.0},
+	"CLOUDY": {"fog": 0.009, "fog_color": Color(0.7, 0.72, 0.68), "light": 0.75, "sight": 0.9, "noise": 1.0, "rain": 0.0},
 	"RAIN": {"fog": 0.012, "fog_color": Color(0.6, 0.64, 0.62), "light": 0.55, "sight": 0.7, "noise": 0.75, "rain": 0.5},
 	"MONSOON": {"fog": 0.022, "fog_color": Color(0.5, 0.55, 0.54), "light": 0.4, "sight": 0.45, "noise": 0.5, "rain": 1.0},
 	"FOG": {"fog": 0.035, "fog_color": Color(0.72, 0.73, 0.68), "light": 0.6, "sight": 0.35, "noise": 0.9, "rain": 0.0},

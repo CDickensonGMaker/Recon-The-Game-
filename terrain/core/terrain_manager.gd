@@ -8,7 +8,6 @@ const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
 const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
 
 signal terrain_ready
-signal chunk_loaded(coord: Vector2i, is_playable: bool)
 signal chunk_unloaded(coord: Vector2i)
 signal generation_progress(stage: String, percent: float)
 
@@ -267,9 +266,6 @@ func _load_chunk(coord: Vector2i) -> void:
 	chunks[coord] = chunk
 	loading_chunks.erase(coord)
 
-	var is_playable: bool = is_playable_chunk(coord)
-	chunk_loaded.emit(coord, is_playable)
-
 
 ## Uses Chebyshev distance (max of dx, dy) to match the square loading pattern
 func _unload_distant_chunks(center: Vector2i, max_distance: int) -> void:
@@ -352,11 +348,6 @@ func _rebuild_chunks_in_region(cell_region: Rect2i) -> void:
 
 func set_camera(cam: Camera3D) -> void:
 	camera = cam
-
-
-## Check if chunk coordinates are within playable area (all chunks are playable now)
-func is_playable_chunk(coord: Vector2i) -> bool:
-	return coord.x >= 0 and coord.x < chunks_per_side and coord.y >= 0 and coord.y < chunks_per_side
 
 
 # AO archetype mapping. The 40/60 split:

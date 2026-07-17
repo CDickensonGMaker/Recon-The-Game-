@@ -21,7 +21,7 @@ class TerrainManagerStub extends Node:
 
 
 ## Flat ground for the vegetation layers: every cell is placeable, no slope. The arena
-## has no real heightmap, so JunglePatchLayer and BillboardVegetation sample this.
+## has no real heightmap, so JunglePatchLayer samples this.
 class FlatHeightmap:
 	func sample_world(_x: float, _z: float) -> float:
 		return 0.0

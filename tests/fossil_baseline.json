@@ -130,7 +130,6 @@
     "terrain/systems/terrain_vfx.gd|signal|effect_started",
     "terrain/ui/terrain_lab_ui.gd|func|_on_regenerate_pressed",
     "terrain/ui/terrain_lab_ui.gd|func|is_clearing_mode",
-    "terrain/vegetation/billboard_vegetation.gd|func|get_total_billboard_count",
     "terrain/vegetation/vegetation_manager.gd|func|_generate_chunk_vegetation",
     "terrain/vegetation/vegetation_manager.gd|func|blocks_los",
     "terrain/vegetation/vegetation_manager.gd|func|get_movement_multiplier_at",
@@ -146,7 +145,6 @@
     "terrain/water/water_system.gd|func|get_water_near",
     "terrain/water/water_system.gd|func|get_water_type",
     "terrain/water/water_system.gd|signal|water_body_added",
-    "terrain/water/water_system.gd|signal|water_generated",
-    "terrain/world/village_site.gd|func|all_hideouts_cleared"
+    "terrain/water/water_system.gd|signal|water_generated"
   ]
 }

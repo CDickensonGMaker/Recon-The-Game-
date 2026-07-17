@@ -67,7 +67,6 @@ var _deforms_this_mission: int = 0
 # Reference to terrain manager (set by terrain_lab)
 var terrain_manager: Node
 var vegetation_manager: Node
-var billboard_vegetation: Node
 
 var decal_container: Node3D
 
@@ -91,10 +90,6 @@ func set_terrain_manager(manager: Node) -> void:
 
 func set_vegetation_manager(veg_manager: Node) -> void:
 	vegetation_manager = veg_manager
-
-
-func set_billboard_vegetation(billboard_veg: Node) -> void:
-	billboard_vegetation = billboard_veg
 
 
 func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) -> void:
@@ -141,18 +136,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 			terrain_manager.chunk_size,
 			terrain_manager.heightmap,
 		)
-
-	if billboard_vegetation and billboard_vegetation.has_method("clear_chunk"):
-		var chunk_coord := Vector2i(
-			int(floor(world_pos.x / terrain_manager.chunk_size)),
-			int(floor(world_pos.z / terrain_manager.chunk_size))
-		)
-		if vegetation_manager and vegetation_manager._chunk_terrain.has(chunk_coord):
-			billboard_vegetation.generate_for_chunk(
-				chunk_coord,
-				terrain_manager.heightmap,
-				vegetation_manager._chunk_terrain[chunk_coord]
-			)
 
 	var terrain_height: float = terrain_manager.get_height_at(world_pos)
 

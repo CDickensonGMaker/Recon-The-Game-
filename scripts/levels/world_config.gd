@@ -1,8 +1,7 @@
 ## world_config.gd - Single tuning point for AO generation + performance.
-## PERF QUALITY LADDER: VEGETATION_DENSITY_MULT scales billboard/grass/tree candidate
-## counts; BILLBOARD_DISTANCE_MULT scales billboard draw range. Manual quality dial for
-## now (edit + reboot). Weak-GPU rung: VEGETATION_DENSITY_MULT 0.6, then MAP_SIZE 1024 +
-## BILLBOARD_DISTANCE_MULT 0.7. NOTE: primitive/draw-call count is NOT the jungle's
+## PERF QUALITY LADDER: VEGETATION_DENSITY_MULT scales grass/tree candidate counts.
+## Manual quality dial for now (edit + reboot). Weak-GPU rung: VEGETATION_DENSITY_MULT
+## 0.6, then MAP_SIZE 1024. NOTE: primitive/draw-call count is NOT the jungle's
 ## bottleneck (measured — bead t5mo); render scale + renderer are the real FPS levers.
 class_name WorldConfig
 extends RefCounted
@@ -15,7 +14,6 @@ const UNLOAD_DISTANCE: int = 3
 
 ## Vegetation tuning (1.0 = TerrainEngine defaults).
 const VEGETATION_DENSITY_MULT: float = 1.0
-const BILLBOARD_DISTANCE_MULT: float = 1.0
 
 ## Water
 const SEA_LEVEL: float = 15.0
