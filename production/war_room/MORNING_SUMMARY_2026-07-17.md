@@ -1,5 +1,25 @@
 # MORNING SUMMARY — overnight run of 2026-07-16/17
 
+> # ⛔ READ THIS FIRST — THE ONE THING ONLY YOU CAN FIX
+>
+> **23 unpushed commits + ~2,400 lines of your uncommitted work live on ONE 98%-full drive.**
+> Your `enemy_squad.gd` / `enemy_base.gd` / `ai_stress_arena.gd` edits from **20:47–20:51** —
+> the "squad AI further fixed" work — **are not committed and not pushed.** `us_base_v3.blend`
+> (22:53) likewise.
+>
+> **My backup is on that same physical disk.** `C:\Users\caleb\RECONgame_BACKUP_2026-07-16\`
+> (1.9GB bundle, verified; 110MB patch, verified; 307MB verbatim copy of all 108 dirty files).
+> **It protects you from a bad command. It does NOT protect you from that drive failing.**
+>
+> **This is the single largest exposure in the project, it is larger than every bug below, and
+> nothing I did tonight reduced it.** Get a copy onto second physical media before anything else.
+> The push is blocked behind a call only you can make (bless #5); a plain file copy is not.
+>
+> ### ⚠ AND: three numbers from my first report are WITHDRAWN
+> **"grass/clutter is free" is NOT established. "lights cost 5ms" is NOT established.
+> "characters cost 3.3ms" is NOT established.** All three were inside my own noise floor — killed by a
+> control run (§1.1). Two findings survive: **the jungle** and **the renderer A/B**.
+
 **Ran:** Wave 1 — Stages 1, 2 (parked), 3, 4, 11. **Wave 2** — `xo7i`, the hung tests, the bench
 anomalies, the shadow question. (Of 23 planned.)
 **Desktop:** clean — zero Godot processes, no windows open, `project.godot` untouched.
@@ -14,6 +34,22 @@ it isn't.
 > Two findings survive: **the jungle** and **the renderer A/B**.
 
 ---
+
+# 0b. WAVE 3 DELTA — a deliberately short wave
+
+| item | result |
+|---|---|
+| **`j3ke` triage (19 fossils)** | **CUT NOTHING — and that is the finding.** 2 are *your live uncommitted work* (`HOT_CEILING` sits in a file you edited **20:48 tonight**; `get_bore_dir` is your bench track). 15 are Track F built-ahead-of-wiring (**roadmap call**). 2 are gated on unratified ADR-027. **None was mine to delete.** |
+| **Register** | **Honestly SHRUNK 79 → 77.** Two `world_config` consts are genuinely wired now (the PS2 FPS ladder), so they left the register. **`--write-baseline` was never run** — it would have laundered all 19. Probe still red at 19. |
+| **`zpw2` blind spot** | **MEASURED: 68 undeclared dead symbols in `terrain/`** (96 → 164 fossils when `res://terrain` joins SCAN_DIRS). Ruler reverted, md5-verified. **Confirmed:** `gameplay_grid.gd:385 get_cover` — declared, read by nothing, *which is why the paddy's `cover=0.1` does nothing.* |
+| **`zpw2` shipped?** | **No — deliberately.** It is blocked on `j3ke`, and `j3ke` is blocked on you. Shipping it without a re-baseline drowns 19 real fossils in 68 old ones; shipping it *with* one launders them. Stopping was the correct move. |
+| **ADR-023 Amendment A** | **DRAFTED** (`production/adr/ADR-023-amendment-A-DRAFT-delete-the-callers.md`), bead `6n0b`. *Delete the system AND every caller.* |
+
+**The structural finding under `j3ke`** — the register has exactly two states: **grandfathered forever**
+or **delete now**. All 19 are a third thing: *built ahead of its wiring, with an owner and a plan*. So
+the probe must stay red forever **or someone launders 19 real symbols to green it**. *A probe that can
+only go green by lying is the disease that probe exists to cure.* → **Needs a DEFERRED class with an
+owner and an expiry** (bless #6).
 
 # 0. WAVE 2 DELTA (what changed since the first report)
 
@@ -232,18 +268,24 @@ No stage was faked, and nothing was left half-applied.
 
 ---
 
-# 4. THE BLESS LIST — yours, with the evidence attached
+# 4. THE BLESS LIST — six decisions, each with its evidence
 
-| # | Decision | Evidence gathered | My recommendation |
+*(Ordered by what unblocks the most. Everything here is yours; I gathered, I did not decide.)*
+
+| # | Decision | Evidence I gathered | My recommendation |
 |---|---|---|---|
-| **1** | **The gating FPS number** (`365s` step 4) | Measured, night arena, scale-tagged: **18.8 native / 22.3 shipped (Forward+); 25.5 native / 29.9 shipped (Mobile)**. `game_world` is easier (~27–29 native Forward+). **Nothing clears 30 in the arena.** | Gate on the **night arena**, not `game_world` — gate on your worst case or the gate is decoration. **30 @ 0.75/mode5** is honest and currently ~1 fps away on Mobile. I measured; **I did not legislate.** |
-| **2** | **`rendering_method`** | Mobile **+36%** and **halves draw calls**, does **not** invert at night. But the "clears the gate at native" claim is scene-specific and **false here**. **Untouched — still `forward_plus`.** | Do **not** decide on FPS alone — see #3. |
-| **3** | **`5kr3`'s real question: does Mobile drop a muzzle flash?** | **NOT TESTED.** Mobile caps ~8 omni/spot per mesh and drops the rest **silently**. An FPS number cannot answer this. | **This, not the +36%, decides the renderer.** A dropped flash is a **Fairness-Law breach (Pillar 1)**, not atmosphere. Needs your eyes on a firing line. |
-| **4** | **ADR-026 (PS2 Budget)** — `mok6` | **Now urgent and concrete.** `scaling_3d/scale=0.75` + `mode=5` are **live in `project.godot` right now, set by an unratified draft.** And the arena runs **`shadow_enabled = true`** against the draft's "0 dynamic-shadow" — worth **12.17ms**. | Ratify or revert the config. Don't leave law and config disagreeing. **Then kill the arena's sun shadow** — cheapest win on the board. |
-| **5** | **ADR-027 (PS2 World Design)** — `9f52` | **Blocking, and now provably so:** the paddy stamper it authorises **fails 4 campaign tests** (`AO is malformed`). | Ratify or pull the stamper. It cannot stay half-landed. |
-| **6** | **Derived-vs-source** (`yu8b`) — **BIGGER than the bead knew** | 255 untracked files include `art_source/characters/` and `COMMAND BUNKER.blend`; 2 × 217MB `_backups/gear_armory_*.blend` are *the newest surviving snapshots of the LOST locker*. **Nothing deleted.** | Draw the line, then the migration is mechanical. **And get a copy onto a second physical disk today** — that is the actual risk. |
-| **7** | **`n2ij`** | Its false-alarm half is **retired with proof**: every skeleton lands **exactly** on spec, feet at 0.000. **The art was never wrong.** Chunk-pop + "jungle too tame" untouched. | Re-walk after `xo7i`; the pop may have moved. |
-| **8** | **`ida9` PLAYTEST R3** | **`test_hub_loop` HANGS.** The standing entry gate is "verify the new hub loop", and the hub-loop test never returns. | Worth knowing before you play. |
+| **1** | **THE DISK.** Get the repo onto second physical media. | 23 unpushed commits + ~2,400 uncommitted lines, one drive at 98%, my backup on that same drive. | **Do this first, today.** It needs no decision — just a copy. It is the only irreversible risk on this list. |
+| **2** | **ADR-027 (PS2 World Design)** — `9f52` | **Blocking, provably.** The stamper it authorises **hard-fails 4 campaign tests**. Chain measured end-to-end: **floor 140m** → gates need `<50m` → **0 rice cells** → stamper flood-fills a dead classification → 0 anchors → `push_error "AO is malformed"`. **The AO is not malformed; the stamper's precondition is false.** | **Ratify or pull the stamper — it cannot stay half-landed.** Ratifying makes `v58s` the top unblocked P0 with the whole chain already mapped. **Also decide:** the stamper demands 8 villages on **every** AO while `5r4y` makes **60% empty by design** — those cannot both be true. |
+| **3** | **`rendering_method`** — decided by **Pillar 1**, not the +36% | Mobile is **+36%** (25.5 vs 18.8 native) and **halves draw calls** (527 vs 911); it does **not** invert at night. **But the ledger's "Mobile 40.9, clears the gate at native" is scene-specific and false here** — that was daytime open-ground `game_world`. **Untouched: still `forward_plus`.** | **Do not decide on FPS.** Mobile caps ~8 omni/spot per mesh and **drops the rest silently**. **`5kr3`'s reversal condition — does a muzzle flash still telegraph? — WAS NOT TESTED.** A dropped flash is a **Fairness-Law breach (Pillar 1)**, not atmosphere. Needs your eyes on a firing line. That, and only that, decides it. |
+| **4** | **ADR-026 (PS2 Budget)** — `mok6` | **`scaling_3d/scale=0.75` + `mode=5` are live in `project.godot` right now, set by an unratified draft.** Separately: the arena runs `sun.shadow_enabled = true` (**−12.17ms**) while `game_world.gd:48` sets it **false**. **⚠ Correction: that shadow is NOT a bug** — the draft grants the night sun *"the one allowed dynamic shadow"*. **Untouched.** | Ratify or revert the config — don't leave law and config disagreeing. **The real question:** the bench is **harder than the shipped game**, so ~12ms of my headline may be a cost the shipped night world never pays. That decides whether it belongs in the gate. |
+| **5** | **The gating FPS number** (`365s` step 4) | Measured, scale-tagged, night arena: **18.8 native / 22.3 shipped (Forward+); 25.5 native / 29.9 shipped (Mobile)**. `game_world` is easier (~27–29). **Nothing clears 30 in the arena.** Noise floor ±3.3 fps (§1.1). | Gate on the **night arena**, not `game_world` — **gate on your worst case or the gate is decoration.** **30 @ 0.75/mode5** is honest and ~1 fps away on Mobile. Depends on #4 (the shadow). **I measured; I did not legislate.** |
+| **6** | **The fossil register needs a third state** — `j3ke` / `6n0b` | 19 real fossils; **none deletable by me** (2 are your live work, 15 Track F, 2 ADR-027-gated). Register has only *grandfather forever* or *delete now*. **`zpw2` is blocked behind this; its blind spot is now measured at 68 symbols.** | Add a **DEFERRED class with an owner and an expiry** — never a silent grandfather. Then `zpw2` lands in one honest pass. **And ratify ADR-023 Amendment A** (`6n0b`, drafted) — plus decide whether to fund the call-site probe or accept deletion-time grep. |
+
+**Also worth knowing before you play `ida9`:** `test_hub_loop` is **not** hung (my box was wrong) — it
+runs **167s** and reports. But `test_vehicle_kill` **is** hung, same disease as the fairness probe.
+
+**Retired, no decision needed:** `n2ij`'s false-alarm half — **proven**: every skeleton lands *exactly*
+on spec, feet at 0.000. **The art was never wrong.** Chunk-pop and "jungle too tame" still want your eyes.
 
 ---
 
@@ -292,5 +334,32 @@ No stage was faked, and nothing was left half-applied.
 
 ---
 
-**Nothing was deleted. `project.godot` untouched. Your uncommitted work untouched and backed up three
-ways. Desktop clean. 20 commits still local — the push is your first call.**
+6. **The fossil law has a hole, and it is the sharpest structural lesson of the night.** ADR-023 says
+   *delete the old system when you replace it.* Track C **obeyed it** — and still left a caller pointing
+   at a corpse, which hung the suite, which silenced Pillar 1's only guard. **The law is silent on the
+   direction that actually hurt us.** Draft amendment at
+   `production/adr/ADR-023-amendment-A-DRAFT-delete-the-callers.md` (bead `6n0b`), with the incident as
+   the worked example and an honest enforcement section: **static typing does NOT catch it** (measured —
+   `spawn_enemy` is typed `-> EnemyBase` and the call was still only a runtime error), `test_fossils.gd`
+   is structurally blind to it, and the only thing that catches it today is **the suite timeout I
+   shipped** — which does not prevent the bug, it just makes it *visible*.
+
+---
+
+# 6. HOUSEKEEPING
+
+**Nothing was deleted. `project.godot` untouched. `--write-baseline` never run.** Your 108 dirty files
+are byte-identical to the backup (spot-verified). Desktop clean — zero Godot processes.
+**Commits tonight:** `decf4bb2`, `c7c1bbf7`, `f45c17a4`, `f59ceb61` (+ this update). **All mine only —
+none of your uncommitted work was ever staged.**
+
+**The scoreboard, honestly:** 5 of 23 planned stages landed in Wave 1; Wave 2 spent itself on `xo7i`
+(already done), the fairness hang, and auditing my own bad numbers; Wave 3 was deliberately short and
+**shipped almost nothing — because almost nothing left is mine to decide.**
+
+**Five lying instruments tonight. Three were mine** — the no-timeout suite (his), the ExitCode-null
+harness (mine), the 120s box that invented two hangs (mine), the toggle-diff that measured the clock
+(mine), and the fossil probe's terrain blind spot (his). **Every single one was caught by an
+impossibility the data itself made visible** — a test passing standalone but failing on the board;
+turning work *off* costing frames. **Not one was caught by being careful.** That is the actual lesson,
+and it is why the retractions above are the most valuable thing in this document.
