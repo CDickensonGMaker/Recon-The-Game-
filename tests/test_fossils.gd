@@ -3,7 +3,7 @@
 ## Rebuild the baseline: godot --headless --path . res://tests/test_fossils.tscn -- --write-baseline
 extends Node
 
-const SCAN_DIRS: Array[String] = ["res://scripts"]
+const SCAN_DIRS: Array[String] = ["res://scripts", "res://terrain"]
 ## Wider than SCAN_DIRS: a script's only caller may be a scene, a resource or a tool.
 const REF_DIRS: Array[String] = [
 	"res://scripts", "res://terrain", "res://scenes",
