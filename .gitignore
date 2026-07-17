@@ -56,3 +56,11 @@ _backups/
 /*.log
 # Work-in-progress temp test scaffolds
 tests/*_TMP.*
+
+# Bench artifacts - screenshots + CSV rows, heavy and regenerable (2026-07-17)
+production/war_room/**/bench_*/
+# Godot CSV-as-translation import sidecars from headless bench runs (regenerable)
+production/war_room/**/*.translation
+production/war_room/**/*.csv.import
+# Stale throwaway preview renders
+*_STALE_*
