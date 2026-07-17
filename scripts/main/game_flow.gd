@@ -127,7 +127,7 @@ func show_menu() -> void:
 	var menu := MainMenuScreen.new()
 	menu.start_pressed.connect(show_select)  # legacy path (seed-replay dev tool)
 	menu.continue_pressed.connect(continue_campaign)
-	menu.new_pressed.connect(show_operation_select)
+	menu.new_pressed.connect(start_default_operation)
 	menu.barracks_pressed.connect(show_barracks)
 	menu.record_pressed.connect(show_service_record)
 	menu.settings_pressed.connect(show_settings)
@@ -326,28 +326,14 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 ## board the bird -> mission (the ride disguises the world load) -> exfil ->
 ## back at the firebase. CONTINUE restores you to the hub from the newest save.
 
-func show_operation_select() -> void:
-	var root := ReconUI.make_screen_root()
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_child(center)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 12)
-	center.add_child(col)
-	col.add_child(ReconUI.make_header("CHOOSE YOUR OPERATION", 30))
-	col.add_child(ReconUI.make_label("EACH OPERATION IS A FIREBASE AND ITS AO. MISSIONS ARE PICKED AT THE TOC.", 13, ReconUI.DIM))
-	col.add_child(ReconUI.make_divider())
-	for i in range(3):
-		var op_seed: int = session_rng.randi() % 100000
-		var op_name: String = "OPERATION %s" % MissionGenerator.codename_for(op_seed)
-		var region: String = MissionOffers.TERRAIN_HINTS[session_rng.randi() % MissionOffers.TERRAIN_HINTS.size()]
-		var card := ReconUI.make_card_button("%s\n%s" % [op_name, region], 16, 64.0)
-		card.pressed.connect(func() -> void: _begin_operation(op_seed, op_name))
-		col.add_child(card)
-	var back := ReconUI.make_button("BACK", 16)
-	back.pressed.connect(show_menu)
-	col.add_child(back)
-	_swap_screen(root)
+## The single fixed operation the game boots into. The operation-select screen is
+## retired (fossil law): NEW GAME drops you straight at the firebase hub. One seed
+## per operation (ADR-010) - the same firebase and AO every launch.
+const DEFAULT_OPERATION_SEED: int = 47225
+
+func start_default_operation() -> void:
+	_begin_operation(DEFAULT_OPERATION_SEED,
+		"OPERATION %s" % MissionGenerator.codename_for(DEFAULT_OPERATION_SEED))
 
 
 func _begin_operation(op_seed: int, op_name: String) -> void:
@@ -361,7 +347,7 @@ func _begin_operation(op_seed: int, op_name: String) -> void:
 func continue_campaign() -> void:
 	var slot := SaveManager.latest_slot()
 	if slot < 0:
-		show_operation_select()
+		start_default_operation()
 		return
 	load_from_slot(slot)
 
@@ -373,7 +359,7 @@ func load_from_slot(slot: int) -> void:
 		return
 	SaveManager.apply(s)
 	if int(SaveManager.hub_snapshot.get("operation_seed", 0)) == 0:
-		show_operation_select()
+		start_default_operation()
 		return
 	# HARD-tier resume: an unresolved checkpoint re-runs its mission from wheels-down
 	# (deterministic seed = same world), carrying the saved loadout/condition/hunger.
