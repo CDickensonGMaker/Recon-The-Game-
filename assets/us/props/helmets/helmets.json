@@ -1,0 +1,183 @@
+{
+  "socket": {
+    "bone": "mixamorig:Head",
+    "parent_type": "BONE",
+    "matrix_basis": [
+      [
+        1.0,
+        1.6416375203665012e-10,
+        -1.3346311691103826e-16,
+        0.0018563270568847656
+      ],
+      [
+        1.7977864023888698e-16,
+        -2.821299744937278e-07,
+        0.9999998807907104,
+        -0.04665601626038551
+      ],
+      [
+        1.6416375203665012e-10,
+        -1.0,
+        -2.8212994607201836e-07,
+        0.028471942991018295
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "translation": [
+      0.0018563270568847656,
+      -0.04665601626038551,
+      0.028471942991018295
+    ],
+    "rotation_quat": [
+      0.7071066498756409,
+      -0.70710688829422,
+      -5.8040704187245495e-11,
+      -5.804058969549608e-11
+    ],
+    "note": "Bone-local transform of socket_head on mixamorig:Head. Every helmet GLB exports with its socket at the origin, so applying this puts any variant exactly where the truth helmet sat."
+  },
+  "helmets": {
+    "m1_ace": {
+      "glb": "res://assets/us/props/helmets/m1_ace.glb",
+      "tris": 340,
+      "parts": [
+        "helmet_ace_band",
+        "helmet_ace_card_ace",
+        "helmet_ace_cover"
+      ]
+    },
+    "m1_ace_cig": {
+      "glb": "res://assets/us/props/helmets/m1_ace_cig.glb",
+      "tris": 352,
+      "parts": [
+        "helmet_ace_cig_band",
+        "helmet_ace_cig_card_ace",
+        "helmet_ace_cig_cigpack",
+        "helmet_ace_cig_cover"
+      ]
+    },
+    "m1_barepot": {
+      "glb": "res://assets/us/props/helmets/m1_barepot.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_barepot_band",
+        "helmet_barepot_cover"
+      ]
+    },
+    "m1_barepot_fta": {
+      "glb": "res://assets/us/props/helmets/m1_barepot_fta.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_barepot_fta_band",
+        "helmet_barepot_fta_cover"
+      ]
+    },
+    "m1_born_to_kill": {
+      "glb": "res://assets/us/props/helmets/m1_born_to_kill.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_born_to_kill_band",
+        "helmet_born_to_kill_cover"
+      ]
+    },
+    "m1_bugjuice": {
+      "glb": "res://assets/us/props/helmets/m1_bugjuice.glb",
+      "tris": 288,
+      "parts": [
+        "helmet_bugjuice_band",
+        "helmet_bugjuice_bugjuice",
+        "helmet_bugjuice_cover"
+      ]
+    },
+    "m1_cig": {
+      "glb": "res://assets/us/props/helmets/m1_cig.glb",
+      "tris": 276,
+      "parts": [
+        "helmet_cig_band",
+        "helmet_cig_cigpack",
+        "helmet_cig_cover"
+      ]
+    },
+    "m1_cig_bug": {
+      "glb": "res://assets/us/props/helmets/m1_cig_bug.glb",
+      "tris": 300,
+      "parts": [
+        "helmet_cig_bug_band",
+        "helmet_cig_bug_bugjuice",
+        "helmet_cig_bug_cigpack",
+        "helmet_cig_bug_cover"
+      ]
+    },
+    "m1_erdl_short": {
+      "glb": "res://assets/us/props/helmets/m1_erdl_short.glb",
+      "tris": 352,
+      "parts": [
+        "helmet_erdl_short_band",
+        "helmet_erdl_short_card_ace",
+        "helmet_erdl_short_cover",
+        "helmet_erdl_short_gum"
+      ]
+    },
+    "m1_foliage": {
+      "glb": "res://assets/us/props/helmets/m1_foliage.glb",
+      "tris": 300,
+      "parts": [
+        "helmet_foliage_band",
+        "helmet_foliage_cover",
+        "helmet_foliage_foliage",
+        "helmet_foliage_foliage.001",
+        "helmet_foliage_foliage.002"
+      ]
+    },
+    "m1_foliage_graf": {
+      "glb": "res://assets/us/props/helmets/m1_foliage_graf.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_foliage_graf_band",
+        "helmet_foliage_graf_cover"
+      ]
+    },
+    "m1_plain": {
+      "glb": "res://assets/us/props/helmets/m1_plain.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_plain_band",
+        "helmet_plain_cover"
+      ]
+    },
+    "m1_rounds": {
+      "glb": "res://assets/us/props/helmets/m1_rounds.glb",
+      "tris": 324,
+      "parts": [
+        "helmet_rounds_band",
+        "helmet_rounds_cover",
+        "helmet_rounds_rounds"
+      ]
+    },
+    "m1_veteran": {
+      "glb": "res://assets/us/props/helmets/m1_veteran.glb",
+      "tris": 452,
+      "parts": [
+        "helmet_veteran_band",
+        "helmet_veteran_bugjuice",
+        "helmet_veteran_card_ace",
+        "helmet_veteran_cigpack",
+        "helmet_veteran_cover",
+        "helmet_veteran_rounds"
+      ]
+    },
+    "m1_war_is_hell": {
+      "glb": "res://assets/us/props/helmets/m1_war_is_hell.glb",
+      "tris": 264,
+      "parts": [
+        "helmet_war_is_hell_band",
+        "helmet_war_is_hell_cover"
+      ]
+    }
+  }
+}

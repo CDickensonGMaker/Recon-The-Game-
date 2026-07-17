@@ -1,0 +1,257 @@
+{
+  "cigpack@m1_cig": {
+    "item": "cigpack",
+    "helmet": "m1_cig",
+    "local": [
+      0.09685,
+      0.03013,
+      -0.00936
+    ],
+    "rotation_deg": [
+      0.0,
+      -0.0,
+      53.0
+    ],
+    "angle_deg": 17.3,
+    "radius": 0.1014,
+    "z": -0.0094
+  },
+  "bugjuice@m1_bugjuice": {
+    "item": "bugjuice",
+    "helmet": "m1_bugjuice",
+    "local": [
+      0.00342,
+      0.02209,
+      -0.01929
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      50.0
+    ],
+    "angle_deg": 81.2,
+    "radius": 0.0224,
+    "z": -0.0193
+  },
+  "cigpack@m1_cig_bug": {
+    "item": "cigpack",
+    "helmet": "m1_cig_bug",
+    "local": [
+      -0.11098,
+      -0.00604,
+      -0.00936
+    ],
+    "rotation_deg": [
+      0.0,
+      -0.0,
+      -151.9
+    ],
+    "angle_deg": 183.1,
+    "radius": 0.1111,
+    "z": -0.0094
+  },
+  "bugjuice@m1_cig_bug": {
+    "item": "bugjuice",
+    "helmet": "m1_cig_bug",
+    "local": [
+      -0.10581,
+      0.02973,
+      -0.00946
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      50.0
+    ],
+    "angle_deg": 164.3,
+    "radius": 0.1099,
+    "z": -0.0095
+  },
+  "card_ace@m1_ace": {
+    "item": "card_ace",
+    "helmet": "m1_ace",
+    "local": [
+      0.06993,
+      -0.05131,
+      0.01869
+    ],
+    "rotation_deg": [
+      18.2,
+      8.4,
+      235.9
+    ],
+    "angle_deg": 323.7,
+    "radius": 0.0867,
+    "z": 0.0187
+  },
+  "card_ace@m1_ace_cig": {
+    "item": "card_ace",
+    "helmet": "m1_ace_cig",
+    "local": [
+      0.06154,
+      -0.06768,
+      0.02621
+    ],
+    "rotation_deg": [
+      -9.0,
+      20.3,
+      232.3
+    ],
+    "angle_deg": 312.3,
+    "radius": 0.0915,
+    "z": 0.0262
+  },
+  "cigpack@m1_ace_cig": {
+    "item": "cigpack",
+    "helmet": "m1_ace_cig",
+    "local": [
+      -0.00444,
+      0.02463,
+      -0.01
+    ],
+    "rotation_deg": [
+      0.0,
+      -0.0,
+      44.9
+    ],
+    "angle_deg": 100.2,
+    "radius": 0.025,
+    "z": -0.01
+  },
+  "rounds@m1_rounds": {
+    "item": "rounds",
+    "helmet": "m1_rounds",
+    "local": [
+      0.06,
+      0.09278,
+      -0.018
+    ],
+    "rotation_deg": [
+      374.3,
+      24.0,
+      168.2
+    ],
+    "angle_deg": 57.1,
+    "radius": 0.1105,
+    "z": -0.018
+  },
+  "foliage@m1_foliage": {
+    "item": "foliage",
+    "helmet": "m1_foliage",
+    "local": [
+      0.02782,
+      0.1137,
+      -0.00846
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "angle_deg": 76.3,
+    "radius": 0.1171,
+    "z": -0.0085
+  },
+  "gum@m1_erdl_short": {
+    "item": "gum",
+    "helmet": "m1_erdl_short",
+    "local": [
+      0.02719,
+      -0.0898,
+      0.01542
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      210.0
+    ],
+    "angle_deg": 286.8,
+    "radius": 0.0938,
+    "z": 0.0154
+  },
+  "card_ace@m1_erdl_short": {
+    "item": "card_ace",
+    "helmet": "m1_erdl_short",
+    "local": [
+      0.06314,
+      -0.06768,
+      0.02466
+    ],
+    "rotation_deg": [
+      6.0,
+      0.0,
+      235.0
+    ],
+    "angle_deg": 313.0,
+    "radius": 0.0926,
+    "z": 0.0247
+  },
+  "cigpack@m1_veteran": {
+    "item": "cigpack",
+    "helmet": "m1_veteran",
+    "local": [
+      0.01435,
+      -0.02577,
+      -0.01
+    ],
+    "rotation_deg": [
+      0.0,
+      -0.0,
+      59.5
+    ],
+    "angle_deg": 299.1,
+    "radius": 0.0295,
+    "z": -0.01
+  },
+  "bugjuice@m1_veteran": {
+    "item": "bugjuice",
+    "helmet": "m1_veteran",
+    "local": [
+      -0.15899,
+      0.04058,
+      -0.008
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      50.0
+    ],
+    "angle_deg": 165.7,
+    "radius": 0.1641,
+    "z": -0.008
+  },
+  "card_ace@m1_veteran": {
+    "item": "card_ace",
+    "helmet": "m1_veteran",
+    "local": [
+      0.0629,
+      -0.06768,
+      0.01681
+    ],
+    "rotation_deg": [
+      6.0,
+      0.0,
+      235.0
+    ],
+    "angle_deg": 312.9,
+    "radius": 0.0924,
+    "z": 0.0168
+  },
+  "rounds@m1_veteran": {
+    "item": "rounds",
+    "helmet": "m1_veteran",
+    "local": [
+      0.06,
+      0.08465,
+      -0.018
+    ],
+    "rotation_deg": [
+      23.7,
+      -27.9,
+      -44.9
+    ],
+    "angle_deg": 54.7,
+    "radius": 0.1038,
+    "z": -0.018
+  }
+}
