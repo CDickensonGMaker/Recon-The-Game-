@@ -1,11 +1,71 @@
-## squad_roster.gd - SquadMember generation + roster persistence helpers (W14/W24).
+## squad_roster.gd - SquadMember generation + roster persistence helpers.
 class_name SquadRoster
 extends RefCounted
 
-const FIRST_NAMES: Array[String] = ["JOHNNY", "EDDIE", "RAY", "TOMMY", "HANK", "LEROY", "SAL", "DUANE", "CARL", "WILLIE", "FRANK", "JESSE", "EARL", "MARV", "GUS"]
-const LAST_NAMES: Array[String] = ["MILLER", "JACKSON", "KOWALSKI", "REYES", "DUBOIS", "OBRIEN", "HAYES", "NAKAMURA", "STONE", "CARTER", "WOJCIK", "BAKER", "LONG", "PRICE", "GRIMES"]
-const MOS_ORDER: Array[String] = ["POINT", "RTO", "MEDIC", "PIGMAN", "GRENADIER"]
-const NICKNAMES := {"MEDIC": "DOC", "PIGMAN": "PIG", "RTO": "RADIO", "POINT": "EYES", "GRENADIER": "THUMPER"}
+## 250 x 250 = 62,500 combinations. Drawn from the men the draft actually took:
+## working-class, Southern, Appalachian, Black, Puerto Rican and Chicano, and the
+## Italian/Polish/Irish/Slavic industrial cities. Not an officer-corps name list.
+const FIRST_NAMES: Array[String] = [
+	"JOHNNY", "EDDIE", "RAY", "TOMMY", "HANK", "LEROY", "SAL", "DUANE", "CARL", "WILLIE",
+	"FRANK", "JESSE", "EARL", "MARV", "GUS", "BOBBY", "JIMMY", "DANNY", "RICKY", "LARRY",
+	"WAYNE", "DALE", "CLIFF", "MERLE", "OTIS", "CURTIS", "DWIGHT", "VERNON", "ELMER", "FLOYD",
+	"HOMER", "LESTER", "MELVIN", "NORMAN", "ORVILLE", "PERCY", "RUFUS", "SILAS", "VIRGIL", "WALLY",
+	"ARNIE", "BUD", "CHET", "DEWEY", "ERNIE", "GLEN", "HERB", "IRV", "JUNIOR", "KENNY",
+	"LEON", "MACK", "NED", "OZZIE", "PETE", "RALPH", "STAN", "TROY", "VANCE", "WOODY",
+	"ALVIN", "BERNIE", "CECIL", "DARRELL", "EUGENE", "FORREST", "GARLAND", "HOYT", "IVAN", "JASPER",
+	"KERMIT", "LOWELL", "MARION", "NEWT", "ODELL", "PRESTON", "QUINCY", "ROSCOE", "SHERMAN", "THURMAN",
+	"ULYSSES", "VERGIL", "WENDELL", "ZEKE", "ABE", "BUFORD", "CLEVE", "DELBERT", "EMMETT", "FESTUS",
+	"GROVER", "HARLAN", "ISAAC", "JETHRO", "KIRBY", "LUTHER", "MOSE", "NAT", "OSCAR", "PHINEAS",
+	"REUBEN", "SAMPSON", "TITUS", "URIAH", "WARDELL", "AMOS", "BOOKER", "CLARENCE", "DESMOND", "ELIJAH",
+	"FRANKLIN", "GARFIELD", "HORACE", "ISAIAH", "JEREMIAH", "LEVI", "MOSES", "NEHEMIAH", "OTHA", "PRINCE",
+	"RAYFIELD", "SOLOMON", "TYRONE", "WILLARD", "XAVIER", "ANGELO", "BRUNO", "CARMINE", "DOMINIC", "ENZO",
+	"FRANCO", "GINO", "LOU", "MARIO", "NICKY", "ORLANDO", "PASQUALE", "ROCCO", "SILVIO", "TONY",
+	"VITO", "ALDO", "BENNY", "CIRO", "DANTE", "EMILIO", "FABIO", "GIANNI", "LUCA", "MASSIMO",
+	"CASIMIR", "DARIUSZ", "EDMUND", "FELIKS", "HENRYK", "IGNACY", "JANUSZ", "KAZIMIERZ", "LECH", "MIECZYSLAW",
+	"BRENDAN", "CONNOR", "DECLAN", "EAMON", "FERGUS", "LIAM", "PADRAIG", "SEAMUS", "SHANE", "TIERNAN",
+	"CARLOS", "DIEGO", "ESTEBAN", "FELIPE", "GILBERTO", "HECTOR", "ISMAEL", "JAVIER", "LUIS", "MANUEL",
+	"NESTOR", "OCTAVIO", "PABLO", "RAFAEL", "SANTIAGO", "TOMAS", "ULISES", "VICENTE", "ALEJANDRO", "BENITO",
+	"CESAR", "DOMINGO", "EMILIANO", "FIDEL", "GUILLERMO", "HUMBERTO", "IGNACIO", "JORGE", "LAZARO", "MIGUEL",
+	"CHESTER", "DUDLEY", "ELDON", "FENTON", "GAYLORD", "HOLLIS", "IRA", "JEWEL", "KENT", "LYLE",
+	"MURRAY", "NOLAN", "OLIN", "PARKER", "QUENTIN", "RANDALL", "SEYMOUR", "TRUMAN", "UPTON", "VAUGHN",
+	"WEBSTER", "ARCHIE", "BARNEY", "CLYDE", "DUKE", "ELROY", "FRITZ", "GIL", "HUGH", "IKE",
+	"JAKE", "KIT", "LEFTY", "MOE", "NICK", "OLLIE", "PAPPY", "RED", "SHORTY", "TEX",
+	"WHITEY", "ZACK", "AUGIE", "BEAU", "CHIP", "DUTCH", "EMIL", "GABE", "HANS", "JOSIAH",
+]
+const LAST_NAMES: Array[String] = [
+	"MILLER", "JACKSON", "KOWALSKI", "REYES", "DUBOIS", "OBRIEN", "HAYES", "NAKAMURA", "STONE", "CARTER",
+	"WOJCIK", "BAKER", "LONG", "PRICE", "GRIMES", "ANDERSON", "BENNETT", "BRADLEY", "BROOKS", "BRYANT",
+	"BURNS", "CAMPBELL", "CHANDLER", "COLLINS", "CONNOR", "CRAWFORD", "DALTON", "DAVIS", "DAWSON", "DELANEY",
+	"DILLON", "DONNELLY", "DOYLE", "DRAKE", "DUFFY", "DUNCAN", "EATON", "ELLIS", "FARRELL", "FINCH",
+	"FLANAGAN", "FLETCHER", "FOSTER", "FOWLER", "GALLAGHER", "GARRETT", "GIBSON", "GILMORE", "GRADY", "GRANT",
+	"GRAVES", "GREER", "HALLORAN", "HAMILTON", "HANLEY", "HARDIN", "HARPER", "HATFIELD", "HOLLAND", "HOLLOWAY",
+	"HOPKINS", "HOWELL", "HUDSON", "HUGHES", "HUNTER", "IRWIN", "JENKINS", "KEANE", "KEATING", "KELLY",
+	"KENDRICK", "KILGORE", "LANDRY", "LANE", "LARKIN", "LAWSON", "LEDBETTER", "LOCKHART", "LOGAN", "LYNCH",
+	"MADDOX", "MAHONEY", "MALLORY", "MARSH", "MASON", "MATHIS", "MCBRIDE", "MCCOY", "MCGRATH", "MCKENNA",
+	"MERCER", "MOONEY", "MORAN", "MORRISON", "MULLEN", "MURPHY", "NOONAN", "NORRIS", "OAKES", "ODELL",
+	"OLSEN", "OSBORNE", "PARSONS", "PATTERSON", "PAYNE", "PEARSON", "PERKINS", "PHELPS", "PIERCE", "QUINN",
+	"RAFFERTY", "RANKIN", "REDDING", "REEVES", "RHODES", "RILEY", "ROURKE", "RUSSELL", "RYAN", "SAWYER",
+	"SHANNON", "SHEEHAN", "SHELTON", "SLATER", "SLOAN", "SPENCER", "STANTON", "STOKES", "SULLIVAN", "SUMNER",
+	"SWEENEY", "TALLEY", "TATE", "THORNTON", "TRAVIS", "TUCKER", "TYLER", "VAUGHAN", "WADE", "WALSH",
+	"WARNER", "WHEELER", "WHITAKER", "WHITMORE", "WILKINS", "WINSLOW", "YEAGER", "BARNES", "BOOKER", "COLEMAN",
+	"DIXON", "FREEMAN", "GAINES", "GREENE", "HAMPTON", "HARRIS", "HAWKINS", "HOLMES", "INGRAM", "JEFFERSON",
+	"JOHNSON", "LEWIS", "MAYS", "MITCHELL", "MOSLEY", "PORTER", "RANDOLPH", "SIMMONS", "TURNER", "WASHINGTON",
+	"WHITFIELD", "WILKERSON", "WOODARD", "BANKS", "BRISCOE", "CALDWELL", "DUPREE", "FIELDS", "GILLIAM", "HOLLIS",
+	"BARBIERI", "CAPUTO", "COSTA", "DELUCA", "ESPOSITO", "FERRARO", "GALLO", "GRECO", "LOMBARDI", "MANCINI",
+	"MARCHETTI", "MORETTI", "PAGANO", "RIZZO", "ROMANO", "SANTORO", "VITALE", "ZAPPA", "BIANCHI", "CONTI",
+	"BLASZCZYK", "CZAJKA", "DUDEK", "JAWORSKI", "KAMINSKI", "LEWANDOWSKI", "NOWAK", "PIETRZAK", "SIKORSKI", "ZIELINSKI",
+	"ALVAREZ", "CASTILLO", "CERVANTES", "DELGADO", "ESCOBAR", "FUENTES", "GUERRERO", "HERRERA", "JIMENEZ", "MALDONADO",
+	"MENDOZA", "MONTOYA", "NAVARRO", "OROZCO", "PACHECO", "QUINTANA", "RAMIREZ", "SALAZAR", "TORRES", "VALDEZ",
+	"VARGAS", "VEGA", "ACOSTA", "BELTRAN", "CARDENAS", "ESPINOZA", "GALVAN", "IBARRA", "LUJAN", "MEDRANO",
+	"BOUDREAUX", "BROUSSARD", "FONTENOT", "GUIDRY", "HEBERT", "LEBLANC", "THIBODEAUX", "ARCENEAUX", "COMEAUX", "PREJEAN",
+]
+## The five slots an AI fireteam fills. MARKSMAN is a valid MOS with a body and a
+## skill, but is not a standing slot - he is drawn only as an alternate.
+const MOS_ORDER: Array[String] = ["POINTMAN", "RTO", "MEDIC", "MG", "GRENADIER"]
+const NICKNAMES := {
+	"MEDIC": "DOC", "MG": "PIG", "RTO": "RADIO", "POINTMAN": "EYES",
+	"GRENADIER": "THUMPER", "MARKSMAN": "DEADEYE",
+}
 
 
 static func generate_member(rng: RandomNumberGenerator, mos: String) -> Dictionary:
@@ -30,12 +90,16 @@ static func generate_member(rng: RandomNumberGenerator, mos: String) -> Dictiona
 		"kills": 0,
 		"missions": 0,
 		"alive": true,
+		# His face and the paint on his pot ARE the man (Pillar 4) - assigned once
+		# at generation, stored so no hash()/atlas re-cut can ever change a veteran.
+		"face": rng.randi() % 70,
+		"helmet": GruntDresser.HELMETS[rng.randi() % GruntDresser.HELMETS.size()],
 	}
 	_roll_starting_skills(member, rng)
 	return member
 
 
-## No blank recruits (War Room decree): MOS skill guaranteed L1-3 by aptitude, plus
+## No blank recruits: MOS skill guaranteed L1-3 by aptitude, plus
 ## 0-2 al-weighted extra skills at L1. Every recruit reads as a distinct person at spawn.
 static func _roll_starting_skills(member: Dictionary, rng: RandomNumberGenerator) -> void:
 	var skills: Dictionary = {}
@@ -62,7 +126,7 @@ static func _roll_starting_skills(member: Dictionary, rng: RandomNumberGenerator
 ## cumulative curve is crossed. Mutates `member` in place (it IS the roster dict, so
 ## growth persists at the next campaign save - no disk write here, the mission-end save
 ## carries it). Returns the new level if a PROMOTION happened this call (so the caller
-## can bark it), else 0. Only touches skills, never attributes (decree: no hoarding).
+## can bark it), else 0. Only touches skills, NEVER attributes.
 static func credit_use(member: Dictionary, skill: String, n: int = 1) -> int:
 	if member.is_empty() or not SkillCatalog.SKILLS.has(skill) or n <= 0:
 		return 0
@@ -114,23 +178,36 @@ static func ensure_roster(rng_seed: int) -> Array:
 			m["xp"] = 0
 		if not m.has("skills"):
 			m["skills"] = {}
+		# Older saves: derive once from the name, then it lives in the record.
+		if not m.has("face"):
+			m["face"] = absi(str(m.get("name", "")).hash()) % 70
+		if not m.has("helmet"):
+			m["helmet"] = GruntDresser.HELMETS[
+				absi(str(m.get("name", "")).hash()) % GruntDresser.HELMETS.size()]
 	CampaignState.roster = living
 	CampaignState.save_campaign()
 	return living
 
 
-## Earned rank by missions survived (visibility - a veteran reads at a glance, and the
-## KIA memorial hits harder for a SGT than a fresh PVT).
+## Earned rank by missions survived. SP4 (E-4 Specialist) is the rank of the typical
+## Vietnam infantryman - a technician's grade, NOT an NCO. CPL is the same pay grade
+## but carries command authority, so a man only crosses to CPL if he is holding a
+## leader billet (POINTMAN / RTO): rank gates authority, never ability (ADR-018).
 static func rank_for(member: Dictionary) -> String:
 	var missions: int = int(member.get("missions", 0))
+	var leads: bool = str(member.get("mos", "")) in ["POINTMAN", "RTO"]
+	if missions >= 16:
+		return "SFC"
 	if missions >= 12:
 		return "SSG"
-	if missions >= 7:
+	if missions >= 8:
 		return "SGT"
 	if missions >= 4:
-		return "CPL"
-	if missions >= 1:
+		return "CPL" if leads else "SP4"
+	if missions >= 2:
 		return "PFC"
+	if missions >= 1:
+		return "PV2"
 	return "PVT"
 
 

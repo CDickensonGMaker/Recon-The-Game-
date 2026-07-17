@@ -1,6 +1,6 @@
-## squad_system.gd - The 5-man squad in every mission (W13-W24): spawning from
-## the persistent roster, orders (F1-F4), medic revive chain, role effects,
-## barks, casualty persistence.
+## squad_system.gd - the 5-man squad in every mission: spawning from the
+## persistent roster, orders (F1-F4), medic revive chain, role effects, barks,
+## casualty persistence.
 class_name SquadSystem
 extends Node
 
@@ -22,16 +22,14 @@ var _health: HealthSystem = null
 var _bark_cooldown: float = 0.0
 var _point_warned: Dictionary = {}
 var _thumper_cooldown: float = 0.0
+var _roster_rng := RandomNumberGenerator.new()
 
 
 func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: Vector3) -> void:
 	world = game_world
 	director = mission_director
+	_roster_rng.seed = int(director.state.seed_value) + 67890
 	var roster: Array = SquadRoster.ensure_roster(int(director.state.seed_value) + 12345)
-	# MOS -> the body he wears and the gun he carries. A missing model degrades to the
-	# generic grunt (ally_base._setup_visual guards on ModelActor.model_exists), so an
-	# entry may be added BEFORE its art exists - which is the point: the art lands and
-	# the man puts it on, with no code change and no bead sinking to P2.
 	for i in range(mini(5, roster.size())):
 		var m: Dictionary = roster[i]
 		var a := TAU * float(i) / 5.0
@@ -40,22 +38,16 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
 		ally.director = director  ## toast channel for promotion barks
-		# EVERY MOS GETS ITS OWN BODY. The Pigman was the ONLY role with a distinct
-		# model - Point, RTO, Medic and Grenadier all wore the generic grunt, while
-		# us_rto.glb and us_grunt_m79.glb sat finished and unreferenced on disk.
-		# (ART WITHOUT AN INSTANTIATOR DOES NOT EXIST - probe_orphaned_art.)
-		#
-		# set_sprite() falls back to the generic grunt if the model is missing, so a
-		# role whose art has not landed yet simply looks ordinary - it never breaks.
-		# THE MOMENT us_medic.glb IS EXPORTED, THE MEDIC PUTS IT ON. No code change.
 		var mos: String = str(m.mos)
-		var body: Dictionary = MOS_BODY.get(mos, {}) as Dictionary
-		if not body.is_empty():
-			if mos == "PIGMAN":
-				ally.fire_rate_mult = 1.6
-			# spawn_ally() already ran _setup_visual(), so this rebuilds it.
-			ally.set_sprite(str(body.unit), str(body.weapon))
-		_attach_name_tag(ally, "%s %s (%s)" % [SquadRoster.rank_for(m), str(m.nick), str(m.mos)])
+		var unit: String = _pick_unit_for_mos(mos)
+		var weapon: String = MOS_WEAPON.get(mos, "m16a1")
+		if mos == "MG":
+			ally.fire_rate_mult = 1.6
+		# spawn_ally() already ran _setup_visual(), so this rebuilds it.
+		ally.set_sprite(unit, weapon)
+		# Explicit: he wears his roster face/helmet whether or not set_sprite
+		# rebuilt (the default-body draw early-returns and would keep bench paint).
+		ally.dress_visual()
 		ally.died.connect(_on_member_died)
 		members.append(ally)
 	# Medic revive hook.
@@ -65,29 +57,47 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 			_health.revive_handler = self
 
 
-## The five MOS, and the body each one wears.
-##   PIGMAN     us_grunt_m60   ON DISK, and the only one that was ever wired.
-##   GRENADIER  us_grunt_m79   ON DISK - and was ORPHANED. Nothing spawned it.
-##   RTO        us_rto         ON DISK (built 2026-07-12) - and was ORPHANED.
-##   MEDIC      us_medic       *** NOT YET MADE. The one MOS with no body. ***
-##   POINT      (generic)      the base grunt is correct for him.
-const MOS_BODY: Dictionary = {
-	"PIGMAN":    {"unit": "us_grunt_m60", "weapon": "m60"},
-	"GRENADIER": {"unit": "us_grunt_m79", "weapon": "m79"},
-	"RTO":       {"unit": "us_rto",       "weapon": "m16a1"},
-	"MEDIC":     {"unit": "us_medic",     "weapon": "m16a1"},
+## Every MOS carries a weapon. Rifle roles draw a random v3 grunt body so the squad
+## looks like a mixed fireteam instead of seven identical action figures. Specialist
+## roles (MG/GRENADIER/MARKSMAN/RTO) keep deterministic bodies for silhouette clarity.
+const MOS_WEAPON: Dictionary = {
+	"POINTMAN":  "m16a1",
+	"RTO":       "m16a1",
+	"MEDIC":     "m16a1",
+	"MG":        "m60",
+	"GRENADIER": "m79",
+	"MARKSMAN":  "m70",
+	"RIFLEMAN":  "m16a1",
+}
+
+const WEAPON_BODY_POOLS: Dictionary = {
+	"m16a1": ["us_grunt_v3", "us_grunt_pointman", "us_grunt_rifleman"],
+	"m60":   ["us_grunt_mg"],
+	"m79":   ["us_grunt_grenadier"],
+	"m70":   ["us_grunt_marksman"],
+}
+
+const DETERMINISTIC_MOS_BODY: Dictionary = {
+	"RTO": "us_grunt_rto",
 }
 
 
-func _attach_name_tag(ally: Node3D, text: String) -> void:
-	var tag := Label3D.new()
-	tag.text = text
-	tag.font_size = 22
-	tag.pixel_size = 0.004
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.modulate = Color(0.7, 0.85, 0.6)
-	tag.position = Vector3(0, 2.2, 0)
-	ally.add_child(tag)
+static func weapon_for_mos(mos: String) -> String:
+	return MOS_WEAPON.get(mos, "m16a1")
+
+
+static func pick_body_for_mos(mos: String, rng: RandomNumberGenerator) -> String:
+	if DETERMINISTIC_MOS_BODY.has(mos):
+		return str(DETERMINISTIC_MOS_BODY[mos])
+	var weapon: String = weapon_for_mos(mos)
+	var pool: Array = WEAPON_BODY_POOLS.get(weapon, ["us_grunt_v3"]) as Array
+	if pool.is_empty():
+		return "us_grunt_v3"
+	return str(pool[rng.randi_range(0, pool.size() - 1)])
+
+
+func _pick_unit_for_mos(mos: String) -> String:
+	return pick_body_for_mos(mos, _roster_rng)
 
 
 func member_by_mos(mos: String) -> AllyBase:
@@ -101,7 +111,7 @@ func is_rto_alive() -> bool:
 	return member_by_mos("RTO") != null
 
 
-## ---------- ORDERS (W15) ----------
+## ---------- ORDERS ----------
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not GameManager.can_player_act() or director == null or director.is_ended():
@@ -145,7 +155,7 @@ func _aim_ground_point() -> Vector3:
 	return Vector3.ZERO
 
 
-## ---------- MEDIC REVIVE CHAIN (W17) ----------
+## ---------- MEDIC REVIVE CHAIN ----------
 
 func can_revive() -> bool:
 	return revives_left > 0 and member_by_mos("MEDIC") != null
@@ -163,7 +173,7 @@ func begin_revive(_health_system: HealthSystem) -> void:
 		VOManager.play_squad("doc_moving", _vo_doc.member, _vo_doc.global_position)
 
 
-## PT2: first revive of the mission patches you to FULL; the second is field-dressing.
+## The first revive of a mission patches you to FULL; the second is field-dressing.
 func _revive_heal_amount(medic_skill: int) -> int:
 	if revives_left == REVIVES_PER_MISSION - 1:
 		return 999  # clamped to max_hp by HealthSystem.revive
@@ -201,21 +211,19 @@ func _process_revive(delta: float) -> void:
 		_revive_timer = 0.0
 
 
-## ---------- ROLE EFFECTS + BARKS (W18/W20/W21) ----------
+## ---------- ROLE EFFECTS + BARKS ----------
 
 func _physics_process(delta: float) -> void:
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)
 	_process_revive(delta)
-	# Point scan on a 0.4s cadence, not 60Hz - it walks every lazy group + trap.
-	# (_point_scan_timer existed but was never used. [audit fix])
+	# Point scan on a 0.4s cadence, NOT 60Hz - it walks every lazy group + trap.
 	_point_scan_timer += delta
 	if _point_scan_timer >= 0.4:
 		_point_scan_timer = 0.0
 		_point_scan()
 	# Same 0.4s gate for the grenadier: _grenadier_tick walks every enemy against
-	# every OTHER enemy (an O(n^2) cluster search) and it was running at 60Hz.
-	# The scan above got this treatment in a past audit; this one was missed.
+	# every OTHER enemy (an O(n^2) cluster search) - it must not run at 60Hz.
 	_grenadier_timer += delta
 	if _grenadier_timer >= 0.4:
 		_grenadier_timer = 0.0
@@ -228,11 +236,11 @@ var _grenadier_timer: float = 0.0
 
 
 func _point_scan() -> void:
-	var point := member_by_mos("POINT")
+	var point := member_by_mos("POINTMAN")
 	if point == null:
 		return
-	# Alertness (attribute) sets the base; the POINT man's Detect Ambush SKILL extends it
-	# so a trained scout calls movement much earlier. detect_ambush was buyable-but-dead.
+	# Alertness (attribute) sets the base radius; the POINT man's Detect Ambush SKILL
+	# extends it, so a trained scout calls movement much earlier.
 	var det: int = SquadRoster.skill_level(point.member, "detect_ambush")
 	var radius: float = 30.0 + float(int(point.member.get("al", 100))) * 0.15 + float(det) * 8.0
 	for lg in get_tree().get_nodes_in_group("lazy_groups"):
@@ -246,8 +254,7 @@ func _point_scan() -> void:
 				point.on_skill_up("detect_ambush", pp)
 			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % str(point.member.nick))
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
-	# Punji/trap spotting: the counterplay the traps promised. Harder than spotting
-	# men (60% radius), and the trap is called out once. [audit fix]
+	# Punji/trap spotting: harder than spotting men (60% radius), called out once.
 	for t in get_tree().get_nodes_in_group("punji_traps"):
 		var trap := t as Node3D
 		if trap == null or _point_warned.has(trap.get_instance_id()):
@@ -317,14 +324,12 @@ func _contact_barks() -> void:
 	_last_combat_count = in_combat
 
 
-## ---------- CASUALTIES (W24) ----------
+## ---------- CASUALTIES ----------
 
 func _on_member_died(ally: AllyBase) -> void:
 	var m: Dictionary = ally.member
 	m["alive"] = false
 	director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
-	# Memorial beat (War Room decree): the rank + confirmed kills make the loss land as
-	# story, not a data op. A maxed veteran's death should hurt (Pillar 4 / fail-forward).
 	director.toast.emit("KIA: %s %s (%s) - %d confirmed" % [SquadRoster.rank_for(m), str(m.name), str(m.nick), int(m.get("kills", 0))])
 	CampaignState.save_campaign()
 	squad_changed.emit()

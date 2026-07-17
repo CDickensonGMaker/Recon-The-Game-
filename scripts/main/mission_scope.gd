@@ -38,6 +38,7 @@ static func reset() -> void:
 	SpriteLibrary.clear()
 	NavBaker.clear()
 	EnemySquad.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
+	GruntRandomizer.reset_bench()   ## bench-face walk restarts, mission N+1 repeats deterministically
 
 	var dmg: Node = Engine.get_main_loop().root.get_node_or_null("DamageSystem")
 	if dmg != null and dmg.has_method("clear_all_damage"):

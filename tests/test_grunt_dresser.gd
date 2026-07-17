@@ -36,6 +36,7 @@ func _run() -> void:
 			_fail("base rig %s leaked into the role list" % banned)
 
 	_check_face_consistency_all_roles(pool)
+	_check_legacy_face_only()
 	_check_material_isolation(pool[0])
 	_check_role_lock(pool)
 	_check_radio_law()
@@ -72,6 +73,32 @@ func _check_face_consistency_all_roles(pool: Array[String]) -> void:
 			_check_helmet(actor, unit)
 		print("  %-20s face=%2d surfaces=%d helmet=%s OK-so-far" % [unit, face, offsets.size(), helmet])
 		actor.queue_free()
+
+
+## 1b. Legacy body (no stock-helmet contract): dress_actor slides the face but
+## hangs NO helmet - the welded pot stays, nothing is hidden bare.
+func _check_legacy_face_only() -> void:
+	const LEGACY := "us_grunt_m60"
+	if not ModelActor.model_exists(LEGACY):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 60
+	var actor := ModelActor.new()
+	add_child(actor)
+	if not actor.setup(LEGACY):
+		_fail("legacy: setup failed on %s" % LEGACY)
+		return
+	var out: Dictionary = GruntRandomizer.dress_actor(actor, rng)
+	if _face_offsets(actor).is_empty():
+		_fail("legacy %s: face did not slide (face-only dressing broken)" % LEGACY)
+	if not String(out.get("helmet", "x")).is_empty():
+		_fail("legacy %s: dresser hung helmet '%s' on a body with no stock-helmet contract"
+			% [LEGACY, String(out.get("helmet", ""))])
+	var skel: Skeleton3D = actor.skeleton()
+	if skel != null and skel.find_child("HelmetSocket", false, false) != null:
+		_fail("legacy %s: HelmetSocket attached without the contract" % LEGACY)
+	print("  legacy face-only OK (%s keeps his welded pot)" % LEGACY)
+	actor.queue_free()
 
 
 ## 2. Two men, two faces, one GLB: offsets must differ per instance.

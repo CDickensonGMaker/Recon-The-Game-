@@ -49,18 +49,55 @@ static func spawn(parent: Node, rng: RandomNumberGenerator, role: String = "") -
 		actor.queue_free()
 		return {}
 
-	var opts: Dictionary = {
-		"helmet": true,
-	}
-	if _has_mesh(actor, "ruck_pack_worn"):
-		opts["ruck"] = rng.randf() < RUCK_CHANCE
-	if _radio_legal(actor):
-		opts["radio"] = rng.randf() < RADIO_CHANCE
-
-	var loadout: Dictionary = GruntDresser.dress(actor, rng, opts)
-	loadout["unit"] = unit
-	_psx_filter_attachments(actor)
+	var loadout: Dictionary = dress_actor(actor, rng)
 	return {"unit": unit, "actor": actor, "loadout": loadout}
+
+
+## Dress an EXISTING ModelActor - THE one shared core (bench + game spawn path
+## both land here; fork this and the two drift). NOT re-entrant: one dress per
+## actor instance (helmet sockets stack), guarded by the "dressed" meta.
+static func dress_actor(actor: ModelActor, rng: RandomNumberGenerator,
+		opts: Dictionary = {}) -> Dictionary:
+	if actor.get_meta("dressed", false):
+		return {}
+	actor.set_meta("dressed", true)
+
+	# Capability-gated, never list-gated (lists drift): helmet swap only where
+	# the stock-helmet contract exists. Legacy bodies (m14/m60/m79) dress
+	# face-only and keep their welded pot.
+	var merged: Dictionary = {"helmet": _has_mesh(actor, GruntDresser.STOCK_HELMET)}
+	if _has_mesh(actor, "ruck_pack_worn"):
+		merged["ruck"] = rng.randf() < RUCK_CHANCE
+	if _radio_legal(actor):
+		merged["radio"] = rng.randf() < RADIO_CHANCE
+	for k in opts:
+		merged[k] = opts[k]
+
+	var loadout: Dictionary = GruntDresser.dress(actor, rng, merged)
+	loadout["unit"] = actor.unit
+	_psx_filter_attachments(actor)
+	return loadout
+
+
+## True for units the dresser can fully work: US grunts with the stock-helmet
+## contract. Pilots keep flight gear; VC/NVA wait on the atlas cell map.
+static func is_dressable(unit: String) -> bool:
+	return unit.begins_with("us_") and not unit.begins_with("us_pilot")
+
+
+## Seed sequence for memberless men (benches, POWs, arena allies). Deterministic
+## while spawn order is (ADR-010: one seed per operation); MissionScope.reset()
+## rewinds it so mission N+1 does not inherit mission N's position in the walk.
+static var _bench_serial: int = 0
+
+
+static func next_bench_seed() -> int:
+	_bench_serial += 1
+	return 48151623 + _bench_serial * 2654435761
+
+
+static func reset_bench() -> void:
+	_bench_serial = 0
 
 
 ## ModelActor applies PSX NEAREST filtering during setup(), BEFORE dress() hangs

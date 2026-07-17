@@ -201,6 +201,9 @@ func _setup_visual() -> void:
 				sprite_actor = ma
 				_visual_is_model = true
 				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
+				# Deferred: SquadSystem assigns `member` after _ready(), so by
+				# end of frame a named man wears HIS face, not a reroll.
+				call_deferred("dress_visual")
 				return
 			ma.queue_free()
 		var sa := SpriteActor.new()
@@ -241,6 +244,28 @@ func set_sprite(unit: String, weapon: String, faction: String = "US Army and Co"
 		mesh.queue_free()
 		mesh = null
 	_setup_visual()
+
+
+## Dress the rendered man - THE game-side entry into the one shared
+## randomization core (GruntRandomizer, same code the grunt_viewer bench runs).
+## A named member wears his STORED face + helmet (Pillar 4: identity, never a
+## reroll); gear still rolls per mission (kit is the mission, skin is the man).
+## Memberless allies (benches, POWs) draw the per-mission bench sequence.
+## Safe to call repeatedly - dress_actor's "dressed" meta makes it a no-op.
+func dress_visual() -> void:
+	var ma := sprite_actor as ModelActor
+	if ma == null or not is_instance_valid(ma) or not _visual_is_model:
+		return
+	if not GruntRandomizer.is_dressable(ma.unit):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GruntRandomizer.next_bench_seed()
+	var opts: Dictionary = {}
+	if member.has("face"):
+		opts["face"] = int(member["face"])
+	if member.has("helmet"):
+		opts["helmet_id"] = str(member["helmet"])
+	GruntRandomizer.dress_actor(ma, rng, opts)
 
 
 ## AllyBase has no facing_dir. Derive it: aim at a target if we have one,
