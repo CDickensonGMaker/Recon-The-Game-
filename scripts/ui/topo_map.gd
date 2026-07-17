@@ -1,4 +1,4 @@
-## topo_map.gd - 1960s military topographic map (W41): contour bands rendered
+## topo_map.gd - 1960s military topographic map: contour bands rendered
 ## from the real heightmap, grid squares, water in blue, green player arrow,
 ## objective marks. Toggle with M. The map IS the AO.
 class_name TopoMap

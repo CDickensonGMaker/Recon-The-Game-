@@ -6,7 +6,6 @@ class_name HeightmapStorage
 signal generation_complete
 signal generation_progress(percent: float)
 
-# Heightmap dimensions
 var size: int = 1536  # Cells per side (3000m / 2m cell_size, rounded to power of 2 compatible)
 var cell_size: float = 2.0  # Meters per cell
 var height_scale: float = 280.0  # Max height in meters
@@ -17,7 +16,6 @@ var data: PackedFloat32Array
 # River accumulation data (for river extraction)
 var river_accumulation: PackedFloat32Array
 
-# Generation state
 var is_generating: bool = false
 var generation_thread: Thread
 
@@ -32,9 +30,13 @@ func _init(map_size_meters: float = 3000.0, cell_size_meters: float = 2.0) -> vo
 
 
 func _next_chunk_aligned_size(s: int) -> int:
-	## Round size to be cleanly divisible by chunk cells (128)
-	const CHUNK_CELLS := 128
-	return int(ceil(float(s) / CHUNK_CELLS)) * CHUNK_CELLS + 1
+	## Round size to be cleanly divisible by chunk cells (matches terrain_manager's
+	## chunk_size=256m / cell_size=4m = 64 cells per chunk). No +1: that
+	## added a 1-cell tail to the heightmap, shifting AO content off-center
+	## from the playable bounds (minimap showed paddy markers clustered in
+	## the upper-right because the heightmap extended 130m past map_size).
+	const CHUNK_CELLS := 64
+	return int(ceil(float(s) / CHUNK_CELLS)) * CHUNK_CELLS
 
 
 ## Initialize with flat terrain (for testing)
@@ -50,7 +52,6 @@ func get_cell(x: int, z: int) -> float:
 	return data[z * size + x]
 
 
-## Set height at cell coordinates
 func set_cell(x: int, z: int, value: float) -> void:
 	if x < 0 or x >= size or z < 0 or z >= size:
 		return
@@ -71,11 +72,9 @@ func sample_bilinear(fx: float, fz: float) -> float:
 	var dx: float = fx - x
 	var dz: float = fz - z
 
-	# Clamp to valid range
 	x = clampi(x, 0, size - 2)
 	z = clampi(z, 0, size - 2)
 
-	# Get 4 corners
 	var h00: float = data[z * size + x]
 	var h10: float = data[z * size + x + 1]
 	var h01: float = data[(z + 1) * size + x]
@@ -87,7 +86,6 @@ func sample_bilinear(fx: float, fz: float) -> float:
 	return lerpf(h0, h1, dz)
 
 
-## Get normal at world position
 func get_normal_world(world_x: float, world_z: float) -> Vector3:
 	var delta: float = cell_size
 
@@ -118,7 +116,6 @@ func extract_region(start_x: int, start_z: int, region_size: int) -> PackedFloat
 	return region
 
 
-## Get chunk coordinates from world position
 func world_to_chunk(world_pos: Vector3, chunk_size_meters: float) -> Vector2i:
 	return Vector2i(
 		int(floor(world_pos.x / chunk_size_meters)),
@@ -126,7 +123,6 @@ func world_to_chunk(world_pos: Vector3, chunk_size_meters: float) -> Vector2i:
 	)
 
 
-## Get cell coordinates from world position
 func world_to_cell(world_x: float, world_z: float) -> Vector2i:
 	return Vector2i(
 		int(floor(world_x / cell_size)),
@@ -152,7 +148,6 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> Rect2i:
 	return Rect2i(min_x, min_z, max_x - min_x, max_z - min_z)
 
 
-## Get river accumulation at cell (for river extraction)
 func get_river_accumulation(x: int, z: int) -> float:
 	if river_accumulation.size() == 0:
 		return 0.0
@@ -187,7 +182,6 @@ func get_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-## Debug: print stats
 func print_stats() -> void:
 	var min_h: float = 1.0
 	var max_h: float = 0.0

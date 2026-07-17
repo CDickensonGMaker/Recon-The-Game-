@@ -1,5 +1,5 @@
 ## lazy_group.gd - Dormant enemy group: spawns through the director when the
-## player closes within activation range (NS09). RTCW dormant-population rule.
+## player closes within activation range.
 class_name LazyGroup
 extends Node3D
 
@@ -7,8 +7,8 @@ extends Node3D
 @export var group_tag: String = ""
 @export var activation_range: float = 120.0
 @export var spread: float = 12.0
-## THE CIRCUIT (ADR-021). A route across the AO through real features, handed down
-## by the generator. Empty = fall back to the old local 16m sentry beat.
+## Route across the AO, handed down by the generator (ADR-021).
+## Empty = fall back to a local 16m sentry beat.
 var patrol_circuit: Array[Vector3] = []
 
 @export var data_paths: Array[String] = [
@@ -60,12 +60,10 @@ func force_spawn() -> void:
 	if _spawned:
 		return
 	_spawned = true
-	# R18/R33: ambient corridor patrols wander a trail loop instead of standing put.
+	# Ambient corridor patrols walk a route instead of standing put.
 	var is_patrol := group_tag.begins_with("ambient_patrol")
 	var route: Array[Vector3] = []
 	if is_patrol:
-		# ADR-021: walk the real CIRCUIT if the generator handed us one (across the AO,
-		# through actual features). The 16m local beat is only the fallback.
 		route = patrol_circuit.duplicate() if not patrol_circuit.is_empty() \
 			else EnemyBase.make_patrol_route(global_position, _rng)
 	for i in range(enemy_count):
@@ -78,15 +76,12 @@ func force_spawn() -> void:
 			enemy.add_to_group(group_tag)
 		if is_patrol and not route.is_empty():
 			enemy.patrol_route = route.duplicate()
-			# SINGLE FILE, not four strangers orbiting the same bush in opposite
-			# directions (exactly what `_patrol_index = i % size` produced).
-			# One point man walks the waypoint; the rest trail him down the leg.
+			# SINGLE FILE: every man starts at _patrol_index 0, so one point man walks
+			# the waypoint and the rest trail him down the leg by their file slot.
 			enemy.patrol_file_slot = i
 			enemy._patrol_index = 0
 		elif not is_patrol:
-			# SENTRY FACING (bead 0623 gap #1): a guard faces OUTWARD from what he is
-			# posted on. Facing was random, so half a garrison stood staring into the
-			# hut behind them.
+			# A sentry faces OUTWARD from whatever he is posted on.
 			var out: Vector3 = pos - global_position
 			out.y = 0.0
 			if out.length() > 0.5:

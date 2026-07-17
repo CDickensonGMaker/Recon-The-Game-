@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://d2e7f8a1b3c4d5"]
+
+[ext_resource type="Script" path="res://scripts/levels/ai_stress_arena.gd" id="1_stress"]
+
+[node name="AIStressArena" type="Node3D"]
+script = ExtResource("1_stress")

@@ -5,11 +5,8 @@ extends Node
 signal slot_changed(slot_index: int, slot_type: Enums.SlotType)
 signal grenade_count_changed(count: int)
 
-## Slot data
-## Slot 0 = Primary weapon (M16A1 default)
-## Slot 1 = Secondary weapon (M1911)
-## Slot 2 = Grenade
-## Slot 3 = Medkit
+## SLOT CONTRACT (every system indexes on these):
+## 0 = primary weapon · 1 = secondary weapon · 2 = grenade · 3 = medkit
 
 var current_slot: int = 0
 var grenade_count: int = 2
@@ -46,15 +43,12 @@ func _process(delta: float) -> void:
 
 
 func _handle_input() -> void:
-	# Don't process input while switching
 	if is_switching:
 		return
 
-	# Don't switch while reloading
 	if weapon_holder and weapon_holder.is_weapon_reloading():
 		return
 
-	# Don't switch while healing
 	if health_system and health_system.is_healing:
 		return
 
@@ -62,7 +56,6 @@ func _handle_input() -> void:
 	if MissionDirector.any_fire_menu_open:
 		return
 
-	# Slot selection via number keys
 	if Input.is_action_just_pressed("slot_1") and current_slot != 0:
 		_start_switch(0)
 	elif Input.is_action_just_pressed("slot_2") and current_slot != 1:
@@ -71,13 +64,12 @@ func _handle_input() -> void:
 		_start_switch(2)
 	elif Input.is_action_just_pressed("slot_4") and current_slot != 3:
 		_start_switch(3)
-	# PT8: mouse wheel cycles the kit.
+	# Mouse wheel cycles the kit.
 	elif Input.is_action_just_pressed("wheel_down"):
 		_start_switch((current_slot + 1) % 4)
 	elif Input.is_action_just_pressed("wheel_up"):
 		_start_switch((current_slot + 3) % 4)
 
-	# Handle fire input based on current slot
 	_handle_slot_action()
 
 
@@ -91,7 +83,7 @@ func _handle_slot_action() -> void:
 					grenade_handler.start_cooking()
 				elif Input.is_action_just_released("fire") and grenade_handler.is_cooking:
 					grenade_handler.throw()
-		3:  # Medkit - hold FIRE or INTERACT [F] (Caleb: "hold F to heal")
+		3:  # Medkit - hold FIRE or INTERACT [F]
 			if health_system:
 				var heal_held: bool = Input.is_action_pressed("fire") or Input.is_action_pressed("interact")
 				if heal_held and not health_system.is_healing:
@@ -105,7 +97,6 @@ func _start_switch(new_slot: int) -> void:
 	switch_timer = SWITCH_TIME
 	pending_slot = new_slot
 
-	# If switching away from medkit while healing, cancel
 	if current_slot == 3 and health_system and health_system.is_healing:
 		health_system.cancel_healing()
 
@@ -132,7 +123,6 @@ func _finish_switch() -> void:
 	slot_changed.emit(current_slot, get_slot_type(current_slot))
 
 
-## Get slot type for a given slot index
 func get_slot_type(slot: int) -> Enums.SlotType:
 	match slot:
 		0, 1:
@@ -145,24 +135,21 @@ func get_slot_type(slot: int) -> Enums.SlotType:
 			return Enums.SlotType.WEAPON
 
 
-## Get current slot type
 func get_current_slot_type() -> Enums.SlotType:
 	return get_slot_type(current_slot)
 
 
-## Force switch to a specific slot (for auto-switch after grenade/medkit)
+## Force switch to a slot (used for the auto-switch after grenade/medkit).
 func switch_to_slot(slot: int) -> void:
 	if current_slot == slot:
 		return
 	_start_switch(slot)
 
 
-## Check if currently switching
 func is_slot_switching() -> bool:
 	return is_switching
 
 
-## Add grenade to inventory
 func add_grenade(count: int = 1) -> void:
 	grenade_count += count
 	grenade_count_changed.emit(grenade_count)
@@ -177,16 +164,13 @@ func use_grenade() -> bool:
 	return true
 
 
-## Get grenade count
 func get_grenade_count() -> int:
 	return grenade_count
 
 
-## Check if on weapon slot
 func is_weapon_slot() -> bool:
 	return current_slot <= 1
 
 
-## Get current slot index
 func get_current_slot() -> int:
 	return current_slot

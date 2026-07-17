@@ -11,9 +11,8 @@
 ## Missing files fall back to a class bank (rifle/smg/pistol) so partial coverage
 ## never crashes. Drop a real recording at the same path to replace a synth render.
 ##
-## Headless-safe: every play path no-ops under the headless display server, so
-## the test suite stays silent AND fast, and _exit_tree tears every voice down
-## (this is the correct fix for AUDIT-12, not another leak whitelist entry).
+## Headless-safe: every play path no-ops under the headless display server, and
+## _exit_tree tears every voice down, so the test suite stays silent and fast.
 extends Node
 
 const WPATH := "res://assets/audio/sfx/weapons/"
@@ -276,7 +275,7 @@ func play_shot_player(data: Variant) -> void:
 		_p_mech.volume_db = -8.0
 		_p_mech.play()
 	# Tail/echo layer - the crack's decay is what gives a rifle weight and reads
-	# the environment. The WeaponsTail bus + player were built and never played.
+	# the environment.
 	if _p_tail != null:
 		var tail: AudioStream = _single(wid, "tail")
 		if tail == null:
@@ -381,7 +380,7 @@ func _listener_pos() -> Vector3:
 
 
 func _exit_tree() -> void:
-	# AUDIT-12 fix: release every voice so nothing outlives teardown.
+	# Release every voice so nothing outlives teardown.
 	for p in _voices:
 		if is_instance_valid(p):
 			p.stop()

@@ -1,6 +1,5 @@
-﻿## insertion_ride.gd - Huey insertion ride v1 (W06/W07/W09/W10/W11).
-## Walk up -> board (E/F) -> door seat, head-look -> flight with AA threat rolls
-## -> touchdown -> dismount. Shoot-down = hard crash, mission continues (E&E).
+﻿## insertion_ride.gd - Huey insertion: board -> flight with AA threat rolls ->
+## touchdown -> dismount. Shoot-down = hard crash; the mission continues.
 class_name InsertionRide
 extends Node
 
@@ -42,33 +41,25 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, start_pad: 
 	_start_rotor(0.85)
 
 
-## Door seat + capsule crew. Blender handoff: the interior scene should expose
-## sockets named SeatPilot / SeatCopilot / SeatDoorLeft / SeatDoorRight /
-## DoorGunMount - this code looks for them by name before using fallbacks.
+## Sockets are looked up by name before falling back: SeatPilot / SeatCopilot /
+## SeatDoorLeft / SeatDoorRight / DoorGunMount.
 func _build_seats_and_crew() -> void:
-	# PT7: seats tucked INSIDE the cabin (body is ~3.3m wide, floor ~1m up).
+	# Seats sit INSIDE the cabin (body is ~3.3m wide, floor ~1m up).
 	door_seat = _socket("SeatDoorLeft", Vector3(-0.85, 1.35, 0.6))
 	var crew_seats := [
 		_socket("SeatPilot", Vector3(0.5, 1.5, -3.6)),
 		_socket("SeatCopilot", Vector3(-0.5, 1.5, -3.6)),
 		_socket("SeatDoorRight", Vector3(0.85, 1.35, 0.6)),
 	]
-	# REAL AIRCREW. us_pilot_white.glb and us_pilot_black.glb have been finished and
-	# sitting in assets/models/characters/ with ZERO references anywhere in the
-	# codebase - while the player has ridden to EVERY mission in this game seated
-	# behind two olive capsules. (The mystery "green body" in playtest bug a2qb is,
-	# almost certainly, one of these.)
 	var crew_models: Array[String] = ["us_pilot_white", "us_pilot_black", "us_pilot_white"]
 	for i in range(crew_seats.size()):
 		var seat: Marker3D = crew_seats[i]
 		var actor := ModelActor.new()
 		seat.add_child(actor)
 		if actor.setup(crew_models[i % crew_models.size()]):
-			# Seated: he flies the aircraft, he does not stand in it.
 			actor.play_first(["sit", "sitting", "seated", "idle_seated", "idle"])
 			continue
-		# Model missing -> fall back to the capsule, but LOUDLY. A silent fallback is
-		# how two olive pills flew this helicopter for months.
+		# Model missing -> capsule fallback, loudly (a silent one is invisible in play).
 		push_warning("[InsertionRide] no model for '%s' - the aircrew are CAPSULES again." % crew_models[i % crew_models.size()])
 		actor.queue_free()
 		var crew := MeshInstance3D.new()
@@ -119,8 +110,8 @@ func _physics_process(delta: float) -> void:
 			pass
 
 
-## Context interact (W08): the bound interact action OR a raw E press while a
-## prompt is up (lean_right shares E; harmless overlap during prompts).
+## The bound interact action OR a raw E press while a prompt is up (lean_right
+## shares E; the overlap is harmless during prompts).
 static func context_interact_pressed() -> bool:
 	return Input.is_action_just_pressed("interact") or Input.is_physical_key_pressed(KEY_E)
 
@@ -175,7 +166,7 @@ func _stow_allies(aboard: bool) -> void:
 		ally.reset_physics_interpolation()
 
 
-## W09: AA rolls while inbound, scaled by campaign threat.
+## AA rolls while inbound, scaled by campaign threat.
 func _aa_threat_tick(delta: float) -> void:
 	_aa_timer += delta
 	if _aa_timer < aa_roll_interval:
@@ -184,7 +175,6 @@ func _aa_threat_tick(delta: float) -> void:
 	var threat: float = CampaignState.effective_threat()
 	if randf() > threat:
 		return
-	# AA event: ground tracer stream at the bird.
 	var a := randf_range(0.0, TAU)
 	var ground := heli.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(120.0, 280.0)
 	ground.y = world.terrain_manager.get_height_at(ground)
@@ -222,7 +212,7 @@ func _poll_dismount() -> void:
 func dismount(from_crash: bool) -> void:
 	if state == RideState.DISMOUNTED:
 		return
-	# PT3: after a crash, come out well clear of the crater rim.
+	# After a crash, come out well clear of the crater rim.
 	var side_dist: float = 8.0 if from_crash else 2.5
 	var out := heli.global_position + heli.global_transform.basis.x * -side_dist
 	out.y = world.terrain_manager.get_height_at(out) + 1.0
@@ -232,7 +222,6 @@ func dismount(from_crash: bool) -> void:
 	state = RideState.DISMOUNTED
 	if not from_crash:
 		director.toast.emit("LZ IS %s - MOVE OUT" % ("COLD" if CampaignState.effective_threat() < 0.5 else "QUESTIONABLE"))
-		# Bird departs.
 		get_tree().create_timer(2.0).timeout.connect(func() -> void:
 			if is_instance_valid(heli):
 				heli.take_off()

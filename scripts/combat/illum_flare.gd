@@ -1,4 +1,4 @@
-## illum_flare.gd - Pop flare (W54): drifting light that strips night
+## illum_flare.gd - pop flare: drifting light that strips night
 ## concealment in its circle. Works both ways - you're lit too.
 class_name IllumFlare
 extends Node3D

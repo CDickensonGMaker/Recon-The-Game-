@@ -1,5 +1,5 @@
-## destructible_vehicle.gd - Vehicle prop that can be demolished (NS17).
-## Destruction via planted charge / scripted calls (satchel the tank).
+## destructible_vehicle.gd - Vehicle prop demolished by a planted charge or a
+## scripted call.
 class_name DestructibleVehicle
 extends StaticBody3D
 

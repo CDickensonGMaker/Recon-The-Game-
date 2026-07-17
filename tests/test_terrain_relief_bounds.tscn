@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://d3q5k7p8m1n2o"]
+
+[ext_resource type="Script" path="res://tests/test_terrain_relief_bounds.gd" id="1_terrain_relief"]
+
+[node name="TestTerrainReliefBounds" type="Node3D"]
+script = ExtResource("1_terrain_relief")

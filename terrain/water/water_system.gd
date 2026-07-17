@@ -18,14 +18,17 @@ var water_bodies: Dictionary = {}  # id -> WaterBodyData
 var water_by_chunk: Dictionary = {}  # Vector2i -> Array[int]
 
 ## Global sea level in meters (for coastal generation)
-var sea_level: float = 5.0
+## Set to 0.5 (effectively sea floor) so that the COASTAL_HILLS AO (max 60m)
+## never produces cells below sea level. The real water you see in the AO is
+## rain-fed basins and channels, not ocean. Set higher than 0 to keep the
+## coastal-flood code path alive for any future archipelago map.
+var sea_level: float = 0.5
 
 ## Which map edges have ocean (bitmask: 1=North, 2=East, 4=South, 8=West)
 ## Set to 0 to disable coastal generation
 var ocean_edges: int = 0b0000  # Disabled by default
 
-## Enable swamp generation
-var generate_swamps: bool = true
+var generate_swamps: bool = false  # Swamps were rendering as wet lakes; off so the AO reads as creeks + dry land
 
 ## Water type grid for O(1) lookups
 ## Each byte encodes: bits 0-2 = WaterType (0-6), bits 3-7 = depth_index (0-31)
@@ -33,10 +36,8 @@ var water_map: PackedByteArray = PackedByteArray()
 var water_map_size: int = 0
 var water_map_cell_size: float = 2.0
 
-## Next available water body ID
 var _next_id: int = 0
 
-## Reference to heightmap for terrain queries
 var _heightmap: RefCounted = null  # HeightmapStorage
 
 ## Last hydrology result (for water-level queries)
@@ -48,7 +49,6 @@ var hydrology_downsample: int = 0
 ## Chunk size for spatial indexing
 var _chunk_size: float = 256.0
 
-## Container node for water meshes
 var _water_container: Node3D = null
 
 
@@ -58,12 +58,10 @@ func _ready() -> void:
 	add_child(_water_container)
 
 
-## Initialize water system with heightmap reference
 func initialize(heightmap: RefCounted, chunk_size: float = 256.0) -> void:
 	_heightmap = heightmap
 	_chunk_size = chunk_size
 
-	# Initialize water map to match heightmap size
 	water_map_size = heightmap.size
 	water_map_cell_size = heightmap.cell_size
 	water_map.resize(water_map_size * water_map_size)
@@ -84,7 +82,6 @@ func generate_water_bodies() -> void:
 
 	var start_time := Time.get_ticks_msec()
 
-	# Clear existing water bodies
 	clear()
 
 	# Run the unified hydrology model once.
@@ -183,10 +180,21 @@ func _create_static_body(b: Dictionary) -> void:
 	body.id = _next_id
 	_next_id += 1
 
-	# Standing fresh water splits into pond vs lake by area.
+	# Standing fresh water splits into pond/lake/swamp by area + max depth.
+	# Rules (in order):
+	#   1. Shallow wide puddles (max depth < 3.0 m) are SWAMP regardless of size
+	#      — they read as wet ground, not as a "lake in the middle of the map".
+	#   2. Deep-but-small basins (< 8000 m^2) are PONDS.
+	#   3. Deep AND big are LAKES.
 	var area: float = cells.size() * _heightmap.cell_size * _heightmap.cell_size
-	if type_code == WaterBodyDataClass.Type.LAKE and area < 2500.0:
-		body.type = WaterBodyDataClass.Type.POND
+	var max_depth: float = b.get("depth_max", b.get("depth", 0.0))
+	if type_code == WaterBodyDataClass.Type.LAKE:
+		if max_depth < 6.0:
+			body.type = WaterBodyDataClass.Type.SWAMP as int
+		elif area < 15000.0:
+			body.type = WaterBodyDataClass.Type.POND as int
+		else:
+			body.type = type_code
 	else:
 		body.type = type_code
 
@@ -357,7 +365,6 @@ func _path_perpendicular(path: PackedVector2Array, index: int) -> Vector2:
 func _register_water_body(body: Resource) -> void:
 	water_bodies[body.id] = body
 
-	# Update chunk spatial index
 	var min_chunk := Vector2i(
 		int(floor(body.bounds.position.x / _chunk_size)),
 		int(floor(body.bounds.position.y / _chunk_size))
@@ -399,9 +406,7 @@ func _build_water_map_from_hydrology(hydro: RefCounted) -> void:
 	print("[WaterSystem] Water map: %d/%d cells (%.1f%%)" % [water_cells, total_cells, percent])
 
 
-## Clear all water bodies
 func clear() -> void:
-	# Remove mesh instances
 	for child in _water_container.get_children():
 		child.queue_free()
 
@@ -416,7 +421,6 @@ func clear() -> void:
 # PUBLIC QUERY API
 # =============================================================================
 
-## Check if a world position is in water
 func is_water(world_x: float, world_z: float) -> bool:
 	var cx: int = int(floor(world_x / water_map_cell_size))
 	var cz: int = int(floor(world_z / water_map_cell_size))
@@ -496,7 +500,6 @@ func get_flow_at(world_x: float, world_z: float) -> Vector2:
 	return Vector2.ZERO
 
 
-## Get all water bodies in a chunk
 func get_water_in_chunk(chunk_coord: Vector2i) -> Array[Resource]:
 	var result: Array[Resource] = []
 
@@ -507,7 +510,6 @@ func get_water_in_chunk(chunk_coord: Vector2i) -> Array[Resource]:
 	return result
 
 
-## Get water bodies within a radius of a point
 func get_water_near(world_pos: Vector3, radius: float) -> Array[Resource]:
 	var result: Array[Resource] = []
 	var search_rect := Rect2(
@@ -527,7 +529,6 @@ func get_water_near(world_pos: Vector3, radius: float) -> Array[Resource]:
 ## Generate wetness texture for terrain shore blending
 ## Returns an ImageTexture with R = wetness (1 = water, fades to 0)
 func generate_wetness_texture(fade_distance: float = 20.0) -> ImageTexture:
-	# Create image matching water map size
 	var img := Image.create(water_map_size, water_map_size, false, Image.FORMAT_R8)
 	img.fill(Color(0, 0, 0, 1))
 
@@ -548,7 +549,6 @@ func generate_wetness_texture(fade_distance: float = 20.0) -> ImageTexture:
 
 		for z in range(water_map_size):
 			for x in range(water_map_size):
-				# Skip if already has higher wetness
 				if img.get_pixel(x, z).r >= wetness:
 					continue
 
@@ -571,7 +571,6 @@ func generate_wetness_texture(fade_distance: float = 20.0) -> ImageTexture:
 				if has_wet_neighbor:
 					img.set_pixel(x, z, Color(wetness, 0, 0, 1))
 
-	# Create texture
 	var tex := ImageTexture.create_from_image(img)
 	print("[WaterSystem] Generated wetness texture: %dx%d, fade %.1fm" % [
 		water_map_size, water_map_size, fade_distance
@@ -587,11 +586,9 @@ func get_distance_to_water(world_x: float, world_z: float) -> float:
 	if cx < 0 or cx >= water_map_size or cz < 0 or cz >= water_map_size:
 		return INF
 
-	# If in water, distance is 0
 	if water_map[cz * water_map_size + cx] > 0:
 		return 0.0
 
-	# Search outward for nearest water
 	var max_search: int = 30  # ~60m at 2m cells
 	for dist in range(1, max_search + 1):
 		for dz in range(-dist, dist + 1):
@@ -608,7 +605,6 @@ func get_distance_to_water(world_x: float, world_z: float) -> float:
 	return INF
 
 
-## Debug: print water system stats
 func print_stats() -> void:
 	print("[WaterSystem] === Water System Stats ===")
 	print("  Total bodies: %d" % water_bodies.size())
@@ -632,7 +628,6 @@ func print_stats() -> void:
 	])
 
 
-## Get water stats as dictionary
 func get_stats() -> Dictionary:
 	var stats := {
 		"total": water_bodies.size(),

@@ -1,45 +1,13 @@
-## gun_range.gd - THE RANGE: every gun in the armory, targets at every range.
-##
-## A 600m lane with docile VC standing at 25/50/75/100/150/200/250/300/400/500m,
-## wearing the LIVE hitzones (mesh hulls + the real damage law). Built to answer
-## the questions the arena cannot: where does each rifle actually hit at 300m,
-## what does the zero feel like, where does buckshot stop mattering, how far can
-## a Mosin reach.
-##
-## Every hit prints to the range board: distance, zone, damage, and what was
-## left of him. Dead targets re-stand after a few seconds.
-##
-## KEYS (no gameplay collisions - e6qc law)
-##   [ / ]  cycle the weapon through the whole armory (11 FP arms)
-##   H      hitzone wireframes on/off
-##   R      re-stand every target, clear the board
-##   B      toggle bullet-drop cheat sheet (per-weapon zero + holdover)
-##
-## THE PENETRATION ROW (Caleb: "i need to add surfaces for dummies to be behind
-## for us to prove the penetration coding you said existed"). Walk RIGHT. Nine
-## parallel lanes, each with a material panel and a man standing behind it.
-##
-## The code being proved (bullet_system.gd): a round that hits `soft_cover`
-## KEEPS GOING at x0.8 energy, at most `soft_left = 2` times. Anything else stops
-## it dead. So a hooch wall is CONCEALMENT, not cover - and the THIRD layer of
-## thatch is what finally eats the bullet.
-##
-## Before this row existed the system had NEVER BEEN EXERCISED: exactly one thing
-## in the whole game was in the `soft_cover` group (site_planner.gd:120), and the
-## `hard_surface` group had ZERO members, so no impact in the game has ever thrown
-## a spark. Now shoot the panels and watch the damage that reaches the man.
-##
-## Run: gun_range.bat  /  godot --path . res://scenes/levels/gun_range.tscn
+## gun_range.gd - Ballistics bench: docile targets at 25-500m plus a penetration
+## row. Run: gun_range.bat / godot --path . res://scenes/levels/gun_range.tscn
 class_name GunRange
 extends Node3D
 
-## The true armory (ADR-016 Amendment C: the FP arms ARE the player's guns).
+## The FP arms ARE the player's guns (ADR-016 Amendment C).
 const ARMORY: Array[String] = [
 	"m16a1", "m14", "m60", "ak47", "rpd", "ppsh41",
 	"mosin", "m70", "shotgun", "m1911", "rpg2",
 ]
-## Where the men stand. Vietnam engagement bands, plus two long ones so the
-## drop is undeniable.
 const TARGET_RANGES: Array[float] = [25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0]
 const LANE_W: float = 40.0
 const RESPAWN_S: float = 4.0
@@ -70,7 +38,6 @@ func _ready() -> void:
 		TARGET_RANGES.size(), ARMORY.size()])
 
 
-## ---------------------------------------------------------------- the lane
 func _build_lane() -> void:
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1
@@ -93,8 +60,6 @@ func _build_lane() -> void:
 	add_child(floor_body)
 	floor_body.position.z = -560.0
 
-	# Range markers: a post + a floating number every 50m, so you always know
-	# how far the man you just missed was standing.
 	for d in range(50, 551, 50):
 		var post := MeshInstance3D.new()
 		var bm := BoxMesh.new()
@@ -135,7 +100,6 @@ func _build_lighting() -> void:
 	add_child(env)
 
 
-## ------------------------------------------------------------- the shooter
 func _spawn_player() -> void:
 	var scene: PackedScene = load("res://scenes/player/player.tscn")
 	player = scene.instantiate() as CharacterBody3D
@@ -149,35 +113,29 @@ func _spawn_player() -> void:
 		player.get_node("EquipmentManager"), player.get_node("Head/Camera3D/GrenadeHandler"))
 
 
-## Hand the shooter the next gun in the armory - same seam a captured weapon
-## uses, so what you test IS what you would pick up off a body.
 func _equip(idx: int) -> void:
 	_weapon_idx = wrapi(idx, 0, ARMORY.size())
 	var wd: WeaponData = load("res://data/weapons/%s.tres" % ARMORY[_weapon_idx])
 	if wd == null or _holder == null:
 		return
 	_holder.equip_captured_weapon(wd)
-	_holder.spare_magazines = 99   # the range never runs you dry
+	_holder.spare_magazines = 99
 	_flash_board("== %s ==  zero %.0fm  |  %d dmg  |  %.0f m/s" % [
 		wd.display_name, wd.zero_range, wd.base_damage, wd.projectile_speed])
 
 
-## -------------------------------------------------------------- the targets
 func _spawn_target(dist: float) -> void:
 	var d := GoreDummy.new()
 	d.unit_id = "vc_guerilla"
-	d.idle_only = true          # he stands still: this is an AIM test
+	d.idle_only = true
 	add_child(d)
-	# Stagger left/right, widening with range: on one line the near men hide
-	# the far ones. Every target keeps clear air and its own sight picture.
+	# Stagger sideways, widening with range: on one line the near men hide the far ones.
 	var i: int = TARGET_RANGES.find(dist)
 	var side: float = -1.0 if i % 2 == 0 else 1.0
 	d.global_position = Vector3(side * (2.0 + dist * 0.02), 0.0, -dist)
 	d.rotation.y = PI          # facing the firing line
-	# His range, floating over his head. WORLD-scaled, not fixed_size: a
-	# screen-locked label puts all ten on top of each other at the vanishing
-	# point (one green mush) and paints over the men you are trying to shoot.
-	# Scaling the glyphs with distance keeps them legible AND in their lane.
+	# WORLD-scaled, not fixed_size: screen-locked labels pile up into one mush at
+	# the vanishing point and paint over the men you are trying to shoot.
 	var tag := Label3D.new()
 	tag.text = "%dm" % int(dist)
 	tag.font_size = 64
@@ -210,7 +168,6 @@ func _reset_targets() -> void:
 	GibSystem.clear_gibs()
 
 
-## --------------------------------------------------------------- the board
 func _log_hit(dist: float, zone: String, amount: int, hp_left: int) -> void:
 	_log_line("%4.0fm  %-9s %3d dmg   hp %d" % [dist, zone, amount, hp_left])
 
@@ -257,9 +214,7 @@ func _build_hud() -> void:
 	add_child(zm)
 
 
-## The honest cheat sheet: where THIS gun's round sits relative to the sights
-## at each range, from the same maths the bullet flies (zero elevation minus
-## gravity drop). Positive = above the crosshair, negative = below.
+## Impact vs point of aim at each range: positive = above the crosshair.
 func _drop_sheet(wd: WeaponData) -> String:
 	if wd == null:
 		return ""
@@ -322,20 +277,9 @@ func _process(_delta: float) -> void:
 			_sheet.text = _drop_sheet(_holder.current_weapon)
 
 
-## ================= THE PENETRATION ROW =================
-## Walk right. Shoot THROUGH things. Watch what reaches the man.
-##
-## Each lane is a material panel with a docile VC behind it. The label over his head
-## states the DOCTRINE ("rounds punch through" / "stops the round") and then reports
-## what ACTUALLY happened. If those two disagree, the bullet code is lying, and you
-## can see it from the firing line.
-##
-## Expected, with an M16 (base 28, torso x2.5 = 70 at point blank):
-##   no cover      70      the control
-##   1 x thatch    56      x0.8
-##   2 x thatch    45      x0.64
-##   3 x thatch     0      SOFT BUDGET SPENT (soft_left = 2). The third layer eats it.
-##   sandbag        0      hard cover stops it
+## THE PENETRATION ROW: material panels with a man behind each. bullet_system:
+## a `soft_cover` hit keeps going at x0.8 energy, at most soft_left = 2 times -
+## so the THIRD soft layer stops the round. `hard_surface` stops it outright.
 const PEN_X0: float = 34.0      ## first lane, right of the main range
 const PEN_SPACING: float = 6.0
 const PEN_PANEL_Z: float = -16.0
@@ -375,12 +319,9 @@ func _build_pen_row() -> void:
 		var layers: int = int(spec[1])
 		var soft: bool = bool(spec[2])
 
-		# The panels. Stacked back-to-front so a multi-layer lane is a real wall
-		# of thatch, not one box pretending to be three.
 		for k in range(layers):
 			_build_panel(lane_x, PEN_PANEL_Z + float(k) * 0.7, nm, soft)
 
-		# The man behind it.
 		var man := GoreDummy.new()
 		man.unit_id = "vc_guerilla"
 		man.idle_only = true
@@ -407,7 +348,6 @@ func _build_pen_row() -> void:
 			_log_line("PEN  %-11s  %-5s  %3d dmg   (%d hits through)" % [
 				r.name, zone, amount, r.hits])
 			_refresh_pen(idx))
-		# He re-stands: a dead man behind a panel proves nothing twice.
 		man.died.connect(func() -> void:
 			_log_line("PEN  %-11s  >>> DOWN <<<" % nm))
 		_refresh_pen(idx)
@@ -418,9 +358,7 @@ func _build_panel(x: float, z: float, nm: String, soft: bool) -> void:
 	body.name = "panel_%s" % nm.to_lower().replace(" ", "_")
 	body.collision_layer = 1     # the layer LOS and bullets test against
 	body.collision_mask = 0
-	# THE WHOLE POINT. bullet_system reads these GROUPS - not the mesh, not the
-	# material, not the name. Before this row, `soft_cover` had ONE member in the
-	# entire game and `hard_surface` had NONE.
+	# bullet_system reads these GROUPS - not the mesh, the material, or the name.
 	if soft:
 		body.add_to_group("soft_cover")
 	else:
@@ -435,7 +373,6 @@ func _build_panel(x: float, z: float, nm: String, soft: bool) -> void:
 	bm.size = shape.size
 	mi.mesh = bm
 	var mat := StandardMaterial3D.new()
-	# Soft = straw yellow. Hard = grey stone. Readable from the firing line.
 	mat.albedo_color = Color(0.72, 0.60, 0.30) if soft else Color(0.42, 0.44, 0.46)
 	mi.material_override = mat
 	body.add_child(mi)
@@ -450,7 +387,6 @@ func _refresh_pen(i: int) -> void:
 	var last: int = int(r.last)
 	var soft: bool = bool(r.soft)
 	var layers: int = int(r.layers)
-	# The verdict. Doctrine says what SHOULD happen; the man says what DID.
 	# soft_left = 2, so three soft layers must stop the round.
 	var should_pass: bool = layers == 0 or (soft and layers <= 2)
 	var verdict: String = "- no rounds yet -"
@@ -460,7 +396,7 @@ func _refresh_pen(i: int) -> void:
 		verdict = "STOPPED (shoot it to confirm)"
 	lbl.modulate = Color(0.9, 0.95, 0.6) if should_pass else Color(0.75, 0.8, 0.85)
 	if hits > 0 and not should_pass:
-		lbl.modulate = Color(1.0, 0.3, 0.25)   # a bug, and you can see it from the line
+		lbl.modulate = Color(1.0, 0.3, 0.25)
 	lbl.text = "%s
 %s
 %s   dmg %d   hits %d" % [r.name, r.doctrine, verdict, last, hits]

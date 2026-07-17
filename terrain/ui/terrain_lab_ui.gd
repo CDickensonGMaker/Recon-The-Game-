@@ -7,14 +7,12 @@ signal regenerate_requested
 signal damage_mode_changed(type: int)
 signal clearing_mode_changed(enabled: bool)
 
-# Section containers (we'll build these dynamically)
 var preset_dropdown: OptionButton
 var seed_label: Label
 var stats_label: Label
 var damage_dropdown: OptionButton
 var clearing_check: CheckButton
 
-# Parameter sliders dictionary
 var param_sliders: Dictionary = {}
 
 var terrain_engine: Node
@@ -30,18 +28,15 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	# Find UI elements from the scene tree
 	preset_dropdown = $Panel/VBox/PresetSection/PresetDropdown
 	seed_label = $Panel/VBox/SeedSection/SeedValue
 	stats_label = $Panel/VBox/StatsSection/Stats
 	damage_dropdown = $Panel/VBox/DamageSection/DamageDropdown
 	clearing_check = $Panel/VBox/ClearingSection/ClearingToggle
 
-	# Setup presets
 	_setup_presets()
 	_setup_damage_types()
 
-	# Connect basic sliders
 	_connect_slider("HeightScale", "height_scale", 50.0, 500.0, 280.0, "%.0f m")
 	_connect_slider("BaseFreq", "base_frequency", 0.5, 10.0, 2.0, "%.3f", 0.001)
 	_connect_slider("Smoothing", "smoothing_passes", 0, 5, 2, "%d")
@@ -52,7 +47,6 @@ func _build_ui() -> void:
 	_connect_slider("RidgeBlend", "ridge_blend", 0.0, 1.0, 0.4, "%.2f")
 	_connect_slider("ErosionIter", "erosion_iterations", 0, 100000, 50000, "%.0fk", 0.001)
 
-	# Connect toggles
 	_connect_toggle("WarpEnabled", "warp_enabled", true)
 	_connect_toggle("RidgeEnabled", "ridge_enabled", true)
 	_connect_toggle("ErosionEnabled", "erosion_enabled", true)
@@ -105,10 +99,10 @@ func _setup_presets() -> void:
 		return
 
 	preset_dropdown.clear()
-	preset_dropdown.add_item("Rolling Hills", 0)
-	preset_dropdown.add_item("Steep Mountains", 1)
-	preset_dropdown.add_item("River Valley", 2)
-	preset_dropdown.add_item("Coastal Hills", 3)
+	preset_dropdown.add_item("Coastal Hills", 0)
+	preset_dropdown.add_item("River Valley", 1)
+	preset_dropdown.add_item("Rolling Hills", 2)
+	preset_dropdown.add_item("Steep Mountains", 3)
 	preset_dropdown.add_item("Plateau", 4)
 	preset_dropdown.add_item("Custom", 5)
 	preset_dropdown.selected = 0
@@ -156,10 +150,8 @@ func _update_sliders_from_preset(preset: int) -> void:
 	if preset >= 5:  # Custom - don't update
 		return
 
-	# Get preset params
 	var preset_params: Dictionary = terrain_engine.preset_params.get(preset, {})
 
-	# Update each slider to match preset
 	for param in param_sliders:
 		if preset_params.has(param):
 			var slider_data: Dictionary = param_sliders[param]

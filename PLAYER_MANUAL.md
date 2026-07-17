@@ -15,22 +15,40 @@ remembers what you do (AA threat, intel, your roster).
 | Mouse 1 / Mouse 2 / R | Fire / aim / reload |
 | 1–4 | Rifle / pistol / grenade / medkit |
 | **5 / 6 / 7 / 8** | Smoke / claymore / pop flare / call resupply |
-| **F** | Interact (plant, loot, capture, tunnel, board) |
+| **F** | Interact (plant, loot, capture, tunnel, board, **armorer's bench**) |
+| **9 / 0** (hold) | Eat a ration / **field-strip the rifle** (12s, +25% condition, costs a kit) |
 | **B** (hold) | Binoculars — glass a man for 2s to mark him |
 | **M** | Topographic map |
 | **T / Y** | Call CAS strike / mortar fire mission (needs the RTO alive) |
 | **G** (hold 2s) | ABORT — emergency exfil, partial credit |
 | **F1–F4** | Squad: on me / hold / move there / weapons tight-free |
 
-## 3. THE TEAM (your RPG)
+## 3. THE TEAM
 Five men, persistent across missions, each an MOS:
-- **POINT ("EYES")** — spots ambushes and trap wires ahead. His Alertness sets his radius.
+- **POINTMAN ("EYES")** — spots ambushes and trap wires ahead.
 - **RTO ("RADIO")** — carries the net. He dies, you lose CAS, mortars, resupply.
 - **MEDIC ("DOC")** — when you drop, he runs to you. 2 revives per mission. Protect him.
-- **PIGMAN ("PIG")** — sustained fire. **GRENADIER ("THUMPER")** — auto-lobs M79 at clusters.
-KIA are gone for good; green replacements arrive. Veterans cap out and rotate home.
-Spend team XP in the **BARRACKS**: skills (Small Arms, Silent Movement, Demolitions,
-Medic, FO/FAC...) and attributes (**ST** = HP+stamina, **AG** = handling, **AL** = perception).
+- **MG ("PIG")** — sustained fire. **GRENADIER ("THUMPER")** — auto-lobs M79 at clusters.
+- **MARKSMAN ("DEADEYE")** — an alternate; he takes the long shots.
+
+**You do not have stats, and neither do they.** There is nothing to buy and no levels to
+grind. Your aim on mission one is your aim on mission one hundred (ADR-018).
+
+**Your men get better by doing the job, and they never tell you.** Doc gets to you faster
+because he has pulled you out before. The pointman learns the trip wire by walking point.
+The RTO's fire missions land quicker because he has called them before. You will not see a
+number — you are meant to *feel* it, and to feel it when a veteran dies and a green kid
+takes his slot. KIA are gone for good. The **BARRACKS** shows the man, not a character
+sheet: GREEN → BREAKING IN → STEADY → SEASONED → SALTY.
+
+**Look at a man from within 5m** and his rank, name and role surface. That is how you find
+your RTO in a firefight — and he is the one you cannot afford to lose.
+
+## 3b. YOUR RIFLE IS YOUR JOB
+Every shot fouls it, and rain fouls it faster. A dirty weapon **jams** — it never does less
+damage. Condition **carries between missions**; nothing cleans it for free.
+- **Field-strip [0]** (hold 12s): +25%. A stopgap, and twelve seconds you may not have.
+- **The armorer's bench** at the firebase (hold **F**, 20s): back to 100%. The only real fix.
 
 ## 4. THE ENEMY
 Local Force (SKS, breaks under pressure — some will *Chieu Hoi*, capture them for

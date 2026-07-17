@@ -1,4 +1,4 @@
-## main_menu.gd - Title screen built to Caleb's mockups (W-menu / UI pass v1):
+## main_menu.gd - title screen:
 ## full-bleed key art, left menu column w/ olive highlight, intel briefing panel.
 class_name MainMenuScreen
 extends Control

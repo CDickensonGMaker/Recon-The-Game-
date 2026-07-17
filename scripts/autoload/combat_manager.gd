@@ -13,18 +13,16 @@ var player: Node = null
 ## Projectile pool for all projectiles in the game
 var projectile_pool: ProjectilePool = null
 
-## Real bullet simulation (7ks) - every small-arms round in the game.
+## Real bullet simulation - every small-arms round in the game.
 var bullets: BulletSystem = null
 
 ## Cleanup timer for invalid entities
 var _cleanup_timer: float = 0.0
 const CLEANUP_INTERVAL: float = 5.0
 
-## Knockback settings (Quake 3 inspired)
-## Blast shove, not blast LAUNCH (realistic-combat pillar): the old 1.0x scale
-## with a 200 m/s cap fired living men across the arena off one grenade. A
-## near miss now staggers a man a step; the dead crumple via the ragdoll
-## doctrine instead of flying.
+## Knockback: blast SHOVE, not blast LAUNCH (realistic-combat pillar). A near miss
+## staggers a man a step; the dead crumple via the ragdoll doctrine, they do not
+## fly.
 const KNOCKBACK_SCALE: float = 0.05
 const MAX_KNOCKBACK: float = 6.0
 
@@ -118,9 +116,8 @@ func _apply_knockback(target: Node, direction: Vector3, force: float, damage: in
 
 
 ## Blast damage curve: FULL damage inside the kill plateau (40% of radius - a
-## grenade in a fireteam's lap WIPES it, HLL-style), linear taper to the edge.
-## Pure linear falloff let men 4m from an M26 shrug it off (Caleb: "a grenade
-## thrown at 4 guys didn't really do anything").
+## grenade in a fireteam's lap WIPES it), then a linear taper to the edge. A pure
+## linear falloff is NOT enough: it lets men 4m from an M26 shrug it off.
 func _explosion_damage_at(dist: float, radius: float, max_damage: int, min_damage: int) -> int:
 	var plateau: float = radius * 0.4
 	if dist <= plateau:
@@ -158,9 +155,8 @@ func apply_explosion_damage(
 					knockback_dir = Vector3.UP
 				_apply_knockback(player, knockback_dir, knockback_scale * 2.0, damage)
 
-	# Damage allies in range. ITERATE A SNAPSHOT: a kill unregisters the man
-	# from this very array mid-loop, which shifts it and SKIPS his neighbor -
-	# the "grenade at 4 guys did nothing" bug (every other man untouched).
+	# Damage allies in range. ITERATE A SNAPSHOT: a kill unregisters the man from
+	# this very array mid-loop, which shifts it and SKIPS his neighbour.
 	for ally in active_allies.duplicate():
 		if not is_instance_valid(ally) or not ally is Node3D:
 			continue
@@ -169,10 +165,9 @@ func apply_explosion_damage(
 		if dist <= radius:
 			if _can_damage_multipoint(space_state, center, ally_pos, ally):
 				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
-				# Asymmetric danger-close (War Room decree): indirect / ordnance fire
-				# (attacker == null - arty, CAS, napalm, CBU, placed charges) does only
-				# ~0.4x to your own men, so a called strike THREATENS but doesn't delete
-				# the veterans you've grown to love. Direct fire (a real attacker) is full.
+				# Asymmetric danger-close: INDIRECT fire (attacker == null - arty, CAS,
+				# napalm, CBU, placed charges) does only ~0.4x to your own men, so a
+				# called strike threatens without deleting your squad. Direct fire is full.
 				if attacker == null:
 					damage = maxi(1, int(float(damage) * 0.4))
 

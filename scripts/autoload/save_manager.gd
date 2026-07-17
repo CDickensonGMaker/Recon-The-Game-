@@ -1,4 +1,4 @@
-## save_manager.gd - Save orchestrator (Catacombs of Gore architecture, ported).
+## save_manager.gd - save orchestrator.
 ## JSON slots in user://saves/. Slots 0-7 manual (0 = quicksave), 8 = periodic
 ## autosave, 9 = exit autosave. Collect/apply brokers SaveData sections to the
 ## live systems; each system serializes itself (CampaignState.to_dict etc).
@@ -21,8 +21,8 @@ enum Tier { REGULAR, HARD, IRONMAN }
 var context: String = "menu"
 ## Hub board state, maintained by GameFlow (operation seed/name, offers, accepted).
 var hub_snapshot: Dictionary = {}
-## Sections stashed by load_game() for GameFlow to consume once the world exists
-## (Catacombs' deferred-apply pattern - never apply position into a dead scene).
+## Sections stashed by load_game() for GameFlow to consume once the world exists.
+## Deferred-apply: NEVER apply a position into a dead scene.
 var pending_player: SaveData.PlayerSection = null
 var pending_hub: SaveData.HubSection = null
 
@@ -178,7 +178,7 @@ func load_game(slot: int) -> SaveData:
 ## Apply everything that is safe WITHOUT a live world; stash the rest for
 ## GameFlow (pending_player / pending_hub, applied after the hub spawns).
 func apply(s: SaveData) -> void:
-	# Load-safety (Catacombs): reset interaction state before touching anything.
+	# Load-safety: reset interaction state before touching anything.
 	GameManager.is_paused = false
 	GameManager.is_in_menu = false
 	CampaignState.from_dict(s.campaign.data)
@@ -269,7 +269,7 @@ func get_save_info(slot: int) -> Dictionary:
 ## ------------------------------------------------------------------ internals
 
 func _migrate(d: Dictionary, from_version: int) -> Dictionary:
-	# Sequential migration blocks (Catacombs pattern). v1 is first, nothing yet:
+	# Sequential migration blocks. v1 is first, nothing yet:
 	# if from_version < 2: d["new_section"] = {...}
 	push_warning("[SAVE] migrating save v%d -> v%d" % [from_version, SaveData.SCHEMA_VERSION])
 	d["version"] = SaveData.SCHEMA_VERSION

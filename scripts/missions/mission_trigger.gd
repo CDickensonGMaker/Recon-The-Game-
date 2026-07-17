@@ -1,19 +1,15 @@
-## mission_trigger.gd - Diegetic trigger volume for scripted events.
-## (batch_research §6 / MISSION_DESIGN_RESEARCH §4 - the RTCW/MoHAA trigger zoo
-## collapsed into one configurable Area3D.)
+## mission_trigger.gd - Configurable trigger volume for scripted events.
 ##
 ## Modes:
 ##   ENTER - a body (player / ally / enemy per filter) physically enters the volume
 ##   SIGHT - the player has genuine raycast LOS to `sight_marker` within range
-##           (CombatManager.has_line_of_sight - the photo-objective pattern; NEVER
-##           a camera-look fake)
+##           (CombatManager.has_line_of_sight - NEVER a camera-look fake)
 ##   NOISE - a NoiseBus event lands within `noise_radius` of this trigger
 ##   TIMER - fires `timer_seconds` after activation (armed at _ready or via activate())
 ##
-## HONESTY LAW (Pillar 3 / honest-quiet decree): this node only OBSERVES and
-## emits `triggered`. It never spawns, teleports, wakes or mutates entities.
-## Consumers must draw any cast from the AO's live, finite population -
-## events never conjure men. There is deliberately no spawn helper here.
+## HONESTY LAW (Pillar 3): this node only OBSERVES and emits `triggered`. It never
+## spawns, teleports, wakes or mutates entities, and there is deliberately no spawn
+## helper here - consumers must draw any cast from the AO's live, finite population.
 class_name MissionTrigger
 extends Area3D
 
@@ -60,7 +56,7 @@ func _ready() -> void:
 	monitorable = false
 	monitoring = true
 	collision_layer = 0
-	# Layer 2 = player (allies ride it too - ally_base.gd:897), layer 3 = enemies.
+	# Layer 2 = player (allies ride it too), layer 3 = enemies.
 	collision_mask = 2 | 4
 	body_entered.connect(_on_body_entered)
 	NoiseBus.noise_emitted.connect(_on_noise_emitted)
@@ -169,8 +165,8 @@ func _on_noise_emitted(type: int, position: Vector3, radius: float, source_team:
 	})
 
 
-## Player-LOS check on the photo-objective pattern: distance window + a real
-## world-geometry raycast from eye height. Requires dwell (continuous sight).
+## Distance window + a real world-geometry raycast from eye height, held for
+## `sight_dwell` continuous seconds.
 func _poll_sight(delta: float) -> void:
 	if not _can_consider():
 		return

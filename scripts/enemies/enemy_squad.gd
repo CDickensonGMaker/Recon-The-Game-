@@ -1,30 +1,16 @@
-## enemy_squad.gd - the coordinator the enemies never had.
-##
-## Council keystone: the individual soldier brain is good; what was missing was a
-## layer ABOVE it that makes a group act like a fireteam. This is a static
-## registry (no node lifecycle) keyed by squad id. Each EnemyBase pushes what it
-## sees and pulls what the squad knows, at think rate (6.7 Hz).
-##
-## What it buys, all from data the soldier brain already consumes:
-##   - SHARED TARGET DESIGNATION -> focus fire (everyone shoots the same man)
-##   - ALERT PROPAGATION -> a buddy spotting you wakes the squad (no lone blind man)
-##   - BREADCRUMBS -> searchers go where you WENT, not where you were last pixel-seen
-##
-## Cleared by MissionScope.reset() so squad 3 of mission 5 is not squad 3 of
-## mission 1.
+## enemy_squad.gd - static per-squad registry: shared target, alert propagation, breadcrumbs.
+## Static registry (no node lifecycle), keyed by squad id. Each EnemyBase pushes
+## what it sees and pulls what the squad knows, at think rate.
+## Cleared by MissionScope.reset() - squad 3 of mission 5 is not squad 3 of mission 1.
 class_name EnemySquad
 extends RefCounted
 
 const SHARE_RANGE: float = 30.0        ## a spotter wakes squadmates within this
-## THE TRAIL (Summoner, 2026-07-12, watching the patrol lab: "even the most
-## searching unit stops after their circles hit. i think the nva should get more
-## additional breadcrumbs to follow"). Five crumbs at 1/sec was FIVE SECONDS of
-## your path - not a trail, a rounding error. You could outrun it at a walk.
 const CRUMB_INTERVAL: float = 0.6      ## seconds between trail crumbs
 const CRUMB_MAX: int = 20              ## ~12 seconds of the player's actual path
 const KNOWLEDGE_TTL: float = 12.0      ## squad "loses the scent" after this
 
-## HLL doctrine pass (2026-07-10): fire-and-maneuver + anti-spam brokers.
+## Fire-and-maneuver + anti-spam brokers.
 const COVERING_FIRE_WINDOW_MS: float = 1500.0   ## a squadmate shot this recently = you're covered
 const SQUAD_GRENADE_COOLDOWN_MS: float = 12000.0
 const GLOBAL_GRENADE_SPACING_MS: float = 5000.0 ## max one grenade in the AO per this window
@@ -38,8 +24,74 @@ static var _squads: Dictionary = {}
 static var _last_grenade_global_ms: float = -1e9
 
 
+## ============================================================================
+## ACTIVITY TIERING (ADR-026 Part B): the rolling hot-set compute budget.
+## A bounded set of fighters run FULL combat AI (target acquisition, LOS raycasts,
+## precise aim, cover, grenades - the expensive _think work). Everyone else in the
+## fight runs cheap behavior and is promoted into the hot-set when a hot fighter
+## dies or disengages. This is the single authority: one global roster across the
+## AO's live combat, so per-frame AI cost stays flat regardless of body count.
+##
+## GUARD-RAIL (ADR-005): the WITNESS heartbeat is NOT tiered here. Cold units keep
+## physics + perception; tiering only sheds the expensive targeting/aiming path.
+const HOT_CAP: int = 12          ## rolling target: this many fighters run full combat AI
+const HOT_CEILING: int = 16      ## the roster may never exceed this (defensive clamp)
+## Probe A/B switch. false => is_hot() is always true => every fighter runs full
+## combat AI (the pre-tiering behavior), for measuring the frame-time delta.
+static var tiering_enabled: bool = true
+static var _hot: Dictionary = {} ## instance_id -> true, the current hot fighters
+
+
+## Drop dead / freed references so a leaked slot cannot starve promotion. Bounded
+## by HOT_CEILING, so this is cheap even when called from every cold think.
+static func _prune_hot() -> void:
+	for id in _hot.keys():
+		var o: Object = instance_from_id(int(id))
+		if o == null or not is_instance_valid(o) or (o.has_method("is_dead") and o.is_dead()):
+			_hot.erase(id)
+
+
+static func hot_count() -> int:
+	_prune_hot()
+	return _hot.size()
+
+
+static func is_hot(who: Object) -> bool:
+	if not tiering_enabled:
+		return true            ## tiering off: everyone runs full combat AI
+	if who == null:
+		return false
+	return _hot.has(who.get_instance_id())
+
+
+## Claim a hot slot if one is free. Returns true if `who` is (now) hot. The natural
+## promote-on-death: a cold fighter thinking after a hot man falls finds the freed
+## slot here and takes it.
+static func request_hot(who: Object) -> bool:
+	if not tiering_enabled:
+		return true
+	if who == null:
+		return false
+	var id: int = who.get_instance_id()
+	if _hot.has(id):
+		return true
+	_prune_hot()
+	if _hot.size() >= HOT_CAP:
+		return false
+	_hot[id] = true
+	return true
+
+
+## Give up the slot on death or disengage - frees it for the next cold fighter.
+static func release_hot(who: Object) -> void:
+	if who == null:
+		return
+	_hot.erase(who.get_instance_id())
+
+
 static func clear() -> void:
 	_squads.clear()
+	_hot.clear()
 	_last_grenade_global_ms = -1e9
 
 
@@ -51,7 +103,7 @@ static func _s(id: int) -> Dictionary:
 	return _squads[id]
 
 
-## ---- fire-and-maneuver: covering fire (doctrine C) -------------------------
+## ---- fire-and-maneuver: covering fire -------------------------------------
 
 ## A member fired a shot. One dict write per trigger pull.
 static func report_firing(id: int, who: Object, now_ms: float) -> void:
@@ -72,7 +124,7 @@ static func has_covering_fire(id: int, me: Object, now_ms: float) -> bool:
 		and int(sq.last_firer) != me.get_instance_id()
 
 
-## ---- honest attention: engagement census (doctrine D) ----------------------
+## ---- honest attention: engagement census ----------------------------------
 
 ## Each member reports who it is shooting at, at think rate.
 static func report_engagement(id: int, me: Object, tgt: Object, now_ms: float) -> void:
@@ -100,7 +152,7 @@ static func count_engaging(id: int, tgt: Object, me: Object, now_ms: float) -> i
 	return n
 
 
-## ---- anti-spam: grenade broker (doctrine E, the _cover_claims pattern) -----
+## ---- anti-spam: grenade broker --------------------------------------------
 
 static func grenade_ready(id: int, now_ms: float) -> bool:
 	if (now_ms - _last_grenade_global_ms) < GLOBAL_GRENADE_SPACING_MS:
@@ -120,16 +172,8 @@ static func claim_grenade(id: int, now_ms: float) -> void:
 ## A member with eyes on reports the contact. Designates the squad target, drops
 ## a breadcrumb trail, and stamps the time so the knowledge decays.
 ## `leaves_trail = false` means: they SEE him, but he is LEAVING NO SIGN.
-##
-## WATER BREAKS TRAIL. It is what the SOG teams actually did, and it is the one
-## counterplay that makes a 169m/minute chase survivable. Wade a creek and no crumbs
-## are laid; the freshest crumb stays at the bank where you went IN. Come out
-## somewhere else and the trail simply stops - the net anchors on the water and
-## loses the thread.
-##
-## The trade is honest and entirely historical: water is OPEN (it conceals nothing),
-## SLOW (you are wading), LOUD (you are splashing), and it has leeches. It buys you
-## exactly one thing, and it is the thing you need: IT ERASES YOU.
+## WATER BREAKS TRAIL: wade a creek and no crumbs are laid. The freshest crumb
+## stays at the bank where you went IN; come out elsewhere and the trail stops.
 static func report_contact(id: int, target: Node3D, pos: Vector3, now_ms: float,
 		leaves_trail: bool = true) -> void:
 	if id < 0 or target == null:
@@ -186,37 +230,20 @@ static func search_point(id: int, from_pos: Vector3, reached_radius: float) -> V
 
 
 ## ============================== THE HUNT ==============================
-## Summoner, bead 0623: "they need patrol routes, A TOUGH SEARCHING MECHANISM WHEN
-## YOU ARE EVADING THEM, teamwork and firing cohesion."
-##
-## What search USED to be: every man in the squad walked to the same breadcrumb,
-## stood on it, and the goal-scorer dropped INVESTIGATE after 5 seconds. So five men
-## piled onto one point and then forgot about you. Evasion was trivial - and until
-## the witness rule shipped this morning, breaking contact wasn't even possible, so
-## nobody noticed.
-##
-## What it is now: a SECTORED, EXPANDING NET, biased along the direction you ran.
+## A SECTORED, EXPANDING NET, biased along the direction you ran:
 ##   - Each searcher holds a STABLE SECTOR. They fan into wedges; they never clump.
 ##   - The ring GROWS with time. Standing still does not save you - it buries you.
-##   - The cone is biased toward your HEADING (from the breadcrumb trail), because a
-##     man who saw you break left does not search right.
-##   - DETERMINATION decides how long and how far. NVA hunt ~85s and push the net
-##     out past 60m. A VC farmer quits in 40s. Same code, different men.
-##   - Fresh sign RE-ANCHORS the whole net (a body you left behind moves the hunt
-##     onto it - the witness rule and the hunt are one system).
+##   - The cone is biased toward your HEADING (from the breadcrumb trail).
+##   - DETERMINATION decides how long and how far (NVA ~85s, past 60m; VC ~40s).
+##   - Fresh sign RE-ANCHORS the whole net (the witness rule and the hunt are one).
 
 const HUNT_R0: float = 8.0            ## the net starts this wide
 const HUNT_GROWTH: float = 1.4        ## m/s the ring pushes outward (x determination).
-                                      ## Tuned DOWN from 3.2: the net was hitting its 70m
-                                      ## cap in 16s, so searchers sprinted straight past the
-                                      ## player to the outer ring. A sweep CLEARS GROUND -
-                                      ## close in first, then wider. ~17m at 5s, 42m at 20s,
-                                      ## 70m by 45s. Slow enough to be menacing.
+                                      ## A sweep CLEARS GROUND - close in first, then wider:
+                                      ## ~17m at 5s, 42m at 20s, 70m by 45s.
 const HUNT_R_MAX: float = 70.0        ## ...for an average man; scaled by determination below
 ## THE NET ADVANCES. It does not just inflate. The anchor SLIDES down the heading -
-## they extrapolate your run and push the whole sweep after you. Without this the
-## hunt was a donut that grew to its cap and then sat there while a timer ran out,
-## which is exactly what the lab showed.
+## they extrapolate your run and push the whole sweep after you.
 const HUNT_ADVANCE: float = 1.1        ## m/s the anchor slides along the trail (x determination)
 const HUNT_ADVANCE_MAX: float = 130.0  ## ...but they cannot chase you to the horizon
 const HUNT_ARC_DEG: float = 80.0      ## half-angle of the search cone about the heading
@@ -226,13 +253,6 @@ const HUNT_DET_S: float = 65.0        ## ...plus this much, scaled by determinat
 
 
 ## WHICH WAY WAS HE RUNNING? The crumb trail, read oldest -> newest, IS his course.
-##
-## THE BUG THIS REPLACES (found 2026-07-12 in the patrol lab): enemy_base built the
-## heading from search_point(), which walks crumbs NEWEST->OLDEST and returns the
-## second-newest. So `heading = older_crumb - last_known` - it pointed where he had
-## COME FROM. The net has been sweeping backwards since the day it shipped, and
-## probe_hunt never saw it because the probe passed the heading in by hand and only
-## ever tested EnemySquad in isolation. Test the WIRING, not just the part.
 static func trail_heading(id: int) -> Vector3:
 	if id < 0 or not _squads.has(id):
 		return Vector3.ZERO
@@ -248,7 +268,6 @@ static func trail_heading(id: int) -> Vector3:
 
 ## How much of the trail THIS MAN can actually read. A farmer sees churned mud. An
 ## NVA regular reads the whole run: how many, how fast, how long ago.
-## (Summoner: "the nva should get more additional breadcrumbs to follow.")
 static func readable_crumbs(determination: float) -> int:
 	return clampi(int(lerpf(4.0, float(CRUMB_MAX), clampf(determination, 0.0, 1.0))), 4, CRUMB_MAX)
 
@@ -335,11 +354,8 @@ static func hunt_point(id: int, me: Object, now_ms: float, determination: float)
 
 	# ALTERNATING FAN, opening outward from the heading:
 	#   slot 0 -> dead ahead   1 -> +step   2 -> -step   3 -> +2step   4 -> -2step
-	# Deliberately does NOT depend on how many men are in the squad. The first
-	# version divided by the number of men who had ASKED SO FAR, so every man after
-	# the first computed slot == n-1 and they ALL walked to the right-hand flank -
-	# four men in single file to the same bush. The probe caught it; the fan can't
-	# have that bug, and it degrades gracefully as searchers are killed.
+	# Deliberately does NOT depend on how many men are in the squad: it must degrade
+	# gracefully as searchers are killed, and never collapse men onto one flank.
 	var ring: int = (slot + 1) / 2
 	var side: float = 1.0 if (slot % 2) == 1 else -1.0
 	var off_deg: float = clampf(side * float(ring) * HUNT_STEP_DEG, -HUNT_ARC_DEG, HUNT_ARC_DEG)
@@ -367,3 +383,37 @@ static func hunt_radius(id: int, now_ms: float, determination: float) -> float:
 	# ~88m for an NVA regular.
 	var cap: float = HUNT_R_MAX * (0.65 + 0.6 * det)
 	return minf(cap, HUNT_R0 + HUNT_GROWTH * elapsed * (0.6 + det))
+
+
+## ---- formation slots: where each squad member should stand RIGHT NOW ------
+## The leader publishes its position + facing; followers slot relative to both.
+## Slot 0 is the point (returns leader_pos). Slot 1 cover-left, 2 cover-right,
+## 3+ trail behind in pairs. The formation KEYS the squad to the leader's body
+## - if the leader dies the formation collapses; promote the next man.
+
+const FORMATION_SPACING: float = 3.2
+const FORMATION_TRAIL_SPACING: float = 2.4
+
+
+static func formation_positions(leader_pos: Vector3, leader_facing: Vector3, count: int) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if count <= 0:
+		return out
+	var fwd: Vector3 = Vector3(leader_facing.x, 0.0, leader_facing.z)
+	if fwd.length() < 0.01:
+		fwd = Vector3.FORWARD
+	else:
+		fwd = fwd.normalized()
+	var right: Vector3 = fwd.cross(Vector3.UP).normalized()
+	out.append(leader_pos)
+	if count >= 2:
+		out.append(leader_pos - right * FORMATION_SPACING)
+	if count >= 3:
+		out.append(leader_pos + right * FORMATION_SPACING)
+	for i in range(3, count):
+		var pair: int = (i - 3) / 2
+		var side: float = -1.0 if (i % 2) == 1 else 1.0
+		var offset: Vector3 = -fwd * (FORMATION_TRAIL_SPACING * (pair + 1)) \
+			+ right * side * FORMATION_SPACING
+		out.append(leader_pos + offset)
+	return out

@@ -30,10 +30,9 @@ static func reset_session() -> void:
 	_sting_player = null
 
 
-## W67: contact! drum sting, throttled.
-## Parented to get_tree().current_scene, which is main.tscn's GameFlow root and
-## SURVIVES _teardown_world(). Left untracked, a sting fired seconds before exfil
-## keeps playing over the debrief screen. Tracked so MissionScope can cut it.
+## Contact drum sting, throttled. Parented to get_tree().current_scene, which
+## SURVIVES _teardown_world() - so it must be TRACKED here for MissionScope to
+## cut, or a sting fired before exfil keeps playing over the debrief screen.
 static var _sting_player: AudioStreamPlayer = null
 
 
@@ -104,9 +103,8 @@ static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explos
 	_spawn_explosion_visual(parent, pos)
 
 
-## Procedural explosion visual (was a TODO - explosions had audio + a crater but no
-## FIRE): a bright flash light, an expanding emissive fireball, a rising smoke puff,
-## and a dirt/debris kick. No art needed. Every explosion caller gets it through here.
+## Procedural explosion visual: flash light, expanding emissive fireball, rising
+## smoke puff, dirt/debris kick. Every explosion caller routes through here.
 static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	if parent == null or _active_explosions >= MAX_EXPLOSIONS:
 		return
@@ -179,9 +177,9 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 		root.queue_free())
 
 
-## Self-contained expiry: a Timer CHILD of `node` (dies with it - a scene-tree
-## timer lambda would dangle if the node is freed first, e.g. mission teardown,
-## and the engine error-spams "Lambda capture was freed"). [test_site_stamp fix]
+## Self-contained expiry: a Timer CHILD of `node`, so it dies with it. A
+## scene-tree timer lambda would dangle if the node is freed first (e.g. mission
+## teardown) and the engine error-spams "Lambda capture was freed".
 static func _expire(node: Node, seconds: float, cb: Callable) -> void:
 	var t := Timer.new()
 	t.one_shot = true
@@ -215,11 +213,9 @@ static func _get_flash_tex() -> GradientTexture2D:
 	return _flash_tex
 
 
-## ONE material for every muzzle flash in the game. This used to mint a fresh
-## StandardMaterial3D on every call - and it is called TWICE per shot (core +
-## spike), so an M60 at 550rpm was allocating ~18 materials a second, each a new
-## RID and uniform set. The flashes differ by mesh size and roll, not by
-## material, so they can all share this one. (perf audit)
+## ONE shared material for every muzzle flash in the game. Flashes differ by mesh
+## size and roll, NOT by material, and this is called twice per shot (core +
+## spike) - never mint a fresh StandardMaterial3D here.
 static var _shared_flash_mat: StandardMaterial3D = null
 
 
@@ -241,7 +237,7 @@ static func _flash_mat() -> StandardMaterial3D:
 
 ## Muzzle flash: warm omni light + a radial burst with a star cross - two
 ## billboard quads (round core + elongated spike pair), random roll + size
-## jitter so no two shots read identical. 45ms. (Was: a flat yellow square.)
+## jitter so no two shots read identical. 45ms.
 static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
@@ -313,12 +309,10 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = fal
 	p.finished.connect(p.queue_free)
 
 
-## Flesh hit: red-brown spray + wet tick. MoHAA's single biggest "shooting a body
-## feels different from shooting a wall" cue. weapon_holder used to spawn NOTHING
-## on flesh (only the non-flesh dirt puff).
-## Blood v2 (Phase 1, our generated textures): HLL-style layered hit -
-## flipbook MIST puff + fine droplets + a splat decal on the surface BEHIND the
-## target + persistent wound blood ON the victim (readability: see who is hurt).
+## Flesh hit - the cue that shooting a body feels different from shooting a wall.
+## Layered: flipbook MIST puff + fine droplets + a splat decal on the surface
+## BEHIND the target + persistent wound blood ON the victim (so you can see at a
+## glance who is hurt).
 const MAX_BLOOD_DECALS: int = 24
 const MAX_BLOOD_POOLS: int = 12
 static var _blood_decals: Array[Decal] = []
@@ -441,7 +435,7 @@ static func _blood_splat_behind(parent: Node, pos: Vector3, dir: Vector3) -> voi
 		d.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 	d.rotate_object_local(Vector3.UP, randf_range(0, TAU))
 	# Purge entries whose nodes died with a scene reload FIRST: popping a freed
-	# instance into a TYPED var is a script error in 4.7 (the gore-lab spam bug).
+	# instance into a TYPED var is a script error in Godot 4.7.
 	for i in range(_blood_decals.size() - 1, -1, -1):
 		if not is_instance_valid(_blood_decals[i]):
 			_blood_decals.remove_at(i)
@@ -486,9 +480,9 @@ static func blood_wound(unit: Node, world_pos: Vector3) -> void:
 			(actor as Object).call("set_base_modulate", Color(1.0, 1.0 - 0.35 * t, 1.0 - 0.35 * t))
 
 
-## Spreading pool under a kill: 4 standalone stage textures swapped as it grows
-## (~3s). Decals cannot sample AtlasTexture, and units can die while the scene is
-## tearing down - both learned from test_cas_sim. Guards accordingly.
+## Spreading pool under a kill: 4 STANDALONE stage textures swapped as it grows
+## (~3s) - a Decal cannot sample an AtlasTexture. Units can also die while the
+## scene is tearing down, hence the is_inside_tree guards.
 static func blood_pool(parent: Node, ground_pos: Vector3) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return

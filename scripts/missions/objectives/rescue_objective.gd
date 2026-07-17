@@ -1,5 +1,5 @@
-## rescue_objective.gd - Free the POW (W48). He joins on the ally AI stack and
-## must reach exfil alive for full credit.
+## rescue_objective.gd - Free the POW. He joins on the ally AI stack and must
+## reach exfil alive for full credit.
 class_name RescueObjective
 extends ObjectiveSensor
 
@@ -14,13 +14,12 @@ var _cage: Node3D = null
 
 func setup_camp(game_world: GameWorld) -> void:
 	world = game_world
-	# Real bamboo POW cage (was a box placeholder). The POW paces inside.
 	var cage_scene: PackedScene = load("res://assets/building models/structures/vc_nva/pow_cage.glb")
 	if cage_scene:
 		_cage = cage_scene.instantiate()
 		add_child(_cage)
 	else:
-		# fallback to the old translucent box if the model is ever missing
+		# fallback if the cage model is missing
 		var planner_cage := MeshInstance3D.new()
 		var box := BoxMesh.new()
 		box.size = Vector3(2.2, 1.8, 2.2)

@@ -1,5 +1,5 @@
-## spooky_gunship.gd - AC-47 "Spooky" (PT-fire-support): orbits the target area
-## for 30s pouring tracer fire into it. The red rain.
+## spooky_gunship.gd - AC-47 "Spooky": orbits the target area for DURATION
+## seconds pouring tracer fire into it.
 class_name SpookyGunship
 extends Node3D
 
@@ -52,7 +52,6 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_age += delta
 	if _age >= DURATION:
-		# Break off and leave.
 		global_position += Vector3(1, 0.2, 0.3).normalized() * 60.0 * delta
 		if _age > DURATION + 8.0:
 			queue_free()
@@ -74,11 +73,9 @@ func _fire_burst() -> void:
 	var impact := target + Vector3(cos(a) * r, 0.0, sin(a) * r)
 	if terrain:
 		impact.y = terrain.get_height_at(impact)
-	# The visible red rain.
 	for i in range(3):
 		var jitter := Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 		BulletTracer.spawn_tracer(get_tree().current_scene, global_position, impact + jitter, Color(1.0, 0.25, 0.15))
-	# Damage anything near the impact point.
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var enemy := e as EnemyBase
 		if enemy and not enemy.is_dead() and enemy.global_position.distance_to(impact) < 4.0:

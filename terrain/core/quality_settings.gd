@@ -11,10 +11,8 @@ enum Preset {
 	ULTRA,    # High-end GPU
 }
 
-# Current active preset
 var current_preset: Preset = Preset.MEDIUM
 
-# Settings applied from preset
 var vegetation_density: float = 0.5
 var grass_enabled: bool = true
 var billboards_enabled: bool = true
@@ -26,7 +24,6 @@ var shadow_distance: float = 1500.0
 var near_tree_distance: float = 80.0
 var billboard_distance: float = 350.0
 
-# Preset definitions
 const PRESETS := {
 	Preset.POTATO: {
 		"vegetation_density": 0.1,
@@ -94,11 +91,9 @@ signal preset_changed(preset: Preset)
 
 
 func _ready() -> void:
-	# Auto-detect hardware and set initial preset
 	_auto_detect_preset()
 
 
-## Apply a quality preset
 func apply_preset(preset: Preset) -> void:
 	if not PRESETS.has(preset):
 		push_warning("QualitySettings: Invalid preset %d" % preset)
@@ -122,7 +117,6 @@ func apply_preset(preset: Preset) -> void:
 	print("[QualitySettings] Applied preset: %s" % get_preset_name(preset))
 
 
-## Get preset name as string
 static func get_preset_name(preset: Preset) -> String:
 	match preset:
 		Preset.POTATO: return "POTATO"
@@ -171,7 +165,6 @@ func _auto_detect_preset() -> void:
 	print("[QualitySettings] Unknown GPU (%s) - using MEDIUM preset" % renderer)
 
 
-## Get current settings as dictionary
 func get_current_settings() -> Dictionary:
 	return {
 		"vegetation_density": vegetation_density,

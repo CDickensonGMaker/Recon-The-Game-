@@ -1,4 +1,4 @@
-## barracks.gd - Roster + XP spend screen (W26/W27/W31/W32).
+## barracks.gd - roster + XP spend screen.
 class_name BarracksScreen
 extends Control
 
@@ -46,43 +46,40 @@ func _refresh() -> void:
 	for c in _rows.get_children():
 		c.queue_free()
 	SquadRoster.ensure_roster(CampaignState.missions_played + 1)
-	_add_row(CampaignState.player_data, "YOU", true)
 	for m in CampaignState.roster:
-		_add_row(m, str(m.nick), false)
+		_add_row(m)
 
 
-func _add_row(target: Dictionary, label_name: String, is_player: bool) -> void:
+## ADR-018: there is no "YOU" row. The player buys nothing - no stats, no skills.
+## A squadmate's experience is not a number either. He gets better by doing the job,
+## and you are meant to FEEL it in the field, not read it here. This is the man, not
+## his character sheet.
+func _add_row(member: Dictionary) -> void:
 	var panel := ReconUI.make_panel()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
-	var mos: String = str(target.get("mos", "RIFLEMAN"))
-	# The player buys the three body-owned skills; each squadmate buys the one his
-	# MOS actually uses (AUDIT-01: this row used to offer the player exactly one
-	# skill, small_arms, because MOS was pinned to RIFLEMAN and four of the six
-	# read sites queried player_data - which could never hold anything else).
-	var buyable: Array[String] = SkillCatalog.PLAYER_SKILLS if is_player else [str(SkillCatalog.MOS_SKILL.get(mos, "small_arms"))]
-	var info := "%-8s %-9s ST:%3d AG:%3d AL:%3d" % [
-		label_name, mos, int(target.get("st", 100)), int(target.get("ag", 100)), int(target.get("al", 100))]
-	if not is_player:
-		info += "  K:%d M:%d" % [int(target.get("kills", 0)), int(target.get("missions", 0))]
-	var info_label := ReconUI.make_label(info, 13, ReconUI.TEXT)
-	info_label.custom_minimum_size = Vector2(300, 0)
-	row.add_child(info_label)
 
-	for skill_id in buyable:
-		var lvl: int = int((target.get("skills", {}) as Dictionary).get(skill_id, 0))
-		var btn := ReconUI.make_link_button("[%s L%d +%d]" % [
-			str(SkillCatalog.SKILLS[skill_id].name), lvl, int(SkillCatalog.SKILLS[skill_id].cost)], 12)
-		var sid: String = skill_id
-		btn.pressed.connect(func() -> void:
-			if SkillCatalog.buy_skill(target, sid):
-				_refresh())
-		row.add_child(btn)
-	for attr in ["st", "ag", "al"]:
-		var b := ReconUI.make_link_button("[+%s]" % attr.to_upper(), 12)
-		b.pressed.connect(func() -> void:
-			if SkillCatalog.buy_attribute(target, attr):
-				_refresh())
-		row.add_child(b)
+	var info := "%-4s %-9s %-20s  KILLS %-3d  MISSIONS %d" % [
+		SquadRoster.rank_for(member), str(member.get("mos", "")), str(member.get("name", "")),
+		int(member.get("kills", 0)), int(member.get("missions", 0))]
+	var info_label := ReconUI.make_label(info, 13, ReconUI.TEXT)
+	info_label.custom_minimum_size = Vector2(440, 0)
+	row.add_child(info_label)
+	row.add_child(ReconUI.make_label(_seasoning(member), 13, ReconUI.AMBER))
 	_rows.add_child(panel)
+
+
+## His experience, in words. Never a number.
+func _seasoning(member: Dictionary) -> String:
+	var skill: String = str(SkillCatalog.MOS_SKILL.get(str(member.get("mos", "")), ""))
+	var lvl: int = SquadRoster.skill_level(member, skill)
+	if lvl >= 7:
+		return "SALTY"
+	if lvl >= 5:
+		return "SEASONED"
+	if lvl >= 3:
+		return "STEADY"
+	if lvl >= 1:
+		return "BREAKING IN"
+	return "GREEN"

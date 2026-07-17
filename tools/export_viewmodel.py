@@ -61,7 +61,21 @@ if muz:
 else:
     print(f"WARNING: no muzzle_{GUN} empty found")
 
-# select ONLY arms + this gun + MuzzlePoint (+ nothing else)
+# rename ADS sight markers -> SightRear / SightFront (the contract names)
+rear = bpy.data.objects.get(f'sight_rear_{GUN}')
+if rear is None:
+    rear = bpy.data.objects.get('sight_rear')
+if rear:
+    rear.name = 'SightRear'
+    print("sight rear -> SightRear")
+front = bpy.data.objects.get(f'sight_front_{GUN}')
+if front is None:
+    front = bpy.data.objects.get('sight_front')
+if front:
+    front.name = 'SightFront'
+    print("sight front -> SightFront")
+
+# select ONLY arms + this gun + MuzzlePoint + sight markers (+ nothing else)
 mesh.hide_select = False
 for o in bpy.data.objects:
     o.hide_set(False); o.hide_viewport = False
@@ -73,6 +87,8 @@ for o in bpy.data.objects:
     o.select_set(False)
 export_set = [arm, mesh, gun]
 if muz: export_set.append(muz)
+if rear: export_set.append(rear)
+if front: export_set.append(front)
 for o in export_set:
     o.select_set(True)
 bpy.context.view_layer.objects.active = arm

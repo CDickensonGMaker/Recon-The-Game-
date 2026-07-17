@@ -1,37 +1,28 @@
-## gore_dummy.gd - a us_grunt_v2 rig-verification target for the gore lab.
-##
-## A CharacterBody3D wearing the full ModelActor + per-region hitzones, no AI.
-## BENCH RULES (deliberately exaggerated so the RIG is what gets tested):
-##   any LIMB hit    -> that limb pops (live rule: single hit >= ~45)
-##   any HEAD hit    -> kill + head pop, helmet flies (live rule: kill >= ~60)
-##   TORSO/GUT       -> normal damage + blood; death at 0 HP
-## Every pop prints what the LIVE GORE_WORKFLOW rule would have done.
+## gore_dummy.gd - Rig-verification target for the labs: full ModelActor +
+## per-region hitzones, no AI. Bench gore rules are deliberately EXAGGERATED so
+## the rig is what gets tested - any limb hit pops it, any head hit kills.
+## The live thresholds are ~45 damage to pop a limb, ~60 on the kill for a head.
 class_name GoreDummy
 extends CharacterBody3D
 
 signal died
-## Every hit, with the zone and what it cost him - the gun range's telemetry
-## feed (zone, damage, hp left).
 signal hit_taken(zone: String, amount: int, hp_left: int)
 
-## Range mode: stand still (no clip cycling) so the shooter tests AIM, not
-## tracking. The dummy still bleeds, gibs and dies exactly as in the game.
+## Stand still (no clip cycling) so the shooter tests AIM, not tracking.
 @export var idle_only: bool = false
 
 ## Which rig stands on the range - labs set this before add_child.
-@export var unit_id: String = "us_grunt_v3"   # the LIVE rig (frsw, 2026-07-13)
+@export var unit_id: String = "us_grunt_v3"
 const MAX_HP: int = 85
 
-## The dummy runs Caleb's clip library so you shoot a LIVING target, not a
-## statue - cycles every few seconds; the lab HUD names the playing clip.
+## Cycled every CLIP_CYCLE_S so the target is a living man, not a statue.
 const PLAYLIST: Array[String] = [
 	"idle", "idle_aiming", "idle_crouching", "crouching_turn_90_left",
 	"reloading", "run_forward", "firing_rifle", "idle_unarmed",
 ]
 const CLIP_CYCLE_S: float = 4.0
 
-## Spawn as an already-down, ragdolled body (the drag-test casualty): no AI,
-## no playlist, no combat registration - just a physical man on the ground.
+## Spawn already down and ragdolled: no AI, no playlist, no combat registration.
 var unconscious: bool = false
 
 var hp: int = MAX_HP
@@ -40,10 +31,9 @@ var _removed: Array[String] = []
 var _dead: bool = false
 var _clip_idx: int = 0
 var _clip_timer: float = 0.0
-## HitzoneBuilder sync entries - the dummy wears the REAL game zones (mesh
-## hulls + data/hitzones tuning), not a lab approximation. Synced every physics
-## tick so hitzones FOLLOW THE ANIMATION (static zones + an animated body =
-## rounds pass through the picture of the man and hit nothing).
+## HitzoneBuilder sync entries. MUST be synced every physics tick so the zones
+## follow the animation - static zones on an animated body means rounds pass
+## through the picture of the man and hit nothing.
 var _zone_sync: Array = []
 
 
@@ -52,10 +42,9 @@ func _ready() -> void:
 	CombatManager.register_enemy(self)  # explosions damage via active_enemies
 	# Allies must NOT execute the practice dummy (it parks beside the squad).
 	set_meta("non_hostile", true)
-	# LAYER 0: the movement capsule must be INVISIBLE to bullets. On layer 3 it
-	# physically shadowed the (smaller) hitzones inside it - every round hit the
-	# capsule first and resolved as flat no-multiplier BODY damage (28x3=84 ~ 85
-	# HP = the "headshots take 3 shots" bug). Zones are the only shot surface.
+	# LAYER 0: the movement capsule must stay INVISIBLE to bullets. On a shootable
+	# layer it shadows the smaller hitzones inside it and every round resolves as
+	# flat no-multiplier BODY damage. The zones are the only shot surface.
 	collision_layer = 0
 	collision_mask = 1
 
@@ -76,9 +65,8 @@ func _ready() -> void:
 		_dead = true
 		CombatManager.unregister_enemy(self)
 		_build_hitzones()
-		# FLAT casualty (Caleb): freeze at the end of a death clip (a lying
-		# pose), ragdoll gently FROM that pose, then park the solver - a calm
-		# flat body, not a crumpled heap. Grabbing him wakes the physics.
+		# Freeze at the end of a death clip (a lying pose), ragdoll gently FROM that
+		# pose, then park the solver: a flat body, not a crumpled heap.
 		for c in model.clip_names():
 			if String(c).begins_with("death"):
 				model.pose_end_of(String(c))
@@ -97,9 +85,8 @@ func _ready() -> void:
 	_build_hitzones()
 
 
-## Rig-contract report: gear must ride BoneAttachment3D nodes or it renders as
-## a frozen T-pose shell over the animated body (the exact 2026-07-10 export
-## regression). WARNs loudly so the Blender side knows what to re-export.
+## Rig contract: gear MUST ride BoneAttachment3D nodes or it renders as a frozen
+## T-pose shell over the animated body. Warns loudly so the export can be fixed.
 func _report_gear_rigging() -> void:
 	var root: Node3D = model.instance_root()
 	if root == null:
@@ -119,10 +106,9 @@ func _report_gear_rigging() -> void:
 			print("[GORE LAB] RIG WARN: gear '%s' is NOT bone-attached in this export - it will float at T-pose (re-export with bone parenting)" % gear_name)
 
 
-## The dummy wears the ONE hitzone authority: HitzoneBuilder mesh hulls with
-## data/hitzones tuning (per-unit file, else _default). What you shoot here is
-## byte-for-byte what ships on live enemies. Zone labels carry the specific
-## region ("ARM_L_UP") through get_zone_name so the gib bench knows which limb.
+## The same hitzone authority the live enemies wear: HitzoneBuilder mesh hulls +
+## data/hitzones tuning. Zone labels carry the specific region ("ARM_L_UP") so
+## the gib bench knows which limb.
 func _build_hitzones() -> void:
 	_zone_sync = HitzoneBuilder.build(self, model, 64, 16, ["enemy_hurtbox", "hitzone"], true)
 	for c in get_children():
@@ -185,7 +171,7 @@ func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone
 		_:
 			hp = maxi(0, hp - amount)
 			print("[GORE LAB] %s hit, dmg %d, HP %d/%d" % [zone, amount, hp, MAX_HP])
-			# GORE_WORKFLOW: kill by explosion at close range -> multi-gib.
+			# An explosive kill multi-gibs.
 			var explosive: bool = _damage_type == Enums.DamageType.EXPLOSIVE
 			if hp <= 0 and explosive:
 				var to_pop: Array[String] = []
@@ -206,11 +192,10 @@ func regions_removed() -> Array[String]:
 	return _removed
 
 
-## Death doctrine (Caleb, gore lab round 7):
-##   clean kill        -> RAGDOLL, always (dead weight just drops)
-##   explosion kill    -> multi-gib + RAGDOLL flung by the blast (the
-##                        SeveredBones modifier keeps ripped parts gone)
-##   bullet-gibbed kill-> random death ANIMATION (the performance beat)
+## Death doctrine:
+##   clean kill         -> RAGDOLL, always
+##   explosion kill     -> multi-gib + RAGDOLL flung by the blast
+##   bullet-gibbed kill -> random death ANIMATION
 func _die(dir: Vector3, explosive: bool = false) -> void:
 	_dead = true
 	CombatManager.unregister_enemy(self)

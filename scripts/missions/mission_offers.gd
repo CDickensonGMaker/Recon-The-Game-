@@ -8,8 +8,8 @@ const TERRAIN_HINTS: Array[String] = ["TRIPLE-CANOPY JUNGLE", "PADDY LOWLANDS", 
 const STRENGTHS: Array[String] = ["LIGHT", "MODERATE", "HEAVY"]
 
 
-## Three offers, deterministic from `rng` (manual Fisher-Yates - Array.shuffle()
-## draws from the GLOBAL rng, proven non-reproducible in probe_smoke_all C).
+## Three offers, deterministic from `rng`. The shuffle MUST stay a manual
+## Fisher-Yates: Array.shuffle() draws from the GLOBAL rng and is not reproducible.
 static func roll(rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var offers: Array[Dictionary] = []
 	var types := [MissionGenerator.MissionType.PATROL, MissionGenerator.MissionType.VILLAGE_RAID,
@@ -26,7 +26,7 @@ static func roll(rng: RandomNumberGenerator) -> Array[Dictionary]:
 		offers.append({
 			"type": types[i],
 			"type_name": str(MissionGenerator.TYPE_NAMES[types[i]]),
-			"world_seed": mission_seed,  # R88: ONE seed identifies ONE operation
+			"world_seed": mission_seed,  # ONE seed identifies ONE operation
 			"mission_seed": mission_seed,
 			"codename": MissionGenerator.codename_for(mission_seed),
 			"terrain_hint": TERRAIN_HINTS[rng.randi() % TERRAIN_HINTS.size()],

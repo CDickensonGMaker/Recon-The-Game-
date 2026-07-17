@@ -534,21 +534,68 @@ func _think() -> void:
 	_check_tunnel_retreat()
 	if is_spider_hole and not _spider_triggered:
 		return  # still buried - no perception, no movement
-	# Perception first: the alert tier gates whether we may acquire targets.
+	# WITNESS HEARTBEAT (ADR-005): perception + corpse discovery run on EVERY unit
+	# at every tier. This is the guard-rail - tiering never sheds the witness check.
 	_update_perception()
 	_check_corpse_discovery()
+
+	# ACTIVITY TIER (ADR-026 Part B): only the rolling hot-set runs the expensive
+	# combat brain. The rest of the fight runs cheap behavior with no per-think
+	# targeting or LOS raycast. A cold fighter promotes itself the instant a hot
+	# slot frees (promote-on-death). Non-combat units are never tiered.
 	if alert_tier == AlertTier.COMBAT:
-		_find_best_target()
-	elif target != null:
+		if EnemySquad.is_hot(self) or EnemySquad.request_hot(self):
+			_think_full_combat()
+		else:
+			_think_cheap_combat()
+		return
+
+	if target != null:
 		target = null  # not aware enough to have a hard target
 	_update_line_of_sight()
 	_assess_threat()
-
 	_evaluate_goals()
+	_update_state_for_goal()
+	_squad_sync()
 
+
+## The full combat brain - target acquisition, a precise LOS raycast, threat
+## assessment, the scored goal stack, squad designation. Hot-set only.
+func _think_full_combat() -> void:
+	_find_best_target()
+	_update_line_of_sight()
+	_assess_threat()
+	_evaluate_goals()
+	_update_state_for_goal()
+	_squad_sync()
+
+
+## Cheap behavior for a cold fighter: adopt the squad's shared contact (a dict
+## read - no scan, no raycast), presume a loose contact so he keeps firing toward
+## the fight, hold or close. The hot-set owns precise aim; exposure never ramps
+## for a cold man, so his cone stays wide - he sprays, he does not snipe.
+func _think_cheap_combat() -> void:
+	var st: Node3D = EnemySquad.shared_target(squad_id)
+	if st != null and is_instance_valid(st):
+		target = st
+		last_known_target_pos = EnemySquad.shared_last_known(squad_id)
+		_combat_lost_time = 0.0
+	else:
+		target = null
+		_combat_lost_time += _think_interval_current
+		if _combat_lost_time > 8.0:
+			_set_tier(AlertTier.ALERT, false)  # disengage: frees the hot slot for a live fighter
+			return
+	has_line_of_sight = target != null
+	_assess_threat()
+	_cheap_goal()
 	_update_state_for_goal()
 
-	_squad_sync()
+
+func _cheap_goal() -> void:
+	var g: Enums.AIGoal = Enums.AIGoal.ENGAGE_TARGET if target != null else Enums.AIGoal.HOLD_POSITION
+	if g != current_goal:
+		_set_goal(g)
 
 
 ## Pop the ambush the moment the player closes to trigger range.
@@ -820,6 +867,8 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 		return
 	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
 	alert_tier = tier
+	if tier != AlertTier.COMBAT:
+		EnemySquad.release_hot(self)  # left the fight: give the hot slot back
 	if tier == AlertTier.COMBAT:
 		awareness = 1.0
 		_first_shot_fired = false  # new fight, new warning shot
@@ -2177,6 +2226,7 @@ var _died_emitted: bool = false
 
 func _become_downed() -> void:
 	is_downed = true
+	EnemySquad.release_hot(self)  # out of the fight: free the hot slot for a live man
 	current_hp = 1
 	_downed_bleed_s = randf_range(45.0, 90.0)
 	_downed_fx_s = randf_range(1.5, 4.0)
@@ -2231,6 +2281,7 @@ func _die() -> void:
 	var killer: Node = null
 	if is_instance_valid(_last_attacker):
 		killer = _last_attacker
+	EnemySquad.release_hot(self)  # a dead man holds no hot slot - promote a live one
 	_witness_check(killer)
 	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_change_state(Enums.AIState.DEAD)

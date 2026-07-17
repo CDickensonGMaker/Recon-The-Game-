@@ -31,6 +31,29 @@
 - ADR-023 fossil law: if I delete code, delete cleanly; `tests/test_fossils` will catch dead code.
 - No tombstone comments (comment discipline, Summoner decree 2026-07-13).
 
+## SUMMONING FACTS — Blender 5.0.1 (corrected 2026-07-15, mid-session)
+
+**Summoner correction from Caleb:** *"my current blender is blender 5.0.1 and has been for a while."* Previous assumption of "Blender 4.x" is **WRONG**. The active Blender install is **5.0.1** (confirmed live on Caleb's local machine, in use "for a while"). All future council work that touches Blender must use 5.0.1's API surface, not 4.x's.
+
+### 5.0.1 compatibility checkpoints (council must verify when relevant)
+- **Python API (bpy):** 5.0.1 may add/rename operators vs 4.x. Any council that scripts Blender must check 5.0.1 release notes for removed/renamed `bpy.ops.*` calls; in-project `.blend` files were authored against earlier Blender — opening them in 5.0.1 may surface compatibility warnings.
+- **Collections / folders:** 5.0.1 may have refined Folder/Collection semantics. The cinematic director's collection spec must map cleanly — verify the mapping before staging.
+- **Eevee Next (default in 5.0):** the cinematic render preset must be re-validated; some old Eevee nodes were renamed/removed in 5.0. If the preset breaks, fix the preset, not the lighting rig.
+- **Asset Browser (APPEND/LINK):** behavior may have shifted in 5.0.1. The "read-only on art_source/" assembly contract may need adjustments to remain round-trip-safe.
+- **glTF exporter → Godot 4.7 importer:** verify 5.0.1's glTF exporter is still compatible with Godot 4.7's importer. **If the exporter's behavior changed in 5.0, the cinematic director must NOT export through itself — it stages, the existing 4.x-style export pipeline runs the actual Godot-side import.** This is the contract.
+
+### DECREE ADDITIONS (binding laws for the cinematic director / Blender-touching work)
+- The cinematic director's Blender 5.0.1 environment is **INDEPENDENT** of the RECONgame project's asset authoring history. Some in-project `.blend` files were authored against earlier Blender versions. The director will:
+  (a) **APPEND/LINK** assets from `art_source/` as the bible requires (assemble, never generate);
+  (b) **NOT re-author or "fix"** those `.blend` files if they open with warnings — surface the warning to the council instead;
+  (c) **NOT change the `.blend` file format on save** — 5.0.1's default save format is fine; do not "Save As" older versions and break round-trip with the art pipeline.
+
+### Mandatory first bead under the new Blender epic
+The first bead under any new Blender epic must include a **Blender 5.0.1 readiness audit**: open every `.blend` in `art_source/` that the director intends to reference, confirm no import warnings, confirm all collections/objects/nodes survived the version jump, and report any that did not. This bead is **gating** — the epic cannot start until the audit reports clean (or the council explicitly decrees a fix-forward).
+
+### Standing rule for this session
+This nav-fix session does NOT touch Blender. The 5.0.1 fact is recorded for future sessions. The mandatory readiness-audit bead is filed before session close (see DECREE).
+
 ## Existing code facts (read, not theorized)
 - `scripts/levels/ai_stress_arena.gd:579-593` — `_bake_navmesh()` adds a `NavigationRegion3D` in the `lab_navmesh` group, bakes synchronously, prints polygon count. Two physics frames are awaited after `_bake_navmesh()` returns (lines 131-132).
 - `scripts/levels/ai_stress_arena.gd:684-688` — VC spawn explicitly calls `nav_agent.set_navigation_map(_nav_region.get_navigation_map())` to bind the agent to the arena's map.

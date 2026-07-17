@@ -23,8 +23,8 @@
 
 ## 1. Per-gun ADS status (the primary chain)
 
-**Authored (M14 only):**
-- **M14** — `m14.tres` is the only complete, tuned gun. `ads_position = (-0.250, 0.175, -0.021)`, `ads_rotation = (-6.6, -9.97, 2.79)`. Markers present in .blend (`sight_rear_M14`, `sight_front_M14`, `muzzle_M14`). **NOT in GLB** — exporter strips them at `export_viewmodel.py:74-79`. Reference for the .blend authoring workflow.
+**Authored by hand (M14 only — CORRECTION to briefing):**
+- **M14** — `m14.tres` is the only gun with a hand-tuned, gun-specific ADS transform. `ads_position = (-0.250, 0.175, -0.021)`, `ads_rotation = (-6.6, -9.97, 2.79)`. **CORRECTION:** the briefing said "M14 has the markers" — the weapons-designer verified this is false. The M14 .tscn is a bare GLB instance with NO empties (`m14_arms_viewmodel.tscn` is a 7-line file with one `Model` child, no `MuzzlePoint`, no `sight_*` nodes). The .blend may or may not have the markers; both are unverifiable until the .blend is opened. The M14 is the **most-tuned, not the most-built** — the .tres numbers were hand-set, not derived. **These numbers will be REPLACED by analytic values from the auto-align tool (bead 9h9f), not preserved as-is.** They are the reference for "what a good ADS pose looks like," not the reference for "the marker workflow works."
 
 **Marked as Day-1 PRIMARY targets (the named guns, by Summoner's eyes):**
 - **Mosin-Nagant** — `mosin.tres:32-38` carries stub `ads_position = (0, 0.05, 0.08)` and **NO `ads_rotation` line at all**. Falls back to script default `Vector3(0, 0, 0)`. Also `viewmodel_scale = 1.1` is a dead fossil. Also non-uniform mesh scale in .glb (0.957, 1.022, 1.043) — exporter's `export_apply=True` handles it; stager must `apply_scale` at .blend open.
@@ -32,13 +32,19 @@
 - **M70 (Winchester)** — `m70.tres:34-37` carries stub `ads_position`, NO `ads_rotation`, `viewmodel_scale = 1.1` dead. Bolt-action with 40° FOV per ADR-004.
 
 **Author-tuned (M79 is the proof the bench works):**
-- **M79** — `m79.tres` has the only fully author-tuned ADS pose in the roster. `ads_position = (0.0, -0.508, -0.755)`, `ads_rotation = (0, 90, 0)`. [NO MODEL] (the actual M79 viewmodel .tscn is empty per `m79.tres` having `model_path = ""` — verification needed). The 65° FOV matches the leaf sight.
+- **M79** — `m79.tres:39-42` carries the only fully hand-tuned ADS pose in the roster. `hip_position = (0.469, -0.627, -0.849)`, `ads_position = (0.0, -0.508, -0.755)`, `hip_rotation = (-4.7, 80.6, 0)`, `ads_rotation = (0, 90, 0)`. **The 90° Y-rotation is the gun held sideways at the shoulder** — the auto-align tool's "rear-behind-front on +X axis" assumption **breaks for the M79**. **Verification gap:** `model_path = ""` in the .tres; the M79 has no FP viewmodel. The current .tres values are reasonable; the analytic for a "sight-raise" without markers is "center the tube on screen, raise it so the bore is approximately level with the camera ray."
 
-**Stub-complete (named by viewmodel-programmer, work with the Summoner's named guns):**
+**Stub-complete (the 7 guns with stubs, primary-chain work):**
 - **m16a1, m1911, m60, ppsh41, rpd, rpg2, shotgun (Ithaca)** — 7 of 15. All carry the stub `ads_position = (0, 0.05, 0.08)` AND the stub `ads_rotation = (4, 0, 0)`. Lines ARE written; lerp converges to stubs. Look "wrong but function"; primary-chain work to author real values.
 
-**[NO MODEL] (different design path):**
-- **m26_grenade, m72_law, rpg7, m79** — `model_path = ""` in .tres. ADS work is irrelevant for the missing meshes. The `[NO MODEL]` `[0.0, 90, 0]` M79 rotation is a sight-raise pose, not an ADS aim pose.
+**Per-sight-geometry correction (weapons-designer §1.13, §1.7, §1.5):**
+- **M70 (Winchester)** — IS A SCOPE, not iron sights. The 8× Unertl Marine target scope changes the ADS read completely. `sight_rear_m70` is the **eyepiece** at X ~860, Y +48; `sight_front_m70` is the **reticle plane** at X ~250, Y +48 (the "front post" is the reticle cross, conceptually 600+ mm in front of the eye). The auto-align tool **must be scale-aware** because `viewmodel_scale = 1.1` is non-default. Per ADR-004, the `ads_fov = 40.0` is the scope's effective magnification. The workflow's "rear-aperture → front-post" assumption breaks here.
+- **Ithaca 37** — **HAS NO REAR SIGHT.** Bead-only. The workflow's "thin ring, big hole" license does not apply. The ADS solution is a **contract change**: the player's eye IS the rear aperture, the bead is the front post, the analytic centers the bead on the screen vertical centerline and accounts for the stock drop (comb Y -38, heel Y -63). The PSX read is a small emissive yellow/brass dot on a 2 mm post. **My recommendation: raise `ads_fov` from 65° to 70°** for bead-only legibility.
+- **M1911 (Colt .45)** — is a **U-notch + blade**, NOT a peep-and-post. The analytic is "blade in the notch" (a notch-around-blade solve), not a post-in-ring solve. The 1911 has the shortest sight radius (~140 mm) — a 1 mm misalignment is catastrophic at 25 m. The auto-align tool must be tight. The static sight picture is the slide-forward rest; firing-anim blurs it for ~50 ms.
+- **RPG-2, RPG-7, M72 LAW** — **NO viewmodel .tscn exists** (verified: `model_path = ""` in all three .tres). These are "sight-raise" / direct-aim weapons, but the modeling is also missing — the player literally cannot see them. **Highest priority among the no-sight weapons for the modeling pass.** The shared `rpg2_rocket.tres` `projectile_data_path` is wrong for the LAW and RPG-7 (LAW fires 66mm, RPG-2 fires 40mm, RPG-7 fires 85mm PG-7V).
+
+**Soviet blend source — CORRECTION to briefing:**
+- The briefing said "Soviet guns re-built on demand by `build_weapons_vc.py` in LIVE mode." The weapons-designer found that `tools/build_weapons_vc.py:259` writes to `art_source/characters/blends/weapons_vc.blend` — **which does not exist on disk** (the deleted `art_source/`). The Soviet FP viewmodel GLBs (ak_fp, mosin_fp, ppsh_fp, rpd_fp, rpg2_fp) **exist as exports** but the source `.blend` is either lost or hiding in one of the US blends (`weapons_us.blend` or `weapons_v1.blend`). The stager must resolve this BEFORE any Soviet sight work begins. **The cheap fix is to author the Soviet guns in the US blend (smell but viable) OR to make `build_weapons_vc.py` save its output to a non-deleted path.**
 
 **Specials (ADR-004 calls out different sight contracts):**
 - **M60, RPD** — hip-fire only per ADR-004. .tres carries stale `ads_fov = 60.0` (pre-ADR-004 default). Set to `ads_fov = 10.0` to disable the zoom.
@@ -75,27 +81,36 @@ Per `recongame-blender-workflow` (Caleb poses, Claude stages/locks/exports) and 
 **Commit 1 — Exporter patch (the gate, 5-10 lines, no gun work):**
 - `tools/export_viewmodel.py:74-79` — replace the conditional `muz` append with a loop over `EXPORTED_EMPTIES = ("muzzle", "sight_rear", "sight_front")`. Rename to `MuzzlePoint`, `SightRear_<gun>`, `SightFront_<gun>` (per the `export_flashlight_fp.py:54-71` convention). **This is the precondition for every other per-gun ADS pass.**
 
-**Commit 2 — M14 regression test (proves Commit 1):**
-- Re-export the M14 .glb under the patched exporter.
-- The M14 .blend has the three TRUTH empties. The new M14 .glb will carry them for the first time.
-- Run the auto-align tool (bead 9h9f) to verify the existing `m14.tres` `ads_position = (-0.250, 0.175, -0.021)` is re-derived from the markers. **If the auto-align output differs from the existing m14.tres, Commit 1 introduced a fossil — bead closes red, revert.**
+**Commit 1a — Soviet source-blend resolution (the prerequisite to ALL Soviet work):**
+- The Soviet source `.blend` does not exist. Decide: (a) find/verify the Soviet geometry lives in `weapons_v1.blend` or `weapons_us.blend`, or (b) make `build_weapons_vc.py` save its output to a non-deleted path, or (c) author Soviet geometry in `weapons_us.blend` as a fallback. The stager does this BEFORE any Soviet sight work; the result determines which `tools/build_weapons_vc.py` extension is correct.
+
+**Commit 2 — M14 first, with the regression test (M14 .blend needs markers planted):**
+- **CORRECTION:** the M14 .blend does NOT have markers (per weapons-designer §0). Plant them first.
+- Owner opens `weapons_us.blend` (or `weapons_v1.blend` per the workflow step 6), verifies `M14_Rifle` is still there, plants the three empties via the `add_sight_markers` helper.
+- Re-export the M14 .glb under the patched exporter (Commit 1).
+- Run the auto-align tool (bead 9h9f) — the analytic MUST re-derive the hand-tuned `m14.tres` values `ads_position = (-0.250, 0.175, -0.021)` within tolerance. **If the auto-align output is close to the hand-tune, the marker workflow is correct.** If it differs, the hand-tune is wrong OR the markers are wrong; the bead closes red and the divergence is investigated before Commit 3.
 
 **Commit 3 — M16A1 (the first real new-gun pass):**
-- Owner opens `weapons_us.blend`. Geometry is done per the addendum. Owner places the rear aperture and front post.
+- Owner opens `weapons_us.blend`. Geometry is done per the addendum (sight rebuild complete). Owner places the rear aperture (Ø2mm hole, ring 0.5mm thick, in the rear leg of the carry handle) and the front post (round Ø4×18mm, top at Y +66).
 - One-call helper: `fp_grip.add_sight_markers(gun, rear, front, muzzle, zero_tilt)` (15 lines added to `tools/fp_grip.py`, mirroring `add_grip_nodes` at `fp_grip.py:38-52`).
 - Re-export M16A1 .glb under patched exporter. Auto-align 9h9f writes real `ads_position` / `ads_rotation` to `m16a1.tres`. Stub `Vector3(0, 0.05, 0.08)` is replaced.
+- **Critical geometry rule:** the sight line is INSIDE the carry handle (Y +66, between the rear leg at X 715 and the post at X 167). The 24mm gap under the handle is the player's unobstructed look-down window. **The front leg of the carry handle, the charging handle, and the forward assist must not intersect the sight line** — they sit dead center of the sight picture. The raycast verification (`obj.ray_cast` with fresh depsgraph) confirms this.
 
 **Commit 4 — AK-47 (the Soviet path opener):**
 - Extend `tools/build_weapons_vc.py` to plant markers inline for all 5 Soviet guns (20 lines). AK-47 is the first; the other 4 (Mosin, PPSh-41, RPD, RPG-2) follow the same pattern.
-- The Soviet master `weapons_vc.blend` does not exist on disk (the deleted `art_source/`). The builder is the source of truth. No sync gap.
-- Re-run the builder in `LIVE` mode for the FP blend, export, auto-align, write `ak47.tres`.
+- The Soviet geometry comes from `build_weapons_vc.py` (per Commit 1a).
+- Re-run the builder, export, auto-align, write `ak47.tres`.
 
 **Commit 5 — Mosin (the hardest geometry in the roster):**
-- Same Soviet builder extension. The Mosin's leaf sight is a 19th-century design; the rear aperture geometry requires care.
+- Same Soviet builder extension. The Mosin's leaf sight is a 19th-century design; the rear notch geometry is a 75mm curved ramp with arshin/meter graduations. The sight line is the **tightest in the roster** (SLH +27mm, SR 622mm).
+- **PSX-style sight exaggeration required:** the real Mosin rear aperture (~Ø2mm) is sub-pixel at 40° FOV. The auto-align tool computes against the geometry as-authored; the stager must **exaggerate the rear aperture to Ø4-5mm** in the .blend so the notch reads at low FOV. This is a design call the workflow does not cover.
 - Re-run, export, auto-align, write `mosin.tres`.
 
-**Commit 6 — M70 (the third INCOMPLETE gun):**
-- US armory, `weapons_rifle.blend` per the anim audit. Same recipe as M16A1.
+**Commit 6 — M70 (the third INCOMPLETE gun — and a SCOPE, not irons):**
+- US armory, `weapons_rifle.blend` per the anim audit. Same recipe as M16A1, but the marker semantics differ: `sight_rear_m70` = eyepiece center at X ~860, Y +48; `sight_front_m70` = reticle plane at X ~250, Y +48 (the "front post" is a reticle cross, conceptually 600+mm in front of the eye).
+- The auto-align tool MUST be scale-aware (`viewmodel_scale = 1.1`). **A new "scope mode" for the tool may be required** — the analytic must compute against the scope tube geometry (X 250 to X 860, Ø19mm), not the standard iron-sight geometry (rear-behind-front on the same X axis).
+- **Verify the scope assembly exists in the .blend** before scheduling the scope work; if absent, the modeling pass must build it first.
+- Re-run, export, auto-align, write `m70.tres`.
 
 **Verification gate (per ADR-015):** the editor's HUD warning `! HIP vs ADS rot differs >90deg - ADS spin risk` goes silent for ak47, m70, mosin. **The silence is the verification.** The bug the bench has been printing is fixed when the bench stops printing it.
 

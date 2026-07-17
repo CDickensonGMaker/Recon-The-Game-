@@ -1,5 +1,5 @@
-## survive_waves.gd - HOLD objective: survive N assault waves on a position (NS12).
-## Waves spawn lazily at passable ring points with clear approach lanes.
+## survive_waves.gd - HOLD objective: survive N assault waves on a position.
+## Waves spawn at passable ring points with clear approach lanes.
 class_name SurviveWaves
 extends ObjectiveSensor
 
@@ -34,11 +34,10 @@ func start(game_world: GameWorld, rng_seed: int) -> void:
 	_run_waves()
 
 
-## Every await below can resume on a node whose world GameFlow already freed.
-## stop() had zero callers before MissionScope existed.
+## Every await below can resume on a node whose world GameFlow already freed -
+## hence the _alive() guard after each one.
 func _run_waves() -> void:
 	add_to_group("wave_runners")
-	# W58: prep phase toast (claymores out, sectors set).
 	if director and initial_delay > 20.0:
 		director.toast.emit("PREP THE LINE - CLAYMORES [6], SMOKE [5] - %ds TO CONTACT" % int(initial_delay))
 	await get_tree().create_timer(initial_delay).timeout
@@ -84,7 +83,7 @@ func _spawn_wave(wave: int, sector_angle: float) -> void:
 		var data: String = DATA_PATHS[_rng.randi() % DATA_PATHS.size()]
 		var enemy := director.spawn_tracked_enemy(pos, data, tag)
 		enemy.add_to_group(tag)
-		# W57: final wave brings sappers - fast crawlers with satchel charges.
+		# The final wave brings sappers: faster, frailer, satchel-armed.
 		if wave == wave_count and _rng.randf() < 0.3:
 			enemy.move_speed *= 1.35
 			enemy.max_hp = int(enemy.max_hp * 0.6)

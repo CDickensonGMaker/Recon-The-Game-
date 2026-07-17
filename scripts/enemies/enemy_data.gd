@@ -25,39 +25,24 @@ extends Resource
 @export var retreat_hp_threshold: float = 0.25
 
 @export_group("Tuning")
-## Seconds of CONTINUOUS exposure before this archetype's fire converges to
-## full accuracy (DESIGN 4.2: accuracy ramps with exposure time, never with
-## alertness). NVA lock on fast; a farmer gives you a long window.
+## Seconds of CONTINUOUS exposure before this archetype's fire converges to full accuracy.
 @export var exposure_ramp_time: float = 2.5
-## 0 = timid, 1 = fearless. Inverse-biases char_self_preservation the same way
-## aggression biases char_aggression - archetype identity, not pure spawn RNG.
+## 0 = timid, 1 = fearless. Inverse-biases char_self_preservation.
 @export var courage: float = 0.5
-## DETERMINATION (Summoner, bead 0623): "the NVA were not militarily strong but
-## made up in DETERMINATION and tactics." Courage is whether he BREAKS under fire.
-## Determination is whether he KEEPS LOOKING FOR YOU. They are not the same trait
-## and a farmer can be brave and still go home. This drives the hunt: how long he
-## searches after losing you, and how far out he pushes the net.
+## How long he KEEPS LOOKING FOR YOU after losing contact, and how far out he
+## pushes the search net. NOT courage (that is whether he BREAKS under fire).
 ##   0.25 farmer (gives up) .. 0.45 VC .. 0.7 sapper .. 0.9 NVA (does NOT stop)
 @export_range(0.0, 1.0) var determination: float = 0.5
 
 @export_group("Visuals")
 ## 8-directional billboard sprites, NOT a GLTF. Resolves to
 ## res://assets/NPCs/<sprite_faction>/<sprite_unit>/<sprite_weapon>/<action>/
-##
-## Three fields rather than one path string: SpriteLibrary needs the unit id for
-## its cache key anyway, and a single path invites typos that fail silently at
-## runtime. Leave sprite_unit empty to keep the capsule placeholder (units that
-## are still rendering, or the WW2 holdovers).
-##
+## Leave sprite_unit empty to keep the capsule placeholder.
 ## NOTE the hard pairing: each unit was rendered holding exactly one weapon, so
-## sprite_weapon and weapon_path must be kept consistent by hand. A sprite
-## holding a PPSh while the ballistics say AK-47 is the kind of thing nobody
-## notices for six months and then cannot unsee.
+## sprite_weapon and weapon_path must be kept consistent by hand.
 @export var sprite_faction: String = ""   ## "Vietcong and NVA"
 @export var sprite_unit: String = ""      ## "vc_guerilla"
 ## ART-AHEAD WIRING: what he wears until `sprite_unit` actually exists on disk.
-## Lets an archetype be pointed at art that is still being made, so the model lands
-## and the man simply puts it on - no code change, no wiring bead sinking to P2.
 @export var sprite_unit_fallback: String = ""
 @export var sprite_weapon: String = ""    ## "ak47"
 @export var color: Color = Color(0.4, 0.4, 0.3)  ## capsule placeholder tint, and sprite base modulate

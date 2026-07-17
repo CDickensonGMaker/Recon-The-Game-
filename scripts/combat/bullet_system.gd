@@ -1,29 +1,26 @@
-## bullet_system.gd - REAL bullet simulation (bead 7ks; Summoner decree
-## 2026-07-11: "hitscan is an inferior system - I want actual projectiles").
+## bullet_system.gd - real projectile simulation for every small-arms round.
 ##
-## Every small-arms round in the game is a simulated projectile: spawned at
-## the muzzle, integrated under gravity, and SEGMENT-RAYCAST each physics
-## tick so a 900 m/s round cannot tunnel through a hitzone (Area3D overlap
-## detection - ProjectileBase - is fine for an 84 m/s rocket and useless at
-## rifle speed; rockets keep ProjectileBase).
+## Rounds are spawned at the muzzle, integrated under gravity, and SEGMENT-
+## RAYCAST each physics tick, so a 900 m/s round cannot tunnel through a hitzone.
+## Area3D overlap detection (ProjectileBase) is fine for an 84 m/s rocket and
+## useless at rifle speed - rockets keep ProjectileBase.
 ##
-## One manager loop steps every live round - not one scripted Node per
-## bullet. Damage resolves at ARRIVAL: falloff by the distance actually
-## travelled, zone multiplier from the Hitzone that was struck, wound rolls
-## and impact FX at the point of arrival. "A bullet is a bullet" (Summoner):
-## rounds fly to MAX_TRAVEL regardless of the weapon's stat-card max_range -
-## falloff floors at min_damage_mult and a lucky head hit at distance still
-## kills (ADR-016 grammar untouched; HEAD stays fatal via the zone seams).
+## One manager loop steps every live round; there is NO Node per bullet. Damage
+## resolves at ARRIVAL: falloff by the distance actually travelled, zone
+## multiplier from the Hitzone struck, wound rolls and impact FX at the point of
+## arrival. Rounds fly to MAX_TRAVEL regardless of the weapon's stat-card
+## max_range - falloff floors at min_damage_mult, and a lucky head hit at distance
+## still kills (ADR-016; HEAD stays fatal).
 ##
-## The tracer IS the bullet's visual (nx9n: per-weapon tracer_ratio and
-## tracer_color in WeaponData) - the streak moves at true muzzle velocity
-## because it is the round, ending the fixed-500 m/s BulletTracer visual lie
-## and the hardcoded every-round enemy green.
+## The tracer IS the bullet: the streak moves at true muzzle velocity because it
+## IS the round (per-weapon tracer_ratio / tracer_color in WeaponData).
 class_name BulletSystem
 extends Node3D
 
 ## Player-fired bullet landed on a damageable target (HUD hitmarker feed).
 signal player_bullet_hit(killed: bool, headshot: bool)
+## Any bullet was spawned. Used by AIStressArena telemetry to count rounds fired.
+signal bullet_spawned(shooter: Node, weapon: WeaponData)
 
 const MAX_BULLETS: int = 128       ## oldest round retires silently past this
 const MAX_TRACERS: int = 48        ## visual streaks cap (sim is unaffected)
@@ -35,8 +32,8 @@ var _bullets: Array = []
 var _visual_pool: Array[MeshInstance3D] = []
 
 
-## Spawn one live round. `mask`/`exclude` come from the shooter's faction -
-## the FULL-REALISM FRIENDLY FIRE masks port verbatim from the old rays.
+## Spawn one live round. `mask`/`exclude` come from the shooter's faction (the
+## full-realism friendly-fire masks).
 func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		mask: int, exclude: Array, show_tracer: bool) -> void:
 	if _bullets.size() >= MAX_BULLETS:
@@ -51,19 +48,19 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		"vel": dir.normalized() * maxf(50.0, wd.projectile_speed),
 		"wd": wd, "shooter": shooter, "mask": mask, "exclude": excl_rids,
 		"traveled": 0.0, "age": 0.0, "visual": null,
-		# Limb over-penetration budget: a round through an arm carries into
-		# the chest behind it at reduced energy (TTK consistency - the arms
-		# ride across the chest, and a full stop there made the same aim kill
-		# in 1 or sponge in 4 depending on the pose frame).
+		# Limb over-penetration budget: a round through an arm carries into the
+		# chest behind it at reduced energy. The arms ride across the chest, so
+		# stopping dead in one makes the same aim kill in 1 or sponge in 4
+		# depending on the pose frame.
 		"pen_left": 1, "dmg_scale": 1.0,
-		# SOFT COVER: thatch, bamboo, hooch wall, brush. Lead goes THROUGH it -
-		# in this war "cover" is mostly concealment, and a bamboo wall stopping
-		# a 7.62 was a lie. Two layers per round, 20% of its energy each.
+		# SOFT COVER: thatch, bamboo, hooch wall, brush - lead goes THROUGH it.
+		# Two layers per round, 20% of its energy each.
 		"soft_left": 2,
 	}
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
 	_bullets.append(b)
+	bullet_spawned.emit(shooter, wd)
 
 
 func _physics_process(delta: float) -> void:
@@ -80,7 +77,7 @@ func _physics_process(delta: float) -> void:
 		var from: Vector3 = b.pos
 		var to: Vector3 = from + vel * delta
 		var q := PhysicsRayQueryParameters3D.create(from, to, int(b.mask))
-		q.collide_with_areas = true  # hitzones are Area3D (the sponge fix)
+		q.collide_with_areas = true  # hitzones are Area3D
 		q.exclude = b.exclude
 		var hit: Dictionary = space.intersect_ray(q)
 		if not hit.is_empty():
@@ -105,10 +102,9 @@ func _physics_process(delta: float) -> void:
 		i += 1
 
 
-## Arrival resolution - the union of the three retired hitscan resolvers
-## (weapon_holder/_resolve_hit, enemy_base, ally_base): one honest path for
-## every shooter in the game. Returns true when the round OVER-PENETRATES a
-## limb and keeps flying (caller resumes the flight past the wound).
+## Arrival resolution - ONE path for every shooter in the game. Returns true when
+## the round OVER-PENETRATES a limb and keeps flying (the caller then resumes the
+## flight past the wound).
 func _impact(b: Dictionary, hit: Dictionary) -> bool:
 	var wd: WeaponData = b.wd
 	var shooter: Node = b.shooter
@@ -137,14 +133,23 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 		GunFX.blood(scene, hit.position, hit.normal, travel_dir, target)
 		var dist: float = float(b.traveled) + (b.pos as Vector3).distance_to(hit.position)
 		var falloff: float = wd.damage_multiplier_at(dist)
-		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult * float(b.dmg_scale)))
+		var player_dmg_mult: float = 1.0
+		# Arena-only: scale player damage independently of AI-vs-AI durability.
+		if shooter != null and is_instance_valid(shooter):
+			if shooter.is_in_group("player") or (shooter.get_parent() != null and shooter.get_parent().is_in_group("player")):
+				var arena: Node = scene
+				if arena == null:
+					arena = get_tree().current_scene
+				if arena != null and arena.has_method("get_player_damage_mult"):
+					player_dmg_mult = arena.get_player_damage_mult()
+		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult * player_dmg_mult * float(b.dmg_scale)))
 		target.take_damage(dmg, wd.damage_type, shooter, zone)
 		# GORE channel: hand the struck zone's REGION (ARM_L_UP...) to the
 		# target so the one gore authority can pop the right limb. The zone
 		# STRING above stays the 4-name law for damage/wound logic.
 		if col is Hitzone and target.has_method("on_zone_hit"):
 			target.on_zone_hit(str((col as Hitzone).get_meta("region", "")), dmg, travel_dir)
-		# W37 parity: limb hits wound (arm = shaky aim, leg = no sprint).
+		# Limb hits wound: arm = shaky aim, leg = no sprint.
 		if zone == "LIMB" and target.has_method("apply_wound"):
 			target.apply_wound("LIMB_LEG" if randf() < 0.5 else "LIMB_ARM")
 		if shooter != null and is_instance_valid(shooter) and shooter.is_in_group("player"):
@@ -163,10 +168,8 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 		GunFX.impact(scene, hit.position, hit.normal, _surface_is_hard(col))
 		GunFX.bullet_hole(scene, hit.position, hit.normal)
 		# SOFT COVER PUNCH-THROUGH: thatch, bamboo, a hooch wall, dense brush.
-		# The round keeps going at reduced energy. A man hiding behind a grass
-		# wall is CONCEALED, not covered - which is the whole reason a grunt
-		# carried a 12-gauge into the bush (00 buck: nine 0.33in pellets, each
-		# a 9mm-class ball that punches brush).
+		# The round keeps going at reduced energy - a man behind a grass wall is
+		# CONCEALED, not covered.
 		if col is Node and (col as Node).is_in_group("soft_cover") and int(b.soft_left) > 0:
 			b.soft_left = int(b.soft_left) - 1
 			b.dmg_scale = float(b.dmg_scale) * 0.8
@@ -174,8 +177,7 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 	return false
 
 
-## Cheap surface guess for impact flavour (moved from weapon_holder so every
-## shooter's rounds spark on rock and puff on dirt, not just the player's).
+## Cheap surface guess for impact flavour - rounds spark on rock, puff on dirt.
 static func _surface_is_hard(col: Object) -> bool:
 	if col is Node:
 		var n := col as Node
@@ -211,7 +213,7 @@ func _visual_acquire(color: Color) -> MeshInstance3D:
 	var m := v.material_override as StandardMaterial3D
 	m.albedo_color = color
 	m.emission = color
-	# R78 parity: tracers burn brighter at night, no dynamic lights (perf-first).
+	# Tracers burn brighter at night; no dynamic lights (perf-first).
 	m.emission_energy_multiplier = 4.5 if MissionWeather.is_night else 2.0
 	return v
 

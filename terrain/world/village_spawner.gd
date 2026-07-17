@@ -11,8 +11,8 @@ const HideoutRefScript := preload("res://terrain/world/hideout_ref.gd")
 const HideoutType := HideoutRulesScript.HideoutType
 
 const MAX_SAMPLE_ATTEMPTS_PER_HIDEOUT: int = 64
-const VILLAGE_COUNT_MIN: int = 2
-const VILLAGE_COUNT_MAX: int = 5
+const VILLAGE_COUNT_MIN: int = 8
+const VILLAGE_COUNT_MAX: int = 10
 const FAMILIES_PER_VILLAGE_MIN: int = 2
 const FAMILIES_PER_VILLAGE_MAX: int = 5
 

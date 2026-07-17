@@ -1,26 +1,18 @@
 class_name RadioCord
 extends MeshInstance3D
-## The PRC-25's handset cord, drawn every frame between the radio and whoever is holding
-## the handset.
+## The PRC-25's handset cord, drawn every frame between the radio and whoever is
+## holding the handset.
 ##
-## THERE IS NO STATIC CORD MESH. The cord is generated procedurally, always, whether the
-## handset is clipped to the RTO's shoulder or stretched out in the player's fist. One
-## system, so the two cases can never disagree with each other - which is exactly the bug
-## you get if you model a "stowed" cord and swap it for a "held" one.
+## THERE IS NO STATIC CORD MESH - it is always procedural, stowed or held, so the
+## two cases can never disagree with each other.
 ##
-## THE CORD ROUTES OVER HIS SHOULDER. It is a spline through THREE points:
+## It is a spline through THREE points: CordPort (radio, Spine2) -> CordGuide
+## (LeftShoulder) -> the handset. The guide is NOT decoration: a straight line
+## from a radio on his BACK to a hand in FRONT of him passes clean through his
+## chest. The markers are bone-attached, so the routing survives turning and death.
 ##
-##     CordPort (on the radio, Spine2)  ->  CordGuide (LeftShoulder)  ->  the handset
-##
-## The guide is not decoration. A straight line from a radio on his BACK to a handset in
-## a player's hand in FRONT of him passes clean through his chest. Routing through a
-## shoulder marker means the cord comes over his shoulder the way a real one does, and it
-## keeps doing so while he turns, walks and dies, because the marker is bone-attached.
-##
-## SAG. Slack cord hangs. The sag is proportional to how much slack there is, so the cord
-## droops when the player is close and pulls into a straight line as he reaches the end of
-## his leash. That is the player's TENSION READOUT - he can see he is running out of cord
-## without any UI at all.
+## Sag is proportional to slack, which makes the cord the player's TENSION READOUT
+## with no UI at all.
 
 ## Where the cord leaves the radio. Bone-attached to Spine2 on the RTO.
 @export var port: Node3D

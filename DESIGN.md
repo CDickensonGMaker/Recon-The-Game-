@@ -1,137 +1,208 @@
-# DESIGN.md — Vietnam Mission FPS (working title)
+# RECON — Design Document
 
-**Date:** 2026-07-07 (Phase 4 synthesis)
-**Companion docs:** `STATE_OF_PROJECT.md` (what exists / decisions log) · `MISSION_DESIGN_RESEARCH.md` (RTCW/MoHAA architecture + pacing rules) · `RECON_ADAPTATION.md` (rules layer)
-**Status: AWAITING APPROVAL — no implementation until Caleb signs off on this document.**
+## One-Sentence Pitch
 
----
-
-## 1. Vision
-
-A **hardcore Vietnam War tactical sandbox**: Arma/OFP bones, SOCOM/Vietcong/Men of Valor flavor, FNV-style persistent campaign layer, CoD/MoHAA audio-visual punch delivered by systems (an AI director), never by rails. Repeatable generated missions — briefing → insertion → 2–4 objectives in an open AO → exfil → debrief — on dense jungle terrain, with an AI fireteam you order, maintain, and lose.
-
-**Pillars (every decision is tested against these):**
-1. **Outstanding gunplay** — HLL lethality; death comes from *situation* (ambush asymmetry, exposure, volume of fire), not bullet sponges.
-2. **Atmosphere** — dense jungle, weather, night, audio. The AO feels like a war is happening around you.
-3. **Freedom** — open AO, objectives are places/things in the world, any route, any order, loud or quiet. Stealth is an economy, never a gate. Nothing is on rails.
-4. **The squad is the RPG** — named persistent teammates with MOS roles who improve, get wounded, rotate home, and die for real. Minimal stats, maximal attachment.
-5. **Fail forward** — detection escalates, failure mutates, death of the mission generates the next story. Never reload-and-memorize.
+RECON is a systems-driven Vietnam combat-tour simulator where the player lives inside the war, not above it. What makes it unforgettable is the atmosphere of a lost 2002 PS1-era tactical shooter—*Parasite Eve* production values meets *Medal of Honor* memory-stain meets *SOCOM* squad tension—powered by emergent AI, persistent soldiers, and a randomly seeded world that tells a story with the player rather than to the player.
 
 ---
 
-## 2. The game loop
+## Setting
 
-### Campaign layer (between missions — the "open world")
-Persistent **province map**: villages, firebases, NVA/VC-controlled zones, trail networks, a war state that shifts with mission outcomes. From the firebase hub:
-1. **Pick an operation** — generated mission offers (weighted by war state) + occasional forced events (firebase defense when a zone gets hot).
-2. **Squad management** — roster of named soldiers with St/Ag/Al + MOS + skills; wounded heal at 2 St/day on the calendar; veterans near skill-cap rotate stateside; dead are gone; green replacements arrive.
-3. **Spend team XP** (RECON pool economy) on skills/attributes. **Loadout** by MOS + requisition.
+Vietnam. Named explicitly. Not allegory, not a thinly-veiled Southeast Asian conflict.
 
-### Mission loop (the game)
-```
-BRIEFING  — 7 elements (RECON): insertion, fire support, enemy intel (accuracy rolled —
-            may be wrong), terrain & weather roll, objectives, special rules, extraction.
-            Player picks LZ + ingress route on the AO map.
-INSERT    — Huey ride on the chosen route (live AA layer, later milestone; abstracted in slice).
-            Hot-LZ outcomes emerge from simulation; shoot-down mutates mission to crash-site E&E.
-PLAY      — open AO, 1–1.5km: 2–4 objectives live simultaneously, ambient contact layer,
-            detection/escalation ladder, squad orders, fire support via RTO.
-EXFIL     — player-triggered radio call; archetype (hold-LZ / gauntlet / quiet walk-on)
-            weighted by heat. Boarding dash. ABORT to emergency exfil always available.
-DEBRIEF   — RECON scoring (+avoided/−detected contacts, −St lost, objective credit),
-            XP pool, roster consequences, war-state update.
-```
-Mission grammar enforced by the generator (research doc §9): quiet approach → recon ring → objective spike → lull → escalation across objectives → heat-scaled exfil → boarding catharsis.
+The AO is a province-sized, randomly seeded map of coastal plains, river valleys, rolling highlands, steep mountains, and plateaus. Villages, firebases, paddies, trails, and jungle patches are placed procedurally within that seed. The same seed reproduces the same world; different seeds are different tours.
 
 ---
 
-## 3. Architecture overview (four layers)
+## Core Fantasy
 
-1. **Province/strategic layer** — data + UI only (map screen, war state, roster, calendar). No 3D simulation.
-2. **AO generation** — TerrainEngine (forked into this repo) generates the 1–1.5km mission area from a seed derived from the province location + mission roll: biome/region preset (Highland Forest / Jungle / Swamp / paddy lowland), rivers, trails (GameplayGrid), then the **site pass** stamps objective compounds, villes, LZs, trap/ambush markers using the RealVietnamRTS structure library.
-3. **Mission generation** — taxonomy RAID / SECURITY / TRANSPORTATION → 2–4 objectives (DESTROY, RETRIEVE, ASSASSINATE, RESCUE, RECON, HOLD — no duplicates, RECON only first, ≤1 HOLD) → population plan (archetype tiers by region: Local Force / Main Force / NVA), dormant groups, patrol routes, alarm carriers, contact deck, escalation menu, exfil node + fallback LZ, weather/moon roll, intel-accuracy roll.
-4. **Tactical runtime** — MissionDirector (event bus + await-based sequencing), MissionState (objective bitmask + accums + manpower pool + heat), NoiseBus, alert-tier AI, squad system, support calls, scoring logger.
+The player is not a superhero. They are a soldier in a small unit inside a larger war. The fantasy has three parts:
 
----
+1. **Tension before contact.** Patrol is long, quiet, and dangerous. Every bush could hide an ambush. Every trail could be mined.
+2. **Chaos during contact.** When firing starts, it is sudden, loud, and confusing. The player must trust their squad, use cover, suppress, flank, and survive.
+3. **Weight after contact.** Soldiers remember who died. The firebase feels different when half the squad is gone. The world does not reset.
 
-## 4. System specs (condensed — details live in the research docs)
-
-### 4.1 Terrain (FPS profile — additions to the fork, config-driven)
-Eye-height camera; near-chunk blocking collision + tree trunk capsules (nearest chunks only); navmesh baking enabled per-chunk near AI (the code exists, commented out); near-player foliage density up + undergrowth layer, billboards pushed out; near-camera terrain detail tier; ground-texture elevation fade removed for FPS profile; fixed mission seed; **sight caps from vegetation density** (RECON ratios, tuned up: open ~500m, forest ~90m, jungle ~45m) scaled globally by the weather/moon roll.
-
-### 4.2 Detection & stealth (MISSION_DESIGN_RESEARCH §5 + RECON §5)
-Four tiers RELAXED→SUSPICIOUS→ALERT→COMBAT; visibility accumulator (stance/motion/foliage modifiers, reaction-time gate, query escalation memory, believed-position aiming, breadcrumb search); NoiseBus with typed radii/priorities (suppressed = unidentifiable `misc` noise); alert propagation local (vis-sharing, corpse discovery, alarm runners with radio/flare — killable counterplay); sentry boredom oscillation on RELAXED. Escalation menu on HQ alarm: finite-pool QRF, walking mortars on last-known position (audible warning), patrol doubling, objective hardening. Civilians inform on a timer if they see you and walk away. Undetected play pays at debrief and at exfil. **Fairness rules:** alert ≠ accuracy; exposure-ramped AI accuracy; first shot at an unaware player is a near-miss; muzzle flash/tracers/vocalizations always telegraph.
-
-### 4.3 Gunplay & damage (RECON §6–7 + HoD systems)
-Projectile ballistics for rifles+ (resurrect HoD's pooled projectile subsystem), hitscan acceptable ≤ pistol ranges. Weapon data from RealVietnamRTS `vietnam_weapon_data.gd` (30+ Vietnam weapons) mapped into HoD's WeaponData resources; RECON posture/range modifier *shape* for spread; stance + movement penalties ("worst modifier only"); per-magazine stoppage roll (weapon-weighted); diegetic ammo (no exact counter; mag-check action). **Three-situation asymmetry:** undetected initiator gets full effectiveness for the opening engagement; the ambushed side (AI and player) suffers a heavy effectiveness penalty until in cover — this is where HLL lethality comes from. Damage: RECON dice (AK 4d10, 5.56 5d10, .50 2d100…) vs ~2d100 St pools; ~10 hitzones with wound effects (arm = handling penalty, leg = no sprint/limp, larynx = no callouts, brain/head = fatal); bleed-out timer retained (medic deadline); pain-quota stagger for hit feedback.
-
-### 4.4 Enemy AI
-Hybrid architecture (decided): HoD's goal-scoring FSM as the COMBAT brain, wrapped in the MoHAA situation-priority stack (idle/suspicious/combat/grenade/pain/dead with suspend-resume) + personality maps per archetype. Archetype resources (Local Force / Main Force regular / NVA / sapper / sniper) seeded from RTS `vietnam_unit_data.gd` + RECON quality tiers (kit density: grenades 1-in-3, MG 1-in-10, RPG 1-in-20 for NVA). Cover claims (fixes HoD's stub), navmesh steering (finally wire NavigationAgent3D), turret-retarget ladder for defenders, pre-placed dormant populations + out-of-sight QRF spawners, leashes everywhere, think/perception time-slicing, brain LOD. Enemies do *jobs* (contact deck: supply parties, medics, tax collector, prisoner escort) — the war exists without the player.
-
-### 4.5 Squad (the RPG)
-2–4 AI teammates; MOS roles = verbs: **Point** (trap/ambush warnings, hand signals), **RTO** (exfil + arty/air calls — lose him, lose the verbs), **Medic** (Pacific-Assault revive chain: limited per-wound treatment, channel time, must reach you), Pigman/Grenadier/Sniper/Demo as roster variety. Orders from slice one: FOLLOW / HOLD / MOVE-TO / ENGAGE / HOLD-FIRE (point-command + 4 keys). Behavior-tree framework (from RTS) for squadmates. Buddy rules: never break player stealth (perception-exempt while undetected), never block doors/trails/muzzle lines, honest enemy threat distribution, effective-but-not-kill-stealing, barks as the primary detection/status UI. Squad deaths permanent; drag-to-cover + tags beat; roster consequences.
-
-### 4.6 Missions, objectives, triggers, sequences
-MissionState objective bitmask + sensor scenes per objective type; exfil gated on required mask; every completion flips world state visibly. MissionTrigger (Area3D, full RTCW/MoHAA property set); ScriptedSequence = await-chains with interrupt semantics; name-based Directory indirection so the generator stamps prefab behaviors onto spawned NPCs; accum counters with guard-aborts (no expression language). Concurrent objective watchers (open AO), linear only within an objective.
-
-### 4.7 Support & fire missions
-RTO-gated. Artillery: call → spotting round on coarse scatter → corrections walk in (delay per volley) — FO skill tightens; same system drives enemy mortars. TACAIR: minutes-scale, smoke-marked runs. Availability rolled at briefing by mission type/region. Illumination flares both ways at night.
-
-### 4.8 Insertion/exfil (live systems)
-Briefing LZ/route choice; generator pre-places AA/MG threats (intel-accuracy roll reveals some); AI-piloted Huey on the chosen route (player in the door, can shoot); Hot-LZ outcome distribution calibrated by RECON's table; shoot-down → crash-site E&E mutation. Exfil archetypes + prep phase + fallback-LZ ladder + boarding dash (MISSION_DESIGN_RESEARCH §11). Slice abstracts the flight; the mission data model treats insertion as a first-class phase from day one.
-
-### 4.9 Characters on screen (CULTIC-style pipeline)
-8-directional billboard sprites rendered from 3D models: Blender batch rig renders the RTS rigged infantry GLBs (US + VC; NVA variant recolor) from 8 yaw angles × animation states (idle, walk, run, crouch, aim, fire, reload, flinch, death ×2, prone) → sprite sheets → `Sprite3D`/shader with camera-relative frame selection. AI FSM states map 1:1 to sprite states — this is why the architecture fits sprites. Perf win funds jungle density.
-
-### 4.10 UI / audio
-Diegetic-first: barks, hand signals, enemy voice lines, wildlife going quiet; minimal HUD (compass strip + selected objective, ammo-by-mag icon, health/bleed state, squad status pips, one subtle "being noticed" directional pip sharpened by Al/perk). Briefing/debrief screens. Audio is load-bearing, not polish (stealth is audio): weapon reports with distance filtering, jungle ambience beds, radio procedure VO (text-to-placeholder first), the RTS `sound_profile` IDs as the sourcing shopping list.
+The goal is not to "win" Vietnam. The goal is to survive an operation, bring as many people home as possible, and feel like the experience mattered.
 
 ---
 
-## 5. Decisions made autonomously in Phase 3/4 (flagged per your "no questions until coding" rule)
-1. **Damage tuning:** RECON dice + hit-location fatals + bleed-out (wounded-friendly so the medic economy works; headshots/ambushes stay instantly lethal). Not HoD's current 2-shot-everything numbers.
-2. **Sight caps tuned up** from RECON's tabletop values (30yd jungle → ~45m) keeping the ratios.
-3. **First-slice MOSs:** Point, RTO, Medic (the mission-loop verbs). Others later.
-4. **Mission taxonomy:** RAID / SECURITY / TRANSPORTATION over the six objective types.
-5. **First slice mission:** RAID with one DESTROY objective (VC weapons cache), day, clear weather, Local Force enemies.
-6. **Suppression and light morale kept** (RECON lacks both; we need them — Local Force breaks, NVA doesn't).
-7. **Sprite pipeline runs as a parallel art track**; capsules remain placeholders through M2 so systems work is never blocked by art.
+## What RECON Is Not
+
+- Not an XP-and-unlock shooter.
+- Not a crafting or base-building game.
+- Not a linear campaign with scripted missions.
+- Not multiplayer.
+- Not a cinematic cutscene game.
+- Not a comedy or comic-book treatment of the war.
+
+It is a single-player, emergent, systems-heavy combat tour simulator. Rule of Cool applies to action; tone stays grounded.
 
 ---
 
-## 6. Milestone roadmap
+## Tone
 
-**M0 — Housekeeping (small)**
-Commit HoD as-is (first commit ever). Prune: `fps_controller.gd`, one of the dual weapon-switch systems, orphaned tilemap pipeline (keep the projectile pool — M5 uses it). Fix jump binding. Fork TerrainEngine into the repo under `terrain/`.
+*Platoon* meets *Hamburger Hill* meets a 2002 Vietnam FPS that never existed. Gritty, humid, exhausted, and dangerous. Avoid camp, avoid cheap heroism, avoid exploitative edge. The player should feel present, not entertained by spectacle.
 
-**M1 — Walkable jungle (perf checkpoint)**
-TerrainEngine FPS profile: eye-height camera, blocking collision on near chunks + trunk capsules, near-foliage density pass, near-camera mesh detail tier, fixed seed, sight-cap query. HoD player controller walking a generated 1km AO at target framerate on modest hardware. **Go/no-go perf gate before anything else is built on top.**
-
-**M2 — THE SLICE (smallest playable mission, end to end)**
-Briefing screen (static text, LZ pick stub) → spawn at LZ → one DESTROY objective (weapons cache in a generated ville site, RTS building models, pre-placed Local Force enemies using current HoD AI + capsules) → plant charge (hold-to-complete) → exfil zone → debrief screen with RECON scoring (contacts avoided/detected counted crudely). Minimal MissionDirector/MissionState/MissionTrigger. *Proves the loop: generate → insert → objective → exfil → score.*
-
-**M3 — Detection & AI overhaul**
-Alert tiers + accumulator + NoiseBus + believed-position/search + navmesh wiring + cover claims + archetype resources (3 tiers) + dormant populations/leashes + escalation ladder (QRF from finite pool, mortars on last-known). Sentry boredom. Fairness rules. *The stealth-vs-loud economy becomes real.*
-
-**M4 — Squad**
-Fireteam of 3 (Point/RTO/Medic) on BT framework: orders (5 commands), never-break-stealth + yielding rules, medic revive chain (fail-forward death model in), point-man warnings, text-stub barks, RTO exfil call. Roster screen stub with rolled St/Ag/Al.
-
-**M5 — Gunplay pass (pillar #1 gets its milestone)**
-Vietnam weapon set from RTS data (M16, CAR-15, AK-47, M60, M79, M1911 + SKS/RPD enemies), projectile ballistics via the pool, RECON damage dice + expanded hitzones + wound effects, three-situation asymmetry, stoppages, recoil/handling feel pass, muzzle flash/tracers/impacts, **first real audio pass (weapons + jungle bed)**.
-
-**M6 — Mission generator proper**
-Taxonomy + 2–4 objectives (all six types), site pass (compounds, villes with attitude, trap/ambush markers), contact deck (ambient jobs: supply parties, patrols, civilians who inform), intensity-curve validation, weather/moon/intel rolls, exfil archetypes + prep + fallback ladder, support calls (arty minigame), heat system. *Replayability arrives.*
-
-**M7 — Live insertion**
-Huey ride-in on chosen route, door-gun, AA/MG sites in the world, hot-LZ emergence, shoot-down → crash-site E&E mutation, extraction bird + boarding dash + smoke.
-
-**M8 — Campaign layer**
-Province map + war state, persistent roster (XP pool spend, healing calendar, rotate-stateside, replacements), mission offers by region, firebase hub screen, Iron Man unlockable. Sprite pipeline lands by here at the latest (parallel track: P1 Blender render rig, P2 in-engine sprite states, P3 replace capsules).
-
-Beyond: night ops + starlight scope + flares, PBR/riverine insertion, tunnels, mortar MOS, big-battle mission types (firebase defense with the AI director at full volume), Vietnamese language/VO, flyable Huey.
+Art direction: PS1/early-2000s inspired low-poly stylized realism. Strong silhouettes, efficient assets, performance-friendly environments. Not photorealism. Believability through identity.
 
 ---
 
-## 7. Approval gate
+## The Player Loop
 
-This document + the three research docs are the complete Phase 1–4 deliverable. **Next step on your word: M0.** Say "approved" (or mark up what to change) and coding starts.
+RECON is built around a single **Operation** at a time.
+
+1. **Deployment.** The player arrives at a firebase on a new seeded map.
+2. **Missions of the Operation.** The squad receives a set of missions (recon, ambush, rescue, patrol, firebase defense, etc.) performed in a semi-open order. The player may die during any mission.
+3. **Death and Continuation.** The player has two strikes before final death:
+   - First death: unconscious. The squad medic will attempt to recover the player.
+   - Second death: medic may still try, but can be stopped by enemy fire.
+   - Third death: the player is dead.
+   After final death, the player returns as a **new replacement** in the same squad. The squad remembers the dead soldier. New dialog, new names, same persistent unit.
+4. **Operation End.** Once the operation's mission set is complete, the player may begin a new operation on a new seed with a new squad, or continue in the same persistent campaign.
+
+The strategic layer across operations is intentionally lightweight for now: new map, new missions, same persistent war. A larger province-level strategic layer is future work and should be hardened separately.
+
+---
+
+## Pillars
+
+### Pillar 1 — Believable Firefights
+
+The AI must fight like soldiers. This is the load-bearing design law. Everything else—terrain, weapons, animations, sound—exists in service of this.
+
+Good behavior: squads spread out, use cover, suppress and maneuver, maintain spacing, leaders direct, fire teams support each other.
+Bad behavior: stacking, walking into fire, ignoring terrain, instant deathmatches.
+
+> **AI Stress-Test Arena Law:** If soldiers cannot create believable large-scale engagements in a deliberately ugly arena, beautiful terrain will not fix the game. The arena is both an internal milestone and a design gate.
+
+### Pillar 2 — Squad Attachment
+
+Soldiers have names, MOS roles, injuries, moods, and histories. The player should remember them because of what happened, not because of stats.
+
+Persistent squad memory is core now at the level of names, deaths, replacements, and squad banter. Full individual soldier memory logging (wounds, promotions, relationships) is aspirational and future.
+
+### Pillar 3 — Player as Participant, Not Director
+
+The player is a member of a squad. They can suggest movement, call targets, request support, but they do not puppeteer every soldier. The squad has its own AI intent.
+
+### Pillar 4 — World as Story Generator
+
+The seeded world creates tactical problems. Villages, ambush sites, trails, and firebases emerge from the same map. No two operations are identical. Stories come from what happened in this world, not from authored cutscenes.
+
+### Pillar 5 — Consequences Without Cruelty
+
+Death matters. Soldiers do not respawn as the same person. A failed mission continues. But the game is not a sadism simulator—players get two strikes, medics try to recover them, and the squad endures.
+
+---
+
+## AI Stress-Test Arena
+
+A dedicated sandbox using the existing Gore Lab environment as a foundation. It is not a mission or campaign scenario.
+
+### Purpose
+
+Validate whether soldiers behave like soldiers when placed in a battlefield:
+
+- Squad movement and spacing.
+- Tactical positioning.
+- Suppression and maneuver.
+- Retreat and reinforcement.
+- Communication and battlefield flow.
+- Emergent, memorable events.
+
+The question being tested: *"If I watched this battle without controlling anyone, would it look like a believable military engagement?"*
+
+### Arena Zones
+
+- **Central Combat Zone:** open space for long-range, flanking, and suppression tests.
+- **Defensive Positions:** trenches, sandbags, fighting holes.
+- **Natural Cover:** tree clusters, bushes, rocks, elevation changes.
+- **Village Area:** simple VC/NVA-style buildings, paths, concealment.
+- **Firebase Area:** US spawn point, defensive perimeter, resupply.
+
+### Forces
+
+- **US (Blue):** Alpha, Bravo, Charlie squads. Each has Squad Leader, RTO, Medic, Riflemen, Grenadier, Machine Gunner.
+- **VC/NVA (Red):** enemy squad groups with squad leader, riflemen, automatic rifleman, support weapon, grenadier, plus ambush-capable units.
+
+### Desired Combat Flow
+
+Movement → Detection → Contact → Suppression → Maneuver → Flanking → Enemy Collapse / Withdrawal → Aftermath
+
+Avoid: spotted → everyone shoots → one side dies.
+
+### Evaluation Criteria
+
+- Do squads spread out and use cover?
+- Do machine guns pin enemies?
+- Do leaders suppress while others move?
+- Do squads retreat from losing positions?
+- Do memorable emergent events happen?
+
+---
+
+## Technology Stack
+
+| Layer | Tool | Purpose |
+|-------|------|---------|
+| Engine | Godot 4.7 | Gameplay, AI, procedural systems, world simulation, UI, save/load |
+| 3D Pipeline | Blender | Low-poly characters, weapons, vehicles, environment, animation, rigging |
+| Project Tracking | Beads | Tasks, bugs, design decisions, dependencies, session continuity |
+| AI Assistance | Claude Code / agentic tools | Programming, debugging, system design, procedural support |
+
+AI accelerates implementation. Design, tone, and direction remain developer-controlled.
+
+---
+
+## Development Priority
+
+Build the smallest foundation that proves the core fantasy, in this order:
+
+1. **The Soldier.** Movement, shooting, weapon handling, basic squad and enemy AI, tactical encounters. The player must already feel inside a dangerous battlefield.
+2. **The Squad.** Persistent soldiers, names, MOS roles, morale, injuries, replacement system. The player begins caring about who survives.
+3. **The War.** Persistent world events, villages, enemy influence, firebase operations, regional conflict. The player realizes the war exists beyond them.
+
+The AI stress-test arena is the gate between Phase 1 and Phase 2. If soldiers are not believable, the squad layer cannot matter.
+
+---
+
+## Emergent Story Engine (Aspirational)
+
+Future system: every soldier has a persistent history log.
+
+Example:
+
+- PFC Michael Hayes
+  - Day 1: assigned to Bravo Squad
+  - Day 4: survived first contact near Village 12
+  - Day 9: wounded during VC ambush
+  - Day 14: returned to active duty
+  - Day 22: lost squadmate John Miller
+  - Day 30: promoted to Corporal
+
+This history should eventually influence morale, attitude, combat behavior, relationships, and squad cohesion. The player remembers soldiers because of what happened, not stats.
+
+This is explicitly **aspirational**. It is not required for the first operation or the AI arena.
+
+---
+
+## AI Agent Development Rules
+
+When using AI agents during development, evaluate every feature against the pillars:
+
+Does it increase:
+- Battlefield immersion?
+- Squad attachment?
+- Tactical decision-making?
+- Persistent world simulation?
+- Player agency?
+
+If yes, continue.
+
+If it creates busywork, artificial progression, arcade mechanics, or systems unrelated to the combat-tour experience, remove or simplify it.
+
+---
+
+## Summary
+
+RECON is a systems-driven combat tour simulator, not a traditional mission-based shooter. The technology exists to create a world where soldiers remember, battles have consequences, the environment creates stories, and the player experiences history rather than controlling it.

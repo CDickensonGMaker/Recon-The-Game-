@@ -1,47 +1,42 @@
 extends Node
 ## Terrain Engine - Advanced heightmap generation with Vietnam-style terrain
 ## Features: Domain warping, ridged multifractal, hydraulic erosion
-## Based on research from Red Blob Games, Nick McDonald, and The Mountains of Madness
 
 signal terrain_generated(heightmap: Image)
 signal terrain_updated(region: Rect2i)
 signal erosion_progress(percent: float)
 
-# Generation parameters
 var seed_value: int = 0
 # Terrain size: 1537 cells = 3074m at 2m/cell (~3km map)
 # Supports up to 1536+ for large open worlds. Use power of 2 + 1 for clean LOD.
 var terrain_size: int = 1537
 
-# Heightmap data
 var heightmap: Image
 var heightmap_data: PackedFloat32Array
 
-# Terrain scale - based on real Vietnam topography
 # Real: min -3m, max 2809m (Fansipan), avg 173m
 var cell_size: float = 2.0  # Meters per heightmap cell
-var height_scale: float = 280.0  # Max terrain height in meters
+var height_scale: float = 280.0  # Max terrain height in meters (world-space shader scale)
+var target_relief: float = 1.0   # Normalized peak-to-valley target (0-1). Replaces the
+                                 # old ratchet that stretched every seed to 100% of height_scale.
 
-# Noise generators
 var base_noise: FastNoiseLite
 var warp_noise_x: FastNoiseLite
 var warp_noise_y: FastNoiseLite
 var ridge_noise: FastNoiseLite
 var detail_noise: FastNoiseLite
 
-# Generation presets
 enum TerrainPreset {
-	ROLLING_HILLS,      # Gentle Vietnam highlands
-	STEEP_MOUNTAINS,    # Dramatic peaks with cliffs
-	RIVER_VALLEY,       # Low center with ridges
-	COASTAL_HILLS,      # Gradual slope to flat
-	PLATEAU,            # Flat top with cliff edges
-	CUSTOM              # Manual parameter control
+	COASTAL_HILLS,      # 0 - flat coastal plain, paddies
+	RIVER_VALLEY,       # 1 - low center with gentle ridges
+	ROLLING_HILLS,      # 2 - gentle Vietnam highlands
+	STEEP_MOUNTAINS,    # 3 - dramatic peaks with cliffs
+	PLATEAU,            # 4 - flat top with cliff edges
+	CUSTOM              # 5 - manual parameter control
 }
 
 var current_preset: TerrainPreset = TerrainPreset.ROLLING_HILLS
 
-# Advanced parameters with defaults for Vietnam terrain
 var params: Dictionary = {
 	# Base terrain
 	"base_frequency": 0.002,
@@ -87,19 +82,44 @@ var params: Dictionary = {
 	"erosion_min_slope": 0.01,
 }
 
-# Preset parameter sets
 var preset_params: Dictionary = {
+	TerrainPreset.COASTAL_HILLS: {
+		"base_frequency": 0.0018,
+		"base_octaves": 4,
+		"warp_enabled": true,
+		"warp_strength": 8.0,
+		"ridge_enabled": false,
+		"cliff_enabled": false,
+		"detail_amplitude": 0.02,
+		"smoothing_passes": 3,
+		"erosion_enabled": false,
+		"erosion_iterations": 30000,
+	},
+	TerrainPreset.RIVER_VALLEY: {
+		"base_frequency": 0.0015,
+		"base_octaves": 4,
+		"warp_enabled": true,
+		"warp_strength": 12.0,
+		"ridge_enabled": false,
+		"ridge_blend": 0.35,
+		"ridge_threshold": 0.4,
+		"cliff_enabled": false,
+		"detail_amplitude": 0.03,
+		"smoothing_passes": 3,
+		"erosion_enabled": false,
+		"erosion_iterations": 80000,  # More erosion for valley carving
+	},
 	TerrainPreset.ROLLING_HILLS: {
 		"base_frequency": 0.002,
 		"base_octaves": 4,
 		"warp_enabled": true,
 		"warp_strength": 30.0,
 		"ridge_enabled": true,
-		"ridge_blend": 0.3,
+		"ridge_blend": 0.15,
 		"ridge_threshold": 0.35,
 		"cliff_enabled": true,
-		"cliff_sharpness": 2.0,
-		"smoothing_passes": 3,
+		"cliff_sharpness": 1.2,
+		"smoothing_passes": 4,
 		"erosion_enabled": false,
 		"erosion_iterations": 5000,
 	},
@@ -107,7 +127,7 @@ var preset_params: Dictionary = {
 		"base_frequency": 0.003,
 		"base_octaves": 5,
 		"warp_enabled": true,
-		"warp_strength": 50.0,
+		"warp_strength": 35.0,
 		"ridge_enabled": true,
 		"ridge_blend": 0.6,
 		"ridge_threshold": 0.2,
@@ -117,32 +137,6 @@ var preset_params: Dictionary = {
 		"smoothing_passes": 1,
 		"erosion_enabled": false,
 		"erosion_iterations": 60000,
-	},
-	TerrainPreset.RIVER_VALLEY: {
-		"base_frequency": 0.0015,
-		"base_octaves": 4,
-		"warp_enabled": true,
-		"warp_strength": 25.0,
-		"ridge_enabled": true,
-		"ridge_blend": 0.35,
-		"ridge_threshold": 0.4,
-		"cliff_enabled": true,
-		"cliff_sharpness": 2.5,
-		"smoothing_passes": 2,
-		"erosion_enabled": false,
-		"erosion_iterations": 80000,  # More erosion for valley carving
-	},
-	TerrainPreset.COASTAL_HILLS: {
-		"base_frequency": 0.0018,
-		"base_octaves": 4,
-		"warp_enabled": true,
-		"warp_strength": 20.0,
-		"ridge_enabled": false,
-		"cliff_enabled": true,
-		"cliff_sharpness": 1.5,
-		"smoothing_passes": 3,
-		"erosion_enabled": false,
-		"erosion_iterations": 30000,
 	},
 	TerrainPreset.PLATEAU: {
 		"base_frequency": 0.0012,
@@ -165,7 +159,6 @@ func _ready() -> void:
 
 
 func _init_noise() -> void:
-	# Base terrain noise
 	base_noise = FastNoiseLite.new()
 	base_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	base_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
@@ -181,12 +174,10 @@ func _init_noise() -> void:
 	warp_noise_y.fractal_type = FastNoiseLite.FRACTAL_FBM
 	warp_noise_y.fractal_octaves = 3
 
-	# Ridged multifractal noise
 	ridge_noise = FastNoiseLite.new()
 	ridge_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	ridge_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
 
-	# Detail noise
 	detail_noise = FastNoiseLite.new()
 	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	detail_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
@@ -196,7 +187,6 @@ func _init_noise() -> void:
 func set_preset(preset: TerrainPreset) -> void:
 	current_preset = preset
 	if preset != TerrainPreset.CUSTOM and preset_params.has(preset):
-		# Merge preset params into current params
 		for key in preset_params[preset]:
 			params[key] = preset_params[preset][key]
 	_apply_params()
@@ -233,7 +223,6 @@ func generate(new_seed: int = -1) -> void:
 	else:
 		randomize_seed()
 
-	# Set seeds for all noise generators
 	base_noise.seed = seed_value
 	warp_noise_x.seed = seed_value + 100
 	warp_noise_y.seed = seed_value + 200
@@ -265,8 +254,8 @@ func generate(new_seed: int = -1) -> void:
 	if params.get("erosion_enabled", true):
 		_simulate_hydraulic_erosion()
 
-	# Final normalization
-	_normalize_heightmap()
+	# Final bounded amplitude scaling (replaces the old normalization ratchet)
+	_scale_heightmap()
 
 	# Create image
 	_create_heightmap_image()
@@ -288,9 +277,7 @@ func _generate_base_with_warping() -> void:
 			var sample_x: float = float(x)
 			var sample_y: float = float(y)
 
-			# Apply domain warping if enabled
 			if warp_enabled:
-				# Get warp offsets from separate noise functions
 				var warp_x: float = warp_noise_x.get_noise_2d(x, y) * warp_strength
 				var warp_y: float = warp_noise_y.get_noise_2d(x, y) * warp_strength
 
@@ -322,7 +309,6 @@ func _apply_ridged_multifractal() -> void:
 			if base_height < ridge_threshold:
 				continue
 
-			# Get ridged noise value
 			var ridge: float = ridge_noise.get_noise_2d(x, y)
 
 			# Transform to ridged multifractal
@@ -330,7 +316,8 @@ func _apply_ridged_multifractal() -> void:
 			ridge = abs(ridge)
 			# 2. Invert (1.0 - x makes peaks into ridges)
 			ridge = 1.0 - ridge
-			# 3. Sharpen with power function
+			# 3. Sharpen with power function. Clamp to avoid NaN from fractal overshoot.
+			ridge = clampf(ridge, 0.0, 1.0)
 			ridge = pow(ridge, ridge_sharpness)
 
 			# Height-dependent blending (higher areas get more ridge detail)
@@ -341,7 +328,6 @@ func _apply_ridged_multifractal() -> void:
 
 
 func _apply_detail_noise() -> void:
-	## Add fine detail to the terrain
 	var detail_amp: float = params.get("detail_amplitude", 0.08)
 
 	for y in range(terrain_size):
@@ -361,7 +347,6 @@ func _apply_cliff_enhancement() -> void:
 	var threshold: float = params.get("cliff_threshold", 0.25)
 	var sharpness: float = params.get("cliff_sharpness", 3.0)
 
-	# Calculate gradients
 	var gradients: PackedFloat32Array
 	gradients.resize(terrain_size * terrain_size)
 
@@ -375,7 +360,6 @@ func _apply_cliff_enhancement() -> void:
 
 			gradients[idx] = sqrt(gx * gx + gy * gy)
 
-	# Apply cliff sharpening where gradient is high
 	for y in range(1, terrain_size - 1):
 		for x in range(1, terrain_size - 1):
 			var idx: int = y * terrain_size + x
@@ -388,7 +372,6 @@ func _apply_cliff_enhancement() -> void:
 				var levels: float = 8.0 + sharpness * 2.0
 				var level_h: float = round(h * levels) / levels
 
-				# Blend based on gradient steepness
 				var blend: float = smoothstep(threshold * 0.5, threshold, grad)
 				blend = pow(blend, 1.0 / sharpness)
 
@@ -451,11 +434,9 @@ func _simulate_hydraulic_erosion() -> void:
 	@warning_ignore("integer_division")
 	var progress_step: int = maxi(1, iterations / 10)
 	for i in range(iterations):
-		# Report progress every 10%
 		if i % progress_step == 0:
 			erosion_progress.emit(float(i) / float(iterations))
 
-		# Spawn droplet at random position
 		var pos := Vector2(
 			rng.randf() * (terrain_size - 2) + 1,
 			rng.randf() * (terrain_size - 2) + 1
@@ -484,14 +465,11 @@ func _simulate_hydraulic_erosion() -> void:
 				var angle: float = rng.randf() * TAU
 				dir = Vector2(cos(angle), sin(angle))
 
-			# Move droplet
 			var new_pos: Vector2 = pos + dir
 
-			# Check bounds
 			if new_pos.x < 1 or new_pos.x >= terrain_size - 1 or new_pos.y < 1 or new_pos.y >= terrain_size - 1:
 				break
 
-			# Calculate height difference
 			var old_height: float = _get_interpolated_height(pos)
 			var new_height: float = _get_interpolated_height(new_pos)
 			var height_diff: float = new_height - old_height
@@ -512,11 +490,9 @@ func _simulate_hydraulic_erosion() -> void:
 				sediment -= deposit_amount
 				_deposit_sediment(pos, deposit_amount, erosion_radius)
 			else:
-				# Erode terrain
 				var erode_amount: float = min((capacity - sediment) * erosion_rate, -height_diff)
 				sediment += _erode_terrain(pos, erode_amount, erosion_radius)
 
-			# Update droplet
 			speed = sqrt(max(0, speed * speed + height_diff))
 			water *= (1.0 - evaporation)
 			pos = new_pos
@@ -645,21 +621,50 @@ func _erode_terrain(pos: Vector2, amount: float, radius: int) -> float:
 	return total_eroded
 
 
-func _normalize_heightmap() -> void:
-	## Normalize heightmap to 0-1 range
-	var min_h: float = 1.0
-	var max_h: float = 0.0
+func _scale_heightmap() -> void:
+	## Bounded amplitude scaling: center the distribution and scale it so the
+	## bulk of the heights occupies `target_relief` in normalized space.
+	## Replaces the old ratchet (_normalize_heightmap) that stretched every seed
+	## to 100% of the shader height_scale, making gentle seeds look broken.
+	## (RECONgame-p7wx)
+
+	if heightmap_data.is_empty():
+		return
+
+	var mean: float = 0.0
+	var min_h: float = INF
+	var max_h: float = -INF
 
 	for h in heightmap_data:
-		min_h = min(min_h, h)
-		max_h = max(max_h, h)
+		mean += h
+		min_h = minf(min_h, h)
+		max_h = maxf(max_h, h)
+	mean /= float(heightmap_data.size())
 
-	var range_h: float = max_h - min_h
-	if range_h < 0.001:
-		range_h = 1.0
+	var raw_range: float = max_h - min_h
+	if raw_range < 0.001:
+		return
+
+	var variance: float = 0.0
+	for h in heightmap_data:
+		var d: float = h - mean
+		variance += d * d
+	variance /= float(heightmap_data.size())
+	var std: float = sqrt(variance)
+	if std < 0.0001:
+		return
+
+	# Scale so ~95% of the distribution fits inside target_relief, but never
+	# stretch beyond the raw range (that would be the ratchet again).
+	var scale: float = target_relief / (std * 2.0)
+	scale = clampf(scale, target_relief / raw_range, target_relief / std)
 
 	for i in range(heightmap_data.size()):
-		heightmap_data[i] = (heightmap_data[i] - min_h) / range_h
+		heightmap_data[i] = (heightmap_data[i] - mean) * scale + 0.5
+
+	# Clamp to [0,1] so the shader never samples outside the heightmap.
+	for i in range(heightmap_data.size()):
+		heightmap_data[i] = clampf(heightmap_data[i], 0.0, 1.0)
 
 
 func _create_heightmap_image() -> void:
@@ -671,7 +676,6 @@ func _create_heightmap_image() -> void:
 			heightmap.set_pixel(x, y, Color(h, h, h, 1.0))
 
 
-## Get height at world position
 func get_height_at(world_pos: Vector3) -> float:
 	var fx: float = world_pos.x / cell_size
 	var fz: float = world_pos.z / cell_size
@@ -697,7 +701,6 @@ func get_height_at(world_pos: Vector3) -> float:
 	return lerp(h0, h1, dz) * height_scale
 
 
-## Get normal at world position
 func get_normal_at(world_pos: Vector3) -> Vector3:
 	var delta: float = cell_size
 
@@ -709,7 +712,6 @@ func get_normal_at(world_pos: Vector3) -> Vector3:
 	return Vector3(hL - hR, 2.0 * delta, hD - hU).normalized()
 
 
-## Modify heightmap in a region (for damage/clearing)
 func modify_region(center: Vector2i, radius: int, modifier: Callable) -> void:
 	var affected := Rect2i(
 		Vector2i(max(0, center.x - radius), max(0, center.y - radius)),
@@ -725,7 +727,6 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> void:
 				var falloff: float = 1.0 - smoothstep(0.0, float(radius), dist)
 				heightmap_data[idx] = modifier.call(heightmap_data[idx], falloff)
 
-	# Update image
 	for y in range(affected.position.y, affected.position.y + affected.size.y):
 		for x in range(affected.position.x, affected.position.x + affected.size.x):
 			var h: float = heightmap_data[y * terrain_size + x]

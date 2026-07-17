@@ -1,7 +1,6 @@
-## vo_manager.gd - routes bark/toast events to the generated VO library (audit decree:
-## THE ONE BUILD). 162 DSP-processed wavs in assets/audio/vo/ finally get a player.
+## vo_manager.gd - routes bark/toast events to the VO library in assets/audio/vo/.
 ##
-## Casting (Caleb's voice-test verdict 2026-07-09):
+## Casting:
 ##   radio  -> joe ("joe the radio man voice" folder) - ALL comms traffic
 ##   squad  -> john (main NPC bark voice) / ryan (rookie alternate, by member hash)
 ##   medic  -> norman
@@ -39,7 +38,7 @@ func _ready() -> void:
 	add_child(_radio3d)
 
 
-## RTO radio traffic. Diegetic sourcing (Caleb): the chatter comes FROM the radio -
+## RTO radio traffic. Diegetic sourcing: the chatter comes FROM the radio -
 ## positional at the RTO's backpack (`source_pos`) so it fades with distance in a
 ## firefight. Only when the player is ON THE NET (handset in hand) is it in-ear 2D.
 func play_radio(line_id: String, source_pos: Variant = null) -> void:

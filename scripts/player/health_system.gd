@@ -24,9 +24,8 @@ var health_packs: int = 3
 const HEAL_AMOUNT: int = 100  ## Full heal when you use a medkit
 const HEAL_TIME: float = 3.0
 
-## R58: bandage vs medkit split - same item, context picks the treatment.
-## Still bleeding but not critical -> quick bandage (stops the clock fast,
-## partial heal, wounds stay). Safe/topping off -> full slow treatment.
+## Bandage vs medkit: one item, the context picks the treatment. Bleeding but not
+## critical -> quick bandage (partial heal, wounds stay). Otherwise full treatment.
 const BANDAGE_TIME: float = 1.3
 const BANDAGE_HEAL_FRAC: float = 0.55
 var _is_bandage: bool = false
@@ -40,8 +39,8 @@ var heal_timer: float = 0.0
 var is_bleeding: bool = false
 var bleed_timer: float = 0.0
 var bleed_duration: float = 25.0  ## Seconds to heal before death
-## Caleb (gore lab): ~30s fighting chance. Floor raised 10->25 so even a
-## low-HP first hit leaves a real window to reach cover and patch up.
+## The floor is a design invariant: even a low-HP first hit must leave a real
+## window (~30s) to reach cover and patch up.
 const MIN_BLEED_TIME: float = 25.0
 const MAX_BLEED_TIME: float = 30.0
 
@@ -128,7 +127,6 @@ func cancel_healing() -> void:
 
 
 func _update_healing(delta: float) -> void:
-	# Check movement interrupt
 	if controller and controller.is_moving():
 		_interrupt_healing()
 		return
@@ -156,10 +154,10 @@ func _finish_healing() -> void:
 	bleeding_stopped.emit()
 
 	if _is_bandage:
-		# R58: quick bandage - stops the bleed, partial heal, wounds stay.
+		# Quick bandage: partial heal, limb wounds stay.
 		current_hp = maxi(current_hp, int(float(max_hp) * BANDAGE_HEAL_FRAC))
 	else:
-		# Full medkit treatment: full heal, clears limb wounds too (W37).
+		# Full treatment: full heal, and it clears limb wounds.
 		current_hp = max_hp
 		if controller and controller.has_method("clear_wounds"):
 			controller.clear_wounds()
@@ -190,37 +188,32 @@ func _bleed_out() -> void:
 	_die()
 
 
-## Take damage - now triggers bleed state
+## Take damage; starts or pressures the bleed clock.
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null) -> int:
 	if is_healing:
 		_interrupt_healing()
 
-	var actual_damage := int(float(amount) * GameSettings.player_damage_mult())  # W82
+	var actual_damage := int(float(amount) * GameSettings.player_damage_mult())
 	current_hp -= actual_damage
 
-	# Clamp HP
 	if current_hp < 0:
 		current_hp = 0
 
 	health_changed.emit(current_hp, max_hp)
 
-	# Check for instant death (massive damage or already critical)
 	if current_hp <= 0:
 		_die()
 		return actual_damage
 
-	# Start or reset bleeding
 	if not is_bleeding:
-		# Calculate bleed time based on remaining HP
 		var hp_percent := float(current_hp) / float(max_hp)
 		bleed_duration = lerp(MIN_BLEED_TIME, MAX_BLEED_TIME, hp_percent)
 		is_bleeding = true
 		bleed_timer = bleed_duration
 		bleeding_started.emit(bleed_duration)
 	else:
-		# Already bleeding - further hits pressure the clock, but can never
-		# collapse it below a heal-able window (Caleb: "you should have ~30
-		# seconds... a fighting chance"; bandage channel is 1.3s).
+		# Further hits pressure the clock, but it can NEVER collapse below a
+		# heal-able window (the bandage channel alone is 1.3s).
 		var time_reduction := amount * 0.15
 		bleed_timer = max(8.0, bleed_timer - time_reduction)
 		bleeding_progress.emit(bleed_timer)
@@ -233,7 +226,6 @@ func heal(amount: int) -> int:
 	var actual_heal := mini(amount, max_hp - current_hp)
 	current_hp += actual_heal
 
-	# Stop bleeding if healed to full
 	if current_hp >= max_hp:
 		is_bleeding = false
 		bleeding_stopped.emit()
@@ -248,14 +240,13 @@ func stabilize() -> void:
 	bleeding_stopped.emit()
 
 
-## Downed/revive layer (W17). A revive handler (SquadSystem) may intercept
-## death: player goes DOWNED and a medic gets a window to reach them.
+## Downed/revive layer. A revive handler (SquadSystem) may intercept death: the
+## player goes DOWNED and a medic gets a window to reach him.
 var revive_handler: Node = null
 var is_downed: bool = false
 const DOWNED_BLEED_SECONDS: float = 30.0
 
 
-## Die
 func _die() -> void:
 	if not is_downed and revive_handler != null and is_instance_valid(revive_handler) \
 			and revive_handler.has_method("can_revive") and revive_handler.can_revive():
@@ -285,27 +276,23 @@ func revive(restored_hp: int) -> void:
 	downed_ended.emit(true)
 
 
-## Check if dead
 func is_dead() -> bool:
 	return current_hp <= 0 and not is_downed
 
 
-## Check if critically wounded (bleeding)
+## Critically wounded == bleeding.
 func is_critical() -> bool:
 	return is_bleeding
 
 
-## Add health pack to inventory
 func add_health_pack(count: int = 1) -> void:
 	health_packs += count
 	health_pack_changed.emit(health_packs)
 
 
-## Get health pack count
 func get_health_pack_count() -> int:
 	return health_packs
 
 
-## Get bleed time remaining
 func get_bleed_time_remaining() -> float:
 	return bleed_timer if is_bleeding else 0.0

@@ -13,7 +13,6 @@ enum DamageType {
 	BUNKER_COLLAPSE,    # Localized depression
 }
 
-# Damage profiles
 const DAMAGE_PROFILES: Dictionary = {
 	DamageType.SMALL_EXPLOSION: {
 		"radius_cells": 3,
@@ -57,14 +56,11 @@ const DAMAGE_PROFILES: Dictionary = {
 	},
 }
 
-# Damage tracking
 var damage_zones: Array[Dictionary] = []
 var scar_decals: Array[Decal] = []
 
-## Per-mission crater ceiling (War Room decree, perf): the shipped cap is per-strike;
-## this bounds the AGGREGATE terrain deforms so more exposed ordnance (CBU/napalm/arty)
-## can't spike chunk rebuilds. Reset each mission in clear_all_damage(). Generous - normal
-## play won't hit it; only sustained ordnance spam does, and then it degrades gracefully.
+## Aggregate per-mission ceiling on terrain deforms (the shipped cap is per-strike; this
+## bounds chunk-rebuild spikes under sustained ordnance). Reset in clear_all_damage().
 const MAX_DEFORMS_PER_MISSION: int = 40
 var _deforms_this_mission: int = 0
 
@@ -73,14 +69,12 @@ var terrain_manager: Node
 var vegetation_manager: Node
 var billboard_vegetation: Node
 
-# Decal container node
 var decal_container: Node3D
 
 # Scar textures (procedurally generated)
 var crater_scar_texture: ImageTexture
 var burn_scar_texture: ImageTexture
 
-# Texture size for scar decals
 const SCAR_TEXTURE_SIZE: int = 128
 
 
@@ -91,22 +85,18 @@ func _ready() -> void:
 	_create_scar_textures()
 
 
-## Set terrain manager reference (called by terrain_lab)
 func set_terrain_manager(manager: Node) -> void:
 	terrain_manager = manager
 
 
-## Set vegetation manager reference for clearing vegetation on damage
 func set_vegetation_manager(veg_manager: Node) -> void:
 	vegetation_manager = veg_manager
 
 
-## Set billboard vegetation reference for clearing billboards on damage
 func set_billboard_vegetation(billboard_veg: Node) -> void:
 	billboard_vegetation = billboard_veg
 
 
-## Apply damage at world position
 func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) -> void:
 	if not terrain_manager:
 		push_warning("DamageSystem: TerrainManager not set - call set_terrain_manager()")
@@ -118,7 +108,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 	var rim_height: float = profile.rim_height * intensity
 	var falloff_power: float = profile.falloff_power
 
-	# Create crater modifier function
 	var crater_func := func(current_height: float, falloff_amount: float) -> float:
 		# Smooth crater profile: continuous depression + rim curves (no hard boundaries)
 		# falloff_amount: 1.0 at center, 0.0 at edge
@@ -134,7 +123,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 
 		return clampf(current_height - depression + rim, 0.0, 1.0)
 
-	# Get cell size from terrain manager
 	var cell_size: float = terrain_manager.cell_size
 	var radius_meters: float = radius * cell_size
 
@@ -154,14 +142,11 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 			terrain_manager.heightmap,
 		)
 
-	# Clear billboards in damaged area
 	if billboard_vegetation and billboard_vegetation.has_method("clear_chunk"):
-		# Get affected chunk coordinates
 		var chunk_coord := Vector2i(
 			int(floor(world_pos.x / terrain_manager.chunk_size)),
 			int(floor(world_pos.z / terrain_manager.chunk_size))
 		)
-		# Regenerate billboard for this chunk (will respect cleared vegetation)
 		if vegetation_manager and vegetation_manager._chunk_terrain.has(chunk_coord):
 			billboard_vegetation.generate_for_chunk(
 				chunk_coord,
@@ -169,10 +154,8 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 				vegetation_manager._chunk_terrain[chunk_coord]
 			)
 
-	# Get terrain height at damage position for decal placement
 	var terrain_height: float = terrain_manager.get_height_at(world_pos)
 
-	# Record damage zone
 	damage_zones.append({
 		"position": world_pos,
 		"type": type,
@@ -181,7 +164,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 		"time": Time.get_ticks_msec(),
 	})
 
-	# Create visible scar decal
 	_create_scar_decal(
 		Vector3(world_pos.x, terrain_height, world_pos.z),
 		radius_meters,
@@ -193,7 +175,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 	damage_applied.emit(world_pos, type, radius_meters)
 
 
-## Create procedural scar textures for decals
 func _create_scar_textures() -> void:
 	# Create crater scar texture (circular with darker center, brown rim)
 	var crater_img := Image.create(SCAR_TEXTURE_SIZE, SCAR_TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
@@ -208,11 +189,9 @@ func _create_scar_textures() -> void:
 			if dist > 1.0:
 				crater_img.set_pixel(x, y, Color(0, 0, 0, 0))
 			else:
-				# Crater: dark center, brown rim, soft edge
 				var edge_falloff: float = smoothstep(0.7, 1.0, dist)
 				var center_darkness: float = 1.0 - dist * 0.5
 
-				# Add some noise for variation
 				var noise_val: float = sin(x * 0.3) * cos(y * 0.3) * 0.1
 
 				var r: float = clampf(0.15 + dist * 0.15 + noise_val, 0.0, 1.0)
@@ -235,15 +214,12 @@ func _create_scar_textures() -> void:
 			if dist > 1.0:
 				burn_img.set_pixel(x, y, Color(0, 0, 0, 0))
 			else:
-				# Burn: very dark, charred look
 				var edge_falloff: float = smoothstep(0.6, 1.0, dist)
 
-				# Irregular noise pattern for burn marks
 				var noise1: float = sin(x * 0.5 + y * 0.3) * 0.15
 				var noise2: float = cos(x * 0.2 - y * 0.4) * 0.1
 				var noise_combined: float = noise1 + noise2
 
-				# Very dark charred colors
 				var r: float = clampf(0.03 + noise_combined * 0.02, 0.0, 0.1)
 				var g: float = clampf(0.02 + noise_combined * 0.01, 0.0, 0.08)
 				var b: float = clampf(0.01, 0.0, 0.05)
@@ -254,39 +230,33 @@ func _create_scar_textures() -> void:
 	burn_scar_texture = ImageTexture.create_from_image(burn_img)
 
 
-## Create a decal at the damage position
 func _create_scar_decal(position: Vector3, radius: float, color: Color, scar_type: String, intensity: float) -> void:
 	var decal := Decal.new()
 	decal.name = "ScarDecal_%d" % scar_decals.size()
 
-	# Position decal at damage location, slightly above terrain
 	decal.position = position + Vector3(0, 1, 0)
 
 	# Size based on damage radius (decal size is half-extents, so multiply by 2)
 	var decal_size: float = radius * 2.2 * intensity  # Slightly larger than crater
 	decal.size = Vector3(decal_size, 10.0, decal_size)  # 10m height to project onto terrain
 
-	# Select texture based on scar type
 	if scar_type == "burn":
 		decal.texture_albedo = burn_scar_texture
 	else:
 		decal.texture_albedo = crater_scar_texture
 
-	# Decal settings
 	decal.albedo_mix = 0.85 * intensity  # How much to blend with terrain
 	decal.modulate = color  # Tint the texture
 	decal.cull_mask = 1  # Only affect terrain layer
 	decal.upper_fade = 0.1
 	decal.lower_fade = 0.3
 
-	# Random rotation for variety
 	decal.rotation.y = randf() * TAU
 
 	decal_container.add_child(decal)
 	scar_decals.append(decal)
 
 
-## Apply area bombardment (multiple craters)
 func apply_bombardment(center: Vector3, radius: float, count: int, type: DamageType) -> void:
 	for i in range(count):
 		var angle: float = randf() * TAU
@@ -302,7 +272,6 @@ func clear_all_damage() -> void:
 	damage_zones.clear()
 	_deforms_this_mission = 0  # fresh crater budget each mission
 
-	# Remove all scar decals
 	for decal in scar_decals:
 		if is_instance_valid(decal):
 			decal.queue_free()
@@ -311,11 +280,9 @@ func clear_all_damage() -> void:
 	terrain_scarred.emit(Rect2i(Vector2i.ZERO, Vector2i(256, 256)))
 
 
-## Get damage count
 func get_damage_count() -> int:
 	return damage_zones.size()
 
 
-## Get all damage zones (for saving/loading)
 func get_damage_zones() -> Array[Dictionary]:
 	return damage_zones

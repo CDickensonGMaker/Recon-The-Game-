@@ -14,7 +14,6 @@ enum ClearingStage {
 	FORTIFIED,           # Flattened and prepared
 }
 
-# Clearing zone data
 class ClearingZone:
 	var id: int
 	var center: Vector3
@@ -52,15 +51,14 @@ const STAGE_PARAMS: Dictionary = {
 	},
 }
 
-# Active clearing zones
 var zones: Dictionary = {}  # id -> ClearingZone
 var next_zone_id: int = 0
 
-# Vegetation density map
+# CLEARING MASK, not a density: starts at 1.0 everywhere and is only ever LOWERED inside a
+# clearing zone. Callers must MERGE it as a minimum -- never read it as terrain density.
 var vegetation_map: Image
 var vegetation_size: int = 512
 
-# Clearing overlay texture
 var clearing_texture: Image
 
 # Reference to terrain manager (set by terrain_lab)
@@ -71,7 +69,6 @@ func _ready() -> void:
 	_init_vegetation_map()
 
 
-## Set terrain manager reference (called by terrain_lab)
 func set_terrain_manager(manager: Node) -> void:
 	terrain_manager = manager
 
@@ -84,7 +81,6 @@ func _init_vegetation_map() -> void:
 	clearing_texture.fill(Color(0, 0, 0, 0))
 
 
-## Create a new clearing zone
 func create_zone(center: Vector3, radius: float, shape: String = "circle", rect_size: Vector2 = Vector2.ZERO) -> int:
 	var zone := ClearingZone.new()
 	zone.id = next_zone_id
@@ -100,7 +96,6 @@ func create_zone(center: Vector3, radius: float, shape: String = "circle", rect_
 	return zone.id
 
 
-## Advance clearing progress
 func advance_clearing(zone_id: int, amount: float) -> void:
 	if not zones.has(zone_id):
 		return
@@ -108,7 +103,6 @@ func advance_clearing(zone_id: int, amount: float) -> void:
 	var zone: ClearingZone = zones[zone_id]
 	zone.progress += amount
 
-	# Check for stage advancement
 	if zone.progress >= 1.0:
 		zone.progress = 0.0
 		if zone.stage < ClearingStage.FORTIFIED:
@@ -149,7 +143,6 @@ func _apply_stage_changes(zone: ClearingZone) -> void:
 	if flattening <= 0.0:
 		return
 
-	# Calculate target height (average of zone)
 	var cell_size: float = terrain_manager.cell_size
 	var heightmap = terrain_manager.heightmap
 	var center := Vector2i(
@@ -158,7 +151,6 @@ func _apply_stage_changes(zone: ClearingZone) -> void:
 	)
 	var radius_cells: int = int(zone.radius / cell_size)
 
-	# Find average height in zone
 	var total_height: float = 0.0
 	var count: int = 0
 
@@ -192,7 +184,6 @@ func _is_in_zone(zone: ClearingZone, x: int, y: int, center: Vector2i, radius_ce
 		return dist <= radius_cells
 
 
-## Update vegetation density map
 func _update_vegetation_map(zone: ClearingZone) -> void:
 	if not terrain_manager:
 		return
@@ -222,7 +213,6 @@ func _update_vegetation_map(zone: ClearingZone) -> void:
 				in_zone = dist <= tex_radius
 
 			if in_zone:
-				# Calculate falloff at edges
 				var edge_dist: float
 				if zone.shape == "rectangle":
 					var half_w: float = zone.rect_size.x * scale * 0.5
@@ -236,12 +226,10 @@ func _update_vegetation_map(zone: ClearingZone) -> void:
 
 				var falloff: float = clampf(edge_dist, 0.0, 1.0)
 
-				# Update vegetation density
 				var current_density: float = vegetation_map.get_pixel(x, y).r
 				var new_density: float = lerp(current_density, density, falloff)
 				vegetation_map.set_pixel(x, y, Color(new_density, new_density, new_density, 1.0))
 
-				# Update clearing color overlay
 				var current_color: Color = clearing_texture.get_pixel(x, y)
 				var alpha: float = (1.0 - density) * falloff
 				var new_color := Color(
@@ -284,7 +272,6 @@ func get_clearing_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(clearing_texture)
 
 
-## Remove a clearing zone
 func remove_zone(zone_id: int) -> void:
 	zones.erase(zone_id)
 

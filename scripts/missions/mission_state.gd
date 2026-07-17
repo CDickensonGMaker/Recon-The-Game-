@@ -1,5 +1,5 @@
-## mission_state.gd - Objective bitmask + mission accumulators (NS07).
-## The RTCW rule lives here: exfil unlocks only when required_mask is full.
+## mission_state.gd - Objective bitmask + mission accumulators.
+## Exfil unlocks only when required_mask is full.
 class_name MissionState
 extends RefCounted
 
@@ -31,7 +31,7 @@ func register_objective(index: int, title: String, required: bool = true) -> voi
 func complete_objective(index: int) -> bool:
 	var bit: int = 1 << index
 	if met_mask & bit:
-		return false  # idempotent (RTCW objectivemet rule)
+		return false  # idempotent
 	met_mask |= bit
 	objective_met.emit(index)
 	return true
@@ -61,11 +61,9 @@ func record_kill() -> void:
 	kills += 1
 
 
-## CONTACT LEDGER (ADR-006, audit L4). The scoring economy that GAME_GUIDE names
-## - +25 avoided, -25 detected - had no numbers to score, because nobody counted.
-## An enemy GROUP is "detected" the first time any of its men reaches COMBAT with
-## eyes on you; a group you leave the AO without ever alerting is "avoided". The
-## ledger is per-group and one-way: once they've seen you, that contact is spent.
+## CONTACT LEDGER (ADR-006). A group is DETECTED the first time any of its men
+## reaches COMBAT with eyes on you; a group you leave the AO without ever alerting
+## is AVOIDED. Per-group and one-way: once they have seen you, the contact is spent.
 var contacts_detected: int = 0
 var _detected_groups: Dictionary = {}   ## instance_id -> true
 var _known_groups: Dictionary = {}      ## every group that ever existed

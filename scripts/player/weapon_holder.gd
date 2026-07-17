@@ -43,23 +43,18 @@ var is_firing: bool = false
 var can_fire: bool = true
 var fire_timer: float = 0.0
 
-## R09: rare stoppage - a bad round jams the action. No bang, needs a manual
-## clear (tap reload) instead of a normal fire cycle.
 var is_jammed: bool = false
-## Survival v1: weapon condition 0-100. Fouling from firing (worse in rain)
-## multiplies the jam chance - the RIFLE gets unreliable, you don't lose damage.
+## Weapon condition 0-100. Fouling raises the jam chance, never lowers damage.
 var weapon_condition: float = 100.0
 var _condition_warned_60: bool = false
 var _condition_warned_30: bool = false
 var _clearing_jam: bool = false
 signal weapon_jammed
 
-## R52: idle weapon sway, tightened by ADS and killed almost entirely by
-## holding your breath (player.gd: is_holding_breath).
 var _sway_time: float = 0.0
 
-## R57: a captured enemy weapon in the primary slot sounds friendly to their
-## side at range (NoiseBus team match) - visual detection still works fine.
+## Captured enemy weapon in the primary slot: its gunshots emit on the enemy
+## NoiseBus team, so they do not read as hostile by sound (visual still does).
 var primary_is_captured: bool = false
 
 
@@ -107,9 +102,6 @@ const SWITCH_TIME: float = 0.5
 var weapon_model: Node3D = null
 
 ## Viewmodel pitch compensation (prevents floor clipping when looking down).
-## Retuned for the full ARMS rigs (Caleb, gore lab): the old 0.8m lift from
-## -20 deg was gun-only-era tuning - at close range (looking down at a target)
-## it yanked the arms to the top of the screen.
 const PITCH_OFFSET_ENABLED: bool = true
 const PITCH_OFFSET_START: float = -38.0  ## Start offsetting at this pitch (degrees)
 const PITCH_OFFSET_MAX: float = -75.0  ## Maximum pitch before full offset
@@ -120,20 +112,14 @@ const PITCH_OFFSET_FORWARD: float = 0.15  ## How much to move weapon forward
 var ray_origin: Vector3
 var ray_end: Vector3
 
-## Tracers are data-driven per weapon now (WeaponData.tracer_ratio/color, nx9n)
-## and the streak IS the round (BulletSystem, 7ks).
-
 ## Viewmodel scaling
 const BASE_VIEWMODEL_SCALE: float = 0.1  ## Base scale applied to all viewmodels
 
 func _ready() -> void:
-	# Get references from parent hierarchy
 	camera = get_parent() as Camera3D
-	# Controller is the root Player node - go up: WeaponHolder -> Camera3D -> Head -> Player
+	# Hierarchy contract: WeaponHolder -> Camera3D -> Head -> Player (the root).
 	controller = get_parent().get_parent().get_parent()
 
-	# Default primary: the M16A1 (flat 28 — ADR-016, derived from the retired
-	# RECON 5d10 average). The WW2 Thompson holdover left the default loadout (audit).
 	primary_weapon = load("res://data/weapons/m16a1.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
@@ -141,11 +127,8 @@ func _ready() -> void:
 	spare_magazines = primary_ammo[1]
 	magazine_changed.emit(current_ammo, spare_magazines)
 
-	# Load initial weapon model
 	_load_weapon_model(current_weapon)
 
-	# Hitmarker feed: bullets resolve at ARRIVAL now (7ks), so the HUD tick
-	# comes back from the BulletSystem when a player round actually lands.
 	CombatManager.bullets.player_bullet_hit.connect(_on_player_bullet_hit)
 
 
@@ -163,11 +146,9 @@ func _process(delta: float) -> void:
 	# Quake 3 timestep cap: a frame hitch must not credit a burst of fire.
 	var dt: float = minf(delta, 0.066)
 
-	# Tick the action clock BEFORE input. fire_timer may go negative; the
-	# remainder is sub-frame credit toward the next round, which is what makes
-	# average RPM framerate-independent (the old model quantized every shot to a
-	# frame boundary and dropped the remainder, collapsing every full-auto to
-	# ~600 RPM at 60fps).
+	# Tick the action clock BEFORE input. fire_timer may go NEGATIVE; that
+	# remainder is sub-frame credit toward the next round, and it is what keeps
+	# average RPM framerate-independent.
 	if fire_timer > 0.0:
 		fire_timer -= dt
 	can_fire = fire_timer <= 0.0
@@ -186,11 +167,9 @@ func _process(delta: float) -> void:
 func _handle_input() -> void:
 	# Slot selection is owned by EquipmentManager (drives set_active_weapon_slot)
 
-	# Can't do anything while switching
 	if is_switching:
 		return
 
-	# Seated in the bird (W05): weapon down, no firing this version.
 	if controller and "is_seated" in controller and controller.is_seated:
 		is_aiming = false
 		is_firing = false
@@ -203,20 +182,16 @@ func _handle_input() -> void:
 		is_firing = false
 		return
 
-	# On the radio (handset up): the rifle is down - no aiming, no firing. You're
-	# committed to the call and exposed. The whole point of "getting on the net".
+	# On the radio (fire-support menu open): the rifle is down - no aim, no fire.
 	var on_radio: bool = MissionDirector.any_fire_menu_open
 
-	# ADS input
 	is_aiming = Input.is_action_pressed("aim") and not is_reloading and not on_radio
 
-	# Fire input
 	if Input.is_action_pressed("fire") and not is_reloading and not on_radio:
 		_try_fire()
 	else:
 		is_firing = false
 
-	# Reload input
 	if Input.is_action_just_pressed("reload") and not is_reloading:
 		_start_reload()
 
@@ -225,14 +200,15 @@ func _update_ads(delta: float) -> void:
 	var target := 1.0 if is_aiming else 0.0
 	ads_transition = lerp(ads_transition, target, delta * ADS_SPEED)
 
-	# W40: ADS FOV zoom re-enabled (per-weapon ads_fov; 0 = no zoom).
+	# CAMERA CONTRACT (ADR-004): hip FOV is BASE_FOV 75; ADS uses the weapon's
+	# own ads_fov from the .tres (<=10 means no zoom). viewmodel_editor.gd
+	# mirrors this exactly - change one and you must change both.
 	if camera:
 		var zoom_fov: float = BASE_FOV
 		if current_weapon and current_weapon.ads_fov > 10.0:
 			zoom_fov = current_weapon.ads_fov
 		camera.fov = lerpf(BASE_FOV, zoom_fov, ads_transition)
 
-	# Apply movement speed modifier to controller
 	if controller and current_weapon:
 		var speed_mult: float = lerpf(1.0, current_weapon.ads_move_mult, ads_transition)
 		# Speed modifier is applied through equipment_manager
@@ -244,16 +220,14 @@ var _burst_left: int = 0
 ## sustained muzzle climb. Reset by the idle guard in _process.
 var _sustained_shots: int = 0
 
-## W75: session marksmanship counters (reset by GameFlow per mission).
+## Session marksmanship counters (reset by GameFlow per mission).
 static var session_shots: int = 0
-## Trigger cadence, for the first-settled-shot rule (audit F3).
+## Trigger cadence, for the first-settled-shot rule.
 var _last_shot_ms: float = -9999.0
 
-## LOADED WARHEAD (Caleb): the rocket must LEAVE THE TUBE when you fire it -
-## a launcher that still shows its warhead after the shot reads as broken. The
-## RPG viewmodel is one mesh, but the warhead is its own SURFACE (material
-## "WarheadOD"), so it can be hidden without touching the art. Any launcher
-## whose warhead material carries "warhead" in the name gets this for free.
+## ART CONTRACT: a launcher's warhead is hidden after firing by matching any
+## surface whose MATERIAL NAME contains "warhead" - rename the material in the
+## viewmodel and the rocket stops leaving the tube.
 var _warhead_fired: bool = false
 var _warhead_surfaces: Array = []   # [[MeshInstance3D, surface_idx], ...]
 var _warhead_hidden: bool = false
@@ -307,7 +281,7 @@ func _refresh_warhead() -> void:
 static var session_hits: int = 0
 
 
-## Burst (W40) continuation. Timing lives in _process's accumulator now.
+## Burst continuation; timing lives in the _process accumulator.
 func _update_burst() -> void:
 	if _burst_left > 0 and fire_timer <= 0.0 and current_ammo > 0 and not is_reloading:
 		_fire_shot()
@@ -327,7 +301,6 @@ func _try_fire() -> void:
 			GunFX.play_click(self)
 		return
 
-	# Check firing mode (W40: real bolt-cycle + 3-round burst)
 	match current_weapon.firing_mode:
 		Enums.FiringMode.SEMI_AUTO:
 			if not Input.is_action_just_pressed("fire"):
@@ -343,8 +316,8 @@ func _try_fire() -> void:
 		Enums.FiringMode.BOLT_ACTION:
 			if not Input.is_action_just_pressed("fire"):
 				return
-			# fire_rate is authored as the practical bolt-CYCLE rate (~1.5s), so
-			# get_fire_delay() already IS the bolt throw. No *2.5 patch.
+			# fire_rate is authored as the practical bolt-CYCLE rate, so
+			# get_fire_delay() already IS the bolt throw. Do not scale it again.
 			_fire_shot()
 			GunFX.play_bolt_2d(self, current_weapon)
 		Enums.FiringMode.BURST:
@@ -366,8 +339,6 @@ func _fire_shot() -> void:
 	var _prev_shot_ms: float = _last_shot_ms
 	_last_shot_ms = float(Time.get_ticks_msec())
 
-	# Fouling: every round dirties the action; monsoon rain is worse.
-	# Clean it with a kit [0] or free at the firebase.
 	var foul: float = 0.15 + (0.10 if MissionWeather.rain_active else 0.0)
 	weapon_condition = maxf(0.0, weapon_condition - foul)
 	if weapon_condition < 60.0 and not _condition_warned_60:
@@ -375,14 +346,13 @@ func _fire_shot() -> void:
 		_hud_toast("WEAPON'S GETTING DIRTY - CLEAN IT WHEN YOU CAN [0]")
 	if weapon_condition < 30.0 and not _condition_warned_30:
 		_condition_warned_30 = true
-		_hud_toast("WEAPON FOULED - IT WILL JAM. FIELD-STRIP IT [0]")
-	# Stoppage (Caleb gore-lab retune 2026-07-10): a clean weapon effectively
-	# never jams (~1 in 1000); jams are CONDITION-DRIVEN, ramping quadratically
-	# once fouled below 75 (~0.6% at 50, ~1.9% at 30, ~3.8% at 10). Old curve
-	# jammed 1-in-67 on a CLEAN gun - felt broken, not hardcore.
+		_hud_toast("WEAPON FOULED - IT WILL JAM. CLEAN IT AT THE FIREBASE.")
+	# Jam chance is condition-driven: ~1-in-1000 on a clean weapon, ramping
+	# quadratically once fouled below 75 (~0.6% at 50, ~3.8% at 10).
+	# ADR-018: the rifle's state, never the player's stats. No progression may
+	# lower this number.
 	var fouled: float = maxf(0.0, 75.0 - weapon_condition) / 75.0
 	var jam_chance: float = 0.001 + fouled * fouled * 0.05
-	jam_chance /= 1.0 + 0.05 * float(CampaignState.player_skill("small_arms"))
 	if randf() < jam_chance:
 		is_jammed = true
 		GunFX.play_click(self)
@@ -391,32 +361,21 @@ func _fire_shot() -> void:
 		magazine_changed.emit(current_ammo, spare_magazines)
 		return
 
-	# Calculate spread (W28: Small Arms skill tightens the cone)
+	# ADR-018: spread is the weapon's, the stance's and the situation's. Never the
+	# player's. Your aim is your aim, mission 1 to mission 100.
 	var spread := current_weapon.get_spread(ads_transition)
-	spread *= 1.0 / (1.0 + 0.06 * float(CampaignState.player_skill("small_arms")))
-	# Sniping: extra steadiness, but only while aiming down sights - it rewards
-	# the patient long shot, not hip spray. Scales with ads_transition so it fades
-	# in as you settle onto the glass. (Was buyable-but-never-read before Step 7.)
-	spread *= 1.0 / (1.0 + 0.08 * float(CampaignState.player_skill("sniping")) * ads_transition)
-	# W34/W37: prone steadies, arm wounds shake.
 	if controller:
 		if "is_prone" in controller and controller.is_prone:
 			spread *= 0.6
 		if "wounded_arms" in controller and controller.wounded_arms:
 			spread *= 1.35
-		# R52: holding your breath while aiming cuts spread hard, briefly.
 		if "is_holding_breath" in controller and controller.is_holding_breath:
 			spread *= 0.4
-		# R11: being suppressed blooms the cone - you cannot hold a bead while
-		# rounds are cracking past. Makes suppression a real pressure, not decor;
-		# the answer is the same as the fantasy: get down and out of the fire.
 		if "suppression" in controller:
 			spread *= 1.0 + controller.suppression * 0.9
-	# FIRST SETTLED SHOT LANDS ON THE SIGHTS (ballistics audit F3 - the Arma/HLL
-	# law). Fully on the glass, standing still, not spraying: the mechanical
-	# cone all but vanishes. Every remaining source of variance - recoil climb,
-	# sway, suppression, wounds, stance - is a system the player can READ and
-	# CONTROL. The dice are not.
+	# THE FIRST SETTLED SHOT LANDS ON THE SIGHTS: fully aimed, standing still and
+	# not spraying, the mechanical cone all but vanishes - every other source of
+	# variance left is a system the player can read and control.
 	var settled: bool = ads_transition > 0.9 \
 		and float(Time.get_ticks_msec()) - _prev_shot_ms > 400.0 \
 		and (controller == null or Vector3(controller.velocity.x, 0.0, controller.velocity.z).length() < 0.6)
@@ -424,72 +383,63 @@ func _fire_shot() -> void:
 		spread *= 0.12
 	var spread_rad := deg_to_rad(spread)
 
-	# Get fire direction with spread
 	var aim_dir: Vector3 = controller.get_aim_direction()
 	var right: Vector3 = aim_dir.cross(Vector3.UP).normalized()
 	var up: Vector3 = right.cross(aim_dir).normalized()
 
-	# CENTER-WEIGHTED CONE, not a uniform square (audit F3): a real weapon's
-	# rounds cluster at the point of aim and thin toward the edge. The old
-	# per-axis uniform draw made the rim as likely as the bullseye - a lottery
-	# ticket per trigger pull.
+	# CENTER-WEIGHTED cone (polar + gaussian magnitude), never a uniform per-axis
+	# square: rounds must cluster at the point of aim and thin toward the rim.
 	var ang: float = randf() * TAU
 	var mag: float = absf(randfn(0.0, 0.45))  # ~99% inside the cone
 	mag = minf(mag, 1.0) * spread_rad
 	var spread_x: float = cos(ang) * mag
 	var spread_y: float = sin(ang) * mag
 
-	# THE SIGHT LINE: where the shooter is LOOKING. The zero elevation is NOT in
-	# here - it belongs to the launch, not to the eye. (It was: the aim ray rode
-	# 8 degrees up on an RPG, so the "aim point" sat 3.5m over a man 25m away and
-	# the rocket was dutifully thrown at it. That is the parabola Caleb saw.)
+	# THE SIGHT LINE: where the shooter is LOOKING. Zero elevation must NOT be
+	# applied here - it belongs to the launch, not to the eye.
 	var final_dir: Vector3 = (aim_dir + right * tan(spread_x) + up * tan(spread_y)).normalized()
 
-	# AIM RAY - no damage, no FX. The crosshair's truth: find the point the
-	# player is actually aiming at so the muzzle-spawned round converges onto
-	# it (muzzle and camera are ~half a meter apart; without convergence every
-	# close shot lands low-right of the crosshair). Same FULL-REALISM FRIENDLY
-	# FIRE mask as the round itself: ally hurtboxes (32) are in - your rounds
-	# hurt your men. Ally BODY capsules (layer 2) stay out on purpose: they
-	# would shadow the hitzones (the 3-shot-headshot bug class).
+	# AIM RAY - no damage, no FX: the point the player is actually aiming at, so
+	# the muzzle-spawned round converges onto it (muzzle and camera sit ~0.5m
+	# apart; without this, close shots land low-right of the crosshair).
 	var origin: Vector3 = controller.get_camera_position()
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(
 		origin,
 		origin + final_dir * 2000.0,
-		# World + hurtbox AREAS only. Enemy BODY capsules (layer 3) are OUT for
-		# the same reason ally capsules are: a capsule in the mask shadows the
-		# hitzones inside it and every hit resolves flat 1.0x center-mass (the
-		# "shooting people and they aren't dying" bug). Native physics
-		# filtering does the work - zones are the only flesh a round can touch.
+		# MASK LAW: world + hurtbox AREAS only. BODY capsules (ally layer 2, enemy
+		# layer 3) must stay OUT - a capsule in the mask shadows the hitzones inside
+		# it and every hit resolves flat 1.0x center-mass. Ally hurtboxes (32) are
+		# IN: friendly fire is real.
 		1 | 32 | 64  # World, ally hurtboxes, enemy hurtboxes
 	)
-	# THE sponge fix: hitzones are Area3D and rays default to bodies-only, so the
-	# HEAD/GUT/LIMB zones were NEVER hittable - every shot landed 1.0x center mass.
+	# Godot: rays are bodies-only by default and hitzones are Area3D.
 	query.collide_with_areas = true
 	query.exclude = _self_exclusions()
 	var aim_hit := space_state.intersect_ray(query)
 	var aim_point: Vector3 = aim_hit.position if aim_hit else origin + final_dir * 2000.0
 
-	# Shot feedback: sound, flash, viewmodel punch (RTCW-tight, R06/R07/R31)
 	var muzzle_pos: Vector3 = _get_muzzle_position()
-	# R57: firing their own captured weapon doesn't read as hostile on sound alone.
+	# A captured weapon reports on THEIR team's noise channel, not ours.
 	var noise_team: int = 1 if (current_slot == 0 and primary_is_captured) else 0
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, noise_team)
 	GunFX.play_shot_2d(self, current_weapon)
 	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
 	_punch = 1.0
 
-	# REAL PROJECTILES (7ks, Summoner decree - hitscan is dead): rockets fly
-	# through ProjectileBase (so a captured RPG-2 finally fires a rocket, bead
-	# vfnt), buckshot keeps the pellet-cluster grammar (ADR-016 Amendment A),
-	# and every bullet is a live BulletSystem round - drop, travel time, and
-	# arrival damage/FX. Impact feedback happens when the round LANDS.
-	# DOWN THE SIGHTS = DOWN THE SIGHTLINE: aimed rounds leave the CAMERA along
-	# the crosshair ray, so a mid-rework viewmodel muzzle can never bend an
-	# aimed shot (offset-left ADS models were converging rounds onto arms -
-	# "the gun feels less powerful when I aim"). Hip fire keeps muzzle spawn
-	# + convergence: viewmodel positions are cosmetic again, dial them freely.
+	# SUPPRESSION: every shot that snaps past an enemy pushes him down. Big, slow
+	# rounds (rockets, buckshot, full-auto) suppress in an area; precise rifles
+	# rely on near-miss detection. Radius and amount are weapon-scaled so an MG
+	# pins harder than a pistol.
+	var suppress_radius: float = _calc_suppress_radius()
+	var suppress_amount: float = _calc_suppress_amount()
+	if suppress_radius > 0.0 and suppress_amount > 0.0:
+		CombatManager.apply_suppression_in_area(muzzle_pos, suppress_radius, suppress_amount, controller)
+
+	# DOWN THE SIGHTS = DOWN THE SIGHTLINE. Aimed rounds leave the CAMERA along
+	# the crosshair ray, so a viewmodel's muzzle position can never bend an aimed
+	# shot - viewmodel offsets stay purely cosmetic and are free to retune. Hip
+	# fire spawns at the muzzle and converges on the aim point.
 	var muzzle_dir: Vector3 = (aim_point - muzzle_pos).normalized()
 	if ads_transition > 0.6:
 		muzzle_pos = origin
@@ -497,11 +447,9 @@ func _fire_shot() -> void:
 	if not current_weapon.projectile_data_path.is_empty():
 		var pdata: ProjectileData = load(current_weapon.projectile_data_path)
 		if pdata != null:
-			# LAUNCHER SIGHT: a rocket is not a rifle round. It is slow, it carries
-			# its OWN gravity (ProjectileData.gravity_scale), and a gunner lays it
-			# for the range he sees - so elevate for the ACTUAL distance to the aim
-			# point, not for a fixed rifle zero. Point at a man 25m out and the
-			# rocket goes into him; point at a bunker 200m out and it arcs onto it.
+			# LAUNCHER SIGHT: a rocket carries its OWN gravity (ProjectileData.
+			# gravity_scale), so elevate for the ACTUAL range to the aim point -
+			# never a fixed rifle zero.
 			var g_eff: float = 9.8 * maxf(0.0, pdata.gravity_scale)
 			var dist: float = muzzle_pos.distance_to(aim_point)
 			var elev: float = 0.0
@@ -516,17 +464,14 @@ func _fire_shot() -> void:
 	elif current_weapon.pellet_count > 1:
 		_fire_pellet_cluster(origin, aim_dir, right, up)
 	else:
-		# SIGHT ZERO (audit F2) belongs HERE - on the round that flies, not on the
-		# eye that aims: the muzzle rides up by the zero angle so the falling round
-		# crosses the sightline at zero_range.
+		# SIGHT ZERO belongs HERE - on the round that flies, not the eye that aims:
+		# the muzzle rides up so the falling round crosses the sightline at zero_range.
 		var zeroed_dir: Vector3 = (muzzle_dir + up * tan(current_weapon.zero_elevation())).normalized()
 		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
 			and (session_shots % current_weapon.tracer_ratio) == 0
 		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, zeroed_dir,
 			1 | 32 | 64, _self_exclusions(), show_tracer)
 
-	# Apply recoil (W-feel: first shot kicks hardest, sustained fire climbs,
-	# per-weapon recovery snaps the view back).
 	var recoil_mult: float = lerpf(1.0, 0.5, ads_transition)  # Less recoil when ADS
 	if _sustained_shots <= 1:
 		recoil_mult *= current_weapon.recoil_first_shot_mult
@@ -541,7 +486,6 @@ func _fire_shot() -> void:
 		current_weapon.recoil_recovery
 	)
 
-	# Update ammo tracking
 	if current_slot == 0:
 		primary_ammo[0] = current_ammo
 	else:
@@ -551,13 +495,9 @@ func _fire_shot() -> void:
 	magazine_changed.emit(current_ammo, spare_magazines)
 
 
-## PELLET CLUSTER (ADR-016 amendment / war-room quick 2026-07-10): N rays in a
-## cone; base_damage is per pellet; damage AGGREGATES per target+zone so the
-## locational grammar and the gore single-hit thresholds (limb-off >= ~45) see
-## one hit event - point-blank buckshot takes the arm, rim pellets sting.
-## The muzzle sits INSIDE the player's own HEAD zone band (camera height) -
-## his rounds and aim ray must ignore his own hitzone areas or every trigger
-## pull is a self-headshot. Player body + his zones, one exclusion list.
+## The muzzle sits INSIDE the player's own HEAD zone band (camera height): his
+## rounds and aim ray must exclude his own body AND hitzone areas, or every
+## trigger pull is a self-headshot.
 func _self_exclusions() -> Array:
 	var excl: Array = [controller]
 	var hz_list: Variant = controller.get("hitzones")
@@ -568,28 +508,18 @@ func _self_exclusions() -> Array:
 	return excl
 
 
+## N rays in a cone. base_damage is PER PELLET, and damage aggregates per
+## target+region so one shell reads as ONE trauma event (gore thresholds and
+## locational rules must see a single hit, not nine).
 func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up: Vector3) -> void:
 	var space_state := get_world_3d().direct_space_state
-	# pellet_spread_deg is the FULL cone angle. The old code used it as a
-	# PER-AXIS half-angle (a +-5.5deg square = an 11deg+ pattern): at 14m
-	# that is a 2.7m-wide wall of mostly air - under ONE expected pellet on a
-	# man per shell (Caleb: "three shells at 14m"). Half of the authored
-	# angle per axis restores an honest pattern.
+	# pellet_spread_deg is the FULL cone angle - hence the half here.
 	var cone: float = deg_to_rad(current_weapon.pellet_spread_deg * 0.5)
 	var pellet_dmg: int = current_weapon.get_damage()
 	var buckets: Dictionary = {}  # instance_id|zone -> [target, mult, zone, hits, dist_sum]
 	var fx_budget: int = 4
-	# DETERMINISTIC PATTERN (T1 law: same aim = same result). Uniform-random
-	# spread made the gun a slot machine - three whiffed shells at 14m, then
-	# a jackpot one-shot at 30m.
-	#
-	# 9 pellets (real 00 buck), laid as 1 centre + 4 at 40% + 4 at the rim.
-	# Caleb: "irl the spread would grab and hit him." He is right, and the cure
-	# is a TIGHTER cone, not a wider one: real buckshot opens about an inch per
-	# yard (~1.6 deg), so at 14m the cloud is ~40cm and a chest eats most of it.
-	# Our old 5.5 deg cone threw a 1.2m pattern at that range - the pellets flew
-	# PAST both his shoulders and nothing connected. Eight thin rays sampling a
-	# huge circle is a colander, not a shotgun.
+	# DETERMINISTIC pattern (same aim = same result, not a slot machine): a fixed
+	# star of 1 centre + 4 at 40% + 4 at the rim, jittered only by a hair.
 	var star: Array[Vector2] = [Vector2.ZERO]
 	for i in range(4):
 		var a: float = TAU * float(i) / 4.0
@@ -602,12 +532,9 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var px := o.x + randf_range(-0.005, 0.005)
 		var py := o.y + randf_range(-0.005, 0.005)
 		var dir: Vector3 = (aim_dir + right * tan(px) + up * tan(py)).normalized()
-		# World + enemy hurtboxes only - enemy body capsules (4) shadow the
-		# zones inside them and pellets land flat 1.0x (the sponge bug class).
-		# BRUSH PUNCH-THROUGH: each 00 pellet is a 0.33in ball - a 9mm-class
-		# projectile - and nine of them go through thatch, bamboo and brush.
-		# That is the historical reason a point man carried a shotgun. Every
-		# pellet punches its own way through up to two soft layers.
+		# World + enemy hurtboxes only (a body capsule in the mask would shadow the
+		# zones inside it). Each pellet punches its own way through up to two
+		# soft_cover layers, losing energy each time.
 		var soft_left: int = 2
 		var pellet_scale: float = 1.0
 		var start: Vector3 = origin
@@ -646,9 +573,8 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		elif col is Node and (col as Node).is_in_group("enemies"):
 			target = col as Node
 		if target != null and is_instance_valid(target) and target.has_method("take_damage"):
-			# Bucket per REGION (not per 4-name zone) so a leg-full of buck is
-			# ONE trauma event that can cross the gib threshold, and the gore
-			# channel knows WHICH leg.
+			# Bucket per REGION (not per 4-name zone) so a leg-full of buck is ONE
+			# trauma event that can cross the gib threshold, on the correct leg.
 			var key := "%d|%s" % [target.get_instance_id(), region if region != "" else zone]
 			if not buckets.has(key):
 				buckets[key] = [target, mult, zone, 0.0, 0.0, region]
@@ -658,10 +584,8 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 			if fx_budget > 0:
 				GunFX.blood(get_tree().current_scene, r.position, r.normal, dir, target)
 				fx_budget -= 1
-			# BUCK PENETRATES MEN (Summoner: "could even kill two people at
-			# the same time and totally gib them apart"): the pellet carries
-			# through the first body at 65% into whoever stands behind. One
-			# body deep; walls still stop lead.
+			# Buck penetrates men: the pellet carries through the first body at 65%
+			# into whoever stands behind. ONE body deep; walls still stop lead.
 			var q2 := PhysicsRayQueryParameters3D.create(
 				r.position + dir * 0.35, origin + dir * current_weapon.max_range, 1 | 64)
 			q2.collide_with_areas = true
@@ -697,8 +621,7 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var wd: WeaponData = current_weapon
 		var atk: Node = controller
 		var pdir: Vector3 = aim_dir
-		# GORE channel parity with BulletSystem: the aggregated bucket IS one
-		# trauma event - a leg-full of buck (>=45) takes the leg.
+		# Gore parity with BulletSystem: the aggregated bucket is ONE trauma event.
 		if travel > 0.03:
 			get_tree().create_timer(travel, false).timeout.connect(func() -> void:
 				if is_instance_valid(target) and target.has_method("take_damage"):
@@ -713,7 +636,7 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 
 func _start_reload() -> void:
 	if is_jammed:
-		# R09: clearing a jam is a quick tap-rack, not a full mag swap.
+		# Clearing a jam is a quick tap-rack, not a full mag swap.
 		is_jammed = false
 		_clearing_jam = true
 		is_reloading = true
@@ -728,9 +651,8 @@ func _start_reload() -> void:
 
 	_clearing_jam = false
 	is_reloading = true
-	# W29: Agility speeds reloads (cap at 60% of book time).
-	var ag: float = float(CampaignState.player_data.get("ag", 100))
-	reload_timer = current_weapon.reload_time * clampf(1.0 - (ag - 100.0) * 0.003, 0.6, 1.1)
+	# ADR-018: the authored time, always. Handling is not a stat.
+	reload_timer = current_weapon.reload_time
 	is_aiming = false
 	GunFX.play_reload_2d(self, current_weapon)
 	reload_started.emit()
@@ -760,7 +682,6 @@ func _finish_reload() -> void:
 	spare_magazines -= 1
 	current_ammo = current_weapon.magazine_size
 
-	# Update ammo tracking
 	if current_slot == 0:
 		primary_ammo[0] = current_ammo
 		primary_ammo[1] = spare_magazines
@@ -787,7 +708,6 @@ func set_active_weapon_slot(new_slot: int) -> void:
 
 
 func _start_weapon_switch(new_slot: int) -> void:
-	# Save current ammo state
 	if current_slot == 0:
 		primary_ammo[0] = current_ammo
 		primary_ammo[1] = spare_magazines
@@ -817,7 +737,6 @@ func _update_switch(delta: float) -> void:
 func _finish_switch() -> void:
 	is_switching = false
 
-	# Load new weapon data
 	if current_slot == 0:
 		current_weapon = primary_weapon
 		current_ammo = primary_ammo[0]
@@ -827,7 +746,6 @@ func _finish_switch() -> void:
 		current_ammo = secondary_ammo[0]
 		spare_magazines = secondary_ammo[1]
 
-	# Load the new weapon model
 	_load_weapon_model(current_weapon)
 
 	weapon_switched.emit(current_weapon)
@@ -841,40 +759,32 @@ func _update_weapon_position(delta: float) -> void:
 	if not weapon_model or not current_weapon:
 		return
 
-	# Lerp between hip and ADS positions
+	# Hip/ADS poses come from the .tres, never from a scene transform.
 	var target_pos: Vector3 = current_weapon.hip_position.lerp(current_weapon.ads_position, ads_transition)
 	var target_rot: Vector3 = current_weapon.hip_rotation.lerp(current_weapon.ads_rotation, ads_transition)
 
-	# Apply pitch compensation to prevent floor clipping when looking down
 	if PITCH_OFFSET_ENABLED and camera:
-		# Get pitch from the Head node (camera's grandparent handles vertical look)
+		# Pitch lives on the Head node (the camera itself carries no vertical look).
 		var head_node: Node3D = camera.get_parent() as Node3D
 		if head_node:
 			var head_pitch: float = rad_to_deg(head_node.rotation.x)
 
-			# Only offset when looking down past threshold
 			if head_pitch < PITCH_OFFSET_START:
-				# Calculate how far into the offset range we are (0-1)
 				var offset_range: float = PITCH_OFFSET_START - PITCH_OFFSET_MAX
 				var pitch_factor: float = clampf((PITCH_OFFSET_START - head_pitch) / offset_range, 0.0, 1.0)
 
-				# Apply offset - move weapon up and forward
 				target_pos.y += PITCH_OFFSET_UP * pitch_factor
 				target_pos.z -= PITCH_OFFSET_FORWARD * pitch_factor
 
-	# W72: weapon lowers while sprinting (readability + feel).
 	if controller and "is_sprinting" in controller and controller.is_sprinting:
 		target_pos.y -= 0.08
 		target_rot.x -= 12.0
 
-	# On the radio: rifle drops right out of the fight - you've raised the handset.
-	# Deeper than the sprint-lower so it reads unmistakably as "on the net, exposed".
 	if MissionDirector.any_fire_menu_open:
 		target_pos.y -= 0.30
 		target_pos.z += 0.14
 		target_rot.x -= 60.0
 
-	# R52: idle sway - tighter aiming, nearly gone while holding your breath.
 	_sway_time += delta
 	var sway_amp: float = lerpf(0.014, 0.004, ads_transition)
 	if controller and "is_holding_breath" in controller and controller.is_holding_breath:
@@ -882,9 +792,8 @@ func _update_weapon_position(delta: float) -> void:
 	target_pos.x += sin(_sway_time * 1.3) * sway_amp
 	target_pos.y += sin(_sway_time * 0.9) * sway_amp * 0.6
 
-	# Viewmodel fire punch (R07): sharp kick back+up, fast recovery. Scaled by
-	# the weapon's authored recoil so the M60 shoves the model far harder than
-	# the M1911 (2.5 = the old implicit baseline for every gun).
+	# Viewmodel punch, scaled by the weapon's authored recoil (2.5 = the baseline
+	# gun, so w == 1.0 there).
 	_punch = maxf(0.0, _punch - delta * 9.0)
 	var punch_amt: float = _punch * _punch  # ease-out curve
 	var w: float = current_weapon.recoil_vertical / 2.5
@@ -898,70 +807,83 @@ func _update_weapon_position(delta: float) -> void:
 
 ## Load a weapon model from the weapon data
 func _load_weapon_model(weapon_data: WeaponData) -> void:
-	# Remove old model
 	if weapon_model:
 		weapon_model.queue_free()
 		weapon_model = null
 
-	# Load new model if path exists
 	if weapon_data and not weapon_data.model_path.is_empty():
 		var scene := load(weapon_data.model_path)
 		if scene:
 			weapon_model = scene.instantiate()
 			add_child(weapon_model)
-			# THE VIEWMODEL LENS, without a second camera (Caleb: "put the gun
-			# closer to the screen, like HL/CS").
-			#
-			# Those games render the gun with its own NARROWER camera (CS2: 68 vs
-			# a 90 world). We get the same apparent size with pure maths: an
-			# object seen at fov_v instead of fov_w looks
-			#     tan(fov_w/2) / tan(fov_v/2)
-			# times bigger. At our 75 world and a 60 gun lens that is x1.33 - so
-			# scaling the model by that ratio in the SHARED camera reproduces the
-			# framing exactly, and the muzzle point rides along because it is a
-			# child of the model.
-			#
-			# Why not the real second camera: it needs a transparent SubViewport,
-			# and the project's default environment paints an opaque backdrop into
-			# it - the first attempt framed the rifle perfectly on a pitch-black
-			# world. That path is beaded; this one ships today and is honest about
-			# what it is: a very close approximation (the only difference is how
-			# much the near edge flares, and at 20cm that is invisible).
+			# THE VIEWMODEL LENS - the "gun close to the screen" look, faked without
+			# a second camera: scaling the model by tan(BASE_FOV/2)/tan(vm_fov/2) in
+			# the SHARED camera gives the same framing a narrower gun camera would.
+			# viewmodel_editor.gd MUST apply the identical scale under the identical
+			# camera FOV, or the bench lies about position and every offset dialled
+			# there ships wrong.
 			var lens: float = _lens_ratio(weapon_data)
 			weapon_model.scale *= lens
 
-			# Set initial position and rotation from weapon data
 			weapon_model.position = weapon_data.hip_position
 			weapon_model.rotation_degrees = weapon_data.hip_rotation
-			# Scale is baked into viewmodel scene - don't override here
-			# Arms viewmodels carry a posed idle clip - play it or the rig renders
-			# in bind pose (the invisible-arms bug was ALSO this + facing +Z).
+			# Base scale is baked into the viewmodel .tscn root - never set it here.
+			# Arms viewmodels need their idle clip played or the rig renders in bind pose.
 			var vm_anim := weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			if vm_anim != null and vm_anim.has_animation("rifle_idle"):
 				vm_anim.play("rifle_idle")
 			_scan_warhead(weapon_model)   # a fresh launcher comes loaded
 
 
-## Get current ADS amount for other systems
 func get_ads_amount() -> float:
 	return ads_transition
 
 
-## Check if currently reloading
 func is_weapon_reloading() -> bool:
 	return is_reloading
 
 
-## Check if currently switching weapons
 func is_weapon_switching() -> bool:
 	return is_switching
 
 
-## Get reload progress (0-1)
+## Reload progress, 0-1.
 func get_reload_progress() -> float:
 	if not is_reloading:
 		return 0.0
 	return 1.0 - (reload_timer / current_weapon.reload_time)
+
+
+## SUPPRESSION RADIUS: bigger, slower, or explosive weapons pin in a wider area.
+## Pistol/SMG/AR: 3m. Shotgun: 6m. LMG/RPG: 8m. A near-miss inside this radius
+## always adds suppression through the combat manager's area falloff.
+func _calc_suppress_radius() -> float:
+	if current_weapon == null:
+		return 0.0
+	if current_weapon.pellet_count > 1:
+		return 6.0
+	if current_weapon.projectile_data_path.is_empty():
+		return 3.0
+	# Rockets / launchers
+	return 8.0
+
+
+## SUPPRESSION AMOUNT PER SHOT: auto fire is cumulatively suppressive;
+## single shots add a small pulse; rockets and buckshot are heavy events.
+func _calc_suppress_amount() -> float:
+	if current_weapon == null:
+		return 0.0
+	if current_weapon.pellet_count > 1:
+		return 0.35
+	if not current_weapon.projectile_data_path.is_empty():
+		return 0.45
+	match current_weapon.firing_mode:
+		Enums.FiringMode.FULL_AUTO:
+			return 0.08
+		Enums.FiringMode.BURST:
+			return 0.12
+		_:
+			return 0.05
 
 
 ## How much bigger the gun reads when shot through its own (narrower) lens
@@ -974,23 +896,21 @@ static func _lens_ratio(wd: WeaponData) -> float:
 	return clampf(world_half / maxf(0.01, vm_half), 0.6, 2.2)
 
 
-## Get the muzzle position for tracer spawning
+## Where hip-fired rounds spawn: the viewmodel's MuzzlePoint marker, falling
+## back to the model's -Z, then to the camera.
 func _get_muzzle_position() -> Vector3:
 	if weapon_model:
-		# Try to find MuzzlePoint marker in the weapon model
 		var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
 		if muzzle:
 			return muzzle.global_position
 
-		# Fallback: estimate muzzle position in front of weapon
 		return weapon_model.global_position + weapon_model.global_transform.basis.z * -0.5
 
-	# Ultimate fallback: use camera position
 	return controller.get_camera_position()
 
 
-## Cheap surface guess for impact flavour: named/grouped hard surfaces spark,
-## everything else puffs dirt. A full material-tag pass is a later item.
+## Cheap surface guess for impact FX: named/grouped hard surfaces spark, the
+## rest puff dirt.
 func _surface_is_hard(col: Object) -> bool:
 	if col is Node:
 		var n := col as Node

@@ -33,10 +33,8 @@ func roll_offers(rng: RandomNumberGenerator) -> void:
 		offers.append({
 			"type": types[i],
 			"type_name": str(MissionGenerator.TYPE_NAMES[types[i]]),
-			# R88: ONE seed identifies ONE operation. world_seed used to be an
-			# independent rng.randi(), while the debrief printed mission_seed and
-			# the replay row fed that single number to both -- so typing the seed
-			# your friend shared gave you different terrain.
+			# ONE seed identifies ONE operation: world_seed and mission_seed MUST
+			# stay the same number, or a shared seed reproduces different terrain.
 			"world_seed": mission_seed,
 			"mission_seed": mission_seed,
 			"codename": MissionGenerator.codename_for(mission_seed),

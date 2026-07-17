@@ -1,27 +1,15 @@
-## seat_system.gd - HUEY SEATSYSTEM v1 (research batch §7).
-## Manages the 10-soul UH-1 slick seat contract on a vehicle: 2 pilots +
-## 2 door gunners + 6 pax. Seats are Node3D sockets found ANYWHERE under the
-## vehicle by exact name (GLB-exported empties import as plain Node3D, NOT
-## Marker3D - the scan accepts any Node3D; fallback markers are Marker3D):
-##   seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..6
-##
-## FALLBACK CONTRACT: huey.glb now ships the 10 sockets + cabin interior
-## (tools/make_huey_interior.py). If a vehicle lacks them, _ready()
-## auto-generates all 10 from a hardcoded UH-1 layout table measured against huey.glb
-## (fuselage 3.3m wide, 16.8m long incl. tail boom, cabin floor ~1.3m up,
-## doors at heli-space z -3.4..-1.9 after helicopter.gd's recenter; nose = -Z,
-## Door_Left side = +X). huey.glb's real seat_* sockets sit at EXACTLY these
-## coordinates, so the scan finding them changes nothing positionally.
+## seat_system.gd - The 10-seat UH-1 slick contract: 2 pilots + 2 door gunners
+## + 6 pax. Sockets are found ANYWHERE under the vehicle by exact name -
+## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..6.
+## GLB-exported empties import as plain Node3D, NOT Marker3D: the scan must
+## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUT.
 ##
 ## SOCKET ORIENTATION CONTRACT: the occupant faces the socket's LOCAL +Z
 ## (characters are authored facing +Z; ModelActor yaw 0 == facing +Z).
 ## Pilots face the nose, gunners/pax face outward.
 ##
-## Player: keeps the shipped glue approach (player.enter_seat - position-only,
-## head-look preserved, collision off). NEVER reparents a physics body.
-## AI/mock bodies: physics+process off, collision shapes off, glued to the
-## socket with a RemoteTransform3D; ModelActor plays cockpit_idle (pilot seats)
-## or sitting (everyone else) - both guaranteed by the shared anim library.
+## The player is glued position-only (player.enter_seat) - NEVER reparent a
+## physics body. AI bodies get physics/process/collision off + a RemoteTransform3D.
 class_name SeatSystem
 extends Node
 
@@ -44,11 +32,8 @@ const PASSENGER_SEATS: Array[StringName] = [
 	&"seat_gunner_l", &"seat_gunner_r",
 ]
 
-## Hardcoded UH-1 fallback layout, SCALED TO huey.glb (tests/inspect_huey.tscn
-## probe): positions in vehicle-root space [pos, facing yaw degrees].
-## Pilots behind the windshield (z -6.2..-8.7), gunners centered on the door
-## opening (z -3.4..-1.9, walls at x ±1.56), 6 pax back-to-back on the
-## transmission bench facing out the doors - the Vietnam slick look.
+## UH-1 fallback layout in vehicle-root space: seat -> [position, facing yaw degrees].
+## Doors sit at z -3.4..-1.9 with walls at x +-1.56; nose = -Z, Door_Left side = +X.
 const FALLBACK_LAYOUT: Dictionary = {
 	&"seat_pilot_l": [Vector3(0.55, 1.35, -5.35), 180.0],
 	&"seat_pilot_r": [Vector3(-0.55, 1.35, -5.35), 180.0],
@@ -64,20 +49,19 @@ const FALLBACK_LAYOUT: Dictionary = {
 
 const PILOT_CLIP := "cockpit_idle"
 const SITTING_CLIP := "sitting"
-const BOARD_STAGGER_S: float = 0.6   ## ally file-in beat (research §7)
-const FADE_S: float = 0.25           ## boarding v1: the proven fade-fake
-const BOARD_RANGE: float = 4.5       ## player-to-door interact radius
+const BOARD_STAGGER_S: float = 0.6   ## seconds between ally boardings
+const FADE_S: float = 0.25           ## seconds of the board/dismount fade
+const BOARD_RANGE: float = 4.5       ## player-to-door interact radius, metres
 const EXIT_PUSH_M: float = 2.5       ## how far outside the door you land
 
-## Player boarding v1 is OPT-IN: in missions the bird is owned by
-## InsertionRide / ExfilZone (their own board/dismount flows poll the same
-## interact key) - enabling both would double-trigger. Bench scenes flip this on.
+## OPT-IN. In missions the bird is owned by InsertionRide / ExfilZone, whose own
+## board/dismount flows poll the same interact key - enabling both double-triggers.
 @export var player_boarding: bool = false:
 	set(v):
 		player_boarding = v
 		set_physics_process(v)
 
-var auto_generated: bool = false     ## true until Caleb's real sockets land
+var auto_generated: bool = false
 
 var _vehicle: Node3D = null
 var _sockets: Dictionary = {}        ## StringName -> Node3D
@@ -103,10 +87,9 @@ func _ready() -> void:
 	set_physics_process(player_boarding)
 
 
-## Find real sockets by name anywhere under the vehicle (Caleb's GLB export
-## lands them inside the Model subtree); generate any missing one from the
-## fallback table so the system works TODAY and upgrades per-seat later.
-## Idempotent - public API calls it lazily in case someone seats pre-frame-1.
+## Find real sockets by name anywhere under the vehicle (the GLB export lands them
+## inside the Model subtree); generate any missing one from FALLBACK_LAYOUT.
+## Idempotent - the public API calls it lazily in case someone seats pre-frame-1.
 func _scan_sockets() -> void:
 	if _scanned or _vehicle == null:
 		return
@@ -132,8 +115,6 @@ func _scan_sockets() -> void:
 	else:
 		print("[SeatSystem] %s: all 10 seat_* sockets found in the model - fallback table retired" % _vehicle.name)
 
-
-# ---- core API ----------------------------------------------------------------
 
 func available_seats() -> Array[StringName]:
 	_scan_sockets()
@@ -191,8 +172,7 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 	var rec: Dictionary = {"body": body}
 
 	if body.has_method("enter_seat"):
-		# The player path: shipped glue (position-only follow, head-look kept,
-		# collision handled inside player.enter_seat). Never reparented.
+		# Player: position-only glue, never reparented.
 		body.call("enter_seat", sock)
 	else:
 		# AI / mock body: freeze it and glue it to the socket.
@@ -277,8 +257,6 @@ func unseat_all(exit_center: Vector3) -> void:
 		i += 1
 
 
-# ---- ally file-in (research §7: the queue sells it) ---------------------------
-
 ## Order living allies to a staging point by the left door, then seat them one
 ## per BOARD_STAGGER_S. Dead/downed excluded. Returns how many were queued.
 func board_squad(allies: Array) -> int:
@@ -294,7 +272,7 @@ func board_squad(allies: Array) -> int:
 			continue
 		var ally := body as AllyBase
 		if ally != null:
-			ally.set_order(AllyBase.OrderMode.MOVE_TO, staging)  # file toward the door
+			ally.set_order(AllyBase.OrderMode.MOVE_TO, staging)
 		queued += 1
 		get_tree().create_timer(BOARD_STAGGER_S * float(queued)).timeout.connect(
 			_board_one.bind(body))
@@ -333,10 +311,6 @@ func door_staging_pos() -> Vector3:
 	return Vector3.ZERO
 
 
-# ---- player boarding v1 (opt-in): E at the door -> 0.25s fade -> seated -------
-## Polling pattern per hub_controller.gd / insertion_ride._poll_board:
-## distance scan + interact, no Area3D coupling.
-
 func _physics_process(delta: float) -> void:
 	_interact_cd = maxf(0.0, _interact_cd - delta)
 	if not player_boarding or _fading or _vehicle == null:
@@ -369,8 +343,6 @@ func _interact_ok() -> bool:
 	return _interact_cd <= 0.0 and InsertionRide.context_interact_pressed()
 
 
-## Boarding v1 is the proven fade-fake (BF4/Squad/HLL lineage): 0.25s to black,
-## do the swap, 0.25s back. No board/exit clips exist yet - v2 replaces this.
 func _fade_then(action: Callable) -> void:
 	var overlay: ColorRect = _ensure_overlay()
 	if overlay == null:
@@ -434,8 +406,6 @@ func _exit_ground(pos: Vector3) -> Vector3:
 			out.y = p.y + 1.0
 	return out
 
-
-# ---- helpers -------------------------------------------------------------------
 
 func _model_of(body: Node3D) -> ModelActor:
 	if body is ModelActor:

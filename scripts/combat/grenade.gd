@@ -4,14 +4,13 @@ extends RigidBody3D
 
 signal exploded(position: Vector3)
 
-## SHRAPNEL (ADR-016 Amendment F, Summoner-decreed). The M26 is a FRAG grenade:
-## its killing is done by wire-coil fragments, not blast. Real casualty radius is
-## ~15m; 10m keeps cover play meaningful while letting the fragments reach.
+## SHRAPNEL (ADR-016 Amendment F). The M26 is a FRAG grenade - its killing is done
+## by wire-coil fragments, not blast. Real casualty radius is ~15m; 10m keeps
+## cover play meaningful while letting the fragments reach.
 ##
-## The damage of record lives in data/weapons/m26_grenade.tres like every other
-## weapon (ADR-016 grammar: base_damage is the flat value). This file used to
-## hardcode 130 while the .tres said 55 - the data was a lie for months. One
-## number, one law: the .tres rules and this constant is only the fallback.
+## The damage OF RECORD is data/weapons/m26_grenade.tres, like every other weapon
+## (ADR-016: base_damage is the flat value). The .tres rules - FALLBACK_DAMAGE
+## applies ONLY when it fails to load.
 const EXPLOSION_RADIUS: float = 10.0
 const FALLBACK_DAMAGE: int = 190
 ## Rim damage as a fraction of centre: the far fragments WOUND, they do not kill.
@@ -35,14 +34,11 @@ var has_exploded: bool = false
 var mesh: MeshInstance3D
 
 func _ready() -> void:
-	# Set up collision
 	collision_layer = 256  # Projectile layer
 	collision_mask = 1  # World layer
 
-	# Apply initial velocity
 	linear_velocity = initial_velocity
 
-	# Create visual mesh
 	mesh = MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.05
@@ -55,17 +51,16 @@ func _ready() -> void:
 
 	add_child(mesh)
 
-	# Collision: a BOX, deliberately not a sphere - spheres roll forever
-	# (physics has no rolling resistance) and the frag slid across the map
-	# like a curling stone (Caleb, gore lab). A box lands, hops once or
-	# twice, tumbles a few cm and STOPS - the M26 'thunk' feel.
+	# Collision: a BOX, deliberately NOT a sphere. Godot physics has no rolling
+	# resistance, so a sphere rolls forever; a box lands, hops once or twice,
+	# tumbles a few cm and STOPS.
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(0.09, 0.06, 0.06)
 	col.shape = shape
 	add_child(col)
 
-	# Set physics properties: small lively bounces, dead quickly.
+	# Small lively bounces, dead quickly.
 	gravity_scale = 1.0
 	linear_damp = 0.6
 	angular_damp = 2.0
@@ -117,9 +112,8 @@ func _explode() -> void:
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.9)
 
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
-	GunFX.play_explosion_3d(get_tree().current_scene, global_position)  # now spawns flash+fireball+smoke
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
 
 	exploded.emit(global_position)
 
-	# Remove grenade
 	queue_free()

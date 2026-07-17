@@ -2,35 +2,17 @@ class_name RadioHandset
 extends Node3D
 ## The PRC-25 handset: who is holding it, and what happens when they walk too far.
 ##
-## Lives on the RTO. Owns TWO handset meshes and shows exactly one of them:
+## Lives on the RTO and owns TWO handset meshes, showing exactly one - stowed_mesh
+## (bone-attached to the RTO) and held_mesh (on the holder's hand). Taking it is a
+## SWAP, NOT a reparent: the two live in different spaces (a Mixamo bone vs the
+## player's hand/viewmodel), and reparenting a bone-attached mesh across skeletons
+## is how gear ends up on the floor.
 ##
-##     stowed_mesh  - the 116-tri H-189 clipped to the RTO, bone-attached
-##     held_mesh    - the same handset, parented to the player's hand
+## The cord NEVER blocks movement. It bellies, reads TAUT at `taut_at`, and past
+## full stretch the handset is RIPPED out of the holder's hand and snaps back.
 ##
-## Grabbing it hides the RTO's and shows the player's. That is the "phone disappears off
-## the radio backpack" - it is a SWAP, not a reparent, because the two live in different
-## spaces (one on a Mixamo bone, one on the player's hand/viewmodel) and reparenting a
-## bone-attached mesh across skeletons is how gear ends up on the floor. We have shipped
-## that bug enough times on this project.
-##
-## THE LEASH, AND WHY IT DOES NOT BLOCK YOU
-## A cord that hard-stops the player is miserable: you walk into an invisible wall while
-## being shot at, and you cannot tell why. So the cord never blocks movement. Instead:
-##
-##     0%   - 75%   free. The cord visibly bellies and drags.
-##     75%  - 100%  TAUT. The cord straightens (RadioCord does this for free from the
-##                  slack), the screen gets a subtle tug, and a warning fires ONCE.
-##     > 100%       the handset is RIPPED out of your hand and snaps back to the RTO.
-##
-## You are never trapped. But you cannot wander off mid-fire-mission and keep the call,
-## which is the whole point: it forces you to stand still, in the open, next to the radio
-## man, for the length of the call. That is the price of artillery, and it is what makes
-## calling it a decision instead of a button.
-##
-## HOLDING IT COSTS YOUR RIFLE. `handset_taken` is emitted so the weapon system can stow
-## the weapon. One hand on the handset means one hand on nothing else - which is why
-## ordering the RTO to hunker somewhere safe first (see the radio-man call command) is the
-## difference between a fire mission and a death.
+## `handset_taken` is emitted so the weapon system can stow the weapon - holding
+## the handset costs you your rifle.
 
 signal handset_taken(by: Node3D)
 signal handset_returned()

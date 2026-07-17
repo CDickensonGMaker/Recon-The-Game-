@@ -8,6 +8,15 @@ this Bible is the *enforced detail* per section. If code contradicts the Bible, 
 
 **Companion docs:** `../../DESIGN.md` (vision + M0–M8), `../../STATE_OF_PROJECT.md` (what exists),
 `../../MISSION_DESIGN_RESEARCH.md` (AI/pacing), `../../RECON_ADAPTATION.md` (tabletop→realtime),
+
+**Cinematic Direction (DRAFT — see ADR-024):** late-1998-to-2003 prerendered military cinematics
+(Medal of Honor 1999, MoH Underground, Hidden & Dangerous, Operation Flashpoint, Rainbow Six
+Rogue Spear, Delta Force, Half-Life intro, RE prerendered, MGS, FF8 FMVs, C&C Tiberian Sun,
+Ghost Recon 2001). Eevee Next, 640×480 or 720×480, 24 fps. Slow dolly/crane/locked tripod,
+4–10 s shot pacing, restrained acting, three-light rig, muted palette, atmosphere over spectacle.
+Five archetypes: Operation Briefings / Insertion / Combat Intros / After-Action / Death Sequences.
+Full text and director contract: `../adr/ADR-024-cinematic-direction.md`. **Status:** DRAFT
+pending Summoner ratification.
 `../../ROADMAP.md` (sequenced build order + asset track).
 
 **Status legend:** ✅ canon written · 🌱 seeded (this file has the canon bullets, expand to own doc) · ⬜ stub (expand next session)

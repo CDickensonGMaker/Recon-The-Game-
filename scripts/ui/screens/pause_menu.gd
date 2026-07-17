@@ -1,12 +1,6 @@
-## pause_menu.gd - THE WAY OUT (audit L1, bead RECONgame-x72o).
-##
-## Esc used to pause the tree and show NOTHING: no menu, no quit, no way back to
-## the main menu. Combined with Barracks living only on the main menu, a player
-## who entered a campaign could not spend his XP without killing the process.
-##
-## This is the missing screen. It runs while the tree is paused
+## pause_menu.gd - the in-game pause screen. Runs while the tree is PAUSED
 ## (PROCESS_MODE_ALWAYS), knows whether it was opened from a mission or the hub,
-## and offers the honest exits:
+## and offers:
 ##   RESUME · BARRACKS (spend XP) · SAVE (hub only) · ABANDON MISSION · QUIT TO MENU
 ##
 ## ABANDON exists because a mission you cannot leave is a mission you cannot

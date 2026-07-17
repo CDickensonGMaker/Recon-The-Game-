@@ -18,12 +18,10 @@ static func _ghost_bonus(r: Dictionary) -> bool:
 	return bool(r.get("success", false)) and shots > 0 and shots <= 15 * maxi(1, int(r.objectives_done))
 
 
-## ADR-006 SCORING (audit L4). The old economy paid +10 per KILL, so the optimal
-## XP strategy was to be LOUD - the exact inverse of Pillar 3, in a game whose
-## whole fantasy is a recon element that is never seen. Kills earn NOTHING now.
-## What earns is CONTACT DISCIPLINE: +25 for every enemy group you slipped past
-## unseen, -25 for every one that got eyes on you. A firefight you had to have is
-## not punished (you still bank the objectives); a firefight you CHOSE costs you.
+## ADR-006 SCORING. Kills earn NOTHING. What earns is CONTACT DISCIPLINE: +25 for
+## every enemy group slipped past unseen, -25 for every one that got eyes on you.
+## A firefight you had to have is not punished (objectives still bank); one you
+## CHOSE costs you.
 const CONTACT_AVOIDED: int = 25
 const CONTACT_DETECTED: int = -25
 
@@ -39,8 +37,6 @@ static func compute_score(r: Dictionary) -> int:
 		score -= 50
 	if _ghost_bonus(r):
 		score += 75
-	# The AAR printed "THE PILOT DIDN'T MAKE IT: -100" and then never subtracted
-	# it - the debrief was lying to the player about his own score.
 	if bool(r.get("pow_lost", false)):
 		score -= 100
 	return score

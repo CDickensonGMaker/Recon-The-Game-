@@ -61,7 +61,6 @@ func _process(delta: float) -> void:
 	cook_timer += delta
 	grenade_cooking.emit(cook_timer)
 
-	# Check if grenade explodes in hand
 	if cook_timer >= FUSE_TIME:
 		_explode_in_hand()
 
@@ -76,7 +75,6 @@ func start_cooking() -> void:
 	_show_grenade()
 
 
-## Throw the grenade
 func throw() -> void:
 	if not is_cooking:
 		return
@@ -84,27 +82,24 @@ func throw() -> void:
 	is_cooking = false
 	_hide_grenade()
 
-	# Use grenade from inventory
 	if not equipment_manager.use_grenade():
 		return
 
-	# Spawn grenade
+	# The fuse keeps running: only the time left after cooking is thrown with it.
 	var grenade := Grenade.new()
 	grenade.remaining_fuse = FUSE_TIME - cook_timer
 	grenade.owner_entity = controller
 
-	# Calculate throw direction and force
 	var aim_dir: Vector3 = controller.get_aim_direction()
 	var throw_dir: Vector3 = (aim_dir + Vector3.UP * THROW_UPWARD).normalized()
 	grenade.initial_velocity = throw_dir * THROW_FORCE
 
-	# Spawn at camera position
 	get_tree().current_scene.add_child(grenade)
 	grenade.global_position = controller.get_camera_position() + aim_dir * 0.5
 
 	grenade_thrown.emit()
 
-	# Auto-switch back to primary
+	# Auto-switch back to primary.
 	equipment_manager.switch_to_slot(0)
 
 
@@ -114,24 +109,22 @@ func _explode_in_hand() -> void:
 	_hide_grenade()
 	equipment_manager.use_grenade()
 
-	# Damage player directly
 	var health_system := controller.get_node_or_null("HealthSystem") as HealthSystem
 	if health_system:
 		health_system.take_damage(100, Enums.DamageType.EXPLOSIVE, controller)
 
 	grenade_exploded_in_hand.emit()
 
-	# Auto-switch back to primary (if still alive)
+	# Auto-switch back to primary, if still alive.
 	equipment_manager.switch_to_slot(0)
 
 
-## Get cook progress (0-1)
+## Cook progress, 0-1.
 func get_cook_progress() -> float:
 	if not is_cooking:
 		return 0.0
 	return cook_timer / FUSE_TIME
 
 
-## Get remaining fuse time
 func get_remaining_fuse() -> float:
 	return maxf(0.0, FUSE_TIME - cook_timer)

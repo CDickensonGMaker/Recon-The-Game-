@@ -1,6 +1,5 @@
-## mission_director.gd - Owns MissionState, tracked spawning (the kill-count fix:
-## every kill counts via EnemyBase.died, never CombatManager's broken path),
-## objective completion, mission end states (NS07).
+## mission_director.gd - Owns MissionState, tracked enemy spawning (kills are
+## counted from EnemyBase.died), objective completion and mission end states.
 class_name MissionDirector
 extends Node
 
@@ -43,9 +42,8 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 	enemy.squad_id = hash(group_tag) if not group_tag.is_empty() else -1
 	enemy.died.connect(_on_enemy_died.bind(group_tag))
 	_live_enemies.append(enemy)
-	# CONTACT LEDGER (ADR-006): every group that exists in the AO is one you can
-	# either slip past (+25) or wake (-25). Register it the moment it spawns, or
-	# there is nothing to have avoided.
+	# CONTACT LEDGER (ADR-006): a group must be registered the moment it spawns,
+	# or there is nothing for the debrief to score as avoided.
 	state.register_group(enemy.squad_id if enemy.squad_id >= 0 else enemy.get_instance_id())
 	return enemy
 
@@ -61,10 +59,9 @@ func _on_enemy_died(enemy: EnemyBase, group_tag: String) -> void:
 	state.record_kill()
 	_live_enemies.erase(enemy)
 	enemy_killed.emit(enemy, group_tag)
-	# NOTE: escalation is NO LONGER triggered by the kill itself - see
-	# _check_detection(). A silent, unwitnessed kill leaves the AO cold; only
-	# being DETECTED (an enemy reaching COMBAT, incl. from hearing the shot)
-	# wakes the hunters. That makes stealth an economy (RTCW 5.5).
+	# Escalation is driven by DETECTION, not by the kill - see _check_detection().
+	# A silent, unwitnessed kill leaves the AO cold; that is what makes stealth
+	# an economy.
 
 
 ## Hunter escalation: after first contact, patrols move in looking for you.
@@ -91,7 +88,7 @@ func _process_escalation(delta: float) -> void:
 	_hunter_timer -= delta
 	if _hunter_timer > 0.0:
 		return
-	# The longer you are in the field, the harder the AO leans on you (survival v1).
+	# The longer you are in the field, the harder the AO leans on you.
 	var field_mult: float = 1.0
 	if state != null:
 		var mins: float = state.elapsed_seconds() / 60.0
@@ -183,9 +180,8 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
 		if not fire_menu_open:
-			# Getting on the net requires the radio - a LIVING RTO you're standing near
-			# (the radio is on his back). Same check gates the Y/O shortcuts inside
-			# request_fire_support, so nothing bypasses the leash.
+			# The radio rides the RTO's back: you must be near a LIVING one. The same
+			# check gates the shortcuts inside request_fire_support - nothing bypasses it.
 			var err := _radio_check()
 			if err != "":
 				toast.emit(err)
@@ -220,7 +216,7 @@ func _process(delta: float) -> void:
 		request_supply_drop()
 
 
-## Unified call-for-fire (PT): budgets per mission, all RTO-gated.
+## Unified call-for-fire: budgets per mission, all RTO-gated.
 signal fire_menu_changed(open: bool)
 static var any_fire_menu_open: bool = false  ## input guard for kit keys
 var fire_menu_open: bool = false:
@@ -236,9 +232,8 @@ var _pending_dc_at_ms: int = 0  ## when the pend was raised (Time.get_ticks_msec
 
 
 func request_fire_support(kind: String) -> void:
-	# AUDIT FIX: the menu used to close on the FIRST line, which made the danger-close
-	# confirm unreachable (the second press fell through to weapon keys). Now the net
-	# stays open through soft failures and the confirm; it closes only on dispatch.
+	# The net stays open through soft failures and through the danger-close confirm.
+	# It closes only on dispatch - closing earlier makes the confirm press unreachable.
 	var err := _radio_check()  # RTO alive + within 10m - also gates the Y/O shortcuts
 	if err != "":
 		_close_net()
@@ -254,10 +249,8 @@ func request_fire_support(kind: String) -> void:
 	if target == Vector3.ZERO:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
-	# Danger-close confirm (War Room decree): if the aim point is near a living
-	# squadmate, require a second press of the SAME call, within a short window -
-	# you should have to look at your own men and mean it. A stale or different-kind
-	# pend never pre-confirms.
+	# Danger close: a second press of the SAME call, within a short window, is
+	# required. A stale or different-kind pend must never pre-confirm.
 	var pend_fresh: bool = _pending_danger_close == kind \
 		and (Time.get_ticks_msec() - _pending_dc_at_ms) < int(DANGER_CLOSE_CONFIRM_S * 1000.0)
 	if _danger_close_to_squad(target) and not pend_fresh:
@@ -269,9 +262,7 @@ func request_fire_support(kind: String) -> void:
 	_pending_danger_close = ""
 	_close_net()  # call is going out - off the horn
 	fire_support[kind] = int(fire_support[kind]) - 1
-	# FO/FAC is the RADIOMAN's skill, not yours -- and :182 already refused fire
-	# support when the RTO is dead, so making the player buy it contradicted a
-	# shipping guard. The RTO is reachable here.
+	# FO/FAC is the RADIOMAN's skill, not the player's.
 	var _rto := squad_system.member_by_mos("RTO") if squad_system != null else null
 	var _fo: int = SquadRoster.skill_level(_rto.member, "fo_fac") if _rto != null else 0
 	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(_fo))
@@ -303,8 +294,7 @@ func request_fire_support(kind: String) -> void:
 			_launch_flyby(target, CASAirplane.Ordnance.CBU)
 			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
 			_radio_vo("cbu_cluster")
-	# Learn-by-doing: the RADIOMAN gets better at calling fire the more he does it. A
-	# maxed "STEEL RAIN" radioman drops tight fire-for-effect; losing him hurts (Pillar 4).
+	# Learn-by-doing: the radioman gets better at calling fire the more he does it.
 	if _rto != null:
 		var fp: int = SquadRoster.credit_use(_rto.member, "fo_fac", 2)
 		if fp > 0 and _rto.has_method("on_skill_up"):
@@ -320,8 +310,7 @@ func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
 
 
-## F-4 fast horizontal flyby (napalm/CBU) - screams in low, pickles on the pass,
-## climbs out into the clouds. Real F-4 Phantom model (copied from RealVietnamRTS).
+## F-4 fast horizontal flyby (napalm/CBU): in low, pickle on the pass, climb out.
 func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	var plane: CASAirplane = F4_SCENE.instantiate()
 	world.add_child(plane)
@@ -332,8 +321,8 @@ func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 
 
 ## The radio is a man: a LIVING RTO within RTO_RADIO_RANGE. Returns "" when usable,
-## else the toast to show. Called by the net toggle AND every fire request, so the
-## Y-mortar / supply-drop shortcuts can't bypass the leash. [audit fix]
+## else the toast to show. MUST be called by every fire request, not just the net
+## toggle, or the shortcut keys bypass the leash.
 func _radio_check() -> String:
 	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
 	if rto == null:
@@ -344,9 +333,7 @@ func _radio_check() -> String:
 	return ""
 
 
-## Radio VO, sourced diegetically: the chatter comes from the PRC-25 on the RTO's
-## back (positional, fades in a firefight) - unless the player is on the net with
-## the handset, then it's in-ear (VOManager handles that split).
+## Radio VO is diegetic: it comes from the PRC-25 on the RTO's back, positionally.
 func _radio_vo(line_id: String) -> void:
 	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
 	var src: Variant = null
@@ -398,7 +385,7 @@ func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 			_mortar_impact(target + Vector3(randf_range(-8, 8) * scat, 0, randf_range(-8, 8) * scat), 1.0))
 
 
-## W60: RTO-called resupply - pop smoke, bird drops a crate on it.
+## RTO-called resupply: pop smoke, the bird drops a crate on it.
 var supply_used: bool = false
 
 
@@ -428,8 +415,7 @@ func request_supply_drop() -> void:
 
 
 func _drop_supply_crate(pos: Vector3) -> void:
-	# Board the exfil bird within 20s of calling resupply and `world` is gone.
-	# _arty_impact() and _mortar_impact() both guard; this one did not.
+	# `world` can be gone: the player may board the exfil bird inside the 20s delay.
 	if world == null or not is_instance_valid(world):
 		return
 	var crate := StaticBody3D.new()
@@ -457,8 +443,7 @@ func _drop_supply_crate(pos: Vector3) -> void:
 	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
 
 
-## R66: public hook for EnemyMortarTeam - same impact FX/damage as the
-## player-called fire mission, just aimed the other way.
+## Public hook for EnemyMortarTeam: the same impact FX/damage, aimed the other way.
 func enemy_mortar_impact(pos: Vector3) -> void:
 	_mortar_impact(pos, 0.8)
 
@@ -497,10 +482,7 @@ func is_ended() -> bool:
 	return _ended
 
 
-## ---------------------------------------------------------------------------
-## Scripted-events registry (infra hook ONLY - see mission_trigger.gd /
-## scripted_sequence.gd). Lets a generated mission enumerate its event pieces
-## for debrief/tooling. Deliberately zero behavior: the director never drives a
+## Scripted-events registry: enumeration only. The director MUST NOT drive a
 ## trigger or sequence - they run themselves, watched or not (Pillar 3).
 var scripted_events: Array[Node] = []
 

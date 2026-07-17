@@ -3,7 +3,6 @@ class_name WaterBodyData
 ## Data container for a single water body (river, pond, lake, coastal zone)
 ## Used by WaterSystem for tracking and rendering water features
 
-## Water body classification
 enum Type {
 	NONE = 0,
 	CREEK = 1,      # Width < 6m, flowing
@@ -14,10 +13,8 @@ enum Type {
 	COASTAL = 6,    # Ocean/sea edge
 }
 
-## Unique identifier for this water body
 @export var id: int = -1
 
-## Classification of this water body
 @export var type: Type = Type.NONE
 
 ## Water surface elevation in meters
@@ -53,12 +50,10 @@ var mesh: Mesh = null
 var mesh_instance: MeshInstance3D = null
 
 
-## Check if this is a flowing water body
 func is_flowing() -> bool:
 	return type == Type.CREEK or type == Type.RIVER
 
 
-## Check if this is a static water body
 func is_static() -> bool:
 	return type == Type.POND or type == Type.LAKE or type == Type.COASTAL
 
@@ -86,19 +81,15 @@ func get_center() -> Vector2:
 		return bounds.get_center()
 
 
-## Check if a world position is inside this water body
 func contains_point(world_x: float, world_z: float) -> bool:
 	var point := Vector2(world_x, world_z)
 
-	# Quick bounds check first
 	if not bounds.has_point(point):
 		return false
 
 	if is_flowing():
-		# Check distance to path segments
 		return _point_near_path(point)
 	else:
-		# Check if inside polygon
 		return _point_in_polygon(point)
 
 
@@ -112,7 +103,6 @@ func get_depth_at(world_x: float, world_z: float) -> float:
 	return depth
 
 
-## Get flow direction at a world position
 func get_flow_at(world_x: float, world_z: float) -> Vector2:
 	if not is_flowing():
 		return Vector2.ZERO
@@ -138,7 +128,6 @@ func get_flow_at(world_x: float, world_z: float) -> Vector2:
 	return best_dir * flow_speed
 
 
-## Check if point is near the river/creek path
 func _point_near_path(point: Vector2) -> bool:
 	for i in range(path.size() - 1):
 		var seg_start := path[i]
@@ -157,7 +146,6 @@ func _point_near_path(point: Vector2) -> bool:
 	return false
 
 
-## Find closest point on a line segment
 func _closest_point_on_segment(point: Vector2, seg_start: Vector2, seg_end: Vector2) -> Vector2:
 	var seg := seg_end - seg_start
 	var seg_len_sq := seg.length_squared()
@@ -190,7 +178,6 @@ func _point_in_polygon(point: Vector2) -> bool:
 	return inside
 
 
-## Get type name as string
 static func type_name(t: Type) -> String:
 	match t:
 		Type.NONE: return "None"
@@ -203,7 +190,6 @@ static func type_name(t: Type) -> String:
 	return "Unknown"
 
 
-## Debug string representation
 func _to_string() -> String:
 	return "[WaterBody %d: %s, elev=%.1fm, area=%.0fm²]" % [
 		id, type_name(type), elevation, get_area()

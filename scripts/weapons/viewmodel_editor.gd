@@ -1,20 +1,12 @@
-## viewmodel_editor.gd - Standalone viewmodel ALIGNMENT WORKBENCH.
+## viewmodel_editor.gd - standalone viewmodel ALIGNMENT WORKBENCH (launched from
+## viewmodel_editor.bat, outside the game).
 ##
-## Launch outside the game (viewmodel_editor.bat at the project root). The
-## camera rig mirrors the player exactly - head at Y=1.7, hip FOV 75,
-## WeaponHolder identity transform (the sync contract in CLAUDE.md) - so what
-## you align here is what the game renders.
+## SYNC CONTRACT (CLAUDE.md) - DO NOT CHANGE: this rig must mirror the player
+## exactly - camera at Y=1.7, hip FOV 75, WeaponHolder on an IDENTITY transform.
+## Break any of the three and what you align here is not what the game renders.
 ##
-## Workflow per gun: nudge with WASD/QE + arrows until the red bore laser dot
-## sits on the target-board center (= the crosshair), or press B to auto-align
-## the rotation, then Ctrl+S to write straight back into the .tres. Z/X cycle
-## the whole armory. The weapon list is auto-discovered from data/weapons/.
-##
-## In-game bullets are REAL projectiles now (7ks, BulletSystem): they spawn at
-## the gun's MuzzlePoint and converge onto the crosshair's aim point
-## (weapon_holder.gd _fire_shot). Alignment here matters MORE than under
-## hitscan - a misaligned gun visibly lofts its round sideways into the
-## convergence line. Goal unchanged: the bore laser dot ON the crosshair.
+## Workflow: nudge until the bore laser dot sits on the board center (= the
+## crosshair), or press B to auto-align, then Ctrl+S to write into the .tres.
 extends Node3D
 
 ## Weapon data resources for preview (auto-discovered when empty)
@@ -130,46 +122,30 @@ func _process(delta: float) -> void:
 
 
 func _handle_input(delta: float) -> void:
-	# Weapon switching works even with no model loaded
-	if _pressed_once(KEY_Z):
-		_step_weapon(-1)
-	if _pressed_once(KEY_X):
-		_step_weapon(1)
-	for i in range(mini(weapons.size(), 9)):
-		if _pressed_once(KEY_1 + i):
-			weapon_selector.select(i)
-			_load_weapon(i)
-			break
-	if _pressed_once(KEY_F5):
-		_on_reload_weapon()
-	if Input.is_key_pressed(KEY_CTRL) and _pressed_once(KEY_S):
-		_save_weapon()
-	if _pressed_once(KEY_L):
-		laser_enabled = not laser_enabled
+	var speed_mult: float = 1.0
+	if Input.is_key_pressed(KEY_SHIFT):
+		speed_mult = 0.1
 
-	if Input.is_action_just_pressed("ui_accept"):
-		_on_mode_toggle()
-
-	if not weapon_model:
+	## Ctrl+S save (don't grab S as movement when Ctrl held)
+	if Input.is_key_pressed(KEY_CTRL):
+		if _pressed_once(KEY_S):
+			_save_weapon()
 		return
 
-	# Position adjustments (WASD + Q/E). Ctrl reserved for Ctrl+S.
 	var move_input := Vector3.ZERO
-	if not Input.is_key_pressed(KEY_CTRL):
-		if Input.is_key_pressed(KEY_W):
-			move_input.z -= 1.0
-		if Input.is_key_pressed(KEY_S):
-			move_input.z += 1.0
-		if Input.is_key_pressed(KEY_A):
-			move_input.x -= 1.0
-		if Input.is_key_pressed(KEY_D):
-			move_input.x += 1.0
-		if Input.is_key_pressed(KEY_Q):
-			move_input.y -= 1.0
-		if Input.is_key_pressed(KEY_E):
-			move_input.y += 1.0
+	if Input.is_key_pressed(KEY_W):
+		move_input.z -= 1.0
+	if Input.is_key_pressed(KEY_S):
+		move_input.z += 1.0
+	if Input.is_key_pressed(KEY_A):
+		move_input.x -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		move_input.x += 1.0
+	if Input.is_key_pressed(KEY_Q):
+		move_input.y -= 1.0
+	if Input.is_key_pressed(KEY_E):
+		move_input.y += 1.0
 
-	# Rotation adjustments (Arrow keys + Page Up/Down)
 	var rot_input := Vector3.ZERO
 	if Input.is_key_pressed(KEY_UP):
 		rot_input.x -= 1.0
@@ -184,19 +160,36 @@ func _handle_input(delta: float) -> void:
 	if Input.is_key_pressed(KEY_PAGEDOWN):
 		rot_input.z += 1.0
 
-	var speed_mult: float = 0.1 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-
 	if move_input != Vector3.ZERO or rot_input != Vector3.ZERO:
 		edit_position += move_input * MOVE_SPEED * speed_mult * delta
 		edit_rotation += rot_input * ROTATE_SPEED * speed_mult * delta
 		_apply_edit()
 
-	# BORE CALIBRATION (I/K/U/O): lay the laser along the barrel BY EYE, once
-	# per gun - Ctrl+S persists it (WeaponData.bore_dir, viewmodel-local).
-	# The baked posed holds give no data axis to trust; your eye is the truth
-	# source here, and B then auto-aligns against the calibrated bore.
+	## Weapon switching: Z/X prev/next, 1-9 direct select
+	if _pressed_once(KEY_Z):
+		_step_weapon(-1)
+	if _pressed_once(KEY_X):
+		_step_weapon(1)
+	for i in range(9):
+		if _pressed_once(KEY_1 + i) and i < weapons.size():
+			weapon_selector.select(i)
+			_load_weapon(i)
+
+	## Space toggles Hip/ADS
+	if _pressed_once(KEY_SPACE):
+		_on_mode_toggle()
+
+	## F5 reload model scene
+	if _pressed_once(KEY_F5):
+		_on_reload_weapon()
+
+	## Laser toggle
+	if _pressed_once(KEY_L):
+		laser_enabled = not laser_enabled
+
+	## Bore calibration: hip calibrates WeaponData.bore_dir; ADS calibrates WeaponData.ads_bore_dir.
 	var bore_input := Vector2.ZERO   # x = yaw (U/O), y = pitch (I/K)
-	if not Input.is_key_pressed(KEY_CTRL):
+	if current_weapon != null:
 		if Input.is_key_pressed(KEY_I):
 			bore_input.y += 1.0
 		if Input.is_key_pressed(KEY_K):
@@ -206,27 +199,35 @@ func _handle_input(delta: float) -> void:
 		if Input.is_key_pressed(KEY_O):
 			bore_input.x -= 1.0
 	if bore_input != Vector2.ZERO and current_weapon != null:
-		var b: Vector3 = current_weapon.bore_dir
+		var b: Vector3 = _get_current_bore_dir()
 		if b == Vector3.ZERO:
 			b = Vector3(0, 0, -1)
 		var bstep: float = deg_to_rad(20.0) * speed_mult * delta
 		b = b.rotated(Vector3.RIGHT, bore_input.y * bstep)
 		b = b.rotated(Vector3.UP, bore_input.x * bstep)
-		current_weapon.bore_dir = b.normalized()
+		_set_current_bore_dir(b.normalized())
 
 	if _pressed_once(KEY_R) and not Input.is_key_pressed(KEY_CTRL):
 		_revert_to_snapshot()
 	if _pressed_once(KEY_B):
 		if Input.is_key_pressed(KEY_SHIFT):
 			if current_weapon != null:
-				current_weapon.bore_dir = Vector3.ZERO
-				_flash("BORE reset to contract axis (-Z)")
+				if preview_mode == 0:
+					current_weapon.bore_dir = Vector3.ZERO
+					_flash("HIP bore reset to contract axis (-Z)")
+				else:
+					current_weapon.ads_bore_dir = Vector3.ZERO
+					_flash("ADS bore reset to contract axis (-Z)")
 		else:
 			_auto_align()
+	if _pressed_once(KEY_V) and not Input.is_key_pressed(KEY_CTRL):
+		_auto_align_ads_sights()
 	if _pressed_once(KEY_C) and not Input.is_key_pressed(KEY_CTRL):
 		_on_copy_values()
 	if _pressed_once(KEY_G) and _grid_node != null:
 		_grid_node.visible = not _grid_node.visible
+	if _pressed_once(KEY_H) and not Input.is_key_pressed(KEY_CTRL):
+		_frame_model()
 
 
 ## Poll a key but fire once per press (editor convention: no InputMap actions).
@@ -260,41 +261,53 @@ func _load_weapon(index: int) -> void:
 		_snapshots[current_weapon.resource_path] = {
 			"hp": current_weapon.hip_position, "hr": current_weapon.hip_rotation,
 			"ap": current_weapon.ads_position, "ar": current_weapon.ads_rotation,
+			"hb": current_weapon.bore_dir, "ab": current_weapon.ads_bore_dir,
 		}
 
 	if weapon_model:
 		weapon_model.queue_free()
 		weapon_model = null
 
+	var load_failed := false
 	if not current_weapon.model_path.is_empty():
 		# Bypass cache so .tscn edits show after F5 without restarting
 		var scene: PackedScene = ResourceLoader.load(current_weapon.model_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if scene:
 			weapon_model = scene.instantiate()
-			weapon_holder.add_child(weapon_model)
-			# WYSIWYG, the hard way. The game gets its "gun close to the screen"
-			# lens by SCALING the model by tan(world_fov/2)/tan(viewmodel_fov/2)
-			# inside the world camera. If the bench instead narrowed its OWN
-			# camera to viewmodel_fov, the two would agree on the gun's SIZE and
-			# disagree on its POSITION - the same 1cm nudge walks the gun ~33%
-			# further across the screen at 60 deg than at 75. Every offset dialled
-			# here would then be wrong in game. So the bench does exactly what the
-			# game does: same camera FOV, same scaled model.
-			weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
-			# Mirror the game (weapon_holder.gd): without the idle clip a
-			# rigged arms viewmodel renders in bind pose
-			var vm_anim: AnimationPlayer = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-			if vm_anim and vm_anim.has_animation("rifle_idle"):
-				vm_anim.play("rifle_idle")
+			if weapon_model:
+				weapon_holder.add_child(weapon_model)
+				# WYSIWYG CONTRACT: the bench must do exactly what the game does - the
+				# SAME camera FOV with the model SCALED by _lens_ratio. Narrowing this
+				# camera to viewmodel_fov instead would agree on the gun's SIZE and
+				# disagree on its POSITION, and every offset dialled here would ship wrong.
+				weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
+				# Mirror the game: without the idle clip an arms viewmodel renders in bind pose.
+				var vm_anim: AnimationPlayer = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+				if vm_anim and vm_anim.has_animation("rifle_idle"):
+					vm_anim.play("rifle_idle")
+			else:
+				load_failed = true
+				push_warning("[ViewmodelEditor] %s scene instantiate failed: %s" % [current_weapon.display_name, current_weapon.model_path])
+		else:
+			load_failed = true
+			push_warning("[ViewmodelEditor] %s scene load failed: %s" % [current_weapon.display_name, current_weapon.model_path])
 
 	# Unconditionally, even for [NO MODEL] weapons: otherwise the previous
 	# weapon's edit values would be saved into this weapon's .tres on Ctrl+S
 	_load_edit_from_resource()
 
 	if _no_model_label:
-		_no_model_label.visible = weapon_model == null
+		if load_failed:
+			_no_model_label.text = "VIEWMODEL LOAD FAILED\n%s" % current_weapon.model_path
+			_no_model_label.visible = true
+		elif weapon_model == null:
+			_no_model_label.text = "NO VIEWMODEL\n(model_path is empty in the .tres)"
+			_no_model_label.visible = true
+		else:
+			_no_model_label.visible = false
 	_update_mode_button()
 	_update_camera_fov()
+	print("[ViewmodelEditor] loaded %s  model=%s" % [current_weapon.display_name, current_weapon.model_path])
 
 
 func _load_edit_from_resource() -> void:
@@ -337,6 +350,8 @@ func _revert_to_snapshot() -> void:
 	current_weapon.hip_rotation = snap["hr"]
 	current_weapon.ads_position = snap["ap"]
 	current_weapon.ads_rotation = snap["ar"]
+	current_weapon.bore_dir = snap["hb"]
+	current_weapon.ads_bore_dir = snap["ab"]
 	_load_edit_from_resource()
 	_flash("REVERTED to saved values")
 
@@ -351,36 +366,48 @@ func _save_weapon() -> void:
 		_snapshots[current_weapon.resource_path] = {
 			"hp": current_weapon.hip_position, "hr": current_weapon.hip_rotation,
 			"ap": current_weapon.ads_position, "ar": current_weapon.ads_rotation,
+			"hb": current_weapon.bore_dir, "ab": current_weapon.ads_bore_dir,
 		}
 		_flash("SAVED -> %s" % current_weapon.resource_path)
 		print("[ViewmodelEditor] saved %s" % current_weapon.resource_path)
 	else:
 		_flash("SAVE FAILED (err %d)" % err)
-		push_error("[ViewmodelEditor] ResourceSaver.save failed: %d" % err)
 
-
-## ---------------------------------------------------------------- bore laser
 
 ## [origin, direction] of the bore in GLOBAL space. Origin = the MuzzlePoint
-## marker (the same node the game spawns bullets at). Direction = the
-## CALIBRATED bore (WeaponData.bore_dir, authored here with I/K/U/O), falling
-## back to the contract axis (root -Z). NOT the marker's own basis (the
-## Blender muzzle empties are position markers, never aimed - the laser fired
-## out of gun tops) and NOT blindly the contract axis either (arms viewmodels
-## are baked POSED holds - the barrel sits wherever the hand holds it).
-## normalized(): the global basis carries the baked root scale (~0.03), which
-## otherwise breaks the board-plane t bound.
+## marker (the node the game spawns rounds from). Direction = the CALIBRATED
+## bore_dir for the current preview mode, falling back to the contract axis
+## (root -Z) - NEVER the marker's own basis: the Blender empties are position
+## markers and are not aimed.
 func _bore_ray() -> Array:
 	if not weapon_model:
 		return []
-	var local_bore: Vector3 = Vector3(0, 0, -1)
-	if current_weapon != null and current_weapon.bore_dir != Vector3.ZERO:
-		local_bore = current_weapon.bore_dir.normalized()
+	var local_bore: Vector3 = _get_current_bore_dir()
+	if local_bore == Vector3.ZERO:
+		local_bore = Vector3(0, 0, -1)
+	local_bore = local_bore.normalized()
 	var fdir: Vector3 = (weapon_model.global_transform.basis * local_bore).normalized()
 	var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
 	if muzzle:
 		return [muzzle.global_position, fdir]
 	return [weapon_model.global_position + fdir * 0.5, fdir]
+
+
+func _get_current_bore_dir() -> Vector3:
+	if current_weapon == null:
+		return Vector3.ZERO
+	if preview_mode == 0:
+		return current_weapon.bore_dir
+	return current_weapon.ads_bore_dir
+
+
+func _set_current_bore_dir(v: Vector3) -> void:
+	if current_weapon == null:
+		return
+	if preview_mode == 0:
+		current_weapon.bore_dir = v
+	else:
+		current_weapon.ads_bore_dir = v
 
 
 func _update_laser() -> void:
@@ -428,9 +455,9 @@ func _update_laser() -> void:
 	_laser_mesh.surface_end()
 
 
-## Rotate the model (pitch/yaw only, roll untouched) so the bore passes through
-## the board center = crosshair. Delta-form + iteration converges even when the
-## MuzzlePoint carries its own orientation offset.
+## Rotate the model (pitch/yaw only, roll untouched) so the current mode's
+## bore passes through the board center = crosshair. Delta-form + iteration
+## converges even when the MuzzlePoint carries its own orientation offset.
 func _auto_align() -> void:
 	if not weapon_model or not current_weapon:
 		return
@@ -449,189 +476,121 @@ func _auto_align() -> void:
 		edit_rotation.x += d_pitch
 		edit_rotation.y += d_yaw
 		_apply_edit()
-	_flash("AUTO-ALIGNED bore to crosshair (B)")
+	var mode_name: String = "HIP" if preview_mode == 0 else "ADS"
+	_flash("AUTO-ALIGNED %s bore to crosshair (B)" % mode_name)
 
 
-## CALIBRATION GRID (Caleb 2026-07-11): a shooting-tunnel lattice so "even"
-## is judged against straight lines, not open air. Depth rails run from the
-## firing line to the board - the laser must run PARALLEL to them; any cant
-## reads instantly against the converging perspective. The eye-height center
-## rail (the true aim line, x=0 y=1.7) is highlighted. Cross-frames every 5m
-## give depth reference; graph lines on the board give the dot a ruler.
-## G toggles.
-func _build_grid() -> void:
-	var im := ImmediateMesh.new()
-	_grid_node = MeshInstance3D.new()
-	_grid_node.mesh = im
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	_grid_node.material_override = mat
-	add_child(_grid_node)
-	var dim := Color(0.28, 0.36, 0.30)
-	var bright := Color(0.55, 0.80, 0.55)
-	im.surface_begin(Mesh.PRIMITIVE_LINES)
-	# Depth rails (0.5m lattice, firing line -> board).
-	for xi in range(-4, 5):
-		for yi in range(0, 8):
-			var x: float = float(xi) * 0.5
-			var y: float = float(yi) * 0.5
-			im.surface_set_color(dim)
-			im.surface_add_vertex(Vector3(x, y, 0.0))
-			im.surface_set_color(dim)
-			im.surface_add_vertex(Vector3(x, y, -BOARD_DIST))
-	# The true aim rail: eye height, dead center - where a perfect bore lives.
-	im.surface_set_color(bright)
-	im.surface_add_vertex(Vector3(0.0, 1.7, 0.0))
-	im.surface_set_color(bright)
-	im.surface_add_vertex(Vector3(0.0, 1.7, -BOARD_DIST))
-	# Cross-frames every 5m for depth reference.
-	for zi in range(1, 5):
-		var z: float = -5.0 * float(zi)
-		var corners: Array[Vector3] = [
-			Vector3(-2.0, 0.0, z), Vector3(2.0, 0.0, z),
-			Vector3(2.0, 0.0, z), Vector3(2.0, 3.5, z),
-			Vector3(2.0, 3.5, z), Vector3(-2.0, 3.5, z),
-			Vector3(-2.0, 3.5, z), Vector3(-2.0, 0.0, z),
-		]
-		for p in corners:
-			im.surface_set_color(dim)
-			im.surface_add_vertex(p)
-	# Board graph paper (0.25m ruling, just off the board plane).
-	var bz: float = -BOARD_DIST + 0.03
-	for gx in range(-12, 13):
-		var x2: float = float(gx) * 0.25
-		im.surface_set_color(bright if gx == 0 else dim)
-		im.surface_add_vertex(Vector3(x2, 0.0, bz))
-		im.surface_set_color(bright if gx == 0 else dim)
-		im.surface_add_vertex(Vector3(x2, 3.5, bz))
-	for gy in range(0, 15):
-		var y2: float = float(gy) * 0.25
-		var row_col: Color = bright if absf(y2 - 1.75) < 0.13 else dim
-		im.surface_set_color(row_col)
-		im.surface_add_vertex(Vector3(-3.0, y2, bz))
-		im.surface_set_color(row_col)
-		im.surface_add_vertex(Vector3(3.0, y2, bz))
-	im.surface_end()
-
-
-## ---------------------------------------------------------------- the range
-
-func _build_range() -> void:
-	# Floor
-	var floor_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(80.0, 80.0)
-	floor_mesh.mesh = plane
-	floor_mesh.material_override = _flat_mat(Color(0.18, 0.22, 0.14))
-	add_child(floor_mesh)
-
-	# Back wall behind the board
-	var wall := MeshInstance3D.new()
-	var wall_box := BoxMesh.new()
-	wall_box.size = Vector3(16.0, 6.0, 0.3)
-	wall.mesh = wall_box
-	wall.position = Vector3(0.0, 3.0, -BOARD_DIST - 0.5)
-	wall.material_override = _flat_mat(Color(0.35, 0.32, 0.28))
-	add_child(wall)
-
-	# Target board: center EXACTLY on the camera axis at eye height
-	var board := MeshInstance3D.new()
-	var quad := QuadMesh.new()
-	quad.size = Vector2(3.0, 3.0)
-	board.mesh = quad
-	board.position = Vector3(BOARD_CENTER.x, BOARD_CENTER.y, -BOARD_DIST - 0.02)
-	board.material_override = _flat_mat(Color(0.92, 0.9, 0.85))
-	add_child(board)
-
-	# Rings + center cross (static line art)
-	var rings := MeshInstance3D.new()
-	var rings_mesh := ImmediateMesh.new()
-	rings.mesh = rings_mesh
-	rings.material_override = _line_mat()
-	add_child(rings)
-	rings_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	var radii: Array[float] = [0.05, 0.125, 0.25, 0.5, 1.0, 1.45]
-	for r_i in range(radii.size()):
-		var radius: float = radii[r_i]
-		var col: Color = Color(0.8, 0.1, 0.1) if r_i % 2 == 0 else Color(0.1, 0.1, 0.1)
-		var segments: int = 64
-		for s_i in range(segments):
-			var a0: float = TAU * float(s_i) / float(segments)
-			var a1: float = TAU * float(s_i + 1) / float(segments)
-			rings_mesh.surface_set_color(col)
-			rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(cos(a0) * radius, sin(a0) * radius, 0.01))
-			rings_mesh.surface_set_color(col)
-			rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(cos(a1) * radius, sin(a1) * radius, 0.01))
-	var cross_col := Color(0.1, 0.1, 0.1)
-	rings_mesh.surface_set_color(cross_col)
-	rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(-1.45, 0, 0.01))
-	rings_mesh.surface_set_color(cross_col)
-	rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(1.45, 0, 0.01))
-	rings_mesh.surface_set_color(cross_col)
-	rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(0, -1.45, 0.01))
-	rings_mesh.surface_set_color(cross_col)
-	rings_mesh.surface_add_vertex(BOARD_CENTER + Vector3(0, 1.45, 0.01))
-	rings_mesh.surface_end()
-
-	# Distance posts every 5m for depth reference
-	for d in [5.0, 10.0, 15.0, 20.0]:
-		for side in [-2.0, 2.0]:
-			var post := MeshInstance3D.new()
-			var post_box := BoxMesh.new()
-			post_box.size = Vector3(0.08, 1.0, 0.08)
-			post.mesh = post_box
-			post.position = Vector3(side, 0.5, -d)
-			post.material_override = _flat_mat(Color(0.6, 0.55, 0.4))
-			add_child(post)
-
-
-func _build_laser() -> void:
-	_laser_mesh = ImmediateMesh.new()
-	_laser_node = MeshInstance3D.new()
-	_laser_node.mesh = _laser_mesh
-	_laser_node.material_override = _line_mat()
-	add_child(_laser_node)
-
-
-func _flat_mat(col: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	return m
-
-
-func _line_mat() -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.vertex_color_use_as_albedo = true
-	return m
-
-
-func _build_save_button() -> void:
-	var panel: VBoxContainer = $CanvasLayer/ControlPanel
-	if not panel:
+## Use the model's ADS zero markers (SightRear / SightFront) to compute an
+## ads_position and ads_rotation that puts the rear sight at camera center with
+## the front sight directly down the bore line. This is independent of the hip
+## zero, so switching to ADS no longer drags the hip crosshair offset with it.
+func _auto_align_ads_sights() -> void:
+	if not weapon_model or not current_weapon:
 		return
-	_save_button = Button.new()
-	_save_button.text = "SAVE to .tres (Ctrl+S)"
-	_save_button.pressed.connect(_save_weapon)
-	panel.add_child(_save_button)
+	var rear: Node3D = _find_ads_marker("rear")
+	var front: Node3D = _find_ads_marker("front")
+	if rear == null or front == null:
+		_flash("ADS ALIGN: no SightRear/SightFront markers in this model")
+		return
+
+	const EYE_RELIEF: float = 0.12
+	var target_rear_holder := Vector3(0.0, 0.0, -EYE_RELIEF)
+
+	var m_rear: Vector3 = rear.position
+	var m_front: Vector3 = front.position
+	var sight_vec: Vector3 = (m_front - m_rear).normalized()
+
+	# Current world direction of the sight line.
+	var cur_dir: Vector3 = (weapon_model.basis * sight_vec).normalized()
+	var want_dir: Vector3 = Vector3(0, 0, -1)
+
+	# Shortest rotation that carries the current sight line onto the camera axis.
+	var delta_rot: Quaternion = _quaternion_from_to(cur_dir, want_dir)
+	var cur_quat: Quaternion = Quaternion.from_euler(weapon_model.rotation)
+	var new_quat: Quaternion = delta_rot * cur_quat
+	var new_rot_rad: Vector3 = new_quat.get_euler()
+
+	# Apply rotation first so the scaled basis is correct for positioning.
+	weapon_model.rotation = new_rot_rad
+	edit_rotation = Vector3(
+		rad_to_deg(new_rot_rad.x),
+		rad_to_deg(new_rot_rad.y),
+		rad_to_deg(new_rot_rad.z))
+
+	# Now translate so the rear sight sits at the desired eye-relief point.
+	weapon_model.position = target_rear_holder - weapon_model.basis * m_rear
+	edit_position = weapon_model.position
+
+	# Persist as the ADS zero and switch the bench to ADS mode.
+	preview_mode = 1
+	_apply_edit()
+	_update_mode_button()
+	_update_camera_fov()
+	_flash("ADS ALIGNED to sight markers (V)")
 
 
-func _build_no_model_label() -> void:
-	_no_model_label = Label.new()
-	_no_model_label.text = "NO VIEWMODEL\n(model_path is empty in the .tres)"
-	_no_model_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_no_model_label.add_theme_font_size_override("font_size", 28)
-	_no_model_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	_no_model_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_no_model_label.add_theme_constant_override("outline_size", 4)
-	_no_model_label.set_anchors_preset(Control.PRESET_CENTER)
-	_no_model_label.visible = false
-	$CanvasLayer.add_child(_no_model_label)
+## Center the current model in the viewport without changing rotation. Useful if
+## a weapon appears to have "disappeared" (off-screen due to an old child offset
+## or bad edit position). Press H to bring it back into view, then tune normally.
+func _frame_model() -> void:
+	if not weapon_model:
+		return
+	var aabb := _model_aabb(weapon_model)
+	if aabb.size.length() <= 0.001:
+		_flash("FRAME MODEL: no mesh found")
+		return
+	# Place the mesh's local bounding-box center at (0, 0, -0.5) in front of camera.
+	edit_position = Vector3(-aabb.get_center().x, -aabb.get_center().y, -aabb.get_center().z - 0.5)
+	_apply_edit()
+	_flash("FRAMED model (H)")
 
 
-## ---------------------------------------------------------------- HUD
+func _model_aabb(node: Node3D) -> AABB:
+	var aabb := AABB()
+	var first := true
+	for c in node.find_children("*", "MeshInstance3D", true):
+		var mi := c as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var local_aabb: AABB = mi.transform * mi.mesh.get_aabb()
+		if first:
+			aabb = local_aabb
+			first = false
+		else:
+			aabb = aabb.merge(local_aabb)
+	return aabb
+
+
+func _find_ads_marker(kind: String) -> Node3D:
+	if not weapon_model:
+		return null
+	var want: Array[String] = ["SightRear", "sight_rear"] if kind == "rear" else ["SightFront", "sight_front"]
+	for child in weapon_model.find_children("*", "Node3D", true):
+		var n: Node3D = child as Node3D
+		if n == null:
+			continue
+		var lower: String = str(n.name).to_lower()
+		for prefix in want:
+			if lower.begins_with(prefix) or lower.contains("_" + prefix) or lower == prefix.to_lower():
+				return n
+	return null
+
+
+func _quaternion_from_to(from: Vector3, to: Vector3) -> Quaternion:
+	var a: Vector3 = from.normalized()
+	var b: Vector3 = to.normalized()
+	var dot: float = a.dot(b)
+	if dot > 0.999999:
+		return Quaternion.IDENTITY
+	if dot < -0.999999:
+		var axis: Vector3 = Vector3.RIGHT
+		if absf(a.x) < 0.9:
+			axis = Vector3.UP
+		return Quaternion(axis, PI)
+	var axis: Vector3 = a.cross(b).normalized()
+	var angle: float = acos(clampf(dot, -1.0, 1.0))
+	return Quaternion(axis, angle)
+
 
 func _is_modified() -> bool:
 	if not current_weapon:
@@ -642,7 +601,9 @@ func _is_modified() -> bool:
 	return current_weapon.hip_position != snap["hp"] \
 		or current_weapon.hip_rotation != snap["hr"] \
 		or current_weapon.ads_position != snap["ap"] \
-		or current_weapon.ads_rotation != snap["ar"]
+		or current_weapon.ads_rotation != snap["ar"] \
+		or current_weapon.bore_dir != snap["hb"] \
+		or current_weapon.ads_bore_dir != snap["ab"]
 
 
 ## Largest per-axis gap between hip and ADS rotation. >90 deg risks the
@@ -669,11 +630,18 @@ func _update_position_display() -> void:
 	lines.append("")
 	lines.append("pos Vector3(%.3f, %.3f, %.3f)" % [edit_position.x, edit_position.y, edit_position.z])
 	lines.append("rot Vector3(%.1f, %.1f, %.1f)" % [edit_rotation.x, edit_rotation.y, edit_rotation.z])
-	if current_weapon.bore_dir != Vector3.ZERO:
-		lines.append("bore CALIBRATED (%.2f, %.2f, %.2f)   Shift+B reset" % [
-			current_weapon.bore_dir.x, current_weapon.bore_dir.y, current_weapon.bore_dir.z])
+
+	var active_bore: Vector3 = _get_current_bore_dir()
+	var active_bore_name: String = "HIP bore" if preview_mode == 0 else "ADS bore"
+	if active_bore != Vector3.ZERO:
+		lines.append("%s CALIBRATED (%.2f, %.2f, %.2f)   Shift+B reset" % [
+			active_bore_name, active_bore.x, active_bore.y, active_bore.z])
 	else:
-		lines.append("bore = contract -Z   I/K/U/O: calibrate to barrel")
+		lines.append("%s = contract -Z   I/K/U/O: calibrate" % active_bore_name)
+
+	if current_weapon.bore_dir != Vector3.ZERO and current_weapon.ads_bore_dir != Vector3.ZERO:
+		var d: float = acos(clampf(current_weapon.bore_dir.normalized().dot(current_weapon.ads_bore_dir.normalized()), -1.0, 1.0))
+		lines.append("hip/ADS bore divergence: %.1f mrad" % (d * 1000.0))
 	lines.append("")
 	if _bore_valid:
 		var mrad: float = _bore_offset.length() / BOARD_DIST * 1000.0
@@ -700,13 +668,9 @@ func _on_mode_toggle() -> void:
 	_update_camera_fov()
 
 
-## Hip = game BASE_FOV. ADS = the weapon's real ads_fov, exactly like
-## weapon_holder.gd _update_ads - tuning ADS at 75 was silently wrong.
-## The camera stays the PLAYER's camera: hip = the world's 75, ADS = the weapon's
-## zoom. The viewmodel lens is applied to the MODEL (scaled on load), exactly as
-## the game does it - see _load_model(). Narrowing this camera instead would make
-## the bench lie about position. (CLAUDE.md sync contract: what you dial here is
-## what ships.)
+## SYNC CONTRACT: hip = the game's BASE_FOV 75, ADS = the weapon's own ads_fov -
+## exactly like weapon_holder.gd _update_ads. This camera stays the PLAYER's
+## camera; the viewmodel lens is applied to the MODEL on load, never here.
 func _update_camera_fov() -> void:
 	if not camera:
 		return
@@ -758,10 +722,12 @@ POSITION   W/S fwd/back  A/D  Q/E up/dn
 ROTATION   Arrows pitch/yaw  PgUp/Dn roll
            Shift = fine (x0.1)
 
-ALIGN      B - auto-align bore to crosshair
-           I/K/U/O - calibrate bore to barrel
-           Shift+B - reset bore   L - laser
+ALIGN      B - auto-align current-mode bore to crosshair
+           V - align ADS to SightRear/SightFront markers
+           I/K/U/O - calibrate bore for current mode
+           Shift+B - reset current-mode bore   L - laser
            G - toggle alignment grid
+           H - frame model (bring it back if it vanishes)
 
 SAVE       Ctrl+S - write into the .tres
            R - revert to saved
@@ -771,5 +737,95 @@ WEAPONS    Z/X - prev/next   1-9 - direct
            Space - Hip/ADS (real ADS FOV)
            F5 - reload model scene
 
-Laser dot on the board center = gun
-agrees with the crosshair. Save and go."""
+Hip and ADS have independent bore zeros. Tuning one
+never moves the other. V uses the model sight markers."""
+
+
+## ---------- RANGE VISUALS ----------
+
+func _build_range() -> void:
+	var board := MeshInstance3D.new()
+	board.name = "TargetBoard"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(4.0, 4.0)
+	board.mesh = plane
+	board.position = BOARD_CENTER
+	board.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.18, 0.22, 0.18)
+	mat.roughness = 0.9
+	board.material_override = mat
+	add_child(board)
+
+	var pole := MeshInstance3D.new()
+	pole.name = "TargetPole"
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.04
+	cyl.bottom_radius = 0.04
+	cyl.height = 3.5
+	pole.mesh = cyl
+	pole.position = Vector3(BOARD_CENTER.x, 1.75, BOARD_CENTER.z + 0.04)
+	pole.material_override = mat
+	add_child(pole)
+
+
+func _build_laser() -> void:
+	_laser_mesh = ImmediateMesh.new()
+	_laser_node = MeshInstance3D.new()
+	_laser_node.name = "BoreLaser"
+	_laser_node.mesh = _laser_mesh
+	var laser_mat := StandardMaterial3D.new()
+	laser_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	laser_mat.vertex_color_use_as_albedo = true
+	laser_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_laser_node.material_override = laser_mat
+	add_child(_laser_node)
+
+
+func _build_grid() -> void:
+	_grid_node = MeshInstance3D.new()
+	_grid_node.name = "AlignmentGrid"
+	var im := ImmediateMesh.new()
+	_grid_node.mesh = im
+	_grid_node.visible = false
+	var grid_mat := StandardMaterial3D.new()
+	grid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	grid_mat.vertex_color_use_as_albedo = true
+	grid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_grid_node.material_override = grid_mat
+
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	var col := Color(0.0, 1.0, 0.0, 0.3)
+	for i in range(-6, 7):
+		var o: float = i * 0.5
+		im.surface_set_color(col)
+		im.surface_add_vertex(Vector3(o, 0.0, -BOARD_DIST + 0.02))
+		im.surface_set_color(col)
+		im.surface_add_vertex(Vector3(o, 4.0, -BOARD_DIST + 0.02))
+		im.surface_set_color(col)
+		im.surface_add_vertex(Vector3(-3.0, o + 1.7, -BOARD_DIST + 0.02))
+		im.surface_set_color(col)
+		im.surface_add_vertex(Vector3(3.0, o + 1.7, -BOARD_DIST + 0.02))
+	im.surface_end()
+	add_child(_grid_node)
+
+
+func _build_no_model_label() -> void:
+	_no_model_label = Label.new()
+	_no_model_label.text = "NO VIEWMODEL\n(model_path is empty in the .tres)"
+	_no_model_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_no_model_label.add_theme_font_size_override("font_size", 28)
+	_no_model_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_no_model_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_no_model_label.add_theme_constant_override("outline_size", 4)
+	_no_model_label.set_anchors_preset(Control.PRESET_CENTER)
+	_no_model_label.visible = false
+	$CanvasLayer.add_child(_no_model_label)
+
+
+func _build_save_button() -> void:
+	_save_button = Button.new()
+	_save_button.text = "Save (Ctrl+S)"
+	_save_button.position = Vector2(10.0, 130.0)
+	_save_button.pressed.connect(_save_weapon)
+	$CanvasLayer.add_child(_save_button)

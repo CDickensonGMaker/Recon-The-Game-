@@ -1,5 +1,4 @@
-## landing_zone.gd - LZ marker with threat assessment (NS14).
-## Concept from RTS insertion system, reimplemented for FPS.
+## landing_zone.gd - LZ marker with threat assessment.
 class_name LandingZone
 extends Node3D
 

@@ -8,8 +8,8 @@
 ##   "radius"/"height": float - capsule-fallback zones only
 ##   "damage": float     - zone damage multiplier vs ADR-016 default
 ##   "fatal": bool       - overrides HEAD-fatal law (ADR-016 Amendment B)
-## Absent keys keep the mesh-measured / values-of-record defaults - the bench
-## only writes what Caleb actually nudged.
+## Absent keys keep the mesh-measured / values-of-record defaults - the bench only
+## writes what was actually nudged.
 class_name HitzoneTuning
 extends Resource
 

@@ -1,0 +1,146 @@
+{
+  "pose_action": "idle_aiming_fixed",
+  "frame": 4,
+  "guns": {
+    "m16_world": {
+      "rig": "PSXRig",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        0.003203,
+        0.235504,
+        0.069119
+      ],
+      "quat": [
+        0.296106,
+        -0.717016,
+        0.63047,
+        -0.026798
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "m16_world_rifleman": {
+      "rig": "PSXRig_rifleman",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        -0.024321,
+        0.218654,
+        0.082017
+      ],
+      "quat": [
+        0.296966,
+        -0.713365,
+        0.634293,
+        -0.024364
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "m79_world_grenadier": {
+      "rig": "PSXRig_grenadier",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        -0.033783,
+        0.213883,
+        0.072196
+      ],
+      "quat": [
+        0.282601,
+        -0.722758,
+        0.627419,
+        -0.064058
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "m60_world_mg": {
+      "rig": "PSXRig_mg",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        -0.013258,
+        0.518294,
+        0.179421
+      ],
+      "quat": [
+        0.316519,
+        -0.682204,
+        0.658993,
+        0.011925
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "m16_world_rto": {
+      "rig": "PSXRig_rto",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        -0.01749,
+        0.224815,
+        0.051189
+      ],
+      "quat": [
+        0.29536,
+        -0.720129,
+        0.627171,
+        -0.028886
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "m70sniper_world_marksman": {
+      "rig": "PSXRig_marksman",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        0.046321,
+        0.109704,
+        0.012777
+      ],
+      "quat": [
+        0.264462,
+        -0.728049,
+        0.623965,
+        -0.103304
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ithaca37_world_pointman": {
+      "rig": "PSXRig_pointman",
+      "parent_bone": "mixamorig:RightHand",
+      "loc": [
+        -0.003615,
+        0.231992,
+        0.063062
+      ],
+      "quat": [
+        0.281746,
+        -0.686268,
+        0.666547,
+        -0.073284
+      ],
+      "scale": [
+        1.242996,
+        1.067052,
+        1.065884
+      ]
+    }
+  }
+}

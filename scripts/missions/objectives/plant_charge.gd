@@ -1,5 +1,5 @@
 ## plant_charge.gd - Objective: hold interact near the target to plant a
-## demolition charge (NS08). The vulnerability-window beat.
+## demolition charge.
 class_name PlantCharge
 extends ObjectiveSensor
 
@@ -9,8 +9,7 @@ signal charge_planted(at_position: Vector3)
 @export var interact_radius: float = 3.5
 @export var plant_seconds: float = 4.0
 
-## W52: some targets are wired. The point man calls it; Demolitions defuses
-## as part of the plant. Undetected trap = it goes off in your face.
+## Some targets are wired. An undetected trap goes off in your face.
 var is_trapped: bool = false
 var trap_detected: bool = false
 
@@ -29,7 +28,7 @@ func _check_trap() -> void:
 	if not spotted:
 		for a in get_tree().get_nodes_in_group("allies"):
 			var ally := a as AllyBase
-			if ally and not ally.is_dead() and str(ally.member.get("mos", "")) == "POINT" \
+			if ally and not ally.is_dead() and str(ally.member.get("mos", "")) == "POINTMAN" \
 					and ally.global_position.distance_to(global_position) < 20.0:
 				spotted = true
 				break
@@ -63,7 +62,7 @@ func advance_plant(delta: float) -> void:
 	_progress += delta / plant_seconds
 	plant_progress.emit(clampf(_progress, 0.0, 1.0))
 	if _progress >= 1.0:
-		# W52: sprung trap - it still completes, but you pay for it.
+		# A sprung trap still completes the plant, but you pay for it.
 		if is_trapped and not trap_detected:
 			var player := _find_player()
 			if player and player.has_method("take_damage"):

@@ -15,7 +15,6 @@ var max_area: float = 50000.0
 ## Cell step for finding local minima (skip cells for performance)
 var minima_search_step: int = 4
 
-## Internal reference to heightmap
 var _heightmap: RefCounted = null  # HeightmapStorage
 
 ## Direction offsets for 8-neighbor connectivity
@@ -43,17 +42,14 @@ class Depression:
 	var bounds: Rect2 = Rect2()  # World bounds
 
 
-## Detect all depressions in the heightmap
 func detect_depressions(heightmap: RefCounted) -> Array[Depression]:
 	_heightmap = heightmap
 	var depressions: Array[Depression] = []
 
-	# Track which cells have been processed
 	var processed := PackedByteArray()
 	processed.resize(heightmap.size * heightmap.size)
 	processed.fill(0)
 
-	# Find local minima
 	var minima := _find_local_minima()
 	print("[PondDetector] Found %d local minima" % minima.size())
 
@@ -62,7 +58,6 @@ func detect_depressions(heightmap: RefCounted) -> Array[Depression]:
 		return heightmap.get_cell(a.x, a.y) < heightmap.get_cell(b.x, b.y)
 	)
 
-	# Flood fill from each minimum
 	for minimum in minima:
 		var idx: int = minimum.y * heightmap.size + minimum.x
 		if processed[idx] != 0:
@@ -78,7 +73,6 @@ func detect_depressions(heightmap: RefCounted) -> Array[Depression]:
 	return depressions
 
 
-## Find local minima in the heightmap
 func _find_local_minima() -> Array[Vector2i]:
 	var minima: Array[Vector2i] = []
 	var size: int = _heightmap.size
@@ -131,7 +125,6 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 	var cells_processed := 0
 
 	while frontier.size() > 0 and cells_processed < MAX_CELLS:
-		# Sort by elevation (simple priority queue)
 		frontier.sort_custom(func(a: Array, b: Array) -> bool:
 			return a[0] < b[0]
 		)
@@ -145,11 +138,9 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 		if current_elev > pour_elev:
 			continue
 
-		# Check 4-connected neighbors
 		for dir in DIRS_4:
 			var neighbor := Vector2i(current.x + dir.x, current.y + dir.y)
 
-			# Bounds check
 			if neighbor.x < 0 or neighbor.x >= size or neighbor.y < 0 or neighbor.y >= size:
 				# Edge of map is a pour point
 				if current_elev < pour_elev:
@@ -157,7 +148,6 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 					pour_cell = current
 				continue
 
-			# Skip if already in depression
 			if in_depression.has(neighbor):
 				continue
 
@@ -175,7 +165,6 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 				in_depression[neighbor] = true
 				frontier.append([neighbor_elev, neighbor])
 
-				# Track minimum
 				if neighbor_elev < min_elev:
 					min_elev = neighbor_elev
 					min_cell = neighbor
@@ -184,7 +173,6 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 	if pour_elev == INF or in_depression.size() < 4:
 		return null
 
-	# Build depression result
 	var depression := Depression.new()
 	depression.minimum = min_cell
 	depression.pour_point = pour_cell
@@ -201,11 +189,9 @@ func _flood_fill_depression(start: Vector2i, global_processed: PackedByteArray) 
 		if cell_elev < pour_elev:
 			depression.cells.append(cell)
 
-			# Mark as globally processed
 			var idx: int = cell.y * size + cell.x
 			global_processed[idx] = 1
 
-			# Track bounds
 			var world_x: float = cell.x * cell_size
 			var world_z: float = cell.y * cell_size
 			min_pt.x = minf(min_pt.x, world_x)
@@ -229,7 +215,6 @@ func cells_to_polygon(depression: Depression) -> PackedVector2Array:
 
 	var cell_size: float = _heightmap.cell_size
 
-	# Create a set for fast lookup
 	var cell_set: Dictionary = {}
 	for cell in depression.cells:
 		cell_set[cell] = true
@@ -269,7 +254,6 @@ func cells_to_polygon(depression: Depression) -> PackedVector2Array:
 		return angle_a < angle_b
 	)
 
-	# Build final polygon
 	var polygon := PackedVector2Array()
 	for pt in sorted_points:
 		polygon.append(pt)
@@ -282,7 +266,6 @@ func simplify_polygon(polygon: PackedVector2Array, tolerance: float = 2.0) -> Pa
 	if polygon.size() < 4:
 		return polygon
 
-	# Douglas-Peucker simplification
 	return _douglas_peucker(polygon, 0, polygon.size() - 1, tolerance)
 
 
@@ -317,7 +300,6 @@ func _douglas_peucker(points: PackedVector2Array, start_idx: int, end_idx: int, 
 				max_dist = dist
 				max_idx = i
 
-	# If max distance is greater than tolerance, recursively simplify
 	if max_dist > tolerance:
 		var left := _douglas_peucker(points, start_idx, max_idx, tolerance)
 		var right := _douglas_peucker(points, max_idx, end_idx, tolerance)

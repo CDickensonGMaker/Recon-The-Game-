@@ -1,4 +1,4 @@
-## kill_count.gd - Objective: eliminate a fraction of a tagged enemy group (NS08).
+## kill_count.gd - Objective: eliminate a fraction of a tagged enemy group.
 class_name KillCountObjective
 extends ObjectiveSensor
 

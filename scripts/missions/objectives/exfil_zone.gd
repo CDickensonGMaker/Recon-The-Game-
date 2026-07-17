@@ -1,6 +1,6 @@
-## exfil_zone.gd - The exfil gate (RTCW rule): refuses until required objectives
-## are met. With use_bird, arrival calls the Huey; boarding it ends the mission
-## (NS15). ABORT (emergency exfil) force-unlocks with the penalty flag set.
+## exfil_zone.gd - The exfil gate: refuses until the required objectives are met.
+## With use_bird, arrival calls the Huey and boarding it ends the mission.
+## An emergency exfil force-unlocks the gate with the penalty flag set.
 class_name ExfilZone
 extends Node3D
 
@@ -52,7 +52,6 @@ func _physics_process(delta: float) -> void:
 	if player == null:
 		return
 
-	# Boarding check while the bird sits on the LZ.
 	if _bird_state == 2 and _bird != null:
 		if player.global_position.distance_to(_bird.global_position) <= BOARD_RADIUS:
 			_board()
@@ -129,7 +128,7 @@ func _on_bird_landed(_h: Helicopter, _lz_node: LandingZone) -> void:
 func _board() -> void:
 	_bird_state = 3
 	director.toast.emit("EXTRACTION - DUSTOFF")
-	# Ride out in the door seat (W12) - the climb-out is the closing shot.
+	# Ride out in the door seat - the climb-out is the closing shot.
 	var player := GameManager.player as Node3D
 	if player and player.has_method("enter_seat"):
 		var seat := Marker3D.new()
@@ -139,7 +138,6 @@ func _board() -> void:
 		player.enter_seat(seat)
 	elif player:
 		player.visible = false
-	# Squad climbs aboard too.
 	for a in player.get_tree().get_nodes_in_group("allies"):
 		(a as Node3D).visible = false
 		(a as Node).set_physics_process(false)

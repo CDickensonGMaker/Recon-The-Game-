@@ -1,5 +1,5 @@
-## photo_objective.gd - SECURITY verb (W64): photograph the target from range
-## with clear line of sight. Zero shots fired possible.
+## photo_objective.gd - Photograph the target from range with clear line of
+## sight. Completable without firing a shot.
 class_name PhotoObjective
 extends ObjectiveSensor
 

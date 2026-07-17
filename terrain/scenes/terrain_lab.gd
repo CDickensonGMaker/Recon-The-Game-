@@ -1,9 +1,6 @@
 extends Node3D
 ## Terrain Lab - Main testing scene controller for large-scale terrain
-## Controls: WASD - camera, Mouse Wheel - zoom, R - regenerate, T - wireframe
-## Middle Mouse - rotate, F1-F4 - camera presets
 
-# Preload class scripts
 const TerrainManagerClass := preload("res://terrain/core/terrain_manager.gd")
 const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
 const VegetationManagerClass := preload("res://terrain/vegetation/vegetation_manager.gd")
@@ -13,7 +10,6 @@ const EngineeringSystemClass := preload("res://terrain/systems/engineering_syste
 const TerrainVFXClass := preload("res://terrain/systems/terrain_vfx.gd")
 const QualitySettingsClass := preload("res://terrain/core/quality_settings.gd")
 const GameplayGridClass := preload("res://terrain/core/gameplay_grid.gd")
-# FogOfWarClass removed for performance optimization
 const ConstructionMarkersClass := preload("res://terrain/systems/construction_markers.gd")
 const WaterSystemClass := preload("res://terrain/water/water_system.gd")
 
@@ -24,13 +20,11 @@ const WaterSystemClass := preload("res://terrain/water/water_system.gd")
 @onready var loading_label: Label = $LoadingUI/LoadingLabel
 @onready var loading_ui: Control = $LoadingUI
 
-# Terrain systems
 var terrain_manager: Node3D  # TerrainManager
 var vegetation_manager: Node3D  # VegetationManager
 var billboard_vegetation: Node3D  # BillboardVegetation
 var quality_settings: Node  # QualitySettings
 
-# Camera settings (RTS style from BP Dark Shadows)
 var pan_speed: float = 50.0
 var zoom_min: float = 30.0       # Close view
 var zoom_max: float = 1500.0     # Overview for 3km map
@@ -46,7 +40,6 @@ var current_yaw: float = 0.0
 var is_rotating: bool = false
 var last_mouse_pos: Vector2
 
-# Terrain-following camera
 var min_camera_height: float = 6.0  # Minimum height above terrain (4-8m range)
 
 # Camera presets: [tilt, zoom, name]
@@ -57,7 +50,6 @@ const CAMERA_PRESETS: Array = [
 	[-20.0, 60.0, "Action"],         # F4: Close action
 ]
 
-# Interaction modes
 enum InteractionMode { DAMAGE, ENGINEERING }
 var interaction_mode: InteractionMode = InteractionMode.DAMAGE
 var current_damage_type: int = 1
@@ -82,7 +74,6 @@ func _ready() -> void:
 	damage_system = get_node_or_null("/root/DamageSystem")
 	clearing_system = get_node_or_null("/root/ClearingSystem")
 
-	# Create terrain manager
 	terrain_manager = TerrainManagerClass.new()
 	terrain_manager.name = "TerrainManager"
 	terrain_manager.map_size = 3000.0  # 3km x 3km (Steel Division scale)
@@ -92,42 +83,34 @@ func _ready() -> void:
 	terrain_manager.unload_distance = 3
 	add_child(terrain_manager)
 
-	# Create vegetation manager
 	vegetation_manager = VegetationManagerClass.new()
 	vegetation_manager.name = "VegetationManager"
 	add_child(vegetation_manager)
 
-	# Create billboard vegetation system
 	billboard_vegetation = BillboardVegetationClass.new()
 	billboard_vegetation.name = "BillboardVegetation"
 	add_child(billboard_vegetation)
 
-	# Create quality settings
 	quality_settings = QualitySettingsClass.new()
 	quality_settings.name = "QualitySettings"
 	add_child(quality_settings)
 
-	# Create engineering system
 	engineering_system = EngineeringSystemClass.new()
 	engineering_system.name = "EngineeringSystem"
 	add_child(engineering_system)
 
-	# Create VFX system
 	terrain_vfx = TerrainVFXClass.new()
 	terrain_vfx.name = "TerrainVFX"
 	add_child(terrain_vfx)
 
-	# Create construction markers
 	construction_markers = ConstructionMarkersClass.new()
 	construction_markers.name = "ConstructionMarkers"
 	add_child(construction_markers)
 
-	# Create water system
 	water_system = WaterSystemClass.new()
 	water_system.name = "WaterSystem"
 	add_child(water_system)
 
-	# Connect signals
 	terrain_manager.terrain_ready.connect(_on_terrain_ready)
 	terrain_manager.generation_progress.connect(_on_generation_progress)
 	terrain_manager.chunk_loaded.connect(_on_chunk_loaded)
@@ -138,24 +121,20 @@ func _ready() -> void:
 	# This prevents white terrain from unbound texture samplers
 	_setup_default_shader_textures()
 
-	# Start terrain generation
 	loading_ui.visible = true
 	call_deferred("_generate_initial_terrain")
 
 
 func _setup_camera() -> void:
-	# Position camera rig at center of playable area
 	var bounds: Rect2 = terrain_manager.get_playable_bounds()
 	var center_x: float = bounds.position.x + bounds.size.x / 2.0
 	var center_z: float = bounds.position.y + bounds.size.y / 2.0
 	var terrain_center := Vector3(center_x, 150, center_z)
 	camera_rig.position = terrain_center
 
-	# Set spring arm properties
 	spring_arm.spring_length = zoom_target
 	spring_arm.rotation_degrees.x = current_tilt
 
-	# Set camera reference for streaming
 	terrain_manager.set_camera(camera)
 
 	print("[TerrainLab] Camera at %s, zoom %.0f, tilt %.0f" % [terrain_center, zoom_target, current_tilt])
@@ -170,7 +149,6 @@ func _setup_jungle_fog() -> void:
 
 	var env: Environment = world_env.environment
 
-	# Fog disabled - user requested removal
 	env.fog_enabled = false
 
 	print("[TerrainLab] Environment configured (fog disabled)")
@@ -179,8 +157,6 @@ func _setup_jungle_fog() -> void:
 ## Setup default shader textures BEFORE terrain generation
 ## This prevents white terrain from unbound texture samplers
 func _setup_default_shader_textures() -> void:
-	# Create default textures with neutral values
-	# These get overwritten once terrain is ready, but prevent white terrain during loading
 
 	# Default heightmap (mid-gray = 0.5 height)
 	var default_height := Image.create(4, 4, false, Image.FORMAT_RF)
@@ -200,7 +176,6 @@ func _setup_default_shader_textures() -> void:
 	# Pre-initialize the shared material by forcing its creation
 	TerrainChunkClass._create_shared_material()
 
-	# Set default textures
 	var params := {
 		"heightmap": height_tex,
 		"vegetation_texture": veg_tex,
@@ -215,25 +190,21 @@ func _setup_default_shader_textures() -> void:
 
 ## Setup terrain shader textures (heightmap, vegetation, clearing)
 func _setup_terrain_shader_textures() -> void:
-	# Check if terrain chunks are using shader
 	if not TerrainChunkClass.is_using_shader():
 		print("[TerrainLab] Terrain not using shader, skipping texture setup")
 		return
 
 	var params := {}
 
-	# Set heightmap texture from terrain manager
 	if terrain_manager and terrain_manager.heightmap:
 		var heightmap_tex: ImageTexture = terrain_manager.heightmap.get_texture()
 		if heightmap_tex:
 			params["heightmap"] = heightmap_tex
 
-	# Set terrain size parameters
 	params["terrain_size"] = terrain_manager.heightmap.size if terrain_manager and terrain_manager.heightmap else 1537
 	params["cell_size"] = terrain_manager.cell_size if terrain_manager else 4.0
 	params["height_scale"] = terrain_manager.height_scale if terrain_manager else 280.0
 
-	# Set vegetation and clearing textures from clearing system
 	if clearing_system:
 		var veg_tex: ImageTexture = clearing_system.get_vegetation_texture()
 		if veg_tex:
@@ -243,17 +214,14 @@ func _setup_terrain_shader_textures() -> void:
 		if clear_tex:
 			params["clearing_texture"] = clear_tex
 
-	# Apply all parameters
 	TerrainChunkClass.set_shader_parameters(params)
 	print("[TerrainLab] Terrain shader textures configured: %d parameters" % params.size())
 
 
-## Called when clearing system updates vegetation
 func _on_vegetation_updated(_region: Rect2i) -> void:
 	if not clearing_system:
 		return
 
-	# Update vegetation and clearing textures in terrain shader
 	var veg_tex: ImageTexture = clearing_system.get_vegetation_texture()
 	if veg_tex:
 		TerrainChunkClass.set_shader_texture("vegetation_texture", veg_tex)
@@ -263,7 +231,6 @@ func _on_vegetation_updated(_region: Rect2i) -> void:
 		TerrainChunkClass.set_shader_texture("clearing_texture", clear_tex)
 
 
-## Called when clearing system updates vegetation - update gameplay grid
 func _on_grid_region_changed(region: Rect2i) -> void:
 	if gameplay_grid:
 		# Convert texture region to world coordinates and update grid
@@ -294,7 +261,7 @@ func _generate_initial_terrain() -> void:
 	print("[TerrainLab] Generating %.0fkm x %.0fkm terrain..." % [terrain_manager.map_size/1000, terrain_manager.map_size/1000])
 
 	if terrain_engine:
-		terrain_engine.set_preset(0)  # ROLLING_HILLS
+		terrain_engine.set_preset(2)  # ROLLING_HILLS
 		terrain_engine.height_scale = 280.0
 
 	# Wire vegetation_manager to terrain_manager BEFORE generation
@@ -303,7 +270,6 @@ func _generate_initial_terrain() -> void:
 		terrain_manager.vegetation_manager = vegetation_manager
 		vegetation_manager._terrain_manager = terrain_manager  # For water proximity checks
 
-	# Await async terrain generation to allow loading screen updates
 	await terrain_manager.generate_terrain()
 
 
@@ -317,7 +283,6 @@ func _on_terrain_ready() -> void:
 	_setup_camera()
 	_setup_jungle_fog()
 
-	# Set terrain manager reference for damage and clearing systems
 	if damage_system:
 		damage_system.set_terrain_manager(terrain_manager)
 		damage_system.set_vegetation_manager(vegetation_manager)
@@ -325,11 +290,9 @@ func _on_terrain_ready() -> void:
 			damage_system.set_billboard_vegetation(billboard_vegetation)
 	if clearing_system:
 		clearing_system.set_terrain_manager(terrain_manager)
-		# Connect clearing system to update terrain shader textures
 		if clearing_system.has_signal("vegetation_updated"):
 			clearing_system.vegetation_updated.connect(_on_vegetation_updated)
 
-	# Initialize terrain shader textures
 	_setup_terrain_shader_textures()
 
 	# Initialize and generate water system (before gameplay grid for accurate water data)
@@ -341,13 +304,11 @@ func _on_terrain_ready() -> void:
 		water_system.generate_water_bodies()
 		water_system.print_stats()
 
-		# Generate wetness texture for shore blending on terrain
 		var wetness_tex: ImageTexture = water_system.generate_wetness_texture(16.0)  # 16m fade
 		if wetness_tex:
 			TerrainChunkClass.set_shader_texture("wetness_texture", wetness_tex)
 			print("[TerrainLab] Shore blending enabled")
 
-	# Create and populate gameplay grid for efficient game logic queries
 	# Built AFTER water system so water cells are properly detected
 	gameplay_grid = GameplayGridClass.new(terrain_manager.map_size, 256)
 	gameplay_grid.set_heightmap(terrain_manager.heightmap)
@@ -357,23 +318,18 @@ func _on_terrain_ready() -> void:
 	gameplay_grid.build_from_terrain()
 	gameplay_grid.print_stats()
 
-	# Connect clearing system to update gameplay grid
 	if clearing_system and clearing_system.has_signal("vegetation_updated"):
 		clearing_system.vegetation_updated.connect(_on_grid_region_changed)
 
-	# Set up engineering system
 	if engineering_system:
 		engineering_system.set_terrain_manager(terrain_manager)
 		engineering_system.set_vegetation_manager(vegetation_manager)
-		# Connect VFX to engineering operations
 		if terrain_vfx:
 			engineering_system.operation_completed.connect(_on_engineering_completed)
 
-	# Connect damage system to VFX
 	if damage_system and terrain_vfx:
 		damage_system.damage_applied.connect(_on_damage_applied)
 
-	# Set up vegetation systems with camera and chunk size references
 	if vegetation_manager:
 		vegetation_manager.set_camera(camera)
 		vegetation_manager.set_chunk_size(terrain_manager.chunk_size)
@@ -386,10 +342,9 @@ func _on_terrain_ready() -> void:
 
 
 func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
-	# Vegetation classification now happens in terrain_manager._load_chunk BEFORE mesh build
-	# (so rice paddies can be colored correctly). Only generate billboards here.
+	# Vegetation is classified in terrain_manager._load_chunk BEFORE mesh build (so rice
+	# paddies can be coloured). Only billboards are generated here.
 	if is_playable:
-		# Generate billboards for this chunk if vegetation terrain data exists
 		if billboard_vegetation and vegetation_manager._chunk_terrain.has(coord):
 			billboard_vegetation.generate_for_chunk(
 				coord,
@@ -399,30 +354,24 @@ func _on_chunk_loaded(coord: Vector2i, is_playable: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Zoom with mouse wheel
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			zoom_target = max(zoom_min, zoom_target - zoom_speed)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_target = min(zoom_max, zoom_target + zoom_speed)
-		# Middle mouse rotate
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			is_rotating = event.pressed
 			last_mouse_pos = event.position
 
-	# Middle mouse drag for rotation
 	if event is InputEventMouseMotion and is_rotating:
 		var delta = event.position - last_mouse_pos
-		# Horizontal = yaw
 		camera_rig.rotate_y(-delta.x * rotate_speed * 0.005)
 		current_yaw = camera_rig.rotation_degrees.y
-		# Vertical = tilt
 		current_tilt += delta.y * tilt_speed * 0.5
 		current_tilt = clamp(current_tilt, min_tilt, max_tilt)
 		spring_arm.rotation_degrees.x = current_tilt
 		last_mouse_pos = event.position
 
-	# Camera presets
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_F1: _apply_camera_preset(0)
@@ -432,10 +381,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	# Smooth zoom
 	spring_arm.spring_length = lerp(spring_arm.spring_length, zoom_target, delta * 8.0)
 
-	# WASD panning
 	_handle_pan(delta)
 
 	# Terrain-following: keep camera rig above terrain
@@ -458,12 +405,10 @@ func _handle_pan(delta: float) -> void:
 		move.x += 1
 
 	if move != Vector3.ZERO:
-		# Scale pan speed with zoom level
 		var speed_mult := spring_arm.spring_length / 200.0
 		var pan := (camera_rig.basis * move).normalized() * pan_speed * speed_mult * delta
 		pan.y = 0
 
-		# Clamp to playable bounds
 		var new_pos := camera_rig.position + pan
 		var bounds: Rect2 = terrain_manager.get_playable_bounds()
 		new_pos.x = clampf(new_pos.x, bounds.position.x, bounds.position.x + bounds.size.x)
@@ -482,11 +427,9 @@ func _apply_camera_preset(index: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Regenerate terrain
 	if event.is_action_pressed("regenerate_terrain"):
 		_on_regenerate()
 
-	# Toggle wireframe
 	if event.is_action_pressed("toggle_wireframe"):
 		_toggle_wireframe()
 
@@ -520,7 +463,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_M:
 				_place_test_markers()      # Place construction markers
 
-	# Place operation (left click)
 	if event.is_action_pressed("place_damage"):
 		var hit_pos := _raycast_terrain()
 		if hit_pos != Vector3.INF:
@@ -531,7 +473,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				_apply_damage(hit_pos)
 
-	# Create clearing zone (right click)
 	if event.is_action_pressed("clear_jungle"):
 		var hit_pos := _raycast_terrain()
 		if hit_pos != Vector3.INF:
@@ -563,7 +504,6 @@ func _apply_damage(pos: Vector3) -> void:
 		if ui and ui.has_method("get_selected_damage_type"):
 			type = ui.get_selected_damage_type()
 
-		# Damage system now handles both heightmap modification and chunk rebuild
 		damage_system.apply_damage(pos, type)
 		print("Damage applied at: ", pos)
 
@@ -574,14 +514,11 @@ func _start_clearing(pos: Vector3) -> void:
 		# Set to CLEARED stage - this triggers terrain flattening and chunk rebuild
 		clearing_system.set_zone_stage(zone_id, 2)
 
-		# Clear vegetation in area
 		vegetation_manager.clear_area(pos, 30.0, terrain_manager.chunk_size)
 
-		# Regenerate billboards for affected chunks
 		if billboard_vegetation:
 			var radius: float = 30.0
 			var chunk_size: float = terrain_manager.chunk_size
-			# Find all affected chunks
 			var min_cx := int(floor((pos.x - radius) / chunk_size))
 			var max_cx := int(floor((pos.x + radius) / chunk_size))
 			var min_cz := int(floor((pos.z - radius) / chunk_size))
@@ -624,16 +561,13 @@ func _on_regenerate() -> void:
 	print("[TerrainLab] Regenerating terrain...")
 	loading_ui.visible = true
 
-	# Clear vegetation and billboards
 	vegetation_manager.clear_all()
 	if billboard_vegetation:
 		billboard_vegetation.clear_all()
 
-	# Clear water
 	if water_system:
 		water_system.clear()
 
-	# Regenerate terrain (async)
 	await terrain_manager.generate_terrain()
 
 
@@ -679,12 +613,10 @@ func _apply_engineering(pos: Vector3) -> void:
 
 	var op_type: int = current_engineering_op
 
-	# Check if this is a linear operation
 	if EngineeringSystemClass.is_linear_operation(op_type):
 		var completed: bool = engineering_system.start_linear_operation(op_type, pos)
 		if not completed:
 			print("[TerrainLab] Linear op started at %s - click end point" % pos)
-			# Place start marker
 			if construction_markers:
 				var height_func := func(p: Vector3) -> float:
 					return terrain_manager.get_height_at(p)
@@ -725,6 +657,5 @@ func _place_test_markers() -> void:
 	var height_func := func(p: Vector3) -> float:
 		return terrain_manager.get_height_at(p)
 
-	# Place LZ markers at cursor position
 	construction_markers.place_lz_markers(pos, 50.0, height_func)
 	print("[TerrainLab] Placed LZ markers at %s" % pos)

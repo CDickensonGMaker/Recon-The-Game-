@@ -1,4 +1,4 @@
-## fire_hazard.gd - Napalm burn area: damages bodies inside over time (NS16).
+## fire_hazard.gd - Napalm burn area: damages bodies inside it over time.
 class_name FireHazard
 extends Area3D
 

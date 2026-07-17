@@ -433,14 +433,14 @@ func enter_hub() -> void:
 	world.add_child(hc)
 	hc.setup(world, self, hub.tent, hub.huey, op_name)
 	SaveManager.apply_pending_player(world.player)
-	# The firebase takes care of you: hot chow and an armorer's bench.
+	# Hot chow is free. YOUR RIFLE IS NOT (Summoner's decree, 2026-07-13): weapon
+	# condition persists across missions and is only restored by working the
+	# armorer's bench - it costs time, and it cannot be done in the field.
 	if world.player != null:
 		world.player.set("hunger", 100.0)
 		var wh: Node = world.player.get_node_or_null("Head/Camera3D/WeaponHolder")
-		if wh != null:
-			wh.set("weapon_condition", 100.0)
-			if wh.has_method("refresh_after_load"):
-				wh.call("refresh_after_load")
+		if wh != null and wh.has_method("refresh_after_load"):
+			wh.call("refresh_after_load")
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

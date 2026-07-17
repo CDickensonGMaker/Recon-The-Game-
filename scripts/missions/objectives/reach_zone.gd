@@ -1,5 +1,5 @@
-## reach_zone.gd - Objective: player reaches a world position (NS08).
-## Distance-polled at 4 Hz (robust headless; no layer coupling).
+## reach_zone.gd - Objective: player reaches a world position.
+## Distance-polled at 4 Hz (works headless; no collision-layer coupling).
 class_name ReachZone
 extends ObjectiveSensor
 

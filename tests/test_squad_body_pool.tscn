@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7d4x8w3f2q1a"]
+
+[ext_resource type="Script" path="res://tests/test_squad_body_pool.gd" id="1_x1y2z"]
+
+[node name="TestSquadBodyPool" type="Node3D"]
+script = ExtResource("1_x1y2z")

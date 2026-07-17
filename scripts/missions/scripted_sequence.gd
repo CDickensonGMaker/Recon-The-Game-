@@ -1,6 +1,4 @@
-## scripted_sequence.gd - Lightweight await-based step runner for scripted
-## events (batch_research §6 / MISSION_DESIGN_RESEARCH §2.3 - RTCW's resumable
-## script threads on GDScript coroutines).
+## scripted_sequence.gd - Await-based step runner for scripted events.
 ##
 ## Steps are plain Dictionaries executed in order. Types:
 ##   {"type": "wait",       "seconds": 2.0}
@@ -14,38 +12,26 @@
 ##        "position": Vector3 / "rotation_deg": Vector3 / "transform": Transform3D}
 ##   {"type": "hand_off"}
 ##
-## THE ANTI-CORRIDOR LAW (Pillar 3, RTCW interrupt contract): a sequence NEVER
-## disables an agent's take_damage, perception, or FSM - cast members stay fully
-## mortal and reactive the whole time. `move` reuses existing movement seams
-## (AllyBase.set_order / EnemyBase investigate fields - the hunter-seeding
-## pattern, mission_director.gd) - there is no bespoke mover.
-##
-## THE PILLAR 3 GUARANTEE: hand_off releases every referenced agent back to
-## systemic AI. It also happens AUTOMATICALLY - aborting the sequence with
-## `interrupted` - the moment any cast member takes damage, dies, or acquires a
-## combat target. Shooting the actors collapses the script into a real fight.
-##
-## HONEST-QUIET LAW: spawn_prop instantiates PROPS ONLY. Any scene containing a
-## combatant (EnemyBase/AllyBase class or enemies/allies/player group) is
-## refused outright - events borrow cast from the AO's finite ledger, never
-## conjure it.
-##
-## Agents that die or free mid-sequence have their remaining steps skipped -
-## the runner never blocks on a dead man.
+## LAWS (Pillar 3). A sequence NEVER disables an agent's take_damage, perception
+## or FSM - the cast stays mortal and reactive throughout, and `move` must reuse
+## the existing movement seams (AllyBase.set_order / EnemyBase investigate
+## fields) rather than add a bespoke mover. The sequence aborts to hand_off the
+## moment any cast member takes damage, dies, or acquires a combat target.
+## spawn_prop REFUSES any scene containing a combatant: events borrow cast from
+## the AO's finite population, they never conjure it. Agents that die or free
+## mid-sequence have their remaining steps skipped - never block on a dead man.
 class_name ScriptedSequence
 extends Node
 
 signal completed
 signal interrupted(reason: String)
 signal handed_off(agents: Array[Node])
-## Bark stub until a VO pipeline lands for sequences - subtitle/VO systems
-## consume this; the runner itself only prints.
+## Consumed by subtitle/VO systems; the runner itself only prints.
 signal sequence_bark(agent: Node, line: String)
 signal sequence_signal(signal_name: StringName, data: Dictionary)
 
 @export var steps: Array[Dictionary] = []
-## Cast declared up front (mortality-watched from start()); agents referenced
-## inside steps are added to the watch automatically.
+## Mortality-watched from start(); agents named inside steps are watched too.
 @export var cast_paths: Array[NodePath] = []
 @export var auto_start: bool = false
 ## Where spawn_prop children go. Empty = this node's parent.
@@ -90,8 +76,7 @@ func start() -> void:
 	_run()
 
 
-## External kill switch (e.g. a MissionTrigger consumer deciding the beat is
-## stale). Same path as the automatic abort: hand off, then report.
+## External kill switch. Same path as the automatic abort: hand off, then report.
 func abort(reason: String = "aborted") -> void:
 	_abort(reason)
 
@@ -121,10 +106,6 @@ func _abort(reason: String) -> void:
 	set_physics_process(false)
 	interrupted.emit(reason)
 
-
-# ---------------------------------------------------------------------------
-# Cast watch - the automatic abort-to-handoff (Pillar 3 guarantee).
-# ---------------------------------------------------------------------------
 
 func _add_cast(agent: Node) -> void:
 	if agent == null or not is_instance_valid(agent) or _cast.has(agent):
@@ -186,10 +167,6 @@ func _physics_process(_delta: float) -> void:
 			return
 
 
-# ---------------------------------------------------------------------------
-# Steps.
-# ---------------------------------------------------------------------------
-
 func _execute_step(step: Dictionary) -> void:
 	var type: String = str(step.get("type", ""))
 	match type:
@@ -239,7 +216,7 @@ func _step_move(step: Dictionary) -> void:
 	# timeout = keep going; a stuck actor must not stall the beat
 
 
-## Existing movement only - no new mover (research §6 law).
+## Existing movement seams only - no new mover.
 func _order_move(agent: Node, pos: Vector3, urgency: String) -> void:
 	if agent.has_method("sequence_move_to"):
 		agent.call("sequence_move_to", pos)
@@ -250,7 +227,6 @@ func _order_move(agent: Node, pos: Vector3, urgency: String) -> void:
 		return
 	var enemy := agent as EnemyBase
 	if enemy != null:
-		# Investigate seam - the hunter-seeding pattern (mission_director.gd:98).
 		# Tier only ever escalates here; a sequence never calms anyone down.
 		enemy.last_known_target_pos = pos
 		enemy.target_last_seen_time = 0.0
@@ -349,10 +325,7 @@ func _is_combatant_tree(root: Node) -> bool:
 	return false
 
 
-# ---------------------------------------------------------------------------
-# Hand-off - the release back to systemic AI.
-# ---------------------------------------------------------------------------
-
+## Release every referenced agent back to systemic AI.
 func _do_hand_off() -> void:
 	if _handed_off:
 		return
@@ -377,10 +350,6 @@ func _do_hand_off() -> void:
 		# EnemyBase: nothing to restore - his FSM/perception were never touched.
 	handed_off.emit(released)
 
-
-# ---------------------------------------------------------------------------
-# Helpers.
-# ---------------------------------------------------------------------------
 
 func _resolve_agent(step: Dictionary) -> Node:
 	var av: Variant = step.get("agent")

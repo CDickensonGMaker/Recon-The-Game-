@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -12,18 +12,18 @@ fire_rate = 70.0
 magazine_size = 8
 reload_time = 3.2
 base_damage = 35
-zero_range = 50.0
 pellet_count = 9
 pellet_spread_deg = 3.0
 base_spread = 1.2
 ads_spread_mult = 0.5
 recoil_vertical = 3.4
 recoil_horizontal = 0.9
-ads_fov = 65.0
 viewmodel_fov = 58.0
+ads_fov = 65.0
 effective_range = 25.0
 max_range = 60.0
 min_damage_mult = 0.3
+zero_range = 50.0
 tracer_ratio = 0
 recoil_first_shot_mult = 1.2
 recoil_climb_per_shot = 0.0
@@ -37,6 +37,6 @@ is_supersonic = false
 model_path = "res://scenes/weapons/ithaca_arms_viewmodel.tscn"
 bore_dir = Vector3(0.029211346, 0, -0.9995733)
 hip_position = Vector3(0.021599488, 0, -0.19795997)
-ads_position = Vector3(0, 0.05, 0.08)
+ads_position = Vector3(-0.21903853, 0.23770206, 0.25712898)
 hip_rotation = Vector3(0.44206345, 2.2186751, 9.471822)
-ads_rotation = Vector3(4, 0, 0)
+ads_rotation = Vector3(0.5114338, 0.07835249, 2.7850494)

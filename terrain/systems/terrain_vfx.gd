@@ -18,7 +18,6 @@ enum EffectType {
 	DET_CORD_FLASH,    # Det cord detonation
 }
 
-# Effect configurations
 const EFFECT_CONFIGS: Dictionary = {
 	EffectType.DUST_CLOUD: {
 		"amount": 50,
@@ -115,13 +114,11 @@ var particle_pool: Array[GPUParticles3D] = []
 var active_effects: Dictionary = {}  # effect_id -> GPUParticles3D
 var next_effect_id: int = 0
 
-# Shared materials
 var smoke_material: ParticleProcessMaterial
 var fire_material: ParticleProcessMaterial
 var dirt_material: ParticleProcessMaterial
 var flash_material: ParticleProcessMaterial
 
-# Mesh for particles
 var particle_mesh: QuadMesh
 
 
@@ -134,7 +131,6 @@ func _create_materials() -> void:
 	particle_mesh = QuadMesh.new()
 	particle_mesh.size = Vector2(1, 1)
 
-	# Smoke/dust material
 	smoke_material = ParticleProcessMaterial.new()
 	smoke_material.direction = Vector3(0, 1, 0)
 	smoke_material.spread = 45.0
@@ -145,7 +141,6 @@ func _create_materials() -> void:
 	smoke_material.scale_max = 3.0
 	smoke_material.color = Color(0.6, 0.5, 0.4, 0.6)
 
-	# Fire/explosion material
 	fire_material = ParticleProcessMaterial.new()
 	fire_material.direction = Vector3(0, 1, 0)
 	fire_material.spread = 60.0
@@ -156,7 +151,6 @@ func _create_materials() -> void:
 	fire_material.scale_max = 4.0
 	fire_material.color = Color(1.0, 0.5, 0.1, 0.9)
 
-	# Dirt spray material
 	dirt_material = ParticleProcessMaterial.new()
 	dirt_material.direction = Vector3(0, 1, 0)
 	dirt_material.spread = 30.0
@@ -167,7 +161,6 @@ func _create_materials() -> void:
 	dirt_material.scale_max = 1.0
 	dirt_material.color = Color(0.45, 0.35, 0.25, 0.8)
 
-	# Flash material (bright, short-lived)
 	flash_material = ParticleProcessMaterial.new()
 	flash_material.direction = Vector3(0, 1, 0)
 	flash_material.spread = 180.0
@@ -193,7 +186,6 @@ func _create_particle_pool(count: int) -> void:
 
 
 func _get_pooled_particles() -> GPUParticles3D:
-	# Find inactive particles in pool
 	for particles in particle_pool:
 		if not particles.emitting:
 			return particles
@@ -210,18 +202,15 @@ func _get_pooled_particles() -> GPUParticles3D:
 	return particles
 
 
-## Play an effect at position
 func play_effect(effect_type: EffectType, position: Vector3, scale_mult: float = 1.0) -> int:
 	var config: Dictionary = EFFECT_CONFIGS[effect_type]
 	var particles := _get_pooled_particles()
 
-	# Configure particles
 	particles.amount = int(config.amount * scale_mult)
 	particles.lifetime = config.lifetime
 	particles.one_shot = not config.get("looping", false)
 	particles.explosiveness = 0.9 if config.get("flash", false) else 0.6
 
-	# Configure material
 	var mat: ParticleProcessMaterial = particles.process_material
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	mat.emission_sphere_radius = config.emission_radius * scale_mult
@@ -233,13 +222,11 @@ func play_effect(effect_type: EffectType, position: Vector3, scale_mult: float =
 	mat.scale_max = config.scale.y * scale_mult
 	mat.color = config.color
 
-	# Position and play
 	particles.position = position
 	particles.visible = true
 	particles.restart()
 	particles.emitting = true
 
-	# Track effect
 	var effect_id: int = next_effect_id
 	next_effect_id += 1
 	active_effects[effect_id] = particles
@@ -252,14 +239,12 @@ func play_effect(effect_type: EffectType, position: Vector3, scale_mult: float =
 			func(): _cleanup_effect(effect_id, effect_type, position)
 		)
 
-	# Add flash light for explosions
 	if config.get("flash", false):
 		_create_flash_light(position, config.emission_radius * 2 * scale_mult)
 
 	return effect_id
 
 
-## Stop a looping effect
 func stop_effect(effect_id: int) -> void:
 	if active_effects.has(effect_id):
 		var particles: GPUParticles3D = active_effects[effect_id]
@@ -285,7 +270,6 @@ func _create_flash_light(position: Vector3, radius: float) -> void:
 	light.omni_attenuation = 2.0
 	add_child(light)
 
-	# Fade out
 	var tween := create_tween()
 	tween.tween_property(light, "light_energy", 0.0, 0.3)
 	tween.tween_callback(light.queue_free)
@@ -295,7 +279,6 @@ func _create_flash_light(position: Vector3, radius: float) -> void:
 # CONVENIENCE METHODS FOR TERRAIN OPERATIONS
 # ============================================================================
 
-## Play effect for damage type
 func play_damage_effect(position: Vector3, damage_type: int) -> void:
 	match damage_type:
 		0:  # SMALL_EXPLOSION
@@ -310,7 +293,6 @@ func play_damage_effect(position: Vector3, damage_type: int) -> void:
 			play_effect(EffectType.DUST_CLOUD, position)
 
 
-## Play effect for engineering operation
 func play_engineering_effect(position: Vector3, op_type: int) -> void:
 	match op_type:
 		0:  # CLEAR_JUNGLE

@@ -2,9 +2,8 @@
 class_name HUD
 extends CanvasLayer
 
-## References to UI elements. NO HP BAR by design (Caleb, gore lab): pain is
-## diegetic - the hurt vignette deepens as HP drops, the bleed warning is the
-## only numeric death clock the player sees.
+## NO HP BAR by design: pain is diegetic - the hurt vignette deepens as HP drops,
+## and the bleed warning is the only numeric death clock the player ever sees.
 @onready var bleed_container: Control = $MarginContainer/VBoxContainer/TopRow/BleedContainer
 @onready var bleed_label: Label = $MarginContainer/VBoxContainer/TopRow/BleedContainer/BleedLabel
 @onready var weapon_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/WeaponLabel
@@ -40,7 +39,7 @@ func _ready() -> void:
 		bleed_container.visible = false
 	add_to_group("combat_hud")  # R96: photo mode hides this
 	if crosshair:
-		# Green reads against jungle + PSX dither where white vanishes (Caleb).
+		# Green reads against jungle + PSX dither, where white vanishes.
 		crosshair.modulate = Color(0.35, 1.0, 0.35, 0.95)
 
 
@@ -73,7 +72,7 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	health_system.bleeding_progress.connect(_on_bleeding_progress)
 	health_system.bleeding_stopped.connect(_on_bleeding_stopped)
 
-	# Medkit affordance (r4bk law: no prompt = the feature doesn't exist).
+	# Medkit affordance: no prompt = the feature does not exist.
 	equipment_manager.slot_changed.connect(_on_slot_changed_prompt)
 	_heal_prompt = Label.new()
 	_heal_prompt.text = "HOLD [F] TO PATCH UP"
@@ -185,9 +184,7 @@ func _on_healing_stopped() -> void:
 		action_progress.finish_action()
 
 
-## R09: the jam roll fired but the HUD never said so - the round simply did not
-## leave and the player had no idea why. A dry click + the reload ring is the
-## tell that it is a jam, not an empty mag.
+## A dry click + the reload ring is the tell that this is a JAM, not an empty mag.
 func _on_weapon_jammed() -> void:
 	GunFX.play_click(self)
 	if action_progress:

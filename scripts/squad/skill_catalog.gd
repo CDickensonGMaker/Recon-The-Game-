@@ -1,4 +1,4 @@
-## skill_catalog.gd - RECON skill definitions + XP costs + spend logic (W27/W28).
+## skill_catalog.gd - RECON skill definitions + XP costs + spend logic.
 class_name SkillCatalog
 extends RefCounted
 
@@ -13,10 +13,7 @@ const SKILLS := {
 	"sniping": {"name": "SNIPING", "cost": 100, "desc": "Long-range accuracy bonus", "max": 8},
 }
 
-const ATTRIBUTE_COST: int = 100
-const ATTRIBUTE_MAX: int = 200  # 2d100 ceiling (RECON)
-
-## Learn-by-doing curve (War Room decree): cumulative use-points to REACH each level.
+## Learn-by-doing curve: cumulative use-points to REACH each level.
 ## Index = level; L0 is free. ~2-3 missions to L3, ~15+ to L8. Grind is blocked by
 ## structure (finite enemies, revive cap), not by this table.
 const USE_THRESHOLDS: Array[int] = [0, 10, 25, 45, 70, 105, 155, 225, 320]
@@ -30,18 +27,15 @@ static func uses_for_level(level: int) -> int:
 		return USE_THRESHOLDS[USE_THRESHOLDS.size() - 1]
 	return USE_THRESHOLDS[level]
 
-## MOS -> the skill their role consumes.
-## The three skills whose EFFECT lives on the player's own body: his rifle
-## (small_arms, sniping) and his own footsteps (silent_movement). Everything else
-## belongs to a squadmate's role - see MOS_SKILL - and is bought on his row.
-const PLAYER_SKILLS: Array[String] = ["small_arms", "sniping", "silent_movement"]
-
+## MOS -> the skill that role consumes. These belong to SQUADMATES only (ADR-018 s2):
+## silent, behavioural, learned by doing. The player owns none of them.
 const MOS_SKILL := {
-	"POINT": "detect_ambush",
+	"POINTMAN": "detect_ambush",
 	"RTO": "fo_fac",
 	"MEDIC": "medic",
-	"PIGMAN": "small_arms",
+	"MG": "small_arms",
 	"GRENADIER": "demolitions",
+	"MARKSMAN": "sniping",
 	"RIFLEMAN": "small_arms",
 }
 
@@ -61,13 +55,3 @@ static func buy_skill(target: Dictionary, skill_id: String) -> bool:
 	return true
 
 
-static func buy_attribute(target: Dictionary, attr: String) -> bool:
-	if not ["st", "ag", "al"].has(attr):
-		return false
-	var value: int = int(target.get(attr, 100))
-	if value >= ATTRIBUTE_MAX or CampaignState.team_xp < ATTRIBUTE_COST:
-		return false
-	CampaignState.team_xp -= ATTRIBUTE_COST
-	target[attr] = value + 5
-	CampaignState.save_campaign()
-	return true

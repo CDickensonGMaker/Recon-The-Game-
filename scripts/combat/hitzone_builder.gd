@@ -1,51 +1,31 @@
-﻿## hitzone_builder.gd - ONE hitzone authority (beads 90gj + yd83 + trqx).
+﻿## hitzone_builder.gd - the one hitzone authority: builds a character's 11 hurt
+## regions as convex hulls cut from its body mesh (capsules/static bands fallback).
 ##
-## HITZONE 2.0 (trqx): zones are CONVEX HULLS cut from the character's actual
-## body mesh - every vertex claimed by its dominant skin bone, bones grouped
-## into 11 regions (limbs split upper/lower). The hull hugs the real
-## silhouette instead of a formula-fattened capsule. Measured capsules remain
-## the fallback for regions with no usable skin data; the hand-placed static
-## bands remain for sprite/capsule units. Gear/headgear meshes are EXCLUDED
-## from harvesting (a rice hat must not be a fatal headshot); hidden gib
-## donors and cap_*/head_frag_* gore meshes are skipped. An artist mesh named
-## hit_<REGION> in the GLB overrides that region's auto-hull outright (and is
-## hidden - it is collision, not render).
+## NEVER harvested into a hull: gear/headgear meshes, hidden gib donors, and
+## cap_*/head_frag_* gore meshes - a rice hat must not be a fatal headshot. A
+## mesh named hit_<REGION> overrides that region outright and is hidden (it is
+## collision, not render).
 ##
-## Zones ride their bones the instant a pose lands (Skeleton3D.skeleton_updated,
-## wired by build()) - position AND orientation - with optional per-zone
-## rotation overrides from the bench. Callers ALSO call sync() every physics
-## tick: that fallback covers parent motion the skeleton never sees (holder
-## rotation, corpse slides) and keeps zones honest when no clip is playing.
-## Per-unit overrides: data/hitzones/<unit>.tres (HitzoneTuning), authored in
-## the hitzone bench: offset/rotation both shape families, inflate (hull,
-## meters outward) or radius/height (capsule), damage/fatal (ADR-016
-## Amendment B).
+## Zones ride their bones on Skeleton3D.skeleton_updated (wired by build()), but
+## callers MUST ALSO call sync() every physics tick - that covers parent motion
+## the skeleton never sees (holder rotation, corpse slides) - and MUST call it
+## BEFORE any DEAD early-return, so bodies keep registering zones.
 ##
-## Corpse honesty: call sync() BEFORE any DEAD early-return - shooting bodies
-## must keep registering zones.
+## Per-unit overrides: data/hitzones/<unit>.tres (HitzoneTuning) - offset/rotation
+## for both shape families, inflate (hull) or radius/height (capsule), and
+## damage/fatal per ADR-016 Amendment B.
 class_name HitzoneBuilder
 extends RefCounted
 
 const TUNING_DIR := "res://data/hitzones/"
 
-## SEAM MARGIN (coverage audit 2026-07-12, tools/probe_hitbox_coverage.gd).
-## Eleven convex hulls cut from one body do NOT tile it: at every joint - the
-## armpit, the hip, the shoulder - two convex shells meet across a concave
-## wedge that neither owns. Measured with zero margin: 12.9% of frontal rays
-## that struck the grunt's rendered body hit NO zone at all (22.3% on the VC).
-## That is not "small hitboxes are honest", it is a bullet passing through a
-## man and the game shrugging.
-##
-## Every hull is grown 3cm outward - the width of two fingers. Measured result:
-## grunt frontal coverage 87.1% -> 96%+, side 96.3% -> ~100%. The shell stays
-## well inside the silhouette a shooter reads (the enemy is still exactly as
-## hard to HIT; he just stops being immune where his own arm meets his chest).
-## The VC's residual holes are the 8-loose-parts body - Blender fix, VC_FIX_LIST.
-## Per-unit bench tuning still overrides this.
+## Seam margin: outward growth on every hull, in METERS. Eleven convex hulls cut
+## from one body do not tile it - at each joint two shells meet across a concave
+## wedge neither owns. Per-unit bench tuning overrides this.
 const DEFAULT_INFLATE: float = 0.01
 
-## Region color code, shared by every overlay/bench so the language is stable.
-## Legacy 4-limb names kept for the static bands + gore_dummy overlay.
+## Region color code, shared by every overlay/bench. The legacy 4-limb names are
+## still consumed by the static bands + the gore_dummy overlay.
 const REGION_COLORS: Dictionary = {
 	"HEAD": Color(1.0, 0.15, 0.15), "BODY": Color(1.0, 0.9, 0.2),
 	"GUT": Color(1.0, 0.55, 0.1),
@@ -57,21 +37,18 @@ const REGION_COLORS: Dictionary = {
 	"LEG_L": Color(0.4, 0.4, 1.0), "LEG_R": Color(0.4, 0.4, 1.0),
 }
 
-## Mesh-name fragments that mark gear/headgear - never harvested into hulls.
+## Mesh-name fragments that mark gear/props - never harvested into hulls. A prop
+## whose name misses this list is harvested straight into the man's hurtbox (you
+## could shoot his ANTENNA and hurt him), so add every new gear/prop name here.
 const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
 	"rice", "gear", "pack", "pouch", "belt", "canteen", "strap", "webbing",
 	"bandolier", "glasses",
-	# gear library (batch 1): a name that misses this list gets harvested into
-	# the hurtbox - i.e. the player could shoot a man's ANTENNA and hurt him.
 	"radio", "antenna", "handset", "cord", "satchel", "rig", "entrench",
 	"cover", "shovel", "canteen",
-	# village tools (batch 2): a farmer carrying a sickle must not have a
-	# shootable sickle. Same rule as the antenna - if the name misses this list,
-	# the prop gets harvested straight into his hurtbox.
 	"basket", "sickle", "pole", "bundle", "jug", "hoe", "yoke"]
 
-## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points,
-## harvested once per unit type - spawning 20 enemies costs one extraction.
+## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points.
+## Harvested once per unit type.
 static var _hull_cache: Dictionary = {}
 
 
@@ -81,10 +58,9 @@ static func base_region(region: String) -> String:
 	return region.trim_suffix("_UP").trim_suffix("_LO")
 
 
-## Skeleton world scale from LOCAL transforms up the chain. The global
-## transform RACES on the first build of a session - it reads 1.0 before the
-## ModelActor rescale propagates, which shipped the first-spawned unit with
-## double-size, meter-displaced zones. Local scales are always current.
+## Skeleton world scale from LOCAL transforms up the chain. Godot gotcha: the
+## global transform is stale on the session's first build (it reads 1.0 before
+## ModelActor's rescale propagates) - local scales are always current.
 static func _skel_world_scale(skel: Skeleton3D) -> float:
 	var s: float = 1.0
 	var n: Node3D = skel
@@ -108,9 +84,7 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 
 	var tuning: HitzoneTuning = null
 	if model != null and not model.unit.is_empty():
-		# Per-unit file wins; otherwise every unit inherits the reference
-		# tuning (_default.tres, bench Ctrl+D) - tune the reference rig once,
-		# the whole roster lines up.
+		# Per-unit file wins; every other unit inherits the reference tuning.
 		var tpath: String = TUNING_DIR + model.unit + ".tres"
 		if not ResourceLoader.exists(tpath):
 			tpath = TUNING_DIR + "_default.tres"
@@ -119,17 +93,16 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 
 	var hulls: Dictionary = _hulls_for(model, skel, with_gut)
 	var entries: Array = []
-	# Rest joints in skeleton space x race-free scale: spans only need world
-	# DISTANCES, and skel.global_transform lies on the session's first build.
+	# Rest joints in skeleton space x race-free scale: spans need world DISTANCES
+	# only, and skel.global_transform is stale on the session's first build.
 	var kk: float = _skel_world_scale(skel)
 	var bw := func(bone: String) -> Vector3:
 		var bi: int = skel.find_bone(bone)
 		return (skel.get_bone_global_rest(bi).origin * kk) if bi >= 0 else Vector3.ZERO
 
-	# Span measurement with missing-bone honesty: a rig missing either bone
-	# (v1 rigs lack mixamorig_HeadTop_End) returns the fallback instead of
-	# measuring against the world origin, and every span is clamped to a human
-	# window - a bad rig can never balloon a zone (the r=1.245 head bug).
+	# A rig missing either bone returns the fallback rather than measuring against
+	# the world origin, and every span is clamped to a human window (lo..hi) - a
+	# bad rig must never be able to balloon a zone.
 	var span := func(bone_a: String, bone_b: String, fallback: float, lo: float, hi: float) -> float:
 		if skel.find_bone(bone_a) < 0 or skel.find_bone(bone_b) < 0:
 			return fallback
@@ -145,15 +118,13 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 
 	var shoulder_half: float = span.call("mixamorig_LeftArm", "mixamorig_RightArm", 0.44, 0.24, 0.7) * 0.5
 	if with_gut:
-		# TORSO: capsule fallback radius from real shoulder width (Caleb: the
-		# old chest-length cap starved it to a rail).
+		# TORSO: capsule fallback radius from real shoulder width.
 		var chest_len: float = span.call("mixamorig_Spine", "mixamorig_Neck", 0.4, 0.25, 0.7)
 		var body_r: float = clampf(shoulder_half * 1.15, 0.15, 0.24)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.TORSO, "BODY",
 			body_r, chest_len + body_r * 0.8, "mixamorig_Spine", "mixamorig_Neck", Vector3.ZERO,
 			layer, mask, groups, hulls.get("BODY", PackedVector3Array()))
-		# GUT: spans hips->spine, capsule nudged down so belly AND groin are
-		# covered (a gut shot is a gut shot).
+		# GUT: hips->spine, nudged down so belly AND groin are both covered.
 		var gut_len: float = span.call("mixamorig_Hips", "mixamorig_Spine", 0.2, 0.18, 0.5) + 0.14
 		var gut_r: float = clampf(shoulder_half * 1.0, 0.13, 0.22)
 		_zone(body, skel, entries, tuning, Hitzone.ZoneType.GUT, "GUT",
@@ -167,9 +138,8 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 			trunk_r, trunk_len + trunk_r * 0.6, "mixamorig_Hips", "mixamorig_Neck", Vector3.ZERO,
 			layer, mask, groups, hulls.get("BODY", PackedVector3Array()))
 
-	# LIMBS split upper/lower (trqx): 2 zones per arm and leg, each spanning
-	# one bone segment joint-to-joint. Radii are fallback-capsule only - hull
-	# zones take their shape from the mesh.
+	# LIMBS: 2 zones per arm and leg, each spanning one bone segment joint-to-
+	# joint. Radii are fallback-capsule only - hull zones take shape from the mesh.
 	for side in ["Left", "Right"]:
 		var tag: String = "L" if side == "Left" else "R"
 		var segs: Array = [
@@ -184,11 +154,9 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 				clampf(seg_len * float(s[4]), float(s[5]), float(s[6])), seg_len,
 				s[1], s[2], Vector3.ZERO, layer, mask, groups,
 				hulls.get(s[0], PackedVector3Array()))
-	# Same-frame honesty: the physics tick alone trails the render-frame anim
-	# pose by up to a frame - at HLL lethality that frame is a miss on a
-	# running man. Re-sync the moment the skeleton lands its pose. Rebuilds
-	# (bench revert) retire the prior zone set's callback first - one skeleton,
-	# one live sync.
+	# Re-sync the moment the skeleton lands its pose: the physics tick alone
+	# trails the render-frame anim pose by up to a frame. Rebuilds must retire
+	# the prior zone set's callback first - one skeleton, one live sync.
 	if skel.has_meta("hz_sync_cb"):
 		var stale: Callable = skel.get_meta("hz_sync_cb")
 		if skel.skeleton_updated.is_connected(stale):
@@ -199,14 +167,11 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 	return entries
 
 
-## Ride the bones - position AND orientation. Each zone aims its Y axis down
-## the REAL joint-to-joint line (elbow->hand, knee->foot, spine->neck),
-## computed live per tick - bone local axes are NOT trustworthy across export
-## generations (Spine1's basis lay sideways on the v2 rig and turned the chest
-## capsule horizontal). An angled limb keeps its zone in any pose. The bench's
-## per-zone rotation override (entry[4]) composes on top of the joint basis.
-## Offsets are zone-space (Y = along the limb). Call every physics tick,
-## BEFORE any DEAD early-return.
+## Ride the bones - position AND orientation. Each zone aims its Y axis down the
+## REAL joint-to-joint line, computed live per tick: bone local axes are NOT
+## trustworthy across export generations. The bench's per-zone rotation override
+## (entry[4]) composes on top of the joint basis. Offsets are zone-space
+## (Y = along the limb). Call every physics tick, BEFORE any DEAD early-return.
 static func sync(model: ModelActor, entries: Array) -> void:
 	if model == null or entries.is_empty():
 		return
@@ -215,8 +180,7 @@ static func sync(model: ModelActor, entries: Array) -> void:
 		return
 	# Roll references live in MODEL space, not world space: harvested hulls are
 	# framed against skeleton-space rest bones (_rest_frames), so the live roll
-	# must turn with the character. A world-space ref left every non-symmetric
-	# hull facing the same compass direction while the body yawed under it.
+	# must turn with the character.
 	var sb: Basis = skel.global_transform.basis.orthonormalized()
 	var fwd: Vector3 = sb * Vector3.FORWARD
 	var rgt: Vector3 = sb * Vector3.RIGHT
@@ -233,8 +197,8 @@ static func sync(model: ModelActor, entries: Array) -> void:
 		var basis := Basis.IDENTITY
 		if aim_bi >= 0:
 			var to: Vector3 = skel.global_transform * skel.get_bone_global_pose(aim_bi).origin
-			# MIDPOINT-SPANNING: the zone bridges the two joints exactly,
-			# in every pose - anchor-centered zones flared their far half.
+			# MIDPOINT-SPANNING: the zone bridges the two joints exactly, in
+			# every pose.
 			origin = (anchor + to) * 0.5
 			var y: Vector3 = to - anchor
 			if y.length_squared() > 0.0001:
@@ -248,12 +212,11 @@ static func sync(model: ModelActor, entries: Array) -> void:
 		hz.global_transform = Transform3D(basis, origin + basis * off)
 
 
-## ---- mesh hull harvesting (trqx) -------------------------------------------
+## ---- mesh hull harvesting ---------------------------------------------------
 
 ## Harvest per-region hull point clouds from the unit's body meshes, once per
-## unit type. Points are zone-local (same frame sync() rebuilds each tick) and
-## scaled to world units (ModelActor's k-rescale is baked in - us_medic k=2.3
-## must not ship half-size hulls).
+## unit type. Points are zone-local (the same frame sync() rebuilds each tick)
+## and in WORLD units - ModelActor's k-rescale must be baked in.
 static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> Dictionary:
 	var key: String = str(model.unit) + ("|g" if with_gut else "|ng")
 	if _hull_cache.has(key):
@@ -289,7 +252,7 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 			if is_gear or mi.skin == null:
 				continue
 			_harvest(mi, skel, _bind_regions(mi.skin, skel, with_gut), frames, pts, "", k)
-		# Artist overrides win outright, whatever the tree order: hit_<REGION>
+		# Artist overrides win outright, whatever the tree order: a hit_<REGION>
 		# mesh IS the zone. Hidden - it is collision authoring, not render.
 		for o in overrides:
 			var omi := o as MeshInstance3D
@@ -306,14 +269,13 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 	return out
 
 
-## Dominant-bone vertex claim: each vertex joins the region of its heaviest
-## skin weight. forced != "" routes every vertex to that region (hit_ meshes).
+## Dominant-bone vertex claim: each vertex joins the region of its heaviest skin
+## weight. forced != "" routes every vertex to that region (hit_ meshes).
 ##
-## Verts are stored in BIND space, but the man RENDERS pulled to the REST
-## skeleton - and the current exports bake bind ~2x rest. Points must ride the
-## same skin math the renderer uses (rigid to the dominant bone):
-## v_rest = bone_rest x bind_pose x v. Unskinned meshes (rare hit_ overrides)
-## keep the plain relative transform.
+## Verts are stored in BIND space but the man RENDERS pulled to the REST
+## skeleton, so points must ride the same skin math the renderer uses (rigid to
+## the dominant bone): v_rest = bone_rest x bind_pose x v. Unskinned meshes keep
+## the plain relative transform.
 static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 		frames: Dictionary, pts: Dictionary, forced: String, k: float) -> void:
 	var sk: Skin = mi.skin
@@ -339,8 +301,8 @@ static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 						best_w = w
 						best_b = bones[vi * influences + j]
 				# A vertex lands in its own region AND in the neighbour across the
-				# joint (the interlock), so the hulls OVERLAP and cannot leave a hole
-				# at the waist, the armpit or the hip.
+				# joint (the interlock), so the hulls OVERLAP and cannot leave a
+				# hole at the waist, the armpit or the hip.
 				var regions: PackedStringArray
 				if not forced.is_empty():
 					regions = PackedStringArray([forced])
@@ -382,11 +344,9 @@ static func _bind_rest_xforms(sk: Skin, skel: Skeleton3D) -> Array:
 	return out
 
 
-## Skin bind slot -> region name (ARRAY_BONES indices are skin-relative, NOT
-## skeleton bone indices - mapping through bind names is the honest path).
 ## Bind slot -> EVERY region that slot's vertices belong to (primary + the
 ## interlock neighbour across the joint). ARRAY_BONES indices are skin-relative,
-## NOT skeleton bone indices - mapping through bind names is the honest path.
+## NOT skeleton bone indices - map through bind names.
 static func _bind_regions(sk: Skin, skel: Skeleton3D, with_gut: bool) -> Array:
 	var regions: Array = []
 	for i in range(sk.get_bind_count()):
@@ -398,25 +358,13 @@ static func _bind_regions(sk: Skin, skel: Skeleton3D, with_gut: bool) -> Array:
 	return regions
 
 
-## INTERLOCK (2026-07-12, after the VC re-export proved the seam margin was a
-## band-aid). A vertex belongs to its dominant bone's region - but a vertex on a
-## JOINT bone also belongs to the neighbouring region, so the two hulls OVERLAP
-## across the joint instead of butting against it.
-##
-## Why: eleven convex hulls cut from one body cannot tile it. Where two shells
-## meet across a concave wedge - the waist, the armpit, the hip - neither owns
-## the gap, and a round goes through the man and hits nothing. Measured on the
-## re-exported (joined, single-mesh) VC: 10.2% of frontal hits landed on NOTHING,
-## and 57% of those sat in ONE 10cm band at the waist, exactly where his BODY
-## hull (0.34m tall) failed to reach his GUT hull (0.30m). The grunt hides the
-## same flaw only because his chest hull happens to be 0.57m tall and overlaps
-## anyway. Growing every hull outward (the old DEFAULT_INFLATE) papered over the
-## symptom on one rig and left the other bleeding.
-##
-## Sharing the joint bone fixes it at the source, on every rig, forever: the
-## chest reaches down into the gut, the shoulder into the chest, the hip into the
-## thigh. Overlap is the SAFE side of this trade - a round in the overlap hits
-## whichever zone the ray meets first, and both are flesh.
+## THE INTERLOCK. A vertex belongs to its dominant bone's region - but a vertex
+## on a JOINT bone ALSO belongs to the neighbouring region, so the two hulls
+## OVERLAP across the joint instead of butting against it. Without this, eleven
+## convex hulls cut from one body leave an unowned concave wedge at the waist,
+## the armpit and the hip, and a round passes through the man hitting nothing.
+## Overlap is the SAFE side of the trade: a round in the overlap hits whichever
+## zone the ray meets first, and both are flesh.
 static func _bone_regions(bone_name: String, with_gut: bool) -> PackedStringArray:
 	var out := PackedStringArray()
 	var primary: String = _bone_region(bone_name, with_gut)
@@ -515,8 +463,8 @@ static func _rest_frames(skel: Skeleton3D, with_gut: bool) -> Dictionary:
 	return frames
 
 
-## Quantize to a 1.5cm grid + dedupe: PSX-region point clouds condense to a
-## few dozen hull candidates - GJK stays cheap, silhouette fidelity intact.
+## Quantize to a 1.5cm grid + dedupe, so a region's point cloud condenses to a
+## few dozen hull candidates and GJK stays cheap.
 static func _condense(raw: Array) -> PackedVector3Array:
 	var seen: Dictionary = {}
 	var out := PackedVector3Array()
@@ -530,7 +478,7 @@ static func _condense(raw: Array) -> PackedVector3Array:
 	return out
 
 
-## Hull shape with an outward inflate margin (meters) - the fairness pad.
+## Hull shape with an outward inflate margin, in METERS.
 static func _hull_shape(points: PackedVector3Array, inflate: float) -> ConvexPolygonShape3D:
 	var shape := ConvexPolygonShape3D.new()
 	if absf(inflate) < 0.0005:
@@ -605,10 +553,9 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 			Basis.from_euler(rot_deg * (PI / 180.0))])
 
 
-## Legacy static bands - sprite/capsule units + the player (coarse 4-limb
-## layout). Bands SEAM: torso reaches into the gut band, the gut reaches the
-## leg tops - a round through the hip line must land on flesh (Caleb: "the
-## body hitbox needs to be longer, there's a gap between legs and body").
+## Static bands for rigless units + the player (coarse 4-limb layout). The bands
+## must SEAM: the torso reaches into the gut band and the gut reaches the leg
+## tops, so a round through the hip line still lands on flesh.
 static func _build_static(body: Node3D, layer: int, mask: int, groups: Array[String], with_gut: bool) -> void:
 	var bands: Array = [
 		[Hitzone.ZoneType.HEAD, "HEAD", Vector3(0, 1.65, 0), 0.15, -1.0],
@@ -648,10 +595,9 @@ static func _build_static(body: Node3D, layer: int, mask: int, groups: Array[Str
 
 
 ## ---- wireframe drawing (shared by the bench + lab overlay) -----------------
-## Appends one zone's wireframe into an already-begun ImmediateMesh surface
-## (Mesh.PRIMITIVE_LINES). Capsules: two ring circles + 4 struts; spheres:
-## 3 axis rings; hulls: the shape's own debug line mesh (cached per zone -
-## get_debug_mesh() allocates; the cache is cleared when the bench re-inflates).
+## Appends one zone's wireframe into an ALREADY-BEGUN ImmediateMesh surface
+## (Mesh.PRIMITIVE_LINES). Hull wire is cached per zone - get_debug_mesh()
+## allocates; the bench clears the cache when it re-inflates.
 static func draw_zone_wire(im: ImmediateMesh, hz: Area3D) -> void:
 	var col_node: CollisionShape3D = null
 	for c in hz.get_children():

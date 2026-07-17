@@ -1,19 +1,6 @@
-## hitzone_editor.gd - HITZONE TUNING BENCH (beads yd83 + trqx).
-##
-## Launch outside the game (hitzone_editor.bat). Loads any character, plays
-## any library clip, and overlays the mesh-hull/capsule hitzones as wireframes
-## so Caleb can SEE them ride the animation and fine-tune every zone.
-##
-## Mouse: LEFT-CLICK a zone to select it. LEFT-DRAG moves it in the camera
-##        plane. RIGHT-DRAG horizontal TWISTS around the limb axis, vertical
-##        TILTS toward/away the camera (screen-space from any view). Starting
-##        any drag pauses the clip so the box holds still (P resumes).
-##        Shift = fine.
-## Keys:  Z/X character  [/] clip  P pause  Q/E rotate model  TAB cycle zone
-##        1-9,0 select zone   Arrows offset X/Y  PgUp/PgDn offset Z
-##        +/- inflate (hull) or radius (capsule)  Shift fine
-##        ,/. damage mult down/up (Shift fine)  F toggle fatal
-##        Ctrl+S save data/hitzones/<unit>.tres   R revert (delete overrides)
+## hitzone_editor.gd - Hitzone tuning bench (hitzone_editor.bat). Loads any
+## character, plays any clip, and overlays the live hitzones as wireframes so
+## they can be fitted to the rig. The controls are printed on the bench HUD.
 extends Node3D
 
 const REGION_ORDER: Array[String] = ["HEAD", "BODY", "GUT",
@@ -49,8 +36,7 @@ func _ready() -> void:
 	_build_scene()
 	_scan_units()
 	if not _units.is_empty():
-		# Open on the bona fide rig (Caleb): us_grunt_v2 is the reference model
-		# hitboxes are tuned against - v1 rigs are legacy fallbacks.
+		# us_grunt_v2 is the reference rig the hitboxes are tuned against.
 		_load_unit(maxi(0, _units.find("us_grunt_v2")))
 
 
@@ -126,9 +112,8 @@ func _load_unit(idx: int) -> void:
 	_sync = []
 	if not _model.setup(_units[_unit_idx]):
 		return
-	# See-through body: x-ray wires carry no depth cue, so a box can LOOK on
-	# the leg while floating a meter toward the camera. A translucent mesh
-	# puts depth back in the picture.
+	# See-through body: x-ray wires carry no depth cue, so a box can LOOK like it
+	# is on the leg while floating a metre toward the camera.
 	var stack: Array = [_model as Node]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -149,7 +134,6 @@ func _play_current_clip() -> void:
 
 
 ## Drop and rebuild the zone set on the LIVE model - the clip keeps playing.
-## (A full _load_unit reload T-pose-flashed the rig just to swap zones.)
 func _rebuild_zones() -> void:
 	if _holder == null or _model == null:
 		return
@@ -243,7 +227,6 @@ func _physics_process(_delta: float) -> void:
 		HitzoneBuilder.sync(_model, _sync)
 
 
-## ---- mouse: click-select, left-drag move, right-drag rotate ----------------
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -260,8 +243,8 @@ func _input(event: InputEvent) -> void:
 					_drag_mode = 1 if hit != null else 0
 				else:
 					_drag_mode = 2
-				# Hold the pose while editing - dragging a box that is riding
-				# a run cycle is chasing a moving target. P resumes.
+				# Hold the pose while editing: fitting a box to a running man
+				# is chasing a moving target. P resumes.
 				if _drag_mode != 0 and not _paused:
 					_paused = true
 					if _model != null:
@@ -324,19 +307,17 @@ func _drag_rotate(rel: Vector2) -> void:
 		return
 	var fine: float = 0.25 if Input.is_key_pressed(KEY_SHIFT) else 1.0
 	var rot: Basis = _rot.get(region, Basis.IDENTITY)
-	# Horizontal TWISTS around the zone's own long axis (the missing third
-	# axis - fitting a hull to a leg IS a twist). Vertical TILTS around the
-	# camera's right, mapped into zone space, so "drag up = lean away" holds
-	# from any viewpoint and any model yaw.
+	# Horizontal TWISTS around the zone's own long axis. Vertical TILTS around the
+	# camera's right, mapped into zone space, so "drag up = lean away" holds from
+	# any viewpoint and any model yaw.
 	var local_right: Vector3 = (hz.global_transform.basis.inverse()
 		* cam.global_transform.basis.x).normalized()
 	var delta_rot: Basis = Basis(Vector3.UP, -rel.x * 0.008 * fine) \
 		* Basis(local_right, -rel.y * 0.008 * fine)
 	rot = rot * delta_rot
-	# Pivot IN PLACE: the offset lives in the rotated frame, so rotating a
-	# displaced zone orbits it around the joint - the drag-rotate-drag spiral
-	# that ballooned offsets past a meter. Counter-rotate the offset so the
-	# box spins about its own center and position holds.
+	# Pivot IN PLACE: the offset lives in the rotated frame, so rotating a displaced
+	# zone would orbit it around the joint. Counter-rotate the offset so the box
+	# spins about its own centre and its position holds.
 	entry[2] = delta_rot.inverse() * Vector3(entry[2])
 	_rot[region] = rot
 	entry[4] = rot
@@ -385,7 +366,6 @@ func _handle_input(delta: float) -> void:
 			rot -= 1.0
 		_holder.rotation.y += rot * 1.6 * delta
 
-	# Nudge the selected zone
 	var hz: Area3D = _zone_for(REGION_ORDER[_selected])
 	if hz == null:
 		return
@@ -446,9 +426,8 @@ func _handle_input(delta: float) -> void:
 			cap.radius = maxf(0.03, cap.radius + r_delta * RADIUS_STEP * fine * delta)
 
 
-## Ctrl+S writes this unit's file; Ctrl+D (as_default) writes _default.tres,
-## which every unit WITHOUT its own file inherits - tune the reference rig
-## once and the whole roster lines up (per-unit saves still win).
+## Ctrl+S writes this unit's file; Ctrl+D writes _default.tres, which every unit
+## WITHOUT its own file inherits. A per-unit save always wins over the default.
 func _save_tuning(as_default: bool = false) -> void:
 	if _model == null:
 		return
@@ -467,8 +446,7 @@ func _save_tuning(as_default: bool = false) -> void:
 		var delta_off: Vector3 = cur_off - base_off
 		if delta_off.length() >= 0.001:
 			zone_entry["offset"] = delta_off
-		# Rotation (bench-authored Basis, saved as euler degrees - same .tres
-		# format the builder has always consumed).
+		# Rotation: a bench Basis, saved as euler DEGREES (the .tres format).
 		var rot_rad: Vector3 = (_rot.get(region, Basis.IDENTITY) as Basis).get_euler()
 		if rot_rad.length() >= 0.001:
 			zone_entry["rotation"] = rot_rad * (180.0 / PI)

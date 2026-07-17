@@ -32,7 +32,6 @@ static func sample_2d(width: float, height: float, min_distance: float, max_atte
 	# Active list contains indices of points that may spawn new points
 	var active_list: Array[int] = []
 
-	# Start with a random point
 	var first_point := Vector2(
 		randf() * width,
 		randf() * height
@@ -42,9 +41,7 @@ static func sample_2d(width: float, height: float, min_distance: float, max_atte
 	active_list.append(0)
 	_set_grid_cell(grid, grid_width, first_point, cell_size, 0)
 
-	# Process active list until exhausted
 	while not active_list.is_empty():
-		# Pick random active point
 		var active_idx := randi() % active_list.size()
 		var point_idx := active_list[active_idx]
 		var center := points[point_idx]
@@ -61,7 +58,6 @@ static func sample_2d(width: float, height: float, min_distance: float, max_atte
 				center.y + sin(angle) * radius
 			)
 
-			# Check bounds
 			if candidate.x < 0.0 or candidate.x >= width:
 				continue
 			if candidate.y < 0.0 or candidate.y >= height:
@@ -76,7 +72,6 @@ static func sample_2d(width: float, height: float, min_distance: float, max_atte
 				found_valid = true
 				break
 
-		# Remove from active list if no valid point found
 		if not found_valid:
 			active_list.remove_at(active_idx)
 

@@ -1,19 +1,5 @@
-## jungle_patch_layer.gd - Pre-composed 12m jungle tiles instead of lone trees.
-##
-## The old layer scattered single procedural trees per bundle: a palm grove, not
-## a jungle. This one stamps AUTHORED patches (tools/make_jungle_patches.py) -
-## a bamboo grove reads as a grove, a deadfall as a blowdown, a canopy stand has
-## vines actually strung between its trees.
-##
-## Each patch is one merged mesh, so a whole 12x12m tile of jungle is ONE
-## MultiMesh instance. A chunk holds one MultiMeshInstance3D per patch type it
-## used, which is a handful of draw calls for an entire chunk of jungle.
-##
-## Patch choice is driven by the SAME TerrainType grid the old layer used, via
-## the density class baked into patches.json:
-##   GRASSLAND -> open/light    LIGHT_JUNGLE -> light
-##   MEDIUM_JUNGLE -> medium    HEAVY_JUNGLE -> dense/wall
-## so the mission's patch-noise still carves the open ground and the thickets.
+## Pre-composed 12m jungle tiles (tools/make_jungle_patches.py) instead of lone trees.
+## Each patch is ONE merged mesh, so a 12x12m tile of jungle is one MultiMesh instance.
 class_name JunglePatchLayer
 extends Node3D
 
@@ -21,17 +7,10 @@ const PATCH_DIR := "res://assets/world/vegetation/patches/"
 const MANIFEST := PATCH_DIR + "patches.json"
 const SWAY_SHADER := "res://terrain/shaders/vegetation_sway.gdshader"
 
-## THE PADDY WATER. A rice paddy is a flooded pan, and the terrain already knows how to
-## render exactly that: water_swamp.gdshader describes itself as "shallow, vegetated
-## wetland" and has ripples, muck, depth fade and a shore fade.
-##
-## The patches used to BAKE a flat quad of water into the vegetation mesh. That quad got
-## merged into the one big patch surface and rendered through vegetation_sway.gdshader -
-## which is OPAQUE, alpha-scissored and lambert-lit. So the water was not water. It was a
-## dark leaf lying flat, and a rice paddy read as a black hole in the ground.
-##
-## Now the patch DECLARES its pan in patches.json ("water": {level, half, at}) and we
-## render it here with the terrain's own water shader. One source of truth for water.
+## A patch declares its flooded pan in patches.json ("water": {level, half, at}) and it is
+## rendered here with the terrain's own water shader -- one source of truth for water.
+## (Baking the pan into the patch mesh renders it through vegetation_sway.gdshader, which
+## is opaque and alpha-scissored: the paddy comes out a black hole in the ground.)
 const WATER_SHADER := "res://terrain/water/water_swamp.gdshader"
 const PALETTE_TEX := PATCH_DIR + "jungle_palette.png"
 
@@ -67,11 +46,8 @@ const TYPE_DENSITY := {
 	T_HEAVY_JUNGLE: ["dense", "dense", "wall", "medium"],
 }
 
-## Jitter each tile off its grid node and spin it freely. The patches now
-## OVERHANG their tile (plants sampled past the edge), so they interlock instead
-## of sitting in their own square - which is what made the first pass read as a
-## grid of blobs. Snapping to 90 degrees would still repeat the overhang pattern,
-## so we take any angle.
+## Jitter each tile off its grid node and spin it to any angle. The patches OVERHANG their
+## tile (plants sampled past the edge), so they interlock instead of reading as a grid.
 @export var tile_jitter: float = 2.2
 
 @export var tile_meters: float = 12.0
@@ -174,7 +150,6 @@ func _load_patches() -> void:
 	if not _water.is_empty():
 		var wsh := load(WATER_SHADER) as Shader
 		if wsh == null:
-			# Do not silently fall back to a black quad - that is the bug we just fixed.
 			push_error("[JunglePatch] %s missing - paddies would render dry" % WATER_SHADER)
 		else:
 			_water_material = ShaderMaterial.new()
@@ -259,12 +234,8 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 			var quarter_turns := rng.randi_range(0, 3)
 
 			if is_paddy:
-				# WHICH WAY IS OUT OF THE FIELD? A paddy tile with a TREELINE on it
-				# (patch_paddy_edge) belongs at the EDGE of the field, facing out - not
-				# dropped at random into the middle of open water, rotated at random, so
-				# the player finds a wall of trees standing in a paddy. Left to the
-				# generic pool that is exactly what happens, because "paddy" now holds
-				# five variants and the layer just picks one.
+				# WHICH WAY IS OUT OF THE FIELD? A paddy tile with a TREELINE on it (patch_paddy_edge)
+				# belongs at the EDGE of the field, facing out -- not dropped at random into open water.
 				var out_dir := _paddy_open_side(terrain, bundles, bx, bz)
 				if out_dir >= 0:
 					# an edge tile, TURNED so its dry bank + treeline face out of the field
@@ -295,20 +266,11 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 				# up to a metre. A paddy field is a grid; a grid has to be on the grid.
 				xf = xf.scaled(Vector3.ONE * rng.randf_range(0.92, 1.10))
 			else:
-				# PADDIES TERRACE, THEY DO NOT DRAPE.
-				#
-				# Every other patch takes the ground height at its own centre and lets its
-				# corners float or sink a little - grass hides it. A paddy cannot: it is a
-				# hard bund ring holding a FLAT SHEET OF WATER. Two neighbouring tiles at
-				# even slightly different heights means the bunds do not meet vertically
-				# and the water sheets step apart. Two degrees of slope across a 12 m tile
-				# is a 40 cm ledge, and you would see it from across the valley.
-				#
-				# So paddy heights are QUANTISED. Neighbours on gentle ground land on the
-				# same level and their bunds meet exactly; where the ground really does
-				# fall away, they drop a whole step at once - which is precisely what a
-				# real terraced paddy field does. The fix and the reference are the same
-				# thing.
+				# PADDIES TERRACE, THEY DO NOT DRAPE. Every other patch takes the ground height at its
+				# centre and lets its corners float. A paddy cannot: it is a hard bund ring holding a FLAT
+				# SHEET OF WATER, so two neighbouring tiles at different heights step apart (2 degrees of
+				# slope across a 12 m tile = a 40 cm ledge). So paddy heights are QUANTISED: gentle ground
+				# lands level, real slopes drop a whole step -- which is what a terraced paddy field is.
 				h = roundf(h / paddy_terrace_step) * paddy_terrace_step
 			xf.origin = Vector3(wx, h, wz)
 
@@ -350,16 +312,11 @@ func generate_for_chunk(chunk_coord: Vector2i, terrain: PackedByteArray,
 				"%s_%s_%d_%d_far" % [nm, parts[0], chunk_coord.x, chunk_coord.y],
 				_mesh_far[nm], local, centre, near_distance, view_distance))
 
-		# THE FLOODED PANS. All of a patch's pans are baked into ONE mesh, so a
-		# cross-bunded tile with four sheets still costs a single MultiMesh - and a whole
-		# chunk of rice paddy costs ONE extra draw call, not one per tile, let alone one
-		# per pan.
-		#
-		# The pans ride the tile's own transform, so they inherit its 90-degree yaw and
-		# stay inside their bunds whichever way it landed.
-		#
-		# No near/far split: water has no detail to drop, and a paddy that DRIED UP at
-		# 46 m would be far more noticeable than the triangles it saved.
+		# THE FLOODED PANS. All of a patch's pans bake into ONE mesh, so a whole chunk of rice
+		# paddy costs ONE extra draw call, not one per tile, let alone one per pan.
+		# The pans ride the tile's own transform, inheriting its 90-degree yaw, so they stay
+		# inside their bunds. No near/far split: water has no detail to drop, and a paddy that
+		# DRIED UP at 46 m would be far more noticeable than the triangles it saved.
 		if _water.has(nm) and _water_material != null:
 			nodes.append(_make_water_bucket(
 				"%s_%s_%d_%d_water" % [nm, parts[0], chunk_coord.x, chunk_coord.y],

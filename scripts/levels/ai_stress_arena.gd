@@ -220,6 +220,11 @@ var _dbg_im: ImmediateMesh = null
 func _ready() -> void:
 	_rng.seed = rng_seed
 	_patrol_active = patrol_mode and not hot_start
+	# Mirror mode isolates the fire path: identical sides. Activity-tiering only
+	# touches EnemyBase (VC), not AllyBase (US), so leaving it on would tier one
+	# side and void the symmetry premise. Neutralize it for that probe only.
+	if mirror_mode:
+		EnemySquad.tiering_enabled = false
 	GibSystem.gib_lifetime_s = 25.0
 	# The arena is the tuning lab for the one firefight-length dial (C2).
 	GameSettings.ai_vs_ai_cone_mult = ai_vs_ai_cone_mult

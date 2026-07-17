@@ -2,7 +2,7 @@
 ##
 ## Dismemberment collapses a bone's pose scale - but PhysicalBoneSimulator3D
 ## is a SkeletonModifier that rewrites every bone pose each frame, which
-## RESURRECTED blown-off heads the moment ragdoll kicked in (Caleb, gore lab).
+## RESURRECTS blown-off limbs the moment ragdoll kicks in.
 ## SkeletonModifier3Ds run in child order: this one must sit AFTER the sim
 ## (ModelActor keeps it last), re-zeroing severed bone chains so the severed
 ## state survives physics, animation, and anything else driving the skeleton.

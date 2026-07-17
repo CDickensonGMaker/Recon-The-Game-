@@ -1,8 +1,7 @@
 ## sprite_library.gd - process-wide cache for sprite clips.
 ##
-## Not an autoload: Godot 4 static vars give us the same lifetime without adding
-## a boot-time singleton (this project already loads a ~1400-line GameEnums
-## autoload that nothing references - see AUDIT-06).
+## Not an autoload: Godot 4 static vars give the same lifetime without adding a
+## boot-time singleton.
 ##
 ## Godot's ResourceLoader already dedups Texture2D by path, so 30 enemies sharing
 ## one sheet is free. What it does NOT do is unload. A 1024x1280 RGBA8 sheet is

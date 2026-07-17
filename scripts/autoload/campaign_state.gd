@@ -1,5 +1,5 @@
-## campaign_state.gd - Persistent campaign layer (W01): AA threat level with
-## decaying modifiers, team XP, roster, mission history. Saved to user://.
+## campaign_state.gd - persistent campaign layer: AA threat level with decaying
+## modifiers, team XP, roster, mission history. Saved to user://.
 extends Node
 
 signal threat_changed(effective: float)
@@ -10,35 +10,28 @@ const DEFAULT_SAVE_PATH := "user://campaign.cfg"
 const TEST_SAVE_PATH := "user://campaign_test.cfg"
 const BASE_THREAT: float = 0.35
 
-## Resolved in _ready() BEFORE load_campaign(). The headless suite passes
-## `-- --test-save` so tests can never touch the player's real campaign
-## (test_campaign_state / test_xp_spend / test_squad / test_firebase_sim /
-## test_huey_ride all call reset_campaign(), and test_full_loop runs three
-## real missions to debrief).
+## Resolved in _ready() BEFORE load_campaign(): the headless suite passes
+## `-- --test-save` so tests can never touch the player's real campaign.
 var save_path: String = DEFAULT_SAVE_PATH
 
-## Mid-mission writes are held in memory until the debrief commits them.
-##
-## squad_system.gd:246 marks a dead squadmate `alive = false` on a live reference
-## into CampaignState.roster and immediately saved. Alt-F4 at minute three and Doc
-## was permanently KIA and replaced, while team_xp, missions_played and the
-## mission log never advanced. A mission is now all-or-nothing.
+## Mid-mission writes are held in memory until the debrief commits them - a
+## mission is ALL-OR-NOTHING. Squad code mutates LIVE references into `roster`,
+## so an un-deferred save mid-mission would persist a KIA without the team_xp,
+## missions_played and mission log that must land with it.
 var _defer_saves: bool = false
 var _dirty: bool = false
 
 var threat_level: float = BASE_THREAT
 var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason: String}]
 var team_xp: int = 0
-var roster: Array = []            ## SquadMember dicts (W14)
+var roster: Array = []            ## SquadMember dicts
 var missions_played: int = 0
 var mission_log: Array = []       ## trimmed result dicts
 var iron_man: bool = false
-var player_data: Dictionary = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
-var intel_points: int = 0  ## W80: looted docs/captures sharpen the next briefing
+var player_data: Dictionary = {"mos": "RIFLEMAN"}
+var intel_points: int = 0  ## looted docs/captures sharpen the next briefing
 
 
-func player_skill(skill: String) -> int:
-	return int((player_data.get("skills", {}) as Dictionary).get(skill, 0))
 
 
 ## The living squadmate of a MOS owns his role's skill. Used at world-gen, before
@@ -88,10 +81,10 @@ func add_threat_modifier(delta: float, missions: int, reason: String) -> void:
 	threat_changed.emit(effective_threat())
 
 
-## Called by GameFlow at debrief time (W02 plumbing).
+## Called by GameFlow at debrief time.
 func on_mission_end(result: Dictionary) -> void:
 	# The mission is over: writes go through again, and the save_campaign() at the
-	# bottom of this function is the one that commits everything the op changed.
+	# bottom of this function commits everything the op changed.
 	_defer_saves = false
 	_dirty = false
 	missions_played += 1
@@ -108,7 +101,7 @@ func on_mission_end(result: Dictionary) -> void:
 		threat_level = clampf(threat_level + 0.05, 0.1, 0.9)
 	elif bool(result.get("success", false)) and kills <= 3:
 		threat_level = clampf(threat_level - 0.03, 0.1, 0.9)
-	# ANTI-AA payoff (W03): completing an ANTI-AA op, or killing AA opportunistically (W04).
+	# ANTI-AA payoff: completing an ANTI-AA op, or killing AA opportunistically.
 	if bool(result.get("is_anti_aa", false)) and bool(result.get("success", false)):
 		add_threat_modifier(-0.25, 3, "AA BATTERY DESTROYED")
 	elif int(result.get("aa_killed", 0)) > 0:
@@ -188,7 +181,7 @@ func load_campaign() -> void:
 	missions_played = int(cfg.get_value("campaign", "missions_played", 0))
 	mission_log = cfg.get_value("campaign", "mission_log", [])
 	iron_man = bool(cfg.get_value("campaign", "iron_man", false))
-	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
+	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
 	# EVERY boot until the next natural save.
@@ -229,7 +222,7 @@ func from_dict(d: Dictionary) -> void:
 	missions_played = int(d.get("missions_played", 0))
 	mission_log = d.get("mission_log", [])
 	iron_man = bool(d.get("iron_man", false))
-	player_data = d.get("player_data", {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}})
+	player_data = d.get("player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(d.get("intel_points", 0))
 
 
@@ -243,9 +236,8 @@ func reset_campaign() -> void:
 	roster = []
 	missions_played = 0
 	mission_log = []
-	# iron_man is a PLAYER SETTING, not campaign progress. It used to be cleared
-	# here, which meant an Iron Man death silently disabled the mode that caused
-	# the wipe - the next campaign was not Iron Man unless you re-ticked the box.
-	player_data = {"mos": "RIFLEMAN", "st": 100, "ag": 100, "al": 100, "skills": {}}
+	# iron_man is a PLAYER SETTING, not campaign progress - do NOT clear it here,
+	# or an Iron Man death silently disables the very mode that caused the wipe.
+	player_data = {"mos": "RIFLEMAN"}
 	intel_points = 0
 	save_campaign()

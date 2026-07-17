@@ -1,15 +1,10 @@
-## gib_system.gd - dismemberment v1 (GORE_WORKFLOW Phase 3: the 3-step pop).
+## gib_system.gd - dismemberment. This performs the pop; CALLERS own the rules.
 ##
-## No mesh cutting, ever. The us_grunt_v2 rig contract (Bible 09 / bead 1xqs):
-## per-region skinned meshes (grunt_<region>) + gore cap meshes (cap_<region>)
-## baked INSIDE the character glb, gear bone-attached so it separates cleanly.
-## Removal = collapse the region's bone chain (pose scale ~0) + hide the region
-## mesh; the cap underneath becomes the stump. The gib = the region mesh
-## re-spawned as a RigidBody3D with an impulse.
-##
-## Live-game trigger thresholds live in GORE_WORKFLOW (LIMB >= ~45 single-hit,
-## HEAD kill >= ~60). This system just performs the pop; callers own the rules.
-## The gore_lab bench calls it on every limb hit to verify rigs.
+## No mesh cutting, ever. The rig contract: per-region skinned meshes
+## (grunt_<region>) + gore cap meshes (cap_<region>) baked INSIDE the character
+## glb, gear bone-attached so it separates cleanly. Removal = collapse the
+## region's bone chain (pose scale ~0) + hide the region mesh; the cap underneath
+## becomes the stump. The gib = the region mesh re-spawned as a RigidBody3D.
 class_name GibSystem
 extends Object
 
@@ -18,7 +13,7 @@ const MAX_LIVE_GIBS: int = 12
 static var gib_lifetime_s: float = 12.0
 
 ## Region contract: bone chain root to collapse, region meshes to hide/spawn,
-## bone-attached gear meshes that fly off as their own gib (helmet money shot).
+## bone-attached gear meshes that fly off as their own gib.
 const REGIONS: Dictionary = {
 	"HEAD": {
 		"bone": "mixamorig_Neck",
@@ -52,16 +47,53 @@ const REGIONS: Dictionary = {
 	},
 }
 
+## The BoneAttachment3D GruntDresser hangs a helmet variant from. If it's there,
+## the man is WEARING that helmet and it is what must fly off - not the stock donor.
+const HELMET_SOCKET: String = "HelmetSocket"
+
 static var _live_gibs: Array[Node] = []
 
-## ---- GORE_WORKFLOW live rules + death doctrine (ONE authority) --------------
-## Tuned on the gore dummy, law for EVERY model (Caleb: "all units moving
-## forward need the gibbing death rates we figured out with the grunt"):
-##   LIMB single hit >= LIMB_POP_HIT  -> that limb pops
+
+## Which meshes fly off with this region.
+##
+## The `gear` list in REGIONS is the STOCK kit, looked up by exact name. But a
+## dressed grunt (GruntDresser) wears one of 15 helmet VARIANTS, instanced from its
+## own GLB and hung under a HelmetSocket - its meshes are called
+## helmet_veteran_cover, helmet_ace_band, and so on. Throw the hardcoded
+## helmet_camo_shell instead and you get the worst of both: the donor sails off
+## while the helmet the player could actually SEE stays welded to a headless corpse.
+##
+## So: if he's wearing a variant, throw the variant. Otherwise fall back to the
+## stock list. Only VISIBLE meshes are thrown - an invisible donor is not on his head.
+static func _gear_meshes(root: Node, region: String, spec: Dictionary) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+
+	if region == "HEAD":
+		var sock: Node = root.find_child(HELMET_SOCKET, true, false)
+		if sock != null:
+			var stack: Array[Node] = [sock]
+			while not stack.is_empty():
+				var n: Node = stack.pop_back()
+				for c in n.get_children():
+					stack.push_back(c)
+				var mi := n as MeshInstance3D
+				if mi != null and mi.mesh != null and mi.visible:
+					out.append(mi)
+			if not out.is_empty():
+				return out
+
+	for gear_name: String in spec.get("gear", []):
+		var gm := root.find_child(str(gear_name), true, false) as MeshInstance3D
+		if gm != null and gm.mesh != null:
+			out.append(gm)
+	return out
+
+## ---- live gore rules + death doctrine (ONE authority, law for EVERY model) ---
+##   LIMB single hit >= LIMB_POP_HIT   -> that limb pops
 ##   killing HEAD hit >= HEAD_POP_KILL -> head pops (burst variant by chance)
-##   clean kill      -> RAGDOLL always (dead weight drops)
-##   explosion kill  -> explosion_kill(): 2-4 regions pop + ragdoll flung
-##   bullet-gibbed   -> caller plays its death performance clip
+##   clean kill                        -> RAGDOLL always
+##   explosion kill                    -> explosion_kill(): 2-4 regions pop + fling
+##   bullet-gibbed                     -> caller plays its death performance clip
 const LIMB_POP_HIT: int = 45
 const HEAD_POP_KILL: int = 60
 
@@ -128,33 +160,29 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 		mi.visible = false
 		_spawn_gib(mi.mesh, gib_at, hit_dir, 3.5, gib_parent, model.gib_scale)
 		spawned = true
-	for gear_name: String in spec["gear"]:
-		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
-		if gm == null or gm.mesh == null:
-			continue
+	for gm in _gear_meshes(root, region, spec):
 		var gxf: Transform3D = gm.global_transform
 		gm.visible = false
 		_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.6, 2.2, gib_parent)
 
-	# 2.5 reveal the stump cap - caps ship hidden (setup hides them with the
-	# donors; off-joint-skinned caps floated beside living VC otherwise).
+	# 2.5 reveal the stump cap - caps ship hidden (ModelActor hides them with the
+	# gib donors).
 	for cap_name: String in spec.get("caps", []):
 		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
 		if cm != null:
 			cm.visible = true
 
-	# 3. blood burst at the stump (Phase-1 pipeline).
+	# 3. blood burst at the stump.
 	var stump: Vector3 = skel.global_transform * skel.get_bone_global_pose(bone_idx).origin
 	GunFX.blood(gib_parent, stump, -hit_dir.normalized(), hit_dir.normalized())
 	return spawned
 
 
-## ---- HEAD BURST variant (bead rc55) -----------------------------------------
-## If the rig ships cell-fractured head_frag_* donor meshes (Blender: 6-12
-## chunks at rest pose, interiors on gore_tex), the skull bursts into flying
-## fragments instead of popping as one piece. Occasional by design - the
-## CALLER rolls the dice (~25% on heavy fatal headshots). Returns false when
-## the rig has no fragments yet, so callers fall back to dismember("HEAD").
+## ---- HEAD BURST variant ------------------------------------------------------
+## If the rig ships cell-fractured head_frag_* donor meshes, the skull bursts
+## into flying fragments instead of popping as one piece. The CALLER rolls the
+## dice. Returns false when the rig has no fragments, so callers can fall back to
+## dismember("HEAD").
 const MAX_LIVE_FRAGS: int = 16
 static var _live_frags: Array[Node] = []
 
@@ -261,8 +289,8 @@ static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node,
 
 ## A skinned mesh re-instanced WITHOUT its skeleton renders at bind pose in the
 ## rig's own space, so parenting the gib at the skeleton's global transform puts
-## it exactly where the limb stood (v1: rest-pose placement, good enough at
-## PSX fidelity) and inherits the export-compensation + ADR-002 normalization.
+## it exactly where the limb stood and inherits the export-compensation + ADR-002
+## normalization.
 static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, parent: Node,
 		mesh_scale: float = 1.0) -> void:
 	var body := RigidBody3D.new()

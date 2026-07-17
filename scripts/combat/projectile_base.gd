@@ -110,10 +110,8 @@ func initialize(data: ProjectileData, source: Node, dir: Vector3, _target: Node3
 	velocity = direction * current_speed
 
 
-## _ready() gives every projectile a 2cm sphere and _setup_visuals() only scaled
-## it, so a rocket would have flown as a pinhead. mesh_path was declared and never
-## read. Nobody noticed because spawn() had no callers anywhere in the project
-## (AUDIT-03) - the pool allocated 50 of these on every boot and used none.
+## Build the visual: the data's mesh_path scene if it has one, else a procedural
+## rocket cone (aoe_radius > 0) or bullet.
 func _setup_visuals() -> void:
 	if not projectile_data:
 		return
@@ -217,10 +215,9 @@ func _physics_process(delta: float) -> void:
 
 	lifetime_timer += delta
 	if lifetime_timer >= projectile_data.lifetime:
-		# SELF-DESTRUCT, not a silent vanish (Caleb: "there is no explosion with
-		# the RPG"). A warhead that reaches the end of its run detonates - real
-		# PG-7 rounds burn out and self-destruct at 3.8-6s. A round that never
-		# armed is just falling scrap: it does not blow.
+		# SELF-DESTRUCT, not a silent vanish: a warhead that reaches the end of its
+		# run detonates (real PG-7 rounds self-destruct at 3.8-6s). A round that
+		# never ARMED is just falling scrap - it does not blow.
 		if projectile_data.aoe_radius > 0.0 and projectile_data.self_destruct and is_armed():
 			_apply_aoe_damage()
 		_expire()
@@ -230,11 +227,9 @@ func _physics_process(delta: float) -> void:
 	if projectile_data.gravity_scale > 0:
 		velocity.y -= gravity_value * projectile_data.gravity_scale * delta
 
-	# SEGMENT CAST, not overlap (the bug that made rockets ghosts): at 84 m/s a
-	# warhead crosses 1.4m per physics tick, so Area3D overlap detection simply
-	# MISSED anything thinner than that - a rocket flew through a solid wall, a
-	# man, a hitzone, and expired in the distance having touched nothing. Same
-	# fix BulletSystem uses: sweep the step and stop at what it crosses.
+	# SEGMENT CAST, not overlap: at 84 m/s a warhead crosses 1.4m per physics tick,
+	# so Area3D overlap detection MISSES anything thinner than that (it would fly
+	# through a wall). Sweep the step and stop at what it crosses, as BulletSystem does.
 	var step: Vector3 = velocity * delta
 	var from: Vector3 = global_position
 	var to: Vector3 = from + step
@@ -342,9 +337,8 @@ func _on_hit_world() -> void:
 	_expire()
 
 
-## An unarmed warhead striking anything: a hard impact, a puff, and a piece of
-## ordnance lying there inert. The soldier who fired it learns the lesson the
-## real ones teach - do not shoot a rocket at something in your lap.
+## An unarmed warhead striking anything: hard impact, a puff, and a piece of
+## ordnance lying there inert. No detonation.
 func _dud_impact() -> void:
 	var scene: Node = get_tree().current_scene
 	var n: Vector3 = -velocity.normalized() if velocity.length() > 0.1 else Vector3.UP
@@ -354,14 +348,12 @@ func _dud_impact() -> void:
 	_expire()
 
 
-## This used to call CombatManager.get_enemies_in_range(), so an ENEMY's rocket
-## would only wound other enemies and never touch the player. Route through the
-## same 8-point-visibility explosion the grenades use: it is faction-blind, does
-## knockback, and respects cover.
+## MUST route through the same 8-point-visibility explosion the grenades use: it
+## is FACTION-BLIND, does knockback, and respects cover. (A faction-scoped query
+## here would let an enemy rocket never touch the player.)
 func _apply_aoe_damage() -> void:
-	# ADR-016 Amendment F: a rocket outclasses a grenade. The centre is death;
-	# the rim still puts a man down (0.15 of centre = ~38 from a PG-2 - fragments
-	# and overpressure, not a scratch).
+	# ADR-016 Amendment F: a rocket outclasses a grenade. The centre is death; the
+	# rim (0.15 of centre) still puts a man down - fragments and overpressure.
 	var base_damage: int = projectile_data.get_damage()
 	var min_damage: int = maxi(1, int(float(base_damage) * 0.15))
 	CombatManager.apply_explosion_damage(

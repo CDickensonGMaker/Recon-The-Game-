@@ -1,4 +1,4 @@
-## smoke_cloud.gd - Concealment volume (W39): blocks AI sight lines through it.
+## smoke_cloud.gd - concealment volume: blocks AI sight lines through it.
 class_name SmokeCloud
 extends Node3D
 

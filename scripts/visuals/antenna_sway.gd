@@ -2,21 +2,17 @@ class_name AntennaSway
 extends MeshInstance3D
 ## Makes the RTO's PRC-25 whip antenna bend and spring as he moves.
 ##
-## The antenna is NOT animated and carries NO bones. It is a 108-tri whip with a vertex
-## shader (assets/shaders/antenna_sway.gdshader) that bends it along its length. All this
-## script does is decide, each physics frame, HOW FAR THE TIP SHOULD BE PUSHED - one
-## Vector2, in metres, in the antenna's own local space.
+## The antenna has NO bones: a vertex shader bends it along its length, and this
+## script only decides how far the tip is pushed each physics frame - one Vector2,
+## in METRES, in the antenna's own local space.
 ##
-## The physics is a damped spring driven by the carrier's ACCELERATION, not his velocity.
-## That distinction is the whole effect:
-##   * running at a constant speed, a real whip sits still (it has caught up)
-##   * it lashes when you START, STOP, or CUT a corner
-## Driving it off velocity would leave the antenna permanently bent backwards while
-## running, which looks like it is caught in a gale.
+## The spring is driven by the carrier's ACCELERATION, never his velocity. A real
+## whip sits still at constant speed (it has caught up) and lashes when he starts,
+## stops or cuts a corner. Driving it off velocity would leave the antenna
+## permanently bent backwards while running, as if caught in a gale.
 ##
-## Attach this to the antenna MeshInstance3D. It finds the carrier (the CharacterBody3D
-## it hangs under) by walking up the tree, so it works on the player, on an AI RTO, and
-## on a corpse without any wiring.
+## Attach to the antenna MeshInstance3D; it finds the carrier by walking up the
+## tree, so player, AI RTO and corpse all work with no wiring.
 
 ## How hard the whip resists being bent. Higher = stiffer rod, faster snap-back.
 @export var stiffness: float = 55.0

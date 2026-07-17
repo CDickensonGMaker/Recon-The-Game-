@@ -3,6 +3,22 @@
 class_name MissionGenerator
 extends RefCounted
 
+const ARMORERS_BENCH := preload("res://scripts/levels/armorers_bench.gd")
+const PaddyStamperScript := preload("res://scripts/world/paddy_stamper.gd")
+const WorkingPointResolverScript := preload("res://scripts/world/working_point_resolver.gd")
+const CivilianSchedulesScript := preload("res://scripts/ai/civilian_schedules.gd")
+const CivilianScript := preload("res://scripts/world/civilian.gd")
+const EnemyBaseScript := preload("res://scripts/enemies/enemy_base.gd")
+const PatrolGeneratorScript := preload("res://scripts/enemies/patrol_generator.gd")
+const AmbushPlannerScript := preload("res://scripts/enemies/ambush_planner.gd")
+const SquadLeaderScript := preload("res://scripts/enemies/squad_leader.gd")
+const CampDirectorScript := preload("res://scripts/enemies/camp_director.gd")
+const AirTrafficScript := preload("res://scripts/ai/air_traffic.gd")
+const AmbientWarScript := preload("res://scripts/ai/ambient_war.gd")
+const WeatherDirectorScript := preload("res://scripts/world/weather_director.gd")
+const ConvoySpawnerScript := preload("res://scripts/missions/convoy_spawner.gd")
+const DynamicMissionFactoryScript := preload("res://scripts/missions/dynamic_mission_factory.gd")
+
 enum MissionType { PATROL, VILLAGE_RAID, FIREBASE_DEFENSE, ANTI_AA, RESCUE }
 
 const TYPE_NAMES := {
@@ -16,7 +32,6 @@ const TYPE_NAMES := {
 const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
 const CODENAME_B: Array[String] = ["LANCE", "TIGER", "ARROW", "SABRE", "HAMMER", "SERPENT", "TALON", "BUFFALO", "DAGGER", "PYTHON"]
 
-## Vietnam enemy set. Each archetype's sprite holds the weapon its .tres names.
 const ENEMY_DATA: Array[String] = [
 	# Weighted by repetition: the pool is sampled uniformly, so a bare list of five
 	# archetypes would put an RPG in one hand out of five. Local Force are the
@@ -36,8 +51,7 @@ const ENEMY_DATA: Array[String] = [
 const WEATHER_TABLE: Array[String] = ["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
 const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
 
-## R79: 0-2 complications per mission. Each has a real mechanical bite (applied
-## in build()), not just flavor text - see offer cards / briefing for the tell.
+## 0-2 per mission. Each has a real mechanical effect, applied in build().
 const COMPLICATIONS: Array[String] = [
 	"BAD INTEL", "REINFORCED GARRISON", "NO AIR SUPPORT", "HEAVY FOG ROLLING IN", "AA THREAT SPIKE",
 ]
@@ -102,6 +116,21 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 		"sites": [],
 		"fire_support": {"mortar": 1},
 	}
+	# Terrain-first: stamp rice paddy polygons and group them into village
+	# anchors BEFORE any mission-type plan. Each _plan_* may consult the anchors.
+	# Determinism: PaddyStamper draws from (mission_seed + 1009) — a separate
+	# stream from the primary rng so reordering _plan_* calls does not move
+	# paddy positions.
+	var paddy_result: Dictionary = PaddyStamperScript.stamp(
+		seed_value, world.gameplay_grid, world.terrain_manager, world
+	)
+	p["paddy_fields"] = paddy_result.paddies
+	p["village_anchors"] = paddy_result.village_anchors
+	p["paddy_centroids"] = paddy_result.paddy_centroids
+	# Pass the centroids through to the planner so its _reserved list sees them
+	# and find_site's extra_reject arg can keep firebases away from paddies.
+	for c: Vector3 in paddy_result.paddy_centroids:
+		planner._reserved.append(c)
 	match type:
 		MissionType.PATROL:
 			_plan_patrol(world, rng, planner, p)
@@ -113,6 +142,9 @@ static func plan(world: GameWorld, seed_value: int, type: MissionType) -> Dictio
 			_plan_anti_aa(world, rng, planner, p)
 		MissionType.RESCUE:
 			_plan_rescue(world, rng, planner, p)
+	# complications_for draws from a derived stream (seed_value + 7919). Call it
+	# AFTER the type is decided so the stream is stable across mission-type
+	# reorders — pre-match, an early-return would skip it.
 	p["complications"] = complications_for(seed_value)
 	return p
 
@@ -155,7 +187,7 @@ static func _plan_anti_aa(world: GameWorld, rng: RandomNumberGenerator, planner:
 	p["intel"] = "Enemy AA battery is bleeding our birds. Satchel every gun. %d sites plotted." % site_count
 
 
-## R72: a shallow, muddy water disc sitting in an old crater bowl.
+## A shallow, muddy water disc sitting in an old crater bowl.
 static func _spawn_crater_water(world: GameWorld, pos: Vector3, rng: RandomNumberGenerator) -> void:
 	var disc := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
@@ -198,11 +230,10 @@ static func _plan_patrol(world: GameWorld, rng: RandomNumberGenerator, planner: 
 		cursor = _passable_near(world, rng, cursor, 150.0, 300.0)
 		p.objectives.append({"kind": "reach", "pos": cursor, "title": "CHECKPOINT %s" % char(65 + i), "index": index, "required": true})
 		index += 1
-		# Off-route contact near some checkpoints.
 		if rng.randf() < 0.6:
 			var contact_pos := _passable_near(world, rng, cursor, 20.0, 60.0)
 			p.enemy_groups.append({"pos": contact_pos, "count": rng.randi_range(2, 4), "tag": "patrol_contact_%d" % i, "lazy": true})
-	# Optional bonus: locate the cache, or photograph it (W64) - 50/50.
+	# Optional bonus: locate the cache, or photograph it - 50/50.
 	var cache_pos := _passable_near(world, rng, cursor, 80.0, 160.0)
 	p["cache_pos"] = cache_pos
 	if rng.randf() < 0.5:
@@ -217,40 +248,53 @@ static func _plan_patrol(world: GameWorld, rng: RandomNumberGenerator, planner: 
 
 
 static func _plan_village(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
-	var village: Vector3 = planner.find_site(rng, 26.0, 200.0)
+	# Village center is the first paddy-anchored village center produced by
+	# PaddyStamper at the top of plan(). terrain-first: the village sits on a
+	# paddy margin, not on a random find_site() punt. The corresponding
+	# working_points are stamped on the village site for the activity system
+	# (separate PR) to read.
+	var anchors: Array = p.get("village_anchors", [])
+	if anchors.is_empty():
+		push_error("MissionGenerator: VILLAGE_RAID with zero paddy-anchored villages; AO is paddy-poor and plan() cannot satisfy this mission type.")
+		var lz_in_zero: Vector3 = planner.find_site(rng, 16.0, 200.0)
+		var lz_out_zero: Vector3 = planner.find_site(rng, 16.0, 200.0)
+		p["insertion_lz"] = lz_in_zero
+		p["exfil_lz"] = lz_out_zero
+		p["village_center"] = Vector3.ZERO
+		p["start_pad"] = _passable_near(world, rng, lz_in_zero, 450.0, 750.0)
+		p["sites"] = [{"kind": "lz", "center": lz_in_zero}, {"kind": "lz", "center": lz_out_zero}, {"kind": "lz", "center": p.start_pad}]
+		p["intel"] = "VILLAGE_RAID aborted: AO has no paddy terrain. Load a different seed."
+		return
+	var anchor: Dictionary = anchors[0]
+	var village: Vector3 = anchor.center
+	var village_working_points: Array[NodePath] = anchor.working_points
 	var lz_in: Vector3 = planner.find_site(rng, 16.0, 200.0)
 	var lz_out: Vector3 = planner.find_site(rng, 16.0, 200.0)
 	p["insertion_lz"] = lz_in
 	p["exfil_lz"] = lz_out
 	p["village_center"] = village
+	p["village_working_points"] = village_working_points
 	var defender_count: int = rng.randi_range(6, 10)
 	p.enemy_groups.append({"pos": village, "count": defender_count, "tag": "village_defenders", "lazy": false, "spread": 22.0})
-	# 50/50 target variant: hidden arms cache vs captured APC (objective variety).
+	# 50/50 target variant: hidden arms cache vs captured APC.
 	var target_is_vehicle: bool = rng.randf() < 0.5
 	p["village_target"] = "vehicle" if target_is_vehicle else "cache"
 	var target_title := "DESTROY THE CAPTURED APC" if target_is_vehicle else "DESTROY WEAPONS CACHE"
 	p.objectives.append({"kind": "plant", "pos": Vector3.ZERO, "title": target_title, "index": 0, "required": true})  # pos resolved at build
-	# ADR-006 / decree pwu5: CLEARING IS OPTIONAL. A mandatory 80% body count made
-	# the loud path the ONLY path and turned a raid into an extermination quota -
-	# which contradicts "kills pay zero" and Pillar 3 (stealth is never gated).
-	# Take the cache and walk out, or level the place. Both are the mission.
+	# CLEARING IS OPTIONAL (ADR-006, Pillar 3: stealth is never gated).
 	p.objectives.append({"kind": "kill", "title": "CLEAR THE VILLAGE (OPTIONAL)", "index": 1, "required": false, "tag": "village_defenders", "count": defender_count, "fraction": 0.8})
 	p["start_pad"] = _passable_near(world, rng, lz_in, 450.0, 750.0)
-	p["sites"] = [{"kind": "village", "center": village}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
+	p["sites"] = [{"kind": "village", "center": village, "working_points": village_working_points}, {"kind": "lz", "center": lz_in}, {"kind": "lz", "center": lz_out}, {"kind": "lz", "center": p.start_pad}]
 	p["fire_support"] = {"bombs": 1, "napalm": 1, "mortar": 2}
 	p["intel"] = "VC squad garrisons the ville. Arms cache concealed nearby. %d-%d fighters estimated." % [defender_count - 2, defender_count + 3]
 
 
 
 
-## THE PATROL ANCHOR POOL (ADR-021). Patrol nodes must hang on THINGS - a cache, a
-## ville, a ford, a trail junction, an LZ - because a route that connects things is a
-## route the player can learn, predict, and ambush. That is the whole intel economy.
-## A ring of random points around a spawn is not a patrol; it is a man pacing his
-## own doorstep.
+## Patrol nodes must hang on real AO features (ADR-021) - a route that connects
+## things is a route the player can learn, predict and ambush.
 static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGenerator) -> Array[Vector3]:
 	var pool: Array[Vector3] = []
-	# Real mission features first - these are the ones worth walking to.
 	for s in p.get("sites", []):
 		var site: Dictionary = s
 		if site.has("center"):
@@ -258,9 +302,8 @@ static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGe
 	for key in ["village_center", "firebase_center", "camp_center", "insertion_lz", "exfil_lz"]:
 		if p.has(key):
 			pool.append(p[key] as Vector3)
-	# ...then fill out to a usable pool with passable ground spread across the AO, so
-	# the circuit spans the map (Summoner: "various distances that zig zag across the
-	# map") instead of hugging the objective.
+	# Fill out with passable ground spread across the AO so the circuit spans the
+	# map instead of hugging the objective.
 	var centre: Vector3 = p.get("insertion_lz", Vector3.ZERO)
 	var guard: int = 0
 	while pool.size() < 10 and guard < 40:
@@ -276,7 +319,10 @@ static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGe
 	return pool
 
 static func _plan_firebase(world: GameWorld, rng: RandomNumberGenerator, planner: SitePlanner, p: Dictionary) -> void:
-	var firebase: Vector3 = planner.find_site(rng, 44.0, 200.0)
+	# extra_reject keeps the firebase center ≥200m from any paddy centroid — a
+	# firebase plowed into a rice pan is a helipad in the mud, tactically stupid.
+	var paddy_centroids: Array[Vector3] = p.get("paddy_centroids", [])
+	var firebase: Vector3 = planner.find_site(rng, 44.0, 200.0, paddy_centroids)
 	p["firebase_center"] = firebase
 	p["insertion_lz"] = firebase  # you start inside the wire
 	p["exfil_lz"] = firebase
@@ -303,7 +349,6 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	if bool(p.get("is_anti_aa", false)):
 		director.state.flags["is_anti_aa"] = true
 
-	# R79: mission complications - real mechanical effects, not just flavor.
 	var comps: Array = p.get("complications", [])
 	director.state.flags["complications"] = comps
 	if "NO AIR SUPPORT" in comps:
@@ -333,27 +378,35 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				built_sites.append(aa)
 				aa_guns.append(aa.gun)
 			"village":
-				var v: Dictionary = planner.stamp_village(site.center, rng)
+				var wp: Array[NodePath] = []
+				if site.has("working_points"):
+					wp = (site.working_points as Array[NodePath])
+				var v: Dictionary = planner.stamp_village(site.center, rng, wp)
 				built_sites.append(v)
 				cache_node = v.cache
-				# W47: villagers (one may be an informer). W56: night cooking fire.
+				site["root"] = world
+				var wp_positions: Array[Vector3] = WorkingPointResolverScript.resolve(site)
 				var civ_count: int = rng.randi_range(3, 5)
 				var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
 				for ci in range(civ_count):
 					var ca := rng.randf_range(0.0, TAU)
 					var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
 					cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
-					Civilian.spawn(world, cpos, director, ci == informer_idx)
+					var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
+					civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
+					if wp_positions.size() > 0:
+						var wp_idx: int = rng.randi() % wp_positions.size()
+						civ.working_point_pos = wp_positions[wp_idx]
+					civ.build_bt()
 				if str(p.get("time", "DAY")) in ["NIGHT", "DUSK", "DAWN"]:
 					_add_campfire(world, site.center + Vector3(2, 0, 2))
-				# W78: chickens - live noise traps.
+				# chickens: live noise traps
 				for _ck in range(rng.randi_range(2, 4)):
 					var ka := rng.randf_range(0.0, TAU)
 					var kpos: Vector3 = site.center + Vector3(cos(ka), 0, sin(ka)) * rng.randf_range(3.0, 10.0)
 					kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
 					_add_chicken(world, kpos)
 				if str(p.get("village_target", "cache")) == "vehicle":
-					# Swap the cache for a captured APC at the same spot.
 					var cache_pos: Vector3 = (v.cache as Node3D).global_position
 					(v.cache as Node3D).queue_free()
 					cache_node = DestructibleVehicle.create(world,
@@ -362,7 +415,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			"firebase":
 				built_sites.append(planner.stamp_firebase(site.center, rng))
 			"lz":
-				# PT6: the staging pad is a friendly outpost, not bare dirt.
+				# The staging pad is a friendly outpost, not bare dirt.
 				if p.has("start_pad") and (site.center as Vector3).distance_to(p.start_pad) < 1.0:
 					built_sites.append(planner.stamp_outpost(site.center, rng))
 				else:
@@ -396,9 +449,8 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				if plant_target != null:
 					plant_pos = plant_target.global_position
 				plant.global_position = _seat(world, plant_pos)
-				# W28: Demolitions skill plants faster.
 				plant.plant_seconds = 4.0 / (1.0 + 0.15 * float(CampaignState.roster_skill("GRENADIER", "demolitions")))
-				plant.is_trapped = rng.randf() < 0.3  # W52
+				plant.is_trapped = rng.randf() < 0.3
 				plant.register(director)
 				plant.charge_planted.connect(_on_charge_planted.bind(plant_target))
 				sensors.append(plant)
@@ -465,7 +517,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var enemy := director.spawn_tracked_enemy(pos, data, str(group.tag))
 				enemy.add_to_group(str(group.tag))
 
-	# R64/R66: village raids and firebase defense get a nasty surprise or two.
+	# Village raids and firebase defense get a spider hole or two.
 	if int(p.type) == MissionType.VILLAGE_RAID or int(p.type) == MissionType.FIREBASE_DEFENSE:
 		var anchor: Vector3 = p.get("village_center", p.get("firebase_center", p.insertion_lz))
 		for i in range(rng.randi_range(1, 2)):
@@ -477,10 +529,10 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 		var mortar_pos: Vector3 = _passable_near(world, rng, p.firebase_center, 90.0, 160.0)
 		EnemyMortarTeam.spawn(world, mortar_pos, director, int(p.seed) + 555, ENEMY_DATA)
 
-	# W04: at HIGH campaign threat, opportunistic AA positions appear near the LZs.
-	# 4b: these draws are CONDITIONAL ON CAMPAIGN STATE. Taking them from the
-	# shared `rng` shifted everything generated afterwards, so the same seed built
-	# a different AO at threat 0.4 vs 0.6. Give them their own stream.
+	# Opportunistic AA near the LZs at high campaign threat. These draws are
+	# CONDITIONAL ON CAMPAIGN STATE, so they MUST use their own rng stream - taking
+	# them from the shared `rng` shifts everything generated after them and the same
+	# seed builds a different AO at threat 0.4 vs 0.6.
 	var aa_rng := RandomNumberGenerator.new()
 	aa_rng.seed = int(p.seed) + 31337
 	if not bool(p.get("is_anti_aa", false)) and CampaignState.effective_threat() >= 0.5:
@@ -498,14 +550,12 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				var crew := director.spawn_tracked_enemy(pos + Vector3(2.0 + float(j) * 2.0, 0, 1.5), ENEMY_DATA[aa_rng.randi() % ENEMY_DATA.size()], "aa_opportunistic")
 				crew.add_to_group("aa_opportunistic")
 
-	# PT4: ambient life so the walk is never dead - extra villages + patrols
-	# along the insertion->objective corridor (not on firebase defense).
+	# Ambient life along the insertion->objective corridor (not on firebase defense).
 	if p.has("start_pad"):
 		var corridor_a: Vector3 = p.insertion_lz
 		var corridor_b: Vector3 = p.exfil_lz
 		if p.objectives.size() > 0 and p.objectives[0].has("pos") and p.objectives[0].pos != Vector3.ZERO:
 			corridor_b = p.objectives[0].pos
-		# 1-2 ambient villages (no objectives; a few civvies, maybe a lazy defender pair).
 		for _av in range(rng.randi_range(1, 2)):
 			var vc: Vector3 = planner.find_site(rng, 24.0, 150.0)
 			if vc == Vector3.ZERO:
@@ -524,14 +574,12 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				lg_v.setup(director, int(p.seed) + hash(vc))
 				world.add_child(lg_v)
 				lg_v.global_position = _seat(world, vc + Vector3(10, 0, 5))
-		# Ancient temple ruin POI, ~50% of missions (landmark + shrine loot).
 		if rng.randf() < 0.5:
 			var tc: Vector3 = planner.find_site(rng, 15.0, 150.0)
 			if tc != Vector3.ZERO:
 				built_sites.append(planner.stamp_temple_ruin(tc, rng))
 
-		# R72: old B-52 arclight craters, scattered before you ever touched down -
-		# some have gone stagnant with rainwater.
+		# Pre-existing B-52 craters, some gone stagnant with rainwater.
 		for _oc in range(rng.randi_range(2, 4)):
 			var oc_t: float = rng.randf()
 			var oc_center: Vector3 = corridor_a.lerp(corridor_b, oc_t)
@@ -542,7 +590,6 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			if rng.randf() < 0.4:
 				_spawn_crater_water(world, oc_pos, rng)
 
-		# 2-3 wandering patrols along the corridor.
 		for pi in range(rng.randi_range(2, 3)):
 			var t_frac: float = rng.randf_range(0.2, 0.8)
 			var mid: Vector3 = corridor_a.lerp(corridor_b, t_frac)
@@ -552,9 +599,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 			lg_p.group_tag = "ambient_patrol_%d" % pi
 			lg_p.activation_range = 140.0
 			lg_p.setup(director, int(p.seed) + 31 * pi)
-			# ADR-021: a real circuit across the AO through actual features. Every
-			# patrol gets its OWN zig-zag (rng advances), so two patrols do not walk
-			# the same line - and the player can learn each of them separately.
+			# Each patrol draws its OWN circuit (rng advances), so no two walk the same line.
 			lg_p.patrol_circuit = EnemyBase.make_patrol_circuit(
 				_patrol_anchors(world, p, rng), rng, rng.randi_range(5, 8))
 			world.add_child(lg_p)
@@ -572,9 +617,8 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	var fb := _passable_near(world, rng, p.exfil_lz, 300.0, 600.0)
 	planner.stamp_lz(fb)
 
-	# NAV: after every stamp (built_sites is complete, including the opportunistic
-	# AA sites) and after the R72 pre-existing craters have already mutated the
-	# heightmap - so the nav surface matches the final terrain for free.
+	# NAV MUST bake last: after every stamp and after the craters have mutated the
+	# heightmap, so the nav surface matches the final terrain.
 	var nav_baker: NavBaker = null
 	if WorldConfig.NAV_ENABLED:
 		nav_baker = NavBaker.new()
@@ -582,6 +626,11 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 		world.add_child(nav_baker)
 		nav_baker.setup(world.terrain_manager)
 		nav_baker.queue_sites(built_sites, _enemy_anchors(p))
+
+	# L1-L3 living-world systems: CampDirector, Convoy, AirTraffic, AmbientWar,
+	# WeatherDirector, WorldSim. None of them have to wait for nav to bake; they
+	# read positions and signals, not the navigation surface.
+	_wire_systems(world, director, p, built_sites)
 
 	exfil.fallback_pos = fb
 
@@ -592,11 +641,163 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 	return {"exfil_zone": exfil, "sensors": sensors, "sites": built_sites}
 
 
+## Wire the 20-step living-world systems at mission start. Each system is best-
+## effort: a missing camp, a zero-route convoy, an empty sky, all no-op cleanly.
+## Returns nothing - the world just gets richer.
+static func _wire_systems(world: GameWorld, director: MissionDirector,
+		p: Dictionary, built_sites: Array) -> void:
+	# WorldSim: register all spawned enemies so the region grid can LOD them.
+	if WorldSim != null:
+		WorldSim.clear_if_needed()
+		for e in director._live_enemies:
+			if e == null or not is_instance_valid(e):
+				continue
+			WorldSim.register({
+				"kind": "enemy",
+				"position": e.global_position,
+				"velocity": Vector3.ZERO,
+				"faction": "VC",
+				"schedule": {},
+			})
+
+	# CampDirector on every VC cluster: firebase defenders (if any), corridor
+	# village guards, and the village-raid defenders. Each camp swaps roles by
+	# SimClock.hour_advanced. We collect the garrison from director._live_enemies
+	# by tag because the spawn path already exists.
+	_attach_camp_directors(world, director, p)
+
+	# Convoy: pick a random route between insertion and objective, schedule it
+	# to spawn 2 sim-hours from "now" via ConvoySpawner.
+	_schedule_one_convoy(world, p, int(p.get("seed", 0)))
+
+	# AirTraffic + AmbientWar: their _ready() hooks listen to SimClock; just
+	# instantiating them seeds the schedule.
+	var at := AirTrafficScript.new()
+	at.name = "AirTraffic"
+	world.add_child(at)
+	var aw := AmbientWarScript.new()
+	aw.name = "AmbientWar"
+	world.add_child(aw)
+
+	# WeatherDirector: read p.weather, apply it. Day-advance re-rolls.
+	var wd := WeatherDirectorScript.new()
+	wd.name = "WeatherDirector"
+	world.add_child(wd)
+	var env: WorldEnvironment = world.get_node_or_null("WorldEnvironment")
+	wd.setup(String(p.get("weather", "CLEAR")), env)
+
+	# DynamicMissionFactory: hook to the convoy.ambushed signal so the player
+	# can be offered an ESCORT when a convoy is ambushed.
+	var dmf := DynamicMissionFactoryScript.new()
+	dmf.name = "DynamicMissionFactory"
+	world.add_child(dmf)
+	dynamic_factory_ref = dmf
+
+	# Reset SimClock to the mission's start hour. Mission params are p["time"].
+	if SimClock != null:
+		var t: String = String(p.get("time", "DAWN"))
+		var hour: float = 6.0
+		match t:
+			"DAWN": hour = 6.0
+			"DAY": hour = 10.0
+			"DUSK": hour = 18.0
+			"NIGHT": hour = 22.0
+		SimClock.set_time(SimClock.sim_day, hour)
+
+
+## Reference to the DynamicMissionFactory created by _wire_systems, so the
+## ConvoySpawner can wire its `ambushed` signal into it. Static, so the
+## spawner reads the same one.
+static var dynamic_factory_ref: Node = null
+
+
+## Used by ConvoySpawner when it instantiates a Convoy. Connects the convoy's
+## ambushed signal to the mission factory so the player gets a dynamic offer.
+static func _wire_convoy_to_factory(convoy: Node) -> void:
+	if convoy != null and dynamic_factory_ref != null \
+			and dynamic_factory_ref.has_signal("offer_generated") \
+			and convoy.has_signal("ambushed"):
+		convoy.ambushed.connect(dynamic_factory_ref._on_convoy_ambushed)
+
+
+static func _attach_camp_directors(world: GameWorld, director: MissionDirector,
+		p: Dictionary) -> void:
+	# Group enemies by their group_tag. Each non-empty group with >=2 members
+	# becomes a CampDirector centered on the group's mean position.
+	var by_tag: Dictionary = {}
+	for e in director._live_enemies:
+		if e == null or not is_instance_valid(e):
+			continue
+		# We don't have direct access to group_tag on EnemyBase, so use squad_id
+		# (set by spawn_tracked_enemy from group_tag hash) as a proxy.
+		var tag: int = e.squad_id
+		if tag < 0:
+			continue
+		if not by_tag.has(tag):
+			by_tag[tag] = []
+		by_tag[tag].append(e)
+	var camp_idx: int = 0
+	for tag in by_tag.keys():
+		var members: Array = by_tag[tag]
+		if members.size() < 2:
+			continue
+		var mean_pos: Vector3 = Vector3.ZERO
+		for m in members:
+			if m is Node3D:
+				mean_pos += (m as Node3D).global_position
+		mean_pos /= float(members.size())
+		var cd := CampDirectorScript.new()
+		cd.name = "CampDirector_%d" % camp_idx
+		cd.camp_pos = mean_pos
+		cd.garrison = members
+		cd.rng = RandomNumberGenerator.new()
+		cd.rng.seed = int(p.get("seed", 0)) + camp_idx * 17
+		world.add_child(cd)
+		camp_idx += 1
+		# Patrol route for the camp's first 3 soldiers, generated procedurally.
+		var paddy_centroids: Array[Vector3] = p.get("paddy_centroids", [])
+		var route: Array[Vector3] = PatrolGeneratorScript.generate(
+			world.gameplay_grid, mean_pos, 5, paddy_centroids, cd.rng)
+		if route.size() >= 2:
+			cd.set_patrol_anchor(route[1])
+			# Assign the first 3 men a patrol route via EnemyBase.patrol_route.
+			for i in range(mini(3, members.size())):
+				var m = members[i]
+				if m != null and is_instance_valid(m) and m is EnemyBaseScript:
+					m.patrol_route = route
+					m.patrol_file_slot = i
+		# Run the AmbushPlanner against this camp. If it returns a site, store
+		# it on the director's state so the player can be offered a STRIKE.
+		var plan: Dictionary = AmbushPlannerScript.plan(cd, world.gameplay_grid, paddy_centroids, cd.rng)
+		if not plan.is_empty():
+			director.state.flags["ambush_sites"] = \
+				director.state.flags.get("ambush_sites", []) + [plan]
+
+
+static func _schedule_one_convoy(world: GameWorld, p: Dictionary, seed: int) -> void:
+	# Pick a 2-point route near the insertion LZ. In a real mission the route
+	# would be authored; for ambient flavor we draw a random 200-400m leg.
+	var spawner := ConvoySpawnerScript.new()
+	spawner.name = "ConvoySpawner"
+	spawner.rng.seed = seed + 8888
+	world.add_child(spawner)
+	var origin: Vector3 = p.get("insertion_lz", Vector3.ZERO)
+	var dest: Vector3 = origin + Vector3(spawner.rng.randf_range(200.0, 400.0), 0.0, spawner.rng.randf_range(-200.0, 200.0))
+	var route: Array[Vector3] = [origin, dest]
+	# Schedule 2 sim-hours from now. Day rolls over if we cross 24:00.
+	var cur_hour: float = SimClock.sim_hour if SimClock != null else 0.0
+	var fire_day: int = SimClock.sim_day if SimClock != null else 1
+	if cur_hour + 2.0 >= 24.0:
+		fire_day += 1
+	var fire_hour: float = fposmod(cur_hour + 2.0, 24.0)
+	spawner.schedule(fire_day, fire_hour, "truck", route, ["truck_m35"])
+
+
 static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
 	return Vector3(pos.x, world.terrain_manager.get_height_at(pos), pos.z)
 
 
-## W56: flickering campfire - a beacon you can read at range at night.
+## Flickering campfire - a beacon you can read at range at night.
 static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	var fire := Node3D.new()
 	world.add_child(fire)
@@ -616,7 +817,6 @@ static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	particles.scale_amount_max = 0.2
 	particles.color = Color(1.0, 0.55, 0.15, 0.8)
 	fire.add_child(particles)
-	# Flicker.
 	var flicker := Timer.new()
 	flicker.wait_time = 0.12
 	flicker.autostart = true
@@ -624,7 +824,7 @@ static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	flicker.timeout.connect(func() -> void: light.light_energy = randf_range(1.4, 2.2))
 
 
-## W78: chickens - they scatter loudly when anyone gets close. Noise traps.
+## Chickens scatter loudly when anyone gets close - live noise traps.
 static func _add_chicken(world: GameWorld, pos: Vector3) -> void:
 	var chicken := Node3D.new()
 	world.add_child(chicken)
@@ -682,9 +882,8 @@ static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
 	return out
 
 
-## THE HUB (Phase B): the operation's home firebase - a PLACE, not a mission.
-## No objectives, no enemies. Stamped deterministically from the operation seed
-## so every return lands on the same base. The HQ tent (TOC) is guaranteed.
+## THE HUB: the operation's home firebase. No objectives, no enemies. Stamped
+## deterministically from the operation seed so every return lands on the same base.
 static func build_hub(world: GameWorld, operation_seed: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = operation_seed + 4242
@@ -692,7 +891,7 @@ static func build_hub(world: GameWorld, operation_seed: int) -> Dictionary:
 	var center: Vector3 = planner.find_site(rng, 44.0)
 	center.y = world.terrain_manager.get_height_at(center)
 	var site: Dictionary = planner.stamp_firebase(center, rng)
-	# Guaranteed, deterministic HQ tent (the random firebase extras are not reliable).
+	# The HQ tent must be guaranteed - the random firebase extras are not.
 	var tent: Node3D = planner.place_structure(
 		"res://assets/building models/structures/firebase/toc.glb",
 		center + Vector3(8, 0, -10), 180.0)
@@ -703,4 +902,12 @@ static func build_hub(world: GameWorld, operation_seed: int) -> Dictionary:
 	var pad: Vector3 = site.helipad + Vector3(7, 0, 6)
 	pad.y = world.terrain_manager.get_height_at(pad) + 0.5
 	huey.global_position = pad
-	return {"center": center, "tent": tent, "huey": huey, "helipad": site.helipad}
+
+	# The armorer's bench: the only full weapon clean in the game (ADR-018).
+	var bench: Node3D = ARMORERS_BENCH.new()
+	world.add_child(bench)
+	var bench_pos: Vector3 = center + Vector3(4, 0, -4)
+	bench_pos.y = world.terrain_manager.get_height_at(bench_pos)
+	bench.global_position = bench_pos
+
+	return {"center": center, "tent": tent, "huey": huey, "helipad": site.helipad, "bench": bench}

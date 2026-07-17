@@ -3,19 +3,17 @@
 ## Owns one Sprite3D, picks the direction row from the camera, advances the
 ## column from the manifest's fps, and reports the barrel tip.
 ##
-## Three constraints drove the design, all verified in the codebase:
+## Three constraints drive the design:
 ##
-## 1. The camera is first-person perspective with free-look and +/-89 deg pitch,
-##    so the direction row must be recomputed per enemy per frame and the quad
-##    must be BILLBOARD_FIXED_Y. Full billboard makes sprites lean when you look
-##    up.
-## 2. facing_dir (enemy_base.gd:76) is the source of truth. _move_toward() sets
-##    it at :1033 but never rotates the node, so reading global_transform.basis.z
-##    renders a patrolling enemy facing the wrong way. look_at() only runs while
-##    aiming (:815).
-## 3. _die() and try_surrender() both call set_physics_process(false)
-##    (enemy_base.gd:1334, :1361). Frame advance therefore lives in _process, or
-##    corpses freeze on frame 0 and the death clip never plays.
+## 1. The camera is first-person with free-look and +/-89 deg pitch, so the
+##    direction row must be recomputed per enemy per frame and the quad MUST be
+##    BILLBOARD_FIXED_Y - full billboard makes sprites lean when you look up.
+## 2. enemy_base.facing_dir is the source of truth. The node is NOT rotated while
+##    moving, so reading global_transform.basis.z renders a patrolling enemy
+##    facing the wrong way.
+## 3. Death and surrender both call set_physics_process(false), so frame advance
+##    MUST live in _process - otherwise corpses freeze on frame 0 and the death
+##    clip never plays.
 class_name SpriteActor
 extends Node3D
 
@@ -171,7 +169,7 @@ func _process(delta: float) -> void:
 			sprite.modulate = _base_modulate
 
 
-## Replaces the old mesh.material_override.albedo_color = RED hit flash.
+## Brief hit tint.
 func flash(color: Color, seconds: float = 0.1) -> void:
 	if sprite == null:
 		return
@@ -203,12 +201,10 @@ func muzzle_visual() -> Vector3:
 	return global_position + Vector3.UP * off.y + right * off.x
 
 
-## Where the BULLET starts. Deliberately camera-independent.
-##
-## enemy_base.gd:1152 feeds this same value into intersect_ray() as the ray
-## origin, not just to the tracer. A camera-relative origin would mean the
-## player's look direction decides whether an enemy's bullet clears a rock.
-## So: manifest height (row 0), enemy-local forward bias, no lateral term.
+## Where the BULLET starts. Deliberately CAMERA-INDEPENDENT: this same value is
+## the intersect_ray() origin, not just the tracer's, so a camera-relative origin
+## would let the player's look direction decide whether an enemy's bullet clears
+## a rock. Manifest height, enemy-local forward bias, no lateral term.
 func muzzle_ballistic(flat_aim: Vector3, forward_bias: float = 0.55) -> Vector3:
 	var height: float = 1.35
 	if _m != null:

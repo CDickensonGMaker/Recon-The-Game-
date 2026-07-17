@@ -25,13 +25,10 @@ extends Resource
 @export var aoe_damage_falloff: bool = true
 
 @export_group("Fuze")
-## ARMING DISTANCE, metres (Summoner: "you can't just shoot it at the ground at
-## your feet and expect it to blow up"). A real RPG warhead is DROP-SAFE: the
-## PG-2's piezo fuze arms only after launch and a short travel, via setback
-## acceleration; the PG-7's arms between 3 and 15m and its base switch closes at
-## booster burnout. Inside this distance the round is an inert lump of steel: it
-## strikes, it does NOT detonate. 0 = armed at the muzzle (thrown grenades run on
-## a TIME fuze instead and are unaffected).
+## ARMING DISTANCE, in METRES. A real RPG warhead is DROP-SAFE - it arms only
+## after launch and a short travel. Inside this distance the round is an inert
+## lump of steel: it strikes, it does NOT detonate. 0 = armed at the muzzle
+## (thrown grenades run on a TIME fuze instead and are unaffected).
 @export var arming_distance: float = 0.0
 ## Kinetic bite of an UNARMED strike, as a fraction of base_damage. A 1.8kg
 ## warhead at 84 m/s still ruins the man it hits - it just does not explode.

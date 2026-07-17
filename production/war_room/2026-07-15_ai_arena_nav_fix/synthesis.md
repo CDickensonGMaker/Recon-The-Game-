@@ -85,6 +85,14 @@ The 3-line comment is a **constraint the code cannot show** (the off-mesh contra
 - **Arena-only vs structural:** structural wins. The bug is in the agent; the arena is just where the user noticed it.
 - **Per-call-site vs chokepoint fix:** chokepoint wins. All nav-routed movement flows through `_move_toward()`; future goals get the fix for free.
 
+### 8. SUMMONING correction — Blender 5.0.1 (mid-session)
+The Summoner corrected the active Blender version to **5.0.1** (not 4.x). This nav-fix session does not touch Blender, but the correction is recorded here so the next Blender-touching session starts from the right fact. **Full detail and binding laws are in the briefing §"SUMMONING FACTS — Blender 5.0.1"**; the council's net additions are:
+- The first bead under any new Blender epic must be a **5.0.1 readiness audit** (`art_source/` opens clean in 5.0.1; collections/objects/nodes intact; no import warnings) — that audit is **gating** for the epic.
+- The cinematic director must **APPEND/LINK only**, never re-author `art_source/*.blend` even if 5.0.1 surfaces warnings on open.
+- The director must **NOT change save format** on the `art_source/*.blend` files (5.0.1 default is fine; "Save As" older versions breaks round-trip with the art pipeline).
+- The 5.0.1 glTF exporter's compatibility with Godot 4.7's importer is **unverified**. The contract is: the director stages, the existing 4.x-style export pipeline runs the actual Godot-side import. If the exporter's behavior changed, the director does **not** export through itself.
+- The new readiness-audit bead is filed under bead `RECONgame-bl5r` (see below).
+
 ---
 
 ## Execution plan (Arbiter, in order)

@@ -1,6 +1,5 @@
-## helicopter.gd - Kinematic transport helicopter (NS14). Terrain-following
-## cruise, straight-line flight, land/unload/takeoff state machine.
-## Concepts from the RTS insertion system, original implementation.
+## helicopter.gd - Kinematic transport helicopter: terrain-following cruise,
+## straight-line flight, land/unload/takeoff state machine.
 class_name Helicopter
 extends Node3D
 
@@ -33,21 +32,11 @@ var _tail_rotor: Node3D = null   ## New_TailBlade_2.002 - parent of the tail hub
 var _rotor_rpm: float = 0.0      ## 0..1, spools up/down with state
 
 
-## The source GLB used to contain TWO helicopters: Caleb's animated bird
-## (Huey_Copy + New_* nodes, at x=-7.74) and an older un-animated one (Body,
-## Blade, Rotor, Skies, Name_Plate, at x=+8.26). PT7 stripped the WRONG one --
-## it deleted Huey_Copy/skids/struts (the real fuselage), kept "Body", and left
-## New_Blade_1/doors/windshield orphaned ~16m to the side. That is the "green
-## one next to the white one".
-##
-## huey.glb is now huey_helicopter.glb from RealVietnamRTS: the solo bird, no
-## stowaway, 13.6 x 4.1 x 16.8m. No stripping needed. We recenter on the
-## fuselage and drive the rotors in code (the GLB's six baked rotation/scale
-## clips would need an AnimationTree to play together, and code lets us spool).
+## The rotors are driven in code, not by the GLB's baked clips: those are six
+## separate rotation/scale tracks that would need an AnimationTree to play
+## together, and code lets the RPM spool with the flight state.
 func _ready() -> void:
-	# The GLB's scene root IS the "Model" node (its first child is Huey_Copy, the
-	# fuselage). The old code took get_child(0) and searched inside the fuselage,
-	# which found nothing -- which is why the stowaway was never actually stripped.
+	# The GLB's scene root IS the "Model" node; the fuselage is its child Huey_Copy.
 	var root := get_node_or_null("Model") as Node3D
 	if root == null:
 		return
@@ -58,10 +47,9 @@ func _ready() -> void:
 		anim.stop()
 		anim.active = false
 
-	# NOTE: Godot's GLB importer rewrites '.' to '_' in node names, so the
-	# authored "New_TailBlade_2.002" arrives as "New_TailBlade_2_002". Looking up
-	# the authored name silently returns null and the rotor just never turns --
-	# so we push_warning on a miss rather than failing quietly.
+	# Godot's GLB importer rewrites '.' to '_' in node names: the authored
+	# "New_TailBlade_2.002" arrives as "New_TailBlade_2_002". A miss returns null
+	# silently and the rotor simply never turns, so warn loudly.
 	_main_rotor = root.find_child("New_Blade_1", true, false) as Node3D
 	_tail_rotor = root.find_child("New_TailBlade_2_002", true, false) as Node3D
 	if _main_rotor == null:
@@ -69,14 +57,12 @@ func _ready() -> void:
 	if _tail_rotor == null:
 		push_warning("[Huey] tail rotor 'New_TailBlade_2_002' not found - tail will not spin")
 
-	# Recenter on the fuselage's AABB centre (not its node origin - the mesh
-	# origin sits ~2m forward of the hull's true centre, which would offset the
-	# CollisionTable box). BASIS-AWARE: huey.tscn rotates Model 180 degrees
-	# about Y, so the fuselage centre must be mapped through the basis before
-	# subtracting - a raw "-= centre" DOUBLES the offset instead of cancelling
-	# it (the mesh sat ~17m from the node origin, probe 2026-07-11). The GLB's
-	# seat_* sockets ride inside Model, so they land in this recentered frame
-	# at exactly the FALLBACK_LAYOUT coordinates.
+	# Recenter on the fuselage's AABB centre, NOT its node origin: the mesh origin
+	# sits ~2m forward of the hull's true centre and would offset the CollisionTable
+	# box. MUST be basis-aware - huey.tscn rotates Model 180 degrees about Y, so the
+	# centre has to be mapped through the basis first; a raw "-= centre" DOUBLES the
+	# offset instead of cancelling it. The GLB's seat_* sockets ride inside Model and
+	# land in this recentered frame at the FALLBACK_LAYOUT coordinates.
 	var fuselage := root.find_child("Huey_Copy", true, false) as MeshInstance3D
 	if fuselage != null:
 		var centre: Vector3 = root.transform.basis * (fuselage.position + fuselage.get_aabb().get_center())
@@ -84,8 +70,7 @@ func _ready() -> void:
 		root.position.z -= centre.z
 
 
-## Blades spin whenever the bird is not parked. Idle on the pad still turns
-## slowly - a Huey at rest with rotors stopped reads as wreckage.
+## Idle on the pad still turns slowly: a Huey with stopped rotors reads as wreckage.
 func _target_rpm() -> float:
 	match state:
 		State.DESTROYED:
@@ -112,6 +97,10 @@ func _spin_rotors(delta: float) -> void:
 ## The 10-seat SeatSystem child (huey.tscn "Seats") - null on seatless vehicles.
 func seats() -> SeatSystem:
 	return get_node_or_null("Seats") as SeatSystem
+
+
+## Air-traffic flight id; -1 = uncontrolled. Set by AirTraffic at dispatch.
+var traffic_flight_id: int = -1
 
 
 func setup(terrain_manager: TerrainManager) -> void:
@@ -168,7 +157,7 @@ func _process_crashing(delta: float) -> void:
 	if global_position.y <= ground + 0.5:
 		global_position.y = ground + 0.5
 		state = State.DESTROYED
-		# PT3: shallow scar, not a pit trap - survivors must be able to walk out.
+		# A shallow scar, not a pit trap: survivors must be able to walk out.
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 		CombatManager.apply_explosion_damage(global_position, 150, 40, 10.0, null)
 		crashed.emit(self)

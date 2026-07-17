@@ -1,7 +1,6 @@
-## cas_airplane.gd - Close air support run: 4-phase dive-bomb (NS16).
-## Kinematic; concepts from the RTS airplane system, original implementation.
-## Crater cap (council rule): BOMB = 1 terrain deformation; NAPALM strip
-## deforms only its center drop. Drops staggered to spread chunk rebuilds.
+## cas_airplane.gd - Close air support run: 4-phase dive-bomb, or a fast flyby.
+## CRATER CAP: BOMB = 1 terrain deformation; the NAPALM strip deforms only its
+## centre drop. Drops are staggered to spread the chunk rebuilds.
 class_name CASAirplane
 extends Node3D
 
@@ -17,8 +16,7 @@ const NAPALM_DROPS: int = 5
 const NAPALM_SPACING: float = 15.0
 const DROP_STAGGER: float = 0.4
 
-# F-4 fast horizontal flyby profile (call_flyby): screams in low & fast ~200m out,
-# pickles on the pass, then climbs out and vanishes into the cloud deck.
+# F-4 fast horizontal flyby profile (call_flyby).
 const F4_SPEED: float = 250.0
 const FLYBY_ALT: float = 34.0
 const FLYBY_SPAWN_DIST: float = 200.0
@@ -52,8 +50,8 @@ func call_strike(terrain_manager: TerrainManager, target: Vector3, ordnance: Ord
 	phase = Phase.APPROACH
 
 
-## F-4 fast horizontal flyby: spawns ~200m out, screams in low and fast, pickles its
-## ordnance across the target on the pass, then climbs and vanishes into the clouds.
+## Spawns FLYBY_SPAWN_DIST out, comes in low and fast, pickles on the pass, then
+## climbs out into the cloud deck.
 func call_flyby(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordnance, run_dir: Vector3 = Vector3.ZERO) -> void:
 	terrain = terrain_manager
 	_target = target
@@ -153,7 +151,7 @@ func _drop_napalm_strip() -> void:
 			ground.y = terrain.get_height_at(pos) if terrain else pos.y
 			CombatManager.apply_explosion_damage(ground, 90, 30, 10.0, null)
 			FireHazard.create_at(get_tree().current_scene, ground, 10.0, 15.0)
-			_ignite_nearby_structures(ground)  # R71: thatch huts catch fire
+			_ignite_nearby_structures(ground)
 			if is_center:
 				DamageSystem.apply_damage(ground, DamageSystem.DamageType.NAPALM, 1.0))
 
@@ -176,8 +174,7 @@ func _drop_cluster() -> void:
 				DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.7))
 
 
-## R71: any nearby thatch hut catches fire too - a bigger, longer-lived blaze
-## right at the structure instead of just the ground patch.
+## Nearby thatch huts catch too: a bigger, longer-lived blaze at the structure.
 func _ignite_nearby_structures(impact: Vector3) -> void:
 	for s in get_tree().get_nodes_in_group("flammable_structures"):
 		var structure := s as Node3D

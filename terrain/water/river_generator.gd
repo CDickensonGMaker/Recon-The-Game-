@@ -64,7 +64,6 @@ func extract_rivers_fast(heightmap: HeightmapStorage, river_count: int = 8) -> A
 	var margin: int = map_size / 10
 	var candidates: Array[Vector2i] = []
 
-	# Sample grid to find high points
 	var sample_step: int = map_size / 20
 	for z in range(margin, map_size - margin, sample_step):
 		for x in range(margin, map_size - margin, sample_step):
@@ -72,7 +71,6 @@ func extract_rivers_fast(heightmap: HeightmapStorage, river_count: int = 8) -> A
 			if h > 0.5:  # Upper half of height range
 				candidates.append(Vector2i(x, z))
 
-	# Sort by height (highest first)
 	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return heightmap.get_cell(a.x, a.y) > heightmap.get_cell(b.x, b.y)
 	)
@@ -80,13 +78,11 @@ func extract_rivers_fast(heightmap: HeightmapStorage, river_count: int = 8) -> A
 	# Track visited cells to avoid overlapping rivers
 	var visited: Dictionary = {}
 
-	# Trace rivers from high points
 	var rivers_created: int = 0
 	for start in candidates:
 		if rivers_created >= river_count:
 			break
 
-		# Skip if too close to existing river
 		var too_close := false
 		for dx in range(-10, 11):
 			for dz in range(-10, 11):
@@ -98,7 +94,6 @@ func extract_rivers_fast(heightmap: HeightmapStorage, river_count: int = 8) -> A
 		if too_close:
 			continue
 
-		# Trace river downhill
 		var path: RiverPath = _trace_river_downhill(heightmap, start, visited)
 		if path.size() >= min_river_length:
 			paths.append(path)
@@ -120,14 +115,11 @@ func _trace_river_downhill(heightmap: HeightmapStorage, start: Vector2i, visited
 	while steps < max_steps:
 		steps += 1
 
-		# Mark as visited
 		visited[current] = true
 
-		# Add point to path
 		var world_pos := Vector2(current.x * cell_size, current.y * cell_size)
 		path.add_point(world_pos, width)
 
-		# Increase width as river flows
 		width += width_growth
 
 		# Find steepest descent neighbor
@@ -140,7 +132,6 @@ func _trace_river_downhill(heightmap: HeightmapStorage, start: Vector2i, visited
 			var nx: int = current.x + offset.x
 			var nz: int = current.y + offset.y
 
-			# Bounds check
 			if nx < 1 or nx >= map_size - 1 or nz < 1 or nz >= map_size - 1:
 				continue
 
@@ -159,7 +150,6 @@ func _trace_river_downhill(heightmap: HeightmapStorage, start: Vector2i, visited
 
 		# Stop if we've been here before (joining another river)
 		if visited.has(best_neighbor):
-			# Add final point where rivers merge
 			var merge_pos := Vector2(best_neighbor.x * cell_size, best_neighbor.y * cell_size)
 			path.add_point(merge_pos, width)
 			break
@@ -224,7 +214,6 @@ func _compute_flow_directions(heightmap: HeightmapStorage) -> PackedByteArray:
 				var nx: int = x + offset.x
 				var nz: int = z + offset.y
 
-				# Skip out-of-bounds
 				if nx < 0 or nx >= map_size or nz < 0 or nz >= map_size:
 					continue
 
@@ -254,7 +243,6 @@ func _compute_flow_accumulation(flow_dir: PackedByteArray, map_size: int) -> Pac
 	in_degree.resize(map_size * map_size)
 	in_degree.fill(0)
 
-	# Count incoming flows
 	for z in range(map_size):
 		for x in range(map_size):
 			var dir: int = flow_dir[z * map_size + x]
@@ -305,7 +293,6 @@ func _trace_river_paths(
 	var map_size: int = heightmap.size
 	var cell_size: float = heightmap.cell_size
 
-	# Track which cells have been visited
 	var visited: PackedByteArray = PackedByteArray()
 	visited.resize(map_size * map_size)
 	visited.fill(0)
@@ -318,7 +305,6 @@ func _trace_river_paths(
 			if river_cells[idx] == 0:
 				continue
 
-			# Check if any neighbor flows into this cell and is also a river
 			var has_upstream_river: bool = false
 			for dir_idx in range(8):
 				var offset: Vector2i = DIR_OFFSETS[dir_idx]
@@ -332,7 +318,6 @@ func _trace_river_paths(
 				if river_cells[nidx] == 0:
 					continue
 
-				# Check if neighbor flows into current cell
 				var neighbor_dir: int = flow_dir[nidx]
 				if neighbor_dir < 8:
 					var flow_offset: Vector2i = DIR_OFFSETS[neighbor_dir]
@@ -343,7 +328,6 @@ func _trace_river_paths(
 			if not has_upstream_river:
 				sources.append(Vector2i(x, z))
 
-	# Trace path from each source downstream
 	for source in sources:
 		if visited[source.y * map_size + source.x] == 1:
 			continue
@@ -367,7 +351,6 @@ func _trace_river_paths(
 			var width: float = sqrt(accumulation[idx]) * width_scale * cell_size
 			path.add_point(world_pos, width)
 
-			# Follow flow direction
 			var dir: int = flow_dir[idx]
 			if dir >= 8:  # No outflow (pit or edge)
 				break
@@ -375,17 +358,14 @@ func _trace_river_paths(
 			var offset: Vector2i = DIR_OFFSETS[dir]
 			var next: Vector2i = Vector2i(current.x + offset.x, current.y + offset.y)
 
-			# Check bounds
 			if next.x < 0 or next.x >= map_size or next.y < 0 or next.y >= map_size:
 				break
 
-			# Only continue if next cell is also a river cell
 			if river_cells[next.y * map_size + next.x] == 0:
 				break
 
 			current = next
 
-		# Only keep paths with enough points
 		if path.size() >= min_river_length:
 			paths.append(path)
 

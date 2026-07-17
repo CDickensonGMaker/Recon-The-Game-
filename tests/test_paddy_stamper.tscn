@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestpaddystamper1"]
+
+[ext_resource type="Script" path="res://tests/test_paddy_stamper.gd" id="1_tps"]
+
+[node name="TestPaddyStamper" type="Node"]
+script = ExtResource("1_tps")

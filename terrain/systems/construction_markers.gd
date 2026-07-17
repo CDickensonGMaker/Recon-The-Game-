@@ -13,11 +13,9 @@ enum MarkerType {
 	LZ_MARKER,       # Landing zone markers (cross pattern)
 }
 
-# Active markers
 var markers: Dictionary = {}  # marker_id -> Node3D
 var next_marker_id: int = 0
 
-# Materials
 var stake_material: StandardMaterial3D
 var tape_material: StandardMaterial3D
 var progress_material: StandardMaterial3D
@@ -29,19 +27,16 @@ func _ready() -> void:
 
 
 func _create_materials() -> void:
-	# Wooden stake material
 	stake_material = StandardMaterial3D.new()
 	stake_material.albedo_color = Color(0.5, 0.35, 0.2)
 	stake_material.roughness = 0.9
 
-	# Construction tape material (orange/red stripes)
 	tape_material = StandardMaterial3D.new()
 	tape_material.albedo_color = Color(1.0, 0.4, 0.1)
 	tape_material.emission_enabled = true
 	tape_material.emission = Color(1.0, 0.3, 0.0)
 	tape_material.emission_energy_multiplier = 0.3
 
-	# Progress ring material (green glow)
 	progress_material = StandardMaterial3D.new()
 	progress_material.albedo_color = Color(0.2, 0.8, 0.2, 0.7)
 	progress_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -49,7 +44,6 @@ func _create_materials() -> void:
 	progress_material.emission = Color(0.1, 0.6, 0.1)
 	progress_material.emission_energy_multiplier = 0.5
 
-	# LZ marker material (bright orange)
 	lz_material = StandardMaterial3D.new()
 	lz_material.albedo_color = Color(1.0, 0.5, 0.0)
 	lz_material.emission_enabled = true
@@ -80,7 +74,6 @@ func place_area_stakes(center: Vector3, size: float, terrain_height_func: Callab
 		stake.position = corner
 		container.add_child(stake)
 
-		# Add tape to next corner
 		var next_corner: Vector3 = corners[(i + 1) % corners.size()]
 		if terrain_height_func.is_valid():
 			next_corner.y = terrain_height_func.call(next_corner)
@@ -104,12 +97,10 @@ func place_lz_markers(center: Vector3, size: float, terrain_height_func: Callabl
 	var half := size / 2.0
 	var y_offset := 0.2
 
-	# Get terrain height at center
 	var center_y: float = center.y
 	if terrain_height_func.is_valid():
 		center_y = terrain_height_func.call(center)
 
-	# Create cross pattern with cylinders
 	var arm_width := 3.0
 	var arm_length := half * 0.8
 
@@ -166,7 +157,6 @@ func place_progress_ring(center: Vector3, radius: float, progress: float = 0.0) 
 	return marker_id
 
 
-## Update progress ring
 func update_progress(marker_id: int, progress: float) -> void:
 	if not markers.has(marker_id):
 		return
@@ -209,7 +199,6 @@ func place_line_markers(start: Vector3, end: Vector3, spacing: float = 10.0, ter
 		stake.position = pos
 		container.add_child(stake)
 
-	# Add tape along the line
 	var tape := _create_tape_line(start, end)
 	if terrain_height_func.is_valid():
 		tape.position.y = (terrain_height_func.call(start) + terrain_height_func.call(end)) / 2.0 + 1.0
@@ -223,7 +212,6 @@ func place_line_markers(start: Vector3, end: Vector3, spacing: float = 10.0, ter
 	return marker_id
 
 
-## Remove marker
 func remove_marker(marker_id: int) -> void:
 	if markers.has(marker_id):
 		var marker: Node3D = markers[marker_id]
@@ -232,7 +220,6 @@ func remove_marker(marker_id: int) -> void:
 		marker_removed.emit(marker_id)
 
 
-## Remove all markers
 func clear_all_markers() -> void:
 	for marker_id in markers.keys():
 		remove_marker(marker_id)

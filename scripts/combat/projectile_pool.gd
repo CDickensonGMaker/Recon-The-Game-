@@ -15,9 +15,8 @@ var _total_spawned: int = 0
 var _total_recycled: int = 0
 
 func _ready() -> void:
-	# Lazy pool: spawn() grows on demand (see below), so pre-allocating 50 nodes
-	# at boot just wasted memory while the whole game is hitscan. M5 (ballistics)
-	# calls warm_pool() when projectiles actually go live. [bead RECONgame-3trv]
+	# Lazy pool: spawn() grows on demand, so nothing is pre-allocated at boot.
+	# Call warm_pool() when projectiles actually go live.
 	pass
 
 

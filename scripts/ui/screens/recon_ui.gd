@@ -120,8 +120,8 @@ static func make_menu_button(text: String, action: Callable, min_width: float = 
 	return b
 
 
-## Bordered clickable "card" - offer tiles, roster rows: hairline box that
-## brightens on hover instead of the old plain "[ TEXT ]" button look.
+## Bordered clickable "card" (offer tiles, roster rows): hairline box that
+## brightens on hover.
 static func make_card_button(text: String, size: int = 15, min_height: float = 0.0) -> Button:
 	var b := Button.new()
 	b.text = text

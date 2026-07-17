@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestxpspend001"]
-
-[ext_resource type="Script" path="res://tests/test_xp_spend.gd" id="1_txp"]
-
-[node name="TestXpSpend" type="Node"]
-script = ExtResource("1_txp")

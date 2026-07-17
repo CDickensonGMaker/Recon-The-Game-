@@ -31,13 +31,34 @@ TWO PASSES, because the modeller was not consistent:
            TINY island: every anatomical island here is 13+ faces. Pass 2 must run
            AFTER pass 1's faces are stripped, or the gear itself reads as islands.
 """
-import bpy, bmesh
+import bpy, bmesh, os, sys
 from mathutils import Matrix
 
 SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
 DST = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 BODY = "us_grunt_joined"
 RIG = "PSXRig"
+
+# DISARMED 2026-07-13 (Drift Council, bead DRIFT-8).
+#
+# The premise above is DEAD. SRC was deleted by the Summoner on 2026-07-13 during his
+# art-folder cleanup, and DST is no longer this script's disposable output - it is
+# HAND-AUTHORED TRUTH. He has since built 7 rigs, 361 meshes, a SQUAD collection of
+# 6 MOS and _BAG_TEMPLATES inside DST, by hand. None of it is reproducible from SRC.
+#
+# A plain run would open a stale SRC and save_as_mainfile over DST, silently
+# destroying all of it. Today that only fails safe because SRC is absent - restore
+# SRC "to fix the tool" and you arm the gun.
+#
+# This guard is the safety, not the missing file.
+if os.path.exists(DST):
+    sys.exit(
+        "\n*** REFUSING TO RUN ***\n"
+        f"{DST}\nexists, and is HAND-AUTHORED TRUTH - not this script's output.\n"
+        "Overwriting it destroys the SQUAD collection, the 7 rigs and _BAG_TEMPLATES.\n"
+        "If you genuinely mean to regenerate the base from scratch, move DST aside\n"
+        "yourself, deliberately, with your own hands. This script will not do it for you.\n"
+    )
 
 # pass 1: gear group -> materials welded into the body. Every new name carries a
 # _GEAR_NAME_HINTS word or the piece lands right back in the hurtbox.

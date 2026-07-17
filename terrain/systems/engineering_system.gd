@@ -17,7 +17,6 @@ enum OperationType {
 	DET_CORD_SQUARE,   # Square clearing for helicopter LZ
 }
 
-# Operation profiles (reduced sizes for better scale)
 const OPERATION_PROFILES: Dictionary = {
 	OperationType.CLEAR_JUNGLE: {
 		"name": "Clear Jungle",
@@ -97,7 +96,6 @@ const OPERATION_PROFILES: Dictionary = {
 	},
 }
 
-# Reference to terrain manager
 var terrain_manager: Node
 var vegetation_manager: Node
 
@@ -118,7 +116,6 @@ func _begin_batch() -> void:
 	_affected_chunks.clear()
 
 
-## Mark a chunk as affected during batch operation
 func _mark_affected_chunk(world_pos: Vector3) -> void:
 	if not terrain_manager:
 		return
@@ -135,7 +132,6 @@ func _end_batch() -> void:
 	if not terrain_manager:
 		return
 
-	# Queue all affected chunks for deferred rebuild
 	for coord: Vector2i in _affected_chunks:
 		if terrain_manager.has_method("queue_chunk_rebuild"):
 			terrain_manager.queue_chunk_rebuild(coord)
@@ -143,17 +139,14 @@ func _end_batch() -> void:
 	_affected_chunks.clear()
 
 
-## Set terrain manager reference
 func set_terrain_manager(manager: Node) -> void:
 	terrain_manager = manager
 
 
-## Set vegetation manager reference
 func set_vegetation_manager(veg_manager: Node) -> void:
 	vegetation_manager = veg_manager
 
 
-## Execute an operation at position
 func execute_operation(op_type: OperationType, position: Vector3, direction: Vector3 = Vector3.FORWARD) -> void:
 	if not terrain_manager:
 		push_warning("EngineeringSystem: TerrainManager not set")
@@ -188,25 +181,20 @@ func execute_operation(op_type: OperationType, position: Vector3, direction: Vec
 ## Uses batching to prevent frame spikes during long operations
 func start_linear_operation(op_type: OperationType, position: Vector3) -> bool:
 	if linear_start == Vector3.INF:
-		# First click - set start point
 		linear_start = position
 		linear_operation = op_type
 		return false  # Not complete yet
 	else:
-		# Second click - execute from start to position
 		var direction: Vector3 = (position - linear_start).normalized()
 		if direction.length() < 0.1:
 			direction = Vector3.FORWARD
 
-		# Execute along the line
 		var length: float = linear_start.distance_to(position)
 		var profile: Dictionary = OPERATION_PROFILES[op_type]
 		var segment_length: float = profile.get("length", 30.0)
 
-		# Begin batch operation (defer chunk rebuilds)
 		_begin_batch()
 
-		# Execute multiple segments if needed
 		var current_pos: Vector3 = linear_start
 		var remaining: float = length
 
@@ -215,12 +203,10 @@ func start_linear_operation(op_type: OperationType, position: Vector3) -> bool:
 			current_pos += direction * segment_length
 			remaining -= segment_length
 
-		# End batch - queue all affected chunks for deferred rebuild
 		_end_batch()
 
 		operation_completed.emit(op_type, linear_start)
 
-		# Reset for next operation
 		linear_start = Vector3.INF
 		return true  # Complete
 
@@ -251,17 +237,14 @@ func _execute_operation_internal(op_type: OperationType, position: Vector3, dire
 			_execute_det_cord_square(position)
 
 
-## Cancel linear operation
 func cancel_linear_operation() -> void:
 	linear_start = Vector3.INF
 
 
-## Check if linear operation is in progress
 func is_linear_in_progress() -> bool:
 	return linear_start != Vector3.INF
 
 
-## Get linear start position (for preview)
 func get_linear_start() -> Vector3:
 	return linear_start
 
@@ -275,14 +258,12 @@ func _execute_clear_jungle(position: Vector3) -> void:
 	var radius: float = profile.radius
 	var flatten: float = profile.flatten_amount
 
-	# Slight terrain leveling
 	if flatten > 0:
 		var target_height: float = _get_average_height(position, radius)
 		var modifier := func(h: float, falloff: float) -> float:
 			return lerp(h, target_height, flatten * falloff * 0.5)
 		terrain_manager.modify_terrain(position, radius, modifier)
 
-	# Clear vegetation
 	_clear_vegetation(position, radius)
 	print("[Engineering] Cleared jungle at %s (radius %.0fm)" % [position, radius])
 
@@ -292,10 +273,8 @@ func _execute_flatten_area(position: Vector3) -> void:
 	var radius: float = profile.radius
 	var flatten: float = profile.flatten_amount
 
-	# Get target height (average of area)
 	var target_height: float = _get_average_height(position, radius)
 
-	# Flatten terrain
 	var modifier := func(h: float, falloff: float) -> float:
 		# Strong flattening in center, gradual blend at edges
 		var blend: float = flatten * smoothstep(0.0, 0.7, falloff)
@@ -303,7 +282,6 @@ func _execute_flatten_area(position: Vector3) -> void:
 
 	terrain_manager.modify_terrain(position, radius, modifier)
 
-	# Clear vegetation
 	_clear_vegetation(position, radius)
 	print("[Engineering] Flattened area at %s (radius %.0fm)" % [position, radius])
 
@@ -321,7 +299,6 @@ func _execute_dig_trench_batched(position: Vector3, direction: Vector3) -> void:
 	var depth: float = profile.depth
 	var berm_height: float = profile.berm_height
 
-	# Dig along the direction
 	var steps: int = int(length / 2.0)
 	var step_size: float = length / float(steps)
 
@@ -343,7 +320,6 @@ func _execute_dig_trench_batched(position: Vector3, direction: Vector3) -> void:
 		terrain_manager.modify_terrain(pos, width * 1.5, modifier)
 		_mark_affected_chunk(pos)
 
-	# Clear vegetation along trench
 	for i in range(steps):
 		var offset: float = (float(i) - steps / 2.0) * step_size
 		var pos: Vector3 = position + direction * offset
@@ -363,7 +339,6 @@ func _execute_build_road_batched(position: Vector3, direction: Vector3) -> void:
 	var cut_depth: float = profile.depth
 	var flatten: float = profile.flatten_amount
 
-	# Build road along direction
 	var steps: int = int(length / 3.0)
 	var step_size: float = length / float(steps)
 
@@ -402,7 +377,6 @@ func _execute_create_berm(position: Vector3) -> void:
 
 	var outer_radius: float = inner_radius + berm_width
 
-	# Flatten interior first
 	var target_height: float = _get_average_height(position, inner_radius)
 
 	var modifier := func(h: float, falloff: float) -> float:
@@ -423,7 +397,6 @@ func _execute_create_berm(position: Vector3) -> void:
 
 	terrain_manager.modify_terrain(position, outer_radius, modifier)
 
-	# Clear vegetation
 	_clear_vegetation(position, outer_radius)
 	print("[Engineering] Created berm at %s (%.0fm radius)" % [position, inner_radius])
 
@@ -485,7 +458,6 @@ func _execute_det_cord_line_batched(position: Vector3, direction: Vector3) -> vo
 	var depth: float = profile.depth
 	var flatten: float = profile.flatten_amount
 
-	# Clear along the direction
 	var steps: int = int(length / 4.0)
 	var step_size: float = length / float(steps)
 
@@ -499,13 +471,11 @@ func _execute_det_cord_line_batched(position: Vector3, direction: Vector3) -> vo
 		count += 1
 	var target_height: float = total_height / float(count) if count > 0 else 0.5
 
-	# Apply clearing with slight flattening
 	for i in range(steps):
 		var offset: float = (float(i) - steps / 2.0) * step_size
 		var pos: Vector3 = position + direction * offset
 
 		var modifier := func(h: float, falloff: float) -> float:
-			# Slight depression and leveling from blast
 			var blast_h: float = lerp(h, target_height, flatten * falloff)
 			return blast_h - depth * falloff
 
@@ -525,7 +495,6 @@ func _execute_det_cord_square(position: Vector3) -> void:
 	# Get target height for flattening (center of LZ)
 	var target_height: float = _get_average_height(position, half_size * 0.7)
 
-	# Apply square clearing with grid of modifications
 	var grid_step: float = 10.0  # Modify in 10m grid
 	var grid_count: int = int(size / grid_step)
 
@@ -585,14 +554,12 @@ func _clear_vegetation(position: Vector3, radius: float) -> void:
 		vegetation_manager.clear_area(position, radius, terrain_manager.chunk_size)
 
 
-## Get operation name
 static func get_operation_name(op_type: OperationType) -> String:
 	if OPERATION_PROFILES.has(op_type):
 		return OPERATION_PROFILES[op_type].name
 	return "Unknown"
 
 
-## Get operation description
 static func get_operation_description(op_type: OperationType) -> String:
 	if OPERATION_PROFILES.has(op_type):
 		return OPERATION_PROFILES[op_type].description

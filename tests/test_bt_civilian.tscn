@@ -1,0 +1,4 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestbtciv1"]
+[ext_resource type="Script" path="res://tests/test_bt_civilian.gd" id="1_bt"]
+[node name="TestBTCivilian" type="Node"]
+script = ExtResource("1_bt")

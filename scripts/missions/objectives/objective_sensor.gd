@@ -1,4 +1,4 @@
-## objective_sensor.gd - Base for objective completion sensors (NS08).
+## objective_sensor.gd - Base for objective completion sensors.
 ## Each sensor owns one bit in MissionState and reports through the director.
 class_name ObjectiveSensor
 extends Node3D

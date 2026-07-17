@@ -1,4 +1,4 @@
-## sapper_charge.gd - Attached to a sapper enemy (W57): sprints for the wire,
+## sapper_charge.gd - Attached to a sapper enemy: sprints for the wire,
 ## detonates the satchel when close to the objective.
 class_name SapperCharge
 extends Node
