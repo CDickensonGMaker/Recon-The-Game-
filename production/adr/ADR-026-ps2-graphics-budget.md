@@ -160,3 +160,22 @@ structure-only `_far` twin). Levers, ordered by expected win, all inside Forward
 headless). Each lever must be A/B'd (same timepoint) for fps + draw-calls + primitives AND eyeballed for
 Pillar 2, per the 2026-07-16 method-debt lesson (a live-firefight toggle-diff conflates the toggle with
 the clock).
+
+### Windowed A/B — 2026-07-17 (CONTAMINATED; the finding survives, the fps numbers do not)
+
+Ran the 3-config A/B windowed. **The fps/ms numbers are void — measured with Blender open, GPU/CPU
+contended** (THE_PLAN's "Blender CLOSED" rule). Proof of contamination: the `view_distance=80 +
+fill_chance=0.6` run reported **GPU 224ms on the LOWEST geometry (382k prims)** — physically impossible;
+CPU times ran 3–4× the historical baseline. What DOES survive:
+- **Geometry responds correctly** (trustworthy): prims 675k (vd128/fc78) → 526k (vd80) → 382k (vd80/fc60).
+- **The frame is CPU-BOUND on AI, not GPU-bound on jungle** (visible in the overlay, robust to
+  contention): baseline & vd80 overlays both read **GPU ~32ms** (barely moved despite −22% prims) while
+  **`ai/agents` = 25–192ms** is the wall. **The jungle GPU is NOT what limits the 18v18 arena fps — the
+  AI is.** This confirms **Part B (activity-tiered AI) is the real FPS lever**, not the jungle draw cuts.
+- **Look-check:** `view_distance=80` is visually identical to 128 (far foliage is invisible at night) —
+  look-safe and ADR-026 A.2-aligned. `fill_chance=0.6` **visibly thins the canopy** (a Pillar-2 loss),
+  not a free win.
+
+**Not implemented** — no config wins on trustworthy perf, and fill_chance 0.6 fails the Pillar-2 gate.
+**Next:** (1) a clean re-run with **Blender closed** + an AI-frozen/reduced arena to isolate jungle GPU;
+(2) the FPS effort pivots to **Part B (activity-tiered AI)** — that is where the frame actually is.
