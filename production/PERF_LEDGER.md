@@ -159,26 +159,71 @@ not.** This is exactly the n=1 problem `5kr3` was filed to catch.
 **−572,438 primitives — 71% of the frame's geometry** — from one toggle. 365s predicted "~350,000
 alpha-tested triangles of overdraw" on reasoning alone; the real figure is larger.
 
-**2. SUN SHADOWS COST AS MUCH AS THE ENTIRE JUNGLE (−12.17ms, 23% of the GPU frame) — AND THIS LEDGER
-SAYS THEY ARE OFF.** `ai_stress_arena.gd:390` reads `sun.shadow_enabled = true`. The "shadows+MSAA
-already off" line above is true of `game_world`'s project settings and **false of the arena** — the
-bench this project judges FPS by. Draft ADR-026 mandates "0 dynamic-shadow". **This is the single
-cheapest measured win available and it needs no art, no LOD, and no renderer decision.**
+**2. SUN SHADOWS COST AS MUCH AS THE ENTIRE JUNGLE (−12.17ms, 23% of the GPU frame), AND THE ARENA
+BENCH IS HARDER THAN THE SHIPPED GAME.** `ai_stress_arena.gd:390` reads `sun.shadow_enabled = true`;
+`game_world.gd:48` reads `light.shadow_enabled = false`. **The scene we judge FPS by carries a 12ms
+shadow the shipped world does not.**
+
+**⚠ Wave-2 correction — this is NOT a leftover and must NOT be "fixed".** ADR-026 (draft) line 29
+states: *"0 shadow-casting dynamic lights. **The night sun's shadow is the one allowed dynamic
+shadow**."* The arena is doing exactly what the draft sanctions. My first pass called this "the
+cheapest measured win, needs no art, no LOD, no renderer decision" — **that framing was wrong**; it
+implied a mistake where there is a decision. Untouched.
+
+**What is a real question, and is the Summoner's:** `game_world` (no sun shadow) and the arena (sun
+shadow) disagree, so **the 18.8/25.5 numbers are a worst case that the shipped night world may or may
+not pay.** Whether the shipped game gets ADR-026's "one allowed dynamic shadow" decides whether ~12ms
+belongs in the gate. That is an ADR-026 ratification question (`mok6`), not a bug.
 
 **3. Grass/clutter is ~free (−1.38ms).** Any density pull there buys nothing and costs Pillar 2.
 
 **4. The frame is NOT lopsidedly GPU-bound.** CPU 44.35ms vs GPU 51.94ms at native. Prior notes call
 this "GPU fill-bound"; it is close to balanced, so a pure fill fix cannot get past ~19→23 fps alone.
 
-## WHAT IS NOT TRUSTWORTHY IN THIS RUN (stated, not sanded)
+## ⚠ CORRECTION (same night, Wave 2) — THE ATTRIBUTION ABOVE IS CONTAMINATED. READ THIS FIRST.
 
-**The MOBILE per-system deltas are INCOHERENT — do not cite them.** `mobile/1.00 lights_OFF` reports
-**16.3 fps, WORSE than the 25.5 all-on baseline**, and CPU spikes of **115.58ms / 244.11ms** appear on
-`grass_clutter_OFF` and `sun_shadows_OFF`. A 244ms CPU frame is a rebuild storm caught inside the
-sample window: the 1.5s settle is too short for Mobile to re-batch after a mass visibility change.
-**The four `all_systems_on` rows are unaffected** (first phase, post-warmup, no toggle) — the renderer
-A/B stands. The Forward+ deltas are internally coherent (all negative, monotonic) and are the
-attribution of record. Re-run Mobile attribution with a longer settle before trusting it.
+The first pass blamed the Mobile anomalies on "a re-batch storm / too-short settle" and called the
+Forward+ deltas "the attribution of record". **Both claims were wrong. A control experiment killed them.**
+
+**The control.** Six **identical** `all_systems_on` phases, **no toggle ever pressed**, Forward+ @ 1.00:
+
+| phase | fps | GPU ms | CPU ms | draw calls | primitives |
+|---|---:|---:|---:|---:|---:|
+| control_t0 | 17.9 | 54.04 | 45.94 | 1,013 | 829,798 |
+| control_t1 | 18.5 | 50.74 | 58.04 | 968 | 813,867 |
+| control_t2 | 19.0 | 49.93 | 66.09 | 1,007 | 817,770 |
+| control_t3 | **15.7** | 49.60 | 68.76 | **1,243** | 843,247 |
+| control_t4 | 19.0 | 50.38 | 36.58 | 1,219 | 845,029 |
+| control_t5 | 16.8 | 50.19 | 66.49 | **1,268** | 848,371 |
+
+**Nothing was changed between those six rows.** fps swings **15.7–19.0 (±10%)**, draw calls climb
+**1,013 → 1,268 (+25%)**, CPU swings **36.6–68.8 (±47%)**.
+
+**`ai_stress_arena` IS A LIVE 18v18 FIREFIGHT. IT ESCALATES WHILE YOU MEASURE IT.** Reinforcement
+waves spawn, corpses and gibs accumulate, flares drift. A sequential toggle-diff therefore conflates
+*the toggle* with *the clock*. That, not a settle time, is why `mobile lights_OFF` read **16.3 fps
+(and 21.5 at a 5s settle) — worse than its own all-on baseline — while draw calls ROSE 627→864.**
+Toggling a light off cannot add 237 draw calls. The arena did.
+
+**What survives, measured against a ±3.3 fps / ±255-call / ±4.4ms-GPU noise floor:**
+
+| finding | ΔGPU | verdict |
+|---|---:|---|
+| **jungle patches** | **−12.26ms, −572,438 prims** | **STANDS** — the primitive delta is ~4× the drift band and 71% of all geometry. Not noise. |
+| **sun shadows** | **−12.17ms** | **STANDS** — ~3× the GPU noise band, and it was measured at the *most* contaminated (latest) phase, where drift makes frames *slower*. If anything it is **understated**. |
+| lights | −5.01ms | **WITHDRAWN — inside the noise.** |
+| characters | −3.33ms | **WITHDRAWN — inside the noise.** |
+| grass/clutter | −1.38ms | **WITHDRAWN — inside the noise.** The "grass is free" claim is not established. |
+
+**The renderer A/B STANDS.** All four `all_systems_on` rows are phase 1 (t≈9s post-warmup, no toggle),
+so they are measured at the same point on the escalation curve. Control t0 (17.9) vs the A/B's Forward+
+row (18.8) is ~1 fps of run-to-run spread; the Mobile gap is **+36%**, far outside it. **Nothing
+clears 30** is likewise safe — the entire drift band sits below 30.
+
+**Method debt this creates:** a live firefight is the right scene for a *renderer* A/B (identical
+timepoint, two builds) and the **wrong** scene for a *toggle-diff*. Per-system attribution needs a
+frozen arena (`hot_start=false`, no reinforcement waves, corpses disabled) or an A/B/A design that
+re-measures the baseline between every toggle. Until then, only the two large findings above are real.
 
 ## STILL OWED
 

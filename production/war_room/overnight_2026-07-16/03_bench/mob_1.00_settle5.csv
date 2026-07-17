@@ -1,0 +1,7 @@
+renderer,render_scale,scaling_mode,config,fps,gpu_ms,cpu_ms,draw_calls,primitives
+mobile_settle5,1.00,0,all_systems_on,26.2,36.42,37.06,627,829795
+mobile_settle5,1.00,0,jungle_patches_OFF,30.3,30.87,48.04,579,223076
+mobile_settle5,1.00,0,grass_clutter_OFF,26.8,33.19,76.51,669,768923
+mobile_settle5,1.00,0,lights_OFF,21.5,32.13,62.36,864,843953
+mobile_settle5,1.00,0,characters_OFF,26.5,35.96,38.47,309,697551
+mobile_settle5,1.00,0,sun_shadows_OFF,28.7,23.25,73.66,395,680856

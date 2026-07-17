@@ -58,13 +58,24 @@ static func _first_shot_nudge(aim: Vector3) -> Vector3:
 ## AI-vs-AI target -> cap widened by GameSettings.ai_vs_ai_cone_mult (C2); NO fairness terms, so a
 ## mirror stays symmetric. INVARIANT: the widen and the first-shot mercy are on OPPOSITE branches of
 ## is_player_target - the firefight dial can never reach a shot aimed at the player.
+## The Fairness Law's exposure ramp, as a value: how much the cone is widened for a
+## shot at the player who has been exposed for exposure_t (0 fresh -> 1 converged).
+## x(1+EXPOSURE_PEAK) fresh -> x1.0 converged, monotone decreasing.
+## Extracted so the law has a surface a probe can assert. Inlined, it was untestable,
+## and test_ai_fairness called a function Track C had deleted - so the probe SCRIPT
+## ERRORed, never reached quit(), and hung the whole suite instead of failing.
+static func exposure_spread_mult(exposure_t: float) -> float:
+	var t: float = clampf(exposure_t, 0.0, 1.0)
+	return 1.0 + EXPOSURE_PEAK * (1.0 - t * t)
+
+
 static func aim_with_spread(base_aim: Vector3, pre_cap_spread_deg: float, is_player_target: bool,
 		exposure_t: float, force_first_miss: bool) -> Vector3:
 	var s: float = pre_cap_spread_deg
 	var cap: float = PLAYER_CONE_CAP_DEG
 	if is_player_target:
 		# Fairness ramp + the difficulty knob live here, on the shot at the player.
-		s *= (1.0 + EXPOSURE_PEAK * (1.0 - exposure_t * exposure_t)) * GameSettings.enemy_spread_mult()
+		s *= exposure_spread_mult(exposure_t) * GameSettings.enemy_spread_mult()
 	else:
 		cap *= maxf(1.0, GameSettings.ai_vs_ai_cone_mult)
 	var aim: Vector3 = _apply_cone(base_aim, minf(s, cap))

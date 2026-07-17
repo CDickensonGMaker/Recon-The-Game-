@@ -11,7 +11,7 @@
 extends Node
 
 const WARMUP_SEC: float = 9.0
-const SETTLE_SEC: float = 1.5
+const SETTLE_SEC: float = 5.0
 const SAMPLE_SEC: float = 4.0
 
 ## keycode, label. null keycode = the all-systems-on reference row.

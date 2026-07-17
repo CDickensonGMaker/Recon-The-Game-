@@ -8,6 +8,12 @@ extends Node3D
 var _fail: int = 0
 
 
+## The exposure fraction enemy_base feeds AIMarksmanship: seconds of exposure over
+## this shooter's ramp, clamped. Mirrors _fire_at_target()'s own expression.
+func _exposure_t(e: Node, visible_seconds: float) -> float:
+	return clampf(visible_seconds / maxf(e.d_exposure_ramp, 0.1), 0.0, 1.0)
+
+
 func _bad(msg: String) -> void:
 	print("FAIL: %s" % msg)
 	_fail += 1
@@ -30,14 +36,11 @@ func _ready() -> void:
 		_bad("farmer exposure_ramp %.2f != 3.5" % farmer.d_exposure_ramp)
 	if nva.d_exposure_ramp >= farmer.d_exposure_ramp:
 		_bad("NVA must lock on faster than a farmer")
-	nva.target_visible_duration = 0.0
-	var m0: float = nva._exposure_spread_mult()
-	nva.target_visible_duration = nva.d_exposure_ramp * 0.5
-	var m_half: float = nva._exposure_spread_mult()
-	nva.target_visible_duration = nva.d_exposure_ramp
-	var m1: float = nva._exposure_spread_mult()
-	if absf(m0 - 3.0) > 0.01:
-		_bad("fresh exposure mult %.2f != 3.0" % m0)
+	var m0: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, 0.0))
+	var m_half: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, nva.d_exposure_ramp * 0.5))
+	var m1: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, nva.d_exposure_ramp))
+	if absf(m0 - (1.0 + AIMarksmanship.EXPOSURE_PEAK)) > 0.01:
+		_bad("fresh exposure mult %.2f != %.2f" % [m0, 1.0 + AIMarksmanship.EXPOSURE_PEAK])
 	if absf(m1 - 1.0) > 0.01:
 		_bad("full-ramp mult %.2f != 1.0" % m1)
 	if not (m0 > m_half and m_half > m1):

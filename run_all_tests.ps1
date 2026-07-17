@@ -10,7 +10,10 @@
 # files call reset_campaign(), and test_full_loop runs three missions to debrief.
 # Running the suite wiped your campaign. We now pass `-- --test-save`, which
 # CampaignState._ready() honours by redirecting to user://campaign_test.cfg.
-param([string]$Filter = "", [switch]$Verbose1, [int]$TimeoutSec = 120)
+# TimeoutSec is a BOX, not a hang detector. The sim-loop tests legitimately run for
+# minutes (test_hub_loop measured 167s; test_full_loop drives three missions to debrief
+# with waits bounded at 200s each). A 120s box reported both as hung -- slow is not hung.
+param([string]$Filter = "", [switch]$Verbose1, [int]$TimeoutSec = 420)
 
 $ErrorActionPreference = 'Continue'
 
@@ -116,7 +119,7 @@ foreach ($t in $tests) {
     }
 
     $note = ""
-    if ($timedOut) { $note = "<- HUNG: killed after ${TimeoutSec}s. A test that never exits reports nothing." }
+    if ($timedOut) { $note = "<- exceeded the ${TimeoutSec}s box: hung, or slower than the box. Check before calling it hung." }
     elseif ($fatalLines.Count -gt 0) { $note = "<- " + (($fatalLines | Select-Object -First 1)) }
     elseif ($verdict -eq "LEAK") { $note = "<- resources leaked at exit (AUDIT-12)" }
     if ($verdict -eq "XPASS") { $note = "<- FIXED: remove from `$KnownRed" }
