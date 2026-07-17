@@ -28,6 +28,8 @@ var _scale: float = 1.0
 var _mode: int = 5
 var _out_path: String = ""
 var _tag: String = "forward_plus"
+var _shot_path: String = ""
+var _allon: bool = false
 var _rows: Array[String] = []
 var _vp_rid: RID = RID()
 
@@ -61,6 +63,10 @@ func _parse_args() -> void:
 			_out_path = a.substr(6)
 		elif a.begins_with("--tag="):
 			_tag = a.substr(6)
+		elif a.begins_with("--shot="):
+			_shot_path = a.substr(7)
+		elif a == "--allon":
+			_allon = true
 
 
 ## One toggle press, through the real input path the overlay listens on.
@@ -112,13 +118,25 @@ func _sample(seconds: float) -> Array:
 func _run() -> void:
 	await _wait(WARMUP_SEC)
 
-	for phase: Array in PHASES:
+	var phases: Array = [PHASES[0]] if _allon else PHASES
+	for phase: Array in phases:
 		var keycode: int = int(phase[0])
 		var label: String = String(phase[1])
 
 		await _press(keycode)
 		await _wait(SETTLE_SEC)
 		var s: Array = await _sample(SAMPLE_SEC)
+
+		# Pillar-2 look-check capture on the all-on frame (before any toggle restores).
+		if keycode == 0 and not _shot_path.is_empty():
+			var tex: ViewportTexture = get_viewport().get_texture()
+			var img: Image = tex.get_image() if tex != null else null
+			if img != null:
+				img.save_png(_shot_path)
+				print("BENCH: wrote shot ", _shot_path)
+			else:
+				print("BENCH: no viewport image (headless) - shot skipped")
+
 		# Restore, so every row is measured against the same all-on baseline.
 		await _press(keycode)
 		await _wait(0.4)

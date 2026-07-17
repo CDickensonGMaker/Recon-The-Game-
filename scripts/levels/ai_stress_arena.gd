@@ -397,10 +397,20 @@ func _build_night_env() -> void:
 ## Plant real dense jungle across the whole play area by driving JunglePatchLayer with a
 ## synthetic all-HEAVY_JUNGLE tile grid on the flat stub. The layer node is offset to the
 ## arena's SW corner so its 0..chunk_size local tiles land on the -ARENA/2..+ARENA/2 span.
+func _cli_float(prefix: String, fallback: float) -> float:
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with(prefix):
+			return float(a.substr(prefix.length()))
+	return fallback
+
+
 func _build_jungle() -> void:
 	_jungle_layer = JunglePatchLayer.new()
 	_jungle_layer.name = "JunglePatchLayer"
-	_jungle_layer.fill_chance = 0.95
+	# Bench A/B hook: --fill_chance= / --view_distance= override the defaults so the
+	# jungle FPS levers (ADR-026 Amendment A) can be measured without editing the scene.
+	_jungle_layer.fill_chance = _cli_float("--fill_chance=", 0.95)
+	_jungle_layer.view_distance = _cli_float("--view_distance=", _jungle_layer.view_distance)
 	_jungle_layer.position = Vector3(-ARENA * 0.5, 0.0, -ARENA * 0.5)
 	add_child(_jungle_layer)
 	_jungle_layer._load_patches()
