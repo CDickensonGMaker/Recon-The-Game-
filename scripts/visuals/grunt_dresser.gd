@@ -24,6 +24,7 @@ const FACE_ROWS: int = 7
 const FACE_MATERIALS: Array[String] = ["grunt_face_skin", "face_atlas"]
 
 const HELMET_DIR: String = "res://assets/us/props/helmets/"
+const HELMET_COVER_DIR: String = "res://assets/us/textures/helmets/"
 const HELMETS: Array[String] = [
 	"m1_plain", "m1_cig", "m1_bugjuice", "m1_cig_bug", "m1_ace",
 	"m1_ace_cig", "m1_war_is_hell", "m1_born_to_kill", "m1_rounds",
@@ -168,6 +169,32 @@ static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> 
 	var hel: Node3D = packed.instantiate()
 	att.add_child(hel)
 	hel.global_transform = Transform3D(basis, centre)
+	_texture_helmet(hel, helmet_id)
+
+
+## The helmet was baked to ONE albedo atlas (helm_<id>.png) but the glTF export left
+## it unbound, so every UV-bearing surface renders flat/white. Bind it here: surfaces
+## that carry UVs sample the atlas; UV-less detail props (brass, foliage) keep their
+## authored factor colour; props with their own embedded texture (card, cig, bug-juice)
+## keep it. NEAREST filter throughout for the PSX read.
+static func _texture_helmet(hel: Node3D, helmet_id: String) -> void:
+	var cover_path: String = HELMET_COVER_DIR + "helm_" + helmet_id + ".png"
+	var cover: Texture2D = load(cover_path) if ResourceLoader.exists(cover_path) else null
+	for mi in _all_meshes(hel):
+		var mesh: Mesh = mi.mesh
+		if mesh == null:
+			continue
+		for s in mesh.get_surface_count():
+			var bm := mi.get_active_material(s) as BaseMaterial3D
+			if bm == null:
+				continue
+			var mine := bm.duplicate() as BaseMaterial3D
+			mine.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+			var has_uv: bool = (mesh.surface_get_format(s) & Mesh.ARRAY_FORMAT_TEX_UV) != 0
+			if cover != null and bm.albedo_texture == null and has_uv:
+				mine.albedo_texture = cover
+				mine.albedo_color = Color.WHITE
+			mi.set_surface_override_material(s, mine)
 
 
 static func _set_visible_by_name(root: Node3D, needle: String, on: bool) -> void:
