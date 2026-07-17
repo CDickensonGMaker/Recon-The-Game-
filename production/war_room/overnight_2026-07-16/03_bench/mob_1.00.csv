@@ -1,0 +1,7 @@
+renderer,render_scale,scaling_mode,config,fps,gpu_ms,cpu_ms,draw_calls,primitives
+mobile,1.00,0,all_systems_on,25.5,36.89,37.98,527,807370
+mobile,1.00,0,jungle_patches_OFF,31.7,29.15,32.53,572,234369
+mobile,1.00,0,grass_clutter_OFF,20.9,38.00,115.58,666,768949
+mobile,1.00,0,lights_OFF,16.3,32.53,53.28,704,817417
+mobile,1.00,0,characters_OFF,26.5,35.77,39.42,308,697527
+mobile,1.00,0,sun_shadows_OFF,26.1,24.78,244.11,434,686419

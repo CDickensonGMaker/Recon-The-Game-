@@ -10,7 +10,7 @@
 # files call reset_campaign(), and test_full_loop runs three missions to debrief.
 # Running the suite wiped your campaign. We now pass `-- --test-save`, which
 # CampaignState._ready() honours by redirecting to user://campaign_test.cfg.
-param([string]$Filter = "", [switch]$Verbose1)
+param([string]$Filter = "", [switch]$Verbose1, [int]$TimeoutSec = 120)
 
 $ErrorActionPreference = 'Continue'
 
@@ -59,10 +59,26 @@ $failed = 0
 $results = @()
 foreach ($t in $tests) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    $raw = & $godot --headless --path $root "res://tests/$($t.Name)" -- --test-save 2>&1
-    $exit = $LASTEXITCODE
+    $tmpOut = [IO.Path]::GetTempFileName()
+    $tmpErr = [IO.Path]::GetTempFileName()
+    $timedOut = $false
+    $proc = Start-Process -FilePath $godot -PassThru -NoNewWindow `
+        -ArgumentList @('--headless', '--path', $root, "res://tests/$($t.Name)", '--', '--test-save') `
+        -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr
+    # Touching Handle forces the object to cache it. Without this, Start-Process
+    # -PassThru leaves ExitCode NULL, ($exit -eq 0) is false, and every test on the
+    # board reports FAIL regardless of what it did.
+    $null = $proc.Handle
+    if ($proc.WaitForExit($TimeoutSec * 1000)) {
+        $exit = $proc.ExitCode
+    } else {
+        $timedOut = $true
+        try { $proc.Kill(); $proc.WaitForExit(5000) | Out-Null } catch { }
+        $exit = 124
+    }
     $sw.Stop()
-    $out = ($raw | Out-String)
+    $out = (Get-Content $tmpOut -Raw -ErrorAction SilentlyContinue) + "`n" + (Get-Content $tmpErr -Raw -ErrorAction SilentlyContinue)
+    Remove-Item $tmpOut, $tmpErr -Force -ErrorAction SilentlyContinue
 
     # Scan line-by-line so a benign leak line can be told apart from a real error
     # that happens to share the "ERROR:" prefix.
@@ -79,11 +95,14 @@ foreach ($t in $tests) {
         if ($benign) { $benignLines += $line.Trim() } else { $fatalLines += $line.Trim() }
     }
 
-    $ok = ($exit -eq 0) -and ($fatalLines.Count -eq 0)
+    $ok = (-not $timedOut) -and ($exit -eq 0) -and ($fatalLines.Count -eq 0)
     $engineErrors = $fatalLines
     $isKnownRed = $KnownRed -contains $t.BaseName
 
-    if ($isKnownRed) {
+    if ($timedOut) {
+        $verdict = "TIMEOUT"
+        $failed++
+    } elseif ($isKnownRed) {
         if ($ok) {
             $verdict = "XPASS"   # fixed! remove from $KnownRed
             $failed++
@@ -97,7 +116,8 @@ foreach ($t in $tests) {
     }
 
     $note = ""
-    if ($fatalLines.Count -gt 0) { $note = "<- " + (($fatalLines | Select-Object -First 1)) }
+    if ($timedOut) { $note = "<- HUNG: killed after ${TimeoutSec}s. A test that never exits reports nothing." }
+    elseif ($fatalLines.Count -gt 0) { $note = "<- " + (($fatalLines | Select-Object -First 1)) }
     elseif ($verdict -eq "LEAK") { $note = "<- resources leaked at exit (AUDIT-12)" }
     if ($verdict -eq "XPASS") { $note = "<- FIXED: remove from `$KnownRed" }
 
@@ -112,7 +132,9 @@ foreach ($t in $tests) {
 $xfail  = @($results | Where-Object { $_.Result -eq "XFAIL" }).Count
 $passed = @($results | Where-Object { $_.Result -eq "PASS" }).Count
 $leaked = @($results | Where-Object { $_.Result -eq "LEAK" }).Count
-Write-Host "=== $passed PASS / $leaked LEAK / $failed FAIL / $xfail XFAIL (of $($tests.Count)) ==="
+$hung   = @($results | Where-Object { $_.Result -eq "TIMEOUT" }).Count
+Write-Host "=== $passed PASS / $leaked LEAK / $failed FAIL / $xfail XFAIL / $hung TIMEOUT (of $($tests.Count)) ==="
+if ($hung -gt 0) { Write-Host "hung: $(@($results | Where-Object { $_.Result -eq 'TIMEOUT' } | ForEach-Object { $_.Test }) -join ', ')" -ForegroundColor Red }
 if ($xfail -gt 0)  { Write-Host "known-red: $($KnownRed -join ', ')" -ForegroundColor DarkGray }
 if ($leaked -gt 0) { Write-Host "leaks: $(@($results | Where-Object { $_.Result -eq 'LEAK' } | ForEach-Object { $_.Test }) -join ', ')" -ForegroundColor DarkYellow }
 exit $failed

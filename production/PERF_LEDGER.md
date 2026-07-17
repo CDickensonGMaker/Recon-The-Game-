@@ -110,3 +110,80 @@ right-sized War Room + Summoner sign-off (renderer is a 365s architecture call).
    honest floor to gate against.
 3. **`rendering_method` decision** — pick and commit a renderer (Forward+ vs Mobile vs Compatibility on
    an Intel UHD target) deliberately, not by default.
+
+---
+
+# 2026-07-16/17 OVERNIGHT — THE FIRST PER-SYSTEM ATTRIBUTION (365s Phase 0)
+
+**Method.** `tests/overnight_bench.tscn` (new, unattended): boots `ai_stress_arena.tscn`, warms up 9s,
+then drives the SAME F1–F6 toggles a human would press (injected `InputEventKey` — the real overlay
+code path, not a reimplementation), 1.5s settle + 4.0s averaged sample per configuration. GPU-ms is
+`RenderingServer.viewport_get_measured_render_time_gpu` (the real driver figure). Renderer selected
+via the `--rendering-method` CLI override — **`project.godot` was never edited**. Render scale pinned
+at runtime and recorded on EVERY row.
+
+**Hardware/scene:** Intel UHD · Godot 4.7.stable · `ai_stress_arena` = NIGHT firefight, dense jungle,
+3D trees, flares/fires, 18v18 patrol→contact. **This is the adversarial scene (5kr3), not `game_world`.**
+
+## THE HEADLINE — `all_systems_on` (no toggle applied; the trustworthy rows)
+
+| renderer | render scale | fps | GPU ms | CPU ms | draw calls | primitives |
+|---|---|---:|---:|---:|---:|---:|
+| Forward+ | **1.00 native** | **18.8** | 51.94 | 44.35 | 911 | 806,793 |
+| Forward+ | **0.75 / mode5 (shipped)** | 22.3 | 43.18 | 41.24 | 910 | 806,611 |
+| Mobile | **1.00 native** | **25.5** | 36.89 | 37.98 | 527 | 807,370 |
+| Mobile | **0.75 / mode5 (shipped)** | **29.9** | 31.24 | 34.28 | 526 | 806,125 |
+
+**NOTHING CLEARS THE 30 FPS GATE IN THE NIGHT ARENA.** Best case — Mobile at the shipped 0.75/mode5 —
+is **29.9 fps**. At native, the best any renderer manages is **25.5**.
+
+**This corrects a live claim in this ledger.** The Phase-3 entry above says *"Mobile … 40.9 fps …
+clears the gate at NATIVE"*. That was measured in `game_world` — **daytime, open ground, zero dynamic
+lights: Mobile's best case.** In the adversarial night arena Mobile at native is **25.5**, not 40.9.
+The +40% direction survives (**+36%**: 25.5 vs 18.8 at native); **the "clears the gate" conclusion does
+not.** This is exactly the n=1 problem `5kr3` was filed to catch.
+
+**Mobile roughly HALVES draw calls** (527 vs 911) at identical primitive counts.
+
+## PER-SYSTEM ATTRIBUTION — Forward+ @ native 1.00 (deltas vs 51.94ms GPU / 18.8 fps)
+
+| toggle OFF | fps | GPU ms | ΔGPU | primitives | Δprims |
+|---|---:|---:|---:|---:|---:|
+| **jungle patches (F1)** | 24.1 | 39.68 | **−12.26** | 234,355 | **−572,438** |
+| **sun shadows (F6)** | 23.4 | 39.77 | **−12.17** | 687,601 | −119,192 |
+| lights (F3) | 20.3 | 46.93 | −5.01 | 817,998 | +11,205 |
+| characters (F4) | 19.9 | 48.61 | −3.33 | 697,559 | −109,234 |
+| grass/clutter (F2) | 18.2 | 50.56 | −1.38 | 769,054 | −37,739 |
+
+**1. The jungle is the bomb, and it is now MEASURED, not asserted.** −12.26ms GPU and
+**−572,438 primitives — 71% of the frame's geometry** — from one toggle. 365s predicted "~350,000
+alpha-tested triangles of overdraw" on reasoning alone; the real figure is larger.
+
+**2. SUN SHADOWS COST AS MUCH AS THE ENTIRE JUNGLE (−12.17ms, 23% of the GPU frame) — AND THIS LEDGER
+SAYS THEY ARE OFF.** `ai_stress_arena.gd:390` reads `sun.shadow_enabled = true`. The "shadows+MSAA
+already off" line above is true of `game_world`'s project settings and **false of the arena** — the
+bench this project judges FPS by. Draft ADR-026 mandates "0 dynamic-shadow". **This is the single
+cheapest measured win available and it needs no art, no LOD, and no renderer decision.**
+
+**3. Grass/clutter is ~free (−1.38ms).** Any density pull there buys nothing and costs Pillar 2.
+
+**4. The frame is NOT lopsidedly GPU-bound.** CPU 44.35ms vs GPU 51.94ms at native. Prior notes call
+this "GPU fill-bound"; it is close to balanced, so a pure fill fix cannot get past ~19→23 fps alone.
+
+## WHAT IS NOT TRUSTWORTHY IN THIS RUN (stated, not sanded)
+
+**The MOBILE per-system deltas are INCOHERENT — do not cite them.** `mobile/1.00 lights_OFF` reports
+**16.3 fps, WORSE than the 25.5 all-on baseline**, and CPU spikes of **115.58ms / 244.11ms** appear on
+`grass_clutter_OFF` and `sun_shadows_OFF`. A 244ms CPU frame is a rebuild storm caught inside the
+sample window: the 1.5s settle is too short for Mobile to re-batch after a mass visibility change.
+**The four `all_systems_on` rows are unaffected** (first phase, post-warmup, no toggle) — the renderer
+A/B stands. The Forward+ deltas are internally coherent (all negative, monotonic) and are the
+attribution of record. Re-run Mobile attribution with a longer settle before trusting it.
+
+## STILL OWED
+
+1. **The gating FPS number is the Summoner's to set** (365s step 4). Measured floor is now honest:
+   **18.8 native / 22.3 shipped (Forward+), 25.5 native / 29.9 shipped (Mobile)** — night arena.
+2. **`rendering_method` stays `forward_plus`** — unchanged tonight. Evidence is above; the call is his.
+3. **Pillar-1 light-telegraph check under Mobile's ~8-omni cap NOT DONE** (5kr3's other half). An FPS
+   number does not answer it, and a dropped muzzle flash is a Fairness-Law breach, not an atmosphere bug.

@@ -3,9 +3,11 @@
 ## AABBs (ignoring armature/export compensation), reported k=0.028 on a correct
 ## ~1.7m export, and shrank every character 30x. Green tests coexisted with an
 ## invisible army because nothing asserted RENDERED size. This does.
-##   1. Every character .glb that ModelActor can load must stand
-##      TARGET_HEIGHT_M (1.7132m) +/- 5% AFTER normalization, measured in
-##      instance space (the same space the player's eyes use).
+##   1. Every character .glb that ModelActor can load must stand within 5% of
+##      ModelActor.target_height(unit) AFTER normalization, measured in instance
+##      space (the same space the player's eyes use). That is the unit's OWN
+##      authored height, not the roster standard: a child is 1.26m on spec, and a
+##      ruler that demands 1.7132 of him is measuring the wrong contract.
 ##   2. Feet must sit at the actor's origin (bottom of AABB ~ 0).
 ## Run: godot --headless --path . res://tests/test_model_scale.tscn
 extends Node3D
@@ -43,13 +45,14 @@ func _run() -> void:
 		checked += 1
 		var h: float = h_probe
 		var foot: float = _instance_foot(actor)
-		var target: float = ModelActor.TARGET_HEIGHT_M
+		var target: float = ModelActor.target_height(unit)
 		var ok_h: bool = absf(h - target) <= target * TOLERANCE
 		var ok_f: bool = absf(foot) <= 0.08
 		print("  %-16s rendered %.3fm (target %.3f) foot_y=%+.3f %s" % [
 			unit, h, target, foot, "OK" if (ok_h and ok_f) else "<-- FAIL"])
 		if not ok_h:
-			print("FAIL: %s renders %.3fm - the speck-soldier/giant class (n2ij)" % [unit, h])
+			print("FAIL: %s renders %.3fm, authored for %.3fm - the speck-soldier/giant class (n2ij)" % [
+				unit, h, target])
 			failures += 1
 		if not ok_f:
 			print("FAIL: %s feet float at y=%.3f" % [unit, foot])
@@ -60,39 +63,39 @@ func _run() -> void:
 		print("FAIL: zero models checked - probe is blind")
 		failures += 1
 	if failures == 0:
-		print("PASS: model scale probe (%d characters at %.4fm)" % [checked, ModelActor.TARGET_HEIGHT_M])
+		print("PASS: model scale probe (%d characters, each against its authored height)" % checked)
 	else:
 		print("FAIL: model scale probe had %d failure(s)" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
 
-## Height of the actor's rendered content in the actor's own space -
-## the same measurement a player's eye makes against the 1.7m player camera.
+## Rendered height, measured from the POSED SKELETON in world space.
+##
+## This must never go back to merging MeshInstance3D AABBs. A skinned mesh's
+## get_aabb() is its BIND POSE, in mesh space, and it does not see the skeleton
+## normalization that decides what the player actually looks at. Measured
+## 2026-07-16: civ_elder bind AABB = 2.950m with feet at -1.423, while its
+## skeleton stands at exactly 1.550m with feet at 0.000 - on spec. The ruler was
+## wrong by 90%, not the art.
 func _instance_height(actor: Node3D) -> float:
-	var bb := _world_aabb(actor)
-	return bb.size.y
+	var s: Vector2 = _skeleton_span(actor)
+	return s.y - s.x
 
 
 func _instance_foot(actor: Node3D) -> float:
-	var bb := _world_aabb(actor)
-	return bb.position.y - actor.global_position.y
+	var s: Vector2 = _skeleton_span(actor)
+	return s.x - actor.global_position.y
 
 
-func _world_aabb(root: Node3D) -> AABB:
-	var out := AABB()
-	var first := true
-	var stack: Array[Node] = [root]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.push_back(c)
-		var mi := n as MeshInstance3D
-		if mi == null or mi.mesh == null:
-			continue
-		var a: AABB = mi.global_transform * mi.get_aabb()
-		if first:
-			out = a
-			first = false
-		else:
-			out = out.merge(a)
-	return out
+## Returns (lowest_bone_y, highest_bone_y) in world space.
+func _skeleton_span(root: Node3D) -> Vector2:
+	var skel: Skeleton3D = root.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skel == null or skel.get_bone_count() == 0:
+		return Vector2.ZERO
+	var lo: float = INF
+	var hi: float = -INF
+	for i in skel.get_bone_count():
+		var p: Vector3 = (skel.global_transform * skel.get_bone_global_pose(i)).origin
+		lo = minf(lo, p.y)
+		hi = maxf(hi, p.y)
+	return Vector2(lo, hi)

@@ -1,0 +1,7 @@
+renderer,render_scale,scaling_mode,config,fps,gpu_ms,cpu_ms,draw_calls,primitives
+forward_plus,0.75,5,all_systems_on,22.3,43.18,41.24,910,806611
+forward_plus,0.75,5,jungle_patches_OFF,27.0,33.70,32.85,891,234536
+forward_plus,0.75,5,grass_clutter_OFF,21.9,41.17,56.21,970,769900
+forward_plus,0.75,5,lights_OFF,23.1,39.77,44.67,1024,817938
+forward_plus,0.75,5,characters_OFF,23.7,39.97,44.83,428,697568
+forward_plus,0.75,5,sun_shadows_OFF,28.6,30.70,64.53,464,685244
