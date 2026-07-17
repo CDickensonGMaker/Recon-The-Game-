@@ -64,3 +64,11 @@ production/war_room/**/*.translation
 production/war_room/**/*.csv.import
 # Stale throwaway preview renders
 *_STALE_*
+
+# Cinematics render outputs - regenerable + heavy (frame dumps ~95MB, video encodes,
+# ~300MB per cutscene). Sources (.blend, stills) stay tracked; the renders never enter history.
+production/cinematics/**/frames/
+production/cinematics/**/*.mp4
+production/cinematics/**/*.ogv
+production/cinematics/**/*.mkv
+production/cinematics/**/*.webm
