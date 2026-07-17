@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cwconfirm47225a"]
+
+[ext_resource type="Script" path="res://tests/windowed_confirm_47225.gd" id="1_wc47"]
+
+[node name="WindowedConfirm47225" type="Node"]
+script = ExtResource("1_wc47")
