@@ -1,9 +1,30 @@
 # MORNING SUMMARY — overnight run of 2026-07-16/17
 
-**Ran:** Stages 1, 2 (parked), 3, 4, 11 of the 23 in `overnight_plan_2026-07-16.md`.
+**Ran:** Wave 1 — Stages 1, 2 (parked), 3, 4, 11. **Wave 2** — `xo7i`, the hung tests, the bench
+anomalies, the shadow question. (Of 23 planned.)
 **Desktop:** clean — zero Godot processes, no windows open, `project.godot` untouched.
-**Verdict in one line:** **the night found that three of this project's instruments were lying, and one
-of the liars was the fix I wrote at 1am.** Everything below is measured or it says it isn't.
+**Verdict in one line:** **five of this project's instruments were lying, and three of the liars were
+mine, written during the night while hunting the other two.** Everything below is measured or it says
+it isn't.
+
+> ### ⚠ READ THIS BEFORE ACTING ON ANY NUMBER
+> Wave 2 **withdrew three numbers Wave 1 published as fact** (lights/characters/grass attribution) and
+> **corrected one framing** (the sun shadow is deliberate, not a bug). The withdrawals are in §1.1 and
+> §3.4. `PERF_LEDGER.md` is corrected in place — **read its CORRECTION block, not the table above it.**
+> Two findings survive: **the jungle** and **the renderer A/B**.
+
+---
+
+# 0. WAVE 2 DELTA (what changed since the first report)
+
+| | Wave 1 said | Wave 2 measured | Status |
+|---|---|---|---|
+| **`xo7i`** | "breaking the build — fix the generator so low ground exists" | **Already implemented** by his Worldgen Wave 1, working exactly (40/60 split, exact over 200 seeds). Its *description* is stale. | **CLOSED**; paddy failure retargeted to `v58s` |
+| **The paddies** | (attributed to `xo7i`) | **Map floor is 140m** on the flattest inhabited preset. Presets set *relief*, not *base elevation*. `v58s`'s original diagnosis survives word-for-word; only the number moved (87.9m → **140m — it went UP**). | `v58s` = the live P0 |
+| **"4 hung tests"** | 4 hangs | **2 true hangs.** `test_hub_loop` runs **167s** and was never hung — **my 120s box mislabelled slow as hung.** | corrected; box → 420s |
+| **`test_ai_fairness`** | "hangs — Fairness Law unguarded" | **Confirmed and FIXED.** Cause: Track C deleted `_exposure_spread_mult()`; the probe still called it → SCRIPT ERROR → coroutine aborted → `quit()` never reached → hang. | **PASS, red-proven** |
+| **Attribution (lights/chars/grass)** | published as fact | **Withdrawn — inside the noise.** A control of 6 identical phases drifts ±10% fps / +25% draw calls. | retracted |
+| **Sun shadow** | "cheapest win, no decision needed" | **ADR-026 draft grants the night sun "the one allowed dynamic shadow".** Deliberate, not a leftover. | untouched; his call |
 
 ---
 
@@ -63,13 +84,37 @@ draw calls** (527 vs 911). The decree's *direction* survives the adversarial tes
 that was `game_world`: daytime, open ground, zero dynamic lights, **Mobile's best case**. Here it is
 **25.5**. The renderer is not the fix; it is a 36% discount on a frame that is ~70% too slow.
 
-### What is NOT trustworthy (said out loud, not sanded)
+### ⚠ WAVE 2 KILLED MY OWN ATTRIBUTION — three of the five rows above are WITHDRAWN
 
-**The Mobile per-system deltas are incoherent — do not cite them.** `mobile/1.00 lights_OFF` reports
-**16.3 fps, worse than its own 25.5 all-on baseline**, with CPU spikes of **115ms and 244ms**. That is a
-re-batch storm inside the sample window — 1.5s settle is too short for Mobile after a mass visibility
-change. The four `all_systems_on` rows are unaffected (first phase, no toggle), so the renderer A/B
-stands. The Forward+ deltas are coherent and are the attribution of record.
+Wave 1 blamed the Mobile anomaly on "a re-batch storm / too-short settle". **Wrong.** A 5s settle
+(vs 1.5s) reproduced it (21.5 fps, still worse than baseline) — which forced a **control**: six
+**identical** `all_systems_on` phases, **no toggle ever pressed**:
+
+```
+control_t0  17.9 fps  GPU 54.04  CPU 45.94  calls 1,013
+control_t3  15.7 fps  GPU 49.60  CPU 68.76  calls 1,243
+control_t5  16.8 fps  GPU 50.19  CPU 66.49  calls 1,268
+```
+
+**Nothing changed. fps swings ±10%, draw calls climb +25%, CPU swings ±47%.**
+
+**`ai_stress_arena` is a live 18v18 firefight and it ESCALATES WHILE YOU MEASURE IT** — waves
+reinforce, corpses and gibs accumulate, flares drift. **A sequential toggle-diff conflates the toggle
+with the clock.** That is why `lights_OFF` read *slower* than all-on while **draw calls ROSE 627→864**:
+a hidden light cannot add 237 draw calls — the arena did. The impossibility ("turning work off cost
+frames") was the only reason I looked.
+
+| finding | verdict against a ±3.3 fps / ±255-call / ±4.4ms noise floor |
+|---|---|
+| **jungle patches −12.26ms, −572,438 prims** | **STANDS** — ~4× the drift band; 71% of all geometry |
+| **sun shadows −12.17ms** | **STANDS** — ~3× the GPU noise band, and measured at the *most* contaminated phase, so if anything **understated** |
+| lights −5.01ms · characters −3.33ms · grass −1.38ms | **WITHDRAWN — inside the noise.** "Grass is free" is **not established**; do not act on it |
+| **the renderer A/B** | **STANDS** — all four rows are phase 1, same point on the escalation curve; +36% ≫ ~1 fps spread |
+| **"nothing clears 30"** | **STANDS** — the whole drift band sits below 30 |
+
+**Method debt:** a live firefight is the right scene for a **renderer A/B** (same timepoint, two builds)
+and the **wrong** scene for a **toggle-diff**. Per-system attribution needs a frozen arena (no
+reinforcement waves, no corpse accumulation) or A/B/A re-baselining between toggles.
 
 ## 1.2 THE FIRST HONEST COMPLETE SUITE RUN IN THIS PROJECT'S HISTORY
 
@@ -158,6 +203,23 @@ a contradiction. **For ~20 minutes this project had a harness reporting 64/64 FA
 the exact disease I was hunting, introduced by the fix for it, by me.** An instrument is not
 trustworthy because it is new.
 
+## 3.4 WAVE 2: the fourth and fifth lying instruments — both mine
+
+**(4) My 120s timeout invented two hangs.** I reported "4 hanging tests". **`test_hub_loop` runs 167s
+and exits on its own** — its waits are bounded (`while ... t < 150.0`). It was never hung; my box was
+too short, and my note said **"HUNG: killed after 120s"** — an overclaim stated as fact. Box raised to
+420s and relabelled *"exceeded the box: hung, or slower than the box. Check before calling it hung."*
+**Real tally: 2 true hangs** (`test_ai_fairness` — fixed; `test_vehicle_kill` — confirmed at a 240s box).
+
+**(5) My bench attributed the clock to the toggle** (§1.1). Three published numbers withdrawn.
+
+**And I nearly "fixed" a design decision.** I called `sun.shadow_enabled = true` an unintentional
+leftover and "the cheapest measured win". **ADR-026 draft line 29 grants the night sun "the one allowed
+dynamic shadow."** It is deliberate. Untouched. What *is* real: `game_world.gd:48` sets
+`shadow_enabled = false` while the arena sets it true — **the bench is harder than the shipped game**,
+so ~12ms of my headline numbers may not be a cost the shipped night world pays. That is an ADR-026
+question, not a bug.
+
 ## 3.3 Not reached (18 of 23 stages)
 
 `t6z9`, `bgfq`, `x2za`, `s14j`, `j3ke`, `zpw2`, `8vtl a/b/c`, `6d1s`, `eq6n`/`x1bs`, `qnth`/`a662`,
@@ -187,15 +249,39 @@ No stage was faked, and nothing was left half-applied.
 
 # 5. WHAT CHANGES THE PLAN GOING FORWARD
 
-1. **`xo7i` is no longer just "one terrain preset" — it is breaking the build.** `PaddyStamper: only 0
-   village anchors produced (floor=8). AO is malformed` fails **4 campaign tests**. Wave 1 landed a
-   stamper that requires paddies onto a generator that has never made low ground. **`xo7i` should be
-   the next stage after the push, ahead of the cosmetic fossil work.**
+1. **`v58s` — not `xo7i` — is the live P0, and Wave 2 has the whole chain measured.** `xo7i` is
+   **implemented and closed** (his Worldgen Wave 1 shipped it; verified 40/60 exact over 200 seeds).
+   **Its thesis was wrong**, and only a measurement could show it: presets set **relief**, not **base
+   elevation**. On seed 606 (COASTAL_HILLS, the *flattest* inhabited preset):
+   ```
+   [HeightmapStorage] Height: min=0.40 max=0.58 (normalized) × WORLD_HEIGHT_MAX 350  →  FLOOR = 140m
+   [BillboardVegetation] Generated 1491 tree + 0 rice billboards      ← every chunk, still
+   ```
+   **The floor did not drop from 87.9m. It went UP to 140m.** Every paddy gate needs `< 50m`
+   (`gameplay_grid.gd:287,299`, `vegetation_manager.gd:314` — all live, all unreachable). The stamper
+   flood-fills *from* that dead classification (`paddy_stamper.gd:57`), gets 0 clusters, misses
+   `HARD_FLOOR_VILLAGES = 8`, and `push_error`s **"AO is malformed"** — failing 4 campaign tests.
+   **The AO is not malformed; the stamper's precondition is false.**
+   **I fixed nothing here.** All three candidate fixes (lower the terrain base / make the gate relative
+   / gate the floor on archetype) change worldgen shape or *"the user's minimum villages per AO"* —
+   and `v58s`'s real build is ADR-027-gated. **Ratify ADR-027 and this becomes the top unblocked P0.**
+2. **A second contradiction inside the paddy story, worth its own decision:** the stamper has **zero**
+   references to preset/archetype — it demands 8 villages on **every** AO. But `5r4y`'s 40/60 means
+   **60% of AOs are EMPTY by design** (90–300m relief). Even with elevation fixed, seed 848
+   (ROLLING_HILLS) still hard-errors. **"floor=8 on every AO" and "the 40/60 empty war" cannot both be
+   true.**
 2. **The suite is now usable — so use it.** `8vtl`'s "10 reds" (07-13) is superseded: **23 FAIL / 4
    TIMEOUT / 36 PASS**, and the reds collapse to ~5 causes. Two of them (paddy ×4, RID leak ×7) are
    worth more than the other 21 lines combined.
-3. **`test_ai_fairness` hangs — so the Fairness Law currently has NO WORKING GUARD.** ADR-005's probe
-   never returns. That is a pillar guarded by nothing.
+3. **The Fairness Law had no guard, and one deleted function is why — FIXED, and this is the night's
+   sharpest lesson.** `test_ai_fairness` didn't fail, it **hung**: `ba3f941b` created
+   `_exposure_spread_mult()` *and* the probe (suite then: *"32 PASS / 0 FAIL"*); `f746462` **Track C**
+   deleted the function and left the probe calling it. SCRIPT ERROR → `await` coroutine aborted →
+   `quit()` unreachable → infinite hang → **with no timeout, the whole suite hung on it** → nobody ran
+   the suite → nobody saw that **Pillar 1 was unguarded**. *One deleted function silently disabled this
+   project's entire test suite.* Track C obeyed the fossil law (deleted the old system) but **left the
+   caller** — the fossil law needs a matching rule: *delete the system, and everything that calls it.*
+   Now: `x3.0 fresh → x2.50 half → x1.0 converged`, PASS, **proven red** by zeroing `EXPOSURE_PEAK`.
 4. **The sun-shadow finding retires the "measure before optimizing" wait.** We have the profile now.
    The two biggest GPU costs are **jungle patches (−12.26ms)** and **a shadow the docs say is off
    (−12.17ms)**. Trunk colliders (`eaqv`/`2v3t`) can now be reasoned about — and the answer is still
