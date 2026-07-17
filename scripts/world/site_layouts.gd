@@ -72,5 +72,8 @@ const FIREBASE_VEHICLES: Array[String] = [
 const FIREBASE_PERIMETER_RADIUS: float = 30.0
 const FIREBASE_WIRE_RADIUS: float = 38.0
 const FIREBASE_HELIPAD_OFFSET := Vector2(18, 0)
-const VILLAGE_RING_RADIUS_MIN: float = 8.0
-const VILLAGE_RING_RADIUS_MAX: float = 18.0
+
+## Villages scatter their huts across a footprint with a hard minimum separation
+## between any two structures (no tight ring). ADR-027-D: use the space.
+const VILLAGE_MIN_STRUCTURE_SEP: float = 14.0
+const VILLAGE_FOOTPRINT_RADIUS: float = 34.0

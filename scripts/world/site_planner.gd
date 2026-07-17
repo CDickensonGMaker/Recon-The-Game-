@@ -23,8 +23,11 @@ func _init(grid: GameplayGrid, terrain: TerrainManager, veg: VegetationManager, 
 
 
 ## Find a site center: footprint circle must be non-water, non-cliff, low slope,
-## and >= min_separation from every already-placed site. Returns Vector3.ZERO on failure.
-func find_site(rng: RandomNumberGenerator, radius: float, min_separation: float = 200.0) -> Vector3:
+## and >= min_separation from every already-placed site, _reserved point, and any
+## point in extra_reject. extra_reject is used by callers that need to keep sites
+## away from a class of terrain (e.g. paddy centroids for firebase placement).
+## Returns Vector3.ZERO on failure.
+func find_site(rng: RandomNumberGenerator, radius: float, min_separation: float = 200.0, extra_reject: Array[Vector3] = []) -> Vector3:
 	var map_size: float = _terrain.map_size
 	var best := Vector3.ZERO
 	var best_score: float = -1.0
@@ -44,6 +47,11 @@ func find_site(rng: RandomNumberGenerator, radius: float, min_separation: float 
 		if sep_ok:
 			for r in _reserved:
 				if p.distance_to(r) < min_separation:
+					sep_ok = false
+					break
+		if sep_ok:
+			for er in extra_reject:
+				if p.distance_to(er) < min_separation:
 					sep_ok = false
 					break
 		if not sep_ok:
@@ -173,44 +181,113 @@ func _apply_visibility_range(node: Node) -> void:
 		_apply_visibility_range(child)
 
 
-## VILLAGE: ring of huts + center feature + weapons cache (+ hidden tunnel).
-func stamp_village(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	var nodes: Array[Node3D] = []
+## VILLAGE: huts scattered across a flattened footprint, >= 14m between any two
+## structures (ADR-027-D), on level dry ground; center feature + cache + tunnel.
+func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: Array[NodePath] = []) -> Dictionary:
 	var hut_count: int = rng.randi_range(7, 10)
-	for i in range(hut_count):
-		var a := TAU * float(i) / float(hut_count) + rng.randf_range(-0.2, 0.2)
-		var r := rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MIN, SiteLayouts.VILLAGE_RING_RADIUS_MAX)
-		var pos := center + Vector3(cos(a), 0, sin(a)) * r
+	var footprint_r: float = SiteLayouts.VILLAGE_FOOTPRINT_RADIUS
+	# One shared foundation: level the ground + clear vegetation under the footprint.
+	clear_and_flatten(center, footprint_r + 6.0)
+
+	var nodes: Array[Node3D] = []
+	var placed: Array[Vector3] = [center]  # center feature reserves the middle
+	var sep: float = SiteLayouts.VILLAGE_MIN_STRUCTURE_SEP
+
+	for pos in _scatter_huts(center, footprint_r, hut_count, sep, rng, placed):
+		placed.append(pos)
+		var a: float = atan2(pos.z - center.z, pos.x - center.x)
 		var model: String = SiteLayouts.VILLAGE_HUT_MODELS[rng.randi() % SiteLayouts.VILLAGE_HUT_MODELS.size()]
 		var hut := place_structure(model, pos, rad_to_deg(a) + 90.0 + rng.randf_range(-15, 15))
 		hut.add_to_group("flammable_structures")  # R71: thatch catches fire
 		nodes.append(hut)
+
 	var center_model: String = SiteLayouts.VILLAGE_CENTER_MODELS[rng.randi() % SiteLayouts.VILLAGE_CENTER_MODELS.size()]
 	nodes.append(place_structure(center_model, center, rng.randf_range(0, 360)))
-	# Cache tucked behind a random hut.
-	var cache_a := rng.randf_range(0, TAU)
-	var cache_pos := center + Vector3(cos(cache_a), 0, sin(cache_a)) * (SiteLayouts.VILLAGE_RING_RADIUS_MAX + 4.0)
+
+	# Auxiliary VC props are deliberately concealed among/around the huts (a cache
+	# tucked behind a hut, spider holes between them, punji on the approaches), so
+	# they are off water but NOT held to the >=14m building separation.
+	var cache_pos: Vector3 = _dry_point(center, footprint_r * 0.5, footprint_r, rng)
 	var cache := place_structure(SiteLayouts.CACHE_MODEL, cache_pos, rng.randf_range(0, 360))
 	nodes.append(cache)
-	var tunnel_pos := center + Vector3(cos(cache_a + PI), 0, sin(cache_a + PI)) * (SiteLayouts.VILLAGE_RING_RADIUS_MAX + 6.0)
+
+	var tunnel_pos: Vector3 = _dry_point(center, footprint_r * 0.5, footprint_r, rng)
 	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, tunnel_pos, 0.0))
-	# VC scatter props: 0-2 spider holes / punji pits tucked between huts.
+
 	for _s in range(rng.randi_range(0, 2)):
-		var sa := rng.randf() * TAU
-		var sr := rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MIN * 0.5, SiteLayouts.VILLAGE_RING_RADIUS_MAX * 0.9)
-		var sp := center + Vector3(cos(sa), 0, sin(sa)) * sr
+		var sp: Vector3 = _dry_point(center, sep, footprint_r, rng)
 		var sm: String = SiteLayouts.VILLAGE_SCATTER_MODELS[rng.randi() % SiteLayouts.VILLAGE_SCATTER_MODELS.size()]
 		nodes.append(place_structure(sm, sp, rng.randf_range(0, 360)))
-	# VC punji traps on the approaches (booby trap for US troops - Point man / careful
-	# movement is the counterplay). Just outside the hut ring, avoiding water.
+
 	for _t in range(rng.randi_range(1, 2)):
-		var ta := rng.randf() * TAU
-		var tp := center + Vector3(cos(ta), 0, sin(ta)) * rng.randf_range(SiteLayouts.VILLAGE_RING_RADIUS_MAX + 3.0, SiteLayouts.VILLAGE_RING_RADIUS_MAX + 12.0)
-		if not _grid.is_water(tp):
-			nodes.append(PunjiTrap.place(_parent, _terrain, tp, ta))
-	var site := {"kind": "village", "center": center, "nodes": nodes, "cache": cache, "cache_pos": cache_pos, "radius": SiteLayouts.VILLAGE_RING_RADIUS_MAX + 8.0}
+		var tp: Vector3 = _dry_point(center, footprint_r + 3.0, footprint_r + 12.0, rng)
+		var ta: float = atan2(tp.z - center.z, tp.x - center.x)
+		nodes.append(PunjiTrap.place(_parent, _terrain, tp, ta))
+
+	# working_points is a write-only contract the activity system reads.
+	var site := {
+		"kind": "village",
+		"center": center,
+		"nodes": nodes,
+		"cache": cache,
+		"cache_pos": cache_pos,
+		"radius": footprint_r + 8.0,
+		"working_points": working_points,
+	}
 	placed_sites.append(site)
 	return site
+
+
+## Scatter up to `count` hut positions in the footprint disk, each >= min_sep from
+## every already-placed structure and off water. Never collides and never relaxes
+## the separation: on a cramped/wet site it returns FEWER huts rather than stack
+## them. Grows the disk within the flattened band to hit the target when it can.
+func _scatter_huts(center: Vector3, footprint_r: float, count: int, min_sep: float,
+		rng: RandomNumberGenerator, placed: Array[Vector3]) -> Array[Vector3]:
+	var result: Array[Vector3] = []
+	var r: float = footprint_r
+	var r_max: float = footprint_r + 4.0  # stays inside the flattened (+6) band
+	for _grow in range(6):
+		var attempts: int = count * 25
+		while result.size() < count and attempts > 0:
+			attempts -= 1
+			var p: Vector3 = _disk_point(center, r, rng)
+			if _grid.is_water(p) or not _separated(p, min_sep, placed, result):
+				continue
+			result.append(p)
+		if result.size() >= count:
+			break
+		r = minf(r_max, r + 2.0)
+	return result
+
+
+## One off-water point in the annulus [r_min, r_max]. Never returns origin: on a wet
+## site it falls back to an offset from the (dry-validated) centre.
+func _dry_point(center: Vector3, r_min: float, r_max: float, rng: RandomNumberGenerator) -> Vector3:
+	for _i in range(40):
+		var a: float = rng.randf() * TAU
+		var rad: float = rng.randf_range(r_min, r_max)
+		var p: Vector3 = center + Vector3(cos(a), 0, sin(a)) * rad
+		if not _grid.is_water(p):
+			return p
+	var fa: float = rng.randf() * TAU
+	return center + Vector3(cos(fa), 0, sin(fa)) * r_min
+
+
+func _disk_point(center: Vector3, r: float, rng: RandomNumberGenerator) -> Vector3:
+	var a: float = rng.randf() * TAU
+	var rad: float = sqrt(rng.randf()) * r  # uniform over the disk area
+	return center + Vector3(cos(a), 0, sin(a)) * rad
+
+
+func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]) -> bool:
+	for q in a:
+		if p.distance_to(q) < min_sep:
+			return false
+	for q in b:
+		if p.distance_to(q) < min_sep:
+			return false
+	return true
 
 
 ## FIREBASE: flattened pad, interior buildings, sandbag+wire rings, MG nests,

@@ -2,11 +2,13 @@ extends RefCounted
 class_name GameplayGrid
 ## Grid-based metadata storage for efficient game logic queries
 ## Stores elevation, terrain type, movement cost, cover values per cell
-## Designed for RTS gameplay - travel speed modifiers, combat bonuses, pathfinding
 
 signal grid_updated(region: Rect2i)
 
-# Grid dimensions
+# Mission seed flows in from game_world.gd. Used to make per-cell classification
+# and LOS checks deterministic by (mission, world-cell). (RECONgame-cp3s, RECONgame-5r4y)
+var mission_seed: int = 0
+
 var grid_size: int = 256  # Cells per side
 var cell_size_meters: float = 12.0  # Meters per cell (larger than heightmap for perf)
 var world_size: float = 3072.0  # Total world size in meters
@@ -59,14 +61,12 @@ const DEFENSE_BONUS: Dictionary = {
 	TerrainType.CLIFF: 0.4,
 }
 
-# Grid data arrays (packed for memory efficiency)
 var elevation: PackedFloat32Array      # Height in meters
 var slope: PackedFloat32Array          # Slope angle 0-1 (0=flat, 1=vertical)
 var terrain_type: PackedByteArray     # TerrainType enum
 var vegetation_density: PackedFloat32Array  # 0-1 vegetation coverage
 var is_passable: PackedByteArray      # 0=blocked, 1=passable
 
-# References
 var heightmap_storage: RefCounted  # HeightmapStorage
 var clearing_system: Node
 var water_system: Node  # WaterSystem for water queries
@@ -77,7 +77,6 @@ func _init(world_size_meters: float = 3072.0, cells_per_side: int = 256) -> void
 	grid_size = cells_per_side
 	cell_size_meters = world_size / grid_size
 
-	# Initialize arrays
 	var total_cells: int = grid_size * grid_size
 	elevation.resize(total_cells)
 	slope.resize(total_cells)
@@ -85,7 +84,6 @@ func _init(world_size_meters: float = 3072.0, cells_per_side: int = 256) -> void
 	vegetation_density.resize(total_cells)
 	is_passable.resize(total_cells)
 
-	# Default values
 	elevation.fill(0.0)
 	slope.fill(0.0)
 	terrain_type.fill(TerrainType.GRASSLAND)
@@ -98,7 +96,6 @@ func _init(world_size_meters: float = 3072.0, cells_per_side: int = 256) -> void
 	])
 
 
-## Set references
 func set_heightmap(hm: RefCounted) -> void:
 	heightmap_storage = hm
 
@@ -111,7 +108,6 @@ func set_water_system(ws: Node) -> void:
 	water_system = ws
 
 
-## Build grid from heightmap and vegetation data
 func build_from_terrain() -> void:
 	if not heightmap_storage:
 		push_warning("[GameplayGrid] No heightmap set, using defaults")
@@ -128,23 +124,16 @@ func build_from_terrain() -> void:
 			var world_x: float = (gx + 0.5) * cell_size_meters
 			var world_z: float = (gz + 0.5) * cell_size_meters
 
-			# Sample elevation
 			var h: float = heightmap_storage.sample_world(world_x, world_z)
 			elevation[idx] = h
 
-			# Calculate slope from heightmap normal
 			var normal: Vector3 = heightmap_storage.get_normal_world(world_x, world_z)
 			var slope_val: float = 1.0 - normal.y  # 0=flat, 1=vertical
 			slope[idx] = clampf(slope_val, 0.0, 1.0)
 
-			# Determine terrain type from slope and elevation
 			var ttype: int = _determine_terrain_type(h, slope_val, world_x, world_z)
 			terrain_type[idx] = ttype
 
-			# Passability. WATER used to be a flat NO - a knee-deep creek and a 50m river
-			# were the same wall. But the creeks ARE the escape routes (water breaks the
-			# breadcrumb trail - EnemySquad, ADR-021/LW-12), and a barrier you cannot enter
-			# cannot save you. So: WADE THE SHALLOWS, ford the deep.
 			var impassable: bool = ttype == TerrainType.CLIFF
 			if ttype == TerrainType.WATER:
 				impassable = get_water_depth(Vector3(world_x, 0.0, world_z)) > WADE_DEPTH_M
@@ -160,80 +149,30 @@ func build_from_terrain() -> void:
 	print("[GameplayGrid] Grid built in %dms" % elapsed)
 
 
-## GALLERY FOREST — the green tunnel along every watercourse.
-##
-## THE BUG THIS FIXES. _determine_terrain_type() reads elevation and slope ONLY. A
-## creek valley is low and flat, so its BANKS classified as RICE_PADDY (density 0.2)
-## or GRASSLAND (0.3) — a sight cap around 130m. Every stream in the game ran through
-## OPEN GROUND.
-##
-## Which made water a DEATH TRAP instead of an escape route: wading breaks the enemy's
-## breadcrumb trail (shipped 2026-07-12), but you were doing it slow, loud, and visible
-## from 130m. The exact opposite of the thing it exists for.
-##
-## In life it is the other way round. Water plus edge-light is a riot of growth: a
-## watercourse is the DENSEST vegetation in the jungle, and a Vietnamese stream is a
-## tunnel of green. This dilates the water mask outward and grows real gallery forest
-## on the banks, densest at the water and thinning with distance.
-##
-## Now the creek both ERASES YOUR TRAIL and HIDES YOU, and the hydrology network the
-## terrain already generates becomes the E&E network.
-## ========================= THE DENSITY KNOBS =========================
-## vegetation_density (0-1) is THE number the AI reads. enemy_base._sight_cap()
-## lerps 140m (open) -> 45m (deep jungle) straight off it. Turn these and you turn
-## how far the enemy can see you, everywhere, at once.
-##
-## FOUR TABLES DECIDE WHAT THE JUNGLE IS. They are separate and they CAN disagree:
-##   1. _determine_terrain_type()  (below)  elevation/slope -> WHICH terrain type
-##   2. _estimate_vegetation()     (below)  terrain type    -> the AI's density   <-- THE ONE THAT MATTERS
-##   3. JunglePatchLayer.TYPE_DENSITY       terrain type    -> which 12m patches get stamped
-##   4. VegetationManager.TYPE_PROPS        terrain type    -> how many loose plants get drawn
-## 2 is the truth the AI plays against. 3 and 4 are what the player SEES. If they
-## drift apart, the jungle lies: it looks thick and they shoot you through it.
+## Gallery forest: watercourses carry the DENSEST vegetation. Dilates the water mask
+## outward and grows density on the banks -- densest at the water, thinning outward.
+## vegetation_density (0-1) is what enemy_base._sight_cap() reads (140m open -> 45m dense).
+## Four tables must agree or the jungle lies: _determine_terrain_type -> terrain type,
+## _estimate_vegetation -> the AI's density, JunglePatchLayer.TYPE_DENSITY -> which patches
+## get stamped, VegetationManager.TYPE_PROPS -> how many loose plants get drawn.
 const RIPARIAN_M: float = 22.0     ## how far gallery forest reaches from the bank
 const GALLERY_MIN: float = 0.55    ## density at the OUTER edge of the belt
 const GALLERY_MAX: float = 0.95    ## density right at the waterline
 const WADE_DEPTH_M: float = 1.2    ## deeper than this and you are swimming, not wading
 
-## THE ROOF. A narrow creek in the forest is COVERED - the canopy from both banks
-## meets over the water. A wide river is open to the sky. This is the difference
-## between a stream you can escape down and a stream that gets you killed.
+## Roof: a narrow creek is covered -- canopy from both banks meets over the water.
+## A wide river is open to the sky.
 const ROOF_SAMPLE_M: float = 11.0  ## how far out we look to decide "is this narrow?"
 const ROOF_NARROW: float = 0.72    ## land fraction at/above which the canopy fully closes
 const ROOF_WIDE: float = 0.30      ## land fraction at/below which it is open sky
 const ROOF_FACTOR: float = 0.95    ## the canopy closes, but never quite like solid ground
 
 
-## WHAT THE PLAYER (AND HIS ORDNANCE) CUT DOWN.
-##
-## THE BUG: both call sites guarded on `clearing_system.has_method("get_density_at")`
-## and THAT METHOD DOES NOT EXIST ANYWHERE. The guard was permanently false, so
-## update_region() ran its body NEVER, mark_cleared() was called by NOTHING, and
-## TerrainType.CLEAR could not exist at runtime.
-##
-## Consequence: EVERY LZ IN THE GAME WAS A LIE. stamp_lz() flattens the ground and
-## deletes the plants, so it LOOKS like a clearing - but the grid still reported the
-## pre-clear jungle density, and enemy_base._sight_cap() read that number. The player
-## stood in a bald 16m disc while the AI behaved as though he were under triple canopy
-## (45m instead of 140m).
-##
-## ⚠ AND THE OBVIOUS FIX IS A LANDMINE. DESTRUCTIBLE_JUNGLE_PLAN called this "the
-## one-word bug" and prescribed swapping in get_vegetation_density(). Do that and the
-## game breaks WORSE, because:
-##   clearing_system.gd:81  vegetation_map.fill(Color(1,1,1,1))   # FULL VEGETATION
-## ClearingSystem's map starts at 1.0 EVERYWHERE and is only ever LOWERED inside a
-## clearing zone (:242). IT IS A CLEARING MASK, NOT A DENSITY - it is never populated
-## from the terrain. A straight swap returns 1.0 for every cell on the map: a 45m
-## sight cap over open paddy, grassland, river and bald clearing alike, every biome
-## erased, and the gallery forest and roofed creeks silently overridden.
-## (It is not even a rename: get_vegetation_density takes ONE Vector3; these sites
-## passed TWO floats.)
-##
-## SO IT IS A MERGE, NOT A REPLACEMENT. Clearing only ever SUBTRACTS. It is a
-## MINIMUM, never a source of truth:
+## Biome density MERGED with what has been cleared. ClearingSystem's vegetation map is
+## fill(1.0) everywhere and only ever LOWERED inside a clearing zone: it is a clearing
+## MASK, not a density. Never read it as a source of truth -- take it as a MINIMUM:
 ##     uncleared -> min(biome, 1.0) = the biome, untouched
 ##     cleared   -> min(biome, 0.0) = zero
-## Every LZ becomes real, and the world survives.
 func _density_at(ttype: int, world_x: float, world_z: float) -> float:
 	var d: float = _estimate_vegetation(ttype)
 	if clearing_system != null and clearing_system.has_method("get_vegetation_density"):
@@ -275,7 +214,6 @@ func _apply_riparian_belt() -> void:
 					continue
 				dist[n] = d + 1
 				next.append(n)
-				# Cliffs stay cliffs; water stays water. Everything else greens up.
 				if terrain_type[n] == TerrainType.CLIFF or terrain_type[n] == TerrainType.WATER:
 					continue
 				# Densest at the bank, thinning outward.
@@ -289,22 +227,9 @@ func _apply_riparian_belt() -> void:
 	print("[GameplayGrid] Gallery forest: %d bank cells greened (reach %.0fm)" % [banks, RIPARIAN_M])
 
 
-## CREEKS IN THE FOREST — put the roof back on.
-##
-## Water cells got vegetation_density 0.0 (they fell through _estimate_vegetation's
-## default) and JunglePatchLayer.TYPE_DENSITY has no WATER entry, so NOTHING was ever
-## stamped on them. A creek was a bald 140m firing lane cut through the middle of the
-## best cover on the map - and since wading is how you break the enemy's breadcrumb
-## trail, the one escape route in the game was also the one place you could be seen
-## from six times further away.
-##
-## In a real jungle the canopy CLOSES OVER a narrow stream. You wade a green tunnel.
-## A wide river is open to the sky and you are naked in it - and that asymmetry is
-## exactly the choice we want the player making.
-##
-## So each water cell is re-scored by HOW NARROW IT IS: look ROOF_SAMPLE_M around it,
-## measure what fraction is land, and inherit that land's canopy. A 4m creek between
-## two walls of gallery forest is roofed. A 40m river is not.
+## Water cells are re-scored by HOW NARROW they are: sample ROOF_SAMPLE_M around each,
+## measure the fraction that is land, and inherit that land's canopy. A narrow creek
+## between two walls of gallery forest is roofed; a wide river is open to the sky.
 func _roof_the_creeks() -> void:
 	var r: int = maxi(1, int(round(ROOF_SAMPLE_M / cell_size_meters)))
 	var roofed: int = 0
@@ -346,14 +271,12 @@ func _roof_the_creeks() -> void:
 	grid_updated.emit(Rect2i(0, 0, grid_size, grid_size))
 
 
-## Determine terrain type from elevation and slope
 func _determine_terrain_type(height: float, slope_val: float, wx: float, wz: float) -> int:
 	# Check water system first (most accurate water detection)
 	if water_system and water_system.has_method("is_water"):
 		if water_system.is_water(wx, wz):
 			return TerrainType.WATER
 
-	# Cliff detection (steep slopes)
 	if slope_val > 0.7:
 		return TerrainType.CLIFF
 
@@ -361,17 +284,19 @@ func _determine_terrain_type(height: float, slope_val: float, wx: float, wz: flo
 	if height < 2.0:
 		return TerrainType.WATER
 
-	# Low flat areas = rice paddies
 	if height < 5.0 and slope_val < 0.1:
 		return TerrainType.RICE_PADDY
 
-	# Medium slopes = lighter vegetation
 	if slope_val > 0.4:
 		return TerrainType.LIGHT_JUNGLE
 
 	# Based on elevation zones (Vietnam terrain)
+	# Se RNG: deterministic per (mission, world-cell). Same mission -> same terrain type. (cp3s)
+	var _rng := RandomNumberGenerator.new()
+	_rng.seed = hash([Vector2(wx, wz), mission_seed])
 	if height < 50.0:
-		return TerrainType.RICE_PADDY if randf() < 0.3 else TerrainType.GRASSLAND
+		# ADR-027-D: rice paddies +50% - the lowland paddy fraction 0.30 -> 0.45.
+		return TerrainType.RICE_PADDY if _rng.randf() < 0.45 else TerrainType.GRASSLAND
 	elif height < 150.0:
 		return TerrainType.MEDIUM_JUNGLE
 	elif height < 250.0:
@@ -380,7 +305,6 @@ func _determine_terrain_type(height: float, slope_val: float, wx: float, wz: flo
 		return TerrainType.LIGHT_JUNGLE  # High altitude = sparser
 
 
-## Estimate vegetation from terrain type
 func _estimate_vegetation(ttype: int) -> float:
 	match ttype:
 		TerrainType.CLEAR: return 0.0
@@ -391,8 +315,6 @@ func _estimate_vegetation(ttype: int) -> float:
 		TerrainType.HEAVY_JUNGLE: return 0.95
 		# WATER is left at 0 HERE and then RE-SCORED by _roof_the_creeks(): a narrow
 		# channel under jungle is roofed and conceals you; a wide river is open sky.
-		# It used to fall through to 0.0 and STAY there, so a creek was a 140m firing
-		# lane running through the middle of your best cover.
 		_: return 0.0
 
 
@@ -400,7 +322,6 @@ func _estimate_vegetation(ttype: int) -> float:
 # QUERY METHODS - Fast O(1) lookups for game logic
 # ============================================================================
 
-## Convert world position to grid coordinates
 func world_to_grid(world_pos: Vector3) -> Vector2i:
 	return Vector2i(
 		clampi(int(world_pos.x / cell_size_meters), 0, grid_size - 1),
@@ -417,7 +338,6 @@ func grid_to_world(grid_pos: Vector2i) -> Vector3:
 	)
 
 
-## Get cell index from grid coordinates
 func _grid_to_index(gx: int, gz: int) -> int:
 	return gz * grid_size + gx
 
@@ -428,7 +348,6 @@ func get_elevation(world_pos: Vector3) -> float:
 	return elevation[_grid_to_index(g.x, g.y)]
 
 
-## Get elevation at grid coordinates
 func get_elevation_at(gx: int, gz: int) -> float:
 	if gx < 0 or gx >= grid_size or gz < 0 or gz >= grid_size:
 		return 0.0
@@ -441,25 +360,21 @@ func get_slope(world_pos: Vector3) -> float:
 	return slope[_grid_to_index(g.x, g.y)]
 
 
-## Get terrain type at world position
 func get_terrain_type(world_pos: Vector3) -> int:
 	var g := world_to_grid(world_pos)
 	return terrain_type[_grid_to_index(g.x, g.y)]
 
 
-## Get terrain type at grid coordinates
 func get_terrain_type_at(gx: int, gz: int) -> int:
 	if gx < 0 or gx >= grid_size or gz < 0 or gz >= grid_size:
 		return TerrainType.CLIFF
 	return terrain_type[_grid_to_index(gx, gz)]
 
 
-## Get movement cost multiplier at world position
 func get_movement_cost(world_pos: Vector3) -> float:
 	var ttype: int = get_terrain_type(world_pos)
 	var base_cost: float = MOVEMENT_COSTS.get(ttype, 1.0)
 
-	# Slope modifier (steeper = slower)
 	var slope_val: float = get_slope(world_pos)
 	var slope_penalty: float = 1.0 + slope_val * 0.5  # Up to 50% slower on slopes
 
@@ -484,13 +399,11 @@ func get_vegetation(world_pos: Vector3) -> float:
 	return vegetation_density[_grid_to_index(g.x, g.y)]
 
 
-## Check if position is passable
 func is_position_passable(world_pos: Vector3) -> bool:
 	var g := world_to_grid(world_pos)
 	return is_passable[_grid_to_index(g.x, g.y)] == 1
 
 
-## Check if grid cell is passable
 func is_cell_passable(gx: int, gz: int) -> bool:
 	if gx < 0 or gx >= grid_size or gz < 0 or gz >= grid_size:
 		return false
@@ -501,11 +414,9 @@ func is_cell_passable(gx: int, gz: int) -> bool:
 # WATER QUERIES - Delegates to WaterSystem for detailed info
 # ============================================================================
 
-## Check if position is in water
 func is_water(world_pos: Vector3) -> bool:
 	if water_system and water_system.has_method("is_water"):
 		return water_system.is_water(world_pos.x, world_pos.z)
-	# Fallback to terrain type
 	return get_terrain_type(world_pos) == TerrainType.WATER
 
 
@@ -529,7 +440,6 @@ func is_wadeable(world_pos: Vector3) -> bool:
 	return depth > 0.0 and depth < 1.5  # Up to 1.5m = wadeable
 
 
-## Check if position requires swimming/boats
 func requires_boat(world_pos: Vector3) -> bool:
 	var depth: float = get_water_depth(world_pos)
 	return depth >= 1.5  # 1.5m+ = needs boat
@@ -564,22 +474,21 @@ func has_line_of_sight(from_pos: Vector3, to_pos: Vector3) -> bool:
 		return true
 
 	for i in steps:
-		# Check if terrain blocks LOS
 		var t: float = float(i) / float(steps)
 		var expected_h: float = lerpf(from_h, to_h, t)
 		var cell_h: float = get_elevation_at(x, z)
 		var cell_type: int = get_terrain_type_at(x, z)
 
-		# Cliffs and heavy jungle block LOS
 		if cell_type == TerrainType.CLIFF:
 			if cell_h > expected_h:
 				return false
 		elif cell_type == TerrainType.HEAVY_JUNGLE:
-			# Dense jungle has chance to block based on distance
-			if randf() < 0.3:  # 30% block chance per cell
+			# Deterministic per (mission, cell): same LOS query -> same block decision. (cp3s)
+			var los_rng := RandomNumberGenerator.new()
+			los_rng.seed = hash([Vector2(x, z), mission_seed])
+			if los_rng.randf() < 0.3:  # 30% block chance per cell
 				return false
 
-		# Step to next cell
 		var e2: int = 2 * err
 		if e2 > -dz:
 			err -= dz
@@ -595,7 +504,6 @@ func has_line_of_sight(from_pos: Vector3, to_pos: Vector3) -> bool:
 # UPDATE METHODS - Called when terrain changes
 # ============================================================================
 
-## Update a region when clearing occurs
 func update_region(center: Vector3, radius_meters: float) -> void:
 	var g_center := world_to_grid(center)
 	var g_radius: int = int(ceil(radius_meters / cell_size_meters))
@@ -611,15 +519,10 @@ func update_region(center: Vector3, radius_meters: float) -> void:
 			var world_x: float = (gx + 0.5) * cell_size_meters
 			var world_z: float = (gz + 0.5) * cell_size_meters
 
-			# Re-sample vegetation. THIS BODY HAS NEVER RUN until today - the guard it
-			# used to sit behind tested for a method that does not exist, so every
-			# stamp_lz() / stamp_firebase() / stamp_outpost() emitted grid_updated and
-			# changed nothing at all.
 			if true:
 				var density: float = _density_at(terrain_type[idx], world_x, world_z)
 				vegetation_density[idx] = density
 
-				# Update terrain type based on new vegetation
 				if density < 0.1:
 					terrain_type[idx] = TerrainType.CLEAR
 					is_passable[idx] = 1
@@ -634,7 +537,6 @@ func update_region(center: Vector3, radius_meters: float) -> void:
 	grid_updated.emit(Rect2i(min_x, min_z, max_x - min_x, max_z - min_z))
 
 
-## Mark area as cleared (after jungle clearing)
 func mark_cleared(center: Vector3, radius_meters: float) -> void:
 	var g_center := world_to_grid(center)
 	var g_radius: int = int(ceil(radius_meters / cell_size_meters))
@@ -654,7 +556,6 @@ func mark_cleared(center: Vector3, radius_meters: float) -> void:
 	grid_updated.emit(Rect2i(g_center.x - g_radius, g_center.y - g_radius, g_radius * 2, g_radius * 2))
 
 
-## Get terrain type name (for debug)
 func get_terrain_name(ttype: int) -> String:
 	match ttype:
 		TerrainType.CLEAR: return "Clear"
@@ -668,7 +569,6 @@ func get_terrain_name(ttype: int) -> String:
 		_: return "Unknown"
 
 
-## Print grid stats
 func print_stats() -> void:
 	var counts: Dictionary = {}
 	for i in TerrainType.values():

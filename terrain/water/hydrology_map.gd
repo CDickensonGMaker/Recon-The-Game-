@@ -40,15 +40,18 @@ const DIST8: Array[float] = [
 var downsample: int = 1
 
 ## A cell is standing water (pond/lake) when filled - terrain exceeds this (meters).
-var min_lake_depth: float = 0.4
+## INF disables all pooling: the AO holds flowing channels (creeks/rivers) only, no
+## lakes/reservoirs. Water is a fording obstacle, never a swim (ADR-027).
+var min_lake_depth: float = INF
 
 ## Tiny upward tilt applied while flood-filling so flats still drain (meters).
 var flood_epsilon: float = 0.001
 
 ## Flow-accumulation threshold (in upstream hydrology cells) for a channel to form.
 ## A channel appears once this many cells drain through it; higher = fewer, larger
-## waterways (less spaghetti, cheaper to render). Creek vs river is split by width.
-var creek_threshold: float = 300.0
+## waterways (less spaghetti, cheaper to render). Raised 100 -> 200 so only
+## well-defined channels form (cuts the creek count roughly in half).
+var creek_threshold: float = 200.0
 
 ## River width = base + scale * sqrt(accumulation) (meters), clamped.
 var river_width_scale: float = 0.35
@@ -582,6 +585,7 @@ func _flood_component(start_x: int, start_z: int, type_code: int,
 
 	var surface_sum: float = 0.0
 	var depth_sum: float = 0.0
+	var depth_max: float = 0.0
 	var min_pt := Vector2(INF, INF)
 	var max_pt := Vector2(-INF, -INF)
 
@@ -595,7 +599,10 @@ func _flood_component(start_x: int, start_z: int, type_code: int,
 		var surf: float = water_surface_full[i]
 		surface_sum += surf
 		var terrain: float = heightmap.get_cell(x, z) * _height_scale
-		depth_sum += maxf(0.0, surf - terrain)
+		var d: float = maxf(0.0, surf - terrain)
+		depth_sum += d
+		if d > depth_max:
+			depth_max = d
 
 		var wx: float = x * cell_size
 		var wz: float = z * cell_size
@@ -604,8 +611,8 @@ func _flood_component(start_x: int, start_z: int, type_code: int,
 		max_pt.x = maxf(max_pt.x, wx + cell_size)
 		max_pt.y = maxf(max_pt.y, wz + cell_size)
 
-		for d in range(8):
-			var off: Vector2i = DIR8[d]
+		for d2 in range(8):
+			var off: Vector2i = DIR8[d2]
 			var nx: int = x + off.x
 			var nz: int = z + off.y
 			if nx < 0 or nx >= size or nz < 0 or nz >= size:
@@ -623,5 +630,6 @@ func _flood_component(start_x: int, start_z: int, type_code: int,
 		"cells": cells,
 		"surface": (surface_sum / count) if count > 0 else 0.0,
 		"depth": (depth_sum / count) if count > 0 else 0.0,
+		"depth_max": depth_max,
 		"bounds": Rect2(min_pt, max_pt - min_pt),
 	}
