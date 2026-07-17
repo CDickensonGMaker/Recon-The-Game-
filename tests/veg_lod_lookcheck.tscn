@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bveglodlook01"]
+
+[ext_resource type="Script" path="res://tests/veg_lod_lookcheck.gd" id="1_lk"]
+
+[node name="VegLodLookcheck" type="Node3D"]
+script = ExtResource("1_lk")
