@@ -34,6 +34,29 @@ const BUNDLE_SIZE := 2
 const JunglePatchLayerScript := preload("res://terrain/vegetation/jungle_patch_layer.gd")
 var _patch_layer: JunglePatchLayer = null
 
+## ADR-028 veg-LOD merge: which canopy renderer builds the near/far cover. JUNGLE_PATCH is
+## the shipped merged-patch render; TREE_COVER is the individual-species near-solid+collider
+## / far-card LOD. The default stays JUNGLE_PATCH - flipping it to TREE_COVER is the
+## look-check-gated switchover (Caleb's eyes + the broadleaf .blend fix). The two never run
+## together (double canopy). Wired live-capable and driven by probe_tree_cover_wired.
+enum CanopySource { JUNGLE_PATCH, TREE_COVER }
+@export var canopy_source: CanopySource = CanopySource.JUNGLE_PATCH
+const TreeCoverLayerScript := preload("res://terrain/vegetation/tree_cover_layer.gd")
+var _tree_cover: TreeCoverLayer = null
+
+## Terrain-type -> weighted individual-species pool (repetition = weight). The per-species
+## analog of JunglePatchLayer.TYPE_DENSITY; TYPE_PROPS still governs how MANY. Cover-givers
+## (broadleaf/banana/bamboo/palm/deadfall) get a trunk collider via TreeCoverLayer.COVER_TRUNK;
+## everything else (bush/fern/grass/rice/vine) is concealment, no collider.
+const TYPE_SPECIES := {
+	TerrainType.CLEAR: [],
+	TerrainType.RICE_PADDY: ["rice_a", "rice_b"],
+	TerrainType.GRASSLAND: ["tall_grass_a", "tall_grass_b", "elephant_grass_a", "bush_a", "fern_a"],
+	TerrainType.LIGHT_JUNGLE: ["banana_a", "bush_a", "bush_b", "fern_a", "fern_b", "palm_sapling_a", "jungle_palm_a1"],
+	TerrainType.MEDIUM_JUNGLE: ["broadleaf_a", "broadleaf_b", "banana_a", "jungle_palm_a1", "jungle_palm_b1", "bamboo_a", "bush_b", "fern_b", "fern_c", "elephant_grass_b"],
+	TerrainType.HEAVY_JUNGLE: ["broadleaf_a", "broadleaf_b", "broadleaf_c", "bamboo_a", "bamboo_b", "bamboo_c", "banana_b", "jungle_palm_a2", "jungle_palm_b2", "fern_c", "liana_a", "vine_a"],
+}
+
 # Bundle size in meters
 var bundle_meters: float:
 	get: return cell_size * BUNDLE_SIZE
@@ -101,11 +124,25 @@ var patches_disabled: bool = false
 func _ready() -> void:
 	_min_slope_dot = cos(deg_to_rad(max_slope_degrees))
 	_load_vegetation_meshes()
-	if use_jungle_patches:
+	if canopy_source == CanopySource.TREE_COVER:
+		_tree_cover = TreeCoverLayerScript.new()
+		_tree_cover.name = "TreeCoverLayer"
+		_tree_cover.load_species(_all_species())
+		add_child(_tree_cover)
+	elif use_jungle_patches:
 		_patch_layer = JunglePatchLayerScript.new()
 		_patch_layer.name = "JunglePatchLayer"
 		_patch_layer.mission_seed = mission_seed  # fold the seed into patch placement (ADR-010)
 		add_child(_patch_layer)
+
+
+## Unique species names across every TYPE_SPECIES pool (for TreeCoverLayer.load_species).
+func _all_species() -> Array:
+	var seen: Dictionary = {}
+	for pool: Array in TYPE_SPECIES.values():
+		for nm: String in pool:
+			seen[nm] = true
+	return seen.keys()
 
 
 func _process(delta: float) -> void:
@@ -530,7 +567,10 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
 ## and by clear_area() -- never duplicate this branch.
 func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
-	if _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
+	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
+		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
+		_tree_cover.generate_for_chunk(chunk_coord, _build_scatter(chunk_coord, heightmap, chunk_size))
+	elif _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
 		# Authored patches bring their own trees - the lone-tree layer would double
 		# the canopy and blow the tri budget, so it stays off.
 		_patch_layer.generate_for_chunk(
@@ -539,6 +579,39 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	else:
 		_materialize_vegetation(chunk_coord, heightmap)
 	_materialize_grass(chunk_coord, heightmap)
+
+
+## Derive a per-species {name, xf} scatter from this chunk's terrain grid, deterministically
+## from mission_seed (ADR-010). TYPE_PROPS governs how many; TYPE_SPECIES which. Fed to
+## TreeCoverLayer.generate_for_chunk when the canopy is TREE_COVER.
+func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> Array:
+	var scatter: Array = []
+	if not _chunk_terrain.has(chunk_coord):
+		return scatter
+	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([chunk_coord, mission_seed])
+	var origin_x: float = chunk_coord.x * chunk_size
+	var origin_z: float = chunk_coord.y * chunk_size
+	for bz in _bundles_per_chunk:
+		for bx in _bundles_per_chunk:
+			var ttype: int = terrain[bz * _bundles_per_chunk + bx]
+			var pool: Array = TYPE_SPECIES.get(ttype, [])
+			if pool.is_empty():
+				continue
+			var props: Array = TYPE_PROPS[ttype]
+			var chance: float = props[0]
+			if chance <= 0.0 or rng.randf() > chance:
+				continue
+			var count: int = rng.randi_range(int(props[1]), int(props[2]))
+			for _i in count:
+				var wx: float = origin_x + (bx + rng.randf()) * bundle_meters
+				var wz: float = origin_z + (bz + rng.randf()) * bundle_meters
+				var nm: String = String(pool[rng.randi_range(0, pool.size() - 1)])
+				var h: float = heightmap.sample_world(wx, wz)
+				var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
+				scatter.append({"name": nm, "xf": Transform3D(basis, Vector3(wx, h, wz))})
+	return scatter
 
 
 ## Check if position blocks LOS (heavy/medium jungle)
@@ -636,6 +709,8 @@ func clear_chunk_visuals(chunk_coord: Vector2i) -> void:
 		_chunk_grass.erase(chunk_coord)
 	if _patch_layer != null:
 		_patch_layer.clear_chunk(chunk_coord)
+	if _tree_cover != null:
+		_tree_cover.clear_chunk(chunk_coord)
 	# NOTE: Does NOT erase _chunk_terrain or _chunk_placements
 
 
