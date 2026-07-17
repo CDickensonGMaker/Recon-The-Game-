@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b6od4onecls1"]
+
+[ext_resource type="Script" path="res://tests/test_one_classifier.gd" id="1_oc"]
+
+[node name="TestOneClassifier" type="Node3D"]
+script = ExtResource("1_oc")

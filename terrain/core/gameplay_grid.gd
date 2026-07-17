@@ -152,9 +152,9 @@ func build_from_terrain() -> void:
 ## Gallery forest: watercourses carry the DENSEST vegetation. Dilates the water mask
 ## outward and grows density on the banks -- densest at the water, thinning outward.
 ## vegetation_density (0-1) is what enemy_base._sight_cap() reads (140m open -> 45m dense).
-## Four tables must agree or the jungle lies: _determine_terrain_type -> terrain type,
-## _estimate_vegetation -> the AI's density, JunglePatchLayer.TYPE_DENSITY -> which patches
-## get stamped, VegetationManager.TYPE_PROPS -> how many loose plants get drawn.
+## Terrain type is TerrainZoning.classify() (the one classifier, bead 6od4). _estimate_vegetation
+## maps it to the AI's density; JunglePatchLayer.TYPE_DENSITY and VegetationManager.TYPE_PROPS map
+## the SAME verdict to visuals -- so the jungle the AI reads is the jungle the player sees.
 const RIPARIAN_M: float = 22.0     ## how far gallery forest reaches from the bank
 const GALLERY_MIN: float = 0.55    ## density at the OUTER edge of the belt
 const GALLERY_MAX: float = 0.95    ## density right at the waterline
@@ -272,37 +272,15 @@ func _roof_the_creeks() -> void:
 
 
 func _determine_terrain_type(height: float, slope_val: float, wx: float, wz: float) -> int:
-	# Check water system first (most accurate water detection)
+	# WATER and CLIFF are pathing overrides the AI grid needs and the veg instancer does not.
 	if water_system and water_system.has_method("is_water"):
 		if water_system.is_water(wx, wz):
 			return TerrainType.WATER
-
 	if slope_val > 0.7:
 		return TerrainType.CLIFF
-
-	# Fallback: Low elevation heuristics for flooded areas
 	if height < 2.0:
 		return TerrainType.WATER
-
-	if height < 5.0 and slope_val < 0.1:
-		return TerrainType.RICE_PADDY
-
-	if slope_val > 0.4:
-		return TerrainType.LIGHT_JUNGLE
-
-	# Based on elevation zones (Vietnam terrain)
-	# Se RNG: deterministic per (mission, world-cell). Same mission -> same terrain type. (cp3s)
-	var _rng := RandomNumberGenerator.new()
-	_rng.seed = hash([Vector2(wx, wz), mission_seed])
-	if height < 50.0:
-		# ADR-027-D: rice paddies +50% - the lowland paddy fraction 0.30 -> 0.45.
-		return TerrainType.RICE_PADDY if _rng.randf() < 0.45 else TerrainType.GRASSLAND
-	elif height < 150.0:
-		return TerrainType.MEDIUM_JUNGLE
-	elif height < 250.0:
-		return TerrainType.HEAVY_JUNGLE
-	else:
-		return TerrainType.LIGHT_JUNGLE  # High altitude = sparser
+	return TerrainZoning.classify(height, wx, wz, mission_seed)
 
 
 func _estimate_vegetation(ttype: int) -> float:

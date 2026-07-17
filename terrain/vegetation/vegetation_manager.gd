@@ -21,15 +21,9 @@ const BUNDLE_SIZE := 2
 ## Maximum slope for vegetation
 @export var max_slope_degrees: float = 50.0
 
-## FPS fork: patch-noise jungle distribution (coherent thickets + open ground).
-@export var patch_noise_frequency: float = 0.012
-@export var open_patch_threshold: float = -0.18
-@export var heavy_patch_threshold: float = 0.28
-@export var patch_seed: int = 0
-## Mission seed — flows from game_world.gd. Wired into ALL chunk RNGs so two boots
-## with the same seed produce a byte-identical world. (RECONgame-cp3s, RECONgame-5r4y)
+## Mission seed — flows from game_world.gd. Passed to TerrainZoning so two boots with the
+## same seed produce a byte-identical world. (RECONgame-cp3s, RECONgame-5r4y)
 @export var mission_seed: int = 0
-var _patch_noise: FastNoiseLite = null
 
 ## Use external models (disabled - too heavy for Intel UHD)
 @export var use_external_models: bool = false
@@ -269,11 +263,6 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 		var terrain := PackedByteArray()
 		terrain.resize(_bundles_per_chunk * _bundles_per_chunk)
 
-		# RNG seeded by chunk coord + mission seed. Same mission_seed -> identical
-		# chunk. Different mission_seed -> different jungle. (RECONgame-cp3s)
-		var rng := RandomNumberGenerator.new()
-		rng.seed = hash([chunk_coord, mission_seed])
-
 		for bz in _bundles_per_chunk:
 			for bx in _bundles_per_chunk:
 				var bundle_idx := bz * _bundles_per_chunk + bx
@@ -288,7 +277,7 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 				var normal := heightmap.get_normal_world(world_x, world_z) as Vector3
 				var slope_dot := normal.dot(Vector3.UP)
 
-				var terrain_type := _determine_terrain_type(height, slope_dot, rng, world_x, world_z)
+				var terrain_type := _determine_terrain_type(height, slope_dot, world_x, world_z)
 				terrain[bundle_idx] = terrain_type
 
 		_chunk_terrain[chunk_coord] = terrain
@@ -301,39 +290,11 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 
 
 ## world_x/world_z are passed for water proximity checks
-func _determine_terrain_type(height: float, slope_dot: float, rng: RandomNumberGenerator, world_x: float = 0.0, world_z: float = 0.0) -> int:
-	# Steep slopes = clear
+func _determine_terrain_type(height: float, slope_dot: float, world_x: float = 0.0, world_z: float = 0.0) -> int:
+	# Steep slopes carry no patches; everything else is the one classifier (bead 6od4).
 	if slope_dot < _min_slope_dot:
 		return TerrainType.CLEAR
-
-	# Check water proximity for rice paddy clustering
-	var near_water := false
-	if _terrain_manager and _terrain_manager.has_method("is_near_water"):
-		near_water = _terrain_manager.is_near_water(world_x, world_z)
-
-	if height < 30.0 and slope_dot > 0.93:
-		var paddy_chance: float = 0.7 if near_water else 0.15
-		if rng.randf() < paddy_chance:
-			return TerrainType.RICE_PADDY
-
-	if slope_dot > 0.98 and rng.randf() < 0.2:
-		return TerrainType.GRASSLAND
-
-	# Low-frequency patch noise carves coherent open patches and dense thickets.
-	if _patch_noise == null:
-		_patch_noise = FastNoiseLite.new()
-		_patch_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		_patch_noise.frequency = patch_noise_frequency
-		_patch_noise.seed = patch_seed
-	var patch: float = _patch_noise.get_noise_2d(world_x, world_z)
-	if patch < open_patch_threshold:
-		return TerrainType.GRASSLAND if rng.randf() < 0.7 else TerrainType.CLEAR
-	elif patch < 0.05:
-		return TerrainType.LIGHT_JUNGLE if rng.randf() < 0.75 else TerrainType.MEDIUM_JUNGLE
-	elif patch < heavy_patch_threshold:
-		return TerrainType.MEDIUM_JUNGLE
-	else:
-		return TerrainType.HEAVY_JUNGLE
+	return TerrainZoning.classify(height, world_x, world_z, mission_seed)
 
 
 func _generate_chunk_vegetation(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:

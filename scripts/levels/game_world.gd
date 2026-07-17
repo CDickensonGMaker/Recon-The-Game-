@@ -84,7 +84,6 @@ func _setup_terrain() -> void:
 
 	vegetation_manager = VegetationManagerScript.new()
 	vegetation_manager.name = "VegetationManager"
-	vegetation_manager.patch_seed = mission_seed
 	vegetation_manager.mission_seed = mission_seed
 	add_child(vegetation_manager)
 
