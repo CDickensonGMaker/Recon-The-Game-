@@ -281,6 +281,9 @@ func _run_mission(offer: Dictionary) -> void:
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
 	CampaignState.intel_points = 0  # briefing intel is spent going in (W80)
+	# Let physics digest the freshly-built cover colliders before the world is revealed,
+	# so it does not visibly settle in the player's first frame.
+	await get_tree().physics_frame
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = true    # Esc now opens a real pause menu with a way out
@@ -427,6 +430,7 @@ func enter_hub() -> void:
 		var wh: Node = world.player.get_node_or_null("Head/Camera3D/WeaponHolder")
 		if wh != null and wh.has_method("refresh_after_load"):
 			wh.call("refresh_after_load")
+	await get_tree().physics_frame  # settle cover colliders before reveal (no first-frame resettle)
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

@@ -15,6 +15,11 @@ const UNLOAD_DISTANCE: int = 3
 ## Vegetation tuning (1.0 = TerrainEngine defaults).
 const VEGETATION_DENSITY_MULT: float = 1.0
 
+## Vegetation renderer for the generated AO. true = TREE_COVER (individual 3D species models,
+## near-solid + far-card - the arena look Caleb wants); false = the legacy merged JunglePatch
+## (reads empty). One-line reversible. The arena keeps its own JunglePatchLayer regardless.
+const USE_TREE_COVER: bool = true
+
 ## Water
 const SEA_LEVEL: float = 15.0
 const OCEAN_EDGES: int = 0b0000  # inland AO

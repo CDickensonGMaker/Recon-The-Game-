@@ -90,6 +90,8 @@ func _setup_terrain() -> void:
 	vegetation_manager = VegetationManagerScript.new()
 	vegetation_manager.name = "VegetationManager"
 	vegetation_manager.mission_seed = mission_seed
+	vegetation_manager.canopy_source = (VegetationManagerScript.CanopySource.TREE_COVER
+		if WorldConfig.USE_TREE_COVER else VegetationManagerScript.CanopySource.JUNGLE_PATCH)
 	add_child(vegetation_manager)
 
 	water_system = WaterSystemScript.new()
