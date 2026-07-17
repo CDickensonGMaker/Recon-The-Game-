@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bps28tiering01"]
+
+[ext_resource type="Script" path="res://tests/test_activity_tiering.gd" id="1_at"]
+
+[node name="TestActivityTiering" type="Node"]
+script = ExtResource("1_at")
