@@ -43,3 +43,16 @@ art_source/characters/civilians/
 art_source/characters/us_troops/
 art_source/characters/enemies/
 art_source/characters/locker/
+
+# Local safety artifacts - never enter history (repo-hygiene pass 2026-07-17)
+# Manual pre-edit copies and Blender recovery/auto snapshots. Regeneratable or
+# throwaway; the two already-tracked backup blobs get git-rm --cached in the same pass.
+_backups/
+*_BEFORE_*.blend
+*_BROKEN_STATE.blend
+*_PREANIM_backup.blend
+*_RECOVERED_*.blend
+# Transient run logs at repo root only - war_room/**/*.log evidence stays tracked (ADR-015)
+/*.log
+# Work-in-progress temp test scaffolds
+tests/*_TMP.*
