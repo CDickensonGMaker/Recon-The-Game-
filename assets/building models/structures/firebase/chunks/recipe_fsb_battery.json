@@ -225,9 +225,9 @@
    "wire_ring": {
     "cx": -10.75,
     "cy": 36.33,
-    "radius": 44,
+    "radius": 58.0,
     "road_gap_toward_deg": -45.0,
-    "gap_half_angle_deg": 22,
+    "gap_half_angle_deg": 18,
     "prop": "barbwire_card",
     "spacing_m": 1.5,
     "pattern": "x_pair",

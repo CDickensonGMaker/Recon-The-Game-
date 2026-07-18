@@ -132,7 +132,7 @@
    "wire_ring": {
     "cx": -5.38,
     "cy": 23.36,
-    "radius": 31,
+    "radius": 45.0,
     "road_gap_toward_deg": 135.0,
     "gap_half_angle_deg": 25,
     "prop": "barbwire_card",

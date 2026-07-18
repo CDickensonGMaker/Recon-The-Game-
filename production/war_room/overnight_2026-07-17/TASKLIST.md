@@ -12,6 +12,11 @@ the morning.
 - Godot 4.7 console exe only, headless; no editor, no windowed spam.
 - Commit locally after each green wave; suite + fossil probe gate every commit.
 - Anything ambiguous → bead comment + skip, never guess.
+- NO NEW SYSTEMS (Summoner law for this run): write new capability INTO the existing
+  thread — SitePlanner owns placement, GameFlow owns flow, MissionDirector→FieldDirector
+  owns direction, GameplayGrid owns honesty, existing HUD owns readouts. Creating a
+  new class/file requires PROOF no existing home exists, recorded in the bead. The
+  night must end with FEWER live systems than it started, never more.
 
 ## A. W1 — POPULATED PATROL WORLD (the ignition-key move)
 1. Extract population from the offer dict: `build()` runs off one operation seed.
@@ -20,6 +25,15 @@ the morning.
 4. Re-anchor corridor ecology wire→location (exists, wrong anchors).
 5. Guarantee ≥1 village + 1 camp inside 500m on ANY exit heading (probe-asserted).
 6. Hub world and patrol world become THE SAME build (no objectives-less variant).
+6b. FIREBASE PLUG: Caleb's `assets/building models/structures/firebase/fsb_main.glb`
+    IS the main spawn firebase (delivered 22:37, imports clean; 1,116 -col/-colonly
+    trimesh nodes, 20 anchor markers). SitePlanner places it at the spawn anchor via
+    its markers — player spawn, gate/exit points (feeds the 120m wire gate),
+    perimeter radius. Gate is baked STATIC — spawn animated gate_entrance.glb at the
+    gate markers only if the patrol loop needs it to open. barbwire_card is the ONLY
+    wire (2.88m tiling) for any wire the game adds. The RTS-copy firebase stamp DIES
+    the moment fsb_main renders at spawn (fossil law). Measure his markers, never
+    guess; nav-bake and walk-out probe the perimeter.
 7. Determinism probe: same operation seed → bit-identical population.
 8. Density probe: walk-sim 4 headings, assert first-sign ≤300m, first ville ≤450m.
 
