@@ -445,9 +445,10 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 
 
 ## ---------- THE MAIN FIREBASE (Caleb-authored fsb_main.glb, task 6b) ----------
-## Measured contract (2026-07-18, glTF JSON + imported scene agree): model AABB
-## x -145.1..224.2, z -101.5..242.9 (369x344m), origin y=0 = parade ground; 1,116
-## -col trimesh bodies; 20 root-level markers. SOCKET_A/B_001 = the wire-gate
+## Measured contract (2026-07-18 re-export, realized from Caleb's selected
+## ASSEMBLY_fsb_battery ring): model AABB x -178..178, z -172.2..172.2, RECENTERED
+## at export (ground-plane center = origin, y=0 = ground); 658 -col trimesh
+## bodies (434 wire cards + structures). SOCKET_A/B_001 = the wire-gate
 ## sides, FACE_OUT_001 disambiguates the outward normal, GUN_POINT_001 = MG post,
 ## FOOTPRINT_* = ground-contact ring, APPROACH_* = approach lanes. Placed
 ## UNROTATED v1 (map-tile scale; rotation risks edge overhang). The wire-gate
@@ -455,8 +456,8 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 ## center - walking distance is the pacing contract.
 
 const FSB_MAIN_PATH: String = "res://assets/building models/structures/firebase/fsb_main.glb"
-const FSB_AABB_CENTER := Vector3(39.5, 0.0, 70.7)   # model space, measured
-const FSB_HALF := Vector2(184.6, 172.2)             # model space, measured
+const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # recentered at export, measured
+const FSB_HALF := Vector2(178.0, 172.2)             # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
 const FSB_EDGE_MARGIN: float = 60.0
 const FSB_FLATTEN_RADIUS: float = 320.0
@@ -467,8 +468,8 @@ const FSB_PLATEAU_FALLOFF: float = 0.107
 ## center + radius). The base is authored cleared ground; trees through bunkers lie.
 const FSB_CLEAR_DISCS: Array = [
 	[Vector3.ZERO, 120.0],
-	[Vector3(92.0, 0.0, 86.0), 110.0], [Vector3(-92.0, 0.0, 86.0), 110.0],
-	[Vector3(92.0, 0.0, -86.0), 110.0], [Vector3(-92.0, 0.0, -86.0), 110.0],
+	[Vector3(92.0, 0.0, 86.0), 125.0], [Vector3(-92.0, 0.0, 86.0), 125.0],
+	[Vector3(92.0, 0.0, -86.0), 125.0], [Vector3(-92.0, 0.0, -86.0), 125.0],
 ]
 
 
