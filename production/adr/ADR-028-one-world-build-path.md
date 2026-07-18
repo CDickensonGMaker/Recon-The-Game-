@@ -31,6 +31,18 @@ Binding consequences:
 - **Supersedes the stabilize-freeze** for the world-build systems (terrain/veg/clutter/zoning) only: this
   unification IS the stabilization, so it is not blocked by the "no new systems" freeze for those systems.
 
+## Protected foundation (Summoner's law, 2026-07-17)
+Caleb's verdict on the unified world, after seeing it populated with 3D veg: *"this full game world
+needs to be improved but never CHANGED."* The unified game world — the resident deterministic build
+(WorldBuilder pass), the populated AO (`MissionGenerator`), the TREE_COVER individual-3D-species veg,
+the one classifier — is now the **PROTECTED FOUNDATION**. All future work **IMPROVES/refines it in
+place**: tune density, fix materials, add life, wire the pooled-ring colliders, swap in Caleb's authored
+assets. No future work may **rebuild, replace, re-fragment, or add a parallel world-build/veg/placement
+system** — that is the exact fracture (14 divergent systems + a hand-wired arena) this ADR exists to
+end. A "better idea" that means a second world path is **out of bounds**; improve the one path instead.
+This is not aspiration — it is what the structural probe (beaded) mechanically enforces: >1 live
+world-placement path, or an arena not on the shared build, or unseeded placement RNG, FAILS CI.
+
 ## Tradeoff (named)
 Folding `mission_seed` into placement RNG means **existing seeds now generate different-looking worlds.**
 Accepted: there are no saved maps — saves regenerate the world from the seed (ADR-007/010), so the cost is
