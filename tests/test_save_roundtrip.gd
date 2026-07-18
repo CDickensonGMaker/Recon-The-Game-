@@ -74,7 +74,7 @@ func _run() -> void:
 		failures += 1
 
 	# --- corrupt-file safety ---
-	var f := FileAccess.open("user://saves/save_%d.sav" % TEST_SLOT, FileAccess.WRITE)
+	var f := FileAccess.open(SaveManager.save_dir + "/save_%d.sav" % TEST_SLOT, FileAccess.WRITE)
 	f.store_string("{ not json !!!")
 	f.close()
 	if SaveManager.load_game(TEST_SLOT) != null:
@@ -94,7 +94,7 @@ func _run() -> void:
 	CampaignState.iron_man = false
 
 	# cleanup
-	DirAccess.remove_absolute("user://saves/save_%d.sav" % TEST_SLOT)
+	DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav" % TEST_SLOT)
 	CampaignState.reset_campaign()
 
 	if failures == 0:

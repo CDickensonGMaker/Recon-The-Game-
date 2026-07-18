@@ -50,7 +50,7 @@ func _ready() -> void:
 	for medal in medals:
 		medals_box.add_child(ReconUI.make_label("* %s" % medal, 13, Color(0.85, 0.75, 0.4)))
 
-	box.add_child(ReconUI.make_label("RECENT OPERATIONS", 15, ReconUI.DIM))
+	box.add_child(ReconUI.make_label("RECENT PATROLS", 15, ReconUI.DIM))
 	var ops_panel := ReconUI.make_panel()
 	box.add_child(ops_panel)
 	var ops_box := VBoxContainer.new()

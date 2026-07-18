@@ -54,6 +54,38 @@ func _run() -> void:
 	if flow.squad == null or flow.squad.members.size() != SquadSystem.SQUAD_SIZE:
 		_fail("squad size wrong")
 
+	# P0 2026-07-18 "a gate and a table": his eyes caught what node-exists checks
+	# cannot. The base must STAND ON the ground: >=500 of its meshes above
+	# terrain, >=30 poking near spawn, gate walkable from spawn, seat level.
+	if fsb != null:
+		var tm: TerrainManager = flow.world.terrain_manager
+		var spawn_p: Vector3 = flow.world.player.global_position
+		var total_above: int = 0
+		var near_above: int = 0
+		var mstack: Array[Node] = [fsb]
+		while not mstack.is_empty():
+			var mn: Node = mstack.pop_back()
+			for mc in mn.get_children():
+				mstack.append(mc)
+			var mi := mn as MeshInstance3D
+			if mi != null and mi.visible:
+				var b: AABB = mi.global_transform * mi.get_aabb()
+				if b.end.y > tm.get_height_at(mi.global_position) + 0.3:
+					total_above += 1
+					if Vector2(mi.global_position.x - spawn_p.x, mi.global_position.z - spawn_p.z).length() < 200.0:
+						near_above += 1
+		if total_above < 500:
+			_fail("only %d fsb meshes above terrain (want >=500) - the base is buried" % total_above)
+		if near_above < 30:
+			_fail("only %d fsb meshes above terrain near spawn (want >=30)" % near_above)
+		var gd: float = spawn_p.distance_to(flow.director.patrol_gate_pos)
+		if gd > 150.0:
+			_fail("gate %.0fm from spawn (want <=150) - player not inside the wire" % gd)
+		var seat_delta: float = absf(tm.get_height_at(spawn_p) - fsb.global_position.y)
+		if seat_delta > 2.5:
+			_fail("spawn terrain %.1fm off the base seat - ground not flattened" % seat_delta)
+		print("fsb stand-up: %d above terrain, %d near spawn, gate %.0fm" % [total_above, near_above, gd])
+
 	# Bands + quadrants + determinism at plan level, on the same world.
 	var p1: Dictionary = MissionGenerator.plan_patrol_world(flow.world, 31337)
 	var p2: Dictionary = MissionGenerator.plan_patrol_world(flow.world, 31337)
@@ -113,7 +145,7 @@ func _fingerprint(p: Dictionary) -> String:
 
 
 func _finish() -> void:
-	DirAccess.remove_absolute("user://saves/save_%d.sav" % SaveManager.AUTOSAVE_SLOT)
+	DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav" % SaveManager.AUTOSAVE_SLOT)
 	CampaignState.reset_campaign()
 	if _failures == 0:
 		print("PASS: open patrol world - fsb_main, squad, bands, determinism")

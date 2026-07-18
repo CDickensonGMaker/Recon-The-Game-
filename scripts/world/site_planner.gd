@@ -459,6 +459,7 @@ const FSB_AABB_CENTER := Vector3(39.5, 0.0, 70.7)   # model space, measured
 const FSB_HALF := Vector2(184.6, 172.2)             # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
 const FSB_EDGE_MARGIN: float = 60.0
+const FSB_FLATTEN_RADIUS: float = 255.0
 ## Vegetation-clear discs covering the footprint (model-space offsets from AABB
 ## center + radius). The base is authored cleared ground; trees through bunkers lie.
 const FSB_CLEAR_DISCS: Array = [
@@ -525,7 +526,25 @@ func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
 
 ## Stamp Caleb's base with its AABB center at `center`. Returns the site dict
 ## with gate/spawn metrics derived from HIS markers - never guessed.
+## P0 2026-07-18 ("a gate and a table"): a 369m model seated on ROLLING relief
+## buries one wing and floats the other - 26 of 678 meshes poked above ground.
+## The ground must come to the base: seat at the footprint MEAN height and
+## FLATTEN the terrain to the seat before placing.
 func place_firebase_main(center: Vector3) -> Dictionary:
+	var seat_y: float = 0.0
+	var n: int = 0
+	for dx in range(-3, 4):
+		for dz in range(-3, 4):
+			seat_y += _terrain.get_height_at(center + Vector3(float(dx) * 55.0, 0.0, float(dz) * 55.0))
+			n += 1
+	seat_y /= float(n)
+	var seat_norm: float = seat_y / _terrain.heightmap.height_scale
+	# One disc over the whole footprint (corner reach ~252m): HARD flat except the
+	# outer ~12%, which blends into the surrounding relief. A soft per-disc blend
+	# left the gate wing (201m off-center) on raw terrain - measured, not guessed.
+	_terrain.modify_terrain(center, FSB_FLATTEN_RADIUS,
+		func(h: float, f: float) -> float:
+			return lerpf(h, seat_norm, clampf(f * 8.0, 0.0, 1.0)))
 	for disc in FSB_CLEAR_DISCS:
 		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
 	var scene: PackedScene = load(FSB_MAIN_PATH)
@@ -533,7 +552,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	root.set_meta("model_name", "fsb_main")
 	_parent.add_child(root)
 	var origin: Vector3 = center - FSB_AABB_CENTER
-	origin.y = _terrain.get_height_at(center)
+	origin.y = seat_y
 	root.global_position = origin
 	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
 	var gate_pos: Vector3 = gm.gate_pos

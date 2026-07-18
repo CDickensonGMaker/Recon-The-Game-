@@ -70,7 +70,7 @@ func _run() -> void:
 
 
 func _finish() -> void:
-	DirAccess.remove_absolute("user://saves/save_%d.sav" % SaveManager.AUTOSAVE_SLOT)
+	DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav" % SaveManager.AUTOSAVE_SLOT)
 	CampaignState.reset_campaign()
 	if _failures == 0:
 		print("PASS: death -> field AAR -> firebase wake (fail forward)")

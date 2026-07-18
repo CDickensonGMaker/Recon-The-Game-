@@ -42,14 +42,17 @@ func _ready() -> void:
 
 	var title := ReconUI.make_label("RECON", 84, Color(0.88, 0.86, 0.78))
 	col.add_child(title)
-	col.add_child(ReconUI.make_label("OPEN PROCEDURAL CAMPAIGN", 15, ReconUI.OLIVE))
+	col.add_child(ReconUI.make_label("OPEN PATROL SIMULATOR", 15, ReconUI.OLIVE))
 	col.add_child(ReconUI.make_label("VIETNAM FPS/RPG", 15, ReconUI.DIM))
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 36)
 	col.add_child(spacer)
 
-	_add_menu_button(col, "CONTINUE CAMPAIGN", func() -> void: continue_pressed.emit())
-	_add_menu_button(col, "NEW CAMPAIGN", func() -> void:
+	# ADR-029 menu (design call, load-bearing for the Summoner's re-rule):
+	# DEPLOY = the one standing world, continue-or-start. NEW TOUR = explicit
+	# fresh slate. No mission board, no "operation" language anywhere.
+	_add_menu_button(col, "DEPLOY", func() -> void: continue_pressed.emit())
+	_add_menu_button(col, "NEW TOUR", func() -> void:
 		CampaignState.reset_campaign()
 		new_pressed.emit())
 	_add_menu_button(col, "SOLDIER", func() -> void: barracks_pressed.emit())
@@ -83,12 +86,11 @@ func _build_intel_panel() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
-	box.add_child(ReconUI.make_label("INTEL BRIEFING", 16, ReconUI.OLIVE))
-	var teaser_seed: int = int(Time.get_unix_time_from_system()) % 100000
-	box.add_child(ReconUI.make_label(MissionGenerator.codename_for(teaser_seed), 13, Color(0.85, 0.82, 0.72)))
-	box.add_child(ReconUI.make_label("THREAT: %s  //  MISSIONS FLOWN: %d" % [
+	box.add_child(ReconUI.make_label("S2 INTEL", 16, ReconUI.OLIVE))
+	box.add_child(ReconUI.make_label(MissionGenerator.codename_for(GameFlow.DEFAULT_OPERATION_SEED), 13, Color(0.85, 0.82, 0.72)))
+	box.add_child(ReconUI.make_label("THREAT: %s  //  PATROLS LOGGED: %d" % [
 		CampaignState.threat_label(), CampaignState.missions_played], 12, ReconUI.DIM))
-	box.add_child(ReconUI.make_label("ENEMY ACTIVITY INCREASED ALONG ROUTE 9.\nLOCAL MILITIA REPORT NVA PRESENCE\nNEAR THE AO. RECON AND REPORT.", 12, Color(0.7, 0.68, 0.6)))
+	box.add_child(ReconUI.make_label("ENEMY ACTIVITY INCREASED ALONG ROUTE 9.\nLOCAL MILITIA REPORT NVA PRESENCE\nNEAR THE AO. WALK OUT AND FIND THEM.", 12, Color(0.7, 0.68, 0.6)))
 
 
 func _soundscape() -> void:

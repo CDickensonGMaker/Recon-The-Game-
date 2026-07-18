@@ -9,7 +9,10 @@
 ##   REGULAR  (everything else)         - quicksave/quickload anywhere (F5/F9)
 extends Node
 
-const SAVE_DIR := "user://saves"
+## THE FRESH-PLAYER LAW (Summoner, 2026-07-18): the dev's save is a lie about
+## the fresh player. Tests run in their own slot dir and start VIRGIN; they can
+## never touch - or lean on - the player's real saves.
+var save_dir: String = "user://saves"
 const QUICK_SLOT := 0
 const AUTOSAVE_SLOT := 8
 const EXIT_SLOT := 9
@@ -31,7 +34,9 @@ var _session_started_ms: int = 0
 
 
 func _ready() -> void:
-	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+	if CampaignState.is_test_run():
+		save_dir = "user://saves_test"
+	DirAccess.make_dir_recursive_absolute(save_dir)
 	get_tree().set_auto_accept_quit(false)
 	_session_started_ms = Time.get_ticks_msec()
 
@@ -283,7 +288,7 @@ func _migrate(d: Dictionary, from_version: int) -> Dictionary:
 
 
 func _slot_path(slot: int) -> String:
-	return "%s/save_%d.sav" % [SAVE_DIR, slot]
+	return "%s/save_%d.sav" % [save_dir, slot]
 
 
 func _player_alive() -> bool:

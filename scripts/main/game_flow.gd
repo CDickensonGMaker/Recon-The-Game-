@@ -191,7 +191,7 @@ const DEFAULT_OPERATION_SEED: int = 47225
 
 func start_default_operation() -> void:
 	_begin_operation(DEFAULT_OPERATION_SEED,
-		"OPERATION %s" % MissionGenerator.codename_for(DEFAULT_OPERATION_SEED))
+		MissionGenerator.codename_for(DEFAULT_OPERATION_SEED))
 
 
 func _begin_operation(op_seed: int, op_name: String) -> void:
@@ -229,7 +229,7 @@ func enter_hub() -> void:
 	var loading := ReconUI.make_screen_root()
 	var lc := CenterContainer.new()
 	lc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	lc.add_child(ReconUI.make_label("RETURNING TO %s..." % op_name, 26, ReconUI.AMBER))
+	lc.add_child(ReconUI.make_label("BACK TO %s..." % op_name, 26, ReconUI.AMBER))
 	loading.add_child(lc)
 	_swap_screen(loading)
 	world = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld

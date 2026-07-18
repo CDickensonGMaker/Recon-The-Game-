@@ -20,7 +20,6 @@ const WeatherDirectorScript := preload("res://scripts/world/weather_director.gd"
 const ConvoySpawnerScript := preload("res://scripts/missions/convoy_spawner.gd")
 const DynamicMissionFactoryScript := preload("res://scripts/missions/dynamic_mission_factory.gd")
 
-const CODENAME_A: Array[String] = ["SILVER", "IRON", "JUNGLE", "DUSTY", "BROKEN", "SHADOW", "COPPER", "MIDNIGHT", "RED", "LONG"]
 const CODENAME_B: Array[String] = ["LANCE", "TIGER", "ARROW", "SABRE", "HAMMER", "SERPENT", "TALON", "BUFFALO", "DAGGER", "PYTHON"]
 
 const ENEMY_DATA: Array[String] = [
@@ -42,11 +41,14 @@ const ENEMY_DATA: Array[String] = [
 const WEATHER_TABLE: Array[String] = ["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
 const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
 
-## Codename derivable without a world - MUST match the first two rng draws.
+## Base name derivable without a world - MUST consume the first two rng draws
+## (conditions_for skips exactly two). No "operation" language (Summoner decree
+## 2026-07-18): the world is a firebase and a tour, not a mission board.
 static func codename_for(seed_value: int) -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	return "OPERATION %s %s" % [CODENAME_A[rng.randi() % CODENAME_A.size()], CODENAME_B[rng.randi() % CODENAME_B.size()]]
+	var _a: int = rng.randi()  # draw 1 of the 2-draw name contract (conditions_for skips 2)
+	return "FSB %s" % CODENAME_B[rng.randi() % CODENAME_B.size()]
 
 
 ## Weather/time rolls: draws 3 and 4 in the seed sequence (after codename's 2).
