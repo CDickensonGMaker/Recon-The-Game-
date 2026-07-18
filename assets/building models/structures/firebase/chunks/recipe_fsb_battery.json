@@ -1,0 +1,238 @@
+{
+ "meta": {
+  "across_flats_m": 72.7,
+  "role": "battery firebase",
+  "template": "FSB Crook/Kramer flat-terrain circle, compressed"
+ },
+ "placements": [
+  {
+   "chunk": "fb_corner45_01",
+   "x": -280.0,
+   "y": 0.0001,
+   "yaw_deg": -0.0
+  },
+  {
+   "chunk": "fb_gate_01",
+   "x": -162.3652,
+   "y": -166.665,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_corner45_02",
+   "x": -203.731,
+   "y": -208.0306,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 25.5838,
+   "y": -94.4161,
+   "yaw_deg": 90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": 25.5837,
+   "y": -123.6661,
+   "yaw_deg": 90.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 25.5834,
+   "y": -232.9161,
+   "yaw_deg": 90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": 135.6802,
+   "y": -58.7129,
+   "yaw_deg": 135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 99.7946,
+   "y": -22.8272,
+   "yaw_deg": 135.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 205.3299,
+   "y": -128.3632,
+   "yaw_deg": 135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 120.0001,
+   "y": 72.6675,
+   "yaw_deg": 180.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 109.2501,
+   "y": 72.6674,
+   "yaw_deg": 180.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 258.5001,
+   "y": 72.6668,
+   "yaw_deg": 180.0
+  },
+  {
+   "chunk": "fb_wall_03",
+   "x": 112.5814,
+   "y": 211.0481,
+   "yaw_deg": -135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 48.4113,
+   "y": 146.8784,
+   "yaw_deg": -135.0
+  },
+  {
+   "chunk": "fb_corner45_02",
+   "x": 182.2319,
+   "y": 280.6977,
+   "yaw_deg": -135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -47.0833,
+   "y": 167.0841,
+   "yaw_deg": -90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": -47.0831,
+   "y": 196.3341,
+   "yaw_deg": -90.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": -47.0824,
+   "y": 305.584,
+   "yaw_deg": -90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": -157.1799,
+   "y": 131.3813,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -121.2944,
+   "y": 95.4954,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": -226.8293,
+   "y": 201.0319,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -141.5003,
+   "y": 0.0009,
+   "yaw_deg": -0.0
+  },
+  {
+   "chunk": "fb_wall_03",
+   "x": -210.7503,
+   "y": 0.0015,
+   "yaw_deg": -0.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": -166.3138,
+   "y": -204.0822,
+   "yaw_deg": 405.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": -8.1305,
+   "y": -247.5712,
+   "yaw_deg": 441.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": 260.0692,
+   "y": -48.9064,
+   "yaw_deg": 513.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": 154.006,
+   "y": 267.5578,
+   "yaw_deg": 585.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": -179.7444,
+   "y": 264.4785,
+   "yaw_deg": 657.0
+  },
+  {
+   "chunk": "fb_pad_gunpit_01",
+   "x": -279.9504,
+   "y": -53.8889,
+   "yaw_deg": 729.0
+  },
+  {
+   "chunk": "fb_pad_toc_01",
+   "x": -228.1856,
+   "y": -252.519,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_pad_mortar_01",
+   "x": -279.6168,
+   "y": -118.1803,
+   "yaw_deg": 20
+  },
+  {
+   "chunk": "fb_pad_mortar_01",
+   "x": 229.5909,
+   "y": -181.5468,
+   "yaw_deg": 130
+  },
+  {
+   "chunk": "fb_pad_helipad_01",
+   "x": -68.7328,
+   "y": 9.464,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_pad_supply_02",
+   "x": -125.5599,
+   "y": 35.0784,
+   "yaw_deg": -30.0
+  },
+  {
+   "chunk": "fb_pad_hooch_01",
+   "x": -70.8542,
+   "y": -100.1376,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_pad_hooch_03",
+   "x": 99.2053,
+   "y": 236.7986,
+   "yaw_deg": -135.0
+  },
+  {
+   "wire_ring": {
+    "cx": -10.75,
+    "cy": 36.33,
+    "radius": 44,
+    "road_gap_toward_deg": -45.0,
+    "gap_half_angle_deg": 22,
+    "prop": "barbwire_card",
+    "spacing_m": 1.5,
+    "pattern": "x_pair",
+    "cross_angle_deg": 30
+   }
+  }
+ ]
+}

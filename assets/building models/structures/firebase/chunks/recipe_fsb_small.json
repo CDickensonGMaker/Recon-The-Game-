@@ -1,0 +1,145 @@
+{
+ "meta": {
+  "across_flats_m": 46.7,
+  "role": "company NDP (no artillery)",
+  "template": "FSB Crook 80m company circle, compressed"
+ },
+ "placements": [
+  {
+   "chunk": "fb_corner45_01",
+   "x": -280.0,
+   "y": 0.0001,
+   "yaw_deg": -0.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -77.5123,
+   "y": -81.8122,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": -183.0481,
+   "y": -187.3478,
+   "yaw_deg": 45.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 17.9824,
+   "y": -102.0175,
+   "yaw_deg": 90.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 17.9821,
+   "y": -251.2675,
+   "yaw_deg": 90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": 128.0788,
+   "y": -77.0642,
+   "yaw_deg": 135.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 205.33,
+   "y": -154.3158,
+   "yaw_deg": 135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": 120.0,
+   "y": 46.7148,
+   "yaw_deg": 180.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 269.25,
+   "y": 46.7143,
+   "yaw_deg": 180.0
+  },
+  {
+   "gap": 10.75
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": 172.2985,
+   "y": 234.0625,
+   "yaw_deg": -135.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -28.7322,
+   "y": 148.7326,
+   "yaw_deg": -90.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": -28.7316,
+   "y": 297.9825,
+   "yaw_deg": -90.0
+  },
+  {
+   "chunk": "fb_wall_02",
+   "x": -138.8287,
+   "y": 123.7795,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_corner45_01",
+   "x": -216.0798,
+   "y": 201.0312,
+   "yaw_deg": -45.0
+  },
+  {
+   "chunk": "fb_wall_01",
+   "x": -130.7501,
+   "y": 0.0005,
+   "yaw_deg": -0.0
+  },
+  {
+   "chunk": "fb_pad_toc_01",
+   "x": 207.1109,
+   "y": 319.9886,
+   "yaw_deg": 225.0
+  },
+  {
+   "chunk": "fb_pad_mortar_01",
+   "x": -218.3059,
+   "y": -234.6611,
+   "yaw_deg": 40
+  },
+  {
+   "chunk": "fb_pad_mortar_01",
+   "x": 308.117,
+   "y": -78.3171,
+   "yaw_deg": 150
+  },
+  {
+   "chunk": "fb_pad_hooch_01",
+   "x": 73.114,
+   "y": 171.1428,
+   "yaw_deg": 225.0
+  },
+  {
+   "chunk": "fb_pad_supply_01",
+   "x": 72.2062,
+   "y": -20.2545,
+   "yaw_deg": 115.0
+  },
+  {
+   "wire_ring": {
+    "cx": -5.38,
+    "cy": 23.36,
+    "radius": 31,
+    "road_gap_toward_deg": 135.0,
+    "gap_half_angle_deg": 25,
+    "prop": "barbwire_card",
+    "spacing_m": 1.5,
+    "pattern": "x_pair",
+    "cross_angle_deg": 30
+   }
+  }
+ ]
+}

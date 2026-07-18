@@ -51,10 +51,10 @@ var _tree_cover: TreeCoverLayer = null
 const TYPE_SPECIES := {
 	TerrainType.CLEAR: [],
 	TerrainType.RICE_PADDY: ["rice_a", "rice_b"],
-	TerrainType.GRASSLAND: ["tall_grass_a", "tall_grass_b", "elephant_grass_a", "bush_a", "fern_a"],
-	TerrainType.LIGHT_JUNGLE: ["banana_a", "bush_a", "bush_b", "fern_a", "fern_b", "palm_sapling_a", "jungle_palm_a1"],
-	TerrainType.MEDIUM_JUNGLE: ["broadleaf_a", "broadleaf_b", "banana_a", "jungle_palm_a1", "jungle_palm_b1", "bamboo_a", "bush_b", "fern_b", "fern_c", "elephant_grass_b"],
-	TerrainType.HEAVY_JUNGLE: ["broadleaf_a", "broadleaf_b", "broadleaf_c", "bamboo_a", "bamboo_b", "bamboo_c", "banana_b", "jungle_palm_a2", "jungle_palm_b2", "fern_c", "liana_a", "vine_a"],
+	TerrainType.GRASSLAND: ["tall_grass_a", "tall_grass_b", "elephant_grass_a", "bush_a", "bush_a", "bush_c", "fern_a"],
+	TerrainType.LIGHT_JUNGLE: ["banana_a", "bush_a", "bush_a", "bush_b", "bush_c", "fern_a", "fern_b", "palm_sapling_a", "jungle_palm_a1"],
+	TerrainType.MEDIUM_JUNGLE: ["broadleaf_a", "broadleaf_b", "banana_a", "jungle_palm_a1", "jungle_palm_b1", "bamboo_a", "bush_b", "bush_b", "bush_c", "fern_b", "fern_c", "elephant_grass_b"],
+	TerrainType.HEAVY_JUNGLE: ["broadleaf_a", "broadleaf_b", "broadleaf_c", "bamboo_a", "bamboo_b", "bamboo_c", "banana_b", "jungle_palm_a2", "jungle_palm_b2", "bush_b", "bush_c", "fern_c", "liana_a", "vine_a"],
 }
 
 # Bundle size in meters
@@ -66,10 +66,10 @@ var bundle_meters: float:
 const TYPE_PROPS := {
 	TerrainType.CLEAR:         [0.00, 0, 0, false, 1.0],
 	TerrainType.RICE_PADDY:    [0.00, 0, 0, false, 0.4],   # Water/mud - very slow
-	TerrainType.GRASSLAND:     [0.08, 0, 1, false, 0.95],  # Very sparse
-	TerrainType.LIGHT_JUNGLE:  [0.30, 1, 2, false, 0.8],   # Sparse
-	TerrainType.MEDIUM_JUNGLE: [0.55, 1, 3, true,  0.5],   # Moderate density
-	TerrainType.HEAVY_JUNGLE:  [0.80, 2, 4, true,  0.3],   # Dense canopy
+	TerrainType.GRASSLAND:     [0.16, 0, 1, false, 0.95],  # Very sparse
+	TerrainType.LIGHT_JUNGLE:  [0.42, 1, 3, false, 0.8],   # Sparse
+	TerrainType.MEDIUM_JUNGLE: [0.72, 2, 4, true,  0.5],   # Moderate density
+	TerrainType.HEAVY_JUNGLE:  [0.92, 3, 6, true,  0.3],   # Dense canopy
 }
 
 var _meshes: Array[Mesh] = []  # Tree meshes
@@ -119,6 +119,12 @@ const FRUSTUM_UPDATE_INTERVAL := 0.1  # 10Hz
 ## each system's frame cost can be measured by difference.
 var grass_disabled: bool = false
 var patches_disabled: bool = false
+
+## Localized density thickening set AFTER the mission plan is known (set_density_centers):
+## the player insertion ring and each hamlet. Each entry:
+##   {pos: Vector3, radius: float, chance_floor: float, count_boost: int, bush_bias: bool}
+## Read by _build_scatter; only lifts density within a cell's own classified pool.
+var _density_centers: Array = []
 
 
 func _ready() -> void:
@@ -601,17 +607,72 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				continue
 			var props: Array = TYPE_PROPS[ttype]
 			var chance: float = props[0]
+			var cmin: int = int(props[1])
+			var cmax: int = int(props[2])
+			var bush_bias: bool = false
+			var bcx: float = origin_x + (bx + 0.5) * bundle_meters
+			var bcz: float = origin_z + (bz + 0.5) * bundle_meters
+			for c: Dictionary in _density_centers:
+				var cp: Vector3 = c["pos"]
+				var rad: float = float(c.get("radius", 0.0))
+				if Vector2(bcx - cp.x, bcz - cp.z).length() <= rad:
+					chance = maxf(chance, float(c.get("chance_floor", chance)))
+					cmin += int(c.get("count_boost", 0))
+					cmax += int(c.get("count_boost", 0))
+					if bool(c.get("bush_bias", false)):
+						bush_bias = true
 			if chance <= 0.0 or rng.randf() > chance:
 				continue
-			var count: int = rng.randi_range(int(props[1]), int(props[2]))
+			var count: int = rng.randi_range(cmin, cmax)
 			for _i in count:
 				var wx: float = origin_x + (bx + rng.randf()) * bundle_meters
 				var wz: float = origin_z + (bz + rng.randf()) * bundle_meters
-				var nm: String = String(pool[rng.randi_range(0, pool.size() - 1)])
+				var nm: String = _pick_species(pool, bush_bias, rng)
 				var h: float = heightmap.sample_world(wx, wz)
 				var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
 				scatter.append({"name": nm, "xf": Transform3D(basis, Vector3(wx, h, wz))})
 	return scatter
+
+
+## Weighted pick from the cell's classified pool. Under bush_bias (hamlet brush) a
+## non-bush first draw gets ONE re-roll toward a bush, so villages read thick without
+## planting species the classification does not carry (keeps the one-classifier contract).
+func _pick_species(pool: Array, bush_bias: bool, rng: RandomNumberGenerator) -> String:
+	var nm: String = String(pool[rng.randi_range(0, pool.size() - 1)])
+	if bush_bias and not nm.begins_with("bush_"):
+		var alt: String = String(pool[rng.randi_range(0, pool.size() - 1)])
+		if alt.begins_with("bush_"):
+			nm = alt
+	return nm
+
+
+## IMPROVE-in-place hook (ADR-028): thicken veg around given world points (the player
+## insertion ring, each hamlet) AFTER the mission plan is known, still behind the loading
+## screen. Re-scatters only the TREE_COVER chunks the centers touch. Adds no placement path
+## and no new seed: the same _build_scatter runs with the same per-chunk seed, now reading
+## _density_centers, so the world stays deterministic for a given (seed, centers).
+func set_density_centers(centers: Array) -> void:
+	_density_centers = centers
+	if canopy_source != CanopySource.TREE_COVER or _terrain_manager == null:
+		return
+	var hm: Object = _terrain_manager.heightmap
+	if hm == null:
+		return
+	var cs: float = _terrain_manager.chunk_size
+	var affected: Dictionary = {}
+	for c: Dictionary in centers:
+		var cp: Vector3 = c["pos"]
+		var rad: float = float(c.get("radius", 0.0))
+		var minx: int = int(floor((cp.x - rad) / cs))
+		var maxx: int = int(floor((cp.x + rad) / cs))
+		var minz: int = int(floor((cp.z - rad) / cs))
+		var maxz: int = int(floor((cp.z + rad) / cs))
+		for cz in range(minz, maxz + 1):
+			for cx in range(minx, maxx + 1):
+				affected[Vector2i(cx, cz)] = true
+	for coord: Vector2i in affected:
+		if _chunk_terrain.has(coord):
+			generate_for_chunk(coord, hm, cs)
 
 
 ## Check if position blocks LOS (heavy/medium jungle)

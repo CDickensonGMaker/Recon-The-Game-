@@ -240,16 +240,9 @@ func _run_mission(offer: Dictionary) -> void:
 	director.mission_failed.connect(_on_mission_ended)
 
 	var plan: Dictionary = MissionGenerator.plan(world, int(offer.mission_seed), int(offer.type) as MissionGenerator.MissionType)
-	# THE BIRD FLIES (ADR-008 condition 2, audit L2). This used to erase start_pad
-	# for every hub launch - and every reachable launch IS a hub launch - so the
-	# InsertionRide (boarding, flight, AA fire, shoot-down, crash E&E) never ran
-	# once in the shipped game, and the whole AA-threat economy had no consumer.
-	# The ride IS the insertion; you board at the firebase and you fly in.
 	var built: Dictionary = MissionGenerator.build(world, director, plan)
-	# Ride in on the Huey when the plan has a start pad (all types but firebase).
+	# Insertion is on foot at the LZ (heli ride parked by Summoner decree 2026-07-17).
 	var spawn: Vector3 = plan.insertion_lz
-	if plan.has("start_pad"):
-		spawn = plan.start_pad
 	world.spawn_player_at(spawn)
 	if world.hud != null:
 		world.hud.managed_by_flow = true
@@ -271,12 +264,6 @@ func _run_mission(offer: Dictionary) -> void:
 	squad.setup(world, director, spawn)
 	mission_hud.squad = squad
 	director.squad_system = squad
-
-	if plan.has("start_pad"):
-		var ride := InsertionRide.new()
-		world.add_child(ride)
-		ride.setup(world, director, plan.start_pad, plan.insertion_lz)
-		ride.prompt_changed.connect(mission_hud.set_prompt)
 
 	# IMPROVE-in-place (ADR-028, asr5/y5ad): thicken the jungle where the player lands
 	# so he begins IN cover, and pile brush on each hamlet so the ville sits in thick bush.

@@ -33,8 +33,8 @@ func _run() -> void:
 	squad.setup(world, director, world.player.global_position + Vector3(4, 0, 0))
 	await get_tree().create_timer(0.6).timeout
 
-	# 1. Five rostered members with distinct MOS.
-	if squad.members.size() != 5:
+	# 1. A full squad (SQUAD_SIZE) carrying every core MOS.
+	if squad.members.size() != SquadSystem.SQUAD_SIZE:
 		print("FAIL: squad size %d" % squad.members.size())
 		failures += 1
 	var mos_seen := {}
@@ -44,10 +44,10 @@ func _run() -> void:
 			print("FAIL: unnamed member")
 			failures += 1
 	print("roster MOS: %s" % [mos_seen.keys()])
-	if not mos_seen.has("MEDIC") or not mos_seen.has("RTO") or not mos_seen.has("POINT"):
+	if not mos_seen.has("MEDIC") or not mos_seen.has("RTO") or not mos_seen.has("POINTMAN"):
 		print("FAIL: missing core MOS")
 		failures += 1
-	if CampaignState.roster.size() != 5:
+	if CampaignState.roster.size() != SquadSystem.SQUAD_SIZE:
 		print("FAIL: roster not persisted")
 		failures += 1
 
@@ -68,7 +68,7 @@ func _run() -> void:
 	for a in squad.members:
 		if a.global_position.distance_to(move_target) < 12.0:
 			arrived += 1
-	print("MOVE_TO arrivals: %d/5" % arrived)
+	print("MOVE_TO arrivals: %d/%d" % [arrived, squad.members.size()])
 	if arrived < 3:
 		print("FAIL: MOVE_TO order mostly ignored")
 		failures += 1
@@ -124,7 +124,7 @@ func _run() -> void:
 		failures += 1
 	# Next roster fill replaces him.
 	var refilled: Array = SquadRoster.ensure_roster(999)
-	if refilled.size() != 5:
+	if refilled.size() != SquadSystem.SQUAD_SIZE:
 		print("FAIL: roster not refilled (%d)" % refilled.size())
 		failures += 1
 

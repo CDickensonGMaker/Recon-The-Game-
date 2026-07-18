@@ -62,6 +62,10 @@ const LAST_NAMES: Array[String] = [
 ## The five slots an AI fireteam fills. MARKSMAN is a valid MOS with a body and a
 ## skill, but is not a standing slot - he is drawn only as an alternate.
 const MOS_ORDER: Array[String] = ["POINTMAN", "RTO", "MEDIC", "MG", "GRENADIER"]
+## The player leads a reinforced squad: one of each specialist slot, riflemen filling
+## the rest to size. Kept in lock-step with SquadSystem.SQUAD_SIZE.
+const SQUAD_SIZE: int = 8
+const FILL_MOS: String = "RIFLEMAN"
 const NICKNAMES := {
 	"MEDIC": "DOC", "MG": "PIG", "RTO": "RADIO", "POINTMAN": "EYES",
 	"GRENADIER": "THUMPER", "MARKSMAN": "DEADEYE",
@@ -148,7 +152,7 @@ static func credit_use(member: Dictionary, skill: String, n: int = 1) -> int:
 	return promoted
 
 
-## Ensure CampaignState.roster has 5 living members; replaces KIA with rookies.
+## Ensure CampaignState.roster has SQUAD_SIZE living members; replaces KIA with rookies.
 static func ensure_roster(rng_seed: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
@@ -163,13 +167,13 @@ static func ensure_roster(rng_seed: int) -> Array:
 	for m in living:
 		have_mos.append(str(m.mos))
 	for mos in MOS_ORDER:
-		if living.size() >= 5:
+		if living.size() >= SQUAD_SIZE:
 			break
 		if not have_mos.has(mos):
 			living.append(generate_member(rng, mos))
 			have_mos.append(mos)
-	while living.size() < 5:
-		living.append(generate_member(rng, MOS_ORDER[living.size() % MOS_ORDER.size()]))
+	while living.size() < SQUAD_SIZE:
+		living.append(generate_member(rng, FILL_MOS))
 	# Back-fill fields added after an older save was written (learn-by-doing).
 	for m in living:
 		if not m.has("skill_uses"):
