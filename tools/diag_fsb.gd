@@ -82,4 +82,51 @@ func _ready() -> void:
 	print("[DIAG] fsb meshes TOTAL: %d, above terrain: %d" % [total, total_above])
 	var d: FieldDirector = flow.director
 	print("[DIAG] gate_pos: %s  dist spawn->gate: %.1f" % [str(d.patrol_gate_pos.round()), spawn.distance_to(d.patrol_gate_pos)])
+
+	# PHYSICS TRUTH vs ARRAY TRUTH (verify-in-object-space law): the player collides
+	# with baked chunk meshes, not with heightmap arithmetic. Ray from 400m down.
+	for i in range(3):
+		await get_tree().physics_frame
+	var space := world.get_world_3d().direct_space_state
+	var pts: Dictionary = {
+		"spawn": spawn, "gate": d.patrol_gate_pos, "center": center,
+		"corner_nw": center + Vector3(-150.0, 0.0, -150.0),
+		"corner_ne": center + Vector3(150.0, 0.0, -150.0),
+		"corner_sw": center + Vector3(-150.0, 0.0, 150.0),
+		"corner_se": center + Vector3(150.0, 0.0, 150.0),
+	}
+	for k in pts:
+		var p: Vector3 = pts[k]
+		var q := PhysicsRayQueryParameters3D.create(
+			Vector3(p.x, 400.0, p.z), Vector3(p.x, -100.0, p.z))
+		var hit: Dictionary = space.intersect_ray(q)
+		var py: float = -999.0
+		var cname: String = "NO-HIT"
+		if hit.has("position"):
+			py = (hit.position as Vector3).y
+			var col: Object = hit.collider
+			if col is Node:
+				cname = (col as Node).name
+		var ay: float = tm.get_height_at(p)
+		var chunk := Vector2i(int(floor(p.x / 256.0)), int(floor(p.z / 256.0)))
+		print("[DIAG-PHYS] %-10s physics_y=%7.2f  array_y=%7.2f  delta=%7.2f  hit=%s  chunk=%s" % [
+			k, py, ay, py - ay, cname, str(chunk)])
+
+	# Where the player body actually SETTLES (30 physics frames of gravity).
+	var start_y: float = world.player.global_position.y
+	for i in range(30):
+		await get_tree().physics_frame
+	var settled: Vector3 = world.player.global_position
+	print("[DIAG-PHYS] player start_y=%.2f settled=%.1f,%.1f,%.1f (array_y here=%.2f)" % [
+		start_y, settled.x, settled.y, settled.z, tm.get_height_at(settled)])
+
+	# WHERE report: every patrol location with bearing + distance from spawn.
+	const DIRS: Array[String] = ["N","NE","E","SE","S","SW","W","NW"]
+	for loc in d.patrol_locations:
+		var lp: Vector3 = loc.pos
+		var dv := Vector2(lp.x - spawn.x, lp.z - spawn.z)
+		var bearing: float = fposmod(rad_to_deg(atan2(dv.x, -dv.y)), 360.0)
+		var dir: String = DIRS[int(round(bearing / 45.0)) % 8]
+		print("[DIAG-WHERE] %-9s %s %4.0fm  bearing %3.0f (%s)  at %.0f,%.0f" % [
+			str(loc.kind), dir, dv.length(), bearing, dir, lp.x, lp.z])
 	get_tree().quit(0)

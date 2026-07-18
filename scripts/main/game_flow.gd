@@ -221,6 +221,29 @@ func load_from_slot(slot: int) -> void:
 	enter_hub()
 
 
+## The array (get_height_at) and the baked chunk mesh MUST agree at the player's
+## feet, and the log proves it on every deploy - the probe suite once said "level"
+## while the live player stood under the hillside (verify in object space).
+func _report_spawn_truth(spawn: Vector3, op_seed: int) -> void:
+	if world == null or world.player == null:
+		return
+	var space := world.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(
+		Vector3(spawn.x, 400.0, spawn.z), Vector3(spawn.x, -100.0, spawn.z))
+	q.exclude = [world.player.get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	var phys_y: float = -999.0
+	var cname: String = "NO-HIT"
+	if hit.has("position"):
+		phys_y = (hit.position as Vector3).y
+		if hit.collider is Node:
+			cname = (hit.collider as Node).name
+	var arr_y: float = world.terrain_manager.get_height_at(spawn)
+	print("[SPAWN-TRUTH] seed=%d spawn=%.0f,%.0f physics_y=%.2f array_y=%.2f delta=%.2f top_hit=%s player_y=%.2f" % [
+		op_seed, spawn.x, spawn.z, phys_y, arr_y, phys_y - arr_y, cname,
+		world.player.global_position.y])
+
+
 func enter_hub() -> void:
 	_teardown_world()
 	SaveManager.context = "hub"
@@ -249,6 +272,25 @@ func enter_hub() -> void:
 	var patrol_plan: Dictionary = MissionGenerator.plan_patrol_world(world, op_seed)
 	var built: Dictionary = MissionGenerator.build_patrol_world(world, director, patrol_plan)
 	var spawn: Vector3 = built.spawn_pos
+	# Dev lens: `--spawn-at-village` drops the patrol at the nearest village edge so
+	# the living world can be judged without the walk (temporary, Summoner 2026-07-18).
+	if OS.get_cmdline_user_args().has("--spawn-at-village"):
+		var best: Vector3 = spawn
+		var best_d: float = INF
+		for s in patrol_plan.sites:
+			var site: Dictionary = s
+			if str(site.get("kind", "")) == "village":
+				var c: Vector3 = site.center
+				var dist: float = Vector2(c.x - spawn.x, c.z - spawn.z).length()
+				if dist < best_d:
+					best_d = dist
+					best = c
+		if best_d < INF:
+			var back: Vector3 = (spawn - best).normalized()
+			spawn = best + Vector3(back.x, 0.0, back.z) * 60.0
+			spawn.y = world.terrain_manager.get_height_at(spawn)
+			print("[SPAWN-DEV] --spawn-at-village: dropped %.0fm from village at %.0f,%.0f" % [
+				60.0, best.x, best.z])
 	world.spawn_player_at(spawn)
 	if world.hud != null:
 		world.hud.managed_by_flow = true
@@ -285,6 +327,7 @@ func enter_hub() -> void:
 		if wh != null and wh.has_method("refresh_after_load"):
 			wh.call("refresh_after_load")
 	await get_tree().physics_frame  # settle cover colliders before reveal (no first-frame resettle)
+	_report_spawn_truth(spawn, op_seed)
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

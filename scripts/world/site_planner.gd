@@ -459,7 +459,10 @@ const FSB_AABB_CENTER := Vector3(39.5, 0.0, 70.7)   # model space, measured
 const FSB_HALF := Vector2(184.6, 172.2)             # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
 const FSB_EDGE_MARGIN: float = 60.0
-const FSB_FLATTEN_RADIUS: float = 255.0
+const FSB_FLATTEN_RADIUS: float = 320.0
+## modify_region's falloff at d=255m of R=320 — everything inside the model + the
+## spawn ring gets the FULL seat; only the 255→320m shoulder blends into relief.
+const FSB_PLATEAU_FALLOFF: float = 0.107
 ## Vegetation-clear discs covering the footprint (model-space offsets from AABB
 ## center + radius). The base is authored cleared ground; trees through bunkers lie.
 const FSB_CLEAR_DISCS: Array = [
@@ -539,12 +542,12 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 			n += 1
 	seat_y /= float(n)
 	var seat_norm: float = seat_y / _terrain.heightmap.height_scale
-	# One disc over the whole footprint (corner reach ~252m): HARD flat except the
-	# outer ~12%, which blends into the surrounding relief. A soft per-disc blend
-	# left the gate wing (201m off-center) on raw terrain - measured, not guessed.
+	# Full plateau across the model AND the spawn ring (corner reach ~252m), then a
+	# 65m blend shoulder. The old f*8.0 curve left the gate wing at ~80% seat and
+	# the spawn ring at ~57% - level at seed 47225 by luck, buried on rougher AOs.
 	_terrain.modify_terrain(center, FSB_FLATTEN_RADIUS,
 		func(h: float, f: float) -> float:
-			return lerpf(h, seat_norm, clampf(f * 8.0, 0.0, 1.0)))
+			return lerpf(h, seat_norm, clampf(f / FSB_PLATEAU_FALLOFF, 0.0, 1.0)))
 	for disc in FSB_CLEAR_DISCS:
 		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
 	var scene: PackedScene = load(FSB_MAIN_PATH)
