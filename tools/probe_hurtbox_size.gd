@@ -2,7 +2,7 @@ extends SceneTree
 ## Did cutting the gear out of the body actually SHRINK the hurtbox?
 ##
 ## HitzoneBuilder harvests hulls from SKINNED meshes and skips anything whose
-## name matches _GEAR_NAME_HINTS. On us_grunt_v2 the helmet and ruck are welded
+## name matches _GEAR_NAME_HINTS. On us_grunt_rifleman the helmet and ruck are welded
 ## into `us_grunt_joined` - which is not a gear name - so they were harvested
 ## straight into the HEAD and TORSO hulls: you could shoot a man's backpack and
 ## hurt his spine. On us_grunt_v3 they are bone-parented `*_worn` meshes - rigid,
@@ -11,7 +11,7 @@ extends SceneTree
 ##   godot --headless --path . -s res://tools/probe_hurtbox_size.gd
 
 func _initialize() -> void:
-	for unit in ["us_grunt_v2", "us_grunt_v3"]:
+	for unit in ["us_grunt_rifleman", "us_grunt_v3"]:
 		var holder := Node3D.new()
 		root.add_child(holder)
 		var model := ModelActor.new()

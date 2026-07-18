@@ -8,37 +8,6 @@ extends RefCounted
 
 const IDLE := "rifle_aiming_idle"
 
-## Ordered fallbacks. First existing clip wins.
-const CHAINS: Dictionary = {
-	"idle": ["rifle_aiming_idle", "action_idle_to_standing_idle"],
-	"patrol": ["start_walking", "run_forward", "rifle_aiming_idle"],
-	"walk": ["start_walking", "run_forward", "rifle_aiming_idle"],
-	"run": ["run_forward", "start_walking", "rifle_aiming_idle"],
-	"fire": ["firing_rifle", "rifle_aiming_idle"],
-	"aim": ["rifle_aiming_idle"],
-	"reload": ["reloading", "rifle_aiming_idle"],
-	"cover": ["stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"strafe": ["strafe", "run_forward", "rifle_aiming_idle"],
-	"retreat": ["injured_walk_backwards", "run_forward", "rifle_aiming_idle"],
-	"crippled": ["injured_walk_backwards", "laying_breathless", "rifle_aiming_idle"],
-	"surrender": ["kneeling_pointing", "rifle_aiming_idle"],  # no surrender clip yet
-	"death_forward": ["death_forward", "laying_breathless"],
-	"death_right": ["death_from_right", "death_forward", "laying_breathless"],
-	"flinch": ["rifle_aiming_idle"],  # no flinch clip yet
-	# Sprite renderers never got sprint/sneak/arrive art - nearest energy wins.
-	"sprint": ["run_forward", "rifle_aiming_idle"],
-	"sneak_l": ["stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"sneak_r": ["stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"arrive": ["rifle_aiming_idle"],
-	# Low-posture family: sprites carry no crouch-walk loops, so the chain lands
-	# on the crouch idle they DO have, then rifle_aiming_idle. Models take MODEL_CLIP.
-	"crouch_idle": ["idle_crouching", "stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"crouch_aim": ["idle_crouching_aiming", "idle_crouching", "kneeling_pointing", "rifle_aiming_idle"],
-	"crouch_fwd": ["walk_crouching_forward", "start_walking", "run_forward", "rifle_aiming_idle"],
-	"crouch_l": ["walk_crouching_left", "stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"crouch_r": ["walk_crouching_right", "stand_to_cover", "kneeling_pointing", "rifle_aiming_idle"],
-	"crouch_back": ["walk_crouching_backward", "injured_walk_backwards", "rifle_aiming_idle"],
-}
 
 ## Above this ground speed (m/s) a man reads as SPRINTING. Enemy move_speed is
 ## 4.0-4.4, so only BOOSTED movement (the rush, the rout) reaches here.
@@ -55,13 +24,6 @@ const WALK_SPEED_MAX: float = 2.6
 ## fast push no matter how the low_posture flag is keyed.
 const LOW_POSTURE_SPEED_MAX: float = 2.6
 
-
-static func resolve(faction: String, unit: String, weapon: String, intent: String) -> String:
-	var chain: Array = CHAINS.get(intent, [IDLE])
-	for clip in chain:
-		if SpriteLibrary.has_clip(faction, unit, weapon, str(clip)):
-			return str(clip)
-	return IDLE
 
 
 ## The single funnel: everything the AI is doing collapses to one intent string.
@@ -235,10 +197,10 @@ const WEAPON_FAMILY: Dictionary = {
 ## One entry point both renderers use. is_model picks the model clip map (all 21
 ## clips present) vs the sprite fallback chain (only what was rendered).
 static func clip_for(is_model: bool, faction: String, unit: String, weapon: String, intent: String) -> String:
-	if is_model:
-		var base: String = model_clip_for(intent)
-		var family: String = str(WEAPON_FAMILY.get(weapon, ""))
-		if not family.is_empty():
-			return base + "__" + family
-		return base
-	return resolve(faction, unit, weapon, intent)
+	if not is_model:
+		return IDLE  # capsule fallback has no clips (ADR-001: the sprite renderer is dead)
+	var base: String = model_clip_for(intent)
+	var family: String = str(WEAPON_FAMILY.get(weapon, ""))
+	if not family.is_empty():
+		return base + "__" + family
+	return base

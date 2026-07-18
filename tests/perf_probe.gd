@@ -90,7 +90,6 @@ func _apply_toggle(phase_name: String) -> void:
 	if bb != null:
 		bb.render_disabled = phase_name == "no_billboards"
 	if vg != null:
-		vg.grass_disabled = phase_name == "no_grass"
 		vg.patches_disabled = phase_name == "no_patches"
 	print("[PERF] phase -> %s" % phase_name)
 

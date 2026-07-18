@@ -9,7 +9,7 @@ extends SceneTree
 
 ## unit -> the weapon its enemy/ally data hands it (drives __family suffix).
 const UNIT_WEAPON: Dictionary = {
-	"us_grunt_v2": "m16a1",
+	"us_grunt_rifleman": "m16a1",
 	"vc_guerilla": "ak47",
 	"vc_guerilla_mosin": "mosin", "vc_guerilla_ppsh": "ppsh41",
 	"vc_guerilla_rpd": "rpd", "vc_guerilla_rpg": "rpg2",

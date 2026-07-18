@@ -5,7 +5,7 @@ extends Node3D
 func _ready() -> void:
 	var model := ModelActor.new()
 	add_child(model)
-	model.setup("us_grunt_v2")
+	model.setup("us_grunt_rifleman")
 	model.play("idle", true)
 	await get_tree().process_frame
 	await get_tree().process_frame

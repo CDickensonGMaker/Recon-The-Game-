@@ -1,6 +1,6 @@
 ## model_actor.gd - rigged 3D character, the default renderer.
 ##
-## Mirrors SpriteActor's interface (setup/play/set_facing/flash/muzzle_*) so
+## The one character visual (ADR-001): setup/play/set_facing/flash/muzzle_*.
 ## EnemyBase and AllyBase swap one for the other with no other change - keep the
 ## two interfaces in step.
 class_name ModelActor
@@ -84,7 +84,7 @@ static func model_exists(unit_id: String) -> bool:
 	return not ModelActor.model_path(unit_id).is_empty()
 
 
-## Returns false if the unit has no .glb - caller falls back to SpriteActor.
+## Returns false if the unit has no .glb - caller falls back to the capsule.
 func setup(unit_id: String) -> bool:
 	unit = unit_id
 	if not ModelActor.model_exists(unit_id):
@@ -687,7 +687,7 @@ func set_locomotion_speed(mps: float) -> void:
 		_anim.speed_scale = 1.0
 
 
-## Parity with SpriteActor for code + tests that read the playing clip.
+## For code + tests that read the playing clip.
 var current_action: String:
 	get: return _current_clip
 

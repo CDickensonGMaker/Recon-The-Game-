@@ -6,7 +6,7 @@
 ##   godot --headless --path . -s res://tools/probe_rig_compare.gd
 extends SceneTree
 
-const REF := "us_grunt_v2"
+const REF := "us_grunt_rifleman"
 
 ## Segments that define a man's proportions (rest, in normalized world units).
 const SEGMENTS: Array = [

@@ -11,7 +11,7 @@ extends RefCounted
 ## Units that are not dressable roles: base rigs, legacy exports without the
 ## stock-helmet contract, and aircrew (own skin materials, flight helmet).
 const NON_ROLES: Array[String] = [
-	"us_grunt_v2", "us_grunt_v3",
+	"us_grunt_rifleman", "us_grunt_v3",
 	"us_pilot_white", "us_pilot_black",
 ]
 

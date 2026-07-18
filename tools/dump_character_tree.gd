@@ -5,7 +5,7 @@ extends SceneTree
 
 
 func _init() -> void:
-	var unit := "us_grunt_v2"
+	var unit := "us_grunt_rifleman"
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		unit = args[0]

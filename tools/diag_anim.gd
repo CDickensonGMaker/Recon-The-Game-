@@ -1,4 +1,4 @@
-## diag_anim.gd - does 'idle' actually MOVE the us_grunt_v2 skeleton?
+## diag_anim.gd - does 'idle' actually MOVE the us_grunt_rifleman skeleton?
 ## Run: godot --headless --path . res://tools/diag_anim.tscn
 extends Node3D
 
@@ -6,7 +6,7 @@ extends Node3D
 func _ready() -> void:
 	var actor := ModelActor.new()
 	add_child(actor)
-	if not actor.setup("us_grunt_v2"):
+	if not actor.setup("us_grunt_rifleman"):
 		print("DIAG: setup failed")
 		get_tree().quit(1)
 		return

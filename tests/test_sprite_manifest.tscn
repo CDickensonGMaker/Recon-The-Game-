@@ -1,4 +1,0 @@
-[gd_scene format=3 uid="uid://bpqnrshclmals"]
-[ext_resource type="Script" path="res://tests/test_sprite_manifest.gd" id="1_tsm"]
-[node name="TestSpriteManifest" type="Node"]
-script = ExtResource("1_tsm")

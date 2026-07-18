@@ -8,7 +8,7 @@ func _init() -> void:
 	get_root().add_child(root)
 	var model := ModelActor.new()
 	root.add_child(model)
-	model.setup("us_grunt_v2")
+	model.setup("us_grunt_rifleman")
 	model.play("idle", true)
 	model._anim.advance(0.5)
 	var skel: Skeleton3D = model.skeleton()

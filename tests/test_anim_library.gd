@@ -34,14 +34,14 @@ func _run() -> void:
 	# --- 2. transition era: merge fills gaps on a baked-clips character
 	var actor := ModelActor.new()
 	add_child(actor)
-	if not actor.setup("us_grunt_v2"):
-		print("FAIL: us_grunt_v2 setup failed")
+	if not actor.setup("us_grunt_rifleman"):
+		print("FAIL: us_grunt_rifleman setup failed")
 		failures += 1
 	else:
 		var clips: PackedStringArray = actor.clip_names()
-		print("  us_grunt_v2 clips after merge: %d" % clips.size())
+		print("  us_grunt_rifleman clips after merge: %d" % clips.size())
 		if not actor.play("brutal_assassination"):  # library-only clip
-			print("FAIL: library-only clip not playable on us_grunt_v2")
+			print("FAIL: library-only clip not playable on us_grunt_rifleman")
 			failures += 1
 		if clips.size() < lib_count:
 			print("FAIL: merged clip count %d < library %d" % [clips.size(), lib_count])
@@ -51,7 +51,7 @@ func _run() -> void:
 	# --- 3+4. mesh-only era simulation: strip the baked player, re-merge
 	var actor2 := ModelActor.new()
 	add_child(actor2)
-	var unit: String = "vc_guerilla_mosin" if ModelActor.model_exists("vc_guerilla_mosin") else "us_grunt_v2"
+	var unit: String = "vc_guerilla_mosin" if ModelActor.model_exists("vc_guerilla_mosin") else "us_grunt_rifleman"
 	if not actor2.setup(unit):
 		print("FAIL: %s setup failed for mesh-only sim" % unit)
 		failures += 1

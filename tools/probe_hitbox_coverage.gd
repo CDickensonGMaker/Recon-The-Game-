@@ -21,7 +21,7 @@ const STEP: float = 0.012         # 1.2cm ray grid - finer than a bullet cares
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	var units: Array = args if args.size() > 0 else ["us_grunt_v2", "vc_guerilla"]
+	var units: Array = args if args.size() > 0 else ["us_grunt_rifleman", "vc_guerilla"]
 	for u in units:
 		await _probe(str(u))
 	quit(0)

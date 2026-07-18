@@ -1,6 +1,6 @@
 ## test_gore_rig.gd - gib rig contract probe (GORE_WORKFLOW Phase 3 / bead 1xqs).
 ## Drives GoreDummy through the SAME take_damage(zone) channel the weapons use
-## and asserts the us_grunt_v2 rig contract holds:
+## and asserts the us_grunt_rifleman rig contract holds:
 ##   - each limb region pops: bone chain collapsed, region mesh hidden, gib body spawned
 ##   - HEAD pops on kill and the bone-attached helmet flies as gear
 ##   - gore CAP meshes exist for every region (stump coverage) - missing caps WARN
@@ -23,7 +23,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	if dummy.model == null or not dummy.model.has_visual():
-		_bad("dummy has no model - us_grunt_v2.glb missing")
+		_bad("dummy has no model - us_grunt_rifleman.glb missing")
 		get_tree().quit(1)
 		return
 	var root: Node3D = dummy.model.instance_root()

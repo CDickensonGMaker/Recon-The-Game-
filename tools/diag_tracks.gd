@@ -1,7 +1,7 @@
 @tool
 extends SceneTree
 func _init() -> void:
-	var packed: PackedScene = load("res://assets/us/characters/us_grunt_v2.glb")
+	var packed: PackedScene = load("res://assets/us/characters/us_grunt_rifleman.glb")
 	var inst: Node = packed.instantiate()
 	var anim: AnimationPlayer = inst.find_child("AnimationPlayer", true, false)
 	for name in ["idle", "run_forward", "firing_rifle", "death_from_the_front", "reloading", "idle_aiming"]:

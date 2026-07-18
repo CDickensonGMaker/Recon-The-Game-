@@ -29,7 +29,7 @@ const BONES := {
 
 
 func _init() -> void:
-	var packed: PackedScene = load("res://assets/us/characters/us_grunt_v2.glb")
+	var packed: PackedScene = load("res://assets/us/characters/us_grunt_rifleman.glb")
 	var inst: Node = packed.instantiate()
 	var skel: Skeleton3D = inst.find_child("Skeleton3D", true, false) as Skeleton3D
 	if skel == null:

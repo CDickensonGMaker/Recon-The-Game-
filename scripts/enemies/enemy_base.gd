@@ -225,7 +225,7 @@ const MAX_THINK_TIME: float = 0.2
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 var mesh: MeshInstance3D
-## The visual: a ModelActor (default) or SpriteActor (far-LOD / no-model
+## The visual: a ModelActor (default)
 ## fallback), or null -> capsule. Both share play/set_facing/flash/muzzle_*.
 var sprite_actor: Node3D = null
 var _visual_is_model: bool = false
@@ -322,7 +322,7 @@ func _apply_personality() -> void:
 			aim_speed = randf_range(5.0, 8.0)
 
 
-## 3D model when the unit has one; SpriteActor then capsule as fallbacks.
+## 3D model when the unit has one; capsule as the fallback (ADR-001).
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
 		var unit: String = str(enemy_data.sprite_unit)
@@ -342,14 +342,6 @@ func _setup_visual() -> void:
 				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
 				return
 			ma.queue_free()
-		var sa := SpriteActor.new()
-		add_child(sa)
-		sa.setup(str(enemy_data.sprite_faction), unit, str(enemy_data.sprite_weapon))
-		if sa.play(SpriteStateMap.resolve(str(enemy_data.sprite_faction), unit, str(enemy_data.sprite_weapon), "idle")):
-			sprite_actor = sa
-			_visual_is_model = false
-			return
-		sa.queue_free()
 
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()

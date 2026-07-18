@@ -176,7 +176,7 @@ const RUSH_CLIPS: Array[String] = ["sprint_forward", "run_forward", "start_walki
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 var mesh: MeshInstance3D
-var sprite_actor: Node3D = null  ## ModelActor (default) or SpriteActor (fallback)
+var sprite_actor: Node3D = null  ## ModelActor (capsule when the model is missing)
 var _visual_is_model: bool = false
 var last_hit_dir: Vector3 = Vector3.FORWARD
 ## Which rendered unit this man wears. SquadSystem overrides it per MOS.
@@ -217,14 +217,6 @@ func _setup_visual() -> void:
 				call_deferred("dress_visual")
 				return
 			ma.queue_free()
-		var sa := SpriteActor.new()
-		add_child(sa)
-		sa.setup(sprite_faction, sprite_unit, sprite_weapon)
-		if sa.play(SpriteStateMap.resolve(sprite_faction, sprite_unit, sprite_weapon, "idle")):
-			sprite_actor = sa
-			_visual_is_model = false
-			return
-		sa.queue_free()
 
 	mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()

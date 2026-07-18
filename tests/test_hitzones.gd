@@ -46,7 +46,7 @@ var _live: Dictionary = {}
 
 
 func _isolate_live_tuning() -> void:
-	for f in ["us_grunt_v2", "_default"]:
+	for f in ["us_grunt_rifleman", "_default"]:
 		var g: String = ProjectSettings.globalize_path(HitzoneBuilder.TUNING_DIR + f + ".tres")
 		if FileAccess.file_exists(g):
 			DirAccess.rename_absolute(g, g + ".bak")
@@ -68,8 +68,8 @@ func _run() -> void:
 	add_child(holder)
 	var model := ModelActor.new()
 	holder.add_child(model)
-	if not model.setup("us_grunt_v2"):
-		print("FAIL: us_grunt_v2 setup failed")
+	if not model.setup("us_grunt_rifleman"):
+		print("FAIL: us_grunt_rifleman setup failed")
 		_restore_live_tuning()
 		get_tree().quit(1)
 		return
@@ -98,7 +98,7 @@ func _run() -> void:
 			if r == "HEAD":
 				base_head_aabb = _hull_aabb(sh as ConvexPolygonShape3D)
 		else:
-			print("FAIL: %s is not a mesh hull on us_grunt_v2 (got %s)" % [r, str(sh)])
+			print("FAIL: %s is not a mesh hull on us_grunt_rifleman (got %s)" % [r, str(sh)])
 			failures += 1
 	# Hull honesty: the BODY zone must be a MAN'S CHEST, not a formula-fattened
 	# barrel. The old guard compared against a bone-span capsule, but the arm
@@ -159,7 +159,7 @@ func _run() -> void:
 	add_child(holder2)
 	var model2 := ModelActor.new()
 	holder2.add_child(model2)
-	model2.setup("us_grunt_v2")
+	model2.setup("us_grunt_rifleman")
 	HitzoneBuilder.build(holder2, model2, 0, 0, ["hitzone_probe"], false)
 	var count2: int = 0
 	var has_gut: bool = false
@@ -180,7 +180,7 @@ func _run() -> void:
 	# the override must clear the default by a visible margin to prove it lands.
 	tuning.zones["HEAD"] = {"offset": Vector3(0, 0.2, 0), "damage": 2.5, "fatal": false,
 		"inflate": 0.12, "rotation": Vector3(0, 0, 20)}
-	var tpath: String = HitzoneBuilder.TUNING_DIR + "us_grunt_v2.tres"
+	var tpath: String = HitzoneBuilder.TUNING_DIR + "us_grunt_rifleman.tres"
 	var save_err: int = ResourceSaver.save(tuning, tpath)
 	if save_err != OK:
 		print("FAIL: tuning save err %d" % save_err)
@@ -190,7 +190,7 @@ func _run() -> void:
 		add_child(holder3)
 		var model3 := ModelActor.new()
 		holder3.add_child(model3)
-		model3.setup("us_grunt_v2")
+		model3.setup("us_grunt_rifleman")
 		var entries3: Array = HitzoneBuilder.build(holder3, model3, 0, 0, ["hitzone_probe"], true)
 		var dmg_ok: bool = false
 		var fatal_ok: bool = false
@@ -250,8 +250,8 @@ func _run() -> void:
 		add_child(holder4)
 		var model4 := ModelActor.new()
 		holder4.add_child(model4)
-		if not model4.setup("us_grunt_v2"):
-			print("FAIL: us_grunt_v2 setup failed for default-inheritance case")
+		if not model4.setup("us_grunt_rifleman"):
+			print("FAIL: us_grunt_rifleman setup failed for default-inheritance case")
 			failures += 1
 		else:
 			HitzoneBuilder.build(holder4, model4, 0, 0, ["hitzone_probe"], true)

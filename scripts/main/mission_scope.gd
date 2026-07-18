@@ -15,7 +15,6 @@
 ##   EnemyBase._cover_claims  Vector3i world cells, held by freed enemies.
 ##   GunFX._sting_cooldown_until  absolute Time.get_ticks_msec(), so a sting at
 ##       the end of mission N mutes the CONTACT drum for the first 25s of N+1.
-##   SpriteLibrary  a 1024x1280 RGBA8 sheet is 5.24 MB of VRAM.
 ##   SurviveWaves  a long await chain whose stop() had zero callers.
 ##
 ## Not reset here, deliberately: CampaignState (that IS the campaign),
@@ -35,7 +34,6 @@ static func reset() -> void:
 	EnemyBase._cover_claims.clear()
 	GunFX.reset_session()
 	GunFX.clear_decals()
-	SpriteLibrary.clear()
 	NavBaker.clear()
 	EnemySquad.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
 	GruntRandomizer.reset_bench()   ## bench-face walk restarts, mission N+1 repeats deterministically

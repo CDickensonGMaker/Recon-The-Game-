@@ -1,8 +1,8 @@
 ## test_head_burst.gd - HEAD BURST engine path probe (bead rc55).
-## The us_grunt_v2 rig now SHIPS real head_frag_* chunks (tools/make_head_frags.py
+## The us_grunt_rifleman rig now SHIPS real head_frag_* chunks (tools/make_head_frags.py
 ## cuts grunt_head into 6-9 bisect fragments, gore interiors, rigid Head skin).
 ## Asserts:
-##   0. REAL rig: us_grunt_v2 carries >= 6 head_frag_* meshes and
+##   0. REAL rig: us_grunt_rifleman carries >= 6 head_frag_* meshes and
 ##      dismember_head_burst returns TRUE without any fabricated frags.
 ##   1. Fallback: a rig stripped of its frags -> false (callers fall back to
 ##      the one-piece dismember("HEAD") pop).
@@ -23,7 +23,7 @@ func _make_actor() -> ModelActor:
 	add_child(holder)
 	var model := ModelActor.new()
 	holder.add_child(model)
-	model.setup("us_grunt_v2")
+	model.setup("us_grunt_rifleman")
 	return model
 
 
@@ -55,13 +55,13 @@ func _run() -> void:
 	# --- 0. REAL rig: shipped fragments burst without fabrication
 	var m0: ModelActor = _make_actor()
 	var real_frags: int = _count_frags(m0)
-	print("  us_grunt_v2 ships %d head_frag_* meshes" % real_frags)
+	print("  us_grunt_rifleman ships %d head_frag_* meshes" % real_frags)
 	if real_frags < 6:
 		print("FAIL: real rig ships %d fragments (rc55 wants >= 6)" % real_frags)
 		failures += 1
 	var before0: int = _count_rigid_bodies()
 	if not GibSystem.dismember_head_burst(m0, Vector3.FORWARD, self):
-		print("FAIL: burst refused the REAL us_grunt_v2 rig (shipped frags)")
+		print("FAIL: burst refused the REAL us_grunt_rifleman rig (shipped frags)")
 		failures += 1
 	else:
 		var spawned0: int = _count_rigid_bodies() - before0

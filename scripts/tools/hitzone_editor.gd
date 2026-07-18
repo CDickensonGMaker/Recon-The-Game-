@@ -36,8 +36,8 @@ func _ready() -> void:
 	_build_scene()
 	_scan_units()
 	if not _units.is_empty():
-		# us_grunt_v2 is the reference rig the hitboxes are tuned against.
-		_load_unit(maxi(0, _units.find("us_grunt_v2")))
+		# us_grunt_rifleman is the reference rig the hitboxes are tuned against.
+		_load_unit(maxi(0, _units.find("us_grunt_rifleman")))
 
 
 func _build_scene() -> void:

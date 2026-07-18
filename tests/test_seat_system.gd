@@ -64,8 +64,8 @@ func _mock_body(with_model: bool) -> CharacterBody3D:
 	if with_model:
 		var ma := ModelActor.new()
 		body.add_child(ma)
-		if not ma.setup("us_grunt_v2"):
-			_fail("us_grunt_v2 ModelActor setup failed")
+		if not ma.setup("us_grunt_rifleman"):
+			_fail("us_grunt_rifleman ModelActor setup failed")
 	return body
 
 

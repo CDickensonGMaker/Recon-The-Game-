@@ -1,4 +1,0 @@
-[gd_scene format=3 uid="uid://dwv3n33uh0htq"]
-[ext_resource type="Script" path="res://tests/test_sprite_enemy.gd" id="1_tse"]
-[node name="TestSpriteEnemy" type="Node3D"]
-script = ExtResource("1_tse")
