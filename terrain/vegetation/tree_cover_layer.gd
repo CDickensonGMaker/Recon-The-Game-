@@ -39,7 +39,6 @@ const MAX_TRUNKS_PER_CHUNK: int = 150
 
 @export var near_distance: float = 46.0   ## solid render + collision ring
 @export var view_distance: float = 80.0   ## card render ring
-@export var fade_margin: float = 12.0
 
 var _solid_mesh: Dictionary = {}   ## name -> Mesh
 var _card_mesh: Dictionary = {}    ## name -> Mesh (only species with a card)
@@ -135,10 +134,11 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float) -> 
 	mmi.multimesh = mm
 	if vis_begin > 0.0:
 		mmi.visibility_range_begin = vis_begin
-		mmi.visibility_range_begin_margin = fade_margin
 	mmi.visibility_range_end = vis_end
-	mmi.visibility_range_end_margin = fade_margin
-	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	# HARD PS2 snap (ADR-026), NOT a fade: VISIBILITY_RANGE_FADE_SELF alpha-dithers the mesh
+	# across the fade margin, so trees near the near/card LOD boundaries render SEE-THROUGH.
+	# That was the "opacity" - the arena instances raw GLBs with no range and reads solid.
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	return mmi
 
 
