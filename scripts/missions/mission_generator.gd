@@ -84,17 +84,67 @@ static func _spawn_crater_water(world: GameWorld, pos: Vector3, rng: RandomNumbe
 	disc.global_position = Vector3(pos.x, ground_y + 0.05, pos.z)
 
 
-static func _passable_near(world: GameWorld, rng: RandomNumberGenerator, origin: Vector3, min_r: float, max_r: float, attempts: int = 60) -> Vector3:
+## THE WIRE IS LAW (council 2026-07-18): nothing this sampler places may land
+## inside the firebase. The keep-out is default-on - at plan time the base does
+## not exist yet, so passability can never reject base-interior points; the
+## geometric rect is the only guard. Set at every plan/build entry.
+static var _fsb_keepout := Rect2()
+
+static func _set_fsb_keepout(fsb_center: Vector3) -> void:
+	_fsb_keepout = Rect2(fsb_center.x - SitePlanner.FSB_HALF.x,
+		fsb_center.z - SitePlanner.FSB_HALF.y,
+		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
+
+
+## Widest terrain damage a first-sign crater can do: LARGE profile radius at the
+## max intensity roll, plus margin. Derived, never a bare number - the profile
+## retune bead must not silently under-cover this.
+const FIRST_SIGN_INTENSITY_MAX: float = 1.3
+
+static func _crater_keepout_grow() -> float:
+	var cells: int = int(DamageSystem.DAMAGE_PROFILES[DamageSystem.DamageType.LARGE_EXPLOSION].radius_cells * FIRST_SIGN_INTENSITY_MAX)
+	return float(cells) * WorldConfig.CELL_SIZE + 10.0
+
+
+## Returns Vector3.ZERO (unreachable as a valid result - x/z clamp to >=80) when
+## no candidate clears both passability and the keep-out. Callers must handle:
+## decorations drop, load-bearing sites retry outward, spawns skip.
+static func _passable_near(world: GameWorld, rng: RandomNumberGenerator, origin: Vector3, min_r: float, max_r: float, attempts: int = 60, keepout_grow: float = 0.0) -> Vector3:
 	var map_size: float = world.terrain_manager.map_size
+	var keepout: Rect2 = _fsb_keepout.grow(keepout_grow) if _fsb_keepout.size != Vector2.ZERO else Rect2()
 	for _i in range(attempts):
 		var a: float = rng.randf_range(0.0, TAU)
 		var r: float = rng.randf_range(min_r, max_r)
 		var p := origin + Vector3(cos(a) * r, 0.0, sin(a) * r)
 		p.x = clampf(p.x, 80.0, map_size - 80.0)
 		p.z = clampf(p.z, 80.0, map_size - 80.0)
+		if keepout.size != Vector2.ZERO and keepout.has_point(Vector2(p.x, p.z)):
+			continue
 		if world.gameplay_grid.is_position_passable(p) and not world.gameplay_grid.is_water(p):
 			return p
-	return origin  # degenerate but never invalid
+	if keepout.size != Vector2.ZERO and keepout.has_point(Vector2(origin.x, origin.z)):
+		return Vector3.ZERO
+	return origin  # degenerate but never inside the wire
+
+
+## Load-bearing fallback: first point along `dir` from `gate` that clears the
+## keep-out, then sample around it; the pure-geometry point is the last resort.
+static func _outward_site(world: GameWorld, rng: RandomNumberGenerator, gate: Vector3,
+		dir: Vector3, start_d: float, jitter: float, keepout_grow: float) -> Vector3:
+	var map_size: float = world.terrain_manager.map_size
+	var keepout: Rect2 = _fsb_keepout.grow(keepout_grow)
+	var base: Vector3 = gate + dir * start_d
+	for try_dir in [dir, Vector3(-dir.z, 0.0, dir.x)]:
+		var d: float = start_d
+		while d < 900.0:
+			base = gate + (try_dir as Vector3) * d
+			base.x = clampf(base.x, 80.0, map_size - 80.0)
+			base.z = clampf(base.z, 80.0, map_size - 80.0)
+			if not keepout.has_point(Vector2(base.x, base.z)):
+				var found: Vector3 = _passable_near(world, rng, base, 0.0, jitter, 90, keepout_grow)
+				return found if found != Vector3.ZERO else base
+			d += 30.0
+	return base
 
 
 
@@ -116,6 +166,8 @@ static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGe
 	while pool.size() < 10 and guard < 40:
 		guard += 1
 		var cand: Vector3 = _passable_near(world, rng, centre, 120.0, 480.0)
+		if cand == Vector3.ZERO:
+			continue
 		var ok: bool = true
 		for e in pool:
 			if e.distance_to(cand) < 60.0:   # nodes must be far enough apart to be legs
@@ -400,6 +452,7 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 	planner._fsb_rect = Rect2(fsb_center.x - SitePlanner.FSB_HALF.x,
 		fsb_center.z - SitePlanner.FSB_HALF.y,
 		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
+	_set_fsb_keepout(fsb_center)
 
 	# One village per quadrant - paddy-anchored where the terrain offers one.
 	var villages: Array[Vector3] = []
@@ -412,6 +465,8 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 			var ac: Vector3 = anchor.center
 			var d: float = Vector2(ac.x - gate.x, ac.z - gate.z).length()
 			var ang: float = atan2(ac.z - gate.z, ac.x - gate.x)
+			if _fsb_keepout.grow(SitePlanner.FSB_SITE_CLEARANCE).has_point(Vector2(ac.x, ac.z)):
+				continue  # a paddy anchor under the wire is not a village site
 			if d >= 240.0 and d <= 470.0 and absf(angle_difference(ang, q_ang)) <= TAU / 8.0 + 0.2:
 				found = ac
 				p.sites.append({"kind": "village", "center": ac,
@@ -428,8 +483,11 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 					found = cand
 					break
 			if found == Vector3.ZERO:
-				found = _passable_near(world, rng,
-					gate + Vector3(cos(q_ang), 0, sin(q_ang)) * 360.0, 0.0, 80.0)
+				# Load-bearing: a village must exist per quadrant (pacing contract,
+				# villages[pi % size] downstream) - retry outward, never drop.
+				found = _outward_site(world, rng, gate,
+					Vector3(cos(q_ang), 0, sin(q_ang)), 360.0, 80.0,
+					SitePlanner.FSB_SITE_CLEARANCE)
 			p.sites.append({"kind": "village", "center": found})
 		villages.append(found)
 	p["village_centers"] = villages
@@ -441,19 +499,29 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		var cand: Vector3 = planner.find_site(rng, 14.0, 120.0, [], gate, 400.0, cap)
 		if cand == Vector3.ZERO:
 			var ang2: float = TAU * float(ci) / 3.0 + 0.5
-			cand = _passable_near(world, rng,
-				gate + Vector3(cos(ang2), 0, sin(ang2)) * 440.0, 0.0, 70.0)
+			cand = _outward_site(world, rng, gate,
+				Vector3(cos(ang2), 0, sin(ang2)), 440.0, 70.0,
+				SitePlanner.FSB_SITE_CLEARANCE)
 		camps.append(cand)
 		p.sites.append({"kind": "vc_camp", "center": cand})
 	p["camp_centers"] = camps
 
-	# First-sign ring: old craters, every quadrant, inside 300m.
+	# First-sign craters: four sectors fanned across the gate's OUTWARD half-plane
+	# (ADR-029 amendment 2026-07-18) - the inward compass is the player's own base,
+	# and a crater must clear the wire by its own blast radius. Signs are
+	# decoration: a sector that cannot clear the keep-out yields nothing.
 	var signs: Array[Vector3] = []
+	var out_ang: float = atan2((gm.gate_out as Vector3).z, (gm.gate_out as Vector3).x)
+	var crater_grow: float = _crater_keepout_grow()
 	for q2 in range(4):
-		var qa: float = TAU * float(q2) / 4.0 + TAU / 8.0
+		var qa: float = out_ang + deg_to_rad(-67.5 + 45.0 * float(q2))
 		for _s in range(rng.randi_range(1, 2)):
 			var base: Vector3 = gate + Vector3(cos(qa), 0, sin(qa)) * rng.randf_range(170.0, 280.0)
-			signs.append(_passable_near(world, rng, base, 0.0, 40.0))
+			var s_pos: Vector3 = _passable_near(world, rng, base, 0.0, 40.0, 90, crater_grow)
+			if s_pos == Vector3.ZERO:
+				s_pos = _passable_near(world, rng, base, 0.0, 100.0, 90, crater_grow)
+			if s_pos != Vector3.ZERO:
+				signs.append(s_pos)
 	p["first_signs"] = signs
 
 	# Garrisons: the nearest village lives (the living camp shows), the rest wake.
@@ -479,6 +547,7 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
 	director.state.mission_type = "PATROL"
 	director.state.seed_value = int(p.seed)
+	_set_fsb_keepout(p.fsb_center as Vector3)
 	var built_sites: Array[Dictionary] = []
 	var fsb: Dictionary = planner.place_firebase_main(p.fsb_center as Vector3)
 	built_sites.append(fsb)
@@ -490,7 +559,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 			"vc_camp":
 				built_sites.append(planner.stamp_vc_camp(site.center, rng))
 	for s: Vector3 in (p.first_signs as Array):
-		DamageSystem.apply_damage(s, DamageSystem.DamageType.LARGE_EXPLOSION, rng.randf_range(0.8, 1.3))
+		DamageSystem.apply_damage(s, DamageSystem.DamageType.LARGE_EXPLOSION,
+			rng.randf_range(0.8, FIRST_SIGN_INTENSITY_MAX))
 		if rng.randf() < 0.4:
 			_spawn_crater_water(world, s, rng)
 	_spawn_enemy_groups(world, director, p, rng)
@@ -502,6 +572,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		var target: Vector3 = villages2[pi % villages2.size()] if villages2.size() > 0 else (p.gate_pos as Vector3)
 		var mid: Vector3 = (p.gate_pos as Vector3).lerp(target, rng.randf_range(0.3, 0.7))
 		var ppos := _passable_near(world, rng, mid, 30.0, 120.0)
+		if ppos == Vector3.ZERO:
+			continue  # a patrol that can only stand inside the wire does not spawn
 		var lg_p := LazyGroup.new()
 		lg_p.enemy_count = rng.randi_range(2, 4)
 		lg_p.group_tag = "ambient_patrol_%d" % pi

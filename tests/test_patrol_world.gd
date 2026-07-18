@@ -120,15 +120,40 @@ func _run() -> void:
 				ok = true
 		if not ok:
 			_fail("quadrant %d has no location within ~500m of the gate" % q)
+	# First signs fan across the gate's OUTWARD half-plane (ADR-029 amendment
+	# 2026-07-18) - the inward compass is the player's own base.
+	var out_v: Vector3 = p1.gate_out
+	var out_ang: float = atan2(out_v.z, out_v.x)
+	var sectors_covered: int = 0
 	for q2 in range(4):
-		var qa2: float = TAU * float(q2) / 4.0 + TAU / 8.0
+		var qa2: float = out_ang + deg_to_rad(-67.5 + 45.0 * float(q2))
 		var best: float = 1.0e9
 		for s in (p1.first_signs as Array):
 			var sv: Vector3 = s
-			if absf(angle_difference(atan2(sv.z - gate.z, sv.x - gate.x), qa2)) <= TAU / 8.0 + 0.45:
+			if absf(angle_difference(atan2(sv.z - gate.z, sv.x - gate.x), qa2)) <= deg_to_rad(22.5) + 0.45:
 				best = minf(best, sv.distance_to(gate))
-		if best > 320.0:
-			_fail("quadrant %d first sign at %.0fm (want <=320)" % [q2, best])
+		if best <= 380.0:
+			sectors_covered += 1
+	if sectors_covered < 3:
+		_fail("only %d/4 outward sectors have a first sign (want >=3; a water sector may go without)" % sectors_covered)
+
+	# THE WIRE IS LAW (council 2026-07-18): no build-time placement inside the
+	# firebase. Craters must clear it by their own blast radius.
+	var fc: Vector3 = p1.fsb_center
+	var fsb_rect := Rect2(fc.x - SitePlanner.FSB_HALF.x, fc.z - SitePlanner.FSB_HALF.y,
+		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
+	var crater_rect: Rect2 = fsb_rect.grow(MissionGenerator._crater_keepout_grow())
+	for s2 in (p1.first_signs as Array):
+		var sp: Vector3 = s2
+		if crater_rect.has_point(Vector2(sp.x, sp.z)):
+			_fail("first sign at %.0f,%.0f inside the crater keep-out - digs the base" % [sp.x, sp.z])
+	var site_rect: Rect2 = fsb_rect.grow(SitePlanner.FSB_SITE_CLEARANCE)
+	for loc2 in villages + camps:
+		var lp: Vector3 = loc2
+		if site_rect.has_point(Vector2(lp.x, lp.z)):
+			_fail("site at %.0f,%.0f inside the wire keep-out" % [lp.x, lp.z])
+	if (p1.first_signs as Array).size() < 3:
+		_fail("only %d first signs planned (want >=3 across the outward fan)" % (p1.first_signs as Array).size())
 	print("patrol world: %d villages, %d camps, gate %.0f,%.0f out %s" % [
 		villages.size(), camps.size(), gate.x, gate.z, str(p1.gate_out)])
 	_finish()
