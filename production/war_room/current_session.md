@@ -1,21 +1,25 @@
-# CURRENT SESSION — 2026-07-17 Village Assault Wave (retroactive accounting)
+# CURRENT SESSION — 2026-07-17 (two councils)
 
-Full record: `synthesis_village_assault_2026-07-17.md` (this folder). Bead hygiene sweep + wave
-detail live in bd (carriers imue/u4h2/e1q6/c3ea/etvy/p85y/yg6j/s2fs/gryl/lpib/f4a1; wave beads
-ryrr/hwot/uiho/y5ad/asr5/cvej). Commit: 64e75c0a (local, unpushed — yu8b).
+## Council 2 (evening): THE OPEN PATROL SIMULATOR — ratification package DELIVERED, awaiting Summoner
+Decree: open patrol sim — no briefing, no player-facing mission tracking, wire gate points at a
+living-world location, foot only, content close to the wire. Full ritual, live lenses, no cross-talk:
+- `briefing_drift_consolidation_2026-07-17.md` (drift-council briefing, folded into the pivot)
+- `analysis/technical_director_drift.md` + `analysis/systems_designer_drift.md` (reused, done)
+- `analysis/game_designer_open_patrol.md` (loop states + code-grounded pacing bands)
+- `analysis/devils_advocate_open_patrol.md` (15-item sacrifice list; "the briefing is the ignition
+  key for the only populated world that exists — pull it LAST")
+- **`synthesis_open_patrol_2026-07-17.md` = THE RATIFICATION PACKAGE** (plan (a)–(e) + Q1–Q6)
 
-## Accounting — one line per design call
-| Decision | Process | Retro-DA verdict |
-|---|---|---|
-| Huey jump seat (seat_pax_7) | SOLO — **DA exhibit: unrequested heli scope; HELICOPTERS PARKED by Summoner** | Stays unless stripped on request; no further heli work |
-| Weapons-tight + auto-flip + 8s self-defense | SOLO (doctrine itself Summoner-decreed in hwot) | KEEP — flags 2A lone-defender read, 2B base test-fire flips squad |
-| Prop zones + no-colliders v1 | Colliders: SUMMONER DECREE · zones: SOLO | KEEP — walk-through props are the decree's named cost |
-| Veg rings 60/72m + 0.55 honesty mirror | SOLO | KEEP — watch FPS; count_boost is the one-number pull |
-| Living-camp rewiring (work_pos, setup(), stations) | SOLO | KEEP — sleep-in-huts gap stays open in cvej |
+Beads (AWAIT RATIFICATION, dep-chained): W1 dzyu (populated patrol world) → W2 5xpr (patrol frame)
+→ W3 hg5t (briefing burial + save migration) → W4 b6lr (arena fold qjf0 + dlox + terrain_lab kill);
+78lo (parked-for-LW spine). 7nxd/qjf0/k77e annotated. NO CODE written — decree gate honored.
+5-bead restructure tabled as PROPOSED only (Summoner froze it: "but wait tho").
 
-## Breaches acknowledged
-1. No live council convened for a pillar-touching wave — retro record written same session (law reaffirmed in synthesis).
-2. Unrequested heli scope shipped (failure mode named in synthesis Decision 1).
-3. Commit 64e75c0a bundled the Summoner's enemy_base.gd WIP — remedy recommendation in synthesis (leave-for-yu8b recommended; his call).
+## Council 1 (afternoon): village assault wave — retroactive accounting
+See `synthesis_village_assault_2026-07-17.md`: accounting table + breaches (unrequested heli scope —
+helis PARKED; WIP-bundled commit 64e75c0a — remedy his call). Wave shipped local: weapons-tight
+doctrine, 8-man squad on foot, market props + work stations, veg rings + honesty mirror, cvej camp
+fixes, LZ foot spawn. Probes green (village props deterministic; fossil RED = pre-existing 18).
 
-## Reverse-before-playtest: NONE. Watch: 2A, 2B, FPS in rings.
+## Standing: push PARKED on yu8b (>100MB blobs hard-reject; source line + off-disk copy = the
+Summoner's sitting time). Local commits only until he draws it.
