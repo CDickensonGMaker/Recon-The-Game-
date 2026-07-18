@@ -1,4 +1,4 @@
-## squad_system.gd - the 5-man squad in every mission: spawning from the
+## squad_system.gd - the player-led squad (SQUAD_SIZE) in every mission: spawning from the
 ## persistent roster, orders (F1-F4), medic revive chain, role effects, barks,
 ## casualty persistence.
 class_name SquadSystem
@@ -8,6 +8,8 @@ signal squad_changed
 
 const REVIVES_PER_MISSION: int = 2
 const REVIVE_CHANNEL_SECONDS: float = 5.0
+## Player-led squad for the village assault: 5 specialists + riflemen (SquadRoster.SQUAD_SIZE).
+const SQUAD_SIZE: int = 8
 
 var world: GameWorld
 var director: MissionDirector
@@ -23,6 +25,9 @@ var _bark_cooldown: float = 0.0
 var _point_warned: Dictionary = {}
 var _thumper_cooldown: float = 0.0
 var _roster_rng := RandomNumberGenerator.new()
+## One-shot: the squad auto-goes-loud with the player's first shot. Any manual
+## F4/N toggle takes over and disarms the automatic.
+var _auto_flip_armed: bool = true
 
 
 func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: Vector3) -> void:
@@ -30,10 +35,11 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 	director = mission_director
 	_roster_rng.seed = int(director.state.seed_value) + 67890
 	var roster: Array = SquadRoster.ensure_roster(int(director.state.seed_value) + 12345)
-	for i in range(mini(5, roster.size())):
+	var squad_n: int = mini(SQUAD_SIZE, roster.size())
+	for i in range(squad_n):
 		var m: Dictionary = roster[i]
-		var a := TAU * float(i) / 5.0
-		var pos := spawn_pos + Vector3(cos(a), 0, sin(a)) * 3.0
+		var a := TAU * float(i) / float(squad_n)
+		var pos := spawn_pos + Vector3(cos(a), 0, sin(a)) * 3.5
 		pos.y = world.terrain_manager.get_height_at(pos) + 0.5
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
@@ -50,6 +56,11 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		ally.dress_visual()
 		ally.died.connect(_on_member_died)
 		members.append(ally)
+	# Ally doctrine (Pillar 3+4): the squad walks out weapons-tight and goes loud
+	# with the player. Each man still defends himself if engaged (AllyBase).
+	weapons_free = false
+	for a in members:
+		a.weapons_free = false
 	# Medic revive hook.
 	if world.player:
 		_health = world.player.get_node_or_null("HealthSystem") as HealthSystem
@@ -125,12 +136,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		if target != Vector3.ZERO:
 			_order_all(AllyBase.OrderMode.MOVE_TO, target, "SQUAD: MOVE THERE")
 	elif event.is_action_pressed("squad_fire_toggle"):
-		weapons_free = not weapons_free
-		for a in members:
-			if is_instance_valid(a):
-				a.weapons_free = weapons_free
-		director.toast.emit("SQUAD: WEAPONS %s" % ("FREE" if weapons_free else "TIGHT - HOLD FIRE"))
-		VOManager.play_squad("weapons_free" if weapons_free else "weapons_tight")
+		_auto_flip_armed = false
+		_set_weapons_free(not weapons_free)
+
+
+func _set_weapons_free(free: bool) -> void:
+	weapons_free = free
+	for a in members:
+		if is_instance_valid(a):
+			a.weapons_free = free
+	director.toast.emit("SQUAD: WEAPONS %s" % ("FREE" if free else "TIGHT - HOLD FIRE"))
+	VOManager.play_squad("weapons_free" if free else "weapons_tight")
+	squad_changed.emit()
 
 
 func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> void:
@@ -216,6 +233,9 @@ func _process_revive(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)
+	if _auto_flip_armed and not weapons_free and WeaponHolder.session_shots > 0:
+		_auto_flip_armed = false
+		_set_weapons_free(true)
 	_process_revive(delta)
 	# Point scan on a 0.4s cadence, NOT 60Hz - it walks every lazy group + trap.
 	_point_scan_timer += delta

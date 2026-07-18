@@ -385,7 +385,10 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				built_sites.append(v)
 				cache_node = v.cache
 				site["root"] = world
+				site["work_stations"] = v.get("work_stations", [])
 				var wp_positions: Array[Vector3] = WorkingPointResolverScript.resolve(site)
+				for st in (v.get("work_stations", []) as Array):
+					wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
 				var civ_count: int = rng.randi_range(3, 5)
 				var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
 				for ci in range(civ_count):
@@ -748,11 +751,19 @@ static func _attach_camp_directors(world: GameWorld, director: MissionDirector,
 		mean_pos /= float(members.size())
 		var cd := CampDirectorScript.new()
 		cd.name = "CampDirector_%d" % camp_idx
-		cd.camp_pos = mean_pos
-		cd.garrison = members
-		cd.rng = RandomNumberGenerator.new()
-		cd.rng.seed = int(p.get("seed", 0)) + camp_idx * 17
+		var crng := RandomNumberGenerator.new()
+		crng.seed = int(p.get("seed", 0)) + camp_idx * 17
+		# A garrison inside a village works its market props (uiho living camp).
+		for s in p.get("sites", []):
+			var sd: Dictionary = s
+			if str(sd.get("kind", "")) == "village" and sd.has("work_stations") \
+					and mean_pos.distance_to(sd.center as Vector3) <= 70.0:
+				cd.work_stations = sd.get("work_stations", [])
+				break
 		world.add_child(cd)
+		# setup() assigns guards and applies the schedule NOW - without it the
+		# garrison stands in the spawn ring until the first hour tick.
+		cd.setup(mean_pos, members, crng)
 		camp_idx += 1
 		# Patrol route for the camp's first 3 soldiers, generated procedurally.
 		var paddy_centroids: Array[Vector3] = p.get("paddy_centroids", [])

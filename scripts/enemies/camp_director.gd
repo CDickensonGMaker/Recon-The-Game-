@@ -27,6 +27,9 @@ const SCHEDULE: Array = [
 
 var camp_pos: Vector3 = Vector3.ZERO
 var garrison: Array = []     ## Array[EnemyBase]
+## Village work stations from SitePlanner prop stamping: [{pos: Vector3, type: String}].
+## Empty = no village props nearby; men hold position as before.
+var work_stations: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Outpost: only some men are on guard at a time. The rest follow the schedule.
 var on_guard: Array = []     ## Array[EnemyBase] - those exempt from schedule
@@ -86,12 +89,35 @@ func _apply_schedule_for_hour(sim_hour: float) -> void:
 	_last_swap_hour = cur_hour_int
 	var entry: Dictionary = role_for_hour(sim_hour)
 	var role: String = String(entry.role)
+	var stations: Array = _stations_for_role(role)
+	var idx: int = 0
 	for s in garrison:
 		if s == null or not is_instance_valid(s):
 			continue
 		if s in on_guard:
 			continue
 		s.camp_role = role
+		if stations.is_empty():
+			s.work_pos = Vector3.ZERO
+		else:
+			var pick: Dictionary = stations[idx % stations.size()]
+			s.work_pos = (pick.get("pos", Vector3.ZERO) as Vector3) \
+				+ Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
+		idx += 1
+
+
+## Which stations a role gathers at. Patrol/sleep/guard keep their posts.
+func _stations_for_role(role: String) -> Array:
+	if work_stations.is_empty():
+		return []
+	match role:
+		"cook":
+			var cooks: Array = work_stations.filter(
+				func(s: Dictionary) -> bool: return str(s.get("type", "")) == "cook")
+			return cooks if not cooks.is_empty() else work_stations
+		"talk", "rest":
+			return work_stations
+	return []
 
 
 ## Called by an external patrol generator (Step 9) at mission start. The director

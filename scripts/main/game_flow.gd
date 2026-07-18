@@ -278,6 +278,25 @@ func _run_mission(offer: Dictionary) -> void:
 		ride.setup(world, director, plan.start_pad, plan.insertion_lz)
 		ride.prompt_changed.connect(mission_hud.set_prompt)
 
+	# IMPROVE-in-place (ADR-028, asr5/y5ad): thicken the jungle where the player lands
+	# so he begins IN cover, and pile brush on each hamlet so the ville sits in thick bush.
+	# Radii must clear the LZ/outpost clear_and_flatten discs (16-22m) and the village
+	# footprint clearing (40m), or the boost only feeds an invisible annulus.
+	if world.vegetation_manager != null:
+		var veg_centers: Array = [{"pos": spawn, "radius": 60.0, "chance_floor": 0.95, "count_boost": 3}]
+		for s in plan.get("sites", []):
+			var site: Dictionary = s
+			if str(site.get("kind", "")) == "village" and site.has("center"):
+				veg_centers.append({"pos": site.center, "radius": 72.0, "chance_floor": 0.9, "count_boost": 4, "bush_bias": true})
+		world.vegetation_manager.set_density_centers(veg_centers)
+		# Fairness/honesty: the AI sight cap reads GameplayGrid, not the visuals.
+		# A visually thickened ring must raise the grid too, or the player only
+		# LOOKS concealed. Cleared pads and CLEAR cells never gain concealment.
+		if world.gameplay_grid != null:
+			for c in veg_centers:
+				var cd: Dictionary = c
+				world.gameplay_grid.boost_vegetation(cd.pos as Vector3, float(cd.radius), 0.55)
+
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
 	CampaignState.intel_points = 0  # briefing intel is spent going in (W80)

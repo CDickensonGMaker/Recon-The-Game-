@@ -77,3 +77,36 @@ const FIREBASE_HELIPAD_OFFSET := Vector2(18, 0)
 ## between any two structures (no tight ring). ADR-027-D: use the space.
 const VILLAGE_MIN_STRUCTURE_SEP: float = 14.0
 const VILLAGE_FOOTPRINT_RADIUS: float = 34.0
+
+## Caleb-authored market/life props (source: production/props_workshop/village_market.blend).
+## DRESSING v1 by Summoner decree: no colliders; a cover pass is a later bead.
+## zone: annulus of the village footprint - center [0, 0.35) / yard [0.35, 0.8) /
+## edge [0.8, 1.1). count: [min, max] per village.
+const VILLAGE_PROP_DIR: String = "res://assets/civilians/props/market/"
+const VILLAGE_PROPS: Dictionary = {
+	"market_table_fish": {"zone": "center", "count": [1, 1]},
+	"hanging_rack":      {"zone": "center", "count": [1, 1]},
+	"cooking_hearth":    {"zone": "center", "count": [1, 2]},
+	"produce_mat":       {"zone": "center", "count": [1, 2]},
+	"clay_bowls":        {"zone": "center", "count": [1, 2]},
+	"flour_sacks":       {"zone": "yard", "count": [1, 3]},
+	"water_jars":        {"zone": "yard", "count": [2, 4]},
+	"rice_basket_full":  {"zone": "yard", "count": [1, 3]},
+	"veg_basket":        {"zone": "yard", "count": [1, 2]},
+	"firewood":          {"zone": "yard", "count": [1, 3]},
+	"water_buckets":     {"zone": "yard", "count": [1, 2]},
+	"chicken_coop":      {"zone": "edge", "count": [1, 2]},
+}
+const VILLAGE_PROP_ZONES: Dictionary = {
+	"center": Vector2(0.0, 0.35),
+	"yard":   Vector2(0.35, 0.8),
+	"edge":   Vector2(0.8, 1.1),
+}
+
+## Rigged farm animals (Quaternius CC0, recolored): Idle anim v1, wander later.
+const VILLAGE_ANIMAL_DIR: String = "res://assets/world/animals/"
+const VILLAGE_ANIMALS: Dictionary = {
+	"pig": [1, 2],
+	"cow": [0, 1],
+	"water_buffalo": [0, 1],
+}

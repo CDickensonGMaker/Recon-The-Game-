@@ -1,6 +1,8 @@
-## seat_system.gd - The 10-seat UH-1 slick contract: 2 pilots + 2 door gunners
-## + 6 pax. Sockets are found ANYWHERE under the vehicle by exact name -
-## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..6.
+## seat_system.gd - The 11-seat UH-1 slick contract: 2 pilots + 2 door gunners
+## + 6 pax + 1 jump seat (seat_pax_7, transmission wall - the 8-man squad plus
+## the player is 9 passenger bodies). Sockets are found ANYWHERE under the
+## vehicle by exact name -
+## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..7.
 ## GLB-exported empties import as plain Node3D, NOT Marker3D: the scan must
 ## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUT.
 ##
@@ -23,12 +25,14 @@ const SEAT_NAMES: Array[StringName] = [
 	&"seat_gunner_l", &"seat_gunner_r",
 	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3",
 	&"seat_pax_4", &"seat_pax_5", &"seat_pax_6",
+	&"seat_pax_7",
 ]
 ## Fill order for squad/player boarding: bench first, door guns as overflow.
 ## Pilot seats are CREW seats - passengers never take the controls.
 const PASSENGER_SEATS: Array[StringName] = [
 	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3",
 	&"seat_pax_4", &"seat_pax_5", &"seat_pax_6",
+	&"seat_pax_7",
 	&"seat_gunner_l", &"seat_gunner_r",
 ]
 
@@ -45,6 +49,7 @@ const FALLBACK_LAYOUT: Dictionary = {
 	&"seat_pax_4": [Vector3(-0.40, 1.30, -3.40), -90.0],
 	&"seat_pax_5": [Vector3(-0.40, 1.30, -2.70), -90.0],
 	&"seat_pax_6": [Vector3(-0.40, 1.30, -2.00), -90.0],
+	&"seat_pax_7": [Vector3(0.0, 1.30, -3.80), 0.0],
 }
 
 const PILOT_CLIP := "cockpit_idle"

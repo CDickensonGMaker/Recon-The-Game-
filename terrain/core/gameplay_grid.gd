@@ -534,6 +534,30 @@ func mark_cleared(center: Vector3, radius_meters: float) -> void:
 	grid_updated.emit(Rect2i(g_center.x - g_radius, g_center.y - g_radius, g_radius * 2, g_radius * 2))
 
 
+## Honesty mirror for veg density-center boosts (asr5/y5ad): the AI sight cap
+## reads THIS grid, so a visually thickened ring must raise it too. The clearing
+## mask stays a hard minimum (a cleared pad never gains phantom concealment) and
+## CLEAR/water/cliff cells are skipped - no visual bushes grow there.
+func boost_vegetation(center: Vector3, radius_meters: float, floor_density: float) -> void:
+	var g_center := world_to_grid(center)
+	var g_radius: int = int(ceil(radius_meters / cell_size_meters))
+	for gz in range(maxi(0, g_center.y - g_radius), mini(grid_size, g_center.y + g_radius + 1)):
+		for gx in range(maxi(0, g_center.x - g_radius), mini(grid_size, g_center.x + g_radius + 1)):
+			if Vector2(float(gx - g_center.x), float(gz - g_center.y)).length() > float(g_radius):
+				continue
+			var idx: int = _grid_to_index(gx, gz)
+			var ttype: int = terrain_type[idx]
+			if ttype == TerrainType.CLEAR or ttype == TerrainType.WATER or ttype == TerrainType.CLIFF:
+				continue
+			var d: float = maxf(vegetation_density[idx], floor_density)
+			if clearing_system != null and clearing_system.has_method("get_vegetation_density"):
+				var wx: float = (float(gx) + 0.5) * cell_size_meters
+				var wz: float = (float(gz) + 0.5) * cell_size_meters
+				d = minf(d, clampf(float(clearing_system.get_vegetation_density(
+					Vector3(wx, 0.0, wz))), 0.0, 1.0))
+			vegetation_density[idx] = d
+
+
 func get_terrain_name(ttype: int) -> String:
 	match ttype:
 		TerrainType.CLEAR: return "Clear"

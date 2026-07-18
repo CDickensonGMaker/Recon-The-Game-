@@ -108,6 +108,9 @@ const FILE_STAGGER: float = 1.1     ## lateral weave, so it is a file and not a 
 ## Camp role. The CampDirector writes this; the man's anim name is derived from it.
 ## Roles: "guard" (default), "patrol", "cook", "sleep", "talk".
 var camp_role: String = "guard"
+## Camp work station (CampDirector-assigned village prop marker). ZERO = none.
+## An un-alerted idle man WALKS to it and works there - the living camp.
+var work_pos: Vector3 = Vector3.ZERO
 
 
 ## Region-LOD hooks called by WorldSim. Abstract = not visible to the player;
@@ -1306,6 +1309,10 @@ func _update_aim(delta: float) -> void:
 func _execute_idle(delta: float) -> void:
 	if not patrol_route.is_empty():
 		_execute_patrol(delta)
+		return
+	if work_pos != Vector3.ZERO and target == null and alert_tier <= AlertTier.SUSPICIOUS \
+			and global_position.distance_to(work_pos) > 1.6:
+		_move_toward(work_pos, delta)
 		return
 	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)

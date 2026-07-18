@@ -122,6 +122,9 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	var entry: Dictionary = CollisionTable.get_entry(model_name)
 	var body := StaticBody3D.new()
 	body.name = model_name
+	# The tree auto-renames duplicate names; anything reading identity back off a
+	# node must use this meta, never .name (CollisionTable lookups break silently).
+	body.set_meta("model_name", model_name)
 	body.collision_layer = 1
 	body.collision_mask = 0
 	# MATERIAL IS AUTHORED DATA, NOT A GUESS ABOUT THE FILENAME (war room 2026-07-12).
@@ -224,6 +227,8 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 		var ta: float = atan2(tp.z - center.z, tp.x - center.x)
 		nodes.append(PunjiTrap.place(_parent, _terrain, tp, ta))
 
+	var props: Dictionary = _stamp_village_props(center, footprint_r, rng, nodes)
+
 	# working_points is a write-only contract the activity system reads.
 	var site := {
 		"kind": "village",
@@ -233,9 +238,139 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 		"cache_pos": cache_pos,
 		"radius": footprint_r + 8.0,
 		"working_points": working_points,
+		"work_stations": props.stations,
+		"prop_nodes": props.nodes,
 	}
 	placed_sites.append(site)
 	return site
+
+
+## ---------- VILLAGE LIFE PROPS (Caleb-authored, uiho) ----------
+## DRESSING v1 by Summoner decree: no colliders, no nav carve, never cover.
+## Zone-banded annuli, always OUTSIDE building footprints, off water.
+
+const PROP_BUILDING_MARGIN: float = 1.2
+const PROP_MIN_SEP: float = 2.0
+
+
+func _stamp_village_props(center: Vector3, footprint_r: float, rng: RandomNumberGenerator,
+		buildings: Array[Node3D]) -> Dictionary:
+	var prop_nodes: Array[Node3D] = []
+	var stations: Array = []
+	var placed_props: Array[Vector3] = []
+	var prop_names: Array = SiteLayouts.VILLAGE_PROPS.keys()
+	prop_names.sort()  # dictionary order is not a contract; the seed is
+	for prop_name in prop_names:
+		var spec: Dictionary = SiteLayouts.VILLAGE_PROPS[prop_name]
+		var band: Vector2 = SiteLayouts.VILLAGE_PROP_ZONES.get(str(spec.zone), Vector2(0.35, 0.8)) as Vector2
+		var cnt: Array = spec.count
+		for _i in range(rng.randi_range(int(cnt[0]), int(cnt[1]))):
+			var pos: Vector3 = _prop_point(center, footprint_r * band.x, footprint_r * band.y,
+				rng, buildings, placed_props)
+			if pos == Vector3.ZERO:
+				continue
+			placed_props.append(pos)
+			var node := place_prop(SiteLayouts.VILLAGE_PROP_DIR + str(prop_name) + ".glb",
+				pos, rng.randf_range(0.0, 360.0))
+			if node == null:
+				continue
+			prop_nodes.append(node)
+			_collect_stations(node, stations)
+	var animal_names: Array = SiteLayouts.VILLAGE_ANIMALS.keys()
+	animal_names.sort()
+	for animal_name in animal_names:
+		var arange: Array = SiteLayouts.VILLAGE_ANIMALS[animal_name]
+		for _j in range(rng.randi_range(int(arange[0]), int(arange[1]))):
+			var apos: Vector3 = _prop_point(center, footprint_r * 0.45, footprint_r * 1.05,
+				rng, buildings, placed_props)
+			if apos == Vector3.ZERO:
+				continue
+			placed_props.append(apos)
+			var animal := place_prop(SiteLayouts.VILLAGE_ANIMAL_DIR + str(animal_name) + ".glb",
+				apos, rng.randf_range(0.0, 360.0))
+			if animal == null:
+				continue
+			animal.add_to_group("village_animals")
+			_play_idle(animal)
+			prop_nodes.append(animal)
+	return {"nodes": prop_nodes, "stations": stations}
+
+
+## Dressing prop: GLB visual only - no physics body. Distinct from place_structure
+## on purpose; a market table must never read as something that stops lead.
+func place_prop(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
+	var scene: PackedScene = load(model_path)
+	if scene == null:
+		push_warning("[SitePlanner] missing prop: " + model_path)
+		return null
+	var root := Node3D.new()
+	root.name = model_path.get_file().get_basename()
+	root.set_meta("prop_model", model_path.get_file().get_basename())
+	var visual: Node = scene.instantiate()
+	root.add_child(visual)
+	_apply_visibility_range(visual)
+	_parent.add_child(root)
+	var gy: float = _terrain.get_height_at(world_pos)
+	root.global_position = Vector3(world_pos.x, gy, world_pos.z)
+	root.rotation_degrees = Vector3(0.0, rotation_deg, 0.0)
+	return root
+
+
+func _prop_point(center: Vector3, r_min: float, r_max: float, rng: RandomNumberGenerator,
+		buildings: Array[Node3D], placed_props: Array[Vector3]) -> Vector3:
+	for _try in range(24):
+		var a: float = rng.randf() * TAU
+		var r: float = rng.randf_range(r_min, maxf(r_min + 0.5, r_max))
+		var p: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * r
+		if _grid.is_water(p):
+			continue
+		if _near_building(p, buildings):
+			continue
+		if not _separated(p, PROP_MIN_SEP, placed_props, []):
+			continue
+		return p
+	return Vector3.ZERO
+
+
+## HARD REQUIREMENT (Summoner): props spawn OUTSIDE buildings, never inside.
+func _near_building(p: Vector3, buildings: Array[Node3D]) -> bool:
+	for b in buildings:
+		if b == null or not is_instance_valid(b):
+			continue
+		var entry: Dictionary = CollisionTable.get_entry(str(b.get_meta("model_name", b.name)))
+		var fp: Vector2 = entry.get("footprint", Vector2(4, 4)) as Vector2
+		var clearance: float = maxf(fp.x, fp.y) * 0.5 + PROP_BUILDING_MARGIN
+		var d: float = Vector2(p.x - b.global_position.x, p.z - b.global_position.z).length()
+		if d < clearance:
+			return true
+	return false
+
+
+## GLB station empties (work_*) -> activity anchors for CampDirector/civilians.
+## Contract: node name prefix "work_"; glTF extras work_type when present.
+func _collect_stations(prop_root: Node3D, stations: Array) -> void:
+	var stack: Array[Node] = [prop_root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is Node3D and String(n.name).begins_with("work_"):
+			var wtype: String = str((n as Node3D).get_meta("work_type",
+				String(n.name).trim_prefix("work_")))
+			if wtype.contains("cook"):
+				wtype = "cook"
+			stations.append({"pos": (n as Node3D).global_position, "type": wtype})
+
+
+func _play_idle(prop_root: Node3D) -> void:
+	var ap := prop_root.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap == null:
+		return
+	for anim_name in ap.get_animation_list():
+		if String(anim_name).to_lower().contains("idle"):
+			ap.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
+			ap.play(anim_name)
+			return
 
 
 ## Scatter up to `count` hut positions in the footprint disk, each >= min_sep from

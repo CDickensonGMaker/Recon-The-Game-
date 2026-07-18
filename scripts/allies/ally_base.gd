@@ -108,7 +108,15 @@ var order_pos: Vector3 = Vector3.ZERO
 ## into an arc instead of stacking on the player's back.
 var _follow_offset: Vector3 = Vector3.ZERO
 var weapons_free: bool = true
+## Self-defense window while weapons-tight: opens on taking fire or on a COMBAT
+## enemy holding this ally as its target; the man defends himself without
+## breaking the squad's hold-fire.
+var _defend_until_ms: int = 0
 var fire_rate_mult: float = 1.0  ## Pigman sustained-fire bonus
+
+
+func _may_engage() -> bool:
+	return weapons_free or Time.get_ticks_msec() < _defend_until_ms
 
 
 func set_order(mode: OrderMode, pos: Vector3 = Vector3.ZERO) -> void:
@@ -383,8 +391,20 @@ func _physics_process(delta: float) -> void:
 
 func _think() -> void:
 	_find_target()
+	_check_threat()
 	_update_line_of_sight()
 	_evaluate_goals()
+
+
+func _check_threat() -> void:
+	if weapons_free:
+		return
+	for enemy in CombatManager.active_enemies:
+		if enemy is EnemyBase:
+			var e := enemy as EnemyBase
+			if not e.is_dead() and e.target == self and e.alert_tier == EnemyBase.AlertTier.COMBAT:
+				_defend_until_ms = Time.get_ticks_msec() + 8000
+				return
 
 
 func _find_target() -> void:
@@ -466,7 +486,7 @@ func _evaluate_goals() -> void:
 	# In contact = FIGHT. Reads the DEBOUNCED confidence, never raw LOS.
 	# COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover
 	# trip and push; everyone else covers once, on fresh contact only (<5s).
-	if target and weapons_free and (contact_conf > 0.4 or target_last_seen_time < 6.0):
+	if target and _may_engage() and (contact_conf > 0.4 or target_last_seen_time < 6.0):
 		if not has_cover and _cover_fail_count < 2 and _contact_time < 5.0 and nerve < 0.75:
 			current_goal = Enums.AIGoal.SEEK_COVER
 			_change_state(Enums.AIState.SEEKING_COVER)
@@ -799,7 +819,7 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 
 
 func _fire_at_target() -> void:
-	if not weapon_data or not target or not weapons_free:
+	if not weapon_data or not target or not _may_engage():
 		return
 
 	can_fire = false
@@ -887,6 +907,7 @@ func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
 	goal_timer = 99.0  # Class-A interrupt: getting hit may always re-plan
+	_defend_until_ms = Time.get_ticks_msec() + 8000
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:
