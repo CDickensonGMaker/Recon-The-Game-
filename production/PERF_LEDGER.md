@@ -232,3 +232,14 @@ re-measures the baseline between every toggle. Until then, only the two large fi
 2. **`rendering_method` stays `forward_plus`** — unchanged tonight. Evidence is above; the call is his.
 3. **Pillar-1 light-telegraph check under Mobile's ~8-omni cap NOT DONE** (5kr3's other half). An FPS
    number does not answer it, and a dropped muzzle flash is a Fairness-Law breach, not an atmosphere bug.
+
+---
+
+# 2026-07-18 OVERNIGHT — NO NEW FPS ROW, BY DESIGN
+
+Task 45 asked for a native Forward+ datapoint in the populated patrol world. The overnight
+stop-lines forbade windowed runs (Summoner asleep at the machine) and a headless dummy renderer
+cannot measure GPU frames. **No number is recorded rather than a fake one.** The world DID get
+heavier tonight (fsb_main = 678 meshes/1,116 bodies + 4 villages + 3 camps resident) and lighter
+(billboard PNGs gone, procedural firebase gone, offer-flow scenes gone). First honest row = the
+Summoner's morning walk-out with the F3 overlay, or the next sanctioned windowed bench.

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestpatrolaar1"]
+
+[ext_resource type="Script" path="res://tests/test_patrol_aar.gd" id="1_tpa"]
+
+[node name="TestPatrolAAR" type="Node"]
+script = ExtResource("1_tpa")
