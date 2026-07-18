@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cprobeconceal01"]
+
+[ext_resource type="Script" path="res://tests/probe_concealment.gd" id="1_pc"]
+
+[node name="ProbeConcealment" type="Node"]
+script = ExtResource("1_pc")

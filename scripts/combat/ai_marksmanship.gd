@@ -74,8 +74,13 @@ static func aim_with_spread(base_aim: Vector3, pre_cap_spread_deg: float, is_pla
 	var s: float = pre_cap_spread_deg
 	var cap: float = PLAYER_CONE_CAP_DEG
 	if is_player_target:
-		# Fairness ramp + the difficulty knob live here, on the shot at the player.
+		# Fairness ramp + the difficulty knob live here, on the shot at the player. The cap
+		# MUST breathe with the ramp: any weapon whose natural cone already exceeds 1.2 deg
+		# (AK base 2.2 -> ~1.7 deg) fires the capped cone both fresh AND converged, so a fixed
+		# cap silently clips the whole exposure ramp away - the opening volley was as lethal as
+		# the converged one. Breathing the cap restores the "first shots miss, accuracy ramps".
 		s *= exposure_spread_mult(exposure_t) * GameSettings.enemy_spread_mult()
+		cap *= exposure_spread_mult(exposure_t)
 	else:
 		cap *= maxf(1.0, GameSettings.ai_vs_ai_cone_mult)
 	var aim: Vector3 = _apply_cone(base_aim, minf(s, cap))

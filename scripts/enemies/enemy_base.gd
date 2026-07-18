@@ -586,7 +586,10 @@ func _think_cheap_combat() -> void:
 		if _combat_lost_time > 8.0:
 			_set_tier(AlertTier.ALERT, false)  # disengage: frees the hot slot for a live fighter
 			return
-	has_line_of_sight = target != null
+	# A cold fighter fires only at what it can actually WITNESS - not a squad-shared target it has
+	# no line to. Without this every man in the camp poured precision fire on a player only one of
+	# them could see. Unseen -> no LOS -> it suppresses/investigates instead of deadeye-firing.
+	has_line_of_sight = target != null and _can_witness(last_known_target_pos)
 	_assess_threat()
 	_cheap_goal()
 	_update_state_for_goal()
@@ -791,6 +794,15 @@ func _update_perception() -> void:
 	var gain: float = 0.0
 	if candidate != null:
 		var cap := _sight_cap(candidate.global_position)
+		# A player who holds still and low conceals HARD. The 12m veg grid cannot see the bush
+		# or clutter he is crouched in, so posture tightens the sight cap directly (Pillar 3 -
+		# crouch in cover MUST beat the range gate). Moving cancels it (you break your own hide).
+		if candidate == player:
+			if "is_prone" in player and player.is_prone:
+				cap *= 0.4
+			elif "is_crouching" in player and player.is_crouching \
+					and not (player.has_method("is_moving") and player.is_moving()):
+				cap *= 0.6
 		if best_dist <= cap:
 			# FOV cone (COMBAT = all-round awareness).
 			var in_fov := true
