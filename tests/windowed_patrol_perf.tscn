@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cwindowedpperf1"]
+
+[ext_resource type="Script" path="res://tests/windowed_patrol_perf.gd" id="1_wpp"]
+
+[node name="WindowedPatrolPerf" type="Node"]
+script = ExtResource("1_wpp")

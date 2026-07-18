@@ -239,7 +239,16 @@ re-measures the baseline between every toggle. Until then, only the two large fi
 
 Task 45 asked for a native Forward+ datapoint in the populated patrol world. The overnight
 stop-lines forbade windowed runs (Summoner asleep at the machine) and a headless dummy renderer
-cannot measure GPU frames. **No number is recorded rather than a fake one.** The world DID get
+cannot measure GPU frames. **No number was recorded that night rather than a fake one.** The world DID get
 heavier tonight (fsb_main = 678 meshes/1,116 bodies + 4 villages + 3 camps resident) and lighter
 (billboard PNGs gone, procedural firebase gone, offer-flow scenes gone). First honest row = the
 Summoner's morning walk-out with the F3 overlay, or the next sanctioned windowed bench.
+
+**Morning row (2026-07-18, sanctioned single windowed run, closed immediately):**
+`tests/windowed_patrol_perf.tscn` - real GameFlow entry, populated patrol world, op seed 47225,
+NATIVE 1.00, Forward+, Intel UHD, player standing at the fsb_main spawn (default view), 8s warmup +
+12s average: **28.8 fps | 217 draws | 116,094 prims**. CAVEATS, said out loud: this is the SPAWN
+VIEW into the base interior, not a jungle sightline, not a firefight, weather/time = whatever seed
+47225 rolls; gpu_ms unavailable (measured-render-time flag not enabled in this scene). It does NOT
+generalize to the night-arena rows above and is not the gate number - it is the patrol world's
+first honest datapoint.
