@@ -175,6 +175,12 @@ func _handle_input() -> void:
 		is_firing = false
 		return
 
+	# A downed man does not return fire while waiting on Doc.
+	if controller and controller.has_method("is_dead") and controller.is_dead():
+		is_aiming = false
+		is_firing = false
+		return
+
 	# Block input if not on weapon slot (grenade/medkit selected)
 	var on_weapon_slot: bool = not equipment_manager or equipment_manager.is_weapon_slot()
 	if not on_weapon_slot:

@@ -456,6 +456,7 @@ func _ready() -> void:
 	_setup_hitzones()
 
 	health_system.setup(self, equipment_manager)
+	health_system.downed_ended.connect(_on_downed_ended)
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
 	grenade_handler.setup(self, equipment_manager)
 
@@ -732,6 +733,17 @@ func _handle_movement(delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_prone:
 		velocity.y = JUMP_VELOCITY
+
+
+## "ON YOUR FEET" must mean it: stance and camera reset the moment the medic
+## finishes, not whenever the crouch lerp next wins.
+func _on_downed_ended(revived: bool) -> void:
+	if not revived:
+		return
+	is_prone = false
+	velocity = Vector3.ZERO
+	if head != null:
+		head.position.y = STAND_HEIGHT - 0.1
 
 
 func _handle_crouch(delta: float) -> void:

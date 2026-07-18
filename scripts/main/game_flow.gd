@@ -318,6 +318,12 @@ func enter_hub() -> void:
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
 	SaveManager.apply_pending_player(world.player)
+	# A restored position is X/Z memory, never Y truth: the world reseats terrain
+	# every build, so a stale saved height puts the player under the ground (the
+	# 'below the firebase, vegetation above me' bug). Re-seat to CURRENT terrain.
+	if world.player != null:
+		var pp: Vector3 = world.player.global_position
+		world.player.global_position.y = world.terrain_manager.get_height_at(pp) + 1.0
 	# Hot chow is free. YOUR RIFLE IS NOT (Summoner's decree, 2026-07-13): weapon
 	# condition persists across missions and is only restored by working the
 	# armorer's bench - it costs time, and it cannot be done in the field.
@@ -327,7 +333,9 @@ func enter_hub() -> void:
 		if wh != null and wh.has_method("refresh_after_load"):
 			wh.call("refresh_after_load")
 	await get_tree().physics_frame  # settle cover colliders before reveal (no first-frame resettle)
-	_report_spawn_truth(spawn, op_seed)
+	# Ray where the player ACTUALLY stands (post save-restore), not the planned
+	# spawn - the save teleport was invisible to a spawn-point ray.
+	_report_spawn_truth(world.player.global_position if world.player != null else spawn, op_seed)
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

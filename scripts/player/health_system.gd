@@ -221,19 +221,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	return actual_damage
 
 
-## Heal without using health pack (for future NPC resupply)
-func heal(amount: int) -> int:
-	var actual_heal := mini(amount, max_hp - current_hp)
-	current_hp += actual_heal
-
-	if current_hp >= max_hp:
-		is_bleeding = false
-		bleeding_stopped.emit()
-
-	health_changed.emit(current_hp, max_hp)
-	return actual_heal
-
-
 ## Stabilize without full heal (stops bleeding but doesn't restore HP)
 func stabilize() -> void:
 	is_bleeding = false
@@ -266,10 +253,11 @@ func force_death() -> void:
 	GameManager.on_player_death()
 
 
-## Medic completed the channel: back on your feet.
-func revive(restored_hp: int) -> void:
+## Medic completed the channel: back on your feet AT FULL HEALTH, moving
+## (Summoner decree 2026-07-18 - a half-restored revive reads as still-dead).
+func revive() -> void:
 	is_downed = false
-	current_hp = mini(restored_hp, max_hp)
+	current_hp = max_hp
 	is_bleeding = false
 	bleeding_stopped.emit()
 	health_changed.emit(current_hp, max_hp)

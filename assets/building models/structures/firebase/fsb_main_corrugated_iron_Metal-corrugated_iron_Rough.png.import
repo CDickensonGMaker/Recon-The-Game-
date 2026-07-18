@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bcwxcoajytcxn"
-path="res://.godot/imported/fsb_main_corrugated_iron_Metal-corrugated_iron_Rough.png-1dc5bce1675093dd4c3f4c2c6fa016ec.ctex"
+path.s3tc="res://.godot/imported/fsb_main_corrugated_iron_Metal-corrugated_iron_Rough.png-1dc5bce1675093dd4c3f4c2c6fa016ec.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "16a475e7d6423b353884f74ec3539b46"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/building models/structures/firebase/fsb_main_corrugated_iron_Metal-corrugated_iron_Rough.png"
-dest_files=["res://.godot/imported/fsb_main_corrugated_iron_Metal-corrugated_iron_Rough.png-1dc5bce1675093dd4c3f4c2c6fa016ec.ctex"]
+dest_files=["res://.godot/imported/fsb_main_corrugated_iron_Metal-corrugated_iron_Rough.png-1dc5bce1675093dd4c3f4c2c6fa016ec.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

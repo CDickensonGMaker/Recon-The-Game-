@@ -192,13 +192,6 @@ func begin_revive(_health_system: HealthSystem) -> void:
 		VOManager.play_squad("doc_moving", _vo_doc.member, _vo_doc.global_position)
 
 
-## The first revive of a mission patches you to FULL; the second is field-dressing.
-func _revive_heal_amount(medic_skill: int) -> int:
-	if revives_left == REVIVES_PER_MISSION - 1:
-		return 999  # clamped to max_hp by HealthSystem.revive
-	return 40 + medic_skill * 5
-
-
 func _process_revive(delta: float) -> void:
 	if not _reviving or _health == null:
 		return
@@ -218,8 +211,7 @@ func _process_revive(delta: float) -> void:
 		_revive_timer += delta
 		if _revive_timer >= channel:
 			_reviving = false
-			var heal: int = _revive_heal_amount(medic_skill)
-			_health.revive(heal)
+			_health.revive()
 			var mp: int = SquadRoster.credit_use(medic.member, "medic", 3)  # learn-by-doing
 			if mp > 0:
 				medic.on_skill_up("medic", mp)
