@@ -265,24 +265,7 @@ func _run_mission(offer: Dictionary) -> void:
 	mission_hud.squad = squad
 	director.squad_system = squad
 
-	# IMPROVE-in-place (ADR-028, asr5/y5ad): thicken the jungle where the player lands
-	# so he begins IN cover, and pile brush on each hamlet so the ville sits in thick bush.
-	# Radii must clear the LZ/outpost clear_and_flatten discs (16-22m) and the village
-	# footprint clearing (40m), or the boost only feeds an invisible annulus.
-	if world.vegetation_manager != null:
-		var veg_centers: Array = [{"pos": spawn, "radius": 60.0, "chance_floor": 0.95, "count_boost": 3}]
-		for s in plan.get("sites", []):
-			var site: Dictionary = s
-			if str(site.get("kind", "")) == "village" and site.has("center"):
-				veg_centers.append({"pos": site.center, "radius": 72.0, "chance_floor": 0.9, "count_boost": 4, "bush_bias": true})
-		world.vegetation_manager.set_density_centers(veg_centers)
-		# Fairness/honesty: the AI sight cap reads GameplayGrid, not the visuals.
-		# A visually thickened ring must raise the grid too, or the player only
-		# LOOKS concealed. Cleared pads and CLEAR cells never gain concealment.
-		if world.gameplay_grid != null:
-			for c in veg_centers:
-				var cd: Dictionary = c
-				world.gameplay_grid.boost_vegetation(cd.pos as Vector3, float(cd.radius), 0.55)
+	MissionGenerator.apply_veg_boosts(world, spawn, plan.get("sites", []))
 
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
@@ -330,10 +313,9 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 	_swap_screen(debrief)
 
 
-## ---------------- THE FIREBASE HUB LOOP (Phase B) ----------------
-## menu -> pick an OPERATION -> live at its firebase -> get briefed in the TOC ->
-## board the bird -> mission (the ride disguises the world load) -> exfil ->
-## back at the firebase. CONTINUE restores you to the hub from the newest save.
+## ---------------- THE OPEN PATROL WORLD (ADR-029 draft) ----------------
+## menu -> NEW/CONTINUE -> live at the firebase inside the populated AO ->
+## walk out the wire -> patrol. One world, one build, one operation seed.
 
 ## The single fixed operation the game boots into. The operation-select screen is
 ## retired (fossil law): NEW GAME drops you straight at the firebase hub. One seed
@@ -379,16 +361,6 @@ func load_from_slot(slot: int) -> void:
 	enter_hub()
 
 
-func launch_accepted() -> void:
-	var offer: Dictionary = SaveManager.hub_snapshot.get("accepted_offer", {})
-	if offer.is_empty():
-		return
-	offer["from_hub"] = true
-	SaveManager.hub_snapshot["accepted_offer"] = {}
-	SaveManager.hub_snapshot["offers"] = []  # fresh board when you get back
-	start_mission(offer)
-
-
 func enter_hub() -> void:
 	_teardown_world()
 	SaveManager.context = "hub"
@@ -412,8 +384,11 @@ func enter_hub() -> void:
 	world.add_child(director)
 	director.setup(world)
 	director.state.seed_value = op_seed
-	var hub: Dictionary = MissionGenerator.build_hub(world, op_seed)
-	var spawn: Vector3 = (hub.center as Vector3) + Vector3(4, 0, 6)
+	# THE OPEN PATROL WORLD (ADR-029 draft): the firebase and its populated AO are
+	# ONE build - form up, walk out the wire, go find problems.
+	var patrol_plan: Dictionary = MissionGenerator.plan_patrol_world(world, op_seed)
+	var built: Dictionary = MissionGenerator.build_patrol_world(world, director, patrol_plan)
+	var spawn: Vector3 = built.spawn_pos
 	world.spawn_player_at(spawn)
 	if world.hud != null:
 		world.hud.managed_by_flow = true
@@ -421,12 +396,23 @@ func enter_hub() -> void:
 	world.add_child(squad)
 	squad.setup(world, director, spawn)
 	director.squad_system = squad
+	director.setup_patrol(built)
+	# Death outside the wire is a field AAR, then you wake at the firebase
+	# (Pillar 5) - same debrief pipeline, patrol framing.
+	director.mission_failed.connect(_on_mission_ended)
+	# The field HUD: toasts/barks/compass/squad strip. No objective panel exists
+	# to show - the patrol world plans none.
+	mission_hud = MissionHUD.new()
+	world.add_child(mission_hud)
+	mission_hud.setup(world, director, [], null, patrol_plan)
+	mission_hud.squad = squad
 	var weather := MissionWeather.new()
 	world.add_child(weather)
-	weather.setup(world, "CLEAR", "DAY")
-	var hc := HubController.new()
-	world.add_child(hc)
-	hc.setup(world, self, hub.tent, hub.huey, op_name)
+	weather.setup(world, str(patrol_plan.weather), str(patrol_plan.time))
+	if MissionWeather.is_night:
+		world.start_night_ambience()
+	MissionGenerator.apply_veg_boosts(world,
+		(built.gate_pos as Vector3) + (built.gate_out as Vector3) * 90.0, patrol_plan.sites)
 	SaveManager.apply_pending_player(world.player)
 	# Hot chow is free. YOUR RIFLE IS NOT (Summoner's decree, 2026-07-13): weapon
 	# condition persists across missions and is only restored by working the

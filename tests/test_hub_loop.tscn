@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://cdtoil2188hc7"]
-
-[ext_resource type="Script" path="res://tests/test_hub_loop.gd" id="1_thl"]
-
-[node name="TestHubLoop" type="Node"]
-script = ExtResource("1_thl")

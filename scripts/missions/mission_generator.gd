@@ -378,37 +378,9 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 				built_sites.append(aa)
 				aa_guns.append(aa.gun)
 			"village":
-				var wp: Array[NodePath] = []
-				if site.has("working_points"):
-					wp = (site.working_points as Array[NodePath])
-				var v: Dictionary = planner.stamp_village(site.center, rng, wp)
+				var v: Dictionary = _build_village_site(world, director, planner, site, rng, str(p.get("time", "DAY")))
 				built_sites.append(v)
 				cache_node = v.cache
-				site["root"] = world
-				site["work_stations"] = v.get("work_stations", [])
-				var wp_positions: Array[Vector3] = WorkingPointResolverScript.resolve(site)
-				for st in (v.get("work_stations", []) as Array):
-					wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
-				var civ_count: int = rng.randi_range(3, 5)
-				var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
-				for ci in range(civ_count):
-					var ca := rng.randf_range(0.0, TAU)
-					var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
-					cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
-					var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
-					civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
-					if wp_positions.size() > 0:
-						var wp_idx: int = rng.randi() % wp_positions.size()
-						civ.working_point_pos = wp_positions[wp_idx]
-					civ.build_bt()
-				if str(p.get("time", "DAY")) in ["NIGHT", "DUSK", "DAWN"]:
-					_add_campfire(world, site.center + Vector3(2, 0, 2))
-				# chickens: live noise traps
-				for _ck in range(rng.randi_range(2, 4)):
-					var ka := rng.randf_range(0.0, TAU)
-					var kpos: Vector3 = site.center + Vector3(cos(ka), 0, sin(ka)) * rng.randf_range(3.0, 10.0)
-					kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
-					_add_chicken(world, kpos)
 				if str(p.get("village_target", "cache")) == "vehicle":
 					var cache_pos: Vector3 = (v.cache as Node3D).global_position
 					(v.cache as Node3D).queue_free()
@@ -416,7 +388,9 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 						"res://assets/building models/vehicles/m113_apc.glb",
 						cache_pos, rng.randf_range(0, 360), world.terrain_manager)
 			"firebase":
-				built_sites.append(planner.stamp_firebase(site.center, rng))
+				# stamp_firebase is DEAD (task 6b: fsb_main.glb is the one firebase).
+				# The offer flow that plans this kind is condemned tonight (W3).
+				push_warning("MissionGenerator: 'firebase' site kind is retired - fsb_main.glb is the firebase")
 			"lz":
 				# The staging pad is a friendly outpost, not bare dirt.
 				if p.has("start_pad") and (site.center as Vector3).distance_to(p.start_pad) < 1.0:
@@ -502,23 +476,7 @@ static func build(world: GameWorld, director: MissionDirector, p: Dictionary) ->
 
 	# Squad spawning is owned by SquadSystem (W13) - GameFlow attaches it.
 
-	for group in p.enemy_groups:
-		if bool(group.get("lazy", false)):
-			var lg := LazyGroup.new()
-			lg.enemy_count = int(group.count)
-			lg.group_tag = str(group.tag)
-			lg.setup(director, int(p.seed) + hash(str(group.tag)))
-			world.add_child(lg)
-			lg.global_position = _seat(world, group.pos)
-		else:
-			var spread: float = float(group.get("spread", 12.0))
-			for i in range(int(group.count)):
-				var a := rng.randf_range(0.0, TAU)
-				var r := rng.randf_range(3.0, spread)
-				var pos: Vector3 = group.pos + Vector3(cos(a) * r, 0.0, sin(a) * r)
-				var data: String = ENEMY_DATA[rng.randi() % ENEMY_DATA.size()]
-				var enemy := director.spawn_tracked_enemy(pos, data, str(group.tag))
-				enemy.add_to_group(str(group.tag))
+	_spawn_enemy_groups(world, director, p, rng)
 
 	# Village raids and firebase defense get a spider hole or two.
 	if int(p.type) == MissionType.VILLAGE_RAID or int(p.type) == MissionType.FIREBASE_DEFENSE:
@@ -893,32 +851,253 @@ static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
 	return out
 
 
-## THE HUB: the operation's home firebase. No objectives, no enemies. Stamped
-## deterministically from the operation seed so every return lands on the same base.
-static func build_hub(world: GameWorld, operation_seed: int) -> Dictionary:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = operation_seed + 4242
-	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
-	var center: Vector3 = planner.find_site(rng, 44.0)
-	center.y = world.terrain_manager.get_height_at(center)
-	var site: Dictionary = planner.stamp_firebase(center, rng)
-	# The HQ tent must be guaranteed - the random firebase extras are not.
-	var tent: Node3D = planner.place_structure(
-		"res://assets/building models/structures/firebase/toc.glb",
-		center + Vector3(8, 0, -10), 180.0)
-	tent.add_to_group("hq_tent")
-	# The bird waits beside the pad (clear of the parked Chinook prop).
-	var huey: Node3D = (load("res://scenes/vehicles/huey.tscn") as PackedScene).instantiate()
-	world.add_child(huey)
-	var pad: Vector3 = site.helipad + Vector3(7, 0, 6)
-	pad.y = world.terrain_manager.get_height_at(pad) + 0.5
-	huey.global_position = pad
+## ---------- THE OPEN PATROL WORLD (ADR-029 draft) ----------
+## One operation seed -> the populated AO around Caleb's firebase. plan is pure
+## positions (probe-able twice); build stamps. Density bands are WALKING distance,
+## measured from the GATE marker: first-sign 150-300m, villages 280-450m, camps
+## 400-540m, one location per quadrant - "leave the camp and go find problems."
 
-	# The armorer's bench: the only full weapon clean in the game (ADR-018).
+static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = op_seed + 4242
+	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
+	var cond: Dictionary = conditions_for(op_seed)
+	var p := {
+		"seed": op_seed,
+		"codename": codename_for(op_seed),
+		"weather": cond.weather, "time": cond.time,
+		"sites": [], "enemy_groups": [], "objectives": [],
+		"fire_support": {"mortar": 1},
+	}
+	var paddy_result: Dictionary = PaddyStamperScript.stamp(
+		op_seed, world.gameplay_grid, world.terrain_manager, world)
+	p["paddy_fields"] = paddy_result.paddies
+	p["village_anchors"] = paddy_result.village_anchors
+	p["paddy_centroids"] = paddy_result.paddy_centroids
+	for c: Vector3 in paddy_result.paddy_centroids:
+		planner._reserved.append(c)
+	var fsb_center: Vector3 = planner.plan_firebase_main_center(rng)
+	var gm: Dictionary = SitePlanner.fsb_gate_metrics(fsb_center)
+	var gate: Vector3 = gm.gate_pos
+	p["fsb_center"] = fsb_center
+	p["gate_pos"] = gate
+	p["gate_out"] = gm.gate_out
+	p["insertion_lz"] = gm.spawn_pos
+	p["exfil_lz"] = gm.spawn_pos
+	planner._fsb_rect = Rect2(fsb_center.x - SitePlanner.FSB_HALF.x,
+		fsb_center.z - SitePlanner.FSB_HALF.y,
+		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
+
+	# One village per quadrant - paddy-anchored where the terrain offers one.
+	var villages: Array[Vector3] = []
+	var anchors: Array = (p.village_anchors as Array).duplicate()
+	for q in range(4):
+		var q_ang: float = TAU * float(q) / 4.0 + TAU / 8.0
+		var found := Vector3.ZERO
+		for ai in range(anchors.size() - 1, -1, -1):
+			var anchor: Dictionary = anchors[ai]
+			var ac: Vector3 = anchor.center
+			var d: float = Vector2(ac.x - gate.x, ac.z - gate.z).length()
+			var ang: float = atan2(ac.z - gate.z, ac.x - gate.x)
+			if d >= 240.0 and d <= 470.0 and absf(angle_difference(ang, q_ang)) <= TAU / 8.0 + 0.2:
+				found = ac
+				p.sites.append({"kind": "village", "center": ac,
+					"working_points": anchor.working_points})
+				anchors.remove_at(ai)
+				break
+		if found == Vector3.ZERO:
+			for _try in range(3):
+				var cand: Vector3 = planner.find_site(rng, 26.0, 60.0, [], gate, 280.0, 450.0)
+				if cand == Vector3.ZERO:
+					continue
+				var cang: float = atan2(cand.z - gate.z, cand.x - gate.x)
+				if absf(angle_difference(cang, q_ang)) <= TAU / 8.0 + 0.35:
+					found = cand
+					break
+			if found == Vector3.ZERO:
+				found = _passable_near(world, rng,
+					gate + Vector3(cos(q_ang), 0, sin(q_ang)) * 360.0, 0.0, 80.0)
+			p.sites.append({"kind": "village", "center": found})
+		villages.append(found)
+	p["village_centers"] = villages
+
+	# Camps: deeper band, spread; the first stays <=480 (the close-camp promise).
+	var camps: Array[Vector3] = []
+	for ci in range(3):
+		var cap: float = 480.0 if ci == 0 else 540.0
+		var cand: Vector3 = planner.find_site(rng, 14.0, 120.0, [], gate, 400.0, cap)
+		if cand == Vector3.ZERO:
+			var ang2: float = TAU * float(ci) / 3.0 + 0.5
+			cand = _passable_near(world, rng,
+				gate + Vector3(cos(ang2), 0, sin(ang2)) * 440.0, 0.0, 70.0)
+		camps.append(cand)
+		p.sites.append({"kind": "vc_camp", "center": cand})
+	p["camp_centers"] = camps
+
+	# First-sign ring: old craters, every quadrant, inside 300m.
+	var signs: Array[Vector3] = []
+	for q2 in range(4):
+		var qa: float = TAU * float(q2) / 4.0 + TAU / 8.0
+		for _s in range(rng.randi_range(1, 2)):
+			var base: Vector3 = gate + Vector3(cos(qa), 0, sin(qa)) * rng.randf_range(170.0, 280.0)
+			signs.append(_passable_near(world, rng, base, 0.0, 40.0))
+	p["first_signs"] = signs
+
+	# Garrisons: the nearest village lives (the living camp shows), the rest wake.
+	var nearest := Vector3.ZERO
+	var nearest_d: float = 1.0e9
+	for v in villages:
+		var dv: float = v.distance_to(gate)
+		if dv < nearest_d:
+			nearest_d = dv
+			nearest = v
+	for vi in range(villages.size()):
+		p.enemy_groups.append({"pos": villages[vi], "count": rng.randi_range(4, 7),
+			"tag": "village_defenders_%d" % vi, "lazy": villages[vi] != nearest, "spread": 20.0})
+	for ci2 in range(camps.size()):
+		p.enemy_groups.append({"pos": camps[ci2], "count": rng.randi_range(4, 6),
+			"tag": "camp_garrison_%d" % ci2, "lazy": true, "spread": 14.0})
+	return p
+
+
+static func build_patrol_world(world: GameWorld, director: MissionDirector, p: Dictionary) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(p.seed) + 777
+	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
+	director.state.mission_type = "PATROL"
+	director.state.seed_value = int(p.seed)
+	var built_sites: Array[Dictionary] = []
+	var fsb: Dictionary = planner.place_firebase_main(p.fsb_center as Vector3)
+	built_sites.append(fsb)
+	for site in p.sites:
+		match str(site.kind):
+			"village":
+				built_sites.append(_build_village_site(world, director, planner, site, rng,
+					str(p.get("time", "DAY")), Vector2i(2, 4)))
+			"vc_camp":
+				built_sites.append(planner.stamp_vc_camp(site.center, rng))
+	for s: Vector3 in (p.first_signs as Array):
+		DamageSystem.apply_damage(s, DamageSystem.DamageType.LARGE_EXPLOSION, rng.randf_range(0.8, 1.3))
+		if rng.randf() < 0.4:
+			_spawn_crater_water(world, s, rng)
+	_spawn_enemy_groups(world, director, p, rng)
+
+	# Walking patrols between the wire and the locations - the ground the player
+	# crosses is the ground they cross.
+	for pi in range(rng.randi_range(2, 3)):
+		var villages2: Array = p.get("village_centers", [])
+		var target: Vector3 = villages2[pi % villages2.size()] if villages2.size() > 0 else (p.gate_pos as Vector3)
+		var mid: Vector3 = (p.gate_pos as Vector3).lerp(target, rng.randf_range(0.3, 0.7))
+		var ppos := _passable_near(world, rng, mid, 30.0, 120.0)
+		var lg_p := LazyGroup.new()
+		lg_p.enemy_count = rng.randi_range(2, 4)
+		lg_p.group_tag = "ambient_patrol_%d" % pi
+		lg_p.activation_range = 140.0
+		lg_p.setup(director, int(p.seed) + 31 * pi)
+		lg_p.patrol_circuit = EnemyBase.make_patrol_circuit(
+			_patrol_anchors(world, p, rng), rng, rng.randi_range(5, 8))
+		world.add_child(lg_p)
+		lg_p.global_position = _seat(world, ppos)
+
+	# The armorer's bench (ADR-018), just inside the wire.
 	var bench: Node3D = ARMORERS_BENCH.new()
 	world.add_child(bench)
-	var bench_pos: Vector3 = center + Vector3(4, 0, -4)
+	var bench_pos: Vector3 = (fsb.spawn_pos as Vector3) - (fsb.gate_out as Vector3) * 10.0
 	bench_pos.y = world.terrain_manager.get_height_at(bench_pos)
 	bench.global_position = bench_pos
 
-	return {"center": center, "tent": tent, "huey": huey, "helipad": site.helipad, "bench": bench}
+	var nav_baker: NavBaker = null
+	if WorldConfig.NAV_ENABLED:
+		nav_baker = NavBaker.new()
+		nav_baker.name = "NavBaker"
+		world.add_child(nav_baker)
+		nav_baker.setup(world.terrain_manager)
+		var nav_sites: Array[Dictionary] = []
+		for bs in built_sites:
+			if str(bs.get("kind", "")) != "firebase_main":
+				nav_sites.append(bs)
+		nav_baker.queue_sites(nav_sites, _enemy_anchors(p))
+
+	_wire_systems(world, director, p, built_sites)
+
+	var watchdog := TerrainWatchdog.new()
+	world.add_child(watchdog)
+	watchdog.setup(world.terrain_manager)
+
+	return {"sites": built_sites, "spawn_pos": fsb.spawn_pos, "gate_pos": fsb.gate_pos,
+		"gate_out": fsb.gate_out, "center": fsb.center, "bench": bench}
+
+
+## One village build: stamp + civilians + stations + night fire + chickens.
+## Shared by the offer flow and the patrol world - ONE implementation.
+static func _build_village_site(world: GameWorld, director: MissionDirector,
+		planner: SitePlanner, site: Dictionary, rng: RandomNumberGenerator,
+		time_str: String, civ_range: Vector2i = Vector2i(3, 5)) -> Dictionary:
+	var wp: Array[NodePath] = []
+	if site.has("working_points"):
+		wp = (site.working_points as Array[NodePath])
+	var v: Dictionary = planner.stamp_village(site.center, rng, wp)
+	site["root"] = world
+	site["work_stations"] = v.get("work_stations", [])
+	var wp_positions: Array[Vector3] = WorkingPointResolverScript.resolve(site)
+	for st in (v.get("work_stations", []) as Array):
+		wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
+	var civ_count: int = rng.randi_range(civ_range.x, civ_range.y)
+	var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
+	for ci in range(civ_count):
+		var ca := rng.randf_range(0.0, TAU)
+		var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
+		cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
+		var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
+		civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
+		if wp_positions.size() > 0:
+			civ.working_point_pos = wp_positions[rng.randi() % wp_positions.size()]
+		civ.build_bt()
+	if time_str in ["NIGHT", "DUSK", "DAWN"]:
+		_add_campfire(world, site.center + Vector3(2, 0, 2))
+	# chickens: live noise traps
+	for _ck in range(rng.randi_range(2, 4)):
+		var ka := rng.randf_range(0.0, TAU)
+		var kpos: Vector3 = site.center + Vector3(cos(ka), 0, sin(ka)) * rng.randf_range(3.0, 10.0)
+		kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
+		_add_chicken(world, kpos)
+	return v
+
+
+static func _spawn_enemy_groups(world: GameWorld, director: MissionDirector,
+		p: Dictionary, rng: RandomNumberGenerator) -> void:
+	for group in p.enemy_groups:
+		if bool(group.get("lazy", false)):
+			var lg := LazyGroup.new()
+			lg.enemy_count = int(group.count)
+			lg.group_tag = str(group.tag)
+			lg.setup(director, int(p.seed) + hash(str(group.tag)))
+			world.add_child(lg)
+			lg.global_position = _seat(world, group.pos)
+		else:
+			var spread: float = float(group.get("spread", 12.0))
+			for i in range(int(group.count)):
+				var a := rng.randf_range(0.0, TAU)
+				var r := rng.randf_range(3.0, spread)
+				var pos: Vector3 = group.pos + Vector3(cos(a) * r, 0.0, sin(a) * r)
+				var data: String = ENEMY_DATA[rng.randi() % ENEMY_DATA.size()]
+				var enemy := director.spawn_tracked_enemy(pos, data, str(group.tag))
+				enemy.add_to_group(str(group.tag))
+
+
+## Jungle thickening rings + the GameplayGrid honesty mirror (asr5/y5ad law):
+## the AI sight cap must see the same bushes the player does.
+static func apply_veg_boosts(world: GameWorld, near_pos: Vector3, sites: Array) -> void:
+	if world.vegetation_manager == null:
+		return
+	var veg_centers: Array = [{"pos": near_pos, "radius": 60.0, "chance_floor": 0.95, "count_boost": 3}]
+	for s in sites:
+		var site: Dictionary = s
+		if str(site.get("kind", "")) == "village" and site.has("center"):
+			veg_centers.append({"pos": site.center, "radius": 72.0, "chance_floor": 0.9,
+				"count_boost": 4, "bush_bias": true})
+	world.vegetation_manager.set_density_centers(veg_centers)
+	if world.gameplay_grid != null:
+		for c in veg_centers:
+			var cd: Dictionary = c
+			world.gameplay_grid.boost_vegetation(cd.pos as Vector3, float(cd.radius), 0.55)

@@ -54,6 +54,8 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: 
 		# Explicit: he wears his roster face/helmet whether or not set_sprite
 		# rebuilt (the default-body draw early-returns and would keep bench paint).
 		ally.dress_visual()
+		ally.file_slot = i + 1
+		ally.point_slot = mos == "POINTMAN"
 		ally.died.connect(_on_member_died)
 		members.append(ally)
 	# Ally doctrine (Pillar 3+4): the squad walks out weapons-tight and goes loud

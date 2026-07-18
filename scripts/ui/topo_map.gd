@@ -124,6 +124,15 @@ func _draw_overlay() -> void:
 		_overlay.draw_arc(e, 8.0, 0, TAU, 16, Color(0.2, 0.35, 0.6), 2.0)
 		_overlay.draw_line(e + Vector2(-5, -5), e + Vector2(5, 5), Color(0.2, 0.35, 0.6), 2.0)
 		_overlay.draw_line(e + Vector2(-5, 5), e + Vector2(5, -5), Color(0.2, 0.35, 0.6), 2.0)
+	# THE CO'S ORDER (ADR-029/ADR-022): a grease-pencil circle. An order on paper -
+	# it never checks off, never updates; the next patrol's circle replaces it.
+	if director != null and director.patrol_location != Vector3.ZERO:
+		var gp := _world_to_map(director.patrol_location)
+		var pencil := Color(0.62, 0.15, 0.12, 0.85)
+		_overlay.draw_arc(gp, 13.0, 0.3, TAU + 0.1, 20, pencil, 2.5)
+		_overlay.draw_arc(gp + Vector2(1.5, 1.0), 12.0, 2.1, TAU + 1.7, 18, pencil, 1.5)
+		var f := ThemeDB.fallback_font
+		_overlay.draw_string(f, gp + Vector2(16.0, 4.0), "SWEEP", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, pencil)
 	# Player: green arrow with heading.
 	var pp := _world_to_map(world.player.global_position)
 	var cam := world.player.get_node_or_null("Head/Camera3D") as Camera3D
@@ -142,6 +151,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("map"):
 		visible = not visible
 		get_viewport().set_input_as_handled()
+		# Opening the map re-asks the point man (ADR-029: the bark is repeatable).
+		if visible and director != null:
+			director.rebark_patrol()
 
 
 func _process(_delta: float) -> void:

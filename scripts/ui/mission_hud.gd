@@ -261,24 +261,17 @@ func _process(_delta: float) -> void:
 	_update_markers(cam)
 
 
+## ADR-029: objective/exfil floating markers are DELETED - a tracker in the
+## world is a rail. Distant squadmates keep theirs (Pillar 4: never lose your
+## team is a squad affordance, not mission tracking).
 func _update_markers(cam: Camera3D) -> void:
 	var targets: Array = []
-	for s in sensors:
-		if s is ObjectiveSensor and is_instance_valid(s) and not (s as ObjectiveSensor).is_complete():
-			targets.append(s)
-	if exfil_zone != null and is_instance_valid(exfil_zone) and director.state.is_exfil_unlocked():
-		targets.append(exfil_zone)
-
-	# Distant squadmates get markers too - never lose your team.
 	if squad != null:
 		for a in squad.members:
 			if is_instance_valid(a) and not a.is_dead() \
 					and a.global_position.distance_to(world.player.global_position) > 20.0:
 				targets.append(a)
 
-	# Prune dead markers - MUST run AFTER squad is appended. Prune first and every
-	# ally marker is freed and rebuilt every frame, because squadmates would not
-	# yet be in `targets` when the has() check runs.
 	for key in _markers.keys():
 		if not targets.has(key):
 			(_markers[key] as Label).queue_free()
@@ -287,14 +280,8 @@ func _update_markers(cam: Camera3D) -> void:
 	for t in targets:
 		var node := t as Node3D
 		if not _markers.has(t):
-			var title := "EXFIL"
-			var color := Color(0.5, 0.9, 0.5)
-			if t is ObjectiveSensor:
-				title = (t as ObjectiveSensor).title
-			elif t is AllyBase:
-				title = str((t as AllyBase).member.get("nick", "SQUAD"))
-				color = Color(0.65, 0.7, 0.45)
-			var l := ReconUI.make_label(title, 13, color)
+			var l := ReconUI.make_label(str((t as AllyBase).member.get("nick", "SQUAD")),
+				13, Color(0.65, 0.7, 0.45))
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_marker_box.add_child(l)
 			_markers[t] = l
@@ -305,10 +292,5 @@ func _update_markers(cam: Camera3D) -> void:
 		if not behind:
 			var screen: Vector2 = cam.unproject_position(pos)
 			var dist: float = world.player.global_position.distance_to(node.global_position)
-			var title2 := "EXFIL"
-			if t is ObjectiveSensor:
-				title2 = (t as ObjectiveSensor).title
-			elif t is AllyBase:
-				title2 = str((t as AllyBase).member.get("nick", "SQUAD"))
-			label.text = "v %s %dm" % [title2, int(dist)]
+			label.text = "v %s %dm" % [str((t as AllyBase).member.get("nick", "SQUAD")), int(dist)]
 			label.position = screen - Vector2(label.size.x * 0.5, 0)

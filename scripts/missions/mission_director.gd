@@ -167,6 +167,10 @@ func _process(delta: float) -> void:
 		return
 	_cas_cooldown = maxf(0.0, _cas_cooldown - delta)
 	_process_escalation(delta)
+	_gate_poll += delta
+	if _gate_poll >= 0.5:
+		_gate_poll = 0.0
+		_poll_wire_gate()
 	if exfil_zone != null:
 		if Input.is_action_pressed("radio") and GameManager.can_player_act():
 			_abort_hold += delta
@@ -476,6 +480,123 @@ func _cas_ground_target() -> Vector3:
 		if p.y <= ground:
 			return Vector3(p.x, ground, p.z)
 	return Vector3.ZERO
+
+
+## ---------- THE WIRE GATE (ADR-029 draft, W2) ----------
+## Crossing ~120m walking distance from the gate marker starts an excursion and
+## points the patrol at a LIVING location in the push direction. Re-crossing
+## inward is the commit moment: the AAR banks, the gate re-arms. No objective,
+## no tracker - a penciled circle and a bark.
+
+const WIRE_GATE_M: float = 120.0
+const WIRE_RETURN_M: float = 95.0
+
+var patrol_gate_pos := Vector3.ZERO
+var patrol_gate_out := Vector3.FORWARD
+var patrol_locations: Array[Vector3] = []
+var patrol_location := Vector3.ZERO
+var patrol_out: bool = false
+var patrol_count: int = 0
+var _visited_locations: Array[Vector3] = []
+var _gate_poll: float = 0.0
+
+
+func setup_patrol(built: Dictionary) -> void:
+	patrol_gate_pos = built.gate_pos
+	patrol_gate_out = built.gate_out
+	patrol_locations.clear()
+	for s in (built.sites as Array):
+		var sd: Dictionary = s
+		if str(sd.get("kind", "")) in ["village", "vc_camp"]:
+			patrol_locations.append(sd.center as Vector3)
+
+
+func _poll_wire_gate() -> void:
+	if patrol_gate_pos == Vector3.ZERO or world == null or world.player == null:
+		return
+	var d: float = Vector2(world.player.global_position.x - patrol_gate_pos.x,
+		world.player.global_position.z - patrol_gate_pos.z).length()
+	if not patrol_out and d > WIRE_GATE_M:
+		patrol_out = true
+		patrol_count += 1
+		CampaignState.begin_mission()
+		patrol_location = _pick_patrol_location()
+		rebark_patrol()
+	elif patrol_out and d < WIRE_RETURN_M:
+		patrol_out = false
+		_bank_patrol()
+
+
+## The one toast concession + the point man's voice. Repeatable from the map.
+func rebark_patrol() -> void:
+	if patrol_location == Vector3.ZERO:
+		return
+	var dist_m: int = int(patrol_gate_pos.distance_to(patrol_location))
+	toast.emit("SIX WANTS US SWEEPING %s - %dM OUT" % [
+		_bearing_name(patrol_location - patrol_gate_pos), dist_m])
+	if squad_system != null and is_instance_valid(squad_system):
+		var point: AllyBase = squad_system.member_by_mos("POINTMAN")
+		if point != null:
+			VOManager.play_squad("movement_ahead", point.member, point.global_position)
+
+
+func _pick_patrol_location() -> Vector3:
+	# Push direction = where he chose to walk out, relative to the gate.
+	var pdir: Vector3 = world.player.global_position - patrol_gate_pos
+	pdir.y = 0.0
+	pdir = patrol_gate_out if pdir.length() < 1.0 else pdir.normalized()
+	var best := Vector3.ZERO
+	var best_d: float = 1.0e9
+	for loc in patrol_locations:
+		if _visited_locations.has(loc):
+			continue
+		var to: Vector3 = loc - patrol_gate_pos
+		to.y = 0.0
+		if to.normalized().dot(pdir) >= 0.707 and to.length() < best_d:
+			best_d = to.length()
+			best = loc
+	if best == Vector3.ZERO:
+		for loc2 in patrol_locations:
+			if _visited_locations.has(loc2):
+				continue
+			if loc2.distance_to(patrol_gate_pos) < best_d:
+				best_d = loc2.distance_to(patrol_gate_pos)
+				best = loc2
+	if best == Vector3.ZERO and patrol_locations.size() > 0:
+		_visited_locations.clear()  # the ring is walked - it starts over
+		best = patrol_locations[patrol_count % patrol_locations.size()]
+	if best != Vector3.ZERO:
+		_visited_locations.append(best)
+	return best
+
+
+## The AAR at the wire (ADR-006 amendment): consequences commit, ledger resets,
+## a completed patrol IS the rank clock (Q1 default).
+func _bank_patrol() -> void:
+	var result: Dictionary = state.build_result(true, "PATROL")
+	result["shots"] = WeaponHolder.session_shots
+	result["hits"] = WeaponHolder.session_hits
+	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
+	CampaignState.on_mission_end(result)
+	if squad_system != null and is_instance_valid(squad_system):
+		squad_system.on_mission_end()
+	CampaignState.commit_mission()
+	toast.emit("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" % [
+		patrol_count, int(result.get("kills", 0))])
+	patrol_location = Vector3.ZERO
+	# Fresh ledger for the next walk-out; live groups re-register on spawn.
+	state = MissionState.new()
+	state.mission_type = "PATROL"
+	state.seed_value = patrol_count  # unique per excursion; the op seed owns the world
+	state.start_time_ms = Time.get_ticks_msec()
+	state.objective_met.connect(_on_objective_met)
+
+
+func _bearing_name(dir: Vector3) -> String:
+	var heading: float = fposmod(rad_to_deg(atan2(dir.x, -dir.z)), 360.0)
+	var names: Array[String] = ["NORTH", "NORTHEAST", "EAST", "SOUTHEAST",
+		"SOUTH", "SOUTHWEST", "WEST", "NORTHWEST"]
+	return names[int(roundf(heading / 45.0)) % 8]
 
 
 func is_ended() -> bool:

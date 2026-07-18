@@ -172,20 +172,20 @@ func _probe_world_things() -> void:
 		_bad("world boots", "timeout")
 		return
 
-	# --- B: firebase layout ignores its rng (site_planner.gd:169) ---
+	# --- B: vc camp layout varies with its rng (stamp_firebase died with fsb_main, task 6b) ---
 	var p1 := SitePlanner.new(w1.gameplay_grid, w1.terrain_manager, w1.vegetation_manager, w1)
 	var rngA := RandomNumberGenerator.new(); rngA.seed = 1
 	var rngB := RandomNumberGenerator.new(); rngB.seed = 999999
-	var center: Vector3 = p1.find_site(rngA, 44.0)
-	var fbA: Dictionary = p1.stamp_firebase(center, rngA)
-	var fbB: Dictionary = p1.stamp_firebase(center + Vector3(300, 0, 0), rngB)
+	var center: Vector3 = p1.find_site(rngA, 14.0)
+	var fbA: Dictionary = p1.stamp_vc_camp(center, rngA)
+	var fbB: Dictionary = p1.stamp_vc_camp(center + Vector3(300, 0, 0), rngB)
 	var offsetsA: Array = _local_offsets(fbA.nodes, center)
 	var offsetsB: Array = _local_offsets(fbB.nodes, center + Vector3(300, 0, 0))
 	if offsetsA == offsetsB:
-		_bad("firebase layout varies with seed",
-			"identical layout for seeds 1 and 999999 (%d structures). stamp_firebase(center, rng) never reads rng." % offsetsA.size())
+		_bad("vc camp layout varies with seed",
+			"identical layout for seeds 1 and 999999 (%d structures). stamp_vc_camp(center, rng) never reads rng." % offsetsA.size())
 	else:
-		_ok("firebase layout varies with seed")
+		_ok("vc camp layout varies with seed")
 
 	# --- E: DamageSystem craters survive world teardown ---
 	DamageSystem.apply_damage(center + Vector3(0, 0, 60), DamageSystem.DamageType.LARGE_EXPLOSION)

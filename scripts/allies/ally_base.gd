@@ -104,6 +104,9 @@ func on_skill_up(skill_id: String, level: int) -> void:
 	director.toast.emit("%s — %s ★%d" % [str(member.get("nick", "GRUNT")), sk_name, level])
 var order_mode: OrderMode = OrderMode.FOLLOW
 var order_pos: Vector3 = Vector3.ZERO
+## Staggered-file slot on the move (SquadSystem assigns; point man walks ahead).
+var file_slot: int = 1
+var point_slot: bool = false
 ## Personal formation slot around the player (rolled once) - the squad spreads
 ## into an arc instead of stacking on the player's back.
 var _follow_offset: Vector3 = Vector3.ZERO
@@ -537,7 +540,23 @@ func _execute_idle(delta: float) -> void:
 			if player and is_instance_valid(player) and player is Node3D:
 				# Formation slot, not a conga line: each man holds his own
 				# offset around the player so the squad has spacing and arcs.
+				# On the move (ADR-029 patrol feel) the huddle strings into a
+				# staggered file: point man 12m AHEAD, the column trailing on the
+				# movement vector - the enemy column's math, worn by our side.
 				var slot: Vector3 = (player as Node3D).global_position + _follow_offset
+				var pv := Vector3.ZERO
+				if player is CharacterBody3D:
+					pv = (player as CharacterBody3D).velocity
+				pv.y = 0.0
+				if pv.length() > 2.0:
+					var dir: Vector3 = pv.normalized()
+					var side := Vector3(-dir.z, 0.0, dir.x)
+					if point_slot:
+						slot = (player as Node3D).global_position + dir * 12.0
+					else:
+						var lateral: float = 1.1 if (file_slot % 2 == 0) else -1.1
+						slot = (player as Node3D).global_position \
+							- dir * (3.5 * float(file_slot)) + side * lateral
 				var dist := global_position.distance_to(slot)
 				if dist > follow_distance:
 					_move_toward(slot, delta)

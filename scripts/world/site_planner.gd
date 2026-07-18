@@ -13,6 +13,9 @@ var _veg: VegetationManager
 var _parent: Node3D
 var placed_sites: Array[Dictionary] = []
 var _reserved: Array[Vector3] = []  ## centers returned by find_site, pre-stamp
+## World-space rect of the placed main firebase; band-mode find_site rejects
+## points inside it (grown by FSB_SITE_CLEARANCE).
+var _fsb_rect := Rect2()
 
 
 func _init(grid: GameplayGrid, terrain: TerrainManager, veg: VegetationManager, parent: Node3D) -> void:
@@ -26,17 +29,33 @@ func _init(grid: GameplayGrid, terrain: TerrainManager, veg: VegetationManager, 
 ## and >= min_separation from every already-placed site, _reserved point, and any
 ## point in extra_reject. extra_reject is used by callers that need to keep sites
 ## away from a class of terrain (e.g. paddy centroids for firebase placement).
+## Band mode (band_max > 0): sample the annulus [band_min, band_max] around
+## band_anchor instead of the whole map, and never inside the firebase rect —
+## the open-patrol density bands (villages 280-450m etc, measured from the gate).
 ## Returns Vector3.ZERO on failure.
-func find_site(rng: RandomNumberGenerator, radius: float, min_separation: float = 200.0, extra_reject: Array[Vector3] = []) -> Vector3:
+func find_site(rng: RandomNumberGenerator, radius: float, min_separation: float = 200.0,
+		extra_reject: Array[Vector3] = [], band_anchor := Vector3.ZERO,
+		band_min: float = 0.0, band_max: float = 0.0) -> Vector3:
 	var map_size: float = _terrain.map_size
 	var best := Vector3.ZERO
 	var best_score: float = -1.0
 	for _i in range(SITE_ATTEMPTS):
-		var p := Vector3(
-			rng.randf_range(MARGIN, map_size - MARGIN),
-			0.0,
-			rng.randf_range(MARGIN, map_size - MARGIN)
-		)
+		var p: Vector3
+		if band_max > 0.0:
+			var a: float = rng.randf() * TAU
+			var r: float = rng.randf_range(band_min, band_max)
+			p = band_anchor + Vector3(cos(a) * r, 0.0, sin(a) * r)
+			if p.x < MARGIN or p.x > map_size - MARGIN or p.z < MARGIN or p.z > map_size - MARGIN:
+				continue
+			if _fsb_rect.size != Vector2.ZERO \
+					and _fsb_rect.grow(FSB_SITE_CLEARANCE).has_point(Vector2(p.x, p.z)):
+				continue
+		else:
+			p = Vector3(
+				rng.randf_range(MARGIN, map_size - MARGIN),
+				0.0,
+				rng.randf_range(MARGIN, map_size - MARGIN)
+			)
 		if not _footprint_valid(p, radius):
 			continue
 		var sep_ok := true
@@ -425,67 +444,125 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 	return true
 
 
-## FIREBASE: flattened pad, interior buildings, sandbag+wire rings, MG nests,
-## helipad pad, parked vehicles.
-func stamp_firebase(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	clear_and_flatten(center, SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0)
+## ---------- THE MAIN FIREBASE (Caleb-authored fsb_main.glb, task 6b) ----------
+## Measured contract (2026-07-18, glTF JSON + imported scene agree): model AABB
+## x -145.1..224.2, z -101.5..242.9 (369x344m), origin y=0 = parade ground; 1,116
+## -col trimesh bodies; 20 root-level markers. SOCKET_A/B_001 = the wire-gate
+## sides, FACE_OUT_001 disambiguates the outward normal, GUN_POINT_001 = MG post,
+## FOOTPRINT_* = ground-contact ring, APPROACH_* = approach lanes. Placed
+## UNROTATED v1 (map-tile scale; rotation risks edge overhang). The wire-gate
+## trigger and all patrol density bands measure from GATE_POS, not the AABB
+## center - walking distance is the pacing contract.
+
+const FSB_MAIN_PATH: String = "res://assets/building models/structures/firebase/fsb_main.glb"
+const FSB_AABB_CENTER := Vector3(39.5, 0.0, 70.7)   # model space, measured
+const FSB_HALF := Vector2(184.6, 172.2)             # model space, measured
+const FSB_SITE_CLEARANCE: float = 40.0
+const FSB_EDGE_MARGIN: float = 60.0
+## Vegetation-clear discs covering the footprint (model-space offsets from AABB
+## center + radius). The base is authored cleared ground; trees through bunkers lie.
+const FSB_CLEAR_DISCS: Array = [
+	[Vector3.ZERO, 120.0],
+	[Vector3(92.0, 0.0, 86.0), 110.0], [Vector3(-92.0, 0.0, 86.0), 110.0],
+	[Vector3(92.0, 0.0, -86.0), 110.0], [Vector3(-92.0, 0.0, -86.0), 110.0],
+]
+
+
+## Marker locals cached once; plan-time band math and build-time placement use
+## the SAME numbers (one math path, never re-derived by hand).
+static var _fsb_markers: Dictionary = {}
+
+
+static func fsb_gate_metrics(center: Vector3) -> Dictionary:
+	if _fsb_markers.is_empty():
+		var scene: PackedScene = load(FSB_MAIN_PATH)
+		var inst := scene.instantiate() as Node3D
+		for key in ["SOCKET_A_001", "SOCKET_B_001", "FACE_OUT_001"]:
+			var n := inst.get_node_or_null(key) as Node3D
+			_fsb_markers[key] = n.position if n != null else Vector3.ZERO
+		inst.free()
+	var origin: Vector3 = center - FSB_AABB_CENTER
+	var a: Vector3 = origin + (_fsb_markers["SOCKET_A_001"] as Vector3)
+	var b: Vector3 = origin + (_fsb_markers["SOCKET_B_001"] as Vector3)
+	var fo: Vector3 = origin + (_fsb_markers["FACE_OUT_001"] as Vector3)
+	var gate_pos: Vector3 = (a + b) * 0.5
+	var ab: Vector3 = (b - a).normalized()
+	var out := Vector3(-ab.z, 0.0, ab.x)
+	if out.dot(fo - gate_pos) < 0.0:
+		out = -out
+	out.y = 0.0
+	out = out.normalized()
+	gate_pos.y = 0.0
+	return {"gate_pos": gate_pos, "gate_out": out, "spawn_pos": gate_pos - out * 22.0}
+
+
+## Pure site pick for the AABB center: fits in-map with margin, prefers dry flat
+## ground at the clear-disc centers, stays off paddies/reserved points.
+func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
+	var map_size: float = _terrain.map_size
+	var min_x: float = FSB_HALF.x + FSB_EDGE_MARGIN
+	var min_z: float = FSB_HALF.y + FSB_EDGE_MARGIN
+	var best := Vector3(map_size * 0.5, 0.0, map_size * 0.5)
+	var best_score: float = -1.0e9
+	for _i in range(120):
+		var c := Vector3(rng.randf_range(min_x, map_size - min_x), 0.0,
+			rng.randf_range(min_z, map_size - min_z))
+		var score: float = 0.0
+		for disc in FSB_CLEAR_DISCS:
+			var p: Vector3 = c + (disc[0] as Vector3)
+			if _grid.is_water(p):
+				score -= 10.0
+			score -= _grid.get_slope(p)
+		for r in _reserved:
+			if c.distance_to(r) < 240.0:
+				score -= 25.0
+		if score > best_score:
+			best_score = score
+			best = c
+	_reserved.append(best)
+	return best
+
+
+## Stamp Caleb's base with its AABB center at `center`. Returns the site dict
+## with gate/spawn metrics derived from HIS markers - never guessed.
+func place_firebase_main(center: Vector3) -> Dictionary:
+	for disc in FSB_CLEAR_DISCS:
+		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
+	var scene: PackedScene = load(FSB_MAIN_PATH)
+	var root := scene.instantiate() as Node3D
+	root.set_meta("model_name", "fsb_main")
+	_parent.add_child(root)
+	var origin: Vector3 = center - FSB_AABB_CENTER
+	origin.y = _terrain.get_height_at(center)
+	root.global_position = origin
+	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
+	var gate_pos: Vector3 = gm.gate_pos
+	var gate_out: Vector3 = gm.gate_out
+	var spawn_pos: Vector3 = gm.spawn_pos
+	spawn_pos.y = _terrain.get_height_at(spawn_pos)
+	gate_pos.y = _terrain.get_height_at(gate_pos)
+	_fsb_rect = Rect2(center.x - FSB_HALF.x, center.z - FSB_HALF.y,
+		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
+	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
+		"gate_pos": gate_pos, "gate_out": gate_out, "spawn_pos": spawn_pos,
+		"radius": FSB_HALF.length()}
+	placed_sites.append(site)
+	return site
+
+
+## VC jungle camp: tunnel + cache + spider holes tucked under canopy. Deliberately
+## NOT cleared - the jungle IS the camp's roof.
+func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	var nodes: Array[Node3D] = []
-	# hi9c: every firebase gets a random orientation + density so no two are identical.
-	# The whole layout rotates together by base_rot, keeping the interior coherent.
-	var base_rot: float = rng.randf() * TAU
-	var base_deg: float = rad_to_deg(base_rot)
-	for item in SiteLayouts.FIREBASE_INTERIOR:
-		var off: Vector2 = (item[1] as Vector2).rotated(base_rot)
-		nodes.append(place_structure(item[0], center + Vector3(off.x, 0, off.y), float(item[2]) + base_deg))
-	# MG nests on opposite sides of the perimeter, facing out (the pair rotates as one).
-	var mg_positions: Array[Vector3] = []
-	for a0 in [0.0, PI]:
-		var a: float = a0 + base_rot
-		var pos: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * SiteLayouts.FIREBASE_PERIMETER_RADIUS
-		nodes.append(place_structure(SiteLayouts.FIREBASE_MG_NEST, pos, rad_to_deg(a)))
-		mg_positions.append(pos)
-	# Sandbag ring (skip MG slots), wire ring outside. Counts jitter per firebase.
-	var ring_count: int = rng.randi_range(12, 16)
-	for i in range(ring_count):
-		var rel := TAU * float(i) / float(ring_count)
-		if rel < 0.3 or absf(rel - PI) < 0.3:
-			continue  # leave the two MG slots open
-		var a := base_rot + rel
-		var pos := center + Vector3(cos(a), 0, sin(a)) * SiteLayouts.FIREBASE_PERIMETER_RADIUS
-		if _grid.is_water(pos):
-			continue  # gap in the line beats sandbags in a pond
-		nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
-	var wire_count: int = rng.randi_range(18, 22)
-	for i in range(wire_count):
-		var a := base_rot + TAU * float(i) / float(wire_count)
-		var pos := center + Vector3(cos(a), 0, sin(a)) * SiteLayouts.FIREBASE_WIRE_RADIUS
-		if _grid.is_water(pos):
-			continue
-		nodes.append(place_structure(SiteLayouts.FIREBASE_WIRE, pos, rad_to_deg(a) + 90.0))
-	# Helipad pad (extra flatten) + parked vehicles + a static Chinook for flavor.
-	# Helipad + vehicles ride the same rotation so they stay clear of the interior.
-	# Interior extras (aid station / ammo bunker / mess hall / TOC...): 2-4 rolled
-	# per firebase into spare slots - the RTS variety we were sitting on. [swap pass]
-	var slots: Array = SiteLayouts.FIREBASE_EXTRA_SLOTS.duplicate()
-	var extras_n: int = rng.randi_range(2, mini(4, slots.size()))
-	for _e in range(extras_n):
-		var si: int = rng.randi() % slots.size()
-		var slot: Vector2 = (slots.pop_at(si) as Vector2).rotated(base_rot)
-		var em: String = SiteLayouts.FIREBASE_EXTRA_MODELS[rng.randi() % SiteLayouts.FIREBASE_EXTRA_MODELS.size()]
-		nodes.append(place_structure(em, center + Vector3(slot.x, 0, slot.y), rng.randf_range(0, 360)))
-	var hp_off: Vector2 = (SiteLayouts.FIREBASE_HELIPAD_OFFSET as Vector2).rotated(base_rot)
-	var helipad := center + Vector3(hp_off.x, 0, hp_off.y)
-	clear_and_flatten(helipad, 9.0)
-	# Real PSP helipad pad (zero-collision walkable) instead of bare flattened dirt.
-	nodes.append(place_structure(SiteLayouts.FIREBASE_HELIPAD_MODEL, helipad, base_deg))
-	var veh_base := Vector2(-6.0, -14.0).rotated(base_rot)
-	var veh_step := Vector2(5.0, 0.0).rotated(base_rot)
-	for i in range(SiteLayouts.FIREBASE_VEHICLES.size()):
-		var vo := veh_base + veh_step * float(i)
-		nodes.append(DestructibleVehicle.create(_parent, SiteLayouts.FIREBASE_VEHICLES[i], center + Vector3(vo.x, 0, vo.y), 90.0 + base_deg, _terrain))
-	var chin_off := Vector2(0.0, -2.0).rotated(base_rot)
-	nodes.append(place_structure("res://assets/building models/vehicles/ch47_chinook.glb", helipad + Vector3(chin_off.x, 0, chin_off.y), 45.0 + base_deg))
-	var site := {"kind": "firebase", "center": center, "nodes": nodes, "helipad": helipad, "mg_positions": mg_positions, "radius": SiteLayouts.FIREBASE_WIRE_RADIUS + 6.0}
+	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, center, rng.randf_range(0, 360)))
+	nodes.append(place_structure(SiteLayouts.CACHE_MODEL,
+		_dry_point(center, 4.0, 10.0, rng), rng.randf_range(0, 360)))
+	for _i in range(rng.randi_range(1, 2)):
+		var sp: Vector3 = _dry_point(center, 6.0, 14.0, rng)
+		nodes.append(place_structure(
+			"res://assets/building models/structures/vc_nva/spider_hole.glb",
+			sp, rng.randf_range(0, 360)))
+	var site := {"kind": "vc_camp", "center": center, "nodes": nodes, "radius": 16.0}
 	placed_sites.append(site)
 	return site
 
