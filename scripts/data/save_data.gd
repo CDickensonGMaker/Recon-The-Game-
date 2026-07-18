@@ -5,7 +5,7 @@
 class_name SaveData
 extends RefCounted
 
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 
 var version: int = SCHEMA_VERSION
 var campaign := CampaignSection.new()
@@ -121,30 +121,21 @@ class PlayerSection:
 		return p
 
 
-## The firebase hub: which operation, its seed (the hub world regenerates
-## deterministically from it), the offers on the board, any accepted offer,
-## and a checkpoint offer for the HARD-tier mission resume.
+## The firebase: which operation and its seed - the patrol world regenerates
+## deterministically from it (ADR-029). v2 dropped the offer-board fields.
 class HubSection:
 	var operation_seed: int = 0
 	var operation_name: String = ""
-	var offers: Array = []          # the 3 rolled offer dicts on the TOC board
-	var accepted_offer: Dictionary = {}
-	var checkpoint_offer: Dictionary = {}  # Phase D: wheels-down mission checkpoint
 
 	func to_dict() -> Dictionary:
 		return {
 			"operation_seed": operation_seed, "operation_name": operation_name,
-			"offers": offers, "accepted_offer": accepted_offer,
-			"checkpoint_offer": checkpoint_offer,
 		}
 
 	static func from_dict(d: Dictionary) -> HubSection:
 		var h := HubSection.new()
 		h.operation_seed = int(d.get("operation_seed", 0))
 		h.operation_name = str(d.get("operation_name", ""))
-		h.offers = d.get("offers", [])
-		h.accepted_offer = d.get("accepted_offer", {})
-		h.checkpoint_offer = d.get("checkpoint_offer", {})
 		return h
 
 

@@ -269,9 +269,15 @@ func get_save_info(slot: int) -> Dictionary:
 ## ------------------------------------------------------------------ internals
 
 func _migrate(d: Dictionary, from_version: int) -> Dictionary:
-	# Sequential migration blocks. v1 is first, nothing yet:
-	# if from_version < 2: d["new_section"] = {...}
 	push_warning("[SAVE] migrating save v%d -> v%d" % [from_version, SaveData.SCHEMA_VERSION])
+	if from_version < 2:
+		# ADR-029: the offer board died with the briefing. A v1 save with an
+		# unresolved checkpoint resumes at the firebase - the world is the world.
+		var hub: Dictionary = d.get("hub", {})
+		hub.erase("offers")
+		hub.erase("accepted_offer")
+		hub.erase("checkpoint_offer")
+		d["hub"] = hub
 	d["version"] = SaveData.SCHEMA_VERSION
 	return d
 

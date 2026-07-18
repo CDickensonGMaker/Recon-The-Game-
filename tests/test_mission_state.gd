@@ -55,7 +55,7 @@ func _run() -> void:
 	add_child(player)
 	player.global_position = Vector3(0, 1.0, 0)
 
-	var director := MissionDirector.new()
+	var director := FieldDirector.new()
 	add_child(director)
 	director.setup(null)  # no GameWorld in this synthetic scene
 

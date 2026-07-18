@@ -58,7 +58,3 @@ func get_landing_position() -> Vector3:
 	var a := randf_range(0.0, TAU)
 	var r := randf_range(0.0, lz_radius * 0.3)
 	return global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
-
-
-func add_threat(amount: float) -> void:
-	threat_level = minf(1.0, threat_level + amount)

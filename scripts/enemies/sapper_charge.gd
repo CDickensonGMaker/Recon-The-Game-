@@ -6,11 +6,11 @@ extends Node
 const DETONATE_RANGE: float = 9.0
 
 var target_pos: Vector3 = Vector3.ZERO
-var director: MissionDirector
+var director: FieldDirector
 var _warned: bool = false
 
 
-func setup(objective_center: Vector3, mission_director: MissionDirector) -> void:
+func setup(objective_center: Vector3, mission_director: FieldDirector) -> void:
 	target_pos = objective_center
 	director = mission_director
 

@@ -1,4 +1,0 @@
-[gd_scene format=3 uid="uid://cm7p4b6h7pxc1"]
-[ext_resource type="Script" path="res://tests/test_seed_replay.gd" id="1_tsr"]
-[node name="TestSeedReplay" type="Node"]
-script = ExtResource("1_tsr")

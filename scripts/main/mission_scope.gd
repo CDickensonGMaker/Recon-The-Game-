@@ -4,7 +4,7 @@
 ## state survive _teardown_world(), so mission 5 inherits mission 1's world.
 ## Every leak below was found by audit and, where cheap, proven by probe:
 ##
-##   MissionDirector.any_fire_menu_open  die with [T] open -> every kit key is
+##   FieldDirector.any_fire_menu_open  die with [T] open -> every kit key is
 ##       dead for the rest of the session. GDScript does not run a setter for a
 ##       member initializer, so a fresh director never clears the static.
 ##       PROVEN: tests/probe_smoke_all.gd section B.
@@ -31,7 +31,7 @@ static func reset() -> void:
 		if n.has_method("stop"):
 			n.call("stop")
 
-	MissionDirector.any_fire_menu_open = false
+	FieldDirector.any_fire_menu_open = false
 	EnemyBase._cover_claims.clear()
 	GunFX.reset_session()
 	GunFX.clear_decals()

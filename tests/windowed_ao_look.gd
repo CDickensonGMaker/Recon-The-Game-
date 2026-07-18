@@ -1,12 +1,11 @@
-## windowed_ao_look.gd - Look-only windowed confirm of a REAL POPULATED mission AO with the
-## individual-3D-species canopy (TREE_COVER) live: villages + rice paddies + civilians +
-## enemies + activity, the arena feel at world scale. NOT bare game_world. Blender may be open
-## so FPS is INVALID - this run is for Caleb's EYES + the objective counts. Builds the whole AO
-## behind the scenes, settles physics, then reveals the player standing IN the village and holds.
+## windowed_ao_look.gd - Look-only windowed confirm of the REAL PATROL WORLD
+## (ADR-029): Caleb's firebase + villages + paddies + civilians + camps, the
+## arena feel at world scale. Blender may be open so FPS is INVALID - this run
+## is for Caleb's EYES + the counts. Builds the AO, settles physics, then
+## reveals the player at a vantage over the nearest village and holds.
 extends Node
 
 const SEEDS: Array[int] = [47225, 11020, 8080, 424242]
-const MISSION_TYPE := MissionGenerator.MissionType.VILLAGE_RAID
 
 
 func _ready() -> void:
@@ -28,22 +27,22 @@ func _ready() -> void:
 		if not world.is_world_ready:
 			world.queue_free()
 			continue
-		var director := MissionDirector.new()
+		var director := FieldDirector.new()
 		world.add_child(director)
 		director.setup(world)
-		plan = MissionGenerator.plan(world, s, MISSION_TYPE)
-		var vc: Vector3 = plan.get("village_center", Vector3.ZERO)
-		if vc == Vector3.ZERO:
-			print("[AOLOOK] seed %d has no village_center - trying next" % s)
+		plan = MissionGenerator.plan_patrol_world(world, s)
+		if (plan.get("village_centers", []) as Array).is_empty():
+			print("[AOLOOK] seed %d planned no villages - trying next" % s)
 			world.queue_free()
 			await get_tree().process_frame
 			continue
-		MissionGenerator.build(world, director, plan)
+		plan["village_center"] = (plan.village_centers as Array)[0]
+		MissionGenerator.build_patrol_world(world, director, plan)
 		seed_used = s
 		break
 
 	if world == null or plan.is_empty():
-		print("[AOLOOK] FAIL: no inhabited seed produced a village")
+		print("[AOLOOK] FAIL: no seed produced a village")
 		get_tree().quit(1)
 		return
 
@@ -115,9 +114,9 @@ func _report(world: GameWorld, seed_used: int, plan: Dictionary, spawn: Vector3)
 	for ch in world.get_children():
 		if ch is GroundClutter:
 			clutter = ch.get_child_count()
-	var defenders: int = get_tree().get_nodes_in_group("village_defenders").size()
+	var defenders: int = get_tree().get_nodes_in_group("enemies").size()
 	var civilians: int = get_tree().get_nodes_in_group("civilians").size()
-	print("=== AO LOOK (seed %d, VILLAGE_RAID) ===" % seed_used)
+	print("=== AO LOOK (seed %d, PATROL WORLD) ===" % seed_used)
 	print("[AOLOOK] canopy=%s | tree_cover species=%d nodes=%d colliders=%d | clutter=%d" % [
 		"TREE_COVER" if WorldConfig.USE_TREE_COVER else "JUNGLE_PATCH", species, tc_nodes, colliders, clutter])
 	var near: Dictionary = _nearest_enemy(world, spawn)

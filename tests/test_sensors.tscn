@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestsensors001"]
-
-[ext_resource type="Script" path="res://tests/test_sensors.gd" id="1_tsn"]
-
-[node name="TestSensors" type="Node3D"]
-script = ExtResource("1_tsn")

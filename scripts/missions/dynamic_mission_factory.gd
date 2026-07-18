@@ -1,70 +1,58 @@
-## dynamic_mission_factory.gd - turns WorldSim state transitions into mission
-## offers. Listens to entity_state_changed and maps:
-##   friendly_patrol_pinned  -> RESCUE
-##   convoy_ambushed         -> ESCORT
-##   helicopter_crashed      -> RECOVER
-##   village_requesting_aid  -> INTERDICT
-##   enemy_camp_discovered   -> STRIKE
-##   friendly_firebase_under_attack -> DEFEND
-##
-## Offers are pushed to a `source = "SIM_EVENT"` channel so static mission-board
-## offers (rolled by MissionOffers.roll) are never overwritten.
+## dynamic_mission_factory.gd - turns WorldSim state transitions into POINTED
+## LOCATIONS for the patrol loop (ADR-029; the offer board is dead). A sim
+## crisis becomes a place worth walking to: the wire gate reads these ahead of
+## the standing village/camp ring.
 class_name DynamicMissionFactory
 extends Node
-
-signal offer_generated(offer: Dictionary)
 
 ## In-flight state changes keyed by entity id. Avoids offering the same
 ## crisis twice.
 var _seen: Dictionary = {}
 
 
-## Translate a state change into a mission offer. `payload` is a free-form
-## dictionary that the campaign layer reads to spawn the mission later.
-static func offer_for(state: StringName, payload: Dictionary) -> Dictionary:
-	var mission_type: int = -1
+## Translate a state change into a pointed location {pos, kind}.
+static func location_for(state: StringName, payload: Dictionary) -> Dictionary:
+	var kind: String = ""
 	match state:
 		&"friendly_patrol_pinned":
-			mission_type = MissionGenerator.MissionType.RESCUE
+			kind = "pinned_patrol"
 		&"convoy_ambushed":
-			mission_type = MissionGenerator.MissionType.PATROL
-		&"helicopter_crashed":
-			mission_type = MissionGenerator.MissionType.RESCUE
+			kind = "ambushed_convoy"
 		&"village_requesting_aid":
-			mission_type = MissionGenerator.MissionType.VILLAGE_RAID
+			kind = "village"
 		&"enemy_camp_discovered":
-			mission_type = MissionGenerator.MissionType.ANTI_AA
+			kind = "vc_camp"
 		&"friendly_firebase_under_attack":
-			mission_type = MissionGenerator.MissionType.FIREBASE_DEFENSE
+			kind = "firebase_attack"
 		_:
 			return {}
 	return {
-		"type": mission_type,
-		"source": "SIM_EVENT",
+		"pos": payload.get("position", Vector3.ZERO),
+		"kind": kind,
 		"trigger_state": String(state),
-		"position": payload.get("position", Vector3.ZERO),
-		"world_seed": payload.get("seed", 0),
 	}
 
 
 ## Hook for WorldSim/entity transitions. The caller has already vetted that
-## the entity id hasn't been offered yet; this builds + emits the offer.
-func emit_offer(state: StringName, entity_id: int, payload: Dictionary) -> void:
+## the entity id hasn't been offered yet; this builds + emits the location.
+func emit_location(state: StringName, entity_id: int, payload: Dictionary) -> void:
 	if _seen.has(entity_id):
 		return
 	_seen[entity_id] = String(state)
-	var offer: Dictionary = offer_for(state, payload)
-	if offer.is_empty():
+	var loc: Dictionary = location_for(state, payload)
+	if loc.is_empty():
 		return
-	offer_generated.emit(offer)
+	# Feed the wire gate directly: a live crisis outranks the standing ring.
+	var dirs: Array[Node] = get_tree().get_nodes_in_group("mission_director")
+	for d in dirs:
+		if d is FieldDirector and (loc.pos as Vector3) != Vector3.ZERO:
+			(d as FieldDirector).patrol_locations.push_front(loc)
 
 
-## Connected by MissionGenerator to every Convoy's `ambushed` signal. Latches
-## a `convoy_ambushed` state per convoy id so the player gets a dynamic offer.
+## Connected by MissionGenerator to every Convoy's `ambushed` signal.
 func _on_convoy_ambushed(convoy: Convoy, position: Vector3) -> void:
 	if convoy == null:
 		return
-	emit_offer(&"convoy_ambushed", convoy.get_instance_id(), {
+	emit_location(&"convoy_ambushed", convoy.get_instance_id(), {
 		"position": position,
-		"seed": 0,
 	})

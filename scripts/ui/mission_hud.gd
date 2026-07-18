@@ -6,24 +6,20 @@ extends CanvasLayer
 const NAMEPLATE := preload("res://scripts/ui/squad_nameplate.gd")
 
 var world: GameWorld
-var director: MissionDirector
-var sensors: Array = []
-var exfil_zone: ExfilZone
+var director: FieldDirector
 
 var _compass: Label
 var _toast_box: VBoxContainer
 var _marker_box: Control
-var _markers: Dictionary = {}  # sensor -> Label
+var _markers: Dictionary = {}  # ally -> Label
 
 
 var topo_map: TopoMap
 
 
-func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list: Array, exfil: ExfilZone, _plan: Dictionary) -> void:
+func setup(game_world: GameWorld, mission_director: FieldDirector, _plan: Dictionary) -> void:
 	world = game_world
 	director = mission_director
-	sensors = sensor_list
-	exfil_zone = exfil
 	director.toast.connect(show_toast)
 	director.fire_menu_changed.connect(_on_fire_menu_changed)
 	add_to_group("mission_hud")
@@ -31,7 +27,7 @@ func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list
 	# W41: topo map (M to toggle).
 	topo_map = TopoMap.new()
 	add_child(topo_map)
-	topo_map.setup(world, director, sensors, exfil)
+	topo_map.setup(world, director)
 	add_child(NAMEPLATE.new())
 
 
@@ -56,11 +52,6 @@ func _build() -> void:
 	_toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(_toast_box)
 
-	_prompt = ReconUI.make_label("", 20, Color(0.95, 0.9, 0.6))
-	_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_prompt.position.y = -120.0
-	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_prompt)
 
 	# PT8: right-side slot slider (appears on wheel/key switch, fades out).
 	_slot_slider = VBoxContainer.new()
@@ -74,14 +65,10 @@ func _build() -> void:
 		equip.slot_changed.connect(func(_i: int, _t: Enums.SlotType) -> void: _show_slot_slider())
 
 
-var _prompt: Label
 var squad: SquadSystem = null
 var _squad_poll: float = 0.0
 
 
-func set_prompt(text: String) -> void:
-	if _prompt:
-		_prompt.text = text
 
 
 ## Fire-support menu (T): lists what's on call with budgets.

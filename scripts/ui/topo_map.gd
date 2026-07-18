@@ -15,20 +15,16 @@ const WATER := Color(0.55, 0.66, 0.72)
 const GRID := Color(0.5, 0.42, 0.3, 0.35)
 
 var world: GameWorld
-var director: MissionDirector
-var sensors: Array = []
-var exfil_zone: Node3D
+var director: FieldDirector
 
 var _map_texture: ImageTexture
 var _rect: TextureRect
 var _overlay: Control
 
 
-func setup(game_world: GameWorld, mission_director: MissionDirector, sensor_list: Array, exfil: Node3D) -> void:
+func setup(game_world: GameWorld, mission_director: FieldDirector) -> void:
 	world = game_world
 	director = mission_director
-	sensors = sensor_list
-	exfil_zone = exfil
 	_render_base_map()
 	_build_ui()
 	visible = false
@@ -111,19 +107,6 @@ func _world_to_map(pos: Vector3) -> Vector2:
 func _draw_overlay() -> void:
 	if world == null or world.player == null:
 		return
-	# Objectives: red triangles (open) / dim (done).
-	for sensor in sensors:
-		if sensor is ObjectiveSensor and is_instance_valid(sensor):
-			var s := sensor as ObjectiveSensor
-			var p := _world_to_map(s.global_position)
-			var col := Color(0.75, 0.2, 0.15) if not s.is_complete() else Color(0.4, 0.38, 0.3)
-			_overlay.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 5), p + Vector2(-6, 5)]), col)
-	# Exfil: circled X.
-	if exfil_zone != null and is_instance_valid(exfil_zone):
-		var e := _world_to_map(exfil_zone.global_position)
-		_overlay.draw_arc(e, 8.0, 0, TAU, 16, Color(0.2, 0.35, 0.6), 2.0)
-		_overlay.draw_line(e + Vector2(-5, -5), e + Vector2(5, 5), Color(0.2, 0.35, 0.6), 2.0)
-		_overlay.draw_line(e + Vector2(-5, 5), e + Vector2(5, -5), Color(0.2, 0.35, 0.6), 2.0)
 	# THE CO'S ORDER (ADR-029/ADR-022): a grease-pencil circle. An order on paper -
 	# it never checks off, never updates; the next patrol's circle replaces it.
 	if director != null and director.patrol_location != Vector3.ZERO:

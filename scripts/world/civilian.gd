@@ -15,7 +15,7 @@ enum CivState { WANDER, FLEE, COWER, GONE }
 var state: CivState = CivState.WANDER
 var home: Vector3
 var is_informer: bool = false
-var director: MissionDirector
+var director: FieldDirector
 var _hp: int = 20
 var _wander_target: Vector3
 var _timer: float = 0.0
@@ -63,7 +63,7 @@ const VILLAGERS: Array[String] = [
 ]
 
 
-static func spawn(parent: Node, pos: Vector3, mission_director: MissionDirector, informer: bool) -> Civilian:
+static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, informer: bool) -> Civilian:
 	var civ := Civilian.new()
 	civ.director = mission_director
 	civ.is_informer = informer

@@ -26,7 +26,7 @@ var patrol_circuit: Array[Vector3] = []
 	"res://data/enemies/nva_rpg.tres",
 ]
 
-var director: MissionDirector
+var director: FieldDirector
 var _spawned: bool = false
 var _timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
@@ -36,7 +36,7 @@ func _ready() -> void:
 	add_to_group("lazy_groups")
 
 
-func setup(mission_director: MissionDirector, rng_seed: int) -> void:
+func setup(mission_director: FieldDirector, rng_seed: int) -> void:
 	director = mission_director
 	_rng.seed = rng_seed
 

@@ -93,7 +93,7 @@ var max_follow_distance: float = 15.0
 ## Squad layer: roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
 var member: Dictionary = {}      ## roster entry (name/mos/stats) - IS the roster dict
-var director: MissionDirector = null  ## toast channel for learn-by-doing promotion barks
+var director: FieldDirector = null  ## toast channel for learn-by-doing promotion barks
 
 
 ## Promotion bark. Called when this soldier's skill levels up from doing the thing.

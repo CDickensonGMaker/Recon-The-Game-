@@ -30,9 +30,6 @@ const VILLAGE_SCATTER_MODELS: Array[String] = [
 	"res://assets/building models/structures/vc_nva/punji_pit.glb",
 ]
 
-## The procedural firebase died with fsb_main.glb (task 6b, ADR-029). The one
-## surviving piece: sandbags, still stamped by outposts and AA sites.
-const FIREBASE_SANDBAG: String = "res://assets/building models/structures/firebase/sandbag_light.glb"
 
 ## Villages scatter their huts across a footprint with a hard minimum separation
 ## between any two structures (no tight ring). ADR-027-D: use the space.

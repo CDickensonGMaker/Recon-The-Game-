@@ -3,7 +3,6 @@
 class_name MainMenuScreen
 extends Control
 
-signal start_pressed
 signal continue_pressed
 signal new_pressed
 signal barracks_pressed

@@ -23,7 +23,7 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 
-	var director := MissionDirector.new()
+	var director := FieldDirector.new()
 	world.add_child(director)
 	director.setup(world)
 	director.toast.connect(func(t: String) -> void: print("[TOAST] %s" % t))

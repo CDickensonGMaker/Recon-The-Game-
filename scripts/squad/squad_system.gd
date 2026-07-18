@@ -12,7 +12,7 @@ const REVIVE_CHANNEL_SECONDS: float = 5.0
 const SQUAD_SIZE: int = 8
 
 var world: GameWorld
-var director: MissionDirector
+var director: FieldDirector
 var members: Array[AllyBase] = []
 var weapons_free: bool = true
 var revives_left: int = REVIVES_PER_MISSION
@@ -30,7 +30,7 @@ var _roster_rng := RandomNumberGenerator.new()
 var _auto_flip_armed: bool = true
 
 
-func setup(game_world: GameWorld, mission_director: MissionDirector, spawn_pos: Vector3) -> void:
+func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Vector3) -> void:
 	world = game_world
 	director = mission_director
 	_roster_rng.seed = int(director.state.seed_value) + 67890

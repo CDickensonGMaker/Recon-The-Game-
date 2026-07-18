@@ -6,7 +6,6 @@ extends Node3D
 signal arrived_at_destination
 signal landed(heli: Helicopter, lz: LandingZone)
 signal took_off(heli: Helicopter)
-signal crashed(heli: Helicopter)
 
 enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 
@@ -141,11 +140,6 @@ func _physics_process(delta: float) -> void:
 			_process_crashing(delta)
 
 
-## Shot down: uncontrolled descent with forward drift, then wreck.
-func shoot_down() -> void:
-	if state == State.CRASHING or state == State.DESTROYED:
-		return
-	state = State.CRASHING
 
 
 func _process_crashing(delta: float) -> void:
@@ -160,7 +154,6 @@ func _process_crashing(delta: float) -> void:
 		# A shallow scar, not a pit trap: survivors must be able to walk out.
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 		CombatManager.apply_explosion_damage(global_position, 150, 40, 10.0, null)
-		crashed.emit(self)
 
 
 func _process_flying(delta: float) -> void:

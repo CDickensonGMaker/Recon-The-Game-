@@ -232,7 +232,7 @@ var _visual_is_model: bool = false
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
 var squad_id: int = -1     ## EnemySquad coordination group; -1 = lone wolf
 
-## Detection beacon: the last time ANY enemy entered COMBAT (polled by MissionDirector).
+## Detection beacon: the last time ANY enemy entered COMBAT (polled by FieldDirector).
 static var last_combat_contact_ms: float = -1.0
 var _nav_warned: bool = false
 var _scan_phase: float = 0.0
@@ -697,7 +697,7 @@ func _fov_deg() -> float:
 ## ---------- THE WITNESS RULE (ADR-005) ----------
 
 ## Bodies nobody reported. A kill nobody saw does not raise the alarm; the body will.
-## Cleared per mission by MissionDirector.
+## Cleared per mission by FieldDirector.
 static var unreported_corpses: Array[Vector3] = []
 
 ## Can this man actually SEE that point? Sight cap + facing cone + smoke + a real ray.

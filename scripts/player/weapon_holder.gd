@@ -183,7 +183,7 @@ func _handle_input() -> void:
 		return
 
 	# On the radio (fire-support menu open): the rifle is down - no aim, no fire.
-	var on_radio: bool = MissionDirector.any_fire_menu_open
+	var on_radio: bool = FieldDirector.any_fire_menu_open
 
 	is_aiming = Input.is_action_pressed("aim") and not is_reloading and not on_radio
 
@@ -780,7 +780,7 @@ func _update_weapon_position(delta: float) -> void:
 		target_pos.y -= 0.08
 		target_rot.x -= 12.0
 
-	if MissionDirector.any_fire_menu_open:
+	if FieldDirector.any_fire_menu_open:
 		target_pos.y -= 0.30
 		target_pos.z += 0.14
 		target_rot.x -= 60.0

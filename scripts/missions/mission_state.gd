@@ -3,7 +3,6 @@
 class_name MissionState
 extends RefCounted
 
-signal objective_met(index: int)
 
 var objective_titles: Dictionary = {}  ## index -> String
 var required_mask: int = 0
@@ -33,7 +32,6 @@ func complete_objective(index: int) -> bool:
 	if met_mask & bit:
 		return false  # idempotent
 	met_mask |= bit
-	objective_met.emit(index)
 	return true
 
 

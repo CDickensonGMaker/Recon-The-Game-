@@ -31,8 +31,6 @@ func _run() -> void:
 	_probe_fire_menu_static()
 
 	print("\n=== C. DETERMINISM / SEED REPLAY (R88) ===")
-	_probe_seed_replay()
-	_probe_shuffle_unseeded()
 	_probe_personality_unseeded()
 
 	print("\n=== D. WORLD-DEPENDENT PROBES ===")
@@ -46,8 +44,6 @@ func _run() -> void:
 func _probe_screens() -> void:
 	var screens: Array = [
 		["MainMenuScreen", MainMenuScreen],
-		["MissionSelectScreen", MissionSelectScreen],
-		["BriefingScreen", BriefingScreen],
 		["DebriefScreen", DebriefScreen],
 		["BarracksScreen", BarracksScreen],
 		["SettingsScreen", SettingsScreen],
@@ -75,71 +71,28 @@ func _probe_screens() -> void:
 # ------------------------------------------------------- B. static leakage
 func _probe_fire_menu_static() -> void:
 	# Simulate: open the fire menu, then die/exfil (director freed), then next
-	# mission constructs a fresh MissionDirector.
-	MissionDirector.any_fire_menu_open = false
-	var d1 := MissionDirector.new()
+	# mission constructs a fresh FieldDirector.
+	FieldDirector.any_fire_menu_open = false
+	var d1 := FieldDirector.new()
 	d1.fire_menu_open = true                     # player pressed T
-	if not MissionDirector.any_fire_menu_open:
+	if not FieldDirector.any_fire_menu_open:
 		_bad("fire_menu static set", "setter did not propagate")
 		d1.free()
 		return
 	d1.free()                                    # mission ends with menu open
 
-	var d2 := MissionDirector.new()              # next mission
+	var d2 := FieldDirector.new()              # next mission
 	# A fresh director declares `var fire_menu_open: bool = false` -- GDScript does
 	# NOT run the setter for a member initializer, so the static stays true.
-	if MissionDirector.any_fire_menu_open:
+	if FieldDirector.any_fire_menu_open:
 		_bad("any_fire_menu_open reset on new mission",
-			"STILL TRUE after new MissionDirector -> equipment_manager.gd:62 blocks all slot keys, player.gd:528 blocks smoke. SOFTLOCK until T pressed twice.")
+			"STILL TRUE after new FieldDirector -> equipment_manager.gd:62 blocks all slot keys, player.gd:528 blocks smoke. SOFTLOCK until T pressed twice.")
 	else:
 		_ok("any_fire_menu_open reset on new mission")
 	d2.free()
 
 
 # ------------------------------------------------------ C. determinism
-func _probe_seed_replay() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-	var sel := MissionSelectScreen.new()
-	sel.roll_offers(rng)
-	var offer: Dictionary = sel.offers[0]
-	var played_world: int = int(offer.world_seed)
-	var played_mission: int = int(offer.mission_seed)
-
-	# This is the number the debrief prints (mission_state.gd:80 -> debrief.gd:59).
-	var replay: Dictionary = MissionSelectScreen.offer_for_seed(played_mission, offer.type)
-	if int(replay.world_seed) != played_world:
-		_bad("R88 seed replay reproduces the world",
-			"played world_seed=%d mission_seed=%d; replay gives world_seed=%d. Sharing a seed gives DIFFERENT TERRAIN." % [played_world, played_mission, int(replay.world_seed)])
-	else:
-		_ok("R88 seed replay reproduces the world")
-	sel.free()
-
-
-func _probe_shuffle_unseeded() -> void:
-	# roll_offers() receives an rng, then calls types.shuffle() which uses the
-	# GLOBAL rng. Same seed twice should give the same three mission types.
-	var a := _roll_types(999)
-	var b := _roll_types(999)
-	if a != b:
-		_bad("roll_offers is deterministic for a seed",
-			"same rng seed gave types %s then %s - types.shuffle() uses the global RNG (mission_select.gd:19)" % [a, b])
-	else:
-		_ok("roll_offers is deterministic for a seed", str(a))
-
-
-func _roll_types(seed_val: int) -> Array:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_val
-	var sel := MissionSelectScreen.new()
-	sel.roll_offers(rng)
-	var out: Array = []
-	for o in sel.offers:
-		out.append(int(o.type))
-	sel.free()
-	return out
-
-
 func _probe_personality_unseeded() -> void:
 	# enemy_base.gd:180 uses Array.pick_random() -> global RNG. Two enemies from
 	# the same .tres on the same mission seed should be reproducible.

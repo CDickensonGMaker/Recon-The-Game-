@@ -1,12 +1,9 @@
-## mission_director.gd - Owns MissionState, tracked enemy spawning (kills are
+## field_director.gd - Owns MissionState, tracked enemy spawning (kills are
 ## counted from EnemyBase.died), objective completion and mission end states.
-class_name MissionDirector
+class_name FieldDirector
 extends Node
 
-signal objective_completed(index: int, title: String)
-signal mission_completed(result: Dictionary)
 signal mission_failed(result: Dictionary)
-signal enemy_killed(enemy: EnemyBase, group_tag: String)
 signal toast(text: String)
 
 var state := MissionState.new()
@@ -27,7 +24,6 @@ func setup(game_world: GameWorld) -> void:
 	state.start_time_ms = Time.get_ticks_msec()
 	if not GameManager.player_died.is_connected(_on_player_died):
 		GameManager.player_died.connect(_on_player_died)
-	state.objective_met.connect(_on_objective_met)
 
 
 ## Spawn an enemy seated on terrain and wire its death into mission counters.
@@ -55,10 +51,9 @@ func report_contact(group_id: int) -> void:
 	state.report_detected(group_id)
 
 
-func _on_enemy_died(enemy: EnemyBase, group_tag: String) -> void:
+func _on_enemy_died(enemy: EnemyBase, _group_tag: String) -> void:
 	state.record_kill()
 	_live_enemies.erase(enemy)
-	enemy_killed.emit(enemy, group_tag)
 	# Escalation is driven by DETECTION, not by the kill - see _check_detection().
 	# A silent, unwitnessed kill leaves the AO cold; that is what makes stealth
 	# an economy.
@@ -121,25 +116,6 @@ func live_enemy_count(group_tag: String = "") -> int:
 	return count
 
 
-func complete_objective(index: int) -> void:
-	state.complete_objective(index)
-
-
-func _on_objective_met(index: int) -> void:
-	var title: String = str(state.objective_titles.get(index, "OBJECTIVE"))
-	objective_completed.emit(index, title)
-	toast.emit("OBJECTIVE COMPLETE: %s" % title)
-	if state.is_exfil_unlocked():
-		toast.emit("ALL OBJECTIVES COMPLETE - PROCEED TO EXFIL")
-
-
-func finish_mission() -> void:
-	if _ended:
-		return
-	_ended = true
-	mission_completed.emit(state.build_result(true))
-
-
 func fail_mission(reason: String) -> void:
 	if _ended:
 		return
@@ -151,14 +127,11 @@ func _on_player_died() -> void:
 	fail_mission("KIA")
 
 
-## ABORT: hold the radio key 2s anywhere -> emergency exfil (fail-forward).
 ## CAS: press T while aiming at ground -> Skyraider run (budget-limited).
 const SKYRAIDER_SCENE := preload("res://scenes/vehicles/skyraider.tscn")  # A-1, dive-bomb
 const F4_SCENE := preload("res://scenes/vehicles/f4_phantom.tscn")  # F-4, fast horizontal flyby
 
-var exfil_zone: ExfilZone
 var cas_budget: int = 0
-var _abort_hold: float = 0.0
 var _cas_cooldown: float = 0.0
 
 
@@ -171,15 +144,6 @@ func _process(delta: float) -> void:
 	if _gate_poll >= 0.5:
 		_gate_poll = 0.0
 		_poll_wire_gate()
-	if exfil_zone != null:
-		if Input.is_action_pressed("radio") and GameManager.can_player_act():
-			_abort_hold += delta
-			if _abort_hold >= 2.0 and not state.emergency_exfil and not state.is_exfil_unlocked():
-				state.emergency_exfil = true
-				exfil_zone.force_unlock = true
-				toast.emit("ABORT ACKNOWLEDGED - EMERGENCY EXFIL AUTHORIZED")
-		else:
-			_abort_hold = 0.0
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
@@ -447,11 +411,6 @@ func _drop_supply_crate(pos: Vector3) -> void:
 	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
 
 
-## Public hook for EnemyMortarTeam: the same impact FX/damage, aimed the other way.
-func enemy_mortar_impact(pos: Vector3) -> void:
-	_mortar_impact(pos, 0.8)
-
-
 func _mortar_impact(pos: Vector3, intensity: float) -> void:
 	if world == null:
 		return
@@ -493,8 +452,9 @@ const WIRE_RETURN_M: float = 95.0
 
 var patrol_gate_pos := Vector3.ZERO
 var patrol_gate_out := Vector3.FORWARD
-var patrol_locations: Array[Vector3] = []
+var patrol_locations: Array[Dictionary] = []   ## {pos: Vector3, kind: String}
 var patrol_location := Vector3.ZERO
+var patrol_location_kind: String = ""
 var patrol_out: bool = false
 var patrol_count: int = 0
 var _visited_locations: Array[Vector3] = []
@@ -508,7 +468,7 @@ func setup_patrol(built: Dictionary) -> void:
 	for s in (built.sites as Array):
 		var sd: Dictionary = s
 		if str(sd.get("kind", "")) in ["village", "vc_camp"]:
-			patrol_locations.append(sd.center as Vector3)
+			patrol_locations.append({"pos": sd.center as Vector3, "kind": str(sd.kind)})
 
 
 func _poll_wire_gate() -> void:
@@ -520,7 +480,16 @@ func _poll_wire_gate() -> void:
 		patrol_out = true
 		patrol_count += 1
 		CampaignState.begin_mission()
-		patrol_location = _pick_patrol_location()
+		var picked: Dictionary = _pick_patrol_location()
+		patrol_location = picked.get("pos", Vector3.ZERO)
+		patrol_location_kind = str(picked.get("kind", ""))
+		# Intel economy (Q2 default): looted documents buy S2's read on WHAT is out
+		# there - one point per walk-out, the map circle stays a circle either way.
+		if CampaignState.intel_points > 0 and patrol_location != Vector3.ZERO:
+			CampaignState.intel_points -= 1
+			var kind_name: String = "VC CAMP" if patrol_location_kind == "vc_camp" else "VILLAGE"
+			toast.emit("S2 INTEL: %s REPORTED %s" % [kind_name,
+				_bearing_name(patrol_location - patrol_gate_pos)])
 		rebark_patrol()
 	elif patrol_out and d < WIRE_RETURN_M:
 		patrol_out = false
@@ -540,33 +509,35 @@ func rebark_patrol() -> void:
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 
 
-func _pick_patrol_location() -> Vector3:
+func _pick_patrol_location() -> Dictionary:
 	# Push direction = where he chose to walk out, relative to the gate.
 	var pdir: Vector3 = world.player.global_position - patrol_gate_pos
 	pdir.y = 0.0
 	pdir = patrol_gate_out if pdir.length() < 1.0 else pdir.normalized()
-	var best := Vector3.ZERO
+	var best: Dictionary = {}
 	var best_d: float = 1.0e9
 	for loc in patrol_locations:
-		if _visited_locations.has(loc):
+		var pos: Vector3 = loc.pos
+		if _visited_locations.has(pos):
 			continue
-		var to: Vector3 = loc - patrol_gate_pos
+		var to: Vector3 = pos - patrol_gate_pos
 		to.y = 0.0
 		if to.normalized().dot(pdir) >= 0.707 and to.length() < best_d:
 			best_d = to.length()
 			best = loc
-	if best == Vector3.ZERO:
+	if best.is_empty():
 		for loc2 in patrol_locations:
-			if _visited_locations.has(loc2):
+			var pos2: Vector3 = loc2.pos
+			if _visited_locations.has(pos2):
 				continue
-			if loc2.distance_to(patrol_gate_pos) < best_d:
-				best_d = loc2.distance_to(patrol_gate_pos)
+			if pos2.distance_to(patrol_gate_pos) < best_d:
+				best_d = pos2.distance_to(patrol_gate_pos)
 				best = loc2
-	if best == Vector3.ZERO and patrol_locations.size() > 0:
+	if best.is_empty() and patrol_locations.size() > 0:
 		_visited_locations.clear()  # the ring is walked - it starts over
 		best = patrol_locations[patrol_count % patrol_locations.size()]
-	if best != Vector3.ZERO:
-		_visited_locations.append(best)
+	if not best.is_empty():
+		_visited_locations.append(best.pos as Vector3)
 	return best
 
 
@@ -584,12 +555,12 @@ func _bank_patrol() -> void:
 	toast.emit("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" % [
 		patrol_count, int(result.get("kills", 0))])
 	patrol_location = Vector3.ZERO
+	patrol_location_kind = ""
 	# Fresh ledger for the next walk-out; live groups re-register on spawn.
 	state = MissionState.new()
 	state.mission_type = "PATROL"
 	state.seed_value = patrol_count  # unique per excursion; the op seed owns the world
 	state.start_time_ms = Time.get_ticks_msec()
-	state.objective_met.connect(_on_objective_met)
 
 
 func _bearing_name(dir: Vector3) -> String:
@@ -603,12 +574,3 @@ func is_ended() -> bool:
 	return _ended
 
 
-## Scripted-events registry: enumeration only. The director MUST NOT drive a
-## trigger or sequence - they run themselves, watched or not (Pillar 3).
-var scripted_events: Array[Node] = []
-
-
-func register_scripted_event(node: Node) -> void:
-	if node == null or scripted_events.has(node):
-		return
-	scripted_events.append(node)

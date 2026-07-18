@@ -21,7 +21,7 @@ func _run() -> void:
 		return
 
 	var failures: int = 0
-	var director := MissionDirector.new()
+	var director := FieldDirector.new()
 	world.add_child(director)
 	director.setup(world)
 

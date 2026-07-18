@@ -567,61 +567,6 @@ func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	return site
 
 
-## AA SITE (W03/W04): emplacement on a flattened pad + sandbag ring.
-## The gun is a DestructibleVehicle (satchel it) - mg_nest GLB as placeholder
-## until Caleb models a ZPU/DShK.
-func stamp_aa_site(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	clear_and_flatten(center, 10.0)
-	var nodes: Array[Node3D] = []
-	var gun := DestructibleVehicle.create(_parent,
-		"res://assets/building models/structures/firebase/mg_nest.glb",
-		center, rng.randf_range(0, 360), _terrain)
-	nodes.append(gun)
-	for i in range(4):
-		var a := TAU * float(i) / 4.0 + 0.4
-		var pos := center + Vector3(cos(a), 0, sin(a)) * 5.0
-		nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
-	var site := {"kind": "aa_site", "center": center, "nodes": nodes, "gun": gun, "radius": 10.0}
-	placed_sites.append(site)
-	return site
-
-
-## PT6: small friendly OUTPOST for the insertion staging pad - helipad,
-## hootches, tower, sandbag line. Home base feel without a full firebase.
-func stamp_outpost(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	clear_and_flatten(center, 22.0)
-	var nodes: Array[Node3D] = []
-	nodes.append(place_structure("res://assets/building models/structures/firebase/observation_tower.glb", center + Vector3(-10, 0, -8), 0.0))
-	nodes.append(place_structure("res://assets/building models/structures/firebase/hootch.glb", center + Vector3(-12, 0, 4), 15.0))
-	nodes.append(place_structure("res://assets/building models/structures/firebase/hootch.glb", center + Vector3(-8, 0, 12), -20.0))
-	for i in range(8):
-		var a := TAU * float(i) / 8.0
-		var pos := center + Vector3(cos(a), 0, sin(a)) * 18.0
-		if not _grid.is_water(pos):
-			nodes.append(place_structure(SiteLayouts.FIREBASE_SANDBAG, pos, rad_to_deg(a) + 90.0))
-	nodes.append(place_structure("res://assets/building models/vehicles/m151_mutt_gun_jeep.glb", center + Vector3(8, 0, -8), rng.randf_range(0, 360)))
-	var site := {"kind": "outpost", "center": center, "nodes": nodes, "radius": 22.0}
-	placed_sites.append(site)
-	return site
-
-
-## Ancient Buddhist temple ruin POI (Caleb's cultist temple set) - overgrown,
-## lootable shrine, natural landmark and ambush magnet.
-func stamp_temple_ruin(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	clear_and_flatten(center, 14.0)
-	var nodes: Array[Node3D] = []
-	var temple := place_structure("res://assets/building models/structures/temple/cultist_temple2.glb", center, rng.randf_range(0, 360))
-	temple.add_to_group("temple_shrines")
-	nodes.append(temple)
-	for i in range(3):
-		var a := TAU * float(i) / 3.0 + rng.randf_range(-0.4, 0.4)
-		var pos := center + Vector3(cos(a), 0, sin(a)) * rng.randf_range(8.0, 12.0)
-		nodes.append(place_structure("res://assets/building models/structures/temple/ruins_corner.glb", pos, rad_to_deg(a) + rng.randf_range(-30, 30)))
-	var site := {"kind": "temple", "center": center, "nodes": nodes, "radius": 14.0}
-	placed_sites.append(site)
-	return site
-
-
 ## LZ: cleared flattened circle, no structures.
 func stamp_lz(center: Vector3) -> Dictionary:
 	clear_and_flatten(center, 16.0)

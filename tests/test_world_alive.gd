@@ -21,7 +21,7 @@ const CivilianScript := preload("res://scripts/world/civilian.gd")
 const EnemyBaseScript := preload("res://scripts/enemies/enemy_base.gd")
 const PaddyStamperScript := preload("res://scripts/world/paddy_stamper.gd")
 const LocationPlannerScript := preload("res://scripts/world/location_planner.gd")
-const MissionDirectorScript := preload("res://scripts/missions/mission_director.gd")
+const FieldDirectorScript := preload("res://scripts/missions/field_director.gd")
 const MissionGeneratorScript := preload("res://scripts/missions/mission_generator.gd")
 # These mission preloads are kept available for diagnostic prints only;
 # the test no longer drives a mission (intentional — see file header).

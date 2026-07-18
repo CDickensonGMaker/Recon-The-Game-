@@ -647,7 +647,7 @@ func _handle_movement(delta: float) -> void:
 		is_prone = not is_prone
 
 	# Key 5 belongs to the fire menu while it is open.
-	if Input.is_action_just_pressed("throw_smoke") and not MissionDirector.any_fire_menu_open:
+	if Input.is_action_just_pressed("throw_smoke") and not FieldDirector.any_fire_menu_open:
 		_throw_smoke()
 
 	if Input.is_action_just_pressed("use_ration"):
@@ -664,7 +664,7 @@ func _handle_movement(delta: float) -> void:
 	# Key 6 doubles as CBU while the fire menu is open (cbu_strike shares the
 	# physical key), so this guard keeps one press from doing both.
 	if Input.is_action_just_pressed("place_claymore") and claymore_count > 0 and is_on_floor() \
-			and not MissionDirector.any_fire_menu_open:
+			and not FieldDirector.any_fire_menu_open:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
@@ -684,7 +684,7 @@ func _handle_movement(delta: float) -> void:
 		_winded = false
 	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
 		and not wounded_legs and not _winded and stamina > 0.0 \
-		and not MissionDirector.any_fire_menu_open
+		and not FieldDirector.any_fire_menu_open
 	is_sprinting = Input.is_action_pressed("sprint") and can_sprint and input_dir.y < 0
 
 	if is_sprinting:
@@ -705,7 +705,7 @@ func _handle_movement(delta: float) -> void:
 		current_speed = WALK_SPEED
 
 	# On the radio you can only shuffle.
-	if MissionDirector.any_fire_menu_open:
+	if FieldDirector.any_fire_menu_open:
 		current_speed = minf(current_speed, CROUCH_SPEED)
 
 	# A flooded rice paddy drags at your legs.

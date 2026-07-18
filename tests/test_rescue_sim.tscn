@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestrescue0001"]
-
-[ext_resource type="Script" path="res://tests/test_rescue_sim.gd" id="1_trs"]
-
-[node name="TestRescueSim" type="Node"]
-script = ExtResource("1_trs")

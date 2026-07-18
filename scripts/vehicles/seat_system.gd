@@ -17,7 +17,6 @@ extends Node
 
 signal seated(body: Node3D, seat_name: StringName)
 signal unseated(body: Node3D)
-signal prompt_changed(text: String)
 
 ## Canonical seat order. Crew first, then the cabin.
 const SEAT_NAMES: Array[StringName] = [
@@ -59,8 +58,8 @@ const FADE_S: float = 0.25           ## seconds of the board/dismount fade
 const BOARD_RANGE: float = 4.5       ## player-to-door interact radius, metres
 const EXIT_PUSH_M: float = 2.5       ## how far outside the door you land
 
-## OPT-IN. In missions the bird is owned by InsertionRide / ExfilZone, whose own
-## board/dismount flows poll the same interact key - enabling both double-triggers.
+## OPT-IN. Helicopters are PARKED (ADR-029 foot-only slice); nothing enables
+## player_boarding today. The seat contract + test stay for the thaw.
 @export var player_boarding: bool = false:
 	set(v):
 		player_boarding = v
@@ -345,7 +344,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _interact_ok() -> bool:
-	return _interact_cd <= 0.0 and InsertionRide.context_interact_pressed()
+	return _interact_cd <= 0.0 and Input.is_action_just_pressed("interact")
 
 
 func _fade_then(action: Callable) -> void:
@@ -381,7 +380,6 @@ func _set_prompt(text: String) -> void:
 	if text == _prompt_text:
 		return
 	_prompt_text = text
-	prompt_changed.emit(text)
 	if _prompt == null:
 		if text == "":
 			return

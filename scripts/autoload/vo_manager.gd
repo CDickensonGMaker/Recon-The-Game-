@@ -47,7 +47,7 @@ func play_radio(line_id: String, source_pos: Variant = null) -> void:
 	var stream := _load(RADIO_DIR, "radio_%s" % line_id)
 	if stream == null or _on_cooldown("radio_" + line_id):
 		return
-	if MissionDirector.any_fire_menu_open or not (source_pos is Vector3):
+	if FieldDirector.any_fire_menu_open or not (source_pos is Vector3):
 		_radio.stream = stream
 		_radio.play()
 	else:

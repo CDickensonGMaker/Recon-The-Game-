@@ -18,7 +18,7 @@ func _initialize() -> void:
 	print("  max_fps            : %s" % str(ProjectSettings.get_setting("application/run/max_fps", 0)))
 
 	print("\n=== AUDIT-FIX CLASSES REGISTER ===")
-	for cls in ["PauseMenu", "BriefingScreen", "InsertionRide", "MissionState", "GameFlow"]:
+	for cls in ["PauseMenu", "MissionState", "GameFlow"]:
 		print("  %-16s %s" % [cls, "OK" if ClassDB.class_exists(cls) or _script_class(cls) else "MISSING"])
 
 	print("\n=== CONTACT LEDGER (ADR-006) ===")
