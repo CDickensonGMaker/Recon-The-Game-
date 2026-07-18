@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestplacepaths1"]
+
+[ext_resource type="Script" path="res://tests/test_placement_paths.gd" id="1_tpp"]
+
+[node name="TestPlacementPaths" type="Node"]
+script = ExtResource("1_tpp")

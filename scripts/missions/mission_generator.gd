@@ -166,7 +166,7 @@ static func _wire_systems(world: GameWorld, director: FieldDirector,
 	wd.name = "WeatherDirector"
 	world.add_child(wd)
 	var env: WorldEnvironment = world.get_node_or_null("WorldEnvironment")
-	wd.setup(String(p.get("weather", "CLEAR")), env)
+	wd.setup(String(p.get("weather", "CLEAR")), env, int(p.get("seed", 0)))
 
 	# DynamicMissionFactory: hook to the convoy.ambushed signal so the player
 	# can be offered an ESCORT when a convoy is ambushed.
@@ -310,23 +310,25 @@ static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	flicker.wait_time = 0.12
 	flicker.autostart = true
 	fire.add_child(flicker)
-	flicker.timeout.connect(func() -> void: light.light_energy = randf_range(1.4, 2.2))
+	flicker.timeout.connect(func() -> void:
+		light.light_energy = 1.8 + 0.4 * sin(float(Time.get_ticks_msec()) * 0.017))
 
 
 ## Chickens scatter loudly when anyone gets close - live noise traps.
 static func _add_chicken(world: GameWorld, pos: Vector3) -> void:
 	var chicken := Node3D.new()
 	world.add_child(chicken)
-	chicken.global_position = _seat(world, pos) + Vector3(0, 0.2, 0)
-	var mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.15
-	sphere.height = 0.3
-	mesh.mesh = sphere
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.9, 0.88, 0.8)
-	mesh.material_override = mat
-	chicken.add_child(mesh)
+	chicken.global_position = _seat(world, pos) + Vector3(0, 0.05, 0)
+	var scene: PackedScene = load("res://assets/world/animals/chicken.glb")
+	var visual: Node3D = scene.instantiate() as Node3D
+	chicken.add_child(visual)
+	var ap := visual.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap != null:
+		for anim_name in ap.get_animation_list():
+			if String(anim_name).to_lower().contains("idle"):
+				ap.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
+				ap.play(anim_name)
+				break
 	var scan := Timer.new()
 	scan.wait_time = 0.6
 	scan.autostart = true

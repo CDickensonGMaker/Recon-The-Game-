@@ -65,7 +65,7 @@ static func shot_stream_for(weapon_name: String) -> AudioStream:
 	var n := weapon_name.to_lower()
 	if n.contains("1911") or n.contains("pistol"):
 		return SHOT_PISTOL
-	if n.contains("thompson") or n.contains("mp40") or n.contains("ppsh") or n.contains("smg"):
+	if n.contains("ppsh") or n.contains("smg"):
 		return SHOT_SMG
 	return SHOT_RIFLE
 

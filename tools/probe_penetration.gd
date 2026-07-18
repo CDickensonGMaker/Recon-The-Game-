@@ -70,13 +70,12 @@ func _ready() -> void:
 	# A structure's BALLISTICS used to be decided by substring-matching the GLB
 	# filename (site_planner._SOFT_NAME_HINTS). Verified on the real assets:
 	#   barracks_bunker  -> SOFT (matched "rack")   A BUNKER
-	#   us_halftrack     -> SOFT (matched "rack")   AN ARMOURED VEHICLE
 	#   quonset_hut      -> SOFT (matched "hut")    CORRUGATED STEEL
 	#   bomb_crater      -> SOFT (matched "crate")  A HOLE IN THE GROUND
 	# Material is authored data now. This lane makes sure it stays that way.
 	print("
 -- THE FILENAME FOOTGUN: material is AUTHORED, not guessed --")
-	var must_stop: Array[String] = ["barracks_bunker", "us_halftrack", "quonset_hut",
+	var must_stop: Array[String] = ["barracks_bunker", "quonset_hut",
 		"bomb_crater", "sandbag_bunker", "mg_nest"]
 	var must_pass: Array[String] = ["thatched_hut", "hootch", "tent", "gate_fence"]
 	var bad: int = 0

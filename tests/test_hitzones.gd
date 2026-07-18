@@ -46,7 +46,7 @@ var _live: Dictionary = {}
 
 
 func _isolate_live_tuning() -> void:
-	for f in ["us_grunt_v2", "us_grunt_m14", "_default"]:
+	for f in ["us_grunt_v2", "_default"]:
 		var g: String = ProjectSettings.globalize_path(HitzoneBuilder.TUNING_DIR + f + ".tres")
 		if FileAccess.file_exists(g):
 			DirAccess.rename_absolute(g, g + ".bak")
@@ -250,8 +250,8 @@ func _run() -> void:
 		add_child(holder4)
 		var model4 := ModelActor.new()
 		holder4.add_child(model4)
-		if not model4.setup("us_grunt_m14"):
-			print("FAIL: us_grunt_m14 setup failed for default-inheritance case")
+		if not model4.setup("us_grunt_v2"):
+			print("FAIL: us_grunt_v2 setup failed for default-inheritance case")
 			failures += 1
 		else:
 			HitzoneBuilder.build(holder4, model4, 0, 0, ["hitzone_probe"], true)

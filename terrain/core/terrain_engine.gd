@@ -2,9 +2,7 @@ extends Node
 ## Terrain Engine - Advanced heightmap generation with Vietnam-style terrain
 ## Features: Domain warping, ridged multifractal, hydraulic erosion
 
-signal terrain_generated(heightmap: Image)
 signal terrain_updated(region: Rect2i)
-signal erosion_progress(percent: float)
 
 var seed_value: int = 0
 # Terrain size: 1537 cells = 3074m at 2m/cell (~3km map)
@@ -191,13 +189,6 @@ func set_preset(preset: TerrainPreset) -> void:
 			params[key] = preset_params[preset][key]
 	_apply_params()
 
-
-func set_param(key: String, value: Variant) -> void:
-	params[key] = value
-	current_preset = TerrainPreset.CUSTOM
-	_apply_params()
-
-
 func _apply_params() -> void:
 	base_noise.frequency = params.get("base_frequency", 0.002)
 	base_noise.fractal_octaves = params.get("base_octaves", 5)
@@ -260,7 +251,6 @@ func generate(new_seed: int = -1) -> void:
 	# Create image
 	_create_heightmap_image()
 
-	terrain_generated.emit(heightmap)
 
 
 func _generate_base_with_warping() -> void:
@@ -431,12 +421,7 @@ func _simulate_hydraulic_erosion() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value + 1000
 
-	@warning_ignore("integer_division")
-	var progress_step: int = maxi(1, iterations / 10)
 	for i in range(iterations):
-		if i % progress_step == 0:
-			erosion_progress.emit(float(i) / float(iterations))
-
 		var pos := Vector2(
 			rng.randf() * (terrain_size - 2) + 1,
 			rng.randf() * (terrain_size - 2) + 1
@@ -500,7 +485,6 @@ func _simulate_hydraulic_erosion() -> void:
 			if water < 0.01:
 				break
 
-	erosion_progress.emit(1.0)
 
 
 func _calculate_gradient(pos: Vector2) -> Vector2:

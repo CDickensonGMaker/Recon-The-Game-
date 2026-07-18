@@ -87,7 +87,6 @@ const PRESETS := {
 	},
 }
 
-signal preset_changed(preset: Preset)
 
 
 func _ready() -> void:
@@ -113,7 +112,6 @@ func apply_preset(preset: Preset) -> void:
 	near_tree_distance = settings.near_tree_distance
 	billboard_distance = settings.billboard_distance
 
-	preset_changed.emit(preset)
 	print("[QualitySettings] Applied preset: %s" % get_preset_name(preset))
 
 

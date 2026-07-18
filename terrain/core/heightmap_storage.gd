@@ -4,7 +4,6 @@ class_name HeightmapStorage
 ## Designed for 3km x 3km maps (1536 x 1536 cells at 2m resolution)
 
 signal generation_complete
-signal generation_progress(percent: float)
 
 var size: int = 1536  # Cells per side (3000m / 2m cell_size, rounded to power of 2 compatible)
 var cell_size: float = 2.0  # Meters per cell

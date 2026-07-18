@@ -78,7 +78,7 @@ func _check_face_consistency_all_roles(pool: Array[String]) -> void:
 ## 1b. Legacy body (no stock-helmet contract): dress_actor slides the face but
 ## hangs NO helmet - the welded pot stays, nothing is hidden bare.
 func _check_legacy_face_only() -> void:
-	const LEGACY := "us_grunt_m60"
+	const LEGACY := "us_grunt_v2"
 	if not ModelActor.model_exists(LEGACY):
 		return
 	var rng := RandomNumberGenerator.new()

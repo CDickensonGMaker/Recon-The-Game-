@@ -144,7 +144,7 @@ func _fallback_for(wid: String) -> AudioStream:
 	var n := wid.to_lower()
 	if n.contains("1911") or n.contains("pistol"):
 		return _fallback.get("pistol", null)
-	if n.contains("thompson") or n.contains("mp40") or n.contains("ppsh") or n.contains("smg"):
+	if n.contains("ppsh") or n.contains("smg"):
 		return _fallback.get("smg", null)
 	return _fallback.get("rifle", null)
 

@@ -12,7 +12,6 @@ extends RefCounted
 ## stock-helmet contract, and aircrew (own skin materials, flight helmet).
 const NON_ROLES: Array[String] = [
 	"us_grunt_v2", "us_grunt_v3",
-	"us_grunt_m14", "us_grunt_m60", "us_grunt_m79",
 	"us_pilot_white", "us_pilot_black",
 ]
 

@@ -56,7 +56,6 @@ const UNIT_HEIGHT_M: Dictionary = {
 	# Aircrew keep the combatant standard - the flight helmet is the top of the
 	# silhouette, exactly like a steel pot.
 	"us_pilot_white": 1.7132, "us_pilot_black": 1.7132,
-	"us_rto":         1.7132,
 }
 
 
@@ -277,7 +276,7 @@ func _apply_loop_modes() -> void:
 const OPTIONAL_GEAR_PREFIXES: Array[String] = ["prc25_"]
 
 ## Carries it with no dresser call.
-const CARRIES_RADIO: Array[String] = ["us_grunt_rto", "us_rto"]
+const CARRIES_RADIO: Array[String] = ["us_grunt_rto"]
 
 ## No PRC-25 in their mesh at all (tools/export_us_squad.py NO_RADIO), so promoting
 ## one of these to radioman would silently do nothing. GruntDresser refuses instead.

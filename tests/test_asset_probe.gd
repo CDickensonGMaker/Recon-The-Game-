@@ -13,7 +13,6 @@ const EXPECTED := {
 	"res://assets/building models/structures/firebase/sandbag_bunker.glb": [1.0, 10.0],
 	"res://assets/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
 	"res://assets/building models/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
-	"res://assets/building models/vehicles/us_m24_tank.glb": [3.0, 10.0],
 	"res://assets/building models/vehicles/m113_apc.glb": [2.0, 9.0],
 	"res://assets/building models/aircraft/a1_skyraider.glb": [6.0, 18.0],
 	"res://assets/building models/ordnance/Bomb_500lb_Mk82.glb": [0.5, 4.0],

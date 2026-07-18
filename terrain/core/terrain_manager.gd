@@ -10,7 +10,6 @@ const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
 
 signal terrain_ready
 signal chunk_unloaded(coord: Vector2i)
-signal generation_progress(stage: String, percent: float)
 
 @export var map_size: float = 3000.0  # Playable map size in meters
 @export var chunk_size: float = 256.0  # Chunk size in meters
@@ -87,13 +86,6 @@ func _process_rebuild_queue() -> void:
 		var coord: Vector2i = _rebuild_queue.pop_front()
 		_rebuild_chunk_immediate(coord)
 
-
-## Queue a chunk for deferred rebuild (prevents frame spikes)
-func queue_chunk_rebuild(coord: Vector2i) -> void:
-	if coord not in _rebuild_queue:
-		_rebuild_queue.append(coord)
-
-
 func _rebuild_chunk_immediate(coord: Vector2i) -> void:
 	if not chunks.has(coord):
 		return
@@ -115,7 +107,6 @@ func _rebuild_chunk_immediate(coord: Vector2i) -> void:
 ## Initialize terrain generation (async with frame yields for loading screen)
 func generate_terrain(seed_value: int = -1) -> void:
 	is_ready = false
-	generation_progress.emit("Initializing", 0.0)
 
 	# Yield a frame to allow loading screen to render
 	await get_tree().process_frame
@@ -132,7 +123,6 @@ func generate_terrain(seed_value: int = -1) -> void:
 		terrain_generator.height_scale = WORLD_HEIGHT_MAX
 		terrain_generator.target_relief = preset_scale / WORLD_HEIGHT_MAX
 
-		generation_progress.emit("Generating heightmap", 0.1)
 		await get_tree().process_frame
 		terrain_generator.generate(seed_value)
 
@@ -144,7 +134,6 @@ func generate_terrain(seed_value: int = -1) -> void:
 		# Ensure the terrain shader uses the same world-space scale as the mesh.
 		TerrainChunkClass.set_shader_parameters({"height_scale": WORLD_HEIGHT_MAX})
 
-		generation_progress.emit("Heightmap complete", 0.5)
 		await get_tree().process_frame
 	else:
 		_generate_fallback_terrain()
@@ -157,18 +146,15 @@ func generate_terrain(seed_value: int = -1) -> void:
 
 	# Extract rivers and carve riverbeds BEFORE building chunks (optional - slow on large maps)
 	if rivers_enabled:
-		generation_progress.emit("Extracting rivers", 0.55)
 		await get_tree().process_frame
 		_extract_and_carve_rivers()
 		_build_water_proximity_mask()
 		await get_tree().process_frame
 
-	generation_progress.emit("Loading chunks", 0.6)
 	await get_tree().process_frame
 	await _load_initial_chunks_async()
 
 	is_ready = true
-	generation_progress.emit("Complete", 1.0)
 	terrain_ready.emit()
 
 
@@ -217,7 +203,6 @@ func _load_initial_chunks_async() -> void:
 
 				if loaded % chunks_per_frame == 0:
 					var progress: float = 0.6 + (float(loaded) / float(total_chunks)) * 0.3
-					generation_progress.emit("Loading chunks %d/%d" % [loaded, total_chunks], progress)
 					await get_tree().process_frame
 
 	print("[TerrainManager] Loaded %d chunks" % loaded)
@@ -402,11 +387,6 @@ static func _preset_height_scale(preset: int) -> float:
 			return 160.0
 		_:
 			return 90.0
-
-
-func get_playable_bounds() -> Rect2:
-	return Rect2(Vector2.ZERO, Vector2(map_size, map_size))
-
 
 func get_loaded_chunks() -> Array[Vector2i]:
 	var result: Array[Vector2i] = []

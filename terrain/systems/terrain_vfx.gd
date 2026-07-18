@@ -279,44 +279,6 @@ func _create_flash_light(position: Vector3, radius: float) -> void:
 # CONVENIENCE METHODS FOR TERRAIN OPERATIONS
 # ============================================================================
 
-func play_damage_effect(position: Vector3, damage_type: int) -> void:
-	match damage_type:
-		0:  # SMALL_EXPLOSION
-			play_effect(EffectType.EXPLOSION_SMALL, position)
-		1:  # MEDIUM_EXPLOSION
-			play_effect(EffectType.EXPLOSION_MEDIUM, position)
-		2:  # LARGE_EXPLOSION
-			play_effect(EffectType.EXPLOSION_LARGE, position)
-		3:  # NAPALM
-			play_effect(EffectType.NAPALM_FIRE, position, 1.5)
-		_:
-			play_effect(EffectType.DUST_CLOUD, position)
-
-
-func play_engineering_effect(position: Vector3, op_type: int) -> void:
-	match op_type:
-		0:  # CLEAR_JUNGLE
-			play_effect(EffectType.TREE_FALL, position)
-		1:  # FLATTEN_AREA
-			play_effect(EffectType.DIRT_SPRAY, position, 2.0)
-		2:  # DIG_TRENCH
-			play_effect(EffectType.DIRT_SPRAY, position)
-		3:  # BUILD_ROAD
-			play_effect(EffectType.DIRT_SPRAY, position)
-		4:  # CREATE_BERM
-			play_effect(EffectType.DIRT_SPRAY, position, 1.5)
-		5:  # DIG_FOXHOLE
-			play_effect(EffectType.DIRT_SPRAY, position, 0.5)
-		6:  # CRATER_BLAST
-			play_effect(EffectType.EXPLOSION_MEDIUM, position)
-		7:  # DET_CORD_LINE
-			play_effect(EffectType.DET_CORD_FLASH, position)
-		8:  # DET_CORD_SQUARE
-			play_effect(EffectType.DET_CORD_FLASH, position, 1.5)
-		_:
-			play_effect(EffectType.DUST_CLOUD, position)
-
-
 ## Play multiple effects along a line (for linear operations)
 func play_line_effect(effect_type: EffectType, start: Vector3, end: Vector3, spacing: float = 10.0) -> void:
 	var direction: Vector3 = (end - start).normalized()

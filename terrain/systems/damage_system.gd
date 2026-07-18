@@ -2,7 +2,6 @@ extends Node
 ## Damage System - Physical terrain deformation from explosions, bombardment, etc.
 ## Creates craters, scarring, and persistent damage markers using Decals
 
-signal damage_applied(position: Vector3, type: DamageType, radius: float)
 signal terrain_scarred(region: Rect2i)
 
 enum DamageType {
@@ -155,7 +154,6 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 		intensity
 	)
 
-	damage_applied.emit(world_pos, type, radius_meters)
 
 
 func _create_scar_textures() -> void:

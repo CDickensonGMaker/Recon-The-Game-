@@ -118,7 +118,9 @@ const VC_PATHS: Array[String] = [
 
 ## --- TUNING LEVERS (arena-local, do not leak into campaign) ---
 ## AI health scaling. Controls how long AI-vs-AI fights last.
-@export var ai_hp_multiplier: float = 1.5
+## 1.0 = campaign feel. The bench must never tune the game with levers the game
+## doesn't have (drift council D2); raise it per-run in the inspector only.
+@export var ai_hp_multiplier: float = 1.0
 ## Multiplier on damage dealt by the player only. Keeps player gunfeel separate
 ## from AI-vs-AI durability.
 @export var player_damage_multiplier: float = 1.0
@@ -364,15 +366,16 @@ func _build_environment() -> void:
 		_build_campfires()
 
 
-## Dim moon: the NIGHT preset numbers from mission_weather.gd (sun energy 0.08,
-## moonlight-blue, ambient 0.15) applied directly, plus a bluish fog for depth.
+## Dim moon: reads MissionWeather.TIMES["NIGHT"] - the SHARED preset, so a
+## weather retune can never silently un-sync the bench (drift council D1).
 func _build_night_env() -> void:
+	var night: Dictionary = MissionWeather.TIMES["NIGHT"]
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.02, 0.03, 0.05)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.45, 0.55, 0.75)
-	env.ambient_light_energy = 0.15
+	env.ambient_light_energy = float(night.ambient)
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.10, 0.14, 0.22)
 	env.fog_density = 0.006
@@ -384,9 +387,9 @@ func _build_night_env() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.name = "SunLight"
-	sun.rotation_degrees = Vector3(-35.0, 40.0, 0.0)
-	sun.light_energy = 0.08
-	sun.light_color = Color(0.6, 0.7, 0.95)
+	sun.rotation_degrees = Vector3(float(night.sun_x), 40.0, 0.0)
+	sun.light_energy = float(night.energy)
+	sun.light_color = night.sun_color
 	# Ship parity (ADR-026 Amendment A): game_world ships the sun shadowless. The F6
 	# overlay toggle turns this on to MEASURE the ~12ms shadow cost; it is not a shipped cost.
 	sun.shadow_enabled = false

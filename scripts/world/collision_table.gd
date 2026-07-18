@@ -34,12 +34,8 @@ const STRUCTURES := {
 	"weapons_cache": {"box": Vector3(2.5, 1.5, 2.5), "y_offset": 0.75, "footprint": Vector2(3, 3), "scale": 1.0},
 	"punji_trap": {"box": Vector3(0, 0, 0), "y_offset": 0.0, "footprint": Vector2(2, 2), "scale": 1.0},  # no collision - trap
 	# Vehicles (props)
-	"us_m24_tank": {"box": Vector3(3, 2.5, 6), "y_offset": 1.25, "footprint": Vector2(7, 4), "scale": 1.0},
 	"m113_apc": {"box": Vector3(2.7, 2.2, 5), "y_offset": 1.1, "footprint": Vector2(6, 3.5), "scale": 1.0},
-	"us_halftrack": {"box": Vector3(2.5, 2.3, 6), "y_offset": 1.15, "footprint": Vector2(7, 3.5), "scale": 1.0},
 	"m151_mutt_gun_jeep": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
-	"us_jeep_s3o": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
-	"us_m4_sherman": {"box": Vector3(3, 2.8, 6), "y_offset": 1.4, "footprint": Vector2(7, 4), "scale": 1.0},
 	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},  # duplicate fuselage stripped at runtime; single body ~17m
 	"ch47_chinook": {"box": Vector3(4, 4, 16), "y_offset": 2.0, "footprint": Vector2(18, 18), "scale": 1.0},
 	# ---- Auto-measured from GLB AABBs (headless Blender, bead f5yf). box=(x, height, depth),
@@ -121,11 +117,8 @@ const STRUCTURES := {
 	"tank_trap": {"box": Vector3(10.4, 10.5, 10.5), "y_offset": 5.25, "footprint": Vector2(11.5, 11.5), "scale": 1.0},
 	"tent": {"box": Vector3(10.0, 5.2, 3.9), "y_offset": 6.42, "footprint": Vector2(11.0, 5.0), "scale": 1.0},
 	"toc": {"box": Vector3(6.4, 6.0, 4.4), "y_offset": 3.00, "footprint": Vector2(7.5, 5.5), "scale": 1.0},
-	"uh1_huey": {"box": Vector3(14.6, 3.9, 13.3), "y_offset": 0.89, "footprint": Vector2(16.0, 14.5), "scale": 1.0},
 	"underground_hospital": {"box": Vector3(4.0, 2.3, 3.5), "y_offset": 0.40, "footprint": Vector2(5.0, 4.5), "scale": 1.0},
 	"us_army_bridge": {"box": Vector3(4.0, 4.2, 17.4), "y_offset": 0.88, "footprint": Vector2(5.0, 18.5), "scale": 1.0},
-	"us_bulldozer": {"box": Vector3(4.5, 3.0, 6.2), "y_offset": 1.31, "footprint": Vector2(6.0, 7.5), "scale": 1.0},
-	"us_jeep": {"box": Vector3(4.6, 2.0, 11.3), "y_offset": 1.00, "footprint": Vector2(6.0, 12.5), "scale": 1.0},
 	"villa": {"box": Vector3(15.0, 8.5, 13.5), "y_offset": 4.25, "footprint": Vector2(16.0, 14.5), "scale": 1.0},
 	"village_pagoda": {"box": Vector3(12.0, 8.4, 10.0), "y_offset": 4.20, "footprint": Vector2(13.0, 11.0), "scale": 1.0},
 	"wall_corner_tall": {"box": Vector3(2.7, 2.8, 2.2), "y_offset": 1.41, "footprint": Vector2(4.0, 3.5), "scale": 1.0, "mesh": true},  # trimesh in GLB
@@ -148,7 +141,6 @@ static func get_entry(model_name: String) -> Dictionary:
 ##
 ##   barracks_bunker.glb  -> SOFT COVER   (matched "rack")   *** A BUNKER ***
 ##   french_barracks.glb  -> SOFT COVER   (matched "rack")
-##   us_halftrack.glb     -> SOFT COVER   (matched "rack")   *** AN ARMOURED VEHICLE ***
 ##   quonset_hut.glb      -> SOFT COVER   (matched "hut")    *** CORRUGATED STEEL ***
 ##   bomb_crater.glb      -> SOFT COVER   (matched "crate")  *** A HOLE IN THE GROUND ***
 ##

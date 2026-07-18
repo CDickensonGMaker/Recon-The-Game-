@@ -223,8 +223,8 @@ static func model_clip_for(intent: String) -> String:
 ## exist, so new family clips light up the moment they land in the library.
 ## Rifle is the default hold = NO suffix.
 const WEAPON_FAMILY: Dictionary = {
-	"ppsh": "smg", "ppsh41": "smg", "thompson": "smg", "mat49": "smg",
-	"mosin": "bolt", "kar98k": "bolt", "m70": "bolt",
+	"ppsh": "smg", "ppsh41": "smg",
+	"mosin": "bolt", "m70": "bolt",
 	"m60": "mg", "rpd": "mg",
 	"rpg": "launcher", "rpg2": "launcher", "rpg7": "launcher", "m72_law": "launcher",
 	"m79": "launcher",

@@ -8,7 +8,7 @@ extends SceneTree
 func _initialize() -> void:
 	var units: PackedStringArray = OS.get_cmdline_user_args()
 	if units.is_empty():
-		units = PackedStringArray(["us_grunt_v2", "vc_guerilla", "vc_guerilla_mosin", "us_grunt_m14"])
+		units = PackedStringArray(["us_grunt_v2", "vc_guerilla", "vc_guerilla_mosin"])
 	for unit in units:
 		var holder := Node3D.new()
 		root.add_child(holder)

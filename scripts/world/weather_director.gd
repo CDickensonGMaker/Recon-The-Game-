@@ -25,9 +25,11 @@ func _ready() -> void:
 			SimClock.day_advanced.connect(cb)
 
 
-func setup(weather: String, env: WorldEnvironment) -> void:
+func setup(weather: String, env: WorldEnvironment, seed_value: int = 0) -> void:
 	current_weather = weather
 	world_environment = env
+	if seed_value != 0:
+		rng.seed = seed_value + 2617  # weather rolls fold the operation seed (ADR-010)
 	_apply(current_weather)
 
 
