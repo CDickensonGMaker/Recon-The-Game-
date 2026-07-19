@@ -36,3 +36,4 @@ viewmodel_scale = 1.1
 hip_position = Vector3(0.019652504, 0, -0.14682649)
 ads_position = Vector3(0, 0.05, 0.08)
 hip_rotation = Vector3(1.9946083, -5.0556073, 0)
+ads_rotation = Vector3(1.9946083, -5.0556073, 0)

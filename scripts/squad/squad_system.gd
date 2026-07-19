@@ -25,6 +25,12 @@ var _bark_cooldown: float = 0.0
 var _point_warned: Dictionary = {}
 var _thumper_cooldown: float = 0.0
 var _roster_rng := RandomNumberGenerator.new()
+## The ally grenadier fires the same M79 the player does, so his round does the
+## damage OF RECORD in data/weapons/m79.tres (ADR-016: base_damage is the flat
+## value). FALLBACK_THUMPER_DAMAGE applies ONLY when that fails to load.
+## Mirrors Grenade._grenade_damage() reading m26_grenade.tres.
+const FALLBACK_THUMPER_DAMAGE: int = 150
+static var _m79: WeaponData = null
 ## One-shot: the squad auto-goes-loud with the player's first shot. Any manual
 ## F4/N toggle takes over and disarms the automatic.
 var _auto_flip_armed: bool = true
@@ -309,10 +315,16 @@ func _grenadier_tick() -> void:
 			get_tree().create_timer(1.2).timeout.connect(func() -> void:
 				if world == null or not is_instance_valid(world) or not is_instance_valid(thumper):
 					return
-				CombatManager.apply_explosion_damage(impact, 90, 25, 7.0, thumper)
+				CombatManager.apply_explosion_damage(impact, _thumper_damage(), 25, 7.0, thumper)
 				GunFX.play_explosion_3d(world, impact)
 				NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, impact, 0))
 			return
+
+
+static func _thumper_damage() -> int:
+	if _m79 == null:
+		_m79 = load("res://data/weapons/m79.tres") as WeaponData
+	return _m79.base_damage if _m79 != null else FALLBACK_THUMPER_DAMAGE
 
 
 var _last_combat_count: int = 0
