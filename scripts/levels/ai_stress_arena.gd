@@ -296,6 +296,30 @@ func _process(delta: float) -> void:
 		_perf_overlay.report_cpu_bucket("reinforce", float(t2 - t1) / 1000.0)
 		_perf_overlay.report_cpu_bucket("telemetry", float(t3 - t2) / 1000.0)
 		_perf_overlay.report_cpu_bucket("debug_vis", float(t4 - t3) / 1000.0)
+		_report_ai_buckets(delta)
+
+
+var _ai_bucket_t: float = 0.0
+var _ai_bucket_frames: int = 0
+var _ai_bucket_prev: Array[int] = [0, 0, 0, 0]
+
+
+## Physics-side AI split (think/move/hitzone/anim) as a 1Hz per-frame average of
+## the usec the agents accumulate on CombatManager inside _physics_process.
+func _report_ai_buckets(delta: float) -> void:
+	_ai_bucket_t += delta
+	_ai_bucket_frames += 1
+	if _ai_bucket_t < 1.0:
+		return
+	var now_c: Array[int] = [CombatManager.ai_usec_think, CombatManager.ai_usec_move,
+		CombatManager.ai_usec_hitzone, CombatManager.ai_usec_anim]
+	var names: Array[String] = ["ai/think", "ai/move", "ai/hitzone", "ai/anim"]
+	var f: float = float(maxi(1, _ai_bucket_frames))
+	for i in names.size():
+		_perf_overlay.report_cpu_bucket(names[i], float(now_c[i] - _ai_bucket_prev[i]) / 1000.0 / f, true)
+	_ai_bucket_prev = now_c
+	_ai_bucket_t = 0.0
+	_ai_bucket_frames = 0
 
 
 ## Keep an illum flare or two burning over the contact zone so the many-lights night

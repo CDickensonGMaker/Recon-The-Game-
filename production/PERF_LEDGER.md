@@ -252,3 +252,38 @@ VIEW into the base interior, not a jungle sightline, not a firefight, weather/ti
 47225 rolls; gpu_ms unavailable (measured-render-time flag not enabled in this scene). It does NOT
 generalize to the night-arena rows above and is not the gate number - it is the patrol world's
 first honest datapoint.
+
+---
+
+# 2026-07-18 — W0 HEADLESS CPU BASELINE (AI consolidation decree, first counter row)
+
+**Harness:** `tests/test_arena_perf.tscn` headless (hot_start, 3+3 squads x6 + one forced wave/side,
+**65-67 live units** at sample end - deliberately OVER the shipped load), 4s warmup + 12s sample, on
+the uncommitted W0 tree atop `e84bec82`. Headless = AI/physics/logic only. **GPU-ms / windowed fps /
+draw calls: needs-windowed - the Summoner runs that batch.** Two runs, numbers stable across both.
+
+| metric | run 1 | run 2 |
+|---|---:|---:|
+| headless avg fps | 2.2 | 2.3 |
+| physics frames in 12s window | 720 (8-step saturated) | 720 |
+| rays/s total (perc / wit / los-other / cover / bullet) | 152 (21/0/89/35/8) | 161 (18/0/102/29/12) |
+| rays per physics frame | 2.53 | 2.68 |
+| ai ms/physics-frame: think | 1.28 | 1.20 |
+| ai ms/physics-frame: move_and_slide | 9.06 | 8.78 |
+| ai ms/physics-frame: hitzone sync | 10.43 | 9.87 |
+| ai ms/physics-frame: anim/execute remainder | 19.04 | 17.63 |
+| ai ms/physics-frame: SUM | **39.8** | **37.5** |
+
+**THE ATTRIBUTION THE DECREE DEMANDED (DA sec.2), now measured, not argued:** at 65+ live units the
+AI physics wall is ~38-40 ms per physics tick, and **perception rays + think are ~6% of it**
+(rays ~2.6/frame level-wide - microseconds; think 1.2 ms). The wall is the BODY:
+hitzone sync (~10 ms) + move_and_slide (~9 ms) + the execute/anim remainder (~18 ms). Wave A's
+milliseconds live in **A2 (body gate)**; A1 is architecture + the A4 platform, exactly as the
+devil's advocate predicted from the raycast math. Counters live at: `CombatManager.rays_*` /
+`CombatManager.ai_usec_*`, overlay ray line + physics-bucket section in `arena_perf_overlay.gd`,
+1 Hz feed in `ai_stress_arena._report_ai_buckets`.
+
+Inherited errors visible in arena runs (NOT W0's, present at HEAD): `damage_system.gd:107` reads
+`terrain_manager.heightmap.height_scale` - the arena's TerrainManagerStub has no heightmap, so
+RPG/grenade craters error headless (crater-retune commit `e84bec82` fallout). Main-scene headless
+boot: 0 SCRIPT ERROR.

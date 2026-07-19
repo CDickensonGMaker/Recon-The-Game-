@@ -188,7 +188,7 @@ var sprite_weapon: String = "m16a1"
 
 func _ready() -> void:
 	add_to_group("allies")
-	CombatManager.register_ally(self)
+	AgentRegistry.register(self, AgentRegistry.Kind.ALLY)
 	var slot_angle: float = randf_range(0.0, TAU)
 	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
 	# The man he is this playthrough: a random point on the spectrum.
@@ -201,6 +201,12 @@ func _ready() -> void:
 	_setup_hurtbox()
 
 	current_aim_dir = -global_transform.basis.z
+
+
+## Mission teardown frees live men without a death path - the roster must not
+## hold freed instances (the registry has no cleanup sweep by design).
+func _exit_tree() -> void:
+	AgentRegistry.unregister(self)
 
 
 func _setup_visual() -> void:
@@ -346,9 +352,12 @@ func _setup_hurtbox() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var t_start: int = Time.get_ticks_usec()
 	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
 	if _visual_is_model:
 		HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
+	var t_sync: int = Time.get_ticks_usec()
+	CombatManager.ai_usec_hitzone += t_sync - t_start
 	if current_state == Enums.AIState.DEAD:
 		return
 
@@ -367,9 +376,13 @@ func _physics_process(delta: float) -> void:
 			can_fire = true
 
 	think_timer += capped_delta
+	var usec_think: int = 0
 	if think_timer >= THINK_INTERVAL:
 		think_timer = 0.0
+		var t_think: int = Time.get_ticks_usec()
 		_think()
+		usec_think = Time.get_ticks_usec() - t_think
+		CombatManager.ai_usec_think += usec_think
 
 	_execute(capped_delta)
 
@@ -381,7 +394,10 @@ func _physics_process(delta: float) -> void:
 			flat = flat.normalized() * CROUCH_SPEED_CAP
 			velocity.x = flat.x
 			velocity.z = flat.y
+	var t_move: int = Time.get_ticks_usec()
 	move_and_slide()
+	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
+	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
 
 
 func _think() -> void:
@@ -394,7 +410,7 @@ func _think() -> void:
 func _check_threat() -> void:
 	if weapons_free:
 		return
-	for enemy in CombatManager.active_enemies:
+	for enemy in AgentRegistry.enemies:
 		if enemy is EnemyBase:
 			var e := enemy as EnemyBase
 			if not e.is_dead() and e.target == self and e.alert_tier == EnemyBase.AlertTier.COMBAT:
@@ -406,7 +422,7 @@ func _find_target() -> void:
 	var closest_enemy: Node3D = null
 	var closest_dist: float = 60.0
 
-	for enemy in CombatManager.active_enemies:
+	for enemy in AgentRegistry.enemies:
 		if not is_instance_valid(enemy) or not enemy is Node3D:
 			continue
 		if enemy.has_method("is_dead") and enemy.is_dead():
@@ -761,6 +777,7 @@ func _find_cover_point() -> Vector3:
 		var query := PhysicsRayQueryParameters3D.create(
 			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
+		CombatManager.rays_cover += 1
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
@@ -954,7 +971,7 @@ func _die() -> void:
 	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_release_cover()
 	_change_state(Enums.AIState.DEAD)
-	CombatManager.unregister_ally(self)
+	AgentRegistry.unregister(self)
 	died.emit(self)
 
 	set_physics_process(false)

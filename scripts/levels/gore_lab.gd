@@ -339,7 +339,7 @@ func _cover_box(size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
 	return body
 
 
-## Allies fight with no SquadSystem: targeting rides CombatManager.active_enemies,
+## Allies fight with no SquadSystem: targeting rides AgentRegistry.enemies,
 ## FOLLOW rides GameManager.player.
 func _spawn_allies() -> void:
 	for i in range(ALLY_COUNT):

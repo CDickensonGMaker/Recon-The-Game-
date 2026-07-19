@@ -5,9 +5,6 @@ extends Node
 signal damage_dealt(attacker: Node, target: Node, damage: int, damage_type: Enums.DamageType)
 signal entity_killed(entity: Node, killer: Node)
 
-## Active combatants tracking
-var active_enemies: Array[Node] = []
-var active_allies: Array[Node] = []
 var player: Node = null
 
 ## Projectile pool for all projectiles in the game
@@ -16,9 +13,21 @@ var projectile_pool: ProjectilePool = null
 ## Real bullet simulation - every small-arms round in the game.
 var bullets: BulletSystem = null
 
-## Cleanup timer for invalid entities
-var _cleanup_timer: float = 0.0
-const CLEANUP_INTERVAL: float = 5.0
+## W0 ray census - monotonic totals bumped at every AI/bullet raycast site; perf
+## overlays and probes read deltas. perception/witness rays also pass through
+## has_line_of_sight, so rays_los is their superset, not a disjoint class.
+var rays_los: int = 0
+var rays_perception: int = 0
+var rays_witness: int = 0
+var rays_cover: int = 0
+var rays_bullet: int = 0
+
+## W0 physics-side CPU buckets - usec accumulated inside enemy/ally
+## _physics_process, reported by the arena at 1Hz via report_cpu_bucket.
+var ai_usec_think: int = 0
+var ai_usec_move: int = 0
+var ai_usec_hitzone: int = 0
+var ai_usec_anim: int = 0
 
 ## Knockback: blast SHOVE, not blast LAUNCH (realistic-combat pillar). A near miss
 ## staggers a man a step; the dead crumple via the ragdoll doctrine, they do not
@@ -36,38 +45,9 @@ func _ready() -> void:
 	add_child(bullets)
 
 
-func _process(delta: float) -> void:
-	_cleanup_timer += delta
-	if _cleanup_timer >= CLEANUP_INTERVAL:
-		_cleanup_timer = 0.0
-		_cleanup_invalid_entities()
-
-
 ## Register player reference
 func register_player(player_node: Node) -> void:
 	player = player_node
-
-
-## Register an enemy
-func register_enemy(enemy: Node) -> void:
-	if enemy not in active_enemies:
-		active_enemies.append(enemy)
-
-
-## Unregister an enemy
-func unregister_enemy(enemy: Node) -> void:
-	active_enemies.erase(enemy)
-
-
-## Register an ally
-func register_ally(ally: Node) -> void:
-	if ally not in active_allies:
-		active_allies.append(ally)
-
-
-## Unregister an ally
-func unregister_ally(ally: Node) -> void:
-	active_allies.erase(ally)
 
 
 ## Calculate bullet damage with optional knockback
@@ -157,7 +137,7 @@ func apply_explosion_damage(
 
 	# Damage allies in range. ITERATE A SNAPSHOT: a kill unregisters the man from
 	# this very array mid-loop, which shifts it and SKIPS his neighbour.
-	for ally in active_allies.duplicate():
+	for ally in AgentRegistry.allies.duplicate():
 		if not is_instance_valid(ally) or not ally is Node3D:
 			continue
 		var ally_pos: Vector3 = (ally as Node3D).global_position
@@ -180,7 +160,7 @@ func apply_explosion_damage(
 				_apply_knockback(ally, knockback_dir, knockback_scale * 2.0, damage)
 
 	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
-	for enemy in active_enemies.duplicate():
+	for enemy in AgentRegistry.enemies.duplicate():
 		if not is_instance_valid(enemy) or not enemy is Node3D:
 			continue
 		var enemy_pos: Vector3 = (enemy as Node3D).global_position
@@ -238,7 +218,7 @@ func _can_damage_multipoint(space_state: PhysicsDirectSpaceState3D, from: Vector
 
 ## Apply suppression to nearby enemies (for sustained fire)
 func apply_suppression_in_area(center: Vector3, radius: float, amount: float, exclude: Node = null) -> void:
-	for enemy in active_enemies:
+	for enemy in AgentRegistry.enemies:
 		if not is_instance_valid(enemy) or enemy == exclude:
 			continue
 		if not enemy is Node3D:
@@ -251,26 +231,10 @@ func apply_suppression_in_area(center: Vector3, radius: float, amount: float, ex
 				enemy.apply_suppression(amount * falloff)
 
 
-## Remove any invalid/freed entities from tracking arrays
-func _cleanup_invalid_entities() -> void:
-	var valid_enemies: Array[Node] = []
-	for enemy in active_enemies:
-		if is_instance_valid(enemy):
-			valid_enemies.append(enemy)
-	active_enemies = valid_enemies
-
-	var valid_allies: Array[Node] = []
-	for ally in active_allies:
-		if is_instance_valid(ally):
-			valid_allies.append(ally)
-	active_allies = valid_allies
-
-
 ## Get all enemies in range of a point
 func get_enemies_in_range(point: Vector3, range_dist: float) -> Array[Node]:
 	var result: Array[Node] = []
-	_cleanup_invalid_entities()
-	for enemy in active_enemies:
+	for enemy in AgentRegistry.enemies:
 		if not is_instance_valid(enemy):
 			continue
 		if enemy is Node3D:
@@ -280,25 +244,9 @@ func get_enemies_in_range(point: Vector3, range_dist: float) -> Array[Node]:
 	return result
 
 
-## Get closest enemy to a point
-func get_closest_enemy(point: Vector3, max_range: float = 100.0) -> Node:
-	var closest: Node = null
-	var closest_dist: float = max_range
-
-	for enemy in active_enemies:
-		if not is_instance_valid(enemy):
-			continue
-		if enemy is Node3D:
-			var dist: float = (enemy as Node3D).global_position.distance_to(point)
-			if dist < closest_dist:
-				closest_dist = dist
-				closest = enemy
-
-	return closest
-
-
 ## Check line of sight between two positions
 func has_line_of_sight(from_pos: Vector3, to_pos: Vector3, exclude: Array[Node] = []) -> bool:
+	rays_los += 1
 	var space_state: PhysicsDirectSpaceState3D = get_tree().root.get_world_3d().direct_space_state
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
 		from_pos,

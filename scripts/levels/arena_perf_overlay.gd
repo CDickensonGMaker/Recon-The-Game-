@@ -51,6 +51,14 @@ var _history: PackedFloat32Array = PackedFloat32Array()
 ## CPU sub-timings fed by the arena each frame (name -> ms). Everything the arena does
 ## not report falls into the engine "other _process" remainder.
 var _cpu_buckets: Dictionary = {}
+## Physics-side buckets (1s averages fed by the arena). Kept OUT of the process
+## remainder above - _physics_process lives in a different monitor.
+var _phys_buckets: Dictionary = {}
+## Ray census window (reads the CombatManager counters as 1s deltas).
+var _ray_t: float = 0.0
+var _ray_frames: int = 0
+var _ray_prev: Array[int] = [0, 0, 0, 0, 0]
+var _ray_line: String = ""
 ## Events that happened this frame, so a spike can be blamed on one.
 var _frame_events: Array[String] = []
 var _spike_log: Array[String] = []
@@ -101,9 +109,13 @@ func _ready() -> void:
 
 
 ## The arena reports its own per-system timings here (ms). Called before the overlay's
-## own _process each frame; buckets are consumed and cleared on read.
-func report_cpu_bucket(system: String, ms: float) -> void:
-	_cpu_buckets[system] = ms
+## own _process each frame. physics_side buckets display in their own section so
+## they never pollute the process-remainder subtraction.
+func report_cpu_bucket(system: String, ms: float, physics_side: bool = false) -> void:
+	if physics_side:
+		_phys_buckets[system] = ms
+	else:
+		_cpu_buckets[system] = ms
 
 
 ## The arena (or any system) tags an event that plausibly spikes a frame, so the spike
@@ -112,7 +124,7 @@ func note_event(tag: String) -> void:
 	_frame_events.append(tag)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var fps: float = float(Engine.get_frames_per_second())
 	var frame_ms: float = 1000.0 / maxf(1.0, fps)
 
@@ -171,6 +183,38 @@ func _process(_delta: float) -> void:
 	for name_v: Variant in _cpu_buckets:
 		stats += "  %-12s %.2f ms\n" % [String(name_v), float(_cpu_buckets[name_v])]
 	stats += "  %-12s %.2f ms\n" % ["ai/agents", maxf(0.0, process_ms - itemised)]
+
+	# Physics-side AI buckets (1s averages) against this frame's physics monitor -
+	# the first split of the wall where the AI actually lives.
+	if not _phys_buckets.is_empty():
+		var phys_itemised: float = 0.0
+		for name_v: Variant in _phys_buckets:
+			phys_itemised += float(_phys_buckets[name_v])
+		stats += "  --- physics-side AI (1s avg) ---\n"
+		for name_v: Variant in _phys_buckets:
+			stats += "  %-12s %.2f ms\n" % [String(name_v), float(_phys_buckets[name_v])]
+		stats += "  %-12s %.2f ms\n" % ["phys/other", maxf(0.0, physics_ms - phys_itemised)]
+
+	# Ray census: perc/wit rays pass through has_line_of_sight, so "los" is shown
+	# net of them; cover + bullet are direct space casts.
+	_ray_t += delta
+	_ray_frames += 1
+	if _ray_t >= 1.0:
+		var now_c: Array[int] = [CombatManager.rays_los, CombatManager.rays_perception,
+			CombatManager.rays_witness, CombatManager.rays_cover, CombatManager.rays_bullet]
+		var d: Array[int] = []
+		for i in now_c.size():
+			d.append(now_c[i] - _ray_prev[i])
+		_ray_prev = now_c
+		var rf: float = float(maxi(1, _ray_frames))
+		var ray_total: int = d[0] + d[3] + d[4]
+		_ray_line = "  rays/f %.1f (perc %.1f wit %.1f los %.1f cov %.1f bul %.1f) | %d/s\n" % [
+			float(ray_total) / rf, float(d[1]) / rf, float(d[2]) / rf,
+			float(d[0] - d[1] - d[2]) / rf, float(d[3]) / rf, float(d[4]) / rf, ray_total]
+		_ray_t = 0.0
+		_ray_frames = 0
+	if not _ray_line.is_empty():
+		stats += "  --- rays (1s window) ---\n" + _ray_line
 
 	if not _spike_log.is_empty():
 		stats += "  --- last spikes (>%.0fms) ---\n" % SPIKE_MS

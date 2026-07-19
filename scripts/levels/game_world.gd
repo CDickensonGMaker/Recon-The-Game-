@@ -167,8 +167,54 @@ func _on_terrain_ready() -> void:
 	add_child(clutter)
 	clutter.setup(self)
 
+	_warm_effects()
+
 	is_world_ready = true
 	world_ready.emit()
+
+
+## C2 pipeline pre-warm: render every combat-effect material once at world build,
+## behind the loading screen, so first contact never pays the shader-compile
+## hitch. Placed 60m downrange: in frustum (pipelines only compile for drawn
+## objects) but past every effect's audio max_distance. Headless has no
+## pipelines to compile - skip, and skip when no player camera exists.
+func _warm_effects() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if player == null:
+		return
+	var cam := player.get_node_or_null("Head/Camera3D") as Camera3D
+	if cam == null:
+		return
+	var root := Node3D.new()
+	root.name = "FXWarm"
+	add_child(root)
+	var fwd: Vector3 = -cam.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var pos: Vector3 = cam.global_position + fwd * 60.0
+	pos.y = terrain_manager.get_height_at(pos) + 1.2
+	root.global_position = pos
+	GunFX.muzzle_flash(root, pos)
+	GunFX.impact(root, pos, Vector3.UP, false)
+	GunFX.impact(root, pos, Vector3.UP, true)
+	GunFX.blood(root, pos, Vector3.UP, fwd, null)
+	GunFX.blood_pool(root, pos)
+	GunFX.bullet_hole(root, pos, Vector3.UP)
+	GunFX._spawn_explosion_visual(root, pos)
+	var bs: BulletSystem = CombatManager.bullets
+	if bs != null:
+		var tracer: MeshInstance3D = bs._visual_acquire(Color(1.0, 0.85, 0.4))
+		if tracer != null:
+			tracer.global_position = pos + Vector3.UP * 0.5
+			tracer.visible = true
+			get_tree().create_timer(0.25).timeout.connect(func() -> void:
+				if is_instance_valid(tracer):
+					tracer.visible = false)
+	# Effects self-expire well inside 2s; the root sweeps up what persists (decals).
+	get_tree().create_timer(2.0).timeout.connect(func() -> void:
+		if is_instance_valid(root):
+			root.queue_free())
 
 
 ## Ambience is POSITIONAL: a quiet 2D floor (broadband insect hiss, which should

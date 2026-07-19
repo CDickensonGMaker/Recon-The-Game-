@@ -79,6 +79,7 @@ func _physics_process(delta: float) -> void:
 		var q := PhysicsRayQueryParameters3D.create(from, to, int(b.mask))
 		q.collide_with_areas = true  # hitzones are Area3D
 		q.exclude = b.exclude
+		CombatManager.rays_bullet += 1
 		var hit: Dictionary = space.intersect_ray(q)
 		if not hit.is_empty():
 			if _impact(b, hit):

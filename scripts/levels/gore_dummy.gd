@@ -39,7 +39,7 @@ var _zone_sync: Array = []
 
 func _ready() -> void:
 	add_to_group("enemies")  # hitzone group wiring
-	CombatManager.register_enemy(self)  # explosions damage via active_enemies
+	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)  # explosions damage via the roster
 	# Allies must NOT execute the practice dummy (it parks beside the squad).
 	set_meta("non_hostile", true)
 	# LAYER 0: the movement capsule must stay INVISIBLE to bullets. On a shootable
@@ -63,7 +63,7 @@ func _ready() -> void:
 		return
 	if unconscious:
 		_dead = true
-		CombatManager.unregister_enemy(self)
+		AgentRegistry.unregister(self)
 		_build_hitzones()
 		# Freeze at the end of a death clip (a lying pose), ragdoll gently FROM that
 		# pose, then park the solver: a flat body, not a crumpled heap.
@@ -198,7 +198,7 @@ func regions_removed() -> Array[String]:
 ##   bullet-gibbed kill -> random death ANIMATION
 func _die(dir: Vector3, explosive: bool = false) -> void:
 	_dead = true
-	CombatManager.unregister_enemy(self)
+	AgentRegistry.unregister(self)
 	var ragdolled: bool = false
 	if model != null and (explosive or _removed.is_empty()):
 		ragdolled = model.start_ragdoll(dir, 9.0 if explosive else 4.5)

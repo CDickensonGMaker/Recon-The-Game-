@@ -13,6 +13,9 @@ var _arena: Node3D
 var _elapsed: float = 0.0
 var _waves_forced: bool = false
 var _samples: Array[float] = []
+## Counter snapshot at sample-window start: [los, perc, wit, cover, bullet,
+## usec think, move, hitzone, anim, physics frames]. Deltas print in _finish.
+var _c0: Array[int] = []
 
 
 func _ready() -> void:
@@ -42,10 +45,20 @@ func _process(delta: float) -> void:
 		_arena.call("debug_spawn_wave", false)
 
 	if _elapsed >= WARMUP:
+		if _c0.is_empty():
+			_c0 = _counters()
 		_samples.append(Engine.get_frames_per_second())
 
 	if _elapsed >= WARMUP + SAMPLE:
 		_finish()
+
+
+func _counters() -> Array[int]:
+	return [CombatManager.rays_los, CombatManager.rays_perception,
+		CombatManager.rays_witness, CombatManager.rays_cover, CombatManager.rays_bullet,
+		CombatManager.ai_usec_think, CombatManager.ai_usec_move,
+		CombatManager.ai_usec_hitzone, CombatManager.ai_usec_anim,
+		int(Engine.get_physics_frames())]
 
 
 func _live() -> int:
@@ -68,4 +81,23 @@ func _finish() -> void:
 	print("live units at sample end: %d" % _live())
 	print("HEADLESS avg FPS: %.1f | min FPS: %.1f | samples: %d" % [avg, lo, _samples.size()])
 	print("(headless = logic/physics/AI only; real windowed FPS is lower, GPU-gated)")
+
+	# W0 scoreboard: ray census + physics-side AI bucket split over the sample window.
+	var c1: Array[int] = _counters()
+	var d: Array[int] = []
+	for i in c1.size():
+		d.append(c1[i] - _c0[i])
+	var pf: float = float(maxi(1, d[9]))
+	print("--- W0 COUNTERS (%.0fs sample, %d physics frames) ---" % [SAMPLE, d[9]])
+	print("rays/s: total %.0f | perc %.0f wit %.0f los-other %.0f cover %.0f bullet %.0f" % [
+		float(d[0] + d[3] + d[4]) / SAMPLE, float(d[1]) / SAMPLE, float(d[2]) / SAMPLE,
+		float(d[0] - d[1] - d[2]) / SAMPLE, float(d[3]) / SAMPLE, float(d[4]) / SAMPLE])
+	print("rays/physics-frame: %.2f" % (float(d[0] + d[3] + d[4]) / pf))
+	print("ai buckets ms/physics-frame: think %.3f | move %.3f | hitzone %.3f | anim %.3f | sum %.3f" % [
+		float(d[5]) / 1000.0 / pf, float(d[6]) / 1000.0 / pf,
+		float(d[7]) / 1000.0 / pf, float(d[8]) / 1000.0 / pf,
+		float(d[5] + d[6] + d[7] + d[8]) / 1000.0 / pf])
+	print("ai buckets ms/s: think %.1f | move %.1f | hitzone %.1f | anim %.1f" % [
+		float(d[5]) / 1000.0 / SAMPLE, float(d[6]) / 1000.0 / SAMPLE,
+		float(d[7]) / 1000.0 / SAMPLE, float(d[8]) / 1000.0 / SAMPLE])
 	get_tree().quit(0)

@@ -104,8 +104,13 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	civ.home = pos
 	civ._wander_target = pos
 	civ.add_to_group("civilians")
+	AgentRegistry.register(civ, AgentRegistry.Kind.CIVILIAN)
 	NoiseBus.noise_emitted.connect(civ._on_noise)
 	return civ
+
+
+func _exit_tree() -> void:
+	AgentRegistry.unregister(self)
 
 
 func _on_noise(type: int, position: Vector3, _radius: float, _team: int) -> void:
@@ -230,6 +235,7 @@ func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL, 
 	_hp -= amount
 	if _hp <= 0 and state != CivState.GONE:
 		state = CivState.GONE
+		AgentRegistry.unregister(self)
 		set_physics_process(false)
 		rotation_degrees.x = 90
 		if director:
@@ -247,6 +253,7 @@ func _transform_to_vc() -> void:
 	if not is_informer:
 		return
 	remove_from_group("civilians")
+	AgentRegistry.unregister(self)
 	if actor != null and is_instance_valid(actor):
 		var vc_pick: String = "vc_farmer_m"
 		if not actor.setup(vc_pick):
@@ -352,21 +359,6 @@ func _update_lod(delta: float) -> void:
 		# FAR: stop physics. FULL/NEAR: run physics (NEAR still runs but at
 		# the BT-driven tick rate).
 		set_physics_process(new_tier != LOD_FAR)
-
-
-## Region-LOD hook called by WorldSim when the cell this civilian is in
-## transitions live <-> abstract. Abstract == the world has decided this
-## character is not visible to the player; freeze the AnimationPlayer too.
-func set_lod_live() -> void:
-	set_physics_process(lod_tier != LOD_FAR)
-	if actor != null and is_instance_valid(actor):
-		actor.visible = true
-
-
-func set_lod_abstract() -> void:
-	set_physics_process(false)
-	if actor != null and is_instance_valid(actor):
-		actor.visible = false
 
 
 func _resolve_target(action: StringName) -> Vector3:

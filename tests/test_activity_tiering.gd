@@ -2,8 +2,9 @@
 ## The hot-set budgets EXPENSIVE COGNITION only. This probe holds the three pillar
 ## guard-rails so they cannot silently regress:
 ##   1. HOT-SET MATH: cap 12, ceiling 16, promote-on-death, disengage-release.
-##   2. WITNESS HEARTBEAT (ADR-005): perception + corpse discovery run BEFORE the
-##      tier branch in _think() - a cold unit still witnesses, or silent kills break.
+##   2. WITNESS HEARTBEAT (ADR-005): behavioral - a COMBAT fighter denied a hot slot
+##      still perceives (his last-known tracks a visible contact while he is cold).
+##      Kill/corpse-side witness behavior lives in test_witness_rule.tscn.
 ##   3. FAIRNESS EXEMPT: the muzzle flash/tracer telegraph lives in the tier-agnostic
 ##      fire path, not the hot-only brain - a cold unit that fires still telegraphs.
 ## Run: godot --headless --path . res://tests/test_activity_tiering.tscn
@@ -27,7 +28,7 @@ func _ready() -> void:
 	var failures: int = 0
 
 	failures += _test_hotset_math()
-	failures += _test_witness_before_branch()
+	failures += await _test_witness_before_branch()
 	failures += _test_fairness_tier_agnostic()
 
 	if failures == 0:
@@ -116,22 +117,57 @@ func _test_hotset_math() -> int:
 	return fails
 
 
-## The witness calls must sit BEFORE the tier branch in _think(), or the hot-set
-## would blind cold units (ADR-005 loud-kill beacon). Source-level ratchet.
+## The witness heartbeat must survive tiering (ADR-005): saturate the hot roster
+## with fakes, put a REAL fighter in COMBAT denied a slot, and prove his eyes still
+## work - last_known_target_pos follows a visible moving contact while he is cold.
 func _test_witness_before_branch() -> int:
-	var body: String = _think_body()
-	if body.is_empty():
-		printerr("FAIL: could not isolate enemy_base._think() body")
-		return 1
 	var fails: int = 0
-	var branch: int = body.find("AlertTier.COMBAT")
-	for call_name in ["_update_perception(", "_check_corpse_discovery("]:
-		var at: int = body.find(call_name)
-		if at < 0 or branch < 0 or at > branch:
-			printerr("FAIL: %s must run before the tier branch (witness heartbeat gated)" % call_name)
-			fails += 1
+	EnemySquadScript.clear()
+	EnemySquadScript.tiering_enabled = true
+	for f in _make(EnemySquadScript.HOT_CAP):
+		EnemySquadScript.request_hot(f)
+
+	var world := Node3D.new()
+	add_child(world)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(100, 1, 100)
+	cs.shape = box
+	floor_body.add_child(cs)
+	world.add_child(floor_body)
+	floor_body.global_position = Vector3(0, -0.5, 0)
+	var proxy := Node3D.new()
+	world.add_child(proxy)
+	proxy.global_position = Vector3(12, 1, 0)
+	GameManager.player = proxy
+
+	var e: EnemyBase = EnemyBase.spawn_enemy(world, Vector3.ZERO, "res://data/enemies/vc_rifleman.tres")
+	await get_tree().create_timer(0.5).timeout
+	e._set_tier(EnemyBase.AlertTier.COMBAT, false)
+	await get_tree().create_timer(0.8).timeout
+	if EnemySquadScript.is_hot(e):
+		printerr("FAIL: hot roster not saturated - cold-fighter heartbeat probe is vacuous")
+		fails += 1
+	if e.last_known_target_pos.distance_to(proxy.global_position) > 1.5:
+		printerr("FAIL: cold COMBAT fighter is blind - last-known %s, contact %s" % [
+			e.last_known_target_pos, proxy.global_position])
+		fails += 1
+	proxy.global_position = Vector3(12, 1, 7)
+	await get_tree().create_timer(0.8).timeout
+	if EnemySquadScript.is_hot(e):
+		printerr("FAIL: fighter promoted mid-probe - cold-fighter heartbeat unproven")
+		fails += 1
+	elif e.last_known_target_pos.distance_to(proxy.global_position) > 1.5:
+		printerr("FAIL: cold fighter's eyes did not follow the moving contact (heartbeat tiered off)")
+		fails += 1
+
+	GameManager.player = null
+	EnemySquadScript.clear()
+	world.queue_free()
 	if fails == 0:
-		print("  [OK] witness heartbeat runs before the tier branch (ADR-005)")
+		print("  [OK] witness heartbeat is tier-agnostic: a cold fighter still perceives")
 	return fails
 
 
@@ -151,11 +187,6 @@ func _test_fairness_tier_agnostic() -> int:
 	if fails == 0:
 		print("  [OK] fairness telegraph is tier-agnostic (fires from the shared path)")
 	return fails
-
-
-func _think_body() -> String:
-	var src: String = FileAccess.get_file_as_string("res://scripts/enemies/enemy_base.gd")
-	return _func_body(src, "func _think()")
 
 
 ## Return the text of a function from its signature to the next top-level `func `.

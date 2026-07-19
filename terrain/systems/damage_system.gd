@@ -104,7 +104,11 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 
 	var profile: Dictionary = DAMAGE_PROFILES[type]
 	var radius: int = maxi(1, int(profile.radius_cells * intensity))
-	var height_scale: float = float(terrain_manager.heightmap.height_scale)
+	# Lab stubs (ai_stress_arena) carry no heightmap; the live world's scale is 350.
+	var height_scale: float = 350.0
+	var hm: Variant = terrain_manager.get("heightmap")
+	if hm != null:
+		height_scale = float(hm.height_scale)
 	var depth: float = (profile.depth_m * intensity) / height_scale
 	var rim_height: float = (profile.rim_m * intensity) / height_scale
 	var falloff_power: float = profile.falloff_power

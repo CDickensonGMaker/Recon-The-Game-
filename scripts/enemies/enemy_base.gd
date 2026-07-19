@@ -29,6 +29,7 @@ var state_timer: float = 0.0
 var goal_timer: float = 0.0
 
 var think_timer: float = 0.0
+var think_count: int = 0
 const THINK_INTERVAL: float = 0.15  # 6-7 Hz thinking, execution every frame
 var last_think_time: float = 0.0
 
@@ -111,18 +112,6 @@ var camp_role: String = "guard"
 ## Camp work station (CampDirector-assigned village prop marker). ZERO = none.
 ## An un-alerted idle man WALKS to it and works there - the living camp.
 var work_pos: Vector3 = Vector3.ZERO
-
-
-## Region-LOD hooks called by WorldSim. Abstract = not visible to the player;
-## skip physics + model updates. Live = full simulation.
-func set_lod_live() -> void:
-	set_physics_process(true)
-	visible = true
-
-
-func set_lod_abstract() -> void:
-	set_physics_process(false)
-	visible = false
 
 var strafe_direction: float = 0.0
 var strafe_timer: float = 0.0
@@ -253,7 +242,7 @@ var _lab_nav: bool = false
 
 func _ready() -> void:
 	add_to_group("enemies")
-	CombatManager.register_enemy(self)
+	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
 	_lab_nav = get_tree().get_first_node_in_group("lab_navmesh") != null
 
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
@@ -298,6 +287,12 @@ func _ready() -> void:
 		visible = false
 		collision_layer = 0
 		collision_mask = 1
+
+
+## Mission teardown frees live men without a death path - the roster must not
+## hold freed instances (the registry has no cleanup sweep by design).
+func _exit_tree() -> void:
+	AgentRegistry.unregister(self)
 
 
 func _apply_personality() -> void:
@@ -440,6 +435,7 @@ func _setup_hurtbox() -> void:
 ## ============================================
 
 func _physics_process(delta: float) -> void:
+	var t_start: int = Time.get_ticks_usec()
 	# Zones ride the skeleton even on the corpse; a settled corpse re-syncs at 6Hz.
 	if _visual_is_model:
 		if current_state == Enums.AIState.DEAD:
@@ -449,6 +445,8 @@ func _physics_process(delta: float) -> void:
 				HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 		else:
 			HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
+	var t_sync: int = Time.get_ticks_usec()
+	CombatManager.ai_usec_hitzone += t_sync - t_start
 	if current_state == Enums.AIState.DEAD:
 		return
 	if is_downed:
@@ -476,9 +474,13 @@ func _physics_process(delta: float) -> void:
 
 	_update_think_lod(capped_delta)
 	think_timer += capped_delta
+	var usec_think: int = 0
 	if think_timer >= _think_interval_current:
 		think_timer = 0.0
+		var t_think: int = Time.get_ticks_usec()
 		_think()
+		usec_think = Time.get_ticks_usec() - t_think
+		CombatManager.ai_usec_think += usec_think
 
 	_execute(capped_delta)
 
@@ -492,7 +494,10 @@ func _physics_process(delta: float) -> void:
 			flat = flat.normalized() * CROUCH_SPEED_CAP
 			velocity.x = flat.x
 			velocity.z = flat.y
+	var t_move: int = Time.get_ticks_usec()
 	move_and_slide()
+	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
+	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
 
 
 func _update_decay(delta: float) -> void:
@@ -524,6 +529,7 @@ func _update_decay(delta: float) -> void:
 ## ============================================
 
 func _think() -> void:
+	think_count += 1
 	_nav_box = NavBaker.box_index_at(global_position) if WorldConfig.NAV_ENABLED else -1
 	_check_spider_hole()
 	_check_tunnel_retreat()
@@ -705,6 +711,7 @@ func _can_witness(at: Vector3) -> bool:
 			return false
 	if SmokeCloud.blocks_sight(eye, tgt):
 		return false
+	CombatManager.rays_witness += 1
 	return CombatManager.has_line_of_sight(eye, tgt, [self])
 
 
@@ -808,12 +815,15 @@ func _update_perception() -> void:
 			# A contact this close is FELT regardless of facing (boots, gear, breathing).
 			# LOS is still required: a wall hides.
 			var point_blank: bool = best_dist < CLOSE_SENSE_RANGE
+			var sees: bool = false
 			if (in_fov or point_blank) and not SmokeCloud.blocks_sight(
 					global_position + Vector3.UP * 1.5,
-					candidate.global_position + Vector3.UP * 1.0) \
-				and CombatManager.has_line_of_sight(
+					candidate.global_position + Vector3.UP * 1.0):
+				CombatManager.rays_perception += 1
+				sees = CombatManager.has_line_of_sight(
 					global_position + Vector3.UP * 1.5,
-					candidate.global_position + Vector3.UP * 1.0, [self]):
+					candidate.global_position + Vector3.UP * 1.0, [self])
+			if sees:
 				# Base gain by proximity; stance/motion modifiers for the player.
 				gain = clampf(1.5 * (1.0 - best_dist / cap) + 0.25, 0.2, 2.0)
 				if candidate == player:
@@ -1740,6 +1750,7 @@ func _find_bound_point(to_target: Vector3) -> Vector3:
 		var query := PhysicsRayQueryParameters3D.create(
 			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
+		CombatManager.rays_cover += 1
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
@@ -1762,6 +1773,7 @@ func _find_cover_point() -> Vector3:
 		var query := PhysicsRayQueryParameters3D.create(
 			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
+		CombatManager.rays_cover += 1
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
@@ -2252,7 +2264,7 @@ func _become_downed() -> void:
 	_release_cover()
 	# Out of the FIGHT immediately: squads stop counting him, allies stop
 	# shooting (is_dead() true), wave counters advance.
-	CombatManager.unregister_enemy(self)
+	AgentRegistry.unregister(self)
 	if not _died_emitted:
 		_died_emitted = true
 		died.emit(self)
@@ -2301,7 +2313,7 @@ func _die() -> void:
 	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_change_state(Enums.AIState.DEAD)
 	_release_cover()
-	CombatManager.unregister_enemy(self)
+	AgentRegistry.unregister(self)
 	if not _died_emitted:
 		_died_emitted = true
 		died.emit(self)
