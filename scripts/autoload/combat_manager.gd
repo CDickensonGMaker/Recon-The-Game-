@@ -29,6 +29,34 @@ var ai_usec_move: int = 0
 var ai_usec_hitzone: int = 0
 var ai_usec_anim: int = 0
 
+## WA-A2 body-gate census - monotonic per-agent-tick totals like rays_*;
+## overlays and probes read deltas.
+var bodies_run: int = 0
+var bodies_gated: int = 0
+
+## WA-A2 perceivability oracle (A1's PerceptionServer absorbs this later; C1's
+## FX gate reuses it). Cheap by contract: distance + one dot against the player
+## camera - no rays, no VisibleOnScreenNotifier3D, so it is headless-valid and
+## probes drive it by placing the camera. No player = no observer: stay hot.
+const PERCEIVE_RANGE: float = 150.0
+const PERCEIVE_NEAR: float = 20.0
+
+
+static func perceivable(actor: Node3D) -> bool:
+	var player := GameManager.player as Node3D
+	if player == null or not is_instance_valid(player):
+		return true
+	var vp: Viewport = actor.get_viewport()
+	var cam: Camera3D = vp.get_camera_3d() if vp != null else null
+	var eye: Transform3D = cam.global_transform if cam != null else player.global_transform
+	var to_actor: Vector3 = actor.global_position - eye.origin
+	var dist: float = to_actor.length()
+	if dist > PERCEIVE_RANGE:
+		return false
+	if dist <= PERCEIVE_NEAR:
+		return true
+	return (-eye.basis.z).dot(to_actor / dist) > 0.0
+
 ## Knockback: blast SHOVE, not blast LAUNCH (realistic-combat pillar). A near miss
 ## staggers a man a step; the dead crumple via the ragdoll doctrine, they do not
 ## fly.

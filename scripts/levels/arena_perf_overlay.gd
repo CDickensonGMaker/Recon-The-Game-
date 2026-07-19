@@ -59,6 +59,9 @@ var _ray_t: float = 0.0
 var _ray_frames: int = 0
 var _ray_prev: Array[int] = [0, 0, 0, 0, 0]
 var _ray_line: String = ""
+## WA-A2 body-gate census (same 1s window as the rays).
+var _body_prev: Array[int] = [0, 0]
+var _body_line: String = ""
 ## Events that happened this frame, so a spike can be blamed on one.
 var _frame_events: Array[String] = []
 var _spike_log: Array[String] = []
@@ -211,10 +214,20 @@ func _process(delta: float) -> void:
 		_ray_line = "  rays/f %.1f (perc %.1f wit %.1f los %.1f cov %.1f bul %.1f) | %d/s\n" % [
 			float(ray_total) / rf, float(d[1]) / rf, float(d[2]) / rf,
 			float(d[0] - d[1] - d[2]) / rf, float(d[3]) / rf, float(d[4]) / rf, ray_total]
+		var now_b: Array[int] = [CombatManager.bodies_run, CombatManager.bodies_gated]
+		var db_run: int = now_b[0] - _body_prev[0]
+		var db_gated: int = now_b[1] - _body_prev[1]
+		_body_prev = now_b
+		var db_total: int = maxi(1, db_run + db_gated)
+		_body_line = "  bodies/f run %.1f gated %.1f (%.0f%% gated)\n" % [
+			float(db_run) / rf, float(db_gated) / rf,
+			100.0 * float(db_gated) / float(db_total)]
 		_ray_t = 0.0
 		_ray_frames = 0
 	if not _ray_line.is_empty():
 		stats += "  --- rays (1s window) ---\n" + _ray_line
+	if not _body_line.is_empty():
+		stats += _body_line
 
 	if not _spike_log.is_empty():
 		stats += "  --- last spikes (>%.0fms) ---\n" % SPIKE_MS

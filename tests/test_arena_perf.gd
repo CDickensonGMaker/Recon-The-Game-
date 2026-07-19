@@ -14,7 +14,8 @@ var _elapsed: float = 0.0
 var _waves_forced: bool = false
 var _samples: Array[float] = []
 ## Counter snapshot at sample-window start: [los, perc, wit, cover, bullet,
-## usec think, move, hitzone, anim, physics frames]. Deltas print in _finish.
+## usec think, move, hitzone, anim, physics frames, bodies run, bodies gated].
+## Deltas print in _finish.
 var _c0: Array[int] = []
 
 
@@ -58,7 +59,8 @@ func _counters() -> Array[int]:
 		CombatManager.rays_witness, CombatManager.rays_cover, CombatManager.rays_bullet,
 		CombatManager.ai_usec_think, CombatManager.ai_usec_move,
 		CombatManager.ai_usec_hitzone, CombatManager.ai_usec_anim,
-		int(Engine.get_physics_frames())]
+		int(Engine.get_physics_frames()),
+		CombatManager.bodies_run, CombatManager.bodies_gated]
 
 
 func _live() -> int:
@@ -100,4 +102,8 @@ func _finish() -> void:
 	print("ai buckets ms/s: think %.1f | move %.1f | hitzone %.1f | anim %.1f" % [
 		float(d[5]) / 1000.0 / SAMPLE, float(d[6]) / 1000.0 / SAMPLE,
 		float(d[7]) / 1000.0 / SAMPLE, float(d[8]) / 1000.0 / SAMPLE])
+	var bodies_total: int = maxi(1, d[10] + d[11])
+	print("bodies/physics-frame: run %.1f | gated %.1f | gated %.0f%%" % [
+		float(d[10]) / pf, float(d[11]) / pf,
+		100.0 * float(d[11]) / float(bodies_total)])
 	get_tree().quit(0)

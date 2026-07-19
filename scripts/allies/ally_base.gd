@@ -38,6 +38,13 @@ var _fired_until_ms: float = -1e9
 var _cover_pose_until_ms: float = -1e9  # min hold before hold/peek re-pick
 var _hitzone_sync: Array = []           # [[hz, bone_idx, offset]..] - zones ride bones
 
+## WA-A2 body gate (same shape as EnemyBase; allies get pinned HOT when the
+## AIDirector lands). Allies have no alert tier or downed state - an armed
+## target is their "in a fight" equivalent.
+const BODY_HEARTBEAT_MS: int = 300
+var _body_hot: bool = true
+var _body_heartbeat_ms: int = -1
+
 ## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
@@ -353,8 +360,13 @@ func _setup_hurtbox() -> void:
 
 func _physics_process(delta: float) -> void:
 	var t_start: int = Time.get_ticks_usec()
+	_body_hot = _body_gate_open()
+	if _body_hot:
+		CombatManager.bodies_run += 1
+	else:
+		CombatManager.bodies_gated += 1
 	# Zones ride the skeleton even on the corpse - shooting bodies stays honest.
-	if _visual_is_model:
+	if _visual_is_model and _body_hot:
 		HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 	var t_sync: int = Time.get_ticks_usec()
 	CombatManager.ai_usec_hitzone += t_sync - t_start
@@ -364,7 +376,10 @@ func _physics_process(delta: float) -> void:
 	# Cap delta for framerate independence
 	var capped_delta: float = minf(delta, 0.066)
 
-	if not is_on_floor():
+	# WA-A2 BODY-GATE CONTRACT (DA TRAP 2): everything below except gravity,
+	# move_and_slide and the sprite/hitzone paths keyed on _body_hot ticks for
+	# GATED men too - think, suppression decay and fire timers never gate.
+	if _body_hot and not is_on_floor():
 		velocity.y -= gravity * capped_delta
 
 	if suppression_level > 0:
@@ -395,9 +410,31 @@ func _physics_process(delta: float) -> void:
 			velocity.x = flat.x
 			velocity.z = flat.y
 	var t_move: int = Time.get_ticks_usec()
-	move_and_slide()
+	if _body_hot:
+		move_and_slide()
 	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
 	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
+
+
+## WA-A2 body gate. Cover-exit men are pinned hot (test_body_gate contract);
+## "trying to move" needs no nav check - _execute writes velocity every frame
+## ungated, so a mover reopens the gate next frame.
+func _body_gate_open() -> bool:
+	if current_state == Enums.AIState.COMBAT or target != null:
+		return true
+	if _cover_exit_until_ms > float(Time.get_ticks_msec()):
+		return true
+	if velocity.length_squared() > 0.01:
+		return true
+	if CombatManager.perceivable(self):
+		return true
+	var now_ms: int = Time.get_ticks_msec()
+	if _body_heartbeat_ms <= 0:
+		_body_heartbeat_ms = now_ms + absi(hash(get_instance_id())) % BODY_HEARTBEAT_MS
+	if now_ms >= _body_heartbeat_ms:
+		_body_heartbeat_ms = now_ms + BODY_HEARTBEAT_MS
+		return true
+	return false
 
 
 func _think() -> void:
@@ -511,7 +548,8 @@ func _evaluate_goals() -> void:
 
 
 func _execute(delta: float) -> void:
-	_update_sprite()
+	if _body_hot:
+		_update_sprite()
 	state_timer += delta
 
 	_update_aim(delta)

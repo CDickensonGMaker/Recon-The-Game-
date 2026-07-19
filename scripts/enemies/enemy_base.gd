@@ -141,6 +141,13 @@ const CROUCH_SPEED_CAP: float = 1.9
 const COVER_EXIT_DEBOUNCE_MS: float = 1500.0
 var _hitzone_sync: Array = []          # [[hz, bone_idx, offset]..] - zones ride bones
 
+## WA-A2 body gate: brain/clock work never gates; body work (gravity, slide,
+## hitzone sync, sprite) runs only while this is true. Heartbeat de-phased per
+## agent so gated bodies never wake in lockstep.
+const BODY_HEARTBEAT_MS: int = 300
+var _body_hot: bool = true
+var _body_heartbeat_ms: int = -1
+
 ## Stuck watchdog: commanded to move but not moving for ~1s -> sidestep for a beat.
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
@@ -436,14 +443,19 @@ func _setup_hurtbox() -> void:
 
 func _physics_process(delta: float) -> void:
 	var t_start: int = Time.get_ticks_usec()
+	_body_hot = _body_gate_open()
+	if _body_hot:
+		CombatManager.bodies_run += 1
+	else:
+		CombatManager.bodies_gated += 1
 	# Zones ride the skeleton even on the corpse; a settled corpse re-syncs at 6Hz.
 	if _visual_is_model:
 		if current_state == Enums.AIState.DEAD:
 			_corpse_sync_t += delta
-			if _corpse_sync_t >= 0.16:
+			if _body_hot and _corpse_sync_t >= 0.16:
 				_corpse_sync_t = 0.0
 				HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
-		else:
+		elif _body_hot:
 			HitzoneBuilder.sync(sprite_actor as ModelActor, _hitzone_sync)
 	var t_sync: int = Time.get_ticks_usec()
 	CombatManager.ai_usec_hitzone += t_sync - t_start
@@ -467,7 +479,10 @@ func _physics_process(delta: float) -> void:
 	# Cap delta for framerate independence.
 	var capped_delta: float = minf(delta, 0.066)
 
-	if not is_on_floor():
+	# WA-A2 BODY-GATE CONTRACT (DA TRAP 2): everything below this line except
+	# gravity, move_and_slide and the sprite/hitzone paths keyed on _body_hot
+	# ticks for GATED men too - think, hearing, decay and death clocks never gate.
+	if _body_hot and not is_on_floor():
 		velocity.y -= gravity * capped_delta
 
 	_update_decay(capped_delta)
@@ -495,9 +510,32 @@ func _physics_process(delta: float) -> void:
 			velocity.x = flat.x
 			velocity.z = flat.y
 	var t_move: int = Time.get_ticks_usec()
-	move_and_slide()
+	if _body_hot:
+		move_and_slide()
 	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
 	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
+
+
+## WA-A2 body gate: only the BODY sleeps. Downed and cover-exit men are pinned
+## hot (test_body_gate contract). "Trying to move" needs no nav check - _execute
+## writes velocity every frame ungated, so a mover reopens the gate next frame.
+## The de-phased heartbeat bounds pose/hitzone staleness for everyone else.
+func _body_gate_open() -> bool:
+	if is_downed or current_state == Enums.AIState.COMBAT or alert_tier > AlertTier.RELAXED:
+		return true
+	if _cover_exit_until_ms > float(Time.get_ticks_msec()):
+		return true
+	if velocity.length_squared() > 0.01:
+		return true
+	if CombatManager.perceivable(self):
+		return true
+	var now_ms: int = Time.get_ticks_msec()
+	if _body_heartbeat_ms <= 0:
+		_body_heartbeat_ms = now_ms + absi(hash(get_instance_id())) % BODY_HEARTBEAT_MS
+	if now_ms >= _body_heartbeat_ms:
+		_body_heartbeat_ms = now_ms + BODY_HEARTBEAT_MS
+		return true
+	return false
 
 
 func _update_decay(delta: float) -> void:
@@ -1257,7 +1295,8 @@ func _update_state_for_goal() -> void:
 
 func _execute(delta: float) -> void:
 	state_timer += delta
-	_update_sprite()
+	if _body_hot:
+		_update_sprite()
 
 	_update_aim(delta)
 

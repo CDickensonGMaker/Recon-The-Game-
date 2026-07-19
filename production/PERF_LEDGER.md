@@ -287,3 +287,61 @@ Inherited errors visible in arena runs (NOT W0's, present at HEAD): `damage_syst
 `terrain_manager.heightmap.height_scale` - the arena's TerrainManagerStub has no heightmap, so
 RPG/grenade craters error headless (crater-retune commit `e84bec82` fallout). Main-scene headless
 boot: 0 SCRIPT ERROR.
+
+---
+
+# 2026-07-18 — WA-A2 BODY GATE (headless before/after, same harness as the W0 row)
+
+**Change:** sim-side body gate in `enemy_base` + `ally_base` `_physics_process`. BODY
+(gravity, `move_and_slide`, `HitzoneBuilder.sync`, `_update_sprite`) runs only when
+`_body_gate_open()`: perceivable (CombatManager.perceivable: player-camera dist ≤150m AND
+(≤20m near-bubble OR camera-forward dot >0), no rays, headless-valid) OR |velocity|>eps OR
+COMBAT state OR alert_tier>RELAXED (enemy) / target held (ally) OR downed OR cover-exit
+window OR de-phased 300ms heartbeat. BRAIN never gates: think accumulator/_think, hearing,
+suppression decay, gut-bleed, downed bleed-out, fire/damage-decay clocks all tick before the
+gate branch (DA TRAP 2). Census counters `CombatManager.bodies_run/bodies_gated` + overlay
+`bodies/f` line + bench print.
+
+**Harness:** `tests/test_arena_perf.tscn` headless, same recipe as the W0 row, uncommitted
+WA-A2 tree atop `021bb928` (before = same tree with the 5 gate files stashed, same night,
+same machine state). Live-unit count at sample end varies per run (the arena escalates);
+per-unit column is the honest comparator.
+
+| run | live | think | move | hitzone | anim | SUM ms/pf | ms/unit | gated % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| BEFORE A | 65 | 0.428 | 3.096 | 3.977 | 7.529 | 15.030 | 0.231 | - |
+| BEFORE B | 62 | 0.414 | 3.001 | 3.692 | 7.036 | 14.143 | 0.228 | - |
+| AFTER 1 | 69 | 0.440 | 3.182 | 4.137 | 7.259 | 15.018 | 0.218 | 0% |
+| AFTER 2 | 71 | 0.454 | 3.230 | 4.285 | 7.211 | 15.180 | 0.214 | 0% |
+
+**Reading, said honestly:** in THIS bench the gate never closes - hot_start puts every unit
+in COMBAT tier (gate open by contract) and `spawn_player=false` means no observer, which the
+oracle treats as stay-hot. So the row proves the gate costs nothing when everyone is
+legitimately hot (per-unit 0.229 -> 0.216 ms, a wash inside noise) and 0% gated is the
+CORRECT census for a firefight. The gate's payoff class - stationary RELAXED unperceivable
+men (far camps, garrison idlers) - does not exist in this scene; the number that will show
+it is the patrol long-walk bench (WB gates on it) and the windowed night-arena batch
+(Summoner-run, overlay now carries the `bodies/f run/gated` line). `test_body_gate` proves
+the gate CLOSES and the brain keeps ticking: 200m unit gated, still thinks at LOD rate,
+still hears, downed + cover-exit units never gated.
+
+Note vs the W0 row above: the W0 tree measured 38-40 ms SUM at 65-67 live; tonight's HEAD
+measures ~14-15 ms at 62-71 live BEFORE the gate. The delta belongs to what landed between
+the W0 tree and HEAD plus machine state, not to A2 - the A2 claim is only the before/after
+pair in this table.
+
+### WA-A2 payoff, measured where the payoff class LIVES (Overseer, 2026-07-18)
+
+`tools/diag_body_gate_payoff.tscn` — real patrol world, seed 47225, player present,
+20 samples after settle:
+
+| population | gated share | note |
+|---|---|---|
+| 13 live (5 enemies, 8 allies) | **9.4%** | hub start, LazyGroups not yet materialized |
+
+**Said plainly: A2's payoff today is small, and the reason is population, not mechanism.**
+The gate closes exactly on the class it was built for (stationary RELAXED men the player
+cannot perceive), and at hub start that class is one enemy in ten. It grows with the
+resident population — the far camps and garrisons that WB's DORMANT/AGGREGATE tiers exist
+to hold — so A2 is banked as the CORRECTNESS prerequisite (brain always ticks; body follows
+perceivability) and WB is where the milliseconds are. No claim beyond the measurement.
