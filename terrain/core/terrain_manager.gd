@@ -10,6 +10,11 @@ const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
 
 signal terrain_ready
 signal chunk_unloaded(coord: Vector2i)
+## Terrain heights changed in this world-space rect (cell-accurate, not
+## chunk-aligned). Anything that baked heights at build time re-seats on this -
+## the wire-is-law lesson: one terrain-change channel, every height consumer
+## listens or floats.
+signal region_rebuilt(world_rect: Rect2)
 
 @export var map_size: float = 3000.0  # Playable map size in meters
 @export var chunk_size: float = 256.0  # Chunk size in meters
@@ -41,11 +46,6 @@ var vegetation_manager: Node  # VegetationManager - set externally for rice padd
 var river_paths: Array = []
 var near_water_mask: PackedByteArray  # for rice paddy clustering near rivers
 
-# Deferred rebuild queue for async operations
-var _rebuild_queue: Array[Vector2i] = []
-const REBUILD_BUDGET_MS := 8.0  # Max rebuild time per frame
-
-
 func _ready() -> void:
 	chunks_per_side = int(ceil(map_size / chunk_size))
 	chunk_cells = int(chunk_size / cell_size) + 1  # +1 for edge overlap
@@ -63,28 +63,11 @@ func _process(delta: float) -> void:
 	if not is_ready:
 		return
 
-	# Explosion/clearing rebuilds stay live on every map size: _rebuild_chunk_immediate
-	# erases and re-adds the SAME coord, so the resident chunk count is unchanged.
-	_process_rebuild_queue()
-
 	# ADR-013: streaming is disabled on <= 2km AOs - the world is fully resident and
 	# chunk count must not change after terrain_ready. Kept live only for 3km+ maps.
 	if camera and map_size > STREAMING_MIN_MAP_SIZE:
 		_stream_chunks_around_camera()
 
-
-## Process queued chunk rebuilds with time budget
-func _process_rebuild_queue() -> void:
-	if _rebuild_queue.is_empty():
-		return
-
-	var start_time := Time.get_ticks_msec()
-	while not _rebuild_queue.is_empty():
-		if Time.get_ticks_msec() - start_time > REBUILD_BUDGET_MS:
-			break  # Continue next frame
-
-		var coord: Vector2i = _rebuild_queue.pop_front()
-		_rebuild_chunk_immediate(coord)
 
 func _rebuild_chunk_immediate(coord: Vector2i) -> void:
 	if not chunks.has(coord):
@@ -317,6 +300,9 @@ func modify_terrain(center: Vector3, radius_meters: float, modifier: Callable) -
 	var affected: Rect2i = heightmap.modify_region(cell_center, cell_radius, modifier)
 
 	_rebuild_chunks_in_region(affected)
+	region_rebuilt.emit(Rect2(
+		Vector2(float(affected.position.x), float(affected.position.y)) * cell_size,
+		Vector2(float(affected.size.x), float(affected.size.y)) * cell_size))
 
 
 ## Rebuild chunks that overlap with a cell region

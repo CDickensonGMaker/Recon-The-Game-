@@ -113,22 +113,12 @@ func _setup_terrain() -> void:
 ## Neutral shader textures MUST be bound before generation, or unbound samplers
 ## render the terrain white.
 func _setup_default_shader_textures() -> void:
-	var default_height := Image.create(4, 4, false, Image.FORMAT_RF)
-	default_height.fill(Color(0.5, 0.5, 0.5, 1.0))
-	var height_tex := ImageTexture.create_from_image(default_height)
-
-	var default_veg := Image.create(4, 4, false, Image.FORMAT_RF)
-	default_veg.fill(Color(1.0, 1.0, 1.0, 1.0))
-	var veg_tex := ImageTexture.create_from_image(default_veg)
-
 	var default_clear := Image.create(4, 4, false, Image.FORMAT_RGBA8)
 	default_clear.fill(Color(0, 0, 0, 0))
 	var clear_tex := ImageTexture.create_from_image(default_clear)
 
 	TerrainChunkScript._create_shared_material()
 	TerrainChunkScript.set_shader_parameters({
-		"heightmap": height_tex,
-		"vegetation_texture": veg_tex,
 		"clearing_texture": clear_tex,
 		"terrain_size": 385,
 		"cell_size": 4.0,
@@ -309,15 +299,9 @@ func _setup_terrain_shader_textures() -> void:
 		return
 	var params := {}
 	if terrain_manager.heightmap:
-		var heightmap_tex: ImageTexture = terrain_manager.heightmap.get_texture()
-		if heightmap_tex:
-			params["heightmap"] = heightmap_tex
 		params["terrain_size"] = terrain_manager.heightmap.size
 	params["cell_size"] = terrain_manager.cell_size
 	params["height_scale"] = terrain_manager.height_scale
-	var veg_tex: ImageTexture = ClearingSystem.get_vegetation_texture()
-	if veg_tex:
-		params["vegetation_texture"] = veg_tex
 	var clear_tex: ImageTexture = ClearingSystem.get_clearing_texture()
 	if clear_tex:
 		params["clearing_texture"] = clear_tex
@@ -325,9 +309,6 @@ func _setup_terrain_shader_textures() -> void:
 
 
 func _on_vegetation_updated(_region: Rect2i) -> void:
-	var veg_tex: ImageTexture = ClearingSystem.get_vegetation_texture()
-	if veg_tex:
-		TerrainChunkScript.set_shader_texture("vegetation_texture", veg_tex)
 	var clear_tex: ImageTexture = ClearingSystem.get_clearing_texture()
 	if clear_tex:
 		TerrainChunkScript.set_shader_texture("clearing_texture", clear_tex)

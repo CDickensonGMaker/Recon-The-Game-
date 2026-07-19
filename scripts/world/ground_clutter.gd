@@ -34,6 +34,14 @@ const LAYERS := [
 ]
 
 var world: GameWorld
+var _templates: Array = []
+## subcell -> Array[MultiMeshInstance3D] (one per layer that produced instances)
+var _buckets: Dictionary = {}
+## subcell -> PackedVector3Array of placed WORLD-space origins (probe truth: the
+## Y each instance actually received; MultiMesh read-back is blind headless)
+var placed_origins: Dictionary = {}
+var _dirty_subcells: Dictionary = {}
+var _flush_pending: bool = false
 
 
 ## Shared PSX wind material: sway masked by vertex color (R lean / G flutter), scissor +
@@ -101,45 +109,93 @@ func setup(game_world: GameWorld) -> void:
 			quad.material = mat
 			mesh = quad
 		var per_cell: int = int(ceil(float(int(layer[1])) * (SUBCELL * SUBCELL) / RING_AREA))
-		templates.append({
+		_templates.append({
 			"mesh": mesh, "override": override_mat, "fan": use_fan, "size": size,
 			"y_sink": float(layer[3]), "jungle_only": bool(layer[4]), "per_cell": per_cell,
 		})
 
-	_scatter_resident(templates)
-
-
-func _scatter_resident(templates: Array) -> void:
-	var bounds: float = world.map_size
-	var subcells: int = int(ceil(bounds / SUBCELL))
+	var subcells: int = int(ceil(world.map_size / SUBCELL))
 	for sz in range(subcells):
 		for sx in range(subcells):
-			var origin_x: float = sx * SUBCELL
-			var origin_z: float = sz * SUBCELL
-			var centre := Vector3(origin_x + SUBCELL * 0.5, 0.0, origin_z + SUBCELL * 0.5)
-			for li in range(templates.size()):
-				var t: Dictionary = templates[li]
-				var rng := RandomNumberGenerator.new()
-				rng.seed = hash([Vector2i(sx, sz), li, world.mission_seed])
-				var xforms: Array[Transform3D] = []
-				for _i in range(int(t.per_cell)):
-					var pos := Vector3(origin_x + rng.randf() * SUBCELL, 0.0, origin_z + rng.randf() * SUBCELL)
-					if not _accept(pos, bool(t.jungle_only)):
-						continue
-					var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
-					var scale: float = rng.randf_range(0.75, 1.3)
-					var size: Vector2 = t.size
-					if bool(t.fan):
-						# star-fan: origin at the feet, stretched to the card size on the ground
-						pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
-						basis = basis.scaled(Vector3(size.x * scale, size.y * scale, size.x * scale))
-					else:
-						pos.y = world.terrain_manager.get_height_at(pos) + size.y * 0.5 - float(t.y_sink)
-						basis = basis.scaled(Vector3.ONE * scale)
-					pos -= centre  # visibility_range measures from the bucket origin
-					xforms.append(Transform3D(basis, pos))
-				if not xforms.is_empty():
-					_add_bucket(t, xforms, centre)
+			_scatter_subcell(Vector2i(sx, sz))
+	world.terrain_manager.region_rebuilt.connect(_on_region_rebuilt)
+
+
+## Deterministic per-subcell scatter (ADR-010: hash([subcell, layer, seed])).
+## RNG draws are UNCONDITIONAL per candidate so a flipped accept (crater cleared
+## a veg cell) never shifts the stream - untouched plants keep their transforms.
+func _scatter_subcell(sc: Vector2i) -> void:
+	_clear_subcell(sc)
+	var origin_x: float = sc.x * SUBCELL
+	var origin_z: float = sc.y * SUBCELL
+	var centre := Vector3(origin_x + SUBCELL * 0.5, 0.0, origin_z + SUBCELL * 0.5)
+	centre.y = world.terrain_manager.get_height_at(centre)
+	var nodes: Array = []
+	var origins := PackedVector3Array()
+	for li in range(_templates.size()):
+		var t: Dictionary = _templates[li]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash([sc, li, world.mission_seed])
+		var xforms: Array[Transform3D] = []
+		for _i in range(int(t.per_cell)):
+			var pos := Vector3(origin_x + rng.randf() * SUBCELL, 0.0, origin_z + rng.randf() * SUBCELL)
+			var ang: float = rng.randf_range(0.0, TAU)
+			var scale: float = rng.randf_range(0.75, 1.3)
+			if not _accept(pos, bool(t.jungle_only)):
+				continue
+			var basis := Basis(Vector3.UP, ang)
+			var size: Vector2 = t.size
+			if bool(t.fan):
+				# star-fan: origin at the feet, stretched to the card size on the ground
+				pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
+				basis = basis.scaled(Vector3(size.x * scale, size.y * scale, size.x * scale))
+			else:
+				pos.y = world.terrain_manager.get_height_at(pos) + size.y * 0.5 - float(t.y_sink)
+				basis = basis.scaled(Vector3.ONE * scale)
+			origins.append(pos)
+			xforms.append(Transform3D(basis, pos - centre))
+		if not xforms.is_empty():
+			nodes.append(_add_bucket(t, xforms, centre))
+	if not nodes.is_empty():
+		_buckets[sc] = nodes
+		placed_origins[sc] = origins
+
+
+func _clear_subcell(sc: Vector2i) -> void:
+	if _buckets.has(sc):
+		for n in _buckets[sc]:
+			if is_instance_valid(n):
+				(n as Node).queue_free()
+		_buckets.erase(sc)
+	placed_origins.erase(sc)
+
+
+## Coalesced deferred re-seat: build stamps fire 12-18 modify_terrain calls in one
+## synchronous stretch (6 on the same fsb subcells), and clear_and_flatten updates
+## the gameplay grid AFTER modify_terrain - so re-scattering synchronously would
+## both waste work and read stale water/veg state in _accept. One flush, next frame.
+func _on_region_rebuilt(world_rect: Rect2) -> void:
+	var min_sc := Vector2i(int(floor(world_rect.position.x / SUBCELL)),
+		int(floor(world_rect.position.y / SUBCELL)))
+	var max_sc := Vector2i(int(floor(world_rect.end.x / SUBCELL)),
+		int(floor(world_rect.end.y / SUBCELL)))
+	for sz in range(min_sc.y, max_sc.y + 1):
+		for sx in range(min_sc.x, max_sc.x + 1):
+			_dirty_subcells[Vector2i(sx, sz)] = true
+	if not _flush_pending:
+		_flush_pending = true
+		_flush_dirty.call_deferred()
+
+
+func _flush_dirty() -> void:
+	_flush_pending = false
+	var dirty: Array = _dirty_subcells.keys()
+	_dirty_subcells.clear()
+	var subcells: int = int(ceil(world.map_size / SUBCELL))
+	for sc: Vector2i in dirty:
+		if sc.x < 0 or sc.y < 0 or sc.x >= subcells or sc.y >= subcells:
+			continue
+		_scatter_subcell(sc)
 
 
 ## Water is never clutter; jungle-only layers need real jungle density (matches the old ring).
@@ -153,7 +209,7 @@ func _accept(pos: Vector3, jungle_only: bool) -> bool:
 	return true
 
 
-func _add_bucket(t: Dictionary, xforms: Array[Transform3D], centre: Vector3) -> void:
+func _add_bucket(t: Dictionary, xforms: Array[Transform3D], centre: Vector3) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = t.mesh
@@ -170,3 +226,4 @@ func _add_bucket(t: Dictionary, xforms: Array[Transform3D], centre: Vector3) -> 
 	mmi.visibility_range_end_margin = NEAR_FADE
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(mmi)
+	return mmi

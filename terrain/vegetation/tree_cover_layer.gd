@@ -37,13 +37,30 @@ const TRUNK_HEIGHT: float = 3.0
 ## this cap with coherent near-player cover; until then this ships bounded cover without a crash.
 const MAX_TRUNKS_PER_CHUNK: int = 150
 
-@export var near_distance: float = 46.0   ## solid render + collision ring
-@export var view_distance: float = 80.0   ## card render ring
+@export var near_distance: float = 65.0   ## solid render + collision ring (arena parity)
+@export var view_distance: float = 350.0  ## card render ring (fog transmittance <=10%)
+
+## visibility_range is per-NODE against the transformed AABB (godot#79471 - the
+## docs say origin and are wrong). Chunk-sized nodes quantize both rings by
+## +/-181m - that WAS the invisible-jungle bug. 64m buckets bound the error to
+## +/-45m without exploding the node count.
+const BUCKET: float = 64.0
+const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 
 var _solid_mesh: Dictionary = {}   ## name -> Mesh
 var _card_mesh: Dictionary = {}    ## name -> Mesh (only species with a card)
 var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs + StaticBodies)
+## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
+## transform read-back is blind headless in this build)
+var chunk_origins: Dictionary = {}
 var _loaded: bool = false
+
+
+func _ready() -> void:
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--card-dist="):
+			view_distance = maxf(near_distance, float(a.split("=")[1]))
+			print("[TreeCover] --card-dist lever: view_distance=%.0f" % view_distance)
 
 
 ## Load the solid + card mesh for each species name (idempotent). A missing card is
@@ -67,24 +84,38 @@ func load_species(names: Array) -> void:
 ##   - one trunk StaticBody per COVER instance (bullet/body collision)
 func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	clear_chunk(coord)
-	var by_name: Dictionary = {}   ## name -> Array[Transform3D]
+	var groups: Dictionary = {}   ## [name, bucket_x, bucket_z] -> Array[Transform3D]
+	var origins := PackedVector3Array()
 	for e: Dictionary in scatter:
 		var nm: String = String(e.get("name", ""))
 		if not _solid_mesh.has(nm):
 			continue
-		if not by_name.has(nm):
-			by_name[nm] = []
-		by_name[nm].append(e.get("xf", Transform3D.IDENTITY))
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		var key: Array = [nm, int(floor(xf.origin.x / BUCKET)), int(floor(xf.origin.z / BUCKET))]
+		if not groups.has(key):
+			groups[key] = []
+		(groups[key] as Array).append(xf)
+		origins.append(xf.origin)
 
 	var nodes: Array[Node] = []
 	var trunks: int = 0  # per-chunk collider budget (see MAX_TRUNKS_PER_CHUNK)
-	for nm: String in by_name:
-		var xforms: Array = by_name[nm]
+	for key: Array in groups:
+		var nm: String = key[0]
+		var xforms: Array = groups[key]
+		# Bucket node origin = member centroid, so the node's transformed AABB
+		# (what visibility_range actually measures) hugs the real instances.
+		var centroid := Vector3.ZERO
+		for xf: Transform3D in xforms:
+			centroid += xf.origin
+		centroid /= float(xforms.size())
+		var local: Array = []
+		for xf: Transform3D in xforms:
+			local.append(Transform3D(xf.basis, xf.origin - centroid))
 		# NEAR: the real solid.
-		nodes.append(_multimesh(_solid_mesh[nm], xforms, 0.0, near_distance))
-		# FAR: the impostor card (if this species has one).
+		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, near_distance, centroid, true))
+		# FAR: the impostor card (if this species has one). Cards never cast.
 		if _card_mesh.has(nm):
-			nodes.append(_multimesh(_card_mesh[nm], xforms, near_distance, view_distance))
+			nodes.append(_multimesh(_card_mesh[nm], local, near_distance, view_distance, centroid, false))
 		# COVER: a trunk collider per instance (cover-givers only), capped per chunk.
 		if COVER_TRUNK.has(nm):
 			var r: float = float(COVER_TRUNK[nm])
@@ -97,9 +128,11 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	for node: Node in nodes:
 		add_child(node)
 	_chunk_nodes[coord] = nodes
+	chunk_origins[coord] = origins
 
 
 func clear_chunk(coord: Vector2i) -> void:
+	chunk_origins.erase(coord)
 	if not _chunk_nodes.has(coord):
 		return
 	for node: Node in _chunk_nodes[coord]:
@@ -123,7 +156,8 @@ func collider_count() -> int:
 	return n
 
 
-func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float) -> MultiMeshInstance3D:
+func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
+		origin: Vector3, solid: bool) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -132,9 +166,14 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float) -> 
 		mm.set_instance_transform(i, xforms[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
+	mmi.position = origin
+	if not solid:
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if vis_begin > 0.0:
 		mmi.visibility_range_begin = vis_begin
+		mmi.visibility_range_begin_margin = RANGE_MARGIN
 	mmi.visibility_range_end = vis_end
+	mmi.visibility_range_end_margin = RANGE_MARGIN
 	# HARD PS2 snap (ADR-026), NOT a fade: VISIBILITY_RANGE_FADE_SELF alpha-dithers the mesh
 	# across the fade margin, so trees near the near/card LOD boundaries render SEE-THROUGH.
 	# That was the "opacity" - the arena instances raw GLBs with no range and reads solid.

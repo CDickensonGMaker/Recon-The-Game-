@@ -262,11 +262,6 @@ func get_vegetation_density(world_pos: Vector3) -> float:
 	return vegetation_map.get_pixel(x, y).r
 
 
-## Get vegetation texture for terrain material
-func get_vegetation_texture() -> ImageTexture:
-	return ImageTexture.create_from_image(vegetation_map)
-
-
 ## Get clearing color overlay texture
 func get_clearing_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(clearing_texture)
