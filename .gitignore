@@ -72,3 +72,28 @@ production/cinematics/**/*.mp4
 production/cinematics/**/*.ogv
 production/cinematics/**/*.mkv
 production/cinematics/**/*.webm
+
+# ---------------------------------------------------------------------------
+# Oversized-blob firewall (RECONgame-yu8b, 2026-07-19)
+# These six paths exceeded GitHub's hard 100 MB per-file limit and blocked the
+# push for 97 commits. They were purged from unpushed history with git-filter-repo.
+# The files REMAIN ON DISK on purpose - they are live art source, not garbage.
+# The earlier rules missed them because they only covered the old art_source/
+# locations; these are the paths the files actually live at today.
+assets/us/characters/us_base_v3.blend
+assets/reference/review/lineup_review.blend
+production/cinematics/cutscene_01_operation_briefing/cutscene_01_staging.blend
+production/cinematics/cutscene_02_huey_insertion/cutscene_02_huey_insertion.blend
+
+# Cinematics are a standalone Blender FMV production and do not belong on GitHub
+# at all (owner decree 2026-07-19). Source blends only - rendered output and
+# authored docs in this tree stay tracked.
+production/cinematics/**/*.blend
+
+# Catch every location variant of the two armory backups. They have already moved
+# once (art_source/_backups/ -> _backups/), which defeated a path-anchored rule
+# and is exactly how they re-entered history.
+**/gear_armory_BROKEN_STATE.blend
+**/gear_armory_BEFORE_civsplit.blend
+**/us_base_v3.blend
+**/lineup_review.blend
