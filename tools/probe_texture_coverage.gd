@@ -111,14 +111,18 @@ func _has_albedo(mat: Material) -> bool:
 	return true
 
 
-## A textureless surface carrying a deliberate PSX flat colour is authored art. A
-## textureless surface still sitting on desaturated near-white is the placeholder the
-## Summoner sees as bald geometry in play. Saturation and value separate the two.
+## A textureless surface carrying a deliberate PSX flat colour is authored art:
+## pagoda.glb's Stone / White_Wall / Red_Lacquer are hand-picked and finished. A
+## textureless surface still sitting on EXACTLY pure white never is - nobody authors
+## (1,1,1) as a look, it is what a stub material defaults to. Only pure white counts.
+##
+## An earlier saturation-and-value test called any pale colour a placeholder and
+## libelled every white-plaster wall in the village as broken art.
 func _is_untinted(mat: Material) -> bool:
 	if not (mat is BaseMaterial3D):
 		return false
 	var c: Color = (mat as BaseMaterial3D).albedo_color
-	return c.s < 0.08 and c.v > 0.55
+	return is_equal_approx(c.r, 1.0) and is_equal_approx(c.g, 1.0) and is_equal_approx(c.b, 1.0)
 
 
 ## Broken ext refs: a .import/.tscn/.tres naming a source that is gone. Godot logs
