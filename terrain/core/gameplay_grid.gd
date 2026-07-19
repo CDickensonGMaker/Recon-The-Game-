@@ -231,7 +231,7 @@ func _apply_riparian_belt(bounds: Rect2i) -> int:
 					continue
 				# Densest at the bank, thinning outward.
 				var t: float = 1.0 - float(d + 1) / float(reach)
-				var gallery: float = lerpf(0.55, 0.95, clampf(t, 0.0, 1.0))
+				var gallery: float = lerpf(GALLERY_MIN, GALLERY_MAX, clampf(t, 0.0, 1.0))
 				if gallery > vegetation_density[n]:
 					vegetation_density[n] = gallery
 					terrain_type[n] = TerrainType.HEAVY_JUNGLE if gallery >= 0.85 						else (TerrainType.MEDIUM_JUNGLE if gallery >= 0.65 else TerrainType.LIGHT_JUNGLE)

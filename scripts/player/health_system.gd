@@ -21,7 +21,6 @@ var current_hp: int = 100
 
 ## Health pack system
 var health_packs: int = 3
-const HEAL_AMOUNT: int = 100  ## Full heal when you use a medkit
 const HEAL_TIME: float = 3.0
 
 ## Bandage vs medkit: one item, the context picks the treatment. Bleeding but not

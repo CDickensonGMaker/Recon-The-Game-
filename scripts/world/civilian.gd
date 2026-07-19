@@ -56,7 +56,6 @@ var _bt_bb: Dictionary = {}
 ## Behavior tree root. Typed as RefCounted to avoid class_name lookup hazards;
 ## BTSelector/BTAction are duck-typed at runtime via .tick().
 var _bt: RefCounted = null
-var _schedule_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 # L1 LOD. 3 tiers matching enemy_base.gd:39-54. Hysteresis band (5m) prevents
 # a civilian at a tier boundary from flapping between tiers every 2 seconds.
@@ -365,8 +364,24 @@ func build_bt() -> void:
 	_bt_bb["last_pick_hour"] = -1.0
 	_bt_bb["home"] = home
 	_bt = BTSelectorS.new([
-		idle_action,  # fallback: any unhandled state returns SUCCESS
+		BTActionS.new(Callable(self, "_bt_dispatch"), "dispatch"),
+		idle_action,  # fallback: schedule named no action this hour
 	])
+
+
+## Tick the leaf the schedule named. FAILURE when the hour maps to no action,
+## which drops the selector through to the idle fallback.
+## active_action is set by the LEAF, never by the scheduler - it must report
+## what the tree actually ran, or a dead tree looks alive.
+func _bt_dispatch(civ: Civilian, bb: Dictionary) -> int:
+	var table: Dictionary = bb.get("by_action", {})
+	var want: StringName = StringName(bb.get("scheduled_action", &""))
+	if not table.has(want):
+		return BTNodeS.BTStatus.FAILURE
+	var leaf: RefCounted = table[want]
+	if leaf == null:
+		return BTNodeS.BTStatus.FAILURE
+	return int(leaf.tick(civ, bb))
 
 
 func _bt_tick(delta: float) -> void:
@@ -378,22 +393,22 @@ func _bt_tick(delta: float) -> void:
 	var last_hour: float = float(_bt_bb.get("last_pick_hour", -1.0))
 	if int(hour) != int(last_hour):
 		_bt_bb["last_pick_hour"] = hour
-		active_action = CivilianSchedulesS.action_for(occupation, hour)
-		_bt_bb["target_pos"] = _resolve_target(active_action)
-		_bt_bb["arrived"] = false
+		var picked: StringName = CivilianSchedulesS.action_for(occupation, hour)
+		_bt_bb["scheduled_action"] = picked
+		_bt_bb["target_pos"] = _resolve_target(picked)
 	_bt_bb["delta"] = delta
 	_bt.tick(self, _bt_bb)
 	_step_toward(_wander_target, _bt_bb.get("speed", 1.2), delta)
-	move_and_slide()
-	_animate()
 
 
-## _read_sim_hour returns SimClock.sim_hour if the autoload is registered;
-## otherwise 12.0 so the BT stays on daytime actions in unit tests.
+## SimClock is an AUTOLOAD with no class_name (sim_clock.gd:5) - it is absent
+## from both Engine.has_singleton and ClassDB, so it can only be reached by
+## node path. 12.0 is the out-of-tree fallback for unit tests.
 func _read_sim_hour() -> float:
-	if Engine.has_singleton("SimClock") or ClassDB.class_exists("SimClock"):
-		return SimClock.sim_hour
-	return 12.0
+	var clock: Node = get_node_or_null(^"/root/SimClock")
+	if clock == null:
+		return 12.0
+	return float(clock.sim_hour)
 
 
 func _update_lod(delta: float) -> void:

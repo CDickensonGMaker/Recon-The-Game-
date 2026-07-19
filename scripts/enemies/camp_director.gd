@@ -155,8 +155,11 @@ func set_patrol_anchor(anchor: Vector3) -> void:
 	has_patrol_anchor = true
 
 
+## SimClock is an AUTOLOAD with no class_name (sim_clock.gd:5) - it is absent
+## from both Engine.has_singleton and ClassDB, so it can only be reached by
+## node path. 12.0 is the out-of-tree fallback for unit tests.
 func _read_sim_hour() -> float:
-	if Engine.has_singleton("SimClock") or ClassDB.class_exists("SimClock"):
-		if SimClock != null:
-			return SimClock.sim_hour
-	return 12.0
+	var clock: Node = get_node_or_null(^"/root/SimClock")
+	if clock == null:
+		return 12.0
+	return float(clock.sim_hour)
