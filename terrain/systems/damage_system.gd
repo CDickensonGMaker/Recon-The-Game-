@@ -12,43 +12,49 @@ enum DamageType {
 	BUNKER_COLLAPSE,    # Localized depression
 }
 
+## Depths/rims are METERS, divided by the live height_scale at apply time
+## (Summoner-approved retune 2026-07-18; the old normalized values multiplied
+## by height_scale 350 and dug 5-21m craters - grenade canyons). Real-world
+## anchors: grenade/mortar scrape 0.3-1m, 105mm shell 1-2m, 750lb bomb ~9m
+## deep x 14m wide. mission_generator._crater_keepout_grow derives from
+## LARGE radius_cells - the safety envelope tracks this table automatically.
 const DAMAGE_PROFILES: Dictionary = {
 	DamageType.SMALL_EXPLOSION: {
-		"radius_cells": 3,
-		"depth": 0.015,         # Normalized depth (0-1 scale)
-		"rim_height": 0.005,    # Raised rim around crater
+		"radius_cells": 2,
+		"depth_m": 0.6,
+		"rim_m": 0.09,
 		"falloff_power": 2.0,
-		"scar_color": Color(0.2, 0.15, 0.1),  # Dark brown
+		"scar_color": Color(0.2, 0.15, 0.1),
 		"scar_type": "crater",
 	},
 	DamageType.MEDIUM_EXPLOSION: {
-		"radius_cells": 6,
-		"depth": 0.035,
-		"rim_height": 0.012,
+		"radius_cells": 3,
+		"depth_m": 2.0,
+		"rim_m": 0.3,
 		"falloff_power": 1.8,
 		"scar_color": Color(0.25, 0.18, 0.1),
 		"scar_type": "crater",
 	},
 	DamageType.LARGE_EXPLOSION: {
-		"radius_cells": 12,
-		"depth": 0.06,
-		"rim_height": 0.02,
+		"radius_cells": 5,
+		"depth_m": 8.0,
+		"rim_m": 1.2,
 		"falloff_power": 1.5,
 		"scar_color": Color(0.3, 0.2, 0.12),
 		"scar_type": "crater",
 	},
 	DamageType.NAPALM: {
 		"radius_cells": 15,
-		"depth": 0.01,
-		"rim_height": 0.0,
+		"depth_m": 0.3,
+		"rim_m": 0.0,
 		"falloff_power": 3.0,
 		"scar_color": Color(0.05, 0.03, 0.02),  # Charred black
 		"scar_type": "burn",
 	},
 	DamageType.BUNKER_COLLAPSE: {
-		"radius_cells": 8,
-		"depth": 0.05,
-		"rim_height": 0.025,
+		"radius_cells": 4,
+		"depth_m": 1.5,
+		"rim_m": 0.25,
 		"falloff_power": 2.5,
 		"scar_color": Color(0.4, 0.32, 0.22),
 		"scar_type": "crater",
@@ -97,9 +103,10 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 		return
 
 	var profile: Dictionary = DAMAGE_PROFILES[type]
-	var radius: int = int(profile.radius_cells * intensity)
-	var depth: float = profile.depth * intensity
-	var rim_height: float = profile.rim_height * intensity
+	var radius: int = maxi(1, int(profile.radius_cells * intensity))
+	var height_scale: float = float(terrain_manager.heightmap.height_scale)
+	var depth: float = (profile.depth_m * intensity) / height_scale
+	var rim_height: float = (profile.rim_m * intensity) / height_scale
 	var falloff_power: float = profile.falloff_power
 
 	var crater_func := func(current_height: float, falloff_amount: float) -> float:
