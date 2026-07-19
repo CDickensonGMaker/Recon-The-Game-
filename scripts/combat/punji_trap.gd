@@ -9,10 +9,18 @@ extends Node3D
 const MODEL_PATH: String = "res://assets/building models/structures/vc_nva/punji_trap.glb"
 const TRIGGER_RANGE: float = 1.4
 const DAMAGE: int = 35
+## Two rifle rounds, one buckshot pattern, or any blast that reaches it. Stakes and
+## a lid - it does not take two magazines to ruin.
+const MAX_HP: int = 30
+## The zone rides the player's fire mask only (civilian.gd:22 documents the layer),
+## so VC rounds cannot clear their own traps.
+const TRAP_HURTBOX_LAYER: int = 512
 
+var hp: int = MAX_HP
 var _armed: bool = false
 var _scan_timer: float = 0.0
 var _sprung: bool = false
+var _destroyed: bool = false
 
 
 static func place(parent: Node, terrain: Node, world_pos: Vector3, facing: float = 0.0) -> PunjiTrap:
@@ -27,6 +35,8 @@ static func place(parent: Node, terrain: Node, world_pos: Vector3, facing: float
 	var scene: PackedScene = load(MODEL_PATH)
 	if scene:
 		trap.add_child(scene.instantiate())
+	trap._build_hurtbox()
+	AgentRegistry.register(trap, AgentRegistry.Kind.PROP)
 	# brief arming delay so it can never spring on the frame it spawns. Timer is a
 	# CHILD (dies with the trap) - a scene-timer lambda dangles if the site is torn
 	# down inside the window (test_site_stamp caught exactly that).
@@ -55,6 +65,50 @@ func _physics_process(delta: float) -> void:
 		if a is Node3D and (a as Node3D).global_position.distance_to(global_position) <= TRIGGER_RANGE:
 			_spring(a)
 			return
+
+
+## One flat zone over the pit mouth. A spike pit has no anatomy, so it takes the
+## TORSO multiplier and nothing else - the zone exists to make rounds FIND it,
+## because bullet_system resolves damage through Hitzones or nothing.
+func _build_hurtbox() -> void:
+	var hz := Hitzone.new()
+	hz.zone_type = Hitzone.ZoneType.TORSO
+	hz.set_owner_entity(self)
+	hz.collision_layer = TRAP_HURTBOX_LAYER
+	hz.collision_mask = 0
+	hz.add_to_group("hitzone")
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 0.5, 1.6)
+	shape.shape = box
+	shape.position = Vector3(0, 0.25, 0)
+	hz.add_child(shape)
+	add_child(hz)
+
+
+## Joins the one damage grammar as a receiver (ADR-003) - same verb every other
+## body in the game answers to.
+func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
+	if _destroyed:
+		return
+	hp -= amount
+	if hp <= 0:
+		destroy()
+
+
+## Cleared. The stakes are pulled and the ground is safe - it can never spring again.
+func destroy() -> void:
+	if _destroyed:
+		return
+	_destroyed = true
+	_sprung = true
+	AgentRegistry.unregister(self)
+	GunFX.impact(get_tree().current_scene, global_position + Vector3.UP * 0.2, Vector3.UP, true)
+	queue_free()
+
+
+func is_dead() -> bool:
+	return _destroyed
 
 
 func _spring(victim: Node) -> void:

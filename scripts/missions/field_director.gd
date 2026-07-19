@@ -197,6 +197,10 @@ const RTO_RADIO_RANGE: float = 10.0  ## must be this close to the living RTO to 
 const DANGER_CLOSE_CONFIRM_S: float = 5.0  ## confirm window; a stale pend must never pre-confirm
 var _pending_danger_close: String = ""  ## the call awaiting a danger-close confirm press
 var _pending_dc_at_ms: int = 0  ## when the pend was raised (Time.get_ticks_msec)
+## How many men an escaped informer brings back, and what they are.
+const INFORMER_RESPONSE: int = 4
+const INFORMER_RESPONSE_DATA: String = "res://data/enemies/vc_rifleman.tres"
+var _informer_answered: bool = false
 
 
 func request_fire_support(kind: String) -> void:
@@ -288,6 +292,36 @@ func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
 	plane.call_flyby(world.terrain_manager, target, ordnance, run_dir)
 
 
+## An informer reached his people. They come looking from the far side, ALERT but
+## not in contact - they know roughly where you were, not where you are. Normal
+## perception decides whether they find you, so the beacon is still earned (ADR-005).
+func on_informer_escaped(from_pos: Vector3, last_seen: Vector3) -> void:
+	if _informer_answered:
+		return
+	_informer_answered = true
+	state.flags["informer_transformed"] = true
+	state.flags["informer_last_pos"] = from_pos
+	var away: Vector3 = (from_pos - last_seen)
+	away.y = 0.0
+	if away.length() < 1.0:
+		away = Vector3(1, 0, 0)
+	away = away.normalized()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(from_pos) ^ int(Time.get_ticks_msec())
+	for i in range(INFORMER_RESPONSE):
+		var arc: float = deg_to_rad(rng.randf_range(-50.0, 50.0))
+		var dir: Vector3 = away.rotated(Vector3.UP, arc)
+		var pos: Vector3 = last_seen + dir * rng.randf_range(90.0, 140.0)
+		if world != null and world.terrain_manager != null:
+			pos.y = world.terrain_manager.get_height_at(pos)
+		var e := spawn_tracked_enemy(pos, INFORMER_RESPONSE_DATA, "informer_response")
+		if e != null and is_instance_valid(e):
+			# witnessed=false: the word reached them, but nobody has EYES on the
+			# player. They sweep his last reported spot and earn contact or don't.
+			e._set_tier(EnemyBase.AlertTier.ALERT, false)
+			e.last_known_target_pos = last_seen
+
+
 ## The radio is a man: a LIVING RTO within RTO_RADIO_RANGE. Returns "" when usable,
 ## else the toast to show. MUST be called by every fire request, not just the net
 ## toggle, or the shortcut keys bypass the leash.
@@ -316,8 +350,14 @@ func _close_net() -> void:
 		fire_menu_changed.emit(false)
 
 
-## True if any living squadmate is within DANGER_CLOSE_M of the aim point (gates the confirm).
+## True if any living friendly - INCLUDING THE PLAYER - is within DANGER_CLOSE_M
+## of the aim point (gates the confirm). ADR-011 required amendment: dropping a
+## snake-eye on your own head must cost the same second press as dropping it on
+## your men.
 func _danger_close_to_squad(target: Vector3) -> bool:
+	if world != null and world.player != null and is_instance_valid(world.player):
+		if world.player.global_position.distance_to(target) <= DANGER_CLOSE_M:
+			return true
 	if squad_system == null or not is_instance_valid(squad_system):
 		return false
 	for a in squad_system.members:
@@ -490,10 +530,27 @@ func _poll_wire_gate() -> void:
 			var kind_name: String = "VC CAMP" if patrol_location_kind == "vc_camp" else "VILLAGE"
 			toast.emit("S2 INTEL: %s REPORTED %s" % [kind_name,
 				_bearing_name(patrol_location - patrol_gate_pos)])
+		_grant_fire_support()
 		rebark_patrol()
 	elif patrol_out and d < WIRE_RETURN_M:
 		patrol_out = false
 		_bank_patrol()
+
+
+## Battalion allots the patrol its steel as you cross the wire outbound. The count
+## is a battalion decision; the RTO's fo_fac buys QUALITY (scatter, cooldown, the
+## veteran's 4th round) per ADR-011, and one extra tube for a man who has called
+## enough of them. Air is thin on a routine patrol - it is what escalation buys you.
+func _grant_fire_support() -> void:
+	var rto: AllyBase = squad_system.member_by_mos("RTO") \
+		if (squad_system != null and is_instance_valid(squad_system)) else null
+	var fo: int = SquadRoster.skill_level(rto.member, "fo_fac") if rto != null else 0
+	fire_support = {
+		"bombs": 1, "napalm": 0, "arty": 1,
+		"mortar": 3 + (1 if fo >= 6 else 0), "spooky": 0, "cbu": 0,
+	}
+	if rto != null:
+		toast.emit("%s HAS THE HORN - [T] FOR THE NET" % str(rto.member.get("nick", "RTO")))
 
 
 ## The one toast concession + the point man's voice. Repeatable from the map.

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cdiagfiremis1"]
+
+[ext_resource type="Script" path="res://tools/diag_fire_mission.gd" id="1_dfm"]
+
+[node name="DiagFireMission" type="Node"]
+script = ExtResource("1_dfm")

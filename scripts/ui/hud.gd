@@ -32,6 +32,19 @@ var bleed_flash_timer: float = 0.0
 ## "HOLD [F] TO PATCH UP" - shown while the medkit is out and idle
 var _heal_prompt: Label = null
 
+## What [F] would do where you are standing. Blank = nothing in reach.
+var _field_prompt: Label = null
+
+
+## The verb under the player's feet. Without this the tunnel mouth, the cache and
+## the shrine are all invisible verbs - the player walks over a live interaction
+## and the game never says so.
+func set_field_prompt(text: String) -> void:
+	if _field_prompt == null:
+		return
+	_field_prompt.text = text
+	_field_prompt.visible = not text.is_empty()
+
 func _ready() -> void:
 	death_screen.visible = false
 	healing_bar.visible = false
@@ -82,6 +95,16 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	_heal_prompt.add_theme_color_override("font_color", Color(0.85, 0.95, 0.8, 0.95))
 	_heal_prompt.visible = false
 	add_child(_heal_prompt)
+
+	_field_prompt = Label.new()
+	_field_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_field_prompt.position = Vector2(-120, -170)
+	_field_prompt.add_theme_font_size_override("font_size", 18)
+	_field_prompt.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5, 0.95))
+	_field_prompt.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	_field_prompt.add_theme_constant_override("shadow_offset_y", 2)
+	_field_prompt.visible = false
+	add_child(_field_prompt)
 
 	weapon_holder.magazine_changed.connect(_on_magazine_changed)
 	weapon_holder.weapon_switched.connect(_on_weapon_switched)

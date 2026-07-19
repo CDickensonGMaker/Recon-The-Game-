@@ -2156,9 +2156,14 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	var suppress_amount: float = float(amount) / float(max_hp) * 0.5
 	suppression_level = minf(1.0, suppression_level + suppress_amount)
 
-	# Flinch
+	# Flinch: the trigger stalls AND the body yields. A man who only stalls reads
+	# as a man who ignored the round.
 	can_fire = false
 	fire_timer = maxf(fire_timer, 0.25)
+	if current_hp > 0 and sprite_actor != null and is_instance_valid(sprite_actor) \
+			and sprite_actor.has_method("flinch"):
+		sprite_actor.call("flinch", last_hit_dir,
+			clampf(float(amount) / float(max_hp) * 2.0, 0.35, 1.0))
 
 	# Pain-quota stagger: a solid hit (>= a third of max HP) that does not kill jolts
 	# them into a brief SUPPRESSED stagger + a pain grunt.

@@ -257,6 +257,16 @@ static func _wire_convoy_to_factory(convoy: Node) -> void:
 		convoy.ambushed.connect(dynamic_factory_ref._on_convoy_ambushed)
 
 
+## Market props a garrison at this position would work (uiho living camp).
+static func _stations_near(p: Dictionary, pos: Vector3) -> Array:
+	for s in p.get("sites", []):
+		var sd: Dictionary = s
+		if str(sd.get("kind", "")) == "village" and sd.has("work_stations") \
+				and pos.distance_to(sd.center as Vector3) <= 70.0:
+			return sd.get("work_stations", [])
+	return []
+
+
 static func _attach_camp_directors(world: GameWorld, director: FieldDirector,
 		p: Dictionary) -> void:
 	# Group enemies by their group_tag. Each non-empty group with >=2 members
@@ -283,34 +293,14 @@ static func _attach_camp_directors(world: GameWorld, director: FieldDirector,
 			if m is Node3D:
 				mean_pos += (m as Node3D).global_position
 		mean_pos /= float(members.size())
-		var cd := CampDirectorScript.new()
-		cd.name = "CampDirector_%d" % camp_idx
-		var crng := RandomNumberGenerator.new()
-		crng.seed = int(p.get("seed", 0)) + camp_idx * 17
-		# A garrison inside a village works its market props (uiho living camp).
-		for s in p.get("sites", []):
-			var sd: Dictionary = s
-			if str(sd.get("kind", "")) == "village" and sd.has("work_stations") \
-					and mean_pos.distance_to(sd.center as Vector3) <= 70.0:
-				cd.work_stations = sd.get("work_stations", [])
-				break
-		world.add_child(cd)
-		# setup() assigns guards and applies the schedule NOW - without it the
-		# garrison stands in the spawn ring until the first hour tick.
-		cd.setup(mean_pos, members, crng)
-		camp_idx += 1
-		# Patrol route for the camp's first 3 soldiers, generated procedurally.
 		var paddy_centroids: Array[Vector3] = p.get("paddy_centroids", [])
-		var route: Array[Vector3] = PatrolGeneratorScript.generate(
-			world.gameplay_grid, mean_pos, 5, paddy_centroids, cd.rng)
-		if route.size() >= 2:
-			cd.set_patrol_anchor(route[1])
-			# Assign the first 3 men a patrol route via EnemyBase.patrol_route.
-			for i in range(mini(3, members.size())):
-				var m = members[i]
-				if m != null and is_instance_valid(m) and m is EnemyBaseScript:
-					m.patrol_route = route
-					m.patrol_file_slot = i
+		var cd := CampDirectorScript.attach(world, mean_pos, members,
+			int(p.get("seed", 0)) + camp_idx * 17,
+			_stations_near(p, mean_pos), paddy_centroids)
+		if cd == null:
+			continue
+		cd.name = "CampDirector_%d" % camp_idx
+		camp_idx += 1
 		# Run the AmbushPlanner against this camp. If it returns a site, store
 		# it on the director's state so the player can be offered a STRIKE.
 		var plan: Dictionary = AmbushPlannerScript.plan(cd, world.gameplay_grid, paddy_centroids, cd.rng)
@@ -658,6 +648,9 @@ static func _spawn_enemy_groups(world: GameWorld, director: FieldDirector,
 			var lg := LazyGroup.new()
 			lg.enemy_count = int(group.count)
 			lg.group_tag = str(group.tag)
+			lg.spread = float(group.get("spread", 12.0))
+			lg.paddy_centroids = p.get("paddy_centroids", [] as Array[Vector3])
+			lg.work_stations = _stations_near(p, group.pos as Vector3)
 			lg.setup(director, int(p.seed) + hash(str(group.tag)))
 			world.add_child(lg)
 			lg.global_position = _seat(world, group.pos)

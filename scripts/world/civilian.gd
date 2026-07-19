@@ -158,8 +158,11 @@ func _physics_process(delta: float) -> void:
 
 	# Informer: spotted you nearby -> starts the clock; escapes -> alarm.
 	var player := GameManager.player as Node3D
+	# ADR-005: proximity is not sight. He must actually SEE you to carry the word.
 	if is_informer and player and _inform_clock < 0.0 \
-			and global_position.distance_to(player.global_position) < 15.0:
+			and global_position.distance_to(player.global_position) < 15.0 \
+			and CombatManager.has_line_of_sight(global_position + Vector3.UP * 1.5,
+				player.global_position + Vector3.UP * 1.0, [self]):
 		_inform_clock = 0.0
 		_saw_player_at = player.global_position
 		state = CivState.FLEE
@@ -170,7 +173,6 @@ func _physics_process(delta: float) -> void:
 			state = CivState.GONE
 			if director:
 				director.toast.emit("THAT VILLAGER TALKED - THEY KNOW YOU'RE HERE")
-			NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, _saw_player_at, 0, 120.0)
 			_transform_to_vc()
 			visible = false
 			set_physics_process(false)
@@ -323,11 +325,8 @@ func _transform_to_vc() -> void:
 		if not actor.setup(vc_pick):
 			vc_pick = "vc_regular_m"
 			actor.setup(vc_pick)
-	# Flag for the mission director. The director's informer_alarm handler reads
-	# this and spawns the actual enemy at the civilian's last position.
 	if director:
-		director.state.flags["informer_transformed"] = true
-		director.state.flags["informer_last_pos"] = global_position
+		director.on_informer_escaped(global_position, _saw_player_at)
 
 
 # ---- L1 behavior tree ------------------------------------------------------

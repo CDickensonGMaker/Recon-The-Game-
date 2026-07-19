@@ -27,6 +27,11 @@ var patrol_circuit: Array[Vector3] = []
 ]
 
 var director: FieldDirector
+## Camp-life payload, handed down by the generator. A garrison that wakes on
+## approach stands up its own CampDirector so it keeps a schedule and a route
+## instead of standing in the spawn ring for the rest of the patrol.
+var work_stations: Array = []
+var paddy_centroids: Array[Vector3] = []
 var _spawned: bool = false
 var _timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
@@ -66,12 +71,14 @@ func force_spawn() -> void:
 	if is_patrol:
 		route = patrol_circuit.duplicate() if not patrol_circuit.is_empty() \
 			else EnemyBase.make_patrol_route(global_position, _rng)
+	var spawned_men: Array = []
 	for i in range(enemy_count):
 		var a: float = _rng.randf_range(0.0, TAU)
 		var r: float = _rng.randf_range(2.0, spread)
 		var pos := global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
 		var data: String = data_paths[_rng.randi() % data_paths.size()]
 		var enemy := director.spawn_tracked_enemy(pos, data, group_tag)
+		spawned_men.append(enemy)
 		if not group_tag.is_empty():
 			enemy.add_to_group(group_tag)
 		if is_patrol and not route.is_empty():
@@ -87,4 +94,7 @@ func force_spawn() -> void:
 			if out.length() > 0.5:
 				enemy.facing_dir = out.normalized()
 				enemy._home_facing = enemy.facing_dir
+	if not is_patrol:
+		CampDirector.attach(get_parent(), global_position, spawned_men,
+			int(_rng.seed), work_stations, paddy_centroids)
 	set_physics_process(false)

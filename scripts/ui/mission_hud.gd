@@ -102,11 +102,19 @@ func _on_fire_menu_changed(open: bool) -> void:
 		["5", "SPOOKY GUNSHIP", "spooky"],
 		["6", "CAS - CLUSTER (CBU)", "cbu"],
 	]
+	# Only what is actually on call. A row you can never press is not information.
+	var any: bool = false
 	for row in rows:
 		var count: int = int(fs.get(row[2], 0))
-		var color := ReconUI.OLIVE if count > 0 else ReconUI.DIM
-		_fire_menu.add_child(ReconUI.make_label("[%s] %-22s x%d" % [row[0], row[1], count], 14, color))
-	_fire_menu.add_child(ReconUI.make_label("RIFLE DOWN - AIM AT TARGET, PRESS NUMBER. [T] OFF NET", 11, ReconUI.DIM))
+		if count <= 0:
+			continue
+		any = true
+		_fire_menu.add_child(ReconUI.make_label(
+			"[%s] %-22s x%d" % [row[0], row[1], count], 14, ReconUI.OLIVE))
+	if not any:
+		_fire_menu.add_child(ReconUI.make_label("NOTHING ON CALL - BATTALION HAS NOTHING FOR YOU", 14, ReconUI.DIM))
+	else:
+		_fire_menu.add_child(ReconUI.make_label("RIFLE DOWN - AIM AT TARGET, PRESS NUMBER. [T] OFF NET", 11, ReconUI.DIM))
 
 
 ## PT8: slot slider - the kit at a glance, current slot highlighted.

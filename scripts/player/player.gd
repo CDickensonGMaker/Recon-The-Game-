@@ -206,6 +206,32 @@ func _field_toast(text: String) -> void:
 
 ## Tunnel state.
 var _in_tunnel: TunnelRoom = null
+var _prompt_poll: float = 0.0
+
+
+## What [F] would do right now, or "" for nothing. The ranges MUST match
+## _try_field_interact's or the prompt promises a verb that will not fire.
+func field_interact_prompt() -> String:
+	if _in_tunnel != null:
+		if global_position.distance_to(_in_tunnel.ladder_point()) < 2.5:
+			return "[F] CLIMB OUT"
+		if not _in_tunnel.looted and global_position.distance_to(_in_tunnel.cache_point()) < 2.2:
+			return "[F] SEARCH THE CACHE"
+		return ""
+	for t in get_tree().get_nodes_in_group("temple_shrines"):
+		var shrine := t as Node3D
+		if shrine and not shrine.has_meta("searched") \
+				and global_position.distance_to(shrine.global_position) < 4.0:
+			return "[F] SEARCH THE SHRINE"
+	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
+		var entrance := t as Node3D
+		if entrance and global_position.distance_to(entrance.global_position) < 3.0:
+			return "[F] GO DOWN THE HOLE"
+	for c in get_tree().get_nodes_in_group("supply_crates"):
+		var crate := c as Node3D
+		if crate and global_position.distance_to(crate.global_position) < 3.0:
+			return "[F] RESUPPLY"
+	return ""
 
 
 ## Interact: capture / loot / crate / tunnel enter-exit.
@@ -590,6 +616,13 @@ func _update_photo_fly(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
+
+	_prompt_poll += delta
+	if _prompt_poll >= 0.2:
+		_prompt_poll = 0.0
+		var combat_hud: Node = get_tree().get_first_node_in_group("combat_hud")
+		if combat_hud != null and combat_hud.has_method("set_field_prompt"):
+			combat_hud.set_field_prompt(field_interact_prompt())
 
 	if Input.is_action_just_pressed("photo_mode") and not is_seated \
 			and not (health_system and health_system.is_downed):

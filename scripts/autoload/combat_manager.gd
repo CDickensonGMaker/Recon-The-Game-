@@ -199,6 +199,17 @@ func apply_explosion_damage(
 				if civ.has_method("take_damage"):
 					civ.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker, "BODY")
 
+	# Traps and other damageable world objects. No knockback, no stagger - a pit
+	# in the ground is destroyed or it is not.
+	for prop in AgentRegistry.props.duplicate():
+		if not is_instance_valid(prop) or not prop is Node3D:
+			continue
+		var prop_pos: Vector3 = (prop as Node3D).global_position
+		var prop_dist: float = center.distance_to(prop_pos)
+		if prop_dist <= radius and prop.has_method("take_damage"):
+			prop.take_damage(_explosion_damage_at(prop_dist, radius, max_damage, min_damage),
+				Enums.DamageType.EXPLOSIVE, attacker, "BODY")
+
 	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
 	for enemy in AgentRegistry.enemies.duplicate():
 		if not is_instance_valid(enemy) or not enemy is Node3D:

@@ -3,11 +3,14 @@
 ## these arrays instead of keeping its own copy. WB adds the tier field here.
 extends Node
 
-enum Kind { ENEMY, ALLY, CIVILIAN }
+enum Kind { ENEMY, ALLY, CIVILIAN, PROP }
 
 var enemies: Array[Node] = []
 var allies: Array[Node] = []
 var civilians: Array[Node] = []
+## Damageable world objects (traps). Not people: nothing that reads morale, ROE
+## or the hearts-and-minds ledger may ever walk this roster.
+var props: Array[Node] = []
 
 
 func register(actor: Node, kind: Kind) -> void:
@@ -21,6 +24,7 @@ func unregister(actor: Node) -> void:
 	enemies.erase(actor)
 	allies.erase(actor)
 	civilians.erase(actor)
+	props.erase(actor)
 
 
 func _roster(kind: Kind) -> Array[Node]:
@@ -29,4 +33,6 @@ func _roster(kind: Kind) -> Array[Node]:
 			return enemies
 		Kind.ALLY:
 			return allies
+		Kind.PROP:
+			return props
 	return civilians

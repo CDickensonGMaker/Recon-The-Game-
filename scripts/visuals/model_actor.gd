@@ -59,6 +59,37 @@ const UNIT_HEIGHT_M: Dictionary = {
 }
 
 
+## Flinches are theater, not simulation: past this many at once the cheapest thing
+## to drop is the one nobody is looking at. The gate is perceivability, never the
+## body gate - a man who was just shot is in COMBAT, which holds that gate open.
+const MAX_CONCURRENT_FLINCH: int = 8
+static var _live_flinches: int = 0
+
+var _flinch: FlinchModifier = null
+
+
+## Shove the spine away from a round that did not kill him. No-op off-camera.
+func flinch(world_dir: Vector3, strength: float) -> void:
+	if _skel == null:
+		return
+	if _flinch == null:
+		if _live_flinches >= MAX_CONCURRENT_FLINCH:
+			return
+		if not CombatManager.perceivable(self):
+			return
+		_flinch = FlinchModifier.new()
+		_skel.add_child(_flinch)
+		_live_flinches += 1
+	var local: Vector3 = global_transform.basis.inverse() * world_dir
+	_flinch.punch(local.normalized(), strength)
+
+
+func _exit_tree() -> void:
+	if _flinch != null:
+		_live_flinches -= 1
+		_flinch = null
+
+
 ## The height THIS unit was authored to. Unknown unit -> the roster standard, so
 ## adding a model never silently changes its scale.
 static func target_height(unit_id: String) -> float:

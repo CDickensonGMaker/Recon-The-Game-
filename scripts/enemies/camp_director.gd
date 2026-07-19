@@ -60,6 +60,34 @@ func setup(pos: Vector3, soldiers: Array, seed_rng: RandomNumberGenerator) -> vo
 	_apply_schedule_for_hour(_read_sim_hour())
 
 
+## Stand up a director over a garrison and put it to work immediately. Both the
+## world-build pass and a LazyGroup waking mid-patrol come through here, so a
+## garrison that spawns on approach gets the same schedule, stations and patrol
+## route as one that existed at mission start.
+static func attach(world: Node, mean_pos: Vector3, members: Array, rng_seed: int,
+		stations: Array, paddy_centroids: Array[Vector3]) -> CampDirector:
+	if members.size() < 2:
+		return null
+	var cd := CampDirector.new()
+	cd.work_stations = stations
+	var crng := RandomNumberGenerator.new()
+	crng.seed = rng_seed
+	world.add_child(cd)
+	cd.setup(mean_pos, members, crng)
+	var grid: Object = world.get("gameplay_grid")
+	if grid != null:
+		var route: Array[Vector3] = PatrolGenerator.generate(
+			grid, mean_pos, 5, paddy_centroids, cd.rng)
+		if route.size() >= 2:
+			cd.set_patrol_anchor(route[1])
+			for i in range(mini(3, members.size())):
+				var m: Object = members[i]
+				if m != null and is_instance_valid(m) and m is EnemyBase:
+					(m as EnemyBase).patrol_route = route
+					(m as EnemyBase).patrol_file_slot = i
+	return cd
+
+
 static func role_for_hour(sim_hour: float) -> Dictionary:
 	for entry in SCHEDULE:
 		if sim_hour >= float(entry.start) and sim_hour < float(entry.end):
