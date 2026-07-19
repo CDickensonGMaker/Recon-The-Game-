@@ -56,11 +56,13 @@ func _run() -> void:
 	# 3. Spawn a Civilian at a fake home, give it a working_point, build the
 	# BT, tick it, and assert active_action moves through the schedule.
 	var civ: Civilian = CivScript.new()
-	civ.global_position = Vector3(100, 0, 100)
 	civ.home = Vector3(100, 0, 100)
 	civ.working_point_pos = Vector3(120, 0, 105)
 	civ.occupation = "farmer"
+	# global_position only exists inside the tree; setting it first silently drops it
+	# and leaves the civilian at the origin, 141m from the home it is standing on.
 	add_child(civ)
+	civ.global_position = Vector3(100, 0, 100)
 	civ.build_bt()
 
 	# Without SimClock, _read_sim_hour returns 12.0 -> walk_home

@@ -1,6 +1,8 @@
 ## Enforces ADR-023: a symbol declared and never read is a fossil. New fossils fail
-## the build; tests/fossil_baseline.json grandfathers the existing ones and only shrinks.
-## Rebuild the baseline: godot --headless --path . res://tests/test_fossils.tscn -- --write-baseline
+## the build; tests/fossil_baseline.json grandfathers the existing ones and ONLY SHRINKS.
+## Shrink it:    godot --headless --path . res://tests/test_fossils.tscn -- --write-baseline
+## Grow it (forbidden except when SCAN_DIRS widens, and it is recorded forever):
+##               ... -- --grandfather --reason="<why>"
 extends Node
 
 const SCAN_DIRS: Array[String] = ["res://scripts", "res://terrain"]
@@ -11,6 +13,7 @@ const REF_DIRS: Array[String] = [
 ]
 const REF_EXTS: Array[String] = ["gd", "tscn", "tres", "cfg", "json"]
 const BASELINE_PATH: String = "res://tests/fossil_baseline.json"
+const BASELINE_COMMENT: String = "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'fossils', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>, which records provenance in grandfather_log."
 
 ## Godot calls these. They have no caller in OUR code and never will.
 const LIFECYCLE: Array[String] = [
@@ -57,11 +60,24 @@ func _ready() -> void:
 	keys.sort()
 
 	# 3. the ratchet.
+	var doc: Dictionary = _read_baseline_doc()
+	var baseline: Array = doc.get("fossils", []) as Array
+
 	if write_baseline:
-		_write_baseline(keys)
+		_shrink_baseline(doc, keys)
+		return
+	if "--grandfather" in OS.get_cmdline_user_args():
+		_grandfather(doc, keys)
 		return
 
-	var baseline: Array = _read_baseline()
+	# The register is tamper-evident BEFORE it is consulted. A hand-edit that adds
+	# entries must also forge `count` and raise `ceiling`, and both are checked here.
+	if not _audit_register(doc, baseline):
+		print("")
+		print("=== FOSSIL PROBE FAIL (register tampered) ===")
+		get_tree().quit(1)
+		return
+
 	var known: Dictionary = {}
 	for b: Variant in baseline:
 		known[str(b)] = true
@@ -249,29 +265,143 @@ func _record(rel: String, kind: String, sym: String, line: int, note: String) ->
 	_seen["%s|%s|%s" % [rel, kind, sym]] = "%s:%d  %s %s%s" % [rel, line, kind, sym, note]
 
 
-func _read_baseline() -> Array:
+func _read_baseline_doc() -> Dictionary:
 	if not FileAccess.file_exists(BASELINE_PATH):
-		push_warning("no fossil baseline - run with --write-baseline to create it")
-		return []
+		push_warning("no fossil baseline - run with --grandfather --reason=<text> to create it")
+		return {}
 	var fa: FileAccess = FileAccess.open(BASELINE_PATH, FileAccess.READ)
 	var data: Variant = JSON.parse_string(fa.get_as_text())
 	fa.close()
-	if data is Dictionary and (data as Dictionary).has("fossils"):
-		return (data as Dictionary)["fossils"] as Array
-	return []
+	return (data as Dictionary) if data is Dictionary else {}
 
 
-func _write_baseline(keys: Array) -> void:
-	var out: Dictionary = {
-		"_comment": "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. Adding to it to silence a failure is the one forbidden move.",
-		"count": keys.size(),
-		"fossils": keys,
-	}
-	var fa: FileAccess = FileAccess.open(BASELINE_PATH, FileAccess.WRITE)
-	fa.store_string(JSON.stringify(out, "\t"))
-	fa.close()
-	print("")
-	print("wrote baseline: %d fossils -> %s" % [keys.size(), BASELINE_PATH])
+## `count` and `ceiling` are redundant on purpose: they are the witnesses that make a
+## hand-edit of `fossils` visible. Nothing checked them, which is how 77 became 146.
+func _audit_register(doc: Dictionary, baseline: Array) -> bool:
+	var ok: bool = true
+	var size: int = baseline.size()
+
+	if not doc.has("count") or int(doc["count"]) != size:
+		print("")
+		print("*** REGISTER TAMPERED: count=%s but fossils=%d ***" % [(str(int(doc["count"])) if doc.has("count") else "<missing>"), size])
+		print("    Shrink the register with the tool, never the editor:")
+		print("    godot --headless --path . res://tests/test_fossils.tscn -- --write-baseline")
+		push_error("FOSSIL LAW: baseline count desync (%s vs %d) - hand-edited register." % [str(doc.get("count", "?")), size])
+		ok = false
+
+	if not doc.has("ceiling"):
+		print("")
+		print("*** REGISTER HAS NO CEILING - the ratchet is disarmed. ***")
+		push_error("FOSSIL LAW: baseline has no 'ceiling' - the ratchet cannot hold.")
+		ok = false
+	elif size > int(doc["ceiling"]):
+		print("")
+		print("*** REGISTER GREW: %d fossils vs ceiling %d ***" % [size, int(doc["ceiling"])])
+		print("    ADR-023: the register ONLY SHRINKS. Someone buried a failure instead of a corpse.")
+		push_error("FOSSIL LAW: register grew past its ceiling (%d > %d)." % [size, int(doc["ceiling"])])
+		ok = false
+
+	return ok
+
+
+## The ONLY unguarded write path, and it is structurally incapable of growth: it keeps
+## the intersection of the register and reality. A fossil that is not already
+## grandfathered can never enter the register through this door.
+func _shrink_baseline(doc: Dictionary, keys: Array) -> void:
+	var baseline: Array = doc.get("fossils", []) as Array
+	var live: Dictionary = {}
 	for k: String in keys:
-		print("    %s" % _seen[k])
+		live[k] = true
+	var known: Dictionary = {}
+	for b: Variant in baseline:
+		known[str(b)] = true
+
+	var kept: Array[String] = []
+	for b: Variant in baseline:
+		if live.has(str(b)):
+			kept.append(str(b))
+	var refused: Array[String] = []
+	for k: String in keys:
+		if not known.has(k):
+			refused.append(k)
+
+	var old_ceiling: int = int(doc.get("ceiling", baseline.size()))
+	doc["_comment"] = BASELINE_COMMENT
+	doc["count"] = kept.size()
+	doc["ceiling"] = mini(old_ceiling, kept.size())
+	doc["fossils"] = kept
+	if not doc.has("grandfather_log"):
+		doc["grandfather_log"] = []
+	_store(doc)
+
+	print("")
+	print("SHRANK register: %d -> %d (ceiling %d -> %d)" % [baseline.size(), kept.size(), old_ceiling, int(doc["ceiling"])])
+	if refused.size() > 0:
+		print("")
+		print("REFUSED to grandfather %d live fossil(s) - this door only shrinks:" % refused.size())
+		for r: String in refused:
+			print("    ! %s" % str(_seen[r]))
+		print("    Delete them, or justify them: -- --grandfather --reason=\"why\"")
 	get_tree().quit(0)
+
+
+## Widening SCAN_DIRS legitimately reveals pre-existing debt. That is the ONLY reason to
+## grow the register, it demands a written reason, and it leaves a permanent record.
+func _grandfather(doc: Dictionary, keys: Array) -> void:
+	var reason: String = ""
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--reason="):
+			reason = a.substr("--reason=".length()).strip_edges()
+
+	if reason.length() < 12:
+		print("")
+		print("*** --grandfather REQUIRES --reason=\"<at least 12 chars>\" ***")
+		print("    ADR-023: growing the register is the one forbidden move. If you are doing it")
+		print("    anyway, the reason goes in the file, in the open, forever.")
+		push_error("FOSSIL LAW: --grandfather refused - no reason given.")
+		get_tree().quit(1)
+		return
+
+	var baseline: Array = doc.get("fossils", []) as Array
+	var known: Dictionary = {}
+	for b: Variant in baseline:
+		known[str(b)] = true
+
+	var added: Array[String] = []
+	var merged: Array[String] = []
+	for b: Variant in baseline:
+		merged.append(str(b))
+	for k: String in keys:
+		if not known.has(k):
+			added.append(k)
+			merged.append(k)
+	merged.sort()
+
+	var glog: Array = doc.get("grandfather_log", []) as Array
+	glog.append({
+		"date": Time.get_datetime_string_from_system(true),
+		"reason": reason,
+		"from": baseline.size(),
+		"to": merged.size(),
+		"added": added,
+	})
+
+	doc["_comment"] = BASELINE_COMMENT
+	doc["count"] = merged.size()
+	doc["ceiling"] = merged.size()
+	doc["fossils"] = merged
+	doc["grandfather_log"] = glog
+	_store(doc)
+
+	print("")
+	print("GRANDFATHERED %d entr(ies): %d -> %d" % [added.size(), baseline.size(), merged.size()])
+	print("reason recorded: %s" % reason)
+	for a: String in added:
+		print("    + %s" % a)
+	get_tree().quit(0)
+
+
+func _store(doc: Dictionary) -> void:
+	var fa: FileAccess = FileAccess.open(BASELINE_PATH, FileAccess.WRITE)
+	fa.store_string(JSON.stringify(doc, "\t"))
+	fa.close()
