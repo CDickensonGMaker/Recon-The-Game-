@@ -7,10 +7,7 @@ const EXPECTED := {
 	"res://assets/building models/structures/village/thatched_hut.glb": [2.0, 12.0],
 	"res://assets/building models/structures/village/stilt_house.glb": [2.0, 14.0],
 	"res://assets/building models/structures/village/well.glb": [0.5, 6.0],
-	"res://assets/building models/structures/firebase/hootch.glb": [2.0, 14.0],
-	"res://assets/building models/structures/firebase/observation_tower.glb": [3.0, 14.0],
-	"res://assets/building models/structures/firebase/mg_nest.glb": [1.0, 8.0],
-	"res://assets/building models/structures/firebase/sandbag_bunker.glb": [1.0, 10.0],
+	"res://assets/building models/structures/firebase/fsb_main.glb": [150.0, 200.0],
 	"res://assets/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
 	"res://assets/building models/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
 	"res://assets/building models/vehicles/m113_apc.glb": [2.0, 9.0],
