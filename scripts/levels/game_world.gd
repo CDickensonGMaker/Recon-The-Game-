@@ -26,6 +26,10 @@ var player: CharacterBody3D
 var hud: HUD
 var is_world_ready: bool = false
 
+## Coalesced terrain-edit rect (meters). Craters arrive in bursts; one flush per frame.
+var _dirty_terrain_rect: Rect2 = Rect2()
+var _terrain_flush_queued: bool = false
+
 ## Safety net: re-seat the player if they end up under the terrain surface.
 const RESEAT_DEPTH: float = 5.0
 var _reseat_timer: float = 0.0
@@ -153,6 +157,8 @@ func _on_terrain_ready() -> void:
 	gameplay_grid.set_clearing_system(ClearingSystem)
 	gameplay_grid.set_water_system(water_system)
 	gameplay_grid.build_from_terrain()
+
+	terrain_manager.region_rebuilt.connect(_on_terrain_region_rebuilt)
 
 	# 5. Player, then vegetation cameras (they need the player camera).
 	if spawn_player_on_ready:
@@ -352,6 +358,33 @@ func _setup_terrain_shader_textures() -> void:
 	if clear_tex:
 		params["clearing_texture"] = clear_tex
 	TerrainChunkScript.set_shader_parameters(params)
+
+
+func _on_terrain_region_rebuilt(world_rect: Rect2) -> void:
+	if _dirty_terrain_rect.size == Vector2.ZERO:
+		_dirty_terrain_rect = world_rect
+	else:
+		_dirty_terrain_rect = _dirty_terrain_rect.merge(world_rect)
+	if _terrain_flush_queued:
+		return
+	_terrain_flush_queued = true
+	_flush_terrain_dirty.call_deferred()
+
+
+## Deferred, never synchronous: ClearingSystem emits from _apply_stage_changes, one
+## call BEFORE it writes the clearing mask, so an immediate re-seat would read the
+## old mask. Water re-seats FIRST - the grid's WATER type and wade passability are
+## queries into WaterSystem, so a grid rebuilt before it would bake stale water.
+func _flush_terrain_dirty() -> void:
+	_terrain_flush_queued = false
+	var rect: Rect2 = _dirty_terrain_rect
+	_dirty_terrain_rect = Rect2()
+	if rect.size == Vector2.ZERO:
+		return
+	if water_system != null:
+		water_system.reseat_region(rect)
+	if gameplay_grid != null:
+		gameplay_grid.rebuild_rect(rect)
 
 
 func _on_vegetation_updated(_region: Rect2i) -> void:

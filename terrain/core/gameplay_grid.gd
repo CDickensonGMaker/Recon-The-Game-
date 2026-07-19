@@ -118,35 +118,43 @@ func build_from_terrain() -> void:
 
 	for gz in grid_size:
 		for gx in grid_size:
-			var idx: int = gz * grid_size + gx
+			_seat_cell(gx, gz)
 
-			# Get world position for this cell center
-			var world_x: float = (gx + 0.5) * cell_size_meters
-			var world_z: float = (gz + 0.5) * cell_size_meters
-
-			var h: float = heightmap_storage.sample_world(world_x, world_z)
-			elevation[idx] = h
-
-			var normal: Vector3 = heightmap_storage.get_normal_world(world_x, world_z)
-			var slope_val: float = 1.0 - normal.y  # 0=flat, 1=vertical
-			slope[idx] = clampf(slope_val, 0.0, 1.0)
-
-			var ttype: int = _determine_terrain_type(h, slope_val, world_x, world_z)
-			terrain_type[idx] = ttype
-
-			var impassable: bool = ttype == TerrainType.CLIFF
-			if ttype == TerrainType.WATER:
-				impassable = get_water_depth(Vector3(world_x, 0.0, world_z)) > WADE_DEPTH_M
-			is_passable[idx] = 0 if impassable else 1
-
-			# Biome density, MINUS whatever has been cleared here (see _density_at).
-			vegetation_density[idx] = _density_at(ttype, world_x, world_z)
-
-	_apply_riparian_belt()
-	_roof_the_creeks()
+	var full := Rect2i(0, 0, grid_size, grid_size)
+	var banks: int = _apply_riparian_belt(full)
+	var roofed: int = _roof_the_creeks(full)
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
-	print("[GameplayGrid] Grid built in %dms" % elapsed)
+	print("[GameplayGrid] Grid built in %dms (%d bank cells greened, %d creek cells roofed)" % [
+		elapsed, banks, roofed])
+	grid_updated.emit(full)
+
+
+## The ONE writer of elevation/slope/terrain_type/passability. Terrain is editable at
+## runtime (firebase flatten, craters), so build and every re-seat MUST derive a cell
+## the same way or the AI reads a map of ground that no longer exists.
+func _seat_cell(gx: int, gz: int) -> void:
+	var idx: int = _grid_to_index(gx, gz)
+	var world_x: float = (gx + 0.5) * cell_size_meters
+	var world_z: float = (gz + 0.5) * cell_size_meters
+
+	var h: float = heightmap_storage.sample_world(world_x, world_z)
+	elevation[idx] = h
+
+	var normal: Vector3 = heightmap_storage.get_normal_world(world_x, world_z)
+	var slope_val: float = 1.0 - normal.y  # 0=flat, 1=vertical
+	slope[idx] = clampf(slope_val, 0.0, 1.0)
+
+	var ttype: int = _determine_terrain_type(h, slope_val, world_x, world_z)
+	terrain_type[idx] = ttype
+
+	var impassable: bool = ttype == TerrainType.CLIFF
+	if ttype == TerrainType.WATER:
+		impassable = get_water_depth(Vector3(world_x, 0.0, world_z)) > WADE_DEPTH_M
+	is_passable[idx] = 0 if impassable else 1
+
+	# Biome density, MINUS whatever has been cleared here (see _density_at).
+	vegetation_density[idx] = _density_at(ttype, world_x, world_z)
 
 
 ## Gallery forest: watercourses carry the DENSEST vegetation. Dilates the water mask
@@ -181,19 +189,24 @@ func _density_at(ttype: int, world_x: float, world_z: float) -> float:
 		d = minf(d, clampf(mask, 0.0, 1.0))
 	return d
 
-func _apply_riparian_belt() -> void:
+func _apply_riparian_belt(bounds: Rect2i) -> int:
+	bounds = bounds.intersection(Rect2i(0, 0, grid_size, grid_size))
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return 0
 	var reach: int = maxi(1, int(ceil(RIPARIAN_M / cell_size_meters)))
 	# Multi-source BFS out from every water cell: O(cells), once, at generation.
 	var dist := PackedInt32Array()
 	dist.resize(terrain_type.size())
 	dist.fill(-1)
 	var frontier: Array[int] = []
-	for i in range(terrain_type.size()):
-		if terrain_type[i] == TerrainType.WATER:
-			dist[i] = 0
-			frontier.append(i)
+	for bz in range(bounds.position.y, bounds.end.y):
+		for bx in range(bounds.position.x, bounds.end.x):
+			var i: int = bz * grid_size + bx
+			if terrain_type[i] == TerrainType.WATER:
+				dist[i] = 0
+				frontier.append(i)
 	if frontier.is_empty():
-		return
+		return 0
 
 	var banks: int = 0
 	while not frontier.is_empty():
@@ -207,7 +220,7 @@ func _apply_riparian_belt() -> void:
 			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 				var nx: int = gx + o.x
 				var nz: int = gz + o.y
-				if nx < 0 or nz < 0 or nx >= grid_size or nz >= grid_size:
+				if not bounds.has_point(Vector2i(nx, nz)):
 					continue
 				var n: int = nz * grid_size + nx
 				if dist[n] != -1:
@@ -224,19 +237,21 @@ func _apply_riparian_belt() -> void:
 					terrain_type[n] = TerrainType.HEAVY_JUNGLE if gallery >= 0.85 						else (TerrainType.MEDIUM_JUNGLE if gallery >= 0.65 else TerrainType.LIGHT_JUNGLE)
 					banks += 1
 		frontier = next
-	print("[GameplayGrid] Gallery forest: %d bank cells greened (reach %.0fm)" % [banks, RIPARIAN_M])
+	return banks
 
 
 ## Water cells are re-scored by HOW NARROW they are: sample ROOF_SAMPLE_M around each,
 ## measure the fraction that is land, and inherit that land's canopy. A narrow creek
 ## between two walls of gallery forest is roofed; a wide river is open to the sky.
-func _roof_the_creeks() -> void:
+func _roof_the_creeks(bounds: Rect2i) -> int:
+	bounds = bounds.intersection(Rect2i(0, 0, grid_size, grid_size))
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return 0
 	var r: int = maxi(1, int(round(ROOF_SAMPLE_M / cell_size_meters)))
 	var roofed: int = 0
-	var open_water: int = 0
 	var src: PackedFloat32Array = vegetation_density.duplicate()
-	for gz in range(grid_size):
-		for gx in range(grid_size):
+	for gz in range(bounds.position.y, bounds.end.y):
+		for gx in range(bounds.position.x, bounds.end.x):
 			var i: int = gz * grid_size + gx
 			if terrain_type[i] != TerrainType.WATER:
 				continue
@@ -255,7 +270,6 @@ func _roof_the_creeks() -> void:
 						land += 1
 						land_veg += src[n]
 			if total == 0 or land == 0:
-				open_water += 1
 				continue
 			var land_frac: float = float(land) / float(total)
 			# Narrow -> the canopy closes. Wide -> open sky. Smooth between.
@@ -264,11 +278,7 @@ func _roof_the_creeks() -> void:
 			vegetation_density[i] = maxf(vegetation_density[i], canopy)
 			if canopy >= 0.6:
 				roofed += 1
-			else:
-				open_water += 1
-	print("[GameplayGrid] Creeks roofed: %d water cells under canopy, %d open to the sky" % [
-		roofed, open_water])
-	grid_updated.emit(Rect2i(0, 0, grid_size, grid_size))
+	return roofed
 
 
 func _determine_terrain_type(height: float, slope_val: float, wx: float, wz: float) -> int:
@@ -482,37 +492,37 @@ func has_line_of_sight(from_pos: Vector3, to_pos: Vector3) -> bool:
 # UPDATE METHODS - Called when terrain changes
 # ============================================================================
 
+## Re-seat every cell a terrain edit touched. world_rect is in METERS, and is the
+## rect TerrainManager.region_rebuilt reports.
+func rebuild_rect(world_rect: Rect2) -> void:
+	if not heightmap_storage:
+		return
+
+	var min_x: int = clampi(int(floor(world_rect.position.x / cell_size_meters)), 0, grid_size - 1)
+	var min_z: int = clampi(int(floor(world_rect.position.y / cell_size_meters)), 0, grid_size - 1)
+	var max_x: int = clampi(int(ceil(world_rect.end.x / cell_size_meters)), 0, grid_size - 1)
+	var max_z: int = clampi(int(ceil(world_rect.end.y / cell_size_meters)), 0, grid_size - 1)
+
+	for gz in range(min_z, max_z + 1):
+		for gx in range(min_x, max_x + 1):
+			_seat_cell(gx, gz)
+
+	# Gallery forest and creek roofing are NEIGHBOURHOOD properties: a re-seated cell
+	# drops back to bare biome density and would silently strip concealment the AI
+	# reads. Re-grow both across the rect dilated by their own reach.
+	var pad: int = maxi(1, int(ceil(RIPARIAN_M / cell_size_meters))) \
+		+ maxi(1, int(round(ROOF_SAMPLE_M / cell_size_meters)))
+	var dilated := Rect2i(min_x - pad, min_z - pad,
+		(max_x - min_x) + 1 + pad * 2, (max_z - min_z) + 1 + pad * 2)
+	_apply_riparian_belt(dilated)
+	_roof_the_creeks(dilated)
+
+	grid_updated.emit(Rect2i(min_x, min_z, max_x - min_x + 1, max_z - min_z + 1))
+
+
 func update_region(center: Vector3, radius_meters: float) -> void:
-	var g_center := world_to_grid(center)
-	var g_radius: int = int(ceil(radius_meters / cell_size_meters))
-
-	var min_x: int = maxi(0, g_center.x - g_radius)
-	var max_x: int = mini(grid_size, g_center.x + g_radius + 1)
-	var min_z: int = maxi(0, g_center.y - g_radius)
-	var max_z: int = mini(grid_size, g_center.y + g_radius + 1)
-
-	for gz in range(min_z, max_z):
-		for gx in range(min_x, max_x):
-			var idx: int = _grid_to_index(gx, gz)
-			var world_x: float = (gx + 0.5) * cell_size_meters
-			var world_z: float = (gz + 0.5) * cell_size_meters
-
-			if true:
-				var density: float = _density_at(terrain_type[idx], world_x, world_z)
-				vegetation_density[idx] = density
-
-				if density < 0.1:
-					terrain_type[idx] = TerrainType.CLEAR
-					is_passable[idx] = 1
-				elif density < 0.3:
-					terrain_type[idx] = TerrainType.GRASSLAND
-				elif density < 0.5:
-					terrain_type[idx] = TerrainType.LIGHT_JUNGLE
-				elif density < 0.7:
-					terrain_type[idx] = TerrainType.MEDIUM_JUNGLE
-				# else keep current type
-
-	grid_updated.emit(Rect2i(min_x, min_z, max_x - min_x, max_z - min_z))
+	rebuild_rect(Rect2(center.x - radius_meters, center.z - radius_meters,
+		radius_meters * 2.0, radius_meters * 2.0))
 
 
 func mark_cleared(center: Vector3, radius_meters: float) -> void:

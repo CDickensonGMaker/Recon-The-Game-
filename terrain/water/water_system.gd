@@ -51,6 +51,15 @@ var _chunk_size: float = 256.0
 
 var _water_container: Node3D = null
 
+## The ground the hydrology was solved against, plus the map it produced. Terrain is
+## edited at runtime; without these the water map cannot tell whether the floor under
+## it has moved. Normalised heights, heightmap resolution.
+var _gen_terrain: PackedFloat32Array = PackedFloat32Array()
+var _gen_water_map: PackedByteArray = PackedByteArray()
+
+## Ground must rise this far through standing water before the cell stops being water.
+const RETIRE_RISE_M: float = 1.0
+
 
 func _ready() -> void:
 	_water_container = Node3D.new()
@@ -106,6 +115,9 @@ func generate_water_bodies() -> void:
 
 	# Build the O(1) lookup grid straight from the hydrology cell types.
 	_build_water_map_from_hydrology(hydro)
+
+	_gen_terrain = _heightmap.data.duplicate()
+	_gen_water_map = water_map.duplicate()
 
 	var elapsed := Time.get_ticks_msec() - start_time
 	print("[WaterSystem] Generated %d water bodies in %dms (downsample %d)" % [
@@ -406,8 +418,47 @@ func _build_water_map_from_hydrology(hydro: RefCounted) -> void:
 	print("[WaterSystem] Water map: %d/%d cells (%.1f%%)" % [water_cells, total_cells, percent])
 
 
+## Re-seat the O(1) water lookup against the CURRENT ground. Terrain is editable at
+## runtime (firebase flatten, craters) and that moves the floor under standing water:
+## where the ground has risen through the surface the cell is no longer water, and
+## everywhere else the depth changed. Recomputed from the retained hydrology, so it is
+## idempotent and ground dropping again restores the water.
+##
+## Deliberately does NOT re-run hydrology (a whole-map flood + mesh rebuild, far too
+## expensive per crater) - so this never creates NEW water. A crater does not fill.
+func reseat_region(world_rect: Rect2) -> void:
+	if _heightmap == null or _gen_terrain.is_empty():
+		return
+
+	# Compared against the ground the hydrology was SOLVED on, not against
+	# water_surface_full: channel cells never get a surface written
+	# (hydrology_map._trace_river sets the type only), so a surface comparison
+	# reads 0 for every creek and would retire the entire watercourse.
+	var rise_norm: float = RETIRE_RISE_M / _heightmap.height_scale
+
+	var min_x: int = clampi(int(floor(world_rect.position.x / water_map_cell_size)), 0, water_map_size - 1)
+	var min_z: int = clampi(int(floor(world_rect.position.y / water_map_cell_size)), 0, water_map_size - 1)
+	var max_x: int = clampi(int(ceil(world_rect.end.x / water_map_cell_size)), 0, water_map_size - 1)
+	var max_z: int = clampi(int(ceil(world_rect.end.y / water_map_cell_size)), 0, water_map_size - 1)
+
+	for cz in range(min_z, max_z + 1):
+		for cx in range(min_x, max_x + 1):
+			var i: int = cz * water_map_size + cx
+			if _gen_water_map[i] == 0:
+				continue
+			# Re-derived from the generation snapshot every time, so lowering the
+			# ground again restores the water this retired.
+			if _heightmap.get_cell(cx, cz) - _gen_terrain[i] > rise_norm:
+				water_map[i] = 0
+			else:
+				water_map[i] = _gen_water_map[i]
+
+
 func clear() -> void:
 	for child in _water_container.get_children():
+		# Detach before freeing: queue_free lands at end of frame, and a regenerate
+		# adds the new mesh this frame - leaving two water surfaces overlapping.
+		_water_container.remove_child(child)
 		child.queue_free()
 
 	water_bodies.clear()
