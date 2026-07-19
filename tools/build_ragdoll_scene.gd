@@ -67,7 +67,10 @@ func _init() -> void:
 		pmat.friction = 1.2
 		pmat.bounce = 0.0
 		pb.set("physics_material_override", pmat)
-		pb.collision_layer = 1
+		# Bones fall against the world (mask 1) but PRESENT nothing: layer 1 made
+		# every settled corpse a phantom sight/bullet blocker (frozen Hips collider
+		# ~1m up blocked the _can_witness endpoint - ADR-005 hole, bead 7jzs).
+		pb.collision_layer = 0
 		pb.collision_mask = 1
 		match str(spec[1]):
 			"cone":

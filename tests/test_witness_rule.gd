@@ -30,10 +30,9 @@ func _run() -> void:
 	var victim: EnemyBase = EnemyBase.spawn_enemy(self, Vector3(0, 1, 0), ENEMY_DATA)
 	await get_tree().create_timer(1.0).timeout
 
-	# (a) SILENT KILL: no living enemy can see it happen.
-	# Death-clip corpse (pre-popped limb): a settled ragdoll freezes a layer-1 Hips
-	# collider at body+1.0m - the exact witness-ray endpoint - which blocks (c).
-	victim._removed.append("ARM_L")
+	# (a) SILENT KILL via the RAGDOLL path - the settled ragdoll must present no
+	# collider to the witness ray (bones layer 0, bead 7jzs); this case is the
+	# proof of that fix.
 	victim.take_damage(10, Enums.DamageType.PHYSICAL, null, "HEAD")
 	var corpse_pos: Vector3 = victim.global_position
 	var kill_ms: float = float(Time.get_ticks_msec())
