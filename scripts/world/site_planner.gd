@@ -445,31 +445,34 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 
 
 ## ---------- THE MAIN FIREBASE (Caleb-authored fsb_main.glb, task 6b) ----------
-## Measured contract (2026-07-18 re-export, realized from Caleb's selected
-## ASSEMBLY_fsb_battery ring): model AABB x -178..178, z -172.2..172.2, RECENTERED
-## at export (ground-plane center = origin, y=0 = ground); 658 -col trimesh
-## bodies (434 wire cards + structures). SOCKET_A/B_001 = the wire-gate
-## sides, FACE_OUT_001 disambiguates the outward normal, GUN_POINT_001 = MG post,
-## FOOTPRINT_* = ground-contact ring, APPROACH_* = approach lanes. Placed
-## UNROTATED v1 (map-tile scale; rotation risks edge overhang). The wire-gate
+## Measured contract (2026-07-18 CORE-SELECTION export via tools/export_fsb_main.py,
+## the Summoner's 460-marker core: full 434-card wire ring + gate + pads; depot
+## rows and far planning markers excluded): model AABB x -82..82, z -77..78,
+## RECENTERED at export (ground-plane center = origin, y=0 = ground, dug-in pits
+## to -0.54); 652 -col trimesh bodies. SOCKET_A/B_001 = the wire-gate sides,
+## FACE_OUT_001 disambiguates the outward normal, FOOTPRINT_* = ground-contact
+## ring. Placed UNROTATED v1 (rotation risks edge overhang). The wire-gate
 ## trigger and all patrol density bands measure from GATE_POS, not the AABB
-## center - walking distance is the pacing contract.
+## center - walking distance is the pacing contract. tools/diag_fsb_seat asserts
+## these consts against the loaded GLB - remeasure here on every re-export.
 
 const FSB_MAIN_PATH: String = "res://assets/building models/structures/firebase/fsb_main.glb"
 const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # recentered at export, measured
-const FSB_HALF := Vector2(178.0, 172.2)             # model space, measured
+const FSB_HALF := Vector2(82.2, 77.3)               # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
 const FSB_EDGE_MARGIN: float = 60.0
-const FSB_FLATTEN_RADIUS: float = 320.0
-## modify_region's falloff at d=255m of R=320 — everything inside the model + the
-## spawn ring gets the FULL seat; only the 255→320m shoulder blends into relief.
+const FSB_FLATTEN_RADIUS: float = 215.0
+## modify_region falloff = 1 - smoothstep(0, R, d); full seat where falloff >=
+## FSB_PLATEAU_FALLOFF, i.e. d <= 0.796*R (~171m) - covers the crater-free
+## guarantee rect.grow(40) whose corners reach 169m. Only the outer shoulder
+## blends into relief.
 const FSB_PLATEAU_FALLOFF: float = 0.107
 ## Vegetation-clear discs covering the footprint (model-space offsets from AABB
 ## center + radius). The base is authored cleared ground; trees through bunkers lie.
 const FSB_CLEAR_DISCS: Array = [
-	[Vector3.ZERO, 120.0],
-	[Vector3(92.0, 0.0, 86.0), 125.0], [Vector3(-92.0, 0.0, 86.0), 125.0],
-	[Vector3(92.0, 0.0, -86.0), 125.0], [Vector3(-92.0, 0.0, -86.0), 125.0],
+	[Vector3.ZERO, 60.0],
+	[Vector3(41.0, 0.0, 39.0), 58.0], [Vector3(-41.0, 0.0, 39.0), 58.0],
+	[Vector3(41.0, 0.0, -39.0), 58.0], [Vector3(-41.0, 0.0, -39.0), 58.0],
 ]
 
 
@@ -537,9 +540,10 @@ func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
 func place_firebase_main(center: Vector3) -> Dictionary:
 	var seat_y: float = 0.0
 	var n: int = 0
+	var step: float = FSB_HALF.x / 3.0   # 7x7 samples across the actual footprint
 	for dx in range(-3, 4):
 		for dz in range(-3, 4):
-			seat_y += _terrain.get_height_at(center + Vector3(float(dx) * 55.0, 0.0, float(dz) * 55.0))
+			seat_y += _terrain.get_height_at(center + Vector3(float(dx) * step, 0.0, float(dz) * step))
 			n += 1
 	seat_y /= float(n)
 	var seat_norm: float = seat_y / _terrain.heightmap.height_scale

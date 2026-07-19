@@ -97,13 +97,15 @@ static func _set_fsb_keepout(fsb_center: Vector3) -> void:
 
 
 ## Widest terrain damage a first-sign crater can do: LARGE profile radius at the
-## max intensity roll, plus margin. Derived, never a bare number - the profile
-## retune bead must not silently under-cover this.
+## max intensity roll, plus the spawn-ring margin. Derived, never a bare number -
+## the profile retune bead must not silently under-cover this. The +40 protects
+## the ground the player and bench stand on: spawn is 22m outside the wire and
+## the small core rect no longer puts distance between the wire and the band.
 const FIRST_SIGN_INTENSITY_MAX: float = 1.3
 
 static func _crater_keepout_grow() -> float:
 	var cells: int = int(DamageSystem.DAMAGE_PROFILES[DamageSystem.DamageType.LARGE_EXPLOSION].radius_cells * FIRST_SIGN_INTENSITY_MAX)
-	return float(cells) * WorldConfig.CELL_SIZE + 10.0
+	return float(cells) * WorldConfig.CELL_SIZE + 40.0
 
 
 ## Returns Vector3.ZERO (unreachable as a valid result - x/z clamp to >=80) when

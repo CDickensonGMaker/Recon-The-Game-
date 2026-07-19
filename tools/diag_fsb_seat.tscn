@@ -1,4 +1,4 @@
-﻿[gd_scene load_steps=2 format=3 uid="uid://cdiagfsbseat2"]
+[gd_scene load_steps=2 format=3 uid="uid://cdiagfsbseat2"]
 
 [ext_resource type="Script" path="res://tools/diag_fsb_seat.gd" id="1_dfsbs"]
 

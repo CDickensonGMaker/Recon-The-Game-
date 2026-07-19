@@ -1,16 +1,13 @@
 extends Node
-## FSB seat truth (council decree 2026-07-18). Two verdicts:
-##   CRATER-CLEAR - no first-sign inside the keep-out, plateau holds. Must PASS.
-##   MODEL-SEAT   - signature-locked ratchet on the export's mis-seated clusters
-##                  (marker-Y realization fault). Passes as KNOWN-BAD while the
-##                  defect matches the recorded signature; FAILS on drift; an
-##                  unexpected CLEAN demands promotion to the hard assert below.
+## FSB seat truth (council decree 2026-07-18). Two verdicts, both must PASS:
+##   CRATER-CLEAR - no first-sign inside the keep-out, plateau holds.
+##   MODEL-SEAT   - HARD CLEAN assert (promoted 2026-07-18 after the corrected
+##                  selection export landed): no unsupported floating clusters,
+##                  wire ring base on the ground. The signature-locked KNOWN-BAD
+##                  ratchet era is over; any regression goes red.
 ## Plus: FSB contract consts vs the loaded GLB, and a near-spawn floating-mesh
 ## census (which cause owns any future screenshot).
 
-const KNOWN_BAD_BASES: Array[float] = [4.797, 2.694, 2.144]  # suspended clusters
-const KNOWN_BAD_WIRE_BASE: float = 0.332                     # systematic ring lift
-const BASE_TOL: float = 0.15
 const CLEAN_MAX_UNSUPPORTED: int = 5
 
 func _ready() -> void:
@@ -67,10 +64,14 @@ func _ready() -> void:
 	var o: Vector3 = fsb.global_position
 	var hmin: float = 1.0e9
 	var hmax: float = -1.0e9
+	# Guaranteed-flat region = crater keep-out minus crater radius = rect.grow(40)
+	# (also inside the flatten's full-seat circle). Sample just inside it.
+	var span_x: float = SitePlanner.FSB_HALF.x + 35.0
+	var span_z: float = SitePlanner.FSB_HALF.y + 35.0
 	for dx in range(-8, 9):
 		for dz in range(-8, 9):
-			var pp := o + Vector3(float(dx) * 20.0, 0, float(dz) * 20.0)
-			if absf(pp.x - o.x) > 165.0 or absf(pp.z - o.z) > 165.0:
+			var pp := o + Vector3(float(dx) * 15.0, 0, float(dz) * 15.0)
+			if absf(pp.x - o.x) > span_x or absf(pp.z - o.z) > span_z:
 				continue
 			var h: float = tm.get_height_at(pp)
 			hmin = minf(hmin, h)
@@ -94,12 +95,6 @@ func _ready() -> void:
 			continue
 		if not _supported(m, mboxes):
 			unsupported.append([b.position.y, m[0]])
-	var found_bases: Array[float] = []
-	for kb in KNOWN_BAD_BASES:
-		for u in unsupported:
-			if absf((u[0] as float) - kb) <= BASE_TOL:
-				found_bases.append(kb)
-				break
 	var wire_base: float = 1.0e9
 	for m2 in mboxes:
 		if str(m2[0]).begins_with("bwire_card"):
@@ -108,18 +103,12 @@ func _ready() -> void:
 	var seat_verdict: String
 	if unsupported.size() <= CLEAN_MAX_UNSUPPORTED and wire_base < 0.05:
 		seat_verdict = "CLEAN"
-		print("[SEAT] MODEL-SEAT CLEAN (unsupported=%d, wire base %.3f) - PROMOTE: make CLEAN the hard assert in this commit" % [
+		print("[SEAT] MODEL-SEAT CLEAN (unsupported=%d, wire base %.3f)" % [
 			unsupported.size(), wire_base])
-	elif found_bases.size() == KNOWN_BAD_BASES.size() \
-			and absf(wire_base - KNOWN_BAD_WIRE_BASE) <= BASE_TOL \
-			and unsupported.size() >= 90 and unsupported.size() <= 150:
-		seat_verdict = "KNOWN-BAD"
-		print("[SEAT] MODEL-SEAT KNOWN-BAD signature match (bases %s, unsupported=%d, wire base %.3f) - export fix pending, see war_room 2026-07-18" % [
-			str(KNOWN_BAD_BASES), unsupported.size(), wire_base])
 	else:
-		seat_verdict = "DRIFT"
-		print("[SEAT] MODEL-SEAT FAIL: neither clean nor the recorded defect (bases found %s, unsupported=%d, wire base %.3f)" % [
-			str(found_bases), unsupported.size(), wire_base])
+		seat_verdict = "FAIL"
+		print("[SEAT] MODEL-SEAT FAIL (hard-clean assert): unsupported=%d (max %d), wire base %.3f (max 0.05)" % [
+			unsupported.size(), CLEAN_MAX_UNSUPPORTED, wire_base])
 		for u2: Array in unsupported.slice(0, 12):
 			print("[SEAT]   unsupported bottom=%.2f %s" % [u2[0], str(u2[1])])
 		fail = true
