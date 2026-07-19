@@ -453,8 +453,6 @@ func _ready() -> void:
 	GameManager.register_player(self)
 	CombatManager.register_player(self)
 
-	_setup_hitzones()
-
 	health_system.setup(self, equipment_manager)
 	health_system.downed_ended.connect(_on_downed_ended)
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
@@ -874,54 +872,6 @@ func get_health_system() -> HealthSystem:
 ## during the medic window and shifts to living threats.
 func is_dead() -> bool:
 	return health_system != null and (health_system.is_dead() or health_system.is_downed)
-
-
-## Body-part hitzones. Multipliers live on Hitzone (ADR-016), never here.
-func _setup_hitzones() -> void:
-	# Head
-	_create_hitzone(Hitzone.ZoneType.HEAD, Vector3(0, 1.65, 0), 0.15)
-	# Chest
-	_create_hitzone(Hitzone.ZoneType.TORSO, Vector3(0, 1.3, 0), 0.3, 0.35)
-	# Gut
-	_create_hitzone(Hitzone.ZoneType.GUT, Vector3(0, 0.9, 0), 0.28, 0.3)
-	# Left arm
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.35, 1.0, 0), 0.12, 0.5)
-	# Right arm
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.35, 1.0, 0), 0.12, 0.5)
-	# Left leg
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(-0.12, 0.4, 0), 0.12, 0.8)
-	# Right leg
-	_create_hitzone(Hitzone.ZoneType.LIMB, Vector3(0.12, 0.4, 0), 0.12, 0.8)
-
-
-## Create a hitzone for a body part
-func _create_hitzone(zone_type: Hitzone.ZoneType, pos: Vector3, radius: float, height: float = -1.0) -> void:
-	var hitzone := Hitzone.new()
-	hitzone.zone_type = zone_type
-	hitzone.set_owner_entity(self)
-
-	var col := CollisionShape3D.new()
-	if height > 0:
-		var shape := CapsuleShape3D.new()
-		shape.radius = radius
-		shape.height = height
-		col.shape = shape
-	else:
-		var shape := SphereShape3D.new()
-		shape.radius = radius
-		col.shape = shape
-
-	col.position = pos
-	hitzone.add_child(col)
-
-	hitzone.collision_layer = 32  # Layer 6: player_hurtbox
-	hitzone.collision_mask = 16   # Layer 5: enemy_hitbox
-
-	hitzone.add_to_group("player_hurtbox")
-	hitzone.add_to_group("hitzone")
-
-	add_child(hitzone)
-	hitzones.append(hitzone)
 
 
 func _setup_suppression() -> void:

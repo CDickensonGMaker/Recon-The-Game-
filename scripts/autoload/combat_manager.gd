@@ -187,6 +187,18 @@ func apply_explosion_damage(
 					knockback_dir = Vector3.UP
 				_apply_knockback(ally, knockback_dir, knockback_scale * 2.0, damage)
 
+	# Noncombatants take blast like anyone else - snapshot for the same reason.
+	for civ in AgentRegistry.civilians.duplicate():
+		if not is_instance_valid(civ) or not civ is Node3D:
+			continue
+		var civ_pos: Vector3 = (civ as Node3D).global_position
+		var civ_dist: float = center.distance_to(civ_pos)
+		if civ_dist <= radius:
+			if _can_damage_multipoint(space_state, center, civ_pos, civ):
+				var damage: int = _explosion_damage_at(civ_dist, radius, max_damage, min_damage)
+				if civ.has_method("take_damage"):
+					civ.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker, "BODY")
+
 	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
 	for enemy in AgentRegistry.enemies.duplicate():
 		if not is_instance_valid(enemy) or not enemy is Node3D:

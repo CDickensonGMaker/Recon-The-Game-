@@ -1,6 +1,10 @@
-## civilian.gd - Village noncombatant (W47): wanders, flees gunfire, cowers.
-## An informer who escapes after seeing you raises the alarm. Killing civilians
-## costs you at debrief and with the war.
+## civilian.gd - Village noncombatant: wanders, flees gunfire, cowers.
+## An informer who escapes after seeing you raises the alarm.
+##
+## Civilians are killable and there is NO consequence system behind it today -
+## no debrief cost, no war reaction. `_record_noncombatant_death()` is the single
+## hook a future ROE/war-crime ledger attaches to; it is called on every
+## noncombatant death and is intentionally empty.
 class_name Civilian
 extends CharacterBody3D
 
@@ -11,6 +15,11 @@ const BTConditionS := preload("res://scripts/ai/bt/bt_conditions.gd")
 const CivilianSchedulesS := preload("res://scripts/ai/civilian_schedules.gd")
 
 enum CivState { WANDER, FLEE, COWER, GONE }
+
+## Layer 10. Its own layer, in the PLAYER's fire masks only - AI strays pass
+## through villagers. Widening it to the AI masks changes who gets shot and is a
+## Summoner call, not a silent one.
+const CIVILIAN_HURTBOX_LAYER: int = 512
 
 var state: CivState = CivState.WANDER
 var home: Vector3
@@ -23,6 +32,13 @@ var _saw_player_at: Vector3 = Vector3.ZERO
 var _inform_clock: float = -1.0
 var actor: ModelActor = null
 var _last_clip: String = ""
+## Per-villager unarmed idle, picked deterministically at spawn so a village is a
+## crowd of individuals and not four copies of one pose (ADR-010: same seed, same ville).
+var _idle_variant: String = "idle_unarmed_2"
+
+const IDLE_VARIANTS: Array[String] = [
+	"idle_unarmed_2", "idle_unarmed_3", "idle_unarmed_4", "idle_unarmed_5",
+]
 
 # L1 behavior-tree fields. active_action is the BT's current pick; state
 # remains the reactive override (FLEE/COWER/GONE) which wins regardless.
@@ -76,7 +92,9 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	civ.add_child(col)
 	# A PERSON, not a pill. Deterministic per position so the same village rebuilds
 	# with the same faces (ADR-010/017 - the province must come back identical).
-	var pick: int = absi(hash(Vector2i(int(pos.x), int(pos.z)))) % VILLAGERS.size()
+	var seed_h: int = absi(hash(Vector2i(int(pos.x), int(pos.z))))
+	var pick: int = seed_h % VILLAGERS.size()
+	civ._idle_variant = IDLE_VARIANTS[(seed_h / 7) % IDLE_VARIANTS.size()]
 	var actor := ModelActor.new()
 	civ.add_child(actor)
 	if actor.setup(VILLAGERS[pick]):
@@ -99,6 +117,12 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 		civ.add_child(mesh)
 	civ.collision_layer = 2
 	civ.collision_mask = 1
+	# Rounds touch flesh ONLY through hitzone areas - the body capsule is out of
+	# every fire mask, so a capsule can never shadow the zones inside it.
+	# Static bands, not skeleton hulls: a populated AO carries 16-40 civilians and
+	# 11 bone-synced convex hulls each is ~6.4ms/frame of hitzone sync.
+	HitzoneBuilder._build_static(civ, CIVILIAN_HURTBOX_LAYER, 0,
+		["civilian_hurtbox", "hitzone"], true)
 	parent.add_child(civ)
 	civ.global_position = pos
 	civ.home = pos
@@ -126,9 +150,8 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_lod(delta)
 	if lod_tier == LOD_FAR:
-		# FAR LOD: skip physics this frame. State is still advanced by the
-		# SimClock.hour_advanced listener below so when the player approaches
-		# the civilian is in the right action.
+		# Skip the body, never the tick: _update_lod is the only thing that can
+		# tier this civilian back IN, and it runs from here.
 		return
 	_timer += delta
 	velocity.y -= 9.8 * delta
@@ -188,35 +211,38 @@ func _animate() -> void:
 	elif state == CivState.GONE:
 		return
 	else:
-		# WANDER — driven by the BT. active_action carries the per-action
-		# animation. Walking is "walking_unarmed" only if actually moving.
 		match active_action:
 			&"walk_home", &"walk_paddy", &"walk_fire", &"walk_market", &"walk_group":
 				want = "walking_unarmed" if moving else "idle"
-			&"work", &"rest", &"cook", &"fish", &"sleep", &"sit", &"talk":
-				want = "idle"
+			&"sit", &"talk", &"rest", &"sleep":
+				want = "walking_unarmed" if moving else "seated"
+			&"work", &"cook", &"fish":
+				want = "walking_unarmed" if moving else "stooped"
 			_:
 				want = "walking_unarmed" if moving else "idle"
 	if want == _last_clip:
 		return
 	_last_clip = want
+	# CIVILIAN CHAINS CARRY NO ARMED CLIP. `idle` and `idle_crouching` are the
+	# RIFLEMAN idle and the rifleman weapon crouch - with either at the head of a
+	# chain, play_first() returns on it and the whole village stands and squats
+	# like a firing line. A missing clip must degrade to a T-pose, which is loud,
+	# rather than to a weapon pose, which is quiet and wrong.
 	match want:
 		"running_unarmed":
-			actor.play_first(["running_unarmed", "sprint_forward", "run_forward", "walk_forward", "idle"])
+			actor.play_first(["running_unarmed", "walking_unarmed"])
 		"hands_up":
-			actor.play_first(["idle_unarmed_2", "idle", "sitting"])
+			actor.play_first(["idle_unarmed_2", "idle_unarmed"])
 		"crouching":
-			actor.play_first(["idle_crouching", "idle_crouching__smg", "idle_unarmed_2", "idle"])
-		"kneeling":
-			actor.play_first(["kneeling_pointing", "idle_crouching", "idle"])
-		"sitting":
-			actor.play_first(["sitting", "idle_unarmed_2", "idle"])
+			actor.play_first(["sitting", "idle_unarmed_4", "idle_unarmed"])
+		"seated":
+			actor.play_first(["sitting", "idle_unarmed_5", "idle_unarmed"])
+		"stooped":
+			actor.play_first([_idle_variant, "idle_unarmed_3", "idle_unarmed"])
 		"walking_unarmed":
-			actor.play_first(["walking_unarmed", "start_walking", "walk_forward", "walk_crouching_forward", "idle"])
-		"idle":
-			actor.play_first(["idle", "idle_unarmed_2", "idle_unarmed_3", "idle_unarmed_4"])
+			actor.play_first(["walking_unarmed", "running_unarmed"])
 		_:
-			actor.play_first(["idle", "idle_relaxed"])
+			actor.play_first([_idle_variant, "idle_unarmed"])
 
 
 func _step_toward(target: Vector3, speed: float, delta: float) -> void:
@@ -231,18 +257,56 @@ func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
 
 
-func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL, _a: Node = null) -> int:
+## Arity is a CONTRACT: every caller (bullet_system.gd, weapon_holder.gd) passes
+## four arguments, and has_method() checks the name, not the signature - a 3-arg
+## version binds fine and errors on the first hit.
+func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL,
+		attacker: Node = null, zone: String = "BODY") -> int:
+	if state == CivState.GONE:
+		return 0
 	_hp -= amount
-	if _hp <= 0 and state != CivState.GONE:
-		state = CivState.GONE
-		AgentRegistry.unregister(self)
-		set_physics_process(false)
-		rotation_degrees.x = 90
-		if director:
-			director.state.flags["civ_casualties"] = int(director.state.flags.get("civ_casualties", 0)) + 1
-			director.toast.emit("CIVILIAN DOWN. THAT FOLLOWS YOU HOME.")
-		get_tree().create_timer(30.0).timeout.connect(queue_free)
+	if _hp > 0:
+		state = CivState.FLEE if randf() < 0.5 else CivState.COWER
+		return amount
+	_die(attacker, zone, amount)
 	return amount
+
+
+func _die(attacker: Node, zone: String, amount: int) -> void:
+	state = CivState.GONE
+	AgentRegistry.unregister(self)
+	set_physics_process(false)
+	# Zones ride the body. The body is about to be laid flat, which would swing a
+	# fatal HEAD zone out to chest height a metre and a half away, invisible, and
+	# leave it eating rounds for the whole corpse linger.
+	_teardown_hitzones()
+	if actor != null and is_instance_valid(actor):
+		var dir: Vector3 = Vector3.FORWARD
+		if attacker is Node3D:
+			dir = (global_position - (attacker as Node3D).global_position).normalized()
+		var popped: bool = false
+		if zone == "HEAD" and amount >= GibSystem.HEAD_POP_KILL:
+			popped = GibSystem.dismember_head_burst(actor, dir, get_tree().current_scene)
+			if not popped:
+				popped = GibSystem.dismember(actor, "HEAD", dir, get_tree().current_scene)
+		if not popped:
+			actor.play_first(["death_from_the_front", "death_forward", "laying_breathless"])
+	rotation_degrees.x = 90
+	_record_noncombatant_death(attacker)
+	get_tree().create_timer(30.0).timeout.connect(queue_free)
+
+
+## INTENTIONALLY EMPTY, and intentionally CALLED. The attach point for a future
+## ROE / war-crime ledger. Nothing scores noncombatant deaths today - do not add
+## scoring here without a decree; that system is explicitly out of scope.
+func _record_noncombatant_death(_killer: Node) -> void:
+	pass
+
+
+func _teardown_hitzones() -> void:
+	for c in get_children():
+		if c is Hitzone:
+			(c as Hitzone).queue_free()
 
 
 ## Informer alarm fired. Swap the model to a VC variant, drop the civilian out
@@ -354,11 +418,7 @@ func _update_lod(delta: float) -> void:
 	else:  # LOD_FAR
 		if d < LOD_FAR_RADIUS - LOD_HYSTERESIS:
 			new_tier = LOD_NEAR
-	if new_tier != lod_tier:
-		lod_tier = new_tier
-		# FAR: stop physics. FULL/NEAR: run physics (NEAR still runs but at
-		# the BT-driven tick rate).
-		set_physics_process(new_tier != LOD_FAR)
+	lod_tier = new_tier
 
 
 func _resolve_target(action: StringName) -> Vector3:

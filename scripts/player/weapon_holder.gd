@@ -416,8 +416,9 @@ func _fire_shot() -> void:
 		# MASK LAW: world + hurtbox AREAS only. BODY capsules (ally layer 2, enemy
 		# layer 3) must stay OUT - a capsule in the mask shadows the hitzones inside
 		# it and every hit resolves flat 1.0x center-mass. Ally hurtboxes (32) are
-		# IN: friendly fire is real.
-		1 | 32 | 64  # World, ally hurtboxes, enemy hurtboxes
+		# IN: friendly fire is real. Civilians (512) are IN on the PLAYER's masks
+		# only - the AI masks stay 1|32|64, so AI strays pass through villagers.
+		1 | 32 | 64 | 512
 	)
 	# Godot: rays are bodies-only by default and hitzones are Area3D.
 	query.collide_with_areas = true
@@ -476,7 +477,7 @@ func _fire_shot() -> void:
 		var show_tracer: bool = current_weapon.tracer_ratio > 0 \
 			and (session_shots % current_weapon.tracer_ratio) == 0
 		CombatManager.bullets.fire(current_weapon, controller, muzzle_pos, zeroed_dir,
-			1 | 32 | 64, _self_exclusions(), show_tracer)
+			1 | 32 | 64 | 512, _self_exclusions(), show_tracer)
 
 	var recoil_mult: float = lerpf(1.0, 0.5, ads_transition)  # Less recoil when ADS
 	if _sustained_shots <= 1:
@@ -547,7 +548,7 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 		var r: Dictionary = {}
 		while true:
 			var query := PhysicsRayQueryParameters3D.create(
-				start, origin + dir * current_weapon.max_range, 1 | 64)
+				start, origin + dir * current_weapon.max_range, 1 | 64 | 512)
 			query.collide_with_areas = true
 			query.exclude = _self_exclusions()
 			r = space_state.intersect_ray(query)

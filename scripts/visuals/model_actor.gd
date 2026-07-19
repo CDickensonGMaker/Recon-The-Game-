@@ -103,8 +103,48 @@ func setup(unit_id: String) -> bool:
 	_apply_gib_rig_contract()
 	_apply_optional_gear()
 	_hide_export_duplicates()
+	_apply_untextured_gear_tints()
 	_apply_psx_filtering()
 	return true
+
+
+## Canvas gear that ships with NO albedo texture renders at its raw albedo, and
+## these materials were authored white - a white bandolier on an olive-drab man.
+## Every other canvas strap on the rig samples a *_canvas_od texture and is right.
+##
+## Materials are SHARED across every instance of a unit, so tinting in place
+## would repaint every grunt on the map; the corrected material is cached per
+## material name and applied as a surface override.
+##
+## This is a code patch over an art defect authored in gear_armory.blend. When the
+## .blend is corrected the materials arrive textured, `_needs_tint` stops matching,
+## and this whole path becomes dead code to delete.
+const _GEAR_TINTS: Dictionary = {
+	"bandolier_tex": Color(0.196, 0.212, 0.145),
+}
+
+static var _tint_cache: Dictionary = {}
+
+
+func _apply_untextured_gear_tints() -> void:
+	if _inst == null:
+		return
+	for mi in _all_mesh_instances(_inst):
+		var mesh: Mesh = mi.mesh
+		if mesh == null:
+			continue
+		for s in range(mesh.get_surface_count()):
+			var bm := mesh.surface_get_material(s) as BaseMaterial3D
+			if bm == null or not _GEAR_TINTS.has(bm.resource_name):
+				continue
+			if bm.get_texture(BaseMaterial3D.TEXTURE_ALBEDO) != null:
+				continue
+			var key: String = bm.resource_name
+			if not _tint_cache.has(key):
+				var fixed := bm.duplicate() as BaseMaterial3D
+				fixed.albedo_color = _GEAR_TINTS[key]
+				_tint_cache[key] = fixed
+			mi.set_surface_override_material(s, _tint_cache[key])
 
 
 ## Height normalization (ADR-002): the RENDERED man must stand exactly
