@@ -11,10 +11,13 @@ Run: blender -b sprite_stage.blend -P add_variants.py
 import bpy, numpy as np
 from mathutils import Vector
 
-CHAR = r"C:\Users\caleb\RECONgame\art_source\characters"
-GUER = CHAR + r"\vc and nva units\unit_vc_guerilla.blend"
-WUS  = CHAR + r"\us units\weapons_us.blend"
-WV1  = CHAR + r"\us units\weapons_v1.blend"
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from recon_paths import VC_GUERILLA_V2, WEAPONS_US, WEAPONS_V1
+
+GUER = VC_GUERILLA_V2       # was art_source/.../unit_vc_guerilla.blend
+WUS  = WEAPONS_US
+WV1  = WEAPONS_V1
 SC = bpy.context.scene
 
 def link(ob):

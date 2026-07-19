@@ -36,10 +36,14 @@ Head bone rigidly, so a bigger skull still animates correctly. LIMB-LENGTH chang
 would need the bones moved too, and are deliberately not done here. POSTURE (the
 elder's stoop) belongs in an animation clip, not in the rest skeleton.
 """
-import bpy, bmesh, os, math
+import bpy, bmesh, os, math, sys
 from mathutils import Vector, Matrix
 
-BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import (US_BASE_V3, CIV_DIR as _CIV_DIR, US_CHARACTERS_DIR,
+                         GEAR_ARMORY)
+
+BASE = US_BASE_V3
 
 # WORKSPACES (Caleb, 2026-07-12): one folder per family, so a change to the
 # farmers can never reach into the fireteam.
@@ -47,8 +51,8 @@ BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 #   us_troops/  the v3 base and every US variant (grunt, RTO, pilots, gun variants)
 #   enemies/    VC and NVA
 #   locker/     ALL equipment - bone-attachable, hitbox-free (gear_library.blend)
-CIV_DIR = r"C:\Users\caleb\RECONgame\assets\civilians\characters"
-US_DIR = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops"
+CIV_DIR = _CIV_DIR
+US_DIR = US_CHARACTERS_DIR      # was art_source/characters/us_troops (gutted)
 RIG = "PSXRig"
 BODY = "us_grunt_joined"
 
@@ -434,7 +438,10 @@ def repoint_slot(slot_name, new_mat):
     return n
 
 
-LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
+# was art_source/.../locker/gear_library.blend — gone. The armory is the racked
+# successor of the locker (make_gear_armory built it from that file). Read-only
+# append here, so this is safe; prop NAMES inside are UNVERIFIED (Blender not run).
+LOCKER = GEAR_ARMORY
 
 
 def give_prop(rig, name):

@@ -1,9 +1,13 @@
 """Link each unit file's collection into its scene so the files open normally.
 Run: blender -b -P fix_unit_files.py
 """
-import bpy, glob
+import bpy, glob, os, sys
 
-for path in sorted(glob.glob(r"C:\Users\caleb\RECONgame\art_source\characters\units\unit_*.blend")):
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import US_CHARACTERS_DIR
+
+_UNITS = os.path.join(US_CHARACTERS_DIR, "_archive", "unit_*.blend")
+for path in sorted(glob.glob(_UNITS)):
     bpy.ops.wm.open_mainfile(filepath=path)
     sc = bpy.context.scene
     linked = 0

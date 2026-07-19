@@ -10,7 +10,9 @@ Run:  blender -b --factory-startup -P build_weapons_vc.py
 import bpy, sys, math
 from mathutils import Vector
 
-sys.path.insert(0, r'C:\Users\caleb\RECONgame\tools')
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import WEAPONS_VC_OUT
 from weapon_builder import build_weapon, build_part, MM
 
 # ---------- clean scene (skipped in LIVE mode: building alongside v1 guns) ----------
@@ -256,7 +258,7 @@ sc.view_settings.view_transform = 'Standard'
 sc.camera = cam
 
 if not LIVE:
-    bpy.ops.wm.save_as_mainfile(filepath=r'C:\Users\caleb\RECONgame\art_source\characters\blends\weapons_vc.blend')
+    bpy.ops.wm.save_as_mainfile(filepath=WEAPONS_VC_OUT)
 print('WEAPONS_VC BUILT' + ('' if LIVE else ' + SAVED'), flush=True)
 
 # side-view study renders to scratchpad

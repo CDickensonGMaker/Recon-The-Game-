@@ -3,7 +3,7 @@
 # mode). NO reassembly: whatever Caleb saved - grip fixes, texture checks -
 # ships verbatim. Mesh-only by design: variants animate from the shared
 # anim_library in-game (probe-proven).
-# Run: blender -b art_source/characters/variants/<name>.blend -P tools/export_edited_blend.py [-- <outname>]
+# Run: blender -b _scratch/variants/<name>.blend -P tools/export_edited_blend.py [-- <outname>]
 import bpy
 import os
 import sys

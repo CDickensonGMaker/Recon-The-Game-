@@ -38,9 +38,10 @@ from mathutils import Vector
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-ROOT = r"C:\Users\caleb\RECONgame\art_source\characters"
-BASE = os.path.join(ROOT, "base_psx", "us_base_v3.blend")
-OUT = os.path.join(ROOT, "locker", "satchel_m3.blend")
+from recon_paths import US_BASE_V3, US_PROPS_DIR
+
+BASE = US_BASE_V3                                   # was art_source/base_psx/
+OUT = os.path.join(US_PROPS_DIR, "satchel_m3.blend")  # was art_source/locker/
 
 RIG = "PSXRig"
 SLING_W = 0.052      # a 2-inch canvas sling

@@ -29,7 +29,7 @@ from mathutils import Vector, Matrix
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from bone_attach import attach, verify_all
 
-ROOT   = r"C:\Users\caleb\RECONgame"
+from recon_paths import ROOT, US_CHARACTERS_DIR
 # *** BUILD FROM THE SHIPPED GLB, NOT THE BLEND. ***
 # us_base_v3.blend is a broken WIP: rendered from it, the man is textured with
 # REFERENCE PHOTOS - you can read "MAC V" on his thigh. There are THREE v3 blends on
@@ -40,12 +40,13 @@ ROOT   = r"C:\Users\caleb\RECONgame"
 # boots, M16. It is verified, committed, and it is what the game actually loads. So the
 # medic is THE SHIPPED GRUNT PLUS A BAG - which also guarantees he matches his squad
 # exactly, forever, instead of drifting off a stale source.
-BASE   = os.path.join(ROOT, "assets", "models", "characters", "us_grunt_v3.glb")
+BASE   = os.path.join(US_CHARACTERS_DIR, "us_grunt_v3.glb")  # assets/models/ never existed
 # The satchel Caleb built lived ONLY in his unsaved GUI session - it was in NO .blend
 # on disk. Rescued out to its own file via the Blender MCP, without saving or touching
 # his working gear_armory.blend.
-LOCKER = os.path.join(ROOT, r"art_source\characters\locker\satchel_medic.blend")
-OUT    = os.path.join(ROOT, r"assets\us\characters\us_medic.glb")
+# (a LOCKER constant pointing at the long-gone satchel_medic.blend used to sit
+#  here; nothing in this file ever read it, so it is dropped rather than repointed)
+OUT    = os.path.join(US_CHARACTERS_DIR, "us_medic.glb")
 
 # THE BAG IS BUILT HERE, NOT IMPORTED.
 #

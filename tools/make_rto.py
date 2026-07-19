@@ -15,12 +15,17 @@ named `*_worn`: the exporter's body_bbox() measures the body plus its *_worn gea
 to normalise height, and a 60cm whip antenna in that box would shrink the man to
 fit his own aerial inside 1.7132 m.
 """
-import bpy, os
+import bpy, os, sys
 from mathutils import Matrix
 
-BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
-GEAR = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
-OUT = r"C:\Users\caleb\RECONgame\art_source\characters\us_troops\us_rto.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import US_BASE_V3, GEAR_ARMORY, US_CHARACTERS_DIR
+
+BASE = US_BASE_V3
+# locker gone; armory is its racked successor (read-only append here).
+GEAR = GEAR_ARMORY
+# old output dir (art_source/characters/us_troops) is gone; US authoring is here now.
+OUT = os.path.join(US_CHARACTERS_DIR, "us_rto.blend")
 RIG = "PSXRig"
 
 DROP = ["ruck_pack_worn"]                       # the ruck comes off

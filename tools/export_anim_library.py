@@ -12,7 +12,7 @@ Policy applied on the throwaway export copy (never saved):
     deaths/crouches/jumps)
   * every clip gets an NLA strip so ACTIONS-mode export emits all of them
 
-    blender -b art_source/characters/base_psx/anim_library.blend -P tools/export_anim_library.py
+    blender -b assets/shared/anim_library.blend -P tools/export_anim_library.py
 """
 import bpy, os
 

@@ -12,13 +12,14 @@ Engine contract (same as export_units_gltf.py — do not drift):
     export noise/ramp trees — this is why the helmet came out white)
 
 Never saves the .blend.
-    blender -b art_source/characters/base_psx/us_grunt_v2.blend -P tools/export_us_grunt_v2.py
+    blender -b assets/us/characters/us_base_v3.blend -P tools/export_us_grunt_v2.py
 """
 import bpy, os, math, sys
 from mathutils import Vector, Matrix, Quaternion
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_head_frags import build_head_frags
+from recon_paths import VARIANTS_SCRATCH
 import append_gun
 
 # variant args:  -- <gun> <out_name> [mesh_only]
@@ -226,7 +227,7 @@ for m in bpy.data.materials:
 # of exporting - grip/texture fixes happen there; export_edited_blend.py
 # ships it WYSIWYG. Pre-normalize on purpose.
 if SAVE_BLEND:
-    vdir = r"C:\Users\caleb\RECONgame\art_source\characters\variants"
+    vdir = VARIANTS_SCRATCH
     os.makedirs(vdir, exist_ok=True)
     vpath = os.path.join(vdir, OUTNAME + ".blend")
     if os.path.exists(vpath) and 'force' not in argv:

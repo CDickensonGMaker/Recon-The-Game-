@@ -2,7 +2,7 @@
 # Caleb poses on any rig (Auto-IK), the session writes a deltas JSON, this
 # bakes it: duplicate <base_clip> in the anim library -> <new_clip>, apply the
 # per-bone quaternion deltas across every keyframe, save the master.
-# Run: blender -b art_source/characters/base_psx/anim_library.blend -P tools/bake_family_clip.py -- <deltas.json>
+# Run: blender -b assets/shared/anim_library.blend -P tools/bake_family_clip.py -- <deltas.json>
 import bpy
 import json
 import sys

@@ -44,9 +44,16 @@ from mathutils import Vector, Matrix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bone_attach import attach, verify_all, AttachError
 
-LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
-ARMORY = r"C:\Users\caleb\RECONgame\assets\us\characters\gear_armory.blend"
-BODY_SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
+from recon_paths import GEAR_ARMORY, US_BASE_V3, dead
+
+# gear_library.blend is GONE and has no copy anywhere. Both build() and pack()
+# read it, so both are inert. It is NOT repointed at GEAR_ARMORY: build() writes
+# its output back out, so aliasing the two would make this tool overwrite the
+# armory with a rebuild — destroying the radio sync that lives only in that file.
+LOCKER = None
+
+ARMORY = GEAR_ARMORY          # assets/us/props/ — the TRUTH copy.
+BODY_SRC = US_BASE_V3
 RIG = "PSXRig"
 
 COLS = 6
@@ -66,6 +73,7 @@ def world_centre(ob):
 
 
 def build():
+    dead("gear_library.blend")
     bpy.ops.wm.open_mainfile(filepath=LOCKER)
     rig = bpy.data.objects[RIG]
     rig.data.pose_position = 'REST'
@@ -138,6 +146,7 @@ def pack():
         print("%d prop(s) have no rack_delta (racked by the old tool). Recovering their")
         print("worn positions from gear_library.blend by bbox centre.\n" % len(legacy))
         tmp = bpy.data.objects[:]
+        dead("gear_library.blend")
         with bpy.data.libraries.load(LOCKER, link=False) as (src, dst):
             dst.objects = [o.name for o in legacy if o.name in src.objects]
         for o in dst.objects:
@@ -180,8 +189,10 @@ def pack():
         bpy.data.objects.remove(body, do_unlink=True)
 
     verify_all(rig)
-    bpy.ops.wm.save_as_mainfile(filepath=LOCKER)
-    print("\nsaved:", LOCKER)
+    # Was: save back to gear_library.blend. That file is gone, and pack() opened
+    # ARMORY — so the file it opened is the only coherent place to save.
+    bpy.ops.wm.save_as_mainfile(filepath=ARMORY)
+    print("\nsaved:", ARMORY)
 
 
 if __name__ == "__main__":

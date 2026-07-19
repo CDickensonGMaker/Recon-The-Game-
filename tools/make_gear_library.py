@@ -25,9 +25,16 @@ Writes art_source/characters/base_psx/gear_library.blend + per-piece GLBs.
 import bpy, bmesh, math, os, sys
 from mathutils import Vector, Matrix
 
-BASE = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
-OUT_BLEND = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
-OUT_GLB = r"C:\Users\caleb\RECONgame\assets\us\props"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import US_PROPS_DIR, dead
+
+# DEAD TOOL. Both its input (us_grunt_v2.blend) and its output
+# (locker/gear_library.blend) are gone with no copy anywhere. Superseded by
+# make_gear_armory.py + assets/us/props/gear_armory.blend. Kept for the racking
+# and bone-seat logic it encodes; not runnable.
+BASE = None
+OUT_BLEND = None
+OUT_GLB = US_PROPS_DIR
 RIG = "PSXRig"
 
 # ---------------------------------------------------------------- palette
@@ -416,6 +423,7 @@ def export_each(objs, rig):
 
 
 def main():
+    dead("gear_library.blend")
     # start from the grunt so the rig + its rest pose are the real thing
     bpy.ops.wm.open_mainfile(filepath=BASE)
     rig = bpy.data.objects[RIG]

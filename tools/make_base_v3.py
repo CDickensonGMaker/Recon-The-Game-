@@ -34,8 +34,15 @@ TWO PASSES, because the modeller was not consistent:
 import bpy, bmesh, os, sys
 from mathutils import Matrix
 
-SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
-DST = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import US_BASE_V3, dead
+
+# SRC (us_grunt_v2.blend) is GONE and has no copy. This tool BUILDS us_base_v3
+# from it — and us_base_v3 has since been hand-worked and is the truth source for
+# every US model. Running this would overwrite that. Input dead => tool inert.
+# Do NOT repoint SRC at DST: that makes the builder eat its own output.
+SRC = None
+DST = US_BASE_V3
 BODY = "us_grunt_joined"
 RIG = "PSXRig"
 
@@ -163,6 +170,7 @@ def islands(body):
 
 
 def main():
+    dead("us_grunt_v2.blend")
     bpy.ops.wm.open_mainfile(filepath=SRC)
     rig = bpy.data.objects[RIG]
     rig.data.pose_position = 'REST'

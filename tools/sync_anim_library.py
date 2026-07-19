@@ -7,11 +7,14 @@
 - Deletes jump_loop (the matrix slow-mo hang) if present
 - Saves the library.
 
-    blender -b art_source/characters/base_psx/anim_library.blend -P tools/sync_anim_library.py
+    blender -b assets/shared/anim_library.blend -P tools/sync_anim_library.py
 """
-import bpy, os
+import bpy, os, sys
 
-SRC = r"C:\Users\caleb\RECONgame\assets\us\characters\us_grunt_v2.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import US_BASE_V3
+
+SRC = US_BASE_V3        # was us_grunt_v2.blend — gone; v3 is the truth source
 
 # actions the grunt file owns that the library should carry
 before = {a.name for a in bpy.data.actions}

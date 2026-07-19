@@ -39,11 +39,14 @@ HARD RULE: NEVER GUESS IN BLENDER. Two things here are measured, not assumed:
    exactly enough to put the lowest one on the deck.
 ------------------------------------------------------------------------------
 """
-import bpy, math, os
+import bpy, math, os, sys
 from mathutils import Vector, Quaternion, Euler, Matrix
 
-SRC = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_farmer_m.blend"
-OUT = r"C:\Users\caleb\RECONgame\assets\civilians\characters\civ_anim_workbench.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import CIV_DIR, GEAR_ARMORY
+
+SRC = os.path.join(CIV_DIR, "civ_farmer_m.blend")
+OUT = os.path.join(CIV_DIR, "civ_anim_workbench.blend")
 RIG = "PSXRig"
 M = "mixamorig:"
 TAU = math.tau
@@ -494,7 +497,9 @@ def measure(rig, act):
                 lh=W(rig, "LeftHand").z, rh=W(rig, "RightHand").z)
 
 
-LOCKER = r"C:\Users\caleb\RECONgame\art_source\characters\locker\gear_library.blend"
+# was locker/gear_library.blend — gone; the armory is its racked successor.
+# Read-only append; prop names inside UNVERIFIED (Blender not run).
+LOCKER = GEAR_ARMORY
 BENCH_PROPS = {"rice_sickle": "RightHand", "carry_pole": "Spine2",
                "rice_basket_back": "Spine2", "rice_bundle": "LeftHand"}
 

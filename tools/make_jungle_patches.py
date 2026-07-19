@@ -975,9 +975,9 @@ def main():
             tree_ref=dict(height=F.TREE_REF_HEIGHT,
                           bole_h=round(F.TREE_REF_HEIGHT * F.BOLE_FRACTION, 3),
                           trunk_r=F.TRUNK_RADIUS,
-                          model="res://assets/models/vegetation/felled_tree.glb",
-                          trunk_model="res://assets/models/vegetation/felled_trunk.glb",
-                          stump_model="res://assets/models/vegetation/tree_stump.glb"),
+                          model="res://assets/world/vegetation/felled_tree.glb",
+                          trunk_model="res://assets/world/vegetation/felled_trunk.glb",
+                          stump_model="res://assets/world/vegetation/tree_stump.glb"),
             patches=manifest), f, indent=2)
     print("\n%-19s %-7s %6s %6s %7s %6s  %s"
           % ("patch", "density", "verts", "tris", "fartris", "top_m", "role"))

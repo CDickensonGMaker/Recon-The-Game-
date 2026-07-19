@@ -12,13 +12,14 @@ Engine contract (same as export_units_gltf.py — do not drift):
     export noise/ramp trees — this is why the helmet came out white)
 
 Never saves the .blend.
-    blender -b art_source/characters/base_psx/vc_guerilla_v2.blend -P tools/export_vc_guerilla.py
+    blender -b assets/nva_vc/characters/vc_guerilla_v2.blend -P tools/export_vc_guerilla.py
 """
 import bpy, os, math, sys
 from mathutils import Vector, Matrix, Quaternion
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_head_frags import build_head_frags
+from recon_paths import VARIANTS_SCRATCH
 import append_gun
 
 # variant args:  -- <gun> <out_name> <face_cell> [mesh_only]
@@ -255,7 +256,7 @@ for m in bpy.data.materials:
 # WYSIWYG (no reassembly). Pre-normalize on purpose: editing happens in
 # the master's natural scale.
 if SAVE_BLEND:
-    vdir = r"C:\Users\caleb\RECONgame\art_source\characters\variants"
+    vdir = VARIANTS_SCRATCH
     os.makedirs(vdir, exist_ok=True)
     vpath = os.path.join(vdir, OUTNAME + ".blend")
     if os.path.exists(vpath) and 'force' not in argv:

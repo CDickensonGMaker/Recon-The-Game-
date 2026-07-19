@@ -4,14 +4,18 @@ v2 M16A1 and user's fixed AK-47 floating in front for hand placement.
 Run:  blender -b "art_source/characters/us units/unit_us_grunt.blend" -P build_sprite_stage.py
 (The grunt file is the base — keeps SpriteRig/SpriteCam wiring and 21 actions.)
 """
-import bpy
+import bpy, os, sys
 from mathutils import Vector
 
-CHAR = r"C:\Users\caleb\RECONgame\art_source\characters"
-GUER = CHAR + r"\vc and nva units\unit_vc_guerilla.blend"
-WUS  = CHAR + r"\us units\weapons_us.blend"
-WV1  = CHAR + r"\us units\weapons_v1.blend"
-OUT  = CHAR + r"\sprite_stage.blend"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from recon_paths import VC_GUERILLA_V2, WEAPONS_US, WEAPONS_V1, SPRITE_STAGE
+
+# Sprite matrix is dead (ADR-001) but this tooling is RETAINED ON DISK by that
+# same ADR for the optional far-LOD A/B. Repointed so it is not also rotten.
+GUER = VC_GUERILLA_V2       # was art_source/.../unit_vc_guerilla.blend
+WUS  = WEAPONS_US
+WV1  = WEAPONS_V1
+OUT  = SPRITE_STAGE         # assets/reference/review/sprite_stage.blend
 
 # ---------- 1. strip old M16 + source-part backups ----------
 removed = []
