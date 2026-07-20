@@ -47,6 +47,23 @@ def read(path: str) -> str:
         return ""
 
 
+def strip_comments(text: str, path: str) -> str:
+    """A name mentioned in a comment is not a call.
+
+    Learned the hard way: a KEEP banner on scripted_sequence.gd that named
+    mission_trigger.gd (and vice versa) made each file 'reference' the other,
+    flipping both from TEST-ONLY to LIVE. That is precisely the mutual-alibi
+    this tool exists to expose, manufactured by a code comment.
+
+    Line-level only - stripping to a mid-line '#' would corrupt strings.
+    """
+    if not path.endswith(".gd"):
+        return text
+    return "\n".join(
+        ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
+    )
+
+
 def walk(dirs: list[str], exts: set[str] | None = None) -> list[str]:
     out: list[str] = []
     for d in dirs:
@@ -85,7 +102,9 @@ def main() -> int:
     autoloads = autoload_scripts()
 
     # Index every reference file's text once.
-    corpus: list[tuple[str, str]] = [(rel(p), read(p)) for p in ref_files]
+    corpus: list[tuple[str, str]] = [
+        (rel(p), strip_comments(read(p), p)) for p in ref_files
+    ]
 
     verdicts: dict[str, str] = {}
     detail: dict[str, list[str]] = {}

@@ -38,6 +38,9 @@ const HELMETS: Array[String] = [
 ## by definition; it is the one the artist fitted.
 const STOCK_HELMET: String = "helmet_shell_worn"
 
+const ANTENNA_SHADER: String = "res://assets/shaders/antenna_sway.gdshader"
+const AntennaSwayScript := preload("res://scripts/visuals/antenna_sway.gd")
+
 ## One key -> every mesh it owns, so `radio: true` cannot hand a man a backpack
 ## with no whip antenna on it.
 const GEAR_TOGGLES: Dictionary = {
@@ -85,9 +88,50 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 			continue
 		for mesh_name: String in GEAR_TOGGLES[key]:
 			_set_visible_by_name(root, mesh_name, on)
+		if key == "radio" and on:
+			_rig_antenna(root)
 		out[key] = on
 
 	return out
+
+
+## Give the PRC-25 whip its sway shader and driver.
+##
+## assets/shaders/antenna_sway.gdshader and scripts/visuals/antenna_sway.gd have
+## both existed and done nothing: the shader was never assigned to a mesh, and
+## the script was never attached to anything, so the whip has always been a rigid
+## rod. This is the seam that connects them, run whenever a man is dressed with a
+## radio.
+static func _rig_antenna(root: Node3D) -> void:
+	for mi in _all_meshes(root):
+		if not mi.name.contains("prc25_antenna"):
+			continue
+		if mi.get_script() != null:
+			continue                        # already rigged; dressing is re-runnable
+		var mesh: Mesh = mi.mesh
+		if mesh == null:
+			continue
+
+		# Carry the GLB's own texture across - material_override replaces the
+		# surface material outright, so without this the whip renders untextured.
+		var shader_mat := ShaderMaterial.new()
+		shader_mat.shader = load(ANTENNA_SHADER) as Shader
+		var src: Material = mi.get_active_material(0)
+		if src is StandardMaterial3D:
+			var std := src as StandardMaterial3D
+			shader_mat.set_shader_parameter("albedo_tex", std.albedo_texture)
+			shader_mat.set_shader_parameter("tint", std.albedo_color)
+
+		# Measure the whip rather than trusting the shader's 1.07m default: an
+		# antenna re-exported at a different length would otherwise bend on the
+		# wrong curve, and the error is invisible until it looks subtly wrong.
+		var aabb: AABB = mesh.get_aabb()
+		shader_mat.set_shader_parameter("base_y", aabb.position.y)
+		shader_mat.set_shader_parameter("whip_len", maxf(aabb.size.y, 0.01))
+
+		mi.material_override = shader_mat
+		mi.set_script(AntennaSwayScript)
+		(mi as AntennaSway).activate()
 
 
 ## Slide the face material to a different cell of the atlas. Head, neck, hands and

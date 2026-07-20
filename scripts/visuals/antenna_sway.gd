@@ -35,6 +35,13 @@ var _time: float = 0.0
 
 
 func _ready() -> void:
+	activate()
+
+
+## Bind to the material and find the carrier. Split out of _ready because the
+## dresser attaches this script to an antenna that is ALREADY in the tree, where
+## _ready has long since fired and will not fire again.
+func activate() -> void:
 	var mat: Material = get_active_material(0)
 	if mat is ShaderMaterial:
 		_material = mat as ShaderMaterial
@@ -46,6 +53,8 @@ func _ready() -> void:
 	if _carrier == null:
 		# Not an error: a dropped radio lying in the mud has no carrier. It just holds still.
 		set_physics_process(false)
+		return
+	set_physics_process(true)
 
 
 func _find_carrier() -> Node3D:
