@@ -51,9 +51,77 @@ class ArenaGrid extends GameplayGrid:
 			(grid_pos.y + 0.5) * cell_size_meters - off)
 
 
+## Inert GameWorld host for the fire-support testbed. FieldDirector.world is typed
+## GameWorld and the arena is not one; ArenaFireWorld IS-A GameWorld with its terrain
+## generation disabled. FieldDirector reads only .terrain_manager / .player / .map_size
+## and .add_child() from it, all set by _wire_fire_support().
+class ArenaFireWorld extends GameWorld:
+	func _ready() -> void:
+		pass  # no terrain/veg/water build; NOT added to the "game_world" group (the arena is)
+
+
+## Flat terrain for the fire-support host. The arena floor is y=0 and uses CENTRED
+## coordinates (-ARENA/2..+ARENA/2), which a real heightmap (indexed 0..map_size) reads
+## out of bounds; this returns the floor for any coordinate and never allocates or
+## samples a heightmap. FieldDirector seats its impacts through this.
+class ArenaFlatTerrain extends TerrainManager:
+	func _ready() -> void:
+		pass  # skip heightmap allocation - get_height_at is a constant
+
+	func get_height_at(_world_pos: Vector3) -> float:
+		return 0.0
+
+	func get_normal_at(_world_pos: Vector3) -> Vector3:
+		return Vector3.UP
+
+	func modify_terrain(_center: Vector3, _radius_meters: float, _modifier: Callable) -> void:
+		pass
+
+
+## A fortification segment (sandbag wall or barbwire) that an explosion tears out,
+## leaving a real gap in the line. Registered as an AgentRegistry PROP so the existing
+## blast loop (combat_manager.gd:178-185) damages it - no bespoke damage code. Static
+## world/nav geometry (hard cover, blocks LOS, bakes into the navmesh) until it is blown.
+class DestructibleFortification extends StaticBody3D:
+	var kind: String = ""
+	var hp: int = 110
+	var _destroyed: bool = false
+
+	## The one damage grammar as a receiver (ADR-003): the same verb every body answers
+	## to. Only explosions reach it - it carries no Hitzone, so rifle fire is merely
+	## blocked by the collider (cover), never destroying the wall.
+	func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
+		if _destroyed:
+			return
+		hp -= amount
+		if hp <= 0:
+			_blow()
+
+	func _blow() -> void:
+		_destroyed = true
+		AgentRegistry.unregister(self)
+		GunFX.impact(get_tree().current_scene, global_position + Vector3.UP * 0.3, Vector3.UP, true)
+		queue_free()
+
+
 const ARENA: float = 200.0
 const WALL_H: float = 4.0
 const LAB_GRENADES: int = 25
+
+## --- FORTIFICATION + SAPPER + FIRE-SUPPORT TESTBED (war-room decree 2026-07-20) ---
+## A forward wire+sandbag line the sappers breach, a tunnel mouth to satchel, a placed
+## (unmanned, DEFERRED) MG nest, and a callable FieldDirector for every fire tier.
+const FORT_LINE_X: float = -30.0        ## the line runs along Z at this X (player side is west)
+const FORT_LINE_Z0: float = 18.0
+const FORT_LINE_Z1: float = 52.0
+const FORT_SEG_LEN: float = 2.6
+const FORT_SANDBAG_HP: int = 120
+const FORT_WIRE_HP: int = 70
+const BARBWIRE_MODEL: String = "res://assets/world/structures/emplacements/barbwire_card.glb"
+const MG_NEST_MODEL: String = "res://assets/building models/structures/emplacements/mg_nest_sandbag.glb"
+const ARENA_SAPPER_COUNT: int = 3
+const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he sees it happen
+const TUNNEL_POS: Vector3 = Vector3(-15.0, 0.0, 45.0)
 
 ## Ruined-building / rubble GLBs shipped by bead sra5. Village and central contact
 ## zone draw from these for hard urban cover instead of gray primitive boxes.
@@ -218,6 +286,17 @@ var _dbg_labels: Dictionary = {}
 var _dbg_mesh: MeshInstance3D = null
 var _dbg_im: ImmediateMesh = null
 
+## Fortification / sapper / fire-support testbed state.
+var _forts: Array[Node3D] = []          ## live DestructibleFortification segments
+var _fire_world: GameWorld = null       ## inert host for the FieldDirector
+var _fire_terrain: TerrainManager = null  ## cheap flat terrain (get_height_at -> 0)
+var _field_director: FieldDirector = null
+var _fire_squad: SquadSystem = null
+var _sapper_auto_t: float = SAPPER_AUTO_DELAY
+var _sapper_auto_done: bool = false
+var _toast_label: Label = null          ## r4bk: the RTO net's calls must be VISIBLE
+var _toast_t: float = 0.0
+
 
 func _ready() -> void:
 	_rng.seed = rng_seed
@@ -252,6 +331,7 @@ func _ready() -> void:
 	await get_tree().physics_frame
 
 	_spawn_player()
+	_wire_fire_support()
 	_spawn_initial_forces()
 	if hot_start:
 		_hot_start_combat()
@@ -274,6 +354,7 @@ func _process(delta: float) -> void:
 	if _round_ended:
 		return
 	_sim_time += delta
+	_update_sandbox(delta)
 
 	# Time each arena-owned manager so the overlay can name a CPU spike's subsystem.
 	# The overlay (a child) reads these the same frame, right after this runs.
@@ -378,6 +459,8 @@ func _build_environment() -> void:
 	_build_floor()
 	_build_walls()
 	_build_firebase()
+	_build_fortifications()
+	_place_tunnel_entrance()
 	_build_village()
 	_build_central_ridge()
 	_build_tree_lines()
@@ -1224,6 +1307,206 @@ func _find_mesh_named(root: Node, needle: String) -> MeshInstance3D:
 	return null
 
 
+## ---------- FORTIFICATION TESTBED ----------
+
+func _build_fortifications() -> void:
+	# A forward wire+sandbag line, alternating segments, that the sappers breach.
+	var z: float = FORT_LINE_Z0
+	var i: int = 0
+	while z <= FORT_LINE_Z1 + 0.01:
+		var pos := Vector3(FORT_LINE_X, 0.0, z)
+		if i % 2 == 0:
+			_spawn_fort_sandbag(pos)
+		else:
+			_spawn_fort_wire(pos)
+		z += FORT_SEG_LEN
+		i += 1
+	# The DEFERRED mannable M60: placed as the future mount, a static sandbag emplacement
+	# prop ONLY. No manning, no firing (Summoner's decree).
+	_place_mg_nest(Vector3(FORT_LINE_X - 1.2, 0.0, FORT_LINE_Z1 + 2.5))
+	print("[AI STRESS ARENA] fortifications: %d destructible segments + MG nest prop" % _forts.size())
+
+
+func _spawn_fort_sandbag(pos: Vector3) -> void:
+	var fort := DestructibleFortification.new()
+	fort.kind = "sandbag"
+	fort.hp = FORT_SANDBAG_HP
+	fort.collision_layer = 1
+	fort.collision_mask = 0
+	fort.add_to_group("nav_source")
+	fort.add_to_group("arena_fortification")
+	var size := Vector3(0.9, 1.1, FORT_SEG_LEN)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.55, 0.50, 0.40)
+	mi.material_override = mat
+	fort.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	cs.shape = box
+	fort.add_child(cs)
+	add_child(fort)
+	fort.global_position = pos + Vector3(0, size.y * 0.5, 0)
+	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
+	_forts.append(fort)
+
+
+func _spawn_fort_wire(pos: Vector3) -> void:
+	var fort := DestructibleFortification.new()
+	fort.kind = "wire"
+	fort.hp = FORT_WIRE_HP
+	fort.collision_layer = 1
+	fort.collision_mask = 0
+	fort.add_to_group("nav_source")
+	fort.add_to_group("arena_fortification")
+	if ResourceLoader.exists(BARBWIRE_MODEL):
+		var packed: PackedScene = load(BARBWIRE_MODEL)
+		var vis := packed.instantiate() as Node3D
+		if vis != null:
+			vis.rotation.y = PI * 0.5  # lay the alpha card along the Z line
+			fort.add_child(vis)
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.5, 0.9, FORT_SEG_LEN)
+	cs.shape = box
+	cs.position.y = 0.45
+	fort.add_child(cs)
+	add_child(fort)
+	fort.global_position = pos
+	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
+	_forts.append(fort)
+
+
+func _place_mg_nest(pos: Vector3) -> void:
+	if not ResourceLoader.exists(MG_NEST_MODEL):
+		return
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.add_to_group("nav_source")
+	var packed: PackedScene = load(MG_NEST_MODEL)
+	var vis := packed.instantiate() as Node3D
+	if vis != null:
+		body.add_child(vis)
+	add_child(body)
+	body.global_position = pos
+
+
+func _place_tunnel_entrance() -> void:
+	# One VC tunnel mouth in the "tunnel_entrances" group: HOLD interact with a satchel
+	# on the belt collapses it (player.gd:427 _tick_satchel_hold). The player already
+	# carries 2 satchels by default (player.gd:91), so the verb is available on boot.
+	var entrance := Node3D.new()
+	entrance.name = "ArenaTunnelMouth"
+	if ResourceLoader.exists(SiteLayouts.TUNNEL_MODEL):
+		var packed: PackedScene = load(SiteLayouts.TUNNEL_MODEL)
+		var vis := packed.instantiate() as Node3D
+		if vis != null:
+			entrance.add_child(vis)
+	add_child(entrance)
+	entrance.global_position = TUNNEL_POS
+	entrance.add_to_group("tunnel_entrances")
+
+
+## ---------- FIRE SUPPORT ----------
+
+func _wire_fire_support() -> void:
+	if player == null:
+		return
+	# A flat terrain for the delivery code to seat explosions on (arena floor y=0).
+	var tm := ArenaFlatTerrain.new()
+	tm.name = "ArenaFireTerrain"
+	add_child(tm)
+	_fire_terrain = tm
+	var fw := ArenaFireWorld.new()
+	fw.name = "ArenaFireWorld"
+	add_child(fw)
+	fw.terrain_manager = tm
+	fw.player = player
+	fw.map_size = ARENA
+	_fire_world = fw
+	# The net is a MAN: a SquadSystem holding the arena RTO so member_by_mos finds him
+	# and the 10m radio leash is real. setup() is NOT called (it would spawn a fresh
+	# 8-man squad); the existing SPARKS is appended, matching the sapper probe rig.
+	var ss := SquadSystem.new()
+	ss.name = "ArenaFireSquad"
+	add_child(ss)
+	# setup() is skipped, so its update loops (contact barks, break checks, revive) have
+	# no world/director and would fault. member_by_mos reads the array directly and needs
+	# no ticking - freeze it so it is only a radio-roster holder.
+	ss.set_physics_process(false)
+	ss.set_process(false)
+	for r in get_tree().get_nodes_in_group("radioman"):
+		if r is AllyBase and is_instance_valid(r):
+			ss.members.append(r as AllyBase)
+			break
+	_fire_squad = ss
+	var d := FieldDirector.new()
+	d.name = "ArenaFieldDirector"
+	add_child(d)
+	d.setup(fw)
+	d.squad_system = ss
+	d.toast.connect(_on_director_toast)
+	# Stocked so every tier is callable: T opens the net, 1 bombs / 2 napalm / 3 arty /
+	# 4 mortar / 5 spooky / 6 CBU (Y is the mortar shortcut).
+	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spooky": 9, "cbu": 9}
+	# No escalation hunters in the bench: an empty pool keeps _process_escalation from
+	# spawning NVA and from reading world.map_size on the inert host.
+	d._hunter_pool = 0
+	_field_director = d
+	print("[AI STRESS ARENA] fire support wired - RTO net live, all six tiers stocked")
+
+
+func _on_director_toast(text: String) -> void:
+	if _toast_label != null:
+		_toast_label.text = text
+		_toast_t = 4.0
+
+
+## ---------- SAPPER ASSAULT ----------
+
+## Stand up a sapper wave in the open, each carrying a live SapperCharge aimed at the
+## wire line. They cross through contact (EnemyBase.assault_objective) and breach the
+## fortifications where they detonate. Repeatable on demand (K); one wave auto-launches
+## SAPPER_AUTO_DELAY after boot so the first breach is witnessed.
+func _launch_arena_sappers() -> void:
+	var aim_z: float = (FORT_LINE_Z0 + FORT_LINE_Z1) * 0.5
+	var base := Vector3(FORT_LINE_X + 55.0, 1.0, aim_z)
+	for i in range(ARENA_SAPPER_COUNT):
+		var off := Vector3(_rng.randf_range(-5, 5), 0.0, float(i - 1) * 7.0)
+		var sapper := EnemyBase.spawn_enemy(self, base + off, FieldDirector.SAPPER_DATA)
+		if sapper == null:
+			continue
+		sapper.squad_id = -1  # lone: a squad hunt_point must never steer a driven man
+		sapper.add_to_group("arena_sapper")
+		var nav_agent := sapper.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
+		if nav_agent != null and _nav_region != null:
+			nav_agent.set_navigation_map(_nav_region.get_navigation_map())
+		var aim := Vector3(FORT_LINE_X, 0.6, aim_z + off.z * 0.5)
+		var charge := SapperCharge.new()
+		sapper.add_child(charge)
+		charge.setup(aim)
+	if _field_director != null:
+		_field_director.toast.emit("SAPPERS ON THE WIRE - THREE DAC CONG CROSSING")
+
+
+func _update_sandbox(delta: float) -> void:
+	if _toast_t > 0.0:
+		_toast_t -= delta
+		if _toast_t <= 0.0 and _toast_label != null:
+			_toast_label.text = ""
+	if _sapper_auto_done or not spawn_player:
+		return
+	_sapper_auto_t -= delta
+	if _sapper_auto_t <= 0.0:
+		_sapper_auto_done = true
+		_launch_arena_sappers()
+
+
 func _spawn_initial_forces() -> void:
 	_us_reserves_left = us_reserve_squads
 	_vc_reserves_left = vc_reserve_squads
@@ -1614,6 +1897,10 @@ func _exit_tree() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reload") and _round_ended:
 		_restart_round()
+	# K launches a fresh sapper wave at the wire so he can watch the breach repeatedly.
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
+			and (event as InputEventKey).physical_keycode == KEY_K:
+		_launch_arena_sappers()
 
 
 func _restart_round() -> void:
@@ -1673,6 +1960,19 @@ func _build_hud() -> void:
 	_hud.add_theme_font_size_override("font_size", 13)
 	_hud.add_theme_color_override("font_color", Color(0.92, 0.9, 0.8, 0.85))
 	layer.add_child(_hud)
+
+	# r4bk: the RTO net's inbound calls (and the sapper bark) must be readable, so the
+	# fire-support toasts land on a bottom-centre banner instead of vanishing into stdout.
+	_toast_label = Label.new()
+	_toast_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_toast_label.position = Vector2(-360, -90)
+	_toast_label.custom_minimum_size = Vector2(720, 0)
+	_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast_label.add_theme_font_size_override("font_size", 18)
+	_toast_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
+	_toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_toast_label.add_theme_constant_override("outline_size", 6)
+	layer.add_child(_toast_label)
 
 
 func _update_telemetry(delta: float) -> void:
