@@ -1,4 +1,4 @@
-## probe_tree_cover_wired.gd - Phase 2: proves TreeCoverLayer is wired LIVE-CAPABLE through
+## test_tree_cover_wired.gd - Phase 2: proves TreeCoverLayer is wired LIVE-CAPABLE through
 ## VegetationManager's CanopySource.TREE_COVER path (not a built-ahead-of-wiring fossil).
 ## Drives the real VM._build_scatter -> TreeCoverLayer.generate_for_chunk and asserts the
 ## mechanism produces near+far render + cover colliders. Also MEASURES the resident collider

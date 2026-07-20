@@ -1,11 +1,11 @@
 extends Node
-## probe_daynight.gd - proves SimClock.time_period_changed actually drives the world.
+## test_daynight.gd - proves SimClock.time_period_changed actually drives the world.
 ##
 ## The signal existed with zero consumers. The game read MissionWeather.is_night, a
 ## static frozen at mission start, so night never fell and tracers stayed
 ## daylight-bright for a 21:00 insert that ran until dawn.
 ##
-## Run: godot --headless --path . res://tests/probe_daynight.tscn
+## Run: godot --headless --path . res://tests/test_daynight.tscn
 
 var _failures: int = 0
 
@@ -72,7 +72,7 @@ func _advance_to(target_hour: float) -> void:
 		SimClock.advance(1.0)
 		if absf(SimClock.sim_hour - target_hour) < 0.02:
 			return
-	push_error("probe_daynight: clock never reached %.1f" % target_hour)
+	push_error("test_daynight: clock never reached %.1f" % target_hour)
 	_failures += 1
 
 

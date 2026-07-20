@@ -1,9 +1,9 @@
 extends Node
-## probe_world_rosters.gd - AirTraffic and AmbientWar kept append-only rosters that
+## test_world_rosters.gd - AirTraffic and AmbientWar kept append-only rosters that
 ## nothing read and nothing pruned: every flight and every shell-burst stayed in the
 ## list for the life of the mission, holding a live node.
 ##
-## Run: godot --headless --path . res://tests/probe_world_rosters.tscn
+## Run: godot --headless --path . res://tests/test_world_rosters.tscn
 
 var _failures: int = 0
 

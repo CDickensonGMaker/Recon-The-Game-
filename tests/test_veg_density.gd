@@ -1,4 +1,4 @@
-## probe_veg_density.gd - headless verification for asr5 (near-spawn jungle) and
+## test_veg_density.gd - headless verification for asr5 (near-spawn jungle) and
 ## y5ad (hamlet brush). Boots the real world, drives the TREE_COVER _build_scatter over
 ## the spawn ring and a stand-in hamlet, and prints instance-density + bush histograms
 ## BEFORE and AFTER set_density_centers(). No GPU, no window - pure placement counts.

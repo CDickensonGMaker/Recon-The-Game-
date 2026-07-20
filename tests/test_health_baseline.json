@@ -1,26 +1,11 @@
 {
 	"_comment": "Test scripts that NOTHING invokes. run_all_tests.ps1 globs tests/test_*.tscn only, so a probe_* scene is dead weight until it is wired or renamed. THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'uninvoked', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>.",
 	"uninvoked": [
-		"probe_ambush_sites",
-		"probe_autoload_reach",
-		"probe_concealment",
-		"probe_daynight",
 		"probe_perf_decay",
-		"probe_settlement_spacing",
-		"probe_smoke_all",
-		"probe_spawn_zoning",
-		"probe_tree_cover_wired",
-		"probe_veg_density",
-		"probe_veg_material",
-		"probe_water_channels",
-		"probe_water_once",
-		"probe_world_rosters",
-		"probe_worldbuild_phase1",
-		"probe_zoning_histogram",
-		"test_world_minimap"
+		"probe_smoke_all"
 	],
-	"count": 17,
-	"ceiling": 17,
+	"count": 2,
+	"ceiling": 2,
 	"grandfather_log": [
 		{
 			"date": "2026-07-19",

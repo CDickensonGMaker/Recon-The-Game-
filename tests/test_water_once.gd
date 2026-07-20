@@ -1,4 +1,4 @@
-## probe_water_once.gd - boots ONE world (seed 42) and prints a water fingerprint.
+## test_water_once.gd - boots ONE world (seed 42) and prints a water fingerprint.
 ## Run twice in SEPARATE processes to prove per-process determinism (ADR-010).
 extends Node
 

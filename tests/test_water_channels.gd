@@ -1,6 +1,6 @@
-## probe_water_channels.gd - ADR-027 water: assert the AO holds flowing channels
+## test_water_channels.gd - ADR-027 water: assert the AO holds flowing channels
 ## (creeks/rivers) ONLY - zero lakes/ponds/swamps/coastal, every body fordable.
-## Run: <godot> --headless --path . res://tests/probe_water_channels.tscn
+## Run: <godot> --headless --path . res://tests/test_water_channels.tscn
 extends Node
 
 const SEEDS: Array[int] = [42, 1337, 9001]
@@ -17,7 +17,7 @@ const T_COASTAL: int = 6
 
 func _ready() -> void:
 	# NOTE: per-process determinism (ADR-010) is proven separately by
-	# probe_water_once run twice in fresh processes - a SAME-process re-boot is
+	# test_water_once run twice in fresh processes - a SAME-process re-boot is
 	# contaminated by the pre-existing global-RNG leak (worldgen determinism-cleanup
 	# phase), so it is not asserted here.
 	var failures: int = 0

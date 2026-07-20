@@ -1,4 +1,4 @@
-## probe_zoning_histogram.gd - Phase 2 zoning tuning: whole-map TerrainZoning.classify
+## test_zoning_histogram.gd - Phase 2 zoning tuning: whole-map TerrainZoning.classify
 ## histogram on a booted world, so the dense-jungle-with-clearings distribution + the
 ## relative paddy gate can be read and tuned. Evidence-gathering.
 extends Node

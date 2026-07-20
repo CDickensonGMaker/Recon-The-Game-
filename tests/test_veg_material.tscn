@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cprobevegmat01"]
 
-[ext_resource type="Script" path="res://tests/probe_veg_material.gd" id="1_pvm"]
+[ext_resource type="Script" path="res://tests/test_veg_material.gd" id="1_pvm"]
 
 [node name="ProbeVegMaterial" type="Node"]
 script = ExtResource("1_pvm")

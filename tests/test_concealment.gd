@@ -1,4 +1,4 @@
-## probe_concealment.gd - proves the "getting seen at 150m is not instant death" fix:
+## test_concealment.gd - proves the "getting seen at 150m is not instant death" fix:
 ## the AI-vs-player spread cap now BREATHES with the exposure ramp, so the opening volley
 ## at a freshly-spotted player scatters wide and tightens only as he stays exposed (Fairness
 ## Law, ADR-005). Before the fix the fixed 1.2 deg cap clipped the whole ramp - fresh and

@@ -1,4 +1,4 @@
-## probe_worldbuild_phase1.gd - Ratcheting verify for the world-build unification, Phase 1.
+## test_worldbuild_phase1.gd - Ratcheting verify for the world-build unification, Phase 1.
 ## Proves: (1) same seed -> byte-identical placement; (2) the seed is actually folded
 ## (different seed -> different world); (3) ADR-013 residency - chunk count invariant across
 ## a camera traverse; (4) clutter is resident - no _process re-scatter, bucket count stable

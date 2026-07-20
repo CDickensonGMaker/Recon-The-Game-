@@ -37,6 +37,12 @@ Runtime trace: `damage_system.gd:137` → `terrain_manager.gd:282` → `game_wor
 **8. The FPS attribution probe has never once run — it names a class that does not exist.**
 `tests/perf_probe.gd:88` types a variable as `BillboardVegetation`; `class_name BillboardVegetation` has zero hits repo-wide, and `--check-only` reports `Could not find type "BillboardVegetation"`. This is the instrument that splits frame cost across billboards / patches / grass (`:5-8,34`) — the exact attribution needed with FPS sitting at 24–38 against a 30 gate. The top systemic risk on the board has no working measuring tool.
 
+> **CORRECTED 2026-07-20 (overnight sweep) — the finding above is DISCHARGED and its pointer is now false.**
+> `tests/perf_probe.gd` contains **zero** occurrences of `BillboardVegetation` (verified by grep, 2026-07-20).
+> `perf_probe.gd:88` now reads `RenderingServer.get_rendering_info(RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)`.
+> The probe was repaired and **has since executed** — see `production/PERF_LEDGER.md` for the resulting
+> attribution row (seed 47225, 1280x720, Intel UHD). Do not cite this paragraph as a live defect.
+
 **9. The head agent's own charter still enforces retired damage dice as binding law.**
 `.claude/agents/recon-overseer.md:58` lists "one damage grammar — RECON dice, no flat modifiers (ADR-003)" under "laws you enforce on every call". ADR-003 itself says otherwise (`production/adr/ADR-003-one-damage-grammar.md:2`: PARTIALLY SUPERSEDED, damage is flat base × zone), and the code agrees (`data/weapons/m16a1.tres:14 base_damage = 27`, guarded by `tests/test_flat_damage.tscn`). The file was edited today at 22:16 and this line survived — it is the same drift generator CLAUDE.md:185-187 already names, sitting in the file with more reach than CLAUDE.md.
 

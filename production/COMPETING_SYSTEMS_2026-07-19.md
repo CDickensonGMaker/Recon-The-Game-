@@ -446,6 +446,15 @@ hits and concludes it is a real system.
 **RECOMMENDATION: RETIRE the stale test references.** Trivial, but it is exactly the "lie in the
 map" the fossil law targets.
 
+> **PARTIALLY CORRECTED 2026-07-20 (overnight sweep).** The `tests/perf_probe.gd:88` pointer above is
+> now **false**: that file contains zero occurrences of `BillboardVegetation` (verified by grep,
+> 2026-07-20), and `:88` now reads `RenderingServer.get_rendering_info(...)`. The probe was repaired
+> and has executed.
+> **STILL TRUE and still owed:** `tests/test_world_alive.gd:438,448` retain the
+> `get_node_or_null("BillboardVegetation")` lookup — a check that can never succeed. It degrades
+> gracefully (`push_warning`, not caught by the runner's error scan), so it is benign but remains a
+> lie in the map. Also `tests/probe_perf_decay.gd:5` names the class in a doc comment.
+
 ## 21. `DestructibleVehicle` — a class name promising behaviour that does not exist
 `scripts/vehicles/destructible_vehicle.gd`: declares `is_destroyed` (never read or written again),
 and has **no `take_damage`, no health, no `destroy()`**. Never registers with `AgentRegistry`, so

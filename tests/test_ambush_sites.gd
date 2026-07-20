@@ -1,4 +1,4 @@
-## probe_ambush_sites.gd - does AmbushPlanner's cover constraint starve the world of ambushes?
+## test_ambush_sites.gd - does AmbushPlanner's cover constraint starve the world of ambushes?
 ##
 ## Builds synthetic GameplayGrids (no world generation) and runs AmbushPlanner.plan()
 ## many times per grid, reporting the fraction of trials that yield a site.

@@ -1,5 +1,5 @@
 extends Node
-## probe_autoload_reach.gd - catches a defect class the fossil probe is blind to:
+## test_autoload_reach.gd - catches a defect class the fossil probe is blind to:
 ## an AUTOLOAD reached through a mechanism that can never see it.
 ##
 ## Autoloads are plain nodes under /root. They are NOT engine singletons, so
@@ -11,12 +11,12 @@ extends Node
 ## guarded code silently serves its fallback forever. That is how every civilian
 ## in the game got pinned to sim_hour 12.0 while SimClock ticked correctly.
 ##
-## Run: godot --headless --path . res://tests/probe_autoload_reach.tscn
+## Run: godot --headless --path . res://tests/test_autoload_reach.tscn
 
 const SCAN_DIRS: Array[String] = ["res://scripts", "res://tests"]
 ## Files allowed to name an autoload inside these calls - this probe itself,
 ## which must quote the patterns it hunts for.
-const EXEMPT: Array[String] = ["res://tests/probe_autoload_reach.gd"]
+const EXEMPT: Array[String] = ["res://tests/test_autoload_reach.gd"]
 
 
 func _ready() -> void:

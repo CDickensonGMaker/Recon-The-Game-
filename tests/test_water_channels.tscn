@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cprobewaterchan1"]
 
-[ext_resource type="Script" path="res://tests/probe_water_channels.gd" id="1_pwc"]
+[ext_resource type="Script" path="res://tests/test_water_channels.gd" id="1_pwc"]
 
 [node name="ProbeWaterChannels" type="Node"]
 script = ExtResource("1_pwc")

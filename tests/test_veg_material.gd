@@ -1,4 +1,4 @@
-## probe_veg_material.gd - diagnose the "tree opacity" bug. Dumps, for each veg GLB:
+## test_veg_material.gd - diagnose the "tree opacity" bug. Dumps, for each veg GLB:
 ## how many MeshInstance3D nodes it has (TreeCoverLayer._extract_mesh takes only the FIRST -
 ## a multi-mesh tree would render incomplete), and every surface material's transparency mode
 ## + cull + alpha (alpha-blend reads see-through; solid foliage wants alpha-scissor/opaque).

@@ -1,4 +1,4 @@
-## probe_spawn_zoning.gd - PRE-CHECK for the world-build unification (Phase 1).
+## test_spawn_zoning.gd - PRE-CHECK for the world-build unification (Phase 1).
 ## Boots game_world at mission_seed 47225, prints heightmap min/max in METERS and a
 ## TerrainZoning.classify histogram over the spawn chunk. Answers: is the default spawn
 ## genuinely open-lowland, or everything-jungle-but-invisible? Evidence-gathering only.
