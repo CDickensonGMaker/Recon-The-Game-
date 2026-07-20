@@ -61,29 +61,27 @@ pending Summoner ratification.
 
 ## 00 · Pillars & Laws (🌱 seed — promote to `00_PILLARS.md`)
 
-> **⚠ UNRESOLVED — TWO COMPETING PILLAR TEXTS. AWAITING THE SUMMONER'S RULING (raised 2026-07-19).**
-> This section cites `DESIGN.md §1`, which does not exist, and the five it lists are **not** the five
-> under `## Pillars` in `DESIGN.md:67-94`:
-> | # | This Bible (`:53-58`) | `DESIGN.md:69-94` |
-> |---|---|---|
-> | 1 | Outstanding gunplay | Believable Firefights |
-> | 2 | Atmosphere | Squad Attachment |
-> | 3 | Freedom | Player as Participant, Not Director |
-> | 4 | The squad is the RPG | World as Story Generator |
-> | 5 | Fail forward | Consequences Without Cruelty |
+> **RULED BY THE SUMMONER, 2026-07-19.** Two texts had competed since the project began: this Bible's
+> five and the five under `## Pillars` in `DESIGN.md:67-94`. Neither was a superset — the Bible carried
+> **Atmosphere**, which DESIGN.md never had, and DESIGN.md carried **Player as Participant, Not
+> Director** (`:84-86`), which the enforced set had silently dropped.
 >
-> The Bible's five are the ones actually enforced everywhere else — `CLAUDE.md:14`,
-> `.claude/agents/recon-overseer.md`, and the ADR set all quote them. That is *evidence of practice,
-> not a ruling*: this is the project's highest law and only the Summoner may declare which text is
-> canonical (or reconcile them). **Do not cite `DESIGN.md §1`. Until he rules, treat the two as one
-> open question and use the enforced set below.**
+> That dropped pillar was load-bearing. Its text — *"they do not puppeteer every soldier; the squad has
+> its own AI intent"* — is the constraint the squad was built in violation of, and the Summoner's
+> playtest verdict on 2026-07-19 was its symptom: *"it felt like I was driving him."* The law that would
+> have prevented it was sitting in the file nobody enforced.
+>
+> **The ruling: merge, keeping what each set uniquely held.** Participant-not-Director folds into Pillar
+> 4, where it binds the AI work. Pillar 1 carries **both halves** — AI behaviour and weapon feel, neither
+> subordinate to the other — by explicit ruling; where they compete for a session, that is a judgment
+> call, not a precedence rule. `DESIGN.md:67-94` is superseded by this section and carries a pointer to it.
 
 The five below. **Test every decision against these; the Arbiter guards them.**
-1. **Outstanding gunplay** — HLL lethality; death from *situation* (ambush asymmetry, exposure, volume of fire), not bullet sponges.
+1. **Believable firefights** — AI that fights like soldiers *and* weapons that kill like weapons, neither subordinate. Squads spread, use cover, suppress and manoeuvre; HLL lethality; death from *situation* (ambush asymmetry, exposure, volume of fire), never bullet sponges. The stress-test arena is the gate: if soldiers cannot fight believably in a deliberately ugly arena, beautiful terrain will not save the game.
 2. **Atmosphere** — dense jungle, weather, night, audio; the AO feels like a war is happening around you.
-3. **Freedom** — open AO; objectives are places/things; any route, any order, loud or quiet; stealth is an economy, never a gate; nothing on rails.
-4. **The squad is the RPG** — named persistent teammates with MOS roles who improve, get wounded, rotate home, and die for real. Minimal stats, maximal attachment.
-5. **Fail forward** — detection escalates, failure mutates, a dead mission generates the next story. Never reload-and-memorize.
+3. **Freedom** — open AO; objectives are places/things; any route, any order, loud or quiet; stealth is an economy, never a gate; nothing on rails. The seeded world generates the tactical problems, so the stories come from what happened here, not from authored setpieces.
+4. **The squad is the RPG — and you are IN it, not above it.** Named persistent teammates with MOS roles who improve, get wounded, rotate home, and die for real; minimal stats, maximal attachment. **You are a member of the squad, not its puppeteer** — you suggest movement, call targets, request support, and the squad holds its own AI intent. A design that has you positioning individual men violates this pillar.
+5. **Fail forward** — detection escalates, failure mutates, a dead mission generates the next story. Death matters and soldiers do not respawn as the same person, but this is not a sadism simulator: the medic tries, and the squad endures. Never reload-and-memorize.
 
 **Fairness law** (of record in `../adr/ADR-005-detection-beacon-witness-rule.md` and `../../CLAUDE.md`; the old
 `DESIGN §4.2` pointer is dead)**:** alert ≠ accuracy; AI accuracy ramps with player exposure; first shot at an unaware player is a near-miss; muzzle flash / tracers / vocalizations always telegraph.

@@ -16,7 +16,9 @@ contradicts an ADR, the ADR wins and this file gets corrected.
 - `MISSION_DESIGN_RESEARCH.md` — RTCW/MoHAA-derived mission/AI architecture
 - `RECON_ADAPTATION.md` — tabletop rules → real-time mappings (detection, XP scoring). **Its damage section is DEAD — it still describes a dice grammar (`rifle hit = 4d10`) that ADR-016 retired. Damage is flat and deterministic; take damage from ADR-016 and the Damage System section below, never from this file.**
 
-**Pillars (test every decision):** 1. Outstanding gunplay · 2. Atmosphere · 3. Freedom (no rails, stealth optional, escalation not fail-states) · 4. The squad is the RPG · 5. Fail forward.
+**Pillars (test every decision; merged and ruled 2026-07-19, text of record `production/bible/BIBLE.md:62-90`):**
+1. **Believable firefights** — AI that fights like soldiers AND weapons that kill like weapons, neither subordinate · 2. **Atmosphere** · 3. **Freedom** (no rails, stealth is an economy not a gate; the seeded world generates the stories) · 4. **The squad is the RPG — and you are IN it, not above it** (you suggest and call; the squad holds its own AI intent — a design that has you positioning individual men violates this) · 5. **Fail forward** (escalation not fail-states; death matters, but this is not a sadism simulator).
+`DESIGN.md:67-94` holds the superseded pre-merge text — do not cite it, and never cite `DESIGN.md §N`: that file has no numbered sections.
 
 **Origins:** `scripts/`, `scenes/`, `assets/`, `data/` = Hell of Duty FPS core (copied; HellOfDuty project untouched). `terrain/` = TerrainEngine copy (res:// paths remapped to res://terrain/; original project untouched). RTS assets (structures, weapon data, unit data) get copied in from `C:\Users\caleb\RealVietnamRTS` as needed — never edit that project from here.
 

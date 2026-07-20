@@ -66,6 +66,12 @@ The strategic layer across operations is intentionally lightweight for now: new 
 
 ## Pillars
 
+> **⛔ SUPERSEDED 2026-07-19 — merged into `production/bible/BIBLE.md:62-90`, which is the text of record.**
+> These five competed with a different five in the Bible and CLAUDE.md for the life of the project.
+> The Summoner ruled: merge, keeping what each set uniquely held. **Pillar 3 below was the one the
+> enforced set had dropped**, and its loss is why the squad was built as offsets from the player.
+> It now lives inside merged Pillar 4. Kept here verbatim as the founding text; cite the Bible, not this.
+
 ### Pillar 1 — Believable Firefights
 
 The AI must fight like soldiers. This is the load-bearing design law. Everything else—terrain, weapons, animations, sound—exists in service of this.
