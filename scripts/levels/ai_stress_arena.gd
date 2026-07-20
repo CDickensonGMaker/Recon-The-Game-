@@ -1137,6 +1137,8 @@ func _spawn_player() -> void:
 	if cam != null:
 		cam.current = true
 
+	_spawn_player_rto()
+
 	if not spawn_hud:
 		return
 	var hud: HUD = load("res://scenes/ui/hud.tscn").instantiate() as HUD
@@ -1148,6 +1150,78 @@ func _spawn_player() -> void:
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
 
 	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
+
+
+## The player's RTO: one commandable radioman who carries the PRC-25, follows the
+## player alone (his own AllyBase order, not a squad order), and hands the player
+## his handset. NOT part of the autonomous _us_squads, so ordering him never touches
+## the arena's other men. Reuses the existing ally/RTO - no bespoke entity.
+func _spawn_player_rto() -> void:
+	if player == null:
+		return
+	var pos: Vector3 = player.global_position + Vector3(2.5, 0.0, 1.5)
+	var rto: AllyBase = AllyBase.spawn_ally(self, pos)
+	if rto == null:
+		return
+	rto.add_to_group("radioman")
+	rto.member = {"nick": "SPARKS", "mos": "RTO"}
+	rto.set_sprite("us_grunt_rto", "m16a1", "US")
+	rto.set_order(AllyBase.OrderMode.FOLLOW)
+	var handset := _attach_radio_to_rto(rto)
+	if handset != null:
+		player.call("bind_radio_handset", handset)
+	print("[AI STRESS ARENA] player RTO spawned (commandable, PRC-25 %s)"
+			% ("wired" if handset != null else "MISSING"))
+
+
+## Build a RadioHandset on this RTO, its stowed handset bound to the man's own
+## prc25_handset mesh and a procedural cord run over root-child markers (placeholder
+## anchors until the real handset art is bone-attached). Returns the handset, stamped
+## on the RTO as meta "handset" for the player's interact to find.
+func _attach_radio_to_rto(rto: AllyBase) -> RadioHandset:
+	var ma := rto.sprite_actor as ModelActor
+	if ma == null:
+		return null
+	var root: Node3D = ma.instance_root()
+	if root == null:
+		return null
+	var stowed: MeshInstance3D = _find_mesh_named(root, "prc25_handset")
+	if stowed == null:
+		push_warning("[ARENA] RTO body has no prc25_handset mesh - no handset to grab")
+		return null
+	var port := Marker3D.new()
+	rto.add_child(port)
+	port.position = Vector3(0.0, 1.25, -0.18)   # radio on his back
+	var guide := Marker3D.new()
+	rto.add_child(guide)
+	guide.position = Vector3(0.16, 1.4, -0.05)   # over the left shoulder
+	var stow_ep := Marker3D.new()
+	rto.add_child(stow_ep)
+	stow_ep.position = Vector3(0.14, 1.2, -0.12)  # at the stowed handset
+	var cord := RadioCord.new()
+	cord.port = port
+	cord.guide = guide
+	cord.endpoint = stow_ep
+	rto.add_child(cord)
+	var handset := RadioHandset.new()
+	handset.stowed_mesh = stowed
+	handset.cord = cord
+	handset.stowed_endpoint = stow_ep
+	rto.add_child(handset)
+	rto.set_meta("handset", handset)
+	return handset
+
+
+## First MeshInstance3D under `root` whose name contains `needle`, or null.
+func _find_mesh_named(root: Node, needle: String) -> MeshInstance3D:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D and String(n.name).contains(needle):
+			return n as MeshInstance3D
+		for c in n.get_children():
+			stack.append(c)
+	return null
 
 
 func _spawn_initial_forces() -> void:

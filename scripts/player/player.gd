@@ -96,6 +96,17 @@ var flare_count: int = 3
 var _binocs_active: bool = false
 var _mark_timer: float = 0.0
 
+## RADIO / RTO HANDSET. `holding_handset` (read by weapon_holder) slings the rifle
+## while the PRC-25 handset is in your hand. The placeholder is the viewmodel box
+## Caleb's Blender arms+handset replace; the cord anchor is the world-space point
+## the RadioHandset's cord runs to. All three are made in bind_radio_handset().
+var holding_handset: bool = false
+var _handset_placeholder: MeshInstance3D = null
+var _handset_cord_anchor: Marker3D = null
+var _radio_menu: RadioMenu = null
+## Aim reach for opening the radio menu on your RTO.
+const RADIO_REACH: float = 3.0
+
 ## Hold-breath: short meter, big sway/spread cut while aiming.
 var breath_meter: float = 100.0
 const BREATH_MAX: float = 100.0
@@ -214,6 +225,141 @@ func _field_toast(text: String) -> void:
 		hud_node.show_toast(text)
 
 
+## ---------- RADIO / RTO HANDSET ----------
+
+## Wire an RTO's handset to the player: build the viewmodel placeholder box and the
+## world-space cord anchor on the player, hand both to the handset, and listen for
+## grab / return / snap / taut. Reusable seam - the arena calls this for its RTO,
+## and the real game calls it when an RTO joins the squad. Idempotent.
+func bind_radio_handset(h: RadioHandset) -> void:
+	if h == null:
+		return
+	if _handset_cord_anchor == null:
+		_handset_cord_anchor = Marker3D.new()
+		_handset_cord_anchor.name = "HandsetCordAnchor"
+		add_child(_handset_cord_anchor)
+		_handset_cord_anchor.position = Vector3(0.25, 1.3, -0.2)  # right chest, world space
+	if _handset_placeholder == null:
+		_handset_placeholder = MeshInstance3D.new()
+		_handset_placeholder.name = "HandsetPlaceholder"
+		# PLACEHOLDER BLOCK. A plain box in viewmodel space (child of the camera).
+		# SEAM: Caleb's Blender arms+handset viewmodel with the raise animation drops
+		# in HERE - replace this MeshInstance3D with the real viewmodel scene and keep
+		# it assigned as h.held_mesh; nothing else changes.
+		var box := BoxMesh.new()
+		box.size = Vector3(0.09, 0.14, 0.05)
+		_handset_placeholder.mesh = box
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.12, 0.14, 0.10)
+		_handset_placeholder.material_override = m
+		_handset_placeholder.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if camera != null:
+			camera.add_child(_handset_placeholder)
+			_handset_placeholder.position = Vector3(0.16, -0.14, -0.32)
+		_handset_placeholder.visible = false
+	h.held_mesh = _handset_placeholder
+	h.held_endpoint = _handset_cord_anchor
+	if not h.handset_taken.is_connected(_on_handset_taken):
+		h.handset_taken.connect(_on_handset_taken)
+	if not h.handset_returned.is_connected(_on_handset_returned):
+		h.handset_returned.connect(_on_handset_returned)
+	if not h.cord_snapped.is_connected(_on_cord_snapped):
+		h.cord_snapped.connect(_on_cord_snapped)
+	if not h.cord_taut.is_connected(_on_cord_taut):
+		h.cord_taut.connect(_on_cord_taut)
+
+
+## The RTO you are looking at within arm's reach, or null. Aim-based (a deliberate
+## look down the sights of your eyes), never proximity - it matches the [F] RADIO
+## prompt, and a wall between you and him blocks it (world is in the mask).
+func _aimed_radioman() -> AllyBase:
+	if camera == null or is_seated:
+		return null
+	var origin: Vector3 = get_camera_position()
+	var dir: Vector3 = get_aim_direction()
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * RADIO_REACH, 1 | 2)
+	query.exclude = [self]
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit:
+		var col: Object = hit.collider
+		if col is AllyBase and (col as Node).is_in_group("radioman"):
+			return col as AllyBase
+	return null
+
+
+## The RadioHandset attached to this RTO, or null. The arena stamps it as meta when
+## it dresses the man with a live radio (there is exactly one per RTO).
+func _rto_handset(rto: AllyBase) -> RadioHandset:
+	if rto != null and rto.has_meta("handset"):
+		return rto.get_meta("handset") as RadioHandset
+	return null
+
+
+func _open_radio_menu(rto: AllyBase) -> void:
+	if _radio_menu != null or rto == null:
+		return
+	var h: RadioHandset = _rto_handset(rto)
+	var can_grab: bool = h != null and h.can_take()
+	var nick: String = "RADIO"
+	if not rto.member.is_empty():
+		nick = str(rto.member.get("nick", "RADIO"))
+	_radio_menu = RadioMenu.new()
+	get_tree().current_scene.add_child(_radio_menu)
+	_radio_menu.build(nick, can_grab)
+	_radio_menu.follow_requested.connect(func() -> void:
+		rto.set_order(AllyBase.OrderMode.FOLLOW)
+		_field_toast("%s: ON YOU" % nick)
+		_close_radio_menu())
+	_radio_menu.hold_requested.connect(func() -> void:
+		rto.set_order(AllyBase.OrderMode.HOLD, rto.global_position)
+		_field_toast("%s: HOLDING HERE" % nick)
+		_close_radio_menu())
+	_radio_menu.grab_requested.connect(func() -> void:
+		if h != null and h.can_take():
+			h.take(self)  # emits handset_taken -> _on_handset_taken slings the rifle
+		_close_radio_menu())
+	_radio_menu.close_requested.connect(_close_radio_menu)
+	GameManager.is_in_menu = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+
+func _close_radio_menu() -> void:
+	if _radio_menu != null:
+		_radio_menu.queue_free()
+		_radio_menu = null
+	GameManager.is_in_menu = false
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+func _on_handset_taken(_by: Node3D) -> void:
+	holding_handset = true
+	if weapon_holder and weapon_holder.weapon_model:
+		weapon_holder.weapon_model.visible = false
+	if _handset_placeholder:
+		_handset_placeholder.visible = true
+	_field_toast("HANDSET IN HAND - RIFLE SLUNG")
+
+
+func _on_handset_returned() -> void:
+	holding_handset = false
+	if weapon_holder and weapon_holder.weapon_model:
+		weapon_holder.weapon_model.visible = true
+	if _handset_placeholder:
+		_handset_placeholder.visible = false
+
+
+func _on_cord_snapped() -> void:
+	# stow() runs inside the handset right after this and fires handset_returned,
+	# which restores the rifle; this is only the bark.
+	_field_toast("CORD SNAPPED - HANDSET RIPPED FROM YOUR HAND")
+
+
+func _on_cord_taut(is_taut: bool) -> void:
+	if is_taut:
+		_field_toast("CORD TAUT - THE RADIO IS PULLING")
+
+
 ## Tunnel state.
 var _in_tunnel: TunnelRoom = null
 var _prompt_poll: float = 0.0
@@ -228,6 +374,8 @@ func field_interact_prompt() -> String:
 		if not _in_tunnel.looted and global_position.distance_to(_in_tunnel.cache_point()) < 2.2:
 			return "[F] SEARCH THE CACHE"
 		return ""
+	if _aimed_radioman() != null:
+		return "[F] RADIO"
 	for t in get_tree().get_nodes_in_group("temple_shrines"):
 		var shrine := t as Node3D
 		if shrine and not shrine.has_meta("searched") \
@@ -348,6 +496,12 @@ func _try_field_interact() -> void:
 				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
 			_field_toast("TUNNEL CACHE - DOCUMENTS AND AMMO (+2 INTEL)")
 			return
+	# Aiming at your RTO within reach: open the radio menu (per-man orders + the
+	# handset grab). One affordance, reachable wherever he stands (player freedom).
+	var rto: AllyBase = _aimed_radioman()
+	if rto != null:
+		_open_radio_menu(rto)
+		return
 	# Temple shrine: one-time offering search (intel + flavor).
 	for t in get_tree().get_nodes_in_group("temple_shrines"):
 		var shrine := t as Node3D

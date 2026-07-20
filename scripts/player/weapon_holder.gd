@@ -185,8 +185,11 @@ func _handle_input() -> void:
 		is_firing = false
 		return
 
-	# On the radio (fire-support menu open): the rifle is down - no aim, no fire.
+	# On the radio (fire-support menu open) OR holding the RTO's handset: the rifle
+	# is down - no aim, no fire. Holding the handset costs you your rifle.
 	var on_radio: bool = FieldDirector.any_fire_menu_open
+	if controller and "holding_handset" in controller and controller.holding_handset:
+		on_radio = true
 
 	is_aiming = Input.is_action_pressed("aim") and not is_reloading and not on_radio
 
