@@ -876,3 +876,68 @@ light spawners left in the codebase** (`illum_flare.gd:30`, `tunnel_room.gd:55`,
 parity), **+7.8 and +8.0** (seed 12 night, both builds), against noise floors of 1.4 / 1.1 / 2.8. It
 drops **~1,200 of ~1,400 draw calls (85%)** while moving primitives ~12%. It is call-bound, and it is
 where the frame actually is.
+
+---
+
+## 2026-07-20 — WHERE THE CANOPY'S DRAW CALLS ACTUALLY COME FROM (measured, then STOOD DOWN)
+
+Perf was deprioritised mid-investigation (Summoner: *"don't keep worrying about the fps that'll be
+final polish well do in a few weeks"*). **No perf change was shipped and nothing was committed** — the
+probes below were run, recorded here, and deleted. This entry exists so the diagnosis survives to the
+polish pass. It supersedes nothing; the rows above stand.
+
+Config: seed **47225**, **scale 0.75** (shipped, `project.godot:304` — NOT native), renderer
+**forward_plus** (`project.godot:299`), 1280x720 windowed, Intel UHD, Godot 4.7.stable, single
+instance verified. The canopy figure is a measured ON/OFF delta (`TreeCoverLayer.visible`), not an
+estimate.
+
+| measurement | value |
+|---|---:|
+| total draw calls in frame | 1,368 – 1,481 |
+| draw calls with canopy hidden | 411 – 464 |
+| **draw calls FROM the canopy** | **957 – 1,017** |
+| fps at the seeded spawn pose | 30.7 |
+
+### The mechanism, pinned
+
+**MultiMesh is already used correctly and materials are already shared.** The canopy is not defeated
+by per-instance materials, and there is no per-plant `MeshInstance3D` anywhere. The call count is
+simply the **node count**: one `MultiMeshInstance3D` per group, one draw call each.
+
+- Species meshes carry **1 surface** each (4 palms carry 2) — `tree_cover_layer.gd:199` `_extract_mesh`
+  takes the first mesh only. Surfaces are **not** the multiplier.
+- `tree_cover_layer.gd:94` keys every group as **`[species, bucket_x, bucket_z]`** with
+  `BUCKET = 64.0` (`:47`), and `:115`/`:118` emit **two** nodes per group — a near solid
+  (`0..near_distance`) and a far card (`near_distance..view_distance`).
+- Live census: **14,080 MMI nodes** exist (7,040 near / 7,040 far). Of those, **1 near** and
+  **~1,670 far** fall inside their own `visibility_range` from the camera; ~957–1,017 survive frustum
+  culling and draw.
+
+**So the entire canopy call budget is the FAR-CARD ring, and it equals
+`(64m buckets within 350m) × (species present per bucket)` ≈ 94 × ~17.6.** The near ring is correctly
+culled and costs ~0 draw calls — it is not a target. Only two factors are available:
+
+1. **Fewer buckets in range.** Calls fall monotonically as `BUCKET` grows (species-per-bucket saturates
+   at the 27-species pool), so `BUCKET = 128` is roughly a 2.5× cut. **But this is a LOOK change and
+   the comment at `tree_cover_layer.gd:43-46` already names why:** `visibility_range` is evaluated
+   per-node against the transformed AABB, so a coarser bucket quantises the 65m near/far handoff by
+   ±90m instead of ±45m. That either double-renders cards inside the solid ring or opens a gap in the
+   jungle — the ±181m version of this same defect *was* the historical invisible-jungle bug.
+2. **Fewer species per bucket** — i.e. collapse the 27 card materials into one atlas so a whole bucket
+   is one MultiMesh. This is the real ~10× win (≈94 calls instead of ~1,000) and it is genuinely a
+   change to *how* geometry is submitted, not to what is drawn.
+
+### The blocker on the atlas path, and it is an asset-pipeline fact
+
+**The 27 card textures are NOT atlased** — each species has its own PNG and its own
+`StandardMaterial3D` (`assets/world/vegetation/cards/bamboo_a_card_bamboo_a.png`, ×27; verified by
+probe). Any earlier claim that the cards share an atlas is false. Worse, **the card bake tool is not in
+the repo** — `tools/` has no card/impostor generator, only `make_jungle_vegetation.py` (whose only
+"card" is the star-fan grass at `:521`). Atlasing therefore means writing the bake pipeline from
+scratch, plus a unit-quad mesh with per-instance UV-rect custom data and a shader to read it, plus
+re-deriving each card's aspect into the instance transform. That is a new far-card renderer path, not a
+batching tweak — which is why it was not attempted under a no-new-systems brief.
+
+**Bottom line for the polish pass: the canopy is call-bound on far-card node count; the cheap lever
+(`BUCKET`) is a look change and RULE #1 outranks it; the honest lever is a card atlas and it is real
+work, not a one-liner.**
