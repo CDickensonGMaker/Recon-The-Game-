@@ -432,6 +432,9 @@ func _try_field_interact() -> void:
 				CampaignState.intel_points += 1
 				CampaignState.save_campaign()
 				_field_toast("DOCUMENTS RECOVERED - INTEL GAINED (+1)")
+				var dmf: Node = MissionGenerator.dynamic_factory_ref
+				if dmf is DynamicMissionFactory:
+					(dmf as DynamicMissionFactory).report_camp_discovered(global_position)
 			return
 
 

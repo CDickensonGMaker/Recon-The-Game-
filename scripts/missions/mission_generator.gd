@@ -727,6 +727,7 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
 		cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
 		var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
+		civ.village_center = site.center
 		civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
 		if wp_positions.size() > 0:
 			civ.working_point_pos = wp_positions[rng.randi() % wp_positions.size()]

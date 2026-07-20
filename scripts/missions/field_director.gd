@@ -144,6 +144,7 @@ func _process(delta: float) -> void:
 	if _gate_poll >= 0.5:
 		_gate_poll = 0.0
 		_poll_wire_gate()
+		_poll_firebase_threat()
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
@@ -490,8 +491,22 @@ func _cas_ground_target() -> Vector3:
 const WIRE_GATE_M: float = 120.0
 const WIRE_RETURN_M: float = 95.0
 
+const FSB_THREAT_M: float = 90.0    ## enemies this close to the compound are on the wire
+const FSB_THREAT_MEN: int = 2
+
+## Radio wording per crisis kind. A crisis the player is never told about does
+## not exist (r4bk), and the only channel that carries it is the RTO's net.
+const CRISIS_CALL: Dictionary = {
+	"firebase_attack": "SIX: THE FIREBASE IS IN CONTACT",
+	"village": "SIX: A VILLAGE IS CALLING FOR HELP",
+	"vc_camp": "S2: CAMP LOCATION CONFIRMED",
+	"pinned_patrol": "SIX: FRIENDLY ELEMENT PINNED",
+	"ambushed_convoy": "SIX: CONVOY AMBUSHED",
+}
+
 var patrol_gate_pos := Vector3.ZERO
 var patrol_gate_out := Vector3.FORWARD
+var fsb_center := Vector3.ZERO
 var patrol_locations: Array[Dictionary] = []   ## {pos: Vector3, kind: String}
 var patrol_location := Vector3.ZERO
 var patrol_location_kind: String = ""
@@ -504,6 +519,7 @@ var _gate_poll: float = 0.0
 func setup_patrol(built: Dictionary) -> void:
 	patrol_gate_pos = built.gate_pos
 	patrol_gate_out = built.gate_out
+	fsb_center = built.get("center", Vector3.ZERO)
 	patrol_locations.clear()
 	for s in (built.sites as Array):
 		var sd: Dictionary = s
@@ -581,7 +597,61 @@ func rebark_patrol() -> void:
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 
 
+## A live crisis raised by DynamicMissionFactory. It joins the ring at the front,
+## and if the patrol is ALREADY outside the wire it retargets the sweep on the
+## spot. THE NET IS THE CHANNEL: off the net the word never reaches him and the
+## sweep does not move - the location simply keeps until the next walk-out. No
+## marker ever appears from nothing (Fairness Law).
+func raise_crisis(loc: Dictionary) -> void:
+	var pos: Vector3 = loc.get("pos", Vector3.ZERO)
+	if loc.is_empty() or pos == Vector3.ZERO:
+		return
+	patrol_locations.push_front(loc)
+	if not patrol_out or world == null or world.player == null:
+		return
+	if _radio_check() != "":
+		return
+	patrol_location = pos
+	patrol_location_kind = str(loc.get("kind", ""))
+	_visited_locations.append(pos)
+	var from: Vector3 = world.player.global_position
+	toast.emit("%s - %s, %dM" % [
+		str(CRISIS_CALL.get(patrol_location_kind, "SIX: TROUBLE IN THE AO")),
+		_bearing_name(pos - from), int(from.distance_to(pos))])
+	_radio_vo("on_the_horn")
+
+
+## Enemies closing on the compound while the patrol is out. The garrison cannot
+## call this in itself - they are noncombatant Civilians (mission_generator.gd:702).
+func _poll_firebase_threat() -> void:
+	if fsb_center == Vector3.ZERO or not patrol_out:
+		return
+	var near: int = 0
+	for e in _live_enemies:
+		if not is_instance_valid(e) or e.is_dead():
+			continue
+		if Vector2(e.global_position.x - fsb_center.x,
+				e.global_position.z - fsb_center.z).length() <= FSB_THREAT_M:
+			near += 1
+	if near < FSB_THREAT_MEN:
+		return
+	var dmf: Node = MissionGenerator.dynamic_factory_ref
+	if dmf is DynamicMissionFactory:
+		(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
+			hash(Vector2i(int(fsb_center.x), int(fsb_center.z))), {"position": fsb_center})
+
+
 func _pick_patrol_location() -> Dictionary:
+	# A LIVE CRISIS OUTRANKS THE STANDING RING - it is taken before the bearing
+	# scan runs, which is the only thing that makes push_front mean anything.
+	for c in patrol_locations:
+		if not c.has("trigger_state"):
+			continue
+		var cpos: Vector3 = c.pos
+		if _visited_locations.has(cpos):
+			continue
+		_visited_locations.append(cpos)
+		return c
 	# Push direction = where he chose to walk out, relative to the gate.
 	var pdir: Vector3 = world.player.global_position - patrol_gate_pos
 	pdir.y = 0.0

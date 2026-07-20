@@ -42,11 +42,10 @@ func emit_location(state: StringName, entity_id: int, payload: Dictionary) -> vo
 	var loc: Dictionary = location_for(state, payload)
 	if loc.is_empty():
 		return
-	# Feed the wire gate directly: a live crisis outranks the standing ring.
 	var dirs: Array[Node] = get_tree().get_nodes_in_group("mission_director")
 	for d in dirs:
-		if d is FieldDirector and (loc.pos as Vector3) != Vector3.ZERO:
-			(d as FieldDirector).patrol_locations.push_front(loc)
+		if d is FieldDirector:
+			(d as FieldDirector).raise_crisis(loc)
 
 
 ## Connected by MissionGenerator to every Convoy's `ambushed` signal.
@@ -56,3 +55,38 @@ func _on_convoy_ambushed(convoy: Convoy, position: Vector3) -> void:
 	emit_location(&"convoy_ambushed", convoy.get_instance_id(), {
 		"position": position,
 	})
+
+
+## A villager broke for cover over violence the player is NOT standing in. His own
+## firefight is not a distress call - he is already there - so the distance check
+## is what separates "a village in trouble" from "the trouble is me".
+const VILLAGE_DISTRESS_M: float = 150.0
+
+func report_village_distress(village_center: Vector3, village_id: int,
+		player_pos: Vector3) -> void:
+	if village_center.distance_to(player_pos) < VILLAGE_DISTRESS_M:
+		return
+	emit_location(&"village_requesting_aid", village_id, {"position": village_center})
+
+
+## Captured documents name a camp. This is the ONLY honest way the player learns
+## of one today: an existing world verb he performed, not a marker from nowhere.
+## The nearest camp he has not already been sold is the one the papers describe.
+func report_camp_discovered(from_pos: Vector3) -> bool:
+	var best: CampDirector = null
+	var best_d: float = 1.0e9
+	for n in get_parent().get_children():
+		if not (n is CampDirector):
+			continue
+		var cd := n as CampDirector
+		if cd.camp_pos == Vector3.ZERO or _seen.has(cd.get_instance_id()):
+			continue
+		var d: float = from_pos.distance_to(cd.camp_pos)
+		if d < best_d:
+			best_d = d
+			best = cd
+	if best == null:
+		return false
+	emit_location(&"enemy_camp_discovered", best.get_instance_id(),
+		{"position": best.camp_pos})
+	return true

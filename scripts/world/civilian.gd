@@ -54,6 +54,9 @@ var occupation: String = "farmer"
 ## idle chains, and no noncombatant panic. Background life, never a combatant
 ## and never a squad member.
 var is_garrison: bool = false
+## The village this man belongs to. Written at build time so a panicking villager
+## can name his own hamlet without a radius scan guessing at it.
+var village_center: Vector3 = Vector3.ZERO
 var active_action: StringName = &"idle"
 var working_point: NodePath = NodePath()
 var working_point_pos: Vector3 = Vector3.ZERO
@@ -170,7 +173,24 @@ func _on_noise(type: int, position: Vector3, _radius: float, _team: int) -> void
 		return
 	if type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION:
 		if global_position.distance_to(position) < 60.0:
+			var was_calm: bool = state == CivState.WANDER
 			state = CivState.FLEE if randf() < 0.6 else CivState.COWER
+			if was_calm:
+				_call_for_aid()
+
+
+## Shooting started at this man's hamlet and the player is somewhere else. The
+## village becomes a place worth walking to.
+func _call_for_aid() -> void:
+	if village_center == Vector3.ZERO:
+		return
+	var dmf: Node = MissionGenerator.dynamic_factory_ref
+	var player := GameManager.player as Node3D
+	if not (dmf is DynamicMissionFactory) or player == null:
+		return
+	(dmf as DynamicMissionFactory).report_village_distress(village_center,
+		absi(hash(Vector2i(int(village_center.x), int(village_center.z)))),
+		player.global_position)
 
 
 func _physics_process(delta: float) -> void:
