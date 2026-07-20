@@ -56,6 +56,12 @@ func _update_think_lod(delta: float) -> void:
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
 var target_last_seen_time: float = 0.0
+
+## A fixed point this man drives to regardless of the combat brain, pushing THROUGH
+## contact instead of stopping to fight it (sapper doctrine - aggression is
+## doctrine-exempt, test_ai_fairness.gd:103). ZERO = no override, normal FSM. Set
+## once by a behaviour node (sapper_charge.gd); the goal-scoring brain is untouched.
+var assault_objective: Vector3 = Vector3.ZERO
 var has_line_of_sight: bool = false
 var target_visible_duration: float = 0.0
 
@@ -1291,6 +1297,13 @@ func _execute(delta: float) -> void:
 
 	_update_aim(delta)
 
+	# Objective override: a driven man (sapper) runs the satchel to the point and
+	# pushes through fire. Movement only - he still thinks, aims and can be killed;
+	# the goal FSM below never touches his legs while the objective stands.
+	if assault_objective != Vector3.ZERO:
+		_execute_assault(delta)
+		return
+
 	match current_state:
 		Enums.AIState.IDLE:
 			_execute_idle(delta)
@@ -1336,6 +1349,12 @@ func _update_aim(delta: float) -> void:
 	if flat_aim.length() > 0.1:
 		look_at(global_position + flat_aim)
 		facing_dir = current_aim_dir
+
+
+## Drive the satchel to the objective at a run, ignoring cover and contact. The
+## behaviour node (sapper_charge.gd) owns the detonation; this owns only the legs.
+func _execute_assault(delta: float) -> void:
+	_move_toward(assault_objective, delta, 1.15)
 
 
 func _execute_idle(delta: float) -> void:

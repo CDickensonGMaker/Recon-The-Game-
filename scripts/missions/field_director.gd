@@ -145,6 +145,7 @@ func _process(delta: float) -> void:
 		_gate_poll = 0.0
 		_poll_wire_gate()
 		_poll_firebase_threat()
+		_maybe_launch_sappers()
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
@@ -494,6 +495,21 @@ const WIRE_RETURN_M: float = 95.0
 const FSB_THREAT_M: float = 90.0    ## enemies this close to the compound are on the wire
 const FSB_THREAT_MEN: int = 2
 
+## SAPPER ASSAULT (war-room decree 2026-07-20). A night probe on the wire, capped
+## at ONE per operation (the friendly-patrol crisis is 2; a base assault is louder,
+## so it takes a smaller share of the same budget). Rolled once per night, chance
+## by the threat tier the player earned. Notification is emergent: the sappers walk
+## in through the 90m ring and trip _poll_firebase_threat - no second toast path.
+const SAPPER_DATA: String = "res://data/enemies/vc_sapper.tres"
+const SAPPER_COUNT: int = 3
+const SAPPER_RING_MIN: float = 300.0
+const SAPPER_RING_MAX: float = 500.0
+const SAPPER_CHANCE: Dictionary = {"LOW": 0.0, "MODERATE": 0.2, "HIGH": 0.45, "CRITICAL": 0.7}
+
+var _sapper_aim: Vector3 = Vector3.ZERO       ## the bench, just inside the wire
+var _sapper_launched: bool = false            ## hard cap: one assault per operation
+var _sapper_rolled_night: bool = false        ## one roll per night, reset at dawn
+
 ## Radio wording per crisis kind. A crisis the player is never told about does
 ## not exist (r4bk), and the only channel that carries it is the RTO's net.
 const CRISIS_CALL: Dictionary = {
@@ -520,6 +536,9 @@ func setup_patrol(built: Dictionary) -> void:
 	patrol_gate_pos = built.gate_pos
 	patrol_gate_out = built.gate_out
 	fsb_center = built.get("center", Vector3.ZERO)
+	var bench: Node = built.get("bench", null) as Node
+	if bench is Node3D:
+		_sapper_aim = (bench as Node3D).global_position
 	patrol_locations.clear()
 	for s in (built.sites as Array):
 		var sd: Dictionary = s
@@ -622,7 +641,7 @@ func raise_crisis(loc: Dictionary) -> void:
 
 
 ## Enemies closing on the compound while the patrol is out. The garrison cannot
-## call this in itself - they are noncombatant Civilians (mission_generator.gd:702).
+## call this in itself - they are noncombatant Civilians (mission_generator.gd:744).
 func _poll_firebase_threat() -> void:
 	if fsb_center == Vector3.ZERO or not patrol_out:
 		return
@@ -639,6 +658,44 @@ func _poll_firebase_threat() -> void:
 	if dmf is DynamicMissionFactory:
 		(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
 			hash(Vector2i(int(fsb_center.x), int(fsb_center.z))), {"position": fsb_center})
+
+
+## One roll per night, one launch per operation, chance by the earned threat tier.
+## Reset at dawn so a quiet night is not the last word. The gates are separated from
+## the spawn so a probe can prove the GATING (this) and the ASSAULT independently.
+func _maybe_launch_sappers() -> void:
+	if not MissionWeather.is_night:
+		_sapper_rolled_night = false   # a fresh chance each night
+		return
+	if _sapper_launched or _sapper_rolled_night:
+		return
+	if patrol_count < 1 or fsb_center == Vector3.ZERO:
+		return   # the world must have settled - he has walked out at least once
+	_sapper_rolled_night = true
+	var chance: float = float(SAPPER_CHANCE.get(CampaignState.threat_label(), 0.0))
+	if randf() < chance:
+		launch_sapper_assault(SAPPER_COUNT)
+
+
+## Stand up the assault: sappers on the ring, each carrying a satchel aimed at the
+## bench just inside the wire. Public so a probe can drive it without the RNG gate.
+func launch_sapper_assault(count: int) -> void:
+	if _sapper_launched or fsb_center == Vector3.ZERO:
+		return
+	_sapper_launched = true
+	var aim: Vector3 = _sapper_aim if _sapper_aim != Vector3.ZERO else fsb_center
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(int(fsb_center.x), int(fsb_center.z))) ^ 0x5A9927
+	var bearing: float = rng.randf_range(0.0, TAU)
+	for i in range(count):
+		var a: float = bearing + rng.randf_range(-0.35, 0.35)
+		var r: float = rng.randf_range(SAPPER_RING_MIN, SAPPER_RING_MAX)
+		var pos: Vector3 = fsb_center + Vector3(cos(a) * r, 0.0, sin(a) * r)
+		var sapper: EnemyBase = spawn_tracked_enemy(pos, SAPPER_DATA, "sapper_assault")
+		sapper.add_to_group("sapper_assault")
+		var charge := SapperCharge.new()
+		sapper.add_child(charge)
+		charge.setup(aim)
 
 
 func _pick_patrol_location() -> Dictionary:

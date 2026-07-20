@@ -110,7 +110,8 @@ func apply_explosion_damage(
 	min_damage: int,
 	radius: float,
 	attacker: Node,
-	knockback_scale: float = 1.0
+	knockback_scale: float = 1.0,
+	spare_garrison: bool = false
 ) -> void:
 	var space_state: PhysicsDirectSpaceState3D = get_tree().root.get_world_3d().direct_space_state
 
@@ -159,6 +160,10 @@ func apply_explosion_damage(
 	# Noncombatants take blast like anyone else - snapshot for the same reason.
 	for civ in AgentRegistry.civilians.duplicate():
 		if not is_instance_valid(civ) or not civ is Node3D:
+			continue
+		# A placed satchel spares the noncombatant garrison by decree (Pillar 5):
+		# men who cannot react are not deleted in a scripted breach.
+		if spare_garrison and civ.get("is_garrison") == true:
 			continue
 		var civ_pos: Vector3 = (civ as Node3D).global_position
 		var civ_dist: float = center.distance_to(civ_pos)
