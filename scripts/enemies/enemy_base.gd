@@ -62,6 +62,10 @@ var target_last_seen_time: float = 0.0
 ## doctrine-exempt, test_ai_fairness.gd:103). ZERO = no override, normal FSM. Set
 ## once by a behaviour node (sapper_charge.gd); the goal-scoring brain is untouched.
 var assault_objective: Vector3 = Vector3.ZERO
+## A demolition infiltrator never fires and never barks contact - the satchel is his
+## weapon. Silence is an invariant here, independent of the assault-move override, so
+## clearing the objective can never turn a "sapper" back into a live gun. Set from data.
+var silent_infiltrator: bool = false
 var has_line_of_sight: bool = false
 var target_visible_duration: float = 0.0
 
@@ -274,6 +278,8 @@ func _ready() -> void:
 			char_aggression = lerpf(char_aggression, enemy_data.aggression, 0.6)
 			char_self_preservation = lerpf(char_self_preservation, 1.0 - enemy_data.courage, 0.6)
 			d_exposure_ramp = enemy_data.exposure_ramp_time
+			if "silent_infiltrator" in enemy_data:
+				silent_infiltrator = enemy_data.silent_infiltrator
 
 			if not enemy_data.weapon_path.is_empty():
 				weapon_data = load(enemy_data.weapon_path)
@@ -929,7 +935,8 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 			if player and global_position.distance_to(player.global_position) < 15.0:
 				has_reacted = false
 				reaction_timer = -randf_range(0.4, 0.7)  # extra startle delay
-		GunFX.play_combat_sting(get_tree().current_scene)
+		if not silent_infiltrator:
+			GunFX.play_combat_sting(get_tree().current_scene)
 
 
 ## Heard something. Investigation goes to the NOISE, not the source.
@@ -1947,6 +1954,8 @@ func _projectile() -> ProjectileData:
 
 
 func _fire_at_target() -> void:
+	if silent_infiltrator:
+		return  # the satchel is his weapon - a sapper never squeezes a trigger
 	if not weapon_data or not target:
 		return
 

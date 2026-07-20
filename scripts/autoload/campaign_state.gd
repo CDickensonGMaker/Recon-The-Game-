@@ -35,6 +35,10 @@ var collapsed_tunnels: Array = []
 ## Armorer's rack fouling, weapon id -> condition 0-100. A weapon you rack dirty
 ## is still dirty when you draw it again; swapping is never a free clean.
 var rack_condition: Dictionary = {}
+## The cost of a firebase breach: what a sapper's satchel took out of the depot,
+## as an ordnance-kind -> count dict. Read and CONSUMED by FieldDirector on the
+## next walk-out (persistent, not permanent - it is one patrol's short allotment).
+var depot_loss: Dictionary = {}
 
 
 
@@ -154,6 +158,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "intel_points", intel_points)
 	cfg.set_value("campaign", "collapsed_tunnels", collapsed_tunnels)
 	cfg.set_value("campaign", "rack_condition", rack_condition)
+	cfg.set_value("campaign", "depot_loss", depot_loss)
 	var err: int = cfg.save(save_path)
 	if err != OK:
 		push_error("[SAVE] could not write %s (err %d) - campaign progress lost" % [save_path, err])
@@ -190,6 +195,7 @@ func load_campaign() -> void:
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
+	depot_loss = cfg.get_value("campaign", "depot_loss", {}) as Dictionary
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
 	# EVERY boot until the next natural save.
 	if file_version < SAVE_VERSION:
@@ -218,6 +224,7 @@ func to_dict() -> Dictionary:
 		"intel_points": intel_points,
 		"collapsed_tunnels": collapsed_tunnels,
 		"rack_condition": rack_condition.duplicate(true),
+		"depot_loss": depot_loss.duplicate(true),
 	}
 
 
@@ -235,6 +242,7 @@ func from_dict(d: Dictionary) -> void:
 	intel_points = int(d.get("intel_points", 0))
 	collapsed_tunnels = d.get("collapsed_tunnels", []) as Array
 	rack_condition = d.get("rack_condition", {}) as Dictionary
+	depot_loss = d.get("depot_loss", {}) as Dictionary
 
 
 func reset_campaign() -> void:
@@ -253,6 +261,7 @@ func reset_campaign() -> void:
 	intel_points = 0
 	collapsed_tunnels = []
 	rack_condition = {}
+	depot_loss = {}
 	save_campaign()
 
 

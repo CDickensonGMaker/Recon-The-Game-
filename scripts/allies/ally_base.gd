@@ -107,6 +107,8 @@ func wants_cover_first(nerve: float) -> bool:
 ## May this man close the range? The coward anchors on his rock; a broken squad
 ## does not push at all.
 func may_close_distance(nerve: float) -> bool:
+	if _is_garrison_defender():
+		return false  # he holds the wire; the assault comes to him
 	return not squad_broken and not (nerve < 0.35 and has_cover)
 
 var has_line_of_sight: bool = false
@@ -136,6 +138,18 @@ const CATCHUP_MULT: float = 1.35
 const COMBAT_SPEED_MULT: float = 0.48
 ## Amble inside the deadzone. Slow enough to read as a man, not a reposition.
 const IDLE_DRIFT_SPEED: float = 0.45
+
+## GARRISON DEFENDER LEASH (war-room decree 2026-07-20). A promoted firebase man
+## holds his post: he fires outward from the wire and never chases the enemy off it.
+## post_anchor ZERO = a normal maneuvering ally (default; the squad and ambient
+## patrols are untouched). Non-ZERO pins his combat footwork inside post_leash of it.
+var post_anchor: Vector3 = Vector3.ZERO
+var post_leash: float = 8.0
+
+
+func _is_garrison_defender() -> bool:
+	return post_anchor != Vector3.ZERO
+
 
 ## Squad layer: roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
@@ -542,7 +556,15 @@ func _find_target() -> void:
 		var dist := global_position.distance_to(epos)
 		if dist >= closest_dist:
 			continue
-		if dist > SightCap.at(grid, global_position, epos):
+		# Per-unit stealth shrinks the cap for a low-profile crawler (a sapper ~0.6),
+		# so at night he closes the wire before a sentry can pick him out - and the
+		# flare (which lifts the cap inside SightCap) is the counter. Default 1.0 leaves
+		# every ordinary enemy exactly where it was.
+		var cap: float = SightCap.at(grid, global_position, epos)
+		var eb := enemy as EnemyBase
+		if eb != null and eb.enemy_data != null:
+			cap *= eb.enemy_data.stealth
+		if dist > cap:
 			continue
 		closest_dist = dist
 		closest_enemy = enemy as Node3D
@@ -787,6 +809,11 @@ func _execute_combat(delta: float) -> void:
 							_cover_pose_until_ms = now_ms + 600.0
 		else:
 			_anim_override = ""
+
+		# A garrison defender dragged past his leash is pulled home: the post outranks
+		# the fight footwork, so the perimeter never empties into the dark.
+		if _is_garrison_defender() and global_position.distance_to(post_anchor) > post_leash:
+			move_dir = (post_anchor - global_position).normalized()
 
 		move_dir.y = 0
 		if move_dir.length() > 0.1:

@@ -17,6 +17,15 @@ extends Resource
 @export var weapon_path: String = ""  ## Path to WeaponData resource
 @export var accuracy_modifier: float = 1.0  ## spread MULTIPLIER: >1 = LESS accurate (VC 1.15), <1 = crack shot (NVA 0.95)
 @export var aggression: float = 0.5  ## 0 = defensive, 1 = aggressive
+## <1 = harder for his foes to spot him. A DEFENDER multiplies its own sight cap by
+## this before comparing range, so a low value shrinks the distance at which he is
+## seen (sappers ~0.6). Only ever multiplies the cap DOWN - 1.0 leaves it untouched,
+## so every existing .tres is unaffected. Leans on SightCap; never makes a man invisible.
+@export_range(0.0, 1.0) var stealth: float = 1.0
+## A demolition infiltrator, not a rifleman: he carries a satchel and NEVER fires,
+## so no muzzle flash and no gunshot betray his crawl. Silence is an INVARIANT here,
+## not an accident of the assault-move override - it holds even if the objective clears.
+@export var silent_infiltrator: bool = false
 
 @export_group("Behavior")
 @export var uses_cover: bool = true

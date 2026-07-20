@@ -180,6 +180,16 @@ func _process(delta: float) -> void:
 		request_fire_support("mortar")
 	if Input.is_action_just_pressed("supply_drop") and GameManager.can_player_act():
 		request_supply_drop()
+	# PROACTIVE NET KICK (Stage-1 handoff): if the RTO is killed while the player is on
+	# the net, drop him off it THIS frame - he should learn the radio is dead now, not
+	# on his next press. Routes through _close_net (the mirror-safe seam), and closing
+	# the net makes fire_menu_open false, so this self-limits to one shot.
+	if fire_menu_open:
+		var rto_live: AllyBase = squad_system.member_by_mos("RTO") \
+			if (squad_system != null and is_instance_valid(squad_system)) else null
+		if rto_live == null or rto_live.is_dead():
+			_close_net()
+			toast.emit("THE RADIO'S DEAD - YOU'VE LOST THE NET")
 
 
 ## Unified call-for-fire: budgets per mission, all RTO-gated.
@@ -533,9 +543,31 @@ const SAPPER_RING_MIN: float = 300.0
 const SAPPER_RING_MAX: float = 500.0
 const SAPPER_CHANCE: Dictionary = {"LOW": 0.0, "MODERATE": 0.2, "HIGH": 0.45, "CRITICAL": 0.7}
 
+## THE COORDINATED PUSH. Behind the silent sappers, a LOUD fireteam charges the wire:
+## they fire, telegraph with tracers and voices, and pull the garrison's eyes while the
+## sappers slip in quiet. They reuse the hunter pattern (ALERT, aimed at the compound),
+## NOT the sapper drive - a driven man never fires, and this element must go loud.
+const ASSAULT_DATA: String = "res://data/enemies/nva_regular.tres"
+const ASSAULT_ELEMENT: int = 4
+
+## A satchel at the bench breaches the munitions dump. It costs the player mortars in
+## hand now, and shorts his next allotment (persisted through CampaignState.depot_loss).
+const BREACH_MORTAR_LOSS: int = 3
+const BREACH_ARTY_LOSS: int = 1
+
 var _sapper_aim: Vector3 = Vector3.ZERO       ## the bench, just inside the wire
 var _sapper_launched: bool = false            ## hard cap: one assault per operation
 var _sapper_rolled_night: bool = false        ## one roll per night, reset at dawn
+var _garrison_stood_to: bool = false          ## the garrison has been promoted to defenders
+var _firebase_breached: bool = false          ## the depot is already gone - one breach per op
+
+## Firebase-attack crisis re-fire (bug fix 2026-07-20). The old constant fsb hash made
+## the DynamicMissionFactory dedup fire the crisis ONCE per operation, ever. A per-wave
+## key lets a genuinely NEW assault re-announce; an active latch stops the 0.5s spam.
+var _fsb_threat_active: bool = false
+var _fsb_wave: int = 0
+var _fsb_clear_polls: int = 0
+const FSB_CLEAR_POLLS: int = 20   ## ~10s of SUSTAINED quiet (0.5s poll) re-arms a new wave
 
 ## Radio wording per crisis kind. A crisis the player is never told about does
 ## not exist (r4bk), and the only channel that carries it is the RTO's net.
@@ -624,6 +656,16 @@ func _grant_fire_support() -> void:
 		fire_support["cbu"] = 1
 	if tier == "CRITICAL":
 		fire_support["spooky"] = 1
+	# A breached depot short-changes THIS allotment (persistent, consumed here - the
+	# loss is one patrol's, not forever). Without this read, Fork B is cosmetic: the
+	# hard-assign above wipes any docked stock.
+	var loss: Dictionary = CampaignState.depot_loss
+	if not loss.is_empty():
+		for kind in loss.keys():
+			fire_support[str(kind)] = maxi(0, int(fire_support.get(str(kind), 0)) - int(loss[kind]))
+		CampaignState.depot_loss = {}
+		CampaignState.save_campaign()
+		toast.emit("DEPOT HIT LAST NIGHT - BATTALION SENT WHAT IT COULD")
 	if rto != null:
 		toast.emit("%s HAS THE HORN - [T] FOR THE NET" % str(rto.member.get("nick", "RTO")))
 	if tier in ["HIGH", "CRITICAL"]:
@@ -679,12 +721,64 @@ func _poll_firebase_threat() -> void:
 		if Vector2(e.global_position.x - fsb_center.x,
 				e.global_position.z - fsb_center.z).length() <= FSB_THREAT_M:
 			near += 1
-	if near < FSB_THREAT_MEN:
+	if near >= FSB_THREAT_MEN:
+		_fsb_clear_polls = 0
+		# The garrison answers the wire whether or not the net carries the word.
+		_garrison_stand_to()
+		if not _fsb_threat_active:
+			# A genuinely NEW assault. Bump the wave so the factory (which dedups on the
+			# entity id) sees a fresh crisis instead of the once-per-op ghost the old
+			# constant hash produced. The active latch below blocks the 0.5s re-emit.
+			_fsb_threat_active = true
+			_fsb_wave += 1
+			var dmf: Node = MissionGenerator.dynamic_factory_ref
+			if dmf is DynamicMissionFactory:
+				var base_key: int = hash(Vector2i(int(fsb_center.x), int(fsb_center.z)))
+				(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
+					base_key ^ (_fsb_wave * 0x9E3779B1), {"position": fsb_center})
 		return
-	var dmf: Node = MissionGenerator.dynamic_factory_ref
-	if dmf is DynamicMissionFactory:
-		(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
-			hash(Vector2i(int(fsb_center.x), int(fsb_center.z))), {"position": fsb_center})
+	# Threat thinning. Re-arm only after a SUSTAINED clear, never on the in/out edge -
+	# a man loitering on the ring must not spam a fresh crisis each time he crosses it.
+	if _fsb_threat_active:
+		_fsb_clear_polls += 1
+		if _fsb_clear_polls >= FSB_CLEAR_POLLS:
+			_fsb_threat_active = false
+			_fsb_clear_polls = 0
+
+
+## The garrison stands to and fights. Each firebase Civilian hands off 1:1 to an
+## AllyBase holding his post (GarrisonDefender.promote). Idempotent: the first real
+## assault promotes them, later polls are no-ops. Called ONLY from a genuine assault
+## (launch_sapper_assault) or a confirmed multi-man threat on the wire - never for a
+## lone wanderer - so the garrison stays passive noncombatants until the base is hit.
+func _garrison_stand_to() -> void:
+	if _garrison_stood_to:
+		return
+	_garrison_stood_to = true
+	var promoted: int = 0
+	for n in get_tree().get_nodes_in_group("firebase_garrison"):
+		var civ := n as Civilian
+		if civ == null:
+			continue
+		if GarrisonDefender.promote(civ, self, fsb_center) != null:
+			promoted += 1
+	if promoted > 0:
+		toast.emit("STAND TO - THE WIRE'S IN CONTACT")
+
+
+## A satchel breached the munitions dump. The cost lands: the player loses the mortars
+## he is carrying now (immediate legibility), and the depot is short for his NEXT
+## walk-out (persisted through CampaignState, consumed by _grant_fire_support). One
+## depot, one breach - a second sapper cannot destroy what is already gone.
+func on_firebase_breach(_at: Vector3) -> void:
+	if _firebase_breached:
+		return
+	_firebase_breached = true
+	fire_support["mortar"] = 0
+	fire_support["arty"] = maxi(0, int(fire_support.get("arty", 0)) - BREACH_ARTY_LOSS)
+	CampaignState.depot_loss = {"mortar": BREACH_MORTAR_LOSS, "arty": BREACH_ARTY_LOSS}
+	CampaignState.save_campaign()
+	toast.emit("THE MUNITIONS DUMP IS GONE - MORTARS DOWN, NEXT PATROL RUNS LIGHT")
 
 
 ## One roll per night, one launch per operation, chance by the earned threat tier.
@@ -723,6 +817,21 @@ func launch_sapper_assault(count: int) -> void:
 		var charge := SapperCharge.new()
 		sapper.add_child(charge)
 		charge.setup(aim)
+	# The coordinated push: a loud fireteam charges behind the silent sappers. Kept in
+	# its OWN group so the sapper wiring stays 3, and spawned ALERT + aimed at the
+	# compound so they advance and go loud when the garrison opens up (the fight
+	# bootstraps from the sentries firing first, which wakes this element into COMBAT).
+	for j in range(ASSAULT_ELEMENT):
+		var aa: float = bearing + rng.randf_range(-0.5, 0.5)
+		var ar: float = rng.randf_range(SAPPER_RING_MIN + 40.0, SAPPER_RING_MAX + 60.0)
+		var apos: Vector3 = fsb_center + Vector3(cos(aa) * ar, 0.0, sin(aa) * ar)
+		var trooper: EnemyBase = spawn_tracked_enemy(apos, ASSAULT_DATA, "firebase_assault")
+		trooper.add_to_group("firebase_assault")
+		trooper.last_known_target_pos = fsb_center
+		trooper.target_last_seen_time = 0.0
+		trooper._set_tier(EnemyBase.AlertTier.ALERT)
+	# Steel is on the way - the garrison stands to and mans the wire.
+	_garrison_stand_to()
 
 
 func _pick_patrol_location() -> Dictionary:
