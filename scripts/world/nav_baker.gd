@@ -22,8 +22,6 @@
 class_name NavBaker
 extends Node
 
-signal site_nav_ready(center: Vector3)
-signal all_nav_ready
 
 const HALF_MIN: float = 35.0
 const HALF_MAX: float = 70.0
@@ -98,8 +96,6 @@ func queue_sites(sites: Array, anchors: Array[Vector3]) -> void:
 	boxes = _merge(boxes)
 	for b in boxes:
 		_queue.append({"box": b})
-	if _queue.is_empty():
-		all_nav_ready.emit()
 
 
 func queue_site(center: Vector3, radius: float) -> void:
@@ -201,10 +197,8 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 		region.navigation_mesh = nav
 		NavBaker._live_boxes.append(box)
 		regions_live += 1
-		site_nav_ready.emit(box.get_center())
 	if _queue.is_empty() and _active_mesh == null:
 		print("[NavBaker] %d region(s), %d polys, %d ms total" % [regions_live, polys, _total_ms])
-		all_nav_ready.emit()
 
 
 ## The chunk mesh steps at chunk_size/grid_resolution = 256/64 = 4.0m, exactly the

@@ -3,7 +3,6 @@ class_name EnemyBase
 extends CharacterBody3D
 
 signal died(enemy: EnemyBase)
-signal state_changed(new_state: Enums.AIState)
 
 ## Enemy data resource
 @export var enemy_data_path: String = ""
@@ -214,9 +213,6 @@ var char_reaction: float = 0.6        # 0-1: reaction speed
 var char_self_preservation: float = 0.5  # 0-1: tendency to seek cover
 
 const MAX_BURST: int = 5
-const ALERT_RANGE: float = 25.0
-const AGGRO_RANGE: float = 18.0
-const MAX_THINK_TIME: float = 0.2
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -1659,7 +1655,6 @@ func _change_state(new_state: Enums.AIState) -> void:
 		return
 	current_state = new_state
 	state_timer = 0.0
-	state_changed.emit(new_state)
 
 
 ## Routed through NavBaker's per-site navmesh so pursuers path around obstacles.

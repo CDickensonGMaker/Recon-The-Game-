@@ -2,8 +2,6 @@ extends Node
 ## Terrain Engine - Advanced heightmap generation with Vietnam-style terrain
 ## Features: Domain warping, ridged multifractal, hydraulic erosion
 
-signal terrain_updated(region: Rect2i)
-
 var seed_value: int = 0
 # Terrain size: 1537 cells = 3074m at 2m/cell (~3km map)
 # Supports up to 1536+ for large open worlds. Use power of 2 + 1 for clean LOD.
@@ -715,5 +713,3 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> void:
 		for x in range(affected.position.x, affected.position.x + affected.size.x):
 			var h: float = heightmap_data[y * terrain_size + x]
 			heightmap.set_pixel(x, y, Color(h, h, h, 1.0))
-
-	terrain_updated.emit(affected)

@@ -220,12 +220,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	return actual_damage
 
 
-## Stabilize without full heal (stops bleeding but doesn't restore HP)
-func stabilize() -> void:
-	is_bleeding = false
-	bleeding_stopped.emit()
-
-
 ## Downed/revive layer. A revive handler (SquadSystem) may intercept death: the
 ## player goes DOWNED and a medic gets a window to reach him.
 var revive_handler: Node = null
@@ -267,19 +261,6 @@ func is_dead() -> bool:
 	return current_hp <= 0 and not is_downed
 
 
-## Critically wounded == bleeding.
-func is_critical() -> bool:
-	return is_bleeding
-
-
 func add_health_pack(count: int = 1) -> void:
 	health_packs += count
 	health_pack_changed.emit(health_packs)
-
-
-func get_health_pack_count() -> int:
-	return health_packs
-
-
-func get_bleed_time_remaining() -> float:
-	return bleed_timer if is_bleeding else 0.0

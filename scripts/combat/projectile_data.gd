@@ -57,8 +57,3 @@ extends Resource
 ## Flat per-hit damage (ADR-016). Deterministic.
 func get_damage() -> int:
 	return maxi(1, base_damage)
-
-
-## Get damage string for UI
-func get_damage_string() -> String:
-	return "%d" % base_damage

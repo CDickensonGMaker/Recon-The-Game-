@@ -2,9 +2,6 @@
 ## Architecture inspired by Quake 3: multi-point visibility, knockback system
 extends Node
 
-signal damage_dealt(attacker: Node, target: Node, damage: int, damage_type: Enums.DamageType)
-signal entity_killed(entity: Node, killer: Node)
-
 var player: Node = null
 
 ## Projectile pool for all projectiles in the game
@@ -76,34 +73,6 @@ func _ready() -> void:
 ## Register player reference
 func register_player(player_node: Node) -> void:
 	player = player_node
-
-
-## Calculate bullet damage with optional knockback
-func apply_bullet_damage(
-	attacker: Node,
-	target: Node,
-	base_damage: int,
-	damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL,
-	knockback_force: float = 0.0,
-	knockback_dir: Vector3 = Vector3.ZERO
-) -> int:
-	if not is_instance_valid(target) or not target.has_method("take_damage"):
-		return 0
-
-	var total_damage: int = maxi(1, base_damage)
-	var actual_damage: int = target.take_damage(total_damage, damage_type, attacker)
-
-	# Apply knockback if target supports it
-	if knockback_force > 0.0 and knockback_dir.length() > 0.1:
-		_apply_knockback(target, knockback_dir, knockback_force, actual_damage)
-
-	damage_dealt.emit(attacker, target, actual_damage, damage_type)
-
-	if target.has_method("is_dead") and target.is_dead():
-		entity_killed.emit(target, attacker)
-		GameManager.on_enemy_killed()
-
-	return actual_damage
 
 
 ## Apply knockback to a target (Quake 3 pattern: scales with damage, capped)
@@ -317,14 +286,6 @@ func spawn_projectile(data: ProjectileData, source: Node, spawn_position: Vector
 		push_warning("[CombatManager] Projectile pool not initialized!")
 		return null
 	return projectile_pool.spawn(data, source, spawn_position, direction, target)
-
-
-## Spawn a projectile aimed at a specific position
-func spawn_projectile_at_target(data: ProjectileData, source: Node, spawn_position: Vector3, target_position: Vector3, target: Node3D = null) -> ProjectileBase:
-	if not projectile_pool:
-		push_warning("[CombatManager] Projectile pool not initialized!")
-		return null
-	return projectile_pool.spawn_at_target(data, source, spawn_position, target_position, target)
 
 
 ## Clear all active projectiles

@@ -2,7 +2,6 @@ extends Node
 ## Damage System - Physical terrain deformation from explosions, bombardment, etc.
 ## Creates craters, scarring, and persistent damage markers using Decals
 
-signal terrain_scarred(region: Rect2i)
 
 enum DamageType {
 	SMALL_EXPLOSION,    # Grenade, mortar - small crater
@@ -249,16 +248,6 @@ func _create_scar_decal(position: Vector3, radius: float, color: Color, scar_typ
 	scar_decals.append(decal)
 
 
-func apply_bombardment(center: Vector3, radius: float, count: int, type: DamageType) -> void:
-	for i in range(count):
-		var angle: float = randf() * TAU
-		var dist: float = randf() * radius
-		var offset := Vector3(cos(angle) * dist, 0, sin(angle) * dist)
-		var intensity: float = randf_range(0.7, 1.0)
-
-		apply_damage(center + offset, type, intensity)
-
-
 ## Clear all damage (for testing reset)
 func clear_all_damage() -> void:
 	damage_zones.clear()
@@ -268,13 +257,3 @@ func clear_all_damage() -> void:
 		if is_instance_valid(decal):
 			decal.queue_free()
 	scar_decals.clear()
-
-	terrain_scarred.emit(Rect2i(Vector2i.ZERO, Vector2i(256, 256)))
-
-
-func get_damage_count() -> int:
-	return damage_zones.size()
-
-
-func get_damage_zones() -> Array[Dictionary]:
-	return damage_zones

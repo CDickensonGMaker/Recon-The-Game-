@@ -47,6 +47,21 @@ func _ready() -> void:
 		_tally(f, freq, conn_sites)
 	print("scanned %d files, %d distinct identifiers" % [files.size(), freq.size()])
 
+	# A DECLARATION IS NOT A REFERENCE. `freq` counts the bare name everywhere, so the
+	# line `func get_height_at(...)` counts itself, and two files declaring the same name
+	# count as each other's caller. Competing implementations mutually alibi, and the more
+	# duplicated a dead system is, the more alive it looks. Subtract every declaration.
+	var decls: Dictionary = {}
+	for f: String in files:
+		if f.ends_with(".gd"):
+			_tally_decls(f, decls)
+	var dupes: Array[String] = []
+	for sym: String in decls:
+		if int(decls[sym]) > 1:
+			dupes.append("%s x%d" % [sym, int(decls[sym])])
+	dupes.sort()
+	print("declarations tallied: %d distinct, %d declared in 2+ places" % [decls.size(), dupes.size()])
+
 	# 2. every DECLARATION in the code we hold to the law.
 	var decl_files: Array[String] = []
 	for d: String in SCAN_DIRS:
@@ -54,7 +69,7 @@ func _ready() -> void:
 	for f: String in decl_files:
 		if not f.ends_with(".gd"):
 			continue
-		_check_file(f, freq, conn_sites)
+		_check_file(f, freq, decls, conn_sites)
 
 	var keys: Array = _seen.keys()
 	keys.sort()
@@ -214,11 +229,12 @@ func _strip_comments(text: String) -> String:
 
 
 ## Find declarations in one .gd and judge each against the frequency table.
-func _check_file(path: String, freq: Dictionary, conn_sites: Dictionary) -> void:
+func _check_file(path: String, freq: Dictionary, decls: Dictionary, conn_sites: Dictionary) -> void:
 	var fa: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if fa == null:
 		return
-	var lines: PackedStringArray = fa.get_as_text().split("\n")
+	# A commented-out `#func foo()` is not a declaration.
+	var lines: PackedStringArray = _strip_comments(fa.get_as_text()).split("\n")
 	fa.close()
 
 	var re_const: RegEx = RegEx.new()
@@ -234,7 +250,7 @@ func _check_file(path: String, freq: Dictionary, conn_sites: Dictionary) -> void
 
 		var mc: RegExMatch = re_const.search(line)
 		if mc != null:
-			_judge(mc.get_string(1), "const", rel, i + 1, freq)
+			_judge(mc.get_string(1), "const", rel, i + 1, freq, decls)
 			continue
 
 		var ms: RegExMatch = re_signal.search(line)
@@ -250,13 +266,50 @@ func _check_file(path: String, freq: Dictionary, conn_sites: Dictionary) -> void
 			var fname: String = mf.get_string(1)
 			if fname in LIFECYCLE:
 				continue
-			_judge(fname, "func", rel, i + 1, freq)
+			_judge(fname, "func", rel, i + 1, freq, decls)
 
 
-## freq <= 1 means the symbol appears NOWHERE outside its own declaration.
-func _judge(sym: String, kind: String, rel: String, line: int, freq: Dictionary) -> void:
-	if int(freq.get(sym, 0)) <= 1:
-		_record(rel, kind, sym, line, "")
+## Occurrences minus declarations. Zero left means nothing anywhere reads this symbol.
+## When N files declare one name, all N declarations are subtracted, so a family of
+## competing dead implementations can no longer vouch for each other.
+func _judge(sym: String, kind: String, rel: String, line: int, freq: Dictionary, decls: Dictionary) -> void:
+	var refs: int = int(freq.get(sym, 0)) - int(decls.get(sym, 0))
+	if refs > 0:
+		return
+	var n: int = int(decls.get(sym, 0))
+	# With 2+ declarations and 0 references we know the NAME is dead, which means every
+	# declaration of it is dead. With 1 declaration it is simply dead.
+	_record(rel, kind, sym, line, (" (%d competing declarations, none referenced)" % n) if n > 1 else "")
+
+
+## Count how many times each symbol is DECLARED, across the whole reference corpus.
+func _tally_decls(path: String, decls: Dictionary) -> void:
+	if path == BASELINE_PATH:
+		return
+	var fa: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if fa == null:
+		return
+	var text: String = _strip_comments(fa.get_as_text())
+	fa.close()
+
+	var res: Array[RegEx] = []
+	for pattern: String in [
+		"^\\s*const\\s+([A-Z_][A-Z0-9_]*)\\s*[:=]",
+		"^\\s*signal\\s+([A-Za-z_][A-Za-z0-9_]*)",
+		"^\\s*func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(",
+		"^\\s*static\\s+func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(",
+	]:
+		var r: RegEx = RegEx.new()
+		r.compile(pattern)
+		res.append(r)
+
+	for line: String in text.split("\n"):
+		for r: RegEx in res:
+			var m: RegExMatch = r.search(line)
+			if m != null:
+				var s: String = m.get_string(1)
+				decls[s] = int(decls.get(s, 0)) + 1
+				break
 
 
 ## Key on file+kind+symbol. The line number is display only - keying on it would

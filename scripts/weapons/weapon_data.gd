@@ -125,11 +125,6 @@ func damage_multiplier_at(distance: float) -> float:
 	return lerpf(1.0, min_damage_mult, t)
 
 
-## Get damage string for UI display (e.g., "28")
-func get_damage_string() -> String:
-	return "%d" % base_damage
-
-
 ## Get fire rate in seconds between shots
 func get_fire_delay() -> float:
 	return 60.0 / fire_rate

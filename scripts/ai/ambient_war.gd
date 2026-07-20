@@ -41,7 +41,43 @@ func _roll_events() -> void:
 			"position": pos,
 			"lifetime_s": life_s,
 			"born_ms": Time.get_ticks_msec(),
+			"node": _spawn_audio(kind, pos),
 		})
+
+
+## The war was rolled but never heard. Give each event a positioned source so it
+## arrives from a bearing instead of out of the flat distant_war_loop.
+func _spawn_audio(kind: String, pos: Vector3) -> AudioStreamPlayer3D:
+	var path: String = "res://assets/audio/sfx/shot_distant.wav"
+	if kind == "artillery" or kind == "mortar":
+		path = "res://assets/audio/sfx/explosion.wav"
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return null
+	var src := AudioStreamPlayer3D.new()
+	src.stream = stream
+	src.unit_size = 220.0
+	src.max_distance = 1200.0
+	src.volume_db = -8.0
+	add_child(src)
+	src.global_position = pos
+	src.play()
+	return src
+
+
+## Events expire. The roster only ever grew, and every entry it held was a live
+## audio source.
+func _process(_delta: float) -> void:
+	var now: int = Time.get_ticks_msec()
+	for i in range(_active.size() - 1, -1, -1):
+		var e: Dictionary = _active[i]
+		var age_s: float = float(now - int(e.get("born_ms", now))) / 1000.0
+		if age_s < float(e.get("lifetime_s", 0.0)):
+			continue
+		var node := e.get("node") as AudioStreamPlayer3D
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+		_active.remove_at(i)
 
 
 func get_active() -> Array:

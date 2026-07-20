@@ -58,15 +58,14 @@ const TYPE_SPECIES := {
 var bundle_meters: float:
 	get: return cell_size * BUNDLE_SIZE
 
-# Terrain type properties: [tree_chance, tree_count_min, tree_count_max, blocks_los, move_speed]
-# move_speed: 1.0 = full speed, 0.5 = half speed, etc.
+# Terrain type properties: [tree_chance, tree_count_min, tree_count_max]
 const TYPE_PROPS := {
-	TerrainType.CLEAR:         [0.00, 0, 0, false, 1.0],
-	TerrainType.RICE_PADDY:    [0.00, 0, 0, false, 0.4],   # Water/mud - very slow
-	TerrainType.GRASSLAND:     [0.16, 0, 1, false, 0.95],  # Very sparse
-	TerrainType.LIGHT_JUNGLE:  [0.42, 1, 3, false, 0.8],   # Sparse
-	TerrainType.MEDIUM_JUNGLE: [0.72, 2, 4, true,  0.5],   # Moderate density
-	TerrainType.HEAVY_JUNGLE:  [0.92, 3, 6, true,  0.3],   # Dense canopy
+	TerrainType.CLEAR:         [0.00, 0, 0],
+	TerrainType.RICE_PADDY:    [0.00, 0, 0],
+	TerrainType.GRASSLAND:     [0.16, 0, 1],  # Very sparse
+	TerrainType.LIGHT_JUNGLE:  [0.42, 1, 3],  # Sparse
+	TerrainType.MEDIUM_JUNGLE: [0.72, 2, 4],  # Moderate density
+	TerrainType.HEAVY_JUNGLE:  [0.92, 3, 6],  # Dense canopy
 }
 
 var _meshes: Array[Mesh] = []  # Tree meshes
@@ -529,33 +528,6 @@ func set_density_centers(centers: Array) -> void:
 			generate_for_chunk(coord, hm, cs)
 
 
-## Check if position blocks LOS (heavy/medium jungle)
-func blocks_los(world_pos: Vector3, chunk_size: float) -> bool:
-	var chunk_coord := Vector2i(
-		int(floor(world_pos.x / chunk_size)),
-		int(floor(world_pos.z / chunk_size))
-	)
-
-	if not _chunk_terrain.has(chunk_coord):
-		return false
-
-	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
-	var local_x := fmod(world_pos.x, chunk_size)
-	var local_z := fmod(world_pos.z, chunk_size)
-	if local_x < 0: local_x += chunk_size
-	if local_z < 0: local_z += chunk_size
-
-	var bx := int(local_x / bundle_meters)
-	var bz := int(local_z / bundle_meters)
-
-	if bx < 0 or bx >= _bundles_per_chunk or bz < 0 or bz >= _bundles_per_chunk:
-		return false
-
-	var terrain_type: int = terrain[bz * _bundles_per_chunk + bx]
-	var props: Array = TYPE_PROPS[terrain_type]
-	return props[3]  # blocks_los
-
-
 func get_terrain_type_at(world_pos: Vector3, chunk_size: float) -> int:
 	var chunk_coord := Vector2i(
 		int(floor(world_pos.x / chunk_size)),
@@ -578,36 +550,6 @@ func get_terrain_type_at(world_pos: Vector3, chunk_size: float) -> int:
 		return TerrainType.CLEAR
 
 	return terrain[bz * _bundles_per_chunk + bx]
-
-
-## Get movement speed multiplier at world position (1.0 = full speed)
-func get_movement_multiplier_at(world_pos: Vector3, chunk_size: float) -> float:
-	var terrain_type := get_terrain_type_at(world_pos, chunk_size)
-	var props: Array = TYPE_PROPS[terrain_type]
-	return props[4]  # movement_speed
-
-
-func set_terrain_type_at(world_pos: Vector3, chunk_size: float, new_type: int) -> void:
-	var chunk_coord := Vector2i(
-		int(floor(world_pos.x / chunk_size)),
-		int(floor(world_pos.z / chunk_size))
-	)
-
-	if not _chunk_terrain.has(chunk_coord):
-		return
-
-	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
-	var local_x := fmod(world_pos.x, chunk_size)
-	var local_z := fmod(world_pos.z, chunk_size)
-	if local_x < 0: local_x += chunk_size
-	if local_z < 0: local_z += chunk_size
-
-	var bx := int(local_x / bundle_meters)
-	var bz := int(local_z / bundle_meters)
-
-	if bx >= 0 and bx < _bundles_per_chunk and bz >= 0 and bz < _bundles_per_chunk:
-		terrain[bz * _bundles_per_chunk + bx] = new_type
-		_chunk_terrain[chunk_coord] = terrain
 
 
 ## Clear visuals only - keeps cache for re-materialization

@@ -14,10 +14,8 @@ const RICE_PADDY: int = 1  # GameplayGrid.TerrainType.RICE_PADDY
 
 # Cluster parameters — tune via smoke test until ≥4 viable village anchors.
 const MIN_PADDY_AREA_CELLS: int = 2        # at 12m cells: 17m diameter minimum (was 4 = 24m, too strict for paddy-poor AOs)
-const PADDY_MIN_SEPARATION_M: float = 25.0  # two clusters closer than this merge
 const PROP_DENSITY: float = 0.8             # rice plants per cell, on average
 const VILLAGE_GROUPING_RADIUS_M: float = 140.0  # paddies within this band → one village (was 220; tighter = more villages)
-const VILLAGE_TARGET_PADDY_MIN: int = 1     # 1-paddy villages are acceptable when AO is paddy-poor
 const VILLAGE_TARGET_PADDY_MAX: int = 2     # 1-2 paddies per village = 8-10 villages from a normal AO
 const ANCHOR_OFFSET_MIN_M: float = 8.0      # hut center sits on the bund, not in the water
 const ANCHOR_OFFSET_MAX_M: float = 15.0

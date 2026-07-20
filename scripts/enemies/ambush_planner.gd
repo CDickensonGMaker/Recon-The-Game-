@@ -13,6 +13,10 @@ extends RefCounted
 
 const ROAD_NEAR_M: float = 80.0
 const COVER_NEAR_M: float = 30.0
+## Fractions of COVER_NEAR_M to sample. LIGHT_JUNGLE (0.35) is the floor that counts
+## as "good cover" - grassland (0.15) and paddy (0.1) are not concealment.
+const COVER_SAMPLE_RINGS: Array[float] = [0.2, 0.6, 1.0]
+const GOOD_COVER_MIN: float = 0.35
 const PADDY_AVOID_M: float = 30.0
 const AMBUSH_SOLDIERS_MIN: int = 4
 const AMBUSH_SOLDIERS_MAX: int = 6
@@ -33,8 +37,11 @@ static func plan(camp: CampDirector, grid: GameplayGrid,
 		# Hard reject paddies
 		if _near_paddy(site, paddy_centroids):
 			continue
-		# Score: prefer cover nearby + line-of-sight to trail blocked
+		# Hard reject open ground. Men who spring an ambush from grass get killed by
+		# the counter-volley; the doc always claimed cover was a requirement.
 		var cover_score: float = _cover_nearby(grid, site)
+		if cover_score < GOOD_COVER_MIN:
+			continue
 		var los_score: float = _los_blocked(grid, site)
 		var score: float = cover_score * 0.6 + los_score * 0.4
 		if score > best_score:
@@ -56,14 +63,18 @@ static func _near_paddy(pos: Vector3, centroids: Array) -> bool:
 
 
 static func _cover_nearby(grid: GameplayGrid, site: Vector3) -> float:
-	# Sample 8 cardinal points 5m out; score 0..1 by best cover.
+	# Best cover anywhere within COVER_NEAR_M, sampled on rings of 8 bearings.
+	# The old fixed 5m ring ignored the constraint the file documents and rejected
+	# good sites whose cover was a short crawl away.
 	var best: float = 0.0
-	for k in range(8):
-		var a: float = float(k) * TAU / 8.0
-		var p: Vector3 = site + Vector3(cos(a), 0.0, sin(a)) * 5.0
-		var tt: int = grid.get_terrain_type_at(grid.world_to_grid(p).x, grid.world_to_grid(p).y)
-		var cv: float = float(GameplayGrid.COVER_VALUES.get(tt, 0.0))
-		best = maxf(best, cv)
+	for ring in COVER_SAMPLE_RINGS:
+		var radius: float = COVER_NEAR_M * float(ring)
+		for k in range(8):
+			var a: float = float(k) * TAU / 8.0
+			var p: Vector3 = site + Vector3(cos(a), 0.0, sin(a)) * radius
+			var g: Vector2i = grid.world_to_grid(p)
+			var cv: float = float(GameplayGrid.COVER_VALUES.get(grid.get_terrain_type_at(g.x, g.y), 0.0))
+			best = maxf(best, cv)
 	return best
 
 

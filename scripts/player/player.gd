@@ -823,10 +823,6 @@ func is_moving() -> bool:
 	return velocity.length() > 0.5
 
 
-func get_current_speed() -> float:
-	return current_speed
-
-
 func _handle_recoil(delta: float) -> void:
 	# Framerate-exact exponential decay back to the held aim.
 	var decay: float = 1.0 - exp(-_recoil_recovery * delta)
@@ -894,10 +890,6 @@ func _collapse_camera(hit_dir: Vector3) -> void:
 	camera.reparent(head_body, true)
 	head_body.apply_central_impulse(hit_dir.normalized() * 8.0 + Vector3.UP * 1.0)
 	head_body.apply_torque_impulse(Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5)))
-
-
-func get_health_system() -> HealthSystem:
-	return health_system
 
 
 ## The AI drops a target via has_method("is_dead") + is_dead(), so this MUST

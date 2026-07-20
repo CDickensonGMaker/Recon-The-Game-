@@ -2,9 +2,6 @@ extends Node
 ## Clearing System - Jungle clearing with progressive stages
 ## Handles vegetation removal and terrain flattening for firebase construction
 
-signal clearing_started(zone_id: int, position: Vector3)
-signal clearing_progress(zone_id: int, progress: float)
-signal clearing_completed(zone_id: int)
 signal vegetation_updated(region: Rect2i)
 
 enum ClearingStage {
@@ -92,30 +89,7 @@ func create_zone(center: Vector3, radius: float, shape: String = "circle", rect_
 	zones[zone.id] = zone
 	next_zone_id += 1
 
-	clearing_started.emit(zone.id, center)
 	return zone.id
-
-
-func advance_clearing(zone_id: int, amount: float) -> void:
-	if not zones.has(zone_id):
-		return
-
-	var zone: ClearingZone = zones[zone_id]
-	zone.progress += amount
-
-	if zone.progress >= 1.0:
-		zone.progress = 0.0
-		if zone.stage < ClearingStage.FORTIFIED:
-			zone.stage = zone.stage + 1 as ClearingStage
-			_apply_stage_changes(zone)
-
-			if zone.stage == ClearingStage.FORTIFIED:
-				clearing_completed.emit(zone_id)
-		else:
-			zone.progress = 1.0
-
-	clearing_progress.emit(zone_id, _get_total_progress(zone))
-	_update_vegetation_map(zone)
 
 
 ## Set zone directly to a stage (for testing)
@@ -244,12 +218,6 @@ func _update_vegetation_map(zone: ClearingZone) -> void:
 								  Vector2i(tex_radius * 2, tex_radius * 2)))
 
 
-func _get_total_progress(zone: ClearingZone) -> float:
-	var stage_progress: float = float(zone.stage) / float(ClearingStage.FORTIFIED)
-	var within_stage: float = zone.progress / float(ClearingStage.FORTIFIED)
-	return stage_progress + within_stage
-
-
 ## Get vegetation density at world position (0-1)
 func get_vegetation_density(world_pos: Vector3) -> float:
 	if not terrain_manager:
@@ -265,10 +233,6 @@ func get_vegetation_density(world_pos: Vector3) -> float:
 ## Get clearing color overlay texture
 func get_clearing_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(clearing_texture)
-
-
-func remove_zone(zone_id: int) -> void:
-	zones.erase(zone_id)
 
 
 ## Clear all zones (for testing reset)

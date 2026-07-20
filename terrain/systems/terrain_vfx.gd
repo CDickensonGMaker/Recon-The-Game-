@@ -3,9 +3,6 @@ class_name TerrainVFX
 ## Visual feedback for terrain operations - dust, explosions, construction markers
 ## Uses GPUParticles3D for performance
 
-signal effect_started(effect_type: EffectType, position: Vector3)
-signal effect_completed(effect_type: EffectType, position: Vector3)
-
 enum EffectType {
 	DUST_CLOUD,        # General dust kick-up
 	EXPLOSION_SMALL,   # Grenade/mortar
@@ -231,8 +228,6 @@ func play_effect(effect_type: EffectType, position: Vector3, scale_mult: float =
 	next_effect_id += 1
 	active_effects[effect_id] = particles
 
-	effect_started.emit(effect_type, position)
-
 	# Auto-cleanup for one-shot effects
 	if particles.one_shot:
 		get_tree().create_timer(config.lifetime + 0.5).timeout.connect(
@@ -258,7 +253,6 @@ func _cleanup_effect(effect_id: int, effect_type: EffectType, position: Vector3)
 		particles.emitting = false
 		particles.visible = false
 		active_effects.erase(effect_id)
-		effect_completed.emit(effect_type, position)
 
 
 func _create_flash_light(position: Vector3, radius: float) -> void:

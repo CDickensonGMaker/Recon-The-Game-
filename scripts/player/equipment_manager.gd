@@ -146,10 +146,6 @@ func switch_to_slot(slot: int) -> void:
 	_start_switch(slot)
 
 
-func is_slot_switching() -> bool:
-	return is_switching
-
-
 func add_grenade(count: int = 1) -> void:
 	grenade_count += count
 	grenade_count_changed.emit(grenade_count)

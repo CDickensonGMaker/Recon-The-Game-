@@ -2,8 +2,6 @@ extends Node3D
 class_name TerrainChunk
 ## A single terrain chunk (256m x 256m) with mesh, collision, and navigation
 
-signal mesh_ready
-
 var coord: Vector2i  # Chunk grid coordinates
 var chunk_size: float = 256.0  # Meters
 var cell_size: float = 2.0  # Meters per vertex
@@ -116,7 +114,6 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetat
 	mesh_instance.material_override = shared_material
 
 	is_loaded = true
-	mesh_ready.emit()
 
 	print("[TerrainChunk] Chunk %s mesh built: %d vertices" % [coord, vertices.size()])
 
@@ -244,8 +241,3 @@ func unload() -> void:
 		collision_body.queue_free()
 		collision_body = null
 	is_loaded = false
-
-
-func get_world_bounds() -> AABB:
-	var origin := Vector3(coord.x * chunk_size, 0, coord.y * chunk_size)
-	return AABB(origin, Vector3(chunk_size, height_scale, chunk_size))

@@ -2,8 +2,6 @@
 class_name ProjectileBase
 extends Area3D
 
-signal hit_target(target: Node, damage: int)
-signal expired
 signal returned_to_pool
 
 ## Projectile configuration
@@ -302,7 +300,6 @@ func _handle_collision(target: Node) -> void:
 		var kinetic: int = maxi(1, int(float(projectile_data.get_damage()) * projectile_data.dud_impact_frac))
 		if target.has_method("take_damage"):
 			target.take_damage(kinetic, Enums.DamageType.PHYSICAL, owner_entity)
-			hit_target.emit(target, kinetic)
 		_dud_impact()
 		return
 
@@ -310,7 +307,6 @@ func _handle_collision(target: Node) -> void:
 
 	if target.has_method("take_damage"):
 		target.take_damage(damage, projectile_data.damage_type, owner_entity)
-		hit_target.emit(target, damage)
 
 	if projectile_data.stagger_power > 0 and target.has_method("apply_stagger"):
 		target.apply_stagger(projectile_data.stagger_power)
@@ -371,8 +367,6 @@ func _apply_aoe_damage() -> void:
 func _expire() -> void:
 	if not is_active:
 		return
-
-	expired.emit()
 
 	if trail:
 		trail.emitting = false

@@ -4,7 +4,6 @@ extends Node3D
 
 signal grenade_thrown
 signal grenade_cooking(time: float)
-signal grenade_exploded_in_hand
 
 ## Grenade configuration
 const FUSE_TIME: float = 4.0
@@ -112,8 +111,6 @@ func _explode_in_hand() -> void:
 	var health_system := controller.get_node_or_null("HealthSystem") as HealthSystem
 	if health_system:
 		health_system.take_damage(100, Enums.DamageType.EXPLOSIVE, controller)
-
-	grenade_exploded_in_hand.emit()
 
 	# Auto-switch back to primary, if still alive.
 	equipment_manager.switch_to_slot(0)

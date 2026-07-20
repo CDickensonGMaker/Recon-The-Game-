@@ -129,10 +129,6 @@ func member_by_mos(mos: String) -> AllyBase:
 	return null
 
 
-func is_rto_alive() -> bool:
-	return member_by_mos("RTO") != null
-
-
 ## ---------- ORDERS ----------
 
 func _unhandled_input(event: InputEvent) -> void:

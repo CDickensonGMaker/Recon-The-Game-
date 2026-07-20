@@ -54,10 +54,6 @@ func is_flowing() -> bool:
 	return type == Type.CREEK or type == Type.RIVER
 
 
-func is_static() -> bool:
-	return type == Type.POND or type == Type.LAKE or type == Type.COASTAL
-
-
 ## Get area in square meters
 func get_area() -> float:
 	if is_flowing():
@@ -91,41 +87,6 @@ func contains_point(world_x: float, world_z: float) -> bool:
 		return _point_near_path(point)
 	else:
 		return _point_in_polygon(point)
-
-
-## Get water depth at a world position (0 if outside)
-func get_depth_at(world_x: float, world_z: float) -> float:
-	if not contains_point(world_x, world_z):
-		return 0.0
-
-	# For simplicity, return uniform depth
-	# TODO: Per-point depth calculation for more realism
-	return depth
-
-
-func get_flow_at(world_x: float, world_z: float) -> Vector2:
-	if not is_flowing():
-		return Vector2.ZERO
-
-	if not contains_point(world_x, world_z):
-		return Vector2.ZERO
-
-	# Find nearest path segment and return its direction
-	var point := Vector2(world_x, world_z)
-	var best_dir := flow_direction
-	var best_dist := INF
-
-	for i in range(path.size() - 1):
-		var seg_start := path[i]
-		var seg_end := path[i + 1]
-		var closest := _closest_point_on_segment(point, seg_start, seg_end)
-		var dist := point.distance_to(closest)
-
-		if dist < best_dist:
-			best_dist = dist
-			best_dir = (seg_end - seg_start).normalized()
-
-	return best_dir * flow_speed
 
 
 func _point_near_path(point: Vector2) -> bool:

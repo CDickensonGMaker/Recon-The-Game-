@@ -3,8 +3,6 @@ class_name GameplayGrid
 ## Grid-based metadata storage for efficient game logic queries
 ## Stores elevation, terrain type, movement cost, cover values per cell
 
-signal grid_updated(region: Rect2i)
-
 # Mission seed flows in from game_world.gd. Used to make per-cell classification
 # and LOS checks deterministic by (mission, world-cell). (RECONgame-cp3s, RECONgame-5r4y)
 var mission_seed: int = 0
@@ -47,18 +45,6 @@ const COVER_VALUES: Dictionary = {
 	TerrainType.HEAVY_JUNGLE: 0.8,
 	TerrainType.WATER: 0.0,
 	TerrainType.CLIFF: 0.9,
-}
-
-# Defense bonus multipliers (damage reduction when in cover)
-const DEFENSE_BONUS: Dictionary = {
-	TerrainType.CLEAR: 1.0,
-	TerrainType.RICE_PADDY: 0.95,
-	TerrainType.GRASSLAND: 0.9,
-	TerrainType.LIGHT_JUNGLE: 0.8,
-	TerrainType.MEDIUM_JUNGLE: 0.65,
-	TerrainType.HEAVY_JUNGLE: 0.5,
-	TerrainType.WATER: 1.0,
-	TerrainType.CLIFF: 0.4,
 }
 
 var elevation: PackedFloat32Array      # Height in meters
@@ -127,7 +113,6 @@ func build_from_terrain() -> void:
 	var elapsed: int = Time.get_ticks_msec() - start_time
 	print("[GameplayGrid] Grid built in %dms (%d bank cells greened, %d creek cells roofed)" % [
 		elapsed, banks, roofed])
-	grid_updated.emit(full)
 
 
 ## The ONE writer of elevation/slope/terrain_type/passability. Terrain is editable at
@@ -359,28 +344,6 @@ func get_terrain_type_at(gx: int, gz: int) -> int:
 	return terrain_type[_grid_to_index(gx, gz)]
 
 
-func get_movement_cost(world_pos: Vector3) -> float:
-	var ttype: int = get_terrain_type(world_pos)
-	var base_cost: float = MOVEMENT_COSTS.get(ttype, 1.0)
-
-	var slope_val: float = get_slope(world_pos)
-	var slope_penalty: float = 1.0 + slope_val * 0.5  # Up to 50% slower on slopes
-
-	return base_cost * slope_penalty
-
-
-## Get cover value at world position (0-1)
-func get_cover(world_pos: Vector3) -> float:
-	var ttype: int = get_terrain_type(world_pos)
-	return COVER_VALUES.get(ttype, 0.0)
-
-
-## Get defense bonus at world position (damage multiplier, lower = better)
-func get_defense_bonus(world_pos: Vector3) -> float:
-	var ttype: int = get_terrain_type(world_pos)
-	return DEFENSE_BONUS.get(ttype, 1.0)
-
-
 ## Get vegetation density at world position (0-1)
 func get_vegetation(world_pos: Vector3) -> float:
 	var g := world_to_grid(world_pos)
@@ -390,12 +353,6 @@ func get_vegetation(world_pos: Vector3) -> float:
 func is_position_passable(world_pos: Vector3) -> bool:
 	var g := world_to_grid(world_pos)
 	return is_passable[_grid_to_index(g.x, g.y)] == 1
-
-
-func is_cell_passable(gx: int, gz: int) -> bool:
-	if gx < 0 or gx >= grid_size or gz < 0 or gz >= grid_size:
-		return false
-	return is_passable[_grid_to_index(gx, gz)] == 1
 
 
 # ============================================================================
@@ -413,31 +370,6 @@ func get_water_depth(world_pos: Vector3) -> float:
 	if water_system and water_system.has_method("get_water_depth"):
 		return water_system.get_water_depth(world_pos.x, world_pos.z)
 	return 0.0
-
-
-## Get water flow direction at position (for boats, debris, unit movement)
-func get_water_flow(world_pos: Vector3) -> Vector2:
-	if water_system and water_system.has_method("get_flow_at"):
-		return water_system.get_flow_at(world_pos.x, world_pos.z)
-	return Vector2.ZERO
-
-
-## Check if position is wadeable (shallow water units can cross)
-func is_wadeable(world_pos: Vector3) -> bool:
-	var depth: float = get_water_depth(world_pos)
-	return depth > 0.0 and depth < 1.5  # Up to 1.5m = wadeable
-
-
-func requires_boat(world_pos: Vector3) -> bool:
-	var depth: float = get_water_depth(world_pos)
-	return depth >= 1.5  # 1.5m+ = needs boat
-
-
-## Get elevation difference between two positions (for height advantage)
-func get_elevation_advantage(attacker_pos: Vector3, target_pos: Vector3) -> float:
-	var attacker_h: float = get_elevation(attacker_pos)
-	var target_h: float = get_elevation(target_pos)
-	return attacker_h - target_h
 
 
 ## Check line of sight between two positions (basic grid raycast)
@@ -517,8 +449,6 @@ func rebuild_rect(world_rect: Rect2) -> void:
 	_apply_riparian_belt(dilated)
 	_roof_the_creeks(dilated)
 
-	grid_updated.emit(Rect2i(min_x, min_z, max_x - min_x + 1, max_z - min_z + 1))
-
 
 func update_region(center: Vector3, radius_meters: float) -> void:
 	rebuild_rect(Rect2(center.x - radius_meters, center.z - radius_meters,
@@ -540,8 +470,6 @@ func mark_cleared(center: Vector3, radius_meters: float) -> void:
 				terrain_type[idx] = TerrainType.CLEAR
 				vegetation_density[idx] = 0.0
 				is_passable[idx] = 1
-
-	grid_updated.emit(Rect2i(g_center.x - g_radius, g_center.y - g_radius, g_radius * 2, g_radius * 2))
 
 
 ## Honesty mirror for veg density-center boosts (asr5/y5ad): the AI sight cap

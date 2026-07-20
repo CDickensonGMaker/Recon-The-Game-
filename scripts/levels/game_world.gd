@@ -3,7 +3,6 @@
 class_name GameWorld
 extends Node3D
 
-signal world_ready
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
@@ -176,7 +175,6 @@ func _on_terrain_ready() -> void:
 	_warm_effects()
 
 	is_world_ready = true
-	world_ready.emit()
 
 
 ## C2 pipeline pre-warm: render every combat-effect material once at world build,
@@ -234,6 +232,12 @@ var _amb_reseat_t: float = 0.0
 ## Everything WILDLIFE (birds/insects) - ducked while it rains, because rain
 ## silences the jungle. The distant-war bed is NOT wildlife and never ducks.
 var _wildlife: Array[Node] = []
+## An off-map artillery event this close hushes the birds.
+const AMBIENT_WAR_HUSH_M: float = 400.0
+var _world_noise_t: float = 0.0
+var _duck_rain: bool = false
+var _duck_war: bool = false
+var _duck_state: bool = false
 
 func _start_ambience() -> void:
 	# The jungle bed streams from a RANDOM OFFSET so no two missions open on the same
@@ -287,12 +291,49 @@ func _start_ambience() -> void:
 ## Rain silences the jungle: duck the wildlife fast when a squall opens (~3s),
 ## fade back slowly when it ends (~14s). Called by MissionWeather on transitions.
 func set_wildlife_ducked(ducked: bool) -> void:
+	_duck_rain = ducked
+	_apply_wildlife_duck()
+
+
+## Rain and the war duck the same emitters. Tracking the two causes separately stops
+## a passing Huey from un-ducking a squall that is still falling.
+func _apply_wildlife_duck() -> void:
+	var ducked: bool = _duck_rain or _duck_war
+	if ducked == _duck_state:
+		return
+	_duck_state = ducked
 	for w in _wildlife:
 		if not is_instance_valid(w):
 			continue
 		var base: float = float(w.get_meta("base_db", -16.0))
 		var tw := create_tween()
 		tw.tween_property(w, "volume_db", -58.0 if ducked else base, 3.0 if ducked else 14.0)
+
+
+## The jungle hears what the sim rolled. AirTraffic and AmbientWar keep rosters of
+## what is happening off-screen; anything close enough hushes the birds.
+func _poll_world_noise() -> void:
+	if player == null:
+		return
+	var here: Vector3 = player.global_position
+	var loud: bool = false
+
+	var at := get_node_or_null("AirTraffic") as AirTraffic
+	if at != null:
+		for f: Dictionary in at.get_in_flight():
+			if (f.get("pos") as Vector3).distance_to(here) <= AirTraffic.OVERHEAD_M:
+				loud = true
+				break
+
+	var aw := get_node_or_null("AmbientWar") as AmbientWar
+	if not loud and aw != null:
+		for e: Dictionary in aw.get_active():
+			if (e.get("position") as Vector3).distance_to(here) <= AMBIENT_WAR_HUSH_M:
+				loud = true
+				break
+
+	_duck_war = loud
+	_apply_wildlife_duck()
 
 ## Drift the emitters onto a fresh ring around the player so the wildlife moves.
 func _reseat_ambience() -> void:
@@ -420,6 +461,10 @@ func _process(delta: float) -> void:
 		if _amb_reseat_t >= 6.0:   # re-seat every 6s so the treeline "moves"
 			_amb_reseat_t = 0.0
 			_reseat_ambience()
+	_world_noise_t += delta
+	if _world_noise_t >= 1.0:
+		_world_noise_t = 0.0
+		_poll_world_noise()
 	if not WorldConfig.LOG_FPS or not is_world_ready:
 		return
 	_fps_log_timer += delta
@@ -442,8 +487,3 @@ func _physics_process(delta: float) -> void:
 	if player.global_position.y < ground_y - RESEAT_DEPTH:
 		player.global_position.y = ground_y + 1.0
 		player.velocity = Vector3.ZERO
-
-
-## Ground height helper for spawners/missions.
-func get_ground_height(world_pos: Vector3) -> float:
-	return terrain_manager.get_height_at(world_pos)

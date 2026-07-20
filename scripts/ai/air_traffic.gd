@@ -8,7 +8,14 @@
 class_name AirTraffic
 extends Node
 
-## In-flight roster. {id, kind, model, route, pos, phase, scheduled_remove_ms}.
+## Only the Huey has a flyable scene; the rest are roster-only until they get models.
+const FLIGHT_SCENES := {"huey": "res://scenes/vehicles/huey.tscn"}
+## A flight that never arrives is a leak. Nothing may outlive this.
+const MAX_FLIGHT_SECONDS: float = 240.0
+## How close a flight has to pass for the jungle to hear it.
+const OVERHEAD_M: float = 120.0
+
+## In-flight roster. {id, kind, node, route, pos, phase, born_ms}.
 var _in_flight: Array = []
 ## Cached RNG so a given seed reproduces the same schedule.
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -67,14 +74,54 @@ func _dispatch(kind: String) -> void:
 	_in_flight.append({
 		"id": id,
 		"kind": kind,
+		"node": _spawn_flight(kind, id, from, to),
 		"route": [from, to],
 		"pos": from,
 		"phase": "flying",
-		"scheduled_remove_ms": -1,
+		"born_ms": Time.get_ticks_msec(),
 	})
-	# Note: instantiation of the actual model is left to the world initializer.
-	# AirTraffic here is the SCHEDULER + the roster; the world reads `_in_flight`
-	# and materializes entities as needed.
+
+
+## Put a real aircraft in the sky where a scene exists for the kind.
+func _spawn_flight(kind: String, id: int, from: Vector3, to: Vector3) -> Node3D:
+	var world := get_parent() as Node3D
+	if world == null or not FLIGHT_SCENES.has(kind):
+		return null
+	var packed := load(String(FLIGHT_SCENES[kind])) as PackedScene
+	if packed == null:
+		return null
+	var craft := packed.instantiate() as Node3D
+	if craft == null:
+		return null
+	world.add_child(craft)
+	craft.global_position = from
+	craft.add_to_group("air_traffic")
+	if craft is Helicopter:
+		var heli := craft as Helicopter
+		heli.traffic_flight_id = id
+		heli.setup(world.get("terrain_manager") as TerrainManager)
+		heli.fly_to(to)
+	return craft
+
+
+## Retire arrived and over-age flights. The roster only ever appended, so a long
+## mission grew it without bound and every entry held a live aircraft.
+func _process(_delta: float) -> void:
+	var now: int = Time.get_ticks_msec()
+	for i in range(_in_flight.size() - 1, -1, -1):
+		var f: Dictionary = _in_flight[i]
+		var node := f.get("node") as Node3D
+		var alive: bool = node != null and is_instance_valid(node)
+		var age_s: float = float(now - int(f.get("born_ms", now))) / 1000.0
+		var arrived: bool = false
+		if alive:
+			var dest: Vector3 = (f["route"] as Array)[1]
+			f["pos"] = node.global_position
+			arrived = node.global_position.distance_to(dest) < 20.0
+		if arrived or age_s > MAX_FLIGHT_SECONDS or (node != null and not alive):
+			if alive:
+				node.queue_free()
+			_in_flight.remove_at(i)
 
 
 func get_in_flight() -> Array:

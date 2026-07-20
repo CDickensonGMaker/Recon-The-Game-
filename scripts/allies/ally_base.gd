@@ -3,7 +3,6 @@ class_name AllyBase
 extends CharacterBody3D
 
 signal died(ally: AllyBase)
-signal state_changed(new_state: Enums.AIState)
 
 var max_hp: int = 80
 var current_hp: int = 80
@@ -859,7 +858,6 @@ func _change_state(new_state: Enums.AIState) -> void:
 		_release_cover()  # also clears _anim_override
 	current_state = new_state
 	state_timer = 0.0
-	state_changed.emit(new_state)
 
 
 func _move_toward(pos: Vector3, delta: float) -> void:

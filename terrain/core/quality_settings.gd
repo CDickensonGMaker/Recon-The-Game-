@@ -161,18 +161,3 @@ func _auto_detect_preset() -> void:
 	# Default to MEDIUM for unknown hardware
 	apply_preset(Preset.MEDIUM)
 	print("[QualitySettings] Unknown GPU (%s) - using MEDIUM preset" % renderer)
-
-
-func get_current_settings() -> Dictionary:
-	return {
-		"vegetation_density": vegetation_density,
-		"grass_enabled": grass_enabled,
-		"billboards_enabled": billboards_enabled,
-		"load_distance": load_distance,
-		"fog_density": fog_density,
-		"fog_enabled": fog_enabled,
-		"canopy_enabled": canopy_enabled,
-		"shadow_distance": shadow_distance,
-		"near_tree_distance": near_tree_distance,
-		"billboard_distance": billboard_distance,
-	}

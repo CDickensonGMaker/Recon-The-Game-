@@ -97,8 +97,3 @@ func finish_action() -> void:
 	current_action = ActionType.NONE
 	progress = 0.0
 	queue_redraw()
-
-
-## Cancel and hide
-func cancel_action() -> void:
-	finish_action()

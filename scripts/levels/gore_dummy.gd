@@ -132,12 +132,6 @@ func _physics_process(delta: float) -> void:
 				break
 
 
-func current_clip() -> String:
-	if model == null:
-		return "-"
-	return model.current_action
-
-
 func take_damage(amount: int, _damage_type: int = 0, attacker: Node = null, zone: String = "BODY") -> void:
 	var dir: Vector3 = -global_transform.basis.z
 	if attacker is Node3D:

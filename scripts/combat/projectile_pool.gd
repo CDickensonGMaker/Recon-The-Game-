@@ -3,7 +3,6 @@ class_name ProjectilePool
 extends Node
 
 ## Pool configuration
-const DEFAULT_POOL_SIZE := 50
 const MAX_ACTIVE_PROJECTILES := 30
 
 ## Pool storage
@@ -11,21 +10,10 @@ var _pool: Array[ProjectileBase] = []
 var _active_projectiles: Array[ProjectileBase] = []
 
 ## Statistics
-var _total_spawned: int = 0
-var _total_recycled: int = 0
 
 func _ready() -> void:
 	# Lazy pool: spawn() grows on demand, so nothing is pre-allocated at boot.
-	# Call warm_pool() when projectiles actually go live.
 	pass
-
-
-## Pre-spawn the pool. Call from M5 when ballistic weapons come online; not at boot.
-func warm_pool(count: int = DEFAULT_POOL_SIZE) -> void:
-	for i in range(count):
-		var projectile := _create_projectile()
-		projectile.deactivate()
-		_pool.append(projectile)
 
 
 func _create_projectile() -> ProjectileBase:
@@ -47,10 +35,8 @@ func spawn(data: ProjectileData, source: Node, spawn_position: Vector3, directio
 
 	if _pool.size() > 0:
 		projectile = _pool.pop_back()
-		_total_recycled += 1
 	else:
 		projectile = _create_projectile()
-		_total_spawned += 1
 
 	projectile.global_position = spawn_position
 	projectile.initialize(data, source, direction, target)
@@ -59,12 +45,6 @@ func spawn(data: ProjectileData, source: Node, spawn_position: Vector3, directio
 	_active_projectiles.append(projectile)
 
 	return projectile
-
-
-## Spawn a projectile aimed at a specific target position
-func spawn_at_target(data: ProjectileData, source: Node, spawn_position: Vector3, target_position: Vector3, target: Node3D = null) -> ProjectileBase:
-	var direction := (target_position - spawn_position).normalized()
-	return spawn(data, source, spawn_position, direction, target)
 
 
 ## Return a projectile to the pool
@@ -88,23 +68,3 @@ func clear_all() -> void:
 	for projectile in _active_projectiles.duplicate():
 		_return_to_pool(projectile)
 	_active_projectiles.clear()
-
-
-## Get count of active projectiles
-func get_active_count() -> int:
-	return _active_projectiles.size()
-
-
-## Get count of pooled (inactive) projectiles
-func get_pooled_count() -> int:
-	return _pool.size()
-
-
-## Get pool statistics
-func get_stats() -> Dictionary:
-	return {
-		"active": _active_projectiles.size(),
-		"pooled": _pool.size(),
-		"total_spawned": _total_spawned,
-		"total_recycled": _total_recycled
-	}

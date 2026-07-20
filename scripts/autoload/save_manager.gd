@@ -238,13 +238,6 @@ func has_save(slot: int) -> bool:
 	return FileAccess.file_exists(_slot_path(slot))
 
 
-func has_any_save() -> bool:
-	for slot in [QUICK_SLOT, AUTOSAVE_SLOT, EXIT_SLOT, 1, 2, 3, 4, 5, 6, 7]:
-		if has_save(slot):
-			return true
-	return false
-
-
 ## Newest slot by timestamp - what CONTINUE loads.
 func latest_slot() -> int:
 	var best := -1

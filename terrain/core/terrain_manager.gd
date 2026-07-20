@@ -9,7 +9,6 @@ const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
 const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
 
 signal terrain_ready
-signal chunk_unloaded(coord: Vector2i)
 ## Terrain heights changed in this world-space rect (cell-accurate, not
 ## chunk-aligned). Anything that baked heights at build time re-seats on this -
 ## the wire-is-law lesson: one terrain-change channel, every height consumer
@@ -44,7 +43,6 @@ var terrain_generator: Node  # TerrainEngine autoload
 var vegetation_manager: Node  # VegetationManager - set externally for rice paddy coloring
 
 var river_paths: Array = []
-var near_water_mask: PackedByteArray  # for rice paddy clustering near rivers
 
 func _ready() -> void:
 	chunks_per_side = int(ceil(map_size / chunk_size))
@@ -131,7 +129,6 @@ func generate_terrain(seed_value: int = -1) -> void:
 	if rivers_enabled:
 		await get_tree().process_frame
 		_extract_and_carve_rivers()
-		_build_water_proximity_mask()
 		await get_tree().process_frame
 
 	await get_tree().process_frame
@@ -159,16 +156,6 @@ func _generate_fallback_terrain() -> void:
 			var h: float = noise.get_noise_2d(x, z)
 			h = (h + 1.0) * 0.5  # Normalize to 0-1
 			heightmap.data[z * heightmap.size + x] = h
-
-
-## Load chunks around center of map initially (sync version for compatibility)
-func _load_initial_chunks() -> void:
-	# Load ALL chunks
-	for z in range(chunks_per_side):
-		for x in range(chunks_per_side):
-			var coord := Vector2i(x, z)
-			if not chunks.has(coord):
-				_load_chunk(coord)
 
 
 ## Load chunks with frame yields for loading screen updates
@@ -273,8 +260,6 @@ func _unload_chunk(coord: Vector2i) -> void:
 	if vegetation_manager and vegetation_manager.has_method("clear_chunk_full"):
 		vegetation_manager.clear_chunk_full(coord)
 
-	chunk_unloaded.emit(coord)
-
 
 func _world_to_chunk(world_pos: Vector3) -> Vector2i:
 	return Vector2i(
@@ -339,7 +324,6 @@ func set_camera(cam: Camera3D) -> void:
 # PLATEAU is a rare roll (1-in-5 of the empty 60% branch).
 # Deterministic: same seed -> same preset, always. (RECONgame-5r4y)
 const AO_INHABITED := [0, 1]  # COASTAL_HILLS, RIVER_VALLEY
-const AO_EMPTY := [2, 3, 4]   # ROLLING_HILLS, STEEP_MOUNTAINS, PLATEAU
 
 
 func _derive_ao_preset(seed_value: int) -> int:
@@ -374,30 +358,8 @@ static func _preset_height_scale(preset: int) -> float:
 		_:
 			return 90.0
 
-func get_loaded_chunks() -> Array[Vector2i]:
-	var result: Array[Vector2i] = []
-	for coord in chunks:
-		result.append(coord)
-	return result
-
-
 func get_loaded_chunk_count() -> int:
 	return chunks.size()
-
-
-## Get chunk at coordinates (may be null if not loaded)
-func get_chunk(coord: Vector2i) -> Node3D:  # TerrainChunk
-	return chunks.get(coord)
-
-
-func load_all_chunks() -> void:
-	for z in range(chunks_per_side):
-		for x in range(chunks_per_side):
-			var coord := Vector2i(x, z)
-			if not chunks.has(coord):
-				_load_chunk(coord)
-
-	print("[TerrainManager] Loaded all %d chunks" % chunks.size())
 
 
 # ============================================================================
@@ -465,38 +427,3 @@ func _carve_riverbed(path) -> void:
 				heightmap.set_cell(nx, nz, maxf(0.0, current - depth_normalized))
 
 
-## Build proximity mask for rice paddy clustering near rivers
-func _build_water_proximity_mask() -> void:
-	var mask_size: int = heightmap.size
-	near_water_mask = PackedByteArray()
-	near_water_mask.resize(mask_size * mask_size)
-	near_water_mask.fill(0)
-
-	var influence_radius: int = 8  # cells (~16m at 2m cell size)
-	var r_sq: int = influence_radius * influence_radius
-	for path in river_paths:
-		for p: Vector2 in path.points:
-			var center_cell: Vector2i = heightmap.world_to_cell(p.x, p.y)
-			for dz in range(-influence_radius, influence_radius + 1):
-				for dx in range(-influence_radius, influence_radius + 1):
-					var nx: int = center_cell.x + dx
-					var nz: int = center_cell.y + dz
-					if nx < 0 or nx >= mask_size:
-						continue
-					if nz < 0 or nz >= mask_size:
-						continue
-					if dx * dx + dz * dz > r_sq:
-						continue
-					near_water_mask[nz * mask_size + nx] = 1
-
-
-## Check if a world position is near water (for rice paddy clustering)
-func is_near_water(world_x: float, world_z: float) -> bool:
-	if near_water_mask.is_empty():
-		return false
-	var cell: Vector2i = heightmap.world_to_cell(world_x, world_z)
-	if cell.x < 0 or cell.x >= heightmap.size:
-		return false
-	if cell.y < 0 or cell.y >= heightmap.size:
-		return false
-	return near_water_mask[cell.y * heightmap.size + cell.x] == 1

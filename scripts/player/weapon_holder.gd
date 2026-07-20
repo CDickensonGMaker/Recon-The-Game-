@@ -2,14 +2,11 @@
 class_name WeaponHolder
 extends Node3D
 
-signal weapon_fired
 signal weapon_reloaded
 signal magazine_changed(current_ammo: int, spare_magazines: int)
 signal weapon_switched(weapon_data: WeaponData)
-signal ads_changed(is_aiming: bool)
 signal reload_started
 signal reload_progress(percent: float)
-signal reload_cancelled
 signal switch_started
 signal switch_progress(percent: float)
 
@@ -498,7 +495,6 @@ func _fire_shot() -> void:
 	else:
 		secondary_ammo[0] = current_ammo
 
-	weapon_fired.emit()
 	magazine_changed.emit(current_ammo, spare_magazines)
 
 
@@ -848,17 +844,6 @@ func get_ads_amount() -> float:
 
 func is_weapon_reloading() -> bool:
 	return is_reloading
-
-
-func is_weapon_switching() -> bool:
-	return is_switching
-
-
-## Reload progress, 0-1.
-func get_reload_progress() -> float:
-	if not is_reloading:
-		return 0.0
-	return 1.0 - (reload_timer / current_weapon.reload_time)
 
 
 ## SUPPRESSION RADIUS: bigger, slower, or explosive weapons pin in a wider area.

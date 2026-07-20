@@ -2,8 +2,6 @@
 ## modifiers, team XP, roster, mission history. Saved to user://.
 extends Node
 
-signal threat_changed(effective: float)
-
 ## Bump when the on-disk shape changes, and add a branch to _migrate().
 const SAVE_VERSION: int = 1
 const DEFAULT_SAVE_PATH := "user://campaign.cfg"
@@ -78,7 +76,6 @@ func threat_label() -> String:
 
 func add_threat_modifier(delta: float, missions: int, reason: String) -> void:
 	threat_modifiers.append({"delta": delta, "missions_left": missions, "reason": reason})
-	threat_changed.emit(effective_threat())
 
 
 ## Called by GameFlow at debrief time.
@@ -115,7 +112,6 @@ func on_mission_end(result: Dictionary) -> void:
 	})
 	if mission_log.size() > 40:
 		mission_log = mission_log.slice(mission_log.size() - 40)
-	threat_changed.emit(effective_threat())
 	save_campaign()
 
 

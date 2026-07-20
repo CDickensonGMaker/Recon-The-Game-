@@ -4,7 +4,6 @@
 class_name CASAirplane
 extends Node3D
 
-signal run_complete
 
 enum Ordnance { BOMB, NAPALM, CBU }
 enum Phase { APPROACH, DIVE, RELEASE, CLIMB, DONE }
@@ -81,7 +80,6 @@ func _physics_process(delta: float) -> void:
 			_climb_time += delta
 			if _climb_time > 8.0:
 				phase = Phase.DONE
-				run_complete.emit()
 				queue_free()
 		Phase.DONE:
 			pass
@@ -117,7 +115,6 @@ func _fly_flyby(delta: float) -> void:
 		global_position.y += 60.0 * delta
 		if along > 100.0 and global_position.y >= CLOUD_DECK_Y:  # 100m+ past, into the clouds -> gone
 			phase = Phase.DONE
-			run_complete.emit()
 			queue_free()
 
 

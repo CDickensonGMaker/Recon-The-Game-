@@ -32,27 +32,34 @@ static var rain_active: bool = false
 var _world: GameWorld
 
 
+## SimClock.Period is ordered DAWN, DAY, DUSK, NIGHT. Index by that enum's value.
+const PERIOD_TO_TIME_ID: Array[String] = ["DAWN", "DAY", "DUSK", "NIGHT"]
+## Sim-hour to start the mission at for each briefing time_id, so the clock and the
+## briefing roll agree. Without this the first period transition would contradict
+## the briefing - a NIGHT insert would snap to DAY.
+const TIME_ID_START_HOUR := {"DAWN": 5.5, "DAY": 10.0, "DUSK": 17.5, "NIGHT": 21.0}
+const TIME_EASE_SECONDS: float = 6.0
+
+var _weather: Dictionary = {}
+
+
 func setup(world: GameWorld, weather_id: String, time_id: String) -> void:
 	_world = world
-	var w: Dictionary = WEATHER.get(weather_id, WEATHER["CLEAR"])
-	var t: Dictionary = TIMES.get(time_id, TIMES["DAY"])
+	_weather = WEATHER.get(weather_id, WEATHER["CLEAR"])
+	var w: Dictionary = _weather
 
-	var env_node := world.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	SimClock.sim_hour = float(TIME_ID_START_HOUR.get(time_id, 10.0))
+	_apply_time(time_id)
+	SimClock.time_period_changed.connect(_on_time_period_changed)
+
+	var env_node := world.get_node_or_null("WorldEnvironment") as WorldEnvironment if world != null else null
 	if env_node and env_node.environment:
 		var env := env_node.environment
 		env.fog_enabled = true
 		env.fog_density = float(w.fog)
 		env.fog_light_color = w.fog_color
-		env.ambient_light_energy = float(t.ambient) * float(w.light)
-	var sun := world.get_node_or_null("SunLight") as DirectionalLight3D
-	if sun:
-		sun.rotation_degrees.x = float(t.sun_x)
-		sun.light_energy = float(t.energy) * float(w.light)
-		sun.light_color = t.sun_color
 
-	sight_mult = float(w.sight) * float(t.sight)
 	NoiseBus.radius_multiplier = float(w.noise)
-	is_night = time_id == "NIGHT"
 
 	if float(w.rain) > 0.0:
 		_spawn_rain(float(w.rain))
@@ -65,6 +72,50 @@ func setup(world: GameWorld, weather_id: String, time_id: String) -> void:
 		_set_raining(true)
 	else:
 		rain_active = false
+
+
+## Night must actually FALL. The briefing roll only picks the hour the mission opens;
+## SimClock owns time after that, and every light/sight/tracer value that depends on
+## the hour is re-derived here on each DAWN/DAY/DUSK/NIGHT crossing.
+func _on_time_period_changed(period: int) -> void:
+	if period < 0 or period >= PERIOD_TO_TIME_ID.size():
+		return
+	_apply_time(PERIOD_TO_TIME_ID[period], false)
+
+
+## `immediate` is true only for the opening state. A period crossing eases the sun over
+## a few seconds; snapping DAY->DUSK in one frame reads as a light bulb, not a sunset.
+func _apply_time(time_id: String, immediate: bool = true) -> void:
+	var t: Dictionary = TIMES.get(time_id, TIMES["DAY"])
+	var w: Dictionary = _weather if not _weather.is_empty() else WEATHER["CLEAR"]
+
+	sight_mult = float(w.sight) * float(t.sight)
+	is_night = time_id == "NIGHT"
+
+	if _world == null or not is_instance_valid(_world):
+		return
+	var ambient: float = float(t.ambient) * float(w.light)
+	var energy: float = float(t.energy) * float(w.light)
+	var env_node := _world.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	var env: Environment = env_node.environment if env_node else null
+	var sun := _world.get_node_or_null("SunLight") as DirectionalLight3D
+
+	if immediate:
+		if env:
+			env.ambient_light_energy = ambient
+		if sun:
+			sun.rotation_degrees.x = float(t.sun_x)
+			sun.light_energy = energy
+			sun.light_color = t.sun_color
+		return
+
+	var tw: Tween = create_tween().set_parallel(true)
+	if env:
+		tw.tween_property(env, "ambient_light_energy", ambient, TIME_EASE_SECONDS)
+	if sun:
+		tw.tween_property(sun, "rotation_degrees:x", float(t.sun_x), TIME_EASE_SECONDS)
+		tw.tween_property(sun, "light_energy", energy, TIME_EASE_SECONDS)
+		tw.tween_property(sun, "light_color", t.sun_color, TIME_EASE_SECONDS)
 
 
 func _start_rain_audio() -> void:
@@ -140,6 +191,8 @@ func _process(delta: float) -> void:
 
 
 func _exit_tree() -> void:
+	if SimClock.time_period_changed.is_connected(_on_time_period_changed):
+		SimClock.time_period_changed.disconnect(_on_time_period_changed)
 	sight_mult = 1.0
 	NoiseBus.radius_multiplier = 1.0
 	is_night = false

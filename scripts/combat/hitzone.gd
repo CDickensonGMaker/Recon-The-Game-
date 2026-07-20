@@ -84,11 +84,6 @@ func get_zone_name() -> String:
 			return "BODY"
 
 
-## Check if this is a critical hit zone
-func is_critical_zone() -> bool:
-	return zone_type == ZoneType.HEAD
-
-
 ## Zones that kill an enemy outright regardless of damage value.
 func is_fatal_zone() -> bool:
 	if fatal_override >= 0:

@@ -8,8 +8,6 @@ const WaterBodyDataClass := preload("res://terrain/water/water_body_data.gd")
 const HydrologyMapClass := preload("res://terrain/water/hydrology_map.gd")
 const PondDetectorClass := preload("res://terrain/water/pond_detector.gd")
 
-signal water_generated
-signal water_body_added(body: Resource)  # WaterBodyData
 
 ## All water bodies indexed by ID
 var water_bodies: Dictionary = {}  # id -> WaterBodyData
@@ -123,8 +121,6 @@ func generate_water_bodies() -> void:
 	print("[WaterSystem] Generated %d water bodies in %dms (downsample %d)" % [
 		water_bodies.size(), elapsed, hydro.downsample
 	])
-
-	water_generated.emit()
 
 
 ## Pick a hydrology compute resolution that keeps the flood/accumulation cheap.
@@ -393,8 +389,6 @@ func _register_water_body(body: Resource) -> void:
 				water_by_chunk[coord] = []
 			water_by_chunk[coord].append(body.id)
 
-	water_body_added.emit(body)
-
 
 ## Build the O(1) lookup grid directly from hydrology cell types + surfaces.
 func _build_water_map_from_hydrology(hydro: RefCounted) -> void:
@@ -543,40 +537,6 @@ func get_water_at(world_pos: Vector3) -> Resource:
 	return null
 
 
-## Get flow direction at a world position (for boats, debris)
-func get_flow_at(world_x: float, world_z: float) -> Vector2:
-	var body := get_water_at(Vector3(world_x, 0, world_z))
-	if body:
-		return body.get_flow_at(world_x, world_z)
-	return Vector2.ZERO
-
-
-func get_water_in_chunk(chunk_coord: Vector2i) -> Array[Resource]:
-	var result: Array[Resource] = []
-
-	if water_by_chunk.has(chunk_coord):
-		for body_id in water_by_chunk[chunk_coord]:
-			result.append(water_bodies[body_id])
-
-	return result
-
-
-func get_water_near(world_pos: Vector3, radius: float) -> Array[Resource]:
-	var result: Array[Resource] = []
-	var search_rect := Rect2(
-		world_pos.x - radius,
-		world_pos.z - radius,
-		radius * 2,
-		radius * 2
-	)
-
-	for body in water_bodies.values():
-		if body.bounds.intersects(search_rect):
-			result.append(body)
-
-	return result
-
-
 ## Generate wetness texture for terrain shore blending
 ## Returns an ImageTexture with R = wetness (1 = water, fades to 0)
 func generate_wetness_texture(fade_distance: float = 20.0) -> ImageTexture:
@@ -627,33 +587,6 @@ func generate_wetness_texture(fade_distance: float = 20.0) -> ImageTexture:
 		water_map_size, water_map_size, fade_distance
 	])
 	return tex
-
-
-## Get distance to nearest water (in meters)
-func get_distance_to_water(world_x: float, world_z: float) -> float:
-	var cx: int = int(floor(world_x / water_map_cell_size))
-	var cz: int = int(floor(world_z / water_map_cell_size))
-
-	if cx < 0 or cx >= water_map_size or cz < 0 or cz >= water_map_size:
-		return INF
-
-	if water_map[cz * water_map_size + cx] > 0:
-		return 0.0
-
-	var max_search: int = 30  # ~60m at 2m cells
-	for dist in range(1, max_search + 1):
-		for dz in range(-dist, dist + 1):
-			for dx in range(-dist, dist + 1):
-				if abs(dx) != dist and abs(dz) != dist:
-					continue  # Only check perimeter
-
-				var nx: int = cx + dx
-				var nz: int = cz + dz
-				if nx >= 0 and nx < water_map_size and nz >= 0 and nz < water_map_size:
-					if water_map[nz * water_map_size + nx] > 0:
-						return sqrt(dx * dx + dz * dz) * water_map_cell_size
-
-	return INF
 
 
 func print_stats() -> void:

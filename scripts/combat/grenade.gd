@@ -2,8 +2,6 @@
 class_name Grenade
 extends RigidBody3D
 
-signal exploded(position: Vector3)
-
 ## SHRAPNEL (ADR-016 Amendment F). The M26 is a FRAG grenade - its killing is done
 ## by wire-coil fragments, not blast. Real casualty radius is ~15m; 10m keeps
 ## cover play meaningful while letting the fragments reach.
@@ -113,7 +111,5 @@ func _explode() -> void:
 
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
 	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
-
-	exploded.emit(global_position)
 
 	queue_free()

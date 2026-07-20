@@ -3,20 +3,12 @@ class_name HeightmapStorage
 ## Large heightmap storage with efficient region access and interpolation
 ## Designed for 3km x 3km maps (1536 x 1536 cells at 2m resolution)
 
-signal generation_complete
-
 var size: int = 1536  # Cells per side (3000m / 2m cell_size, rounded to power of 2 compatible)
 var cell_size: float = 2.0  # Meters per cell
 var height_scale: float = 280.0  # Max height in meters
 
 # Raw heightmap data (normalized 0-1)
 var data: PackedFloat32Array
-
-# River accumulation data (for river extraction)
-var river_accumulation: PackedFloat32Array
-
-var is_generating: bool = false
-var generation_thread: Thread
 
 
 func _init(map_size_meters: float = 3000.0, cell_size_meters: float = 2.0) -> void:
@@ -25,7 +17,6 @@ func _init(map_size_meters: float = 3000.0, cell_size_meters: float = 2.0) -> vo
 	# Round up to nearest power of 2 + 1 for clean chunk boundaries
 	size = _next_chunk_aligned_size(size)
 	data = PackedFloat32Array()
-	river_accumulation = PackedFloat32Array()
 
 
 func _next_chunk_aligned_size(s: int) -> int:
@@ -36,12 +27,6 @@ func _next_chunk_aligned_size(s: int) -> int:
 	## the upper-right because the heightmap extended 130m past map_size).
 	const CHUNK_CELLS := 64
 	return int(ceil(float(s) / CHUNK_CELLS)) * CHUNK_CELLS
-
-
-## Initialize with flat terrain (for testing)
-func init_flat(height: float = 0.5) -> void:
-	data.resize(size * size)
-	data.fill(height)
 
 
 ## Get height at cell coordinates (no interpolation)
@@ -115,13 +100,6 @@ func extract_region(start_x: int, start_z: int, region_size: int) -> PackedFloat
 	return region
 
 
-func world_to_chunk(world_pos: Vector3, chunk_size_meters: float) -> Vector2i:
-	return Vector2i(
-		int(floor(world_pos.x / chunk_size_meters)),
-		int(floor(world_pos.z / chunk_size_meters))
-	)
-
-
 func world_to_cell(world_x: float, world_z: float) -> Vector2i:
 	return Vector2i(
 		int(floor(world_x / cell_size)),
@@ -147,14 +125,6 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> Rect2i:
 	return Rect2i(min_x, min_z, max_x - min_x, max_z - min_z)
 
 
-func get_river_accumulation(x: int, z: int) -> float:
-	if river_accumulation.size() == 0:
-		return 0.0
-	if x < 0 or x >= size or z < 0 or z >= size:
-		return 0.0
-	return river_accumulation[z * size + x]
-
-
 ## Get total world size in meters
 func get_world_size() -> float:
 	return size * cell_size
@@ -162,7 +132,7 @@ func get_world_size() -> float:
 
 ## Get memory usage in bytes
 func get_memory_usage() -> int:
-	return data.size() * 4 + river_accumulation.size() * 4
+	return data.size() * 4
 
 
 ## Get heightmap as texture for shader use
