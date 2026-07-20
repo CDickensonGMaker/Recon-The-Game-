@@ -1,0 +1,19 @@
+{
+	"_comment": "THE POINTER LAW ceilings. Both ONLY SHRINK in normal operation. A RAISE is legal only for a deliberate scope widening and only through --grandfather --reason=, which records dated provenance below. Silently raising a ceiling is the one forbidden move (ADR-023).",
+	"ceiling": 29,
+	"broken_ceiling": 116,
+	"grandfather_log": [
+		{
+			"date": "2026-07-20",
+			"reason": "2026-07-20 04:15Z DELIBERATE SCOPE WIDENING, not a snooze. (1) Scan now includes .claude/agents/, which was skipped entirely: an agent charter is injected into every call of that agent, so it outranks CLAUDE.md in reach, and recon-overseer.md enforced the retired RECON dice for weeks because no probe could see it. That widening moved unpointered 25 -> 29. (2) NEW second ratchet: pointers that do not RESOLVE (missing file, line past EOF, absent section). 116 found on first measurement - all pre-existing, none introduced tonight; spot-verified DESIGN.md has no numbered sections, game_manager.gd is 57 lines, mission_director.gd is deleted. Both numbers measured while three other agents were concurrently editing production/, .claude/agents/ and CLAUDE.md, so they are a high-water mark to ratchet down, not a settled floor.",
+			"ceiling": [
+				44,
+				29
+			],
+			"broken_ceiling": [
+				0,
+				116
+			]
+		}
+	]
+}

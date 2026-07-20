@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ctstonlyliveness"]
+
+[ext_resource type="Script" path="res://tests/test_test_only_liveness.gd" id="1_tol"]
+
+[node name="TestTestOnlyLiveness" type="Node"]
+script = ExtResource("1_tol")

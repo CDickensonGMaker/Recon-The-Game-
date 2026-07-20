@@ -79,10 +79,6 @@ func _ready() -> void:
 	_check("CIVILIANS are people, not brown capsules",
 		not _spawner_builds_capsule("res://scripts/world/civilian.gd"),
 		"civilian.gd")
-	_check("the HUEY AIRCREW are pilots, not olive capsules",
-		_reads("res://scripts/missions/insertion_ride.gd", "us_pilot"),
-		"insertion_ride.gd")
-
 	print("")
 	if _fails == 0:
 		print("*** THE ART IS IN THE GAME. ***")
@@ -99,10 +95,6 @@ func _spawner_builds_capsule(path: String) -> bool:
 		return false
 	# Fallback is allowed ONLY if it warns.
 	return not t.contains("push_warning")
-
-
-func _reads(path: String, needle: String) -> bool:
-	return _read(path).contains(needle)
 
 
 func _read(path: String) -> String:

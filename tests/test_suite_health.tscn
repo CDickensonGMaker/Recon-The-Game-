@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ctstsuitehealth"]
+
+[ext_resource type="Script" path="res://tests/test_suite_health.gd" id="1_tsh"]
+
+[node name="TestSuiteHealth" type="Node"]
+script = ExtResource("1_tsh")

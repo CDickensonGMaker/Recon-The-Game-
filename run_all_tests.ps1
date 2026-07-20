@@ -32,18 +32,31 @@ $KnownRed = @(
     # test has a home.
 )
 
-# Substrings that mean "the engine complained". Any hit = FAIL, regardless of exit code.
+# Line-start prefixes that mean "the engine complained". Any hit = FAIL, regardless
+# of exit code.
 #
-# Two traps, both verified empirically against Godot 4.6.2 rather than assumed:
-#  1. Matched with .Contains() (ordinal), NOT -like. PowerShell wildcards treat
-#     "[NAV]" as a character class matching any N, A, or V -- it matched everything.
-#  2. Godot does NOT print "SCRIPT ERROR" or "USER ERROR" here. push_error() and
-#     engine errors both emit "ERROR: <msg>" on stderr. Patterns that never fire
-#     are the exact bug class this harness exists to catch.
-$ErrorPatterns = @(
-    "ERROR:"           # push_error, SCRIPT ERROR, engine errors -- all match
+# ANCHORED, and matched with .StartsWith() (ordinal), NOT -like: PowerShell wildcards
+# treat "[NAV]" as a character class matching any N, A or V, which matched everything.
+#
+# The anchor is the whole point. The old rule was an unanchored `.Contains("[NAV]")`,
+# so a test REPORTING its nav-warning count -- `print("[NAV] warnings counted: 0")` --
+# failed itself by saying zero. Godot writes diagnostics at column 0; a test speaks
+# mid-line on stdout. Measured 2026-07-19: that rule alone falsely failed
+# test_ai_stress_arena and test_arena_patrol, and only those two.
+#
+# Nothing is lost by retiring the bare "[NAV]" pattern: nav_baker.gd:166,194 emit via
+# push_error (caught by "ERROR:") and enemy_base.gd:1687 via push_warning (caught by
+# the anchored WARNING form).
+$ErrorPrefixes = @(
+    "ERROR:"
+    "SCRIPT ERROR:"        # Godot DOES print this -- measured 4x on 2026-07-19
+    "USER ERROR:"
+    "WARNING: [NAV]"       # NavBaker's bake-time invariant guards
+    "USER WARNING: [NAV]"
+)
+# Unanchored, because this one appears mid-sentence inside a longer engine message.
+$ErrorSubstrings = @(
     "previously freed" # "Attempt to call function ... in base 'previously freed instance'"
-    "[NAV]"            # NavBaker's own bake-time invariant guards (Step 6)
 )
 
 # Known-benign engine chatter. These are NOT whitelisted into silence: a test whose
@@ -55,6 +68,14 @@ $BenignPatterns = @(
     "Leaked instance:"
     "Resource still in use:"
     "Hint: Leaked instances typically happen"
+    # A real leak, and the SAME severity class as the two AUDIT-12 lines above -- it
+    # stays loud and tracked as LEAK instead of breaking the build. Measured
+    # 2026-07-19: this gap was the single largest source of false FAILs (5 of 18),
+    # larger than the "[NAV]" rule everyone blamed.
+    "were leaked at exit"
+    # Headless-only. The DUMMY rasterizer has no material storage, so this cannot
+    # occur under a real renderer -- servers/rendering/dummy/storage/material_storage.cpp.
+    'Parameter "material" is null'
 )
 
 Write-Host "=== RECONgame test suite ($($tests.Count) tests) ==="
@@ -89,7 +110,11 @@ foreach ($t in $tests) {
     $benignLines = @()
     foreach ($line in ($out -split "`n")) {
         $hit = $false
-        foreach ($p in $ErrorPatterns) { if ($line.Contains($p)) { $hit = $true; break } }
+        $t = $line.TrimStart()
+        foreach ($p in $ErrorPrefixes)    { if ($t.StartsWith($p))   { $hit = $true; break } }
+        if (-not $hit) {
+            foreach ($p in $ErrorSubstrings) { if ($line.Contains($p)) { $hit = $true; break } }
+        }
         if (-not $hit) { continue }
         $benign = $false
         foreach ($b in $BenignPatterns) { if ($line.Contains($b)) { $benign = $true; break } }

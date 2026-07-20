@@ -5,7 +5,7 @@
 ## billboards / jungle patches / grass can be read by difference.
 extends Node
 
-## true  -> baseline, then billboards off, patches off, grass off (attribution run)
+## true  -> baseline, then canopy off, then ground clutter off (attribution run)
 ## false -> single baseline window (fast re-measure after a code change)
 @export var cycle_systems: bool = false
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	if cycle_systems:
-		_phases = ["baseline", "no_billboards", "no_patches", "no_grass"]
+		_phases = ["baseline", "no_canopy", "no_clutter"]
 	else:
 		_phases = ["baseline"]
 	for p: String in _phases:
@@ -84,13 +84,31 @@ func _process(delta: float) -> void:
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)))
 
 
+## The canopy source is chosen at runtime (VegetationManager.CanopySource), so the
+## attribution run must toggle whichever layer is actually live. A phase that cannot
+## find its system still prints a row, so an unresolved system must be LOUD - a silent
+## no-op row reads as "this system costs nothing".
 func _apply_toggle(phase_name: String) -> void:
-	var bb: BillboardVegetation = world.billboard_vegetation
 	var vg: VegetationManager = world.vegetation_manager
-	if bb != null:
-		bb.render_disabled = phase_name == "no_billboards"
+	var canopy_hit: bool = false
 	if vg != null:
-		vg.patches_disabled = phase_name == "no_patches"
+		vg.patches_disabled = phase_name == "no_canopy"
+		canopy_hit = true
+		var tc: Node = vg.find_child("TreeCoverLayer", false, false)
+		if tc is Node3D:
+			(tc as Node3D).visible = phase_name != "no_canopy"
+	if not canopy_hit:
+		push_error("[PERF] no VegetationManager - the no_canopy row measures nothing.")
+
+	var clutter: Node = null
+	for c: Node in world.get_children():
+		if c is GroundClutter:
+			clutter = c
+			break
+	if clutter is Node3D:
+		(clutter as Node3D).visible = phase_name != "no_clutter"
+	else:
+		push_error("[PERF] no GroundClutter under GameWorld - the no_clutter row measures nothing.")
 	print("[PERF] phase -> %s" % phase_name)
 
 

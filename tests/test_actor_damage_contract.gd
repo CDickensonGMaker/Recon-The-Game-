@@ -22,6 +22,9 @@ const CIV_LAYER: int = 512
 ## actor script -> what it must carry.
 ##   hitzones: declares zones on a layer inside a fire mask
 ##   gib: calls GibSystem on death
+##   rig: zones are derived from a skeleton, so HitzoneBuilder is their only authority
+##        (ADR-023). Absent = true. A PROP has no skeleton and HitzoneBuilder cannot
+##        serve it, so a prop row sets rig:false and must construct its own Hitzone.
 ## Grow this table when a new damageable actor lands. Never edit it to silence red.
 const ACTOR_CONTRACT: Dictionary = {
 	"res://scripts/world/civilian.gd": {"hitzones": true, "gib": true},
@@ -29,6 +32,7 @@ const ACTOR_CONTRACT: Dictionary = {
 	"res://scripts/allies/ally_base.gd": {"hitzones": true, "gib": true},
 	"res://scripts/player/player.gd": {"hitzones": true, "gib": false},
 	"res://scripts/levels/gore_dummy.gd": {"hitzones": true, "gib": true},
+	"res://scripts/combat/punji_trap.gd": {"hitzones": true, "gib": false, "rig": false},
 	# HealthSystem is the player's damage SINK, not a spawnable actor: it owns no
 	# body and no zones. player.gd delegates to it.
 	"res://scripts/player/health_system.gd": {"hitzones": false, "gib": false},
@@ -85,8 +89,13 @@ func _tier1_source_contract() -> void:
 				"%s take_damage() takes %d args; the bullet resolver passes 4 (bullet_system.gd:147, weapon_holder.gd:634). has_method() checks the NAME, not the signature - it will bind and error on the first hit." % [path, arity])
 
 		if bool(spec["hitzones"]):
-			_check(src.contains("HitzoneBuilder.build(") or src.contains("HitzoneBuilder._build_static("),
-				"%s is contracted to carry hitzones but never calls HitzoneBuilder. Rounds will pass through it." % path)
+			var rigged: bool = not spec.has("rig") or bool(spec["rig"])
+			if rigged:
+				_check(src.contains("HitzoneBuilder.build(") or src.contains("HitzoneBuilder._build_static("),
+					"%s is contracted to carry hitzones but never calls HitzoneBuilder. Rounds will pass through it." % path)
+			else:
+				_check(src.contains("Hitzone.new()") and src.contains("set_owner_entity("),
+					"%s is a prop contracted to carry a zone, but it never constructs a Hitzone with an owner_entity. bullet_system resolves damage through the zone's owner or not at all." % path)
 			_check(_declares_masked_layer(src),
 				"%s builds hitzones on a layer no fire mask contains %s - it is bullet-transparent." % [path, str(FIRE_MASK_LAYERS)])
 		if bool(spec["gib"]):
@@ -161,7 +170,56 @@ func _declares_masked_layer(src: String) -> bool:
 				or src.contains("_build_static(civ, CIVILIAN_HURTBOX_LAYER,") \
 				or src.contains(", %d, 16," % layer):
 			return true
+	return _assigns_masked_layer(src)
+
+
+## The forms above are the rigged-actor BUILDER CALL shapes. A prop assigns the layer
+## on the zone directly, and usually through a named const, so resolve one level of
+## indirection: `collision_layer = TRAP_HURTBOX_LAYER` -> `const TRAP_HURTBOX_LAYER: int = 512`.
+## Without this a prop can only satisfy the contract by inlining a magic number.
+func _assigns_masked_layer(src: String) -> bool:
+	for raw: String in src.split("\n"):
+		var line: String = _strip_comment(raw)
+		var i: int = line.find("collision_layer")
+		if i < 0:
+			continue
+		var eq: int = line.find("=", i)
+		if eq < 0:
+			continue
+		var rhs: String = line.substr(eq + 1).strip_edges()
+		if rhs.is_valid_int():
+			if FIRE_MASK_LAYERS.has(int(rhs)):
+				return true
+			continue
+		if FIRE_MASK_LAYERS.has(_const_int(src, rhs)):
+			return true
 	return false
+
+
+## Value of `const <ident>[: int] = <literal>` in this same source, or 0 if absent.
+func _const_int(src: String, ident: String) -> int:
+	if ident.is_empty():
+		return 0
+	for raw: String in src.split("\n"):
+		var line: String = _strip_comment(raw).strip_edges()
+		if not line.begins_with("const " + ident):
+			continue
+		var tail: String = line.substr(len("const " + ident))
+		# guard against `const FOO_BAR` matching a request for `FOO`
+		if not (tail.begins_with(":") or tail.begins_with(" ") or tail.begins_with("=")):
+			continue
+		var eq: int = line.find("=")
+		if eq < 0:
+			continue
+		var rhs: String = line.substr(eq + 1).strip_edges()
+		if rhs.is_valid_int():
+			return int(rhs)
+	return 0
+
+
+func _strip_comment(line: String) -> String:
+	var h: int = line.find("#")
+	return line if h < 0 else line.substr(0, h)
 
 
 # ---- TIER 2: live civilian --------------------------------------------------

@@ -1,0 +1,7 @@
+{
+	"_comment": "ADR-023 THE FOSSIL LAW, file level. Orphaned .uid/.import sidecars whose source is gone, keyed by repo-relative path. THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'orphans', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>.",
+	"orphans": [],
+	"count": 0,
+	"ceiling": 0,
+	"grandfather_log": []
+}
