@@ -199,6 +199,11 @@ static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGe
 ## Returns nothing - the world just gets richer.
 static func _wire_systems(world: GameWorld, director: FieldDirector,
 		p: Dictionary, built_sites: Array) -> void:
+	# SimClock is an autoload, so last patrol's flight schedule outlives the world
+	# that seeded it. Clear before anything re-seeds.
+	if SimClock != null:
+		SimClock.clear_schedules()
+
 	# WorldSim: register all spawned enemies so the region grid can LOD them.
 	if WorldSim != null:
 		WorldSim.clear_if_needed()
