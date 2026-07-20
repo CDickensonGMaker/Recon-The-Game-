@@ -32,6 +32,9 @@ var intel_points: int = 0  ## looted docs/captures sharpen the next briefing
 ## metre. ADR-029 Amendment B: the world remembers a world verb. Never surfaced
 ## as a count, a panel or a marker - only as ground that is no longer there.
 var collapsed_tunnels: Array = []
+## Armorer's rack fouling, weapon id -> condition 0-100. A weapon you rack dirty
+## is still dirty when you draw it again; swapping is never a free clean.
+var rack_condition: Dictionary = {}
 
 
 
@@ -150,6 +153,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "player_data", player_data)
 	cfg.set_value("campaign", "intel_points", intel_points)
 	cfg.set_value("campaign", "collapsed_tunnels", collapsed_tunnels)
+	cfg.set_value("campaign", "rack_condition", rack_condition)
 	var err: int = cfg.save(save_path)
 	if err != OK:
 		push_error("[SAVE] could not write %s (err %d) - campaign progress lost" % [save_path, err])
@@ -185,6 +189,7 @@ func load_campaign() -> void:
 	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
+	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
 	# EVERY boot until the next natural save.
 	if file_version < SAVE_VERSION:
@@ -212,6 +217,7 @@ func to_dict() -> Dictionary:
 		"player_data": player_data.duplicate(true),
 		"intel_points": intel_points,
 		"collapsed_tunnels": collapsed_tunnels,
+		"rack_condition": rack_condition.duplicate(true),
 	}
 
 
@@ -228,6 +234,7 @@ func from_dict(d: Dictionary) -> void:
 	player_data = d.get("player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(d.get("intel_points", 0))
 	collapsed_tunnels = d.get("collapsed_tunnels", []) as Array
+	rack_condition = d.get("rack_condition", {}) as Dictionary
 
 
 func reset_campaign() -> void:
@@ -245,6 +252,17 @@ func reset_campaign() -> void:
 	player_data = {"mos": "RIFLEMAN"}
 	intel_points = 0
 	collapsed_tunnels = []
+	rack_condition = {}
+	save_campaign()
+
+
+## A weapon never drawn is a fresh weapon.
+func rack_condition_of(weapon_id: String) -> float:
+	return float(rack_condition.get(weapon_id, 100.0))
+
+
+func store_rack_condition(weapon_id: String, condition: float) -> void:
+	rack_condition[weapon_id] = clampf(condition, 0.0, 100.0)
 	save_campaign()
 
 

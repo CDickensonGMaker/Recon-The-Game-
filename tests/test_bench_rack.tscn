@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8benchrack01a"]
+
+[ext_resource type="Script" path="res://tests/test_bench_rack.gd" id="1_br"]
+
+[node name="TestBenchRack" type="Node"]
+script = ExtResource("1_br")
