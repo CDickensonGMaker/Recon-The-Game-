@@ -139,7 +139,14 @@ func _show_slot_slider() -> void:
 		"3 FRAG x%d" % (equip.grenade_count),
 		"4 MEDKIT x%d" % (hs.health_packs if hs else 0),
 	]
-	for i in range(4):
+	# Field items are direct-key, not selectable slots, so they cannot highlight -
+	# but he still carries 3 flares, 2 claymores and 2 satchels, and until now the
+	# HUD never said so (r4bk: an item with no affordance does not exist).
+	var pl := world.player
+	names.append("5 FLARE x%d" % int(pl.get("flare_count") if pl.get("flare_count") != null else 0))
+	names.append("6 CLAYMORE x%d" % int(pl.get("claymore_count") if pl.get("claymore_count") != null else 0))
+	names.append("SATCHEL x%d" % int(pl.get("satchel_count") if pl.get("satchel_count") != null else 0))
+	for i in range(names.size()):
 		var row := ReconUI.make_label(str(names[i]), 15,
 			Color(0.1, 0.1, 0.08) if i == target_slot else Color(0.75, 0.74, 0.66))
 		if i == target_slot:
