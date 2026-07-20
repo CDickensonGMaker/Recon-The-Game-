@@ -11,7 +11,8 @@ var mesh_instance: MeshInstance3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
 var is_loaded: bool = false
-var height_scale: float = 280.0
+## Handed down from HeightmapStorage at build time - never authored here.
+var height_scale: float = TerrainConfig.WORLD_HEIGHT_MAX
 
 # Material (shared across chunks) - can be ShaderMaterial or StandardMaterial3D
 static var shared_material: Material
@@ -40,7 +41,7 @@ func _ready() -> void:
 ## region_data: PackedFloat32Array of normalized heights (grid_resolution+1 x grid_resolution+1)
 ## vegetation_terrain: Optional PackedByteArray of terrain types per bundle (for rice paddy coloring)
 ## bundles_per_chunk: Number of bundles per side (typically chunk_size / 8)
-func build_mesh(region_data: PackedFloat32Array, h_scale: float = 280.0, vegetation_terrain: PackedByteArray = PackedByteArray(), bundles_per_chunk: int = 0) -> void:
+func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.WORLD_HEIGHT_MAX, vegetation_terrain: PackedByteArray = PackedByteArray(), bundles_per_chunk: int = 0) -> void:
 	height_scale = h_scale
 
 	if region_data.size() < (grid_resolution + 1) * (grid_resolution + 1):
@@ -153,7 +154,6 @@ static func _create_shared_material() -> void:
 
 			shader_mat.set_shader_parameter("ground_texture_scale", 0.08)  # ~12m per tile
 			shader_mat.set_shader_parameter("ground_texture_blend", 0.35)  # Subtle blend
-			shader_mat.set_shader_parameter("height_scale", 350.0)  # Match TerrainManager.WORLD_HEIGHT_MAX
 
 			shared_material = shader_mat
 			_using_shader = true

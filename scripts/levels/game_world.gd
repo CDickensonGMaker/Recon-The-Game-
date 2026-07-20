@@ -125,7 +125,7 @@ func _setup_default_shader_textures() -> void:
 		"clearing_texture": clear_tex,
 		"terrain_size": 385,
 		"cell_size": 4.0,
-		"height_scale": 280.0,
+		"height_scale": TerrainConfig.WORLD_HEIGHT_MAX,
 	})
 
 
@@ -394,7 +394,8 @@ func _setup_terrain_shader_textures() -> void:
 	if terrain_manager.heightmap:
 		params["terrain_size"] = terrain_manager.heightmap.size
 	params["cell_size"] = terrain_manager.cell_size
-	params["height_scale"] = terrain_manager.height_scale
+	if terrain_manager.heightmap:
+		params["height_scale"] = terrain_manager.heightmap.height_scale
 	var clear_tex: ImageTexture = ClearingSystem.get_clearing_texture()
 	if clear_tex:
 		params["clearing_texture"] = clear_tex

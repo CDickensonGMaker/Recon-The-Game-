@@ -90,7 +90,7 @@ var rivers: Array = []
 
 var _hsize: int = 0
 var _hcell: float = 2.0
-var _height_scale: float = 1.0
+var _height_scale: float = TerrainConfig.WORLD_HEIGHT_MAX
 var _elev: PackedFloat32Array = PackedFloat32Array()      # terrain, meters
 var _filled: PackedFloat32Array = PackedFloat32Array()    # depression-filled, meters
 var _flow: PackedByteArray = PackedByteArray()            # D8 dir index, 255 = sink

@@ -5,14 +5,20 @@ class_name HeightmapStorage
 
 var size: int = 1536  # Cells per side (3000m / 2m cell_size, rounded to power of 2 compatible)
 var cell_size: float = 2.0  # Meters per cell
-var height_scale: float = 280.0  # Max height in meters
+
+## World-space meaning of a normalized value of 1.0. This storage decodes the data,
+## so it holds the scale; every other system asks it rather than keeping a copy.
+## The value itself is owned by TerrainConfig (tests/test_height_authority.gd).
+var height_scale: float = TerrainConfig.WORLD_HEIGHT_MAX
 
 # Raw heightmap data (normalized 0-1)
 var data: PackedFloat32Array
 
 
-func _init(map_size_meters: float = 3000.0, cell_size_meters: float = 2.0) -> void:
+func _init(map_size_meters: float = 3000.0, cell_size_meters: float = 2.0,
+		height_scale_meters: float = TerrainConfig.WORLD_HEIGHT_MAX) -> void:
 	cell_size = cell_size_meters
+	height_scale = height_scale_meters
 	size = int(ceil(map_size_meters / cell_size_meters))
 	# Round up to nearest power of 2 + 1 for clean chunk boundaries
 	size = _next_chunk_aligned_size(size)
@@ -40,6 +46,19 @@ func set_cell(x: int, z: int, value: float) -> void:
 	if x < 0 or x >= size or z < 0 or z >= size:
 		return
 	data[z * size + x] = clampf(value, 0.0, 1.0)
+
+
+## Convert a distance in meters to normalized heightmap units. Every system that
+## edits the heightmap in real-world units (riverbed carving, crater depth, water
+## retirement thresholds) goes through here, so none of them can divide by a scale
+## that disagrees with the one sample_world() decodes with.
+func meters_to_norm(meters: float) -> float:
+	return meters / height_scale
+
+
+## Convert normalized heightmap units back to meters.
+func norm_to_meters(norm: float) -> float:
+	return norm * height_scale
 
 
 ## Get height at world position with bilinear interpolation

@@ -18,8 +18,6 @@ signal region_rebuilt(world_rect: Rect2)
 @export var map_size: float = 3000.0  # Playable map size in meters
 @export var chunk_size: float = 256.0  # Chunk size in meters
 @export var cell_size: float = 2.0    # Height sample resolution
-const WORLD_HEIGHT_MAX: float = 350.0  # Shader/world height cap.
-@export var height_scale: float = 280.0  # Max terrain height (legacy; see WORLD_HEIGHT_MAX)
 
 @export var load_distance: int = 3     # Chunks to load around camera
 @export var unload_distance: int = 5   # Chunks to unload beyond this
@@ -54,7 +52,7 @@ func _ready() -> void:
 
 	terrain_generator = get_node_or_null("/root/TerrainEngine")
 
-	heightmap = HeightmapStorageClass.new(map_size, cell_size)
+	heightmap = HeightmapStorageClass.new(map_size, cell_size, TerrainConfig.WORLD_HEIGHT_MAX)
 
 
 func _process(delta: float) -> void:
@@ -99,21 +97,17 @@ func generate_terrain(seed_value: int = -1) -> void:
 		# AO archetype: derive preset from mission seed. Deterministic by construction —
 		# the same seed always produces the same AO. (RECONgame-xo7i, RECONgame-5r4y)
 		var preset: int = _derive_ao_preset(seed_value)
-		var preset_scale: float = _preset_height_scale(preset)
+		var preset_scale: float = TerrainConfig.preset_relief(preset)
 		terrain_generator.set_preset(preset)
-		terrain_generator.height_scale = WORLD_HEIGHT_MAX
-		terrain_generator.target_relief = preset_scale / WORLD_HEIGHT_MAX
+		terrain_generator.target_relief = preset_scale / TerrainConfig.WORLD_HEIGHT_MAX
 
 		await get_tree().process_frame
 		terrain_generator.generate(seed_value)
 
 		heightmap.data = terrain_generator.heightmap_data.duplicate()
-		# Mesh and shader both use the same world-space cap; the actual occupied
-		# relief is the fraction `target_relief` stored in the heightmap data.
-		heightmap.height_scale = WORLD_HEIGHT_MAX
 
-		# Ensure the terrain shader uses the same world-space scale as the mesh.
-		TerrainChunkClass.set_shader_parameters({"height_scale": WORLD_HEIGHT_MAX})
+		# Mesh, shader and every gameplay query decode against the storage's scale.
+		TerrainChunkClass.set_shader_parameters({"height_scale": heightmap.height_scale})
 
 		await get_tree().process_frame
 	else:
@@ -340,24 +334,6 @@ func _derive_ao_preset(seed_value: int) -> int:
 	return 2 + (seed_value % 2)  # ROLLING_HILLS or STEEP_MOUNTAINS
 
 
-static func _preset_height_scale(preset: int) -> float:
-	## Per-preset target peak-to-valley relief in meters.
-	## Tied directly to the relief budgets in tests/test_terrain_relief_bounds.gd.
-	## (RECONgame-p7wx)
-	match preset:
-		0:  # COASTAL_HILLS — flat coastal plain, paddies
-			return 25.0
-		1:  # RIVER_VALLEY — low center, gentle ridges
-			return 40.0
-		2:  # ROLLING_HILLS — gentle highlands
-			return 90.0
-		3:  # STEEP_MOUNTAINS — dramatic peaks
-			return 300.0
-		4:  # PLATEAU — flat top, cliff edges
-			return 160.0
-		_:
-			return 90.0
-
 func get_loaded_chunk_count() -> int:
 	return chunks.size()
 
@@ -423,7 +399,7 @@ func _carve_riverbed(path) -> void:
 					continue
 				var falloff: float = 1.0 - (dist / float(carve_radius))
 				var current: float = heightmap.get_cell(nx, nz)
-				var depth_normalized: float = (carve_depth_meters * falloff) / height_scale
+				var depth_normalized: float = heightmap.meters_to_norm(carve_depth_meters * falloff)
 				heightmap.set_cell(nx, nz, maxf(0.0, current - depth_normalized))
 
 

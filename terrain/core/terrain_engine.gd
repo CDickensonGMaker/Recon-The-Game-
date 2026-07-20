@@ -12,9 +12,10 @@ var heightmap_data: PackedFloat32Array
 
 # Real: min -3m, max 2809m (Fansipan), avg 173m
 var cell_size: float = 2.0  # Meters per heightmap cell
-var height_scale: float = 280.0  # Max terrain height in meters (world-space shader scale)
-var target_relief: float = 1.0   # Normalized peak-to-valley target (0-1). Replaces the
-                                 # old ratchet that stretched every seed to 100% of height_scale.
+## Normalized peak-to-valley target (0-1): the fraction of TerrainConfig.WORLD_HEIGHT_MAX
+## this map's relief occupies. The generator works purely in normalized space - it has no
+## height scale of its own, and must not acquire one.
+var target_relief: float = 1.0
 
 var base_noise: FastNoiseLite
 var warp_noise_x: FastNoiseLite
@@ -656,42 +657,6 @@ func _create_heightmap_image() -> void:
 		for x in range(terrain_size):
 			var h: float = heightmap_data[y * terrain_size + x]
 			heightmap.set_pixel(x, y, Color(h, h, h, 1.0))
-
-
-func get_height_at(world_pos: Vector3) -> float:
-	var fx: float = world_pos.x / cell_size
-	var fz: float = world_pos.z / cell_size
-
-	var x: int = int(fx)
-	var z: int = int(fz)
-
-	if x < 0 or x >= terrain_size - 1 or z < 0 or z >= terrain_size - 1:
-		return 0.0
-
-	# Bilinear interpolation
-	var dx: float = fx - x
-	var dz: float = fz - z
-
-	var h00: float = heightmap_data[z * terrain_size + x]
-	var h10: float = heightmap_data[z * terrain_size + x + 1]
-	var h01: float = heightmap_data[(z + 1) * terrain_size + x]
-	var h11: float = heightmap_data[(z + 1) * terrain_size + x + 1]
-
-	var h0: float = lerp(h00, h10, dx)
-	var h1: float = lerp(h01, h11, dx)
-
-	return lerp(h0, h1, dz) * height_scale
-
-
-func get_normal_at(world_pos: Vector3) -> Vector3:
-	var delta: float = cell_size
-
-	var hL: float = get_height_at(world_pos + Vector3(-delta, 0, 0))
-	var hR: float = get_height_at(world_pos + Vector3(delta, 0, 0))
-	var hD: float = get_height_at(world_pos + Vector3(0, 0, -delta))
-	var hU: float = get_height_at(world_pos + Vector3(0, 0, delta))
-
-	return Vector3(hL - hR, 2.0 * delta, hD - hU).normalized()
 
 
 func modify_region(center: Vector2i, radius: int, modifier: Callable) -> void:

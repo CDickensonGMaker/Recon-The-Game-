@@ -20,7 +20,9 @@ uniform float wetness_strength : hint_range(0.0, 1.0) = 0.6;
 uniform vec4 wet_tint : source_color = vec4(0.15, 0.12, 0.08, 1.0);  // Dark muddy brown
 
 // Terrain parameters
-uniform float height_scale = 280.0;
+// Must equal TerrainConfig.WORLD_HEIGHT_MAX. GDScript cannot share a const into a
+// shader, so tests/test_height_authority.gd binds this literal to it by text.
+uniform float height_scale = 350.0;
 uniform float cell_size = 4.0;
 uniform int terrain_size = 769;
 
