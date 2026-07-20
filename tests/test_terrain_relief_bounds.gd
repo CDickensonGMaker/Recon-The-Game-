@@ -5,7 +5,6 @@
 extends Node3D
 
 const TerrainEngineClass := preload("res://terrain/core/terrain_engine.gd")
-const TerrainManagerClass := preload("res://terrain/core/terrain_manager.gd")
 
 const SEEDS_PER_PRESET: int = 5
 const CELL_SIZE_M: float = 2.0
@@ -88,12 +87,11 @@ func _measure_preset(preset: int, seed_value: int) -> Dictionary:
 	# Add to tree first so _ready() initializes the noise objects.
 	add_child(engine)
 	engine.set_preset(preset)
-	var intended_scale: float = TerrainManagerClass._preset_height_scale(preset)
+	var intended_scale: float = TerrainConfig.preset_relief(preset)
 	# Use the intended per-preset scale so the probe measures real meters.
 	# With bounded amplitude scaling, the engine centers the distribution and
 	# targets `intended_scale / WORLD_HEIGHT_MAX` in normalized space.
-	engine.height_scale = TerrainManagerClass.WORLD_HEIGHT_MAX
-	engine.target_relief = intended_scale / TerrainManagerClass.WORLD_HEIGHT_MAX
+	engine.target_relief = intended_scale / TerrainConfig.WORLD_HEIGHT_MAX
 	engine.generate(seed_value)
 
 	var data: PackedFloat32Array = engine.heightmap_data.duplicate()

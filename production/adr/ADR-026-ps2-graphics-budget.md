@@ -126,9 +126,14 @@ OmniLights (+their CPUParticles) are worth ~+8.6 fps on this bench — the #1 PS
 **closed and rejected** — do not evaluate, propose, or draft a renderer switch again. The FPS job is to
 claw the frame budget back **within Forward+**, never by changing renderer.
 
-- **Already live** (`project.godot`): `renderer/rendering_method="forward_plus"`, `scaling_3d/mode=5`
-  (nearest), `scaling_3d/scale=0.75`. MSAA is off (default); `mesh_lod/lod_change/threshold_pixels=2.0`.
-  Part A.4 (sub-native render scale) is therefore shipped.
+- **Already live** (`project.godot:302-305`): `scaling_3d/mode=5` (nearest), `scaling_3d/scale=0.75`.
+  MSAA is off (default); `mesh_lod/lod_change/threshold_pixels=2.0`. Part A.4 (sub-native render
+  scale) is therefore shipped.
+- **`renderer/rendering_method` is NOT and cannot be a committed setting** (verified 2026-07-19).
+  Godot strips any value matching the engine default on editor save; an explicit `"forward_plus"`
+  line was committed and stripped the same day. Forward+ holds because it IS the desktop default,
+  confirmed at runtime: `Vulkan 1.3.215 - Forward+` in a live 4.7 run. Mobile was measured and gave
+  no gain, so the renderer stays settled — but it is unguarded, not locked.
 - **Sun shadow — the truth (measured 2026-07-17):** the shipped mission world already runs the sun with
   **`shadow_enabled = false`** (`game_world.gd:48`, "perf-first"), which is the **OFF** option Part A.1
   already permits. The −12.17ms "sun-shadow win" from the 2026-07-16 bench was a **bench artifact**: only
