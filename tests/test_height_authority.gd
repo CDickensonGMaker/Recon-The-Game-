@@ -22,7 +22,10 @@ const SEED_VAL: int = 42
 const HEIGHT_TOL_M: float = 0.05
 ## A carved channel must hold water within this of its own bed. Wider than
 ## HEIGHT_TOL_M because the water ribbon deliberately rides RIVER_RECESS below the
-## bank average, and the hydrology solves on a downsampled grid.
+## bank average. That recess is the ONLY reason for the extra slack: terrain and
+## hydrology share one 320^2 / 4m grid, since water_system.gd:131 _auto_downsample()
+## returns maxi(1, round(320/450)) = 1 and hydrology_map.gd:535-538 takes the
+## identity path. Do not read this tolerance as a resolution-mismatch budget.
 const CHANNEL_TOL_M: float = 2.5
 
 const SHADER_PATH: String = "res://terrain/shaders/terrain.gdshader"
