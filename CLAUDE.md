@@ -413,7 +413,24 @@ Summoner** (ADR-015) — never by a probe, never by an agent's reading.
 `qrg6` is `bd dep`-wired to the ADR-015 mechanical gate `RECONgame-97u3`, so while it is open
 `bd ready` correctly hides gated feature work.
 
-### Rules
+### THE DECISION QUEUE — open every session by asking him, not by building
+
+**Summoner's standing practice, 2026-07-20:** *"we should be starting every session with me answering
+questions that can move the needle forward."*
+
+```bash
+bd list --limit 0 --type decision      # the queue. Ask these FIRST.
+```
+
+`decision`-typed beads carrying the `awaiting-summoner` label are **questions only he can answer**, and
+every hour they sit open is an hour of work aimed by guesswork. On 2026-07-20 he cleared all 25 in one
+sitting and it redirected the entire session — two systems were retired, two ADRs deleted, and three
+"blocked" items turned out to be **already shipped**.
+
+**Put the question to him GLOSSED, never as a bare bead ID** (see the naming rules below): he must be
+able to rule without opening the bead, or he was not really asked. A decision bead is answered by
+**recording his words verbatim in the bead and then closing it** — a ruling record is findable when
+closed and only inflates the open count when left open.
 
 - **`bd list` SILENTLY TRUNCATES AT 50** while ~129 beads are open (measured 2026-07-19). It prints no
   warning and no count — a plain `bd list` will make you believe work does not exist. **Always use
