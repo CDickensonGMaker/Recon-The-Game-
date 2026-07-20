@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://crtopointhud0720"]
+
+[ext_resource type="Script" path="res://tests/test_rto_point_hud.gd" id="1_rp"]
+
+[node name="TestRTOPointHUD" type="Node"]
+script = ExtResource("1_rp")

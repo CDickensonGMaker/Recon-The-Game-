@@ -218,6 +218,31 @@ func _update_squad_strip(delta: float) -> void:
 			status = "OK" if hp_frac > 0.6 else ("HIT" if hp_frac > 0.25 else "CRIT")
 		var line := "%-10s %-8s %s" % [str(m.get("nick", "?")), str(m.get("mos", "")), status]
 		_squad_rows.add_child(ReconUI.make_label(line, 12, STATUS_COLOR.get(status, ReconUI.OLIVE)))
+		var mos := str(m.get("mos", ""))
+		if mos == "RTO":
+			var rs := _radio_row(a, status == "KIA")
+			_squad_rows.add_child(ReconUI.make_label(str(rs[0]), 11, rs[1]))
+		elif mos == "POINTMAN" and status != "KIA":
+			_squad_rows.add_child(ReconUI.make_label(
+				"   scanning %dm" % int(squad.point_scan_radius()), 11, ReconUI.DIM))
+
+
+## r4bk: the radio is a MAN with a 10m tether (FieldDirector._radio_check). The
+## player must see he is off the net BEFORE he presses T, not as a refusal after.
+## Range constant is read off the director so the two can never disagree.
+static func radio_state(alive: bool, dist_m: float) -> Array:
+	if not alive:
+		return ["   NO RADIO - RTO DOWN", ReconUI.ALERT]
+	if dist_m <= FieldDirector.RTO_RADIO_RANGE:
+		return ["   ON THE NET - [T]", STATUS_COLOR["OK"]]
+	return ["   OFF THE NET - RADIO %dm" % int(dist_m), ReconUI.ALERT]
+
+
+func _radio_row(rto: AllyBase, dead: bool) -> Array:
+	if world == null or world.player == null or not is_instance_valid(world.player):
+		return radio_state(false, 0.0)
+	return radio_state(not dead,
+		world.player.global_position.distance_to(rto.global_position))
 
 
 func show_toast(text: String) -> void:
