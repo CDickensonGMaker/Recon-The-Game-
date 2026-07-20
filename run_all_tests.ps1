@@ -110,8 +110,10 @@ foreach ($t in $tests) {
     $benignLines = @()
     foreach ($line in ($out -split "`n")) {
         $hit = $false
-        $t = $line.TrimStart()
-        foreach ($p in $ErrorPrefixes)    { if ($t.StartsWith($p))   { $hit = $true; break } }
+        # NOT $t -- that is the outer loop's test FileInfo, and clobbering it blanks
+        # every name on the board and silently breaks the $KnownRed lookup.
+        $trimmed = $line.TrimStart()
+        foreach ($p in $ErrorPrefixes)    { if ($trimmed.StartsWith($p)) { $hit = $true; break } }
         if (-not $hit) {
             foreach ($p in $ErrorSubstrings) { if ($line.Contains($p)) { $hit = $true; break } }
         }
