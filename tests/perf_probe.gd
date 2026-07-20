@@ -38,7 +38,11 @@ func _ready() -> void:
 func attach(w: GameWorld) -> void:
 	world = w
 	if cycle_systems:
-		_phases = ["baseline", "no_canopy", "no_clutter", "no_sun_shadow"]
+		# A/B/A: the baseline is re-measured between every lever. Run-to-run drift on
+		# this hardware was 1.4 fps on identical config (ledger, 2026-07-20), which is
+		# wider than some levers - a single baseline cannot carry four deltas.
+		_phases = ["baseline", "no_campfires", "baseline_2", "no_canopy",
+			"baseline_3", "no_clutter", "baseline_4", "no_sun_shadow", "baseline_5"]
 	else:
 		_phases = ["baseline"]
 	for p: String in _phases:
@@ -119,7 +123,17 @@ func _apply_toggle(phase_name: String) -> void:
 		sun.shadow_enabled = phase_name != "no_sun_shadow"
 	else:
 		push_error("[PERF] no SunLight under GameWorld - the no_sun_shadow row measures nothing.")
-	print("[PERF] phase -> %s" % phase_name)
+
+	# Campfires exist only at NIGHT/DUSK/DAWN (mission_generator.gd:643). At a DAY
+	# seed this lever toggles nothing, so the census is printed with the row - a
+	# zero-campfire world must never read as "campfires are free".
+	var fires: Array[Node] = get_tree().get_nodes_in_group("campfire")
+	for f: Node in fires:
+		if f is Node3D:
+			(f as Node3D).visible = phase_name != "no_campfires"
+	if fires.is_empty() and phase_name == "no_campfires":
+		push_warning("[PERF] 0 campfires in this world - the no_campfires row measures NOTHING.")
+	print("[PERF] phase -> %s (campfires=%d)" % [phase_name, fires.size()])
 
 
 func _take_screenshot() -> void:
@@ -165,16 +179,42 @@ func _finish() -> void:
 		])
 
 	if cycle_systems:
-		var base_fps: float = _avg(_fps["baseline"])
-		var base_prims: float = _avg(_prims["baseline"])
-		var base_calls: float = _avg(_calls["baseline"])
-		for p: String in _phases:
-			if p == "baseline":
-				continue
-			print("PERF DELTA %-14s dFps=%+.1f dPrims=%+d dCalls=%+d" % [
-				p, _avg(_fps[p]) - base_fps,
-				int(_avg(_prims[p]) - base_prims), int(_avg(_calls[p]) - base_calls),
+		# Each lever is scored against the MEAN of the two baselines that bracket it,
+		# so baseline drift across the run is halved instead of landing in one delta.
+		var brackets: Dictionary = {
+			"no_campfires": ["baseline", "baseline_2"],
+			"no_canopy": ["baseline_2", "baseline_3"],
+			"no_clutter": ["baseline_3", "baseline_4"],
+			"no_sun_shadow": ["baseline_4", "baseline_5"],
+		}
+		var spread: float = _spread_of_baselines()
+		print("PERF DRIFT baseline spread across run = %.1f fps (noise floor)" % spread)
+		for p: String in brackets:
+			var pair: Array = brackets[p]
+			var b_fps: float = (_avg(_fps[pair[0]]) + _avg(_fps[pair[1]])) * 0.5
+			var b_prims: float = (_avg(_prims[pair[0]]) + _avg(_prims[pair[1]])) * 0.5
+			var b_calls: float = (_avg(_calls[pair[0]]) + _avg(_calls[pair[1]])) * 0.5
+			var d: float = _avg(_fps[p]) - b_fps
+			print("PERF DELTA %-14s dFps=%+.1f dPrims=%+d dCalls=%+d %s" % [
+				p, d, int(_avg(_prims[p]) - b_prims), int(_avg(_calls[p]) - b_calls),
+				"INSIDE NOISE" if absf(d) <= spread else "",
 			])
+
+
+## Widest gap between any two baseline windows in this run - the honest noise floor.
+func _spread_of_baselines() -> float:
+	var vals: Array[float] = []
+	for p: String in _phases:
+		if p.begins_with("baseline"):
+			vals.append(_avg(_fps[p]))
+	if vals.size() < 2:
+		return 0.0
+	var lo: float = vals[0]
+	var hi: float = vals[0]
+	for v: float in vals:
+		lo = minf(lo, v)
+		hi = maxf(hi, v)
+	return hi - lo
 
 	# No numeric FPS gate exists. This probe reports figures; the Summoner's eyes adjudicate.
 	print("PERF BASELINE fps_avg=%.1f (reported, not adjudicated)" % _avg(_fps["baseline"]))

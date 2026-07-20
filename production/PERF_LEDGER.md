@@ -408,3 +408,185 @@ gate — no gating FPS number exists. Read the rows, ignore the verdict line.
 
 **NOT measured: the LazyGroup A/B/A (`l9kh`).** LazyGroup spawning has no toggle, and building one
 would be a change to `mission_generator`, not a measurement. Reported unmeasured rather than estimated.
+
+---
+
+# 2026-07-20 — ADR-026 PART A #1: THE CAMPFIRE LIGHT DIES, AND AN A/B/A THAT RANKS THE CANOPY
+
+**The change.** `mission_generator.gd:352` `_add_campfire` spawned a real `OmniLight3D`
+(energy 1.8, range 14m) per village fire. **Deleted.** Replaced with the technique `gun_fx` already
+uses: two unshaded additive billboards (a 3.2m glow halo + a 0.7x0.9m flame core) whose
+`emission_energy_multiplier` carries the original 0.12s flicker beat, particles unchanged. This was
+the last non-exempt real-time light spawner in the codebase.
+
+**Light census after this change** (`OmniLight3D.new()` / `SpotLight3D.new()`, repo-wide):
+`illum_flare.gd:30` (EXEMPT — `is_lit()` does stealth work) · `tunnel_room.gd:55` (EXEMPT — interior,
+player-triggered) · `ai_stress_arena.gd:537` (EXEMPT — the 4 bench campfires `ps2_perf_probe` A/Bs).
+**Zero non-exempt dynamic light spawners remain.** Guarded by `tests/test_fake_lights.gd`, now
+**18 checks / 0 FAIL** (was 12) — three source assertions on the campfire, two that the exemptions are
+not over-deleted, and a negative control on the source scanner itself.
+
+## ⚠ THE MEASUREMENT FINDING THAT MATTERS MOST: SEED 47225 HAS NO CAMPFIRES
+
+`_add_campfire` is called from exactly one place — `mission_generator.gd:643`, gated on
+`time_str in ["NIGHT", "DUSK", "DAWN"]`. **Seed 47225 rolls `time=DAY` `weather=MONSOON`**
+(`MissionGenerator.conditions_for(47225)`, verified headless — pure CPU logic, no GPU figure involved).
+
+**The probe confirmed it live: `[PERF] phase -> no_campfires (campfires=0)`.** The mandated bench seed
+builds a world with **zero campfires in it**, so at seed 47225 this change banks **exactly 0.0 FPS**,
+and the `no_campfires` row below measures nothing. The probe now prints the campfire census on every
+phase line and `push_warning`s on a zero-count toggle, so a world with nothing to hide can never again
+read as "campfires are free".
+
+`TIME_TABLE` (`mission_generator.gd:41`) is 5 DAY of 10 entries, so **half of all seeds have no
+campfire at all.** This is a conditional lever, not an always-on one.
+
+### Run 1 — seed 47225, A/B/A, the shipped default
+
+Windowed, **1280x720**, `scaling_3d/scale = 0.75`, renderer **forward_plus**, vsync off, `max_fps=0`,
+**Intel UHD Graphics**, Godot 4.7.stable, stationary at the fsb_main spawn. 9 phases, ~7s each after a
+2.5s settle. **Every lever is bracketed by its own two baselines** and scored against their mean.
+
+| phase | fps avg | prims | draw calls | objs |
+|---|---:|---:|---:|---:|
+| baseline | 21.5 | 285,151 | 1,458 | 2,360 |
+| no_campfires | 21.8 | 284,245 | 1,452 | 2,346 |
+| baseline_2 | 22.1 | 275,359 | 1,428 | 2,319 |
+| no_canopy | 24.3 | 275,139 | **457** | 1,368 |
+| baseline_3 | 22.2 | 285,545 | 1,524 | 2,493 |
+| no_clutter | 22.5 | 286,562 | 1,511 | 2,495 |
+| baseline_4 | 22.4 | 284,912 | 1,506 | 2,396 |
+| **no_sun_shadow** | **32.0** | **152,488** | 1,314 | 1,965 |
+| baseline_5 | 21.9 | 284,387 | 1,498 | 2,479 |
+
+| lever | dFps | dPrims | dCalls | verdict |
+|---|---:|---:|---:|---|
+| no_campfires | +0.0 | +3,989 | +9 | **MEASURES NOTHING — campfires=0 at this seed** |
+| no_canopy | **+2.2** | −5,312 | **−1,018** | **STANDS (first time)** |
+| no_clutter | +0.2 | +1,333 | −4 | inside noise |
+| **no_sun_shadow** | **+9.8** | **−132,161** | −188 | **STANDS — the dominant term** |
+
+**Baseline spread across the whole run: 0.9 FPS.** That is the honest noise floor, and it is *tighter*
+than the 1.4 FPS drift the 2026-07-20 single-baseline run reported — the A/B/A bracketing is why. The
+probe now prints this figure itself and tags any delta inside it `INSIDE NOISE`.
+
+**THE CANOPY IS NOW RANKED — the standing gap in this ledger is closed.** The prior run could not rank
+it (+4.7 then +2.2, against a 1.4 drift). This run reproduces **+2.2 against a 0.9 floor**, so it is
+outside noise and real, and its shape is confirmed: it drops **1,018 of 1,458 draw calls (70%)** while
+moving primitives by ~0. **Canopy is call-bound, not primitive-bound, and it is worth ~2 FPS — not the
++4.7 the optimistic pass suggested.** Caveat kept from the prior entry: this pose faces the firebase
+interior, not a jungle sightline.
+
+**Sun shadow reproduces a third time** (+10.9 / +10.5 / **+9.8**) and still carries ~46% of all
+primitives (132,161 of 285,151). It remains the frame's dominant lever. **No lever was pulled** — all
+four are instrument phases; choosing any is the Summoner's call (`mok6` / `4rd4`).
+
+**No pass/fail is claimed.** There is no ratified FPS gate; `perf_probe.gd`'s hardcoded verdict was
+removed on 2026-07-20 and was not reintroduced.
+
+### Run 2 — seed 12 (NIGHT, `campfires=4`), the build that SHIPS the fake fire
+
+Seed 47225 cannot see this change, so the campfire was measured where it exists. **Seed 12 rolls
+`time=NIGHT` and the probe counted `campfires=4`** — the same four-fire load the original arena bench
+measured. Same config otherwise: windowed 1280x720, scale 0.75, forward_plus, Intel UHD, 4.7.stable.
+
+| phase | fps avg | prims | draw calls |
+|---|---:|---:|---:|
+| baseline | 21.6* | 316,515 | 1,753 |
+| no_campfires | 23.6 | 327,738 | 1,839 |
+| baseline_2 | 23.8 | 323,386 | 1,803 |
+| no_canopy | 26.2 | 308,810 | **560** |
+| baseline_3 | 22.8 | 313,381 | 1,745 |
+| no_clutter | 23.1 | 322,040 | 1,790 |
+| baseline_4 | 22.4 | 325,887 | 1,842 |
+| **no_sun_shadow** | **32.1** | **142,623** | 1,407 |
+| baseline_5 | 23.0 | 321,511 | 1,843 |
+
+\* `fps_min=8.0` — the screenshot-capture stall. `SCREENSHOT_AT` (1.5s) sits inside `SETTLE` (2.5s) so
+the stall frame itself is never sampled, but its recovery frames leak past the settle and depress the
+FIRST baseline in every run. **This is why the noise floor here is 2.2 FPS against run 1's 0.9.** The
+other four baselines span only 22.4–23.8. Stated rather than corrected — the instrument is unchanged
+between runs, so the comparison holds.
+
+| lever | dFps | dCalls | verdict |
+|---|---:|---:|---|
+| **no_campfires (4 FAKE fires)** | **+0.9** | +60 | **INSIDE NOISE (floor 2.2)** |
+| no_canopy | +2.9 | **−1,213** | stands; reproduces run 1's +2.2 |
+| no_clutter | +0.5 | −3 | inside noise |
+| no_sun_shadow | **+9.4** | −435 | stands; −181,076 prims |
+
+**Hiding all four shipped campfires buys +0.9 FPS, which is inside this run's noise floor.** That is
+the intended result: the fake fire is close to free.
+
+### Run 3 — seed 12, the SAME build with the four `OmniLight3D`s temporarily restored
+
+To price the light itself rather than old-build-vs-new-build, the deleted `OmniLight3D` was added back
+**alongside** the billboards for one run and removed again immediately. This isolates the light: the
+`no_campfires` lever now hides `light + billboards + particles` instead of `billboards + particles`,
+and the difference between the two runs' levers is the light's own cost. Both are measured *within*
+their own run, so cross-run baseline drift cannot enter the comparison. Same config and seed.
+
+| phase | fps avg | prims | draw calls |
+|---|---:|---:|---:|
+| baseline | 19.6 (min 4.0*) | 365,099 | 2,173 |
+| no_campfires | 21.2 | 367,227 | 2,208 |
+| baseline_2 | 19.0 | 370,514 | 2,271 |
+| no_canopy | 23.9 | 353,137 | **1,045** |
+| baseline_3 | 20.8 | 360,602 | 2,193 |
+| no_clutter | 20.9 | 362,886 | 2,194 |
+| baseline_4 | 20.3 | 359,127 | 2,157 |
+| no_sun_shadow | 28.6 | 154,109 | 1,536 |
+| baseline_5 | 22.4 | 370,288 | 2,249 |
+
+| lever | dFps | verdict |
+|---|---:|---|
+| **no_campfires (4 fires WITH real lights)** | **+1.9** | **INSIDE NOISE (floor 3.4)** |
+| no_canopy | +4.1 | stands |
+| no_clutter | +0.3 | inside noise |
+| no_sun_shadow | +7.2 | stands |
+
+## WHAT THIS CHANGE ACTUALLY BANKS — SAID PLAINLY
+
+| build, seed 12 night, 4 campfires | cost of the whole campfire subsystem | run noise floor |
+|---|---:|---:|
+| with real `OmniLight3D` (run 3) | +1.9 FPS | 3.4 |
+| with the shipped fake fire (run 2) | +0.9 FPS | 2.2 |
+| **implied cost of the four LIGHTS alone** | **~1.0 FPS** | — |
+
+**THE ~1.0 FPS FIGURE IS NOT A RESOLVED MEASUREMENT AND MUST NOT BE QUOTED AS ONE.** Both levers it is
+derived from fell *inside their own run's noise floor*. The honest statement is: **the four campfire
+lights cost less than this instrument can resolve at this pose — bounded above at roughly 2 FPS, and
+consistent with ~1.** No estimate is offered beyond that bound.
+
+**Against the "~+8.6 FPS" the bead claims for ADR-026 Part A #1: this change does not bank it, and
+neither did the muzzle-flash half.** Three things separate the two figures, all measurable:
+1. **The 8.6 came from `ai_stress_arena`** — a night firefight with 4 bench campfires *plus* flares,
+   fires and a live 18v18. That is `ps2_perf_probe`'s `BenchLights` root, a deliberately adversarial
+   instrument, not the shipped world.
+2. **The shipped patrol world has at most 4 campfires and only at night.** Seed 47225 — the default —
+   has **zero**, so for the seed the game actually boots into, this change banks **0.0 FPS**.
+3. **Muzzle flashes are 45–60ms transients.** `FLASH_SECONDS = 0.06`; a flash light was never resident
+   in the frame long enough to carry a sustained FPS delta.
+
+**So the win is real but small, and it is a CANON win before it is a perf win.** ADR-026's cap (<=8
+real-time lights, 0 dynamic shadows) is now structurally true in the shipped world rather than
+aspirational: there are **zero non-exempt dynamic light spawners left in the codebase**, so no future
+scene can quietly reintroduce a per-event light without turning `test_fake_lights` red.
+
+**Where the frame actually is, measured three times today across two seeds:** the sun shadow
+(+9.8 / +9.4 / +7.2, ~46% of all primitives) and the canopy (+2.2 / +2.9 / +4.1, ~70% of draw calls).
+Campfire lights are not in that league and this ledger should stop implying they are.
+
+### Instrument changes made this session (`tests/perf_probe.gd`)
+- **A/B/A by construction**: 9 phases, every lever bracketed by its own two baselines and scored
+  against their mean, so run drift is halved instead of landing in one delta.
+- **The noise floor is now measured and printed** (`PERF DRIFT`, the widest gap between any two
+  baselines), and any delta inside it is tagged `INSIDE NOISE` on its own row.
+- **Campfire census on every phase line** + a `push_warning` when the lever finds nothing to hide, so a
+  zero-campfire world can never read as a free system. This is the check that caught the seed-47225 problem.
+- `--perf-seed=N` (`game_flow.gd`) benches a non-default seed. **Measurement override only — the shipped
+  default remains 47225.**
+- **Known artifact, stated not hidden:** `SCREENSHOT_AT` (1.5s) sits inside `SETTLE` (2.5s), so the
+  capture frame is never sampled, but its recovery frames depress the FIRST baseline of every run
+  (`fps_min` 14.0 / 8.0 / 4.0). It inflates the reported noise floor and makes it conservative, never
+  optimistic. Worth fixing before the next attribution pass.

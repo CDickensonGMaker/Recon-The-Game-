@@ -106,5 +106,41 @@ func _run() -> void:
 	_ok("NEGATIVE CONTROL: detector rejects an unlit quad as self-lit",
 		_selflit_quads(fake) == 0)
 
+	# --- 5. the campfire -----------------------------------------------------
+	# _add_campfire needs a live GameWorld (terrain height + add_child), so this is
+	# a SOURCE check, not a behavioural one. It is stated as such: it proves the
+	# spawner cannot construct a light, not that a built fire has none.
+	var gen: String = _source("res://scripts/missions/mission_generator.gd")
+	_ok("SOURCE: mission_generator constructs 0 real-time lights",
+		_light_ctors(gen) == 0)
+	_ok("SOURCE: the campfire is self-lit (unshaded additive billboard)",
+		gen.contains("_firelight_mat") and gen.contains("SHADING_MODE_UNSHADED")
+			and gen.contains("BLEND_MODE_ADD"))
+	_ok("SOURCE: the campfire keeps its flicker", gen.contains("emission_energy_multiplier"))
+
+	# --- 6. the exemptions must NOT be over-deleted --------------------------
+	# ADR-026 exempts these two by name. Cutting them is as much a breach as
+	# adding a muzzle-flash light: both do gameplay work, not atmosphere.
+	_ok("EXEMPT: IllumFlare keeps its real light in source",
+		_light_ctors(_source("res://scripts/combat/illum_flare.gd")) >= 1)
+	_ok("EXEMPT: the tunnel candle keeps its real light in source",
+		_light_ctors(_source("res://scripts/world/tunnel_room.gd")) >= 1)
+
+	_ok("NEGATIVE CONTROL: source scanner sees a planted light ctor",
+		_light_ctors("var l := OmniLight3D.new()") == 1)
+
 	print("=== %d checks, %d FAIL ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
+
+
+func _source(path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		_failures += 1
+		print("  FAIL unreadable source: %s" % path)
+		return ""
+	return f.get_as_text()
+
+
+func _light_ctors(src: String) -> int:
+	return src.count("OmniLight3D.new()") + src.count("SpotLight3D.new()")

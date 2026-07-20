@@ -345,15 +345,31 @@ static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
 
 
 ## Flickering campfire - a beacon you can read at range at night.
+## ADR-026 Part A #1: the fire is FAKE. Self-lit additive billboards carry the read
+## at range; a real OmniLight would spend the <=8 light budget on atmosphere.
 static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	var fire := Node3D.new()
 	world.add_child(fire)
+	fire.add_to_group("campfire")
 	fire.global_position = _seat(world, pos) + Vector3(0, 0.3, 0)
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.6, 0.25)
-	light.light_energy = 1.8
-	light.omni_range = 14.0
-	fire.add_child(light)
+
+	var glow := MeshInstance3D.new()
+	var glow_mesh := QuadMesh.new()
+	glow_mesh.size = Vector2(3.2, 3.2)
+	glow.mesh = glow_mesh
+	var glow_mat: StandardMaterial3D = _firelight_mat(Color(1.0, 0.6, 0.25, 0.30), 2.2)
+	glow.material_override = glow_mat
+	fire.add_child(glow)
+
+	var flame := MeshInstance3D.new()
+	var flame_mesh := QuadMesh.new()
+	flame_mesh.size = Vector2(0.7, 0.9)
+	flame.mesh = flame_mesh
+	var flame_mat: StandardMaterial3D = _firelight_mat(Color(1.0, 0.82, 0.45, 0.9), 6.0)
+	flame.material_override = flame_mat
+	flame.position = Vector3(0, 0.35, 0)
+	fire.add_child(flame)
+
 	var particles := CPUParticles3D.new()
 	particles.amount = 14
 	particles.lifetime = 1.4
@@ -369,7 +385,23 @@ static func _add_campfire(world: GameWorld, pos: Vector3) -> void:
 	flicker.autostart = true
 	fire.add_child(flicker)
 	flicker.timeout.connect(func() -> void:
-		light.light_energy = 1.8 + 0.4 * sin(float(Time.get_ticks_msec()) * 0.017))
+		var t: float = sin(float(Time.get_ticks_msec()) * 0.017)
+		flame_mat.emission_energy_multiplier = 6.0 + 1.4 * t
+		glow_mat.emission_energy_multiplier = 2.2 + 0.5 * t)
+
+
+## Unshaded additive billboard - reads as firelight with no scene light present.
+static func _firelight_mat(tint: Color, energy: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = tint
+	mat.emission_enabled = true
+	mat.emission = Color(tint.r, tint.g, tint.b)
+	mat.emission_energy_multiplier = energy
+	return mat
 
 
 ## Chickens scatter loudly when anyone gets close - live noise traps.

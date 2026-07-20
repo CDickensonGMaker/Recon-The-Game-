@@ -196,8 +196,14 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 const DEFAULT_OPERATION_SEED: int = 47225
 
 func start_default_operation() -> void:
-	_begin_operation(DEFAULT_OPERATION_SEED,
-		MissionGenerator.codename_for(DEFAULT_OPERATION_SEED))
+	# `--perf-seed=N` benches a seed other than the shipped one. Levers that exist only
+	# under some conditions (campfires are NIGHT/DUSK/DAWN only) are unmeasurable at
+	# 47225, which rolls DAY. Measurement override only - the shipped default is 47225.
+	var op_seed: int = DEFAULT_OPERATION_SEED
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--perf-seed="):
+			op_seed = int(a.get_slice("=", 1))
+	_begin_operation(op_seed, MissionGenerator.codename_for(op_seed))
 
 
 func _begin_operation(op_seed: int, op_name: String) -> void:
