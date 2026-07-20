@@ -35,8 +35,6 @@ static func compute_score(r: Dictionary) -> int:
 	score -= int(r.get("damage_taken", 0))
 	if float(r.get("time_sec", 0)) < 900.0 and bool(r.get("success", false)):
 		score += 50
-	if bool(r.get("emergency_exfil", false)):
-		score -= 50
 	if _ghost_bonus(r):
 		score += 75
 	if bool(r.get("pow_lost", false)):
@@ -83,8 +81,6 @@ func _ready() -> void:
 			int(result.get("hits", 0)), int(result.get("shots", 0)), 100.0 * float(result.get("hits", 0)) / float(result.get("shots", 0))])
 	if bool(result.get("pow_lost", false)):
 		lines.append("THE PILOT DIDN'T MAKE IT: -100")
-	if bool(result.get("emergency_exfil", false)):
-		lines.append("EMERGENCY EXFIL: -50")
 	if _ghost_bonus(result):
 		lines.append("ROE - WEAPONS DISCIPLINE: +75")
 	panel.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))

@@ -6,7 +6,6 @@ extends RefCounted
 var kills: int = 0
 var damage_taken: int = 0
 var start_time_ms: int = 0
-var emergency_exfil: bool = false
 var mission_type: String = ""
 var seed_value: int = 0
 var flags: Dictionary = {}  ## generator/system extras merged into the result
@@ -63,7 +62,6 @@ func _base_result(success: bool, reason: String) -> Dictionary:
 		"kills": kills,
 		"damage_taken": damage_taken,
 		"time_sec": elapsed_seconds(),
-		"emergency_exfil": emergency_exfil,
 		# ADR-006: what the debrief actually pays on.
 		"contacts_detected": contacts_detected,
 		"contacts_avoided": contacts_avoided(),

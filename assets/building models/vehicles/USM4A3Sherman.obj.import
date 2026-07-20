@@ -4,11 +4,11 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://ckgttksosp7io"
-valid=false
+valid=true
 
 [deps]
 
-source_file="res://assets/models/us/vehicles/USM4A3Sherman.obj"
+source_file="res://assets/building models/vehicles/USM4A3Sherman.obj"
 
 [params]
 

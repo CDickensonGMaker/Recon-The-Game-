@@ -116,7 +116,6 @@ const STRUCTURES := {
 	"tank_revetment": {"box": Vector3(83.4, 19.0, 107.7), "y_offset": 9.50, "footprint": Vector2(84.5, 109.0), "scale": 1.0},
 	"tank_trap": {"box": Vector3(10.4, 10.5, 10.5), "y_offset": 5.25, "footprint": Vector2(11.5, 11.5), "scale": 1.0},
 	"tent": {"box": Vector3(10.0, 5.2, 3.9), "y_offset": 6.42, "footprint": Vector2(11.0, 5.0), "scale": 1.0},
-	"toc": {"box": Vector3(6.4, 6.0, 4.4), "y_offset": 3.00, "footprint": Vector2(7.5, 5.5), "scale": 1.0},
 	"underground_hospital": {"box": Vector3(4.0, 2.3, 3.5), "y_offset": 0.40, "footprint": Vector2(5.0, 4.5), "scale": 1.0},
 	"us_army_bridge": {"box": Vector3(4.0, 4.2, 17.4), "y_offset": 0.88, "footprint": Vector2(5.0, 18.5), "scale": 1.0},
 	"villa": {"box": Vector3(15.0, 8.5, 13.5), "y_offset": 4.25, "footprint": Vector2(16.0, 14.5), "scale": 1.0},
@@ -204,7 +203,7 @@ const MATERIALS := {
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
 	"zpu_aa_gun": Mat.METAL, "m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
-	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE, "toc": Mat.CONCRETE,
+	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,
 	"fire_direction_center": Mat.CONCRETE, "operations_building": Mat.CONCRETE,
 }
 

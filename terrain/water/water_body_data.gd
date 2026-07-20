@@ -77,68 +77,6 @@ func get_center() -> Vector2:
 		return bounds.get_center()
 
 
-func contains_point(world_x: float, world_z: float) -> bool:
-	var point := Vector2(world_x, world_z)
-
-	if not bounds.has_point(point):
-		return false
-
-	if is_flowing():
-		return _point_near_path(point)
-	else:
-		return _point_in_polygon(point)
-
-
-func _point_near_path(point: Vector2) -> bool:
-	for i in range(path.size() - 1):
-		var seg_start := path[i]
-		var seg_end := path[i + 1]
-		var closest := _closest_point_on_segment(point, seg_start, seg_end)
-		var dist := point.distance_to(closest)
-
-		# Interpolate width at closest point
-		var t := seg_start.distance_to(closest) / seg_start.distance_to(seg_end)
-		t = clampf(t, 0.0, 1.0)
-		var width_at_point := lerpf(widths[i], widths[i + 1], t)
-
-		if dist <= width_at_point * 0.5:
-			return true
-
-	return false
-
-
-func _closest_point_on_segment(point: Vector2, seg_start: Vector2, seg_end: Vector2) -> Vector2:
-	var seg := seg_end - seg_start
-	var seg_len_sq := seg.length_squared()
-
-	if seg_len_sq < 0.0001:
-		return seg_start
-
-	var t := clampf((point - seg_start).dot(seg) / seg_len_sq, 0.0, 1.0)
-	return seg_start + seg * t
-
-
-## Point-in-polygon test using ray casting
-func _point_in_polygon(point: Vector2) -> bool:
-	if polygon.size() < 3:
-		return false
-
-	var inside := false
-	var j := polygon.size() - 1
-
-	for i in range(polygon.size()):
-		var pi := polygon[i]
-		var pj := polygon[j]
-
-		if ((pi.y > point.y) != (pj.y > point.y)) and \
-		   (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x):
-			inside = not inside
-
-		j = i
-
-	return inside
-
-
 static func type_name(t: Type) -> String:
 	match t:
 		Type.NONE: return "None"

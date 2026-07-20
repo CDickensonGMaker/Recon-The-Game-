@@ -33,7 +33,7 @@ func _initialize() -> void:
 		int(r.contacts_detected), int(r.contacts_avoided)])
 	var score: int = DebriefScreen.compute_score({
 		"kills": 9, "damage_taken": 0,
-		"time_sec": 800.0, "success": true, "emergency_exfil": false, "shots": 200,
+		"time_sec": 800.0, "success": true, "shots": 200,
 		"contacts_avoided": int(r.contacts_avoided), "contacts_detected": int(r.contacts_detected),
 	})
 	print("  score for 9 kills + that ledger = %d" % score)

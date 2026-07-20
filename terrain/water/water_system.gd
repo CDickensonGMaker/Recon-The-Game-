@@ -13,7 +13,6 @@ const PondDetectorClass := preload("res://terrain/water/pond_detector.gd")
 var water_bodies: Dictionary = {}  # id -> WaterBodyData
 
 ## Spatial index: chunk coordinate -> array of water body IDs
-var water_by_chunk: Dictionary = {}  # Vector2i -> Array[int]
 
 ## Global sea level in meters (for coastal generation)
 ## Set to 0.5 (effectively sea floor) so that the COASTAL_HILLS AO (max 60m)
@@ -45,7 +44,6 @@ var _hydrology: RefCounted = null  # HydrologyMap
 var hydrology_downsample: int = 0
 
 ## Chunk size for spatial indexing
-var _chunk_size: float = 256.0
 
 var _water_container: Node3D = null
 
@@ -65,9 +63,8 @@ func _ready() -> void:
 	add_child(_water_container)
 
 
-func initialize(heightmap: RefCounted, chunk_size: float = 256.0) -> void:
+func initialize(heightmap: RefCounted) -> void:
 	_heightmap = heightmap
-	_chunk_size = chunk_size
 
 	water_map_size = heightmap.size
 	water_map_cell_size = heightmap.cell_size
@@ -374,25 +371,9 @@ func _path_perpendicular(path: PackedVector2Array, index: int) -> Vector2:
 	return Vector2(-direction.y, direction.x)
 
 
-## Register a water body and update spatial index
+## Register a water body by id.
 func _register_water_body(body: Resource) -> void:
 	water_bodies[body.id] = body
-
-	var min_chunk := Vector2i(
-		int(floor(body.bounds.position.x / _chunk_size)),
-		int(floor(body.bounds.position.y / _chunk_size))
-	)
-	var max_chunk := Vector2i(
-		int(floor(body.bounds.end.x / _chunk_size)),
-		int(floor(body.bounds.end.y / _chunk_size))
-	)
-
-	for cz in range(min_chunk.y, max_chunk.y + 1):
-		for cx in range(min_chunk.x, max_chunk.x + 1):
-			var coord := Vector2i(cx, cz)
-			if not water_by_chunk.has(coord):
-				water_by_chunk[coord] = []
-			water_by_chunk[coord].append(body.id)
 
 
 ## Build the O(1) lookup grid directly from hydrology cell types + surfaces.
@@ -461,7 +442,6 @@ func clear() -> void:
 		child.queue_free()
 
 	water_bodies.clear()
-	water_by_chunk.clear()
 	water_map.fill(0)
 	_next_id = 0
 	_hydrology = null
@@ -522,24 +502,6 @@ func get_water_level_at(world_x: float, world_z: float) -> float:
 	if _hydrology.water_type_full[idx] == 0:
 		return -INF
 	return _hydrology.water_surface_full[idx]
-
-
-## Get water body at a world position (or null)
-func get_water_at(world_pos: Vector3) -> Resource:
-	var chunk_coord := Vector2i(
-		int(floor(world_pos.x / _chunk_size)),
-		int(floor(world_pos.z / _chunk_size))
-	)
-
-	if not water_by_chunk.has(chunk_coord):
-		return null
-
-	for body_id in water_by_chunk[chunk_coord]:
-		var body: Resource = water_bodies[body_id]
-		if body.contains_point(world_pos.x, world_pos.z):
-			return body
-
-	return null
 
 
 ## Generate wetness texture for terrain shore blending

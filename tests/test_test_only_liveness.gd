@@ -149,12 +149,32 @@ func _walk(dir_path: String, out: PackedStringArray) -> void:
 
 ## A COMMENT IS A TOMBSTONE, NOT A CALLER. `# was a hardcoded ALERT_RANGE*2` is the
 ## exact sentence that kept a dead const off the fossil list.
+## QUOTE-AWARE by necessity: a bare line.find("#") truncates every line carrying a
+## '#' inside a string literal, silently dropping real call sites from the corpus.
 func _strip(src: String) -> String:
-	var out: String = ""
+	var out: PackedStringArray = []
 	for line: String in src.split("\n"):
-		var h: int = line.find("#")
-		out += (line if h < 0 else line.substr(0, h)) + "\n"
-	return out
+		var in_s: bool = false
+		var quote: String = ""
+		var cut: int = -1
+		var i: int = 0
+		while i < line.length():
+			var c: String = line[i]
+			if c == "\\" and in_s:
+				i += 2
+				continue
+			if in_s:
+				if c == quote:
+					in_s = false
+			elif c == "\"" or c == "'":
+				in_s = true
+				quote = c
+			elif c == "#":
+				cut = i
+				break
+			i += 1
+		out.append(line.substr(0, cut) if cut >= 0 else line)
+	return "\n".join(out)
 
 
 func _declare(path: String, decls: Dictionary) -> void:

@@ -141,7 +141,7 @@ func _on_terrain_ready() -> void:
 	_setup_terrain_shader_textures()
 
 	# 3. Water BEFORE gameplay grid (grid needs accurate water cells).
-	water_system.initialize(terrain_manager.heightmap, terrain_manager.chunk_size)
+	water_system.initialize(terrain_manager.heightmap)
 	water_system.ocean_edges = WorldConfig.OCEAN_EDGES
 	water_system.sea_level = WorldConfig.SEA_LEVEL
 	water_system.generate_water_bodies(terrain_manager.hydrology)
