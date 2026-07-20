@@ -28,21 +28,8 @@ assets/audio/vo/
 assets/audio/ambience/jungle_day.mp3
 .beads/.~*
 
-# Derived character blends, ~90 MB each.
-# us_base_v3.blend is NOT among them: us_grunt_v2.blend does not exist on disk,
-# so it cannot be regenerated. It is the truth source and rides in LFS.
-art_source/characters/base_psx/us_base_v3.blend
-art_source/characters/lineup_review.blend
-art_source/characters/variants/
-art_source/characters/civilians/
-art_source/characters/review/
-
-# Character workspaces (Caleb 2026-07-12): one folder per family. All DERIVED -
-# regenerated from the tracked truth source by tools/make_*.py. ~90 MB a piece.
-art_source/characters/civilians/
-art_source/characters/us_troops/
-art_source/characters/enemies/
-art_source/characters/locker/
+# us_base_v3.blend is the truth source for every US model and rides in LFS.
+# us_grunt_v2.blend does not exist on disk, so v3 cannot be regenerated from it.
 
 # Local safety artifacts - never enter history (repo-hygiene pass 2026-07-17)
 # Manual pre-edit copies and Blender recovery/auto snapshots. Regeneratable or

@@ -283,8 +283,8 @@ Found on 2026-07-13, five systems, one session — **and the game worked the who
 fractures — it is fossils.
 
 **THE MACHINE (because a law in Markdown is just the next fossil):** `tests/test_fossils.tscn`, in the
-suite. The **124 existing fossils** are grandfathered in `tests/fossil_baseline.json`, under a
-`ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
+suite. The existing fossils are grandfathered in `tests/fossil_baseline.json` (`:2-3` — `ceiling` 27,
+`count` 27, as of 2026-07-19), under a `ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
 
 `--write-baseline` writes the intersection of register and reality and is incapable of growth. New
 entries enter ONLY via `--grandfather --reason="<text>"`, which appends dated provenance to
@@ -303,6 +303,30 @@ wiring → wire or cut) · **MISSING FEATURE** (documented, never built → buil
 FPS-fallback ladder is read by *nothing* while perf is the top systemic risk). Deleting on a
 zero-reference count alone is how you lose the game: **913 of 1,291 assets have zero grep hits**, and
 `ModelActor` resolves the entire cast from bare `unit_id` strings.
+
+---
+
+## THE POINTER LAW — an assertion with no pointer is an opinion (ratified 2026-07-19)
+
+**Any document that asserts the state of code must cite `file:line` or name the probe that proves it.
+An assertion with no pointer is a dated opinion and must carry a date banner.**
+
+This is the FOSSIL LAW pointed at prose. A fossil is a lie in the map; an unpointered doc is a lie
+about the map. You cannot tell either from truth by reading it, and you will act on it.
+
+Five incidents cost this project real work, and one rule catches all five: the damage table · the
+fossil counts · the `terrain/` blind-spot claim · the four beads that sent agents hunting a
+`WorldBuilder` class that has zero hits repo-wide · the `.gitignore` comment justifying an untracked
+133 MB truth source as regenerable from `us_grunt_v2.blend`, **a file that does not exist**. Every one
+read as current fact. Not one carried a pointer.
+
+Cite the pointer, or date the line and mark it as of-its-time. The healthy docs already do it —
+`ADR-016`, `PERF_LEDGER.md`, `bible/04_AI_LOCOMOTION.md`, `research/engine_mining_2026-07-18/`.
+Copy them. **When you cannot find a pointer, that is the finding** — file a bead, do not soften the
+claim and move on.
+
+**THE MACHINE:** `tools/probe_doc_pointers.py` — flags any doc asserting code state with neither a
+`file:line` nor a date banner. Weak by design: it catches the shape, not the truth.
 
 ---
 
