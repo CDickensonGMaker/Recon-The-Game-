@@ -663,6 +663,7 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
 	var civ_count: int = rng.randi_range(civ_range.x, civ_range.y)
 	var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
+	var villagers: Array[Civilian] = []
 	for ci in range(civ_count):
 		var ca := rng.randf_range(0.0, TAU)
 		var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
@@ -671,6 +672,9 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
 		if wp_positions.size() > 0:
 			civ.working_point_pos = wp_positions[rng.randi() % wp_positions.size()]
+		villagers.append(civ)
+	_assign_households(villagers, rng)
+	for civ in villagers:
 		civ.build_bt()
 	if time_str in ["NIGHT", "DUSK", "DAWN"]:
 		_add_campfire(world, site.center + Vector3(2, 0, 2))
@@ -681,6 +685,29 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
 		_add_chicken(world, kpos)
 	return v
+
+
+## Partition a village's villagers into households of 2-3 who share a hut and a
+## working point. A household IS the group: same home, same destination, so the
+## schedule alone walks them out together. Odd villagers are left solo (-1).
+static func _assign_households(civs: Array[Civilian], rng: RandomNumberGenerator) -> void:
+	var i: int = 0
+	var gid: int = 0
+	while civs.size() - i >= 2:
+		var size: int = 2 if (civs.size() - i) < 4 else rng.randi_range(2, 3)
+		var members: Array = []
+		for k in range(i, i + size):
+			members.append(civs[k])
+		var head: Civilian = civs[i]
+		for m in members:
+			var c: Civilian = m as Civilian
+			c.group_id = gid
+			c.group_members = members
+			c.home = head.home
+			c.working_point_pos = head.working_point_pos
+			c.is_group_lead = (c == head)
+		i += size
+		gid += 1
 
 
 static func _spawn_enemy_groups(world: GameWorld, director: FieldDirector,

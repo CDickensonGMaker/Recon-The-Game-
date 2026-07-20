@@ -36,6 +36,13 @@ var _last_clip: String = ""
 ## crowd of individuals and not four copies of one pose (ADR-010: same seed, same ville).
 var _idle_variant: String = "idle_unarmed_2"
 
+## Travelling actions a household walks together. Stationary actions (work,
+## cook, sleep) are done side by side at home, not in formation.
+const GROUP_WALK_ACTIONS: Array[StringName] = [
+	&"walk_home", &"walk_paddy", &"walk_fire", &"walk_market",
+]
+const GROUP_WALK_SPEED: float = 1.3
+
 const IDLE_VARIANTS: Array[String] = [
 	"idle_unarmed_2", "idle_unarmed_3", "idle_unarmed_4", "idle_unarmed_5",
 ]
@@ -48,8 +55,11 @@ var working_point: NodePath = NodePath()
 var working_point_pos: Vector3 = Vector3.ZERO
 ## Group id: civilians with the same id walk as one group. -1 = solo.
 var group_id: int = -1
-## Per-group destination when traveling together. Set by GroupWalk.
+## Where THIS civilian walks while grouped: the destination if lead, else a
+## formation slot. Written by GroupWalk, consumed by _step_toward.
 var group_destination: Vector3 = Vector3.ZERO
+## The household's members, self included. Assigned at spawn.
+var group_members: Array = []
 ## Is this civilian the LEAD of their group? The lead picks the path; followers slot.
 var is_group_lead: bool = false
 var _bt_bb: Dictionary = {}
@@ -398,7 +408,61 @@ func _bt_tick(delta: float) -> void:
 		_bt_bb["target_pos"] = _resolve_target(picked)
 	_bt_bb["delta"] = delta
 	_bt.tick(self, _bt_bb)
-	_step_toward(_wander_target, _bt_bb.get("speed", 1.2), delta)
+	var speed: float = float(_bt_bb.get("speed", 1.2))
+	if _group_walk_apply():
+		speed = GROUP_WALK_SPEED
+	_step_toward(_wander_target, speed, delta)
+
+
+## The action the schedule named this hour. Stable for the whole hour, unlike
+## active_action, which GroupWalk rewrites to walk_group mid-frame.
+func scheduled_action() -> StringName:
+	return StringName(_bt_bb.get("scheduled_action", &""))
+
+
+## Redirect _wander_target to this civilian's formation slot when the household
+## is travelling. Returns true if the group took the target. The BT still picks
+## the destination - the lead's own scheduled target is what the party walks to,
+## so a family walking to the paddy is the schedule, not a second behavior.
+func _group_walk_apply() -> bool:
+	if group_id < 0 or group_members.size() < 2:
+		return false
+	if not GROUP_WALK_ACTIONS.has(scheduled_action()):
+		return false
+	var party: Array = _group_party()
+	if party.size() < 2:
+		return false
+	var lead: Civilian = GroupWalk.lead_of(party)
+	if lead == null:
+		return false
+	if lead == self:
+		GroupWalk.tick(party, _wander_target)
+	elif lead.group_destination == Vector3.ZERO:
+		return false
+	# Each civilian reports its OWN action. If the lead set it for the party,
+	# a follower that ticks after the lead would overwrite it from its schedule
+	# leaf and read as walking alone.
+	active_action = &"walk_group"
+	_wander_target = group_destination
+	return true
+
+
+## Household members who are travelling on the SAME scheduled action and are not
+## in a reactive state. A fleeing or cowering villager is not in the party, so a
+## family under fire scatters into individuals.
+func _group_party() -> Array:
+	var out: Array = []
+	var mine: StringName = scheduled_action()
+	for m in group_members:
+		if m == null or not is_instance_valid(m):
+			continue
+		var c: Civilian = m as Civilian
+		if c.state != CivState.WANDER:
+			continue
+		if c.scheduled_action() != mine:
+			continue
+		out.append(c)
+	return out
 
 
 ## SimClock is an AUTOLOAD with no class_name (sim_clock.gd:5) - it is absent
