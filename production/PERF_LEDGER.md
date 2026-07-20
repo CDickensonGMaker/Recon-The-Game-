@@ -390,6 +390,17 @@ above it in this ledger describes a world nobody plays.
 | no_clutter | 26.7 | 25.5 | +1.6 | +1.8 | 266,843 | 1,354 |
 | **no_sun_shadow** | **36.0** | **34.2** | **+10.9** | **+10.5** | **144,454** | 1,251 |
 
+> ### RETRACTED 2026-07-20 (later) — THE SUN-SHADOW ROWS IN THIS ENTRY ARE THE SAME BENCH ARTIFACT.
+> This entry predates the fix and carries the identical defect the entry below it retracts:
+> `tests/perf_probe.gd:123` read `sun.shadow_enabled = phase_name != "no_sun_shadow"`, so **every
+> baseline here was measured with a shadow the shipped world does not render**
+> (`scripts/levels/game_world.gd:48` sets `shadow_enabled = false`). The `+10.9 / +10.5` is the probe
+> paying back a cost it had itself added; the `25.1 / 23.7` baselines are not the shipped game's frame
+> rate; and the canopy figures are **understated** because canopy geometry was partly hidden inside the
+> shadow pass. **Corrected picture: baseline ~34 FPS, canopy +6.3 (the only lever above noise),
+> no_sun_shadow −0.2** — see "SHIP-PARITY A/B/A" at the end of this file. Rows left as measured
+> (ADR-014). Guarded since 2026-07-20 by `tests/test_ship_parity.tscn`.
+
 **The finding — the sun shadow is the frame, and the old headline was wrong.**
 - **Sun shadow is the dominant lever and the only one that reproduces tightly** (+10.9 / +10.5 FPS).
   It carries **~126-129k primitives, 46% of every primitive in the frame.** Nothing else is close.
@@ -412,6 +423,41 @@ would be a change to `mission_generator`, not a measurement. Reported unmeasured
 ---
 
 # 2026-07-20 — ADR-026 PART A #1: THE CAMPFIRE LIGHT DIES, AND AN A/B/A THAT RANKS THE CANOPY
+
+> ## ⚠ READ FIRST — EVERY GPU FIGURE IN THIS ENTRY WAS MEASURED ON A BROKEN INSTRUMENT.
+> `tests/perf_probe.gd:123` (as committed in `74715b86`, the commit this entry documents) forced
+> `sun.shadow_enabled = true` on all eight phases except `no_sun_shadow`, while the shipped world runs
+> `false` (`game_world.gd:48`). **Every row below was therefore measured against a baseline the game
+> never renders.** See the RETRACTION and the ship-parity re-measure further down this file.
+>
+> **What is retracted:** this entry's `no_sun_shadow +9.8 / +9.4 / +7.2` — the lever was refunding a
+> cost the probe itself added; corrected it is **−0.2, inside noise**. The title's canopy claim is
+> **understated, not wrong** (`+2.2` here vs **`+6.3`** at ship parity — a shadowed baseline hides
+> canopy cost, because the shadow pass re-renders the same geometry). The ~23–25 FPS baselines are not
+> the shipped frame rate; ship parity reads **~34**.
+>
+> **I own this.** The defect pre-dated my session, but I ran it three times, published the output as
+> *"STANDS — the dominant term"* and *"reproduces a third time"*, and treated reproducibility as
+> validity. **Three consistent measurements of an artifact are still an artifact.** The A/B/A design
+> was sound and it tightened the noise floor; it could not have caught this, because a bracketed
+> baseline that is uniformly wrong is uniformly wrong.
+>
+> **What SURVIVES this retraction unchanged**, because none of it is a GPU figure:
+> - **Seed 47225 rolls `time=DAY`, `_add_campfire` is night-gated, so the default world contains ZERO
+>   campfires and this change banks 0.0 FPS there.** A scene-graph census, independently reproduced by
+>   the ship-parity run (`no_campfires +0.0`).
+> - The light census (zero non-exempt real-time light spawners repo-wide) and `test_fake_lights` 18/18.
+> - The conclusion that this change **does not bank anything close to ~8.6 FPS.**
+>
+> **My night-seed campfire before/after (Runs 2 and 3) was NOT covered by the ship-parity re-measure**
+> — that run used seed 47225, which has no campfires. **It has now been re-measured at ship parity;
+> see "THE CAMPFIRE, RE-MEASURED AT SHIP PARITY" at the end of this file. The conclusion did not
+> change — it got stronger.**
+>
+> **My bug, found by the same fix:** `get_tree().quit(0)` ended up stranded after the `return` in the
+> `_spread_of_baselines()` helper I added, so it never ran. **That is why every bench in this entry
+> left an orphaned Godot process** that I had to `taskkill` — I treated the symptom three times and
+> never diagnosed it.
 
 **The change.** `mission_generator.gd:352` `_add_campfire` spawned a real `OmniLight3D`
 (energy 1.8, range 14m) per village fire. **Deleted.** Replaced with the technique `gun_fx` already
@@ -703,3 +749,46 @@ casts no shadow at all, so the floor is untouched by construction.
   sampled reading at 2.5s. The prior entry flagged this as "worth fixing"; it is fixed. Noise floors of
   1.4 and 0.5 FPS above are with the fix in.
 - **`--shadow-study`** phase list added for the atmosphere-price question, with a screenshot per phase.
+
+---
+
+# 2026-07-20 — THE GUARD: `tests/test_ship_parity.tscn`
+
+The ship-parity artifact was measured and believed **twice**, in two harnesses, ten weeks apart:
+`ai_stress_arena.gd:390` (retired 2026-07-17, ADR-026:137-144) and then `tests/perf_probe.gd:123`
+(retracted above). **Fixing one did not fix the other, and nothing structural prevented a third.**
+This probe is that structure. Headless, in the suite (`run_all_tests.ps1` globs `test_*.tscn`).
+
+**What it asserts.** It reads the shipped render config out of `scripts/levels/game_world.gd` rather
+than hardcoding it, then holds every perf harness to two rules:
+
+- **RULE A — no undeclared deviation.** Every write to a parity property (`shadow_enabled`,
+  `directional_shadow_max_distance`) in a harness must assign the shipped value, assign a captured
+  ship variable, or be **declared** in `tests/parity_baseline.json` with a dated reason.
+- **RULE B — the reference row must exist.** A harness that deviates at all must *also* read the
+  shipped value somewhere. **No register entry can satisfy Rule B** — a study phase cannot be
+  grandfathered into having no baseline. This is the rule the historical defect trips hardest: it had
+  exactly one shadow assignment, phase-dependent, and never captured ship at all.
+
+**A study is still legal.** `--shadow-study` (40m/80m/uncapped) and the arena's F6 toggle are the four
+declared entries in the register. The guard is on the **reference row**, never on the experiment.
+
+**Harnesses are DISCOVERED, not listed** — any `.gd` under `tests/`, `tools/` or `scripts/levels/`
+that reads `get_rendering_info` / `viewport_get_measured_render_time` / `get_frames_per_second`.
+That is what covers the harness nobody has written yet; the 2026-07-17 fix failed precisely because it
+was instance-shaped. Nine are covered today, including four `windowed_*` benches nobody had audited.
+
+**Negative-controlled against the real bug, not a synthetic one.** Restoring
+`sun.shadow_enabled = phase_name != "no_sun_shadow"` in `perf_probe.gd` (and removing the ship capture
+the fix added) turns the probe **RED on both rules, exit 1**; reverting returns it to green, exit 0.
+`perf_probe.gd` was verified byte-identical to its pre-test state afterward. The matcher also
+self-tests **12/12 in both directions** on every run — four sources it must flag (including the defect
+verbatim) and six it must not — so it cannot rot into a probe that only ever passes.
+
+**Ratchet:** `tests/parity_baseline.json`, same shape as `fossil_baseline.json`. `count` + `ceiling`
+are audited before the register is read, so a hand-edit cannot pass quietly. `--write-baseline` can
+only remove; new entries require `--grandfather --reason="<why>"`, which appends dated provenance.
+
+Also corrected this session: `arena_perf_overlay.gd`'s `_shadows_on` defaulted to `true` while ship is
+`false`. `setup()` overwrites it from the live sun, so it was latent — but with a null sun the overlay
+would have reported "F6 sun shadows [ON]" for a world that renders none. Now defaults to ship.

@@ -1,0 +1,23 @@
+{
+	"_comment": "SHIP-PARITY REGISTER. Declared deviations from shipped render config in perf harnesses, keyed file|property|rhs (NOT line - lines move). THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'deviations', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>. A declaration NEVER satisfies RULE B: a harness that deviates must still restore ship somewhere, and no register entry can buy its way out of that.",
+	"ceiling": 4,
+	"count": 4,
+	"deviations": [
+		"scripts/levels/arena_perf_overlay.gd|shadow_enabled|_shadows_on",
+		"tests/perf_probe.gd|directional_shadow_max_distance|40.0",
+		"tests/perf_probe.gd|directional_shadow_max_distance|80.0",
+		"tests/perf_probe.gd|shadow_enabled|true"
+	],
+	"grandfather_log": [
+		{
+			"added": [
+				"scripts/levels/arena_perf_overlay.gd|shadow_enabled|_shadows_on",
+				"tests/perf_probe.gd|directional_shadow_max_distance|40.0",
+				"tests/perf_probe.gd|directional_shadow_max_distance|80.0",
+				"tests/perf_probe.gd|shadow_enabled|true"
+			],
+			"date": "2026-07-20",
+			"reason": "Legitimate study phases, not baselines: perf_probe --shadow-study prices the atmosphere cost of a shadow the game does not ship (40m/80m/uncapped), and arena_perf_overlay F6 is the interactive equivalent. Both restore ship on their default arm, which RULE B verifies independently of this register."
+		}
+	]
+}

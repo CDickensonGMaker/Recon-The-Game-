@@ -78,7 +78,9 @@ var _clutter_on: bool = true
 var _lights_on: bool = true
 var _chars_on: bool = true
 var _debug_on: bool = true
-var _shadows_on: bool = true
+## Ship default (game_world.gd:48). setup() overwrites it from the live sun; this value is what
+## the readout shows when there is no sun to read, and it must not claim a shadow the world lacks.
+var _shadows_on: bool = false
 
 
 func setup(arena: Node, jungle: Node3D, clutter: Node3D, lights: Node3D, sun: DirectionalLight3D) -> void:

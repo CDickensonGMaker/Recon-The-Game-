@@ -28,6 +28,16 @@ Binding rules. Numbers are the ratification targets; tuning within them is not a
    vertex-lit / baked, not per-pixel dynamic. **Hard cap: ≤8 simultaneous real-time lights on screen,
    0 shadow-casting dynamic lights.** The night sun's shadow is the one allowed dynamic shadow, and it
    is OFF or near-field-capped (≤40m) over alpha-scissor jungle.
+   - **CLARIFYING NOTE (2026-07-20, measurement only — the rule above is unchanged and the ruling is
+     the Summoner's):** on this hardware **the ≤40m cap is not a cheap middle ground; the sun shadow is
+     binary.** Measured ship-parity A/B/A, seed 47225, 1280x720, `scaling_3d/scale=0.75`, forward_plus,
+     Intel UHD, noise floor **0.5 FPS**: `shadow_40m` **−10.5**, `shadow_80m` **−10.8**,
+     `shadow_uncapped` **−10.4** — all three identical within noise (PERF_LEDGER.md, "what the sun
+     shadow would COST"). `directional_shadow_max_distance` concentrates shadow-map resolution nearer;
+     it does **not** meaningfully reduce the geometry submitted to the shadow pass (+117k–127k
+     primitives at every setting). So of the two options this rule permits, **OFF is the only
+     affordable one on the target GPU, and OFF is what ships** (`game_world.gd:48`). A reader should
+     not infer that capping to 40m buys back most of the cost — it buys ~0.
    - **FAIRNESS EXEMPTION (binding, from council):** the flash SPRITE, the tracer, and the report are
      fairness-critical and are **exempt from every light / LOD / flash cap** — cap the bounce LIGHT
      only. Every shot or explosion that can threaten or be seen by the player renders a self-lit
