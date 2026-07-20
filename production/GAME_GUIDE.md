@@ -64,7 +64,10 @@ unfinished work, not shipped work.
 
 ## 3 · The game loop (as ratified, ADR-008 → **amended by ADR-017, THE LIVING WAR, 2026-07-12**)
 
-### ⚠ THE LOOP CHANGED. Read ADR-017 before touching world/flow code.
+### ⚠ THE LOOP CHANGED. Read ADR-017 — **then ADR-029** — before touching world/flow code.
+ADR-029 (DRAFT, the open-patrol pivot) further amends the shape described below; the generator ships
+`"PATROL"` as its only mission type today (`scripts/missions/mission_generator.gd`). Sections 3 and
+4.6 describe the pre-029 loop and are pending the Summoner's ratification call.
 The loop is no longer a hub-and-mission-select. It is a **persistent province**
 (`war_room/synthesis_living_war.md`):
 
@@ -108,10 +111,14 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 
 ### 4.1 Gunplay & damage (Pillar 1, ADR-016/003/004)
 - **One grammar: flat base × zone (ADR-016, Summoner-decreed).** Deterministic per hit; ALL variance
-  from range falloff, hitzones, and the situation sim — never rolls. Flat values = the retired RECON
-  dice averages (M16/CAR-15/M60 28 · AK/SKS/RPD 22 · PPSh/Thompson 17 · Mosin 32 · M1911 11).
+  from range falloff, hitzones, and the situation sim — never rolls. Flat values of record
+  (ADR-016 Amendment H, the great flattening): **27 for every rifle/SMG/pistol** (M16 · M14 · AK ·
+  PPSh · M1911 · Mosin) · **MG class 42** (M60 AND RPD) · **sniper 87** (M70 only) · **shotgun
+  35/pellet**. Explosives: M26 190 · M79 150 · M72 LAW 250 · RPG-2 250 · RPG-7 290. Weapon identity
+  lives in accuracy/fire-rate/handling/recoil, NOT damage.
   Default primary: **M16**. Guarded by `tests/test_flat_damage.tscn`.
-- **Locational model (code truth, ratified):** HEAD = fatal · TORSO ×2.0 · GUT ×1.75 + bleed · LIMB ×0.75.
+- **Locational model (code truth, `scripts/combat/hitzone.gd` MULTIPLIERS, ADR-016 Amendment D):**
+  HEAD ×4.0 (fatal bypass) · TORSO ×2.5 · GUT ×2.25 + bleed · LIMB ×1.0.
   Player HP 100; enemy HP 65–85. Bleed-out timer = the medic deadline. Pain-quota stagger for hit feedback.
 - **ADS: per-weapon `ads_fov`** (base 75, M16 ≈ 60, binocs 18). M60/RPD hip-fire; RPG-2 sight-raise.
   The old "FOV locked at 75, DO NOT CHANGE" law is amended (ADR-004).
@@ -125,7 +132,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 ### 4.2 Detection & stealth (Pillar 3, ADR-005/006)
 - Four tiers RELAXED→SUSPICIOUS→ALERT→COMBAT; visibility accumulator; NoiseBus with typed radii
   (suppressed = unidentifiable misc ~3m); believed-position aiming; breadcrumb search; sentry boredom.
-- **Witness rule (law, NOT yet implemented):** the global COMBAT beacon stamps ONLY on witnessed contact.
+- **Witness rule (law, IMPLEMENTED — `enemy_base.gd:736 _can_witness` / `:756 _witness_check`, guarded
+  by `tests/test_witness_rule.tscn`):** the global COMBAT beacon stamps ONLY on witnessed contact.
   An unwitnessed silent kill is silent. Noise is the honest price — GUNSHOT radius goes 55m→~150m.
 - Escalation ladder: finite-pool QRF, walking mortars on last-known, patrol doubling, alarm carriers
   with radio/flare (killable counterplay). Civilians inform on a timer.
@@ -149,7 +157,9 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   suppression; grenades ("LUU DAN!" telegraph); sappers at the wire.
 - Open keystones: EnemySquad coordinator (gpvb), smart patrol/search/teamwork (0623), detection-driven
   ambience (r6qe).
-- ⚠ `MAX_THINK_TIME` frame budget is declared and never used — wire it (perf day).
+- `MAX_THINK_TIME` frame budget: the symbol does not exist anywhere in `scripts/` or `tests/` — the old
+  "declared and never used" warning was itself stale. There is nothing to wire; a per-frame think budget
+  would be new work, not a repair.
 
 ### 4.4 The squad (Pillar 4)
 - 5-man persistent fireteam, MOS = verbs: **Point** (trap/ambush warnings), **RTO** (the net — lose him,
@@ -172,7 +182,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 ### 4.5 Fire support (ADR-011)
 - RTO-gated (10m leash, ALL verbs), budgets rolled at briefing, danger-close double-press protocol,
   spotting-round → walk-in corrections; enemy mortars use the same system. Verified genuinely fixed.
-- ⚠ Danger-close must also check the PLAYER's distance (currently squad-only).
+- Danger-close checks the PLAYER's distance as well as the squad's
+  (`scripts/missions/field_director.gd:357-359`, `DANGER_CLOSE_M` 45m).
 
 ### 4.6 Missions & generation (M6 target)
 - **MISSION LENGTH IS GEOGRAPHY, NOT A DIAL (ADR-017).** Objective count scales by type; target average
@@ -196,8 +207,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   (checkpoints only; death spends the checkpoint; same-seed resume) / **IRONMAN** (one slot).
   Mission results commit **all-or-nothing at exfil** — fail-forward, ratified.
 - ⚠ Needs: atomic writes, future-version rejection, visible save/load feedback everywhere (hub has
-  none today), a pause menu (Esc currently pauses to nothing), tier consequences stated in the
-  settings UI checkboxes.
+  none today), tier consequences stated in the settings UI checkboxes. The pause menu itself exists
+  (`scripts/ui/screens/pause_menu.gd`).
 
 ### 4.8 Survival (ADR-009)
 - **Weapon condition: kept.** **Hunger: PARKED** (fields stay in SaveData; drain removed; returns only
@@ -270,9 +281,10 @@ A frozen epic thaws only by explicit decree — a bead in `bd ready` is not a th
 
 The next project prompt must **not** carry these forward (all verified false 2026-07-10):
 1. ~~"8-directional billboard sprite characters (CULTIC-style)"~~ → 3D PSX models are the renderer (ADR-001).
-2. ~~HEAD 4×/TORSO 1.5×/LIMB 0.6×, `[1,6,45]` examples, enemy HP 60–80, Thompson default~~ → **flat
-   base × zone** (ADR-016; dice fully retired); HEAD fatal/TORSO 2.0/GUT 1.75+bleed/LIMB 0.75; enemy
-   HP 65–85; M16 default. *(Rewritten in CLAUDE.md 2026-07-10.)*
+2. ~~`[1,6,45]` dice examples, enemy HP 60–80, Thompson default~~ → **flat base × zone** (ADR-016; dice
+   fully retired); zone multipliers are `hitzone.gd:16-21` — HEAD ×4.0 (fatal bypass) / TORSO ×2.5 /
+   GUT ×2.25 + bleed / LIMB ×1.0 (Amendment D); enemy HP 65–85; M16 default. Copy the table from
+   `scripts/combat/hitzone.gd`, never from a document.
 3. ~~"FOV locked at 75.0 everywhere (no ADS zoom), DO NOT CHANGE"~~ → per-weapon ADS FOV ratified (ADR-004).
 4. ~~Viewmodel recipe (scale 0.03, editor fine-tune)~~ → superseded by the fp_arms GLB pipeline
    (Bible 09; `IDLE_ANIM_SPEC.md`, `rifle_pose.py`, matrix_basis bake law).
@@ -324,11 +336,13 @@ The next project prompt must **not** carry these forward (all verified false 202
 `production/OVERSEER_CHARTER.md`. One role, two layers — the agent definition is the compressed seed
 below; the charter is the manual it loads at session start.
 
-> You are the **RECONgame Director** — guardian of a hardcore Vietnam tactical FPS (Godot 4.6, strict
+> You are the **RECONgame Director** — guardian of a hardcore Vietnam tactical FPS (Godot 4.7
+> Forward+, strict
 > GDScript). Your constitution, in priority order: **the 5 Pillars → production/adr/ → this GAME_GUIDE →
 > production/bible/ → DESIGN.md**. Task truth is beads (`bd prime` at session start); dated reports are
 > history, not law. Enforce: the Fairness Law, the r4bk law (no feature without a HUD affordance), the
-> witness rule, one damage grammar (RECON dice), the 1.7132m scale contract, the ≤2km no-streaming rule,
+> witness rule, one damage grammar (flat base × zone — ADR-016; the dice are retired), the 1.7132m
+> scale contract, the ≤2km no-streaming rule,
 > perf-first (a gating FPS number), and the verification law (nothing closes without a probe,
 > measurement, or verified playtest — and no comment claims what no probe proved). Never add rails,
 > never gate stealth, never make loud play optimal XP. Loop-structure or pillar-touching changes convene
@@ -368,3 +382,14 @@ below; the charter is the manual it loads at session start.
 | **020** | **The Authored Threshold: guarantees, not rails. + The Ambience Law.** |
 | **021** | **Patrols: routes that rotate + THE PROMOTION IS THE TUTORIAL (follow -> lead)** |
 | **022** | **The map is your memory: he marks it, and the game NEVER corrects him** |
+| **023** | **THE FOSSIL LAW: delete the old system when you replace it** (Accepted; Amendment A "delete the callers" is a DRAFT) |
+| 024 | Cinematic direction: late-1998–2003 prerendered military cinematics *(DRAFT)* |
+| 025 | LOD-tier world simulation: awake/asleep × node/data *(DRAFT)* |
+| 026 | THE PS2 BUDGET: graphics-only rendering discipline, uncapped fighters, cheap-per-unit AI *(DRAFT)* |
+| 027 | THE PS2 WORLD: settlement-first generation, flowing water, smooth relief gradient *(DRAFT)* |
+| **028** | **One world-build path — the arena is a slice of it, never a parallel copy** (Accepted) |
+| **029** | **THE OPEN PATROL SIMULATOR** *(DRAFT)* — no briefing UI, no objective counter, no exfil step; PATROL is the only generated mission type. **Amends §3's loop and §4.6's mission table; read it before touching flow, mission, or world code.** Rides with `ADR-029-amendments-008-006.md` (DRAFT amendments to 008 and 006). |
+
+The directory is the index of record (`production/adr/`, 31 ADRs + README). DRAFT ADRs are not law
+until the Summoner ratifies them, but they are the live direction — do not build against 017's loop
+without reading 029 first.

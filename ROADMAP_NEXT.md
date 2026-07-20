@@ -1,12 +1,17 @@
 # RECONgame — Next 45 (post-Nightshift backlog)
 
+> **DEAD — do not plan against this file.** ADR-014 (`production/adr/ADR-014-doc-hierarchy.md`:44-46)
+> collapses the four roadmap files into `ROADMAP.md` alone and names ROADMAP_NEXT.md, ROADMAP_WAVE2.md,
+> and WAVE3_REPORT.md DEAD. The consolidation was never executed, so these files still sit at repo root;
+> that is a leftover, not a licence. Task truth lives in beads (`bd ready`), not here.
+
 Council-sorted. P1 = next sessions, P2 = soon, P3 = later. Tracked in Beads (prefix R-).
 
 ## GUNPLAY (pillar 1 — game-designer + systems)
 1. **P1** Vietnam weapon swap: M16, CAR-15, AK-47, M60, M79 + SKS/Mosin enemies from `data/vietnam/vietnam_weapon_data.gd`; retire WW2 set (Beads 6rz)
 2. **P1** Projectile ballistics via the dormant projectile pool (travel time, drop at range, visible tracers)
 3. **P1** NPC fire from gun muzzle tip (define muzzle offsets per NPC/sprite state; tracers originate there) — user directive
-4. **P1** RECON damage dice + expanded hitzones: arm hits degrade aim, leg hits kill sprint, head fatal
+4. **SHIPPED — and the dice half never happened.** Damage is flat and deterministic, NOT dice: `WeaponData.get_damage()` returns `maxi(1, base_damage)` (`scripts/weapons/weapon_data.gd`:112-113) and `m16a1.tres`:14 is `base_damage = 27`. ADR-016 retired the dice grammar; do not resurrect it. Expanded hitzones exist — `Hitzone.ZoneType` is HEAD/TORSO/GUT/LIMB at 4.0/2.5/2.25/1.0 (`scripts/combat/hitzone.gd`:7-20), built per character by `HitzoneBuilder`. Limb wounds (arm shake, no sprint) shipped in Wave 3 block E.
 5. **P2** Three-situation asymmetry: undetected first volley = full effect; ambushed side −heavy until in cover (RECON's secret sauce)
 6. **P2** Muzzle flash, impact dirt/foliage puffs, better tracers
 7. **P2** Hit feedback: flinch frames, hit sound tick, kill confirm

@@ -4,7 +4,10 @@ Written 2026-07-08 at the end of the sprite/model + 10-step remediation session,
 for a full game audit to run after a context clear.
 
 ## Where the code is
-- Branch: `audit/remediation` (NOT merged to master, NO remote — local only).
+- Branch: `audit/remediation` — merged into `master` and pushed to `origin`
+  (`https://github.com/CDickensonGMaker/Recon-The-Game-.git`); it is in sync with
+  `origin/audit/remediation` and contains nothing `master` lacks. This repo HAS a
+  remote — CLAUDE.md's mandatory `git push` session-completion step applies.
 - Suite: `powershell -File run_all_tests.ps1` → **27 PASS / 4 LEAK / 0 FAIL / 0 XFAIL**
   (31 tests). LEAK = an audio player outliving a headless quit; harmless, tracked
   as AUDIT-12, freed for real in-game by `MissionScope.reset()`.

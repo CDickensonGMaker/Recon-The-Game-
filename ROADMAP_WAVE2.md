@@ -1,5 +1,10 @@
 # RECONgame — Wave 2 backlog (R49–R98)
 
+> **DEAD — do not plan against this file.** ADR-014 (`production/adr/ADR-014-doc-hierarchy.md`:44-46)
+> collapses the four roadmap files into `ROADMAP.md` alone and names ROADMAP_NEXT.md, ROADMAP_WAVE2.md,
+> and WAVE3_REPORT.md DEAD. The consolidation was never executed, so these files still sit at repo root;
+> that is a leftover, not a licence. Task truth lives in beads (`bd ready`), not here.
+
 Fifty items beyond ROADMAP_NEXT.md's 48. No repeats. Council-sorted, P1/P2/P3.
 
 ## GUNPLAY & PLAYER DEPTH (game-designer)
@@ -48,7 +53,7 @@ Fifty items beyond ROADMAP_NEXT.md's 48. No repeats. Council-sorted, P1/P2/P3.
 85. **P2** Career stats screen: missions, kills, K/D of your squad, seeds played
 86. **P2** Named squadmates roster-lite: names on HUD pips, per-mission kill tallies, death announcements ("DOC IS DOWN")
 87. **P2** Difficulty presets: enemy density/accuracy-ramp/damage multipliers + HARDCORE toggle (no markers, no compass)
-88. **P2** Seed entry box on mission select (share ops with friends) + "replay this op" on debrief
+88. **VOID — no screen left to put it on.** There is no mission select: `scripts/ui/screens/mission_select.gd` is deleted (only the orphan `mission_select.gd.uid` remains, alongside `briefing.gd.uid`), and ADR-029 deletes the briefing/offer/select chain outright (`ADR-029-open-patrol-simulator.md`:37). The debrief still prints the seed — `"MISSION:      %s (SEED %d)"` (`scripts/ui/screens/debrief.gd`:70) — so seed sharing survives as a read-only display, not an entry box.
 89. **P3** RON (rest overnight) beat for long patrols: set perimeter, claymores out, night watch wave
 90. **P3** Chieu Hoi surrender: broken militia throw hands up — capture = intel + score vs the dark alternative (war-state consequence)
 

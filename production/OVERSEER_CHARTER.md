@@ -4,7 +4,7 @@
 > **Engine / look:** Godot 4.7 stable · GDScript (strict typing) · PSX-era low-poly 3D · modern tactical UI.
 > **Document role:** The **operating charter & live coordination ledger** for the head-honcho agent role.
 > It holds **no canon of its own** — it enforces the canon (see §0) and tracks state.
-> **Status:** v0.3.1 — reconciled against `production/GAME_GUIDE.md` + the 15 ADRs (Full Game Audit #2, ratified 2026-07-10). State reflects that canon; **live task truth is `bd`, not this doc.**
+> **Status:** v0.3.1 — reconciled against `production/GAME_GUIDE.md` + the ADR set (Full Game Audit #2, ratified 2026-07-10). `production/adr/` now holds **ADR-001 … ADR-029** (31 ADR files + README, including the fossil law, the Forward+ decree and the open-patrol pivot); read the directory, never a fixed count. State reflects that canon; **live task truth is `bd`, not this doc.**
 
 ---
 
@@ -12,11 +12,11 @@
 
 | Class | Documents | Rule |
 |---|---|---|
-| **CANON** | `production/GAME_GUIDE.md` (doc of record) · `production/adr/` (the 15 decisions) · `production/bible/` · `DESIGN.md` (founding vision) · `PLAYER_MANUAL.md` (must track the input map) | Amended by explicit decision only (War Room / Summoner). Code contradicting canon = a bead, never a shrug. |
+| **CANON** | `production/GAME_GUIDE.md` (doc of record) · `production/adr/` (ADR-001 … ADR-029 — read the directory, it grows) · `production/bible/` · `DESIGN.md` (founding vision) · `PLAYER_MANUAL.md` (must track the input map) | Amended by explicit decision only (War Room / Summoner). Code contradicting canon = a bead, never a shrug. |
 | **LOG** | dated reports (PROGRESS / WAVE / NIGHTSHIFT / CODE_AUDIT / CALEB_TODO …) | Disposable snapshots. Never cited as authority. |
 | **DEAD** | `war_room/archive/` · superseded roadmaps | History. Nobody obeys it. |
 
-**Task truth lives in beads (`bd ready`), never markdown.** This charter is process-memory, not canon — where it and `GAME_GUIDE` ever disagree, the guide wins and this doc gets corrected.
+**Task truth lives in beads (`bd ready`), never markdown.** This charter is process-memory, not canon — where it and `GAME_GUIDE` ever disagree, the guide wins and this doc gets corrected — but **both are pre-pivot documents**: a newer ratified ADR outranks either (ADR-014), and the code outranks all three when the question is what the game actually does.
 
 ---
 
@@ -73,7 +73,7 @@ A frozen epic thaws only by explicit decree — a bead in `bd ready` is **not** 
 
 `MAIN MENU (NEW CAMPAIGN / CONTINUE) → pick operation → LIVE FIREBASE (walkable hub) → TOC 7-element briefing → board the Huey → MISSION (open AO, 2–4 objectives, detection ladder, squad orders, fire support) → heat-scaled EXFIL → wheels-down (HARD checkpoint) → DEBRIEF (RECON scoring, XP, roster consequences, war-state) → repeat`
 
-Mission grammar: quiet approach → recon ring → objective spike → lull → escalation → heat-scaled exfil → boarding catharsis. *Hub ratified with binding conditions not yet met — see §5 Insertion.*
+Mission grammar: quiet approach → recon ring → objective spike → lull → escalation → heat-scaled exfil → boarding catharsis. *⚠ This is the ADR-008 loop as decreed. The shipped code no longer runs it: the briefing screen and offer board are deleted and `mission_generator.gd:540` emits only `"PATROL"` under the 2026-07-17 open-patrol pivot (ADR-029 + its 008/006 amendments, both **DRAFT**). The decreed loop stays on the page until the pivot is ratified — see §5 Insertion and §8 item 5.*
 
 ---
 
@@ -83,15 +83,15 @@ Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation
 
 | Domain | As-built | Deviations / open work |
 |---|---|---|
-| **Gunplay & Damage** (ADR-016/003/004) | **Flat base × zone grammar (ADR-016, Summoner-decreed 2026-07-10)** — deterministic per hit, values = retired dice averages; per-weapon ADS FOV ratified; locational model live (HEAD fatal / TORSO 2.0 / GUT 1.75+bleed / LIMB 0.75; player 100, enemy 65–85) | ✅ Build item 4 DONE with ADR-016: WW2 .tres out (MP40/Kar98k deleted; Mosin 32 / Thompson 17 retuned), vc_rifleman→SKS, descriptions honest, CLAUDE.md rewritten. Guarded by `test_flat_damage` |
-| **Stealth & Detection** (ADR-005/006) | 4-tier accumulator, NoiseBus, believed-position, sentry boredom | ⚠ **Witness rule NOT implemented** — silent kill still trips "YOU'VE BEEN MADE" (o18o, **build item 1, the headline wound**); ±25 scoring not implemented; detection pip unshipped |
+| **Gunplay & Damage** (ADR-016/003/004) | **Flat base × zone grammar (ADR-016, Summoner-decreed 2026-07-10)** — deterministic per hit, values = retired dice averages; per-weapon ADS FOV ratified; locational model live (`scripts/combat/hitzone.gd:16-21` — HEAD 4.0 / TORSO 2.5 / GUT 2.25+bleed / LIMB 1.0, ADR-016 Amendment D; player 100, enemy 65–85) | ✅ Build item 4 DONE with ADR-016: WW2 .tres out (MP40/Kar98k/Thompson deleted — `data/weapons/` is the 15 shipping resources), vc_rifleman→SKS, descriptions honest, CLAUDE.md rewritten. Post-Amendment-H flattening: every rifle/SMG/pistol base 27 incl. Mosin (`data/weapons/mosin.tres:14`), MG 42, sniper 87. Guarded by `test_flat_damage` |
+| **Stealth & Detection** (ADR-005/006) | 4-tier accumulator, NoiseBus, believed-position, sentry boredom | ✅ **Witness rule SHIPPED** — `enemy_base.gd:736 _can_witness` / `:756 _witness_check`, called from `_die()` at `:2351`; an unwitnessed kill leaves an unreported corpse instead of raising the AO. Probe `tests/test_witness_rule.tscn`; o18o closed. ✅ ±25 contact scoring live (`scripts/ui/screens/debrief.gd:25-26` CONTACT_AVOIDED 25 / CONTACT_DETECTED −25). ⚠ detection pip unshipped |
 | **Enemy AI** | Hybrid goal-FSM + situation-priority stack; personalities; suppression; grenade telegraphs | Open keystones: squad coordinator (gpvb), smart patrol/teamwork (0623), detection ambience (r6qe); ⚠ `MAX_THINK_TIME` declared-unused (perf day) |
 | **Squad RPG** (ADR-012) | 5-man MOS fireteam; orders F1–F4 + C/H/X/N; learn-by-doing XP; permadeath | ⚠ **Loss is costless** (instant free rookies) — campaign-debt gap; squad keys never verified on Caleb's keyboard (R3 checklist) |
-| **Fire Support** (ADR-011) | RTO-gated, budgets, danger-close double-press — verified genuinely fixed | ⚠ Danger-close must also check the **player's** distance (squad-only today) |
-| **Insertion & Exfil** (ADR-008) | Walkable firebase hub ratified | ⚠ **Hub conditions unmet**: 7-element briefing skipped; live Huey ride deleted from campaign path (kills the AA economy) — **build item 5** |
-| **Campaign & Saves** (ADR-007/010) | Persistent hub; one-seed determinism; all-or-nothing exfil commit; 3 save tiers | ⚠ Offer labels ("ENEMY: HEAVY") never read by generator → campaign is flat; saves need atomic writes, future-version reject, visible feedback, pause menu (item 3) |
-| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off + renderer A/B still open (item 2 remainder) |
-| **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number; last measured 19–25 FPS**, `rendering_method` unset — Trust-Restoration Day (item 2). Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
+| **Fire Support** (ADR-011) | RTO-gated, budgets, danger-close double-press — verified genuinely fixed | ✅ Danger-close checks the **player's** distance too (`scripts/missions/field_director.gd:357-359`, ahead of the squad loop) |
+| **Insertion & Exfil** (ADR-008) | Walkable firebase hub ratified | The 7-element briefing is **deleted, not skipped** — `scripts/ui/screens/briefing.gd` is gone (only an orphan `.uid` remains) and `mission_generator.gd:540` hardcodes `mission_type = "PATROL"`. The briefing, offer board and insertion ride are voided under the open-patrol pivot (`ADR-029-amendments-008-006`, **still DRAFT — ADR-029 itself is unratified**). What survives: firebase as home + persistence anchor, armorer's bench, autosave on entering the world. See §8 item 5 |
+| **Campaign & Saves** (ADR-007/010) | Persistent hub; one-seed determinism; all-or-nothing exfil commit; 3 save tiers | ⚠ Offer labels ("ENEMY: HEAVY") never read by generator → campaign is flat; ✅ pause menu shipped (`scripts/ui/screens/pause_menu.gd`); corrupt-slot load is refused, not crashed (`save_manager.gd:170-179`); ⚠ still open: atomic writes (`save_manager.gd:101-105` writes the slot in place, no temp+rename) and future-version reject (`:174` only migrates *older*; a newer schema falls straight through to `from_dict`) |
+| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off open. **Renderer A/B is CLOSED** — ADR-026 Amendment A (RATIFIED 2026-07-17): `forward_plus` is canon (`project.godot:300`); do not evaluate, propose, or draft a renderer switch again |
+| **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number** — still unset, still the top systemic risk. `rendering_method` IS set (`project.godot:300` `forward_plus`, ratified by ADR-026 Amendment A). Last sourced bench (ADR-026:111, 18v18 stress arena): **14.0 → 23.1 fps** after the cheap graphics cuts, now CPU-bound — the frame is in the AI, so activity-tiered AI (Part B) is the lever, not jungle draw cuts. Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
 | **QA / Verification** (ADR-015) | GATE bead + verification/truth laws; headless-boot validation | PLAYTEST **R3 (ida9) is the session entry gate**; test suite still needs rendered-scale probe + gating FPS number |
 
 ---
@@ -110,18 +110,18 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 
 ## 8. Process law & the mechanical gate (ADR-015)
 
-- **GATE bead (RECONgame-97u3):** feature epics are `bd dep`-blocked while playtest P1s are open — `bd ready` hides gated work. **Open P1s:** o18o, a2qb, r4bk, e6qc, n2ij, zet2, ida9. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
+- **GATE bead (RECONgame-97u3):** feature epics are `bd dep`-blocked while playtest P1s are open — `bd ready` hides gated work. **The open list lives in `bd`, never here** — of the seven the v0.3.1 changelog named as governing, six (o18o, a2qb, r4bk, e6qc, n2ij, zet2) are **closed**; `ida9` (PLAYTEST R3) is the one still open. Query `bd` for current truth before acting on the gate. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
 - **Verification law:** "mitigated" / "likely fixed" never closes a bead; name the proof.
 - **Truth law:** no comment or doc may claim behavior a probe hasn't verified.
 - **War Room:** loop-structure and pillar-touching decisions convene a council **before** build.
 
 ### The standing decree — build order (GAME_GUIDE §8)
 0. **PLAYTEST R3 (ida9)** — session entry gate; nothing new ships until it verifies a2qb/r4bk.
-1. **Stealth restoration bundle** — real witness guard + delete lying comments + GUNSHOT 55→150m + ±25 scoring + optional village clear (o18o, pwu5).
-2. **Trust-restoration day (measured)** — set `rendering_method`; ModelActor AABB fix (k≈0.9); streaming off ≤2km; wire `MAX_THINK_TIME` (mhfv; closes 8pbo, n2ij 1-2).
+1. ~~**Stealth restoration bundle**~~ ✅ **DONE** — witness guard live (`enemy_base.gd:736/756/2351`, probe `test_witness_rule`) and ±25 contact scoring live (`debrief.gd:25-26`); o18o closed.
+2. **Trust-restoration day (measured)** — ✅ `rendering_method` set (`forward_plus`, ADR-026 Amdt A) · ✅ ModelActor AABB fix · remaining: streaming off ≤2km, `MAX_THINK_TIME`, and the gating FPS number (mhfv; closes 8pbo, n2ij 1-2).
 3. **Player-State HUD layer (fmc8 m0)** — condition/consumables/stamina/breath + detection pip + save/load feedback + pause menu + prompt-key truth (fy45).
 4. ~~**Damage data finish**~~ ✅ **DONE 2026-07-10** — executed with ADR-016 in one migration (xkn1 closed; probe `test_flat_damage` PASS).
-5. **Hub conditions** — RECON 7-element briefing in the TOC + Huey ride restored (4q4i).
+5. **Hub conditions** — RECON 7-element briefing in the TOC + Huey ride restored (4q4i). **⚠ FOR THE SUMMONER:** the code has moved the other way — the briefing screen is deleted and the generator only emits `"PATROL"`. The open-patrol pivot (ADR-029 + its 008/006 amendments) voids this item, but **both are still DRAFT**, so this decree line stands until ratified. Do not build it and do not silently drop it — ratify or re-decree.
 6. **Jungle feel pass** — priced by #2's numbers (ge6g).
 7. **Law & ledger cleanup** — dead code purge, roadmaps consolidated, PLAYER_MANUAL corrected (e99w).
 
@@ -129,12 +129,12 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 
 ## 9. State of the game (living ledger — audit-#2 canon, re-sync from `bd`)
 
-- **Posture:** mid-remediation from Full Game Audit #2 (2026-07-10). 15 ADRs ratified; a standing decree governs execution.
+- **Posture:** past Full Game Audit #2 remediation (2026-07-10) and into the 2026-07-17 open-patrol pivot. ADR-001 … ADR-029 on disk (several late ones still DRAFT — check each header before citing); a standing decree governs execution.
 - **Engine:** Godot 4.7 stable (upgraded from 4.6.2, 2026-07-10), GDScript strict typing.
-- **Performance:** last measured **19–25 FPS**; no gating FPS number set; `rendering_method` unset → item 2 sets the baseline. **Perf is the top systemic risk.**
-- **Feature gate:** ACTIVE. Feature epics blocked while the 7 P1s are open.
-- **Where the build lags the vision (vision wins, all beaded):** witness rule (o18o), scoring economy (ADR-006), hub 7-element briefing + Huey ride (item 5), detection pip, damage-finish (item 4), speck-soldier scale (item 2), jungle feel (item 6).
-- **Biggest single wound:** the stealth economy — the witness rule is law but unimplemented; a silent kill still raises the alarm, which voids Pillar 3's whole economy. Build item 1.
+- **Performance:** `rendering_method = forward_plus` (ADR-026 Amendment A, closed to re-litigation). Last sourced bench: **14.0 → 23.1 fps** on the 18v18 stress arena, now CPU-bound in the AI. **No gating FPS number is set — perf remains the top systemic risk.**
+- **Feature gate:** ACTIVE. Query `bd` for which P1s still hold it — of the original seven only `ida9` (PLAYTEST R3) is open.
+- **Where the build lags the vision (vision wins, all beaded):** detection pip, jungle feel (item 6), save hardening (atomic write + future-version reject), the gating FPS number.
+- **Biggest single wound:** perf without a gate number — the frame is CPU-bound in the AI and nothing mechanically fails a regression. *(The stealth economy is no longer the wound: the witness rule and ±25 scoring both shipped.)*
 - ~~Live design decision in flight~~ **DECIDED 2026-07-10: ADR-016 ratified by direct Summoner decree**
   ("pure flat base × zone; drops the dice entirely") and shipped same-day with its probe. ADR-003's
   dice core is superseded; its locational model and one-grammar law survive.

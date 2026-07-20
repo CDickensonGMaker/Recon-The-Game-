@@ -6,7 +6,12 @@
 
 ## 1 · THE TRUTH SOURCE IS DECLARED. USE IT.
 
-> ## **`art_source/characters/base_psx/us_base_v3.blend`  —  V3 IS THE TRUTH SOURCE**
+> ## **`assets/us/characters/us_base_v3.blend`  —  V3 IS THE TRUTH SOURCE**
+
+*(Path updated: `art_source/` no longer exists. The file lives under `assets/us/characters/` and is
+tracked in **Git LFS** — `git check-attr` reports `filter: lfs`. `.gitignore:31-33` states the same:
+v3 is NOT a derived blend, because **`us_grunt_v2.blend` does not exist on disk and v3 therefore
+cannot be regenerated from anything.**)*
 
 **Caleb, 2026-07-13:** *"v3 of the grunt is actually our newest truth source, because we updated it."*
 
@@ -35,7 +40,9 @@ it. **THE DOCS ARE OUT OF DATE, NOT CALEB.**
 *(I flagged all 25 as broken on a bad height check. A check that fires on everything is not a check.)*
 
 **Real notes, and only these:**
-- `us_grunt_v2` — the truth source. Its gear is **welded into the body**, which is why v3 exists.
+- `us_grunt_v2` — the superseded ancestor. Its gear is **welded into the body**, which is why v3 exists.
+  **No `us_grunt_v2.blend` survives on disk** — only its textures (`assets/us/characters/us_grunt_v2_*.png/.webp/.jpg`)
+  and `tools/export_us_grunt_v2.py`. There is nothing to go back to; **v3 is the only base.**
 - `us_rto` reads 3.46m — that is his **antenna**. Not a fault.
 - `us_grunt_m14`, `vc_guerilla_m16` — **orphans**, nothing in the game spawns them.
 - `us_medic` — **new (mine)**. The aid bag rides a little high on the ribs.
@@ -47,18 +54,22 @@ it. **THE DOCS ARE OUT OF DATE, NOT CALEB.**
 
 ## 3 · THE REAL PROBLEM — and it is not the models
 
-**SEVEN files claim to be a US grunt base:**
+**SEVEN files claimed to be a US grunt base. Four of the seven are now GONE from disk — what
+actually survives is THREE:**
 ```
-base_psx/us_grunt_v2.blend                  <- THE DECLARED TRUTH SOURCE
-base_psx/us_base_v3.blend                   <- derived clone; renders with REFERENCE PHOTOS on the legs
-base_psx/_us_base_v3_STALE_BACKUP.blend
-_archive_old_lineage/us_base_v3_DUPLICATE_from_us_troops.blend
-base_psx/base_human_rigged.blend
-_archive_old_lineage/unit_us_grunt.blend
-_archive_old_lineage/unit_us_grunt_slim.blend
+assets/us/characters/us_base_v3.blend        <- THE TRUTH SOURCE (LFS). Renders with REFERENCE
+                                                PHOTOS on the legs — it is a textured WIP, which is
+                                                why tools build from the shipped us_grunt_v3.glb
+assets/shared/rigs/base_human_rigged.blend
+assets/us/characters/_archive/unit_us_grunt.blend
+assets/us/characters/_archive/unit_us_grunt_slim.blend   <- archived, not live
 ```
-**FIVE lockers claim to hold the gear:**
-`gear_armory` · `gear_library` · `us_gear_kit` · `webbing_m1956` · `satchel_m3`
+GONE (do not go looking): `us_grunt_v2.blend` · `_us_base_v3_STALE_BACKUP.blend` ·
+`us_base_v3_DUPLICATE_from_us_troops.blend`, and the whole `art_source/` tree they sat in.
+
+**FIVE lockers claimed to hold the gear. Only ONE survives:** `gear_armory` — and it is in **two**
+places, `assets/us/characters/gear_armory.blend` and `assets/us/props/gear_armory.blend`.
+`gear_library` · `us_gear_kit` · `webbing_m1956` · `satchel_m3` no longer exist on disk.
 
 > **Every tool guesses which one to open, and every guess is a coin flip. That is why this keeps
 > happening.** Today alone it cost: a medic built on the wrong base; webbing found in three places; and a
@@ -94,7 +105,7 @@ seconds with a mouse; I could not do it blind.
 | `tools/bone_attach.py` | **THE ONE WAY** to hang a thing on a bone. Requires the rig in **REST**. |
 | `tools/make_gear_armory.py` | rack / pack the locker |
 | `tools/make_satchel.py` | the new M3 aid bag (mine) |
-| `tools/make_medic.py` | assembles the medic. **Point it at the TRUTH SOURCE, not the clone.** |
+| `tools/make_medic.py` | assembles the medic. Already builds from the **shipped `us_grunt_v3.glb`** (`make_medic.py:43`), deliberately — the v3 blend still wears reference-photo textures. Do not "repoint" it at a v2 blend; there isn't one. |
 | `tools/export_us_grunt_v2.py` | the **proven** exporter. Copy its export call; do not invent one. |
 
 **Character GLBs are MESH-ONLY.** `model_actor.gd:133`: *"anim_library.glb carries every clip ONCE (91);

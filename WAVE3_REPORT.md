@@ -2,6 +2,12 @@
 
 **Run:** 2026-07-08. Plan: `~/.claude/plans/drum-up-a-15-refactored-avalanche.md`. ~25 commits, every block regression-tested. Regression table at the bottom.
 
+> **DEAD as a planner; a dated LOG otherwise.** ADR-014 (`production/adr/ADR-014-doc-hierarchy.md`:44-46)
+> names this file DEAD alongside ROADMAP_NEXT.md and ROADMAP_WAVE2.md; the consolidation into
+> `ROADMAP.md` was never executed, so the file still sits at repo root. Read it as a snapshot of what
+> was true on 2026-07-08 — never as a description of the game today, and never as authority. Systems
+> below have since been superseded by ADR-016 (flat damage) and ADR-029 (open patrol simulator).
+
 ## SHIPPED — 84 of 90 (6 documented defers)
 
 ### A. Campaign meta (W01–04)
@@ -17,7 +23,7 @@ Five persistent men in EVERY mission, generated RECON-style (2d100 St/Ag/Al, 4-F
 Debrief score → team XP → **BARRACKS**: buy skills/attributes for you and each man. Every purchase does something real (Small Arms=spread, Silent Movement=footstep radius, Demolitions=plant speed+trap immunity, FO/FAC=CAS turnaround, Medic=revive speed/amount, AG=reloads, ST=HP+stamina). Iron Man toggle = campaign permadeath.
 
 ### E. Gunplay & body (W33–40)
-Stamina w/ winded state, **prone** (Z: 0.35× detection, 0.6× spread), limb wounds (arm=shake, leg=no sprint, medkit clears), hitmarkers w/ kill tone, real bolt-cycle + 3-round burst, **ADS FOV zoom re-enabled**, **Vietnam weapons**: M16A1 (5d10) primary, NVA AK-47s, VC SKS riflemen — RECON dice, correct sound-signature lore. **Smoke grenades [5]** genuinely block AI sight lines. **Claymores [6]** with frontal-wedge triggers.
+Stamina w/ winded state, **prone** (Z: 0.35× detection, 0.6× spread), limb wounds (arm=shake, leg=no sprint, medkit clears), hitmarkers w/ kill tone, real bolt-cycle + 3-round burst, **ADS FOV zoom re-enabled**, **Vietnam weapons**: M16A1 primary, NVA AK-47s, VC SKS riflemen — correct sound-signature lore. *(The "5d10 / RECON dice" grammar this block shipped was retired by ADR-016: damage is flat and deterministic, `m16a1.tres`:14 `base_damage = 27`, `WeaponData.get_damage()` returning `maxi(1, base_damage)` at `scripts/weapons/weapon_data.gd`:112-113. The 5d10 survives only as flavour text in the weapon's `description` string.)* **Smoke grenades [5]** genuinely block AI sight lines. **Claymores [6]** with frontal-wedge triggers.
 
 ### F. World & missions (W41–48)
 **1960s topo map [M]** — real contour bands from the heightmap, 100m grid, water, green player arrow, objective triangles. **Weather system** (clear/cloudy/rain/fog/monsoon w/ rain particles) + **time-of-day** (dawn/dusk/night) rolled per op, shown as chips on offer cards — they scale AI sight caps AND mask hearing (monsoon = move loud). **POW RESCUE** = 5th... 6th mission type (camp, cage, pilot joins your squad, get him out alive). **Photo-recon** bonus objectives (+intel). Villages live: **civilians** (informer mechanic — 25s to stop him), **campfires** at night, **chickens as noise traps**.

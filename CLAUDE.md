@@ -1,15 +1,15 @@
 # RECONgame - Claude Development Guidelines
 
-**RECONgame** is a hardcore Vietnam War mission-based tactical FPS (Godot 4.7 stable, GDScript): randomized insertion → 2–4 generated objectives in an open AO → exfil. Arma/OFP sandbox bones, SOCOM/Vietcong flavor, RECON RPG (1982) numbers backbone, HLL lethality, AI fireteam, PSX low-poly 3D characters (ADR-001 — the sprite renderer is dead; 3D models for everything).
+**RECONgame** is a hardcore Vietnam War open patrol simulator (Godot 4.7 stable, GDScript): one operation seed → a populated AO stamped around the firebase (villages, camps, ambient ecology) that you walk out into and come back from. No briefing UI, no objective counter, no exfil step — `"PATROL"` is the only mission type the generator produces (ADR-029; `scripts/missions/mission_generator.gd`). Arma/OFP sandbox bones, SOCOM/Vietcong flavor, RECON RPG (1982) numbers backbone, HLL lethality, AI fireteam, PSX low-poly 3D characters (ADR-001 — the sprite renderer is dead; 3D models for everything).
 
 **CANON (ADR-014):** `production/GAME_GUIDE.md` + `production/adr/` outrank this file. If this file
 contradicts an ADR, the ADR wins and this file gets corrected.
 
 **Read these before designing anything:**
-- `DESIGN.md` — vision, pillars, game loop, system specs, M0–M8 roadmap (APPROVED)
+- `DESIGN.md` — pitch, setting, core fantasy, tone, player loop, pillars, AI stress-test arena, tech stack, development priority (APPROVED). No M0–M8 roadmap lives here.
 - `STATE_OF_PROJECT.md` — origins (merged from HellOfDuty + TerrainEngine copies), decisions log
 - `MISSION_DESIGN_RESEARCH.md` — RTCW/MoHAA-derived mission/AI architecture
-- `RECON_ADAPTATION.md` — tabletop rules → real-time mappings (damage dice, detection, XP scoring)
+- `RECON_ADAPTATION.md` — tabletop rules → real-time mappings (detection, XP scoring). **Its damage section is DEAD — it still describes a dice grammar (`rifle hit = 4d10`) that ADR-016 retired. Damage is flat and deterministic; take damage from ADR-016 and the Damage System section below, never from this file.**
 
 **Pillars (test every decision):** 1. Outstanding gunplay · 2. Atmosphere · 3. Freedom (no rails, stealth optional, escalation not fail-states) · 4. The squad is the RPG · 5. Fail forward.
 
@@ -60,7 +60,7 @@ Check 8 points around target - if ANY point visible, explosion damages target.
 
 ## GDScript Strict Typing Rules
 
-Godot 4.5 with strict typing enabled. Follow these rules to avoid type inference errors:
+Godot 4.7 (Forward+) with strict typing enabled. This project opens in **4.7 ONLY** — an older editor rewrites `project.godot`. Follow these rules to avoid type inference errors:
 
 ### 1. Float Interpolation
 ```gdscript
@@ -190,9 +190,7 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 - Guarded by `tests/test_flat_damage.tscn` — retuning a value without amending ADR-016 turns the suite red.
 
 ### Key Classes
-- `Hitzone` - Body part damage detection (extends Area3D)
-- `Hurtbox` - Generic damage receiver (extends Area3D)
-- `Hitbox` - Damage dealer (extends Area3D)
+- `Hitzone` - Body part damage detection (extends Area3D) — **the ONLY damage receiver class. There is no `Hurtbox` and no `Hitbox` class; wire receivers as `Hitzone` (`scripts/combat/hitzone.gd`), built by `HitzoneBuilder`, tuned by `HitzoneTuning`.**
 - `WeaponData` - Weapon stats resource
 - `EnemyData` - Enemy configuration resource
 
@@ -212,7 +210,7 @@ The viewmodel editor and in-game camera must stay perfectly synchronized:
 
 **Rules:**
 1. WeaponHolder must have identity transform (no offset) in both scenes
-2. Base/hip FOV is 75.0; ADS uses per-weapon `ads_fov` from the .tres (ADR-004 — e.g. M16 60, binocs 18)
+2. Base/hip FOV is 75.0; ADS uses per-weapon `ads_fov` from the .tres (ADR-004 — e.g. M16 60, AK 62, M14 58). Binoculars are NOT a weapon resource — there is no binocular .tres; the 18.0 zoom FOV is hardcoded in `scripts/player/player.gd`
 3. Weapon positions set in WeaponData .tres files, not in scene transforms
 4. Scale baked into viewmodel .tscn root node, not applied at runtime
 
@@ -224,7 +222,7 @@ WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
 ```
 
 ### Adding New Weapons
-1. Create `scenes/weapons/{weapon}_viewmodel.tscn`
+1. Create `scenes/weapons/{weapon}_arms_viewmodel.tscn` (the `_arms_` convention is what the guns use — `m16a1_arms_viewmodel.tscn`, `ak47_arms_viewmodel.tscn`, `m60_arms_viewmodel.tscn`; only non-gun items like `m26_grenade_viewmodel.tscn` and `medkit_viewmodel.tscn` drop it)
 2. Set root node scale (start with 0.03, adjust as needed)
 3. Set Model rotation to orient barrel toward -Z
 4. Add MuzzlePoint at barrel tip
@@ -285,14 +283,19 @@ Found on 2026-07-13, five systems, one session — **and the game worked the who
 fractures — it is fossils.
 
 **THE MACHINE (because a law in Markdown is just the next fossil):** `tests/test_fossils.tscn`, in the
-suite. The **79 existing fossils** are grandfathered in `tests/fossil_baseline.json`. **A NEW fossil
-FAILS THE BUILD.** The register **only shrinks.** Regenerating the baseline to silence a failure is
-**the one forbidden move** — it is a debt register, not a snooze button.
+suite. The **124 existing fossils** are grandfathered in `tests/fossil_baseline.json`, under a
+`ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
+
+`--write-baseline` writes the intersection of register and reality and is incapable of growth. New
+entries enter ONLY via `--grandfather --reason="<text>"`, which appends dated provenance to
+`grandfather_log`. `count` and `ceiling` are audited before the register is consulted, so a hand-edit
+cannot pass quietly. Regenerating the baseline to silence a failure remains **the one forbidden move**
+— it is a debt register, not a snooze button.
 
 Two rules the probe had to learn, and they are the law in miniature:
 1. **A comment is a tombstone, not a caller.** `# was a hardcoded ALERT_RANGE*2` was counted as a
    reference — *the sentence recording the const's death was keeping it off the death list.*
-2. **The death register is not a caller.** The baseline names all 79; tallying it resurrected them
+2. **The death register is not a caller.** The baseline names every grandfathered symbol; tallying it resurrected them
    all. **The fossil detector was defeated by its own record.**
 
 Dead ≠ delete. Triage first: **FOSSIL** (superseded → delete) · **UNFINISHED** (built ahead of its

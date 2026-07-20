@@ -1,7 +1,24 @@
 # Sprite Integration Plan — 8-Direction NPC Sprites
 
-**Status:** planning only. No code written. Nothing in `scripts/` has been modified.
-**Target:** Godot 4.6, Forward+. Replace the colored-capsule NPCs with the rendered sprite matrix.
+> **RETIRED — NOT A LIVE PLAN. DO NOT BUILD FROM THIS DOCUMENT.**
+> ADR-001 (renderer of record, Summoner-ratified 2026-07-10) killed the 8-direction sprite matrix
+> and names this file as retired (`production/adr/ADR-001-renderer-of-record.md:2,47`). The renderer
+> that shipped is `ModelActor` — 3D low-poly PSX .glb characters, with a capsule as the only
+> fallback: `scripts/enemies/enemy_base.gd:323-348` (`_setup_visual()`, doc comment at `:323` reads
+> "3D model when the unit has one; capsule as the fallback (ADR-001)") and
+> `scripts/allies/ally_base.gd:218-231`. No `SpriteActor`, `SpriteLibrary`, `SpriteManifest`, or
+> `Sprite3D` exists anywhere in `scripts/`; the surviving `sprite_actor` variable
+> (`enemy_base.gd:222`, `ally_base.gd:185`) is a renderer slot holding a `ModelActor`, and
+> `scripts/visuals/sprite_state_map.gd` is the live 3D animation spine, not a sprite system.
+> Kept for the record only. Everything below is the plan as written on 2026-07-10, before the KILL;
+> its line numbers, file inventory, and `.tres` list describe a codebase that has since moved on
+> (e.g. §7's three `sprite_*` fields WERE adopted at `scripts/enemies/enemy_data.gd:43-47`, but they
+> resolve 3D units; the German `.tres` pair in §7 is already gone from `data/enemies/`).
+> Retirement/relocation of this file is ADR-001:47's call, not this document's.
+
+**Status:** superseded by ADR-001. Never implemented as written.
+**Target as originally written:** Godot 4.6, Forward+. The engine of record is now Godot 4.7,
+Forward+ (`project.godot:22` — `config/features=PackedStringArray("4.7", "Forward Plus")`).
 
 ---
 

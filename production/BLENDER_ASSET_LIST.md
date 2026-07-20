@@ -13,12 +13,11 @@ Every art asset we've identified, from code placeholders + design discussions. S
 - ⬜ *(DLC, not launch)* Special Forces + Marines faction models
 
 ## FIRST-PERSON VIEWMODELS (arms + gun)
-- ⬜ **M60** + **RPD** viewmodels (LMG hold — support hand on barrel/carry-handle)
-- ⬜ **PPSh** viewmodel (SMG — support hand on drum)
-- ⬜ **RPG-2** viewmodel (over-shoulder)
 - ⬜ **FP radio handset** — the handset prop raised in first-person for the "on the net" state (reuse the RTO's PRC-25 handset) — this is how the player calls in airstrikes/support (bead RECONgame-i1vu)
 - ⬜ **Per-gun idle animations** — idle/fidget/check/inspect per weapon (see `IDLE_ANIM_SPEC.md` + `IK_ANIMATION_WORKFLOW.md`)
-- ✅ done: M14, M16, AK, Mosin viewmodels (+ MuzzlePoints); semi-auto rifle pose
+- ✅ done: every weapon viewmodel ships — M14, M16, AK, Mosin, M60, RPD, PPSh, RPG-2, M70, Colt .45,
+  Ithaca (+ the non-gun M26 grenade and medkit viewmodels); `scenes/weapons/*_arms_viewmodel.tscn`
+  over `assets/player/viewmodels/*_fp.glb`. Semi-auto rifle pose done.
 
 ## WEAPONS / PROPS
 - 🔴 **Claymore** model — placeholder green box (`claymore.gd:19`) + a "clack" detonation sound
@@ -53,13 +52,17 @@ The RTS has ~103 Vietnam structures. These fill our gaps directly (copy from
 - ⬜ **Building INTERIORS** (interior-mode CQB) — RTS buildings are exterior shells; enterable interiors still need authoring
 - ⬜ **Roads** — muddy laterite strip material + tire-track decal *textures* (not models)
 
-## SPRITES (parallel pipeline)
-- 🟡 **Sprite render matrix** — 8-dir sprites for VC/NVA units × weapons × anims, rendered from the 3D models (partly done; consumer code + dedup owed)
+## SPRITES — ☠️ DEAD PIPELINE (kept for context only, do not feed)
+Killed by `adr/ADR-001-renderer-of-record.md` ("Renderer of record: 3D PSX models; sprite matrix
+killed", Summoner-ratified). No sprite actor exists in `scripts/`; the only survivor is
+`scripts/visuals/sprite_state_map.gd`, which is now the 3D clip-id map, not a sprite renderer
+(`sprite_state_map.gd:201`). No sprite work is owed.
+- ☠️ ~~**Sprite render matrix** — 8-dir sprites for VC/NVA units × weapons × anims, rendered from the 3D models~~
 
 ## FX (mostly procedural — listed so we don't re-model them)
 - ✅ Explosion visual (procedural flash+fireball+smoke), muzzle flash — no models needed
 - 🟡 Fire VFX — placeholder cylinder; real `terrain_vfx NAPALM_FIRE` exists but unwired (code, not art)
 
 ---
-**Suggested Blender order when the MCP is back up:** slimmer base mesh → radioman + handset → M60/RPD/PPSh/RPG
-viewmodels → claymore + Ka-Bar → civilians → F-4 + C-47 → per-gun idle anims → interior/tunnel kit.
+**Suggested Blender order when the MCP is back up:** slimmer base mesh → radioman + handset →
+claymore + Ka-Bar → civilians → F-4 + C-47 → per-gun idle anims → interior/tunnel kit.
