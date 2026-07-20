@@ -50,6 +50,10 @@ const IDLE_VARIANTS: Array[String] = [
 # L1 behavior-tree fields. active_action is the BT's current pick; state
 # remains the reactive override (FLEE/COWER/GONE) which wins regardless.
 var occupation: String = "farmer"
+## A US garrison man inside the wire: same schedule machinery, US model, armed
+## idle chains, and no noncombatant panic. Background life, never a combatant
+## and never a squad member.
+var is_garrison: bool = false
 var active_action: StringName = &"idle"
 var working_point: NodePath = NodePath()
 var working_point_pos: Vector3 = Vector3.ZERO
@@ -88,10 +92,23 @@ const VILLAGERS: Array[String] = [
 ]
 
 
-static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, informer: bool) -> Civilian:
+## US firebase garrison models. Resolved by bare unit_id like VILLAGERS.
+## Occupations whose WORK is standing a post with a weapon up, not stooping over
+## a job. Drives the armed idle chain.
+const ARMED_POSTS: Array[String] = ["sentry", "sentry_night", "gun_crew", "radioman"]
+
+const GARRISON_MEN: Array[String] = [
+	"us_grunt_rifleman", "us_grunt_v3", "us_grunt_pointman",
+	"us_grunt_mg", "us_grunt_grenadier", "us_grunt_marksman", "us_grunt_rto",
+]
+
+
+static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, informer: bool,
+		models: Array[String] = VILLAGERS, garrison: bool = false) -> Civilian:
 	var civ := Civilian.new()
 	civ.director = mission_director
 	civ.is_informer = informer
+	civ.is_garrison = garrison
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -102,17 +119,17 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	# A PERSON, not a pill. Deterministic per position so the same village rebuilds
 	# with the same faces (ADR-010/017 - the province must come back identical).
 	var seed_h: int = absi(hash(Vector2i(int(pos.x), int(pos.z))))
-	var pick: int = seed_h % VILLAGERS.size()
+	var pick: int = seed_h % models.size()
 	civ._idle_variant = IDLE_VARIANTS[(seed_h / 7) % IDLE_VARIANTS.size()]
 	var actor := ModelActor.new()
 	civ.add_child(actor)
-	if actor.setup(VILLAGERS[pick]):
+	if actor.setup(models[pick]):
 		civ.actor = actor
 	else:
 		# The model is missing. Fall back to the old pill rather than an invisible
 		# man - but say so LOUDLY, because a silent fallback is how a village full
 		# of capsules survives for weeks without anyone noticing.
-		push_warning("[Civilian] no model for '%s' - falling back to a CAPSULE. The village will look like pills." % VILLAGERS[pick])
+		push_warning("[Civilian] no model for '%s' - falling back to a CAPSULE. The village will look like pills." % models[pick])
 		actor.queue_free()
 		var mesh := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
@@ -148,6 +165,8 @@ func _exit_tree() -> void:
 
 func _on_noise(type: int, position: Vector3, _radius: float, _team: int) -> void:
 	if state == CivState.GONE:
+		return
+	if is_garrison:
 		return
 	if type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION:
 		if global_position.distance_to(position) < 60.0:
@@ -234,6 +253,9 @@ func _animate() -> void:
 	if want == _last_clip:
 		return
 	_last_clip = want
+	if is_garrison:
+		_play_garrison(want)
+		return
 	# CIVILIAN CHAINS CARRY NO ARMED CLIP. `idle` and `idle_crouching` are the
 	# RIFLEMAN idle and the rifleman weapon crouch - with either at the head of a
 	# chain, play_first() returns on it and the whole village stands and squats
@@ -254,6 +276,28 @@ func _animate() -> void:
 			actor.play_first(["walking_unarmed", "running_unarmed"])
 		_:
 			actor.play_first([_idle_variant, "idle_unarmed"])
+
+
+## Garrison chains carry the ARMED poses the villager chains deliberately refuse:
+## a man standing his post holds a rifle, and `idle`/`walk_forward` are the
+## rifleman clips. Off-post actions fall back to the unarmed loafing poses.
+func _play_garrison(want: String) -> void:
+	match want:
+		"running_unarmed":
+			actor.play_first(["run_forward", "running_unarmed"])
+		"crouching":
+			actor.play_first(["idle_crouching", "sitting", "idle"])
+		"seated":
+			actor.play_first(["sitting", "idle_unarmed_5", "idle"])
+		"stooped":
+			if ARMED_POSTS.has(occupation):
+				actor.play_first(["idle", "idle_aiming"])
+			else:
+				actor.play_first([_idle_variant, "idle_unarmed_3", "idle"])
+		"walking_unarmed":
+			actor.play_first(["walk_forward", "walking_unarmed"])
+		_:
+			actor.play_first(["idle", "idle_unarmed"])
 
 
 func _step_toward(target: Vector3, speed: float, delta: float) -> void:

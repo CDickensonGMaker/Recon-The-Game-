@@ -489,19 +489,92 @@ const FSB_CLEAR_DISCS: Array = [
 ## the SAME numbers (one math path, never re-derived by hand).
 static var _fsb_markers: Dictionary = {}
 
+const FSB_MARKER_KEYS: Array[String] = [
+	"SOCKET_A_001", "SOCKET_B_001", "FACE_OUT_001",
+	"mg_fire_point_001", "bunker_los_point_001", "tower_los_point_001",
+	"GUN_POINT_001",
+	"USSupplyDepot_001", "USSupplyDepot_007",
+	"FOOTPRINT_001", "FOOTPRINT_002", "FOOTPRINT_003",
+	"FOOTPRINT_004", "FOOTPRINT_007",
+	"APPROACH_001", "APPROACH_002",
+]
+
+## Garrison posts as [marker key, occupation, men]. The marker set is the
+## contract: a post whose marker is absent from the GLB is SKIPPED, never
+## relocated to the compound center.
+const FSB_GARRISON_POSTS: Array = [
+	["SOCKET_A_001", "sentry", 1],
+	["SOCKET_B_001", "sentry_night", 1],
+	["mg_fire_point_001", "sentry", 1],
+	["bunker_los_point_001", "sentry_night", 1],
+	["tower_los_point_001", "sentry", 1],
+	["GUN_POINT_001", "gun_crew", 2],
+	["USSupplyDepot_001", "quartermaster", 1],
+	["USSupplyDepot_007", "quartermaster", 1],
+	["FOOTPRINT_003", "radioman", 1],
+	["APPROACH_002", "mess_cook", 1],
+	["FOOTPRINT_002", "off_duty", 2],
+	["FOOTPRINT_004", "off_duty", 2],
+	["FOOTPRINT_007", "off_duty", 2],
+]
+
+## Where off-shift men sleep and loaf. Round-robin `home` for every post man, so
+## the compound carries traffic between quarters and post instead of statues.
+const FSB_GARRISON_QUARTERS: Array[String] = [
+	"FOOTPRINT_001", "FOOTPRINT_002", "FOOTPRINT_004", "FOOTPRINT_007",
+]
+
+
+## Offsets are accumulated up to the GLB root: every consumer adds them to the
+## compound center, so a marker nested under a sub-node must not contribute its
+## parent-local position.
+static func _ensure_fsb_markers() -> void:
+	if not _fsb_markers.is_empty():
+		return
+	var scene: PackedScene = load(FSB_MAIN_PATH)
+	var inst := scene.instantiate() as Node3D
+	for key in FSB_MARKER_KEYS:
+		var n := inst.find_child(key, true, false) as Node3D
+		if n == null:
+			continue
+		var t := Transform3D.IDENTITY
+		var cur: Node3D = n
+		while cur != null and cur != inst:
+			t = cur.transform * t
+			cur = cur.get_parent() as Node3D
+		_fsb_markers[key] = t.origin
+	inst.free()
+
+
+## Garrison post/quarters positions in WORLD XZ, y left at 0 for the caller to
+## seat on terrain (same contract as fsb_gate_metrics).
+static func fsb_garrison_plan(center: Vector3) -> Dictionary:
+	_ensure_fsb_markers()
+	var origin: Vector3 = center - FSB_AABB_CENTER
+	var posts: Array[Dictionary] = []
+	for entry in FSB_GARRISON_POSTS:
+		var key: String = entry[0]
+		if not _fsb_markers.has(key):
+			continue
+		var p: Vector3 = origin + (_fsb_markers[key] as Vector3)
+		p.y = 0.0
+		posts.append({"pos": p, "occupation": str(entry[1]), "men": int(entry[2])})
+	var quarters: Array[Vector3] = []
+	for key in FSB_GARRISON_QUARTERS:
+		if not _fsb_markers.has(key):
+			continue
+		var q: Vector3 = origin + (_fsb_markers[key] as Vector3)
+		q.y = 0.0
+		quarters.append(q)
+	return {"posts": posts, "quarters": quarters}
+
 
 static func fsb_gate_metrics(center: Vector3) -> Dictionary:
-	if _fsb_markers.is_empty():
-		var scene: PackedScene = load(FSB_MAIN_PATH)
-		var inst := scene.instantiate() as Node3D
-		for key in ["SOCKET_A_001", "SOCKET_B_001", "FACE_OUT_001"]:
-			var n := inst.get_node_or_null(key) as Node3D
-			_fsb_markers[key] = n.position if n != null else Vector3.ZERO
-		inst.free()
+	_ensure_fsb_markers()
 	var origin: Vector3 = center - FSB_AABB_CENTER
-	var a: Vector3 = origin + (_fsb_markers["SOCKET_A_001"] as Vector3)
-	var b: Vector3 = origin + (_fsb_markers["SOCKET_B_001"] as Vector3)
-	var fo: Vector3 = origin + (_fsb_markers["FACE_OUT_001"] as Vector3)
+	var a: Vector3 = origin + (_fsb_markers.get("SOCKET_A_001", Vector3.ZERO) as Vector3)
+	var b: Vector3 = origin + (_fsb_markers.get("SOCKET_B_001", Vector3.ZERO) as Vector3)
+	var fo: Vector3 = origin + (_fsb_markers.get("FACE_OUT_001", Vector3.ZERO) as Vector3)
 	var gate_pos: Vector3 = (a + b) * 0.5
 	var ab: Vector3 = (b - a).normalized()
 	var out := Vector3(-ab.z, 0.0, ab.x)

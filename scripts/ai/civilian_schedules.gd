@@ -92,6 +92,126 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 			if sim_hour < 18.5:
 				return ACTION_WALK_FIRE
 			return ACTION_WALK_HOME
+		"sentry":
+			if sim_hour < 5.0 or sim_hour >= 20.0:
+				return ACTION_SLEEP
+			if sim_hour < 5.5:
+				return ACTION_WALK_PADDY
+			if sim_hour < 12.0:
+				return ACTION_WORK
+			if sim_hour < 13.0:
+				return ACTION_WALK_HOME
+			if sim_hour < 13.5:
+				return ACTION_WALK_PADDY
+			if sim_hour < 18.0:
+				return ACTION_WORK
+			if sim_hour < 18.5:
+				return ACTION_WALK_HOME
+			return ACTION_TALK
+		"sentry_night":
+			if sim_hour < 5.0:
+				return ACTION_WORK
+			if sim_hour < 5.5:
+				return ACTION_WALK_HOME
+			if sim_hour < 13.0:
+				return ACTION_SLEEP
+			if sim_hour < 15.0:
+				return ACTION_SIT
+			if sim_hour < 17.0:
+				return ACTION_TALK
+			if sim_hour < 17.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 18.5:
+				return ACTION_WALK_PADDY
+			return ACTION_WORK
+		"quartermaster":
+			if sim_hour < 5.5 or sim_hour >= 21.0:
+				return ACTION_SLEEP
+			if sim_hour < 6.5:
+				return ACTION_WALK_PADDY
+			if sim_hour < 11.5:
+				return ACTION_WORK
+			if sim_hour < 12.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 13.5:
+				return ACTION_REST
+			if sim_hour < 17.5:
+				return ACTION_WORK
+			if sim_hour < 18.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 20.0:
+				return ACTION_TALK
+			return ACTION_WALK_HOME
+		"gun_crew":
+			if sim_hour < 6.0 or sim_hour >= 21.5:
+				return ACTION_SLEEP
+			if sim_hour < 7.0:
+				return ACTION_WALK_PADDY
+			if sim_hour < 10.0:
+				return ACTION_WORK
+			if sim_hour < 12.0:
+				return ACTION_SIT
+			if sim_hour < 13.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 14.0:
+				return ACTION_REST
+			if sim_hour < 17.0:
+				return ACTION_WORK
+			if sim_hour < 18.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 20.5:
+				return ACTION_TALK
+			return ACTION_WALK_HOME
+		"radioman":
+			if sim_hour < 5.0 or sim_hour >= 22.0:
+				return ACTION_SLEEP
+			if sim_hour < 5.5:
+				return ACTION_WALK_PADDY
+			if sim_hour < 12.5:
+				return ACTION_WORK
+			if sim_hour < 13.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 19.0:
+				return ACTION_WORK
+			if sim_hour < 20.0:
+				return ACTION_WALK_FIRE
+			return ACTION_WALK_HOME
+		"mess_cook":
+			if sim_hour < 4.0 or sim_hour >= 21.0:
+				return ACTION_SLEEP
+			if sim_hour < 4.5:
+				return ACTION_WALK_PADDY
+			if sim_hour < 8.0:
+				return ACTION_COOK
+			if sim_hour < 10.0:
+				return ACTION_WORK
+			if sim_hour < 13.5:
+				return ACTION_COOK
+			if sim_hour < 15.5:
+				return ACTION_REST
+			if sim_hour < 19.5:
+				return ACTION_COOK
+			return ACTION_WALK_HOME
+		"off_duty":
+			if sim_hour < 6.0 or sim_hour >= 22.0:
+				return ACTION_SLEEP
+			if sim_hour < 7.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 9.5:
+				return ACTION_SIT
+			if sim_hour < 11.0:
+				return ACTION_WORK
+			if sim_hour < 12.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 14.5:
+				return ACTION_TALK
+			if sim_hour < 16.5:
+				return ACTION_REST
+			if sim_hour < 18.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 20.5:
+				return ACTION_TALK
+			return ACTION_SIT
 		_:
 			return ACTION_IDLE
 

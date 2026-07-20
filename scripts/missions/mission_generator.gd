@@ -599,6 +599,7 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var built_sites: Array[Dictionary] = []
 	var fsb: Dictionary = planner.place_firebase_main(p.fsb_center as Vector3)
 	built_sites.append(fsb)
+	_build_firebase_garrison(world, director, fsb.center as Vector3, rng)
 	for site in p.sites:
 		match str(site.kind):
 			"village":
@@ -660,6 +661,43 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 
 	return {"sites": built_sites, "spawn_pos": fsb.spawn_pos, "gate_pos": fsb.gate_pos,
 		"gate_out": fsb.gate_out, "center": fsb.center, "bench": bench}
+
+
+## The men who live inside the wire. Same schedule machinery as the villages -
+## occupation + SimClock hour - pointed at US models and military posts read from
+## the fsb_main GLB markers. They are NOT combatants and NOT squad members: they
+## carry no EnemyBase/AllyBase and never enter the squad roster.
+##
+## This is the ONE place that spawns inside _fsb_keepout, deliberately: the
+## keep-out guards site placement, and the garrison is the intended exception.
+static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
+		center: Vector3, rng: RandomNumberGenerator) -> void:
+	var plan: Dictionary = SitePlanner.fsb_garrison_plan(center)
+	var quarters: Array = plan.get("quarters", [])
+	var men: Array[Civilian] = []
+	var qi: int = 0
+	for entry in (plan.get("posts", []) as Array):
+		var post: Dictionary = entry
+		var post_pos: Vector3 = post.pos
+		for _m in range(int(post.men)):
+			var a: float = rng.randf_range(0.0, TAU)
+			var pos: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(1.0, 3.5)
+			pos.y = world.terrain_manager.get_height_at(pos) + 0.5
+			var man: Civilian = Civilian.spawn(world, pos, director, false,
+				CivilianScript.GARRISON_MEN, true)
+			man.occupation = str(post.occupation)
+			var wp: Vector3 = post_pos
+			wp.y = world.terrain_manager.get_height_at(wp)
+			man.working_point_pos = wp
+			if quarters.size() > 0:
+				var q: Vector3 = quarters[qi % quarters.size()]
+				q.y = world.terrain_manager.get_height_at(q)
+				man.home = q
+				qi += 1
+			man.add_to_group("firebase_garrison")
+			men.append(man)
+	for man in men:
+		man.build_bt()
 
 
 ## One village build: stamp + civilians + stations + night fire + chickens.
