@@ -156,13 +156,9 @@ func _process(delta: float) -> void:
 			if err != "":
 				toast.emit(err)
 			else:
-				fire_menu_open = true
-				fire_menu_changed.emit(true)
-				toast.emit("ON THE HORN - SEND YOUR FIRE MISSION")
-				_radio_vo("on_the_horn")
+				_open_net()
 		else:
-			fire_menu_open = false
-			fire_menu_changed.emit(false)
+			_close_net()
 	if fire_menu_open and GameManager.can_player_act():
 		if Input.is_action_just_pressed("slot_1"):
 			request_fire_support("bombs")
@@ -193,6 +189,32 @@ var fire_menu_open: bool = false:
 	set(value):
 		fire_menu_open = value
 		any_fire_menu_open = value
+
+
+## THE NET IS ONE STATE. The player owns the truth (player.holding_handset); this
+## menu is its mirror. The [T] key and dispatch/hang-up drive the player, and the
+## player calls set_fire_menu_mirror back to move THIS flag. That funnel is what
+## keeps "handset in hand" and "fire options visible" from ever disagreeing.
+func _open_net() -> void:
+	var pl: Node = world.player if world != null else null
+	if pl != null and pl.has_method("set_on_net"):
+		pl.set_on_net(true)  # raises the handset (if wired) -> mirrors this menu open
+	else:
+		set_fire_menu_mirror(true)  # no player (probe harness): open directly
+	# Only crow "on the horn" if the net actually opened - the player can refuse the
+	# grab (cord out of reach) and give its own "too far" bark.
+	if fire_menu_open:
+		toast.emit("ON THE HORN - SEND YOUR FIRE MISSION")
+		_radio_vo("on_the_horn")
+
+
+## Terminal mirror, called ONLY from the player's _enter_net/_exit_net. Sets the flag
+## and emits - it must never call back into the player, or the two states ping-pong.
+func set_fire_menu_mirror(open: bool) -> void:
+	if fire_menu_open == open:
+		return
+	fire_menu_open = open
+	fire_menu_changed.emit(open)
 var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
 const DANGER_CLOSE_M: float = 45.0
 const RTO_RADIO_RANGE: float = 10.0  ## must be this close to the living RTO to use the radio
@@ -346,10 +368,15 @@ func _radio_vo(line_id: String) -> void:
 	VOManager.play_radio(line_id, src)
 
 
+## Off the horn. Routes through the player so the HANDSET LOWERS with the menu -
+## they are one state. Called on the [T] toggle, on dispatch (the call is going out),
+## and on a radio-check failure.
 func _close_net() -> void:
-	if fire_menu_open:
-		fire_menu_open = false
-		fire_menu_changed.emit(false)
+	var pl: Node = world.player if world != null else null
+	if pl != null and pl.has_method("set_on_net"):
+		pl.set_on_net(false)  # stows the handset -> mirrors this menu closed
+	else:
+		set_fire_menu_mirror(false)  # no player (probe harness): close directly
 
 
 ## True if any living friendly - INCLUDING THE PLAYER - is within DANGER_CLOSE_M

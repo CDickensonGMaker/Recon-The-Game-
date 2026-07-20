@@ -104,6 +104,9 @@ var holding_handset: bool = false
 var _handset_placeholder: MeshInstance3D = null
 var _handset_cord_anchor: Marker3D = null
 var _radio_menu: RadioMenu = null
+## The RTO's handset this player is wired to (arena binds it; real game has none yet).
+## set_on_net drives it so "on the net" and "handset in hand" are one state.
+var _bound_handset: RadioHandset = null
 ## Aim reach for opening the radio menu on your RTO.
 const RADIO_REACH: float = 3.0
 
@@ -234,6 +237,7 @@ func _field_toast(text: String) -> void:
 func bind_radio_handset(h: RadioHandset) -> void:
 	if h == null:
 		return
+	_bound_handset = h
 	if _handset_cord_anchor == null:
 		_handset_cord_anchor = Marker3D.new()
 		_handset_cord_anchor.name = "HandsetCordAnchor"
@@ -316,8 +320,7 @@ func _open_radio_menu(rto: AllyBase) -> void:
 		_field_toast("%s: HOLDING HERE" % nick)
 		_close_radio_menu())
 	_radio_menu.grab_requested.connect(func() -> void:
-		if h != null and h.can_take():
-			h.take(self)  # emits handset_taken -> _on_handset_taken slings the rifle
+		set_on_net(true)  # one entry: raises the handset AND opens the fire net together
 		_close_radio_menu())
 	_radio_menu.close_requested.connect(_close_radio_menu)
 	GameManager.is_in_menu = true
@@ -332,21 +335,88 @@ func _close_radio_menu() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
-func _on_handset_taken(_by: Node3D) -> void:
+## THE NET - single source of truth for "on the radio". holding_handset is the
+## truth; FieldDirector.fire_menu_open is a terminal mirror driven from _enter_net/
+## _exit_net (below). Every way onto the net - the [T] key, the RTO menu's GRAB, a
+## dispatch hang-up, a snapped cord - funnels through here, so the two can never
+## disagree. When a physical handset is wired (arena), it IS the leash: you can
+## only be on the net if the cord reaches. With none wired (real game) the caller's
+## _radio_check is the leash and the net opens rifle-slung with no art.
+func set_on_net(want: bool) -> void:
+	if want == holding_handset:
+		return
+	if want:
+		if _bound_handset != null and is_instance_valid(_bound_handset) and _bound_handset.can_take():
+			if _handset_within_reach():
+				_bound_handset.take(self)  # -> handset_taken -> _on_handset_taken -> _enter_net
+			else:
+				_field_toast("TOO FAR FROM YOUR RTO FOR THE HANDSET")
+		else:
+			_enter_net()  # no physical handset wired, or it is already in hand
+	else:
+		if _bound_handset != null and is_instance_valid(_bound_handset) \
+				and _bound_handset.state == RadioHandset.State.HELD:
+			_bound_handset.stow()  # -> handset_returned -> _on_handset_returned -> _exit_net
+		else:
+			_exit_net()
+
+
+## Would grabbing the handset now leave the cord already snapped? The held cord runs
+## port -> shoulder guide -> the player's hand anchor; if that path already exceeds
+## full stretch, taking it would rip straight back out (a one-frame flicker). Refuse
+## instead. No cord wired -> always reachable (the caller's _radio_check is the gate).
+func _handset_within_reach() -> bool:
+	if _bound_handset == null or _bound_handset.cord == null or _handset_cord_anchor == null:
+		return true
+	var cord: RadioCord = _bound_handset.cord
+	if cord.port == null:
+		return true
+	var hand: Vector3 = _handset_cord_anchor.global_position
+	var d: float = cord.port.global_position.distance_to(hand)
+	if cord.guide != null:
+		d = cord.port.global_position.distance_to(cord.guide.global_position) \
+			+ cord.guide.global_position.distance_to(hand)
+	return d < cord.cord_length
+
+
+func _enter_net() -> void:
+	if holding_handset:
+		return
 	holding_handset = true
 	if weapon_holder and weapon_holder.weapon_model:
 		weapon_holder.weapon_model.visible = false
 	if _handset_placeholder:
 		_handset_placeholder.visible = true
 	_field_toast("HANDSET IN HAND - RIFLE SLUNG")
+	_notify_net(true)
 
 
-func _on_handset_returned() -> void:
+func _exit_net() -> void:
+	if not holding_handset:
+		return
 	holding_handset = false
 	if weapon_holder and weapon_holder.weapon_model:
 		weapon_holder.weapon_model.visible = true
 	if _handset_placeholder:
 		_handset_placeholder.visible = false
+	_notify_net(false)
+
+
+## Mirror the net onto the FieldDirector's fire menu. STRICTLY one-way: the mirror
+## setter only flips the flag and emits fire_menu_changed - it must NEVER call back
+## here, or the two states ping-pong. Do not connect fire_menu_changed to set_on_net.
+func _notify_net(open: bool) -> void:
+	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	if d is FieldDirector:
+		(d as FieldDirector).set_fire_menu_mirror(open)
+
+
+func _on_handset_taken(_by: Node3D) -> void:
+	_enter_net()
+
+
+func _on_handset_returned() -> void:
+	_exit_net()
 
 
 func _on_cord_snapped() -> void:
@@ -1022,6 +1092,9 @@ func _handle_movement(delta: float) -> void:
 func _on_downed_ended(revived: bool) -> void:
 	if not revived:
 		return
+	# On your feet with your rifle: a man who was on the horn when he went down is
+	# off it now (keeps holding_handset / fire_menu from surviving the revive).
+	set_on_net(false)
 	is_prone = false
 	velocity = Vector3.ZERO
 	if head != null:
