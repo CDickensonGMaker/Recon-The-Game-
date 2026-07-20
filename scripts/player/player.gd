@@ -58,13 +58,18 @@ const FIELD_REPAIR_PCT: float = 25.0
 const FIELD_REPAIR_SECONDS: float = 12.0
 var _repair_progress: float = 0.0
 
-## Stamina: sprinting drains it; being winded blocks sprint until it recovers.
+## Stamina gates the BURST, never the sprint. The AO is kilometres wide and a
+## grunt covers it on foot, so running out of air drops you to a sustainable
+## lope - it never pins you to a walk (Summoner's ruling 2026-07-19, HLL model).
 const PRONE_HEIGHT: float = 0.5
 const PRONE_SPEED: float = 1.0
 var stamina: float = 100.0
 var stamina_max: float = 100.0
-const STAMINA_DRAIN: float = 18.0    ## per second sprinting
-const STAMINA_REGEN: float = 10.0    ## per second otherwise
+const STAMINA_DRAIN: float = 18.0    ## per second sprinting; 100/18 = 5.6s of burst
+const STAMINA_REGEN: float = 10.0    ## per second at any speed below the burst
+## Sustained pace once the burst is spent: 1 m/s off SPRINT_SPEED, still well
+## clear of WALK_SPEED. Unlimited - the only cost of being winded is the metre.
+const WINDED_SPEED: float = SPRINT_SPEED - 1.0
 var _winded: bool = false
 
 ## Limb wounds degrade function until a medkit heal.
@@ -714,16 +719,15 @@ func _handle_movement(delta: float) -> void:
 
 	if _winded and stamina > stamina_max * 0.35:
 		_winded = false
+	## Wounded legs and the radio still pin you; being winded no longer does.
 	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
-		and not wounded_legs and not _winded and stamina > 0.0 \
-		and not FieldDirector.any_fire_menu_open
+		and not wounded_legs and not FieldDirector.any_fire_menu_open
 	is_sprinting = Input.is_action_pressed("sprint") and can_sprint and input_dir.y < 0
 
-	if is_sprinting:
+	if is_sprinting and not _winded:
 		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
 		if stamina <= 0.0:
 			_winded = true
-			is_sprinting = false
 	else:
 		stamina = minf(stamina_max, stamina + STAMINA_REGEN * delta)
 
@@ -732,7 +736,7 @@ func _handle_movement(delta: float) -> void:
 	elif is_crouching:
 		current_speed = CROUCH_SPEED
 	elif is_sprinting:
-		current_speed = SPRINT_SPEED
+		current_speed = WINDED_SPEED if _winded else SPRINT_SPEED
 	else:
 		current_speed = WALK_SPEED
 
