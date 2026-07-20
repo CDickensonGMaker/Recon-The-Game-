@@ -83,6 +83,8 @@ const LOD_NEAR_RADIUS: float = 80.0
 const LOD_FAR_RADIUS: float = 300.0
 const LOD_HYSTERESIS: float = 5.0
 var lod_tier: int = LOD_FULL
+## Cleared until the body has been stood at its scheduled position once.
+var _placed_for_hour: bool = false
 var _lod_timer: float = 0.0
 const LOD_RECOMPUTE_S: float = 2.0
 
@@ -196,6 +198,12 @@ func _call_for_aid() -> void:
 func _physics_process(delta: float) -> void:
 	if state == CivState.GONE:
 		return
+	# The spawner sets occupation/working_point AFTER spawn() returns, so first
+	# tick is the earliest this body knows its own job. Place before it is ever
+	# drawn thinking, rather than letting it walk to its post from its bunk.
+	if not _placed_for_hour:
+		_placed_for_hour = true
+		place_for_current_hour()
 	_update_lod(delta)
 	if lod_tier == LOD_FAR:
 		# Skip the body, never the tick: _update_lod is the only thing that can
@@ -560,7 +568,39 @@ func _update_lod(delta: float) -> void:
 	else:  # LOD_FAR
 		if d < LOD_FAR_RADIUS - LOD_HYSTERESIS:
 			new_tier = LOD_NEAR
+	# Waking from LOD_FAR: this body has not ticked a schedule since it tiered
+	# out at 300m, so it is standing wherever the hour left it. Put it where the
+	# clock says it already is, at ~300m where the correction cannot be read.
+	if lod_tier == LOD_FAR and new_tier != LOD_FAR:
+		place_for_current_hour()
 	lod_tier = new_tier
+
+
+## Stand this body where its schedule says it ALREADY is.
+##
+## _physics_process hard-returns at LOD_FAR (300m), and action_for is only
+## reachable below that, so a distant civilian never advances a schedule. The
+## state was always correct on arrival - the POSITION was not. A farmer whose
+## 0700 says "at the paddy" stood at his hut until the player closed, then
+## walked to the paddy in front of him. That is the world assembling itself on
+## approach instead of having been there all along.
+##
+## Called by the spawner once occupation/working_point are configured, and again
+## on wake from LOD_FAR. camp_director.gd:109-134 already does the same on
+## hour_advanced with no distance check - this is that pattern, applied to the
+## bodies that sleep. O(1) per wake: no off-view behaviour trees.
+func place_for_current_hour() -> void:
+	if state == CivState.GONE:
+		return
+	var hour: float = SimClock.sim_hour if SimClock != null else 12.0
+	var target: Vector3 = _resolve_target(
+		CivilianSchedulesS.action_for(occupation, hour))
+	if target == Vector3.ZERO:
+		return
+	# home/working_point come from markers and carry valid ground Y, and the
+	# wander offset is XZ-only, so the target is already grounded.
+	global_position = target
+	_wander_target = target
 
 
 func _resolve_target(action: StringName) -> Vector3:
