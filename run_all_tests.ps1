@@ -76,6 +76,11 @@ $BenignPatterns = @(
     # Headless-only. The DUMMY rasterizer has no material storage, so this cannot
     # occur under a real renderer -- servers/rendering/dummy/storage/material_storage.cpp.
     'Parameter "material" is null'
+    # Same family: the dummy rasterizer's own teardown. Deliberately matched on the
+    # DUMMY type name rather than on "Pages in use exist at exit", so a real
+    # PagedAllocator leak still fails the build. If Godot changes this mangled name the
+    # test goes red and someone looks -- that is the correct direction to fail.
+    "PagedAllocator: N20RasterizerSceneDummy"
 )
 
 Write-Host "=== RECONgame test suite ($($tests.Count) tests) ==="
