@@ -231,6 +231,8 @@ func _check_gating() -> void:
 	day._maybe_launch_sappers()
 	if day._sapper_launched:
 		_fail("a sapper assault launched in daylight")
+	if day._sapper_rolled_night:
+		_fail("daylight passed the night gate to a roll")   # deterministic control
 	day.queue_free()
 
 	# NEGATIVE: night, but the world has not settled (no walk-out yet).
