@@ -390,6 +390,15 @@ Summoner** (ADR-015) — never by a probe, never by an agent's reading.
   warning and no count — a plain `bd list` will make you believe work does not exist. **Always use
   `bd list --limit 0`.** This cost real work: the stale-gate pointers survived a full doc audit because
   the replacement bead sat past row 50.
+- **A BEAD TITLE MUST BE LEGIBLE TO SOMEONE WHO HAS NOT READ THE CODE** (Summoner's rule, 2026-07-19:
+  *"the beads are really cryptic to me and hard to answer in the moment"*). Name the subsystem, then
+  state the defect or goal in plain words. A wave code, a phase number, or a bare acronym is a handle,
+  not a title.
+  - Bad: `PIVOT W4 [AWAITS RATIFICATION]` · `AI-CONSOLIDATION WA` · `DRIFT-1 UNBLOCK THE PUSH`
+  - Good: `Convoys spawn with an empty vehicle array, so none has ever moved`
+- **NEVER put a bare bead ID in front of the Summoner.** `bd` IDs are opaque by design. Always gloss:
+  `dqgx` (every convoy spawns as an empty shell). When asking him to rule, the gloss must carry enough
+  for him to rule without opening the bead — otherwise he was not really asked.
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
