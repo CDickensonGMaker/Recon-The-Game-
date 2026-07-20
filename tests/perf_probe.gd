@@ -1,11 +1,12 @@
-## perf_probe.gd - perf gate + per-system attribution. Windowed (NOT headless).
-## Run via MCP run_project with scene res://tests/perf_probe.tscn.
-## Samples FPS + RenderingServer frame counters. With cycle_systems = true it also
-## toggles each foliage system off one window at a time, so the frame cost of
-## billboards / jungle patches / grass can be read by difference.
+## perf_probe.gd - perf gate + per-system attribution. Windowed (NOT headless):
+## under RendererDummy every figure it reads is zero.
+## Launched by `--perf-probe` on the normal boot; GameFlow.enter_hub calls attach()
+## with the live patrol world. It does NOT build a world of its own - a bare
+## game_world has no firebase, no sites and no LazyGroups, so it cannot measure the
+## world the player walks.
 extends Node
 
-## true  -> baseline, then canopy off, then ground clutter off (attribution run)
+## true  -> baseline, then canopy off, then clutter off, then sun shadow off
 ## false -> single baseline window (fast re-measure after a code change)
 @export var cycle_systems: bool = false
 
@@ -30,8 +31,14 @@ func _ready() -> void:
 	# which hides real GPU-cost deltas. Uncap for a true throughput measurement.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
+	set_process(false)
+
+
+## The caller owns the world. Nothing is sampled until this lands.
+func attach(w: GameWorld) -> void:
+	world = w
 	if cycle_systems:
-		_phases = ["baseline", "no_canopy", "no_clutter"]
+		_phases = ["baseline", "no_canopy", "no_clutter", "no_sun_shadow"]
 	else:
 		_phases = ["baseline"]
 	for p: String in _phases:
@@ -39,10 +46,7 @@ func _ready() -> void:
 		_prims[p] = [] as Array[float]
 		_calls[p] = [] as Array[float]
 		_objs[p] = [] as Array[float]
-	var world_scene: PackedScene = load("res://scenes/levels/game_world.tscn")
-	world = world_scene.instantiate()
-	world.mission_seed = 2077
-	add_child(world)
+	set_process(true)
 
 
 func _process(delta: float) -> void:
@@ -109,6 +113,12 @@ func _apply_toggle(phase_name: String) -> void:
 		(clutter as Node3D).visible = phase_name != "no_clutter"
 	else:
 		push_error("[PERF] no GroundClutter under GameWorld - the no_clutter row measures nothing.")
+
+	var sun := world.get_node_or_null("SunLight") as DirectionalLight3D
+	if sun != null:
+		sun.shadow_enabled = phase_name != "no_sun_shadow"
+	else:
+		push_error("[PERF] no SunLight under GameWorld - the no_sun_shadow row measures nothing.")
 	print("[PERF] phase -> %s" % phase_name)
 
 
@@ -146,7 +156,7 @@ func _finish() -> void:
 	var method: String = str(ProjectSettings.get_setting(
 		"rendering/renderer/rendering_method", "forward_plus (default)"))
 
-	print("PERF TABLE scale=%.2f renderer=%s seed=2077" % [scale, method])
+	print("PERF TABLE scale=%.2f renderer=%s seed=%d" % [scale, method, world.mission_seed])
 	for p: String in _phases:
 		print("PERF ROW %-14s fps_avg=%5.1f fps_min=%5.1f prims=%9d calls=%5d objs=%5d n=%d" % [
 			p, _avg(_fps[p]), _minimum(_fps[p]),

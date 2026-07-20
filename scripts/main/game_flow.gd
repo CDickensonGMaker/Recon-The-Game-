@@ -22,7 +22,9 @@ var _in_mission: bool = false   ## ...and it is a MISSION (not the hub)
 func _ready() -> void:
 	add_to_group("game_flow")
 	process_mode = Node.PROCESS_MODE_ALWAYS   # Esc must work while paused
-	show_menu()
+	# Boot lands in the patrol, not on the menu. The menu stays reachable at
+	# Esc -> QUIT TO MENU. Swap this call back to show_menu() to restore it.
+	start_default_operation()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -336,6 +338,14 @@ func enter_hub() -> void:
 	# Ray where the player ACTUALLY stands (post save-restore), not the planned
 	# spawn - the save teleport was invisible to a spawn-point ray.
 	_report_spawn_truth(world.player.global_position if world.player != null else spawn, op_seed)
+	# Instruments attach to the world the player actually walks - never a world of
+	# their own. `--perf-probe` samples, `--perf-cycle` runs the attribution phases.
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if args.has("--perf-probe"):
+		var probe: Node = (load("res://tests/perf_probe.tscn") as PackedScene).instantiate()
+		probe.set("cycle_systems", args.has("--perf-cycle"))
+		world.add_child(probe)
+		probe.call("attach", world)
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU
