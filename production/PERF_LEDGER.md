@@ -792,3 +792,87 @@ only remove; new entries require `--grandfather --reason="<why>"`, which appends
 Also corrected this session: `arena_perf_overlay.gd`'s `_shadows_on` defaulted to `true` while ship is
 `false`. `setup()` overwrites it from the live sun, so it was latent — but with a null sun the overlay
 would have reported "F6 sun shadows [ON]" for a world that renders none. Now defaults to ship.
+
+---
+
+# 2026-07-20 (later still) — THE CAMPFIRE, RE-MEASURED AT SHIP PARITY
+
+The campfire before/after in the ADR-026 Part A #1 entry above was measured on the broken probe
+(shadow forced ON in every baseline), and the ship-parity re-measure that caught the artifact ran at
+**seed 47225, which has zero campfires** — so it could not price this change. Redone here on the
+fixed probe, at the only place the lever exists.
+
+**Config (every row):** seed **12** (rolls `time=NIGHT`; probe census `campfires=4` — the same
+four-fire load the arena bench used), windowed **1280x720**, `scaling_3d/scale = 0.75`,
+renderer **forward_plus**, **Intel UHD Graphics**, Godot 4.7.stable, single Godot instance verified
+before and after each run (`ps` count 0 both sides — the `quit(0)` fix holds).
+`[PERF] ship config: sun shadow_enabled=false max_distance=100.0` on both runs.
+
+## A — the build that SHIPS (fake fire: additive billboards + particles, no light)
+
+| phase | fps avg | prims | calls |
+|---|---:|---:|---:|
+| baseline | 32.7 | 137,662 | 1,389 |
+| no_campfires | 32.7 | 135,526 | 1,382 |
+| baseline_2 | 33.8 | 135,530 | 1,384 |
+| no_canopy | **41.3** | 120,122 | **183** |
+| baseline_3 | 33.2 | 135,530 | 1,384 |
+| no_clutter | 33.6 | 133,960 | 1,355 |
+| baseline_4 | 32.7 | 135,562 | 1,384 |
+| no_sun_shadow | 33.8 | 135,530 | 1,384 |
+| baseline_5 | 33.5 | 135,530 | 1,384 |
+
+**Noise floor 1.1 FPS.** `no_campfires` **−0.5 INSIDE NOISE** · `no_canopy` **+7.8** ·
+`no_clutter` +0.6 INSIDE NOISE · `no_sun_shadow` +0.6 INSIDE NOISE (probe warned it measures nothing —
+ship config already has the shadow off).
+
+## B — the SAME build with the four `OmniLight3D`s temporarily restored, then removed again
+
+| phase | fps avg | prims | calls |
+|---|---:|---:|---:|
+| baseline | 31.7 | 150,200 | 1,483 |
+| no_campfires | 32.1 | 146,663 | 1,477 |
+| baseline_2 | 32.2 | 149,131 | 1,473 |
+| no_canopy | **40.4** | 130,247 | **250** |
+| baseline_3 | 32.7 | 147,127 | 1,463 |
+| no_clutter | 31.3 | 144,341 | 1,434 |
+| baseline_4 | 29.9 | 145,499 | 1,469 |
+| no_sun_shadow | 31.9 | 146,036 | 1,476 |
+| baseline_5 | 31.9 | 145,438 | 1,476 |
+
+**Noise floor 2.8 FPS.** `no_campfires` **+0.2 INSIDE NOISE** · `no_canopy` **+8.0** ·
+`no_clutter` −0.0 · `no_sun_shadow` +1.0 INSIDE NOISE.
+
+## THE ANSWER: THIS CHANGE BANKS NO MEASURABLE FPS, AND THAT IS THE FINDING
+
+| | cost of hiding all 4 campfires | run noise floor |
+|---|---:|---:|
+| shipped fake fire | **−0.5 FPS** | 1.1 |
+| with real `OmniLight3D` | **+0.2 FPS** | 2.8 |
+
+**Both levers are inside their own run's noise floor, and they differ by 0.7 FPS — itself inside both
+floors.** The honest statement is not "the lights cost ~1 FPS"; it is: **at ship parity the four
+campfire `OmniLight3D`s cost less than this instrument can resolve, and deleting them banks nothing
+measurable even at a night seed with all four fires lit.** At seed 47225 — the shipped default, which
+rolls DAY — there are no campfires at all, so it banks a clean **0.0**.
+
+**This supersedes my earlier "~1.0 FPS implied" figure**, which was derived from two levers measured
+against a shadow-inflated baseline. Direction of the error, stated: a heavier baseline compresses FPS
+deltas, so that figure was if anything generous. **The real number is "unmeasurable", not "small".**
+
+**Against the bead's "~+8.6 FPS" for ADR-026 Part A #1: none of it is banked here, and none of it was
+banked by the muzzle-flash half either.** The 8.6 came from `ai_stress_arena` — a night firefight with
+flares, fires and 18v18 — measured with the same shadow artifact now retired twice. Muzzle flashes are
+45–60ms transients (`FLASH_SECONDS = 0.06`) and were never resident long enough to move a sustained
+average. **ADR-026 Part A #1 is a CANON win, not a perf win, and the bead should stop promising one.**
+
+**What it does buy, and this is worth having:** ADR-026's cap (<=8 real-time lights, 0 dynamic
+shadows) is now structurally true rather than aspirational. There are **zero non-exempt real-time
+light spawners left in the codebase** (`illum_flare.gd:30`, `tunnel_room.gd:55`,
+`ai_stress_arena.gd:537` are the three exempt-by-decree survivors), and `tests/test_fake_lights.gd`
+(18 checks, 0 FAIL) turns red if one returns *or* if an exempt one is deleted.
+
+**Canopy is confirmed as the only real lever, now at three seeds/configs:** +6.3 (seed 47225 ship
+parity), **+7.8 and +8.0** (seed 12 night, both builds), against noise floors of 1.4 / 1.1 / 2.8. It
+drops **~1,200 of ~1,400 draw calls (85%)** while moving primitives ~12%. It is call-bound, and it is
+where the frame actually is.
