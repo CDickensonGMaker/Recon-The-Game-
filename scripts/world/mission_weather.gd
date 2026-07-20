@@ -18,10 +18,10 @@ const WEATHER := {
 }
 
 const TIMES := {
-	"DAY": {"sun_x": -50.0, "energy": 1.0, "sun_color": Color(1, 0.98, 0.9), "sight": 1.0, "ambient": 0.9},
-	"DAWN": {"sun_x": -10.0, "energy": 0.65, "sun_color": Color(1.0, 0.7, 0.45), "sight": 0.8, "ambient": 0.5},
-	"DUSK": {"sun_x": -8.0, "energy": 0.55, "sun_color": Color(1.0, 0.55, 0.35), "sight": 0.75, "ambient": 0.45},
-	"NIGHT": {"sun_x": -35.0, "energy": 0.08, "sun_color": Color(0.6, 0.7, 0.95), "sight": 0.4, "ambient": 0.15},
+	"DAY": {"sun_x": -50.0, "energy": 1.0, "sun_color": Color(1, 0.98, 0.9), "ambient": 0.9},
+	"DAWN": {"sun_x": -10.0, "energy": 0.65, "sun_color": Color(1.0, 0.7, 0.45), "ambient": 0.5},
+	"DUSK": {"sun_x": -8.0, "energy": 0.55, "sun_color": Color(1.0, 0.55, 0.35), "ambient": 0.45},
+	"NIGHT": {"sun_x": -35.0, "energy": 0.08, "sun_color": Color(0.6, 0.7, 0.95), "ambient": 0.15},
 }
 
 var _rain: GPUParticles3D
@@ -89,7 +89,9 @@ func _apply_time(time_id: String, immediate: bool = true) -> void:
 	var t: Dictionary = TIMES.get(time_id, TIMES["DAY"])
 	var w: Dictionary = _weather if not _weather.is_empty() else WEATHER["CLEAR"]
 
-	sight_mult = float(w.sight) * float(t.sight)
+	## Weather only. Time-of-day darkening lives in SightCap.darkness_mult (SimClock),
+	## the single time authority; folding t.sight here too would double-count night.
+	sight_mult = float(w.sight)
 	is_night = time_id == "NIGHT"
 
 	if _world == null or not is_instance_valid(_world):

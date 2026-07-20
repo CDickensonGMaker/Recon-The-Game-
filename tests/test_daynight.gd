@@ -32,8 +32,12 @@ func _run() -> void:
 	# 10:00 -> 21:00. At ratio 60 one real second is one sim minute.
 	_advance_to(21.0)
 	_expect(MissionWeather.is_night, "after dusk->night: is_night TRUE")
-	_expect(is_equal_approx(MissionWeather.sight_mult, 0.4),
-		"night tightens sight_mult to 0.4 (got %.3f)" % MissionWeather.sight_mult)
+	# sight_mult is now WEATHER ONLY - CLEAR stays 1.0 at night. Time-of-day darkening
+	# moved to SightCap.darkness_mult (SimClock); folding it here too would double-count.
+	_expect(is_equal_approx(MissionWeather.sight_mult, 1.0),
+		"sight_mult is weather-only now: stays 1.0 at CLEAR night (got %.3f)" % MissionWeather.sight_mult)
+	_expect(is_equal_approx(SightCap.darkness_mult(), 0.4),
+		"night tightens SightCap.darkness_mult to 0.4 (got %.3f)" % SightCap.darkness_mult())
 
 	# ...and back. A latch that only ever sets night is not a cycle.
 	_advance_to(10.0)
