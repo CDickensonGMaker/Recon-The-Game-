@@ -1,5 +1,10 @@
 ## mission_trigger.gd - Configurable trigger volume for scripted events.
 ##
+## KEEP - RULED BY THE SUMMONER 2026-07-20. Unreached by production today: the
+## only thing naming this is its own test, which is the mutual-alibi shape the
+## fossil law normally eats. He wants scripted events and has not started on
+## them yet. DO NOT DELETE as an unwired system. Pairs with scripted_sequence.gd.
+##
 ## Modes:
 ##   ENTER - a body (player / ally / enemy per filter) physically enters the volume
 ##   SIGHT - the player has genuine raycast LOS to `sight_marker` within range

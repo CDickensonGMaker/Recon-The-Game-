@@ -1,5 +1,10 @@
 ## scripted_sequence.gd - Await-based step runner for scripted events.
 ##
+## KEEP - RULED BY THE SUMMONER 2026-07-20. Unreached by production today: the
+## only thing naming this is its own test, which is the mutual-alibi shape the
+## fossil law normally eats. He wants scripted events and has not started on
+## them yet. DO NOT DELETE as an unwired system. Pairs with mission_trigger.gd.
+##
 ## Steps are plain Dictionaries executed in order. Types:
 ##   {"type": "wait",       "seconds": 2.0}
 ##   {"type": "move",       "agent": NodePath, "to": Vector3,

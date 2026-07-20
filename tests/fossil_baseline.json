@@ -1,7 +1,7 @@
 {
 	"_comment": "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'fossils', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>, which records provenance in grandfather_log.",
-	"ceiling": 26,
-	"count": 26,
+	"ceiling": 24,
+	"count": 24,
 	"fossils": [
 		"scripts/autoload/combat_manager.gd|func|clear_all_projectiles",
 		"scripts/gameplay/radio_handset.gd|func|can_take",
@@ -26,8 +26,6 @@
 		"scripts/visuals/model_actor.gd|func|ragdoll_bone",
 		"scripts/visuals/model_actor.gd|func|wake_ragdoll",
 		"terrain/core/gameplay_grid.gd|func|mark_cleared",
-		"terrain/systems/terrain_vfx.gd|func|play_line_effect",
-		"terrain/systems/terrain_vfx.gd|func|stop_effect",
 		"terrain/water/water_system.gd|func|get_water_type"
 	],
 	"grandfather_log": []
