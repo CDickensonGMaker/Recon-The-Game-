@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ctestgibevictlt"]
+
+[ext_resource type="Script" path="res://tests/test_gib_evict_lifetime.gd" id="1_tgel"]
+
+[node name="TestGibEvictLifetime" type="Node3D"]
+script = ExtResource("1_tgel")

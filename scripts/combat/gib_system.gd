@@ -282,11 +282,16 @@ static func _spawn_frag(src: MeshInstance3D, at: Transform3D, dir: Vector3, pare
 		var oldest: Variant = _live_frags.pop_front()
 		if is_instance_valid(oldest):
 			(oldest as Node).queue_free()
+	# Resolved by id: the MAX_LIVE_FRAGS eviction above frees bodies whose lifetime
+	# timers are still pending, and a lambda capture of a freed Object cannot be
+	# guarded from inside.
+	var frag_id: int = body.get_instance_id()
 	var timer: SceneTreeTimer = body.get_tree().create_timer(gib_lifetime_s)
 	timer.timeout.connect(func() -> void:
-		if is_instance_valid(body):
-			_live_frags.erase(body)
-			body.queue_free())
+		var b := instance_from_id(frag_id) as Node
+		if b != null:
+			_live_frags.erase(b)
+			b.queue_free())
 
 
 ## A skinned mesh re-instanced WITHOUT its skeleton renders at bind pose in the
@@ -343,11 +348,16 @@ static func _spawn_gib(src: MeshInstance3D, at: Transform3D, dir: Vector3, force
 		var oldest: Variant = _live_gibs.pop_front()
 		if is_instance_valid(oldest):
 			(oldest as Node).queue_free()
+	# Resolved by id: the MAX_LIVE_GIBS eviction above frees bodies whose lifetime
+	# timers are still pending, and a lambda capture of a freed Object cannot be
+	# guarded from inside.
+	var gib_id: int = body.get_instance_id()
 	var timer: SceneTreeTimer = body.get_tree().create_timer(gib_lifetime_s)
 	timer.timeout.connect(func() -> void:
-		if is_instance_valid(body):
-			_live_gibs.erase(body)
-			body.queue_free())
+		var b := instance_from_id(gib_id) as Node
+		if b != null:
+			_live_gibs.erase(b)
+			b.queue_free())
 
 
 ## MissionScope hygiene - gore must not leak across missions.
