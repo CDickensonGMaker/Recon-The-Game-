@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://csuls60ntt6eq"]
-
-[ext_resource type="Script" path="res://tests/probe_smoke_all.gd" id="1_psa"]
-
-[node name="ProbeSmokeAll" type="Node"]
-script = ExtResource("1_psa")
