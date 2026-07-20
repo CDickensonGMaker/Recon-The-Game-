@@ -28,9 +28,9 @@ assets/audio/vo/
 assets/audio/ambience/jungle_day.mp3
 .beads/.~*
 
-# Derived character blends - regenerated from the tracked truth source, ~90 MB each.
-# us_base_v3.blend is a pure function of us_grunt_v2.blend + tools/make_base_v3.py.
-# Committing it would repeat the 165 MB blob mistake (RECONgame-t04t).
+# Derived character blends, ~90 MB each.
+# us_base_v3.blend is NOT among them: us_grunt_v2.blend does not exist on disk,
+# so it cannot be regenerated. It is the truth source and rides in LFS.
 art_source/characters/base_psx/us_base_v3.blend
 art_source/characters/lineup_review.blend
 art_source/characters/variants/
@@ -97,3 +97,8 @@ production/cinematics/**/*.blend
 **/gear_armory_BEFORE_civsplit.blend
 **/us_base_v3.blend
 **/lineup_review.blend
+
+# The truth source is the one file here that cannot be regenerated, so it rides
+# in LFS rather than staying untracked on a single disk. Git stores a pointer,
+# never the blob, so the 100 MB ceiling is not in play.
+!assets/us/characters/us_base_v3.blend
