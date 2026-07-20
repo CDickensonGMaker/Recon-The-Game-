@@ -1,6 +1,12 @@
 # ADR-008: Walkable firebase hub ratified as the campaign spine — with conditions
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends the 2026-07-09 decree's SHRINK ruling ("HQ tent → menu-first version"); amends DESIGN.md §2 mission-loop framing (the loop's front half now lives inside the hub, not a screen stack)
 
+> **POINTER CORRECTION, 2026-07-19 — ruling unchanged.** `DESIGN.md §2` (cited at `:2` and `:19`) is a
+> **dead pointer**: `DESIGN.md` has no numbered sections, so the "seven elements" comparison at `:19` has
+> no source to compare against. For this ADR's *current* standing, read
+> `production/adr/ADR-029-amendments-008-006.md` (**DRAFT, awaiting Summoner ratification**), which
+> proposes voiding conditions 1 and 2.
+
 ## Context
 The 2026-07-09 decree ordered the HQ tent SHRUNK to a menu-first version. Roughly eight hours
 later, commit `4573616` ("PHASE B: the firebase-hub loop - operation -> live firebase -> TOC

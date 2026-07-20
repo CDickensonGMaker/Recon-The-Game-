@@ -1,6 +1,13 @@
 # ADR-001: Renderer of record: 3D PSX models; sprite matrix killed
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) — **RATIFIED BY THE SUMMONER, 2026-07-10:** "we are using 3d models for everything in this game… 2d sprites can be used for far away action if its helpful resource wise." This ADR is now Summoner-confirmed law, exactly as written below. · **Supersedes/Amends:** CLAUDE.md line 3 (renderer clause) · DESIGN.md §4.9 · SPRITE_INTEGRATION_PLAN.md (retired) · re-affirms the audit #1 KILL ruling that was never executed
 
+> **POINTER CORRECTION, 2026-07-19 — the ruling is unchanged; only its citations were checked.**
+> Every `DESIGN.md §4.9` reference in this ADR (`:2, :24, :44, :64`) is a **dead pointer**: `DESIGN.md`
+> has no numbered sections at all — its headings are prose. The amendment this ADR ordered there has no
+> target, so nothing is owed against it. The ADR's substance is intact and remains law: **3D models for
+> everything; the sprite renderer is dead.** Corrected downstream this pass:
+> `../bible/09_CHARACTERS_ART.md` still listed the killed sprite pipeline as owed work.
+
 ## Context
 The founding docs canonize a CULTIC-style sprite renderer. CLAUDE.md:3 sells the game as
 "8-directional billboard sprite characters (CULTIC-style)", and DESIGN.md:83-84 (§4.9) specifies the

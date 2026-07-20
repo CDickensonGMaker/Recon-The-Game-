@@ -79,6 +79,18 @@ decree item 7 (LAW & LEDGER CLEANUP). Verification per ADR-015's law: prompt-tru
 
 ## Evidence
 
+> **EVIDENCE RE-VERIFIED 2026-07-19 — the DECISION above is unchanged and still law.** The block below
+> was written 2026-07-10 and its pointers have rotted. Re-measured today:
+> - `project.godot:245` — `interact` (was cited `:230-233`). **Still true.**
+> - `project.godot:121` — `lean_right` (was cited `:106-109`). **Still true.**
+> - `project.godot:211-231` — `squad_follow/hold/move/fire_toggle` each dual-bound C/H/X/N +
+>   F1–F4 (physical 67/72/88/78 + 4194332–4194335), was cited `:196-217`. **Still true — this is the
+>   ADR's surviving substantive rule.**
+> - `scripts/main/hub_controller.gd` and `scripts/missions/insertion_ride.gd` — **both DELETED.** Every
+>   line cited against them (`hub_controller.gd:4,47,48,53,54`, `insertion_ride.gd:104-107`) points at
+>   nothing. The `[E]`-vs-`interact` mismatch they evidenced no longer exists to fix.
+> - The `PLAYER_MANUAL.md:23` fix this ADR ordered at `:30` **was never done**; corrected 2026-07-19.
+
 - project.godot:230-233 — `interact` = physical 70 (F), single binding. VERIFIED
 - project.godot:106-109 — `lean_right` = physical 69 (E). VERIFIED
 - hub_controller.gd:47,53 (scripts/main/) — prompts print `[E]`; :48,:54 listen `interact` only. VERIFIED

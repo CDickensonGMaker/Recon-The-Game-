@@ -1,5 +1,23 @@
 # DESTRUCTIBLE JUNGLE — plan for the CODE window
 
+> **KEEP — Summoner's ruling, 2026-07-19.** Destructible terrain stays on the roadmap; this plan is
+> live, not history. **But its diagnosis has partly aged out — re-verify before you build from it:**
+>
+> - ⛔ **FALSE NOW:** "`update_region()` … **runs its body never**" (§ below). `update_region` is
+>   `terrain/core/gameplay_grid.gd:453` and is now **three lines that delegate to `rebuild_rect`**. The
+>   `get_density_at` guard it described is gone. Do not plan around a no-op.
+> - ⛔ **FALSE NOW:** the callers named as `SitePlanner.stamp_firebase()` / `stamp_outpost()` **do not
+>   exist**. Real stamps: `scripts/world/site_planner.gd:208 stamp_village`, `:582 stamp_vc_camp`,
+>   `:598 stamp_lz`.
+> - ⛔ **STALE LINE NUMBER:** `mark_cleared()` is cited below as `:600`; it is
+>   `terrain/core/gameplay_grid.gd:458`.
+> - ✅ **STILL TRUE, and this is the residue worth keeping:** `mark_cleared()` has **zero callers
+>   repo-wide** (grep over `scripts/ terrain/ tests/ tools/`, 2026-07-19 — the only other hit is a
+>   comment in `tools/probe_riparian.gd:166`). The one function that writes `TerrainType.CLEAR` and
+>   `vegetation_density = 0.0` is still called by nothing.
+> - **Unverified this pass, do not treat as fact:** the downstream "every LZ is a lie" conclusion about
+>   `enemy_base._sight_cap()` depended on the now-false no-op claim. Re-measure it before acting.
+
 > **Two windows are working in parallel.**
 > The **Blender window** owns `tools/make_jungle_*.py`, the GLB exports, and `patches.json`.
 > **This window owns all GDScript.**

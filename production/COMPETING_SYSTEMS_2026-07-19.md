@@ -7,6 +7,22 @@ where a document or a bead disagreed with the code, the code won (three times, b
 
 **26 competing groups found.** Ranked by *how much wrong work each would cause*, not by size.
 
+> ## CORRECTION BANNER — re-measured 2026-07-19, later the same day
+>
+> **This is a correction, not a rewrite. The remaining 22 groups still stand and the Summoner has ruled
+> on none of them.** Four entries were fixed in the hours after the audit was written and are now
+> **CLOSED — do not act on them:**
+>
+> | Entry | Status now | Pointer |
+> |---|---|---|
+> | `height_scale` split authority | **CLOSED** — all readers on `TerrainConfig.WORLD_HEIGHT_MAX` | `terrain/core/heightmap_storage.gd:12,19` · `terrain/core/terrain_chunk.gd:15,44` · `scripts/levels/game_world.gd:128` |
+> | Night authority | **CLOSED** — one authority | `scripts/world/mission_weather.gd:53,93` |
+> | `TerrainEngine` duplicate height | **CLOSED** — it no longer declares `get_height_at`; the only real one is `terrain/core/terrain_manager.gd:267` (the other hit is a local test stub, `scripts/levels/ai_stress_arena.gd:16`) | grep `func get_height_at`, 2 hits |
+> | **THE META-FINDING below** (the fossil-probe mutual alibi) | **CLOSED** — `_judge()` now subtracts declarations from occurrences, so N competing dead implementations can no longer vouch for each other | `tests/test_fossils.gd:272-277` |
+>
+> The meta-finding's *diagnosis* remains the best explanation of how the blind spot formed — read it as
+> history, not as a live defect.
+
 ---
 
 ## THE META-FINDING: why the fossil probe cannot see any of this

@@ -1,6 +1,11 @@
 # ADR-009: Survival v1 scope: hunger parked, weapon condition kept
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends the Survival v1 ship (commit 0330bba, "PHASES C+D: survival v1"); scopes an unratified system that appears in no design doc (hunger is absent from DESIGN.md, RECON_ADAPTATION.md, and MISSION_DESIGN_RESEARCH.md)
 
+> **POINTER CORRECTION, 2026-07-19 — ruling unchanged.** The `DESIGN.md §4.3` citations at `:46` and
+> `:89` are **dead pointers**: `DESIGN.md` has no numbered sections and contains no stoppage philosophy.
+> The weapon-weighted per-magazine target state therefore rests on **this ADR alone**, not on a
+> DESIGN.md mandate. Do not go looking for §4.3.
+
 ## Context
 
 Survival v1 shipped in commit 0330bba as a two-meter system — hunger and weapon condition — plus

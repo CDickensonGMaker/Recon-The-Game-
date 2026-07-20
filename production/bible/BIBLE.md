@@ -1,12 +1,20 @@
 # RECONgame — THE BIBLE (index of record)
 
+> **STATUS BANNER — as of 2026-07-19.** This Bible was written 2026-07-08 and is **outranked by
+> `production/adr/` and `production/GAME_GUIDE.md`** (ADR-014). Where it disagrees with an ADR, the ADR
+> wins. Sections below carrying `⛔ SUPERSEDED` describe a loop ADR-029 deleted — read them as history.
+> Unbannered sections are still 2026-07-08 opinion unless they cite `file:line`.
+
 **Purpose:** the strict, canonical spec every decision must obey. `DESIGN.md` is the vision;
-this Bible is the *enforced detail* per section. If code contradicts the Bible, the code is wrong
-(or the Bible gets an amended decision — never a silent drift).
+this Bible is the *enforced detail* per section. **Precedence (ADR-014): ADR → `GAME_GUIDE.md` → this
+Bible → `DESIGN.md`.** Where code contradicts the Bible and no ADR governs, that is a finding — file a
+bead; never a silent drift in either direction. The Bible does not outrank an ADR or shipped, probed code.
 
 **Law:** every section obeys the 5 Pillars (see `00_PILLARS`). No section may violate a Pillar.
 
-**Companion docs:** `../../DESIGN.md` (vision + M0–M8), `../../STATE_OF_PROJECT.md` (what exists),
+**Companion docs:** `../../DESIGN.md` (vision; it has **no M0–M8 roadmap and no numbered sections** —
+every `DESIGN.md §N` pointer in this Bible is dead, see the note under the section map),
+`../../STATE_OF_PROJECT.md` (origins only — its state-of-the-code is frozen at 2026-07-07 and wrong),
 `../../MISSION_DESIGN_RESEARCH.md` (AI/pacing), `../../RECON_ADAPTATION.md` (tabletop→realtime),
 
 **Cinematic Direction (DRAFT — see ADR-024):** late-1998-to-2003 prerendered military cinematics
@@ -28,43 +36,71 @@ pending Summoner ratification.
 | # | Section | File | Status | Covers |
 |---|---------|------|--------|--------|
 | 00 | Pillars & Laws | `00_PILLARS.md` | 🌱 | the 5 pillars, the test-every-decision law, fairness rules |
-| 01 | Game Loop | `01_GAME_LOOP.md` | 🌱 | operation-style front door → campaign hub → mission loop → debrief |
+| 01 | Game Loop | `01_GAME_LOOP.md` | ⛔ | **SUPERSEDED by ADR-029** — the operation-style front door, offer card and debrief screen are deleted; the loop is the open patrol |
 | 02 | Gunplay & Damage | `02_GUNPLAY_DAMAGE.md` | ⬜ | weapons, ballistics, RECON dice, hitzones, falloff, 3-situation asymmetry, stoppages |
 | 03 | Detection & Enemy AI | `03_AI_DETECTION.md` | ⬜ | 4 alert tiers, accumulator, NoiseBus, hybrid FSM, archetypes, cover, EnemySquad, escalation |
 | 04 | Squad (the RPG) | `04_SQUAD.md` | ⬜ | MOS verbs (Point/RTO/Medic…), 5 orders, revive chain, permadeath, buddy rules |
 | 05 | Campaign & Roster | `05_CAMPAIGN_ROSTER.md` | ✅ | operation styles (SF/Army/Marines), HQ tent, province/war-state, 100 bios, persistence, XP economy |
-| 06 | Mission Generation | `06_MISSION_GEN.md` | ⬜ | taxonomy, 2–4 objectives, site pass, contact deck, **scripted events**, intensity curve, rolls |
-| 07 | Insertion & Exfil | `07_INSERT_EXFIL.md` | ⬜ | Huey ride, AA/hot-LZ, exfil archetypes, **driveable vehicles**, boarding dash |
+| 06 | Mission Generation | `06_MISSION_GEN.md` | ⬜ | site pass, contact deck, intensity curve, rolls. **The "taxonomy / 2–4 objectives" framing is dead (ADR-029)** — one type, `"PATROL"` (`scripts/missions/mission_generator.gd:540`) |
+| 07 | Insertion & Exfil | `07_INSERT_EXFIL.md` | ⛔ | **SUPERSEDED by ADR-029** — no Huey ride, no exfil step; `scripts/missions/insertion_ride.gd` is deleted |
 | 08 | World & Terrain | `08_WORLD_TERRAIN.md` | 🌱 | TerrainEngine FPS profile, site stamps, **roads**, firebase realism, **barbwire/hazards**, sight caps |
 | 09 | Characters & Art | `09_CHARACTERS_ART.md` | ✅ | 3D + FP viewmodel pipeline, **faction models, soldier variety, slimmer topology**, civilians, sprites |
 | 10 | UI & Audio | `10_UI_AUDIO.md` | ⬜ | diegetic-first HUD, barks, jungle beds, weapon synth bank, radio VO |
 | 11 | Support & Fire Missions | `11_SUPPORT_FIRE.md` | ⬜ | RTO-gated arty (spot→correct), TACAIR, illum, enemy mortars |
 
 **Fill order (next sessions):** 00 → 01 → 02 → 03 → 04 → 06 → the rest. 05 and 09 are written now
-(they hold tonight's campaign + asset notes). Each ⬜ expands from its `DESIGN.md §4.x` source + its beads.
+(they hold the 2026-07-08 campaign + asset notes).
+
+> **DEAD POINTER, corrected 2026-07-19:** this line used to send you to a `DESIGN.md §4.x` source.
+> `DESIGN.md` has no numbered sections at all — its headings are prose (`## Pillars`, `## The Player
+> Loop`, `## Technology Stack`). Every `DESIGN.md §N` / `DESIGN §N` citation in `production/bible/` and
+> `production/adr/` resolves to nothing. Expand a ⬜ section from `production/adr/` + the code + its
+> beads, never from a `§` pointer.
 
 ---
 
 ## 00 · Pillars & Laws (🌱 seed — promote to `00_PILLARS.md`)
 
-The five, from `DESIGN.md §1`. **Test every decision against these; the Arbiter guards them.**
+> **⚠ UNRESOLVED — TWO COMPETING PILLAR TEXTS. AWAITING THE SUMMONER'S RULING (raised 2026-07-19).**
+> This section cites `DESIGN.md §1`, which does not exist, and the five it lists are **not** the five
+> under `## Pillars` in `DESIGN.md:67-94`:
+> | # | This Bible (`:53-58`) | `DESIGN.md:69-94` |
+> |---|---|---|
+> | 1 | Outstanding gunplay | Believable Firefights |
+> | 2 | Atmosphere | Squad Attachment |
+> | 3 | Freedom | Player as Participant, Not Director |
+> | 4 | The squad is the RPG | World as Story Generator |
+> | 5 | Fail forward | Consequences Without Cruelty |
+>
+> The Bible's five are the ones actually enforced everywhere else — `CLAUDE.md:14`,
+> `.claude/agents/recon-overseer.md`, and the ADR set all quote them. That is *evidence of practice,
+> not a ruling*: this is the project's highest law and only the Summoner may declare which text is
+> canonical (or reconcile them). **Do not cite `DESIGN.md §1`. Until he rules, treat the two as one
+> open question and use the enforced set below.**
+
+The five below. **Test every decision against these; the Arbiter guards them.**
 1. **Outstanding gunplay** — HLL lethality; death from *situation* (ambush asymmetry, exposure, volume of fire), not bullet sponges.
 2. **Atmosphere** — dense jungle, weather, night, audio; the AO feels like a war is happening around you.
 3. **Freedom** — open AO; objectives are places/things; any route, any order, loud or quiet; stealth is an economy, never a gate; nothing on rails.
 4. **The squad is the RPG** — named persistent teammates with MOS roles who improve, get wounded, rotate home, and die for real. Minimal stats, maximal attachment.
 5. **Fail forward** — detection escalates, failure mutates, a dead mission generates the next story. Never reload-and-memorize.
 
-**Fairness law (DESIGN §4.2):** alert ≠ accuracy; AI accuracy ramps with player exposure; first shot at an unaware player is a near-miss; muzzle flash / tracers / vocalizations always telegraph.
+**Fairness law** (of record in `../adr/ADR-005-detection-beacon-witness-rule.md` and `../../CLAUDE.md`; the old
+`DESIGN §4.2` pointer is dead)**:** alert ≠ accuracy; AI accuracy ramps with player exposure; first shot at an unaware player is a near-miss; muzzle flash / tracers / vocalizations always telegraph.
 
 **Tonal north star:** the **grunt-infantry film canon — Platoon · Hamburger Hill · Apocalypse Now** (plus
-Men of Valor / SOCOM flavor from DESIGN §1). Attrition, dread, moral weight, boredom-then-terror, the squad
+Men of Valor / SOCOM flavor; the old `DESIGN §1` pointer is dead — see `DESIGN.md` "Tone" and "One-Sentence Pitch"). Attrition, dread, moral weight, boredom-then-terror, the squad
 as your only anchor. Worn and unglamorous — you are a line grunt, not a clean-kit operator. (SF/Marines = DLC.)
 
 **Process law:** finished work closes its bead with a one-line resolution; the Bible is amended by explicit decision, never by drift.
 
 ---
 
-## 01 · Game Loop (🌱 seed — promote to `01_GAME_LOOP.md`)
+## 01 · Game Loop — ⛔ SUPERSEDED BY ADR-029 (kept as history, 2026-07-19)
+
+> The Operation-Style front door was **never built and is now out of scope**: launch is ONE faction, the
+> Army grunt (`05` below), and ADR-029 removed the front-door screen stack entirely. Below is the
+> 2026-07-08 proposal, retained only to explain the vocabulary in older docs.
 
 **NEW front door (2026-07-08 decision, pending War Room):** the *first* choice each campaign is
 **Operation Style** — Special Forces / Regular Army / Marines. It sets: soldier model set, starting
@@ -90,11 +126,19 @@ Other 08 canon (barbwire hazard, sight caps, firebase realism, FPS terrain profi
 
 ---
 
-**Campaign layer (the "open world," DESIGN §2):** persistent province map (villages, firebases,
+## ⛔ SUPERSEDED BY ADR-029 — the offer/briefing/exfil loop (kept as history, 2026-07-19)
+
+> **This whole block describes a loop that no longer exists in the game.** ADR-029 replaced it with the
+> **open patrol simulator**: no briefing UI, no offer card, no objective counter, no exfil step. The
+> generator produces exactly one mission type — `"PATROL"` (`scripts/missions/mission_generator.gd:540`).
+> Read below only to understand where the old vocabulary in other docs came from. **Do not build from it.**
+> The `DESIGN §2` citations it carried are dead pointers (`DESIGN.md` has no numbered sections).
+
+**Campaign layer (the "open world"):** persistent province map (villages, firebases,
 VC/NVA zones, trails, a war state that shifts with outcomes). From the **HQ tent / firebase hub**:
 pick an operation (weighted offers + forced events) → manage roster → spend team XP → loadout.
 
-**Mission loop (DESIGN §2):** `BRIEFING (7 RECON elements, intel-accuracy rolled) → INSERT (Huey on chosen
+**Mission loop:** `BRIEFING (7 RECON elements, intel-accuracy rolled) → INSERT (Huey on chosen
 route) → PLAY (open 1–1.5km AO, 2–4 live objectives, detection/escalation, squad orders, fire support) →
 EXFIL (player-triggered, archetype weighted by heat, boarding dash) → DEBRIEF (RECON scoring, XP, roster
 consequences, war-state update)`. Mission grammar: quiet approach → recon ring → objective spike → lull →

@@ -14,7 +14,9 @@ Detection is NOT accuracy. A unit becoming *aware* of the player does not make i
 - **Every threat telegraphs:** muzzle flash, tracers, voices, and the crack of a passing round always
   precede lethality. Death comes from *situation* (Pillar 1), never from an unseen dice roll.
 
-See DESIGN §4.2 (Living Fight Amendment 1) and the ADR-005 witness rule.
+See the ADR-005 witness rule (`../adr/ADR-005-detection-beacon-witness-rule.md`) and the Fairness law in
+`../../CLAUDE.md`. *(The old `DESIGN §4.2` / "Living Fight Amendment 1" pointer is dead — `DESIGN.md` has
+no numbered sections and no amendments.)*
 
 ## The perception pipeline (as built)
 

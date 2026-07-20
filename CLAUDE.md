@@ -7,7 +7,12 @@ contradicts an ADR, the ADR wins and this file gets corrected.
 
 **Read these before designing anything:**
 - `DESIGN.md` — pitch, setting, core fantasy, tone, player loop, pillars, AI stress-test arena, tech stack, development priority (APPROVED). No M0–M8 roadmap lives here.
-- `STATE_OF_PROJECT.md` — origins (merged from HellOfDuty + TerrainEngine copies), decisions log
+- `STATE_OF_PROJECT.md` — origins (merged from HellOfDuty + TerrainEngine copies), decisions log.
+  **READ FOR ORIGINS ONLY — its state-of-the-code is frozen at 2026-07-07 and is now WRONG.** Its
+  MISSING/"build new" table (`:164-177`) lists the mission generator, AI alert states, stealth, saves,
+  audio and VFX as unbuilt; all shipped (`scripts/missions/mission_generator.gd`,
+  `scripts/enemies/enemy_base.gd:64` `enum AlertTier`, `scripts/autoload/save_manager.gd`). It also says
+  Godot 4.5 (we are 4.7) and "all NPCs are colored capsules" (ADR-001: 3D models for everything).
 - `MISSION_DESIGN_RESEARCH.md` — RTCW/MoHAA-derived mission/AI architecture
 - `RECON_ADAPTATION.md` — tabletop rules → real-time mappings (detection, XP scoring). **Its damage section is DEAD — it still describes a dice grammar (`rifle hit = 4d10`) that ADR-016 retired. Damage is flat and deterministic; take damage from ADR-016 and the Damage System section below, never from this file.**
 
@@ -232,6 +237,28 @@ WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## NO MORE DRIFT — correct it on contact (Summoner's standing law, 2026-07-19)
+
+**Summoner:** *"no more drift."*
+
+COMMENT DISCIPLINE, the FOSSIL LAW and the POINTER LAW are three faces of ONE disease. A fossil is dead
+code that reads as live. An unpointered doc is a claim that reads as verified. A stale charter is retired
+law that reads as binding. Every time, something in this repo asserts a state of the world that is no
+longer true — and the next reader, human or agent, acts on it.
+
+**THE RULE: when you touch a file and find a claim in it that is no longer true, you correct it or bead
+it IN THE SAME CHANGE. You never read past it.** Drift survives because everyone who noticed it was busy
+with something else.
+
+Measured 2026-07-19, each verified against code: the damage table below (`:180-187`) that made two War
+Room architects independently "verify" a canon violation that did not exist · four beads sending agents
+to hunt a `WorldBuilder` class with **zero hits repo-wide** · a `.gitignore` comment justifying an
+untracked 133 MB truth source as regenerable from `us_grunt_v2.blend`, **a file that does not exist** ·
+and `.claude/agents/recon-overseer.md:58` — *the head agent's own standing instructions* — enforcing the
+RECON dice that ADR-016 retired (`production/adr/ADR-003-one-damage-grammar.md:2`).
+
+---
+
 ## COMMENT DISCIPLINE — stop narrating (Summoner's law, 2026-07-13)
 
 **Summoner:** *"not put so many notes into the code as we are writing it — i think itll cut down on
