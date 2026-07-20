@@ -29,7 +29,6 @@ buses/default_bus_layout="uid://cdkcmjjgdd2j4"
 
 [autoload]
 
-GameEnums="*res://data/vietnam/game_enums.gd"
 GameManager="*res://scripts/autoload/game_manager.gd"
 NoiseBus="*res://scripts/autoload/noise_bus.gd"
 CampaignState="*res://scripts/autoload/campaign_state.gd"

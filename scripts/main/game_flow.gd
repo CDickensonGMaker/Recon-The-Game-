@@ -73,8 +73,12 @@ func _pause_barracks() -> void:
 
 
 func _pause_save() -> void:
-	SaveManager.save_to_slot(SaveManager.latest_slot() if SaveManager.latest_slot() >= 0 else 0)
+	var slot: int = SaveManager.latest_slot() if SaveManager.latest_slot() >= 0 else 0
+	var ok: bool = SaveManager.save_game(slot, "MANUAL")
 	_close_pause()
+	var hud: Node = get_tree().get_first_node_in_group("mission_hud")
+	if hud != null and hud.has_method("show_toast"):
+		hud.call("show_toast", "SAVED" if ok else "SAVE FAILED")
 
 
 ## Abandoning is a DEBRIEF, not a delete (Pillar 5: fail forward). Route through
