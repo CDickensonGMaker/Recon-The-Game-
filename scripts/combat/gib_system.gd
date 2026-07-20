@@ -158,12 +158,12 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 			print("[GORE] %s: region mesh '%s' missing - OFF-CONTRACT" % [model.unit, mesh_name])
 			continue
 		mi.visible = false
-		_spawn_gib(mi.mesh, gib_at, hit_dir, 3.5, gib_parent, model.gib_scale)
+		_spawn_gib(mi, gib_at, hit_dir, 3.5, gib_parent, model.gib_scale)
 		spawned = true
 	for gm in _gear_meshes(root, region, spec):
 		var gxf: Transform3D = gm.global_transform
 		gm.visible = false
-		_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.6, 2.2, gib_parent)
+		_spawn_gib(gm, gxf, hit_dir + Vector3.UP * 0.6, 2.2, gib_parent)
 
 	# 2.5 reveal the stump cap - caps ship hidden (ModelActor hides them with the
 	# gib donors).
@@ -230,14 +230,14 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 	var gib_at: Transform3D = skel.global_transform * pose_delta
 	for f in frags:
 		f.visible = false
-		_spawn_frag(f.mesh, gib_at, hit_dir, gib_parent, model.gib_scale)
+		_spawn_frag(f, gib_at, hit_dir, gib_parent, model.gib_scale)
 	# Gear (helmet) flies as its own lighter piece.
 	for gear_name: String in spec["gear"]:
 		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
 		if gm != null and gm.mesh != null:
 			var gxf: Transform3D = gm.global_transform
 			gm.visible = false
-			_spawn_gib(gm.mesh, gxf, hit_dir + Vector3.UP * 0.9, 3.0, gib_parent)
+			_spawn_gib(gm, gxf, hit_dir + Vector3.UP * 0.9, 3.0, gib_parent)
 	for cap_name: String in spec.get("caps", []):
 		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
 		if cm != null:
@@ -250,14 +250,16 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 
 ## Small fast fragment: sphere collider, radial spray, own FIFO so a burst
 ## can't flush the body-part gib budget.
-static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node,
+static func _spawn_frag(src: MeshInstance3D, at: Transform3D, dir: Vector3, parent: Node,
 		mesh_scale: float = 1.0) -> void:
+	var mesh: Mesh = src.mesh
 	var body := RigidBody3D.new()
 	body.collision_layer = 0
 	body.collision_mask = 1
 	body.mass = 0.3
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	_wear_donor_materials(src, mi)
 	mi.scale = Vector3.ONE * mesh_scale
 	body.add_child(mi)
 	var aabb: AABB = mesh.get_aabb()
@@ -291,8 +293,21 @@ static func _spawn_frag(mesh: Mesh, at: Transform3D, dir: Vector3, parent: Node,
 ## rig's own space, so parenting the gib at the skeleton's global transform puts
 ## it exactly where the limb stood and inherits the export-compensation + ADR-002
 ## normalization.
-static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, parent: Node,
+## A dressed man wears his face, his helmet cover and his gear tints as per-surface
+## OVERRIDES on the donor MeshInstance3D - the Mesh resource underneath is the stock
+## atlas cell every character shares. Cloning the Mesh alone hands the player a head
+## that changes face in mid-air. The donor is the source of truth, not its mesh, so
+## these spawners take the MeshInstance3D and never a bare Mesh.
+static func _wear_donor_materials(src: MeshInstance3D, dst: MeshInstance3D) -> void:
+	for s in range(src.get_surface_override_material_count()):
+		var m: Material = src.get_surface_override_material(s)
+		if m != null:
+			dst.set_surface_override_material(s, m)
+
+
+static func _spawn_gib(src: MeshInstance3D, at: Transform3D, dir: Vector3, force: float, parent: Node,
 		mesh_scale: float = 1.0) -> void:
+	var mesh: Mesh = src.mesh
 	var body := RigidBody3D.new()
 	body.collision_layer = 0
 	body.collision_mask = 1  # world only - gibs never block bullets or feet
@@ -302,6 +317,7 @@ static func _spawn_gib(mesh: Mesh, at: Transform3D, dir: Vector3, force: float, 
 	# Scale the MESH child, never the RigidBody (physics hates scaled bodies).
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	_wear_donor_materials(src, mi)
 	mi.scale = Vector3.ONE * mesh_scale
 	body.add_child(mi)
 

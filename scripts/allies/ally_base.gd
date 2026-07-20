@@ -288,6 +288,10 @@ func set_sprite(unit: String, weapon: String, faction: String = "US Army and Co"
 		mesh.queue_free()
 		mesh = null
 	_setup_visual()
+	# The zones were cut from the OLD body's mesh and ride the OLD skeleton's bone
+	# indices. A swap that skips this leaves damage regions mapped to a dead rig.
+	HitzoneBuilder.clear(self)
+	_setup_hurtbox()
 
 
 ## Dress the rendered man - THE game-side entry into the one shared

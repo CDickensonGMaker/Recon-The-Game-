@@ -167,6 +167,19 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 	return entries
 
 
+## Retire a body's zone set. A body swap frees the old ModelActor, so its zones
+## are measured against a skeleton that no longer exists - they must go before
+## build() runs again or the man carries two overlapping sets, one of them dead.
+## Detached synchronously (queue_free alone leaves them in the group all frame).
+static func clear(body: Node3D) -> void:
+	for c in body.get_children():
+		var hz := c as Hitzone
+		if hz == null:
+			continue
+		body.remove_child(hz)
+		hz.queue_free()
+
+
 ## Ride the bones - position AND orientation. Each zone aims its Y axis down the
 ## REAL joint-to-joint line, computed live per tick: bone local axes are NOT
 ## trustworthy across export generations. The bench's per-zone rotation override
