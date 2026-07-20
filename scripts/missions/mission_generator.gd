@@ -324,22 +324,29 @@ static func _attach_camp_directors(world: GameWorld, director: FieldDirector,
 
 
 static func _schedule_one_convoy(world: GameWorld, p: Dictionary, seed: int) -> void:
-	# Pick a 2-point route near the insertion LZ. In a real mission the route
-	# would be authored; for ambient flavor we draw a random 200-400m leg.
+	# The convoy drives the longest road in the network - the one carrying the most
+	# ground, and so the one most worth ambushing.
 	var spawner := ConvoySpawnerScript.new()
 	spawner.name = "ConvoySpawner"
 	spawner.rng.seed = seed + 8888
 	world.add_child(spawner)
-	var origin: Vector3 = p.get("insertion_lz", Vector3.ZERO)
-	var dest: Vector3 = origin + Vector3(spawner.rng.randf_range(200.0, 400.0), 0.0, spawner.rng.randf_range(-200.0, 200.0))
-	var route: Array[Vector3] = [origin, dest]
+	spawner.ambush_sites = p.get("ambush_sites", [])
+	var route: Array[Vector3] = []
+	if world.road_network != null:
+		for pt in world.road_network.longest_route():
+			route.append(pt)
+	if route.size() < 2:
+		return  # no road, no convoy - a truck does not drive through jungle
 	# Schedule 2 sim-hours from now. Day rolls over if we cross 24:00.
 	var cur_hour: float = SimClock.sim_hour if SimClock != null else 0.0
 	var fire_day: int = SimClock.sim_day if SimClock != null else 1
 	if cur_hour + 2.0 >= 24.0:
 		fire_day += 1
 	var fire_hour: float = fposmod(cur_hour + 2.0, 24.0)
-	spawner.schedule(fire_day, fire_hour, "truck", route, ["truck_m35"])
+	# Model names are asset basenames under ConvoySpawner.VEHICLE_MODEL_DIR - they must
+	# resolve to real .glb files (asserted by tests/test_roads.gd).
+	spawner.schedule(fire_day, fire_hour, "truck", route,
+		["m35_deuce_truck", "m35_deuce_truck", "m151_mutt_gun_jeep"])
 
 
 static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
@@ -541,6 +548,19 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		p.sites.append({"kind": "vc_camp", "center": cand})
 	p["camp_centers"] = camps
 
+	# ROADS. Planned here because a road is PURE DERIVED POSITION - it routes over the
+	# finished GameplayGrid and seats on the finished terrain, writing nothing. That
+	# keeps plan_patrol_world side-effect free, and it means the ambush planner below
+	# can already see the traffic lines. The corridor clearing (the one write a road
+	# performs) happens in build_patrol_world, not here.
+	#
+	# The hub is the wire gate and the spokes are the villages. VC camps are
+	# deliberately unconnected: a paved road to a Viet Cong base camp is absurd, and
+	# the planner scores distance to traffic rather than requiring it.
+	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
+	roads.build(gate, villages)
+	p["roads"] = roads
+
 	# First-sign craters: four sectors fanned across the gate's OUTWARD half-plane
 	# (ADR-029 amendment 2026-07-18) - the inward compass is the player's own base,
 	# and a crater must clear the wire by its own blast radius. Signs are
@@ -580,7 +600,7 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		var arng := RandomNumberGenerator.new()
 		arng.seed = op_seed + 5171 * (ci2 + 1)
 		var ambush: Dictionary = AmbushPlannerScript.plan(camps[ci2], garrison,
-			world.gameplay_grid, p.paddy_centroids, arng, site_keepout)
+			world.gameplay_grid, p.paddy_centroids, arng, site_keepout, roads)
 		if not ambush.is_empty():
 			var party: int = mini(int(ambush.soldiers), garrison - AMBUSH_CAMP_FLOOR)
 			ambush["soldiers"] = party
@@ -647,6 +667,16 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var bench_pos: Vector3 = (fsb.spawn_pos as Vector3) - (fsb.gate_out as Vector3) * 10.0
 	bench_pos.y = world.terrain_manager.get_height_at(bench_pos)
 	bench.global_position = bench_pos
+
+	# ROADS. The network was ROUTED in the plan pass (pure positions); this is where it
+	# becomes part of the world. Two things happen and nothing else: the world gets its
+	# authority reference, and the corridor is thinned - vegetation bundles only, never
+	# height, never terrain_type, never water. Deliberately before _wire_systems, which
+	# schedules the convoy that drives these roads.
+	world.road_network = p.get("roads", null) as RoadNetwork
+	if world.road_network != null:
+		world.road_network.clear_corridor(world.vegetation_manager,
+			world.terrain_manager.chunk_size, world.terrain_manager.heightmap)
 
 	var nav_baker: NavBaker = null
 	if WorldConfig.NAV_ENABLED:

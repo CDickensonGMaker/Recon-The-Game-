@@ -1,7 +1,7 @@
 ## ambush_planner.gd - where VC stage an ambush, given a camp and the terrain.
 ##
-## Constraints (the doc's "requirements"):
-##   - road/trail within 80m
+## Constraints:
+##   - PREFERS ground near a traffic line (road/trail) - a preference, never a gate
 ##   - 4-6 soldiers available in the camp garrison
 ##   - good cover within 30m of the kill zone
 ##   - line-of-sight from the kill zone to the trail is BLOCKED by jungle
@@ -12,7 +12,25 @@
 class_name AmbushPlanner
 extends RefCounted
 
-const ROAD_NEAR_M: float = 80.0
+## Distance to the nearest traffic line at which a site scores full marks. Men ambush
+## where things move.
+##
+## THIS IS A SCORE TERM AND MUST NEVER BECOME A HARD REJECT. Camps are sited 400-540m
+## from the wire gate; the road network's own termini (the villages) sit at 240-470m.
+## The camp band lies OUTSIDE the road band by construction, so a hard "road within
+## 80m" gate would return an empty plan for roughly one camp in three, every seed -
+## and the loss would be INVISIBLE, because a rejected ambush silently returns its men
+## to the camp garrison and no headcount changes. The AO would just quietly get duller.
+## Multiplicative weighting cannot zero a site, so adding roads can only MOVE an
+## ambush onto better ground, never delete one. tests/test_ambush_traffic.gd asserts
+## exactly that.
+const TRAFFIC_NEAR_M: float = 80.0
+## Beyond this, proximity to traffic contributes nothing. Between the two it fades.
+const TRAFFIC_FAR_M: float = 300.0
+## Score floor when a site is nowhere near traffic. The site still stands on its cover
+## and concealment - which is the substance - and merely scores below one that also
+## overwatches a road.
+const TRAFFIC_FLOOR: float = 0.55
 const COVER_NEAR_M: float = 30.0
 ## Fractions of COVER_NEAR_M to sample. LIGHT_JUNGLE (0.35) is the floor that counts
 ## as "good cover" - grassland (0.15) and paddy (0.1) are not concealment.
@@ -27,9 +45,11 @@ const CANDIDATES: int = 16
 
 ## `keepout` is the firebase rect (already grown by the caller's clearance). An
 ## empty Rect2 disables the test - synthetic grids have no firebase.
+## `roads` may be null - synthetic grids and any world built before the road network
+## exists have no traffic lines, and the planner must still return sites.
 static func plan(camp_pos: Vector3, garrison_size: int, grid: GameplayGrid,
 		paddy_centroids: Array, rng: RandomNumberGenerator,
-		keepout: Rect2 = Rect2()) -> Dictionary:
+		keepout: Rect2 = Rect2(), roads: RoadNetwork = null) -> Dictionary:
 	if grid == null or garrison_size < AMBUSH_SOLDIERS_MIN:
 		return {}
 	var best: Dictionary = {}
@@ -51,7 +71,8 @@ static func plan(camp_pos: Vector3, garrison_size: int, grid: GameplayGrid,
 		if cover_score < GOOD_COVER_MIN:
 			continue
 		var los_score: float = _los_blocked(grid, site)
-		var score: float = cover_score * 0.6 + los_score * 0.4
+		var traffic: float = _traffic_weight(roads, site)
+		var score: float = (cover_score * 0.6 + los_score * 0.4) * traffic
 		if score > best_score:
 			best_score = score
 			best = {
@@ -59,8 +80,31 @@ static func plan(camp_pos: Vector3, garrison_size: int, grid: GameplayGrid,
 				"soldiers": mini(garrison_size, AMBUSH_SOLDIERS_MAX),
 				"retreat_to": camp_pos,
 				"score": score,
+				"traffic_dist": _traffic_distance(roads, site),
 			}
 	return best
+
+
+## Distance from a site to the nearest road centreline, or INF when there is no road
+## network at all. INF means "no traffic line here" and must never be read as zero.
+static func _traffic_distance(roads: RoadNetwork, site: Vector3) -> float:
+	if roads == null:
+		return INF
+	return roads.distance_to_road(site)
+
+
+## Multiplier in [TRAFFIC_FLOOR, 1.0]. Full marks within TRAFFIC_NEAR_M, fading
+## linearly to the floor at TRAFFIC_FAR_M. Never returns zero - see TRAFFIC_NEAR_M.
+static func _traffic_weight(roads: RoadNetwork, site: Vector3) -> float:
+	var d: float = _traffic_distance(roads, site)
+	if is_inf(d):
+		return TRAFFIC_FLOOR
+	if d <= TRAFFIC_NEAR_M:
+		return 1.0
+	if d >= TRAFFIC_FAR_M:
+		return TRAFFIC_FLOOR
+	var t: float = 1.0 - (d - TRAFFIC_NEAR_M) / (TRAFFIC_FAR_M - TRAFFIC_NEAR_M)
+	return TRAFFIC_FLOOR + (1.0 - TRAFFIC_FLOOR) * t
 
 
 static func _near_paddy(pos: Vector3, centroids: Array) -> bool:

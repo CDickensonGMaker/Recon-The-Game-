@@ -13,6 +13,17 @@ const PAPER_HIGH := Color(0.80, 0.74, 0.58)
 const CONTOUR := Color(0.45, 0.36, 0.22)
 const WATER := Color(0.55, 0.66, 0.72)
 const GRID := Color(0.5, 0.42, 0.3, 0.35)
+## Roads are BASE SHEET, not intel. A 1968 survey map prints roads for the same reason
+## it prints rivers and contours: they are surveyed cartography, permanent terrain, and
+## this map already draws every river the player has never seen (see _render_base_map).
+## So roads are printed from mission start, whole, and never decay - they are the paper,
+## not a mark on it, and ADR-022's two-layer law governs MARKS.
+##
+## They are drawn in the contour ink at contour weight for exactly one reason: a road
+## must read as furniture, never as a destination. Saturated colour is reserved for the
+## player's grease pencil. Nothing is ever marked ON a road.
+const ROAD := Color(0.38, 0.30, 0.18)
+const ROAD_WIDTH_PX: float = 1.6
 
 var world: GameWorld
 var director: FieldDirector
@@ -99,6 +110,20 @@ func _build_ui() -> void:
 	frame.add_child(ReconUI.make_label("[M] CLOSE", 12, ReconUI.DIM))
 
 
+## The road network as printed linework. Drawn first so every mark - the CO's sweep
+## circle, the player arrow - sits ON TOP of the paper rather than competing with it.
+func _draw_roads() -> void:
+	if world.road_network == null:
+		return
+	for seg in world.road_network.segments:
+		if seg.size() < 2:
+			continue
+		var pts := PackedVector2Array()
+		for p in seg:
+			pts.append(_world_to_map(p))
+		_overlay.draw_polyline(pts, ROAD, ROAD_WIDTH_PX, true)
+
+
 func _world_to_map(pos: Vector3) -> Vector2:
 	var s: Vector2 = _rect.size
 	return Vector2(pos.x / world.map_size * s.x, pos.z / world.map_size * s.y)
@@ -107,6 +132,7 @@ func _world_to_map(pos: Vector3) -> Vector2:
 func _draw_overlay() -> void:
 	if world == null or world.player == null:
 		return
+	_draw_roads()
 	# THE CO'S ORDER (ADR-029/ADR-022): a grease-pencil circle. An order on paper -
 	# it never checks off, never updates; the next patrol's circle replaces it.
 	if director != null and director.patrol_location != Vector3.ZERO:

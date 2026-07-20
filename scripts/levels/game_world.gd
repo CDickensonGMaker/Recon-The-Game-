@@ -21,6 +21,10 @@ var terrain_manager: TerrainManager
 var vegetation_manager: VegetationManager
 var water_system: WaterSystem
 var gameplay_grid: GameplayGrid
+## THE road authority for this world. Built by MissionGenerator.build_patrol_world
+## once the sites it connects exist. Null until then, and null in worlds that have
+## no sites (synthetic test grids) - every consumer must handle that.
+var road_network: RoadNetwork
 var player: CharacterBody3D
 var hud: HUD
 var is_world_ready: bool = false

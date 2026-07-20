@@ -1,8 +1,8 @@
-## PARKED BY DECISION, NOT BY NEGLECT (Summoner, 2026-07-20): convoys stay unwired
-## until a road network exists (bead ld0y). This is finished code waiting on its
-## ground, not a fossil - do not delete it, and do not wire it up early.
-##
 ## convoy.gd - a group of vehicles driving a route in formation.
+##
+## UNPARKED 2026-07-20: the road network (RoadNetwork) now supplies real routes, so
+## this drives actual ground between actual places. Routes come from
+## RoadNetwork.longest_route() via ConvoySpawner - never from arbitrary points.
 ## The lead vehicle navigates; trailing vehicles slot 6m behind. On contact
 ## (any member reports a hostile), the convoy stops and emits `ambushed` so the
 ## mission director can spawn reinforcements or a rescue mission.
@@ -29,6 +29,10 @@ var current_waypoint: int = 0
 var _ambush_emitted: bool = false
 ## Stop the convoy (e.g. waiting for an obstacle to clear). -1 means go.
 var stop_until_ms: float = -1.0
+## Terrain to seat vehicles on. Without it a convoy drives at its spawn altitude and
+## sinks into hills or flies over valleys - the route's own Y is only correct at the
+## waypoints, and the ground between them is not flat.
+var terrain: TerrainManager = null
 
 
 func _ready() -> void:
@@ -44,8 +48,13 @@ func setup(r: Array[Vector3], v: Array) -> void:
 func _physics_process(delta: float) -> void:
 	if route.is_empty() or vehicles.is_empty():
 		return
-	if stop_until_ms > 0.0 and _now_ms() < stop_until_ms:
-		return
+	if stop_until_ms > 0.0:
+		if _now_ms() < stop_until_ms:
+			return
+		# The stop has run out. Going through resume() rather than just clearing the
+		# timer is what re-arms the ambush latch: a convoy hit once, halted, and sent
+		# on its way must be able to report the NEXT contact.
+		resume()
 	var lead: Node3D = vehicles[0]
 	if not is_instance_valid(lead):
 		return
@@ -67,6 +76,7 @@ func _physics_process(delta: float) -> void:
 	var lead_pos: Vector3 = lead.global_position
 	lead_pos.x += dir.x * step
 	lead_pos.z += dir.z * step
+	lead_pos.y = _ground_y(lead_pos)
 	lead.global_position = lead_pos
 	# Trail
 	for i in range(1, vehicles.size()):
@@ -78,7 +88,9 @@ func _physics_process(delta: float) -> void:
 		back.y = 0.0
 		if back.length() > spacing:
 			var over: float = back.length() - spacing
-			cur.global_position -= back.normalized() * over
+			var np: Vector3 = cur.global_position - back.normalized() * over
+			np.y = _ground_y(np)
+			cur.global_position = np
 
 
 ## Vehicle reports a hostile contact. Stops the convoy + emits the ambush signal.
@@ -95,6 +107,14 @@ func report_contact(_who: Node, _target_pos: Vector3) -> void:
 func resume() -> void:
 	stop_until_ms = -1.0
 	_ambush_emitted = false
+
+
+## Terrain height under a point, or the point's own Y when there is no terrain
+## (synthetic test worlds) - never silently zero.
+func _ground_y(p: Vector3) -> float:
+	if terrain == null:
+		return p.y
+	return terrain.get_height_at(p)
 
 
 func _now_ms() -> float:
