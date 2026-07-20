@@ -165,6 +165,38 @@ func _run() -> void:
 		_fail("only %d patrol anchors survived the keep-out (want >=3, else the circuit degrades to a dot)" % anchors.size())
 	print("patrol anchors: %d" % anchors.size())
 
+	# THE PLANNER'S OUTPUT IS PLACEMENT, not a discarded score. Every sited ambush
+	# must appear as a real spawnable group at the planned position, drawn from its
+	# camp's garrison, and must clear the same keep-out every other placer clears.
+	var sited: Array = p1.ambush_sites
+	var ambush_groups: Array = []
+	for g in (p1.enemy_groups as Array):
+		if str((g as Dictionary).get("tag", "")).begins_with("camp_ambush_"):
+			ambush_groups.append(g)
+	if sited.size() != ambush_groups.size():
+		_fail("%d ambush sites planned but %d spawn groups placed - the planner's output is being dropped" % [
+			sited.size(), ambush_groups.size()])
+	for i in range(mini(sited.size(), ambush_groups.size())):
+		var plan_s: Dictionary = sited[i]
+		var grp: Dictionary = ambush_groups[i]
+		var tp: Vector3 = plan_s.trigger_pos
+		if (grp.pos as Vector3).distance_to(tp) > 0.01:
+			_fail("ambush group %d spawns at %s, planner chose %s" % [i, str(grp.pos), str(tp)])
+		if int(grp.count) != int(plan_s.soldiers):
+			_fail("ambush group %d has %d men, planner sited %d" % [i, int(grp.count), int(plan_s.soldiers)])
+		if int(grp.count) < AmbushPlanner.AMBUSH_SOLDIERS_MIN:
+			_fail("ambush group %d is %d men - below the documented minimum of %d" % [
+				i, int(grp.count), AmbushPlanner.AMBUSH_SOLDIERS_MIN])
+		if site_rect.has_point(Vector2(tp.x, tp.z)):
+			_fail("ambush site at %.0f,%.0f inside the wire keep-out - stages on the spawn seat" % [tp.x, tp.z])
+	# The party comes OUT of the garrison: a camp may never be emptied to fill one.
+	for g2 in (p1.enemy_groups as Array):
+		var gd2: Dictionary = g2
+		if str(gd2.get("tag", "")).begins_with("camp_garrison_") \
+				and int(gd2.count) < MissionGenerator.AMBUSH_CAMP_FLOOR:
+			_fail("camp garrison left with %d men - the ambush emptied the camp" % int(gd2.count))
+	print("ambush siting: %d camps sited, %d groups placed" % [sited.size(), ambush_groups.size()])
+
 	if (p1.first_signs as Array).size() < 3:
 		_fail("only %d first signs planned (want >=3 across the outward fan)" % (p1.first_signs as Array).size())
 	print("patrol world: %d villages, %d camps, gate %.0f,%.0f out %s" % [

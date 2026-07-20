@@ -541,16 +541,31 @@ func _poll_wire_gate() -> void:
 ## is a battalion decision; the RTO's fo_fac buys QUALITY (scatter, cooldown, the
 ## veteran's 4th round) per ADR-011, and one extra tube for a man who has called
 ## enough of them. Air is thin on a routine patrol - it is what escalation buys you.
+##
+## ESCALATION IS THE AO'S THREAT TIER, the same LOW/MODERATE/HIGH/CRITICAL string
+## the player reads in the barracks and on the main menu (campaign_state.gd
+## threat_label, shown at barracks.gd:45 and main_menu.gd:92). Loud patrols raise
+## it and clean ones cool it (campaign_state.gd on_mission_end), so the air is
+## bought with the player's own noise. Comparing the LABEL, not a threshold float,
+## keeps the number that gates the ordnance and the number he is shown identical.
 func _grant_fire_support() -> void:
 	var rto: AllyBase = squad_system.member_by_mos("RTO") \
 		if (squad_system != null and is_instance_valid(squad_system)) else null
 	var fo: int = SquadRoster.skill_level(rto.member, "fo_fac") if rto != null else 0
+	var tier: String = CampaignState.threat_label()
 	fire_support = {
 		"bombs": 1, "napalm": 0, "arty": 1,
 		"mortar": 3 + (1 if fo >= 6 else 0), "spooky": 0, "cbu": 0,
 	}
+	if tier in ["HIGH", "CRITICAL"]:
+		fire_support["napalm"] = 1
+		fire_support["cbu"] = 1
+	if tier == "CRITICAL":
+		fire_support["spooky"] = 1
 	if rto != null:
 		toast.emit("%s HAS THE HORN - [T] FOR THE NET" % str(rto.member.get("nick", "RTO")))
+	if tier in ["HIGH", "CRITICAL"]:
+		toast.emit("AO IS %s - BATTALION RELEASED AIR TO US" % tier)
 
 
 ## The one toast concession + the point man's voice. Repeatable from the map.

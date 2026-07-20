@@ -37,7 +37,10 @@ const ENEMY_DATA: Array[String] = [
 ]
 
 
-const WEATHER_TABLE: Array[String] = ["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
+## Men who never leave the camp, so a sited ambush can never empty it.
+const AMBUSH_CAMP_FLOOR: int = 2
+
+const WEATHER_TABLE: Array[String] =["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
 const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
 
 ## Base name derivable without a world - MUST consume the first two rng draws
@@ -313,12 +316,6 @@ static func _attach_camp_directors(world: GameWorld, director: FieldDirector,
 			continue
 		cd.name = "CampDirector_%d" % camp_idx
 		camp_idx += 1
-		# Run the AmbushPlanner against this camp. If it returns a site, store
-		# it on the director's state so the player can be offered a STRIKE.
-		var plan: Dictionary = AmbushPlannerScript.plan(cd, world.gameplay_grid, paddy_centroids, cd.rng)
-		if not plan.is_empty():
-			director.state.flags["ambush_sites"] = \
-				director.state.flags.get("ambush_sites", []) + [plan]
 
 
 static func _schedule_one_convoy(world: GameWorld, p: Dictionary, seed: int) -> void:
@@ -568,9 +565,27 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 	for vi in range(villages.size()):
 		p.enemy_groups.append({"pos": villages[vi], "count": rng.randi_range(4, 7),
 			"tag": "village_defenders_%d" % vi, "lazy": villages[vi] != nearest, "spread": 20.0})
+	# The garrison IS the ambush party. AmbushPlanner sites 4-6 of a camp's men on
+	# cover-scored ground within 200m; the camp keeps the rest. One garrison roll,
+	# two placements - the AO does not gain men, it moves them onto chosen ground.
+	var ambush_sites: Array[Dictionary] = []
+	var site_keepout: Rect2 = _fsb_keepout.grow(SitePlanner.FSB_SITE_CLEARANCE)
 	for ci2 in range(camps.size()):
-		p.enemy_groups.append({"pos": camps[ci2], "count": rng.randi_range(4, 6),
+		var garrison: int = rng.randi_range(6, 9)
+		var arng := RandomNumberGenerator.new()
+		arng.seed = op_seed + 5171 * (ci2 + 1)
+		var ambush: Dictionary = AmbushPlannerScript.plan(camps[ci2], garrison,
+			world.gameplay_grid, p.paddy_centroids, arng, site_keepout)
+		if not ambush.is_empty():
+			var party: int = mini(int(ambush.soldiers), garrison - AMBUSH_CAMP_FLOOR)
+			ambush["soldiers"] = party
+			ambush_sites.append(ambush)
+			p.enemy_groups.append({"pos": ambush.trigger_pos, "count": party,
+				"tag": "camp_ambush_%d" % ci2, "lazy": true, "spread": 8.0})
+			garrison -= party
+		p.enemy_groups.append({"pos": camps[ci2], "count": garrison,
 			"tag": "camp_garrison_%d" % ci2, "lazy": true, "spread": 14.0})
+	p["ambush_sites"] = ambush_sites
 	return p
 
 

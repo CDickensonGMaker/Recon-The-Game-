@@ -36,6 +36,12 @@ func _ready() -> void:
 	rows.append(_run("MIXED ~55% jungle", _patch_grid(0.55, 4242), []))
 	rows.append(_run("MIXED + 6 paddies", _patch_grid(0.55, 4242), _paddy_centroids(6, 909)))
 	rows.append(_run("SPARSE ~20% jungle", _patch_grid(0.20, 7171), []))
+	# THE WIRE IS LAW: a keep-out over the whole map must starve the planner even on
+	# perfect terrain. A site that survives here is a site that can land on the
+	# player's spawn seat.
+	rows.append(_run("ALL-HEAVY + keepout (neg ctrl)",
+		_uniform_grid(GameplayGrid.TerrainType.HEAVY_JUNGLE), [],
+		Rect2(0.0, 0.0, WORLD_SIZE, WORLD_SIZE)))
 
 	_print_table(rows)
 
@@ -48,15 +54,37 @@ func _ready() -> void:
 			_patch_grid(float(frac), 7171), []))
 	_print_table(sweep)
 
-	var neg: Dictionary = rows[0]
-	var neg_yield: float = float(neg["yield_pct"])
-	var pass_ok: bool = neg_yield <= 0.0
+	var neg_yield: float = float((rows[0] as Dictionary)["yield_pct"])
+	var keepout_yield: float = float((rows[5] as Dictionary)["yield_pct"])
+	var pass_ok: bool = true
 	print("")
-	if not pass_ok:
+	if neg_yield > 0.0:
+		pass_ok = false
 		print("!!! NEGATIVE CONTROL LEAKED: all-CLEAR terrain produced %.1f%% ambush sites." % neg_yield)
 		print("!!! The cover gate is NOT biting. This is a bug, not a tuning number.")
 	else:
 		print("Negative control clean: all-CLEAR terrain yields 0 ambush sites.")
+	if keepout_yield > 0.0:
+		pass_ok = false
+		print("!!! KEEP-OUT LEAKED: %.1f%% of sites landed inside the firebase rect." % keepout_yield)
+	else:
+		print("Keep-out control clean: a map-wide keep-out yields 0 ambush sites.")
+
+	# The party the generator will place must be the party the planner promised.
+	var party_rng := RandomNumberGenerator.new()
+	party_rng.seed = 24
+	var sample: Dictionary = AmbushPlanner.plan(Vector3(1500.0, 0.0, 1500.0), GARRISON,
+		_uniform_grid(GameplayGrid.TerrainType.HEAVY_JUNGLE), [], party_rng)
+	var want: int = mini(GARRISON, AmbushPlanner.AMBUSH_SOLDIERS_MAX)
+	if sample.is_empty() or int(sample["soldiers"]) != want:
+		pass_ok = false
+		print("!!! PARTY SIZE WRONG: got %s, wanted %d men from a %d-man garrison." % [
+			str(sample.get("soldiers", "no site")), want, GARRISON])
+	else:
+		print("Party size: a %d-man garrison fields %d men." % [GARRISON, want])
+	if sample.has("soldiers") and int(sample["soldiers"]) < AmbushPlanner.AMBUSH_SOLDIERS_MIN:
+		pass_ok = false
+		print("!!! PARTY BELOW THE DOCUMENTED MINIMUM of %d." % AmbushPlanner.AMBUSH_SOLDIERS_MIN)
 	print("=== PROBE PASS ===" if pass_ok else "=== PROBE FAIL ===")
 	get_tree().quit(0 if pass_ok else 1)
 
@@ -95,22 +123,13 @@ func _paddy_centroids(n: int, cseed: int) -> Array:
 	return out
 
 
-func _make_camp(pos: Vector3, camp_seed: int) -> CampDirector:
-	# A real CampDirector, constructed but NEVER added to the tree, so _ready()/SimClock
-	# never run. plan() reads only garrison.size(), camp_pos and (via us) rng.
-	var cd := CampDirector.new()
-	cd.camp_pos = pos
-	var men: Array = []
-	for i in range(AmbushPlanner.AMBUSH_SOLDIERS_MIN + 1):
-		men.append(RefCounted.new())
-	cd.garrison = men
-	var crng := RandomNumberGenerator.new()
-	crng.seed = camp_seed
-	cd.rng = crng
-	return cd
+## Matches the generator's camp roll floor (mission_generator.gd AMBUSH_CAMP_FLOOR
+## split): a camp must field AMBUSH_SOLDIERS_MIN and still keep men at home.
+const GARRISON: int = 6
 
 
-func _run(label: String, grid: GameplayGrid, paddies: Array) -> Dictionary:
+func _run(label: String, grid: GameplayGrid, paddies: Array,
+		keepout: Rect2 = Rect2()) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	var pos_rng := RandomNumberGenerator.new()
 	pos_rng.seed = 1337
@@ -123,9 +142,8 @@ func _run(label: String, grid: GameplayGrid, paddies: Array) -> Dictionary:
 		var camp_pos := Vector3(
 			pos_rng.randf_range(400.0, WORLD_SIZE - 400.0), 0.0,
 			pos_rng.randf_range(400.0, WORLD_SIZE - 400.0))
-		var camp: CampDirector = _make_camp(camp_pos, 5000 + t)
-		var plan: Dictionary = AmbushPlanner.plan(camp, grid, paddies, rng)
-		camp.free()
+		var plan: Dictionary = AmbushPlanner.plan(camp_pos, GARRISON, grid, paddies,
+			rng, keepout)
 		if plan.is_empty():
 			continue
 		found += 1

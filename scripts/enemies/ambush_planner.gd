@@ -6,8 +6,9 @@
 ##   - good cover within 30m of the kill zone
 ##   - line-of-sight from the kill zone to the trail is BLOCKED by jungle
 ##   - NOT within 30m of a paddy centroid (no silhouettes)
+##   - NOT inside the firebase keep-out (the wire is law)
 ##
-## Returns null if no good site is found within 200m of the camp.
+## Returns an empty Dictionary if no good site is found within 200m of the camp.
 class_name AmbushPlanner
 extends RefCounted
 
@@ -24,16 +25,23 @@ const SEARCH_RADIUS: float = 200.0
 const CANDIDATES: int = 16
 
 
-static func plan(camp: CampDirector, grid: GameplayGrid,
-		paddy_centroids: Array, rng: RandomNumberGenerator) -> Dictionary:
-	if camp == null or grid == null or camp.garrison.size() < AMBUSH_SOLDIERS_MIN:
+## `keepout` is the firebase rect (already grown by the caller's clearance). An
+## empty Rect2 disables the test - synthetic grids have no firebase.
+static func plan(camp_pos: Vector3, garrison_size: int, grid: GameplayGrid,
+		paddy_centroids: Array, rng: RandomNumberGenerator,
+		keepout: Rect2 = Rect2()) -> Dictionary:
+	if grid == null or garrison_size < AMBUSH_SOLDIERS_MIN:
 		return {}
 	var best: Dictionary = {}
 	var best_score: float = -1.0
 	for i in range(CANDIDATES):
 		var bearing: float = rng.randf_range(0.0, TAU)
 		var dist: float = rng.randf_range(40.0, SEARCH_RADIUS)
-		var site: Vector3 = camp.camp_pos + Vector3(cos(bearing), 0.0, sin(bearing)) * dist
+		var site: Vector3 = camp_pos + Vector3(cos(bearing), 0.0, sin(bearing)) * dist
+		# A camp within SEARCH_RADIUS of the wire can otherwise site its ambush on
+		# the player's own spawn seat.
+		if keepout.size != Vector2.ZERO and keepout.has_point(Vector2(site.x, site.z)):
+			continue
 		# Hard reject paddies
 		if _near_paddy(site, paddy_centroids):
 			continue
@@ -48,8 +56,8 @@ static func plan(camp: CampDirector, grid: GameplayGrid,
 			best_score = score
 			best = {
 				"trigger_pos": site,
-				"soldiers": min(camp.garrison.size(), AMBUSH_SOLDIERS_MAX),
-				"retreat_to": camp.camp_pos,
+				"soldiers": mini(garrison_size, AMBUSH_SOLDIERS_MAX),
+				"retreat_to": camp_pos,
 				"score": score,
 			}
 	return best
