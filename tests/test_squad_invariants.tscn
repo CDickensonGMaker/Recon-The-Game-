@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8squadinv0719"]
+
+[ext_resource type="Script" path="res://tests/test_squad_invariants.gd" id="1_sq"]
+
+[node name="TestSquadInvariants" type="Node"]
+script = ExtResource("1_sq")

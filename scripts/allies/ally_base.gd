@@ -6,7 +6,7 @@ signal died(ally: AllyBase)
 
 var max_hp: int = 80
 var current_hp: int = 80
-var move_speed: float = 4.5
+var move_speed: float = 5.6
 var preferred_range: float = 12.0
 
 var weapon_data: WeaponData = null
@@ -93,8 +93,27 @@ var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
 var aim_speed: float = 7.0
 
-var follow_distance: float = 5.0
-var max_follow_distance: float = 15.0
+## Slot tolerance when halted. A man INSIDE it is where he belongs and moves on
+## his own business; only outside it does he correct toward the slot.
+var follow_distance: float = 2.5
+## Slot lag that puts a man into catch-up.
+var max_follow_distance: float = 10.0
+## Slot tolerance on the move. Wider - a walking file breathes.
+const FILE_DEADZONE: float = 3.0
+## Player ground speed that strings the huddle into a file, and the lower speed
+## that lets it collapse back. Crouch (2.5) sits inside the band, so a stealth
+## patrol never oscillates.
+const FORMATION_ENTER_SPD: float = 3.2
+const FORMATION_EXIT_SPD: float = 1.5
+## Ceiling on how fast a slot may travel. A shape flip or a 180 turn relocates
+## the slot ~28m; without this the man chases a teleport.
+const SLOT_TRACK_SPEED: float = 12.0
+const CATCHUP_MULT: float = 1.35
+## Firefight footwork is signed off (2026-07-12) - this holds its absolute speed
+## (~2.7 m/s) across the patrol-speed raise. Retune only with the combat feel.
+const COMBAT_SPEED_MULT: float = 0.48
+## Amble inside the deadzone. Slow enough to read as a man, not a reposition.
+const IDLE_DRIFT_SPEED: float = 0.45
 
 ## Squad layer: roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
@@ -116,6 +135,16 @@ var point_slot: bool = false
 ## Personal formation slot around the player (rolled once) - the squad spreads
 ## into an arc instead of stacking on the player's back.
 var _follow_offset: Vector3 = Vector3.ZERO
+## Latched formation shape + the rate-limited slot the man actually walks to.
+var _in_file: bool = false
+var _slot_smooth: Vector3 = Vector3.ZERO
+var _slot_valid: bool = false
+## Micro-idle: his own business inside the deadzone.
+var _idle_drift: Vector3 = Vector3.ZERO
+var _idle_hold: float = 0.0
+## Sight grid, fetched lazily - allies can spawn before game_world joins its group.
+var _grid: GameplayGrid = null
+var _grid_checked: bool = false
 var weapons_free: bool = true
 ## Self-defense window while weapons-tight: opens on taking fire or on a COMBAT
 ## enemy holding this ally as its target; the man defends himself without
@@ -454,9 +483,21 @@ func _check_threat() -> void:
 				return
 
 
+## Lazy: allies can spawn before game_world joins its group, so _ready() is too early.
+func _sight_grid() -> GameplayGrid:
+	if _grid_checked:
+		return _grid
+	var gw := get_tree().get_first_node_in_group("game_world")
+	if gw != null and "gameplay_grid" in gw:
+		_grid = gw.gameplay_grid
+		_grid_checked = true
+	return _grid
+
+
 func _find_target() -> void:
 	var closest_enemy: Node3D = null
-	var closest_dist: float = 60.0
+	var closest_dist: float = INF
+	var grid: GameplayGrid = _sight_grid()
 
 	for enemy in AgentRegistry.enemies:
 		if not is_instance_valid(enemy) or not enemy is Node3D:
@@ -466,10 +507,14 @@ func _find_target() -> void:
 		if enemy.has_meta("non_hostile"):
 			continue  # practice dummies / surrendered - not a squad target
 
-		var dist := global_position.distance_to((enemy as Node3D).global_position)
-		if dist < closest_dist:
-			closest_dist = dist
-			closest_enemy = enemy as Node3D
+		var epos: Vector3 = (enemy as Node3D).global_position
+		var dist := global_position.distance_to(epos)
+		if dist >= closest_dist:
+			continue
+		if dist > SightCap.at(grid, global_position, epos):
+			continue
+		closest_dist = dist
+		closest_enemy = enemy as Node3D
 
 	# Aim settle: a NEW target costs a human beat before the first shot, so the
 	# squad is not an instant laser.
@@ -593,7 +638,12 @@ func _execute_idle(delta: float) -> void:
 				if player is CharacterBody3D:
 					pv = (player as CharacterBody3D).velocity
 				pv.y = 0.0
-				if pv.length() > 2.0:
+				var spd: float = pv.length()
+				if spd > FORMATION_ENTER_SPD:
+					_in_file = true
+				elif spd < FORMATION_EXIT_SPD:
+					_in_file = false
+				if _in_file and spd > 0.05:
 					var dir: Vector3 = pv.normalized()
 					var side := Vector3(-dir.z, 0.0, dir.x)
 					if point_slot:
@@ -602,11 +652,20 @@ func _execute_idle(delta: float) -> void:
 						var lateral: float = 1.1 if (file_slot % 2 == 0) else -1.1
 						slot = (player as Node3D).global_position \
 							- dir * (3.5 * float(file_slot)) + side * lateral
-				var dist := global_position.distance_to(slot)
-				if dist > follow_distance:
-					_move_toward(slot, delta)
+				# Rate-limit the slot itself: one mechanism eases BOTH the shape
+				# flip and a 180 turn, either of which relocates it ~28m at once.
+				if not _slot_valid:
+					_slot_smooth = slot
+					_slot_valid = true
 				else:
-					_settle(delta)
+					_slot_smooth = _slot_smooth.move_toward(slot, SLOT_TRACK_SPEED * delta)
+				var deadzone: float = FILE_DEADZONE if _in_file else follow_distance
+				var dist := global_position.distance_to(_slot_smooth)
+				if dist > deadzone:
+					var catchup: float = CATCHUP_MULT if dist > max_follow_distance else 1.0
+					_move_toward(_slot_smooth, delta, catchup)
+				else:
+					_micro_idle(delta)
 		OrderMode.HOLD:
 			_settle(delta)
 		OrderMode.MOVE_TO:
@@ -619,6 +678,26 @@ func _execute_idle(delta: float) -> void:
 func _settle(delta: float) -> void:
 	velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 	velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
+
+
+## In his slot and free: he wanders his own metre or two and looks the ground
+## over, instead of standing frozen on an exact offset.
+func _micro_idle(delta: float) -> void:
+	_idle_hold -= delta
+	if _idle_hold <= 0.0:
+		if _idle_drift == Vector3.ZERO:
+			var a: float = randf_range(0.0, TAU)
+			_idle_drift = Vector3(cos(a), 0.0, sin(a))
+			_idle_hold = randf_range(2.0, 4.0)
+		else:
+			_idle_drift = Vector3.ZERO
+			_idle_hold = randf_range(1.5, 3.0)
+	if _idle_drift == Vector3.ZERO:
+		_settle(delta)
+		return
+	var step: Vector3 = _idle_drift * IDLE_DRIFT_SPEED
+	velocity.x = lerpf(velocity.x, step.x, delta * 3.0)
+	velocity.z = lerpf(velocity.z, step.z, delta * 3.0)
 
 
 func _execute_combat(delta: float) -> void:
@@ -679,8 +758,8 @@ func _execute_combat(delta: float) -> void:
 
 		move_dir.y = 0
 		if move_dir.length() > 0.1:
-			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * 0.6, delta * 8.0)
-			velocity.z = lerpf(velocity.z, move_dir.z * move_speed * 0.6, delta * 8.0)
+			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * COMBAT_SPEED_MULT, delta * 8.0)
+			velocity.z = lerpf(velocity.z, move_dir.z * move_speed * COMBAT_SPEED_MULT, delta * 8.0)
 		else:
 			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
 			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
@@ -860,11 +939,12 @@ func _change_state(new_state: Enums.AIState) -> void:
 	state_timer = 0.0
 
 
-func _move_toward(pos: Vector3, delta: float) -> void:
+func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	var direction := (pos - global_position).normalized()
 	direction.y = 0
-	velocity.x = lerpf(velocity.x, direction.x * move_speed, delta * 8.0)
-	velocity.z = lerpf(velocity.z, direction.z * move_speed, delta * 8.0)
+	var spd: float = move_speed * speed_mult
+	velocity.x = lerpf(velocity.x, direction.x * spd, delta * 8.0)
+	velocity.z = lerpf(velocity.z, direction.z * spd, delta * 8.0)
 
 
 ## Gun muzzle world position (mirrors EnemyBase.get_muzzle_position).
