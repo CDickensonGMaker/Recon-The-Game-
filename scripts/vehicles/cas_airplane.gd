@@ -31,6 +31,9 @@ var _ordnance: Ordnance = Ordnance.BOMB
 var _released: bool = false
 var _climb_time: float = 0.0
 var _flyby: bool = false
+var _transit: bool = false
+var _transit_agl: float = 60.0
+var _transit_speed: float = SPEED
 
 
 func call_strike(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordnance, run_dir: Vector3 = Vector3.ZERO) -> void:
@@ -68,7 +71,36 @@ func call_flyby(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordn
 	phase = Phase.DIVE
 
 
+## Ambient overflight for AirTraffic: crosses the AO from `from` to `to` holding
+## `agl` above the ground, then despawns past the far end. Releases nothing —
+## this airframe is transiting, not on a fire mission.
+func call_transit(terrain_manager: TerrainManager, from: Vector3, to: Vector3,
+		agl: float, speed: float) -> void:
+	terrain = terrain_manager
+	_transit = true
+	_transit_agl = agl
+	_transit_speed = speed
+	_target = to
+	var flat := Vector3(to.x - from.x, 0.0, to.z - from.z)
+	_run_dir = flat.normalized() if flat.length() > 0.1 else Vector3.FORWARD
+	global_position = from
+	look_at(global_position + _run_dir, Vector3.UP)
+
+
+func _fly_transit(delta: float) -> void:
+	global_position += _run_dir * _transit_speed * delta
+	if terrain != null:
+		var desired_y: float = terrain.get_height_at(global_position) + _transit_agl
+		global_position.y = lerpf(global_position.y, desired_y, 1.5 * delta)
+	if (global_position - _target).dot(_run_dir) > 0.0:
+		phase = Phase.DONE
+		queue_free()
+
+
 func _physics_process(delta: float) -> void:
+	if _transit:
+		_fly_transit(delta)
+		return
 	if _flyby:
 		_fly_flyby(delta)
 		return

@@ -1,25 +1,47 @@
 ## air_traffic.gd - scheduler for the sim's air traffic. Listens to
-## SimClock.sim_event(kind=&"air_traffic") and dispatches a helicopter or
-## placeholder for the flight. Owns the in-flight roster.
+## SimClock.sim_event(kind=&"air_traffic") and dispatches the aircraft for the
+## flight. Owns the in-flight roster; it is the only authority that puts an
+## aircraft in the sky.
 ##
-## Default seed: 1 flyover per 2 sim-hours, mix of Huey (cargo), Spooky
-## (gunship orbit), Chinook (formation), C-130 (high altitude). Random
-## routes from one AO edge to another.
+## Two profiles: TRANSIT crosses the AO and leaves; LZ_CYCLE flies a helicopter
+## in to a firebase pad, sits on the ground, then lifts off and departs.
 class_name AirTraffic
 extends Node
 
-## Only the Huey has a flyable scene; the rest are roster-only until they get models.
-const FLIGHT_SCENES := {"huey": "res://scenes/vehicles/huey.tscn"}
+## Kinds with a flyable scene. Rotary kinds drive Helicopter, fixed-wing drive
+## CASAirplane in transit mode. "spooky" builds itself in code (SpookyGunship)
+## and has no scene. There is no C-130: no model exists for one.
+const FLIGHT_SCENES := {
+	"huey": "res://scenes/vehicles/huey.tscn",
+	"chinook": "res://scenes/vehicles/chinook.tscn",
+	"f4": "res://scenes/vehicles/f4_phantom.tscn",
+	"skyraider": "res://scenes/vehicles/skyraider.tscn",
+	"skyhawk": "res://scenes/vehicles/a4_skyhawk.tscn",
+}
+## Kinds that can fly a firebase landing cycle.
+const ROTARY := ["huey", "chinook"]
+## Fixed-wing cruise profile: metres AGL, metres/second.
+const FIXED_WING := {
+	"f4": {"agl": 90.0, "speed": 250.0},
+	"skyhawk": {"agl": 80.0, "speed": 200.0},
+	"skyraider": {"agl": 60.0, "speed": 110.0},
+}
 ## A flight that never arrives is a leak. Nothing may outlive this.
 const MAX_FLIGHT_SECONDS: float = 240.0
 ## How close a flight has to pass for the jungle to hear it.
 const OVERHEAD_M: float = 120.0
+## Rotors-turning time on the pad before the bird lifts off again.
+const GROUND_SECONDS: float = 35.0
+## Pad markers inside fsb_main.glb (measured: three 15x15m PSP pads).
+const FSB_PADS := ["PSPHelipad_001", "PSPHelipad_002", "PSPHelipad_003"]
 
-## In-flight roster. {id, kind, node, route, pos, phase, born_ms}.
+## In-flight roster. {id, kind, node, route, dest, pos, phase, born_ms, spawned}.
 var _in_flight: Array = []
 ## Cached RNG so a given seed reproduces the same schedule.
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _next_flight_id: int = 1
+var _pad_lzs: Array = []
+var _pads_resolved: bool = false
 
 
 func _ready() -> void:
@@ -27,81 +49,239 @@ func _ready() -> void:
 		var cb := Callable(self, "_on_sim_event")
 		if not SimClock.sim_event.is_connected(cb):
 			SimClock.sim_event.connect(cb)
-	# Seed default schedule: 1 flight per 2 sim-hours, mixed kinds.
 	_seed_default_schedule()
 
 
-## Seed 12 sim-hours of air-traffic events. Each is dispatched via SimClock.
+## One transit per sim-hour across the daylight span, plus four firebase
+## resupply cycles. At the default 60x clock that is a movement every ~60s of
+## wall time and rarely more than two airframes up at once.
 func _seed_default_schedule() -> void:
 	if SimClock == null:
 		return
-	var kinds: Array = ["huey", "spooky", "chinook", "c130"]
-	for h in range(6, 24, 2):
-		var kind: String = kinds[rng.randi() % kinds.size()]
-		var payload: Dictionary = {
-			"kind": kind,
-			"hour": float(h),
-		}
-		SimClock.schedule_event(SimClock.sim_day, float(h), &"air_traffic", payload)
+	var kinds: Array = FLIGHT_SCENES.keys()
+	kinds.append("spooky")
+	for h in range(6, 24):
+		var kind: String = String(kinds[rng.randi() % kinds.size()])
+		SimClock.schedule_event(SimClock.sim_day, float(h), &"air_traffic",
+			{"kind": kind, "profile": "transit"})
+	for h in [7, 11, 15, 19]:
+		var kind: String = String(ROTARY[rng.randi() % ROTARY.size()])
+		SimClock.schedule_event(SimClock.sim_day, float(h) + 0.5, &"air_traffic",
+			{"kind": kind, "profile": "lz_cycle"})
 
 
 func _on_sim_event(kind: StringName, payload: Dictionary) -> void:
 	if kind != &"air_traffic":
 		return
 	var flight_kind: String = String(payload.get("kind", "huey"))
-	_dispatch(flight_kind)
+	if String(payload.get("profile", "transit")) == "lz_cycle":
+		_dispatch_lz_cycle(flight_kind)
+	else:
+		_dispatch(flight_kind)
+
+
+func _world() -> Node3D:
+	return get_parent() as Node3D
+
+
+func _terrain() -> TerrainManager:
+	var w := _world()
+	return (w.get("terrain_manager") as TerrainManager) if w != null else null
+
+
+## The AO occupies 0..map_size on both axes. Routes used to run -500..+500,
+## which put three quarters of every flight path off the map entirely.
+func _map_size() -> float:
+	var w := _world()
+	if w != null:
+		var m: float = float(w.get("map_size"))
+		if m > 1.0:
+			return m
+	return WorldConfig.MAP_SIZE
+
+
+## A chord that crosses the AO: endpoints sit outside the map so the aircraft
+## flies in, passes near the middle, and flies out.
+func _ao_route() -> Array:
+	var m: float = _map_size()
+	var centre := Vector3(m * 0.5, 0.0, m * 0.5)
+	var ang: float = rng.randf_range(0.0, TAU)
+	var dir := Vector3(cos(ang), 0.0, sin(ang))
+	var side := Vector3(-dir.z, 0.0, dir.x) * rng.randf_range(-m * 0.30, m * 0.30)
+	var half: float = m * 0.75
+	return [centre + side - dir * half, centre + side + dir * half]
+
+
+func _ground_at(p: Vector3) -> float:
+	var t := _terrain()
+	return t.get_height_at(p) if t != null else 0.0
 
 
 func _dispatch(kind: String) -> void:
-	# Pick a random route across the AO. The world boundary defaults to 1.28km
-	# (mission generator default), so the flight goes from one side to the other
-	# at a representative altitude. A real implementation would resolve the AO
-	# bounds from the world; the placeholder picks ±500m.
-	var altitude: float = 40.0
-	match kind:
-		"huey":
-			altitude = 25.0
-		"spooky":
-			altitude = 15.0   # orbits low and slow
-		"chinook":
-			altitude = 35.0
-		"c130":
-			altitude = 120.0  # high altitude flyover
-	var from: Vector3 = Vector3(-500, altitude, rng.randf_range(-500, 500))
-	var to: Vector3 = Vector3(500, altitude, rng.randf_range(-500, 500))
+	var route: Array = _ao_route()
+	var from: Vector3 = route[0]
+	var to: Vector3 = route[1]
+	var node: Node3D = _spawn_transit(kind, from, to)
+	if node == null:
+		return
+	var id: int = _roster(kind, node, from, to, "transit")
+	var heli := node as Helicopter
+	if heli != null:
+		heli.traffic_flight_id = id
+
+
+func _roster(kind: String, node: Node3D, from: Vector3, to: Vector3, phase: String) -> int:
 	var id: int = _next_flight_id
 	_next_flight_id += 1
 	_in_flight.append({
 		"id": id,
 		"kind": kind,
-		"node": _spawn_flight(kind, id, from, to),
+		"node": node,
 		"route": [from, to],
+		"dest": to,
+		"exit": to,
 		"pos": from,
-		"phase": "flying",
+		"phase": phase,
 		"born_ms": Time.get_ticks_msec(),
+		"phase_ms": Time.get_ticks_msec(),
+		"spawned": true,
 	})
+	return id
 
 
-## Put a real aircraft in the sky where a scene exists for the kind.
-func _spawn_flight(kind: String, id: int, from: Vector3, to: Vector3) -> Node3D:
-	var world := get_parent() as Node3D
-	if world == null or not FLIGHT_SCENES.has(kind):
+## Put a real aircraft in the sky. Returns null when the kind has no way to fly.
+func _spawn_transit(kind: String, from: Vector3, to: Vector3) -> Node3D:
+	var world := _world()
+	if world == null:
+		return null
+	var terrain := _terrain()
+	if kind == "spooky":
+		var centre: Vector3 = (from + to) * 0.5
+		centre.y = _ground_at(centre)
+		return SpookyGunship.call_in(world, terrain, centre)
+	var craft := _instance(kind)
+	if craft == null:
+		return null
+	world.add_child(craft)
+	craft.add_to_group("air_traffic")
+	if craft is Helicopter:
+		var heli := craft as Helicopter
+		var start := from
+		start.y = _ground_at(from) + heli.cruise_altitude
+		craft.global_position = start
+		heli.setup(terrain)
+		heli.fly_to(to)
+	elif craft is CASAirplane:
+		var profile: Dictionary = FIXED_WING.get(kind, {"agl": 80.0, "speed": 180.0})
+		var start := from
+		start.y = _ground_at(from) + float(profile["agl"])
+		craft.global_position = start
+		(craft as CASAirplane).call_transit(terrain, start, to,
+			float(profile["agl"]), float(profile["speed"]))
+	return craft
+
+
+func _instance(kind: String) -> Node3D:
+	if not FLIGHT_SCENES.has(kind):
 		return null
 	var packed := load(String(FLIGHT_SCENES[kind])) as PackedScene
 	if packed == null:
 		return null
-	var craft := packed.instantiate() as Node3D
-	if craft == null:
-		return null
-	world.add_child(craft)
-	craft.global_position = from
-	craft.add_to_group("air_traffic")
-	if craft is Helicopter:
-		var heli := craft as Helicopter
-		heli.traffic_flight_id = id
-		heli.setup(world.get("terrain_manager") as TerrainManager)
-		heli.fly_to(to)
-	return craft
+	return packed.instantiate() as Node3D
+
+
+## ---------- firebase landing cycle ----------
+
+## LandingZones for the authored firebase pads, created once on first need.
+## The pads are real nodes inside fsb_main.glb, so their positions are read,
+## never guessed.
+func _firebase_lzs() -> Array:
+	if _pads_resolved:
+		return _pad_lzs
+	_pads_resolved = true
+	var world := _world()
+	if world == null:
+		return _pad_lzs
+	var fsb: Node3D = null
+	for c in world.get_children():
+		var n := c as Node3D
+		if n != null and (String(n.get_meta("model_name", "")) == "fsb_main" or n.name == "fsb_main"):
+			fsb = n
+			break
+	if fsb == null:
+		return _pad_lzs
+	for pad_name in FSB_PADS:
+		var pad := fsb.find_child(pad_name, true, false) as Node3D
+		if pad == null:
+			continue
+		var lz := LandingZone.new()
+		lz.lz_name = pad_name
+		lz.lz_radius = 7.0
+		lz.capacity = 1
+		world.add_child(lz)
+		lz.global_position = pad.global_position
+		_pad_lzs.append(lz)
+	return _pad_lzs
+
+
+func _free_pad() -> LandingZone:
+	for l in _firebase_lzs():
+		var lz := l as LandingZone
+		if lz != null and is_instance_valid(lz) and lz.can_land():
+			return lz
+	return null
+
+
+## Fly in from the AO edge, land on a firebase pad, sit, then lift and depart.
+## Falls back to a plain overflight when the base has no reachable pad.
+func _dispatch_lz_cycle(kind: String) -> void:
+	var lz := _free_pad()
+	if lz == null:
+		_dispatch(kind)
+		return
+	var craft := _instance(kind)
+	var world := _world()
+	if craft == null or world == null:
+		return
+	var heli := craft as Helicopter
+	if heli == null:
+		craft.free()
+		_dispatch(kind)
+		return
+	world.add_child(heli)
+	heli.add_to_group("air_traffic")
+	var m: float = _map_size()
+	var ang: float = rng.randf_range(0.0, TAU)
+	var inbound := lz.global_position + Vector3(cos(ang), 0.0, sin(ang)) * m * 0.55
+	inbound.y = _ground_at(inbound) + heli.cruise_altitude
+	heli.global_position = inbound
+	heli.setup(_terrain())
+	var id: int = _roster(kind, heli, inbound, lz.global_position, "inbound")
+	heli.traffic_flight_id = id
+	var f: Dictionary = _in_flight[_in_flight.size() - 1]
+	var out_ang: float = rng.randf_range(0.0, TAU)
+	f["exit"] = lz.global_position + Vector3(cos(out_ang), 0.0, sin(out_ang)) * m * 0.55
+	heli.fly_to(lz.global_position, lz)
+
+
+## Advance a landing cycle through its phases. The roster is the only clock:
+## no timer node, no second scheduler.
+func _advance_cycle(f: Dictionary, heli: Helicopter, now: int) -> void:
+	match String(f.get("phase", "")):
+		"inbound":
+			if heli.state == Helicopter.State.LANDED:
+				f["phase"] = "ground"
+				f["phase_ms"] = now
+		"ground":
+			if float(now - int(f.get("phase_ms", now))) / 1000.0 >= GROUND_SECONDS:
+				heli.take_off()
+				f["phase"] = "climbout"
+		"climbout":
+			if heli.state == Helicopter.State.IDLE:
+				var exit_pos: Vector3 = f.get("exit", f["dest"])
+				f["dest"] = exit_pos
+				f["phase"] = "outbound"
+				heli.fly_to(exit_pos)
 
 
 ## Retire arrived and over-age flights. The roster only ever appended, so a long
@@ -115,10 +295,19 @@ func _process(_delta: float) -> void:
 		var age_s: float = float(now - int(f.get("born_ms", now))) / 1000.0
 		var arrived: bool = false
 		if alive:
-			var dest: Vector3 = (f["route"] as Array)[1]
+			var heli := node as Helicopter
+			if heli != null and String(f.get("phase", "")) != "transit":
+				_advance_cycle(f, heli, now)
 			f["pos"] = node.global_position
-			arrived = node.global_position.distance_to(dest) < 20.0
-		if arrived or age_s > MAX_FLIGHT_SECONDS or (node != null and not alive):
+			var dest: Vector3 = f.get("dest", (f["route"] as Array)[1])
+			var settled: bool = String(f.get("phase", "")) in ["inbound", "ground", "climbout"]
+			# Horizontal only: destinations are ground-plane points and the
+			# aircraft is at cruise, so a 3D compare never reaches the gate.
+			var flat: float = Vector2(node.global_position.x - dest.x,
+				node.global_position.z - dest.z).length()
+			arrived = not settled and flat < 20.0
+		var vanished: bool = bool(f.get("spawned", false)) and not alive
+		if arrived or vanished or age_s > MAX_FLIGHT_SECONDS:
 			if alive:
 				node.queue_free()
 			_in_flight.remove_at(i)

@@ -14,6 +14,15 @@ enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 @export var landing_speed: float = 6.0
 @export var climb_speed: float = 10.0
 
+## Rotor/fuselage node names inside the GLB. Defaults are the Huey's; a tandem
+## airframe (CH-47) overrides them in its scene.
+@export var main_rotor_node: String = "New_Blade_1"
+@export var tail_rotor_node: String = "New_TailBlade_2_002"
+@export var fuselage_node: String = "Huey_Copy"
+## Tandem lift (CH-47): the second rotor is a lifting rotor about Y, counter-
+## rotating, not an anti-torque tail rotor about X.
+@export var tandem_rotor: bool = false
+
 ## Rotor spin (rad/s at full RPM). Real UH-1 main rotor is ~324 RPM = 34 rad/s,
 ## but a two-blade rotor strobes horribly at 60Hz, so we run it slower on purpose.
 const MAIN_ROTOR_SPEED: float = 22.0
@@ -49,12 +58,12 @@ func _ready() -> void:
 	# Godot's GLB importer rewrites '.' to '_' in node names: the authored
 	# "New_TailBlade_2.002" arrives as "New_TailBlade_2_002". A miss returns null
 	# silently and the rotor simply never turns, so warn loudly.
-	_main_rotor = root.find_child("New_Blade_1", true, false) as Node3D
-	_tail_rotor = root.find_child("New_TailBlade_2_002", true, false) as Node3D
+	_main_rotor = root.find_child(main_rotor_node, true, false) as Node3D
+	_tail_rotor = root.find_child(tail_rotor_node, true, false) as Node3D
 	if _main_rotor == null:
-		push_warning("[Huey] main rotor 'New_Blade_1' not found - blades will not spin")
+		push_warning("[%s] main rotor '%s' not found - blades will not spin" % [name, main_rotor_node])
 	if _tail_rotor == null:
-		push_warning("[Huey] tail rotor 'New_TailBlade_2_002' not found - tail will not spin")
+		push_warning("[%s] tail rotor '%s' not found - tail will not spin" % [name, tail_rotor_node])
 
 	# Recenter on the fuselage's AABB centre, NOT its node origin: the mesh origin
 	# sits ~2m forward of the hull's true centre and would offset the CollisionTable
@@ -62,7 +71,7 @@ func _ready() -> void:
 	# centre has to be mapped through the basis first; a raw "-= centre" DOUBLES the
 	# offset instead of cancelling it. The GLB's seat_* sockets ride inside Model and
 	# land in this recentered frame at the FALLBACK_LAYOUT coordinates.
-	var fuselage := root.find_child("Huey_Copy", true, false) as MeshInstance3D
+	var fuselage := root.find_child(fuselage_node, true, false) as MeshInstance3D
 	if fuselage != null:
 		var centre: Vector3 = root.transform.basis * (fuselage.position + fuselage.get_aabb().get_center())
 		root.position.x -= centre.x
@@ -89,8 +98,11 @@ func _spin_rotors(delta: float) -> void:
 	if _main_rotor != null:
 		_main_rotor.rotate_y(MAIN_ROTOR_SPEED * _rotor_rpm * delta)
 	if _tail_rotor != null:
-		# Tail boom runs along -Z, so the tail rotor turns about X.
-		_tail_rotor.rotate_x(TAIL_ROTOR_SPEED * _rotor_rpm * delta)
+		if tandem_rotor:
+			_tail_rotor.rotate_y(-MAIN_ROTOR_SPEED * _rotor_rpm * delta)
+		else:
+			# Tail boom runs along -Z, so the tail rotor turns about X.
+			_tail_rotor.rotate_x(TAIL_ROTOR_SPEED * _rotor_rpm * delta)
 
 
 ## The 10-seat SeatSystem child (huey.tscn "Seats") - null on seatless vehicles.
@@ -165,7 +177,7 @@ func _process_flying(delta: float) -> void:
 
 	if dist < 4.0:
 		arrived_at_destination.emit()
-		if _lz != null or _target != Vector3.ZERO:
+		if _lz != null:
 			_land_y = _ground_y(_target) + 0.5
 			state = State.LANDING
 		else:

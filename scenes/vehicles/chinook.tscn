@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3 uid="uid://cch47chinook01"]
+
+[ext_resource type="Script" path="res://scripts/vehicles/helicopter.gd" id="1_heli"]
+[ext_resource type="PackedScene" path="res://assets/building models/vehicles/ch47_chinook.glb" id="2_glb"]
+
+[node name="Chinook" type="Node3D"]
+script = ExtResource("1_heli")
+cruise_altitude = 45.0
+max_speed = 44.0
+main_rotor_node = "FrontRotor"
+tail_rotor_node = "RearRotor"
+fuselage_node = "Fuselage"
+tandem_rotor = true
+
+[node name="Model" parent="." instance=ExtResource("2_glb")]
