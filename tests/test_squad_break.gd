@@ -1,7 +1,12 @@
-## test_squad_break.gd - squad break & exfil (4utx + the offered player exfil).
-## (a) ENEMY squads auto-withdraw at ~45% (break math + the retreat wiring).
-## (b) the PLAYER squad at 45% NEVER auto-moves - only the offer flag is set.
-## (c) player-INITIATED exfil fires the near-firebase vs far-heli branch.
+## test_squad_break.gd - squad break at ~45% strength (4utx). Same rule both sides
+## (Summoner, 2026-07-20).
+## (a) ENEMY squads auto-withdraw (break math + the retreat wiring).
+## (b) the PLAYER squad breaks on the SAME authority, and the flag reaches the men.
+## (c) a broken man's goals change at the boundary (cover-first, no closing).
+##
+## THIS PROBE CANNOT VERIFY FEEL. It certifies that the threshold fires, that both
+## sides compute it from one function, and that behavior differs across the
+## boundary. Whether a mauled squad READS right is the Summoner's eyes.
 ## Run: godot --headless --path . res://tests/test_squad_break.tscn
 extends Node
 
@@ -9,14 +14,17 @@ const EnemySquad := preload("res://scripts/enemies/enemy_squad.gd")
 
 
 func _ready() -> void:
-	print("=== SQUAD BREAK & EXFIL (4utx) ===")
+	print("=== SQUAD BREAK (4utx) ===")
 	var failures: int = 0
 	failures += _test_enemy_break_math()
 	failures += _test_enemy_retreat_wired()
 	failures += _test_rout_not_immune()
+	failures += _test_one_break_authority()
+	failures += _test_player_squad_breaks()
+	failures += _test_broken_man_goals()
 
 	if failures == 0:
-		print("PASS: enemy squad break math + withdrawal wiring hold")
+		print("PASS: squad break holds on both sides")
 	else:
 		print("=== %d FAILURE(S) ===" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
@@ -88,6 +96,101 @@ func _test_rout_not_immune() -> int:
 		fails += 1
 	if fails == 0:
 		print("  [OK] rout is behavior-only: a routing enemy stays fully killable/targetable")
+	return fails
+
+
+## ONE authority. The player side must not carry its own threshold or its own
+## ratio math - that duplication is the defect, not the feature.
+func _test_one_break_authority() -> int:
+	var src: String = FileAccess.get_file_as_string("res://scripts/squad/squad_system.gd")
+	var fails: int = 0
+	if src.find("EnemySquad.break_state(") < 0:
+		printerr("FAIL: SquadSystem must break via EnemySquad.break_state (one authority)")
+		fails += 1
+	if src.find("BREAK_RATIO:") >= 0 or src.find("0.45") >= 0:
+		printerr("FAIL: SquadSystem carries its own break threshold - two morale authorities")
+		fails += 1
+	if fails == 0:
+		print("  [OK] both sides break on EnemySquad.break_state - no second authority")
+	return fails
+
+
+## Behavioral, at the boundary, with the 55%% case as the negative control.
+func _test_player_squad_breaks() -> int:
+	var fails: int = 0
+	var sys := SquadSystem.new()
+	var men: Array[AllyBase] = []
+	for i in range(11):
+		var a := AllyBase.new()
+		a.courage = 0.5
+		men.append(a)
+		sys.members.append(a)
+	sys._break_ms = -1e9
+	sys._update_break()          # peak = 11, all up
+
+	# NEGATIVE CONTROL: 6/11 = 55%% - above threshold, nothing may flip.
+	for i in range(5):
+		men[i].current_state = Enums.AIState.DEAD
+	sys._break_ms = -1e9
+	sys._update_break()
+	if sys.squad_broken:
+		printerr("FAIL: player squad broke at 55%% strength")
+		fails += 1
+	if men[10].squad_broken:
+		printerr("FAIL: the broken flag reached a man while the squad was intact")
+		fails += 1
+
+	# 4/11 = 36%% - below the 0.45 threshold at average nerve.
+	men[5].current_state = Enums.AIState.DEAD
+	men[6].current_state = Enums.AIState.DEAD
+	sys._break_ms = -1e9
+	sys._update_break()
+	if not sys.squad_broken:
+		printerr("FAIL: player squad did NOT break at 36%% strength")
+		fails += 1
+	if not men[10].squad_broken:
+		printerr("FAIL: the break never reached the men (flag not propagated)")
+		fails += 1
+	if men[0].squad_broken:
+		printerr("FAIL: a dead man was flagged - peak/live scan counts corpses")
+		fails += 1
+
+	for a in men:
+		a.free()
+	sys.free()
+	if fails == 0:
+		print("  [OK] player squad: holds at 55%%, breaks at 36%%, flag reaches the living")
+	return fails
+
+
+## The flag must CHANGE the goals the ally ladder already has (there is no ally
+## RETREAT goal, and adding one would be a second system).
+func _test_broken_man_goals() -> int:
+	var fails: int = 0
+	var a := AllyBase.new()
+	a._contact_time = 99.0        # long fight, high nerve: the go-getter who pushes
+	# NEGATIVE CONTROL - unbroken, this man skips cover and closes.
+	if a.wants_cover_first(0.9):
+		printerr("FAIL: an unbroken go-getter took the cover trip")
+		fails += 1
+	if not a.may_close_distance(0.9):
+		printerr("FAIL: an unbroken go-getter refused to close")
+		fails += 1
+	a.squad_broken = true
+	if not a.wants_cover_first(0.9):
+		printerr("FAIL: a broken squad's go-getter still skipped cover")
+		fails += 1
+	if a.may_close_distance(0.9):
+		printerr("FAIL: a broken squad's man still closes the range")
+		fails += 1
+	# The thrash guard survives the break: two failed cover hunts stop the trip.
+	a._cover_fail_count = 2
+	if a.wants_cover_first(0.9):
+		printerr("FAIL: break bypassed the cover fail-count guard (thrash)")
+		fails += 1
+	a.free()
+	if fails == 0:
+		print("  [OK] broken man: covers first, stops closing, still guarded from thrash")
 	return fails
 
 

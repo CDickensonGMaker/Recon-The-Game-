@@ -87,6 +87,28 @@ func effective_courage() -> float:
 		if global_position.distance_to((p as Node3D).global_position) < RALLY_RADIUS:
 			c += RALLY_BONUS
 	return clampf(c, 0.0, 1.0)
+
+## Set by SquadSystem when the squad falls below its strength threshold
+## (EnemySquad.break_state - the same authority the enemy side breaks on).
+var squad_broken: bool = false
+
+
+## COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover trip
+## and push; everyone else covers once, on fresh contact only (<5s). A BROKEN squad
+## always takes it - surviving outranks nerve and outranks how long the fight
+## has run. The fail count still applies: a man who cannot find cover twice stops
+## hunting for it instead of thrashing.
+func wants_cover_first(nerve: float) -> bool:
+	if _cover_fail_count >= 2:
+		return false
+	return squad_broken or (_contact_time < 5.0 and nerve < 0.75)
+
+
+## May this man close the range? The coward anchors on his rock; a broken squad
+## does not push at all.
+func may_close_distance(nerve: float) -> bool:
+	return not squad_broken and not (nerve < 0.35 and has_cover)
+
 var has_line_of_sight: bool = false
 
 var current_aim_dir: Vector3 = Vector3.FORWARD
@@ -580,10 +602,8 @@ func _evaluate_goals() -> void:
 		return
 
 	# In contact = FIGHT. Reads the DEBOUNCED confidence, never raw LOS.
-	# COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover
-	# trip and push; everyone else covers once, on fresh contact only (<5s).
 	if target and _may_engage() and (contact_conf > 0.4 or target_last_seen_time < 6.0):
-		if not has_cover and _cover_fail_count < 2 and _contact_time < 5.0 and nerve < 0.75:
+		if not has_cover and wants_cover_first(nerve):
 			current_goal = Enums.AIGoal.SEEK_COVER
 			_change_state(Enums.AIState.SEEKING_COVER)
 			return
@@ -727,11 +747,14 @@ func _execute_combat(delta: float) -> void:
 		var move_dir := Vector3.ZERO
 		var nerve: float = effective_courage()
 		var advance_band: float = 0.9 if nerve >= 0.7 else 1.2
+		# A broken squad breaks CONTACT: it stops closing and it opens the range it
+		# will accept, so the fight is fought at arm's length while men get out.
+		var hold_band: float = 1.0 if squad_broken else 0.6
 
 		if dist > preferred_range * advance_band:
-			if not (nerve < 0.35 and has_cover):
+			if may_close_distance(nerve):
 				move_dir = (target.global_position - global_position).normalized()
-		elif dist < preferred_range * 0.6:
+		elif dist < preferred_range * hold_band:
 			move_dir = (global_position - target.global_position).normalized()
 
 		if strafe_direction != 0.0:
@@ -1023,8 +1046,10 @@ func _fire_at_target() -> void:
 	# Rounds touch flesh ONLY through hitzone areas: every body-capsule layer is
 	# OUT of the mask on purpose. A capsule in the mask eats the hit before the
 	# zones inside it and the hit lands flat 1.0x.
+	# Civilians (512) are IN: a stray round finds a villager the same way it finds
+	# a soldier. The crossfire is real on every side of it.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 32 | 64, [self], show_tracer)
+		1 | 32 | 64 | 512, [self], show_tracer)
 
 
 ## Is the current target the human player? Allies engage the enemy, never the player, so this is

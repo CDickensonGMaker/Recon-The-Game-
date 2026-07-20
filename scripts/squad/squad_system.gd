@@ -248,6 +248,42 @@ func _physics_process(delta: float) -> void:
 		_grenadier_timer = 0.0
 		_grenadier_tick()
 	_contact_barks()
+	_update_break()
+
+
+## ---- squad strength & break (4utx) ----------------------------------------
+## Same rule both sides: the threshold, the courage modulation and the 1s cadence
+## all come from EnemySquad.break_state - there is ONE break authority, and the
+## player's squad is judged by it exactly as an NVA squad is. What differs is only
+## the effect: allies have no RETREAT goal, so the flag biases the goals they DO
+## have (cover-first, no closing, wider stand-off) in AllyBase.
+var squad_broken: bool = false
+var _peak_strength: int = 0
+var _break_ms: float = -1e9
+
+
+func _update_break() -> void:
+	var now: float = float(Time.get_ticks_msec())
+	if now - _break_ms < EnemySquad.STRENGTH_TTL_MS:
+		return
+	_break_ms = now
+	var live: int = 0
+	var courage_sum: float = 0.0
+	for a in members:
+		if a != null and is_instance_valid(a) and not a.is_dead():
+			live += 1
+			courage_sum += a.courage
+	_peak_strength = maxi(_peak_strength, live)
+	var bs: Dictionary = EnemySquad.break_state(live, _peak_strength,
+		courage_sum / float(maxi(1, live)))
+	var was: bool = squad_broken
+	squad_broken = bool(bs.broken)
+	for a in members:
+		if a != null and is_instance_valid(a) and not a.is_dead():
+			a.squad_broken = squad_broken
+	if squad_broken != was and director != null:
+		director.toast.emit("SQUAD COMBAT INEFFECTIVE - BREAKING CONTACT" if squad_broken \
+			else "SQUAD BACK IN THE FIGHT")
 
 
 var _point_scan_timer: float = 0.0
