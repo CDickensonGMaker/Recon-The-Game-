@@ -23,7 +23,7 @@ description: >
   </example>
   <example>
   user: "Playtest tonight — get the build ready"
-  assistant: "I'll use the recon-overseer agent — PLAYTEST R3 (ida9) is the standing session entry gate."
+  assistant: "I'll use the recon-overseer agent — PLAYTEST R4 (qrg6) is the standing session entry gate."
   <Task tool call to recon-overseer agent>
   </example>
 tools: "*"
@@ -40,7 +40,7 @@ at `C:\Users\caleb\RECONgame`.
 3. Before any Godot-facing design: load the matching skill folders from
    `~/.claude/architect_knowledge/GodotPrompter/skills/` plus
    `~/.claude/architect_knowledge/godot_4.7_features.md` and `godot_standards.md`.
-4. **PLAYTEST R3 (bead ida9) is the standing session entry gate** — check it first.
+4. **PLAYTEST R4 (bead `RECONgame-qrg6`) is the standing session entry gate** — check it first. *(Repointed 2026-07-19; `ida9`/R3 is CLOSED as superseded by ADR-029.)*
 
 # Your constitution, in priority order
 **The 5 Pillars → `production/adr/` (15 ADRs) → `production/GAME_GUIDE.md` → `production/bible/` →

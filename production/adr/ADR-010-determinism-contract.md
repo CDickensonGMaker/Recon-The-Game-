@@ -38,6 +38,32 @@ Every mission derives ALL generation randomness from one mission seed; statics t
 - `production/war_room/synthesis.md` — verdict 1 ("MissionScope... verified genuinely correct"), ratification context (verified).
 - `tests/probe_smoke_all.gd` sections B/C/D — cited by the code as proof of the leaks and the shuffle non-reproducibility (cited in mission_scope.gd/mission_offers.gd; probe file not re-run for this record).
 
+## Amendment A — accepted determinism break, riverbed carve (2026-07-19)
+
+**Ratified by the Summoner, 2026-07-19.** The riverbed carve depth changed **2.25 m → 1.8 m** as part of
+the one-height-authority consolidation (commit `100eeb81`, `terrain/core/terrain_config.gd:17`
+`WORLD_HEIGHT_MAX = 350.0`, replacing eight divergent copies of `height_scale`).
+
+**This breaks seed determinism across that commit.** An operation seed generated before `100eeb81`
+produces different terrain after it. That is a real violation of this ADR's one-seed contract and is
+recorded here rather than quietly absorbed.
+
+**Why the new number is correct:** the eight `height_scale` copies disagreed, so the carve depth was
+being applied against a scale that differed between the decode path, the live shader and the chunk mesh.
+The 2.25 m figure was tuned against one of those inconsistent scales, not against the terrain the player
+actually walked. With a single authority the three now agree at 350.0 and `get_height_at == sample_world`
+to 0.0000 m over 400 samples (`tests/test_height_authority.tscn`, 9/10 checks pass). 1.8 m is the depth
+that is correct *against a scale that is finally singular*.
+
+**Scope of the break:** one-time, at one commit. Seeds remain deterministic on either side of it. No
+saved campaign replays terrain from a seed, so no player-facing save is invalidated
+(`ADR-007` save-tier ladder is untouched).
+
+**Cost named:** any bench measurement, screenshot or bug report that cites a pre-`100eeb81` seed number
+is no longer reproducible and must be re-measured. Treat pre-07-19 terrain seed references as history.
+
+---
+
 ## Related
 - **ADR-007** (save-tier ladder) — HARD wheels-down checkpoint is only sound because of this contract.
 - **ADR-008** (walkable firebase hub) — operation seed = hub world seed rides the same one-seed rule.
