@@ -10,10 +10,18 @@ extends Node
 ## false -> single baseline window (fast re-measure after a code change)
 @export var cycle_systems: bool = false
 
+## Costs the sun shadow the game does NOT currently ship, at three near-field caps. This is an
+## "what would atmosphere cost" study, not a saving: the shipped sun is shadow_enabled = false
+## (game_world.gd:48), so turning shadows off can never be a win.
+@export var shadow_study: bool = false
+
 const WARMUP: float = 5.0     ## skip engine/scene warm-up
 const WINDOW: float = 7.0     ## seconds per phase
 const SETTLE: float = 2.5     ## ignore this long after a toggle (visibility is 10Hz)
-const SCREENSHOT_AT: float = 1.5  ## into the baseline window, inside SETTLE so its stall is not sampled
+## Engine.get_frames_per_second() reports frames counted over the PREVIOUS SECOND, so a capture
+## stall keeps depressing the reading for ~1s after the stall frame itself. Firing at 0.25 leaves
+## >2s of clearance before SETTLE ends; at 1.5 the stall was still inside the first sampled reading.
+const SCREENSHOT_AT: float = 0.25
 
 var world: GameWorld
 var _elapsed: float = 0.0
@@ -24,6 +32,11 @@ var _prims: Dictionary = {}   ## phase -> Array[float]
 var _calls: Dictionary = {}   ## phase -> Array[float]
 var _objs: Dictionary = {}    ## phase -> Array[float]
 var _shot_taken: bool = false
+## The world's OWN shadow config, captured before any phase runs. Baselines must reproduce ship,
+## never force a shadow on: ADR-026:137-144 voided a 12ms "sun-shadow win" that was the arena bench
+## enabling a shadow the game does not ship. Reading ship here is what keeps that from recurring.
+var _shipped_shadow: bool = false
+var _shipped_shadow_dist: float = 100.0
 
 
 func _ready() -> void:
@@ -37,7 +50,15 @@ func _ready() -> void:
 ## The caller owns the world. Nothing is sampled until this lands.
 func attach(w: GameWorld) -> void:
 	world = w
-	if cycle_systems:
+	var sun0 := world.get_node_or_null("SunLight") as DirectionalLight3D
+	if sun0 != null:
+		_shipped_shadow = sun0.shadow_enabled
+		_shipped_shadow_dist = sun0.directional_shadow_max_distance
+	print("[PERF] ship config: sun shadow_enabled=%s max_distance=%.1f" % [
+		str(_shipped_shadow), _shipped_shadow_dist])
+	if shadow_study:
+		_phases = ["ship", "shadow_40m", "shadow_80m", "shadow_uncapped", "ship_2"]
+	elif cycle_systems:
 		# A/B/A: the baseline is re-measured between every lever. Run-to-run drift on
 		# this hardware was 1.4 fps on identical config (ledger, 2026-07-20), which is
 		# wider than some levers - a single baseline cannot carry four deltas.
@@ -68,12 +89,13 @@ func _process(delta: float) -> void:
 
 	if idx != _phase:
 		_phase = idx
+		_shot_taken = false
 		_apply_toggle(_phases[idx])
 
 	var in_window: float = t - float(idx) * WINDOW
 
-	if idx == 0 and not _shot_taken and in_window >= SCREENSHOT_AT:
-		_take_screenshot()
+	if in_window >= SCREENSHOT_AT and not _shot_taken and (idx == 0 or shadow_study):
+		_take_screenshot(_phases[idx])
 		_shot_taken = true
 
 	if in_window < SETTLE:
@@ -119,10 +141,26 @@ func _apply_toggle(phase_name: String) -> void:
 		push_error("[PERF] no GroundClutter under GameWorld - the no_clutter row measures nothing.")
 
 	var sun := world.get_node_or_null("SunLight") as DirectionalLight3D
-	if sun != null:
-		sun.shadow_enabled = phase_name != "no_sun_shadow"
+	if sun == null:
+		push_error("[PERF] no SunLight under GameWorld - every shadow row measures nothing.")
 	else:
-		push_error("[PERF] no SunLight under GameWorld - the no_sun_shadow row measures nothing.")
+		match phase_name:
+			"shadow_40m":
+				sun.shadow_enabled = true
+				sun.directional_shadow_max_distance = 40.0
+			"shadow_80m":
+				sun.shadow_enabled = true
+				sun.directional_shadow_max_distance = 80.0
+			"shadow_uncapped":
+				sun.shadow_enabled = true
+				sun.directional_shadow_max_distance = _shipped_shadow_dist
+			"no_sun_shadow":
+				sun.shadow_enabled = false
+			_:
+				sun.shadow_enabled = _shipped_shadow
+				sun.directional_shadow_max_distance = _shipped_shadow_dist
+		if phase_name == "no_sun_shadow" and not _shipped_shadow:
+			push_warning("[PERF] sun shadow is already OFF in ship config - the no_sun_shadow row measures NOTHING.")
 
 	# Campfires exist only at NIGHT/DUSK/DAWN (mission_generator.gd:643). At a DAY
 	# seed this lever toggles nothing, so the census is printed with the row - a
@@ -136,12 +174,12 @@ func _apply_toggle(phase_name: String) -> void:
 	print("[PERF] phase -> %s (campfires=%d)" % [phase_name, fires.size()])
 
 
-func _take_screenshot() -> void:
+func _take_screenshot(phase_name: String) -> void:
 	var img: Image = get_viewport().get_texture().get_image()
 	var dir := DirAccess.open("res://")
 	if not dir.dir_exists("screenshots"):
 		dir.make_dir("screenshots")
-	var path := "res://screenshots/perf_baseline.png"
+	var path := "res://screenshots/perf_%s.png" % phase_name
 	img.save_png(ProjectSettings.globalize_path(path))
 	print("[PERF] screenshot saved: %s" % path)
 
@@ -178,7 +216,7 @@ func _finish() -> void:
 			(_fps[p] as Array).size(),
 		])
 
-	if cycle_systems:
+	if shadow_study or cycle_systems:
 		# Each lever is scored against the MEAN of the two baselines that bracket it,
 		# so baseline drift across the run is halved instead of landing in one delta.
 		var brackets: Dictionary = {
@@ -187,6 +225,12 @@ func _finish() -> void:
 			"no_clutter": ["baseline_3", "baseline_4"],
 			"no_sun_shadow": ["baseline_4", "baseline_5"],
 		}
+		if shadow_study:
+			brackets = {
+				"shadow_40m": ["ship", "ship_2"],
+				"shadow_80m": ["ship", "ship_2"],
+				"shadow_uncapped": ["ship", "ship_2"],
+			}
 		var spread: float = _spread_of_baselines()
 		print("PERF DRIFT baseline spread across run = %.1f fps (noise floor)" % spread)
 		for p: String in brackets:
@@ -199,13 +243,14 @@ func _finish() -> void:
 				p, d, int(_avg(_prims[p]) - b_prims), int(_avg(_calls[p]) - b_calls),
 				"INSIDE NOISE" if absf(d) <= spread else "",
 			])
+	get_tree().quit(0)
 
 
 ## Widest gap between any two baseline windows in this run - the honest noise floor.
 func _spread_of_baselines() -> float:
 	var vals: Array[float] = []
 	for p: String in _phases:
-		if p.begins_with("baseline"):
+		if p.begins_with("baseline") or p.begins_with("ship"):
 			vals.append(_avg(_fps[p]))
 	if vals.size() < 2:
 		return 0.0
@@ -215,7 +260,3 @@ func _spread_of_baselines() -> float:
 		lo = minf(lo, v)
 		hi = maxf(hi, v)
 	return hi - lo
-
-	# No numeric FPS gate exists. This probe reports figures; the Summoner's eyes adjudicate.
-	print("PERF BASELINE fps_avg=%.1f (reported, not adjudicated)" % _avg(_fps["baseline"]))
-	get_tree().quit(0)

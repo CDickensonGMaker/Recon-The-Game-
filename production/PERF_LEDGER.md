@@ -577,6 +577,17 @@ scene can quietly reintroduce a per-event light without turning `test_fake_light
 (+9.8 / +9.4 / +7.2, ~46% of all primitives) and the canopy (+2.2 / +2.9 / +4.1, ~70% of draw calls).
 Campfire lights are not in that league and this ledger should stop implying they are.
 
+> ### RETRACTED 2026-07-20 (same day, later run) — THE SUN-SHADOW FIGURES ABOVE ARE A BENCH ARTIFACT.
+> The `+9.8 / +9.4 / +7.2` is **not a saving that exists**, and the canopy figures on this line are
+> **understated**. `tests/perf_probe.gd:123` read `sun.shadow_enabled = phase_name != "no_sun_shadow"`,
+> which **turned the shadow ON for all eight other phases** — including every baseline. The shipped
+> patrol world runs `shadow_enabled = false` (`game_world.gd:48`), so the probe was measuring the cost
+> of a shadow it had enabled itself, against a baseline the game never renders.
+> **This is the SECOND time this exact artifact was measured and believed** — ADR-026:137-144 retired
+> the identical −12.17ms claim on 2026-07-17 when `ai_stress_arena.gd` was the culprit. That wave
+> brought the *arena* to ship parity and left `tests/perf_probe.gd` unfixed; the artifact simply moved
+> harnesses. Corrected figures in the entry below. Rows above are left as measured.
+
 ### Instrument changes made this session (`tests/perf_probe.gd`)
 - **A/B/A by construction**: 9 phases, every lever bracketed by its own two baselines and scored
   against their mean, so run drift is halved instead of landing in one delta.
@@ -590,3 +601,105 @@ Campfire lights are not in that league and this ledger should stop implying they
   capture frame is never sampled, but its recovery frames depress the FIRST baseline of every run
   (`fps_min` 14.0 / 8.0 / 4.0). It inflates the reported noise floor and makes it conservative, never
   optimistic. Worth fixing before the next attribution pass.
+
+---
+
+# 2026-07-20 (later) — SHIP-PARITY A/B/A: THE SUN-SHADOW LEVER DOES NOT EXIST, AND THE CAP BUYS NOTHING
+
+Config for every row below: **seed 47225**, `scaling_3d/scale = 0.75`, renderer **forward_plus**,
+**Intel UHD Graphics**, Godot 4.7.stable, **windowed** (headless renders nothing), single Godot
+instance verified before each run.
+
+## What was wrong with the instrument
+
+`tests/perf_probe.gd:123` forced `sun.shadow_enabled = true` on every phase except `no_sun_shadow`.
+The shipped world sets it **false** (`game_world.gd:48`). Three consequences, all measured below:
+
+1. The `no_sun_shadow` "win" was the probe paying back a cost **it had just added**.
+2. Every other lever was scored against a **shadowed** baseline the game never renders, which
+   **suppressed the canopy delta** (the shadow pass re-renders the same jungle geometry).
+3. The published baseline of **23–25 FPS was not the shipped game's frame rate.**
+
+Fixed by capturing the world's own shadow config at `attach()` and reproducing it in every baseline.
+The lever now `push_warning`s when it is a no-op, matching the campfire-census pattern that caught the
+seed-47225 problem.
+
+## Run 1 — corrected attribution cycle (`-- --perf-probe --perf-cycle`)
+
+`[PERF] ship config: sun shadow_enabled=false max_distance=100.0`
+
+| phase | fps avg | prims | calls | objs |
+|-------|--------:|------:|------:|-----:|
+| baseline | 34.9 | 157,333 | 1,346 | 2,011 |
+| no_campfires | 34.8 | 157,364 | 1,351 | 2,052 |
+| baseline_2 | 34.6 | 158,343 | 1,377 | 2,048 |
+| no_canopy | **40.4** | 144,963 | 355 | 1,109 |
+| baseline_3 | 33.6 | 159,088 | 1,405 | 2,146 |
+| no_clutter | 34.3 | 158,510 | 1,378 | 2,054 |
+| baseline_4 | 33.4 | 159,891 | 1,411 | 2,080 |
+| no_sun_shadow | 33.6 | 160,704 | 1,411 | 2,082 |
+| baseline_5 | 34.1 | 156,347 | 1,378 | 2,032 |
+
+**Noise floor this run: 1.4 FPS.**
+
+| lever | dFps | verdict |
+|-------|-----:|---------|
+| no_campfires | +0.0 | INSIDE NOISE (0 campfires at this seed) |
+| **no_canopy** | **+6.3** | **the only lever above noise** |
+| no_clutter | +0.8 | INSIDE NOISE |
+| **no_sun_shadow** | **−0.2** | **INSIDE NOISE — the lever measures nothing** |
+
+**THE SHIPPED BASELINE IS ~34 FPS, not 23–25.** The old number carried a shadow the game does not ship.
+**The canopy delta ROSE from ~+2–4 to +6.3** once the baseline was honest: it had been partly hidden
+inside the shadow pass. The canopy is now the *only* measured lever above the noise floor, which is
+exactly what ADR-026:145-147 already said ("the remaining GPU bomb is the jungle").
+
+## Run 2 — what the sun shadow would COST if it were ever turned on (`-- --perf-probe --shadow-study`)
+
+This is an atmosphere-price study, **not a saving**. Shadows are off today.
+
+| phase | fps avg | prims | calls | objs |
+|-------|--------:|------:|------:|-----:|
+| ship (shadows off) | 34.5 | 149,431 | 1,283 | 1,934 |
+| shadow_40m | 24.2 | 264,858 | 1,429 | 2,107 |
+| shadow_80m | 24.0 | 275,359 | 1,409 | 2,203 |
+| shadow_uncapped (100m) | 24.3 | 271,855 | 1,388 | 2,305 |
+| ship_2 | 35.0 | 146,740 | 1,277 | 1,930 |
+
+**Noise floor this run: 0.5 FPS.**
+
+| setting | dFps vs ship |
+|---------|-------------:|
+| shadow_40m | **−10.5** |
+| shadow_80m | **−10.8** |
+| shadow_uncapped | **−10.4** |
+
+### THE NEAR-FIELD CAP IS NOT A MITIGATION
+**40m, 80m and uncapped are identical within a 0.5 FPS noise floor.** Shortening
+`directional_shadow_max_distance` concentrates shadow-map resolution nearer; it does **not** meaningfully
+reduce the geometry submitted to the shadow pass (+117k to +127k primitives at all three settings).
+On this hardware the sun shadow is **binary**: pay ~10.5 FPS (~30% of the frame) or do without.
+**ADR-026 Part A #2's "near-field-capped (≤40m)" option is therefore not a cheap middle ground** — the
+ADR's other listed option, **OFF, is what ships and is the only affordable one.** ADR-026 A.2 is
+already compliant today; no change was needed and none was made to shipped config.
+
+## The draw-distance floor is NOT crossed — verified, not assumed
+ADR-026's hard blocker requires player draw distance ≥ AI sight range (`SIGHT_CAP_OPEN = 140m`).
+Evidence, from the tables above: enabling/capping the shadow **only ever ADDS** primitives and objects
+(149,431 → 264,858 prims; 1,934 → 2,107 objs). Nothing is removed at any cap. A setting that clipped
+geometry or foliage would show prims/objs **below** the ship row; none does. `directional_shadow_max_distance`
+governs the shadow pass alone and has no effect on mesh visibility or LOD. And in shipped config the sun
+casts no shadow at all, so the floor is untouched by construction.
+
+## Instrument fixes this session (`tests/perf_probe.gd`)
+- **Ship parity**: baselines reproduce the world's own `shadow_enabled` / `directional_shadow_max_distance`
+  instead of forcing shadows on. The no-op case now warns loudly.
+- **`get_tree().quit(0)` was DEAD CODE** — stranded after the `return` in `_spread_of_baselines()`, so
+  **the probe never exited on its own.** This is the cause of the orphaned Godot processes that
+  contaminated earlier benches. Moved to the end of `_finish()`; both runs above exited 0 with
+  0 processes left behind.
+- **Screenshot artifact fixed**: `SCREENSHOT_AT` moved 1.5s → 0.25s. `Engine.get_frames_per_second()`
+  reports frames over the *previous second*, so a capture stall at 1.5s was still depressing the first
+  sampled reading at 2.5s. The prior entry flagged this as "worth fixing"; it is fixed. Noise floors of
+  1.4 and 0.5 FPS above are with the fix in.
+- **`--shadow-study`** phase list added for the atmosphere-price question, with a screenshot per phase.
