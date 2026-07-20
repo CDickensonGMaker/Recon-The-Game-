@@ -1,6 +1,23 @@
 # ADR-025 — LOD-tier world simulation (awake/asleep × node/data)
 
-**Status:** DRAFT pending Summoner ratification
+**Status:** SUPERSEDED 2026-07-20 — never ratified, and overtaken two days after filing.
+**Superseded by:** `production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:12-16` (BLESSED),
+which decrees *"AIDirector tick-list wins; WorldSim tiers die"* on a geometric kill-shot: WorldSim's
+`CELL_SIZE`/`AO_RADIUS` can never produce DORMANT on a 1280m map, so **"wiring it" was a rewrite wearing
+a fossil's name**. `production/COMPETING_SYSTEMS_2026-07-19.md:50` treats WorldSim burial as blessed
+Wave B work (`RECONgame-nohh`).
+
+**Do not extend `WorldSim`, and do not wire `materialize_near`/`dematerialize_far`.** The T3 row of the
+tier table below is the condemned instruction. Independently re-measured 2026-07-20: only **2.8%** of the
+AO is off-AO from the player's spawn (69.3% from a corner), and the generator registers every enemy with
+`velocity = Vector3.ZERO` and `schedule = {}` (`mission_generator.gd:213-218`), so the streaming path
+would advance nothing. A registry entry also carries no node or NodePath, so a consumer could not hand a
+materialized entity to anyone without creating one — the second-spawn-authority failure.
+
+This ADR stayed DRAFT-but-live for four days and actively misdirected work: on 2026-07-20 it routed an
+agent into building the condemned consumer. That is the drift the POINTER LAW exists to stop. The design
+thinking below is retained for the record; the instruction is void.
+
 **Filed:** 2026-07-16 by recon-overseer (wave 2 of the eager-growing-turtle plan)
 **GATE:** design-only ADR + a next-session implementation bead; no build this turn. Implementation is
 GATE-aware and convenes a War Room before code (it touches enemy AI + the Ambience Law).
