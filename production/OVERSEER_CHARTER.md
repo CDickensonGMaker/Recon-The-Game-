@@ -90,9 +90,9 @@ Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation
 | **Fire Support** (ADR-011) | RTO-gated, budgets, danger-close double-press — verified genuinely fixed | ✅ Danger-close checks the **player's** distance too (`scripts/missions/field_director.gd:357-359`, ahead of the squad loop) |
 | **Insertion & Exfil** (ADR-008) | Walkable firebase hub ratified | The 7-element briefing is **deleted, not skipped** — `scripts/ui/screens/briefing.gd` is gone (only an orphan `.uid` remains) and `mission_generator.gd:540` hardcodes `mission_type = "PATROL"`. The briefing, offer board and insertion ride are voided under the open-patrol pivot (`ADR-029-amendments-008-006`, **still DRAFT — ADR-029 itself is unratified**). What survives: firebase as home + persistence anchor, armorer's bench, autosave on entering the world. See §8 item 5 |
 | **Campaign & Saves** (ADR-007/010) | Persistent hub; one-seed determinism; all-or-nothing exfil commit; 3 save tiers | ⚠ Offer labels ("ENEMY: HEAVY") never read by generator → campaign is flat; ✅ pause menu shipped (`scripts/ui/screens/pause_menu.gd`); corrupt-slot load is refused, not crashed (`save_manager.gd:170-179`); ⚠ still open: atomic writes (`save_manager.gd:101-105` writes the slot in place, no temp+rename) and future-version reject (`:174` only migrates *older*; a newer schema falls straight through to `from_dict`) |
-| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off open. **Renderer A/B is CLOSED** — ADR-026 Amendment A (RATIFIED 2026-07-17): `forward_plus` is canon (`project.godot:300`); do not evaluate, propose, or draft a renderer switch again |
-| **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number** — still unset, still the top systemic risk. `rendering_method` IS set (`project.godot:300` `forward_plus`, ratified by ADR-026 Amendment A). Last sourced bench (ADR-026:111, 18v18 stress arena): **14.0 → 23.1 fps** after the cheap graphics cuts, now CPU-bound — the frame is in the AI, so activity-tiered AI (Part B) is the lever, not jungle draw cuts. Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
-| **QA / Verification** (ADR-015) | GATE bead + verification/truth laws; headless-boot validation | PLAYTEST **R3 (ida9) is the session entry gate**; test suite still needs rendered-scale probe + gating FPS number |
+| **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off open. **Renderer A/B is CLOSED** — ADR-026 Amendment A (RATIFIED 2026-07-17): `forward_plus` is canon; do not evaluate, propose, or draft a renderer switch again. **CORRECTION 2026-07-19:** the old `project.godot:300` pointer is dead — Godot **strips `renderer/rendering_method` on save** when it equals the desktop default, so Forward+ CANNOT be locked in config and holds only by being the default. Verify at runtime, not by grepping `project.godot` |
+| **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number** — still unset, still the top systemic risk. `rendering_method` is Forward+ by desktop default, ratified by ADR-026 Amendment A — but **not lockable in `project.godot`** (Godot strips the key on save when it matches the default; corrected 2026-07-19). Last sourced bench (ADR-026:111, 18v18 stress arena): **14.0 → 23.1 fps** after the cheap graphics cuts, now CPU-bound — the frame is in the AI, so activity-tiered AI (Part B) is the lever, not jungle draw cuts. Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
+| **QA / Verification** (ADR-015) | GATE bead + verification/truth laws; headless-boot validation | PLAYTEST **R4 (`RECONgame-qrg6`) is the session entry gate** — the ADR-029 open-patrol checklist, discharged only by a verified playtest; test suite still needs rendered-scale probe + gating FPS number |
 
 ---
 
@@ -110,13 +110,13 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 
 ## 8. Process law & the mechanical gate (ADR-015)
 
-- **GATE bead (RECONgame-97u3):** feature epics are `bd dep`-blocked while playtest P1s are open — `bd ready` hides gated work. **The open list lives in `bd`, never here** — of the seven the v0.3.1 changelog named as governing, six (o18o, a2qb, r4bk, e6qc, n2ij, zet2) are **closed**; `ida9` (PLAYTEST R3) is the one still open. Query `bd` for current truth before acting on the gate. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
+- **GATE bead (RECONgame-97u3):** feature epics are `bd dep`-blocked while playtest P1s are open — `bd ready` hides gated work. **The open list lives in `bd`, never here** — the gate is held by **`RECONgame-qrg6` (PLAYTEST R4)**, wired via `bd dep add 97u3 qrg6`. Query `bd list --limit 0` for current truth before acting on the gate — **`bd list` silently truncates at 50**. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
 - **Verification law:** "mitigated" / "likely fixed" never closes a bead; name the proof.
 - **Truth law:** no comment or doc may claim behavior a probe hasn't verified.
 - **War Room:** loop-structure and pillar-touching decisions convene a council **before** build.
 
 ### The standing decree — build order (GAME_GUIDE §8)
-0. **PLAYTEST R3 (ida9)** — session entry gate; nothing new ships until it verifies a2qb/r4bk.
+0. **PLAYTEST R4 (`RECONgame-qrg6`)** — session entry gate; nothing new ships until the Summoner verifies the ADR-029 open-patrol checklist (boot seated at `fsb_main` → wire gate → find a site unguided → fair contact → squad behaves → AAR banks at the gate, `field_director.gd:602-614`). Discharged only by a verified playtest (ADR-015), never by a probe.
 1. ~~**Stealth restoration bundle**~~ ✅ **DONE** — witness guard live (`enemy_base.gd:736/756/2351`, probe `test_witness_rule`) and ±25 contact scoring live (`debrief.gd:25-26`); o18o closed.
 2. **Trust-restoration day (measured)** — ✅ `rendering_method` set (`forward_plus`, ADR-026 Amdt A) · ✅ ModelActor AABB fix · remaining: streaming off ≤2km, `MAX_THINK_TIME`, and the gating FPS number (mhfv; closes 8pbo, n2ij 1-2).
 3. **Player-State HUD layer (fmc8 m0)** — condition/consumables/stamina/breath + detection pip + save/load feedback + pause menu + prompt-key truth (fy45).
@@ -132,7 +132,7 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 - **Posture:** past Full Game Audit #2 remediation (2026-07-10) and into the 2026-07-17 open-patrol pivot. ADR-001 … ADR-029 on disk (several late ones still DRAFT — check each header before citing); a standing decree governs execution.
 - **Engine:** Godot 4.7 stable (upgraded from 4.6.2, 2026-07-10), GDScript strict typing.
 - **Performance:** `rendering_method = forward_plus` (ADR-026 Amendment A, closed to re-litigation). Last sourced bench: **14.0 → 23.1 fps** on the 18v18 stress arena, now CPU-bound in the AI. **No gating FPS number is set — perf remains the top systemic risk.**
-- **Feature gate:** ACTIVE. Query `bd` for which P1s still hold it — of the original seven only `ida9` (PLAYTEST R3) is open.
+- **Feature gate:** ACTIVE, held by `RECONgame-qrg6` (PLAYTEST R4). Query `bd list --limit 0` for current truth.
 - **Where the build lags the vision (vision wins, all beaded):** detection pip, jungle feel (item 6), save hardening (atomic write + future-version reject), the gating FPS number.
 - **Biggest single wound:** perf without a gate number — the frame is CPU-bound in the AI and nothing mechanically fails a regression. *(The stealth economy is no longer the wound: the witness rule and ±25 scoring both shipped.)*
 - ~~Live design decision in flight~~ **DECIDED 2026-07-10: ADR-016 ratified by direct Summoner decree**
@@ -163,10 +163,9 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 - **v0.3.1 (2026-07-10)** — Installed by the War Room session that ratified audit #2.
   - Agent definition created at `.claude/agents/recon-overseer.md` (the compressed §10-seed layer); `GAME_GUIDE §10` now points here; global war-council config routes RECONgame work to this role.
   - **ADR-016 status corrected to PROPOSED** (no such ADR exists yet; the 15 stand; ADR-003 remains law). The damage-profiling probe is now a real bead (exempt evidence-gathering); build item 4 sequenced behind that decision.
-  - Open questions 1 and 3 resolved to their stated defaults. NOTE: o18o could NOT be mechanically
-    linked to the GATE (bd forbids task-type blockers on epics); the gate is mechanically held by the six
-    playtest beads (a2qb/r4bk/e6qc/n2ij/zet2/ida9), and o18o is covered by law as decree item 1 — treat
-    §8's seven-P1 list as the governing list regardless.
+  - Open questions 1 and 3 resolved to their stated defaults. NOTE: `bd` forbids task-type blockers on
+    epics, so a task that governs the GATE by law may not be mechanically linked to it — check §8 for the
+    governing list, not the dependency graph alone.
   - Loop line corrected: MAIN MENU includes NEW CAMPAIGN / CONTINUE; decree items annotated with their bead IDs.
 - **v0.3 (2026-07-10)** — Reconciled against `GAME_GUIDE.md` + the 15 ADRs.
   - Filled §5 domain status with as-built truth, ⚠ deviations, and build-order items; filled §9 state ledger (engine, perf, gate, lag-vs-vision).

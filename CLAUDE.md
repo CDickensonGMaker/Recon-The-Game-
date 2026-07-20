@@ -366,14 +366,30 @@ This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full 
 ### Quick Reference
 
 ```bash
+bd list --limit 0     # ALL issues — see the truncation warning below
 bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work
 bd close <id>         # Complete work
 ```
 
+### THE SESSION ENTRY GATE
+
+**PLAYTEST R4 — bead `RECONgame-qrg6` — is the standing session entry gate. Check it FIRST, before
+anything else.** It checks the ADR-029 open-patrol loop: boot seated at `fsb_main` → out the wire gate
+on one diegetic pointer → find a site unguided → fair contact → squad behaves → AAR banks at the gate
+(`scripts/missions/field_director.gd:602-614`). It is discharged only by a **verified playtest by the
+Summoner** (ADR-015) — never by a probe, never by an agent's reading.
+
+`qrg6` is `bd dep`-wired to the ADR-015 mechanical gate `RECONgame-97u3`, so while it is open
+`bd ready` correctly hides gated feature work.
+
 ### Rules
 
+- **`bd list` SILENTLY TRUNCATES AT 50** while ~129 beads are open (measured 2026-07-19). It prints no
+  warning and no count — a plain `bd list` will make you believe work does not exist. **Always use
+  `bd list --limit 0`.** This cost real work: the stale-gate pointers survived a full doc audit because
+  the replacement bead sat past row 50.
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files

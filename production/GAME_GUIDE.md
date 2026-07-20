@@ -299,7 +299,7 @@ The next project prompt must **not** carry these forward (all verified false 202
 
 ## 8 · Build order (the standing decree, 2026-07-10)
 
-0. **PLAYTEST R3 is the session entry point (ida9)** — nothing NEW ships until it verifies a2qb/r4bk.
+0. **PLAYTEST R4 is the session entry point (`RECONgame-qrg6`)** — the ADR-029 open-patrol checklist: boot seated at `fsb_main` → out the wire gate on one diegetic pointer → find a site unguided → fair contact → squad behaves → AAR banks at the gate (`scripts/missions/field_director.gd:602-614`). Nothing NEW ships until the Summoner verifies it by playtest (ADR-015).
 1. **Stealth restoration bundle (THE one build):** real witness guard + delete the lying comments +
    GUNSHOT 55→150m + ±25 contact scoring + optional village clear. Close o18o with a headless probe.
 2. **Trust-restoration day (measured):** `rendering_method` A/B → set it · ModelActor instance-space AABB
