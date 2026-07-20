@@ -6,12 +6,14 @@ was measured at (the standing sin — bead `365s` — was quoting scaled numbers
 ## Measurement contract
 - **Always record `rendering/scaling_3d/scale`.** `0.77` = 59.3% of native pixels; a number at 0.77 is
   NOT a native number.
-- **Always record the renderer** (`rendering/rendering_method`). Still **unset** in `project.godot`, so
-  the engine defaults to **Forward+** on desktop. Choosing a renderer is a real architecture decision —
-  left for the Summoner / a War Room, not set silently.
-- Harness: `tests/perf_probe.tscn` (windowed, NOT headless) loads `game_world.tscn` at a fixed seed,
-  skips a 5s warm-up, then samples `Engine.get_frames_per_second()` to 45s. Run via Godot MCP
-  `run_project` with that scene.
+- **Always record the renderer** (`rendering/rendering_method`). As of 2026-07-20 it is explicitly
+  `forward_plus` in `project.godot:300` (ADR-026 Amendment A). Note Godot STRIPS this key on editor
+  save when it equals the desktop default — if it goes missing again, restore it before measuring.
+- **Always record the seed.** Terrain relief, site layout and therefore frame cost change with it.
+  The shipped default is **47225** (`game_flow.gd:190`); older entries at 2077 do not describe it.
+- Harness (as of 2026-07-20): launch the game normally with `-- --perf-probe [--perf-cycle]`.
+  `GameFlow.enter_hub` attaches `tests/perf_probe.tscn` to the live patrol world. Windowed ONLY —
+  headless instantiates `RendererDummy` and every figure it reports is fiction.
 
 ## Entries
 
@@ -45,6 +47,12 @@ spawn, seed 2077, **scale 1.0**, renderer Forward+ (default). Numbers are per-fr
 \* baseline avg is dragged down by the one-frame screenshot-capture stall (fps_min 7.0). The
 patches-OFF / grass-OFF windows render byte-identical frames to baseline and read ~29.6 — that is the
 true stationary native baseline (consistent with the earlier 24–29 range).
+
+> **SUPERSEDED 2026-07-20 by the seed-47225 patrol-world run at the end of this ledger.** Kept as
+> history (ADR-014). This entry was produced by an instrument that toggled `BillboardVegetation` — a
+> system since retired — inside a bare `game_world` at seed 2077 that had no firebase and no sites.
+> The headline below is measured against a world nobody plays. **Sun shadow, which this run never
+> toggled, is the larger lever.**
 
 **The finding — billboards are the whole story, and it is measured now, not estimated:**
 - Disabling **`BillboardVegetation`** removes **120,220 primitives (40% of the frame)**, **108 of the
@@ -345,3 +353,46 @@ cannot perceive), and at hub start that class is one enemy in ten. It grows with
 resident population — the far camps and garrisons that WB's DORMANT/AGGREGATE tiers exist
 to hold — so A2 is banked as the CORRECTNESS prerequisite (brain always ticks; body follows
 perceivability) and WB is where the milliseconds are. No claim beyond the measurement.
+
+---
+
+### 2026-07-20 — FIRST run of `tests/perf_probe.gd` against the REAL patrol world (bead `s7wo`)
+
+**This is the first time this probe has ever executed.** Its previous form named two symbols that
+never existed (`BillboardVegetation`, `world.billboard_vegetation`) and built its own bare
+`game_world` at seed 2077 — terrain with no firebase, no sites, no LazyGroups. Every attribution row
+above it in this ledger describes a world nobody plays.
+
+- Harness: `--perf-probe --perf-cycle` on the normal boot; `GameFlow.enter_hub` attaches the probe to
+  the live world (`scripts/main/game_flow.gd`), so the probe and the player share ONE world build.
+- **Seed 47225** (`DEFAULT_OPERATION_SEED`), spawn `984,719`, `[SPAWN-TRUTH] delta=-0.00`.
+- Window **1280x720**, `scaling_3d/scale = 0.75`, renderer **forward_plus** (key restored to
+  `project.godot` this session), vsync off, `max_fps=0`.
+- Hardware: Intel UHD Graphics, Godot 4.7.stable. Stationary at the firebase spawn.
+- Two full passes, ~7s per phase after a 2.5s settle.
+
+| phase | run 1 fps | run 2 fps | run 1 dFps | run 2 dFps | prims (run 1) | calls (run 1) |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 25.1 | 23.7 | — | — | 270,084 | 1,407 |
+| no_canopy | 29.8 | 25.9 | +4.7 | +2.2 | 254,655 | 364 |
+| no_clutter | 26.7 | 25.5 | +1.6 | +1.8 | 266,843 | 1,354 |
+| **no_sun_shadow** | **36.0** | **34.2** | **+10.9** | **+10.5** | **144,454** | 1,251 |
+
+**The finding — the sun shadow is the frame, and the old headline was wrong.**
+- **Sun shadow is the dominant lever and the only one that reproduces tightly** (+10.9 / +10.5 FPS).
+  It carries **~126-129k primitives, 46% of every primitive in the frame.** Nothing else is close.
+- **Canopy does not reproduce** (+4.7 vs +2.2) and cannot be ranked from these two passes — but it
+  owns **~70% of the draw calls** (1,407 -> 364). Its cost is call-bound, not primitive-bound.
+- **Ground clutter is small and honest** (+1.6 / +1.8).
+- Baseline drifted **25.1 -> 23.7 between runs (1.4 FPS)** on identical config. Any future single-pass
+  A/B on this hardware is inside the noise floor. A/B/A or nothing.
+
+**No lever was pulled.** The default is unchanged; `no_sun_shadow` is an instrument phase only.
+Choosing it is ADR-026 / `mok6` / `4rd4` work and belongs to the Summoner.
+
+**No pass/fail is claimed.** The probe prints `FAIL: perf gate missed (baseline avg 25.1 < 30)`
+against a **30 FPS constant hardcoded at `tests/perf_probe.gd:170`**. That constant is not a ratified
+gate — no gating FPS number exists. Read the rows, ignore the verdict line.
+
+**NOT measured: the LazyGroup A/B/A (`l9kh`).** LazyGroup spawning has no toggle, and building one
+would be a change to `mission_generator`, not a measurement. Reported unmeasured rather than estimated.
