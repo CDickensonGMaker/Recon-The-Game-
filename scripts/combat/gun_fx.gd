@@ -1,5 +1,8 @@
-## gun_fx.gd - Tight 2000s-FPS shot feedback (RTCW/MoHAA school): muzzle flash
-## light+quad, impact puffs, positional gunshot audio. Budgeted (perf-first).
+## gun_fx.gd - Tight 2000s-FPS shot feedback (RTCW/MoHAA school): self-lit muzzle
+## flash quads, impact puffs, positional gunshot audio. Budgeted (perf-first).
+##
+## ADR-026 Part A #1: flashes and explosions are FAKE - emissive/additive sprites,
+## never a real-time OmniLight per event. Adding one back here is a canon violation.
 class_name GunFX
 extends RefCounted
 
@@ -55,7 +58,11 @@ static func play_combat_sting(parent: Node) -> void:
 static var _active_flashes: int = 0
 static var _active_impacts: int = 0
 static var _active_explosions: int = 0
-const MAX_FLASHES: int = 8
+## Muzzle flashes are the shooter's mandatory telegraph (Fairness Law) and are
+## exempt from the ADR-026 light cap - they are unshaded quads, not lights. This
+## bound only stops a runaway leak; it must never be low enough to silence a
+## shooter the player could see.
+const MAX_FLASHES: int = 64
 const MAX_IMPACTS: int = 12
 const MAX_EXPLOSIONS: int = 6   ## concurrent explosion visuals
 const MAX_DECALS: int = 48   ## bullet holes, FIFO-recycled
@@ -113,12 +120,6 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	parent.add_child(root)
 	root.global_position = pos
 
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.6, 0.25)
-	light.light_energy = 8.0
-	light.omni_range = 16.0
-	root.add_child(light)
-
 	var quad := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(1.2, 1.2)
@@ -130,7 +131,7 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	mat.albedo_color = Color(1.0, 0.75, 0.35, 1.0)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.55, 0.15)
-	mat.emission_energy_multiplier = 6.0
+	mat.emission_energy_multiplier = 9.0
 	quad.material_override = mat
 	quad.position.y = 0.6
 	root.add_child(quad)
@@ -166,12 +167,10 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	root.add_child(debris)
 	debris.emitting = true
 
-	# Fireball expands fast then fades; the flash light decays quicker.
 	var tw := root.create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.35).from(Vector3(0.6, 0.6, 0.6))
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tw.tween_property(light, "light_energy", 0.0, 0.25)
 	_expire(root, 1.4, func() -> void:
 		_active_explosions -= 1
 		root.queue_free())
@@ -228,16 +227,22 @@ static func _flash_mat() -> StandardMaterial3D:
 	mat.albedo_texture = _get_flash_tex()
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.7, 0.2)
-	mat.emission_energy_multiplier = 4.0
+	mat.emission_energy_multiplier = 6.0
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_shared_flash_mat = mat
 	return _shared_flash_mat
 
 
-## Muzzle flash: warm omni light + a radial burst with a star cross - two
-## billboard quads (round core + elongated spike pair), random roll + size
-## jitter so no two shots read identical. 45ms.
+## Muzzle flash: a radial burst with a star cross - two self-lit billboard quads
+## (round core + elongated spike pair), random roll + size jitter so no two shots
+## read identical.
+##
+## FLASH_SECONDS is a FAIRNESS floor, not a look knob: the flash is the shooter's
+## mandatory telegraph, so it must survive at least one rendered frame at our
+## worst measured framerate (~25 fps = 40ms/frame). Never shorten it for perf.
+const FLASH_SECONDS: float = 0.06
+
 static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
@@ -245,11 +250,6 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	var root := Node3D.new()
 	parent.add_child(root)
 	root.global_position = pos
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.75, 0.35)
-	light.light_energy = 3.0
-	light.omni_range = 7.0
-	root.add_child(light)
 
 	var size_jitter: float = randf_range(0.85, 1.25)
 	var core := MeshInstance3D.new()
@@ -268,7 +268,7 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
 	root.add_child(spikes)
 
-	_expire(root, 0.045, func() -> void:
+	_expire(root, FLASH_SECONDS, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())
 

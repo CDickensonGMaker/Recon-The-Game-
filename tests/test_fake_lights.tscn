@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8fakelights026"]
+
+[ext_resource type="Script" path="res://tests/test_fake_lights.gd" id="1_fl"]
+
+[node name="TestFakeLights" type="Node"]
+script = ExtResource("1_fl")
