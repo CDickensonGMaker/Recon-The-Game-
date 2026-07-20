@@ -41,7 +41,7 @@ var downsample: int = 1
 
 ## A cell is standing water (pond/lake) when filled - terrain exceeds this (meters).
 ## INF disables all pooling: the AO holds flowing channels (creeks/rivers) only, no
-## lakes/reservoirs. Water is a fording obstacle, never a swim (ADR-027).
+## lakes/reservoirs. Water is a fording obstacle, never a swim.
 var min_lake_depth: float = INF
 
 ## Tiny upward tilt applied while flood-filling so flats still drain (meters).

@@ -32,7 +32,7 @@ const VILLAGE_SCATTER_MODELS: Array[String] = [
 
 
 ## Villages scatter their huts across a footprint with a hard minimum separation
-## between any two structures (no tight ring). ADR-027-D: use the space.
+## between any two structures (no tight ring) - use the space.
 const VILLAGE_MIN_STRUCTURE_SEP: float = 14.0
 const VILLAGE_FOOTPRINT_RADIUS: float = 34.0
 

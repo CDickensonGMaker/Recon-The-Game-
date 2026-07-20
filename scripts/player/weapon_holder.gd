@@ -413,8 +413,8 @@ func _fire_shot() -> void:
 		# MASK LAW: world + hurtbox AREAS only. BODY capsules (ally layer 2, enemy
 		# layer 3) must stay OUT - a capsule in the mask shadows the hitzones inside
 		# it and every hit resolves flat 1.0x center-mass. Ally hurtboxes (32) are
-		# IN: friendly fire is real. Civilians (512) are IN on the PLAYER's masks
-		# only - the AI masks stay 1|32|64, so AI strays pass through villagers.
+		# IN: friendly fire is real. Civilians (512) are IN on every mask - the AI
+		# masks carry 512 too, so a stray round finds a villager whoever fired it.
 		1 | 32 | 64 | 512
 	)
 	# Godot: rays are bodies-only by default and hitzones are Area3D.

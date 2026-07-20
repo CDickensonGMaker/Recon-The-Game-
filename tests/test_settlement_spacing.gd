@@ -1,4 +1,4 @@
-## test_settlement_spacing.gd - ADR-027-D: village structures scatter >= 14m
+## test_settlement_spacing.gd - village structures scatter >= 14m
 ## apart on a flattened footprint, deterministically. On 3 seeds.
 ## Run: <godot> --headless --path . res://tests/test_settlement_spacing.tscn
 extends Node

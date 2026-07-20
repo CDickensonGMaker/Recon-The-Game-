@@ -1,3 +1,7 @@
+## PARKED BY DECISION, NOT BY NEGLECT (Summoner, 2026-07-20): convoys stay unwired
+## until a road network exists (bead ld0y). This is finished code waiting on its
+## ground, not a fossil - do not delete it, and do not wire it up early.
+##
 ## convoy.gd - a group of vehicles driving a route in formation.
 ## The lead vehicle navigates; trailing vehicles slot 6m behind. On contact
 ## (any member reports a hostile), the convoy stops and emits `ambushed` so the

@@ -82,7 +82,11 @@ func initialize(heightmap: RefCounted, chunk_size: float = 256.0) -> void:
 ## Generate all water bodies from a single coherent hydrology pass.
 ## Water cascades from the peaks downhill: channels (creeks/rivers) form where flow
 ## concentrates, pools (ponds/lakes) form in depressions, swamps in flat wet lowland.
-func generate_water_bodies() -> void:
+## `prebuilt` is the HydrologyMap TerrainManager already ran to carve the riverbeds.
+## Reusing it is what makes hydrology the single authority for where water goes: the
+## surface is placed in the same channels that were cut, not in channels recomputed
+## against terrain those very cuts changed.
+func generate_water_bodies(prebuilt: RefCounted = null) -> void:
 	if not _heightmap:
 		push_error("[WaterSystem] Cannot generate: no heightmap set")
 		return
@@ -91,12 +95,13 @@ func generate_water_bodies() -> void:
 
 	clear()
 
-	# Run the unified hydrology model once.
-	var hydro := HydrologyMapClass.new()
-	hydro.downsample = _auto_downsample()
-	hydro.ocean_edges = ocean_edges
-	hydro.sea_level = sea_level
-	hydro.generate(_heightmap)
+	var hydro: RefCounted = prebuilt
+	if hydro == null:
+		hydro = HydrologyMapClass.new()
+		hydro.downsample = _auto_downsample()
+		hydro.ocean_edges = ocean_edges
+		hydro.sea_level = sea_level
+		hydro.generate(_heightmap)
 	_hydrology = hydro
 
 	# Rivers/creeks come out as flow-traced polylines.

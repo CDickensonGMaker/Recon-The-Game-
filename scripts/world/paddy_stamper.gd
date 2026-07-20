@@ -19,7 +19,7 @@ const VILLAGE_GROUPING_RADIUS_M: float = 140.0  # paddies within this band → o
 const VILLAGE_TARGET_PADDY_MAX: int = 2     # 1-2 paddies per village = 8-10 villages from a normal AO
 const ANCHOR_OFFSET_MIN_M: float = 8.0      # hut center sits on the bund, not in the water
 const ANCHOR_OFFSET_MAX_M: float = 15.0
-const HARD_FLOOR_VILLAGES: int = 8          # the user's minimum villages per AO (raised from 4)
+const HARD_FLOOR_VILLAGES: int = 4          # one village per quadrant — mission_generator.gd:459-462 builds exactly four
 
 const RICE_A := "res://assets/world/vegetation/rice_a.glb"
 const RICE_B := "res://assets/world/vegetation/rice_b.glb"

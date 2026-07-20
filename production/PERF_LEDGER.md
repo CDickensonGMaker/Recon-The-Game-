@@ -3,6 +3,18 @@
 The single honest record of measured frame rates. Every number here names the render scale it
 was measured at (the standing sin — bead `365s` — was quoting scaled numbers as if native).
 
+> ## THERE IS NO NUMERIC FPS GATE. (Summoner, 2026-07-20: *"No numeric gate — my eyes decide."*)
+>
+> Every "the 30 gate" / "clears the gate" phrase below this banner is **historical shorthand for a
+> working target that was never ratified** — read it as a yardstick the measurers chose, never as a
+> pass/fail line this project agreed to. Performance is **ongoing tuning discharged by playtest**
+> (bead `u4h2`), and no number in this file passes or fails anything. `tests/perf_probe.gd` was
+> corrected on 2026-07-20 to report figures and adjudicate nothing — it previously printed a
+> hardcoded `FAIL: perf gate missed (baseline avg < 30)`.
+>
+> The measurement contract below still binds in full: a number without its scale, renderer and seed
+> is not a number.
+
 ## Measurement contract
 - **Always record `rendering/scaling_3d/scale`.** `0.77` = 59.3% of native pixels; a number at 0.77 is
   NOT a native number.

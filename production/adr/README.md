@@ -31,6 +31,15 @@ Every citation was independently re-verified against source at writing time.
 | [022](ADR-022-the-map-is-your-memory.md) | **The map is the player's memory** | **The game marks what you SAW; you mark what you THINK - and you may be WRONG.** |
 | [015](ADR-015-verification-and-gate-law.md) | Verification law + mechanical gate | GATE epic = RECONgame-97u3 |
 | [016](ADR-016-flat-damage-grammar.md) | Flat base damage × zone — the dice are retired | Summoner-decreed; shipped with probe `test_flat_damage` |
+| [023](ADR-023-the-fossil-law.md) | **The Fossil Law: delete the old system when you replace it** | enforced by a ratcheting probe in the suite |
+| [023-A](ADR-023-amendment-A-delete-the-callers.md) | **Amendment A: delete the system AND every caller** | **RATIFIED 2026-07-20** |
+| [025](ADR-025-lod-tier-simulation.md) | LOD-tier world simulation (4 tiers) | implementation beaded (`xdys`) |
+| [026](ADR-026-ps2-graphics-budget.md) | **The PS2 Budget: graphics-only discipline, uncapped fighters** | **RATIFIED 2026-07-20** |
+| [028](ADR-028-one-world-build-path.md) | One deterministic world-build path | phased; epic `x0r1` |
+| [029](ADR-029-open-patrol-simulator.md) | **The open patrol simulator** | + `ADR-029-amendments-008-006.md` |
+
+**Deleted 2026-07-20 by the Summoner (never built against):** ADR-024 (cinematic direction),
+ADR-027 (PS2 world design). A citation to either is drift — correct it on contact.
 
 **Writing a new ADR:** next number, same template (Context / Decision / Consequences with the sacrifice
 named / Evidence with verified file:line / Related). An ADR that changes a shipped behavior gets a bead.

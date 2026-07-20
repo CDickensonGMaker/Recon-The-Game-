@@ -28,6 +28,10 @@ var mission_log: Array = []       ## trimmed result dicts
 var iron_man: bool = false
 var player_data: Dictionary = {"mos": "RIFLEMAN"}
 var intel_points: int = 0  ## looted docs/captures sharpen the next briefing
+## Tunnel mouths the player has satchelled, as world positions rounded to the
+## metre. ADR-029 Amendment B: the world remembers a world verb. Never surfaced
+## as a count, a panel or a marker - only as ground that is no longer there.
+var collapsed_tunnels: Array = []
 
 
 
@@ -145,6 +149,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "iron_man", iron_man)
 	cfg.set_value("campaign", "player_data", player_data)
 	cfg.set_value("campaign", "intel_points", intel_points)
+	cfg.set_value("campaign", "collapsed_tunnels", collapsed_tunnels)
 	var err: int = cfg.save(save_path)
 	if err != OK:
 		push_error("[SAVE] could not write %s (err %d) - campaign progress lost" % [save_path, err])
@@ -179,6 +184,7 @@ func load_campaign() -> void:
 	iron_man = bool(cfg.get_value("campaign", "iron_man", false))
 	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
+	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
 	# EVERY boot until the next natural save.
 	if file_version < SAVE_VERSION:
@@ -205,6 +211,7 @@ func to_dict() -> Dictionary:
 		"iron_man": iron_man,
 		"player_data": player_data.duplicate(true),
 		"intel_points": intel_points,
+		"collapsed_tunnels": collapsed_tunnels,
 	}
 
 
@@ -220,6 +227,7 @@ func from_dict(d: Dictionary) -> void:
 	iron_man = bool(d.get("iron_man", false))
 	player_data = d.get("player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(d.get("intel_points", 0))
+	collapsed_tunnels = d.get("collapsed_tunnels", []) as Array
 
 
 func reset_campaign() -> void:
@@ -236,4 +244,22 @@ func reset_campaign() -> void:
 	# or an Iron Man death silently disables the very mode that caused the wipe.
 	player_data = {"mos": "RIFLEMAN"}
 	intel_points = 0
+	collapsed_tunnels = []
 	save_campaign()
+
+
+## Record a satchelled tunnel mouth so the next patrol finds it still collapsed.
+func remember_collapsed_tunnel(world_pos: Vector3) -> void:
+	var key := Vector3(roundf(world_pos.x), roundf(world_pos.y), roundf(world_pos.z))
+	if not collapsed_tunnels.has(key):
+		collapsed_tunnels.append(key)
+		save_campaign()
+
+
+## True if this mouth was blown on an earlier patrol. Tolerant to the metre so a
+## re-generated world places the entrance close enough to still match.
+func tunnel_is_collapsed(world_pos: Vector3) -> bool:
+	for c in collapsed_tunnels:
+		if (c as Vector3).distance_to(world_pos) < 3.0:
+			return true
+	return false

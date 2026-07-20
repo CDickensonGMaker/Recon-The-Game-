@@ -237,9 +237,9 @@ func _check_runtime_agreement() -> void:
 
 
 func _check_channels(tm: TerrainManager, water: WaterSystem) -> void:
-	# The carved grooves come from RiverGenerator (terrain_manager.river_paths).
-	# The water that renders comes from HydrologyMap (water_system). If those are
-	# two authorities for where water goes, this is where it shows.
+	# Both the carved grooves (terrain_manager.river_paths) and the water that
+	# renders (water_system) now come from HydrologyMap. One authority - so this
+	# check is the regression guard against a second one reappearing.
 	var paths: Array = tm.river_paths
 	if paths.is_empty():
 		print("  note: seed %d generated no carved rivers - channel check inconclusive" % SEED_VAL)

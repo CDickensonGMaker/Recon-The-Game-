@@ -85,6 +85,11 @@ var repair_kit_count: int = 1
 var _hunger_warned: bool = false
 ## Claymores (key 6).
 var claymore_count: int = 2
+## Satchel charges. No key of their own: HOLD the interact key at a tunnel mouth
+## (ADR-012 shared keys). A tap still goes down the hole, so the collapse never
+## gates the descent.
+var satchel_count: int = 2
+var _satchel_hold_t: float = 0.0
 ## Pop flares (key 7).
 var flare_count: int = 3
 ## Binoculars.
@@ -231,12 +236,96 @@ func field_interact_prompt() -> String:
 	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
 		var entrance := t as Node3D
 		if entrance and global_position.distance_to(entrance.global_position) < 3.0:
+			if satchel_count > 0:
+				return "[F] GO DOWN THE HOLE    [HOLD F] SATCHEL THE MOUTH"
 			return "[F] GO DOWN THE HOLE"
 	for c in get_tree().get_nodes_in_group("supply_crates"):
 		var crate := c as Node3D
 		if crate and global_position.distance_to(crate.global_position) < 3.0:
 			return "[F] RESUPPLY"
 	return ""
+
+
+## The tunnel mouth within reach, or null.
+func _nearby_tunnel_entrance() -> Node3D:
+	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
+		var entrance := t as Node3D
+		if entrance != null and global_position.distance_to(entrance.global_position) < 3.0:
+			return entrance
+	return null
+
+
+func _enter_tunnel(entrance: Node3D) -> void:
+	var room := TunnelRoom.get_or_create(get_tree().current_scene, entrance)
+	_in_tunnel = room
+	global_position = room.entry_point()
+	reset_physics_interpolation()
+	velocity = Vector3.ZERO
+	_field_toast("GOING DOWN. TIGHT IN HERE.")
+
+
+## The grenadier is the demo man (SkillCatalog.MOS_SKILL) - HIS demolitions
+## rating is what makes the charge go in fast and sure. Pillar 4: the squad is
+## the RPG, so the player's own hands never improve.
+func _satchel_hold_seconds() -> float:
+	var lvl: int = CampaignState.roster_skill("GRENADIER", "demolitions")
+	return maxf(0.9, 2.2 - 0.16 * float(lvl))
+
+
+## HOLD interact at a tunnel mouth to collapse it. A world verb: the mouth is
+## gone, the enemy can no longer surface there, and it is still gone next patrol
+## (ADR-029 Amendment B). There is deliberately no counter, panel or marker -
+## the only way to learn what you have destroyed is to walk back and look.
+func _tick_satchel_hold(delta: float) -> void:
+	if _in_tunnel != null or satchel_count <= 0 or not GameManager.can_player_act():
+		_satchel_hold_t = 0.0
+		return
+	var entrance: Node3D = _nearby_tunnel_entrance()
+	if entrance == null:
+		_satchel_hold_t = 0.0
+		return
+	if Input.is_action_just_released("interact"):
+		# Released short of the threshold: that was a tap, so go down the hole.
+		if _satchel_hold_t > 0.0:
+			_enter_tunnel(entrance)
+		_satchel_hold_t = 0.0
+		return
+	if not Input.is_action_pressed("interact"):
+		_satchel_hold_t = 0.0
+		return
+	_satchel_hold_t += delta
+	if _satchel_hold_t >= _satchel_hold_seconds():
+		# Consumed. Negative parks the timer so the tap-on-release branch above
+		# cannot also fire from the same press.
+		_satchel_hold_t = -1.0
+		_satchel_the_mouth(entrance)
+
+
+func _satchel_the_mouth(entrance: Node3D) -> void:
+	satchel_count -= 1
+	var at: Vector3 = entrance.global_position
+	# Anyone still down there dies with it, and the blast is loud and lethal at
+	# the mouth - standing on your own charge is a way to die (Pillar 1).
+	CombatManager.apply_explosion_damage(at, 200, 60, 9.0, self)
+	if DamageSystem.has_method("apply_damage"):
+		DamageSystem.apply_damage(at, DamageSystem.DamageType.SMALL_EXPLOSION, 1.4)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, at, 0)
+	GunFX.play_explosion_3d(get_tree().current_scene, at)
+	CampaignState.remember_collapsed_tunnel(at)
+	_collapse_entrance(entrance)
+	_field_toast("THE MOUTH IS GONE.")
+
+
+## Take the mouth out of the world: no descent, no spider-hole surfacing
+## (enemy_base.gd:662 reads this same group), no mesh.
+static func _collapse_entrance(entrance: Node3D) -> void:
+	entrance.remove_from_group("tunnel_entrances")
+	if entrance.has_meta("tunnel_room"):
+		var room = entrance.get_meta("tunnel_room")
+		if room is Node and is_instance_valid(room):
+			(room as Node).queue_free()
+		entrance.remove_meta("tunnel_room")
+	entrance.queue_free()
 
 
 ## Interact: capture / loot / crate / tunnel enter-exit.
@@ -269,16 +358,13 @@ func _try_field_interact() -> void:
 			CampaignState.save_campaign()
 			_field_toast("OLD SHRINE - SOMEONE LEFT MAPS HERE (+1 INTEL)")
 			return
-	# Tunnel entrance (topside).
-	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
-		var entrance := t as Node3D
-		if entrance and global_position.distance_to(entrance.global_position) < 3.0:
-			var room := TunnelRoom.get_or_create(get_tree().current_scene, entrance)
-			_in_tunnel = room
-			global_position = room.entry_point()
-			reset_physics_interpolation()
-			velocity = Vector3.ZERO
-			_field_toast("GOING DOWN. TIGHT IN HERE.")
+	# Tunnel entrance (topside). With a satchel on the belt the key is shared:
+	# _tick_satchel_hold owns the press so a HOLD can mean "blow it" and a TAP
+	# still means "go down". Without a satchel the tap descends immediately.
+	if satchel_count <= 0:
+		var entrance_now: Node3D = _nearby_tunnel_entrance()
+		if entrance_now != null:
+			_enter_tunnel(entrance_now)
 			return
 	for c in get_tree().get_nodes_in_group("supply_crates"):
 		var crate := c as Node3D
@@ -293,6 +379,7 @@ func _try_field_interact() -> void:
 				health_system.health_pack_changed.emit(health_system.health_packs)
 			smoke_count = 2
 			claymore_count = 2
+			satchel_count = 2
 			flare_count = 3
 			ration_count = mini(4, ration_count + 2)
 			repair_kit_count = mini(2, repair_kit_count + 1)
@@ -402,6 +489,8 @@ func _advance_repair_kit(delta: float) -> void:
 	repair_kit_count -= 1
 	var cond: float = float(weapon_holder.get("weapon_condition"))
 	weapon_holder.set("weapon_condition", minf(100.0, cond + FIELD_REPAIR_PCT))
+	if weapon_holder.has_method("refresh_after_load"):
+		weapon_holder.call("refresh_after_load")
 	_field_toast("WEAPON CLEANED TO %d%%. (%d kits left)" % [
 		int(minf(100.0, cond + FIELD_REPAIR_PCT)), repair_kit_count])
 
@@ -706,6 +795,7 @@ func _handle_movement(delta: float) -> void:
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
 
+	_tick_satchel_hold(delta)
 	if Input.is_action_just_pressed("interact"):
 		_try_field_interact()
 

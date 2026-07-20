@@ -183,6 +183,12 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	body.global_position = Vector3(world_pos.x, ground_y, world_pos.z)
 	body.rotation_degrees = Vector3(0, rotation_deg, 0)
 	if model_name.contains("tunnel"):
+		# A mouth the player satchelled on an earlier patrol stays gone (ADR-029
+		# Amendment B: the world remembers). It is never re-placed and never
+		# re-joins the group the enemy surfaces from.
+		if CampaignState.tunnel_is_collapsed(body.global_position):
+			body.queue_free()
+			return null
 		body.add_to_group("tunnel_entrances")  # W51
 	return body
 
@@ -204,7 +210,7 @@ func _apply_visibility_range(node: Node) -> void:
 
 
 ## VILLAGE: huts scattered across a flattened footprint, >= 14m between any two
-## structures (ADR-027-D), on level dry ground; center feature + cache + tunnel.
+## structures, on level dry ground; center feature + cache + tunnel.
 func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: Array[NodePath] = []) -> Dictionary:
 	var hut_count: int = rng.randi_range(7, 10)
 	var footprint_r: float = SiteLayouts.VILLAGE_FOOTPRINT_RADIUS
@@ -234,7 +240,10 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 	nodes.append(cache)
 
 	var tunnel_pos: Vector3 = _dry_point(center, footprint_r * 0.5, footprint_r, rng)
-	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, tunnel_pos, 0.0))
+	# null = a mouth the player already satchelled; it is simply not there.
+	var tunnel_node: Node3D = place_structure(SiteLayouts.TUNNEL_MODEL, tunnel_pos, 0.0)
+	if tunnel_node != null:
+		nodes.append(tunnel_node)
 
 	for _s in range(rng.randi_range(0, 2)):
 		var sp: Vector3 = _dry_point(center, sep, footprint_r, rng)
@@ -581,7 +590,10 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 ## NOT cleared - the jungle IS the camp's roof.
 func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	var nodes: Array[Node3D] = []
-	nodes.append(place_structure(SiteLayouts.TUNNEL_MODEL, center, rng.randf_range(0, 360)))
+	# null = a mouth the player already satchelled; it is simply not there.
+	var camp_tunnel: Node3D = place_structure(SiteLayouts.TUNNEL_MODEL, center, rng.randf_range(0, 360))
+	if camp_tunnel != null:
+		nodes.append(camp_tunnel)
 	nodes.append(place_structure(SiteLayouts.CACHE_MODEL,
 		_dry_point(center, 4.0, 10.0, rng), rng.randf_range(0, 360)))
 	for _i in range(rng.randi_range(1, 2)):

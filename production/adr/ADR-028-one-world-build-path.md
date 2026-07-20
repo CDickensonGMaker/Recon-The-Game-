@@ -1,5 +1,5 @@
 # ADR-028: One world-build path — the arena is a slice of it, never a parallel copy
-**Date:** 2026-07-17 · **Status:** Accepted (War Room, world-build unification Phase 1) · **Summoner:** Caleb (approved, phased) · **Relates:** ADR-010 (determinism), ADR-013 (streaming/residency), ADR-023 (fossil law), ADR-025 (LOD tiers), ADR-027 (world design)
+**Date:** 2026-07-17 · **Status:** Accepted (War Room, world-build unification Phase 1) · **Summoner:** Caleb (approved, phased) · **Relates:** ADR-010 (determinism), ADR-013 (streaming/residency), ADR-023 (fossil law), ADR-025 (LOD tiers)
 
 ## Context
 The AO was assembled by ~14 independent, player-window-keyed systems, each with its own RNG and its own
@@ -55,7 +55,7 @@ draw ceiling whole-map (no reclaim when the player huddles in a corner) — alre
 2. **Phase 2:** wire TreeCoverLayer live + fold into one veg system; dense-jungle-with-clearings zoning;
    relative-elevation paddy gate (fixes the absolute-50m "0 rice cells" P0 — see pre-check below).
 3. **Phase 3:** arena becomes a thin wrapper over the shared build; delete its hand-wired stubs.
-4. **Phase 4:** confirm activity-tiered AI across the full populated world; soften steepness (ADR-027-B).
+4. **Phase 4:** confirm activity-tiered AI across the full populated world; soften steepness.
 
 ## Evidence (Phase-1 pre-check, seed 47225)
 Map floor 132.3m (min 132.3 / max 207.3 / relief 75m) — entirely above the classifier's absolute

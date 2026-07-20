@@ -6,7 +6,7 @@ class_name TerrainManager
 
 const HeightmapStorageClass := preload("res://terrain/core/heightmap_storage.gd")
 const TerrainChunkClass := preload("res://terrain/core/terrain_chunk.gd")
-const RiverGeneratorClass := preload("res://terrain/water/river_generator.gd")
+const HydrologyMapClass := preload("res://terrain/water/hydrology_map.gd")
 
 signal terrain_ready
 ## Terrain heights changed in this world-space rect (cell-accurate, not
@@ -26,7 +26,6 @@ signal region_rebuilt(world_rect: Rect2)
 const STREAMING_MIN_MAP_SIZE: float = 2000.0
 
 @export var rivers_enabled: bool = true
-@export var river_count: int = 6  # Number of rivers to generate
 
 var heightmap: RefCounted  # HeightmapStorage
 var chunks: Dictionary = {}  # Vector2i -> TerrainChunk
@@ -41,6 +40,9 @@ var terrain_generator: Node  # TerrainEngine autoload
 var vegetation_manager: Node  # VegetationManager - set externally for rice paddy coloring
 
 var river_paths: Array = []
+## The one hydrology solve for this AO. WaterSystem reuses it (game_world.gd:147)
+## rather than running a second one against the terrain this carve just changed.
+var hydrology: RefCounted = null  # HydrologyMap
 
 func _ready() -> void:
 	chunks_per_side = int(ceil(map_size / chunk_size))
@@ -342,16 +344,21 @@ func get_loaded_chunk_count() -> int:
 # RIVER SYSTEM
 # ============================================================================
 
+## One authority decides where water goes: HydrologyMap. The beds are carved where
+## flow actually accumulates, using the same model, thresholds and downsample that
+## WaterSystem later uses to place the water surface, so a carved groove and the
+## creek that fills it can never describe different ground.
 func _extract_and_carve_rivers() -> void:
 	river_paths.clear()
 
-	var gen := RiverGeneratorClass.new()
-	gen.min_river_length = 50
-	gen.base_width = 6.0
-	gen.width_growth = 0.08
-	# Use fast gradient descent instead of slow D8 flow accumulation
-	var paths: Array = gen.extract_rivers_fast(heightmap, river_count)
-	river_paths = paths
+	var hydro := HydrologyMapClass.new()
+	# Mirrors WaterSystem._auto_downsample: ~400-cell hydrology grid at any map size.
+	hydro.downsample = maxi(1, int(round(float(heightmap.size) / 450.0)))
+	hydro.ocean_edges = WorldConfig.OCEAN_EDGES
+	hydro.sea_level = WorldConfig.SEA_LEVEL
+	hydro.generate(heightmap)
+	hydrology = hydro
+	river_paths = hydro.rivers
 
 	# Smooth paths (D8 discretization is jaggy)
 	for path in river_paths:
@@ -360,31 +367,37 @@ func _extract_and_carve_rivers() -> void:
 	for path in river_paths:
 		_carve_riverbed(path)
 
-	print("[TerrainManager] Extracted %d river paths" % river_paths.size())
+	print("[TerrainManager] Carved %d hydrology channels" % river_paths.size())
 
 
 ## Smooth a river path with windowed averaging
-func _smooth_river_path(path) -> void:
-	if path.points.size() < 5:
+func _smooth_river_path(path: Dictionary) -> void:
+	var points: PackedVector2Array = path["points"]
+	if points.size() < 5:
 		return
 	var smoothed := PackedVector2Array()
-	smoothed.resize(path.points.size())
-	smoothed[0] = path.points[0]
-	smoothed[path.points.size() - 1] = path.points[path.points.size() - 1]
-	for i in range(1, path.points.size() - 1):
-		var prev: Vector2 = path.points[i - 1]
-		var curr: Vector2 = path.points[i]
-		var next_pt: Vector2 = path.points[i + 1]
+	smoothed.resize(points.size())
+	smoothed[0] = points[0]
+	smoothed[points.size() - 1] = points[points.size() - 1]
+	for i in range(1, points.size() - 1):
+		var prev: Vector2 = points[i - 1]
+		var curr: Vector2 = points[i]
+		var next_pt: Vector2 = points[i + 1]
 		smoothed[i] = (prev + curr * 2.0 + next_pt) * 0.25
-	path.points = smoothed
+	path["points"] = smoothed
 
 
-## Carve riverbed into heightmap (must happen BEFORE chunk mesh generation)
-func _carve_riverbed(path) -> void:
+## Carve riverbed into heightmap (must happen BEFORE chunk mesh generation).
+## Carve radius follows the channel's own hydrology width, so a headwater creek
+## cuts a narrow groove and a trunk river cuts a wide one.
+func _carve_riverbed(path: Dictionary) -> void:
 	var carve_depth_meters: float = 1.8
-	var carve_radius: int = 2  # cells perpendicular
-	for i in path.points.size():
-		var p: Vector2 = path.points[i]
+	var points: PackedVector2Array = path["points"]
+	var widths: PackedFloat32Array = path["widths"]
+	for i in points.size():
+		var p: Vector2 = points[i]
+		var half_w: float = (widths[i] if i < widths.size() else 4.0) * 0.5
+		var carve_radius: int = clampi(int(round(half_w / heightmap.cell_size)), 1, 12)
 		var center_cell: Vector2i = heightmap.world_to_cell(p.x, p.y)
 		for dz in range(-carve_radius, carve_radius + 1):
 			for dx in range(-carve_radius, carve_radius + 1):

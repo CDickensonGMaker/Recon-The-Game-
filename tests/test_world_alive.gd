@@ -20,7 +20,6 @@ extends Node
 const CivilianScript := preload("res://scripts/world/civilian.gd")
 const EnemyBaseScript := preload("res://scripts/enemies/enemy_base.gd")
 const PaddyStamperScript := preload("res://scripts/world/paddy_stamper.gd")
-const LocationPlannerScript := preload("res://scripts/world/location_planner.gd")
 const FieldDirectorScript := preload("res://scripts/missions/field_director.gd")
 const MissionGeneratorScript := preload("res://scripts/missions/mission_generator.gd")
 # These mission preloads are kept available for diagnostic prints only;
@@ -55,32 +54,7 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 
-	# LOCATION-FIRST: pick firebase + villages + camps BEFORE anything else
-	# gets queried. Then lift the heightmap around each location so the
-	# ground beneath them is high and dry. Re-run the water system against
-	# the lifted heightmap so creeks/lakes form AROUND the locations, not
-	# under them.
-	var map_size_for_planner: float = world.terrain_manager.map_size
-	var locations: Array = LocationPlannerScript.plan_locations(7777, map_size_for_planner)
-	print("=== LOCATION-FIRST PASS (seed=7777) ===")
-	for loc in locations:
-		var lp = loc as LocationPlannerScript.PlannedLocation
-		var size_str: String = ""
-		if lp.kind == "village":
-			match lp.size:
-				LocationPlannerScript.VillageSize.SMALL: size_str = " SMALL"
-				LocationPlannerScript.VillageSize.MEDIUM: size_str = " MEDIUM"
-				LocationPlannerScript.VillageSize.LARGE: size_str = " LARGE"
-		print("  %s%s at (%.0f, %.0f)" % [lp.kind, size_str, lp.center.x, lp.center.z])
-	LocationPlannerScript.apply_lifts(world.terrain_manager.heightmap, locations)
-	# Re-run water system against lifted heightmap.
 	var water_node: Node = world.get_node_or_null("WaterSystem")
-	if water_node != null and water_node.has_method("generate_water_bodies"):
-		water_node.generate_water_bodies()
-	# Gameplay grid depends on the heightmap + water; rebuild it too so the
-	# paddy stamper sees the lifted ground.
-	if world.gameplay_grid != null and world.gameplay_grid.has_method("build_from_terrain"):
-		world.gameplay_grid.build_from_terrain()
 
 	# World-only generation proof. NO mission, NO director, NO build().
 	# Run the paddy stamper directly against the world's terrain + grid so
@@ -111,28 +85,18 @@ func _run() -> void:
 	if gw != null and gw.has_node("TerrainManager"):
 		terrain_cells = (gw.get_node("TerrainManager") as Node).terrain_manager.map_size * (gw.get_node("TerrainManager") as Node).terrain_manager.map_size
 
-	print("=== WORLD GENERATION PROOF (seed=7777, no mission, location-first) ===")
-	print("  planned locations:  %d (1 firebase + %d villages + %d camps)" % [
-		locations.size(),
-		locations.filter(func(l): return (l as LocationPlannerScript.PlannedLocation).kind == "village").size(),
-		locations.filter(func(l): return (l as LocationPlannerScript.PlannedLocation).kind == "camp").size()
-	])
+	print("=== WORLD GENERATION PROOF (seed=7777, no mission) ===")
 	print("  paddy_fields:    %d" % paddies.size())
-	print("  village_anchors: %d (hard floor = 8)" % anchors.size())
+	print("  village_anchors: %d (hard floor = 4)" % anchors.size())
 	print("  paddy_centroids: %d" % centroids.size())
 	print("  water_bodies:    %d" % water_bodies)
 	print("  rivers:          %d" % river_count)
-	if anchors.size() < 8:
-		print("  WARNING: village_anchors (%d) < hard floor (8). AO is paddy-poor; raise ground_y or expand paddy classification." % anchors.size())
+	if anchors.size() < 4:
+		print("  WARNING: village_anchors (%d) < hard floor (4). AO is paddy-poor; raise ground_y or expand paddy classification." % anchors.size())
 
 	# Build a synthetic "plan" dict for the minimap. Keyed off the world's
 	# actual outputs, not a mission's filtered subset.
 	var sites: Array = []
-	# Planned locations (from LocationPlanner) — these are the locations the
-	# world is BUILT AROUND, drawn first so they read as the "anchor" points.
-	for loc in locations:
-		var lp2 = loc as LocationPlannerScript.PlannedLocation
-		sites.append({"kind": lp2.kind, "center": lp2.center})
 	# Paddy anchor groups (village-anchor locations from PaddyStamper).
 	for a in anchors:
 		sites.append({"kind": "paddy_anchor", "center": a.get("center", Vector3.ZERO)})

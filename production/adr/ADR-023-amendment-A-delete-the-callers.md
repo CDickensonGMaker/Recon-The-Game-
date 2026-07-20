@@ -1,12 +1,11 @@
-# ADR-023 — AMENDMENT A (**DRAFT — NOT RATIFIED**)
+# ADR-023 — AMENDMENT A
 ## "Delete the old system" is not finished until the callers are gone
 
-**Status:** DRAFT · proposed 2026-07-17 by the overnight Director run · **awaits Summoner ratification**
+**Status:** RATIFIED 2026-07-20 by the Summoner. Binding.
 **Amends:** ADR-023 (THE FOSSIL LAW)
 **Evidence:** measured incident, this repo, this night. See §2.
 
-> **This is a draft. It is not canon. It changes a binding law, and only the Summoner ratifies law.**
-> Nothing in this file has been enforced, and no code was changed to match it.
+> Binding law. Deleting a system is not finished until every caller is gone with it.
 
 ---
 

@@ -1,4 +1,4 @@
-## test_water_channels.gd - ADR-027 water: assert the AO holds flowing channels
+## test_water_channels.gd - water: assert the AO holds flowing channels
 ## (creeks/rivers) ONLY - zero lakes/ponds/swamps/coastal, every body fordable.
 ## Run: <godot> --headless --path . res://tests/test_water_channels.tscn
 extends Node

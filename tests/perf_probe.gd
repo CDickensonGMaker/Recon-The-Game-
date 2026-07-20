@@ -176,9 +176,6 @@ func _finish() -> void:
 				int(_avg(_prims[p]) - base_prims), int(_avg(_calls[p]) - base_calls),
 			])
 
-	var base_avg: float = _avg(_fps["baseline"])
-	if base_avg >= 30.0:
-		print("PASS: perf gate met (baseline avg %.1f >= 30)" % base_avg)
-	else:
-		print("FAIL: perf gate missed (baseline avg %.1f < 30)" % base_avg)
+	# No numeric FPS gate exists. This probe reports figures; the Summoner's eyes adjudicate.
+	print("PERF BASELINE fps_avg=%.1f (reported, not adjudicated)" % _avg(_fps["baseline"]))
 	get_tree().quit(0)

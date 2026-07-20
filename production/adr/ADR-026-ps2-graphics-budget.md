@@ -1,6 +1,6 @@
 # ADR-026 — THE PS2 BUDGET: a graphics-only rendering discipline, uncapped fighters, cheap-per-unit AI
 
-- **Status:** DRAFT — pending Summoner ratification. (Re-frames the whole optimization effort; supersedes nothing until ratified.)
+- **Status:** RATIFIED 2026-07-20 by the Summoner. Binding. (Re-frames the whole optimization effort.)
 - **Date:** 2026-07-16
 - **Deciders:** Summoner (Caleb) by decree; War Room council (technical-director, game-designer/atmosphere, devil's-advocate) advising; Overseer arbitrating.
 - **Pillars touched:** 1 (gunplay), 2 (atmosphere), 3 (freedom) — hence a full council.

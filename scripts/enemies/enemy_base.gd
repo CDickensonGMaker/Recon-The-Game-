@@ -685,13 +685,7 @@ func _check_tunnel_retreat() -> void:
 
 ## Local sight cap from vegetation density.
 func _sight_cap(at: Vector3) -> float:
-	var mult: float = MissionWeather.sight_mult
-	if mult < 0.9 and IllumFlare.is_lit(at):
-		mult = maxf(mult, 0.9)
-	if _grid == null:
-		return SIGHT_CAP_OPEN * mult
-	var veg: float = maxf(_grid.get_vegetation(global_position), _grid.get_vegetation(at))
-	return lerpf(SIGHT_CAP_OPEN, SIGHT_CAP_JUNGLE, clampf(veg, 0.0, 1.0)) * mult
+	return SightCap.at(_grid, global_position, at)
 
 
 ## Share what I see, pull what the squad knows (EnemySquad).
@@ -2013,8 +2007,10 @@ func _fire_at_target() -> void:
 	# Rounds touch flesh ONLY through hitzone areas - the player's body layer (2) is
 	# OUT of the mask on purpose: a capsule eats the hit before the zones inside it
 	# and everything lands flat 1.0x.
+	# Civilians (512) are IN: a stray round finds a villager the same way it finds
+	# a soldier. The crossfire is real on every side of it.
 	CombatManager.bullets.fire(weapon_data, self, origin, final_aim,
-		1 | 32 | 64, [self], show_tracer)
+		1 | 32 | 64 | 512, [self], show_tracer)
 
 
 ## Telegraph shout, then lob a real grenade at the last-known position.

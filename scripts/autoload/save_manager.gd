@@ -129,6 +129,7 @@ func _collect_player() -> SaveData.PlayerSection:
 	p.stamina = float(player.get("stamina") if player.get("stamina") != null else 100.0)
 	p.smoke_count = int(player.get("smoke_count") if player.get("smoke_count") != null else 2)
 	p.claymore_count = int(player.get("claymore_count") if player.get("claymore_count") != null else 2)
+	p.satchel_count = int(player.get("satchel_count") if player.get("satchel_count") != null else 2)
 	p.flare_count = int(player.get("flare_count") if player.get("flare_count") != null else 3)
 	p.hunger = float(player.get("hunger") if player.get("hunger") != null else 100.0)
 	var hs: Node = player.get("health_system")
@@ -207,6 +208,7 @@ func apply_pending_player(player: Node3D) -> void:
 		player.set("stamina", p.stamina)
 	player.set("smoke_count", p.smoke_count)
 	player.set("claymore_count", p.claymore_count)
+	player.set("satchel_count", p.satchel_count)
 	player.set("flare_count", p.flare_count)
 	if player.get("hunger") != null:
 		player.set("hunger", p.hunger)

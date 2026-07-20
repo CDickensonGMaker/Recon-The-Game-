@@ -144,7 +144,7 @@ func _on_terrain_ready() -> void:
 	water_system.initialize(terrain_manager.heightmap, terrain_manager.chunk_size)
 	water_system.ocean_edges = WorldConfig.OCEAN_EDGES
 	water_system.sea_level = WorldConfig.SEA_LEVEL
-	water_system.generate_water_bodies()
+	water_system.generate_water_bodies(terrain_manager.hydrology)
 	var wetness_tex: ImageTexture = water_system.generate_wetness_texture(16.0)
 	if wetness_tex:
 		TerrainChunkScript.set_shader_texture("wetness_texture", wetness_tex)

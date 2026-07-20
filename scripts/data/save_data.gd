@@ -75,6 +75,7 @@ class PlayerSection:
 	var grenade_count: int = 2
 	var smoke_count: int = 2
 	var claymore_count: int = 2
+	var satchel_count: int = 2
 	var flare_count: int = 3
 	# Survival v1 (Phase C)
 	var hunger: float = 100.0
@@ -91,7 +92,7 @@ class PlayerSection:
 			"primary_path": primary_path, "secondary_path": secondary_path,
 			"primary_ammo": primary_ammo, "secondary_ammo": secondary_ammo,
 			"grenade_count": grenade_count, "smoke_count": smoke_count,
-			"claymore_count": claymore_count, "flare_count": flare_count,
+			"claymore_count": claymore_count, "satchel_count": satchel_count, "flare_count": flare_count,
 			"hunger": hunger, "weapon_condition": weapon_condition,
 			"ration_count": ration_count, "repair_kit_count": repair_kit_count,
 		}
@@ -113,6 +114,7 @@ class PlayerSection:
 		p.grenade_count = int(d.get("grenade_count", 2))
 		p.smoke_count = int(d.get("smoke_count", 2))
 		p.claymore_count = int(d.get("claymore_count", 2))
+		p.satchel_count = int(d.get("satchel_count", 2))
 		p.flare_count = int(d.get("flare_count", 3))
 		p.hunger = float(d.get("hunger", 100.0))
 		p.weapon_condition = float(d.get("weapon_condition", 100.0))
