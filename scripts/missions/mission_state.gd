@@ -1,13 +1,7 @@
-## mission_state.gd - Objective bitmask + mission accumulators.
-## Exfil unlocks only when required_mask is full.
+## mission_state.gd - Mission accumulators + the ADR-006 contact ledger.
 class_name MissionState
 extends RefCounted
 
-
-var objective_titles: Dictionary = {}  ## index -> String
-var required_mask: int = 0
-var optional_mask: int = 0
-var met_mask: int = 0
 
 var kills: int = 0
 var damage_taken: int = 0
@@ -16,43 +10,6 @@ var emergency_exfil: bool = false
 var mission_type: String = ""
 var seed_value: int = 0
 var flags: Dictionary = {}  ## generator/system extras merged into the result
-
-
-func register_objective(index: int, title: String, required: bool = true) -> void:
-	objective_titles[index] = title
-	var bit: int = 1 << index
-	if required:
-		required_mask |= bit
-	else:
-		optional_mask |= bit
-
-
-func complete_objective(index: int) -> bool:
-	var bit: int = 1 << index
-	if met_mask & bit:
-		return false  # idempotent
-	met_mask |= bit
-	return true
-
-
-func is_objective_complete(index: int) -> bool:
-	return (met_mask & (1 << index)) != 0
-
-
-func is_exfil_unlocked() -> bool:
-	return (met_mask & required_mask) == required_mask
-
-
-func objectives_total() -> int:
-	return objective_titles.size()
-
-
-func objectives_done() -> int:
-	var count: int = 0
-	for index in objective_titles.keys():
-		if is_objective_complete(int(index)):
-			count += 1
-	return count
 
 
 func record_kill() -> void:
@@ -106,8 +63,6 @@ func _base_result(success: bool, reason: String) -> Dictionary:
 		"kills": kills,
 		"damage_taken": damage_taken,
 		"time_sec": elapsed_seconds(),
-		"objectives_done": objectives_done(),
-		"objectives_total": objectives_total(),
 		"emergency_exfil": emergency_exfil,
 		# ADR-006: what the debrief actually pays on.
 		"contacts_detected": contacts_detected,

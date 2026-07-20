@@ -77,13 +77,10 @@ func _draw() -> void:
 		return Vector2(nx * sz.x, nz * sz.y)
 
 	# Labeled sites. Origin (0,0,0) is treated as "missing" so we don't
-	# mark the AO center when a kind isn't on the plan.
-	_draw_marker(_plan.get("firebase_center", Vector3.ZERO), world_to_map,
+	# mark the AO center when a kind isn't on the plan. Villages and camps
+	# come through the sites[] loop below.
+	_draw_marker(_plan.get("fsb_center", Vector3.ZERO), world_to_map,
 			Color(0.2, 0.6, 1.0), "FB", 7.0, true)
-	_draw_marker(_plan.get("village_center", Vector3.ZERO), world_to_map,
-			Color(0.95, 0.85, 0.3), "V", 6.0, true)
-	_draw_marker(_plan.get("camp_center", Vector3.ZERO), world_to_map,
-			Color(0.95, 0.3, 0.25), "C", 6.0, true)
 	_draw_marker(_plan.get("insertion_lz", Vector3.ZERO), world_to_map,
 			Color(0.55, 0.9, 0.55), "LZ", 5.0, true)
 	_draw_marker(_plan.get("exfil_lz", Vector3.ZERO), world_to_map,
@@ -109,8 +106,8 @@ func _draw() -> void:
 			var label: String = ""
 			match kind:
 				"village": col = Color(0.95, 0.85, 0.3); radius = 6.0; label = "V"
-				"firebase": col = Color(0.2, 0.6, 1.0); radius = 8.0; label = "FB"
-				"camp": col = Color(0.95, 0.3, 0.25); radius = 7.0; label = "C"
+				"firebase_main": col = Color(0.2, 0.6, 1.0); radius = 8.0; label = "FB"
+				"vc_camp": col = Color(0.95, 0.3, 0.25); radius = 7.0; label = "C"
 				"lz": col = Color(0.55, 0.9, 0.55)
 				"paddy": col = Color(0.7, 0.55, 0.25); radius = 3.0
 				"paddy_anchor": col = Color(0.95, 0.7, 0.2); radius = 5.0

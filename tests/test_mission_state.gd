@@ -1,4 +1,4 @@
-## test_mission_state.gd - NS07: kill-count fix + bitmask/exfil-gate math.
+## test_mission_state.gd - NS07: kill-count fix through real EnemyBase deaths.
 ## Run: godot --headless --path . res://tests/test_mission_state.tscn
 extends Node3D
 
@@ -12,32 +12,14 @@ func _ready() -> void:
 func _run() -> void:
 	var failures: int = 0
 
-	# --- Pure bitmask math ---
+	# ADR-029 forbids objective COUNTING: MissionState carries no objective
+	# bitmask, and a result dict that grows one again is a regression.
 	var s := MissionState.new()
-	s.register_objective(0, "DESTROY CACHE", true)
-	s.register_objective(1, "CLEAR VILLAGE", true)
-	s.register_objective(2, "BONUS RECON", false)
-	if s.is_exfil_unlocked():
-		print("FAIL: exfil unlocked with nothing done")
-		failures += 1
-	s.complete_objective(0)
-	if s.is_exfil_unlocked():
-		print("FAIL: exfil unlocked at 1/2 required")
-		failures += 1
-	s.complete_objective(2)  # optional shouldn't unlock
-	if s.is_exfil_unlocked():
-		print("FAIL: optional objective unlocked exfil")
-		failures += 1
-	s.complete_objective(1)
-	if not s.is_exfil_unlocked():
-		print("FAIL: exfil locked with all required done")
-		failures += 1
-	if s.complete_objective(1):
-		print("FAIL: re-completion not idempotent")
-		failures += 1
-	if s.objectives_done() != 3:
-		print("FAIL: objectives_done=%d expected 3" % s.objectives_done())
-		failures += 1
+	var probe: Dictionary = s.build_result(true, "")
+	for dead_key in ["objectives_done", "objectives_total"]:
+		if probe.has(dead_key):
+			print("FAIL: retired objective counter '%s' is back in build_result" % dead_key)
+			failures += 1
 
 	# --- Kill counting through real EnemyBase deaths ---
 	var floor_body := StaticBody3D.new()
@@ -82,7 +64,7 @@ func _run() -> void:
 		failures += 1
 
 	var result: Dictionary = director.state.build_result(true)
-	if int(result.kills) != 3 or int(result.objectives_total) != 0:
+	if int(result.kills) != 3:
 		print("FAIL: result dict wrong: %s" % result)
 		failures += 1
 

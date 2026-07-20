@@ -32,12 +32,12 @@ func _initialize() -> void:
 	print("  3 groups, 1 went loud -> detected=%d avoided=%d" % [
 		int(r.contacts_detected), int(r.contacts_avoided)])
 	var score: int = DebriefScreen.compute_score({
-		"objectives_done": 2, "objectives_total": 2, "kills": 9, "damage_taken": 0,
+		"kills": 9, "damage_taken": 0,
 		"time_sec": 800.0, "success": true, "emergency_exfil": false, "shots": 200,
 		"contacts_avoided": int(r.contacts_avoided), "contacts_detected": int(r.contacts_detected),
 	})
-	print("  score for 2 objectives + 9 kills + that ledger = %d" % score)
-	print("  (kills pay NOTHING now: 2x100 + 2x25 avoided - 1x25 detected = 225)")
+	print("  score for 9 kills + that ledger = %d" % score)
+	print("  (kills pay NOTHING: 2x25 avoided - 1x25 detected + 50 fast = 75)")
 	quit(0)
 
 

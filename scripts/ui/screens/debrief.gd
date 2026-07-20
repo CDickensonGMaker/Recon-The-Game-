@@ -11,11 +11,14 @@ func set_result(r: Dictionary) -> void:
 	result = r
 
 
-## R83: weapons-tight/ROE bonus - a quiet, disciplined run (few shots per
-## objective) pays like a clean sweep, not just a fast one.
+## R83: weapons-tight/ROE bonus - a quiet, disciplined run pays like a clean
+## sweep, not just a fast one.
+const GHOST_SHOT_CEILING: int = 15
+
+
 static func _ghost_bonus(r: Dictionary) -> bool:
 	var shots: int = int(r.get("shots", 0))
-	return bool(r.get("success", false)) and shots > 0 and shots <= 15 * maxi(1, int(r.objectives_done))
+	return bool(r.get("success", false)) and shots > 0 and shots <= GHOST_SHOT_CEILING
 
 
 ## ADR-006 SCORING. Kills earn NOTHING. What earns is CONTACT DISCIPLINE: +25 for
@@ -27,8 +30,7 @@ const CONTACT_DETECTED: int = -25
 
 
 static func compute_score(r: Dictionary) -> int:
-	var score: int = int(r.objectives_done) * 100
-	score += int(r.get("contacts_avoided", 0)) * CONTACT_AVOIDED
+	var score: int = int(r.get("contacts_avoided", 0)) * CONTACT_AVOIDED
 	score += int(r.get("contacts_detected", 0)) * CONTACT_DETECTED
 	score -= int(r.damage_taken)
 	if float(r.time_sec) < 900.0 and bool(r.success):
@@ -47,7 +49,7 @@ func _rank_word() -> String:
 		if str(result.reason) == "KIA":
 			return "MISSION FAILED - BODY RECOVERED"
 		return "MISSION INCOMPLETE - EXTRACTED UNDER FIRE"
-	if int(result.objectives_done) >= int(result.objectives_total) and int(result.damage_taken) < 30:
+	if int(result.damage_taken) < 30:
 		return "CLEAN SWEEP"
 	return "MISSION COMPLETE"
 
@@ -68,7 +70,6 @@ func _ready() -> void:
 	outer.add_child(panel)
 	var lines := [
 		"MISSION:      %s (SEED %d)" % [result.mission_type, int(result.seed)],
-		"OBJECTIVES:   %d / %d  (x100)" % [int(result.objectives_done), int(result.objectives_total)],
 		# ADR-006: the AAR now names what it PAYS for. Kills are reported because
 		# a recon element still counts bodies - they just do not buy anything.
 		"CONTACTS AVOIDED: %d  (+25 each)" % int(result.get("contacts_avoided", 0)),

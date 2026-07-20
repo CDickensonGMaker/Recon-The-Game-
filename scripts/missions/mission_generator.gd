@@ -415,9 +415,6 @@ static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
 	for g in p.get("enemy_groups", []):
 		var d: Dictionary = g
 		out.append(d.get("pos", Vector3.ZERO))
-	for key in ["firebase_center", "camp_center", "village_center"]:
-		if p.has(key):
-			out.append(p[key])
 	return out
 
 
@@ -436,7 +433,7 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		"seed": op_seed,
 		"codename": codename_for(op_seed),
 		"weather": cond.weather, "time": cond.time,
-		"sites": [], "enemy_groups": [], "objectives": [],
+		"sites": [], "enemy_groups": [],
 		"fire_support": {"mortar": 1},
 	}
 	var paddy_result: Dictionary = PaddyStamperScript.stamp(
