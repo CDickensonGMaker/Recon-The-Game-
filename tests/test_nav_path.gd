@@ -12,8 +12,8 @@
 ## and every sim test TELEPORTS the player rather than walking, so pathfinding
 ## was never exercised at all. This file is that gap, closed.
 ##
-## KNOWN-RED until Step 6 (see $KnownRed in run_all_tests.ps1). When this goes
-## green, delete it from that list.
+## GRADUATED: green since 2026-07-16, and listed in $Graduated in
+## run_all_tests.ps1 - a graduated test going red fails the build as a REGRESSION.
 ##
 ## Run: godot --headless --path . res://tests/test_nav_path.tscn -- --test-save
 extends Node
@@ -134,9 +134,15 @@ func _run() -> void:
 	enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
 	var closest: float = INF
 	var reached: bool = false
+	# Gravity is enemy_base.gd:481-482, inside the _physics_process we just
+	# disabled. Without it the agent floats at spawn height while the path
+	# descends, and NavigationAgent3D's path_desired_distance is a 3D distance -
+	# so it hovers over each waypoint's XZ and never advances.
 	for i in range(1200):  # up to 20s @ 60Hz
 		enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
 		enemy._move_toward(b, 1.0 / 60.0)
+		if not enemy.is_on_floor():
+			enemy.velocity.y -= enemy.gravity * (1.0 / 60.0)
 		enemy.move_and_slide()
 		closest = minf(closest, Vector2(enemy.global_position.x - center.x, enemy.global_position.z - center.z).length())
 		if enemy.global_position.distance_to(b) < 4.0:

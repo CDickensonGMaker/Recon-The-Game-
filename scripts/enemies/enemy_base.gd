@@ -1664,14 +1664,22 @@ func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	if _lab_nav:
 		use_nav = true
 	if nav_agent != null and use_nav:
-		# Clamp the target to the navmesh. Off-mesh points (LP behind a wall,
-		# cover point on a berm, agent on a navmesh-eroded vertex) reach
-		# is_navigation_finished() while still meters from the original target.
+		# A map RID is valid the instant it is created, but every query against it
+		# errors until the server has run its first synchronization. Queries in that
+		# window also return "no path", which reads as is_navigation_finished() and
+		# fires the fallback warning below. iteration_id is 0 until the first sync.
 		var map: RID = nav_agent.get_navigation_map()
-		if map.is_valid():
+		var map_ready: bool = map.is_valid() and NavigationServer3D.map_get_iteration_id(map) > 0
+		if not map_ready:
+			use_nav = false
+		else:
+			# Clamp the target to the navmesh. Off-mesh points (LP behind a wall,
+			# cover point on a berm, agent on a navmesh-eroded vertex) reach
+			# is_navigation_finished() while still meters from the original target.
 			var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
 			if pos.distance_to(clamped) < 4.0:
 				pos = clamped
+	if nav_agent != null and use_nav:
 		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
 			nav_agent.target_position = pos   # each restake is a map_get_path()
 		if not nav_agent.is_navigation_finished():

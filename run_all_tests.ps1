@@ -32,6 +32,27 @@ $KnownRed = @(
     # test has a home.
 )
 
+# The other half of the ratchet. $KnownRed catches a red test going green (XPASS);
+# without this list, a GREEN test going red was just one FAIL among many and read
+# as "never passed". test_nav_path graduated on 2026-07-16 and silently
+# un-graduated; nothing noticed, because nothing was watching for it.
+#
+# A test on this list that fails reports REGRESS, not FAIL. Removing a name here
+# to quiet the board is the forbidden move - it is the same move as regenerating
+# the fossil baseline.
+$Graduated = @(
+    "test_nav_path"
+    "test_terrain_desync"
+    "test_height_authority"
+    "test_flat_damage"
+    "test_smoke_all"
+    "test_squad_break"
+    "test_squad_invariants"
+    "test_gib_contract_all"
+    "test_arena_patrol"
+    "test_firefight_len"
+)
+
 # Line-start prefixes that mean "the engine complained". Any hit = FAIL, regardless
 # of exit code.
 #
@@ -145,7 +166,10 @@ foreach ($t in $tests) {
             $verdict = "XFAIL"   # expected, not counted
         }
     } else {
-        if (-not $ok) { $verdict = "FAIL"; $failed++ }
+        if (-not $ok) {
+            $verdict = if ($Graduated -contains $t.BaseName) { "REGRESS" } else { "FAIL" }
+            $failed++
+        }
         elseif ($benignLines.Count -gt 0) { $verdict = "LEAK" }   # green, but not clean
         else { $verdict = "PASS" }
     }
@@ -155,6 +179,7 @@ foreach ($t in $tests) {
     elseif ($fatalLines.Count -gt 0) { $note = "<- " + (($fatalLines | Select-Object -First 1)) }
     elseif ($verdict -eq "LEAK") { $note = "<- resources leaked at exit (AUDIT-12)" }
     if ($verdict -eq "XPASS") { $note = "<- FIXED: remove from `$KnownRed" }
+    if ($verdict -eq "REGRESS") { $note = "<- REGRESSION: this test was GREEN. " + $note.TrimStart('<', '-', ' ') }
 
     $results += [pscustomobject]@{ Test = $t.BaseName; Result = $verdict }
     Write-Host ("{0,-28} {1,-6} {2,6}s {3}" -f $t.BaseName, $verdict, [math]::Round($sw.Elapsed.TotalSeconds, 1), $note)
@@ -168,7 +193,18 @@ $xfail  = @($results | Where-Object { $_.Result -eq "XFAIL" }).Count
 $passed = @($results | Where-Object { $_.Result -eq "PASS" }).Count
 $leaked = @($results | Where-Object { $_.Result -eq "LEAK" }).Count
 $hung   = @($results | Where-Object { $_.Result -eq "TIMEOUT" }).Count
+$regress = @($results | Where-Object { $_.Result -eq "REGRESS" })
 Write-Host "=== $passed PASS / $leaked LEAK / $failed FAIL / $xfail XFAIL / $hung TIMEOUT (of $($tests.Count)) ==="
+if ($regress.Count -gt 0) {
+    Write-Host "REGRESSED (these were green): $(@($regress | ForEach-Object { $_.Test }) -join ', ')" -ForegroundColor Red
+}
+# A graduated test that vanished from the suite is a regression that hid by not running.
+$ranNames = @($results | ForEach-Object { $_.Test })
+$missing = @($Graduated | Where-Object { $ranNames -notcontains $_ })
+if (-not $Filter -and $missing.Count -gt 0) {
+    Write-Host "GRADUATED TEST MISSING FROM SUITE: $($missing -join ', ')" -ForegroundColor Red
+    $failed += $missing.Count
+}
 if ($hung -gt 0) { Write-Host "hung: $(@($results | Where-Object { $_.Result -eq 'TIMEOUT' } | ForEach-Object { $_.Test }) -join ', ')" -ForegroundColor Red }
 if ($xfail -gt 0)  { Write-Host "known-red: $($KnownRed -join ', ')" -ForegroundColor DarkGray }
 if ($leaked -gt 0) { Write-Host "leaks: $(@($results | Where-Object { $_.Result -eq 'LEAK' } | ForEach-Object { $_.Test }) -join ', ')" -ForegroundColor DarkYellow }
