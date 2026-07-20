@@ -639,6 +639,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		world.add_child(lg_p)
 		lg_p.global_position = _seat(world, ppos)
 
+	_spawn_friendly_patrols(world, director, p, rng)
+
 	# The armorer's bench (ADR-018), just inside the wire.
 	var bench: Node3D = ARMORERS_BENCH.new()
 	world.add_child(bench)
@@ -666,6 +668,40 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 
 	return {"sites": built_sites, "spawn_pos": fsb.spawn_pos, "gate_pos": fsb.gate_pos,
 		"gate_out": fsb.gate_out, "center": fsb.center, "bench": bench}
+
+
+## Other Americans are out here. TWO fireteams, no more: the AO must stay enemy-
+## dense, and every friendly is a full-AI body outside EnemySquad's hot-set budget
+## (enemy_squad.gd:37 tiers enemies only). Dormant at the same 140m as the VC
+## ambient patrols, so they cost nothing until the player is near them.
+const FRIENDLY_PATROLS: int = 2
+const FRIENDLY_PATROL_MEN: int = 4
+
+## The director is carried only to satisfy LazyGroup's activation guard
+## (lazy_group.gd:50). Friendlies are deliberately NOT routed through
+## spawn_tracked_enemy - that would file them in _live_enemies and register them
+## as contact groups in the ADR-006 ledger.
+static func _spawn_friendly_patrols(world: GameWorld, director: FieldDirector,
+		p: Dictionary, rng: RandomNumberGenerator) -> void:
+	var gate: Vector3 = p.gate_pos as Vector3
+	var villages: Array = p.get("village_centers", [])
+	for pi in range(FRIENDLY_PATROLS):
+		var target: Vector3 = villages[pi % villages.size()] if villages.size() > 0 else gate
+		var mid: Vector3 = gate.lerp(target, rng.randf_range(0.35, 0.75))
+		var ppos: Vector3 = _passable_near(world, rng, mid, 40.0, 150.0, 60,
+			SitePlanner.FSB_SITE_CLEARANCE)
+		if ppos == Vector3.ZERO:
+			continue
+		var fp := FriendlyPatrolGroup.new()
+		fp.enemy_count = FRIENDLY_PATROL_MEN
+		fp.group_tag = "friendly_patrol_%d" % pi
+		fp.activation_range = 140.0
+		fp.spread = 6.0
+		fp.setup(director, int(p.seed) + 97 * (pi + 1))
+		fp.route = EnemyBase.make_patrol_circuit(
+			_patrol_anchors(world, p, rng), rng, rng.randi_range(5, 8))
+		world.add_child(fp)
+		fp.global_position = _seat(world, ppos)
 
 
 ## The men who live inside the wire. Same schedule machinery as the villages -

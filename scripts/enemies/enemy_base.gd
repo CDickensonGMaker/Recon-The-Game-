@@ -1227,7 +1227,8 @@ func _local_force_ratio() -> float:
 		foes += 1
 	for a in get_tree().get_nodes_in_group("allies"):
 		if is_instance_valid(a) and a is Node3D \
-				and a.has_method("is_dead") and not a.is_dead():
+				and a.has_method("is_dead") and not a.is_dead() \
+				and (a as Node3D).global_position.distance_to(global_position) < 25.0:
 			foes += 1
 	return float(friends) / float(maxi(1, foes))
 

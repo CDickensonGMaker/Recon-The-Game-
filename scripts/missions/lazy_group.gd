@@ -65,6 +65,14 @@ func force_spawn() -> void:
 	if _spawned:
 		return
 	_spawned = true
+	_spawn_men()
+	set_physics_process(false)
+
+
+## The men this group is made of. The proximity latch above is side-agnostic;
+## everything below the seam is VC-typed, so the friendly patrol overrides only
+## this and inherits one dormancy contract.
+func _spawn_men() -> void:
 	# Ambient corridor patrols walk a route instead of standing put.
 	var is_patrol := group_tag.begins_with("ambient_patrol")
 	var route: Array[Vector3] = []
@@ -97,4 +105,3 @@ func force_spawn() -> void:
 	if not is_patrol:
 		CampDirector.attach(get_parent(), global_position, spawned_men,
 			int(_rng.seed), work_stations, paddy_centroids)
-	set_physics_process(false)

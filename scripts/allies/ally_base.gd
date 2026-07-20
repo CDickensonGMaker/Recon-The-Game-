@@ -139,6 +139,11 @@ const IDLE_DRIFT_SPEED: float = 0.45
 
 ## Squad layer: roster identity + orders.
 enum OrderMode { FOLLOW, HOLD, MOVE_TO }
+## False for a US element that is not in the player's squad (an ambient friendly
+## patrol). Group "allies" answers "will the player's bullets hurt him"; this
+## answers "is he MINE". Anything keyed to the squad - break state, distance
+## exemptions, orders - must ask this, not the group.
+var squad_member: bool = true
 var member: Dictionary = {}      ## roster entry (name/mos/stats) - IS the roster dict
 var director: FieldDirector = null  ## toast channel for learn-by-doing promotion barks
 

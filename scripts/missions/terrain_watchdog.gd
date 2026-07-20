@@ -32,8 +32,12 @@ func _physics_process(delta: float) -> void:
 				continue
 			if body.has_method("is_dead") and body.is_dead():
 				continue
-			# Distance suspension (allies exempt - they follow orders far).
-			if player != null and group != "allies":
+			# Distance suspension. The player's own squad is exempt - it follows
+			# orders far from him. An ambient friendly patrol is not his and must
+			# LOD like anyone else, or it runs full AI across the whole AO.
+			var squad_ally: bool = group == "allies" \
+				and (body as AllyBase) != null and (body as AllyBase).squad_member
+			if player != null and not squad_ally:
 				var dist: float = body.global_position.distance_to(player.global_position)
 				var suspended: bool = body.has_meta("suspended")
 				if not suspended and dist > SUSPEND_DIST:
