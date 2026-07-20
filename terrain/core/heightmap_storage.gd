@@ -141,7 +141,10 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> Rect2i:
 				var falloff: float = 1.0 - smoothstep(0.0, float(radius), dist)
 				data[idx] = modifier.call(data[idx], falloff)
 
-	return Rect2i(min_x, min_z, max_x - min_x, max_z - min_z)
+	# A centre far enough off-map leaves max below min, and a reversed Rect2i is an
+	# engine error at every consumer. Empty means "nothing was edited" - which is
+	# the truth, since the loops above ran zero times.
+	return Rect2i(min_x, min_z, maxi(0, max_x - min_x), maxi(0, max_z - min_z))
 
 
 ## Get total world size in meters

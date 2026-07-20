@@ -124,9 +124,13 @@ static func _passable_near(world: GameWorld, rng: RandomNumberGenerator, origin:
 			continue
 		if world.gameplay_grid.is_position_passable(p) and not world.gameplay_grid.is_water(p):
 			return p
-	if keepout.size != Vector2.ZERO and keepout.has_point(Vector2(origin.x, origin.z)):
+	# The fallback obeys the same bounds contract as a real candidate. An off-map
+	# point reaches modify_region as a reversed Rect2i and the edit silently drops.
+	var fallback := Vector3(clampf(origin.x, 80.0, map_size - 80.0), origin.y,
+		clampf(origin.z, 80.0, map_size - 80.0))
+	if keepout.size != Vector2.ZERO and keepout.has_point(Vector2(fallback.x, fallback.z)):
 		return Vector3.ZERO
-	return origin  # degenerate but never inside the wire
+	return fallback
 
 
 ## Load-bearing fallback: first point along `dir` from `gate` that clears the
@@ -152,22 +156,31 @@ static func _outward_site(world: GameWorld, rng: RandomNumberGenerator, gate: Ve
 
 ## Patrol nodes must hang on real AO features (ADR-021) - a route that connects
 ## things is a route the player can learn, predict and ambush.
+##
+## THE KEEP-OUT BINDS ROUTES, NOT ONLY SPAWNS (Fairness Law): the player's seat sits
+## 22m outside the wire (site_planner.gd:504), so a waypoint there walks a patrol onto
+## him before he is on his feet. Same rect the spawn sampler uses, same clearance the
+## village and camp placers use - one keep-out concept, three consumers.
 static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGenerator) -> Array[Vector3]:
 	var pool: Array[Vector3] = []
+	var route_keepout: Rect2 = _fsb_keepout.grow(SitePlanner.FSB_SITE_CLEARANCE) \
+		if _fsb_keepout.size != Vector2.ZERO else Rect2()
 	for s in p.get("sites", []):
 		var site: Dictionary = s
-		if site.has("center"):
-			pool.append(site.center as Vector3)
-	for key in ["village_center", "firebase_center", "camp_center", "insertion_lz", "exfil_lz"]:
-		if p.has(key):
-			pool.append(p[key] as Vector3)
+		if not site.has("center"):
+			continue
+		var sc: Vector3 = site.center
+		if route_keepout.size != Vector2.ZERO and route_keepout.has_point(Vector2(sc.x, sc.z)):
+			continue
+		pool.append(sc)
 	# Fill out with passable ground spread across the AO so the circuit spans the
 	# map instead of hugging the objective.
 	var centre: Vector3 = p.get("insertion_lz", Vector3.ZERO)
 	var guard: int = 0
 	while pool.size() < 10 and guard < 40:
 		guard += 1
-		var cand: Vector3 = _passable_near(world, rng, centre, 120.0, 480.0)
+		var cand: Vector3 = _passable_near(world, rng, centre, 120.0, 480.0, 60,
+			SitePlanner.FSB_SITE_CLEARANCE)
 		if cand == Vector3.ZERO:
 			continue
 		var ok: bool = true
@@ -563,7 +576,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		var villages2: Array = p.get("village_centers", [])
 		var target: Vector3 = villages2[pi % villages2.size()] if villages2.size() > 0 else (p.gate_pos as Vector3)
 		var mid: Vector3 = (p.gate_pos as Vector3).lerp(target, rng.randf_range(0.3, 0.7))
-		var ppos := _passable_near(world, rng, mid, 30.0, 120.0)
+		var ppos := _passable_near(world, rng, mid, 30.0, 120.0, 60,
+			SitePlanner.FSB_SITE_CLEARANCE)
 		if ppos == Vector3.ZERO:
 			continue  # a patrol that can only stand inside the wire does not spawn
 		var lg_p := LazyGroup.new()

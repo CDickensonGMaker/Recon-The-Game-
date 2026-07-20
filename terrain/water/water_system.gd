@@ -426,7 +426,7 @@ func reseat_region(world_rect: Rect2) -> void:
 
 	# Compared against the ground the hydrology was SOLVED on, not against
 	# water_surface_full: channel cells never get a surface written
-	# (hydrology_map._trace_river sets the type only), so a surface comparison
+	# (hydrology_map._trace_channel sets the type only), so a surface comparison
 	# reads 0 for every creek and would retire the entire watercourse.
 	var rise_norm: float = RETIRE_RISE_M / _heightmap.height_scale
 

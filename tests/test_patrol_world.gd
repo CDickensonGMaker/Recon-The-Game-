@@ -152,6 +152,19 @@ func _run() -> void:
 		var lp: Vector3 = loc2
 		if site_rect.has_point(Vector2(lp.x, lp.z)):
 			_fail("site at %.0f,%.0f inside the wire keep-out" % [lp.x, lp.z])
+	# The keep-out binds ROUTES too: the player's seat is 22m outside the wire
+	# (site_planner.gd:504), and a waypoint there walks a patrol onto him before he
+	# is on his feet (Fairness Law).
+	var anchor_rng := RandomNumberGenerator.new()
+	anchor_rng.seed = 31337 + 777
+	var anchors: Array[Vector3] = MissionGenerator._patrol_anchors(flow.world, p1, anchor_rng)
+	for a in anchors:
+		if site_rect.has_point(Vector2(a.x, a.z)):
+			_fail("patrol anchor at %.0f,%.0f inside the wire keep-out - routes onto the spawn seat" % [a.x, a.z])
+	if anchors.size() < 3:
+		_fail("only %d patrol anchors survived the keep-out (want >=3, else the circuit degrades to a dot)" % anchors.size())
+	print("patrol anchors: %d" % anchors.size())
+
 	if (p1.first_signs as Array).size() < 3:
 		_fail("only %d first signs planned (want >=3 across the outward fan)" % (p1.first_signs as Array).size())
 	print("patrol world: %d villages, %d camps, gate %.0f,%.0f out %s" % [
