@@ -32,10 +32,10 @@ const CONTACT_DETECTED: int = -25
 static func compute_score(r: Dictionary) -> int:
 	var score: int = int(r.get("contacts_avoided", 0)) * CONTACT_AVOIDED
 	score += int(r.get("contacts_detected", 0)) * CONTACT_DETECTED
-	score -= int(r.damage_taken)
-	if float(r.time_sec) < 900.0 and bool(r.success):
+	score -= int(r.get("damage_taken", 0))
+	if float(r.get("time_sec", 0)) < 900.0 and bool(r.get("success", false)):
 		score += 50
-	if bool(r.emergency_exfil):
+	if bool(r.get("emergency_exfil", false)):
 		score -= 50
 	if _ghost_bonus(r):
 		score += 75
@@ -45,11 +45,11 @@ static func compute_score(r: Dictionary) -> int:
 
 
 func _rank_word() -> String:
-	if not bool(result.success):
-		if str(result.reason) == "KIA":
+	if not bool(result.get("success", false)):
+		if str(result.get("reason", "")) == "KIA":
 			return "MISSION FAILED - BODY RECOVERED"
 		return "MISSION INCOMPLETE - EXTRACTED UNDER FIRE"
-	if int(result.damage_taken) < 30:
+	if int(result.get("damage_taken", 0)) < 30:
 		return "CLEAN SWEEP"
 	return "MISSION COMPLETE"
 
@@ -62,28 +62,28 @@ func _ready() -> void:
 	outer.set_anchors_preset(Control.PRESET_CENTER)
 	outer.add_theme_constant_override("separation", 14)
 	root.add_child(outer)
-	var head_color := ReconUI.AMBER if bool(result.success) else ReconUI.ALERT
+	var head_color := ReconUI.AMBER if bool(result.get("success", false)) else ReconUI.ALERT
 	outer.add_child(ReconUI.make_header("AFTER ACTION REPORT", 28))
 	outer.add_child(ReconUI.make_label(_rank_word(), 20, head_color))
 
 	var panel := ReconUI.make_panel()
 	outer.add_child(panel)
 	var lines := [
-		"MISSION:      %s (SEED %d)" % [result.mission_type, int(result.seed)],
+		"MISSION:      %s (SEED %d)" % [result.get("mission_type", ""), int(result.get("seed", 0))],
 		# ADR-006: the AAR now names what it PAYS for. Kills are reported because
 		# a recon element still counts bodies - they just do not buy anything.
 		"CONTACTS AVOIDED: %d  (+25 each)" % int(result.get("contacts_avoided", 0)),
 		"CONTACTS DETECTED: %d  (-25 each)" % int(result.get("contacts_detected", 0)),
-		"ENEMY KIA:    %d  (no XP - you were seen)" % int(result.kills),
-		"WOUNDS TAKEN: -%d" % int(result.damage_taken),
-		"TIME:         %d:%02d" % [int(result.time_sec) / 60, int(result.time_sec) % 60],
+		"ENEMY KIA:    %d  (no XP - you were seen)" % int(result.get("kills", 0)),
+		"WOUNDS TAKEN: -%d" % int(result.get("damage_taken", 0)),
+		"TIME:         %d:%02d" % [int(result.get("time_sec", 0)) / 60, int(result.get("time_sec", 0)) % 60],
 	]
 	if int(result.get("shots", 0)) > 0:
 		lines.append("MARKSMANSHIP: %d/%d ROUNDS ON TARGET (%.0f%%)" % [
-			int(result.hits), int(result.shots), 100.0 * float(result.hits) / float(result.shots)])
+			int(result.get("hits", 0)), int(result.get("shots", 0)), 100.0 * float(result.get("hits", 0)) / float(result.get("shots", 0))])
 	if bool(result.get("pow_lost", false)):
 		lines.append("THE PILOT DIDN'T MAKE IT: -100")
-	if bool(result.emergency_exfil):
+	if bool(result.get("emergency_exfil", false)):
 		lines.append("EMERGENCY EXFIL: -50")
 	if _ghost_bonus(result):
 		lines.append("ROE - WEAPONS DISCIPLINE: +75")
