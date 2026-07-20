@@ -81,6 +81,12 @@ The five below. **Test every decision against these; the Arbiter guards them.**
 2. **Atmosphere** — dense jungle, weather, night, audio; the AO feels like a war is happening around you.
 3. **Freedom** — open AO; objectives are places/things; any route, any order, loud or quiet; stealth is an economy, never a gate; nothing on rails. The seeded world generates the tactical problems, so the stories come from what happened here, not from authored setpieces.
 4. **The squad is the RPG — and you are IN it, not above it.** Named persistent teammates with MOS roles who improve, get wounded, rotate home, and die for real; minimal stats, maximal attachment. **You are a member of the squad, not its puppeteer** — you suggest movement, call targets, request support, and the squad holds its own AI intent. A design that has you positioning individual men violates this pillar.
+   > **PROVISIONAL — under playtest review (Summoner, 2026-07-19).** Pillar 4's second clause is the one
+   > pillar he has flagged as open: *"pillar 4 is open to changing as i play test more. if it makes more
+   > sense to try to be more tactical with the troopers i will take it that way."* The tension is real —
+   > more direct control reads as more tactical, and it also pulls toward rank/progression unlocks
+   > (bead `RECONgame-ct72`). Do not treat the anti-puppeteer clause as settled law until he rules from
+   > play. The other four pillars are not provisional.
 5. **Fail forward** — detection escalates, failure mutates, a dead mission generates the next story. Death matters and soldiers do not respawn as the same person, but this is not a sadism simulator: the medic tries, and the squad endures. Never reload-and-memorize.
 
 **Fairness law** (of record in `../adr/ADR-005-detection-beacon-witness-rule.md` and `../../CLAUDE.md`; the old
