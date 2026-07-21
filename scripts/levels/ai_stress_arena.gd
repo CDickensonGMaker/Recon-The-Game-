@@ -1452,8 +1452,8 @@ func _wire_fire_support() -> void:
 	d.squad_system = ss
 	d.toast.connect(_on_director_toast)
 	# Stocked so every tier is callable: T opens the net, 1 bombs / 2 napalm / 3 arty /
-	# 4 mortar / 5 spooky / 6 CBU (Y is the mortar shortcut).
-	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spooky": 9, "cbu": 9}
+	# 4 mortar / 5 spectre / 6 CBU (Y is the mortar shortcut).
+	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spectre": 9, "cbu": 9}
 	# No escalation hunters in the bench: an empty pool keeps _process_escalation from
 	# spawning NVA and from reading world.map_size on the inert host.
 	d._hunter_pool = 0

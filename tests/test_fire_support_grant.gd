@@ -1,6 +1,6 @@
 ## test_fire_support_grant.gd - does the AO's threat tier actually release air?
 ##
-## _grant_fire_support() handed out napalm/spooky/cbu = 0 unconditionally, so three
+## _grant_fire_support() handed out napalm/spectre/cbu = 0 unconditionally, so three
 ## fully-built, key-bound fire-support verbs were unreachable in every playthrough.
 ## They are now bought with the player's own noise: CampaignState.threat_label(),
 ## the same LOW/MODERATE/HIGH/CRITICAL string shown at barracks.gd:45.
@@ -15,10 +15,10 @@ var _failures: int = 0
 ## Tier -> expected grant. bombs/arty/mortar are the routine allotment and must not
 ## move with threat; only the air does.
 const CASES: Array[Dictionary] = [
-	{"threat": 0.10, "tier": "LOW", "napalm": 0, "cbu": 0, "spooky": 0},
-	{"threat": 0.35, "tier": "MODERATE", "napalm": 0, "cbu": 0, "spooky": 0},
-	{"threat": 0.60, "tier": "HIGH", "napalm": 1, "cbu": 1, "spooky": 0},
-	{"threat": 0.90, "tier": "CRITICAL", "napalm": 1, "cbu": 1, "spooky": 1},
+	{"threat": 0.10, "tier": "LOW", "napalm": 0, "cbu": 0, "spectre": 0},
+	{"threat": 0.35, "tier": "MODERATE", "napalm": 0, "cbu": 0, "spectre": 0},
+	{"threat": 0.60, "tier": "HIGH", "napalm": 1, "cbu": 1, "spectre": 0},
+	{"threat": 0.90, "tier": "CRITICAL", "napalm": 1, "cbu": 1, "spectre": 1},
 ]
 
 
@@ -38,7 +38,7 @@ func _ready() -> void:
 			CampaignState.threat_label())
 
 	print("")
-	print("| threat | tier      | bombs | arty | mortar | napalm | spooky | cbu |")
+	print("| threat | tier      | bombs | arty | mortar | napalm | spectre | cbu |")
 	print("|--------|-----------|-------|------|--------|--------|--------|-----|")
 	for c in CASES:
 		_check(c)
@@ -75,9 +75,9 @@ func _check(c: Dictionary) -> void:
 
 	print("| %6.2f | %-9s | %5d | %4d | %6d | %6d | %6d | %3d |" % [
 		float(c.threat), tier, int(fs.bombs), int(fs.arty), int(fs.mortar),
-		int(fs.napalm), int(fs.spooky), int(fs.cbu)])
+		int(fs.napalm), int(fs.spectre), int(fs.cbu)])
 
-	for verb in ["napalm", "spooky", "cbu"]:
+	for verb in ["napalm", "spectre", "cbu"]:
 		var want: int = int(c[verb])
 		var got: int = int(fs[verb])
 		if got == want:

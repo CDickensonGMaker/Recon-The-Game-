@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ProjectileData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/projectile_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "spectre_40mm"
+display_name = "40mm Bofors HE"
+speed = 240.0
+gravity_scale = 1.0
+lifetime = 20.0
+base_damage = 120
+damage_type = 2
+stagger_power = 1.0
+knockback_force = 4.0
+aoe_radius = 5.0
+aoe_damage_falloff = true
+arming_distance = 0.0
+dud_impact_frac = 0.15
+self_destruct = true
+collision_radius = 0.12
+hits_enemies = false
+hits_players = false
+hits_world = true
+mesh_path = ""
+scale = Vector3(0.8, 0.8, 0.8)
+has_trail = true
+trail_color = Color(1.0, 0.55, 0.2, 0.4)
+trail_lifetime = 0.4
+trail_width = 0.04

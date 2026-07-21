@@ -78,7 +78,7 @@ func _t_fire_support(arena: Node3D) -> void:
 	if d._radio_check() != "":
 		_f("radio net rejects the call: '%s'" % d._radio_check())
 		return
-	for kind in ["bombs", "napalm", "arty", "mortar", "spooky", "cbu"]:
+	for kind in ["bombs", "napalm", "arty", "mortar", "spectre", "cbu"]:
 		d.fire_support[kind] = 5
 		d._cas_cooldown = 0.0
 		d._pending_danger_close = ""

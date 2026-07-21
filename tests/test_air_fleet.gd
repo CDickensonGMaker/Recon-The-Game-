@@ -43,7 +43,7 @@ func _run() -> void:
 
 	# --- every registered kind must actually put a node in the sky ---
 	var kinds: Array = AirTraffic.FLIGHT_SCENES.keys()
-	kinds.append("spooky")
+	kinds.append("spectre")
 	_expect(kinds.size() >= 6,
 		"fleet registers %d kinds (was 1)" % kinds.size())
 	for kind: String in kinds:

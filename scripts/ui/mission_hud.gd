@@ -99,7 +99,7 @@ func _on_fire_menu_changed(open: bool) -> void:
 		["2", "CAS - NAPALM RUN", "napalm"],
 		["3", "ARTILLERY BARRAGE", "arty"],
 		["4", "MORTAR FIRE MISSION", "mortar"],
-		["5", "SPOOKY GUNSHIP", "spooky"],
+		["5", "SPECTRE GUNSHIP", "spectre"],
 		["6", "CAS - CLUSTER (CBU)", "cbu"],
 	]
 	# Only what is actually on call. A row you can never press is not information.
@@ -114,7 +114,35 @@ func _on_fire_menu_changed(open: bool) -> void:
 	if not any:
 		_fire_menu.add_child(ReconUI.make_label("NOTHING ON CALL - BATTALION HAS NOTHING FOR YOU", 14, ReconUI.DIM))
 	else:
-		_fire_menu.add_child(ReconUI.make_label("RIFLE DOWN - AIM AT TARGET, PRESS NUMBER. [T] OFF NET", 11, ReconUI.DIM))
+		_fire_menu.add_child(ReconUI.make_label("PRESS NUMBER TO SIGHT IT - LMB SENDS, RMB BACKS OUT. [T] OFF NET", 11, ReconUI.DIM))
+	_fire_placement = ReconUI.make_label("", 15, ReconUI.OLIVE)
+	_fire_menu.add_child(_fire_placement)
+
+
+## The armed call's line: what is sighted, how far out, and whether our own men are
+## standing in it. Danger close has to be readable BEFORE the send, not after.
+var _fire_placement: Label
+
+
+func _update_placement_line() -> void:
+	if _fire_placement == null or not is_instance_valid(_fire_placement) or director == null:
+		return
+	if director.armed_kind == "":
+		_fire_placement.text = ""
+		return
+	if director.armed_target == Vector3.ZERO:
+		_fire_placement.text = "NO TARGET - AIM AT THE GROUND"
+		_fire_placement.add_theme_color_override("font_color", ReconUI.DIM)
+		return
+	var fp: Dictionary = FirePlan.footprint(director.armed_kind, director.fo_skill())
+	var range_m: int = int(world.player.global_position.distance_to(director.armed_target))
+	var label: String = String(fp.get("label", director.armed_kind.to_upper()))
+	if director.armed_danger_close():
+		_fire_placement.text = "%s  %dm  - DANGER CLOSE - MEN IN THE FOOTPRINT" % [label, range_m]
+		_fire_placement.add_theme_color_override("font_color", Color(0.95, 0.22, 0.15))
+	else:
+		_fire_placement.text = "%s  %dm  - LMB TO SEND" % [label, range_m]
+		_fire_placement.add_theme_color_override("font_color", ReconUI.OLIVE)
 
 
 ## PT8: slot slider - the kit at a glance, current slot highlighted.
@@ -269,6 +297,7 @@ func _process(_delta: float) -> void:
 	if world == null or world.player == null:
 		return
 	_update_squad_strip(_delta)
+	_update_placement_line()
 	# W82: HARDCORE strips navigation aids.
 	if GameSettings.hardcore:
 		_compass.visible = false

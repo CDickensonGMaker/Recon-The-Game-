@@ -291,7 +291,7 @@ func _check_breach_cost_and_persistence() -> void:
 	print("-- 4. a breach docks live mortars AND shorts the next allotment (persisted) --")
 	CampaignState.depot_loss = {}
 	var d := _bare_director(Vector3(6200, 0, 0))
-	d.fire_support = {"bombs": 1, "napalm": 0, "arty": 1, "mortar": 3, "spooky": 0, "cbu": 0}
+	d.fire_support = {"bombs": 1, "napalm": 0, "arty": 1, "mortar": 3, "spectre": 0, "cbu": 0}
 	d.on_firebase_breach(d.fsb_center)
 	_expect(int(d.fire_support.get("mortar", -1)) == 0, "the breach docked the LIVE mortars to 0")
 	_expect(not CampaignState.depot_loss.is_empty(), "the breach recorded a persistent depot loss")

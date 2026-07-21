@@ -38,6 +38,16 @@ var _exclude_rids: Array[RID] = []
 func is_armed() -> bool:
 	return projectile_data == null or traveled >= projectile_data.arming_distance
 
+## Detonation effect for a round whose blast is not the generic one: a fire
+## mission's shell, a napalm canister, a cluster bomblet. Takes the impact point.
+## When set it REPLACES the default AOE, so the damage numbers keep living in the
+## one place that already owns them instead of being copied into a .tres.
+var terminal_effect: Callable = Callable()
+## Ground authority for an unguided round. Terrain is not reliably a collider the
+## segment cast can find (the arena's flat stand-in has no heightmap at all), and a
+## shell that misses the ground flies to its lifetime and self-destructs in the air.
+var terrain: TerrainManager = null
+
 ## Pool reference
 var _pool: Node = null
 
@@ -73,6 +83,8 @@ func initialize(data: ProjectileData, source: Node, dir: Vector3, _target: Node3
 	projectile_data = data
 	owner_entity = source
 	direction = dir.normalized()
+	terminal_effect = Callable()
+	terrain = null
 
 	current_speed = data.speed
 	lifetime_timer = 0.0
@@ -250,6 +262,12 @@ func _physics_process(delta: float) -> void:
 		_handle_collision(struck)
 		return
 
+	if terrain != null and to.y <= terrain.get_height_at(to):
+		traveled += step.length()
+		global_position = Vector3(to.x, terrain.get_height_at(to), to.z)
+		_on_hit_world()
+		return
+
 	traveled += step.length()   # the fuze counts metres, not seconds
 	global_position = to
 
@@ -348,6 +366,9 @@ func _dud_impact() -> void:
 ## is FACTION-BLIND, does knockback, and respects cover. (A faction-scoped query
 ## here would let an enemy rocket never touch the player.)
 func _apply_aoe_damage() -> void:
+	if terminal_effect.is_valid():
+		terminal_effect.call(global_position)
+		return
 	# ADR-016 Amendment F: a rocket outclasses a grenade. The centre is death; the
 	# rim (0.15 of centre) still puts a man down - fragments and overpressure.
 	var base_damage: int = projectile_data.get_damage()
@@ -362,6 +383,12 @@ func _apply_aoe_damage() -> void:
 	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_rocket")
 	if DamageSystem.has_method("apply_damage"):
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
+
+
+## Take a round off the map without detonating it: a cluster dispenser that has
+## already split open, a shell the world no longer owns.
+func expire_now() -> void:
+	_expire()
 
 
 func _expire() -> void:

@@ -11,8 +11,6 @@ enum Phase { APPROACH, DIVE, RELEASE, CLIMB, DONE }
 const APPROACH_ALT: float = 80.0
 const RELEASE_ALT: float = 30.0
 const SPEED: float = 120.0
-const NAPALM_DROPS: int = 5
-const NAPALM_SPACING: float = 15.0
 const DROP_STAGGER: float = 0.4
 
 # F-4 fast horizontal flyby profile (call_flyby).
@@ -20,8 +18,13 @@ const F4_SPEED: float = 250.0
 const FLYBY_ALT: float = 34.0
 const FLYBY_SPAWN_DIST: float = 200.0
 const CLOUD_DECK_Y: float = 185.0
-const CBU_BOMBLETS: int = 16
-const CBU_SPREAD: float = 22.0
+## How far into the fall the dispenser splits open.
+const CBU_OPEN_FRAC: float = 0.45
+
+const BOMB_SHELL: String = "res://data/projectiles/snakeye_bomb.tres"
+const NAPALM_SHELL: String = "res://data/projectiles/napalm_canister.tres"
+const CBU_SHELL: String = "res://data/projectiles/cbu_canister.tres"
+const CBU_BOMBLET: String = "res://data/projectiles/cbu_bomblet.tres"
 
 var terrain: TerrainManager
 var phase: Phase = Phase.APPROACH
@@ -160,47 +163,81 @@ func _release_ordnance() -> void:
 			_drop_cluster()
 
 
+## Seat a point on the ground and give the fall time from this aircraft down to it.
+func _drop_solution(pos: Vector3) -> Dictionary:
+	var ground := pos
+	ground.y = terrain.get_height_at(pos) if terrain else pos.y
+	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+	var h: float = maxf(2.0, global_position.y - ground.y)
+	return {"ground": ground, "time": sqrt(2.0 * h / g)}
+
+
+func _release(shell_path: String, pos: Vector3, terminal: Callable) -> ProjectileBase:
+	var data: ProjectileData = load(shell_path) as ProjectileData
+	if data == null:
+		return null
+	var sol: Dictionary = _drop_solution(pos)
+	return Ballistics.fire_arc(data, global_position, sol.ground, sol.time, terrain, terminal)
+
+
 func _drop_bomb() -> void:
-	var impact := _target
-	# Fall delay, then the bang.
-	get_tree().create_timer(0.8).timeout.connect(func() -> void:
-		CombatManager.apply_explosion_damage(impact, 220, 60, 16.0, null)
+	_release(BOMB_SHELL, _target, func(impact: Vector3) -> void:
+		CombatManager.apply_explosion_damage(impact, 220, 60, FirePlan.BOMB_BLAST_M, null)
 		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0)
-		CombatManager.apply_suppression_in_area(impact, 40.0, 1.0))
+		GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
+		CombatManager.apply_suppression_in_area(impact, FirePlan.BOMB_SUPPRESS_M, 1.0))
 
 
 func _drop_napalm_strip() -> void:
-	for i in range(NAPALM_DROPS):
-		var offset: float = float(i - NAPALM_DROPS / 2) * NAPALM_SPACING
+	for i in range(FirePlan.NAPALM_DROPS):
+		var offset: float = float(i - FirePlan.NAPALM_DROPS / 2) * FirePlan.NAPALM_SPACING
 		var pos := _target + _run_dir * offset
-		var is_center: bool = (i == NAPALM_DROPS / 2)
-		var delay: float = 0.8 + float(i) * DROP_STAGGER
-		get_tree().create_timer(delay).timeout.connect(func() -> void:
-			var ground := pos
-			ground.y = terrain.get_height_at(pos) if terrain else pos.y
-			CombatManager.apply_explosion_damage(ground, 90, 30, 10.0, null)
-			FireHazard.create_at(get_tree().current_scene, ground, 10.0, 15.0)
-			_ignite_nearby_structures(ground)
-			if is_center:
-				DamageSystem.apply_damage(ground, DamageSystem.DamageType.NAPALM, 1.0))
+		var is_center: bool = (i == FirePlan.NAPALM_DROPS / 2)
+		# The rack pickles in sequence, and the aircraft has moved between each one.
+		get_tree().create_timer(float(i) * DROP_STAGGER).timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			_release(NAPALM_SHELL, pos, func(impact: Vector3) -> void:
+				CombatManager.apply_explosion_damage(impact, 90, 30, FirePlan.NAPALM_BLAST_M, null)
+				FireHazard.create_at(get_tree().current_scene, impact, FirePlan.NAPALM_BLAST_M, FirePlan.NAPALM_BURN_S)
+				GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
+				_ignite_nearby_structures(impact)
+				if is_center:
+					DamageSystem.apply_damage(impact, DamageSystem.DamageType.NAPALM, 1.0)))
 
 
-## CBU cluster canister: opens over the target into many small AP bursts scattered
-## across an ellipse along the run. One crater (honors the crater cap); no fire.
+## CBU dispenser: one canister off the rack that OPENS in the air, scattering
+## bomblets across an ellipse along the run. One crater (honors the crater cap).
 func _drop_cluster() -> void:
+	var canister: ProjectileBase = _release(CBU_SHELL, _target, func(_p: Vector3) -> void: pass)
+	if canister == null:
+		return
+	var sol: Dictionary = _drop_solution(_target)
+	get_tree().create_timer(float(sol.time) * CBU_OPEN_FRAC).timeout.connect(func() -> void:
+		if is_instance_valid(canister) and canister.is_active:
+			_open_cluster(canister.global_position)
+			canister.expire_now())
+
+
+func _open_cluster(from: Vector3) -> void:
+	var data: ProjectileData = load(CBU_BOMBLET) as ProjectileData
+	if data == null:
+		return
 	var side := _run_dir.cross(Vector3.UP).normalized()
-	for i in range(CBU_BOMBLETS):
-		var ang := TAU * float(i) / float(CBU_BOMBLETS) + randf() * 0.6
-		var rad := CBU_SPREAD * sqrt(randf())
-		var pos := _target + _run_dir * (rad * cos(ang)) + side * (rad * 0.6 * sin(ang))
-		var delay := 0.8 + float(i) * 0.05
+	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+	for i in range(FirePlan.CBU_BOMBLETS):
+		var ang := TAU * float(i) / float(FirePlan.CBU_BOMBLETS) + randf() * 0.6
+		var rad := FirePlan.CBU_SPREAD * sqrt(randf())
+		var pos := _target + _run_dir * (rad * cos(ang)) + side * (rad * FirePlan.CBU_CROSS_FRAC * sin(ang))
+		var ground := pos
+		ground.y = terrain.get_height_at(pos) if terrain else pos.y
+		var t: float = sqrt(2.0 * maxf(2.0, from.y - ground.y) / g)
 		var is_first := (i == 0)
-		get_tree().create_timer(delay).timeout.connect(func() -> void:
-			var ground := pos
-			ground.y = terrain.get_height_at(pos) if terrain else pos.y
-			CombatManager.apply_explosion_damage(ground, 55, 15, 5.0, null)
+		Ballistics.fire_arc(data, from, ground, t, terrain, func(impact: Vector3) -> void:
+			CombatManager.apply_explosion_damage(impact, 55, 15, FirePlan.CBU_BOMBLET_BLAST_M, null)
+			GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_grenade")
 			if is_first:
-				DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.7))
+				DamageSystem.apply_damage(impact, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.7))
 
 
 ## Nearby thatch huts catch too: a bigger, longer-lived blaze at the structure.

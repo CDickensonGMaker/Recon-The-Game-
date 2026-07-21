@@ -9,7 +9,7 @@ class_name AirTraffic
 extends Node
 
 ## Kinds with a flyable scene. Rotary kinds drive Helicopter, fixed-wing drive
-## CASAirplane in transit mode. "spooky" builds itself in code (SpookyGunship)
+## CASAirplane in transit mode. "spectre" builds itself in code (SpectreGunship)
 ## and has no scene. There is no C-130: no model exists for one.
 const FLIGHT_SCENES := {
 	"huey": "res://scenes/vehicles/huey.tscn",
@@ -59,7 +59,7 @@ func _seed_default_schedule() -> void:
 	if SimClock == null:
 		return
 	var kinds: Array = FLIGHT_SCENES.keys()
-	kinds.append("spooky")
+	kinds.append("spectre")
 	for h in range(6, 24):
 		var kind: String = String(kinds[rng.randi() % kinds.size()])
 		SimClock.schedule_event(SimClock.sim_day, float(h), &"air_traffic",
@@ -155,10 +155,10 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3) -> Node3D:
 	if world == null:
 		return null
 	var terrain := _terrain()
-	if kind == "spooky":
+	if kind == "spectre":
 		var centre: Vector3 = (from + to) * 0.5
 		centre.y = _ground_at(centre)
-		return SpookyGunship.call_in(world, terrain, centre)
+		return SpectreGunship.call_in(world, terrain, centre)
 	var craft := _instance(kind)
 	if craft == null:
 		return null

@@ -41,6 +41,18 @@ var rack_condition: Dictionary = {}
 var depot_loss: Dictionary = {}
 
 
+## The AC-47 was replaced by the AC-130, and the fire-support key went with it. A
+## save written before that carries a dock against a call that no longer exists;
+## dropping it silently would refund the player a strike he lost to a breach.
+static func _migrate_depot_loss(loss: Dictionary) -> Dictionary:
+	if not loss.has("spooky"):
+		return loss
+	var out: Dictionary = loss.duplicate(true)
+	out["spectre"] = int(out.get("spectre", 0)) + int(out["spooky"])
+	out.erase("spooky")
+	return out
+
+
 
 
 ## The living squadmate of a MOS owns his role's skill. Used at world-gen, before
@@ -195,7 +207,7 @@ func load_campaign() -> void:
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
-	depot_loss = cfg.get_value("campaign", "depot_loss", {}) as Dictionary
+	depot_loss = _migrate_depot_loss(cfg.get_value("campaign", "depot_loss", {}) as Dictionary)
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
 	# EVERY boot until the next natural save.
 	if file_version < SAVE_VERSION:
@@ -242,7 +254,7 @@ func from_dict(d: Dictionary) -> void:
 	intel_points = int(d.get("intel_points", 0))
 	collapsed_tunnels = d.get("collapsed_tunnels", []) as Array
 	rack_condition = d.get("rack_condition", {}) as Dictionary
-	depot_loss = d.get("depot_loss", {}) as Dictionary
+	depot_loss = _migrate_depot_loss(d.get("depot_loss", {}) as Dictionary)
 
 
 func reset_campaign() -> void:

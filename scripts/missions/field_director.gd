@@ -161,23 +161,31 @@ func _process(delta: float) -> void:
 			_close_net()
 	if fire_menu_open and GameManager.can_player_act():
 		if Input.is_action_just_pressed("slot_1"):
-			request_fire_support("bombs")
+			arm_fire_mission("bombs")
 		elif Input.is_action_just_pressed("slot_2"):
-			request_fire_support("napalm")
+			arm_fire_mission("napalm")
 		elif Input.is_action_just_pressed("slot_3"):
-			request_fire_support("arty")
+			arm_fire_mission("arty")
 		elif Input.is_action_just_pressed("slot_4"):
-			request_fire_support("mortar")
+			arm_fire_mission("mortar")
 		elif Input.is_action_just_pressed("wheel_up") or Input.is_action_just_pressed("wheel_down"):
 			pass  # keep wheel for kit even with menu open
 		elif Input.is_action_just_pressed("pop_flare"):
 			pass
 		elif Input.is_action_just_pressed("throw_smoke"):
-			request_fire_support("spooky")  # 5 = Spooky while menu is open
+			arm_fire_mission("spectre")  # 5 = Spectre while menu is open
 		elif Input.is_action_just_pressed("cbu_strike"):
-			request_fire_support("cbu")  # 6 = CBU cluster run
+			arm_fire_mission("cbu")  # 6 = CBU cluster run
+		# The rifle is slung on the net (weapon_holder.gd), so fire/aim are free to
+		# mean send/withdraw for as long as a call is armed.
+		if armed_kind != "":
+			_update_placement()
+			if Input.is_action_just_pressed("fire"):
+				commit_fire_mission()
+			elif Input.is_action_just_pressed("aim"):
+				cancel_fire_mission()
 	if Input.is_action_just_pressed("mortar_strike") and GameManager.can_player_act():
-		request_fire_support("mortar")
+		arm_fire_mission("mortar")
 	if Input.is_action_just_pressed("supply_drop") and GameManager.can_player_act():
 		request_supply_drop()
 	# PROACTIVE NET KICK (Stage-1 handoff): if the RTO is killed while the player is on
@@ -224,8 +232,19 @@ func set_fire_menu_mirror(open: bool) -> void:
 	if fire_menu_open == open:
 		return
 	fire_menu_open = open
+	if not open:
+		clear_armed()
 	fire_menu_changed.emit(open)
-var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spooky": 0, "cbu": 0}
+var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spectre": 0, "cbu": 0}
+
+## Off-map gun geometry: how long a round is in the air, and where it comes from.
+const SHELL_FLIGHT_S: float = 4.0
+const SHELL_APEX_M: float = 260.0
+const SHELL_STANDOFF_M: float = 300.0
+
+const MORTAR_SHELL: String = "res://data/projectiles/mortar_81mm.tres"
+const ARTY_SHELL: String = "res://data/projectiles/arty_105mm.tres"
+
 const DANGER_CLOSE_M: float = 45.0
 const RTO_RADIO_RANGE: float = 10.0  ## must be this close to the living RTO to use the radio
 const DANGER_CLOSE_CONFIRM_S: float = 5.0  ## confirm window; a stale pend must never pre-confirm
@@ -237,7 +256,118 @@ const INFORMER_RESPONSE_DATA: String = "res://data/enemies/vc_rifleman.tres"
 var _informer_answered: bool = false
 
 
-func request_fire_support(kind: String) -> void:
+## THE ARMED CALL. Picking a mission does not send it: it puts a footprint on the
+## ground that the player walks onto the target and then commits. Arming spends
+## nothing, so backing out costs him nothing either.
+var armed_kind: String = ""
+var armed_target: Vector3 = Vector3.ZERO
+var armed_dir: Vector3 = Vector3.FORWARD
+var _preview: FirePreview = null
+
+
+func arm_fire_mission(kind: String) -> void:
+	# Every gate the dispatch runs, in the same order, so a call that cannot go out
+	# is refused BEFORE he spends time aiming it.
+	var err := _radio_check()
+	if err != "":
+		_close_net()
+		toast.emit(err)
+		return
+	if int(fire_support.get(kind, 0)) <= 0:
+		toast.emit("%s: NONE AVAILABLE" % kind.to_upper())
+		return
+	if _cas_cooldown > 0.0:
+		toast.emit("NET BUSY - STAND BY")
+		return
+	# You place a call ON the horn. The [Y] shortcut skips the menu, never the radio.
+	if not fire_menu_open:
+		_open_net()
+		if not fire_menu_open:
+			return
+	armed_kind = kind
+	_pending_danger_close = ""   # a fresh placement is not a confirm of the last one
+	_update_placement()
+	toast.emit("%s - PLACE IT, LMB TO SEND, RMB TO BACK OUT" % kind.to_upper())
+
+
+func commit_fire_mission() -> void:
+	if armed_kind == "":
+		return
+	if armed_target == Vector3.ZERO:
+		toast.emit("NO TARGET - AIM AT THE GROUND")
+		return
+	request_fire_support(armed_kind, armed_target, armed_dir)
+
+
+func cancel_fire_mission() -> void:
+	if armed_kind == "":
+		return
+	toast.emit("%s - CALL WITHDRAWN" % armed_kind.to_upper())
+	clear_armed()
+
+
+## Nothing armed may outlive the net. A stale arm surviving a hang-up would let a
+## later LMB send a call from a radio he is no longer holding.
+func clear_armed() -> void:
+	armed_kind = ""
+	armed_target = Vector3.ZERO
+	_pending_danger_close = ""
+	if _preview != null and is_instance_valid(_preview):
+		_preview.clear_plan()
+
+
+func fo_skill() -> int:
+	var rto: AllyBase = squad_system.member_by_mos("RTO") \
+		if (squad_system != null and is_instance_valid(squad_system)) else null
+	return SquadRoster.skill_level(rto.member, "fo_fac") if rto != null else 0
+
+
+## Is any man of ours inside the footprint, not merely near its centre? A napalm
+## strip reaches 40m down the run - measuring to the mark alone would clear a call
+## that burns the point man.
+func armed_danger_close() -> bool:
+	if armed_kind == "" or armed_target == Vector3.ZERO:
+		return false
+	return _danger_close_to_squad(armed_target, FirePlan.reach(armed_kind, fo_skill()))
+
+
+func _update_placement() -> void:
+	if armed_kind == "":
+		return
+	armed_target = _cas_ground_target()
+	armed_dir = _broadside_axis()
+	if _preview == null or not is_instance_valid(_preview):
+		if world == null or not is_instance_valid(world):
+			return
+		_preview = FirePreview.new()
+		_preview.name = "FirePreview"
+		_preview.terrain = world.terrain_manager
+		world.add_child(_preview)
+	if armed_target == Vector3.ZERO:
+		_preview.clear_plan()
+		return
+	_preview.show_plan(armed_kind, armed_target, armed_dir, fo_skill(), armed_danger_close())
+
+
+## The aircraft crosses his front rather than flying up his line of sight: in over
+## the right shoulder, out to the left. Screen-horizontal, so the strip's length is
+## the thing he is actually judging.
+func _broadside_axis() -> Vector3:
+	if world == null or world.player == null or not is_instance_valid(world.player):
+		return Vector3.FORWARD
+	var cam: Camera3D = world.player.get_node_or_null("Head/Camera3D")
+	if cam == null:
+		return Vector3.FORWARD
+	var right: Vector3 = cam.global_transform.basis.x
+	right.y = 0.0
+	if right.length() < 0.01:
+		return Vector3.FORWARD
+	return -right.normalized()
+
+
+## `at`/`run` come from a placed preview. Left at ZERO the call still aims itself
+## down the crosshair, which is what the probe harnesses and the shortcuts rely on.
+func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3 = Vector3.ZERO) -> void:
 	# The net stays open through soft failures and through the danger-close confirm.
 	# It closes only on dispatch - closing earlier makes the confirm press unreachable.
 	var err := _radio_check()  # RTO alive + within 10m - also gates the Y/O shortcuts
@@ -251,10 +381,11 @@ func request_fire_support(kind: String) -> void:
 	if _cas_cooldown > 0.0:
 		toast.emit("NET BUSY - STAND BY")
 		return
-	var target := _cas_ground_target()
+	var target := at if at != Vector3.ZERO else _cas_ground_target()
 	if target == Vector3.ZERO:
 		toast.emit("NO TARGET - AIM AT THE GROUND")
 		return
+	var run_dir: Vector3 = run
 	# Danger close: a second press of the SAME call, within a short window, is
 	# required. A stale or different-kind pend must never pre-confirm.
 	var pend_fresh: bool = _pending_danger_close == kind \
@@ -266,6 +397,7 @@ func request_fire_support(kind: String) -> void:
 		_radio_vo("danger_close")
 		return
 	_pending_danger_close = ""
+	clear_armed()
 	_close_net()  # call is going out - off the horn
 	fire_support[kind] = int(fire_support[kind]) - 1
 	# FO/FAC is the RADIOMAN's skill, not the player's.
@@ -274,11 +406,11 @@ func request_fire_support(kind: String) -> void:
 	_cas_cooldown = maxf(10.0, 25.0 - 2.0 * float(_fo))
 	match kind:
 		"bombs":
-			_launch_cas(target, CASAirplane.Ordnance.BOMB)
+			_launch_cas(target, CASAirplane.Ordnance.BOMB, run_dir)
 			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d left)" % fire_support[kind])
 			_radio_vo("snake_eye")
 		"napalm":
-			_launch_flyby(target, CASAirplane.Ordnance.NAPALM)
+			_launch_flyby(target, CASAirplane.Ordnance.NAPALM, run_dir)
 			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
 			_radio_vo("napalm_run")
 		"arty":
@@ -286,18 +418,22 @@ func request_fire_support(kind: String) -> void:
 			_radio_vo("arty_barrage")
 			# fo_fac tightens the sheaf: a green radioman scatters wide, a veteran walks
 			# it onto the target (lerp 1.0 -> 0.45 across 8 skill levels).
-			var scat: float = lerpf(1.0, 0.45, clampf(float(_fo) / 8.0, 0.0, 1.0))
+			var scat: float = FirePlan.sheaf_scale(_fo)
 			for i in range(6):
-				get_tree().create_timer(4.0 + float(i) * 0.7).timeout.connect(
-					_arty_impact.bind(target + Vector3(randf_range(-18, 18) * scat, 0, randf_range(-18, 18) * scat), i % 3 == 0))
+				var round_pos: Vector3 = target + Vector3(
+					randf_range(-FirePlan.ARTY_SHEAF_M, FirePlan.ARTY_SHEAF_M) * scat, 0.0,
+					randf_range(-FirePlan.ARTY_SHEAF_M, FirePlan.ARTY_SHEAF_M) * scat)
+				var deform: bool = i % 3 == 0
+				get_tree().create_timer(float(i) * 0.7).timeout.connect(
+					func() -> void: _fire_shell(ARTY_SHELL, round_pos, _arty_impact.bind(deform)))
 		"mortar":
 			_run_mortar_mission(target, _fo)
-		"spooky":
-			SpookyGunship.call_in(world, world.terrain_manager, target)
-			toast.emit("SPOOKY ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
-			_radio_vo("spooky")
+		"spectre":
+			SpectreGunship.call_in(world, world.terrain_manager, target)
+			toast.emit("SPECTRE ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+			_radio_vo("spooky")  # the recorded line is radio_spooky.wav - asset name, not the aircraft
 		"cbu":
-			_launch_flyby(target, CASAirplane.Ordnance.CBU)
+			_launch_flyby(target, CASAirplane.Ordnance.CBU, run_dir)
 			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
 			_radio_vo("cbu_cluster")
 	# Learn-by-doing: the radioman gets better at calling fire the more he does it.
@@ -307,23 +443,29 @@ func request_fire_support(kind: String) -> void:
 			_rto.on_skill_up("fo_fac", fp)
 
 
-func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
+func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
 	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
 	world.add_child(plane)
-	var run_dir := Vector3.ZERO
-	if world.player:
-		run_dir = target - world.player.global_position
-	plane.call_strike(world.terrain_manager, target, ordnance, run_dir)
+	plane.call_strike(world.terrain_manager, target, ordnance, _run_axis(target, run))
 
 
 ## F-4 fast horizontal flyby (napalm/CBU): in low, pickle on the pass, climb out.
-func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance) -> void:
+func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
 	var plane: CASAirplane = F4_SCENE.instantiate()
 	world.add_child(plane)
-	var run_dir := Vector3.ZERO
-	if world.player:
-		run_dir = target - world.player.global_position
-	plane.call_flyby(world.terrain_manager, target, ordnance, run_dir)
+	plane.call_flyby(world.terrain_manager, target, ordnance, _run_axis(target, run))
+
+
+## The line the aircraft flies. A placed call hands one down - it comes in over the
+## player's right shoulder and runs left, so the strip lies BROADSIDE across his
+## view and he can read its length at a glance. Without a placement (a probe, a
+## shortcut) it falls back to the old run down the line of sight.
+func _run_axis(target: Vector3, run: Vector3) -> Vector3:
+	if run.length() > 0.01:
+		return run
+	if world != null and world.player != null and is_instance_valid(world.player):
+		return target - world.player.global_position
+	return Vector3.ZERO
 
 
 ## An informer reached his people. They come looking from the far side, ALERT but
@@ -393,16 +535,19 @@ func _close_net() -> void:
 ## of the aim point (gates the confirm). ADR-011 required amendment: dropping a
 ## snake-eye on your own head must cost the same second press as dropping it on
 ## your men.
-func _danger_close_to_squad(target: Vector3) -> bool:
+## `reach` extends the warning out to the edge of the footprint: a man 40m down the
+## run is under a napalm strip even though he is nowhere near its mark.
+func _danger_close_to_squad(target: Vector3, reach: float = 0.0) -> bool:
+	var near: float = DANGER_CLOSE_M + reach
 	if world != null and world.player != null and is_instance_valid(world.player):
-		if world.player.global_position.distance_to(target) <= DANGER_CLOSE_M:
+		if world.player.global_position.distance_to(target) <= near:
 			return true
 	if squad_system == null or not is_instance_valid(squad_system):
 		return false
 	for a in squad_system.members:
 		var ally := a as AllyBase
 		if ally != null and is_instance_valid(ally) and not ally.is_dead():
-			if ally.global_position.distance_to(target) <= DANGER_CLOSE_M:
+			if ally.global_position.distance_to(target) <= near:
 				return true
 	return false
 
@@ -412,7 +557,7 @@ func _arty_impact(pos: Vector3, deform: bool) -> void:
 		return
 	var ground := pos
 	ground.y = world.terrain_manager.get_height_at(pos)
-	CombatManager.apply_explosion_damage(ground, 200, 60, 14.0, null)
+	CombatManager.apply_explosion_damage(ground, 200, 60, FirePlan.ARTY_BLAST_M, null)
 	if deform:  # crater cap: 2 of 6 rounds deform
 		DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.9)
 	GunFX.play_explosion_3d(get_tree().current_scene, ground)
@@ -423,13 +568,38 @@ func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
 	_radio_vo("mortar_mission")
 	# fo_fac tightens the sheaf and, for a veteran radioman (fo>=5), adds a 4th round.
-	var scat: float = lerpf(1.0, 0.45, clampf(float(fo) / 8.0, 0.0, 1.0))
+	var scat: float = FirePlan.sheaf_scale(fo)
 	var rounds: int = 3 + (1 if fo >= 5 else 0)
-	get_tree().create_timer(3.0).timeout.connect(func() -> void:
-		_mortar_impact(target + Vector3(randf_range(-15, 15) * scat, 0, randf_range(-15, 15) * scat), 0.5))
+	# The spot round is a RANGING shot: it strays further than the sheaf on purpose,
+	# which is why it lands outside the ring the player was shown.
+	var spot: Vector3 = target + Vector3(
+		randf_range(-FirePlan.MORTAR_SPOT_M, FirePlan.MORTAR_SPOT_M) * scat, 0.0,
+		randf_range(-FirePlan.MORTAR_SPOT_M, FirePlan.MORTAR_SPOT_M) * scat)
+	_fire_shell(MORTAR_SHELL, spot, _mortar_impact.bind(0.5))
 	for i in range(rounds):
-		get_tree().create_timer(6.0 + float(i)).timeout.connect(func() -> void:
-			_mortar_impact(target + Vector3(randf_range(-8, 8) * scat, 0, randf_range(-8, 8) * scat), 1.0))
+		var round_pos: Vector3 = target + Vector3(
+			randf_range(-FirePlan.MORTAR_SHEAF_M, FirePlan.MORTAR_SHEAF_M) * scat, 0.0,
+			randf_range(-FirePlan.MORTAR_SHEAF_M, FirePlan.MORTAR_SHEAF_M) * scat)
+		get_tree().create_timer(3.0 + float(i)).timeout.connect(
+			func() -> void: _fire_shell(MORTAR_SHELL, round_pos, _mortar_impact.bind(1.0)))
+
+
+## Put a real round in the air onto `impact`. The gun is off the map, so the shell
+## is spawned high on the bearing from the firebase and solved onto the point the
+## sheaf already picked - the ring the player placed is what the rounds cover.
+func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable) -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	var data: ProjectileData = load(shell_path) as ProjectileData
+	if data == null:
+		return
+	var ground: Vector3 = impact
+	ground.y = world.terrain_manager.get_height_at(impact) if world.terrain_manager != null else impact.y
+	var azimuth: Vector3 = ground - fsb_center
+	if fsb_center == Vector3.ZERO:
+		azimuth = Vector3(0.6, 0.0, -0.8)
+	var from: Vector3 = Ballistics.firing_point(ground, azimuth, SHELL_APEX_M, SHELL_STANDOFF_M)
+	Ballistics.fire_arc(data, from, ground, SHELL_FLIGHT_S, world.terrain_manager, terminal)
 
 
 ## RTO-called resupply: pop smoke, the bird drops a crate on it.
@@ -495,7 +665,7 @@ func _mortar_impact(pos: Vector3, intensity: float) -> void:
 		return
 	var ground := pos
 	ground.y = world.terrain_manager.get_height_at(pos)
-	CombatManager.apply_explosion_damage(ground, int(140 * intensity), 40, 10.0, null)
+	CombatManager.apply_explosion_damage(ground, int(140 * intensity), 40, FirePlan.MORTAR_BLAST_M, null)
 	if intensity >= 1.0:
 		DamageSystem.apply_damage(ground, DamageSystem.DamageType.SMALL_EXPLOSION, intensity)
 	GunFX.play_explosion_3d(get_tree().current_scene, ground)
@@ -649,13 +819,13 @@ func _grant_fire_support() -> void:
 	var tier: String = CampaignState.threat_label()
 	fire_support = {
 		"bombs": 1, "napalm": 0, "arty": 1,
-		"mortar": 3 + (1 if fo >= 6 else 0), "spooky": 0, "cbu": 0,
+		"mortar": 3 + (1 if fo >= 6 else 0), "spectre": 0, "cbu": 0,
 	}
 	if tier in ["HIGH", "CRITICAL"]:
 		fire_support["napalm"] = 1
 		fire_support["cbu"] = 1
 	if tier == "CRITICAL":
-		fire_support["spooky"] = 1
+		fire_support["spectre"] = 1
 	# A breached depot short-changes THIS allotment (persistent, consumed here - the
 	# loss is one patrol's, not forever). Without this read, Fork B is cosmetic: the
 	# hard-assign above wipes any docked stock.

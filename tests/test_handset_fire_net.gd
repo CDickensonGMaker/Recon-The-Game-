@@ -74,7 +74,7 @@ func _make_rig() -> Rig:
 	add_child(r.director)
 	r.director.setup(r.world)   # adds to group "mission_director" -> player._notify_net finds it
 	r.director._hunter_pool = 0
-	r.director.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spooky": 9, "cbu": 9}
+	r.director.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spectre": 9, "cbu": 9}
 	r.director.fire_menu_changed.connect(func(open: bool) -> void: _menu_events.append(open))
 
 	r.squad = SquadSystem.new()
