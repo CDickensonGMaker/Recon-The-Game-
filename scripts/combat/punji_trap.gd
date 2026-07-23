@@ -6,7 +6,7 @@
 class_name PunjiTrap
 extends Node3D
 
-const MODEL_PATH: String = "res://assets/building models/structures/vc_nva/punji_trap.glb"
+const MODEL_PATH: String = "res://assets/world/building models/structures/vc_nva/punji_trap.glb"
 const TRIGGER_RANGE: float = 1.4
 const DAMAGE: int = 35
 ## Two rifle rounds, one buckshot pattern, or any blast that reaches it. Stakes and

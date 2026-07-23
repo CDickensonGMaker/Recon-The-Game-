@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dtn6f80n4xah4"
+path="res://.godot/imported/Radio_Vietnam_Night_Beat_December_REAL_RADIO_edited.ogg-95237b5af1001a37698ad682792417cd.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/Radio Vietnam/Radio_Vietnam_Night_Beat_December_REAL_RADIO_edited.ogg"
+dest_files=["res://.godot/imported/Radio_Vietnam_Night_Beat_December_REAL_RADIO_edited.ogg-95237b5af1001a37698ad682792417cd.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c8dvifexjrx7m"
+path="res://.godot/imported/Radio_Vietnam_Light_Rains_and_Baseball_w_Adds.ogg-a89788e5bcf5d402dd2461a8f425d1c9.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/Radio Vietnam/Radio_Vietnam_Light_Rains_and_Baseball_w_Adds.ogg"
+dest_files=["res://.godot/imported/Radio_Vietnam_Light_Rains_and_Baseball_w_Adds.ogg-a89788e5bcf5d402dd2461a8f425d1c9.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

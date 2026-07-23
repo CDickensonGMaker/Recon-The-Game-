@@ -238,7 +238,6 @@ WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
 7. Keep hip_rotation and ads_rotation values numerically close (within 90°) to prevent spinning during ADS transition
 
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## NO MORE DRIFT — correct it on contact (Summoner's standing law, 2026-07-19)
 
 **Summoner:** *"no more drift."*
@@ -248,7 +247,7 @@ code that reads as live. An unpointered doc is a claim that reads as verified. A
 law that reads as binding. Every time, something in this repo asserts a state of the world that is no
 longer true — and the next reader, human or agent, acts on it.
 
-**THE RULE: when you touch a file and find a claim in it that is no longer true, you correct it or bead
+**THE RULE: when you touch a file and find a claim in it that is no longer true, you correct it or note
 it IN THE SAME CHANGE. You never read past it.** Drift survives because everyone who noticed it was busy
 with something else.
 
@@ -351,8 +350,8 @@ read as current fact. Not one carried a pointer.
 
 Cite the pointer, or date the line and mark it as of-its-time. The healthy docs already do it —
 `ADR-016`, `PERF_LEDGER.md`, `bible/04_AI_LOCOMOTION.md`, `research/engine_mining_2026-07-18/`.
-Copy them. **When you cannot find a pointer, that is the finding** — file a bead, do not soften the
-claim and move on.
+Copy them. **When you cannot find a pointer, that is the finding** — note it in the tracking docs, do
+not soften the claim and move on.
 
 **THE MACHINE:** `tools/probe_doc_pointers.py` — flags any doc asserting code state with neither a
 `file:line` nor a date banner. Weak by design: it catches the shape, not the truth.
@@ -380,7 +379,7 @@ caught, in a single session:
 3. They write full analyses to `production/war_room/analysis/` and return **only a short verdict**,
    so the Arbiter's context survives.
 4. Arbiter weaves a synthesis, **names what is sacrificed** (no free lunches — the law binds the
-   Arbiter too), and beads the outcome.
+   Arbiter too), and records the outcome in the project's tracking docs.
 
 **Load into every architect brief:** `~/.claude/architect_knowledge/GodotPrompter/skills/<topic>/`
 (51 domain skills, Godot 4.3–4.7), `godot_4.7_features.md`, and `godot_standards.md`. The Summoner
@@ -388,68 +387,45 @@ added these deliberately and asked that they be used.
 
 ---
 
-## Beads Issue Tracker
+## Task Tracking
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+Beads (`bd`) is **RETIRED** (2026-07-22). It accumulated false "done" claims — beads closed as complete
+while the art logs still listed the same work unfinished — so it now costs more than it tracked. Track
+outstanding work and open questions in the project's source-of-truth docs and in Claude memory instead:
+- `production/CALEB_TODO_7_22_updated.md` — the owner's live task list (sources of truth)
+- `production/ART_Track_Log.md` — art/weapons/animation/structures master list
+- Claude memory (`~/.claude/projects/.../memory/`) — durable cross-session facts and rulings
 
-### Quick Reference
-
-```bash
-bd list --limit 0     # ALL issues — see the truncation warning below
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
+Do NOT resurrect `.beads/` and do NOT run `bd`. Do not trust any surviving bead export as current truth;
+the two docs above and code pointers win.
 
 ### THE SESSION ENTRY GATE
 
-**PLAYTEST R4 — bead `RECONgame-qrg6` — is the standing session entry gate. Check it FIRST, before
-anything else.** It checks the ADR-029 open-patrol loop: boot seated at `fsb_main` → out the wire gate
-on one diegetic pointer → find a site unguided → fair contact → squad behaves → AAR banks at the gate
+**PLAYTEST R4 is the standing session entry gate — resolve it FIRST, before anything else.** It checks
+the ADR-029 open-patrol loop: boot seated at `fsb_main` → out the wire gate on one diegetic pointer →
+find a site unguided → fair contact → squad behaves → AAR banks at the gate
 (`scripts/missions/field_director.gd:602-614`). It is discharged only by a **verified playtest by the
-Summoner** (ADR-015) — never by a probe, never by an agent's reading.
-
-`qrg6` is `bd dep`-wired to the ADR-015 mechanical gate `RECONgame-97u3`, so while it is open
-`bd ready` correctly hides gated feature work.
+Summoner** (ADR-015) — never by a probe, never by an agent's reading. Until he has verified it, gated
+feature work stays parked.
 
 ### THE DECISION QUEUE — open every session by asking him, not by building
 
 **Summoner's standing practice, 2026-07-20:** *"we should be starting every session with me answering
 questions that can move the needle forward."*
 
-```bash
-bd list --limit 0 --type decision      # the queue. Ask these FIRST.
-```
+Open each session by surfacing the decisions only he can make — every hour a needle-moving question
+sits unanswered is an hour of work aimed by guesswork. On 2026-07-20 he cleared 25 in one sitting and it
+redirected the entire session: two systems retired, two ADRs deleted, three "blocked" items already
+shipped.
 
-`decision`-typed beads carrying the `awaiting-summoner` label are **questions only he can answer**, and
-every hour they sit open is an hour of work aimed by guesswork. On 2026-07-20 he cleared all 25 in one
-sitting and it redirected the entire session — two systems were retired, two ADRs deleted, and three
-"blocked" items turned out to be **already shipped**.
+**Put every question to him GLOSSED, in plain words he can rule on without opening any file or tracker**
+(Summoner's rule, 2026-07-19: *"the beads are really cryptic to me and hard to answer in the moment"*).
+Name the subsystem, then state the defect or goal plainly. A wave code or bare acronym is a handle, not
+a question.
+- Bad: `PIVOT W4 [AWAITS RATIFICATION]` · `AI-CONSOLIDATION WA`
+- Good: `Convoys spawn with an empty vehicle array, so none has ever moved`
 
-**Put the question to him GLOSSED, never as a bare bead ID** (see the naming rules below): he must be
-able to rule without opening the bead, or he was not really asked. A decision bead is answered by
-**recording his words verbatim in the bead and then closing it** — a ruling record is findable when
-closed and only inflates the open count when left open.
-
-- **`bd list` SILENTLY TRUNCATES AT 50** while ~129 beads are open (measured 2026-07-19). It prints no
-  warning and no count — a plain `bd list` will make you believe work does not exist. **Always use
-  `bd list --limit 0`.** This cost real work: the stale-gate pointers survived a full doc audit because
-  the replacement bead sat past row 50.
-- **A BEAD TITLE MUST BE LEGIBLE TO SOMEONE WHO HAS NOT READ THE CODE** (Summoner's rule, 2026-07-19:
-  *"the beads are really cryptic to me and hard to answer in the moment"*). Name the subsystem, then
-  state the defect or goal in plain words. A wave code, a phase number, or a bare acronym is a handle,
-  not a title.
-  - Bad: `PIVOT W4 [AWAITS RATIFICATION]` · `AI-CONSOLIDATION WA` · `DRIFT-1 UNBLOCK THE PUSH`
-  - Good: `Convoys spawn with an empty vehicle array, so none has ever moved`
-- **NEVER put a bare bead ID in front of the Summoner.** `bd` IDs are opaque by design. Always gloss:
-  `dqgx` (every convoy spawns as an empty shell). When asking him to rule, the gloss must carry enough
-  for him to rule without opening the bead — otherwise he was not really asked.
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+Record his rulings verbatim in the tracking docs (and Claude memory when durable) so they stay findable.
 
 ## Session Completion
 
@@ -457,9 +433,9 @@ closed and only inflates the open count when left open.
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
+1. **Record remaining work** - Note follow-ups in the project's todo/tracking docs and Claude memory
 2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
+3. **Update the todo docs** - Mark finished work done, update in-progress items in the tracking docs
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
@@ -475,4 +451,3 @@ closed and only inflates the open count when left open.
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->

@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://dcclhpd0proxl"]
+
+[ext_resource type="AudioStream" uid="uid://bj82465lcd78u" path="res://assets/audio/Radio Vietnam/Radio_Vietnam_GOOD_MORNING_long_run.ogg" id="1_s8km4"]
+
+[node name="RadioUs" type="Node3D" unique_id=900245789]
+
+[node name="Area3D" type="Area3D" parent="." unique_id=1869422528]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D" unique_id=1360371546]
+
+[node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="Area3D" unique_id=677837138]
+stream = ExtResource("1_s8km4")

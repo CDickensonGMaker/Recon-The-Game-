@@ -367,21 +367,17 @@ func _setup_visual() -> void:
 	add_child(mesh)
 
 
-## Low-posture (Track B2): move low and careful. Keyed STRICTLY on caution or a
-## real pin - a firing or confirmed-hostile push stays upright, so the aggression
-## the Summoner liked stays the default. Suppression is deliberately NOT a key
-## here: it spikes on a single hit mid-assault; the >0.7 SUPPRESSED state already
-## owns heavy fire. This is the enemy half; AllyBase has its own (no alert tiers).
-func _is_low_posture(firing: bool) -> bool:
-	if firing:
-		return false
-	if current_state == Enums.AIState.SUPPRESSED:
-		return true
-	if current_state == Enums.AIState.SEEKING_COVER \
-			or current_state == Enums.AIState.ADVANCING \
-			or current_state == Enums.AIState.FLANKING:
-		return alert_tier <= AlertTier.SUSPICIOUS
-	return false
+## Low-posture (crouch) - shared contract via CombatPosture, identical for allies:
+## crouch to hold/react/at-cover, stand to advance/flank/rush, a heavy pin crouches
+## anyone. SEEKING_COVER crouches only once NEAR the cover point, never on the goal
+## flip 10m out.
+func _is_low_posture(_firing: bool) -> bool:
+	return CombatPosture.decide(current_state, suppression_level, _near_cover()) == CombatPosture.Posture.CROUCH
+
+
+func _near_cover() -> bool:
+	return has_cover or (_moving_to_cover \
+		and global_position.distance_to(current_cover) <= CombatPosture.COVER_CROUCH_RANGE)
 
 
 ## Drive the clip from the AI. Called every frame from _execute(), never from
@@ -407,7 +403,7 @@ func _update_sprite() -> void:
 	var now: float = float(Time.get_ticks_msec())
 	var firing: bool = now < _fired_until_ms
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
-		and alert_tier <= AlertTier.SUSPICIOUS
+		and alert_tier <= AlertTier.SUSPICIOUS and _near_cover()
 	_low_posture = _is_low_posture(firing)
 	var prev_intent: String = _last_intent
 	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture)

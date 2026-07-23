@@ -118,14 +118,14 @@ const FORT_SEG_LEN: float = 2.6
 const FORT_SANDBAG_HP: int = 120
 const FORT_WIRE_HP: int = 70
 const BARBWIRE_MODEL: String = "res://assets/world/structures/emplacements/barbwire_card.glb"
-const MG_NEST_MODEL: String = "res://assets/building models/structures/emplacements/mg_nest_sandbag.glb"
+const MG_NEST_MODEL: String = "res://assets/world/building models/structures/emplacements_real/mg_nest_sandbag.glb"
 const ARENA_SAPPER_COUNT: int = 3
 const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he sees it happen
 const TUNNEL_POS: Vector3 = Vector3(-15.0, 0.0, 45.0)
 
 ## Ruined-building / rubble GLBs shipped by bead sra5. Village and central contact
 ## zone draw from these for hard urban cover instead of gray primitive boxes.
-const RUIN_DIR: String = "res://assets/building models/structures/ruins/"
+const RUIN_DIR: String = "res://assets/world/building models/structures/ruins/"
 const VILLAGE_RUINS: Array[String] = [
 	"ruinset_street_row", "ruinset_compound", "ruinset_courtyard",
 	"ruin_house_shell", "ruin_house_half", "destroyed_bunker",

@@ -465,7 +465,7 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 ## center - walking distance is the pacing contract. tools/diag_fsb_seat asserts
 ## these consts against the loaded GLB - remeasure here on every re-export.
 
-const FSB_MAIN_PATH: String = "res://assets/building models/structures/firebase/fsb_main.glb"
+const FSB_MAIN_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main.glb"
 const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # recentered at export, measured
 const FSB_HALF := Vector2(82.2, 77.3)               # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
@@ -650,6 +650,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	var spawn_pos: Vector3 = gm.spawn_pos
 	spawn_pos.y = _terrain.get_height_at(spawn_pos)
 	gate_pos.y = _terrain.get_height_at(gate_pos)
+	_stamp_radio(spawn_pos)
 	_fsb_rect = Rect2(center.x - FSB_HALF.x, center.z - FSB_HALF.y,
 		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
 	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
@@ -657,6 +658,20 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 		"radius": FSB_HALF.length()}
 	placed_sites.append(site)
 	return site
+
+
+const RADIO_SCENE: String = "res://scenes/props/radio.tscn"
+
+## Drop a diegetic field radio near the TOC spawn so the player boots to the broadcast.
+func _stamp_radio(near: Vector3) -> void:
+	var ps: PackedScene = load(RADIO_SCENE) as PackedScene
+	if ps == null:
+		return
+	var radio := ps.instantiate() as Node3D
+	_parent.add_child(radio)
+	var spot: Vector3 = near + Vector3(1.5, 0.0, 0.0)
+	spot.y = _terrain.get_height_at(spot)
+	radio.global_position = spot
 
 
 ## VC jungle camp: tunnel + cache + spider holes tucked under canopy. Deliberately
@@ -672,7 +687,7 @@ func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	for _i in range(rng.randi_range(1, 2)):
 		var sp: Vector3 = _dry_point(center, 6.0, 14.0, rng)
 		nodes.append(place_structure(
-			"res://assets/building models/structures/vc_nva/spider_hole.glb",
+			"res://assets/world/building models/structures/vc_nva/spider_hole.glb",
 			sp, rng.randf_range(0, 360)))
 	var site := {"kind": "vc_camp", "center": center, "nodes": nodes, "radius": 16.0}
 	placed_sites.append(site)

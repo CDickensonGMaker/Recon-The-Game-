@@ -2,7 +2,7 @@ extends SceneTree
 ## Model-space check: what geometry exists under the raised gate-area meshes?
 
 func _init() -> void:
-	var scene: PackedScene = load("res://assets/building models/structures/firebase/fsb_main.glb")
+	var scene: PackedScene = load("res://assets/world/building models/structures/firebase/fsb_main.glb")
 	var root := scene.instantiate() as Node3D
 	var meshes: Array = []
 	var stack: Array[Node] = [root]

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://cch47chinook01"]
 
 [ext_resource type="Script" path="res://scripts/vehicles/helicopter.gd" id="1_heli"]
-[ext_resource type="PackedScene" path="res://assets/building models/vehicles/ch47_chinook.glb" id="2_glb"]
+[ext_resource type="PackedScene" path="res://assets/us/vehicles/ch47_chinook.glb" id="2_glb"]
 
 [node name="Chinook" type="Node3D"]
 script = ExtResource("1_heli")

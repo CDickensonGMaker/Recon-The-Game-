@@ -2,7 +2,7 @@
 extends Node
 
 func _ready() -> void:
-	var scene: PackedScene = load("res://assets/building models/vehicles/huey.glb")
+	var scene: PackedScene = load("res://assets/us/vehicles/huey.glb")
 	var inst := scene.instantiate()
 	add_child(inst)
 	_dump(inst, 0)

@@ -4,15 +4,15 @@ extends Node
 
 ## model path -> [min_dimension_m, max_dimension_m] expected band (largest axis)
 const EXPECTED := {
-	"res://assets/building models/structures/village/thatched_hut.glb": [2.0, 12.0],
-	"res://assets/building models/structures/village/stilt_house.glb": [2.0, 14.0],
-	"res://assets/building models/structures/village/well.glb": [0.5, 6.0],
-	"res://assets/building models/structures/firebase/fsb_main.glb": [150.0, 200.0],
-	"res://assets/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
-	"res://assets/building models/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
-	"res://assets/building models/vehicles/m113_apc.glb": [2.0, 9.0],
-	"res://assets/building models/aircraft/a1_skyraider.glb": [6.0, 18.0],
-	"res://assets/building models/ordnance/Bomb_500lb_Mk82.glb": [0.5, 4.0],
+	"res://assets/world/building models/structures/village/thatched_hut.glb": [2.0, 12.0],
+	"res://assets/world/building models/structures/village/stilt_house.glb": [2.0, 14.0],
+	"res://assets/world/building models/structures/village/well.glb": [0.5, 6.0],
+	"res://assets/world/building models/structures/firebase/fsb_main.glb": [150.0, 200.0],
+	"res://assets/world/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
+	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
+	"res://assets/us/vehicles/m113_apc.glb": [2.0, 9.0],
+	"res://assets/us/aircraft/a1_skyraider.glb": [6.0, 18.0],
+	"res://assets/world/building models/ordnance/Bomb_500lb_Mk82.glb": [0.5, 4.0],
 }
 
 
@@ -24,12 +24,12 @@ func _run() -> void:
 	var failures: int = 0
 	var checked: int = 0
 	var dirs := [
-		"res://assets/building models/structures/village",
-		"res://assets/building models/structures/firebase",
-		"res://assets/building models/structures/vc_nva",
-		"res://assets/building models/vehicles",
-		"res://assets/building models/aircraft",
-		"res://assets/building models/ordnance",
+		"res://assets/world/building models/structures/village",
+		"res://assets/world/building models/structures/firebase",
+		"res://assets/world/building models/structures/vc_nva",
+		"res://assets/world/building models/vehicles",
+		"res://assets/world/building models/aircraft",
+		"res://assets/world/building models/ordnance",
 	]
 	for dir_path in dirs:
 		var dir := DirAccess.open(dir_path)

@@ -290,8 +290,11 @@ func _process(_delta: float) -> void:
 	var now: int = Time.get_ticks_msec()
 	for i in range(_in_flight.size() - 1, -1, -1):
 		var f: Dictionary = _in_flight[i]
-		var node := f.get("node") as Node3D
-		var alive: bool = node != null and is_instance_valid(node)
+		# Validate BEFORE the cast: `freed as Node3D` throws, and planes/gunships
+		# free themselves mid-flight, so the entry can hold a dead reference.
+		var raw: Variant = f.get("node")
+		var node: Node3D = raw as Node3D if (raw is Node3D and is_instance_valid(raw)) else null
+		var alive: bool = node != null
 		var age_s: float = float(now - int(f.get("born_ms", now))) / 1000.0
 		var arrived: bool = false
 		if alive:

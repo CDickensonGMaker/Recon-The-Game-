@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://chueyheli000001"]
 
 [ext_resource type="Script" path="res://scripts/vehicles/helicopter.gd" id="1_heli"]
-[ext_resource type="PackedScene" path="res://assets/building models/vehicles/huey.glb" id="2_glb"]
+[ext_resource type="PackedScene" path="res://assets/us/vehicles/huey.glb" id="2_glb"]
 [ext_resource type="Script" path="res://scripts/vehicles/seat_system.gd" id="3_seats"]
 
 [node name="Huey" type="Node3D"]

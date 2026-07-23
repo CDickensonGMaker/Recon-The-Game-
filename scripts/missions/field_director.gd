@@ -675,19 +675,34 @@ func _mortar_impact(pos: Vector3, intensity: float) -> void:
 var squad_system: SquadSystem = null
 
 
-## March the camera ray onto the terrain surface.
+## March the camera ray onto the terrain surface. No range cap: a target always
+## resolves, falling back to the far aim point when the ray clears the horizon.
 func _cas_ground_target() -> Vector3:
 	if world == null or world.player == null:
 		return Vector3.ZERO
 	var cam: Camera3D = world.player.get_node("Head/Camera3D")
 	var origin: Vector3 = cam.global_position
 	var dir: Vector3 = -cam.global_transform.basis.z
-	for i in range(1, 60):
-		var p := origin + dir * (float(i) * 8.0)
-		var ground: float = world.terrain_manager.get_height_at(p)
-		if p.y <= ground:
-			return Vector3(p.x, ground, p.z)
-	return Vector3.ZERO
+	const MAX_REACH_M: float = 5000.0
+	const STEP_M: float = 12.0
+	var prev: Vector3 = origin
+	var t: float = STEP_M
+	while t <= MAX_REACH_M:
+		var p: Vector3 = origin + dir * t
+		if p.y <= world.terrain_manager.get_height_at(p):
+			var lo: Vector3 = prev
+			var hi: Vector3 = p
+			for _i in range(8):
+				var mid: Vector3 = (lo + hi) * 0.5
+				if mid.y <= world.terrain_manager.get_height_at(mid):
+					hi = mid
+				else:
+					lo = mid
+			return Vector3(hi.x, world.terrain_manager.get_height_at(hi), hi.z)
+		prev = p
+		t += STEP_M
+	var far: Vector3 = origin + dir * MAX_REACH_M
+	return Vector3(far.x, world.terrain_manager.get_height_at(far), far.z)
 
 
 ## ---------- THE WIRE GATE (ADR-029 draft, W2) ----------

@@ -359,17 +359,16 @@ func dress_visual() -> void:
 
 ## AllyBase has no facing_dir. Derive it: aim at a target if we have one,
 ## otherwise face where we are walking.
-## Low-posture (Track B2): allies default to the aggressive stand-and-push the
-## Summoner liked, so this is a HIGH bar - only a heavy pin, or a careful eyes-off
-## move into cover, drops them low. No alert tiers / no SUPPRESSED state here.
-func _is_low_posture(firing: bool) -> bool:
-	if firing:
-		return false
-	if suppression_level >= LOW_POSTURE_SUPPRESS:
-		return true
-	if current_state == Enums.AIState.SEEKING_COVER and not has_line_of_sight:
-		return true
-	return false
+## Low-posture (crouch) - shared contract via CombatPosture, identical for enemies:
+## crouch to hold/react/at-cover, stand to advance/flank/rush, a heavy pin crouches
+## anyone. SEEKING_COVER crouches only once NEAR the cover point.
+func _is_low_posture(_firing: bool) -> bool:
+	return CombatPosture.decide(current_state, suppression_level, _near_cover()) == CombatPosture.Posture.CROUCH
+
+
+func _near_cover() -> bool:
+	return has_cover or (_moving_to_cover \
+		and global_position.distance_to(current_cover) <= CombatPosture.COVER_CROUCH_RANGE)
 
 
 func _update_sprite() -> void:

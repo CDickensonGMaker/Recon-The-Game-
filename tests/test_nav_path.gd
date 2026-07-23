@@ -19,7 +19,7 @@
 extends Node
 
 const SEED_VAL: int = 4242
-const HUT_PATH := "res://assets/building models/structures/village/thatched_hut.glb"
+const HUT_PATH := "res://assets/world/building models/structures/village/thatched_hut.glb"
 const HUT_HALF_EXTENT: float = 2.0  ## CollisionTable thatched_hut box = (4, 2.5, 4)
 const CLEARANCE: float = 2.0        ## must path at least this far from hut center
 const APPROACH: float = 12.0        ## start/end distance either side of the hut

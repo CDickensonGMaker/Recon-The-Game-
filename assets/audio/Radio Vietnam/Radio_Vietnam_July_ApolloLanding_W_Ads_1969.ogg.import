@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://enyaq25hbn0o"
+path="res://.godot/imported/Radio_Vietnam_July_ApolloLanding_W_Ads_1969.ogg-6a4fad2d8e02992956fe202d10f1fd52.oggvorbisstr"
+
+[deps]
+
+source_file="res://assets/audio/Radio Vietnam/Radio_Vietnam_July_ApolloLanding_W_Ads_1969.ogg"
+dest_files=["res://.godot/imported/Radio_Vietnam_July_ApolloLanding_W_Ads_1969.ogg-6a4fad2d8e02992956fe202d10f1fd52.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

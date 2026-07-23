@@ -4,30 +4,30 @@ class_name SiteLayouts
 extends RefCounted
 
 const VILLAGE_HUT_MODELS: Array[String] = [
-	"res://assets/building models/structures/village/thatched_hut.glb",
-	"res://assets/building models/structures/village/stilt_house.glb",
-	"res://assets/building models/structures/village/three_room_house.glb",
-	"res://assets/building models/structures/village/rice_storage.glb",
-	"res://assets/building models/structures/village/bell_tower.glb",
-	"res://assets/building models/structures/village/village_pagoda.glb",
+	"res://assets/world/building models/structures/village/thatched_hut.glb",
+	"res://assets/world/building models/structures/village/stilt_house.glb",
+	"res://assets/world/building models/structures/village/three_room_house.glb",
+	"res://assets/world/building models/structures/village/rice_storage.glb",
+	"res://assets/world/building models/structures/village/bell_tower.glb",
+	"res://assets/world/building models/structures/village/village_pagoda.glb",
 ]
 
 const VILLAGE_CENTER_MODELS: Array[String] = [
-	"res://assets/building models/structures/village/well.glb",
-	"res://assets/building models/structures/village/communal_house.glb",
-	"res://assets/building models/structures/village/pagoda.glb",
-	"res://assets/building models/structures/village/bell_tower.glb",
+	"res://assets/world/building models/structures/village/well.glb",
+	"res://assets/world/building models/structures/village/communal_house.glb",
+	"res://assets/world/building models/structures/village/pagoda.glb",
+	"res://assets/world/building models/structures/village/bell_tower.glb",
 ]
 
-const CACHE_MODEL: String = "res://assets/building models/structures/vc_nva/weapons_cache.glb"
-const TUNNEL_MODEL: String = "res://assets/building models/structures/vc_nva/tunnel_entrance_hidden.glb"
+const CACHE_MODEL: String = "res://assets/world/building models/structures/vc_nva/weapons_cache.glb"
+const TUNNEL_MODEL: String = "res://assets/world/building models/structures/vc_nva/tunnel_entrance_hidden.glb"
 
 ## VC village scatter props. 0-2 of these get sprinkled between huts per village —
 ## spider holes tucked behind a hut, a punji pit on an approach. These are read
 ## by stamp_village() in addition to the hut ring + center model.
 const VILLAGE_SCATTER_MODELS: Array[String] = [
-	"res://assets/building models/structures/vc_nva/spider_hole.glb",
-	"res://assets/building models/structures/vc_nva/punji_pit.glb",
+	"res://assets/world/building models/structures/vc_nva/spider_hole.glb",
+	"res://assets/world/building models/structures/vc_nva/punji_pit.glb",
 ]
 
 

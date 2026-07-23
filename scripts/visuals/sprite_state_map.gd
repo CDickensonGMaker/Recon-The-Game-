@@ -108,7 +108,7 @@ static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 			return "crouch_back"
 		"idle":
 			return "crouch_idle"
-		"aim":
+		"aim", "fire":
 			return "crouch_aim"
 		"cover":
 			# SUPPRESSED resolves to "cover" at any speed; a DISPLACING suppressed

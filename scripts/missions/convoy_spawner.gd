@@ -14,7 +14,7 @@ var ambush_sites: Array = []
 ## How close a convoy must come to a planned ambush site to spring it, in meters.
 const AMBUSH_TRIGGER_M: float = 45.0
 
-const VEHICLE_MODEL_DIR: String = "res://assets/building models/vehicles/"
+const VEHICLE_MODEL_DIR: String = "res://assets/us/vehicles/"
 
 
 func _ready() -> void:
