@@ -124,7 +124,9 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   The old "FOV locked at 75, DO NOT CHANGE" law is amended (ADR-004).
 - Weapon condition degrades per shot; fouling → jams (kept, weapon-weight it — ADR-009). Cleaning kits [0].
 - Three-situation asymmetry (undetected initiator wins the opening; the ambushed side is penalized until
-  in cover) is the design's lethality engine — RECON_ADAPTATION.md is the numbers source.
+  in cover) is the design's lethality engine. Its numbers live in ADR-016 and in
+  `scripts/combat/hitzone.gd` MULTIPLIERS — the old `RECON_ADAPTATION.md` pointer is dead (file
+  deleted 2026-07-23 by the Summoner; see CLAUDE.md).
 - ~~⚠ 4 legacy WW2 .tres / Mosin one-shot~~ **RESOLVED with ADR-016 (2026-07-10):** MP40/Kar98k deleted,
   Mosin retuned to 32 and Thompson to 17, vc_rifleman fires its stated SKS, descriptions honest.
 - ⚠ No gating FPS number exists; last measured 19–25 FPS with `rendering_method` unset (ADR-015/§8.2).
@@ -244,10 +246,22 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 
 ## 5 · The RECON tabletop backbone (what we keep fidelity to)
 
-`RECON_ADAPTATION.md` is the numbers source of record: damage dice per caliber, detection/sight-cap
-ratios (tuned up from tabletop, ratios kept), the ±25 contact scoring, XP pool economy, 7-element
-briefing, hot-LZ outcome tables. Where realtime needs diverge (suppression, morale — RECON lacks both),
-the divergence is named in an ADR, never silent.
+> **AMENDED 2026-07-23.** This section used to name `RECON_ADAPTATION.md` as "the numbers source of
+> record." **That file was deleted on purpose by the Summoner** — it was frozen against a game that no
+> longer exists and was spoiling the output of work that read it. Do not restore it or cite it.
+
+The 1982 tabletop remains the *spirit* backbone — detection/sight-cap ratios tuned up from tabletop
+with the ratios kept, the ±25 contact scoring, the XP pool economy. **The numbers of record now live
+only in the ADRs and the code**, and nowhere else:
+
+- Damage — **ADR-016** (flat base × zone; the per-caliber dice it described are retired) and
+  `scripts/combat/hitzone.gd` MULTIPLIERS.
+- Scoring economy — **ADR-006**.
+- Detection and the witness rule — **ADR-005**.
+
+Its dead sections went with it: the 7-element briefing and the hot-LZ outcome tables described the
+offer → briefing → Huey → exfil loop that **ADR-029** deleted. Where realtime needs diverge from the
+tabletop (suppression, morale — RECON has neither), the divergence is named in an ADR, never silent.
 
 ---
 

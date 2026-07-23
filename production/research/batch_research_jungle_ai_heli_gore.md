@@ -4,6 +4,10 @@
 **Method:** 5 parallel research lanes (headless pipeline + vegetation, VC/US doctrine, Huey + scripted events, gore variants + downed enemies, hitbox tooling), synthesized here.
 **Canon constraints honored:** GAME_GUIDE.md + 15 ADRs, AI-goals decree (`synthesis_ai_goals.md`), CoD2000 living-fight decree (`synthesis_cod2000_living_fight.md`) incl. its gates (G0 = witness bug o18o + perf day; presentation-before-punctuation).
 
+> **POINTER CORRECTION, 2026-07-23.** This document is LOG class — never cite it as authority. Its
+> `MISSION_DESIGN_RESEARCH.md` citations (`:142`, `:161`) are **dead**: that file was deleted on
+> purpose by the Summoner. Do not restore it or go looking for its sections.
+
 ---
 
 ## 1. Headless Blender batches (model MAKING, not just export)

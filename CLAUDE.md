@@ -6,15 +6,16 @@
 contradicts an ADR, the ADR wins and this file gets corrected.
 
 **Read these before designing anything:**
-- `DESIGN.md` — pitch, setting, core fantasy, tone, player loop, pillars, AI stress-test arena, tech stack, development priority (APPROVED). No M0–M8 roadmap lives here.
-- `STATE_OF_PROJECT.md` — origins (merged from HellOfDuty + TerrainEngine copies), decisions log.
-  **READ FOR ORIGINS ONLY — its state-of-the-code is frozen at 2026-07-07 and is now WRONG.** Its
-  MISSING/"build new" table (`:164-177`) lists the mission generator, AI alert states, stealth, saves,
-  audio and VFX as unbuilt; all shipped (`scripts/missions/mission_generator.gd`,
-  `scripts/enemies/enemy_base.gd:64` `enum AlertTier`, `scripts/autoload/save_manager.gd`). It also says
-  Godot 4.5 (we are 4.7) and "all NPCs are colored capsules" (ADR-001: 3D models for everything).
-- `MISSION_DESIGN_RESEARCH.md` — RTCW/MoHAA-derived mission/AI architecture
-- `RECON_ADAPTATION.md` — tabletop rules → real-time mappings (detection, XP scoring). **Its damage section is DEAD — it still describes a dice grammar (`rifle hit = 4d10`) that ADR-016 retired. Damage is flat and deterministic; take damage from ADR-016 and the Damage System section below, never from this file.**
+- `DESIGN.md` — pitch, setting, core fantasy, tone, player loop, AI stress-test arena, tech stack, development priority (APPROVED). No M0–M8 roadmap lives here.
+- `production/GAME_GUIDE.md` — the document of record, and the top of the canon hierarchy.
+- `production/adr/` — every decision, with its evidence.
+- `production/bible/` — per-system canon detail.
+
+**DELETED ON PURPOSE, 2026-07-23 (Summoner). Do not look for them, do not restore them, do not cite
+them, and do not treat a reference to them in an older doc as a live pointer:** `STATE_OF_PROJECT.md`,
+`MISSION_DESIGN_RESEARCH.md`, `RECON_ADAPTATION.md`. They were frozen at 2026-07-07, they described
+a game that no longer exists (Godot 4.5, capsule NPCs, dice damage, the deleted briefing loop), and
+they were actively spoiling the output of work that read them. **We start fresh from the canon above.**
 
 **Pillars (test every decision; merged and ruled 2026-07-19, text of record `production/bible/BIBLE.md:62-90`):**
 1. **Believable firefights** — AI that fights like soldiers AND weapons that kill like weapons, neither subordinate · 2. **Atmosphere** · 3. **Freedom** (no rails, stealth is an economy not a gate; the seeded world generates the stories) · 4. **The squad is the RPG — and you are IN it, not above it** (you suggest and call; the squad holds its own AI intent — a design that has you positioning individual men violates this) · 5. **Fail forward** (escalation not fail-states; death matters, but this is not a sadism simulator).

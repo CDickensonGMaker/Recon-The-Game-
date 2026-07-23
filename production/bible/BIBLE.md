@@ -14,8 +14,12 @@ bead; never a silent drift in either direction. The Bible does not outrank an AD
 
 **Companion docs:** `../../DESIGN.md` (vision; it has **no M0–M8 roadmap and no numbered sections** —
 every `DESIGN.md §N` pointer in this Bible is dead, see the note under the section map),
-`../../STATE_OF_PROJECT.md` (origins only — its state-of-the-code is frozen at 2026-07-07 and wrong),
-`../../MISSION_DESIGN_RESEARCH.md` (AI/pacing), `../../RECON_ADAPTATION.md` (tabletop→realtime),
+`../GAME_GUIDE.md` (the document of record), `../adr/` (the decisions, with evidence).
+
+> **Three former companions were DELETED ON PURPOSE, 2026-07-23 (Summoner):** `STATE_OF_PROJECT.md`,
+> `MISSION_DESIGN_RESEARCH.md`, `RECON_ADAPTATION.md`. They were frozen against a game that no longer
+> exists and were spoiling the output of work that read them. Do not restore them, do not cite them,
+> and treat any surviving reference to them elsewhere in this repo as dead. See CLAUDE.md.
 
 **Cinematic Direction (reference only — no ADR; cinematics are a standalone Blender FMV
 production, not a game-side system):** late-1998-to-2003 prerendered military cinematics

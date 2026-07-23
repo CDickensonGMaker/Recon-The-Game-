@@ -1,9 +1,15 @@
 # ADR-006: Mission scoring economy: avoidance pays, kills do not
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends the debrief scoring spec implied by `debrief.gd` (NS21); enacts the scoring rule already ratified in RECON_ADAPTATION.md §1 and promised in DESIGN.md §2 DEBRIEF but never implemented.
 
+> **POINTER CORRECTION, 2026-07-23 — ruling unchanged.** `RECON_ADAPTATION.md` (cited at `:2`, `:13`
+> and in Evidence) was **deleted on purpose by the Summoner** — it was frozen against a game that no
+> longer exists and was spoiling the output of work that read it. Do not restore it or go looking for
+> `:15`. **The +25/−25 avoidance rule now rests on THIS ADR alone**, which is its full statement of
+> record; the tabletop provenance below is history, not a live pointer.
+
 > **POINTER CORRECTION, 2026-07-19 — ruling unchanged.** `DESIGN.md §2 DEBRIEF` (cited at `:2`) is a
 > **dead pointer**: `DESIGN.md` has no numbered sections. The scoring rule itself stands on
-> `RECON_ADAPTATION.md` and this ADR, not on that citation. Separately: ADR-029 deleted the DEBRIEF
+> this ADR, not on that citation. Separately: ADR-029 deleted the DEBRIEF
 > *screen*. Whether and how this economy re-hosts in the open-patrol AAR is **an open question for the
 > Summoner, not settled here** — `production/adr/ADR-029-amendments-008-006.md` is still DRAFT and does
 > not address ADR-006.

@@ -1,6 +1,13 @@
 # ADR-007: Save architecture: tiers, slots, checkpoint economy
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends MISSION_DESIGN_RESEARCH.md §10.1 ("no quicksave"; same-seed resume deviates from its reroll guidance); supersedes the undocumented Phase A/D save behavior as the doc of record.
 
+> **POINTER CORRECTION, 2026-07-23 — ruling unchanged.** `MISSION_DESIGN_RESEARCH.md` (cited at `:2`,
+> `:7` and `:17` as the "no quicksave, checkpoints at mission-graph nodes" guidance this ADR amends)
+> was **deleted on purpose by the Summoner** — it was frozen against a game that no longer exists and
+> was spoiling the output of work that read it. Do not restore it or go looking for §10.1. **The save
+> tiers and the same-seed resume rest on THIS ADR alone**, which is their statement of record; the
+> named deviation below is history, not a live pointer.
+
 ## Context
 Phase A ported the Catacombs of Gore save architecture: versioned `SaveData` schema with per-field defaults and a sequential migration hook (`save_manager.gd:267-272`), corrupt-file guard (`save_manager.gd:159-171`), metadata-only slot browsing (`save_manager.gd:252-262`), deferred apply so a loaded position never lands in a dead scene (`save_manager.gd:176-224`), and exit-autosave wrapped so a failed save can never block quit (`save_manager.gd:39-44`). The technical director's audit called it the best-engineered new system since audit #1. It shipped with three save tiers derived from existing settings with "no new knobs" (`save_manager.gd:6-9`, `tier()` at `:72-77`) — and that derivation is where the drift lives.
 
