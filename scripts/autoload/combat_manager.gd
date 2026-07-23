@@ -256,6 +256,15 @@ func apply_suppression_in_area(center: Vector3, radius: float, amount: float, ex
 				enemy.apply_suppression(amount * falloff)
 
 
+	# Suppression is faction-blind: nearby friendly AI feel the rounds/blast too.
+	for ally in AgentRegistry.allies:
+		if not is_instance_valid(ally) or ally == exclude or not ally is Node3D:
+			continue
+		var dist_a: float = center.distance_to((ally as Node3D).global_position)
+		if dist_a <= radius and ally.has_method("apply_suppression"):
+			ally.apply_suppression(amount * (1.0 - dist_a / radius))
+
+
 ## Get all enemies in range of a point
 func get_enemies_in_range(point: Vector3, range_dist: float) -> Array[Node]:
 	var result: Array[Node] = []

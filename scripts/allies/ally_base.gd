@@ -800,7 +800,7 @@ func _execute_combat(delta: float) -> void:
 				# Pose latch: hold a chosen cover pose >=600ms before re-picking -
 				# re-picking - covered men change stance deliberately.
 				if now_ms > _leap_until_ms and now_ms > _cover_pose_until_ms:
-					if sprite_actor is ModelActor:
+					if sprite_actor is ModelActor and _wall_within(1.2):
 						var chain: Array[String] = COVER_PEEK_CLIPS if firing_now else COVER_HOLD_CLIPS
 						var prev_override: String = _anim_override
 						_anim_override = (sprite_actor as ModelActor).play_first(chain)
@@ -843,13 +843,31 @@ func _execute_combat(delta: float) -> void:
 			_change_state(Enums.AIState.IDLE)
 
 
+## True if solid world geometry is within `dist` ahead (toward the cover point) -
+## the gate for the wall-lean pose, so a man short of the wall crouches instead of
+## leaning on nothing.
+func _wall_within(dist: float) -> bool:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return false
+	var from: Vector3 = global_position + Vector3.UP * 1.0
+	var fwd: Vector3 = current_cover - global_position
+	fwd.y = 0.0
+	if fwd.length() < 0.05:
+		fwd = current_aim_dir
+	fwd = fwd.normalized()
+	var q := PhysicsRayQueryParameters3D.create(from, from + fwd * dist, 1)
+	q.exclude = [get_rid()]
+	return not space.intersect_ray(q).is_empty()
+
+
 func _execute_seeking_cover(delta: float) -> void:
 	if _moving_to_cover:
 		if global_position.distance_to(current_cover) < 1.4:
 			# LEAP INTO COVER: one-shot arrival clip, then crouch-hold.
 			_moving_to_cover = false
 			has_cover = true
-			_anim_override = _pick_cover_arrival_clip()
+			_anim_override = _pick_cover_arrival_clip() if _wall_within(1.2) else ""
 			var leap: String = _anim_override
 			# Window sized by the ACTUAL clip length: a fixed window freezes short
 			# fallback clips and cuts long ones mid-roll.

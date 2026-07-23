@@ -2526,24 +2526,38 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 const NEAR_MISS_RADIUS: float = 2.2
 
 func _suppress_player_if_near(origin: Vector3, dir: Vector3, hit: Dictionary) -> void:
-	var pl := GameManager.player as Node3D
-	if pl == null or not is_instance_valid(pl):
-		return
-	# If the ray actually hit the player, that is damage, not a near-miss.
+	# A supersonic crack near a man presses him even on a clean miss - the player
+	# AND friendly AI both feel it, so a firefight pins your squad, not just you.
+	var hit_player: bool = false
 	if hit and hit.get("collider") != null:
 		var c = hit.collider
 		if c is Node and ((c as Node).is_in_group("player") or ((c as Node).get_parent() and (c as Node).get_parent().is_in_group("player"))):
-			return
-	# Perpendicular distance from the player (centre mass) to the shot line.
-	var to_p: Vector3 = (pl.global_position + Vector3.UP * 1.0) - origin
-	var along: float = to_p.dot(dir)
+			hit_player = true
+	var pl := GameManager.player as Node3D
+	if pl != null and is_instance_valid(pl) and not hit_player:
+		var s: float = _near_miss_suppress(origin, dir, pl.global_position + Vector3.UP * 1.0)
+		if s > 0.0 and pl.has_method("add_suppression"):
+			pl.add_suppression(s)
+	for ally in AgentRegistry.allies:
+		if not is_instance_valid(ally) or not ally is Node3D:
+			continue
+		var s2: float = _near_miss_suppress(origin, dir, (ally as Node3D).global_position + Vector3.UP * 1.0)
+		if s2 > 0.0 and ally.has_method("apply_suppression"):
+			ally.apply_suppression(s2)
+
+
+## Perpendicular near-miss suppression for a target centre. 0 if the round went the
+## other way or missed wider than NEAR_MISS_RADIUS; closer cracks press harder.
+func _near_miss_suppress(origin: Vector3, dir: Vector3, target_centre: Vector3) -> float:
+	var to_t: Vector3 = target_centre - origin
+	var along: float = to_t.dot(dir)
 	if along <= 0.0:
-		return  # shot went the other way
+		return 0.0
 	var closest: Vector3 = origin + dir * along
-	var d: float = closest.distance_to(pl.global_position + Vector3.UP * 1.0)
-	if d < NEAR_MISS_RADIUS and pl.has_method("add_suppression"):
-		# Closer cracks press harder.
-		pl.add_suppression(SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS))
+	var d: float = closest.distance_to(target_centre)
+	if d >= NEAR_MISS_RADIUS:
+		return 0.0
+	return SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS)
 
 
 const SUPPRESS_ON_MISS: float = 0.34
