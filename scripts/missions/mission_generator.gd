@@ -224,6 +224,19 @@ static func _wire_systems(world: GameWorld, director: FieldDirector,
 	# by tag because the spawn path already exists.
 	_attach_camp_directors(world, director, p)
 
+	# Set the clock to the mission's start hour BEFORE anything schedules against it.
+	# The convoy fires 2 sim-hours from "now"; computed here it lands in the future,
+	# not stranded in the past by a later clock jump (which killed it on DAY/DUSK/NIGHT).
+	if SimClock != null:
+		var t: String = String(p.get("time", "DAWN"))
+		var hour: float = 6.0
+		match t:
+			"DAWN": hour = 6.0
+			"DAY": hour = 10.0
+			"DUSK": hour = 18.0
+			"NIGHT": hour = 22.0
+		SimClock.set_time(SimClock.sim_day, hour)
+
 	# Convoy: pick a random route between insertion and objective, schedule it
 	# to spawn 2 sim-hours from "now" via ConvoySpawner.
 	_schedule_one_convoy(world, p, int(p.get("seed", 0)))
@@ -250,17 +263,6 @@ static func _wire_systems(world: GameWorld, director: FieldDirector,
 	dmf.name = "DynamicMissionFactory"
 	world.add_child(dmf)
 	dynamic_factory_ref = dmf
-
-	# Reset SimClock to the mission's start hour. Mission params are p["time"].
-	if SimClock != null:
-		var t: String = String(p.get("time", "DAWN"))
-		var hour: float = 6.0
-		match t:
-			"DAWN": hour = 6.0
-			"DAY": hour = 10.0
-			"DUSK": hour = 18.0
-			"NIGHT": hour = 22.0
-		SimClock.set_time(SimClock.sim_day, hour)
 
 
 ## Reference to the DynamicMissionFactory created by _wire_systems, so the

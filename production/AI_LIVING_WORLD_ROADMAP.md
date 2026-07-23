@@ -40,8 +40,10 @@ nothing happens); the 10-minute firefight matters *because* of the other 23h50m.
 
 ### Tier 2 — world runs without the player (#2, #13)
 5. **Offscreen camp/village routines** `[BIG][CODE]` — camps run shifts, meals,
-   repairs; villages have day cycles; patrols leave on schedule; convoys move
-   (fix the empty-vehicle-array bug first). Driven by `sim_clock`.
+   repairs; villages have day cycles; patrols leave on schedule. Driven by
+   `sim_clock`. (Convoys already move — the "empty vehicle array" note was stale;
+   the real bug was scheduling order, fixed 2026-07-23. AmbientWar, enemy/friendly
+   patrols, and civilians are all LIVE per the 2026-07-23 audit.)
 6. **Civilian lives (#8)** `[BIG][CODE+ART]` — wake, farm, cook, trade, travel, and
    react to military activity (hide/flee/mourn). Some anims needed.
 
