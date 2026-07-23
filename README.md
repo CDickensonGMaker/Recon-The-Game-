@@ -135,7 +135,7 @@ wrong and gets resolved, not quietly reconciled.
 | Document | Class | What it holds |
 |---|---|---|
 | [`production/GAME_GUIDE.md`](production/GAME_GUIDE.md) | CANON | The document of record. Wins against anything that contradicts it |
-| [`production/adr/`](production/adr/) | CANON | 29 architecture decision records — the decisions, with evidence |
+| [`production/adr/`](production/adr/) | CANON | The architecture decision records — every decision, with its evidence |
 | [`production/bible/`](production/bible/) | CANON | Per-system canon detail |
 | [`DESIGN.md`](DESIGN.md) | CANON | Founding vision — pitch, setting, tone, core fantasy |
 | [`PLAYER_MANUAL.md`](PLAYER_MANUAL.md) | CANON | Field manual and the input map of record |
