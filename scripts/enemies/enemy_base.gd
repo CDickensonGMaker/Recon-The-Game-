@@ -2249,8 +2249,9 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	return amount
 
 
-## Learn-by-doing: credit the killing squadmate's Small Arms + tally his kill. The player
-## grows via team_xp, not this, so only allies (who carry a `member` dict) are credited.
+## Learn-by-doing: credit the killing squadmate's Small Arms + tally his kill. Only
+## allies learn by doing (ADR-032) - the player has no skills, so only nodes that
+## carry a `member` dict are credited.
 func _credit_killer(attacker: Node) -> void:
 	if attacker == null or not is_instance_valid(attacker):
 		return

@@ -10,9 +10,11 @@ extends Node3D
 const BENCH_SECONDS: float = 20.0
 const INTERACT_RADIUS: float = 2.6
 
-## The rack. A weapon belongs here only if it has a first-person arms viewmodel -
-## m72_law, m79, rpg7 and m26_grenade have no arms model and cannot be carried as
-## a primary. tests/test_bench_rack.gd holds this list to that rule.
+## Every weapon that COULD hang on the rack. What the player sees is rack_for_tier():
+## a candidate makes the rack only if its .tres is complete (arms viewmodel + any
+## named projectile data on disk) AND its armory_tier is within the player's title
+## (ADR-032). A locked or incomplete weapon is simply absent - no greyed-out teases.
+## tests/test_bench_rack.gd and tests/test_reputation.gd hold both rules.
 const RACK: Array[String] = [
 	"res://data/weapons/m16a1.tres",
 	"res://data/weapons/m14.tres",
@@ -22,15 +24,39 @@ const RACK: Array[String] = [
 	"res://data/weapons/m60.tres",
 	"res://data/weapons/rpd.tres",
 	"res://data/weapons/m70.tres",
+	"res://data/weapons/m79.tres",
+	"res://data/weapons/m72_law.tres",
 	"res://data/weapons/shotgun.tres",
 	"res://data/weapons/m1911.tres",
 	"res://data/weapons/rpg2.tres",
 ]
 
+
+## A rack weapon must be fully wired to be drawn: first-person arms on disk, and
+## its projectile resource on disk when the .tres names one.
+static func tres_complete(data: WeaponData) -> bool:
+	if data.model_path.is_empty() or not ResourceLoader.exists(data.model_path):
+		return false
+	if not data.projectile_data_path.is_empty() \
+			and not ResourceLoader.exists(data.projectile_data_path):
+		return false
+	return true
+
+
+static func rack_for_tier(tier: int) -> Array[String]:
+	var out: Array[String] = []
+	for path: String in RACK:
+		var data: WeaponData = load(path) as WeaponData
+		if data == null or not tres_complete(data) or data.armory_tier > tier:
+			continue
+		out.append(path)
+	return out
+
 var _progress: float = 0.0
 var _prompt: Label3D
 var _menu: BenchMenu = null
 var _cleaning: bool = false
+var _rack_shown: Array[String] = []
 
 
 func _ready() -> void:
@@ -123,7 +149,8 @@ func _open_menu(wh: WeaponHolder) -> void:
 	_menu = BenchMenu.new()
 	add_child(_menu)
 	var carried: String = wh.primary_weapon.id if wh.primary_weapon != null else ""
-	_menu.build(RACK, carried, wh.weapon_condition)
+	_rack_shown = rack_for_tier(CampaignState.title_tier())
+	_menu.build(_rack_shown, carried, wh.weapon_condition)
 	_menu.weapon_chosen.connect(func(path: String) -> void: _draw_from_rack(wh, path))
 	_menu.clean_requested.connect(func() -> void: _cleaning = true)
 	_menu.close_requested.connect(_close_menu)
@@ -186,5 +213,5 @@ func _draw_from_rack(wh: WeaponHolder, tres_path: String) -> void:
 	wh.refresh_after_load()
 
 	if _menu != null:
-		_menu.mark_carried(data.id, RACK)
+		_menu.mark_carried(data.id, _rack_shown)
 		_menu.set_condition(wh.weapon_condition)

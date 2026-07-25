@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "m70"
 display_name = "Winchester Model 70"
+armory_tier = 3
 description = "Sniper's bolt gun in .30-06. The one-shot conversation ender - what the Marine scout-snipers carried to Vietnam."
 firing_mode = 2
 fire_rate = 32.0

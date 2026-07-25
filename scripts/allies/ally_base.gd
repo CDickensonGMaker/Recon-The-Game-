@@ -167,7 +167,7 @@ func on_skill_up(skill_id: String, level: int) -> void:
 	if director == null:
 		return
 	var sk_name: String = str(SkillCatalog.SKILLS.get(skill_id, {}).get("name", skill_id))
-	director.toast.emit("%s — %s ★%d" % [str(member.get("nick", "GRUNT")), sk_name, level])
+	director.toast.emit("%s — %s" % [str(member.get("nick", "GRUNT")), sk_name])
 var order_mode: OrderMode = OrderMode.FOLLOW
 var order_pos: Vector3 = Vector3.ZERO
 ## Staggered-file slot on the move (SquadSystem assigns; point man walks ahead).

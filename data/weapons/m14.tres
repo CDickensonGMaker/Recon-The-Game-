@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "m14"
 display_name = "M14"
+armory_tier = 1
 description = "7.62 NATO battle rifle - the early-war workhorse the M16 replaced. Hits like the Pig, one aimed round at a time."
 fire_rate = 240.0
 magazine_size = 20

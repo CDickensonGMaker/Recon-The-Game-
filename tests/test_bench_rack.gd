@@ -1,11 +1,13 @@
 ## test_bench_rack.gd - the armorer's rack contract.
-##   1. RACK is EXACTLY the set of data/weapons/*.tres whose model_path names an
-##      arms viewmodel. A gun with no first-person arms cannot be a primary.
-##   2. Every rack entry's viewmodel scene exists on disk and loads.
+##   1. Every data/weapons/*.tres with an arms viewmodel is a RACK candidate, and
+##      rack_for_tier(top tier) serves EXACTLY the complete ones - a gun with no
+##      first-person arms (or a missing projectile resource) never reaches the rack.
+##   2. Every served entry's viewmodel scene exists on disk and loads.
 ##   3. Drawing a weapon replaces the primary and loads that weapon's viewmodel.
 ##   4. Rack fouling survives a rack-and-redraw round trip.
 ##   5. NEGATIVE CONTROL: a dirty weapon racked and redrawn is still dirty -
 ##      swapping is not a free clean.
+## Title-tier gating of the rack is probed in tests/test_reputation.gd (ADR-032).
 ## Run: godot --headless --path . res://tests/test_bench_rack.tscn
 extends Node
 
@@ -33,7 +35,7 @@ func _fail(msg: String) -> void:
 	print("  FAIL: %s" % msg)
 
 
-## The list on the bench must match what the data says has arms, both ways.
+## The rack served at the top tier must match what the data says is complete, both ways.
 func _check_rack_membership() -> void:
 	var expected: Array[String] = []
 	for f: String in DirAccess.get_files_at(WEAPON_DIR):
@@ -51,16 +53,19 @@ func _check_rack_membership() -> void:
 	if expected.size() != 11:
 		_fail("expected 11 weapons with arms viewmodels, data says %d" % expected.size())
 
+	var served: Array[String] = ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1)
 	for path: String in expected:
 		if not ArmorersBench.RACK.has(path):
-			_fail("%s has an arms viewmodel but is missing from the rack" % path)
-	for path: String in ArmorersBench.RACK:
+			_fail("%s has an arms viewmodel but is not a rack candidate" % path)
+		if not served.has(path):
+			_fail("%s is complete but the top tier does not serve it" % path)
+	for path: String in served:
 		if not expected.has(path):
-			_fail("%s is on the rack but has no arms viewmodel" % path)
+			_fail("%s is served but has no arms viewmodel" % path)
 
 
 func _check_viewmodels_load() -> void:
-	for path: String in ArmorersBench.RACK:
+	for path: String in ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1):
 		var data: WeaponData = load(path) as WeaponData
 		if data == null:
 			_fail("rack entry will not load: %s" % path)
@@ -102,7 +107,7 @@ func _clean(wh: WeaponHolder) -> void:
 
 func _check_draw_swaps_primary() -> void:
 	var wh := _make_holder()
-	for path: String in ArmorersBench.RACK:
+	for path: String in ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1):
 		var data: WeaponData = load(path) as WeaponData
 		_draw(wh, path)
 		if wh.primary_weapon == null or wh.primary_weapon.id != data.id:
@@ -153,10 +158,11 @@ func _check_negative_controls() -> void:
 	if wh.weapon_condition >= 99.99:
 		_fail("cycling weapons laundered a dirty rifle back to clean")
 
-	if ArmorersBench.RACK.has("res://data/weapons/m79.tres") \
-			or ArmorersBench.RACK.has("res://data/weapons/m72_law.tres") \
-			or ArmorersBench.RACK.has("res://data/weapons/rpg7.tres") \
-			or ArmorersBench.RACK.has("res://data/weapons/m26_grenade.tres"):
+	var top: Array[String] = ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1)
+	if top.has("res://data/weapons/m79.tres") \
+			or top.has("res://data/weapons/m72_law.tres") \
+			or top.has("res://data/weapons/rpg7.tres") \
+			or top.has("res://data/weapons/m26_grenade.tres"):
 		_fail("a weapon with no arms viewmodel reached the rack")
 
 	# A partial strip must not bank anything: 100 is all-or-nothing.

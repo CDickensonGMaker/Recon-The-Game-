@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "m72_law"
 display_name = "M72 LAW"
+armory_tier = 4
 description = "66mm disposable rocket. A hissing roar and a backblast that names your position to the whole AO."
 firing_mode = 0
 fire_rate = 12.0

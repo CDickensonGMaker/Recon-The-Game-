@@ -90,7 +90,7 @@ static func generate_member(rng: RandomNumberGenerator, mos: String) -> Dictiona
 		"st": st, "ag": ag, "al": al,
 		"skills": {},        # skill_name -> level (rolled below - no blank recruits)
 		"skill_uses": {},    # skill_name -> cumulative use-points (learn-by-doing)
-		"xp": 0,             # personal XP, separate from the player's team_xp
+		"xp": 0,             # personal use-XP, separate from the player's hidden reputation
 		"kills": 0,
 		"missions": 0,
 		"alive": true,

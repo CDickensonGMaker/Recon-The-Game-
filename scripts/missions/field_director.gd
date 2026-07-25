@@ -1199,7 +1199,8 @@ func _bank_patrol() -> void:
 	var result: Dictionary = state.build_result(true, "PATROL")
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits
-	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
+	if CampaignState.bank_reputation(DebriefScreen.compute_score(result)):
+		toast.emit("FIELD PROMOTION: %s" % CampaignState.title())
 	CampaignState.on_mission_end(result)
 	if squad_system != null and is_instance_valid(squad_system):
 		squad_system.on_mission_end()

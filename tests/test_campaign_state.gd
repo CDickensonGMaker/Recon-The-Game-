@@ -44,13 +44,13 @@ func _run() -> void:
 		failures += 1
 
 	# Persistence round-trip.
-	CampaignState.team_xp = 555
+	CampaignState.reputation = 555
 	CampaignState.save_campaign()
-	CampaignState.team_xp = 0
+	CampaignState.reputation = 0
 	CampaignState.missions_played = 0
 	CampaignState.load_campaign()
-	if CampaignState.team_xp != 555 or CampaignState.missions_played != 6:
-		print("FAIL: persistence broken (xp=%d missions=%d)" % [CampaignState.team_xp, CampaignState.missions_played])
+	if CampaignState.reputation != 555 or CampaignState.missions_played != 6:
+		print("FAIL: persistence broken (rep=%d missions=%d)" % [CampaignState.reputation, CampaignState.missions_played])
 		failures += 1
 
 	CampaignState.reset_campaign()

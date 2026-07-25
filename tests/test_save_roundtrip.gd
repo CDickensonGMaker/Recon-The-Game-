@@ -14,7 +14,7 @@ func _run() -> void:
 	CampaignState.reset_campaign()
 
 	# --- author a distinctive state ---
-	CampaignState.team_xp = 777
+	CampaignState.reputation = 777
 	CampaignState.missions_played = 5
 	CampaignState.intel_points = 3
 	CampaignState.roster = [{"name": "TEST MAN", "mos": "RTO", "nick": "RADIO",
@@ -34,8 +34,8 @@ func _run() -> void:
 	# --- wreck the live state ---
 	CampaignState.reset_campaign()
 	SaveManager.hub_snapshot = {}
-	if CampaignState.team_xp == 777:
-		print("FAIL: reset did not clear xp (test invalid)")
+	if CampaignState.reputation == 777:
+		print("FAIL: reset did not clear reputation (test invalid)")
 		failures += 1
 
 	# --- load + apply ---
@@ -45,8 +45,8 @@ func _run() -> void:
 		failures += 1
 	else:
 		SaveManager.apply(s)
-		if CampaignState.team_xp != 777:
-			print("FAIL: team_xp %d != 777" % CampaignState.team_xp)
+		if CampaignState.reputation != 777:
+			print("FAIL: reputation %d != 777" % CampaignState.reputation)
 			failures += 1
 		if CampaignState.missions_played != 5:
 			print("FAIL: missions_played")

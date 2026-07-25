@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "shotgun"
 display_name = "Ithaca 37"
+armory_tier = 1
 description = "12-gauge pump. Nine pellets of 00 buck - a fist of lead up close, opening into a wounding cloud past 30 meters."
 firing_mode = 2
 fire_rate = 70.0

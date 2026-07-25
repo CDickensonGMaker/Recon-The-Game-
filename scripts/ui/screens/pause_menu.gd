@@ -1,7 +1,7 @@
 ## pause_menu.gd - the in-game pause screen. Runs while the tree is PAUSED
 ## (PROCESS_MODE_ALWAYS), knows whether it was opened from a mission or the hub,
 ## and offers:
-##   RESUME · BARRACKS (spend XP) · SAVE (hub only) · ABANDON MISSION · QUIT TO MENU
+##   RESUME · BARRACKS · SAVE (hub only) · ABANDON MISSION · QUIT TO MENU
 ##
 ## ABANDON exists because a mission you cannot leave is a mission you cannot
 ## fail - and failing forward is Pillar 5. It routes through the director's own
@@ -45,8 +45,7 @@ func build(in_mission: bool) -> void:
 
 	box.add_child(ReconUI.make_menu_button("RESUME", func() -> void:
 		resume_pressed.emit()))
-	# XP has been earnable and unspendable in-campaign since the hub shipped.
-	box.add_child(ReconUI.make_menu_button("BARRACKS  (spend XP)", func() -> void:
+	box.add_child(ReconUI.make_menu_button("BARRACKS", func() -> void:
 		barracks_pressed.emit()))
 	if not in_mission:
 		box.add_child(ReconUI.make_menu_button("SAVE", func() -> void:

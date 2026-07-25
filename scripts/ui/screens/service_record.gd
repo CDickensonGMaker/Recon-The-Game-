@@ -28,8 +28,8 @@ func _ready() -> void:
 	var stats_panel := ReconUI.make_panel()
 	box.add_child(stats_panel)
 	stats_panel.add_child(ReconUI.make_label(
-		"MISSIONS: %d   SUCCESSFUL: %d   ENEMY KIA: %d   TEAM XP EARNED: %d" % [
-			CampaignState.missions_played, successes, total_kills, CampaignState.team_xp], 14, ReconUI.TEXT))
+		"MISSIONS: %d   SUCCESSFUL: %d   ENEMY KIA: %d   TITLE: %s" % [
+			CampaignState.missions_played, successes, total_kills, CampaignState.title()], 14, ReconUI.TEXT))
 
 	# Medals wall (criteria-derived, no storage needed).
 	box.add_child(ReconUI.make_label("COMMENDATIONS", 15, ReconUI.DIM))

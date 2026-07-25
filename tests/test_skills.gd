@@ -16,7 +16,6 @@ func _bad(m: String) -> void:
 
 func _ready() -> void:
 	CampaignState.reset_campaign()
-	CampaignState.team_xp = 99999
 	SquadRoster.ensure_roster(4242)
 
 	_squad_skills_live()
@@ -26,14 +25,27 @@ func _ready() -> void:
 	get_tree().quit(0 if _fail == 0 else 1)
 
 
-## ADR-018 s2: squad XP is kept, but SILENT and BEHAVIOURAL. Each MOS skill must
-## reach a real system, or the veteran is indistinguishable from the rookie and
+## ADR-018 s2 / ADR-032: only allies learn, and ONLY by doing. credit_use is the
+## single live writer of skill levels; each MOS skill must rise at the catalog's
+## use thresholds, or the veteran is indistinguishable from the rookie and
 ## Pillar 4 has no teeth.
 func _squad_skills_live() -> void:
 	for m in CampaignState.roster:
 		var sk: String = str(SkillCatalog.MOS_SKILL.get(str(m.mos), ""))
-		if not sk.is_empty():
-			SkillCatalog.buy_skill(m, sk)
+		if sk.is_empty():
+			continue
+		var d: Dictionary = m
+		var before: int = SquadRoster.skill_level(d, sk)
+		# Feed exactly enough use-points to cross the NEXT threshold from here.
+		var need: int = SkillCatalog.uses_for_level(before + 1) - int(
+			(d.get("skill_uses", {}) as Dictionary).get(sk, 0))
+		var short_of: int = maxi(1, need)
+		if SquadRoster.credit_use(d, sk, short_of - 1) != 0 and short_of > 1:
+			_bad("%s promoted BELOW the %s threshold" % [str(d.get("mos", "")), sk])
+		var promoted: int = SquadRoster.credit_use(d, sk, 1)
+		if promoted != before + 1:
+			_bad("%s %s: crossing the threshold returned %d (want level %d)" % [
+				str(d.get("mos", "")), sk, promoted, before + 1])
 
 	var demo: int = CampaignState.roster_skill("GRENADIER", "demolitions")
 	var fo: int = CampaignState.roster_skill("RTO", "fo_fac")
@@ -49,6 +61,9 @@ func _squad_skills_live() -> void:
 		_bad("POINTMAN detect_ambush 0 - he can never learn to spot the trip wire")
 	if med < 1:
 		_bad("MEDIC medic 0 - Doc can never get faster")
+
+	if SkillCatalog.new().has_method("buy_skill"):
+		_bad("SkillCatalog.buy_skill is back - skills are learned, never bought (ADR-032)")
 
 
 ## ADR-018 s1: PLAYER STATS ARE KILLED. Your aim is your aim, mission 1 to 100.

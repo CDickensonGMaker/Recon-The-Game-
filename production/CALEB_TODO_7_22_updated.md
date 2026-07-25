@@ -107,6 +107,12 @@ in the sections above; this is the extra stuff. Rule on the flagged one when you
 
 ## From ghost-code audit 2026-07-25
 
+**ANSWERED 2026-07-25 — the "what spends Team XP?" decision** (the audit's `buy_skill` stray,
+`GHOST_CODE_AUDIT_2026-07-25.md:101`): nothing spends it, because it is no longer XP. The pool is
+the player's HIDDEN reputation — never a number on screen; it surfaces as earned rank
+(PVT→PFC→SP4→SGT→SSG) and as more weapons on the armorer's rack. `buy_skill` is deleted; allies
+learn by doing only. Ruling + pointers: `production/adr/ADR-032-player-reputation-titles.md`.
+
 Three roadmap seeds surfaced by the audit (corrected 2026-07-25, ghost-code audit). **Corpse-drag
 mechanic** — the ragdoll half already exists (`model_actor.gd:674 ragdoll_bone`, `:682 wake_ragdoll`);
 the grab mechanic that would use it was never built. Roadmap item, not cleanup. **Squad-regroup

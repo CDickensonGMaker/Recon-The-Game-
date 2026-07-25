@@ -1,10 +1,10 @@
-## barracks.gd - roster + XP spend screen.
+## barracks.gd - roster screen.
 class_name BarracksScreen
 extends Control
 
 signal back_pressed
 
-var _xp_label: Label
+var _status_label: Label
 var _rows: VBoxContainer
 
 
@@ -18,8 +18,8 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 10)
 	root.add_child(box)
 	box.add_child(ReconUI.make_header("BARRACKS - RECON TEAM", 28))
-	_xp_label = ReconUI.make_label("", 16, ReconUI.OLIVE)
-	box.add_child(_xp_label)
+	_status_label = ReconUI.make_label("", 16, ReconUI.OLIVE)
+	box.add_child(_status_label)
 	_rows = VBoxContainer.new()
 	_rows.add_theme_constant_override("separation", 6)
 	box.add_child(_rows)
@@ -41,8 +41,8 @@ func _ready() -> void:
 
 
 func _refresh() -> void:
-	_xp_label.text = "TEAM XP POOL: %d   //   MISSIONS: %d   //   THREAT: %s" % [
-		CampaignState.team_xp, CampaignState.missions_played, CampaignState.threat_label()]
+	_status_label.text = "%s   //   MISSIONS: %d   //   THREAT: %s" % [
+		CampaignState.title(), CampaignState.missions_played, CampaignState.threat_label()]
 	for c in _rows.get_children():
 		c.queue_free()
 	SquadRoster.ensure_roster(CampaignState.missions_played + 1)

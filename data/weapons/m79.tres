@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "m79"
 display_name = "M79 Grenade Launcher"
+armory_tier = 2
 description = "40mm break-open launcher. The Blooper. A hollow THOONK, then silence, then the ground opens up downrange."
 firing_mode = 0
 fire_rate = 15.0

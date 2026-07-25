@@ -10,10 +10,8 @@ var mission_hud: MissionHUD = null
 var squad: SquadSystem = null
 var _debrief_pending: bool = false
 
-## THE WAY OUT (audit L1). Esc paused the tree and showed nothing; Barracks lived
-## only on the main menu, so XP earned in a campaign could not be spent without
-## killing the process. GameFlow owns the pause menu because GameFlow is the only
-## thing that knows where you are and what leaving means.
+## THE WAY OUT (audit L1). GameFlow owns the pause menu because GameFlow is the
+## only thing that knows where you are and what leaving means.
 var _pause_menu: PauseMenu = null
 var _in_world: bool = false     ## a mission or the hub is loaded
 var _in_mission: bool = false   ## ...and it is a MISSION (not the hub)
@@ -58,8 +56,8 @@ func _close_pause() -> void:
 	GameManager.resume_game()
 
 
-## Barracks OVER the paused world: spend XP without leaving the campaign. The
-## world stays loaded underneath; BACK returns to the pause menu.
+## Barracks OVER the paused world: check the roster without leaving the campaign.
+## The world stays loaded underneath; BACK returns to the pause menu.
 func _pause_barracks() -> void:
 	if _pause_menu != null:
 		_pause_menu.teardown()
@@ -163,8 +161,9 @@ func _on_mission_ended(result: Dictionary) -> void:
 	# W75: marksmanship into the report.
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits
-	# W25: debrief score banks as team XP.
-	CampaignState.team_xp += maxi(0, DebriefScreen.compute_score(result))
+	# The AAR score banks as hidden reputation (ADR-032) - the only tell is the title.
+	if CampaignState.bank_reputation(DebriefScreen.compute_score(result)) and director != null:
+		director.toast.emit("FIELD PROMOTION: %s" % CampaignState.title())
 	CampaignState.on_mission_end(result)
 	# W32: Iron Man - KIA archives the whole campaign.
 	if CampaignState.iron_man and not bool(result.get("success", true)) and str(result.get("reason", "")) == "KIA":

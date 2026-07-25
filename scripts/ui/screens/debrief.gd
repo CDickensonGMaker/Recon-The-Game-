@@ -63,6 +63,7 @@ func _ready() -> void:
 	var head_color := ReconUI.AMBER if bool(result.get("success", false)) else ReconUI.ALERT
 	outer.add_child(ReconUI.make_header("AFTER ACTION REPORT", 28))
 	outer.add_child(ReconUI.make_label(_rank_word(), 20, head_color))
+	outer.add_child(ReconUI.make_label(CampaignState.title(), 16, ReconUI.DIM))
 
 	var panel := ReconUI.make_panel()
 	outer.add_child(panel)
@@ -72,7 +73,7 @@ func _ready() -> void:
 		# a recon element still counts bodies - they just do not buy anything.
 		"CONTACTS AVOIDED: %d  (+25 each)" % int(result.get("contacts_avoided", 0)),
 		"CONTACTS DETECTED: %d  (-25 each)" % int(result.get("contacts_detected", 0)),
-		"ENEMY KIA:    %d  (no XP - you were seen)" % int(result.get("kills", 0)),
+		"ENEMY KIA:    %d  (bodies buy nothing)" % int(result.get("kills", 0)),
 		"WOUNDS TAKEN: -%d" % int(result.get("damage_taken", 0)),
 		"TIME:         %d:%02d" % [int(result.get("time_sec", 0)) / 60, int(result.get("time_sec", 0)) % 60],
 		"GROUND COVERED: %d SECTORS" % int(result.get("ground_covered", 0)),

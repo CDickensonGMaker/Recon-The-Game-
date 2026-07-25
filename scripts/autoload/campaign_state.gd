@@ -1,5 +1,5 @@
 ## campaign_state.gd - persistent campaign layer: AA threat level with decaying
-## modifiers, team XP, roster, mission history. Saved to user://.
+## modifiers, player reputation, roster, mission history. Saved to user://.
 extends Node
 
 ## Bump when the on-disk shape changes, and add a branch to _migrate().
@@ -14,14 +14,16 @@ var save_path: String = DEFAULT_SAVE_PATH
 
 ## Mid-mission writes are held in memory until the debrief commits them - a
 ## mission is ALL-OR-NOTHING. Squad code mutates LIVE references into `roster`,
-## so an un-deferred save mid-mission would persist a KIA without the team_xp,
+## so an un-deferred save mid-mission would persist a KIA without the reputation,
 ## missions_played and mission log that must land with it.
 var _defer_saves: bool = false
 var _dirty: bool = false
 
 var threat_level: float = BASE_THREAT
 var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason: String}]
-var team_xp: int = 0
+## The player's HIDDEN reputation (ADR-032): banked AAR score. NEVER shown as a
+## number anywhere - it surfaces only as title() and the armory tiers it opens.
+var reputation: int = 0
 var roster: Array = []            ## SquadMember dicts
 var missions_played: int = 0
 var mission_log: Array = []       ## trimmed result dicts
@@ -53,6 +55,52 @@ static func _migrate_depot_loss(loss: Dictionary) -> Dictionary:
 	return out
 
 
+
+
+## The player's earned rank per tier (ADR-032, Summoner's ruling: real ranks, not
+## slang). Same short-form vocabulary as SquadRoster.rank_for - one rank language.
+const TITLES: Array[String] = ["PVT", "PFC", "SP4", "SGT", "SSG"]
+## Internal pacing skeleton (ADR-032): reputation converts to a level, capped at 40.
+## The level is NEVER shown, same law as the reputation number. Ranks and armory
+## tiers pin to it; the levels between milestones are reserved for future smaller
+## kit unlocks. Milestones widen on purpose - fewer rewards per gate, better ones.
+const MAX_LEVEL: int = 40
+const TITLE_LEVELS: Array[int] = [1, 3, 8, 18, 30]
+
+
+## Cumulative reputation (banked AAR score, ~150/decent patrol) to REACH level n:
+## quadratic, so early levels come ~1/patrol and the last ones take 3-4 patrols each.
+static func rep_for_level(n: int) -> int:
+	var k: int = clampi(n, 1, MAX_LEVEL) - 1
+	return 75 * k + 6 * k * k
+
+
+func level() -> int:
+	var lvl: int = 1
+	while lvl < MAX_LEVEL and reputation >= rep_for_level(lvl + 1):
+		lvl += 1
+	return lvl
+
+
+func title_tier() -> int:
+	var lvl: int = level()
+	var tier: int = 0
+	for i in range(TITLE_LEVELS.size()):
+		if lvl >= TITLE_LEVELS[i]:
+			tier = i
+	return tier
+
+
+func title() -> String:
+	return TITLES[title_tier()]
+
+
+## The ONE bank point for AAR score. True = the rank rose, so the caller can
+## toast the promotion - the only tell the player ever gets.
+func bank_reputation(points: int) -> bool:
+	var before: int = title_tier()
+	reputation += maxi(0, points)
+	return title_tier() > before
 
 
 ## The living squadmate of a MOS owns his role's skill. Used at world-gen, before
@@ -161,7 +209,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "version", SAVE_VERSION)
 	cfg.set_value("campaign", "threat_level", threat_level)
 	cfg.set_value("campaign", "threat_modifiers", threat_modifiers)
-	cfg.set_value("campaign", "team_xp", team_xp)
+	cfg.set_value("campaign", "reputation", reputation)
 	cfg.set_value("campaign", "roster", roster)
 	cfg.set_value("campaign", "missions_played", missions_played)
 	cfg.set_value("campaign", "mission_log", mission_log)
@@ -198,7 +246,8 @@ func load_campaign() -> void:
 		_migrate(cfg, file_version)
 	threat_level = float(cfg.get_value("campaign", "threat_level", BASE_THREAT))
 	threat_modifiers = cfg.get_value("campaign", "threat_modifiers", [])
-	team_xp = int(cfg.get_value("campaign", "team_xp", 0))
+	# Pre-ADR-032 saves banked this pool under "team_xp" - same points, new name.
+	reputation = int(cfg.get_value("campaign", "reputation", cfg.get_value("campaign", "team_xp", 0)))
 	roster = cfg.get_value("campaign", "roster", [])
 	missions_played = int(cfg.get_value("campaign", "missions_played", 0))
 	mission_log = cfg.get_value("campaign", "mission_log", [])
@@ -227,7 +276,7 @@ func to_dict() -> Dictionary:
 	return {
 		"threat_level": threat_level,
 		"threat_modifiers": threat_modifiers.duplicate(true),
-		"team_xp": team_xp,
+		"reputation": reputation,
 		"roster": roster.duplicate(true),
 		"missions_played": missions_played,
 		"mission_log": mission_log.duplicate(true),
@@ -245,7 +294,7 @@ func from_dict(d: Dictionary) -> void:
 		return
 	threat_level = float(d.get("threat_level", BASE_THREAT))
 	threat_modifiers = d.get("threat_modifiers", [])
-	team_xp = int(d.get("team_xp", 0))
+	reputation = int(d.get("reputation", d.get("team_xp", 0)))
 	roster = d.get("roster", [])
 	missions_played = int(d.get("missions_played", 0))
 	mission_log = d.get("mission_log", [])
@@ -263,7 +312,7 @@ func reset_campaign() -> void:
 	_dirty = false
 	threat_level = BASE_THREAT
 	threat_modifiers = []
-	team_xp = 0
+	reputation = 0
 	roster = []
 	missions_played = 0
 	mission_log = []

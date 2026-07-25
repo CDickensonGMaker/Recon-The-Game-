@@ -6,6 +6,7 @@
 script = ExtResource("1")
 id = "m60"
 display_name = "M60"
+armory_tier = 2
 description = "7.62 NATO belt-fed. The Pig. Deep, slow, and it flattens whatever it points at."
 firing_mode = 1
 fire_rate = 550.0

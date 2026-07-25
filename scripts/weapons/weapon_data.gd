@@ -6,6 +6,7 @@ extends Resource
 @export var id: String = ""
 @export var display_name: String = ""
 @export_multiline var description: String = ""
+@export var armory_tier: int = 0  ## Title tier (CampaignState.title_tier) required on the armory rack
 
 @export_group("Firing Properties")
 @export var firing_mode: Enums.FiringMode = Enums.FiringMode.SEMI_AUTO
