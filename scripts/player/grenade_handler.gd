@@ -2,7 +2,6 @@
 class_name GrenadeHandler
 extends Node3D
 
-signal grenade_thrown
 signal grenade_cooking(time: float)
 
 ## Grenade configuration
@@ -96,8 +95,6 @@ func throw() -> void:
 	get_tree().current_scene.add_child(grenade)
 	grenade.global_position = controller.get_camera_position() + aim_dir * 0.5
 
-	grenade_thrown.emit()
-
 	# Auto-switch back to primary.
 	equipment_manager.switch_to_slot(0)
 
@@ -116,12 +113,8 @@ func _explode_in_hand() -> void:
 	equipment_manager.switch_to_slot(0)
 
 
-## Cook progress, 0-1.
+## Cook progress, 0-1. Drives the HUD fuse ring.
 func get_cook_progress() -> float:
 	if not is_cooking:
 		return 0.0
 	return cook_timer / FUSE_TIME
-
-
-func get_remaining_fuse() -> float:
-	return maxf(0.0, FUSE_TIME - cook_timer)

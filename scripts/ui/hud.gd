@@ -2,8 +2,9 @@
 class_name HUD
 extends CanvasLayer
 
-## NO HP BAR by design: pain is diegetic - the hurt vignette deepens as HP drops,
-## and the bleed warning is the only numeric death clock the player ever sees.
+## NO HP BAR by design: pain is diegetic - the hurt vignette deepens as HP drops.
+## The bleed warning and the downed clock (mutually exclusive states) are the only
+## numeric death clocks the player ever sees.
 @onready var bleed_container: Control = $MarginContainer/VBoxContainer/TopRow/BleedContainer
 @onready var bleed_label: Label = $MarginContainer/VBoxContainer/TopRow/BleedContainer/BleedLabel
 @onready var weapon_label: Label = $MarginContainer/VBoxContainer/BottomRow/WeaponPanel/WeaponInfo/WeaponLabel
@@ -57,12 +58,24 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	# Flash bleed warning
-	if health_system and health_system.is_bleeding:
+	# Flash bleed warning (the downed clock shares the flash - both are death clocks)
+	if health_system and (health_system.is_bleeding or health_system.is_downed):
 		bleed_flash_timer += delta * 4.0
 		var flash := (sin(bleed_flash_timer) + 1.0) / 2.0
 		if bleed_label:
 			bleed_label.modulate = Color(1.0, flash * 0.3, flash * 0.3)
+
+	# Downed clock: display mirror only - SquadSystem owns the real timer and ends
+	# the state through downed_ended / died, never through this countdown.
+	if _downed_seconds_left > 0.0 and health_system and health_system.is_downed:
+		_downed_seconds_left = maxf(0.0, _downed_seconds_left - delta)
+		if bleed_label:
+			bleed_label.text = "YOU ARE DOWN - DOC IS COMING: %.0fs" % _downed_seconds_left
+
+	# The cook ring dies with the cook - covers the throw AND the in-hand burst.
+	if action_progress and action_progress.current_action == ActionProgress.ActionType.COOK \
+			and (grenade_handler == null or not grenade_handler.is_cooking):
+		action_progress.finish_action()
 
 
 func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: GrenadeHandler) -> void:
@@ -84,6 +97,10 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	health_system.bleeding_started.connect(_on_bleeding_started)
 	health_system.bleeding_progress.connect(_on_bleeding_progress)
 	health_system.bleeding_stopped.connect(_on_bleeding_stopped)
+	health_system.downed_started.connect(_on_downed_started)
+	health_system.downed_ended.connect(_on_downed_ended)
+
+	grenade_handler.grenade_cooking.connect(_on_grenade_cooking)
 
 	# Medkit affordance: no prompt = the feature does not exist.
 	equipment_manager.slot_changed.connect(_on_slot_changed_prompt)
@@ -253,6 +270,39 @@ func _on_bleeding_progress(time_remaining: float) -> void:
 func _on_bleeding_stopped() -> void:
 	if bleed_container:
 		bleed_container.visible = false
+
+
+## Downed tell: the bleed slot becomes the downed clock (one numeric death clock
+## at a time - they are mutually exclusive states in HealthSystem).
+var _downed_seconds_left: float = 0.0
+
+
+func _on_downed_started(bleed_seconds: float) -> void:
+	_downed_seconds_left = bleed_seconds
+	bleed_flash_timer = 0.0
+	if bleed_container:
+		bleed_container.visible = true
+	if bleed_label:
+		bleed_label.text = "YOU ARE DOWN - DOC IS COMING: %.0fs" % bleed_seconds
+	var toaster := get_tree().get_first_node_in_group("mission_hud")
+	if toaster and toaster.has_method("show_toast"):
+		toaster.show_toast("YOU ARE DOWN - STAY WITH US")
+
+
+func _on_downed_ended(_revived: bool) -> void:
+	_downed_seconds_left = 0.0
+	if bleed_container:
+		bleed_container.visible = false
+
+
+## Fuse burn-down at the crosshair: the ring fills as the fuse burns; full ring =
+## it goes off in your hand. Cleared from _process the frame cooking stops.
+func _on_grenade_cooking(_time: float) -> void:
+	if action_progress == null or grenade_handler == null:
+		return
+	if action_progress.current_action != ActionProgress.ActionType.COOK:
+		action_progress.start_action(ActionProgress.ActionType.COOK)
+	action_progress.update_progress(grenade_handler.get_cook_progress())
 
 
 ## W38: hitmarker - brief X at the crosshair + audio tick (deeper on kill).

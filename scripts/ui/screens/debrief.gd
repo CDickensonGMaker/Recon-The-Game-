@@ -82,6 +82,10 @@ func _ready() -> void:
 			int(result.get("hits", 0)), int(result.get("shots", 0)), 100.0 * float(result.get("hits", 0)) / float(result.get("shots", 0))])
 	if bool(result.get("pow_lost", false)):
 		lines.append("THE PILOT DIDN'T MAKE IT: -100")
+	# ADR-019: named at the AAR, never priced into score - the district keeps its
+	# own ledger.
+	if int(result.get("civilian_deaths", 0)) > 0:
+		lines.append("NONCOMBATANTS KILLED: %d" % int(result.get("civilian_deaths", 0)))
 	if _ghost_bonus(result):
 		lines.append("ROE - WEAPONS DISCIPLINE: +75")
 	panel.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))

@@ -15,11 +15,11 @@ func record_kill() -> void:
 	kills += 1
 
 
-## NONCOMBATANT DEATHS - a per-patrol count of civilians killed. Reserved: the
-## Summoner rules how (or whether) ROE surfaces in the open-patrol AAR and whether
-## it ever prices into score (ADR-006:10-15). Kept DELIBERATELY off _base_result /
-## build_result so it cannot reach compute_score or CampaignState until then - read
-## it straight off `state` at the bank point when that decision lands.
+## NONCOMBATANT DEATHS - a per-patrol count of civilians killed. Surfaced as one
+## AAR line (Summoner decree 2026-07-25): the bank point (field_director.fail_mission)
+## reads it straight off `state` into the result. Kept DELIBERATELY off _base_result /
+## build_result and out of compute_score's key list - whether it ever prices into
+## score stays the Summoner's call (ADR-006:10-15, ADR-019 s5).
 var civilian_deaths: int = 0
 
 

@@ -466,6 +466,8 @@ func field_interact_prompt() -> String:
 		var crate := c as Node3D
 		if crate and global_position.distance_to(crate.global_position) < 3.0:
 			return "[F] RESUPPLY"
+	if _nearby_downed_enemy() != null:
+		return "[F] SECURE THE PRISONER"
 	return ""
 
 
@@ -481,6 +483,21 @@ func _nearby_mg_emplacement() -> Node3D:
 		var stand: Vector3 = emp.call("gunner_stand_pos")
 		if global_position.distance_to(stand) < 3.0:
 			return emp
+	return null
+
+
+## A downed-alive, not-yet-secured enemy within reach, or null. Range MUST match
+## the surrendered-prisoner verb (prompt/verb contract). secure() re-checks the
+## state, so a race with FINISH or bleed-out just returns false.
+func _nearby_downed_enemy() -> EnemyBase:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var man := e as EnemyBase
+		if man == null or not is_instance_valid(man):
+			continue
+		if not man.is_downed or man.is_in_group("captured"):
+			continue
+		if global_position.distance_to(man.global_position) < 2.8:
+			return man
 	return null
 
 
@@ -636,9 +653,20 @@ func _try_field_interact() -> void:
 			_field_toast("RESUPPLIED - MAGS, FRAGS, MEDKITS, CHOW, KIT")
 			crate.queue_free()
 			return
+	# SECURE a downed-alive enemy: pins his bleed clock, joins the capture economy
+	# (same +1 intel as a surrender). He stays where he fell - died already fired
+	# when he went down, so the tallies hold at one.
+	var downed: EnemyBase = _nearby_downed_enemy()
+	if downed != null and downed.secure():
+		CampaignState.intel_points += 1
+		CampaignState.save_campaign()
+		_field_toast("WOUNDS PACKED - PRISONER SECURED (+1 INTEL)")
+		return
 	for e in get_tree().get_nodes_in_group("surrendered"):
 		var prisoner := e as EnemyBase
-		if prisoner and global_position.distance_to(prisoner.global_position) < 2.8:
+		# A secured downed man is in this group too; he is already banked above.
+		if prisoner and not prisoner.is_downed \
+				and global_position.distance_to(prisoner.global_position) < 2.8:
 			CampaignState.intel_points += 1
 			CampaignState.save_campaign()
 			_field_toast("PRISONER SECURED - INTEL GAINED (+1)")

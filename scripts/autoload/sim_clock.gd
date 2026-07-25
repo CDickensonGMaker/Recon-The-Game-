@@ -9,7 +9,6 @@ extends Node
 enum Period { DAWN, DAY, DUSK, NIGHT }
 
 signal hour_advanced(sim_hour: int)
-signal day_advanced(sim_day: int)
 signal time_period_changed(period: int)
 signal sim_event(kind: StringName, payload: Dictionary)
 
@@ -36,9 +35,9 @@ func _process(delta: float) -> void:
 
 
 ## Advance sim-time by `delta` real seconds at the current real_to_sim_ratio.
-## Emits hour_advanced on integer-hour crossings, day_advanced on day wraps,
-## time_period_changed on DAWN/DAY/DUSK/NIGHT transitions, and sim_event
-## when a schedule entry matches.
+## Emits hour_advanced on integer-hour crossings, time_period_changed on
+## DAWN/DAY/DUSK/NIGHT transitions, and sim_event when a schedule entry matches.
+## Day granularity is polled (sim_day), never signalled.
 func advance(delta: float) -> void:
 	var prev_hour_int: int = int(sim_hour)
 	var prev_day: int = sim_day
@@ -47,7 +46,6 @@ func advance(delta: float) -> void:
 	while sim_hour >= 24.0:
 		sim_hour -= 24.0
 		sim_day += 1
-		day_advanced.emit(sim_day)
 	if int(sim_hour) != prev_hour_int:
 		hour_advanced.emit(int(sim_hour))
 		_tick_schedules(prev_day)

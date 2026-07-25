@@ -127,7 +127,11 @@ func fail_mission(reason: String) -> void:
 	if _ended:
 		return
 	_ended = true
-	mission_failed.emit(state.build_result(false, reason))
+	var result: Dictionary = state.build_result(false, reason)
+	# Read straight off state at the bank point (mission_state.gd contract): the AAR
+	# names noncombatant deaths, compute_score never reads the key.
+	result["civilian_deaths"] = state.civilian_deaths
+	mission_failed.emit(result)
 
 
 func _on_player_died() -> void:

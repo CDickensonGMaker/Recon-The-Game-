@@ -1,9 +1,9 @@
-## action_progress.gd - Circular progress indicator for actions (reload, heal, switch)
+## action_progress.gd - Circular progress indicator for actions (reload, heal, switch, cook)
 class_name ActionProgress
 extends Control
 
 ## Action types with their icons
-enum ActionType { NONE, RELOAD, HEAL, SWITCH }
+enum ActionType { NONE, RELOAD, HEAL, SWITCH, COOK }
 
 ## Visual settings
 const CIRCLE_RADIUS: float = 40.0
@@ -20,6 +20,7 @@ var is_active: bool = false
 const ICON_RELOAD: String = "[]="  ## Bullet/magazine
 const ICON_HEAL: String = "+"      ## Medical cross
 const ICON_SWITCH: String = "<>"   ## Cycle arrows
+const ICON_COOK: String = "()"     ## Grenade body; ring = fuse burned
 
 @onready var icon_label: Label = $IconLabel
 
@@ -54,6 +55,8 @@ func _get_action_color() -> Color:
 			return Color(0.2, 1.0, 0.2)  # Green
 		ActionType.SWITCH:
 			return Color(0.5, 0.8, 1.0)  # Light blue
+		ActionType.COOK:
+			return Color(1.0, 0.45, 0.15)  # Burning fuse
 		_:
 			return PROGRESS_COLOR
 
@@ -66,6 +69,8 @@ func _get_icon_text() -> String:
 			return ICON_HEAL
 		ActionType.SWITCH:
 			return ICON_SWITCH
+		ActionType.COOK:
+			return ICON_COOK
 		_:
 			return ""
 
