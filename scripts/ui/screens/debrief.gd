@@ -75,6 +75,7 @@ func _ready() -> void:
 		"ENEMY KIA:    %d  (no XP - you were seen)" % int(result.get("kills", 0)),
 		"WOUNDS TAKEN: -%d" % int(result.get("damage_taken", 0)),
 		"TIME:         %d:%02d" % [int(result.get("time_sec", 0)) / 60, int(result.get("time_sec", 0)) % 60],
+		"GROUND COVERED: %d SECTORS" % int(result.get("ground_covered", 0)),
 	]
 	if int(result.get("shots", 0)) > 0:
 		lines.append("MARKSMANSHIP: %d/%d ROUNDS ON TARGET (%.0f%%)" % [

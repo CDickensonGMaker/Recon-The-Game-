@@ -51,6 +51,14 @@ func report_contact(group_id: int) -> void:
 	state.report_detected(group_id)
 
 
+## A noncombatant Civilian died. Routed here (the patrol ledger owner) so the count
+## rides the per-patrol MissionState; surfacing and any scoring stay the Summoner's
+## call (ADR-006 re-host), so nothing consumes this today.
+func record_noncombatant_death() -> void:
+	if state != null:
+		state.record_civilian_death()
+
+
 func _on_enemy_died(enemy: EnemyBase, _group_tag: String) -> void:
 	state.record_kill()
 	_live_enemies.erase(enemy)
@@ -146,6 +154,9 @@ func _process(delta: float) -> void:
 		_poll_wire_gate()
 		_poll_firebase_threat()
 		_maybe_launch_sappers()
+		_advance_route_tasking()
+		if patrol_out and world != null and world.player != null:
+			state.mark_covered(world.player.global_position)
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
 	if Input.is_action_just_pressed("cas_strike") and GameManager.can_player_act():
 		_pending_danger_close = ""  # opening/closing the net always clears a stale confirm
@@ -775,6 +786,75 @@ var patrol_count: int = 0
 var _visited_locations: Array[Vector3] = []
 var _gate_poll: float = 0.0
 
+## THE ROUTE (patrol-contract, ADR-029 Amendment C — PROPOSED). The player's own
+## grease-pencil PLAN: an ordered line of waypoints (world XZ). It is INPUT to the
+## ONE location selector (_pick_patrol_location) and to the re-tasking cadence
+## (_advance_route_tasking) — never a second picker, never a spawner, never a
+## checkable objective. A PackedVector3Array cannot carry a per-waypoint completion
+## flag, so the §4 "waypoints never check off" guarantee is structural, not policed.
+## Empty = no plan: selection falls back to push-direction (walking IS a 1-point route).
+var patrol_route: PackedVector3Array = PackedVector3Array()
+var _route_idx: int = 0
+const WAYPOINT_REACH_M: float = 40.0
+const ROUTE_ANCHOR_MAX_M: float = 260.0   ## a living feature within this of the next mark anchors the sweep
+
+
+## The P2 map-pencil populates this; the spine feeds it programmatically. Resets the
+## walk-through to the first mark.
+func set_patrol_route(points: PackedVector3Array) -> void:
+	patrol_route = points
+	_route_idx = 0
+
+
+## The next unwalked mark, or ZERO when there is no plan / the plan is walked out.
+func _route_anchor() -> Vector3:
+	if patrol_route.is_empty() or _route_idx < 0 or _route_idx >= patrol_route.size():
+		return Vector3.ZERO
+	return patrol_route[_route_idx]
+
+
+## The nearest unvisited LIVING feature to a mark (never spawns one). Empty when no
+## stamped feature sits within ROUTE_ANCHOR_MAX_M — then the mark itself is the area.
+func _nearest_location_to(anchor: Vector3) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d: float = ROUTE_ANCHOR_MAX_M
+	for loc in patrol_locations:
+		var pos: Vector3 = loc.pos
+		if _visited_locations.has(pos):
+			continue
+		var d: float = Vector2(pos.x - anchor.x, pos.z - anchor.z).length()
+		if d < best_d:
+			best_d = d
+			best = loc
+	if not best.is_empty():
+		_visited_locations.append(best.pos as Vector3)
+	return best
+
+
+## Walk the player through their planned marks. Reaching the current mark advances to
+## the next and re-tasks command's sweep onto the living feature nearest it (or the
+## mark itself). THE NET IS THE CHANNEL: off the net the word never reaches him.
+func _advance_route_tasking() -> void:
+	if not patrol_out or patrol_route.is_empty() or world == null or world.player == null:
+		return
+	if _route_idx >= patrol_route.size():
+		return
+	var mark: Vector3 = patrol_route[_route_idx]
+	var d: float = Vector2(world.player.global_position.x - mark.x,
+		world.player.global_position.z - mark.z).length()
+	if d > WAYPOINT_REACH_M:
+		return
+	state.waypoints_reached += 1
+	_route_idx += 1
+	if _route_idx >= patrol_route.size():
+		return
+	if _radio_check() != "":
+		return
+	var picked: Dictionary = _pick_patrol_location()
+	patrol_location = picked.get("pos", Vector3.ZERO)
+	patrol_location_kind = str(picked.get("kind", ""))
+	rebark_patrol()
+
 
 func setup_patrol(built: Dictionary) -> void:
 	patrol_gate_pos = built.gate_pos
@@ -1030,6 +1110,15 @@ func _pick_patrol_location() -> Dictionary:
 			continue
 		_visited_locations.append(cpos)
 		return c
+	# THE ROUTE IS THE SELECTOR'S INPUT (ADR-029 Amendment C — PROPOSED). With a plan,
+	# the sweep anchors to the LIVING feature nearest the next mark; a bare mark points
+	# at itself (a pointer, never a spawn). No plan → fall through to push-direction.
+	var anchor: Vector3 = _route_anchor()
+	if anchor != Vector3.ZERO:
+		var routed: Dictionary = _nearest_location_to(anchor)
+		if not routed.is_empty():
+			return routed
+		return {"pos": anchor, "kind": "area"}
 	# Push direction = where he chose to walk out, relative to the gate.
 	var pdir: Vector3 = world.player.global_position - patrol_gate_pos
 	pdir.y = 0.0
@@ -1076,6 +1165,7 @@ func _bank_patrol() -> void:
 		patrol_count, int(result.get("kills", 0))])
 	patrol_location = Vector3.ZERO
 	patrol_location_kind = ""
+	_route_idx = 0   # the plan holds; the next walk-out re-walks it from the first mark
 	# Fresh ledger for the next walk-out; live groups re-register on spawn.
 	state = MissionState.new()
 	state.mission_type = "PATROL"

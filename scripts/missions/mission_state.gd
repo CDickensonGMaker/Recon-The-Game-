@@ -15,6 +15,39 @@ func record_kill() -> void:
 	kills += 1
 
 
+## NONCOMBATANT DEATHS - a per-patrol count of civilians killed. Reserved: the
+## Summoner rules how (or whether) ROE surfaces in the open-patrol AAR and whether
+## it ever prices into score (ADR-006:10-15). Kept DELIBERATELY off _base_result /
+## build_result so it cannot reach compute_score or CampaignState until then - read
+## it straight off `state` at the bank point when that decision lands.
+var civilian_deaths: int = 0
+
+
+func record_civilian_death() -> void:
+	civilian_deaths += 1
+
+
+## GROUND COVERED (patrol-contract, ADR-029 Amendment C — PROPOSED). Distinct 25m
+## sectors the player actually walked: a silent patrol-quality accumulator, banked
+## at the wire AAR and read ONLY there. It must never reach the in-field HUD — an
+## on-screen coverage counter is the mission tracking ADR-029 §4 forbids. Derived
+## from position alone (no RNG), so it is deterministic per walk (ADR-010).
+const COVER_CELL_M: float = 25.0
+var _covered_cells: Dictionary = {}
+
+## Player marks reached along the planned route this excursion (silent, AAR-only).
+var waypoints_reached: int = 0
+
+
+func mark_covered(pos: Vector3) -> void:
+	var key := Vector2i(int(floorf(pos.x / COVER_CELL_M)), int(floorf(pos.z / COVER_CELL_M)))
+	_covered_cells[key] = true
+
+
+func ground_covered_sectors() -> int:
+	return _covered_cells.size()
+
+
 ## CONTACT LEDGER (ADR-006). A group is DETECTED the first time any of its men
 ## reaches COMBAT with eyes on you; a group you leave the AO without ever alerting
 ## is AVOIDED. Per-group and one-way: once they have seen you, the contact is spent.
@@ -65,4 +98,8 @@ func _base_result(success: bool, reason: String) -> Dictionary:
 		# ADR-006: what the debrief actually pays on.
 		"contacts_detected": contacts_detected,
 		"contacts_avoided": contacts_avoided(),
+		# Patrol-quality grade (ADR-029 Amendment C — PROPOSED). Reported at the AAR,
+		# not scored: the ADR-006 payout hook stays unratified until the Summoner blesses.
+		"ground_covered": _covered_cells.size(),
+		"waypoints_reached": waypoints_reached,
 	}
