@@ -107,5 +107,5 @@ static func spawn_fort(host: Node, pos: Vector3, mesh: Mesh, box: Vector3, kind:
 	fort.add_child(shape)
 	host.add_child(fort)
 	fort.global_position = pos
-	AgentRegistry.register(fort)
+	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
 	return fort

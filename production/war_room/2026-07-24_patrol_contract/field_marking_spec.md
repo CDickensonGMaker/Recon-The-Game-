@@ -102,20 +102,26 @@ differently-gated verbs sharing one bind — input-doctrine care needed (ADR-012
 ADR-022's persistence canon and must be flagged as interim · glyphs at 8px risk mush — color-code carries the
 read · persistence, if blessed, imports a slice of ADR-017 (save-schema + decay).
 
-## WYRM'S AUTONOMOUS SESSION CALLS (2026-07-24, PENDING CALEB'S REVIEW — NOT OWNER-BLESSED)
-Caleb granted overnight session autonomy and asked these recorded for his morning review. They are the
-Overseer's provisional calls, flagged so a later session never mistakes them for the Summoner's rulings
-(same discipline as the false-done-claim hazard). Field marking is still Phase 2 SPEC — NOT built this session.
-1. **Imprecision — BUILD the tunable model** (Caleb named it non-negotiable). Deterministic, frozen-at-
-   placement, findability-floor clamp per FM3. NOT the devil's place-where-you-look MVP.
-2. **Persistence — patrol-local MVP first; bank-to-firebase-AO-map (aggregate/decay, NEVER score) is the
-   blessed end-state.** When drafting ADR-022 Amendment A, CONFIRM against ADR-022's actual text — if it
-   canonizes forever-persistence, LABEL the MVP as interim/owed-persistence per ADR-014; do not ship it as canon.
-3. **Vocabulary — 6 nouns as target** (CONTACT/TRAIL/TUNNEL/CAMP/CACHE/DANGER); resolve down to 5 at the P2
-   glyph prototype if DANGER won't read at 8px through the buffer.
-ADR-022 Amendment A stays **PROPOSED** — Caleb ratifies.
+## CALEB'S RULINGS (ACCEPTED 2026-07-25 — ratified as ADR-022 Amendment A)
+These supersede the earlier design framing where noted. Field marking is Phase 2 (with the route pencil).
+1. **ACCURACY — a mark renders as a LARGE GENERAL-AREA CIRCLE, not a point.** "Somewhere in here — come back
+   and check later." The circle IS the uncertainty; rough by design. **This SUPERSEDES FM3's point + error-
+   offset framing** (drop the error-radius formula and the findability-floor clamp — an area circle needs
+   neither; the mark stores an `area` circle, not a point). Still deterministic and never auto-updating.
+2. **PERSISTENCE — from the START.** Marks PERSIST across patrols and build the player's AO knowledge over a
+   tour (ADR-022's canonical end-state). Build save/restore now; marks are serializable dicts on
+   `MissionState.field_marks`. **No patrol-local interim** (supersedes FM7's "reset-per-patrol MVP").
+3. **VOCABULARY — FOUR nouns only: CONTACT · TRAIL · TUNNEL · CAMP.** Drop DANGER (danger is everywhere;
+   CONTACT carries the warning) and drop CACHE. **Cache finding (verified 2026-07-25):** the game's caches are
+   the TUNNEL loot chamber (`player.gd:449-450,587`; `tunnel_room.gd:89 cache_point()`) and the camp
+   `weapons_cache.glb` prop (`site_layouts.gd:22`, `site_planner.gd:238-240,685`) — both already reached via a
+   TUNNEL or CAMP mark, so no separate cache icon (it slots in only if standalone findable caches are added).
+   **This SUPERSEDES FM2's 6-noun list.**
 
-## STILL OPEN FOR THE SUMMONER (Wyrm did not decide these)
-- Whether to accept calls 1–3 above (his review).
-- **(Noted, not blocking)** field marking is P2 and its glyphs depend on the still-parked HUD buffer
-  resolution decision — it lands after the spine + the HUD Phase-0 seam, not before.
+ADR-022 Amendment A is **ACCEPTED** (file `production/adr/ADR-022-amendment-A-the-intel-verb.md`).
+
+## STATUS
+- Field-marking GAMEPLAY logic is UNBLOCKED (placement, area-circle, persistence, vocabulary, §4 probes).
+- The pixel-glyph RENDERING of the marks (the period bitmap look) rides with **ADR-030 (HUD buffer)** to
+  **final polish** — Caleb deferred ADR-030, low-priority, non-blocking. Until then marks may render with
+  placeholder chrome. This is the only field-marking piece that waits.

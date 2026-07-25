@@ -38,7 +38,7 @@ static func create(host: Node, pos: Vector3, hp_val: int = 120) -> FellableTree:
 	host.add_child(t)
 	t.global_position = pos
 	t._build_visual()
-	AgentRegistry.register(t)
+	AgentRegistry.register(t, AgentRegistry.Kind.PROP)
 	return t
 
 

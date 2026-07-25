@@ -112,8 +112,8 @@ optional (no route = today's push-direction behavior, unchanged).
 Caleb blessed spine-first + granted overnight autonomy. Phase 1 built, zero new UI. Files changed:
 - `scripts/missions/mission_state.gd` — ground-covered accumulator (`_covered_cells`, 25m cells,
   `mark_covered`/`ground_covered_sectors`), `waypoints_reached`; both banked into `build_result` (AAR-only).
-- `scripts/missions/field_director.gd` — `patrol_route` (PackedVector3Array) + `_route_idx` +
-  `set_patrol_route`; `_route_anchor`/`_nearest_location_to`/`_advance_route_tasking`;
+- `scripts/missions/field_director.gd` — `player_route` (PackedVector3Array) + `_route_idx` +
+  `set_player_route`; `_route_anchor`/`_nearest_location_to`/`_advance_route_tasking`;
   `_pick_patrol_location` now takes the route as its input (push-direction stays as the no-route fallback —
   ONE selector, no new node); 0.5s poll runs `_advance_route_tasking` + `mark_covered`; `_bank_patrol`
   resets `_route_idx`.
@@ -121,9 +121,9 @@ Caleb blessed spine-first + granted overnight autonomy. Phase 1 built, zero new 
   the ADR-006 payout hook stays unratified).
 - `tests/test_patrol_contract.{gd,tscn}` — behavioral (route-as-input selection, bare-mark→area,
   ground-covered accumulator) + the FOUR ratcheting §4 probes (see below). NOT run by Wyrm (Caleb runs the suite).
-The route path is DORMANT until a route is fed (game_flow never calls `set_patrol_route` yet) — normal play
+The route path is DORMANT until a route is fed (game_flow never calls `set_player_route` yet) — normal play
 is byte-for-byte the existing push-direction behavior. The P2 pencil becomes the UI that populates
-`set_patrol_route`. No fossil created; no `class_name` added (no reimport needed).
+`set_player_route`. No fossil created; no `class_name` added (no reimport needed).
 
 ## OPEN DECISIONS FOR THE SUMMONER
 1. **Route authority** — bless "route = input/bias to the one selector; crises always override; orders

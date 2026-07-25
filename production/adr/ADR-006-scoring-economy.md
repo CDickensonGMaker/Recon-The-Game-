@@ -1,6 +1,11 @@
 # ADR-006: Mission scoring economy: avoidance pays, kills do not
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Amends the debrief scoring spec implied by `debrief.gd` (NS21); enacts the scoring rule already ratified in RECON_ADAPTATION.md §1 and promised in DESIGN.md §2 DEBRIEF but never implemented.
 
+> **AMENDMENT (2026-07-25, ACCEPTED — Summoner).** The wire-AAR now also reports **GROUND COVERED**
+> (distinct 25m sectors the player actually walked) as a patrol-quality grade — reported, NOT yet priced
+> into the score. Full rule: ADR-029 Amendment C (the patrol contract). Shipped: `mission_state.gd`
+> accumulator + `debrief.gd` line (local commit `173f5eb5`).
+
 > **POINTER CORRECTION, 2026-07-23 — ruling unchanged.** `RECON_ADAPTATION.md` (cited at `:2`, `:13`
 > and in Evidence) was **deleted on purpose by the Summoner** — it was frozen against a game that no
 > longer exists and was spoiling the output of work that read it. Do not restore it or go looking for
@@ -61,6 +66,15 @@ Debrief scoring adopts the ratified RECON rule. Specifically:
   avoided-contact run producing the expected ±25 deltas.
 
 ## Consequences
+
+> **POINTER CORRECTION, 2026-07-24 — ruling unchanged; the "dead ledger" line below was stale.**
+> Measured against code: the contact ledger is LIVE end-to-end (`mission_state.gd:27` `report_detected`
+> ← `field_director.gd:48/1070`; scored ±25 at `debrief.gd:33-34`) and the ghost/ROE bonus is LIVE
+> (`debrief.gd:38`). "Silent movement" is a squad SKILL (`skill_catalog.gd:12`), never a score input;
+> "threat cooling" is not a score term at all. The ONLY dead ROE hook was
+> `civilian.gd:_record_noncombatant_death` — now a **count-only** per-patrol tally
+> (`mission_state.gd:civilian_deaths`), deliberately kept OFF `build_result` so it prices nothing.
+> Whether/how it surfaces or scores is the open-patrol re-host reserved for the Summoner (`:10-15`).
 
 **Buys:** Pillar 3's economy finally exists in code, not just in two design docs. The XP engine stops
 teaching against the game's own thesis. Re-activates the payoff side of already-shipped stealth

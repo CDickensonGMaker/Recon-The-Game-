@@ -67,7 +67,7 @@ func _test_route_is_selector_input() -> void:
 		{"pos": Vector3(500, 0, 0), "kind": "village"},
 		{"pos": Vector3(0, 0, 500), "kind": "vc_camp"},
 	]
-	d.set_patrol_route(PackedVector3Array([Vector3(10, 0, 480)]))  # ~22m from the camp
+	d.set_player_route(PackedVector3Array([Vector3(10, 0, 480)]))  # ~22m from the camp
 	var picked: Dictionary = d._pick_patrol_location()
 	if str(picked.get("kind", "")) != "vc_camp":
 		_fail("route anchor did not select the nearest living feature (got %s)" % str(picked))
@@ -79,7 +79,7 @@ func _test_route_is_selector_input() -> void:
 func _test_bare_mark_points_at_itself() -> void:
 	var d := FieldDirector.new()
 	d.patrol_locations = [{"pos": Vector3(1000, 0, 1000), "kind": "village"}]
-	d.set_patrol_route(PackedVector3Array([Vector3(10, 0, 10)]))  # nothing within 260m
+	d.set_player_route(PackedVector3Array([Vector3(10, 0, 10)]))  # nothing within 260m
 	var p: Dictionary = d._pick_patrol_location()
 	if str(p.get("kind", "")) != "area":
 		_fail("bare mark should point at itself as 'area', got %s" % str(p))
@@ -105,8 +105,8 @@ func _test_ground_covered_accumulator() -> void:
 ## per-waypoint completion flag, and the selector's source carries no completion verb.
 func _probe_waypoints_never_check_off() -> void:
 	var d := FieldDirector.new()
-	if typeof(d.patrol_route) != TYPE_PACKED_VECTOR3_ARRAY:
-		_fail("patrol_route must be PackedVector3Array (a pure position array cannot check off)")
+	if typeof(d.player_route) != TYPE_PACKED_VECTOR3_ARRAY:
+		_fail("player_route must be PackedVector3Array (a pure position array cannot check off)")
 	d.free()
 	var src: String = _read("res://scripts/missions/field_director.gd")
 	for tok in ["waypoint_done", "waypoint_complete", "route_complete", "route_done", "checked_off", "objective_id"]:
@@ -136,17 +136,17 @@ func _probe_command_names_features_not_pins() -> void:
 
 
 ## §4 CLAUSE 4 — the route feeds ONLY the one selector. No other script reads the
-## `patrol_route` member (populating it via set_patrol_route is fine), the scorer never
+## `player_route` member (populating it via set_player_route is fine), the scorer never
 ## sees it, there is exactly one location selector, and no parallel manager node exists.
 func _probe_route_feeds_only_the_one_selector() -> void:
 	for f in _scripts_gd():
 		if f.ends_with("field_director.gd"):
 			continue
-		var s: String = _read(f).replace("set_patrol_route", "")
-		if s.find("patrol_route") != -1:
-			_fail("patrol_route is read outside the one selector, in %s (§4)" % f)
-	if _read("res://scripts/ui/screens/debrief.gd").find("patrol_route") != -1:
-		_fail("the scorer/debrief reads patrol_route — the route must never reach scoring (§4)")
+		var s: String = _read(f).replace("set_player_route", "")
+		if s.find("player_route") != -1:
+			_fail("player_route is read outside the one selector, in %s (§4)" % f)
+	if _read("res://scripts/ui/screens/debrief.gd").find("player_route") != -1:
+		_fail("the scorer/debrief reads player_route — the route must never reach scoring (§4)")
 	for banned in ["res://scripts/missions/route_manager.gd",
 			"res://scripts/missions/tasking_system.gd",
 			"res://scripts/missions/ground_covered_tracker.gd"]:

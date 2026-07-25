@@ -834,7 +834,7 @@ var _gate_poll: float = 0.0
 ## checkable objective. A PackedVector3Array cannot carry a per-waypoint completion
 ## flag, so the §4 "waypoints never check off" guarantee is structural, not policed.
 ## Empty = no plan: selection falls back to push-direction (walking IS a 1-point route).
-var patrol_route: PackedVector3Array = PackedVector3Array()
+var player_route: PackedVector3Array = PackedVector3Array()
 var _route_idx: int = 0
 const WAYPOINT_REACH_M: float = 40.0
 const ROUTE_ANCHOR_MAX_M: float = 260.0   ## a living feature within this of the next mark anchors the sweep
@@ -842,16 +842,16 @@ const ROUTE_ANCHOR_MAX_M: float = 260.0   ## a living feature within this of the
 
 ## The P2 map-pencil populates this; the spine feeds it programmatically. Resets the
 ## walk-through to the first mark.
-func set_patrol_route(points: PackedVector3Array) -> void:
-	patrol_route = points
+func set_player_route(points: PackedVector3Array) -> void:
+	player_route = points
 	_route_idx = 0
 
 
 ## The next unwalked mark, or ZERO when there is no plan / the plan is walked out.
 func _route_anchor() -> Vector3:
-	if patrol_route.is_empty() or _route_idx < 0 or _route_idx >= patrol_route.size():
+	if player_route.is_empty() or _route_idx < 0 or _route_idx >= player_route.size():
 		return Vector3.ZERO
-	return patrol_route[_route_idx]
+	return player_route[_route_idx]
 
 
 ## The nearest unvisited LIVING feature to a mark (never spawns one). Empty when no
@@ -876,18 +876,18 @@ func _nearest_location_to(anchor: Vector3) -> Dictionary:
 ## the next and re-tasks command's sweep onto the living feature nearest it (or the
 ## mark itself). THE NET IS THE CHANNEL: off the net the word never reaches him.
 func _advance_route_tasking() -> void:
-	if not patrol_out or patrol_route.is_empty() or world == null or world.player == null:
+	if not patrol_out or player_route.is_empty() or world == null or world.player == null:
 		return
-	if _route_idx >= patrol_route.size():
+	if _route_idx >= player_route.size():
 		return
-	var mark: Vector3 = patrol_route[_route_idx]
+	var mark: Vector3 = player_route[_route_idx]
 	var d: float = Vector2(world.player.global_position.x - mark.x,
 		world.player.global_position.z - mark.z).length()
 	if d > WAYPOINT_REACH_M:
 		return
 	state.waypoints_reached += 1
 	_route_idx += 1
-	if _route_idx >= patrol_route.size():
+	if _route_idx >= player_route.size():
 		return
 	if _radio_check() != "":
 		return

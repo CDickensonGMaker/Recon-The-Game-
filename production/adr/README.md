@@ -13,8 +13,8 @@ Every citation was independently re-verified against source at writing time.
 | [002](ADR-002-character-scale-contract.md) | Character scale contract: 1.7132m + instance-space AABB | fix in DECREE#2-2 (mhfv) |
 | [003](ADR-003-one-damage-grammar.md) | One damage grammar: RECON dice + locational overrides | dice core superseded by 016; locational model + one-grammar law survive |
 | [004](ADR-004-ads-fov-policy.md) | ADS FOV policy: base 75, per-weapon ADS zoom | ratifies shipped code; amends old FOV-75 law |
-| [005](ADR-005-detection-beacon-witness-rule.md) | Detection beacon + witnessed-contact rule | **NOT yet implemented** — DECREE#2-1 (pwu5) |
-| [006](ADR-006-scoring-economy.md) | Mission scoring economy: avoidance pays | **NOT yet implemented** — DECREE#2-1 (pwu5) |
+| [005](ADR-005-detection-beacon-witness-rule.md) | Detection beacon + witnessed-contact rule | **SHIPPED** — witness rule live (`enemy_base.gd` `_can_witness`/`_witness_check`; guard `tests/test_witness_rule.gd`) |
+| [006](ADR-006-scoring-economy.md) | Mission scoring economy: avoidance pays | **SHIPPED** — scoring on the debrief screen (`scripts/ui/screens/debrief.gd`, per ADR-019) |
 | [007](ADR-007-save-architecture.md) | Save architecture: tiers, slots, checkpoint economy | amendments in DECREE#2-3 (fy45) |
 | [008](ADR-008-firebase-hub-spine.md) | Walkable firebase hub ratified — with conditions | conditions in DECREE#2-5 (4q4i) |
 | [009](ADR-009-survival-v1-scope.md) | Survival v1 scope: hunger parked, condition kept | |
@@ -28,15 +28,17 @@ Every citation was independently re-verified against source at writing time.
 | [019](ADR-019-hearts-and-minds.md) | **Hearts & Minds: allegiance drives VC manpower** | **The mechanical answer to "the war is the story."** |
 | [020](ADR-020-authored-threshold.md) | **The Authored Threshold: guarantees, not rails + the Ambience Law** | **The test every set-piece must pass.** |
 | [021](ADR-021-patrols.md) | **Patrols: routes that rotate, and the promotion that is the tutorial** | **Closes 0623 gap #1. Rank's flagship: FOLLOW -> LEAD.** |
-| [022](ADR-022-the-map-is-your-memory.md) | **The map is the player's memory** | **The game marks what you SAW; you mark what you THINK - and you may be WRONG.** |
+| [022](ADR-022-the-map-is-your-memory.md) | **The map is the player's memory** | **You mark what you THINK, and may be WRONG.** + Amendment A (the intel verb; 4 nouns, area-circle, persist) **ACCEPTED 2026-07-25** |
 | [015](ADR-015-verification-and-gate-law.md) | Verification law + mechanical gate | GATE epic = RECONgame-97u3 |
 | [016](ADR-016-flat-damage-grammar.md) | Flat base damage × zone — the dice are retired | Summoner-decreed; shipped with probe `test_flat_damage` |
 | [023](ADR-023-the-fossil-law.md) | **The Fossil Law: delete the old system when you replace it** | enforced by a ratcheting probe in the suite |
 | [023-A](ADR-023-amendment-A-delete-the-callers.md) | **Amendment A: delete the system AND every caller** | **RATIFIED 2026-07-20** |
-| [025](ADR-025-lod-tier-simulation.md) | LOD-tier world simulation (4 tiers) | implementation beaded (`xdys`) |
+| [025](ADR-025-lod-tier-simulation.md) | LOD-tier world simulation (4 tiers) | **SUPERSEDED 2026-07-20** — never ratified; tier authority = `production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:12-16` |
 | [026](ADR-026-ps2-graphics-budget.md) | **The PS2 Budget: graphics-only discipline, uncapped fighters** | **RATIFIED 2026-07-20** |
 | [028](ADR-028-one-world-build-path.md) | One deterministic world-build path | phased; epic `x0r1` |
-| [029](ADR-029-open-patrol-simulator.md) | **The open patrol simulator** | + `ADR-029-amendments-008-006.md` |
+| [029](ADR-029-open-patrol-simulator.md) | **The open patrol simulator** | + amendments 008-006, B (world verbs), **C (the patrol contract) ACCEPTED 2026-07-25** |
+| [030](ADR-030-hud-buffer-doctrine.md) | The period HUD buffer doctrine | **PROPOSED — DEFERRED to final polish (2026-07-25), non-blocking** |
+| [031](ADR-031-destruction-doctrine.md) | **The Destruction Doctrine: state-swap, one blast bus, perf-gated terrain** | **ACCEPTED 2026-07-25** |
 
 **Deleted 2026-07-20 by the Summoner (never built against):** ADR-024 (cinematic direction),
 ADR-027 (PS2 world design). A citation to either is drift — correct it on contact.
