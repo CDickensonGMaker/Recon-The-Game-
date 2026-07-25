@@ -26,26 +26,43 @@ func _read(path: String) -> String:
 
 
 func _run() -> void:
-	_test_bench_wire_stocks_every_tier()
+	_test_bench_wire_stands_up()
 	_test_fellable_tree_rides_the_blast_bus()
 	_probe_rig_extracted_not_cloned()
 	_probe_wp_is_a_real_kind()
 	_finish()
 
 
-## FireSupportBench.wire builds a FieldDirector stocked on all six tiers + WP.
-func _test_bench_wire_stocks_every_tier() -> void:
+## FireSupportBench.wire builds the full rig — inert world, flat terrain, RTO squad, a
+## stocked FieldDirector. Exercised END-TO-END (a real CharacterBody3D player, and the
+## wired graph asserted) so a "committed but never ran" break fails loudly right here.
+func _test_bench_wire_stands_up() -> void:
 	var host := Node3D.new()
 	add_child(host)
-	var pl := Node3D.new()
+	var pl := CharacterBody3D.new()
 	host.add_child(pl)
+	pl.global_position = Vector3(20.0, 1.0, 20.0)
 	var d: FieldDirector = FireSupportBench.wire(host, pl, 200.0)
 	if d == null:
 		_fail("FireSupportBench.wire returned null")
-	else:
-		for tier in ["bombs", "napalm", "arty", "mortar", "spectre", "cbu", "wp"]:
-			if int(d.fire_support.get(tier, 0)) <= 0:
-				_fail("bench tier '%s' not stocked" % tier)
+		host.queue_free()
+		return
+	# The rig stood up and satisfies the interfaces FieldDirector reads off the world.
+	if not (d.world is FireSupportBench.BenchWorld):
+		_fail("director.world is not a BenchWorld (wire did not build the inert host)")
+	elif d.world.player != pl:
+		_fail("director.world.player is not the CharacterBody3D we passed")
+	elif not (d.world.terrain_manager is FireSupportBench.BenchTerrain):
+		_fail("director.world.terrain_manager is not a BenchTerrain")
+	elif absf(d.world.terrain_manager.get_height_at(Vector3(5, 5, 5))) > 0.001:
+		_fail("BenchTerrain.get_height_at should be a constant 0")
+	elif absf(d.world.map_size - 200.0) > 0.001:
+		_fail("director.world.map_size not set to the passed map_size")
+	if d.squad_system == null:
+		_fail("director.squad_system was not wired")
+	for tier in ["bombs", "napalm", "arty", "mortar", "spectre", "cbu", "wp"]:
+		if int(d.fire_support.get(tier, 0)) <= 0:
+			_fail("bench tier '%s' not stocked" % tier)
 	host.queue_free()
 
 

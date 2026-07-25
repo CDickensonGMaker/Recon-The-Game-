@@ -55,7 +55,7 @@ class DestructibleFortification extends StaticBody3D:
 ## Build the rig as children of `host`, wire the RTO net (needs a "radioman" already in the
 ## tree), stock every tier including WP, and return the live FieldDirector. The caller
 ## connects director.toast to its own readout.
-static func wire(host: Node, player: Node3D, map_size: float) -> FieldDirector:
+static func wire(host: Node, player: CharacterBody3D, map_size: float) -> FieldDirector:
 	var tm := BenchTerrain.new()
 	tm.name = "BenchTerrain"
 	host.add_child(tm)
