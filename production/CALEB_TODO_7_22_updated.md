@@ -105,6 +105,17 @@ in the sections above; this is the extra stuff. Rule on the flagged one when you
   is it dropped?
 
 
+## Vehicle dash radio (Caleb, 2026-07-25)
+
+A tiny in-cab version of the field radio inside drivable vehicles, playing music while
+you drive. Implementation is nearly free — `scripts/props/radio_prop.gd` is already
+drop-anywhere (folder-scanned tracks, positional player); the cab version is the same
+prop with a small mesh, short hear_distance (~6m), and its own music tracks dir
+(vs. the AFVN broadcast set). GATED ON: player-drivable vehicles, which the ADR-029
+foot-only slice parks — build the radio the same wave driving ships. Music tracks
+are an asset ask (period-legal music/AFVN-style music blocks) — separate from the
+5 spoken broadcasts.
+
 ## From ghost-code audit 2026-07-25
 
 **ANSWERED 2026-07-25 — the "what spends Team XP?" decision** (the audit's `buy_skill` stray,
