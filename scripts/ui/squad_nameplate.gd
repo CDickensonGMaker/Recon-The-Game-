@@ -1,5 +1,6 @@
-## Look-at identification for your own squad. Centre a man within LOOK_RANGE and his
-## rank, name and role surface - so you can find the RTO in a firefight.
+## Look-at identification for your own squad. Centre a man within LOOK_RANGE and
+## his NAME surfaces big, rank + role small beneath - so you can find the radio
+## man in a firefight.
 ##
 ## ALLIES ONLY. Reading an NVA soldier's name off his chest at 5m would hand the player
 ## free intel and gut the stealth economy (Pillar 3).
@@ -57,17 +58,24 @@ func _process(delta: float) -> void:
 	_target = _find_looked_at()
 	if _target != null:
 		var m: Dictionary = (_target as AllyBase).member
-		var mos: String = str(m.get("mos", ""))
-		_name_label.text = "%s %s" % [SquadRoster.rank_for(m), str(m.get("name", ""))]
-		_role_label.text = "%s  \"%s\"" % [mos, str(m.get("nick", ""))]
+		_name_label.text = str(m.get("name", SquadRoster.call_name(m)))
+		_role_label.text = role_line(m)
 		# The radioman is the man you must not lose (ADR-011) - he reads hot.
-		var hot: bool = mos == "RTO"
+		var hot: bool = str(m.get("mos", "")) == "RTO"
 		_role_label.add_theme_color_override("font_color",
 			Color(0.95, 0.72, 0.35) if hot else Color(0.62, 0.70, 0.55))
 		_track(_target)
 
 	var want: float = 1.0 if _target != null and _is_on_screen(_target) else 0.0
 	modulate.a = move_toward(modulate.a, want, FADE_SPEED * delta)
+
+
+## Rank + spoken role, plus the earned nick once the men have hung one on him.
+static func role_line(m: Dictionary) -> String:
+	var line: String = "%s  %s" % [
+		SquadRoster.rank_for(m), SquadRoster.mos_display(str(m.get("mos", "")))]
+	var nick: String = SquadRoster.earned_nick(m)
+	return line + (("  \"%s\"" % nick) if nick != "" else "")
 
 
 ## Park the tag over the man's head in screen space. Same projection contract the

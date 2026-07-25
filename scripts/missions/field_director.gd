@@ -519,10 +519,10 @@ func on_informer_escaped(from_pos: Vector3, last_seen: Vector3) -> void:
 func _radio_check() -> String:
 	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
 	if rto == null:
-		return "NO RADIO - RTO IS DOWN"
+		return "NO RADIO - YOUR RADIO MAN IS DOWN"
 	var pl: Node3D = world.player if world != null else null
 	if pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
-		return "TOO FAR FROM THE RADIO - GET TO YOUR RTO (%dm)" % int(RTO_RADIO_RANGE)
+		return "TOO FAR FROM THE RADIO - GET TO YOUR RADIO MAN (%dm)" % int(RTO_RADIO_RANGE)
 	return ""
 
 
@@ -975,7 +975,7 @@ func _grant_fire_support() -> void:
 		CampaignState.save_campaign()
 		toast.emit("DEPOT HIT LAST NIGHT - BATTALION SENT WHAT IT COULD")
 	if rto != null:
-		toast.emit("%s HAS THE HORN - [T] FOR THE NET" % str(rto.member.get("nick", "RTO")))
+		toast.emit("%s HAS THE HORN - [T] FOR THE NET" % SquadRoster.call_name(rto.member))
 	if tier in ["HIGH", "CRITICAL"]:
 		toast.emit("AO IS %s - BATTALION RELEASED AIR TO US" % tier)
 

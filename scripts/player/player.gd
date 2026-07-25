@@ -305,19 +305,17 @@ func _open_radio_menu(rto: AllyBase) -> void:
 		return
 	var h: RadioHandset = _rto_handset(rto)
 	var can_grab: bool = h != null and h.can_take()
-	var nick: String = "RADIO"
-	if not rto.member.is_empty():
-		nick = str(rto.member.get("nick", "RADIO"))
+	var who: String = SquadRoster.call_name(rto.member)
 	_radio_menu = RadioMenu.new()
 	get_tree().current_scene.add_child(_radio_menu)
-	_radio_menu.build(nick, can_grab)
+	_radio_menu.build(who, can_grab)
 	_radio_menu.follow_requested.connect(func() -> void:
 		rto.set_order(AllyBase.OrderMode.FOLLOW)
-		_field_toast("%s: ON YOU" % nick)
+		_field_toast("%s: ON YOU" % who)
 		_close_radio_menu())
 	_radio_menu.hold_requested.connect(func() -> void:
 		rto.set_order(AllyBase.OrderMode.HOLD, rto.global_position)
-		_field_toast("%s: HOLDING HERE" % nick)
+		_field_toast("%s: HOLDING HERE" % who)
 		_close_radio_menu())
 	_radio_menu.grab_requested.connect(func() -> void:
 		set_on_net(true)  # one entry: raises the handset AND opens the fire net together
@@ -350,7 +348,7 @@ func set_on_net(want: bool) -> void:
 			if _handset_within_reach():
 				_bound_handset.take(self)  # -> handset_taken -> _on_handset_taken -> _enter_net
 			else:
-				_field_toast("TOO FAR FROM YOUR RTO FOR THE HANDSET")
+				_field_toast("TOO FAR FROM YOUR RADIO MAN FOR THE HANDSET")
 		else:
 			_enter_net()  # no physical handset wired, or it is already in hand
 	else:
@@ -680,13 +678,13 @@ func _try_field_interact() -> void:
 			continue
 		if global_position.distance_to(fallen.global_position) < 2.5:
 			fallen.set_meta("looted", true)
-			var nick: String = str(fallen.get("member").get("nick", "HE")) if "member" in fallen else "HE"
+			var who: String = SquadRoster.call_name(fallen.get("member") as Dictionary) if "member" in fallen else "HE"
 			if weapon_holder:
 				weapon_holder.spare_magazines += 2
 				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
 			if equipment_manager:
 				equipment_manager.add_grenade(1)
-			_field_toast("%s'S KIT - MAGS AND A FRAG RECOVERED" % nick.to_upper())
+			_field_toast("%s'S KIT - MAGS AND A FRAG RECOVERED" % who)
 			return
 	for e in get_tree().get_nodes_in_group("lootable_corpses"):
 		var corpse := e as EnemyBase

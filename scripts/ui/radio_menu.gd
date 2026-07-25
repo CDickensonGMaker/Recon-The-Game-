@@ -37,7 +37,7 @@ func build(rto_name: String, can_grab: bool) -> void:
 	panel.add_child(list)
 
 	var title := Label.new()
-	title.text = "%s — RTO" % rto_name.to_upper()
+	title.text = "%s — %s" % [rto_name.to_upper(), SquadRoster.mos_display("RTO")]
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(0.95, 0.78, 0.42))
 	list.add_child(title)

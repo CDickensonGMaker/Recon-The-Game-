@@ -324,7 +324,7 @@ func _point_scan() -> void:
 			var pp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)  # learn-by-doing
 			if pp > 0:
 				point.on_skill_up("detect_ambush", pp)
-			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % str(point.member.nick))
+			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % SquadRoster.call_name(point.member))
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 	# Punji/trap spotting: harder than spotting men (60% radius), called out once.
 	for t in get_tree().get_nodes_in_group("punji_traps"):
@@ -336,7 +336,7 @@ func _point_scan() -> void:
 			var tp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)
 			if tp > 0:
 				point.on_skill_up("detect_ambush", tp)
-			director.toast.emit("%s: TRAP! WATCH YOUR STEP - SPIKES" % str(point.member.nick))
+			director.toast.emit("%s: TRAP! WATCH YOUR STEP - SPIKES" % SquadRoster.call_name(point.member))
 
 
 func _grenadier_tick() -> void:
@@ -362,7 +362,7 @@ func _grenadier_tick() -> void:
 		if cluster >= 3:
 			_thumper_cooldown = 14.0
 			var impact: Vector3 = enemy.global_position
-			director.toast.emit("%s: THUMPER OUT!" % str(thumper.member.nick))
+			director.toast.emit("%s: THUMPER OUT!" % SquadRoster.call_name(thumper.member))
 			VOManager.play_squad("thumper_out", thumper.member, thumper.global_position)
 			get_tree().create_timer(1.2).timeout.connect(func() -> void:
 				if world == null or not is_instance_valid(world) or not is_instance_valid(thumper):
@@ -412,7 +412,7 @@ func _contact_barks() -> void:
 				caller = a
 				break
 		if caller:
-			director.toast.emit("%s: CONTACT!" % str(caller.member.nick))
+			director.toast.emit("%s: CONTACT!" % SquadRoster.call_name(caller.member))
 			VOManager.play_squad("contact_front" if randf() < 0.5 else "contact", caller.member, caller.global_position)
 	_last_combat_count = in_combat
 
@@ -423,7 +423,9 @@ func _on_member_died(ally: AllyBase) -> void:
 	var m: Dictionary = ally.member
 	m["alive"] = false
 	director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
-	director.toast.emit("KIA: %s %s (%s) - %d confirmed" % [SquadRoster.rank_for(m), str(m.name), str(m.nick), int(m.get("kills", 0))])
+	var nick: String = SquadRoster.earned_nick(m)
+	director.toast.emit("KIA: %s %s%s - %d confirmed" % [SquadRoster.rank_for(m), str(m.name),
+		(" \"%s\"" % nick) if nick != "" else "", int(m.get("kills", 0))])
 	CampaignState.save_campaign()
 
 
@@ -431,4 +433,7 @@ func on_mission_end() -> void:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead():
 			a.member["missions"] = int(a.member.get("missions", 0)) + 1
+			if SquadRoster.christen(a.member) and director != null:
+				director.toast.emit("THE MEN HAVE STARTED CALLING %s \"%s\"" % [
+					str(a.member.get("name", "")), str(a.member.get("nick", ""))])
 	CampaignState.save_campaign()

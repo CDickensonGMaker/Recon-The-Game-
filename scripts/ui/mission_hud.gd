@@ -229,7 +229,8 @@ func _update_squad_strip(delta: float) -> void:
 	if _squad_panel == null:
 		_squad_panel = ReconUI.make_panel()
 		_squad_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		_squad_panel.position = Vector2(12, -190)
+		# Two lines per man (name over role) - the panel needs the extra height.
+		_squad_panel.position = Vector2(12, -310)
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 3)
 		_squad_panel.add_child(col)
@@ -251,8 +252,9 @@ func _update_squad_strip(delta: float) -> void:
 		if not a.is_dead():
 			var hp_frac: float = float(a.current_hp) / float(a.max_hp)
 			status = "OK" if hp_frac > 0.6 else ("HIT" if hp_frac > 0.25 else "CRIT")
-		var line := "%-10s %-8s %s" % [str(m.get("nick", "?")), str(m.get("mos", "")), status]
-		_squad_rows.add_child(ReconUI.make_label(line, 12, STATUS_COLOR.get(status, ReconUI.OLIVE)))
+		_squad_rows.add_child(ReconUI.make_label(squad_row(m, status), 12,
+			STATUS_COLOR.get(status, ReconUI.OLIVE)))
+		_squad_rows.add_child(ReconUI.make_label(squad_role_row(m), 10, ReconUI.DIM))
 		var mos := str(m.get("mos", ""))
 		if mos == "RTO":
 			var rs := _radio_row(a, status == "KIA")
@@ -262,12 +264,26 @@ func _update_squad_strip(delta: float) -> void:
 				"   scanning %dm" % int(squad.point_scan_radius()), 11, ReconUI.DIM))
 
 
+## His NAME leads the readout, the role rides under it (Summoner, 2026-07-25).
+static func squad_row(m: Dictionary, status: String) -> String:
+	var who: String = SquadRoster.last_name(m)
+	if who == "":
+		who = SquadRoster.call_name(m)
+	return "%-12s %s" % [who, status]
+
+
+static func squad_role_row(m: Dictionary) -> String:
+	var role: String = SquadRoster.mos_display(str(m.get("mos", "")))
+	var nick: String = SquadRoster.earned_nick(m)
+	return "   " + role + (("  \"%s\"" % nick) if nick != "" else "")
+
+
 ## r4bk: the radio is a MAN with a 10m tether (FieldDirector._radio_check). The
 ## player must see he is off the net BEFORE he presses T, not as a refusal after.
 ## Range constant is read off the director so the two can never disagree.
 static func radio_state(alive: bool, dist_m: float) -> Array:
 	if not alive:
-		return ["   NO RADIO - RTO DOWN", ReconUI.ALERT]
+		return ["   NO RADIO - RADIO MAN DOWN", ReconUI.ALERT]
 	if dist_m <= FieldDirector.RTO_RADIO_RANGE:
 		return ["   ON THE NET - [T]", STATUS_COLOR["OK"]]
 	return ["   OFF THE NET - RADIO %dm" % int(dist_m), ReconUI.ALERT]
@@ -336,7 +352,7 @@ func _update_markers(cam: Camera3D) -> void:
 	for t in targets:
 		var node := t as Node3D
 		if not _markers.has(t):
-			var l := ReconUI.make_label(str((t as AllyBase).member.get("nick", "SQUAD")),
+			var l := ReconUI.make_label(SquadRoster.call_name((t as AllyBase).member),
 				13, Color(0.65, 0.7, 0.45))
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_marker_box.add_child(l)
@@ -348,5 +364,5 @@ func _update_markers(cam: Camera3D) -> void:
 		if not behind:
 			var screen: Vector2 = cam.unproject_position(pos)
 			var dist: float = world.player.global_position.distance_to(node.global_position)
-			label.text = "v %s %dm" % [str((t as AllyBase).member.get("nick", "SQUAD")), int(dist)]
+			label.text = "v %s %dm" % [SquadRoster.call_name((t as AllyBase).member), int(dist)]
 			label.position = screen - Vector2(label.size.x * 0.5, 0)

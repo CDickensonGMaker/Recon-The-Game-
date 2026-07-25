@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://csquadident0725"]
+
+[ext_resource type="Script" path="res://tests/test_squad_identity.gd" id="1_si"]
+
+[node name="TestSquadIdentity" type="Node"]
+script = ExtResource("1_si")

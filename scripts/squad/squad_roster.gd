@@ -66,9 +66,18 @@ const MOS_ORDER: Array[String] = ["POINTMAN", "RTO", "MEDIC", "MG", "GRENADIER"]
 ## the rest to size. Kept in lock-step with SquadSystem.SQUAD_SIZE.
 const SQUAD_SIZE: int = 8
 const FILL_MOS: String = "RIFLEMAN"
+## Earned nicks only - a specialist gets his after NICK_MISSIONS tours. A MOS
+## with no entry (grenadier, marksman, rifleman) NEVER gets one: a grunt goes
+## by his name (Summoner, 2026-07-25).
 const NICKNAMES := {
-	"MEDIC": "DOC", "MG": "PIG", "RTO": "RADIO", "POINTMAN": "EYES",
-	"GRENADIER": "THUMPER", "MARKSMAN": "DEADEYE",
+	"MEDIC": "DOC", "MG": "PIG", "RTO": "SPARKS", "POINTMAN": "EYES",
+}
+const NICK_MISSIONS: int = 3
+## Player-facing role words. The MOS keys are save format - never print them raw.
+const MOS_DISPLAY := {
+	"RTO": "RADIO MAN", "MG": "MACHINE GUNNER", "POINTMAN": "POINT MAN",
+	"MEDIC": "MEDIC", "GRENADIER": "GRENADIER", "MARKSMAN": "MARKSMAN",
+	"RIFLEMAN": "RIFLEMAN",
 }
 
 
@@ -86,7 +95,7 @@ static func generate_member(rng: RandomNumberGenerator, mos: String) -> Dictiona
 	var member := {
 		"name": "%s %s" % [FIRST_NAMES[rng.randi() % FIRST_NAMES.size()], LAST_NAMES[rng.randi() % LAST_NAMES.size()]],
 		"mos": mos,
-		"nick": str(NICKNAMES.get(mos, "GRUNT")),
+		"nick": "",
 		"st": st, "ag": ag, "al": al,
 		"skills": {},        # skill_name -> level (rolled below - no blank recruits)
 		"skill_uses": {},    # skill_name -> cumulative use-points (learn-by-doing)
@@ -176,6 +185,7 @@ static func ensure_roster(rng_seed: int) -> Array:
 		living.append(generate_member(rng, FILL_MOS))
 	# Back-fill fields added after an older save was written (learn-by-doing).
 	for m in living:
+		migrate_member(m)
 		if not m.has("skill_uses"):
 			m["skill_uses"] = {}
 		if not m.has("xp"):
@@ -217,3 +227,58 @@ static func rank_for(member: Dictionary) -> String:
 
 static func skill_level(member: Dictionary, skill: String) -> int:
 	return int((member.get("skills", {}) as Dictionary).get(skill, 0))
+
+
+static func mos_display(mos: String) -> String:
+	return str(MOS_DISPLAY.get(mos, mos))
+
+
+static func nick_earned(member: Dictionary) -> bool:
+	return int(member.get("missions", 0)) >= NICK_MISSIONS \
+		and NICKNAMES.has(str(member.get("mos", "")))
+
+
+static func earned_nick(member: Dictionary) -> String:
+	if not nick_earned(member):
+		return ""
+	var nick: String = str(member.get("nick", ""))
+	return nick if nick != "" else str(NICKNAMES.get(str(member.get("mos", "")), ""))
+
+
+static func last_name(member: Dictionary) -> String:
+	var parts: PackedStringArray = str(member.get("name", "")).split(" ", false)
+	return str(parts[parts.size() - 1]) if parts.size() > 0 else ""
+
+
+## What the men call him: earned nick, else his surname, else a bench rig's
+## bare nick, else SOLDIER.
+static func call_name(member: Dictionary) -> String:
+	var nick: String = earned_nick(member)
+	if nick != "":
+		return nick
+	var last: String = last_name(member)
+	if last != "":
+		return last
+	nick = str(member.get("nick", ""))
+	return nick if nick != "" else "SOLDIER"
+
+
+## True exactly once, on the patrol he crosses the mark. The caller owns the toast.
+static func christen(member: Dictionary) -> bool:
+	if bool(member.get("christened", false)) or not nick_earned(member):
+		return false
+	member["christened"] = true
+	member["nick"] = str(NICKNAMES.get(str(member.get("mos", "")), ""))
+	return true
+
+
+## Save shim: nicks became earned, RADIO became SPARKS, grunts carry none.
+## Veterans past the mark keep theirs quietly - the flag lands with NO toast.
+static func migrate_member(m: Dictionary) -> void:
+	if str(m.get("nick", "")) == "RADIO":
+		m["nick"] = "SPARKS"
+	if not NICKNAMES.has(str(m.get("mos", ""))):
+		m["nick"] = ""
+	if nick_earned(m):
+		m["nick"] = str(NICKNAMES.get(str(m.get("mos", "")), ""))
+		m["christened"] = true

@@ -60,12 +60,17 @@ func _add_row(member: Dictionary) -> void:
 	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
 
-	var info := "%-4s %-9s %-20s  KILLS %-3d  MISSIONS %d" % [
-		SquadRoster.rank_for(member), str(member.get("mos", "")), str(member.get("name", "")),
+	var id_col := VBoxContainer.new()
+	id_col.custom_minimum_size = Vector2(440, 0)
+	row.add_child(id_col)
+	id_col.add_child(ReconUI.make_label(str(member.get("name", "")), 17, ReconUI.TEXT))
+	var sub := "%-4s %-14s  KILLS %-3d  MISSIONS %d" % [
+		SquadRoster.rank_for(member), SquadRoster.mos_display(str(member.get("mos", ""))),
 		int(member.get("kills", 0)), int(member.get("missions", 0))]
-	var info_label := ReconUI.make_label(info, 13, ReconUI.TEXT)
-	info_label.custom_minimum_size = Vector2(440, 0)
-	row.add_child(info_label)
+	var nick: String = SquadRoster.earned_nick(member)
+	if nick != "":
+		sub += "  \"%s\"" % nick
+	id_col.add_child(ReconUI.make_label(sub, 12, ReconUI.DIM))
 	row.add_child(ReconUI.make_label(_seasoning(member), 13, ReconUI.AMBER))
 	_rows.add_child(panel)
 
