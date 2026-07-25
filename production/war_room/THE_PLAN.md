@@ -132,7 +132,7 @@ Step 2 builds the *ground* they stand on. These hang off it, and each is its own
 6. **A windowed FPS bench with Blender OPEN is a lying number — CONFIRMED 2026-07-17.** A jungle A/B ran
    with Blender open reported **GPU 224ms on the LOWEST geometry** (physically impossible) and CPU 3–4×
    baseline. Every future windowed FPS confirm MUST run with **Blender closed** and, for a jungle-GPU
-   isolation, a **0-fighter arena** (the 18v18 AI cost — `ai/agents` 25–192ms — swamps the ~10ms jungle
+   isolation, a **0-fighter arena** (the 18v18 AI cost — `ai/agents` 25–192ms, a 2026-07-16 figure since RETIRED as attribution-unknown per `production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:21` — swamps the ~10ms jungle
    signal). Headless-verifiable logic never needs the window; only a final FPS confirm does.
 
 ## WHAT IS SACRIFICED

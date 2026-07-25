@@ -37,3 +37,14 @@ static func at(grid: GameplayGrid, from_pos: Vector3, look_pos: Vector3) -> floa
 		return open_range() * mult
 	var veg: float = maxf(grid.get_vegetation(from_pos), grid.get_vegetation(look_pos))
 	return lerpf(open_range(), jungle_range(), clampf(veg, 0.0, 1.0)) * mult
+
+
+## True unless terrain breaks the sightline: dense jungle can probabilistically
+## occlude (seeded per cell, deterministic) and a hill can block, ON TOP OF the
+## physics raycast the caller runs separately. `grid` may be null (arena / no
+## world), in which case terrain never blocks. Wire this AFTER a clear raycast so
+## the grid walk only runs when geometry already allows the spot.
+static func has_terrain_los(grid: GameplayGrid, from_pos: Vector3, look_pos: Vector3) -> bool:
+	if grid == null:
+		return true
+	return grid.has_line_of_sight(from_pos, look_pos)

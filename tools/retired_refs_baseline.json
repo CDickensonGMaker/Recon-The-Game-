@@ -1,0 +1,5 @@
+{
+	"_comment": "RETIRED-REF ceiling. ONLY SHRINKS in normal operation. A raise is legal only for a deliberate scope widening and only through --grandfather --reason=, which records dated provenance below. Silently raising it is the one forbidden move (ADR-023).",
+	"ceiling": 0,
+	"grandfather_log": []
+}

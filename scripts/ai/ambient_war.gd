@@ -1,7 +1,8 @@
 ## ambient_war.gd - distant war audio/visual events that play in the background
 ## regardless of the player. On each SimClock.hour_advanced, roll 1-3 events for
-## the hour. Each: position 200-800m from the player, a particle column, a
-## directional light flash, audio source. Lifetime 5-30 seconds.
+## the hour. Each: position 200-800m from the player, positional audio; the
+## explosion-type kinds add a FAKE emissive fireball + smoke column (GunFX, no
+## real light - ADR-026). Audio lifetime 5-30 seconds; the flash self-expires.
 class_name AmbientWar
 extends Node
 
@@ -43,6 +44,7 @@ func _roll_events() -> void:
 			"born_ms": Time.get_ticks_msec(),
 			"node": _spawn_audio(kind, pos),
 		})
+		_spawn_visual(kind, pos)
 
 
 ## The war was rolled but never heard. Give each event a positioned source so it
@@ -63,6 +65,16 @@ func _spawn_audio(kind: String, pos: Vector3) -> AudioStreamPlayer3D:
 	src.global_position = pos
 	src.play()
 	return src
+
+
+## Distant war gets a horizon flash: reuse the shared explosion visual (fake
+## emissive fireball + smoke, self-expiring) enlarged so it reads at 200-800m.
+## Shares GunFX's MAX_EXPLOSIONS budget - tolerable: 1-3 rolls per sim-hour, each
+## flash frees in a few seconds. tracers stay audio-only (no distant streak VFX).
+func _spawn_visual(kind: String, pos: Vector3) -> void:
+	if kind == "tracers":
+		return
+	GunFX._spawn_explosion_visual(self, pos, 12.0, 2.5)
 
 
 ## Events expire. The roster only ever grew, and every entry it held was a live

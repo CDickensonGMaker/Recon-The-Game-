@@ -122,16 +122,17 @@ direction that actually hurt us.**
   caller cleanup.
 - The fossil law would cover **both directions**: dead declarations *and* dead calls.
 - The deletion checklist gains one line: **"grep the symbol; prove zero call sites, `tests/` included."**
-- **Nothing else changes.** No existing fossil is reclassified. The baseline register — today
-  `ceiling 27 / count 27` (`tests/fossil_baseline.json:3-4`) — is untouched.
+- **Nothing else changes.** No existing fossil is reclassified. The baseline register — `ceiling 19 /
+  count 19` of record (`tests/fossil_baseline.json:3-4`, as of 2026-07-24) — is untouched.
 
 ## 5. What this draft does NOT ask for
 
 - It does **not** ask to change `tests/fossil_baseline.json`. The register does not stand where this
-  draft was written: it reads `ceiling 27 / count 27` (`tests/fossil_baseline.json:3-4`), and it passed
-  through **146** en route — the probe's own source records that growth as the defect it was built to
-  make visible (*"Nothing checked them, which is how 77 became 146."* — `tests/test_fossils.gd:332`).
-  `grandfather_log` is still `[]` (`tests/fossil_baseline.json:34`) despite that growth, so the register
+  draft was written: it now reads `ceiling 19 / count 19` (`tests/fossil_baseline.json:3-4`, as of
+  2026-07-24), and it passed through **146** en route — the probe's own source records that growth as the
+  defect it was built to make visible (*"Nothing checked them, which is how 77 became 146."* —
+  `tests/test_fossils.gd:332`). `grandfather_log` is still `[]` (`tests/fossil_baseline.json:26`) despite
+  that growth, so the register
   carries no provenance for it. **That is a live discrepancy against ADR-023's one forbidden move, and
   it is out of this draft's scope — it needs its own ruling.**
 - It does **not** resolve `j3ke`'s 19 built-ahead-of-wiring symbols. Those are a **roadmap** decision.

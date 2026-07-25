@@ -107,8 +107,8 @@ SimClock finally ticks, making off-screen sim deterministic per ADR-010 (one see
   `dematerialize_far` (:99), `_advance_abstract_cells` (:111); all three public LOD fns **zero-caller** (grep,
   wave 2). Header (:1–11) already describes the live/abstract cell design.
 - `scripts/autoload/sim_clock.gd` — `advance()` (:43) **zero-caller**; signals `hour_advanced`/`day_advanced`/
-  `time_period_changed`/`sim_event` (:11–14) consumed by 8 systems (air_traffic, ambient_war,
-  civilian_schedules, camp_director, convoy_spawner, mission_generator, civilian, weather_director).
+  `time_period_changed`/`sim_event` (:11–14) consumed by 7 systems (air_traffic, ambient_war,
+  civilian_schedules, camp_director, convoy_spawner, mission_generator, civilian).
 - `scripts/vehicles/convoy.gd:8-10` — `waypoint_reached`/`route_finished` zero-caller; `ambushed` is LIVE
   (3 callers: `dynamic_mission_factory.gd`, `mission_generator.gd`).
 - `tests/fossil_baseline.json:28` — `MAX_THINK_TIME` grandfathered; Phase 0 deletes it.

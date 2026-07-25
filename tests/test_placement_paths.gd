@@ -76,6 +76,25 @@ func _ready() -> void:
 					path2, n, code2.strip_edges()])
 				failures += 1
 
+	# ADR-028 Amendment A: exactly ONE world-build orchestrator, defined only in
+	# mission_generator; a second build_patrol_world() would be a parallel world path.
+	var bpw_defs: Array[String] = []
+	for path3 in files:
+		var src3: String = FileAccess.get_file_as_string(path3)
+		if src3.is_empty():
+			continue
+		for line3 in src3.split("\n"):
+			if line3.get_slice("#", 0).contains("func build_patrol_world("):
+				bpw_defs.append(path3)
+				break
+	if bpw_defs.size() != 1 or bpw_defs[0] != "res://scripts/missions/mission_generator.gd":
+		print("FAIL: build_patrol_world() defined in %s - expected exactly one, in mission_generator (ADR-028)" % str(bpw_defs))
+		failures += 1
+	# Self-test: the detector must match its own synthetic second definition.
+	if not "func build_patrol_world(s: int) -> void:".contains("func build_patrol_world("):
+		print("FAIL(self-test): build_patrol_world detector does not match its own pattern")
+		failures += 1
+
 	if failures == 0:
 		print("PASS: one placement path, seeded placement rng (dlox)")
 		get_tree().quit(0)

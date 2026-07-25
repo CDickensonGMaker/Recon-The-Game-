@@ -64,6 +64,19 @@ LIGHT 29.8 / MEDIUM 29.9 / HEAVY 14.8). The sparse look is therefore a render/de
 not a classification problem, and "0 rice cells" is the absolute-height gate (Phase 2 relative-elevation
 fix). Probe: `tests/probe_spawn_zoning.tscn`.
 
+## Amendment A (2026-07-24) — the path is `build_patrol_world()`, and the arena is the blessed exception
+Two reconciliations to code reality (Summoner ruling, claim-reconciliation pass):
+- **No `WorldBuilder` class exists.** The "shared WorldBuilder pass" named above is the static path
+  `MissionGenerator.build_patrol_world()` (`scripts/missions/mission_generator.gd:619`) driving
+  `site_planner.gd` + the subsystem set. Read the ADR with that substitution; the protected-foundation
+  law is unchanged — the code was never renamed, the doc was.
+- **The arena is a separate, deliberately-bare lab — the ONE recorded exception, NOT folded onto the
+  shared build.** It boots as a walled room with independent `spawn_cover` / `spawn_vegetation` toggles
+  (`scripts/levels/ai_stress_arena.gd`) so a newly-wired system is tested in isolation. The structural
+  probe (`tests/test_placement_paths.gd`) therefore enforces exactly one game world-build path plus the
+  arena as the single `KNOWN_EXCEPTIONS` entry; a SECOND game path or any THIRD placement path FAILS.
+  This supersedes the original clause requiring the arena to instantiate the shared build.
+
 ## Related
 Pillars served: 2 (Atmosphere — the world stops popping and diverging), 3 (Freedom — the same dense world
 at scale, no rails), and via the removed hitch, 1 (gunplay on a stable frame). Beads: world-build epic +

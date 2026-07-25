@@ -64,14 +64,16 @@ So the law is a **ratchet**, and it lives in the test suite:
 
 - `tests/test_fossils.gd` scans every declaration in `scripts/` and every reference in `scripts/`,
   `terrain/`, `scenes/`, `data/`, `tests/`, `tools/`.
-- The **79 fossils that exist today** are grandfathered in `tests/fossil_baseline.json`.
+- The fossils are grandfathered in `tests/fossil_baseline.json` — **19/19** of record (`:3-4`, as of
+  2026-07-24; this ADR was authored at 79).
 - **A NEW fossil fails the build.** You changed a system and left the old one standing → red.
 - **The register only shrinks.** Bury a fossil, and the probe tells you to shrink it.
 - Regenerating the baseline to *silence* a failure is **the one forbidden move.** It is a debt
   register, not a snooze button.
 
-**Verified, not claimed** (ADR-015): baseline stable at 79/79 → PASS/exit 0. A planted fossil →
-FAIL/exit 1, named by file and line. Removed → green. The gate bites.
+**Verified, not claimed** (ADR-015): baseline stable (19/19 of record, `tests/fossil_baseline.json:3-4`,
+as of 2026-07-24) → PASS/exit 0. A planted fossil → FAIL/exit 1, named by file and line. Removed → green.
+The gate bites.
 
 ### Two rules the probe had to learn, and they are the law in miniature
 
@@ -84,7 +86,7 @@ FAIL/exit 1, named by file and line. Removed → green. The gate bites.
 
 ---
 
-## What the 79 are (triage, not a delete list)
+## What the fossils are (triage, not a delete list)
 
 The probe finds *dead symbols*. It cannot tell you **why** they are dead. Three kinds, and only the
 first is a true fossil:
@@ -110,7 +112,7 @@ erased the entire cast — `ModelActor` resolves them from bare `unit_id` string
   the point, and it is a real cost.
 - **The suite goes red on work that used to pass.** Leaving a corpse is now a build failure, not a
   shrug.
-- **The 79 are a debt.** They are grandfathered, not forgiven. Shipping with them is allowed; *growing*
+- **The fossils are a debt.** They are grandfathered, not forgiven. Shipping with them is allowed; *growing*
   them is not.
 - **The probe is conservative and will miss fossils.** A symbol mentioned anywhere in a string, a
   scene, or a resource is spared. We would rather miss a fossil than delete something live.

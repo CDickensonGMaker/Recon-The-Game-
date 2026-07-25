@@ -45,7 +45,7 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 ## 5. STRUCTURES / WORLD
 - **Building interiors (CQB kit)** — 0%; every building is a shell. Gated epic.
 - **Tunnel interior kit** — entrance+ladder, corridors, rooms, props. [u0e0]
-- **Roads** — none generated; RTS road_network port beaded. [4kmn] This is something that we should have done by now. I think this statement alone has been holding up the progress. 
+- **Roads** — LIVE (as of 2026-07-24): `RoadNetwork.new(...)` builds the hub-and-spoke net (`scripts/missions/mission_generator.gd:562`) and carves the corridor through vegetation (`scripts/missions/mission_generator.gd:680`); guarded by `tests/test_roads.gd`.
 - ~64 modeled+measured structures sit unplaced (placement/wiring work, not art). Alot of these models are old rips from the spring1944 opensource game we were using as holders or bad makes of things I had tried using those old models from a fwe months ago with the REALVIETNAMRTS project. Even our newer current firebase is okay but I need to spend like a full day making a more detailed firebase and I think I should do that too with the villages and make more finished buildings so they can be fleshed out. Also adding more geometry to the villages will be a win and allow some close quarters battles and more places for the players to have to clear out. 
 
 ## 6. UI ART

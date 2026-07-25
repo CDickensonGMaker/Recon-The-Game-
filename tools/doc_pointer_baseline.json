@@ -1,7 +1,7 @@
 {
 	"_comment": "THE POINTER LAW ceilings. Both ONLY SHRINK in normal operation. A RAISE is legal only for a deliberate scope widening and only through --grandfather --reason=, which records dated provenance below. Silently raising a ceiling is the one forbidden move (ADR-023).",
-	"ceiling": 29,
-	"broken_ceiling": 116,
+	"ceiling": 12,
+	"broken_ceiling": 98,
 	"grandfather_log": [
 		{
 			"date": "2026-07-20",

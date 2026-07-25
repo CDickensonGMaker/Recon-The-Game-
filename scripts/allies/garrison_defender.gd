@@ -58,7 +58,18 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	ally.set_order(AllyBase.OrderMode.HOLD, post)
 	ally.post_anchor = post
 	ally.post_leash = 8.0
-	if not unit.is_empty():
+	# The gun crew mans the Pig: its MOS reads "MG", so it must FIRE an M60 (42 dmg)
+	# and LOOK like it - not stand a rifleman under an MG nameplate (drift law).
+	if occ == "gun_crew":
+		# Man the fixed emplacement if one is free; man_by_ai pins the stand, sets
+		# the Pig (weapon + sprite) and the down-arc aim. The 2nd crewman, or the
+		# case where the player already took the gun, falls back to a standing Pig.
+		var emp: MGEmplacement = _nearest_free_emplacement(ally, stand)
+		if emp == null or not emp.man_by_ai(ally):
+			ally.weapon_data = load("res://data/weapons/m60.tres")
+			if not unit.is_empty():
+				ally.set_sprite(unit, "m60")
+	elif not unit.is_empty():
 		ally.set_sprite(unit, "m16a1")
 	# A sentry on watch faces OUT, off the compound - not at his boots.
 	var outward: Vector3 = stand - fsb_center
@@ -73,3 +84,22 @@ static func _seeded_rng(at: Vector3) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = absi(hash(Vector2i(int(at.x), int(at.z))))
 	return rng
+
+
+## Nearest unmanned MG post to `at`, or null. The firebase places one per gun_crew
+## post (mission_generator._place_firebase_mg); in the patrol world these are the
+## only members of `mg_emplacements`.
+static func _nearest_free_emplacement(node: Node, at: Vector3) -> MGEmplacement:
+	if node == null or node.get_tree() == null:
+		return null
+	var best: MGEmplacement = null
+	var best_d: float = INF
+	for e in node.get_tree().get_nodes_in_group("mg_emplacements"):
+		var emp := e as MGEmplacement
+		if emp == null or emp.is_occupied():
+			continue
+		var d: float = at.distance_squared_to(emp.global_position)
+		if d < best_d:
+			best_d = d
+			best = emp
+	return best

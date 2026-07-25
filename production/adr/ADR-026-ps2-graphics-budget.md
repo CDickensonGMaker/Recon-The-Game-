@@ -186,8 +186,10 @@ CPU times ran 3–4× the historical baseline. What DOES survive:
 - **Geometry responds correctly** (trustworthy): prims 675k (vd128/fc78) → 526k (vd80) → 382k (vd80/fc60).
 - **The frame is CPU-BOUND on AI, not GPU-bound on jungle** (visible in the overlay, robust to
   contention): baseline & vd80 overlays both read **GPU ~32ms** (barely moved despite −22% prims) while
-  **`ai/agents` = 25–192ms** is the wall. **The jungle GPU is NOT what limits the 18v18 arena fps — the
-  AI is.** This confirms **Part B (activity-tiered AI) is the real FPS lever**, not the jungle draw cuts.
+  the **`ai/agents`** bucket — measured **25–192ms** on 2026-07-16, a figure since **RETIRED** as
+  attribution-unknown (`production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:21`) — is the
+  wall. **The jungle GPU is NOT what limits the 18v18 arena fps — the AI is.** This confirms **Part B
+  (activity-tiered AI) is the real FPS lever**, not the jungle draw cuts.
 - **Look-check:** `view_distance=80` is visually identical to 128 (far foliage is invisible at night) —
   look-safe and ADR-026 A.2-aligned. `fill_chance=0.6` **visibly thins the canopy** (a Pillar-2 loss),
   not a free win.

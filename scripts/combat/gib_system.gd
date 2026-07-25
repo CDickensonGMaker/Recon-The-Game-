@@ -12,6 +12,11 @@ const MAX_LIVE_GIBS: int = 12
 ## Seconds a gib lies around. The gore lab raises this so rigs can be inspected.
 static var gib_lifetime_s: float = 12.0
 
+## Arena/test override: when true, EVERY model death pops regions (explosion_kill)
+## and every head hit bursts, so all rigs can be confirmed to gib. Set by the AI
+## stress arena only and reset on exit; production never touches it (default false).
+static var force_all_gibs: bool = false
+
 ## Region contract: bone chain root to collapse, region meshes to hide/spawn,
 ## bone-attached gear meshes that fly off as their own gib.
 const REGIONS: Dictionary = {

@@ -27,24 +27,28 @@ uses. (Arena caveat: the AI stress arena currently has no GameplayGrid, so every
 ~140m and foliage conceals nothing — arena detection does not yet exercise this pipeline. See the plan's
 Track D.)
 
-> **P0 determinism defect (open):** `randf()` inside `has_line_of_sight()` runs per-frame and poisons the
-> shared RNG stream, making ADR-010 determinism framerate-dependent (bead `atov`). Detection is not
-> deterministic until that `randf` leaves the LOS path.
+> **Determinism: FIXED (verified 2026-07-24).** The heavy-jungle LOS block is seeded per `(cell, mission)` —
+> `los_rng.seed = hash([Vector2(x, z), mission_seed])` (`terrain/core/gameplay_grid.gd:407-409`) — so a given
+> LOS query returns the same block decision at any framerate (ADR-010). Guarded by
+> `tests/test_los_determinism.gd`.
 
 ## Detection across the LOD boundary
 
-Detection cost is the reason the LOD-tier simulation exists (ADR-025). Awareness is a T0/T1 concern only —
-a sleeping (T2) or data-only (T3) unit does not run perception; it resolves statistically. The Ambience
-Law guarantees an off-AO unit's "detection" of the player can never silently cost the player: the instant
-an off-screen outcome could matter, it has already become an offer through `DynamicMissionFactory`.
+Detection cost is the reason AI runs on activity tiers at all. Awareness is a hot-tier concern only — a
+dormant or data-only unit does not run perception; it resolves statistically. The Ambience Law guarantees
+an off-AO unit's "detection" of the player can never silently cost the player: the instant an off-screen
+outcome could matter, it has already become an offer through `DynamicMissionFactory`.
 
-Tier bands, mechanism, and the phased build are specified in **ADR-025**. This file will absorb the
-detection-specific rules (awareness decay by tier, re-materialization awareness state, patrol-node intel
-decay) as ADR-025's phases land.
+> **Tier authority (2026-07-20):** ADR-025's four-tier LOD scheme is **SUPERSEDED — never ratified**
+> (`ADR-025-lod-tier-simulation.md:3`). The live tier model is the AI-consolidation decree — *"AIDirector
+> tick-list wins; WorldSim tiers die"*
+> (`production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:12-16`, BLESSED). Cite that decree,
+> not ADR-025, for tier bands and the phased build.
 
 ## Related
 - **ADRs:** ADR-005 (witness rule) · ADR-010 (determinism) · ADR-021/022 (the intel loop — patrol to
-  learn the ground, the observed/annotated map) · ADR-025 (LOD-tier simulation).
-- **Beads:** `atov` (LOS `randf` determinism P0) · the LOD-sim implementation bead.
-- **Files:** `scripts/enemies/enemy_base.gd` (`_update_perception`, `has_line_of_sight`),
-  `terrain/core/gameplay_grid.gd` (`_sight_cap`).
+  learn the ground, the observed/annotated map) · ADR-025 (LOD-tier simulation — **SUPERSEDED 2026-07-20**;
+  tier authority is `production/war_room/2026-07-18_ai_consolidation_plan/synthesis.md:12-16`).
+- **Files:** `scripts/enemies/enemy_base.gd` (`_update_perception`, and `_can_witness` — the perception/
+  witness LOS via `CombatManager.has_line_of_sight`), `terrain/core/gameplay_grid.gd` (`_sight_cap`; the
+  seeded heavy-jungle LOS block at `:407-409`).

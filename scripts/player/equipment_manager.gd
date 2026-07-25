@@ -46,6 +46,10 @@ func _handle_input() -> void:
 	if is_switching:
 		return
 
+	# On a fixed gun the kit is frozen on the mount - a slot key must not swap it off.
+	if controller and "is_manning_mg" in controller and controller.is_manning_mg:
+		return
+
 	if weapon_holder and weapon_holder.is_weapon_reloading():
 		return
 

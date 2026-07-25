@@ -8,7 +8,7 @@ valid=false
 
 [deps]
 
-source_file="res://assets/building models/vehicles/USM4A3Sherman.obj"
+source_file="res://assets/us/vehicles/USM4A3Sherman.obj"
 
 [params]
 

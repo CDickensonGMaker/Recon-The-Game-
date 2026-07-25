@@ -312,8 +312,8 @@ Found on 2026-07-13, five systems, one session — **and the game worked the who
 fractures — it is fossils.
 
 **THE MACHINE (because a law in Markdown is just the next fossil):** `tests/test_fossils.tscn`, in the
-suite. The existing fossils are grandfathered in `tests/fossil_baseline.json` (`:2-3` — `ceiling` 27,
-`count` 27, as of 2026-07-19), under a `ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
+suite. The existing fossils are grandfathered in `tests/fossil_baseline.json` (`:3-4` — `ceiling` 19,
+`count` 19, as of 2026-07-24), under a `ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
 
 `--write-baseline` writes the intersection of register and reality and is incapable of growth. New
 entries enter ONLY via `--grandfather --reason="<text>"`, which appends dated provenance to
@@ -405,7 +405,7 @@ the two docs above and code pointers win.
 **PLAYTEST R4 is the standing session entry gate — resolve it FIRST, before anything else.** It checks
 the ADR-029 open-patrol loop: boot seated at `fsb_main` → out the wire gate on one diegetic pointer →
 find a site unguided → fair contact → squad behaves → AAR banks at the gate
-(`scripts/missions/field_director.gd:602-614`). It is discharged only by a **verified playtest by the
+(`_bank_patrol`, `scripts/missions/field_director.gd:1066`). It is discharged only by a **verified playtest by the
 Summoner** (ADR-015) — never by a probe, never by an agent's reading. Until he has verified it, gated
 feature work stays parked.
 

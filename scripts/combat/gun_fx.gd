@@ -25,7 +25,7 @@ static func reset_session() -> void:
 	_sting_cooldown_until = 0
 	_active_flashes = 0
 	_active_impacts = 0
-	_active_explosions = 0
+	_explosion_nodes.clear()
 	_blood_tex.clear()  # static cache would otherwise hold textures to process exit (leak scan)
 	if _sting_player != null and is_instance_valid(_sting_player):
 		_sting_player.stop()
@@ -57,7 +57,7 @@ static func play_combat_sting(parent: Node) -> void:
 
 static var _active_flashes: int = 0
 static var _active_impacts: int = 0
-static var _active_explosions: int = 0
+static var _explosion_nodes: Array[Node3D] = []
 ## Muzzle flashes are the shooter's mandatory telegraph (Fairness Law) and are
 ## exempt from the ADR-026 light cap - they are unshaded quads, not lights. This
 ## bound only stops a runaway leak; it must never be low enough to silence a
@@ -110,15 +110,23 @@ static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explos
 	_spawn_explosion_visual(parent, pos)
 
 
-## Procedural explosion visual: flash light, expanding emissive fireball, rising
-## smoke puff, dirt/debris kick. Every explosion caller routes through here.
-static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
-	if parent == null or _active_explosions >= MAX_EXPLOSIONS:
+## Procedural explosion visual: expanding emissive fireball (FAKE - no real light,
+## ADR-026), rising smoke puff, dirt/debris kick. Every explosion caller routes
+## through here. scale_mult/lifetime_mult let distant callers (AmbientWar horizon
+## events) enlarge and hold the flash so it reads across 200-800m; both default to
+## 1.0, leaving every combat caller byte-identical.
+static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: float = 1.0, lifetime_mult: float = 1.0) -> void:
+	if parent == null:
 		return
-	_active_explosions += 1
+	# Prune freed explosions so a teardown that frees one early can't leak the
+	# count and silence ALL future explosions (the cap-leak bug).
+	_explosion_nodes = _explosion_nodes.filter(func(n: Node) -> bool: return is_instance_valid(n))
+	if _explosion_nodes.size() >= MAX_EXPLOSIONS:
+		return
 	var root := Node3D.new()
 	parent.add_child(root)
 	root.global_position = pos
+	_explosion_nodes.append(root)
 
 	var quad := MeshInstance3D.new()
 	var qm := QuadMesh.new()
@@ -133,46 +141,45 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3) -> void:
 	mat.emission = Color(1.0, 0.55, 0.15)
 	mat.emission_energy_multiplier = 9.0
 	quad.material_override = mat
-	quad.position.y = 0.6
+	quad.position.y = 0.6 * scale_mult
 	root.add_child(quad)
 
 	var smoke := CPUParticles3D.new()
 	smoke.one_shot = true
 	smoke.amount = 16
-	smoke.lifetime = 1.2
+	smoke.lifetime = 1.2 * lifetime_mult
 	smoke.direction = Vector3.UP
 	smoke.spread = 40.0
-	smoke.initial_velocity_min = 1.5
-	smoke.initial_velocity_max = 4.0
+	smoke.initial_velocity_min = 1.5 * scale_mult
+	smoke.initial_velocity_max = 4.0 * scale_mult
 	smoke.gravity = Vector3(0, 1.0, 0)
-	smoke.scale_amount_min = 0.4
-	smoke.scale_amount_max = 0.9
+	smoke.scale_amount_min = 0.4 * scale_mult
+	smoke.scale_amount_max = 0.9 * scale_mult
 	smoke.color = Color(0.14, 0.13, 0.11, 0.85)
-	smoke.position.y = 0.5
+	smoke.position.y = 0.5 * scale_mult
 	root.add_child(smoke)
 	smoke.emitting = true
 
 	var debris := CPUParticles3D.new()
 	debris.one_shot = true
 	debris.amount = 20
-	debris.lifetime = 0.8
+	debris.lifetime = 0.8 * lifetime_mult
 	debris.direction = Vector3.UP
 	debris.spread = 60.0
-	debris.initial_velocity_min = 4.0
-	debris.initial_velocity_max = 9.0
+	debris.initial_velocity_min = 4.0 * scale_mult
+	debris.initial_velocity_max = 9.0 * scale_mult
 	debris.gravity = Vector3(0, -12, 0)
-	debris.scale_amount_min = 0.05
-	debris.scale_amount_max = 0.14
+	debris.scale_amount_min = 0.05 * scale_mult
+	debris.scale_amount_max = 0.14 * scale_mult
 	debris.color = Color(0.4, 0.34, 0.25)
 	root.add_child(debris)
 	debris.emitting = true
 
 	var tw := root.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.35).from(Vector3(0.6, 0.6, 0.6))
-	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	_expire(root, 1.4, func() -> void:
-		_active_explosions -= 1
+	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0) * scale_mult, 0.35 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6) * scale_mult)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4 * lifetime_mult)
+	_expire(root, 1.4 * lifetime_mult, func() -> void:
 		root.queue_free())
 
 

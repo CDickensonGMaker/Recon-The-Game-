@@ -51,6 +51,8 @@ func _ready() -> void:
 
 	_arena = AIStressArena.new()
 	_arena.bench_dressing = true
+	_arena.spawn_cover = true
+	_arena.spawn_vegetation = true
 	_arena.spawn_hud = false
 	_arena.spawn_player = true
 	add_child(_arena)

@@ -382,46 +382,42 @@ func _materialize_vegetation(chunk_coord: Vector2i, heightmap: Object) -> void:
 
 
 
-## Clear vegetation in a circular area - clears entire bundles
-## heightmap is optional - if provided, chunks are re-materialized from cache
+## A blast footprint where individual plant instances are removed. Persisted so a
+## chunk rebuild keeps the crater clear. Cleared per-mission in clear_all().
+var _veg_holes: Array = []
+
+
+func _in_veg_hole(wx: float, wz: float) -> bool:
+	for hole: Dictionary in _veg_holes:
+		var c: Vector3 = hole["c"]
+		if (wx - c.x) ** 2 + (wz - c.z) ** 2 < float(hole["r2"]):
+			return true
+	return false
+
+
+## Clear vegetation in a circular blast FOOTPRINT: record the hole and rebuild only
+## the chunk(s) it overlaps, excluding just the plant instances inside the radius
+## (see _build_scatter). The old path set whole 32m bundles to CLEAR, so a 10m blast
+## wiped a chunk's worth of trees - "half the trees gone, not a crater". The veg
+## terrain grid is untouched, so AI sight is unaffected; this is visual removal.
 func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Object = null) -> int:
-	var cleared := 0
-	var radius_sq := radius * radius
-	var affected_chunks: Array[Vector2i] = []
+	_veg_holes.append({"c": center, "r2": radius * radius})
 
-	for chunk_coord: Vector2i in _chunk_terrain.keys().duplicate():
-		var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
-		var chunk_world_x := chunk_coord.x * chunk_size
-		var chunk_world_z := chunk_coord.y * chunk_size
-		var changed := false
-
-		for bz in _bundles_per_chunk:
-			for bx in _bundles_per_chunk:
-				var bundle_idx := bz * _bundles_per_chunk + bx
-
-				if terrain[bundle_idx] == TerrainType.CLEAR:
-					continue
-
-				var bundle_x := chunk_world_x + (bx + 0.5) * bundle_meters
-				var bundle_z := chunk_world_z + (bz + 0.5) * bundle_meters
-				var dist_sq := (bundle_x - center.x) ** 2 + (bundle_z - center.z) ** 2
-
-				if dist_sq < radius_sq:
-					terrain[bundle_idx] = TerrainType.CLEAR
-					cleared += 1
-					changed = true
-
-		if changed:
-			_chunk_terrain[chunk_coord] = terrain
-			affected_chunks.append(chunk_coord)
-
-	# Re-materialize affected chunks from cache.
-	for chunk_coord in affected_chunks:
-		clear_chunk_visuals(chunk_coord)
-		if heightmap:
-			_rematerialize(chunk_coord, heightmap, chunk_size)
-
-	return cleared
+	var min_cx := floori((center.x - radius) / chunk_size)
+	var max_cx := floori((center.x + radius) / chunk_size)
+	var min_cz := floori((center.z - radius) / chunk_size)
+	var max_cz := floori((center.z + radius) / chunk_size)
+	var rebuilt := 0
+	for cx in range(min_cx, max_cx + 1):
+		for cz in range(min_cz, max_cz + 1):
+			var chunk_coord := Vector2i(cx, cz)
+			if not _chunk_terrain.has(chunk_coord):
+				continue
+			clear_chunk_visuals(chunk_coord)
+			if heightmap:
+				_rematerialize(chunk_coord, heightmap, chunk_size)
+			rebuilt += 1
+	return rebuilt
 
 
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
@@ -483,6 +479,9 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				var nm: String = _pick_species(pool, bush_bias, rng)
 				var h: float = heightmap.sample_world(wx, wz)
 				var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
+				# Blast footprints remove individual plants, not whole bundles.
+				if _in_veg_hole(wx, wz):
+					continue
 				scatter.append({"name": nm, "xf": Transform3D(basis, Vector3(wx, h, wz))})
 	return scatter
 
@@ -585,6 +584,7 @@ func clear_all() -> void:
 	_chunk_instances.clear()
 	_chunk_terrain.clear()
 	_chunk_placements.clear()
+	_veg_holes.clear()
 
 
 ## OPTIMIZED: Single surface with vertex colors to reduce draw calls from 9 to 1
