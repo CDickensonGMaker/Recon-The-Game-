@@ -1,5 +1,17 @@
 # GHOST-CODE AUDIT — 2026-07-25
 
+> **OUTCOME LEDGER (same day, commits f9569faf…b6f77456):** Summoner ruled "wire it up" — executed.
+> SHIPPED: all §1/§R2.2 bugs (pending_hub proved already-applied → stash deleted; SMG idle reachable;
+> temple shrines spawn with cham_temple_ruin.glb; wave_runners + aoe_damage_falloff deleted),
+> all §3 fossils + §R2.3/R2.4/R2.6 deletions, doc banners, ally ADVANCING/SUPPRESSED + default arm
+> (SUPPRESS_PIN shared in combat_posture.gd:12), cook ring, downed clock, SECURE verb, AAR civilian
+> line, M16 jam_clear_time 4.6s. RULED: keep all 100 anim clips; REGROUP cut; heli cluster stays
+> parked; ScriptedSequence pair stays KEEP. REVERSED ON EVIDENCE: Radio_US was a modelless draft
+> (live radio prop supersedes — deleted); diag_fsb_seat KEPT (standing re-export instrument);
+> reload/flinch intents deleted (AI has no reload cycle). DEFERRED: ally RETREATING (fallback
+> doctrine needs Summoner), corpse-drag (roadmap), buy_skill (decision queue: what spends Team XP?).
+> Registers: next suite run with --write-baseline shrinks fossil 19→14, debt 21→~10.
+
 Full-project sweep for code that wires to nothing. Six passes: baselined fossils, ghost pointers to buried systems, signal graph, unattached scripts, unreachable scenes/resources, stringly-typed dispatch. Every DEAD verdict re-verified against dynamic dispatch (`has_method`/`call`/`call_deferred`), group broadcasts, `.tscn` bindings, `.tres` bindings, string-built load paths, and the 10 `.bat` dev roots. **Audit only — nothing was edited or deleted.** Cleanup decisions go through War Room per ADR-023.
 
 Verdict legend: **BUG** (live reader, missing writer — feature silently broken) · **FOSSIL** (superseded/expired, delete-eligible) · **GHOST POINTER** (reference to deleted system) · **UNFINISHED** (built ahead of wiring; the missing half is named) · **STALE BASELINE** (register entry no longer true) · **SEAM/OK** (intentional, documented here so nobody re-flags it).
