@@ -63,6 +63,10 @@ const DAMAGE_PROFILES: Dictionary = {
 var damage_zones: Array[Dictionary] = []
 var scar_decals: Array[Decal] = []
 
+## Pending heightmap digs. The dig is a main-thread chunk rebuild (the perf risk); it is
+## queued here and drained a bounded number per frame in _process (WorldConfig throttle).
+var _deform_queue: Array[Dictionary] = []
+
 ## Aggregate per-mission ceiling on terrain deforms (the shipped cap is per-strike; this
 ## bounds chunk-rebuild spikes under sustained ordnance). Reset in clear_all_damage().
 const MAX_DEFORMS_PER_MISSION: int = 40
@@ -132,9 +136,9 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 
 	# Apply to terrain manager's heightmap (this also rebuilds affected chunks). Past the
 	# per-mission ceiling, skip the expensive dig but keep the cheap veg-clear + scar below.
-	if _deforms_this_mission < MAX_DEFORMS_PER_MISSION:
+	if WorldConfig.TERRAIN_HOLES_ENABLED and _deforms_this_mission < MAX_DEFORMS_PER_MISSION:
 		_deforms_this_mission += 1
-		terrain_manager.modify_terrain(world_pos, radius_meters, crater_func)
+		_deform_queue.append({"pos": world_pos, "radius": radius_meters, "func": crater_func})
 
 	# Clear vegetation in damaged area. Pass heightmap so clear_area re-materializes
 	# the surviving (non-cleared) bundles; otherwise the MultiMesh stays wiped.
@@ -164,6 +168,17 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 		intensity
 	)
 
+
+## Drain the crater dig queue at a bounded rate — the whole reason terrain holes are safe on
+## the perf floor (ADR-031/ADR-026). WorldConfig.TERRAIN_DEFORMS_PER_FRAME is the knob; the
+## off-switch (TERRAIN_HOLES_ENABLED) stops digs entering the queue in the first place.
+func _process(_delta: float) -> void:
+	if _deform_queue.is_empty() or terrain_manager == null or not is_instance_valid(terrain_manager):
+		return
+	var n: int = mini(maxi(1, WorldConfig.TERRAIN_DEFORMS_PER_FRAME), _deform_queue.size())
+	for _i in range(n):
+		var d: Dictionary = _deform_queue.pop_front()
+		terrain_manager.modify_terrain(d.pos as Vector3, float(d.radius), d.func as Callable)
 
 
 func _create_scar_textures() -> void:
@@ -252,6 +267,7 @@ func _create_scar_decal(position: Vector3, radius: float, color: Color, scar_typ
 func clear_all_damage() -> void:
 	damage_zones.clear()
 	_deforms_this_mission = 0  # fresh crater budget each mission
+	_deform_queue.clear()      # drop any undrained digs from the last mission
 
 	for decal in scar_decals:
 		if is_instance_valid(decal):

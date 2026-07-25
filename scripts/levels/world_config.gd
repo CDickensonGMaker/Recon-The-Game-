@@ -33,3 +33,10 @@ const FPS_LOG_INTERVAL: float = 2.0
 ## NavigationRegion3D exists, and _move_toward() falls back to direct steer.
 const NAV_ENABLED: bool = true
 const NAV_SITE_KINDS: Array[String] = ["village", "firebase", "aa_site", "outpost", "temple", "pow_camp"]
+
+## Terrain + building destruction throttle (ADR-031). The scar-decal + veg-clear always
+## apply immediately (cheap, reads instantly); the expensive parts ride a per-frame budget
+## so a napalm run mid-firefight never eats a whole frame on the Intel-UHD floor (ADR-026).
+const TERRAIN_HOLES_ENABLED: bool = true   ## off-switch: false = scar-decal only, no heightmap dig
+const TERRAIN_DEFORMS_PER_FRAME: int = 1   ## queued chunk-rebuilds drained per frame (raise to dig faster)
+const STRUCTURE_LEVELS_PER_FRAME: int = 2  ## queued building destructions drained per frame (area-leveling)
