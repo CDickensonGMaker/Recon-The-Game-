@@ -32,8 +32,6 @@ enum TerrainPreset {
 	CUSTOM              # 5 - manual parameter control
 }
 
-var current_preset: TerrainPreset = TerrainPreset.ROLLING_HILLS
-
 var params: Dictionary = {
 	# Base terrain
 	"base_frequency": 0.002,
@@ -182,7 +180,6 @@ func _init_noise() -> void:
 
 
 func set_preset(preset: TerrainPreset) -> void:
-	current_preset = preset
 	if preset != TerrainPreset.CUSTOM and preset_params.has(preset):
 		for key in preset_params[preset]:
 			params[key] = preset_params[preset][key]

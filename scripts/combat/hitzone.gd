@@ -46,7 +46,6 @@ func _ready() -> void:
 func _setup_groups() -> void:
 	if owner_entity:
 		if owner_entity.is_in_group("player"):
-			add_to_group("player_hurtbox")
 			collision_layer = 32  # Layer 6: player_hurtbox
 			collision_mask = 16   # Layer 5: enemy_hitbox
 		elif owner_entity.is_in_group("enemies"):

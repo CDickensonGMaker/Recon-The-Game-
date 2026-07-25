@@ -22,7 +22,6 @@ extends Resource
 
 @export_group("Area of Effect")
 @export var aoe_radius: float = 0.0  ## 0 = no AOE (for grenades/explosives)
-@export var aoe_damage_falloff: bool = true
 
 @export_group("Fuze")
 ## ARMING DISTANCE, in METRES. A real RPG warhead is DROP-SAFE - it arms only

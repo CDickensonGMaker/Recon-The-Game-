@@ -259,8 +259,3 @@ func revive() -> void:
 
 func is_dead() -> bool:
 	return current_hp <= 0 and not is_downed
-
-
-func add_health_pack(count: int = 1) -> void:
-	health_packs += count
-	health_pack_changed.emit(health_packs)

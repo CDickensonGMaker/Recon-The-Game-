@@ -24,13 +24,11 @@ var can_fire: bool = true
 var current_goal: Enums.AIGoal = Enums.AIGoal.NONE
 var current_state: Enums.AIState = Enums.AIState.IDLE
 var personality: Enums.AIPersonality = Enums.AIPersonality.BALANCED
-var state_timer: float = 0.0
 var goal_timer: float = 0.0
 
 var think_timer: float = 0.0
 var think_count: int = 0
 const THINK_INTERVAL: float = 0.15  # 6-7 Hz thinking, execution every frame
-var last_think_time: float = 0.0
 
 var _think_interval_current: float = THINK_INTERVAL
 var _lod_timer: float = 0.0
@@ -90,13 +88,11 @@ var target_aim_dir: Vector3 = Vector3.FORWARD
 var aim_speed: float = 8.0  # Radians per second - varies by skill
 
 @onready var nav_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D")
-var move_target: Vector3 = Vector3.ZERO
 var is_moving: bool = false
 
 ## Cover: a shared claim broker keeps two units off the same rock/sandbag.
 var current_cover: Vector3 = Vector3.ZERO
 var has_cover: bool = false
-var cover_quality: float = 0.0
 var _moving_to_cover: bool = false
 var _cover_search_timer: float = 0.0
 static var _cover_claims: Dictionary = {}  # Vector3i cell -> {enemy: EnemyBase}
@@ -210,7 +206,6 @@ var _first_shot_fired: bool = false
 var suppression_level: float = 0.0  # 0-1, affects behavior
 var _gut_bleed_dps: float = 0.0     # locational: gutshot bleed-out rate
 var _bleed_accum: float = 0.0
-var incoming_fire_timer: float = 0.0
 const SUPPRESSION_DECAY: float = 0.3  # Per second
 
 var threat_level: float = 0.0
@@ -859,6 +854,9 @@ func _update_perception() -> void:
 				sees = CombatManager.has_line_of_sight(
 					global_position + Vector3.UP * 1.5,
 					candidate.global_position + Vector3.UP * 1.0, [self])
+				if sees:
+					# Dense jungle or a hill can break the spot even on a clear geometry ray.
+					sees = SightCap.has_terrain_los(_grid, global_position + Vector3.UP * 1.5, candidate.global_position + Vector3.UP * 1.0)
 			if sees:
 				# Base gain by proximity; stance/motion modifiers for the player.
 				gain = clampf(1.5 * (1.0 - best_dist / cap) + 0.25, 0.2, 2.0)
@@ -1038,6 +1036,8 @@ func _update_line_of_sight() -> void:
 	var target_pos := target.global_position + Vector3.UP * 1.0
 
 	var new_los := CombatManager.has_line_of_sight(eye_pos, target_pos, [self])
+	if new_los:
+		new_los = SightCap.has_terrain_los(_grid, eye_pos, target_pos)
 
 	# Exposure clock: accuracy ramps with EXPOSURE TIME; LOS loss DRAINS at 3x the
 	# build rate (a foliage blink keeps most of the ramp; ~0.8s blind zeroes it).
@@ -1294,7 +1294,6 @@ func _update_state_for_goal() -> void:
 ## ============================================
 
 func _execute(delta: float) -> void:
-	state_timer += delta
 	if _body_hot:
 		_update_sprite()
 
@@ -1503,7 +1502,6 @@ func _execute_seeking_cover(delta: float) -> void:
 			if global_position.distance_to(current_cover) < 1.5:
 				_moving_to_cover = false
 				has_cover = true
-				cover_quality = 0.7
 			else:
 				_move_toward(current_cover, delta)
 				return
@@ -1523,7 +1521,6 @@ func _execute_seeking_cover(delta: float) -> void:
 	if not has_cover and not _moving_to_cover and _grid != null \
 			and _grid.get_vegetation(global_position) > 0.6:
 		has_cover = true
-		cover_quality = 0.4
 		current_cover = global_position
 		return
 
@@ -1671,7 +1668,6 @@ func _change_state(new_state: Enums.AIState) -> void:
 	if new_state == current_state:
 		return
 	current_state = new_state
-	state_timer = 0.0
 
 
 ## Routed through NavBaker's per-site navmesh so pursuers path around obstacles.
@@ -1772,7 +1768,6 @@ func _release_cover() -> void:
 		if EnemyBase._cover_claims.get(key, {}).get("enemy") == self:
 			EnemyBase._cover_claims.erase(key)
 	has_cover = false
-	cover_quality = 0.0
 	_moving_to_cover = false
 	# Cover-exit stand-up (B3): only a living man who actually held cover. Death
 	# paths also route through here - a corpse must not stand up. Debounced.
@@ -2210,12 +2205,11 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 				_stamp_contact()
 				return amount
 		# HEAD POP on heavy fatal headshots (>= HEAD_POP_KILL raw): burst 25% of the
-		# time, one-piece pop otherwise. Burst no-ops until a rig ships head_frag_*.
+		# time, one-piece pop otherwise. If the burst finds no head_frag_* donors it
+		# returns false, so fall through to the one-piece pop - never a silent no-op.
 		if zone == "HEAD" and _visual_is_model and raw_amount >= GibSystem.HEAD_POP_KILL:
-			if randf() < 0.25:
-				GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
-				_removed.append("HEAD")
-			elif GibSystem.dismember(sprite_actor as ModelActor, "HEAD", last_hit_dir, get_tree().current_scene):
+			var burst: bool = (GibSystem.force_all_gibs or randf() < 0.25) and GibSystem.dismember_head_burst(sprite_actor as ModelActor, last_hit_dir, get_tree().current_scene)
+			if burst or GibSystem.dismember(sprite_actor as ModelActor, "HEAD", last_hit_dir, get_tree().current_scene):
 				_removed.append("HEAD")
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
 		# MASSIVE TRAUMA: a single body-zone event >= 90 (point-blank buck; no rifle
@@ -2302,7 +2296,6 @@ func apply_wound(zone_name: String) -> void:
 
 func apply_suppression(amount: float) -> void:
 	suppression_level = minf(1.0, suppression_level + amount)
-	incoming_fire_timer = 0.5
 
 
 func apply_stagger(power: float) -> void:
@@ -2407,7 +2400,7 @@ func _die() -> void:
 		#   clean kill     -> RAGDOLL always (dead weight just drops)
 		#   gibbed kill    -> the death performance clip (fallback: ragdoll)
 		var ma := sprite_actor as ModelActor
-		if _killed_explosive and _visual_is_model and ma != null:
+		if (_killed_explosive or GibSystem.force_all_gibs) and _visual_is_model and ma != null:
 			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
 		elif _visual_is_model and ma != null and _removed.is_empty() \
 				and ma.start_ragdoll(last_hit_dir, 4.5):
@@ -2425,6 +2418,14 @@ func _die() -> void:
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
+			# GUARANTEED FLOOR (stuck-stagger fix): after the clip's fall, if the body
+			# never ragdolled, snap it flat so a janky/latched death clip cannot leave
+			# it standing or mid-stagger.
+			if _visual_is_model and ma != null:
+				var mac: ModelActor = ma
+				get_tree().create_timer(1.5).timeout.connect(func() -> void:
+					if is_instance_valid(mac) and not mac.has_ragdoll():
+						mac.settle_flat_corpse())
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

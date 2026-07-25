@@ -9,13 +9,11 @@ const PaddyStamperScript := preload("res://scripts/world/paddy_stamper.gd")
 const WorkingPointResolverScript := preload("res://scripts/world/working_point_resolver.gd")
 const CivilianSchedulesScript := preload("res://scripts/ai/civilian_schedules.gd")
 const CivilianScript := preload("res://scripts/world/civilian.gd")
-const EnemyBaseScript := preload("res://scripts/enemies/enemy_base.gd")
 const PatrolGeneratorScript := preload("res://scripts/enemies/patrol_generator.gd")
 const AmbushPlannerScript := preload("res://scripts/enemies/ambush_planner.gd")
 const CampDirectorScript := preload("res://scripts/enemies/camp_director.gd")
 const AirTrafficScript := preload("res://scripts/ai/air_traffic.gd")
 const AmbientWarScript := preload("res://scripts/ai/ambient_war.gd")
-const WeatherDirectorScript := preload("res://scripts/world/weather_director.gd")
 const ConvoySpawnerScript := preload("res://scripts/missions/convoy_spawner.gd")
 const DynamicMissionFactoryScript := preload("res://scripts/missions/dynamic_mission_factory.gd")
 
@@ -249,13 +247,6 @@ static func _wire_systems(world: GameWorld, director: FieldDirector,
 	var aw := AmbientWarScript.new()
 	aw.name = "AmbientWar"
 	world.add_child(aw)
-
-	# WeatherDirector: read p.weather, apply it. Day-advance re-rolls.
-	var wd := WeatherDirectorScript.new()
-	wd.name = "WeatherDirector"
-	world.add_child(wd)
-	var env: WorldEnvironment = world.get_node_or_null("WorldEnvironment")
-	wd.setup(String(p.get("weather", "CLEAR")), env, int(p.get("seed", 0)))
 
 	# DynamicMissionFactory: hook to the convoy.ambushed signal so the player
 	# can be offered an ESCORT when a convoy is ambushed.
@@ -550,6 +541,15 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		p.sites.append({"kind": "vc_camp", "center": cand})
 	p["camp_centers"] = camps
 
+	# Temple shrines: 1-2 per AO, deeper than the villages and off every road
+	# (roads only connect villages). A failed find drops the shrine - the site
+	# is a quiet payoff (player.gd:602 SEARCH THE SHRINE), never load-bearing.
+	var shrine_count: int = 1 + (1 if rng.randf() < 0.4 else 0)
+	for _si in range(shrine_count):
+		var s_pos: Vector3 = planner.find_site(rng, 10.0, 150.0, [], gate, 320.0, 560.0)
+		if s_pos != Vector3.ZERO:
+			p.sites.append({"kind": "temple", "center": s_pos})
+
 	# ROADS. Planned here because a road is PURE DERIVED POSITION - it routes over the
 	# finished GameplayGrid and seats on the finished terrain, writing nothing. That
 	# keeps plan_patrol_world side-effect free, and it means the ambush planner below
@@ -634,6 +634,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 					str(p.get("time", "DAY")), Vector2i(2, 4)))
 			"vc_camp":
 				built_sites.append(planner.stamp_vc_camp(site.center, rng))
+			"temple":
+				built_sites.append(planner.stamp_temple_shrine(site.center, rng))
 	for s: Vector3 in (p.first_signs as Array):
 		DamageSystem.apply_damage(s, DamageSystem.DamageType.LARGE_EXPLOSION,
 			rng.randf_range(0.8, FIRST_SIGN_INTENSITY_MAX))
@@ -752,6 +754,8 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 	for entry in (plan.get("posts", []) as Array):
 		var post: Dictionary = entry
 		var post_pos: Vector3 = post.pos
+		if str(post.occupation) == "gun_crew":
+			_place_firebase_mg(world, center, post_pos)
 		for _m in range(int(post.men)):
 			var a: float = rng.randf_range(0.0, TAU)
 			var pos: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(1.0, 3.5)
@@ -771,6 +775,19 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			men.append(man)
 	for man in men:
 		man.build_bt()
+
+
+## One mannable M60 post per firebase gun_crew post, seated on terrain (the plan
+## returns y=0) and set one step downrange so the sandbags sit on the perimeter
+## and the crew mills behind. GarrisonDefender.promote mans it when the wire is
+## hit; the player can man it any time via player._nearby_mg_emplacement.
+static func _place_firebase_mg(world: GameWorld, center: Vector3, post_pos: Vector3) -> void:
+	var outward: Vector3 = post_pos - center
+	outward.y = 0.0
+	outward = outward.normalized() if outward.length() > 0.1 else Vector3.FORWARD
+	var gun_pos: Vector3 = post_pos + outward * 1.0
+	gun_pos.y = world.terrain_manager.get_height_at(gun_pos)
+	MGEmplacement.create(world, gun_pos, outward)
 
 
 ## One village build: stamp + civilians + stations + night fire + chickens.

@@ -11,7 +11,6 @@ extends CharacterBody3D
 const BTSelectorS := preload("res://scripts/ai/bt/bt_selector.gd")
 const BTNodeS := preload("res://scripts/ai/bt/bt_node.gd")
 const BTActionS := preload("res://scripts/ai/bt/bt_action.gd")
-const BTConditionS := preload("res://scripts/ai/bt/bt_conditions.gd")
 const CivilianSchedulesS := preload("res://scripts/ai/civilian_schedules.gd")
 
 enum CivState { WANDER, FLEE, COWER, GONE }
@@ -27,7 +26,6 @@ var is_informer: bool = false
 var director: FieldDirector
 var _hp: int = 20
 var _wander_target: Vector3
-var _timer: float = 0.0
 var _saw_player_at: Vector3 = Vector3.ZERO
 var _inform_clock: float = -1.0
 var actor: ModelActor = null
@@ -209,7 +207,6 @@ func _physics_process(delta: float) -> void:
 		# Skip the body, never the tick: _update_lod is the only thing that can
 		# tier this civilian back IN, and it runs from here.
 		return
-	_timer += delta
 	velocity.y -= 9.8 * delta
 
 	# Informer: spotted you nearby -> starts the clock; escapes -> alarm.
@@ -379,11 +376,15 @@ func _die(attacker: Node, zone: String, amount: int) -> void:
 	get_tree().create_timer(30.0).timeout.connect(queue_free)
 
 
-## INTENTIONALLY EMPTY, and intentionally CALLED. The attach point for a future
-## ROE / war-crime ledger. Nothing scores noncombatant deaths today - do not add
-## scoring here without a decree; that system is explicitly out of scope.
+## Per-patrol noncombatant tally: COUNT ONLY. The hook's old ban was on SCORING and
+## none is added - surfacing and any XP/escalation weight stay the Summoner's call
+## (ADR-006 re-host). A revealed informer is a combatant now: _transform_to_vc drops
+## him from "civilians" without going GONE, so the group check keeps him out of it.
 func _record_noncombatant_death(_killer: Node) -> void:
-	pass
+	if not is_in_group("civilians"):
+		return
+	if director != null:
+		director.record_noncombatant_death()
 
 
 func _teardown_hitzones() -> void:

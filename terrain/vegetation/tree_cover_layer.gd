@@ -53,7 +53,6 @@ var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs + StaticBodies)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
 ## transform read-back is blind headless in this build)
 var chunk_origins: Dictionary = {}
-var _loaded: bool = false
 
 
 func _ready() -> void:
@@ -75,7 +74,6 @@ func load_species(names: Array) -> void:
 			var cm: Mesh = _extract_mesh(CARD_DIR + n + "_card.glb")
 			if cm != null:
 				_card_mesh[n] = cm
-	_loaded = true
 
 
 ## scatter: Array of {name: String, xf: Transform3D}. Builds, for this chunk:

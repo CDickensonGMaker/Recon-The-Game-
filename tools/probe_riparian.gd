@@ -162,11 +162,8 @@ func _ready() -> void:
 		"%.0fm on the bank" % _cap(b))
 
 	# ===================== 0B REGRESSION: THE LZ IS REAL =====================
-	# gameplay_grid guarded on clearing_system.has_method("get_density_at") - a method
-	# that does not exist - so the guard was permanently false, mark_cleared() was
-	# called by nothing, and EVERY LZ IN THE GAME WAS A LIE: stamp_lz() deleted the
-	# plants but the grid still reported jungle, so the AI's sight cap was 45m inside
-	# a bald 16m clearing.
+	# A cleared pad must reach the grid: if the clearing never lowers the grid's
+	# vegetation, the AI's sight cap stays 45m inside a bald 16m clearing.
 	#
 	# AND THE OBVIOUS FIX WAS A LANDMINE: ClearingSystem's map is fill(1.0) and is only
 	# ever LOWERED - it is a clearing MASK, not a density. A straight swap returns 1.0

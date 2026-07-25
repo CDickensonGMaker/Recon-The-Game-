@@ -15,9 +15,6 @@
 class_name SeatSystem
 extends Node
 
-signal seated(body: Node3D, seat_name: StringName)
-signal unseated(body: Node3D)
-
 ## Canonical seat order. Crew first, then the cabin.
 const SEAT_NAMES: Array[StringName] = [
 	&"seat_pilot_l", &"seat_pilot_r",
@@ -211,7 +208,6 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 		model.play(PILOT_CLIP if String(seat_name).begins_with("seat_pilot") else SITTING_CLIP)
 
 	_occupants[seat_name] = rec
-	seated.emit(body, seat_name)
 	return true
 
 
@@ -247,7 +243,6 @@ func unseat(body: Node3D, exit_pos: Vector3) -> void:
 		if cb != null:
 			cb.velocity = Vector3.ZERO
 	body.reset_physics_interpolation()
-	unseated.emit(body)
 
 
 func unseat_all(exit_center: Vector3) -> void:

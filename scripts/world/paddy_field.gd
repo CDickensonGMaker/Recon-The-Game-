@@ -6,7 +6,6 @@ extends Resource
 
 var paddy_id: StringName = &""
 var world_position: Vector3 = Vector3.ZERO
-var centroid_local: Vector3 = Vector3.ZERO
 var cell_count: int = 0
 var bounds_min: Vector2i = Vector2i.ZERO
 var bounds_max: Vector2i = Vector2i.ZERO

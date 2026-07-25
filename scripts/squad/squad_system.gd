@@ -4,8 +4,6 @@
 class_name SquadSystem
 extends Node
 
-signal squad_changed
-
 const REVIVES_PER_MISSION: int = 2
 const REVIVE_CHANNEL_SECONDS: float = 5.0
 ## Player-led squad for the village assault: 5 specialists + riflemen (SquadRoster.SQUAD_SIZE).
@@ -66,6 +64,8 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 		ally.file_slot = i + 1
 		ally.point_slot = mos == "POINTMAN"
 		ally.died.connect(_on_member_died)
+		if mos == "RTO":
+			_wire_rto_radio(ally)
 		members.append(ally)
 	# Ally doctrine (Pillar 3+4): the squad walks out weapons-tight and goes loud
 	# with the player. Each man still defends himself if engaged (AllyBase).
@@ -122,6 +122,17 @@ func _pick_unit_for_mos(mos: String) -> String:
 	return pick_body_for_mos(mos, _roster_rng)
 
 
+## The squad RTO carries a live PRC-25: put him in group "radioman" so RadioMenu
+## opens, build his handset rig (shared RadioHandset.attach_to), and bind it to the
+## player's FP viewmodel/cord. The fire-support proximity path (field_director) is
+## separate and already worked - this is what lets the player grab the handset.
+func _wire_rto_radio(rto: AllyBase) -> void:
+	rto.add_to_group("radioman")
+	var handset: RadioHandset = RadioHandset.attach_to(rto)
+	if handset != null and world != null and world.player != null:
+		world.player.call("bind_radio_handset", handset)
+
+
 func member_by_mos(mos: String) -> AllyBase:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead() and str(a.member.get("mos", "")) == mos:
@@ -154,7 +165,6 @@ func _set_weapons_free(free: bool) -> void:
 			a.weapons_free = free
 	director.toast.emit("SQUAD: WEAPONS %s" % ("FREE" if free else "TIGHT - HOLD FIRE"))
 	VOManager.play_squad("weapons_free" if free else "weapons_tight")
-	squad_changed.emit()
 
 
 func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> void:
@@ -162,7 +172,6 @@ func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> v
 		if is_instance_valid(a) and not a.is_dead():
 			a.set_order(mode, pos)
 	director.toast.emit(toast_text)
-	squad_changed.emit()
 
 
 func _aim_ground_point() -> Vector3:
@@ -416,7 +425,6 @@ func _on_member_died(ally: AllyBase) -> void:
 	director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
 	director.toast.emit("KIA: %s %s (%s) - %d confirmed" % [SquadRoster.rank_for(m), str(m.name), str(m.nick), int(m.get("kills", 0))])
 	CampaignState.save_campaign()
-	squad_changed.emit()
 
 
 func on_mission_end() -> void:

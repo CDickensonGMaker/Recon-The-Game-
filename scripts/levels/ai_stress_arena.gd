@@ -231,7 +231,6 @@ var _hud: Label = null
 var _round_ended: bool = false
 var _us_kills: int = 0
 var _vc_kills: int = 0
-var _state_history: Dictionary = {}
 
 ## 30s summary log state
 var _last_telemetry_log: float = -999.0

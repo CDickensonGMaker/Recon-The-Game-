@@ -3,7 +3,6 @@
 class_name Helicopter
 extends Node3D
 
-signal arrived_at_destination
 signal landed(heli: Helicopter, lz: LandingZone)
 signal took_off(heli: Helicopter)
 
@@ -110,10 +109,6 @@ func seats() -> SeatSystem:
 	return get_node_or_null("Seats") as SeatSystem
 
 
-## Air-traffic flight id; -1 = uncontrolled. Set by AirTraffic at dispatch.
-var traffic_flight_id: int = -1
-
-
 func setup(terrain_manager: TerrainManager) -> void:
 	terrain = terrain_manager
 
@@ -176,7 +171,6 @@ func _process_flying(delta: float) -> void:
 	var desired_y: float = _ground_y(global_position) + cruise_altitude
 
 	if dist < 4.0:
-		arrived_at_destination.emit()
 		if _lz != null:
 			_land_y = _ground_y(_target) + 0.5
 			state = State.LANDING

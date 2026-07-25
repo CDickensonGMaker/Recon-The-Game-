@@ -98,7 +98,7 @@ static func _intent_core(state: int, is_crippled: bool, is_surrendered: bool,
 ## low, and a sneaker already has the cover_sneak lateral clips.
 static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 	match intent:
-		"run", "walk", "patrol", "aim_walk", "arrive", "start_walking":
+		"run", "walk", "patrol", "aim_walk", "arrive":
 			if speed <= 0.5:
 				return "crouch_idle"
 			if absf(lateral) > 0.6:
@@ -125,7 +125,7 @@ static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 ## Models carry all 21 authored clips, so they skip the sprite fallback CHAINS
 ## and map an intent straight to a clip they are guaranteed to have.
 const MODEL_CLIP: Dictionary = {
-	"idle": "rifle_aiming_idle", "aim": "rifle_aiming_idle",
+	"idle": "idle_aiming", "aim": "idle_aiming",
 	"fire": "firing_rifle", "reload": "reloading",
 	"run": "run_forward",
 	"walk": "walk_forward", "patrol": "walk_forward",
@@ -151,17 +151,17 @@ const MODEL_CLIP: Dictionary = {
 ## asked-for clip is missing, so a caller may ask in either generation's names and
 ## every rig answers.
 const MODEL_ALIASES: Dictionary = {
-	# strafe family (v1 has strafe/strafe_1; v2 has run_left/run_right)
+	# strafe family (v1 has strafe; v2 has run_left/run_right)
 	"run_left": ["strafe", "run_forward"],
-	"run_right": ["strafe_1", "strafe", "run_forward"],
+	"run_right": ["strafe", "run_forward"],
 	# v1 name -> v2 equivalents
 	"rifle_aiming_idle": ["idle_aiming", "idle"],
 	"strafe": ["run_left", "run_forward"],
-	"strafe_1": ["run_right", "run_forward"],
 	"kneeling_pointing": ["idle_crouching_aiming", "idle_crouching"],
 	"injured_walk_backwards": ["run_backward", "run_backward_left"],
 	"death_forward": ["death_from_the_front"],
 	"stand_to_cover": ["idle_crouching", "idle_crouching_aiming"],
+	"cover_to_stand": ["cover_to_stand_2", "idle_aiming"],
 	"start_walking": ["run_forward"],
 	# v2 name -> v1 equivalents
 	"walk_forward": ["start_walking", "run_forward"],  # v1 rigs have no walk loop

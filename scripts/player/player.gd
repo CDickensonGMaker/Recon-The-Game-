@@ -438,6 +438,11 @@ var _prompt_poll: float = 0.0
 ## What [F] would do right now, or "" for nothing. The ranges MUST match
 ## _try_field_interact's or the prompt promises a verb that will not fire.
 func field_interact_prompt() -> String:
+	if is_manning_mg:
+		return "[F] DISMOUNT"
+	var mg: Node3D = _nearby_mg_emplacement()
+	if mg != null:
+		return "[F] MAN THE GUN"
 	if _in_tunnel != null:
 		if global_position.distance_to(_in_tunnel.ladder_point()) < 2.5:
 			return "[F] CLIMB OUT"
@@ -462,6 +467,21 @@ func field_interact_prompt() -> String:
 		if crate and global_position.distance_to(crate.global_position) < 3.0:
 			return "[F] RESUPPLY"
 	return ""
+
+
+## An unoccupied MG emplacement within reach of the gunner stand, or null. The
+## range MUST match the verb in _try_field_interact (prompt/verb contract).
+func _nearby_mg_emplacement() -> Node3D:
+	for e in get_tree().get_nodes_in_group("mg_emplacements"):
+		var emp := e as Node3D
+		if emp == null or not emp.has_method("man_by_player"):
+			continue
+		if bool(emp.call("is_occupied")):
+			continue
+		var stand: Vector3 = emp.call("gunner_stand_pos")
+		if global_position.distance_to(stand) < 3.0:
+			return emp
+	return null
 
 
 ## The tunnel mouth within reach, or null.
@@ -566,6 +586,12 @@ func _try_field_interact() -> void:
 				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
 			_field_toast("TUNNEL CACHE - DOCUMENTS AND AMMO (+2 INTEL)")
 			return
+	# Mount an unoccupied MG emplacement within reach - you are still a rifleman,
+	# now behind a bigger gun, arc-limited and exposed (Pillar 4).
+	var mg: Node3D = _nearby_mg_emplacement()
+	if mg != null:
+		mg.call("man_by_player", self)
+		return
 	# Aiming at your RTO within reach: open the radio menu (per-man orders + the
 	# handset grab). One affordance, reachable wherever he stands (player freedom).
 	var rto: AllyBase = _aimed_radioman()
@@ -790,7 +816,7 @@ func _ready() -> void:
 	# The player wears the same static hitzone bands as any rigless unit, so enemy
 	# rounds resolve zones on HIM exactly as his do on them. Bands are fixed to the
 	# standing capsule.
-	HitzoneBuilder._build_static(self, 32, 16, ["player_hurtbox", "hitzone"], true)
+	HitzoneBuilder._build_static(self, 32, 16, ["hitzone"], true)
 	for c in get_children():
 		if c is Hitzone:
 			hitzones.append(c)
@@ -830,6 +856,12 @@ func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	_yaw_base -= mouse_delta.x * mouse_sensitivity
 	camera_rotation_x -= mouse_delta.y * mouse_sensitivity
 	camera_rotation_x = clampf(camera_rotation_x, deg_to_rad(-MAX_LOOK_ANGLE), deg_to_rad(MAX_LOOK_ANGLE))
+	if is_manning_mg:
+		# Clamp the view to the mount's traverse arc (yaw about the downrange centre,
+		# pitch within the gun's elevation). No reparent - the camera contract holds.
+		var rel: float = wrapf(_yaw_base - _mg_yaw_center, -PI, PI)
+		_yaw_base = _mg_yaw_center + clampf(rel, -_mg_yaw_span, _mg_yaw_span)
+		camera_rotation_x = clampf(camera_rotation_x, _mg_pitch_min, _mg_pitch_max)
 	_apply_look()
 
 
@@ -866,6 +898,88 @@ func exit_seat(ground_pos: Vector3) -> void:
 	global_position = ground_pos
 	reset_physics_interpolation()
 	velocity = Vector3.ZERO
+
+
+## MANNED MG. is_manning_mg is a SEPARATE state from is_seated: the seated ride
+## kills the rifle (weapon_holder.gd:170), but a gunner FIRES. He is glued to the
+## stand, his view clamped to the mount's arc, and he is fully exposed - his
+## hitzones stay live, so being on the gun is a way to get shot (Pillar 1).
+var is_manning_mg: bool = false
+var _mg_emplacement: Node3D = null
+var _mg_stand_pos: Vector3 = Vector3.ZERO
+var _mg_yaw_center: float = 0.0
+var _mg_yaw_span: float = 0.0
+var _mg_pitch_min: float = 0.0
+var _mg_pitch_max: float = 0.0
+
+
+## Called by MGEmplacement.man_by_player: snap to the gun, borrow the M60, clamp
+## the view to the arc. The emplacement owns occupancy; this owns the body.
+func man_mg(emp: Node3D) -> void:
+	if is_manning_mg or emp == null:
+		return
+	is_manning_mg = true
+	_mg_emplacement = emp
+	_mg_stand_pos = emp.call("gunner_stand_pos")
+	_mg_yaw_center = float(emp.call("yaw_center"))
+	_mg_yaw_span = float(emp.call("yaw_span_rad"))
+	_mg_pitch_min = float(emp.call("pitch_min_rad"))
+	_mg_pitch_max = float(emp.call("pitch_max_rad"))
+
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col:
+		col.disabled = true
+	velocity = Vector3.ZERO
+	global_position = _mg_stand_pos
+	reset_physics_interpolation()
+
+	# View centred downrange, then clamped by _handle_mouse_look while manning.
+	_yaw_base = _mg_yaw_center
+	camera_rotation_x = clampf(camera_rotation_x, _mg_pitch_min, _mg_pitch_max)
+	_recoil_yaw = 0.0
+	_recoil_pitch = 0.0
+	_apply_look()
+
+	# Freeze the kit on the mounted gun (equipment_manager also guards on this flag).
+	if equipment_manager:
+		equipment_manager.is_switching = false
+		equipment_manager.current_slot = 0
+	if weapon_holder:
+		weapon_holder.mount_gun(load("res://data/weapons/m60.tres"))
+	_field_toast("ON THE GUN - [F] TO GET OFF")
+
+
+func dismount_mg() -> void:
+	if not is_manning_mg:
+		return
+	is_manning_mg = false
+	var emp: Node3D = _mg_emplacement
+	_mg_emplacement = null
+	if weapon_holder:
+		weapon_holder.unmount_gun()
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col:
+		col.disabled = false
+	if emp != null and is_instance_valid(emp):
+		global_position = emp.call("dismount_position")
+	reset_physics_interpolation()
+	velocity = Vector3.ZERO
+	if emp != null and is_instance_valid(emp):
+		emp.call("dismount_player")   # release the post
+
+
+## Glued-to-the-gun tick: stay put, watch for a clean eject, and take [F] to leave.
+func _tick_mg_manning(_delta: float) -> void:
+	# Downed/killed on the gun: eject FIRST so collision + weapon restore before the
+	# downed handler runs next frame (else the mount state soft-locks the man).
+	if _mg_emplacement == null or not is_instance_valid(_mg_emplacement) \
+			or (health_system and health_system.is_downed):
+		dismount_mg()
+		return
+	global_position = _mg_stand_pos
+	velocity = Vector3.ZERO
+	if Input.is_action_just_pressed("interact"):
+		dismount_mg()
 
 
 var _footstep_timer: float = 0.0
@@ -945,7 +1059,7 @@ func _physics_process(delta: float) -> void:
 		if combat_hud != null and combat_hud.has_method("set_field_prompt"):
 			combat_hud.set_field_prompt(field_interact_prompt())
 
-	if Input.is_action_just_pressed("photo_mode") and not is_seated \
+	if Input.is_action_just_pressed("photo_mode") and not is_seated and not is_manning_mg \
 			and not (health_system and health_system.is_downed):
 		_toggle_photo_mode()
 	if _photo_mode:
@@ -954,6 +1068,12 @@ func _physics_process(delta: float) -> void:
 
 	_update_suppression(minf(delta, 0.066))
 	_tick_hunger(delta)
+
+	# On the gun: glued to the stand, kit frozen, view arc-clamped - but STILL firing
+	# (weapon_holder is not gated on is_manning_mg). Handle its own dismount and stop.
+	if is_manning_mg:
+		_tick_mg_manning(delta)
+		return
 
 	# Seated (Huey ride): follow the seat, keep head-look, skip movement.
 	if is_seated:

@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdiagfsb1"]
-
-[ext_resource type="Script" path="res://tools/diag_fsb.gd" id="1_dfsb"]
-
-[node name="DiagFsb" type="Node"]
-script = ExtResource("1_dfsb")

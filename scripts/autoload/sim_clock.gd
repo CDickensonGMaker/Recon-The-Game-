@@ -17,7 +17,6 @@ var sim_hour: float = 6.0
 var sim_day: int = 1
 var real_to_sim_ratio: float = 60.0
 var paused: bool = false
-var debug_bt: bool = false
 
 # Schedules are read on sim_hour change. Each entry is {day, hour, kind, payload}
 # with day == -1 meaning "every day". Tests can pre-fill schedules before

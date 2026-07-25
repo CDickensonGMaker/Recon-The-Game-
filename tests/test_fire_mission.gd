@@ -123,8 +123,15 @@ func _tear_down(r: Rig) -> void:
 	for n in [r.rto, r.squad, r.director, r.terrain, r.player]:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
-	CombatManager.clear_all_projectiles()
+	_clear_projectiles()
 	await get_tree().physics_frame
+
+
+func _clear_projectiles() -> void:
+	if CombatManager.projectile_pool != null:
+		CombatManager.projectile_pool.clear_all()
+	if CombatManager.bullets != null:
+		CombatManager.bullets.clear_all()
 
 
 ## ---------------- 1. arming is free ----------------
@@ -288,7 +295,7 @@ func _test_pool_never_recycles_a_live_warhead() -> void:
 	_ok(shell != null and bullet != null, "the warhead profiles load")
 	if shell == null:
 		return
-	CombatManager.clear_all_projectiles()
+	_clear_projectiles()
 	var warhead: ProjectileBase = CombatManager.spawn_projectile(shell, null, Vector3(0, 300, 0), Vector3.DOWN)
 	_ok(warhead != null and warhead.is_active, "a shell is in the air")
 	# Swamp the pool well past its cap.
@@ -301,7 +308,7 @@ func _test_pool_never_recycles_a_live_warhead() -> void:
 		and warhead.is_active and warhead.projectile_data != null \
 		and warhead.projectile_data.id == "mortar_81mm"
 	_ok(still_a_shell, "the shell SURVIVED the flood - it will still land where the ring was drawn")
-	CombatManager.clear_all_projectiles()
+	_clear_projectiles()
 	await get_tree().physics_frame
 
 

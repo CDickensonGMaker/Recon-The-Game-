@@ -36,7 +36,6 @@ enum State { STOWED, HELD }
 @export_range(0.5, 0.99) var taut_at: float = 0.75
 
 var state: State = State.STOWED
-var holder: Node3D = null
 
 var _was_taut: bool = false
 
@@ -53,7 +52,6 @@ func can_take() -> bool:
 func take(by: Node3D) -> bool:
 	if state != State.STOWED or by == null:
 		return false
-	holder = by
 	state = State.HELD
 	_apply_state()
 	handset_taken.emit(by)
@@ -64,7 +62,6 @@ func take(by: Node3D) -> bool:
 func stow() -> void:
 	if state == State.STOWED:
 		return
-	holder = null
 	state = State.STOWED
 	_was_taut = false
 	cord_taut.emit(false)
@@ -99,3 +96,56 @@ func _physics_process(_delta: float) -> void:
 	if taut != _was_taut:
 		_was_taut = taut
 		cord_taut.emit(taut)
+
+
+## Build the RTO's radio rig: the stowed handset bound to the man's own prc25_handset
+## mesh, a procedural cord over placeholder marker anchors, and the handset itself
+## stamped on the RTO as meta "handset" for the player's interact to find. Returns the
+## handset (already a child of `rto`), or null if the body carries no prc25_handset
+## mesh. ONE builder - the arena and the squad both call it, so the rig never forks.
+static func attach_to(rto: AllyBase) -> RadioHandset:
+	if rto == null:
+		return null
+	var ma := rto.sprite_actor as ModelActor
+	if ma == null:
+		return null
+	var root: Node3D = ma.instance_root()
+	if root == null:
+		return null
+	var stowed: MeshInstance3D = _find_mesh_named(root, "prc25_handset")
+	if stowed == null:
+		push_warning("[RADIO] RTO body has no prc25_handset mesh - no handset to grab")
+		return null
+	var port := Marker3D.new()
+	rto.add_child(port)
+	port.position = Vector3(0.0, 1.25, -0.18)   # radio on his back
+	var guide := Marker3D.new()
+	rto.add_child(guide)
+	guide.position = Vector3(0.16, 1.4, -0.05)   # over the left shoulder
+	var stow_ep := Marker3D.new()
+	rto.add_child(stow_ep)
+	stow_ep.position = Vector3(0.14, 1.2, -0.12)  # at the stowed handset
+	var cord := RadioCord.new()
+	cord.port = port
+	cord.guide = guide
+	cord.endpoint = stow_ep
+	rto.add_child(cord)
+	var handset := RadioHandset.new()
+	handset.stowed_mesh = stowed
+	handset.cord = cord
+	handset.stowed_endpoint = stow_ep
+	rto.add_child(handset)
+	rto.set_meta("handset", handset)
+	return handset
+
+
+## First MeshInstance3D under `root` whose name contains `needle`, or null.
+static func _find_mesh_named(root: Node, needle: String) -> MeshInstance3D:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D and String(n.name).contains(needle):
+			return n as MeshInstance3D
+		for c in n.get_children():
+			stack.append(c)
+	return null

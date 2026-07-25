@@ -97,7 +97,6 @@ static func target_height(unit_id: String) -> float:
 
 
 var unit: String = ""
-var norm_k: float = 1.0   ## normalization scale applied to the instance (ADR-002)
 ## Bind-to-rest size ratio: gib donor meshes store BIND-space verts while the man
 ## renders at REST scale, so GibSystem scales spawned pieces by this to make a
 ## popped forearm match the arm it came off. 1.0 on healthy exports.
@@ -203,7 +202,6 @@ func _normalize_height() -> void:
 			var toe_y: float = (to_inst * _skel.get_bone_global_rest(toe).origin).y
 			if top_y - toe_y > 0.01:
 				var k: float = target / (top_y - toe_y)
-				norm_k = k
 				var bind_aabb := _aabb_of(_inst)
 				if bind_aabb.size.y > 0.01:
 					gib_scale = clampf((top_y - toe_y) / bind_aabb.size.y, 0.05, 1.0)
@@ -214,7 +212,6 @@ func _normalize_height() -> void:
 	var aabb := _aabb_of(_inst)
 	if aabb.size.y > 0.01:
 		var k2: float = target / aabb.size.y
-		norm_k = k2
 		_inst.scale = Vector3(k2, k2, k2)
 		_inst.position.y = -aabb.position.y * k2
 		print("[MODEL] %s instance_h=%.2f k=%.3f (AABB fallback - no usable rig)" % [unit, aabb.size.y, k2])
@@ -562,18 +559,34 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 		return false
 	if not ResourceLoader.exists(RAGDOLL_SCENE_PATH):
 		return false
-	stop_anim()  # the clip must stop driving bone poses before the sim starts
 	var sim := (load(RAGDOLL_SCENE_PATH) as PackedScene).instantiate() as PhysicalBoneSimulator3D
 	_skel.add_child(sim)
-	_ragdoll_sim = sim
-	# A corpse must not collide with ITSELF: joints only exclude ADJACENT pairs,
-	# so overlapping non-adjacent capsules (stacked spine, arm-vs-torso)
-	# de-penetrate violently every frame and the body flails. Full mutual
-	# exception = calm body; limbs may clip the torso, which is fine at PSX.
 	var bones: Array = []
 	for c in sim.get_children():
 		if c is PhysicalBone3D:
 			bones.append(c)
+	# PROVE the sim will drive THIS rig before committing. Its physical bones must
+	# resolve to real skeleton bones; on a rig-generation bone-name mismatch none
+	# bind, the sim never topples the body, and pausing the clip first would latch
+	# the corpse UPRIGHT (the "staggering back" bug). If nothing binds, abort with
+	# the clip STILL RUNNING so _die() falls back to a death clip / flat pose.
+	var bound: int = 0
+	for b in bones:
+		var pb: PhysicalBone3D = b as PhysicalBone3D
+		var bid: int = pb.get_bone_id()
+		if bid == -1:
+			bid = _skel.find_bone(pb.bone_name)
+		if bid != -1:
+			bound += 1
+	if bones.size() > 0 and bound == 0:
+		sim.queue_free()
+		return false
+	_ragdoll_sim = sim
+	stop_anim()  # binding proven - stop the clip before the sim drives the pose
+	# A corpse must not collide with ITSELF: joints only exclude ADJACENT pairs,
+	# so overlapping non-adjacent capsules (stacked spine, arm-vs-torso)
+	# de-penetrate violently every frame and the body flails. Full mutual
+	# exception = calm body; limbs may clip the torso, which is fine at PSX.
 	for i in range(bones.size()):
 		for j in range(i + 1, bones.size()):
 			(bones[i] as PhysicalBone3D).add_collision_exception_with(bones[j] as PhysicalBone3D)
@@ -622,6 +635,23 @@ func ground_current_pose() -> void:
 		lo = minf(lo, (_skel.global_transform * _skel.get_bone_global_pose(bi).origin).y - base)
 	if lo < INF and absf(lo) > 0.05:
 		_inst.position.y -= lo - 0.02
+
+
+## Guaranteed prone corpse for the NON-ragdoll death path: snap to the flat end
+## frame of a death clip so a janky or latched clip can never leave a man standing
+## or mid-stagger. Falls back to grounding whatever pose is showing. No-op while
+## the body is ragdolling. (stuck-stagger fix)
+func settle_flat_corpse() -> void:
+	if _ragdoll_sim != null:
+		return
+	var posed: bool = false
+	for c in clip_names():
+		if String(c).begins_with("death") and pose_end_of(String(c)):
+			posed = true
+			break
+	if not posed:
+		stop_anim()
+	ground_current_pose()
 
 
 ## Any death clip this rig can actually play (shared library included) - the
@@ -737,7 +767,7 @@ const _CLIP_SPEED: Dictionary = {
 	"run_forward": 4.2, "run_forward_left": 4.0, "run_forward_right": 4.0,
 	"run_left": 2.8, "run_right": 2.8,
 	"run_backward": 2.4, "run_backward_left": 2.4, "run_backward_right": 2.4,
-	"sprint_forward": 5.5, "strafe": 2.5, "strafe_1": 2.5, "strafe_2": 2.5,
+	"sprint_forward": 5.5,
 	"walk_forward": 1.6, "walk_left": 1.4, "walk_right": 1.4,
 	"walk_backward": 1.3, "start_walking": 1.6,
 	"injured_walk_backwards": 1.2,

@@ -9,15 +9,6 @@ enum DamageType {
 	FIRE
 }
 
-## Status conditions
-enum Condition {
-	NONE,
-	BLEEDING,
-	BURNING,
-	SUPPRESSED,
-	STUNNED
-}
-
 ## Weapon firing modes
 enum FiringMode {
 	SEMI_AUTO,
@@ -56,7 +47,6 @@ enum AIGoal {
 	FLANK_TARGET,   # Move to side/behind target
 	ADVANCE,        # Push forward aggressively
 	RETREAT,        # Fall back to safer position
-	REGROUP,        # Move toward allies
 	INVESTIGATE     # Check last known enemy position
 }
 

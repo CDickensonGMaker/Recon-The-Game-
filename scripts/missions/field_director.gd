@@ -106,7 +106,6 @@ func _process_escalation(delta: float) -> void:
 	for i in range(count):
 		var pos := base + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
 		var hunter := spawn_tracked_enemy(pos, "res://data/enemies/nva_regular.tres", "hunters")
-		hunter.add_to_group("hunters")
 		# They come looking: seed their search at your last position.
 		hunter.last_known_target_pos = world.player.global_position
 		hunter.target_last_seen_time = 0.0
@@ -139,7 +138,6 @@ func _on_player_died() -> void:
 const SKYRAIDER_SCENE := preload("res://scenes/vehicles/skyraider.tscn")  # A-1, dive-bomb
 const F4_SCENE := preload("res://scenes/vehicles/f4_phantom.tscn")  # F-4, fast horizontal flyby
 
-var cas_budget: int = 0
 var _cas_cooldown: float = 0.0
 
 

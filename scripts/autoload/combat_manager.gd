@@ -300,11 +300,3 @@ func spawn_projectile(data: ProjectileData, source: Node, spawn_position: Vector
 		push_warning("[CombatManager] Projectile pool not initialized!")
 		return null
 	return projectile_pool.spawn(data, source, spawn_position, direction, target)
-
-
-## Clear all active projectiles
-func clear_all_projectiles() -> void:
-	if projectile_pool:
-		projectile_pool.clear_all()
-	if bullets:
-		bullets.clear_all()

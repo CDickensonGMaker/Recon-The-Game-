@@ -17,10 +17,6 @@ var helicopters_present: int = 0
 var _check_timer: float = 0.0
 
 
-func _ready() -> void:
-	add_to_group("landing_zones")
-
-
 func _physics_process(delta: float) -> void:
 	_check_timer += delta
 	threat_level = maxf(0.0, threat_level - THREAT_DECAY * delta)
@@ -52,9 +48,3 @@ func is_hot() -> bool:
 
 func can_land() -> bool:
 	return helicopters_present < capacity
-
-
-func get_landing_position() -> Vector3:
-	var a := randf_range(0.0, TAU)
-	var r := randf_range(0.0, lz_radius * 0.3)
-	return global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)

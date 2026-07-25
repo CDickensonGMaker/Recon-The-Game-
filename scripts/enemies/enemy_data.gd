@@ -44,11 +44,10 @@ extends Resource
 @export_range(0.0, 1.0) var determination: float = 0.5
 
 @export_group("Visuals")
-## 8-directional billboard sprites, NOT a GLTF. Resolves to
-## res://assets/NPCs/<sprite_faction>/<sprite_unit>/<sprite_weapon>/<action>/
-## Leave sprite_unit empty to keep the capsule placeholder.
-## NOTE the hard pairing: each unit was rendered holding exactly one weapon, so
-## sprite_weapon and weapon_path must be kept consistent by hand.
+## Keys for 3D ModelActor clip resolution: SpriteStateMap.clip_for(faction, unit,
+## weapon, intent) picks the anim_library clip; ModelActor.model_exists(sprite_unit)
+## gates the rig, falling back to sprite_unit_fallback then the capsule placeholder.
+## NOTE the hard pairing: sprite_weapon and weapon_path must be kept consistent by hand.
 @export var sprite_faction: String = ""   ## "Vietcong and NVA"
 @export var sprite_unit: String = ""      ## "vc_guerilla"
 ## ART-AHEAD WIRING: what he wears until `sprite_unit` actually exists on disk.

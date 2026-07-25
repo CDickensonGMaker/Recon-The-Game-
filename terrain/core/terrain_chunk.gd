@@ -10,7 +10,6 @@ var grid_resolution: int = 128  # Vertices per side (256m / 2m)
 var mesh_instance: MeshInstance3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
-var is_loaded: bool = false
 ## Handed down from HeightmapStorage at build time - never authored here.
 var height_scale: float = TerrainConfig.WORLD_HEIGHT_MAX
 
@@ -113,8 +112,6 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 	if not shared_material:
 		_create_shared_material()
 	mesh_instance.material_override = shared_material
-
-	is_loaded = true
 
 	print("[TerrainChunk] Chunk %s mesh built: %d vertices" % [coord, vertices.size()])
 
@@ -240,4 +237,3 @@ func unload() -> void:
 	if collision_body:
 		collision_body.queue_free()
 		collision_body = null
-	is_loaded = false

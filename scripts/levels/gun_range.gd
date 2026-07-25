@@ -42,7 +42,6 @@ func _build_lane() -> void:
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1
 	floor_body.collision_mask = 0
-	floor_body.add_to_group("nav_source")
 	var mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(LANE_W, 1200.0)

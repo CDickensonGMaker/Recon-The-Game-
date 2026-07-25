@@ -140,7 +140,6 @@ static func _build_paddy_field(
 	var pf: PaddyFieldScript = PaddyFieldScript.new()
 	pf.paddy_id = StringName("paddy_%d" % [rng.randi()])
 	pf.world_position = Vector3(world_x, world_y, world_z)
-	pf.centroid_local = Vector3(world_x, 0.0, world_z)
 	pf.cell_count = count
 	pf.bounds_min = Vector2i(min_x, min_z)
 	pf.bounds_max = Vector2i(max_x, max_z)

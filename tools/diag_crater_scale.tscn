@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdiagcraterscl"]
-
-[ext_resource type="Script" path="res://tools/diag_crater_scale.gd" id="1_dcsc"]
-
-[node name="DiagCrater" type="Node"]
-script = ExtResource("1_dcsc")

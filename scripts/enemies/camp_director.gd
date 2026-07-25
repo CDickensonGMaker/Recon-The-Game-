@@ -35,10 +35,6 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var on_guard: Array = []     ## Array[EnemyBase] - those exempt from schedule
 const ALWAYS_GUARD: int = 1  ## one man always on guard at the post
 
-## Patrol anchor (an additional waypoint spawned at mission start). Optional.
-var patrol_anchor: Vector3 = Vector3.ZERO
-var has_patrol_anchor: bool = false
-
 ## Hour at which we last swapped roles. Bumping this avoids re-issuing anims
 ## every frame when the schedule hasn't actually changed.
 var _last_swap_hour: int = -1
@@ -79,7 +75,6 @@ static func attach(world: Node, mean_pos: Vector3, members: Array, rng_seed: int
 		var route: Array[Vector3] = PatrolGenerator.generate(
 			grid, mean_pos, 5, paddy_centroids, cd.rng)
 		if route.size() >= 2:
-			cd.set_patrol_anchor(route[1])
 			for i in range(mini(3, members.size())):
 				var m: Object = members[i]
 				if m != null and is_instance_valid(m) and m is EnemyBase:
@@ -146,13 +141,6 @@ func _stations_for_role(role: String) -> Array:
 		"talk", "rest":
 			return work_stations
 	return []
-
-
-## Called by an external patrol generator (Step 9) at mission start. The director
-## rotates soldiers through this waypoint over the day.
-func set_patrol_anchor(anchor: Vector3) -> void:
-	patrol_anchor = anchor
-	has_patrol_anchor = true
 
 
 ## SimClock is an AUTOLOAD with no class_name (sim_clock.gd:5) - it is absent

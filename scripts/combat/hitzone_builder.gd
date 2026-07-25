@@ -515,7 +515,6 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 		groups: Array[String], hull: PackedVector3Array = PackedVector3Array()) -> void:
 	# Measured baselines, stashed so the bench can compute save-deltas.
 	var base_radius: float = radius
-	var base_height: float = height
 	var base_offset: Vector3 = bone_offset
 	# Bench overrides win over measurement, key by key (radius/height absolute,
 	# offset is a delta on the measured bone offset).
@@ -537,7 +536,6 @@ static func _zone(body: Node3D, skel: Skeleton3D, entries: Array, tuning: Hitzon
 	hz.set_owner_entity(body)
 	hz.set_meta("region", region)
 	hz.set_meta("base_radius", base_radius)
-	hz.set_meta("base_height", base_height)
 	hz.set_meta("base_offset", base_offset)
 	hz.set_meta("rot_deg", rot_deg)
 	var bi: int = skel.find_bone(bone)

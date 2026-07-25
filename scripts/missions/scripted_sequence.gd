@@ -52,7 +52,6 @@ var _ally_orders: Dictionary = {}  ## instance_id -> {"mode": int, "pos": Vector
 
 
 func _ready() -> void:
-	add_to_group("scripted_sequences")
 	set_physics_process(false)
 	if auto_start:
 		start.call_deferred()

@@ -72,7 +72,7 @@ var _deform_queue: Array[Dictionary] = []
 const MAX_DEFORMS_PER_MISSION: int = 40
 var _deforms_this_mission: int = 0
 
-# Reference to terrain manager (set by terrain_lab)
+# Set by game_world during world build.
 var terrain_manager: Node
 var vegetation_manager: Node
 

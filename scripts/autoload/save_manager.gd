@@ -24,10 +24,9 @@ enum Tier { REGULAR, HARD, IRONMAN }
 var context: String = "menu"
 ## Hub board state, maintained by GameFlow (operation seed/name, offers, accepted).
 var hub_snapshot: Dictionary = {}
-## Sections stashed by load_game() for GameFlow to consume once the world exists.
+## Section stashed by load_game() for GameFlow to consume once the world exists.
 ## Deferred-apply: NEVER apply a position into a dead scene.
 var pending_player: SaveData.PlayerSection = null
-var pending_hub: SaveData.HubSection = null
 
 var _autosave_t: float = 0.0
 var _session_started_ms: int = 0
@@ -181,8 +180,9 @@ func load_game(slot: int) -> SaveData:
 	return s
 
 
-## Apply everything that is safe WITHOUT a live world; stash the rest for
-## GameFlow (pending_player / pending_hub, applied after the hub spawns).
+## Apply everything that is safe WITHOUT a live world: the hub section lands in
+## hub_snapshot (enter_hub reads operation seed/name from it); the player section
+## is stashed for GameFlow (pending_player, applied after the hub spawns).
 func apply(s: SaveData) -> void:
 	# Load-safety: reset interaction state before touching anything.
 	GameManager.is_paused = false
@@ -191,7 +191,6 @@ func apply(s: SaveData) -> void:
 	CampaignState.save_campaign()
 	hub_snapshot = s.hub.to_dict()
 	pending_player = s.player
-	pending_hub = s.hub
 
 
 ## Restore the player's carried state + position. Called by GameFlow after the

@@ -4,9 +4,6 @@ class_name DestructibleVehicle
 extends StaticBody3D
 
 
-var is_destroyed: bool = false
-
-
 static func create(parent: Node, model_path: String, world_pos: Vector3, rotation_deg: float, terrain: TerrainManager) -> DestructibleVehicle:
 	var model_name := model_path.get_file().get_basename()
 	var entry: Dictionary = CollisionTable.get_entry(model_name)

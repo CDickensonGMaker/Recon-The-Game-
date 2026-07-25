@@ -231,7 +231,6 @@ var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter 
 ## not ice-skate. Allies default aggressive, so low_posture is a high bar below.
 const CROUCH_SPEED_CAP: float = 1.9
 const COVER_EXIT_DEBOUNCE_MS: float = 1500.0
-const LOW_POSTURE_SUPPRESS: float = 0.6  # heavy pin; allies have no SUPPRESSED state
 ## Cover-arrival posture. A controlled crouch-down is the default; the dive-roll
 ## is the rare exception, rationed so a whole squad never rolls in unison.
 const STAND_COVER_CLIPS: Array[String] = ["stand_to_cover", "stand_to_cover_2", "stand_to_cover_3"]
@@ -585,6 +584,8 @@ func _update_line_of_sight() -> void:
 	var target_pos := target.global_position + Vector3.UP * 1.0
 
 	has_line_of_sight = CombatManager.has_line_of_sight(eye_pos, target_pos, [self])
+	if has_line_of_sight:
+		has_line_of_sight = SightCap.has_terrain_los(_sight_grid(), eye_pos, target_pos)
 
 	if has_line_of_sight:
 		target_last_seen_time = 0.0
@@ -1177,7 +1178,7 @@ func _die() -> void:
 		# other model: explosion kill -> multi-gib + flung ragdoll; clean kill
 		# -> ragdoll (dead weight); gibbed kill -> death clip (ragdoll fallback).
 		var ma := sprite_actor as ModelActor
-		if _killed_explosive and _visual_is_model and ma != null:
+		if (_killed_explosive or GibSystem.force_all_gibs) and _visual_is_model and ma != null:
 			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
 		elif _visual_is_model and ma != null and _removed.is_empty() \
 				and ma.start_ragdoll(last_hit_dir, 4.5):
@@ -1190,6 +1191,14 @@ func _die() -> void:
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
+			# GUARANTEED FLOOR (stuck-stagger fix): after the clip's fall, if the body
+			# never ragdolled, snap it flat so a janky/latched death clip cannot leave
+			# it standing or mid-stagger.
+			if _visual_is_model and ma != null:
+				var mac: ModelActor = ma
+				get_tree().create_timer(1.5).timeout.connect(func() -> void:
+					if is_instance_valid(mac) and not mac.has_ragdoll():
+						mac.settle_flat_corpse())
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

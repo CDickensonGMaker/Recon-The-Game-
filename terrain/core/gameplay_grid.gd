@@ -455,23 +455,6 @@ func update_region(center: Vector3, radius_meters: float) -> void:
 		radius_meters * 2.0, radius_meters * 2.0))
 
 
-func mark_cleared(center: Vector3, radius_meters: float) -> void:
-	var g_center := world_to_grid(center)
-	var g_radius: int = int(ceil(radius_meters / cell_size_meters))
-
-	for gz in range(g_center.y - g_radius, g_center.y + g_radius + 1):
-		for gx in range(g_center.x - g_radius, g_center.x + g_radius + 1):
-			if gx < 0 or gx >= grid_size or gz < 0 or gz >= grid_size:
-				continue
-
-			var dist: float = Vector2(gx - g_center.x, gz - g_center.y).length()
-			if dist <= g_radius:
-				var idx: int = _grid_to_index(gx, gz)
-				terrain_type[idx] = TerrainType.CLEAR
-				vegetation_density[idx] = 0.0
-				is_passable[idx] = 1
-
-
 ## Honesty mirror for veg density-center boosts (asr5/y5ad): the AI sight cap
 ## reads THIS grid, so a visually thickened ring must raise it too. The clearing
 ## mask stays a hard minimum (a cleared pad never gains phantom concealment) and

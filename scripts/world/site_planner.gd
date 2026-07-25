@@ -318,7 +318,6 @@ func _stamp_village_props(center: Vector3, footprint_r: float, rng: RandomNumber
 				apos, rng.randf_range(0.0, 360.0))
 			if animal == null:
 				continue
-			animal.add_to_group("village_animals")
 			_play_idle(animal)
 			prop_nodes.append(animal)
 	return {"nodes": prop_nodes, "stations": stations}
@@ -690,6 +689,28 @@ func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 			"res://assets/world/building models/structures/vc_nva/spider_hole.glb",
 			sp, rng.randf_range(0, 360)))
 	var site := {"kind": "vc_camp", "center": center, "nodes": nodes, "radius": 16.0}
+	placed_sites.append(site)
+	return site
+
+
+const TEMPLE_MODEL: String = "res://assets/world/building models/structures/ruins/cham_temple_ruin.glb"
+const TEMPLE_ACCENT_MODEL: String = "res://assets/world/building models/structures/temple/ruins_corner.glb"
+
+
+## Forgotten Cham shrine: a small overgrown ruin, no garrison. The temple body
+## joins "temple_shrines" - player.gd's [F] SEARCH THE SHRINE reads that group
+## by distance to the body's origin, so the group node must be the temple root.
+func stamp_temple_shrine(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
+	clear_and_flatten(center, 10.0)
+	var nodes: Array[Node3D] = []
+	var temple: Node3D = place_structure(TEMPLE_MODEL, center, rng.randf_range(0.0, 360.0))
+	temple.add_to_group("temple_shrines")
+	nodes.append(temple)
+	for i in range(2):
+		var a: float = TAU * float(i) / 2.0 + rng.randf_range(-0.5, 0.5)
+		var pos: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(7.0, 11.0)
+		nodes.append(place_structure(TEMPLE_ACCENT_MODEL, pos, rad_to_deg(a) + rng.randf_range(-30.0, 30.0)))
+	var site := {"kind": "temple", "center": center, "nodes": nodes, "radius": 12.0}
 	placed_sites.append(site)
 	return site
 

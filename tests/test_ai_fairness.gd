@@ -87,7 +87,6 @@ func _ready() -> void:
 	if farmer.current_goal != Enums.AIGoal.SEEK_COVER:
 		_bad("fresh contact in the open should SEEK_COVER, got %d" % farmer.current_goal)
 	farmer.has_cover = true
-	farmer.cover_quality = 0.7
 	farmer.current_cover = farmer.global_position
 	farmer.goal_timer = 1.0
 	farmer.current_goal = Enums.AIGoal.NONE

@@ -57,7 +57,6 @@ var _sight_dwell_acc: float = 0.0
 
 
 func _ready() -> void:
-	add_to_group("mission_triggers")
 	monitorable = false
 	monitoring = true
 	collision_layer = 0

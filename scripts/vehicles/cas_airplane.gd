@@ -6,7 +6,7 @@ extends Node3D
 
 
 enum Ordnance { BOMB, NAPALM, CBU }
-enum Phase { APPROACH, DIVE, RELEASE, CLIMB, DONE }
+enum Phase { APPROACH, DIVE, CLIMB, DONE }
 
 const APPROACH_ALT: float = 80.0
 const RELEASE_ALT: float = 30.0
@@ -182,10 +182,12 @@ func _release(shell_path: String, pos: Vector3, terminal: Callable) -> Projectil
 
 func _drop_bomb() -> void:
 	_release(BOMB_SHELL, _target, func(impact: Vector3) -> void:
-		CombatManager.apply_explosion_damage(impact, 220, 60, FirePlan.BOMB_BLAST_M, null)
-		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0)
+		# Visual + suppression FIRST so a throw in the terrain/veg damage step can
+		# never abort the fireball (the "plane flew by, no explosion" bug).
 		GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
-		CombatManager.apply_suppression_in_area(impact, FirePlan.BOMB_SUPPRESS_M, 1.0))
+		CombatManager.apply_suppression_in_area(impact, FirePlan.BOMB_SUPPRESS_M, 1.0)
+		CombatManager.apply_explosion_damage(impact, 220, 60, FirePlan.BOMB_BLAST_M, null)
+		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0))
 
 
 func _drop_napalm_strip() -> void:

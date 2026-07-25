@@ -461,18 +461,6 @@ func is_water(world_x: float, world_z: float) -> bool:
 	return water_map[cz * water_map_size + cx] > 0
 
 
-## Get water type at a world position (returns WaterBodyData.Type)
-func get_water_type(world_x: float, world_z: float) -> int:
-	var cx: int = int(floor(world_x / water_map_cell_size))
-	var cz: int = int(floor(world_z / water_map_cell_size))
-
-	if cx < 0 or cx >= water_map_size or cz < 0 or cz >= water_map_size:
-		return WaterBodyDataClass.Type.NONE
-
-	var byte_value: int = water_map[cz * water_map_size + cx]
-	return byte_value & 0x07  # Bottom 3 bits
-
-
 ## Get water depth at a world position (meters, 0 if not in water)
 func get_water_depth(world_x: float, world_z: float) -> float:
 	var cx: int = int(floor(world_x / water_map_cell_size))

@@ -76,7 +76,7 @@ static func request_hot(who: Object) -> bool:
 	if _hot.has(id):
 		return true
 	_prune_hot()
-	if _hot.size() >= HOT_CAP:
+	if _hot.size() >= mini(HOT_CAP, HOT_CEILING):
 		return false
 	_hot[id] = true
 	return true

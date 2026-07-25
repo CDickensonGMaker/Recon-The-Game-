@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdiagvegseat1"]
-
-[ext_resource type="Script" path="res://tools/diag_veg_seat.gd" id="1_dvgs"]
-
-[node name="DiagVegSeat" type="Node"]
-script = ExtResource("1_dvgs")

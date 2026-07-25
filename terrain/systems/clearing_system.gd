@@ -58,7 +58,7 @@ var vegetation_size: int = 512
 
 var clearing_texture: Image
 
-# Reference to terrain manager (set by terrain_lab)
+# Set by game_world during world build.
 var terrain_manager: Node
 
 

@@ -44,9 +44,6 @@ func _spawn_men() -> void:
 		# at 5m. Without it an ambient friendly is an unnamed silhouette in US
 		# green - the blue-on-blue the r4bk affordance exists to prevent.
 		man.member = SquadRoster.generate_member(_rng, mos_pool[i % mos_pool.size()])
-		man.add_to_group("friendly_patrol")
-		if not group_tag.is_empty():
-			man.add_to_group(group_tag)
 		_men.append(man)
 	_peak = _men.size()
 	# AllyBase defaults to FOLLOW (ally_base.gd:152), which walks to the player.

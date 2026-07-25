@@ -124,10 +124,7 @@ func _dispatch(kind: String) -> void:
 	var node: Node3D = _spawn_transit(kind, from, to)
 	if node == null:
 		return
-	var id: int = _roster(kind, node, from, to, "transit")
-	var heli := node as Helicopter
-	if heli != null:
-		heli.traffic_flight_id = id
+	_roster(kind, node, from, to, "transit")
 
 
 func _roster(kind: String, node: Node3D, from: Vector3, to: Vector3, phase: String) -> int:
@@ -256,8 +253,7 @@ func _dispatch_lz_cycle(kind: String) -> void:
 	inbound.y = _ground_at(inbound) + heli.cruise_altitude
 	heli.global_position = inbound
 	heli.setup(_terrain())
-	var id: int = _roster(kind, heli, inbound, lz.global_position, "inbound")
-	heli.traffic_flight_id = id
+	_roster(kind, heli, inbound, lz.global_position, "inbound")
 	var f: Dictionary = _in_flight[_in_flight.size() - 1]
 	var out_ang: float = rng.randf_range(0.0, TAU)
 	f["exit"] = lz.global_position + Vector3(cos(out_ang), 0.0, sin(out_ang)) * m * 0.55
