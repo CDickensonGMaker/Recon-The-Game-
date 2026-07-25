@@ -447,6 +447,8 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			_launch_flyby(target, CASAirplane.Ordnance.CBU, run_dir)
 			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
 			_radio_vo("cbu_cluster")
+		"wp":
+			_run_wp_mission(target)
 	# Learn-by-doing: the radioman gets better at calling fire the more he does it.
 	if _rto != null:
 		var fp: int = SquadRoster.credit_use(_rto.member, "fo_fac", 2)
@@ -593,6 +595,45 @@ func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 			randf_range(-FirePlan.MORTAR_SHEAF_M, FirePlan.MORTAR_SHEAF_M) * scat)
 		get_tree().create_timer(3.0 + float(i)).timeout.connect(
 			func() -> void: _fire_shell(MORTAR_SHELL, round_pos, _mortar_impact.bind(1.0)))
+
+
+## WHITE PHOSPHORUS - a screening/marking round: a white smoke bloom + a light incendiary
+## bite. Same shell arc as the mortar (not the arty sheaf); the impact effect is what
+## differs. Uses only the confirmed blast/FX/noise verbs, and a self-lit smoke puff (no
+## real light, ADR-026).
+func _run_wp_mission(target: Vector3) -> void:
+	toast.emit("WILLY PETE - SHOT OUT (%d left)" % int(fire_support.get("wp", 0)))
+	_radio_vo("mortar_mission")
+	_fire_shell(MORTAR_SHELL, target, _wp_impact)
+
+
+func _wp_impact(pos: Vector3) -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	var ground := pos
+	ground.y = world.terrain_manager.get_height_at(pos)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	CombatManager.apply_explosion_damage(ground, 40, 20, 8.0, null)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
+	var smoke := CPUParticles3D.new()
+	smoke.one_shot = true
+	smoke.amount = 48
+	smoke.lifetime = 3.5
+	smoke.explosiveness = 0.4
+	smoke.direction = Vector3.UP
+	smoke.spread = 55.0
+	smoke.initial_velocity_min = 2.0
+	smoke.initial_velocity_max = 6.0
+	smoke.gravity = Vector3(0.0, 1.2, 0.0)
+	smoke.scale_amount_min = 1.2
+	smoke.scale_amount_max = 3.0
+	smoke.color = Color(0.95, 0.95, 0.92, 0.9)
+	get_tree().current_scene.add_child(smoke)
+	smoke.global_position = ground + Vector3(0.0, 1.0, 0.0)
+	smoke.emitting = true
+	get_tree().create_timer(6.0).timeout.connect(func() -> void:
+		if is_instance_valid(smoke):
+			smoke.queue_free())
 
 
 ## Put a real round in the air onto `impact`. The gun is off the map, so the shell

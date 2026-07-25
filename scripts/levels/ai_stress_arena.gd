@@ -51,57 +51,9 @@ class ArenaGrid extends GameplayGrid:
 			(grid_pos.y + 0.5) * cell_size_meters - off)
 
 
-## Inert GameWorld host for the fire-support testbed. FieldDirector.world is typed
-## GameWorld and the arena is not one; ArenaFireWorld IS-A GameWorld with its terrain
-## generation disabled. FieldDirector reads only .terrain_manager / .player / .map_size
-## and .add_child() from it, all set by _wire_fire_support().
-class ArenaFireWorld extends GameWorld:
-	func _ready() -> void:
-		pass  # no terrain/veg/water build; NOT added to the "game_world" group (the arena is)
-
-
-## Flat terrain for the fire-support host. The arena floor is y=0 and uses CENTRED
-## coordinates (-ARENA/2..+ARENA/2), which a real heightmap (indexed 0..map_size) reads
-## out of bounds; this returns the floor for any coordinate and never allocates or
-## samples a heightmap. FieldDirector seats its impacts through this.
-class ArenaFlatTerrain extends TerrainManager:
-	func _ready() -> void:
-		pass  # skip heightmap allocation - get_height_at is a constant
-
-	func get_height_at(_world_pos: Vector3) -> float:
-		return 0.0
-
-	func get_normal_at(_world_pos: Vector3) -> Vector3:
-		return Vector3.UP
-
-	func modify_terrain(_center: Vector3, _radius_meters: float, _modifier: Callable) -> void:
-		pass
-
-
-## A fortification segment (sandbag wall or barbwire) that an explosion tears out,
-## leaving a real gap in the line. Registered as an AgentRegistry PROP so the existing
-## blast loop (combat_manager.gd:178-185) damages it - no bespoke damage code. Static
-## world/nav geometry (hard cover, blocks LOS, bakes into the navmesh) until it is blown.
-class DestructibleFortification extends StaticBody3D:
-	var kind: String = ""
-	var hp: int = 110
-	var _destroyed: bool = false
-
-	## The one damage grammar as a receiver (ADR-003): the same verb every body answers
-	## to. Only explosions reach it - it carries no Hitzone, so rifle fire is merely
-	## blocked by the collider (cover), never destroying the wall.
-	func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
-		if _destroyed:
-			return
-		hp -= amount
-		if hp <= 0:
-			_blow()
-
-	func _blow() -> void:
-		_destroyed = true
-		AgentRegistry.unregister(self)
-		GunFX.impact(get_tree().current_scene, global_position + Vector3.UP * 0.3, Vector3.UP, true)
-		queue_free()
+## The fire-support rig — inert GameWorld host, flat terrain, and the destructible fort
+## segment — now lives in FireSupportBench (ADR-023: one rig, shared by this arena and the
+## support-fire range). Reference them as FireSupportBench.DestructibleFortification etc.
 
 
 const ARENA: float = 200.0
@@ -117,8 +69,9 @@ const FORT_LINE_Z1: float = 52.0
 const FORT_SEG_LEN: float = 2.6
 const FORT_SANDBAG_HP: int = 120
 const FORT_WIRE_HP: int = 70
-const BARBWIRE_MODEL: String = "res://assets/world/structures/emplacements/barbwire_card.glb"
-const MG_NEST_MODEL: String = "res://assets/world/building models/structures/emplacements_real/mg_nest_sandbag.glb"
+const BARBWIRE_MODEL: String = "res://assets/world/building models/structures/emplacements_real/barbwire_tangle.glb"
+const FORT_BUNKER_MODEL: String = "res://assets/world/building models/structures/bunker.glb"
+const FORT_BUNKER_HP: int = 220
 const ARENA_SAPPER_COUNT: int = 3
 const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he sees it happen
 const TUNNEL_POS: Vector3 = Vector3(-15.0, 0.0, 45.0)
@@ -179,10 +132,18 @@ const VC_PATHS: Array[String] = [
 ## patrol -> alert -> combat naturally through perception (US via contact_conf,
 ## VC via the arena spotting feed into the awareness accumulator + return fire).
 @export var patrol_mode: bool = true
-## Night lighting + dense jungle + billboards + flares/fires + the live profiling
-## overlay. The playable bench boots with this ON; headless behaviour/perf probes set
-## it OFF so they measure the bare arena they were written against.
-@export var bench_dressing: bool = true
+## Independent arena content layers - all default OFF, so the arena boots as a bare
+## walled room (floor + walls + combatants). Flip either on to stage a firefight with
+## physical cover and/or dense vegetation, so a newly-wired system's reaction to each
+## can be isolated. ps2_perf_probe.gd turns both on for the full perf-bench scene.
+@export var spawn_cover: bool = false          ## firebase, fortifications, village, ridge, wrecks, cover clusters
+@export var spawn_vegetation: bool = false     ## tree lines, planted rice/palms, dense jungle, ground plants
+## Night lighting + flares/campfires + the live profiling overlay. Default OFF; the
+## perf probe sets it ON. Scene content is the two toggles above, not this flag.
+@export var bench_dressing: bool = false
+## Lab gore crank: force EVERY death to pop regions + every head hit to burst, so all
+## model rigs (US/VC/NVA variants) can be confirmed to gib. Reset on leaving the arena.
+@export var force_gib: bool = true
 
 ## --- TUNING LEVERS (arena-local, do not leak into campaign) ---
 ## AI health scaling. Controls how long AI-vs-AI fights last.
@@ -288,10 +249,7 @@ var _dbg_im: ImmediateMesh = null
 
 ## Fortification / sapper / fire-support testbed state.
 var _forts: Array[Node3D] = []          ## live DestructibleFortification segments
-var _fire_world: GameWorld = null       ## inert host for the FieldDirector
-var _fire_terrain: TerrainManager = null  ## cheap flat terrain (get_height_at -> 0)
-var _field_director: FieldDirector = null
-var _fire_squad: SquadSystem = null
+var _field_director: FieldDirector = null  ## the bench director (FireSupportBench.wire)
 var _sapper_auto_t: float = SAPPER_AUTO_DELAY
 var _sapper_auto_done: bool = false
 var _toast_label: Label = null          ## r4bk: the RTO net's calls must be VISIBLE
@@ -307,6 +265,7 @@ func _ready() -> void:
 	if mirror_mode:
 		EnemySquad.tiering_enabled = false
 	GibSystem.gib_lifetime_s = 25.0
+	GibSystem.force_all_gibs = force_gib  # crank gore in the lab so every rig's gib can be confirmed
 	# The arena is the tuning lab for the one firefight-length dial (C2).
 	GameSettings.ai_vs_ai_cone_mult = ai_vs_ai_cone_mult
 
@@ -453,23 +412,26 @@ func _build_environment() -> void:
 	_lights_root = Node3D.new()
 	_lights_root.name = "BenchLights"
 	add_child(_lights_root)
+	_build_floor()
+	_build_walls()
+	# Bare walled room; each content layer below is an independent toggle (see exports).
 	if bench_dressing:
 		MissionWeather.is_night = true
 		_build_night_env()
-	_build_floor()
-	_build_walls()
-	_build_firebase()
-	_build_fortifications()
-	_place_tunnel_entrance()
-	_build_village()
-	_build_central_ridge()
-	_build_tree_lines()
-	_build_wrecked_cover()
-	_build_cover_clusters()
-	_plant_vegetation()
-	if bench_dressing:
+	if spawn_cover:
+		_build_firebase()
+		_build_fortifications()
+		_place_tunnel_entrance()
+		_build_village()
+		_build_central_ridge()
+		_build_wrecked_cover()
+		_build_cover_clusters()
+	if spawn_vegetation:
+		_build_tree_lines()
+		_plant_vegetation()
 		_build_jungle()
 		_scatter_ground_plants()
+	if bench_dressing:
 		_build_campfires()
 
 
@@ -1250,61 +1212,11 @@ func _spawn_player_rto() -> void:
 	rto.member = {"nick": "SPARKS", "mos": "RTO"}
 	rto.set_sprite("us_grunt_rto", "m16a1", "US")
 	rto.set_order(AllyBase.OrderMode.FOLLOW)
-	var handset := _attach_radio_to_rto(rto)
+	var handset := RadioHandset.attach_to(rto)
 	if handset != null:
 		player.call("bind_radio_handset", handset)
 	print("[AI STRESS ARENA] player RTO spawned (commandable, PRC-25 %s)"
 			% ("wired" if handset != null else "MISSING"))
-
-
-## Build a RadioHandset on this RTO, its stowed handset bound to the man's own
-## prc25_handset mesh and a procedural cord run over root-child markers (placeholder
-## anchors until the real handset art is bone-attached). Returns the handset, stamped
-## on the RTO as meta "handset" for the player's interact to find.
-func _attach_radio_to_rto(rto: AllyBase) -> RadioHandset:
-	var ma := rto.sprite_actor as ModelActor
-	if ma == null:
-		return null
-	var root: Node3D = ma.instance_root()
-	if root == null:
-		return null
-	var stowed: MeshInstance3D = _find_mesh_named(root, "prc25_handset")
-	if stowed == null:
-		push_warning("[ARENA] RTO body has no prc25_handset mesh - no handset to grab")
-		return null
-	var port := Marker3D.new()
-	rto.add_child(port)
-	port.position = Vector3(0.0, 1.25, -0.18)   # radio on his back
-	var guide := Marker3D.new()
-	rto.add_child(guide)
-	guide.position = Vector3(0.16, 1.4, -0.05)   # over the left shoulder
-	var stow_ep := Marker3D.new()
-	rto.add_child(stow_ep)
-	stow_ep.position = Vector3(0.14, 1.2, -0.12)  # at the stowed handset
-	var cord := RadioCord.new()
-	cord.port = port
-	cord.guide = guide
-	cord.endpoint = stow_ep
-	rto.add_child(cord)
-	var handset := RadioHandset.new()
-	handset.stowed_mesh = stowed
-	handset.cord = cord
-	handset.stowed_endpoint = stow_ep
-	rto.add_child(handset)
-	rto.set_meta("handset", handset)
-	return handset
-
-
-## First MeshInstance3D under `root` whose name contains `needle`, or null.
-func _find_mesh_named(root: Node, needle: String) -> MeshInstance3D:
-	var stack: Array[Node] = [root]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		if n is MeshInstance3D and String(n.name).contains(needle):
-			return n as MeshInstance3D
-		for c in n.get_children():
-			stack.append(c)
-	return null
 
 
 ## ---------- FORTIFICATION TESTBED ----------
@@ -1321,14 +1233,19 @@ func _build_fortifications() -> void:
 			_spawn_fort_wire(pos)
 		z += FORT_SEG_LEN
 		i += 1
-	# The DEFERRED mannable M60: placed as the future mount, a static sandbag emplacement
-	# prop ONLY. No manning, no firing (Summoner's decree).
-	_place_mg_nest(Vector3(FORT_LINE_X - 1.2, 0.0, FORT_LINE_Z1 + 2.5))
-	print("[AI STRESS ARENA] fortifications: %d destructible segments + MG nest prop" % _forts.size())
+	# Two bunkers anchor the line as tougher demolition targets (sapper variety).
+	_spawn_fort_bunker(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z0 + 4.0))
+	_spawn_fort_bunker(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z1 - 4.0))
+	# Two mannable M60 posts, both facing downrange (east) where the sappers cross:
+	# the NORTH nest stands up its own AI gun crew, the SOUTH nest waits for the
+	# player - one testbed, both manning paths (Phase 4).
+	_place_mg_nest(Vector3(FORT_LINE_X - 1.2, 0.0, FORT_LINE_Z1 + 2.5), true)
+	_place_mg_nest(Vector3(FORT_LINE_X - 1.2, 0.0, FORT_LINE_Z0 - 2.5), false)
+	print("[AI STRESS ARENA] fortifications: %d destructible segments + 2 mannable M60 nests" % _forts.size())
 
 
 func _spawn_fort_sandbag(pos: Vector3) -> void:
-	var fort := DestructibleFortification.new()
+	var fort := FireSupportBench.DestructibleFortification.new()
 	fort.kind = "sandbag"
 	fort.hp = FORT_SANDBAG_HP
 	fort.collision_layer = 1
@@ -1356,7 +1273,7 @@ func _spawn_fort_sandbag(pos: Vector3) -> void:
 
 
 func _spawn_fort_wire(pos: Vector3) -> void:
-	var fort := DestructibleFortification.new()
+	var fort := FireSupportBench.DestructibleFortification.new()
 	fort.kind = "wire"
 	fort.hp = FORT_WIRE_HP
 	fort.collision_layer = 1
@@ -1381,19 +1298,52 @@ func _spawn_fort_wire(pos: Vector3) -> void:
 	_forts.append(fort)
 
 
-func _place_mg_nest(pos: Vector3) -> void:
-	if not ResourceLoader.exists(MG_NEST_MODEL):
-		return
-	var body := StaticBody3D.new()
-	body.collision_layer = 1
-	body.collision_mask = 0
-	body.add_to_group("nav_source")
-	var packed: PackedScene = load(MG_NEST_MODEL)
-	var vis := packed.instantiate() as Node3D
-	if vis != null:
-		body.add_child(vis)
-	add_child(body)
-	body.global_position = pos
+func _spawn_fort_bunker(pos: Vector3) -> void:
+	var fort := FireSupportBench.DestructibleFortification.new()
+	fort.kind = "bunker"
+	fort.hp = FORT_BUNKER_HP
+	fort.collision_layer = 1
+	fort.collision_mask = 0
+	fort.add_to_group("nav_source")
+	fort.add_to_group("arena_fortification")
+	if ResourceLoader.exists(FORT_BUNKER_MODEL):
+		var packed: PackedScene = load(FORT_BUNKER_MODEL)
+		var vis := packed.instantiate() as Node3D
+		if vis != null:
+			fort.add_child(vis)
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(3.0, 2.2, 3.0)
+	cs.shape = box
+	cs.position.y = 1.1
+	fort.add_child(cs)
+	add_child(fort)
+	fort.global_position = pos
+	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
+	_forts.append(fort)
+
+
+## A real mannable M60 post (MGEmplacement builds its own sandbag/pintle/stand).
+## man_with_ai stands up a promoted gun crew on it; otherwise it waits for [F].
+func _place_mg_nest(pos: Vector3, man_with_ai: bool = false) -> void:
+	var emp := MGEmplacement.create(self, pos, Vector3(1.0, 0.0, 0.0))
+	if man_with_ai:
+		_spawn_mg_gunner(emp)
+
+
+## Stand up an AI gun crew and put it on the gun. It is a normal AllyBase holding
+## its own post + intent (Pillar 4) - the emplacement just gives it the M60 and
+## points it at its sector; acquire and fire stay the man's own.
+func _spawn_mg_gunner(emp: MGEmplacement) -> void:
+	var ally := AllyBase.spawn_ally(self, emp.gunner_stand_pos())
+	ally.squad_member = false
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(hash(Vector2i(int(emp.global_position.x), int(emp.global_position.z))))
+	ally.member = SquadRoster.generate_member(rng, "MG")
+	if _field_director != null:
+		ally.director = _field_director
+	ally.set_order(AllyBase.OrderMode.HOLD, emp.gunner_stand_pos())
+	emp.man_by_ai(ally)
 
 
 func _place_tunnel_entrance() -> void:
@@ -1417,48 +1367,9 @@ func _place_tunnel_entrance() -> void:
 func _wire_fire_support() -> void:
 	if player == null:
 		return
-	# A flat terrain for the delivery code to seat explosions on (arena floor y=0).
-	var tm := ArenaFlatTerrain.new()
-	tm.name = "ArenaFireTerrain"
-	add_child(tm)
-	_fire_terrain = tm
-	var fw := ArenaFireWorld.new()
-	fw.name = "ArenaFireWorld"
-	add_child(fw)
-	fw.terrain_manager = tm
-	fw.player = player
-	fw.map_size = ARENA
-	_fire_world = fw
-	# The net is a MAN: a SquadSystem holding the arena RTO so member_by_mos finds him
-	# and the 10m radio leash is real. setup() is NOT called (it would spawn a fresh
-	# 8-man squad); the existing SPARKS is appended, matching the sapper probe rig.
-	var ss := SquadSystem.new()
-	ss.name = "ArenaFireSquad"
-	add_child(ss)
-	# setup() is skipped, so its update loops (contact barks, break checks, revive) have
-	# no world/director and would fault. member_by_mos reads the array directly and needs
-	# no ticking - freeze it so it is only a radio-roster holder.
-	ss.set_physics_process(false)
-	ss.set_process(false)
-	for r in get_tree().get_nodes_in_group("radioman"):
-		if r is AllyBase and is_instance_valid(r):
-			ss.members.append(r as AllyBase)
-			break
-	_fire_squad = ss
-	var d := FieldDirector.new()
-	d.name = "ArenaFieldDirector"
-	add_child(d)
-	d.setup(fw)
-	d.squad_system = ss
-	d.toast.connect(_on_director_toast)
-	# Stocked so every tier is callable: T opens the net, 1 bombs / 2 napalm / 3 arty /
-	# 4 mortar / 5 spectre / 6 CBU (Y is the mortar shortcut).
-	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spectre": 9, "cbu": 9}
-	# No escalation hunters in the bench: an empty pool keeps _process_escalation from
-	# spawning NVA and from reading world.map_size on the inert host.
-	d._hunter_pool = 0
-	_field_director = d
-	print("[AI STRESS ARENA] fire support wired - RTO net live, all six tiers stocked")
+	_field_director = FireSupportBench.wire(self, player, ARENA)
+	_field_director.toast.connect(_on_director_toast)
+	print("[AI STRESS ARENA] fire support wired via FireSupportBench - RTO net live")
 
 
 func _on_director_toast(text: String) -> void:
@@ -1889,6 +1800,7 @@ func _print_final_summary() -> void:
 
 
 func _exit_tree() -> void:
+	GibSystem.force_all_gibs = false  # lab-only crank; never leak into a real mission
 	# MissionWeather.is_night is a global static; the bench set it, the bench clears it.
 	if bench_dressing:
 		MissionWeather.is_night = false

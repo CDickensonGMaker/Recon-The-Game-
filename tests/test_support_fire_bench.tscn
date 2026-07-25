@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://csupportfirebench1"]
+
+[ext_resource type="Script" path="res://tests/test_support_fire_bench.gd" id="1_sfb"]
+
+[node name="TestSupportFireBench" type="Node"]
+script = ExtResource("1_sfb")
