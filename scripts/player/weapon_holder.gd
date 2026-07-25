@@ -36,7 +36,6 @@ const ADS_SPEED: float = 10.0
 const BASE_FOV: float = 75.0
 
 ## Firing state
-var is_firing: bool = false
 var can_fire: bool = true
 var fire_timer: float = 0.0
 
@@ -86,6 +85,55 @@ func equip_captured_weapon(data: WeaponData) -> void:
 		weapon_switched.emit(current_weapon)
 		magazine_changed.emit(current_ammo, spare_magazines)
 
+## Mounted-gun state: the primary slot the emplacement borrowed, restored on dismount.
+var _mounted_snapshot: Dictionary = {}
+
+
+## Swap the rifle for a fixed mount's weapon (its OWN belt, not the player's mags).
+## The emplacement drives this on man; unmount_gun() restores the rifle exactly.
+func mount_gun(data: WeaponData) -> void:
+	if data == null or not _mounted_snapshot.is_empty():
+		return
+	_mounted_snapshot = {
+		"weapon": primary_weapon,
+		"ammo": primary_ammo.duplicate(),
+		"captured": primary_is_captured,
+	}
+	is_switching = false
+	is_reloading = false
+	is_aiming = false
+	current_slot = 0
+	primary_weapon = data
+	primary_ammo = [data.magazine_size, 99]   # belt-fed: effectively fed by the post
+	primary_is_captured = false
+	current_weapon = data
+	current_ammo = primary_ammo[0]
+	spare_magazines = primary_ammo[1]
+	_load_weapon_model(current_weapon)
+	weapon_switched.emit(current_weapon)
+	magazine_changed.emit(current_ammo, spare_magazines)
+
+
+func unmount_gun() -> void:
+	if _mounted_snapshot.is_empty():
+		return
+	primary_weapon = _mounted_snapshot["weapon"] as WeaponData
+	primary_ammo = _mounted_snapshot["ammo"]
+	primary_is_captured = bool(_mounted_snapshot["captured"])
+	_mounted_snapshot = {}
+	is_switching = false
+	is_reloading = false
+	is_aiming = false
+	# Come off the gun with the rifle up (slot 0), matching equipment_manager.
+	current_slot = 0
+	current_weapon = primary_weapon
+	current_ammo = primary_ammo[0]
+	spare_magazines = primary_ammo[1]
+	_load_weapon_model(current_weapon)
+	weapon_switched.emit(current_weapon)
+	magazine_changed.emit(current_ammo, spare_magazines)
+
+
 ## Reload state
 var is_reloading: bool = false
 var reload_timer: float = 0.0
@@ -109,8 +157,6 @@ const PITCH_OFFSET_FORWARD: float = 0.15  ## How much to move weapon forward
 var ray_origin: Vector3
 var ray_end: Vector3
 
-## Viewmodel scaling
-const BASE_VIEWMODEL_SCALE: float = 0.1  ## Base scale applied to all viewmodels
 
 func _ready() -> void:
 	camera = get_parent() as Camera3D
@@ -169,20 +215,17 @@ func _handle_input() -> void:
 
 	if controller and "is_seated" in controller and controller.is_seated:
 		is_aiming = false
-		is_firing = false
 		return
 
 	# A downed man does not return fire while waiting on Doc.
 	if controller and controller.has_method("is_dead") and controller.is_dead():
 		is_aiming = false
-		is_firing = false
 		return
 
 	# Block input if not on weapon slot (grenade/medkit selected)
 	var on_weapon_slot: bool = not equipment_manager or equipment_manager.is_weapon_slot()
 	if not on_weapon_slot:
 		is_aiming = false
-		is_firing = false
 		return
 
 	# On the radio (fire-support menu open) OR holding the RTO's handset: the rifle
@@ -195,8 +238,6 @@ func _handle_input() -> void:
 
 	if Input.is_action_pressed("fire") and not is_reloading and not on_radio:
 		_try_fire()
-	else:
-		is_firing = false
 
 	if Input.is_action_just_pressed("reload") and not is_reloading:
 		_start_reload()
@@ -642,11 +683,11 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 
 func _start_reload() -> void:
 	if is_jammed:
-		# Clearing a jam is a quick tap-rack, not a full mag swap.
 		is_jammed = false
 		_clearing_jam = true
 		is_reloading = true
-		reload_timer = 1.1
+		# ADR-018: the authored time, always. Handling is not a stat.
+		reload_timer = current_weapon.jam_clear_time
 		is_aiming = false
 		reload_started.emit()
 		return
@@ -669,7 +710,8 @@ func _update_reload(delta: float) -> void:
 		return
 
 	reload_timer -= delta
-	var progress: float = 1.0 - (reload_timer / current_weapon.reload_time)
+	var active_time: float = current_weapon.jam_clear_time if _clearing_jam else current_weapon.reload_time
+	var progress: float = 1.0 - (reload_timer / active_time)
 	reload_progress.emit(progress)
 
 	if reload_timer <= 0:
