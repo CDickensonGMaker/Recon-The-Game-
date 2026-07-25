@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cobservationroom0"]
+
+[ext_resource type="Script" path="res://scripts/levels/observation_room.gd" id="1_obr"]
+
+[node name="ObservationRoom" type="Node3D"]
+script = ExtResource("1_obr")

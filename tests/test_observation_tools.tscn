@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cobservationtools1"]
+
+[ext_resource type="Script" path="res://tests/test_observation_tools.gd" id="1_obs"]
+
+[node name="TestObservationTools" type="Node"]
+script = ExtResource("1_obs")
