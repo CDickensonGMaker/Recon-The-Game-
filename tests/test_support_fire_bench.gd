@@ -92,9 +92,14 @@ func _probe_rig_extracted_not_cloned() -> void:
 	if arena.find("FireSupportBench.wire") == -1:
 		_fail("the arena no longer delegates to FireSupportBench.wire")
 	var bench: String = _read("res://scripts/levels/fire_support_bench.gd")
-	for owned in ["class BenchWorld", "class BenchTerrain", "class DestructibleFortification", "static func wire"]:
+	for owned in ["class BenchWorld", "class BenchTerrain", "static func wire"]:
 		if bench.find(owned) == -1:
 			_fail("fire_support_bench.gd is missing '%s'" % owned)
+	# DestructibleFortification folded into the general Destructible (ADR-023) — no second path.
+	if bench.find("class DestructibleFortification") != -1:
+		_fail("DestructibleFortification still defined in fire_support_bench — must fold into Destructible")
+	if not FileAccess.file_exists("res://scripts/world/destructible.gd"):
+		_fail("the general Destructible component is missing")
 
 
 ## Willy Pete is a real deliverable kind, not just a dict entry.

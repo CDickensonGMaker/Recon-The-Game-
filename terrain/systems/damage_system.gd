@@ -173,6 +173,9 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 ## the perf floor (ADR-031/ADR-026). WorldConfig.TERRAIN_DEFORMS_PER_FRAME is the knob; the
 ## off-switch (TERRAIN_HOLES_ENABLED) stops digs entering the queue in the first place.
 func _process(_delta: float) -> void:
+	# One drainer for both throttles (ADR-031: DamageSystem is the destruction authority).
+	# Structure destructions first — they may enqueue their own crater below.
+	Destructible.drain(maxi(0, WorldConfig.STRUCTURE_LEVELS_PER_FRAME))
 	if _deform_queue.is_empty() or terrain_manager == null or not is_instance_valid(terrain_manager):
 		return
 	var n: int = mini(maxi(1, WorldConfig.TERRAIN_DEFORMS_PER_FRAME), _deform_queue.size())

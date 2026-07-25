@@ -1245,7 +1245,7 @@ func _build_fortifications() -> void:
 
 
 func _spawn_fort_sandbag(pos: Vector3) -> void:
-	var fort := FireSupportBench.DestructibleFortification.new()
+	var fort := Destructible.new()
 	fort.kind = "sandbag"
 	fort.hp = FORT_SANDBAG_HP
 	fort.collision_layer = 1
@@ -1273,7 +1273,7 @@ func _spawn_fort_sandbag(pos: Vector3) -> void:
 
 
 func _spawn_fort_wire(pos: Vector3) -> void:
-	var fort := FireSupportBench.DestructibleFortification.new()
+	var fort := Destructible.new()
 	fort.kind = "wire"
 	fort.hp = FORT_WIRE_HP
 	fort.collision_layer = 1
@@ -1299,7 +1299,7 @@ func _spawn_fort_wire(pos: Vector3) -> void:
 
 
 func _spawn_fort_bunker(pos: Vector3) -> void:
-	var fort := FireSupportBench.DestructibleFortification.new()
+	var fort := Destructible.new()
 	fort.kind = "bunker"
 	fort.hp = FORT_BUNKER_HP
 	fort.collision_layer = 1

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cdestructible01"]
+
+[ext_resource type="Script" path="res://tests/test_destructible.gd" id="1_dst"]
+
+[node name="TestDestructible" type="Node"]
+script = ExtResource("1_dst")

@@ -30,26 +30,8 @@ class BenchTerrain extends TerrainManager:
 		pass
 
 
-## A destructible props-bus segment (sandbag / wire / bunker) an explosion tears out. The
-## existing blast loop (combat_manager.gd:178-185) damages it via AgentRegistry.props — no
-## bespoke damage code. Hard cover until blown. ADR-003: take_damage is the one grammar.
-class DestructibleFortification extends StaticBody3D:
-	var kind: String = ""
-	var hp: int = 110
-	var _destroyed: bool = false
-
-	func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
-		if _destroyed:
-			return
-		hp -= amount
-		if hp <= 0:
-			_blow()
-
-	func _blow() -> void:
-		_destroyed = true
-		AgentRegistry.unregister(self)
-		GunFX.impact(get_tree().current_scene, global_position + Vector3.UP * 0.3, Vector3.UP, true)
-		queue_free()
+## The destructible structure segment folded into the general Destructible (ADR-023) —
+## scripts/world/destructible.gd. spawn_fort() below builds one; there is no second path.
 
 
 ## Build the rig as children of `host`, wire the RTO net (needs a "radioman" already in the
@@ -90,8 +72,8 @@ static func wire(host: Node, player: CharacterBody3D, map_size: float) -> FieldD
 
 
 ## Create a destructible fort segment at `pos` and register it on the props blast bus.
-static func spawn_fort(host: Node, pos: Vector3, mesh: Mesh, box: Vector3, kind: String, hp: int) -> DestructibleFortification:
-	var fort := DestructibleFortification.new()
+static func spawn_fort(host: Node, pos: Vector3, mesh: Mesh, box: Vector3, kind: String, hp: int) -> Destructible:
+	var fort := Destructible.new()
 	fort.kind = kind
 	fort.hp = hp
 	fort.collision_layer = 1
