@@ -1,4 +1,8 @@
 # SYSTEMS DESIGNER — DRIFT AUDIT #2 (2026-07-10)
+
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `RECON_ADAPTATION.md` below are
+> historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon is
+> `production/GAME_GUIDE.md` + `production/adr/`.
 Lens: numbers and economies. Auditing compliance with the 2026-07-09 decree + doc↔code drift.
 All claims file:line grounded. No code modified.
 

@@ -1,5 +1,9 @@
 # GAME DESIGNER — The Living Fight: CoD 2000–2005 Deep Dive → RECONgame Open-AO Adaptation
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `MISSION_DESIGN_RESEARCH.md`
+> below are historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon
+> is `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Architect:** game_designer · **Lens:** encounter pacing + the living-fight fantasy
 **Date:** 2026-07-11 · **Session:** analysis_cod2000
 **Builds on (does not re-derive):** `MISSION_DESIGN_RESEARCH.md` (RTCW/MoHAA architecture, pacing grammar §9, alarm escalation §5.5, fairness §5.6) and `war_room/synthesis_ai_goals.md` (contact confidence, goal dwell, cover doctrine, personality spectrum, morale/rout, honest FF).

@@ -1,5 +1,9 @@
 # DRIFT COUNCIL — LEAD PROGRAMMER / GODOT SPECIALIST
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** The `STATE_OF_PROJECT.md` reference below is
+> historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon is
+> `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Charge:** Does the restructure hold? What did it silently break?
 **Method:** Read the code, ran the suite, wrote a probe (`tools/probe_drift_scale.gd`). Never the commit message.
 

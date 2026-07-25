@@ -1,5 +1,9 @@
 # THE DECREE — The Living Fight: CoD-2000 Techniques on Honest Finite Bones (2026-07-11)
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `MISSION_DESIGN_RESEARCH.md`
+> below are historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon
+> is `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Session:** analysis_cod2000 · Architects: game_designer, systems_designer, anim_director, devils_advocate
 **Arbiter synthesis.** Composes with the standing AI-goals decree (`synthesis_ai_goals.md`, 2026-07-10) —
 extensions and amendments are flagged explicitly in §4.

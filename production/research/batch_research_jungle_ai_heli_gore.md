@@ -7,6 +7,9 @@
 > **POINTER CORRECTION, 2026-07-23.** This document is LOG class — never cite it as authority. Its
 > `MISSION_DESIGN_RESEARCH.md` citations (`:142`, `:161`) are **dead**: that file was deleted on
 > purpose by the Summoner. Do not restore it or go looking for its sections.
+> **Banner extended (corrected 2026-07-25, ghost-code audit):** the same correction covers ALL
+> `MISSION_DESIGN_RESEARCH.md` mentions in this file, including §6's verdict and sources lines
+> (currently `:149` and `:168`) — every such citation is dead, not just the two line numbers above.
 
 ---
 

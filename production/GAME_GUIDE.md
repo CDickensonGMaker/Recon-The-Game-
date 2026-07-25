@@ -89,8 +89,9 @@ board the bird → MISSION → exfil → wheels-down back at base (HARD checkpoi
 
 Ratified retroactively **with binding conditions** (not yet met as of 2026-07-10):
 1. The TOC briefing must present the **RECON 7-element briefing** (insertion, fire support, enemy intel
-   with rolled accuracy, terrain & weather, objectives, special rules, extraction). The campaign path
-   currently skips BriefingScreen entirely.
+   with rolled accuracy, terrain & weather, objectives, special rules, extraction). There is no briefing
+   layer at all today — BriefingScreen was deleted by ADR-029 and `"PATROL"` is the only mission type the
+   generator produces (corrected 2026-07-25, ghost-code audit).
 2. The **live Huey insertion ride returns** to the campaign path (it is also the world-load mask, and the
    AA-threat economy's consumer).
 3. Prompt/input truth (ADR-012): prompts name the key the code listens for.

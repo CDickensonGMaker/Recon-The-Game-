@@ -7,6 +7,12 @@
 > `production/adr/ADR-029-amendments-008-006.md` (**DRAFT, awaiting Summoner ratification**), which
 > proposes voiding conditions 1 and 2.
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** Superseded in part by ADR-029. The briefing
+> symbols cited below — `launch_accepted()`, `BriefingScreen`, `show_briefing` and their
+> `game_flow.gd` line numbers — were deleted (commit 4d4fff2d) and no longer exist in code. The ADR
+> body is preserved unchanged as a historical record; do not treat its `game_flow.gd` citations as
+> live pointers.
+
 ## Context
 The 2026-07-09 decree ordered the HQ tent SHRUNK to a menu-first version. Roughly eight hours
 later, commit `4573616` ("PHASE B: the firebase-hub loop - operation -> live firebase -> TOC

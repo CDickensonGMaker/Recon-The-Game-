@@ -1,5 +1,9 @@
 # DEVIL'S ADVOCATE — CoD-2000 "Living Fight" Transplant (2026-07-11)
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `MISSION_DESIGN_RESEARCH.md`
+> below are historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon
+> is `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Lens:** attack the premise. **Canon read:** GAME_GUIDE.md (pillars, §4.1/4.3 deviations, §6 scope law,
 §8 build order), war_room/synthesis_ai_goals.md (the AI doctrine decree), MISSION_DESIGN_RESEARCH.md
 (the RTCW/MoHAA derivation — already covers most of what this query asks), enemy_base.gd /

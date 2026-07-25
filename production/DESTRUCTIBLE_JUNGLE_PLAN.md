@@ -85,7 +85,9 @@ The Blender window made these changes and could not execute them:
 - paddy **height terracing** (`paddy_terrace_step`);
 - paddy **edge-tile placement** (`_paddy_open_side()`, `INTERIOR_PADDIES`, `EDGE_PATCH`).
 
-Run `terrain/scenes/terrain_lab.tscn`, generate a paddy region, confirm:
+Run the live benches — `terrain_lab.tscn` was deleted; `scenes/levels/ai_stress_arena.tscn` /
+`scenes/levels/gun_range.tscn` are the current benches (corrected 2026-07-25, ghost-code audit).
+Generate a paddy region, confirm:
 - pans render as **water** (ripples/muck) — not a black quad, not nothing;
 - the `water` key parses as an **array** (it was a Dictionary until today — old parse code WILL break);
 - bunds meet across tile seams with no gap;

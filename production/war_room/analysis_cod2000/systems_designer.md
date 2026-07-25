@@ -1,5 +1,9 @@
 # SYSTEMS DESIGNER — CoD 2000–2005 "Living Fight" Mechanics Extraction
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `MISSION_DESIGN_RESEARCH.md`
+> below are historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon
+> is `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Architect:** systems_designer · **Session:** analysis_cod2000 · **Date:** 2026-07-11
 **Lens:** mechanisms only — what the machine actually did, what transplants into a finite-enemy open AO, what conflicts.
 **Read first:** `production/war_room/synthesis_ai_goals.md` (live AI doctrine), `MISSION_DESIGN_RESEARCH.md` (RTCW/MoHAA architecture — NOT re-derived here; this analysis extends it with the CoD-specific layer it deliberately skimmed: chatter, ally theater, spawner discipline, suppression theater).

@@ -39,8 +39,10 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 
 
 ## 6. IN-GAME VERIFICATION PASSES (you play, I fix live via MCP)
-- [ ] **The new loop**: NEW CAMPAIGN → pick operation → firebase → TOC briefing → board bird →
-      mission → exfil → back at base → quit → CONTINUE puts you back at the base
+- [ ] **The patrol loop (ADR-029)**: NEW CAMPAIGN → seated at `fsb_main` → out the wire gate on one
+      diegetic pointer → find a site unguided → fair contact → squad holds → AAR banks at the gate
+      (`_bank_patrol`, `scripts/missions/field_director.gd:1066`) → quit → CONTINUE puts you back at the
+      firebase. No briefing UI, no board-bird, no exfil step (ADR-029).
 - [ ] F5 quicksave / F9 quickload · rations [9] · weapon cleaning [0] when it fouls
 - [ ] Tiny-units hunt: play near spawns, I read the [MODEL] prints
 - [ ] Squad keys: F1-F4 vs the new C/H/X/N — which works on your keyboard?
@@ -102,3 +104,15 @@ in the sections above; this is the extra stuff. Rule on the flagged one when you
   Not mentioned in either current source-of-truth doc; flag it — is this still a direction you want, or
   is it dropped?
 
+
+## From ghost-code audit 2026-07-25
+
+Three roadmap seeds surfaced by the audit (corrected 2026-07-25, ghost-code audit). **Corpse-drag
+mechanic** — the ragdoll half already exists (`model_actor.gd:674 ragdoll_bone`, `:682 wake_ragdoll`);
+the grab mechanic that would use it was never built. Roadmap item, not cleanup. **Squad-regroup
+behavior** — the `AIGoal.REGROUP` enum member was cut by ruling 7/25 (never scored, set, or matched),
+but the behavior it named ("isolated soldier rejoins his squad") remains a valid future feature if
+squad cohesion ever needs it. **Temple/shrine art gap** — the shrine-search intel feature is fully
+coded player-side but no temple site is ever generated and no shrine model joins the `temple_shrines`
+group; if the shrine-wiring agent reports an art gap (no temple/shrine model exists), that asset is
+the missing third leg.

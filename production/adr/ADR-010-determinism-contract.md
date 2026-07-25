@@ -1,6 +1,12 @@
 # ADR-010: Per-mission determinism + MissionScope reset registry
 **Date:** 2026-07-10 · **Status:** Accepted (War Room audit #2) · **Supersedes/Amends:** Ratifies (retroactively) the unratified determinism/teardown work shipped in the long window (ROADMAP.md:7); amends CLAUDE.md's silence on RNG discipline; codifies lead_programmer.md canon items 7, 8, and 10 into law.
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** `MissionOffers.roll()` / `mission_offers.gd`,
+> cited throughout this ADR, were deleted by ADR-029 (the open-patrol pivot). The determinism
+> contract itself still stands — one seed per operation, global RNG seeded at mission start,
+> MissionScope as the mandatory static registry. Treat the `mission_offers.gd` citations as
+> historical evidence, not live pointers.
+
 ## Context
 GameFlow builds mission after mission in one process (`scripts/main/game_flow.gd:1-4`). Two failure classes emerged from that architecture. First, **randomness scatter**: Godot auto-randomizes the global RNG at startup, and most gameplay draws from it — enemy personality, crippled/surrender rolls, exfil-bird shootdown, insertion crash, hunter escalation, ordnance dispersion (`game_flow.gd:96-101`). Unseeded, no mission was reproducible; the HARD-tier wheels-down checkpoint (`game_flow.gd:110-114`) is only a valid resume point because "offer + carried state" fully reconstructs a world, which requires the world to be a pure function of its seed. Second, **static leakage**: class statics and autoload state survive `_teardown_world()`, so mission 5 inherited mission 1's world — probe-proven leaks included `MissionDirector.any_fire_menu_open` killing every kit key for the session after dying with [T] open, `DamageSystem` craters floating over a different heightmap, `GunFX._sting_cooldown_until` muting the CONTACT drum for the first 25s of the next mission, and stale `EnemySquad` AABBs placing mission 5's enemies in mission 1's village (`scripts/main/mission_scope.gd:5-19,40`).
 

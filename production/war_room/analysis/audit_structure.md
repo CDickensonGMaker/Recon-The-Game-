@@ -255,6 +255,11 @@ canon. Root holds **16 `.md` files**; `production/` holds another **20** plus `a
 
 Worse — **`CLAUDE.md` itself contradicts ADR-014.** It says:
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** `STATE_OF_PROJECT.md`, `MISSION_DESIGN_RESEARCH.md`,
+> and `RECON_ADAPTATION.md` were deleted by decree 2026-07-23. Do not seek them, do not restore them.
+> Canon is `production/GAME_GUIDE.md` + `production/adr/`. The quote below is a historical snapshot of
+> the old CLAUDE.md, kept as evidence for this analysis.
+
 > **Read these before designing anything:** `DESIGN.md`, `STATE_OF_PROJECT.md`,
 > `MISSION_DESIGN_RESEARCH.md`, `RECON_ADAPTATION.md`
 

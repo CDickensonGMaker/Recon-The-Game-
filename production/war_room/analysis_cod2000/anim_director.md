@@ -1,5 +1,9 @@
 # ANIM DIRECTOR — CoD-2000 "Living Fight" Deep Dive: Animation as Battle Theater
 
+> **BANNER (corrected 2026-07-25, ghost-code audit):** References to `MISSION_DESIGN_RESEARCH.md`
+> below are historical; that doc was deleted on purpose 2026-07-23. Do not seek or restore it. Canon
+> is `production/GAME_GUIDE.md` + `production/adr/`.
+
 **Architect:** anim_director (animation / technical direction lens)
 **Date:** 2026-07-11
 **Query:** How CoD 1/UO/2 (and the MoHAA/RTCW lineage) used ANIMATION to build the sense of a
