@@ -1267,7 +1267,7 @@ func _set_goal(new_goal: Enums.AIGoal) -> void:
 func _update_state_for_goal() -> void:
 	match current_goal:
 		Enums.AIGoal.ENGAGE_TARGET:
-			if suppression_level > 0.7:
+			if suppression_level > CombatPosture.SUPPRESS_PIN:
 				_change_state(Enums.AIState.SUPPRESSED)
 			else:
 				_change_state(Enums.AIState.COMBAT)
@@ -2412,7 +2412,13 @@ func _die() -> void:
 			var to_attacker: Vector3 = -last_hit_dir
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 			var intent: String = "death_right" if from_right else "death_forward"
-			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
+			# A man who died LOW dies low: the authored crouch death outranks the
+			# standing picks. Rigs without the clip fall through to them.
+			var played: Variant = false
+			if _low_posture and _visual_is_model and ma != null:
+				played = ma.play("death_crouching_headshot_front", true)
+			if played is bool and not played:
+				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
 			# DEAD MEN FALL, whatever the export shipped: mapped clip -> any death clip
 			# in the library -> ragdoll.
 			if played is bool and not played and _visual_is_model and ma != null:

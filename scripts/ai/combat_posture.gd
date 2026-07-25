@@ -9,6 +9,7 @@ extends RefCounted
 enum Posture { STAND, CROUCH }
 
 const CROUCH_SUPPRESS: float = 0.6   # a heavy pin crouches anyone, even mid-push
+const SUPPRESS_PIN: float = 0.7      # engaged + above this = the SUPPRESSED freeze (both factions)
 const COVER_CROUCH_RANGE: float = 3.0  # start crouching within this of the cover point
 
 static func decide(state: int, suppression: float, near_cover: bool) -> int:

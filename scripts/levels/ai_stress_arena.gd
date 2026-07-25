@@ -1945,11 +1945,13 @@ func _accum_suppression_time(delta: float, us_sup: float, vc_sup: float) -> void
 
 
 func _count_retreats() -> void:
-	# Count agents currently in RETREAT state. This is a point-in-time sample,
-	# reset each telemetry bucket.
+	# Point-in-time sample, reset each telemetry bucket. Allies hold no RETREAT
+	# goal by design (no ally rout doctrine): their break-contact truth is the
+	# heavy-pin SUPPRESSED state or a broken squad.
 	for squad in _us_squads:
 		for agent in squad:
-			if is_instance_valid(agent) and not agent.is_dead() and agent.current_goal == Enums.AIGoal.RETREAT:
+			if is_instance_valid(agent) and not agent.is_dead() \
+					and (agent.current_state == Enums.AIState.SUPPRESSED or agent.squad_broken):
 				_us_retreats += 1
 	for squad in _vc_squads:
 		for agent in squad:

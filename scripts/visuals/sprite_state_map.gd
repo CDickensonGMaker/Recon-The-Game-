@@ -92,10 +92,10 @@ static func _intent_core(state: int, is_crippled: bool, is_surrendered: bool,
 			return "idle"
 
 
-## Remap a standing-locomotion intent to its crouch-walk equivalent. Poses that
-## are not locomotion (fire, cover, death, crippled, surrender, reload) pass
-## through untouched. sprint/sneak_l/sneak_r stay upright: a rushing man is not
-## low, and a sneaker already has the cover_sneak lateral clips.
+## Remap a standing intent to its crouch equivalent (locomotion, aim/fire, and
+## the suppressed "cover" hunker). death/crippled/surrender pass through
+## untouched. sprint/sneak_l/sneak_r stay upright: a rushing man is not low, and
+## a sneaker already has the cover_sneak lateral clips.
 static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 	match intent:
 		"run", "walk", "patrol", "aim_walk", "arrive":
@@ -126,7 +126,7 @@ static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 ## and map an intent straight to a clip they are guaranteed to have.
 const MODEL_CLIP: Dictionary = {
 	"idle": "idle_aiming", "aim": "idle_aiming",
-	"fire": "firing_rifle", "reload": "reloading",
+	"fire": "firing_rifle",
 	"run": "run_forward",
 	"walk": "walk_forward", "patrol": "walk_forward",
 	"aim_walk": "walk_forward",  # dedicated aimed-walk clip on the art wishlist
@@ -135,7 +135,6 @@ const MODEL_CLIP: Dictionary = {
 	"retreat": "injured_walk_backwards", "crippled": "injured_walk_backwards",
 	"surrender": "kneeling_pointing",
 	"death_forward": "death_forward", "death_right": "death_from_right",
-	"flinch": "rifle_aiming_idle",
 	"sprint": "sprint_forward",
 	"sneak_l": "cover_sneak_left", "sneak_r": "cover_sneak_right",
 	"arrive": "run_to_stop",

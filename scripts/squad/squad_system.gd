@@ -402,7 +402,7 @@ func _contact_barks() -> void:
 		return
 	var in_combat: int = 0
 	for a in members:
-		if is_instance_valid(a) and not a.is_dead() and a.current_state == Enums.AIState.COMBAT:
+		if is_instance_valid(a) and not a.is_dead() and a.current_state in [Enums.AIState.COMBAT, Enums.AIState.ADVANCING, Enums.AIState.SUPPRESSED]:
 			in_combat += 1
 	if in_combat > 0 and _last_combat_count == 0:
 		_bark_cooldown = 8.0

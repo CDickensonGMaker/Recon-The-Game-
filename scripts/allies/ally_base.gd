@@ -247,6 +247,9 @@ var _cover_arrivals: int = 0
 const COVER_HOLD_CLIPS: Array[String] = ["idle_crouching_aiming", "kneeling_pointing", "idle_crouching", "rifle_aiming_idle"]
 const COVER_PEEK_CLIPS: Array[String] = ["idle_aiming", "rifle_aiming_idle", "firing_rifle"]
 const RUSH_CLIPS: Array[String] = ["sprint_forward", "run_forward", "start_walking"]
+## The clip THIS rush wears, picked once at rush start so the whole set gets play.
+var _rush_clip: String = ""
+var _rush_count: int = 0
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -404,7 +407,11 @@ func _update_sprite() -> void:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 		return
 	_low_posture = _is_low_posture(firing)
-	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, false, _low_posture)
+	# Sneak family: the quiet move to cover BEFORE contact. Allies have no alert
+	# tier (enemy gate: tier <= SUSPICIOUS); "no target yet" is their equivalent.
+	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
+		and target == null and _near_cover()
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture)
 	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:
@@ -609,6 +616,20 @@ func _evaluate_goals() -> void:
 	else:
 		_contact_time = 0.0
 
+	# HEAVY PIN: the shared CombatPosture.SUPPRESS_PIN gate that flips an engaged
+	# enemy into SUPPRESSED. Checked every think OUTSIDE the goal dwell, exactly
+	# as the enemy side rechecks it - enter above the gate, exit when decay
+	# clears it. Relocating under this much fire is how men die; the lighter
+	# suppression band below still routes to cover.
+	if target != null and is_instance_valid(target) \
+			and suppression_level > CombatPosture.SUPPRESS_PIN:
+		current_goal = Enums.AIGoal.ENGAGE_TARGET
+		_change_state(Enums.AIState.SUPPRESSED)
+		goal_timer = 0.0
+		return
+	if current_state == Enums.AIState.SUPPRESSED:
+		goal_timer = 99.0  # pin lifted: re-plan NOW, not after the dwell
+
 	# Dwell ~1s. Class-A interrupts (take_damage) force past the gate.
 	# A cover rush COMPLETES (cap 4s).
 	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
@@ -634,6 +655,16 @@ func _evaluate_goals() -> void:
 			current_goal = Enums.AIGoal.SEEK_COVER
 			_change_state(Enums.AIState.SEEKING_COVER)
 			return
+		# STAND-AND-PUSH (the ally half of the enemy ADVANCE mirror): a man who
+		# may close, with a real gap to cross and no meaningful pin, pushes
+		# upright at full speed instead of crouch-walking the whole fight.
+		var adv_dist: float = global_position.distance_to(target.global_position)
+		var advance_band: float = 0.9 if nerve >= 0.7 else 1.2
+		if may_close_distance(nerve) and suppression_level < CombatPosture.CROUCH_SUPPRESS \
+				and adv_dist > preferred_range * advance_band:
+			current_goal = Enums.AIGoal.ADVANCE
+			_change_state(Enums.AIState.ADVANCING)
+			return
 		current_goal = Enums.AIGoal.ENGAGE_TARGET
 		_change_state(Enums.AIState.COMBAT)
 		return
@@ -656,6 +687,15 @@ func _execute(delta: float) -> void:
 			_execute_combat(delta)
 		Enums.AIState.SEEKING_COVER:
 			_execute_seeking_cover(delta)
+		Enums.AIState.ADVANCING:
+			_execute_advancing(delta)
+		Enums.AIState.SUPPRESSED:
+			_execute_suppressed(delta)
+		_:
+			# No statue, ever: an unwired state (ALERT/FLANKING/RETREATING, or a
+			# leak) fights if it has a target; _execute_combat routes the
+			# targetless case to IDLE itself.
+			_execute_combat(delta)
 
 
 func _update_aim(delta: float) -> void:
@@ -844,6 +884,52 @@ func _execute_combat(delta: float) -> void:
 			_change_state(Enums.AIState.IDLE)
 
 
+## Stand-and-push (mirror of EnemyBase ADVANCING, minus the bound-point search):
+## close the gap upright at full speed with short bursts on the move; drop back
+## to COMBAT on arrival, on losing the right to close, or when fire gets heavy.
+## Exit band (0.8) sits inside the entry band (0.9/1.2) so the states never flap.
+func _execute_advancing(delta: float) -> void:
+	if not target or not is_instance_valid(target) \
+			or (target.has_method("is_dead") and target.is_dead()):
+		target = null
+		_change_state(Enums.AIState.IDLE)
+		return
+	var dist := global_position.distance_to(target.global_position)
+	if dist <= preferred_range * 0.8 or suppression_level >= CombatPosture.CROUCH_SUPPRESS \
+			or not may_close_distance(effective_courage()):
+		_change_state(Enums.AIState.COMBAT)
+		return
+	var goal_pos: Vector3 = target.global_position if has_line_of_sight else last_known_target_pos
+	_move_toward(goal_pos, delta)
+	if _aim_settle > 0.0:
+		_aim_settle -= delta
+	elif has_line_of_sight and can_fire and _may_engage():
+		if burst_count < 3:
+			_fire_at_target()
+			burst_count += 1
+		else:
+			can_fire = false
+			fire_timer = randf_range(0.3, 0.8)
+			burst_count = 0
+
+
+## Heavy pin (mirror of EnemyBase._execute_suppressed): freeze low where you
+## are. One ally difference by decree: slow return fire, but ONLY at a target he
+## can actually SEE - a pinned man never sprays the treeline.
+func _execute_suppressed(delta: float) -> void:
+	velocity.x = lerpf(velocity.x, 0.0, delta * 10.0)
+	velocity.z = lerpf(velocity.z, 0.0, delta * 10.0)
+	burst_count = 0
+	shots_fired = 0
+	_anim_override = ""  # the pin hunker outranks any latched cover pose
+	if _aim_settle > 0.0:
+		_aim_settle -= delta
+	elif target != null and is_instance_valid(target) and has_line_of_sight \
+			and can_fire and _may_engage():
+		_fire_at_target()
+		fire_timer = maxf(fire_timer, randf_range(0.8, 1.6))
+
+
 ## True if solid world geometry is within `dist` ahead (toward the cover point) -
 ## the gate for the wall-lean pose, so a man short of the wall crouches instead of
 ## leaning on nothing.
@@ -878,8 +964,8 @@ func _execute_seeking_cover(delta: float) -> void:
 			_leap_until_ms = float(Time.get_ticks_msec()) + leap_len * 1000.0
 			_change_state(Enums.AIState.COMBAT if target != null else Enums.AIState.IDLE)
 			return
-		# Sprint the rush.
-		_anim_override = RUSH_CLIPS[0]
+		# Sprint the rush - the clip was drawn for THIS rush at rush start.
+		_anim_override = _rush_clip if not _rush_clip.is_empty() else RUSH_CLIPS[0]
 		_move_toward(current_cover, delta)
 		return
 
@@ -892,6 +978,7 @@ func _execute_seeking_cover(delta: float) -> void:
 			current_cover = p
 			_cover_rush_dist = global_position.distance_to(p)
 			_moving_to_cover = true
+			_rush_clip = _pick_rush_clip()
 			return
 		_cover_fail_count += 1
 
@@ -945,6 +1032,13 @@ func _pick_cover_arrival_clip() -> String:
 	]
 	clips.append_array(COVER_ARRIVAL_FALLBACK)
 	return ma.play_first(clips, true)
+
+
+## Rush clip for THIS rush - deterministic per (man, rush), same doctrine as
+## _arrival_hash: presentation never draws the shared gameplay RNG (ADR-010).
+func _pick_rush_clip() -> String:
+	_rush_count += 1
+	return RUSH_CLIPS[absi(hash([get_instance_id(), _rush_count])) % RUSH_CLIPS.size()]
 
 
 ## Deterministic pseudo-random in [0,1) keyed to this man and this arrival.
@@ -1006,10 +1100,16 @@ func _change_state(new_state: Enums.AIState) -> void:
 		return
 	# The cover claim + anim override must NOT outlive the fight: leaking them on
 	# COMBAT->IDLE leaves allies gliding in a frozen crouch, leashed to a far rock.
+	# SUPPRESSED keeps the claim (a pinned man hunkers where he is - releasing
+	# would stand him up mid-pin); ADVANCING releases it (he is leaving the rock,
+	# and a stale claim would leash him back to it on arrival).
 	var was_fighting: bool = current_state == Enums.AIState.COMBAT \
-		or current_state == Enums.AIState.SEEKING_COVER
+		or current_state == Enums.AIState.SEEKING_COVER \
+		or current_state == Enums.AIState.SUPPRESSED \
+		or current_state == Enums.AIState.ADVANCING
 	var still_fighting: bool = new_state == Enums.AIState.COMBAT \
-		or new_state == Enums.AIState.SEEKING_COVER
+		or new_state == Enums.AIState.SEEKING_COVER \
+		or new_state == Enums.AIState.SUPPRESSED
 	if was_fighting and not still_fighting:
 		_release_cover()  # also clears _anim_override
 	current_state = new_state
@@ -1186,8 +1286,14 @@ func _die() -> void:
 		else:
 			var to_attacker: Vector3 = -last_hit_dir
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
-			var played: Variant = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
-				"death_right" if from_right else "death_forward"), true)
+			# A man who died LOW dies low: the authored crouch death outranks the
+			# standing picks. Rigs without the clip fall through to them.
+			var played: Variant = false
+			if _low_posture and _visual_is_model and ma != null:
+				played = ma.play("death_crouching_headshot_front", true)
+			if played is bool and not played:
+				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
+					"death_right" if from_right else "death_forward"), true)
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
