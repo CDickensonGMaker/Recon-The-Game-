@@ -30,8 +30,9 @@ from mathutils import Matrix
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 if len(argv) < 3:
-    raise SystemExit("argv: <collection> <gun_object_prefix> <out_basename>")
+    raise SystemExit("argv: <collection> <gun_object_prefix> <out_basename> [--strict]")
 COLL, GUN, OUTNAME = argv[0], argv[1], argv[2]
+STRICT = '--strict' in argv[3:]
 OUT = rf"C:\Users\caleb\RECONgame\assets\player\viewmodels\{OUTNAME}_fp.glb"
 REVIEW_TRACK = "ZZ_REVIEW_ROW"
 
@@ -94,6 +95,16 @@ parts = [o for o in objs if o.type != 'ARMATURE'
          and (o.constraints or (o.animation_data and o.animation_data.nla_tracks))]
 print("parts to bake:", [o.name for o in parts])
 
+# PRE-FLIGHT (--strict, driver-enforced): a gun with no moving parts or missing
+# contract markers is a broken rig, not an export candidate. This is the machine
+# for the 2026-07-25 M16 break class - fail loud BEFORE writing a GLB.
+if STRICT:
+    if not parts:
+        raise SystemExit(f"STRICT: {COLL} has zero bakeable parts - rig contract broken")
+    for src in (f"muzzle_{GUN}", f"sight_front_{GUN}", f"sight_rear_{GUN}"):
+        if bpy.data.objects.get(src) is None:
+            raise SystemExit(f"STRICT: contract marker {src} missing")
+
 
 def depth(o):
     d, p = 0, o.parent
@@ -115,6 +126,7 @@ def solo(track):
 # --- 1. record every part's world matrix, per clip, with constraints live -----
 sc = bpy.context.scene
 recorded = {}
+drift = {}   # part -> max distance from hand.R across all clips
 for clip, end in clip_len.items():
     solo(clip)
     frames = {}
@@ -123,8 +135,22 @@ for clip, end in clip_len.items():
         bpy.context.view_layer.update()
         dg = bpy.context.evaluated_depsgraph_get()
         frames[f] = {o.name: o.evaluated_get(dg).matrix_world.copy() for o in parts}
+        rig_ev = rig.evaluated_get(dg)
+        hr = (rig_ev.matrix_world @ rig_ev.pose.bones["hand.R"].matrix).translation
+        for name, m in frames[f].items():
+            d = (m.translation - hr).length
+            if d > drift.get(name, 0.0):
+                drift[name] = d
     recorded[clip] = frames
 print(f"recorded {sum(len(v) for v in recorded.values())} frames across {len(recorded)} clips")
+print("part max distance from hand.R:", {k: round(v, 2) for k, v in drift.items()})
+
+# WRECKAGE CATCHER: a viewmodel part metres from the firing hand is the floor-ruler
+# break class (2026-07-25) - the whole M16 constellation baked at +3.1m. Hard limit.
+if STRICT:
+    for name, d in drift.items():
+        if d > 2.5:
+            raise SystemExit(f"STRICT: {name} bakes {d:.2f} m from hand.R - rig contract broken, refusing to export")
 
 # --- 2. strip constraints and the old animation off the parts ----------------
 for o in parts:
