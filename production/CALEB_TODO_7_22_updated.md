@@ -66,6 +66,14 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 
 The ordered queue for the next working session. #1 is the big-difference item.
 
+> **LANDMINE (2026-07-25 diagnosis): the working-tree `assets/player/viewmodels/m16_fp.glb` is a
+> BROKEN export — do NOT commit it.** The M16's joined gun body (`M16A1_gun` in `fp_arms_rifle.blend`)
+> lost its CHILD_OF→hand.R + NLA tracks + child markers when the 36→4 join replaced the old root, so
+> the export ships a rifle detached from the hand at ruler coords (~+3.1m X). Last-good is HEAD's copy
+> (`git checkout -- assets/player/viewmodels/m16_fp.glb`). Fix = restore the rig contract on M16A1_gun
+> (copy the AK47_root pattern), re-export via `blender -b`, verify, THEN commit. AK/M14 rigs verified
+> intact; their new clips just haven't been exported yet.
+
 1. **WEAPON ANIMATION PASS** (the huge one). Do the movable gun parts + arm rig + animation in ONE
    pass per weapon (your workflow-saving strategy), then:
    - Make the gun PARTS that should move for animations move (bolt / charging handle / mag / trigger /
