@@ -21,6 +21,8 @@ func _ready() -> void:
 
 	var layer: Node3D = TreeCoverLayerScript.new()
 	add_child(layer)
+	# Bodies exist only inside the pooled ring; anchor it on the scatter.
+	layer.ring_center_override = Vector3.ZERO
 	var species: Array = COVER + COVER_NOCARD + CONCEAL
 	layer.load_species(species)
 

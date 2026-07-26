@@ -1,9 +1,8 @@
 ## test_tree_cover_wired.gd - Phase 2: proves TreeCoverLayer is wired LIVE-CAPABLE through
 ## VegetationManager's CanopySource.TREE_COVER path (not a built-ahead-of-wiring fossil).
 ## Drives the real VM._build_scatter -> TreeCoverLayer.generate_for_chunk and asserts the
-## mechanism produces near+far render + cover colliders. Also MEASURES the resident collider
-## count across the whole AO (evidence for the pooled-ring bead - the resident-all count is a
-## landmine that the switchover must replace with a player-keyed ring).
+## mechanism produces near+far render + pooled-ring cover colliders (bodies exist only
+## inside RING_RADIUS of the ring center - tests/test_trunk_ring.gd owns the ring itself).
 extends Node
 
 const SEED_VAL: int = 47225
@@ -47,20 +46,28 @@ func _ready() -> void:
 	var s2: Array = vm._build_scatter(Vector2i(2, 2), hm, cs)
 	var det_ok: bool = _scatter_hash(s1) == _scatter_hash(s2)
 
-	# Build the WHOLE AO through the TREE_COVER path (measures resident collider load).
+	# Build the WHOLE AO through the TREE_COVER path.
 	var t0: int = Time.get_ticks_msec()
 	for z in range(per_side):
 		for x in range(per_side):
 			vm.generate_for_chunk(Vector2i(x, z), hm, cs)
 	var build_ms: int = Time.get_ticks_msec() - t0
 
-	var colliders: int = vm._tree_cover.collider_count()
-	var tc_nodes: int = vm._tree_cover.get_child_count()
+	# Anchor the pooled ring on a trunk candidate so colliders materialize headless.
+	var tc: TreeCoverLayer = vm._tree_cover
+	for coord: Vector2i in tc._chunk_trunks:
+		tc.ring_center_override = (tc._chunk_trunks[coord]["positions"] as PackedVector3Array)[0]
+		break
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var colliders: int = tc.collider_count()
+	var tc_nodes: int = tc.get_child_count()
 
 	print("=== TREE_COVER WIRED (seed %d) ===" % SEED_VAL)
 	print("species solids loaded: %d" % species_loaded)
 	print("spawn-chunk scatter size: %d (determinism %s)" % [s1.size(), "OK" if det_ok else "FAIL"])
-	print("whole-AO TreeCoverLayer: %d child nodes, %d resident cover colliders, build %dms" % [
+	print("whole-AO TreeCoverLayer: %d child nodes, %d ring cover colliders, build %dms" % [
 		tc_nodes, colliders, build_ms])
 
 	var fails: int = 0
@@ -78,7 +85,6 @@ func _ready() -> void:
 	print("")
 	if fails == 0:
 		print("=== TREE_COVER WIRED PASS (mechanism live-capable) ===")
-		print("NOTE: %d resident colliders is the landmine the switchover must replace with a pooled ring." % colliders)
 		get_tree().quit(0)
 	else:
 		print("=== TREE_COVER WIRED FAIL (%d) ===" % fails)

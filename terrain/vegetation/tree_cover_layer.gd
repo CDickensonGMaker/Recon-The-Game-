@@ -2,8 +2,9 @@ class_name TreeCoverLayer
 extends Node3D
 
 ## Near-solid-collidable / far-impostor-card vegetation LOD (bead: veg-LOD).
-## NEAR ring = the real 3D species SOLID as a MultiMesh, plus a cheap trunk collider
-## per COVER instance so the player can physically hide behind it (Pillar 3). FAR ring
+## NEAR ring = the real 3D species SOLID as a MultiMesh; trunk COLLISION comes from a
+## player-keyed pooled body ring (RING_RADIUS) so the player can physically hide behind
+## cover (Pillar 3) without the AO holding thousands of resident StaticBody3D. FAR ring
 ## = the species impostor CARD, no collision. Hard PS2 distance snap via visibility_range.
 ##
 ## This is the instancing+collision MECHANISM. Deriving the per-chunk scatter from the
@@ -30,14 +31,18 @@ const COVER_TRUNK := {
 const COVER_COLLISION_LAYER: int = 1
 const TRUNK_HEIGHT: float = 3.0
 
-## Deterministic per-chunk cover-collider cap. The AO is resident (ADR-013), so an uncapped
-## trunk-per-instance would build 17k+ StaticBody3D across the map and blow Jolt's body limit.
-## Capping PER CHUNK (not globally) keeps it deterministic - a global cap would drop bodies by
-## chunk load order (ADR-010 violation). The player-keyed pooled ring (bead 503b) supersedes
-## this cap with coherent near-player cover; until then this ships bounded cover without a crash.
-const MAX_TRUNKS_PER_CHUNK: int = 150
+## Collision ring (Caleb's ruling 2026-07-25): "the physics should only apply to trees
+## within a 70m radius of the player." Solid render ring is 65m, so collision always
+## covers what looks solid.
+const RING_RADIUS := 70.0
+## Measured worst 70m-ring demand (seed 47225, whole AO, mission density boost applied):
+## 919 candidates. 1280 = ~40% headroom.
+const POOL_MAX: int = 1280
+const RING_INTERVAL: float = 0.25
+const RING_MOVE_EPS: float = 2.0
+const PARK_POS := Vector3(0.0, -4000.0, 0.0)
 
-@export var near_distance: float = 65.0   ## solid render + collision ring (arena parity)
+@export var near_distance: float = 65.0   ## solid render ring (arena parity); RING_RADIUS covers it
 @export var view_distance: float = 350.0  ## card render ring (fog transmittance <=10%)
 
 ## visibility_range is per-NODE against the transformed AABB (godot#79471 - the
@@ -49,10 +54,23 @@ const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 
 var _solid_mesh: Dictionary = {}   ## name -> Mesh
 var _card_mesh: Dictionary = {}    ## name -> Mesh (only species with a card)
-var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs + StaticBodies)
+var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
 ## transform read-back is blind headless in this build)
 var chunk_origins: Dictionary = {}
+
+## coord -> {positions: PackedVector3Array, radii: PackedFloat32Array, bounds: Rect2 (XZ)}
+## for COVER_TRUNK instances - pure candidate data, bodied only inside the ring.
+var _chunk_trunks: Dictionary = {}
+var _chunk_bodies: Dictionary = {}         ## coord -> Dictionary(candidate idx -> StaticBody3D)
+var _pool: Array[StaticBody3D] = []
+var _free_bodies: Array[StaticBody3D] = []
+var _shape_by_radius: Dictionary = {}      ## radius -> shared CylinderShape3D
+## Vector3.INF = unset -> ring keys off GameManager.player; no player = no bodies.
+var ring_center_override := Vector3.INF
+var _last_center := Vector3.INF
+var _ring_elapsed: float = 0.0
+var _pool_starved: bool = false
 
 
 func _ready() -> void:
@@ -79,7 +97,7 @@ func load_species(names: Array) -> void:
 ## scatter: Array of {name: String, xf: Transform3D}. Builds, for this chunk:
 ##   - one near-solid MultiMesh per species (visibility 0..near_distance)
 ##   - one far-card MultiMesh per species that has a card (near_distance..view_distance)
-##   - one trunk StaticBody per COVER instance (bullet/body collision)
+##   - trunk collider CANDIDATES per COVER instance (bodied by the ring, not here)
 func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	clear_chunk(coord)
 	var groups: Dictionary = {}   ## [name, bucket_x, bucket_z] -> Array[Transform3D]
@@ -96,7 +114,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		origins.append(xf.origin)
 
 	var nodes: Array[Node] = []
-	var trunks: int = 0  # per-chunk collider budget (see MAX_TRUNKS_PER_CHUNK)
+	var trunk_pos := PackedVector3Array()
+	var trunk_rad := PackedFloat32Array()
 	for key: Array in groups:
 		var nm: String = key[0]
 		var xforms: Array = groups[key]
@@ -114,23 +133,29 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		# FAR: the impostor card (if this species has one). Cards never cast.
 		if _card_mesh.has(nm):
 			nodes.append(_multimesh(_card_mesh[nm], local, near_distance, view_distance, centroid, false))
-		# COVER: a trunk collider per instance (cover-givers only), capped per chunk.
 		if COVER_TRUNK.has(nm):
 			var r: float = float(COVER_TRUNK[nm])
 			for xf: Transform3D in xforms:
-				if trunks >= MAX_TRUNKS_PER_CHUNK:
-					break
-				nodes.append(_trunk_body(xf.origin, r))
-				trunks += 1
+				trunk_pos.append(xf.origin)
+				trunk_rad.append(r)
 
 	for node: Node in nodes:
 		add_child(node)
 	_chunk_nodes[coord] = nodes
 	chunk_origins[coord] = origins
+	if trunk_pos.size() > 0:
+		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
+		for p: Vector3 in trunk_pos:
+			bounds = bounds.expand(Vector2(p.x, p.z))
+		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad, "bounds": bounds}
+	# Same-frame refresh so a blast rebuild never leaves in-ring trunks bodiless.
+	_update_ring(_resolve_center())
 
 
 func clear_chunk(coord: Vector2i) -> void:
 	chunk_origins.erase(coord)
+	_chunk_trunks.erase(coord)
+	_release_chunk(coord)
 	if not _chunk_nodes.has(coord):
 		return
 	for node: Node in _chunk_nodes[coord]:
@@ -144,14 +169,129 @@ func clear_all() -> void:
 		clear_chunk(coord)
 
 
-## Colliders present in the near ring right now (cover exists). For the probe.
+## Assigned pool bodies right now (cover exists inside the ring). For the probe.
 func collider_count() -> int:
-	var n: int = 0
-	for coord: Vector2i in _chunk_nodes:
-		for node: Node in _chunk_nodes[coord]:
-			if node is StaticBody3D:
-				n += 1
-	return n
+	return _pool.size() - _free_bodies.size()
+
+
+func _physics_process(delta: float) -> void:
+	_ring_elapsed += delta
+	var center: Vector3 = _resolve_center()
+	var moved: bool = center != _last_center and (
+		center == Vector3.INF or _last_center == Vector3.INF
+		or (Vector2(center.x, center.z) - Vector2(_last_center.x, _last_center.z)).length_squared()
+			> RING_MOVE_EPS * RING_MOVE_EPS)
+	if _ring_elapsed < RING_INTERVAL and not moved:
+		return
+	_update_ring(center)
+
+
+func _resolve_center() -> Vector3:
+	if ring_center_override != Vector3.INF:
+		return ring_center_override
+	var p: Node = GameManager.player
+	if is_instance_valid(p) and p is Node3D and (p as Node3D).is_inside_tree():
+		return (p as Node3D).global_position
+	return Vector3.INF
+
+
+## Delta pass: release bodies whose candidate left the ring, body candidates that
+## entered it. Nearest-first only when demand exceeds the pool (logged once).
+func _update_ring(center: Vector3) -> void:
+	_last_center = center
+	_ring_elapsed = 0.0
+	if center == Vector3.INF:
+		if collider_count() > 0:
+			for coord: Vector2i in _chunk_bodies.keys():
+				_release_chunk(coord)
+		return
+	var c2 := Vector2(center.x, center.z)
+	var r2: float = RING_RADIUS * RING_RADIUS
+	var wanted: Array = []   ## [dist2, coord, idx] per in-ring candidate without a body
+	for coord: Vector2i in _chunk_trunks:
+		var data: Dictionary = _chunk_trunks[coord]
+		var assigned: Dictionary = _chunk_bodies.get(coord, {})
+		if not (data["bounds"] as Rect2).grow(RING_RADIUS).has_point(c2):
+			if not assigned.is_empty():
+				_release_chunk(coord)
+			continue
+		var positions: PackedVector3Array = data["positions"]
+		for i: int in positions.size():
+			var p: Vector3 = positions[i]
+			var d2: float = (Vector2(p.x, p.z) - c2).length_squared()
+			if d2 <= r2:
+				if not assigned.has(i):
+					wanted.append([d2, coord, i])
+			elif assigned.has(i):
+				_park_body(assigned[i])
+				assigned.erase(i)
+	var capacity: int = _free_bodies.size() + (POOL_MAX - _pool.size())
+	if wanted.size() > capacity:
+		if not _pool_starved:
+			_pool_starved = true
+			push_warning("[TreeCover] ring demand %d exceeds POOL_MAX %d - bodying nearest only"
+					% [wanted.size(), POOL_MAX])
+		wanted.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+	for w: Array in wanted:
+		var body: StaticBody3D = _acquire_body()
+		if body == null:
+			break
+		var coord: Vector2i = w[1]
+		var idx: int = w[2]
+		var data: Dictionary = _chunk_trunks[coord]
+		_place_body(body, (data["positions"] as PackedVector3Array)[idx],
+				(data["radii"] as PackedFloat32Array)[idx])
+		if not _chunk_bodies.has(coord):
+			_chunk_bodies[coord] = {}
+		(_chunk_bodies[coord] as Dictionary)[idx] = body
+
+
+func _release_chunk(coord: Vector2i) -> void:
+	if not _chunk_bodies.has(coord):
+		return
+	for body: StaticBody3D in (_chunk_bodies[coord] as Dictionary).values():
+		_park_body(body)
+	_chunk_bodies.erase(coord)
+
+
+func _acquire_body() -> StaticBody3D:
+	if not _free_bodies.is_empty():
+		var b: StaticBody3D = _free_bodies.pop_back()
+		return b
+	if _pool.size() >= POOL_MAX:
+		return null
+	var body := StaticBody3D.new()
+	body.collision_layer = 0
+	body.collision_mask = 0   ## static cover reacts to nothing; things test IT
+	body.add_child(CollisionShape3D.new())
+	add_child(body)
+	body.position = PARK_POS
+	_pool.append(body)
+	return body
+
+
+func _place_body(body: StaticBody3D, pos: Vector3, radius: float) -> void:
+	var shape: CollisionShape3D = body.get_child(0) as CollisionShape3D
+	shape.shape = _shape_for(radius)
+	body.position = pos + Vector3(0.0, TRUNK_HEIGHT * 0.5, 0.0)
+	body.collision_layer = COVER_COLLISION_LAYER
+
+
+func _park_body(body: StaticBody3D) -> void:
+	body.collision_layer = 0
+	body.position = PARK_POS
+	_free_bodies.append(body)
+
+
+## One shared CylinderShape3D per distinct COVER_TRUNK radius.
+func _shape_for(radius: float) -> CylinderShape3D:
+	var key: float = snappedf(radius, 0.001)
+	if not _shape_by_radius.has(key):
+		var cyl := CylinderShape3D.new()
+		cyl.radius = radius
+		cyl.height = TRUNK_HEIGHT
+		_shape_by_radius[key] = cyl
+	return _shape_by_radius[key]
 
 
 func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
@@ -177,20 +317,6 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
 	# That was the "opacity" - the arena instances raw GLBs with no range and reads solid.
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	return mmi
-
-
-func _trunk_body(pos: Vector3, radius: float) -> StaticBody3D:
-	var body := StaticBody3D.new()
-	body.collision_layer = COVER_COLLISION_LAYER
-	body.collision_mask = 0   ## static cover reacts to nothing; things test IT
-	var shape := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = radius
-	cyl.height = TRUNK_HEIGHT
-	shape.shape = cyl
-	body.add_child(shape)
-	body.position = pos + Vector3(0.0, TRUNK_HEIGHT * 0.5, 0.0)
-	return body
 
 
 ## First MeshInstance3D's mesh (with its own materials) from a GLB; null if absent.
