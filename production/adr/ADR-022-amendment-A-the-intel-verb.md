@@ -40,7 +40,8 @@ A large-circle mark can send the player to the wrong corner of the area — that
 imports a save-schema slice (ADR-017) from day one.
 
 ## Build state
-GAMEPLAY logic SHIPPED 2026-07-25 (evening session): the report verb on [K]
+GAMEPLAY logic SHIPPED 2026-07-25 (evening session): the report verb on MIDDLE MOUSE
+(Summoner ruling 7/25: T or MMB; T is CAS, so MMB)
 (`scripts/player/player.gd` `_report_field_mark`), noun inference + area radius
 (`scripts/player/field_mark_verb.gd`), the mark store (`scripts/missions/mission_state.gd`
 `add_field_mark`), tour persistence (`scripts/autoload/campaign_state.gd` `field_marks`,
@@ -48,7 +49,7 @@ seed/bank in `scripts/missions/field_director.gd` `restore_field_marks`/`bank_fi
 map rendering as the general-area circle (`scripts/ui/topo_map.gd` `_draw_overlay`), and the
 §4 + fossil probes (`tests/test_field_marks.gd`). The `player.gd` binocular Label3D
 auto-mark fossil is DELETED per clause 7. Await Summoner playtest (ADR-015) for feel:
-K-key reach, circle size, the four toasts. The pixel-glyph RENDERING of the marks — the
+MMB feel, circle size, the four toasts. The pixel-glyph RENDERING of the marks — the
 period bitmap look — rides with ADR-030 (HUD buffer doctrine) to final polish; until then
 marks render with placeholder chrome (blue pencil circle + kind text).
 

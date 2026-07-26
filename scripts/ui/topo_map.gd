@@ -107,7 +107,7 @@ func _build_ui() -> void:
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.draw.connect(_draw_overlay)
 	_rect.add_child(_overlay)
-	frame.add_child(ReconUI.make_label("[M] CLOSE   //   [K] IN THE FIELD: MARK WHAT YOU SEE", 12, ReconUI.DIM))
+	frame.add_child(ReconUI.make_label("[M] CLOSE   //   [MIDDLE MOUSE] IN THE FIELD: MARK WHAT YOU SEE", 12, ReconUI.DIM))
 
 
 ## The road network as printed linework. Drawn first so every mark - the CO's sweep
