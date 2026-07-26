@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cobservationtools1"]
+[gd_scene format=3 uid="uid://trwh17mvl61c"]
 
 [ext_resource type="Script" path="res://tests/test_observation_tools.gd" id="1_obs"]
 

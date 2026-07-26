@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ballystates25gd7"]
+[gd_scene format=3 uid="uid://wksm6e0gmpog"]
 
 [ext_resource type="Script" path="res://tests/test_ally_states.gd" id="1"]
 

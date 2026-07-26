@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://csupportfirebench1"]
+[gd_scene format=3 uid="uid://mil2rt2mijto"]
 
 [ext_resource type="Script" path="res://tests/test_support_fire_bench.gd" id="1_sfb"]
 

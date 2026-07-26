@@ -155,9 +155,11 @@ func _start_bake(job: Dictionary) -> void:
 	# survived fixing every other one.
 	nav.cell_size = NavigationServer3D.map_get_cell_size(map)
 	nav.cell_height = NavigationServer3D.map_get_cell_height(map)
-	nav.agent_radius = AGENT_RADIUS
-	nav.agent_height = AGENT_HEIGHT
-	nav.agent_max_climb = 0.4
+	# Agent metrics pre-snapped to voxel units - the baker quantizes them anyway
+	# (radius/height ceiled, climb floored) and warns per bake if they don't land exact.
+	nav.agent_radius = ceilf(AGENT_RADIUS / nav.cell_size) * nav.cell_size
+	nav.agent_height = ceilf(AGENT_HEIGHT / nav.cell_height) * nav.cell_height
+	nav.agent_max_climb = floorf(0.4 / nav.cell_height) * nav.cell_height
 	nav.agent_max_slope = 50.0
 	nav.border_size = 0.0
 	nav.filter_baking_aabb = box

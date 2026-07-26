@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdestructible01"]
+[gd_scene format=3 uid="uid://c7ut52c2b7ee3"]
 
 [ext_resource type="Script" path="res://tests/test_destructible.gd" id="1_dst"]
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://cobsroomroutine0"]
+[gd_scene format=3 uid="uid://c00l6m3dwfe3v"]
 
 [ext_resource type="Script" path="res://scripts/levels/observation_room_routine.gd" id="1_obrr"]
 

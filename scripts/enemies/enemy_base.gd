@@ -328,6 +328,10 @@ func _apply_personality() -> void:
 
 
 ## 3D model when the unit has one; capsule as the fallback (ADR-001).
+## One art-gap warning per missing unit per session, not per spawn.
+static var _model_gap_warned: Dictionary = {}
+
+
 func _setup_visual() -> void:
 	if enemy_data != null and not str(enemy_data.sprite_unit).is_empty():
 		var unit: String = str(enemy_data.sprite_unit)
@@ -336,7 +340,9 @@ func _setup_visual() -> void:
 		if not ModelActor.model_exists(unit) and "sprite_unit_fallback" in enemy_data:
 			var fb: String = str(enemy_data.sprite_unit_fallback)
 			if not fb.is_empty() and ModelActor.model_exists(fb):
-				push_warning("[Enemy] '%s' has no model yet - wearing '%s'. Export it and he changes." % [unit, fb])
+				if not _model_gap_warned.has(unit):
+					_model_gap_warned[unit] = true
+					push_warning("[Enemy] '%s' has no model yet - wearing '%s'. Export it and he changes." % [unit, fb])
 				unit = fb
 		if ModelActor.model_exists(unit):
 			var ma := ModelActor.new()

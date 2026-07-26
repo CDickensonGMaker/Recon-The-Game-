@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://btrunkring503b"]
+[gd_scene format=3 uid="uid://djkcv1kd4jm8d"]
 
 [ext_resource type="Script" path="res://tests/test_trunk_ring.gd" id="1_tr"]
 

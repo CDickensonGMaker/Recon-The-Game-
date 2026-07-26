@@ -248,9 +248,10 @@ func _bake_navmesh() -> void:
 	# 0 polys. Parse the arena bodies tagged nav_source instead.
 	nm.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
 	nm.geometry_source_group_name = "nav_source"
-	nm.agent_radius = 0.45
-	nm.agent_height = 1.8
-	nm.agent_max_climb = 0.3
+	# Snapped to the 0.25 voxel grid - the baker quantizes these anyway and warns otherwise.
+	nm.agent_radius = 0.5
+	nm.agent_height = 2.0
+	nm.agent_max_climb = 0.25
 	region.navigation_mesh = nm
 	add_child(region)
 	region.bake_navigation_mesh(false)  # sync at boot - the arena is small
