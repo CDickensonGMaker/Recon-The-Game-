@@ -13,6 +13,7 @@ extends Resource
 @export var fire_rate: float = 600.0  ## Rounds per minute
 @export var magazine_size: int = 30
 @export var reload_time: float = 2.5  ## Seconds
+@export var empty_reload_time: float = 0.0  ## Seconds from an empty magazine; 0 = same as reload_time
 @export var jam_clear_time: float = 1.1  ## Seconds - tap-rack duration, authored to the clear animation
 
 @export_group("Damage")

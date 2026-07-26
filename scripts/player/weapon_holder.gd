@@ -137,6 +137,7 @@ func unmount_gun() -> void:
 ## Reload state
 var is_reloading: bool = false
 var reload_timer: float = 0.0
+var reload_duration: float = 0.0  ## what reload_timer started at, for progress
 
 ## Weapon switch state
 var is_switching: bool = false
@@ -685,6 +686,7 @@ func _start_reload() -> void:
 		is_reloading = true
 		# ADR-018: the authored time, always. Handling is not a stat.
 		reload_timer = current_weapon.jam_clear_time
+		reload_duration = reload_timer
 		is_aiming = false
 		_play_vm_clip("jam", current_weapon.jam_clear_time)
 		reload_started.emit()
@@ -696,10 +698,15 @@ func _start_reload() -> void:
 
 	_clearing_jam = false
 	is_reloading = true
+	var from_empty: bool = current_ammo == 0
 	# ADR-018: the authored time, always. Handling is not a stat.
-	reload_timer = current_weapon.reload_time
+	var authored: float = current_weapon.reload_time
+	if from_empty and current_weapon.empty_reload_time > 0.0:
+		authored = current_weapon.empty_reload_time
+	reload_timer = authored
+	reload_duration = authored
 	is_aiming = false
-	_play_vm_clip("reload_empty" if current_ammo == 0 else "reload", current_weapon.reload_time)
+	_play_vm_clip("reload_empty" if from_empty else "reload", authored)
 	GunFX.play_reload_2d(self, current_weapon)
 	reload_started.emit()
 
@@ -709,8 +716,7 @@ func _update_reload(delta: float) -> void:
 		return
 
 	reload_timer -= delta
-	var active_time: float = current_weapon.jam_clear_time if _clearing_jam else current_weapon.reload_time
-	var progress: float = 1.0 - (reload_timer / active_time)
+	var progress: float = 1.0 - (reload_timer / maxf(0.05, reload_duration))
 	reload_progress.emit(progress)
 
 	if reload_timer <= 0:
@@ -871,6 +877,27 @@ func _play_vm_idle() -> void:
 		_vm_anim.play("rifle_idle")
 
 
+## Drawing a rifle chambers it: rack the bolt once, then settle to idle.
+func _play_vm_draw() -> void:
+	if _vm_anim == null:
+		return
+	if not _vm_anim.has_animation("charge_handle"):
+		_play_vm_idle()
+		return
+	_vm_anim.speed_scale = 1.0
+	_vm_anim.play("charge_handle")
+	if not _vm_anim.animation_finished.is_connected(_on_vm_draw_finished):
+		_vm_anim.animation_finished.connect(_on_vm_draw_finished)
+
+
+func _on_vm_draw_finished(anim_name: StringName) -> void:
+	if anim_name != &"charge_handle":
+		return
+	if _vm_anim != null and _vm_anim.animation_finished.is_connected(_on_vm_draw_finished):
+		_vm_anim.animation_finished.disconnect(_on_vm_draw_finished)
+	_play_vm_idle()
+
+
 ## Load a weapon model from the weapon data
 func _load_weapon_model(weapon_data: WeaponData) -> void:
 	if weapon_model:
@@ -897,7 +924,7 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 			# Base scale is baked into the viewmodel .tscn root - never set it here.
 			# Arms viewmodels need their idle clip played or the rig renders in bind pose.
 			_vm_anim = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-			_play_vm_idle()
+			_play_vm_draw()
 			_scan_warhead(weapon_model)   # a fresh launcher comes loaded
 
 
