@@ -116,6 +116,15 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 - **War Room:** loop-structure and pillar-touching decisions convene a council **before** build.
 
 ### The standing decree — build order (GAME_GUIDE §8)
+**MAIN PRIORITY (Summoner decree 2026-07-25): the Blender→Godot FP gun/arms PIPELINE.** Animate in
+Blender → export lands in Godot working, every time, as automated as possible. Scope: the export
+tooling (`tools/export_viewmodel_clips.py` batch driver), pre-flight rig-contract probe, post-flight
+GLB validator (see memory `recon-m16-rig-break-2026-07-25` for the measured failure it must prevent),
+research input `production/research/blender_godot_fp_pipeline_2026-07-25.md`. Build is GATED on the
+Summoner blessing the 7/25 M16-rig diagnosis + fix path. Same decree, verbatim intent: "push the hud
+to the background and later work" — the ADR-030 deferral is RE-CONFIRMED; no HUD item outranks
+pipeline work.
+
 0. **PLAYTEST R4 (`RECONgame-qrg6`)** — session entry gate; nothing new ships until the Summoner verifies the ADR-029 open-patrol checklist (boot seated at `fsb_main` → wire gate → find a site unguided → fair contact → squad behaves → AAR banks at the gate, `field_director.gd:602-614`). Discharged only by a verified playtest (ADR-015), never by a probe.
 1. ~~**Stealth restoration bundle**~~ ✅ **DONE** — witness guard live (`enemy_base.gd:736/756/2351`, probe `test_witness_rule`) and ±25 contact scoring live (`debrief.gd:25-26`); o18o closed.
 2. **Trust-restoration day (measured)** — ✅ `rendering_method` set (`forward_plus`, ADR-026 Amdt A) · ✅ ModelActor AABB fix · remaining: streaming off ≤2km, `MAX_THINK_TIME`, and the gating FPS number (mhfv; closes 8pbo, n2ij 1-2).

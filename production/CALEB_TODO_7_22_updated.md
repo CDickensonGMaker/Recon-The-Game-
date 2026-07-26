@@ -64,6 +64,11 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 
 ## NEXT UP (Friday priority order — the strict list, no beads)
 
+> **SUMMONER DECREE 2026-07-25 — MAIN PRIORITY: the Blender→Godot gun/arms PIPELINE.** Automate the
+> animate→export→working-in-Godot loop. HUD is pushed to background/later (ADR-030 deferral
+> re-confirmed). Pipeline build starts once you bless the M16-rig diagnosis + fix path (see the
+> landmine note below). Your #1 below (the animation pass itself) rides on this pipeline being trusted.
+
 The ordered queue for the next working session. #1 is the big-difference item.
 
 > **LANDMINE (2026-07-25 diagnosis): the working-tree `assets/player/viewmodels/m16_fp.glb` is a
