@@ -71,13 +71,14 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
 
 The ordered queue for the next working session. #1 is the big-difference item.
 
-> **LANDMINE (2026-07-25 diagnosis): the working-tree `assets/player/viewmodels/m16_fp.glb` is a
-> BROKEN export — do NOT commit it.** The M16's joined gun body (`M16A1_gun` in `fp_arms_rifle.blend`)
-> lost its CHILD_OF→hand.R + NLA tracks + child markers when the 36→4 join replaced the old root, so
-> the export ships a rifle detached from the hand at ruler coords (~+3.1m X). Last-good is HEAD's copy
-> (`git checkout -- assets/player/viewmodels/m16_fp.glb`). Fix = restore the rig contract on M16A1_gun
-> (copy the AK47_root pattern), re-export via `blender -b`, verify, THEN commit. AK/M14 rigs verified
-> intact; their new clips just haven't been exported yet.
+> **RESOLVED 2026-07-26 (headless, blessed fix path):** the M16 rig contract is RESTORED in
+> `fp_arms_rifle.blend` (`tools/fix_m16_rig_contract.py` — CHILD_OF hold_R→hand.R, fittings re-seated
+> as gun children at their last-good offsets, mag hand_handoff re-inversed at the grab frame, the
+> gun's non-uniform scale baked out) and m16/ak/m14 `_fp.glb` re-exported + structurally validated
+> (markers byte-match last-good, sight radius 0.5964). **YOUR GODOT STEPS: open the project in 4.7
+> (or run `godot --headless --import`) so the three GLBs reimport, then viewmodel editor → M16 →
+> press V — the ADS align should now frame real sights.** Known debt: the M14's fittings sit
+> root-level in the .blend (works by name-lookup; the pipeline validator flags it).
 
 1. **WEAPON ANIMATION PASS** (the huge one). Do the movable gun parts + arm rig + animation in ONE
    pass per weapon (your workflow-saving strategy), then:
