@@ -1,4 +1,4 @@
-﻿## test_flat_damage.gd - ADR-016 verification probe (Summoner decree 2026-07-10).
+## test_flat_damage.gd - ADR-016 verification probe (Summoner decree 2026-07-10).
 ## Locks in the flat-base damage grammar that replaced RECON dice:
 ##   1. get_damage() is DETERMINISTIC - same value on every call, per weapon.
 ##   2. Every weapon carries its decreed flat value (derived from the retired

@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 func _init() -> void:
 	var ps: PackedScene = load("res://assets/shared/anim_library.glb")
 	var inst: Node = ps.instantiate()

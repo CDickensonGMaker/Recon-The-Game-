@@ -1,4 +1,4 @@
-﻿## hitzone_builder.gd - the one hitzone authority: builds a character's 11 hurt
+## hitzone_builder.gd - the one hitzone authority: builds a character's 11 hurt
 ## regions as convex hulls cut from its body mesh (capsules/static bands fallback).
 ##
 ## NEVER harvested into a hull: gear/headgear meshes, hidden gib donors, and

@@ -1,4 +1,4 @@
-﻿## test_hitzones.gd - HitzoneBuilder probe (beads 90gj/yd83/trqx).
+## test_hitzones.gd - HitzoneBuilder probe (beads 90gj/yd83/trqx).
 ##   1. HITZONE 2.0 build on a rigged v2 unit yields all 11 zones (limbs split
 ##      upper/lower), all bone-synced, and the core zones are MESH HULLS
 ##      (ConvexPolygonShape3D cut from the body mesh), not formula capsules.

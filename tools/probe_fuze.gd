@@ -1,4 +1,4 @@
-﻿## probe_fuze.gd - does the warhead refuse to arm inside its safety distance?
+## probe_fuze.gd - does the warhead refuse to arm inside its safety distance?
 ## Two SEPARATE lanes so neither shot eats the other's wall:
 ##   lane A: wall 3m out  (inside the 5m arming distance) -> must NOT detonate
 ##   lane B: wall 30m out (fully armed)                   -> must blow a man down

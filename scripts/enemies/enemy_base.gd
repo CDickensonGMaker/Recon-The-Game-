@@ -1,4 +1,4 @@
-﻿## enemy_base.gd - Goal-driven tactical AI for deadly WW2 combat
+## enemy_base.gd - Goal-driven tactical AI for deadly WW2 combat
 class_name EnemyBase
 extends CharacterBody3D
 

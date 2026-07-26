@@ -1,4 +1,4 @@
-﻿## probe_buckshot.gd - how much of the pattern actually LANDS on a man?
+## probe_buckshot.gd - how much of the pattern actually LANDS on a man?
 ## Reproduces the shipping pellet geometry (weapon_holder._fire_pellet_cluster:
 ## 9 pellets, deterministic star, half-angle per axis) and casts it at a real
 ## vc_rifleman standing at each range - counting pellets that strike a hitzone

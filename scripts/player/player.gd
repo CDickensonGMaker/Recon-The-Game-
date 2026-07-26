@@ -1,4 +1,4 @@
-﻿## player.gd - Player root node that coordinates all player systems
+## player.gd - Player root node that coordinates all player systems
 extends CharacterBody3D
 
 ## Movement speeds
