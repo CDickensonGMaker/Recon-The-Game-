@@ -145,6 +145,7 @@ const SWITCH_TIME: float = 0.5
 
 ## Weapon model
 var weapon_model: Node3D = null
+var _vm_anim: AnimationPlayer = null  ## authored FP-arms clips inside the viewmodel GLB
 
 ## Viewmodel pitch compensation (prevents floor clipping when looking down).
 const PITCH_OFFSET_ENABLED: bool = true
@@ -854,6 +855,24 @@ func _update_weapon_position(delta: float) -> void:
 
 	weapon_model.position = weapon_model.position.lerp(target_pos, delta * ADS_SPEED)
 	weapon_model.rotation_degrees = weapon_model.rotation_degrees.lerp(target_rot, delta * ADS_SPEED)
+
+
+## Play an authored viewmodel clip fitted to the gameplay timer. ADR-018: the
+## timer is authoritative; the clip is presentation and stretches to match it.
+func _play_vm_clip(clip: String, duration: float) -> void:
+	if _vm_anim == null or not _vm_anim.has_animation(clip):
+		return
+	var clip_len: float = _vm_anim.get_animation(clip).length
+	_vm_anim.speed_scale = clip_len / maxf(0.05, duration)
+	_vm_anim.play(clip)
+
+
+func _play_vm_idle() -> void:
+	if _vm_anim == null:
+		return
+	_vm_anim.speed_scale = 1.0
+	if _vm_anim.has_animation("rifle_idle"):
+		_vm_anim.play("rifle_idle")
 
 
 ## Load a weapon model from the weapon data
