@@ -496,8 +496,13 @@ func _auto_align_ads_sights() -> void:
 	const EYE_RELIEF: float = 0.12
 	var target_rear_holder := Vector3(0.0, 0.0, -EYE_RELIEF)
 
-	var m_rear: Vector3 = rear.position
-	var m_front: Vector3 = front.position
+	# The markers are NOT children of weapon_model - they hang off the gun node,
+	# which hangs off hand.R inside the arm chain. Their .position is local to that
+	# parent, so it must be converted into weapon_model space before the basis math
+	# below means anything. _bore_ray() reads global_position for the same reason.
+	var to_model: Transform3D = weapon_model.global_transform.affine_inverse()
+	var m_rear: Vector3 = to_model * rear.global_position
+	var m_front: Vector3 = to_model * front.global_position
 	var sight_vec: Vector3 = (m_front - m_rear).normalized()
 
 	# Current world direction of the sight line.
@@ -564,7 +569,11 @@ func _model_aabb(node: Node3D) -> AABB:
 func _find_ads_marker(kind: String) -> Node3D:
 	if not weapon_model:
 		return null
-	var want: Array[String] = ["SightRear", "sight_rear"] if kind == "rear" else ["SightFront", "sight_front"]
+	# A ternary between array literals evaluates as untyped Array and throws on a
+	# typed target at runtime - assign each literal directly so context typing holds.
+	var want: Array[String] = ["SightFront", "sight_front"]
+	if kind == "rear":
+		want = ["SightRear", "sight_rear"]
 	for child in weapon_model.find_children("*", "Node3D", true):
 		var n: Node3D = child as Node3D
 		if n == null:
