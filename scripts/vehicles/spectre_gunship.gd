@@ -15,6 +15,9 @@ const VIS_MARGIN_M: float = 80.0
 
 const ORBIT_RADIUS: float = 160.0
 const ORBIT_ALT: float = 130.0
+## Pylon-turn bank: left wing low toward the orbit centre. Applied after
+## look_at, so it is pure lean - the flight path is unchanged.
+const BANK_LEFT_RAD: float = 0.26  # ~15 degrees
 const DURATION: float = 30.0
 
 const VULCAN_INTERVAL: float = 0.35
@@ -97,6 +100,7 @@ func _physics_process(delta: float) -> void:
 	var desired := target + Vector3(cos(_angle) * ORBIT_RADIUS, ORBIT_ALT, sin(_angle) * ORBIT_RADIUS)
 	global_position = global_position.lerp(desired, delta * 2.0)
 	look_at(global_position + Vector3(sin(_angle), 0.0, -cos(_angle)), Vector3.UP)
+	rotate_object_local(Vector3(0, 0, 1), BANK_LEFT_RAD)
 
 	_vulcan_timer -= delta
 	if _vulcan_timer <= 0.0:
