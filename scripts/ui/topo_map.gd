@@ -107,7 +107,7 @@ func _build_ui() -> void:
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.draw.connect(_draw_overlay)
 	_rect.add_child(_overlay)
-	frame.add_child(ReconUI.make_label("[M] CLOSE", 12, ReconUI.DIM))
+	frame.add_child(ReconUI.make_label("[M] CLOSE   //   [K] IN THE FIELD: MARK WHAT YOU SEE", 12, ReconUI.DIM))
 
 
 ## The road network as printed linework. Drawn first so every mark - the CO's sweep
@@ -142,6 +142,22 @@ func _draw_overlay() -> void:
 		_overlay.draw_arc(gp + Vector2(1.5, 1.0), 12.0, 2.1, TAU + 1.7, 18, pencil, 1.5)
 		var f := ThemeDB.fallback_font
 		_overlay.draw_string(f, gp + Vector2(16.0, 4.0), "SWEEP", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, pencil)
+	# THE INTEL LAYER (ADR-022 Amendment A): the player's field marks. Each is a
+	# LARGE general-area circle - the circle IS the uncertainty - and it never
+	# updates once drawn (stale = intended fog). No counter, no tally by kind (§4).
+	# Placeholder chrome: the period pixel glyphs ride with ADR-030 to final polish.
+	if director != null:
+		var ink := Color(0.16, 0.22, 0.50, 0.8)
+		var mf := ThemeDB.fallback_font
+		for m in director.state.field_marks:
+			var md: Dictionary = m
+			var area: Dictionary = md.get("area", {})
+			var mp := _world_to_map(Vector3(float(area.get("x", 0.0)), 0.0, float(area.get("z", 0.0))))
+			var pr: float = float(area.get("r", 60.0)) / world.map_size * _rect.size.x
+			_overlay.draw_arc(mp, pr, 0.6, TAU + 0.4, 26, ink, 2.0)
+			_overlay.draw_arc(mp + Vector2(1.0, 1.5), pr - 1.5, 1.8, TAU + 1.3, 22, ink * Color(1, 1, 1, 0.6), 1.2)
+			_overlay.draw_string(mf, mp + Vector2(4.0, 4.0), str(md.get("kind", "")),
+				HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, ink)
 	# Player: green arrow with heading.
 	var pp := _world_to_map(world.player.global_position)
 	var cam := world.player.get_node_or_null("Head/Camera3D") as Camera3D

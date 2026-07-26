@@ -22,6 +22,7 @@ func setup(game_world: GameWorld) -> void:
 	EnemyBase.unreported_corpses.clear()   # bodies do not haunt the next mission
 	world = game_world
 	state.start_time_ms = Time.get_ticks_msec()
+	restore_field_marks()
 	if not GameManager.player_died.is_connected(_on_player_died):
 		GameManager.player_died.connect(_on_player_died)
 
@@ -127,6 +128,9 @@ func fail_mission(reason: String) -> void:
 	if _ended:
 		return
 	_ended = true
+	# Marks survive a KIA: the tour keeps its map knowledge (Pillar 5 - keeping
+	# them removes the reload-and-remap incentive).
+	bank_field_marks()
 	var result: Dictionary = state.build_result(false, reason)
 	# Read straight off state at the bank point (mission_state.gd contract): the AAR
 	# names noncombatant deaths, compute_score never reads the key.
@@ -1195,7 +1199,19 @@ func _pick_patrol_location() -> Dictionary:
 
 ## The AAR at the wire (ADR-006 amendment): consequences commit, ledger resets,
 ## a completed patrol IS the rank clock (Q1 default).
+## The INTEL layer rides CampaignState between excursions (ADR-022 Amendment A).
+## Seed and bank are the ONLY two lines anywhere that may touch both stores - the
+## selector, the tasking and the scorer never read marks (§4, probed).
+func restore_field_marks() -> void:
+	state.field_marks = CampaignState.field_marks.duplicate(true)
+
+
+func bank_field_marks() -> void:
+	CampaignState.field_marks = state.field_marks.duplicate(true)
+
+
 func _bank_patrol() -> void:
+	bank_field_marks()
 	var result: Dictionary = state.build_result(true, "PATROL")
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits
@@ -1215,6 +1231,7 @@ func _bank_patrol() -> void:
 	state.mission_type = "PATROL"
 	state.seed_value = patrol_count  # unique per excursion; the op seed owns the world
 	state.start_time_ms = Time.get_ticks_msec()
+	restore_field_marks()
 
 
 func _bearing_name(dir: Vector3) -> String:

@@ -94,7 +94,6 @@ var _satchel_hold_t: float = 0.0
 var flare_count: int = 3
 ## Binoculars.
 var _binocs_active: bool = false
-var _mark_timer: float = 0.0
 
 ## RADIO / RTO HANDSET. `holding_handset` (read by weapon_holder) slings the rifle
 ## while the PRC-25 handset is in your hand. The placeholder is the viewmodel box
@@ -149,37 +148,55 @@ func _update_binoculars(delta: float) -> void:
 		if _binocs_active or absf(camera.fov - 75.0) > 0.5:
 			if not (weapon_holder and weapon_holder.is_aiming):
 				camera.fov = lerpf(camera.fov, target_fov, delta * 8.0)
-	if not _binocs_active:
+
+
+## THE REPORT VERB (ADR-022 Amendment A): aim at a markable thing and press - the
+## noun is inferred from the world, the mark lands on the paper map as a general-
+## area circle. Costs: LOS (the ray IS the check), binos up beyond eyes range,
+## roughly stationary. A failed press does NOTHING - the field never nags.
+const MARK_RANGE_M: float = 300.0
+const MARK_EYES_ONLY_M: float = 30.0
+const MARK_STILL_SPEED: float = 1.5
+
+
+func _report_field_mark() -> void:
+	if is_seated or velocity.length() > MARK_STILL_SPEED:
 		return
-	# Mark whatever you are glassing - it tags the target for the team.
-	_mark_timer += delta
-	if _mark_timer < 0.5:
-		return
-	_mark_timer = 0.0
-	var origin := get_camera_position()
-	var dir := get_aim_direction()
+	var origin: Vector3 = get_camera_position()
+	var dir: Vector3 = get_aim_direction()
 	var space := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * 200.0, 1 | 4)
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * MARK_RANGE_M, 1 | 4)
 	query.exclude = [self]
-	var result := space.intersect_ray(query)
-	if result and result.collider is EnemyBase:
-		var enemy := result.collider as EnemyBase
-		if not enemy.has_meta("marked"):
-			enemy.set_meta("marked", true)
-			var mark := Label3D.new()
-			mark.text = "v"
-			mark.font_size = 30
-			mark.pixel_size = 0.006
-			mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			mark.modulate = Color(1.0, 0.4, 0.3)
-			enemy.add_child(mark)
-			mark.position = Vector3(0, 2.6, 0)
-			_field_toast("TARGET MARKED")
-			get_tree().create_timer(10.0).timeout.connect(func() -> void:
-				if is_instance_valid(enemy):
-					enemy.remove_meta("marked")
-				if is_instance_valid(mark):
-					mark.queue_free())
+	var result: Dictionary = space.intersect_ray(query)
+	if result.is_empty():
+		return
+	var hit: Vector3 = result.position
+	var dist: float = origin.distance_to(hit)
+	if dist > MARK_EYES_ONLY_M and not _binocs_active:
+		return
+	var director := get_tree().get_first_node_in_group("mission_director")
+	if not (director is FieldDirector):
+		return
+	var fd := director as FieldDirector
+	var camps: Array = []
+	for loc in fd.patrol_locations:
+		camps.append(loc.get("pos", Vector3.ZERO))
+	var segs: Array = []
+	var gw := get_tree().get_first_node_in_group("game_world")
+	if gw != null and "road_network" in gw:
+		var rn := gw.get("road_network") as RoadNetwork
+		if rn != null:
+			segs = rn.segments
+	var kind: String = FieldMarkVerb.infer(result.collider, hit,
+		get_tree().get_nodes_in_group("tunnel_entrances"), camps, segs)
+	if kind == "":
+		return
+	fd.state.add_field_mark(kind, hit, FieldMarkVerb.area_radius(dist),
+		CampaignState.missions_played)
+	if kind == "CONTACT":
+		_field_toast("CONTACT - CALLED IT IN, MARKED THE MAP")
+	else:
+		_field_toast("%s MARKED ON THE MAP" % kind)
 
 
 ## Surface-matched footstep audio (dirt / grass / water via GameplayGrid).
@@ -1179,6 +1196,9 @@ func _handle_movement(delta: float) -> void:
 		_field_toast("FLARE OUT")
 
 	_update_binoculars(delta)
+
+	if Input.is_action_just_pressed("report_mark"):
+		_report_field_mark()
 
 	if _winded and stamina > stamina_max * 0.35:
 		_winded = false

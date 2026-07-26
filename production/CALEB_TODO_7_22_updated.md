@@ -44,6 +44,10 @@ roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset deta
       (`_bank_patrol`, `scripts/missions/field_director.gd:1066`) → quit → CONTINUE puts you back at the
       firebase. No briefing UI, no board-bird, no exfil step (ADR-029).
 - [ ] F5 quicksave / F9 quickload · rations [9] · weapon cleaning [0] when it fouls
+- [ ] **Field marks (NEW 7/25 — ADR-022 Amdt A)**: press [K] while aiming at an enemy / tunnel
+      mouth / hut / trail (stand still; binos up if it's far) → toast fires → open [M]: a big
+      blue pencil circle with the word on it. Marks must survive walking back in through the
+      wire AND a quit/CONTINUE. Tell me: is the circle too big/small, is K a good key?
 - [ ] Tiny-units hunt: play near spawns, I read the [MODEL] prints
 - [ ] Squad keys: F1-F4 vs the new C/H/X/N — which works on your keyboard?
 - [ ] Feel checks: locational damage (head/gut/limb), blood (mist/splats/pools/wounds-on-allies),

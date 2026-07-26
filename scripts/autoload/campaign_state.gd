@@ -34,6 +34,10 @@ var intel_points: int = 0  ## looted docs/captures sharpen the next briefing
 ## metre. ADR-029 Amendment B: the world remembers a world verb. Never surfaced
 ## as a count, a panel or a marker - only as ground that is no longer there.
 var collapsed_tunnels: Array = []
+## The player's field marks (ADR-022 Amendment A) - the INTEL layer of his paper
+## map, kept for the tour. Pure {kind, area:{x,z,r}, placed_at} dicts, never a
+## count, never a tally by kind (§4).
+var field_marks: Array = []
 ## Armorer's rack fouling, weapon id -> condition 0-100. A weapon you rack dirty
 ## is still dirty when you draw it again; swapping is never a free clean.
 var rack_condition: Dictionary = {}
@@ -217,6 +221,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "player_data", player_data)
 	cfg.set_value("campaign", "intel_points", intel_points)
 	cfg.set_value("campaign", "collapsed_tunnels", collapsed_tunnels)
+	cfg.set_value("campaign", "field_marks", field_marks)
 	cfg.set_value("campaign", "rack_condition", rack_condition)
 	cfg.set_value("campaign", "depot_loss", depot_loss)
 	var err: int = cfg.save(save_path)
@@ -255,6 +260,7 @@ func load_campaign() -> void:
 	player_data = cfg.get_value("campaign", "player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
+	field_marks = cfg.get_value("campaign", "field_marks", []) as Array
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(cfg.get_value("campaign", "depot_loss", {}) as Dictionary)
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
@@ -321,6 +327,7 @@ func reset_campaign() -> void:
 	player_data = {"mos": "RIFLEMAN"}
 	intel_points = 0
 	collapsed_tunnels = []
+	field_marks = []
 	rack_condition = {}
 	depot_loss = {}
 	save_campaign()

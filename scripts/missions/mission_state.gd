@@ -48,6 +48,22 @@ func ground_covered_sectors() -> int:
 	return _covered_cells.size()
 
 
+## FIELD MARKS - the INTEL layer (ADR-022 Amendment A). Typed grease-pencil notes:
+## pure {kind, area:{x,z,r}, placed_at} dicts and nothing else - no completed flag,
+## no objective id, ever (§4). A mark never auto-updates: stale is the intended fog.
+## Persist across patrols via CampaignState.field_marks (seeded at setup, banked at
+## the wire). placed_at = the patrol number it was placed on.
+var field_marks: Array = []
+
+
+func add_field_mark(kind: String, center: Vector3, radius: float, patrol_no: int) -> void:
+	field_marks.append({
+		"kind": kind,
+		"area": {"x": center.x, "z": center.z, "r": radius},
+		"placed_at": patrol_no,
+	})
+
+
 ## CONTACT LEDGER (ADR-006). A group is DETECTED the first time any of its men
 ## reaches COMBAT with eyes on you; a group you leave the AO without ever alerting
 ## is AVOIDED. Per-group and one-way: once they have seen you, the contact is spent.
