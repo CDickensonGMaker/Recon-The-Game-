@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestairform001"]
+[gd_scene format=3 uid="uid://cacmnjcp5qlka"]
 
 [ext_resource type="Script" path="res://tests/test_air_formation.gd" id="1_taf"]
 
