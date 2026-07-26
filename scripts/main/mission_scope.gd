@@ -30,6 +30,7 @@ static func reset() -> void:
 	NavBaker.clear()
 	EnemySquad.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
 	FriendlyPatrolGroup.clear_static()   ## a held crisis latch would mute the next operation
+	Destructible.reset_all()   ## static rubble/destroy queue outlive teardown, like scar_decals above
 	GruntRandomizer.reset_bench()   ## bench-face walk restarts, mission N+1 repeats deterministically
 	TerrainZoning.reset()   ## static patch-noise field outlives teardown (ADR-010)
 

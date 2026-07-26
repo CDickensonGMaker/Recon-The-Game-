@@ -479,7 +479,7 @@ func _nearby_mg_emplacement() -> Node3D:
 		if bool(emp.call("is_occupied")):
 			continue
 		var stand: Vector3 = emp.call("gunner_stand_pos")
-		if global_position.distance_to(stand) < 3.0:
+		if global_position.distance_to(stand) < MGEmplacement.REACH:
 			return emp
 	return null
 

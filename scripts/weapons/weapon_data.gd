@@ -98,18 +98,6 @@ extends Resource
 @export var ads_rotation: Vector3 = Vector3(0, 0, 0)
 
 
-## Effective bore direction for a given ADS blend. Hip and ADS can carry
-## independent zeros; the game lerps between them exactly like position/rotation.
-func get_bore_dir(ads_amount: float = 0.0) -> Vector3:
-	var hip: Vector3 = bore_dir if bore_dir != Vector3.ZERO else Vector3(0, 0, -1)
-	var ads: Vector3 = ads_bore_dir if ads_bore_dir != Vector3.ZERO else hip
-	if ads_amount <= 0.0:
-		return hip.normalized()
-	if ads_amount >= 1.0:
-		return ads.normalized()
-	return hip.lerp(ads, ads_amount).normalized()
-
-
 ## Flat per-hit damage (ADR-016). Deterministic — same weapon, same base, every hit.
 func get_damage() -> int:
 	return maxi(1, base_damage)

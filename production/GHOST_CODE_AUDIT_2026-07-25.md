@@ -47,12 +47,12 @@ Ratchet opportunity: debt ceiling 21 → 11.
 ### 3a. From the fossil register (10 of 19 diagnosed FOSSIL)
 | file:line | symbol | superseded by |
 |---|---|---|
-| `scripts/autoload/combat_manager.gd:306` | `clear_all_projectiles` | HoD leftover; only test fixture cleanup uses it |
-| `scripts/player/health_system.gd:264` | `add_health_pack` | RECON has no health-pack pickup; only save/load touches the field |
+| `scripts/autoload/combat_manager.gd` — was :306, DELETED same day | `clear_all_projectiles` | HoD leftover; only test fixture cleanup uses it |
+| `scripts/player/health_system.gd` — was :264, DELETED same day | `add_health_pack` | RECON has no health-pack pickup; only save/load touches the field |
 | `scripts/player/weapon_holder.gd:162` | `BASE_VIEWMODEL_SCALE` | scale baked into viewmodel .tscn per doctrine |
 | `scripts/squad/squad_system.gd:7` | signal `squad_changed` (3 emit sites) | HUD polls `squad.members` directly (`mission_hud.gd:246,326`) |
 | `scripts/vehicles/helicopter.gd:6` | signal `arrived_at_destination` | consumers use `landed`/`took_off` + state |
-| `scripts/vehicles/landing_zone.gd:57` | `get_landing_position` | `air_traffic.gd:264` flies to `lz.global_position` |
+| `scripts/vehicles/landing_zone.gd` — was :57, DELETED same day | `get_landing_position` | `air_traffic.gd:264` flies to `lz.global_position` |
 | `scripts/vehicles/seat_system.gd:18-19` | signals `seated`/`unseated` | boarding driven by direct calls |
 | `terrain/core/gameplay_grid.gd:458` | `mark_cleared` | `rebuild_rect`/`update_region` path |
 | `terrain/water/water_system.gd:465` | `get_water_type` | siblings have consumers; type query never did |
@@ -80,7 +80,7 @@ Every literal `preload`/`load` target in scripts/ + terrain/ exists on disk (240
 | Where | Ghost |
 |---|---|
 | `tools/export_grunt.bat:5` | Runs Blender on `art_source/characters/base_psx/us_grunt_v2.blend` — **file does not exist** (verified 7/25); hard-fails when run. Sibling `export_us_grunt_v2.py` is fine (opens `us_base_v3.blend`). |
-| `tools/make_soldier_lineup.py:10,14-17` | Points at `assets/models/characters` + `us_grunt_v2/_m60/_m79/_m14.glb` — none exist; `os.path.exists` guard means it silently produces an **empty lineup** every run. |
+| `tools/make_soldier_lineup.py` — DELETED same day (was :10,:14-17) | Pointed at `assets/models/characters` + `us_grunt_v2/_m60/_m79/_m14.glb` — none existed; the `os.path.exists` guard silently produced an **empty lineup** every run. |
 | `scripts/enemies/enemy_data.gd:47-48` | Doc comment describes the buried 8-directional billboard pipeline and `res://assets/NPCs/…` (dir doesn't exist). Fields themselves are LIVE (they key 3D ModelActor clips). Comment lies. |
 | `terrain/systems/damage_system.gd:75`, `terrain/systems/clearing_system.gd:61` | `# set by terrain_lab` — terrain_lab is deleted; real setters are `game_world.gd:138` and `:140`. Actively misleading. |
 | `scripts/main/mission_scope.gd:14` | Tombstone comment referencing the deleted terrain_lab subgraph. |
@@ -98,7 +98,7 @@ These are the "more to it" findings: real subsystem halves waiting for their oth
 | **Heli insertion/extraction** | `seat_system.gd:266 board_squad`, `:253 unseat_all`, `site_planner.gd:698 stamp_lz` (all test-only callers) | Parked by ADR-029's foot-only slice. Dormant on purpose until the slice widens. |
 | **Corpse-drag** | `model_actor.gd:674 ragdoll_bone`, `:682 wake_ragdoll` ("the drag mechanic grabs these") | The grab mechanic. No ADR decrees it; player.gd:47 only has the speed-multiplier hook. |
 | **Downed/capture economy** | `health_system.gd:8 downed_started` (sibling `downed_ended` IS consumed, player.gd:830), `enemy_base.gd:2367 secure` (test-only) | Start-of-downed UI tell; player interaction path for the SECURE verb (fits ADR-019 hearts-and-minds). |
-| Strays | `mission_trigger.gd:80 disarm` (+ uncalled `activate`) — external trigger-control API with no authored sequence; `skill_catalog.gd:43 buy_skill` — only writer of squad skill levels, no debrief/spend UI calls it (ADR-018 context); `enemy_squad.gd:38 HOT_CEILING` — clamp enforced only by its test; `sim_clock.gd:12 day_advanced` — day granularity unused (hour has 3 listeners); `sequence_bark` — see §6 | |
+| Strays | `mission_trigger.gd:80 disarm` (+ uncalled `activate`) — external trigger-control API with no authored sequence; `skill_catalog.gd buy_skill` (was :43 — DELETED same day per the XP decree, ADR-018 context; learn-by-doing `credit_use` is the one writer); `enemy_squad.gd:38 HOT_CEILING` — clamp enforced only by its test; `sim_clock.gd:12 day_advanced` — day granularity unused (hour has 3 listeners); `sequence_bark` — see §6 | |
 
 ## 6. ScriptedSequence / MissionTrigger — protected, but three passes flagged it independently
 

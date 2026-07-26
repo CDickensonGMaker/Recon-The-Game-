@@ -68,8 +68,8 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 	if wants_helmet:
 		var pick: String = String(opts.get("helmet_id",
 			HELMETS[rng.randi() % HELMETS.size()]))
-		out["helmet"] = pick
-		_swap_helmet(actor, root, pick)
+		# The loadout must never claim a helmet the swap could not hang.
+		out["helmet"] = pick if _swap_helmet(actor, root, pick) else ""
 	else:
 		out["helmet"] = ""
 		_set_visible_by_name(root, STOCK_HELMET, false)
@@ -171,15 +171,16 @@ static func _is_face_material(m: Material) -> bool:
 
 
 ## Hide the stock helmet, hang a variant exactly where it was rendering.
-static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> void:
+## Returns false when nothing was hung, so dress() can report an honest loadout.
+static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> bool:
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
-		return
+		return false
 
 	var stock: MeshInstance3D = _find_mesh(root, STOCK_HELMET)
 	if stock == null:
 		push_warning("[DRESSER] no %s in %s - cannot place a helmet" % [STOCK_HELMET, actor.unit])
-		return
+		return false
 
 	# where the stock helmet ACTUALLY RENDERS. The exported variants have their
 	# origin at the helmet's centre, so this is the transform to match. Doing it
@@ -188,32 +189,34 @@ static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> 
 	var centre: Vector3 = stock.global_transform * aabb.get_center()
 	var basis: Basis = stock.global_transform.basis
 
-	stock.visible = false
-
 	var path: String = HELMET_DIR + helmet_id + ".glb"
 	if not ResourceLoader.exists(path):
 		push_warning("[DRESSER] missing helmet %s" % path)
-		return
+		return false
 	var packed: PackedScene = load(path)
 	if packed == null:
-		return
+		return false
 
 	var bone: int = skel.find_bone("mixamorig_Head")
 	if bone < 0:
 		bone = skel.find_bone("mixamorig:Head")
 	if bone < 0:
 		push_warning("[DRESSER] no Head bone on %s" % actor.unit)
-		return
+		return false
 
 	var att := BoneAttachment3D.new()
 	att.name = "HelmetSocket"
 	att.bone_idx = bone
 	skel.add_child(att)
 
+	# Hide the stock only once the variant is certain - a bail above must never
+	# leave a bare head.
+	stock.visible = false
 	var hel: Node3D = packed.instantiate()
 	att.add_child(hel)
 	hel.global_transform = Transform3D(basis, centre)
 	_texture_helmet(hel, helmet_id)
+	return true
 
 
 ## The helmet was baked to ONE albedo atlas (helm_<id>.png) but the glTF export left

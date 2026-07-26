@@ -1,30 +1,20 @@
 {
 	"_comment": "Production symbols whose ONLY references are tests. 'debt' = alive only by its test, shrink by wiring or cutting. 'seams' = read-only observers a test legitimately needs. BOTH ONLY SHRINK. 'count'/'ceiling' witness a hand-edit. New entries enter ONLY via --grandfather --reason=<text>.",
 	"debt": [
-		"scripts/autoload/campaign_state.gd|roster_skill",
-		"scripts/enemies/enemy_base.gd|secure",
-		"scripts/enemies/enemy_squad.gd|HOT_CEILING",
-		"scripts/gameplay/radio_handset.gd|take",
-		"scripts/missions/mission_generator.gd|CivilianScript",
-		"scripts/missions/mission_generator.gd|EnemyBaseScript",
-		"scripts/missions/mission_state.gd|complete_objective",
-		"scripts/missions/mission_state.gd|is_exfil_unlocked",
-		"scripts/missions/mission_state.gd|register_objective",
+		"scripts/missions/field_director.gd|set_player_route",
+		"scripts/missions/friendly_patrol_group.gd|is_pinned",
+		"scripts/missions/friendly_patrol_group.gd|living_count",
 		"scripts/missions/scripted_sequence.gd|abort",
-		"scripts/squad/skill_catalog.gd|buy_skill",
-		"scripts/vehicles/helicopter.gd|take_off",
 		"scripts/vehicles/seat_system.gd|board_squad",
 		"scripts/vehicles/seat_system.gd|unseat_all",
-		"scripts/world/location_planner.gd|apply_lifts",
-		"scripts/world/location_planner.gd|plan_locations",
 		"scripts/world/nav_baker.gd|queue_site",
+		"scripts/world/road_network.gd|total_length",
 		"scripts/world/site_planner.gd|stamp_lz",
-		"terrain/core/terrain_manager.gd|get_normal_at",
 		"terrain/vegetation/jungle_patch_layer.gd|T_CLEAR",
 		"terrain/water/water_system.gd|get_water_level_at"
 	],
-	"count": 21,
-	"ceiling": 21,
+	"count": 11,
+	"ceiling": 11,
 	"seams": [
 		"scripts/autoload/world_sim.gd|count_live",
 		"scripts/combat/bullet_system.gd|live_count",
@@ -103,6 +93,16 @@
 				"terrain/core/terrain_manager.gd|get_loaded_chunk_count",
 				"terrain/vegetation/tree_cover_layer.gd|collider_count",
 				"terrain/water/water_system.gd|get_stats"
+			]
+		},
+		{
+			"date": "2026-07-25",
+			"reason": "2026-07-25 audit adjudication: set_player_route awaits the patrol-contract P2 map-pencil producer (decree ratified); is_pinned/living_count are read-only test observers of FriendlyPatrolGroup state (production channels are event-driven); total_length is a test-only road metric (production uses longest_route/distance_to_road)",
+			"added": [
+				"scripts/missions/field_director.gd|set_player_route",
+				"scripts/missions/friendly_patrol_group.gd|is_pinned",
+				"scripts/missions/friendly_patrol_group.gd|living_count",
+				"scripts/world/road_network.gd|total_length"
 			]
 		}
 	]

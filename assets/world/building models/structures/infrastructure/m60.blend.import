@@ -8,7 +8,7 @@ path="res://.godot/imported/m60.blend-dc316f53884d2ef6038803aed8b0b36c.scn"
 
 [deps]
 
-source_file="res://assets/building models/structures/infrastructure/m60.blend"
+source_file="res://assets/world/building models/structures/infrastructure/m60.blend"
 dest_files=["res://.godot/imported/m60.blend-dc316f53884d2ef6038803aed8b0b36c.scn"]
 
 [params]

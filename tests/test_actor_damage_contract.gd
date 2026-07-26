@@ -36,6 +36,11 @@ const ACTOR_CONTRACT: Dictionary = {
 	# HealthSystem is the player's damage SINK, not a spawnable actor: it owns no
 	# body and no zones. player.gd delegates to it.
 	"res://scripts/player/health_system.gd": {"hitzones": false, "gib": false},
+	# Blast-bus props (AgentRegistry PROP kind): only explosions reach take_damage via
+	# combat_manager's props loop. No Hitzone (rifle fire is merely blocked - cover),
+	# no gib (death is a state swap / scripted fell, not a body).
+	"res://scripts/world/destructible.gd": {"hitzones": false, "gib": false},
+	"res://scripts/world/fellable_tree.gd": {"hitzones": false, "gib": false},
 }
 
 ## Layers a player or AI round can actually hit. A zone outside this set is

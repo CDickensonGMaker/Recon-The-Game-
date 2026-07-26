@@ -4,3 +4,5 @@
 
 [node name="AIStressArena" type="Node3D"]
 script = ExtResource("1_stress")
+spawn_cover = true
+spawn_vegetation = true

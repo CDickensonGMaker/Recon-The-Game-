@@ -131,14 +131,14 @@ direction that actually hurt us.**
   draft was written: it now reads `ceiling 19 / count 19` (`tests/fossil_baseline.json:3-4`, as of
   2026-07-24), and it passed through **146** en route — the probe's own source records that growth as the
   defect it was built to make visible (*"Nothing checked them, which is how 77 became 146."* —
-  `tests/test_fossils.gd:332`). `grandfather_log` is still `[]` (`tests/fossil_baseline.json:26`) despite
+  `tests/test_fossils.gd:332`). `grandfather_log` was still `[]` at ratification (`tests/fossil_baseline.json`, as of 2026-07-13) despite
   that growth, so the register
   carries no provenance for it. **That is a live discrepancy against ADR-023's one forbidden move, and
   it is out of this draft's scope — it needs its own ruling.**
 - It does **not** resolve `j3ke`'s 19 built-ahead-of-wiring symbols. Those are a **roadmap** decision.
 - It does **not** touch `zpw2`'s `terrain/` blind spot — **that hole is closed**: `terrain/` is now
   scanned (`tests/test_fossils.gd:8`, `SCAN_DIRS = ["res://scripts", "res://terrain"]`), and the
-  register carries `terrain/` entries (`tests/fossil_baseline.json:29-32`).
+  register carried `terrain/` entries at ratification (`tests/fossil_baseline.json`, as of 2026-07-13; the 2026-07-25 shrink cleared them).
 - It does **not** claim the incident is fixed by the timeout. `test_vehicle_kill` still hangs.
 
 ---

@@ -689,6 +689,7 @@ func _start_reload() -> void:
 		# ADR-018: the authored time, always. Handling is not a stat.
 		reload_timer = current_weapon.jam_clear_time
 		is_aiming = false
+		_play_vm_clip("jam", current_weapon.jam_clear_time)
 		reload_started.emit()
 		return
 	if spare_magazines <= 0:
@@ -701,6 +702,7 @@ func _start_reload() -> void:
 	# ADR-018: the authored time, always. Handling is not a stat.
 	reload_timer = current_weapon.reload_time
 	is_aiming = false
+	_play_vm_clip("reload_empty" if current_ammo == 0 else "reload", current_weapon.reload_time)
 	GunFX.play_reload_2d(self, current_weapon)
 	reload_started.emit()
 
@@ -720,6 +722,7 @@ func _update_reload(delta: float) -> void:
 
 func _finish_reload() -> void:
 	is_reloading = false
+	_play_vm_idle()
 	_warhead_fired = false   # a fresh rocket goes down the tube
 	if _clearing_jam:
 		_clearing_jam = false
@@ -858,6 +861,7 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 	if weapon_model:
 		weapon_model.queue_free()
 		weapon_model = null
+		_vm_anim = null
 
 	if weapon_data and not weapon_data.model_path.is_empty():
 		var scene := load(weapon_data.model_path)
@@ -877,9 +881,8 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 			weapon_model.rotation_degrees = weapon_data.hip_rotation
 			# Base scale is baked into the viewmodel .tscn root - never set it here.
 			# Arms viewmodels need their idle clip played or the rig renders in bind pose.
-			var vm_anim := weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-			if vm_anim != null and vm_anim.has_animation("rifle_idle"):
-				vm_anim.play("rifle_idle")
+			_vm_anim = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			_play_vm_idle()
 			_scan_warhead(weapon_model)   # a fresh launcher comes loaded
 
 

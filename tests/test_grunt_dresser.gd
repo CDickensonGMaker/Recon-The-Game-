@@ -75,8 +75,10 @@ func _check_face_consistency_all_roles(pool: Array[String]) -> void:
 		actor.queue_free()
 
 
-## 1b. Legacy body (no stock-helmet contract): dress_actor slides the face but
-## hangs NO helmet - the welded pot stays, nothing is hidden bare.
+## 1b. The base rig outside the role pool still dresses HONESTLY, on the
+## CAPABILITY gate (never a unit-name list - lists drift, grunt_randomizer.gd):
+## the face always slides; a body carrying the stock helmet gets a properly hung
+## variant, a body without it gets NO helmet claimed and no socket.
 func _check_legacy_face_only() -> void:
 	const LEGACY := "us_grunt_rifleman"
 	if not ModelActor.model_exists(LEGACY):
@@ -91,13 +93,23 @@ func _check_legacy_face_only() -> void:
 	var out: Dictionary = GruntRandomizer.dress_actor(actor, rng)
 	if _face_offsets(actor).is_empty():
 		_fail("legacy %s: face did not slide (face-only dressing broken)" % LEGACY)
-	if not String(out.get("helmet", "x")).is_empty():
-		_fail("legacy %s: dresser hung helmet '%s' on a body with no stock-helmet contract"
-			% [LEGACY, String(out.get("helmet", ""))])
-	var skel: Skeleton3D = actor.skeleton()
-	if skel != null and skel.find_child("HelmetSocket", false, false) != null:
-		_fail("legacy %s: HelmetSocket attached without the contract" % LEGACY)
-	print("  legacy face-only OK (%s keeps his welded pot)" % LEGACY)
+	var has_stock: bool = _has_mesh_named(actor, GruntDresser.STOCK_HELMET)
+	if has_stock:
+		# Re-exported WITH the contract (41fcdc85): the gate must hang a variant.
+		if String(out.get("helmet", "")).is_empty():
+			_fail("legacy %s: carries %s but the dresser hung nothing"
+				% [LEGACY, GruntDresser.STOCK_HELMET])
+		else:
+			_check_helmet(actor, LEGACY)
+		print("  base rig OK (%s carries the stock-helmet contract; variant hung)" % LEGACY)
+	else:
+		if not String(out.get("helmet", "x")).is_empty():
+			_fail("legacy %s: dresser hung helmet '%s' on a body with no stock-helmet contract"
+				% [LEGACY, String(out.get("helmet", ""))])
+		var skel: Skeleton3D = actor.skeleton()
+		if skel != null and skel.find_child("HelmetSocket", false, false) != null:
+			_fail("legacy %s: HelmetSocket attached without the contract" % LEGACY)
+		print("  legacy face-only OK (%s keeps his welded pot)" % LEGACY)
 	actor.queue_free()
 
 
@@ -208,6 +220,20 @@ func _seeded_loadout(seed_v: int) -> Dictionary:
 		return {}
 	(got["actor"] as Node).queue_free()
 	return got["loadout"]
+
+
+func _has_mesh_named(actor: ModelActor, needle: String) -> bool:
+	var root: Node3D = actor.instance_root()
+	if root == null:
+		return false
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		if n is MeshInstance3D and String(n.name).contains(needle):
+			return true
+	return false
 
 
 func _face_offsets(actor: ModelActor) -> Array[Vector3]:

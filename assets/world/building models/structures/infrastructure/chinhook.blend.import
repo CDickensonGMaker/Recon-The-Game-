@@ -8,7 +8,7 @@ path="res://.godot/imported/chinhook.blend-c1a370a4406b74df5fd19685da4e7b78.scn"
 
 [deps]
 
-source_file="res://assets/building models/structures/infrastructure/chinhook.blend"
+source_file="res://assets/world/building models/structures/infrastructure/chinhook.blend"
 dest_files=["res://.godot/imported/chinhook.blend-c1a370a4406b74df5fd19685da4e7b78.scn"]
 
 [params]

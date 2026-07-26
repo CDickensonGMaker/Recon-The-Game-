@@ -100,6 +100,6 @@ func _base_result(success: bool, reason: String) -> Dictionary:
 		"contacts_avoided": contacts_avoided(),
 		# Patrol-quality grade (ADR-029 Amendment C — PROPOSED). Reported at the AAR,
 		# not scored: the ADR-006 payout hook stays unratified until the Summoner blesses.
-		"ground_covered": _covered_cells.size(),
+		"ground_covered": ground_covered_sectors(),
 		"waypoints_reached": waypoints_reached,
 	}

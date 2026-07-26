@@ -34,6 +34,9 @@ func _ready() -> void:
 	_arena.set("us_reserve_squads", 0)
 	_arena.set("vc_reserve_squads", 0)
 	_arena.set("round_max_seconds", 60.0)
+	# Content layers are opt-in since the FireSupportBench extraction (arena boots as a
+	# bare walled room); this probe asserts on the vegetation layer, so switch it on.
+	_arena.set("spawn_vegetation", true)
 	_arena.set("spawn_player", false)
 	_arena.set("spawn_hud", false)
 	_arena.set("bench_dressing", false)
@@ -61,12 +64,19 @@ func _run_checks() -> void:
 	if not _arena.is_in_group("game_world"):
 		_fail("(a) arena not in group 'game_world' - enemy_base can't find the grid")
 
-	# (b) density + sight-cap, and the origin-offset guard
-	var veg_open: float = grid.get_vegetation(OPEN_PT)
+	# (b) density + sight-cap, and the origin-offset guard.
+	# Since the content-layer split, spawn_vegetation includes _build_jungle's
+	# whole-arena VEG_HEAVY blanket - there is no naturally open cell left. Carve a
+	# measured open pocket at OPEN_PT through the grid's own cells so the cap can be
+	# proven in BOTH directions (0 -> ~140m, >0.6 -> ~50m).
+	if grid.world_to_grid(OPEN_PT) == grid.world_to_grid(JUNGLE_PT):
+		_fail("(b) OPEN_PT and JUNGLE_PT collapse onto the same cell - origin-offset trap")
 	var veg_jungle: float = grid.get_vegetation(JUNGLE_PT)
-	print("density: open=%.2f  jungle=%.2f" % [veg_open, veg_jungle])
+	_carve_open_pocket(grid, OPEN_PT, 10.0)
+	var veg_open: float = grid.get_vegetation(OPEN_PT)
+	print("density: open(carved)=%.2f  jungle=%.2f" % [veg_open, veg_jungle])
 	if veg_open > 0.1:
-		_fail("(b) open ground reads %.2f density (expected ~0) - offset trap? veg leaking?" % veg_open)
+		_fail("(b) carved pocket reads %.2f density (expected ~0) - offset trap? carve missed?" % veg_open)
 	if veg_jungle < 0.6:
 		_fail("(b) jungle reads %.2f density (expected >0.6) - stamp missing or offset trap" % veg_jungle)
 
@@ -129,6 +139,24 @@ func _check_trunk() -> void:
 		_fail("(d) trunk did NOT stop an LOS-mask ray")
 	if not clear_ray:
 		_fail("(d) the open control lane was not clear (bad control)")
+
+
+## Zero the vegetation cells in a world-space disc (the inverse of the arena's
+## _stamp_veg_circle, same index math), so open-ground sight can still be measured
+## under the jungle blanket.
+func _carve_open_pocket(grid: GameplayGrid, center: Vector3, radius: float) -> void:
+	var cell: float = grid.cell_size_meters
+	var gc: Vector2i = grid.world_to_grid(center)
+	var r_cells: int = int(ceil(radius / cell))
+	for dz in range(-r_cells, r_cells + 1):
+		for dx in range(-r_cells, r_cells + 1):
+			if Vector2(float(dx) * cell, float(dz) * cell).length() > radius:
+				continue
+			var gx: int = gc.x + dx
+			var gz: int = gc.y + dz
+			if gx < 0 or gz < 0 or gx >= grid.grid_size or gz >= grid.grid_size:
+				continue
+			grid.vegetation_density[gz * grid.grid_size + gx] = 0.0
 
 
 func _ray(from: Vector3, to: Vector3, mask: int) -> Dictionary:

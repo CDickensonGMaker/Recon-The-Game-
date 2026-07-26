@@ -13,6 +13,7 @@ var _veg: VegetationManager
 var _parent: Node3D
 var placed_sites: Array[Dictionary] = []
 var _reserved: Array[Vector3] = []  ## centers returned by find_site, pre-stamp
+var _cleared_discs: Dictionary = {}  ## clear_and_flatten dedup keys (0.1m grain)
 ## World-space rect of the placed main firebase; band-mode find_site rejects
 ## points inside it (grown by FSB_SITE_CLEARANCE).
 var _fsb_rect := Rect2()
@@ -107,7 +108,14 @@ func _footprint_valid(center: Vector3, radius: float) -> bool:
 
 
 ## Flatten + clear vegetation for a pad (LZ / firebase ground).
+## Idempotent per disc: the CLEARED flatten is a partial lerp toward the disc
+## mean, so a repeat call sinks the pad again and breaks the ADR-010 re-stamp
+## contract (same seed + center must yield identical heights).
 func clear_and_flatten(center: Vector3, radius: float) -> void:
+	var disc_key := Vector3i(int(center.x * 10.0), int(center.z * 10.0), int(radius * 10.0))
+	if _cleared_discs.has(disc_key):
+		return
+	_cleared_discs[disc_key] = true
 	var zone_id: int = ClearingSystem.create_zone(center, radius)
 	ClearingSystem.set_zone_stage(zone_id, ClearingSystem.ClearingStage.CLEARED)
 	if _veg and _veg.has_method("clear_area"):

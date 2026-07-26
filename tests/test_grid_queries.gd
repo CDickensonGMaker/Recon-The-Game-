@@ -78,7 +78,10 @@ func _run() -> void:
 	var crater_pos := Vector3(world.map_size * 0.5 + 40.0, 0.0, world.map_size * 0.5 + 40.0)
 	var before: float = world.terrain_manager.get_height_at(crater_pos)
 	DamageSystem.apply_damage(crater_pos, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
-	await get_tree().process_frame
+	# The dig is QUEUED and drained TERRAIN_DEFORMS_PER_FRAME per frame by
+	# DamageSystem._process (ADR-031 throttle) - give the drainer frames to run.
+	for _i in range(5):
+		await get_tree().process_frame
 	var after: float = world.terrain_manager.get_height_at(crater_pos)
 	print("crater: before=%.2f after=%.2f delta=%.2f" % [before, after, before - after])
 	if after >= before:

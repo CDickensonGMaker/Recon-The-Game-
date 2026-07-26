@@ -8,7 +8,7 @@ path="res://.godot/imported/bridge.blend-53d4219d0331036432d157eb753e2e65.scn"
 
 [deps]
 
-source_file="res://assets/building models/structures/bridge.blend"
+source_file="res://assets/world/building models/structures/bridge.blend"
 dest_files=["res://.godot/imported/bridge.blend-53d4219d0331036432d157eb753e2e65.scn"]
 
 [params]

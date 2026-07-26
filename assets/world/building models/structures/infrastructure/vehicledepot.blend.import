@@ -8,7 +8,7 @@ path="res://.godot/imported/vehicledepot.blend-1e0ca74109aa1b6dbb7e9f67bb2fd384.
 
 [deps]
 
-source_file="res://assets/building models/structures/infrastructure/vehicledepot.blend"
+source_file="res://assets/world/building models/structures/infrastructure/vehicledepot.blend"
 dest_files=["res://.godot/imported/vehicledepot.blend-1e0ca74109aa1b6dbb7e9f67bb2fd384.scn"]
 
 [params]

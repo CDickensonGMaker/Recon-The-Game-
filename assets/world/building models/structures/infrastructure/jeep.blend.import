@@ -8,7 +8,7 @@ path="res://.godot/imported/jeep.blend-8059818ea85e4cf3e59d4994985030a5.scn"
 
 [deps]
 
-source_file="res://assets/building models/structures/infrastructure/jeep.blend"
+source_file="res://assets/world/building models/structures/infrastructure/jeep.blend"
 dest_files=["res://.godot/imported/jeep.blend-8059818ea85e4cf3e59d4994985030a5.scn"]
 
 [params]

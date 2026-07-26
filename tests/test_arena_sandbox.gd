@@ -30,6 +30,7 @@ func _run() -> void:
 	arena.set("us_reserve_squads", 0)
 	arena.set("vc_reserve_squads", 0)
 	arena.set("spawn_player", true)
+	arena.set("spawn_cover", true)  # forts + tunnel live behind the cover layer toggle
 	arena.set("spawn_hud", false)
 	arena.set("bench_dressing", false)
 	arena.set("hot_start", false)
@@ -131,11 +132,11 @@ func _t_sapper_breach(arena: Node3D) -> void:
 		_f("sapper never detonated after reaching its objective")
 		return
 	var near_after: int = _forts_within(arena, gz_pos, 6.0)
-	print("sapper breach: forts within 6m of ground zero %d -> %d | control at %.1fm valid: %s" % [
-		near_before, near_after, control_dist, is_instance_valid(control)])
+	print("sapper breach: forts within 6m of ground zero %d -> %d | control at %.1fm standing: %s" % [
+		near_before, near_after, control_dist, _fort_standing(control)])
 	if near_after >= near_before:
 		_f("sapper detonation left the wire intact (%d -> %d) - no gap" % [near_before, near_after])
-	if control != null and control_dist > 15.0 and not is_instance_valid(control):
+	if control != null and control_dist > 15.0 and not _fort_standing(control):
 		_f("blast destroyed a segment %.1fm out, outside its 14m radius - overreach" % control_dist)
 
 
@@ -190,10 +191,17 @@ func _farthest_fort(arena: Node3D, p: Vector3) -> Node3D:
 	return best
 
 
+## Standing = not doomed. Destructibles STATE-SWAP instead of freeing (ADR-031),
+## so a breached segment stays a valid node; _dying is set the frame the blast
+## dooms it (the swap itself is frame-throttled).
+func _fort_standing(f: Variant) -> bool:
+	return is_instance_valid(f) and not bool((f as Node).get("_dying"))
+
+
 func _forts_within(arena: Node3D, p: Vector3, r: float) -> int:
 	var n: int = 0
 	for f in arena.get("_forts"):
-		if not is_instance_valid(f):
+		if not _fort_standing(f):
 			continue
 		if (f as Node3D).global_position.distance_to(p) <= r:
 			n += 1

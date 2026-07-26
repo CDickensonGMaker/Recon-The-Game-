@@ -133,6 +133,13 @@ func _wire_rto_radio(rto: AllyBase) -> void:
 		world.player.call("bind_radio_handset", handset)
 
 
+## Benches and probes build a SquadSystem with no FieldDirector; the toast net
+## is optional there, the squad AI is not — every bark routes through this.
+func _toast(text: String) -> void:
+	if director != null:
+		director.toast.emit(text)
+
+
 func member_by_mos(mos: String) -> AllyBase:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead() and str(a.member.get("mos", "")) == mos:
@@ -163,7 +170,7 @@ func _set_weapons_free(free: bool) -> void:
 	for a in members:
 		if is_instance_valid(a):
 			a.weapons_free = free
-	director.toast.emit("SQUAD: WEAPONS %s" % ("FREE" if free else "TIGHT - HOLD FIRE"))
+	_toast("SQUAD: WEAPONS %s" % ("FREE" if free else "TIGHT - HOLD FIRE"))
 	VOManager.play_squad("weapons_free" if free else "weapons_tight")
 
 
@@ -171,7 +178,7 @@ func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> v
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead():
 			a.set_order(mode, pos)
-	director.toast.emit(toast_text)
+	_toast(toast_text)
 
 
 func _aim_ground_point() -> Vector3:
@@ -199,7 +206,7 @@ func begin_revive(_health_system: HealthSystem) -> void:
 	_revive_timer = 0.0
 	_downed_clock = 0.0
 	revives_left -= 1
-	director.toast.emit("MAN DOWN! DOC IS MOVING TO YOU (%d revives left)" % revives_left)
+	_toast("MAN DOWN! DOC IS MOVING TO YOU (%d revives left)" % revives_left)
 	var _vo_doc := member_by_mos("MEDIC")
 	if _vo_doc != null:
 		VOManager.play_squad("man_down", {}, _vo_doc.global_position)
@@ -213,7 +220,7 @@ func _process_revive(delta: float) -> void:
 	_downed_clock += delta
 	if medic == null or _downed_clock >= HealthSystem.DOWNED_BLEED_SECONDS:
 		_reviving = false
-		director.toast.emit("DOC DIDN'T MAKE IT TO YOU.")
+		_toast("DOC DIDN'T MAKE IT TO YOU.")
 		_health.force_death()
 		return
 	var player := world.player
@@ -230,7 +237,7 @@ func _process_revive(delta: float) -> void:
 			if mp > 0:
 				medic.on_skill_up("medic", mp)
 			medic.set_order(AllyBase.OrderMode.FOLLOW)
-			director.toast.emit("DOC: YOU'RE GOOD - ON YOUR FEET!")
+			_toast("DOC: YOU'RE GOOD - ON YOUR FEET!")
 			VOManager.play_squad("on_your_feet", medic.member, medic.global_position)
 	else:
 		_revive_timer = 0.0
@@ -290,8 +297,8 @@ func _update_break() -> void:
 	for a in members:
 		if a != null and is_instance_valid(a) and not a.is_dead():
 			a.squad_broken = squad_broken
-	if squad_broken != was and director != null:
-		director.toast.emit("SQUAD COMBAT INEFFECTIVE - BREAKING CONTACT" if squad_broken \
+	if squad_broken != was:
+		_toast("SQUAD COMBAT INEFFECTIVE - BREAKING CONTACT" if squad_broken \
 			else "SQUAD BACK IN THE FIGHT")
 
 
@@ -324,7 +331,7 @@ func _point_scan() -> void:
 			var pp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)  # learn-by-doing
 			if pp > 0:
 				point.on_skill_up("detect_ambush", pp)
-			director.toast.emit("%s: HOLD UP - MOVEMENT AHEAD" % SquadRoster.call_name(point.member))
+			_toast("%s: HOLD UP - MOVEMENT AHEAD" % SquadRoster.call_name(point.member))
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 	# Punji/trap spotting: harder than spotting men (60% radius), called out once.
 	for t in get_tree().get_nodes_in_group("punji_traps"):
@@ -336,7 +343,7 @@ func _point_scan() -> void:
 			var tp: int = SquadRoster.credit_use(point.member, "detect_ambush", 2)
 			if tp > 0:
 				point.on_skill_up("detect_ambush", tp)
-			director.toast.emit("%s: TRAP! WATCH YOUR STEP - SPIKES" % SquadRoster.call_name(point.member))
+			_toast("%s: TRAP! WATCH YOUR STEP - SPIKES" % SquadRoster.call_name(point.member))
 
 
 func _grenadier_tick() -> void:
@@ -362,7 +369,7 @@ func _grenadier_tick() -> void:
 		if cluster >= 3:
 			_thumper_cooldown = 14.0
 			var impact: Vector3 = enemy.global_position
-			director.toast.emit("%s: THUMPER OUT!" % SquadRoster.call_name(thumper.member))
+			_toast("%s: THUMPER OUT!" % SquadRoster.call_name(thumper.member))
 			VOManager.play_squad("thumper_out", thumper.member, thumper.global_position)
 			get_tree().create_timer(1.2).timeout.connect(func() -> void:
 				if world == null or not is_instance_valid(world) or not is_instance_valid(thumper):
@@ -412,7 +419,7 @@ func _contact_barks() -> void:
 				caller = a
 				break
 		if caller:
-			director.toast.emit("%s: CONTACT!" % SquadRoster.call_name(caller.member))
+			_toast("%s: CONTACT!" % SquadRoster.call_name(caller.member))
 			VOManager.play_squad("contact_front" if randf() < 0.5 else "contact", caller.member, caller.global_position)
 	_last_combat_count = in_combat
 
@@ -422,9 +429,10 @@ func _contact_barks() -> void:
 func _on_member_died(ally: AllyBase) -> void:
 	var m: Dictionary = ally.member
 	m["alive"] = false
-	director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
+	if director != null:
+		director.state.flags["squad_kia"] = (director.state.flags.get("squad_kia", []) as Array) + [str(m.name)]
 	var nick: String = SquadRoster.earned_nick(m)
-	director.toast.emit("KIA: %s %s%s - %d confirmed" % [SquadRoster.rank_for(m), str(m.name),
+	_toast("KIA: %s %s%s - %d confirmed" % [SquadRoster.rank_for(m), str(m.name),
 		(" \"%s\"" % nick) if nick != "" else "", int(m.get("kills", 0))])
 	CampaignState.save_campaign()
 
@@ -433,7 +441,7 @@ func on_mission_end() -> void:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead():
 			a.member["missions"] = int(a.member.get("missions", 0)) + 1
-			if SquadRoster.christen(a.member) and director != null:
-				director.toast.emit("THE MEN HAVE STARTED CALLING %s \"%s\"" % [
+			if SquadRoster.christen(a.member):
+				_toast("THE MEN HAVE STARTED CALLING %s \"%s\"" % [
 					str(a.member.get("name", "")), str(a.member.get("nick", ""))])
 	CampaignState.save_campaign()
