@@ -42,11 +42,11 @@ func apply_audio() -> void:
 	_set_bus("Music", music_volume_db)
 
 
-func _set_bus(name: String, db: float) -> void:
-	var idx: int = AudioServer.get_bus_index(name)
+func _set_bus(bus_name: String, db: float) -> void:
+	var idx: int = AudioServer.get_bus_index(bus_name)
 	if idx >= 0:
 		AudioServer.set_bus_volume_db(idx, db)
-	elif name == "Master":
+	elif bus_name == "Master":
 		AudioServer.set_bus_volume_db(0, db)
 
 

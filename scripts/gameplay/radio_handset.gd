@@ -125,14 +125,14 @@ static func attach_to(rto: AllyBase) -> RadioHandset:
 	var stow_ep := Marker3D.new()
 	rto.add_child(stow_ep)
 	stow_ep.position = Vector3(0.14, 1.2, -0.12)  # at the stowed handset
-	var cord := RadioCord.new()
-	cord.port = port
-	cord.guide = guide
-	cord.endpoint = stow_ep
-	rto.add_child(cord)
+	var new_cord := RadioCord.new()
+	new_cord.port = port
+	new_cord.guide = guide
+	new_cord.endpoint = stow_ep
+	rto.add_child(new_cord)
 	var handset := RadioHandset.new()
 	handset.stowed_mesh = stowed
-	handset.cord = cord
+	handset.cord = new_cord
 	handset.stowed_endpoint = stow_ep
 	rto.add_child(handset)
 	rto.set_meta("handset", handset)

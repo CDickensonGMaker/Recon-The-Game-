@@ -80,7 +80,7 @@ static func shot_stream_for(weapon_name: String) -> AudioStream:
 ## 3D positional gunshot (NPCs/allies). `data` is a WeaponData (preferred) or a
 ## String id/path. Delegates to AudioManager's pooled, distance-layered voices.
 ## `parent` is ignored (AudioManager owns the voice nodes) but kept for callers.
-static func play_shot_3d(parent: Node, pos: Vector3, data: Variant, volume_db: float = 0.0) -> void:
+static func play_shot_3d(_parent: Node, pos: Vector3, data: Variant, volume_db: float = 0.0) -> void:
 	AudioManager.play_shot_3d(pos, data, volume_db)
 
 

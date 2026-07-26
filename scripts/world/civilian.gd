@@ -123,17 +123,18 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	# with the same faces (ADR-010/017 - the province must come back identical).
 	var seed_h: int = absi(hash(Vector2i(int(pos.x), int(pos.z))))
 	var pick: int = seed_h % models.size()
+	@warning_ignore("integer_division")
 	civ._idle_variant = IDLE_VARIANTS[(seed_h / 7) % IDLE_VARIANTS.size()]
-	var actor := ModelActor.new()
-	civ.add_child(actor)
-	if actor.setup(models[pick]):
-		civ.actor = actor
+	var model_actor := ModelActor.new()
+	civ.add_child(model_actor)
+	if model_actor.setup(models[pick]):
+		civ.actor = model_actor
 	else:
 		# The model is missing. Fall back to the old pill rather than an invisible
 		# man - but say so LOUDLY, because a silent fallback is how a village full
 		# of capsules survives for weeks without anyone noticing.
 		push_warning("[Civilian] no model for '%s' - falling back to a CAPSULE. The village will look like pills." % models[pick])
-		actor.queue_free()
+		model_actor.queue_free()
 		var mesh := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
 		cm.radius = 0.3
@@ -166,13 +167,13 @@ func _exit_tree() -> void:
 	AgentRegistry.unregister(self)
 
 
-func _on_noise(type: int, position: Vector3, _radius: float, _team: int) -> void:
+func _on_noise(type: int, noise_pos: Vector3, _radius: float, _team: int) -> void:
 	if state == CivState.GONE:
 		return
 	if is_garrison:
 		return
 	if type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION:
-		if global_position.distance_to(position) < 60.0:
+		if global_position.distance_to(noise_pos) < 60.0:
 			var was_calm: bool = state == CivState.WANDER
 			state = CivState.FLEE if randf() < 0.6 else CivState.COWER
 			if was_calm:

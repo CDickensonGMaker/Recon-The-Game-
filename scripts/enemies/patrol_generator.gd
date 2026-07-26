@@ -33,21 +33,21 @@ static func generate(grid: GameplayGrid, anchor: Vector3, count: int,
 		var candidate: Vector3 = anchor + Vector3(cos(heading), 0.0, sin(heading)) * radius
 		# Snap to a walkable cell. If the cell is water/cliff, walk back toward
 		# the anchor and try a slightly tighter radius.
-		var snapped: Vector3 = _snap_to_walkable(grid, candidate, anchor)
-		if snapped == Vector3.ZERO:
-			snapped = anchor + Vector3(cos(heading), 0.0, sin(heading)) * 20.0
+		var snapped_pos: Vector3 = _snap_to_walkable(grid, candidate, anchor)
+		if snapped_pos == Vector3.ZERO:
+			snapped_pos = anchor + Vector3(cos(heading), 0.0, sin(heading)) * 20.0
 		# Reject if too close to a paddy centroid (silhouette risk).
-		if _near_paddy(snapped, paddy_centroids):
+		if _near_paddy(snapped_pos, paddy_centroids):
 			var alt_heading: float = heading + PI * 0.5
 			var alt: Vector3 = anchor + Vector3(cos(alt_heading), 0.0, sin(alt_heading)) * radius
 			var alt_snap: Vector3 = _snap_to_walkable(grid, alt, anchor)
 			if alt_snap != Vector3.ZERO and not _near_paddy(alt_snap, paddy_centroids):
-				snapped = alt_snap
+				snapped_pos = alt_snap
 		# Keep spacing between consecutive waypoints.
 		if out.size() > 0 \
-				and snapped.distance_to(out[out.size() - 1]) < WAYPOINT_MIN_SPACING:
+				and snapped_pos.distance_to(out[out.size() - 1]) < WAYPOINT_MIN_SPACING:
 			continue
-		out.append(snapped)
+		out.append(snapped_pos)
 	if out.size() < 2:
 		return [anchor]
 	return out

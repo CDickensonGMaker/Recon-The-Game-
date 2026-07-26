@@ -182,8 +182,6 @@ func _update_frustum_culling() -> void:
 			0,
 			coord.y * _chunk_size + _chunk_size * 0.5
 		)
-		var dist := cam_pos.distance_to(chunk_center)
-
 		if _chunk_instances.has(coord):
 			_chunk_instances[coord].visible = in_frustum
 
@@ -478,11 +476,11 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				var wz: float = origin_z + (bz + rng.randf()) * bundle_meters
 				var nm: String = _pick_species(pool, bush_bias, rng)
 				var h: float = heightmap.sample_world(wx, wz)
-				var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
+				var plant_basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
 				# Blast footprints remove individual plants, not whole bundles.
 				if _in_veg_hole(wx, wz):
 					continue
-				scatter.append({"name": nm, "xf": Transform3D(basis, Vector3(wx, h, wz))})
+				scatter.append({"name": nm, "xf": Transform3D(plant_basis, Vector3(wx, h, wz))})
 	return scatter
 
 

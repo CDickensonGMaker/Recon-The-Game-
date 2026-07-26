@@ -196,7 +196,7 @@ static func _patrol_anchors(world: GameWorld, p: Dictionary, rng: RandomNumberGe
 ## effort: a missing camp, a zero-route convoy, an empty sky, all no-op cleanly.
 ## Returns nothing - the world just gets richer.
 static func _wire_systems(world: GameWorld, director: FieldDirector,
-		p: Dictionary, built_sites: Array) -> void:
+		p: Dictionary, _built_sites: Array) -> void:
 	# SimClock is an autoload, so last patrol's flight schedule outlives the world
 	# that seeded it. Clear before anything re-seeds.
 	if SimClock != null:
@@ -316,12 +316,12 @@ static func _attach_camp_directors(world: GameWorld, director: FieldDirector,
 		camp_idx += 1
 
 
-static func _schedule_one_convoy(world: GameWorld, p: Dictionary, seed: int) -> void:
+static func _schedule_one_convoy(world: GameWorld, p: Dictionary, p_seed: int) -> void:
 	# The convoy drives the longest road in the network - the one carrying the most
 	# ground, and so the one most worth ambushing.
 	var spawner := ConvoySpawnerScript.new()
 	spawner.name = "ConvoySpawner"
-	spawner.rng.seed = seed + 8888
+	spawner.rng.seed = p_seed + 8888
 	world.add_child(spawner)
 	spawner.ambush_sites = p.get("ambush_sites", [])
 	var route: Array[Vector3] = []

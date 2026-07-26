@@ -54,6 +54,7 @@ func _ready() -> void:
 	var drone_stream := load("res://assets/audio/sfx/rotor_loop.wav") as AudioStreamWAV
 	if drone_stream:
 		drone_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		@warning_ignore("integer_division")
 		drone_stream.loop_end = drone_stream.data.size() / 2
 		_drone = AudioStreamPlayer3D.new()
 		_drone.stream = drone_stream
@@ -103,6 +104,7 @@ func _fire_vulcan() -> void:
 	for i in range(VULCAN_ROUNDS_PER_BURST):
 		var jitter := Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 		BulletTracer.spawn_tracer(get_tree().current_scene, global_position, impact + jitter, Color(1.0, 0.25, 0.15))
+	@warning_ignore("integer_division")
 	CombatManager.apply_explosion_damage(impact, VULCAN_DAMAGE, VULCAN_DAMAGE / 3, FirePlan.SPECTRE_VULCAN_KILL_M, null, 0.2)
 	GunFX.impact(get_tree().current_scene, impact, Vector3.UP, false)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, impact, 0, 80.0)
@@ -115,6 +117,7 @@ func _fire_bofors() -> void:
 	var impact := _zone_point(BOFORS_ZONE_FRAC)
 	var flight: float = maxf(0.6, global_position.distance_to(impact) / data.speed)
 	Ballistics.fire_arc(data, global_position, impact, flight, terrain, func(at: Vector3) -> void:
+		@warning_ignore("integer_division")
 		CombatManager.apply_explosion_damage(at, BOFORS_DAMAGE, BOFORS_DAMAGE / 4, BOFORS_BLAST_M, null)
 		GunFX.play_explosion_3d(get_tree().current_scene, at, "explosion_40mm")
 		NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, at, 0))

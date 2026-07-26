@@ -412,6 +412,7 @@ static func hunt_point(id: int, me: Object, now_ms: float, determination: float)
 	#   slot 0 -> dead ahead   1 -> +step   2 -> -step   3 -> +2step   4 -> -2step
 	# Deliberately does NOT depend on how many men are in the squad: it must degrade
 	# gracefully as searchers are killed, and never collapse men onto one flank.
+	@warning_ignore("integer_division")
 	var ring: int = (slot + 1) / 2
 	var side: float = 1.0 if (slot % 2) == 1 else -1.0
 	var off_deg: float = clampf(side * float(ring) * HUNT_STEP_DEG, -HUNT_ARC_DEG, HUNT_ARC_DEG)
@@ -467,6 +468,7 @@ static func formation_positions(leader_pos: Vector3, leader_facing: Vector3, cou
 	if count >= 3:
 		out.append(leader_pos + right * FORMATION_SPACING)
 	for i in range(3, count):
+		@warning_ignore("integer_division")
 		var pair: int = (i - 3) / 2
 		var side: float = -1.0 if (i % 2) == 1 else 1.0
 		var offset: Vector3 = -fwd * (FORMATION_TRAIL_SPACING * (pair + 1)) \

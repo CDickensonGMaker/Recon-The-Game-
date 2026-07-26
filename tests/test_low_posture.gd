@@ -81,7 +81,7 @@ func _test_funnel() -> void:
 	# Crouch-to-hold: a firing man who is low now crouch-aims (muzzle flash sells the shot).
 	_expect(SpriteStateMap.intent_for(CBT, false, false, true, 0.0, 0.0, false, true), "crouch_aim", "combat firing while low -> crouch-aim")
 	# Clip resolution to the real merged clips.
-	_expect(SpriteStateMap.clip_for(true, "us", "grunt", "m16", "crouch_fwd"), "walk_crouching_forward", "clip_for crouch_fwd (model)")
+	_expect(SpriteStateMap.clip_for(true, "m16", "crouch_fwd"), "walk_crouching_forward", "clip_for crouch_fwd (model)")
 	_expect(SpriteStateMap.model_clip_for("crouch_idle"), "idle_crouching", "model_clip crouch_idle")
 	_expect(SpriteStateMap.model_clip_for("crouch_back"), "walk_crouching_backward", "model_clip crouch_back")
 

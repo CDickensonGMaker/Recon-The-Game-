@@ -192,8 +192,10 @@ func _drop_bomb() -> void:
 
 func _drop_napalm_strip() -> void:
 	for i in range(FirePlan.NAPALM_DROPS):
+		@warning_ignore("integer_division")
 		var offset: float = float(i - FirePlan.NAPALM_DROPS / 2) * FirePlan.NAPALM_SPACING
 		var pos := _target + _run_dir * offset
+		@warning_ignore("integer_division")
 		var is_center: bool = (i == FirePlan.NAPALM_DROPS / 2)
 		# The rack pickles in sequence, and the aircraft has moved between each one.
 		get_tree().create_timer(float(i) * DROP_STAGGER).timeout.connect(func() -> void:

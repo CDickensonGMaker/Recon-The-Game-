@@ -176,6 +176,7 @@ func _priority_flood() -> void:
 		var c: int = _heap_pop()
 		var cf: float = _filled[c]
 		var cx: int = c % _hsize
+		@warning_ignore("integer_division")
 		var cz: int = c / _hsize
 
 		for d in range(8):
@@ -318,6 +319,7 @@ func _compute_flow_accumulation() -> void:
 			continue
 		var off: Vector2i = DIR8[dir]
 		var x: int = i % _hsize
+		@warning_ignore("integer_division")
 		var z: int = i / _hsize
 		var nx: int = x + off.x
 		var nz: int = z + off.y
@@ -412,6 +414,7 @@ func _flood_coastal() -> void:
 		_type_h[i] = WaterBodyDataClass.Type.COASTAL
 		_surface_h[i] = sea_level
 		var x: int = i % _hsize
+		@warning_ignore("integer_division")
 		var z: int = i / _hsize
 		for d in range(8):
 			var off: Vector2i = DIR8[d]
@@ -444,6 +447,7 @@ func _extract_rivers() -> void:
 			continue
 		# Valley floors only - skip steep fall-line drainage so rivers don't render
 		# as flat slabs plastered down hillsides.
+		@warning_ignore("integer_division")
 		if _local_slope(i % _hsize, i / _hsize) > river_max_slope:
 			continue
 		is_channel[i] = 1
@@ -481,7 +485,7 @@ func _has_upstream_channel(x: int, z: int, is_channel: PackedByteArray) -> bool:
 	return false
 
 
-func _trace_channel(sx: int, sz: int, is_channel: PackedByteArray, visited: PackedByteArray) -> void:
+func _trace_channel(sx: int, sz: int, _is_channel: PackedByteArray, visited: PackedByteArray) -> void:
 	var points := PackedVector2Array()
 	var widths := PackedFloat32Array()
 	var x: int = sx
@@ -538,8 +542,10 @@ func _upsample_outputs() -> void:
 		return
 
 	for z in range(size):
+		@warning_ignore("integer_division")
 		var hz: int = mini(z / downsample, _hsize - 1)
 		for x in range(size):
+			@warning_ignore("integer_division")
 			var hx: int = mini(x / downsample, _hsize - 1)
 			var hi: int = hz * _hsize + hx
 			var fi: int = z * size + x
@@ -593,6 +599,7 @@ func _flood_component(start_x: int, start_z: int, type_code: int,
 		var i: int = stack[stack.size() - 1]
 		stack.remove_at(stack.size() - 1)
 		var x: int = i % size
+		@warning_ignore("integer_division")
 		var z: int = i / size
 		cells.append(Vector2i(x, z))
 

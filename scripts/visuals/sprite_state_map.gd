@@ -195,7 +195,7 @@ const WEAPON_FAMILY: Dictionary = {
 
 ## One entry point both renderers use. is_model picks the model clip map (all 21
 ## clips present) vs the sprite fallback chain (only what was rendered).
-static func clip_for(is_model: bool, faction: String, unit: String, weapon: String, intent: String) -> String:
+static func clip_for(is_model: bool, weapon: String, intent: String) -> String:
 	if not is_model:
 		return IDLE  # capsule fallback has no clips (ADR-001: the sprite renderer is dead)
 	var base: String = model_clip_for(intent)

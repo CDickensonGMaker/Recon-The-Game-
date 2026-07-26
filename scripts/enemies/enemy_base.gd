@@ -431,7 +431,7 @@ func _update_sprite() -> void:
 			and (intent == "aim" or intent == "idle" or intent == "cover"):
 		_arrive_until_ms = now + 450.0
 		intent = "arrive"
-	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent))
+	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), intent))
 	if sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
@@ -940,14 +940,14 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 
 
 ## Heard something. Investigation goes to the NOISE, not the source.
-func _on_noise_heard(_type: int, position: Vector3, radius: float, source_team: int) -> void:
+func _on_noise_heard(_type: int, noise_pos: Vector3, radius: float, source_team: int) -> void:
 	if source_team == 1:  # our own side
 		return
 	if current_state == Enums.AIState.DEAD:
 		return
-	if global_position.distance_to(position) > radius:
+	if global_position.distance_to(noise_pos) > radius:
 		return
-	last_known_target_pos = position
+	last_known_target_pos = noise_pos
 	target_last_seen_time = 0.0
 	awareness = minf(1.0, awareness + 0.35)
 	if alert_tier == AlertTier.RELAXED:
@@ -1542,7 +1542,7 @@ func _execute_seeking_cover(delta: float) -> void:
 	velocity.z = move_dir.z * move_speed * _suppression_move_mult()
 
 
-func _execute_flanking(delta: float) -> void:
+func _execute_flanking(_delta: float) -> void:
 	if not target:
 		return
 
@@ -1759,9 +1759,9 @@ static func _crowding_cost(pos: Vector3) -> float:
 static func _claim_cover(pos: Vector3, claimant: Node) -> bool:
 	var key := _cover_key(pos)
 	var existing: Dictionary = _cover_claims.get(key, {})
-	var owner: Node = existing.get("enemy")
-	if owner != null and is_instance_valid(owner) and owner != claimant \
-			and not (owner.has_method("is_dead") and owner.is_dead()):
+	var holder: Node = existing.get("enemy")
+	if holder != null and is_instance_valid(holder) and holder != claimant \
+			and not (holder.has_method("is_dead") and holder.is_dead()):
 		return false
 	_cover_claims[key] = {"enemy": claimant}
 	return true
@@ -1872,6 +1872,7 @@ static func make_patrol_circuit(anchors: Array[Vector3], rng: RandomNumberGenera
 	# Star step: the biggest stride under n/2 that is coprime with n. gcd == 1 is what
 	# guarantees the walk touches every node instead of closing early on a sub-loop.
 	var step: int = 1
+	@warning_ignore("integer_division")
 	for k in range(int(n / 2), 1, -1):
 		if _coprime(k, n):
 			step = k
@@ -2160,7 +2161,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_gut_bleed_dps = 4.0
 		_become_crippled()
 	# Badly shot men may go down crawling - slow, loud, drawing their buddies.
-	if not is_crippled and current_hp > 0 and current_hp < max_hp / 4 and randf() < 0.35:
+	if not is_crippled and current_hp > 0 and float(current_hp) < float(max_hp) / 4.0 and randf() < 0.35:
 		_become_crippled()
 
 	# Getting shot = instant COMBAT tier, but LOCALLY ONLY (witnessed=false): he
@@ -2192,7 +2193,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 	# Pain-quota stagger: a solid hit (>= a third of max HP) that does not kill jolts
 	# them into a brief SUPPRESSED stagger + a pain grunt.
-	if current_hp > 0 and amount >= max_hp / 3:
+	if current_hp > 0 and float(amount) >= float(max_hp) / 3.0:
 		apply_stagger(1.0)
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0)
 
@@ -2242,7 +2243,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 				if other != self and other and not other.is_dead() \
 						and other.global_position.distance_to(global_position) < 30.0:
 					living_nearby += 1
-			if living_nearby == 0 and current_hp < max_hp / 3 and randf() < 0.4:
+			if living_nearby == 0 and float(current_hp) < float(max_hp) / 3.0 and randf() < 0.4:
 				try_surrender()  # alone, hurt, broken: hands up
 			else:
 				# ROUT: drop the fight and run for the rear.
@@ -2281,7 +2282,7 @@ func _become_crippled() -> void:
 	move_speed *= 0.25
 	base_accuracy_modifier *= 1.6
 	if sprite_actor != null:
-		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), "crippled"))
 	elif mesh:
 		mesh.scale.y = 0.45
 		mesh.position.y = -0.35
@@ -2355,7 +2356,7 @@ func _become_downed() -> void:
 			if not posed:
 				ma.start_ragdoll(last_hit_dir, 1.5)
 	elif sprite_actor != null:
-		sprite_actor.play(SpriteStateMap.clip_for(false, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "crippled"))
+		sprite_actor.play(SpriteStateMap.clip_for(false, str(enemy_data.sprite_weapon), "crippled"))
 	VOManager.play_enemy("pain", self)
 
 
@@ -2425,7 +2426,7 @@ func _die() -> void:
 			if _low_posture and _visual_is_model and ma != null:
 				played = ma.play("death_crouching_headshot_front", true)
 			if played is bool and not played:
-				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), intent), true)
+				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), intent), true)
 			# DEAD MEN FALL, whatever the export shipped: mapped clip -> any death clip
 			# in the library -> ragdoll.
 			if played is bool and not played and _visual_is_model and ma != null:
@@ -2464,7 +2465,7 @@ func try_surrender() -> bool:
 	set_physics_process(false)
 	velocity = Vector3.ZERO
 	if sprite_actor != null:
-		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_faction), str(enemy_data.sprite_unit), str(enemy_data.sprite_weapon), "surrender"), true)
+		sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), "surrender"), true)
 		sprite_actor.set_base_modulate(Color(1.15, 1.15, 0.95))
 	elif mesh and mesh.material_override:
 		mesh.material_override.albedo_color = Color(0.7, 0.7, 0.6)

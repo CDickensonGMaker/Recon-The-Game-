@@ -257,10 +257,6 @@ func _update_ads(delta: float) -> void:
 			zoom_fov = current_weapon.ads_fov
 		camera.fov = lerpf(BASE_FOV, zoom_fov, ads_transition)
 
-	if controller and current_weapon:
-		var speed_mult: float = lerpf(1.0, current_weapon.ads_move_mult, ads_transition)
-		# Speed modifier is applied through equipment_manager
-
 
 signal target_hit(killed: bool, headshot: bool)
 var _burst_left: int = 0

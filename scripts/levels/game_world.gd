@@ -255,6 +255,7 @@ func _start_ambience() -> void:
 	var floor_s := load("res://assets/audio/sfx/jungle_loop.wav") as AudioStreamWAV
 	if floor_s != null:
 		floor_s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		@warning_ignore("integer_division")
 		floor_s.loop_end = floor_s.data.size() / 2
 	if bed == null:
 		bed = floor_s
@@ -270,6 +271,7 @@ func _start_ambience() -> void:
 	var war_s := load("res://assets/audio/sfx/distant_war_loop.wav") as AudioStreamWAV
 	if war_s != null:
 		war_s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		@warning_ignore("integer_division")
 		war_s.loop_end = war_s.data.size() / 2
 		var wp := AudioStreamPlayer.new()
 		wp.stream = war_s
@@ -361,6 +363,7 @@ func start_night_ambience() -> void:
 	if stream == null:
 		return
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	@warning_ignore("integer_division")
 	stream.loop_end = stream.data.size() / 2
 	var p := AudioStreamPlayer.new()
 	p.stream = stream

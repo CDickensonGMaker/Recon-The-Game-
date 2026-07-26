@@ -39,13 +39,13 @@ const PERCEIVE_RANGE: float = 150.0
 const PERCEIVE_NEAR: float = 20.0
 
 
-static func perceivable(actor: Node3D) -> bool:
-	var player := GameManager.player as Node3D
-	if player == null or not is_instance_valid(player):
+func perceivable(actor: Node3D) -> bool:
+	var player_node := GameManager.player as Node3D
+	if player_node == null or not is_instance_valid(player_node):
 		return true
 	var vp: Viewport = actor.get_viewport()
 	var cam: Camera3D = vp.get_camera_3d() if vp != null else null
-	var eye: Transform3D = cam.global_transform if cam != null else player.global_transform
+	var eye: Transform3D = cam.global_transform if cam != null else player_node.global_transform
 	var to_actor: Vector3 = actor.global_position - eye.origin
 	var dist: float = to_actor.length()
 	if dist > PERCEIVE_RANGE:

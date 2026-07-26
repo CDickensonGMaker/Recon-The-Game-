@@ -57,7 +57,7 @@ func _ready() -> void:
 	heightmap = HeightmapStorageClass.new(map_size, cell_size, TerrainConfig.WORLD_HEIGHT_MAX)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not is_ready:
 		return
 
@@ -168,7 +168,6 @@ func _load_initial_chunks_async() -> void:
 				loaded += 1
 
 				if loaded % chunks_per_frame == 0:
-					var progress: float = 0.6 + (float(loaded) / float(total_chunks)) * 0.3
 					await get_tree().process_frame
 
 	print("[TerrainManager] Loaded %d chunks" % loaded)
@@ -290,10 +289,12 @@ func modify_terrain(center: Vector3, radius_meters: float, modifier: Callable) -
 func _rebuild_chunks_in_region(cell_region: Rect2i) -> void:
 	var cells_per_chunk: int = int(chunk_size / cell_size)
 
+	@warning_ignore("integer_division")
 	var min_chunk := Vector2i(
 		cell_region.position.x / cells_per_chunk,
 		cell_region.position.y / cells_per_chunk
 	)
+	@warning_ignore("integer_division")
 	var max_chunk := Vector2i(
 		(cell_region.position.x + cell_region.size.x) / cells_per_chunk,
 		(cell_region.position.y + cell_region.size.y) / cells_per_chunk

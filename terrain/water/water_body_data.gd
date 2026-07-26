@@ -72,6 +72,7 @@ func get_area() -> float:
 ## Get center point in world coordinates
 func get_center() -> Vector2:
 	if is_flowing() and path.size() > 0:
+		@warning_ignore("integer_division")
 		return path[path.size() / 2]
 	else:
 		return bounds.get_center()

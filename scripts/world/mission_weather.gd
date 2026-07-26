@@ -125,6 +125,7 @@ func _start_rain_audio() -> void:
 	if s == null:
 		return
 	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	@warning_ignore("integer_division")
 	s.loop_end = s.data.size() / 2
 	_rain_audio = AudioStreamPlayer.new()
 	_rain_audio.stream = s

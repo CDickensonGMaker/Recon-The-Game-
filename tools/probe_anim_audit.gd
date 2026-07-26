@@ -46,7 +46,7 @@ func _audit(unit: String) -> void:
 	var demanded: Dictionary = {}
 	var gaps: int = 0
 	for intent in SpriteStateMap.MODEL_CLIP.keys():
-		var asked: String = SpriteStateMap.clip_for(true, "", unit, weapon, str(intent))
+		var asked: String = SpriteStateMap.clip_for(true, weapon, str(intent))
 		var base: String = asked.split("__")[0]
 		var ok: bool = model.play(asked, true)
 		var actual: String = model.current_action if ok else "-"

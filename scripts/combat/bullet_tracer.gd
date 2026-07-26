@@ -83,7 +83,6 @@ func _process(delta: float) -> void:
 			is_fading = true
 
 		# Update mesh scale and position
-		var direction: Vector3 = (end_pos - start_pos).normalized()
 		mesh_instance.scale.z = current_length
 		mesh_instance.position.z = -current_length / 2.0
 	else:

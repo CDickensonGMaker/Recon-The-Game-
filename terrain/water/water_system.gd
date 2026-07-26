@@ -200,13 +200,13 @@ func _create_static_body(b: Dictionary) -> void:
 	var max_depth: float = b.get("depth_max", b.get("depth", 0.0))
 	if type_code == WaterBodyDataClass.Type.LAKE:
 		if max_depth < 6.0:
-			body.type = WaterBodyDataClass.Type.SWAMP as int
+			body.type = WaterBodyDataClass.Type.SWAMP
 		elif area < 15000.0:
-			body.type = WaterBodyDataClass.Type.POND as int
+			body.type = WaterBodyDataClass.Type.POND
 		else:
-			body.type = type_code
+			body.type = type_code as WaterBodyDataClass.Type
 	else:
-		body.type = type_code
+		body.type = type_code as WaterBodyDataClass.Type
 
 	body.elevation = b["surface"]
 	body.depth = b["depth"]
@@ -387,6 +387,7 @@ func _build_water_map_from_hydrology(hydro: RefCounted) -> void:
 		if t == 0:
 			continue
 		var x: int = i % water_map_size
+		@warning_ignore("integer_division")
 		var z: int = i / water_map_size
 		var terrain: float = _heightmap.get_cell(x, z) * _heightmap.height_scale
 		var depth: float = maxf(0.0, hydro.water_surface_full[i] - terrain)

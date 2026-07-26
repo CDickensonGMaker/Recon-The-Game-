@@ -94,6 +94,7 @@ static func _flood_fill(
 		queue.remove_at(0)
 		cluster.append(cur)
 		var gx: int = cur % GRID_SIZE
+		@warning_ignore("integer_division")
 		var gz: int = cur / GRID_SIZE
 		# 4-neighbors: +x, -x, +z, -z
 		for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
@@ -112,7 +113,7 @@ static func _flood_fill(
 
 
 static func _build_paddy_field(
-	cluster: PackedInt32Array, grid: GameplayGrid, terrain, parent: Node, rng: RandomNumberGenerator
+	cluster: PackedInt32Array, _grid: GameplayGrid, terrain, parent: Node, rng: RandomNumberGenerator
 ) -> PaddyFieldScript:
 	# Centroid + bounds in cell coords; world Y from terrain height.
 	var sum_x: float = 0.0
@@ -123,6 +124,7 @@ static func _build_paddy_field(
 	var max_z: int = 0
 	for idx in cluster:
 		var gx: int = idx % GRID_SIZE
+		@warning_ignore("integer_division")
 		var gz: int = idx / GRID_SIZE
 		sum_x += gx
 		sum_z += gz

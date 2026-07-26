@@ -163,7 +163,7 @@ var director: FieldDirector = null  ## toast channel for learn-by-doing promotio
 
 
 ## Promotion bark. Called when this soldier's skill levels up from doing the thing.
-func on_skill_up(skill_id: String, level: int) -> void:
+func on_skill_up(skill_id: String, _level: int) -> void:
 	if director == null:
 		return
 	var sk_name: String = str(SkillCatalog.SKILLS.get(skill_id, {}).get("name", skill_id))
@@ -424,7 +424,7 @@ func _update_sprite() -> void:
 			intent = _last_intent
 	else:
 		_cand_intent = intent
-	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon, intent))
+	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_weapon, intent))
 	if sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
 
@@ -1292,7 +1292,7 @@ func _die() -> void:
 			if _low_posture and _visual_is_model and ma != null:
 				played = ma.play("death_crouching_headshot_front", true)
 			if played is bool and not played:
-				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_faction, sprite_unit, sprite_weapon,
+				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_weapon,
 					"death_right" if from_right else "death_forward"), true)
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):

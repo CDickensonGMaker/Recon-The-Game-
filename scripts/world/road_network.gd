@@ -124,6 +124,7 @@ func _astar(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 			continue
 		closed[cur] = 1
 		var cx: int = cur % n
+		@warning_ignore("integer_division")
 		var cz: int = cur / n
 		for dz in range(-1, 2):
 			for dx in range(-1, 2):
@@ -182,6 +183,7 @@ func _reconstruct(came_from: PackedInt32Array, goal_i: int, n: int) -> Array[Vec
 	var out: Array[Vector2i] = []
 	var cur: int = goal_i
 	while cur != -1:
+		@warning_ignore("integer_division")
 		out.append(Vector2i(cur % n, cur / n))
 		cur = came_from[cur]
 	out.reverse()
@@ -308,6 +310,7 @@ static func _heap_push(pri: PackedFloat32Array, idx: PackedInt32Array,
 	idx.append(i)
 	var c: int = pri.size() - 1
 	while c > 0:
+		@warning_ignore("integer_division")
 		var parent: int = (c - 1) / 2
 		if pri[parent] <= pri[c]:
 			break

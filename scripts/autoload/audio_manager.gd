@@ -67,8 +67,8 @@ func _ready() -> void:
 	_load_fallbacks()
 
 
-func _bus(name: String, fallback: String) -> int:
-	var idx: int = AudioServer.get_bus_index(name)
+func _bus(bus_name: String, fallback: String) -> int:
+	var idx: int = AudioServer.get_bus_index(bus_name)
 	if idx < 0:
 		idx = AudioServer.get_bus_index(fallback)
 	return maxi(idx, 0)
@@ -230,7 +230,7 @@ func _play_voice(pos: Vector3, stream: AudioStream, vol: float, pv: float, d: fl
 	p.play()
 
 
-func _acquire_voice(pos: Vector3, d: float) -> int:
+func _acquire_voice(_pos: Vector3, d: float) -> int:
 	# 1. any idle voice
 	for i in range(_voices.size()):
 		if not _voices[i].playing:

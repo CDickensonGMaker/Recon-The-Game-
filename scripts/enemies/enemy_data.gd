@@ -44,8 +44,8 @@ extends Resource
 @export_range(0.0, 1.0) var determination: float = 0.5
 
 @export_group("Visuals")
-## Keys for 3D ModelActor clip resolution: SpriteStateMap.clip_for(faction, unit,
-## weapon, intent) picks the anim_library clip; ModelActor.model_exists(sprite_unit)
+## Keys for 3D ModelActor clip resolution: SpriteStateMap.clip_for(is_model, weapon,
+## intent) picks the anim_library clip; ModelActor.model_exists(sprite_unit)
 ## gates the rig, falling back to sprite_unit_fallback then the capsule placeholder.
 ## NOTE the hard pairing: sprite_weapon and weapon_path must be kept consistent by hand.
 @export var sprite_faction: String = ""   ## "Vietcong and NVA"

@@ -123,7 +123,7 @@ func _ready() -> void:
 
 
 ## True when launched by run_all_tests.ps1 (`-- --test-save`).
-static func is_test_run() -> bool:
+func is_test_run() -> bool:
 	return OS.get_cmdline_user_args().has("--test-save")
 
 

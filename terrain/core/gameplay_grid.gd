@@ -201,6 +201,7 @@ func _apply_riparian_belt(bounds: Rect2i) -> int:
 			if d >= reach:
 				continue
 			var gx: int = idx % grid_size
+			@warning_ignore("integer_division")
 			var gz: int = idx / grid_size
 			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 				var nx: int = gx + o.x

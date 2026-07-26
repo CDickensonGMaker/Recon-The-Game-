@@ -303,6 +303,7 @@ static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 			bones = arrays[Mesh.ARRAY_BONES]
 		if forced.is_empty() and (bones.is_empty() or weights == null or verts.is_empty()):
 			continue
+		@warning_ignore("integer_division")
 		var influences: int = (bones.size() / verts.size()) if verts.size() > 0 else 0
 		for vi in range(verts.size()):
 			var best_b: int = -1

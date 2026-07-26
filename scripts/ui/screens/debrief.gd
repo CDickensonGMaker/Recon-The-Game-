@@ -67,6 +67,7 @@ func _ready() -> void:
 
 	var panel := ReconUI.make_panel()
 	outer.add_child(panel)
+	@warning_ignore("integer_division")
 	var lines := [
 		"MISSION:      %s (SEED %d)" % [result.get("mission_type", ""), int(result.get("seed", 0))],
 		# ADR-006: the AAR now names what it PAYS for. Kills are reported because

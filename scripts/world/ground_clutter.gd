@@ -87,7 +87,6 @@ func setup(game_world: GameWorld) -> void:
 		push_warning("[CLUTTER] grass_fan.glb missing - grass falls back to billboards")
 
 	# One shared mesh+material template per layer; every bucket reuses these resources.
-	var templates: Array = []
 	for layer: Array in LAYERS:
 		var use_fan: bool = bool(layer[5]) and fan_mesh != null
 		var size: Vector2 = layer[2]
@@ -140,20 +139,20 @@ func _scatter_subcell(sc: Vector2i) -> void:
 		for _i in range(int(t.per_cell)):
 			var pos := Vector3(origin_x + rng.randf() * SUBCELL, 0.0, origin_z + rng.randf() * SUBCELL)
 			var ang: float = rng.randf_range(0.0, TAU)
-			var scale: float = rng.randf_range(0.75, 1.3)
+			var plant_scale: float = rng.randf_range(0.75, 1.3)
 			if not _accept(pos, bool(t.jungle_only)):
 				continue
-			var basis := Basis(Vector3.UP, ang)
+			var plant_basis := Basis(Vector3.UP, ang)
 			var size: Vector2 = t.size
 			if bool(t.fan):
 				# star-fan: origin at the feet, stretched to the card size on the ground
 				pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
-				basis = basis.scaled(Vector3(size.x * scale, size.y * scale, size.x * scale))
+				plant_basis = plant_basis.scaled(Vector3(size.x * plant_scale, size.y * plant_scale, size.x * plant_scale))
 			else:
 				pos.y = world.terrain_manager.get_height_at(pos) + size.y * 0.5 - float(t.y_sink)
-				basis = basis.scaled(Vector3.ONE * scale)
+				plant_basis = plant_basis.scaled(Vector3.ONE * plant_scale)
 			origins.append(pos)
-			xforms.append(Transform3D(basis, pos - centre))
+			xforms.append(Transform3D(plant_basis, pos - centre))
 		if not xforms.is_empty():
 			nodes.append(_add_bucket(t, xforms, centre))
 	if not nodes.is_empty():

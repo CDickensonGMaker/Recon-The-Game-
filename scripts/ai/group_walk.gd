@@ -29,6 +29,7 @@ static func tick(civs: Array, destination: Vector3) -> Civilian:
 		var civ: Civilian = c as Civilian
 		civ.is_group_lead = false
 		var side: float = 1.0 if (slot_idx % 2) == 0 else -1.0
+		@warning_ignore("integer_division")
 		var ring: int = (slot_idx / 2) + 1
 		civ.group_destination = lead.global_position \
 			- heading * (FOLLOWER_SPACING * float(ring)) \
