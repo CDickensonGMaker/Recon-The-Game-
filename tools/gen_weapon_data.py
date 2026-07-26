@@ -104,7 +104,7 @@ NEW = {
  "rpg7":    ("rpg2", "res://data/projectiles/rpg2_rocket.tres"),
 }
 
-POS_KEYS = ["model_path", "viewmodel_scale", "hip_position", "ads_position",
+POS_KEYS = ["model_path", "hip_position", "ads_position",
             "hip_rotation", "ads_rotation", "projectile_data_path"]
 SCRIPT_UID = "uid://2eaahkhc4qim"
 
@@ -133,7 +133,6 @@ def build(wid: str, spec: dict, viz: dict) -> str:
     head += "]"
 
     model = viz.get("model_path", '""')
-    scale = viz.get("viewmodel_scale", "1.0")
     hip_p = viz.get("hip_position", "Vector3(0.25, -0.3, -0.4)")
     ads_p = viz.get("ads_position", "Vector3(0, -0.246, -0.899)")
     hip_r = viz.get("hip_rotation", "Vector3(0, 0, 0)")
@@ -177,7 +176,6 @@ def build(wid: str, spec: dict, viz: dict) -> str:
         'audio_unit_size = 16.0',
         f'is_supersonic = {"true" if spec["sup"] else "false"}',
         f'model_path = {model}',
-        f'viewmodel_scale = {scale}',
         f'hip_position = {hip_p}',
         f'ads_position = {ads_p}',
         f'hip_rotation = {hip_r}',

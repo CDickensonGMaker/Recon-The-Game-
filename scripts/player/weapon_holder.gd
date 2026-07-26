@@ -147,8 +147,11 @@ const SWITCH_TIME: float = 0.5
 ## Weapon model
 var weapon_model: Node3D = null
 var _vm_anim: AnimationPlayer = null  ## authored FP-arms clips inside the viewmodel GLB
+var _vm_meshes: Array[MeshInstance3D] = []  ## lens-shaded meshes (ADR-034)
 
 ## Viewmodel pitch compensation (prevents floor clipping when looking down).
+## Legacy-path only: the lens shader's depth squash makes floor clipping
+## impossible, so the whole block dies with ViewmodelLens.ENABLED's escape hatch.
 const PITCH_OFFSET_ENABLED: bool = true
 const PITCH_OFFSET_START: float = -38.0  ## Start offsetting at this pitch (degrees)
 const PITCH_OFFSET_MAX: float = -75.0  ## Maximum pitch before full offset
@@ -257,6 +260,9 @@ func _update_ads(delta: float) -> void:
 		if current_weapon and current_weapon.ads_fov > 10.0:
 			zoom_fov = current_weapon.ads_fov
 		camera.fov = lerpf(BASE_FOV, zoom_fov, ads_transition)
+		if ViewmodelLens.ENABLED and current_weapon and not _vm_meshes.is_empty():
+			ViewmodelLens.set_fov(_vm_meshes,
+				ViewmodelLens.effective_fov(current_weapon.viewmodel_fov, camera.fov))
 
 
 signal target_hit(killed: bool, headshot: bool)
@@ -307,7 +313,10 @@ func _scan_warhead(root: Node) -> void:
 		for s in range(mi.mesh.get_surface_count()):
 			var mat: Material = mi.mesh.surface_get_material(s)
 			if mat != null and str(mat.resource_name).to_lower().contains("warhead"):
-				_warhead_surfaces.append([mi, s])
+				# Restore target = whatever the surface wears NOW (the lens override
+				# under ADR-034, null on the legacy path) - restoring to null would
+				# strip the lens off a reloaded launcher's warhead.
+				_warhead_surfaces.append([mi, s, mi.get_surface_override_material(s)])
 
 
 ## Loaded launcher shows its warhead; a fired one shows an empty tube.
@@ -322,7 +331,7 @@ func _refresh_warhead() -> void:
 		var mi: MeshInstance3D = entry[0]
 		if is_instance_valid(mi):
 			mi.set_surface_override_material(int(entry[1]),
-				_hide_material() if want_hidden else null)
+				_hide_material() if want_hidden else entry[2])
 static var session_hits: int = 0
 
 
@@ -470,7 +479,12 @@ func _fire_shot() -> void:
 	var noise_team: int = 1 if (current_slot == 0 and primary_is_captured) else 0
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle_pos, noise_team)
 	GunFX.play_shot_2d(self, current_weapon)
-	GunFX.muzzle_flash(get_tree().current_scene, muzzle_pos)
+	# The flash is cosmetic: it must sit on the barrel AS DRAWN through the lens.
+	# Rounds, noise and suppression above keep the true world muzzle.
+	var flash_pos: Vector3 = muzzle_pos
+	if ViewmodelLens.ENABLED:
+		flash_pos = ViewmodelLens.apparent_point(camera, current_weapon.viewmodel_fov, muzzle_pos)
+	GunFX.muzzle_flash(get_tree().current_scene, flash_pos)
 	_punch = 1.0
 
 	# SUPPRESSION: every shot that snaps past an enemy pushes him down. Big, slow
@@ -817,7 +831,14 @@ func _update_weapon_position(delta: float) -> void:
 	var target_pos: Vector3 = current_weapon.hip_position.lerp(current_weapon.ads_position, ads_transition)
 	var target_rot: Vector3 = current_weapon.hip_rotation.lerp(current_weapon.ads_rotation, ads_transition)
 
-	if PITCH_OFFSET_ENABLED and camera:
+	# The lens magnifies every translation by its ratio on screen; feel constants
+	# below (sway/punch/dips) are authored in pre-lens screen terms, so divide the
+	# additive bumps back down. Poses above are tuned ON the bench and stay raw.
+	var bump: float = 1.0
+	if ViewmodelLens.ENABLED:
+		bump = 1.0 / ViewmodelLens.magnification(current_weapon.viewmodel_fov)
+
+	if not ViewmodelLens.ENABLED and PITCH_OFFSET_ENABLED and camera:
 		# Pitch lives on the Head node (the camera itself carries no vertical look).
 		var head_node: Node3D = camera.get_parent() as Node3D
 		if head_node:
@@ -831,16 +852,16 @@ func _update_weapon_position(delta: float) -> void:
 				target_pos.z -= PITCH_OFFSET_FORWARD * pitch_factor
 
 	if controller and "is_sprinting" in controller and controller.is_sprinting:
-		target_pos.y -= 0.08
+		target_pos.y -= 0.08 * bump
 		target_rot.x -= 12.0
 
 	if FieldDirector.any_fire_menu_open:
-		target_pos.y -= 0.30
-		target_pos.z += 0.14
+		target_pos.y -= 0.30 * bump
+		target_pos.z += 0.14 * bump
 		target_rot.x -= 60.0
 
 	_sway_time += delta
-	var sway_amp: float = lerpf(0.014, 0.004, ads_transition)
+	var sway_amp: float = lerpf(0.014, 0.004, ads_transition) * bump
 	if controller and "is_holding_breath" in controller and controller.is_holding_breath:
 		sway_amp *= 0.15
 	target_pos.x += sin(_sway_time * 1.3) * sway_amp
@@ -851,8 +872,8 @@ func _update_weapon_position(delta: float) -> void:
 	_punch = maxf(0.0, _punch - delta * 9.0)
 	var punch_amt: float = _punch * _punch  # ease-out curve
 	var w: float = current_weapon.recoil_vertical / 2.5
-	target_pos.z += punch_amt * 0.05 * w
-	target_pos.y += punch_amt * 0.012 * w
+	target_pos.z += punch_amt * 0.05 * w * bump
+	target_pos.y += punch_amt * 0.012 * w * bump
 	target_rot.x += punch_amt * 3.5 * w
 
 	weapon_model.position = weapon_model.position.lerp(target_pos, delta * ADS_SPEED)
@@ -904,24 +925,25 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 		weapon_model.queue_free()
 		weapon_model = null
 		_vm_anim = null
+		_vm_meshes = []
 
 	if weapon_data and not weapon_data.model_path.is_empty():
 		var scene := load(weapon_data.model_path)
 		if scene:
 			weapon_model = scene.instantiate()
 			add_child(weapon_model)
-			# THE VIEWMODEL LENS - the "gun close to the screen" look, faked without
-			# a second camera: scaling the model by tan(BASE_FOV/2)/tan(vm_fov/2) in
-			# the SHARED camera gives the same framing a narrower gun camera would.
-			# viewmodel_editor.gd MUST apply the identical scale under the identical
-			# camera FOV, or the bench lies about position and every offset dialled
-			# there ships wrong.
-			var lens: float = _lens_ratio(weapon_data)
-			weapon_model.scale *= lens
+			# THE VIEWMODEL LENS (ADR-034): real-scale mesh, drawn through its own
+			# FOV by the lens shader. The bench goes through the same ViewmodelLens
+			# calls, so what it shows is what ships by construction.
+			if ViewmodelLens.ENABLED:
+				_vm_meshes = ViewmodelLens.apply(weapon_model)
+				ViewmodelLens.set_fov(_vm_meshes, ViewmodelLens.effective_fov(
+					weapon_data.viewmodel_fov, camera.fov if camera else BASE_FOV))
+			else:
+				weapon_model.scale *= _lens_ratio(weapon_data)
 
 			weapon_model.position = weapon_data.hip_position
 			weapon_model.rotation_degrees = weapon_data.hip_rotation
-			# Base scale is baked into the viewmodel .tscn root - never set it here.
 			# Arms viewmodels need their idle clip played or the rig renders in bind pose.
 			_vm_anim = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			_play_vm_draw()

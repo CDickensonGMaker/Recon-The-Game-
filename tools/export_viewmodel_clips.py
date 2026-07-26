@@ -26,13 +26,15 @@ Two supporting rules:
 Never saves the .blend.
 """
 import bpy, sys, os
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 if len(argv) < 3:
-    raise SystemExit("argv: <collection> <gun_object_prefix> <out_basename> [--strict]")
+    raise SystemExit("argv: <collection> <gun_object_prefix> <out_basename> [--strict] [--root=<gun_root>] [--len=<real_m>]")
 COLL, GUN, OUTNAME = argv[0], argv[1], argv[2]
 STRICT = '--strict' in argv[3:]
+GUN_ROOT = next((a.split('=', 1)[1] for a in argv[3:] if a.startswith('--root=')), None)
+REAL_LEN = float(next((a.split('=', 1)[1] for a in argv[3:] if a.startswith('--len=')), '0') or 0)
 OUT = rf"C:\Users\caleb\RECONgame\assets\player\viewmodels\{OUTNAME}_fp.glb"
 REVIEW_TRACK = "ZZ_REVIEW_ROW"
 
@@ -83,6 +85,11 @@ for o in objs:
     for t in ad.nla_tracks:
         t.mute = False
 
+# Blender 5.0.x exporter bug (glTF-Blender-IO #2681): a stale Manual Frame Range on ANY
+# action poisons the sampling range of the whole export. Blend is never saved, so purge all.
+for a in bpy.data.actions:
+    a.use_frame_range = False
+
 # clip name -> authored length, taken from the RIG's strip (the authority)
 clip_len = {}
 for t in rig.animation_data.nla_tracks:
@@ -104,6 +111,47 @@ if STRICT:
     for src in (f"muzzle_{GUN}", f"sight_front_{GUN}", f"sight_rear_{GUN}"):
         if bpy.data.objects.get(src) is None:
             raise SystemExit(f"STRICT: contract marker {src} missing")
+    # SCALE GATE: the model's longest gun-local span must sit near the real weapon's
+    # length (loose band - PSX proportions are art, 2x/100x/cm-unit drift is not).
+    if GUN_ROOT and REAL_LEN > 0:
+        gr = bpy.data.objects.get(GUN_ROOT)
+        if gr is None:
+            raise SystemExit(f"STRICT: gun root {GUN_ROOT} missing")
+        dg = bpy.context.evaluated_depsgraph_get()
+        pts = []
+        stack = [gr]
+        while stack:
+            o = stack.pop()
+            stack.extend(o.children)
+            if o.type == 'MESH':
+                ev = o.evaluated_get(dg)
+                pts += [ev.matrix_world @ Vector(c) for c in ev.bound_box]
+        if not pts:
+            raise SystemExit(f"STRICT: gun root {GUN_ROOT} has no mesh geometry to measure")
+        rot = gr.matrix_world.to_3x3()
+        span = max(
+            max(p.dot(ax) for p in pts) - min(p.dot(ax) for p in pts)
+            for ax in (rot.col[i].normalized() for i in range(3)))
+        if abs(span - REAL_LEN) / REAL_LEN > 0.15:
+            raise SystemExit(f"STRICT: {GUN_ROOT} measures {span:.3f} m vs real "
+                             f"{REAL_LEN:.3f} m - scale drift, refusing to export")
+        print(f"scale gate: {GUN_ROOT} {span:.3f} m vs real {REAL_LEN:.3f} m OK")
+
+    # Slotted-action contract (Blender 4.4+/5.0): a multi-slot action merges several
+    # rigs into one glTF animation, and a strip with no assigned slot exports silent.
+    for o in objs:
+        if not o.animation_data:
+            continue
+        for t in o.animation_data.nla_tracks:
+            for s in t.strips:
+                if s.action is None:
+                    raise SystemExit(f"STRICT: {o.name}/{t.name} strip has no action")
+                if len(s.action.slots) != 1:
+                    raise SystemExit(f"STRICT: action {s.action.name} has "
+                                     f"{len(s.action.slots)} slots - one slot per action")
+                if s.action_slot is None:
+                    raise SystemExit(f"STRICT: {o.name}/{t.name} strip "
+                                     f"'{s.action.name}' has no assigned slot")
 
 
 def depth(o):
@@ -190,6 +238,11 @@ for clip, frames in recorded.items():
         s.blend_type = 'REPLACE'
         s.extrapolation = 'HOLD'
         t.mute = False
+for o in parts:
+    for t in o.animation_data.nla_tracks:
+        for s in t.strips:
+            if s.action_slot is None:
+                raise SystemExit(f"baked strip {o.name}/{t.name} lost its action slot")
 print("baked parts to explicit TRS keys")
 
 # --- 4. no non-uniform scale on anything animated ----------------------------

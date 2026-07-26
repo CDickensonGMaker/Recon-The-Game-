@@ -202,41 +202,33 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 - `WeaponData` - Weapon stats resource
 - `EnemyData` - Enemy configuration resource
 
-## Weapon Viewmodel System
+## Weapon Viewmodel System (ADR-034 — the Viewmodel Lens)
 
-### CRITICAL: Camera/Viewmodel Setup (DO NOT CHANGE)
-The viewmodel editor and in-game camera must stay perfectly synchronized:
+Viewmodels are REAL-WORLD SCALE and render through their own per-weapon FOV via
+`scripts/weapons/viewmodel_lens.gd` + `assets/shaders/viewmodel_lens.gdshader`.
+`weapon_holder.gd` and `scripts/weapons/viewmodel_editor.gd` share the same
+`ViewmodelLens` calls — never re-implement lens math in either. NEVER scale a
+viewmodel mesh to change its on-screen size; tune `viewmodel_fov` in the .tres.
 
-**Player Scene (`scenes/player/player.tscn`):**
-- Head node at Y=1.7
-- Camera3D as child of Head (no transform offset)
-- WeaponHolder as child of Camera3D with **NO transform offset** (identity transform)
-
-**Viewmodel Editor (`scenes/weapons/viewmodel_editor.tscn`):**
-- Camera3D at Y=1.7, FOV=75
-- WeaponHolder as child of Camera3D with **NO transform offset**
-
-**Rules:**
-1. WeaponHolder must have identity transform (no offset) in both scenes
-2. Base/hip FOV is 75.0; ADS uses per-weapon `ads_fov` from the .tres (ADR-004 — e.g. M16 60, AK 62, M14 58). Binoculars are NOT a weapon resource — there is no binocular .tres; the 18.0 zoom FOV is hardcoded in `scripts/player/player.gd`
-3. Weapon positions set in WeaponData .tres files, not in scene transforms
-4. Scale baked into viewmodel .tscn root node, not applied at runtime
-
-### Viewmodel Scene Structure
-```
-WeaponViewmodel (Node3D) <- Scale goes here (e.g., 0.03 for Thompson)
-├── Model (GLTF instance) <- Rotation offset to orient barrel to -Z
-└── MuzzlePoint (Marker3D) <- Tracer spawn position
-```
+### Camera/Viewmodel Setup (enforced by tests/test_viewmodel_sync_contract.gd)
+- Player: Head at Y=1.7, Camera3D child (no offset), WeaponHolder child of
+  Camera3D with identity transform.
+- Bench (`scenes/weapons/viewmodel_editor.tscn`): Camera3D at Y=1.7 FOV 75,
+  WeaponHolder identity.
+- Base/hip FOV is 75.0; ADS uses per-weapon `ads_fov` from the .tres (ADR-004).
+  Binoculars are NOT a weapon resource — the 18.0 zoom FOV is hardcoded in
+  `scripts/player/player.gd`.
+- Weapon poses live in WeaponData .tres files, never in scene transforms.
 
 ### Adding New Weapons
-1. Create `scenes/weapons/{weapon}_arms_viewmodel.tscn` (the `_arms_` convention is what the guns use — `m16a1_arms_viewmodel.tscn`, `ak47_arms_viewmodel.tscn`, `m60_arms_viewmodel.tscn`; only non-gun items like `m26_grenade_viewmodel.tscn` and `medkit_viewmodel.tscn` drop it)
-2. Set root node scale (start with 0.03, adjust as needed)
-3. Set Model rotation to orient barrel toward -Z
-4. Add MuzzlePoint at barrel tip
-5. Create `data/weapons/{weapon}.tres` with positions
-6. Use viewmodel editor to fine-tune hip/ads positions
-7. Keep hip_rotation and ads_rotation values numerically close (within 90°) to prevent spinning during ADS transition
+1. Model + rig in Blender at REAL dimensions (armory ruler; `--strict` export
+   gate checks length vs `real_length_m` in tools/viewmodel_manifest.json)
+2. Add the gun to the manifest; export via `python tools/export_all_viewmodels.py <gun>`
+3. Create `scenes/weapons/{weapon}_arms_viewmodel.tscn` wrapping the GLB (the
+   `_arms_` convention; non-gun items like `m26_grenade_viewmodel.tscn` drop it)
+4. Create `data/weapons/{weapon}.tres`; aim hip/ADS on the bench (Ctrl+S saves)
+5. Keep hip_rotation and ads_rotation numerically close (within 90°) to prevent
+   spinning during the ADS transition — the bench warns when violated
 
 
 ## NO MORE DRIFT — correct it on contact (Summoner's standing law, 2026-07-19)

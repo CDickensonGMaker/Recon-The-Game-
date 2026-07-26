@@ -32,7 +32,6 @@ recoil_recovery = 9.0
 fire_volume_db = 2.0
 model_path = "res://scenes/weapons/mosin_arms_viewmodel.tscn"
 bore_dir = Vector3(-0.094129175, -0.02957967, -0.99512047)
-viewmodel_scale = 1.1
 hip_position = Vector3(0.019652504, 0, -0.14682649)
 ads_position = Vector3(0, 0.05, 0.08)
 hip_rotation = Vector3(1.9946083, -5.0556073, 0)

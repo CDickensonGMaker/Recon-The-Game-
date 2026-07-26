@@ -32,9 +32,9 @@ extends Resource
 @export var recoil_vertical: float = 2.5  ## Degrees kick up
 @export var recoil_horizontal: float = 0.5  ## Degrees random horizontal
 
-## THE VIEWMODEL LENS: the gun is framed as if shot through its own NARROWER
-## camera. LOWER = bigger, closer to the screen. Applied by SCALING the model —
-## see WeaponHolder._lens_ratio, which the viewmodel bench must mirror exactly.
+## THE VIEWMODEL LENS (ADR-034): the gun renders through its own NARROWER
+## camera via the lens shader. LOWER = bigger, closer to the screen. Applied by
+## ViewmodelLens, shared by weapon_holder.gd and the bench.
 @export_range(35.0, 90.0) var viewmodel_fov: float = 60.0
 
 @export_group("ADS Properties")
@@ -92,7 +92,6 @@ extends Resource
 ## Two independent aiming systems so hip crosshair and ADS sights can each be
 ## tuned without breaking the other.
 @export var ads_bore_dir: Vector3 = Vector3.ZERO
-@export var viewmodel_scale: float = 1.0  ## Relative scale (1.0 = reference size like Thompson)
 @export var hip_position: Vector3 = Vector3(0.3, -0.2, -0.4)
 @export var ads_position: Vector3 = Vector3(0, -0.15, -0.3)
 @export var hip_rotation: Vector3 = Vector3(0, 0, 0)

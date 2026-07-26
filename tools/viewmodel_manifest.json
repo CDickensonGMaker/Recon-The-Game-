@@ -7,6 +7,7 @@
       "collection": "RIG_M16A1",
       "gun_prefix": "M16A1",
       "gun_root": "M16A1_gun",
+      "real_length_m": 0.986,
       "clips": ["rifle_idle", "reload", "reload_empty", "jam"],
       "parts": ["M16A1_magazine.030", "M16A1_charge_handle_slide_back", "M16A1_gun"],
       "markers_under_gun": true
@@ -15,18 +16,29 @@
       "collection": "RIG_AK47",
       "gun_prefix": "AK47",
       "gun_root": "AK47_root",
+      "real_length_m": 0.88,
       "clips": ["rifle_idle", "reload", "reload_empty", "jam"],
       "parts": ["AK47_mag", "AK47_bolt", "AK47_root"],
       "markers_under_gun": true
+    },
+    "ppsh": {
+      "collection": "RIG_PPSh41",
+      "gun_prefix": "PPSh41",
+      "gun_root": "PPSh41",
+      "real_length_m": 0.843,
+      "clips": ["rifle_idle"],
+      "parts": ["PPSh41"],
+      "markers_under_gun": true,
+      "_note": "idle-only: reload/jam clips not yet authored (2026-07-26 rig inventory)"
     },
     "m14": {
       "collection": "RIG_M14",
       "gun_prefix": "M14",
       "gun_root": "M14_root",
+      "real_length_m": 1.126,
       "clips": ["rifle_idle", "reload", "reload_empty", "charge_handle", "jam"],
       "parts": ["M14_chandle.002", "M14_chandle.001", "M14_chandle", "M14_root", "M14_clip.034"],
-      "markers_under_gun": false,
-      "_debt": "M14 fittings sit root-level in the .blend (orphaned parents, found 2026-07-26). Game code finds markers by name so it works; reparent under M14_root to clear this flag."
+      "markers_under_gun": true
     }
   }
 }

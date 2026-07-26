@@ -64,3 +64,36 @@ I just got a bunch more radio bits I edited with audacity mixing ai generated ra
   GLB imports — do not delete from disk; shrink them at the source. If this will help game performance its something will ahve to do soon but wont this change the way textures appear on units? also noticed that units legs appear thru their pants texture when they move sometimes. is that something we did wrong?
 - kar98 stand-in texture set (~40MB) dies automatically when the real SKS lands.
 - `.blend1` backups in art_source/characters/variants/ (~300MB untracked) — safe local cleanup.
+
+## 2026-07-26 — Viewmodel lens wave (ADR-034) + M14 fittings fix
+
+**Shipped (this session):**
+- M14 stranded fittings FIXED in `fp_arms_rifle.blend` (`tools/fix_m14_fittings.py`, measured
+  verify): op-rod x3 + markers x3 + grips x2 were parentless at the armory rack (~5.8 m from the
+  hands in every exported GLB — the missing op-rod / bogus M14 MuzzlePoint). Now gun children,
+  op-rod stroke 33.8 mm in gun space. m14_fp.glb re-exported through `--strict`, validator PASS,
+  `markers_under_gun: true` (the false flag was hiding the break).
+- Viewmodel lens (ADR-034): real-scale meshes + per-gun FOV shader
+  (`scripts/weapons/viewmodel_lens.gd` + `assets/shaders/viewmodel_lens.gdshader`), shared by
+  weapon_holder.gd and the bench. Mesh-scale hack + pitch hack retired behind
+  `ViewmodelLens.ENABLED` (kill list in the ADR). `viewmodel_scale` DELETED (was applied nowhere).
+- Export pipeline hardened for Blender 5.0.1: manual-frame-range purge, one-slot-per-action +
+  assigned-slot asserts, scale gate vs `real_length_m` (all in `tools/export_viewmodel_clips.py`
+  `--strict`). PPSh41 joined the manifest (idle-only) after the validator learned
+  animated-vs-static non-uniform scale.
+- New probes in the suite: `test_viewmodel_sync_contract` (bench camera == player camera),
+  `test_viewmodel_poses` (no NEW stub ADS poses; ak47/m1911/mosin/rpd/rpg2 grandfathered).
+
+**Needs CALEB (in rough order):**
+1. Playtest the lens look (m16/ak/m14/ppsh re-exported; all guns render real-scale through the
+   shader now). Poses will read slightly shifted — bench-tune per gun (Ctrl+S), starting with your
+   mains. `ViewmodelLens.ENABLED = false` in viewmodel_lens.gd is the escape hatch if it's wrong.
+2. The 5 grandfathered stub ADS poses (ak47, m1911, mosin, rpd, rpg2 share a copy-paste
+   placeholder) — bench V-align + save, then shrink the test list.
+3. Authoring gap measured in the staging file (`tools/probe_all_rigs.py`): colt45, ithaca, m60,
+   m70, m79, m72_law, rpg2, rpg7, thompson rigs have NO clips staged (old GLBs are fossil-exporter
+   output); mosin/rpd/sks armatures have no animation at all. Each needs at least a staged idle
+   before it can join the strict manifest.
+4. `STALE_muzzle_*` fossil empties in fp_arms_rifle.blend — delete when convenient.
+5. `tools/gen_weapon_data.py` still emits pre-ADR-016 `base_damage = Array[int]` — stale
+   generator, fix or retire before next use.

@@ -31,7 +31,6 @@ recoil_climb_max = 1.0
 recoil_recovery = 9.0
 fire_volume_db = 2.0
 model_path = "res://scenes/weapons/m70_arms_viewmodel.tscn"
-viewmodel_scale = 1.1
 hip_position = Vector3(0.02, 0, -0.15)
 ads_position = Vector3(-0.109157585, 0.05, 0.245705)
 hip_rotation = Vector3(0.48609227, 0.60110235, 0)

@@ -30,16 +30,19 @@ def main():
         if only and gun not in only:
             continue
         print(f"=== EXPORT {gun} ===")
-        r = subprocess.run([BLENDER, "-b", blend, "-P",
-                            os.path.join(ROOT, "tools", "export_viewmodel_clips.py"),
-                            "--", spec["collection"], spec["gun_prefix"], gun, "--strict"],
-                           capture_output=True, text=True)
+        cmd = [BLENDER, "-b", blend, "-P",
+               os.path.join(ROOT, "tools", "export_viewmodel_clips.py"),
+               "--", spec["collection"], spec["gun_prefix"], gun, "--strict",
+               f"--root={spec['gun_root']}"]
+        if spec.get("real_length_m"):
+            cmd.append(f"--len={spec['real_length_m']}")
+        r = subprocess.run(cmd, capture_output=True, text=True)
         tail = "\n".join((r.stdout + r.stderr).splitlines()[-25:])
         if r.returncode != 0 or "EXPORTED" not in r.stdout:
             print(tail)
             sys.exit(f"EXPORT FAILED: {gun} (blender exit {r.returncode})")
         for line in r.stdout.splitlines():
-            if line.startswith(("===", "clips:", "parts to bake", "part max distance", "EXPORTED", "STRICT")):
+            if line.startswith(("===", "clips:", "parts to bake", "part max distance", "scale gate", "EXPORTED", "STRICT")):
                 print("  ", line)
         v = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "validate_viewmodel_glb.py"), gun],
                            capture_output=True, text=True)

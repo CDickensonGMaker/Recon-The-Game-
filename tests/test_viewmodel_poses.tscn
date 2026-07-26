@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/test_viewmodel_poses.gd" id="1_tvp"]
+
+[node name="TestViewmodelPoses" type="Node"]
+script = ExtResource("1_tvp")

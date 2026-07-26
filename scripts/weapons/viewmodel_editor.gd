@@ -44,6 +44,9 @@ var _snapshots: Dictionary = {}
 ## Edge-guard for polled keys (existing editor convention: poll, don't InputMap)
 var _held: Dictionary = {}
 
+## Lens-shaded meshes of the loaded model (ADR-034)
+var _vm_meshes: Array[MeshInstance3D] = []
+
 ## Range visuals
 var _laser_node: MeshInstance3D = null
 var _laser_mesh: ImmediateMesh = null
@@ -267,6 +270,7 @@ func _load_weapon(index: int) -> void:
 	if weapon_model:
 		weapon_model.queue_free()
 		weapon_model = null
+		_vm_meshes = []
 
 	var load_failed := false
 	if not current_weapon.model_path.is_empty():
@@ -276,11 +280,12 @@ func _load_weapon(index: int) -> void:
 			weapon_model = scene.instantiate()
 			if weapon_model:
 				weapon_holder.add_child(weapon_model)
-				# WYSIWYG CONTRACT: the bench must do exactly what the game does - the
-				# SAME camera FOV with the model SCALED by _lens_ratio. Narrowing this
-				# camera to viewmodel_fov instead would agree on the gun's SIZE and
-				# disagree on its POSITION, and every offset dialled here would ship wrong.
-				weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
+				# WYSIWYG CONTRACT: the bench renders through the SAME ViewmodelLens
+				# calls as weapon_holder.gd (ADR-034) - shared code, not copied math.
+				if ViewmodelLens.ENABLED:
+					_vm_meshes = ViewmodelLens.apply(weapon_model)
+				else:
+					weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
 				# Mirror the game: without the idle clip an arms viewmodel renders in bind pose.
 				var vm_anim: AnimationPlayer = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 				if vm_anim and vm_anim.has_animation("rifle_idle"):
@@ -432,10 +437,16 @@ func _update_laser() -> void:
 			_bore_offset = Vector2(end.x - BOARD_CENTER.x, end.y - BOARD_CENTER.y)
 			_bore_valid = true
 
+	# The laser MATH above uses the true muzzle (where rounds spawn). The DRAWN
+	# near end starts at the muzzle as it appears through the lens, or the beam
+	# would hang visibly off the drawn barrel (ADR-034).
+	var draw_origin: Vector3 = origin
+	if ViewmodelLens.ENABLED and current_weapon:
+		draw_origin = ViewmodelLens.apparent_point(camera, current_weapon.viewmodel_fov, origin)
 	_laser_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	var laser_col := Color(1.0, 0.15, 0.1)
 	_laser_mesh.surface_set_color(laser_col)
-	_laser_mesh.surface_add_vertex(origin)
+	_laser_mesh.surface_add_vertex(draw_origin)
 	_laser_mesh.surface_set_color(laser_col)
 	_laser_mesh.surface_add_vertex(end)
 	# Impact diamond, drawn just off the board so it never z-fights
@@ -550,6 +561,25 @@ func _frame_model() -> void:
 	_flash("FRAMED model (H)")
 
 
+## True when any of the model's mesh AABB corners sits at or behind the camera
+## plane. The lens depth squash stops WORLD clipping, but a vertex behind the
+## eye is cut by the projection itself - no shader can draw it.
+func _geometry_behind_eye() -> bool:
+	if weapon_model == null or camera == null:
+		return false
+	var to_cam: Transform3D = camera.global_transform.affine_inverse()
+	for c in weapon_model.find_children("*", "MeshInstance3D", true, false):
+		var mi := c as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var box: AABB = mi.mesh.get_aabb()
+		var xf: Transform3D = to_cam * mi.global_transform
+		for i in 8:
+			if (xf * box.get_endpoint(i)).z > -0.01:
+				return true
+	return false
+
+
 func _model_aabb(node: Node3D) -> AABB:
 	var aabb := AABB()
 	var first := true
@@ -635,7 +665,11 @@ func _update_position_display() -> void:
 	var lines: Array[String] = []
 	lines.append("%s%s  [%s]" % [current_weapon.display_name,
 		"  *UNSAVED" if _is_modified() else "", mode_name])
-	lines.append("fov %.0f   scale %.2f" % [camera.fov, current_weapon.viewmodel_scale])
+	lines.append("cam fov %.0f   lens fov %.0f (eff %.0f)" % [camera.fov,
+		current_weapon.viewmodel_fov,
+		ViewmodelLens.effective_fov(current_weapon.viewmodel_fov, camera.fov)])
+	if _geometry_behind_eye():
+		lines.append("! GEOMETRY AT/BEHIND THE EYE - it will clip (pull the pose forward)")
 	lines.append("")
 	lines.append("pos Vector3(%.3f, %.3f, %.3f)" % [edit_position.x, edit_position.y, edit_position.z])
 	lines.append("rot Vector3(%.1f, %.1f, %.1f)" % [edit_rotation.x, edit_rotation.y, edit_rotation.z])
@@ -687,6 +721,9 @@ func _update_camera_fov() -> void:
 		camera.fov = current_weapon.ads_fov
 	else:
 		camera.fov = BASE_FOV
+	if ViewmodelLens.ENABLED and current_weapon and not _vm_meshes.is_empty():
+		ViewmodelLens.set_fov(_vm_meshes,
+			ViewmodelLens.effective_fov(current_weapon.viewmodel_fov, camera.fov))
 
 
 func _on_reload_weapon() -> void:

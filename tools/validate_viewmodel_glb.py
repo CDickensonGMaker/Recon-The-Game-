@@ -73,10 +73,24 @@ def validate(gltf, spec, label):
                 if max(abs(v) for v in t) > 1.5:
                     errs.append(f"marker {m} local translation {t} is not on the gun")
 
+    # Non-uniform scale is fatal ONLY on animated nodes: a scaled node that must
+    # rotate is a shear glTF cannot express and it decomposes into a tumbling
+    # rotation (the 2026-07-25 M16 mag). On static children riding a rigid root
+    # it is representable - authored proportions, warn and pass.
+    animated_nodes = set()
+    for a in gltf.get("animations", []):
+        for ch in a.get("channels", []):
+            animated_nodes.add(ch["target"].get("node"))
+    warned = 0
     for i, n in enumerate(nodes):
         s = n.get("scale")
         if s and max(s) - min(s) > 1e-3:
-            errs.append(f"node {n.get('name', i)} has non-uniform scale {s}")
+            if i in animated_nodes:
+                errs.append(f"node {n.get('name', i)} is ANIMATED with non-uniform scale {s}")
+            else:
+                warned += 1
+    if warned:
+        print(f"   note: {warned} static node(s) carry non-uniform scale (authored proportions, not fatal)")
 
     part_idx = {byname[p] for p in spec["parts"] if p in byname}
     for a in gltf.get("animations", []):
