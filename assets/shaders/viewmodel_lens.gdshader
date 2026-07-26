@@ -18,10 +18,13 @@ void vertex() {
 	mat4 p = PROJECTION_MATRIX;
 	bool persp = p[3][3] == 0.0;
 	if (persp) {
-		float aspect = p[1][1] / p[0][0];
+		// Scale the focal terms, never assign them: Forward+ bakes a Y-flip
+		// (negative p[1][1]) into PROJECTION_MATRIX, and a positive overwrite
+		// renders the gun 180deg rolled.
 		float cotan = 1.0 / tan(radians(viewmodel_fov) * 0.5);
-		p[1][1] = cotan;
-		p[0][0] = cotan / aspect;
+		float k = cotan / abs(p[1][1]);
+		p[0][0] *= k;
+		p[1][1] *= k;
 	}
 	POSITION = p * MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	if (persp) {

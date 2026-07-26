@@ -274,6 +274,45 @@ for src, dst in ((f"muzzle_{GUN}", "MuzzlePoint"),
     else:
         print(f"   WARNING: {src} missing")
 
+# --- 5b. flatten procedural base colors ---------------------------------------
+# glTF cannot carry a node tree (the Wave->ColorRamp wood materials): it writes
+# no baseColorFactor at all and the part lands in Godot as placeholder WHITE.
+# Resolve a flat color from the ramp driving the socket and bake it into the
+# Principled default. Blend is never saved - viewport look untouched.
+def _upstream(node, seen):
+    if node in seen:
+        return
+    seen.add(node)
+    yield node
+    for inp in node.inputs:
+        for l in inp.links:
+            yield from _upstream(l.from_node, seen)
+
+
+flattened = []
+mats = {slot.material for o in objs if o.type == 'MESH'
+        for slot in o.material_slots if slot.material and slot.material.use_nodes}
+for mat in mats:
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    if bsdf is None:
+        continue
+    sock = bsdf.inputs['Base Color']
+    if not sock.is_linked:
+        continue
+    chain = list(_upstream(sock.links[0].from_node, set()))
+    if any(n.type == 'TEX_IMAGE' for n in chain):
+        continue
+    ramp = next((n for n in chain if n.type == 'VALTORGB'), None)
+    if ramp:
+        els = ramp.color_ramp.elements
+        col = [sum(e.color[i] for e in els) / len(els) for i in range(3)] + [1.0]
+    else:
+        col = list(sock.default_value)
+    mat.node_tree.links.remove(sock.links[0])
+    sock.default_value = col
+    flattened.append((mat.name, [round(c, 3) for c in col[:3]]))
+print("procedural base colors flattened:", flattened or "none")
+
 # --- 6. export ---------------------------------------------------------------
 for o in bpy.data.objects:
     o.select_set(False)

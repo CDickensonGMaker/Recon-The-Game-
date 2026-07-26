@@ -230,6 +230,8 @@ func _handle_input(delta: float) -> void:
 	if _pressed_once(KEY_G) and _grid_node != null:
 		_grid_node.visible = not _grid_node.visible
 	if _pressed_once(KEY_H) and not Input.is_key_pressed(KEY_CTRL):
+		_auto_align_hip()
+	if _pressed_once(KEY_F) and not Input.is_key_pressed(KEY_CTRL):
 		_frame_model()
 
 
@@ -491,21 +493,34 @@ func _auto_align() -> void:
 	_flash("AUTO-ALIGNED %s bore to crosshair (B)" % mode_name)
 
 
-## Use the model's ADS zero markers (SightRear / SightFront) to compute an
-## ads_position and ads_rotation that puts the rear sight at camera center with
-## the front sight directly down the bore line. This is independent of the hip
-## zero, so switching to ADS no longer drags the hip crosshair offset with it.
+## V: rear sight at camera center with the front sight down the view axis.
+## Independent of the hip zero, so switching to ADS no longer drags the hip
+## crosshair offset with it.
 func _auto_align_ads_sights() -> void:
+	const EYE_RELIEF: float = 0.12
+	_align_to_sight_markers(Vector3(0.0, 0.0, -EYE_RELIEF), 1)
+
+
+## H: same markers, hip-carry zone - sight line parallel to the camera axis,
+## rear sight lower-right of the eye. One keypress recovers a legacy off-screen
+## hip pose; nudge from there and Ctrl+S.
+func _auto_align_hip() -> void:
+	const HIP_ANCHOR: Vector3 = Vector3(0.09, -0.14, -0.30)
+	_align_to_sight_markers(HIP_ANCHOR, 0)
+
+
+## Shared V/H align: carry the SightRear->SightFront line onto the view axis,
+## level the roll, park the rear sight at target_rear, and calibrate the mode's
+## bore dir to the sight line so the laser/crosshair tracks the sights instead
+## of a stale hand-dialed vector.
+func _align_to_sight_markers(target_rear: Vector3, mode: int) -> void:
 	if not weapon_model or not current_weapon:
 		return
 	var rear: Node3D = _find_ads_marker("rear")
 	var front: Node3D = _find_ads_marker("front")
 	if rear == null or front == null:
-		_flash("ADS ALIGN: no SightRear/SightFront markers in this model")
+		_flash("ALIGN: no SightRear/SightFront markers in this model")
 		return
-
-	const EYE_RELIEF: float = 0.12
-	var target_rear_holder := Vector3(0.0, 0.0, -EYE_RELIEF)
 
 	# The markers are NOT children of weapon_model - they hang off the gun node,
 	# which hangs off hand.R inside the arm chain. Their .position is local to that
@@ -516,38 +531,55 @@ func _auto_align_ads_sights() -> void:
 	var m_front: Vector3 = to_model * front.global_position
 	var sight_vec: Vector3 = (m_front - m_rear).normalized()
 
-	# Current world direction of the sight line.
-	var cur_dir: Vector3 = (weapon_model.basis * sight_vec).normalized()
-	var want_dir: Vector3 = Vector3(0, 0, -1)
-
 	# Shortest rotation that carries the current sight line onto the camera axis.
-	var delta_rot: Quaternion = _quaternion_from_to(cur_dir, want_dir)
-	var cur_quat: Quaternion = Quaternion.from_euler(weapon_model.rotation)
-	var new_quat: Quaternion = delta_rot * cur_quat
-	var new_rot_rad: Vector3 = new_quat.get_euler()
+	var cur_dir: Vector3 = (weapon_model.basis * sight_vec).normalized()
+	var delta_rot: Quaternion = _quaternion_from_to(cur_dir, Vector3(0, 0, -1))
+	var new_quat: Quaternion = delta_rot * Quaternion.from_euler(weapon_model.rotation)
 
-	# Apply rotation first so the scaled basis is correct for positioning.
+	# Level the roll (the axis _quaternion_from_to leaves free): the muzzle sits
+	# BELOW the sight line, so muzzle->sight-line perpendicular is the gun's true
+	# up. Roll about the view axis until it points straight up on screen.
+	var gun_up: Vector3 = Vector3.UP - sight_vec * Vector3.UP.dot(sight_vec)
+	var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
+	if muzzle:
+		var lift: Vector3 = m_rear - (to_model * muzzle.global_position)
+		lift -= sight_vec * lift.dot(sight_vec)
+		if lift.length() > 0.005:
+			gun_up = lift
+	var up_now: Vector3 = Basis(new_quat) * gun_up.normalized()
+	if Vector2(up_now.x, up_now.y).length() > 0.001:
+		new_quat = Quaternion(Vector3(0, 0, 1), atan2(up_now.x, up_now.y)) * new_quat
+
+	# Apply rotation first so the basis is correct for positioning.
+	var new_rot_rad: Vector3 = new_quat.get_euler()
 	weapon_model.rotation = new_rot_rad
 	edit_rotation = Vector3(
 		rad_to_deg(new_rot_rad.x),
 		rad_to_deg(new_rot_rad.y),
 		rad_to_deg(new_rot_rad.z))
 
-	# Now translate so the rear sight sits at the desired eye-relief point.
-	weapon_model.position = target_rear_holder - weapon_model.basis * m_rear
+	# Now translate so the rear sight sits at the requested anchor.
+	weapon_model.position = target_rear - weapon_model.basis * m_rear
 	edit_position = weapon_model.position
 
-	# Persist as the ADS zero and switch the bench to ADS mode.
-	preview_mode = 1
+	if mode == 0:
+		current_weapon.bore_dir = sight_vec
+	else:
+		current_weapon.ads_bore_dir = sight_vec
+
+	preview_mode = mode
 	_apply_edit()
 	_update_mode_button()
 	_update_camera_fov()
-	_flash("ADS ALIGNED to sight markers (V)")
+	if mode == 0:
+		_flash("HIP ALIGNED to sight markers + bore (H)")
+	else:
+		_flash("ADS ALIGNED to sight markers + bore (V)")
 
 
 ## Center the current model in the viewport without changing rotation. Useful if
 ## a weapon appears to have "disappeared" (off-screen due to an old child offset
-## or bad edit position). Press H to bring it back into view, then tune normally.
+## or bad edit position). Press F to bring it back into view, then tune normally.
 func _frame_model() -> void:
 	if not weapon_model:
 		return
@@ -558,7 +590,7 @@ func _frame_model() -> void:
 	# Place the mesh's local bounding-box center at (0, 0, -0.5) in front of camera.
 	edit_position = Vector3(-aabb.get_center().x, -aabb.get_center().y, -aabb.get_center().z - 0.5)
 	_apply_edit()
-	_flash("FRAMED model (H)")
+	_flash("FRAMED model (F)")
 
 
 ## True when any of the model's mesh AABB corners sits at or behind the camera
@@ -770,10 +802,11 @@ ROTATION   Arrows pitch/yaw  PgUp/Dn roll
 
 ALIGN      B - auto-align current-mode bore to crosshair
            V - align ADS to SightRear/SightFront markers
+           H - align HIP to the same markers (carry zone)
            I/K/U/O - calibrate bore for current mode
            Shift+B - reset current-mode bore   L - laser
            G - toggle alignment grid
-           H - frame model (bring it back if it vanishes)
+           F - frame model (bring it back if it vanishes)
 
 SAVE       Ctrl+S - write into the .tres
            R - revert to saved
@@ -784,7 +817,7 @@ WEAPONS    Z/X - prev/next   1-9 - direct
            F5 - reload model scene
 
 Hip and ADS have independent bore zeros. Tuning one
-never moves the other. V uses the model sight markers."""
+never moves the other. V/H use the model sight markers."""
 
 
 ## ---------- RANGE VISUALS ----------
