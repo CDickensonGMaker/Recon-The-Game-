@@ -120,10 +120,16 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 Blender → export lands in Godot working, every time, as automated as possible. Scope: the export
 tooling (`tools/export_viewmodel_clips.py` batch driver), pre-flight rig-contract probe, post-flight
 GLB validator (see memory `recon-m16-rig-break-2026-07-25` for the measured failure it must prevent),
-research input `production/research/blender_godot_fp_pipeline_2026-07-25.md`. Build is GATED on the
-Summoner blessing the 7/25 M16-rig diagnosis + fix path. Same decree, verbatim intent: "push the hud
-to the background and later work" — the ADR-030 deferral is RE-CONFIRMED; no HUD item outranks
-pipeline work.
+research input `production/research/blender_godot_fp_pipeline_2026-07-25.md`. Same decree, verbatim
+intent: "push the hud to the background and later work" — the ADR-030 deferral is RE-CONFIRMED; no
+HUD item outranks pipeline work.
+**STATUS 2026-07-26: v1 SHIPPED and proven end-to-end** — fix blessed+executed (M16 rig restored,
+m16/ak/m14 re-exported, his 5h of clips landed), pipeline v1 live (`tools/viewmodel_manifest.json` +
+`export_all_viewmodels.py` driver + `--strict` pre-flight/wreckage-catcher in
+`export_viewmodel_clips.py` + `validate_viewmodel_glb.py` with the break as selftest regression +
+`tests/test_viewmodel_contract.tscn` in the suite). Remaining (next session): Summoner suite run +
+V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 fittings reparent
+(manifest `_debt`) · extend manifest per new gun (ppsh next) · research §F multi-slot experiment.
 
 0. **PLAYTEST R4 (`RECONgame-qrg6`)** — session entry gate; nothing new ships until the Summoner verifies the ADR-029 open-patrol checklist (boot seated at `fsb_main` → wire gate → find a site unguided → fair contact → squad behaves → AAR banks at the gate, `field_director.gd:602-614`). Discharged only by a verified playtest (ADR-015), never by a probe.
 1. ~~**Stealth restoration bundle**~~ ✅ **DONE** — witness guard live (`enemy_base.gd:736/756/2351`, probe `test_witness_rule`) and ±25 contact scoring live (`debrief.gd:25-26`); o18o closed.
