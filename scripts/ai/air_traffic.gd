@@ -26,6 +26,15 @@ const FIXED_WING := {
 	"skyhawk": {"agl": 80.0, "speed": 200.0},
 	"skyraider": {"agl": 60.0, "speed": 110.0},
 }
+## Formation-capable transit kinds -> [min_ships, max_ships] counting the lead.
+## Chinooks and everything unlisted always transit solo.
+const FORMATION_SIZES := {"huey": [2, 3], "skyraider": [2, 2]}
+const FORMATION_CHANCE: float = 0.35
+## Echelon geometry per wingman slot (metres): lateral spread, altitude
+## stagger, trail behind the lead. Each multiplies by the slot index.
+const ECHELON_LATERAL_M := Vector2(45.0, 70.0)
+const ECHELON_ALT_M := Vector2(8.0, 12.0)
+const ECHELON_TRAIL_M := Vector2(15.0, 30.0)
 ## A flight that never arrives is a leak. Nothing may outlive this.
 const MAX_FLIGHT_SECONDS: float = 240.0
 ## How close a flight has to pass for the jungle to hear it.
@@ -117,7 +126,7 @@ func _ground_at(p: Vector3) -> float:
 	return t.get_height_at(p) if t != null else 0.0
 
 
-func _dispatch(kind: String) -> void:
+func _dispatch(kind: String, force_ships: int = 0) -> void:
 	var route: Array = _ao_route()
 	var from: Vector3 = route[0]
 	var to: Vector3 = route[1]
@@ -125,6 +134,41 @@ func _dispatch(kind: String) -> void:
 	if node == null:
 		return
 	_roster(kind, node, from, to, "transit")
+	var frng: RandomNumberGenerator = _event_rng(kind)
+	var ships: int = _ship_count(kind, frng, force_ships)
+	if ships <= 1:
+		return
+	var dir: Vector3 = (to - from).normalized()
+	var side: Vector3 = Vector3(-dir.z, 0.0, dir.x) * (1.0 if frng.randf() < 0.5 else -1.0)
+	for i in range(1, ships):
+		var off: Vector3 = side * (frng.randf_range(ECHELON_LATERAL_M.x, ECHELON_LATERAL_M.y) * float(i)) \
+			- dir * (frng.randf_range(ECHELON_TRAIL_M.x, ECHELON_TRAIL_M.y) * float(i))
+		var wing: Node3D = _spawn_transit(kind, from + off, to + off,
+			frng.randf_range(ECHELON_ALT_M.x, ECHELON_ALT_M.y) * float(i))
+		if wing != null:
+			_roster(kind, wing, from + off, to + off, "transit")
+
+
+## The transit schedule payload carries no seed, so a wingman roll derives its
+## RNG from the sim calendar + kind (ADR-010: never the global RNG).
+func _event_rng(kind: String) -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	var day: int = SimClock.sim_day if SimClock != null else 1
+	var hour: int = int(SimClock.sim_hour) if SimClock != null else 0
+	r.seed = hash("%d:%d:%s" % [day, hour, kind])
+	return r
+
+
+## force_ships is a test hook; it still cannot form up a solo-only kind.
+func _ship_count(kind: String, frng: RandomNumberGenerator, force_ships: int) -> int:
+	if not FORMATION_SIZES.has(kind):
+		return 1
+	var band: Array = FORMATION_SIZES[kind]
+	if force_ships > 0:
+		return clampi(force_ships, 1, int(band[1]))
+	if frng.randf() >= FORMATION_CHANCE:
+		return 1
+	return frng.randi_range(int(band[0]), int(band[1]))
 
 
 func _roster(kind: String, node: Node3D, from: Vector3, to: Vector3, phase: String) -> int:
@@ -147,7 +191,7 @@ func _roster(kind: String, node: Node3D, from: Vector3, to: Vector3, phase: Stri
 
 
 ## Put a real aircraft in the sky. Returns null when the kind has no way to fly.
-func _spawn_transit(kind: String, from: Vector3, to: Vector3) -> Node3D:
+func _spawn_transit(kind: String, from: Vector3, to: Vector3, alt_bonus: float = 0.0) -> Node3D:
 	var world := _world()
 	if world == null:
 		return null
@@ -163,6 +207,7 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3) -> Node3D:
 	craft.add_to_group("air_traffic")
 	if craft is Helicopter:
 		var heli := craft as Helicopter
+		heli.cruise_altitude += alt_bonus
 		var start := from
 		start.y = _ground_at(from) + heli.cruise_altitude
 		craft.global_position = start
@@ -170,11 +215,12 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3) -> Node3D:
 		heli.fly_to(to)
 	elif craft is CASAirplane:
 		var profile: Dictionary = FIXED_WING.get(kind, {"agl": 80.0, "speed": 180.0})
+		var agl: float = float(profile["agl"]) + alt_bonus
 		var start := from
-		start.y = _ground_at(from) + float(profile["agl"])
+		start.y = _ground_at(from) + agl
 		craft.global_position = start
 		(craft as CASAirplane).call_transit(terrain, start, to,
-			float(profile["agl"]), float(profile["speed"]))
+			agl, float(profile["speed"]))
 	return craft
 
 

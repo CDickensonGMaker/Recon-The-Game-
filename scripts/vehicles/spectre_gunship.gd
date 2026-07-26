@@ -8,6 +8,11 @@
 class_name SpectreGunship
 extends Node3D
 
+const AIRFRAME_SCENE: PackedScene = preload("res://assets/us/aircraft/ac47_spooky.glb")
+## Night orbit bird, heard more than seen: cull the airframe past ~1200m.
+const VIS_END_M: float = 1200.0
+const VIS_MARGIN_M: float = 80.0
+
 const ORBIT_RADIUS: float = 160.0
 const ORBIT_ALT: float = 130.0
 const DURATION: float = 30.0
@@ -43,14 +48,25 @@ static func call_in(parent: Node, terrain_manager: TerrainManager, target_pos: V
 
 
 func _ready() -> void:
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(29.0, 4.0, 4.5)
-	mesh.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.13, 0.13, 0.12)
-	mesh.material_override = mat
-	add_child(mesh)
+	var airframe := AIRFRAME_SCENE.instantiate() as Node3D
+	airframe.name = "Airframe"
+	# The GLB's nose points +Z (cockpit +Z, tail fins -Z); the node flies
+	# along -Z via look_at, so the model mounts flipped 180 about Y.
+	airframe.rotation.y = PI
+	add_child(airframe)
+	var stack: Array[Node] = [airframe]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var mi := n as MeshInstance3D
+		if mi != null:
+			mi.visibility_range_end = VIS_END_M
+			mi.visibility_range_end_margin = VIS_MARGIN_M
+		for c in n.get_children():
+			stack.push_back(c)
+	var anim := airframe.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if anim != null and anim.has_animation("prop_spin"):
+		anim.get_animation("prop_spin").loop_mode = Animation.LOOP_LINEAR
+		anim.play("prop_spin")
 	var drone_stream := load("res://assets/audio/sfx/rotor_loop.wav") as AudioStreamWAV
 	if drone_stream:
 		drone_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -69,14 +85,18 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_age += delta
 	if _age >= DURATION:
-		global_position += Vector3(1, 0.2, 0.3).normalized() * 60.0 * delta
+		var out_dir := Vector3(1, 0.2, 0.3).normalized()
+		global_position += out_dir * 60.0 * delta
+		look_at(global_position + out_dir, Vector3.UP)
 		if _age > DURATION + 8.0:
 			queue_free()
 		return
-	_angle += delta * 0.35
+	# Left pylon turn: the angle runs backwards so the port side - where an
+	# AC-47's miniguns point - faces the orbit centre while the nose leads.
+	_angle -= delta * 0.35
 	var desired := target + Vector3(cos(_angle) * ORBIT_RADIUS, ORBIT_ALT, sin(_angle) * ORBIT_RADIUS)
 	global_position = global_position.lerp(desired, delta * 2.0)
-	look_at(target, Vector3.UP)
+	look_at(global_position + Vector3(sin(_angle), 0.0, -cos(_angle)), Vector3.UP)
 
 	_vulcan_timer -= delta
 	if _vulcan_timer <= 0.0:

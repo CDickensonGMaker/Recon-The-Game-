@@ -12,7 +12,7 @@ const EXPECTED := {
 	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
 	"res://assets/us/vehicles/m113_apc.glb": [2.0, 9.0],
 	"res://assets/us/aircraft/a1_skyraider.glb": [6.0, 18.0],
-	"res://assets/us/aircraft/ac47_spooky.glb": [150.0, 220.0],  # WIP export (spooky_gunship2_wip.blend), no consumer yet; raw ~6x oversized vs the real 29m span - rescale before wiring
+	"res://assets/us/aircraft/ac47_spooky.glb": [26.0, 32.0],  # true DC-3 span 28.96m via import root_scale 0.1475; source blend keeps its working scale
 
 	"res://assets/world/building models/ordnance/Bomb_500lb_Mk82.glb": [0.5, 4.0],
 }

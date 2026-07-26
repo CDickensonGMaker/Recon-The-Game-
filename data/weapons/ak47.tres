@@ -10,6 +10,7 @@ description = "7.62x39 assault rifle. A lower, rounder boom than the M16. Its cr
 firing_mode = 1
 reload_time = 2.6
 empty_reload_time = 4.4333
+jam_clear_time = 3.6333
 base_damage = 27
 ads_spread_mult = 0.068
 base_spread = 2.2

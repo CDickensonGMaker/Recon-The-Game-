@@ -26,7 +26,7 @@ Every art asset we've identified, from code placeholders + design discussions. S
 
 ## VEHICLES / AIRCRAFT
 - 🟡 **F-4 Phantom** — GLB already in project (`aircraft/f4_phantom.glb`); needs wiring into the flyby (`mission_director.gd:291`, bead RECONgame-qs6l)
-- 🔴 **C-47 "Spooky" gunship** — stretched-box placeholder (`spooky_gunship.gd:29`)
+- 🟡 **C-47 "Spooky" gunship** — `ac47_spooky.glb` now flies on `SpectreGunship` with props spinning (`spectre_gunship.gd:50`, 2026-07-25); still needs the side-firing minigun barrels modeled
 - 🔴 **ZPU / DShK AA gun** — mg_nest GLB placeholder (`site_planner.gd:233`)
 - 🟡 **Driveable vehicle variants** — GLBs copied from RTS 2026-07-09: m35_deuce_truck, us_jeep, uh1_huey, us_bulldozer (+ M151/M113/Chinook already here); driveable *code* is bead RECONgame-2kcp
 - ✅ **Helipad** — copied from RTS 2026-07-09 (`converted/helipad.glb`, `airfield/psp_helipad.glb`); needs placement wiring

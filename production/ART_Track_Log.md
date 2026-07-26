@@ -38,7 +38,7 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 7. **Per-gun FP idle/fidget/inspect** (HL1-style; specs in fp_arms/IDLE_ANIM_SPEC.md). [4uuu]
 
 ## 4. VEHICLES / AIRCRAFT
-- **C-47 Spooky** — still a stretched-box placeholder in-game. [y8ho] Just finished making the model, I need help animating the blade rotors which I think i have everything parented up etc. I also need to make a few guns that stick out of it. 
+- **C-47 Spooky** — model WIRED 2026-07-25: `ac47_spooky.glb` flies on `SpectreGunship` (`spectre_gunship.gd:50`), baked `prop_spin` clip looping in-game, left pylon turn so the port guns face the target. Still to do: model the guns that stick out of the left side. 
 - **Ordnance mounting** — 8 bomb/napalm/rocket-pod props exist, none attached to the F-4 or dropped. Thats something well have to do during the dedicated vehicles. 
 - a4_skyhawk unwired (modeled, no scene). It should be in the game we have it already. 
 
