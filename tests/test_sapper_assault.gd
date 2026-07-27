@@ -96,15 +96,22 @@ func _check_detonation_condition() -> void:
 		_fail("a sapper 100m from the objective detonated early")
 
 	# NEGATIVE: a ZERO objective never arms and never blows (the origin guard).
+	# Asserted through the silent predicate: setup() answers a refusal with
+	# push_error, and driving that on purpose would fail the whole run on an
+	# error the probe deliberately provoked.
+	if SapperChargeScript.is_valid_objective(Vector3.ZERO):
+		_fail("ZERO passes is_valid_objective - an unset satchel would arm at world origin")
+	if not SapperChargeScript.is_valid_objective(Vector3(2000, 0, 0)):
+		_fail("a real objective FAILS is_valid_objective - the guard rejects everything")
+
 	var zeroed := EnemyBase.spawn_enemy(self, Vector3(4000, 0, 0), SAPPER_DATA)
 	var c_zero := SapperChargeScript.new()
 	zeroed.add_child(c_zero)
-	c_zero.setup(Vector3.ZERO)
 	if c_zero._armed:
-		_fail("a charge armed on a ZERO objective - it would detonate at world origin")
+		_fail("a charge armed before setup - it would detonate at world origin")
 	c_zero._physics_process(0.1)
 	if zeroed.is_dead():
-		_fail("a ZERO-objective charge detonated")
+		_fail("an unarmed charge detonated")
 
 	await get_tree().physics_frame
 	far.queue_free()
@@ -285,10 +292,10 @@ func _bare_director(center: Vector3) -> FieldDirector:
 	add_child(d)
 	d.add_to_group("mission_director")
 	var w := GameWorld.new()
+	# No terrain at all, so spawn_tracked_enemy skips the terrain seat
+	# (field_director.gd:33) instead of sampling an empty heightmap out of bounds.
+	w.build_terrain_on_ready = false
 	add_child(w)
-	# The rig's terrain has an empty heightmap; null it so spawn_tracked_enemy
-	# skips the terrain seat (field_director.gd:33) instead of sampling out of bounds.
-	w.terrain_manager = null
 	var pl := CharacterBody3D.new()
 	w.add_child(pl)
 	pl.global_position = center

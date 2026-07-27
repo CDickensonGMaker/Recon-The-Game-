@@ -79,8 +79,8 @@ func _bare_director(center: Vector3) -> FieldDirector:
 	add_child(d)
 	d.add_to_group("mission_director")
 	var w := GameWorld.new()
+	w.build_terrain_on_ready = false  # plumbing only; leaves terrain_manager null
 	add_child(w)
-	w.terrain_manager = null
 	var pl := StubPlayer.new()
 	pl.director = d
 	w.add_child(pl)

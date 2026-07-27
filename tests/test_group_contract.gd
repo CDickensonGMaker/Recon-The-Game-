@@ -12,6 +12,12 @@ const SCAN_DIRS: Array[String] = ["res://scripts", "res://terrain", "res://tests
 ## Production dirs. A group READ only from tests/ or tools/ is not live wiring.
 const PRODUCTION_DIRS: Array[String] = ["res://scripts", "res://terrain"]
 
+## Dev benches are out of scope (Summoner, 2026-07-27). The stress arena wires
+## its own sterile world and its groups answer to nothing shipping.
+const EXCLUDED_BENCHES: Array[String] = [
+	"res://scripts/levels/ai_stress_arena.gd",
+]
+
 ## Group names reach the tree two ways: a literal add_to_group, or a string
 ## inside an array handed to a builder. Miss the second and civilian_hurtbox
 ## reads as never-written when civilian.gd:154 plainly writes it.
@@ -22,9 +28,8 @@ const GROUP_BUILDER_CALLS: Array[String] = [
 ## Accepted inert writers. Entries leave this list; they never join it without a
 ## ruling recorded alongside.
 const ALLOWED_WRITE_ONLY: Array[String] = [
-	"arena_fortification",  # sterile stress arena, permanent by ruling 2026-07-26
-	"nav_source",           # gun_range.gd:45 - gun_range bakes no navmesh
-	"armorers_bench",       # armorers_bench.gd:63 - bench resolved by preload, not by group
+	"nav_source",      # gun_range.gd:45 - gun_range bakes no navmesh
+	"armorers_bench",  # armorers_bench.gd:63 - bench resolved by preload, not by group
 ]
 
 ## Accepted readerless-in-production groups.
@@ -39,7 +44,7 @@ func _ready() -> void:
 	var writes: Dictionary = {}
 	var reads: Dictionary = {}
 	for path in files:
-		if path == get_script().resource_path:
+		if path == get_script().resource_path or path in EXCLUDED_BENCHES:
 			continue
 		var src: String = FileAccess.get_file_as_string(path)
 		if src.is_empty():

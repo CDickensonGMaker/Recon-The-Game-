@@ -53,6 +53,7 @@ func _rig(rto_dist: float) -> FieldDirector:
 	add_child(d)
 	d.add_to_group("mission_director")   # FieldDirector.setup() does this in game
 	var w := GameWorld.new()
+	w.build_terrain_on_ready = false  # plumbing only
 	add_child(w)
 	var pl := CharacterBody3D.new()
 	w.add_child(pl)

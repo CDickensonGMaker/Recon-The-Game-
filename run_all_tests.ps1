@@ -49,9 +49,13 @@ $Graduated = @(
     "test_squad_break"
     "test_squad_invariants"
     "test_gib_contract_all"
-    "test_arena_patrol"
     "test_firefight_len"
 )
+# DELISTED 2026-07-27 (Summoner: "remove the ai stress test from the probes"):
+# test_arena_patrol. The stress arena is a sterile hand-wired debugging bench,
+# not shipping world-build code, so its AI reaching COMBAT must not gate the
+# build. It still RUNS and still reports - it just cannot mark a REGRESSION on a
+# bench that answers to nothing the player sees.
 
 # Line-start prefixes that mean "the engine complained". Any hit = FAIL, regardless
 # of exit code.

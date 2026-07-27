@@ -2,9 +2,9 @@
 ## Static scan: (1) world-placement entry points may only be called from the
 ## manifest files - a second placement path fails the build; (2) placement
 ## files may not draw from the GLOBAL rng (bare randf/randi = unseeded world).
-## The arena's hand-wired build is the ONE recorded exception, PERMANENTLY:
-## Summoner's ruling 2026-07-26 keeps the stress arena a sterile debugging
-## environment, so ADR-028 Phase 3 (arena-as-slice) is CUT, not deferred.
+## Dev benches (EXCLUDED_BENCHES) are out of scope entirely: the stress arena is
+## a sterile debugging environment by the Summoner's ruling of 2026-07-26, so
+## ADR-028 Phase 3 (arena-as-slice) is CUT, not deferred.
 ## Anything tuned in the arena must be re-confirmed in the real world build.
 ## Run: godot --headless --path . res://tests/test_placement_paths.tscn
 extends Node
@@ -18,8 +18,12 @@ const CALLER_MANIFEST: Array[String] = [
 	"res://scripts/world/site_planner.gd",
 	"res://scripts/missions/mission_generator.gd",
 ]
-## The recorded exception: hand-wired bench world, permanent by ruling (see header).
-const KNOWN_EXCEPTIONS: Array[String] = [
+## Dev benches are NOT world-build code and this probe does not police them
+## (Summoner, 2026-07-27: "remove the ai stress test from the probes"). Excluded
+## outright rather than carried as an exception - an exception still asserts the
+## file is in scope and merely forgiven, which is the drift this probe exists to
+## stop. Files here are skipped before any rule runs.
+const EXCLUDED_BENCHES: Array[String] = [
 	"res://scripts/levels/ai_stress_arena.gd",
 ]
 ## Placement-owning files that must never touch the global rng.
@@ -41,11 +45,12 @@ func _ready() -> void:
 		_walk(d, files)
 
 	for path in files:
+		if path in EXCLUDED_BENCHES:
+			continue
 		var src: String = FileAccess.get_file_as_string(path)
 		if src.is_empty():
 			continue
 		var in_manifest: bool = path in CALLER_MANIFEST
-		var known: bool = path in KNOWN_EXCEPTIONS
 		for call in PLACEMENT_CALLS:
 			if not src.contains(call):
 				continue
@@ -58,9 +63,7 @@ func _ready() -> void:
 					break
 			if not live:
 				continue
-			if known:
-				print("KNOWN EXCEPTION (sterile arena, ruled 2026-07-26): %s calls %s" % [path, call])
-			elif not in_manifest:
+			if not in_manifest:
 				print("FAIL: %s calls %s - a SECOND placement path (ADR-028)" % [path, call])
 				failures += 1
 

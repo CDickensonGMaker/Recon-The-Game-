@@ -105,6 +105,11 @@ func _collect(dir: String, out: Array[String]) -> void:
 	var d := DirAccess.open(dir)
 	if d == null:
 		return
+	# Honour .gdignore exactly as the engine does. An archived tree behind one is
+	# never imported, so its leftover .import sidecars point wherever the sources
+	# used to live and are not a broken reference - they are not references at all.
+	if FileAccess.file_exists(dir.path_join(".gdignore")):
+		return
 	d.list_dir_begin()
 	var entry: String = d.get_next()
 	while entry != "":

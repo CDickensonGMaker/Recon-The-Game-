@@ -38,10 +38,18 @@ const RESEAT_DEPTH: float = 5.0
 var _reseat_timer: float = 0.0
 
 
+## Probes that only need the world's plumbing (director, squad, player ref) set
+## this false BEFORE add_child. Terrain generation is async, so a bare world that
+## builds anyway finishes generating after the probe has moved on and then runs
+## _on_terrain_ready against whatever state it left behind.
+var build_terrain_on_ready: bool = true
+
+
 func _ready() -> void:
 	add_to_group("game_world")
 	_setup_environment()
-	_setup_terrain()
+	if build_terrain_on_ready:
+		_setup_terrain()
 
 
 func _setup_environment() -> void:
@@ -134,6 +142,13 @@ func _setup_default_shader_textures() -> void:
 
 
 func _on_terrain_ready() -> void:
+	# Generation is async and can outlive the manager it was started for (a torn
+	# down or repurposed world). Wiring the autoloads to a null here is worse than
+	# doing nothing: DamageSystem would hold a null terrain_manager for the rest
+	# of the run and crash on the first explosion.
+	if terrain_manager == null or not is_instance_valid(terrain_manager):
+		return
+
 	# 1. Damage + clearing systems (autoloads) get their terrain references.
 	DamageSystem.set_terrain_manager(terrain_manager)
 	DamageSystem.set_vegetation_manager(vegetation_manager)
@@ -396,6 +411,8 @@ func _wire_cameras(cam: Camera3D) -> void:
 
 func _setup_terrain_shader_textures() -> void:
 	if not TerrainChunkScript.is_using_shader():
+		return
+	if terrain_manager == null or not is_instance_valid(terrain_manager):
 		return
 	var params := {}
 	if terrain_manager.heightmap:

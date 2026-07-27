@@ -14,6 +14,11 @@ extends Node
 const SCAN_DIRS: Array[String] = ["res://scripts", "res://terrain", "res://tests", "res://tools"]
 const PRODUCTION_DIRS: Array[String] = ["res://scripts", "res://terrain"]
 
+## Dev benches are out of scope (Summoner, 2026-07-27).
+const EXCLUDED_BENCHES: Array[String] = [
+	"res://scripts/levels/ai_stress_arena.gd",
+]
+
 ## Dispatch forms whose first string argument is a method name.
 const DISPATCH_FORMS: Array[String] = [
 	"has_method\\(\\s*\"([^\"]+)\"",
@@ -38,7 +43,7 @@ func _ready() -> void:
 	var unresolved: Dictionary = {}
 	var total: int = 0
 	for path in files:
-		if path == get_script().resource_path:
+		if path == get_script().resource_path or path in EXCLUDED_BENCHES:
 			continue
 		var src: String = FileAccess.get_file_as_string(path)
 		if src.is_empty():

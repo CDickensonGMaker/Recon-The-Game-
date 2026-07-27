@@ -33,10 +33,21 @@ static func infer(collider: Object, hit: Vector3, tunnels: Array,
 		var cv: Vector3 = c
 		if Vector2(cv.x, cv.z).distance_to(hit2) < CAMP_NEAR_M:
 			return "CAMP"
+	# Distance to the trail LINE, not to its vertices. A polyline's points can sit
+	# tens of metres apart, so measuring to them alone made the whole middle of a
+	# segment unmarkable while its two ends worked.
 	for seg in road_segments:
 		var pts := seg as PackedVector3Array
-		for p in pts:
-			if Vector2(p.x, p.z).distance_to(hit2) < TRAIL_NEAR_M:
+		if pts.is_empty():
+			continue
+		if pts.size() == 1:
+			if Vector2(pts[0].x, pts[0].z).distance_to(hit2) < TRAIL_NEAR_M:
+				return "TRAIL"
+			continue
+		for i in range(pts.size() - 1):
+			var a := Vector2(pts[i].x, pts[i].z)
+			var b := Vector2(pts[i + 1].x, pts[i + 1].z)
+			if Geometry2D.get_closest_point_to_segment(hit2, a, b).distance_to(hit2) < TRAIL_NEAR_M:
 				return "TRAIL"
 	return ""
 

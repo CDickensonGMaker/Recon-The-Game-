@@ -21,9 +21,15 @@ var target_pos: Vector3 = Vector3.ZERO
 var _armed: bool = false
 
 
+## ZERO is "no objective": an unset satchel must never arm, or it detonates at
+## the world origin. Silent and pure so a probe can assert the invariant without
+## the shout below turning the whole suite red.
+static func is_valid_objective(objective_center: Vector3) -> bool:
+	return objective_center != Vector3.ZERO
+
+
 func setup(objective_center: Vector3) -> void:
-	# ZERO is "no objective" (an unset satchel at the world origin must never arm).
-	if objective_center == Vector3.ZERO:
+	if not is_valid_objective(objective_center):
 		push_error("[SapperCharge] refused a ZERO objective - would detonate at origin")
 		return
 	target_pos = objective_center

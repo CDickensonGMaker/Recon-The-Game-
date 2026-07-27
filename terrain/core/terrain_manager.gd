@@ -264,12 +264,20 @@ func _world_to_chunk(world_pos: Vector3) -> Vector2i:
 
 
 ## Get terrain height at world position (O(1) bilinear interpolation)
-## This is the primary API for unit movement - does NOT use physics
+## This is the primary API for unit movement - does NOT use physics.
+## Returns sea level before generation: this is called every physics tick by
+## movement and by TerrainWatchdog, so on an ungenerated manager it must answer,
+## not throw. A flat world reads as a rig artefact; a per-tick crash spew buries
+## whatever the run was actually testing.
 func get_height_at(world_pos: Vector3) -> float:
+	if heightmap == null:
+		return 0.0
 	return heightmap.sample_world(world_pos.x, world_pos.z)
 
 
 func get_normal_at(world_pos: Vector3) -> Vector3:
+	if heightmap == null:
+		return Vector3.UP
 	return heightmap.get_normal_world(world_pos.x, world_pos.z)
 
 
