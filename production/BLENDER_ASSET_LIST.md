@@ -37,7 +37,7 @@ The RTS has ~103 Vietnam structures. These fill our gaps directly (copy from
 `RealVietnamRTS/assets/models/structures/`, never edit the RTS):
 **→ FULL COPY DONE 2026-07-09**: all missing structure files (285) + vehicles (44) copied into
 `assets/building models/` — every 🟢 below is now in-project; remaining work is wiring/placement.
-- ✅ **Rubble/debris** → RTS ruins set COPIED IN 2026-07-09 (`ruins/rubble_pile.glb`, `burned_hut.glb`, `destroyed_bunker.glb`, `bomb_crater.glb`, `cham_temple_ruin.glb`) **+ 3 new FPS-scale pieces modeled**: `ruins/rubble_debris_small.glb`, `rubble_debris_large.glb`, `wall_remnant.glb` (pending review; destruction-swap code bead RECONgame-8tly)
+- ✅ **Rubble/debris** → RTS ruins set COPIED IN 2026-07-09 (`ruins/rubble_pile.glb`, `burned_hut.glb`, `destroyed_bunker.glb`, `bomb_crater.glb`; `cham_temple_ruin.glb` DELETED 2026-07-26, replaced by the generated prasat set in `structures/temple/`) **+ 3 new FPS-scale pieces modeled**: `ruins/rubble_debris_small.glb`, `rubble_debris_large.glb`, `wall_remnant.glb` (pending review; destruction-swap code bead RECONgame-8tly)
 - ✅ **POW cage** → proper bamboo cage MODELED 2026-07-09: `vc_nva/pow_cage.glb` (sized to the 2.2×1.8×2.2 placeholder; `village/rice_storage.glb` also available as alt) — pending review + wiring into `rescue_objective.gd:17`
 - 🟢 **MG nest** → `firebase/mg_nest.glb`
 - 🟢 **Helipad** → `converted/helipad.glb` / `airfield/psp_helipad.glb`

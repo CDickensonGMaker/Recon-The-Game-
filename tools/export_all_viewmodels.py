@@ -49,6 +49,13 @@ def main():
         print(v.stdout.rstrip())
         if v.returncode != 0:
             sys.exit(f"VALIDATION FAILED: {gun}")
+        # The gameplay timer follows the authored clip: weapon_holder stretches every
+        # clip to fit it, so a stale .tres plays the animation at the wrong speed.
+        s = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "sync_weapon_timers.py"), gun],
+                           capture_output=True, text=True)
+        print((s.stdout + s.stderr).rstrip())
+        if s.returncode != 0:
+            sys.exit(f"TIMER SYNC FAILED: {gun}")
         ran += 1
     if ran == 0:
         sys.exit(f"no manifest gun matched {only}")

@@ -3,7 +3,7 @@ extends SceneTree
 ## spread, material/texture truth. Runs without a world - pure asset probe.
 
 func _init() -> void:
-	var scene: PackedScene = load("res://assets/world/building models/structures/firebase/fsb_main.glb")
+	var scene: PackedScene = load(SitePlanner.FSB_MAIN_PATH)
 	if scene == null:
 		print("[FSB-MODEL] FAIL: scene did not load")
 		quit(1)

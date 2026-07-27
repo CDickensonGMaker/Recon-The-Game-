@@ -34,9 +34,17 @@ authored clip length disagrees with its `.tres` timer plays at the wrong speed.
 `jam_clear_time`, so it inherits `weapon_data.gd:16-17` defaults (`0.0` → falls back to `reload_time`,
 and `1.1`). Its clips were transplanted from the AK, so they are AK-length.
 
-**Fix (one file, no Blender):** in `data/weapons/ppsh41.tres` set `reload_time = 2.6`,
-`empty_reload_time = 4.4333`, `jam_clear_time = 3.6333` — the AK's values, because they are the AK's
-clips. If the PPSh is later re-authored with its own clips, retime the .tres in the same change.
+**RESOLVED 2026-07-26, same session** (Summoner's ruling: *"the game timer needs to match the
+animation's original times"*, and he chose to have the export write it rather than hand-maintain it).
+See **ADR-034 Amendment A**. `tools/sync_weapon_timers.py` reads each clip duration from the exported
+GLB's input accessors and writes the three timer fields into the `weapon_tres` named in the manifest;
+`export_all_viewmodels.py` runs it after every export, and `validate_viewmodel_glb.py` now fails on
+drift (proven by perturbing `jam_clear_time` back to 1.1 — validator reports `was playing at 3.30x`
+and exits 1). All four guns now measure exactly 1.00×.
+
+PPSh accepted values: `reload_time = 2.6`, `empty_reload_time = 4.4333`, `jam_clear_time = 3.6333`.
+**Balance consequence he accepted:** jam clear goes 1.1s → 3.63s. When the PPSh clips are re-authored,
+the timers follow on the next export.
 
 **M16/AK/M14 retime at exactly 1.00** — their fast/slow is authored *inside* the clip, section B.
 
@@ -161,10 +169,12 @@ It would break three things that are load-bearing here:
 ## Next session — build order
 
 **Mine (headless, measurable, no animation authoring):**
-1. `data/weapons/ppsh41.tres` retime — section A. Kills the literal "too fast then too slow".
+1. ~~`data/weapons/ppsh41.tres` retime~~ — **DONE 2026-07-26**, and made unrepeatable: ADR-034
+   Amendment A, `tools/sync_weapon_timers.py`, guard wired into the validator.
 2. Re-run this audit after any Blender session; it is the regression probe for all of the above.
-3. Optional: fold the frozen-hand check (section B) and the clip↔timer check (section A) into
-   `tests/test_viewmodel_contract` so they fail the build instead of waiting for a playtest.
+3. Fold the frozen-hand check (section B) into `tests/test_viewmodel_contract` so a dead limb fails
+   the build instead of waiting for a playtest. The clip↔timer half of this is now covered by the
+   validator.
 4. Marker-parent inconsistency (section F) — correct the manifest claim or the parenting.
 
 **Caleb's, in Blender — animation quality is his hands (standing ruling, 2026-07-26):**

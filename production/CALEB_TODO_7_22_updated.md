@@ -188,12 +188,15 @@ Data: `production/research/viewmodel_rig_audit.json`. Re-run the probe with
 `blender -b assets/player/arms/fp_arms_rifle.blend -P tools/audit_viewmodel_rigs.py --`.
 
 ### Mine, next session (headless, no animation authoring)
-1. **PPSh retime** — `data/weapons/ppsh41.tres` declares neither `empty_reload_time` nor
-   `jam_clear_time`, so `weapon_holder.gd:894` plays its AK-length clips at **0.76× / 1.30× / 3.30×**.
-   That is the literal "too fast then too slow", and it is a .tres edit, not Blender.
-   m16/ak/m14 all retime at exactly 1.00.
-2. Fold the clip-vs-timer check and the frozen-hand check into `tests/test_viewmodel_contract` so
-   they fail the build instead of waiting for a playtest.
+1. ~~**PPSh retime**~~ — **DONE 2026-07-26.** You ruled the timer follows the animation and that the
+   export should write it. Shipped as **ADR-034 Amendment A**: `tools/sync_weapon_timers.py` reads
+   each clip's length from the exported GLB and writes `reload_time` / `empty_reload_time` /
+   `jam_clear_time` into the .tres; the export driver runs it every time; the validator now FAILS on
+   drift. All four guns measure exactly 1.00× — the PPSh was 0.76× / 1.30× / 3.30×.
+   **You accepted the balance change: PPSh jam clear 1.1s → 3.63s** (reload 3.4 → 2.6s, empty → 4.43s).
+   Worth feeling in a playtest — it is a long time to be defenceless.
+2. Fold the **frozen-hand** check into `tests/test_viewmodel_contract` so a dead limb fails the build
+   instead of waiting for a playtest. (The clip-vs-timer half is now covered by the validator.)
 3. Marker parenting: manifest says `markers_under_gun: true` for all four, but AK's markers parent to
    `AK47` and M14's to `M14_gun` (the mesh, not the root). Correct the claim or the parenting.
 

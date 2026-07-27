@@ -1,5 +1,5 @@
 {
-  "_doc": "FP viewmodel export contract. One entry per gun that ships clips. Names are API (research doc production/research/blender_godot_fp_pipeline_2026-07-25.md section 2.3): renaming an object, marker or NLA track here or in the .blend is a breaking change. Driver: tools/export_all_viewmodels.py. Validator: tools/validate_viewmodel_glb.py. Godot-side probe: tests/test_viewmodel_contract.tscn.",
+  "_doc": "FP viewmodel export contract. One entry per gun that ships clips. Names are API (research doc production/research/blender_godot_fp_pipeline_2026-07-25.md section 2.3): renaming an object, marker or NLA track here or in the .blend is a breaking change. Driver: tools/export_all_viewmodels.py. Validator: tools/validate_viewmodel_glb.py. Godot-side probe: tests/test_viewmodel_contract.tscn. Gameplay timers in weapon_tres are kept equal to the authored clip lengths by tools/sync_weapon_timers.py, which the export driver runs; validate_viewmodel_glb.py --check-timers fails on drift.",
   "blend": "assets/player/arms/fp_arms_rifle.blend",
   "output_dir": "assets/player/viewmodels",
   "guns": {
@@ -8,8 +8,18 @@
       "gun_prefix": "M16A1",
       "gun_root": "M16A1_gun",
       "real_length_m": 0.986,
-      "clips": ["rifle_idle", "reload", "reload_empty", "jam"],
-      "parts": ["M16A1_magazine.030", "M16A1_charge_handle_slide_back", "M16A1_gun"],
+      "weapon_tres": "data/weapons/m16a1.tres",
+      "clips": [
+        "rifle_idle",
+        "reload",
+        "reload_empty",
+        "jam"
+      ],
+      "parts": [
+        "M16A1_magazine.030",
+        "M16A1_charge_handle_slide_back",
+        "M16A1_gun"
+      ],
       "markers_under_gun": true
     },
     "ak": {
@@ -17,8 +27,18 @@
       "gun_prefix": "AK47",
       "gun_root": "AK47_root",
       "real_length_m": 0.88,
-      "clips": ["rifle_idle", "reload", "reload_empty", "jam"],
-      "parts": ["AK47_mag", "AK47_bolt", "AK47_root"],
+      "weapon_tres": "data/weapons/ak47.tres",
+      "clips": [
+        "rifle_idle",
+        "reload",
+        "reload_empty",
+        "jam"
+      ],
+      "parts": [
+        "AK47_mag",
+        "AK47_bolt",
+        "AK47_root"
+      ],
       "markers_under_gun": true
     },
     "ppsh": {
@@ -26,18 +46,40 @@
       "gun_prefix": "PPSh41",
       "gun_root": "PPSh41",
       "real_length_m": 0.843,
-      "clips": ["rifle_idle"],
-      "parts": ["PPSh41"],
+      "weapon_tres": "data/weapons/ppsh41.tres",
+      "clips": [
+        "rifle_idle",
+        "reload",
+        "reload_empty",
+        "jam"
+      ],
+      "parts": [
+        "PPSh41",
+        "PPSh41_gun.006"
+      ],
       "markers_under_gun": true,
-      "_note": "idle-only: reload/jam clips not yet authored (2026-07-26 rig inventory)"
+      "_note": "reload/reload_empty/jam transplanted from the AK arms performance 2026-07-26; drum = PPSh41_gun.006, baked handoff grabs the LEFT rim (Summoner's ask); bolt not split, static in all clips"
     },
     "m14": {
       "collection": "RIG_M14",
       "gun_prefix": "M14",
       "gun_root": "M14_root",
       "real_length_m": 1.126,
-      "clips": ["rifle_idle", "reload", "reload_empty", "charge_handle", "jam"],
-      "parts": ["M14_chandle.002", "M14_chandle.001", "M14_chandle", "M14_root", "M14_clip.034"],
+      "weapon_tres": "data/weapons/m14.tres",
+      "clips": [
+        "rifle_idle",
+        "reload",
+        "reload_empty",
+        "charge_handle",
+        "jam"
+      ],
+      "parts": [
+        "M14_chandle.002",
+        "M14_chandle.001",
+        "M14_chandle",
+        "M14_root",
+        "M14_clip.034"
+      ],
       "markers_under_gun": true
     }
   }

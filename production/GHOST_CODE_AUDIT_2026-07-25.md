@@ -2,7 +2,8 @@
 
 > **OUTCOME LEDGER (same day, commits f9569faf…b6f77456):** Summoner ruled "wire it up" — executed.
 > SHIPPED: all §1/§R2.2 bugs (pending_hub proved already-applied → stash deleted; SMG idle reachable;
-> temple shrines spawn with cham_temple_ruin.glb; wave_runners + aoe_damage_falloff deleted),
+> temple shrines spawn with cham_temple_ruin.glb — SUPERSEDED 2026-07-26, that model is deleted and
+> shrines now draw the generated prasat set, `site_planner.gd:772-826`; wave_runners + aoe_damage_falloff deleted),
 > all §3 fossils + §R2.3/R2.4/R2.6 deletions, doc banners, ally ADVANCING/SUPPRESSED + default arm
 > (SUPPRESS_PIN shared in combat_posture.gd:12), cook ring, downed clock, SECURE verb, AAR civilian
 > line, M16 jam_clear_time 4.6s. RULED: keep all 100 anim clips; REGROUP cut; heli cluster stays

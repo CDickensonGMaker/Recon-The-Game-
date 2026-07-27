@@ -165,6 +165,14 @@ def main():
             ok = False
             continue
         ok = validate(parse_glb(path), spec, f"{gun} ({os.path.basename(path)})") and ok
+    if "--no-timers" not in args:
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import subprocess
+        t = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "sync_weapon_timers.py"),
+                            "--check"] + only, capture_output=True, text=True)
+        if t.returncode != 0:
+            print((t.stdout + t.stderr).rstrip())
+            ok = False
     sys.exit(0 if ok else 1)
 
 

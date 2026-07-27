@@ -91,3 +91,45 @@ bench-only); retire the identical `Transform3D(-1,0,0,0,1,0,0,0,-1,0,-1.81,0)`
 wrapper offset by baking a camera-frame root at export. Also: tools/gen_weapon_data.py
 still emits the pre-ADR-016 `base_damage = Array[int]` schema — stale generator,
 fix or retire before next use.
+
+## Amendment A — the gameplay timer is authored to the clip (2026-07-26)
+
+**Summoner's ruling:** *"so than the game timer needs to match the animation's original times.
+that makes the most sense."*
+
+`scripts/player/weapon_holder.gd:894` fits every viewmodel clip to its gameplay timer —
+`_vm_anim.speed_scale = clip_len / maxf(0.05, duration)`. ADR-018's principle stands unchanged:
+the timer is authoritative and is never scaled by a stat, because handling is not a stat. What
+this amendment adds is the other half of the contract — **the timer is authored to equal the clip,
+so that ratio is always 1.00.** A timer that disagrees with its animation does not slow the
+reload; it makes the animation play at the wrong speed.
+
+**The defect that forced it.** `data/weapons/ppsh41.tres` set `reload_time = 3.4` and declared
+neither `empty_reload_time` nor `jam_clear_time`, so it inherited the `weapon_data.gd:16-17`
+defaults (`0.0` → falls back to `reload_time`; `1.1`) while carrying clips transplanted from the
+AK. Measured in the shipped GLB: **reload 0.76× · reload_empty 1.30× · jam 3.30×** — the
+Summoner's "way too fast then too slow", in the data, on one gun. m16/ak/m14 measured exactly
+1.00 because their timers had been authored by hand to match. The convention was already right;
+nothing enforced it, and the one gun that skipped the fields failed silently.
+
+**Resolution — the export writes the number, so it is never hand-maintained** (Summoner's choice
+over a hand-authored value with a failing test):
+
+- `tools/sync_weapon_timers.py` reads each clip's duration from the **exported GLB's own input
+  accessors** — the same numbers Godot loads, not the .blend's frame counts — and writes
+  `reload_time` / `empty_reload_time` / `jam_clear_time` into the `weapon_tres` named in
+  `tools/viewmodel_manifest.json`. `--check` reports drift and changes nothing.
+- `tools/export_all_viewmodels.py` runs it after every successful export+validate.
+- `tools/validate_viewmodel_glb.py` fails on drift, so a hand-edited .tres cannot pass quietly
+  (`--no-timers` opts out). Proven by perturbing `jam_clear_time` back to 1.1 and confirming the
+  validator reports `was playing at 3.30x` and exits 1.
+
+**Balance consequence, accepted by the Summoner:** the PPSh jam clear becomes **3.63s**, up from
+the 1.1s tap-rack default — the honest length of the clip it actually has. Its reload drops
+3.4 → 2.6s and its empty reload rises to 4.43s. Ruled *"keep it — it's the honest length."*
+If the PPSh clips are re-authored (they are transplanted AK performances), the timers follow
+automatically on the next export.
+
+**Sacrificed:** the .tres timers stop being a tuning dial. Wanting a faster reload now means
+authoring a shorter animation, not editing a number — which is the point, but it does mean
+gameplay pacing is gated on Blender work.

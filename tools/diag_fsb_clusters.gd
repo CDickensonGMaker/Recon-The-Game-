@@ -3,7 +3,7 @@ extends SceneTree
 ## A mesh is SUSPENDED if its bottom is >0.5m up with no other mesh beneath it.
 
 func _init() -> void:
-	var scene: PackedScene = load("res://assets/world/building models/structures/firebase/fsb_main.glb")
+	var scene: PackedScene = load(SitePlanner.FSB_MAIN_PATH)
 	var root := scene.instantiate() as Node3D
 	var boxes: Array = []
 	var stack: Array[Node] = [root]
