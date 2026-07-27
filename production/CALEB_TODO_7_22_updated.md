@@ -22,6 +22,22 @@ Pick one:
 
 Full detail + numbers: `production/ARCHITECTURE_COUPLING_READ_2026-07-26.md` §2.5.
 
+## 0b. YOUR NEW ART IS IN NO COMMIT (added 2026-07-27)
+
+`git status assets/` = **531 untracked files, 44 deleted**. The whole regenerated village set
+(`nha_tranh_*`, `nha_san_*`, `nha_ruong_*`, `village_well_01`, `dinh_01`, `chua_01`…) and
+`fsb_main_v3.glb` exist **only on this disk**. The old `thatched_hut.glb` / `stilt_house.glb` /
+`well.glb` / `fsb_main.glb` are deleted from the working tree but still live in git history, so the
+repo and your disk currently disagree about what the village is.
+
+Three test/tool files were pointing at the deleted assets. **Fixed on disk, deliberately NOT
+committed** — committing them before the assets would break a fresh clone:
+`tests/test_nav_path.gd` (this was one of the two suite REGRESSIONS — it goes green with the fix),
+`tests/test_asset_probe.gd` (your `fsb_main_v3` edit preserved), `tools/probe_penetration.gd`.
+
+**Commit the assets and these three files together.** Until you do, the art exists in exactly one
+place.
+
 ## 1. CHARACTERS (the big one)
 - [x Done but need NVA models and more US variety] **Finish the better-body remake for ALL units** — the slimmer base, then rebuild:
       us_grunt, us_grunt_black, us_medic, vc1_farmer, vc2_mainforce, vc3_sapper, vc5_nva, vc6_heavy
