@@ -721,10 +721,27 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 	"cook": "mess_cook", "mess": "mess_cook",
 }
 
-## How many work_* markers become men, on top of the curated posts above. fsb_main_v3.glb
-## carries 191 of them (measured) and one man each would be a crowd the frame cannot pay for.
+## THE garrison ceiling: how many men stand inside the wire, curated and work-post
+## alike. Guarded by tests/test_firebase_garrison.gd, which reads THIS constant.
+const FSB_GARRISON_MAX_MEN: int = 24
+
+## Upper bound on work_* variety. fsb_main_v3.glb carries 191 work markers
+## (measured) and one man each would be a crowd the frame cannot pay for.
 ## Sampled by a deterministic stride, never randomly - ADR-010, same seed same base.
+##
+## This is a VARIETY cap, not the population cap: the real limit is whatever
+## FSB_GARRISON_MAX_MEN leaves after the curated posts are seated. Holding both as
+## independent constants is how the compound came to hold 17 curated + 12 work =
+## 29 men against a documented ceiling of 24.
 const FSB_WORK_POST_CAP: int = 12
+
+
+## Men already promised by the curated post table.
+static func _fsb_curated_men() -> int:
+	var n: int = 0
+	for entry in FSB_GARRISON_POSTS:
+		n += int(entry[2])
+	return n
 
 
 ## Offsets are accumulated up to the GLB root: every consumer adds them to the
@@ -789,11 +806,12 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 	# The work_* markers authored across the compound, so the garrison stands at the mess
 	# line, the wash drums and the ammo niches instead of only the thirteen curated posts.
 	var wcount: int = _fsb_work_markers.size()
-	if wcount > 0:
-		var stride: int = maxi(1, int(floor(float(wcount) / float(FSB_WORK_POST_CAP))))
+	var work_budget: int = clampi(FSB_GARRISON_MAX_MEN - _fsb_curated_men(), 0, FSB_WORK_POST_CAP)
+	if wcount > 0 and work_budget > 0:
+		var stride: int = maxi(1, int(floor(float(wcount) / float(work_budget))))
 		var taken: int = 0
 		var i: int = 0
-		while i < wcount and taken < FSB_WORK_POST_CAP:
+		while i < wcount and taken < work_budget:
 			var entry: Array = _fsb_work_markers[i]
 			var wp: Vector3 = origin + (entry[0] as Vector3)
 			wp.y = 0.0

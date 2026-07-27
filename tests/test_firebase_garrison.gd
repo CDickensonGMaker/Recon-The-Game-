@@ -15,7 +15,9 @@ const GARRISON_OCCUPATIONS: Array[String] = [
 	"radioman", "mess_cook", "off_duty",
 ]
 const MIN_MEN: int = 12
-const MAX_MEN: int = 24
+## Read from the planner, never restated here: a second copy of the ceiling is how
+## the compound drifted to 29 men while this file still said 24.
+const MAX_MEN: int = SitePlanner.FSB_GARRISON_MAX_MEN
 
 var _failures := 0
 

@@ -41,8 +41,12 @@ const MAX_FLIGHT_SECONDS: float = 240.0
 const OVERHEAD_M: float = 120.0
 ## Rotors-turning time on the pad before the bird lifts off again.
 const GROUND_SECONDS: float = 35.0
-## Pad markers inside fsb_main.glb (measured: three 15x15m PSP pads).
-const FSB_PADS := ["PSPHelipad_001", "PSPHelipad_002", "PSPHelipad_003"]
+## Pad markers inside the firebase GLB (measured: three 15x15m PSP pads).
+## Matched by PREFIX, not by exact name: v2 authored PSPHelipad_001.._003 and the
+## v3 re-export renamed them (PSPHelipad, fb_helipad_i, fb_helipad_i_182), which
+## resolved to ZERO landing zones without anything failing to load. A Blender
+## re-export renumbers nodes freely; the prefix is the contract.
+const FSB_PAD_PREFIXES := ["PSPHelipad", "fb_helipad"]
 
 ## In-flight roster. {id, kind, node, route, dest, pos, phase, born_ms, spawned}.
 var _in_flight: Array = []
@@ -253,17 +257,31 @@ func _firebase_lzs() -> Array:
 			break
 	if fsb == null:
 		return _pad_lzs
-	for pad_name in FSB_PADS:
-		var pad := fsb.find_child(pad_name, true, false) as Node3D
-		if pad == null:
+	var pads: Array[Node3D] = []
+	var stack: Array[Node] = [fsb]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		for c2 in nd.get_children():
+			stack.append(c2)
+		var n3 := nd as Node3D
+		if n3 == null or n3 == fsb:
 			continue
+		for prefix in FSB_PAD_PREFIXES:
+			if String(n3.name).begins_with(prefix):
+				pads.append(n3)
+				break
+	pads.sort_custom(func(x: Node3D, y: Node3D) -> bool: return String(x.name) < String(y.name))
+	for pad in pads:
 		var lz := LandingZone.new()
-		lz.lz_name = pad_name
+		lz.lz_name = String(pad.name)
 		lz.lz_radius = 7.0
 		lz.capacity = 1
 		world.add_child(lz)
 		lz.global_position = pad.global_position
 		_pad_lzs.append(lz)
+	if _pad_lzs.is_empty():
+		push_warning("[AirTraffic] firebase carries no pad marker matching %s - no bird can land"
+			% str(FSB_PAD_PREFIXES))
 	return _pad_lzs
 
 
