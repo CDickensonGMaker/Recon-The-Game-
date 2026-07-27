@@ -255,7 +255,18 @@ func _report_spawn_truth(spawn: Vector3, op_seed: int) -> void:
 		world.player.global_position.y])
 
 
+## Re-entrancy generation. enter_hub AWAITS while the world builds, so a second
+## entry that arrives mid-build (boot auto-starts a patrol in _ready, and any
+## menu path can call in on top of it) used to interleave with the first: the
+## older coroutine resumed past its await and added a SECOND FieldDirector.
+## Two directors both poll the wire and both bank, which double-counted every
+## patrol - rank and missions_played advanced twice per walk-out.
+var _world_entry: int = 0
+
+
 func enter_hub() -> void:
+	_world_entry += 1
+	var entry: int = _world_entry
 	_teardown_world()
 	SaveManager.context = "hub"
 	var op_seed: int = int(SaveManager.hub_snapshot.get("operation_seed", 0))
@@ -272,8 +283,10 @@ func enter_hub() -> void:
 	add_child(world)
 	while not world.is_world_ready:
 		await get_tree().create_timer(0.25).timeout
-		if world == null:
+		if world == null or entry != _world_entry:
 			return
+	if entry != _world_entry:
+		return
 	director = FieldDirector.new()
 	world.add_child(director)
 	director.setup(world)

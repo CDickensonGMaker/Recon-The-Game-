@@ -55,11 +55,17 @@ func _run() -> void:
 		_fail("squad size wrong")
 
 	# P0 2026-07-18 "a gate and a table": his eyes caught what node-exists checks
-	# cannot. The base must STAND ON the ground: >=500 of its meshes above
-	# terrain, >=30 poking near spawn, gate walkable from spawn, seat level.
+	# cannot. The base must STAND ON the ground - nearly every mesh above terrain,
+	# >=30 poking near spawn, gate walkable from spawn, seat level.
+	#
+	# Measured as a RATIO of the model's own meshes, never a hardcoded count: the
+	# old ">=500" was tuned to the v2 GLB's 678 meshes, and the v3 re-export ships
+	# 430 in total. Every one of them was above ground and the probe still called
+	# the base buried. A re-export must not be able to fake this either way.
 	if fsb != null:
 		var tm: TerrainManager = flow.world.terrain_manager
 		var spawn_p: Vector3 = flow.world.player.global_position
+		var total_meshes: int = 0
 		var total_above: int = 0
 		var near_above: int = 0
 		var mstack: Array[Node] = [fsb]
@@ -69,13 +75,19 @@ func _run() -> void:
 				mstack.append(mc)
 			var mi := mn as MeshInstance3D
 			if mi != null and mi.visible:
+				total_meshes += 1
 				var b: AABB = mi.global_transform * mi.get_aabb()
 				if b.end.y > tm.get_height_at(mi.global_position) + 0.3:
 					total_above += 1
 					if Vector2(mi.global_position.x - spawn_p.x, mi.global_position.z - spawn_p.z).length() < 200.0:
 						near_above += 1
-		if total_above < 500:
-			_fail("only %d fsb meshes above terrain (want >=500) - the base is buried" % total_above)
+		# A firebase that shrank to a handful of meshes is its own failure, so the
+		# ratio is floored by an absolute sanity minimum.
+		if total_meshes < 200:
+			_fail("firebase carries only %d visible meshes - the model did not load" % total_meshes)
+		elif float(total_above) / float(total_meshes) < 0.95:
+			_fail("only %d of %d fsb meshes above terrain (want >=95%%) - the base is buried"
+				% [total_above, total_meshes])
 		if near_above < 30:
 			_fail("only %d fsb meshes above terrain near spawn (want >=30)" % near_above)
 		var gd: float = spawn_p.distance_to(flow.director.patrol_gate_pos)
