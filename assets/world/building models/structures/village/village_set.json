@@ -1,0 +1,1481 @@
+{
+ "nha_tranh_01": {
+  "family": "nha_tranh",
+  "damage": 0,
+  "tris": 618,
+  "veg": 4,
+  "veg_tris": 635,
+  "size": [
+   8.88,
+   7.52,
+   4.01
+  ],
+  "footprint": [
+   8.88,
+   7.52
+  ],
+  "height": 4.01,
+  "door_dir": 0,
+  "enterable": true,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -2.951,
+     0.12
+    ],
+    "face": 1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "work_cookfire",
+    "pos": [
+     -1.821,
+     -1.317,
+     0.12
+    ],
+    "face": 5.5676,
+    "work_type": "cook"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     -1.821,
+     -1.317,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     1.7,
+     1.223,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     1.821,
+     -1.317,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     1.505,
+     0.12
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     -3.935,
+     1.599,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   }
+  ]
+ },
+ "nha_tranh_02": {
+  "family": "nha_tranh",
+  "damage": 1,
+  "tris": 666,
+  "veg": 3,
+  "veg_tris": 332,
+  "size": [
+   7.14,
+   6.47,
+   3.9
+  ],
+  "footprint": [
+   7.14,
+   6.47
+  ],
+  "height": 3.9,
+  "door_dir": 1,
+  "enterable": true,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     2.984,
+     0.0,
+     0.12
+    ],
+    "face": 3.1416,
+    "door_width": 1.05
+   },
+   {
+    "name": "work_cookfire",
+    "pos": [
+     -1.431,
+     -1.113,
+     0.12
+    ],
+    "face": 3.8286,
+    "work_type": "cook"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     -1.431,
+     -1.113,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     1.335,
+     1.033,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     1.431,
+     -1.113,
+     0.12
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     1.272,
+     0.12
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     -3.284,
+     1.351,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   }
+  ]
+ },
+ "nha_tranh_03": {
+  "family": "nha_tranh",
+  "damage": 2,
+  "tris": 588,
+  "veg": 5,
+  "veg_tris": 600,
+  "size": [
+   5.99,
+   5.31,
+   2.09
+  ],
+  "footprint": [
+   5.99,
+   5.31
+  ],
+  "height": 2.09,
+  "door_dir": 3,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     -2.996,
+     0.0,
+     0.12
+    ],
+    "face": 0.0,
+    "door_width": 1.05
+   }
+  ]
+ },
+ "nha_san_01": {
+  "family": "nha_san",
+  "damage": 0,
+  "tris": 798,
+  "veg": 5,
+  "veg_tris": 633,
+  "size": [
+   9.74,
+   6.77,
+   5.44
+  ],
+  "footprint": [
+   9.74,
+   6.77
+  ],
+  "height": 5.44,
+  "door_dir": 3,
+  "enterable": true,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     -3.404,
+     0.0,
+     1.698
+    ],
+    "face": 0.0,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_under",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage_low"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     1.278,
+     -0.974,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   },
+   {
+    "name": "work_underfloor",
+    "pos": [
+     1.162,
+     0.886,
+     0.0
+    ],
+    "face": 5.4048,
+    "work_type": "tend"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     -1.626,
+     -1.152,
+     1.698
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     1.51,
+     1.063,
+     1.698
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     1.626,
+     -1.152,
+     1.698
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   }
+  ]
+ },
+ "nha_san_02": {
+  "family": "nha_san",
+  "damage": 1,
+  "tris": 762,
+  "veg": 3,
+  "veg_tris": 412,
+  "size": [
+   7.65,
+   8.74,
+   5.6
+  ],
+  "footprint": [
+   7.65,
+   8.74
+  ],
+  "height": 5.6,
+  "door_dir": 2,
+  "enterable": true,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     2.834,
+     1.781
+    ],
+    "face": -1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_under",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage_low"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     1.186,
+     -1.027,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   },
+   {
+    "name": "work_underfloor",
+    "pos": [
+     1.078,
+     0.933,
+     0.0
+    ],
+    "face": 1.075,
+    "work_type": "tend"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     -1.51,
+     -1.213,
+     1.781
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     1.402,
+     1.12,
+     1.781
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     1.51,
+     -1.213,
+     1.781
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   }
+  ]
+ },
+ "nha_san_03": {
+  "family": "nha_san",
+  "damage": 2,
+  "tris": 912,
+  "veg": 5,
+  "veg_tris": 633,
+  "size": [
+   9.01,
+   5.75,
+   3.27
+  ],
+  "footprint": [
+   9.01,
+   5.75
+  ],
+  "height": 3.27,
+  "door_dir": 3,
+  "enterable": false,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     -3.366,
+     0.0,
+     1.693
+    ],
+    "face": 0.0,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_under",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage_low"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     1.261,
+     -0.964,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   },
+   {
+    "name": "work_underfloor",
+    "pos": [
+     1.146,
+     0.876,
+     0.0
+    ],
+    "face": 4.586,
+    "work_type": "tend"
+   }
+  ]
+ },
+ "nha_ruong_01": {
+  "family": "nha_ruong",
+  "damage": 0,
+  "tris": 746,
+  "veg": 3,
+  "veg_tris": 299,
+  "size": [
+   11.91,
+   8.0,
+   4.76
+  ],
+  "footprint": [
+   11.91,
+   8.0
+  ],
+  "height": 4.76,
+  "door_dir": 1,
+  "enterable": true,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     4.836,
+     0.0,
+     0.34
+    ],
+    "face": 3.1416,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     1.59,
+     0.34
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "prop_table",
+    "pos": [
+     0.0,
+     0.0,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     -2.813,
+     -1.31,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_store_b",
+    "pos": [
+     2.813,
+     -1.31,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     2.813,
+     1.31,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "work_veranda",
+    "pos": [
+     0.0,
+     -3.139,
+     0.34
+    ],
+    "face": -1.5708,
+    "work_type": "sit"
+   }
+  ]
+ },
+ "nha_ruong_02": {
+  "family": "nha_ruong",
+  "damage": 1,
+  "tris": 794,
+  "veg": 6,
+  "veg_tris": 791,
+  "size": [
+   12.27,
+   8.1,
+   4.81
+  ],
+  "footprint": [
+   12.27,
+   8.1
+  ],
+  "height": 4.81,
+  "door_dir": 2,
+  "enterable": true,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     3.073,
+     0.34
+    ],
+    "face": -1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     1.614,
+     0.34
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "prop_table",
+    "pos": [
+     0.0,
+     0.0,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     -2.899,
+     -1.329,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_store_b",
+    "pos": [
+     2.899,
+     -1.329,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "prop_sleep",
+    "pos": [
+     2.899,
+     1.329,
+     0.34
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   },
+   {
+    "name": "work_veranda",
+    "pos": [
+     0.0,
+     -3.173,
+     0.34
+    ],
+    "face": -1.5708,
+    "work_type": "sit"
+   }
+  ]
+ },
+ "bo_lua_01": {
+  "family": "bo_lua",
+  "damage": 0,
+  "tris": 122,
+  "veg": 3,
+  "veg_tris": 412,
+  "size": [
+   3.7,
+   3.04,
+   4.2
+  ],
+  "footprint": [
+   3.7,
+   3.04
+  ],
+  "height": 4.2,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "prop_grain",
+    "pos": [
+     0.0,
+     0.0,
+     1.41
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "work_granary",
+    "pos": [
+     0.0,
+     -1.651,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "carry"
+   }
+  ]
+ },
+ "bo_lua_02": {
+  "family": "bo_lua",
+  "damage": 1,
+  "tris": 122,
+  "veg": 5,
+  "veg_tris": 455,
+  "size": [
+   3.87,
+   2.9,
+   4.15
+  ],
+  "footprint": [
+   3.87,
+   2.9
+  ],
+  "height": 4.15,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "prop_grain",
+    "pos": [
+     0.0,
+     0.0,
+     1.511
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "work_granary",
+    "pos": [
+     0.0,
+     -1.606,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "carry"
+   }
+  ]
+ },
+ "dinh_01": {
+  "family": "dinh",
+  "damage": 0,
+  "tris": 746,
+  "veg": 6,
+  "veg_tris": 711,
+  "size": [
+   15.9,
+   12.7,
+   6.59
+  ],
+  "footprint": [
+   15.9,
+   12.7
+  ],
+  "height": 6.59,
+  "door_dir": 1,
+  "enterable": true,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     6.518,
+     0.0,
+     0.46
+    ],
+    "face": 3.1416,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     2.709,
+     0.46
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "prop_table",
+    "pos": [
+     -2.247,
+     0.0,
+     0.46
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "prop_bench_a",
+    "pos": [
+     2.247,
+     -1.594,
+     0.46
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "prop_bench_b",
+    "pos": [
+     2.247,
+     1.594,
+     0.46
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "work_meeting",
+    "pos": [
+     0.0,
+     0.0,
+     0.46
+    ],
+    "face": 0.0,
+    "work_type": "sit"
+   }
+  ]
+ },
+ "chua_01": {
+  "family": "chua",
+  "damage": 0,
+  "tris": 580,
+  "veg": 4,
+  "veg_tris": 588,
+  "size": [
+   7.1,
+   7.54,
+   4.41
+  ],
+  "footprint": [
+   7.1,
+   7.54
+  ],
+  "height": 4.41,
+  "door_dir": 0,
+  "enterable": true,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -3.09,
+     0.32
+    ],
+    "face": 1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_altar",
+    "pos": [
+     0.0,
+     1.434,
+     0.32
+    ],
+    "face": -1.5708,
+    "prop_class": "altar"
+   },
+   {
+    "name": "prop_incense",
+    "pos": [
+     0.0,
+     -3.49,
+     0.88
+    ],
+    "face": 0.0,
+    "prop_class": "offering"
+   },
+   {
+    "name": "work_shrine",
+    "pos": [
+     0.0,
+     -4.29,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "pray"
+   }
+  ]
+ },
+ "lean_to_01": {
+  "family": "lean_to",
+  "damage": 0,
+  "tris": 144,
+  "veg": 4,
+  "veg_tris": 424,
+  "size": [
+   3.35,
+   2.68,
+   2.51
+  ],
+  "footprint": [
+   3.35,
+   2.68
+  ],
+  "height": 2.51,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_cookfire",
+    "pos": [
+     0.0,
+     0.43,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "cook"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     0.0,
+     0.43,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     -0.804,
+     -0.43,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   }
+  ]
+ },
+ "lean_to_02": {
+  "family": "lean_to",
+  "damage": 1,
+  "tris": 144,
+  "veg": 6,
+  "veg_tris": 758,
+  "size": [
+   4.24,
+   3.06,
+   2.69
+  ],
+  "footprint": [
+   4.24,
+   3.06
+  ],
+  "height": 2.69,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_cookfire",
+    "pos": [
+     0.0,
+     0.492,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "cook"
+   },
+   {
+    "name": "prop_hearth",
+    "pos": [
+     0.0,
+     0.492,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "hearth"
+   },
+   {
+    "name": "prop_store_a",
+    "pos": [
+     -1.017,
+     -0.492,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   }
+  ]
+ },
+ "buffalo_shed_01": {
+  "family": "buffalo_shed",
+  "damage": 0,
+  "tris": 114,
+  "veg": 6,
+  "veg_tris": 711,
+  "size": [
+   4.32,
+   3.85,
+   3.15
+  ],
+  "footprint": [
+   4.32,
+   3.85
+  ],
+  "height": 3.15,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [
+   "cow",
+   "water_buffalo"
+  ],
+  "markers": [
+   {
+    "name": "work_buffalo",
+    "pos": [
+     0.0,
+     -2.279,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "tend"
+   },
+   {
+    "name": "prop_trough",
+    "pos": [
+     0.0,
+     0.828,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "furniture"
+   },
+   {
+    "name": "home_water_buffalo",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": -1.5708,
+    "species": "water_buffalo"
+   },
+   {
+    "name": "home_cow",
+    "pos": [
+     0.905,
+     0.0,
+     0.0
+    ],
+    "face": -1.5708,
+    "species": "cow"
+   }
+  ]
+ },
+ "pigsty_01": {
+  "family": "pigsty",
+  "damage": 0,
+  "tris": 120,
+  "veg": 3,
+  "veg_tris": 412,
+  "size": [
+   2.97,
+   2.87,
+   1.6
+  ],
+  "footprint": [
+   2.97,
+   2.87
+  ],
+  "height": 1.6,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [
+   "pig"
+  ],
+  "markers": [
+   {
+    "name": "work_pigs",
+    "pos": [
+     0.0,
+     -1.804,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "tend"
+   },
+   {
+    "name": "home_pig",
+    "pos": [
+     0.0,
+     0.353,
+     0.18
+    ],
+    "face": -1.5708,
+    "species": "pig"
+   }
+  ]
+ },
+ "drying_rack_01": {
+  "family": "drying_rack",
+  "damage": 0,
+  "tris": 84,
+  "veg": 2,
+  "veg_tris": 90,
+  "size": [
+   2.9,
+   1.6,
+   1.8
+  ],
+  "footprint": [
+   2.9,
+   1.6
+  ],
+  "height": 1.8,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_drying",
+    "pos": [
+     0.0,
+     -1.1,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "dry"
+   },
+   {
+    "name": "prop_mat",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "floor"
+   }
+  ]
+ },
+ "bamboo_hedge_01": {
+  "family": "hedge",
+  "damage": 0,
+  "tris": 312,
+  "veg": 2,
+  "veg_tris": 1688,
+  "size": [
+   8.18,
+   0.62,
+   2.58
+  ],
+  "footprint": [
+   8.18,
+   0.62
+  ],
+  "height": 2.58,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": []
+ },
+ "village_gate_01": {
+  "family": "gate",
+  "damage": 0,
+  "tris": 96,
+  "veg": 2,
+  "veg_tris": 156,
+  "size": [
+   4.55,
+   0.51,
+   3.28
+  ],
+  "footprint": [
+   4.55,
+   0.51
+  ],
+  "height": 3.28,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "door_width": 3.0011083900226794
+   }
+  ]
+ },
+ "ancestor_tomb_01": {
+  "family": "tomb",
+  "damage": 0,
+  "tris": 60,
+  "veg": 2,
+  "veg_tris": 156,
+  "size": [
+   2.63,
+   2.62,
+   1.42
+  ],
+  "footprint": [
+   2.63,
+   2.62
+  ],
+  "height": 1.42,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "prop_offering",
+    "pos": [
+     0.0,
+     -1.459,
+     0.24
+    ],
+    "face": 1.5708,
+    "prop_class": "offering"
+   },
+   {
+    "name": "work_tomb",
+    "pos": [
+     0.0,
+     -2.159,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "pray"
+   }
+  ]
+ },
+ "village_well_01": {
+  "family": "well",
+  "damage": 0,
+  "tris": 180,
+  "veg": 4,
+  "veg_tris": 668,
+  "size": [
+   2.47,
+   2.43,
+   2.41
+  ],
+  "footprint": [
+   2.47,
+   2.43
+  ],
+  "height": 2.41,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_water",
+    "pos": [
+     0.0,
+     -1.833,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "water"
+   },
+   {
+    "name": "prop_jars",
+    "pos": [
+     1.733,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   }
+  ]
+ },
+ "bell_frame_01": {
+  "family": "bell_tower",
+  "damage": 0,
+  "tris": 184,
+  "veg": 6,
+  "veg_tris": 711,
+  "size": [
+   3.0,
+   3.0,
+   4.74
+  ],
+  "footprint": [
+   3.0,
+   3.0
+  ],
+  "height": 4.74,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_bell",
+    "pos": [
+     0.0,
+     -1.701,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "alarm"
+   }
+  ]
+ },
+ "fence_run_01": {
+  "family": "fence_run",
+  "damage": 0,
+  "tris": 108,
+  "veg": 5,
+  "veg_tris": 520,
+  "size": [
+   6.13,
+   0.15,
+   1.19
+  ],
+  "footprint": [
+   6.13,
+   0.15
+  ],
+  "height": 1.19,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": []
+ },
+ "haystack_01": {
+  "family": "haystack",
+  "damage": 0,
+  "tris": 72,
+  "veg": 4,
+  "veg_tris": 457,
+  "size": [
+   3.67,
+   3.67,
+   2.5
+  ],
+  "footprint": [
+   3.67,
+   3.67
+  ],
+  "height": 2.5,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [
+   "chicken"
+  ],
+  "markers": [
+   {
+    "name": "work_straw",
+    "pos": [
+     0.0,
+     -2.098,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "carry"
+   },
+   {
+    "name": "home_chicken",
+    "pos": [
+     1.798,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "species": "chicken"
+   }
+  ]
+ },
+ "ox_cart_01": {
+  "family": "ox_cart",
+  "damage": 0,
+  "tris": 240,
+  "veg": 4,
+  "veg_tris": 457,
+  "size": [
+   1.85,
+   3.96,
+   1.2
+  ],
+  "footprint": [
+   1.85,
+   3.96
+  ],
+  "height": 1.2,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [
+   "water_buffalo"
+  ],
+  "markers": [
+   {
+    "name": "work_cart",
+    "pos": [
+     0.0,
+     -3.058,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "carry"
+   },
+   {
+    "name": "prop_cartbed",
+    "pos": [
+     0.0,
+     0.0,
+     0.925
+    ],
+    "face": 0.0,
+    "prop_class": "storage"
+   },
+   {
+    "name": "home_water_buffalo",
+    "pos": [
+     0.0,
+     -3.758,
+     0.0
+    ],
+    "face": 1.5708,
+    "species": "water_buffalo"
+   }
+  ]
+ },
+ "paddy_bund_01": {
+  "family": "paddy_bund",
+  "damage": 0,
+  "tris": 60,
+  "veg": 3,
+  "veg_tris": 412,
+  "size": [
+   8.55,
+   5.59,
+   0.22
+  ],
+  "footprint": [
+   8.55,
+   5.59
+  ],
+  "height": 0.22,
+  "door_dir": 0,
+  "enterable": false,
+  "homes": [],
+  "markers": [
+   {
+    "name": "work_paddy",
+    "pos": [
+     0.0,
+     -3.4,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "farm"
+   },
+   {
+    "name": "graze_01",
+    "pos": [
+     -2.4,
+     0.0,
+     0.06
+    ],
+    "face": 4.6721,
+    "graze_for": "water_buffalo,cow"
+   },
+   {
+    "name": "graze_02",
+    "pos": [
+     2.4,
+     0.0,
+     0.06
+    ],
+    "face": 3.3116,
+    "graze_for": "water_buffalo,cow"
+   }
+  ]
+ }
+}

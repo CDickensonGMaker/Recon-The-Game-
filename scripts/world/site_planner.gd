@@ -226,6 +226,7 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 	clear_and_flatten(center, footprint_r + 6.0)
 
 	var nodes: Array[Node3D] = []
+	var buildings_placed: Array[Node3D] = []
 	var placed: Array[Vector3] = [center]  # center feature reserves the middle
 	var sep: float = SiteLayouts.VILLAGE_MIN_STRUCTURE_SEP
 
@@ -236,9 +237,12 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 		var hut := place_structure(model, pos, rad_to_deg(a) + 90.0 + rng.randf_range(-15, 15))
 		hut.add_to_group("flammable_structures")  # R71: thatch catches fire
 		nodes.append(hut)
+		buildings_placed.append(hut)
 
 	var center_model: String = SiteLayouts.VILLAGE_CENTER_MODELS[rng.randi() % SiteLayouts.VILLAGE_CENTER_MODELS.size()]
-	nodes.append(place_structure(center_model, center, rng.randf_range(0, 360)))
+	var centre_node: Node3D = place_structure(center_model, center, rng.randf_range(0, 360))
+	nodes.append(centre_node)
+	buildings_placed.append(centre_node)
 
 	# Auxiliary VC props are deliberately concealed among/around the huts (a cache
 	# tucked behind a hut, spider holes between them, punji on the approaches), so
@@ -265,6 +269,38 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 
 	var props: Dictionary = _stamp_village_props(center, footprint_r, rng, nodes)
 
+	# Buildings furnish themselves off their own baked markers, and offer their work_*
+	# stations the same way props always have. Before this, _collect_stations() only ever
+	# ran on props, so a house was scenery the activity system could not see.
+	# Edge pieces (hedge, gate, fence, paddy, tomb) and yard clutter (haystack, cart).
+	# Both pools existed unused until now - a village with no boundary and no working
+	# clutter reads as a set of houses dropped on grass.
+	for _e in range(rng.randi_range(2, 4)):
+		var ep: Vector3 = _dry_point(center, footprint_r * 0.85, footprint_r * 1.15, rng)
+		var em: String = SiteLayouts.VILLAGE_EDGE_MODELS[rng.randi() % SiteLayouts.VILLAGE_EDGE_MODELS.size()]
+		var en: Node3D = place_structure(em, ep, rad_to_deg(atan2(ep.z - center.z, ep.x - center.x)) + 90.0)
+		nodes.append(en)
+		buildings_placed.append(en)
+	for _y in range(rng.randi_range(1, 3)):
+		var yp: Vector3 = _dry_point(center, footprint_r * 0.3, footprint_r * 0.75, rng)
+		var ym: String = SiteLayouts.VILLAGE_YARD_MODELS[rng.randi() % SiteLayouts.VILLAGE_YARD_MODELS.size()]
+		var yn: Node3D = place_structure(ym, yp, rng.randf_range(0.0, 360.0))
+		nodes.append(yn)
+		buildings_placed.append(yn)
+
+	# Buildings furnish themselves off their own baked markers, and offer their work_*
+	# stations the same way props always have. Before this, _collect_stations() only ever
+	# ran on props, so a house was scenery the activity system could not see.
+	var homes: Array = []
+	var grazing: Array = []
+	for b in buildings_placed:
+		if b == null:
+			continue
+		nodes.append_array(_furnish_interior(b, rng))
+		_collect_stations(b, props.stations)
+		nodes.append_array(_stable_animals(b, homes))
+		_collect_grazing(b, grazing)
+
 	# working_points is a write-only contract the activity system reads.
 	var site := {
 		"kind": "village",
@@ -276,6 +312,9 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 		"working_points": working_points,
 		"work_stations": props.stations,
 		"prop_nodes": props.nodes,
+		# Where each animal sleeps and where it feeds. A day routine needs both ends.
+		"animal_homes": homes,
+		"grazing_points": grazing,
 	}
 	placed_sites.append(site)
 	return site
@@ -351,6 +390,74 @@ func place_prop(model_path: String, world_pos: Vector3, rotation_deg: float) -> 
 	return root
 
 
+## Same as place_prop but keeps the Y you give it. place_prop snaps to terrain, which
+## is right for ground cover and wrong for anything growing ON a building - a vine
+## hung on a wall at 2.5m would drop to the dirt.
+func place_prop_at(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
+	var node: Node3D = place_prop(model_path, world_pos, rotation_deg)
+	if node != null:
+		node.global_position = world_pos
+	return node
+
+
+## VEGETATION FOR A TEMPLE SITE. clear_and_flatten() strips the AO's own growth from
+## the pad, so a shrine reads as a bald patch unless we put the jungle back deliberately.
+## Ta Prohm is the reference: canopy closing overhead, undergrowth to the walls, vines
+## down the stonework.
+const TEMPLE_CANOPY: Array[String] = [
+	"broadleaf_a", "broadleaf_b", "broadleaf_c",
+	"jungle_palm_a1", "jungle_palm_a2", "jungle_palm_b1", "jungle_palm_b2"]
+const TEMPLE_UNDER: Array[String] = [
+	"fern_a", "fern_b", "fern_c", "bush_a", "bush_b", "bush_c",
+	"elephant_grass_a", "elephant_grass_b", "tall_grass_a", "tall_grass_b"]
+const TEMPLE_VINES: Array[String] = [
+	"vine_a", "vine_b", "liana_a", "liana_b", "trunk_vine_a", "trunk_vine_b"]
+const TEMPLE_LITTER: Array[String] = [
+	"fallen_log_a", "fallen_log_b", "tree_stump", "moss_a", "moss_b"]
+const VEG_DIR: String = "res://assets/world/vegetation/"
+
+
+func _stamp_temple_vegetation(center: Vector3, radius: float, size: Array,
+		rng: RandomNumberGenerator, nodes: Array[Node3D]) -> void:
+	var half: float = maxf(float(size[0]), float(size[1])) * 0.5
+
+	for i in range(rng.randi_range(6, 9)):          # canopy ringing the clearing
+		var a: float = TAU * float(i) / 9.0 + rng.randf_range(-0.3, 0.3)
+		var r: float = rng.randf_range(radius * 0.72, radius * 1.15)
+		var p: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * r
+		var n: Node3D = place_prop(VEG_DIR + TEMPLE_CANOPY[rng.randi() % TEMPLE_CANOPY.size()]
+				+ ".glb", p, rng.randf_range(0.0, 360.0))
+		if n != null:
+			nodes.append(n)
+
+	for i in range(rng.randi_range(12, 20)):        # undergrowth up to the walls
+		var a2: float = rng.randf_range(0.0, TAU)
+		var r2: float = rng.randf_range(half + 0.8, radius * 0.95)
+		var p2: Vector3 = center + Vector3(cos(a2), 0.0, sin(a2)) * r2
+		var n2: Node3D = place_prop(VEG_DIR + TEMPLE_UNDER[rng.randi() % TEMPLE_UNDER.size()]
+				+ ".glb", p2, rng.randf_range(0.0, 360.0))
+		if n2 != null:
+			nodes.append(n2)
+
+	for i in range(rng.randi_range(4, 7)):          # vines hanging down the stonework
+		var a3: float = rng.randf_range(0.0, TAU)
+		var p3: Vector3 = center + Vector3(cos(a3), 0.0, sin(a3)) * (half + rng.randf_range(-0.2, 0.35))
+		p3.y = _terrain.get_height_at(p3) + rng.randf_range(1.4, float(size[2]) * 0.75)
+		var n3: Node3D = place_prop_at(VEG_DIR + TEMPLE_VINES[rng.randi() % TEMPLE_VINES.size()]
+				+ ".glb", p3, rad_to_deg(a3) + rng.randf_range(-25.0, 25.0))
+		if n3 != null:
+			nodes.append(n3)
+
+	for i in range(rng.randi_range(3, 5)):          # deadfall and moss at the base
+		var a4: float = rng.randf_range(0.0, TAU)
+		var r4: float = rng.randf_range(half + 0.4, radius * 0.85)
+		var p4: Vector3 = center + Vector3(cos(a4), 0.0, sin(a4)) * r4
+		var n4: Node3D = place_prop(VEG_DIR + TEMPLE_LITTER[rng.randi() % TEMPLE_LITTER.size()]
+				+ ".glb", p4, rng.randf_range(0.0, 360.0))
+		if n4 != null:
+			nodes.append(n4)
+
+
 func _prop_point(center: Vector3, r_min: float, r_max: float, rng: RandomNumberGenerator,
 		buildings: Array[Node3D], placed_props: Array[Vector3]) -> Vector3:
 	for _try in range(24):
@@ -383,6 +490,68 @@ func _near_building(p: Vector3, buildings: Array[Node3D]) -> bool:
 
 ## GLB station empties (work_*) -> activity anchors for CampDirector/civilians.
 ## Contract: node name prefix "work_"; glTF extras work_type when present.
+## Bed an animal at each home_<species> marker and record the spot, so a day/night
+## routine has somewhere to return TO. Village animals used to be scattered at random
+## with an idle loop and no home at all - they had nowhere to go back to at dusk.
+func _stable_animals(building: Node3D, homes: Array) -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for m in _find_markers(building, SiteLayouts.ANIMAL_HOME_PREFIX):
+		var species: String = str(m.get_meta("species", ""))
+		if species == "":
+			continue
+		var node: Node3D = place_prop(SiteLayouts.VILLAGE_ANIMAL_DIR + species + ".glb",
+			m.global_position, rad_to_deg(m.global_rotation.y))
+		homes.append({"species": species, "pos": m.global_position, "node": node})
+		if node != null:
+			_play_idle(node)
+			out.append(node)
+	return out
+
+
+## graze_* markers: the daytime end of the routine. graze_for names which species may
+## feed there, so buffalo do not end up grazing a chicken run.
+func _collect_grazing(building: Node3D, grazing: Array) -> void:
+	for m in _find_markers(building, SiteLayouts.ANIMAL_GRAZE_PREFIX):
+		var who: String = str(m.get_meta("graze_for", ""))
+		grazing.append({"pos": m.global_position,
+			"species": who.split(",", false) if who != "" else []})
+
+
+## Fill a building from the prop_* empties gen_village.py baked into its GLB.
+## The marker carries its own prop_class, so a hearth lands on the hearth spot and a
+## sleeping mat lands against the wall - instead of both being thrown into an annulus
+## somewhere in the yard, which is what made village dressing look like litter.
+func _furnish_interior(building: Node3D, rng: RandomNumberGenerator) -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for m in _find_markers(building, "prop_"):
+		var pclass: String = str(m.get_meta("prop_class", ""))
+		if not SiteLayouts.INTERIOR_PROPS.has(pclass):
+			continue
+		var pool: Array = SiteLayouts.INTERIOR_PROPS[pclass]
+		var pick: String = str(pool[rng.randi() % pool.size()])
+		# place_prop_at, NOT place_prop: a mat on a stilt deck 1.8m up must keep its Y
+		# instead of being snapped down to the terrain under the house.
+		var node: Node3D = place_prop_at(SiteLayouts.VILLAGE_PROP_DIR + pick + ".glb",
+			m.global_position, rad_to_deg(m.global_rotation.y))
+		if node != null:
+			out.append(node)
+	return out
+
+
+## Marker empties export from Blender as plain Node3D, never Marker3D - the same thing
+## seat_system.gd:6-7 had to learn. Match on name prefix and accept any Node3D.
+func _find_markers(root: Node3D, prefix: String) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is Node3D and String(n.name).begins_with(prefix):
+			found.append(n as Node3D)
+	return found
+
+
 func _collect_stations(prop_root: Node3D, stations: Array) -> void:
 	var stack: Array[Node] = [prop_root]
 	while not stack.is_empty():
@@ -460,21 +629,25 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 	return true
 
 
-## ---------- THE MAIN FIREBASE (Caleb-authored fsb_main.glb, task 6b) ----------
-## Measured contract (2026-07-18 CORE-SELECTION export via tools/export_fsb_main.py,
-## the Summoner's 460-marker core: full 434-card wire ring + gate + pads; depot
-## rows and far planning markers excluded): model AABB x -82..82, z -77..78,
-## RECENTERED at export (ground-plane center = origin, y=0 = ground, dug-in pits
-## to -0.54); 652 -col trimesh bodies. SOCKET_A/B_001 = the wire-gate sides,
-## FACE_OUT_001 disambiguates the outward normal, FOOTPRINT_* = ground-contact
-## ring. Placed UNROTATED v1 (rotation risks edge overhang). The wire-gate
-## trigger and all patrol density bands measure from GATE_POS, not the AABB
-## center - walking distance is the pacing contract. tools/diag_fsb_seat asserts
-## these consts against the loaded GLB - remeasure here on every re-export.
+## ---------- THE MAIN FIREBASE (fsb_main_v3.glb) ----------
+## Measured contract (2026-07-26 export from tools/gen_firebase_v3.py, blend
+## firebase/kit/firebase_v3.1.blend): model AABB x -122.6..149.3, z -111.2..96.6, y -1.2..14.5.
+## NOT recentred - the base is authored about the origin already, and y=0 is the mound TOE, so
+## the earth mound stands proud of the seated plateau instead of being buried. Craters reach
+## y=-1.2. SOCKET_A/B = the wire-gate sides, FACE_OUT = outward normal, APPROACH = the road in.
+## Placed UNROTATED (rotation risks edge overhang). The wire-gate trigger and all patrol density
+## bands measure from GATE_POS, not the AABB center - walking distance is the pacing contract.
+## tools/diag_fsb_seat asserts these consts against the loaded GLB - remeasure on every re-export.
+##
+## v1 fsb_main.glb is archived under firebase/_archive_v1/ behind a .gdignore. Do not point
+## anything back at it: two firebase models live in the same world slot is the divergent-systems
+## failure, not a fallback.
 
-const FSB_MAIN_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main.glb"
-const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # recentered at export, measured
-const FSB_HALF := Vector2(82.2, 77.3)               # model space, measured
+const FSB_MAIN_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
+const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # authored about the origin, measured
+## Half-extents from the ORIGIN, not from the AABB centre: the authored treeline runs further
+## out on +x than -x, and _fsb_rect is built centred on `center`, so it must cover the reach.
+const FSB_HALF := Vector2(149.3, 111.2)             # model space, measured
 const FSB_SITE_CLEARANCE: float = 40.0
 const FSB_EDGE_MARGIN: float = 60.0
 const FSB_FLATTEN_RADIUS: float = 215.0
@@ -483,12 +656,14 @@ const FSB_FLATTEN_RADIUS: float = 215.0
 ## guarantee rect.grow(40) whose corners reach 169m. Only the outer shoulder
 ## blends into relief.
 const FSB_PLATEAU_FALLOFF: float = 0.107
-## Vegetation-clear discs covering the footprint (model-space offsets from AABB
-## center + radius). The base is authored cleared ground; trees through bunkers lie.
+## Vegetation-clear discs (model-space offsets from AABB center + radius). The base is authored
+## cleared ground; trees through bunkers lie.
+## 140 m, not the v1 ring of five 58 m discs: v3 authors its OWN cut-over treeline out to ~149 m
+## (stumps, fallen logs, scrub, then palms). Clearing only to ~100 m would let procedural jungle
+## grow straight through the authored trees and double the treeline. Clearing to 140 leaves a
+## thin 140-149 m band where the two meet, which reads as the blend it is.
 const FSB_CLEAR_DISCS: Array = [
-	[Vector3.ZERO, 60.0],
-	[Vector3(41.0, 0.0, 39.0), 58.0], [Vector3(-41.0, 0.0, 39.0), 58.0],
-	[Vector3(41.0, 0.0, -39.0), 58.0], [Vector3(-41.0, 0.0, -39.0), 58.0],
+	[Vector3.ZERO, 140.0],
 ]
 
 
@@ -531,6 +706,26 @@ const FSB_GARRISON_QUARTERS: Array[String] = [
 	"FOOTPRINT_001", "FOOTPRINT_002", "FOOTPRINT_004", "FOOTPRINT_007",
 ]
 
+## work_* markers baked into the firebase GLB, as [pos, work_type]. Cached alongside the
+## named keys because the garrison reads them by PREFIX, not by exact name.
+static var _fsb_work_markers: Array = []
+
+## work_type -> Civilian occupation. Only the seven the schedule machinery already knows;
+## a work_type with no entry here becomes off_duty rather than inventing a schedule.
+## gun/mortar deliberately do NOT map to gun_crew: mission_generator._place_firebase_mg
+## spawns a mannable M60 per gun_crew post, and 20 of them is not a firebase, it is a joke.
+const FSB_WORK_OCCUPATION: Dictionary = {
+	"watch": "sentry", "guard": "sentry", "mg": "sentry",
+	"ammo": "quartermaster", "supply": "quartermaster",
+	"radio": "radioman", "plot": "radioman",
+	"cook": "mess_cook", "mess": "mess_cook",
+}
+
+## How many work_* markers become men, on top of the curated posts above. fsb_main_v3.glb
+## carries 191 of them (measured) and one man each would be a crowd the frame cannot pay for.
+## Sampled by a deterministic stride, never randomly - ADR-010, same seed same base.
+const FSB_WORK_POST_CAP: int = 12
+
 
 ## Offsets are accumulated up to the GLB root: every consumer adds them to the
 ## compound center, so a marker nested under a sub-node must not contribute its
@@ -550,6 +745,31 @@ static func _ensure_fsb_markers() -> void:
 			t = cur.transform * t
 			cur = cur.get_parent() as Node3D
 		_fsb_markers[key] = t.origin
+	_fsb_work_markers.clear()
+	var stack: Array[Node] = [inst]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		for c in nd.get_children():
+			stack.append(c)
+		if not (nd is Node3D) or not String(nd.name).begins_with("work_"):
+			continue
+		var t2 := Transform3D.IDENTITY
+		var cur2: Node3D = nd as Node3D
+		while cur2 != null and cur2 != inst:
+			t2 = cur2.transform * t2
+			cur2 = cur2.get_parent() as Node3D
+		# work_<type>, with Blender's .001 / glTF _001 duplicate suffix stripped.
+		var wt: String = String(nd.name).trim_prefix("work_")
+		var cut: int = wt.rfind("_")
+		if cut > 0 and wt.substr(cut + 1).is_valid_int():
+			wt = wt.substr(0, cut)
+		_fsb_work_markers.append([t2.origin, wt])
+	_fsb_work_markers.sort_custom(func(a: Array, b: Array) -> bool:
+		var pa: Vector3 = a[0]
+		var pb: Vector3 = b[0]
+		if not is_equal_approx(pa.x, pb.x):
+			return pa.x < pb.x
+		return pa.z < pb.z)
 	inst.free()
 
 
@@ -566,6 +786,25 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		var p: Vector3 = origin + (_fsb_markers[key] as Vector3)
 		p.y = 0.0
 		posts.append({"pos": p, "occupation": str(entry[1]), "men": int(entry[2])})
+	# The work_* markers authored across the compound, so the garrison stands at the mess
+	# line, the wash drums and the ammo niches instead of only the thirteen curated posts.
+	var wcount: int = _fsb_work_markers.size()
+	if wcount > 0:
+		var stride: int = maxi(1, int(floor(float(wcount) / float(FSB_WORK_POST_CAP))))
+		var taken: int = 0
+		var i: int = 0
+		while i < wcount and taken < FSB_WORK_POST_CAP:
+			var entry: Array = _fsb_work_markers[i]
+			var wp: Vector3 = origin + (entry[0] as Vector3)
+			wp.y = 0.0
+			var occ: String = str(FSB_WORK_OCCUPATION.get(str(entry[1]), "off_duty"))
+			# Alternate the two sentry shifts so the wire is not empty after dark.
+			if occ == "sentry" and taken % 2 == 1:
+				occ = "sentry_night"
+			posts.append({"pos": wp, "occupation": occ, "men": 1})
+			taken += 1
+			i += stride
+
 	var quarters: Array[Vector3] = []
 	for key in FSB_GARRISON_QUARTERS:
 		if not _fsb_markers.has(key):
@@ -651,6 +890,11 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	var origin: Vector3 = center - FSB_AABB_CENTER
 	origin.y = seat_y
 	root.global_position = origin
+	# Tower ladders. Built AFTER the root is seated - Ladder caches world positions off the
+	# markers, so building before the move would bake them at the wrong height.
+	var ladders: int = Ladder.build_from_markers(root)
+	if ladders == 0:
+		push_warning("[FSB] no ladder_bottom/ladder_top pairs in the firebase GLB")
 	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
 	var gate_pos: Vector3 = gm.gate_pos
 	var gate_out: Vector3 = gm.gate_out
@@ -701,24 +945,95 @@ func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 	return site
 
 
-const TEMPLE_MODEL: String = "res://assets/world/building models/structures/ruins/cham_temple_ruin.glb"
 const TEMPLE_ACCENT_MODEL: String = "res://assets/world/building models/structures/temple/ruins_corner.glb"
+const TEMPLE_DIR: String = "res://assets/world/building models/structures/temple/"
+## Used only when the manifest cannot be read; the file ships with the set.
+const TEMPLE_FALLBACK: String = "prasat_ruin_01"
+
+## The prasat set written by tools/gen_temples.py. Read from its manifest rather than
+## hardcoded here, so adding a temple to the generator is enough to put it in rotation.
+static var _temple_set: Dictionary = {}
+
+
+func _temple_manifest() -> Dictionary:
+	if not _temple_set.is_empty():
+		return _temple_set
+	var f: FileAccess = FileAccess.open(TEMPLE_DIR + "temple_set.json", FileAccess.READ)
+	if f == null:
+		push_error("[SitePlanner] temple_set.json missing - shrines fall back to "
+				+ TEMPLE_FALLBACK)
+		return _temple_set
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if parsed is Dictionary:
+		_temple_set = parsed
+	return _temple_set
+
+
+func _temples_of_kind(kind: String) -> Array[String]:
+	var out: Array[String] = []
+	for k in _temple_manifest().keys():
+		var e: Dictionary = _temple_manifest()[k]
+		if String(e.get("kind", "")) == kind:
+			out.append(String(k))
+	out.sort()
+	return out
 
 
 ## Forgotten Cham shrine: a small overgrown ruin, no garrison. The temple body
 ## joins "temple_shrines" - player.gd's [F] SEARCH THE SHRINE reads that group
 ## by distance to the body's origin, so the group node must be the temple root.
 func stamp_temple_shrine(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
-	clear_and_flatten(center, 10.0)
+	clear_and_flatten(center, 14.0)
 	var nodes: Array[Node3D] = []
-	var temple: Node3D = place_structure(TEMPLE_MODEL, center, rng.randf_range(0.0, 360.0))
+
+	# Mostly ruins; an intact prasat is the rarer "found something" beat.
+	var ruins: Array[String] = _temples_of_kind("ruined")
+	var intact: Array[String] = _temples_of_kind("intact")
+	var pool: Array[String] = ruins
+	if not intact.is_empty() and rng.randf() < 0.28:
+		pool = intact
+
+	var rot: float = rng.randf_range(0.0, 360.0)
+	var temple: Node3D = null
+	var entry: Dictionary = {}
+	if pool.is_empty():
+		temple = place_structure(TEMPLE_DIR + TEMPLE_FALLBACK + ".glb", center, rot)
+	else:
+		var pick: String = pool[rng.randi() % pool.size()]
+		entry = _temple_manifest()[pick]
+		temple = place_structure(TEMPLE_DIR + pick + ".glb", center, rot)
+	# player.gd's [F] SEARCH THE SHRINE reads this group by distance to the body
+	# origin, so it must stay on the temple root - see the note above.
 	temple.add_to_group("temple_shrines")
 	nodes.append(temple)
+
+	# Guardians flank the stair. door_dir is baked by tools/gen_temples.py:
+	# 0=+Z 1=+X 2=-Z 3=-X in model space, so world facing = rot + dir*90.
+	if not entry.is_empty():
+		var size: Array = entry.get("size", [6.0, 6.0, 6.0])
+		var reach: float = maxf(float(size[0]), float(size[1])) * 0.5 + 1.6
+		var facing: float = deg_to_rad(rot + float(int(entry.get("door_dir", 0))) * 90.0)
+		var fwd := Vector3(sin(facing), 0.0, cos(facing))
+		var side := Vector3(fwd.z, 0.0, -fwd.x)
+		var foot: Vector3 = center + fwd * reach
+		for s in [-1.0, 1.0]:
+			var g: Vector3 = foot + side * (s * 1.5)
+			nodes.append(place_structure(TEMPLE_DIR + "temple_statue_guardian_0"
+					+ ("1" if s < 0.0 else "2") + ".glb", g, rot + 180.0))
+		nodes.append(place_structure(TEMPLE_DIR + "temple_statue_naga.glb",
+				foot + fwd * 1.1, rot))
+		var back: Vector3 = center - fwd * (reach + rng.randf_range(1.0, 2.5))
+		nodes.append(place_structure(TEMPLE_DIR
+				+ ("temple_statue_seated.glb" if rng.randf() < 0.5 else "temple_statue_lingam.glb"),
+				back, rng.randf_range(0.0, 360.0)))
+
 	for i in range(2):
 		var a: float = TAU * float(i) / 2.0 + rng.randf_range(-0.5, 0.5)
-		var pos: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(7.0, 11.0)
+		var pos: Vector3 = center + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(8.0, 12.0)
 		nodes.append(place_structure(TEMPLE_ACCENT_MODEL, pos, rad_to_deg(a) + rng.randf_range(-30.0, 30.0)))
-	var site := {"kind": "temple", "center": center, "nodes": nodes, "radius": 12.0}
+	var veg_size: Array = entry.get("size", [8.0, 8.0, 6.0]) if not entry.is_empty() else [8.0, 8.0, 6.0]
+	_stamp_temple_vegetation(center, 14.0, veg_size, rng, nodes)
+	var site := {"kind": "temple", "center": center, "nodes": nodes, "radius": 14.0}
 	placed_sites.append(site)
 	return site
 

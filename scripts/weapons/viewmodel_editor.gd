@@ -47,6 +47,11 @@ var _held: Dictionary = {}
 ## Lens-shaded meshes of the loaded model (ADR-034)
 var _vm_meshes: Array[MeshInstance3D] = []
 
+## Clip review (N cycles; non-idle clips fall back to rifle_idle when done)
+var _vm_anim: AnimationPlayer = null
+var _clips: PackedStringArray = []
+var _clip_index: int = 0
+
 ## Range visuals
 var _laser_node: MeshInstance3D = null
 var _laser_mesh: ImmediateMesh = null
@@ -57,8 +62,8 @@ var _bore_offset: Vector2 = Vector2.ZERO  ## meters on the board plane
 var _bore_valid: bool = false
 
 ## Movement speeds
-const MOVE_SPEED: float = 0.5
-const ROTATE_SPEED: float = 45.0
+const MOVE_SPEED: float = 0.15
+const ROTATE_SPEED: float = 20.0
 
 ## Target board: dead ahead at eye height, so board center == crosshair.
 const BOARD_DIST: float = 25.0
@@ -128,6 +133,8 @@ func _handle_input(delta: float) -> void:
 	var speed_mult: float = 1.0
 	if Input.is_key_pressed(KEY_SHIFT):
 		speed_mult = 0.1
+	if Input.is_key_pressed(KEY_ALT):
+		speed_mult *= 0.1
 
 	## Ctrl+S save (don't grab S as movement when Ctrl held)
 	if Input.is_key_pressed(KEY_CTRL):
@@ -163,9 +170,11 @@ func _handle_input(delta: float) -> void:
 	if Input.is_key_pressed(KEY_PAGEDOWN):
 		rot_input.z += 1.0
 
-	if move_input != Vector3.ZERO or rot_input != Vector3.ZERO:
+	if move_input != Vector3.ZERO:
 		edit_position += move_input * MOVE_SPEED * speed_mult * delta
-		edit_rotation += rot_input * ROTATE_SPEED * speed_mult * delta
+	if rot_input != Vector3.ZERO:
+		_rotate_about_gun(rot_input * ROTATE_SPEED * speed_mult * delta)
+	if move_input != Vector3.ZERO or rot_input != Vector3.ZERO:
 		_apply_edit()
 
 	## Weapon switching: Z/X prev/next, 1-9 direct select
@@ -189,6 +198,10 @@ func _handle_input(delta: float) -> void:
 	## Laser toggle
 	if _pressed_once(KEY_L):
 		laser_enabled = not laser_enabled
+
+	## Clip review: N next, Shift+N previous
+	if _pressed_once(KEY_N):
+		_cycle_clip(-1 if Input.is_key_pressed(KEY_SHIFT) else 1)
 
 	## Bore calibration: hip calibrates WeaponData.bore_dir; ADS calibrates WeaponData.ads_bore_dir.
 	var bore_input := Vector2.ZERO   # x = yaw (U/O), y = pitch (I/K)
@@ -235,6 +248,53 @@ func _handle_input(delta: float) -> void:
 		_frame_model()
 
 
+## Rotation must pivot ON the gun: the exported rigs park the node origin at the
+## armory ruler station (PPSh 28m out), so origin rotation swings the visible
+## gun on a meters-long lever arm. Compensate position so the pivot stays put.
+func _rotate_about_gun(rot_delta_deg: Vector3) -> void:
+	var pivot: Vector3 = _gun_pivot_local()
+	var b0: Basis = Basis.from_euler(Vector3(
+		deg_to_rad(edit_rotation.x), deg_to_rad(edit_rotation.y), deg_to_rad(edit_rotation.z)))
+	edit_rotation += rot_delta_deg
+	var b1: Basis = Basis.from_euler(Vector3(
+		deg_to_rad(edit_rotation.x), deg_to_rad(edit_rotation.y), deg_to_rad(edit_rotation.z)))
+	edit_position += (b0 * pivot) - (b1 * pivot)
+
+
+## Pivot in weapon_model space: sight-line midpoint, else muzzle, else AABB center.
+func _gun_pivot_local() -> Vector3:
+	if not weapon_model:
+		return Vector3.ZERO
+	var to_model: Transform3D = weapon_model.global_transform.affine_inverse()
+	var rear: Node3D = _find_ads_marker("rear")
+	var front: Node3D = _find_ads_marker("front")
+	if rear != null and front != null:
+		return to_model * ((rear.global_position + front.global_position) * 0.5)
+	var muzzle: Node3D = weapon_model.find_child("MuzzlePoint", true, false) as Node3D
+	if muzzle:
+		return to_model * muzzle.global_position
+	return _model_aabb(weapon_model).get_center()
+
+
+func _cycle_clip(dir: int) -> void:
+	if _vm_anim == null or _clips.is_empty():
+		_flash("NO CLIPS in this model")
+		return
+	_clip_index = wrapi(_clip_index + dir, 0, _clips.size())
+	var clip: String = _clips[_clip_index]
+	_vm_anim.play(clip)
+	_flash("CLIP %d/%d: %s  (%.1fs)" % [_clip_index + 1, _clips.size(), clip,
+		_vm_anim.get_animation(clip).length])
+
+
+## Idle self-loops; a finished review clip drops back to idle so the pose
+## never sticks on a reload's last frame.
+func _on_clip_finished(_anim: StringName) -> void:
+	if _vm_anim and _vm_anim.has_animation("rifle_idle"):
+		_vm_anim.play("rifle_idle")
+		_clip_index = maxi(0, _clips.find("rifle_idle"))
+
+
 ## Poll a key but fire once per press (editor convention: no InputMap actions).
 func _pressed_once(keycode: int) -> bool:
 	if Input.is_key_pressed(keycode):
@@ -273,6 +333,9 @@ func _load_weapon(index: int) -> void:
 		weapon_model.queue_free()
 		weapon_model = null
 		_vm_meshes = []
+		_vm_anim = null
+		_clips = PackedStringArray()
+		_clip_index = 0
 
 	var load_failed := false
 	if not current_weapon.model_path.is_empty():
@@ -289,9 +352,15 @@ func _load_weapon(index: int) -> void:
 				else:
 					weapon_model.scale *= WeaponHolder._lens_ratio(current_weapon)
 				# Mirror the game: without the idle clip an arms viewmodel renders in bind pose.
-				var vm_anim: AnimationPlayer = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-				if vm_anim and vm_anim.has_animation("rifle_idle"):
-					vm_anim.play("rifle_idle")
+				_vm_anim = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+				if _vm_anim:
+					for a in _vm_anim.get_animation_list():
+						if a != "RESET":
+							_clips.append(a)
+					_vm_anim.animation_finished.connect(_on_clip_finished)
+					if _vm_anim.has_animation("rifle_idle"):
+						_clip_index = maxi(0, _clips.find("rifle_idle"))
+						_vm_anim.play("rifle_idle")
 			else:
 				load_failed = true
 				push_warning("[ViewmodelEditor] %s scene instantiate failed: %s" % [current_weapon.display_name, current_weapon.model_path])
@@ -486,8 +555,7 @@ func _auto_align() -> void:
 		var want_l: Vector3 = (inv * want_dir).normalized()
 		var d_yaw: float = rad_to_deg(atan2(-want_l.x, -want_l.z) - atan2(-cur_l.x, -cur_l.z))
 		var d_pitch: float = rad_to_deg(asin(clampf(want_l.y, -1.0, 1.0)) - asin(clampf(cur_l.y, -1.0, 1.0)))
-		edit_rotation.x += d_pitch
-		edit_rotation.y += d_yaw
+		_rotate_about_gun(Vector3(d_pitch, d_yaw, 0.0))
 		_apply_edit()
 	var mode_name: String = "HIP" if preview_mode == 0 else "ADS"
 	_flash("AUTO-ALIGNED %s bore to crosshair (B)" % mode_name)
@@ -798,7 +866,8 @@ func _get_instructions() -> String:
 
 POSITION   W/S fwd/back  A/D  Q/E up/dn
 ROTATION   Arrows pitch/yaw  PgUp/Dn roll
-           Shift = fine (x0.1)
+           (pivots on the gun, not the node origin)
+           Shift = fine (x0.1)   Alt stacks (x0.01)
 
 ALIGN      B - auto-align current-mode bore to crosshair
            V - align ADS to SightRear/SightFront markers
@@ -815,6 +884,9 @@ SAVE       Ctrl+S - write into the .tres
 WEAPONS    Z/X - prev/next   1-9 - direct
            Space - Hip/ADS (real ADS FOV)
            F5 - reload model scene
+
+CLIPS      N - play next clip (Shift+N back)
+           finished clips fall back to rifle_idle
 
 Hip and ADS have independent bore zeros. Tuning one
 never moves the other. V/H use the model sight markers."""

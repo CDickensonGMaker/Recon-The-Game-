@@ -816,10 +816,18 @@ func flash(color: Color, seconds: float = 0.1) -> void:
 		m.emission = Color(color.r, color.g * 0.3, color.b * 0.3)
 		m.emission_energy_multiplier = 1.5
 	_flash_until = seconds
+	set_process(true)
 
 
 func set_base_modulate(_c: Color) -> void:
 	pass  # models carry their own textures; surrender/state tints are optional later
+
+
+## Idle processing exists only to decay a hit flash; every actor and every corpse
+## would otherwise pay a per-frame callback for a comparison that is almost always
+## false. flash() re-arms it.
+func _ready() -> void:
+	set_process(false)
 
 
 func _process(delta: float) -> void:
@@ -828,6 +836,9 @@ func _process(delta: float) -> void:
 		if _flash_until <= 0.0:
 			for m in _flash_mats:
 				m.emission_enabled = false
+			set_process(false)
+	else:
+		set_process(false)
 
 
 # ---- muzzle -----------------------------------------------------------------

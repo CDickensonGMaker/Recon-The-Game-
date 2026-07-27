@@ -4,10 +4,10 @@ extends Node
 
 ## model path -> [min_dimension_m, max_dimension_m] expected band (largest axis)
 const EXPECTED := {
-	"res://assets/world/building models/structures/village/thatched_hut.glb": [2.0, 12.0],
-	"res://assets/world/building models/structures/village/stilt_house.glb": [2.0, 14.0],
-	"res://assets/world/building models/structures/village/well.glb": [0.5, 6.0],
-	"res://assets/world/building models/structures/firebase/fsb_main.glb": [150.0, 200.0],
+	"res://assets/world/building models/structures/village/nha_tranh_01.glb": [2.0, 12.0],
+	"res://assets/world/building models/structures/village/nha_san_01.glb": [2.0, 14.0],
+	"res://assets/world/building models/structures/village/village_well_01.glb": [0.5, 6.0],
+	"res://assets/world/building models/structures/firebase/fsb_main_v3.glb": [250.0, 300.0],
 	"res://assets/world/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
 	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
 	"res://assets/us/vehicles/m113_apc.glb": [2.0, 9.0],

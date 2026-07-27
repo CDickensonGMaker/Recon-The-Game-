@@ -1,0 +1,534 @@
+{
+ "prasat_ruin_01": {
+  "kind": "ruined",
+  "family": "kalan",
+  "tris": 596,
+  "veg": 15,
+  "veg_tris": 3191,
+  "verts": 384,
+  "size": [
+   9.6,
+   6.15,
+   6.1
+  ],
+  "footprint": [
+   9.6,
+   6.15
+  ],
+  "height": 6.1,
+  "door_dir": 1
+ },
+ "prasat_ruin_02": {
+  "kind": "ruined",
+  "family": "kalan",
+  "tris": 728,
+  "veg": 15,
+  "veg_tris": 3440,
+  "verts": 468,
+  "size": [
+   5.73,
+   7.76,
+   7.1
+  ],
+  "footprint": [
+   5.73,
+   7.76
+  ],
+  "height": 7.1,
+  "door_dir": 0
+ },
+ "prasat_ruin_03": {
+  "kind": "ruined",
+  "family": "mandapa",
+  "tris": 752,
+  "veg": 14,
+  "veg_tris": 3270,
+  "verts": 484,
+  "size": [
+   12.07,
+   6.48,
+   5.98
+  ],
+  "footprint": [
+   12.07,
+   6.48
+  ],
+  "height": 5.98,
+  "door_dir": 1
+ },
+ "prasat_ruin_04": {
+  "kind": "ruined",
+  "family": "mandapa",
+  "tris": 764,
+  "veg": 15,
+  "veg_tris": 3346,
+  "verts": 492,
+  "size": [
+   5.96,
+   11.16,
+   6.36
+  ],
+  "footprint": [
+   5.96,
+   11.16
+  ],
+  "height": 6.36,
+  "door_dir": 2
+ },
+ "prasat_ruin_05": {
+  "kind": "ruined",
+  "family": "kosagrha",
+  "tris": 534,
+  "veg": 14,
+  "veg_tris": 3794,
+  "verts": 346,
+  "size": [
+   5.61,
+   12.79,
+   6.21
+  ],
+  "footprint": [
+   5.61,
+   12.79
+  ],
+  "height": 6.21,
+  "door_dir": 2
+ },
+ "prasat_ruin_06": {
+  "kind": "ruined",
+  "family": "kosagrha",
+  "tris": 558,
+  "veg": 14,
+  "veg_tris": 3286,
+  "verts": 358,
+  "size": [
+   5.28,
+   10.1,
+   6.21
+  ],
+  "footprint": [
+   5.28,
+   10.1
+  ],
+  "height": 6.21,
+  "door_dir": 0
+ },
+ "prasat_ruin_07": {
+  "kind": "ruined",
+  "family": "gopura",
+  "tris": 752,
+  "veg": 14,
+  "veg_tris": 3833,
+  "verts": 480,
+  "size": [
+   8.65,
+   8.3,
+   4.51
+  ],
+  "footprint": [
+   8.65,
+   8.3
+  ],
+  "height": 4.51,
+  "door_dir": 2
+ },
+ "prasat_ruin_08": {
+  "kind": "ruined",
+  "family": "gopura",
+  "tris": 812,
+  "veg": 15,
+  "veg_tris": 3624,
+  "verts": 520,
+  "size": [
+   9.99,
+   9.13,
+   5.33
+  ],
+  "footprint": [
+   9.99,
+   9.13
+  ],
+  "height": 5.33,
+  "door_dir": 3
+ },
+ "prasat_ruin_09": {
+  "kind": "ruined",
+  "family": "terrace",
+  "tris": 840,
+  "veg": 16,
+  "veg_tris": 3446,
+  "verts": 552,
+  "size": [
+   12.55,
+   9.45,
+   7.32
+  ],
+  "footprint": [
+   12.55,
+   9.45
+  ],
+  "height": 7.32,
+  "door_dir": 3
+ },
+ "prasat_ruin_10": {
+  "kind": "ruined",
+  "family": "terrace",
+  "tris": 732,
+  "veg": 13,
+  "veg_tris": 2786,
+  "verts": 476,
+  "size": [
+   9.73,
+   12.83,
+   6.67
+  ],
+  "footprint": [
+   9.73,
+   12.83
+  ],
+  "height": 6.67,
+  "door_dir": 0
+ },
+ "prasat_intact_01": {
+  "kind": "intact",
+  "family": "kalan",
+  "tris": 764,
+  "veg": 9,
+  "veg_tris": 1526,
+  "verts": 492,
+  "size": [
+   5.69,
+   7.7,
+   8.47
+  ],
+  "footprint": [
+   5.69,
+   7.7
+  ],
+  "height": 8.47,
+  "door_dir": 2
+ },
+ "prasat_intact_02": {
+  "kind": "intact",
+  "family": "mandapa",
+  "tris": 788,
+  "veg": 7,
+  "veg_tris": 1304,
+  "verts": 508,
+  "size": [
+   6.49,
+   12.38,
+   7.51
+  ],
+  "footprint": [
+   6.49,
+   12.38
+  ],
+  "height": 7.51,
+  "door_dir": 2
+ },
+ "prasat_intact_03": {
+  "kind": "intact",
+  "family": "kosagrha",
+  "tris": 558,
+  "veg": 5,
+  "veg_tris": 681,
+  "verts": 358,
+  "size": [
+   5.23,
+   10.44,
+   5.93
+  ],
+  "footprint": [
+   5.23,
+   10.44
+  ],
+  "height": 5.93,
+  "door_dir": 2
+ },
+ "prasat_intact_04": {
+  "kind": "intact",
+  "family": "terrace",
+  "tris": 876,
+  "veg": 9,
+  "veg_tris": 1766,
+  "verts": 572,
+  "size": [
+   9.61,
+   12.71,
+   8.9
+  ],
+  "footprint": [
+   9.61,
+   12.71
+  ],
+  "height": 8.9,
+  "door_dir": 2
+ },
+ "temple_statue_guardian_01": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 72,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 48,
+  "size": [
+   0.78,
+   0.72,
+   1.76
+  ],
+  "footprint": [
+   0.78,
+   0.72
+  ],
+  "height": 1.76,
+  "door_dir": -1
+ },
+ "temple_statue_guardian_02": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 72,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 48,
+  "size": [
+   0.78,
+   0.72,
+   1.76
+  ],
+  "footprint": [
+   0.78,
+   0.72
+  ],
+  "height": 1.76,
+  "door_dir": -1
+ },
+ "temple_statue_seated": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 60,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 40,
+  "size": [
+   1.0,
+   0.9,
+   1.62
+  ],
+  "footprint": [
+   1.0,
+   0.9
+  ],
+  "height": 1.62,
+  "door_dir": -1
+ },
+ "temple_statue_naga": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 84,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 56,
+  "size": [
+   1.17,
+   0.9,
+   1.21
+  ],
+  "footprint": [
+   1.17,
+   0.9
+  ],
+  "height": 1.21,
+  "door_dir": -1
+ },
+ "temple_statue_lingam": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 36,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 24,
+  "size": [
+   0.86,
+   0.86,
+   0.9
+  ],
+  "footprint": [
+   0.86,
+   0.86
+  ],
+  "height": 0.9,
+  "door_dir": -1
+ },
+ "temple_statue_singha_01": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 120,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 80,
+  "size": [
+   0.86,
+   0.95,
+   1.7
+  ],
+  "footprint": [
+   0.86,
+   0.95
+  ],
+  "height": 1.7,
+  "door_dir": -1
+ },
+ "temple_statue_singha_02": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 120,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 80,
+  "size": [
+   0.92,
+   0.95,
+   1.7
+  ],
+  "footprint": [
+   0.92,
+   0.95
+  ],
+  "height": 1.7,
+  "door_dir": -1
+ },
+ "temple_statue_garuda": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 96,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 64,
+  "size": [
+   1.89,
+   0.72,
+   1.5
+  ],
+  "footprint": [
+   1.89,
+   0.72
+  ],
+  "height": 1.5,
+  "door_dir": -1
+ },
+ "temple_statue_apsara_01": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 96,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 64,
+  "size": [
+   1.05,
+   0.49,
+   2.18
+  ],
+  "footprint": [
+   1.05,
+   0.49
+  ],
+  "height": 2.18,
+  "door_dir": -1
+ },
+ "temple_statue_apsara_02": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 96,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 64,
+  "size": [
+   1.09,
+   0.65,
+   2.18
+  ],
+  "footprint": [
+   1.09,
+   0.65
+  ],
+  "height": 2.18,
+  "door_dir": -1
+ },
+ "temple_statue_stele": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 48,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 32,
+  "size": [
+   0.92,
+   0.74,
+   1.75
+  ],
+  "footprint": [
+   0.92,
+   0.74
+  ],
+  "height": 1.75,
+  "door_dir": -1
+ },
+ "temple_statue_stupa": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 84,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 56,
+  "size": [
+   1.1,
+   1.1,
+   2.21
+  ],
+  "footprint": [
+   1.1,
+   1.1
+  ],
+  "height": 2.21,
+  "door_dir": -1
+ },
+ "temple_statue_altar": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 96,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 64,
+  "size": [
+   1.36,
+   0.92,
+   0.84
+  ],
+  "footprint": [
+   1.36,
+   0.92
+  ],
+  "height": 0.84,
+  "door_dir": -1
+ },
+ "temple_statue_naga_rail": {
+  "kind": "statue",
+  "family": "-",
+  "tris": 144,
+  "veg": 0,
+  "veg_tris": 0,
+  "verts": 96,
+  "size": [
+   1.03,
+   2.93,
+   1.48
+  ],
+  "footprint": [
+   1.03,
+   2.93
+  ],
+  "height": 1.48,
+  "door_dir": -1
+ }
+}

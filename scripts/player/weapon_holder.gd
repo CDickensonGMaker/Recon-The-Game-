@@ -222,6 +222,11 @@ func _handle_input() -> void:
 		is_aiming = false
 		return
 
+	# Both hands are on the rungs. Same guard as the seated ride.
+	if controller and "is_climbing" in controller and controller.is_climbing:
+		is_aiming = false
+		return
+
 	# A downed man does not return fire while waiting on Doc.
 	if controller and controller.has_method("is_dead") and controller.is_dead():
 		is_aiming = false

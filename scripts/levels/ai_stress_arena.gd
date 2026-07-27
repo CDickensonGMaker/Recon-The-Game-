@@ -82,7 +82,7 @@ const RUIN_DIR: String = "res://assets/world/building models/structures/ruins/"
 const VILLAGE_RUINS: Array[String] = [
 	"ruinset_street_row", "ruinset_compound", "ruinset_courtyard",
 	"ruin_house_shell", "ruin_house_half", "destroyed_bunker",
-	"wall_u_ruin", "cham_temple_ruin",
+	"wall_u_ruin",
 ]
 const CONTACT_RUBBLE: Array[String] = [
 	"wall_remnant", "wall_corner_tall", "rubble_heap_tall",

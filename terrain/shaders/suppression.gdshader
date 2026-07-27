@@ -10,7 +10,9 @@ render_mode unshaded;
 
 uniform float amount : hint_range(0.0, 1.0) = 0.0;
 uniform float hurt : hint_range(0.0, 1.0) = 0.0;
-uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+// filter_linear, NOT filter_linear_mipmap: the fragment samples at LOD 0 only, and
+// the mipmap hint makes Godot build the full mip chain of the screen copy each frame.
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 
 void fragment() {
 	vec3 col = texture(screen_tex, SCREEN_UV).rgb;

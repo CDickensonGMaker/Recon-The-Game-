@@ -1,0 +1,523 @@
+{
+ "fb_aid_station": {
+  "tris": 3516,
+  "size": [
+   5.6,
+   4.2,
+   1.6
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -3.6,
+     0.0
+    ],
+    "face": 1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "work_aid",
+    "pos": [
+     0.0,
+     0.0,
+     -0.88
+    ],
+    "face": 1.5708,
+    "work_type": "medic"
+   }
+  ]
+ },
+ "fb_berm_arc": {
+  "tris": 72,
+  "size": [
+   9.2,
+   2.6,
+   1.2
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_bunker_fighting": {
+  "tris": 2884,
+  "size": [
+   3.4,
+   2.9,
+   2.5
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     2.25,
+     -0.73
+    ],
+    "face": 1.5708,
+    "door_width": 0.95
+   }
+  ]
+ },
+ "fb_bunker_mg": {
+  "tris": 3800,
+  "size": [
+   4.6,
+   3.8,
+   2.55
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "mg_fire_point",
+    "pos": [
+     0.0,
+     -1.55,
+     0.07
+    ],
+    "face": -1.5708,
+    "work_type": "mg"
+   },
+   {
+    "name": "bunker_los_point",
+    "pos": [
+     0.0,
+     -1.7,
+     0.52
+    ],
+    "face": -1.5708
+   },
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     2.8,
+     -0.78
+    ],
+    "face": 1.5708,
+    "door_width": 0.95
+   }
+  ]
+ },
+ "fb_burn_barrel": {
+  "tris": 48,
+  "size": [
+   0.7,
+   0.7,
+   1.0
+  ],
+  "solid": false,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_claymore": {
+  "tris": 36,
+  "size": [
+   0.4,
+   0.2,
+   0.36
+  ],
+  "solid": false,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_gate_gap": {
+  "tris": 2606,
+  "size": [
+   11.0,
+   8.0,
+   3.1
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "SOCKET_A",
+    "pos": [
+     -4.5,
+     0.0,
+     0.0
+    ],
+    "face": 0.0
+   },
+   {
+    "name": "SOCKET_B",
+    "pos": [
+     4.5,
+     0.0,
+     0.0
+    ],
+    "face": 0.0
+   },
+   {
+    "name": "FACE_OUT",
+    "pos": [
+     0.0,
+     -4.0,
+     1.0
+    ],
+    "face": -1.5708
+   }
+  ]
+ },
+ "fb_gp_tent": {
+  "tris": 888,
+  "size": [
+   5.0,
+   9.5,
+   3.05
+  ],
+  "solid": false,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -5.75,
+     0.0
+    ],
+    "face": 1.5708,
+    "door_width": 3.0
+   },
+   {
+    "name": "prop_cot",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   }
+  ]
+ },
+ "fb_gun_pit": {
+  "tris": 4860,
+  "size": [
+   9.0,
+   9.0,
+   1.0
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "GUN_POINT",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "gun"
+   }
+  ]
+ },
+ "fb_helipad": {
+  "tris": 192,
+  "size": [
+   15.0,
+   15.0,
+   0.14
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "PSPHelipad",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0
+   }
+  ]
+ },
+ "fb_hootch": {
+  "tris": 2644,
+  "size": [
+   4.4,
+   7.2,
+   2.75
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -4.6,
+     0.0
+    ],
+    "face": 1.5708,
+    "door_width": 3.08
+   },
+   {
+    "name": "prop_bunk",
+    "pos": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   }
+  ]
+ },
+ "fb_howitzer": {
+  "tris": 288,
+  "size": [
+   2.4,
+   4.0,
+   1.3
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_latrine": {
+  "tris": 132,
+  "size": [
+   1.9,
+   1.3,
+   2.1
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_mess": {
+  "tris": 528,
+  "size": [
+   5.0,
+   8.0,
+   3.0
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "APPROACH",
+    "pos": [
+     0.0,
+     -5.2,
+     0.0
+    ],
+    "face": 1.5708
+   },
+   {
+    "name": "work_mess",
+    "pos": [
+     0.0,
+     2.0,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "cook"
+   }
+  ]
+ },
+ "fb_mortar_pit": {
+  "tris": 1944,
+  "size": [
+   4.2,
+   4.2,
+   1.4
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "work_mortar",
+    "pos": [
+     0.0,
+     2.9,
+     0.0
+    ],
+    "face": -1.5708,
+    "work_type": "gun"
+   }
+  ]
+ },
+ "fb_sandbag_stack": {
+  "tris": 240,
+  "size": [
+   2.6,
+   1.2,
+   0.9
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_sleeping_bunker": {
+  "tris": 3002,
+  "size": [
+   5.2,
+   3.6,
+   1.45
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -3.3,
+     0.0
+    ],
+    "face": 1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "prop_bunk",
+    "pos": [
+     0.0,
+     0.0,
+     -1.43
+    ],
+    "face": 0.0,
+    "prop_class": "sleep"
+   }
+  ]
+ },
+ "fb_supply_dump": {
+  "tris": 3152,
+  "size": [
+   7.0,
+   5.0,
+   1.5
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "USSupplyDepot",
+    "pos": [
+     0.0,
+     -3.6,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "carry"
+   }
+  ]
+ },
+ "fb_toc": {
+  "tris": 4780,
+  "size": [
+   7.4,
+   5.6,
+   5.05
+  ],
+  "solid": true,
+  "enterable": true,
+  "markers": [
+   {
+    "name": "door_main",
+    "pos": [
+     0.0,
+     -4.6,
+     0.0
+    ],
+    "face": 1.5708,
+    "door_width": 1.05
+   },
+   {
+    "name": "work_radio",
+    "pos": [
+     1.85,
+     0.0,
+     -1.03
+    ],
+    "face": 3.1416,
+    "work_type": "radio"
+   },
+   {
+    "name": "prop_map",
+    "pos": [
+     0.0,
+     1.9,
+     -1.03
+    ],
+    "face": 1.5708,
+    "prop_class": "furniture"
+   }
+  ]
+ },
+ "fb_tower": {
+  "tris": 4348,
+  "size": [
+   3.6,
+   3.6,
+   9.7
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "tower_los_point",
+    "pos": [
+     0.0,
+     0.0,
+     8.9
+    ],
+    "face": -1.5708
+   }
+  ]
+ },
+ "fb_trench_run": {
+  "tris": 240,
+  "size": [
+   6.0,
+   2.85,
+   0.45
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": []
+ },
+ "fb_water_point": {
+  "tris": 48,
+  "size": [
+   2.7,
+   1.0,
+   1.25
+  ],
+  "solid": true,
+  "enterable": false,
+  "markers": [
+   {
+    "name": "work_water",
+    "pos": [
+     0.0,
+     -1.1,
+     0.0
+    ],
+    "face": 1.5708,
+    "work_type": "water"
+   }
+  ]
+ },
+ "fb_wire_belt": {
+  "tris": 144,
+  "size": [
+   8.64,
+   1.0,
+   1.35
+  ],
+  "solid": false,
+  "enterable": false,
+  "markers": []
+ }
+}
