@@ -1,0 +1,2620 @@
+{
+  "m16": {
+    "collection": "RIG_M16A1",
+    "rig": "ArmsRig_M16A1",
+    "transforms": [
+      {
+        "object": "M16A1_gun",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "non_uniform": false,
+        "rotation_deg": [
+          2.642,
+          -0.021,
+          89.893
+        ],
+        "animated": false
+      }
+    ],
+    "contract": [],
+    "pairing": [
+      {
+        "part": "M16A1_magazine.030",
+        "track": "rifle_idle",
+        "action": "m16_mag_home",
+        "action_frames": 138.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M16A1_charge_handle_slide_back",
+        "track": "rifle_idle",
+        "action": "m16_ch_home",
+        "action_frames": 88.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M16A1_charge_handle_slide_back",
+        "track": "reload",
+        "action": "m16_ch_home",
+        "action_frames": 88.0,
+        "clip_frames": 72,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "action": "m16_ch_home",
+        "reused_under": [
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          72
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      }
+    ],
+    "pacing": {
+      "rifle_idle": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "reload": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 72,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 103.6,
+          "avg_mm_per_frame": 20.11,
+          "dead_frames": 0,
+          "dead_pct": 0.0,
+          "speed_spikes": [
+            {
+              "frame": 18,
+              "mm_per_frame": [
+                11.3,
+                58.6
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        }
+      },
+      "reload_empty": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 80,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 131.9,
+          "avg_mm_per_frame": 23.73,
+          "dead_frames": 0,
+          "dead_pct": 0.0,
+          "speed_spikes": [
+            {
+              "frame": 14,
+              "mm_per_frame": [
+                17.3,
+                90.5
+              ]
+            },
+            {
+              "frame": 24,
+              "mm_per_frame": [
+                2.7,
+                27.6
+              ]
+            },
+            {
+              "frame": 32,
+              "mm_per_frame": [
+                42.5,
+                13.9
+              ]
+            },
+            {
+              "frame": 42,
+              "mm_per_frame": [
+                3.0,
+                37.3
+              ]
+            }
+          ],
+          "spike_count": 4,
+          "teleports": []
+        }
+      },
+      "jam": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 138,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 64.9,
+          "avg_mm_per_frame": 20.18,
+          "dead_frames": 4,
+          "dead_pct": 2.9,
+          "speed_spikes": [
+            {
+              "frame": 12,
+              "mm_per_frame": [
+                4.4,
+                23.9
+              ]
+            },
+            {
+              "frame": 18,
+              "mm_per_frame": [
+                3.9,
+                22.4
+              ]
+            },
+            {
+              "frame": 20,
+              "mm_per_frame": [
+                31.7,
+                7.4
+              ]
+            },
+            {
+              "frame": 125,
+              "mm_per_frame": [
+                44.0,
+                2.6
+              ]
+            }
+          ],
+          "spike_count": 4,
+          "teleports": []
+        }
+      }
+    },
+    "handles": {
+      "rifle_idle": {
+        "action": "m16_fp_idle",
+        "keys": 520,
+        "handle_types": {
+          "AUTO_CLAMPED": 1040
+        }
+      },
+      "reload": {
+        "action": "m16_reload",
+        "keys": 2900,
+        "handle_types": {
+          "AUTO": 5772,
+          "VECTOR": 28
+        }
+      },
+      "reload_empty": {
+        "action": "m16_reload_empty",
+        "keys": 3766,
+        "handle_types": {
+          "AUTO": 7504,
+          "VECTOR": 28
+        }
+      },
+      "jam": {
+        "action": "m16_jam",
+        "keys": 3453,
+        "handle_types": {
+          "AUTO": 6857,
+          "VECTOR": 49
+        }
+      }
+    },
+    "penetration": {
+      "rifle_idle": {
+        "frames_over_threshold": 1,
+        "sampled_frames": 1,
+        "worst": {
+          "depth_mm": 11.6,
+          "frame": 0,
+          "gun_part": "M16A1_gun"
+        },
+        "frames": {
+          "0": 11.6
+        }
+      },
+      "reload": {
+        "frames_over_threshold": 37,
+        "sampled_frames": 37,
+        "worst": {
+          "depth_mm": 20.6,
+          "frame": 2,
+          "gun_part": "M16A1_gun"
+        },
+        "frames": {
+          "0": 20.5,
+          "2": 20.6,
+          "4": 14.9,
+          "6": 15.4,
+          "8": 11.6,
+          "10": 11.6,
+          "12": 11.6,
+          "14": 11.6,
+          "16": 11.6,
+          "18": 11.6,
+          "20": 11.6,
+          "22": 11.6,
+          "24": 11.6,
+          "26": 11.6,
+          "28": 11.6,
+          "30": 11.6,
+          "32": 11.6,
+          "34": 11.6,
+          "36": 11.6,
+          "38": 11.6
+        }
+      },
+      "reload_empty": {
+        "frames_over_threshold": 41,
+        "sampled_frames": 41,
+        "worst": {
+          "depth_mm": 22.8,
+          "frame": 76,
+          "gun_part": "M16A1_gun"
+        },
+        "frames": {
+          "0": 20.5,
+          "2": 18.7,
+          "4": 12.5,
+          "6": 19.3,
+          "8": 11.6,
+          "10": 11.6,
+          "12": 11.6,
+          "14": 11.6,
+          "16": 11.6,
+          "18": 11.6,
+          "20": 11.6,
+          "22": 11.6,
+          "24": 11.6,
+          "26": 11.6,
+          "28": 11.6,
+          "30": 11.6,
+          "32": 11.6,
+          "34": 11.6,
+          "36": 11.6,
+          "38": 11.6
+        }
+      },
+      "jam": {
+        "frames_over_threshold": 70,
+        "sampled_frames": 70,
+        "worst": {
+          "depth_mm": 22.2,
+          "frame": 100,
+          "gun_part": "M16A1_gun"
+        },
+        "frames": {
+          "0": 20.5,
+          "2": 11.6,
+          "4": 11.6,
+          "6": 11.6,
+          "8": 11.6,
+          "10": 11.6,
+          "12": 11.6,
+          "14": 11.6,
+          "16": 11.6,
+          "18": 11.6,
+          "20": 11.6,
+          "22": 11.6,
+          "24": 11.6,
+          "26": 16.8,
+          "28": 20.5,
+          "30": 11.6,
+          "32": 13.5,
+          "34": 19.2,
+          "36": 11.6,
+          "38": 11.6
+        }
+      }
+    },
+    "clip_lengths": {
+      "rifle_idle": 1,
+      "reload": 72,
+      "reload_empty": 80,
+      "jam": 138
+    }
+  },
+  "ak": {
+    "collection": "RIG_AK47",
+    "rig": "ArmsRig_AK47",
+    "transforms": [],
+    "contract": [
+      "marker muzzle_AK47 parented to AK47, not AK47_root",
+      "marker sight_front_AK47 parented to AK47, not AK47_root",
+      "marker sight_rear_AK47 parented to AK47, not AK47_root"
+    ],
+    "pairing": [
+      {
+        "part": "AK47_mag",
+        "track": "rifle_idle",
+        "action": "ak_mag_home",
+        "action_frames": 132.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_mag",
+        "track": "reload",
+        "action": "ak_mag_handoff",
+        "action_frames": 132.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_mag",
+        "track": "jam",
+        "action": "ak_mag_home",
+        "action_frames": 132.0,
+        "clip_frames": 109,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_bolt",
+        "track": "rifle_idle",
+        "action": "ak_bolt_home",
+        "action_frames": 132.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_bolt",
+        "track": "reload",
+        "action": "ak_bolt_home",
+        "action_frames": 132.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_root",
+        "track": "rifle_idle",
+        "action": "ak_hold_on",
+        "action_frames": 132.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "AK47_root",
+        "track": "reload",
+        "action": "ak_hold_on",
+        "action_frames": 132.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "action": "ak_mag_home",
+        "reused_under": [
+          "jam",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          109
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "ak_mag_handoff",
+        "reused_under": [
+          "reload",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          78,
+          133
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "ak_bolt_home",
+        "reused_under": [
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "ak_hold_on",
+        "reused_under": [
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      }
+    ],
+    "pacing": {
+      "rifle_idle": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "reload": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 78,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 86.4,
+          "avg_mm_per_frame": 15.13,
+          "dead_frames": 0,
+          "dead_pct": 0.0,
+          "speed_spikes": [
+            {
+              "frame": 51,
+              "mm_per_frame": [
+                54.0,
+                12.6
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        }
+      },
+      "reload_empty": {
+        "hand.R": {
+          "max_mm_per_frame": 72.3,
+          "avg_mm_per_frame": 8.32,
+          "dead_frames": 58,
+          "dead_pct": 43.6,
+          "speed_spikes": [
+            {
+              "frame": 84,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 86.3,
+          "avg_mm_per_frame": 11.28,
+          "dead_frames": 30,
+          "dead_pct": 22.6,
+          "speed_spikes": [
+            {
+              "frame": 51,
+              "mm_per_frame": [
+                54.0,
+                12.6
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        }
+      },
+      "jam": {
+        "hand.R": {
+          "max_mm_per_frame": 72.3,
+          "avg_mm_per_frame": 17.0,
+          "dead_frames": 5,
+          "dead_pct": 4.6,
+          "speed_spikes": [
+            {
+              "frame": 6,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            },
+            {
+              "frame": 61,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            }
+          ],
+          "spike_count": 2,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 25.2,
+          "avg_mm_per_frame": 5.56,
+          "dead_frames": 59,
+          "dead_pct": 54.1,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      }
+    },
+    "handles": {
+      "rifle_idle": {
+        "action": "ak_idle",
+        "keys": 520,
+        "handle_types": {
+          "AUTO_CLAMPED": 1040
+        }
+      },
+      "reload": {
+        "action": "ak_reload",
+        "keys": 518,
+        "handle_types": {
+          "AUTO": 1036
+        }
+      },
+      "reload_empty": {
+        "action": "ak_reload_empty",
+        "keys": 1813,
+        "handle_types": {
+          "AUTO": 3626
+        }
+      },
+      "jam": {
+        "action": "ak_jam",
+        "keys": 57200,
+        "handle_types": {
+          "AUTO_CLAMPED": 114400
+        }
+      }
+    },
+    "penetration": {
+      "rifle_idle": {
+        "frames_over_threshold": 1,
+        "sampled_frames": 1,
+        "worst": {
+          "depth_mm": 53.4,
+          "frame": 0,
+          "gun_part": "AK47_gun"
+        },
+        "frames": {
+          "0": 53.4
+        }
+      },
+      "reload": {
+        "frames_over_threshold": 40,
+        "sampled_frames": 40,
+        "worst": {
+          "depth_mm": 72.3,
+          "frame": 74,
+          "gun_part": "AK47_gun"
+        },
+        "frames": {
+          "0": 53.4,
+          "2": 53.4,
+          "4": 53.4,
+          "6": 53.4,
+          "8": 53.4,
+          "10": 53.4,
+          "12": 53.4,
+          "14": 53.4,
+          "16": 53.4,
+          "18": 53.4,
+          "20": 53.4,
+          "22": 53.4,
+          "24": 53.4,
+          "26": 53.4,
+          "28": 53.4,
+          "30": 53.4,
+          "32": 53.4,
+          "34": 53.4,
+          "36": 53.4,
+          "38": 53.4
+        }
+      },
+      "reload_empty": {
+        "frames_over_threshold": 58,
+        "sampled_frames": 67,
+        "worst": {
+          "depth_mm": 78.2,
+          "frame": 92,
+          "gun_part": "AK47_gun"
+        },
+        "frames": {
+          "0": 10.1,
+          "2": 11.1,
+          "4": 14.6,
+          "6": 15.9,
+          "8": 16.2,
+          "10": 53.4,
+          "12": 53.4,
+          "14": 53.4,
+          "16": 53.4,
+          "18": 68.5,
+          "20": 53.4,
+          "22": 53.4,
+          "24": 53.4,
+          "26": 53.4,
+          "28": 53.4,
+          "30": 53.4,
+          "32": 53.4,
+          "34": 53.4,
+          "36": 53.4,
+          "38": 53.4
+        }
+      },
+      "jam": {
+        "frames_over_threshold": 38,
+        "sampled_frames": 55,
+        "worst": {
+          "depth_mm": 78.2,
+          "frame": 14,
+          "gun_part": "AK47_gun"
+        },
+        "frames": {
+          "0": 10.1,
+          "4": 15.9,
+          "14": 78.2,
+          "16": 53.7,
+          "20": 10.5,
+          "22": 10.5,
+          "26": 11.1,
+          "28": 11.1,
+          "30": 11.6,
+          "32": 13.9,
+          "34": 10.6,
+          "40": 9.8,
+          "42": 11.1,
+          "44": 12.0,
+          "46": 15.9,
+          "48": 14.1,
+          "50": 48.3,
+          "52": 8.1,
+          "54": 10.1,
+          "56": 16.0
+        }
+      }
+    },
+    "clip_lengths": {
+      "rifle_idle": 1,
+      "reload": 78,
+      "reload_empty": 133,
+      "jam": 109
+    }
+  },
+  "ppsh": {
+    "collection": "RIG_PPSh41",
+    "rig": "ArmsRig_PPSh41",
+    "transforms": [
+      {
+        "object": "PPSh41_gun",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.001",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.002",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.003",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.004",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.005",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.007",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.008",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.009",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.010",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.011",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.012",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.013",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.014",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.015",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.016",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.017",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.018",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.019",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          4.353,
+          41.178,
+          96.595
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.020",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.021",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.022",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.023",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.024",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.025",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      },
+      {
+        "object": "PPSh41_gun.026",
+        "scale": [
+          1.0,
+          1.30575,
+          1.26581
+        ],
+        "non_uniform": true,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          94.959
+        ],
+        "animated": false
+      }
+    ],
+    "contract": [],
+    "pairing": [
+      {
+        "action": "ppsh_hold_on",
+        "reused_under": [
+          "jam",
+          "reload",
+          "reload_empty",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78,
+          109,
+          133
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      }
+    ],
+    "pacing": {
+      "rifle_idle": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "reload": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 78,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 96.2,
+          "avg_mm_per_frame": 19.05,
+          "dead_frames": 0,
+          "dead_pct": 0.0,
+          "speed_spikes": [
+            {
+              "frame": 51,
+              "mm_per_frame": [
+                54.0,
+                13.3
+              ]
+            },
+            {
+              "frame": 61,
+              "mm_per_frame": [
+                21.9,
+                1.9
+              ]
+            },
+            {
+              "frame": 62,
+              "mm_per_frame": [
+                1.9,
+                40.8
+              ]
+            },
+            {
+              "frame": 66,
+              "mm_per_frame": [
+                57.3,
+                2.3
+              ]
+            }
+          ],
+          "spike_count": 4,
+          "teleports": []
+        }
+      },
+      "reload_empty": {
+        "hand.R": {
+          "max_mm_per_frame": 72.3,
+          "avg_mm_per_frame": 8.32,
+          "dead_frames": 58,
+          "dead_pct": 43.6,
+          "speed_spikes": [
+            {
+              "frame": 84,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 86.4,
+          "avg_mm_per_frame": 12.48,
+          "dead_frames": 30,
+          "dead_pct": 22.6,
+          "speed_spikes": [
+            {
+              "frame": 51,
+              "mm_per_frame": [
+                54.0,
+                12.5
+              ]
+            },
+            {
+              "frame": 69,
+              "mm_per_frame": [
+                22.6,
+                2.0
+              ]
+            }
+          ],
+          "spike_count": 2,
+          "teleports": []
+        }
+      },
+      "jam": {
+        "hand.R": {
+          "max_mm_per_frame": 72.3,
+          "avg_mm_per_frame": 17.0,
+          "dead_frames": 5,
+          "dead_pct": 4.6,
+          "speed_spikes": [
+            {
+              "frame": 6,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            },
+            {
+              "frame": 61,
+              "mm_per_frame": [
+                45.6,
+                4.7
+              ]
+            }
+          ],
+          "spike_count": 2,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 25.2,
+          "avg_mm_per_frame": 5.56,
+          "dead_frames": 59,
+          "dead_pct": 54.1,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      }
+    },
+    "handles": {
+      "rifle_idle": {
+        "action": "ppsh_idle",
+        "keys": 520,
+        "handle_types": {
+          "AUTO_CLAMPED": 1040
+        }
+      },
+      "reload": {
+        "action": "ppsh_reload",
+        "keys": 524,
+        "handle_types": {
+          "AUTO": 1036,
+          "AUTO_CLAMPED": 12
+        }
+      },
+      "reload_empty": {
+        "action": "ppsh_reload_empty",
+        "keys": 1819,
+        "handle_types": {
+          "AUTO": 3626,
+          "AUTO_CLAMPED": 12
+        }
+      },
+      "jam": {
+        "action": "ppsh_jam",
+        "keys": 57200,
+        "handle_types": {
+          "AUTO_CLAMPED": 114400
+        }
+      }
+    },
+    "penetration": {
+      "rifle_idle": {
+        "frames_over_threshold": 1,
+        "sampled_frames": 1,
+        "worst": {
+          "depth_mm": 43.0,
+          "frame": 0,
+          "gun_part": "PPSh41_gun.004"
+        },
+        "frames": {
+          "0": 43.0
+        }
+      },
+      "reload": {
+        "frames_over_threshold": 40,
+        "sampled_frames": 40,
+        "worst": {
+          "depth_mm": 131.4,
+          "frame": 78,
+          "gun_part": "PPSh41_gun.004"
+        },
+        "frames": {
+          "0": 131.4,
+          "2": 131.4,
+          "4": 131.4,
+          "6": 131.4,
+          "8": 131.4,
+          "10": 131.4,
+          "12": 131.4,
+          "14": 131.4,
+          "16": 131.4,
+          "18": 131.4,
+          "20": 131.4,
+          "22": 131.4,
+          "24": 131.4,
+          "26": 131.4,
+          "28": 131.4,
+          "30": 131.4,
+          "32": 131.4,
+          "34": 131.4,
+          "36": 131.4,
+          "38": 131.4
+        }
+      },
+      "reload_empty": {
+        "frames_over_threshold": 67,
+        "sampled_frames": 67,
+        "worst": {
+          "depth_mm": 139.8,
+          "frame": 118,
+          "gun_part": "PPSh41_gun.004"
+        },
+        "frames": {
+          "0": 131.4,
+          "2": 131.4,
+          "4": 131.4,
+          "6": 131.4,
+          "8": 131.4,
+          "10": 131.4,
+          "12": 131.4,
+          "14": 131.4,
+          "16": 131.4,
+          "18": 131.4,
+          "20": 131.4,
+          "22": 131.4,
+          "24": 131.4,
+          "26": 131.4,
+          "28": 131.4,
+          "30": 131.4,
+          "32": 131.4,
+          "34": 131.4,
+          "36": 131.4,
+          "38": 131.4
+        }
+      },
+      "jam": {
+        "frames_over_threshold": 55,
+        "sampled_frames": 55,
+        "worst": {
+          "depth_mm": 139.8,
+          "frame": 40,
+          "gun_part": "PPSh41_gun.004"
+        },
+        "frames": {
+          "0": 131.4,
+          "2": 67.7,
+          "4": 118.3,
+          "6": 110.3,
+          "8": 109.0,
+          "10": 109.0,
+          "12": 100.0,
+          "14": 98.6,
+          "16": 54.3,
+          "18": 54.3,
+          "20": 54.3,
+          "22": 54.3,
+          "24": 102.3,
+          "26": 100.5,
+          "28": 92.4,
+          "30": 83.8,
+          "32": 105.1,
+          "34": 124.2,
+          "36": 115.0,
+          "38": 111.5
+        }
+      }
+    },
+    "clip_lengths": {
+      "rifle_idle": 1,
+      "reload": 78,
+      "reload_empty": 133,
+      "jam": 109
+    }
+  },
+  "m14": {
+    "collection": "RIG_M14",
+    "rig": "ArmsRig_M14",
+    "transforms": [
+      {
+        "object": "sight_rear_M14",
+        "scale": [
+          0.99381,
+          0.99381,
+          0.99381
+        ],
+        "non_uniform": false,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          0.0
+        ],
+        "animated": false
+      },
+      {
+        "object": "sight_front_M14",
+        "scale": [
+          0.99381,
+          0.99381,
+          0.99381
+        ],
+        "non_uniform": false,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          0.0
+        ],
+        "animated": false
+      },
+      {
+        "object": "muzzle_M14",
+        "scale": [
+          0.99381,
+          0.99381,
+          0.99381
+        ],
+        "non_uniform": false,
+        "rotation_deg": [
+          0.0,
+          -0.0,
+          0.0
+        ],
+        "animated": false
+      },
+      {
+        "object": "M14_root",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "non_uniform": false,
+        "rotation_deg": [
+          0.459,
+          21.537,
+          -179.146
+        ],
+        "animated": true
+      }
+    ],
+    "contract": [
+      "marker muzzle_M14 parented to M14_gun, not M14_root",
+      "marker sight_front_M14 parented to M14_gun, not M14_root",
+      "marker sight_rear_M14 parented to M14_gun, not M14_root"
+    ],
+    "pairing": [
+      {
+        "part": "ArmsRig_M14",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_reload",
+        "action_frames": 78.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "ArmsRig_M14",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_reload_empty",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "ArmsRig_M14",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_charge_handle",
+        "action_frames": 54.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "ArmsRig_M14",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_jam",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "rifle_idle",
+        "action": "m14_oprod_home_2",
+        "action_frames": 133.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "reload",
+        "action": "m14_oprod_home_2",
+        "action_frames": 133.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_2",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_2",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_rack_2",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_charge_2",
+        "action_frames": 54.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.002",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_jam_2",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "rifle_idle",
+        "action": "m14_oprod_home_1",
+        "action_frames": 133.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "reload",
+        "action": "m14_oprod_home_1",
+        "action_frames": 133.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_1",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_1",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_rack_1",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_charge_1",
+        "action_frames": 54.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle.001",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_jam_1",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "rifle_idle",
+        "action": "m14_oprod_home_0",
+        "action_frames": 133.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "reload",
+        "action": "m14_oprod_home_0",
+        "action_frames": 133.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_0",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_home_0",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_rack_0",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_charge_0",
+        "action_frames": 54.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_chandle",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_oprod_jam_0",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "rifle_idle",
+        "action": "m14_hold_on",
+        "action_frames": 133.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "reload",
+        "action": "m14_hold_on",
+        "action_frames": 133.0,
+        "clip_frames": 78,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_hold_on",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_hold_on",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_gun_hold",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_gun_hold_charge",
+        "action_frames": 54.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_root",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_hold_on_jam",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "rifle_idle",
+        "action": "m14_mag_home",
+        "action_frames": 133.0,
+        "clip_frames": 1,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "charge_handle",
+        "action": "m14_mag_home",
+        "action_frames": 133.0,
+        "clip_frames": 54,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_mag_home",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_mag_handoff",
+        "action_frames": 78.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_mag_handoff_empty",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_mag_home",
+        "action_frames": 133.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "part": "M14_clip.034",
+        "track": "ZZ_REVIEW_ROW",
+        "action": "m14_mag_handoff_jam",
+        "action_frames": 138.0,
+        "clip_frames": 457,
+        "note": "action authored for a different length than the clip it plays under"
+      },
+      {
+        "action": "m14_idle",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_reload",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload"
+        ],
+        "clip_frames": [
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_reload_empty",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_charge_handle",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle"
+        ],
+        "clip_frames": [
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_jam",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_home_2",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_rack_2",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_charge_2",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle"
+        ],
+        "clip_frames": [
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_jam_2",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_home_1",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_rack_1",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_charge_1",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle"
+        ],
+        "clip_frames": [
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_jam_1",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_home_0",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_rack_0",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_charge_0",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle"
+        ],
+        "clip_frames": [
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_oprod_jam_0",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_hold_on",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_gun_hold",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_gun_hold_charge",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle"
+        ],
+        "clip_frames": [
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_hold_on_jam",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_mag_home",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "charge_handle",
+          "rifle_idle"
+        ],
+        "clip_frames": [
+          1,
+          54,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_mag_handoff",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload"
+        ],
+        "clip_frames": [
+          78,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_mag_handoff_empty",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "reload_empty"
+        ],
+        "clip_frames": [
+          133,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      },
+      {
+        "action": "m14_mag_handoff_jam",
+        "reused_under": [
+          "ZZ_REVIEW_ROW",
+          "jam"
+        ],
+        "clip_frames": [
+          138,
+          457
+        ],
+        "note": "ONE action reused under clips of DIFFERENT lengths"
+      }
+    ],
+    "pacing": {
+      "rifle_idle": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 1,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "reload": {
+        "hand.R": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 78,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 155.4,
+          "avg_mm_per_frame": 19.54,
+          "dead_frames": 0,
+          "dead_pct": 0.0,
+          "speed_spikes": [
+            {
+              "frame": 21,
+              "mm_per_frame": [
+                19.4,
+                85.8
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": [
+            {
+              "frame": 23,
+              "mm": 155.4
+            }
+          ]
+        }
+      },
+      "reload_empty": {
+        "hand.R": {
+          "max_mm_per_frame": 76.0,
+          "avg_mm_per_frame": 3.79,
+          "dead_frames": 102,
+          "dead_pct": 76.7,
+          "speed_spikes": [
+            {
+              "frame": 83,
+              "mm_per_frame": [
+                63.7,
+                7.1
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 199.8,
+          "avg_mm_per_frame": 13.75,
+          "dead_frames": 55,
+          "dead_pct": 41.4,
+          "speed_spikes": [
+            {
+              "frame": 14,
+              "mm_per_frame": [
+                1.3,
+                25.8
+              ]
+            },
+            {
+              "frame": 15,
+              "mm_per_frame": [
+                25.8,
+                124.9
+              ]
+            },
+            {
+              "frame": 18,
+              "mm_per_frame": [
+                116.8,
+                25.8
+              ]
+            },
+            {
+              "frame": 24,
+              "mm_per_frame": [
+                15.3,
+                46.4
+              ]
+            },
+            {
+              "frame": 44,
+              "mm_per_frame": [
+                17.7,
+                54.3
+              ]
+            }
+          ],
+          "spike_count": 5,
+          "teleports": [
+            {
+              "frame": 17,
+              "mm": 199.8
+            }
+          ]
+        }
+      },
+      "charge_handle": {
+        "hand.R": {
+          "max_mm_per_frame": 76.0,
+          "avg_mm_per_frame": 9.32,
+          "dead_frames": 23,
+          "dead_pct": 42.6,
+          "speed_spikes": [
+            {
+              "frame": 4,
+              "mm_per_frame": [
+                63.7,
+                7.1
+              ]
+            }
+          ],
+          "spike_count": 1,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 54,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "jam": {
+        "hand.R": {
+          "max_mm_per_frame": 31.8,
+          "avg_mm_per_frame": 4.7,
+          "dead_frames": 82,
+          "dead_pct": 59.4,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 0.0,
+          "avg_mm_per_frame": 0.0,
+          "dead_frames": 138,
+          "dead_pct": 100.0,
+          "speed_spikes": [],
+          "spike_count": 0,
+          "teleports": []
+        }
+      },
+      "ZZ_REVIEW_ROW": {
+        "hand.R": {
+          "max_mm_per_frame": 76.0,
+          "avg_mm_per_frame": 3.62,
+          "dead_frames": 339,
+          "dead_pct": 74.2,
+          "speed_spikes": [
+            {
+              "frame": 203,
+              "mm_per_frame": [
+                63.7,
+                7.1
+              ]
+            },
+            {
+              "frame": 263,
+              "mm_per_frame": [
+                63.7,
+                7.1
+              ]
+            }
+          ],
+          "spike_count": 2,
+          "teleports": []
+        },
+        "hand.L": {
+          "max_mm_per_frame": 199.8,
+          "avg_mm_per_frame": 7.34,
+          "dead_frames": 301,
+          "dead_pct": 65.9,
+          "speed_spikes": [
+            {
+              "frame": 57,
+              "mm_per_frame": [
+                19.4,
+                85.8
+              ]
+            },
+            {
+              "frame": 134,
+              "mm_per_frame": [
+                1.3,
+                25.8
+              ]
+            },
+            {
+              "frame": 135,
+              "mm_per_frame": [
+                25.8,
+                124.9
+              ]
+            },
+            {
+              "frame": 138,
+              "mm_per_frame": [
+                116.8,
+                25.8
+              ]
+            },
+            {
+              "frame": 144,
+              "mm_per_frame": [
+                15.3,
+                46.4
+              ]
+            },
+            {
+              "frame": 164,
+              "mm_per_frame": [
+                17.7,
+                54.3
+              ]
+            }
+          ],
+          "spike_count": 6,
+          "teleports": [
+            {
+              "frame": 59,
+              "mm": 155.4
+            },
+            {
+              "frame": 137,
+              "mm": 199.8
+            }
+          ]
+        }
+      }
+    },
+    "handles": {
+      "rifle_idle": {
+        "action": "m14_idle",
+        "keys": 520,
+        "handle_types": {
+          "AUTO_CLAMPED": 1040
+        }
+      },
+      "reload": {
+        "action": "m14_reload",
+        "keys": 41080,
+        "handle_types": {
+          "AUTO_CLAMPED": 82160
+        }
+      },
+      "reload_empty": {
+        "action": "m14_reload_empty",
+        "keys": 69680,
+        "handle_types": {
+          "AUTO_CLAMPED": 139360
+        }
+      },
+      "charge_handle": {
+        "action": "m14_charge_handle",
+        "keys": 28600,
+        "handle_types": {
+          "AUTO_CLAMPED": 57200
+        }
+      },
+      "jam": {
+        "action": "m14_jam",
+        "keys": 72280,
+        "handle_types": {
+          "AUTO_CLAMPED": 144560
+        }
+      },
+      "ZZ_REVIEW_ROW": {
+        "action": "m14_jam",
+        "keys": 72280,
+        "handle_types": {
+          "AUTO_CLAMPED": 144560
+        }
+      }
+    },
+    "penetration": {
+      "rifle_idle": {
+        "frames_over_threshold": 1,
+        "sampled_frames": 1,
+        "worst": {
+          "depth_mm": 29.7,
+          "frame": 0,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 29.7
+        }
+      },
+      "reload": {
+        "frames_over_threshold": 40,
+        "sampled_frames": 40,
+        "worst": {
+          "depth_mm": 33.8,
+          "frame": 78,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 33.8,
+          "2": 14.5,
+          "4": 23.5,
+          "6": 33.8,
+          "8": 33.8,
+          "10": 33.8,
+          "12": 33.8,
+          "14": 33.8,
+          "16": 33.8,
+          "18": 33.8,
+          "20": 33.8,
+          "22": 33.8,
+          "24": 33.8,
+          "26": 33.8,
+          "28": 33.8,
+          "30": 23.5,
+          "32": 33.8,
+          "34": 33.8,
+          "36": 33.8,
+          "38": 33.8
+        }
+      },
+      "reload_empty": {
+        "frames_over_threshold": 67,
+        "sampled_frames": 67,
+        "worst": {
+          "depth_mm": 80.5,
+          "frame": 50,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 33.8,
+          "2": 23.5,
+          "4": 33.8,
+          "6": 33.8,
+          "8": 33.8,
+          "10": 33.8,
+          "12": 33.8,
+          "14": 23.5,
+          "16": 33.8,
+          "18": 23.5,
+          "20": 33.8,
+          "22": 23.5,
+          "24": 33.8,
+          "26": 33.8,
+          "28": 33.8,
+          "30": 33.8,
+          "32": 33.8,
+          "34": 33.8,
+          "36": 33.8,
+          "38": 33.8
+        }
+      },
+      "charge_handle": {
+        "frames_over_threshold": 28,
+        "sampled_frames": 28,
+        "worst": {
+          "depth_mm": 33.8,
+          "frame": 54,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 33.8,
+          "2": 14.9,
+          "4": 11.6,
+          "6": 11.6,
+          "8": 11.6,
+          "10": 11.6,
+          "12": 11.6,
+          "14": 11.6,
+          "16": 11.6,
+          "18": 11.6,
+          "20": 11.6,
+          "22": 11.6,
+          "24": 11.6,
+          "26": 11.6,
+          "28": 13.5,
+          "30": 14.7,
+          "32": 24.6,
+          "34": 33.8,
+          "36": 33.8,
+          "38": 33.8
+        }
+      },
+      "jam": {
+        "frames_over_threshold": 70,
+        "sampled_frames": 70,
+        "worst": {
+          "depth_mm": 51.4,
+          "frame": 22,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 29.7,
+          "2": 29.7,
+          "4": 29.7,
+          "6": 29.7,
+          "8": 29.7,
+          "10": 29.7,
+          "12": 29.7,
+          "14": 29.7,
+          "16": 29.7,
+          "18": 29.7,
+          "20": 11.6,
+          "22": 51.4,
+          "24": 13.4,
+          "26": 12.6,
+          "28": 11.6,
+          "30": 11.6,
+          "32": 11.6,
+          "34": 11.6,
+          "36": 11.6,
+          "38": 11.6
+        }
+      },
+      "ZZ_REVIEW_ROW": {
+        "frames_over_threshold": 229,
+        "sampled_frames": 229,
+        "worst": {
+          "depth_mm": 80.5,
+          "frame": 170,
+          "gun_part": "M14_gun"
+        },
+        "frames": {
+          "0": 29.7,
+          "2": 29.7,
+          "4": 29.7,
+          "6": 29.7,
+          "8": 29.7,
+          "10": 29.7,
+          "12": 29.7,
+          "14": 29.7,
+          "16": 29.7,
+          "18": 29.7,
+          "20": 29.7,
+          "22": 29.7,
+          "24": 29.7,
+          "26": 29.7,
+          "28": 29.7,
+          "30": 29.7,
+          "32": 29.7,
+          "34": 29.7,
+          "36": 33.8,
+          "38": 14.5
+        }
+      }
+    },
+    "clip_lengths": {
+      "rifle_idle": 1,
+      "reload": 78,
+      "reload_empty": 133,
+      "charge_handle": 54,
+      "jam": 138,
+      "ZZ_REVIEW_ROW": 457
+    }
+  }
+}

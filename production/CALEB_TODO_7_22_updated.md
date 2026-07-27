@@ -148,7 +148,77 @@ mechanic** — the ragdoll half already exists (`model_actor.gd:674 ragdoll_bone
 the grab mechanic that would use it was never built. Roadmap item, not cleanup. **Squad-regroup
 behavior** — the `AIGoal.REGROUP` enum member was cut by ruling 7/25 (never scored, set, or matched),
 but the behavior it named ("isolated soldier rejoins his squad") remains a valid future feature if
-squad cohesion ever needs it. **Temple/shrine art gap** — the shrine-search intel feature is fully
-coded player-side but no temple site is ever generated and no shrine model joins the `temple_shrines`
-group; if the shrine-wiring agent reports an art gap (no temple/shrine model exists), that asset is
-the missing third leg.
+squad cohesion ever needs it. ~~**Temple/shrine art gap**~~ — CLOSED 2026-07-26: the generated prasat
+set ships, `stamp_temple_shrine()` places it, and the temple root joins `temple_shrines`
+(`scripts/world/site_planner.gd:809-832`).
+
+---
+
+## FOR THE NEXT AUDIT PASS — wire up the nine unplaced temple statues (noted 2026-07-26)
+
+**Verdict class: UNFINISHED, not FOSSIL (ADR-023) — do NOT delete these models.** They are built,
+exported, and collision-tabled; the shrine stamp just never grew past the stair group.
+
+`tools/gen_temples.py` ships **14 statues** and all 14 have `collision_table.gd` entries (`"mesh":
+true`). `scripts/world/site_planner.gd` is the only placer in the project, and its statue block
+(`:834-852`) names **five**: `guardian_01`, `guardian_02`, `naga`, `seated`, `lingam`.
+
+**Nine have zero placement callers repo-wide:** `altar`, `apsara_01`, `apsara_02`, `garuda`,
+`singha_01`, `singha_02`, `stele`, `stupa`, `naga_rail`.
+
+Roster proposed to Caleb, unruled — he picks before anything is built:
+- **singha** pair as an alternate stair guard, rolled against the dvarapalas so not every shrine
+  reads the same
+- **apsara** relief slabs set flat against the non-entrance wall faces (they are wall panels, not
+  free-standing figures — placement must respect that)
+- **naga_rail** flanking the approach as a balustrade run, seated off the same `fwd`/`side` basis
+  the guardians already use
+- **stele · altar · stupa · garuda** scattered in the courtyard inside the 14m site radius
+
+The `fwd`/`side`/`reach` basis at `:838-842` already does the hard part — anything added should reuse
+it rather than re-deriving the door direction. Reach is manifest-driven, so it scales with the
+temple's footprint for free.
+
+---
+
+## FP VIEWMODEL ANIMATIONS — measured defect list (2026-07-26)
+
+Full report: `production/research/viewmodel_anim_defects_2026-07-26.md`.
+Data: `production/research/viewmodel_rig_audit.json`. Re-run the probe with
+`blender -b assets/player/arms/fp_arms_rifle.blend -P tools/audit_viewmodel_rigs.py --`.
+
+### Mine, next session (headless, no animation authoring)
+1. **PPSh retime** — `data/weapons/ppsh41.tres` declares neither `empty_reload_time` nor
+   `jam_clear_time`, so `weapon_holder.gd:894` plays its AK-length clips at **0.76× / 1.30× / 3.30×**.
+   That is the literal "too fast then too slow", and it is a .tres edit, not Blender.
+   m16/ak/m14 all retime at exactly 1.00.
+2. Fold the clip-vs-timer check and the frozen-hand check into `tests/test_viewmodel_contract` so
+   they fail the build instead of waiting for a playtest.
+3. Marker parenting: manifest says `markers_under_gun: true` for all four, but AK's markers parent to
+   `AK47` and M14's to `M14_gun` (the mesh, not the root). Correct the claim or the parenting.
+
+### Caleb's, in Blender (animation quality is his hands — standing ruling 2026-07-26)
+1. **AK broken reload** — `ak_mag_handoff` is a 132f action mounted under BOTH the 78f `reload` and
+   the 133f `reload_empty`. Authored for the long hand path, so the mag rides a hand that isn't there
+   during the short reload.
+2. **Frozen hands** — `hand.R` measures 0.00 mm/frame for the ENTIRE clip in M16 reload,
+   reload_empty and jam, and in AK reload and M14 reload; `hand.L` is dead through M14 jam and
+   charge_handle. Biggest single cause of "robotic".
+3. **M16 modeling / sights / ADS markers.** One measured lead: `M16A1_gun` is the only gun root with
+   a non-identity object rotation — (2.642°, −0.021°, 89.893°).
+4. **M16 leftovers from 2026-07-26**: 4 single-face floaters (3 facing down), 2 open sheets in the
+   join, and the old hand height still present in the reload/reload_empty/jam gripping segments
+   (only `m16_fp_idle` was shifted).
+5. **PPSh**: prototype clips to re-author; the bolt was never split off the gun so it is static in
+   every clip; hand-in-gun penetration is worst on this gun by a wide margin (140mm vs the M16's 23).
+
+### Two things NOT to do
+- **Do not blame the export.** We ship glTF, not FBX. `bake_anim_simplify_factor` / `bake_anim_step` /
+  `add_leaf_bones` are FBX-only. `export_viewmodel_clips.py:324-332` already forces sampling, disables
+  animation-size optimisation and bakes every part frame-by-frame. Nothing simplifies a curve.
+- **Never run "apply all transforms + set origins to the 3D cursor"** on `fp_arms_rifle.blend`. It
+  destroys the PPSh's 27 authored non-uniform-proportion children, `M16A1_ch_rail`'s slider origin,
+  and the parent-inverses on guns already blessed.
+
+**Still unproven for every gun:** the clips have only ever been watched on the bench. Nobody has
+confirmed they play correctly in-game through `weapon_holder`'s reload path.
