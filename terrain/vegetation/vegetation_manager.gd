@@ -31,11 +31,10 @@ const BUNDLE_SIZE := 2
 const JunglePatchLayerScript := preload("res://terrain/vegetation/jungle_patch_layer.gd")
 var _patch_layer: JunglePatchLayer = null
 
-## ADR-028 veg-LOD merge: which canopy renderer builds the near/far cover. JUNGLE_PATCH is
-## the shipped merged-patch render; TREE_COVER is the individual-species near-solid+collider
-## / far-card LOD. The default stays JUNGLE_PATCH - flipping it to TREE_COVER is the
-## look-check-gated switchover (Caleb's eyes + the broadleaf .blend fix). The two never run
-## together (double canopy). Wired live-capable and driven by probe_tree_cover_wired.
+## Which canopy renderer builds the near/far cover. The two never run together (double canopy).
+## This @export default is NOT what ships: game_world.gd:100-101 overrides it from
+## WorldConfig.USE_TREE_COVER, which is true, so the generated AO runs TREE_COVER and
+## JunglePatchLayer is never built. Read world_config.gd:21 for the live value, never this default.
 enum CanopySource { JUNGLE_PATCH, TREE_COVER }
 @export var canopy_source: CanopySource = CanopySource.JUNGLE_PATCH
 const TreeCoverLayerScript := preload("res://terrain/vegetation/tree_cover_layer.gd")

@@ -119,8 +119,19 @@ by `WaterSystem.CombinedWater`).
 
 Cheap GPU fixes applied and measured on the bench (probe, consistent fixed wide-jungle view):
 **baseline 14.0 fps → 23.1 fps (frame 71ms → 43ms), +65%.** The frame is now CPU-bound at the ~41ms
-wall — proving Part B (activity-tiered AI + fake lights) is the next wave. Light cost quantified: real
-OmniLights (+their CPUParticles) are worth ~+8.6 fps on this bench — the #1 PS2-budget win, beaded.
+wall — proving Part B (activity-tiered AI + fake lights) is the next wave. ~~Light cost quantified: real
+OmniLights (+their CPUParticles) are worth ~+8.6 fps on this bench — the #1 PS2-budget win, beaded.~~
+
+> **REFUTED 2026-07-20, struck 2026-07-26 (NO DRIFT law).** The "+8.6 fps #1 win" does not exist at
+> ship parity. It came from `ai_stress_arena` — a night firefight with flares, fires and 18v18 —
+> measured with the **same sun-shadow bench artifact that was retracted twice**
+> (`PERF_LEDGER.md:393, :626, :653`). Re-measured honestly: campfires bank **0.0 FPS at seed 47225**
+> (the shipped default, which rolls DAY — there are no campfires at all) and are **unmeasurable even
+> at seed 12 night with all four lit** (`PERF_LEDGER.md:846-861, :611, :855`). Muzzle flashes are
+> 45–60ms transients (`FLASH_SECONDS = 0.06`), never resident long enough to move a sustained average.
+> **ADR-026 Part A #1 is a CANON win, not a perf win** — what it actually buys is that the ≤8-lights /
+> 0-dynamic-shadows cap is now structurally true rather than aspirational, guarded by
+> `tests/test_fake_lights.gd`. Do not schedule work against the 8.6.
 
 ## Alternatives considered
 
@@ -161,9 +172,13 @@ claw the frame budget back **within Forward+**, never by changing renderer.
 The jungle is instanced as merged 12m patch meshes via `JunglePatchLayer` (near full-detail + a
 structure-only `_far` twin). Levers, ordered by expected win, all inside Forward+:
 
-1. **Foliage `view_distance` 128m → 80m — LANDED 2026-07-17** (`jungle_patch_layer.gd:73`). The A.2
+1. ~~**Foliage `view_distance` 128m → 80m — LANDED 2026-07-17** (`jungle_patch_layer.gd:73`). The A.2
    target; look-verified identical to 128 in night/fog (far foliage invisible anyway) and cuts ~22% of
-   primitives. Shipped as low-risk hygiene. FOLIAGE distance only — independent of the unit draw-distance
+   primitives. Shipped as low-risk hygiene.~~ **STALE 2026-07-26 (NO DRIFT law): this describes
+   `JunglePatchLayer`, which DOES NOT SHIP.** `world_config.gd:21` sets `USE_TREE_COVER = true`, so
+   `vegetation_manager.gd:115-124` never builds it. The live foliage ring is `TreeCoverLayer`'s
+   **350m** card `view_distance` (`tree_cover_layer.gd:46`), with a 65m near-solid handoff. Any lever
+   aimed at "80m foliage" is aimed at dead code. FOLIAGE distance only — independent of the unit draw-distance
    floor (units render to the 140m sight cap); fade (80m) stays under the fog wall (~90m).
 2. **`fill_chance` 0.78 → 0.6 — REJECTED 2026-07-17.** Fails the Pillar-2 gate: at 0.6 the canopy
    visibly thins (open ground and long sightlines appear where dense bamboo walls stood). No trustworthy

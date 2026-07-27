@@ -18,9 +18,13 @@ was measured at (the standing sin — bead `365s` — was quoting scaled numbers
 ## Measurement contract
 - **Always record `rendering/scaling_3d/scale`.** `0.77` = 59.3% of native pixels; a number at 0.77 is
   NOT a native number.
-- **Always record the renderer** (`rendering/rendering_method`). As of 2026-07-20 it is explicitly
-  `forward_plus` in `project.godot:300` (ADR-026 Amendment A). Note Godot STRIPS this key on editor
-  save when it equals the desktop default — if it goes missing again, restore it before measuring.
+- **Always record the renderer** (`rendering/rendering_method`). ADR-026 Amendment A ratifies
+  `forward_plus`. **CORRECTED 2026-07-26: the `project.godot:300` pointer is DEAD — the key is not in
+  the file at all.** The `[rendering]` block (`project.godot:302-310`) contains only
+  `renderer/rendering_method.mobile="gl_compatibility"` (`:305`); the desktop key has been stripped by
+  an editor save, exactly as the failure mode predicted. Forward+ therefore holds **only by being the
+  desktop default**. **Verify the renderer AT RUNTIME** (the harness already prints it —
+  `tests/windowed_patrol_perf.gd:48`), never by grepping `project.godot`.
 - **Always record the seed.** Terrain relief, site layout and therefore frame cost change with it.
   The shipped default is **47225** (`game_flow.gd:190`); older entries at 2077 do not describe it.
 - Harness (as of 2026-07-20): launch the game normally with `-- --perf-probe [--perf-cycle]`.
@@ -886,8 +890,9 @@ final polish well do in a few weeks"*). **No perf change was shipped and nothing
 probes below were run, recorded here, and deleted. This entry exists so the diagnosis survives to the
 polish pass. It supersedes nothing; the rows above stand.
 
-Config: seed **47225**, **scale 0.75** (shipped, `project.godot:304` — NOT native), renderer
-**forward_plus** (`project.godot:299`), 1280x720 windowed, Intel UHD, Godot 4.7.stable, single
+Config: seed **47225**, **scale 0.75** (shipped, now `project.godot:308` — NOT native), renderer
+**forward_plus** (runtime-verified; the `project.godot:299` pointer is dead — see the measurement
+contract correction of 2026-07-26), 1280x720 windowed, Intel UHD, Godot 4.7.stable, single
 instance verified. The canopy figure is a measured ON/OFF delta (`TreeCoverLayer.visible`), not an
 estimate.
 
@@ -904,11 +909,16 @@ estimate.
 by per-instance materials, and there is no per-plant `MeshInstance3D` anywhere. The call count is
 simply the **node count**: one `MultiMeshInstance3D` per group, one draw call each.
 
-- Species meshes carry **1 surface** each (4 palms carry 2) — `tree_cover_layer.gd:199` `_extract_mesh`
+- Species meshes carry **1 surface** each (4 palms carry 2) — `tree_cover_layer.gd:323` `_extract_mesh`
   takes the first mesh only. Surfaces are **not** the multiplier.
-- `tree_cover_layer.gd:94` keys every group as **`[species, bucket_x, bucket_z]`** with
-  `BUCKET = 64.0` (`:47`), and `:115`/`:118` emit **two** nodes per group — a near solid
+- `tree_cover_layer.gd:110` keys every group as **`[species, bucket_x, bucket_z]`** with
+  `BUCKET = 64.0` (`:52`), and `:132`/`:135` emit **two** nodes per group — a near solid
   (`0..near_distance`) and a far card (`near_distance..view_distance`).
+
+> **Pointer correction, 2026-07-26 (NO DRIFT law).** The four pointers in this section were written
+> against the 2026-07-20 file and had all shifted: `:199 → :323`, `:94 → :110`, `:47 → :52`,
+> `:115/:118 → :132/:135`. The *mechanism* described is unchanged and re-verified against the live
+> file; only the line numbers were stale. Corrected in place.
 - Live census: **14,080 MMI nodes** exist (7,040 near / 7,040 far). Of those, **1 near** and
   **~1,670 far** fall inside their own `visibility_range` from the camera; ~957–1,017 survive frustum
   culling and draw.
@@ -919,7 +929,7 @@ culled and costs ~0 draw calls — it is not a target. Only two factors are avai
 
 1. **Fewer buckets in range.** Calls fall monotonically as `BUCKET` grows (species-per-bucket saturates
    at the 27-species pool), so `BUCKET = 128` is roughly a 2.5× cut. **But this is a LOOK change and
-   the comment at `tree_cover_layer.gd:43-46` already names why:** `visibility_range` is evaluated
+   the comment at `tree_cover_layer.gd:48-51` already names why:** `visibility_range` is evaluated
    per-node against the transformed AABB, so a coarser bucket quantises the 65m near/far handoff by
    ±90m instead of ±45m. That either double-renders cards inside the solid ring or opens a gap in the
    jungle — the ±181m version of this same defect *was* the historical invisible-jungle bug.
@@ -941,3 +951,160 @@ batching tweak — which is why it was not attempted under a no-new-systems brie
 **Bottom line for the polish pass: the canopy is call-bound on far-card node count; the cheap lever
 (`BUCKET`) is a look change and RULE #1 outranks it; the honest lever is a card atlas and it is real
 work, not a one-liner.**
+
+---
+
+## 2026-07-26 — WAR ROOM: whole-game FPS deep dive (NO NEW FPS ROW — nothing was measured)
+
+Summoner reopened the polish pass stood down at `:884`. Six architects in parallel, code not plans.
+Full record: `production/war_room/2026-07-26_fps_deep_dive/` (briefing + 6 analyses + synthesis).
+
+> **NO FPS FIGURE WAS PRODUCED BY THIS SESSION.** Agents cannot measure windowed. Every number below
+> is a STATIC asset/code count or is quoted from a row above. The rows above stand unchanged; this
+> entry adds attribution, corrections and a measurement batch — nothing else.
+
+### The two findings that reframe the whole ledger
+
+1. **`tests/perf_probe.gd` reports NO MILLISECONDS.** It reads three counters (`:110`, `:112`, `:114`)
+   and never calls `viewport_set_measure_render_time`. **The CPU-vs-GPU split has never been measured
+   at `fsb_main`, ever.** The 44.35ms / 51.94ms pair at `:200-201` is the *night stress arena at native
+   scale* — different scene, population and pixel count. **It does not transfer to the hub.**
+2. **Every FPS row in this file is a stationary camera inside a cleared firebase.** The census at
+   `:912-914` shows **1 near-solid canopy node in range**; `tree_cover_layer.gd:38-40` records **919
+   solid candidates** out in the jungle. **No jungle sightline has ever been measured, and RULE #1 is
+   about walking.**
+
+**Consequence: fix the ruler before pulling any lever.** Detectability floor is **~3 FPS ~ 2.4ms** at
+the 34 FPS baseline (A/B/A floors 1.1 / 1.4 / 2.8, and you cannot know which you drew). Any lever
+expected below that is unfalsifiable and must not ship on faith.
+
+### Static census (glTF JSON + code; NOT a frame measurement)
+
+| Subsystem | Static count |
+|---|---|
+| `fsb_main.glb` (placed once, `site_planner.gd:644`, at the exact 34-FPS pose) | **681 nodes · 202 meshes · 204 surfaces · 94 materials · 9 textures**; 94 → **48 distinct signatures, 46 exact duplicates** |
+| Canopy far-cards | **27 species live, not 40** (`vegetation_manager.gd:48-55`); 13 cards on disk never scattered |
+| Village / Temple | 26 files · 251 surf · 159 mats (**17 distinct**) / 29 files · 272 surf · 205 mats (**30 distinct**) — palettes duplicated per-GLB |
+| US grunt | **COUNT DISPUTED:** 36 nodes/44 calls vs 51-61 MeshInstance3D/71-81 surfaces. **~25 resident** at spawn. Resolve in census phase F3 |
+| VC / civilians / water | 3 nodes/13 calls · 1-3 · already one mesh+material (not a target) |
+
+The unattributed **~355-464 non-canopy calls** (`:896-898`) now have two credible owners nobody had
+checked: **~25 character bodies** and **`fsb_main.glb`'s 204 surfaces**.
+
+### THE FIREBASE 9-to-5 CLAIM IS FALSE — not merely unmeasured
+
+Four architects killed it independently. **The 23 nine-slot assets do not exist as Godot assets** — the
+folder holds `fsb_main.glb` + 4 kit GLBs of **1, 1, 1, 5 surfaces (mean 2.0)**. Unused Blender slots do
+not export. The 7 `fb_*` textures are referenced by **nothing**, and none of the 4 kit GLBs loads at
+runtime (the source doc concedes this at its own `:268`). Even granting the premise it bounds to
+**~0.35-0.7 FPS** — the entire non-canopy frame is 411-464 calls. **`firebase_kit_phase1_read.md:261-263`
+is struck.** Material de-duplication is **hygiene, not FPS** (`:98-100`: 77 calls → ~0 FPS).
+
+### THE ATLAS, RE-COSTED AND GATED
+
+Blocker was **mis-scoped**: no atlas packer is needed — **`Texture2DArray` + MultiMesh
+`INSTANCE_CUSTOM.x` = layer**. Aspect is readable from `_extract_mesh`'s AABB
+(`tree_cover_layer.gd:323`); the shader (`terrain/shaders/vegetation_sway.gdshader`) already has
+`ALPHA_SCISSOR_THRESHOLD` and `IN_SHADOW_PASS`. **~2.5 days, ~5.3x not 10x** (~188 calls — two unit
+meshes required: trees export crossed 8v/12i, grass/vine single 4v/6i).
+**Engine truth: a shared material collapses NOTHING** — Godot never batches 3D draws across
+`GeometryInstance3D`; the win is merging the *instance arrays*.
+**GATED:** the measured **+8.0 is the WHOLE canopy — calls + card fill + 12% of prims. The atlas
+recovers only the call fraction, which has never been measured.** If calls are 25% of it, that is
+~1.8 FPS — **below the floor, unprovable.** Batch item 4 (`BUCKET` 64→128, one line) moves calls
+**without moving fill** and reads the split directly. **Below floor → atlas dead. Above +4 → build it.**
+
+### NEW LOOK-FREE DEFECTS FOUND (not tradeoffs — bugs)
+
+- **Canteen regex bug, `model_actor.gd:407`:** the pattern anchors on a dot-digit suffix, matching the
+  retired `us_grunt_v3` naming; all six shipping grunts use `canteen_l_002`…`_006` (**underscores**).
+  **Every grunt renders 5 stacked canteens.** ~-4 calls/body x ~25 bodies. **MEASURED statically.**
+- **The WA-A2 hitzone gate LEAKS:** `sync()` runs on two paths and `hitzone_builder.gd:164-166`
+  connects an **ungated** closure to `skeleton_updated`; the gate covers only the physics-tick call
+  (`enemy_base.gd:463`).
+- **`hitzone_builder.gd:225`** writes `hz.global_transform` → **11 `affine_inverse()` per man** where 1
+  would do.
+- **`hitzone.gd:38` sets `monitoring = true`** but nothing consumes hitzone overlaps — all damage is
+  raycast. (Keep `monitorable`; `projectile_base.gd:279` depends on it.)
+- **`create_shadow_meshes=true` on 362/362 imports** while shadows are off (`game_world.gd:52`).
+- **413/838 textures import LOSSLESS** — 19 copies of one 3600x5700 map, **18 byte-identical**, 78.3 MB
+  RGBA8 each; cards alone 121.5 MB. **VRAM compression is also the atlas de-risking test:** it changes
+  zero calls and zero prims. FPS moves → bandwidth-bound, atlas over-sold. FPS flat → call-bound proven.
+
+### THE OVERDRAW FINDING (two architects, two routes, same conclusion)
+
+**All 40 canopy cards are `alphaMode:"BLEND"`, `doubleSided:true`, zero MASK** — verified by reading the
+glTF JSON of every card GLB. ~1,000 cards with **no depth write, no early-Z, plus CPU sorting**. This
+**violates ADR-026:30** ("alpha-scissor jungle") **and :63** (back-face cull). In-repo precedent already
+does it right: `ground_clutter.gd:103-105`. **~15 lines.** Same defect in `fsb_main.glb`: **20
+alpha-BLEND materials, 19 identical `Sandbags*` on a 64x64 texture**, in the transparent pass, filling
+the screen at the exact measured pose. **`doubleSided:true` is on 100% of all assets** — backface
+culling off on closed bunkers, crates and soldiers.
+**This attacks OVERDRAW, which the atlas cannot touch.** Requires a look-check: hard cutout edges.
+
+### CPU HALF — corrected
+
+**ADR-025 tiering is neither live nor fossil: it is correctly DELETED** (SUPERSEDED at its own line 3;
+`scripts/autoload/world_sim.gd` is now **34 lines**, a flat id-to-dict registry). **Budget nothing
+against it.** The live population lever is `LazyGroup` (`lazy_group.gd:49-69`, 120m proximity spawn then
+`set_physics_process(false)`) plus the civilian 3-tier LOD (`civilian.gd:83, :207`) — which is why hub
+start is ~13 live, not 200. **There is no animation LOD anywhere in the project** (largest unmeasured
+CPU item). **`physics_interpolation=true` is already ON and unexploited** (`project.godot:300`), making
+`physics_ticks_per_second` 60→30 a one-line candidate — **a Summoner feel call, gated on
+`ballistics.gd:37`, which derives `dt` from the tick rate.**
+**Also NO-DRIFT:** the `ai/anim` bucket contains **zero animation time** — it is behaviour execute
+(`enemy_base.gd:521`); and `ai_usec_hitzone` is physics-side only (`ai_stress_arena.gd:346`), so the
+render-frame sync is counted **nowhere** — **true hitzone cost is HIGHER than 10.43ms.**
+
+### WHY THE OLD HARNESS LIED, and the rule that prevents a repeat
+
+The instrument **wrote the property it measured in every phase**
+(`sun.shadow_enabled = phase_name != "no_sun_shadow"`). **A/B/A measures precision, not accuracy — a
+uniformly-wrong baseline is uniformly wrong.** The tell was on screen for three runs: **the primitive
+column contradicted the FPS column and nobody read them together.**
+
+> **BINDING ON EVERY FUTURE BENCH: no FPS delta is accepted unless the draw-call/primitive delta has the
+> right SIGN and a plausible MAGNITUDE.** Capture-and-restore ship state (never a phase-name
+> expression); `hidden=N` census with a zero-warning; `.visible` toggles only, **never `queue_free`**.
+
+### Pointer corrections applied to this file today (NO DRIFT law)
+
+`:21-23` renderer pointer (**key absent from `project.godot` entirely** — only the `.mobile` override
+survives at `:305`; Forward+ holds only by being the desktop default — **verify at runtime**) ·
+`:909-911` (stale `:94/:47/:115/:118/:199` → **`:110/:52/:132/:135/:323`**) · `:922` (`:43-46` →
+**`:48-51`**) · `:889` (scale `:304` → **`:308`**). Outstanding elsewhere: **`ADR-026:121-123` still
+calls the refuted +8.6 FPS light win "#1"** (refuted at `:611, :855`) and **`ADR-026:164`'s "80m
+foliage"** describes `jungle_patch_layer`, which does not ship (`world_config.gd:21`); the live card
+ring is **350m**.
+
+### LANDMINE
+
+**13 card GLBs sit on disk that are never scattered** (40 on disk, 27 live). **Wiring them in raises
+canopy draw calls ~48%** — more than `BUCKET=128` would ever save. **The card bake tool is still absent**
+(verified across 97 tools; commit `ad25457f` touched zero files in `tools/`) — the 40 cards are
+currently **unreproducible in-tree**.
+
+### THE MEASUREMENT BATCH (~18 min machine, ~35 min wall clock; A/B/A, console exe, `--test-save`)
+
+Items 1, 2, 6 need the census patch first; **3, 4, 5 run today with zero code.**
+
+1. **CENSUS** — `-- --perf-probe --perf-cycle --test-save` x2; phases
+   `baseline → no_canopy_far → b2 → no_structures → b3 → no_characters → b4 → no_water → b5`. 4.6 min
+2. **FILL-BOUND?** scale ladder `0.75/0.60/0.75/0.85/0.75` in one boot. 1.8 min
+3. **`-- --card-dist=250`** — A/B/A across **3 boots** (`view_distance` is baked at construction,
+   `tree_cover_layer.gd:135`). 3.6 min
+4. **ATLAS GATE** — `BUCKET` 64→128, one line (`tree_cover_layer.gd:52`). **Instrument only, never
+   shipped.** 1.2 min + eyes
+5. **THE WALK** — out the wire into jungle; `[PERF] FPS=` already prints every 2s
+   (`game_world.gd:481`). **Zero code.** 4 min
+6. **`-- --spawn-at-village`** — second pose. 2.2 min
+
+**Cut line if short: 1, 2, 5.** Free flags found: `--card-dist=N` (`tree_cover_layer.gd:77-80`),
+`--perf-seed=N` (`game_flow.gd:202`), `--spawn-at-village` (`:288`),
+`--perf-probe/--perf-cycle/--shadow-study` (`:352-358`), `--test-save` (`campaign_state.gd:130`);
+arena-only `--fill_chance=/--view_distance=` (`ai_stress_arena.gd:471`) and the eight
+`ps2_perf_probe.gd:147-187` flags.
+
+**Prerequisite before ANY bench: restore `renderer/rendering_method="forward_plus"` to `project.godot`.**
+`perf_probe.gd:208` now prints a fallback string instead of a read value — **every row measured without
+it violates the measurement contract.**
