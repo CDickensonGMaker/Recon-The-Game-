@@ -50,7 +50,7 @@ func _run() -> void:
 		_fail("cannot build reference actor '%s' - probe is blind" % SWAP_UNIT)
 		_finish()
 		return
-	HitzoneBuilder.build(b, ma, 32, 16, ["ally_hurtbox", "hitzone"], false)
+	HitzoneBuilder.build(b, ma, 32, 16, ["hitzone"], false)
 	await get_tree().process_frame
 	var prints_b: Dictionary = _hull_prints(b)
 

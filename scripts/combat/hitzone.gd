@@ -34,24 +34,13 @@ var fatal_override: int = -1
 ## Owner reference
 var owner_entity: Node = null
 
+## Layer and mask belong to whoever BUILDS the zone, never to the zone itself:
+## a deferred rewrite here would land after the builder's and silently win, which
+## is how enemy_base's mask argument became dead input.
 func _ready() -> void:
 	monitoring = true
 	monitorable = true
 	add_to_group("hitzone")
-
-	# Add to appropriate group based on owner
-	call_deferred("_setup_groups")
-
-
-func _setup_groups() -> void:
-	if owner_entity:
-		if owner_entity.is_in_group("player"):
-			collision_layer = 32  # Layer 6: player_hurtbox
-			collision_mask = 16   # Layer 5: enemy_hitbox
-		elif owner_entity.is_in_group("enemies"):
-			add_to_group("enemy_hurtbox")
-			collision_layer = 64  # Layer 7: enemy_hurtbox
-			collision_mask = 8    # Layer 4: player_hitbox
 
 
 ## Get damage multiplier for this zone

@@ -433,7 +433,7 @@ func _update_sprite() -> void:
 ## zone - ally damage has no gut handling, so BODY spans hips to neck instead.
 func _setup_hurtbox() -> void:
 	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
-	_hitzone_sync = HitzoneBuilder.build(self, ma, 32, 16, ["ally_hurtbox", "hitzone"], false)
+	_hitzone_sync = HitzoneBuilder.build(self, ma, 32, 16, ["hitzone"], false)
 
 
 func _physics_process(delta: float) -> void:

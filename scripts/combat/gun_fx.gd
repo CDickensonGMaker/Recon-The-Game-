@@ -120,7 +120,9 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		return
 	# Prune freed explosions so a teardown that frees one early can't leak the
 	# count and silence ALL future explosions (the cap-leak bug).
-	_explosion_nodes = _explosion_nodes.filter(func(n: Node) -> bool: return is_instance_valid(n))
+	# Param stays untyped: a freed object cannot convert to Node, so typing it
+	# throws on exactly the entries this filter exists to drop.
+	_explosion_nodes = _explosion_nodes.filter(func(n: Variant) -> bool: return is_instance_valid(n))
 	if _explosion_nodes.size() >= MAX_EXPLOSIONS:
 		return
 	var root := Node3D.new()

@@ -3,6 +3,25 @@
 Everything code-side is built or tracked here; this is the hands-on Blender/eyes work only you can do,
 roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset detail).
 
+## 0. ONE RULING WAITING ON YOU (added 2026-07-27, overnight coupling audit)
+
+**Do headshots kill your squad and you, or only the enemy?**
+
+Right now a headshot is instantly fatal to an **enemy** only. Allies and the player take the ×4.0 head
+multiplier but no instant-kill, so it depends on range: an ally (80 HP) dies to a point-blank M16
+headshot (108 dmg) but **survives one at distance** (70 dmg). An enemy never survives either.
+
+The rule ADR-016 wrote down ("HEAD = fatal") even has a function whose job is to say so —
+`Hitzone.is_fatal_zone()` — and **no damage code calls it**; the enemy just re-types the rule by hand.
+Pick one:
+1. **Everyone dies to headshots** — matches ADR-016 as written and your "both factions use the same
+   systems" ruling. Hardest and most consistent.
+2. **Enemies only, made official** — amend ADR-016 to say so and fix the comment in `bullet_system.gd`
+   that currently claims it applies to everyone. No gameplay change.
+3. **Route all three through `is_fatal_zone()`** so there is ONE implementation, then pick 1 or 2.
+
+Full detail + numbers: `production/ARCHITECTURE_COUPLING_READ_2026-07-26.md` §2.5.
+
 ## 1. CHARACTERS (the big one)
 - [x Done but need NVA models and more US variety] **Finish the better-body remake for ALL units** — the slimmer base, then rebuild:
       us_grunt, us_grunt_black, us_medic, vc1_farmer, vc2_mainforce, vc3_sapper, vc5_nva, vc6_heavy

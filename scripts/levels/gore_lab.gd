@@ -574,8 +574,10 @@ func _process(_delta: float) -> void:
 		_wave_pending = true
 		var t: SceneTreeTimer = get_tree().create_timer(WAVE_RESPAWN_S)
 		t.timeout.connect(func() -> void:
-			_enemies = _enemies.filter(func(e: Node) -> bool: return is_instance_valid(e))
-			_allies = _allies.filter(func(a: Node) -> bool: return is_instance_valid(a))
+			# Untyped param: a freed object cannot convert to Node, and freed
+			# entries are precisely what these filters must drop.
+			_enemies = _enemies.filter(func(e: Variant) -> bool: return is_instance_valid(e))
+			_allies = _allies.filter(func(a: Variant) -> bool: return is_instance_valid(a))
 			_spawn_allies()  # replace the fallen between waves
 			if is_instance_valid(player):
 				var em: EquipmentManager = player.get_node("EquipmentManager")

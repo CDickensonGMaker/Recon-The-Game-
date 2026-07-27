@@ -114,6 +114,36 @@ func _tier1_source_contract() -> void:
 	_check(not pl.contains("_create_hitzone("),
 		"player.gd hand-places hitzones again. HitzoneBuilder is the single zone authority (ADR-023).")
 
+	_zone_layers_have_one_owner()
+
+
+## The builder writes layer/mask at build time; a deferred write inside Hitzone
+## itself lands later and silently wins. That is not hypothetical - it made
+## enemy_base's mask argument dead input while reading as the value of record
+## (measured 2026-07-26, mask 16 at the call site, 8 in effect).
+func _zone_layers_have_one_owner() -> void:
+	var hz_src: String = FileAccess.get_file_as_string("res://scripts/combat/hitzone.gd")
+	for field in ["collision_layer", "collision_mask"]:
+		var writes := false
+		for line in hz_src.split("\n"):
+			var code: String = line.get_slice("#", 0)
+			if code.contains(field) and code.contains("="):
+				writes = true
+				break
+		_check(not writes,
+			"hitzone.gd assigns %s. The BUILDER owns layer/mask; a write here overrides its caller and turns every build-site argument into a lie." % field)
+
+	# A hurtbox must watch the OTHER side's hitbox layer: 8 = player_hitbox,
+	# 16 = enemy_hitbox. Getting this backwards is silent - rounds simply miss.
+	for spec in [
+		{"path": "res://scripts/enemies/enemy_base.gd", "call": "HitzoneBuilder.build(self, ma, 64, 8,"},
+		{"path": "res://scripts/levels/gore_dummy.gd", "call": "HitzoneBuilder.build(self, model, 64, 8,"},
+		{"path": "res://scripts/allies/ally_base.gd", "call": "HitzoneBuilder.build(self, ma, 32, 16,"},
+	]:
+		var src: String = FileAccess.get_file_as_string(str(spec["path"]))
+		_check(src.contains(str(spec["call"])),
+			"%s no longer builds zones as `%s`. Layer/mask is authored at the call site now - changing it changes what can hit this actor." % [spec["path"], spec["call"]])
+
 
 func _scan_dir(dir_path: String, out: Array[String]) -> void:
 	var d := DirAccess.open(dir_path)
@@ -168,13 +198,21 @@ func _take_damage_arity(src: String) -> int:
 	return flat.split(",").size()
 
 
+## Reads the LAYER argument out of any builder call, whatever the mask is. It
+## used to pin the mask at 16 as part of the layer pattern, so correcting a mask
+## at a call site reported the actor as bullet-transparent.
 func _declares_masked_layer(src: String) -> bool:
-	for layer in FIRE_MASK_LAYERS:
-		if src.contains("_build_static(self, %d," % layer) \
-				or src.contains("build(self, ma, %d," % layer) \
-				or src.contains("_build_static(civ, CIVILIAN_HURTBOX_LAYER,") \
-				or src.contains(", %d, 16," % layer):
-			return true
+	if src.contains("_build_static(civ, CIVILIAN_HURTBOX_LAYER,"):
+		return true
+	var forms: Array[String] = [
+		"_build_static\\(\\s*\\w+\\s*,\\s*(\\d+)\\s*,",
+		"[^_\\w]build\\(\\s*\\w+\\s*,\\s*\\w+\\s*,\\s*(\\d+)\\s*,",
+	]
+	for pattern in forms:
+		var rx := RegEx.create_from_string(pattern)
+		for m in rx.search_all(src):
+			if int(m.get_string(1)) in FIRE_MASK_LAYERS:
+				return true
 	return _assigns_masked_layer(src)
 
 
@@ -255,10 +293,12 @@ func _tier2_live_civilian() -> void:
 			head_found = true
 	_check(head_found, "civilian has no HEAD zone.")
 
-	# Hitzone._setup_groups() only branches on the `player` and `enemies` groups.
-	# A civilian falls through it, so the layer build() was given must survive.
-	_check(not zones.is_empty() and not zones[0].is_in_group("enemy_hurtbox"),
-		"civilian hitzone landed in enemy_hurtbox - it would be treated as a combatant.")
+	# Combatant vs civilian is decided by LAYER, not by a group label: 64 is the
+	# enemy hurtbox layer and the AI fire masks are built from it. This used to
+	# assert the absence of an `enemy_hurtbox` group, which no longer exists and
+	# which nothing ever read - the assertion passed vacuously either way.
+	_check(not zones.is_empty() and zones[0].collision_layer != 64,
+		"civilian hitzone landed on layer 64 - it would be treated as a combatant.")
 
 	# The gib contract is by-name node inspection at call time; there is no
 	# registration, so the donor MESH NAMES are the contract.

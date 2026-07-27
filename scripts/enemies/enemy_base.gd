@@ -227,6 +227,11 @@ var mesh: MeshInstance3D
 var sprite_actor: Node3D = null
 var _visual_is_model: bool = false
 var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
+## Cached navmesh clamp: map_get_closest_point is a full polygon search, so it is
+## re-run only when the raw target moves, never once per physics tick.
+var _nav_clamp_src: Vector3 = Vector3.ZERO
+var _nav_clamp_out: Vector3 = Vector3.ZERO
+var _nav_clamp_valid: bool = false
 var squad_id: int = -1     ## EnemySquad coordination group; -1 = lone wolf
 
 ## Detection beacon: the last time ANY enemy entered COMBAT (polled by FieldDirector).
@@ -439,7 +444,8 @@ func _update_sprite() -> void:
 ## HitzoneBuilder is the single authority for zones - do not hand-place them here.
 func _setup_hurtbox() -> void:
 	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
-	_hitzone_sync = HitzoneBuilder.build(self, ma, 64, 16, ["enemy_hurtbox", "hitzone"], true)
+	# layer 64 = enemy_hurtbox, mask 8 = player_hitbox.
+	_hitzone_sync = HitzoneBuilder.build(self, ma, 64, 8, ["hitzone"], true)
 
 
 ## ============================================
@@ -1701,9 +1707,12 @@ func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 			# Clamp the target to the navmesh. Off-mesh points (LP behind a wall,
 			# cover point on a berm, agent on a navmesh-eroded vertex) reach
 			# is_navigation_finished() while still meters from the original target.
-			var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
-			if pos.distance_to(clamped) < 4.0:
-				pos = clamped
+			if not _nav_clamp_valid or pos.distance_squared_to(_nav_clamp_src) > 1.0:
+				_nav_clamp_src = pos
+				var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
+				_nav_clamp_out = clamped if pos.distance_to(clamped) < 4.0 else pos
+				_nav_clamp_valid = true
+			pos = _nav_clamp_out
 	if nav_agent != null and use_nav:
 		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
 			nav_agent.target_position = pos   # each restake is a map_get_path()

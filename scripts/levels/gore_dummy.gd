@@ -110,7 +110,7 @@ func _report_gear_rigging() -> void:
 ## data/hitzones tuning. Zone labels carry the specific region ("ARM_L_UP") so
 ## the gib bench knows which limb.
 func _build_hitzones() -> void:
-	_zone_sync = HitzoneBuilder.build(self, model, 64, 16, ["enemy_hurtbox", "hitzone"], true)
+	_zone_sync = HitzoneBuilder.build(self, model, 64, 8, ["hitzone"], true)
 	for c in get_children():
 		if c is Hitzone:
 			(c as Hitzone).zone_label_override = str((c as Hitzone).get_meta("region", ""))

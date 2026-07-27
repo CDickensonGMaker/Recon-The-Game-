@@ -2,7 +2,10 @@
 ## Static scan: (1) world-placement entry points may only be called from the
 ## manifest files - a second placement path fails the build; (2) placement
 ## files may not draw from the GLOBAL rng (bare randf/randi = unseeded world).
-## The arena's hand-wired build is the ONE recorded exception until qjf0 lands.
+## The arena's hand-wired build is the ONE recorded exception, PERMANENTLY:
+## Summoner's ruling 2026-07-26 keeps the stress arena a sterile debugging
+## environment, so ADR-028 Phase 3 (arena-as-slice) is CUT, not deferred.
+## Anything tuned in the arena must be re-confirmed in the real world build.
 ## Run: godot --headless --path . res://tests/test_placement_paths.tscn
 extends Node
 
@@ -15,7 +18,7 @@ const CALLER_MANIFEST: Array[String] = [
 	"res://scripts/world/site_planner.gd",
 	"res://scripts/missions/mission_generator.gd",
 ]
-## The recorded exception: hand-wired bench world, dies with qjf0 (arena wrapper).
+## The recorded exception: hand-wired bench world, permanent by ruling (see header).
 const KNOWN_EXCEPTIONS: Array[String] = [
 	"res://scripts/levels/ai_stress_arena.gd",
 ]
@@ -56,7 +59,7 @@ func _ready() -> void:
 			if not live:
 				continue
 			if known:
-				print("KNOWN EXCEPTION (qjf0): %s calls %s" % [path, call])
+				print("KNOWN EXCEPTION (sterile arena, ruled 2026-07-26): %s calls %s" % [path, call])
 			elif not in_manifest:
 				print("FAIL: %s calls %s - a SECOND placement path (ADR-028)" % [path, call])
 				failures += 1
