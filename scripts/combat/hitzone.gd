@@ -4,7 +4,7 @@ extends Area3D
 
 ## Zone types with damage multipliers (ADR-016 Amendment D: punishing)
 enum ZoneType {
-	HEAD,      # fatal on enemies - a headshot is a headshot, nothing saves you
+	HEAD,      # fatal to ANYONE - enemy, ally, player. Nothing saves you.
 	TORSO,     # 2.5x - center mass. One rifle round drops the weak, two end anyone
 	GUT,       # 2.25x + bleed-out - devastating, downs a man fast
 	LIMB       # 1.0x - full pass-through damage; the man is CHANGED (wounds/cripple)
@@ -72,8 +72,22 @@ func get_zone_name() -> String:
 			return "BODY"
 
 
-## Zones that kill an enemy outright regardless of damage value.
+## Zones that kill outright regardless of damage value.
 func is_fatal_zone() -> bool:
 	if fatal_override >= 0:
 		return fatal_override == 1
 	return zone_type == ZoneType.HEAD
+
+
+## THE fatal-zone authority, by the 4-name law (ADR-016 Amendment D).
+##
+## Damage arrives at take_damage as a zone STRING, not a Hitzone, so every
+## damageable actor asks HERE. It is faction-blind by the Summoner's ruling of
+## 2026-07-27: a headshot kills an enemy, an ally and the player alike. Before
+## that ruling only enemy_base implemented the bypass, so at falloff range an
+## ally survived a headshot that always killed a VC.
+##
+## Instance overrides (fatal_override) are bench-only and cannot ride a string;
+## if that ever ships to gameplay, damage must carry the Hitzone instead.
+static func zone_name_is_fatal(zone: String) -> bool:
+	return zone == "HEAD"

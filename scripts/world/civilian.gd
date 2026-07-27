@@ -345,6 +345,8 @@ func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL,
 		attacker: Node = null, zone: String = "BODY") -> int:
 	if state == CivState.GONE:
 		return 0
+	if Hitzone.zone_name_is_fatal(zone):
+		amount = _hp + 999
 	_hp -= amount
 	if _hp > 0:
 		state = CivState.FLEE if randf() < 0.5 else CivState.COWER

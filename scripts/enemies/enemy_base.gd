@@ -2140,7 +2140,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		return amount
 	# Locational outcome: a headshot is a headshot.
 	var raw_amount: int = amount  # pre-override weapon damage (head burst gate)
-	if zone == "HEAD":
+	if Hitzone.zone_name_is_fatal(zone):
 		amount = current_hp + 999
 
 	current_hp -= amount

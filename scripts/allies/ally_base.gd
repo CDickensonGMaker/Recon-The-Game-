@@ -1228,13 +1228,16 @@ func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 			_removed.append(limb)
 
 
-func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, _zone: String = "BODY") -> int:
+func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, zone: String = "BODY") -> int:
 	goal_timer = 99.0  # Class-A interrupt: getting hit may always re-plan
 	_defend_until_ms = Time.get_ticks_msec() + 8000
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:
 		return 0
+
+	if Hitzone.zone_name_is_fatal(zone):
+		amount = current_hp + 999
 
 	if current_hp - amount <= 0:
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE

@@ -123,6 +123,10 @@ const SUPPRESS_DECAY: float = 0.55          ## per second, standing
 const SUPPRESS_DECAY_LOW: float = 1.3       ## per second, prone/crouched (reward getting down)
 const SUPPRESS_PER_NEARMISS: float = 0.34   ## a round cracking past adds this
 const SUPPRESS_SHAKE_MAX: float = 0.06      ## camera h/v offset metres at full
+## Below this on BOTH amount and hurt the shader is the identity transform, and a
+## visible ColorRect sampling hint_screen_texture costs a full-screen backbuffer
+## copy + blit at native resolution (the CanvasLayer ignores scaling_3d/scale).
+const SUPPRESS_OVERLAY_MIN: float = 0.002
 var _shake_seed: float = 0.0
 var _supp_rect: ColorRect = null
 var _supp_mat: ShaderMaterial = null
@@ -943,6 +947,74 @@ func exit_seat(ground_pos: Vector3) -> void:
 	velocity = Vector3.ZERO
 
 
+## LADDER CLIMB. A third movement state alongside is_seated and is_manning_mg. The body
+## leaves the physics solver entirely while on a rail: move_and_slide collides with the rungs
+## and stalls, so the climb writes global_position directly (Ladder header, constraint 1).
+var is_climbing: bool = false
+var _ladder: Node3D = null
+
+
+## Called by Ladder when its trigger catches the player.
+func start_climbing(ladder: Node3D) -> void:
+	if is_climbing or ladder == null or is_seated or is_manning_mg:
+		return
+	if health_system and health_system.is_downed:
+		return
+	is_climbing = true
+	_ladder = ladder
+	velocity = Vector3.ZERO
+	_snap_to_rail()
+	_field_toast("CLIMBING - [S] TO DROP OFF")
+
+
+func stop_climbing() -> void:
+	if not is_climbing:
+		return
+	is_climbing = false
+	if _ladder != null and is_instance_valid(_ladder) and _ladder.has_method("release_climber"):
+		_ladder.call("release_climber")
+	_ladder = null
+	velocity = Vector3.ZERO
+
+
+func _snap_to_rail() -> void:
+	if _ladder == null or not is_instance_valid(_ladder):
+		return
+	var p: Vector3 = _ladder.call("rail_point", global_position.y)
+	global_position.x = p.x
+	global_position.z = p.z
+	reset_physics_interpolation()
+
+
+## W climbs, S descends. Position is written straight through - no move_and_slide.
+func _tick_climbing(delta: float) -> void:
+	if _ladder == null or not is_instance_valid(_ladder):
+		stop_climbing()
+		return
+	var climb: float = Input.get_action_strength("move_forward") \
+		- Input.get_action_strength("move_backward")
+	var bot: float = float(_ladder.call("bottom_y"))
+	var top: float = float(_ladder.call("top_y"))
+	var speed: float = float(_ladder.get("climb_speed"))
+	var new_y: float = clampf(global_position.y + climb * speed * delta, bot, top)
+
+	# Step off the bottom.
+	if climb < -0.1 and new_y <= bot + 0.1:
+		global_position.y = bot
+		stop_climbing()
+		return
+	# Top out ONTO the deck, inboard of the rail, or he slides straight back down.
+	if climb > 0.1 and new_y >= top - 0.1:
+		global_position = _ladder.call("dismount_point")
+		reset_physics_interpolation()
+		stop_climbing()
+		return
+
+	global_position.y = new_y
+	_snap_to_rail()
+	velocity = Vector3.ZERO
+
+
 ## MANNED MG. is_manning_mg is a SEPARATE state from is_seated: the seated ride
 ## kills the rifle (weapon_holder.gd:170), but a gunner FIRES. He is glued to the
 ## stand, his view clamped to the mount's arc, and he is fully exposed - his
@@ -1116,6 +1188,11 @@ func _physics_process(delta: float) -> void:
 	# (weapon_holder is not gated on is_manning_mg). Handle its own dismount and stop.
 	if is_manning_mg:
 		_tick_mg_manning(delta)
+		return
+
+	# On a ladder: off the physics solver, riding the rail. Head-look still free.
+	if is_climbing:
+		_tick_climbing(minf(delta, 0.066))
 		return
 
 	# Seated (Huey ride): follow the seat, keep head-look, skip movement.
@@ -1331,7 +1408,7 @@ func apply_recoil(vertical: float, horizontal: float, recovery: float = 12.0) ->
 
 
 ## Take damage - forwarded from health system
-func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, _zone: String = "BODY") -> int:
+func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, attacker: Node = null, zone: String = "BODY") -> int:
 	if attacker is Node3D and camera:
 		var to_attacker: Vector3 = ((attacker as Node3D).global_position - global_position)
 		to_attacker.y = 0.0
@@ -1342,7 +1419,7 @@ func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.P
 			var hud_node := get_tree().get_first_node_in_group("mission_hud")
 			if hud_node and hud_node.has_method("show_damage_direction"):
 				hud_node.show_damage_direction(-rel)
-	var dealt: int = health_system.take_damage(amount, damage_type, attacker)
+	var dealt: int = health_system.take_damage(amount, damage_type, attacker, zone)
 	if is_dead():
 		var dir: Vector3 = -global_transform.basis.z
 		if attacker is Node3D:
@@ -1401,6 +1478,7 @@ func _setup_suppression() -> void:
 	_supp_mat.shader = load("res://terrain/shaders/suppression.gdshader")
 	_supp_mat.set_shader_parameter("amount", 0.0)
 	_supp_rect.material = _supp_mat
+	_supp_rect.visible = false
 	layer.add_child(_supp_rect)
 
 	# One lowpass on Master, wide open until suppression closes it.
@@ -1431,11 +1509,15 @@ func set_hurt_level(missing_fraction: float) -> void:
 
 ## Drives the overlay, camera shake and audio muffle every frame, then decays.
 func _update_suppression(delta: float) -> void:
-	if _supp_mat != null:
-		_supp_mat.set_shader_parameter("amount", suppression)
-		_hurt_pulse = maxf(0.0, _hurt_pulse - delta / 1.5)
-		var hurt: float = clampf(_hurt_level * 0.8 + _hurt_pulse * 0.45, 0.0, 1.0)
-		_supp_mat.set_shader_parameter("hurt", hurt)
+	_hurt_pulse = maxf(0.0, _hurt_pulse - delta / 1.5)
+	var hurt: float = clampf(_hurt_level * 0.8 + _hurt_pulse * 0.45, 0.0, 1.0)
+	if _supp_mat != null and _supp_rect != null:
+		var draw_overlay: bool = suppression > SUPPRESS_OVERLAY_MIN or hurt > SUPPRESS_OVERLAY_MIN
+		if draw_overlay:
+			_supp_mat.set_shader_parameter("amount", suppression)
+			_supp_mat.set_shader_parameter("hurt", hurt)
+		if _supp_rect.visible != draw_overlay:
+			_supp_rect.visible = draw_overlay
 
 	# Camera shake: pure-visual h/v offset jitter (never touches aim direction).
 	if camera != null:

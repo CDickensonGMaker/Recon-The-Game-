@@ -188,9 +188,19 @@ func _bleed_out() -> void:
 
 
 ## Take damage; starts or pressures the bleed clock.
-func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null) -> int:
+func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, zone: String = "BODY") -> int:
 	if is_healing:
 		_interrupt_healing()
+
+	# A headshot is final (Summoner's ruling 2026-07-27, ADR-016 Amendment D).
+	# It bypasses the difficulty scalar AND the medic revive window: force_death,
+	# never _die, or a headshot would merely put the player in bleed-out.
+	if Hitzone.zone_name_is_fatal(zone):
+		var lethal: int = current_hp
+		current_hp = 0
+		health_changed.emit(current_hp, max_hp)
+		force_death()
+		return lethal
 
 	var actual_damage := int(float(amount) * GameSettings.player_damage_mult())
 	current_hp -= actual_damage
