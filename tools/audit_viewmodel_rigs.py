@@ -10,11 +10,13 @@ Answers, per gun, with measurements rather than opinion:
   4. pacing              - per-frame hand speed, so "fast then slow" is a curve, not a feeling
   5. handle census       - AUTO_CLAMPED keys, the measured #1 cause of robotic motion
   6. hand/gun penetration- skinned arm vertices that end up INSIDE gun geometry
+  7. contact markers     - hand-to-marker closest approach per clip; a hand that
+                           reaches a marker but never truly grabs it is FAKED IN AIR
 
 Writes production/research/viewmodel_rig_audit.json.
 """
 import bpy, sys, os, json, math
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 
@@ -28,6 +30,11 @@ guns = {k: v for k, v in manifest["guns"].items() if not argv or k in argv}
 PENETRATION_MM = 8.0        # deeper than this reads as a hand inside the gun
 HAND_RADIUS = 0.16          # only arm verts this close to a hand bone are candidates
 SPEED_SPIKE_RATIO = 3.0     # frame-to-frame speed change that reads as a lurch
+CONTACT_NEAR_MM = 150.0     # hand-TAIL this close to a contact marker is reaching for it
+CONTACT_GRAB_MM = 60.0      # ...and must close to this, or the grab is faked in air.
+                            # Calibrated 2026-07-27 against KNOWN-TRUE grabs (hand tail):
+                            # chandle rack 7.9mm, AK mag carry 24mm, M16 mag carry 44.9mm,
+                            # PPSh drum 3.3mm - while the AK bolt fake measured 73.9mm
 
 
 def fcurves_of(act):
@@ -90,7 +97,7 @@ for gun_key, spec in guns.items():
 
     g = {"collection": spec["collection"], "rig": rig.name,
          "transforms": [], "contract": [], "pairing": [], "pacing": {},
-         "handles": {}, "penetration": {}}
+         "handles": {}, "penetration": {}, "contacts": {}}
 
     # ---- 1. transform hygiene -------------------------------------------
     for o in objs:
@@ -201,12 +208,29 @@ for gun_key, spec in guns.items():
     sc = bpy.context.scene
     hand_bones = ("hand.R", "hand.L")
 
+    # contact markers (marker/rail contract 2026-07-27): empties parented to the
+    # part they mark, declared per gun in the manifest's "contacts" map
+    contact_objs = {}
+    for cname, part_name in spec.get("contacts", {}).items():
+        co = bpy.data.objects.get(cname)
+        if co is None:
+            g["contract"].append(f"contact marker {cname} MISSING")
+        elif co.parent is None or co.parent.name != part_name:
+            g["contract"].append(
+                f"contact marker {cname} parented to "
+                f"{co.parent.name if co.parent else 'WORLD'}, not {part_name}")
+        else:
+            contact_objs[cname] = co
+
     for clip, end in clip_len.items():
         solo(clip)
         speeds = {b: [] for b in hand_bones}
         prev = {}
         pen_frames = {}
         worst = {"depth_mm": 0.0}
+        touch = {(c, b): {"min_mm": 1e9, "frame": None}
+                 for c in contact_objs for b in hand_bones}
+        marker_travel = {c: {"min": None, "max": None} for c in contact_objs}
         for f in range(0, end + 1):
             sc.frame_set(f)
             bpy.context.view_layer.update()
@@ -221,6 +245,25 @@ for gun_key, spec in guns.items():
                 if b in prev:
                     speeds[b].append((pos[b] - prev[b]).length * 1000.0)
             prev = pos
+
+            # contacts measure from the hand-bone TAIL (the knuckles) - the head is
+            # the wrist and sits ~100mm off even during a true carry
+            tails = {}
+            for b in pos:
+                pb = rig_ev.pose.bones[b]
+                tails[b] = rig_ev.matrix_world @ (pb.matrix @ Vector((0, pb.length, 0)))
+            root_inv = (root.evaluated_get(dg).matrix_world.inverted()
+                        if root is not None else Matrix.Identity(4))
+            for cname, co in contact_objs.items():
+                cp = co.evaluated_get(dg).matrix_world.translation
+                rel = root_inv @ cp        # part motion IN GUN SPACE, not the ride on hand.R
+                mt = marker_travel[cname]
+                mt["min"] = rel.copy() if mt["min"] is None else Vector(map(min, mt["min"], rel))
+                mt["max"] = rel.copy() if mt["max"] is None else Vector(map(max, mt["max"], rel))
+                for b, hp in tails.items():
+                    d = (cp - hp).length * 1000.0
+                    if d < touch[(cname, b)]["min_mm"]:
+                        touch[(cname, b)] = {"min_mm": round(d, 1), "frame": f}
 
             # penetration: skinned arm verts near a hand, inside a gun mesh
             if arms is not None and gun_meshes and f % 2 == 0:
@@ -291,6 +334,24 @@ for gun_key, spec in guns.items():
             "worst": worst if worst["depth_mm"] else None,
             "frames": dict(list(pen_frames.items())[:20]),
         }
+        csum = {}
+        for cname in contact_objs:
+            mt = marker_travel[cname]
+            moved_mm = ((mt["max"] - mt["min"]).length * 1000.0) if mt["min"] else 0.0
+            hands = [{"hand": b, **touch[(cname, b)]} for b in hand_bones
+                     if touch[(cname, b)]["frame"] is not None]
+            best = min(hands, key=lambda h: h["min_mm"], default=None)
+            grabbed = best is not None and best["min_mm"] < CONTACT_GRAB_MM
+            entry = {"part_travel_mm": round(moved_mm, 1), "hands": hands,
+                     "grabbed": grabbed}
+            if grabbed:
+                entry["verdict"] = "GRAB"
+            elif moved_mm > 5.0:
+                # the part moves but nothing ever holds it - the crime this
+                # contract exists to catch (M14 op-rod racked itself, 2026-07-27)
+                entry["verdict"] = "MOVES UNTOUCHED"
+            csum[cname] = entry
+        g["contacts"][clip] = csum
 
     # ---- 5. handle census on the rig's own actions ------------------------
     for t in rig.animation_data.nla_tracks:
@@ -340,6 +401,16 @@ for k, g in report.items():
         w = p["worst"]
         print(f"    {clip:14s} {p['frames_over_threshold']}/{p['sampled_frames']} sampled frames"
               + (f"  worst {w['depth_mm']}mm @f{w['frame']} in {w['gun_part']}" if w else ""))
+    if any(g["contacts"].values()):
+        print("  CONTACTS (hand-tail to marker; verdict only when it matters):")
+        for clip, cs in g["contacts"].items():
+            for cname, e in cs.items():
+                if "verdict" not in e:
+                    continue
+                best = min(e["hands"], key=lambda h: h["min_mm"])
+                print(f"    {clip:14s} {cname:24s} {best['hand']:7s} "
+                      f"min={best['min_mm']:6.1f}mm @f{best['frame']} "
+                      f"travel={e['part_travel_mm']:6.1f}mm  {e['verdict']}")
     print("  HANDLES:")
     for clip, h in g["handles"].items():
         print(f"    {clip:14s} {h['keys']:5d} keys  {h['handle_types']}")

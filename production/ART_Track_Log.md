@@ -97,3 +97,31 @@ I just got a bunch more radio bits I edited with audacity mixing ai generated ra
 4. `STALE_muzzle_*` fossil empties in fp_arms_rifle.blend — delete when convenient.
 5. `tools/gen_weapon_data.py` still emits pre-ADR-016 `base_damage = Array[int]` — stale
    generator, fix or retire before next use.
+
+## 2026-07-27 — Viewmodel pipeline v2: bleed-hole fix + contact-marker/rail contract
+
+War room: `production/war_room/2026-07-27_viewmodel_pipeline_v2/` (4 research lanes + synthesis).
+Summoner ratified the contact-marker/rail contract (P2); P1 rode as prerequisite.
+
+- **Bleed hole FIXED** (his "chandle hanging off the back of the gun"): Blender's glTF exporter
+  drops constant object channels unless `export_optimize_animation_keep_anim_object=True`
+  (`tools/export_viewmodel_clips.py:334`). A clip with no track for a part cannot reset it in
+  Godot — one `jam` left the M16 chandle at full pull forever. Was latent in ALL 4 guns.
+  New validator LAW (`tools/validate_viewmodel_glb.py`): every clip carries a channel for every
+  manifest part, rifle_idle included. All 4 guns re-exported + PASS; timers unchanged.
+- **Contact-marker contract live**: 7 `contact_*` empties in `fp_arms_rifle.blend`, parented to
+  their parts, positions MEASURED from the blessed clips (surface point nearest the hand tail at
+  closest approach). Manifest `contacts` map + `_contacts_doc`. `tools/audit_viewmodel_rigs.py`
+  now reports hand-tail-to-marker closest approach per clip; a reach inside 150mm that never
+  closes to 60mm flags **FAKED IN AIR** (thresholds calibrated: true grabs measure 0-45mm).
+- **Two NEW defects the contract caught immediately:**
+  1. M14 `charge_handle` clip: NEITHER hand ever comes within 247mm of the op-rod — the gun
+     racks itself. (On the gun previously cleared as fully OK.)
+  2. AK bolt rack (`reload_empty`): both hands stop ~74mm short of the bolt.
+- Deferred by ruling: P3 bookend law (clips start/end on identical rest pose), P4 procedural
+  life layer (spring sway/bob/recoil). Rejected: bone-skeleton migration, runtime IK pinning.
+
+**Needs CALEB:** eyeball the M16 in game (post-surgery + post-bleed-fix — the hanging chandle
+class is closed); nudge any `contact_*` empty whose spot you disagree with (they ride the parts);
+the M14 self-racking op-rod and AK 74mm bolt rack now sit in your authoring queue with the AK
+mag pairing and PPSh clips.

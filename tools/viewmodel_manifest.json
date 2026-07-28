@@ -1,5 +1,6 @@
 {
   "_doc": "FP viewmodel export contract. One entry per gun that ships clips. Names are API (research doc production/research/blender_godot_fp_pipeline_2026-07-25.md section 2.3): renaming an object, marker or NLA track here or in the .blend is a breaking change. Driver: tools/export_all_viewmodels.py. Validator: tools/validate_viewmodel_glb.py. Godot-side probe: tests/test_viewmodel_contract.tscn. Gameplay timers in weapon_tres are kept equal to the authored clip lengths by tools/sync_weapon_timers.py, which the export driver runs; validate_viewmodel_glb.py --check-timers fails on drift.",
+  "_contacts_doc": "Marker/rail contract (war_room/2026-07-27_viewmodel_pipeline_v2): 'contacts' maps a contact-marker empty to the part it is parented to. A hand that manipulates a part is posed TO its marker, never eyeballed in free space; sliding parts keep origin-at-home 1-DOF rails. tools/audit_viewmodel_rigs.py measures hand-to-marker closest approach per clip and flags a reach that never closes to a true grab (FAKED IN AIR).",
   "blend": "assets/player/arms/fp_arms_rifle.blend",
   "output_dir": "assets/player/viewmodels",
   "guns": {
@@ -20,7 +21,11 @@
         "M16A1_charge_handle_slide_back",
         "M16A1_gun"
       ],
-      "markers_under_gun": true
+      "markers_under_gun": true,
+      "contacts": {
+        "contact_chandle_M16A1": "M16A1_charge_handle_slide_back",
+        "contact_mag_M16A1": "M16A1_magazine.030"
+      }
     },
     "ak": {
       "collection": "RIG_AK47",
@@ -39,7 +44,11 @@
         "AK47_bolt",
         "AK47_root"
       ],
-      "markers_under_gun": true
+      "markers_under_gun": true,
+      "contacts": {
+        "contact_bolt_AK47": "AK47_bolt",
+        "contact_mag_AK47": "AK47_mag"
+      }
     },
     "ppsh": {
       "collection": "RIG_PPSh41",
@@ -58,7 +67,10 @@
         "PPSh41_gun.006"
       ],
       "markers_under_gun": true,
-      "_note": "reload/reload_empty/jam transplanted from the AK arms performance 2026-07-26; drum = PPSh41_gun.006, baked handoff grabs the LEFT rim (Summoner's ask); bolt not split, static in all clips"
+      "contacts": {
+        "contact_drum_PPSh41": "PPSh41_gun.006"
+      },
+      "_note": "reload/reload_empty/jam transplanted from the AK arms performance 2026-07-26; drum = PPSh41_gun.006, baked handoff grabs the LEFT rim (Summoner's ask) - contact_drum_PPSh41 sits on that rim; bolt not split, static in all clips"
     },
     "m14": {
       "collection": "RIG_M14",
@@ -80,7 +92,11 @@
         "M14_root",
         "M14_clip.034"
       ],
-      "markers_under_gun": true
+      "markers_under_gun": true,
+      "contacts": {
+        "contact_oprod_M14": "M14_chandle",
+        "contact_clip_M14": "M14_clip.034"
+      }
     }
   }
 }

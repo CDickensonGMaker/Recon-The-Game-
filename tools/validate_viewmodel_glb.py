@@ -9,7 +9,8 @@ Contract per gun comes from tools/viewmodel_manifest.json. Checks:
   - contract markers (SightRear/SightFront/MuzzlePoint) exist; when markers_under_gun,
     they are descendants of the gun root with local translation < 1.5 m
   - no non-uniform scale on any node (glTF shear -> tumbling rotation)
-  - every clip except rifle_idle animates at least one manifest part
+  - every clip carries a channel for every manifest part (a part with no track in a
+    clip holds its last pose in game instead of resetting)
   - the gun root node exists
 
 The selftest encodes the 2026-07-25 break as a permanent regression: markers severed
@@ -92,13 +93,17 @@ def validate(gltf, spec, label):
     if warned:
         print(f"   note: {warned} static node(s) carry non-uniform scale (authored proportions, not fatal)")
 
-    part_idx = {byname[p] for p in spec["parts"] if p in byname}
+    # EVERY clip must carry a channel for EVERY manifest part, rifle_idle included.
+    # A clip with no track for a part cannot reset it in Godot - the part stays
+    # wherever the previous clip left it (2026-07-27: jam left the M16 chandle
+    # hanging 8cm off the receiver and rifle_idle never put it back).
+    part_idx = {p: byname[p] for p in spec["parts"] if p in byname}
     for a in gltf.get("animations", []):
-        if a.get("name") == "rifle_idle":
-            continue
-        hit = any(ch["target"].get("node") in part_idx for ch in a.get("channels", []))
-        if not hit:
-            errs.append(f"clip {a.get('name')} animates no manifest part - silent no-channels export")
+        targeted = {ch["target"].get("node") for ch in a.get("channels", [])}
+        for pname, pidx in part_idx.items():
+            if pidx not in targeted:
+                errs.append(f"clip {a.get('name')} has no channel for part {pname} - "
+                            f"the part cannot reset and holds its last pose in game")
 
     status = "PASS" if not errs else "FAIL"
     print(f"[{status}] {label}")
@@ -129,12 +134,12 @@ def selftest():
             {"name": "SightFront", "translation": [-0.339, 0.087, -0.003]},
             {"name": "MuzzlePoint", "translation": [-0.4915, 0.041, -0.003]},
             {"name": "M16A1_magazine.030", "translation": [0.087, -0.113, -0.0029]},
+            {"name": "M16A1_charge_handle_slide_back", "translation": [0.189, 0.04, -0.008]},
         ],
         "animations": [
-            {"name": "rifle_idle", "channels": []},
-            {"name": "reload", "channels": [{"target": {"node": 5, "path": "translation"}}]},
-            {"name": "reload_empty", "channels": [{"target": {"node": 5, "path": "translation"}}]},
-            {"name": "jam", "channels": [{"target": {"node": 1, "path": "rotation"}}]},
+            {"name": c, "channels": [{"target": {"node": n, "path": "translation"}}
+                                     for n in (1, 5, 6)]}
+            for c in ("rifle_idle", "reload", "reload_empty", "jam")
         ],
     }
     spec = {"gun_root": "M16A1_gun", "clips": ["rifle_idle", "reload", "reload_empty", "jam"],

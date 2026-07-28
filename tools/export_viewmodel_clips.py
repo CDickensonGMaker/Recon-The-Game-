@@ -328,6 +328,10 @@ kwargs = dict(
     export_bake_animation=True, export_force_sampling=True,
     export_anim_single_armature=True, export_reset_pose_bones=False,
     export_skins=True, export_morph=False, export_optimize_animation_size=False,
+    # constant object channels are dropped by a SEPARATE default-off switch; without
+    # them a clip that never moves a part cannot reset it in Godot (2026-07-27 M16
+    # chandle hang - a jam left the handle displaced and rifle_idle never put it back)
+    export_optimize_animation_keep_anim_object=True,
     export_materials='EXPORT', export_cameras=False, export_lights=False,
     export_draco_mesh_compression_enable=False)
 valid = set(bpy.ops.export_scene.gltf.get_rna_type().properties.keys())
