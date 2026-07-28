@@ -22,6 +22,29 @@ Pick one:
 
 Full detail + numbers: `production/ARCHITECTURE_COUPLING_READ_2026-07-26.md` §2.5.
 
+## 0a. AUDIO — one thing to know, nothing blocked (added 2026-07-27)
+
+Real gun recordings and the folk-music radio are IN and verified. Two notes, no ruling needed unless
+you disagree:
+
+**Five of the weapons you named for the gun swap do not exist in the game.** You said 5.56 → m16a1 +
+**car15**, and 7.62x39 → ak47 + **sks** + rpd, then derivations for **thompson / kar98k / mp40**.
+All five of those were retired by ADR-016 Amendment C — there is no `.tres` for any of them and
+`tests/test_flat_damage.gd:31` fails the build if one loads. That list came from the filenames sitting
+in the sfx folder, not from the weapons the game can equip. So I applied your rule to the **live**
+roster instead and spent the budget on **m14 and m70, which had no audio at all** and were sounding
+like a generic rifle — the m70 is your 87-damage sniper.
+
+**But your art log says you are actively modelling the SKS and CAR-15** (`ART_Track_Log.md` §2). So
+they are probably coming BACK. That is fine and costs nothing: the SKS is 7.62x39 (same source as the
+AK) and the CAR-15 is 5.56 (same source as the M16). **The day either lands as a real weapon, say the
+word and it gets real audio in about five minutes.** I deleted their old synth placeholders under the
+fossil law rather than leave dead files pretending to be live ones.
+
+**`m1911` kept its synth placeholder on purpose** — the pack has no pistol stock, .45 ACP is
+subsonic, and you said not to ship a downgrade for the sake of coverage. Same for the shotgun and all
+four launchers: no source exists.
+
 ## 0b. YOUR NEW ART IS IN NO COMMIT (added 2026-07-27)
 
 `git status assets/` = **531 untracked files, 44 deleted**. The whole regenerated village set

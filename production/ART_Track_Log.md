@@ -52,8 +52,14 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 - Topo paper texture, medal/ribbon icons, MACV-SOG patch PNG, offer-card thumbnails. [fmc8 adjacent] There needs to be a whole day spent fixing and refining the whole UI/UX. its all total placeholder right now and worth something to spend our deep dive of a week learning more about the pros and cons of UI UX experiences in a deep research. 
 
 ## 7. AUDIO (the emptiest bucket — ~10%)
-- **Every weapon SFX is procedural-synth placeholder** — real foley set needed (or the synth bank
-  bead 9qp6 ships first as bridge).
+- ~~**Every weapon SFX is procedural-synth placeholder**~~ — **8 of 9 base guns now carry real
+  recordings (2026-07-27)**, from Snake's Authentic Gun Sounds. m16a1 · ak47 · rpd · ppsh41 · m60 ·
+  mosin · m70 · m14 have real near-report variants + distant reports; m70 and m14 had **no audio at
+  all** before this and were falling through to the generic rifle bank. `m1911` deliberately KEEPS
+  its synth render (no pistol stock in the pack; .45 is subsonic). Launchers (m79/m72_law/rpg2/rpg7)
+  and `shotgun` are still synth — no source exists for them.
+  Proof: `tests/test_audio_pack.tscn` (in-suite) + `tests/probe_audio_live.tscn` (real WASAPI driver,
+  8/8 weapons resolved to their own render).
 - **VO barks** — Vietnamese + US callouts for the bark system (lngs); voice_studio.py pipeline ready.
 - More ambience beds (only jungle_day.mp3 is real; night/rain/river missing).
 I just got a bunch more radio bits I edited with audacity mixing ai generated radio broadcasts and real broadcasts from the time mixed with radio ads and a radio hiss that covers the dead parts. 
@@ -125,3 +131,35 @@ Summoner ratified the contact-marker/rail contract (P2); P1 rode as prerequisite
 class is closed); nudge any `contact_*` empty whose spot you disagree with (they ride the parts);
 the M14 self-racking op-rod and AK 74mm bolt rack now sit in your authoring queue with the AK
 mag pairing and PPSh clips.
+
+## 2026-07-27 — Audio pack wave (folk radio + real gun recordings)
+
+**Shipped:**
+- **Field radio is now a virtual-timeline prop** (`scripts/props/radio_prop.gd`, rewritten). Each
+  radio runs its own deterministic 43.4-hour playlist that advances whether the player is there or
+  not, seeded by the radio's world position — so two radios never play in unison and you always tune
+  into something already in progress. Audio only exists inside `activation_distance` (125 m,
+  `@export`); `hear_distance` stays 25 m. Measured: dormant at 300 m holds no stream and no voice;
+  stepping inside seeks 1500 s into a 52-minute broadcast; leaving frees the stream.
+- **14 Vietnamese folk tracks** from the "Music of Viet Nam" LP converted to mono 44.1 kHz Ogg
+  (12.6 MB total) at `assets/audio/Radio Vietnam/music/`. Playlist emits 3 songs → 1 broadcast.
+  Measured L/R correlation 0.79–0.98 on the source, so the mono downmix loses nothing real.
+- **The 5 broadcast .ogg files are untouched, bit for bit** (Summoner ruling: they are his own edits
+  and deliberate easter eggs; they play WHOLE, never segmented).
+- **Real gun audio for 8 weapons** — see §7 above.
+- `tools/gen_radio_manifest.py` + `radio_manifest.json`: track lengths as data, so the radio walks its
+  timeline without loading 96 MB of ogg at world load.
+
+**LICENSING — read before you package a build:** the folk music is a commercial recording and this
+repo is public, so `assets/audio/Radio Vietnam/music/*.ogg` is **gitignored**. A fresh clone gets a
+broadcast-only radio and one `push_warning`, by design — it is not a bug. `radio_manifest.json` names
+the tracks so the absence is legible rather than silent.
+
+**Fossil law (ADR-023):** 64 placeholder wavs + sidecars deleted for the five weapons retired by
+ADR-016 Amendment C (`car15`, `sks`, `thompson`, `kar98k`, `mp40`) — verified zero references outside
+`tests/`. Also removed `fire_mosin_2/3` synth clones that would otherwise have round-robined against
+the one real Mosin recording.
+
+**Still open:** `m1911`, `shotgun` and all four launchers remain synth. `mosin`/`m70`/`m14` carry ONE
+near-report variant because the pack holds exactly one genuine 7.62x54R take (measured: all six
+candidate slices cross-correlate 0.99–1.00 — they are the same shot copy-pasted).

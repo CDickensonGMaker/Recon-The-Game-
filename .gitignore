@@ -26,6 +26,16 @@ assets/audio/vo/
 
 # 55MB YouTube-sourced dev ambience - license-unclear, replace for release (bead xu94)
 assets/audio/ambience/jungle_day.mp3
+
+# Folk music for the field radio, converted from the commercial LP "Music of Viet Nam"
+# (various artists). This repo is public and we hold no distribution right, so the audio
+# stays out of history; radio_manifest.json names the tracks and radio_prop.gd warns once
+# when they are absent. A fresh clone gets a broadcast-only radio, by design.
+#
+# The WHOLE folder, sidecars included. Ignoring only *.ogg would leave the .import
+# files tracked, and a fresh clone would carry import sidecars pointing at audio that
+# is not there - the same defect jungle_day.mp3 already has two lines above.
+assets/audio/Radio Vietnam/music/
 .beads/.~*
 
 # us_base_v3.blend is the truth source for every US model and rides in LFS.
