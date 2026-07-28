@@ -11,7 +11,6 @@ const RADIO := preload("res://scripts/props/radio_prop.gd")
 
 var _radio: Node3D = null
 var _listener: Node3D = null
-var _lines: PackedStringArray = PackedStringArray()
 
 
 func _ready() -> void:
@@ -34,7 +33,6 @@ func _ready() -> void:
 
 
 func _say(s: String) -> void:
-	_lines.append(s)
 	print(s)
 
 
