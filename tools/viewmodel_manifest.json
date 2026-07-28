@@ -3,6 +3,24 @@
   "_contacts_doc": "Marker/rail contract (war_room/2026-07-27_viewmodel_pipeline_v2): 'contacts' maps a contact-marker empty to the part it is parented to. A hand that manipulates a part is posed TO its marker, never eyeballed in free space; sliding parts keep origin-at-home 1-DOF rails. tools/audit_viewmodel_rigs.py measures hand-to-marker closest approach per clip and flags a reach that never closes to a true grab (FAKED IN AIR).",
   "blend": "assets/player/arms/fp_arms_rifle.blend",
   "output_dir": "assets/player/viewmodels",
+  "_staged_doc": "2026-07-27 transplant (tools/transplant_armory_parts.py): every fused gun copy replaced by its armory assembly with split moving parts + contact markers. When a gun below joins 'guns', move its entry's contacts map in and declare its parts. Rails clamped where travel is recorded: Ithaca37_pump x[0,0.045], M72_LAW_inner_tube x[0,0.230].",
+  "staged_contacts": {
+    "m70": {"contact_bolt_M70sniper": "M70_bolt"},
+    "colt45": {"contact_slide_Colt45_Pistol": "Colt45_slide",
+               "contact_mag_Colt45_Pistol": "Colt45_magfloor"},
+    "ithaca": {"contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"},
+    "m60": {"contact_chandle_M60_MG": "M60_chandle_charge_handle",
+            "contact_feedcover_M60_MG": "M60_feedcover"},
+    "thompson": {"contact_chandle_Thompson_Submachine_Gun": "Thompson_charge_handle",
+                 "contact_drum_Thompson_Submachine_Gun": "Thompson_drum"},
+    "m72_law": {"contact_tube_M72_LAW": "M72_LAW_inner_tube"},
+    "m79": {"contact_barrel_M79_Launcher": "M79_barrel"},
+    "mosin": {"contact_bolt_Mosin": "Mosin_boltknob"},
+    "rpd": {"contact_chandle_RPD": "RPD_chandle",
+            "contact_drum_RPD": "RPD_drum"},
+    "rpg2": {"contact_rocket_RPG2": "RPG2_pg2_boom"},
+    "rpg7": {"contact_rocket_RPG7": "RPG7_pg7_body"}
+  },
   "guns": {
     "m16": {
       "collection": "RIG_M16A1",

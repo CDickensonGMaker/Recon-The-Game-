@@ -62,3 +62,29 @@ already divide by magnification) and ADR-004 (no third camera.fov writer).
 AK reload handoff pairing (his posing, my capture/lock), PPSh real clips (replace AK transplants),
 frozen-hand de-robotise passes (P4 reduces the bar but does not erase the queue), M16 post-surgery
 look verification in game.
+
+---
+
+## ADDENDUM — overnight build wave (Summoner away, 2026-07-27 late)
+
+**Transplant executed** (`tools/transplant_armory_parts.py`): all 11 fused single-mesh gun copies in
+`fp_arms_rifle.blend` replaced by their finished armory assemblies with split moving parts and correct
+origins. Mappings used per gun: fused-matrix (m70/colt45/ithaca/m60/thompson — the 7/19 join baked
+armory coords), sight-trio (rpd/rpg2/rpg7/mosin — re-racked armories), center-translate+marker-reseat
+(m72_law/m79 — their arms markers were stranded at armory coords; armory is now their truth).
+LAW + Ithaca re-staged onto their arms (fixed-point vs a healthy reference rig). Rails clamped where
+travel is recorded (Ithaca pump 45mm, LAW inner tube 230mm). 15 new contact markers seated on grasp
+geometry; manifest `staged_contacts` holds the map until each gun joins the export contract.
+Lesson re-learned and encoded: appended-but-unlinked objects AND viewport-hidden objects (LAW rearcap)
+read identity matrices — link before measuring, exclude hidden from staging math.
+
+**M70 scope shipped (code-complete, awaiting Summoner playtest per ADR-015):**
+- `WeaponData.scope_overlay: Texture2D` (null = irons). M70 gets Caleb's scope art, recentred to
+  `assets/ui/scope_overlay_m70.png` (source image untouched on his Desktop; hole was 8-15px off-center).
+- `ScopeOverlay` control in hud.tscn: draws the frame texture square-covering the viewport and a
+  code-drawn reticle (color/width/gap/arm exports — the "no middle cross" gap he named, tunable
+  without art edits). Shows at ads_transition >= 0.9; green hip crosshair yields; DeathScreen stays above.
+- weapon_holder hides the gun viewmodel under the scope at the same threshold. Zoom rides the
+  EXISTING ADR-004 path — m70.tres ads_fov 40 -> 12 (~6.4x); no new camera.fov writer.
+*Sacrificed:* scoped view replaces the modeled scope picture-in-picture (a lens-shader PiP was not
+attempted — fullscreen overlay is the genre norm and the PSX-honest choice).

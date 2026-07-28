@@ -40,6 +40,10 @@ extends Resource
 @export_group("ADS Properties")
 @export var ads_fov: float = 55.0  ## FOV when aiming down sights
 @export var ads_move_mult: float = 0.6  ## Movement speed multiplier when ADS
+## Optical scope: when set, full ADS swaps the viewmodel for this fullscreen
+## overlay (transparent circle in a dark frame; ScopeOverlay draws the reticle)
+## and ads_fov carries the magnification. Null = iron sights.
+@export var scope_overlay: Texture2D = null
 
 @export_group("Range")
 @export var effective_range: float = 50.0  ## Meters - full damage range

@@ -14,6 +14,7 @@ extends CanvasLayer
 @onready var medkit_label: Label = $MarginContainer/VBoxContainer/BottomRow/MedkitLabel
 @onready var healing_bar: ProgressBar = $MarginContainer/VBoxContainer/HealingBar
 @onready var crosshair: Control = $Crosshair
+@onready var scope_overlay: ScopeOverlay = $ScopeOverlay
 @onready var death_screen: Control = $DeathScreen
 @onready var slot_indicator: Label = $MarginContainer/VBoxContainer/BottomRow/SlotIndicator
 @onready var action_progress: ActionProgress = $ActionProgress
@@ -77,12 +78,18 @@ func _process(delta: float) -> void:
 			and (grenade_handler == null or not grenade_handler.is_cooking):
 		action_progress.finish_action()
 
+	# Under the scope the optic's own reticle aims; the hip crosshair yields.
+	if crosshair and scope_overlay:
+		crosshair.visible = not scope_overlay.is_scoped()
+
 
 func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: GrenadeHandler) -> void:
 	health_system = hp
 	weapon_holder = wpn
 	equipment_manager = equip
 	grenade_handler = gren
+	if scope_overlay:
+		scope_overlay.setup(wpn)
 
 	# Connect signals
 	health_system.health_changed.connect(_on_health_changed)

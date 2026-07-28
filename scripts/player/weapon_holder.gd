@@ -269,6 +269,14 @@ func _update_ads(delta: float) -> void:
 			ViewmodelLens.set_fov(_vm_meshes,
 				ViewmodelLens.effective_fov(current_weapon.viewmodel_fov, camera.fov))
 
+	# Optical scope (M70 class): under the fullscreen scope view the gun itself
+	# leaves the frame. ScopeOverlay shows at the same >=0.9 threshold.
+	if weapon_model and current_weapon:
+		var scoped_out: bool = current_weapon.scope_overlay != null \
+			and is_aiming and ads_transition >= 0.9
+		if weapon_model.visible == scoped_out:
+			weapon_model.visible = not scoped_out
+
 
 signal target_hit(killed: bool, headshot: bool)
 var _burst_left: int = 0

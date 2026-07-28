@@ -163,3 +163,22 @@ the one real Mosin recording.
 **Still open:** `m1911`, `shotgun` and all four launchers remain synth. `mosin`/`m70`/`m14` carry ONE
 near-report variant because the pack holds exactly one genuine 7.62x54R take (measured: all six
 candidate slices cross-correlate 0.99–1.00 — they are the same shot copy-pasted).
+
+## 2026-07-27 overnight — full armory transplant + M70 scope (Summoner away)
+
+- **All 11 fused gun copies in fp_arms_rifle.blend replaced by armory assemblies with split moving
+  parts** (`tools/transplant_armory_parts.py`; war room addendum has per-gun mapping detail).
+  Every gun now has its rails/moving parts: M70 bolt, Colt45 slide/hammer/mag, Ithaca pump (45mm
+  rail), M60 chandle/feedcover/bipod/belt, Thompson chandle/drum, LAW inner tube (230mm rail),
+  M79 break barrel, Mosin bolt, RPD chandle/drum, RPG-2/7 rockets. 15 new contact_* markers on
+  grasp geometry; manifest `staged_contacts` maps them.
+- **M70 sniper scope built** from Caleb's overlay image: recentred asset `assets/ui/scope_overlay_m70.png`,
+  new `ScopeOverlay` HUD control (code-drawn tunable reticle — his art has no center cross by design),
+  `WeaponData.scope_overlay`, viewmodel hides under the scope, zoom = ads_fov 12 (~6.4x) through the
+  existing ADR-004 path. Awaiting his playtest.
+
+**Needs CALEB (adds to yesterday's list):**
+1. Playtest the M70 scope (equip sniper, hold aim): overlay look, reticle weight, 12° zoom taste.
+2. Eyeball the transplanted rows in Blender — esp. Mosin (sits high-forward of hands), LAW + Ithaca
+   (re-staged onto arms), M70 bolt rest angle (armory's -63.8°).
+3. Colt45 sights ride the slide again (your ADS-tracks-the-rack call) — confirm when posing.
