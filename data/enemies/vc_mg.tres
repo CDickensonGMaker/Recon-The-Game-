@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dvcmg000001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_mg"
+display_name = "VC Machine Gunner"
+description = "Local Force RPD gunner. Sprays from cover; breaks if the position turns."
+max_hp = 70
+move_speed = 4.0
+preferred_range = 28.0
+alert_range = 22.0
+weapon_path = "res://data/weapons/rpd.tres"
+accuracy_modifier = 1.2
+aggression = 0.4
+color = Color(0.3, 0.3, 0.25, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.3
+courage = 0.45
+determination = 0.5
+exposure_ramp_time = 2.8
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc_guerilla_rpd"
+sprite_weapon = "rpd"

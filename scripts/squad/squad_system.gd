@@ -215,6 +215,12 @@ func begin_revive(_health_system: HealthSystem) -> void:
 		VOManager.play_squad("doc_moving", _vo_doc.member, _vo_doc.global_position)
 
 
+## Getting shot while downed burns revive window (health_system routes body
+## hits on a downed player here instead of killing him outright).
+func pressure_revive(seconds: float) -> void:
+	_downed_clock += seconds
+
+
 func _process_revive(delta: float) -> void:
 	if not _reviving or _health == null:
 		return
@@ -222,11 +228,13 @@ func _process_revive(delta: float) -> void:
 	_downed_clock += delta
 	if medic == null or _downed_clock >= HealthSystem.DOWNED_BLEED_SECONDS:
 		_reviving = false
+		if medic != null:
+			medic.set_order(AllyBase.OrderMode.FOLLOW)  # never leave RESCUE latched
 		_toast("DOC DIDN'T MAKE IT TO YOU.")
 		_health.force_death()
 		return
 	var player := world.player
-	medic.set_order(AllyBase.OrderMode.MOVE_TO, player.global_position)
+	medic.set_order(AllyBase.OrderMode.RESCUE, player.global_position)
 	var dist: float = medic.global_position.distance_to(player.global_position)
 	if dist <= 2.8:
 		var medic_skill: int = SquadRoster.skill_level(medic.member, "medic")

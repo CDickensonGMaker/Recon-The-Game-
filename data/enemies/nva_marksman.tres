@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dnvamarksman1"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_marksman"
+display_name = "NVA Marksman"
+description = "Mosin shooter who hangs back and picks his moment. Patient, hard to spot."
+max_hp = 75
+move_speed = 4.0
+preferred_range = 55.0
+alert_range = 30.0
+weapon_path = "res://data/weapons/mosin.tres"
+accuracy_modifier = 0.8
+aggression = 0.3
+stealth = 0.8
+color = Color(0.35, 0.4, 0.3, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.4
+courage = 0.55
+determination = 0.85
+exposure_ramp_time = 2.0
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "nva_marksman"
+sprite_unit_fallback = "vc_guerilla_mosin"
+sprite_weapon = "mosin"

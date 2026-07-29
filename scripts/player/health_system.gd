@@ -202,6 +202,16 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		force_death()
 		return lethal
 
+	# A body hit on a downed man cuts Doc's window, it does not finish him -
+	# only the headshot above ends a downed player (mirror of the enemy FINISH
+	# verb, which stays final). Without this, one stray MG round mid-rescue was
+	# an invisible instant campaign death.
+	if is_downed:
+		if revive_handler != null and is_instance_valid(revive_handler) \
+				and revive_handler.has_method("pressure_revive"):
+			revive_handler.pressure_revive(6.0)
+		return 0
+
 	var actual_damage := int(float(amount) * GameSettings.player_damage_mult())
 	current_hp -= actual_damage
 

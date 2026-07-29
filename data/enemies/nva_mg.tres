@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dnvamg0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_mg"
+display_name = "NVA Machine Gunner"
+description = "RPD gunner. Anchors the squad's base of fire; does not maneuver."
+max_hp = 85
+move_speed = 3.8
+preferred_range = 32.0
+alert_range = 26.0
+weapon_path = "res://data/weapons/rpd.tres"
+accuracy_modifier = 1.05
+aggression = 0.45
+color = Color(0.35, 0.4, 0.3, 1)
+flanks = false
+retreats_when_hurt = false
+courage = 0.7
+determination = 0.9
+exposure_ramp_time = 2.4
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "nva_mg"
+sprite_unit_fallback = "vc_guerilla_rpd"
+sprite_weapon = "rpd"

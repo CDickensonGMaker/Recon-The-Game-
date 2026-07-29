@@ -592,6 +592,8 @@ func _think() -> void:
 	# at every tier. This is the guard-rail - tiering never sheds the witness check.
 	_update_perception()
 	_check_corpse_discovery()
+	if enemy_data != null and enemy_data.combat_medic and not is_downed:
+		_medic_think()
 
 	# ACTIVITY TIER (ADR-026 Part B): only the rolling hot-set runs the expensive
 	# combat brain. The rest of the fight runs cheap behavior with no per-think
@@ -1271,6 +1273,13 @@ func _execute(delta: float) -> void:
 	# the goal FSM below never touches his legs while the objective stands.
 	if assault_objective != Vector3.ZERO:
 		_execute_assault(delta)
+		return
+
+	# Medic override, same contract as the sapper's: his legs belong to the
+	# casualty - reach the downed man, drag him toward the rear, release. He
+	# still thinks, still telegraphs, still dies.
+	if _aid_target != null:
+		_execute_aid(delta)
 		return
 
 	match current_state:
@@ -2237,9 +2246,89 @@ var _downed_bleed_s: float = 0.0
 var _downed_fx_s: float = 0.0
 var _died_emitted: bool = false
 
+## ---------- COMBAT MEDIC (Summoner ruling 2026-07-29: enemy medics drag their
+## wounded out of the combat zone - theater, not an enemy revive) ----------
+## Downed men are unregistered from AgentRegistry, so medics find them here.
+static var downed_pool: Array[EnemyBase] = []
+var _aid_target: EnemyBase = null
+var _drag_started: bool = false
+var _drag_dest: Vector3 = Vector3.ZERO
+var _aid_abort_s: float = 0.0
+const DRAG_SPEED_MULT: float = 0.55
+const MEDIC_SCAN_RANGE: float = 45.0
+const DRAG_OUT_METERS: float = 14.0
+
+
+func _medic_think() -> void:
+	if _aid_target != null:
+		if not is_instance_valid(_aid_target) or not _aid_target.is_downed:
+			_reset_aid()
+		return
+	var best: EnemyBase = null
+	var best_d: float = MEDIC_SCAN_RANGE
+	for w in downed_pool:
+		if not is_instance_valid(w) or w == self or not w.is_downed:
+			continue
+		if w.has_meta("dragged_out") or w.is_in_group("captured"):
+			continue
+		var d: float = global_position.distance_to(w.global_position)
+		if d < best_d:
+			best_d = d
+			best = w
+	if best != null:
+		_aid_target = best
+		_drag_started = false
+		_drag_dest = Vector3.ZERO
+		_aid_abort_s = 30.0
+		VOManager.play_enemy("order", self)
+
+
+func _reset_aid() -> void:
+	_aid_target = null
+	_drag_started = false
+	_drag_dest = Vector3.ZERO
+
+
+func _execute_aid(delta: float) -> void:
+	if not is_instance_valid(_aid_target) or not _aid_target.is_downed:
+		_reset_aid()
+		return
+	_aid_abort_s -= delta
+	if _aid_abort_s <= 0.0:
+		_aid_target.set_meta("dragged_out", true)  # unreachable ground: stop re-trying
+		_reset_aid()
+		return
+	if not _drag_started:
+		if global_position.distance_to(_aid_target.global_position) > 1.6:
+			_move_toward(_aid_target.global_position, delta, 1.1)
+			return
+		# The rear is AWAY from where he believes the threat is - never a peek
+		# at the player's true position.
+		var threat: Vector3 = last_known_target_pos
+		if threat == Vector3.ZERO:
+			threat = global_position + global_transform.basis.z
+		var away: Vector3 = global_position - threat
+		away.y = 0.0
+		away = away.normalized() if away.length() > 0.1 else -global_transform.basis.z
+		_drag_dest = _aid_target.global_position + away * DRAG_OUT_METERS
+		_drag_started = true
+		return
+	# Dragging: slow haul, the casualty trails a body-length behind.
+	var to_dest: Vector3 = _drag_dest - global_position
+	to_dest.y = 0.0
+	if to_dest.length() <= 1.2:
+		_aid_target.set_meta("dragged_out", true)
+		_reset_aid()
+		return
+	_move_toward(_drag_dest, delta, DRAG_SPEED_MULT)
+	var trail: Vector3 = global_position - to_dest.normalized() * 1.1
+	trail.y = _aid_target.global_position.y
+	_aid_target.global_position = _aid_target.global_position.lerp(trail, minf(1.0, 8.0 * delta))
+
 
 func _become_downed() -> void:
 	is_downed = true
+	downed_pool.append(self)
 	EnemySquad.release_hot(self)  # out of the fight: free the hot slot for a live man
 	current_hp = 1
 	_downed_bleed_s = randf_range(45.0, 90.0)
@@ -2290,6 +2379,7 @@ func secure() -> bool:
 
 
 func _die() -> void:
+	downed_pool.erase(self)
 	# THE WITNESS RULE: did anyone actually SEE this happen? If not, the AO learns
 	# nothing and this body becomes a liability instead. (ADR-005)
 	var killer: Node = null

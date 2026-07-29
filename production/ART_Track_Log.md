@@ -214,3 +214,22 @@ GPUParticles3D, zero real lights (ADR-026), visuals slaved to gameplay radii.
   (audio_manager.gd play_step_3d, 6-voice dedicated pool, 28m audible / 14m crouched at -18dB).
   Fairness symmetry with NoiseBus: they hear you, now you hear them. Placeholder step WAVs still in
   use - real samples wanted (CC0 hunt queued).
+
+## 9. ENEMY ROSTER EXPANSION (2026-07-29 - data+AI shipped, BODIES NEEDED)
+
+Rosters are LIVE on fallback bodies (ART-AHEAD wiring per enemy_data.gd): 8 new units in
+data/enemies/ + spawn pool. Blender bodies to build (v3 workflow, us_base_v3 as process reference):
+- **nva_rifleman / nva_mg / nva_marksman / nva_officer / nva_medic** - khaki NVA uniform + pith
+  helmet family; officer gets visible rank flair; medic gets satchel. Currently wearing
+  nva_regular / vc_guerilla_rpd / vc_guerilla_mosin stand-ins.
+- **vc_guerilla_ak** - black pajama AK carrier (vc_ak.tres awaits it; wearing ppsh body).
+- **vc_medic** - VC medic w/ satchel (wearing vc_guerilla_ppsh).
+
+MEDIC BEHAVIOR SHIPPED (Summoner ruling 7/29): combat_medic units drag downed men ~14m toward
+their believed-threat rear (enemy_base.gd _medic_think/_execute_aid, same override contract as the
+sapper assault). Enemies already had a downed state; medics use it. NO enemy revive - theater only.
+
+MEDIC REVIVE BUG FIXED (needs his playtest to verify): Doc now has a RESCUE order that outranks
+combat states (ally_base.gd _execute_rescue - the old MOVE_TO was written to a variable
+_execute_combat never read, so Doc held cover while you bled out). Second fix: body hits while
+downed now burn 6s of Doc's window instead of instant true death; headshots still final.

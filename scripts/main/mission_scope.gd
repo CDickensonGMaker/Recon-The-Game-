@@ -25,6 +25,7 @@ extends RefCounted
 static func reset() -> void:
 	FieldDirector.any_fire_menu_open = false
 	EnemyBase._cover_claims.clear()
+	EnemyBase.downed_pool.clear()
 	GunFX.reset_session()
 	GunFX.clear_decals()
 	NavBaker.clear()

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dnvamedic001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_medic"
+display_name = "NVA Medic"
+description = "Drags wounded comrades out of the fight. Shoots back only when pressed."
+max_hp = 80
+move_speed = 4.6
+preferred_range = 30.0
+alert_range = 24.0
+weapon_path = "res://data/weapons/ak47.tres"
+accuracy_modifier = 1.15
+aggression = 0.2
+combat_medic = true
+color = Color(0.35, 0.4, 0.3, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.35
+courage = 0.75
+determination = 0.8
+exposure_ramp_time = 2.6
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "nva_medic"
+sprite_unit_fallback = "nva_regular"
+sprite_weapon = "ak47"

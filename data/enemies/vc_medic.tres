@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dvcmedic0001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_medic"
+display_name = "VC Medic"
+description = "Drags wounded fighters into the treeline. Not looking for a gunfight."
+max_hp = 65
+move_speed = 4.6
+preferred_range = 30.0
+alert_range = 22.0
+weapon_path = "res://data/weapons/ppsh41.tres"
+accuracy_modifier = 1.3
+aggression = 0.15
+combat_medic = true
+color = Color(0.3, 0.3, 0.25, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.4
+courage = 0.6
+determination = 0.6
+exposure_ramp_time = 3.0
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc_medic"
+sprite_unit_fallback = "vc_guerilla_ppsh"
+sprite_weapon = "ppsh41"

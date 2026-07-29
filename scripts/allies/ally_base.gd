@@ -157,7 +157,7 @@ func _is_garrison_defender() -> bool:
 
 
 ## Squad layer: roster identity + orders.
-enum OrderMode { FOLLOW, HOLD, MOVE_TO }
+enum OrderMode { FOLLOW, HOLD, MOVE_TO, RESCUE }
 ## False for a US element that is not in the player's squad (an ambient friendly
 ## patrol). Group "allies" answers "will the player's bullets hurt him"; this
 ## answers "is he MINE". Anything keyed to the squad - break state, distance
@@ -775,6 +775,14 @@ func _execute(delta: float) -> void:
 
 	_update_aim(delta)
 
+	# RESCUE outranks every combat state: the medic-revive bug was set_order()
+	# writing a variable _execute_combat never read, so Doc held cover while the
+	# player bled out. A rescuer moves, full stop - he does not fight, he does
+	# not re-anchor to cover, he does not strafe.
+	if order_mode == OrderMode.RESCUE:
+		_execute_rescue(delta)
+		return
+
 	match current_state:
 		Enums.AIState.IDLE:
 			_execute_idle(delta)
@@ -862,6 +870,17 @@ func _execute_idle(delta: float) -> void:
 				_move_toward(order_pos, delta)
 			else:
 				_settle(delta)
+
+
+## Dead run to the casualty. Cover leash, strafe and range bands do not apply;
+## the revive channel itself is SquadSystem's (distance-gated at 2.8m there).
+func _execute_rescue(delta: float) -> void:
+	if order_pos == Vector3.ZERO:
+		return
+	if global_position.distance_to(order_pos) > 2.2:
+		_move_toward(order_pos, delta, CATCHUP_MULT)
+	else:
+		_settle(delta)
 
 
 func _settle(delta: float) -> void:

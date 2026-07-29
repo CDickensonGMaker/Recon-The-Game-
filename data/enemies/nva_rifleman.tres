@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3 uid="uid://dnvarifleman01"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_rifleman"
+display_name = "NVA Rifleman"
+description = "Main Force line infantry with an AK-47. Disciplined, keeps formation."
+max_hp = 80
+move_speed = 4.4
+preferred_range = 26.0
+alert_range = 24.0
+weapon_path = "res://data/weapons/ak47.tres"
+accuracy_modifier = 0.95
+aggression = 0.6
+color = Color(0.35, 0.4, 0.3, 1)
+flanks = true
+retreats_when_hurt = false
+courage = 0.65
+determination = 0.9
+exposure_ramp_time = 2.2
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "nva_rifleman"
+sprite_unit_fallback = "nva_regular"
+sprite_weapon = "ak47"

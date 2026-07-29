@@ -28,6 +28,10 @@ extends Resource
 @export var silent_infiltrator: bool = false
 
 @export_group("Behavior")
+## Battlefield theater role (Summoner ruling 2026-07-29): he runs to DOWNED
+## squadmates and drags them out of the fight. Flavor - he never revives them
+## back into combat; the US squad medic remains the only true reviver.
+@export var combat_medic: bool = false
 @export var uses_cover: bool = true
 @export var flanks: bool = false
 @export var retreats_when_hurt: bool = false
