@@ -161,7 +161,16 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 		var stale: Callable = skel.get_meta("hz_sync_cb")
 		if skel.skeleton_updated.is_connected(stale):
 			skel.skeleton_updated.disconnect(stale)
-	var cb: Callable = func() -> void: sync(model, entries)
+	# Distance-gated: frame-perfect zones matter inside close-fight range where
+	# a one-frame pose lag is a visible miss; past 40m the physics-tick sync is
+	# within centimeters, and an ungated closure was re-syncing every body every
+	# render frame on top of it (measured ~3-6ms at siege scale, DEMO_PERF_PLAN).
+	var cb: Callable = func() -> void:
+		if not model.is_inside_tree():
+			return
+		var cam: Camera3D = model.get_viewport().get_camera_3d()
+		if cam == null or cam.global_position.distance_squared_to(model.global_position) < 1600.0:
+			sync(model, entries)
 	skel.skeleton_updated.connect(cb)
 	skel.set_meta("hz_sync_cb", cb)
 	return entries

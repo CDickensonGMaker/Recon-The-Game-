@@ -402,7 +402,10 @@ func _hide_export_duplicates() -> void:
 	# lowest suffix, hide the rest. This is a common exporter-side duplicate name.
 	var numbered: Dictionary = {}
 	var re_num := RegEx.new()
-	re_num.compile(r"^(.+)\.(\d+)$")
+	# Both separators: Blender authors `canteen_l.002`, the glTF exporter ships
+	# it as `canteen_l_002` - the dot-only pattern collapsed nothing in-game and
+	# every grunt rendered 5 canteens (DEMO_PERF_PLAN finding).
+	re_num.compile(r"^(.+)[._](\d+)$")
 	for n: String in by_name.keys():
 		var m := re_num.search(n)
 		if m == null:

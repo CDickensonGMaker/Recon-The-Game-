@@ -78,6 +78,14 @@ func _open_siege(strength: int, toast: String) -> void:
 	var d: FieldDirector = _flow.director
 	if d.siege == null:
 		d._attach_siege()   # idempotent; needs fsb_center, which the build set
+	if d.siege != null:
+		# Slice-scale assault geometry: the kilometer-AO defaults spawn cells
+		# OFF the 512m map (fsb center is only 256m from every edge).
+		d.siege.ring_min = 190.0
+		d.siege.ring_max = 235.0
+		d.siege.rally_m = 150.0
+		d.siege.mortar_standoff_m = 170.0
+		d.siege.cell_materialize_m = minf(d.siege.cell_materialize_m, 220.0)
 	if d.siege == null:
 		print("[DEMO] no siege director - phase skipped")
 		return
