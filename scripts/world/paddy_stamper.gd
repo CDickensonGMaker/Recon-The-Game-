@@ -5,15 +5,10 @@ extends RefCounted
 
 const PaddyFieldScript := preload("res://scripts/world/paddy_field.gd")
 
-# Hard-consts match gameplay_grid.gd defaults at the time of writing. If those
-# defaults ever change, this stamper's indexing breaks silently — a loadout test
-# in test_paddy_stamper_runner.gd asserts these match.
-const GRID_SIZE: int = 256
-const CELL_SIZE_M: float = 12.0
 const RICE_PADDY: int = 1  # GameplayGrid.TerrainType.RICE_PADDY
 
 # Cluster parameters — tune via smoke test until ≥4 viable village anchors.
-const MIN_PADDY_AREA_CELLS: int = 2        # at 12m cells: 17m diameter minimum (was 4 = 24m, too strict for paddy-poor AOs)
+const MIN_PADDY_AREA_CELLS: int = 2
 const PROP_DENSITY: float = 0.8             # rice plants per cell, on average
 const VILLAGE_GROUPING_RADIUS_M: float = 140.0  # paddies within this band → one village (was 220; tighter = more villages)
 const VILLAGE_TARGET_PADDY_MAX: int = 2     # 1-2 paddies per village = 8-10 villages from a normal AO
@@ -40,16 +35,20 @@ static func stamp(
 	var rng := RandomNumberGenerator.new()
 	rng.seed = mission_seed + 1009  # separate stream from mission-type roll
 
+	# Grid geometry comes from the LIVE grid, never a const copy: the shipped
+	# const pair (256 / 12.0m) silently placed every centroid at 2.4x its true
+	# world position on the 1280m map (cells are actually 5.0m).
+	var gsize: int = grid.grid_size
 	var paddy_fields: Array[PaddyFieldScript] = []
 	var paddy_centroids: Array[Vector3] = []
 	var visited: PackedByteArray = PackedByteArray()
-	visited.resize(GRID_SIZE * GRID_SIZE)
+	visited.resize(gsize * gsize)
 	for i in range(visited.size()):
 		visited[i] = 0
 
-	for gz in GRID_SIZE:
-		for gx in GRID_SIZE:
-			var idx: int = gz * GRID_SIZE + gx
+	for gz in gsize:
+		for gx in gsize:
+			var idx: int = gz * gsize + gx
 			if visited[idx] == 1:
 				continue
 			if grid.get_terrain_type_at(gx, gz) != RICE_PADDY:
@@ -84,25 +83,26 @@ static func _flood_fill(
 	start_gx: int, start_gz: int, grid: GameplayGrid, visited: PackedByteArray
 ) -> PackedInt32Array:
 	# Iterative 4-conn BFS; returns flat indices of all RICE_PADDY cells in the cluster.
+	var gsize: int = grid.grid_size
 	var cluster: PackedInt32Array = PackedInt32Array()
 	var queue: PackedInt32Array = PackedInt32Array()
-	var start_idx: int = start_gz * GRID_SIZE + start_gx
+	var start_idx: int = start_gz * gsize + start_gx
 	queue.append(start_idx)
 	visited[start_idx] = 1
 	while not queue.is_empty():
 		var cur: int = queue[0]
 		queue.remove_at(0)
 		cluster.append(cur)
-		var gx: int = cur % GRID_SIZE
+		var gx: int = cur % gsize
 		@warning_ignore("integer_division")
-		var gz: int = cur / GRID_SIZE
+		var gz: int = cur / gsize
 		# 4-neighbors: +x, -x, +z, -z
 		for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nx: int = gx + off.x
 			var nz: int = gz + off.y
-			if nx < 0 or nx >= GRID_SIZE or nz < 0 or nz >= GRID_SIZE:
+			if nx < 0 or nx >= gsize or nz < 0 or nz >= gsize:
 				continue
-			var n: int = nz * GRID_SIZE + nx
+			var n: int = nz * gsize + nx
 			if visited[n] == 1:
 				continue
 			if grid.get_terrain_type_at(nx, nz) != RICE_PADDY:
@@ -113,19 +113,21 @@ static func _flood_fill(
 
 
 static func _build_paddy_field(
-	cluster: PackedInt32Array, _grid: GameplayGrid, terrain, parent: Node, rng: RandomNumberGenerator
+	cluster: PackedInt32Array, grid: GameplayGrid, terrain, parent: Node, rng: RandomNumberGenerator
 ) -> PaddyFieldScript:
 	# Centroid + bounds in cell coords; world Y from terrain height.
+	var gsize: int = grid.grid_size
+	var cell_m: float = grid.cell_size_meters
 	var sum_x: float = 0.0
 	var sum_z: float = 0.0
-	var min_x: int = GRID_SIZE
+	var min_x: int = gsize
 	var max_x: int = 0
-	var min_z: int = GRID_SIZE
+	var min_z: int = gsize
 	var max_z: int = 0
 	for idx in cluster:
-		var gx: int = idx % GRID_SIZE
+		var gx: int = idx % gsize
 		@warning_ignore("integer_division")
-		var gz: int = idx / GRID_SIZE
+		var gz: int = idx / gsize
 		sum_x += gx
 		sum_z += gz
 		if gx < min_x: min_x = gx
@@ -135,8 +137,8 @@ static func _build_paddy_field(
 	var count: int = cluster.size()
 	var cgx: float = sum_x / float(count)
 	var cgz: float = sum_z / float(count)
-	var world_x: float = (cgx + 0.5) * CELL_SIZE_M
-	var world_z: float = (cgz + 0.5) * CELL_SIZE_M
+	var world_x: float = (cgx + 0.5) * cell_m
+	var world_z: float = (cgz + 0.5) * cell_m
 	var world_y: float = terrain.get_height_at(Vector3(world_x, 0.0, world_z))
 
 	var pf: PaddyFieldScript = PaddyFieldScript.new()
@@ -153,20 +155,20 @@ static func _build_paddy_field(
 	parent.add_child(wp)
 	pf.working_point = parent.get_path_to(wp)
 
-	_scatter_rice_props(pf, parent, rng)
+	_scatter_rice_props(pf, parent, rng, cell_m)
 	return pf
 
 
 static func _scatter_rice_props(
-	pf: PaddyFieldScript, parent: Node, rng: RandomNumberGenerator
+	pf: PaddyFieldScript, parent: Node, rng: RandomNumberGenerator, cell_m: float
 ) -> void:
 	# Rice is visual only — MeshInstance3D, no StaticBody3D (programmer-council rule).
 	var plant_count: int = maxi(1, int(round(float(pf.cell_count) * PROP_DENSITY)))
 	for i in range(plant_count):
 		var gx: int = rng.randi_range(pf.bounds_min.x, pf.bounds_max.x)
 		var gz: int = rng.randi_range(pf.bounds_min.y, pf.bounds_max.y)
-		var world_x: float = (float(gx) + rng.randf()) * CELL_SIZE_M
-		var world_z: float = (float(gz) + rng.randf()) * CELL_SIZE_M
+		var world_x: float = (float(gx) + rng.randf()) * cell_m
+		var world_z: float = (float(gz) + rng.randf()) * cell_m
 		var world_y: float = pf.world_position.y
 		var model_path: String = RICE_A if rng.randf() < 0.5 else RICE_B
 		var scene: PackedScene = load(model_path)

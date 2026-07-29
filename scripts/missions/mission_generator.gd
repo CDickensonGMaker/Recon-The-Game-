@@ -642,6 +642,85 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 	return p
 
 
+## DEMO GAME (War Room 2026-07-29): the authored 512m-slice plan. Same dict
+## contract as plan_patrol_world - build_patrol_world stamps it unchanged - but
+## sites are placed by BEARING from the centered firebase because the patrol
+## planner's 240-560m bands cannot fit a small map. Lives HERE because only
+## this file and site_planner.gd may drive the stamps (test_placement_paths).
+static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = op_seed + 4242
+	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager, world.vegetation_manager, world)
+	var p := {
+		"seed": op_seed,
+		"codename": "DEMO",
+		"weather": "CLEAR", "time": "DUSK",
+		"sites": [], "enemy_groups": [],
+		"fire_support": {"mortar": 1},
+	}
+	var paddy_result: Dictionary = PaddyStamperScript.stamp(
+		op_seed, world.gameplay_grid, world.terrain_manager, world)
+	p["paddy_fields"] = paddy_result.paddies
+	p["village_anchors"] = paddy_result.village_anchors
+	p["paddy_centroids"] = paddy_result.paddy_centroids
+	for c: Vector3 in paddy_result.paddy_centroids:
+		planner._reserved.append(c)
+
+	# The demo IS the firebase: dead center of the slice.
+	var half: float = world.map_size * 0.5
+	var fsb_center := Vector3(half, 0.0, half)
+	fsb_center.y = world.terrain_manager.get_height_at(fsb_center)
+	var gm: Dictionary = SitePlanner.fsb_gate_metrics(fsb_center)
+	var gate: Vector3 = gm.gate_pos
+	p["fsb_center"] = fsb_center
+	p["gate_pos"] = gate
+	p["gate_out"] = gm.gate_out
+	p["insertion_lz"] = gm.spawn_pos
+	p["exfil_lz"] = gm.spawn_pos
+	planner._fsb_rect = Rect2(fsb_center.x - SitePlanner.FSB_HALF.x,
+		fsb_center.z - SitePlanner.FSB_HALF.y,
+		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
+	_set_fsb_keepout(fsb_center)
+
+	# Authored sites: village NW, temple ruin NE - close enough to walk in the
+	# exploration window, seated on passable ground.
+	var village := _passable_near(world, rng,
+		fsb_center + Vector3(-1, 0, -1).normalized() * 185.0, 15.0, 70.0, 90,
+		SitePlanner.FSB_SITE_CLEARANCE)
+	if village == Vector3.ZERO:
+		village = fsb_center + Vector3(-150.0, 0.0, -150.0)
+		village.y = world.terrain_manager.get_height_at(village)
+	p.sites.append({"kind": "village", "center": village})
+	var demo_villages: Array[Vector3] = [village]
+	p["village_centers"] = demo_villages
+	var temple := _passable_near(world, rng,
+		fsb_center + Vector3(1, 0, -1).normalized() * 170.0, 15.0, 70.0, 90,
+		SitePlanner.FSB_SITE_CLEARANCE)
+	if temple != Vector3.ZERO:
+		p.sites.append({"kind": "temple", "center": temple})
+
+	var no_signs: Array[Vector3] = []
+	p["first_signs"] = no_signs
+	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
+	roads.build(gate, demo_villages)
+	p["roads"] = roads
+
+	# Light daytime presence only - the siege brings the real enemy at night.
+	p.enemy_groups.append({"pos": village, "count": rng.randi_range(3, 4),
+		"tag": "village_defenders_0", "lazy": false, "spread": 18.0})
+	var treeline := _passable_near(world, rng,
+		fsb_center + Vector3(0.2, 0.0, 1.0).normalized() * 190.0, 20.0, 80.0, 60,
+		SitePlanner.FSB_SITE_CLEARANCE)
+	if treeline != Vector3.ZERO:
+		p.enemy_groups.append({"pos": treeline, "count": rng.randi_range(3, 5),
+			"tag": "treeline_watchers", "lazy": true, "spread": 12.0})
+	var no_ambush: Array[Dictionary] = []
+	p["ambush_sites"] = no_ambush
+	var no_camps: Array[Vector3] = []
+	p["camp_centers"] = no_camps
+	return p
+
+
 static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dictionary) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(p.seed) + 777
@@ -697,6 +776,15 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var bench_pos: Vector3 = (fsb.spawn_pos as Vector3) - (fsb.gate_out as Vector3) * 10.0
 	bench_pos.y = world.terrain_manager.get_height_at(bench_pos)
 	bench.global_position = bench_pos
+
+	# The mortar pit: sandbag nest + M29 + crew-station markers garrison AI can
+	# claim (scenes/world/mortar_pit.tscn). Set square to the gate axis so the
+	# tube fires over the perimeter, not down the entrance road.
+	var gate_dir: Vector3 = (fsb.gate_out as Vector3)
+	var pit_dir: Vector3 = Vector3(gate_dir.z, 0.0, -gate_dir.x).normalized()
+	var pit_pos: Vector3 = (fsb.center as Vector3) + pit_dir * 10.0
+	pit_pos.y = world.terrain_manager.get_height_at(pit_pos)
+	MortarPit.create(world, pit_pos, pit_dir)
 
 	# ROADS. The network was ROUTED in the plan pass (pure positions); this is where it
 	# becomes part of the world. Two things happen and nothing else: the world gets its

@@ -406,6 +406,11 @@ func _report_spawn_truth(spawn: Vector3, op_seed: int) -> void:
 ## patrol - rank and missions_played advanced twice per walk-out.
 var _world_entry: int = 0
 
+## DEMO GAME (War Room 2026-07-29): demo_game.tscn sets this before booting the
+## SAME flow - one world-build path, never a parallel copy (ADR-028).
+static var demo_mode: bool = false
+const DEMO_MAP_SIZE: float = 512.0
+
 
 func enter_hub() -> void:
 	_world_entry += 1
@@ -438,6 +443,8 @@ func enter_hub() -> void:
 	world = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld
 	world.mission_seed = op_seed
 	world.spawn_player_on_ready = false
+	if demo_mode:
+		world.map_size = DEMO_MAP_SIZE
 	add_child(world)
 	while not world.is_world_ready:
 		await get_tree().create_timer(0.25).timeout
@@ -451,7 +458,10 @@ func enter_hub() -> void:
 	director.state.seed_value = op_seed
 	# THE OPEN PATROL WORLD (ADR-029 draft): the firebase and its populated AO are
 	# ONE build - form up, walk out the wire, go find problems.
-	var patrol_plan: Dictionary = MissionGenerator.plan_patrol_world(world, op_seed)
+	# DEMO GAME rides this same boot with an authored small-slice plan; the
+	# patrol planner's 240-560m bands collapse under ~900m maps.
+	var patrol_plan: Dictionary = MissionGenerator.plan_demo_world(world, op_seed) \
+		if demo_mode else MissionGenerator.plan_patrol_world(world, op_seed)
 	var built: Dictionary = MissionGenerator.build_patrol_world(world, director, patrol_plan)
 	var spawn: Vector3 = built.spawn_pos
 	# THE BUNK SPAWN: start the man on a cot inside the wire, not in a field outside it.
