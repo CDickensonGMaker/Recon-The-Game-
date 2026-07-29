@@ -244,3 +244,11 @@ downed now burn 6s of Doc's window instead of instant true death; headshots stil
   cell, NO mesh edits, NO re-exports, 7 different faces across the fireteam. VC/NVA unaffected.
 - NEEDS CALEB EYES: NVA lineup in-game (pith seat, cloth read), the 7 new US faces, officer flair +
   medic satchel still wanted (queued polish).
+
+**Cover clips staged (7/29 evening, his mocap + library blend ruling):** 5 new actions in
+assets/shared/cover_clips_staging.blend (previews in assets/shared/cover_previews/): wall_lean_idle,
+peek (0.87s hold from his capture), kneel_brace, reposition (8.5m root motion), slice_pie. All are
+fcurve-level blends of existing library clips with mocap-measured timings - zero hand sculpting.
+NEEDS CALEB: eye pass (MOCAP_REF armature sits 2m right for comparison), then sync into anim_library.
+Note: his cover source video is a downward-angle reference reel - for future captures, re-perform
+at 3/4 angle and the toolkit flow works clean.
