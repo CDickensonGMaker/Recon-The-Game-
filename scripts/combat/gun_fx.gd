@@ -26,6 +26,7 @@ static func reset_session() -> void:
 	_active_flashes = 0
 	_active_impacts = 0
 	_explosion_nodes.clear()
+	_linger_nodes.clear()
 	_blood_tex.clear()  # static cache would otherwise hold textures to process exit (leak scan)
 	if _sting_player != null and is_instance_valid(_sting_player):
 		_sting_player.stop()
@@ -105,16 +106,135 @@ static func play_click(parent: Node) -> void:
 	p.finished.connect(p.queue_free)
 
 
+## Visual scale per ordnance class (ADR-016 lethality decree: an RPG must READ
+## bigger than a grenade; arty bigger than both).
+const _KIND_SCALE: Dictionary = {
+	"explosion_grenade": 1.0,
+	"explosion_40mm": 0.8,
+	"explosion_rocket": 1.4,
+	"explosion_heavy": 1.9,
+}
+
+
 static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explosion_grenade") -> void:
 	AudioManager.play_explosion_3d(pos, kind)
-	_spawn_explosion_visual(parent, pos)
+	_spawn_explosion_visual(parent, pos, float(_KIND_SCALE.get(kind, 1.0)))
 
 
-## Procedural explosion visual: expanding emissive fireball (FAKE - no real light,
-## ADR-026), rising smoke puff, dirt/debris kick. Every explosion caller routes
-## through here. scale_mult/lifetime_mult let distant callers (AmbientWar horizon
-## events) enlarge and hold the flash so it reads across 200-800m; both default to
-## 1.0, leaving every combat caller byte-identical.
+## ---------- SHARED FX RESOURCES (built once; per-event nodes reference them,
+## so no material/pipeline compile ever happens mid-firefight) ----------
+static var _fx_tex_cache: Dictionary = {}
+static var _fx_res_cache: Dictionary = {}
+
+
+static func _fx_tex(rel: String) -> Texture2D:
+	if not _fx_tex_cache.has(rel):
+		_fx_tex_cache[rel] = load("res://assets/textures/fx/%s.png" % rel)
+	return _fx_tex_cache[rel]
+
+
+## Flipbook particle material: BILLBOARD_PARTICLES is the one BaseMaterial3D
+## mode that plays a sheet over particle lifetime.
+static func _sheet_mat(key: String, rel: String, h: int, v: int, additive: bool) -> StandardMaterial3D:
+	if _fx_res_cache.has(key):
+		return _fx_res_cache[key]
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	m.albedo_texture = _fx_tex(rel)
+	m.particles_anim_h_frames = h
+	m.particles_anim_v_frames = v
+	m.particles_anim_loop = false
+	if additive:
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		# The rendered sheets tonemap toward tan; warm them back to fire here.
+		m.albedo_color = Color(1.0, 0.72, 0.42)
+		m.emission_enabled = true
+		m.emission = Color(1.0, 0.6, 0.2)
+		m.emission_energy_multiplier = 3.0
+	_fx_res_cache[key] = m
+	return m
+
+
+static func _plain_mat(key: String, tex_rel: String) -> StandardMaterial3D:
+	if _fx_res_cache.has(key):
+		return _fx_res_cache[key]
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	if tex_rel != "":
+		m.albedo_texture = _fx_tex(tex_rel)
+	_fx_res_cache[key] = m
+	return m
+
+
+static func _fx_quad(key: String, size: float, mat: Material) -> QuadMesh:
+	if _fx_res_cache.has(key):
+		return _fx_res_cache[key]
+	var q := QuadMesh.new()
+	q.size = Vector2(size, size)
+	q.material = mat
+	_fx_res_cache[key] = q
+	return q
+
+
+static func _fx_proc(key: String, build: Callable) -> ParticleProcessMaterial:
+	if _fx_res_cache.has(key):
+		return _fx_res_cache[key]
+	var p := ParticleProcessMaterial.new()
+	build.call(p)
+	_fx_res_cache[key] = p
+	return p
+
+
+static func _smoke_fade_ramp() -> GradientTexture1D:
+	if _fx_res_cache.has("smoke_ramp"):
+		return _fx_res_cache["smoke_ramp"]
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.15, 0.75, 1.0])
+	g.colors = PackedColorArray([
+		Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.9), Color(1, 1, 1, 0.55), Color(1, 1, 1, 0.0),
+	])
+	var t := GradientTexture1D.new()
+	t.gradient = g
+	_fx_res_cache["smoke_ramp"] = t
+	return t
+
+
+## One-shot GPU burst on shared resources. local_coords=true so scaling the
+## root scales the whole effect (velocities included) without minting a
+## per-event process material.
+static func _burst(root: Node3D, amount: int, lifetime: float, proc: ParticleProcessMaterial, mesh: Mesh, y: float = 0.0) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = amount
+	p.lifetime = lifetime
+	p.local_coords = true
+	p.process_material = proc
+	p.draw_pass_1 = mesh
+	p.position.y = y
+	root.add_child(p)
+	p.emitting = true
+	return p
+
+
+## Lingering smoke has its OWN cap: it lives ~3.5s, so under a barrage it would
+## otherwise saturate MAX_EXPLOSIONS and silence the flashes (siege arty bug).
+const MAX_LINGER: int = 8
+static var _linger_nodes: Array[Node3D] = []
+
+const MAX_SCORCH: int = 12
+static var _scorch_decals: Array[Decal] = []
+
+
+## Layered explosion (ADR-026: FAKE light — every layer is unshaded sprite
+## geometry). scale_mult sizes ordnance classes; AmbientWar horizon events pass
+## big scale + lifetime holds so it reads at 200-800m.
 static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: float = 1.0, lifetime_mult: float = 1.0) -> void:
 	if parent == null:
 		return
@@ -128,8 +248,10 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	var root := Node3D.new()
 	parent.add_child(root)
 	root.global_position = pos
+	root.scale = Vector3.ONE * scale_mult
 	_explosion_nodes.append(root)
 
+	# 1. flash core: emissive billboard pop (the probe's self-lit contract).
 	var quad := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(1.2, 1.2)
@@ -138,51 +260,137 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(1.0, 0.75, 0.35, 1.0)
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = _get_flash_tex()
+	mat.albedo_color = Color(1.0, 0.85, 0.5, 1.0)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.55, 0.15)
 	mat.emission_energy_multiplier = 9.0
 	quad.material_override = mat
-	quad.position.y = 0.6 * scale_mult
+	quad.position.y = 0.6
 	root.add_child(quad)
 
-	var smoke := CPUParticles3D.new()
-	smoke.one_shot = true
-	smoke.amount = 16
-	smoke.lifetime = 1.2 * lifetime_mult
-	smoke.direction = Vector3.UP
-	smoke.spread = 40.0
-	smoke.initial_velocity_min = 1.5 * scale_mult
-	smoke.initial_velocity_max = 4.0 * scale_mult
-	smoke.gravity = Vector3(0, 1.0, 0)
-	smoke.scale_amount_min = 0.4 * scale_mult
-	smoke.scale_amount_max = 0.9 * scale_mult
-	smoke.color = Color(0.14, 0.13, 0.11, 0.85)
-	smoke.position.y = 0.5 * scale_mult
-	root.add_child(smoke)
-	smoke.emitting = true
+	# 2. fireball: 3 desynced flipbook particles.
+	var fire_proc := _fx_proc("expl_fire_proc", func(p: ParticleProcessMaterial) -> void:
+		p.direction = Vector3.UP
+		p.spread = 25.0
+		p.initial_velocity_min = 0.6
+		p.initial_velocity_max = 1.6
+		p.gravity = Vector3(0, 1.2, 0)
+		p.scale_min = 0.8
+		p.scale_max = 1.3
+		p.lifetime_randomness = 0.25
+		p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		p.emission_sphere_radius = 0.35)
+	var fire_mesh := _fx_quad("expl_fire_quad", 2.2,
+		_sheet_mat("expl_fire_mat", "sheets/fireball_sheet", 4, 4, true))
+	_burst(root, 3, 0.7 * lifetime_mult, fire_proc, fire_mesh, 0.7)
 
-	var debris := CPUParticles3D.new()
-	debris.one_shot = true
-	debris.amount = 20
-	debris.lifetime = 0.8 * lifetime_mult
-	debris.direction = Vector3.UP
-	debris.spread = 60.0
-	debris.initial_velocity_min = 4.0 * scale_mult
-	debris.initial_velocity_max = 9.0 * scale_mult
-	debris.gravity = Vector3(0, -12, 0)
-	debris.scale_amount_min = 0.05 * scale_mult
-	debris.scale_amount_max = 0.14 * scale_mult
-	debris.color = Color(0.4, 0.34, 0.25)
-	root.add_child(debris)
-	debris.emitting = true
+	# 3. shock ring: flat additive disc, tween-expanded.
+	var ring := MeshInstance3D.new()
+	var ring_mesh := QuadMesh.new()
+	ring_mesh.size = Vector2(1.0, 1.0)
+	ring.mesh = ring_mesh
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	ring_mat.albedo_texture = _fx_tex("particles/circle_05")
+	ring_mat.albedo_color = Color(1.0, 0.8, 0.5, 0.7)
+	ring_mat.emission_enabled = true
+	ring_mat.emission = Color(1.0, 0.7, 0.3)
+	ring_mat.emission_energy_multiplier = 2.0
+	ring.material_override = ring_mat
+	ring.rotation_degrees.x = -90.0
+	ring.position.y = 0.15
+	root.add_child(ring)
+
+	# 4. dirt column.
+	var dirt_proc := _fx_proc("expl_dirt_proc", func(p: ParticleProcessMaterial) -> void:
+		p.direction = Vector3.UP
+		p.spread = 14.0
+		p.initial_velocity_min = 5.0
+		p.initial_velocity_max = 9.0
+		p.gravity = Vector3(0, -9.0, 0)
+		p.scale_min = 0.5
+		p.scale_max = 1.1
+		p.lifetime_randomness = 0.3
+		p.color = Color(0.42, 0.35, 0.24)
+		p.color_ramp = _smoke_fade_ramp())
+	_burst(root, 8, 1.0 * lifetime_mult, dirt_proc,
+		_fx_quad("expl_dirt_quad", 1.4, _plain_mat("expl_dirt_mat", "particles/dirt_01")), 0.2)
+
+	# 5. debris chunks.
+	var debris_proc := _fx_proc("expl_debris_proc", func(p: ParticleProcessMaterial) -> void:
+		p.direction = Vector3.UP
+		p.spread = 55.0
+		p.initial_velocity_min = 5.0
+		p.initial_velocity_max = 11.0
+		p.gravity = Vector3(0, -20.0, 0)
+		p.scale_min = 0.06
+		p.scale_max = 0.16
+		p.color = Color(0.3, 0.25, 0.18))
+	_burst(root, 12, 0.9 * lifetime_mult, debris_proc,
+		_fx_quad("expl_debris_quad", 1.0, _plain_mat("expl_debris_mat", "")), 0.3)
+
+	# 6. lingering smoke: own root + own cap so barrages keep their flashes.
+	_linger_nodes = _linger_nodes.filter(func(n: Variant) -> bool: return is_instance_valid(n))
+	if _linger_nodes.size() < MAX_LINGER:
+		var linger_root := Node3D.new()
+		parent.add_child(linger_root)
+		linger_root.global_position = pos
+		linger_root.scale = Vector3.ONE * scale_mult
+		_linger_nodes.append(linger_root)
+		var linger_proc := _fx_proc("expl_linger_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 30.0
+			p.initial_velocity_min = 0.7
+			p.initial_velocity_max = 1.6
+			p.gravity = Vector3(0, 0.5, 0)
+			p.scale_min = 1.0
+			p.scale_max = 1.8
+			p.lifetime_randomness = 0.35
+			p.color = Color(0.30, 0.28, 0.24)
+			p.color_ramp = _smoke_fade_ramp()
+			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			p.emission_sphere_radius = 0.5)
+		var linger_mesh := _fx_quad("expl_linger_quad", 2.6,
+			_sheet_mat("expl_linger_mat", "sheets/puff_sheet", 4, 2, false))
+		_burst(linger_root, 6, 3.2 * lifetime_mult, linger_proc, linger_mesh, 0.8)
+		_expire(linger_root, 4.4 * lifetime_mult, func() -> void:
+			linger_root.queue_free())
+
+	# 7. scorch decal.
+	_scorch(parent, pos, scale_mult)
 
 	var tw := root.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0) * scale_mult, 0.35 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6) * scale_mult)
-	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4 * lifetime_mult)
-	_expire(root, 1.4 * lifetime_mult, func() -> void:
+	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.3 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6))
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
+	tw.tween_property(ring, "scale", Vector3(4.5, 4.5, 4.5), 0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
+	tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
+	_expire(root, 1.6 * lifetime_mult, func() -> void:
 		root.queue_free())
+
+
+static func _scorch(parent: Node, pos: Vector3, scale_mult: float) -> void:
+	var d := Decal.new()
+	var s: float = 2.4 * scale_mult
+	d.size = Vector3(s, 0.4, s)
+	d.texture_albedo = _fx_tex("particles/scorch_0%d" % (randi() % 3 + 1))
+	d.modulate = Color(0.1, 0.09, 0.08)
+	d.albedo_mix = 0.85
+	parent.add_child(d)
+	d.global_position = pos + Vector3(0, 0.05, 0)
+	d.rotate_y(randf_range(0.0, TAU))
+	for i in range(_scorch_decals.size() - 1, -1, -1):
+		if not is_instance_valid(_scorch_decals[i]):
+			_scorch_decals.remove_at(i)
+	_scorch_decals.append(d)
+	while _scorch_decals.size() > MAX_SCORCH:
+		var old: Variant = _scorch_decals.pop_front()
+		if is_instance_valid(old):
+			(old as Decal).queue_free()
 
 
 ## Self-contained expiry: a Timer CHILD of `node`, so it dies with it. A
@@ -221,31 +429,27 @@ static func _get_flash_tex() -> GradientTexture2D:
 	return _flash_tex
 
 
-## ONE shared material for every muzzle flash in the game. Flashes differ by mesh
-## size and roll, NOT by material, and this is called twice per shot (core +
-## spike) - never mint a fresh StandardMaterial3D here.
-static var _shared_flash_mat: StandardMaterial3D = null
-
-
-static func _flash_mat() -> StandardMaterial3D:
-	if _shared_flash_mat != null:
-		return _shared_flash_mat
+## Shared muzzle-flame materials - flashes differ by mesh size and roll, NOT by
+## material; this runs twice per shot, never mint a StandardMaterial3D here.
+static func _muzzle_mat(key: String, tex_rel: String) -> StandardMaterial3D:
+	if _fx_res_cache.has(key):
+		return _fx_res_cache[key]
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.albedo_texture = _get_flash_tex()
+	mat.albedo_texture = _fx_tex(tex_rel)
+	mat.albedo_color = Color(1.0, 0.82, 0.45)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.7, 0.2)
 	mat.emission_energy_multiplier = 6.0
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	_shared_flash_mat = mat
-	return _shared_flash_mat
+	_fx_res_cache[key] = mat
+	return mat
 
 
-## Muzzle flash: a radial burst with a star cross - two self-lit billboard quads
-## (round core + elongated spike pair), random roll + size jitter so no two shots
-## read identical.
+## Muzzle flash: real muzzle-flame sprites - round star core + elongated flame
+## spike, random roll + size jitter so no two shots read identical.
 ##
 ## FLASH_SECONDS is a FAIRNESS floor, not a look knob: the flash is the shooter's
 ## mandatory telegraph, so it must survive at least one rendered frame at our
@@ -265,15 +469,16 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	var core_mesh := QuadMesh.new()
 	core_mesh.size = Vector2(0.5, 0.5) * size_jitter
 	core.mesh = core_mesh
-	core.material_override = _flash_mat()
+	var core_pick: int = randi() % 2 + 4
+	core.material_override = _muzzle_mat("muzzle_core_mat_%d" % core_pick, "particles/muzzle_0%d" % core_pick)
 	core.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
 	root.add_child(core)
 
 	var spikes := MeshInstance3D.new()
 	var spike_mesh := QuadMesh.new()
-	spike_mesh.size = Vector2(1.0, 0.16) * size_jitter
+	spike_mesh.size = Vector2(1.0, 0.28) * size_jitter
 	spikes.mesh = spike_mesh
-	spikes.material_override = _flash_mat()
+	spikes.material_override = _muzzle_mat("muzzle_spike_mat", "particles/muzzle_01")
 	spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
 	root.add_child(spikes)
 
@@ -286,25 +491,30 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = false) -> void:
 	if _active_impacts < MAX_IMPACTS:
 		_active_impacts += 1
-		var particles := CPUParticles3D.new()
-		particles.emitting = false
-		particles.one_shot = true
-		particles.amount = 10
-		particles.lifetime = 0.45
-		particles.direction = normal
-		particles.spread = 35.0
-		particles.initial_velocity_min = 1.5
-		particles.initial_velocity_max = 3.5
-		particles.gravity = Vector3(0, -6, 0)
-		particles.scale_amount_min = 0.04
-		particles.scale_amount_max = 0.1
-		particles.color = Color(0.75, 0.7, 0.55) if hard else Color(0.45, 0.38, 0.28)
-		parent.add_child(particles)
-		particles.global_position = pos + normal * 0.05
-		particles.emitting = true
-		_expire(particles, 0.6, func() -> void:
+		var key := "impact_hard_proc" if hard else "impact_dirt_proc"
+		var col := Color(0.75, 0.7, 0.55) if hard else Color(0.45, 0.38, 0.28)
+		var proc := _fx_proc(key, func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 35.0
+			p.initial_velocity_min = 1.5
+			p.initial_velocity_max = 3.5
+			p.gravity = Vector3(0, -6, 0)
+			p.scale_min = 0.5
+			p.scale_max = 1.2
+			p.color = col
+			p.color_ramp = _smoke_fade_ramp())
+		var root := Node3D.new()
+		parent.add_child(root)
+		root.global_position = pos + normal * 0.05
+		# The shared material sprays +Y; aim the NODE's +Y down the surface normal.
+		if absf(normal.dot(Vector3.UP)) < 0.99:
+			root.look_at(root.global_position + normal, Vector3.UP)
+			root.rotate_object_local(Vector3.RIGHT, -PI * 0.5)
+		_burst(root, 8, 0.45, proc,
+			_fx_quad("impact_quad", 0.12, _plain_mat("impact_mat", "particles/smoke_01")))
+		_expire(root, 0.65, func() -> void:
 			_active_impacts -= 1
-			particles.queue_free())
+			root.queue_free())
 	var p := AudioStreamPlayer3D.new()
 	p.stream = IMPACT_HARD if hard else IMPACT_DIRT
 	p.volume_db = -4.0
@@ -345,15 +555,15 @@ static func blood(parent: Node, pos: Vector3, normal: Vector3, shot_dir: Vector3
 		# 1. the mist: 8-frame flipbook puff that blooms and dissipates (~0.45s)
 		var mist := CPUParticles3D.new()
 		mist.one_shot = true
-		mist.amount = 3
-		mist.lifetime = 0.45
+		mist.amount = 5
+		mist.lifetime = 0.5
 		mist.direction = shot_dir if shot_dir.length() > 0.1 else normal
-		mist.spread = 25.0
-		mist.initial_velocity_min = 0.4
-		mist.initial_velocity_max = 1.4
+		mist.spread = 22.0
+		mist.initial_velocity_min = 0.5
+		mist.initial_velocity_max = 2.0
 		mist.gravity = Vector3(0, -0.5, 0)
-		mist.scale_amount_min = 0.5
-		mist.scale_amount_max = 0.9
+		mist.scale_amount_min = 0.7
+		mist.scale_amount_max = 1.25
 		mist.anim_speed_min = 1.0
 		mist.anim_speed_max = 1.0
 		var mq := QuadMesh.new()
@@ -375,15 +585,15 @@ static func blood(parent: Node, pos: Vector3, normal: Vector3, shot_dir: Vector3
 		# 2. fine droplets streaking out with gravity
 		var drops := CPUParticles3D.new()
 		drops.one_shot = true
-		drops.amount = 10
-		drops.lifetime = 0.5
+		drops.amount = 16
+		drops.lifetime = 0.55
 		drops.direction = shot_dir if shot_dir.length() > 0.1 else normal
 		drops.spread = 40.0
-		drops.initial_velocity_min = 2.5
-		drops.initial_velocity_max = 5.5
+		drops.initial_velocity_min = 3.0
+		drops.initial_velocity_max = 7.0
 		drops.gravity = Vector3(0, -11.0, 0)
-		drops.scale_amount_min = 0.06
-		drops.scale_amount_max = 0.14
+		drops.scale_amount_min = 0.07
+		drops.scale_amount_max = 0.16
 		var dq := QuadMesh.new()
 		dq.size = Vector2(1, 1)
 		var dm := StandardMaterial3D.new()
@@ -432,7 +642,7 @@ static func _blood_splat_behind(parent: Node, pos: Vector3, dir: Vector3) -> voi
 	if hit.is_empty():
 		return
 	var d := Decal.new()
-	var s: float = randf_range(0.45, 0.85)
+	var s: float = randf_range(0.55, 1.05)
 	d.size = Vector3(s, 0.25, s)
 	d.texture_albedo = _btex("blood_splat_%d" % (randi() % 3 + 1))
 	d.albedo_mix = 1.0
@@ -559,3 +769,7 @@ static func clear_decals() -> void:
 		if is_instance_valid(d):
 			d.queue_free()
 	_decals.clear()
+	for sc in _scorch_decals:
+		if is_instance_valid(sc):
+			sc.queue_free()
+	_scorch_decals.clear()

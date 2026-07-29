@@ -225,6 +225,10 @@ func _warm_effects() -> void:
 	GunFX.blood_pool(root, pos)
 	GunFX.bullet_hole(root, pos, Vector3.UP)
 	GunFX._spawn_explosion_visual(root, pos)
+	var warm_cloud: SmokeCloud = SmokeCloud.spawn_at(root, pos + Vector3(4, 0, 0))
+	warm_cloud.duration = 1.0
+	var warm_fire: FireHazard = FireHazard.create_at(root, pos + Vector3(-4, 0, 0), 1.5, 0.7)
+	warm_fire.damage_per_second = 0.0   # shader warm-up only; must never clip a spawn
 	var bs: BulletSystem = CombatManager.bullets
 	if bs != null:
 		var tracer: MeshInstance3D = bs._visual_acquire(Color(1.0, 0.85, 0.4))

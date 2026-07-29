@@ -63,6 +63,7 @@ func _ready() -> void:
 	if _headless:
 		return
 	_build_voice_pool()
+	_build_step_pool()
 	_build_player_slots()
 	_load_fallbacks()
 
@@ -85,6 +86,63 @@ func _build_voice_pool() -> void:
 		_voices.append(p)
 		_voice_started.append(0)
 		_voice_prio.append(0.0)
+
+
+## ---------- NPC FOOTSTEPS ----------
+## Own tiny pool so 60 walking men can never evict a gunshot voice. Steps are
+## an ear-tracking tool: the AI already hears the PLAYER through NoiseBus, so
+## the player gets the symmetric cue back.
+const STEP_DIRT := preload("res://assets/audio/sfx/step_dirt.wav")
+const STEP_GRASS := preload("res://assets/audio/sfx/step_grass.wav")
+const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
+const STEP_VOICES: int = 6
+const STEP_AUDIBLE_M: float = 28.0
+var _step_voices: Array[AudioStreamPlayer3D] = []
+var _step_grid: GameplayGrid = null
+
+
+func _build_step_pool() -> void:
+	for i in range(STEP_VOICES):
+		var p := AudioStreamPlayer3D.new()
+		p.bus = AudioServer.get_bus_name(_bus_weapons)
+		p.max_distance = STEP_AUDIBLE_M
+		p.unit_size = 3.0
+		add_child(p)
+		_step_voices.append(p)
+
+
+func play_step_3d(pos: Vector3, crouched: bool = false) -> void:
+	if _headless:
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var audible: float = STEP_AUDIBLE_M * (0.5 if crouched else 1.0)
+	if cam.global_position.distance_to(pos) > audible:
+		return
+	for p in _step_voices:
+		if p.playing:
+			continue
+		# Surface lookup only for steps that actually play (pool-rate, not NPC-rate).
+		if _step_grid == null or not is_instance_valid(_step_grid):
+			var gw: Node = get_tree().get_first_node_in_group("game_world")
+			_step_grid = gw.get("gameplay_grid") if gw != null else null
+		var stream: AudioStream = STEP_DIRT
+		if _step_grid != null:
+			if _step_grid.is_water(pos):
+				stream = STEP_WATER
+			else:
+				var t: int = _step_grid.get_terrain_type(pos)
+				if t == GameplayGrid.TerrainType.GRASSLAND:
+					stream = STEP_GRASS
+				elif t == GameplayGrid.TerrainType.RICE_PADDY:
+					stream = STEP_WATER
+		p.stream = stream
+		p.volume_db = -18.0 if crouched else -12.0
+		p.pitch_scale = randf_range(0.85, 1.15)
+		p.global_position = pos
+		p.play()
+		return
 
 
 func _build_player_slots() -> void:

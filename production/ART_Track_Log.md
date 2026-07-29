@@ -182,3 +182,35 @@ candidate slices cross-correlate 0.99–1.00 — they are the same shot copy-pas
 2. Eyeball the transplanted rows in Blender — esp. Mosin (sits high-forward of hands), LAW + Ithaca
    (re-staged onto arms), M70 bolt rest angle (armory's -63.8°).
 3. Colt45 sights ride the slide again (your ADS-tracks-the-rack call) — confirm when posing.
+
+## 8. VFX PASS (War Room 2026-07-29 - smoke/fire/explosions/muzzle)
+
+Decree: `production/war_room/2026-07-29_vfx_room/synthesis.md`. 2002-school flipbook FX on
+GPUParticles3D, zero real lights (ADR-026), visuals slaved to gameplay radii.
+
+**SHIPPED in code (pending Summoner suite run + eyes):**
+- Explosion stack rebuilt (`gun_fx.gd _spawn_explosion_visual`): flash core + 3 flipbook fireballs +
+  shock ring + dirt column + debris + lingering smoke (own cap 8, so siege arty keeps its flashes) +
+  scorch decals (cap 12). Ordnance now reads by size: 40mm 0.8x / grenade 1.0x / rocket 1.4x / arty 1.9x.
+- Napalm (`fire_hazard.gd`): flame-card ring on the exact damage disc + black oily smoke pillar +
+  additive ground glow + persistent scorch. Placeholder cylinder DELETED.
+- Smoke grenade (`smoke_cloud.gd`): 28-puff GPU cluster uniform-scaled to current_radius() (never
+  renders larger than the blocks_sight sphere) + camera-inside blind overlay. Sphere mesh DELETED.
+- Muzzle flash: real muzzle-flame sprites (core star + flame spike), same 2-quad probe contract.
+- Impact dust migrated CPU->GPU on shared materials. All new FX warmed in `_warm_effects()`.
+- Textures: Kenney CC0 support sprites in `assets/textures/fx/particles/` (128px, ~250KB) +
+  own Mantaflow-rendered sheets in `assets/textures/fx/sheets/` (puff landed; fireball/flame iterating).
+
+**Needs CALEB:**
+1. Eye-confirm the rendered sheets (fireball / puff / flame) - rendered headless, swap is 1 file each.
+2. Suite run (test_fake_lights + test_fossils must stay green).
+3. SHIP GATE: windowed A/B/A barrage bench (4 smokes + 2 napalms + explosion volley) -> PERF_LEDGER.md.
+   Overdraw on the Intel UHD is the named #1 risk; caps are the knob if it regresses.
+
+**Late adds same session (Summoner asks mid-pass):**
+- Muzzle flame sprites on all guns (was procedural gradient placeholder).
+- Blood read punched up: bigger directional exit mist (5 puffs to 1.25m), 16 droplets, meter-wide splats.
+- NPC FOOTSTEPS: allies + enemies now emit surface-matched positional steps every ~0.85m
+  (audio_manager.gd play_step_3d, 6-voice dedicated pool, 28m audible / 14m crouched at -18dB).
+  Fairness symmetry with NoiseBus: they hear you, now you hear them. Placeholder step WAVs still in
+  use - real samples wanted (CC0 hunt queued).

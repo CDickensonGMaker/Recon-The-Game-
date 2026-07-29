@@ -449,6 +449,9 @@ func _setup_hurtbox() -> void:
 ## MAIN LOOP - Separate think from execute
 ## ============================================
 
+## Meters walked since the last audible footstep (~one stride).
+var _step_accum: float = 0.0
+
 func _physics_process(delta: float) -> void:
 	var t_start: int = Time.get_ticks_usec()
 	_body_hot = _body_gate_open()
@@ -520,6 +523,10 @@ func _physics_process(delta: float) -> void:
 	var t_move: int = Time.get_ticks_usec()
 	if _body_hot:
 		move_and_slide()
+		_step_accum += Vector2(velocity.x, velocity.z).length() * capped_delta
+		if _step_accum >= 0.85:
+			_step_accum = 0.0
+			AudioManager.play_step_3d(global_position, _low_posture)
 	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
 	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
 
