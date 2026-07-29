@@ -22,6 +22,5 @@ courage = 0.5
 determination = 0.55
 exposure_ramp_time = 2.6
 sprite_faction = "Vietcong and NVA"
-sprite_unit = "vc_guerilla_ak"
-sprite_unit_fallback = "vc_guerilla_ppsh"
+sprite_unit = "vc_guerilla"
 sprite_weapon = "ak47"

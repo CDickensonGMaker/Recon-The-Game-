@@ -233,3 +233,14 @@ MEDIC REVIVE BUG FIXED (needs his playtest to verify): Doc now has a RESCUE orde
 combat states (ally_base.gd _execute_rescue - the old MOVE_TO was written to a variable
 _execute_combat never read, so Doc held cover while you bled out). Second fix: body hits while
 downed now burn 6s of Doc's window instead of instant true death; headshots still final.
+
+**Enemy bodies + US faces SHIPPED headless (2026-07-29 late session):**
+- 7 enemy GLBs built via tools/make_nva_variant.py from vc_guerilla_v2.blend (master untouched):
+  nva_regular/rifleman/mg/marksman/officer/medic + vc_medic. NVA cloth = position-driven remap onto
+  the faction sheet NVA row (shirt/sleeves/trousers, gib donors included), procedural pith helmet
+  UV'd to the sheet pith photo, nva_1/nva_2 faces. vc_ak.tres now points at existing vc_guerilla body.
+- US FACES: his newfaceatlas.png (36 painted faces, art_source/characters/base_psx/) baked into each
+  us_grunt variant's face_atlas_v3 sidecar PNG via tools/bake_us_faces.py - measured dominant-cluster
+  cell, NO mesh edits, NO re-exports, 7 different faces across the fireteam. VC/NVA unaffected.
+- NEEDS CALEB EYES: NVA lineup in-game (pith seat, cloth read), the 7 new US faces, officer flair +
+  medic satchel still wanted (queued polish).
