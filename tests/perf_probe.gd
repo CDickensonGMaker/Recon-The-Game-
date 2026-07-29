@@ -27,6 +27,14 @@ var world: GameWorld
 var _elapsed: float = 0.0
 var _phase: int = -1
 var _phases: Array[String] = []
+## THE SIEGE STUDY (`--perf-siege`). Forces night, then calls the full d50 assault down
+## on the firebase and samples THROUGH it. The world at rest is not the world the demo
+## ships: HOT_CAP 50, LIVE_CAP 50 and the uncapped ragdolls were all raised on the
+## ledger's own attribution and NONE has been measured under a real assault.
+@export var siege_study: bool = false
+var _think: Dictionary = {}   ## phase -> Array[float], AI think ms/physics-frame
+var _live: Dictionary = {}    ## phase -> Array[float], living enemies in the world
+
 var _fps: Dictionary = {}     ## phase -> Array[float]
 var _prims: Dictionary = {}   ## phase -> Array[float]
 var _calls: Dictionary = {}   ## phase -> Array[float]
@@ -64,6 +72,11 @@ func attach(w: GameWorld) -> void:
 		# wider than some levers - a single baseline cannot carry four deltas.
 		_phases = ["baseline", "no_campfires", "baseline_2", "no_canopy",
 			"baseline_3", "no_clutter", "baseline_4", "no_sun_shadow", "baseline_5"]
+	elif siege_study:
+		# quiet -> the assault crossing the ring -> the assault ON the wire. Three
+		# windows so the cost of BODIES ARRIVING is separated from the cost of bodies
+		# already there; one averaged window would hide the spike that matters.
+		_phases = ["quiet", "assault_in", "assault_on_wire"]
 	else:
 		_phases = ["baseline"]
 	for p: String in _phases:
@@ -71,6 +84,8 @@ func attach(w: GameWorld) -> void:
 		_prims[p] = [] as Array[float]
 		_calls[p] = [] as Array[float]
 		_objs[p] = [] as Array[float]
+		_think[p] = [] as Array[float]
+		_live[p] = [] as Array[float]
 	set_process(true)
 
 
@@ -112,6 +127,15 @@ func _process(delta: float) -> void:
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)))
 	(_objs[phase_name] as Array).append(float(
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)))
+	# The AI half. Without this the siege study would report a frame cost with no way
+	# to say whether the brain or the bodies bought it - the exact mistake ADR-026's
+	# attribution pass was run to stop.
+	(_think[phase_name] as Array).append(float(CombatManager.ai_usec_think) * 0.001)
+	var alive: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is EnemyBase and not (e as EnemyBase).is_dead():
+			alive += 1
+	(_live[phase_name] as Array).append(float(alive))
 
 
 ## The canopy source is chosen at runtime (VegetationManager.CanopySource), so the
@@ -119,6 +143,13 @@ func _process(delta: float) -> void:
 ## find its system still prints a row, so an unresolved system must be LOUD - a silent
 ## no-op row reads as "this system costs nothing".
 func _apply_toggle(phase_name: String) -> void:
+	# The siege study drives the fight, not the scenery - return before the vegetation
+	# levers so a siege phase never silently doubles as a canopy toggle.
+	if siege_study:
+		if phase_name == "assault_in":
+			_open_the_assault()
+		return
+
 	var vg: VegetationManager = world.vegetation_manager
 	var canopy_hit: bool = false
 	if vg != null:
@@ -193,6 +224,32 @@ func _avg(arr: Array) -> float:
 	return total / float(arr.size())
 
 
+## The siege's worst frame is the one that decides whether the demo holds, so the
+## siege rows carry a max as well as a mean.
+func _maximum(arr: Array) -> float:
+	var hi: float = 0.0
+	for v in arr:
+		hi = maxf(hi, float(v))
+	return hi
+
+
+## Night, then the full d50 on the wire. Re-arms a spent run so the probe is
+## repeatable, and says so loudly if no siege is attached rather than measuring a
+## quiet world under an "assault" label.
+func _open_the_assault() -> void:
+	var director: Node = get_tree().get_first_node_in_group("mission_director")
+	var siege: Object = director.get("siege") if director != null else null
+	if siege == null:
+		push_error("[PERF] --perf-siege: no SiegeDirector attached - the assault rows measure NOTHING.")
+		return
+	MissionWeather.is_night = true
+	siege.set("nights_run", 0)
+	siege.set("run_strength", 0)
+	siege.call("open_siege", 50)
+	print("[PERF] siege opened at strength %d in %d cells" % [
+		int(siege.get("run_strength")), (siege.get("cells") as Array).size()])
+
+
 func _minimum(arr: Array) -> float:
 	if arr.is_empty():
 		return 0.0
@@ -215,6 +272,9 @@ func _finish() -> void:
 			int(_avg(_prims[p])), int(_avg(_calls[p])), int(_avg(_objs[p])),
 			(_fps[p] as Array).size(),
 		])
+		if siege_study:
+			print("PERF AI  %-14s think_ms_avg=%5.2f think_ms_max=%5.2f live_avg=%5.1f live_max=%5.1f" % [
+				p, _avg(_think[p]), _maximum(_think[p]), _avg(_live[p]), _maximum(_live[p])])
 
 	if shadow_study or cycle_systems:
 		# Each lever is scored against the MEAN of the two baselines that bracket it,

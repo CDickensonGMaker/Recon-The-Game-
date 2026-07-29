@@ -481,6 +481,7 @@ func enter_hub() -> void:
 	if args.has("--perf-probe"):
 		var probe: Node = (load("res://tests/perf_probe.tscn") as PackedScene).instantiate()
 		probe.set("cycle_systems", args.has("--perf-cycle"))
+		probe.set("siege_study", args.has("--perf-siege"))
 		probe.set("shadow_study", args.has("--shadow-study"))
 		world.add_child(probe)
 		probe.call("attach", world)
