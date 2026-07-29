@@ -656,6 +656,11 @@ const FSB_FLATTEN_RADIUS: float = 215.0
 ## guarantee rect.grow(40) whose corners reach 169m. Only the outer shoulder
 ## blends into relief.
 const FSB_PLATEAU_FALLOFF: float = 0.107
+## Interior mound height (fb_gate_gap marker sits at y=2.87 in the v3 GLB;
+## berm crest ~5.5) and the falloff fraction where the full mound level is
+## reached (f at d~120m of the 215m radius - covers the measured berm ring).
+const FSB_MOUND_TOP: float = 2.87
+const FSB_MOUND_FALLOFF: float = 0.41
 ## Vegetation-clear discs (model-space offsets from AABB center + radius). The base is authored
 ## cleared ground; trees through bunkers lie.
 ## 140 m, not the v1 ring of five 58 m discs: v3 authors its OWN cut-over treeline out to ~149 m
@@ -896,9 +901,19 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	# Full plateau across the model AND the spawn ring (corner reach ~252m), then a
 	# 65m blend shoulder. The old f*8.0 curve left the gate wing at ~80% seat and
 	# the spawn ring at ~57% - level at seed 47225 by luck, buried on rougher AOs.
+	# TWO-TIER: the compound interior rides at the model's mound-top height and
+	# the terrain itself provides the climbable grade down to the seat plateau.
+	# The authored mound face is ~3m at slopes no CharacterBody can walk - the
+	# 07-29 demo playtest left the player pinned at the dirt wall, unable to
+	# enter from any bearing. Rise: 2.87m over ~51m = ~3 degrees, walkable
+	# everywhere; the model's own mound sides sit inside the terrain hill.
+	var mound_norm: float = (seat_y + FSB_MOUND_TOP) / _terrain.heightmap.height_scale
 	_terrain.modify_terrain(center, FSB_FLATTEN_RADIUS,
 		func(h: float, f: float) -> float:
-			return lerpf(h, seat_norm, clampf(f / FSB_PLATEAU_FALLOFF, 0.0, 1.0)))
+			var base: float = lerpf(h, seat_norm, clampf(f / FSB_PLATEAU_FALLOFF, 0.0, 1.0))
+			var rise: float = clampf((f - FSB_PLATEAU_FALLOFF)
+				/ (FSB_MOUND_FALLOFF - FSB_PLATEAU_FALLOFF), 0.0, 1.0)
+			return lerpf(base, mound_norm, smoothstep(0.0, 1.0, rise)))
 	for disc in FSB_CLEAR_DISCS:
 		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
 	var scene: PackedScene = load(FSB_MAIN_PATH)
