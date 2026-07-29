@@ -34,7 +34,10 @@ func _roll_events() -> void:
 	for i in range(n):
 		var kind: String = KINDS[rng.randi() % KINDS.size()]
 		var bearing: float = rng.randf_range(0.0, TAU)
-		var dist: float = rng.randf_range(200.0, 800.0)
+		# 400m floor: at 200m the theater reads as a REAL engagement with no
+		# enemy (playtest 07-29: a gunship visibly strafing nothing). Distant
+		# war is a horizon, not a neighbor.
+		var dist: float = rng.randf_range(400.0, 800.0)
 		var pos: Vector3 = center + Vector3(cos(bearing), 0.0, sin(bearing)) * dist
 		var life_s: float = rng.randf_range(5.0, 30.0)
 		_active.append({
