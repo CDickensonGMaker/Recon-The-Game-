@@ -47,7 +47,9 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 		var m: Dictionary = roster[i]
 		var a := TAU * float(i) / float(squad_n)
 		var pos := spawn_pos + Vector3(cos(a), 0, sin(a)) * 3.5
-		pos.y = world.terrain_manager.get_height_at(pos) + 0.5
+		# Same seat as the player: terrain height alone buries the squad under the
+		# firebase mound when the spawn point sits inside the base.
+		pos.y = world.surface_y(pos) + 0.5
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
 		ally.director = director  ## toast channel for promotion barks

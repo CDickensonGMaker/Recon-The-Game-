@@ -17,6 +17,11 @@ extends Node
 
 const WARMUP: float = 5.0     ## skip engine/scene warm-up
 const WINDOW: float = 7.0     ## seconds per phase
+## The siege study cannot use WINDOW. Cells spawn on a 300-500 m ring and march at
+## MARCH_SPEED 2.2 m/s to an 80 m materialize ring - ~100 s before the first body
+## exists. A 7 s window would sample an empty field and report the assault as free.
+const WINDOW_SIEGE: float = 70.0
+var _window: float = WINDOW
 const SETTLE: float = 2.5     ## ignore this long after a toggle (visibility is 10Hz)
 ## Engine.get_frames_per_second() reports frames counted over the PREVIOUS SECOND, so a capture
 ## stall keeps depressing the reading for ~1s after the stall frame itself. Firing at 0.25 leaves
@@ -77,6 +82,7 @@ func attach(w: GameWorld) -> void:
 		# windows so the cost of BODIES ARRIVING is separated from the cost of bodies
 		# already there; one averaged window would hide the spike that matters.
 		_phases = ["quiet", "assault_in", "assault_on_wire"]
+		_window = WINDOW_SIEGE
 	else:
 		_phases = ["baseline"]
 	for p: String in _phases:
@@ -97,7 +103,7 @@ func _process(delta: float) -> void:
 		return
 
 	var t: float = _elapsed - WARMUP
-	var idx: int = int(t / WINDOW)
+	var idx: int = int(t / _window)
 	if idx >= _phases.size():
 		_finish()
 		return
@@ -107,7 +113,7 @@ func _process(delta: float) -> void:
 		_shot_taken = false
 		_apply_toggle(_phases[idx])
 
-	var in_window: float = t - float(idx) * WINDOW
+	var in_window: float = t - float(idx) * _window
 
 	if in_window >= SCREENSHOT_AT and not _shot_taken and (idx == 0 or shadow_study):
 		_take_screenshot(_phases[idx])

@@ -158,4 +158,6 @@ func _seat_on_terrain() -> void:
 	var tm: Object = director.world.terrain_manager
 	if tm == null:
 		return
-	global_position.y = director.world.terrain_manager.get_height_at(global_position)
+	# The march ends ON the firebase, so the cell rides the same surface its men will
+	# stand on - terrain height alone walks it into the mound.
+	global_position.y = director.world.surface_y(global_position)

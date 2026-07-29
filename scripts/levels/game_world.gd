@@ -390,15 +390,46 @@ func start_night_ambience() -> void:
 
 
 ## Public: spawn the player at a position (mission insertion). Wires cameras+HUD.
-func spawn_player_at(spawn: Vector3) -> void:
+## The surface a man actually STANDS on at `at` - the terrain, or whatever solid world
+## geometry is placed over it.
+##
+## get_height_at() alone buries anyone spawned inside the firebase: fsb_main_v3 is
+## authored with y=0 at the mound TOE and reaches y=14.5 (site_planner.gd), so the
+## earth mound stands proud of the seated plateau. Seating at terrain height wedges the
+## body between the ground and the base above it.
+func surface_y(at: Vector3) -> float:
+	var ground: float = terrain_manager.get_height_at(at)
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return ground
+	# Down the whole model height. First hit wins: that is the floor he would land on
+	# if he were dropped here.
+	var q := PhysicsRayQueryParameters3D.create(
+		Vector3(at.x, ground + SURFACE_PROBE_UP, at.z),
+		Vector3(at.x, ground - 2.0, at.z))
+	q.collision_mask = 1   # world layer: terrain and placed structures both
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return ground
+	return maxf(ground, (hit.position as Vector3).y)
+
+
+## Clears fsb_main_v3's authored 14.5 m without starting so high that a distant
+## overhead (canopy, a hootch roof) is picked up instead of the ground.
+const SURFACE_PROBE_UP: float = 18.0
+
+
+## `seat_on_surface` false trusts the caller's Y. An AUTHORED interior point - a bunk
+## inside a hootch - is already on its floor, and probing down from above would find
+## the ROOF and stand the man on it.
+func spawn_player_at(spawn: Vector3, seat_on_surface: bool = true) -> void:
+	var y: float = (surface_y(spawn) if seat_on_surface else spawn.y) + 1.0
 	if player != null:
-		var gy: float = terrain_manager.get_height_at(spawn)
-		player.global_position = Vector3(spawn.x, gy + 1.0, spawn.z)
+		player.global_position = Vector3(spawn.x, y, spawn.z)
 		return
 	player = PLAYER_SCENE.instantiate()
 	add_child(player)
-	var ground_y: float = terrain_manager.get_height_at(spawn)
-	player.global_position = Vector3(spawn.x, ground_y + 1.0, spawn.z)
+	player.global_position = Vector3(spawn.x, y, spawn.z)
 	_wire_cameras(player.get_node("Head/Camera3D"))
 	_setup_hud()
 

@@ -41,7 +41,9 @@ func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: in
 func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = "") -> EnemyBase:
 	var seated := pos
 	if world and world.terrain_manager:
-		seated.y = world.terrain_manager.get_height_at(pos) + 0.5
+		# surface_y, not terrain height: a man spawned inside the firebase must land on
+		# the mound he is standing on, not at its buried toe (game_world.surface_y).
+		seated.y = world.surface_y(pos) + 0.5
 	var parent: Node = world if world != null else get_parent()
 	var enemy: EnemyBase = EnemyBase.spawn_enemy(parent, seated, data_path)
 	# Same group_tag -> same fireteam. hash gives a stable per-group id; lone

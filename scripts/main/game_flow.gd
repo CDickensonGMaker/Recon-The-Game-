@@ -110,6 +110,49 @@ func _dev_report_time(what: String) -> void:
 		director.toast.emit(line.substr(11))
 
 
+## A cot inside a firebase hootch, or ZERO if the base authored none.
+##
+## fsb_main_v3 carries 68 `prop_sleep` markers - the bunks - and each keeps its own
+## authored height, which is the floor it stands on. The nearest one to the base centre
+## is taken so a village hootch elsewhere in the AO can never win. The returned Y is
+## USED, not re-seated: probing down from above would find the hootch roof.
+func _firebase_bunk(fsb_center: Vector3) -> Vector3:
+	if world == null or fsb_center == Vector3.ZERO:
+		return Vector3.ZERO
+	var cands: Array[Vector3] = []
+	var stack: Array[Node] = [world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Node3D and n.name.begins_with("prop_sleep"):
+			cands.append((n as Node3D).global_position)
+		for c in n.get_children():
+			stack.append(c)
+	if cands.is_empty():
+		push_warning("[SPAWN] no prop_sleep marker in the world - falling back to the field spawn")
+		return Vector3.ZERO
+	cands.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return Vector2(a.x - fsb_center.x, a.z - fsb_center.z).length_squared() \
+			< Vector2(b.x - fsb_center.x, b.z - fsb_center.z).length_squared())
+
+	# The bunk must have a FLOOR under it. fsb_main_v3 ships 8 hootch visuals against
+	# 4 `-colonly` bodies, so half of them are scenery a man falls straight through.
+	# Take the nearest cot that can actually hold him, never just the nearest cot.
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	for i in range(cands.size()):
+		var p: Vector3 = cands[i]
+		if space != null:
+			var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.4, p + Vector3.DOWN * 0.8)
+			q.collision_mask = 1
+			if space.intersect_ray(q).is_empty():
+				continue   # visual-only hootch: no floor here
+		print("[SPAWN] bunk spawn at %s, candidate %d of %d (%.0fm from fsb centre)" % [
+			p, i + 1, cands.size(),
+			Vector2(p.x - fsb_center.x, p.z - fsb_center.z).length()])
+		return p
+	push_warning("[SPAWN] %d bunks found, NONE with collision under them - field spawn" % cands.size())
+	return Vector3.ZERO
+
+
 func _dev_force_siege() -> bool:
 	if director == null or director.siege == null:
 		print("[SIEGE-DEV] no siege attached - the firebase has not been built yet")
@@ -411,6 +454,13 @@ func enter_hub() -> void:
 	var patrol_plan: Dictionary = MissionGenerator.plan_patrol_world(world, op_seed)
 	var built: Dictionary = MissionGenerator.build_patrol_world(world, director, patrol_plan)
 	var spawn: Vector3 = built.spawn_pos
+	# THE BUNK SPAWN: start the man on a cot inside the wire, not in a field outside it.
+	# Also the only spawn that is PROVABLY on the firebase - fsb_main_v3 is authored with
+	# y=0 at the mound TOE, so terrain height buries anything seated inside the base.
+	var bunk: Vector3 = _firebase_bunk(patrol_plan.get("fsb_center", Vector3.ZERO))
+	var spawn_seated: bool = bunk == Vector3.ZERO
+	if not spawn_seated:
+		spawn = bunk
 	# Dev lens: `--spawn-at-village` drops the patrol at the nearest village edge so
 	# the living world can be judged without the walk (temporary, Summoner 2026-07-18).
 	if OS.get_cmdline_user_args().has("--spawn-at-village"):
@@ -430,7 +480,7 @@ func enter_hub() -> void:
 			spawn.y = world.terrain_manager.get_height_at(spawn)
 			print("[SPAWN-DEV] --spawn-at-village: dropped %.0fm from village at %.0f,%.0f" % [
 				60.0, best.x, best.z])
-	world.spawn_player_at(spawn)
+	world.spawn_player_at(spawn, spawn_seated)
 	if world.hud != null:
 		world.hud.managed_by_flow = true
 	squad = SquadSystem.new()
