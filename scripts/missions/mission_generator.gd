@@ -461,9 +461,13 @@ static func _add_chicken(world: GameWorld, pos: Vector3) -> void:
 					chicken.set_meta("spooked", true)
 					NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, chicken.global_position, 0, 25.0)
 					var flee := (chicken.global_position - n.global_position).normalized()
+					flee.y = 0.0
+					# Land ON the ground: a flat flee vector on a village slope
+					# left chickens hovering, and each scare stacked +0.1m.
+					var dest: Vector3 = chicken.global_position + flee.normalized() * 8.0
+					dest.y = world.terrain_manager.get_height_at(dest) + 0.05
 					var tween := chicken.create_tween()
-					tween.tween_property(chicken, "global_position",
-						chicken.global_position + flee * 8.0 + Vector3(0, 0.1, 0), 1.2)
+					tween.tween_property(chicken, "global_position", dest, 1.2)
 					tween.tween_callback(func() -> void: chicken.remove_meta("spooked"))
 					return)
 
@@ -659,7 +663,7 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 		"fire_support": {"mortar": 1},
 	}
 	var paddy_result: Dictionary = PaddyStamperScript.stamp(
-		op_seed, world.gameplay_grid, world.terrain_manager, world)
+		op_seed, world.gameplay_grid, world.terrain_manager, world, 0)
 	p["paddy_fields"] = paddy_result.paddies
 	p["village_anchors"] = paddy_result.village_anchors
 	p["paddy_centroids"] = paddy_result.paddy_centroids
@@ -682,19 +686,24 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 		SitePlanner.FSB_HALF.x * 2.0, SitePlanner.FSB_HALF.y * 2.0)
 	_set_fsb_keepout(fsb_center)
 
-	# Authored sites: village NW, temple ruin NE - close enough to walk in the
-	# exploration window, seated on passable ground.
+	# Authored sites, BEARING-LOCKED off the gate: the player spawns just outside
+	# the gate, so both sites sit on the flanks ~135 degrees away - walkable in
+	# the exploration window, never on top of the spawn (07-29 playtest: he woke
+	# inside a village hut).
+	var out_v: Vector3 = (gm.gate_out as Vector3).normalized()
+	var v_dir: Vector3 = out_v.rotated(Vector3.UP, 2.35)
+	var t_dir: Vector3 = out_v.rotated(Vector3.UP, -2.35)
 	var village := _passable_near(world, rng,
-		fsb_center + Vector3(-1, 0, -1).normalized() * 185.0, 15.0, 70.0, 90,
+		fsb_center + v_dir * 185.0, 15.0, 60.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if village == Vector3.ZERO:
-		village = fsb_center + Vector3(-150.0, 0.0, -150.0)
+		village = fsb_center + v_dir * 165.0
 		village.y = world.terrain_manager.get_height_at(village)
 	p.sites.append({"kind": "village", "center": village})
 	var demo_villages: Array[Vector3] = [village]
 	p["village_centers"] = demo_villages
 	var temple := _passable_near(world, rng,
-		fsb_center + Vector3(1, 0, -1).normalized() * 170.0, 15.0, 70.0, 90,
+		fsb_center + t_dir * 170.0, 15.0, 60.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if temple != Vector3.ZERO:
 		p.sites.append({"kind": "temple", "center": temple})

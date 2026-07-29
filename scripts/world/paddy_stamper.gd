@@ -31,6 +31,7 @@ static func stamp(
 	grid: GameplayGrid,
 	terrain,  # TerrainManager
 	parent: Node,
+	village_floor: int = HARD_FLOOR_VILLAGES,  # patrol law; small demo slices pass 0
 ) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = mission_seed + 1009  # separate stream from mission-type roll
@@ -66,9 +67,9 @@ static func stamp(
 	var anchors: Array[Dictionary] = _group_into_village_anchors(
 		paddy_fields, paddy_centroids, rng
 	)
-	if anchors.size() < HARD_FLOOR_VILLAGES:
+	if anchors.size() < village_floor:
 		push_error(
-			"PaddyStamper: only %d village anchors produced (floor=%d). " % [anchors.size(), HARD_FLOOR_VILLAGES]
+			"PaddyStamper: only %d village anchors produced (floor=%d). " % [anchors.size(), village_floor]
 			+ "AO is malformed — relax MIN_PADDY_AREA_CELLS, lower VILLAGE_GROUPING_RADIUS_M, "
 			+ "or expand the grid's RICE_PADDY classification."
 		)
