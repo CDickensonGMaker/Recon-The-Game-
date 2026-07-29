@@ -66,6 +66,9 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		return agent.get_next_path_position() - from
 	if OS.is_debug_build() and direct.length_squared() > 25.0 and not _warned:
 		_warned = true
-		push_warning("[NAV] %s inside baked region %d, %.1fm to target, no path - falling back to direct steering" % [
-			label, box, direct.length()])
+		# Name the region honestly: under a lab navmesh `box` is -1 and meaningless,
+		# and printing "-1" reads as a bug in the box lookup rather than a missing path.
+		var where: String = "lab navmesh" if lab_nav else "baked region %d" % box
+		push_warning("[NAV] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
+			label, where, direct.length()])
 	return direct

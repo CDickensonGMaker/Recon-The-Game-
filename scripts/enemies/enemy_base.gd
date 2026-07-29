@@ -1145,97 +1145,38 @@ func _evaluate_goals() -> void:
 		return
 
 	_contact_time += _think_interval_current
-	var dist := global_position.distance_to(target.global_position)
 	var now_ms: float = float(Time.get_ticks_msec())
-
-	var scores: Dictionary = {}
-
-	# Goals read the DEBOUNCED contact confidence, never raw LOS.
-	var eyes_on: bool = contact_conf > 0.5
-
-	# ENGAGE - direct combat. COVER-FIRST: caught in the open on fresh contact the
-	# duel can wait; fighting FROM cover is the preferred engagement.
-	var engage_score: float = 0.5
-	if eyes_on:
-		engage_score += 0.3
-	if dist < preferred_range * 1.2 and dist > preferred_range * 0.5:
-		engage_score += 0.2
-	if has_cover:
-		engage_score += 0.15
-	elif _contact_time < 5.0 and char_aggression < 0.75 and _cover_fail_count < 2:
-		engage_score *= 0.55
-	scores[Enums.AIGoal.ENGAGE_TARGET] = engage_score * (1.0 - threat_level * 0.3)
-
-	# SEEK COVER - preemptive on fresh contact in the open, not just reactive.
-	var cover_score: float = threat_level * 0.7 + char_self_preservation * 0.3
-	if suppression_level > 0.5:
-		cover_score += 0.3
-	if not has_cover:
-		cover_score += 0.2
-		if _contact_time < 6.0 and _cover_fail_count < 2:
-			cover_score += 0.4 * (1.0 - char_aggression * 0.7)
-	scores[Enums.AIGoal.SEEK_COVER] = cover_score if d_uses_cover else -1.0
-
-	# SUPPRESS - pin down target
-	var suppress_score: float = 0.3
-	if eyes_on and weapon_data and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO:
-		suppress_score += 0.3
-	if dist > preferred_range:
-		suppress_score += 0.2
-	scores[Enums.AIGoal.SUPPRESS_TARGET] = suppress_score * (1.0 - char_aggression * 0.3)
-
-	# FLANK - move to better position
-	var flank_score: float = char_aggression * 0.4
-	if not eyes_on and target_last_seen_time < 3.0:
-		flank_score += 0.3
-	if threat_level < 0.3:
-		flank_score += 0.2
-	scores[Enums.AIGoal.FLANK_TARGET] = flank_score if d_flanks else -1.0
 
 	# Local force ratio, refreshed on the think cadence; the rout ladder in
 	# take_damage reuses it.
 	_last_force_ratio = _local_force_ratio()
 
-	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering fire
-	# or real aggression; a lone unsupported man holds and shoots.
-	var advance_score: float = char_aggression * 0.4
-	if dist > preferred_range * 1.5:
-		advance_score += 0.25
-	if threat_level < 0.2 and dist < preferred_range * 2.0:
-		advance_score += 0.15
-	if EnemySquad.has_covering_fire(squad_id, self, now_ms):
-		advance_score += 0.2
-	elif char_aggression < 0.7:
-		advance_score *= 0.45
-	if _last_force_ratio >= 2.0:
-		advance_score += 0.15  # weight of numbers: press the lone shooter
-	scores[Enums.AIGoal.ADVANCE] = advance_score
+	var c := CombatGoals.Context.new()
+	c.current_goal = current_goal
+	c.dist = global_position.distance_to(target.global_position)
+	c.preferred_range = preferred_range
+	c.eyes_on = contact_conf > 0.5   # DEBOUNCED confidence, never raw LOS
+	c.target_last_seen = target_last_seen_time
+	c.has_cover = has_cover
+	c.threat_level = threat_level
+	c.suppression = suppression_level
+	c.contact_time = _contact_time
+	c.cover_fail_count = _cover_fail_count
+	c.full_auto = weapon_data != null and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO
+	c.hp_frac = float(current_hp) / float(max_hp)
+	c.aggression = char_aggression
+	c.self_preservation = char_self_preservation
+	c.uses_cover = d_uses_cover
+	c.flanks = d_flanks
+	c.retreats_when_hurt = d_retreats_when_hurt
+	c.retreat_hp_frac = d_retreat_hp
+	c.has_covering_fire = EnemySquad.has_covering_fire(squad_id, self, now_ms)
+	# 4utx: a combat-ineffective squad breaks as a body, layered on the individual
+	# rout ladder rather than competing with it.
+	c.squad_broken = EnemySquad.is_broken(squad_id)
+	c.force_ratio = _last_force_ratio
 
-	# RETREAT - fall back
-	var retreat_score: float = 0.0
-	if threat_level > 0.7:
-		retreat_score = 0.6  # tactical withdrawal under heavy fire - all archetypes
-	# The wounded-man break is what retreats_when_hurt gates; the tactical
-	# withdrawal above is separate (the export's NAME is "when hurt").
-	if d_retreats_when_hurt and float(current_hp) / float(max_hp) < d_retreat_hp:
-		retreat_score += 0.4
-	# 4utx: a combat-ineffective squad (below its strength threshold) breaks as a
-	# body. Layered on the individual ladder above, not a competing authority.
-	if EnemySquad.is_broken(squad_id):
-		retreat_score += 0.7
-	# Outnumbering men hold: ~3:1 quarters the retreat urge; outnumbered men break.
-	var numbers_mult: float = clampf(1.6 - _last_force_ratio * 0.45, 0.25, 1.4)
-	scores[Enums.AIGoal.RETREAT] = retreat_score * char_self_preservation * numbers_mult
-
-	# Incumbent hysteresis 25%.
-	if scores.has(current_goal):
-		scores[current_goal] *= 1.25
-
-	for goal in scores:
-		if scores[goal] > best_score:
-			best_score = scores[goal]
-			best_goal = goal
-
+	best_goal = CombatGoals.pick(c)
 	if best_goal != current_goal:
 		_set_goal(best_goal)
 

@@ -34,8 +34,13 @@ static var _last_grenade_global_ms: float = -1e9
 ##
 ## GUARD-RAIL (ADR-005): the WITNESS heartbeat is NOT tiered here. Cold units keep
 ## physics + perception; tiering only sheds the expensive targeting/aiming path.
-const HOT_CAP: int = 12          ## rolling target: this many fighters run full combat AI
-const HOT_CEILING: int = 16      ## the roster may never exceed this (defensive clamp)
+## Raised 12 -> 50 (ceiling 16 -> 64), Summoner's ruling 2026-07-28, on the ledger's
+## own attribution: at 65+ live units think is 1.20 ms of a 37.5 ms physics wall while
+## the BODY is ~94% (PERF_LEDGER.md:295-304). A d50 siege must field 50 men who each
+## hold their own intent, and the throttle was on the cheapest term in the loop.
+## NOTE: request_hot gates on mini(HOT_CAP, HOT_CEILING) - raising one alone does nothing.
+const HOT_CAP: int = 50          ## rolling target: this many fighters run full combat AI
+const HOT_CEILING: int = 64      ## the roster may never exceed this (defensive clamp)
 ## Probe A/B switch. false => is_hot() is always true => every fighter runs full
 ## combat AI (the pre-tiering behavior), for measuring the frame-time delta.
 static var tiering_enabled: bool = true

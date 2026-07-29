@@ -657,27 +657,108 @@ func _evaluate_goals() -> void:
 		return
 
 	# In contact = FIGHT. Reads the DEBOUNCED confidence, never raw LOS.
+	# The goal comes from the SHARED scorer (CombatGoals) - the same nine-verb brain
+	# the enemy runs. Before this the squad had five verbs and could not flank,
+	# suppress or fall back (posture merge Part B).
 	if target and _may_engage() and (contact_conf > 0.4 or target_last_seen_time < 6.0):
-		if not has_cover and wants_cover_first(nerve):
-			current_goal = Enums.AIGoal.SEEK_COVER
-			_change_state(Enums.AIState.SEEKING_COVER)
-			return
-		# STAND-AND-PUSH (the ally half of the enemy ADVANCE mirror): a man who
-		# may close, with a real gap to cross and no meaningful pin, pushes
-		# upright at full speed instead of crouch-walking the whole fight.
-		var adv_dist: float = global_position.distance_to(target.global_position)
-		var advance_band: float = 0.9 if nerve >= 0.7 else 1.2
-		if may_close_distance(nerve) and suppression_level < CombatPosture.CROUCH_SUPPRESS \
-				and adv_dist > preferred_range * advance_band:
-			current_goal = Enums.AIGoal.ADVANCE
-			_change_state(Enums.AIState.ADVANCING)
-			return
-		current_goal = Enums.AIGoal.ENGAGE_TARGET
-		_change_state(Enums.AIState.COMBAT)
+		var c := CombatGoals.Context.new()
+		c.current_goal = current_goal
+		c.dist = global_position.distance_to(target.global_position)
+		c.preferred_range = preferred_range
+		c.eyes_on = contact_conf > 0.5
+		c.target_last_seen = target_last_seen_time
+		c.has_cover = has_cover
+		c.threat_level = _threat_estimate()
+		c.suppression = suppression_level
+		c.contact_time = _contact_time
+		c.cover_fail_count = _cover_fail_count
+		c.full_auto = weapon_data != null and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO
+		c.hp_frac = float(current_hp) / float(max_hp)
+		# Nerve IS the ally's temperament: the enemy reads EnemyData, our men read
+		# the courage they were rolled with, so the same scorer keeps ally character.
+		c.aggression = nerve
+		c.self_preservation = 1.0 - nerve
+		c.uses_cover = wants_cover_first(nerve) or has_cover
+		c.flanks = may_close_distance(nerve)
+		c.retreats_when_hurt = true
+		c.retreat_hp_frac = 0.35
+		_apply_combat_goal(CombatGoals.pick(c))
 		return
 
 	current_goal = Enums.AIGoal.HOLD_POSITION
 	_change_state(Enums.AIState.IDLE)
+
+
+## How bad it is right now, 0-1, for the shared scorer. EnemyBase computes a real
+## threat_level from its own perception; AllyBase has never had one, so this is an
+## honest PROXY off the two signals our men do carry - rounds coming in, and blood
+## going out. Replace it with a measured term if the ally brain ever needs parity.
+func _threat_estimate() -> float:
+	var hurt: float = 1.0 - float(current_hp) / float(maxi(1, max_hp))
+	return clampf(suppression_level * 0.7 + hurt * 0.5, 0.0, 1.0)
+
+
+## Goal -> state. SUPPRESS rides the COMBAT state: the difference is WHERE the rounds
+## go (see _execute_combat), not a separate body behaviour.
+func _apply_combat_goal(goal: int) -> void:
+	current_goal = goal
+	match goal:
+		Enums.AIGoal.SEEK_COVER:
+			_change_state(Enums.AIState.SEEKING_COVER)
+		Enums.AIGoal.ADVANCE:
+			_change_state(Enums.AIState.ADVANCING)
+		Enums.AIGoal.FLANK_TARGET:
+			_change_state(Enums.AIState.FLANKING)
+		Enums.AIGoal.RETREAT:
+			_change_state(Enums.AIState.RETREATING)
+		Enums.AIGoal.HOLD_POSITION:
+			_change_state(Enums.AIState.IDLE)
+		_:
+			_change_state(Enums.AIState.COMBAT)
+
+
+## FLANK: work the side, not the front. The offset is perpendicular to the line of
+## contact and re-derived every tick, so it tracks a target that is itself moving.
+const FLANK_OFFSET_M: float = 14.0
+
+
+func _execute_flanking(delta: float) -> void:
+	if not target or not is_instance_valid(target) \
+			or (target.has_method("is_dead") and target.is_dead()):
+		target = null
+		_change_state(Enums.AIState.IDLE)
+		return
+	if suppression_level >= CombatPosture.CROUCH_SUPPRESS:
+		_change_state(Enums.AIState.COMBAT)   # pinned men do not manoeuvre
+		return
+	var to_t: Vector3 = target.global_position - global_position
+	to_t.y = 0.0
+	if to_t.length() < 0.5:
+		_change_state(Enums.AIState.COMBAT)
+		return
+	var side: Vector3 = to_t.normalized().cross(Vector3.UP) * strafe_direction
+	if side.length() < 0.1:
+		side = to_t.normalized().cross(Vector3.UP)
+	var goal_pos: Vector3 = target.global_position - to_t.normalized() * preferred_range \
+		+ side * FLANK_OFFSET_M
+	_move_toward(goal_pos, delta)
+	if has_line_of_sight and can_fire and _may_engage():
+		_fire_at_target()
+
+
+## RETREAT: break contact along the axis away from the threat. Not a rout - he keeps
+## his face to the enemy and fires if the shot is there.
+func _execute_retreating(delta: float) -> void:
+	if not target or not is_instance_valid(target):
+		_change_state(Enums.AIState.IDLE)
+		return
+	var away: Vector3 = global_position - target.global_position
+	away.y = 0.0
+	if away.length() < 0.5:
+		away = -global_transform.basis.z
+	_move_toward(global_position + away.normalized() * 12.0, delta)
+	if has_line_of_sight and can_fire and _may_engage():
+		_fire_at_target()
 
 
 func _execute(delta: float) -> void:
@@ -698,10 +779,13 @@ func _execute(delta: float) -> void:
 			_execute_advancing(delta)
 		Enums.AIState.SUPPRESSED:
 			_execute_suppressed(delta)
+		Enums.AIState.FLANKING:
+			_execute_flanking(delta)
+		Enums.AIState.RETREATING:
+			_execute_retreating(delta)
 		_:
-			# No statue, ever: an unwired state (ALERT/FLANKING/RETREATING, or a
-			# leak) fights if it has a target; _execute_combat routes the
-			# targetless case to IDLE itself.
+			# No statue, ever: an unwired state (ALERT, or a leak) fights if it has
+			# a target; _execute_combat routes the targetless case to IDLE itself.
 			_execute_combat(delta)
 
 
