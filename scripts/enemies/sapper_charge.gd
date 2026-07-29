@@ -39,6 +39,15 @@ func setup(objective_center: Vector3) -> void:
 		enemy.assault_objective = target_pos
 
 
+## Make the satchel inert THIS frame. queue_free alone is deferred, so a charge
+## dropped during a withdrawal would still get a physics tick at its old aim point
+## and detonate on the way out - and _detonate clears the rally the reap just set.
+func disarm() -> void:
+	_armed = false
+	target_pos = Vector3.ZERO
+	set_physics_process(false)
+
+
 func _physics_process(_delta: float) -> void:
 	if not _armed:
 		return

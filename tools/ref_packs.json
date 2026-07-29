@@ -1,0 +1,144 @@
+{
+  "_doc": "Reference FPS animation packs, and how to read each one. tools/extract_ref_pack.py turns a pack into weapon-space JSON that tools/retarget_ref_anim.py transfers onto our rigs. Until 2026-07-28 the only extracted pack lived in a session scratchpad under AppData/Local/Temp, so the entire viewmodel pipeline depended on a directory Windows is free to delete; this file exists so any pack can be rebuilt from its source archive.",
+
+  "_root_doc": "Sources are relative to `root`. Override with the RECON_REF_PACKS environment variable. The packs are the Summoner's own downloads and are NOT redistributed in this repo - only the extracted motion JSON is.",
+  "root": "C:/Users/caleb/Downloads",
+
+  "_map_doc": "`map` binds canonical keys to this pack's own rig. Prefix `bone:` for an armature bone, `obj:` for an object - packs differ on whether the weapon's moving parts are bones (BoltActionRifle, Benelli, MP5) or separate objects (sawnoff). Canonical keys: W_Grip (the weapon frame everything is measured against, required), hand_L/hand_R/elbow_L/elbow_R (required), W_Magazine (the detachable feed device), W_bolt (the part the support hand cycles), W_hinge (a break-action barrel), W_shell (a single loose round), W_release (a catch or lever).",
+
+  "_license_doc": "Every pack below is CC-Attribution except where noted; a credit line is owed in the shipped game. m4a1-s-cs2 is CC-Attribution-NonCommercial and must NOT be used as a source if RECONgame is ever sold.",
+
+  "packs": {
+    "ak": {
+      "source": "fps-character-animation-pack-ak-47/AK_firsp/Fbx/animations",
+      "kind": "fbx_dir",
+      "armature": null,
+      "weapon_armature_max_bones": 50,
+      "map": {
+        "hand_L": "bone:DEF-hand.L",
+        "hand_R": "bone:DEF-hand.R",
+        "elbow_L": "bone:DEF-forearm.L",
+        "elbow_R": "bone:DEF-forearm.R"
+      },
+      "weapon_bone_prefix": "W_",
+      "archetype": "mag_rifle",
+      "credit": "UE5 Comando AK pack",
+      "_note": "The one pack in service before 2026-07-28. Its weapon rides a SECOND armature whose bones are dumped wholesale with a W_ prefix, which is where W_Grip, W_bolt and W_Magazine come from."
+    },
+
+    "bolt_rifle": {
+      "source": "fps-animations-sniper-rifle/source/BoltActionRifle.fbx",
+      "kind": "fbx",
+      "armature": "Rig",
+      "map": {
+        "hand_L": "bone:Hand_L",
+        "hand_R": "bone:Hand_R",
+        "elbow_L": "bone:Forearm_L",
+        "elbow_R": "bone:Forearm_R",
+        "W_Grip": "bone:Body",
+        "W_bolt": "bone:Bolt",
+        "W_Magazine": "bone:Mag"
+      },
+      "clips": {
+        "reload": "Rig|SRifle_Reload",
+        "reload_empty": "Rig|SRifle_Reload_Full",
+        "fire": "Rig|SRifle_Shot_nosight",
+        "fire_ads": "Rig|SRifle_Shot_sight",
+        "idle": "Rig|SRifle_Idle"
+      },
+      "archetype": "bolt_action",
+      "credit": "FPS Animations - Sniper Rifle",
+      "_note": "A true bolt cycle: lift, draw, push, turn. Serves mosin and m70, whose clips are currently an AK charging-handle pull standing in for a bolt throw."
+    },
+
+    "shotgun": {
+      "source": "fps-benelli-m4-animations/source/HandWithGloves_AnimateRDY.fbx",
+      "kind": "fbx",
+      "armature": "Rig",
+      "map": {
+        "hand_L": "bone:hand_L",
+        "hand_R": "bone:hand_R",
+        "elbow_L": "bone:lowerarm_L",
+        "elbow_R": "bone:lowerarm_R",
+        "W_Grip": "bone:Main",
+        "W_bolt": "bone:Slider",
+        "W_shell": "bone:Shell",
+        "W_release": "bone:Load"
+      },
+      "clips": {
+        "reload": "Rig|Rig|M4_ReloadOne_type1",
+        "reload_alt": "Rig|Rig|M4_ReloadOne_type2",
+        "reload_empty": "Rig|Rig|M4_ReloadFull_type1",
+        "fire": "Rig|Rig|M4_Fire",
+        "idle": "Rig|Rig|M4_Idle"
+      },
+      "archetype": "shell_loader",
+      "credit": "FPS Benelli M4 Animations",
+      "_unit_trap": "MEASURED 2026-07-28: this rig's armature carries object scale 11.424 and its world coordinates run in the tens, unlike every other pack, which is true metres. Hands sit ~16.8 units apart where two hands on a shotgun are ~0.35 m, so one unit is roughly 0.021 m. Transferred displacement MUST be converted or every motion lands ~48x too large. Do not assume a pack is metric - measure it.",
+      "_note": "Shell-by-shell loading with the shell as its own bone. Serves ithaca, and its shell-handling beats are the middle of the m79 break-action reload."
+    },
+
+    "smg": {
+      "source": "fps-animations-lowpoly-mp5/source/LowPoly_FPS_MP5.blend",
+      "kind": "blend",
+      "armature": "Arms",
+      "map": {
+        "hand_L": "bone:Hand_L",
+        "hand_R": "bone:Hand_R",
+        "elbow_L": "bone:Forearm_L",
+        "elbow_R": "bone:Forearm_R",
+        "W_Grip": "bone:bdy",
+        "W_bolt": "bone:charginghandle",
+        "W_Magazine": "bone:mag"
+      },
+      "clips": {
+        "reload": "Arms_notfullreload",
+        "reload_empty": "Arms_fullreload",
+        "fire": "Arms_Fire",
+        "idle": "Arms_Idle",
+        "draw": "Arms_Draw"
+      },
+      "archetype": "mag_smg",
+      "credit": "Low Poly FPS MP5",
+      "_note": "Serves ppsh and thompson. `bolt` is the internal bolt; `charginghandle` is the part a hand actually touches."
+    },
+
+    "break_action": {
+      "source": "fps-sawnoff-break-action/source/arms@sawnoff.fbx",
+      "kind": "fbx",
+      "armature": "Armature",
+      "single_take": true,
+      "map": {
+        "hand_L": "bone:L_wrist",
+        "hand_R": "bone:R_wrist",
+        "elbow_L": "bone:L_elbow",
+        "elbow_R": "bone:R_elbow",
+        "W_Grip": "obj:sawnoffR",
+        "W_hinge": "obj:front",
+        "W_Magazine": "obj:slug1",
+        "W_shell": "obj:slug2",
+        "W_release": "obj:release"
+      },
+      "archetype": "break_action",
+      "credit": "sawnoffs Animated by bumstrum (Sketchfab, CC-BY)",
+      "_note": "Downloaded 2026-07-28 on the Summoner's ruling that the M79 be built from a break-action shotgun. The barrel group `front` carries the hinge rotation and the slugs are extracted and reloaded as separate objects - the only break-open performance found on Sketchfab. Weapon parts are OBJECTS here, not bones."
+    }
+  },
+
+  "gun_pack": {
+    "_doc": "Which pack supplies each manifest gun. A gun absent from this map still falls back to the AK pack, which is what every gun used before 2026-07-28 - correct only for AK-pattern magazine rifles.",
+    "ak": "ak",
+    "m16": "ak",
+    "m14": "ak",
+    "colt45": "ak",
+    "ppsh": "smg",
+    "thompson": "smg",
+    "rpd": "smg",
+    "mosin": "bolt_rifle",
+    "m70": "bolt_rifle",
+    "ithaca": "shotgun",
+    "m79": "break_action"
+  },
+
+  "_gaps": "No Sketchfab pack exists for a belt-fed feed-tray reload (m60) or for a shoulder-launched rocket beyond RPG-7 Animations by TheParaziT, which is downloadable and not yet ingested. m60, m72_law, rpg2 and rpg7 therefore still run AK-pattern clips."
+}

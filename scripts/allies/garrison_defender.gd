@@ -77,7 +77,41 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	if outward.length() > 0.1:
 		ally.current_aim_dir = outward.normalized()
 	ally.add_to_group("garrison_promoted")
+	# Carried so dawn can hand the man back his job and his face. Without these the
+	# stand-down launders the garrison into anonymous men over three nights.
+	ally.set_meta("garrison_occupation", occ)
+	ally.set_meta("garrison_unit", unit)
 	return ally
+
+
+## The reverse hand-off at dawn: a defender who lived goes back to being a man with
+## a job. Same 1:1 synchronous swap as promote() in the other direction - without it
+## the first stand-to deletes the firebase's Civilians for the rest of the operation
+## and the base stops reading as lived-in (ADR-035 §6).
+##
+## The dead are simply never called, so they stay dead and are not replaced.
+static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
+	if ally == null or not is_instance_valid(ally) or ally.is_dead():
+		return null
+	var parent: Node = ally.get_parent()
+	if parent == null:
+		return null
+	var post: Vector3 = ally.post_anchor if ally.post_anchor != Vector3.ZERO else ally.global_position
+	var stand: Vector3 = ally.global_position
+	var occ: String = str(ally.get_meta("garrison_occupation", "cook"))
+	var unit: String = str(ally.get_meta("garrison_unit", ""))
+
+	ally.remove_from_group("garrison_promoted")
+	AgentRegistry.unregister(ally)
+	ally.set_physics_process(false)
+	ally.queue_free()
+
+	var models: Array[String] = [unit] if not unit.is_empty() else Civilian.GARRISON_MEN
+	var civ: Civilian = Civilian.spawn(parent, stand, director, false, models, true)
+	civ.occupation = occ
+	civ.working_point_pos = post
+	civ.add_to_group("firebase_garrison")
+	return civ
 
 
 static func _seeded_rng(at: Vector3) -> RandomNumberGenerator:

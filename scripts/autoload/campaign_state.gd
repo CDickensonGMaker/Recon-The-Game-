@@ -38,6 +38,53 @@ var collapsed_tunnels: Array = []
 ## map, kept for the tour. Pure {kind, area:{x,z,r}, placed_at} dicts, never a
 ## count, never a tally by kind (§4).
 var field_marks: Array = []
+## The player's OWN pencil marks (ADR-022's ANNOTATED layer) - what he THINKS, placed
+## from the sheet with no line of sight required, and kept for the whole tour. These
+## are allowed to be wrong forever; nothing in the game may correct one.
+var pencil_marks: Array = []
+## REPORTED intel - the THIRD ink (ADR-022 has two layers; this is neither). A captured
+## document is somebody else's CLAIM, dated, and it may be stale or flatly wrong. The
+## game never reconciles one: walk there, find nothing, and the mark stays until the
+## player rubs it out himself. {x, z, kind, patrol_no}
+var reported_marks: Array = []
+## Intel accrues SILENTLY (Summoner, 2026-07-28). This only ever counts UP - it is not
+## the spendable pool. `intel_points` is still burned at the wire for S2's bearing
+## toast, and a pool that drains every patrol could never reach a 20-30 threshold.
+var lifetime_intel: int = 0
+## Ears taken from enemy dead, strung on the necklace. A COUNT, never a score: nothing
+## in the game rewards it, and the world is allowed to have an opinion about the man
+## wearing it (village sentiment, squad barks). See war_room ear_necklace.md.
+var ears_taken: int = 0
+## The next silent threshold at which a real intel piece becomes findable. Rolled once
+## per campaign inside the Summoner's 20-30 band, then re-rolled after each stash.
+var next_stash_at: int = 0
+
+
+## The ONE way intel is earned. Routing every source through here is what keeps the
+## spendable pool and the silent accumulator from drifting apart.
+func add_intel(amount: int) -> void:
+	intel_points += amount
+	lifetime_intel += amount
+	if next_stash_at <= 0:
+		_roll_next_stash()
+	save_campaign()
+
+
+func _roll_next_stash() -> void:
+	next_stash_at = lifetime_intel + randi_range(20, 30)
+
+
+## True when the player has quietly earned a real intel piece. Consumed by the site
+## that hands it over - a tunnel cache or a large camp, never a routine body check.
+func stash_is_due() -> bool:
+	if next_stash_at <= 0:
+		_roll_next_stash()
+	return lifetime_intel >= next_stash_at
+
+
+func consume_stash() -> void:
+	_roll_next_stash()
+	save_campaign()
 ## Armorer's rack fouling, weapon id -> condition 0-100. A weapon you rack dirty
 ## is still dirty when you draw it again; swapping is never a free clean.
 var rack_condition: Dictionary = {}
@@ -222,6 +269,11 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "intel_points", intel_points)
 	cfg.set_value("campaign", "collapsed_tunnels", collapsed_tunnels)
 	cfg.set_value("campaign", "field_marks", field_marks)
+	cfg.set_value("campaign", "pencil_marks", pencil_marks)
+	cfg.set_value("campaign", "reported_marks", reported_marks)
+	cfg.set_value("campaign", "lifetime_intel", lifetime_intel)
+	cfg.set_value("campaign", "next_stash_at", next_stash_at)
+	cfg.set_value("campaign", "ears_taken", ears_taken)
 	cfg.set_value("campaign", "rack_condition", rack_condition)
 	cfg.set_value("campaign", "depot_loss", depot_loss)
 	var err: int = cfg.save(save_path)
@@ -261,6 +313,11 @@ func load_campaign() -> void:
 	intel_points = int(cfg.get_value("campaign", "intel_points", 0))
 	collapsed_tunnels = cfg.get_value("campaign", "collapsed_tunnels", []) as Array
 	field_marks = cfg.get_value("campaign", "field_marks", []) as Array
+	pencil_marks = cfg.get_value("campaign", "pencil_marks", []) as Array
+	reported_marks = cfg.get_value("campaign", "reported_marks", []) as Array
+	lifetime_intel = int(cfg.get_value("campaign", "lifetime_intel", 0))
+	next_stash_at = int(cfg.get_value("campaign", "next_stash_at", 0))
+	ears_taken = int(cfg.get_value("campaign", "ears_taken", 0))
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(cfg.get_value("campaign", "depot_loss", {}) as Dictionary)
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
@@ -290,6 +347,8 @@ func to_dict() -> Dictionary:
 		"player_data": player_data.duplicate(true),
 		"intel_points": intel_points,
 		"collapsed_tunnels": collapsed_tunnels,
+		"field_marks": field_marks.duplicate(true),
+		"pencil_marks": pencil_marks.duplicate(true),
 		"rack_condition": rack_condition.duplicate(true),
 		"depot_loss": depot_loss.duplicate(true),
 	}
@@ -308,6 +367,10 @@ func from_dict(d: Dictionary) -> void:
 	player_data = d.get("player_data", {"mos": "RIFLEMAN"})
 	intel_points = int(d.get("intel_points", 0))
 	collapsed_tunnels = d.get("collapsed_tunnels", []) as Array
+	# field_marks was absent from BOTH sides of this pair while being written to the
+	# .cfg - a snapshot round trip silently dropped the player's whole intel layer.
+	field_marks = d.get("field_marks", []) as Array
+	pencil_marks = d.get("pencil_marks", []) as Array
 	rack_condition = d.get("rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(d.get("depot_loss", {}) as Dictionary)
 
@@ -328,6 +391,11 @@ func reset_campaign() -> void:
 	intel_points = 0
 	collapsed_tunnels = []
 	field_marks = []
+	pencil_marks = []
+	reported_marks = []
+	lifetime_intel = 0
+	next_stash_at = 0
+	ears_taken = 0
 	rack_condition = {}
 	depot_loss = {}
 	save_campaign()

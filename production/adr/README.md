@@ -39,6 +39,8 @@ Every citation was independently re-verified against source at writing time.
 | [029](ADR-029-open-patrol-simulator.md) | **The open patrol simulator** | + amendments 008-006, B (world verbs), **C (the patrol contract) ACCEPTED 2026-07-25** |
 | [030](ADR-030-hud-buffer-doctrine.md) | The period HUD buffer doctrine | **PROPOSED — DEFERRED to final polish (2026-07-25), non-blocking** |
 | [031](ADR-031-destruction-doctrine.md) | **The Destruction Doctrine: state-swap, one blast bus, perf-gated terrain** | **ACCEPTED 2026-07-25** |
+| [035](ADR-035-the-siege.md) | **The Siege: the night assault on the firebase** | **DRAFT rev.2 2026-07-28** — revised after War Room review; awaiting Summoner ratification. Amends ADR-020 (Ambience Law) and ADR-026 (light budget) |
+| [036](ADR-036-the-fall-of-the-firebase.md) | **The Fall of the Firebase: objectives, respawn stake, lethality** | **DRAFT — BLOCKED 2026-07-28.** Summoner's rulings recorded; 9 dependencies do not exist (the firebase is one baked GLB node). Split out of ADR-035 rev.1 |
 
 **Deleted 2026-07-20 by the Summoner (never built against):** ADR-024 (cinematic direction),
 ADR-027 (PS2 world design). A citation to either is drift — correct it on contact.

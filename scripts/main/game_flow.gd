@@ -10,6 +10,10 @@ var mission_hud: MissionHUD = null
 var squad: SquadSystem = null
 var _debrief_pending: bool = false
 
+## Strength the [J] dev lens forces. The d50 ceiling, so the trigger exercises the
+## assault at its worst case rather than an average night.
+const DEV_SIEGE_STRENGTH: int = 50
+
 ## THE WAY OUT (audit L1). GameFlow owns the pause menu because GameFlow is the
 ## only thing that knows where you are and what leaving means.
 var _pause_menu: PauseMenu = null
@@ -26,6 +30,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _dev_keys(event):
+		return
 	if not event.is_action_pressed("pause") or not _in_world:
 		return
 	get_viewport().set_input_as_handled()
@@ -33,6 +39,97 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_pause()
 	else:
 		_open_pause()
+
+
+## THE DEV LENSES, debug builds only. [J] siege · [O] +1 hour · [I] next period ·
+## [U] cycle the clock speed. Time skips route through SimClock.advance(), NEVER
+## set_time(): set_time moves the clock without emitting time_period_changed, so the
+## sun and the sight caps would stay on the old period.
+func _dev_keys(event: InputEvent) -> bool:
+	if not OS.is_debug_build() or not _in_world:
+		return false
+	if not (event is InputEventKey and (event as InputEventKey).pressed \
+			and not (event as InputEventKey).echo):
+		return false
+	match (event as InputEventKey).physical_keycode:
+		KEY_J:
+			get_viewport().set_input_as_handled()
+			return _dev_force_siege()
+		KEY_O:
+			get_viewport().set_input_as_handled()
+			_dev_skip_hours(1.0)
+			return true
+		KEY_I:
+			get_viewport().set_input_as_handled()
+			_dev_skip_to_next_period()
+			return true
+		KEY_U:
+			get_viewport().set_input_as_handled()
+			_dev_cycle_clock_speed()
+			return true
+	return false
+
+
+## Sim-hours at which the world changes period (sim_clock.gd:57-64).
+const DEV_PERIOD_BOUNDS: Array[float] = [5.0, 7.0, 17.0, 19.0]
+## Clock speeds the [U] lens cycles. 60 is the shipped rate: one sim-hour a minute.
+const DEV_CLOCK_SPEEDS: Array[float] = [60.0, 600.0, 3600.0]
+
+
+func _dev_skip_hours(hours: float) -> void:
+	# advance() takes REAL seconds and scales by the ratio, so invert it to move a
+	# known number of SIM hours whatever the clock speed currently is.
+	SimClock.advance(hours * 3600.0 / maxf(0.001, SimClock.real_to_sim_ratio))
+	_dev_report_time("SKIPPED %.0fH" % hours)
+
+
+func _dev_skip_to_next_period() -> void:
+	var here: float = SimClock.sim_hour
+	var best: float = 24.0
+	for b in DEV_PERIOD_BOUNDS:
+		var d: float = b - here if b > here else b + 24.0 - here
+		best = minf(best, d)
+	_dev_skip_hours(best + 0.01)
+
+
+func _dev_cycle_clock_speed() -> void:
+	var i: int = DEV_CLOCK_SPEEDS.find(SimClock.real_to_sim_ratio)
+	SimClock.real_to_sim_ratio = DEV_CLOCK_SPEEDS[(i + 1) % DEV_CLOCK_SPEEDS.size()]
+	_dev_report_time("CLOCK %.0fx" % (SimClock.real_to_sim_ratio / 60.0))
+
+
+## Say it where he is - the field toast, not just stdout.
+func _dev_report_time(what: String) -> void:
+	var names: Array[String] = ["DAWN", "DAY", "DUSK", "NIGHT"]
+	var line: String = "[TIME-DEV] %s -> DAY %d, %02d:%02d (%s)" % [
+		what, SimClock.sim_day, int(SimClock.sim_hour),
+		int(fposmod(SimClock.sim_hour, 1.0) * 60.0),
+		names[SimClock.period_at(SimClock.sim_hour)]]
+	print(line)
+	if director != null and is_instance_valid(director):
+		director.toast.emit(line.substr(11))
+
+
+func _dev_force_siege() -> bool:
+	if director == null or director.siege == null:
+		print("[SIEGE-DEV] no siege attached - the firebase has not been built yet")
+		return true
+	var s: SiegeDirector = director.siege
+	if s.active:
+		print("[SIEGE-DEV] a siege is already running (%d still on the wire)" % s.live_strength())
+		return true
+	# Re-arm a spent run so the assault can be called repeatedly in one sitting.
+	s.nights_run = 0
+	s.run_strength = 0
+	s.open_siege(DEV_SIEGE_STRENGTH)
+	print("[SIEGE-DEV] forced siege: %d attackers in %d cells, bearing %.0f deg" % [
+		s.run_strength, s.cells.size(), rad_to_deg(s.sector_bearing)])
+	if not MissionWeather.is_night:
+		# The 80 m materialize ring is derived from the NIGHT sight cap. Called in
+		# daylight the cells become men in plain view, which is the trigger's
+		# artefact and not a bug in the assault.
+		print("[SIEGE-DEV] DAYLIGHT - cells will pop into view at 80m; judge the pop at night only")
+	return true
 
 
 func _open_pause() -> void:
@@ -193,6 +290,9 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 ## retired (fossil law): NEW GAME drops you straight at the firebase hub. One seed
 ## per operation (ADR-010) - the same firebase and AO every launch.
 const DEFAULT_OPERATION_SEED: int = 47225
+## Loading-screen fact column width. Long lines are unreadable at a glance and the
+## player only has the length of a world build to read one.
+const FACT_WRAP_PX: float = 760.0
 
 func start_default_operation() -> void:
 	# `--perf-seed=N` benches a seed other than the shipped one. Levers that exist only
@@ -271,10 +371,25 @@ func enter_hub() -> void:
 	SaveManager.context = "hub"
 	var op_seed: int = int(SaveManager.hub_snapshot.get("operation_seed", 0))
 	var op_name: String = str(SaveManager.hub_snapshot.get("operation_name", "OPERATION"))
+	# The loading screen is the only place this game has the player's attention and
+	# nothing to ask of him. It carries history instead of a progress noun: the war did
+	# not start in 1965, and a man who knows why the village hates him is playing a
+	# different game than one who does not. (WarFacts holds the rules for that file.)
 	var loading := ReconUI.make_screen_root()
 	var lc := CenterContainer.new()
 	lc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	lc.add_child(ReconUI.make_label("BACK TO %s..." % op_name, 26, ReconUI.AMBER))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 22)
+	col.custom_minimum_size = Vector2(FACT_WRAP_PX, 0)
+	var fact := ReconUI.make_label(WarFacts.random_fact(), 17, ReconUI.AMBER)
+	fact.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fact.custom_minimum_size = Vector2(FACT_WRAP_PX, 0)
+	fact.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(fact)
+	var back := ReconUI.make_label("BACK TO %s..." % op_name, 15, ReconUI.DIM)
+	back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(back)
+	lc.add_child(col)
 	loading.add_child(lc)
 	_swap_screen(loading)
 	world = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld
@@ -310,8 +425,8 @@ func enter_hub() -> void:
 					best_d = dist
 					best = c
 		if best_d < INF:
-			var back: Vector3 = (spawn - best).normalized()
-			spawn = best + Vector3(back.x, 0.0, back.z) * 60.0
+			var away: Vector3 = (spawn - best).normalized()
+			spawn = best + Vector3(away.x, 0.0, away.z) * 60.0
 			spawn.y = world.terrain_manager.get_height_at(spawn)
 			print("[SPAWN-DEV] --spawn-at-village: dropped %.0fm from village at %.0f,%.0f" % [
 				60.0, best.x, best.z])

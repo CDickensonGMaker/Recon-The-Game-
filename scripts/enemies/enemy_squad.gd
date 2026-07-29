@@ -106,9 +106,15 @@ const STRENGTH_TTL_MS: float = 1000.0    ## recompute cadence
 ## Pure break math (both sides reuse it, allies over SquadSystem.members).
 ## ratio = live / peak; threshold = 0.45 shifted by courage - elite/NVA (high
 ## courage) hold longer (lower threshold), green/Local Force break earlier.
-static func break_state(live: int, peak: int, avg_courage: float) -> Dictionary:
+##
+## base_ratio overrides BREAK_RATIO for a caller that owns its own strength ledger
+## and needs a different band (ADR-035 §4: the siege breaks at 0.575, and reaching
+## that through the courage term would make every besieger individually cowardly).
+## Callers passing nothing keep the shipped behaviour exactly.
+static func break_state(live: int, peak: int, avg_courage: float,
+		base_ratio: float = BREAK_RATIO) -> Dictionary:
 	var ratio: float = float(live) / float(maxi(1, peak))
-	var threshold: float = clampf(BREAK_RATIO + (0.5 - avg_courage) * 0.4, 0.20, 0.65)
+	var threshold: float = clampf(base_ratio + (0.5 - avg_courage) * 0.4, 0.20, 0.80)
 	return {"ratio": ratio, "threshold": threshold, "broken": ratio < threshold}
 
 

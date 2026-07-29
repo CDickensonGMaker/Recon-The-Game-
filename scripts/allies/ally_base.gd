@@ -44,6 +44,11 @@ const BODY_HEARTBEAT_MS: int = 300
 var _body_hot: bool = true
 var _body_heartbeat_ms: int = -1
 
+## Navmesh routing, the SAME path enemies use (NavRouter). Without it a follower
+## steers straight and jams on the first wall between him and his destination.
+@onready var nav_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D")
+var _router := NavRouter.new()
+
 ## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
@@ -267,6 +272,7 @@ var sprite_weapon: String = "m16a1"
 func _ready() -> void:
 	add_to_group("allies")
 	AgentRegistry.register(self, AgentRegistry.Kind.ALLY)
+	_router.setup(nav_agent, get_tree(), "ally")
 	var slot_angle: float = randf_range(0.0, TAU)
 	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
 	# The man he is this playthrough: a random point on the spectrum.
@@ -516,6 +522,7 @@ func _body_gate_open() -> bool:
 
 
 func _think() -> void:
+	_router.refresh_box(global_position)
 	_find_target()
 	_check_threat()
 	_update_line_of_sight()
@@ -1117,8 +1124,10 @@ func _change_state(new_state: Enums.AIState) -> void:
 
 
 func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
-	var direction := (pos - global_position).normalized()
+	var direction: Vector3 = _router.step(global_position, pos)
 	direction.y = 0
+	if direction.length() > 0.1:
+		direction = direction.normalized()
 	var spd: float = move_speed * speed_mult
 	velocity.x = lerpf(velocity.x, direction.x * spd, delta * 8.0)
 	velocity.z = lerpf(velocity.z, direction.z * spd, delta * 8.0)
@@ -1243,15 +1252,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		_killed_explosive = _damage_type == Enums.DamageType.EXPLOSIVE
 	current_hp -= amount
 
-	if sprite_actor != null:
-		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
-	elif mesh and mesh.material_override:
-		mesh.material_override.albedo_color = Color.RED
-		get_tree().create_timer(0.1).timeout.connect(func() -> void:
-			if mesh and mesh.material_override:
-				mesh.material_override.albedo_color = Color(0.3, 0.35, 0.25)
-		)
-
 	suppression_level = minf(1.0, suppression_level + 0.3)
 
 	if current_hp <= 0:
@@ -1331,6 +1331,19 @@ static func spawn_ally(parent: Node, pos: Vector3) -> AllyBase:
 	col.shape = shape
 	col.position.y = 0.9
 	ally.add_child(col)
+
+	if WorldConfig.NAV_ENABLED:
+		var nav := NavigationAgent3D.new()
+		nav.name = "NavigationAgent3D"
+		# INVARIANT: these must match NavBaker's AGENT_RADIUS / AGENT_HEIGHT, or the
+		# agent walks corridors the navmesh never carved.
+		nav.radius = NavBaker.AGENT_RADIUS
+		nav.height = NavBaker.AGENT_HEIGHT
+		nav.path_desired_distance = 0.7
+		nav.target_desired_distance = 1.0
+		nav.path_max_distance = 5.0
+		nav.avoidance_enabled = false   # explicit: RVO is a second silent no-op
+		ally.add_child(nav)
 
 	ally.collision_layer = 2  # Player layer (so enemies target them)
 	ally.collision_mask = 1   # World

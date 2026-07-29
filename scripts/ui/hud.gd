@@ -13,7 +13,6 @@ extends CanvasLayer
 @onready var grenade_label: Label = $MarginContainer/VBoxContainer/BottomRow/GrenadeLabel
 @onready var medkit_label: Label = $MarginContainer/VBoxContainer/BottomRow/MedkitLabel
 @onready var healing_bar: ProgressBar = $MarginContainer/VBoxContainer/HealingBar
-@onready var crosshair: Control = $Crosshair
 @onready var scope_overlay: ScopeOverlay = $ScopeOverlay
 @onready var death_screen: Control = $DeathScreen
 @onready var slot_indicator: Label = $MarginContainer/VBoxContainer/BottomRow/SlotIndicator
@@ -53,9 +52,6 @@ func _ready() -> void:
 	if bleed_container:
 		bleed_container.visible = false
 	add_to_group("combat_hud")  # R96: photo mode hides this
-	if crosshair:
-		# Green reads against jungle + PSX dither, where white vanishes.
-		crosshair.modulate = Color(0.35, 1.0, 0.35, 0.95)
 
 
 func _process(delta: float) -> void:
@@ -77,10 +73,6 @@ func _process(delta: float) -> void:
 	if action_progress and action_progress.current_action == ActionProgress.ActionType.COOK \
 			and (grenade_handler == null or not grenade_handler.is_cooking):
 		action_progress.finish_action()
-
-	# Under the scope the optic's own reticle aims; the hip crosshair yields.
-	if crosshair and scope_overlay:
-		crosshair.visible = not scope_overlay.is_scoped()
 
 
 func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: GrenadeHandler) -> void:

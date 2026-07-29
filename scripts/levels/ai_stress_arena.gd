@@ -59,6 +59,9 @@ class ArenaGrid extends GameplayGrid:
 const ARENA: float = 200.0
 const WALL_H: float = 4.0
 const LAB_GRENADES: int = 25
+## Spare magazines the bench hands the player. A stress test is a long fight and
+## the 3 mags a normal equip grants run dry before the first wave is decided.
+const LAB_SPARE_MAGS: int = 12
 
 ## --- FORTIFICATION + SAPPER + FIRE-SUPPORT TESTBED (war-room decree 2026-07-20) ---
 ## A forward wire+sandbag line the sappers breach, a tunnel mouth to satchel, a placed
@@ -74,6 +77,24 @@ const FORT_BUNKER_MODEL: String = "res://assets/world/building models/structures
 const FORT_BUNKER_HP: int = 220
 const ARENA_SAPPER_COUNT: int = 3
 const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he sees it happen
+## THE SIEGE AT THE WIRE. Full d50 strength on demand, so the mass assault can be
+## watched in isolation instead of waiting on the campaign's night roll. Distances are
+## the campaign geometry scaled into this 200 m box - the ring must clear the
+## materialize range or every cell becomes bodies on the frame it spawns.
+const SIEGE_STRENGTH: int = 50
+const SIEGE_RING_MIN: float = 70.0
+const SIEGE_RING_MAX: float = 95.0
+const SIEGE_MATERIALIZE_M: float = 35.0
+const SIEGE_RALLY_M: float = 90.0
+const SIEGE_MORTAR_STANDOFF: float = 130.0
+## ENEMY INDIRECT FIRE, independent of the siege. Volleys walk onto the player's
+## position at the moment of firing - flight time plus dispersion is what makes
+## moving the answer. SiegeDirector.fire_mortar_volley is the one implementation;
+## this only sets the cadence.
+const MORTAR_INTERVAL_MIN: float = 38.0
+const MORTAR_INTERVAL_MAX: float = 65.0
+const MORTAR_SPREAD_M: float = 25.0
+const MORTAR_FIRST_DELAY: float = 45.0
 const TUNNEL_POS: Vector3 = Vector3(-15.0, 0.0, 45.0)
 
 ## Ruined-building / rubble GLBs shipped by bead sra5. Village and central contact
@@ -123,6 +144,12 @@ const VC_PATHS: Array[String] = [
 @export var round_max_seconds: float = 300.0  ## 5 minute hard cap
 @export var spawn_player: bool = true
 @export var spawn_hud: bool = true
+## The instrumentation layer: per-man state labels, LOS lines, and the telemetry
+## block. OFF by default so the arena plays as a firefight rather than reading as a
+## dashboard; [F3] brings it back mid-run when something needs diagnosing.
+@export var debug_readouts: bool = false
+## Periodic VC mortar volleys onto the player. [L] calls one in on demand.
+@export var enemy_mortars: bool = true
 ## If true, every agent is seeded with a nearest-enemy target and pushed into COMBAT
 ## on spawn. Used by headless probes and quick sanity checks. Overrides patrol_mode.
 @export var hot_start: bool = false
@@ -249,7 +276,9 @@ var _dbg_im: ImmediateMesh = null
 ## Fortification / sapper / fire-support testbed state.
 var _forts: Array[Node3D] = []          ## live DestructibleFortification segments
 var _field_director: FieldDirector = null  ## the bench director (FireSupportBench.wire)
+var _siege: SiegeDirector = null           ## [J] drives a full-strength assault at the wire
 var _sapper_auto_t: float = SAPPER_AUTO_DELAY
+var _mortar_t: float = MORTAR_FIRST_DELAY
 var _sapper_auto_done: bool = false
 var _toast_label: Label = null          ## r4bk: the RTO net's calls must be VISIBLE
 var _toast_t: float = 0.0
@@ -297,6 +326,7 @@ func _ready() -> void:
 	call_deferred("_finish_agent_setup")
 	_build_hud()
 	_build_debug_vis()
+	set_debug_vis_active(debug_readouts)
 	_wire_telemetry()
 	if bench_dressing and spawn_hud:
 		_perf_overlay = ArenaPerfOverlay.new()
@@ -1195,6 +1225,18 @@ func _spawn_player() -> void:
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
 
 	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
+	# Deferred: WeaponHolder._equip resets spares to 3 as it seats the starting weapon,
+	# so stocking inside this frame would be overwritten by it.
+	call_deferred("_stock_player_ammo", weapon_holder)
+
+
+func _stock_player_ammo(weapon_holder: WeaponHolder) -> void:
+	if weapon_holder == null or not is_instance_valid(weapon_holder):
+		return
+	weapon_holder.primary_ammo[1] = LAB_SPARE_MAGS
+	weapon_holder.secondary_ammo[1] = LAB_SPARE_MAGS
+	weapon_holder.spare_magazines = LAB_SPARE_MAGS
+	weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, LAB_SPARE_MAGS)
 
 
 ## The player's RTO: one commandable radioman who carries the PRC-25, follows the
@@ -1370,6 +1412,113 @@ func _wire_fire_support() -> void:
 	_field_director = FireSupportBench.wire(self, player, ARENA)
 	_field_director.toast.connect(_on_director_toast)
 	print("[AI STRESS ARENA] fire support wired via FireSupportBench - RTO net live")
+	if spawn_cover:
+		_wire_siege()
+	if OS.get_cmdline_user_args().has("--mg-probe"):
+		call_deferred("_probe_mg_mount")
+
+
+## Stand up a SiegeDirector aimed at the fortification line. The assault comes in on
+## bearing 0 (east), the axis the arena sappers already cross, so the wire, the two
+## M60 nests and the breach are all in the same sector. Cadence is NOT wired - the
+## night roll belongs to the campaign; here it opens only on [J].
+func _wire_siege() -> void:
+	var wire_center := Vector3(FORT_LINE_X, 0.0, (FORT_LINE_Z0 + FORT_LINE_Z1) * 0.5)
+	_siege = SiegeDirector.new()
+	_siege.name = "ArenaSiegeDirector"
+	add_child(_siege)
+	_siege.setup(_field_director, wire_center, wire_center)
+	_siege.set_physics_process(false)   # no _maybe_open on the bench: [J] is the only trigger
+	_siege.sector_bearing = 0.0
+	_siege.ring_min = SIEGE_RING_MIN
+	_siege.ring_max = SIEGE_RING_MAX
+	_siege.rally_m = SIEGE_RALLY_M
+	_siege.mortar_standoff_m = SIEGE_MORTAR_STANDOFF
+	_siege.cell_materialize_m = SIEGE_MATERIALIZE_M
+	_siege.siege_began.connect(_on_siege_began)
+	_siege.siege_ended.connect(_on_siege_ended)
+	print("[AI STRESS ARENA] siege wired at the wire line - press [J] for %d attackers" % SIEGE_STRENGTH)
+
+
+## `--mg-probe`: drive the whole mounted-M60 path with no hands - mount, inspect,
+## fire - and print what the mount ACTUALLY produced. Exists because reading the
+## source ruled out the scene, the .tres and the GLB and still explained nothing.
+func _probe_mg_mount() -> void:
+	await get_tree().process_frame
+	var wh: WeaponHolder = player.get_node_or_null("Head/Camera3D/WeaponHolder") as WeaponHolder
+	var cam: Camera3D = player.get_node_or_null("Head/Camera3D") as Camera3D
+	if wh == null:
+		print("[MG-PROBE] FAIL: no WeaponHolder on the player")
+		get_tree().quit()
+		return
+	print("[MG-PROBE] pre-mount: weapon=%s model=%s ammo=%d" % [
+		wh.current_weapon.id if wh.current_weapon else "<none>",
+		"yes" if wh.weapon_model != null else "NO", wh.current_ammo])
+
+	var emp: MGEmplacement = null
+	for e in get_tree().get_nodes_in_group("mg_emplacements"):
+		var m := e as MGEmplacement
+		if m != null and not m.is_occupied():
+			emp = m
+			break
+	if emp == null:
+		print("[MG-PROBE] FAIL: no free emplacement in the scene")
+		get_tree().quit()
+		return
+	print("[MG-PROBE] mounting %s at %s" % [emp.name, emp.gunner_stand_pos()])
+	var ok: bool = emp.man_by_player(player)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	print("[MG-PROBE] man_by_player=%s is_manning=%s" % [ok, player.get("is_manning_mg")])
+	print("[MG-PROBE] weapon=%s ammo=%d spare=%d mode=%d" % [
+		wh.current_weapon.id if wh.current_weapon else "<none>",
+		wh.current_ammo, wh.spare_magazines,
+		wh.current_weapon.firing_mode if wh.current_weapon else -1])
+	print("[MG-PROBE] weapon_model=%s" % ("yes" if wh.weapon_model != null else "NO - INVISIBLE GUN"))
+	if wh.weapon_model != null:
+		var mp: Node3D = wh.weapon_model.find_child("MuzzlePoint", true, false) as Node3D
+		print("[MG-PROBE]   model_pos=%s muzzle=%s cam=%s" % [
+			wh.weapon_model.global_position,
+			mp.global_position if mp != null else "<no MuzzlePoint>",
+			cam.global_position if cam != null else "<no cam>"])
+
+	var before: int = wh.current_ammo
+	var shots_before: int = WeaponHolder.session_shots
+	for i in range(5):
+		wh.can_fire = true
+		wh.fire_timer = 0.0
+		wh._try_fire()
+		await get_tree().physics_frame
+	print("[MG-PROBE] fired 5x -> ammo %d->%d, session_shots %d->%d" % [
+		before, wh.current_ammo, shots_before, WeaponHolder.session_shots])
+	print("[MG-PROBE] jammed=%s reloading=%s switching=%s" % [
+		wh.is_jammed, wh.is_reloading, wh.is_switching])
+	get_tree().quit()
+
+
+## [J]. Re-arms a spent run so the assault can be watched as many times as he wants.
+func _launch_arena_siege() -> void:
+	if _siege == null or _siege.active:
+		return
+	_siege.nights_run = 0
+	_siege.run_strength = 0
+	_siege.set_physics_process(true)
+	_siege.open_siege(SIEGE_STRENGTH)
+
+
+func _on_siege_began(strength: int, is_probe: bool) -> void:
+	var cell_sizes: Array[int] = []
+	for c in _siege.cells:
+		cell_sizes.append(c.strength)
+	print("[AI STRESS ARENA] SIEGE: %d attackers in %d cells %s%s" % [
+		strength, cell_sizes.size(), str(cell_sizes), " (PROBE)" if is_probe else ""])
+	_on_director_toast("SIEGE: %d ATTACKERS IN %d CELLS" % [strength, cell_sizes.size()])
+
+
+func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
+	print("[AI STRESS ARENA] SIEGE END - %s | %d of %d killed" % [reason, killed, strength])
+	_on_director_toast("SIEGE BROKE: %s - %d/%d KILLED" % [reason.to_upper(), killed, strength])
 
 
 func _on_director_toast(text: String) -> void:
@@ -1389,7 +1538,7 @@ func _launch_arena_sappers() -> void:
 	var base := Vector3(FORT_LINE_X + 55.0, 1.0, aim_z)
 	for i in range(ARENA_SAPPER_COUNT):
 		var off := Vector3(_rng.randf_range(-5, 5), 0.0, float(i - 1) * 7.0)
-		var sapper := EnemyBase.spawn_enemy(self, base + off, FieldDirector.SAPPER_DATA)
+		var sapper := EnemyBase.spawn_enemy(self, base + off, SiegeDirector.SAPPER_DATA)
 		if sapper == null:
 			continue
 		sapper.squad_id = -1  # lone: a squad hunt_point must never steer a driven man
@@ -1410,12 +1559,28 @@ func _update_sandbox(delta: float) -> void:
 		_toast_t -= delta
 		if _toast_t <= 0.0 and _toast_label != null:
 			_toast_label.text = ""
-	if _sapper_auto_done or not spawn_player:
+	if not spawn_player:
+		return
+	if enemy_mortars and _siege != null:
+		_mortar_t -= delta
+		if _mortar_t <= 0.0:
+			_mortar_t = randf_range(MORTAR_INTERVAL_MIN, MORTAR_INTERVAL_MAX)
+			_call_mortars_on_player()
+	if _sapper_auto_done:
 		return
 	_sapper_auto_t -= delta
 	if _sapper_auto_t <= 0.0:
 		_sapper_auto_done = true
 		_launch_arena_sappers()
+
+
+## The tube is ranging on the player, not on a fixed point - the volley is aimed
+## where he stands when the rounds leave, so standing still is what kills.
+func _call_mortars_on_player() -> void:
+	if _siege == null or player == null or not is_instance_valid(player):
+		return
+	_siege.fire_mortar_volley(player.global_position, MORTAR_SPREAD_M)
+	_on_director_toast("INCOMING - MORTARS")
 
 
 func _spawn_initial_forces() -> void:
@@ -1769,6 +1934,10 @@ func get_player_damage_mult() -> float:
 ## ---------- ROUND LIFECYCLE ----------
 
 func _check_round_end() -> void:
+	# A running siege is its own fight and outlives the squad round - ending the round
+	# under it would tear down the assault mid-breach.
+	if _siege != null and _siege.active:
+		return
 	if _sim_time >= round_max_seconds:
 		_end_round("TIME LIMIT (5:00)")
 		return
@@ -1809,10 +1978,22 @@ func _exit_tree() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reload") and _round_ended:
 		_restart_round()
+	if not (event is InputEventKey and (event as InputEventKey).pressed \
+			and not (event as InputEventKey).echo):
+		return
 	# K launches a fresh sapper wave at the wire so he can watch the breach repeatedly.
-	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
-			and (event as InputEventKey).physical_keycode == KEY_K:
-		_launch_arena_sappers()
+	# J launches the whole siege - 50 attackers in 3-6 man cells on the same axis.
+	match (event as InputEventKey).physical_keycode:
+		KEY_K:
+			_launch_arena_sappers()
+		KEY_J:
+			_launch_arena_siege()
+		KEY_L:
+			_call_mortars_on_player()
+		KEY_F3:
+			set_debug_vis_active(not _debug_vis_enabled)
+			if _hud != null:
+				_hud.visible = _debug_vis_enabled
 
 
 func _restart_round() -> void:
@@ -1871,6 +2052,7 @@ func _build_hud() -> void:
 	_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_hud.add_theme_font_size_override("font_size", 13)
 	_hud.add_theme_color_override("font_color", Color(0.92, 0.9, 0.8, 0.85))
+	_hud.visible = debug_readouts
 	layer.add_child(_hud)
 
 	# r4bk: the RTO net's inbound calls (and the sapper bark) must be readable, so the

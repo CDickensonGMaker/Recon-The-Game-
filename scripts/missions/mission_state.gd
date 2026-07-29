@@ -64,6 +64,27 @@ func add_field_mark(kind: String, center: Vector3, radius: float, patrol_no: int
 	})
 
 
+## PENCIL MARKS - the ANNOTATED layer ADR-022 promised and never built. Unlike a field
+## mark these need NO line of sight: the player writes what he THINKS, anywhere on the
+## sheet, including places he has never been. {x, z, kind, text, placed_at}.
+##
+## THE GREASE-PENCIL LAW: the game NEVER validates, corrects, moves or auto-erases one
+## of these. A note that turns out wrong sits there being wrong until the player
+## changes it himself. No "(outdated)" tag, ever.
+var pencil_marks: Array = []
+
+
+func add_pencil_mark(kind: String, x: float, z: float, patrol_no: int) -> int:
+	pencil_marks.append({"x": x, "z": z, "kind": kind, "text": "", "placed_at": patrol_no})
+	return pencil_marks.size() - 1
+
+
+## THE ROUTE (patrol-contract decree, 2026-07-28). Indices into FieldDirector's
+## patrol_objectives, in the order the player intends to walk them. The circles are
+## OFFERED, never REQUIRED - an empty route is legal and costs nothing.
+var route_order: Array = []
+
+
 ## CONTACT LEDGER (ADR-006). A group is DETECTED the first time any of its men
 ## reaches COMBAT with eyes on you; a group you leave the AO without ever alerting
 ## is AVOIDED. Per-group and one-way: once they have seen you, the contact is spent.

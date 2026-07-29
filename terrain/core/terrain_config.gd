@@ -37,7 +37,7 @@ static func preset_relief(preset: int) -> float:
 		Preset.ROLLING_HILLS:
 			return 90.0
 		Preset.STEEP_MOUNTAINS:
-			return 300.0
+			return 200.0
 		Preset.PLATEAU:
 			return 160.0
 		_:

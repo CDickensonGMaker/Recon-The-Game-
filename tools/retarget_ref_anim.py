@@ -32,13 +32,23 @@ translation that inflates every transferred displacement. What DOES correspond
 is direction: the bolt's travel axis and the magazine's hang axis. A rotation
 solved from those preserves displacement magnitude exactly.
 
-THE MAGAZINE IS NOT TRANSFERRED AS A FREE BODY. Measured over the reference
-carry (f21-f54): the magazine holds a constant 120.0 mm in the left hand,
-drifting under 2 mm across 34 frames - it is rigidly held. So it is driven in
-two regimes, seated (pinned to our blessed rest pose) and carried (rigidly
-parented to our hand). Both handoffs happen within 5 mm of seated, so the switch
-is seamless. This is what stops the magazine going cockeyed: it is never
-interpolated between poses and never floats free.
+THE MAGAZINE IS CARRIED BY THE LEFT HAND, NOT BY BAKED GEOMETRY (Summoner's
+ruling 2026-07-28: "the magazine is attached to the left hand instead of trying
+to raw geometry things - the left hand carries all mag changes besides the
+sniper rifle"). The magazine keeps its seated rest transform in EVERY frame of
+every clip; what moves it is its own `CHILD_OF hand.L` constraint, whose
+influence is keyed as a CONSTANT 0->1 step at the handoff frame. Baking the
+carry as per-frame location/rotation keys is what produced the 171.9 deg,
+715.7 mm magazine measured on the AK and the M16 - a part driven by matrix math
+can adopt any orientation, while a part riding the hand can only rotate as far
+as the hand does.
+
+A Child Of is continuous only if its stored inverse_matrix equals the target
+bone's world matrix at the instant it engages, so the inverse is re-seated at
+each clip's own handoff frame. Clips whose handoff poses agree within
+HANDOFF_TOL_MM share one constraint; a clip that needs a different seat gets its
+own (the M16's `hand_handoff_jam` is the precedent - its handoff sat 50 mm from
+the reload's).
 
 The gun stays on hand.R for every clip. The reference performs the whole reload
 with the left hand while the right never leaves the pistol grip, so no
@@ -69,6 +79,19 @@ GRIP_GAP = 0.024
 GRIP_GAP_BOLT = 0.038
 # how fast the contact correction may be walked in, mm per frame
 MAX_CORR_STEP_MM = 32.0
+# two clips may share one hand_handoff constraint only if their handoff poses
+# agree this closely; the M16's reload/reload_empty measured 4 mm apart and its
+# jam 50 mm, which is why the jam carries its own constraint
+HANDOFF_TOL_MM = 5.0
+HANDOFF_BASE = 'hand_handoff'
+# The AK reference dumps its magazine: 572 mm away and rolled 166.8 deg, which
+# is a real two-magazine swap. Our rig has ONE magazine object, so replaying
+# that whole arc reads as the magazine turning upside down and coming back -
+# the defect the Summoner reported 2026-07-28. A rifle magazine change is a
+# rock-out and a rock-in, so the roll is capped and the frames past the cap are
+# dropped, splicing the out-stroke straight to the in-stroke.
+MAG_ROLL_DEG = 50.0
+MAG_EXCURSION_MM = 400.0
 MAG_CONTACT = ('reload', 'reload_empty')
 BOLT_CONTACT = ('charge_handle', 'reload_empty', 'jam')
 MANIFEST = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -221,10 +244,16 @@ GUNS = {
     # --- no detachable magazine: the action IS the reload -------------------
     'm60':  {'collection': 'RIG_M60_MG', 'prefix': 'm60', 'mag': None,
              'bolt': 'contact_chandle_M60_MG', 'bolt_travel': 0.100},
-    'mosin': {'collection': 'RIG_Mosin', 'prefix': 'mosin', 'mag': None,
-              'bolt': 'contact_bolt_Mosin', 'bolt_travel': 0.090},
+    # --- bolt action: a true lift-draw-push-turn, and the charger is carried --
+    # the stripper clip rides hand.L on the magazine's own CHILD_OF machinery;
+    # a charger brought to the receiver IS a feed device carried by that hand
+    'mosin': {'collection': 'RIG_Mosin', 'prefix': 'mosin',
+              'mag': 'contact_clip_Mosin',
+              'bolt': 'contact_bolt_Mosin', 'bolt_travel': 0.090,
+              'pack': 'bolt_rifle'},
     'm70':  {'collection': 'RIG_M70sniper', 'prefix': 'm70', 'mag': None,
-             'bolt': 'contact_bolt_M70sniper', 'bolt_travel': 0.090},
+             'bolt': 'contact_bolt_M70sniper', 'bolt_travel': 0.090,
+             'pack': 'bolt_rifle'},
     'ithaca': {'collection': 'RIG_Ithaca37_Shotgun', 'prefix': 'ithaca', 'mag': None,
                'bolt': 'contact_pump_Ithaca37_Shotgun'},
     'm79':  {'collection': 'RIG_M79_Launcher', 'prefix': 'm79', 'mag': None,
@@ -285,6 +314,13 @@ def resolve(spec):
     return spec
 
 spec = GUNS[GUN]
+REFS = {}
+if spec.get('pack'):
+    # The bolt correction drags the SUPPORT hand onto our bolt marker, because
+    # the AK reference works the action with the hand that is already free. A
+    # bolt pack transfers the throwing hand itself, so it arrives on the bolt on
+    # its own; correcting it would be a second, contradictory reach.
+    BOLT_CONTACT = ()
 
 
 def O(n):
@@ -309,6 +345,81 @@ def build_plan(main, fire):
     def seg(ref, a, b, bolt=None):
         step = 1 if b >= a else -1
         return [(ref, f, bolt) for f in range(a, b + step, step)]
+
+    def mag_disp(ref, f):
+        a, b = ref.W(0, 'W_Magazine'), ref.W(f, 'W_Magazine')
+        if a is None or b is None:
+            return 0.0
+        return (b.translation - a.translation).length * 1000.0
+
+    def mag_roll(ref, f):
+        a, b = ref.W(0, 'W_Magazine'), ref.W(f, 'W_Magazine')
+        if a is None or b is None:
+            return 0.0
+        q = b.to_quaternion().rotation_difference(a.to_quaternion())
+        ang = abs(q.angle) % (2 * math.pi)
+        return math.degrees(min(ang, 2 * math.pi - ang))
+
+    def mag_stroke(ref):
+        """The reference's magazine SEATING stroke: (apex, seated).
+
+        `seated` is where the magazine is home again; `apex` is the frame
+        furthest out that still respects the roll cap. Cutting a seam out of
+        the dump phase was tried twice and both attempts collapsed - every
+        cost function that scores a join prefers deleting more of the
+        performance, because poses near rest always match each other best."""
+        n = len(ref.raw)
+        disp = [mag_disp(ref, f) for f in range(n)]
+        peak = max(range(n), key=lambda f: disp[f])
+        seated = next((f for f in range(peak, n) if disp[f] <= CARRY_MM), n - 1)
+        ok = [f for f in range(peak, seated + 1)
+              if mag_roll(ref, f) <= MAG_ROLL_DEG
+              and disp[f] <= MAG_EXCURSION_MM]
+        apex = max(ok, key=lambda f: disp[f]) if ok else seated
+        return apex, seated
+
+    def lead_frame(ref, seated):
+        """Where the approach hands over to the swap: the frame before the
+        magazine first moves whose hand pose sits closest to `seated`, so the
+        two halves join as one continuous reach."""
+        n = len(ref.raw)
+        out = next((f for f in range(n) if mag_disp(ref, f) > CARRY_MM), 20)
+        tgt = ref.W(seated, 'hand_L')
+        best, pick = None, max(0, out - 1)
+        for f in range(max(0, out - 8), out):
+            h = ref.W(f, 'hand_L')
+            if h is None or tgt is None:
+                continue
+            d = (h.translation - tgt.translation).length
+            if best is None or d < best:
+                best, pick = d, f
+        return pick, (best or 0.0) * 1000.0
+
+    if spec.get('pack'):
+        # A bolt gun's performance is already split across clips, so the plan is
+        # a cut list, not a reconstruction. Beats measured off the pack's own
+        # fire clip: recoil f1-19, bolt lift/draw/push/turn f33-65, settle f77-91.
+        idle, rel = REFS['idle'], REFS['reload']
+        plan = {}
+        plan['rifle_idle'] = seg(idle, 0, 0) * 12
+        plan['fire'] = seg(fire, 0, 19)
+        plan['charge_handle'] = seg(fire, 26, 95)
+        # a jam is the same throw with the bolt refusing to travel: a short
+        # snatch that stalls, worked back and forth, then a full clearing pull
+        jam = seg(fire, 26, 40)
+        jam += [(fire, f, 40.0 * min(1.0, (f - 40) / 3.0)) for f in range(40, 46)]
+        jam += [(fire, 45, 40.0)] * 5
+        jam += [(fire, 45, 40.0 + 14.0 * (k % 2)) for k in range(6)]
+        jam += [(fire, 45, 12.0)] * 3
+        jam += [(fire, 45, 0.0)] * 4
+        jam += seg(fire, 33, 95)
+        plan['jam'] = jam
+        # stripper reload: the charger is brought up by the left hand exactly as
+        # the reference brings a magazine, so its own performance transfers. The
+        # empty variant additionally works the bolt.
+        plan['reload'] = seg(rel, 0, len(rel.raw) - 1)
+        plan['reload_empty'] = seg(main, 0, len(main.raw) - 1)
+        return plan
 
     plan = {}
     plan['rifle_idle'] = seg(main, 0, 0) * 12
@@ -337,6 +448,18 @@ def build_plan(main, fire):
     if not GUNS[GUN].get('mag'):
         plan['reload'] = plan['charge_handle']
         plan['reload_empty'] = plan['charge_handle'] + plan['charge_handle']
+    else:
+        apex, seated = mag_stroke(main)
+        lead, join_mm = lead_frame(main, seated)
+        print('  MAG SWAP  approach ends f%d, seating stroke f%d<->f%d, '
+              'apex %.1f mm / %.1f deg, join %.1f mm'
+              % (lead, seated, apex, mag_disp(main, apex),
+                 mag_roll(main, apex), join_mm))
+        # out is the seating stroke reversed, in is the same stroke forwards:
+        # the two share the apex frame exactly, so the turn cannot pop
+        swap = seg(main, seated, apex) + seg(main, apex, seated)
+        plan['reload'] = seg(main, 0, lead) + swap + seg(main, lead, 7)
+        plan['reload_empty'] = seg(main, 0, lead) + swap + seg(main, seated, 88)
     return plan
 
 
@@ -357,7 +480,13 @@ def fcurves_of(act):
 
 def unhide(coll_name):
     """An excluded collection evaluates every matrix as identity, which turns
-    the axis solve degenerate. Returns the prior exclusion so it can be put back."""
+    the axis solve degenerate. Returns (layer_collection, prior_state) so
+    restore_visibility can put the scene back exactly as it was.
+
+    Restoring matters far more when this runs inside a live session than
+    headless: leaving three gun collections unhidden stacks three complete
+    rigs in the same space, which reads as a scene full of broken models.
+    """
     vl = bpy.context.view_layer
 
     def find(name, layer=None):
@@ -369,7 +498,11 @@ def unhide(coll_name):
             if r:
                 return r
     lc = find(coll_name)
-    was = lc.exclude if lc else False
+    was = {'exclude': lc.exclude if lc else False,
+           'lc_hide': lc.hide_viewport if lc else False,
+           'objects': {}}
+    for o in bpy.data.collections[coll_name].objects:
+        was['objects'][o.name] = (o.hide_viewport, o.hide_render, o.hide_get())
     if lc:
         lc.exclude = False
         lc.hide_viewport = False
@@ -381,6 +514,41 @@ def unhide(coll_name):
         o.hide_set(False)
     bpy.context.view_layer.update()
     return lc, was
+
+
+def restore_visibility(coll_name, lc, was):
+    """Put every visibility flag unhide() touched back where it was."""
+    for name, (hv, hr, hg) in was['objects'].items():
+        o = bpy.data.objects.get(name)
+        if o is None:
+            continue
+        o.hide_viewport = hv
+        o.hide_render = hr
+        try:
+            o.hide_set(hg)
+        except RuntimeError:
+            pass
+    if lc is not None:
+        lc.hide_viewport = was['lc_hide']
+        lc.exclude = was['exclude']
+    bpy.context.view_layer.update()
+
+
+def handoff_con(mag, rig, name):
+    """The magazine's CHILD_OF hand.L, created if this gun never had one.
+
+    PPSh, RPD, Colt45 and both RPGs reached 2026-07-28 with no handoff
+    constraint at all, which is why their magazines could only ever be faked
+    with baked transforms.
+    """
+    c = mag.constraints.get(name)
+    if c is None:
+        c = mag.constraints.new('CHILD_OF')
+        c.name = name
+        c.target = rig
+        c.subtarget = 'hand.L'
+    c.influence = 0.0
+    return c
 
 
 def fresh(o, name):
@@ -408,12 +576,26 @@ def main():
     resolve(spec)
 
     refs = {}
-    for k, fn in (('main', REF_MAIN), ('fire', REF_FIRE)):
-        p = os.path.join(REFDIR, fn)
-        if not os.path.exists(p):
-            raise SystemExit('reference json not found: %s' % p)
-        refs[k] = Ref(p)
+    pack = spec.get('pack')
+    if pack:
+        # a pack extracted by tools/extract_ref_pack.py: one json per clip
+        for k, clip in (('main', 'reload_empty'), ('fire', 'fire'),
+                        ('reload', 'reload'), ('idle', 'idle')):
+            p = os.path.join(REFDIR, '%s_%s.json' % (pack, clip))
+            if not os.path.exists(p):
+                raise SystemExit('reference json not found: %s\n'
+                                 '  rebuild it: blender -b -P tools/extract_ref_pack.py'
+                                 ' -- %s' % (p, pack))
+            refs[k] = Ref(p)
+    else:
+        for k, fn in (('main', REF_MAIN), ('fire', REF_FIRE)):
+            p = os.path.join(REFDIR, fn)
+            if not os.path.exists(p):
+                raise SystemExit('reference json not found: %s' % p)
+            refs[k] = Ref(p)
     R, RF = refs['main'], refs['fire']
+    global REFS
+    REFS = refs
 
     # ---- rest state: our blessed idle, captured through the existing NLA ----
     for o in bpy.data.collections[spec['collection']].objects:
@@ -439,6 +621,8 @@ def main():
         if pb:
             REST_GUNSPACE[bn] = Ginv @ (A @ pb.matrix)
     REST_MAG = mag.matrix_basis.copy() if mag is not None else Matrix.Identity(4)
+    MAG_REST_WORLD = (mag.matrix_world.copy() if mag is not None
+                      else Matrix.Identity(4))
     REST_BOLT = bolt.matrix_basis.copy() if bolt is not None else Matrix.Identity(4)
     ROOT_TRS = (root.location.copy(), root.rotation_quaternion.copy(), root.scale.copy())
     ROOT_REST_WORLD = root.matrix_world.translation.copy()
@@ -451,8 +635,23 @@ def main():
                        [a.y, b.y, (a.cross(b)).y],
                        [a.z, b.z, (a.cross(b)).z]])
 
-    ref_fwd = (R.W(70, 'W_bolt').translation - R.W(0, 'W_bolt').translation)
+    # frame 70 is where the AK pack's bolt sits at full travel; a pack with its
+    # own framing has to be asked where that is rather than told
+    if spec.get('pack'):
+        f_open = max(range(len(R.raw)),
+                     key=lambda f: (R.W(f, 'W_bolt').translation
+                                    - R.W(0, 'W_bolt').translation).length)
+    else:
+        f_open = 70
+    ref_fwd = (R.W(f_open, 'W_bolt').translation - R.W(0, 'W_bolt').translation)
     ref_down = R.W(0, 'W_Magazine').translation.copy()
+    if spec.get('pack'):
+        # A magazine POSITION is only a hang axis when the magazine hangs below
+        # the weapon frame. On the bolt pack the Mag bone sits behind Body, so
+        # that vector lands within 8 deg of the bolt axis and triad() collapses.
+        # Both rigs hold the weapon roughly level in a Z-up world, so world down
+        # carried into each weapon's own frame is a real, non-degenerate axis.
+        ref_down = norm(R.raw[0]['W_Grip']).to_3x3().inverted() @ Vector((0, 0, -1))
     if bolt is not None and bolt.parent is not None and spec['rail_max'] > 0:
         r3 = (Ginv @ bolt.parent.matrix_world).to_3x3()
         i = spec['rail_axis']
@@ -461,7 +660,8 @@ def main():
         # no rail to read: rearward is muzzle -> pistol grip along the bore
         our_fwd = ((Ginv @ O(spec['grip_r']).matrix_world).translation
                    - (Ginv @ O(spec['muzzle']).matrix_world).translation)
-    our_down = ((Ginv @ mag.matrix_world).translation.copy() if mag is not None
+    our_down = (G.to_3x3().inverted() @ Vector((0, 0, -1))) if spec.get('pack') else \
+               ((Ginv @ mag.matrix_world).translation.copy() if mag is not None
                 else (Ginv @ O(spec['grip_r']).matrix_world).translation
                 - our_fwd.normalized() * ((Ginv @ O(spec['grip_r']).matrix_world)
                                           .translation.dot(our_fwd.normalized())))
@@ -501,12 +701,6 @@ def main():
     port = bpy.data.objects.get(spec.get('port') or '')
     if port is not None:
         parts.append(port)
-    MPI = mag.matrix_parent_inverse.copy() if mag is not None else Matrix.Identity(4)
-    MPIinv = MPI.inverted()
-    MPAR = (mag.parent.matrix_world.copy()
-            if mag is not None and mag.parent else Matrix.Identity(4))
-    MPARinv = MPAR.inverted()
-
     BPARinv = ((bolt.parent.matrix_world.to_3x3().inverted())
                if bolt is not None and bolt.parent else Matrix.Identity(3))
 
@@ -553,6 +747,10 @@ def main():
             w[i] = best
         return w
 
+    # hand poses already used to seat a handoff constraint, by constraint name.
+    # Shared across clips so reload and reload_empty ride one constraint when
+    # their handoffs agree, the way the M16's do.
+    seated = {}
     report = {}
     for clip, frames in plan.items():
         acts = {
@@ -579,10 +777,27 @@ def main():
                   if clip in BOLT_CONTACT and BOLT_MARK else [0.0] * len(frames))
 
         stats = {'hand_max': 0.0, 'mag_max': 0.0, 'bolt_max': 0.0, 'step_max': 0.0,
-                 'carried': 0, 'corr_max': 0.0}
+                 'carried': 0, 'corr_max': 0.0, 'handoff': '-'}
         prevL = None
-        carry_off = None
+        clip_con = None
         grip_local = None
+
+        def seat_handoff():
+            """Pick the constraint this clip's carry rides on, seating its
+            inverse to the hand pose at the handoff instant. Reuses a
+            constraint already seated for an earlier clip when the two handoff
+            poses agree, so guns do not accumulate one constraint per clip."""
+            H = A @ rig.pose.bones['hand.L'].matrix
+            for name, H0 in seated.items():
+                if (H.translation - H0.translation).length * 1000.0 <= HANDOFF_TOL_MM:
+                    return handoff_con(mag, rig, name)
+            name = HANDOFF_BASE if HANDOFF_BASE not in seated else \
+                '%s_%s' % (HANDOFF_BASE, clip)
+            c = handoff_con(mag, rig, name)
+            c.inverse_matrix = H.inverted()
+            seated[name] = H.copy()
+            return c
+
         applied = Vector((0, 0, 0))
         for i, (ref, rf, bo) in enumerate(frames):
             # TRAP: set the frame BEFORE posing. frame_set afterwards
@@ -593,7 +808,13 @@ def main():
                 if pb.name in REST_BASIS:
                     pb.matrix_basis = REST_BASIS[pb.name].copy()
 
-            for bn, refkey in (('handIK.L', 'hand_L'), ('elbowIK.L', 'elbow_L')):
+            # the AK reference never takes the right hand off the pistol grip, so
+            # only the left arm carries performance. A bolt gun is the inverse:
+            # the right hand leaves the grip and throws the bolt, so both arms do.
+            arms = (('handIK.L', 'hand_L'), ('elbowIK.L', 'elbow_L'))
+            if spec.get('pack'):
+                arms = arms + (('handIK.R', 'hand_R'), ('elbowIK.R', 'elbow_R'))
+            for bn, refkey in arms:
                 pb = rig.pose.bones.get(bn)
                 if pb is None or bn not in REST_GUNSPACE:
                     continue
@@ -659,17 +880,16 @@ def main():
             net = ((A @ rig.pose.bones['handIK.L'].matrix).translation - pre_corr)
             stats['corr_max'] = max(stats['corr_max'], net.length * 1000)
 
-            # magazine: seated is pinned, carried rides the hand rigidly
-            if mag is None:
-                pass
-            elif carried:
-                hand_p = MPARinv @ (A @ rig.pose.bones['hand.L'].matrix)
-                if carry_off is None:
-                    carry_off = hand_p.inverted() @ (MPI @ REST_MAG)
-                mag.matrix_basis = MPIinv @ (hand_p @ carry_off)
-            else:
-                carry_off = None
+            # THE MAGAZINE LAW. The magazine never takes a baked transform: it
+            # holds its seated rest basis in every frame and the LEFT HAND
+            # carries it through CHILD_OF. A part driven by matrix math can
+            # reach any orientation - that is the 171.9 deg, 715.7 mm magazine.
+            # A part riding the hand can only turn as far as the hand turns.
+            if mag is not None:
                 mag.matrix_basis = REST_MAG.copy()
+                if carried and clip_con is None:
+                    clip_con = seat_handoff()
+                    stats['handoff'] = '%s@f%d' % (clip_con.name, i)
 
             root.location, root.rotation_quaternion, root.scale = (
                 ROOT_TRS[0].copy(), ROOT_TRS[1].copy(), ROOT_TRS[2].copy())
@@ -697,18 +917,32 @@ def main():
                 for c in o.constraints:
                     if c.type != 'CHILD_OF':
                         continue
-                    holds = (o is root and getattr(c, 'subtarget', '') == 'hand.R')
+                    if o is root:
+                        holds = getattr(c, 'subtarget', '') == 'hand.R'
+                    else:
+                        # TRAP: two bpy wrappers for one constraint are not the
+                        # same Python object, so `is` silently never matches and
+                        # the handoff is keyed off for the whole clip
+                        holds = carried and clip_con is not None \
+                            and c.name == clip_con.name
                     c.influence = 1.0 if holds else 0.0
                     c.keyframe_insert('influence', frame=i)
+
+            # the influence just changed; the magazine's world matrix is only
+            # correct once the constraint has been re-evaluated
+            bpy.context.view_layer.update()
 
             hp = (A @ rig.pose.bones['handIK.L'].matrix).translation
             gl = (Ginv @ hp)
             stats['hand_max'] = max(stats['hand_max'],
                                     (gl - REST_GUNSPACE['handIK.L'].translation).length * 1000)
             if mag is not None:
-                stats['mag_max'] = max(stats['mag_max'],
-                                       (mag.matrix_basis.translation
-                                        - REST_MAG.translation).length * 1000)
+                # measured in the GUN's frame: the basis is constant now, so a
+                # basis-space reading would report 0 for every carry
+                stats['mag_max'] = max(
+                    stats['mag_max'],
+                    ((Ginv @ mag.matrix_world).translation
+                     - (Ginv @ MAG_REST_WORLD).translation).length * 1000)
             stats['bolt_max'] = max(stats['bolt_max'], t)
             stats['carried'] += 1 if carried else 0
             if prevL is not None:
@@ -717,6 +951,12 @@ def main():
 
         for a in acts.values():
             for fc in fcurves_of(a):
+                # a handoff is a switch, not a blend: easing the influence curve
+                # would drag the magazine through a half-attached in-between
+                if fc.data_path.endswith('.influence'):
+                    for kp in fc.keyframe_points:
+                        kp.interpolation = 'CONSTANT'
+                    continue
                 for kp in fc.keyframe_points:
                     kp.interpolation = 'BEZIER'
                     kp.handle_left_type = 'AUTO'
@@ -790,18 +1030,21 @@ def wire(rig, mag, bolt, root):
 
 
 if __name__ == '__main__':
-    unhide(spec['collection'])
+    # the FIRST unhide sees the scene as the user left it; every later call
+    # sees it already unhidden, so only this one can restore it
+    lc0, was0 = unhide(spec['collection'])
     resolve(spec)
-    rig, mag, bolt, root, report, (lc, was_excluded), drift = main()
+    rig, mag, bolt, root, report, (lc, _inner), drift = main()
     n = wire(rig, mag, bolt, root)
 
     print('\n  CLIPS BUILT')
-    print('    %-15s %6s %7s %9s %9s %9s %9s %8s'
-          % ('clip', 'frames', 'sec', 'handL_mm', 'mag_mm', 'bolt_mm', 'step_mm', 'corr_mm'))
+    print('    %-15s %6s %7s %9s %9s %9s %9s %8s  %s'
+          % ('clip', 'frames', 'sec', 'handL_mm', 'mag_mm', 'bolt_mm', 'step_mm',
+             'corr_mm', 'handoff'))
     for c, s in report.items():
-        print('    %-15s %6d %7.2f %9.1f %9.1f %9.1f %9.1f %8.1f'
+        print('    %-15s %6d %7.2f %9.1f %9.1f %9.1f %9.1f %8.1f  %s'
               % (c, s['frames'], s['seconds'], s['hand_max'], s['mag_max'],
-                 s['bolt_max'], s['step_max'], s['corr_max']))
+                 s['bolt_max'], s['step_max'], s['corr_max'], s['handoff']))
     print('  bound %d NLA strips' % n)
 
     print('  gun root drift at rest: %.4f mm' % drift)
@@ -809,8 +1052,7 @@ if __name__ == '__main__':
         raise SystemExit('ABORT: gun root moved %.3f mm - the rifle would be '
                          'displaced in every clip' % drift)
 
-    if lc is not None:
-        lc.exclude = was_excluded
+    restore_visibility(spec['collection'], lc0, was0)
 
     if APPLY:
         bpy.ops.wm.save_mainfile()

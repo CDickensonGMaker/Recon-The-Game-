@@ -122,7 +122,10 @@ var suppression: float = 0.0
 const SUPPRESS_DECAY: float = 0.55          ## per second, standing
 const SUPPRESS_DECAY_LOW: float = 1.3       ## per second, prone/crouched (reward getting down)
 const SUPPRESS_PER_NEARMISS: float = 0.34   ## a round cracking past adds this
-const SUPPRESS_SHAKE_MAX: float = 0.06      ## camera h/v offset metres at full
+const SUPPRESS_SHAKE_MAX: float = 0.035     ## camera h/v offset metres at full
+## Jitter frequency. Below ~25 the shake reads as a body flinching; above it the
+## camera reads as a broken mount.
+const SUPPRESS_SHAKE_HZ: float = 24.0
 ## Below this on BOTH amount and hurt the shader is the identity transform, and a
 ## visible ColorRect sampling hint_screen_texture costs a full-screen backbuffer
 ## copy + blit at native resolution (the CanvasLayer ignores scaling_3d/scale).
@@ -161,6 +164,35 @@ func _update_binoculars(delta: float) -> void:
 const MARK_RANGE_M: float = 300.0
 const MARK_EYES_ONLY_M: float = 30.0
 const MARK_STILL_SPEED: float = 1.5
+
+
+## Metres inside which a villager registers what you are doing to the dead.
+const EAR_WITNESS_M: float = 45.0
+## Necklace growth buckets. The mesh changes at these counts and nowhere between -
+## modelling every integer is art cost for no readable gain.
+const EAR_BUCKETS: Array[int] = [1, 3, 6, 10, 15]
+
+
+## Taking ears (Summoner, 2026-07-28). Deliberately NOT a reward: no intel, no score,
+## no stat. The count exists so the necklace can grow and so the world can have an
+## opinion - a trophy system that only ever pays out reads as the game approving.
+func _take_ear(corpse: Node3D) -> void:
+	CampaignState.ears_taken += 1
+	CampaignState.save_campaign()
+	if CampaignState.ears_taken in EAR_BUCKETS:
+		_field_toast("THE NECKLACE IS GETTING HEAVY")
+	# A villager who SEES this remembers it. ADR-019 governs the reaction: sentiment
+	# moves in words, never as a meter, so this only reports the witnessing.
+	for c in get_tree().get_nodes_in_group("civilians"):
+		var civ := c as Node3D
+		if civ == null or not is_instance_valid(civ):
+			continue
+		if civ.global_position.distance_to(corpse.global_position) > EAR_WITNESS_M:
+			continue
+		if civ.has_method("on_atrocity_witnessed"):
+			civ.call("on_atrocity_witnessed", corpse.global_position)
+		_field_toast("THEY SAW YOU DO THAT")
+		break
 
 
 func _report_field_mark() -> void:
@@ -615,7 +647,11 @@ func _try_field_interact() -> void:
 			return
 		if not _in_tunnel.looted and global_position.distance_to(_in_tunnel.cache_point()) < 2.2:
 			_in_tunnel.looted = true
-			CampaignState.intel_points += 2
+			CampaignState.add_intel(2)
+			# The tunnel is the dungeon; this is where its reward can land.
+			var fd_t: Node = get_tree().get_first_node_in_group("mission_director")
+			if fd_t != null and fd_t.has_method("try_intel_stash"):
+				fd_t.call("try_intel_stash")
 			CampaignState.save_campaign()
 			if weapon_holder:
 				weapon_holder.spare_magazines += 2
@@ -640,8 +676,7 @@ func _try_field_interact() -> void:
 		if shrine and not shrine.has_meta("searched") \
 				and global_position.distance_to(shrine.global_position) < 4.0:
 			shrine.set_meta("searched", true)
-			CampaignState.intel_points += 1
-			CampaignState.save_campaign()
+			CampaignState.add_intel(1)
 			_field_toast("OLD SHRINE - SOMEONE LEFT MAPS HERE (+1 INTEL)")
 			return
 	# Tunnel entrance (topside). With a satchel on the belt the key is shared:
@@ -677,18 +712,16 @@ func _try_field_interact() -> void:
 	# when he went down, so the tallies hold at one.
 	var downed: EnemyBase = _nearby_downed_enemy()
 	if downed != null and downed.secure():
-		CampaignState.intel_points += 1
-		CampaignState.save_campaign()
-		_field_toast("WOUNDS PACKED - PRISONER SECURED (+1 INTEL)")
+		CampaignState.add_intel(1)
+		_field_toast("WOUNDS PACKED - PRISONER SECURED")
 		return
 	for e in get_tree().get_nodes_in_group("surrendered"):
 		var prisoner := e as EnemyBase
 		# A secured downed man is in this group too; he is already banked above.
 		if prisoner and not prisoner.is_downed \
 				and global_position.distance_to(prisoner.global_position) < 2.8:
-			CampaignState.intel_points += 1
-			CampaignState.save_campaign()
-			_field_toast("PRISONER SECURED - INTEL GAINED (+1)")
+			CampaignState.add_intel(1)
+			_field_toast("PRISONER SECURED")
 			prisoner.died.emit(prisoner)  # counts for mission tallies
 			prisoner.queue_free()
 			return
@@ -713,6 +746,7 @@ func _try_field_interact() -> void:
 			continue
 		if global_position.distance_to(corpse.global_position) < 2.5 and not corpse.has_meta("looted"):
 			corpse.set_meta("looted", true)
+			_take_ear(corpse)
 			var roll := randf()
 			if roll < 0.2 and weapon_holder and corpse.weapon_data != null \
 					and corpse.weapon_data != weapon_holder.primary_weapon:
@@ -726,9 +760,11 @@ func _try_field_interact() -> void:
 				equipment_manager.add_grenade(1)
 				_field_toast("FOUND A GRENADE")
 			else:
-				CampaignState.intel_points += 1
-				CampaignState.save_campaign()
-				_field_toast("DOCUMENTS RECOVERED - INTEL GAINED (+1)")
+				# No "+1" on screen. Intel accrues SILENTLY (Summoner, 2026-07-28): a
+				# visible counter turns patrolling into farming, and ADR-019 already
+				# rules that this class of thing is stated in words, never as a number.
+				CampaignState.add_intel(1)
+				_field_toast("DOCUMENTS RECOVERED")
 				var dmf: Node = MissionGenerator.dynamic_factory_ref
 				if dmf is DynamicMissionFactory:
 					(dmf as DynamicMissionFactory).report_camp_discovered(global_position)
@@ -1280,8 +1316,11 @@ func _handle_movement(delta: float) -> void:
 	if _winded and stamina > stamina_max * 0.35:
 		_winded = false
 	## Wounded legs and the radio still pin you; being winded no longer does.
+	# Shift is BOTH verbs, HLL-style: on the sights it holds breath, off them it
+	# sprints. Aiming takes the key so one press can never mean both.
 	var can_sprint := not is_crouching and not is_prone and not health_system.is_healing \
-		and not wounded_legs and not FieldDirector.any_fire_menu_open
+		and not wounded_legs and not FieldDirector.any_fire_menu_open \
+		and not (weapon_holder != null and weapon_holder.is_aiming)
 	is_sprinting = Input.is_action_pressed("sprint") and can_sprint and input_dir.y < 0
 
 	if is_sprinting and not _winded:
@@ -1522,7 +1561,7 @@ func _update_suppression(delta: float) -> void:
 	# Camera shake: pure-visual h/v offset jitter (never touches aim direction).
 	if camera != null:
 		if suppression > 0.02:
-			_shake_seed += delta * 34.0
+			_shake_seed += delta * SUPPRESS_SHAKE_HZ
 			var s := suppression * suppression * SUPPRESS_SHAKE_MAX  # ramp late
 			camera.h_offset = sin(_shake_seed) * s
 			camera.v_offset = cos(_shake_seed * 1.37) * s

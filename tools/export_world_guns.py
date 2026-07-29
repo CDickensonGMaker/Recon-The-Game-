@@ -20,6 +20,7 @@ os.makedirs(OUTDIR, exist_ok=True)
 # prefix -> game weapon id (matches data/weapons/*.tres where one exists)
 GUNS = {
     "M16A1":                   "m16a1",
+    "CAR15":                   "car15",
     "M14":                     "m14",
     "M60":                     "m60",
     "M79":                     "m79",

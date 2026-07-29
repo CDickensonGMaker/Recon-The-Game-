@@ -338,8 +338,24 @@ static func _schedule_one_convoy(world: GameWorld, p: Dictionary, p_seed: int) -
 	var fire_hour: float = fposmod(cur_hour + 2.0, 24.0)
 	# Model names are asset basenames under ConvoySpawner.VEHICLE_MODEL_DIR - they must
 	# resolve to real .glb files (asserted by tests/test_roads.gd).
-	spawner.schedule(fire_day, fire_hour, "truck", route,
-		["m35_deuce_truck", "m35_deuce_truck", "m151_mutt_gun_jeep"])
+	spawner.schedule(fire_day, fire_hour, "truck", route, _convoy_composition(spawner.rng))
+
+
+## Summoner, 2026-07-28: "convoys of vehicles roll in groups of 3 to 6". A convoy is not
+## six identical deuces - a gun jeep leads, trucks carry the load, a gun vehicle brings
+## up the rear. Every basename here must exist under ConvoySpawner.VEHICLE_MODEL_DIR.
+const CONVOY_MIN: int = 3
+const CONVOY_MAX: int = 6
+
+
+static func _convoy_composition(rng: RandomNumberGenerator) -> Array:
+	var total: int = rng.randi_range(CONVOY_MIN, CONVOY_MAX)
+	var out: Array = ["m151_mutt_gun_jeep"]
+	for i in range(total - 2):
+		out.append("m35_deuce_truck" if rng.randf() < 0.75 else "m113_apc")
+	if total >= 2:
+		out.append("m151_mutt_gun_jeep" if rng.randf() < 0.6 else "m113_apc")
+	return out
 
 
 static func _seat(world: GameWorld, pos: Vector3) -> Vector3:
@@ -831,14 +847,29 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 	return v
 
 
-## Partition a village's villagers into households of 2-3 who share a hut and a
+## Partition a village's villagers into travelling parties who share a hut and a
 ## working point. A household IS the group: same home, same destination, so the
 ## schedule alone walks them out together. Odd villagers are left solo (-1).
+##
+## Summoner, 2026-07-28: "the villagers travel in packs of 3 to 6 on their routes
+## between villages." Note the range alone is not enough - the loop guard and the
+## remainder rule both had 2 baked into them, so a village would have quietly kept
+## producing pairs while the constant claimed otherwise.
+const PARTY_MIN: int = 3
+const PARTY_MAX: int = 6
+
+
 static func _assign_households(civs: Array[Civilian], rng: RandomNumberGenerator) -> void:
 	var i: int = 0
 	var gid: int = 0
-	while civs.size() - i >= 2:
-		var size: int = 2 if (civs.size() - i) < 4 else rng.randi_range(2, 3)
+	while civs.size() - i >= PARTY_MIN:
+		var left: int = civs.size() - i
+		# Never strand a sub-minimum tail: if splitting would leave fewer than PARTY_MIN
+		# behind, take the whole remainder as one party instead.
+		var size: int = rng.randi_range(PARTY_MIN, PARTY_MAX)
+		size = mini(size, left)
+		if left - size > 0 and left - size < PARTY_MIN:
+			size = left
 		var members: Array = []
 		for k in range(i, i + size):
 			members.append(civs[k])

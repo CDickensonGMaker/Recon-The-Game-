@@ -23,8 +23,18 @@ func setup(game_world: GameWorld) -> void:
 	world = game_world
 	state.start_time_ms = Time.get_ticks_msec()
 	restore_field_marks()
+	evidence = EvidenceLedger.new(world.mission_seed if world != null else 0)
+	if not NoiseBus.noise_emitted.is_connected(_on_noise_evidence):
+		NoiseBus.noise_emitted.connect(_on_noise_evidence)
 	if not GameManager.player_died.is_connected(_on_player_died):
 		GameManager.player_died.connect(_on_player_died)
+
+
+## Every shot the player fires is a bearing somebody could have taken. Team 1 (enemy)
+## noise is ignored: the ledger records what the PLAYER left, not what the AO did.
+func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: int) -> void:
+	if evidence != null:
+		evidence.on_noise(type, pos, source_team, float(Time.get_ticks_msec()) * 0.001)
 
 
 ## Spawn an enemy seated on terrain and wire its death into mission counters.
@@ -43,6 +53,25 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 	# or there is nothing for the debrief to score as avoided.
 	state.register_group(enemy.squad_id if enemy.squad_id >= 0 else enemy.get_instance_id())
 	return enemy
+
+
+## SimClock is an autoload with no class_name (sim_clock.gd:5) - absent from both
+## Engine.has_singleton and ClassDB, so it is reachable only by node path. 1 is the
+## out-of-tree fallback for unit tests.
+func _sim_day() -> int:
+	var clock: Node = get_node_or_null(^"/root/SimClock")
+	if clock == null:
+		return 1
+	return int(clock.sim_day)
+
+
+## Take a LIVING man off the roster and out of the world. `died` never fires, so
+## nothing counts him as a kill - a withdrawal is not a casualty (ADR-035 §4).
+func despawn_tracked_enemy(enemy: EnemyBase) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	_live_enemies.erase(enemy)
+	enemy.despawn()
 
 
 ## An enemy went loud on the player - his whole group is spent (see MissionState).
@@ -73,6 +102,9 @@ func _on_enemy_died(enemy: EnemyBase, _group_tag: String) -> void:
 var _escalation_active: bool = false
 var _hunter_timer: float = 0.0
 var _hunter_pool: int = 12
+## What the player LEFT BEHIND. Hunters read this instead of his transform: an enemy
+## handed the player's live position is telepathic, and it reads as the game cheating.
+var evidence: EvidenceLedger = null
 
 
 ## Raise the alarm the first time the player is DETECTED (any enemy in COMBAT).
@@ -97,18 +129,32 @@ func _process_escalation(delta: float) -> void:
 	if state != null:
 		var mins: float = state.elapsed_seconds() / 60.0
 		field_mult = clampf(1.0 - (mins - 15.0) * 0.02, 0.6, 1.0)  # -2%/min past 15min, floor 0.6
+	# THE LEAD. Hunters walk to a DATED FIX of something the player did - a shot heard,
+	# a body left - not to the player. By the time they arrive he has moved, and that
+	# gap is the whole feature. With no evidence there is no lead and nobody is sent:
+	# a genuinely quiet patrol is never hunted, which is what finally makes ADR-006's
+	# "+25 for a contact avoided" mechanical instead of a number in a debrief.
+	var now_s: float = float(Time.get_ticks_msec()) * 0.001
+	if evidence == null:
+		return
+	evidence.prune(now_s)
+	var fix: Dictionary = evidence.best_fix(now_s)
+	if fix.is_empty():
+		return
+	var lead: Vector3 = fix.pos as Vector3
+
 	_hunter_timer = randf_range(100.0, 160.0) * field_mult
 	var count: int = mini(_hunter_pool, randi_range(2, 4))
 	_hunter_pool -= count
 	var a: float = randf_range(0.0, TAU)
-	var base: Vector3 = world.player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(180.0, 230.0)
+	var base: Vector3 = lead + Vector3(cos(a), 0, sin(a)) * randf_range(180.0, 230.0)
 	base.x = clampf(base.x, 60.0, world.map_size - 60.0)
 	base.z = clampf(base.z, 60.0, world.map_size - 60.0)
 	for i in range(count):
 		var pos := base + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
 		var hunter := spawn_tracked_enemy(pos, "res://data/enemies/nva_regular.tres", "hunters")
-		# They come looking: seed their search at your last position.
-		hunter.last_known_target_pos = world.player.global_position
+		# They search the LEAD, and they are allowed to be wrong about it.
+		hunter.last_known_target_pos = lead
 		hunter.target_last_seen_time = 0.0
 		hunter._set_tier(EnemyBase.AlertTier.ALERT)
 	toast.emit("MOVEMENT IN THE TREES - THEY'RE LOOKING FOR YOU")
@@ -159,7 +205,6 @@ func _process(delta: float) -> void:
 		_gate_poll = 0.0
 		_poll_wire_gate()
 		_poll_firebase_threat()
-		_maybe_launch_sappers()
 		_advance_route_tasking()
 		if patrol_out and world != null and world.player != null:
 			state.mark_covered(world.player.global_position)
@@ -193,6 +238,8 @@ func _process(delta: float) -> void:
 			arm_fire_mission("spectre")  # 5 = Spectre while menu is open
 		elif Input.is_action_just_pressed("cbu_strike"):
 			arm_fire_mission("cbu")  # 6 = CBU cluster run
+		elif Input.is_action_just_pressed("illum_strike"):
+			arm_fire_mission("illum")  # 7 = illumination round
 		# The rifle is slung on the net (weapon_holder.gd), so fire/aim are free to
 		# mean send/withdraw for as long as a call is armed.
 		if armed_kind != "":
@@ -252,7 +299,15 @@ func set_fire_menu_mirror(open: bool) -> void:
 	if not open:
 		clear_armed()
 	fire_menu_changed.emit(open)
-var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spectre": 0, "cbu": 0}
+var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2, "spectre": 0,
+	"cbu": 0, "illum": 2}
+
+## An 81mm illumination round: it hangs high under a parachute and lights the ground
+## for a minute-plus. IllumFlare's own 25s/30m are HAND-flare values - a 30m circle
+## against a company crossing 300-500m is a spotlight, not battlefield illumination.
+const ILLUM_HEIGHT_M: float = 140.0
+const ILLUM_DURATION_S: float = 75.0
+const ILLUM_RADIUS_M: float = 180.0
 
 ## Off-map gun geometry: how long a round is in the air, and where it comes from.
 const SHELL_FLIGHT_S: float = 4.0
@@ -455,6 +510,8 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			_radio_vo("cbu_cluster")
 		"wp":
 			_run_wp_mission(target)
+		"illum":
+			_run_illum_mission(target)
 	# Learn-by-doing: the radioman gets better at calling fire the more he does it.
 	if _rto != null:
 		var fp: int = SquadRoster.credit_use(_rto.member, "fo_fac", 2)
@@ -613,6 +670,26 @@ func _run_wp_mission(target: Vector3) -> void:
 	_fire_shell(MORTAR_SHELL, target, _wp_impact)
 
 
+## The siege's strategic verb: deciding WHEN to light the wire. Night sight is 56m
+## open / 18m jungle and they come from 300-500m, so without this the fight is
+## muzzle flashes. The round does no damage - it only takes the dark away, from both
+## sides (IllumFlare strips concealment for whoever stands in it).
+func _run_illum_mission(target: Vector3) -> void:
+	toast.emit("ILLUMINATION - SHOT OUT (%d left)" % int(fire_support.get("illum", 0)))
+	_radio_vo("mortar_mission")
+	_fire_shell(MORTAR_SHELL, target, _illum_burst)
+
+
+func _illum_burst(pos: Vector3) -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	IllumFlare.pop(world, pos, ILLUM_DURATION_S, ILLUM_RADIUS_M, ILLUM_HEIGHT_M)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.IMPACT, pos, 0)
+	# Light reveals what the dark was hiding - but only what it actually reaches.
+	if siege != null and is_instance_valid(siege):
+		siege._light_check()
+
+
 func _wp_impact(pos: Vector3) -> void:
 	if world == null or not is_instance_valid(world):
 		return
@@ -645,7 +722,11 @@ func _wp_impact(pos: Vector3) -> void:
 ## Put a real round in the air onto `impact`. The gun is off the map, so the shell
 ## is spawned high on the bearing from the firebase and solved onto the point the
 ## sheaf already picked - the ring the player placed is what the rounds cover.
-func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable) -> void:
+## `source` is the gun's side of the map: the shell travels source -> impact. Left
+## ZERO the round is BATTALION's and flies out from the firebase, which is why an
+## enemy tube must pass its own origin or its shells arrive from inside the wire.
+func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable,
+		source: Vector3 = Vector3.ZERO) -> void:
 	if world == null or not is_instance_valid(world):
 		return
 	var data: ProjectileData = load(shell_path) as ProjectileData
@@ -653,8 +734,8 @@ func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable) -> voi
 		return
 	var ground: Vector3 = impact
 	ground.y = world.terrain_manager.get_height_at(impact) if world.terrain_manager != null else impact.y
-	var azimuth: Vector3 = ground - fsb_center
-	if fsb_center == Vector3.ZERO:
+	var azimuth: Vector3 = ground - (source if source != Vector3.ZERO else fsb_center)
+	if source == Vector3.ZERO and fsb_center == Vector3.ZERO:
 		azimuth = Vector3(0.6, 0.0, -0.8)
 	var from: Vector3 = Ballistics.firing_point(ground, azimuth, SHELL_APEX_M, SHELL_STANDOFF_M)
 	Ballistics.fire_arc(data, from, ground, SHELL_FLIGHT_S, world.terrain_manager, terminal)
@@ -775,32 +856,17 @@ const WIRE_RETURN_M: float = 95.0
 const FSB_THREAT_M: float = 90.0    ## enemies this close to the compound are on the wire
 const FSB_THREAT_MEN: int = 2
 
-## SAPPER ASSAULT (war-room decree 2026-07-20). A night probe on the wire, capped
-## at ONE per operation (the friendly-patrol crisis is 2; a base assault is louder,
-## so it takes a smaller share of the same budget). Rolled once per night, chance
-## by the threat tier the player earned. Notification is emergent: the sappers walk
-## in through the 90m ring and trip _poll_firebase_threat - no second toast path.
-const SAPPER_DATA: String = "res://data/enemies/vc_sapper.tres"
-const SAPPER_COUNT: int = 3
-const SAPPER_RING_MIN: float = 300.0
-const SAPPER_RING_MAX: float = 500.0
-const SAPPER_CHANCE: Dictionary = {"LOW": 0.0, "MODERATE": 0.2, "HIGH": 0.45, "CRITICAL": 0.7}
-
-## THE COORDINATED PUSH. Behind the silent sappers, a LOUD fireteam charges the wire:
-## they fire, telegraph with tracers and voices, and pull the garrison's eyes while the
-## sappers slip in quiet. They reuse the hunter pattern (ALERT, aimed at the compound),
-## NOT the sapper drive - a driven man never fires, and this element must go loud.
-const ASSAULT_DATA: String = "res://data/enemies/nva_regular.tres"
-const ASSAULT_ELEMENT: int = 4
-
 ## A satchel at the bench breaches the munitions dump. It costs the player mortars in
 ## hand now, and shorts his next allotment (persisted through CampaignState.depot_loss).
 const BREACH_MORTAR_LOSS: int = 3
 const BREACH_ARTY_LOSS: int = 1
 
-var _sapper_aim: Vector3 = Vector3.ZERO       ## the bench, just inside the wire
-var _sapper_launched: bool = false            ## hard cap: one assault per operation
-var _sapper_rolled_night: bool = false        ## one roll per night, reset at dawn
+## The siege aims here: the bench, just inside the wire (ADR-036 will promote this to
+## a set of real installations; today it is the one thing in the compound that exists
+## as a placed node).
+var siege_aim: Vector3 = Vector3.ZERO
+var siege: SiegeDirector = null
+var _granted_day: int = -1                    ## one fire-support allotment per sim day
 var _garrison_stood_to: bool = false          ## the garrison has been promoted to defenders
 var _firebase_breached: bool = false          ## the depot is already gone - one breach per op
 
@@ -826,6 +892,18 @@ var patrol_gate_pos := Vector3.ZERO
 var patrol_gate_out := Vector3.FORWARD
 var fsb_center := Vector3.ZERO
 var patrol_locations: Array[Dictionary] = []   ## {pos: Vector3, kind: String}
+## The printed base sheet: surveyed cartography, stamped once at world-build and never
+## reconciled against the live world (Summoner ruling 2026-07-28 - an accurate survey,
+## Arma model). VC camps and LZs are never surveyed and never appear here.
+## Below this footprint a hamlet is too small to have been surveyed and stays off the paper.
+const SURVEYED_VILLAGE_MIN_R: float = 26.0
+var surveyed_sites: Array[Dictionary] = []     ## {pos: Vector3, kind: String, radius: float}
+
+## THE CIRCLES (patrol-contract decree, 2026-07-28). Places the world offers this
+## patrol. The player assigns the ORDER; he may also ignore them entirely - they are
+## OFFERED, never REQUIRED, and skipping one is not a failure of anything.
+const PATROL_OBJECTIVE_COUNT: int = 4
+var patrol_objectives: Array[Dictionary] = []  ## {pos: Vector3, kind: String}
 var patrol_location := Vector3.ZERO
 var patrol_location_kind: String = ""
 var patrol_out: bool = false
@@ -909,12 +987,78 @@ func setup_patrol(built: Dictionary) -> void:
 	fsb_center = built.get("center", Vector3.ZERO)
 	var bench: Node = built.get("bench", null) as Node
 	if bench is Node3D:
-		_sapper_aim = (bench as Node3D).global_position
+		siege_aim = (bench as Node3D).global_position
+	_attach_siege()
 	patrol_locations.clear()
+	surveyed_sites.clear()
 	for s in (built.sites as Array):
 		var sd: Dictionary = s
-		if str(sd.get("kind", "")) in ["village", "vc_camp"]:
-			patrol_locations.append({"pos": sd.center as Vector3, "kind": str(sd.kind)})
+		var kind: String = str(sd.get("kind", ""))
+		if kind in ["village", "vc_camp"]:
+			patrol_locations.append({"pos": sd.center as Vector3, "kind": kind})
+		var r: float = float(sd.get("radius", 0.0))
+		if kind == "village" and r >= SURVEYED_VILLAGE_MIN_R:
+			var seed_value: int = world.mission_seed if world != null else 0
+			surveyed_sites.append({"pos": sd.center as Vector3, "kind": kind, "radius": r,
+				"name": HamletNames.name_for(seed_value, surveyed_sites.size(), r)})
+	if fsb_center != Vector3.ZERO:
+		surveyed_sites.append({"pos": fsb_center, "kind": "firebase_main", "radius": 0.0})
+	_pick_patrol_objectives()
+
+
+## A DUNGEON REWARD (Summoner, 2026-07-28): the payoff for raiding a tunnel or a large
+## camp, never a pickup you walk over. Call this when such a cache is looted; it hands
+## over a real intel piece only if the silent threshold has been quietly reached.
+##
+## What it grants is a CLAIM, not a fact - a dated third-ink mark on the sheet that the
+## game will never reconcile. The camp may have moved. That is the difference between a
+## lead and an objective, and it is what keeps this off ADR-022's banned "fog-of-war
+## overlay that fills itself in".
+const STASH_REVEALS: int = 2
+
+
+func try_intel_stash() -> bool:
+	if not CampaignState.stash_is_due():
+		return false
+	var known: Dictionary = {}
+	for m in CampaignState.reported_marks:
+		known["%d_%d" % [int(float(m.get("x", 0))), int(float(m.get("z", 0)))]] = true
+	var granted: int = 0
+	for loc in patrol_locations:
+		if granted >= STASH_REVEALS:
+			break
+		if str(loc.get("kind", "")) != "vc_camp":
+			continue
+		var p: Vector3 = loc.pos as Vector3
+		var key: String = "%d_%d" % [int(p.x), int(p.z)]
+		if known.has(key):
+			continue
+		CampaignState.reported_marks.append({"x": p.x, "z": p.z, "kind": "CAMP",
+			"patrol_no": CampaignState.missions_played})
+		known[key] = true
+		granted += 1
+	if granted == 0:
+		return false
+	CampaignState.consume_stash()
+	toast.emit("CAPTURED DOCUMENTS - MARKED ON YOUR MAP (DATE UNKNOWN)")
+	return true
+
+
+## Spread the circles by distance from the wire so the order the player picks is a real
+## decision: a near/far mix makes sequencing cost something, four clustered sites do not.
+func _pick_patrol_objectives() -> void:
+	patrol_objectives.clear()
+	if patrol_locations.is_empty():
+		return
+	var pool: Array[Dictionary] = patrol_locations.duplicate()
+	var origin: Vector3 = patrol_gate_pos if patrol_gate_pos != Vector3.ZERO else fsb_center
+	pool.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return origin.distance_squared_to(a.pos as Vector3) \
+			< origin.distance_squared_to(b.pos as Vector3))
+	var want: int = mini(PATROL_OBJECTIVE_COUNT, pool.size())
+	for i in range(want):
+		var idx: int = int(round(float(i) * float(pool.size() - 1) / float(maxi(1, want - 1))))
+		patrol_objectives.append(pool[idx])
 
 
 func _poll_wire_gate() -> void:
@@ -955,6 +1099,13 @@ func _poll_wire_gate() -> void:
 ## bought with the player's own noise. Comparing the LABEL, not a threshold float,
 ## keeps the number that gates the ordnance and the number he is shown identical.
 func _grant_fire_support() -> void:
+	# ONE ALLOTMENT PER DAY. The gate thresholds are 120m out / 95m in - a 25m band -
+	# and the wire fight happens inside it, so an unlatched hard assign let a player
+	# re-arm mid-siege by walking twenty-five metres.
+	var day: int = _sim_day()
+	if day == _granted_day:
+		return
+	_granted_day = day
 	var rto: AllyBase = squad_system.member_by_mos("RTO") \
 		if (squad_system != null and is_instance_valid(squad_system)) else null
 	var fo: int = SquadRoster.skill_level(rto.member, "fo_fac") if rto != null else 0
@@ -962,6 +1113,7 @@ func _grant_fire_support() -> void:
 	fire_support = {
 		"bombs": 1, "napalm": 0, "arty": 1,
 		"mortar": 3 + (1 if fo >= 6 else 0), "spectre": 0, "cbu": 0,
+		"illum": 2 + (1 if fo >= 4 else 0),
 	}
 	if tier in ["HIGH", "CRITICAL"]:
 		fire_support["napalm"] = 1
@@ -1021,10 +1173,12 @@ func raise_crisis(loc: Dictionary) -> void:
 	_radio_vo("on_the_horn")
 
 
-## Enemies closing on the compound while the patrol is out. The garrison cannot
-## call this in itself - they are noncombatant Civilians (mission_generator.gd:744).
+## Enemies closing on the compound. The garrison cannot call this in itself - they
+## are noncombatant Civilians (mission_generator.gd:744). This runs whether or not
+## the player is outside the wire: a siege happens TO him at home, and gating on
+## patrol_out meant a man in his own compound was never told (ADR-035 §1).
 func _poll_firebase_threat() -> void:
-	if fsb_center == Vector3.ZERO or not patrol_out:
+	if fsb_center == Vector3.ZERO:
 		return
 	var near: int = 0
 	for e in _live_enemies:
@@ -1043,11 +1197,17 @@ func _poll_firebase_threat() -> void:
 			# constant hash produced. The active latch below blocks the 0.5s re-emit.
 			_fsb_threat_active = true
 			_fsb_wave += 1
-			var dmf: Node = MissionGenerator.dynamic_factory_ref
-			if dmf is DynamicMissionFactory:
-				var base_key: int = hash(Vector2i(int(fsb_center.x), int(fsb_center.z)))
-				(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
-					base_key ^ (_fsb_wave * 0x9E3779B1), {"position": fsb_center})
+			# Only a patrol that is OUT gets a crisis it can be re-tasked onto. Emitting
+			# while he is home banks a firebase_attack location that _pick_patrol_location
+			# takes first, and his next walk-out would task him to sweep his own base.
+			if patrol_out:
+				var dmf: Node = MissionGenerator.dynamic_factory_ref
+				if dmf is DynamicMissionFactory:
+					var base_key: int = hash(Vector2i(int(fsb_center.x), int(fsb_center.z)))
+					(dmf as DynamicMissionFactory).emit_location(&"friendly_firebase_under_attack",
+						base_key ^ (_fsb_wave * 0x9E3779B1), {"position": fsb_center})
+			else:
+				toast.emit(CRISIS_CALL["firebase_attack"])
 		return
 	# Threat thinning. Re-arm only after a SUSTAINED clear, never on the in/out edge -
 	# a man loitering on the ring must not spam a fresh crisis each time he crosses it.
@@ -1059,10 +1219,10 @@ func _poll_firebase_threat() -> void:
 
 
 ## The garrison stands to and fights. Each firebase Civilian hands off 1:1 to an
-## AllyBase holding his post (GarrisonDefender.promote). Idempotent: the first real
-## assault promotes them, later polls are no-ops. Called ONLY from a genuine assault
-## (launch_sapper_assault) or a confirmed multi-man threat on the wire - never for a
-## lone wanderer - so the garrison stays passive noncombatants until the base is hit.
+## AllyBase holding his post (GarrisonDefender.promote). Idempotent within a night;
+## _garrison_stand_down re-arms it at dawn. Called ONLY from a genuine siege or a
+## confirmed multi-man threat on the wire - never for a lone wanderer - so the
+## garrison stays passive noncombatants until the base is actually hit.
 func _garrison_stand_to() -> void:
 	if _garrison_stood_to:
 		return
@@ -1093,57 +1253,53 @@ func on_firebase_breach(_at: Vector3) -> void:
 	toast.emit("THE MUNITIONS DUMP IS GONE - MORTARS DOWN, NEXT PATROL RUNS LIGHT")
 
 
-## One roll per night, one launch per operation, chance by the earned threat tier.
-## Reset at dawn so a quiet night is not the last word. The gates are separated from
-## the spawn so a probe can prove the GATING (this) and the ASSAULT independently.
-func _maybe_launch_sappers() -> void:
-	if not MissionWeather.is_night:
-		_sapper_rolled_night = false   # a fresh chance each night
+## Stand the siege up and hand it the compound it is coming for. Called once the
+## firebase exists; SiegeDirector owns cadence from there.
+func _attach_siege() -> void:
+	if siege != null or fsb_center == Vector3.ZERO:
 		return
-	if _sapper_launched or _sapper_rolled_night:
-		return
-	if patrol_count < 1 or fsb_center == Vector3.ZERO:
-		return   # the world must have settled - he has walked out at least once
-	_sapper_rolled_night = true
-	var chance: float = float(SAPPER_CHANCE.get(CampaignState.threat_label(), 0.0))
-	if randf() < chance:
-		launch_sapper_assault(SAPPER_COUNT)
+	siege = SiegeDirector.new()
+	add_child(siege)
+	siege.setup(self, fsb_center, siege_aim if siege_aim != Vector3.ZERO else fsb_center)
+	siege.siege_began.connect(_on_siege_began)
+	siege.siege_ended.connect(_on_siege_ended)
 
 
-## Stand up the assault: sappers on the ring, each carrying a satchel aimed at the
-## bench just inside the wire. Public so a probe can drive it without the RNG gate.
-func launch_sapper_assault(count: int) -> void:
-	if _sapper_launched or fsb_center == Vector3.ZERO:
-		return
-	_sapper_launched = true
-	var aim: Vector3 = _sapper_aim if _sapper_aim != Vector3.ZERO else fsb_center
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(Vector2i(int(fsb_center.x), int(fsb_center.z))) ^ 0x5A9927
-	var bearing: float = rng.randf_range(0.0, TAU)
-	for i in range(count):
-		var a: float = bearing + rng.randf_range(-0.35, 0.35)
-		var r: float = rng.randf_range(SAPPER_RING_MIN, SAPPER_RING_MAX)
-		var pos: Vector3 = fsb_center + Vector3(cos(a) * r, 0.0, sin(a) * r)
-		var sapper: EnemyBase = spawn_tracked_enemy(pos, SAPPER_DATA, "sapper_assault")
-		sapper.add_to_group("sapper_assault")
-		var charge := SapperCharge.new()
-		sapper.add_child(charge)
-		charge.setup(aim)
-	# The coordinated push: a loud fireteam charges behind the silent sappers. Kept in
-	# its OWN group so the sapper wiring stays 3, and spawned ALERT + aimed at the
-	# compound so they advance and go loud when the garrison opens up (the fight
-	# bootstraps from the sentries firing first, which wakes this element into COMBAT).
-	for j in range(ASSAULT_ELEMENT):
-		var aa: float = bearing + rng.randf_range(-0.5, 0.5)
-		var ar: float = rng.randf_range(SAPPER_RING_MIN + 40.0, SAPPER_RING_MAX + 60.0)
-		var apos: Vector3 = fsb_center + Vector3(cos(aa) * ar, 0.0, sin(aa) * ar)
-		var trooper: EnemyBase = spawn_tracked_enemy(apos, ASSAULT_DATA, "firebase_assault")
-		trooper.add_to_group("firebase_assault")
-		trooper.last_known_target_pos = fsb_center
-		trooper.target_last_seen_time = 0.0
-		trooper._set_tier(EnemyBase.AlertTier.ALERT)
-	# Steel is on the way - the garrison stands to and mans the wire.
+func _on_siege_began(strength: int, probe: bool) -> void:
 	_garrison_stand_to()
+	if probe:
+		toast.emit("MOVEMENT ON THE WIRE - STAND TO")
+	else:
+		toast.emit("STAND TO - THEY'RE COMING IN STRENGTH (%d ON THE WIRE)" % strength)
+
+
+## The night banks its own AAR. _bank_patrol only fires on crossing the wire inward,
+## so a siege fought at home produced no butcher's bill at all - while the contact
+## ledger debited him for being attacked in his sleep.
+func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
+	match reason:
+		"broken":
+			toast.emit("THEY'RE BREAKING - %d OF %d DOWN, THE REST ARE PULLING BACK"
+				% [killed, strength])
+		"wiped":
+			toast.emit("THE WIRE HELD - ALL %d ACCOUNTED FOR" % strength)
+		_:
+			toast.emit("FIRST LIGHT - THEY'VE MELTED AWAY (%d OF %d DOWN)" % [killed, strength])
+	_garrison_stand_down()
+
+
+## Dawn. The survivors go back to being men with jobs, and the dead are not replaced -
+## that permanence is what makes night 2 different from night 1. Without this the first
+## stand-to deletes the garrison's Civilians for the rest of the operation.
+func _garrison_stand_down() -> void:
+	if not _garrison_stood_to:
+		return
+	_garrison_stood_to = false
+	for n in get_tree().get_nodes_in_group("garrison_promoted"):
+		var ally := n as AllyBase
+		if ally == null or ally.is_dead():
+			continue
+		GarrisonDefender.stand_down(ally, self)
 
 
 func _pick_patrol_location() -> Dictionary:
@@ -1204,14 +1360,44 @@ func _pick_patrol_location() -> Dictionary:
 ## selector, the tasking and the scorer never read marks (§4, probed).
 func restore_field_marks() -> void:
 	state.field_marks = CampaignState.field_marks.duplicate(true)
+	state.pencil_marks = CampaignState.pencil_marks.duplicate(true)
 
 
 func bank_field_marks() -> void:
 	CampaignState.field_marks = state.field_marks.duplicate(true)
+	CampaignState.pencil_marks = state.pencil_marks.duplicate(true)
+
+
+## Metres from an objective at which the AAR counts it as walked. Generous on purpose:
+## the man was THERE, and the sheet's own circle is a general area, not a trigger.
+const OBJECTIVE_REACHED_M: float = 70.0
+
+
+## What he planned against what he actually walked. ADR-006 pays for what was learned,
+## never for what was ticked, so this REPORTS and never scores: skipping every circle
+## is legal and costs nothing.
+func _route_report() -> String:
+	var order: Array = state.route_order
+	if order.is_empty():
+		return ""
+	var walked: int = 0
+	for idx in order:
+		var oi: int = int(idx)
+		if oi < 0 or oi >= patrol_objectives.size():
+			continue
+		var p: Vector3 = patrol_objectives[oi].pos as Vector3
+		for v in _visited_locations:
+			if (v as Vector3).distance_to(p) <= OBJECTIVE_REACHED_M:
+				walked += 1
+				break
+	return "PLANNED %d, WALKED %d" % [order.size(), walked]
 
 
 func _bank_patrol() -> void:
 	bank_field_marks()
+	var report: String = _route_report()
+	if not report.is_empty():
+		toast.emit("ROUTE: %s" % report)
 	var result: Dictionary = state.build_result(true, "PATROL")
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits

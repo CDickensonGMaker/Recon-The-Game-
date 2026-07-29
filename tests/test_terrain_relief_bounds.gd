@@ -1,10 +1,15 @@
 ## test_terrain_relief_bounds.gd - relief-budget probe for the terrain engine.
 ## Generates deterministic seeds per preset and asserts the AO stays playable.
-## Expected to FAIL against the current normalization ratchet; passes after the fix.
+##
+## MEASURES WHAT SHIPS. The cell count comes from HeightmapStorage at the real
+## WorldConfig.MAP_SIZE, and metres decode through TerrainConfig.WORLD_HEIGHT_MAX -
+## the same two contracts terrain_manager.gd:57,96 use. Deriving either one
+## independently is what let a 2.7x relief overshoot sit under a green suite.
 ## Run: godot --headless --path . res://tests/test_terrain_relief_bounds.tscn
 extends Node3D
 
 const TerrainEngineClass := preload("res://terrain/core/terrain_engine.gd")
+const HeightmapStorageClass := preload("res://terrain/core/heightmap_storage.gd")
 
 const SEEDS_PER_PRESET: int = 5
 const CELL_SIZE_M: float = 2.0
@@ -81,8 +86,10 @@ func _run() -> void:
 
 
 func _measure_preset(preset: int, seed_value: int) -> Dictionary:
+	var storage: RefCounted = HeightmapStorageClass.new(WorldConfig.MAP_SIZE, CELL_SIZE_M,
+		TerrainConfig.WORLD_HEIGHT_MAX)
 	var engine := TerrainEngineClass.new()
-	engine.terrain_size = 257  # small for fast headless test; 514m x 514m
+	engine.terrain_size = storage.size
 	engine.cell_size = CELL_SIZE_M
 	# Add to tree first so _ready() initializes the noise objects.
 	add_child(engine)
@@ -107,7 +114,7 @@ func _measure_preset(preset: int, seed_value: int) -> Dictionary:
 
 	engine.queue_free()
 
-	return _analyze(data, size, intended_scale)
+	return _analyze(data, size, TerrainConfig.WORLD_HEIGHT_MAX)
 
 
 func _analyze(data: PackedFloat32Array, size: int, height_scale: float) -> Dictionary:
@@ -128,10 +135,15 @@ func _analyze(data: PackedFloat32Array, size: int, height_scale: float) -> Dicti
 	for y in range(1, size - 1):
 		for x in range(1, size - 1):
 			var idx: int = y * size + x
+			# gx/gy are NORMALIZED height deltas per cell. Rise is metres
+			# (delta * height_scale); run is metres (CELL_SIZE_M). Using the raw
+			# normalized delta as rise/run understated every slope by
+			# height_scale/cell_size - 175x - which is why the steepness budgets
+			# below had never once been capable of failing.
 			var gx: float = (data[idx + 1] - data[idx - 1]) * 0.5
 			var gy: float = (data[(y + 1) * size + x] - data[(y - 1) * size + x]) * 0.5
-			var slope_norm: float = sqrt(gx * gx + gy * gy)  # rise/run per cell
-			var slope_deg: float = rad_to_deg(atan(slope_norm))
+			var rise_m: float = sqrt(gx * gx + gy * gy) * height_scale
+			var slope_deg: float = rad_to_deg(atan(rise_m / CELL_SIZE_M))
 			slope_sum += slope_deg
 			total_cells += 1
 			if slope_deg > 30.0:

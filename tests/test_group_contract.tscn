@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestgroupcontract1"]
+[gd_scene format=3 uid="uid://buqjg7lswpou7"]
 
 [ext_resource type="Script" path="res://tests/test_group_contract.gd" id="1_tgc"]
 

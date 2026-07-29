@@ -96,7 +96,7 @@ func _bare_director(center: Vector3) -> FieldDirector:
 	ss.members.append(rto)
 	d.squad_system = ss
 	d.fsb_center = center
-	d._sapper_aim = center + Vector3(0, 0, 8)
+	d.siege_aim = center + Vector3(0, 0, 8)
 	d.patrol_gate_pos = center + Vector3(0, 0, 60)
 	d.patrol_gate_out = Vector3.BACK
 	return d
@@ -241,25 +241,31 @@ func _check_sapper_stealth() -> void:
 # ---- 3. Coordinated: silent sappers + a loud charging element --------------
 
 func _check_assault_is_coordinated() -> void:
-	print("-- 3. the assault is a SILENT sapper tip + a LOUD charging element --")
+	print("-- 3. the siege is a SILENT sapper tip + a LOUD assault element --")
 	var d := _bare_director(Vector3(4200, 0, 0))
-	d.launch_sapper_assault(FieldDirector.SAPPER_COUNT)
-	var sappers := get_tree().get_nodes_in_group("sapper_assault")
-	var chargers := get_tree().get_nodes_in_group("firebase_assault")
-	_expect(sappers.size() == FieldDirector.SAPPER_COUNT,
-		"%d silent sappers form the tip (got %d)" % [FieldDirector.SAPPER_COUNT, sappers.size()])
-	_expect(chargers.size() == FieldDirector.ASSAULT_ELEMENT,
-		"%d loud chargers follow (got %d)" % [FieldDirector.ASSAULT_ELEMENT, chargers.size()])
+	d._attach_siege()
+	d.siege.open_siege(30)
+	for c in d.siege.cells:
+		c.materialize()
+	var sappers := get_tree().get_nodes_in_group("siege_sappers")
+	var chargers := get_tree().get_nodes_in_group("siege_assault")
+	_expect(sappers.size() > 0, "a 30-man siege fields sappers (got %d)" % sappers.size())
+	_expect(chargers.size() > 0, "a 30-man siege fields an assault element (got %d)" % chargers.size())
+	_expect(sappers.size() + chargers.size() == 30,
+		"every one of the 30 rolled men reached the field (got %d)"
+		% (sappers.size() + chargers.size()))
 	if sappers.size() > 0:
 		var s := sappers[0] as EnemyBase
 		_expect(s != null and s.silent_infiltrator, "the sapper tip is SILENT (never fires)")
 	if chargers.size() > 0:
 		var c := chargers[0] as EnemyBase
-		_expect(c != null and not c.silent_infiltrator, "the charging element is LOUD (fires and telegraphs)")
-		_expect(c != null and c.alert_tier == EnemyBase.AlertTier.ALERT,
-			"the chargers advance ALERT, aimed at the compound")
-	_free_group("sapper_assault")
-	_free_group("firebase_assault")
+		_expect(c != null and not c.silent_infiltrator, "the assault element is LOUD (fires and telegraphs)")
+		# Every besieger carries an objective: a man with somewhere to be is never in
+		# the undefined state that walked the old element through the compound.
+		_expect(c != null and c.assault_objective != Vector3.ZERO,
+			"the assault element is driven at the compound, not left to a hunt anchor")
+	_free_group("siege_sappers")
+	_free_group("siege_assault")
 	d.queue_free()
 
 

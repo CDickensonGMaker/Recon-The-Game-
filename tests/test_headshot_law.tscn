@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://ctestheadshotlaw1"]
+[gd_scene format=3 uid="uid://dlkli265n64rq"]
 
 [ext_resource type="Script" path="res://tests/test_headshot_law.gd" id="1_thl"]
 

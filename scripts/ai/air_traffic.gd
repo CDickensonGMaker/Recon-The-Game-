@@ -28,8 +28,18 @@ const FIXED_WING := {
 }
 ## Formation-capable transit kinds -> [min_ships, max_ships] counting the lead.
 ## Chinooks and everything unlisted always transit solo.
-const FORMATION_SIZES := {"huey": [2, 3], "skyraider": [2, 2]}
-const FORMATION_CHANCE: float = 0.35
+## Summoner's numbers, 2026-07-28: "heuys fly in packs of 6 to 9 and jets fly in groups
+## of 3 to 5". The skyraider is a PROP, not a jet, so it keeps its pair and is not
+## covered by the 3-5 rule.
+##
+## PERF: a nine-ship lift is up to 9x the rotor meshes, animation and audio of a single
+## Huey, and framerate is this project's top systemic risk. If it costs too much the
+## honest lever is fewer concurrent FLIGHTS - the pack size is the thing that was asked
+## for. MEASURE before trusting this.
+const FORMATION_SIZES := {"huey": [6, 9], "f4": [3, 5], "skyhawk": [3, 5], "skyraider": [2, 2]}
+## "Hueys fly in packs" reads as packs being the NORM, so a lone ship is now the
+## exception. Changing the size without this left two thirds of flights flying solo.
+const FORMATION_CHANCE: float = 0.85
 ## Echelon geometry per wingman slot (metres): lateral spread, altitude
 ## stagger, trail behind the lead. Each multiplies by the slot index.
 const ECHELON_LATERAL_M := Vector2(45.0, 70.0)

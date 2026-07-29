@@ -105,8 +105,6 @@ var _inst: Node3D = null
 var _anim: AnimationPlayer = null
 var _skel: Skeleton3D = null
 var _current_clip: String = ""
-var _flash_mats: Array[StandardMaterial3D] = []
-var _flash_until: float = 0.0
 var _facing: Vector3 = Vector3.FORWARD
 
 
@@ -542,8 +540,14 @@ func sleep_ragdoll() -> void:
 ## grenade killing a squad cannot spike the solver; corpses stop simulating after
 ## a settle window and sleep as static bodies.
 const RAGDOLL_SCENE_PATH := "res://scenes/characters/ragdoll_mixamo.tscn"
-const MAX_ACTIVE_RAGDOLLS: int = 8
+## Summoner's ruling 2026-07-28: NO CAP. At 8 a 36-man firefight starved most
+## clean kills of a ragdoll and left the corpses standing. The guard survives only
+## to stop an unbounded solver count; put a real number back here if the frametime
+## bill shows up in a fight.
+const MAX_ACTIVE_RAGDOLLS: int = 256
 const RAGDOLL_SETTLE_S: float = 4.0
+## A man is 1.71m; anything still spanning this much vertical is on his feet.
+const PRONE_SPAN_MAX: float = 1.2
 static var _active_ragdolls: int = 0
 var _ragdoll_sim: PhysicalBoneSimulator3D = null
 
@@ -652,6 +656,34 @@ func settle_flat_corpse() -> void:
 	if not posed:
 		stop_anim()
 	ground_current_pose()
+	# PROVE the man is down. A death clip whose last frame is not prone - a bad
+	# retarget, a clip authored standing - left the corpse upright, and grounding
+	# only moves a body DOWN, it never lays one over. So measure the pose: a
+	# standing rig spans most of its own height, a prone one does not.
+	if _pose_span_y() > PRONE_SPAN_MAX:
+		_lay_flat()
+		ground_current_pose()
+
+
+## Vertical extent of the posed skeleton, in metres.
+func _pose_span_y() -> float:
+	if _skel == null:
+		return 0.0
+	var lo: float = INF
+	var hi: float = -INF
+	for bi in range(_skel.get_bone_count()):
+		var y: float = (_skel.global_transform * _skel.get_bone_global_pose(bi).origin).y
+		lo = minf(lo, y)
+		hi = maxf(hi, y)
+	return hi - lo if lo < INF else 0.0
+
+
+## Topple the visual. Yaw is randomised so a line of men cut down together does
+## not read as a row of identical dominoes.
+func _lay_flat() -> void:
+	if _inst == null:
+		return
+	_inst.rotation = Vector3(-PI * 0.5, randf_range(0.0, TAU), 0.0)
 
 
 ## Any death clip this rig can actually play (shared library included) - the
@@ -797,48 +829,8 @@ func has_clip(clip: String) -> bool:
 	return _anim != null and _anim.has_animation(clip)
 
 
-## Hit flash - tint every material briefly. A lit model needs an emission bump
-## (not a modulate) so the flash reads in shade.
-func flash(color: Color, seconds: float = 0.1) -> void:
-	if _inst == null:
-		return
-	if _flash_mats.is_empty():
-		for n in _walk(_inst):
-			var mi := n as MeshInstance3D
-			if mi == null:
-				continue
-			for si in range(mi.get_surface_override_material_count()):
-				var m := mi.get_active_material(si)
-				if m is StandardMaterial3D:
-					_flash_mats.append(m as StandardMaterial3D)
-	for m in _flash_mats:
-		m.emission_enabled = true
-		m.emission = Color(color.r, color.g * 0.3, color.b * 0.3)
-		m.emission_energy_multiplier = 1.5
-	_flash_until = seconds
-	set_process(true)
-
-
 func set_base_modulate(_c: Color) -> void:
 	pass  # models carry their own textures; surrender/state tints are optional later
-
-
-## Idle processing exists only to decay a hit flash; every actor and every corpse
-## would otherwise pay a per-frame callback for a comparison that is almost always
-## false. flash() re-arms it.
-func _ready() -> void:
-	set_process(false)
-
-
-func _process(delta: float) -> void:
-	if _flash_until > 0.0:
-		_flash_until -= delta
-		if _flash_until <= 0.0:
-			for m in _flash_mats:
-				m.emission_enabled = false
-			set_process(false)
-	else:
-		set_process(false)
 
 
 # ---- muzzle -----------------------------------------------------------------

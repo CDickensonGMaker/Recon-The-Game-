@@ -17,6 +17,14 @@ var cell_size: float = 2.0  # Meters per heightmap cell
 ## height scale of its own, and must not acquire one.
 var target_relief: float = 1.0
 
+## The percentile band that defines "relief". Outside it the tails may clip, which is
+## why the band is wide: 1%-99% keeps flat-topped clipping off the playable ground.
+const RELIEF_PERCENTILE_LO: float = 0.002
+const RELIEF_PERCENTILE_HI: float = 0.998
+## Fraction of the normalized [0,1] range the raw spread may occupy. Below 1.0 nothing
+## can clip against the shader clamp, which is what flat-topped mountains were.
+const RELIEF_MAX_SPAN: float = 0.98
+
 var base_noise: FastNoiseLite
 var warp_noise_x: FastNoiseLite
 var warp_noise_y: FastNoiseLite
@@ -119,17 +127,18 @@ var preset_params: Dictionary = {
 		"erosion_iterations": 5000,
 	},
 	TerrainPreset.STEEP_MOUNTAINS: {
-		"base_frequency": 0.003,
-		"base_octaves": 5,
+		"base_frequency": 0.0016,
+		"base_octaves": 4,
+		"base_persistence": 0.40,
 		"warp_enabled": true,
 		"warp_strength": 35.0,
 		"ridge_enabled": true,
-		"ridge_blend": 0.6,
+		"ridge_blend": 0.3,
 		"ridge_threshold": 0.2,
-		"ridge_sharpness": 2.5,
+		"ridge_sharpness": 1.8,
 		"cliff_enabled": true,
-		"cliff_sharpness": 4.0,
-		"smoothing_passes": 1,
+		"cliff_sharpness": 2.0,
+		"smoothing_passes": 3,
 		"erosion_enabled": false,
 		"erosion_iterations": 60000,
 	},
@@ -625,19 +634,24 @@ func _scale_heightmap() -> void:
 	if raw_range < 0.001:
 		return
 
-	var variance: float = 0.0
-	for h in heightmap_data:
-		var d: float = h - mean
-		variance += d * d
-	variance /= float(heightmap_data.size())
-	var std: float = sqrt(variance)
-	if std < 0.0001:
+	# Percentile spread, not standard deviation. A std-based scale has to guess how
+	# many sigma the tails reach, and across 400k+ samples that guess is wrong by
+	# multiples - it put every preset 2.6-2.8x over its TerrainConfig.preset_relief
+	# target and clipped STEEP_MOUNTAINS and PLATEAU flat against the [0,1] clamp.
+	# The span between two percentiles IS the relief, measured rather than inferred.
+	var sorted: PackedFloat32Array = heightmap_data.duplicate()
+	sorted.sort()
+	var n: int = sorted.size()
+	var lo: float = sorted[int(float(n - 1) * RELIEF_PERCENTILE_LO)]
+	var hi: float = sorted[int(float(n - 1) * RELIEF_PERCENTILE_HI)]
+	var spread: float = hi - lo
+	if spread < 0.0001:
 		return
 
-	# Scale so ~95% of the distribution fits inside target_relief, but never
-	# stretch beyond the raw range (that would be the ratchet again).
-	var scale: float = target_relief / (std * 2.0)
-	scale = clampf(scale, target_relief / raw_range, target_relief / std)
+	# Never let the raw range exceed the normalized span: the [0,1] clamp below is a
+	# cliff, and terrain that reaches it comes back with its peaks and valleys sheared
+	# flat. This is a ceiling, not the old ratchet - it only ever scales DOWN.
+	var scale: float = minf(target_relief / spread, RELIEF_MAX_SPAN / raw_range)
 
 	for i in range(heightmap_data.size()):
 		heightmap_data[i] = (heightmap_data[i] - mean) * scale + 0.5

@@ -155,37 +155,39 @@ func _bare_civ(pos: Vector3, garrison: bool) -> Civilian:
 	return civ
 
 
-## D --------------------------- the launch stands up wired, carrying sappers up.
+## D ------------------- the siege stands its sappers up wired, through a cell.
+## The satchel carrier is still a real thing (ADR-035 keeps SapperCharge); what
+## changed is WHO stands him up. A materialized sapper cell must produce men with
+## both an objective and a charge, or the breach half of the siege is inert.
 func _check_launch_wiring() -> void:
 	var d := _bare_director(Vector3(8000, 0, 0))
-	d.launch_sapper_assault(3)
+	d._attach_siege()
+	d.siege.open_siege(6)
 
-	var men := get_tree().get_nodes_in_group("sapper_assault")
-	if men.size() != 3:
-		_fail("launch_sapper_assault(3) put %d men in the group, not 3" % men.size())
 	var wired := 0
-	for m in men:
-		var e := m as EnemyBase
-		if e == null:
+	var men := 0
+	for c in d.siege.cells:
+		if c.data_path != SiegeDirector.SAPPER_DATA:
 			continue
-		if e.assault_objective == Vector3.ZERO:
-			_fail("a launched sapper has no objective - he will never move")
-		var has_charge := false
-		for ch in e.get_children():
-			if ch is SapperCharge:
-				has_charge = true
-		if has_charge:
-			wired += 1
-	if wired != 3:
-		_fail("only %d of 3 launched sappers carry a SapperCharge" % wired)
+		c.materialize()
+		for m in c.men:
+			men += 1
+			if m.assault_objective == Vector3.ZERO:
+				_fail("a materialized sapper has no objective - he will never move")
+			for ch in m.get_children():
+				if ch is SapperCharge:
+					wired += 1
+	if men == 0:
+		_fail("a 6-man siege fielded no sapper cell at all (2d6 clamps to strength)")
+	if wired != men:
+		_fail("only %d of %d materialized sappers carry a SapperCharge" % [wired, men])
 
-	# The hard cap: a second launch this operation adds nobody.
-	d.launch_sapper_assault(3)
-	if get_tree().get_nodes_in_group("sapper_assault").size() != 3:
-		_fail("a second launch broke the one-assault-per-operation cap")
+	# A second open while one is active must not stand up a parallel assault.
+	var before: int = d.siege.cells.size()
+	d.siege.open_siege(6)
+	if d.siege.cells.size() != before:
+		_fail("open_siege ran twice and built a second assault on top of the first")
 
-	for m in get_tree().get_nodes_in_group("sapper_assault"):
-		(m as Node).queue_free()
 	d.queue_free()
 
 
@@ -230,52 +232,53 @@ func _check_gating() -> void:
 	var prev_threat := CampaignState.threat_level
 	CampaignState.threat_modifiers.clear()
 
-	# NEGATIVE: daylight never launches.
+	# NEGATIVE: daylight never opens a siege, and never even reaches a roll.
 	var day := _bare_director(Vector3(12000, 0, 0))
+	day._attach_siege()
 	MissionWeather.is_night = false
 	day.patrol_count = 3
 	CampaignState.threat_level = 1.0
-	day._maybe_launch_sappers()
-	if day._sapper_launched:
-		_fail("a sapper assault launched in daylight")
-	if day._sapper_rolled_night:
+	day.siege._maybe_open(0.5)
+	if day.siege.active:
+		_fail("a siege opened in daylight")
+	if day.siege._rolled_this_night:
 		_fail("daylight passed the night gate to a roll")   # deterministic control
 	day.queue_free()
 
 	# NEGATIVE: night, but the world has not settled (no walk-out yet).
 	var green := _bare_director(Vector3(13000, 0, 0))
+	green._attach_siege()
 	MissionWeather.is_night = true
 	green.patrol_count = 0
 	CampaignState.threat_level = 1.0
-	green._maybe_launch_sappers()
-	if green._sapper_launched:
-		_fail("a sapper assault launched before the player ever left the wire")
+	green.siege._maybe_open(0.5)
+	if green.siege.active:
+		_fail("a siege opened before the player ever left the wire")
 	green.queue_free()
-
-	# NEGATIVE: night + settled, but LOW threat (chance 0.0) cannot roll a launch.
-	var quiet := _bare_director(Vector3(14000, 0, 0))
-	MissionWeather.is_night = true
-	quiet.patrol_count = 3
-	CampaignState.threat_level = 0.0
-	for _i in range(20):
-		quiet._sapper_rolled_night = false   # give it 20 nights of chances
-		quiet._maybe_launch_sappers()
-	if quiet._sapper_launched:
-		_fail("a LOW-threat AO launched a sapper assault (chance should be 0)")
-	quiet.queue_free()
 
 	# POSITIVE (the GATES open): night + settled + CRITICAL passes every gate to the
 	# roll. We prove the gate opened (a roll happened), not the coin flip itself.
 	var hot := _bare_director(Vector3(15000, 0, 0))
+	hot._attach_siege()
 	MissionWeather.is_night = true
 	hot.patrol_count = 3
 	CampaignState.threat_level = 1.0
-	hot._maybe_launch_sappers()
-	if not hot._sapper_rolled_night:
+	hot.siege._maybe_open(0.5)
+	if not hot.siege._rolled_this_night:
 		_fail("under night + settled + CRITICAL the gates did NOT open to a roll")
-	for m in get_tree().get_nodes_in_group("sapper_assault"):
-		(m as Node).queue_free()
 	hot.queue_free()
+
+	# The run cap: a fourth consecutive night cannot fire.
+	var run := _bare_director(Vector3(16000, 0, 0))
+	run._attach_siege()
+	MissionWeather.is_night = true
+	run.patrol_count = 3
+	run.siege.nights_run = SiegeDirector.MAX_RUN_NIGHTS
+	run.siege._rolled_this_night = false
+	run.siege._maybe_open(0.5)
+	if run.siege.active:
+		_fail("a %dth consecutive night of siege fired" % (SiegeDirector.MAX_RUN_NIGHTS + 1))
+	run.queue_free()
 
 	MissionWeather.is_night = prev_night
 	CampaignState.threat_level = prev_threat
@@ -311,7 +314,7 @@ func _bare_director(center: Vector3) -> FieldDirector:
 	ss.members.append(rto)
 	d.squad_system = ss
 	d.fsb_center = center
-	d._sapper_aim = center + Vector3(0, 0, 8)
+	d.siege_aim = center + Vector3(0, 0, 8)
 	d.patrol_gate_pos = center + Vector3(0, 0, 60)
 	d.patrol_gate_out = Vector3.BACK
 	return d

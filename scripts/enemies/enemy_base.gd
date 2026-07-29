@@ -226,17 +226,11 @@ var mesh: MeshInstance3D
 ## fallback), or null -> capsule. Both share play/set_facing/flash/muzzle_*.
 var sprite_actor: Node3D = null
 var _visual_is_model: bool = false
-var _nav_box: int = -1     ## index into NavBaker._live_boxes, refreshed at think rate
-## Cached navmesh clamp: map_get_closest_point is a full polygon search, so it is
-## re-run only when the raw target moves, never once per physics tick.
-var _nav_clamp_src: Vector3 = Vector3.ZERO
-var _nav_clamp_out: Vector3 = Vector3.ZERO
-var _nav_clamp_valid: bool = false
+var _router := NavRouter.new()
 var squad_id: int = -1     ## EnemySquad coordination group; -1 = lone wolf
 
 ## Detection beacon: the last time ANY enemy entered COMBAT (polled by FieldDirector).
 static var last_combat_contact_ms: float = -1.0
-var _nav_warned: bool = false
 var _scan_phase: float = 0.0
 var _home_facing: Vector3 = Vector3.FORWARD  ## the direction to sweep around
 const SCAN_SPEED: float = 0.7
@@ -248,15 +242,10 @@ var _removed: Array[String] = []
 var _killed_explosive: bool = false
 
 
-## The lab scenes bake a NavigationRegion3D over the arena (group
-## "lab_navmesh") - when one exists, _move_toward routes on it everywhere.
-var _lab_nav: bool = false
-
-
 func _ready() -> void:
 	add_to_group("enemies")
 	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
-	_lab_nav = get_tree().get_first_node_in_group("lab_navmesh") != null
+	_router.setup(nav_agent, get_tree(), "enemy")
 
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
 	_apply_personality()
@@ -308,6 +297,14 @@ func _ready() -> void:
 ## hold freed instances (the registry has no cleanup sweep by design).
 func _exit_tree() -> void:
 	AgentRegistry.unregister(self)
+
+
+## Remove a LIVING man from the world without a death. `died` never fires, so
+## nothing scores him as a kill (ADR-035 §4: a withdrawal is not a casualty).
+## Callers holding a roster must drop him first - FieldDirector.despawn_tracked_enemy.
+func despawn() -> void:
+	set_physics_process(false)
+	queue_free()
 
 
 func _apply_personality() -> void:
@@ -579,7 +576,7 @@ func _update_decay(delta: float) -> void:
 
 func _think() -> void:
 	think_count += 1
-	_nav_box = NavBaker.box_index_at(global_position) if WorldConfig.NAV_ENABLED else -1
+	_router.refresh_box(global_position)
 	_check_spider_hole()
 	_check_tunnel_retreat()
 	if is_spider_hole and not _spider_triggered:
@@ -790,6 +787,13 @@ func _witness_check(killer: Node) -> void:
 		return
 	# NOBODY SAW IT. The kill is clean. But he is still lying there.
 	EnemyBase.unreported_corpses.append(global_position)
+	# ...and a body does not decay out of the record the way a sound does. ADR-022
+	# already calls a corpse you left a liability; this is where it becomes one.
+	var fd: Node = get_tree().get_first_node_in_group("mission_director")
+	if fd != null and "evidence" in fd:
+		var led: EvidenceLedger = fd.get("evidence") as EvidenceLedger
+		if led != null:
+			led.on_body_left(global_position, float(Time.get_ticks_msec()) * 0.001)
 
 
 ## Walking up on a dead friend: the delayed price of a body you did not hide.
@@ -1042,6 +1046,9 @@ func _update_line_of_sight() -> void:
 	if not target:
 		has_line_of_sight = false
 		target_visible_duration = 0.0
+		# The blind clock must run for a man who holds NO target, or INVESTIGATE
+		# never expires and the hunt anchor walks him past his objective forever.
+		target_last_seen_time += _think_interval_current
 		return
 
 	var eye_pos := global_position + Vector3.UP * 1.5
@@ -1684,44 +1691,7 @@ func _change_state(new_state: Enums.AIState) -> void:
 
 ## Routed through NavBaker's per-site navmesh so pursuers path around obstacles.
 func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
-	var direction: Vector3 = pos - global_position
-	# Nav only when BOTH endpoints sit inside the SAME baked region. Outside one,
-	# direct steering is the intended behaviour, not a fallback. The same-box test
-	# also stops an enemy chasing a target outside his region having his path
-	# clamped to the region edge, where is_navigation_finished() fires and he stops.
-	# LAB navmesh (native NavigationRegion3D baked by the lab scene) covers the
-	# whole arena - no NavBaker boxes there, agents route on it directly.
-	var use_nav: bool = WorldConfig.NAV_ENABLED and _nav_box >= 0 and NavBaker.box_contains(_nav_box, pos)
-	if _lab_nav:
-		use_nav = true
-	if nav_agent != null and use_nav:
-		# A map RID is valid the instant it is created, but every query against it
-		# errors until the server has run its first synchronization. Queries in that
-		# window also return "no path", which reads as is_navigation_finished() and
-		# fires the fallback warning below. iteration_id is 0 until the first sync.
-		var map: RID = nav_agent.get_navigation_map()
-		var map_ready: bool = map.is_valid() and NavigationServer3D.map_get_iteration_id(map) > 0
-		if not map_ready:
-			use_nav = false
-		else:
-			# Clamp the target to the navmesh. Off-mesh points (LP behind a wall,
-			# cover point on a berm, agent on a navmesh-eroded vertex) reach
-			# is_navigation_finished() while still meters from the original target.
-			if not _nav_clamp_valid or pos.distance_squared_to(_nav_clamp_src) > 1.0:
-				_nav_clamp_src = pos
-				var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
-				_nav_clamp_out = clamped if pos.distance_to(clamped) < 4.0 else pos
-				_nav_clamp_valid = true
-			pos = _nav_clamp_out
-	if nav_agent != null and use_nav:
-		if nav_agent.target_position.distance_squared_to(pos) > 9.0:
-			nav_agent.target_position = pos   # each restake is a map_get_path()
-		if not nav_agent.is_navigation_finished():
-			direction = nav_agent.get_next_path_position() - global_position
-		elif OS.is_debug_build() and direction.length_squared() > 25.0 and not _nav_warned:
-			_nav_warned = true
-			push_warning("[NAV] enemy inside baked region %d, %.1fm to target, no path - falling back to direct steering" % [
-				_nav_box, direction.length()])
+	var direction: Vector3 = _router.step(global_position, pos)
 	direction.y = 0
 	if direction.length() > 0.1:
 		direction = direction.normalized()
@@ -2155,15 +2125,6 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		if (attacker as Node).is_in_group("player") or (attacker as Node).is_in_group("allies"):
 			_last_attacker = attacker as Node3D
 			_last_attacker_ms = float(Time.get_ticks_msec())
-
-	if sprite_actor != null:
-		sprite_actor.flash(Color(1.6, 0.5, 0.5), 0.1)
-	elif mesh and mesh.material_override:
-		mesh.material_override.albedo_color = Color.RED
-		get_tree().create_timer(0.1).timeout.connect(func() -> void:
-			if mesh and mesh.material_override:
-				mesh.material_override.albedo_color = Color(0.4, 0.4, 0.3)
-		)
 
 	# GUT: devastating - immediate crawl + bleed-out. Untreated he dies in ~15-20s.
 	if zone == "GUT" and current_hp > 0 and _gut_bleed_dps <= 0.0:

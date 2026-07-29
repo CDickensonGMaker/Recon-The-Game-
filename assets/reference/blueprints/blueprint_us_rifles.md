@@ -52,27 +52,71 @@ Layout anchors: flash suppressor tip X=0. Barrel muzzle (crown, hidden inside su
 
 **Totals: OAL 986 mm · Barrel 508 mm (20") · Sightline 66 mm above bore**
 
-Anchors: flash hider tip X=0. Barrel muzzle at X≈25 (inside hider). Chamber/upper receiver front at X≈533. Buffer tube stock joins receiver at X≈720. Buttplate X=986.
+Anchors: flash hider tip X=0. Barrel muzzle at X≈25 (inside hider). Chamber/upper receiver front at X≈500. Buffer tube stock joins receiver at X≈720. Buttplate X=986.
+
+> **REAR SECTION RE-SEATED 2026-07-28 against the reference photo**
+> (`assets/reference/weapons/ref_ak_car15_m16a1.jpg`, bottom rifle). The previous table put the
+> magwell at X 620–698, the pistol grip at X 755–810 and the magazine bottom at Y −195. Measurement
+> says X 547–620, X 662–712 and Y −127. The old numbers were also self-contradictory: a pistol grip
+> at X 755–810 sits *behind* the upper receiver's rear face (X 723), i.e. buried inside the
+> buttstock. **The photo is source of truth (Summoner's ruling).** Front half was confirmed, not
+> changed — the front sight post measured **+66.0 mm at X 160**, which the old table already had.
+> Method: connected-run silhouette walk seeded on the bore row, luma threshold 200 (extents identical
+> from 170–240); scale keyed on this rifle at 986 mm = 1060 px → 0.930189 mm/px.
 
 | # | Part | L × H × W (mm) | X position | Y offset | Notes |
 |---|------|----------------|-----------|----------|-------|
-| 1 | Birdcage flash hider (A1) | 57 × Ø22 | 0 – 57 | 0 | 6 slots ~30 mm long spaced evenly incl. bottom (A1 = fully open cage); closed ring at front face |
-| 2 | Barrel (exposed, pencil) | 110 × Ø16 | X 57 – 167 | 0 | Thin "pencil" profile between hider and FSB |
-| 3 | Front sight base (FSB) | 55 (f-b) × 60 (tall) × 20 | X 167 – 222 | triangle apex at Y +48; post top Y +66 | Distinct TRIANGLE from side; round sight post Ø4 × 18 on top between 2 protective ears; bayonet lug under (small block Y −20); sling swivel below |
-| 4 | Barrel under handguard | 300 × Ø16 | X 222 – 522 | 0 | Hidden; gas tube Ø6 runs above barrel Y +12 (skip at low poly) |
-| 5 | Triangular handguards | 300 × 58 (rear H) → 48 (front H) × 56 (rear W) → 44 (front W) | X 220 – 520 | centered on bore | Rounded-triangle cross-section, point DOWN; tapers toward front; 5 oval vent holes each side bottom edge; black fiberglass |
-| 6 | Slip ring / delta ring | 15 × Ø38 | X 520 – 535 | 0 | Conical ring at handguard rear |
-| 7 | Upper receiver | 190 × 40 × 32 | X 533 – 723 | body center Y +8 | Flat-top sides; ejection port door right side (35 × 15) at X 570, Y +2 |
-| 8 | Carry handle | 195 long × 18 web × 22 wide | X 545 – 740 | handle top Y +70; underside of handle Y +52; receiver top Y +28 → **gap under handle ≈ 24 mm tall** × 150 long | Front leg at X 545–570, rear leg X 700–740; rear aperture sight inside rear leg, flip aperture at X 715, Y +66; windage drum right side Ø14 |
-| 9 | Charging handle | 90 × 12 × 30 | X 700 – 790 (T at rear) | Y +30 | T-handle protrudes at rear of receiver top |
-| 10 | Forward assist bump | Ø16 × 18 deep | X 690 | Y +10, right side only (Z +18) | Round teat-shaped plunger, angled back ~15°; A1 signature |
-| 11 | Magwell (slab-sided) | 78 (f-b) × 60 (tall) × 24 | X 620 – 698 | Y −20 to −80 | Clean flat slabs, slight forward rake matching mag angle; fencing ridge around mag release right side |
-| 12 | Magazine, 20-rd straight | 64 (f-b) × 180 total (≈115 exposed) × 23 | top at X 630 – 694 | exposed Y −80 down to Y −195 | STRAIGHT aluminum box, canted FORWARD ~8° from vertical (bottom sits ~15 mm ahead of top); gray anodized |
-| 13 | Trigger guard + trigger | 75 × 22 × 10 | X 710 – 785 | bottom Y −52 | Trigger at X 745, Y −40 |
-| 14 | Pistol grip (A1) | 55 (f-b) × 118 (tall) × 30 | top at X 755 – 810 | Y −30 down to −145 | Raked back ~35° from vertical (bottom ~65 mm behind top); black polymer, no finger grooves |
-| 15 | Lower receiver rear / buffer tower | 60 × 45 × 32 | X 700 – 760 | Y −40 to +20 | Contains stock screw boss |
-| 16 | Buttstock (fixed, A1) | 266 × 60 → 130 × 40 | X 720 – 986 | TOP EDGE dead straight at Y +28 (in line with buffer tube/bore-ish); bottom slopes from Y −40 at front to Y −105 at butt | Straight-line stock, triangle-ish side profile; black polymer w/ trapdoor buttplate; sling swivel bottom rear |
-| 17 | Buttplate | 8 × 133 × 40 | X 978 – 986 | Y +28 to −105 | Checkered black, hinged trapdoor (skip detail) |
+| 1 | Birdcage flash hider (A1) | 40 × Ø21 | 0 – 40 | 0 | 6 slots spaced evenly incl. bottom (A1 = fully open cage); closed ring at front face. Photo resolves the hider/barrel step at 33–40; real A1 cages run 51 — the photo wins |
+| 2 | Barrel (exposed, pencil) | 115 × Ø13 | X 40 – 155 | 0 | Thin "pencil" profile between hider and FSB |
+| 3 | Front sight base (FSB) | 22 (f-b) × 89 (tall) × 20 | X 150 – 172 | triangle apex at Y +48; **post tip Y +66** | Distinct TRIANGLE from side; round sight post Ø4 between 2 protective ears; bayonet lug + sling swivel below, down to Y −23 |
+| 4 | Barrel under handguard | 330 × Ø13 | X 172 – 500 | 0 | Hidden; gas tube Ø6 above barrel Y +12 (skip at low poly) |
+| 5 | Delta ring / front cap | 15 × Ø38 | X 193 – 208 | 0 | Ridge reads at Y +37 |
+| 6 | Triangular handguards | 296 long | X 204 – 500 | front top +27 / bottom −17; rear top +32 / bottom −29 | Rounded-triangle cross-section, point DOWN; tapers toward the front; 5 oval vent holes each side bottom edge; black fiberglass |
+| 7 | Upper receiver | 220 × 72 × 32 | X 500 – 720 | **top Y +43**, bottom Y −29 | Flat-top sides; ejection port door right side (35 × 15) at X 560, Y +2 |
+| 8 | Carry handle | front leg X 500–540, rear leg X 655–700 | top Y +70 | underside Y +52 → **gap under handle ≈ 24 mm tall** | Rear aperture sight inside the rear leg, flip aperture Y +66 (on the measured sight line); windage drum right side Ø14. Photo reads the handle top at +78, but the walk climbs the leg rather than the web there — +70 is kept because it is consistent with the cleanly measured +66 aperture |
+| 9 | Charging handle | 90 × 12 × 30 | X 700 – 740 (T at rear) | Y +36 | T-handle protrudes at the rear of the receiver top |
+| 10 | Forward assist bump | Ø16 × 18 deep | X 640 | Y +10, **right side only** (Z +18) | Round teat-shaped plunger, angled back ~15°; A1 signature |
+| 11 | Magwell (slab-sided) | 73 (f-b) × 51 × 24 | X 547 – 620 | Y −29 to −80 | Clean flat slabs, slight forward rake matching the mag angle; fencing ridge around the mag release, right side |
+| 12 | Magazine, 20-rd straight | 64 (f-b) × 176 total (**≈100 exposed**) × 23 | X 547 – 620 | exposed Y −80 down to **Y −127** | STRAIGHT aluminum box, canted FORWARD ~8° from vertical (bottom ~15 mm ahead of top); gray anodized |
+| 13 | Trigger guard + trigger | 40 × 22 × 10 | X 620 – 660 | bottom Y −45 to −60 | Trigger blade at X 640, Y −45 |
+| 14 | Pistol grip (A1) | 50 (f-b) × 100 (tall) × 30 | X 662 – 712 | Y −78 down to **Y −127** | Raked back ~35° from vertical (bottom ~50 mm behind top); black polymer, no finger grooves |
+| 15 | Lower receiver rear / buffer tower | 60 × 45 × 32 | X 700 – 760 | Y −40 to +20 | Contains the stock screw boss |
+| 16 | Buttstock (fixed, A1) | 266 long | X 720 – 986 | **TOP EDGE straight at Y +30**; bottom slopes Y −29 at front → **Y −96** at the butt | Straight-line stock, triangle-ish side profile; black polymer w/ trapdoor buttplate; sling swivel bottom rear |
+| 17 | Buttplate | 8 × 126 × 40 | X 978 – 986 | Y +29 to −96 | Checkered black, hinged trapdoor (skip detail) |
+
+---
+
+## 2b. CAR-15 CARBINE
+
+**Totals: OAL 753 mm · Sightline 65 mm above bore**
+
+Measured from the reference photo's **top** rifle by the same method as §2. This is the carbine as
+pictured — long tubular flash moderator, short round ribbed handguard, collapsible stock — not the
+XM177E2 (Summoner's ruling 2026-07-28: match the photo exactly).
+
+**The receiver group is the M16A1's, shifted 138 mm forward.** Upper receiver, carry handle, magwell,
+magazine, trigger group and pistol grip are the same parts at the same bore offsets; only the front
+end (short barrel + moderator + round handguard) and the rear (collapsible stock on a buffer tube)
+differ. Cross-check that this is real and not a measurement artefact: the barrel is ~218 mm shorter
+than the M16A1's and the moderator ~67 mm longer, so the receiver *should* sit ~151 mm forward — the
+photo says 138 mm, inside the parallax error for a rifle off the frame centre.
+
+| # | Part | L × H × W (mm) | X position | Y offset | Notes |
+|---|------|----------------|-----------|----------|-------|
+| 1 | Flash moderator | 100 × Ø24 | 0 – 100 | 0 | Long tube, noticeably fatter than the barrel; closed ring at the front face |
+| 2 | Barrel (exposed) | 55 × Ø13 | X 100 – 155 | 0 | Short stub between moderator and FSB |
+| 3 | Front sight base (FSB) | 22 (f-b) × 88 (tall) × 20 | X 165 – 187 | apex +48; **post tip Y +65** | Same triangular FSB as the M16A1; sight plane matches within 1 mm |
+| 4 | Delta ring / front cap | 15 × Ø38 | X 190 – 205 | 0 | |
+| 5 | Round handguard | 176 long × Ø55 | X 204 – 380 | top +28 / bottom −25 (centre +1.5) | ROUND ribbed carbine handguard, not triangular — the clearest visual difference from the M16A1 |
+| 6 | Upper receiver | 220 × 72 × 32 | X 380 – 600 | top Y +43, bottom Y −29 | Identical to §2 item 7 |
+| 7 | Carry handle | front leg X 380–420, rear leg X 520–565 | top Y +70 | gap under handle ≈ 24 | Identical to §2 item 8 |
+| 8 | Magwell | 73 × 51 × 24 | X 409 – 482 | Y −29 to −80 | Identical to §2 item 11 |
+| 9 | Magazine, 20-rd straight | 64 × 176 (≈100 exposed) × 23 | X 409 – 482 | exposed Y −80 to **Y −119** | Identical to §2 item 12 |
+| 10 | Trigger guard + trigger | 40 × 22 × 10 | X 482 – 522 | bottom Y −45 to −60 | |
+| 11 | Pistol grip (A1) | 50 × 100 × 30 | X 524 – 574 | Y −78 down to **Y −136** | Identical to §2 item 14 |
+| 12 | Buffer tube | 175 × Ø32 | X 590 – 765 | centre Y −2 | Round tube the stock slides on; exposed between receiver and stock body |
+| 13 | Collapsible stock | 160 long | X 593 – 753 | **top Y +14**; bottom slopes Y −28 front → **Y −80** at the butt | Slim aluminium/polymer slider — sits far lower than the M16A1's fixed stock (top +14 vs +30), which is what makes the carbine read squat |
+| 14 | Buttplate | 6 × 94 × 38 | X 747 – 753 | Y +14 to −80 | Flat, no trapdoor |
 
 ---
 

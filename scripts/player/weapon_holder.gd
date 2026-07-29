@@ -34,6 +34,10 @@ var is_aiming: bool = false
 var ads_transition: float = 0.0  ## 0 = hip, 1 = fully ADS
 const ADS_SPEED: float = 10.0
 const BASE_FOV: float = 75.0
+## Held-breath focus: the ADS FOV narrows by this much again while Shift is down.
+const FOCUS_FOV_MULT: float = 0.72
+const FOCUS_SPEED: float = 6.0
+var _focus_t: float = 0.0  ## 0 = breathing, 1 = fully focused
 
 ## Firing state
 var can_fire: bool = true
@@ -110,6 +114,11 @@ func mount_gun(data: WeaponData) -> void:
 	current_ammo = primary_ammo[0]
 	spare_magazines = primary_ammo[1]
 	_load_weapon_model(current_weapon)
+	# A mount that produced no viewmodel is the "invisible gun" failure - it reads
+	# as the mount working while the player holds nothing.
+	if weapon_model == null:
+		push_warning("[MG] mounted %s but no viewmodel loaded from '%s'" % [
+			data.id, data.model_path])
 	weapon_switched.emit(current_weapon)
 	magazine_changed.emit(current_ammo, spare_magazines)
 
@@ -260,11 +269,19 @@ func _update_ads(delta: float) -> void:
 	# CAMERA CONTRACT (ADR-004): hip FOV is BASE_FOV 75; ADS uses the weapon's
 	# own ads_fov from the .tres (<=10 means no zoom). viewmodel_editor.gd
 	# mirrors this exactly - change one and you must change both.
+	# FOCUS (hold breath, HLL-style): on the sights, Shift leans further into the
+	# glass. The meter that limits it is the player's lungs - Player.breath_meter
+	# owns the clock, this only reads the state it publishes.
+	var focusing: bool = controller != null and "is_holding_breath" in controller \
+		and controller.is_holding_breath
+	_focus_t = lerpf(_focus_t, 1.0 if focusing else 0.0, delta * FOCUS_SPEED)
+
 	if camera:
 		var zoom_fov: float = BASE_FOV
 		if current_weapon and current_weapon.ads_fov > 10.0:
 			zoom_fov = current_weapon.ads_fov
-		camera.fov = lerpf(BASE_FOV, zoom_fov, ads_transition)
+		var focused_fov: float = zoom_fov * FOCUS_FOV_MULT
+		camera.fov = lerpf(BASE_FOV, lerpf(zoom_fov, focused_fov, _focus_t), ads_transition)
 		if ViewmodelLens.ENABLED and current_weapon and not _vm_meshes.is_empty():
 			ViewmodelLens.set_fov(_vm_meshes,
 				ViewmodelLens.effective_fov(current_weapon.viewmodel_fov, camera.fov))
@@ -874,7 +891,9 @@ func _update_weapon_position(delta: float) -> void:
 		target_rot.x -= 60.0
 
 	_sway_time += delta
-	var sway_amp: float = lerpf(0.014, 0.004, ads_transition) * bump
+	# The ADS end is deliberately far below the hip figure: on the sights the sway
+	# is a breathing hold, not a wander off the target.
+	var sway_amp: float = lerpf(0.014, 0.0012, ads_transition) * bump
 	if controller and "is_holding_breath" in controller and controller.is_holding_breath:
 		sway_amp *= 0.15
 	target_pos.x += sin(_sway_time * 1.3) * sway_amp
