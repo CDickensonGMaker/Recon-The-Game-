@@ -137,6 +137,13 @@ func _friendly_keep_out() -> Vector3:
 	return Vector3.ZERO
 
 
+## The mission director, when this world has one. Mirrors _friendly_keep_out's lookup rather
+## than caching a second reference to the same node.
+func _friendly_director() -> FieldDirector:
+	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	return d as FieldDirector
+
+
 ## Everything an ambient orbit must stay off: the player first, then his firebase.
 func _spectre_keep_outs() -> Array[Vector3]:
 	var out: Array[Vector3] = []
@@ -392,6 +399,11 @@ func _dispatch_lz_cycle(kind: String) -> void:
 	inbound.y = _ground_at(inbound) + heli.cruise_altitude
 	heli.global_position = inbound
 	heli.setup(_terrain())
+	# A LANDING SHIP CARRIES SOMETHING. Every seat function in SeatSystem had zero production
+	# callers, so a Huey used to land on the pad, idle out its ground seconds and leave empty -
+	# the ship-gate clause "Huey landings with troops disembarking" was scenery. HeliLift decides
+	# at dispatch whether this sortie is replacements in or men out, and loads it accordingly.
+	HeliLift.attach(heli, _friendly_director())
 	_roster(kind, heli, inbound, lz.global_position, "inbound")
 	var f: Dictionary = _in_flight[_in_flight.size() - 1]
 	var out_ang: float = rng.randf_range(0.0, TAU)
