@@ -891,16 +891,22 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			var r: float = 1.8 if men_n > 1 else rng.randf_range(0.0, 1.0)
 			var station: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * r
 			var pos: Vector3 = station
-			pos.y = world.terrain_manager.get_height_at(pos) + 0.5
+			# THE MOUND IS THE FLOOR, not the terrain. The firebase model became the walkable
+			# ground on 2026-07-29 and the terrain now stops at its toe, so a post seated on
+			# terrain height sits 1.5-5.3m UNDER the surface these men stand on. Every BT arrive
+			# check is 3-D within ~1.6m, so a buried working point can never be reached: the man
+			# walks at it forever. It read as harmless only while every work action FROZE him in
+			# place (fixed 2026-07-30), which is what turned a data bug into a visible one.
+			pos.y = world.surface_y(pos) + 0.5
 			var man: Civilian = Civilian.spawn(world, pos, director, false,
 				CivilianScript.GARRISON_MEN, true)
 			man.occupation = str(post.occupation)
 			var wp: Vector3 = station
-			wp.y = world.terrain_manager.get_height_at(wp)
+			wp.y = world.surface_y(wp)
 			man.working_point_pos = wp
 			if quarters.size() > 0:
 				var q: Vector3 = quarters[qi % quarters.size()]
-				q.y = world.terrain_manager.get_height_at(q)
+				q.y = world.surface_y(q)
 				man.home = q
 				qi += 1
 			man.add_to_group("firebase_garrison")
@@ -918,7 +924,7 @@ static func _place_firebase_mg(world: GameWorld, center: Vector3, post_pos: Vect
 	outward.y = 0.0
 	outward = outward.normalized() if outward.length() > 0.1 else Vector3.FORWARD
 	var gun_pos: Vector3 = post_pos + outward * 1.0
-	gun_pos.y = world.terrain_manager.get_height_at(gun_pos)
+	gun_pos.y = world.surface_y(gun_pos)
 	MGEmplacement.create(world, gun_pos, outward)
 
 

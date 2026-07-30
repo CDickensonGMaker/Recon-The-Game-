@@ -44,7 +44,20 @@ func _ready() -> void:
 		if x[1]:
 			print("[DEMO] EXCLUDED: %s" % x[0])
 	if EXCLUDE_SAVES:
+		# THE DEMO MUST NOT TOUCH HIS TOUR, and repointing the campaign file alone did not
+		# achieve that - two holes, both live:
+		#
+		# 1. SaveManager autosaves slot 8 every AUTOSAVE_INTERVAL_S from its own _process, slot 9
+		#    on exit, and game_flow.gd writes the autosave slot on "FIREBASE". `save_dir` was only
+		#    ever redirected for a TEST run, so a demo session was writing demo snapshots into his
+		#    REAL slots - "Continue" in the real game would boot the demo world.
+		# 2. CampaignState is an AUTOLOAD: its _ready ran load_campaign() against campaign.cfg
+		#    before this line executed, so the demo inherited his live rank, threat, rack condition
+		#    and depot losses. Repointing the path afterwards only changed where writes GO.
 		CampaignState.save_path = "user://campaign_demo.cfg"
+		SaveManager.save_dir = "user://saves_demo"
+		DirAccess.make_dir_recursive_absolute(SaveManager.save_dir)
+		CampaignState.load_campaign()
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
 	add_child(_flow)
@@ -57,6 +70,10 @@ func _exit_tree() -> void:
 	GameFlow.demo_mode = false   # never leak demo state into a normal boot
 	if EXCLUDE_SAVES:
 		CampaignState.save_path = CampaignState.DEFAULT_SAVE_PATH
+		SaveManager.save_dir = SaveManager.DEFAULT_SAVE_DIR
+		# Put his own tour back in memory: the sandbox campaign is still loaded at this point,
+		# and leaving it there would show demo progress in the real main menu.
+		CampaignState.load_campaign()
 
 
 ## ---- THE AIR PACKAGE (ship gate, 2026-07-29) ----
@@ -194,7 +211,12 @@ func _open_siege(strength: int, toast: String) -> void:
 		d.siege.ring_max = 235.0
 		d.siege.rally_m = 150.0
 		d.siege.mortar_standoff_m = 170.0
-		d.siege.cell_materialize_m = minf(d.siege.cell_materialize_m, 220.0)
+		# BODIES MUST APPEAR OUTSIDE THE WIRE. minf against the 80m default was a no-op that left
+		# cells standing up 80m from the objective - and the parapet reaches 96.1m radius
+		# (firebase_v3_destructibles.json), so on many bearings men materialised INSIDE the
+		# compound and tripped the overrun call before a shot was fired. 120m clears the widest
+		# face with margin. The cap that matters on a small map is the LIVE cap, not this.
+		d.siege.cell_materialize_m = 120.0
 	if d.siege == null:
 		print("[DEMO] no siege director - phase skipped")
 		return

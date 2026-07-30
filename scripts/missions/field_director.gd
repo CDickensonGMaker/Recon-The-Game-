@@ -555,8 +555,12 @@ func _beaten_path_miss(at: Vector3, axis: Vector3) -> float:
 	var dir: Vector3 = axis.normalized()
 	var worst: float = INF
 	for i in range(9):
+		# SAMPLE WHERE THE ROUNDS LAND, not where the aircraft is. The strafe aims
+		# STRAFE_LEAD_M ahead of the airframe, so the beaten path is the gun window shifted
+		# forward by that much. Sampling the window itself was off by 160m and would clear an
+		# axis whose impacts walk straight through the compound.
 		var t: float = lerpf(CASAirplane.STRAFE_OPEN_M, CASAirplane.STRAFE_CLOSE_M,
-			float(i) / 8.0)
+			float(i) / 8.0) + CASAirplane.STRAFE_LEAD_M
 		var s: Vector3 = at + dir * t
 		worst = minf(worst, Vector2(s.x - p.x, s.z - p.z).length())
 	return worst

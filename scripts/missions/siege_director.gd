@@ -134,6 +134,9 @@ var _illum_timer: float = ILLUM_FIRST_S
 var _press_clock: float = 0.0
 var _press_phase: int = 0
 var _overrun_called: bool = false
+## instance_id -> true for every attacker ever measured OUTSIDE the wire. An overrun counts men
+## who crossed it, never men who began behind it.
+var _seen_outside: Dictionary = {}
 ## Per-bearing wall radius, measured once from the parapet group. Empty = no wire wired
 ## on this map (a test chamber), and then nothing can be judged inside it.
 var _wall_r: PackedFloat32Array = PackedFloat32Array()
@@ -195,7 +198,16 @@ func open_siege(forced_strength: int = 0) -> void:
 		run_strength = forced_strength if forced_strength > 0 else _rng.randi_range(1, 50)
 		run_peak = run_strength
 	elif forced_strength > 0:
+		# PEAK MUST GROW WITH STRENGTH. Setting strength alone left run_peak at whatever the
+		# LAST wave was, and every ledger reading is relative to peak: killed_count is
+		# `peak - live`, so a 45-man wave forced on top of an 11-man peak reports 0 killed
+		# forever, and break_state sees live/peak = 4.09 and can never fire. The assault becomes
+		# unbreakable and unscored, and runs to MAX_DURATION_S past the end card.
+		#
+		# Reached whenever the demo's 720s escalation finds the probe already BROKEN - reinforce()
+		# handles the still-active case and always got this right; this branch did not.
 		run_strength = forced_strength
+		run_peak = maxi(run_peak, forced_strength)
 	if run_strength <= 0:
 		nights_run = 0
 		return
@@ -208,6 +220,7 @@ func open_siege(forced_strength: int = 0) -> void:
 	_press_phase = 0
 	_illum_timer = ILLUM_FIRST_S
 	_overrun_called = false
+	_seen_outside.clear()
 	_measure_perimeter()
 	# Nights 2 and 3 attack where the last night worked.
 	if nights_run == 1:
@@ -325,10 +338,21 @@ func _avg_courage() -> float:
 
 ## Light reveals what the dark hid - scoped to the lit circle, so an illum round
 ## cannot materialize the whole assault at once.
+## Light reveals what the dark hid - but never MORE than the body budget allows. A garrison illum
+## round 140m out lights a 180m circle, which reaches the 190-235m assembly ring, so an unbounded
+## reveal stood the entire assault up at once the first time the wire was lit. `_enforce_live_cap`
+## cannot catch that: it freezes a dormant cell's physics tick, and materialize_if_lit does not
+## run on that tick. So the cap is enforced HERE too, at the only other door into materialising.
 func _light_check() -> void:
+	var live: int = 0
 	for c in cells:
-		if is_instance_valid(c):
-			c.materialize_if_lit()
+		if is_instance_valid(c) and c.materialized:
+			live += c.live_strength()
+	for c in cells:
+		if live >= LIVE_CAP:
+			return
+		if is_instance_valid(c) and not c.materialized and c.materialize_if_lit():
+			live += c.live_strength()
 
 
 ## The cells defer the spike; this bounds it. A deferred cell is logged, never
@@ -446,6 +470,11 @@ func _wall_radius_at(pos: Vector3) -> float:
 	return _wall_r[clampi(b, 0, PERIMETER_BINS - 1)]
 
 
+## AN OVERRUN IS MEN WHO GOT IN, NOT MEN WHO STARTED IN. A body that materialises inside the wire
+## - a badly-sized materialize distance, a test chamber with no wire, a cell standing up on a
+## narrow face - has not overrun anything, and counting it fires the call before a shot. So a man
+## is only ever counted after he has been MEASURED OUTSIDE at least once. That makes the reading
+## correct on any map instead of on maps whose geometry happens to cooperate.
 func inside_count() -> int:
 	if _wall_r.is_empty():
 		return 0
@@ -461,7 +490,10 @@ func inside_count() -> int:
 				continue
 			var r: float = Vector2(m.global_position.x - fsb_center.x,
 				m.global_position.z - fsb_center.z).length()
-			if r < wall - INSIDE_MARGIN_M:
+			var id: int = m.get_instance_id()
+			if r >= wall:
+				_seen_outside[id] = true
+			elif r < wall - INSIDE_MARGIN_M and _seen_outside.has(id):
 				n += 1
 	return n
 

@@ -216,7 +216,12 @@ func _process_flying(delta: float) -> void:
 
 	if dist < 4.0:
 		if _lz != null:
-			_land_y = _ground_y(_target) + 0.5
+			# LAND ON THE PAD, NOT THE TERRAIN UNDER IT. The firebase model became the ground on
+			# 2026-07-29 and its helipad deck sits ~4m above the flattened terrain, so a
+			# terrain-derived touchdown sank the airframe INTO the mound - the doors opened
+			# underground and anyone stepping out stepped into earth. The LandingZone was placed
+			# at the pad marker itself (air_traffic._firebase_lzs), so its own Y is the deck.
+			_land_y = _lz.global_position.y + 0.5
 			state = State.LANDING
 		else:
 			state = State.IDLE

@@ -12,7 +12,10 @@ extends Node
 ## THE FRESH-PLAYER LAW (Summoner, 2026-07-18): the dev's save is a lie about
 ## the fresh player. Tests run in their own slot dir and start VIRGIN; they can
 ## never touch - or lean on - the player's real saves.
-var save_dir: String = "user://saves"
+## The player's real slots. Named so a caller that sandboxes this (the demo, the suite) has
+## something to restore it TO - two hardcoded copies of the string is how one of them drifts.
+const DEFAULT_SAVE_DIR := "user://saves"
+var save_dir: String = DEFAULT_SAVE_DIR
 const QUICK_SLOT := 0
 const AUTOSAVE_SLOT := 8
 const EXIT_SLOT := 9
