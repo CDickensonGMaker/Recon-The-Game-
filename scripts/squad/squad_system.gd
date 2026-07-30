@@ -4,7 +4,16 @@
 class_name SquadSystem
 extends Node
 
+## A REVIVE COSTS A BANDAGE. `revives_left` used to be an abstract allowance with nothing
+## behind it; it is now Doc's bandage count, which is a thing that exists in the world, can
+## run out, and can be replaced from a medical box (FieldCache) he or anyone else laid down.
 const REVIVES_PER_MISSION: int = 2
+## What Doc carries besides the two he can spend reviving: the rest of the bag. Laying the
+## box down puts ten on the ground for the whole squad AND the player.
+const MEDIC_BOX_STOCK: int = 1
+const GRENADIER_BOX_STOCK: int = 1
+## How far ahead of a man his box lands, so it does not spawn inside him.
+const BOX_DROP_M: float = 1.2
 const REVIVE_CHANNEL_SECONDS: float = 5.0
 ## Player-led squad for the village assault: 5 specialists + riflemen (SquadRoster.SQUAD_SIZE).
 const SQUAD_SIZE: int = 8
@@ -14,6 +23,10 @@ var director: FieldDirector
 var members: Array[AllyBase] = []
 var weapons_free: bool = true
 var revives_left: int = REVIVES_PER_MISSION
+## Boxes each specialist still has to lay. One apiece per mission - a box is a decision,
+## not a consumable, and an infinite supply of them is an infinite supply of everything.
+var medic_boxes: int = MEDIC_BOX_STOCK
+var grenadier_boxes: int = GRENADIER_BOX_STOCK
 
 var _reviving: bool = false
 var _revive_timer: float = 0.0
@@ -23,6 +36,14 @@ var _bark_cooldown: float = 0.0
 var _point_warned: Dictionary = {}
 var _thumper_cooldown: float = 0.0
 var _roster_rng := RandomNumberGenerator.new()
+## MEDIC RESUPPLY. He sets a crate down on a clock OR when a real firefight ends, whichever
+## comes first, and the clock restarts either way - the two are one cadence, not two.
+const RESUPPLY_INTERVAL_S: float = 1200.0
+## What counts as "a large firefight": this many of the squad in contact at once. Two men
+## trading shots at a scout is not a reason to break out the crate.
+const LARGE_FIREFIGHT_MEN: int = 3
+var _resupply_clock: float = 0.0
+var _combat_peak: int = 0
 ## The ally grenadier fires the same round the player does, so centre, rim and
 ## radius all come from data/projectiles/m79_he.tres - the same record
 ## ProjectileBase reads. The fallbacks apply ONLY when that fails to load.
@@ -158,6 +179,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_order_all(AllyBase.OrderMode.FOLLOW, Vector3.ZERO, "SQUAD: ON ME")
 	elif event.is_action_pressed("squad_hold"):
 		_order_all(AllyBase.OrderMode.HOLD, Vector3.ZERO, "SQUAD: HOLD POSITION")
+		_drop_specialist_boxes()
 	elif event.is_action_pressed("squad_move"):
 		var target := _aim_ground_point()
 		if target != Vector3.ZERO:
@@ -200,7 +222,49 @@ func _aim_ground_point() -> Vector3:
 ## ---------- MEDIC REVIVE CHAIN ----------
 
 func can_revive() -> bool:
-	return revives_left > 0 and member_by_mos("MEDIC") != null
+	if member_by_mos("MEDIC") == null:
+		return false
+	if revives_left > 0:
+		return true
+	# Dry, but standing next to bandages: Doc takes one rather than watching a man bleed.
+	return _medic_restock()
+
+
+## Doc pulls a bandage out of any medical box within reach. This is why running him dry is
+## a state you can DO something about instead of a mission-long penalty.
+func _medic_restock() -> bool:
+	var medic := member_by_mos("MEDIC")
+	if medic == null:
+		return false
+	var box: FieldCache = FieldCache.nearest(medic, FieldCache.Kind.MEDICAL, 6.0)
+	if box == null or box.draw(1) <= 0:
+		return false
+	revives_left += 1
+	_toast("DOC RESUPPLIED FROM THE MEDICAL BOX")
+	return true
+
+
+## Lay the specialists' boxes on the ground. Called when the squad is told to HOLD: a squad
+## digging in puts its supplies out, which is both correct and the one moment the player has
+## already said "we are staying here."
+func _drop_specialist_boxes() -> void:
+	var host: Node = get_tree().current_scene
+	if host == null:
+		return
+	if medic_boxes > 0:
+		var medic := member_by_mos("MEDIC")
+		if medic != null and is_instance_valid(medic):
+			medic_boxes -= 1
+			var at: Vector3 = medic.global_position - medic.global_transform.basis.z * BOX_DROP_M
+			FieldCache.deploy(host, at, FieldCache.Kind.MEDICAL)
+			_toast("DOC PUT THE MEDICAL BOX DOWN")
+	if grenadier_boxes > 0:
+		var gren := member_by_mos("GRENADIER")
+		if gren != null and is_instance_valid(gren):
+			grenadier_boxes -= 1
+			var at2: Vector3 = gren.global_position - gren.global_transform.basis.z * BOX_DROP_M
+			FieldCache.deploy(host, at2, FieldCache.Kind.AMMO)
+			_toast("AMMO BOX DOWN")
 
 
 func begin_revive(_health_system: HealthSystem) -> void:
@@ -258,6 +322,9 @@ func _process_revive(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)
+	_resupply_clock += delta
+	if _resupply_clock >= RESUPPLY_INTERVAL_S:
+		_medic_resupply()
 	if _auto_flip_armed and not weapons_free and WeaponHolder.session_shots > 0:
 		_auto_flip_armed = false
 		_set_weapons_free(true)
@@ -431,7 +498,29 @@ func _contact_barks() -> void:
 		if caller:
 			_toast("%s: CONTACT!" % SquadRoster.call_name(caller.member))
 			VOManager.play_squad("contact_front" if randf() < 0.5 else "contact", caller.member, caller.global_position)
+	# Peak, not current: a firefight is judged by how many men it pulled in at its worst,
+	# and that number is gone by the time the shooting stops.
+	_combat_peak = maxi(_combat_peak, in_combat)
+	if in_combat == 0 and _last_combat_count > 0:
+		if _combat_peak >= LARGE_FIREFIGHT_MEN:
+			_medic_resupply()
+		_combat_peak = 0
 	_last_combat_count = in_combat
+
+
+## The medic puts a crate down at his feet and calls it. Restarts the clock whichever
+## reason fired, so a firefight resupply does not leave a timer about to fire again.
+func _medic_resupply() -> void:
+	_resupply_clock = 0.0
+	var medic: AllyBase = member_by_mos("MEDIC")
+	if medic == null or get_tree() == null:
+		return
+	var host: Node = get_tree().current_scene
+	if host == null:
+		return
+	MedicalCrate.drop(host, medic.global_position)
+	_toast("%s: BANDAGES OVER HERE!" % SquadRoster.call_name(medic.member))
+	VOManager.play_squad("bandages_over_here", medic.member, medic.global_position)
 
 
 ## ---------- CASUALTIES ----------

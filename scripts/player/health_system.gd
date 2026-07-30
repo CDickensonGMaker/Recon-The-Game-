@@ -19,8 +19,12 @@ signal bleeding_stopped
 @export var max_hp: int = 100
 var current_hp: int = 100
 
-## Health pack system
+## BANDAGES. The player carries them loose; a medic's MEDICAL BOX is where more come from
+## (FieldCache). One commodity, two treatments - the context below picks which.
 var health_packs: int = 3
+## What a man can carry on him. Drawing from a box stops here, so a box is a place you come
+## BACK to rather than a pocket you empty in one press.
+const CARRY_MAX: int = 4
 const HEAL_TIME: float = 3.0
 
 ## Bandage vs medkit: one item, the context picks the treatment. Bleeding but not

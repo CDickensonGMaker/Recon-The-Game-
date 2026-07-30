@@ -103,6 +103,9 @@ var holding_handset: bool = false
 var _handset_placeholder: MeshInstance3D = null
 ## The real exported handset, when it exists; it retires _handset_placeholder on sight.
 var _handset_vm: ItemViewmodel = null
+## The knife viewmodel (slot 4). Built on the first draw rather than at _ready, so a build
+## with no exported `knife_fp.glb` costs nothing and simply shows no blade.
+var _knife_vm: ItemViewmodel = null
 const HANDSET_HOLD_POSITION: Vector3 = Vector3(0.16, -0.14, -0.32)
 var _handset_cord_anchor: Marker3D = null
 var _radio_menu: RadioMenu = null
@@ -335,8 +338,11 @@ func bind_radio_handset(h: RadioHandset) -> void:
 	# THE REAL HANDSET IF IT HAS BEEN EXPORTED, the box otherwise. `handset_fp.glb` needs
 	# no wrapper scene and no further wiring: exporting it is what swaps these over, and
 	# the box below deletes itself from the frame the moment that file exists.
+	# ZERO, not HANDSET_HOLD_POSITION: an exported item GLB is already in the camera's
+	# frame (eye at its origin) and carries the authored hold pose, so an offset here
+	# would apply it twice. The constant still places the fallback box below.
 	if _handset_vm == null and camera != null:
-		_handset_vm = ItemViewmodel.create(camera, "", HANDSET_HOLD_POSITION, camera, "handset")
+		_handset_vm = ItemViewmodel.create(camera, "", Vector3.ZERO, camera, "handset")
 	if _handset_vm != null:
 		h.held_mesh = _handset_vm
 	else:
@@ -363,6 +369,28 @@ func bind_radio_handset(h: RadioHandset) -> void:
 		h.cord_snapped.connect(_on_cord_snapped)
 	if not h.cord_taut.is_connected(_on_cord_taut):
 		h.cord_taut.connect(_on_cord_taut)
+
+
+## ---------- KNIFE VIEWMODEL ----------
+
+## Slot 4 draws the blade, leaving it puts the blade away. [K] deliberately does NOT come
+## through here: it stabs from any slot without drawing, because reaching for a slot is
+## exactly the half-second a silent takedown does not have.
+func _on_slot_changed_knife(slot_index: int, _slot_type: Enums.SlotType) -> void:
+	if slot_index == EquipmentManager.SLOT_KNIFE:
+		if _knife_vm == null and camera != null:
+			_knife_vm = ItemViewmodel.create(camera, "", Vector3.ZERO, camera, "knife")
+		if _knife_vm != null:
+			_knife_vm.deploy()
+	elif _knife_vm != null:
+		_knife_vm.stow()
+
+
+## Swing the blade. equipment_manager calls this on FIRE while the knife slot is up;
+## lethality is MeleeVerb's, this is only the picture.
+func knife_swing() -> void:
+	if _knife_vm != null and _knife_vm.visible:
+		_knife_vm.play_action()
 
 
 ## The RTO you are looking at within arm's reach, or null. Aim-based (a deliberate
@@ -558,6 +586,9 @@ func field_interact_prompt() -> String:
 			if satchel_count > 0:
 				return "[F] GO DOWN THE HOLE    [HOLD F] SATCHEL THE MOUTH"
 			return "[F] GO DOWN THE HOLE"
+	var cache: FieldCache = _nearby_field_cache()
+	if cache != null:
+		return "[F] TAKE FROM %s" % cache.label()
 	for c in get_tree().get_nodes_in_group("supply_crates"):
 		var crate := c as Node3D
 		if crate and global_position.distance_to(crate.global_position) < 3.0:
@@ -593,6 +624,40 @@ func _play_claymore_plant() -> void:
 			return      # not authored yet; the mine still goes down
 	_claymore_vm.deploy()
 	_claymore_vm.play_action_then_stow()
+
+
+## The nearest box a specialist laid down. Range lives on FieldCache so the prompt and the
+## verb cannot drift apart.
+func _nearby_field_cache() -> FieldCache:
+	var med: FieldCache = FieldCache.nearest(self, FieldCache.Kind.MEDICAL)
+	var ammo: FieldCache = FieldCache.nearest(self, FieldCache.Kind.AMMO)
+	if med != null and ammo != null:
+		return med if global_position.distance_to(med.global_position) 			<= global_position.distance_to(ammo.global_position) else ammo
+	return med if med != null else ammo
+
+
+## Draw ONE thing per press. A box is not a resupply crate: it holds a finite number of a
+## single commodity, and taking from it has to feel like taking, not like refilling.
+func _take_from_cache(cache: FieldCache) -> void:
+	if cache.kind == FieldCache.Kind.MEDICAL:
+		if health_system == null or health_system.health_packs >= HealthSystem.CARRY_MAX:
+			_field_toast("YOU ARE CARRYING ALL YOU CAN")
+			return
+		if cache.draw(1) <= 0:
+			return
+		health_system.health_packs += 1
+		health_system.health_pack_changed.emit(health_system.health_packs)
+		_field_toast("BANDAGE TAKEN (%d LEFT IN THE BOX)" % cache.stock)
+		return
+	if weapon_holder == null:
+		return
+	if cache.draw(1) <= 0:
+		return
+	weapon_holder.spare_magazines += 2
+	weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+	if equipment_manager != null:
+		equipment_manager.add_grenade(1)
+	_field_toast("AMMO TAKEN (%d LEFT IN THE BOX)" % cache.stock)
 
 
 ## Swap the gun on the ground for the one in your hands. The old weapon is DROPPED, not
@@ -766,6 +831,16 @@ static func _collapse_entrance(entrance: Node3D) -> void:
 
 ## Interact: capture / loot / crate / tunnel enter-exit.
 func _try_field_interact() -> void:
+	# The medic's crate. First because it is the smallest, most specific target in reach -
+	# a man standing over it is reaching for it, not for the MG two metres past it.
+	var med_crate: MedicalCrate = MedicalCrate.nearest(self)
+	if med_crate != null and health_system != null:
+		var got: int = med_crate.take(health_system)
+		if got > 0:
+			_field_toast("TOOK %d BANDAGES" % got)
+		else:
+			_field_toast("CARRYING ALL YOU CAN")
+		return
 	# Tunnel exit (when underground).
 	if _in_tunnel != null:
 		if global_position.distance_to(_in_tunnel.ladder_point()) < 2.5:
@@ -817,6 +892,10 @@ func _try_field_interact() -> void:
 		if entrance_now != null:
 			_enter_tunnel(entrance_now)
 			return
+	var cache: FieldCache = _nearby_field_cache()
+	if cache != null:
+		_take_from_cache(cache)
+		return
 	for c in get_tree().get_nodes_in_group("supply_crates"):
 		var crate := c as Node3D
 		if crate and global_position.distance_to(crate.global_position) < 3.0:
@@ -1038,6 +1117,7 @@ func _ready() -> void:
 	health_system.setup(self, equipment_manager)
 	health_system.downed_ended.connect(_on_downed_ended)
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
+	equipment_manager.slot_changed.connect(_on_slot_changed_knife)
 	grenade_handler.setup(self, equipment_manager)
 
 	# ADR-018: every grunt has the same body. No progression touches health or stamina.
