@@ -138,6 +138,8 @@ const FILE_STAGGER: float = 1.1     ## lateral weave, so it is a file and not a 
 ## Camp role. The CampDirector writes this; the man's anim name is derived from it.
 ## Roles: "guard" (default), "patrol", "cook", "sleep", "talk".
 var camp_role: String = "guard"
+## Non-empty = he is working with his hands and that pose outranks the state map.
+var work_clip: String = ""
 ## Camp work station (CampDirector-assigned village prop marker). ZERO = none.
 ## An un-alerted idle man WALKS to it and works there - the living camp.
 var work_pos: Vector3 = Vector3.ZERO
@@ -420,6 +422,11 @@ func _update_sprite() -> void:
 	# Self-clearing window - no _anim_override, so no "frozen crouch statue" leak.
 	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play("cover_to_stand")
+		return
+	# A man doing a JOB shows it, and the job outranks the state map. Set by the behaviour
+	# that owns him (SapperCharge while he plants); cleared when the job ends.
+	if work_clip != "" and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play_first([work_clip, "idle_crouching"] as Array[String])
 		return
 	if _play_camp_role():
 		return
@@ -2501,12 +2508,17 @@ func _die() -> void:
 		#   clean kill     -> RAGDOLL always (dead weight just drops)
 		#   gibbed kill    -> the death performance clip (fallback: ragdoll)
 		var ma := sprite_actor as ModelActor
+		# `handled` means THE BODY IS ON ITS WAY DOWN. A gib pass that fails to start a
+		# ragdoll takes the limbs off and leaves the torso hanging in its last pose - the
+		# floating corpse - because the gore branch never reported back and the death-clip
+		# fallback below was an `else` it could not reach.
+		var handled: bool = false
 		if (_killed_explosive or GibSystem.force_all_gibs) and _visual_is_model and ma != null:
-			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
+			handled = GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
 		elif _visual_is_model and ma != null and _removed.is_empty() \
 				and ma.start_ragdoll(last_hit_dir, 4.5):
-			pass  # dead weight dropped - the ragdoll owns the body now
-		else:
+			handled = true  # dead weight dropped - the ragdoll owns the body now
+		if not handled:
 			# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so
 			# the shooter lies along -last_hit_dir. Only two death clips exist;
 			# a shot from the left plays death_forward for now.
@@ -2525,14 +2537,15 @@ func _die() -> void:
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ENEMY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
-			# GUARANTEED FLOOR (stuck-stagger fix): after the clip's fall, if the body
-			# never ragdolled, snap it flat so a janky/latched death clip cannot leave
-			# it standing or mid-stagger.
-			if _visual_is_model and ma != null:
-				var mac: ModelActor = ma
-				get_tree().create_timer(1.5).timeout.connect(func() -> void:
-					if is_instance_valid(mac) and not mac.has_ragdoll():
-						mac.settle_flat_corpse())
+		# GUARANTEED FLOOR (stuck-stagger fix): if the body never ragdolled, snap it flat so
+		# a janky/latched death clip cannot leave it standing or mid-stagger. This sat
+		# INSIDE the fallback, so it covered clean kills and never explosive ones - the
+		# exact deaths most likely to strand a torso in the air.
+		if _visual_is_model and ma != null:
+			var mac: ModelActor = ma
+			get_tree().create_timer(1.5).timeout.connect(func() -> void:
+				if is_instance_valid(mac) and not mac.has_ragdoll():
+					mac.settle_flat_corpse())
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

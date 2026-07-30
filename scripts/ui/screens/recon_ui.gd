@@ -46,14 +46,15 @@ static func make_button(text: String, size: int = 22) -> Button:
 
 
 ## Full-bleed key-art background + dark scrim so any screen reads as part of
-## the same world as the main menu, instead of a flat void.
-static func make_screen_root() -> Control:
+## the same world as the main menu, instead of a flat void. Pass bg_override
+## for a screen that needs its own art instead of the shared screen_bg.
+static func make_screen_root(bg_override: Texture2D = null) -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	if _screen_bg == null:
 		_screen_bg = load("res://assets/ui/screen_bg.png")
 	var bg := TextureRect.new()
-	bg.texture = _screen_bg
+	bg.texture = bg_override if bg_override != null else _screen_bg
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED

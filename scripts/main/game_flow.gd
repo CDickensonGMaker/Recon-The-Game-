@@ -557,7 +557,7 @@ func enter_hub() -> void:
 	# nothing to ask of him. It carries history instead of a progress noun: the war did
 	# not start in 1965, and a man who knows why the village hates him is playing a
 	# different game than one who does not. (WarFacts holds the rules for that file.)
-	var loading := ReconUI.make_screen_root()
+	var loading := ReconUI.make_screen_root(load("res://assets/ui/loading_bg.png"))
 	var lc := CenterContainer.new()
 	lc.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var col := VBoxContainer.new()

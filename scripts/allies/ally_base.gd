@@ -1422,12 +1422,15 @@ func _die() -> void:
 		# other model: explosion kill -> multi-gib + flung ragdoll; clean kill
 		# -> ragdoll (dead weight); gibbed kill -> death clip (ragdoll fallback).
 		var ma := sprite_actor as ModelActor
+		# Same contract as EnemyBase: `handled` means the body is on its way DOWN. A gib
+		# pass that cannot start a ragdoll strips the limbs and strands the torso in mid-air.
+		var handled: bool = false
 		if (_killed_explosive or GibSystem.force_all_gibs) and _visual_is_model and ma != null:
-			GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
+			handled = GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
 		elif _visual_is_model and ma != null and _removed.is_empty() \
 				and ma.start_ragdoll(last_hit_dir, 4.5):
-			pass
-		else:
+			handled = true
+		if not handled:
 			var to_attacker: Vector3 = -last_hit_dir
 			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
 			# A man who died LOW dies low: the authored crouch death outranks the
@@ -1441,14 +1444,15 @@ func _die() -> void:
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)
-			# GUARANTEED FLOOR (stuck-stagger fix): after the clip's fall, if the body
-			# never ragdolled, snap it flat so a janky/latched death clip cannot leave
-			# it standing or mid-stagger.
-			if _visual_is_model and ma != null:
-				var mac: ModelActor = ma
-				get_tree().create_timer(1.5).timeout.connect(func() -> void:
-					if is_instance_valid(mac) and not mac.has_ragdoll():
-						mac.settle_flat_corpse())
+		# GUARANTEED FLOOR (stuck-stagger fix): if the body never ragdolled, snap it flat so
+		# a janky/latched death clip cannot leave it standing or mid-stagger. Lifted out of
+		# the fallback so it covers the EXPLOSIVE deaths too - the ones most likely to
+		# strand a torso in the air.
+		if _visual_is_model and ma != null:
+			var mac: ModelActor = ma
+			get_tree().create_timer(1.5).timeout.connect(func() -> void:
+				if is_instance_valid(mac) and not mac.has_ragdoll():
+					mac.settle_flat_corpse())
 	elif mesh:
 		mesh.rotation_degrees.x = 90
 

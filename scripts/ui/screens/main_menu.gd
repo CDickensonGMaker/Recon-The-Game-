@@ -33,15 +33,15 @@ func _ready() -> void:
 	scrim.custom_minimum_size = Vector2(430, 0)
 	add_child(scrim)
 
-	# Left column content.
+	# Left column content. The key art now carries the title ("TOUR OF HELL:
+	# VIETNAM") baked in top-left, so the column starts below it instead of
+	# drawing a second, competing title over the art.
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	col.position = Vector2(56, 48)
+	col.position = Vector2(56, 220)
 	col.add_theme_constant_override("separation", 4)
 	add_child(col)
 
-	var title := ReconUI.make_label("RECON", 84, Color(0.88, 0.86, 0.78))
-	col.add_child(title)
 	col.add_child(ReconUI.make_label("OPEN PATROL SIMULATOR", 15, ReconUI.OLIVE))
 	col.add_child(ReconUI.make_label("VIETNAM FPS/RPG", 15, ReconUI.DIM))
 	var spacer := Control.new()
@@ -60,7 +60,8 @@ func _ready() -> void:
 	_add_menu_button(col, "OPTIONS", func() -> void: settings_pressed.emit())
 	_add_menu_button(col, "EXIT", func() -> void: get_tree().quit())
 
-	# Version tag, bottom-left (mockup).
+	# Version tag, bottom-left (mockup). RECON is the internal project name;
+	# TOUR OF HELL: VIETNAM is the external brand carried in the key art.
 	var version := ReconUI.make_label("v0.3 DEV\nRECON 1969 SYSTEMS", 11, ReconUI.DIM)
 	version.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	version.position = Vector2(56, -70)

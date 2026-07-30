@@ -64,6 +64,12 @@ const THROUGH_M: float = 4.0
 const ASSAULT_AFTER_BREACH_S: float = 6.0
 
 var _nav: NavBaker = null
+## Everything the navmesh is allowed to treat as an obstacle. The bake walks a collider
+## ROOT, and NAV_IGNORE_PREFIXES only skips vegetation and interior props - it has no idea
+## what a person is. Handed the whole scene it baked the player and every soldier in as
+## holes in the floor, and each new wave carved more: colliders 59 -> 133 -> 221 while
+## walkable polys FELL 107 -> 90 -> 87, the exact opposite of what a breach should do.
+var _targets_root: Node3D = null
 var _assault: Array[EnemyBase] = []
 var _assault_sent: bool = false
 var _breach_clock: float = -1.0
@@ -152,6 +158,9 @@ func _build_director() -> void:
 ## The lifting lives in FireSupportBench so this bench and the AI arena share ONE target
 ## vocabulary (ADR-023). Everything here is layout: one rank per kind, wire out front.
 func _build_targets() -> void:
+	_targets_root = Node3D.new()
+	_targets_root.name = "Targets"
+	add_child(_targets_root)
 	var built: Array[String] = []
 	var lane: int = 0
 	for spec in FireSupportBench.TARGET_KINDS:
@@ -175,7 +184,8 @@ func _build_targets() -> void:
 		for i in range(want):
 			var x: float = base_x + (float(i) - float(want - 1) * 0.5) * span
 			_walls.append(FireSupportBench.spawn_lifted(
-				self, meshes[i % meshes.size()], Vector3(x, 0.0, z), kind, int(spec["hp"])))
+				_targets_root, meshes[i % meshes.size()], Vector3(x, 0.0, z),
+				kind, int(spec["hp"])))
 		if not is_wire:
 			lane += 1
 		built.append("%d %s" % [want, kind])
@@ -228,7 +238,12 @@ func _build_nav() -> void:
 	var flat := FireSupportBench.BenchTerrain.new()
 	add_child(flat)
 	_nav.setup(flat)
-	_nav.queue_site_with_colliders(Vector3.ZERO, FIELD * 0.5, self)
+	# Quiets "TerrainManager not set" on every single destruction: the blast still scars
+	# nothing, because a bench has no heightmap, but the warning is not news.
+	DamageSystem.set_terrain_manager(flat)
+	# The TARGETS ONLY. The floor comes from the flat terrain sampler, so the ground body
+	# is not needed here either - and a man is never an obstacle.
+	_nav.queue_site_with_colliders(Vector3.ZERO, FIELD * 0.5, _targets_root)
 
 
 ## Men on the NEAR side, objective on the FAR side. THERE IS NO GATE IN THIS WALL, so every

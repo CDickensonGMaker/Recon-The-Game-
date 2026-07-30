@@ -108,7 +108,8 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 
 	# Give the station back, or three nights of stand-to fill every pit with ghosts and
 	# the fourth night's crew has nowhere to work.
-	var pit := ally.get_meta("mortar_pit", null) as MortarPit
+	# has_meta first: get_meta(key, null) reads as "no default given" and errors.
+	var pit := (ally.get_meta("mortar_pit") if ally.has_meta("mortar_pit") else null) as MortarPit
 	if pit != null and is_instance_valid(pit):
 		pit.release(str(ally.get_meta("mortar_station", "")))
 

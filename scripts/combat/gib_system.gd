@@ -105,9 +105,12 @@ const HEAD_POP_KILL: int = 60
 
 ## Explosion kill: pop 2-4 of whatever regions remain, then fling the ragdoll.
 ## `removed` is the caller's gone-region ledger; popped regions are appended.
-static func explosion_kill(model: ModelActor, removed: Array, dir: Vector3, parent: Node) -> void:
+## Returns whether the RAGDOLL took. The limbs come off either way, but a rig with no
+## ragdoll slot leaves the torso hanging in the pose it died in - the caller must know that
+## happened so it can put the body on the ground some other way.
+static func explosion_kill(model: ModelActor, removed: Array, dir: Vector3, parent: Node) -> bool:
 	if model == null:
-		return
+		return false
 	var to_pop: Array[String] = []
 	for r in ["ARM_L", "ARM_R", "LEG_L", "LEG_R", "HEAD"]:
 		if not removed.has(r):
@@ -117,7 +120,7 @@ static func explosion_kill(model: ModelActor, removed: Array, dir: Vector3, pare
 	for i in range(count):
 		if dismember(model, to_pop[i], dir + Vector3.UP * 0.5, parent):
 			removed.append(to_pop[i])
-	model.start_ragdoll(dir, 9.0)
+	return model.start_ragdoll(dir, 9.0)
 
 
 ## Pop a region off a ModelActor-rendered character. Returns false when the rig

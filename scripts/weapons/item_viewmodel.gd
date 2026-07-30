@@ -97,8 +97,8 @@ func has_clips() -> bool:
 	return _anim != null
 
 
-func has_clip(name: StringName) -> bool:
-	return _anim != null and _anim.has_animation(String(name))
+func has_clip(clip: StringName) -> bool:
+	return _anim != null and _anim.has_animation(String(clip))
 
 
 ## Bring the item up: draw, then settle into the idle when the draw finishes. With no draw
@@ -147,9 +147,9 @@ func play_action(clip: StringName = CLIP_ACTION) -> bool:
 func play_action_over(clip: StringName, duration_s: float) -> bool:
 	if _anim == null or not has_clip(clip) or duration_s <= 0.01:
 		return play_action(clip)
-	var len: float = _anim.get_animation(String(clip)).length
+	var clip_len: float = _anim.get_animation(String(clip)).length
 	_pending_idle = true
-	_anim.speed_scale = len / maxf(0.05, duration_s)
+	_anim.speed_scale = clip_len / maxf(0.05, duration_s)
 	_anim.play(String(clip))
 	if not _anim.animation_finished.is_connected(_on_finished):
 		_anim.animation_finished.connect(_on_finished)

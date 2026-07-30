@@ -6,7 +6,7 @@ signal back_pressed
 
 
 func _ready() -> void:
-	var root := ReconUI.make_screen_root()
+	var root := ReconUI.make_screen_root(load("res://assets/ui/service_record_bg.png"))
 	add_child(root)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var box := VBoxContainer.new()

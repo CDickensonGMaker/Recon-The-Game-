@@ -53,7 +53,7 @@ func _rank_word() -> String:
 
 
 func _ready() -> void:
-	var root := ReconUI.make_screen_root()
+	var root := ReconUI.make_screen_root(load("res://assets/ui/debrief_bg.png"))
 	add_child(root)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var outer := VBoxContainer.new()

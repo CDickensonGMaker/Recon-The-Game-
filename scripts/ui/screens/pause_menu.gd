@@ -27,7 +27,7 @@ func _ready() -> void:
 func build(in_mission: bool) -> void:
 	if _root != null:
 		_root.queue_free()
-	_root = ReconUI.make_screen_root()
+	_root = ReconUI.make_screen_root(load("res://assets/ui/pause_bg.png"))
 	_root.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_root)
 

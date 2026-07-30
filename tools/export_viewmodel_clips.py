@@ -25,7 +25,7 @@ Two supporting rules:
 
 Never saves the .blend.
 """
-import bpy, sys, os
+import bpy, sys, os, math
 from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
@@ -34,6 +34,9 @@ if len(argv) < 3:
 COLL, GUN, OUTNAME = argv[0], argv[1], argv[2]
 STRICT = '--strict' in argv[3:]
 GUN_ROOT = next((a.split('=', 1)[1] for a in argv[3:] if a.startswith('--root=')), None)
+ITEM = '--item' in argv[3:]
+ITEM_MARKERS = [m for m in next((a.split('=', 1)[1] for a in argv[3:]
+                                 if a.startswith('--markers=')), '').split(',') if m]
 REAL_LEN = float(next((a.split('=', 1)[1] for a in argv[3:] if a.startswith('--len=')), '0') or 0)
 OUT = rf"C:\Users\caleb\RECONgame\assets\player\viewmodels\{OUTNAME}_fp.glb"
 REVIEW_TRACK = "ZZ_REVIEW_ROW"
@@ -108,7 +111,10 @@ print("parts to bake:", [o.name for o in parts])
 if STRICT:
     if not parts:
         raise SystemExit(f"STRICT: {COLL} has zero bakeable parts - rig contract broken")
-    for src in (f"muzzle_{GUN}", f"sight_front_{GUN}", f"sight_rear_{GUN}"):
+    # An item is not a gun: it has no iron sights, so it declares its own markers
+    # in the manifest and those are what must exist.
+    for src in (ITEM_MARKERS if ITEM
+                else (f"muzzle_{GUN}", f"sight_front_{GUN}", f"sight_rear_{GUN}")):
         if bpy.data.objects.get(src) is None:
             raise SystemExit(f"STRICT: contract marker {src} missing")
     # SCALE GATE: the model's longest gun-local span must sit near the real weapon's
@@ -265,9 +271,9 @@ for o in objs:
 print("non-uniform scale applied on animated parts:", fixed or "none needed")
 
 # --- 5. contract marker names ------------------------------------------------
-for src, dst in ((f"muzzle_{GUN}", "MuzzlePoint"),
-                 (f"sight_front_{GUN}", "SightFront"),
-                 (f"sight_rear_{GUN}", "SightRear")):
+for src, dst in (() if ITEM else ((f"muzzle_{GUN}", "MuzzlePoint"),
+                                  (f"sight_front_{GUN}", "SightFront"),
+                                  (f"sight_rear_{GUN}", "SightRear"))):
     o = bpy.data.objects.get(src)
     if o:
         o.name = dst
@@ -312,6 +318,27 @@ for mat in mats:
     sock.default_value = col
     flattened.append((mat.name, [round(c, 3) for c in col[:3]]))
 print("procedural base colors flattened:", flattened or "none")
+
+# --- 5c. an item ships self-contained ----------------------------------------
+# A gun is wrapped by a hand-built .tscn carrying the 180-degree flip and the eye-height
+# offset. An item has NO wrapper (ItemViewmodel.create loads the GLB straight off disk),
+# so the GLB itself has to arrive in Godot's frame or the arms render a whole rig-row away
+# - RIG_* collections sit 4 m apart on Blender Y, and that offset is otherwise baked in.
+# Rotating 180 degrees about Blender Z composes with glTF's own (x, z, -y) into exactly the
+# basis the gun wrappers apply by hand: Blender -X -> Godot +X, Blender -Y -> Godot forward.
+if ITEM:
+    cam_head = rig.matrix_world @ rig.pose.bones['camera'].head
+    wrap = bpy.data.objects.new(f"{OUTNAME}_vm", None)
+    bpy.context.scene.collection.objects.link(wrap)
+    wrap.matrix_world = Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Translation(-cam_head)
+    for o in list(objs):
+        if o.parent is None:
+            o.parent = wrap
+            o.matrix_parent_inverse = Matrix.Identity(4)
+    objs.append(wrap)
+    bpy.context.view_layer.update()
+    print(f"item recentred: camera bone {tuple(round(v, 3) for v in cam_head)} -> origin, "
+          f"180deg Z into the Godot frame")
 
 # --- 6. export ---------------------------------------------------------------
 for o in bpy.data.objects:
