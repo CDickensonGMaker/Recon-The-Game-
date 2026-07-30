@@ -197,9 +197,14 @@ func _fire_vulcan() -> void:
 	if _vulcan_wd == null:
 		push_warning("[SPECTRE] %s missing - the battery has no weapon card" % VULCAN_WEAPON)
 		return
-	# The port side faces the orbit centre and already carries the 15-degree pylon bank, so
-	# the muzzle rides -basis.x and the guns point where the aircraft is leaning.
-	var muzzle: Vector3 = global_position - basis.x * 3.2 - basis.y * 0.9
+	# The port battery points at the orbit centre, and that direction is the flattened vector
+	# from the aircraft to the target - derived in WORLD space on purpose. The node's `basis` is
+	# LOCAL, and this ship is parented to the world, so reading a side off the basis would be
+	# silently wrong the day the world node carries a transform.
+	var inward: Vector3 = target - global_position
+	inward.y = 0.0
+	inward = inward.normalized() if inward.length() > 0.01 else Vector3.RIGHT
+	var muzzle: Vector3 = global_position + inward * 3.2 + Vector3(0.0, -0.9, 0.0)
 	var aim: Vector3 = _zone_point(1.0)
 	for i in range(VULCAN_ROUNDS_PER_TICK):
 		var dir: Vector3 = (aim - muzzle).normalized()
