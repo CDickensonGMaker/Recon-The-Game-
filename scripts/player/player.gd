@@ -116,6 +116,16 @@ const BREATH_DRAIN: float = 30.0
 const BREATH_REGEN: float = 22.0
 var is_holding_breath: bool = false
 
+## SPENT LUNGS LOCK OUT. Gating the hold on `breath_meter > 0.0` alone let the meter empty, regen
+## one frame's worth, and be held again immediately - so leaning on Shift gave a permanent steady
+## sight for the cost of a stutter. A man who has emptied his lungs does not get another breath by
+## trying harder: once spent, Shift does nothing until the meter is FULL again.
+var _breath_spent: bool = false
+## The gasp when the hold breaks. There is no breath audio in the project yet, so this resolves to
+## null and the break is silent until a file lands at this path - no code change needed then.
+const BREATH_BREAK_SFX: String = "res://assets/audio/sfx/player/breath_break.wav"
+var _breath_sfx: AudioStream = null
+
 ## Suppression 0..1: near-miss enemy rounds drive it up, and it decays FASTER
 ## while prone/crouched. Drives the screen shader, camera shake and audio muffle.
 var suppression: float = 0.0
@@ -138,12 +148,35 @@ var _supp_lowpass_idx: int = -1
 
 func _update_hold_breath(delta: float) -> void:
 	var want: bool = Input.is_action_pressed("hold_breath") and weapon_holder \
-		and weapon_holder.is_aiming and breath_meter > 0.0
+		and weapon_holder.is_aiming and breath_meter > 0.0 and not _breath_spent
 	is_holding_breath = want
 	if want:
 		breath_meter = maxf(0.0, breath_meter - BREATH_DRAIN * delta)
+		if breath_meter <= 0.0:
+			# The hold BROKE. Locked out from here until the meter reads full again.
+			_breath_spent = true
+			is_holding_breath = false
+			_play_breath_break()
 	else:
 		breath_meter = minf(BREATH_MAX, breath_meter + BREATH_REGEN * delta)
+		# FULL, not "some". A partial recovery re-arming the hold is the same feathering
+		# exploit with a longer stutter.
+		if _breath_spent and breath_meter >= BREATH_MAX:
+			_breath_spent = false
+
+
+func _play_breath_break() -> void:
+	if _breath_sfx == null:
+		_breath_sfx = load(BREATH_BREAK_SFX) as AudioStream
+	if _breath_sfx == null:
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = _breath_sfx
+	p.volume_db = -6.0
+	p.pitch_scale = randf_range(0.96, 1.05)
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
 
 
 func _update_binoculars(delta: float) -> void:
