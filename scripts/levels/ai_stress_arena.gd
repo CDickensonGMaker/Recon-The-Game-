@@ -70,11 +70,13 @@ const FORT_LINE_X: float = -30.0        ## the line runs along Z at this X (play
 const FORT_LINE_Z0: float = 18.0
 const FORT_LINE_Z1: float = 52.0
 const FORT_SEG_LEN: float = 2.6
-const FORT_SANDBAG_HP: int = 120
-const FORT_WIRE_HP: int = 70
-const BARBWIRE_MODEL: String = "res://assets/world/building models/structures/emplacements_real/barbwire_tangle.glb"
-const FORT_BUNKER_MODEL: String = "res://assets/world/building models/structures/bunker.glb"
-const FORT_BUNKER_HP: int = 220
+## HP per fort kind. Matches FireSupportBench.TARGET_KINDS so the arena and the sapper bench
+## grade the same art the same way; the shipped parapet's 140 is the datum.
+const FORT_HP: Dictionary = {
+	"sandbag_wall": 140, "wire": 60, "bunker": 260, "bunker_mg": 260, "tower": 180,
+}
+## How many distinct meshes of each kind to lift, so the line is not one mesh repeated.
+const FORT_MESH_VARIANTS: int = 4
 const ARENA_SAPPER_COUNT: int = 3
 const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he sees it happen
 ## THE SIEGE AT THE WIRE. Full d50 strength on demand, so the mass assault can be
@@ -274,7 +276,8 @@ var _dbg_mesh: MeshInstance3D = null
 var _dbg_im: ImmediateMesh = null
 
 ## Fortification / sapper / fire-support testbed state.
-var _forts: Array[Node3D] = []          ## live DestructibleFortification segments
+var _forts: Array[Node3D] = []          ## live Destructible fort segments
+var _fort_mesh_pool: Dictionary = {}    ## kind -> Array[Mesh] lifted from the shipped GLBs
 var _field_director: FieldDirector = null  ## the bench director (FireSupportBench.wire)
 var _siege: SiegeDirector = null           ## [J] drives a full-strength assault at the wire
 var _sapper_auto_t: float = SAPPER_AUTO_DELAY
@@ -1264,20 +1267,20 @@ func _spawn_player_rto() -> void:
 ## ---------- FORTIFICATION TESTBED ----------
 
 func _build_fortifications() -> void:
+	_load_fort_meshes()
 	# A forward wire+sandbag line, alternating segments, that the sappers breach.
 	var z: float = FORT_LINE_Z0
 	var i: int = 0
 	while z <= FORT_LINE_Z1 + 0.01:
 		var pos := Vector3(FORT_LINE_X, 0.0, z)
-		if i % 2 == 0:
-			_spawn_fort_sandbag(pos)
-		else:
-			_spawn_fort_wire(pos)
+		_spawn_fort(pos, "sandbag_wall" if i % 2 == 0 else "wire")
 		z += FORT_SEG_LEN
 		i += 1
-	# Two bunkers anchor the line as tougher demolition targets (sapper variety).
-	_spawn_fort_bunker(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z0 + 4.0))
-	_spawn_fort_bunker(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z1 - 4.0))
+	# Two bunkers anchor the line as tougher demolition targets (sapper variety), and a
+	# watchtower behind it - the tallest thing a satchel has to be able to bring down.
+	_spawn_fort(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z0 + 4.0), "bunker")
+	_spawn_fort(Vector3(FORT_LINE_X - 2.0, 0.0, FORT_LINE_Z1 - 4.0), "bunker_mg")
+	_spawn_fort(Vector3(FORT_LINE_X - 6.0, 0.0, (FORT_LINE_Z0 + FORT_LINE_Z1) * 0.5), "tower")
 	# Two mannable M60 posts, both facing downrange (east) where the sappers cross:
 	# the NORTH nest stands up its own AI gun crew, the SOUTH nest waits for the
 	# player - one testbed, both manning paths (Phase 4).
@@ -1286,82 +1289,36 @@ func _build_fortifications() -> void:
 	print("[AI STRESS ARENA] fortifications: %d destructible segments + 2 mannable M60 nests" % _forts.size())
 
 
-func _spawn_fort_sandbag(pos: Vector3) -> void:
-	var fort := Destructible.new()
-	fort.kind = "sandbag"
-	fort.hp = FORT_SANDBAG_HP
-	fort.collision_layer = 1
-	fort.collision_mask = 0
+## Lift each kind's art ONCE. The lifter instantiates a 300 MB GLB per call, so the 14-segment
+## line must not call it 14 times.
+func _load_fort_meshes() -> void:
+	_fort_mesh_pool.clear()
+	for spec in FireSupportBench.TARGET_KINDS:
+		var kind: String = str(spec["kind"])
+		if not FORT_HP.has(kind):
+			continue
+		var meshes: Array[Mesh] = FireSupportBench.lift_meshes(
+			str(spec["prefix"]), FORT_MESH_VARIANTS, str(spec["src"]))
+		if meshes.is_empty():
+			push_warning("[AI STRESS ARENA] no '%s' art - that fort kind is missing from the line"
+				% str(spec["prefix"]))
+			continue
+		_fort_mesh_pool[kind] = meshes
+
+
+## One fort piece. The art MUST be the firebase's own, lifted through FireSupportBench: a
+## bench that proves a stand-in breaks has proved nothing about the thing that has to break.
+func _spawn_fort(pos: Vector3, kind: String) -> void:
+	var meshes: Array[Mesh] = _fort_mesh_pool.get(kind, [] as Array[Mesh])
+	if meshes.is_empty():
+		return
+	# Vary the piece so a 14-segment line is not one mesh repeated (deterministic: index,
+	# never Time - ADR-010).
+	var mesh: Mesh = meshes[_forts.size() % meshes.size()]
+	var fort: Destructible = FireSupportBench.spawn_lifted(
+		self, mesh, pos, kind, int(FORT_HP.get(kind, 140)))
 	fort.add_to_group("nav_source")
 	fort.add_to_group("arena_fortification")
-	var size := Vector3(0.9, 1.1, FORT_SEG_LEN)
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.55, 0.50, 0.40)
-	mi.material_override = mat
-	fort.add_child(mi)
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = size
-	cs.shape = box
-	fort.add_child(cs)
-	add_child(fort)
-	fort.global_position = pos + Vector3(0, size.y * 0.5, 0)
-	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
-	_forts.append(fort)
-
-
-func _spawn_fort_wire(pos: Vector3) -> void:
-	var fort := Destructible.new()
-	fort.kind = "wire"
-	fort.hp = FORT_WIRE_HP
-	fort.collision_layer = 1
-	fort.collision_mask = 0
-	fort.add_to_group("nav_source")
-	fort.add_to_group("arena_fortification")
-	if ResourceLoader.exists(BARBWIRE_MODEL):
-		var packed: PackedScene = load(BARBWIRE_MODEL)
-		var vis := packed.instantiate() as Node3D
-		if vis != null:
-			vis.rotation.y = PI * 0.5  # lay the alpha card along the Z line
-			fort.add_child(vis)
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.5, 0.9, FORT_SEG_LEN)
-	cs.shape = box
-	cs.position.y = 0.45
-	fort.add_child(cs)
-	add_child(fort)
-	fort.global_position = pos
-	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
-	_forts.append(fort)
-
-
-func _spawn_fort_bunker(pos: Vector3) -> void:
-	var fort := Destructible.new()
-	fort.kind = "bunker"
-	fort.hp = FORT_BUNKER_HP
-	fort.collision_layer = 1
-	fort.collision_mask = 0
-	fort.add_to_group("nav_source")
-	fort.add_to_group("arena_fortification")
-	if ResourceLoader.exists(FORT_BUNKER_MODEL):
-		var packed: PackedScene = load(FORT_BUNKER_MODEL)
-		var vis := packed.instantiate() as Node3D
-		if vis != null:
-			fort.add_child(vis)
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(3.0, 2.2, 3.0)
-	cs.shape = box
-	cs.position.y = 1.1
-	fort.add_child(cs)
-	add_child(fort)
-	fort.global_position = pos
-	AgentRegistry.register(fort, AgentRegistry.Kind.PROP)
 	_forts.append(fort)
 
 

@@ -34,6 +34,88 @@ class BenchTerrain extends TerrainManager:
 ## scripts/world/destructible.gd. spawn_fort() below builds one; there is no second path.
 
 
+## THE REAL FIREBASE ART, NOT A STAND-IN. A bench that proves a grey box breaks has proved
+## nothing about the thing that has to break. Both benches lift their targets out of the
+## shipped GLBs through here, so there is ONE lifter and no second target vocabulary.
+const FSB_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
+## The wire is NOT taken from the firebase: gen_firebase_v3 bakes all ~450 cards into one
+## merged `bwire_card_ring` measuring 230 x 4 x 169 m, and a box hull off that AABB is a
+## map-sized wall. This is the single card the ring is built from.
+const WIRE_PATH: String = "res://assets/us/props/emplacements/barbwire_card.glb"
+
+## prefix -> [kind, hp, source]. HP is a first pass to tune by eye; the satchel does 250 at
+## the centre and 70 at its 14 m edge, and the shipped parapet's 140 is the datum.
+const TARGET_KINDS: Array[Dictionary] = [
+	{"prefix": "fb_sbg_seg_", "kind": "sandbag_wall", "hp": 140, "src": "fsb"},
+	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "hp": 90, "src": "fsb"},
+	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "hp": 260, "src": "fsb"},
+	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "hp": 260, "src": "fsb"},
+	{"prefix": "fb_tower_i", "kind": "tower", "hp": 180, "src": "fsb"},
+	{"prefix": "bwire_card", "kind": "wire", "hp": 60, "src": "wire"},
+]
+
+
+## Pull up to `want` authored meshes whose name starts with `prefix` out of the shipped GLB.
+## Returns duplicated meshes, never the instantiated nodes: the caller stands its own
+## Destructibles up and the source instance is freed here, so nothing leaks a 100 m-away
+## transform or a second collider into the bench.
+static func lift_meshes(prefix: String, want: int, src: String = "fsb") -> Array[Mesh]:
+	var out: Array[Mesh] = []
+	var path: String = WIRE_PATH if src == "wire" else FSB_PATH
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null:
+		push_error("[BENCH] %s missing - cannot lift '%s' targets" % [path, prefix])
+		return out
+	var inst := packed.instantiate() as Node3D
+	var stack: Array[Node] = [inst]
+	while not stack.is_empty() and out.size() < want:
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var nm := String(mi.name)
+		# `-colonly` nodes are Godot's import-time collision proxies, never renderable art.
+		if not nm.begins_with(prefix) or nm.contains("-colonly"):
+			continue
+		out.append(mi.mesh)
+	inst.free()
+	return out
+
+
+## Stand one lifted mesh up as a Destructible on the blast bus. The collider is a box from
+## the mesh's own AABB — the shipped firebase gives these a box hull anyway, and a bench
+## tests DESTRUCTION, not shot-through-the-slit geometry.
+##
+## The AABB CENTRE is what gets registered, not the mesh origin: combat_manager.gd:176-185
+## damages a prop on a pure radius test against global_position with no LOS and no bounds
+## check, so a 9.6 m tower keyed off its foot is spared by a blast that visibly engulfs it.
+static func spawn_lifted(host: Node, mesh: Mesh, at: Vector3, kind: String, hp: int) -> Destructible:
+	var box: AABB = mesh.get_aabb()
+	var centre: Vector3 = box.position + box.size * 0.5
+	var d := Destructible.new()
+	d.kind = kind
+	d.hp = hp
+	d.collision_layer = 1
+	d.collision_mask = 0
+	host.add_child(d)
+	# `at` is where the caller wants the piece to STAND: centred horizontally, base on the
+	# ground. The node itself sits at the AABB centre, half the mesh's height above that.
+	d.global_position = Vector3(at.x, at.y + box.size.y * 0.5, at.z)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = -centre      # mesh AABB centre onto the node origin
+	d.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = box.size
+	cs.shape = shape
+	d.add_child(cs)
+	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
+	return d
+
+
 ## Build the rig as children of `host`, wire the RTO net (needs a "radioman" already in the
 ## tree), stock every tier including WP, and return the live FieldDirector. The caller
 ## connects director.toast to its own readout.

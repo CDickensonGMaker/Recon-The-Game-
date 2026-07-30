@@ -249,8 +249,12 @@ static var _squad_last_roll_ms: float = -1.0e9
 var _last_roll_ms: float = -1.0e9
 var _cover_rush_dist: float = 0.0
 var _cover_arrivals: int = 0
-const COVER_HOLD_CLIPS: Array[String] = ["idle_crouching_aiming", "kneeling_pointing", "idle_crouching", "rifle_aiming_idle"]
-const COVER_PEEK_CLIPS: Array[String] = ["idle_aiming", "rifle_aiming_idle", "firing_rifle"]
+## The dedicated cover clips lead; the generic crouches stay behind them so a rig that
+## has not been re-exported still answers. play_first() takes the first the rig CARRIES.
+const COVER_HOLD_CLIPS: Array[String] = ["cover_wall_lean_idle", "cover_kneel_brace",
+	"idle_crouching_aiming", "kneeling_pointing", "idle_crouching", "rifle_aiming_idle"]
+const COVER_PEEK_CLIPS: Array[String] = ["cover_peek", "cover_slice_pie",
+	"idle_aiming", "rifle_aiming_idle", "firing_rifle"]
 const RUSH_CLIPS: Array[String] = ["sprint_forward", "run_forward", "start_walking"]
 ## The clip THIS rush wears, picked once at rush start so the whole set gets play.
 var _rush_clip: String = ""
@@ -374,6 +378,31 @@ func _is_low_posture(_firing: bool) -> bool:
 	return CombatPosture.decide(current_state, suppression_level, _near_cover()) == CombatPosture.Posture.CROUCH
 
 
+## A man standing his crew station WORKS it. GarrisonDefender._claim_mortar_station stamps
+## which station he took; these are the harvested crew clips off the staging scene, so the
+## gunner lays the tube and the runner brings rounds instead of all three holding a rifle.
+const CREW_STATION_CLIPS: Dictionary = {
+	"station_gunner": "mortar_gunner",
+	"station_dropper": "mortar_dropper",
+	"station_runner": "mortar_runner",
+}
+## Working the tube only reads while he is AT it and still; walking there is locomotion.
+const CREW_AT_STATION_M: float = 1.8
+
+
+func _play_crew_station(speed: float) -> bool:
+	if not (sprite_actor is ModelActor) or target != null or speed > 0.35:
+		return false
+	var station: String = str(get_meta("mortar_station", ""))
+	if station == "" or not CREW_STATION_CLIPS.has(station):
+		return false
+	if post_anchor == Vector3.ZERO \
+			or global_position.distance_to(post_anchor) > CREW_AT_STATION_M:
+		return false
+	(sprite_actor as ModelActor).play(str(CREW_STATION_CLIPS[station]))
+	return true
+
+
 func _near_cover() -> bool:
 	return has_cover or (_moving_to_cover \
 		and global_position.distance_to(current_cover) <= CombatPosture.COVER_CROUCH_RANGE)
@@ -411,6 +440,8 @@ func _update_sprite() -> void:
 	if _anim_override != "" and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play(_anim_override)
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
+		return
+	if _play_crew_station(speed):
 		return
 	_low_posture = _is_low_posture(firing)
 	# Sneak family: the quiet move to cover BEFORE contact. Allies have no alert

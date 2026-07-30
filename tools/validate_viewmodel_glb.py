@@ -50,25 +50,31 @@ def validate(gltf, spec, label):
     for i, n in enumerate(nodes):
         byname.setdefault(n.get("name", ""), i)
 
-    if spec["gun_root"] not in byname:
-        errs.append(f"gun root {spec['gun_root']} missing")
+    # A non-gun ITEM (knife, handset, claymore, grenade) has a root and clips like a gun
+    # but no iron sights, so it names its own required markers. Everything else below -
+    # the clip set, the shear rule, the per-part channel law - is identical and must stay
+    # identical: an item that silently holds a part's last pose is the same bug.
+    root_key = "gun_root" if "gun_root" in spec else "item_root"
+    markers = tuple(spec.get("markers", MARKERS))
+    if spec.get(root_key) not in byname:
+        errs.append(f"root {spec.get(root_key)} missing")
 
     clips = {a.get("name", "?") for a in gltf.get("animations", [])}
     want = set(spec["clips"])
     if clips != want:
         errs.append(f"clip set mismatch: missing={sorted(want - clips)} extra={sorted(clips - want)}")
 
-    for m in MARKERS:
+    for m in markers:
         if m not in byname:
             errs.append(f"marker {m} missing")
-    if spec.get("markers_under_gun") and spec["gun_root"] in byname:
-        under = descendants(gltf, byname[spec["gun_root"]])
-        for m in MARKERS:
+    if spec.get("markers_under_gun") and spec.get(root_key) in byname:
+        under = descendants(gltf, byname[spec[root_key]])
+        for m in markers:
             i = byname.get(m)
             if i is None:
                 continue
             if i not in under:
-                errs.append(f"marker {m} is not a descendant of {spec['gun_root']} (the 2026-07-25 break shape)")
+                errs.append(f"marker {m} is not a descendant of {spec[root_key]} (the 2026-07-25 break shape)")
             else:
                 t = nodes[i].get("translation", [0, 0, 0])
                 if max(abs(v) for v in t) > 1.5:
@@ -161,7 +167,8 @@ def main():
     man = json.load(open(MANIFEST))
     only = [a for a in args if not a.startswith("-")]
     ok = True
-    for gun, spec in man["guns"].items():
+    entries = list(man["guns"].items()) + list(man.get("items", {}).items())
+    for gun, spec in entries:
         if only and gun not in only:
             continue
         path = os.path.join(ROOT, man["output_dir"], f"{gun}_fp.glb")
@@ -170,11 +177,12 @@ def main():
             ok = False
             continue
         ok = validate(parse_glb(path), spec, f"{gun} ({os.path.basename(path)})") and ok
-    if "--no-timers" not in args:
+    gun_only = [g for g in only if g in man["guns"]] if only else []
+    if "--no-timers" not in args and not (only and not gun_only):
         sys.path.insert(0, os.path.join(ROOT, "tools"))
         import subprocess
         t = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "sync_weapon_timers.py"),
-                            "--check"] + only, capture_output=True, text=True)
+                            "--check"] + gun_only, capture_output=True, text=True)
         if t.returncode != 0:
             print((t.stdout + t.stderr).rstrip())
             ok = False

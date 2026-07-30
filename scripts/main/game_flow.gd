@@ -245,21 +245,24 @@ func _dev_sapper_run() -> bool:
 	if director == null or world == null:
 		print("[SAPPER-DEV] no world yet")
 		return true
-	# A real parapet segment, chosen as the one nearest the player so he can watch it go.
-	var target: Node3D = null
+	# Any standing structure on the bus - parapet, bunker, tower - chosen as the one nearest
+	# the player so he can watch it go. is_destroyed() is the test, not is_instance_valid:
+	# _do_destroy never frees the node, so a blown structure stays "valid" forever.
+	var target: Destructible = null
 	var best: float = INF
 	var eye: Vector3 = world.player.global_position if world.player != null else director.fsb_center
 	for p in AgentRegistry.props:
 		var d := p as Destructible
-		if d == null or not is_instance_valid(d) or d.kind != "sandbag_wall":
+		if d == null or not is_instance_valid(d) or d.is_destroyed():
 			continue
 		var dist: float = d.global_position.distance_to(eye)
 		if dist < best:
 			best = dist
 			target = d
 	if target == null:
-		print("[SAPPER-DEV] no sandbag Destructible on the bus - the parapet is not wired")
+		print("[SAPPER-DEV] no standing Destructible on the bus - the firebase is not wired")
 		return true
+	print("[SAPPER-DEV] target: %s at %.0fm" % [target.kind, best])
 	# Stand them off OUTSIDE the wire, on the bearing from the compound centre through the
 	# target, so the run crosses the wire and the berm exactly as a real breach would.
 	var out: Vector3 = target.global_position - director.fsb_center

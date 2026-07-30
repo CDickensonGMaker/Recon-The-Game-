@@ -347,6 +347,15 @@ func _animate() -> void:
 ## a man standing his post holds a rifle, and `idle`/`walk_forward` are the
 ## rifleman clips. Off-post actions fall back to the unarmed loafing poses.
 func _play_garrison(want: String) -> void:
+	# The quartermaster's whole job is moving crates, and the library has carried
+	# `cargo_carry` / `cargo_unload_stack` with no caller since they landed.
+	if occupation == "quartermaster":
+		if want == "walking_unarmed":
+			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
+			return
+		if want == "stooped":
+			actor.play_first(["cargo_unload_stack", "idle_unarmed_3", "idle"])
+			return
 	match want:
 		"running_unarmed":
 			actor.play_first(["run_forward", "running_unarmed"])

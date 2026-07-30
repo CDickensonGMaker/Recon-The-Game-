@@ -1,392 +1,484 @@
 {
-  "_doc": "FP viewmodel export contract. One entry per gun that ships clips. Names are API (research doc production/research/blender_godot_fp_pipeline_2026-07-25.md section 2.3): renaming an object, marker or NLA track here or in the .blend is a breaking change. Driver: tools/export_all_viewmodels.py. Validator: tools/validate_viewmodel_glb.py. Godot-side probe: tests/test_viewmodel_contract.tscn. Gameplay timers in weapon_tres are kept equal to the authored clip lengths by tools/sync_weapon_timers.py, which the export driver runs; validate_viewmodel_glb.py --check-timers fails on drift.",
-  "_contacts_doc": "Marker/rail contract (war_room/2026-07-27_viewmodel_pipeline_v2): 'contacts' maps a contact-marker empty to the part it is parented to. A hand that manipulates a part is posed TO its marker, never eyeballed in free space; sliding parts keep origin-at-home 1-DOF rails. tools/audit_viewmodel_rigs.py measures hand-to-marker closest approach per clip and flags a reach that never closes to a true grab (FAKED IN AIR).",
-  "blend": "assets/player/arms/fp_arms_rifle.blend",
-  "output_dir": "assets/player/viewmodels",
-  "_staged_doc": "2026-07-27 transplant (tools/transplant_armory_parts.py): every fused gun copy replaced by its armory assembly with split moving parts + contact markers. When a gun below joins 'guns', move its entry's contacts map in and declare its parts. Rails clamped where travel is recorded: Ithaca37_pump x[0,0.045], M72_LAW_inner_tube x[0,0.230].",
-  "staged_contacts": {
-    "m70": {
-      "contact_bolt_M70sniper": "M70_bolt"
-    },
-    "colt45": {
-      "contact_slide_Colt45_Pistol": "Colt45_slide",
-      "contact_mag_Colt45_Pistol": "Colt45_magfloor"
-    },
-    "ithaca": {
-      "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
-    },
-    "m60": {
-      "contact_chandle_M60_MG": "M60_chandle_charge_handle",
-      "contact_feedcover_M60_MG": "M60_feedcover"
-    },
-    "thompson": {
-      "contact_chandle_Thompson_Submachine_Gun": "Thompson_charge_handle",
-      "contact_drum_Thompson_Submachine_Gun": "Thompson_drum"
-    },
-    "m72_law": {
-      "contact_tube_M72_LAW": "M72_LAW_inner_tube"
-    },
-    "m79": {
-      "contact_barrel_M79_Launcher": "M79_barrel"
-    },
-    "mosin": {
-      "contact_bolt_Mosin": "Mosin_boltknob"
-    },
-    "rpd": {
-      "contact_chandle_RPD": "RPD_chandle",
-      "contact_drum_RPD": "RPD_drum"
-    },
-    "rpg2": {
-      "contact_rocket_RPG2": "RPG2_pg2_boom"
-    },
-    "rpg7": {
-      "contact_rocket_RPG7": "RPG7_pg7_body"
-    }
+ "_doc": "FP viewmodel export contract. One entry per gun that ships clips. Names are API (research doc production/research/blender_godot_fp_pipeline_2026-07-25.md section 2.3): renaming an object, marker or NLA track here or in the .blend is a breaking change. Driver: tools/export_all_viewmodels.py. Validator: tools/validate_viewmodel_glb.py. Godot-side probe: tests/test_viewmodel_contract.tscn. Gameplay timers in weapon_tres are kept equal to the authored clip lengths by tools/sync_weapon_timers.py, which the export driver runs; validate_viewmodel_glb.py --check-timers fails on drift.",
+ "_contacts_doc": "Marker/rail contract (war_room/2026-07-27_viewmodel_pipeline_v2): 'contacts' maps a contact-marker empty to the part it is parented to. A hand that manipulates a part is posed TO its marker, never eyeballed in free space; sliding parts keep origin-at-home 1-DOF rails. tools/audit_viewmodel_rigs.py measures hand-to-marker closest approach per clip and flags a reach that never closes to a true grab (FAKED IN AIR).",
+ "blend": "assets/player/arms/fp_arms_rifle.blend",
+ "output_dir": "assets/player/viewmodels",
+ "_staged_doc": "2026-07-27 transplant (tools/transplant_armory_parts.py): every fused gun copy replaced by its armory assembly with split moving parts + contact markers. When a gun below joins 'guns', move its entry's contacts map in and declare its parts. Rails clamped where travel is recorded: Ithaca37_pump x[0,0.045], M72_LAW_inner_tube x[0,0.230].",
+ "staged_contacts": {
+  "m70": {
+   "contact_bolt_M70sniper": "M70_bolt"
   },
-  "guns": {
-    "m16": {
-      "collection": "RIG_M16A1",
-      "gun_prefix": "M16A1",
-      "gun_root": "M16A1_gun",
-      "real_length_m": 0.986,
-      "weapon_tres": "data/weapons/m16a1.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M16A1_magazine.030",
-        "M16A1_charge_handle_slide_back",
-        "M16A1_port_cover",
-        "M16A1_gun"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_chandle_M16A1": "M16A1_charge_handle_slide_back",
-        "contact_mag_M16A1": "M16A1_magazine.030"
-      }
-    },
-    "ak": {
-      "collection": "RIG_AK47",
-      "gun_prefix": "AK47",
-      "gun_root": "AK47_root",
-      "real_length_m": 0.88,
-      "weapon_tres": "data/weapons/ak47.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "AK47_mag",
-        "AK47_bolt",
-        "AK47_root"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_bolt_AK47": "AK47_bolt",
-        "contact_mag_AK47": "AK47_mag"
-      }
-    },
-    "ppsh": {
-      "collection": "RIG_PPSh41",
-      "gun_prefix": "PPSh41",
-      "gun_root": "PPSh41",
-      "real_length_m": 0.843,
-      "weapon_tres": "data/weapons/ppsh41.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "PPSh41",
-        "PPSh41_gun.006"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_drum_PPSh41": "PPSh41_gun.006"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py); drum = PPSh41_gun.006. NO charge_handle: the bolt is not split, so a charging clip would move nothing and read as faked in air."
-    },
-    "m14": {
-      "collection": "RIG_M14",
-      "gun_prefix": "M14",
-      "gun_root": "M14_root",
-      "real_length_m": 1.126,
-      "weapon_tres": "data/weapons/m14.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M14_chandle",
-        "M14_root",
-        "M14_clip.034"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_oprod_M14": "M14_chandle",
-        "contact_clip_M14": "M14_clip.034"
-      },
-      "_note": "clips RETARGETED 2026-07-28; the op-rod carries no LIMIT_LOCATION rail, so its 86 mm throw is declared in retarget_ref_anim.py and applied along the bore."
-    },
-    "rpd": {
-      "collection": "RIG_RPD",
-      "gun_prefix": "RPD",
-      "gun_root": "RPD",
-      "real_length_m": 1.037,
-      "weapon_tres": "data/weapons/rpd.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "RPD",
-        "RPD_drum",
-        "RPD_chandle"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_drum_RPD": "RPD_drum",
-        "contact_chandle_RPD": "RPD_chandle"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "colt45": {
-      "collection": "RIG_Colt45_Pistol",
-      "gun_prefix": "Colt45_Pistol",
-      "gun_root": "Colt45_Pistol_root",
-      "real_length_m": 0.219,
-      "weapon_tres": "data/weapons/m1911.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "Colt45_Pistol_root",
-        "Colt45_magfloor",
-        "Colt45_slide"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_mag_Colt45_Pistol": "Colt45_magfloor",
-        "contact_slide_Colt45_Pistol": "Colt45_slide"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "m60": {
-      "collection": "RIG_M60_MG",
-      "gun_prefix": "M60_MG",
-      "gun_root": "M60_MG_root",
-      "real_length_m": 1.105,
-      "weapon_tres": "data/weapons/m60.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M60_MG_root",
-        "M60_chandle_charge_handle"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_chandle_M60_MG": "M60_chandle_charge_handle"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "mosin": {
-      "collection": "RIG_Mosin",
-      "gun_prefix": "Mosin",
-      "gun_root": "Mosin",
-      "real_length_m": 1.232,
-      "weapon_tres": "data/weapons/mosin.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "Mosin",
-        "Mosin_boltknob"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_bolt_Mosin": "Mosin_boltknob"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "m70": {
-      "collection": "RIG_M70sniper",
-      "gun_prefix": "M70sniper",
-      "gun_root": "M70sniper_root",
-      "real_length_m": 1.118,
-      "weapon_tres": "data/weapons/m70.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M70sniper_root",
-        "M70_bolt"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_bolt_M70sniper": "M70_bolt"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "ithaca": {
-      "collection": "RIG_Ithaca37_Shotgun",
-      "gun_prefix": "Ithaca37_Shotgun",
-      "gun_root": "Ithaca37_Shotgun_root",
-      "real_length_m": 1.003,
-      "weapon_tres": "data/weapons/shotgun.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "Ithaca37_Shotgun_root",
-        "Ithaca37_pump"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "m79": {
-      "collection": "RIG_M79_Launcher",
-      "gun_prefix": "M79_Launcher",
-      "gun_root": "M79_Launcher_root",
-      "real_length_m": 0.731,
-      "weapon_tres": "data/weapons/m79.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M79_Launcher_root",
-        "M79_barrel"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_barrel_M79_Launcher": "M79_barrel"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "m72_law": {
-      "collection": "RIG_M72_LAW",
-      "gun_prefix": "M72_LAW",
-      "gun_root": "M72_LAW_root",
-      "real_length_m": 0.631,
-      "weapon_tres": "data/weapons/m72_law.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "M72_LAW_root",
-        "M72_LAW_inner_tube"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_tube_M72_LAW": "M72_LAW_inner_tube"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "rpg2": {
-      "collection": "RIG_RPG2",
-      "gun_prefix": "RPG2",
-      "gun_root": "RPG2",
-      "real_length_m": 0.95,
-      "weapon_tres": "data/weapons/rpg2.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "RPG2",
-        "RPG2_pg2_boom"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_rocket_RPG2": "RPG2_pg2_boom"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    },
-    "rpg7": {
-      "collection": "RIG_RPG7",
-      "gun_prefix": "RPG7",
-      "gun_root": "RPG7",
-      "real_length_m": 0.95,
-      "weapon_tres": "data/weapons/rpg7.tres",
-      "clips": [
-        "rifle_idle",
-        "reload",
-        "reload_empty",
-        "charge_handle",
-        "fire",
-        "jam"
-      ],
-      "parts": [
-        "RPG7",
-        "RPG7_pg7_body"
-      ],
-      "markers_under_gun": true,
-      "contacts": {
-        "contact_rocket_RPG7": "RPG7_pg7_body"
-      },
-      "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
-    }
+  "colt45": {
+   "contact_slide_Colt45_Pistol": "Colt45_slide",
+   "contact_mag_Colt45_Pistol": "Colt45_magfloor"
+  },
+  "ithaca": {
+   "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
+  },
+  "m60": {
+   "contact_chandle_M60_MG": "M60_chandle_charge_handle",
+   "contact_feedcover_M60_MG": "M60_feedcover"
+  },
+  "thompson": {
+   "contact_chandle_Thompson_Submachine_Gun": "Thompson_charge_handle",
+   "contact_drum_Thompson_Submachine_Gun": "Thompson_drum"
+  },
+  "m72_law": {
+   "contact_tube_M72_LAW": "M72_LAW_inner_tube"
+  },
+  "m79": {
+   "contact_barrel_M79_Launcher": "M79_barrel"
+  },
+  "mosin": {
+   "contact_bolt_Mosin": "Mosin_boltknob"
+  },
+  "rpd": {
+   "contact_chandle_RPD": "RPD_chandle",
+   "contact_drum_RPD": "RPD_drum"
+  },
+  "rpg2": {
+   "contact_rocket_RPG2": "RPG2_pg2_boom"
+  },
+  "rpg7": {
+   "contact_rocket_RPG7": "RPG7_pg7_body"
   }
+ },
+ "guns": {
+  "m16": {
+   "collection": "RIG_M16A1",
+   "gun_prefix": "M16A1",
+   "gun_root": "M16A1_gun",
+   "real_length_m": 0.986,
+   "weapon_tres": "data/weapons/m16a1.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M16A1_magazine.030",
+    "M16A1_charge_handle_slide_back",
+    "M16A1_port_cover",
+    "M16A1_gun"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_chandle_M16A1": "M16A1_charge_handle_slide_back",
+    "contact_mag_M16A1": "M16A1_magazine.030"
+   }
+  },
+  "ak": {
+   "collection": "RIG_AK47",
+   "gun_prefix": "AK47",
+   "gun_root": "AK47_root",
+   "real_length_m": 0.88,
+   "weapon_tres": "data/weapons/ak47.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "AK47_mag",
+    "AK47_bolt",
+    "AK47_root"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_bolt_AK47": "AK47_bolt",
+    "contact_mag_AK47": "AK47_mag"
+   }
+  },
+  "ppsh": {
+   "collection": "RIG_PPSh41",
+   "gun_prefix": "PPSh41",
+   "gun_root": "PPSh41",
+   "real_length_m": 0.843,
+   "weapon_tres": "data/weapons/ppsh41.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "PPSh41",
+    "PPSh41_gun.006"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_drum_PPSh41": "PPSh41_gun.006"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py); drum = PPSh41_gun.006. NO charge_handle: the bolt is not split, so a charging clip would move nothing and read as faked in air."
+  },
+  "m14": {
+   "collection": "RIG_M14",
+   "gun_prefix": "M14",
+   "gun_root": "M14_root",
+   "real_length_m": 1.126,
+   "weapon_tres": "data/weapons/m14.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M14_chandle",
+    "M14_root",
+    "M14_clip.034"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_oprod_M14": "M14_chandle",
+    "contact_clip_M14": "M14_clip.034"
+   },
+   "_note": "clips RETARGETED 2026-07-28; the op-rod carries no LIMIT_LOCATION rail, so its 86 mm throw is declared in retarget_ref_anim.py and applied along the bore."
+  },
+  "rpd": {
+   "collection": "RIG_RPD",
+   "gun_prefix": "RPD",
+   "gun_root": "RPD",
+   "real_length_m": 1.037,
+   "weapon_tres": "data/weapons/rpd.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "RPD",
+    "RPD_drum",
+    "RPD_chandle"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_drum_RPD": "RPD_drum",
+    "contact_chandle_RPD": "RPD_chandle"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "colt45": {
+   "collection": "RIG_Colt45_Pistol",
+   "gun_prefix": "Colt45_Pistol",
+   "gun_root": "Colt45_Pistol_root",
+   "real_length_m": 0.219,
+   "weapon_tres": "data/weapons/m1911.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "Colt45_Pistol_root",
+    "Colt45_magfloor",
+    "Colt45_slide"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_mag_Colt45_Pistol": "Colt45_magfloor",
+    "contact_slide_Colt45_Pistol": "Colt45_slide"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "m60": {
+   "collection": "RIG_M60_MG",
+   "gun_prefix": "M60_MG",
+   "gun_root": "M60_MG_root",
+   "real_length_m": 1.105,
+   "weapon_tres": "data/weapons/m60.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M60_MG_root",
+    "M60_chandle_charge_handle"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_chandle_M60_MG": "M60_chandle_charge_handle"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "mosin": {
+   "collection": "RIG_Mosin",
+   "gun_prefix": "Mosin",
+   "gun_root": "Mosin",
+   "real_length_m": 1.232,
+   "weapon_tres": "data/weapons/mosin.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "Mosin",
+    "Mosin_boltknob"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_bolt_Mosin": "Mosin_boltknob"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "m70": {
+   "collection": "RIG_M70sniper",
+   "gun_prefix": "M70sniper",
+   "gun_root": "M70sniper_root",
+   "real_length_m": 1.118,
+   "weapon_tres": "data/weapons/m70.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M70sniper_root",
+    "M70_bolt"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_bolt_M70sniper": "M70_bolt"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "ithaca": {
+   "collection": "RIG_Ithaca37_Shotgun",
+   "gun_prefix": "Ithaca37_Shotgun",
+   "gun_root": "Ithaca37_Shotgun_root",
+   "real_length_m": 1.003,
+   "weapon_tres": "data/weapons/shotgun.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "Ithaca37_Shotgun_root",
+    "Ithaca37_pump"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "m79": {
+   "collection": "RIG_M79_Launcher",
+   "gun_prefix": "M79_Launcher",
+   "gun_root": "M79_Launcher_root",
+   "real_length_m": 0.731,
+   "weapon_tres": "data/weapons/m79.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M79_Launcher_root",
+    "M79_barrel"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_barrel_M79_Launcher": "M79_barrel"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "m72_law": {
+   "collection": "RIG_M72_LAW",
+   "gun_prefix": "M72_LAW",
+   "gun_root": "M72_LAW_root",
+   "real_length_m": 0.631,
+   "weapon_tres": "data/weapons/m72_law.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "M72_LAW_root",
+    "M72_LAW_inner_tube"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_tube_M72_LAW": "M72_LAW_inner_tube"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "rpg2": {
+   "collection": "RIG_RPG2",
+   "gun_prefix": "RPG2",
+   "gun_root": "RPG2",
+   "real_length_m": 0.95,
+   "weapon_tres": "data/weapons/rpg2.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "RPG2",
+    "RPG2_pg2_boom"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_rocket_RPG2": "RPG2_pg2_boom"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  },
+  "rpg7": {
+   "collection": "RIG_RPG7",
+   "gun_prefix": "RPG7",
+   "gun_root": "RPG7",
+   "real_length_m": 0.95,
+   "weapon_tres": "data/weapons/rpg7.tres",
+   "clips": [
+    "rifle_idle",
+    "reload",
+    "reload_empty",
+    "charge_handle",
+    "fire",
+    "jam"
+   ],
+   "parts": [
+    "RPG7",
+    "RPG7_pg7_body"
+   ],
+   "markers_under_gun": true,
+   "contacts": {
+    "contact_rocket_RPG7": "RPG7_pg7_body"
+   },
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
+  }
+ },
+ "_items_doc": "NON-GUN FP ITEMS (knife, radio handset, claymore, grenade, bandage). Same export driver and same validator as `guns`, three differences: the root key is `item_root` not `gun_root`; `markers` names its own required empties instead of the SightRear/SightFront/MuzzlePoint iron-sight set; and no `weapon_tres`, so sync_weapon_timers.py never runs against it. EVERYTHING ELSE IS THE SAME LAW: the clip set must match EXACTLY (no extras), and EVERY clip must carry a channel for EVERY listed part - a part with no track in a clip cannot reset in Godot and holds whatever pose the previous clip left it in. CLIP NAMES ARE LITERAL AND THE ENGINE ASKS FOR THEM BY STRING: weapon_holder.gd:929,937 ask for `rifle_idle` and `charge_handle`, so an item whose idle is named anything else plays NOTHING and sits in its rest pose. Keep `rifle_idle` as the idle clip name even on a knife - it is the engine's word for 'the held pose', not a claim about rifles. The object/marker names below are PLACEHOLDERS pending the authored rigs: correct them to whatever the .blend actually ships, then run `python tools/export_all_viewmodels.py <key>`.",
+ "items": {
+  "knife": {
+   "collection": "RIG_Knife",
+   "item_root": "Knife_root",
+   "real_length_m": 0.3,
+   "clips": [
+    "rifle_idle",
+    "fire"
+   ],
+   "parts": [
+    "Knife_root"
+   ],
+   "markers": [
+    "GripPoint",
+    "BladeTip"
+   ],
+   "markers_under_gun": true,
+   "_note": "fire = the stab. The rear takedown reuses it; MeleeVerb decides lethality, not the clip."
+  },
+  "handset": {
+   "collection": "RIG_Handset",
+   "item_root": "Handset_root",
+   "real_length_m": 0.22,
+   "clips": [
+    "rifle_idle",
+    "charge_handle"
+   ],
+   "parts": [
+    "Handset_root"
+   ],
+   "markers": [
+    "GripPoint",
+    "EarPiece"
+   ],
+   "markers_under_gun": true,
+   "_note": "charge_handle = the RAISE to the ear (the engine's draw slot). Replaces the BoxMesh placeholder at player.gd:333."
+  },
+  "claymore": {
+   "collection": "RIG_Claymore",
+   "item_root": "Claymore_root",
+   "real_length_m": 0.22,
+   "clips": [
+    "rifle_idle",
+    "fire"
+   ],
+   "parts": [
+    "Claymore_root"
+   ],
+   "markers": [
+    "GripPoint"
+   ],
+   "markers_under_gun": true,
+   "_note": "fire = the plant. grip_R_Claymore in the blend was flagged as a GUESS - confirm it before export."
+  },
+  "m26_grenade": {
+   "collection": "RIG_M26",
+   "item_root": "M26_root",
+   "real_length_m": 0.14,
+   "clips": [
+    "rifle_idle",
+    "charge_handle",
+    "fire"
+   ],
+   "parts": [
+    "M26_root",
+    "M26_pin"
+   ],
+   "markers": [
+    "GripPoint"
+   ],
+   "markers_under_gun": true,
+   "_note": "charge_handle = pull the pin, fire = throw. Splitting M26_pin is what lets the pin actually leave."
+  },
+  "bandage": {
+   "collection": "RIG_Bandage",
+   "item_root": "Bandage_root",
+   "real_length_m": 0.1,
+   "clips": [
+    "rifle_idle",
+    "fire"
+   ],
+   "parts": [
+    "Bandage_root"
+   ],
+   "markers": [
+    "GripPoint"
+   ],
+   "markers_under_gun": true,
+   "_note": "fire = the wrap. Slot 4 (MEDKIT) currently plays no viewmodel at all."
+  }
+ }
 }

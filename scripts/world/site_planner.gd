@@ -1344,6 +1344,84 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		wired += 1
 	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s" % [wired,
 		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing])
+	_wire_structure_destructibles(root)
+
+
+## THE REST OF THE COMPOUND CAN BE BLOWN APART TOO. The manifest describes ONLY the 80 parapet
+## segments, so bunkers, towers and sandbag stacks stood indestructible in every shipped build -
+## a satchel could open the wire and never touch what the wire protects.
+##
+## These are matched by MESH NAME PREFIX rather than added to the manifest, because the meshes
+## are already in the GLB: this costs no Blender re-export. HP matches the bench
+## (FireSupportBench.TARGET_KINDS) so the sapper room grades the same art the same way.
+const FSB_STRUCTURE_KINDS: Array[Dictionary] = [
+	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "hp": 260},
+	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "hp": 260},
+	{"prefix": "fb_sleeping_bunker_i", "kind": "bunker", "hp": 260},
+	{"prefix": "fb_tower_i", "kind": "tower", "hp": 180},
+	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "hp": 90},
+]
+
+
+func _wire_structure_destructibles(root: Node3D) -> void:
+	var by_kind: Dictionary = {}
+	var stack: Array[Node] = [root]
+	var found: Array[MeshInstance3D] = []
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi != null and mi.mesh != null and not String(mi.name).contains("-colonly"):
+			found.append(mi)
+	for mi in found:
+		var nm := String(mi.name)
+		for spec in FSB_STRUCTURE_KINDS:
+			if not nm.begins_with(str(spec["prefix"])):
+				continue
+			_adopt_structure(mi, str(spec["kind"]), int(spec["hp"]))
+			by_kind[spec["kind"]] = int(by_kind.get(spec["kind"], 0)) + 1
+			break
+	if by_kind.is_empty():
+		return
+	var parts: Array[String] = []
+	for k in by_kind:
+		parts.append("%d %s" % [int(by_kind[k]), k])
+	print("[FSB] structures on the blast bus: %s" % ", ".join(parts))
+
+
+## Adopt one authored structure mesh onto a Destructible, taking its collider with it.
+##
+## The Destructible is seated at the mesh's world AABB CENTRE, not its origin:
+## combat_manager.gd:176-185 damages a prop on a pure radius test against global_position with
+## no LOS and no bounds check, so a 9.6 m tower keyed off its foot survives a blast that
+## visibly engulfs it.
+func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
+	var d := Destructible.new()
+	d.kind = kind
+	d.hp = hp
+	d.collision_layer = 1
+	d.collision_mask = 0
+	_parent.add_child(d)
+	var aabb: AABB = mi.get_aabb()
+	d.global_position = mi.global_transform * (aabb.position + aabb.size * 0.5)
+	# A shape left nested under the mesh's auto-generated body survives the blast, and the
+	# "destroyed" bunker keeps stopping rounds.
+	for c in mi.get_children():
+		var body := c as StaticBody3D
+		if body == null:
+			continue
+		for cc in body.get_children():
+			var shape := cc as CollisionShape3D
+			if shape == null:
+				continue
+			var keep: Transform3D = shape.global_transform
+			body.remove_child(shape)
+			d.add_child(shape)
+			shape.global_transform = keep
+		body.queue_free()
+	mi.reparent(d, true)      # keep_global_transform: the structure must not move
+	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
 
 
 ## THE CLAYMORES GO LIVE. gen_firebase_v3 rings the perimeter with 16 fb_claymore props

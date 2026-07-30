@@ -21,7 +21,8 @@ enum FiringMode {
 enum SlotType {
 	WEAPON,
 	GRENADE,
-	MEDKIT
+	MEDKIT,
+	MELEE
 }
 
 ## Enemy AI states - low-level behavior states

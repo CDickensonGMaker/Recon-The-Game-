@@ -182,7 +182,11 @@ func _update_slot_display() -> void:
 		return
 
 	var slot := equipment_manager.get_current_slot()
-	var slot_names := ["1:PRIMARY", "2:SIDEARM", "3:GRENADE", "4:MEDKIT"]
+	# One entry per EquipmentManager slot. The knife has no number key of its own (5 is
+	# throw_smoke) - it is reached on the wheel, and [K] stabs from any slot.
+	var slot_names := ["1:PRIMARY", "2:SIDEARM", "3:GRENADE", "4:MEDKIT", "KNIFE"]
+	if slot < 0 or slot >= slot_names.size():
+		return
 	slot_indicator.text = slot_names[slot]
 
 

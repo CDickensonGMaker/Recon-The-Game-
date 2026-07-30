@@ -175,8 +175,11 @@ const MODEL_ALIASES: Dictionary = {
 }
 
 
+## The default must be a clip the shipped library actually CARRIES. `rifle_aiming_idle` is a
+## v1 rig name that survives only through MODEL_ALIASES, so an unmapped intent spent a
+## resolution hop to land where `idle_aiming` was all along.
 static func model_clip_for(intent: String) -> String:
-	return str(MODEL_CLIP.get(intent, "rifle_aiming_idle"))
+	return str(MODEL_CLIP.get(intent, "idle_aiming"))
 
 
 ## Per-weapon hold families. The funnel asks for "<clip>__<family>" first;

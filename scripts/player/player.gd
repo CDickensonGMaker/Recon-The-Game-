@@ -552,7 +552,71 @@ func field_interact_prompt() -> String:
 			return "[F] RESUPPLY"
 	if _nearby_downed_enemy() != null:
 		return "[F] SECURE THE PRISONER"
+	var gun: WorldWeapon = _nearby_world_weapon()
+	if gun != null:
+		return "[F] PICK UP %s" % gun.display_name()
+	# Not an [F] verb - [K] is - but the prompt line is where the player looks, and a
+	# takedown he cannot see is a mechanic he will never find.
+	if MeleeVerb.takedown_ready(self):
+		return "[K] SILENT TAKEDOWN"
 	return ""
+
+
+## Swap the gun on the ground for the one in your hands. The old weapon is DROPPED, not
+## destroyed: a trade you can walk back and undo is the whole point of the verb.
+func _take_world_weapon(gun: WorldWeapon) -> void:
+	if weapon_holder == null or gun == null or gun.weapon_data == null:
+		return
+	var taken: WeaponData = gun.weapon_data
+	var ammo: int = gun.ammo_in_gun
+	var mags: int = gun.spare_mags
+	var captured: bool = gun.is_captured
+	gun.queue_free()
+	drop_primary_weapon()
+	weapon_holder.equip_captured_weapon(taken)
+	# equip_captured_weapon issues a FRESH magazine; a gun off the ground carries whatever
+	# was left in it. primary_ammo is the slot's own store - setting current_ammo alone
+	# loses the count the first time he switches to the sidearm and back.
+	if ammo > 0 or mags > 0:
+		weapon_holder.primary_ammo = [ammo, mags]
+		if weapon_holder.current_slot == 0:
+			weapon_holder.current_ammo = ammo
+			weapon_holder.spare_magazines = mags
+			weapon_holder.magazine_changed.emit(ammo, mags)
+	# A gun you took off the enemy still sounds like theirs; one of your own does not.
+	weapon_holder.primary_is_captured = captured
+	_field_toast("PICKED UP THE %s" % taken.display_name.to_upper())
+
+
+## Put the current primary on the ground in front of you. Returns false when there is
+## nothing to drop, so the [G] handler can stay quiet instead of toasting at empty hands.
+func drop_primary_weapon() -> bool:
+	if weapon_holder == null or weapon_holder.primary_weapon == null:
+		return false
+	var aim: Vector3 = get_aim_direction()
+	var flat := Vector3(aim.x, 0.0, aim.z)
+	flat = flat.normalized() if flat.length() > 0.01 else -global_transform.basis.z
+	var at: Vector3 = global_position + flat * 1.0
+	WorldWeapon.drop(get_tree().current_scene, weapon_holder.primary_weapon, at,
+		weapon_holder.current_ammo, weapon_holder.spare_magazines,
+		weapon_holder.primary_is_captured)
+	return true
+
+
+## The nearest weapon on the ground within reach, or null. Range lives on WorldWeapon so
+## the prompt and the verb below cannot drift apart.
+func _nearby_world_weapon() -> WorldWeapon:
+	var best: WorldWeapon = null
+	var best_d: float = WorldWeapon.PICKUP_RANGE_M
+	for n in get_tree().get_nodes_in_group(WorldWeapon.GROUP):
+		var w := n as WorldWeapon
+		if w == null or not is_instance_valid(w) or w.weapon_data == null:
+			continue
+		var d: float = global_position.distance_to(w.global_position)
+		if d < best_d:
+			best_d = d
+			best = w
+	return best
 
 
 ## An unoccupied MG emplacement within reach of the gunner stand, or null. The
@@ -780,28 +844,24 @@ func _try_field_interact() -> void:
 		if global_position.distance_to(corpse.global_position) < 2.5 and not corpse.has_meta("looted"):
 			corpse.set_meta("looted", true)
 			_take_ear(corpse)
-			var roll := randf()
-			if roll < 0.2 and weapon_holder and corpse.weapon_data != null \
-					and corpse.weapon_data != weapon_holder.primary_weapon:
-				weapon_holder.equip_captured_weapon(corpse.weapon_data)
-				_field_toast("PICKED UP THEIR %s" % corpse.weapon_data.display_name.to_upper())
-			elif roll < 0.6 and weapon_holder:
-				weapon_holder.spare_magazines += 1
-				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
-				_field_toast("SCAVENGED A MAGAZINE")
-			elif roll < 0.8 and equipment_manager:
-				equipment_manager.add_grenade(1)
-				_field_toast("FOUND A GRENADE")
-			else:
-				# No "+1" on screen. Intel accrues SILENTLY (Summoner, 2026-07-28): a
-				# visible counter turns patrolling into farming, and ADR-019 already
-				# rules that this class of thing is stated in words, never as a number.
-				CampaignState.add_intel(1)
-				_field_toast("DOCUMENTS RECOVERED")
-				var dmf: Node = MissionGenerator.dynamic_factory_ref
-				if dmf is DynamicMissionFactory:
-					(dmf as DynamicMissionFactory).report_camp_discovered(global_position)
+			# THE ONLY RANDOM THING A BODY GIVES IS INTEL (Summoner, 2026-07-30). Searching
+			# a man is not a slot machine: his weapon is on the ground where he fell and you
+			# take it or you do not, and mags and frags are not conjured out of a roll.
+			#
+			# No "+1" on screen. Intel accrues SILENTLY (Summoner, 2026-07-28): a visible
+			# counter turns patrolling into farming, and ADR-019 already rules that this
+			# class of thing is stated in words, never as a number.
+			CampaignState.add_intel(1)
+			_field_toast("DOCUMENTS RECOVERED")
+			var dmf: Node = MissionGenerator.dynamic_factory_ref
+			if dmf is DynamicMissionFactory:
+				(dmf as DynamicMissionFactory).report_camp_discovered(global_position)
 			return
+	# LAST, so it never steals [F] from a body, a crate or a prisoner standing on it.
+	var gun: WorldWeapon = _nearby_world_weapon()
+	if gun != null:
+		_take_world_weapon(gun)
+		return
 
 
 ## Hunger drains over ~45 minutes of field time. Called from _physics_process.
@@ -1330,6 +1390,29 @@ func _handle_movement(delta: float) -> void:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
+
+	# [K] stabs without drawing the knife: reaching for a slot is exactly the half-second
+	# a silent takedown does not have.
+	if Input.is_action_just_pressed("melee") and not FieldDirector.any_fire_menu_open:
+		MeleeVerb.strike(self)
+
+	# Dropping is a real loss, so it never fires while a menu is eating the key, and it
+	# leaves the man empty-handed rather than silently conjuring a replacement.
+	if Input.is_action_just_pressed("drop_weapon") and not FieldDirector.any_fire_menu_open:
+		if weapon_holder != null and weapon_holder.primary_weapon != null:
+			var dropped: String = weapon_holder.primary_weapon.display_name.to_upper()
+			if drop_primary_weapon():
+				weapon_holder.primary_weapon = null
+				weapon_holder.primary_ammo = [0, 0]
+				weapon_holder.primary_is_captured = false
+				if weapon_holder.current_slot == 0:
+					weapon_holder.current_weapon = null
+					weapon_holder.current_ammo = 0
+					weapon_holder.spare_magazines = 0
+					weapon_holder.magazine_changed.emit(0, 0)
+					if equipment_manager != null:
+						equipment_manager.switch_to_slot(1)   # no rifle: draw the sidearm
+				_field_toast("DROPPED THE %s" % dropped)
 
 	_tick_satchel_hold(delta)
 	if Input.is_action_just_pressed("interact"):

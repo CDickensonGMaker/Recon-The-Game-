@@ -421,6 +421,8 @@ func _update_sprite() -> void:
 	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play("cover_to_stand")
 		return
+	if _play_camp_role():
+		return
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
 	var lateral: float = 0.0
@@ -460,6 +462,43 @@ func _update_sprite() -> void:
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), intent))
 	if sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
+
+
+## What a camp man's ROLE looks like once he has reached his station. CampDirector rotates
+## `camp_role` every sim-hour and seats `work_pos` to a station; without this the cook walks
+## to the fire and plays the standing rifle idle, which is the whole camp on one pose.
+##
+## Mirrors Civilian._play_garrison (the US side has always had role-aware chains). Only the
+## clips the shipped library actually carries are named - a missing clip must degrade to a
+## T-pose, which is loud, rather than to a weapon pose, which is quiet and wrong.
+const CAMP_ROLE_CLIPS: Dictionary = {
+	"cook": ["idle_crouching", "sitting", "idle_unarmed_3"],
+	"rest": ["sitting", "idle_unarmed_5", "idle_unarmed_2"],
+	"talk": ["idle_unarmed_4", "idle_unarmed_2", "idle_unarmed"],
+	"sleep": ["laying_breathless", "sitting", "idle_unarmed_5"],
+}
+## How close to his station a man must be before the role pose replaces his walk.
+const CAMP_ROLE_AT_STATION_M: float = 2.2
+
+
+## True when a role pose was played and the state map must not overwrite it.
+func _play_camp_role() -> bool:
+	if not (sprite_actor is ModelActor):
+		return false
+	# A man who is fighting, hunting, or moving is not off duty. "guard" and "patrol" are
+	# deliberately absent from the table: those men hold the armed poses already.
+	if target != null or alert_tier > AlertTier.SUSPICIOUS:
+		return false
+	if current_state != Enums.AIState.IDLE or is_crippled:
+		return false
+	if not CAMP_ROLE_CLIPS.has(camp_role):
+		return false
+	if work_pos == Vector3.ZERO or global_position.distance_to(work_pos) > CAMP_ROLE_AT_STATION_M:
+		return false
+	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.35:
+		return false
+	(sprite_actor as ModelActor).play_first(CAMP_ROLE_CLIPS[camp_role] as Array[String])
+	return true
 
 
 ## HitzoneBuilder is the single authority for zones - do not hand-place them here.
@@ -2452,6 +2491,7 @@ func _die() -> void:
 		if _visual_is_model and mad != null and not mad.has_ragdoll():
 			mad.start_ragdoll(last_hit_dir, 1.5)
 		add_to_group("lootable_corpses")
+		_drop_carried_weapon()
 		get_tree().create_timer(45.0).timeout.connect(queue_free)
 		return
 
@@ -2497,7 +2537,24 @@ func _die() -> void:
 		mesh.rotation_degrees.x = 90
 
 	add_to_group("lootable_corpses")
+	_drop_carried_weapon()
 	get_tree().create_timer(45.0).timeout.connect(queue_free)
+
+
+## A dead man's rifle falls where he does. The corpse recycles at 45 s; the weapon keeps
+## its own longer clock, so the gun outlives the body and is still there when you come
+## back for it. Bodies themselves yield only intel (Summoner, 2026-07-30) - this is where
+## an enemy weapon actually enters the player's hands.
+func _drop_carried_weapon() -> void:
+	if weapon_data == null or has_meta("weapon_dropped"):
+		return
+	set_meta("weapon_dropped", true)
+	var host: Node = get_tree().current_scene
+	if host == null:
+		return
+	var at: Vector3 = global_position
+	at.y += 0.08      # clear of the ground plane, not sunk into it
+	WorldWeapon.drop(host, weapon_data, at, 0, 1, true)
 
 
 ## Broken men throw their hands up. Interact to capture (intel).

@@ -1,4 +1,4 @@
-## equipment_manager.gd - Manages 4-slot equipment system (primary, secondary, grenade, medkit)
+## equipment_manager.gd - Manages the 5-slot equipment system
 class_name EquipmentManager
 extends Node
 
@@ -6,7 +6,9 @@ signal slot_changed(slot_index: int, slot_type: Enums.SlotType)
 signal grenade_count_changed(count: int)
 
 ## SLOT CONTRACT (every system indexes on these):
-## 0 = primary weapon · 1 = secondary weapon · 2 = grenade · 3 = medkit
+## 0 = primary weapon · 1 = secondary weapon · 2 = grenade · 3 = medkit · 4 = knife
+## SLOT_COUNT is the ONE place the wheel and the HUD agree on how many there are.
+const SLOT_COUNT: int = 5
 
 var current_slot: int = 0
 var grenade_count: int = 2
@@ -70,9 +72,9 @@ func _handle_input() -> void:
 		_start_switch(3)
 	# Mouse wheel cycles the kit.
 	elif Input.is_action_just_pressed("wheel_down"):
-		_start_switch((current_slot + 1) % 4)
+		_start_switch((current_slot + 1) % SLOT_COUNT)
 	elif Input.is_action_just_pressed("wheel_up"):
-		_start_switch((current_slot + 3) % 4)
+		_start_switch((current_slot + SLOT_COUNT - 1) % SLOT_COUNT)
 
 	_handle_slot_action()
 
@@ -94,6 +96,9 @@ func _handle_slot_action() -> void:
 					health_system.start_healing()
 				elif not heal_held and health_system.is_healing:
 					health_system.cancel_healing()
+		4:  # Knife - FIRE stabs. [K] also stabs from any slot (see MeleeVerb).
+			if Input.is_action_just_pressed("fire") and controller != null:
+				MeleeVerb.strike(controller)
 
 
 func _start_switch(new_slot: int) -> void:
@@ -135,6 +140,8 @@ func get_slot_type(slot: int) -> Enums.SlotType:
 			return Enums.SlotType.GRENADE
 		3:
 			return Enums.SlotType.MEDKIT
+		4:
+			return Enums.SlotType.MELEE
 		_:
 			return Enums.SlotType.WEAPON
 

@@ -413,6 +413,11 @@ func _try_fire() -> void:
 
 
 func _fire_shot() -> void:
+	# EMPTY HANDS ARE A REAL STATE: the player can drop his primary and walk with the
+	# slot empty. Everything below dereferences current_weapon unguarded.
+	if current_weapon == null:
+		can_fire = false
+		return
 	current_ammo -= 1
 	can_fire = false
 	# Accumulate, do NOT assign: the negative remainder from _process is the

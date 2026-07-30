@@ -1117,7 +1117,16 @@ func setup_patrol(built: Dictionary) -> void:
 ## game will never reconcile. The camp may have moved. That is the difference between a
 ## lead and an objective, and it is what keeps this off ADR-022's banned "fog-of-war
 ## overlay that fills itself in".
-const STASH_REVEALS: int = 2
+## THREE POSSIBLE POSITIONS, ONE REAL (Summoner, 2026-07-30). A captured document names
+## places the enemy MIGHT be, and walking them out is the patrol. Marking only true camps
+## would make the sheet an objective list; two decoys make it what the doc header already
+## claims it is - a CLAIM, not a fact - and it is why the mark is dated and never
+## reconciled (ADR-022 forbids a fog-of-war overlay that fills itself in).
+const STASH_REVEALS: int = 3
+## How far a decoy sits from the real camp: far enough to be a different walk, close
+## enough that the set reads as one report about one area.
+const DECOY_MIN_M: float = 260.0
+const DECOY_MAX_M: float = 620.0
 
 
 func try_intel_stash() -> bool:
@@ -1126,24 +1135,50 @@ func try_intel_stash() -> bool:
 	var known: Dictionary = {}
 	for m in CampaignState.reported_marks:
 		known["%d_%d" % [int(float(m.get("x", 0))), int(float(m.get("z", 0)))]] = true
-	var granted: int = 0
+	var real: Vector3 = Vector3.ZERO
 	for loc in patrol_locations:
-		if granted >= STASH_REVEALS:
-			break
 		if str(loc.get("kind", "")) != "vc_camp":
 			continue
 		var p: Vector3 = loc.pos as Vector3
-		var key: String = "%d_%d" % [int(p.x), int(p.z)]
-		if known.has(key):
+		if known.has("%d_%d" % [int(p.x), int(p.z)]):
 			continue
-		CampaignState.reported_marks.append({"x": p.x, "z": p.z, "kind": "CAMP",
-			"patrol_no": CampaignState.missions_played})
-		known[key] = true
-		granted += 1
-	if granted == 0:
+		real = p
+		break
+	if real == Vector3.ZERO:
 		return false
+	var marks: Array[Vector3] = [real]
+	# Seeded from the real camp, never Time (ADR-010): the same document always names the
+	# same three places, so a reload cannot reroll which one was true.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(int(real.x), int(real.z)))
+	var guard: int = 0
+	while marks.size() < STASH_REVEALS and guard < 64:
+		guard += 1
+		var ang: float = rng.randf() * TAU
+		var dist: float = rng.randf_range(DECOY_MIN_M, DECOY_MAX_M)
+		var d: Vector3 = real + Vector3(cos(ang) * dist, 0.0, sin(ang) * dist)
+		if world != null:
+			# The AO spans 0..map_size, not a centred box - a decoy off the sheet is a
+			# circle the player can never walk to.
+			if d.x < 60.0 or d.z < 60.0 \
+					or d.x > world.map_size - 60.0 or d.z > world.map_size - 60.0:
+				continue
+			if world.terrain_manager != null:
+				d.y = world.terrain_manager.get_height_at(d)
+		if known.has("%d_%d" % [int(d.x), int(d.z)]):
+			continue
+		marks.append(d)
+	# Shuffled on the same seed so the true one is not always the first circle drawn.
+	for i in range(marks.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: Vector3 = marks[i]
+		marks[i] = marks[j]
+		marks[j] = tmp
+	for m in marks:
+		CampaignState.reported_marks.append({"x": m.x, "z": m.z, "kind": "CAMP",
+			"patrol_no": CampaignState.missions_played})
 	CampaignState.consume_stash()
-	toast.emit("CAPTURED DOCUMENTS - MARKED ON YOUR MAP (DATE UNKNOWN)")
+	toast.emit("CAPTURED DOCUMENTS - %d POSSIBLE POSITIONS MARKED (DATE UNKNOWN)" % marks.size())
 	return true
 
 

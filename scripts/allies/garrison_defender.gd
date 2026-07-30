@@ -62,13 +62,18 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	# and LOOK like it - not stand a rifleman under an MG nameplate (drift law).
 	if occ == "gun_crew":
 		# Man the fixed emplacement if one is free; man_by_ai pins the stand, sets
-		# the Pig (weapon + sprite) and the down-arc aim. The 2nd crewman, or the
-		# case where the player already took the gun, falls back to a standing Pig.
+		# the Pig (weapon + sprite) and the down-arc aim.
 		var emp: MGEmplacement = _nearest_free_emplacement(ally, stand)
 		if emp == null or not emp.man_by_ai(ally):
-			ally.weapon_data = load("res://data/weapons/m60.tres")
-			if not unit.is_empty():
-				ally.set_sprite(unit, "m60")
+			# No gun free: take a mortar station rather than stand in the open holding
+			# a Pig. claim() seats post_anchor on the station marker itself, so the man
+			# walks to the tube and works there.
+			if not _claim_mortar_station(ally, stand):
+				ally.weapon_data = load("res://data/weapons/m60.tres")
+				if not unit.is_empty():
+					ally.set_sprite(unit, "m60")
+			elif not unit.is_empty():
+				ally.set_sprite(unit, "m16a1")
 	elif not unit.is_empty():
 		ally.set_sprite(unit, "m16a1")
 	# A sentry on watch faces OUT, off the compound - not at his boots.
@@ -101,6 +106,12 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 	var occ: String = str(ally.get_meta("garrison_occupation", "cook"))
 	var unit: String = str(ally.get_meta("garrison_unit", ""))
 
+	# Give the station back, or three nights of stand-to fill every pit with ghosts and
+	# the fourth night's crew has nowhere to work.
+	var pit := ally.get_meta("mortar_pit", null) as MortarPit
+	if pit != null and is_instance_valid(pit):
+		pit.release(str(ally.get_meta("mortar_station", "")))
+
 	ally.remove_from_group("garrison_promoted")
 	AgentRegistry.unregister(ally)
 	ally.set_physics_process(false)
@@ -118,6 +129,41 @@ static func _seeded_rng(at: Vector3) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = absi(hash(Vector2i(int(at.x), int(at.z))))
 	return rng
+
+
+## Put a man on the nearest free mortar station. `MortarPit.claim()` had ZERO callers, so
+## every pit the firebase built stood empty behind its markers; this is the consumer.
+## The man keeps a rifle - a mortar crewman is not an MG gunner - and claim() moves his
+## post_anchor onto the station so he walks to the tube instead of holding his spawn.
+static func _claim_mortar_station(ally: AllyBase, at: Vector3) -> bool:
+	if ally == null or ally.get_tree() == null:
+		return false
+	var best: MortarPit = null
+	var best_station: String = ""
+	var best_d: float = INF
+	for p in ally.get_tree().get_nodes_in_group("mortar_pits"):
+		var pit := p as MortarPit
+		if pit == null:
+			continue
+		var free: Array[String] = pit.free_stations()
+		if free.is_empty():
+			continue
+		var d: float = at.distance_squared_to(pit.global_position)
+		if d < best_d:
+			best_d = d
+			best = pit
+			best_station = free[0]
+	if best == null or not best.claim(best_station, ally):
+		return false
+	# claim() moves post_anchor, but the HOLD order still names the old post - without
+	# re-issuing it the man holds where he was seated and the station stays empty.
+	var station_pos: Vector3 = best.station_position(best_station)
+	ally.set_order(AllyBase.OrderMode.HOLD, station_pos)
+	ally.post_anchor = station_pos
+	ally.post_leash = 3.0      # a crewman works his station, he does not wander the pit
+	ally.set_meta("mortar_pit", best)
+	ally.set_meta("mortar_station", best_station)
+	return true
 
 
 ## Nearest unmanned MG post to `at`, or null. The firebase places one per gun_crew

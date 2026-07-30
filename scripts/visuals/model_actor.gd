@@ -844,6 +844,22 @@ func set_facing(dir: Vector3) -> void:
 var _facing_init: bool = false
 
 
+## Every weapon family already substituted for, so the log names each gap ONCE instead of
+## every frame. `mg`, `bolt`, `launcher` and `pistol` have no clips in the shipped library
+## at all: the RPD gunner and the RPG man hold their weapons like rifles, and until now that
+## degraded silently. This makes the art gap legible without changing what plays.
+static var _family_gap_reported: Dictionary = {}
+
+
+static func _report_missing_family(clip: String) -> void:
+	var family: String = clip.split("__")[1] if clip.contains("__") else ""
+	if family == "" or _family_gap_reported.has(family):
+		return
+	_family_gap_reported[family] = true
+	push_warning("[MODEL] no '__%s' weapon-family clips in anim_library - those carriers hold %s"
+		% [family, "their weapons like rifles (first miss: %s)" % clip])
+
+
 ## Play a clip by the intent-resolved name. No-ops if already playing it.
 ## Missing clips resolve through SpriteStateMap.MODEL_ALIASES (v1/v2 rigs
 ## carry different clip generations - callers ask in either, every rig answers).
@@ -856,6 +872,7 @@ func play(clip: String, restart: bool = false) -> bool:
 		# Weapon-family clip ("firing_rifle__smg"): strip the suffix and fall
 		# back to the base clip when the family variant is not authored.
 		if clip.contains("__"):
+			_report_missing_family(clip)
 			clip = clip.split("__")[0]
 			if clip == _current_clip and not restart:
 				return true

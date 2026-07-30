@@ -1,8 +1,9 @@
 ## mortar_pit.gd - The firebase mortar pit: sandbag nest, M29 tube, ammo point,
 ## and named crew stations that garrison AI claims as jobs. The node's local -Z
 ## is DOWNRANGE (the tube's fire direction); station markers sit exactly where
-## the staged crew works in assets/us/artillery/mortar_crew_staging.blend
-## (source of truth: mocap-toolkit/tools/mortar_crew_loop.py).
+## the staged crew works in assets/us/artillery/mortar_crew_staging.blend.
+## (An earlier note here cited a mocap-toolkit/ path OUTSIDE this repo as the
+## source of truth; the staging .blend above is the one that ships.)
 ##
 ## Occupancy mirrors MGEmplacement: one body per station, claimed and released
 ## by name. This node owns geometry and stations only - fire missions stay with

@@ -25,15 +25,20 @@ const SAPPER_DATA: String = "res://data/enemies/vc_sapper.tres"
 const SAPPERS: int = 3
 ## Where the sappers start, and where the wall stands. Far enough that the walk is the test.
 const APPROACH_M: float = 45.0
-const WALL_SEGMENTS: int = 5
-const WALL_SPAN_M: float = 3.0
-const WIRE_SEGMENTS: int = 4
+## How many of each kind stand in the rank, keyed by FireSupportBench.TARGET_KINDS order.
+const PER_KIND: Dictionary = {
+	"sandbag_wall": 4, "sandbag_stack": 2, "bunker": 2, "bunker_mg": 1, "tower": 1, "wire": 4,
+}
+const KIND_SPAN_M: float = 7.0
+## The wire stands short of the rest so the sappers have to cross it to reach the structures.
+const WIRE_STANDOFF_M: float = 9.0
 
 var player: CharacterBody3D = null
 var _director: FieldDirector = null
 var _readout: Label = null
 var _sappers: Array[EnemyBase] = []
 var _walls: Array[Destructible] = []
+var _target_total: int = 0
 var _wave: int = 0
 var _t: float = 0.0
 
@@ -111,73 +116,42 @@ func _build_director() -> void:
 	_director.add_to_group("mission_director")
 
 
-## THE REAL WALL, NOT A GREY BOX. The Summoner's note, 2026-07-29: "the models in this stress
-## test were not the sandbag models of the firebase." A bench that proves a placeholder breaks
-## has proved nothing about the thing that has to break - the authored 9-course revetment with
-## its real silhouette and its real collision.
+## THE REAL FIREBASE ART, NOT A GREY BOX. The Summoner's note, 2026-07-29: "the models in this
+## stress test were not the sandbag models of the firebase." A bench that proves a placeholder
+## breaks has proved nothing about the thing that has to break.
 ##
-## So the targets are lifted straight out of fsb_main_v3.glb: instantiate it, take the parapet
-## segments and a wire card, reparent them onto Destructibles, and free the rest of the model.
-const FSB_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
-const WALL_MESH_PREFIX: String = "fb_sbg_seg_"
-const WIRE_MESH_PREFIX: String = "bwire_card"
-
-
+## The lifting lives in FireSupportBench so this bench and the AI arena share ONE target
+## vocabulary (ADR-023). Everything here is layout: one rank per kind, wire out front.
 func _build_targets() -> void:
-	var packed: PackedScene = load(FSB_PATH) as PackedScene
-	if packed == null:
-		push_error("[SAPPER-ROOM] firebase GLB missing - cannot build the real targets")
-		return
-	var inst := packed.instantiate() as Node3D
-	var walls: Array[MeshInstance3D] = []
-	var wires: Array[MeshInstance3D] = []
-	var stack: Array[Node] = [inst]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.append(c)
-		var mi := n as MeshInstance3D
-		if mi == null or mi.mesh == null:
+	var built: Array[String] = []
+	var lane: int = 0
+	for spec in FireSupportBench.TARGET_KINDS:
+		var kind: String = str(spec["kind"])
+		var want: int = int(PER_KIND.get(kind, 0))
+		if want <= 0:
 			continue
-		var nm := String(mi.name)
-		if nm.begins_with(WALL_MESH_PREFIX) and walls.size() < WALL_SEGMENTS:
-			walls.append(mi)
-		elif nm.begins_with(WIRE_MESH_PREFIX) and wires.size() < WIRE_SEGMENTS:
-			wires.append(mi)
-	for i in range(walls.size()):
-		var x: float = (float(i) - float(walls.size() - 1) * 0.5) * WALL_SPAN_M
-		_walls.append(_adopt(walls[i], Vector3(x, 0.0, -APPROACH_M), 140))
-	for i in range(wires.size()):
-		var x2: float = (float(i) - float(wires.size() - 1) * 0.5) * 4.0
-		_walls.append(_adopt(wires[i], Vector3(x2, 0.0, -APPROACH_M + 9.0), 60))
-	inst.queue_free()      # everything not adopted goes with it
-	print("[SAPPER-ROOM] targets: %d parapet segment(s) + %d wire card(s) lifted from the GLB"
-		% [walls.size(), wires.size()])
-
-
-## Reparent one authored mesh onto a Destructible and stand it at `at`. The collider is a box
-## from the mesh's own AABB: the shipped GLB gives these segments a box hull anyway, and the
-## bench is testing DESTRUCTION, not the shot-through-the-slit geometry.
-func _adopt(mi: MeshInstance3D, at: Vector3, hp: int) -> Destructible:
-	var d := Destructible.new()
-	d.kind = "sandbag_wall"
-	d.hp = hp
-	d.collision_layer = 1
-	d.collision_mask = 0
-	add_child(d)
-	d.global_position = at
-	var box: AABB = mi.mesh.get_aabb()
-	var cs := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = box.size
-	cs.shape = shape
-	cs.position = box.position + box.size * 0.5
-	d.add_child(cs)
-	mi.get_parent().remove_child(mi)
-	d.add_child(mi)
-	mi.transform = Transform3D.IDENTITY      # the model's own placement is 100m away
-	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
-	return d
+		var meshes: Array[Mesh] = FireSupportBench.lift_meshes(
+			str(spec["prefix"]), want, str(spec["src"]))
+		if meshes.is_empty():
+			push_warning("[SAPPER-ROOM] no '%s' mesh in the source - that kind is untested"
+				% str(spec["prefix"]))
+			continue
+		var is_wire: bool = kind == "wire"
+		var z: float = -APPROACH_M + (WIRE_STANDOFF_M if is_wire else 0.0)
+		# Wire spreads across the whole rank; structures take one lane each.
+		var span: float = 4.0 if is_wire else 2.4
+		var base_x: float = 0.0 if is_wire else (float(lane) - 2.0) * KIND_SPAN_M
+		# The source may hold fewer distinct meshes than the rank wants (the wire is ONE
+		# card), so cycle the pool rather than shrinking the test.
+		for i in range(want):
+			var x: float = base_x + (float(i) - float(want - 1) * 0.5) * span
+			_walls.append(FireSupportBench.spawn_lifted(
+				self, meshes[i % meshes.size()], Vector3(x, 0.0, z), kind, int(spec["hp"])))
+		if not is_wire:
+			lane += 1
+		built.append("%d %s" % [want, kind])
+	_target_total = _walls.size()
+	print("[SAPPER-ROOM] targets on the bus: %s" % ", ".join(built))
 
 
 ## Stand up the wave. Each man gets the objective AND the charge - the same two calls
@@ -232,17 +206,29 @@ func _process(delta: float) -> void:
 			continue
 		alive += 1
 		nearest = minf(nearest, s.global_position.distance_to(Vector3(0, 0, -APPROACH_M)))
+	# is_instance_valid is USELESS here: _do_destroy never frees the node, so a blown
+	# structure passes it forever. is_destroyed() is the only honest answer.
 	var standing: int = 0
+	var down_by_kind: Dictionary = {}
 	for w in _walls:
-		if w != null and is_instance_valid(w):
+		if w == null or not is_instance_valid(w):
+			continue
+		if w.is_destroyed():
+			down_by_kind[w.kind] = int(down_by_kind.get(w.kind, 0)) + 1
+		else:
 			standing += 1
+	var killed: Array[String] = []
+	for k in down_by_kind:
+		killed.append("%s x%d" % [k, int(down_by_kind[k])])
 	_readout.text = ("SAPPER BENCH   wave %d\n"
 		+ "sappers up: %d/%d      nearest to objective: %s\n"
 		+ "targets standing: %d/%d\n"
-		+ "[R] new wave   [K] kill wave   [T] blow one wall") % [
+		+ "blown: %s\n"
+		+ "[R] new wave   [K] kill wave   [T] blow one target   [F5] rebuild from GLB") % [
 			_wave, alive, SAPPERS,
 			"-" if nearest > 9000.0 else "%.1fm" % nearest,
-			standing, WALL_SEGMENTS + WIRE_SEGMENTS]
+			standing, _target_total,
+			"nothing yet" if killed.is_empty() else ", ".join(killed)]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -266,7 +252,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			# Reference blast: proves the TARGET side independently of the sapper side, so a
 			# silent bench never leaves both halves suspect at once.
 			for w in _walls:
-				if w != null and is_instance_valid(w):
+				if w != null and is_instance_valid(w) and not w.is_destroyed():
 					CombatManager.apply_explosion_damage(w.global_position, 250, 70, 14.0, null)
 					break
 			get_viewport().set_input_as_handled()
