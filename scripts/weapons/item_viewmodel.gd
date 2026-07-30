@@ -50,6 +50,11 @@ const GLB_DIR: String = "res://assets/player/viewmodels/"
 ## .tscn when there is one; `manifest_key` is the fallback, loading the exported GLB
 ## straight off disk. Returns null when neither exists, so a caller keeps its own fallback.
 ##
+## PASS `at` = Vector3.ZERO FOR ANY EXPORTED ITEM. export_viewmodel_clips.py recentres an
+## item GLB on the rig's camera bone and rotates it into Godot's frame, so the file already
+## sits in camera space with the hold pose authored in Blender. A non-zero `at` applies that
+## placement a second time. The parameter is for a raw model that was never posed.
+##
 ## The wrapper is OPTIONAL on purpose. Requiring a hand-made .tscn per item means a finished
 ## export still renders nothing until someone remembers to build one, and that silence looks
 ## exactly like a broken rig.
@@ -58,8 +63,13 @@ static func create(parent: Node, scene_path: String, at: Vector3,
 	if parent == null:
 		return null
 	var path: String = scene_path
+	var placement: Vector3 = at
 	if path.is_empty() or not ResourceLoader.exists(path):
 		path = GLB_DIR + manifest_key + "_fp.glb" if not manifest_key.is_empty() else ""
+		# An EXPORTED item is already in camera space with its hold pose authored, so the
+		# caller's placement must not be applied on top of it. Enforced here rather than
+		# asked of five call sites, each of which would be a chance to get it wrong.
+		placement = Vector3.ZERO
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return null
 	var packed: PackedScene = load(path) as PackedScene
@@ -71,7 +81,7 @@ static func create(parent: Node, scene_path: String, at: Vector3,
 	var vm := ItemViewmodel.new()
 	vm.name = "ItemViewmodel"
 	parent.add_child(vm)
-	vm.position = at
+	vm.position = placement
 	vm.add_child(model)
 	vm._model = model
 	vm._camera = cam

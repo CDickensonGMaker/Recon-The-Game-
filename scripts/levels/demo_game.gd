@@ -22,10 +22,24 @@ const EXCLUDE_AIR_TRAFFIC := false
 const EXCLUDE_AMBIENT_WAR := false
 
 ## ---- THE ARC (seconds; pacing knobs for the Summoner's playtest) ----
-## dusk arrival -> explore window -> probing attack -> main siege -> dawn card.
-const PROBE_AT_S: float = 600.0      ## minute 10: a probe finds the wire
-const SIEGE_AT_S: float = 720.0      ## minute 12: the d50 night assault
-const DAWN_AT_S: float = 1080.0      ## minute 18: it breaks; card at ~20
+## dusk arrival -> probe -> main assault -> dawn card.
+##
+## HIS RULING 2026-07-30: "the assault should happen within 60 seconds of the player
+## spawning in. no debug needed." The ten-minute explore window is DELETED, not shortened -
+## a demo that makes you wait twelve minutes for its best minute is showing off the wait.
+## The probe survives at 20s because the escalation is the drama (11 men, then 45) and
+## because _open_siege's reinforce() path is the one that was fixed on 07-30; going
+## straight to full strength would leave that path untested in the only build anyone sees.
+const PROBE_AT_S: float = 20.0       ## a probe finds the wire almost immediately
+const SIEGE_AT_S: float = 60.0       ## the assault, inside his minute
+const DAWN_AT_S: float = 420.0       ## it breaks; card at ~7 minutes
+
+## The sim clock is what makes DAWN true rather than a caption. At the default 60x a real
+## second is a sim minute, so a 7-minute demo would end at half past midnight and the end
+## card would be lying. 110x runs 17:30 -> ~06:20 across the arc: the assault lands around
+## 19:20 in failing light (which SHOWS the compound, the aircraft and the napalm - pitch
+## dark hides the art), and the sun is genuinely up when the card reads DAWN.
+const DEMO_CLOCK_RATIO: float = 110.0
 const PROBE_STRENGTH: int = 11
 ## Total men on the wire after the escalation, NOT an increment. 45 and not 50: LIVE_CAP
 ## is 50 materialized men, and an assault authored at the cap freezes its late cells at
@@ -58,6 +72,7 @@ func _ready() -> void:
 		SaveManager.save_dir = "user://saves_demo"
 		DirAccess.make_dir_recursive_absolute(SaveManager.save_dir)
 		CampaignState.load_campaign()
+	SimClock.real_to_sim_ratio = DEMO_CLOCK_RATIO
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
 	add_child(_flow)
@@ -68,6 +83,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	GameFlow.demo_mode = false   # never leak demo state into a normal boot
+	SimClock.real_to_sim_ratio = 60.0   # the demo's fast night must not follow him home
 	if EXCLUDE_SAVES:
 		CampaignState.save_path = CampaignState.DEFAULT_SAVE_PATH
 		SaveManager.save_dir = SaveManager.DEFAULT_SAVE_DIR
@@ -110,7 +126,7 @@ var _air_rotation_i: int = 0
 ## pick for the biggest remaining visual win.
 ##
 ## Two runs, deliberately different jobs:
-##   EARLY, at 2:40, on a bearing AWAY from the base - pure spectacle while nothing threatens
+##   EARLY, at 35s, on a bearing AWAY from the base - pure spectacle while nothing threatens
 ##   him. The player watches somebody else's war burn on the horizon.
 ##   LATE, one minute into the main assault, laid across the treeline the attack is coming out
 ##   of. Same beat, but now it is ON his side and it is the answer to being overrun.
@@ -118,7 +134,7 @@ var _air_rotation_i: int = 0
 ## Distances are measured against the model: the authored treeline runs out to ~149m and the
 ## siege rallies at 150m, so 210m puts the strip in the trees BEHIND the assault, not on top of
 ## the wire - and well clear of the garrison, who take blast like anyone else.
-const NAPALM_EARLY_S: float = 160.0
+const NAPALM_EARLY_S: float = 35.0
 const NAPALM_RANGE_M: float = 210.0
 
 var _napalm_early_done: bool = false
