@@ -55,11 +55,28 @@ var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
 var target_last_seen_time: float = 0.0
 
-## A fixed point this man drives to regardless of the combat brain, pushing THROUGH
-## contact instead of stopping to fight it (sapper doctrine - aggression is
-## doctrine-exempt, test_ai_fairness.gd:103). ZERO = no override, normal FSM. Set
-## once by a behaviour node (sapper_charge.gd); the goal-scoring brain is untouched.
+## A fixed point this man drives to. ZERO = no override, normal FSM.
 var assault_objective: Vector3 = Vector3.ZERO
+
+## Whether the objective OWNS his legs through contact. TRUE is sapper doctrine: the
+## satchel man pushes through fire instead of stopping to fight it (aggression is
+## doctrine-exempt, test_ai_fairness.gd:103), and a withdrawal is the same contract
+## pointed the other way.
+##
+## FALSE for the assault element, and that distinction is the 2026-07-29 playtest bug:
+## MarchingCell.materialize set assault_objective on EVERY man it stood up, sappers and
+## riflemen alike, and _execute short-circuits the whole combat FSM while it is set. So
+## forty men ran at the wire and not one of them ever fought - "the VC started running at
+## the base and no one fought besides me". Worse, only SapperCharge._detonate ever cleared
+## it, and the assault element carries no charge, so they arrived and kept running at a
+## point they were already standing on, forever.
+##
+## For an undriven man the objective is a DESTINATION: he marches while he has no contact,
+## and the moment he is in COMBAT (or arrives) his own brain takes his legs back.
+var assault_driven: bool = false
+
+## How close an undriven man has to get before the objective is spent.
+const ASSAULT_ARRIVE_M: float = 8.0
 ## A demolition infiltrator never fires and never barks contact - the satchel is his
 ## weapon. Silence is an invariant here, independent of the assault-move override, so
 ## clearing the objective can never turn a "sapper" back into a live gun. Set from data.
@@ -837,17 +854,27 @@ func _update_perception() -> void:
 	if player != null and is_instance_valid(player):
 		best_dist = global_position.distance_to(player.global_position)
 		candidate = player
-	# Buddy rule: squadmates are perception-exempt until we are in COMBAT, so the
-	# player's stealth is never broken by their AI pathing.
-	if alert_tier == AlertTier.COMBAT:
-		for ally in get_tree().get_nodes_in_group("allies"):
-			var a := ally as Node3D
-			if a == null or (a.has_method("is_dead") and a.is_dead()):
-				continue
-			var d := global_position.distance_to(a.global_position)
-			if d < best_dist:
-				best_dist = d
-				candidate = a
+	# BUDDY RULE: the player's own SQUAD is perception-exempt until we are in COMBAT, so his
+	# stealth is never broken by their AI pathing. It is a rule about HIS men on HIS patrol.
+	#
+	# It used to exempt every ally alive, and that was the other half of the 2026-07-29
+	# "nobody fought" playtest: an assault force crossing the wire could perceive NOTHING but
+	# the player. A dozen garrison defenders standing their posts were invisible to them, so
+	# the attackers never reached COMBAT tier and never had anyone to shoot at. Men defending
+	# a firebase are not the player's buddies and were never what this rule was protecting.
+	var combat: bool = alert_tier == AlertTier.COMBAT
+	for ally in get_tree().get_nodes_in_group("allies"):
+		var a := ally as Node3D
+		if a == null or (a.has_method("is_dead") and a.is_dead()):
+			continue
+		if not combat:
+			var ab := a as AllyBase
+			if ab == null or ab.squad_member:
+				continue   # his squad, and we are not yet in contact - stay blind to them
+		var d := global_position.distance_to(a.global_position)
+		if d < best_dist:
+			best_dist = d
+			candidate = a
 
 	var gain: float = 0.0
 	if candidate != null:
@@ -1268,12 +1295,22 @@ func _execute(delta: float) -> void:
 
 	_update_aim(delta)
 
-	# Objective override: a driven man (sapper) runs the satchel to the point and
+	# Objective override: a DRIVEN man (sapper, or a cell withdrawing) runs the point and
 	# pushes through fire. Movement only - he still thinks, aims and can be killed;
 	# the goal FSM below never touches his legs while the objective stands.
+	#
+	# An UNDRIVEN man - the assault element - marches to the same point but is not spellbound
+	# by it: contact or arrival hands his legs back to the combat brain. Without this the
+	# whole assault runs at the wire and never fights.
 	if assault_objective != Vector3.ZERO:
-		_execute_assault(delta)
-		return
+		if assault_driven:
+			_execute_assault(delta)
+			return
+		if alert_tier != AlertTier.COMBAT \
+				and global_position.distance_to(assault_objective) > ASSAULT_ARRIVE_M:
+			_execute_assault(delta)
+			return
+		assault_objective = Vector3.ZERO
 
 	# Medic override, same contract as the sapper's: his legs belong to the
 	# casualty - reach the downed man, drag him toward the rear, release. He

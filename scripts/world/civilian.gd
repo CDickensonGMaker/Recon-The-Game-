@@ -71,6 +71,8 @@ var _bt_bb: Dictionary = {}
 ## Behavior tree root. Typed as RefCounted to avoid class_name lookup hazards;
 ## BTSelector/BTAction are duck-typed at runtime via .tick().
 var _bt: RefCounted = null
+var _router := NavRouter.new()
+var _box_timer: float = 0.0
 
 # L1 LOD. 3 tiers matching enemy_base.gd:39-54. Hysteresis band (5m) prevents
 # a civilian at a tier boundary from flapping between tiers every 2 seconds.
@@ -119,6 +121,22 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	col.shape = cap
 	col.position = Vector3(0, 0.8, 0)
 	civ.add_child(col)
+	# THE SHARED ROUTING PATH (ADR-023). nav_router.gd's own header records that allies once
+	# "steered straight into walls for want of this" - and the Civilian never got it. So the
+	# firebase garrison, 21 men whose whole behaviour is walking between quarters, post and
+	# work point, had no way to get around a hootch: _step_toward is a straight line. They
+	# have had schedules and working points the entire time and no legs to execute them.
+	if WorldConfig.NAV_ENABLED:
+		var nav := NavigationAgent3D.new()
+		nav.name = "NavigationAgent3D"
+		# INVARIANT: must match NavBaker's agent metrics, or he walks corridors nothing carved.
+		nav.radius = NavBaker.AGENT_RADIUS
+		nav.height = NavBaker.AGENT_HEIGHT
+		nav.path_desired_distance = 0.7
+		nav.target_desired_distance = 1.0
+		nav.path_max_distance = 5.0
+		nav.avoidance_enabled = false
+		civ.add_child(nav)
 	# A PERSON, not a pill. Deterministic per position so the same village rebuilds
 	# with the same faces (ADR-010/017 - the province must come back identical).
 	var seed_h: int = absi(hash(Vector2i(int(pos.x), int(pos.z))))
@@ -155,9 +173,23 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 		["civilian_hurtbox", "hitzone"], true)
 	parent.add_child(civ)
 	civ.global_position = pos
+	# DRESS THE GARRISON. GARRISON_MEN are us_grunt_* bodies, every one of them dressable, and
+	# this call was simply never here: the firebase's 21 men ran ModelActor.setup and stopped.
+	# So they wore the welded stock pot - one white helmet, no face variation, twenty-one
+	# identical men - while fifteen authored helmet variants sat unused on disk. AllyBase does
+	# this in dress_visual(); the Civilian is the same body under a different script.
+	# Dressed AFTER add_child: the helmet swap reads where the stock helmet RENDERS, which
+	# needs the actor in the tree.
+	if GruntRandomizer.is_dressable(models[pick]):
+		var drng := RandomNumberGenerator.new()
+		drng.seed = seed_h            # deterministic per position (ADR-010: same seed, same men)
+		GruntRandomizer.dress_actor(model_actor, drng)
 	civ.home = pos
 	civ._wander_target = pos
 	civ.add_to_group("civilians")
+	# After add_child: setup() reads the tree for a lab navmesh.
+	civ._router.setup(civ.get_node_or_null("NavigationAgent3D") as NavigationAgent3D,
+		civ.get_tree(), "garrison" if garrison else "civilian")
 	AgentRegistry.register(civ, AgentRegistry.Kind.CIVILIAN)
 	NoiseBus.noise_emitted.connect(civ._on_noise)
 	return civ
@@ -231,6 +263,13 @@ func _physics_process(delta: float) -> void:
 			visible = false
 			set_physics_process(false)
 			return
+
+	# Which baked region he stands in, at think rate - never per frame (nav_router's contract).
+	_box_timer -= delta
+	if _box_timer <= 0.0:
+		_box_timer = 0.5
+		if lod_tier == LOD_FULL:
+			_router.refresh_box(global_position)
 
 	match state:
 		CivState.WANDER:
@@ -327,7 +366,11 @@ func _play_garrison(want: String) -> void:
 
 
 func _step_toward(target: Vector3, speed: float, delta: float) -> void:
-	var dir := (target - global_position)
+	# Routing is for the men you can see walking. A villager 300m out crossing a paddy has
+	# nothing to path around, and a populated AO carries 16-40 of them - each path query is
+	# a cost the frame pays for a man nobody is looking at.
+	var dir: Vector3 = _router.step(global_position, target) if lod_tier == LOD_FULL \
+		else (target - global_position)
 	dir.y = 0
 	if dir.length() > 1.0:
 		dir = dir.normalized()

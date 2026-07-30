@@ -26,6 +26,21 @@ extends Node
 const HALF_MIN: float = 35.0
 const HALF_MAX: float = 70.0
 const HALF_PAD: float = 25.0
+
+## The main firebase is its own case, and it needs both of these.
+##
+## SIZE: the compound is ~300m across, so the 70m HALF_MAX would cover under a quarter of it
+## and leave the gate, the spawn point and the whole outer wire off-mesh - and off-mesh means
+## NavRouter.step returns direct steering, which is the defect this bake exists to fix.
+##
+## GEOMETRY: _add_structures only carves nodes in the "nav_blockers" group with a `nav_box`
+## meta, and the firebase GLB is one plain Node3D root that is in neither. Baked that way the
+## mesh would run flat through every bunker and berm, and the men would path INTO walls with
+## full confidence - worse than no navmesh, because it would look deliberate. So this one site
+## parses the real `-colonly` trimeshes instead: the exact colliders move_and_slide() hits, so
+## navmesh and physics cannot disagree.
+const FSB_KIND: String = "firebase_main"
+const FSB_HALF: float = 185.0
 const GRID_STEP: float = 4.0        ## == WorldConfig.CELL_SIZE; finer is pure interpolation
 const AGENT_RADIUS: float = 0.5     ## enemy capsule is 0.4 + clearance
 const AGENT_HEIGHT: float = 1.8
@@ -90,6 +105,12 @@ func queue_sites(sites: Array, anchors: Array[Vector3]) -> void:
 	var boxes: Array[AABB] = []
 	for s in sites:
 		var site: Dictionary = s
+		# The firebase is baked whether or not an enemy anchor is near it: the squad and the
+		# garrison live inside that wire and must path there on a quiet afternoon too. It is
+		# also kept OUT of the merge below - a merged box would lose its collider root.
+		if str(site.get("kind", "")) == FSB_KIND:
+			_queue_firebase(site)
+			continue
 		if not NavBaker.should_bake(site, anchors):
 			continue
 		boxes.append(_box_for(site.get("center", Vector3.ZERO), float(site.get("radius", 20.0))))
@@ -102,8 +123,20 @@ func queue_site(center: Vector3, radius: float) -> void:
 	_queue.append({"box": _box_for(center, radius)})
 
 
-func _box_for(center: Vector3, radius: float) -> AABB:
-	var half: float = clampf(radius + HALF_PAD, HALF_MIN, HALF_MAX)
+func _queue_firebase(site: Dictionary) -> void:
+	var nodes: Array = site.get("nodes", [])
+	var root: Node3D = (nodes[0] as Node3D) if nodes.size() > 0 else null
+	if root == null:
+		push_error("[NAV] firebase site has no root node - falling back to a terrain-only "
+			+ "bake, which paths men straight through the bunkers")
+	_queue.append({
+		"box": _box_for(site.get("center", Vector3.ZERO), FSB_HALF, FSB_HALF),
+		"colliders": root,
+	})
+
+
+func _box_for(center: Vector3, radius: float, cap: float = HALF_MAX) -> AABB:
+	var half: float = clampf(radius + HALF_PAD, HALF_MIN, cap)
 	return AABB(Vector3(center.x - half, -1000.0, center.z - half), Vector3(half * 2.0, 2000.0, half * 2.0))
 
 
@@ -171,7 +204,12 @@ func _start_bake(job: Dictionary) -> void:
 
 	var source := NavigationMeshSourceGeometryData3D.new()
 	_add_terrain(source, box)
-	var carved: int = _add_structures(source, box)
+	var carved: int = 0
+	var croot: Node3D = job.get("colliders", null) as Node3D
+	if croot != null and is_instance_valid(croot):
+		carved = -_add_colliders(source, croot, box) - 1   # negative = collider count, see below
+	else:
+		carved = _add_structures(source, box)
 
 	var region := NavigationRegion3D.new()
 	region.name = "NavRegion_%d" % regions_live
@@ -190,10 +228,11 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 		return
 	var polys: int = nav.get_polygon_count()
 	_total_ms += Time.get_ticks_msec() - _bake_start_ms
-	print("[NavBaker] bake done: box=%s verts=%d polys=%d carved=%d cell=%.3f" % [
-		box.size, nav.get_vertices().size(), polys, carved, nav.cell_size])
+	var geom: String = ("%d colliders" % (-carved - 1)) if carved < 0 else "%d carved" % carved
+	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f" % [
+		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size])
 	if polys == 0:
-		push_error("[NAV] baked region has 0 polygons (box %s, %d structures carved)" % [box.size, carved])
+		push_error("[NAV] baked region has 0 polygons (box %s, geom %s)" % [box.size, geom])
 		region.queue_free()
 	else:
 		region.navigation_mesh = nav
@@ -226,6 +265,91 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 			faces.append(p00); faces.append(p10); faces.append(p11)
 			faces.append(p00); faces.append(p11); faces.append(p01)
 	source.add_faces(faces, Transform3D.IDENTITY)
+
+
+## Feed the firebase's OWN colliders into the bake, walked by hand.
+##
+## NavigationServer3D.parse_source_geometry_data() was tried first and is not usable here: it
+## returned a 4-polygon mesh for the whole compound, having discarded the terrain faces already
+## in the source. Rather than build on an API whose emptying behaviour I would be guessing at,
+## this reads the shapes directly - which is also the only version where it is obvious WHAT
+## went into the navmesh, and where a bad collider can be excluded by name later.
+##
+## Shapes are converted in their own global transform, so a shape's node hierarchy, scale and
+## the compound's seating are all already accounted for.
+## Colliders a man walks AROUND but the navmesh must not be shredded by.
+##
+## fb_veg_ is 90 merged tree stumps and 46 logs scattered across the cleared band, each ~0.4-0.8m
+## - right at agent_max_climb, so every one punches a hole and erodes agent_radius of ground
+## around it. Feeding them in fragmented the compound into islands and allies 5m from their post
+## could not path to it. They are still SOLID; a man just steps around them without the navmesh
+## having to model it.
+##
+## fb_int_ is interior dressing - hanging bulbs, crates, bunks. Same story, indoors.
+const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_"]
+
+
+func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
+	var added: int = 0
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var cs := n as CollisionShape3D
+		if cs == null or cs.disabled or cs.shape == null:
+			continue
+		if not NavBaker._xz_contains(box, cs.global_position):
+			continue
+		var owner_name: String = String(cs.get_parent().name)
+		var skip: bool = false
+		for p in NAV_IGNORE_PREFIXES:
+			if owner_name.begins_with(p):
+				skip = true
+				break
+		if skip:
+			continue
+		var faces: PackedVector3Array = _shape_faces(cs.shape)
+		if faces.is_empty():
+			continue
+		source.add_faces(faces, cs.global_transform)
+		added += 1
+	return added
+
+
+## Triangles for the shape kinds the firebase GLB actually imports: `-colonly` trimeshes come
+## in as ConcavePolygonShape3D, and the generator's box hulls as BoxShape3D. Anything else is
+## approximated from its own AABB rather than skipped - an unrecognised shape that silently
+## contributed nothing would be a hole in the navmesh where a real wall stands.
+func _shape_faces(shape: Shape3D) -> PackedVector3Array:
+	var concave := shape as ConcavePolygonShape3D
+	if concave != null:
+		return concave.get_faces()
+	var half: Vector3 = Vector3(0.5, 0.5, 0.5)
+	var boxs := shape as BoxShape3D
+	if boxs != null:
+		half = boxs.size * 0.5
+	else:
+		var dbg: ArrayMesh = shape.get_debug_mesh()
+		if dbg == null:
+			return PackedVector3Array()
+		half = dbg.get_aabb().size * 0.5
+	var out := PackedVector3Array()
+	# 6 quads -> 12 triangles, wound outward.
+	for axis in range(3):
+		for sign_i in [-1.0, 1.0]:
+			var u: int = (axis + 1) % 3
+			var v: int = (axis + 2) % 3
+			var quad: Array[Vector3] = []
+			for o in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+				var p := Vector3.ZERO
+				p[axis] = half[axis] * sign_i
+				p[u] = half[u] * o.x
+				p[v] = half[v] * o.y
+				quad.append(p)
+			out.append(quad[0]); out.append(quad[1]); out.append(quad[2])
+			out.append(quad[0]); out.append(quad[2]); out.append(quad[3])
+	return out
 
 
 ## add_projected_obstruction() takes a footprint polygon and carves it. It is an

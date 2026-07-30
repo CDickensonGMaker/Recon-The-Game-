@@ -25,10 +25,13 @@ const EXPECTED := {
 ## Heavy classes that one-shot the player torso BY DECREE (Amendment H) — exempt
 ## from the base-class no-one-shot rail below, exactly as the shotgun is.
 const HEAVY_ONESHOT := ["m60", "rpd", "m70", "shotgun"]
-## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016;
-## car15/sks/thompson by Amendment C (no FP arms = not a gun in this game;
-## vc_rifleman now fires the Mosin his model carries).
-const RETIRED := ["mp40", "kar98k", "car15", "sks", "thompson"]
+## Retired - loading one of these is a FAIL. mp40/kar98k by ADR-016.
+## car15, thompson and sks were UNRETIRED by the Summoner 2026-07-29 ("car 15 is
+## back in the pipeline... its coming", "thompson and sks are on track for coming
+## back too"). Amendment C retired them for having no FP arms; that test is now
+## dead, because a weapon may be live in the armory BEFORE its arms exist.
+## thompson/sks have audio but NO .tres yet - they are UNFINISHED, not retired.
+const RETIRED := ["mp40", "kar98k"]
 
 ## Values of record: ADR-016 Amendment D (2026-07-11, Summoner: "weapons
 ## should be more punishing"). Duplicated here ON PURPOSE - retuning the law

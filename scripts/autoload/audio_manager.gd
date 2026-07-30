@@ -365,28 +365,129 @@ func play_reload_player(data: Variant) -> void:
 		_p_mech.play()
 
 
+## Audio size ladder. GunFX._KIND_SCALE ranks these for the EYES; without the
+## same ladder for the ears a satchel charge and a 40mm grenade were the same
+## loudness over the same 600 m. Keys: volume_db, max_distance, unit_size, duck_ms.
+const _KIND_AUDIO: Dictionary = {
+	"explosion_40mm":    {"db": 1.0, "max_d": 340.0, "unit": 16.0, "duck": 180},
+	"explosion_grenade": {"db": 4.0, "max_d": 460.0, "unit": 24.0, "duck": 240},
+	"explosion_rocket":  {"db": 6.0, "max_d": 620.0, "unit": 32.0, "duck": 300},
+	"explosion_mortar":  {"db": 7.0, "max_d": 800.0, "unit": 40.0, "duck": 380},
+	"explosion_heavy":   {"db": 9.0, "max_d": 1100.0, "unit": 52.0, "duck": 520},
+}
+
+
+## The tube thump and the whistle. Both are POSITIONAL: the thump belongs at the
+## tube hundreds of metres out, the whistle above the impact point, and the gap
+## between them is the warning the player gets.
+const MORTAR_TUBE := "res://assets/audio/sfx/weapons/mortar_tube.wav"
+const SHELL_INCOMING := "res://assets/audio/sfx/weapons/shell_incoming.wav"
+
+
+func play_mortar_tube(pos: Vector3) -> void:
+	_play_oneshot_3d(pos, MORTAR_TUBE, -2.0, 1400.0, 60.0)
+
+
+## Played at the impact point while the shell is still in the air.
+func play_incoming(pos: Vector3) -> void:
+	_play_oneshot_3d(pos, SHELL_INCOMING, -4.0, 420.0, 34.0)
+
+
+func _play_oneshot_3d(pos: Vector3, path: String, db: float,
+		max_d: float, unit: float) -> void:
+	if _headless:
+		return
+	var key := "one:" + path
+	var s: AudioStream
+	if _single_cache.has(key):
+		s = _single_cache[key]
+	else:
+		s = _try_load(path)
+		_single_cache[key] = s
+	if s == null:
+		return
+	if _listener_pos().distance_to(pos) > max_d:
+		return
+	var idx := _acquire_voice(pos, 0.0)
+	if idx < 0:
+		return
+	var p := _voices[idx]
+	p.stream = s
+	p.global_position = pos
+	p.volume_db = db
+	p.pitch_scale = randf_range(0.96, 1.04)
+	p.max_distance = max_d
+	p.unit_size = unit
+	_voice_started[idx] = Time.get_ticks_msec()
+	_voice_prio[idx] = 5e5
+	p.play()
+
+## Past this the roll is the event, not the bang.
+const XPL_DISTANT_M: float = 190.0
+
+
+func _explosion_variants(kind: String) -> Array:
+	if _fire_cache.has(kind):
+		return _fire_cache[kind]
+	var arr: Array = []
+	for v in [1, 2, 3]:
+		var s := _try_load(XPATH + "%s_%d.wav" % [kind, v])
+		if s:
+			arr.append(s)
+	if arr.is_empty():
+		var flat := _try_load(XPATH + kind + ".wav")
+		if flat:
+			arr.append(flat)
+	_fire_cache[kind] = arr
+	return arr
+
+
 func play_explosion_3d(pos: Vector3, kind: String = "explosion_grenade") -> void:
 	if _headless:
 		return
-	var s := _try_load(XPATH + kind + ".wav")
+	var prof: Dictionary = _KIND_AUDIO.get(kind, _KIND_AUDIO["explosion_grenade"])
+	var d: float = _listener_pos().distance_to(pos)
+	var max_d: float = float(prof["max_d"])
+	if d > max_d:
+		return
+
+	var s: AudioStream = null
+	if d > XPL_DISTANT_M:
+		s = _single_x(kind, "dist")
+	if s == null:
+		var arr := _explosion_variants(kind)
+		if not arr.is_empty():
+			var i: int = int(_rr.get(kind, 0))
+			_rr[kind] = (i + 1) % arr.size()
+			s = arr[i]
 	if s == null:
 		s = _try_load("res://assets/audio/sfx/explosion.wav")
 	if s == null:
 		return
+
 	var idx := _acquire_voice(pos, 0.0)  # explosions are top priority
 	if idx < 0:
 		idx = 0
 	var p := _voices[idx]
 	p.stream = s
 	p.global_position = pos
-	p.volume_db = 6.0
+	p.volume_db = float(prof["db"])
 	p.pitch_scale = randf_range(0.95, 1.05)
-	p.max_distance = 600.0
-	p.unit_size = 30.0
+	p.max_distance = max_d
+	p.unit_size = float(prof["unit"])
 	_voice_started[idx] = Time.get_ticks_msec()
 	_voice_prio[idx] = 1e6
 	p.play()
-	duck_ambience(260)
+	duck_ambience(int(prof["duck"]))
+
+
+func _single_x(kind: String, suffix: String) -> AudioStream:
+	var key := "x:" + kind + ":" + suffix
+	if _single_cache.has(key):
+		return _single_cache[key]
+	var s := _try_load(XPATH + "%s_%s.wav" % [kind, suffix])
+	_single_cache[key] = s
+	return s
 
 
 # --------------------------------------------------------------------------

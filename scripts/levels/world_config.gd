@@ -32,7 +32,12 @@ const FPS_LOG_INTERVAL: float = 2.0
 ## Perf escape hatch, rung 0: set false and NavBaker is never constructed, no
 ## NavigationRegion3D exists, and _move_toward() falls back to direct steer.
 const NAV_ENABLED: bool = true
-const NAV_SITE_KINDS: Array[String] = ["village", "firebase", "aa_site", "outpost", "temple", "pow_camp"]
+## "firebase" was a dead entry: SitePlanner.place_firebase_main tags its site "firebase_main"
+## (site_planner.gd:1000), so the string never matched anything and the compound the whole
+## game is fought in had no navmesh at all. Every ally, promoted garrison defender and VC
+## inside the wire fell to NavRouter's direct steering and ground into the first revetment
+## between him and his destination - the 2026-07-29 "stuck in the spawn" playtest.
+const NAV_SITE_KINDS: Array[String] = ["village", "firebase_main", "aa_site", "outpost", "temple", "pow_camp"]
 
 ## Terrain + building destruction throttle (ADR-031). The scar-decal + veg-clear always
 ## apply immediately (cheap, reads instantly); the expensive parts ride a per-frame budget

@@ -48,6 +48,20 @@ def _ir(kind: str, rng, scale: float = 1.0) -> np.ndarray:
     return D.env_ir(secs * scale, rng, decay * scale, damp, predelay, density)
 
 
+def _ir_unit(kind: str, rng, scale: float = 1.0) -> np.ndarray:
+    """IR scaled to unit diffuse energy. Without this a `wet` value means a
+    different loudness in every environment, because a 5.6s valley IR carries
+    far more energy than a 0.9s jungle one -- so the longest tail drowned its
+    own transient and the crest factor collapsed."""
+    ir = _ir(kind, rng, scale)
+    diffuse = ir[1:]
+    e = float(np.sqrt(np.sum(diffuse ** 2)))
+    if e > 1e-9:
+        ir = ir / e
+        ir[0] = 1.0
+    return ir
+
+
 def muzzle_blast(p: dict, rng, n: int) -> np.ndarray:
     """Layer 1+2: propellant gas leaving the muzzle, and the body under it.
 
@@ -267,44 +281,119 @@ def render_reload(wid: str) -> np.ndarray:
     return D.fade_out(D.normalize(out, 0.72), 12.0)
 
 
-def render_explosion(xid: str) -> np.ndarray:
+def render_explosion(xid: str, variant: int = 1) -> np.ndarray:
+    """Near-field detonation. Eight layers, in the order the ear receives them:
+    shock front, gas fireball, sub body, ground slap, terrain returns, frag
+    whizz, debris fall, environment tail."""
     p = EXPLOSIONS[xid]
-    rng = np.random.default_rng(_seed(xid, "expl", 0))
-    n = int(D.SR * 2.8)
+    rng = np.random.default_rng(_seed(xid, "expl", variant))
+    n = int(D.SR * p["dur"])
 
-    # Detonation front.
-    front = D.friedlander(n, p["blast_tau"])
-    gas = D.noise(n, rng) * D.expdecay(n, p["blast_tau"] * 4.0, rise=0.0004)
-    gas = D.lowpass(gas, p["brightness"], q=0.8)
+    # Per-variant charge jitter, same principle as render_near: three shells are
+    # three events, not one file replayed. Without this a 3-round mortar volley
+    # is the identical waveform three times a second.
+    p = dict(p)
+    p["f_low"] *= rng.uniform(0.90, 1.12)
+    p["brightness"] *= rng.uniform(0.84, 1.18)
+    p["blast_tau"] *= rng.uniform(0.86, 1.16)
 
-    # Sub-bass rumble: the pressure wave in the ground and in your chest.
+    front = D.highpass(D.friedlander(n, p["blast_tau"]), 42.0)
+
+    gas = D.noise(n, rng) * D.expdecay(n, p["blast_tau"] * p["gas_mult"], rise=0.0004)
+    gas = D.lowpass(gas, p["brightness"], q=0.8, passes=2)
+
+    # Sub body. The pitch does NOT decay exponentially to zero -- a real blast
+    # cavity collapses, so the sweep settles onto a floor instead of vanishing.
     t = np.arange(n) / D.SR
-    sweep = p["f_low"] * (1.0 + 0.6 * np.exp(-t / 0.06))
+    sweep = p["f_low"] * (0.72 + 0.75 * np.exp(-t / (p["sub_tau"] * 0.45)))
     phase = 2.0 * np.pi * np.cumsum(sweep) / D.SR
-    rumble = np.sin(phase) * D.expdecay(n, 0.22, rise=0.002) * p["rumble"]
+    sub = np.sin(phase) * D.expdecay(n, p["sub_tau"], rise=0.0015) * p["rumble"]
 
-    core = D.saturate(front * 0.9 + gas * 0.8 + rumble * 0.9, p["drive"])
+    core = D.saturate(front * 0.85 + gas * 1.15 + sub * 0.95, p["drive"])
 
-    # Debris / fragmentation: the hiss and patter AFTER the bang. This is the
-    # layer that sells "grenade" over "movie explosion".
+    # Ground slap: the blast reflecting off the earth a few metres below the
+    # burst. Arrives too soon to hear as an echo -- it is heard as WEIGHT.
+    if p["slap_ms"] > 0.0:
+        slap = D.lowpass(core, p["brightness"] * 0.55, passes=2)
+        core = D.place(core.copy(), slap[: n - int(p["slap_ms"] * 0.001 * D.SR)],
+                       p["slap_ms"] * 0.001, 0.42)
+
+    # Discrete terrain returns: treelines and valley walls handing the shell
+    # back. Each is later, darker and quieter than the last. This is the layer
+    # that makes artillery ROLL instead of stop.
+    ret = np.zeros(n)
+    at, gain = 0.11, 0.17
+    for k in range(int(p["returns"])):
+        src = D.air_absorb(D.lowpass(core, 3200.0 - 180.0 * k), 120.0 + 60.0 * k)
+        ret = D.place(ret, src[: max(1, n - int(at * D.SR))], at, gain * rng.uniform(0.7, 1.15))
+        at *= rng.uniform(1.75, 2.35)
+        gain *= 0.52
+        if at >= p["dur"] * 0.85:
+            break
+
+    # Fragment whizz: casing shards passing the listener. Doppler-swept tones,
+    # not noise -- a shard has a note.
+    whizz = np.zeros(n)
+    for _ in range(int(26 * p["frag"])):
+        ln = int(D.SR * rng.uniform(0.05, 0.16))
+        f0 = rng.uniform(450, 1500)
+        ph = 2.0 * np.pi * np.cumsum(np.linspace(f0 * 1.5, f0 * 0.55, ln)) / D.SR
+        w = np.sin(ph) * np.hanning(ln) * rng.uniform(0.035, 0.10)
+        whizz = D.place(whizz, w, rng.uniform(0.02, 0.35) ** 1.2)
+
+    # Debris fall. `debris` scales the COUNT here and nothing else -- applying it
+    # again to the summed layer squared it, which is why the frag patter had all
+    # but vanished on the small classes.
     deb = np.zeros(n)
-    for _ in range(int(70 * p["debris"])):
-        at = rng.uniform(0.03, 0.9) ** 1.4
+    for _ in range(int(90 * p["debris"])):
+        at_d = rng.uniform(0.03, p["dur"] * 0.55) ** 1.4
         ln = int(D.SR * rng.uniform(0.004, 0.02))
         tick = D.noise(ln, rng) * D.expdecay(ln, 0.003)
-        tick = D.bandpass(tick, rng.uniform(1500, 7000), q=3.0)
-        deb = D.place(deb, tick, at, rng.uniform(0.05, 0.28))
-    hiss = D.noise(n, rng) * D.expdecay(n, 0.30, rise=0.006)
-    hiss = D.bandpass(hiss, 3200.0, q=0.7) * 0.22 * p["debris"]
+        tick = D.bandpass(tick, rng.uniform(900, 4200), q=3.0)
+        deb = D.place(deb, tick, at_d, rng.uniform(0.05, 0.28))
+    hiss = D.noise(n, rng) * D.expdecay(n, 0.30 + 0.5 * p["sub_tau"], rise=0.006)
+    hiss = D.bandpass(hiss, 2600.0, q=0.7) * 0.22 * p["debris"]
 
-    dry = core + deb * p["debris"] + hiss
+    dry = core + ret + whizz + deb + hiss
 
     kind, wet = p["tail"]
-    ir = _ir(kind, rng, scale=1.0)
-    wetsig = D.convolve(dry, ir)[:n]
-    out = dry * 0.8 + wetsig * wet * 0.5
+    ir = _ir_unit(kind, rng, scale=1.0)
+    out = dry * 0.9 + D.convolve(dry, ir)[:n] * wet * 0.22
     out = D.saturate(out, 1.2)
-    return D.fade_out(D.normalize(out, 0.96), 60.0)
+    return D.fade_out(D.normalize(out, p["peak"]), 60.0)
+
+
+def render_explosion_distant(xid: str) -> np.ndarray:
+    """The same burst heard from across the AO. Air has eaten the fireball; what
+    survives is the sub, the returns and a long roll. Mirrors render_distant for
+    guns -- explosions had no distance layer at all, so a shell at 500 m was the
+    near-field file played quieter."""
+    p = EXPLOSIONS[xid]
+    rng = np.random.default_rng(_seed(xid, "expl_dist", 0))
+    dur = p["dur"] * 1.9
+    n = int(D.SR * dur)
+
+    near = D.pad_to(render_explosion(xid, 1), n)
+    body = D.air_absorb(near, 520.0)
+    body = D.lowpass(body, 900.0, passes=2)
+
+    out = np.zeros(n)
+    out = D.place(out, body, 0.0, 0.55)
+
+    # Long, sparse returns: at range the roll IS the event.
+    at, gain = 0.22, 0.42
+    for _ in range(int(p["returns"]) + 4):
+        src = D.air_absorb(D.lowpass(body, 700.0), 600.0)
+        out = D.place(out, src[: max(1, n - int(at * D.SR))], at, gain * rng.uniform(0.7, 1.2))
+        at *= rng.uniform(1.6, 2.1)
+        gain *= 0.70
+        if at >= dur * 0.9:
+            break
+
+    ir = _ir("valley", rng, scale=1.5)
+    out = out * 0.45 + D.convolve(out, ir)[:n] * 0.75
+    out = D.lowpass(out, 1400.0, passes=2)
+    return D.fade_out(D.normalize(out, 0.82), 120.0)
 
 
 def render_crack_bank(i: int) -> np.ndarray:
@@ -428,15 +517,141 @@ def _acceptance(rows: list[dict]) -> None:
 # --------------------------------------------------------------------------
 
 
+def _explosion_stats(xid: str, variant: int = 1) -> dict:
+    x = render_explosion(xid, variant)
+    X = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+    f = np.fft.rfftfreq(len(x), 1.0 / D.SR)
+    p = X ** 2
+    tot = float(np.sum(p))
+    # Smoothed RMS envelope. A raw |x| envelope crosses any threshold at the
+    # first zero-crossing dip, which reports a 60 dB decay inside 70 ms for a
+    # sound that is still rolling half a second later.
+    w = int(0.020 * D.SR)
+    env = np.sqrt(np.convolve(x ** 2, np.ones(w) / w, mode="same"))
+    pk = int(np.argmax(env))
+    below = np.where(env[pk:] < env[pk] * 0.001)[0]
+    t60 = float(below[0] / D.SR) if below.size else float(len(x) - pk) / D.SR
+    # Energy arriving after 400 ms proves the returns/roll layer exists at all.
+    late = float(np.sum(x[int(0.4 * D.SR):] ** 2) / (np.sum(x ** 2) + 1e-12))
+    return dict(
+        xid=xid,
+        centroid=float(np.sum(f * p) / tot),
+        low=float(np.sum(p[(f >= 30) & (f < 250)]) / tot),
+        hi=float(np.sum(p[f >= 4000]) / tot),
+        t60=t60,
+        late=late,
+        crest=20.0 * np.log10(np.max(env) / (np.sqrt(np.mean(x ** 2)) + 1e-12)),
+        dur=len(x) / D.SR,
+    )
+
+
+def _acceptance_explosions() -> None:
+    """The size ladder, enforced numerically. A grenade and a 155 must not be
+    interchangeable, and 'more weight' must not mean 'kick drum'."""
+    print(f"\n{'explosion':22s} spectral fingerprints\n" + "-" * 96)
+    rows = {}
+    for xid in EXPLOSIONS:
+        r = _explosion_stats(xid)
+        rows[xid] = r
+        print(f"{xid:22s} centroid {r['centroid']:6.0f}Hz  low {r['low']*100:5.1f}%  "
+              f"hi>4k {r['hi']*100:4.1f}%  t60 {r['t60']:5.2f}s  late>400ms {r['late']*100:5.1f}%  "
+              f"crest {r['crest']:4.1f}dB")
+
+    print("\nacceptance gate:")
+    bad = 0
+    for xid, r in rows.items():
+        probs = []
+        if r["crest"] < 9.0:
+            probs.append(f"crest {r['crest']:.1f}<9 (mushy)")
+        # Ceiling is per-class and comes from measurement, not taste. A real
+        # blast recorded at 250 m (BigSoundBank 1806) measures 91.2% of its
+        # energy below 250 Hz with a 247 Hz centroid -- a heavy shell IS that
+        # low-dominated, and holding it to the small-ordnance ceiling would mean
+        # tuning the truth out of it.
+        low_max = 0.93 if r["dur"] >= 4.0 else 0.90
+        if r["low"] > low_max:
+            probs.append(f"low {r['low']*100:.0f}%>{low_max*100:.0f} (kick-drum)")
+        if r["centroid"] > 1400.0:
+            probs.append(f"centroid {r['centroid']:.0f}>1400 (firework, not detonation)")
+        # A 40mm HE genuinely has no roll; only the classes long enough to
+        # carry one are held to it.
+        min_late = 0.012 if r["dur"] < 2.0 else 0.02
+        if r["late"] < min_late:
+            probs.append(f"late {r['late']*100:.1f}%<{min_late*100:.1f} (no roll -- returns layer missing)")
+        if probs:
+            bad += 1
+            print(f"  FAIL {xid:20s} " + "; ".join(probs))
+
+    # Cross-checks: the ladder itself.
+    g, h = rows["explosion_grenade"], rows["explosion_heavy"]
+    checks = [
+        ("heavy darker than grenade", h["centroid"] < 0.75 * g["centroid"],
+         f"{h['centroid']:.0f} vs {g['centroid']:.0f}"),
+        ("heavy rolls longer than grenade", h["t60"] > 2.0 * g["t60"],
+         f"{h['t60']:.2f}s vs {g['t60']:.2f}s"),
+        ("40mm shorter than rocket", rows["explosion_40mm"]["dur"] < rows["explosion_rocket"]["dur"],
+         f"{rows['explosion_40mm']['dur']:.1f}s vs {rows['explosion_rocket']['dur']:.1f}s"),
+    ]
+    for name, ok, detail in checks:
+        if not ok:
+            bad += 1
+        print(f"  {'OK  ' if ok else 'FAIL'} {name} ({detail})")
+
+    # Variants must be genuinely different renders, not one file pitch-shifted.
+    for xid in EXPLOSIONS:
+        a, b = render_explosion(xid, 1), render_explosion(xid, 2)
+        m = min(len(a), len(b))
+        c = float(np.corrcoef(a[:m], b[:m])[0, 1])
+        ok = abs(c) < 0.35
+        if not ok:
+            bad += 1
+        print(f"  {'OK  ' if ok else 'FAIL'} {xid} variant decorrelation (r={c:+.3f}, want |r|<0.35)")
+
+    print(f"  {'ALL PASS' if bad == 0 else str(bad) + ' FAILED'}")
+
+
 def main() -> None:
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     report = "--report" in sys.argv
     ids = argv or list(WEAPONS.keys())
 
     if report:
+        if "--explosions" in sys.argv:
+            _acceptance_explosions()
+            return
         print(f"{'weapon':24s} spectral fingerprints (near, variant 1)\n" + "-" * 118)
         rows = [spectral_report(wid) for wid in ids]
         _acceptance(rows)
+        return
+
+    if "--explosions" in sys.argv:
+        print("[explosions]")
+        for xid in EXPLOSIONS:
+            for v in (1, 2, 3):
+                emit("explosions", f"{xid}_{v}.wav", render_explosion(xid, v))
+            emit("explosions", f"{xid}_dist.wav", render_explosion_distant(xid))
+        return
+
+    # GUARD. These carry REAL RECORDINGS from the source pack (2026-07-27 decree,
+    # production/war_room/2026-07-27_audio_pack/synthesis.md; sks/car15 added
+    # 2026-07-29). Rendering synth over one is the downgrade the Summoner
+    # explicitly forbade -- and naming the id on the command line is NOT enough
+    # intent, because the fire_* files are the ones that get clobbered while the
+    # mech_/reload_ layers legitimately want regenerating.
+    real_audio = {"m16a1", "car15", "ak47", "rpd", "mosin", "m70", "m14", "m60",
+                  "ppsh41", "sks"}
+    if not argv:
+        print("refusing to regenerate every weapon: real recordings would be "
+              "overwritten with synth.\n"
+              "  name the ids explicitly   python tools/gen_weapon_audio.py m79 rpg7\n"
+              "  or render ordnance only   python tools/gen_weapon_audio.py --explosions")
+        return
+    clash = sorted(set(ids) & real_audio)
+    if clash and "--force" not in sys.argv:
+        print(f"refusing: {', '.join(clash)} carry REAL recordings; synth would be a "
+              f"downgrade.\n"
+              f"  rebuild them from the pack   python tools/cut_gun_variants.py --write\n"
+              f"  override anyway              --force")
         return
 
     for wid in ids:
@@ -448,14 +663,6 @@ def main() -> None:
         emit("weapons", f"reload_{wid}.wav", render_reload(wid))
         if wid in BOLT_GUNS:
             emit("weapons", f"bolt_{wid}.wav", render_bolt(wid))
-
-    if not argv:
-        print("[shared]")
-        for i in (1, 2, 3):
-            emit("weapons", f"crack_{i}.wav", render_crack_bank(i))
-        print("[explosions]")
-        for xid in EXPLOSIONS:
-            emit("explosions", f"{xid}.wav", render_explosion(xid))
 
 
 if __name__ == "__main__":

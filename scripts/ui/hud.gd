@@ -304,34 +304,12 @@ func _on_grenade_cooking(_time: float) -> void:
 	action_progress.update_progress(grenade_handler.get_cook_progress())
 
 
-## W38: hitmarker - brief X at the crosshair + audio tick (deeper on kill).
-var _hitmarker: Label = null
-
-
+## Hit feedback. AUDIO ONLY - the X at the crosshair is gone by ruling (2026-07-29: "i dont
+## need an X hit marker when i hit people"). A floating letter is a scoreboard telling the
+## player the game registered his input; the sound of a round going home is the man hearing
+## what he did. Pitch still carries the outcome - deeper on a kill, sharper on a headshot -
+## so nothing is lost except the symbol.
 func _on_target_hit(killed: bool, headshot: bool = false) -> void:
-	if _hitmarker == null:
-		_hitmarker = Label.new()
-		_hitmarker.add_theme_font_size_override("font_size", 26)
-		_hitmarker.set_anchors_preset(Control.PRESET_CENTER)
-		_hitmarker.position += Vector2(8, -14)
-		add_child(_hitmarker)
-	# Distinct read per outcome: kill = red X, headshot = yellow bigger, hit = white.
-	var col: Color
-	var size: int
-	if killed:
-		_hitmarker.text = "X"; col = Color(1, 0.25, 0.15); size = 34
-	elif headshot:
-		_hitmarker.text = "x"; col = Color(1.0, 0.85, 0.2); size = 32
-	else:
-		_hitmarker.text = "x"; col = Color(1, 1, 1, 0.9); size = 26
-	_hitmarker.add_theme_font_size_override("font_size", size)
-	_hitmarker.add_theme_color_override("font_color", col)
-	_hitmarker.modulate.a = 1.0
-	_hitmarker.scale = Vector2(1.4, 1.4) if killed else Vector2.ONE
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(_hitmarker, "modulate:a", 0.0, 0.28)
-	tween.tween_property(_hitmarker, "scale", Vector2.ONE, 0.15)
 	var tick := AudioStreamPlayer.new()
 	tick.stream = GunFX.IMPACT_HARD
 	tick.volume_db = -6.0 if (killed or headshot) else -9.0

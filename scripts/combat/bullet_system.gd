@@ -22,7 +22,14 @@ signal player_bullet_hit(killed: bool, headshot: bool)
 ## Any bullet was spawned. Used by AIStressArena telemetry to count rounds fired.
 signal bullet_spawned(shooter: Node, weapon: WeaponData)
 
-const MAX_BULLETS: int = 128       ## oldest round retires silently past this
+## Runaway backstop, NOT a design budget. Raised 128 -> 500 by ruling (2026-07-29): "with 70+
+## people shooting automatic guns theres gonna be more than 128 rounds flying around at once."
+## Arithmetic behind the headroom: a 900 m/s round lives 0.11s to 100m and 0.33s to 300m, so 70
+## men averaging ~3 rounds/sec sit near 32-70 in flight - but a 40-man siege plus an aircraft
+## gun spawning ~100/sec is a different order, and that is what this now covers.
+## Cost per round is ONE segment raycast per tick. No node, no draw call; tracers are capped
+## separately at MAX_TRACERS. Cheap in the dimension this project is bound by.
+const MAX_BULLETS: int = 500
 const MAX_TRACERS: int = 48        ## visual streaks cap (sim is unaffected)
 const MAX_TRAVEL: float = 1200.0   ## m - nothing on a 1280m AO flies further
 const MAX_AGE: float = 4.0         ## s backstop
@@ -30,6 +37,10 @@ const GRAVITY: float = 9.8
 
 var _bullets: Array = []
 var _visual_pool: Array[MeshInstance3D] = []
+## High-water mark of rounds in flight, and how often the cap actually bit. These are what
+## MAX_BULLETS should be set from - a measured peak beats an invented constant.
+var _peak_bullets: int = 0
+var _cap_hits: int = 0
 
 
 ## Spawn one live round. `mask`/`exclude` come from the shooter's faction (the
@@ -37,6 +48,21 @@ var _visual_pool: Array[MeshInstance3D] = []
 func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		mask: int, exclude: Array, show_tracer: bool) -> void:
 	if _bullets.size() >= MAX_BULLETS:
+		# THE CAP JUST BIT, AND IT USED TO DO IT IN SILENCE. Retiring the oldest round mid-flight
+		# is a round that never arrives: no impact, no wound, no miss - it stops existing on its
+		# way to someone. In a 40-man siege plus an aircraft gun that is the fight quietly
+		# thinning itself out, and nothing in the log would ever say so.
+		#
+		# The number is a runaway backstop, not a design budget, and it should be set from
+		# _peak_bullets below rather than from a guess. Cost of raising it is ONE segment
+		# raycast per round per tick - physics work, not draw calls, and this project is
+		# call-bound (PERF_LEDGER). Tracers are capped separately at MAX_TRACERS, so the
+		# visual cost does not move with it.
+		_cap_hits += 1
+		if _cap_hits == 1 or _cap_hits % 500 == 0:
+			push_warning(("[BULLETS] round budget FULL (%d) - retiring live rounds mid-flight, "
+				+ "%d times so far. Raise MAX_BULLETS: peak in flight was %d.")
+				% [MAX_BULLETS, _cap_hits, _peak_bullets])
 		_finish(_bullets[0])
 		_bullets.remove_at(0)
 	var excl_rids: Array[RID] = []
@@ -60,6 +86,7 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
 	_bullets.append(b)
+	_peak_bullets = maxi(_peak_bullets, _bullets.size())
 	bullet_spawned.emit(shooter, wd)
 
 

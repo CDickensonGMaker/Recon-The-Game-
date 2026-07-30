@@ -201,20 +201,44 @@ WEAPONS: dict[str, dict] = {
 # Explosions / ordnance. Distinct model: no bore, no crack -- just blast.
 # --------------------------------------------------------------------------
 
+# `brightness` is the gas-jet lowpass cutoff and it is the single control that
+# decides bang-vs-firework. Reference measurements from real blast recordings at
+# four ranges (BigSoundBank 1808/1807/1806/1023, same charge): spectral centroid
+# 652 Hz at 10 m, 362 Hz at 150 m, 247 Hz at 250 m, with 73-91% of energy below
+# 250 Hz. A detonation is DARK. Values above ~5 kHz render fireworks.
+#
+# `dur` is per-class because an artillery roll cannot be rendered inside a window
+# shorter than its own tail. `slap_ms` is the ground reflection, `returns` the
+# count of discrete terrain echoes, `frag` the whizz of fragments passing.
 EXPLOSIONS: dict[str, dict] = {
-    # M26 frag: ~165g Comp B. Sharp, high crack close in; the debris/frag
-    # hiss is the tell. Not a movie fireball.
-    "explosion_grenade": dict(f_low=62.0, blast_tau=0.0016, brightness=7200.0, bark_hz=340.0,
-                              drive=2.0, tail=("jungle", 1.4), debris=0.55, rumble=0.7),
-    # RPG / LAW HEAT warhead on a hard target: sharper, more metallic, less bass.
-    "explosion_rocket": dict(f_low=78.0, blast_tau=0.0011, brightness=8400.0, bark_hz=430.0,
-                             drive=2.1, tail=("open", 1.6), debris=0.40, rumble=0.6),
+    # M26 frag: ~165g Comp B. Sharp crack close in; the frag hiss is the tell.
+    "explosion_grenade": dict(f_low=72.0, blast_tau=0.0016, brightness=2300.0,
+                              drive=2.0, tail=("jungle", 1.4), debris=0.55, rumble=0.6,
+                              dur=2.2, gas_mult=7.0, sub_tau=0.14, slap_ms=11.0,
+                              returns=3, frag=0.85, peak=0.90),
+    # RPG / LAW HEAT warhead on a hard target: metallic, sharper, less bass.
+    "explosion_rocket": dict(f_low=88.0, blast_tau=0.0012, brightness=4200.0,
+                             drive=2.1, tail=("open", 1.6), debris=0.40, rumble=0.5,
+                             dur=2.4, gas_mult=6.5, sub_tau=0.12, slap_ms=8.0,
+                             returns=4, frag=0.55, peak=0.92),
     # 40mm M79 HE: small charge, snappy, quick tail.
-    "explosion_40mm": dict(f_low=95.0, blast_tau=0.0008, brightness=7800.0, bark_hz=520.0,
-                           drive=1.8, tail=("jungle", 0.9), debris=0.35, rumble=0.4),
-    # Artillery / airstrike / satchel: the ground moves.
-    "explosion_heavy": dict(f_low=38.0, blast_tau=0.0060, brightness=5200.0, bark_hz=190.0,
-                            drive=2.3, tail=("open", 2.6), debris=0.75, rumble=1.0),
+    "explosion_40mm": dict(f_low=110.0, blast_tau=0.0009, brightness=2900.0,
+                           drive=1.8, tail=("jungle", 0.9), debris=0.35, rumble=0.35,
+                           dur=1.6, gas_mult=6.0, sub_tau=0.10, slap_ms=0.0,
+                           returns=3, frag=0.45, peak=0.88),
+    # 81mm mortar / light shell: heavier than a grenade, far short of artillery.
+    # The siege's ranging rounds used the default grenade pop.
+    "explosion_mortar": dict(f_low=58.0, blast_tau=0.0030, brightness=3000.0,
+                             drive=2.2, tail=("open", 2.0), debris=0.62, rumble=0.62,
+                             dur=3.4, gas_mult=7.5, sub_tau=0.19, slap_ms=17.0,
+                             returns=5, frag=0.80, peak=0.94),
+    # Artillery / airstrike / satchel: the ground moves. f_low sits at 48 Hz, not
+    # lower -- 38 Hz is below what a laptop speaker or most headphones reproduce,
+    # so the weight was being spent where nobody could hear it.
+    "explosion_heavy": dict(f_low=48.0, blast_tau=0.0060, brightness=4200.0,
+                            drive=2.3, tail=("valley", 2.6), debris=0.75, rumble=0.42,
+                            dur=5.5, gas_mult=7.0, sub_tau=0.26, slap_ms=26.0,
+                            returns=7, frag=0.70, peak=0.96),
 }
 
 
@@ -225,6 +249,9 @@ ENVIRONMENTS: dict[str, tuple] = {
     "jungle": (0.90, 0.16, 2600.0, 0.006, 1.0),
     # Open AO / paddy / hillside: longer, brighter, sparser -> discrete slapback.
     "open":   (2.20, 0.52, 5200.0, 0.022, 0.35),
+    # Valley walls answering a heavy shell. The roll is not reverb on the blast,
+    # it IS the blast returning; sparse density keeps the returns discrete.
+    "valley": (5.60, 1.35, 3200.0, 0.045, 0.22),
 }
 
 

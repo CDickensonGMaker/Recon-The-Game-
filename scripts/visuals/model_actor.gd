@@ -243,8 +243,35 @@ static func _load_shared_library() -> AnimationLibrary:
 	if ap != null and ap.has_animation_library(""):
 		# AnimationLibrary is a refcounted Resource - it outlives the instance
 		_shared_lib = ap.get_animation_library("")
+		_report_heli_clips(_shared_lib)
 	inst.free()
 	return _shared_lib
+
+
+## Clips for men getting on and off a helicopter. The Summoner built these headless on
+## 2026-07-29 and never confirmed they exported ("i made them headless but never confirmed
+## them"), and a missing clip is silent - the man simply plays nothing and the whole beat
+## reads as a bug in the aircraft. So the library says what it has, once, at load.
+const HELI_CLIP_HINTS: Array[String] = ["board", "disembark", "unload", "load", "exit",
+	"heli", "chopper", "dismount", "cargo"]
+
+
+static func _report_heli_clips(lib: AnimationLibrary) -> void:
+	if not OS.is_debug_build() or lib == null:
+		return
+	var found: Array[String] = []
+	for n in lib.get_animation_list():
+		var low: String = String(n).to_lower()
+		for hint in HELI_CLIP_HINTS:
+			if low.contains(hint):
+				found.append(String(n))
+				break
+	if found.is_empty():
+		push_warning(("[MODEL] anim_library has NO helicopter board/unload clips (searched %s). "
+			+ "The Huey landing beat will put men on the ground with no animation until they "
+			+ "are exported.") % ", ".join(HELI_CLIP_HINTS))
+	else:
+		print("[MODEL] heli troop clips available (%d): %s" % [found.size(), ", ".join(found)])
 
 
 ## Merge, don't replace: clips baked into the character GLB win, the library fills
@@ -477,12 +504,92 @@ func _apply_gib_rig_contract() -> void:
 		# reveals on the pop. Left visible, a cap the export skinned off-joint
 		# renders as floating gore beside the living man.
 		var is_donor: bool = (nm.begins_with("grunt_") or nm.begins_with("head_frag_")
-				or nm.begins_with("cap_")) and not nm.ends_with("_joined")
+				or nm.begins_with("cap_") or nm == BASE_BODY_MESH) and not nm.ends_with("_joined")
 		if is_donor or gib_gear.has(nm):
 			mi.visible = false
 			hidden += 1
 	if hidden > 0:
 		print("[MODEL] %s: hid %d gib-donor/cap/gear meshes (gib-rig contract; live body renders)" % [unit, hidden])
+	_report_second_body()
+	_report_untextured()
+
+
+## The un-kitted source body every us_grunt_* GLB carries alongside its finished `_joined` man.
+## It matches none of the donor prefixes, so it rendered INSIDE the live soldier on every US
+## body in the game: two men in one skin, and the base mesh's bare scalp poking up through the
+## helmet crown. Named here only because the export ships it; the real fix is upstream.
+const BASE_BODY_MESH: String = "Base_Human"
+
+static var _body_report: Dictionary = {}
+
+
+## WHAT IS STILL RENDERING? The hide net above is PREFIX-BASED plus the gib gear list, and it has
+## now been slipped twice - helmet_camo_shell stacked a second helmet, Base_Human stacked a whole
+## second man. A donor named outside those prefixes renders beside or under the living body,
+## which is what "doubled up allies" looks like from the player's side.
+##
+## So instead of trusting the net, count what survived it. One line per unit, debug only.
+func _report_second_body() -> void:
+	if not OS.is_debug_build() or _body_report.has(unit):
+		return
+	_body_report[unit] = true
+	var bodies: Array[String] = []
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.visible or mi.mesh == null:
+			continue
+		# A body is TALL AND WIDE. Height alone flags the RTO's whip antenna, which is a metre
+		# of legitimate kit - this is looking for a second MAN, not a second aerial.
+		var box: Vector3 = mi.mesh.get_aabb().size
+		if box.y >= 0.6 and box.x >= 0.25:
+			bodies.append(String(mi.name))
+	if bodies.size() > 1:
+		push_warning("[MODEL] %s renders %d body-sized meshes, not 1 - a donor slipped the gib "
+			% [unit, bodies.size()] + "hide net and is drawing as a second man: %s"
+			% ", ".join(bodies))
+
+
+## WHICH SURFACES RENDER WHITE? Untextured is NOT the defect: this project paints weapons and
+## webbing with flat palette colours by decree (BluedSteel, Walnut, Parkerized), and a null
+## albedo_texture there is correct. The defect is a flat material left on the DEFAULT white,
+## which reads in game as "the gun is missing its texture" (2026-07-29).
+##
+## So the test is the COLOUR, not the texture: near-white and unlit-looking means the material
+## never got its palette value. Anything with a real colour is doing its job and stays quiet.
+static var _untextured_report: Dictionary = {}
+
+
+func _report_untextured() -> void:
+	if not OS.is_debug_build() or _untextured_report.has(unit):
+		return
+	_untextured_report[unit] = true
+	var bare: Array[String] = []
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.visible or mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var m: Material = mi.get_active_material(s)
+			if m == null:
+				m = mi.mesh.surface_get_material(s)
+			var bm := m as BaseMaterial3D
+			if bm == null:
+				continue           # shader material: it supplies its own sampling
+			if bm.albedo_texture != null:
+				continue                      # textured: nothing to judge
+			var c: Color = bm.albedo_color
+			if minf(minf(c.r, c.g), c.b) < WHITE_ALBEDO_MIN:
+				continue                      # a real palette colour - by design, stay quiet
+			bare.append("%s[%d]%s" % [String(mi.name), s,
+				"" if m.resource_name.is_empty() else ":" + m.resource_name])
+	if not bare.is_empty():
+		push_warning(("[MODEL] %s has %d surface(s) left on DEFAULT WHITE with no texture - "
+			+ "they never got a palette colour: %s") % [unit, bare.size(), ", ".join(bare)])
+
+
+## Above this on every channel, an untextured material is the engine default rather than a
+## chosen colour. Nothing in a 1968 palette is this bright.
+const WHITE_ALBEDO_MIN: float = 0.9
 
 
 func has_visual() -> bool:

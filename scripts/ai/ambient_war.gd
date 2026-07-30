@@ -6,10 +6,39 @@
 class_name AmbientWar
 extends Node
 
-## A fired event: {kind, position, lifetime_s, scheduled_remove_ms, ...}
+## A fired event: {kind, position, lifetime_s, born_ms, shooters, thump, ...}
 var _active: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 const KINDS: Array = ["artillery", "mortar", "tracers", "burning", "gunship_attack"]
+
+## ---- THE DISTANT FIREFIGHT ----
+## A firefight is two parties ANSWERING each other, and that exchange is the whole
+## atmosphere. Every source retriggers its own one-shot on a burst clock: a handful of
+## rounds inside a second, then silence long enough to wonder, then the other side
+## replies from a slightly different bearing.
+const FIRE_CAP: int = 2                      ## engagements allowed to be shooting at once
+const PARTY_SPREAD_M: float = 40.0           ## how far the two sides sit apart
+const BURST_MIN: int = 3
+const BURST_MAX: int = 8
+const MG_BURST_MIN: int = 6
+const MG_BURST_MAX: int = 14
+const SHOT_GAP_S: float = 0.11               ## inside a burst
+const MG_SHOT_GAP_S: float = 0.075
+const LULL_MIN_S: float = 2.0
+const LULL_MAX_S: float = 6.0
+## Past 400m a rifle has no crack left, only a dull slap off the treeline.
+const DIST_CUTOFF_HZ: float = 900.0
+const THUMP_MIN_S: float = 10.0
+const THUMP_MAX_S: float = 20.0
+## The last quarter of an engagement goes ragged rather than stopping mid-burst.
+const RAGGED_FRAC: float = 0.75
+
+const WPATH: String = "res://assets/audio/sfx/weapons/"
+## The 7/27 pack ships a measured distant report per weapon; this used one generic
+## shot_distant.wav for every gun in the war.
+const VC_VOICES: Array[String] = ["ak47", "sks", "mosin", "ppsh41"]
+const US_VOICES: Array[String] = ["m16a1", "m14", "car15"]
+const MG_VOICES: Array[String] = ["rpd", "m60"]
 
 
 func _ready() -> void:

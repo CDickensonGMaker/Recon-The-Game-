@@ -92,95 +92,86 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 			if sim_hour < 18.5:
 				return ACTION_WALK_FIRE
 			return ACTION_WALK_HOME
+		# ---------------- THE GARRISON ----------------
+		# A FIREBASE DOES NOT GO TO BED. These blocks were the villager's day with military
+		# labels on it: the sentry slept from 20:00 and walked to a RICE PADDY at dawn, the
+		# gun crew stood down at 21:30. The demo opens at dusk, so the whole garrison was
+		# scheduled asleep at the exact moment the player first sees the base - "the other NPC
+		# allies just stand there", 2026-07-29. Rewritten so the night shift is the BUSY one.
+		#
+		# ACTION_WORK sends a man to his own working_point_pos - his post, his gun, his radio -
+		# so "work" at night means STANDING THE WIRE, not farming.
 		"sentry":
-			if sim_hour < 5.0 or sim_hour >= 20.0:
+			# Day watch. Hands over at last light and sleeps through the small hours.
+			if sim_hour >= 21.0 or sim_hour < 4.5:
 				return ACTION_SLEEP
 			if sim_hour < 5.5:
-				return ACTION_WALK_PADDY
+				return ACTION_WALK_FIRE      # up, coffee, before stand-to
 			if sim_hour < 12.0:
 				return ACTION_WORK
-			if sim_hour < 13.0:
-				return ACTION_WALK_HOME
-			if sim_hour < 13.5:
-				return ACTION_WALK_PADDY
-			if sim_hour < 18.0:
-				return ACTION_WORK
-			if sim_hour < 18.5:
-				return ACTION_WALK_HOME
-			return ACTION_TALK
-		"sentry_night":
-			if sim_hour < 5.0:
-				return ACTION_WORK
-			if sim_hour < 5.5:
-				return ACTION_WALK_HOME
-			if sim_hour < 13.0:
-				return ACTION_SLEEP
-			if sim_hour < 15.0:
-				return ACTION_SIT
-			if sim_hour < 17.0:
-				return ACTION_TALK
-			if sim_hour < 17.5:
-				return ACTION_WALK_FIRE
-			if sim_hour < 18.5:
-				return ACTION_WALK_PADDY
-			return ACTION_WORK
-		"quartermaster":
-			if sim_hour < 5.5 or sim_hour >= 21.0:
-				return ACTION_SLEEP
-			if sim_hour < 6.5:
-				return ACTION_WALK_PADDY
-			if sim_hour < 11.5:
-				return ACTION_WORK
-			if sim_hour < 12.5:
-				return ACTION_WALK_FIRE
-			if sim_hour < 13.5:
-				return ACTION_REST
-			if sim_hour < 17.5:
-				return ACTION_WORK
-			if sim_hour < 18.5:
-				return ACTION_WALK_FIRE
-			if sim_hour < 20.0:
-				return ACTION_TALK
-			return ACTION_WALK_HOME
-		"gun_crew":
-			if sim_hour < 6.0 or sim_hour >= 21.5:
-				return ACTION_SLEEP
-			if sim_hour < 7.0:
-				return ACTION_WALK_PADDY
-			if sim_hour < 10.0:
-				return ACTION_WORK
-			if sim_hour < 12.0:
-				return ACTION_SIT
-			if sim_hour < 13.0:
-				return ACTION_WALK_FIRE
-			if sim_hour < 14.0:
-				return ACTION_REST
-			if sim_hour < 17.0:
-				return ACTION_WORK
-			if sim_hour < 18.5:
-				return ACTION_WALK_FIRE
-			if sim_hour < 20.5:
-				return ACTION_TALK
-			return ACTION_WALK_HOME
-		"radioman":
-			if sim_hour < 5.0 or sim_hour >= 22.0:
-				return ACTION_SLEEP
-			if sim_hour < 5.5:
-				return ACTION_WALK_PADDY
-			if sim_hour < 12.5:
-				return ACTION_WORK
-			if sim_hour < 13.5:
-				return ACTION_WALK_FIRE
+			if sim_hour < 12.75:
+				return ACTION_WALK_FIRE      # chow
 			if sim_hour < 19.0:
 				return ACTION_WORK
 			if sim_hour < 20.0:
-				return ACTION_WALK_FIRE
+				return ACTION_TALK           # handover to the night shift
 			return ACTION_WALK_HOME
-		"mess_cook":
-			if sim_hour < 4.0 or sim_hour >= 21.0:
+		"sentry_night":
+			# THE NIGHT WATCH. On the wire from dusk to dawn - this is the shift the player
+			# meets at demo open, and it must be manned, not asleep.
+			if sim_hour >= 18.0 or sim_hour < 5.5:
+				return ACTION_WORK
+			if sim_hour < 6.5:
+				return ACTION_WALK_FIRE      # off shift, warm up
+			if sim_hour < 13.5:
+				return ACTION_SLEEP          # sleeps through the DAY
+			if sim_hour < 15.0:
+				return ACTION_SIT
+			if sim_hour < 16.5:
+				return ACTION_TALK
+			return ACTION_WALK_FIRE          # fed and watered before going back on
+		"quartermaster":
+			if sim_hour >= 22.0 or sim_hour < 5.0:
 				return ACTION_SLEEP
-			if sim_hour < 4.5:
-				return ACTION_WALK_PADDY
+			if sim_hour < 6.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 12.0:
+				return ACTION_WORK           # the dump: crates, belts, water
+			if sim_hour < 13.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 19.0:
+				return ACTION_WORK
+			# Ammo goes UP to the posts before dark, and stays available after it.
+			return ACTION_WORK
+		"gun_crew":
+			# Guns are laid and manned around the clock; fire missions come at night.
+			if sim_hour >= 23.0 or sim_hour < 4.0:
+				return ACTION_REST           # resting AT the pit, not in a hootch
+			if sim_hour < 5.0:
+				return ACTION_WORK
+			if sim_hour < 11.0:
+				return ACTION_WORK
+			if sim_hour < 12.0:
+				return ACTION_SIT
+			if sim_hour < 13.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 18.0:
+				return ACTION_WORK
+			return ACTION_WORK               # dusk onward: on the gun
+		"radioman":
+			# The net is never unmanned.
+			if sim_hour >= 23.5 or sim_hour < 4.5:
+				return ACTION_REST
+			if sim_hour < 13.0:
+				return ACTION_WORK
+			if sim_hour < 13.75:
+				return ACTION_WALK_FIRE
+			return ACTION_WORK
+		"mess_cook":
+			if sim_hour >= 21.5 or sim_hour < 3.5:
+				return ACTION_SLEEP
+			if sim_hour < 4.0:
+				return ACTION_WALK_FIRE
 			if sim_hour < 8.0:
 				return ACTION_COOK
 			if sim_hour < 10.0:
@@ -189,9 +180,9 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 				return ACTION_COOK
 			if sim_hour < 15.5:
 				return ACTION_REST
-			if sim_hour < 19.5:
-				return ACTION_COOK
-			return ACTION_WALK_HOME
+			if sim_hour < 20.0:
+				return ACTION_COOK           # hot meal before the night shift goes on
+			return ACTION_WORK               # cleaning down
 		"off_duty":
 			if sim_hour < 6.0 or sim_hour >= 22.0:
 				return ACTION_SLEEP

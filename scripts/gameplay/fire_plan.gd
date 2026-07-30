@@ -20,7 +20,6 @@ const ARTY_BLAST_M: float = 14.0
 
 ## Air-delivered.
 const BOMB_BLAST_M: float = 16.0
-const BOMB_SUPPRESS_M: float = 40.0
 const NAPALM_DROPS: int = 5
 const NAPALM_SPACING: float = 15.0
 const NAPALM_BLAST_M: float = 10.0

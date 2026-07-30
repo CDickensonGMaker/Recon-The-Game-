@@ -811,11 +811,12 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		nav_baker.name = "NavBaker"
 		world.add_child(nav_baker)
 		nav_baker.setup(world.terrain_manager)
-		var nav_sites: Array[Dictionary] = []
-		for bs in built_sites:
-			if str(bs.get("kind", "")) != "firebase_main":
-				nav_sites.append(bs)
-		nav_baker.queue_sites(nav_sites, _enemy_anchors(p))
+		# The firebase is no longer excluded. It was skipped here AND its kind was absent
+		# from WorldConfig.NAV_SITE_KINDS - two closed gates, so the one place the player's
+		# squad and the garrison actually live had no navmesh under it. NavBaker gives it a
+		# box big enough to hold a 300m compound and sources its geometry from the GLB's real
+		# colliders, so the men path around the bunkers they used to walk into.
+		nav_baker.queue_sites(built_sites, _enemy_anchors(p))
 
 	_wire_systems(world, director, p, built_sites)
 
@@ -879,14 +880,22 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 		var post_pos: Vector3 = post.pos
 		if str(post.occupation) == "gun_crew":
 			_place_firebase_mg(world, center, post_pos)
-		for _m in range(int(post.men)):
-			var a: float = rng.randf_range(0.0, TAU)
-			var pos: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(1.0, 3.5)
+		# EVERY MAN GETS HIS OWN STATION. A post with men=2 used to give both the SAME
+		# working_point_pos and a random 1-3.5m spawn ring, so two of them could roll onto the
+		# same spot - and once stood-to, GarrisonDefender hands both the identical post anchor
+		# and they walk right back into each other. That is the rifleman standing inside the
+		# marksman (2026-07-29). Stations are spread by INDEX around the post, not rolled.
+		var men_n: int = maxi(1, int(post.men))
+		for mi in range(men_n):
+			var a: float = TAU * float(mi) / float(men_n) + rng.randf_range(-0.3, 0.3)
+			var r: float = 1.8 if men_n > 1 else rng.randf_range(0.0, 1.0)
+			var station: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * r
+			var pos: Vector3 = station
 			pos.y = world.terrain_manager.get_height_at(pos) + 0.5
 			var man: Civilian = Civilian.spawn(world, pos, director, false,
 				CivilianScript.GARRISON_MEN, true)
 			man.occupation = str(post.occupation)
-			var wp: Vector3 = post_pos
+			var wp: Vector3 = station
 			wp.y = world.terrain_manager.get_height_at(wp)
 			man.working_point_pos = wp
 			if quarters.size() > 0:

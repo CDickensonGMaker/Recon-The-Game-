@@ -281,6 +281,11 @@ func fire_mortar_volley(at: Vector3, spread: float) -> void:
 		return
 	var tube: Vector3 = fsb_center + Vector3(cos(sector_bearing), 0.0,
 		sin(sector_bearing)) * mortar_standoff_m
+	# The thump from the tube line, then the whistle over the impact point. The
+	# gap between them is the only warning the defenders get, and it is the
+	# reason a ranging round is survivable.
+	AudioManager.play_mortar_tube(tube)
+	AudioManager.play_incoming(at)
 	for i in range(MORTAR_VOLLEY):
 		var impact: Vector3 = at + Vector3(_rng.randf_range(-spread, spread), 0.0,
 			_rng.randf_range(-spread, spread))
@@ -296,7 +301,7 @@ func _mortar_impact(pos: Vector3) -> void:
 	var tm: Object = director.world.terrain_manager
 	if tm != null:
 		ground.y = director.world.terrain_manager.get_height_at(pos)
-	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground, "explosion_mortar")
 	DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 1)
 	_blast_defenders_only(ground)

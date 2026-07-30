@@ -521,6 +521,21 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			_rto.on_skill_up("fo_fac", fp)
 
 
+## AN AUTHORED STRIKE, not a called one. The fire-support tiers exist for the PLAYER to spend
+## through the radio; this is the demo's arc spending one for spectacle - a napalm strip laid
+## across the treeline behind the assault, which the Summoner named as the biggest visual beat
+## left on the table. It deliberately does NOT touch `fire_support` stock: the player's tubes
+## and sorties are his, and an authored set-piece must never quietly bill him for one.
+##
+## Everything downstream is the shipped path - same F-4, same run axis, same canisters, same
+## FireHazard burn - so this can never drift from what the radio does.
+func authored_strike(at: Vector3, ordnance: CASAirplane.Ordnance,
+		run: Vector3 = Vector3.ZERO) -> void:
+	if world == null:
+		return
+	_launch_flyby(at, ordnance, run)
+
+
 func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
 	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
 	world.add_child(plane)
@@ -893,6 +908,7 @@ const CRISIS_CALL: Dictionary = {
 var patrol_gate_pos := Vector3.ZERO
 var patrol_gate_out := Vector3.FORWARD
 var fsb_center := Vector3.ZERO
+var _siren: SirenTower = null
 var patrol_locations: Array[Dictionary] = []   ## {pos: Vector3, kind: String}
 ## The printed base sheet: surveyed cartography, stamped once at world-build and never
 ## reconciled against the live world (Summoner ruling 2026-07-28 - an accurate survey,
@@ -996,6 +1012,8 @@ func setup_patrol(built: Dictionary) -> void:
 	for s in (built.sites as Array):
 		var sd: Dictionary = s
 		var kind: String = str(sd.get("kind", ""))
+		if kind == "firebase_main":
+			_siren = sd.get("siren", null) as SirenTower
 		if kind in ["village", "vc_camp"]:
 			patrol_locations.append({"pos": sd.center as Vector3, "kind": kind})
 		var r: float = float(sd.get("radius", 0.0))
@@ -1236,6 +1254,10 @@ func _garrison_stand_to() -> void:
 			continue
 		if GarrisonDefender.promote(civ, self, fsb_center) != null:
 			promoted += 1
+	# Printed unconditionally, including the zero. "Did the garrison stand to?" was the
+	# central unanswerable question of the 2026-07-29 playtest, and a stand-to that promotes
+	# nobody looks exactly like one that never fired.
+	print("[FSB] stand to: promoted %d garrison civilian(s) to defenders" % promoted)
 	if promoted > 0:
 		toast.emit("STAND TO - THE WIRE'S IN CONTACT")
 
@@ -1267,12 +1289,29 @@ func _attach_siege() -> void:
 	siege.siege_ended.connect(_on_siege_ended)
 
 
-func _on_siege_began(strength: int, probe: bool) -> void:
+func _on_siege_began(_strength: int, probe: bool) -> void:
 	_garrison_stand_to()
 	if probe:
+		# A probe is 2d6 sappers. Crying the siren for three men in the wire is
+		# how the siren stops meaning anything - the sentry's shout carries it.
 		toast.emit("MOVEMENT ON THE WIRE - STAND TO")
-	else:
-		toast.emit("STAND TO - THEY'RE COMING IN STRENGTH (%d ON THE WIRE)" % strength)
+		return
+	# The old copy read "(%d ON THE WIRE)". Nobody inside the perimeter could
+	# know that number at stand-to; the count is the director's roll, not
+	# anything a man on a tower can see in the dark.
+	toast.emit("STAND TO")
+	_sound_siren()
+
+
+## The tower sentry needs a moment to reach the crank. It also puts the wail
+## AFTER the first ranging round rather than under it - SiegeDirector starts its
+## mortar timer at zero, so the shells announce themselves first.
+func _sound_siren() -> void:
+	if _siren == null or not is_instance_valid(_siren):
+		return
+	await get_tree().create_timer(randf_range(2.0, 5.0)).timeout
+	if _siren != null and is_instance_valid(_siren):
+		_siren.sound()
 
 
 ## The night banks its own AAR. _bank_patrol only fires on crossing the wire inward,

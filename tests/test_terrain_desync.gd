@@ -127,7 +127,7 @@ func _edit_and_verify(world: GameWorld, tm: TerrainManager, grid: GameplayGrid,
 	# so a modifier that adds raw metres would author a mountain 100s of times too
 	# tall and the reported drift would be fiction.
 	var lift_norm: float = lift / tm.heightmap.height_scale
-	var lift_func := func(h: float, falloff: float) -> float:
+	var lift_func := func(h: float, falloff: float, _wx: float, _wz: float) -> float:
 		return h + lift_norm * falloff
 	tm.modify_terrain(center, radius, lift_func)
 

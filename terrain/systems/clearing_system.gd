@@ -140,7 +140,8 @@ func _apply_stage_changes(zone: ClearingZone) -> void:
 	var target_height: float = total_height / float(count)
 
 	# Apply flattening via terrain_manager (this also rebuilds chunks)
-	var flatten_func := func(current_height: float, falloff_amount: float) -> float:
+	var flatten_func := func(current_height: float, falloff_amount: float,
+			_wx: float, _wz: float) -> float:
 		var blend: float = flattening * falloff_amount
 		return lerp(current_height, target_height, blend)
 

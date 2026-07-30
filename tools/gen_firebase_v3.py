@@ -98,6 +98,46 @@ def platform_z(x, y):
 
 # --------------------------------------------------------------------- pieces --
 
+## The mound surface is authored HERE and consumed by Godot: site_planner sculpts the terrain
+## to it so there is exactly ONE ground under the base. Godot must therefore know these
+## numbers, and a hand-copied `MOUND_H = 3.4` in GDScript is a divergent-systems seed - the
+## day this file changes, the terrain silently keeps the old shape and the 07-29 playtest bug
+## (two floors, one of them invisible, the player standing on air) comes straight back.
+##
+## So the constants ship WITH the model, rewritten on every export. Same pattern as
+## temple_set.json. site_planner.gd::fsb_mound_height() is the only reader.
+MOUND_MANIFEST = "fsb_main_v3_mound.json"
+
+
+def write_mound_manifest(path):
+    doc = {
+        "_source": "tools/gen_firebase_v3.py :: platform_z(). REWRITTEN ON EVERY EXPORT by "
+                   "export_firebase(). Do not hand-edit - edit the generator.",
+        "_axes": "Blender model space. Godot: x = local_x, y (blender) = -local_z, "
+                 "height = result.",
+        "r0": R0, "ridge_stretch": RIDGE_STRETCH, "mound_h": MOUND_H,
+        "mound_fall": MOUND_FALL, "berm_w": BERM_W, "berm_h": BERM_H,
+        "edge_harmonics": [[0.155, 2.0, 0.7], [0.085, 3.0, 2.1], [0.045, 5.0, 4.3]],
+        "top_xy": [1.05, 0.042, 0.6, 0.036, -0.3],
+        "top_y": [0.55, 0.021, -0.9],
+        "top_xy2": [0.30, 0.075, 0.055, 1.7],
+        # THE FIGHTING STEP. Raised in TERRAIN by site_planner, not modelled here - the mound
+        # plate is COL_NONE and the terrain is the collider, so the banquette is ground rather
+        # than geometry. Measured: the parapet lip is berm 1.22 + 9 courses x 0.13 = 2.39m over
+        # the compound floor, against a ~1.6m eye. A 0.9m shelf puts him 0.11m over his own
+        # wall standing and fully behind it crouched, and gives the VC a way over the berm once
+        # the sandbags are blown.
+        #
+        # If you ever MODEL the step in Blender, zero step_h here or the two will stack.
+        "step_h": 0.9,
+        "step_gap_m": 3.0,
+        "step_width_m": 11.0,
+    }
+    with open(path, "w") as f:
+        json.dump(doc, f, indent=2)
+    return doc
+
+
 def new_obj(name, bm, extra_mats=True):
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
@@ -770,13 +810,47 @@ def legacy_garrison_markers():
 ## invisible mesh with no collision. Every twin here is numbered BEFORE the suffix instead.
 
 ## Alpha cards and ground decals: the player walks through leaves and over mud.
+##
+## fb_terrain_mound is here, NOT on the trimesh list, and that is the 2026-07-29 decree:
+## site_planner sculpts the TERRAIN to this mound's own surface (via the mound manifest
+## above), so the terrain IS the ground. Shipping a second full-compound ground collider on
+## top of it is what put an invisible floor 0.5-2.4 m above the visible dirt - the player
+## jumped, landed on nothing, and was walled in by its rim. ONE ground.
+## Named cost: the authored craters become visual dishes you walk over, not holes you step
+## into. A 4 m heightmap could not have held them anyway.
 COL_NONE = ("fb_mud_patch", "fb_scorch", "fb_road_", "fb_duckboard",
             "fb_veg_bush", "fb_veg_fern", "fb_veg_elephant", "fb_veg_tall_grass",
             "fb_veg_grass", "fb_veg_jungle_palm", "fb_veg_palm_sapling")
 
-## Anything with a doorway, a pit or a walkable surface needs the REAL shape - a box would
-## seal the bunkers shut and flatten the cratered mound.
-COL_TRIMESH = ("fb_terrain_mound", "fb_berm_ring", "fb_helipad", "fb_tower", "fb_gun_pit",
+## scatter_veg MERGES every instance of a card into ONE object spanning the whole treeline
+## ring, so the solid veg cannot take the default box hull: a box around 90 merged stumps is a
+## 300m slab from the ground to the tallest one. Four of those were stacked over the base -
+## invisible floors with walkable tops - and are what the player kept getting stuck on.
+COL_VEG_SOLID = ("fb_veg_tree_stump", "fb_veg_fallen_log", "fb_veg_felled_trunk",
+                 "fb_veg_felled_tree")
+
+## Anything with a doorway, a pit, a walkable surface OR A HOLE YOU SHOOT THROUGH needs the
+## REAL shape. The else-branch of make_collision() wraps an object in an axis-aligned BOX,
+## and a box fills every opening in the mesh it wraps - it would seal the bunkers shut and
+## brick up every firing slit.
+##
+## fb_sbg_seg_ (the perimeter parapet) joined this list on 2026-07-29 so lead goes through the
+## cracks between courses and through any embrasure cut into a segment. Its box hull was also
+## a flat 6 m slab at the crest - a clean ledge to stand on, on a perimeter nobody should be
+## able to stand on.
+## MEASURE THE COST: ~50 segments of 9-course bag geometry going box -> trimesh, on a project
+## whose PERF_LEDGER says it is call-bound. If it bites, the answer is NOT to go back to
+## boxes; it is to author a low-poly `-colonly` PROXY per segment with the slit cut into it.
+COL_TRIMESH = COL_VEG_SOLID + (
+               # THE GROUND. fb_terrain_mound is the walkable surface of the whole compound -
+               # the terrain is levelled to its toe and stops there, so this trimesh is what
+               # the player and every AI actually stand on. It must be one continuous, welded,
+               # outward-facing surface with nothing steeper than ~40 degrees where a man
+               # crosses: see FIREBASE_BLENDER_HANDOFF.md §00 for the export contract and the
+               # slope-check script. A box hull here would flatten the craters into a lid.
+               "fb_terrain_mound",
+               "fb_sbg_seg_",
+               "fb_berm_ring", "fb_helipad", "fb_tower", "fb_gun_pit",
                "fb_mortar_pit", "fb_trench_run", "fb_gate_gap", "fb_toc", "fb_mess",
                "fb_hootch", "fb_gp_tent", "fb_aid_station", "fb_bunker_mg",
                "fb_bunker_fighting", "fb_sleeping_bunker", "bwire_card_ring")
@@ -850,6 +924,7 @@ def export_firebase(glb=None, blend=None):
                               export_apply=True, export_yup=True, export_cameras=False,
                               export_lights=False, export_extras=False, export_tangents=False)
     size = os.path.getsize(glb) / 1048576.0
+    write_mound_manifest(os.path.join(os.path.dirname(glb), MOUND_MANIFEST))
     clear_collision()
     for blk in (bpy.data.meshes, bpy.data.materials, bpy.data.images):
         for d in list(blk):

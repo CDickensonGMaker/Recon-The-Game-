@@ -5,7 +5,10 @@ class_name CASAirplane
 extends Node3D
 
 
-enum Ordnance { BOMB, NAPALM, CBU }
+## GUNS is a strafing pass; GUNS_NAPALM strafes in and pickles the strip at the bottom of it -
+## the Summoner's own picture: "a sky flyby that is a machinegun run and a few napalm canisters
+## dropped." Both fire REAL ROUNDS, see _fire_strafe_burst.
+enum Ordnance { BOMB, NAPALM, CBU, GUNS, GUNS_NAPALM }
 enum Phase { APPROACH, DIVE, CLIMB, DONE }
 
 const APPROACH_ALT: float = 80.0
@@ -37,6 +40,59 @@ var _flyby: bool = false
 var _transit: bool = false
 var _transit_agl: float = 60.0
 var _transit_speed: float = SPEED
+
+## ---- THE GUN RUN ----
+## Rounds are REAL: muzzle spawn on the airframe, gravity, segment-raycast per tick, damage
+## resolved at arrival through the same BulletSystem every rifle in the game uses.
+##
+## This replaces the older lie. SpectreGunship._fire_vulcan picks a point on the ground, paints
+## three decorative tracers at it and applies a small explosion there - so the tracers carry no
+## damage, and a man behind the berm is spared by a visibility guess rather than by the berm.
+## Meanwhile the Spectre's Bofors already fires real arcing shells, so one aircraft held two
+## different ideas of what a round is. Ruling, 2026-07-29: "what if we made the rounds from all
+## planes real projectiles that travel from their points of origin."
+##
+## The strafe walks itself: rounds are aimed at the ground STRAFE_LEAD_M ahead of the aircraft,
+## so impacts march up the run line as it closes, through the target, and past it.
+const STRAFE_WEAPON: String = "res://data/weapons/aircraft_20mm.tres"
+const STRAFE_OPEN_M: float = -260.0     ## `along` at which the guns open (negative = short)
+const STRAFE_CLOSE_M: float = 50.0      ## and where they cease
+const STRAFE_INTERVAL: float = 0.08
+const STRAFE_ROUNDS_PER_BURST: int = 3
+const STRAFE_LEAD_M: float = 160.0      ## slant point ahead the burst is aimed at
+const STRAFE_SPREAD_M: float = 4.0      ## lateral scatter of the beaten path
+## US airframe: world, enemy bodies, enemy hitzones and civilians - the same mask an ally
+## rifle uses, so a strafing run is as indiscriminate as any other fire in this war.
+const STRAFE_MASK: int = 1 | 32 | 64 | 512
+
+static var _strafe_wd: WeaponData = null
+var _gun_timer: float = 0.0
+
+
+const JET_LOOP := preload("res://assets/audio/sfx/aircraft/jet_loop.wav")
+
+var _engine: AudioStreamPlayer3D = null
+
+
+## Built in _ready so every entry path gets it: call_strike, call_flyby and the
+## AirTraffic transit overflight. A fast mover that arrives in silence is the
+## single loudest hole in the air war.
+func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	_engine = AudioStreamPlayer3D.new()
+	_engine.stream = JET_LOOP
+	_engine.bus = "Vehicles" if AudioServer.get_bus_index("Vehicles") >= 0 else "SFX"
+	_engine.max_distance = 1800.0
+	_engine.unit_size = 85.0
+	_engine.volume_db = 0.0
+	_engine.max_db = 0.0
+	_engine.attenuation_filter_cutoff_hz = 4000.0
+	# Doppler is the whole drama of a low pass; Godot needs the physics tracker
+	# because this node is moved from _physics_process.
+	_engine.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
+	add_child(_engine)
+	_engine.play()
 
 
 func call_strike(terrain_manager: TerrainManager, target: Vector3, ordnance: Ordnance, run_dir: Vector3 = Vector3.ZERO) -> void:
@@ -141,6 +197,13 @@ func _fly_flyby(delta: float) -> void:
 	if phase != Phase.CLIMB:
 		var desired_y: float = (terrain.get_height_at(global_position) + FLYBY_ALT) if terrain else global_position.y
 		global_position.y = lerpf(global_position.y, desired_y, 3.0 * delta)
+		# GUNS FIRST. The strafe opens well short of the target and walks in, so by the time the
+		# canisters leave the rack the ground is already being chewed.
+		if _guns_hot():
+			_gun_timer -= delta
+			if _gun_timer <= 0.0 and along >= STRAFE_OPEN_M and along <= STRAFE_CLOSE_M:
+				_gun_timer = STRAFE_INTERVAL
+				_fire_strafe_burst()
 		if not _released and along >= -6.0:  # pickle just as it reaches the target
 			_released = true
 			_release_ordnance()
@@ -157,10 +220,42 @@ func _release_ordnance() -> void:
 	match _ordnance:
 		Ordnance.BOMB:
 			_drop_bomb()
-		Ordnance.NAPALM:
+		Ordnance.NAPALM, Ordnance.GUNS_NAPALM:
 			_drop_napalm_strip()
 		Ordnance.CBU:
 			_drop_cluster()
+		Ordnance.GUNS:
+			pass          # the guns ARE the ordnance; nothing leaves the rack
+
+
+func _guns_hot() -> bool:
+	return _ordnance == Ordnance.GUNS or _ordnance == Ordnance.GUNS_NAPALM
+
+
+## One burst of real rounds down the run line. Aimed at the ground ahead of the aircraft rather
+## than at the target itself, so the beaten path WALKS as the plane closes - which is what makes
+## a strafing run read as a strafing run instead of a stationary explosion.
+func _fire_strafe_burst() -> void:
+	if CombatManager.bullets == null:
+		return
+	if _strafe_wd == null:
+		_strafe_wd = load(STRAFE_WEAPON) as WeaponData
+	if _strafe_wd == null:
+		push_warning("[CAS] %s missing - the gun run has no weapon card and fires nothing"
+			% STRAFE_WEAPON)
+		return
+	# Muzzle on the nose, slightly under the fuselage.
+	var muzzle: Vector3 = global_position + _run_dir * 4.0 + Vector3(0.0, -1.2, 0.0)
+	var aim: Vector3 = global_position + _run_dir * STRAFE_LEAD_M
+	aim.y = terrain.get_height_at(aim) if terrain != null else aim.y
+	var across := Vector3(-_run_dir.z, 0.0, _run_dir.x)
+	for i in range(STRAFE_ROUNDS_PER_BURST):
+		var scatter: Vector3 = across * randf_range(-STRAFE_SPREAD_M, STRAFE_SPREAD_M) \
+			+ _run_dir * randf_range(-STRAFE_SPREAD_M, STRAFE_SPREAD_M)
+		var dir: Vector3 = ((aim + scatter) - muzzle).normalized()
+		CombatManager.bullets.fire(_strafe_wd, self, muzzle, dir, STRAFE_MASK, [self], true)
+	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, aim, 0, 160.0)
 
 
 ## Seat a point on the ground and give the fall time from this aircraft down to it.
@@ -182,10 +277,11 @@ func _release(shell_path: String, pos: Vector3, terminal: Callable) -> Projectil
 
 func _drop_bomb() -> void:
 	_release(BOMB_SHELL, _target, func(impact: Vector3) -> void:
-		# Visual + suppression FIRST so a throw in the terrain/veg damage step can
-		# never abort the fireball (the "plane flew by, no explosion" bug).
+		# Visual FIRST so a throw in the terrain/veg damage step can never abort the
+		# fireball (the "plane flew by, no explosion" bug). Suppression is no longer
+		# called here: apply_explosion_damage now suppresses for EVERY explosive, at the
+		# same 16m -> 40m relationship this drop used to be the only one to get.
 		GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
-		CombatManager.apply_suppression_in_area(impact, FirePlan.BOMB_SUPPRESS_M, 1.0)
 		CombatManager.apply_explosion_damage(impact, 220, 60, FirePlan.BOMB_BLAST_M, null)
 		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0))
 

@@ -204,6 +204,26 @@ func apply_explosion_damage(
 					knockback_dir = Vector3.UP
 				_apply_knockback(enemy, knockback_dir, knockback_scale * 2.0, damage)
 
+	# A blast that misses you still puts you in the dirt (Pillar 1). Before this, NOTHING
+	# routed through this function suppressed anyone - not a grenade, not an RPG, not the
+	# mortars, not a 40mm shell from Spooky. The only two callers of apply_suppression_in_area
+	# repo-wide were the player's own muzzle and the CAS bomb, so 30 seconds of gunship fire
+	# inside the wire changed nobody's behaviour unless it killed them outright.
+	apply_suppression_in_area(center, radius * SUPPRESS_RADIUS_MULT,
+		clampf(float(max_damage) / SUPPRESS_DAMAGE_FULL, 0.15, 1.0))
+
+
+## What a blast does to the men it does NOT hit. The kill radius is small on purpose (a 40mm
+## is lethal at 5m) but the fear reaches much further, so suppression runs on a multiple of it.
+##
+## 2.5 is not a taste call: it is the ratio the project had already authored for the one
+## explosion that DID suppress - FirePlan's bomb, 40m of suppression around a 16m blast. Every
+## other explosive now inherits that same relationship instead of a second invented number.
+const SUPPRESS_RADIUS_MULT: float = 2.5
+## Damage at which a blast fully suppresses at the centre. An M26 (190) and anything heavier
+## pins; a rifle-grade pop still rattles.
+const SUPPRESS_DAMAGE_FULL: float = 190.0
+
 
 ## Multi-point visibility check (Quake 3 CanDamage pattern)
 ## Traces to 8 points around target bounds, returns true if ANY point is visible
@@ -263,6 +283,14 @@ func apply_suppression_in_area(center: Vector3, radius: float, amount: float, ex
 		var dist_a: float = center.distance_to((ally as Node3D).global_position)
 		if dist_a <= radius and ally.has_method("apply_suppression"):
 			ally.apply_suppression(amount * (1.0 - dist_a / radius))
+
+	# ...and so does the man holding the camera. He was the one body this loop skipped, so
+	# shells could land inside his own compound and every AI on both sides would flinch while
+	# the player's screen sat perfectly still.
+	if player != null and is_instance_valid(player) and player != exclude and player is Node3D:
+		var dist_p: float = center.distance_to((player as Node3D).global_position)
+		if dist_p <= radius and player.has_method("add_suppression"):
+			player.add_suppression(amount * (1.0 - dist_p / radius))
 
 
 ## Get all enemies in range of a point

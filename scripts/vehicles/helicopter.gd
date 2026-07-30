@@ -43,6 +43,9 @@ var _rotor_rpm: float = 0.0      ## 0..1, spools up/down with state
 ## separate rotation/scale tracks that would need an AnimationTree to play
 ## together, and code lets the RPM spool with the flight state.
 func _ready() -> void:
+	# Built before the model lookup: the rotor is audible whether or not the GLB
+	# resolved, and _ready returns early when it did not.
+	_build_rotor_audio()
 	# The GLB's scene root IS the "Model" node; the fuselage is its child Huey_Copy.
 	var root := get_node_or_null("Model") as Node3D
 	if root == null:
@@ -77,6 +80,46 @@ func _ready() -> void:
 		root.position.z -= centre.z
 
 
+## Rotor audio rides the SAME _rotor_rpm that drives the blades, so the sound can
+## never disagree with what the eye sees turning. Pitch tracks rpm over a narrow
+## band: a Huey does not change note much, it changes WEIGHT.
+const ROTOR_LOOP := preload("res://assets/audio/sfx/aircraft/heli_rotor_loop.wav")
+const ROTOR_MAX_DIST: float = 900.0
+const ROTOR_UNIT_SIZE: float = 55.0
+const ROTOR_DB_IDLE: float = -14.0
+const ROTOR_DB_FULL: float = 2.0
+
+var _rotor_audio: AudioStreamPlayer3D = null
+
+
+func _build_rotor_audio() -> void:
+	if DisplayServer.get_name() == "headless" or _rotor_audio != null:
+		return
+	_rotor_audio = AudioStreamPlayer3D.new()
+	_rotor_audio.stream = ROTOR_LOOP
+	_rotor_audio.bus = "Vehicles" if AudioServer.get_bus_index("Vehicles") >= 0 else "SFX"
+	_rotor_audio.max_distance = ROTOR_MAX_DIST
+	_rotor_audio.unit_size = ROTOR_UNIT_SIZE
+	_rotor_audio.max_db = 0.0
+	_rotor_audio.attenuation_filter_cutoff_hz = 3500.0
+	_rotor_audio.volume_db = ROTOR_DB_IDLE
+	add_child(_rotor_audio)
+	_rotor_audio.play()
+
+
+func _drive_rotor_audio() -> void:
+	if _rotor_audio == null or not is_instance_valid(_rotor_audio):
+		return
+	if _rotor_rpm < 0.02:
+		if _rotor_audio.playing:
+			_rotor_audio.stop()
+		return
+	if not _rotor_audio.playing:
+		_rotor_audio.play()
+	_rotor_audio.pitch_scale = 0.80 + 0.28 * _rotor_rpm
+	_rotor_audio.volume_db = lerpf(ROTOR_DB_IDLE, ROTOR_DB_FULL, _rotor_rpm)
+
+
 ## Idle on the pad still turns slowly: a Huey with stopped rotors reads as wreckage.
 func _target_rpm() -> float:
 	match state:
@@ -92,6 +135,7 @@ func _target_rpm() -> float:
 
 func _spin_rotors(delta: float) -> void:
 	_rotor_rpm = lerpf(_rotor_rpm, _target_rpm(), clampf(SPOOL_RATE * delta * 4.0, 0.0, 1.0))
+	_drive_rotor_audio()
 	if _rotor_rpm < 0.001:
 		return
 	if _main_rotor != null:

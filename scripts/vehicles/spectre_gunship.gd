@@ -39,6 +39,33 @@ var _age: float = 0.0
 var _vulcan_timer: float = 0.0
 var _bofors_timer: float = 0.6
 var _drone: AudioStreamPlayer3D
+var _gun_audio: AudioStreamPlayer3D = null
+
+const PROP_LOOP := preload("res://assets/audio/sfx/aircraft/prop_loop.wav")
+const VULCAN_SFX := preload("res://assets/audio/sfx/aircraft/vulcan_burst.wav")
+const BOFORS_SFX := preload("res://assets/audio/sfx/aircraft/bofors_40mm.wav")
+
+
+## The gun fires from the AIRCRAFT, and that report is the whole reason Spooky is
+## frightening from the ground. Impact FX alone left the gunship mute.
+func _build_gun_audio() -> void:
+	if DisplayServer.get_name() == "headless" or _gun_audio != null:
+		return
+	_gun_audio = AudioStreamPlayer3D.new()
+	_gun_audio.bus = "Weapons" if AudioServer.get_bus_index("Weapons") >= 0 else "SFX"
+	_gun_audio.max_distance = 1600.0
+	_gun_audio.unit_size = 90.0
+	_gun_audio.max_db = 0.0
+	add_child(_gun_audio)
+
+
+func _play_gun(stream: AudioStream, db: float) -> void:
+	if _gun_audio == null or not is_instance_valid(_gun_audio):
+		return
+	_gun_audio.stream = stream
+	_gun_audio.volume_db = db
+	_gun_audio.pitch_scale = randf_range(0.97, 1.03)
+	_gun_audio.play()
 
 
 static func call_in(parent: Node, terrain_manager: TerrainManager, target_pos: Vector3) -> SpectreGunship:
@@ -70,19 +97,22 @@ func _ready() -> void:
 	if anim != null and anim.has_animation("prop_spin"):
 		anim.get_animation("prop_spin").loop_mode = Animation.LOOP_LINEAR
 		anim.play("prop_spin")
-	var drone_stream := load("res://assets/audio/sfx/rotor_loop.wav") as AudioStreamWAV
-	if drone_stream:
-		drone_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		@warning_ignore("integer_division")
-		drone_stream.loop_end = drone_stream.data.size() / 2
-		_drone = AudioStreamPlayer3D.new()
-		_drone.stream = drone_stream
-		_drone.pitch_scale = 0.5
-		_drone.volume_db = 6.0
-		_drone.max_distance = 600.0
-		_drone.unit_size = 45.0
-		add_child(_drone)
-		_drone.play()
+	_build_gun_audio()
+	# A C-130 is four turboprops, not a rotor. The old drone was the Huey loop at
+	# half pitch, which reads as a helicopter no matter how far it is pitched
+	# down; prop_loop is keyed to the T56's 68 Hz blade passage. Its loop points
+	# come from the .import sidecar, so nothing here mutates a shared stream.
+	_drone = AudioStreamPlayer3D.new()
+	_drone.stream = PROP_LOOP
+	_drone.bus = "Vehicles" if AudioServer.get_bus_index("Vehicles") >= 0 else "SFX"
+	_drone.pitch_scale = 1.0
+	_drone.volume_db = 2.0
+	_drone.max_distance = 1200.0
+	_drone.unit_size = 70.0
+	_drone.max_db = 0.0
+	_drone.attenuation_filter_cutoff_hz = 3000.0
+	add_child(_drone)
+	_drone.play()
 
 
 func _physics_process(delta: float) -> void:
@@ -125,6 +155,7 @@ func _zone_point(frac: float) -> Vector3:
 
 func _fire_vulcan() -> void:
 	var impact := _zone_point(1.0)
+	_play_gun(VULCAN_SFX, 4.0)
 	for i in range(VULCAN_ROUNDS_PER_BURST):
 		var jitter := Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 		BulletTracer.spawn_tracer(get_tree().current_scene, global_position, impact + jitter, Color(1.0, 0.25, 0.15))
@@ -139,6 +170,7 @@ func _fire_bofors() -> void:
 	if data == null:
 		return
 	var impact := _zone_point(BOFORS_ZONE_FRAC)
+	_play_gun(BOFORS_SFX, 6.0)
 	var flight: float = maxf(0.6, global_position.distance_to(impact) / data.speed)
 	Ballistics.fire_arc(data, global_position, impact, flight, terrain, func(at: Vector3) -> void:
 		@warning_ignore("integer_division")

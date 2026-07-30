@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://c8fsbmain0v3"]
+
+[ext_resource type="PackedScene" uid="uid://y71h7g1g17j0" path="res://assets/world/building models/structures/firebase/fsb_main_v3.glb" id="1_fsbglb"]
+
+[node name="fsb_main_v3" unique_id=766868645 instance=ExtResource("1_fsbglb")]
+
+[node name="SpawnMarkers" type="Node3D" parent="." index="1259" unique_id=1344383720]
+
+[node name="spawn_bunk_01" type="Marker3D" parent="SpawnMarkers" index="0" unique_id=1966812316]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6103514, 3.9824452, 32.095665)
+
+[node name="spawn_bunk_02" type="Marker3D" parent="SpawnMarkers" index="1" unique_id=1548447508]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2666473, 4.068366, 43.61633)

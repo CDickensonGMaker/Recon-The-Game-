@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b7sappr0om001"]
+
+[ext_resource type="Script" path="res://scripts/levels/sapper_room.gd" id="1_sapr"]
+
+[node name="SapperRoom" type="Node3D"]
+script = ExtResource("1_sapr")

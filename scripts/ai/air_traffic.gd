@@ -103,6 +103,40 @@ func _on_sim_event(kind: StringName, payload: Dictionary) -> void:
 		_dispatch(flight_kind)
 
 
+## PUT A FLIGHT UP NOW. The schedule books one movement per sim-hour, which is right for a
+## campaign AO and wrong for the first thirty seconds of a demo - the Summoner's ship gate asks
+## for "constant movement of the choppers" and "scope and spectacle right away". A caller that
+## owns an ARC (DemoGame) drives the sky directly through here rather than waiting on the clock.
+##
+## Deliberately NOT a second scheduler: this is the same _dispatch the sim event calls, so
+## formations, routes, the flight roster and the MAX_FLIGHT_SECONDS reaper all still apply.
+func launch(flight_kind: String, profile: String = "transit", ships: int = 0) -> void:
+	if profile == "lz_cycle":
+		_dispatch_lz_cycle(flight_kind)
+	else:
+		_dispatch(flight_kind, ships)
+
+
+## How many airframes are in the sky right now. The demo's air package reads this before adding
+## more: spectacle is the goal, but this project is call-bound (PERF_LEDGER) and an unbounded
+## sky is the cheapest way to spend the frame budget by accident.
+func flights_in_air() -> int:
+	return _in_flight.size()
+
+
+## Clear of the compound AND its beaten zone: SpectreGunship orbits at ORBIT_RADIUS 160m and
+## saturates a zone around its centre, so "just outside the wire" is still inside the guns.
+const SPECTRE_KEEP_OUT_M: float = 420.0
+
+
+## Centre of the friendly firebase, or ZERO when there is none (arena, bench, tests).
+func _friendly_keep_out() -> Vector3:
+	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	if d is FieldDirector:
+		return (d as FieldDirector).fsb_center
+	return Vector3.ZERO
+
+
 func _world() -> Node3D:
 	return get_parent() as Node3D
 
@@ -211,7 +245,24 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3, alt_bonus: float =
 		return null
 	var terrain := _terrain()
 	if kind == "spectre":
+		# The orbit centre is the route midpoint, and a SpectreGunship is not scenery: it
+		# pours 60-damage Vulcan and 120-damage Bofors into that point for 30 seconds. A
+		# random midpoint can land on the firebase, and on 2026-07-29 it did - Spooky firing
+		# directly into the player's own base. Ambient air is atmosphere; live guns on the
+		# compound come from the player's fire mission (field_director), never from a
+		# scheduled flight. Push the orbit off the base rather than cancelling the sortie -
+		# a gun run on the treeline IS the atmosphere this event exists for.
 		var centre: Vector3 = (from + to) * 0.5
+		var keep_out: Vector3 = _friendly_keep_out()
+		if keep_out != Vector3.ZERO:
+			var off: Vector3 = centre - keep_out
+			off.y = 0.0
+			if off.length() < SPECTRE_KEEP_OUT_M:
+				if off.length() < 1.0:
+					off = Vector3(1.0, 0.0, 0.0)
+				centre = keep_out + off.normalized() * SPECTRE_KEEP_OUT_M
+				centre.x = clampf(centre.x, 40.0, _map_size() - 40.0)
+				centre.z = clampf(centre.z, 40.0, _map_size() - 40.0)
 		centre.y = _ground_at(centre)
 		return SpectreGunship.call_in(world, terrain, centre)
 	var craft := _instance(kind)

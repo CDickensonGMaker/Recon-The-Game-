@@ -141,26 +141,57 @@ static func _set_face(root: Node3D, index: int) -> void:
 	var row: int = int(index / float(FACE_COLS)) % FACE_ROWS
 	var off := Vector3(col / float(FACE_COLS), row / float(FACE_ROWS), 0.0)
 
+	# EVERY SURFACE THAT RIDES THE ATLAS MOVES, AND IT MOVES BY THE SAME OFFSET.
+	#
+	# The header's promise - "they can never mismatch, because they are the same pixels" -
+	# only holds while head and skin really are one material. On any body where the
+	# merge_face_skin_material pass did not take, they are two, this matched the face one by
+	# NAME and slid it alone: the face went to a black man and the body stayed white
+	# (Summoner, 2026-07-29: "if you have a black face you get a black body and vice versa").
+	#
+	# Matching on the TEXTURE instead of the name makes the invariant structural. Whatever a
+	# material is called, if it samples the face atlas it is skin, and it moves with the face.
+	var slid: int = 0
+	var stranded: Array[String] = []
 	for mi in _all_meshes(root):
 		var mesh: Mesh = mi.mesh
 		if mesh == null:
 			continue
 		for s in mesh.get_surface_count():
 			var m: Material = mi.get_active_material(s)
-			if m == null or not _is_face_material(m):
-				# glTF often lands the name on the Mesh's own material, not the override
-				var base: Material = mesh.surface_get_material(s)
-				if base == null or not _is_face_material(base):
-					continue
-				m = base
+			if m == null:
+				m = mesh.surface_get_material(s)
 			var sm := m as BaseMaterial3D
 			if sm == null:
+				continue
+			if not _rides_face_atlas(sm):
+				if _is_face_material(sm):
+					stranded.append(sm.resource_name)   # named skin, NOT on the atlas
 				continue
 			# DUPLICATE, or every grunt sharing this material rerolls with him.
 			var mine := sm.duplicate() as BaseMaterial3D
 			mine.uv1_offset = off
 			mine.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST  # PSX
 			mi.set_surface_override_material(s, mine)
+			slid += 1
+	if not stranded.is_empty():
+		push_warning(("[DRESSER] %d skin material(s) do NOT sample the face atlas and cannot "
+			+ "follow the face: %s. That body needs the merge_face_skin_material pass, or his "
+			+ "skin tone will not match the head he was dealt.")
+			% [stranded.size(), ", ".join(stranded)])
+	elif slid == 0:
+		push_warning("[DRESSER] no atlas surface found to slide - this man keeps the face "
+			+ "he was exported with")
+
+
+## Does this material sample the face atlas? Texture identity, not resource name: the name is
+## what drifted, and the pixels are what actually decide his skin.
+static func _rides_face_atlas(m: BaseMaterial3D) -> bool:
+	var tex: Texture2D = m.albedo_texture
+	if tex != null and tex.resource_path.contains("face_atlas"):
+		return true
+	# Un-textured or procedurally-assigned material: fall back to the authored name.
+	return tex == null and _is_face_material(m)
 
 
 static func _is_face_material(m: Material) -> bool:

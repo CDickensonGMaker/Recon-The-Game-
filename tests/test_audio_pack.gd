@@ -21,13 +21,16 @@ const MUSIC_DIR: String = "res://assets/audio/Radio Vietnam/music"
 ## all six candidate slices cross-correlate 0.99-1.00). Raising a count here without
 ## new source audio means somebody cloned a sample.
 const REBUILT := {
-	"m16a1": 3, "ak47": 3, "rpd": 3, "ppsh41": 3, "m60": 3,
+	"m16a1": 3, "ak47": 3, "rpd": 3, "ppsh41": 3, "m60": 3, "car15": 3, "sks": 3,
 	"mosin": 1, "m70": 1, "m14": 1,
 }
-## Retired by ADR-016 Amendment C / test_flat_damage.gd:31. No .tres, no audio.
-const RETIRED := ["mp40", "kar98k", "car15", "sks", "thompson"]
+## Retired by ADR-016 / test_flat_damage.gd. No .tres, no audio.
+## car15, thompson and sks came back 2026-07-29 (Summoner) and are off this list.
+const RETIRED := ["mp40", "kar98k"]
 ## Kept on its synth render: .45 ACP is subsonic and the pack has no pistol stock.
-const PLACEHOLDER_KEPT := {"m1911": 3}
+## thompson joins m1911 on synth: .45 ACP is subsonic and the pack has no
+## pistol/SMG stock, so a derivation would be a downgrade.
+const PLACEHOLDER_KEPT := {"m1911": 3, "thompson": 3}
 const EXPECT_RATE: int = 48000
 
 var _fail: int = 0

@@ -59,6 +59,21 @@ func setup(game_world: GameWorld, mission_director: FieldDirector) -> void:
 	_render_base_map()
 	_build_ui()
 	visible = false
+	# DEFERRED, or the check races its own fix. _build_ui sets the size deferred (anchors would
+	# otherwise overwrite a direct write), so reading `size` here reads the OLD zero rect and
+	# cries wolf on a map that is fine. It fired three boots running for exactly that reason.
+	call_deferred("_check_sheet_fits")
+
+
+## The sheet is pinned to the BOTTOM-RIGHT of this control's rect, so a rect smaller than the
+## sheet puts it off-screen while every other sign of health looks fine - texture rendered, key
+## bound, node listening. That is the 2026-07-29 "M does nothing / it just centers my screen".
+func _check_sheet_fits() -> void:
+	if size.x >= TopoSheet.MAP_PIXELS and size.y >= TopoSheet.MAP_PIXELS:
+		print("[TOPO] sheet fits: control %s, sheet %dpx" % [size, TopoSheet.MAP_PIXELS])
+		return
+	push_warning("[TOPO] map control is %s but the sheet needs %dpx - it will draw off-screen"
+		% [size, TopoSheet.MAP_PIXELS])
 
 
 func _render_base_map() -> void:
@@ -76,6 +91,17 @@ func _render_base_map() -> void:
 
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# ...AND TAKE THE SIZE NOW. Anchors alone only resolve on a layout pass, and this control
+	# is built hidden under a CanvasLayer, so it never got one: its rect stayed 0x0. The sheet
+	# below is pinned to the BOTTOM-RIGHT of that rect, so every offset went negative and the
+	# map drew off the top-left corner of the screen. Pressing M released the mouse and opened
+	# nothing visible - "it just centers my screen", 2026-07-29.
+	# set_deferred, not a direct assign: with opposite anchors set, Godot recomputes size after
+	# _ready() and warns that a direct write will be overridden. Deferring lands it after that
+	# pass instead of fighting it.
+	set_deferred("size", get_viewport_rect().size)
+	get_viewport().size_changed.connect(func() -> void:
+		set_deferred("size", get_viewport_rect().size))
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# NO full-screen dim. The world does not pause while the sheet is up (Summoner,
 	# 2026-07-28), so blanking the screen would stand the player blind in the jungle

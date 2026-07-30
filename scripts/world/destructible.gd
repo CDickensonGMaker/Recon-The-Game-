@@ -47,6 +47,12 @@ static func drain(n: int) -> void:
 		count += 1
 
 
+## Whether the state swap has run. The intact mesh and its collider are the only visible
+## difference, so nothing outside this class could otherwise ask.
+func is_destroyed() -> bool:
+	return _dead
+
+
 ## Test/scene-reset hook: drop all shared static state (rubble + queue).
 static func reset_all() -> void:
 	_destroy_queue.clear()

@@ -37,6 +37,7 @@ func setup(objective_center: Vector3) -> void:
 	var enemy := get_parent() as EnemyBase
 	if enemy != null:
 		enemy.assault_objective = target_pos
+		enemy.assault_driven = true   # the satchel pushes THROUGH contact, by doctrine
 
 
 ## Make the satchel inert THIS frame. queue_free alone is deferred, so a charge
@@ -76,5 +77,6 @@ func _detonate(enemy: EnemyBase) -> void:
 	if d is FieldDirector:
 		(d as FieldDirector).on_firebase_breach(pos)
 	enemy.assault_objective = Vector3.ZERO
+	enemy.assault_driven = false
 	enemy.take_damage(9999, Enums.DamageType.EXPLOSIVE, enemy)
 	set_physics_process(false)

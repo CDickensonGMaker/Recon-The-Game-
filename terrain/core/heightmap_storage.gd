@@ -126,7 +126,13 @@ func world_to_cell(world_x: float, world_z: float) -> Vector2i:
 	)
 
 
-## Modify heightmap in a circular region (for damage/clearing)
+## Modify heightmap in a circular region (for damage/clearing).
+##
+## The modifier is called as (height, falloff, world_x, world_z). Falloff alone is a
+## function of DISTANCE, so a modifier that has to reproduce a surface which varies with
+## BEARING - the firebase mound's three harmonics, site_planner.fsb_mound_height() - cannot
+## be written against it. Passing the cell's world XZ is what lets terrain match an
+## authored mound instead of approximating it with a flat plateau.
 func modify_region(center: Vector2i, radius: int, modifier: Callable) -> Rect2i:
 	var min_x: int = maxi(0, center.x - radius)
 	var max_x: int = mini(size, center.x + radius + 1)
@@ -139,7 +145,8 @@ func modify_region(center: Vector2i, radius: int, modifier: Callable) -> Rect2i:
 			if dist <= radius:
 				var idx: int = z * size + x
 				var falloff: float = 1.0 - smoothstep(0.0, float(radius), dist)
-				data[idx] = modifier.call(data[idx], falloff)
+				data[idx] = modifier.call(data[idx], falloff,
+					float(x) * cell_size, float(z) * cell_size)
 
 	# A centre far enough off-map leaves max below min, and a reversed Rect2i is an
 	# engine error at every consumer. Empty means "nothing was edited" - which is

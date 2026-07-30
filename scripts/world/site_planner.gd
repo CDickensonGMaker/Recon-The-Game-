@@ -643,7 +643,19 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 ## anything back at it: two firebase models live in the same world slot is the divergent-systems
 ## failure, not a fallback.
 
-const FSB_MAIN_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
+## THE FIREBASE IS A SCENE, NOT A RAW GLB (ruling 2026-07-29: "we make the main firebase a real
+## scene in godot and give me spawn markers that i can place").
+##
+## scenes/world/firebase_main.tscn wraps the model and carries everything AUTHORED BY HAND
+## beside it - spawn markers first. The crucial property is that those markers live in the
+## SCENE, not in the GLB, so re-exporting fsb_main_v3.glb from Blender can never delete them.
+## Anything hand-placed in the compound belongs in that scene for the same reason.
+##
+## The GLB is still the model and still the ground; this only gives it a place to keep
+## authored siblings. One world-build path (ADR-028) is untouched: the build instances this
+## scene exactly where it used to instance the GLB.
+const FSB_MAIN_PATH: String = "res://scenes/world/firebase_main.tscn"
+const FSB_MODEL_GLB: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
 const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # authored about the origin, measured
 ## Half-extents from the ORIGIN, not from the AABB centre: the authored treeline runs further
 ## out on +x than -x, and _fsb_rect is built centred on `center`, so it must cover the reach.
@@ -656,11 +668,98 @@ const FSB_FLATTEN_RADIUS: float = 215.0
 ## guarantee rect.grow(40) whose corners reach 169m. Only the outer shoulder
 ## blends into relief.
 const FSB_PLATEAU_FALLOFF: float = 0.107
-## Interior mound height (fb_gate_gap marker sits at y=2.87 in the v3 GLB;
-## berm crest ~5.5) and the falloff fraction where the full mound level is
-## reached (f at d~120m of the 215m radius - covers the measured berm ring).
-const FSB_MOUND_TOP: float = 2.87
-const FSB_MOUND_FALLOFF: float = 0.41
+
+## ---------- THE MOUND MANIFEST (2026-07-29 decree) ----------
+## Written by tools/gen_firebase_v3.py::write_mound_manifest on every export. The terrain is
+## sculpted to THIS surface, and the GLB's own ground plate collider is deleted, so the base
+## stands on exactly ONE ground.
+##
+## What it replaces: a flat interior plateau at a hardcoded seat+2.87 (taken from the
+## fb_gate_gap MARKER, not from the mound SURFACE). The model's plate rolls between ~1.5 and
+## ~5.3 m, so it stood 0.5-2.4 m proud of that plateau over most of the compound - an
+## invisible floor the player jumped onto and was then walled in by - and swallowed the feet
+## of every structure where it dipped below. ADR-023: the old two-tier stamp is DELETED here,
+## not left behind a flag.
+const FSB_MOUND_MANIFEST: String = "res://assets/world/building models/structures/firebase/fsb_main_v3_mound.json"
+static var _fsb_mound: Dictionary = {}
+
+
+static func _mound_manifest() -> Dictionary:
+	if not _fsb_mound.is_empty():
+		return _fsb_mound
+	var f: FileAccess = FileAccess.open(FSB_MOUND_MANIFEST, FileAccess.READ)
+	if f == null:
+		push_error(("[FSB] mound manifest missing (%s) - the terrain cannot be sculpted to "
+			+ "the model and the base will stand on two grounds again. Re-export the firebase.")
+			% FSB_MOUND_MANIFEST)
+		return {}
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if parsed is Dictionary:
+		_fsb_mound = parsed
+	return _fsb_mound
+
+
+## Height in METRES of the authored mound above its own toe, at a point given in model-local
+## Godot XZ (world minus compound centre). The one reader of the manifest; a line-for-line
+## port of gen_firebase_v3.py::platform_z, with Blender's +Y mapped to Godot's -Z (the
+## export runs export_yup, same convention as the vehicle facing rule).
+static func fsb_mound_height(local_x: float, local_z: float) -> float:
+	var m: Dictionary = _mound_manifest()
+	if m.is_empty():
+		return 0.0
+	var x: float = local_x
+	var y: float = -local_z          # Blender +Y is Godot -Z
+	var a: float = atan2(y, x)
+	var stretch: float = float(m.ridge_stretch)
+	var r: float = Vector2(x / stretch, y).length()
+	var harm: float = 0.0
+	for h in (m.edge_harmonics as Array):
+		var t: Array = h
+		harm += float(t[0]) * sin(float(t[1]) * a + float(t[2]))
+	var edge: float = float(m.r0) * (1.0 + harm) + float(m.berm_w)
+	var xy: Array = m.top_xy
+	var yv: Array = m.top_y
+	var xy2: Array = m.top_xy2
+	var top: float = float(m.mound_h) \
+		+ float(xy[0]) * sin(x * float(xy[1]) + float(xy[2])) * cos(y * float(xy[3]) + float(xy[4])) \
+		+ float(yv[0]) * sin(y * float(yv[1]) + float(yv[2])) \
+		+ float(xy2[0]) * cos(x * float(xy2[1]) + y * float(xy2[2]) + float(xy2[3]))
+	if r <= edge:
+		return top + _fighting_step(m, r, edge)
+	var t2: float = minf(1.0, (r - edge) / float(m.mound_fall))
+	return top * pow(1.0 - t2, 2.0) * (1.0 - 0.35 * t2)
+
+
+## THE FIGHTING STEP, BUILT OUT OF GROUND. Measured against the authored wall: the berm crest
+## stands BERM_H (1.22m) over the compound floor and the parapet puts nine 0.13m courses on top
+## of it, so its lip is 2.39m up. A man's eye is ~1.6m. From the yard he is 0.8m under his own
+## wall, and `berm()` emits the crest as a knife edge with the revetment sitting on it - there
+## is nowhere to stand even after you climb. That is the Summoner's report, four times over:
+## "I still cannot climb up the angled dirt mounds and see to shoot over the sandbag walls...
+## I should be able to walk up the dirt mound and see slightly over the sandbags to shoot,
+## otherwise the immersion is broken." It is also how the VC come over the berm once the
+## sandbags are blown.
+##
+## This does NOT need Blender. Since the one-ground decree the TERRAIN is the collider under
+## the base - the model's mound plate is stripped at load - so a banquette raised in the
+## heightmap is real ground a man can walk up. The model's mound mesh ends up buried inside it
+## across this band, which is invisible: terrain renders over the top.
+##
+## Eye check: 0.9m step + 1.6m eye = 2.5m against a 2.39m lip. He clears it by ~0.11m standing -
+## "slightly over", exactly the ask - and crouching drops him fully behind cover.
+## The ramp is ~11m of run for 0.9m of rise, about 5 degrees, and the heightmap's 4m cells need
+## a band this wide to represent the shelf at all.
+static func _fighting_step(m: Dictionary, r: float, edge: float) -> float:
+	var h: float = float(m.get("step_h", 0.9))
+	if h <= 0.0:
+		return 0.0
+	var band_out: float = edge - float(m.get("step_gap_m", 3.0))
+	var band_in: float = band_out - float(m.get("step_width_m", 11.0))
+	if r >= band_out:
+		return h                              # the flat shelf, hard against the revetment
+	if r <= band_in:
+		return 0.0                            # the compound floor is untouched
+	return h * smoothstep(band_in, band_out, r)
 ## Vegetation-clear discs (model-space offsets from AABB center + radius). The base is authored
 ## cleared ground; trees through bunkers lie.
 ## 140 m, not the v1 ring of five 58 m discs: v3 authors its OWN cut-over treeline out to ~149 m
@@ -901,21 +1000,41 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	# Full plateau across the model AND the spawn ring (corner reach ~252m), then a
 	# 65m blend shoulder. The old f*8.0 curve left the gate wing at ~80% seat and
 	# the spawn ring at ~57% - level at seed 47225 by luck, buried on rougher AOs.
-	# TWO-TIER: the compound interior rides at the model's mound-top height and
-	# the terrain itself provides the climbable grade down to the seat plateau.
-	# The authored mound face is ~3m at slopes no CharacterBody can walk - the
-	# 07-29 demo playtest left the player pinned at the dirt wall, unable to
-	# enter from any bearing. Rise: 2.87m over ~51m = ~3 degrees, walkable
-	# everywhere; the model's own mound sides sit inside the terrain hill.
-	var mound_norm: float = (seat_y + FSB_MOUND_TOP) / _terrain.heightmap.height_scale
-	_terrain.modify_terrain(center, FSB_FLATTEN_RADIUS,
-		func(h: float, f: float) -> float:
-			var base: float = lerpf(h, seat_norm, clampf(f / FSB_PLATEAU_FALLOFF, 0.0, 1.0))
-			var rise: float = clampf((f - FSB_PLATEAU_FALLOFF)
-				/ (FSB_MOUND_FALLOFF - FSB_PLATEAU_FALLOFF), 0.0, 1.0)
-			return lerpf(base, mound_norm, smoothstep(0.0, 1.0, rise)))
+	#
+	# ONE GROUND (2026-07-29). On top of that seat plateau the terrain reproduces the
+	# model's OWN mound surface, exactly, from the manifest the generator exports. The
+	# GLB's ground plate is then stripped below, so there is a single collider under the
+	# base instead of two disagreeing ones.
+	#
+	# It also keeps what the 07-28 two-tier stamp was reaching for: the authored skirt is
+	# MOUND_H over MOUND_FALL - 3.4m across 34m, ~5.7 degrees - so the player walks up from
+	# every bearing. The old pin at a 3m dirt wall was never the authored slope; it was the
+	# step where a flat plateau met the plate's edge, and that step is now gone.
+	#
+	# ORDER IS LOAD-BEARING. The vegetation clear runs FIRST, because clear_and_flatten ->
+	# ClearingSystem CLEARED stage does its own height flatten toward the mean of a 140m disc.
+	# Run after the sculpt it averages the authored mound back down while the model still draws
+	# it at full height, and the player ends up walking between the two - or inside the mound.
+	# The sculpt must have the last word on this ground.
 	for disc in FSB_CLEAR_DISCS:
 		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
+	# THE MODEL IS THE GROUND (ruling 2026-07-29). The terrain is levelled to the mound's TOE and
+	# stops there - it does NOT reproduce the mound any more. The mesh does, because the mesh is
+	# the one that can show the craters, the thrown-up lips and the mud: "i want that mesh mound
+	# because it showed destroyed earth and mud, so just moving the world terrain up doesn't fix
+	# a lot of problems." A 4m heightmap cannot draw any of that at any setting.
+	#
+	# So terrain's whole job here is to be a clean, level seat UNDER the model, and to blend out
+	# to the surrounding relief. Everything the player stands on inside the base comes from
+	# fsb_main_v3.glb's own trimesh - which is why its walkability is now an EXPORT contract
+	# (production/blender/FIREBASE_BLENDER_HANDOFF.md §00).
+	_terrain.modify_terrain(center, FSB_FLATTEN_RADIUS,
+		func(h: float, f: float, _wx: float, _wz: float) -> float:
+			return lerpf(h, seat_norm, clampf(f / FSB_PLATEAU_FALLOFF, 0.0, 1.0)))
+	# The grid was rebuilt by the clear against pre-sculpt heights; the sculpt just moved them.
+	if _grid:
+		_grid.update_region(center, FSB_FLATTEN_RADIUS)
+	_audit_one_ground(center, seat_y)
 	var scene: PackedScene = load(FSB_MAIN_PATH)
 	var root := scene.instantiate() as Node3D
 	root.set_meta("model_name", "fsb_main")
@@ -923,11 +1042,17 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	var origin: Vector3 = center - FSB_AABB_CENTER
 	origin.y = seat_y
 	root.global_position = origin
+	_repair_glb_colliders(root)
+	_wire_parapet_destructibles(root)
+	_wire_claymores(root, center)
 	# Tower ladders. Built AFTER the root is seated - Ladder caches world positions off the
 	# markers, so building before the move would bake them at the wrong height.
 	var ladders: int = Ladder.build_from_markers(root)
 	if ladders == 0:
 		push_warning("[FSB] no ladder_bottom/ladder_top pairs in the firebase GLB")
+	var siren: SirenTower = SirenTower.build_from_markers(root)
+	if siren == null:
+		push_warning("[FSB] no fb_tower_i meshes in the firebase GLB - no alarm")
 	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
 	var gate_pos: Vector3 = gm.gate_pos
 	var gate_out: Vector3 = gm.gate_out
@@ -939,9 +1064,308 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
 	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
 		"gate_pos": gate_pos, "gate_out": gate_out, "spawn_pos": spawn_pos,
-		"radius": FSB_HALF.length()}
+		"radius": FSB_HALF.length(), "siren": siren}
 	placed_sites.append(site)
 	return site
+
+
+## REPAIR THE GLB'S COLLIDERS AT LOAD. Two export-era defects, both fixed at source in
+## gen_firebase_v3.py, both repaired here so the build does not wait on a Blender pass.
+## When the re-exported GLB lands both counts come back 0 and this whole function is deleted
+## (ADR-023) - which is why it reports counts instead of passing silently.
+##
+## 1. THE MOUND PLATE. fb_terrain_mound shipped a full-compound ground collider, and the
+##    terrain now reproduces that same surface. Two grounds, the higher one invisible.
+##
+## 2. THE VEGETATION BOXES - the 2026-07-29 "I can still jump and get stuck above the
+##    firebase". scatter_veg MERGES every instance of a card type into ONE object spanning
+##    the whole ~300m treeline ring, and the solid ones (tree_stump x90, fallen_log_a/b,
+##    felled_trunk, felled_tree x16) were not on COL_NONE. So each exported as ONE
+##    axis-aligned box wrapping the entire ring, ground to canopy: four invisible slabs
+##    stacked over the base with walkable tops and impassable rims. Measured at +12.48m by
+##    game_flow's SPAWN-TRUTH probe, which named fb_veg_felled_tree as the topmost hit at
+##    the bunk spawn.
+##
+##    The box is replaced with a trimesh off the object's own visual mesh, so the logs and
+##    stumps stay the cover the design intends ("logs and stumps stay solid because the
+##    player takes cover behind them") without the slab.
+## 3. THE PARAPET BOX HULLS - "I still cannot climb up the angled dirt mounds and see to shoot
+##    over the sandbags" (2026-07-29). The perimeter revetment is ~6m of sandbag wall following
+##    a CURVED path, and the default export wraps it in an axis-aligned box around that curve's
+##    whole bounding volume. On the diagonal runs that box is far fatter than the wall it
+##    represents: it overhangs the berm crest and swallows the 37-degree inner face, so the
+##    climb is into an invisible slab, not up a slope. It also seals every gap a round could go
+##    through. gen_firebase_v3.py now lists fb_sbg_seg_ as trimesh, but that only lands on a
+##    re-export - so the same re-mesh the vegetation gets is applied here today.
+const MOUND_COLLIDER_PREFIX: String = "fb_terrain_mound"
+## Box-hulled in the shipped GLB, re-meshed from their own geometry at load. Both are already
+## corrected at source; when the re-export lands these counts go to 0 and this all deletes.
+const REMESH_COLLIDER_PREFIXES: Array[String] = ["fb_veg_", "fb_sbg_seg_"]
+const VEG_COLLIDER_PREFIX: String = "fb_veg_"
+
+
+func _repair_glb_colliders(root: Node3D) -> void:
+	var mound: int = 0
+	var veg_boxed: int = 0
+	var veg_remeshed: int = 0
+	# Collected in a FULL pass before anything is touched: re-meshing adds StaticBody3D children
+	# whose names also start with fb_veg_, and a walk that mutates the tree it is reading would
+	# delete the replacement it just built.
+	var doomed: Array[StaticBody3D] = []
+	var regrow: Array[String] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var body := n as StaticBody3D
+		if body == null:
+			continue
+		if String(body.name).begins_with(MOUND_COLLIDER_PREFIX):
+			# KEPT, not stripped (ruling 2026-07-29). This trimesh IS the walkable ground now.
+			# It was stripped while the terrain reproduced the mound, because two grounds at
+			# different heights is what put the player on an invisible floor. The terrain no
+			# longer climbs, so this is the only ground and it must stay.
+			mound += 1
+			continue
+		for p in REMESH_COLLIDER_PREFIXES:
+			if String(body.name).begins_with(p):
+				doomed.append(body)
+				regrow.append(String(body.name))
+				veg_boxed += 1
+				break
+	for body in doomed:
+		body.get_parent().remove_child(body)
+		body.queue_free()
+	for body_name in regrow:
+		if _remesh_collider(root, body_name):
+			veg_remeshed += 1
+	if mound > 0:
+		print("[FSB] kept %d mound collider(s) - the MODEL is the ground" % mound)
+	else:
+		push_warning("[FSB] the GLB carries NO mound collider - fb_terrain_mound must be on "
+			+ "COL_TRIMESH in gen_firebase_v3.py, or the player walks on the flat seat and the "
+			+ "cratered mound is scenery he passes through")
+	if veg_boxed > 0:
+		print("[FSB] replaced %d box hull(s) (vegetation + parapet), %d re-meshed as trimesh"
+			% [veg_boxed, veg_remeshed])
+	_audit_floating_colliders(root)
+
+
+## Rebuild one merged-vegetation collider from its own visual mesh. Returns whether it found
+## the mesh - a miss is reported by the caller's count, never assumed.
+##
+## The collider carries the export's ordinal (`fb_veg_tree_stump_041`, from make_collision's
+## `{base}_{i:03d}-colonly`); the visual mesh does not. Strip it to get back to the object.
+func _remesh_collider(root: Node3D, body_name: String) -> bool:
+	var stem: String = body_name
+	var cut: int = stem.rfind("_")
+	if cut > 0 and stem.substr(cut + 1).is_valid_int():
+		stem = stem.substr(0, cut)
+	var mi := root.find_child(stem, true, false) as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return false
+	mi.create_trimesh_collision()
+	return true
+
+
+## Does the terrain actually stand where the model's mound stands? "One ground" is a claim
+## about two surfaces agreeing, and the only honest way to hold it is to measure the gap.
+##
+## This exists because the first attempt LOOKED right in the log and was wrong in the world:
+## the vegetation clear ran after the sculpt and averaged the mound back down, so the player
+## walked in the gap between the terrain he collided with and the mound he could see. A gap
+## that big must never again be something only a playtest can find.
+const GROUND_GAP_TOLERANCE_M: float = 0.6
+
+
+func _audit_one_ground(center: Vector3, seat_y: float) -> void:
+	var worst: float = 0.0
+	var worst_at: Vector3 = Vector3.ZERO
+	var over: int = 0
+	var samples: int = 0
+	for ring in range(0, 9):
+		var r: float = float(ring) * 16.0
+		var steps: int = 1 if ring == 0 else 16
+		for s in range(steps):
+			var a: float = TAU * float(s) / float(steps)
+			var p: Vector3 = center + Vector3(cos(a) * r, 0.0, sin(a) * r)
+			# The model's own surface at this point, from the manifest the generator exports.
+			var model_y: float = seat_y + SitePlanner.fsb_mound_height(p.x - center.x, p.z - center.z)
+			# ONE-WAY TEST NOW. The model is the ground; terrain only has to stay UNDER it.
+			# Terrain lower than the mound is correct and invisible (buried seat). Terrain
+			# ABOVE the mound is the bug: it pokes through the cratered earth, and the player
+			# walks on a flat heightmap where he should be walking on shell holes.
+			var poke: float = _terrain.get_height_at(p) - model_y
+			samples += 1
+			if poke > GROUND_GAP_TOLERANCE_M:
+				over += 1
+			if poke > worst:
+				worst = poke
+				worst_at = p
+	if over == 0:
+		print("[FSB] ground: %d samples, terrain sits under the model everywhere (worst +%.2fm)"
+			% [samples, maxf(0.0, worst)])
+		return
+	push_warning(("[FSB] TERRAIN POKES THROUGH THE MODEL: %d of %d samples above it, worst "
+		+ "+%.2fm at (%.0f, %.0f). The seat is too high - the mound's craters are buried there.")
+		% [over, samples, worst, worst_at.x, worst_at.z])
+
+
+## Name anything left standing on air. A collider whose LOWEST point floats well above the
+## ground is the shape of every "I got stuck on top of the base" report, and hunting one by
+## jumping around the compound is not a debugging method. Reports the worst offenders by name
+## so the next one is found in a log line instead of a playtest.
+const FLOAT_REPORT_M: float = 3.0
+
+
+func _audit_floating_colliders(root: Node3D) -> void:
+	if not OS.is_debug_build():
+		return   # get_debug_mesh() allocates per shape; this is an instrument, not a ship cost
+	var worst: Array = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var cs := n as CollisionShape3D
+		if cs == null or cs.shape == null or cs.disabled:
+			continue
+		var aabb: AABB = cs.shape.get_debug_mesh().get_aabb() if cs.shape.get_debug_mesh() != null else AABB()
+		if aabb.size.length() < 0.01:
+			continue
+		var bottom: float = (cs.global_transform * aabb).position.y
+		var ground: float = _terrain.get_height_at(cs.global_position)
+		var air: float = bottom - ground
+		if air >= FLOAT_REPORT_M:
+			worst.append([air, String(cs.get_parent().name)])
+	if worst.is_empty():
+		return
+	worst.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) > float(b[0]))
+	var lines: Array[String] = []
+	for i in range(mini(6, worst.size())):
+		lines.append("%s +%.1fm" % [worst[i][1], worst[i][0]])
+	print("[FSB] %d collider(s) floating >%.0fm off the ground; worst: %s" % [
+		worst.size(), FLOAT_REPORT_M, ", ".join(lines)])
+
+
+## THE PARAPET CAN BE BLOWN APART. gen_firebase_v3 has emitted the perimeter as 80 destructible
+## segments with HP since it was written, and `firebase_v3_destructibles.json` has been sitting
+## next to the GLB READ BY NOTHING - the 2026-07-28 council logged it as UNFINISHED and ADR-036
+## lists wiring it as step one. Nothing in the shipped world ever called Destructible.new(); the
+## firebase was incapable of taking a mark. That is the Summoner's ship gate item: "the base
+## attack has parts of the base blow up".
+##
+## The Destructible ADOPTS the segment the GLB already ships rather than adding geometry beside
+## it. Destructible IS a StaticBody3D, so it takes the segment's collision shape directly and
+## its mesh as a child - which is exactly what _do_destroy() expects to find when it hides the
+## intact wall and disables its cover. No second wall, no second collider.
+const FSB_DESTRUCTIBLES_JSON: String = "res://assets/world/building models/structures/firebase/kit/firebase_v3_destructibles.json"
+## The wired segments are the only runtime description of where the wire IS. SiegeDirector
+## measures the perimeter off this group and reads a destroyed member as a breach.
+const FSB_PARAPET_GROUP: StringName = &"fsb_parapet"
+
+
+func _wire_parapet_destructibles(root: Node3D) -> void:
+	var f: FileAccess = FileAccess.open(FSB_DESTRUCTIBLES_JSON, FileAccess.READ)
+	if f == null:
+		push_warning("[FSB] no destructibles manifest - the parapet cannot be blown apart")
+		return
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if not (parsed is Dictionary):
+		return
+	var segments: Array = (parsed as Dictionary).get("segments", [])
+	var wired: int = 0
+	var missing: int = 0
+	for s in segments:
+		var seg: Dictionary = s
+		var mi := root.find_child(str(seg.get("name", "")), true, false) as MeshInstance3D
+		if mi == null:
+			missing += 1
+			continue
+		var d := Destructible.new()
+		d.kind = str(seg.get("kind", "sandbag_wall"))
+		d.hp = int(seg.get("hp", 140))
+		d.collision_layer = 1
+		d.collision_mask = 0
+		_parent.add_child(d)
+		d.global_position = mi.global_position
+		# Take the segment's collider off its auto-generated body and onto the Destructible, so
+		# _do_destroy can disable it. A shape left nested under a child body survives the blast
+		# and the "destroyed" wall keeps stopping rounds.
+		for c in mi.get_children():
+			var body := c as StaticBody3D
+			if body == null:
+				continue
+			for cc in body.get_children():
+				var shape := cc as CollisionShape3D
+				if shape == null:
+					continue
+				body.remove_child(shape)
+				d.add_child(shape)
+			body.queue_free()
+		mi.reparent(d, true)      # keep_global_transform: the wall must not move
+		AgentRegistry.register(d, AgentRegistry.Kind.PROP)
+		# The perimeter is also the SIEGE's map of itself: SiegeDirector measures the wire's
+		# radius from this group and reads a destroyed segment as its breach axis.
+		d.add_to_group(FSB_PARAPET_GROUP)
+		wired += 1
+	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s" % [wired,
+		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing])
+
+
+## THE CLAYMORES GO LIVE. gen_firebase_v3 rings the perimeter with 16 fb_claymore props
+## (offset_closed(path, 13.0)) and they have been scenery: a working Claymore class existed the
+## whole time, but the ONLY thing that ever built one was the player pressing 6. Same shape of
+## gap as the 80 parapet segments - authored art with no code behind it, and the Summoner found
+## it the same way: "there are claymores in the model... how do we make those explode? or are
+## they going to be stuck as set pieces?"
+##
+## Safe to arm around your own men, checked before wiring: Claymore triggers ONLY on an
+## EnemyBase inside a 9m / 35-degree forward cone, so the garrison cannot set one off, and the
+## blast is centred 4m OUTWARD with an 8m radius while the mines sit 13m beyond the perimeter -
+## the wire is between them and anyone friendly.
+##
+## The prop mesh is freed because Claymore.place() brings its own claymore.glb. Facing comes
+## from the compound centre, not the node's rotation: outward is outward whatever the export's
+## axis convention did to the prop.
+const CLAYMORE_PROP_PREFIX: String = "fb_claymore"
+
+
+func _wire_claymores(root: Node3D, center: Vector3) -> void:
+	var props: Array[MeshInstance3D] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi != null and String(mi.name).begins_with(CLAYMORE_PROP_PREFIX):
+			props.append(mi)
+	var armed: int = 0
+	for mi in props:
+		var pos: Vector3 = mi.global_position
+		var out: Vector3 = pos - center
+		out.y = 0.0
+		if out.length() < 1.0:
+			continue
+		var mine: Claymore = Claymore.place(_parent, pos, out.normalized())
+		if mine == null:
+			continue
+		armed += 1
+		# KEEP THE FIREBASE'S OWN CLAYMORE, drop the stand-in. Claymore.place() brings
+		# claymore.glb - a different asset from the fb_claymore master in the firebase kit - so
+		# arming the wire would silently restyle sixteen props. Reparenting his mesh under the
+		# mine keeps the perimeter looking exactly as authored AND makes the model vanish with
+		# the blast, because _detonate() queue_frees the mine and takes its children with it.
+		for c in mine.get_children():
+			c.queue_free()                     # the stand-in visual
+		var keep_at: Transform3D = mi.global_transform
+		mi.get_parent().remove_child(mi)
+		mine.add_child(mi)
+		mi.global_transform = keep_at          # authored placement, not the mine's facing
+	if armed > 0:
+		print("[FSB] %d claymore(s) armed on the wire, facing out (authored models kept)" % armed)
 
 
 const RADIO_SCENE: String = "res://scenes/props/radio.tscn"

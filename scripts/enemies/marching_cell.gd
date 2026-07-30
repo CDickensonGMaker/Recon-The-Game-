@@ -119,6 +119,9 @@ func materialize() -> void:
 			continue
 		man.add_to_group(group_tag)
 		man.assault_objective = objective
+		# Only the satchel man's legs belong to the objective. The assault element marches
+		# to it and then fights - see EnemyBase.assault_driven.
+		man.assault_driven = carries_charge
 		if carries_charge:
 			var charge := SapperCharge.new()
 			man.add_child(charge)
@@ -147,7 +150,10 @@ func withdraw_to(rally: Vector3) -> Array[EnemyBase]:
 			(c as SapperCharge).disarm()
 			m.remove_child(c)
 			c.queue_free()
+		# A withdrawal owns the legs the same way the satchel does: a man pulling back does
+		# not stop halfway to trade shots because something came into view.
 		m.assault_objective = rally
+		m.assault_driven = true
 		leaving.append(m)
 	return leaving
 

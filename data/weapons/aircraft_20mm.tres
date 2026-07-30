@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "aircraft_20mm"
+display_name = "20mm Aircraft Cannon"
+armory_tier = 0
+description = "Fixed forward cannon and the AC-47's side battery. Never carried - it exists so aircraft fire REAL rounds through BulletSystem instead of painting tracers at a chosen impact point."
+firing_mode = 1
+fire_rate = 900.0
+magazine_size = 999
+reload_time = 1.0
+empty_reload_time = 1.0
+jam_clear_time = 1.0
+base_damage = 87
+base_spread = 1.4
+ads_spread_mult = 1.0
+recoil_vertical = 0.0
+recoil_horizontal = 0.0
+viewmodel_fov = 66.0
+ads_fov = 60.0
+ads_move_mult = 1.0
+effective_range = 900.0
+max_range = 1400.0
+min_damage_mult = 0.85
+projectile_speed = 1030.0
+zero_range = 600.0
+tracer_ratio = 2
+tracer_color = Color(1, 0.55, 0.2, 1)
+recoil_first_shot_mult = 1.0
+recoil_climb_per_shot = 0.0
+recoil_climb_max = 0.0
+recoil_recovery = 1.0
+fire_volume_db = 4.0

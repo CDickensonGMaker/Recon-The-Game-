@@ -21,6 +21,21 @@ var _clamp_out: Vector3 = Vector3.ZERO
 var _clamp_valid: bool = false
 var _warned: bool = false
 
+## Same cache, for the agent's OWN footing.
+var _self_src: Vector3 = Vector3.ZERO
+var _self_out: Vector3 = Vector3.ZERO
+var _self_valid: bool = false
+
+## Further than this off the mesh and he is not standing on it. Generous: the mesh sits a
+## cell-height under the ground and an agent on a slope reads a little off.
+const OFF_MESH_M: float = 1.2
+
+## How far a target may be pulled onto the mesh. A garrison post inside a bunker footprint is
+## routinely 5-8m off walkable ground; anything beyond a hootch's width is not a post that
+## drifted, it is a bad destination, and direct steering says so more honestly than a path to
+## somewhere else entirely.
+const CLAMP_MAX_M: float = 12.0
+
 
 func setup(nav_agent: NavigationAgent3D, tree: SceneTree, who: String) -> void:
 	agent = nav_agent
@@ -55,15 +70,48 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 	# Clamp the target onto the mesh. Off-mesh points (a cover point on a berm, an
 	# LP behind a wall, an agent on an eroded vertex) reach is_navigation_finished()
 	# while still metres from the original target.
+	#
+	# The clamp used to be REFUSED past 4m, handing the raw point to the query instead - which
+	# is a guaranteed no-path, because an unreachable target is exactly what the clamp exists to
+	# repair. That refusal is what kept the firebase garrison failing at 5-8m all through the
+	# 2026-07-29 playtests: a post inside a hootch footprint sits further than 4m off the mesh,
+	# so every man on it fell to direct steering and walked into the wall between him and it.
+	#
+	# We already know the target is inside this agent's own baked box (use_nav tested it), so
+	# the nearest mesh point is a sane place to send him. CLAMP_MAX_M only guards the absurd -
+	# a target the size of the compound away from any walkable ground is a bug upstream, and
+	# steering direct is the more honest failure there.
 	if not _clamp_valid or to.distance_squared_to(_clamp_src) > 1.0:
 		_clamp_src = to
 		var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, to)
-		_clamp_out = clamped if to.distance_to(clamped) < 4.0 else to
+		_clamp_out = clamped if to.distance_to(clamped) < CLAMP_MAX_M else to
 		_clamp_valid = true
 	if agent.target_position.distance_squared_to(_clamp_out) > 9.0:
 		agent.target_position = _clamp_out   # each restake is a map_get_path()
 	if not agent.is_navigation_finished():
 		return agent.get_next_path_position() - from
+	# THE PATH FAILED. Before falling back to a straight line into whatever wall is in front of
+	# him, ask the one question that explains most failures: is he standing OFF the mesh? A path
+	# is queried from the agent's own position, and a man with no start polygon gets nothing
+	# back - which reads exactly like "no route exists".
+	#
+	# That is how the firebase garrison spent the 2026-07-29 playtests frozen. Their posts come
+	# from GLB markers that can sit inside a bunker or on ground the agent-radius erosion ate,
+	# and the navmesh is baked AFTER they spawn, so seating them at spawn cannot fix it. His
+	# first job is to step back onto walkable ground; routing resumes once he is on it.
+	#
+	# Checked HERE and not before the query on purpose: map_get_closest_point is a full polygon
+	# search, and running it every step for every agent cost ~15 FPS when it was hoisted above
+	# the happy path. A healthy agent must never pay for it.
+	if not _self_valid or from.distance_squared_to(_self_src) > 1.0:
+		_self_src = from
+		_self_out = NavigationServer3D.map_get_closest_point(map, from)
+		_self_valid = true
+	var off: Vector3 = _self_out - from
+	off.y = 0.0
+	if off.length() > OFF_MESH_M:
+		return off
+
 	if OS.is_debug_build() and direct.length_squared() > 25.0 and not _warned:
 		_warned = true
 		# Name the region honestly: under a lab navmesh `box` is -1 and meaningless,

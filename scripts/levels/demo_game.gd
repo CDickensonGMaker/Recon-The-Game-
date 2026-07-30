@@ -55,10 +55,115 @@ func _exit_tree() -> void:
 		CampaignState.save_path = CampaignState.DEFAULT_SAVE_PATH
 
 
+## ---- THE AIR PACKAGE (ship gate, 2026-07-29) ----
+## "More Hueys and jets flying around... that constant movement of the choppers will really
+## sell this scene." The sim schedule books ONE movement per sim-hour, which is an AO's
+## background weather, not an opening. So the demo flies its own sky on the arc clock, through
+## AirTraffic.launch() - the same dispatch the schedule uses, so formations, routes and the
+## flight reaper all still apply. Nothing here is a second air system.
+##
+## Beats, in seconds from boot. The first is at 3s: the player is still finding his feet on
+## the cot and the sky is already working.
+const AIR_OPENING: Array = [
+	[3.0, "huey", "transit"],     # a pack crosses low - FORMATION_SIZES puts 6-9 up
+	[14.0, "huey", "lz_cycle"],   # one peels off and puts down on the pad
+	[26.0, "f4", "transit"],      # fast movers high, 3-5 abreast
+	[48.0, "huey", "transit"],
+	[70.0, "skyraider", "transit"],
+	[95.0, "chinook", "lz_cycle"],  # the heavy brings a load in
+]
+## After the opening, keep the sky alive on this cadence (seconds between launches).
+const AIR_CADENCE_S: float = 42.0
+## ...but never past this many airframes at once. PERF_LEDGER: this project is CALL-BOUND, and
+## a nine-ship pack is nine sets of rotor meshes. Spectacle stops at the frame budget.
+const AIR_MAX_IN_SKY: int = 14
+const AIR_ROTATION: Array = ["huey", "f4", "huey", "skyhawk", "huey", "skyraider"]
+
+var _air_next: int = 0
+var _air_timer: float = 0.0
+var _air_rotation_i: int = 0
+
+## ---- THE NAPALM BEATS ----
+## "a napalm strike either in the treeline behind the firebase assault or even at one point a
+## sky flyby that is a machinegun run and a few napalm canisters dropped" - the Summoner's own
+## pick for the biggest remaining visual win.
+##
+## Two runs, deliberately different jobs:
+##   EARLY, at 2:40, on a bearing AWAY from the base - pure spectacle while nothing threatens
+##   him. The player watches somebody else's war burn on the horizon.
+##   LATE, one minute into the main assault, laid across the treeline the attack is coming out
+##   of. Same beat, but now it is ON his side and it is the answer to being overrun.
+##
+## Distances are measured against the model: the authored treeline runs out to ~149m and the
+## siege rallies at 150m, so 210m puts the strip in the trees BEHIND the assault, not on top of
+## the wire - and well clear of the garrison, who take blast like anyone else.
+const NAPALM_EARLY_S: float = 160.0
+const NAPALM_ASSAULT_S: float = SIEGE_AT_S + 60.0
+const NAPALM_RANGE_M: float = 210.0
+
+var _napalm_early_done: bool = false
+var _napalm_assault_done: bool = false
+
+
+func _tick_napalm() -> void:
+	var d: FieldDirector = _flow.director
+	if d == null or d.fsb_center == Vector3.ZERO:
+		return
+	if not _napalm_early_done and _clock >= NAPALM_EARLY_S:
+		_napalm_early_done = true
+		# A bearing the player is not standing on: opposite the gate, out over the jungle.
+		_strike_at(d, d.fsb_center, PI * 0.5, "SOMEBODY ELSE'S WAR - NAPALM ON THE TREELINE")
+	elif not _napalm_assault_done and _clock >= NAPALM_ASSAULT_S:
+		_napalm_assault_done = true
+		# Straight down the throat of the assault: the sector the siege chose. GUNS_NAPALM -
+		# he strafes the treeline on the way in and pickles the strip at the bottom of the pass.
+		var bearing: float = d.siege.sector_bearing if d.siege != null else 0.0
+		_strike_at(d, d.fsb_center, bearing, "GUN RUN AND NAPALM - DANGER CLOSE",
+			CASAirplane.Ordnance.GUNS_NAPALM)
+
+
+## Lay the strip across the player's view rather than along it: the run axis is TANGENTIAL to
+## the bearing, so the length of the strip reads at a glance instead of vanishing to a point.
+func _strike_at(d: FieldDirector, centre: Vector3, bearing: float, toast: String,
+		ordnance: CASAirplane.Ordnance = CASAirplane.Ordnance.NAPALM) -> void:
+	var outward := Vector3(cos(bearing), 0.0, sin(bearing))
+	var at: Vector3 = centre + outward * NAPALM_RANGE_M
+	at.y = _flow.world.surface_y(at) if _flow.world != null else at.y
+	var across := Vector3(-outward.z, 0.0, outward.x)
+	d.authored_strike(at, ordnance, across)
+	d.toast.emit(toast)
+	print("[DEMO] napalm run at %.0f,%.0f (%.0fm out on bearing %.0f deg)" % [
+		at.x, at.z, NAPALM_RANGE_M, rad_to_deg(bearing)])
+
+
+func _tick_air(delta: float) -> void:
+	var at := _flow.world.get_node_or_null("AirTraffic") as AirTraffic if _flow.world != null \
+		else null
+	if at == null:
+		return
+	# The authored opening first, then a rolling cadence.
+	if _air_next < AIR_OPENING.size():
+		var beat: Array = AIR_OPENING[_air_next]
+		if _clock >= float(beat[0]):
+			_air_next += 1
+			at.launch(String(beat[1]), String(beat[2]))
+		return
+	_air_timer -= delta
+	if _air_timer > 0.0:
+		return
+	_air_timer = AIR_CADENCE_S
+	if at.flights_in_air() >= AIR_MAX_IN_SKY:
+		return
+	at.launch(String(AIR_ROTATION[_air_rotation_i % AIR_ROTATION.size()]))
+	_air_rotation_i += 1
+
+
 func _physics_process(delta: float) -> void:
 	if _flow == null or _flow.director == null:
 		return
 	_clock += delta
+	_tick_air(delta)
+	_tick_napalm()
 	match _phase:
 		0:
 			if _clock >= PROBE_AT_S:

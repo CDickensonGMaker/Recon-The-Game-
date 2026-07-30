@@ -109,8 +109,14 @@ game... that's the core of truth of guns the player can use and pick up. More wi
 - **New values of record (cartridge-class conversion, same law as the original table):**
   **M14 = 28** (7.62 NATO — the M60's cartridge class) · **M70 Winchester = 32** (full-power bolt —
   Mosin class; the Summoner's own 071v suggestion).
-- **Retired outright:** `car15.tres` (Thompson stand-in), `thompson.tres` (WW2 holdover),
-  `sks.tres` (Kar98k stand-in). **vc_rifleman now fires the Mosin his model visibly carries**
+- **Retired outright:** ~~`car15.tres` (Thompson stand-in)~~ **UNRETIRED 2026-07-29** by the
+  Summoner ("car 15 is back in the pipeline, its not wired up with the arms but its coming") —
+  `data/weapons/car15.tres` is live again at `base_damage = 27`, armory_tier 1, ahead of its
+  FP arms. **`thompson` and `sks` UNRETIRED the same day** ("thompson and sks are on track for
+  coming back too") — audio is built for both, but **neither has a `.tres` yet**, so they are
+  UNFINISHED (ADR-023 triage), not retired. Only `mp40` and `kar98k` remain retired.
+  Amendment C's "no FP arms = not a gun" reasoning no longer decides retirement: a weapon may
+  be live in the armory before its arms exist. **vc_rifleman now fires the Mosin his model visibly carries**
   (loadout honesty — the vc_guerilla_mosin export was already in his hands).
 - **NPC-side/future data may exist without arms** (m79 — ally verb; rpg7/m72_law — future) but is
   not player-reachable and carries NO stand-in viewmodel (`m79.tres` model_path cleared).

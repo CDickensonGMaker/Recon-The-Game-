@@ -116,7 +116,8 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 	var rim_height: float = (profile.rim_m * intensity) / height_scale
 	var falloff_power: float = profile.falloff_power
 
-	var crater_func := func(current_height: float, falloff_amount: float) -> float:
+	var crater_func := func(current_height: float, falloff_amount: float,
+			_wx: float, _wz: float) -> float:
 		# Smooth crater profile: continuous depression + rim curves (no hard boundaries)
 		# falloff_amount: 1.0 at center, 0.0 at edge
 

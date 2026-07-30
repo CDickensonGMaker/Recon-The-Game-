@@ -41,7 +41,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_pause()
 
 
-## THE DEV LENSES, debug builds only. [J] siege · [O] +1 hour · [I] next period ·
+## THE DEV LENSES, debug builds only. [J] siege · [H] three sappers at the nearest real
+## parapet segment · [G] gun-and-napalm pass on your bearing · [O] +1 hour · [I] next period ·
 ## [U] cycle the clock speed. Time skips route through SimClock.advance(), NEVER
 ## set_time(): set_time moves the clock without emitting time_period_changed, so the
 ## sun and the sight caps would stay on the old period.
@@ -55,6 +56,12 @@ func _dev_keys(event: InputEvent) -> bool:
 		KEY_J:
 			get_viewport().set_input_as_handled()
 			return _dev_force_siege()
+		KEY_H:
+			get_viewport().set_input_as_handled()
+			return _dev_sapper_run()
+		KEY_G:
+			get_viewport().set_input_as_handled()
+			return _dev_gun_run()
 		KEY_O:
 			get_viewport().set_input_as_handled()
 			_dev_skip_hours(1.0)
@@ -116,17 +123,46 @@ func _dev_report_time(what: String) -> void:
 ## authored height, which is the floor it stands on. The nearest one to the base centre
 ## is taken so a village hootch elsewhere in the AO can never win. The returned Y is
 ## USED, not re-seated: probing down from above would find the hootch roof.
+## How far under a cot marker to look for a floor. Must clear the drop from a hootch's authored
+## cot height down to the mound surface it stands on; 0.8m only ever worked because terrain used
+## to be sculpted up to meet it.
+const BUNK_FLOOR_REACH_M: float = 3.0
+
+
 func _firebase_bunk(fsb_center: Vector3) -> Vector3:
 	if world == null or fsb_center == Vector3.ZERO:
 		return Vector3.ZERO
+	# HIS MARKERS WIN, AND THEY ARE NOT SECOND-GUESSED.
+	#
+	# A Marker3D named spawn_bunk* in scenes/world/firebase_main.tscn is a position a human
+	# placed on purpose, in the editor, looking at the geometry. It is used EXACTLY as placed:
+	# no floor raycast, no reseating. Every time this function has tried to be clever about
+	# where a man should stand it has put him somewhere worse - under the mound, or in a
+	# village 142m away - and the authored answer was right the whole time.
+	#
+	# The prop_sleep sweep below stays as the fallback for a world with no authored markers.
+	var authored: Array[Vector3] = []
 	var cands: Array[Vector3] = []
 	var stack: Array[Node] = [world]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
-		if n is Node3D and n.name.begins_with("prop_sleep"):
-			cands.append((n as Node3D).global_position)
+		if n is Node3D:
+			var nm: String = String(n.name)
+			if nm.begins_with("spawn_bunk"):
+				authored.append((n as Node3D).global_position)
+			elif nm.begins_with("prop_sleep"):
+				cands.append((n as Node3D).global_position)
 		for c in n.get_children():
 			stack.append(c)
+	if not authored.is_empty():
+		authored.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+			return Vector2(a.x - fsb_center.x, a.z - fsb_center.z).length_squared() \
+				< Vector2(b.x - fsb_center.x, b.z - fsb_center.z).length_squared())
+		var pick: Vector3 = authored[0]
+		print("[SPAWN] authored bunk marker at %s (%d placed, %.0fm from fsb centre)" % [
+			pick, authored.size(),
+			Vector2(pick.x - fsb_center.x, pick.z - fsb_center.z).length()])
+		return pick
 	if cands.is_empty():
 		push_warning("[SPAWN] no prop_sleep marker in the world - falling back to the field spawn")
 		return Vector3.ZERO
@@ -137,20 +173,113 @@ func _firebase_bunk(fsb_center: Vector3) -> Vector3:
 	# The bunk must have a FLOOR under it. fsb_main_v3 ships 8 hootch visuals against
 	# 4 `-colonly` bodies, so half of them are scenery a man falls straight through.
 	# Take the nearest cot that can actually hold him, never just the nearest cot.
+	# REACH FAR ENOUGH TO FIND THE MOUND. The probe used to look 0.8m down, which worked only
+	# while the terrain was sculpted up to the mound's surface and put ground directly under
+	# every cot. Since the model became the ground (2026-07-29) the terrain sits at the TOE,
+	# ~3.4m lower, and the real floor is the mound trimesh - out of reach of a 0.8m ray. Every
+	# cot inside the wire failed the test and the spawn walked out to candidate 69 of 72, a
+	# village 142m away: "i was spawned outside at a village there."
+	#
+	# THE MARKER IS THE SPAWN. Reach further for the TEST, and nothing else. Seating him on the
+	# ray hit instead put him under the mound - the authored cot position was never the problem,
+	# and this spawn was correct for weeks before the ground moved beneath it.
 	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
 	for i in range(cands.size()):
 		var p: Vector3 = cands[i]
 		if space != null:
-			var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.4, p + Vector3.DOWN * 0.8)
+			var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.4,
+				p + Vector3.DOWN * BUNK_FLOOR_REACH_M)
 			q.collision_mask = 1
 			if space.intersect_ray(q).is_empty():
-				continue   # visual-only hootch: no floor here
+				continue   # genuinely nothing under this cot
 		print("[SPAWN] bunk spawn at %s, candidate %d of %d (%.0fm from fsb centre)" % [
 			p, i + 1, cands.size(),
 			Vector2(p.x - fsb_center.x, p.z - fsb_center.z).length()])
 		return p
 	push_warning("[SPAWN] %d bunks found, NONE with collision under them - field spawn" % cands.size())
 	return Vector3.ZERO
+
+
+## [H] THREE SAPPERS AT THE REAL WALL. The bench proved the chain on segments lifted out of the
+## GLB; this proves it on the firebase the player is standing in, which is what the Summoner
+## asked for: "i need to prove sappers can blow up the sandbags of the blender firebase model"
+## and "we should really make the ai test scene the firebase from the demo and game world".
+##
+## It picks a LIVE parapet Destructible off the blast bus - the same 80 segments
+## site_planner wired from firebase_v3_destructibles.json - and drives three satchel men at it
+## from outside the wire. No siege, no cells, no waiting on the arc: the shortest path from
+## keypress to a hole in the sandbags.
+## [G] A GUN-AND-NAPALM PASS ON DEMAND. The arc puts one at 13 minutes; feel is tuning work and
+## tuning work needs repetition, so this calls the same authored_strike from wherever you stand.
+## Aimed 210m out on the bearing you are FACING, so you can put the run where you can see it.
+const DEV_STRIKE_RANGE_M: float = 210.0
+
+
+func _dev_gun_run() -> bool:
+	if director == null or world == null or world.player == null:
+		print("[CAS-DEV] no world yet")
+		return true
+	var cam := world.player.get_node_or_null("Head/Camera3D") as Camera3D
+	var facing: Vector3 = -cam.global_transform.basis.z if cam != null else Vector3.FORWARD
+	facing.y = 0.0
+	facing = facing.normalized() if facing.length() > 0.1 else Vector3.FORWARD
+	var at: Vector3 = world.player.global_position + facing * DEV_STRIKE_RANGE_M
+	at.y = world.surface_y(at)
+	# Run the pass ACROSS the line of sight so the strafe and the strip read broadside.
+	var across := Vector3(-facing.z, 0.0, facing.x)
+	director.authored_strike(at, CASAirplane.Ordnance.GUNS_NAPALM, across)
+	director.toast.emit("GUN RUN INBOUND")
+	print("[CAS-DEV] gun+napalm pass at %.0f,%.0f (%.0fm on your bearing)" % [
+		at.x, at.z, DEV_STRIKE_RANGE_M])
+	return true
+
+
+const DEV_SAPPERS: int = 3
+const DEV_SAPPER_DATA: String = "res://data/enemies/vc_sapper.tres"
+const DEV_SAPPER_STANDOFF_M: float = 55.0
+
+
+func _dev_sapper_run() -> bool:
+	if director == null or world == null:
+		print("[SAPPER-DEV] no world yet")
+		return true
+	# A real parapet segment, chosen as the one nearest the player so he can watch it go.
+	var target: Node3D = null
+	var best: float = INF
+	var eye: Vector3 = world.player.global_position if world.player != null else director.fsb_center
+	for p in AgentRegistry.props:
+		var d := p as Destructible
+		if d == null or not is_instance_valid(d) or d.kind != "sandbag_wall":
+			continue
+		var dist: float = d.global_position.distance_to(eye)
+		if dist < best:
+			best = dist
+			target = d
+	if target == null:
+		print("[SAPPER-DEV] no sandbag Destructible on the bus - the parapet is not wired")
+		return true
+	# Stand them off OUTSIDE the wire, on the bearing from the compound centre through the
+	# target, so the run crosses the wire and the berm exactly as a real breach would.
+	var out: Vector3 = target.global_position - director.fsb_center
+	out.y = 0.0
+	out = out.normalized() if out.length() > 1.0 else Vector3.FORWARD
+	var objective: Vector3 = target.global_position
+	for i in range(DEV_SAPPERS):
+		var side: Vector3 = Vector3(-out.z, 0.0, out.x) * (float(i) - 1.0) * 5.0
+		var at: Vector3 = objective + out * DEV_SAPPER_STANDOFF_M + side
+		at.y = world.surface_y(at) + 0.5
+		var man: EnemyBase = director.spawn_tracked_enemy(at, DEV_SAPPER_DATA, "dev_sappers")
+		if man == null:
+			continue
+		man.assault_objective = objective
+		man.assault_driven = true
+		var charge := SapperCharge.new()
+		man.add_child(charge)
+		charge.setup(objective)
+	print("[SAPPER-DEV] %d sappers away at '%s' (%.0fm out, %.0fm from you) - watch the wall"
+		% [DEV_SAPPERS, target.name, DEV_SAPPER_STANDOFF_M, best])
+	director.toast.emit("SAPPERS ON THE WIRE")
+	return true
 
 
 func _dev_force_siege() -> bool:

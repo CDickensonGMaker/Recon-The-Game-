@@ -64,7 +64,20 @@ static func dress_actor(actor: ModelActor, rng: RandomNumberGenerator,
 	# Capability-gated, never list-gated (lists drift): helmet swap only where
 	# the stock-helmet contract exists. Legacy bodies (m14/m60/m79) dress
 	# face-only and keep their welded pot.
-	var merged: Dictionary = {"helmet": _has_mesh(actor, GruntDresser.STOCK_HELMET)}
+	var can_helmet: bool = _has_mesh(actor, GruntDresser.STOCK_HELMET)
+	# SAY SO WHEN THE CONTRACT IS ABSENT. A body without the stock helmet dresses face-only
+	# and keeps its welded pot - correct for the legacy m14/m60/m79 bodies, and INVISIBLE when
+	# it happens to a body that was supposed to carry it. Fifteen authored helmet variants sat
+	# on disk unused through the 2026-07-29 playtests ("they are still all spawning with white
+	# helmets, none of the variants I made have appeared") because this returned false and told
+	# nobody. A capability that silently degrades is the capsule-village failure again.
+	if not can_helmet and not _helmet_gap_reported.has(actor.unit):
+		_helmet_gap_reported[actor.unit] = true
+		push_warning(("[DRESSER] '%s' has no '%s' mesh - keeping its welded pot, and none of "
+			+ "the %d authored helmet variants can be hung on it. Re-export the body with the "
+			+ "stock-helmet contract, or this unit wears one helmet forever.")
+			% [actor.unit, GruntDresser.STOCK_HELMET, GruntDresser.HELMETS.size()])
+	var merged: Dictionary = {"helmet": can_helmet}
 	if _has_mesh(actor, "ruck_pack_worn"):
 		merged["ruck"] = rng.randf() < RUCK_CHANCE
 	if _radio_legal(actor):
@@ -88,6 +101,9 @@ static func is_dressable(unit: String) -> bool:
 ## while spawn order is (ADR-010: one seed per operation); MissionScope.reset()
 ## rewinds it so mission N+1 does not inherit mission N's position in the walk.
 static var _bench_serial: int = 0
+
+## One line per unit, not per man: 21 garrison + a squad would otherwise bury the log.
+static var _helmet_gap_reported: Dictionary = {}
 
 
 static func next_bench_seed() -> int:
