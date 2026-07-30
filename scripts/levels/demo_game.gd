@@ -119,11 +119,40 @@ var _air_rotation_i: int = 0
 ## siege rallies at 150m, so 210m puts the strip in the trees BEHIND the assault, not on top of
 ## the wire - and well clear of the garrison, who take blast like anyone else.
 const NAPALM_EARLY_S: float = 160.0
-const NAPALM_ASSAULT_S: float = SIEGE_AT_S + 60.0
 const NAPALM_RANGE_M: float = 210.0
 
 var _napalm_early_done: bool = false
-var _napalm_assault_done: bool = false
+
+## ---- THE SIEGE AIR SHOW ----
+## The assault runs SIEGE_AT_S -> DAWN_AT_S: SIX MINUTES, and it used to carry exactly ONE
+## air beat (the GUNS_NAPALM at +60). The climax of the demo was the quietest sky in it.
+##
+## Each beat is [seconds after SIEGE_AT_S, ordnance, metres out, bearing source]. They walk
+## the compass with the assault instead of hitting one spot, and they ESCALATE: a standoff
+## pass first, then guns, then the heavy stuff as the wire is reached.
+##
+## Bearing sources: "sector" = the axis the siege chose (`d.siege.sector_bearing`), so the
+## steel lands on the men actually coming; "flank" = 60 deg off it, which reads as a second
+## aircraft working a different problem; "away" = opposite the assault, pure horizon.
+##
+## SAFETY IS NOT HANDLED HERE. `authored_strike` rotates a gun run through 12 bearings to
+## miss the player by GUN_STANDOFF_M, drops to napalm-only when no axis clears him, and
+## refuses a pure gun run outright - every beat below goes through it with danger_close
+## FALSE (his 2026-07-30 ruling: air can kill him, but it never deliberately runs on him
+## unless he calls it with [G]).
+##
+## PERF: each beat is ONE airframe on a pass that flies out and reaps itself, against
+## AIR_MAX_IN_SKY 14. Spacing is >= 35 s so two never overlap on the frame budget.
+const SIEGE_AIR_BEATS: Array = [
+	[25.0, CASAirplane.Ordnance.BOMB, 260.0, "away", "FAST MOVERS WORKING THE VALLEY"],
+	[60.0, CASAirplane.Ordnance.GUNS_NAPALM, 210.0, "sector", "GUN RUN AND NAPALM - DANGER CLOSE"],
+	[105.0, CASAirplane.Ordnance.GUNS, 175.0, "flank", "GUNS ON THE FLANK"],
+	[150.0, CASAirplane.Ordnance.NAPALM, 195.0, "sector", "NAPALM ON THE TREELINE"],
+	[205.0, CASAirplane.Ordnance.CBU, 240.0, "flank", "CBU IN THE TREES"],
+	[255.0, CASAirplane.Ordnance.GUNS, 165.0, "sector", "STRAFING THE APPROACH"],
+	[300.0, CASAirplane.Ordnance.GUNS_NAPALM, 185.0, "sector", "LAST PASS - EVERYTHING THEY HAVE"],
+]
+var _siege_air_next: int = 0
 
 
 func _tick_napalm() -> void:
@@ -134,27 +163,43 @@ func _tick_napalm() -> void:
 		_napalm_early_done = true
 		# A bearing the player is not standing on: opposite the gate, out over the jungle.
 		_strike_at(d, d.fsb_center, PI * 0.5, "SOMEBODY ELSE'S WAR - NAPALM ON THE TREELINE")
-	elif not _napalm_assault_done and _clock >= NAPALM_ASSAULT_S:
-		_napalm_assault_done = true
-		# Straight down the throat of the assault: the sector the siege chose. GUNS_NAPALM -
-		# he strafes the treeline on the way in and pickles the strip at the bottom of the pass.
-		var bearing: float = d.siege.sector_bearing if d.siege != null else 0.0
-		_strike_at(d, d.fsb_center, bearing, "GUN RUN AND NAPALM - DANGER CLOSE",
-			CASAirplane.Ordnance.GUNS_NAPALM)
+	_tick_siege_air(d)
+
+
+## Walk the siege beat table. One beat per call at most, so two passes can never launch on
+## the same frame however far the clock jumped.
+func _tick_siege_air(d: FieldDirector) -> void:
+	if _siege_air_next >= SIEGE_AIR_BEATS.size() or _clock < SIEGE_AT_S:
+		return
+	var beat: Array = SIEGE_AIR_BEATS[_siege_air_next]
+	if _clock < SIEGE_AT_S + float(beat[0]):
+		return
+	_siege_air_next += 1
+	# The assault's own axis, so the steel lands on the men who are actually coming.
+	var sector: float = d.siege.sector_bearing if d.siege != null else 0.0
+	var bearing: float = sector
+	match String(beat[3]):
+		"flank":
+			bearing = sector + deg_to_rad(60.0)
+		"away":
+			bearing = sector + PI
+	_strike_at(d, d.fsb_center, bearing, String(beat[4]),
+		beat[1] as CASAirplane.Ordnance, float(beat[2]))
 
 
 ## Lay the strip across the player's view rather than along it: the run axis is TANGENTIAL to
 ## the bearing, so the length of the strip reads at a glance instead of vanishing to a point.
 func _strike_at(d: FieldDirector, centre: Vector3, bearing: float, toast: String,
-		ordnance: CASAirplane.Ordnance = CASAirplane.Ordnance.NAPALM) -> void:
+		ordnance: CASAirplane.Ordnance = CASAirplane.Ordnance.NAPALM,
+		range_m: float = NAPALM_RANGE_M) -> void:
 	var outward := Vector3(cos(bearing), 0.0, sin(bearing))
-	var at: Vector3 = centre + outward * NAPALM_RANGE_M
+	var at: Vector3 = centre + outward * range_m
 	at.y = _flow.world.surface_y(at) if _flow.world != null else at.y
 	var across := Vector3(-outward.z, 0.0, outward.x)
 	d.authored_strike(at, ordnance, across)
 	d.toast.emit(toast)
-	print("[DEMO] napalm run at %.0f,%.0f (%.0fm out on bearing %.0f deg)" % [
-		at.x, at.z, NAPALM_RANGE_M, rad_to_deg(bearing)])
+	print("[DEMO] air beat: %s at %.0f,%.0f (%.0fm out on bearing %.0f deg)" % [
+		CASAirplane.Ordnance.keys()[int(ordnance)], at.x, at.z, range_m, rad_to_deg(bearing)])
 
 
 func _tick_air(delta: float) -> void:
