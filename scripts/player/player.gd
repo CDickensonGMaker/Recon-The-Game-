@@ -101,6 +101,9 @@ var _binocs_active: bool = false
 ## the RadioHandset's cord runs to. All three are made in bind_radio_handset().
 var holding_handset: bool = false
 var _handset_placeholder: MeshInstance3D = null
+## The real exported handset, when it exists; it retires _handset_placeholder on sight.
+var _handset_vm: ItemViewmodel = null
+const HANDSET_HOLD_POSITION: Vector3 = Vector3(0.16, -0.14, -0.32)
 var _handset_cord_anchor: Marker3D = null
 var _radio_menu: RadioMenu = null
 ## The RTO's handset this player is wired to (arena binds it; real game has none yet).
@@ -329,25 +332,28 @@ func bind_radio_handset(h: RadioHandset) -> void:
 		_handset_cord_anchor.name = "HandsetCordAnchor"
 		add_child(_handset_cord_anchor)
 		_handset_cord_anchor.position = Vector3(0.25, 1.3, -0.2)  # right chest, world space
-	if _handset_placeholder == null:
-		_handset_placeholder = MeshInstance3D.new()
-		_handset_placeholder.name = "HandsetPlaceholder"
-		# PLACEHOLDER BLOCK. A plain box in viewmodel space (child of the camera).
-		# SEAM: Caleb's Blender arms+handset viewmodel with the raise animation drops
-		# in HERE - replace this MeshInstance3D with the real viewmodel scene and keep
-		# it assigned as h.held_mesh; nothing else changes.
-		var box := BoxMesh.new()
-		box.size = Vector3(0.09, 0.14, 0.05)
-		_handset_placeholder.mesh = box
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(0.12, 0.14, 0.10)
-		_handset_placeholder.material_override = m
-		_handset_placeholder.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if camera != null:
+	# THE REAL HANDSET IF IT HAS BEEN EXPORTED, the box otherwise. `handset_fp.glb` needs
+	# no wrapper scene and no further wiring: exporting it is what swaps these over, and
+	# the box below deletes itself from the frame the moment that file exists.
+	if _handset_vm == null and camera != null:
+		_handset_vm = ItemViewmodel.create(camera, "", HANDSET_HOLD_POSITION, camera, "handset")
+	if _handset_vm != null:
+		h.held_mesh = _handset_vm
+	else:
+		if _handset_placeholder == null:
+			_handset_placeholder = MeshInstance3D.new()
+			_handset_placeholder.name = "HandsetPlaceholder"
+			var box := BoxMesh.new()
+			box.size = Vector3(0.09, 0.14, 0.05)
+			_handset_placeholder.mesh = box
+			var m := StandardMaterial3D.new()
+			m.albedo_color = Color(0.12, 0.14, 0.10)
+			_handset_placeholder.material_override = m
+			_handset_placeholder.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			camera.add_child(_handset_placeholder)
-			_handset_placeholder.position = Vector3(0.16, -0.14, -0.32)
-		_handset_placeholder.visible = false
-	h.held_mesh = _handset_placeholder
+			_handset_placeholder.position = HANDSET_HOLD_POSITION
+			_handset_placeholder.visible = false
+		h.held_mesh = _handset_placeholder
 	h.held_endpoint = _handset_cord_anchor
 	if not h.handset_taken.is_connected(_on_handset_taken):
 		h.handset_taken.connect(_on_handset_taken)
@@ -496,10 +502,16 @@ func _notify_net(open: bool) -> void:
 
 
 func _on_handset_taken(_by: Node3D) -> void:
+	# RadioHandset toggles held_mesh.visible directly, which would skip the raise; the
+	# signal is where the clip belongs.
+	if _handset_vm != null:
+		_handset_vm.deploy()
 	_enter_net()
 
 
 func _on_handset_returned() -> void:
+	if _handset_vm != null:
+		_handset_vm.stow()
 	_exit_net()
 
 
@@ -576,7 +588,7 @@ func _play_claymore_plant() -> void:
 		if cam == null:
 			return
 		_claymore_vm = ItemViewmodel.create(cam, CLAYMORE_VIEWMODEL_PATH,
-			CLAYMORE_HOLD_POSITION, cam)
+			CLAYMORE_HOLD_POSITION, cam, "claymore")
 		if _claymore_vm == null:
 			return      # not authored yet; the mine still goes down
 	_claymore_vm.deploy()

@@ -82,7 +82,7 @@ func _load_medkit_viewmodel() -> void:
 	if not camera:
 		return
 	medkit_viewmodel = ItemViewmodel.create(camera, MEDKIT_VIEWMODEL_PATH,
-		MEDKIT_HOLD_POSITION, camera)
+		MEDKIT_HOLD_POSITION, camera, "bandage")
 
 
 ## The wrap is timed to the HEAL CLOCK, not the other way round: gameplay owns the

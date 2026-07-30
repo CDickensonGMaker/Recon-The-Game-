@@ -53,7 +53,7 @@ func _on_slot_changed(slot_index: int, _slot_type: Enums.SlotType) -> void:
 func _load_grenade_viewmodel() -> void:
 	var cam: Camera3D = controller.get_node_or_null("Head/Camera3D") as Camera3D 		if controller != null else null
 	grenade_viewmodel = ItemViewmodel.create(self, GRENADE_VIEWMODEL_PATH,
-		GRENADE_HOLD_POSITION, cam)
+		GRENADE_HOLD_POSITION, cam, "m26_grenade")
 
 
 ## Selecting the slot brings the grenade UP, the way drawing a rifle does. It used to

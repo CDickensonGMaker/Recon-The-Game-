@@ -41,13 +41,28 @@ var _pending_idle: bool = false
 var _stow_after: bool = false
 
 
-## Build one under `parent` (normally the camera) from a packed scene path. Returns null if
-## the scene is missing, so a caller can keep its own fallback.
+## Where the export driver writes, so an item needs no hand-built wrapper scene: finish the
+## rig, run `python tools/export_all_viewmodels.py <key>`, and it is in the game.
+const GLB_DIR: String = "res://assets/player/viewmodels/"
+
+
+## Build one under `parent` (normally the camera). `scene_path` is the authored wrapper
+## .tscn when there is one; `manifest_key` is the fallback, loading the exported GLB
+## straight off disk. Returns null when neither exists, so a caller keeps its own fallback.
+##
+## The wrapper is OPTIONAL on purpose. Requiring a hand-made .tscn per item means a finished
+## export still renders nothing until someone remembers to build one, and that silence looks
+## exactly like a broken rig.
 static func create(parent: Node, scene_path: String, at: Vector3,
-		cam: Camera3D = null) -> ItemViewmodel:
-	if parent == null or scene_path.is_empty() or not ResourceLoader.exists(scene_path):
+		cam: Camera3D = null, manifest_key: String = "") -> ItemViewmodel:
+	if parent == null:
 		return null
-	var packed: PackedScene = load(scene_path) as PackedScene
+	var path: String = scene_path
+	if path.is_empty() or not ResourceLoader.exists(path):
+		path = GLB_DIR + manifest_key + "_fp.glb" if not manifest_key.is_empty() else ""
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return null
+	var packed: PackedScene = load(path) as PackedScene
 	if packed == null:
 		return null
 	var model := packed.instantiate() as Node3D
