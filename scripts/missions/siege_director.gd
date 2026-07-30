@@ -252,9 +252,10 @@ func reinforce(extra: int) -> void:
 		# schedule a probe was keeping.
 		_illum_timer = ILLUM_FIRST_S
 		_press_clock = PRESS_CYCLE_S
-	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), extra)
-	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true)
-	_spawn_cells_for(extra - sappers, REGULAR_DATA, "siege_assault", false)
+	# THE REINFORCEMENT SPLITS TOO. This used to spawn one undifferentiated body under the
+	# single "siege_assault" tag - and it is the path the demo actually takes to reach full
+	# strength, so the squad split would have existed everywhere except where it is watched.
+	_build_assault(extra)
 	print("[Siege] reinforced +%d - the assault is now %d men (peak %d)"
 		% [extra, run_strength, run_peak])
 	siege_began.emit(run_strength, is_probe)
@@ -263,29 +264,100 @@ func reinforce(extra: int) -> void:
 ## Sappers are 2d6 of the strength, clamped so a probe cannot field more sappers
 ## than it has men. Cells are homogeneous: while dormant a cell holds ONE EnemyData
 ## reference rather than six.
+## ---------- FOUR SQUADS, NOT A MASS ----------
+## His ruling 2026-07-30: "break the main assault force into 4 attacking squads who should
+## all be trying to flank and out manuver the defenders and get inside. otherwise its just
+## a large mass of attackers who dont really do anything."
+##
+## The whole assault used to spawn under ONE group tag, and field_director.gd:51 derives
+## squad_id from `hash(group_tag)` - so 45 men were literally one squad. Everything that
+## reads squad_id was therefore measuring the wrong thing: ONE grenade per 12s across the
+## entire assault, every man permanently holding `has_covering_fire` (a +0.2 ADVANCE bonus
+## that is supposed to be situational), force_ratio computed against the whole force rather
+## than the men in contact, and the entire assault breaking as a single body.
+##
+## THEY CONVERGE ON THE GATE ON PURPOSE. The barbwire is one merged ring and nothing
+## re-bakes the navmesh on destroy (nav_baker.gd:16-18), so the gate is the only way in
+## (backlog C3b). Four squads sent at four compass points would put three of them milling
+## at impassable wire - a mass that does nothing, spread out. So they APPROACH wide and
+## FIGHT toward the one opening, which is what flanking against a wired perimeter actually
+## looks like.
+const ASSAULT_SQUADS: int = 4
+## How far apart the squads come in. Wider than SECTOR_DEG because the point is that they
+## do NOT arrive as one wedge; each squad still spreads its own cells within its lane.
+const SQUAD_SPREAD_DEG: float = 150.0
+const SQUAD_LANE_DEG: float = 34.0
+## One squad in four holds off and shoots instead of closing. Without a base of fire the
+## other three are just a queue at the gate, and fire-and-movement is the thing that reads
+## as soldiering rather than swarming.
+const SUPPORT_SQUAD: int = 2
+## Where a support squad sits: outside its own objective, on its lane, putting rounds on
+## the parapet. Far enough to be shooting rather than assaulting.
+const SUPPORT_STANDOFF_M: float = 90.0
+
+
 func _build_cells() -> void:
-	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), run_strength)
-	var regulars: int = run_strength - sappers
-	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true)
-	_spawn_cells_for(regulars, REGULAR_DATA, "siege_assault", false)
+	_build_assault(run_strength)
 
 
-func _spawn_cells_for(count: int, data: String, tag: String, charges: bool) -> void:
+## Stand up `count` men: the demolition party, then the assault split into squads. Called
+## by open_siege AND by reinforce, so there is one shape of assault however it is raised.
+func _build_assault(count: int) -> void:
+	if count <= 0:
+		return
+	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), count)
+	var regulars: int = count - sappers
+	# Sappers stay one body: they are the demolition party, they carry the charges, and
+	# _rotate_press already excludes them from the press for that reason.
+	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true, sector_bearing, objective)
+	if regulars <= 0:
+		return
+	# A probe is a reconnaissance, not an assault - it stays a single body.
+	if is_probe:
+		_spawn_cells_for(regulars, REGULAR_DATA, "siege_assault", false, sector_bearing, objective)
+		return
+	var per: int = maxi(1, int(floor(float(regulars) / float(ASSAULT_SQUADS))))
+	var spread: float = deg_to_rad(SQUAD_SPREAD_DEG)
+	for i in range(ASSAULT_SQUADS):
+		var n: int = per if i < ASSAULT_SQUADS - 1 else regulars - per * (ASSAULT_SQUADS - 1)
+		if n <= 0:
+			continue
+		# Lanes spread evenly across the arc, centred on the chosen sector.
+		var frac: float = (float(i) / float(ASSAULT_SQUADS - 1)) - 0.5
+		var lane: float = sector_bearing + frac * spread
+		# EVERY SQUAD OWNS ITS OWN squad_id, because the tag is what field_director hashes.
+		var tag: String = "siege_assault_%d" % i
+		var aim: Vector3 = objective
+		if i == SUPPORT_SQUAD:
+			# The base of fire holds on its own lane instead of closing on the gate. The
+			# stand is measured off the MEASURED parapet on that bearing, not a mean
+			# radius: the wall runs 49-96m out, so one number would put this squad inside
+			# the wire on a third of the compass.
+			var out: Vector3 = Vector3(cos(lane), 0.0, sin(lane))
+			var wall: float = _wall_radius_at(fsb_center + out * 100.0)
+			aim = fsb_center + out * (wall + SUPPORT_STANDOFF_M)
+		_spawn_cells_for(n, REGULAR_DATA, tag, false, lane, aim)
+	print("[Siege] assault split into %d squads on %.0f deg of arc (squad %d is the base of fire)"
+		% [ASSAULT_SQUADS, SQUAD_SPREAD_DEG, SUPPORT_SQUAD])
+
+
+func _spawn_cells_for(count: int, data: String, tag: String, charges: bool,
+		bearing: float, aim: Vector3) -> void:
 	var remaining: int = count
 	while remaining > 0:
 		var size: int = mini(remaining, _rng.randi_range(CELL_MIN, CELL_MAX))
 		if remaining - size > 0 and remaining - size < CELL_MIN:
 			size = remaining
 		remaining -= size
-		var half: float = deg_to_rad(SECTOR_DEG) * 0.5
-		var a: float = sector_bearing + _rng.randf_range(-half, half)
+		var half: float = deg_to_rad(SQUAD_LANE_DEG) * 0.5
+		var a: float = bearing + _rng.randf_range(-half, half)
 		var r: float = _rng.randf_range(ring_min, ring_max)
 		var at: Vector3 = fsb_center + Vector3(cos(a) * r, 0.0, sin(a) * r)
 		var cell := MarchingCell.new()
 		cell.carries_charge = charges
 		cell.materialize_m = cell_materialize_m
 		add_child(cell)
-		cell.setup(director, at, objective, size, data, tag, int(_rng.randi()))
+		cell.setup(director, at, aim, size, data, tag, int(_rng.randi()))
 		cells.append(cell)
 
 
@@ -400,24 +472,37 @@ func _rotate_press(step: float) -> void:
 		return
 	_press_clock = 0.0
 	_press_phase += 1
-	# Deterministic phase rather than a fresh roll: the same man is not pressed twice
-	# running, and the rotation is reproducible from the seed (ADR-010).
-	var i: int = 0
+	# THE PRESS ROTATES BY SQUAD, not by man. Scattering the press across individuals put
+	# a third of every squad walking while the men beside them held - which reads as
+	# indecision, not as fire and movement. A whole squad rushing while the others shoot
+	# is the thing that looks like soldiering, and it is why the squads exist.
+	var squads: Array[String] = []
+	for c in cells:
+		if is_instance_valid(c) and not c.carries_charge and c.group_tag not in squads:
+			squads.append(c.group_tag)
+	squads.sort()   # deterministic order, so the rotation replays from the seed (ADR-010)
+	# The base of fire never rushes: it is the reason the others can.
+	var moving: String = ""
+	if not squads.is_empty():
+		moving = squads[_press_phase % squads.size()]
+		if moving.ends_with("_%d" % SUPPORT_SQUAD) and squads.size() > 1:
+			moving = squads[(_press_phase + 1) % squads.size()]
 	var pressed: int = 0
+	var total: int = 0
 	for c in cells:
 		if not is_instance_valid(c) or not c.materialized or c.carries_charge:
 			continue
+		var on: bool = c.group_tag == moving
 		for m in c.men:
 			if not is_instance_valid(m) or m.is_dead():
 				continue
-			var share: int = maxi(1, int(round(1.0 / PRESS_FRACTION)))
-			var on: bool = ((i + _press_phase) % share) == 0
 			m.siege_press = on
 			if on:
 				pressed += 1
-			i += 1
+			total += 1
 	if pressed > 0 and _press_phase % 4 == 1:
-		print("[Siege] press wave %d: %d of %d men crossing" % [_press_phase, pressed, i])
+		print("[Siege] press wave %d: %s rushing, %d of %d men crossing" % [
+			_press_phase, moving, pressed, total])
 
 
 ## ---------- INSIDE THE WIRE ----------
