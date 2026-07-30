@@ -1043,6 +1043,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	origin.y = seat_y
 	root.global_position = origin
 	_repair_glb_colliders(root)
+	_cull_interior_props(root)
 	_wire_parapet_destructibles(root)
 	_wire_claymores(root, center)
 	# Tower ladders. Built AFTER the root is seated - Ladder caches world positions off the
@@ -1102,6 +1103,37 @@ const MOUND_COLLIDER_PREFIX: String = "fb_terrain_mound"
 ## corrected at source; when the re-export lands these counts go to 0 and this all deletes.
 const REMESH_COLLIDER_PREFIXES: Array[String] = ["fb_veg_", "fb_sbg_seg_"]
 const VEG_COLLIDER_PREFIX: String = "fb_veg_"
+
+
+## THE INTERIORS COST 45% OF THE COMPOUND'S DRAW CALLS FOR 4% OF ITS GEOMETRY. Measured
+## 2026-07-30 out of fsb_main_v3.glb: 826 visible surfaces, of which 368 are the 178 `fb_int_`
+## props, carrying 11,936 of 318,056 triangles. This project is CALL-BOUND (PERF_LEDGER) and tri
+## budgets are style, not perf, so the props are not too heavy - they are too NUMEROUS, and every
+## one of them was drawn from any distance because nothing ever set a range on them.
+##
+## A cot inside a hootch is not visible from outside it. Culling them at ~40m is free: they are
+## occluded by their own building long before the range bites, so the fade is unobservable.
+## This is the cheap half of the fix; folding each prop TYPE into one MultiMesh (368 -> ~11) is
+## the rest, and it needs the bake removed in the same change or every prop doubles.
+const INTERIOR_PROP_PREFIX: String = "fb_int_"
+const INTERIOR_CULL_M: float = 40.0
+const INTERIOR_CULL_MARGIN_M: float = 8.0
+
+
+func _cull_interior_props(root: Node3D) -> void:
+	var n_props: int = 0
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi == null or not String(mi.name).begins_with(INTERIOR_PROP_PREFIX):
+			continue
+		mi.visibility_range_end = INTERIOR_CULL_M
+		mi.visibility_range_end_margin = INTERIOR_CULL_MARGIN_M
+		n_props += 1
+	print("[FSB] %d interior prop(s) culled past %.0fm" % [n_props, INTERIOR_CULL_M])
 
 
 func _repair_glb_colliders(root: Node3D) -> void:

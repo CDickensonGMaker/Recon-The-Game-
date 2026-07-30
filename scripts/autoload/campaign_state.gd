@@ -47,6 +47,29 @@ var pencil_marks: Array = []
 ## game never reconciles one: walk there, find nothing, and the mark stays until the
 ## player rubs it out himself. {x, z, kind, patrol_no}
 var reported_marks: Array = []
+## THE BUTCHER'S BILL. His decree 2026-07-30: the aid station fills from REAL casualties, and
+## the dead stack up as body bags beside it - a cumulative scoreboard of the player's own failure
+## with NO UI, which is the only kind ADR-029 permits.
+##
+## `kia_total` NEVER decrements. Bags may be lifted out by graves registration, but the count of
+## men the player got killed is not a resource and does not heal.
+var kia_total: int = 0
+## Men currently in the ward. Seeded 1-2 at the start of a tour on his ruling - an empty aid
+## station in a war is the fresh-player failure, and the seed IS the fix. Grows with casualties
+## taken in the field and DRAINS when bearers carry a man out to a dustoff.
+var ward_wounded: int = 0
+## Bags not yet flown out. Distinct from kia_total: this is what is STACKED and visible.
+var bags_unlifted: int = 0
+## Beds already occupied when a new tour opens. A fixed number, not a roll: ADR-010 forbids an
+## unseeded one, and there is nothing to seed from on a wipe.
+const WARD_SEED_ON_NEW_TOUR: int = 2
+## Wounded per man killed. Roughly the real ratio for US infantry in Vietnam, and the reason the
+## ward fills faster than the bag stack.
+const WIA_PER_KIA: int = 3
+## The aid station holds 8-12 stretchers (his brief). The ward saturates rather than growing
+## without bound, because the twelfth bed is the last thing there is to look at.
+const WARD_BEDS_MAX: int = 12
+
 ## Intel accrues SILENTLY (Summoner, 2026-07-28). This only ever counts UP - it is not
 ## the spendable pool. `intel_points` is still burned at the wire for S2's bearing
 ## toast, and a pool that drains every patrol could never reach a 20-30 threshold.
@@ -225,6 +248,26 @@ func on_mission_end(result: Dictionary) -> void:
 		add_threat_modifier(-0.25, 3, "AA BATTERY DESTROYED")
 	elif int(result.get("aa_killed", 0)) > 0:
 		add_threat_modifier(-0.08 * float(result.aa_killed), 2, "AA SITE DESTROYED")
+	# THE DEAD ARE BANKED. squad_system.gd:443 has always named every man lost into
+	# state.flags["squad_kia"], and this function threw the list away - then
+	# SquadRoster.ensure_roster deleted the bodies, so nothing in the campaign remembered
+	# that anyone died. The ward and the bag stack both read these.
+	var lost: int = (result.get("squad_kia", []) as Array).size()
+	if lost > 0:
+		kia_total += lost
+		bags_unlifted += lost
+		# THE WOUNDED ARE DERIVED, and deliberately so. `ally_base.gd:41` states it plainly -
+		# "Allies have no alert tier or downed state" - so a squad member is alive or dead and
+		# there is no per-man WIA anywhere to read. Rather than invent a tracker nobody feeds,
+		# the ward fills from the FIGHT: a firefight that killed men wounded more of them, at
+		# roughly the real ratio. The men in those beds were never squad members the player
+		# knew, which is why he never had to watch them get hit.
+		# DELETE THIS DERIVATION the day allies gain a real wounded state, and read that instead.
+		ward_wounded += lost * WIA_PER_KIA
+	# An explicit count always wins over the derivation above, so a caller that DOES know
+	# (a future wounded state, a scripted event) is authoritative without touching this.
+	ward_wounded += int(result.get("friendly_wia", 0))
+	ward_wounded = mini(ward_wounded, WARD_BEDS_MAX)
 	# Log (trimmed).
 	mission_log.append({
 		"type": str(result.get("mission_type", "?")),
@@ -274,6 +317,9 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "lifetime_intel", lifetime_intel)
 	cfg.set_value("campaign", "next_stash_at", next_stash_at)
 	cfg.set_value("campaign", "ears_taken", ears_taken)
+	cfg.set_value("campaign", "kia_total", kia_total)
+	cfg.set_value("campaign", "ward_wounded", ward_wounded)
+	cfg.set_value("campaign", "bags_unlifted", bags_unlifted)
 	cfg.set_value("campaign", "rack_condition", rack_condition)
 	cfg.set_value("campaign", "depot_loss", depot_loss)
 	var err: int = cfg.save(save_path)
@@ -318,6 +364,11 @@ func load_campaign() -> void:
 	lifetime_intel = int(cfg.get_value("campaign", "lifetime_intel", 0))
 	next_stash_at = int(cfg.get_value("campaign", "next_stash_at", 0))
 	ears_taken = int(cfg.get_value("campaign", "ears_taken", 0))
+	# Absent from a pre-2026-07-30 save, which is the correct answer for one: nobody was
+	# counting, so the tour starts its bill at zero rather than inventing a past.
+	kia_total = int(cfg.get_value("campaign", "kia_total", 0))
+	ward_wounded = int(cfg.get_value("campaign", "ward_wounded", 0))
+	bags_unlifted = int(cfg.get_value("campaign", "bags_unlifted", 0))
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(cfg.get_value("campaign", "depot_loss", {}) as Dictionary)
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
@@ -351,6 +402,9 @@ func to_dict() -> Dictionary:
 		"pencil_marks": pencil_marks.duplicate(true),
 		"rack_condition": rack_condition.duplicate(true),
 		"depot_loss": depot_loss.duplicate(true),
+		"kia_total": kia_total,
+		"ward_wounded": ward_wounded,
+		"bags_unlifted": bags_unlifted,
 	}
 
 
@@ -373,6 +427,9 @@ func from_dict(d: Dictionary) -> void:
 	pencil_marks = d.get("pencil_marks", []) as Array
 	rack_condition = d.get("rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(d.get("depot_loss", {}) as Dictionary)
+	kia_total = int(d.get("kia_total", 0))
+	ward_wounded = int(d.get("ward_wounded", 0))
+	bags_unlifted = int(d.get("bags_unlifted", 0))
 
 
 func reset_campaign() -> void:
@@ -396,6 +453,13 @@ func reset_campaign() -> void:
 	lifetime_intel = 0
 	next_stash_at = 0
 	ears_taken = 0
+	kia_total = 0
+	bags_unlifted = 0
+	# SEEDED, not zeroed - his ruling 2026-07-30: "we could have 1 to 2 wounded when the player
+	# first appears". A brand-new tour with an EMPTY aid station reads as a war nobody is
+	# fighting, and this is the fresh-player failure the standing law warns about. The men in
+	# those first two beds were hurt before the player arrived, which is true of every war.
+	ward_wounded = WARD_SEED_ON_NEW_TOUR
 	rack_condition = {}
 	depot_loss = {}
 	save_campaign()

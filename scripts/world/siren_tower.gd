@@ -139,15 +139,32 @@ func _process(_delta: float) -> void:
 	if not _sounding:
 		return
 	# A tower whose mesh has been destroyed stops crying from its own crater.
-	# Destructible._do_destroy only hides the MeshInstance3D and disables the
-	# collider; an audio child survives it untouched.
+	#
+	# ASK THE DESTRUCTIBLE, not the mesh. `_do_destroy` never frees the node, so
+	# `is_instance_valid` passes forever on a structure that is gone - which is why this used to
+	# read a MeshInstance3D's `.visible` and infer death from it. That inference is wrong the
+	# moment anything else hides a mesh (a visibility range, an LOD tier, a cull), and it is the
+	# guess `Destructible.is_destroyed()` exists to replace.
 	for i in range(_players.size()):
 		var p: AudioStreamPlayer3D = _players[i]
 		if not is_instance_valid(p):
 			continue
 		var t: Node3D = _towers[i] if i < _towers.size() else null
-		if t == null or not is_instance_valid(t) or not t.visible:
+		if t == null or not is_instance_valid(t) or _structure_gone(t):
 			p.stop()
+
+
+## Whether the structure this siren rides is destroyed. Walks up for the Destructible, because a
+## siren is mounted ON a tower rather than being one.
+func _structure_gone(t: Node3D) -> bool:
+	var n: Node = t
+	while n != null:
+		var d := n as Destructible
+		if d != null:
+			return d.is_destroyed()
+		n = n.get_parent()
+	# No Destructible anywhere above it: this tower cannot be destroyed, so it is never gone.
+	return false
 	if Time.get_ticks_msec() >= _stop_at_ms:
 		silence()
 

@@ -64,6 +64,44 @@ arc length. And nothing ever set rotation, so the column crabbed sideways throug
 
 ---
 
+## LATE 7/30 — THE COUNCIL'S CODE-ONLY FIXES (no Blender time, no playtest needed to be safe)
+
+**Six more byte-identical BT freezes killed.** `_bt_rest/_bt_cook/_bt_sleep/_bt_fish/_bt_sit/
+_bt_talk` were the same freeze copy-pasted six times beside `_bt_work`. All SEVEN now route
+through ONE `_bt_settle(action, bb, speed)` (ADR-023 — one implementation, not seven), which
+walks to whatever the schedule resolved and then holds, with the same name-derived offset so two
+men never share a skin. **The cook now cooks AT the field range; the sleeper no longer sleeps on
+his feet in the open.** New `IDLE_SPEED 0.8` — a man crossing camp to sit down does not march.
+
+**Interior props are culled past 40 m** — `site_planner._cull_interior_props`. MEASURED out of
+`fsb_main_v3.glb`: **826 visible surfaces, of which 368 (44.6%) are the 178 `fb_int_` props,
+carrying 11,936 of 318,056 triangles (3.75%).** Nearly half the compound's draw calls buy 4% of
+its geometry, and nothing had ever set a range on them. A cot is occluded by its own hootch long
+before 40 m, so the fade is unobservable. **This is the cheap half; the MultiMesh pass (368 → ~11)
+is the rest and must delete the `fb_int_` bake in the same change or every prop doubles.**
+
+**THE BUTCHER'S BILL EXISTS.** `CampaignState.kia_total` (never decrements) · `ward_wounded` ·
+`bags_unlifted`, on all three serialisation paths (.cfg, `to_dict`, `from_dict`) and defaulting to
+0 on older saves — nobody was counting, so a pre-7/30 tour honestly starts at zero rather than
+inventing a past. `on_mission_end` now BANKS the dead: `squad_system.gd:443` has always named
+every man lost into `state.flags["squad_kia"]`, `build_result` copies every flag into the result,
+and this function **threw the list away** before `SquadRoster.ensure_roster` deleted the bodies —
+so nothing in the campaign remembered that anyone died.
+`WARD_SEED_ON_NEW_TOUR = 2` on a wipe (his ruling; a fixed number, not an unseeded roll).
+**The wounded are DERIVED and deliberately so:** `ally_base.gd:41` states that allies have no
+downed state, so a squad member is alive or dead and there is no per-man WIA to read. The ward
+fills from the FIGHT at `WIA_PER_KIA = 3`, saturating at `WARD_BEDS_MAX = 12`. An explicit
+`result["friendly_wia"]` always wins, so a future real wounded state needs no change here.
+**Delete the derivation the day allies gain one.**
+
+**`Destructible.is_destroyed()` is now THE answer, not a fossil.** It shipped this morning with
+zero callers. `siren_tower.gd` was inferring death from a *MeshInstance3D's `.visible`* — which is
+wrong the moment anything else hides a mesh, and as of tonight a visibility range does exactly
+that at 40 m. It now walks up for the Destructible and asks. `_do_destroy` never frees the node,
+so `is_instance_valid` passes forever on a structure that is gone; that is the trap this closes.
+
+---
+
 ## VERIFY THESE FIRST (one boot, then read the console)
 
 | Print | What it answers |
@@ -74,6 +112,7 @@ arc length. And nothing ever set rotation, so the column crabbed sideways throug
 | `[Siege] OVERRUN - N attacker(s) inside the wire` | the gate lane works |
 | `[AmbientWar] ... held silent - 2 firefights already sounding` | the cap is reporting itself |
 | a lit circle 140 m out, going dark ~15 s between rounds | the garrison is lighting its own wire |
+| `[FSB] N interior prop(s) culled past 40m` | expect **178** — the draw-call fix is live |
 | `[CAS] no clear gun axis 120m off the player - napalm only` | the aiming discipline is live |
 | `[NAV] ally ... no path` count | was 8; still the A1/A2 question |
 

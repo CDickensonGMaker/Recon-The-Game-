@@ -718,17 +718,25 @@ const WORK_JITTER_M: float = 1.5
 const WORK_SPEED: float = 1.1
 
 
-func _bt_work(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"work"
-	var post: Vector3 = bb.get("target_pos", Vector3.ZERO)
-	if post != Vector3.ZERO:
+## THE ONE SETTLE IMPLEMENTATION. There were SEVEN of these and they were byte-identical
+## freezes, so twelve scheduled actions collapsed into four behaviours: the cook cooked wherever
+## he happened to be standing, the sleeper slept on his feet in the open, and the firebase night
+## shift only LOOKED manned because place_for_current_hour() teleports everyone at spawn.
+## `bb["target_pos"]` was resolved from the marker set every sim hour and read by nothing.
+##
+## Walk there, then hold. The destination is whatever the schedule resolved for THIS action, so
+## this function never needs to know which action it is serving.
+func _bt_settle(action: StringName, bb: Dictionary, speed: float) -> int:
+	active_action = action
+	var dest: Vector3 = bb.get("target_pos", Vector3.ZERO)
+	if dest != Vector3.ZERO:
 		# Two men sent to one marker must not stand in each other. The offset comes from the
 		# name so it is identical every run (ADR-010 - never Time, never an unseeded roll).
 		var a: float = float(absi(hash(name)) % 360) * (TAU / 360.0)
-		var post_at: Vector3 = post + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M
-		if global_position.distance_to(post_at) > WORK_ARRIVE_M:
-			bb["speed"] = WORK_SPEED
-			_wander_target = post_at
+		var at: Vector3 = dest + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M
+		if global_position.distance_to(at) > WORK_ARRIVE_M:
+			bb["speed"] = speed
+			_wander_target = at
 			return BTNodeS.BTStatus.RUNNING
 	bb["speed"] = 0.0
 	_wander_target = global_position
@@ -736,50 +744,28 @@ func _bt_work(_civ: Civilian, bb: Dictionary) -> int:
 	velocity.z = 0
 	return BTNodeS.BTStatus.SUCCESS
 
+
+func _bt_work(_civ: Civilian, bb: Dictionary) -> int:
+	return _bt_settle(&"work", bb, WORK_SPEED)
+
+## An amble, not a march: a man crossing camp to sit down does not move at working pace.
+const IDLE_SPEED: float = 0.8
+
+
 func _bt_rest(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"rest"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"rest", bb, IDLE_SPEED)
 
 func _bt_cook(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"cook"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"cook", bb, WORK_SPEED)
 
 func _bt_sleep(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"sleep"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"sleep", bb, IDLE_SPEED)
 
 func _bt_fish(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"fish"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"fish", bb, IDLE_SPEED)
 
 func _bt_sit(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"sit"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"sit", bb, IDLE_SPEED)
 
 func _bt_talk(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"talk"
-	bb["speed"] = 0.0
-	_wander_target = global_position
-	velocity.x = 0
-	velocity.z = 0
-	return BTNodeS.BTStatus.SUCCESS
+	return _bt_settle(&"talk", bb, IDLE_SPEED)
