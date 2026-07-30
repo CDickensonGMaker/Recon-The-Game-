@@ -57,6 +57,12 @@ const GROUND_SECONDS: float = 35.0
 ## resolved to ZERO landing zones without anything failing to load. A Blender
 ## re-export renumbers nodes freely; the prefix is the contract.
 const FSB_PAD_PREFIXES := ["PSPHelipad", "fb_helipad"]
+## Transit bookings per daylight sim-hour. At the 60x clock, 3 puts a movement up roughly
+## every 20s of wall time instead of every 60s.
+const TRANSITS_PER_HOUR: int = 3
+## Hard ceiling on airframes in the sky, binding on EVERY caller. PERF_LEDGER: this project
+## is call-bound and a nine-ship pack is nine sets of rotor meshes.
+const MAX_IN_FLIGHT: int = 14
 
 ## In-flight roster. {id, kind, node, route, dest, pos, phase, born_ms, spawned}.
 var _in_flight: Array = []
@@ -75,18 +81,25 @@ func _ready() -> void:
 	_seed_default_schedule()
 
 
-## One transit per sim-hour across the daylight span, plus four firebase
-## resupply cycles. At the default 60x clock that is a movement every ~60s of
-## wall time and rarely more than two airframes up at once.
+## One transit per sim-hour across the daylight span, plus four firebase resupply cycles.
+## At the default 60x clock that is a movement every ~60s of wall time. Each movement is a
+## FORMATION, not a ship (FORMATION_SIZES: 6-9 Hueys, 3-5 jets), so a single booking can put
+## nine airframes up - the combat-load gate below is what keeps that off a fighting frame.
 func _seed_default_schedule() -> void:
 	if SimClock == null:
 		return
 	var kinds: Array = FLIGHT_SCENES.keys()
 	kinds.append("spectre")
 	for h in range(6, 24):
-		var kind: String = String(kinds[rng.randi() % kinds.size()])
-		SimClock.schedule_event(SimClock.sim_day, float(h), &"air_traffic",
-			{"kind": kind, "profile": "transit"})
+		# Movements PER daylight hour. One booking left ~60s of empty sky between packs at
+		# the 60x clock, which reads as a quiet AO rather than a war. Safe to raise only
+		# because the combat-load gate now holds these back off a fighting frame - do not
+		# raise it further without re-measuring (PERF_LEDGER: this project is call-bound).
+		for slot in range(TRANSITS_PER_HOUR):
+			var kind: String = String(kinds[rng.randi() % kinds.size()])
+			var at_h: float = float(h) + (float(slot) / float(TRANSITS_PER_HOUR))
+			SimClock.schedule_event(SimClock.sim_day, at_h, &"air_traffic",
+				{"kind": kind, "profile": "transit"})
 	for h in [7, 11, 15, 19]:
 		var kind: String = String(ROTARY[rng.randi() % ROTARY.size()])
 		SimClock.schedule_event(SimClock.sim_day, float(h) + 0.5, &"air_traffic",
@@ -101,6 +114,90 @@ func _on_sim_event(kind: StringName, payload: Dictionary) -> void:
 		_dispatch_lz_cycle(flight_kind)
 	else:
 		_dispatch(flight_kind)
+
+
+## ---- THE COMBAT-LOAD GATE (Summoner, 2026-07-30) ----
+## "if theres too much ai or computer usage being given to combat AI etc that means there
+## isnt a reason to fill the space with ambient air stuff. The player is more than likely
+## engaged in a huge fight... so only do a very small number of fly by units or just wait
+## til the AI useage drops down and its not as taxing."
+##
+## Ambient air is ATMOSPHERE. A firefight is the GAME. When the two compete for the frame,
+## the firefight wins - and the atmosphere is not even missed, because a man being shot at
+## is not watching the horizon.
+##
+## Two signals, deliberately: the fight is the CAUSE and the frame time is the EFFECT, and
+## either alone lies. Counting bodies misses a cheap frame ruined by something else; frame
+## time alone throttles the sky on a slow machine that is doing nothing, which would leave
+## the AO permanently empty on the Intel-UHD floor (ADR-026) - the opposite of the ask.
+enum Load { CLEAR, BUSY, SATURATED }
+
+## Live enemies who are actually FIGHTING, not merely spawned. A populated AO carries
+## dozens of men asleep in camps; they cost almost nothing and must not gate anything.
+const BUSY_FIGHTERS: int = 8
+const SATURATED_FIGHTERS: int = 20
+## Main-thread milliseconds. The Intel-UHD floor runs ~19-23fps both-bound (ADR-026), so
+## these are ABOVE the normal cost of a quiet frame there - a slow machine idling stays CLEAR.
+const BUSY_PROCESS_MS: float = 26.0
+const SATURATED_PROCESS_MS: float = 38.0
+## Load is sampled on a clock, not per call: walking two rosters every dispatch would make
+## the gate its own cost.
+const LOAD_SAMPLE_S: float = 1.5
+
+var _load: Load = Load.CLEAR
+var _load_timer: float = 0.0
+## A transit the gate turned away. ONE is held and retried, which is the "wait til the AI
+## usage drops" half of the ask - a dropped flight is silence, a held one is a late arrival.
+var _deferred_kind: String = ""
+var _gate_reported: Load = Load.CLEAR
+
+
+## What the sky is allowed to do right now. Public so the demo package and any probe can
+## read the same answer this class acts on.
+func load_tier() -> Load:
+	return _load
+
+
+func _sample_load() -> void:
+	var fighters: int = 0
+	for e in AgentRegistry.enemies:
+		var man := e as EnemyBase
+		if man == null or not is_instance_valid(man) or man.is_dead():
+			continue
+		# `target != null` is the honest test for "engaged": a man walking a patrol route
+		# costs a think and nothing else.
+		if man.target != null or man.alert_tier >= EnemyBase.AlertTier.ALERT:
+			fighters += 1
+	for a in AgentRegistry.allies:
+		var ally := a as AllyBase
+		if ally != null and is_instance_valid(ally) and not ally.is_dead() and ally.target != null:
+			fighters += 1
+	var process_ms: float = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var tier: Load = Load.CLEAR
+	if fighters >= SATURATED_FIGHTERS or process_ms >= SATURATED_PROCESS_MS:
+		tier = Load.SATURATED
+	elif fighters >= BUSY_FIGHTERS or process_ms >= BUSY_PROCESS_MS:
+		tier = Load.BUSY
+	_load = tier
+	if tier != _gate_reported:
+		_gate_reported = tier
+		print("[AIR] load %s - %d fighting, %.1fms process%s" % [
+			Load.keys()[int(tier)], fighters, process_ms,
+			"" if tier == Load.CLEAR else " - ambient air thinned"])
+
+
+func _tick_load(delta: float) -> void:
+	_load_timer -= delta
+	if _load_timer > 0.0:
+		return
+	_load_timer = LOAD_SAMPLE_S
+	_sample_load()
+	# The fight has eased: fly the one we held back rather than losing it.
+	if _load == Load.CLEAR and _deferred_kind != "":
+		var kind: String = _deferred_kind
+		_deferred_kind = ""
+		print("[AIR] load cleared - flying the held %s" % kind)
+		_dispatch(kind)
 
 
 ## PUT A FLIGHT UP NOW. The schedule books one movement per sim-hour, which is right for a
@@ -177,12 +274,36 @@ func _map_size() -> float:
 
 ## A chord that crosses the AO: endpoints sit outside the map so the aircraft
 ## flies in, passes near the middle, and flies out.
+## A transit line across the AO that does NOT cross the compound. The bearing is free; the
+## LATERAL offset is what gets pushed, so a route still sweeps the whole map and only its
+## closest approach to the firebase is constrained.
+##
+## Transits used to be blind to the base entirely - a random bearing through map centre with
+## a +/-30% side offset, which put jets over the wire regularly. The Spooky orbit got its
+## keep-out on 2026-07-29; ordinary traffic never did.
+const TRANSIT_KEEP_OUT_M: float = 150.0
+
+
 func _ao_route() -> Array:
 	var m: float = _map_size()
 	var centre := Vector3(m * 0.5, 0.0, m * 0.5)
 	var ang: float = rng.randf_range(0.0, TAU)
 	var dir := Vector3(cos(ang), 0.0, sin(ang))
-	var side := Vector3(-dir.z, 0.0, dir.x) * rng.randf_range(-m * 0.30, m * 0.30)
+	var side_dir := Vector3(-dir.z, 0.0, dir.x)
+	var offset: float = rng.randf_range(-m * 0.30, m * 0.30)
+	var base: Vector3 = _friendly_keep_out()
+	if base != Vector3.ZERO:
+		# Signed distance from the base to the flight line, measured along the side axis.
+		var to_base: Vector3 = base - centre
+		var base_off: float = to_base.dot(side_dir)
+		var miss: float = absf(offset - base_off)
+		if miss < TRANSIT_KEEP_OUT_M:
+			# Push out on whichever side it was already leaning, so the bearing is unchanged
+			# and the flight still crosses the map.
+			var away: float = 1.0 if offset >= base_off else -1.0
+			offset = base_off + away * TRANSIT_KEEP_OUT_M
+			offset = clampf(offset, -m * 0.45, m * 0.45)
+	var side: Vector3 = side_dir * offset
 	var half: float = m * 0.75
 	return [centre + side - dir * half, centre + side + dir * half]
 
@@ -193,6 +314,17 @@ func _ground_at(p: Vector3) -> float:
 
 
 func _dispatch(kind: String, force_ships: int = 0) -> void:
+	# SATURATED: hold it and fly it when the fight eases. Only the most recent is kept -
+	# a queue would dump six flights into the sky the moment the shooting stops.
+	if _load == Load.SATURATED:
+		_deferred_kind = kind
+		print("[AIR] %s held - combat load SATURATED" % kind)
+		return
+	# The ceiling is enforced HERE so it binds every caller. DemoGame checked
+	# flights_in_air() before its own launches, but the sim schedule never did, so a
+	# campaign AO had no ceiling at all - and one booking is now a 6-9 ship pack.
+	if _in_flight.size() >= MAX_IN_FLIGHT:
+		return
 	var route: Array = _ao_route()
 	var from: Vector3 = route[0]
 	var to: Vector3 = route[1]
@@ -228,6 +360,12 @@ func _event_rng(kind: String) -> RandomNumberGenerator:
 ## force_ships is a test hook; it still cannot form up a solo-only kind.
 func _ship_count(kind: String, frng: RandomNumberGenerator, force_ships: int) -> int:
 	if not FORMATION_SIZES.has(kind):
+		return 1
+	# BUSY: "only do a very small number of fly by units." A nine-ship lift is nine sets of
+	# rotor meshes, animation and audio; one ship still says the war is bigger than this
+	# firefight, which is the whole job of ambient air. This outranks force_ships, because
+	# the demo's authored packs are exactly what must thin when the wire is being hit.
+	if _load == Load.BUSY:
 		return 1
 	var band: Array = FORMATION_SIZES[kind]
 	if force_ships > 0:
@@ -433,7 +571,8 @@ func _advance_cycle(f: Dictionary, heli: Helicopter, now: int) -> void:
 
 ## Retire arrived and over-age flights. The roster only ever appended, so a long
 ## mission grew it without bound and every entry held a live aircraft.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_tick_load(delta)
 	var now: int = Time.get_ticks_msec()
 	for i in range(_in_flight.size() - 1, -1, -1):
 		var f: Dictionary = _in_flight[i]
