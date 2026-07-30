@@ -24,8 +24,11 @@ const FRONT_DAMAGE: int = 27
 ## the direction to you: 0.35 is a generous rear ~110-degree wedge.
 const BEHIND_DOT: float = 0.35
 const COOLDOWN_MS: float = 0.75 * 1000.0
-
-static var _last_strike_ms: float = -1.0e9
+## The cooldown lives ON THE ATTACKER, not in a static. A static would be one global swing
+## clock shared by every man who ever draws a blade - the player's stab putting an enemy's
+## on cooldown - and it would survive a scene reload with a stale timestamp. Meta dies with
+## the node, so there is nothing to leak and nothing to reset.
+const COOLDOWN_META: StringName = &"melee_next_ms"
 
 
 ## Swing. Returns true if the blade found a man. Safe to call from any slot.
@@ -33,9 +36,9 @@ static func strike(attacker: Node3D) -> bool:
 	if attacker == null or not is_instance_valid(attacker):
 		return false
 	var now: float = float(Time.get_ticks_msec())
-	if now - _last_strike_ms < COOLDOWN_MS:
+	if now < float(attacker.get_meta(COOLDOWN_META, -1.0e9)):
 		return false
-	_last_strike_ms = now
+	attacker.set_meta(COOLDOWN_META, now + COOLDOWN_MS)
 
 	var victim: Node3D = _target_in_arc(attacker)
 	if victim == null:

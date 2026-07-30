@@ -142,6 +142,23 @@ const SUPPRESS_SHAKE_MAX: float = 0.035     ## camera h/v offset metres at full
 ## Jitter frequency. Below ~25 the shake reads as a body flinching; above it the
 ## camera reads as a broken mount.
 const SUPPRESS_SHAKE_HZ: float = 24.0
+## FIELD TREATMENT SHAKE. Bandaging is a two-handed job done while kneeling over your own
+## leg, and holding the camera perfectly still made it read as a progress bar rather than
+## as work. Deliberately UNLIKE the suppression jitter: a third the amplitude, a quarter
+## the frequency, and taller than it is wide, because the motion is pulling a wrap tight
+## rather than a body flinching from a near miss.
+const TREAT_SHAKE_MAX: float = 0.011
+const TREAT_SHAKE_HZ: float = 6.5
+## Vertical is the working axis; horizontal is the smaller counter-sway.
+const TREAT_SHAKE_V_BIAS: float = 1.6
+## Each pull settles and the next begins. Slow enough to read as separate movements.
+const TREAT_TUG_HZ: float = 1.7
+const TREAT_TUG_DEPTH: float = 0.45
+## Eased in and out so the camera does not snap the moment the verb starts or is
+## interrupted - an instant jolt reads as a bug, not as hands.
+const TREAT_SHAKE_EASE: float = 6.0
+var _treat_shake: float = 0.0
+var _treat_seed: float = 0.0
 ## Below this on BOTH amount and hurt the shader is the identity transform, and a
 ## visible ColorRect sampling hint_screen_texture costs a full-screen backbuffer
 ## copy + blit at native resolution (the CanvasLayer ignores scaling_3d/scale).
@@ -391,6 +408,22 @@ func _on_slot_changed_knife(slot_index: int, _slot_type: Enums.SlotType) -> void
 func knife_swing() -> void:
 	if _knife_vm != null and _knife_vm.visible:
 		_knife_vm.play_action()
+
+
+## [K] from ANY slot. The blade flashes into frame for the swing and goes straight back,
+## rather than drawing and staying: a full draw costs the half-second the quick stab exists
+## to avoid, and NO picture at all - which is what [K] used to give from any other slot -
+## reads as the key doing nothing at all.
+func knife_quick_swing() -> void:
+	if _knife_vm == null and camera != null:
+		_knife_vm = ItemViewmodel.create(camera, "", Vector3.ZERO, camera, "knife")
+	if _knife_vm == null:
+		return      # not exported yet; the stab itself still lands, MeleeVerb owns that
+	if equipment_manager != null 			and equipment_manager.get_current_slot() == EquipmentManager.SLOT_KNIFE:
+		knife_swing()      # already holding it - do not put it away afterwards
+		return
+	_knife_vm.deploy()
+	_knife_vm.play_action_then_stow()
 
 
 ## The RTO you are looking at within arm's reach, or null. Aim-based (a deliberate
@@ -1548,6 +1581,7 @@ func _handle_movement(delta: float) -> void:
 	# a silent takedown does not have.
 	if Input.is_action_just_pressed("melee") and not FieldDirector.any_fire_menu_open:
 		MeleeVerb.strike(self)
+		knife_quick_swing()
 
 	# Dropping is a real loss, so it never fires while a menu is eating the key, and it
 	# leaves the man empty-handed rather than silently conjuring a replacement.
@@ -1828,12 +1862,30 @@ func _update_suppression(delta: float) -> void:
 			_supp_rect.visible = draw_overlay
 
 	# Camera shake: pure-visual h/v offset jitter (never touches aim direction).
+	#
+	# ONE OWNER. Both the suppression jitter and the treatment sway are summed here rather
+	# than written from their own systems: h_offset/v_offset are cleared to zero below when
+	# the source is quiet, so a second writer anywhere else would be wiped every frame.
+	var treating: bool = health_system != null and health_system.is_healing
+	_treat_shake = move_toward(_treat_shake, 1.0 if treating else 0.0, delta * TREAT_SHAKE_EASE)
 	if camera != null:
+		var hx: float = 0.0
+		var vy: float = 0.0
 		if suppression > 0.02:
 			_shake_seed += delta * SUPPRESS_SHAKE_HZ
 			var s := suppression * suppression * SUPPRESS_SHAKE_MAX  # ramp late
-			camera.h_offset = sin(_shake_seed) * s
-			camera.v_offset = cos(_shake_seed * 1.37) * s
+			hx += sin(_shake_seed) * s
+			vy += cos(_shake_seed * 1.37) * s
+		if _treat_shake > 0.001:
+			_treat_seed += delta * TREAT_SHAKE_HZ
+			# The tug envelope is what makes it read as separate pulls instead of a hum.
+			var tug: float = 1.0 - TREAT_TUG_DEPTH 				+ TREAT_TUG_DEPTH * absf(sin(_treat_seed * (TREAT_TUG_HZ / TREAT_SHAKE_HZ) * PI))
+			var t: float = _treat_shake * TREAT_SHAKE_MAX * tug
+			hx += sin(_treat_seed * 0.83) * t
+			vy += sin(_treat_seed) * t * TREAT_SHAKE_V_BIAS
+		if absf(hx) > 0.0001 or absf(vy) > 0.0001:
+			camera.h_offset = hx
+			camera.v_offset = vy
 		elif absf(camera.h_offset) > 0.0001 or absf(camera.v_offset) > 0.0001:
 			camera.h_offset = 0.0
 			camera.v_offset = 0.0
