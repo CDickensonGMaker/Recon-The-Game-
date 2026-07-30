@@ -137,6 +137,17 @@ func _friendly_keep_out() -> Vector3:
 	return Vector3.ZERO
 
 
+## Everything an ambient orbit must stay off: the player first, then his firebase.
+func _spectre_keep_outs() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if GameManager.player != null and is_instance_valid(GameManager.player):
+		out.append((GameManager.player as Node3D).global_position)
+	var base: Vector3 = _friendly_keep_out()
+	if base != Vector3.ZERO:
+		out.append(base)
+	return out
+
+
 func _world() -> Node3D:
 	return get_parent() as Node3D
 
@@ -252,9 +263,12 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3, alt_bonus: float =
 		# compound come from the player's fire mission (field_director), never from a
 		# scheduled flight. Push the orbit off the base rather than cancelling the sortie -
 		# a gun run on the treeline IS the atmosphere this event exists for.
+		# The PLAYER is kept out of too, not just his base. The base keep-out only guards
+		# the compound, so a patrol two hundred metres into the jungle was still standing
+		# in an ambient beaten zone - and his ruling of 2026-07-30 is that nothing gun-runs
+		# where he is unless he called it. Applied in order; the base wins ties by going last.
 		var centre: Vector3 = (from + to) * 0.5
-		var keep_out: Vector3 = _friendly_keep_out()
-		if keep_out != Vector3.ZERO:
+		for keep_out in _spectre_keep_outs():
 			var off: Vector3 = centre - keep_out
 			off.y = 0.0
 			if off.length() < SPECTRE_KEEP_OUT_M:

@@ -30,9 +30,11 @@ const CBU_SPREAD: float = 22.0
 const CBU_CROSS_FRAC: float = 0.6
 const CBU_BOMBLET_BLAST_M: float = 5.0
 
-## Gunship.
+## Gunship. The Vulcan fires real rounds through BulletSystem, so it no longer has a "kill
+## radius" - it has DISPERSION, the slop around the aim point that widens the beaten zone
+## on the map ring beyond the zone the aircraft is walking.
 const SPECTRE_BEATEN_M: float = 25.0
-const SPECTRE_VULCAN_KILL_M: float = 4.0
+const SPECTRE_DISPERSION_M: float = 4.0
 
 ## fo_fac tightens every sheaf the same way: 1.0 in a green radioman's hands,
 ## 0.45 in a veteran's. A better RTO draws a smaller circle, and the player sees it.
@@ -55,7 +57,7 @@ static func footprint(kind: String, fo: int = 0) -> Dictionary:
 		"bombs":
 			return _circle(BOMB_BLAST_M, "SNAKE EYE")
 		"spectre":
-			return _circle(SPECTRE_BEATEN_M + SPECTRE_VULCAN_KILL_M, "SPECTRE")
+			return _circle(SPECTRE_BEATEN_M + SPECTRE_DISPERSION_M, "SPECTRE")
 		"napalm":
 			return {
 				"shape": "rect",

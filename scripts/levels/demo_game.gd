@@ -27,7 +27,11 @@ const PROBE_AT_S: float = 600.0      ## minute 10: a probe finds the wire
 const SIEGE_AT_S: float = 720.0      ## minute 12: the d50 night assault
 const DAWN_AT_S: float = 1080.0      ## minute 18: it breaks; card at ~20
 const PROBE_STRENGTH: int = 11
-const SIEGE_STRENGTH: int = 40
+## Total men on the wire after the escalation, NOT an increment. 45 and not 50: LIVE_CAP
+## is 50 materialized men, and an assault authored at the cap freezes its late cells at
+## the ring - the 2026-07-28 trickle failure. 45 is the largest number where every man
+## the roll describes is actually on screen.
+const SIEGE_STRENGTH: int = 45
 
 var _flow: GameFlow = null
 var _clock: float = 0.0
@@ -195,11 +199,14 @@ func _open_siege(strength: int, toast: String) -> void:
 		print("[DEMO] no siege director - phase skipped")
 		return
 	if d.siege.active:
-		# The probe is still running its ADR-036 chain - let it escalate rather
-		# than re-opening on top of the ledger (council flag: double open_siege
-		# coherence is unverified).
+		# THE PROBE BECOMES THE ASSAULT. This branch used to toast and return, and
+		# because the 600 s probe runs its 480 s duration to exactly DAWN_AT_S it was
+		# ALWAYS taken - so SIEGE_STRENGTH was dead and every demo night was 11 men
+		# announced twice. reinforce() grows strength and peak together so the break
+		# ratio still means something.
+		d.siege.reinforce(maxi(1, strength - d.siege.run_strength))
 		d.toast.emit(toast)
-		print("[DEMO] phase %d: siege already active, toast only" % _phase)
+		print("[DEMO] phase %d: reinforced to %d at %.0fs" % [_phase, strength, _clock])
 		return
 	d.siege.open_siege(strength)
 	d.toast.emit(toast)

@@ -364,8 +364,17 @@ func _map_to_world(p: Vector2) -> Vector3:
 	return Vector3(p.x / s.x * world.map_size, 0.0, p.y / s.y * world.map_size)
 
 
-## Left click: sequence a circle (or clear it). Right click: place a pencil mark.
+## LEFT IS THE PENCIL. His report was that only right-click placed a mark, and the reason
+## the two verbs felt tangled is that LEFT did nothing at all unless it landed on an
+## objective circle - the map's main verb was on the button nobody reaches for first.
+##
+## Left on a circle still sequences the route: a circle is a small hotspot and the pencil
+## is everywhere else, so they cannot compete for the same pixel. Right is now the ERASER,
+## which the sheet has never had - marks went on and stayed forever.
 ## Nothing here validates anything - the grease-pencil law forbids it.
+const ERASE_RADIUS_M: float = 45.0
+
+
 func _on_sheet_input(event: InputEvent) -> void:
 	if director == null:
 		return
@@ -376,12 +385,16 @@ func _on_sheet_input(event: InputEvent) -> void:
 		var hit: int = _objective_at(mb.position)
 		if hit >= 0:
 			_toggle_route(hit)
-			_refresh_hint()
-			_rect.accept_event()
+		else:
+			var w: Vector3 = _map_to_world(mb.position)
+			_typing = director.state.add_pencil_mark(PENCIL_KINDS[_pencil_kind], w.x, w.z,
+				CampaignState.missions_played)
+		_refresh_hint()
+		_rect.accept_event()
 	elif mb.button_index == MOUSE_BUTTON_RIGHT:
 		var w: Vector3 = _map_to_world(mb.position)
-		_typing = director.state.add_pencil_mark(PENCIL_KINDS[_pencil_kind], w.x, w.z,
-			CampaignState.missions_played)
+		if director.state.erase_pencil_mark_near(w.x, w.z, ERASE_RADIUS_M) >= 0:
+			_typing = -1
 		_refresh_hint()
 		_rect.accept_event()
 

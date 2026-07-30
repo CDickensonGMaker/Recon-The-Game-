@@ -202,7 +202,10 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 				return ACTION_WALK_FIRE
 			if sim_hour < 20.5:
 				return ACTION_TALK
-			return ACTION_SIT
+			# Last hours before lights out are the busy ones, not the idle ones: kit squared
+			# away, sandbags topped up, ammo moved. These are also the hours the demo opens
+			# in, and a base full of seated men reads as a base with nothing to do.
+			return ACTION_WORK
 		_:
 			return ACTION_IDLE
 

@@ -28,9 +28,17 @@ shift is the busy one (sentry_night on the wire 18:00-05:30, gun crew on the gun
 the net, quartermaster moving ammo after dark). **Needs his eyes to confirm it reads as a
 working base.**
 
-**A4. [C] Off-duty men need somewhere to BE.** `off_duty` currently sits and talks. With the
-work markers already in the GLB (191 of them) they could be cleaning weapons, filling sandbags,
-queueing at the mess. Cheap life, big return on "the base is alive".
+**A4. [C] Off-duty men need somewhere to BE.** *(fixed 7/30, unverified — and it was FAR
+bigger than "off-duty sits around")* Seven BT leaves in `civilian.gd`
+(`:710/718/726/734/742/750/756`) were **byte-identical freezes**, so twelve scheduled actions
+collapsed into four behaviours and only `walk_paddy` ever used a marker. **`ACTION_WORK` never
+walked a man to his post — so the entire A3 night shift below never manned anything.** It only
+looked right because `place_for_current_hour()` teleports everyone at spawn. `bb["target_pos"]`
+was resolved from the 191 markers every sim hour and read by nothing.
+`_bt_work` now walks there and holds, with a ±1.5m offset derived from the man's NAME so it is
+identical every run (ADR-010). `off_duty`'s 20.5-22.0 block flipped SIT -> WORK: those are the
+demo's own opening hours.
+**Verify: do the sentries WALK to the wire at dusk, or are they just standing there?**
 
 **A5. [?] Squad members stacking.** The 2-man post overlap is fixed (stations spread by index).
 If he still sees two men in one skin it is the follow-slot convergence, not spawn.
@@ -68,12 +76,44 @@ in one test. Parts exist: `ai_stress_arena` pattern, `SapperCharge`, `Destructib
 **C2. [C] Parts of the base must blow up.** ADR-031 destruction doctrine and the 80 authored
 parapet segments with HP already exist; the wiring to the blast bus is the gap.
 
-**C3. [C] The VC must attempt to OVERRUN, not probe.** Half-unblocked already: the assault
-element no longer runs at a point forever (`assault_driven` split, 7/29). Needs a real assault
-behaviour past the wire.
+**C3. [C] The VC must attempt to OVERRUN, not probe.** *(SHIPPED 7/30, unverified — council
+`war_room/2026-07-30_demo_backlog/`)* The stall was never the objective clearing, it was
+arithmetic: `combat_goals.gd` scored ADVANCE at most **0.61** for an nva_regular against an
+incumbent ENGAGE of **1.19**, so the assault reached the wire and traded shots forever.
+Fixed by biasing the GOAL, never the legs — `Context.assault_press` + `PRESS_ADVANCE 0.75`,
+rotated over 35% of the assault every 8s by `SiegeDirector._rotate_press`. A pressing man
+still shoots, which a leg override cannot do (`assault_driven` returns before the combat
+dispatch at `enemy_base.gd:1322` — that is the 7/29 "nobody fought" bug).
+**THE LANE IS THE GATE, deliberately.** Nothing re-bakes the navmesh on destroy
+(`nav_baker.gd:16-18`) and the barbwire is one merged `bwire_card_ring` of ~450 cards on
+three rings (`gen_firebase_v3.py:323-372`), so three impassable rings stand outside any hole
+you blow. The gate is the only opening through both, and one lane in 2-5 man rushes is the
+doctrinally correct answer anyway. **Nothing in the overrun reads a breach**, so none of it
+is blocked on art.
+`siege_overrun` fires once at `OVERRUN_MEN 3` measured per-bearing in 36 bins (the parapet
+runs 49.3-96.1m, so one mean radius would be wrong on two thirds of the compass) ->
+"THEY'RE INSIDE THE WIRE" + siren.
+**Verify: do they funnel at the gate and get inside, and does the call fire once?**
+
+**C3b. [B/C] THE REAL BREACH** — replaces the gate-only lane. Split `bwire_card_ring` per
+sector in `gen_firebase_v3.py`, re-export, and re-bake nav on `Destructible` death.
+**Deletion condition: when this lands, the gate stops being the whole answer.** Costs 36
+draw calls where there is 1, on a call-bound project — that is why it was not paid for the demo.
 
 **C4. [C] Siege is on a 600s/720s arc** - too slow to test. A debug trigger exists on `[J]` but
 only in debug builds.
+
+**C5. [C] THE DEMO'S NIGHT ASSAULT HAD NEVER HAPPENED.** *(fixed 7/30, unverified)*
+`demo_game.gd:29` declared `SIEGE_STRENGTH 40`, but at 720s `_open_siege` hit the
+`if d.siege.active` guard (`:197-203`) and emitted a toast. The 600s probe was still active
+**and always would be** — its `MAX_DURATION_S 480` expires at exactly `DAWN_AT_S 1080` — so
+that branch was taken every single time. **Every demo night ever played was 11 men,
+announced twice.** New `SiegeDirector.reinforce(extra)` grows `run_strength` AND `run_peak`
+together (strength alone puts live/peak above 1.0 and the break can never fire; peak alone
+credits kills the player never made). `SIEGE_STRENGTH` is now **45 TOTAL**, not an increment:
+`LIVE_CAP` is 50 and an assault authored at the cap freezes its late cells at the ring, the
+2026-07-28 trickle failure.
+**Verify: `[Siege] reinforced +34 - the assault is now 45 men` at 720s.**
 
 ---
 
@@ -86,10 +126,51 @@ only in debug builds.
 **D2. [C] Spooky keep-out.** Done 7/29 - ambient gunship orbit pushed 420m off `fsb_center`
 after it strafed the player's own compound. Verify it never recurs.
 
-**D3. [C] Ambient war audio.** One one-shot per event; a distant engagement should be a volley.
-His note: *"the fire rate should either be faster or a less occurring event."*
+**D3. [C] Ambient war audio.** *(fixed 7/30, unverified)* Ruled **FASTER**; "less occurring"
+rejected. `_spawn_audio` called `play()` ONCE per event and `lifetime_s` only decided when the
+finished node was freed — **a whole distant engagement was one gunshot.** Now two parties
+15-40m apart ANSWER each other, each retriggering its own voice: 3-8 rounds at 0.11s (MG 6-14
+at 0.075s), then a 2-6s lull, going ragged in the last quarter. Low-passed at 900Hz — past
+400m a rifle has no crack, only a slap off the treeline. Lifetime 5-30s -> 14-40s (5s cannot
+hold a rhythm). `FIRE_CAP 2`, and a held engagement PRINTS that it was held.
+Also adopted the 7/27 pack: it was still using the generic `shot_distant.wav` for every gun in
+the war while a measured `fire_<id>_dist.wav` existed for all 17.
 
 ---
+
+## B6-B7. THE AIR, 7/30
+
+**B6. [C] Spooky's vulcan fires REAL ROUNDS.** *(shipped 7/30, unverified)* It used to pick a
+ground point, paint three decorative tracers at it and apply a small explosion there — the
+tracers carried no damage and a man behind the berm was spared by a visibility guess instead of
+by the berm, while the same aircraft's Bofors fired real arcing shells. Now per PHYSICS TICK,
+3 rounds = 90/s: slant range √(160²+130²) = 206m at 1030 m/s = 0.20s flight = ~18 rounds in
+the air, so `MAX_BULLETS 500` is nowhere near binding. 90/s is for the ROPE — a streak is
+speed×0.016 = 16.5m, at `tracer_ratio 2` that lights ~148m of the 206m line. Duty 2.0s hot /
+2.5s cold. Dispersion preserved by re-aiming a fresh `_zone_point` each tick, NOT by weapon
+spread: the fake 25m disc was 25× the area of a 1.4° cone at 206m and losing it would make the
+gun read as broken. KEPT: suppression (BulletSystem suppresses nobody — the fake explosion was
+this gun's only source) and the report on its own 0.35s clock (`_play_gun` reuses ONE voice).
+**ADR-023, same change:** `scripts/combat/bullet_tracer.gd` DELETED (only caller repo-wide),
+`VULCAN_DAMAGE`/`_INTERVAL`/`_ROUNDS_PER_BURST`/`_vulcan_timer` gone,
+`FirePlan.SPECTRE_VULCAN_KILL_M` -> `SPECTRE_DISPERSION_M` (it could not just die,
+`fire_plan.gd:58` draws the map ring from it). New `BulletSystem.fire(..., mark_surface := true)`
+— `GunFX` recycles holes FIFO at `MAX_DECALS 48`, so 90/s would erase every player bullet hole
+twice a second.
+
+**B7. [C] AIR CAN KILL YOU — and never aims at you unless you ask.** *(shipped 7/30,
+unverified)* **`STRAFE_MASK = 1|32|64|512` includes the PLAYER HURTBOX and every ALLY** (layer
+32, proven at `projectile_base.gd:111` and `ally_base.gd:441-442`) while its own comment called
+bit 32 "enemy bodies". 87 × TORSO 2.5 = **217 vs 100 HP — one round, instant death.** Shipped
+7/29 and never playtested, with scripted demo gun runs at 2:40 and siege+60s.
+**His ruling 2026-07-30:** *"i want to be able to be killed by the air but i dont need a
+warning. but also dont deliberately gun run where the player is unless they call in a danger
+close run."* So the mask STAYS lethal and there is NO warning. The discipline is in AIMING:
+`authored_strike(..., danger_close)` requires a gun run's beaten path to miss him by
+`GUN_STANDOFF_M 120`, rotating through 12 bearings, then dropping guns (keeping napalm) or
+refusing the run. `[G]` passes `danger_close = true` — pressing it IS calling it in, and the
+axis he chose must fly or the key is useless for tuning. `AirTraffic` now keeps ambient Spectre
+orbits off **the player**, not just his base.
 
 ## E. ART AND MATERIALS — his side
 
@@ -122,8 +203,13 @@ Warns loudly if a body carries skin that is not on the atlas. **Needs his eyes.*
 **F1. [C] M opened nothing.** Fixed - the control's rect was 0x0 so the bottom-right-anchored
 sheet drew off-screen. Boot now warns if the rect is ever too small for the sheet.
 
-**F2. [C] Only right-click places marks.** His report. Left-click is bound to the order circle;
-the two verbs need separating or rebinding.
+**F2. [C] Only right-click places marks.** *(fixed 7/30, unverified — and the CODE corrected
+the report)* Left-click was never fighting the order circle: off a circle it did **nothing**
+(`topo_map.gd:376-380`). The map's main verb was simply on the button nobody reaches for first.
+**LEFT is now the pencil** — a circle is a small hotspot and still takes a left click, so they
+cannot compete for a pixel — and **RIGHT is the eraser**, which the sheet has NEVER had; marks
+went on and stayed forever. New `MissionState.erase_pencil_mark_near`, 45m grab radius. The
+grease-pencil law forbids the GAME erasing a mark; it says nothing about the player.
 
 **F3. [?] The note verb is not intuitive.** His ask: **research how Arma does its map** and
 learn from it before redesigning. Not started.

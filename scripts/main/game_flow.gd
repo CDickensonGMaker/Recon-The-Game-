@@ -227,7 +227,9 @@ func _dev_gun_run() -> bool:
 	at.y = world.surface_y(at)
 	# Run the pass ACROSS the line of sight so the strafe and the strip read broadside.
 	var across := Vector3(-facing.z, 0.0, facing.x)
-	director.authored_strike(at, CASAirplane.Ordnance.GUNS_NAPALM, across)
+	# Pressing [G] IS calling it in danger close: the axis you chose is the axis that flies,
+	# because the whole point of the key is repeating the same pass until the feel is right.
+	director.authored_strike(at, CASAirplane.Ordnance.GUNS_NAPALM, across, true)
 	director.toast.emit("GUN RUN INBOUND")
 	print("[CAS-DEV] gun+napalm pass at %.0f,%.0f (%.0fm on your bearing)" % [
 		at.x, at.z, DEV_STRIKE_RANGE_M])

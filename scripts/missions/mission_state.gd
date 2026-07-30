@@ -79,6 +79,23 @@ func add_pencil_mark(kind: String, x: float, z: float, patrol_no: int) -> int:
 	return pencil_marks.size() - 1
 
 
+## Rub one out. The grease-pencil law forbids the GAME erasing a mark; it says nothing
+## about the player, and until now he had no way to - marks went on and stayed forever.
+## Returns the index erased, or -1 if nothing was near enough.
+func erase_pencil_mark_near(x: float, z: float, radius_m: float) -> int:
+	var best: int = -1
+	var best_d: float = radius_m
+	for i in range(pencil_marks.size()):
+		var m: Dictionary = pencil_marks[i]
+		var d: float = Vector2(float(m.get("x", 0.0)) - x, float(m.get("z", 0.0)) - z).length()
+		if d <= best_d:
+			best_d = d
+			best = i
+	if best >= 0:
+		pencil_marks.remove_at(best)
+	return best
+
+
 ## THE ROUTE (patrol-contract decree, 2026-07-28). Indices into FieldDirector's
 ## patrol_objectives, in the order the player intends to walk them. The circles are
 ## OFFERED, never REQUIRED - an empty route is legal and costs nothing.

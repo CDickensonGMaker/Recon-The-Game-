@@ -707,8 +707,29 @@ func _bt_walk_market(_civ: Civilian, bb: Dictionary) -> int:
 		return BTNodeS.BTStatus.SUCCESS
 	return BTNodeS.BTStatus.RUNNING
 
+## A post is somewhere to BE. This used to freeze the man wherever he already stood, which
+## is why twelve scheduled actions collapsed into four behaviours and why the firebase night
+## shift only LOOKED manned - place_for_current_hour() teleports everyone at spawn, so the
+## sentries, gun crew, radioman and quartermaster appeared on station and then never walked
+## to one again for the rest of the night. The 191 work markers were already resolved into
+## bb["target_pos"] every sim hour and nothing read them.
+const WORK_ARRIVE_M: float = 1.6
+const WORK_JITTER_M: float = 1.5
+const WORK_SPEED: float = 1.1
+
+
 func _bt_work(_civ: Civilian, bb: Dictionary) -> int:
 	active_action = &"work"
+	var post: Vector3 = bb.get("target_pos", Vector3.ZERO)
+	if post != Vector3.ZERO:
+		# Two men sent to one marker must not stand in each other. The offset comes from the
+		# name so it is identical every run (ADR-010 - never Time, never an unseeded roll).
+		var a: float = float(absi(hash(name)) % 360) * (TAU / 360.0)
+		var post_at: Vector3 = post + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M
+		if global_position.distance_to(post_at) > WORK_ARRIVE_M:
+			bb["speed"] = WORK_SPEED
+			_wander_target = post_at
+			return BTNodeS.BTStatus.RUNNING
 	bb["speed"] = 0.0
 	_wander_target = global_position
 	velocity.x = 0

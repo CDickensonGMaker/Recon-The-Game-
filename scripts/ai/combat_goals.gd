@@ -13,6 +13,12 @@
 class_name CombatGoals
 extends RefCounted
 
+## What `Context.assault_press` adds to ADVANCE. Sized to beat an incumbent ENGAGE:
+## a regular with eyes on a man inside his preferred band scores ENGAGE 1.19, and an
+## unpressed ADVANCE tops out at 0.61 - which is why a night assault has always stalled
+## at the wire and traded shots. 0.75 clears it with margin and nothing more.
+const PRESS_ADVANCE: float = 0.75
+
 
 ## Everything the scorer reads. The caller fills it; the scorer touches no node.
 class Context:
@@ -44,6 +50,12 @@ class Context:
 	var has_covering_fire: bool = false
 	var squad_broken: bool = false
 	var force_ratio: float = 1.0
+
+	## Under orders to cross. A night assault presses open ground because it was told to,
+	## not because the ground looks survivable, so the press both exempts the man from
+	## open-ground discipline and outbids the ENGAGE he is currently winning with.
+	## It biases the GOAL only - it never takes his legs, so a pressing man still shoots.
+	var assault_press: bool = false
 
 
 ## Score every goal. Returns {Enums.AIGoal: float}; -1.0 means doctrinally forbidden.
@@ -98,10 +110,12 @@ static func score(c: Context) -> Dictionary:
 		advance += 0.15
 	if c.has_covering_fire:
 		advance += 0.2
-	elif c.aggression < 0.7:
+	elif c.aggression < 0.7 and not c.assault_press:
 		advance *= 0.45
 	if c.force_ratio >= 2.0:
 		advance += 0.15  # weight of numbers: press the lone shooter
+	if c.assault_press:
+		advance += PRESS_ADVANCE
 	scores[Enums.AIGoal.ADVANCE] = advance
 
 	# RETREAT - fall back. The wounded-man break is what retreats_when_hurt gates;

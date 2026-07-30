@@ -45,8 +45,11 @@ var _cap_hits: int = 0
 
 ## Spawn one live round. `mask`/`exclude` come from the shooter's faction (the
 ## full-realism friendly-fire masks).
+## `mark_surface` false leaves no bullet hole. GunFX recycles holes FIFO at MAX_DECALS 48
+## (gun_fx.gd:69), so a 90-round-per-second aircraft cannon erases every hole the player
+## put in the world twice a second. Cannon rounds tear ground, they do not leave 5.56 holes.
 func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
-		mask: int, exclude: Array, show_tracer: bool) -> void:
+		mask: int, exclude: Array, show_tracer: bool, mark_surface: bool = true) -> void:
 	if _bullets.size() >= MAX_BULLETS:
 		# THE CAP JUST BIT, AND IT USED TO DO IT IN SILENCE. Retiring the oldest round mid-flight
 		# is a round that never arrives: no impact, no wound, no miss - it stops existing on its
@@ -82,6 +85,7 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		# SOFT COVER: thatch, bamboo, hooch wall, brush - lead goes THROUGH it.
 		# Two layers per round, 20% of its energy each.
 		"soft_left": 2,
+		"mark": mark_surface,
 	}
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
@@ -194,7 +198,8 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 			return true
 	else:
 		GunFX.impact(scene, hit.position, hit.normal, _surface_is_hard(col))
-		GunFX.bullet_hole(scene, hit.position, hit.normal)
+		if bool(b.get("mark", true)):
+			GunFX.bullet_hole(scene, hit.position, hit.normal)
 		# SOFT COVER PUNCH-THROUGH: thatch, bamboo, a hooch wall, dense brush.
 		# The round keeps going at reduced energy - a man behind a grass wall is
 		# CONCEALED, not covered.

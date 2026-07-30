@@ -53,8 +53,33 @@ const MORTAR_DAMAGE: int = 140
 const MORTAR_MIN_DAMAGE: int = 40
 const MORTAR_BLAST_M: float = 18.0
 
+## ---------- THE OVERRUN ----------
+## An assault that reaches the wire and trades shots is a probe with more men. The press
+## is a GOAL bias, not an order that owns legs: CombatGoals scores ADVANCE above the
+## ENGAGE a man is already winning with, and he crosses the ground still shooting
+## (EnemyBase._execute_advancing fires on the move). Rotated over a share of the assault
+## so the attack arrives in rushes rather than one line standing up together.
+##
+## The lane is the GATE. Nothing re-bakes the navmesh when a parapet segment dies
+## (nav_baker.gd:16-18) and the barbwire is one merged ring that cannot be broken at all,
+## so the only opening through both obstacles is the wire gate - which is also the
+## doctrinally correct answer: a night attack goes through ONE lane, not over a line.
+## Parapet destruction stays spectacle. Nothing here reads a breach.
+const PRESS_CYCLE_S: float = 8.0
+const PRESS_FRACTION: float = 0.35
+## Men measurably inside the wire before the compound counts as overrun.
+const OVERRUN_MEN: int = 3
+## Bearing bins used to measure the perimeter. The parapet is not one radius - it runs
+## 49.3 m to 96.1 m (firebase_v3_destructibles.json, 80 segments) - so "inside" is
+## per-bearing or it is wrong on two thirds of the compass.
+const PERIMETER_BINS: int = 36
+## How far inside a bearing's own wall a man must be to count as through it.
+const INSIDE_MARGIN_M: float = 6.0
+
 signal siege_began(strength: int, is_probe: bool)
 signal siege_ended(reason: String, killed: int, strength: int)
+## The wire is not holding. Raised once per siege, for the radio.
+signal siege_overrun(inside: int)
 
 var director: FieldDirector = null
 var fsb_center: Vector3 = Vector3.ZERO
@@ -90,6 +115,12 @@ var _reap_clock: Dictionary = {}   ## instance_id -> seconds under withdrawal
 var _rng := RandomNumberGenerator.new()
 var _poll: float = 0.0
 var _last_sim_day: int = -1
+var _press_clock: float = 0.0
+var _press_phase: int = 0
+var _overrun_called: bool = false
+## Per-bearing wall radius, measured once from the parapet group. Empty = no wire wired
+## on this map (a test chamber), and then nothing can be judged inside it.
+var _wall_r: PackedFloat32Array = PackedFloat32Array()
 
 
 func setup(field_director: FieldDirector, center: Vector3, aim: Vector3) -> void:
@@ -157,10 +188,39 @@ func open_siege(forced_strength: int = 0) -> void:
 	is_probe = run_strength <= PROBE_MAX
 	_elapsed = 0.0
 	_mortar_timer = 0.0
+	_press_clock = 0.0
+	_press_phase = 0
+	_overrun_called = false
+	_measure_perimeter()
 	# Nights 2 and 3 attack where the last night worked.
 	if nights_run == 1:
 		sector_bearing = _rng.randf_range(0.0, TAU)
 	_build_cells()
+	siege_began.emit(run_strength, is_probe)
+
+
+## MORE MEN ONTO A FIGHT ALREADY RUNNING. The probe was the reconnaissance and the
+## assault follows it in on the same bearing.
+##
+## open_siege cannot do this: it returns the moment `active` is true, which is why the
+## demo's own 40-man assault never existed - the 600 s probe was still up at 720 s, so
+## the escalation was a toast and nothing more (demo_game.gd:197-203).
+##
+## run_peak MUST grow with run_strength. Raising only strength drives live/peak above 1.0
+## and the break can never fire; raising only peak credits the player kills he never made.
+## Deliberately does NOT touch nights_run (this is one night), _elapsed (the run's clock
+## is the dawn deadline) or _mortar_timer (the ranging walk is mid-stride).
+func reinforce(extra: int) -> void:
+	if not active or extra <= 0:
+		return
+	run_strength += extra
+	run_peak += extra
+	is_probe = run_strength <= PROBE_MAX
+	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), extra)
+	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true)
+	_spawn_cells_for(extra - sappers, REGULAR_DATA, "siege_assault", false)
+	print("[Siege] reinforced +%d - the assault is now %d men (peak %d)"
+		% [extra, run_strength, run_peak])
 	siege_began.emit(run_strength, is_probe)
 
 
@@ -200,6 +260,8 @@ func _run_siege(step: float) -> void:
 	_walk_mortars(step)
 	_light_check()
 	_enforce_live_cap()
+	_rotate_press(step)
+	_check_overrun()
 	if _elapsed >= MAX_DURATION_S:
 		_break_siege("dawn")
 		return
@@ -259,6 +321,122 @@ func _enforce_live_cap() -> void:
 			c.set_physics_process(false)
 			print("[Siege] cell of %d held at the ring - live cap %d reached"
 				% [c.strength, LIVE_CAP])
+
+
+## ---------- THE PRESS ----------
+
+## Raise the press on a rotating share of the assault. A satchel man is never pressed: his
+## legs already belong to the objective and biasing his goals fights that contract. Probes
+## do not press - holding off the wire is what makes a probe legible as a probe.
+func _rotate_press(step: float) -> void:
+	if is_probe:
+		return
+	_press_clock += step
+	if _press_clock < PRESS_CYCLE_S:
+		return
+	_press_clock = 0.0
+	_press_phase += 1
+	# Deterministic phase rather than a fresh roll: the same man is not pressed twice
+	# running, and the rotation is reproducible from the seed (ADR-010).
+	var i: int = 0
+	var pressed: int = 0
+	for c in cells:
+		if not is_instance_valid(c) or not c.materialized or c.carries_charge:
+			continue
+		for m in c.men:
+			if not is_instance_valid(m) or m.is_dead():
+				continue
+			var share: int = maxi(1, int(round(1.0 / PRESS_FRACTION)))
+			var on: bool = ((i + _press_phase) % share) == 0
+			m.siege_press = on
+			if on:
+				pressed += 1
+			i += 1
+	if pressed > 0 and _press_phase % 4 == 1:
+		print("[Siege] press wave %d: %d of %d men crossing" % [_press_phase, pressed, i])
+
+
+## ---------- INSIDE THE WIRE ----------
+
+## The wall's radius per bearing bin, measured from the wired parapet segments. The
+## perimeter is not a circle and the compound is not centred on its own mean radius, so a
+## single number would call men inside on one face and outside on the opposite one.
+func _measure_perimeter() -> void:
+	_wall_r = PackedFloat32Array()
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return
+	var segs: Array[Node] = tree.get_nodes_in_group(SitePlanner.FSB_PARAPET_GROUP)
+	if segs.is_empty():
+		return
+	var bins := PackedFloat32Array()
+	bins.resize(PERIMETER_BINS)
+	for s in segs:
+		var n := s as Node3D
+		if n == null:
+			continue
+		var d: Vector2 = Vector2(n.global_position.x - fsb_center.x,
+			n.global_position.z - fsb_center.z)
+		if d.length() < 0.5:
+			continue
+		var b: int = int(floor((fposmod(d.angle(), TAU) / TAU) * float(PERIMETER_BINS)))
+		b = clampi(b, 0, PERIMETER_BINS - 1)
+		bins[b] = maxf(bins[b], d.length())
+	# Empty bins take the neighbourly answer: a bearing with no segment still has a wall
+	# in front of it, and zero there would call the whole quadrant "inside".
+	var seen: float = 0.0
+	for i in range(PERIMETER_BINS):
+		if bins[i] > 0.0:
+			seen = bins[i]
+	for i in range(PERIMETER_BINS):
+		if bins[i] <= 0.0:
+			bins[i] = seen
+		else:
+			seen = bins[i]
+	_wall_r = bins
+	print("[Siege] perimeter measured from %d parapet segment(s) over %d bearings"
+		% [segs.size(), PERIMETER_BINS])
+
+
+func _wall_radius_at(pos: Vector3) -> float:
+	if _wall_r.is_empty():
+		return 0.0
+	var d: Vector2 = Vector2(pos.x - fsb_center.x, pos.z - fsb_center.z)
+	var b: int = int(floor((fposmod(d.angle(), TAU) / TAU) * float(PERIMETER_BINS)))
+	return _wall_r[clampi(b, 0, PERIMETER_BINS - 1)]
+
+
+func inside_count() -> int:
+	if _wall_r.is_empty():
+		return 0
+	var n: int = 0
+	for c in cells:
+		if not is_instance_valid(c) or not c.materialized:
+			continue
+		for m in c.men:
+			if not is_instance_valid(m) or m.is_dead():
+				continue
+			var wall: float = _wall_radius_at(m.global_position)
+			if wall <= 0.0:
+				continue
+			var r: float = Vector2(m.global_position.x - fsb_center.x,
+				m.global_position.z - fsb_center.z).length()
+			if r < wall - INSIDE_MARGIN_M:
+				n += 1
+	return n
+
+
+## Announced ONCE. A wire that reports itself broken every half second is a spam channel,
+## and the moment only lands if it is a moment.
+func _check_overrun() -> void:
+	if _overrun_called or is_probe:
+		return
+	var n: int = inside_count()
+	if n < OVERRUN_MEN:
+		return
+	_overrun_called = true
+	print("[Siege] OVERRUN - %d attacker(s) inside the wire" % n)
+	siege_overrun.emit(n)
 
 
 ## ---------- THE RANGING WALK ----------
@@ -349,6 +527,12 @@ func _break_siege(reason: String) -> void:
 		if not is_instance_valid(c):
 			continue
 		if c.materialized:
+			# The press dies with the assault. A withdrawing man carries assault_driven,
+			# and leaving the press up would have his goal brain scoring ADVANCE at the
+			# rally he is running to - the reap would never collect him.
+			for m in c.men:
+				if is_instance_valid(m):
+					m.siege_press = false
 			for m in c.withdraw_to(rally):
 				_reaping.append(m)
 				_reap_clock[m.get_instance_id()] = 0.0

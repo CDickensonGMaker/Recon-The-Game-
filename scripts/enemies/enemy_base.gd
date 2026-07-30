@@ -77,6 +77,13 @@ var assault_driven: bool = false
 
 ## How close an undriven man has to get before the objective is spent.
 const ASSAULT_ARRIVE_M: float = 8.0
+
+## Ordered to press the compound. SiegeDirector raises it on a rotating share of the
+## assault so the attack comes in rushes; it feeds CombatGoals.Context.assault_press and
+## NOTHING else. Deliberately not a leg override: `assault_driven` short-circuits the
+## combat FSM before the dispatch, so a driven man cannot shoot, and an assault of mute
+## men running at the wire is the 2026-07-29 playtest bug.
+var siege_press: bool = false
 ## A demolition infiltrator never fires and never barks contact - the satchel is his
 ## weapon. Silence is an invariant here, independent of the assault-move override, so
 ## clearing the objective can never turn a "sapper" back into a live gun. Set from data.
@@ -1211,6 +1218,7 @@ func _evaluate_goals() -> void:
 	# rout ladder rather than competing with it.
 	c.squad_broken = EnemySquad.is_broken(squad_id)
 	c.force_ratio = _last_force_ratio
+	c.assault_press = siege_press
 
 	best_goal = CombatGoals.pick(c)
 	if best_goal != current_goal:

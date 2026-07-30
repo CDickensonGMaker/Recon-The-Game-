@@ -529,11 +529,67 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 ##
 ## Everything downstream is the shipped path - same F-4, same run axis, same canisters, same
 ## FireHazard burn - so this can never drift from what the radio does.
+## THE GUN-RUN DISCIPLINE (his ruling, 2026-07-30): "i want to be able to be killed by the
+## air but i dont need a warning. but also dont deliberately gun run where the player is
+## unless they call in a danger close run."
+##
+## So the bullet MASK stays lethal to everyone - a strafing run is as indiscriminate as any
+## other fire in this war, and a round that finds you is a round that found you. The
+## discipline is in the AIMING: nothing the player did not personally ask for is allowed to
+## lay its beaten path across him. `danger_close` is his own call and waives this.
+const GUN_STANDOFF_M: float = 120.0
+## Bearings tried, in order, when the authored axis would sweep the player.
+const GUN_AXIS_STEPS: int = 12
+
+
+func _has_guns(o: CASAirplane.Ordnance) -> bool:
+	return o == CASAirplane.Ordnance.GUNS or o == CASAirplane.Ordnance.GUNS_NAPALM
+
+
+## Closest the beaten path comes to the player. The path is not the target point: rounds are
+## aimed ahead of the aircraft, so it is the segment the gun window walks along `axis`.
+func _beaten_path_miss(at: Vector3, axis: Vector3) -> float:
+	if world == null or world.player == null or not is_instance_valid(world.player):
+		return INF
+	var p: Vector3 = (world.player as Node3D).global_position
+	var dir: Vector3 = axis.normalized()
+	var worst: float = INF
+	for i in range(9):
+		var t: float = lerpf(CASAirplane.STRAFE_OPEN_M, CASAirplane.STRAFE_CLOSE_M,
+			float(i) / 8.0)
+		var s: Vector3 = at + dir * t
+		worst = minf(worst, Vector2(s.x - p.x, s.z - p.z).length())
+	return worst
+
+
+## An axis whose beaten path clears the player, or ZERO if no bearing does.
+func _gun_axis_clear_of_player(at: Vector3, axis: Vector3) -> Vector3:
+	if _beaten_path_miss(at, axis) >= GUN_STANDOFF_M:
+		return axis
+	for i in range(1, GUN_AXIS_STEPS):
+		var a: Vector3 = axis.rotated(Vector3.UP, TAU * float(i) / float(GUN_AXIS_STEPS))
+		if _beaten_path_miss(at, a) >= GUN_STANDOFF_M:
+			return a
+	return Vector3.ZERO
+
+
 func authored_strike(at: Vector3, ordnance: CASAirplane.Ordnance,
-		run: Vector3 = Vector3.ZERO) -> void:
+		run: Vector3 = Vector3.ZERO, danger_close: bool = false) -> void:
 	if world == null:
 		return
-	_launch_flyby(at, ordnance, run)
+	var axis: Vector3 = _run_axis(at, run)
+	if _has_guns(ordnance) and not danger_close:
+		var clear: Vector3 = _gun_axis_clear_of_player(at, axis)
+		if clear != Vector3.ZERO:
+			axis = clear
+		elif ordnance == CASAirplane.Ordnance.GUNS_NAPALM:
+			# No bearing keeps the rounds off him. Keep the spectacle, drop the guns.
+			ordnance = CASAirplane.Ordnance.NAPALM
+			print("[CAS] no clear gun axis %.0fm off the player - napalm only" % GUN_STANDOFF_M)
+		else:
+			print("[CAS] gun run refused: no axis clears the player by %.0fm" % GUN_STANDOFF_M)
+			return
+	_launch_flyby(at, ordnance, axis)
 
 
 func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
@@ -1287,6 +1343,7 @@ func _attach_siege() -> void:
 	siege.setup(self, fsb_center, siege_aim if siege_aim != Vector3.ZERO else fsb_center)
 	siege.siege_began.connect(_on_siege_began)
 	siege.siege_ended.connect(_on_siege_ended)
+	siege.siege_overrun.connect(_on_siege_overrun)
 
 
 func _on_siege_began(_strength: int, probe: bool) -> void:
@@ -1300,6 +1357,14 @@ func _on_siege_began(_strength: int, probe: bool) -> void:
 	# know that number at stand-to; the count is the director's roll, not
 	# anything a man on a tower can see in the dark.
 	toast.emit("STAND TO")
+	_sound_siren()
+
+
+## They are through the wire. A man standing on the berm can see this for himself, so the
+## call carries no count - it tells him the fight has moved behind him, which is the one
+## thing his own eyes cannot check while he is facing out.
+func _on_siege_overrun(_inside: int) -> void:
+	toast.emit("THEY'RE INSIDE THE WIRE")
 	_sound_siren()
 
 

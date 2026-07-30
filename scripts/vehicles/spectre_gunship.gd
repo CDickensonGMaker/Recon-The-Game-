@@ -20,9 +20,36 @@ const ORBIT_ALT: float = 130.0
 const BANK_LEFT_RAD: float = 0.26  # ~15 degrees
 const DURATION: float = 30.0
 
-const VULCAN_INTERVAL: float = 0.35
-const VULCAN_ROUNDS_PER_BURST: int = 3
-const VULCAN_DAMAGE: int = 60
+## ---- THE VULCAN, FOR REAL ----
+## It used to pick a ground point, paint three decorative tracers at it and apply a small
+## explosion there: the tracers carried no damage, and a man behind the berm was spared by a
+## visibility guess instead of by the berm. The Bofors below has always fired real arcing
+## shells, so one aircraft held two different ideas of what a round is. His ruling,
+## 2026-07-29: "what if we made the rounds from all planes real projectiles that travel from
+## their points of origin."
+##
+## Fired per PHYSICS TICK, not on an interval. A 0.35 s interval would have to batch ~32
+## rounds into one tick to reach a minigun's rate, and they would all arrive together.
+## Slant range sqrt(160^2 + 130^2) = 206 m at 1030 m/s = 0.20 s of flight, so 90 rounds/s
+## leaves ~18 in the air: 18 segment raycasts a tick against a whole-level baseline of a
+## few, and MAX_BULLETS 500 is nowhere near binding. 90/s is chosen for the ROPE - a tracer
+## streak is speed*0.016 = 16.5 m and at tracer_ratio 2 that lights ~148 m of the 206 m line.
+const VULCAN_ROUNDS_PER_TICK: int = 3
+const VULCAN_HOT_S: float = 2.0
+const VULCAN_COLD_S: float = 2.5
+## The report keeps its own slower clock: _play_gun reuses ONE voice, so retriggering it
+## ninety times a second would leave the aircraft silent.
+const VULCAN_REPORT_S: float = 0.35
+const VULCAN_WEAPON: String = "res://data/weapons/aircraft_20mm.tres"
+## Same universal mask the CAS gun run uses: world, player, hurtboxes, civilians. A gunship's
+## fire is as indiscriminate as any other fire in this war (his ruling 2026-07-30 - air can
+## kill him; the discipline is in where it is AIMED, and AirTraffic keeps ambient orbits off
+## him entirely).
+const VULCAN_MASK: int = 1 | 32 | 64 | 512
+## BulletSystem suppresses nobody, and the old fake explosion was this gun's only source of
+## it. Suppression is most of what makes Spooky frightening from the ground, so it is applied
+## per burst from the aim point rather than lost with the explosion.
+const VULCAN_SUPPRESS_M: float = 18.0
 
 const BOFORS_INTERVAL: float = 1.2
 ## The 40mm walks the inner half of the zone - the heavy gun is aimed, the Vulcan
@@ -36,8 +63,10 @@ var target: Vector3
 var terrain: TerrainManager
 var _angle: float = 0.0
 var _age: float = 0.0
-var _vulcan_timer: float = 0.0
 var _bofors_timer: float = 0.6
+var _duty: float = 0.0            ## seconds into the current hot/cold cycle
+var _report_timer: float = 0.0
+static var _vulcan_wd: WeaponData = null
 var _drone: AudioStreamPlayer3D
 var _gun_audio: AudioStreamPlayer3D = null
 
@@ -132,10 +161,15 @@ func _physics_process(delta: float) -> void:
 	look_at(global_position + Vector3(sin(_angle), 0.0, -cos(_angle)), Vector3.UP)
 	rotate_object_local(Vector3(0, 0, 1), BANK_LEFT_RAD)
 
-	_vulcan_timer -= delta
-	if _vulcan_timer <= 0.0:
-		_vulcan_timer = VULCAN_INTERVAL
+	# The gun works in bursts, not a continuous hose: hot, then cold long enough for the
+	# ground to be quiet and the drone to be the only thing left.
+	_duty = fmod(_duty + delta, VULCAN_HOT_S + VULCAN_COLD_S)
+	if _duty < VULCAN_HOT_S:
 		_fire_vulcan()
+		_report_timer -= delta
+		if _report_timer <= 0.0:
+			_report_timer = VULCAN_REPORT_S
+			_play_gun(VULCAN_SFX, 4.0)
 
 	_bofors_timer -= delta
 	if _bofors_timer <= 0.0:
@@ -153,16 +187,25 @@ func _zone_point(frac: float) -> Vector3:
 	return p
 
 
+## One tick of the port battery. Rounds leave the AIRCRAFT and fly, so the berm stops them
+## because it is in the way and not because a radius said so.
 func _fire_vulcan() -> void:
-	var impact := _zone_point(1.0)
-	_play_gun(VULCAN_SFX, 4.0)
-	for i in range(VULCAN_ROUNDS_PER_BURST):
-		var jitter := Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
-		BulletTracer.spawn_tracer(get_tree().current_scene, global_position, impact + jitter, Color(1.0, 0.25, 0.15))
-	@warning_ignore("integer_division")
-	CombatManager.apply_explosion_damage(impact, VULCAN_DAMAGE, VULCAN_DAMAGE / 3, FirePlan.SPECTRE_VULCAN_KILL_M, null, 0.2)
-	GunFX.impact(get_tree().current_scene, impact, Vector3.UP, false)
-	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, impact, 0, 80.0)
+	if CombatManager.bullets == null:
+		return
+	if _vulcan_wd == null:
+		_vulcan_wd = load(VULCAN_WEAPON) as WeaponData
+	if _vulcan_wd == null:
+		push_warning("[SPECTRE] %s missing - the battery has no weapon card" % VULCAN_WEAPON)
+		return
+	# The port side faces the orbit centre and already carries the 15-degree pylon bank, so
+	# the muzzle rides -basis.x and the guns point where the aircraft is leaning.
+	var muzzle: Vector3 = global_position - basis.x * 3.2 - basis.y * 0.9
+	var aim: Vector3 = _zone_point(1.0)
+	for i in range(VULCAN_ROUNDS_PER_TICK):
+		var dir: Vector3 = (aim - muzzle).normalized()
+		CombatManager.bullets.fire(_vulcan_wd, self, muzzle, dir, VULCAN_MASK, [self], true, false)
+	CombatManager.apply_suppression_in_area(aim, VULCAN_SUPPRESS_M, 0.2)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, aim, 0, 80.0)
 
 
 func _fire_bofors() -> void:
