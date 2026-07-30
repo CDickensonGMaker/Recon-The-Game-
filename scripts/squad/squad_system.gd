@@ -4,10 +4,10 @@
 class_name SquadSystem
 extends Node
 
-## A REVIVE COSTS A BANDAGE. `revives_left` used to be an abstract allowance with nothing
-## behind it; it is now Doc's bandage count, which is a thing that exists in the world, can
-## run out, and can be replaced from a medical box (FieldCache) he or anyone else laid down.
-const REVIVES_PER_MISSION: int = 2
+## DOC'S BAG, counted in BANDAGES. He spends them patching men up and the PLAYER can walk
+## over and take from it, so the same number gates both. Running it dry is meant to be one
+## of the reasons you go home (Summoner, 2026-07-30) - do not make it self-refilling.
+const MEDIC_BANDAGES: int = 6
 ## What Doc carries besides the two he can spend reviving: the rest of the bag. Laying the
 ## box down puts ten on the ground for the whole squad AND the player.
 const MEDIC_BOX_STOCK: int = 1
@@ -22,7 +22,7 @@ var world: GameWorld
 var director: FieldDirector
 var members: Array[AllyBase] = []
 var weapons_free: bool = true
-var revives_left: int = REVIVES_PER_MISSION
+var medic_bandages: int = MEDIC_BANDAGES
 ## Boxes each specialist still has to lay. One apiece per mission - a box is a decision,
 ## not a consumable, and an infinite supply of them is an infinite supply of everything.
 var medic_boxes: int = MEDIC_BOX_STOCK
@@ -179,7 +179,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_order_all(AllyBase.OrderMode.FOLLOW, Vector3.ZERO, "SQUAD: ON ME")
 	elif event.is_action_pressed("squad_hold"):
 		_order_all(AllyBase.OrderMode.HOLD, Vector3.ZERO, "SQUAD: HOLD POSITION")
-		_drop_specialist_boxes()
+		_drop_ammo_box()
 	elif event.is_action_pressed("squad_move"):
 		var target := _aim_ground_point()
 		if target != Vector3.ZERO:
@@ -224,7 +224,7 @@ func _aim_ground_point() -> Vector3:
 func can_revive() -> bool:
 	if member_by_mos("MEDIC") == null:
 		return false
-	if revives_left > 0:
+	if medic_bandages > 0:
 		return true
 	# Dry, but standing next to bandages: Doc takes one rather than watching a man bleed.
 	return _medic_restock()
@@ -239,40 +239,65 @@ func _medic_restock() -> bool:
 	var box: FieldCache = FieldCache.nearest(medic, FieldCache.Kind.MEDICAL, 6.0)
 	if box == null or box.draw(1) <= 0:
 		return false
-	revives_left += 1
+	medic_bandages += 1
 	_toast("DOC RESUPPLIED FROM THE MEDICAL BOX")
 	return true
 
 
-## Lay the specialists' boxes on the ground. Called when the squad is told to HOLD: a squad
-## digging in puts its supplies out, which is both correct and the one moment the player has
-## already said "we are staying here."
-func _drop_specialist_boxes() -> void:
-	var host: Node = get_tree().current_scene
-	if host == null:
+## Doc's box goes down WHERE HE TREATED SOMEONE, once per mission. An order was the wrong
+## trigger: a medical box is not a decision, it is the bag he opened over a casualty, and
+## leaving it there turns a place where something happened into a place worth finding again.
+## No toast - the player discovers it, or he does not.
+func _drop_medical_box() -> void:
+	if medic_boxes <= 0:
 		return
-	if medic_boxes > 0:
-		var medic := member_by_mos("MEDIC")
-		if medic != null and is_instance_valid(medic):
-			medic_boxes -= 1
-			var at: Vector3 = medic.global_position - medic.global_transform.basis.z * BOX_DROP_M
-			FieldCache.deploy(host, at, FieldCache.Kind.MEDICAL)
-			_toast("DOC PUT THE MEDICAL BOX DOWN")
-	if grenadier_boxes > 0:
-		var gren := member_by_mos("GRENADIER")
-		if gren != null and is_instance_valid(gren):
-			grenadier_boxes -= 1
-			var at2: Vector3 = gren.global_position - gren.global_transform.basis.z * BOX_DROP_M
-			FieldCache.deploy(host, at2, FieldCache.Kind.AMMO)
-			_toast("AMMO BOX DOWN")
+	var host: Node = get_tree().current_scene
+	var medic := member_by_mos("MEDIC")
+	if host == null or medic == null or not is_instance_valid(medic):
+		return
+	medic_boxes -= 1
+	var at: Vector3 = medic.global_position - medic.global_transform.basis.z * BOX_DROP_M
+	FieldCache.deploy(host, at, FieldCache.Kind.MEDICAL)
+
+
+## The AMMO box stays on the order, and the difference is the point: laying out ammunition
+## IS a decision - it is what a squad does when it has chosen to hold ground - where a
+## medical box is just where the wounded man was.
+func _drop_ammo_box() -> void:
+	if grenadier_boxes <= 0:
+		return
+	var host: Node = get_tree().current_scene
+	var gren := member_by_mos("GRENADIER")
+	if host == null or gren == null or not is_instance_valid(gren):
+		return
+	grenadier_boxes -= 1
+	var at: Vector3 = gren.global_position - gren.global_transform.basis.z * BOX_DROP_M
+	FieldCache.deploy(host, at, FieldCache.Kind.AMMO)
+	_toast("AMMO BOX DOWN")
+
+
+## Hand ONE bandage to whoever asked. Doc gives until his bag is empty, and then the only
+## bandages left in the world are the ones in a box or the ones back at the firebase.
+func take_medic_bandage() -> bool:
+	if medic_bandages <= 0:
+		return false
+	medic_bandages -= 1
+	return true
+
+
+func medic_bandage_count() -> int:
+	return medic_bandages
 
 
 func begin_revive(_health_system: HealthSystem) -> void:
 	_reviving = true
 	_revive_timer = 0.0
 	_downed_clock = 0.0
-	revives_left -= 1
-	_toast("MAN DOWN! DOC IS MOVING TO YOU (%d revives left)" % revives_left)
+	medic_bandages -= 1
+	_toast("MAN DOWN! DOC IS MOVING TO YOU (%d bandages left)" % medic_bandages)
+	# THE BAG COMES OFF HIS SHOULDER WHERE HE WORKS. Not on an order - this is the moment
+	# he actually opens it, and it leaves something on the ground the player finds later.
+	_drop_medical_box()
 	var _vo_doc := member_by_mos("MEDIC")
 	if _vo_doc != null:
 		VOManager.play_squad("man_down", {}, _vo_doc.global_position)

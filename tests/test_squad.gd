@@ -105,8 +105,11 @@ func _run() -> void:
 	if not revived[0] or hs.current_hp < 30:
 		print("FAIL: medic revive failed")
 		failures += 1
-	if squad.revives_left != 1:
-		print("FAIL: revive count wrong (%d)" % squad.revives_left)
+	# A revive spends a BANDAGE out of Doc's bag, and the bag is what the player draws
+	# from too - so this number gates both, and it must go DOWN by exactly one.
+	if squad.medic_bandages != SquadSystem.MEDIC_BANDAGES - 1:
+		print("FAIL: revive did not spend exactly one bandage (%d of %d)" % [
+			squad.medic_bandages, SquadSystem.MEDIC_BANDAGES])
 		failures += 1
 
 	# 5. Casualty persists to roster.

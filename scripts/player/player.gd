@@ -586,6 +586,9 @@ func field_interact_prompt() -> String:
 			if satchel_count > 0:
 				return "[F] GO DOWN THE HOLE    [HOLD F] SATCHEL THE MOUTH"
 			return "[F] GO DOWN THE HOLE"
+	var doc: AllyBase = _nearby_medic()
+	if doc != null:
+		return "[F] BANDAGE FROM DOC (%d)" % _squad_ref().medic_bandage_count()
 	var cache: FieldCache = _nearby_field_cache()
 	if cache != null:
 		return "[F] TAKE FROM %s" % cache.label()
@@ -624,6 +627,32 @@ func _play_claymore_plant() -> void:
 			return      # not authored yet; the mine still goes down
 	_claymore_vm.deploy()
 	_claymore_vm.play_action_then_stow()
+
+
+## The squad, or null on a bench that has none. HealthSystem already holds the live pointer
+## (SquadSystem assigns itself as revive_handler at squad_system.gd:102) - a second lookup
+## path would be a second thing to keep true.
+func _squad_ref() -> SquadSystem:
+	if health_system == null:
+		return null
+	return health_system.revive_handler as SquadSystem
+
+
+## Doc, within reach, alive, with something in the bag. Offering the verb on an empty bag
+## would promise a bandage that is not there - the prompt has to be able to lie about
+## nothing (player.gd's prompt/verb contract).
+func _nearby_medic() -> AllyBase:
+	var sq: SquadSystem = _squad_ref()
+	if sq == null or health_system == null:
+		return null
+	if health_system.health_packs >= HealthSystem.CARRY_MAX:
+		return null
+	if sq.medic_bandage_count() <= 0:
+		return null
+	var doc: AllyBase = sq.member_by_mos("MEDIC")
+	if doc == null or not is_instance_valid(doc) or doc.is_dead():
+		return null
+	return doc if global_position.distance_to(doc.global_position) < 2.5 else null
 
 
 ## The nearest box a specialist laid down. Range lives on FieldCache so the prompt and the
@@ -892,6 +921,16 @@ func _try_field_interact() -> void:
 		if entrance_now != null:
 			_enter_tunnel(entrance_now)
 			return
+	var doc: AllyBase = _nearby_medic()
+	if doc != null:
+		var sq: SquadSystem = _squad_ref()
+		if sq != null and sq.take_medic_bandage():
+			health_system.health_packs += 1
+			health_system.health_pack_changed.emit(health_system.health_packs)
+			_field_toast("DOC HANDED YOU A BANDAGE (%d LEFT IN HIS BAG)" % sq.medic_bandage_count())
+		else:
+			_field_toast("DOC IS OUT - NOTHING LEFT IN THE BAG")
+		return
 	var cache: FieldCache = _nearby_field_cache()
 	if cache != null:
 		_take_from_cache(cache)
