@@ -76,6 +76,21 @@ const PERIMETER_BINS: int = 36
 ## How far inside a bearing's own wall a man must be to count as through it.
 const INSIDE_MARGIN_M: float = 6.0
 
+## THE LIT GROUND IS THE SCOREBOARD. The assault crosses from ~200m in the dark against 56m
+## night sight, so without light the whole overrun is muzzle flashes and the player cannot see
+## it crest OR break. The garrison fires its own (FieldDirector.garrison_illum) - it never
+## spends the player's allotment.
+##
+## Interval is deliberately LONGER than the burn: the gap of darkness between rounds is where
+## the dread lives, and a compound lit end to end is a lit stage.
+const ILLUM_INTERVAL_S: float = 70.0
+## Out on the attack bearing, between the wire and the ring, so the lit circle covers the
+## ground they are actually crossing rather than the compound behind you.
+const ILLUM_STANDOFF_M: float = 140.0
+## First round goes up shortly after stand-to - but after the first ranging shells, which start
+## at zero, so the mortars still announce the night themselves.
+const ILLUM_FIRST_S: float = 12.0
+
 signal siege_began(strength: int, is_probe: bool)
 signal siege_ended(reason: String, killed: int, strength: int)
 ## The wire is not holding. Raised once per siege, for the radio.
@@ -115,6 +130,7 @@ var _reap_clock: Dictionary = {}   ## instance_id -> seconds under withdrawal
 var _rng := RandomNumberGenerator.new()
 var _poll: float = 0.0
 var _last_sim_day: int = -1
+var _illum_timer: float = ILLUM_FIRST_S
 var _press_clock: float = 0.0
 var _press_phase: int = 0
 var _overrun_called: bool = false
@@ -190,6 +206,7 @@ func open_siege(forced_strength: int = 0) -> void:
 	_mortar_timer = 0.0
 	_press_clock = 0.0
 	_press_phase = 0
+	_illum_timer = ILLUM_FIRST_S
 	_overrun_called = false
 	_measure_perimeter()
 	# Nights 2 and 3 attack where the last night worked.
@@ -215,7 +232,13 @@ func reinforce(extra: int) -> void:
 		return
 	run_strength += extra
 	run_peak += extra
+	var was_probe: bool = is_probe
 	is_probe = run_strength <= PROBE_MAX
+	if was_probe and not is_probe:
+		# A probe that just became an assault gets lit and pressed from here, not on the
+		# schedule a probe was keeping.
+		_illum_timer = ILLUM_FIRST_S
+		_press_clock = PRESS_CYCLE_S
 	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), extra)
 	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true)
 	_spawn_cells_for(extra - sappers, REGULAR_DATA, "siege_assault", false)
@@ -258,6 +281,7 @@ func _spawn_cells_for(count: int, data: String, tag: String, charges: bool) -> v
 func _run_siege(step: float) -> void:
 	_elapsed += step
 	_walk_mortars(step)
+	_walk_illum(step)
 	_light_check()
 	_enforce_live_cap()
 	_rotate_press(step)
@@ -321,6 +345,22 @@ func _enforce_live_cap() -> void:
 			c.set_physics_process(false)
 			print("[Siege] cell of %d held at the ring - live cap %d reached"
 				% [c.strength, LIVE_CAP])
+
+
+## ---------- LIGHTING THE WIRE ----------
+
+## A probe is never lit: holding off in the dark for three men is what makes a probe read as a
+## probe, and burning illum on it spends the moment the real assault needs.
+func _walk_illum(step: float) -> void:
+	if is_probe or director == null:
+		return
+	_illum_timer -= step
+	if _illum_timer > 0.0:
+		return
+	_illum_timer = ILLUM_INTERVAL_S
+	var out := Vector3(cos(sector_bearing), 0.0, sin(sector_bearing))
+	var at: Vector3 = fsb_center + out * ILLUM_STANDOFF_M
+	director.garrison_illum(at)
 
 
 ## ---------- THE PRESS ----------

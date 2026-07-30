@@ -763,6 +763,29 @@ func _illum_burst(pos: Vector3) -> void:
 		siege._light_check()
 
 
+## THE GARRISON LIGHTS ITS OWN WIRE. Illum has only ever reached the world through the
+## player's allotment above or a thrown hand flare, so an assault crossing two hundred metres
+## of dark was muzzle flashes unless he happened to spend a round on it - and night sight is
+## 56m open. A firebase under attack fires its own illum without being asked.
+##
+## It does NOT touch `fire_support` stock. His tubes are his, and a set-piece must never
+## quietly bill him for one (same contract as authored_strike).
+## Burn is shorter than the player's round on purpose: the dark between them is the dread,
+## and a permanently lit compound is a lit STAGE.
+const GARRISON_ILLUM_BURN_S: float = 55.0
+
+
+func garrison_illum(at: Vector3) -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	# The tube thumps from inside the compound - the defenders' own mortar, not the enemy's.
+	AudioManager.play_mortar_tube(fsb_center)
+	IllumFlare.pop(world, at, GARRISON_ILLUM_BURN_S, ILLUM_RADIUS_M, ILLUM_HEIGHT_M)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.IMPACT, at, 0)
+	if siege != null and is_instance_valid(siege):
+		siege._light_check()
+
+
 func _wp_impact(pos: Vector3) -> void:
 	if world == null or not is_instance_valid(world):
 		return

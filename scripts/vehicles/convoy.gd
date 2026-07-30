@@ -19,6 +19,11 @@ var route: Array[Vector3] = []
 ## Vehicles in drive order: [0] is the lead, the rest trail.
 var vehicles: Array = []   ## Array[DestructibleVehicle]
 ## metres between consecutive vehicles.
+## How fast a vehicle swings its nose onto the direction of travel, as a lerp weight per
+## second. Loose enough that a bend reads as a turn, tight enough that the column does not
+## visibly lag its own road.
+const TURN_RATE: float = 3.0
+
 var spacing: float = 6.0
 ## m/s along the route. Trucks do 12 m/s (~43 km/h), APCs 10 m/s.
 var speed: float = 12.0
@@ -78,6 +83,7 @@ func _physics_process(delta: float) -> void:
 	lead_pos.z += dir.z * step
 	lead_pos.y = _ground_y(lead_pos)
 	lead.global_position = lead_pos
+	_face_along(lead, dir, delta)
 	# Trail
 	for i in range(1, vehicles.size()):
 		var prev: Node3D = vehicles[i - 1]
@@ -91,6 +97,19 @@ func _physics_process(delta: float) -> void:
 			var np: Vector3 = cur.global_position - back.normalized() * over
 			np.y = _ground_y(np)
 			cur.global_position = np
+			# A truck faces the way it is being pulled. Nothing here ever touched rotation, so
+			# the whole column held its spawn yaw and CRABBED sideways through every bend.
+			_face_along(cur, -back.normalized(), delta)
+
+
+## Turn toward `dir` rather than snapping to it: a five-ton does not pivot on the spot, and an
+## instant yaw change reads as the model teleporting its nose. Yaw uses the same atan2(x, z)
+## ConvoySpawner seats vehicles with, so driving and spawning agree.
+func _face_along(v: Node3D, dir: Vector3, delta: float) -> void:
+	if v == null or dir.length() < 0.01:
+		return
+	var want: float = atan2(dir.x, dir.z)
+	v.rotation.y = lerp_angle(v.rotation.y, want, minf(1.0, TURN_RATE * delta))
 
 
 ## Vehicle reports a hostile contact. Stops the convoy + emits the ambush signal.

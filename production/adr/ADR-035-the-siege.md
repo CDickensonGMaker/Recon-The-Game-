@@ -250,7 +250,12 @@ Summoner runs it.
 
 **NOT BUILT, still open against this ADR:** the siege AAR (§6) is a toast, not a banked debrief;
 `SimClock.sim_day` is still unserialized and the save-refusal ruling (§9) is unimplemented; the §10
-perf predicate is unmeasured, so the d50 roll ships behind `LIVE_CAP = 18` on trust rather than proof.
+perf predicate is unmeasured. **`LIVE_CAP = 18` is SUPERSEDED — it is 50 in code
+(`siege_director.gd:36`) by the Summoner's ruling of 2026-07-28: a capped assault trickles in and
+never reads as the mass attack the roll describes. The cap is now the d50 ceiling, so it defers
+nothing in practice; the amendment is that the roll ships UNCAPPED on his word rather than behind
+a number nobody measured.** Consequence found 2026-07-30: an assault authored AT the cap freezes
+its late cells at the ring, which is why the demo's escalation targets 45 and not 50.
 The `enemy_squad.gd` hunt-anchor overshoot is now unreachable for besiegers (every man carries an
 `assault_objective`) but is **not fixed at its source** for any other caller.
 

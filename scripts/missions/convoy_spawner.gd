@@ -15,6 +15,29 @@ var ambush_sites: Array = []
 const AMBUSH_TRIGGER_M: float = 45.0
 
 const VEHICLE_MODEL_DIR: String = "res://assets/us/vehicles/"
+## Gap between vehicles at spawn. Matches Convoy.spacing so the column does not lurch
+## closed or stretch open on its first tick.
+const SPAWN_SPACING_M: float = 6.0
+
+
+## A seat `along` metres into the route, measured by ARC LENGTH down the polyline, with the
+## yaw of the leg it lands on. Past the end of the route it clamps to the last leg.
+## Yaw uses the same atan2(x, z) the spawner has always used, so a vehicle's facing at spawn
+## and its facing while driving agree - whatever that convention resolves to per model.
+static func _seat_along_route(route: Array, along: float) -> Dictionary:
+	var left: float = maxf(0.0, along)
+	for i in range(route.size() - 1):
+		var a: Vector3 = route[i]
+		var b: Vector3 = route[i + 1]
+		var leg: Vector3 = b - a
+		leg.y = 0.0
+		var leg_m: float = leg.length()
+		var yaw: float = rad_to_deg(atan2(leg.x, leg.z)) if leg_m > 0.01 else 0.0
+		if left <= leg_m or i == route.size() - 2:
+			var t: float = (left / leg_m) if leg_m > 0.01 else 0.0
+			return {"pos": a + leg * clampf(t, 0.0, 1.0), "yaw": yaw}
+		left -= leg_m
+	return {"pos": route[0] as Vector3, "yaw": 0.0}
 
 
 func _ready() -> void:
@@ -76,15 +99,23 @@ func _instantiate(spec: Dictionary) -> void:
 	# A convoy with no vehicles cannot drive: Convoy._physics_process returns early on
 	# an empty list, so it would never reach a waypoint or finish a route.
 	var built: Array = []
-	var start: Vector3 = route[0]
-	var heading: Vector3 = (route[1] - route[0])
-	var yaw: float = rad_to_deg(atan2(heading.x, heading.z))
-	for i in range(spec.vehicle_models.size()):
+	# THE COLUMN STANDS ON THE ROAD. It used to be strung straight back along -heading from
+	# route[0], which is a line through whatever happens to be there: with six vehicles at 6m
+	# that reaches 30m behind the start, and when the start is the wire gate those trucks stand
+	# INSIDE the compound. That is the "convoys drive through buildings" report - the column is
+	# born in the buildings, before anything drives anywhere.
+	#
+	# Instead the column occupies the first stretch of its own route, lead furthest along, so
+	# every vehicle begins on the surveyed line and simply follows it.
+	var n: int = spec.vehicle_models.size()
+	for i in range(n):
 		var model_path: String = VEHICLE_MODEL_DIR + str(spec.vehicle_models[i]) + ".glb"
 		if not ResourceLoader.exists(model_path):
 			continue
-		var back: Vector3 = -heading.normalized() * (float(i) * 6.0)
-		var v := DestructibleVehicle.create(cv, model_path, start + back, yaw, terrain)
+		var along: float = float(n - 1 - i) * SPAWN_SPACING_M
+		var seat: Dictionary = _seat_along_route(route, along)
+		var pos: Vector3 = seat["pos"]
+		var v := DestructibleVehicle.create(cv, model_path, pos, float(seat["yaw"]), terrain)
 		if v == null:
 			continue
 		# A convoy vehicle MOVES. Leaving it in nav_blockers would drag a nav-carving

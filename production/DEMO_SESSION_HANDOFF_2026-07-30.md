@@ -52,6 +52,16 @@ the 7/27 per-weapon distant reports finally adopted.
 
 **F2.** LEFT = pencil, RIGHT = eraser (new `MissionState.erase_pencil_mark_near`).
 
+**The garrison lights its own wire (C6).** `FieldDirector.garrison_illum` +
+`SiegeDirector._walk_illum`: 140 m out on the attack bearing, first at 12 s, then every 70 s,
+burning 55 s so there is real darkness between rounds. Never bills his illum stock. **Without
+this the whole overrun happened in the dark** — 56 m night sight against a 190–235 m approach.
+
+**Convoys (D1, partial).** The column used to be born INSIDE the compound — strung 30 m straight
+back off `route[0]`, which at the gate is inside the wire. It now seats along its own route by
+arc length. And nothing ever set rotation, so the column crabbed sideways through every bend;
+`_face_along` now turns each vehicle onto its direction of travel.
+
 ---
 
 ## VERIFY THESE FIRST (one boot, then read the console)
@@ -63,6 +73,7 @@ the 7/27 per-weapon distant reports finally adopted.
 | `[Siege] press wave N: X of Y men crossing` | the assault is pressing, not sitting |
 | `[Siege] OVERRUN - N attacker(s) inside the wire` | the gate lane works |
 | `[AmbientWar] ... held silent - 2 firefights already sounding` | the cap is reporting itself |
+| a lit circle 140 m out, going dark ~15 s between rounds | the garrison is lighting its own wire |
 | `[CAS] no clear gun axis 120m off the player - napalm only` | the aiming discipline is live |
 | `[NAV] ally ... no path` count | was 8; still the A1/A2 question |
 

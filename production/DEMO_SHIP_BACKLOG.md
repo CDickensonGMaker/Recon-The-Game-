@@ -103,6 +103,30 @@ draw calls where there is 1, on a call-bound project — that is why it was not 
 **C4. [C] Siege is on a 600s/720s arc** - too slow to test. A debug trigger exists on `[J]` but
 only in debug builds.
 
+**C6. [C] THE GARRISON LIGHTS ITS OWN WIRE.** *(shipped 7/30, unverified)* Illum had only ever
+reached the world through the player's own allotment (`_run_illum_mission`, which bills his
+stock) or a thrown hand flare. Night sight is **56m open** and the assault crosses from
+190-235m, so **the entire overrun happened in the dark** - he would hear it and never see it,
+and could not watch it crest or break. New `FieldDirector.garrison_illum(at)` pops a round from
+the compound's own tube and **never touches `fire_support` stock**; `SiegeDirector._walk_illum`
+puts one up `ILLUM_STANDOFF_M 140` out on the attack bearing, `ILLUM_FIRST_S 12` after
+stand-to, then every `ILLUM_INTERVAL_S 70`. Burn is `GARRISON_ILLUM_BURN_S 55`, deliberately
+SHORTER than the interval: the ~15s of darkness between rounds is where the dread lives, and a
+permanently lit compound is a lit stage. Probes are never lit - holding off in the dark is what
+makes a probe read as a probe. Feeds the already-scoped `_light_check()`.
+**Verify: does the lit ground show them crossing, and does it go dark again between rounds?**
+
+**C7. [?] ONE SHARED `squad_id` THROTTLES THE WHOLE ASSAULT.** *(found 7/30, NOT fixed - needs a
+council ruling, do not improvise this)* `field_director.gd:51` sets
+`enemy.squad_id = hash(group_tag)`, so all 45 `siege_assault` men are ONE squad.
+`SQUAD_GRENADE_COOLDOWN_MS 12000` therefore allows **one grenade every 12s across the entire
+assault**. The structurally correct fix is one squad per `MarchingCell` (the class docstring
+already calls a cell a fireteam) - but `squad_id` is also read by
+`EnemySquad.has_covering_fire` (every man currently always has it, worth +0.2 ADVANCE),
+`force_ratio`, and `is_broken` (the whole assault currently breaks as one body, alongside
+SiegeDirector's own separate ledger), and `spawn_tracked_enemy:56` has already registered the
+contact ledger under that id. Changing it moves four systems at once.
+
 **C5. [C] THE DEMO'S NIGHT ASSAULT HAD NEVER HAPPENED.** *(fixed 7/30, unverified)*
 `demo_game.gd:29` declared `SIEGE_STRENGTH 40`, but at 720s `_open_siege` hit the
 `if d.siege.active` guard (`:197-203`) and emitted a toast. The 600s probe was still active
@@ -119,9 +143,27 @@ credits kills the player never made). `SIEGE_STRENGTH` is now **45 TOTAL**, not 
 
 ## D. WORLD AND VEHICLES
 
-**D1. [C] Convoys drive through buildings.** `Convoy._physics_process` assigns
-`global_position` directly - no `move_and_slide`, no navmesh, no collision. Fix is ROUTING
-(road + gate), not making trucks collide.
+**D1. [C] Convoys drive through buildings.** *(two real defects fixed 7/30, unverified; the full
+routing job DEFERRED - and this item's original diagnosis was WRONG)*
+Routing already exists: `mission_generator.gd:337-342` uses `road_network.longest_route()` and
+refuses to spawn without a road. But `build(gate, villages)` makes the **gate the hub and
+villages the spokes**, so there is **no map-edge road** and a convoy drives OUTWARD from the base
+into a village.
+**Fixed 7/30 — the column was born in the buildings.** `convoy_spawner.gd` strung vehicles
+2..N straight back along `-heading` from `route[0]`, a line through whatever happens to be
+there: six vehicles at 6m reaches 30m behind the start, and when the start is the wire gate
+those trucks stand INSIDE the compound. They now occupy the first stretch of their own route by
+ARC LENGTH (`_seat_along_route`), lead furthest along, so every vehicle begins on the surveyed
+line.
+**Fixed 7/30 — the column crabbed.** `convoy.gd` never touched rotation after spawn, so every
+vehicle held its spawn yaw through every bend. Now `_face_along` lerps yaw toward the direction
+of travel at `TURN_RATE 3.0`, using the same `atan2(x, z)` the spawner seats with so spawning and
+driving agree.
+**Still open:** no map-edge road (routes end at a village centre), trucks collide with nothing,
+`road_network.gd:155-171` reads only terrain type + slope on a **12m** grid cell so a hut is
+smaller than one cell and this router can never miss a building. Driving a road properly is one
+session; driving through the gate is multi-session (interior routing through `-colonly`
+trimeshes + a motor-pool datum). Largely invisible in a 512m firebase-holdout slice.
 
 **D2. [C] Spooky keep-out.** Done 7/29 - ambient gunship orbit pushed 420m off `fsb_center`
 after it strafed the player's own compound. Verify it never recurs.
