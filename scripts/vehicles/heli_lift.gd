@@ -33,19 +33,17 @@ const DOOR_RATE_DEG: float = 150.0
 const DOOR_L_NAME: String = "Door_Left"
 const DOOR_R_NAME: String = "Door_Right"
 
-## One clip per passenger so six men off one ship are six different men. Only three ship in
-## `anim_library.glb` today (`disembark_heli`, `_b`, `_c`); `play_first` falls through the rest, so
-## naming all six now means d/e/f start working the moment they are exported.
+## One clip per passenger, so six men off one ship are six different men. All six are present in
+## `assets/shared/anim_library.glb` (verified 2026-07-30).
 const DISEMBARK_CLIPS: Array[String] = [
 	"disembark_heli", "disembark_heli_b", "disembark_heli_c",
 	"disembark_heli_d", "disembark_heli_e", "disembark_heli_f",
 ]
-## NONE of these exist yet - they are being mocapped. Every name falls through until they land,
-## which costs nothing: a man with no board clip still walks to the door and seats.
-const BOARD_CLIPS: Array[String] = [
-	"board_heli", "board_heli_b", "board_heli_c",
-	"board_heli_d", "board_heli_e", "board_heli_f",
-]
+## EMPTY ON PURPOSE. Boarding is being mocapped and no clip exists yet, so there are no names
+## here to invent - the library holds zero clips matching `board`. Add their REAL exported names
+## when they land; until then a man walks to the door and seats with no boarding animation, which
+## is what `play_first` returning "" already means.
+const BOARD_CLIPS: Array[String] = []
 
 var heli: Helicopter = null
 var director: FieldDirector = null
@@ -253,7 +251,9 @@ func _extract() -> void:
 			continue
 		if civ.global_position.distance_to(pad) > EXTRACT_REACH_M:
 			continue
-		if civ.actor != null and is_instance_valid(civ.actor):
+		# No-op while BOARD_CLIPS is empty. The call stays so that filling that const is the ONLY
+		# change needed when the boarding mocap lands - not a const plus a forgotten call site.
+		if not BOARD_CLIPS.is_empty() and civ.actor != null and is_instance_valid(civ.actor):
 			civ.actor.play_first(BOARD_CLIPS)
 		going.append(civ)
 		if going.size() >= PAX_MAX:

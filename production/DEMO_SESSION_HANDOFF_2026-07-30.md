@@ -102,6 +102,49 @@ so `is_instance_valid` passes forever on a structure that is gone; that is the t
 
 ---
 
+## HUEY TROOP DELIVERY / EXTRACTION (late 7/30, unverified)
+
+`Helicopter` has emitted `landed`/`took_off` and `SeatSystem` has offered
+seat/unseat/unseat_all/board_squad since both were written, with **zero production callers** —
+so a Huey landed on the pad, idled out its ground seconds and left EMPTY, and the ship-gate
+clause "Huey landings with troops disembarking" was scenery. `HeliLift`
+(`scripts/vehicles/heli_lift.gd`) is the consumer, attached in `air_traffic._dispatch_lz_cycle`.
+
+**Mission is decided at DISPATCH**, not touchdown, because a delivery must arrive with men
+already aboard. The concealment rule is satisfied by the DOORS: shut the whole way in, opening
+only once the wheels are down. `Door_Left`/`Door_Right` are driven off their AUTHORED shut pose,
+never an assumed zero.
+
+**Need drives it, not a coin** (a deliberate change from the brief's "roll", flagged to him):
+under `ESTABLISHMENT 28` the ship brings replacements; at strength it takes men out. That makes
+the pad logistics and makes the butcher's bill mechanical — men die, the garrison drops, the next
+ship brings their replacements.
+
+**His two rulings:** delivered troops arrive as garrison **Civilians** reusing the existing
+promote path (an AllyBase would be a second path against ADR-023, is full-cost always where a
+Civilian is LOD-aware, and has no schedule or work marker so it would stand where it landed);
+and they **persist against the cap** — replacements fill vacancies and never stack.
+
+`garrison_strength()` counts `firebase_garrison` AND `garrison_promoted`, because `promote()`
+moves a man between them and counting one reports half a garrison mid-siege. A ship landing INTO
+a fight promotes its men immediately rather than leaving them walking to work posts.
+
+**Clips:** all six `disembark_heli` / `_b`–`_f` are present (`anim_library.glb` re-exported
+2026-07-30 23:05, 112 clips). `BOARD_CLIPS` is **empty on purpose** — boarding is still being
+mocapped and the library holds zero `board` clips, so no names were invented. Filling that one
+const is the only change needed when they land; the call site is already there.
+
+**NEEDS AN EDITOR REIMPORT before it can be judged.** `HeliLift` is a new `class_name` with zero
+entries in `.godot/global_script_class_cache.cfg`, so `--check-only` reports
+"Identifier not found: HeliLift" until the editor rescans. Every `class_name` in this project has
+needed that step.
+
+**Unresolved without his eyes:** `huey.tscn` ships no `SeatSystem` node, so one is attached at
+runtime and falls back to the measured UH-1 layout. If the airframe exports real seat sockets
+those win; if the fallback is in use, seated men may sit slightly off the bench.
+
+---
+
 ## VERIFY THESE FIRST (one boot, then read the console)
 
 | Print | What it answers |
@@ -113,6 +156,8 @@ so `is_instance_valid` passes forever on a structure that is gone; that is the t
 | `[AmbientWar] ... held silent - 2 firefights already sounding` | the cap is reporting itself |
 | a lit circle 140 m out, going dark ~15 s between rounds | the garrison is lighting its own wire |
 | `[FSB] N interior prop(s) culled past 40m` | expect **178** — the draw-call fix is live |
+| `[LIFT] inbound with N replacement(s)` / `[LIFT] delivered N` | the Huey is really carrying men |
+| `[LIFT] extracting N man/men from the pad` | the extract branch found eligible men |
 | `[CAS] no clear gun axis 120m off the player - napalm only` | the aiming discipline is live |
 | `[NAV] ally ... no path` count | was 8; still the A1/A2 question |
 
