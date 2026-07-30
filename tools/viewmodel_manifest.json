@@ -389,96 +389,100 @@
    "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
   }
  },
- "_items_doc": "NON-GUN FP ITEMS (knife, radio handset, claymore, grenade, bandage). Same export driver and same validator as `guns`, three differences: the root key is `item_root` not `gun_root`; `markers` names its own required empties instead of the SightRear/SightFront/MuzzlePoint iron-sight set; and no `weapon_tres`, so sync_weapon_timers.py never runs against it. EVERYTHING ELSE IS THE SAME LAW: the clip set must match EXACTLY (no extras), and EVERY clip must carry a channel for EVERY listed part - a part with no track in a clip cannot reset in Godot and holds whatever pose the previous clip left it in. CLIP NAMES ARE LITERAL AND THE ENGINE ASKS FOR THEM BY STRING: weapon_holder.gd:929,937 ask for `rifle_idle` and `charge_handle`, so an item whose idle is named anything else plays NOTHING and sits in its rest pose. Keep `rifle_idle` as the idle clip name even on a knife - it is the engine's word for 'the held pose', not a claim about rifles. The object/marker names below are PLACEHOLDERS pending the authored rigs: correct them to whatever the .blend actually ships, then run `python tools/export_all_viewmodels.py <key>`.",
+ "_items_doc": "NON-GUN FP ITEMS. Same export driver and same validator as `guns`, three differences: the root key is `item_root` not `gun_root`; `markers` names its own required empties instead of the SightRear/SightFront/MuzzlePoint iron-sight set (`markers_under_gun` is FALSE - these are not guns and have no sights); and no `weapon_tres`, so sync_weapon_timers.py never runs against them. EVERYTHING ELSE IS THE SAME LAW: the clip set must match EXACTLY (no extras), and EVERY clip must carry a channel for EVERY listed part. VOCABULARY, and the names are the ENGINE's not the item's: `rifle_idle` = the held pose (weapon_holder.gd:934 asks for this literal string on EVERY viewmodel, gun or not - an idle named anything else plays NOTHING and renders in bind pose); `charge_handle` = the DRAW (weapon_holder.gd:939 auto-plays it on equip, so the CS-style deploy is free); `fire` = the item's action. There is NO `equip` and NO `holster` - SPEC.md asks for both and is wrong; nothing plays on holster anywhere in this engine, so a holster clip needs new code, not new art. The grenade is the one item with an extra action (`throw`), because cook-and-hold then release is two beats of gameplay that one `fire` cannot express. Playback for all of these is scripts/weapons/item_viewmodel.gd. Borrow map from the CC0 stock arm clips: production/research/equipment_viewmodels/STOCK_CLIP_SOURCES.md.",
  "items": {
-  "knife": {
-   "collection": "RIG_Knife",
-   "item_root": "Knife_root",
-   "real_length_m": 0.3,
-   "clips": [
-    "rifle_idle",
-    "fire"
-   ],
-   "parts": [
-    "Knife_root"
-   ],
-   "markers": [
-    "GripPoint",
-    "BladeTip"
-   ],
-   "markers_under_gun": true,
-   "_note": "fire = the stab. The rear takedown reuses it; MeleeVerb decides lethality, not the clip."
-  },
   "handset": {
    "collection": "RIG_Handset",
-   "item_root": "Handset_root",
-   "real_length_m": 0.22,
+   "item_root": "Radio_Handset",
+   "real_length_m": 0.196,
    "clips": [
     "rifle_idle",
     "charge_handle"
    ],
    "parts": [
-    "Handset_root"
+    "Radio_Handset"
    ],
    "markers": [
-    "GripPoint",
-    "EarPiece"
+    "grip_R_Handset"
    ],
-   "markers_under_gun": true,
-   "_note": "charge_handle = the RAISE to the ear (the engine's draw slot). Replaces the BoxMesh placeholder at player.gd:333."
+   "markers_under_gun": false,
+   "_note": "charge_handle = the raise to the ear (borrow grab.R). rifle_idle = held at the face, fingers flexing. Replaces the BoxMesh at player.gd:333. Cheapest of the three - model is done and unexported."
   },
   "claymore": {
    "collection": "RIG_Claymore",
-   "item_root": "Claymore_root",
-   "real_length_m": 0.22,
-   "clips": [
-    "rifle_idle",
-    "fire"
-   ],
-   "parts": [
-    "Claymore_root"
-   ],
-   "markers": [
-    "GripPoint"
-   ],
-   "markers_under_gun": true,
-   "_note": "fire = the plant. grip_R_Claymore in the blend was flagged as a GUESS - confirm it before export."
-  },
-  "m26_grenade": {
-   "collection": "RIG_M26",
-   "item_root": "M26_root",
-   "real_length_m": 0.14,
+   "item_root": "Claymore",
+   "real_length_m": 0.192,
    "clips": [
     "rifle_idle",
     "charge_handle",
     "fire"
    ],
    "parts": [
-    "M26_root",
+    "Claymore"
+   ],
+   "markers": [
+    "grip_R_Claymore",
+    "grip_L_Claymore",
+    "face_Claymore"
+   ],
+   "markers_under_gun": false,
+   "_note": "fire = the two-handed plant (borrow push.L/push.R). face_Claymore +Y is the kill direction (Blender +Y = Godot -Z). grip_R_Claymore was flagged a GUESS - confirm before export. Model is 128mm wide vs a real M18's 216mm."
+  },
+  "m26_grenade": {
+   "collection": "RIG_M26",
+   "item_root": "M26_Grenade",
+   "real_length_m": 0.074,
+   "clips": [
+    "rifle_idle",
+    "charge_handle",
+    "fire",
+    "throw"
+   ],
+   "parts": [
+    "M26_Grenade",
     "M26_pin"
    ],
    "markers": [
-    "GripPoint"
+    "grip_R_M26"
    ],
-   "markers_under_gun": true,
-   "_note": "charge_handle = pull the pin, fire = throw. Splitting M26_pin is what lets the pin actually leave."
+   "markers_under_gun": false,
+   "_note": "charge_handle = draw (grab.R), fire = PIN PULL (grab.L), throw = the release (jab.R). Splitting M26_pin is what lets the pin actually leave. The throw's release frame must line up with grenade_handler.throw() spawning the projectile."
   },
   "bandage": {
    "collection": "RIG_Bandage",
-   "item_root": "Bandage_root",
+   "item_root": "Bandage",
    "real_length_m": 0.1,
    "clips": [
     "rifle_idle",
+    "charge_handle",
     "fire"
    ],
    "parts": [
-    "Bandage_root"
+    "Bandage"
    ],
    "markers": [
-    "GripPoint"
+    "grip_L_Bandage"
    ],
-   "markers_under_gun": true,
-   "_note": "fire = the wrap. Slot 4 (MEDKIT) currently plays no viewmodel at all."
+   "markers_under_gun": false,
+   "_note": "fire = the wrap (borrow finger_gun_fix, the only two-handed fiddling clip). Stretched to HealthSystem._heal_time_this at runtime, so author it at any comfortable length."
+  },
+  "knife": {
+   "collection": "RIG_Knife",
+   "item_root": "Knife",
+   "real_length_m": 0.3,
+   "clips": [
+    "rifle_idle",
+    "charge_handle",
+    "fire"
+   ],
+   "parts": [
+    "Knife"
+   ],
+   "markers": [
+    "grip_R_Knife"
+   ],
+   "markers_under_gun": false,
+   "_note": "The stock CC0 set IS the knife's clip set, no retarget: knife_draw -> charge_handle, knife_idle -> rifle_idle, knife_hit_01 -> fire. MeleeVerb decides lethality, not the clip."
   }
  }
 }

@@ -17,10 +17,17 @@ var cook_timer: float = 0.0
 var controller: CharacterBody3D
 var equipment_manager: EquipmentManager
 
-## Grenade viewmodel
-var grenade_viewmodel: Node3D = null
+## Grenade viewmodel. Driven by the shared ItemViewmodel so the clips an authored GLB
+## carries actually PLAY - this used to be a bare Node3D toggled `visible`, which renders
+## even a perfect export in its bind pose.
+var grenade_viewmodel: ItemViewmodel = null
 const GRENADE_VIEWMODEL_PATH: String = "res://scenes/weapons/m26_grenade_viewmodel.tscn"
 const GRENADE_HOLD_POSITION: Vector3 = Vector3(0.3, -0.3, -0.4)
+## Pin and throw are separate beats of gameplay - hold to cook, release to throw - so the
+## item vocabulary's single `fire` cannot express both. `fire` is the pin pull.
+const CLIP_THROW: StringName = &"throw"
+## The grenade slot in the EquipmentManager contract.
+const SLOT: int = 2
 
 func _ready() -> void:
 	_load_grenade_viewmodel()
@@ -29,27 +36,53 @@ func _ready() -> void:
 func setup(ctrl: CharacterBody3D, equip: EquipmentManager) -> void:
 	controller = ctrl
 	equipment_manager = equip
+	# _ready ran before setup, so the viewmodel was built without a camera for the lens.
+	if grenade_viewmodel == null:
+		_load_grenade_viewmodel()
+	if equip != null and not equip.slot_changed.is_connected(_on_slot_changed):
+		equip.slot_changed.connect(_on_slot_changed)
+
+
+func _on_slot_changed(slot_index: int, _slot_type: Enums.SlotType) -> void:
+	if slot_index == SLOT:
+		on_slot_entered()
+	else:
+		on_slot_exited()
 
 
 func _load_grenade_viewmodel() -> void:
-	if ResourceLoader.exists(GRENADE_VIEWMODEL_PATH):
-		var scene: PackedScene = load(GRENADE_VIEWMODEL_PATH)
-		if scene:
-			grenade_viewmodel = scene.instantiate()
-			grenade_viewmodel.visible = false
-			grenade_viewmodel.position = GRENADE_HOLD_POSITION
-			grenade_viewmodel.scale = Vector3.ONE * 0.03  # Match weapon scale
-			add_child(grenade_viewmodel)
+	var cam: Camera3D = controller.get_node_or_null("Head/Camera3D") as Camera3D 		if controller != null else null
+	grenade_viewmodel = ItemViewmodel.create(self, GRENADE_VIEWMODEL_PATH,
+		GRENADE_HOLD_POSITION, cam)
+
+
+## Selecting the slot brings the grenade UP, the way drawing a rifle does. It used to
+## appear only once you already held the fire button, so the deploy was never seen.
+func on_slot_entered() -> void:
+	if grenade_viewmodel != null and equipment_manager != null 			and equipment_manager.get_grenade_count() > 0:
+		grenade_viewmodel.deploy()
+
+
+func on_slot_exited() -> void:
+	if grenade_viewmodel != null and not is_cooking:
+		grenade_viewmodel.stow()
 
 
 func _show_grenade() -> void:
-	if grenade_viewmodel:
-		grenade_viewmodel.visible = true
+	if grenade_viewmodel == null:
+		return
+	if not grenade_viewmodel.visible:
+		grenade_viewmodel.deploy()
+	# `fire` is the pin pull; the cook pose is wherever it leaves the hand.
+	grenade_viewmodel.play_action()
 
 
 func _hide_grenade() -> void:
-	if grenade_viewmodel:
-		grenade_viewmodel.visible = false
+	if grenade_viewmodel == null:
+		return
+	# The grenade has left the hand: play the throw out and then put the hand away,
+	# never settle back to a held-grenade idle.
+	grenade_viewmodel.play_action_then_stow(CLIP_THROW)
 
 
 func _process(delta: float) -> void:

@@ -562,6 +562,27 @@ func field_interact_prompt() -> String:
 	return ""
 
 
+## The claymore has no equipment slot - it is placed straight off its key - so its
+## viewmodel is a one-shot: hands come up, plant, hands go away. Built on first use so a
+## missing scene costs nothing until then.
+const CLAYMORE_VIEWMODEL_PATH: String = "res://scenes/weapons/claymore_viewmodel.tscn"
+const CLAYMORE_HOLD_POSITION: Vector3 = Vector3(0.3, -0.3, -0.4)
+var _claymore_vm: ItemViewmodel = null
+
+
+func _play_claymore_plant() -> void:
+	if _claymore_vm == null:
+		var cam: Camera3D = get_node_or_null("Head/Camera3D") as Camera3D
+		if cam == null:
+			return
+		_claymore_vm = ItemViewmodel.create(cam, CLAYMORE_VIEWMODEL_PATH,
+			CLAYMORE_HOLD_POSITION, cam)
+		if _claymore_vm == null:
+			return      # not authored yet; the mine still goes down
+	_claymore_vm.deploy()
+	_claymore_vm.play_action_then_stow()
+
+
 ## Swap the gun on the ground for the one in your hands. The old weapon is DROPPED, not
 ## destroyed: a trade you can walk back and undo is the whole point of the verb.
 func _take_world_weapon(gun: WorldWeapon) -> void:
@@ -1390,6 +1411,7 @@ func _handle_movement(delta: float) -> void:
 		claymore_count -= 1
 		var aim := get_aim_direction()
 		Claymore.place(get_tree().current_scene, global_position + Vector3(aim.x, 0, aim.z).normalized() * 1.2, aim)
+		_play_claymore_plant()
 
 	# [K] stabs without drawing the knife: reaching for a slot is exactly the half-second
 	# a silent takedown does not have.

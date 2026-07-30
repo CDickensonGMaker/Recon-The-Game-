@@ -50,7 +50,9 @@ var controller: Node = null
 var equipment_manager = null
 
 ## Medkit viewmodel
-var medkit_viewmodel: Node3D = null
+## Driven by the shared ItemViewmodel: a bare Node3D toggled `visible` renders even a
+## perfectly authored GLB in its bind pose.
+var medkit_viewmodel: ItemViewmodel = null
 const MEDKIT_VIEWMODEL_PATH: String = "res://scenes/weapons/medkit_viewmodel.tscn"
 const MEDKIT_HOLD_POSITION: Vector3 = Vector3(0.3, -0.3, -0.4)
 
@@ -79,23 +81,22 @@ func _load_medkit_viewmodel() -> void:
 	var camera: Camera3D = controller.get_node_or_null("Head/Camera3D")
 	if not camera:
 		return
-	if ResourceLoader.exists(MEDKIT_VIEWMODEL_PATH):
-		var scene: PackedScene = load(MEDKIT_VIEWMODEL_PATH)
-		if scene:
-			medkit_viewmodel = scene.instantiate()
-			medkit_viewmodel.visible = false
-			medkit_viewmodel.position = MEDKIT_HOLD_POSITION
-			camera.add_child(medkit_viewmodel)
+	medkit_viewmodel = ItemViewmodel.create(camera, MEDKIT_VIEWMODEL_PATH,
+		MEDKIT_HOLD_POSITION, camera)
 
 
+## The wrap is timed to the HEAL CLOCK, not the other way round: gameplay owns the
+## duration and the clip is stretched onto it, so retiming the heal never desyncs the art.
 func _show_medkit() -> void:
-	if medkit_viewmodel:
-		medkit_viewmodel.visible = true
+	if medkit_viewmodel == null:
+		return
+	medkit_viewmodel.deploy()
+	medkit_viewmodel.play_action_over(ItemViewmodel.CLIP_ACTION, _heal_time_this)
 
 
 func _hide_medkit() -> void:
-	if medkit_viewmodel:
-		medkit_viewmodel.visible = false
+	if medkit_viewmodel != null:
+		medkit_viewmodel.stow()
 
 
 ## Start healing (called when player activates medkit from equipment)
