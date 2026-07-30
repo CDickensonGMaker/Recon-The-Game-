@@ -12,12 +12,21 @@ extends Node3D
 ##   1. does he REACH the objective       (assault_objective drives his legs)
 ##   2. does the satchel DETONATE         (SapperCharge, 5m trigger)
 ##   3. does anything actually BREAK      (Destructible on the AgentRegistry.props blast bus)
+##   4. is the HOLE WALKABLE afterwards  (NavBaker.breach_at re-bakes; ASSAULTERS walk it)
+##
+## Question 4 is the one that makes the other three matter. His ruling 2026-07-30: "the
+## sappers are supposed to be able to blow up the barbwire and sandbags and bunkers etc...
+## then we can have attacks from all over." Until the navmesh was rebuilt on destroy, a
+## breach was scenery: the wall vanished and the men still walked to the gate, because
+## nothing had told the mesh the wall was gone. The wall here is a SOLID LINE with no gate,
+## so the only way to the far side is a hole the sappers made.
 ##
 ## Sterile by decree: no squad, no other enemies, no jungle, no weather. Anything that fails
 ## here is the sapper chain, not the world. (ADR-028 keeps the WORLD on one build path; a bench
 ## is not a world - it stands up three men and a wall.)
 ##
 ## Keys: [R] respawn the wave · [K] kill the standing sappers · [T] blow one wall for reference
+##       [B] send the assault NOW (tests the lane whether or not a hole exists yet)
 ## Run: godot --path . res://scenes/levels/sapper_room.tscn
 
 const FIELD: float = 120.0
@@ -40,6 +49,25 @@ var _sappers: Array[EnemyBase] = []
 var _walls: Array[Destructible] = []
 var _target_total: int = 0
 var _wave: int = 0
+## ---- THE BREACH PROOF ----
+## Men who must cross the wall line. They are given an objective BEHIND it and no gate, so
+## "arrived" can only mean they walked through a hole.
+const ASSAULT_MEN: int = 4
+const ASSAULT_DATA: String = "res://data/enemies/nva_regular.tres"
+## Far side of the wall: they start short of it, the objective is past it.
+const ASSAULT_START_Z: float = 14.0
+const ASSAULT_GOAL_Z: float = -APPROACH_M - 14.0
+## Inside this of the goal counts as through.
+const THROUGH_M: float = 4.0
+## Sent automatically once something has actually been destroyed, so the bench answers
+## the whole chain in one sitting without a keypress.
+const ASSAULT_AFTER_BREACH_S: float = 6.0
+
+var _nav: NavBaker = null
+var _assault: Array[EnemyBase] = []
+var _assault_sent: bool = false
+var _breach_clock: float = -1.0
+var _through_peak: int = 0
 var _t: float = 0.0
 
 
@@ -49,6 +77,7 @@ func _ready() -> void:
 	_spawn_player()
 	_build_director()
 	_build_targets()
+	_build_nav()
 	_build_readout()
 	_spawn_wave()
 
@@ -186,6 +215,57 @@ func _full_restart() -> void:
 	get_tree().reload_current_scene()
 
 
+## A navmesh over the bench, baked from the TARGETS' OWN COLLIDERS. That is what makes this
+## a proof rather than a demo: it is the same `_add_colliders` path the firebase uses, so a
+## hole here means a hole there. NavBaker skips DISABLED shapes and _do_destroy disables
+## them, so the wall is solid until a satchel takes it down.
+func _build_nav() -> void:
+	_nav = NavBaker.new()
+	_nav.name = "NavBaker"
+	add_child(_nav)
+	# _start_bake RETURNS EARLY on a null terrain, so the bench must hand it one. The shared
+	# flat bench terrain (get_height_at = 0) is exactly that and already exists.
+	var flat := FireSupportBench.BenchTerrain.new()
+	add_child(flat)
+	_nav.setup(flat)
+	_nav.queue_site_with_colliders(Vector3.ZERO, FIELD * 0.5, self)
+
+
+## Men on the NEAR side, objective on the FAR side. THERE IS NO GATE IN THIS WALL, so every
+## arrival is a man who walked through a hole the sappers made.
+func _send_assault() -> void:
+	if _assault_sent:
+		return
+	_assault_sent = true
+	for i in range(ASSAULT_MEN):
+		var at := Vector3((float(i) - 1.5) * 3.0, 0.6, ASSAULT_START_Z)
+		var man: EnemyBase = _director.spawn_tracked_enemy(at, ASSAULT_DATA, "breach_assault")
+		if man == null:
+			continue
+		man.assault_objective = Vector3(0.0, 0.0, ASSAULT_GOAL_Z)
+		man.assault_driven = true
+		_assault.append(man)
+	print("[SAPPER-ROOM] assault away: %d men must cross the wall line" % _assault.size())
+
+
+func _through_count() -> int:
+	var n: int = 0
+	for m in _assault:
+		if m == null or not is_instance_valid(m) or m.is_dead():
+			continue
+		if absf(m.global_position.z - ASSAULT_GOAL_Z) <= THROUGH_M:
+			n += 1
+	return n
+
+
+func _destroyed_count() -> int:
+	var n: int = 0
+	for w in _walls:
+		if w != null and is_instance_valid(w) and w.is_destroyed():
+			n += 1
+	return n
+
+
 func _build_readout() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
@@ -197,6 +277,17 @@ func _build_readout() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# Once something is actually down, send the assault: the bench answers the whole chain
+	# in one sitting rather than waiting on a keypress nobody knew to press.
+	if not _assault_sent and _destroyed_count() > 0:
+		if _breach_clock < 0.0:
+			_breach_clock = ASSAULT_AFTER_BREACH_S
+		_breach_clock -= delta
+		if _breach_clock <= 0.0:
+			_send_assault()
+	# PEAK, not live: a man who crosses and then walks on has still proved the hole, and
+	# the point of the bench is that the crossing HAPPENED.
+	_through_peak = maxi(_through_peak, _through_count())
 	if _readout == null:
 		return
 	var alive: int = 0
@@ -224,11 +315,14 @@ func _process(delta: float) -> void:
 		+ "sappers up: %d/%d      nearest to objective: %s\n"
 		+ "targets standing: %d/%d\n"
 		+ "blown: %s\n"
-		+ "[R] new wave   [K] kill wave   [T] blow one target   [F5] rebuild from GLB") % [
+		+ "BREACH: %s      THROUGH THE WALL: %d/%d\n"
+		+ "[R] new wave  [K] kill wave  [T] blow one  [B] send assault  [F5] rebuild") % [
 			_wave, alive, SAPPERS,
 			"-" if nearest > 9000.0 else "%.1fm" % nearest,
 			standing, _target_total,
-			"nothing yet" if killed.is_empty() else ", ".join(killed)]
+			"nothing yet" if killed.is_empty() else ", ".join(killed),
+			("OPEN - %d down" % _destroyed_count()) if _destroyed_count() > 0 else "CLOSED",
+			_through_peak, _assault.size()]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -247,6 +341,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			for s in _sappers:
 				if s != null and is_instance_valid(s) and not s.is_dead():
 					s.take_damage(9999, Enums.DamageType.EXPLOSIVE, null)
+			get_viewport().set_input_as_handled()
+		KEY_B:
+			_send_assault()
 			get_viewport().set_input_as_handled()
 		KEY_T:
 			# Reference blast: proves the TARGET side independently of the sapper side, so a

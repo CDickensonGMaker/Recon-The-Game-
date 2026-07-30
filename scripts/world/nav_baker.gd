@@ -55,6 +55,21 @@ var _active_mesh: NavigationMesh = null
 var _bake_start_ms: int = 0
 var _total_ms: int = 0
 
+## ---------- BREACHING ----------
+## "sites != chunks -> a crater never triggers a re-bake" is right about CRATERS and wrong
+## about STRUCTURES. A satchel that drops a parapet segment or a bunker has changed what a
+## man can walk through, and until this existed the hole was cosmetic: _add_colliders
+## already skips `disabled` shapes and Destructible._do_destroy already disables them, so
+## the mesh was correct the moment it was rebuilt - nothing ever rebuilt it.
+##
+## Debounced, because a satchel kills several segments in one blast and each would
+## otherwise queue its own bake of the same box.
+const REBAKE_DEBOUNCE_S: float = 1.5
+## Completed jobs, kept so a breach can re-run the one that owns its ground.
+var _baked: Array[Dictionary] = []
+var _dirty: Array[int] = []
+var _dirty_timer: float = 0.0
+
 
 static func clear() -> void:
 	# GameFlow builds mission after mission in one process, and test_site_stamp
@@ -82,6 +97,7 @@ static func _xz_contains(b: AABB, p: Vector3) -> bool:
 
 
 func setup(terrain: TerrainManager) -> void:
+	add_to_group(&"nav_baker")
 	_terrain = terrain
 
 
@@ -121,6 +137,14 @@ func queue_sites(sites: Array, anchors: Array[Vector3]) -> void:
 
 func queue_site(center: Vector3, radius: float) -> void:
 	_queue.append({"box": _box_for(center, radius)})
+
+
+## Bake a box from LIVE COLLIDERS under `root` instead of the structure table. This is the
+## firebase's own path (_queue_firebase uses it) made callable, so a bench can prove a breach
+## through exactly the geometry the compound uses - and so the re-bake has a collider root to
+## re-read when a wall dies.
+func queue_site_with_colliders(center: Vector3, radius: float, root: Node3D) -> void:
+	_queue.append({"box": _box_for(center, radius, radius), "colliders": root})
 
 
 func _queue_firebase(site: Dictionary) -> void:
@@ -164,7 +188,58 @@ static func _xz_overlap(a: AABB, b: AABB) -> bool:
 		and a.position.z < b.position.z + b.size.z and b.position.z < a.position.z + a.size.z
 
 
-func _process(_delta: float) -> void:
+## Something solid died at `at`: rebuild the navmesh that owns that ground so the hole is
+## walkable. Safe to call from anything, any number of times - it debounces.
+func breach_at(at: Vector3) -> void:
+	for i in range(_baked.size()):
+		if NavBaker._xz_contains(_baked[i]["box"] as AABB, at):
+			if i not in _dirty:
+				_dirty.append(i)
+			_dirty_timer = REBAKE_DEBOUNCE_S
+			return
+
+
+## The one baker in the tree, or null. Destructible has no reference to the world and must
+## not grow one; the group is how it finds this.
+static func instance(from: Node) -> NavBaker:
+	if from == null or from.get_tree() == null:
+		return null
+	return from.get_tree().get_first_node_in_group(&"nav_baker") as NavBaker
+
+
+func _remember(box: AABB, region: NavigationRegion3D, croot: Node3D) -> void:
+	for j in _baked:
+		if (j["box"] as AABB).is_equal_approx(box):
+			var old := j.get("region", null) as NavigationRegion3D
+			if old != null and is_instance_valid(old) and old != region:
+				old.queue_free()      # the replacement is live; drop the stale overlap
+			j["region"] = region
+			if croot != null:
+				j["colliders"] = croot
+			return
+	_baked.append({"box": box, "region": region, "colliders": croot})
+
+
+func _tick_rebakes(delta: float) -> void:
+	if _dirty.is_empty():
+		return
+	_dirty_timer -= delta
+	if _dirty_timer > 0.0:
+		return
+	for i in _dirty:
+		if i < 0 or i >= _baked.size():
+			continue
+		var j: Dictionary = _baked[i]
+		var job: Dictionary = {"box": j["box"]}
+		if j.get("colliders", null) != null:
+			job["colliders"] = j["colliders"]
+		_queue.append(job)
+	print("[NavBaker] breach: re-baking %d region(s)" % _dirty.size())
+	_dirty.clear()
+
+
+func _process(delta: float) -> void:
+	_tick_rebakes(delta)
 	if _active_mesh != null:
 		if NavigationServer3D.is_baking_navigation_mesh(_active_mesh):
 			return
@@ -219,11 +294,12 @@ func _start_bake(job: Dictionary) -> void:
 	_active_mesh = nav
 	_bake_start_ms = Time.get_ticks_msec()
 	NavigationServer3D.bake_from_source_geometry_data_async(
-		nav, source, _on_bake_done.bind(region, nav, box, carved))
+		nav, source, _on_bake_done.bind(region, nav, box, carved, croot))
 
 
 ## Runs on the main thread. The ONLY place navigation_mesh is assigned.
-func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, carved: int) -> void:
+func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, carved: int,
+		croot: Node3D = null) -> void:
 	if not is_instance_valid(region):
 		return
 	var polys: int = nav.get_polygon_count()
@@ -238,6 +314,7 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 		region.navigation_mesh = nav
 		NavBaker._live_boxes.append(box)
 		regions_live += 1
+		_remember(box, region, croot)
 	if _queue.is_empty() and _active_mesh == null:
 		print("[NavBaker] %d region(s), %d polys, %d ms total" % [regions_live, polys, _total_ms])
 

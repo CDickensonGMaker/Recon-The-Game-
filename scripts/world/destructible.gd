@@ -78,6 +78,13 @@ func _do_destroy() -> void:
 		add_child(mi)
 	remove_from_group("soft_cover")
 	remove_from_group("hard_surface")
+	# THE HOLE MUST BE WALKABLE, or destruction is decoration. The colliders above are now
+	# disabled and NavBaker._add_colliders already skips disabled shapes, so the navmesh is
+	# correct the moment it is rebuilt - nothing ever rebuilt it. Debounced inside the baker:
+	# one satchel kills several segments and they all name the same ground.
+	var baker: NavBaker = NavBaker.instance(self)
+	if baker != null:
+		baker.breach_at(global_position)
 	_scatter_rubble()
 	# The blast that killed it also scars the ground (this crater rides the terrain throttle).
 	DamageSystem.apply_damage(global_position, DamageSystem.DamageType.BUNKER_COLLAPSE, 1.0)

@@ -9,6 +9,8 @@ signal grenade_count_changed(count: int)
 ## 0 = primary weapon · 1 = secondary weapon · 2 = grenade · 3 = medkit · 4 = knife
 ## SLOT_COUNT is the ONE place the wheel and the HUD agree on how many there are.
 const SLOT_COUNT: int = 5
+## Named so the viewmodel wiring reads against the contract above instead of a bare 4.
+const SLOT_KNIFE: int = 4
 
 var current_slot: int = 0
 var grenade_count: int = 2
@@ -99,6 +101,9 @@ func _handle_slot_action() -> void:
 		4:  # Knife - FIRE stabs. [K] also stabs from any slot (see MeleeVerb).
 			if Input.is_action_just_pressed("fire") and controller != null:
 				MeleeVerb.strike(controller)
+				# The blade swings whether or not it found a man - a miss is a swing.
+				if controller.has_method("knife_swing"):
+					controller.call("knife_swing")
 
 
 func _start_switch(new_slot: int) -> void:
