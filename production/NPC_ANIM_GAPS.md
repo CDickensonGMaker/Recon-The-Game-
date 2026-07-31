@@ -32,36 +32,37 @@ schedule actions — chains now rotate per man off his spawn hash.
 
 ---
 
+## ALSO CLOSED — second pass, 2026-07-31
+
+- **Turn-in-place.** `turn_left` / `turn_right` wired as a stationary turn intent (fires only for a
+  man who is otherwise idle, so a soldier tracking a target still aims). **MEASURED first, and the
+  measurement split the set:** those two are in-place (0.024 m hip travel, ~0° root yaw), but
+  `turn_90_left` carries **−161.6° of ROOT rotation** and `crouching_turn_90_left` −143.7°. Looping
+  either would spin the mesh off the body. **`turn_90_*` and `crouching_turn_90_*` remain unwired,
+  deliberately** — they are one-shot pivots and want a different mechanism.
+- **Eight-way locomotion.** 14 diagonal and backward clips had zero callers; a man moving at 45°
+  played the straight-ahead clip and crabbed. Now an octant **suffix** on the intent (`run@fl`), so
+  `_intent_core` is untouched. All 31 locomotion clips measured in-place before wiring.
+  `crouch_l`/`crouch_r`/`crouch_back` are deliberately not refined — `_to_crouch` already resolved
+  those and re-deciding them would rewrite the intents the faction-merge contract asserts.
+- **The four social clips — HIS RULING, 2026-07-31: US only, never VC or villagers.** Pulled from
+  the VC camp `talk` role and the villager `talk`/`sit` chains. `standing_arguing` and
+  `briefing_group` wired to off-duty GIs — the last two clips with no caller anywhere.
+
+---
+
 ## STILL OPEN — ranked
 
-### CLOSED 2026-07-31 (second pass)
+### 1. The 90° pivots — `turn_90_left/right` · `crouching_turn_90_left/right`
+Four clips, root-rotating (up to −161.6°, measured). They cannot be looped and cannot be driven by
+a continuous intent. They want a **one-shot pivot** mechanism: latch, play once, let the body's yaw
+catch up, release — the same timed-window pattern prone uses. Real work, not wiring.
 
-- **Turn-in-place** — `turn_left` / `turn_right` wired as a stationary turn intent. **MEASURED
-  first:** those two are in-place (0.024 m hip travel, ~0 deg root yaw), but `turn_90_left` carries
-  **-161.6 deg of ROOT rotation** and the crouching pair up to -143.7. Looping either would spin the
-  mesh off the body, so the `turn_90_*` and `crouching_turn_90_*` pairs stay unwired as one-shots.
-- **Eight-way locomotion** — 14 diagonal/backward clips had zero callers and a man moving at 45
-  degrees played the straight-ahead clip. Now an octant SUFFIX on the intent (`run@fl`). All 31
-  locomotion clips measured in-place before wiring.
-- **The four social clips** — his ruling 2026-07-31: **US only, never VC or villagers.** Pulled from
-  the VC camp `talk` role and the villager `talk`/`sit` chains; `standing_arguing` and
-  `briefing_group` wired to off-duty GIs.
-
-### 1. ~~Turn-in-place~~ — DONE, see above. Original entry kept for the measurement note: — `turn_90_left` · `turn_90_right` · `turn_left` · `turn_right` · `crouching_turn_90_left` · `crouching_turn_90_right`
-**Six clips, zero callers.** A man changing facing while stationary currently slides his feet — the
-state map has no turning intent at all (`_intent_core` reads speed, never angular rate). This is the
-classic "the NPCs look robotic" gap and it is pure animation work. **Highest value remaining.**
-
-### 2. ~~Directional locomotion~~ — DONE 2026-07-31 (octant suffix). Original entry: — `walk_backward*` · `run_forward_left/right` · `run_backward_right` · `sprint_*` diagonals · `walk_crouching_*` diagonals · `strafe_2`
-`MODEL_CLIP`'s own comment says diagonals deliberately share the cardinal clips, *"the standing side
-has no diagonal intents either, so this keeps parity."* Adding diagonal intents is a real read
-improvement but it touches the funnel every man goes through — **War Room item, not a quiet edit.**
-
-### 3. Cover craft — `cover_reposition` · `crouched_sneaking_left` · `crouched_sneaking_right`
+### 2. Cover craft — `cover_reposition` · `crouched_sneaking_left` · `crouched_sneaking_right`
 Cover behaviour exists (`stand_to_cover`, `cover_to_stand`, `cover_wall_lean_idle` are wired) but a
 man never shuffles along his cover. Needs a reposition-within-cover behaviour, which is AI work.
 
-### 4. `jumping_jacks`
+### 3. `jumping_jacks`
 Wants a PT / morning-formation moment in the firebase. **No `work_pt` marker exists** in
 `fsb_main_v3.glb` — needs one marker, which is his Blender work.
 
@@ -73,7 +74,7 @@ Wants a PT / morning-formation moment in the firebase. **No `work_pt` marker exi
 |---|---|
 | `litter_carry_front/rear`, `litter_load_front/rear` | **His art.** The stretchers and `prop_wounded` markers live in the new `medical_complex` (`firebase_v3.1.blend`), which is NOT exported into `fsb_main_v3.glb`. He ruled 7/31: *"I'll do the fire base stuff by hand later."* |
 | `salute`, `signal_move_up` | **His ruling.** Both need a trigger EVENT that does not exist — an officer encounter, a fireteam leader ordering a bound. Inventing the caller means inventing the behaviour. |
-| `briefing_group`, `standing_arguing`, `sitting_talking_b` | **His eye.** Modern American social body language (open-palm gesturing, casual weight shifts). On a VC camp or a village elder they may read as businessmen in costume. `sitting_talking` is already live in the camp `talk` role — watch it and rule. |
+| `sitting_talking_b` | Nothing — it is a 1,350-frame variant of `sitting_talking` and simply has no slot worth spending. The other three of the "four social clips" are RULED and wired (US only). |
 | `swimming` | No water-traversal system for AI. Not an animation gap. |
 | `jump_up/down/away`, `hard_landing`, `falling_to_roll` | No AI vaulting or falling system. Not an animation gap. |
 
