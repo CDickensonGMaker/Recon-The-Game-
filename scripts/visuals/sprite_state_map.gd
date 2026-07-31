@@ -31,8 +31,13 @@ const LOW_POSTURE_SPEED_MAX: float = 2.6
 ##  - DEAD needs the hit direction, which _die() must pass in
 static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		is_firing: bool, speed: float, lateral: float = 0.0, sneaking: bool = false,
-		low_posture: bool = false) -> String:
+		low_posture: bool = false, prone: bool = false) -> String:
 	var intent: String = _intent_core(state, is_crippled, is_surrendered, is_firing, speed, lateral, sneaking)
+	# PRONE outranks crouch: he is already on the ground. Added as its own flag rather
+	# than by widening low_posture to an int, so every existing crouch assertion in
+	# tests/test_low_posture.gd keeps passing unchanged.
+	if prone:
+		return _to_prone(intent)
 	# Low-posture swap: a slow, cautious/pinned man moves in a crouch. Gated on
 	# speed so a fast push (sprint/rout) can NEVER be dragged low - aggression
 	# stays the default. The caller decides WHEN low_posture is on (where the
@@ -122,6 +127,28 @@ static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 			return intent
 
 
+## Remap a standing intent to its PRONE equivalent. Deliberately narrow: prone is a
+## STATIONARY posture, because the library carries no prone locomotion clip and
+## wounded_crawl is a hands-and-knees casualty crawl (measured 36 degrees off the
+## prone hip line), not a soldier crawling to a firing position.
+##
+## Anything that implies MOVEMENT passes through STANDING and unchanged. The caller
+## is expected to have dropped the latch already - CombatPosture.must_rise() releases
+## on `moving` - so this is the second line of defence, not the first. Getting it
+## wrong does not freeze a man; it makes him stand up, which is recoverable.
+## death / crippled / surrender pass through untouched: dying outranks posture.
+static func _to_prone(intent: String) -> String:
+	match intent:
+		"idle", "patrol", "cover", "arrive":
+			return "prone_idle"
+		"aim", "aim_walk":
+			return "prone_aim"
+		"fire":
+			return "prone_fire"
+		_:
+			return intent
+
+
 ## Models carry all 21 authored clips, so they skip the sprite fallback CHAINS
 ## and map an intent straight to a clip they are guaranteed to have.
 const MODEL_CLIP: Dictionary = {
@@ -144,6 +171,13 @@ const MODEL_CLIP: Dictionary = {
 	"crouch_idle": "idle_crouching", "crouch_aim": "idle_crouching_aiming",
 	"crouch_fwd": "walk_crouching_forward", "crouch_back": "walk_crouching_backward",
 	"crouch_l": "walk_crouching_left", "crouch_r": "walk_crouching_right",
+	# Prone family (War Room 2026-07-31). prone_idle carries both the hunker and the
+	# aim: there is no separate prone aiming pose, and the man is already behind his
+	# sights. The two transitions are ONE-SHOTS and are asked for by name, never
+	# through an intent - see the timed-window latch on the AI side.
+	"prone_idle": "prone_idle", "prone_aim": "prone_idle",
+	"prone_fire": "prone_firing_rifle",
+	"to_prone": "crouch_to_prone", "from_prone": "prone_to_crouch",
 }
 
 
@@ -175,6 +209,11 @@ const MODEL_ALIASES: Dictionary = {
 	"death_from_the_front": ["death_forward"],
 	"sprint_forward": ["run_forward"],
 	"falling_to_roll": ["stand_to_cover", "kneeling_pointing"],
+	# A rig with no prone set degrades to its lowest posture rather than T-posing.
+	"prone_idle": ["idle_crouching", "kneeling_pointing"],
+	"prone_firing_rifle": ["idle_crouching_aiming", "idle_crouching", "kneeling_pointing"],
+	"crouch_to_prone": ["idle_crouching", "kneeling_pointing"],
+	"prone_to_crouch": ["idle_crouching", "kneeling_pointing"],
 }
 
 

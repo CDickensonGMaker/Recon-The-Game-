@@ -230,6 +230,13 @@ var _cover_fail_count: int = 0
 var _anim_override: String = ""
 var _leap_until_ms: float = -1e9
 var _low_posture: bool = false         # crouch-walk this frame (heavy pin / eyes-off cover move, B2)
+## Prone latch. Byte-for-byte the enemy's rule via CombatPosture - the two factions
+## share the authority so the contract can never drift between them.
+var _prone: bool = false
+var _prone_since_ms: float = 0.0
+var _prone_pin_since_ms: float = 0.0
+var _prone_drop_until_ms: float = 0.0
+var _prone_rise_until_ms: float = 0.0
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
 var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
 ## See EnemyBase.CROUCH_SPEED_CAP - the move-side half of B2 so the crouch does
@@ -375,7 +382,34 @@ func dress_visual() -> void:
 ## crouch to hold/react/at-cover, stand to advance/flank/rush, a heavy pin crouches
 ## anyone. SEEKING_COVER crouches only once NEAR the cover point.
 func _is_low_posture(_firing: bool) -> bool:
-	return CombatPosture.decide(current_state, suppression_level, _near_cover()) == CombatPosture.Posture.CROUCH
+	return CombatPosture.decide(current_state, suppression_level, _near_cover(), _prone) \
+		== CombatPosture.Posture.CROUCH
+
+
+## See EnemyBase._update_prone_latch - same rule, same constants, same reasons.
+func _update_prone_latch(now: float, speed: float) -> void:
+	var moving: bool = speed > EnemyBase.PRONE_STILL_SPEED
+	if _prone:
+		var dwell: float = (now - _prone_since_ms) / 1000.0
+		if CombatPosture.must_rise(suppression_level, moving, dwell):
+			_prone = false
+			_prone_pin_since_ms = 0.0
+			_prone_rise_until_ms = now + EnemyBase.PRONE_TRANSITION_MS
+		return
+	if CombatPosture.wants_prone(current_state, suppression_level, moving):
+		if _prone_pin_since_ms <= 0.0:
+			_prone_pin_since_ms = now
+		elif now - _prone_pin_since_ms >= CombatPosture.PRONE_ENTER_HOLD_S * 1000.0:
+			_prone = true
+			_prone_since_ms = now
+			_prone_drop_until_ms = now + EnemyBase.PRONE_TRANSITION_MS
+	else:
+		_prone_pin_since_ms = 0.0
+
+
+func _in_prone_transition() -> bool:
+	var now: float = float(Time.get_ticks_msec())
+	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
 
 
 ## A man standing his crew station WORKS it. GarrisonDefender._claim_mortar_station stamps
@@ -443,12 +477,22 @@ func _update_sprite() -> void:
 		return
 	if _play_crew_station(speed):
 		return
+	_update_prone_latch(float(Time.get_ticks_msec()), speed)
+	# The two one-shots outrank the state map, exactly as on the enemy side.
+	if sprite_actor is ModelActor:
+		var now_p: float = float(Time.get_ticks_msec())
+		if _prone_drop_until_ms > now_p:
+			(sprite_actor as ModelActor).play("crouch_to_prone")
+			return
+		if _prone_rise_until_ms > now_p:
+			(sprite_actor as ModelActor).play("prone_to_crouch")
+			return
 	_low_posture = _is_low_posture(firing)
 	# Sneak family: the quiet move to cover BEFORE contact. Allies have no alert
 	# tier (enemy gate: tier <= SUSPICIOUS); "no target yet" is their equivalent.
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and target == null and _near_cover()
-	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture)
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture, _prone)
 	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:
@@ -521,7 +565,12 @@ func _physics_process(delta: float) -> void:
 
 	_update_unstick(capped_delta)
 	# Move-side of low-posture (B2): cap ground speed so the crouch reads, not skates.
-	if _low_posture:
+	# Prone outranks it and clamps to zero - there is no prone crawl in the library, and
+	# clamping HERE rather than returning early from _execute keeps him aiming and firing.
+	if _prone or _in_prone_transition():
+		velocity.x = 0.0
+		velocity.z = 0.0
+	elif _low_posture:
 		var flat := Vector2(velocity.x, velocity.z)
 		if flat.length() > CROUCH_SPEED_CAP:
 			flat = flat.normalized() * CROUCH_SPEED_CAP

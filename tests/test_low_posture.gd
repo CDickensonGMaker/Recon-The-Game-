@@ -58,6 +58,46 @@ func _test_module() -> void:
 	_expect_bool(CombatPosture.decide(Enums.AIState.ADVANCING, 0.7, false) == CROUCH, true, "advancing + heavy pin -> crouch")
 	_expect_bool(CombatPosture.decide(Enums.AIState.IDLE, 0.0, false) == STAND, true, "idle -> stand")
 
+	# --- PRONE (War Room 2026-07-31). ADDED cases only. Every assertion above is the
+	# 2026-07-23 faction-merge contract and is deliberately left untouched: the prone
+	# entry threshold (0.85) sits ABOVE SUPPRESS_PIN (0.7) so it cannot disturb them.
+	print("\n[0b] CombatPosture prone latch")
+	var PRONE := CombatPosture.Posture.PRONE
+	_expect_bool(CombatPosture.decide(Enums.AIState.COMBAT, 0.9, false) == CROUCH, true,
+		"heavy pin alone does NOT go prone - the latch does")
+	_expect_bool(CombatPosture.decide(Enums.AIState.COMBAT, 0.0, false, true) == PRONE, true,
+		"latched -> prone, and it OUTLIVES the suppressed state (that is what lets him fire)")
+	# The entry rule.
+	_expect_bool(CombatPosture.wants_prone(Enums.AIState.SUPPRESSED, 0.9, false), true,
+		"suppressed + heavy pin, still -> wants prone")
+	_expect_bool(CombatPosture.wants_prone(Enums.AIState.SUPPRESSED, 0.9, true), false,
+		"MOVING never goes prone - there is no prone locomotion clip")
+	_expect_bool(CombatPosture.wants_prone(Enums.AIState.SUPPRESSED, 0.7, false), false,
+		"pin at the old CROUCH threshold is not enough")
+	_expect_bool(CombatPosture.wants_prone(Enums.AIState.COMBAT, 0.95, false), false,
+		"only SUPPRESSED commits to the deck")
+	# THE WAY OUT. Three independent releases, any one of which frees him - a prone man
+	# with no exit is a man deleted from the firefight.
+	_expect_bool(CombatPosture.must_rise(0.9, true, 0.0), true, "wants to move -> rise")
+	_expect_bool(CombatPosture.must_rise(0.1, false, 0.0), true, "pin lifted -> rise")
+	_expect_bool(CombatPosture.must_rise(0.9, false, 99.0), true, "dwell ceiling -> rise")
+	_expect_bool(CombatPosture.must_rise(0.9, false, 0.0), false, "pinned, still, fresh -> stay down")
+
+	# The prone intent funnel. Stationary poses map; anything that implies MOVEMENT
+	# passes through standing, so a bad latch stands a man up rather than freezing him.
+	_expect(SpriteStateMap.intent_for(Enums.AIState.COMBAT, false, false, true, 0.0, 0.0, false, false, true),
+		"prone_fire", "prone + firing -> prone_fire")
+	_expect(SpriteStateMap.intent_for(Enums.AIState.COMBAT, false, false, false, 0.0, 0.0, false, false, true),
+		"prone_aim", "prone + holding -> prone_aim")
+	_expect(SpriteStateMap.intent_for(Enums.AIState.SUPPRESSED, false, false, false, 0.0, 0.0, false, false, true),
+		"prone_idle", "prone + suppressed -> prone_idle")
+	_expect(SpriteStateMap.intent_for(Enums.AIState.ADVANCING, false, false, false, 4.2, 0.0, false, false, true),
+		"run", "prone flag on a RUNNING man degrades to standing, never freezes him")
+	_expect(SpriteStateMap.model_clip_for("prone_fire"), "prone_firing_rifle", "model_clip prone_fire")
+	_expect(SpriteStateMap.model_clip_for("prone_idle"), "prone_idle", "model_clip prone_idle")
+	_expect(SpriteStateMap.model_clip_for("to_prone"), "crouch_to_prone", "model_clip to_prone")
+	_expect(SpriteStateMap.model_clip_for("from_prone"), "prone_to_crouch", "model_clip from_prone")
+
 
 ## --- PART A: the intent funnel. Crouch clips appear only with the flag AND at
 ## crouch speed; a fast rush stays upright (the speed backstop).

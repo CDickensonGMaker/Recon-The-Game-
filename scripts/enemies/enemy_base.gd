@@ -165,6 +165,11 @@ var _cand_intent: String = ""          # challenger intent + when it started win
 var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9      # fire pose follows the SHOT, 350ms
 var _low_posture: bool = false         # crouch-walk this frame (caution/pin, Track B2)
+var _prone: bool = false               # latched onto the deck (War Room 2026-07-31)
+var _prone_since_ms: float = 0.0       # when he went down, for the dwell ceiling
+var _prone_pin_since_ms: float = 0.0   # when the pin started holding, for the entry delay
+var _prone_drop_until_ms: float = 0.0  # crouch_to_prone one-shot window
+var _prone_rise_until_ms: float = 0.0  # prone_to_crouch one-shot window
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
 var _throw_until_ms: float = 0.0       # one-shot grenade_throw window (the lob's 1s windup)
 var _stumble_until_ms: float = 0.0     # one-shot stumble_hit window (solid non-lethal hit)
@@ -406,7 +411,49 @@ func _setup_visual() -> void:
 ## anyone. SEEKING_COVER crouches only once NEAR the cover point, never on the goal
 ## flip 10m out.
 func _is_low_posture(_firing: bool) -> bool:
-	return CombatPosture.decide(current_state, suppression_level, _near_cover()) == CombatPosture.Posture.CROUCH
+	return CombatPosture.decide(current_state, suppression_level, _near_cover(), _prone) \
+		== CombatPosture.Posture.CROUCH
+
+
+## Going down and getting up are 1.833s one-shots (measured off the glTF). ModelActor
+## exposes no finished signal, so the window IS the state - same timed-window pattern
+## the stumble and grenade one-shots use.
+const PRONE_TRANSITION_MS: float = 1833.0
+## Below this he counts as stationary. A MOVING man never goes prone and a prone man
+## who starts moving gets up, because there is no prone locomotion clip to give him.
+const PRONE_STILL_SPEED: float = 0.35
+
+
+## The prone LATCH. Held across state changes on purpose: he commits to the deck under
+## a heavy pin, and as the pin decays back through COMBAT he is still down and returns
+## fire from it. Without the latch prone would live entirely inside SUPPRESSED, whose
+## executor is a pure freeze (_execute_suppressed) - and prone_firing_rifle would never
+## play a single frame.
+func _update_prone_latch(now: float, speed: float) -> void:
+	var moving: bool = speed > PRONE_STILL_SPEED
+	if _prone:
+		var dwell: float = (now - _prone_since_ms) / 1000.0
+		if CombatPosture.must_rise(suppression_level, moving, dwell):
+			_prone = false
+			_prone_pin_since_ms = 0.0
+			_prone_rise_until_ms = now + PRONE_TRANSITION_MS
+		return
+	if CombatPosture.wants_prone(current_state, suppression_level, moving):
+		if _prone_pin_since_ms <= 0.0:
+			_prone_pin_since_ms = now
+		elif now - _prone_pin_since_ms >= CombatPosture.PRONE_ENTER_HOLD_S * 1000.0:
+			_prone = true
+			_prone_since_ms = now
+			_prone_drop_until_ms = now + PRONE_TRANSITION_MS
+	else:
+		_prone_pin_since_ms = 0.0
+
+
+## True while either transition is playing. His legs are committed - a man crossing
+## the ground on his belly with no crawl clip in the library is the ice-skate.
+func _in_prone_transition() -> bool:
+	var now: float = float(Time.get_ticks_msec())
+	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
 
 
 func _near_cover() -> bool:
@@ -454,9 +501,20 @@ func _update_sprite() -> void:
 	var firing: bool = now < _fired_until_ms
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and alert_tier <= AlertTier.SUSPICIOUS and _near_cover()
+	_update_prone_latch(now, speed)
+	# Going down and getting up are one-shots, and they outrank the state map the same
+	# way the stumble and the grenade windup do. Death and stumble are checked ABOVE
+	# this, so a man shot mid-transition drops the performance rather than finishing it.
+	if sprite_actor is ModelActor:
+		if _prone_drop_until_ms > now:
+			(sprite_actor as ModelActor).play("crouch_to_prone")
+			return
+		if _prone_rise_until_ms > now:
+			(sprite_actor as ModelActor).play("prone_to_crouch")
+			return
 	_low_posture = _is_low_posture(firing)
 	var prev_intent: String = _last_intent
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture)
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture, _prone)
 	# Stability filter: an intent must WIN continuously for 180ms before the clip
 	# commits. Fire and death still switch immediately.
 	if intent != _last_intent:
@@ -623,7 +681,14 @@ func _physics_process(delta: float) -> void:
 	# Move-side of low-posture (B2): cap ground speed so the crouch clip reads as a
 	# crouch and not a skate. Only cautious/pinned men are low_posture, so this
 	# never throttles a firing assault. Applied after _execute sets velocity.
-	if _low_posture:
+	# HIS LEGS ARE COMMITTED, but his trigger finger is not. Clamped HERE - the one
+	# choke point that runs after every executor - rather than by returning early from
+	# _execute, so a man on the deck still aims and still fires. The library carries no
+	# prone crawl, so any velocity that survives is a man gliding on his belly.
+	if _prone or _in_prone_transition():
+		velocity.x = 0.0
+		velocity.z = 0.0
+	elif _low_posture:
 		var flat := Vector2(velocity.x, velocity.z)
 		if flat.length() > CROUCH_SPEED_CAP:
 			flat = flat.normalized() * CROUCH_SPEED_CAP
