@@ -518,9 +518,15 @@ func _update_sprite() -> void:
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
 	var lateral: float = 0.0
+	# Signed forward component, so the state map can tell a diagonal from a straight
+	# run. Without it a man moving at 45 degrees played the straight-ahead clip and
+	# crabbed - feet driving forward while the body slid off sideways.
+	var forward_c: float = 1.0
 	if speed > 0.1:
 		var fwd := Vector3(facing_dir.x, 0.0, facing_dir.z).normalized()
-		lateral = vel_flat.normalized().dot(fwd.cross(Vector3.UP))
+		var vdir := vel_flat.normalized()
+		lateral = vdir.dot(fwd.cross(Vector3.UP))
+		forward_c = vdir.dot(fwd)
 	var now: float = float(Time.get_ticks_msec())
 	var firing: bool = now < _fired_until_ms
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
@@ -539,7 +545,7 @@ func _update_sprite() -> void:
 			return
 	_low_posture = _is_low_posture(firing)
 	var prev_intent: String = _last_intent
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture, _prone, _turn_rate)
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture, _prone, _turn_rate, forward_c)
 	# Stability filter: an intent must WIN continuously for 180ms before the clip
 	# commits. Fire and death still switch immediately.
 	if intent != _last_intent:

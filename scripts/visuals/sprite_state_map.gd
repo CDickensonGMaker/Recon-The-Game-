@@ -36,7 +36,8 @@ const TURN_RATE_MIN: float = 0.8
 ##  - DEAD needs the hit direction, which _die() must pass in
 static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		is_firing: bool, speed: float, lateral: float = 0.0, sneaking: bool = false,
-		low_posture: bool = false, prone: bool = false, turn_rate: float = 0.0) -> String:
+		low_posture: bool = false, prone: bool = false, turn_rate: float = 0.0,
+		forward: float = 1.0) -> String:
 	var intent: String = _intent_core(state, is_crippled, is_surrendered, is_firing, speed, lateral, sneaking)
 	# PRONE outranks crouch: he is already on the ground. Added as its own flag rather
 	# than by widening low_posture to an int, so every existing crouch assertion in
@@ -60,8 +61,62 @@ static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 	# stays the default. The caller decides WHEN low_posture is on (where the
 	# suppression/alert-tier signals live); this only decides HOW it looks.
 	if low_posture and speed <= LOW_POSTURE_SPEED_MAX:
-		return _to_crouch(intent, speed, lateral)
-	return intent
+		return _with_octant(_to_crouch(intent, speed, lateral), forward, lateral)
+	return _with_octant(intent, forward, lateral)
+
+
+## THE OCTANT. A man moving diagonally used to play the straight-ahead clip, so he
+## crabbed - feet driving forward while the body slid off at 45 degrees. The library
+## has carried the eight-way set for every locomotion family all along and the funnel
+## only ever asked for four of them (and only two off the cardinal axis).
+##
+## Encoded as a SUFFIX on the intent ("run@fl") rather than as twelve new intents,
+## so `_intent_core`'s decision table is untouched and the stability filter, the fire
+## and death bypasses, and every existing assertion keep working on the base name.
+## Forward is the default and carries no suffix - an unchanged intent string is still
+## an unchanged intent string.
+##
+## MEASURED before wiring: all 31 locomotion clips are IN PLACE, zero root travel,
+## and durations are consistent per family (walk 1.03s, run/sprint 0.53s). There is no
+## root motion to fight, which is why this is a lookup and not a blend.
+## `crouch_l` / `crouch_r` / `crouch_back` are absent DELIBERATELY: `_to_crouch` has
+## already resolved those directionally, and re-deciding them here would rewrite the
+## intents `tests/test_low_posture.gd:75-80` asserts - the 2026-07-23 faction-merge
+## contract. Only `crouch_fwd`, the ambiguous "moving low, not clearly sideways" case,
+## is refined into a diagonal.
+const _OCTANT_FAMILIES: Array[String] = ["run", "walk", "patrol", "sprint", "aim_walk",
+	"crouch_fwd"]
+
+static func _with_octant(intent: String, forward: float, lateral: float) -> String:
+	if not _OCTANT_FAMILIES.has(intent):
+		return intent
+	var oct: String = _octant(forward, lateral)
+	if oct == "f":
+		return intent
+	return intent + "@" + oct
+
+
+## lateral > 0 is LEFT - the convention `strafe_l` already used, and the callers
+## compute it as velocity . (facing x UP).
+static func _octant(forward: float, lateral: float) -> String:
+	var f: float = forward
+	var l: float = lateral
+	var m: float = sqrt(f * f + l * l)
+	if m < 0.001:
+		return "f"
+	f /= m
+	l /= m
+	if f >= 0.85:
+		return "f"
+	if f <= -0.85:
+		return "b"
+	if l >= 0.85:
+		return "l"
+	if l <= -0.85:
+		return "r"
+	if f >= 0.0:
+		return "fl" if l > 0.0 else "fr"
+	return "bl" if l > 0.0 else "br"
 
 
 static func _intent_core(state: int, is_crippled: bool, is_surrendered: bool,
@@ -276,7 +331,50 @@ const MODEL_ALIASES: Dictionary = {
 ## The default must be a clip the shipped library actually CARRIES. `rifle_aiming_idle` is a
 ## v1 rig name that survives only through MODEL_ALIASES, so an unmapped intent spent a
 ## resolution hop to land where `idle_aiming` was all along.
+## Eight-way clip sets, keyed by the intent's base name. Only families whose whole
+## octant set exists in the library appear here - a partial set would degrade to the
+## forward clip on some bearings and the correct one on others, which reads as a man
+## who crabs only when running north-east.
+const OCTANT_CLIPS: Dictionary = {
+	"run": {"f": "run_forward", "b": "run_backward", "l": "run_left", "r": "run_right",
+		"fl": "run_forward_left", "fr": "run_forward_right",
+		"bl": "run_backward_left", "br": "run_backward_right"},
+	"sprint": {"f": "sprint_forward", "b": "sprint_backward",
+		"l": "sprint_left", "r": "sprint_right",
+		"fl": "sprint_forward_left", "fr": "sprint_forward_right",
+		"bl": "sprint_backward_left", "br": "sprint_backward_right"},
+	"walk": {"f": "walk_forward", "b": "walk_backward", "l": "walk_left", "r": "walk_right",
+		"fl": "walk_forward_left", "fr": "walk_forward_right",
+		"bl": "walk_backward_left", "br": "walk_backward_right"},
+	"crouch": {"f": "walk_crouching_forward", "b": "walk_crouching_backward",
+		"l": "walk_crouching_left", "r": "walk_crouching_right",
+		"fl": "walk_crouching_forward_left", "fr": "walk_crouching_forward_right",
+		"bl": "walk_crouching_backward_left", "br": "walk_crouching_backward_right"},
+}
+
+## Which octant set an intent draws from. patrol and aim_walk are walks; every crouch
+## intent draws from the one crouch set.
+const _OCTANT_SET: Dictionary = {
+	"run": "run", "sprint": "sprint",
+	"walk": "walk", "patrol": "walk", "aim_walk": "walk",
+	"crouch_fwd": "crouch", "crouch_back": "crouch",
+	"crouch_l": "crouch", "crouch_r": "crouch",
+}
+
+
 static func model_clip_for(intent: String) -> String:
+	var at: int = intent.find("@")
+	if at > 0:
+		var base: String = intent.substr(0, at)
+		var oct: String = intent.substr(at + 1)
+		var set_key: String = str(_OCTANT_SET.get(base, ""))
+		if not set_key.is_empty():
+			var table: Dictionary = OCTANT_CLIPS[set_key]
+			if table.has(oct):
+				return str(table[oct])
+		# An octant we have no clip for degrades to the family's plain intent, never
+		# to idle_aiming - a moving man must keep moving.
+		return str(MODEL_CLIP.get(base, "idle_aiming"))
 	return str(MODEL_CLIP.get(intent, "idle_aiming"))
 
 

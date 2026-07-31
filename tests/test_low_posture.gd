@@ -113,6 +113,31 @@ func _test_module() -> void:
 	_expect(SpriteStateMap.death_intent(Vector3(0, 1, 0), B), "death_forward", "no horizontal arc -> forward")
 	_expect(SpriteStateMap.clip_for(true, "m16", "death_back"), "death_from_the_back", "clip_for death_back")
 
+	# --- THE OCTANT. A diagonal used to play the straight-ahead clip and the man crabbed.
+	# lateral > 0 is LEFT, the convention strafe_l already used.
+	print("\n[0d] eight-way locomotion")
+	var ADV2 := Enums.AIState.ADVANCING
+	# Straight ahead carries NO suffix - an unchanged intent must stay unchanged.
+	_expect(SpriteStateMap.intent_for(ADV2, false, false, false, 4.2, 0.0, false, false, false, 0.0, 1.0),
+		"run", "straight run keeps its plain intent")
+	_expect(SpriteStateMap.intent_for(ADV2, false, false, false, 4.2, 0.6, false, false, false, 0.0, 0.6),
+		"run@fl", "forward-left diagonal")
+	_expect(SpriteStateMap.intent_for(ADV2, false, false, false, 4.2, -0.6, false, false, false, 0.0, 0.6),
+		"run@fr", "forward-right diagonal")
+	_expect(SpriteStateMap.intent_for(ADV2, false, false, false, 4.2, 0.6, false, false, false, 0.0, -0.6),
+		"run@bl", "backward-left diagonal")
+	_expect(SpriteStateMap.intent_for(ADV2, false, false, false, 4.2, 0.0, false, false, false, 0.0, -1.0),
+		"run@b", "straight backward")
+	# Clip resolution for the suffixed intents.
+	_expect(SpriteStateMap.model_clip_for("run@fl"), "run_forward_left", "clip run@fl")
+	_expect(SpriteStateMap.model_clip_for("run@br"), "run_backward_right", "clip run@br")
+	_expect(SpriteStateMap.model_clip_for("walk@b"), "walk_backward", "clip walk@b")
+	_expect(SpriteStateMap.model_clip_for("patrol@fr"), "walk_forward_right", "patrol draws from the walk set")
+	_expect(SpriteStateMap.model_clip_for("crouch_fwd@fl"), "walk_crouching_forward_left", "crouch diagonal")
+	# An octant with no clip must degrade to the family, NEVER to idle - a moving man
+	# who resolves to an idle pose is the ice-skate.
+	_expect(SpriteStateMap.model_clip_for("retreat@fl"), "injured_walk_backwards", "unknown family keeps its own clip")
+
 
 ## --- PART A: the intent funnel. Crouch clips appear only with the flag AND at
 ## crouch speed; a fast rush stays upright (the speed backstop).
