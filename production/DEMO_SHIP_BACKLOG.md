@@ -30,8 +30,9 @@ failure, and this backlog is currently the thing causing it.
 unverified*, and unverified is discharged only by HIS playtest (ADR-015) — never by a probe and
 never by an agent's reading. The verify lines under each item below are the actual work.
 
-**Genuinely still open:** C3b (needs his Blender), C7 (needs a council ruling, do not improvise),
-D1's remainder (no map-edge road), C4 (the siege trigger is `OS.is_debug_build()`-gated at
+**Genuinely still open:** C3b (needs his Blender) · **C7 — HE HAS RULED: four flanking squads, not
+one 45-man thought bubble (7/30, restated 7/31). The decision is CLOSED; build it.** · D1's
+remainder (no map-edge road) · C4 (the siege trigger is `OS.is_debug_build()`-gated at
 `game_flow.gd:50`, so it does not exist in a shipped demo build).
 
 ---
