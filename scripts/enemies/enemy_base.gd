@@ -493,7 +493,10 @@ func _update_sprite() -> void:
 ## clips the shipped library actually carries are named - a missing clip must degrade to a
 ## T-pose, which is loud, rather than to a weapon pose, which is quiet and wrong.
 const CAMP_ROLE_CLIPS: Dictionary = {
-	"cook": ["idle_crouching", "sitting_idle_b", "sitting", "idle_unarmed_3"],
+	# A guard scans. These are unarmed clips, so his rifle rides the hand at an odd
+	# angle - accepted for a man at a post until a weapon-family hold exists.
+	"guard": ["sentry_scan", "crouch_scan", "nervous_scan", "idle_aiming"],
+	"cook": ["kneeling_idle", "idle_crouching", "sitting_idle_b", "sitting"],
 	"rest": ["smoking", "sitting_drinking", "neck_stretch", "arm_stretch",
 		"sitting_idle_c", "sitting", "idle_unarmed_5"],
 	"talk": ["sitting_talking", "standing_talking", "telling_secret", "idle_unarmed_4"],

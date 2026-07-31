@@ -43,8 +43,17 @@ Your words: *"i need to verify all the animations we're making so i shouldn't go
 
 ## TO DO — ranked, none started
 
-### 1. Wire the clips that are in the GLB with no caller
-`salute` · `kneeling_idle` · `sentry_scan` · `nervous_scan` · `crouch_scan` · `signal_move_up`.
+### 1. Wire the clips with no caller — MOSTLY DONE 2026-07-30
+
+**Wired:** `sentry_scan` / `crouch_scan` / `nervous_scan` -> the camp `guard` role, and
+`kneeling_idle` -> `cook`. Guards also needed a fix to fire at all: `_assign_guards` never set
+`work_pos`, so a guard pose could never have played (the schedule loop skips guards). His post is
+now his station.
+
+**STILL UNWIRED, and deliberately - both need a trigger EVENT that does not exist yet:**
+- `salute` — wants a greeting/rank moment. There is no officer-encounter event to hang it on.
+- `signal_move_up` — a one-shot beckon; wants a fireteam leader ordering a bound. Inventing a
+  caller would mean inventing the behaviour, which is a design call, not wiring.
 
 The three scans are **unarmed body language**. On a man holding a rifle the weapon follows his
 hand but hangs at an odd angle, because the pose never accounted for it. Either accept that read

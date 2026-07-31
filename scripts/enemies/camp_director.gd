@@ -99,6 +99,9 @@ func _assign_guards(n: int) -> void:
 		if s != null and is_instance_valid(s):
 			on_guard.append(s)
 			s.camp_role = "guard"
+			# His post IS his station. The schedule loop skips guards, so without
+			# this work_pos stays ZERO and the guard pose can never play.
+			s.work_pos = s.global_position
 
 
 func _on_hour_advanced(_sim_hour: int) -> void:
