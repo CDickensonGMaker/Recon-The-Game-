@@ -7,7 +7,7 @@ samples (measured from the GLB, never assumed).
     blender -b --factory-startup -P tools/bake_us_faces.py
 
 US grunts ONLY (Summoner 2026-07-29); VC/NVA keep face_atlas_v2 cells.
-Source sheet: art_source/characters/base_psx/newfaceatlas.png (9x4 grid).
+Source sheet: assets/us/characters/face_source/newfaceatlas.png (9x4 grid).
 """
 import bpy
 import os
@@ -15,7 +15,7 @@ import numpy as np
 
 ROOT = r"C:\Users\caleb\RECONgame"
 CHAR = os.path.join(ROOT, "assets", "us", "characters")
-SHEET = os.path.join(ROOT, "art_source", "characters", "base_psx", "newfaceatlas.png")
+SHEET = os.path.join(CHAR, "face_source", "newfaceatlas.png")
 COLS, ROWS = 9, 4
 
 # variant -> face cell index (row-major). Spread across the sheet so the
