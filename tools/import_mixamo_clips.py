@@ -1,8 +1,13 @@
 """Turn a folder of downloaded Mixamo FBX files into one staging .blend.
 
     blender -b --factory-startup -P tools/import_mixamo_clips.py -- \
-        --src art_source/animations/mixamo_incoming \
-        --out art_source/animations/mixamo_staging.blend
+        --src C:/Users/caleb/mixamo_source \
+        --out C:/Users/caleb/mixamo_source/mixamo_staging.blend
+
+DOWNLOADS AND THE STAGING BLEND LIVE OUTSIDE THE REPO (`C:\Users\caleb\mixamo_source`).
+`art_source/` is a DELETED tree - do not recreate it. The FBX files are provenance
+only: the motion itself lives in anim_library.blend once synced, so nothing is lost
+if they are cleaned up. Clip provenance (Mixamo IDs) is in production/ANIM_WISHLIST.md.
 
 Each clip's action is renamed to the FBX's filename stem - that stem IS the
 house clip name, so naming happens on disk where it can be seen and fixed.

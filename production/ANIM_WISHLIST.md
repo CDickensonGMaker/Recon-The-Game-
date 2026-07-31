@@ -13,7 +13,37 @@ by `tools/probe_mixamo_fit.py`. There is no retarget step.** Chain: download FBX
 house clip name) -> `tools/import_mixamo_clips.py` -> `sync_clips_into_library.py --bones-only` ->
 `export_anim_library.py`.
 
-**Second pull (medic + ambient) brought it to 156 clips, 13.64 MB.**
+**Second pull (medic + ambient) brought it to 156 clips; the passive set closed at 163, 14.44 MB.**
+
+**PROVENANCE — the Mixamo id behind every clip.** The FBX downloads live OUTSIDE the repo
+(`C:\Users\caleb\mixamo_source`) and are not tracked: `art_source/` is a deleted tree and stays
+deleted, and the motion itself is in `anim_library.blend` once synced. These ids are the only
+thing needed to re-pull any clip exactly.
+
+| clip | Mixamo | clip | Mixamo |
+|---|---|---|---|
+| plant_charge | 104460901 Picking Up Object | medic_treat_give | 115980901 Administering Cpr |
+| kneeling_idle | 126720901 | medic_treat_receive | 115980902 Receiving Cpr |
+| stumble_hit | 121450901 Jogging Stumble | carry_wounded | 130700901 Carrying |
+| grenade_throw | 103360901 | being_carried | 130090901 Being Carried |
+| wounded_crawl | 123240901 Low Crawl | smoking | 100380901 |
+| death_from_the_left | 127690959 Standing Death Left 01 | drinking | 101330902 |
+| prone_idle | 113000901 | sitting_drinking | 120890901 |
+| crouch_to_prone | 115750901 | digging | 106480901 |
+| prone_to_crouch | 115820901 Prone To Crouch | plant_seeds | 126770901 Dig And Plant Seeds |
+| prone_firing_rifle | 112990901 | sleeping_laying | 128500901 Laying Sleeping |
+| sleeping_sitting | 124220901 Sleeping Idle | salute | 120580901 |
+| praying | 103120902 | praying_b | 103130901 |
+| sitting_idle_b | 123380901 Sitting Idle | sitting_idle_c | 124250901 Sitting Idle |
+| sitting_talking | 126490901 | sitting_talking_b | 126490902 |
+| standing_talking | 101780903 Talking | telling_secret | 109900901 |
+| briefing_group | 119580901 Having A Meeting, Male | standing_arguing | 126500901 |
+| sentry_scan | 115090901 Looking Around | nervous_scan | 137360901 Nervously Look Around |
+| crouch_scan | 127690943 Crouch Idle 02 Looking Around | laying_idle | 124270901 Laying Idle |
+| neck_stretch | 117270901 | arm_stretch | 117260901 |
+| signal_move_up | 113380901 Beckoning | | |
+
+All pulled `fbx_7.4`, 30 fps, no skin.
 
 | Clip | Wired? |
 |---|---|
