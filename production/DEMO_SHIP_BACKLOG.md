@@ -141,8 +141,11 @@ permanently lit compound is a lit stage. Probes are never lit - holding off in t
 makes a probe read as a probe. Feeds the already-scoped `_light_check()`.
 **Verify: does the lit ground show them crossing, and does it go dark again between rounds?**
 
-**C7. [?] ONE SHARED `squad_id` THROTTLES THE WHOLE ASSAULT.** *(found 7/30, NOT fixed - needs a
-council ruling, do not improvise this)* `field_director.gd:51` sets
+**C7. [C] ONE SHARED `squad_id` THROTTLES THE WHOLE ASSAULT.** *(found 7/30 — **HE HAS RULED,
+2026-07-30, restated 7/31**: "there should be four squads with the enemy assault teams and they
+should all be trying to flank and maneuver to get into the firebase and not just one large thought
+bubble." The DECISION is closed; only the scope below was ever open. Do not re-ask it — this
+document saying "needs a council ruling" is what caused it to be asked twice.)* `field_director.gd:51` sets
 `enemy.squad_id = hash(group_tag)`, so all 45 `siege_assault` men are ONE squad.
 `SQUAD_GRENADE_COOLDOWN_MS 12000` therefore allows **one grenade every 12s across the entire
 assault**. The structurally correct fix is one squad per `MarchingCell` (the class docstring
