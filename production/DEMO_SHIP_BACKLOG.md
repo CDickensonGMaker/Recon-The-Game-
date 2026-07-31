@@ -11,6 +11,31 @@ Legend: **[C]** code, I can do it · **[B]** Blender, needs him · **[?]** needs
 
 ---
 
+## AUDIT 2026-07-31 — SIX ITEMS BELOW ARE ALREADY BUILT. READ THIS FIRST.
+
+I came here to build the air spectacle and found it shipped. Every line below is verified against
+code, not against this document. **Do not build these again** — that is the divergent-systems
+failure, and this backlog is currently the thing causing it.
+
+| Item | This doc claims | The code says |
+|---|---|---|
+| **B1** air cadence | "schedules ONE transit per sim-hour" | `TRANSITS_PER_HOUR = 3` (`air_traffic.gd:62`), across 18 daylight hours |
+| **B3** jet formations | "`CASAirplane` flies single" | `FORMATION_SIZES` (`air_traffic.gd:39`) — 6-9 Hueys, 3-5 jets, 2 skyraiders |
+| **B4** air over the firebase | "routes are not aware of the compound" | `TRANSIT_KEEP_OUT_M = 150` (`:284`, applied `:294-304`), `SPECTRE_KEEP_OUT_M = 420` (`:226`, applied `:416-419`) |
+| **B2** Huey landings with troops | "becomes: fly in, flare, touch down, men out" | `HeliLift.attach(heli, _friendly_director())` at `air_traffic.gd:544`, with the full inbound/ground/climbout/outbound cycle at `:518-570` |
+| **C1** sapper stress room | "his ask: a sterile stress room" | `scenes/levels/sapper_room.tscn` + `scripts/levels/sapper_room.gd` exist |
+| **C2** base must blow up | "the wiring to the blast bus is the gap" | The bus is wired: `combat_manager.gd:178` sweeps `AgentRegistry.props` on every explosion, `game_flow.gd:208-254` picks a LIVE parapet segment off it, `sapper_charge.gd:86` the same |
+
+**So the demo's remaining bottleneck is NOT code.** Nearly every item on this list is *built and
+unverified*, and unverified is discharged only by HIS playtest (ADR-015) — never by a probe and
+never by an agent's reading. The verify lines under each item below are the actual work.
+
+**Genuinely still open:** C3b (needs his Blender), C7 (needs a council ruling, do not improvise),
+D1's remainder (no map-edge road), C4 (the siege trigger is `OS.is_debug_build()`-gated at
+`game_flow.gd:50`, so it does not exist in a shipped demo build).
+
+---
+
 ## A. ALLIES AND THE GARRISON — first
 
 **A1. [C] Ally path failures at 5-8m.** *(fix applied 7/29, unverified)*
