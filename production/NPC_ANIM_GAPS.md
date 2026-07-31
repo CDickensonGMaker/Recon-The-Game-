@@ -34,12 +34,25 @@ schedule actions — chains now rotate per man off his spawn hash.
 
 ## STILL OPEN — ranked
 
-### 1. Turn-in-place — `turn_90_left` · `turn_90_right` · `turn_left` · `turn_right` · `crouching_turn_90_left` · `crouching_turn_90_right`
+### CLOSED 2026-07-31 (second pass)
+
+- **Turn-in-place** — `turn_left` / `turn_right` wired as a stationary turn intent. **MEASURED
+  first:** those two are in-place (0.024 m hip travel, ~0 deg root yaw), but `turn_90_left` carries
+  **-161.6 deg of ROOT rotation** and the crouching pair up to -143.7. Looping either would spin the
+  mesh off the body, so the `turn_90_*` and `crouching_turn_90_*` pairs stay unwired as one-shots.
+- **Eight-way locomotion** — 14 diagonal/backward clips had zero callers and a man moving at 45
+  degrees played the straight-ahead clip. Now an octant SUFFIX on the intent (`run@fl`). All 31
+  locomotion clips measured in-place before wiring.
+- **The four social clips** — his ruling 2026-07-31: **US only, never VC or villagers.** Pulled from
+  the VC camp `talk` role and the villager `talk`/`sit` chains; `standing_arguing` and
+  `briefing_group` wired to off-duty GIs.
+
+### 1. ~~Turn-in-place~~ — DONE, see above. Original entry kept for the measurement note: — `turn_90_left` · `turn_90_right` · `turn_left` · `turn_right` · `crouching_turn_90_left` · `crouching_turn_90_right`
 **Six clips, zero callers.** A man changing facing while stationary currently slides his feet — the
 state map has no turning intent at all (`_intent_core` reads speed, never angular rate). This is the
 classic "the NPCs look robotic" gap and it is pure animation work. **Highest value remaining.**
 
-### 2. Directional locomotion — `walk_backward*` · `run_forward_left/right` · `run_backward_right` · `sprint_*` diagonals · `walk_crouching_*` diagonals · `strafe_2`
+### 2. ~~Directional locomotion~~ — DONE 2026-07-31 (octant suffix). Original entry: — `walk_backward*` · `run_forward_left/right` · `run_backward_right` · `sprint_*` diagonals · `walk_crouching_*` diagonals · `strafe_2`
 `MODEL_CLIP`'s own comment says diagonals deliberately share the cardinal clips, *"the standing side
 has no diagonal intents either, so this keeps parity."* Adding diagonal intents is a real read
 improvement but it touches the funnel every man goes through — **War Room item, not a quiet edit.**
