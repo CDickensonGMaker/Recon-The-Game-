@@ -149,6 +149,32 @@ static func _to_prone(intent: String) -> String:
 			return intent
 
 
+## Which way a man falls. `to_attacker` is the world direction from the body toward
+## whoever shot him; `basis` is his own.
+##
+## The old pick measured ONLY the X axis, so the whole rear hemisphere collapsed onto
+## `death_forward` and `death_from_the_back` sat in the library with no caller. It now
+## picks the DOMINANT axis, which also removes the old dead band: a man shot from
+## behind at 30 degrees off centre used to fall forward.
+##
+## `fatal_head` routes to the headshot falls. Under the headshot law a head hit kills
+## everyone, so this is the most common death in the game and it had no dedicated clip
+## outside the crouch case.
+static func death_intent(to_attacker: Vector3, basis: Basis, fatal_head: bool = false) -> String:
+	var flat: Vector3 = Vector3(to_attacker.x, 0.0, to_attacker.z)
+	if flat.length_squared() < 0.0001:
+		return "death_hs_front" if fatal_head else "death_forward"
+	flat = flat.normalized()
+	# Godot forward is -Z. Positive `fwd` means the shooter was in front of him.
+	var fwd: float = flat.dot(-basis.z)
+	var side: float = flat.dot(basis.x)
+	if absf(fwd) >= absf(side):
+		if fwd >= 0.0:
+			return "death_hs_front" if fatal_head else "death_forward"
+		return "death_hs_back" if fatal_head else "death_back"
+	return "death_right" if side > 0.0 else "death_left"
+
+
 ## Models carry all 21 authored clips, so they skip the sprite fallback CHAINS
 ## and map an intent straight to a clip they are guaranteed to have.
 const MODEL_CLIP: Dictionary = {
@@ -163,6 +189,12 @@ const MODEL_CLIP: Dictionary = {
 	"surrender": "kneeling_pointing",
 	"death_forward": "death_forward", "death_right": "death_from_right",
 	"death_left": "death_from_the_left",
+	# The BACK arc and the two headshot falls. All three shipped in the library with
+	# no caller: the death pick only ever measured the X axis, so a man shot between
+	# the shoulder blades fell as though the round came through his chest.
+	"death_back": "death_from_the_back",
+	"death_hs_front": "death_from_front_headshot",
+	"death_hs_back": "death_from_back_headshot",
 	"sprint": "sprint_forward",
 	"sneak_l": "cover_sneak_left", "sneak_r": "cover_sneak_right",
 	"arrive": "run_to_stop",
@@ -207,6 +239,11 @@ const MODEL_ALIASES: Dictionary = {
 	"idle_crouching_aiming": ["kneeling_pointing"],
 	"run_backward": ["injured_walk_backwards"],
 	"death_from_the_front": ["death_forward"],
+	# A rig missing the new falls degrades along the axis it was shot on, never to a
+	# T-pose and never to a fall in the wrong direction.
+	"death_from_the_back": ["death_from_the_front", "death_forward"],
+	"death_from_front_headshot": ["death_from_the_front", "death_forward"],
+	"death_from_back_headshot": ["death_from_the_back", "death_from_the_front", "death_forward"],
 	"sprint_forward": ["run_forward"],
 	"falling_to_roll": ["stand_to_cover", "kneeling_pointing"],
 	# A rig with no prone set degrades to its lowest posture rather than T-posing.

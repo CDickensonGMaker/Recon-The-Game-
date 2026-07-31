@@ -98,6 +98,21 @@ func _test_module() -> void:
 	_expect(SpriteStateMap.model_clip_for("to_prone"), "crouch_to_prone", "model_clip to_prone")
 	_expect(SpriteStateMap.model_clip_for("from_prone"), "prone_to_crouch", "model_clip from_prone")
 
+	# --- THE DEATH ARC. Locked down because an axis convention that ships backwards is
+	# invisible: men simply fall the wrong way and nobody can say why. Godot forward is
+	# -Z, so a man at the identity basis faces -Z.
+	print("\n[0c] death fall direction")
+	var B := Basis.IDENTITY
+	_expect(SpriteStateMap.death_intent(Vector3(0, 0, -1), B), "death_forward", "shot from the front")
+	_expect(SpriteStateMap.death_intent(Vector3(0, 0, 1), B), "death_back", "shot from BEHIND (was death_forward)")
+	_expect(SpriteStateMap.death_intent(Vector3(1, 0, 0), B), "death_right", "shot from his right")
+	_expect(SpriteStateMap.death_intent(Vector3(-1, 0, 0), B), "death_left", "shot from his left")
+	_expect(SpriteStateMap.death_intent(Vector3(0, 0, 1), B, true), "death_hs_back", "headshot from behind")
+	_expect(SpriteStateMap.death_intent(Vector3(0, 0, -1), B, true), "death_hs_front", "headshot from the front")
+	# A round straight down (or an attacker at the same spot) must still pick a fall.
+	_expect(SpriteStateMap.death_intent(Vector3(0, 1, 0), B), "death_forward", "no horizontal arc -> forward")
+	_expect(SpriteStateMap.clip_for(true, "m16", "death_back"), "death_from_the_back", "clip_for death_back")
+
 
 ## --- PART A: the intent funnel. Crouch clips appear only with the flag AND at
 ## crouch speed; a fast rush stays upright (the speed backstop).

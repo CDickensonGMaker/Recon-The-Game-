@@ -272,6 +272,9 @@ var _home_facing: Vector3 = Vector3.FORWARD  ## the direction to sweep around
 const SCAN_SPEED: float = 0.7
 const SCAN_ARC: float = 2.45  ## +/- 140deg sweep - only a narrow wedge behind stays blind
 var last_hit_dir: Vector3 = Vector3.FORWARD  ## world dir from attacker -> us; picks the death clip
+## Which zone the last round found. Pairs with last_hit_dir to pick the death fall -
+## Hitzone.zone_name_is_fatal is the authority on what counts as a head hit.
+var last_hit_zone: String = "BODY"
 ## GORE_WORKFLOW ledger: regions already popped off this man (4-limb names).
 var _removed: Array[String] = []
 ## The killing blow was explosive -> _die() runs the blast doctrine.
@@ -2276,7 +2279,8 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	damage_decay_timer = 0.0
 	goal_timer = 99.0  # Class-A interrupt: getting HIT may always re-plan
 
-	# Remember where it came from so _die() can pick death_forward vs death_right.
+	# Remember where it came from, and WHAT it found, so _die() can pick the fall.
+	last_hit_zone = zone
 	if attacker != null and is_instance_valid(attacker) and attacker is Node3D:
 		last_hit_dir = (global_position - (attacker as Node3D).global_position).normalized()
 		# Honest attention: whoever is HURTING me outranks whoever is closest.
@@ -2647,12 +2651,8 @@ func _die() -> void:
 			# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so
 			# the shooter lies along -last_hit_dir.
 			var to_attacker: Vector3 = -last_hit_dir
-			var side: float = to_attacker.dot(global_transform.basis.x)
-			var intent: String = "death_forward"
-			if side > 0.35:
-				intent = "death_right"
-			elif side < -0.35:
-				intent = "death_left"
+			var intent: String = SpriteStateMap.death_intent(to_attacker, global_transform.basis,
+				Hitzone.zone_name_is_fatal(last_hit_zone))
 			# A man who died LOW dies low: the authored crouch death outranks the
 			# standing picks. Rigs without the clip fall through to them.
 			var played: Variant = false

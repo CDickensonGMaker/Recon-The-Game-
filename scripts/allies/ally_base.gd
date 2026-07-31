@@ -273,6 +273,8 @@ var mesh: MeshInstance3D
 var sprite_actor: Node3D = null  ## ModelActor (capsule when the model is missing)
 var _visual_is_model: bool = false
 var last_hit_dir: Vector3 = Vector3.FORWARD
+## See EnemyBase.last_hit_zone - pairs with last_hit_dir to pick the death fall.
+var last_hit_zone: String = "BODY"
 ## Which rendered unit this man wears. SquadSystem overrides it per MOS.
 var sprite_faction: String = "US Army and Co"
 ## The gib-rig grunt: full gore contract, big clip library, cover/crouch anim set.
@@ -1437,6 +1439,7 @@ func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, zone: String = "BODY") -> int:
 	goal_timer = 99.0  # Class-A interrupt: getting hit may always re-plan
 	_defend_until_ms = Time.get_ticks_msec() + 8000
+	last_hit_zone = zone
 	if _attacker != null and is_instance_valid(_attacker) and _attacker is Node3D:
 		last_hit_dir = (global_position - (_attacker as Node3D).global_position).normalized()
 	if current_state == Enums.AIState.DEAD:
@@ -1488,12 +1491,8 @@ func _die() -> void:
 			handled = true
 		if not handled:
 			var to_attacker: Vector3 = -last_hit_dir
-			var side: float = to_attacker.dot(global_transform.basis.x)
-			var death_intent: String = "death_forward"
-			if side > 0.35:
-				death_intent = "death_right"
-			elif side < -0.35:
-				death_intent = "death_left"
+			var death_intent: String = SpriteStateMap.death_intent(to_attacker,
+				global_transform.basis, Hitzone.zone_name_is_fatal(last_hit_zone))
 			# A man who died LOW dies low: the authored crouch death outranks the
 			# standing picks. Rigs without the clip fall through to them.
 			var played: Variant = false
