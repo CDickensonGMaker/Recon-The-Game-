@@ -59,10 +59,13 @@ const IDLE_VARIANTS: Array[String] = [
 ## loud, rather than to a weapon pose, which is quiet and wrong.
 const VILLAGE_ACTION_CLIPS: Dictionary = {
 	&"sleep": ["sleeping_laying", "sleeping_sitting", "sitting"],
-	&"talk": ["sitting_talking", "standing_talking", "telling_secret"],
+	# NO AMERICAN SOCIAL CLIPS ON VILLAGERS (his ruling, 2026-07-31: "keep for US only,
+	# never VC or villagers"). sitting_talking and telling_secret are modern open-palm
+	# gesturing; on a village elder they read as a man in costume.
+	&"talk": ["standing_talking", "sitting_idle_b", "sitting"],
 	&"work": ["plant_seeds", "digging", "idle_unarmed_3"],
 	&"rest": ["sitting_idle_c", "sitting_drinking", "sitting"],
-	&"sit": ["sitting_idle_b", "sitting_talking", "sitting"],
+	&"sit": ["sitting_idle_b", "sitting_idle_c", "sitting"],
 }
 
 ## Off-duty men had ONE chain, and play_first() takes the head of it whenever the
@@ -75,6 +78,11 @@ const OFF_DUTY_CHAINS: Array = [
 	["neck_stretch", "arm_stretch", "idle_unarmed_3"],
 	["sitting_idle_c", "sitting_idle_b", "sitting", "idle_unarmed_5"],
 	["standing_talking", "telling_secret", "idle_unarmed_2"],
+	# The American social set, US-ONLY by his 2026-07-31 ruling. These are the last three
+	# clips of the Mixamo wave with no caller anywhere; off-duty GIs are the one cast they
+	# were ever going to read on.
+	["standing_arguing", "telling_secret", "standing_talking", "idle_unarmed_2"],
+	["briefing_group", "standing_talking", "sitting_idle_b", "idle_unarmed_4"],
 ]
 
 # L1 behavior-tree fields. active_action is the BT's current pick; state

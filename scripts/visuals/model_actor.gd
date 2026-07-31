@@ -351,6 +351,11 @@ const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing
 	"cargo_carry", "cargo_unload_stack",
 	# Passive military set. signal_move_up is deliberately absent - a beckon is a
 	# one-shot gesture, and looping it makes a man wave forever.
+	# MEASURED in-place (0.024m hip travel, ~0 deg root yaw), so looping them while the
+	# body yaws underneath is safe. turn_90_left/right and the crouching pair are NOT
+	# here on purpose: they carry up to 161 degrees of ROOT rotation and looping one
+	# would spin the mesh off the body.
+	"turn_left", "turn_right",
 	"sentry_scan", "nervous_scan", "crouch_scan", "laying_idle",
 	"neck_stretch", "arm_stretch"]
 

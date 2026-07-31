@@ -170,6 +170,9 @@ var _prone_since_ms: float = 0.0       # when he went down, for the dwell ceilin
 var _prone_pin_since_ms: float = 0.0   # when the pin started holding, for the entry delay
 var _prone_drop_until_ms: float = 0.0  # crouch_to_prone one-shot window
 var _prone_rise_until_ms: float = 0.0  # prone_to_crouch one-shot window
+var _turn_rate: float = 0.0            # signed yaw rad/s, smoothed - drives turn-in-place
+var _yaw_prev: float = 0.0
+var _yaw_prev_ms: float = 0.0
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
 var _throw_until_ms: float = 0.0       # one-shot grenade_throw window (the lob's 1s windup)
 var _stumble_until_ms: float = 0.0     # one-shot stumble_hit window (solid non-lethal hit)
@@ -459,6 +462,24 @@ func _in_prone_transition() -> bool:
 	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
 
 
+## Signed yaw rate in rad/s, smoothed. The state map has only ever read SPEED, so a
+## stationary man changing facing had no intent of his own and slid his feet round.
+## Smoothed because a raw per-frame delta at 60fps flickers across any threshold.
+func _update_turn_rate(now: float) -> void:
+	var yaw_now: float = atan2(facing_dir.x, facing_dir.z)
+	var dt: float = (now - _yaw_prev_ms) / 1000.0
+	if _yaw_prev_ms <= 0.0 or dt <= 0.0 or dt > 0.5:
+		_yaw_prev = yaw_now
+		_yaw_prev_ms = now
+		_turn_rate = 0.0
+		return
+	if dt < 0.008:
+		return
+	_turn_rate = lerpf(_turn_rate, wrapf(yaw_now - _yaw_prev, -PI, PI) / dt, 0.35)
+	_yaw_prev = yaw_now
+	_yaw_prev_ms = now
+
+
 func _near_cover() -> bool:
 	return has_cover or (_moving_to_cover \
 		and global_position.distance_to(current_cover) <= CombatPosture.COVER_CROUCH_RANGE)
@@ -504,6 +525,7 @@ func _update_sprite() -> void:
 	var firing: bool = now < _fired_until_ms
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and alert_tier <= AlertTier.SUSPICIOUS and _near_cover()
+	_update_turn_rate(now)
 	_update_prone_latch(now, speed)
 	# Going down and getting up are one-shots, and they outrank the state map the same
 	# way the stumble and the grenade windup do. Death and stumble are checked ABOVE
@@ -517,7 +539,7 @@ func _update_sprite() -> void:
 			return
 	_low_posture = _is_low_posture(firing)
 	var prev_intent: String = _last_intent
-	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture, _prone)
+	var intent: String = SpriteStateMap.intent_for(current_state, is_crippled, is_surrendered, firing, speed, lateral, sneaking, _low_posture, _prone, _turn_rate)
 	# Stability filter: an intent must WIN continuously for 180ms before the clip
 	# commits. Fire and death still switch immediately.
 	if intent != _last_intent:
@@ -560,7 +582,10 @@ const CAMP_ROLE_CLIPS: Dictionary = {
 	"cook": ["kneeling_idle", "idle_crouching", "sitting_idle_b", "sitting"],
 	"rest": ["smoking", "sitting_drinking", "neck_stretch", "arm_stretch",
 		"sitting_idle_c", "sitting", "idle_unarmed_5"],
-	"talk": ["sitting_talking", "standing_talking", "telling_secret", "idle_unarmed_4"],
+	# NO AMERICAN SOCIAL CLIPS ON A VC CAMP (his ruling, 2026-07-31: "keep for US only,
+	# never VC or villagers"). sitting_talking and telling_secret are open-palm gesturing
+	# and casual weight shifts - on these men they read as businessmen in costume.
+	"talk": ["standing_talking", "sitting_idle_b", "sitting", "idle_unarmed_4"],
 	"sleep": ["sleeping_laying", "laying_idle", "sleeping_sitting", "sitting"],
 }
 

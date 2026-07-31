@@ -237,6 +237,9 @@ var _prone_since_ms: float = 0.0
 var _prone_pin_since_ms: float = 0.0
 var _prone_drop_until_ms: float = 0.0
 var _prone_rise_until_ms: float = 0.0
+var _turn_rate: float = 0.0
+var _yaw_prev: float = 0.0
+var _yaw_prev_ms: float = 0.0
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
 var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
 ## See EnemyBase.CROUCH_SPEED_CAP - the move-side half of B2 so the crouch does
@@ -414,6 +417,24 @@ func _in_prone_transition() -> bool:
 	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
 
 
+## See EnemyBase._update_turn_rate - same rule, same reasons.
+## AllyBase has no facing_dir field - _update_sprite derives it - so the caller
+## passes the same vector it just handed set_facing().
+func _update_turn_rate(now: float, facing: Vector3) -> void:
+	var yaw_now: float = atan2(facing.x, facing.z)
+	var dt: float = (now - _yaw_prev_ms) / 1000.0
+	if _yaw_prev_ms <= 0.0 or dt <= 0.0 or dt > 0.5:
+		_yaw_prev = yaw_now
+		_yaw_prev_ms = now
+		_turn_rate = 0.0
+		return
+	if dt < 0.008:
+		return
+	_turn_rate = lerpf(_turn_rate, wrapf(yaw_now - _yaw_prev, -PI, PI) / dt, 0.35)
+	_yaw_prev = yaw_now
+	_yaw_prev_ms = now
+
+
 ## A man standing his crew station WORKS it. GarrisonDefender._claim_mortar_station stamps
 ## which station he took; these are the harvested crew clips off the staging scene, so the
 ## gunner lays the tube and the runner brings rounds instead of all three holding a rifle.
@@ -479,6 +500,7 @@ func _update_sprite() -> void:
 		return
 	if _play_crew_station(speed):
 		return
+	_update_turn_rate(float(Time.get_ticks_msec()), facing)
 	_update_prone_latch(float(Time.get_ticks_msec()), speed)
 	# The two one-shots outrank the state map, exactly as on the enemy side.
 	if sprite_actor is ModelActor:
@@ -494,7 +516,7 @@ func _update_sprite() -> void:
 	# tier (enemy gate: tier <= SUSPICIOUS); "no target yet" is their equivalent.
 	var sneaking: bool = current_state == Enums.AIState.SEEKING_COVER \
 		and target == null and _near_cover()
-	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture, _prone)
+	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture, _prone, _turn_rate)
 	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
 	if intent != _last_intent:

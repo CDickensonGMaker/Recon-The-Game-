@@ -25,19 +25,36 @@ const WALK_SPEED_MAX: float = 2.6
 const LOW_POSTURE_SPEED_MAX: float = 2.6
 
 
+## Yaw rate (rad/s) above which a standing man reads as TURNING rather than idling.
+## ~46 deg/s - below this the damped facing lerp is a drift, not a pivot.
+const TURN_RATE_MIN: float = 0.8
+
+
 
 ## The single funnel: everything the AI is doing collapses to one intent string.
 ##  - is_surrendered / is_crippled are FLAGS, not states
 ##  - DEAD needs the hit direction, which _die() must pass in
 static func intent_for(state: int, is_crippled: bool, is_surrendered: bool,
 		is_firing: bool, speed: float, lateral: float = 0.0, sneaking: bool = false,
-		low_posture: bool = false, prone: bool = false) -> String:
+		low_posture: bool = false, prone: bool = false, turn_rate: float = 0.0) -> String:
 	var intent: String = _intent_core(state, is_crippled, is_surrendered, is_firing, speed, lateral, sneaking)
 	# PRONE outranks crouch: he is already on the ground. Added as its own flag rather
 	# than by widening low_posture to an int, so every existing crouch assertion in
 	# tests/test_low_posture.gd keeps passing unchanged.
 	if prone:
 		return _to_prone(intent)
+	# TURN IN PLACE. Deliberately narrow: only a man who is otherwise IDLE, so a soldier
+	# tracking a target still aims rather than shuffling his feet mid-engagement. This is
+	# the sentry pivoting on his post and the patrolman changing direction - where the
+	# footslide was most visible.
+	#
+	# MEASURED off the glTF before wiring: turn_left / turn_right carry 0.024m of hip
+	# travel and ~0 degrees of root yaw - they are IN PLACE and safe to loop while the
+	# body yaws under them. turn_90_left carries -161.6 deg of ROOT ROTATION (and the
+	# crouching pair up to -143.7), so those are one-shots that would spin the mesh off
+	# the body if looped. They are deliberately NOT wired here.
+	if intent == "idle" and absf(turn_rate) > TURN_RATE_MIN:
+		return "turn_l" if turn_rate > 0.0 else "turn_r"
 	# Low-posture swap: a slow, cautious/pinned man moves in a crouch. Gated on
 	# speed so a fast push (sprint/rout) can NEVER be dragged low - aggression
 	# stays the default. The caller decides WHEN low_posture is on (where the
@@ -210,6 +227,8 @@ const MODEL_CLIP: Dictionary = {
 	"prone_idle": "prone_idle", "prone_aim": "prone_idle",
 	"prone_fire": "prone_firing_rifle",
 	"to_prone": "crouch_to_prone", "from_prone": "prone_to_crouch",
+	# The in-place pair only. See the measurement note in intent_for.
+	"turn_l": "turn_left", "turn_r": "turn_right",
 }
 
 
