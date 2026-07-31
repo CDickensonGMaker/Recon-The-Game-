@@ -17,7 +17,7 @@ them, and do not treat a reference to them in an older doc as a live pointer:** 
 a game that no longer exists (Godot 4.5, capsule NPCs, dice damage, the deleted briefing loop), and
 they were actively spoiling the output of work that read them. **We start fresh from the canon above.**
 
-**Pillars (test every decision; merged and ruled 2026-07-19, text of record `production/bible/BIBLE.md:62-90`):**
+**Pillars (test every decision; merged and ruled 2026-07-19, text of record `production/bible/BIBLE.md:85-101`, under the `00 · Pillars & Laws` heading at `:67`):**
 1. **Believable firefights** — AI that fights like soldiers AND weapons that kill like weapons, neither subordinate · 2. **Atmosphere** · 3. **Freedom** (no rails, stealth is an economy not a gate; the seeded world generates the stories) · 4. **The squad is the RPG — and you are IN it, not above it** (you suggest and call; the squad holds its own AI intent — a design that has you positioning individual men violates this) · 5. **Fail forward** (escalation not fail-states; death matters, but this is not a sadism simulator).
 `DESIGN.md:67-94` holds the superseded pre-merge text — do not cite it, and never cite `DESIGN.md §N`: that file has no numbered sections.
 
@@ -180,7 +180,10 @@ func setup(ctrl: FPSController, equip: EquipmentManager) -> void:
 ### Damage System (ADR-016 — flat base × zone, deterministic)
 - `WeaponData.base_damage` is a flat `int` per hit. NO dice, NO rolls, NO flat-modifier arrays.
   `get_damage()` is pure; all variance comes from range falloff, hitzones, and the situation sim.
-- Values of record (ADR-016 Amendment H — the great flattening, 2026-07-16, fun>realism, rounds even):
+- Values of record (ADR-016 Amendment H — the great flattening, 2026-07-16, fun>realism, rounds even).
+  **Re-verified against every `.tres` on 2026-07-31.** Five rifles carry no `base_damage` line at all
+  (`ak47` · `m14` · `m16a1` · `mosin` · `ppsh41`) — Godot omits a property equal to its default, and
+  the default IS 27 (`scripts/weapons/weapon_data.gd:22`). An absent line is agreement, not a gap:
   **Base = 27 for EVERY rifle/SMG/pistol** (M16 · M14 · AK · PPSh · M1911 · Mosin, and any future
   base gun) · **MG class = 42** (M60 AND RPD) · **Sniper = 87** (M70 only; the Mosin stays 27 as the
   VC line rifle) · **Shotgun 35/pellet** (buckshot, unchanged, out of scope). Weapon identity now lives
@@ -244,12 +247,18 @@ longer true — and the next reader, human or agent, acts on it.
 it IN THE SAME CHANGE. You never read past it.** Drift survives because everyone who noticed it was busy
 with something else.
 
-Measured 2026-07-19, each verified against code: the damage table below (`:180-187`) that made two War
+Measured 2026-07-19, each verified against code at the time: the damage table below that made two War
 Room architects independently "verify" a canon violation that did not exist · four beads sending agents
 to hunt a `WorldBuilder` class with **zero hits repo-wide** · a `.gitignore` comment justifying an
 untracked 133 MB truth source as regenerable from `us_grunt_v2.blend`, **a file that does not exist** ·
-and `.claude/agents/recon-overseer.md:58` — *the head agent's own standing instructions* — enforcing the
-RECON dice that ADR-016 retired (`production/adr/ADR-003-one-damage-grammar.md:2`).
+and the head agent's own standing instructions enforcing the RECON dice that ADR-016 retired.
+
+**Re-audited 2026-07-31, and the audit is itself the lesson.** Two of those five had been FIXED while
+this passage went on citing them as live: the overseer charter now states the dice are retired
+(`.claude/agents/recon-overseer.md:63-64`), and the damage table below matches every `.tres`
+(re-verified: M26 190 · M79 150 · LAW 250 · RPG-2 250 · RPG-7 290 · rifles 27 · MG 42 · sniper 87).
+`WorldBuilder` still has zero hits, so that one stands. **A drift warning that has itself drifted is
+the purest form of the disease** — a live-sounding indictment of code that was cleaned up weeks ago.
 
 ---
 
@@ -258,12 +267,16 @@ RECON dice that ADR-016 retired (`production/adr/ADR-003-one-damage-grammar.md:2
 **Summoner:** *"not put so many notes into the code as we are writing it — i think itll cut down on
 our project time in half."*
 
-Measured when he said it: **20% of this codebase is comments** (6,508 / 32,141 lines). Worst files run
-37–54%. **285 are tombstone comments** — prose narrating the project's past *inside the source*:
+Measured when he said it (2026-07-13): **20% of this codebase was comments** (6,508 / 32,141 lines).
+Worst files ran 37–54%. **285 were tombstone comments** — prose narrating the project's past *inside
+the source*:
 `## this file used to hardcode 130` · `## GUNSHOT was 55m` · `# was a hardcoded ALERT_RANGE*2`.
 
 **None of that documents the code. It documents the pull request** — the agent explaining to a reviewer
 why its change was right. That belongs in the commit message and the ADR. Both already exist here.
+
+**Re-measured 2026-07-31: 17.2%** (7,731 comment lines / 45,038 in `scripts/`). The codebase grew 40%
+and the ratio fell — the law is working, and this line carries a date so the next reader knows when.
 
 **And it is not merely noise — it camouflages fossils.** `# was a hardcoded ALERT_RANGE*2` is the exact
 comment that hid the dead `ALERT_RANGE` const from the fossil probe. **A tombstone comment hides the
@@ -323,8 +336,10 @@ Two rules the probe had to learn, and they are the law in miniature:
 Dead ≠ delete. Triage first: **FOSSIL** (superseded → delete) · **UNFINISHED** (built ahead of its
 wiring → wire or cut) · **MISSING FEATURE** (documented, never built → build it, e.g. `world_config`'s
 FPS-fallback ladder is read by *nothing* while perf is the top systemic risk). Deleting on a
-zero-reference count alone is how you lose the game: **913 of 1,291 assets have zero grep hits**, and
-`ModelActor` resolves the entire cast from bare `unit_id` strings.
+zero-reference count alone is how you lose the game: **913 of 1,291 assets had zero grep hits**
+(measured 2026-07-13; the tree now holds **1,755** asset files, so the absolute number is only larger),
+and `ModelActor` resolves the entire cast from bare `unit_id` strings — `model_path()` is the ONLY
+sanctioned `unit_id` -> path resolution (`scripts/visuals/model_actor.gd:9-21`).
 
 ---
 

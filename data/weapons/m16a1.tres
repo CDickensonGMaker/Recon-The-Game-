@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "m16a1"
 display_name = "M16A1"
-description = "5.56mm assault rifle. The tumbling round - RECON rates it 5d10. A high, tinny crack."
+description = "5.56mm assault rifle. The tumbling round. A high, tinny crack."
 firing_mode = 1
 fire_rate = 750.0
 magazine_size = 20
