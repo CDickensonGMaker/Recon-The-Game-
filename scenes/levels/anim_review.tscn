@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b7xk2qvanimrev"]
+
+[ext_resource type="Script" path="res://scripts/levels/anim_review.gd" id="1_anrv"]
+
+[node name="AnimReview" type="Node3D"]
+script = ExtResource("1_anrv")
