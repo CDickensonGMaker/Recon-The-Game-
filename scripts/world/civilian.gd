@@ -48,6 +48,23 @@ const IDLE_VARIANTS: Array[String] = [
 	"idle_unarmed_2", "idle_unarmed_3", "idle_unarmed_4", "idle_unarmed_5",
 ]
 
+## What a villager DOES at a scheduled action, as opposed to what shape he is in.
+## Every chain is rotated per man by _rotate(): a hamlet of sixteen used to sleep in
+## one pose, talk in one pose and work in one pose, because play_first() takes the
+## head of the chain and every villager was handed the same chain.
+##
+## NO ARMED CLIP MAY ENTER THESE. `idle` and `idle_crouching` are the rifleman idle
+## and the rifleman weapon crouch - either at a head and the whole village stands
+## and squats like a firing line. A missing clip must degrade to a T-pose, which is
+## loud, rather than to a weapon pose, which is quiet and wrong.
+const VILLAGE_ACTION_CLIPS: Dictionary = {
+	&"sleep": ["sleeping_laying", "sleeping_sitting", "sitting"],
+	&"talk": ["sitting_talking", "standing_talking", "telling_secret"],
+	&"work": ["plant_seeds", "digging", "idle_unarmed_3"],
+	&"rest": ["sitting_idle_c", "sitting_drinking", "sitting"],
+	&"sit": ["sitting_idle_b", "sitting_talking", "sitting"],
+}
+
 ## Off-duty men had ONE chain, and play_first() takes the head of it whenever the
 ## rig carries it - so every off-duty man in the compound smoked, forever, together.
 ## Six of the seventeen curated garrison are off_duty, plus every unmapped work post.
@@ -346,25 +363,13 @@ func _animate() -> void:
 	# A seated man talking and a seated man asleep share one pose otherwise.
 	# Movement poses are left alone - a walking man is not asleep.
 	if want != "running_unarmed" and want != "walking_unarmed":
-		match scheduled_action():
-			&"sleep":
-				actor.play_first(["sleeping_laying", "sleeping_sitting", "sitting"])
-				return
-			&"talk":
-				actor.play_first(["sitting_talking", "standing_talking", "telling_secret"])
-				return
-			&"work":
-				actor.play_first(["plant_seeds", "digging", "idle_unarmed_3"])
-				return
-			&"rest":
-				actor.play_first(["sitting_idle_c", "sitting_drinking", "sitting"])
-				return
-			&"sit":
-				if occupation == "elder":
-					actor.play_first(["praying", "praying_b", "sitting_idle_b"])
-				else:
-					actor.play_first(["sitting_idle_b", "sitting_talking", "sitting"])
-				return
+		var act: StringName = scheduled_action()
+		if act == &"sit" and occupation == "elder":
+			actor.play_first(_rotate(["praying", "praying_b", "sitting_idle_b"]))
+			return
+		if VILLAGE_ACTION_CLIPS.has(act):
+			actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[act] as Array))
+			return
 	match want:
 		"running_unarmed":
 			actor.play_first(["running_unarmed", "walking_unarmed"])
@@ -380,6 +385,23 @@ func _animate() -> void:
 			actor.play_first(["walking_unarmed", "running_unarmed"])
 		_:
 			actor.play_first([_idle_variant, "idle_unarmed"])
+
+
+## Same clips, different head, fixed per man by his spawn hash so the ville rebuilds
+## identical (ADR-010). The LAST entry never rotates: it is the degrade target - the
+## clip every rig is known to carry - and promoting it to the head would answer "what
+## is this man doing" with "the fallback".
+func _rotate(chain: Array) -> Array[String]:
+	var rotatable: int = chain.size() - 1
+	if rotatable < 2:
+		return chain as Array[String]
+	@warning_ignore("integer_division")
+	var off: int = (_idle_seed / 11) % rotatable
+	var out: Array[String] = []
+	for i in range(rotatable):
+		out.append(str(chain[(i + off) % rotatable]))
+	out.append(str(chain[chain.size() - 1]))
+	return out
 
 
 ## Garrison chains carry the ARMED poses the villager chains deliberately refuse:
