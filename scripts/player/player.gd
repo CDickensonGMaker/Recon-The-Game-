@@ -1174,8 +1174,8 @@ func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	add_to_group("player")
 	# The player wears the same static hitzone bands as any rigless unit, so enemy
-	# rounds resolve zones on HIM exactly as his do on them. Bands are fixed to the
-	# standing capsule.
+	# rounds resolve zones on HIM exactly as his do on them. Authored standing, then
+	# squashed to the live capsule by _handle_crouch.
 	HitzoneBuilder._build_static(self, 32, 16, ["hitzone"], true)
 	for c in get_children():
 		if c is Hitzone:
@@ -1700,6 +1700,10 @@ func _handle_crouch(delta: float) -> void:
 		var capsule := collision_shape.shape as CapsuleShape3D
 		capsule.height = lerpf(capsule.height, target_height, delta * CROUCH_TRANSITION_SPEED)
 		collision_shape.position.y = capsule.height / 2.0
+		# THE ZONES FOLLOW THE CAPSULE. They did not, and a prone player's fatal HEAD
+		# sphere floated a metre above him while rounds through his real body found
+		# nothing to hit.
+		HitzoneBuilder.apply_posture_scale(self, capsule.height / STAND_HEIGHT)
 		var target_head_y := target_height - 0.1
 		head.position.y = lerpf(head.position.y, target_head_y, delta * CROUCH_TRANSITION_SPEED)
 

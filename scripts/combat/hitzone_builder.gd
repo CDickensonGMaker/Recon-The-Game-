@@ -607,12 +607,45 @@ static func _build_static(body: Node3D, layer: int, mask: int, groups: Array[Str
 			sphere.radius = b[3]
 			col.shape = sphere
 		col.position = b[2]
+		# The AUTHORED standing geometry, kept so apply_posture_scale() can always
+		# rebuild from it. Scaling from the CURRENT value compounds every frame the
+		# capsule lerps, and the zones would walk into the floor.
+		hz.set_meta("band_y", b[2].y)
+		hz.set_meta("band_h", h)
 		hz.add_child(col)
 		hz.collision_layer = layer
 		hz.collision_mask = mask
 		for g in groups:
 			hz.add_to_group(g)
 		body.add_child(hz)
+
+
+## Squash the static bands to a body that is no longer standing.
+##
+## `_build_static` parents FIXED offsets - its own comment said "bands are fixed to
+## the standing capsule" - and nothing ever moved them. A prone player kept a fatal
+## HEAD sphere at y 1.65 over a 0.5 m body: a round through empty air a metre above
+## him was a headshot, and a round through his actual body found no zone at all.
+## Under the headshot law (zone_name_is_fatal is the authority) that is as severe as
+## damage bugs get.
+##
+## `k` is current capsule height / standing height. Bands are rebuilt from the
+## authored metadata every call, so this is safe to run per frame while a crouch lerps.
+static func apply_posture_scale(body: Node3D, k: float) -> void:
+	var kk: float = clampf(k, 0.05, 1.0)
+	for c in body.get_children():
+		if not (c is Hitzone):
+			continue
+		var hz: Hitzone = c
+		if not hz.has_meta("band_y"):
+			continue
+		var col := hz.get_child(0) as CollisionShape3D
+		if col == null:
+			continue
+		col.position.y = float(hz.get_meta("band_y")) * kk
+		var authored_h: float = float(hz.get_meta("band_h"))
+		if authored_h > 0.0 and col.shape is CapsuleShape3D:
+			(col.shape as CapsuleShape3D).height = authored_h * kk
 
 
 ## ---- wireframe drawing (shared by the bench + lab overlay) -----------------

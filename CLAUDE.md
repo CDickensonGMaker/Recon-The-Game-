@@ -304,8 +304,9 @@ Found on 2026-07-13, five systems, one session — **and the game worked the who
 fractures — it is fossils.
 
 **THE MACHINE (because a law in Markdown is just the next fossil):** `tests/test_fossils.tscn`, in the
-suite. The existing fossils are grandfathered in `tests/fossil_baseline.json` (`:3-4` — `ceiling` 19,
-`count` 19, as of 2026-07-24), under a `ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
+suite. The existing fossils are grandfathered in `tests/fossil_baseline.json` (`:3-4` — `ceiling` 3,
+`count` 3, as of 2026-07-31; it read 19/19 on 2026-07-24 and the ratchet has done its job since),
+under a `ceiling` that only ratchets down. **A NEW fossil FAILS THE BUILD.** The register **only shrinks.**
 
 `--write-baseline` writes the intersection of register and reality and is incapable of growth. New
 entries enter ONLY via `--grandfather --reason="<text>"`, which appends dated provenance to
