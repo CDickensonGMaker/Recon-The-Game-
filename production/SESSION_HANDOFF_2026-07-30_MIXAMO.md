@@ -1,10 +1,28 @@
 # SESSION HANDOFF — 2026-07-30, MIXAMO ANIMATION WAVE
 
-Four commits, `0b7a1707..9c23a556`, all pushed. Adds to `SESSION_HANDOFF_2026-07-30_NIGHT.md`.
+Six commits, `0b7a1707..1d5740b1`, all pushed. Adds to `SESSION_HANDOFF_2026-07-30_NIGHT.md`.
 
-**NOTHING HERE IS PLAYTESTED.** 39 clips and ~14 wiring changes, none judged by eye. Parse scan
+**NOTHING HERE IS PLAYTESTED.** 39 clips and ~16 wiring changes, none judged by eye. Parse scan
 clean (`godot --headless --path . --editor --quit`, 0 errors) — that proves the code compiles,
 not that a single man moves correctly.
+
+---
+
+## START HERE (next session)
+
+1. **Open the project in Godot 4.7 once.** `anim_library.glb` went 124 -> 163 clips and needs a
+   reimport.
+2. **Do HIS GATE below before building anything.** It is a verification pass, not a feature.
+3. Then pick up `TO DO` in order. §2 (the aid station) is the largest reward for the work.
+
+**Do not launch the game to "check" things — he drives testing.** Parse-check with
+`godot --headless --path . --editor --quit` and count `SCRIPT ERROR|Parse Error|Compile Error`.
+`--check-only --script` cannot judge any file touching an autoload and reports false errors.
+
+**Uncommitted and HIS, untouched all session — do not sweep these into a commit:**
+`assets/player/arms/fp_arms_rifle.blend`, `assets/player/viewmodels/mosin_fp.glb`, the huey
+blends, `assets/ui/menu_bg.png`, the weapon `.tres` edits, the m26 grenade deletions. A broad
+`git add` swallowed his files once already (recorded in the 7/30 NIGHT handoff). Stage by path.
 
 ---
 
@@ -41,7 +59,7 @@ Your words: *"i need to verify all the animations we're making so i shouldn't go
 
 ---
 
-## TO DO — ranked, none started
+## TO DO — ranked (§1 mostly done; §2-§6 not started)
 
 ### 1. Wire the clips with no caller — MOSTLY DONE 2026-07-30
 
@@ -57,10 +75,10 @@ now his station.
 
 The three scans are **unarmed body language**. On a man holding a rifle the weapon follows his
 hand but hangs at an odd angle, because the pose never accounted for it. Either accept that read
-or use them as BASE clips for a weapon-family bake (see §5) — one hold makes them armed.
+or use them as BASE clips for a weapon-family bake (§5) — one hold makes them armed.
 
-`signal_move_up` is a one-shot beckon, deliberately NOT looped. It wants a caller with meaning:
-a fireteam leader ordering a bound, most likely.
+**The guard fix is worth a look on its own:** the role silently did nothing before — no error, no
+warning — so any camp guard you watched was running the plain state map, not a guard pose.
 
 ### 2. The aid station — a whole system keeping score with nobody watching
 `campaign_state.ward_wounded` grows from real casualties, caps at `WARD_BEDS_MAX`, and has
@@ -136,3 +154,36 @@ returning empty; `select_animation` only sees the current page, so `list_animati
 time; parallel calls fight over the one browser page.
 
 Mixamo ids for all 39 clips: `ANIM_WISHLIST.md`.
+
+---
+
+## OPEN THE SESSION WITH THESE — his rulings, in plain words
+
+Per his standing practice: surface the decisions only he can make, glossed, before building.
+
+1. **The four social clips — keep or cut?** `standing_arguing`, `briefing_group`,
+   `telling_secret`, `sitting_talking` are modern American body language (open-palm gesturing,
+   casual weight shifts). `sitting_talking` is already live in the VC camp `talk` role because
+   that role had nothing at all. The other three are in the library with no caller. **Watch a VC
+   camp at the `talk` hour and rule.**
+2. **The aid station — build the populator?** It is the biggest reward on the list and the ward
+   has been keeping score with nobody watching. Needs one small art pull (an officer at a desk).
+3. **A guard's rifle hangs oddly** while he scans, because the scan clips are unarmed. Accept it,
+   or does this move the weapon-family hold up the queue?
+4. **`salute` and `signal_move_up` need trigger events** that do not exist — an officer
+   encounter, a leader ordering a bound. Are those behaviours he wants, or should the clips sit?
+5. **Two dead tools** point into the collapsed `art_source/`: `tools/assemble_sheets.py` (the
+   sprite renderer died with ADR-001) and `tools/export_grunt.bat` (already recorded broken).
+   **Fossil-law triage: delete, or is either still wanted?**
+
+## WHAT NOT TO DO
+
+- **Do not add more clips before his verification pass.** He said it plainly: *"i need to verify
+  all the animations we're making so i shouldn't go super crazy."* More unverified clips make the
+  pass harder, not the game better.
+- **Do not recreate `art_source/`.** Collapsed this session. Sources live in `assets/` beside what
+  they feed. A path that merely LOOKS conventional is not evidence it is alive — check first.
+- **Do not run `tools/make_ambient_variants.py` and trust the output.** It has never been run.
+  Dry-run it and read the loop-seam measurements first.
+- **Do not add a register axis to `sprite_state_map.gd` quietly.** It touches every man in the
+  game — War Room item.
