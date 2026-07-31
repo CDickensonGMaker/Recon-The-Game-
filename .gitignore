@@ -99,3 +99,8 @@ production/cinematics/**/*.blend
 # in LFS rather than staying untracked on a single disk. Git stores a pointer,
 # never the blob, so the 100 MB ceiling is not in play.
 !assets/us/characters/us_base_v3.blend
+
+# Regenerated in one command from art_source/animations/mixamo_incoming/*.fbx:
+#   blender -b --factory-startup -P tools/import_mixamo_clips.py --
+#     --src art_source/animations/mixamo_incoming --out art_source/animations/mixamo_staging.blend
+art_source/animations/mixamo_staging.blend

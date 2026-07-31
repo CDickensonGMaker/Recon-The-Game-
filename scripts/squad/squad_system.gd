@@ -319,6 +319,7 @@ func _process_revive(delta: float) -> void:
 		_reviving = false
 		if medic != null:
 			medic.set_order(AllyBase.OrderMode.FOLLOW)  # never leave RESCUE latched
+			medic.set_performance("")
 		_toast("DOC DIDN'T MAKE IT TO YOU.")
 		_health.force_death()
 		return
@@ -328,9 +329,11 @@ func _process_revive(delta: float) -> void:
 	if dist <= 2.8:
 		var medic_skill: int = SquadRoster.skill_level(medic.member, "medic")
 		var channel: float = maxf(2.5, REVIVE_CHANNEL_SECONDS - float(medic_skill) * 0.4)
+		medic.set_performance("medic_treat_give")
 		_revive_timer += delta
 		if _revive_timer >= channel:
 			_reviving = false
+			medic.set_performance("")
 			_health.revive()
 			var mp: int = SquadRoster.credit_use(medic.member, "medic", 3)  # learn-by-doing
 			if mp > 0:
@@ -339,6 +342,8 @@ func _process_revive(delta: float) -> void:
 			_toast("DOC: YOU'RE GOOD - ON YOUR FEET!")
 			VOManager.play_squad("on_your_feet", medic.member, medic.global_position)
 	else:
+		# He walked off mid-channel: release the pose or he carries it across the map.
+		medic.set_performance("")
 		_revive_timer = 0.0
 
 

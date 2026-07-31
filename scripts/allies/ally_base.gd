@@ -903,6 +903,13 @@ func _execute_idle(delta: float) -> void:
 				_settle(delta)
 
 
+## A performance the squad layer owns while it channels something (the medic
+## working on a casualty). Pass "" to release. The CALLER must clear it on every
+## exit path - a latched override leaves a man frozen mid-pose and still alive.
+func set_performance(clip: String) -> void:
+	_anim_override = clip
+
+
 ## Dead run to the casualty. Cover leash, strafe and range bands do not apply;
 ## the revive channel itself is SquadSystem's (distance-gated at 2.8m there).
 func _execute_rescue(delta: float) -> void:
@@ -1432,7 +1439,12 @@ func _die() -> void:
 			handled = true
 		if not handled:
 			var to_attacker: Vector3 = -last_hit_dir
-			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
+			var side: float = to_attacker.dot(global_transform.basis.x)
+			var death_intent: String = "death_forward"
+			if side > 0.35:
+				death_intent = "death_right"
+			elif side < -0.35:
+				death_intent = "death_left"
 			# A man who died LOW dies low: the authored crouch death outranks the
 			# standing picks. Rigs without the clip fall through to them.
 			var played: Variant = false
@@ -1440,7 +1452,7 @@ func _die() -> void:
 				played = ma.play("death_crouching_headshot_front", true)
 			if played is bool and not played:
 				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_weapon,
-					"death_right" if from_right else "death_forward"), true)
+					death_intent), true)
 			if played is bool and not played and _visual_is_model and ma != null:
 				if not ma.play_any_death() and not ma.start_ragdoll(last_hit_dir, 4.5):
 					push_warning("[ALLY] %s: no death clip AND no ragdoll slot - corpse froze standing" % name)

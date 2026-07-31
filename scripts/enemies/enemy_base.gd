@@ -166,6 +166,8 @@ var _cand_since: float = -1e9
 var _fired_until_ms: float = -1e9      # fire pose follows the SHOT, 350ms
 var _low_posture: bool = false         # crouch-walk this frame (caution/pin, Track B2)
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
+var _throw_until_ms: float = 0.0       # one-shot grenade_throw window (the lob's 1s windup)
+var _stumble_until_ms: float = 0.0     # one-shot stumble_hit window (solid non-lethal hit)
 var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
 ## Planar speed cap while low_posture is on. Below LOW_POSTURE_SPEED_MAX so the
 ## crouch clip always resolves, and near the crouch clips' authored 1.3 mps so
@@ -426,6 +428,15 @@ func _update_sprite() -> void:
 	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play("cover_to_stand")
 		return
+	# Stumble outranks the throw: a man hit mid-windup drops the performance.
+	if _stumble_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("stumble_hit")
+		return
+	# Grenade windup one-shot. The telegraph was a shout and floating text with no
+	# body behind it - the arm never moved. Same self-clearing window as above.
+	if _throw_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("grenade_throw")
+		return
 	# A man doing a JOB shows it, and the job outranks the state map. Set by the behaviour
 	# that owns him (SapperCharge while he plants); cleared when the job ends.
 	if work_clip != "" and sprite_actor is ModelActor:
@@ -482,10 +493,11 @@ func _update_sprite() -> void:
 ## clips the shipped library actually carries are named - a missing clip must degrade to a
 ## T-pose, which is loud, rather than to a weapon pose, which is quiet and wrong.
 const CAMP_ROLE_CLIPS: Dictionary = {
-	"cook": ["idle_crouching", "sitting", "idle_unarmed_3"],
-	"rest": ["sitting", "idle_unarmed_5", "idle_unarmed_2"],
-	"talk": ["idle_unarmed_4", "idle_unarmed_2", "idle_unarmed"],
-	"sleep": ["laying_breathless", "sitting", "idle_unarmed_5"],
+	"cook": ["idle_crouching", "sitting_idle_b", "sitting", "idle_unarmed_3"],
+	"rest": ["smoking", "sitting_drinking", "neck_stretch", "arm_stretch",
+		"sitting_idle_c", "sitting", "idle_unarmed_5"],
+	"talk": ["sitting_talking", "standing_talking", "telling_secret", "idle_unarmed_4"],
+	"sleep": ["sleeping_laying", "laying_idle", "sleeping_sitting", "sitting"],
 }
 ## How close to his station a man must be before the role pose replaces his walk.
 const CAMP_ROLE_AT_STATION_M: float = 2.2
@@ -2100,7 +2112,8 @@ func _throw_grenade() -> void:
 	add_child(shout)
 	shout.position = Vector3(0, 2.4, 0)
 	get_tree().create_timer(1.2).timeout.connect(shout.queue_free)
-	# The lob (1s windup).
+	# The lob (1s windup) - the arm moves for exactly that window.
+	_throw_until_ms = float(Time.get_ticks_msec()) + 1000.0
 	var throw_target := last_known_target_pos
 	get_tree().create_timer(1.0).timeout.connect(func() -> void:
 		if current_state == Enums.AIState.DEAD or not is_inside_tree():
@@ -2221,6 +2234,10 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	# them into a brief SUPPRESSED stagger + a pain grunt.
 	if current_hp > 0 and float(amount) >= float(max_hp) / 3.0:
 		apply_stagger(1.0)
+		# A man on his feet lurches; a man already crouched or crawling has nowhere
+		# to fall, and the clip would launch him upright.
+		if not _low_posture:
+			_stumble_until_ms = float(Time.get_ticks_msec()) + 500.0
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0)
 
 	if current_hp <= 0:
@@ -2383,6 +2400,7 @@ func _medic_think() -> void:
 
 
 func _reset_aid() -> void:
+	work_clip = ""  # release the haul pose or he carries an invisible man forever
 	_aid_target = null
 	_drag_started = false
 	_drag_dest = Vector3.ZERO
@@ -2411,6 +2429,11 @@ func _execute_aid(delta: float) -> void:
 		away = away.normalized() if away.length() > 0.1 else -global_transform.basis.z
 		_drag_dest = _aid_target.global_position + away * DRAG_OUT_METERS
 		_drag_started = true
+		# Both halves of the haul. The casualty is is_downed, so _update_sprite has
+		# already returned on his latched pose - his clip must be set HERE, once.
+		work_clip = "carry_wounded"
+		if _aid_target.sprite_actor is ModelActor:
+			(_aid_target.sprite_actor as ModelActor).play("being_carried", true)
 		return
 	# Dragging: slow haul, the casualty trails a body-length behind.
 	var to_dest: Vector3 = _drag_dest - global_position
@@ -2533,11 +2556,14 @@ func _die() -> void:
 			handled = true  # dead weight dropped - the ragdoll owns the body now
 		if not handled:
 			# last_hit_dir is the bullet's TRAVEL direction (attacker -> us), so
-			# the shooter lies along -last_hit_dir. Only two death clips exist;
-			# a shot from the left plays death_forward for now.
+			# the shooter lies along -last_hit_dir.
 			var to_attacker: Vector3 = -last_hit_dir
-			var from_right: bool = to_attacker.dot(global_transform.basis.x) > 0.35
-			var intent: String = "death_right" if from_right else "death_forward"
+			var side: float = to_attacker.dot(global_transform.basis.x)
+			var intent: String = "death_forward"
+			if side > 0.35:
+				intent = "death_right"
+			elif side < -0.35:
+				intent = "death_left"
 			# A man who died LOW dies low: the authored crouch death outranks the
 			# standing picks. Rigs without the clip fall through to them.
 			var played: Variant = false

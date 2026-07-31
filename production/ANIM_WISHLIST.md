@@ -5,6 +5,47 @@ All work lands in `anim_library.blend` → one re-export propagates roster-wide
 (`production/research/animation_smoothness_plan.md`), CoD2000 living-fight
 decree, current library audit (91 clips, listed via `tools/list_clips.gd`).
 
+## LANDED 2026-07-30 via the Mixamo MCP — A1..A5 are DONE
+
+`anim_library.glb` 124 -> **134 clips** (verified by parsing the GLB's JSON chunk, not the log).
+**Mixamo clips are DROP-IN: `PSXRig` IS a Mixamo skeleton — 41/41 bone names, scale 1.0, measured
+by `tools/probe_mixamo_fit.py`. There is no retarget step.** Chain: download FBX (filename stem =
+house clip name) -> `tools/import_mixamo_clips.py` -> `sync_clips_into_library.py --bones-only` ->
+`export_anim_library.py`.
+
+**Second pull (medic + ambient) brought it to 156 clips, 13.64 MB.**
+
+| Clip | Wired? |
+|---|---|
+| `plant_charge` | YES — `sapper_charge.gd` `PLANT_CLIP` (was chaining `mortar_dropper`) |
+| `death_from_the_left` | YES — 3-way `side` test in `enemy_base.gd` + `ally_base.gd`, `death_left` intent |
+| `medic_treat_give` | YES — `squad_system.gd` `_process_revive`, via new `AllyBase.set_performance()`. Cleared on all 3 exit paths; a latched override freezes a live man |
+| `smoking` `sitting_drinking` `sitting_talking` `standing_talking` `telling_secret` `sleeping_laying` `sleeping_sitting` `sitting_idle_b/c` | YES — VC `CAMP_ROLE_CLIPS` (`enemy_base.gd:484`). **Fixed: the `sleep` role was playing `laying_breathless`, the DOWNED/dying clip — sleeping men read as casualties** |
+| `plant_seeds` `digging` `praying` `praying_b` | YES — `civilian.gd`, keyed off `scheduled_action()` not pose; `praying` is elders on `sit`. Civilian chains still carry NO armed clip (the T-pose-not-firing-line law) |
+| `smoking` (US) | YES — `off_duty` garrison occupation; `mess_cook` gets `sitting_idle_b` |
+| `carry_wounded` + `being_carried` | YES — `_execute_aid` sets BOTH halves at drag start; `_reset_aid` clears `work_clip` |
+| `grenade_throw` | YES — one-shot window over the lob's 1s windup (`_throw_until_ms`). The telegraph was a shout and floating text with **no body behind it** |
+| `stumble_hit` | YES — the solid-hit stagger branch (`>= max_hp/3`), skipped when already low: the clip would launch a crouched man upright |
+| `wounded_crawl` | YES — the `crippled` intent (was `injured_walk_backwards`, i.e. crippled men moonwalked) + a 0.8 m/s entry in `_CLIP_SPEED` |
+| `medic_treat_receive` | **NO CONSUMER EXISTS.** The squad medic revives the PLAYER, who has no third-person body. Needs downed-ALLY revive to be built first |
+| `salute` · `standing_arguing` · `briefing_group` · `kneeling_idle` | in the GLB, no caller. The first three are the body-language risks below — wire after you judge them |
+| `prone_idle` · `crouch_to_prone` · `prone_to_crouch` · `prone_firing_rifle` | in the GLB, **needs a prone posture the state map can select** — still engine work |
+
+**LOOP MODES (caught in the wiring pass, would have shipped as freezes):** the loop heuristic is a
+prefix match, and it misses nearly every ambient clip — `sitting_idle_b` is not `sitting`,
+`prone_idle` does not start with `idle`. All held poses are now named in `_LOOP_NAMES`
+(`model_actor.gd`). A play-once ambient clip freezes the man the instant it ends, which is the
+silent-freeze bug class exactly.
+
+**Unjudged by eyes:** the conversational clips (`standing_arguing`, `briefing_group`, `telling_secret`)
+are contemporary-Western body language and may read wrong in a village. `briefing_group` is 1401
+frames and `sitting_talking_b` 1350 — the library grew 8.53 -> 13.64 MB, mostly from these.
+
+**`__mg` / `__launcher` / `__bolt` families: DEFERRED by the Summoner, 2026-07-30** ("that's stuff we
+can do later"). Not cancelled, just not now - the MG gunner and RPG man keep holding their weapons
+like rifles meanwhile. Route when reopened: one arms-only hold delta -> all 9 clips of a family via
+`bake_family_clip.py`, headless. Only the hold needs a human.
+
 ## A. NEW CLIPS (things the library genuinely lacks)
 
 | # | Clip | Why / what it unblocks | Notes |

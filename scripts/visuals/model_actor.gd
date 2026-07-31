@@ -334,7 +334,21 @@ const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe"
 ## (retreat/crippled/cover/surrender/seated), so play-once would freeze them
 ## mid-stride. laying_breathless stays one-shot deliberately.
 const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing",
-	"sitting", "cockpit_idle"]
+	"sitting", "cockpit_idle",
+	# Held poses and ambient loops. The prefix heuristic misses every one of these
+	# ("sitting_idle_b" is not "sitting"; "prone_idle" does not start with "idle"),
+	# and a play-once ambient clip freezes the man the instant it ends.
+	"kneeling_idle", "prone_idle", "prone_firing_rifle", "wounded_crawl",
+	"carry_wounded", "being_carried", "plant_charge", "medic_treat_give",
+	"medic_treat_receive", "smoking", "drinking", "sitting_drinking",
+	"sitting_idle_b", "sitting_idle_c", "sitting_talking", "sitting_talking_b",
+	"standing_talking", "telling_secret", "standing_arguing", "briefing_group",
+	"sleeping_laying", "sleeping_sitting", "praying", "praying_b",
+	"digging", "plant_seeds",
+	# Passive military set. signal_move_up is deliberately absent - a beckon is a
+	# one-shot gesture, and looping it makes a man wave forever.
+	"sentry_scan", "nervous_scan", "crouch_scan", "laying_idle",
+	"neck_stretch", "arm_stretch"]
 
 func _apply_loop_modes() -> void:
 	if _anim == null:
@@ -930,6 +944,7 @@ const _CLIP_SPEED: Dictionary = {
 	"walk_forward": 1.6, "walk_left": 1.4, "walk_right": 1.4,
 	"walk_backward": 1.3, "start_walking": 1.6,
 	"injured_walk_backwards": 1.2,
+	"wounded_crawl": 0.8, "carry_wounded": 1.0,
 	"walk_crouching_forward": 1.3, "walk_crouching_backward": 1.1,
 	"walk_crouching_left": 1.1, "walk_crouching_right": 1.1,
 }

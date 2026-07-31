@@ -326,6 +326,29 @@ func _animate() -> void:
 	# chain, play_first() returns on it and the whole village stands and squats
 	# like a firing line. A missing clip must degrade to a T-pose, which is loud,
 	# rather than to a weapon pose, which is quiet and wrong.
+	# The SCHEDULE knows what he is DOING; `want` only knows what shape he is in.
+	# A seated man talking and a seated man asleep share one pose otherwise.
+	# Movement poses are left alone - a walking man is not asleep.
+	if want != "running_unarmed" and want != "walking_unarmed":
+		match scheduled_action():
+			&"sleep":
+				actor.play_first(["sleeping_laying", "sleeping_sitting", "sitting"])
+				return
+			&"talk":
+				actor.play_first(["sitting_talking", "standing_talking", "telling_secret"])
+				return
+			&"work":
+				actor.play_first(["plant_seeds", "digging", "idle_unarmed_3"])
+				return
+			&"rest":
+				actor.play_first(["sitting_idle_c", "sitting_drinking", "sitting"])
+				return
+			&"sit":
+				if occupation == "elder":
+					actor.play_first(["praying", "praying_b", "sitting_idle_b"])
+				else:
+					actor.play_first(["sitting_idle_b", "sitting_talking", "sitting"])
+				return
 	match want:
 		"running_unarmed":
 			actor.play_first(["running_unarmed", "walking_unarmed"])
@@ -349,6 +372,14 @@ func _animate() -> void:
 func _play_garrison(want: String) -> void:
 	# The quartermaster's whole job is moving crates, and the library has carried
 	# `cargo_carry` / `cargo_unload_stack` with no caller since they landed.
+	# Off-duty men loaf; the schedule already keeps them away from a post. These are
+	# the unarmed poses, which is the point - a man smoking is not standing to.
+	if occupation == "off_duty" and want != "running_unarmed" and want != "walking_unarmed":
+		actor.play_first(["smoking", "sitting_drinking", "sitting_talking", "idle_unarmed_5"])
+		return
+	if occupation == "mess_cook" and want == "stooped":
+		actor.play_first(["sitting_idle_b", "cargo_unload_stack", "idle_unarmed_3"])
+		return
 	if occupation == "quartermaster":
 		if want == "walking_unarmed":
 			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])

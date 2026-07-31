@@ -17,10 +17,8 @@ extends Node
 const PLACE_RANGE: float = 2.0
 ## Kneeling over it, working. Long enough to be a moment you can shoot him during.
 const PLANT_SECONDS: float = 3.0
-## The pose while he works. mortar_dropper is the library's kneeling hands-busy clip;
-## idle_crouching is the guarantee that he is at least DOWN on a rig that lacks it.
-## There is no authored "planting a charge" clip - that is an art ask, not a wiring one.
-const PLANT_CLIPS: Array[String] = ["mortar_dropper", "idle_crouching", "kneeling_pointing"]
+## The pose while he works. EnemyBase.play_first falls back to idle_crouching.
+const PLANT_CLIP: String = "plant_charge"
 const SATCHEL_DAMAGE: int = 250
 const SATCHEL_MIN: int = 70
 const SATCHEL_RADIUS: float = 14.0
@@ -150,7 +148,7 @@ func _begin_planting(enemy: EnemyBase) -> void:
 	# origin walked men PAST the wire to stand behind it; the charge belongs against the
 	# face he reached, which is wherever he stopped.
 	_plant_at = enemy.global_position
-	enemy.work_clip = PLANT_CLIPS[0]
+	enemy.work_clip = PLANT_CLIP
 	# Objective = where he stands, so the legs stop without touching assault_driven.
 	enemy.assault_objective = enemy.global_position
 	print("[SAPPER] planting - %.0fs" % PLANT_SECONDS)
