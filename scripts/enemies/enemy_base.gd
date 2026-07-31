@@ -502,6 +502,27 @@ const CAMP_ROLE_CLIPS: Dictionary = {
 	"talk": ["sitting_talking", "standing_talking", "telling_secret", "idle_unarmed_4"],
 	"sleep": ["sleeping_laying", "laying_idle", "sleeping_sitting", "sitting"],
 }
+
+## play_first() plays the FIRST clip the rig carries, so a role with one chain is a
+## role with one pose: every resting man in the camp smoked, together, forever. The
+## chain is ROTATED per man instead - same clips, different head. Keyed off his
+## station, which the seeded camp layout fixes, so the camp rebuilds identical
+## (ADR-010).
+##
+## The LAST entry never rotates. It is the degrade target - the clip every rig is
+## known to carry - and promoting it to the head would answer "what pose is this
+## man in" with "the fallback".
+func _role_chain(role: String) -> Array[String]:
+	var chain: Array = CAMP_ROLE_CLIPS[role]
+	var rotatable: int = chain.size() - 1
+	if rotatable < 2:
+		return chain as Array[String]
+	var off: int = absi(hash(Vector2i(int(work_pos.x * 4.0), int(work_pos.z * 4.0)))) % rotatable
+	var out: Array[String] = []
+	for i in range(rotatable):
+		out.append(str(chain[(i + off) % rotatable]))
+	out.append(str(chain[chain.size() - 1]))
+	return out
 ## How close to his station a man must be before the role pose replaces his walk.
 const CAMP_ROLE_AT_STATION_M: float = 2.2
 
@@ -522,7 +543,7 @@ func _play_camp_role() -> bool:
 		return false
 	if Vector3(velocity.x, 0.0, velocity.z).length() > 0.35:
 		return false
-	(sprite_actor as ModelActor).play_first(CAMP_ROLE_CLIPS[camp_role] as Array[String])
+	(sprite_actor as ModelActor).play_first(_role_chain(camp_role))
 	return true
 
 

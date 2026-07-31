@@ -345,6 +345,10 @@ const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing
 	"standing_talking", "telling_secret", "standing_arguing", "briefing_group",
 	"sleeping_laying", "sleeping_sitting", "praying", "praying_b",
 	"digging", "plant_seeds",
+	# The quartermaster's own two clips. cargo_carry stands in for a WALK cycle and
+	# cargo_unload_stack for a held work pose, and neither looped: every man moving
+	# crates finished his clip and froze holding it.
+	"cargo_carry", "cargo_unload_stack",
 	# Passive military set. signal_move_up is deliberately absent - a beckon is a
 	# one-shot gesture, and looping it makes a man wave forever.
 	"sentry_scan", "nervous_scan", "crouch_scan", "laying_idle",

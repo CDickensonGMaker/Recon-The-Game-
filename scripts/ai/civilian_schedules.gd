@@ -183,6 +183,50 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 			if sim_hour < 20.0:
 				return ACTION_COOK           # hot meal before the night shift goes on
 			return ACTION_WORK               # cleaning down
+		"medic":
+			# The aid station is never shut. He sleeps light and short, and he is at
+			# the station through both the morning sick call and the hours a patrol
+			# comes back in.
+			if sim_hour >= 23.5 or sim_hour < 5.0:
+				return ACTION_REST
+			if sim_hour < 6.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 12.5:
+				return ACTION_WORK
+			if sim_hour < 13.25:
+				return ACTION_WALK_FIRE
+			if sim_hour < 17.0:
+				return ACTION_WORK
+			if sim_hour < 18.0:
+				return ACTION_TALK
+			return ACTION_WORK
+		"patient":
+			# A man on a cot in the aid station. ACTION_WORK is what pins him to his
+			# working point, and his working point is the cot - he has nowhere to be
+			# and no hour at which he gets up.
+			return ACTION_WORK
+		"detail":
+			# THE WORKING PARTY. Digging, filling, burning, hauling water, policing the
+			# pad - daylight labour, hardest in the cool hours, dead through the midday
+			# heat. A detail man at night is off it, not swinging an entrenching tool
+			# in the dark.
+			if sim_hour >= 21.5 or sim_hour < 5.5:
+				return ACTION_SLEEP
+			if sim_hour < 6.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 11.0:
+				return ACTION_WORK
+			if sim_hour < 12.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 13.5:
+				return ACTION_REST           # out of the midday sun
+			if sim_hour < 17.5:
+				return ACTION_WORK
+			if sim_hour < 18.5:
+				return ACTION_WALK_FIRE
+			if sim_hour < 19.5:
+				return ACTION_WORK           # police call before last light
+			return ACTION_TALK
 		"off_duty":
 			if sim_hour < 6.0 or sim_hour >= 22.0:
 				return ACTION_SLEEP

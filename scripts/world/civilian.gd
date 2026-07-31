@@ -33,6 +33,9 @@ var _last_clip: String = ""
 ## Per-villager unarmed idle, picked deterministically at spawn so a village is a
 ## crowd of individuals and not four copies of one pose (ADR-010: same seed, same ville).
 var _idle_variant: String = "idle_unarmed_2"
+## The same spawn hash _idle_variant is drawn from, kept so other per-man picks
+## (the off-duty chain) vary with the man instead of all landing on one clip.
+var _idle_seed: int = 0
 
 ## Travelling actions a household walks together. Stationary actions (work,
 ## cook, sleep) are done side by side at home, not in formation.
@@ -43,6 +46,18 @@ const GROUP_WALK_SPEED: float = 1.3
 
 const IDLE_VARIANTS: Array[String] = [
 	"idle_unarmed_2", "idle_unarmed_3", "idle_unarmed_4", "idle_unarmed_5",
+]
+
+## Off-duty men had ONE chain, and play_first() takes the head of it whenever the
+## rig carries it - so every off-duty man in the compound smoked, forever, together.
+## Six of the seventeen curated garrison are off_duty, plus every unmapped work post.
+const OFF_DUTY_CHAINS: Array = [
+	["smoking", "sitting_drinking", "idle_unarmed_5"],
+	["sitting_drinking", "drinking", "sitting_idle_c", "idle_unarmed_5"],
+	["sitting_talking", "standing_talking", "sitting_idle_b", "idle_unarmed_4"],
+	["neck_stretch", "arm_stretch", "idle_unarmed_3"],
+	["sitting_idle_c", "sitting_idle_b", "sitting", "idle_unarmed_5"],
+	["standing_talking", "telling_secret", "idle_unarmed_2"],
 ]
 
 # L1 behavior-tree fields. active_action is the BT's current pick; state
@@ -143,6 +158,7 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 	var pick: int = seed_h % models.size()
 	@warning_ignore("integer_division")
 	civ._idle_variant = IDLE_VARIANTS[(seed_h / 7) % IDLE_VARIANTS.size()]
+	civ._idle_seed = seed_h
 	var model_actor := ModelActor.new()
 	civ.add_child(model_actor)
 	if model_actor.setup(models[pick]):
@@ -375,8 +391,38 @@ func _play_garrison(want: String) -> void:
 	# Off-duty men loaf; the schedule already keeps them away from a post. These are
 	# the unarmed poses, which is the point - a man smoking is not standing to.
 	if occupation == "off_duty" and want != "running_unarmed" and want != "walking_unarmed":
-		actor.play_first(["smoking", "sitting_drinking", "sitting_talking", "idle_unarmed_5"])
+		# Seeded per man so six off-duty men are not one man six times.
+		@warning_ignore("integer_division")
+		var pick: int = (_idle_seed / 3) % OFF_DUTY_CHAINS.size()
+		actor.play_first(OFF_DUTY_CHAINS[pick] as Array[String])
 		return
+	# The aid station. medic_treat_give had exactly one caller (the squad revive) and
+	# medic_treat_receive had none at all - the library carried a whole aid station
+	# nobody was standing in.
+	if occupation == "medic":
+		if want == "walking_unarmed":
+			actor.play_first(["walk_forward", "walking_unarmed"])
+			return
+		if want != "running_unarmed":
+			actor.play_first(["medic_treat_give", "kneeling_idle", "sitting_idle_b",
+				"idle_unarmed_3"])
+			return
+	# The man on the cot. medic_treat_receive shipped with the wave and had ZERO
+	# callers - the library carried the patient and the game carried the empty bed.
+	if occupation == "patient" and want != "walking_unarmed" and want != "running_unarmed":
+		actor.play_first(["medic_treat_receive", "laying_idle", "sleeping_laying",
+			"sitting"])
+		return
+	# The working party: digging, filling, hauling, policing. `plant_seeds` is a
+	# kneeling ground-work clip and reads as filling a sandbag, not as farming.
+	if occupation == "detail":
+		if want == "walking_unarmed":
+			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
+			return
+		if want == "stooped":
+			actor.play_first(["digging", "plant_seeds", "cargo_unload_stack",
+				"idle_unarmed_3"])
+			return
 	if occupation == "mess_cook" and want == "stooped":
 		actor.play_first(["sitting_idle_b", "cargo_unload_stack", "idle_unarmed_3"])
 		return

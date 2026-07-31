@@ -814,8 +814,8 @@ const FSB_GARRISON_QUARTERS: Array[String] = [
 ## named keys because the garrison reads them by PREFIX, not by exact name.
 static var _fsb_work_markers: Array = []
 
-## work_type -> Civilian occupation. Only the seven the schedule machinery already knows;
-## a work_type with no entry here becomes off_duty rather than inventing a schedule.
+## work_type -> Civilian occupation. A work_type with no entry here becomes off_duty
+## rather than inventing a schedule.
 ## gun/mortar deliberately do NOT map to gun_crew: mission_generator._place_firebase_mg
 ## spawns a mannable M60 per gun_crew post, and 20 of them is not a firebase, it is a joke.
 const FSB_WORK_OCCUPATION: Dictionary = {
@@ -823,7 +823,25 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 	"ammo": "quartermaster", "supply": "quartermaster",
 	"radio": "radioman", "plot": "radioman",
 	"cook": "mess_cook", "mess": "mess_cook",
+	"medic": "medic",
+	# The working party. Digging, filling, burning, hauling water, washing down,
+	# policing the pad - the labour that fills a firebase day.
+	"dig": "detail", "burn": "detail", "latrine": "detail",
+	"water": "detail", "wash": "detail", "pad": "detail",
+	# Named so the fall-through is a decision, not an accident.
+	"rest": "off_duty", "smoke": "off_duty",
 }
+
+## Which JOBS the work-post budget buys, best first. The curated table above already
+## seats sentries, gun crew, quartermasters, a radioman, a cook and six off-duty men,
+## so the budget is spent on what it does NOT cover: the aid station and the working
+## party. Types absent here still get seated, after these, in marker order.
+const FSB_WORK_PRIORITY: Array[String] = [
+	"medic",
+	"dig", "wash", "water", "burn", "latrine", "pad",
+	"radio", "supply", "cook", "mess", "ammo",
+	"watch", "guard", "mg", "plot", "smoke", "rest",
+]
 
 ## THE garrison ceiling: how many men stand inside the wire, curated and work-post
 ## alike. Guarded by tests/test_firebase_garrison.gd, which reads THIS constant.
@@ -912,20 +930,68 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 	var wcount: int = _fsb_work_markers.size()
 	var work_budget: int = clampi(FSB_GARRISON_MAX_MEN - _fsb_curated_men(), 0, FSB_WORK_POST_CAP)
 	if wcount > 0 and work_budget > 0:
-		var stride: int = maxi(1, int(floor(float(wcount) / float(work_budget))))
+		# ROUND-ROBIN BY WORK TYPE, not a positional stride. The stride walked 198
+		# markers sorted by X and took every 16th, so which JOBS the twelve work-post
+		# men did was decided by where their markers happened to sit on the map: four
+		# medic posts in one building could all be skipped, and thirty-six work_rest
+		# markers could win most of the budget. The constant this budget comes from
+		# calls itself a VARIETY cap - so spend it on variety.
+		var by_type: Dictionary = {}
+		var seen_order: Array[String] = []
+		for entry_any in _fsb_work_markers:
+			var e: Array = entry_any
+			var wt: String = str(e[1])
+			if not by_type.has(wt):
+				by_type[wt] = []
+				seen_order.append(wt)
+			(by_type[wt] as Array).append(e[0])
+		# FSB_WORK_PRIORITY first, then anything the GLB carries that it does not name,
+		# in marker order. Sorting alphabetically instead would spend the whole budget
+		# on ammo/burn/cook/dig and never reach the medic.
+		var type_order: Array[String] = []
+		for wt in FSB_WORK_PRIORITY:
+			if by_type.has(wt):
+				type_order.append(wt)
+		for wt in seen_order:
+			if not type_order.has(wt):
+				type_order.append(wt)
 		var taken: int = 0
-		var i: int = 0
-		while i < wcount and taken < work_budget:
-			var entry: Array = _fsb_work_markers[i]
-			var wp: Vector3 = origin + (entry[0] as Vector3)
-			wp.y = 0.0
-			var occ: String = str(FSB_WORK_OCCUPATION.get(str(entry[1]), "off_duty"))
-			# Alternate the two sentry shifts so the wire is not empty after dark.
-			if occ == "sentry" and taken % 2 == 1:
-				occ = "sentry_night"
-			posts.append({"pos": wp, "occupation": occ, "men": 1})
-			taken += 1
-			i += stride
+		# THE AID STATION IS SEEDED, not left to the rotation. A medic alone at a
+		# station plays medic_treat_give over empty ground - he mimes surgery on the
+		# dirt. So the station opens with a man on the table, which is also the
+		# casualty-ledger floor: an aid station with nobody in it is the fresh-player
+		# failure. Wounded ABOVE this floor are the ledger's job, not the layout's.
+		var med_pool: Array = by_type.get("medic", [])
+		if med_pool.size() >= 2 and work_budget >= 2:
+			var mp: Vector3 = origin + (med_pool[0] as Vector3)
+			mp.y = 0.0
+			var pp: Vector3 = origin + (med_pool[1] as Vector3)
+			pp.y = 0.0
+			posts.append({"pos": mp, "occupation": "medic", "men": 1})
+			posts.append({"pos": pp, "occupation": "patient", "men": 1})
+			taken = 2
+			type_order.erase("medic")
+		var round_i: int = 0
+		while taken < work_budget:
+			var placed_this_round: bool = false
+			for wt in type_order:
+				if taken >= work_budget:
+					break
+				var pool: Array = by_type[wt]
+				if round_i >= pool.size():
+					continue
+				var wp: Vector3 = origin + (pool[round_i] as Vector3)
+				wp.y = 0.0
+				var occ: String = str(FSB_WORK_OCCUPATION.get(wt, "off_duty"))
+				# Alternate the two sentry shifts so the wire is not empty after dark.
+				if occ == "sentry" and taken % 2 == 1:
+					occ = "sentry_night"
+				posts.append({"pos": wp, "occupation": occ, "men": 1})
+				taken += 1
+				placed_this_round = true
+			if not placed_this_round:
+				break
+			round_i += 1
 
 	var quarters: Array[Vector3] = []
 	for key in FSB_GARRISON_QUARTERS:
