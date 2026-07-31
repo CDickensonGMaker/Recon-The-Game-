@@ -12,6 +12,10 @@ extends RefCounted
 ##
 ## Sound is what makes the takedown worth doing: a stab emits NOTHING on the NoiseBus,
 ## while a rifle shot does. Killing quietly is the whole mechanic.
+##
+## The takedown has its OWN death performance. `brutal_assassination` has been in the
+## shared library the whole time with zero callers - a man knifed from behind should not
+## play the same fall as a man shot in the chest, and the clip already existed.
 
 ## Reach and arc of the blade. Short and forgiving - a knife that needs pixel aim is a
 ## knife nobody uses.
@@ -24,6 +28,8 @@ const FRONT_DAMAGE: int = 27
 ## the direction to you: 0.35 is a generous rear ~110-degree wedge.
 const BEHIND_DOT: float = 0.35
 const COOLDOWN_MS: float = 0.75 * 1000.0
+## The victim's death performance for a silent kill. Already in anim_library.
+const TAKEDOWN_CLIP: String = "brutal_assassination"
 ## The cooldown lives ON THE ATTACKER, not in a static. A static would be one global swing
 ## clock shared by every man who ever draws a blade - the player's stab putting an enemy's
 ## on cooldown - and it would survive a scene reload with a stale timestamp. Meta dies with
@@ -47,6 +53,9 @@ static func strike(attacker: Node3D) -> bool:
 		return false
 
 	if _is_behind(attacker, victim) and _is_unaware(victim):
+		# Named BEFORE the blow: the death path reads it as it dies.
+		if "death_clip_override" in victim:
+			victim.set("death_clip_override", TAKEDOWN_CLIP)
 		# HEAD is the fatal zone in the one grammar - this file does not decide lethality,
 		# it names where the blade went (ADR-016 Amendment D, Hitzone.zone_name_is_fatal).
 		victim.call("take_damage", 999, Enums.DamageType.PHYSICAL, attacker, "HEAD")

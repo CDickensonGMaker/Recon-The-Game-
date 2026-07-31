@@ -53,11 +53,17 @@ static func make_screen_root(bg_override: Texture2D = null) -> Control:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	if _screen_bg == null:
 		_screen_bg = load("res://assets/ui/screen_bg.png")
+	# Solid fill behind the art so letterbox bars read as intentional black,
+	# not whatever the viewport's clear color happens to be.
+	var letterbox := ColorRect.new()
+	letterbox.color = Color(0.0, 0.0, 0.0)
+	letterbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(letterbox)
 	var bg := TextureRect.new()
 	bg.texture = bg_override if bg_override != null else _screen_bg
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	root.add_child(bg)
 	var scrim := ColorRect.new()
 	scrim.color = Color(0.04, 0.045, 0.035, 0.72)

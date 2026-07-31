@@ -18,12 +18,16 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_soundscape()
 
-	# Full-bleed key art.
+	# Key art, letterboxed so the full composition shows uncropped and unmagnified.
+	var letterbox := ColorRect.new()
+	letterbox.color = Color(0.0, 0.0, 0.0)
+	letterbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(letterbox)
 	var bg := TextureRect.new()
 	bg.texture = BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	add_child(bg)
 
 	# Left column scrim so the menu reads over the art.

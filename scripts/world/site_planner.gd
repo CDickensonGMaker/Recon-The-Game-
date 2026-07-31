@@ -954,8 +954,25 @@ static func fsb_gate_metrics(center: Vector3) -> Dictionary:
 	return {"gate_pos": gate_pos, "gate_out": out, "spawn_pos": gate_pos - out * 22.0}
 
 
+## Same 7x7 grid place_firebase_main() uses to seat the model, run BEFORE
+## picking a site instead of after. A seed that rolls the footprint through a
+## ridge or a paddy edge is not "unlucky" - it should never have won the pick.
+func _footprint_height_range(center: Vector3) -> float:
+	var step: float = FSB_HALF.x / 3.0
+	var lo: float = 1.0e9
+	var hi: float = -1.0e9
+	for dx in range(-3, 4):
+		for dz in range(-3, 4):
+			var h: float = _terrain.get_height_at(center + Vector3(float(dx) * step, 0.0, float(dz) * step))
+			lo = minf(lo, h)
+			hi = maxf(hi, h)
+	return hi - lo
+
+
 ## Pure site pick for the AABB center: fits in-map with margin, prefers dry flat
-## ground at the clear-disc centers, stays off paddies/reserved points.
+## ground across the WHOLE footprint (not just the clear-disc centers), stays
+## off paddies/reserved points. Flatness dominates the score on purpose - the
+## seat/sculpt pass downstream can blend a gentle site, it cannot fix a ridge.
 func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
 	var map_size: float = _terrain.map_size
 	var min_x: float = FSB_HALF.x + FSB_EDGE_MARGIN
@@ -971,6 +988,7 @@ func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
 			if _grid.is_water(p):
 				score -= 10.0
 			score -= _grid.get_slope(p)
+		score -= _footprint_height_range(c) * 2.0
 		for r in _reserved:
 			if c.distance_to(r) < 240.0:
 				score -= 25.0

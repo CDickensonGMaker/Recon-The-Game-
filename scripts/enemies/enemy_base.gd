@@ -140,6 +140,9 @@ const FILE_STAGGER: float = 1.1     ## lateral weave, so it is a file and not a 
 var camp_role: String = "guard"
 ## Non-empty = he is working with his hands and that pose outranks the state map.
 var work_clip: String = ""
+## Set by whatever KILLED him when the death has a specific performance - a knife takedown
+## is not a gunshot fall. Tried first; the normal death picks run if the rig lacks it.
+var death_clip_override: String = ""
 ## Camp work station (CampDirector-assigned village prop marker). ZERO = none.
 ## An un-alerted idle man WALKS to it and works there - the living camp.
 var work_pos: Vector3 = Vector3.ZERO
@@ -2518,9 +2521,14 @@ func _die() -> void:
 		# floating corpse - because the gore branch never reported back and the death-clip
 		# fallback below was an `else` it could not reach.
 		var handled: bool = false
+		# A NAMED DEATH OUTRANKS THE RAGDOLL. A clean kill normally drops as dead weight,
+		# and that branch would swallow a knife takedown before its performance ever ran -
+		# so an authored death (brutal_assassination) is tried before anything else.
+		var named: bool = death_clip_override != "" and _visual_is_model and ma != null \
+			and _removed.is_empty()
 		if (_killed_explosive or GibSystem.force_all_gibs) and _visual_is_model and ma != null:
 			handled = GibSystem.explosion_kill(ma, _removed, last_hit_dir, get_tree().current_scene)
-		elif _visual_is_model and ma != null and _removed.is_empty() \
+		elif not named and _visual_is_model and ma != null and _removed.is_empty() \
 				and ma.start_ragdoll(last_hit_dir, 4.5):
 			handled = true  # dead weight dropped - the ragdoll owns the body now
 		if not handled:
@@ -2533,7 +2541,9 @@ func _die() -> void:
 			# A man who died LOW dies low: the authored crouch death outranks the
 			# standing picks. Rigs without the clip fall through to them.
 			var played: Variant = false
-			if _low_posture and _visual_is_model and ma != null:
+			if death_clip_override != "" and _visual_is_model and ma != null:
+				played = ma.play(death_clip_override, true)
+			if played is bool and not played and _low_posture and _visual_is_model and ma != null:
 				played = ma.play("death_crouching_headshot_front", true)
 			if played is bool and not played:
 				played = sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, str(enemy_data.sprite_weapon), intent), true)
