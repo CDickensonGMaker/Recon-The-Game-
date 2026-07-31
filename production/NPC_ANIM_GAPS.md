@@ -12,6 +12,14 @@ appearing in any grep.
 
 **NOTHING BELOW IS PLAYTESTED.** Parse scan clean is not the same as judged by eye.
 
+**Name audit, 2026-07-31:** every string reaching `play()` / `play_first()` and every value in
+`MODEL_CLIP` / `OCTANT_CLIPS` / `CAMP_ROLE_CLIPS` / `VILLAGE_ACTION_CLIPS` / `OFF_DUTY_CHAINS` was
+checked against the 163 clips in the library. **No typos, no missing clips.** The one that looks
+wrong is not: `MODEL_CLIP["death_forward"] = "death_forward"` names a clip the library does NOT
+carry — it resolves through `MODEL_ALIASES` to `death_from_the_front`, and every chain that uses it
+leads with a clip that exists. `rifle_idle` / `charge_handle` / `prop_spin` live on the viewmodel
+and vehicle rigs, not this library.
+
 ---
 
 ## CLOSED THIS SESSION
