@@ -15,10 +15,12 @@ house clip name) -> `tools/import_mixamo_clips.py` -> `sync_clips_into_library.p
 
 **Second pull (medic + ambient) brought it to 156 clips; the passive set closed at 163, 14.44 MB.**
 
-**PROVENANCE — the Mixamo id behind every clip.** The FBX downloads live OUTSIDE the repo
-(`C:\Users\caleb\mixamo_source`) and are not tracked: `art_source/` is a deleted tree and stays
-deleted, and the motion itself is in `anim_library.blend` once synced. These ids are the only
-thing needed to re-pull any clip exactly.
+**PROVENANCE — the Mixamo id behind every clip.** The FBX downloads are tracked in
+`assets/shared/mixamo_clips/` (beside the library they feed), staging blend
+`assets/shared/mixamo_staging.blend` — the same shape as `cover_clips_staging.blend` next to it.
+**`art_source/` is a FORBIDDEN path: deleted, never to be recreated.** The clips folder carries a
+`.gdignore` so Godot does not import 39 raw FBX as scenes and drag them into the .pck. These ids
+are what re-pulls any clip exactly.
 
 | clip | Mixamo | clip | Mixamo |
 |---|---|---|---|

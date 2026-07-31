@@ -1,13 +1,16 @@
 """Turn a folder of downloaded Mixamo FBX files into one staging .blend.
 
     blender -b --factory-startup -P tools/import_mixamo_clips.py -- \
-        --src C:/Users/caleb/mixamo_source \
-        --out C:/Users/caleb/mixamo_source/mixamo_staging.blend
+        --src assets/shared/mixamo_clips \
+        --out assets/shared/mixamo_staging.blend
 
-DOWNLOADS AND THE STAGING BLEND LIVE OUTSIDE THE REPO (`C:\Users\caleb\mixamo_source`).
-`art_source/` is a DELETED tree - do not recreate it. The FBX files are provenance
-only: the motion itself lives in anim_library.blend once synced, so nothing is lost
-if they are cleaned up. Clip provenance (Mixamo IDs) is in production/ANIM_WISHLIST.md.
+WHERE THINGS LIVE. Downloads go in `assets/shared/mixamo_clips/`, beside the library
+they feed; the staging blend is `assets/shared/mixamo_staging.blend`, the same shape
+as cover_clips_staging.blend and mg_gunner_staging.blend next to it. **`art_source/`
+is a FORBIDDEN path - it was deleted and must not be recreated.**
+
+The clips folder carries a `.gdignore`: 39 raw FBX are source, not game resources,
+and without it Godot imports every one as a scene and carries them into the .pck.
 
 Each clip's action is renamed to the FBX's filename stem - that stem IS the
 house clip name, so naming happens on disk where it can be seen and fixed.
