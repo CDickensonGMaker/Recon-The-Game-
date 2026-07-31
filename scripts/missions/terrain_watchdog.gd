@@ -9,16 +9,16 @@ const UNDER_DEPTH: float = 5.0
 const SUSPEND_DIST: float = 240.0
 const RESUME_DIST: float = 210.0  # hysteresis
 
-var terrain: TerrainManager
+var world: GameWorld
 var _timer: float = 0.0
 
 
-func setup(terrain_manager: TerrainManager) -> void:
-	terrain = terrain_manager
+func setup(game_world: GameWorld) -> void:
+	world = game_world
 
 
 func _physics_process(delta: float) -> void:
-	if terrain == null:
+	if world == null:
 		return
 	_timer += delta
 	if _timer < POLL_SECONDS:
@@ -52,11 +52,13 @@ func _physics_process(delta: float) -> void:
 					# never blanket-restore visible on resume.
 					var hidden_hole: bool = body.get("is_spider_hole") and not body.get("_spider_triggered")
 					body.visible = not hidden_hole
-					body.global_position.y = terrain.get_height_at(body.global_position) + 0.5
+					# surface_y(), not raw terrain height - the firebase mound model
+					# IS the floor and sits ABOVE bare terrain there (one-ground law).
+					body.global_position.y = world.surface_y(body.global_position) + 0.5
 				elif suspended:
 					continue
 			# Fall-through re-seat.
-			var ground_y: float = terrain.get_height_at(body.global_position)
+			var ground_y: float = world.surface_y(body.global_position)
 			if body.global_position.y < ground_y - UNDER_DEPTH:
 				body.global_position.y = ground_y + 0.5
 				body.velocity = Vector3.ZERO

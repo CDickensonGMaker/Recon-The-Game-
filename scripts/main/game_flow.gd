@@ -597,6 +597,20 @@ func enter_hub() -> void:
 	var patrol_plan: Dictionary = MissionGenerator.plan_demo_world(world, op_seed) \
 		if demo_mode else MissionGenerator.plan_patrol_world(world, op_seed)
 	var built: Dictionary = MissionGenerator.build_patrol_world(world, director, patrol_plan)
+	# THE COLLIDER RACE (2026-07-30): build_patrol_world() just added the firebase's own
+	# colliders (its baked mound/floor body, the remeshed vegetation/parapet trimeshes) via
+	# add_child(), synchronously, no await anywhere in that chain. PhysicsServer3D does not
+	# guarantee a just-added collider is queryable by intersect_ray() until its pending-add
+	# queue is processed at the next physics step - so surface_y()'s raycast, fired below for
+	# player/squad/garrison seating, could miss the firebase's own floor entirely and fall
+	# through to whatever WAS already registered (bare terrain, well below the real floor).
+	# Two physics frames closes the window with margin.
+	await get_tree().physics_frame
+	if world == null or entry != _world_entry:
+		return
+	await get_tree().physics_frame
+	if world == null or entry != _world_entry:
+		return
 	var spawn: Vector3 = built.spawn_pos
 	# THE BUNK SPAWN: start the man on a cot inside the wire, not in a field outside it.
 	# Also the only spawn that is PROVABLY on the firebase - fsb_main_v3 is authored with
@@ -625,6 +639,17 @@ func enter_hub() -> void:
 			print("[SPAWN-DEV] --spawn-at-village: dropped %.0fm from village at %.0f,%.0f" % [
 				60.0, best.x, best.z])
 	world.spawn_player_at(spawn, spawn_seated)
+	# SPAWN-TRUTH PROBE (2026-07-30): one line, printed once, that answers the "is
+	# it still burying people" question without guesswork. spawn.y is what we ASKED
+	# for; surface_y(spawn) is what the physics world says is ACTUALLY solid there,
+	# probed fresh right now (after the collider-race yields above); player.
+	# global_position.y is where the player ACTUALLY landed. If surface_y disagrees
+	# with spawn.y by more than a meter or so, the marker/floor mismatch is real. If
+	# player.y disagrees with spawn.y, something moved him after spawn_player_at
+	# returned (move_and_slide, gravity, another reseat) - check for that next.
+	if world.player != null:
+		print("[SPAWN-TRUTH] asked spawn.y=%.2f | surface_y(spawn) now=%.2f | player landed at y=%.2f | seated=%s" % [
+			spawn.y, world.surface_y(spawn), world.player.global_position.y, spawn_seated])
 	if world.hud != null:
 		world.hud.managed_by_flow = true
 	squad = SquadSystem.new()
@@ -650,13 +675,17 @@ func enter_hub() -> void:
 		(built.gate_pos as Vector3) + (built.gate_out as Vector3) * 90.0, patrol_plan.sites)
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
-	SaveManager.apply_pending_player(world.player)
 	# A restored position is X/Z memory, never Y truth: the world reseats terrain
-	# every build, so a stale saved height puts the player under the ground (the
-	# 'below the firebase, vegetation above me' bug). Re-seat to CURRENT terrain.
-	if world.player != null:
+	# every build, so a stale saved height puts the player under the ground. Only
+	# a RESTORED save needs this - a fresh boot already has the correct bunk seat
+	# from spawn_player_at(), and surface_y()'s top-down raycast misses the hootch
+	# floor from inside, re-burying the player 4m+ below the authored marker
+	# (2026-07-30 SPAWN-TRUTH probe: asked spawn.y=193.56, surface_y=189.18).
+	var had_save: bool = SaveManager.pending_player != null
+	SaveManager.apply_pending_player(world.player)
+	if had_save and world.player != null:
 		var pp: Vector3 = world.player.global_position
-		world.player.global_position.y = world.terrain_manager.get_height_at(pp) + 1.0
+		world.player.global_position.y = world.surface_y(pp) + 1.0
 	# Hot chow is free. YOUR RIFLE IS NOT (Summoner's decree, 2026-07-13): weapon
 	# condition persists across missions and is only restored by working the
 	# armorer's bench - it costs time, and it cannot be done in the field.

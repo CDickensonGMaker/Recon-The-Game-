@@ -24,7 +24,7 @@ new GLB is in — that is the signal to delete the repair code (`site_planner._r
 | **A2** | `fb_sbg_seg_` → `COL_TRIMESH` (shoot through, and stop the box burying the berm) | generator done, re-export |
 | **A3** | 5 merged solid veg objects → `COL_TRIMESH` (see §3) | generator done, re-export |
 | **A4** | mound manifest written on export (`write_mound_manifest`) | generator done, re-export |
-| **B1** | **Fire slits** cut into the parapet + verify bunker embrasures | §2 — hand work |
+| **B1** | **Fire slits** cut into the parapet + verify bunker embrasures (aperture ≠ occupiable — §2.5) | §2 — hand work |
 | **B2** | **Fighting step / banquette + flat berm crest** | §2b — hand work |
 | **B3** | `Base_Human` donor rendering inside every US soldier | §5 — different .blend |
 
@@ -181,6 +181,15 @@ Nothing in the model has a firing embrasure today. `parapet_segments()` builds a
    one is modelled.** Measure it — do not assume the trimesh flag means shootable.
 4. **The gun pits, `fb_gun_pit` / `fb_mortar_pit`, are trimesh too** — same check applies to
    whatever you expect to shoot over or through there.
+5. **A modelled aperture only gets you shootable geometry, not an occupiable position.**
+   Bunkers today are static dressing baked into the single `fsb_main_v3.glb` — never
+   `Destructible`-registered (only the 80 parapet sandbag segments + benches are, per
+   `production/adr/ADR-036-the-fall-of-the-firebase.md` §1.3), and there is no AI/player
+   "man this position" logic tied to the bunker models at all. That exists for exactly one
+   thing in the world today — the standalone `MGEmplacement` class
+   (`scripts/world/mg_emplacement.gd`), a pintle mount, unrelated to the bunker meshes, with
+   only one instance placed (`site_planner.gd:693`). Cutting the slit is the art half of a
+   mannable bunker; wiring occupancy/AI-awareness to it is a separate code task, not automatic.
 
 ---
 

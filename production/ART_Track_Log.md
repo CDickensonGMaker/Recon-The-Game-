@@ -46,6 +46,14 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 - **Building interiors (CQB kit)** — 0%; every building is a shell. Gated epic.
 - **Tunnel interior kit** — entrance+ladder, corridors, rooms, props. [u0e0]
 - **Roads** — LIVE (as of 2026-07-24): `RoadNetwork.new(...)` builds the hub-and-spoke net (`scripts/missions/mission_generator.gd:562`) and carves the corridor through vegetation (`scripts/missions/mission_generator.gd:680`); guarded by `tests/test_roads.gd`.
+- **Bunker firing slits — next Blender pass, researched 2026-07-30, not started.** `fb_bunker_mg`/
+  `fb_bunker_fighting` are already flagged `COL_TRIMESH` in the generator (holes stay holes on
+  trimesh; a box hull would seal them shut), but no aperture is actually modeled yet — nobody has
+  confirmed one exists in the mesh. Full recipe (embrasure cut + matching firing step, sized off
+  eye height not the yard floor) is in `production/blender/FIREBASE_BLENDER_HANDOFF.md` §2/§2b/§2.5.
+  Note: modeling the slit only gets shootable geometry — an occupiable/AI-aware bunker position is
+  a separate code task, nothing wires that up automatically today (only the standalone
+  `MGEmplacement` pintle mount has "man this position" logic, unrelated to the bunker meshes).
 - ~64 modeled+measured structures sit unplaced (placement/wiring work, not art). Alot of these models are old rips from the spring1944 opensource game we were using as holders or bad makes of things I had tried using those old models from a fwe months ago with the REALVIETNAMRTS project. Even our newer current firebase is okay but I need to spend like a full day making a more detailed firebase and I think I should do that too with the villages and make more finished buildings so they can be fleshed out. Also adding more geometry to the villages will be a win and allow some close quarters battles and more places for the players to have to clear out. 
 
 ## 6. UI ART

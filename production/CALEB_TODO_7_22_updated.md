@@ -3,6 +3,189 @@
 Everything code-side is built or tracked here; this is the hands-on Blender/eyes work only you can do,
 roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset detail).
 
+## 000. SPAWN-UNDER-FIREBASE — hardened 2026-07-30, still needs your eyes
+
+You reported spawning under the firebase in the main game despite two authored `spawn_bunk` markers
+by a hooch (`scenes/world/firebase_main.tscn`), and ruled: **regardless of seed, the firebase needs a
+flat area that seats it properly — that shouldn't depend on luck.**
+
+**Done:** `plan_firebase_main_center()` (`scripts/world/site_planner.gd`) now scores the FULL 7x7
+footprint height range for every candidate site, not just the 6 clear-disc centers — flatness now
+dominates the site pick, seed-independent. This is a real hardening fix for the general problem, not
+a targeted patch.
+
+**Not yet confirmed fixed:** your default seed (47225) was already documented in the code's own history
+as the "lucky, flat" case — so this hardening may not be what's actually causing today's specific bug.
+More likely cause: the two `spawn_bunk` markers were placed/eyeballed while testing the **demo** build
+(seed 29072026, 512m map), and the main game boots a different seed/location where the mesh floor
+under them sits differently. **Please check in-editor**: load the MAIN (non-demo) game, walk to the
+hooch, and see if the mesh floor there is higher than where the markers sit. If so it's a marker-height
+nudge, not a further code fix.
+
+**UPDATE 2026-07-30, same thread:** you asked whether the fix needs to be world-agnostic since every
+player gets a different generated world. Answer: for THIS bug specifically, no — the firebase model
+(hooch, floor, roof, the two markers) is a fixed asset that moves as one rigid block every time; only
+its overall placement varies per seed, never its internal geometry. So the marker's height relative to
+the hooch floor is constant across every player's world, and a one-time nudge in `firebase_main.tscn`
+fixes it permanently everywhere. I almost "fixed" this with a runtime raycast instead, but reverted it
+— probing down from above an INTERIOR authored point risks hitting the hooch ROOF first, not the floor
+(a failure mode this codebase already hit and documented at `game_world.gd:426-428`, which is why
+`spawn_player_at`'s `seat_on_surface=false` path exists and deliberately skips raycasting for exactly
+this case). The seed-VARYING part of this problem is the terrain seam at the model's edge, which the
+flatness-scoring fix above already covers. No code changes needed for the interior spawn itself — just
+your marker-height check.
+
+**ACTUAL ROOT CAUSE FOUND 2026-07-30:** you reported the main game buries the player, squad, AND
+garrison allies, while demo doesn't. Traced it — squad (`squad_system.gd:73`) and garrison
+(`mission_generator.gd:911`) were already correctly using the safe `world.surface_y()` seat (fixed in
+an earlier session for this exact bug class). The PLAYER wasn't: `game_flow.gd`'s `enter_hub()` had an
+unconditional re-seat right after `spawn_player_at()` placed him correctly, using bare
+`terrain_manager.get_height_at()` instead of `surface_y()` — it ran on EVERY boot regardless of
+whether a save was actually being restored, clobbering the correct bunk-marker seat a few frames later
+with the exact "buries anyone inside the firebase" height. **Fixed**: swapped to `surface_y()`, matching
+squad/garrison. Also added a `push_warning` in `surface_y()` itself (`game_world.gd`) for the case
+where its own raycast finds nothing and silently falls back to bare terrain height — that fallback was
+invisible before; now your console will show it if it ever happens to squad or garrison too.
+
+**STILL BROKEN after that fix — you confirmed still spawning below the firebase.** Ran a proper
+3-way parallel investigation instead of guessing again (every write to player Y, a full demo-vs-main
+boot diff, and a firebase-collider/physics-timing check). Found two more real bugs, both fixed
+2026-07-30:
+
+1. **A second, untouched reseat loop** — `game_world.gd:_physics_process()`, runs every ~2 seconds
+   for the entire life of the world, was STILL using raw `terrain_manager.get_height_at()` (the same
+   bug class as the one already fixed in `enter_hub()`, just a second occurrence in a different
+   file, missed the first time). Per the "ONE GROUND" ruling, terrain under the firebase sits at the
+   mound's TOE, well below the real interior floor — so if the player ever fell too far, this
+   "safety net" would catch him and permanently replant him at toe height instead of the real floor,
+   which reads exactly as "spawned below the firebase" even after the one-time enter_hub fix (that
+   fix only touches the SPAWN MOMENT, never this ongoing loop). **Fixed**: swapped to `surface_y()`.
+
+2. **A real physics race**, confirmed by grep (zero `await`/`process_frame` calls anywhere in the
+   chain): the firebase's own colliders (its baked mound/floor body, remeshed vegetation/parapet
+   trimeshes) get added via `add_child()` in `build_patrol_world()`, and the very next thing that
+   happens is the `surface_y()` raycasts that seat the player/squad/garrison — same frame, no yield.
+   Godot's `PhysicsServer3D` doesn't guarantee a just-added collider is raycast-queryable until the
+   next physics step, so that first raycast could miss the firebase's own floor entirely and fall
+   through to whatever terrain WAS already registered. **Fixed**: added two `await get_tree().
+   physics_frame` yields in `enter_hub()` right after `build_patrol_world()` returns, before any
+   seating happens, with the existing re-entrancy guard re-checked after each.
+
+Full reasoning and the 3-agent findings are in the approved plan at
+`~/.claude/plans/abstract-giggling-pike.md`.
+
+**STILL BROKEN — but now we have proof of the actual cause, from your console log (2026-07-30).**
+Both fixes above are real and correct but insufficient, because the problem was never the seating
+*logic* — it's that **there is no collider at all under the interior floor near the hooch spawn
+markers.** Evidence, straight from your log:
+
+```
+[SPAWN-TRUTH] asked spawn.y=193.56 | surface_y(spawn) now=189.18 | player landed at y=194.56 | seated=false
+[SPAWN-TRUTH] seed=47225 spawn=1021,734 physics_y=189.18 array_y=189.18 delta=-0.00 top_hit=RaycastCollision player_y=190.17
+```
+
+The second line is a PRE-EXISTING probe (`game_flow.gd:_report_spawn_truth`, not written tonight)
+that fires a single raycast down the ENTIRE column at the spawn XZ, from y=400 to y=-100.
+`physics_y` (what it hit) and `array_y` (raw terrain height) are identical — `delta=-0.00` — and the
+hit collider's name (`top_hit`) is `RaycastCollision`, the generic name Godot gives a **terrain
+chunk's** collision body. That means across that whole 500m vertical probe, the ray hit nothing but
+bare terrain — no firebase geometry at all. The marker sits at y=193.56; the only solid thing
+registered in the physics world at that XZ is terrain at y=189.18, over 4m below.
+
+**This is not a timing race and not a wrong-height-source bug — both of those are real and are now
+fixed, but neither one applies here, because there is nothing to correctly find.** The firebase's
+interior floor near this specific hooch has no collision mesh reachable in the running game. No
+GDScript reseat/raycast logic can fix that; it needs the collision geometry itself checked.
+
+**Needs your eyes in-editor/Blender, not more code:** open `firebase_main.tscn` (or the source
+`fsb_main_v3.glb`/Blender file), select the hooch near the two `spawn_bunk` markers (world XZ
+~1021,734 relative to a firebase centered near there — 39m from fsb centre per the `[SPAWN]` log),
+and check whether that specific floor section has a collision shape at all. Given `[FSB] kept 1
+mound collider(s) - the MODEL is the ground` in the boot log, it's possible the single kept mound
+collider covers only the OUTER earthworks and never included this interior floor patch, or this
+floor's collider was dropped/miscategorized during export. If you can tell me the mesh name for that
+floor patch (or whether it has a collider in Blender at all), I can check whether
+`site_planner.gd:_repair_glb_colliders()`'s repair pass is even looking at the right prefix for it —
+right now it only touches `fb_terrain_mound` and `fb_veg_`/`fb_sbg_seg_` prefixes, nothing else, so
+if the floor uses a different naming pattern it would silently pass through untouched either way.
+
+**CORRECTED 2026-07-30, later same night — the "no collider" read above was wrong. Two real, live
+bugs found and fixed, no Blender check needed for this specific cause (may still be worth doing as
+a backstop, see below).** Ran a 3-agent read-only investigation instead of guessing again. The
+`top_hit=RaycastCollision` in the log above IS the mound/terrain doing its job correctly — the
+firebase's own ground-fit step (`site_planner.gd:place_firebase_main`) sculpts and audits terrain
+against the mound on every boot ("`[FSB] ground: 129 samples ... worst +0.00m`" — terrain never
+pokes through). The player spawns correctly (194.56, matching the 193.56 marker). What actually
+drops him ~4.4m is **later terrain modification calls rebuilding the collider under/beside him
+after he's already standing there**:
+
+1. `TerrainManager.modify_terrain()` — called by the firebase's own `FSB_CLEAR_DISCS` flatten
+   (`site_planner.gd:1037-1051`) and separately by authored "first-sign" craters
+   (`terrain/systems/damage_system.gd:185`) — triggers `_rebuild_chunk_immediate()`
+   (`terrain_manager.gd:70-85`), which frees the chunk's old collider and adds a new one
+   **with no physics-frame guard**. The existing "COLLIDER RACE" fix (`game_flow.gd:600-611`)
+   only guards the FIRST placement, before spawn — any later `modify_terrain` call (a crater
+   authored moments after boot, near the firebase) is unguarded. Log proof: `[TerrainChunk]
+   Chunk (3,3) mesh built` fires repeatedly AFTER both `[SPAWN-TRUTH]` lines — chunk (3,2) sits
+   directly under the firebase, (3,3) is the adjacent chunk inside the 215m flatten radius.
+   **Fixed**: `game_world.gd:_flush_terrain_dirty()` now re-seats the player (via `surface_y()`)
+   immediately if a rebuilt region contains him — same pattern already used there for
+   water/gameplay-grid re-seating after a terrain edit.
+2. **This is also why your squad ended up UNDER the firebase model.** `TerrainWatchdog`
+   (`scripts/missions/terrain_watchdog.gd`) polls `allies`/`enemies`/`civilians` every 2s to catch
+   anyone who falls through terrain — but its catch logic used raw `terrain.get_height_at()`, not
+   `surface_y()`. Since the mound model sits ABOVE raw terrain by design (one-ground law), the
+   watchdog wasn't failing to catch your squad — it was actively "rescuing" them to a height
+   BELOW the mound floor, every 2 seconds. **Fixed**: watchdog now takes the `GameWorld` and uses
+   `surface_y()` for both its fall-through catch and its resume-from-suspension reseat
+   (`mission_generator.gd:836` updated to `watchdog.setup(world)`).
+
+Full reasoning: `~/.claude/plans/why-does-the-demo-fuzzy-narwhal.md`. **Not yet verified in-engine
+by you** — please boot the main game, watch the `[SPAWN-TRUTH]` lines and any `[TerrainChunk]
+... mesh built` rebuilds after them, and watch the squad for at least one 2s watchdog cycle while
+inside the wire. If you STILL see anyone under the model after this, the earlier "check for a
+literally-missing collider in Blender near the hooch" step above is the next thing to try — this
+fix explains a transient collider swap, not a permanently-absent one, so it's not ruled out, just
+no longer the leading theory.
+
+## 0000. VC CAMP DENSITY — bumped 2026-07-30
+
+You said the main AO (1280m, `WorldConfig.MAP_SIZE`) felt too sparse with only 3 VC camps clustered in
+a narrow 400-540m ring around the firebase. Bumped to **5 camps** in `mission_generator.gd`
+(`CAMP_COUNT`/`CAMP_CAPS`), with the outer band widening per camp (480/540/620/680/720m) instead of
+clustering everyone in the same ring — should actually use the back half of the AO now. Garrison/ambush
+spawning already loops off `camps.size()`, so nothing else needed to change to support more camps.
+
+## 00. FRANCHISE NAMING — RULED 2026-07-30: "Tour of Hell"
+
+You floated "Hell of Duty: Vietnam" (Hell Let Loose x Call of Duty pun, 90s-underground-comix-homage
+spirit) as a ship name and franchise umbrella (Vietnam/Korea/WWI titles sharing TerrainEngine). War
+Room flagged tone-mismatch + franchise-scale trademark exposure; you pushed back that a naming pun is
+a different animal than Palworld-style mechanical cloning (fair distinction) and independently landed
+on an alternative that hits the same tone. **Adopted: "Tour of Hell"** — era-tagged per title
+(*Tour of Hell: Vietnam* first, then Korea/WWI). "Tour" is real military vocabulary (tour of duty),
+ties to Pillar 4 (the squad rotates home, dies for real), and travels cleanly across all three eras.
+Full reasoning: `production/war_room/2026-07-30_franchise_naming/synthesis.md` (pre-pivot; this
+entry is the current ruling).
+
+**Project name stays RECON internally** (7/28 decree not touched) — "Tour of Hell" is the external
+brand direction. Say the word if you want RECON itself renamed too.
+
+**Waiting on you:** nothing blocking. Optional next step whenever: quick trademark screen on "Tour of
+Hell" before final commit, just for due diligence — lower stakes than the CoD-pun case, not zero.
+
+**UPDATE 2026-07-30:** you brought two "Tour of Hell: Vietnam" key-art pieces
+(`TOUROFHELL1.png`/`2.png` from `Desktop/recon game image ideas/`) — image 1 (helicopter, map,
+"Born to Kill" helmet) went in as the **main menu** background (`assets/ui/menu_bg.png`), image 2
+(firebase road, "FIREBASE HELL — DEATH SMILES AT EVERYONE" sign) went in as a **dedicated loading
+screen** background (`assets/ui/loading_bg.png`), used only by `game_flow.gd::enter_hub()` — every
+other screen (barracks, debrief, pause, settings, service record) still shares `screen_bg.png`
+untouched. **Please eyeball the main menu in-editor**: the art bakes its own "TOUR OF HELL: VIETNAM"
+title top-left, so I dropped the code-drawn giant "RECON" title in `main_menu.gd` to avoid a double
+title and moved the button column down to y=220 to clear the art — that y-offset is an estimate off
+the 600x600 mockup's proportions, not a measured value, so it may need nudging once you see it at
+actual game resolution.
+
 ## 0. ONE RULING WAITING ON YOU (added 2026-07-27, overnight coupling audit)
 
 **Do headshots kill your squad and you, or only the enemy?**

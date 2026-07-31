@@ -48,6 +48,14 @@ const ENEMY_DATA: Array[String] = [
 ## Men who never leave the camp, so a sited ambush can never empty it.
 const AMBUSH_CAMP_FLOOR: int = 2
 
+## VC camps for the main (non-demo) patrol world. Bumped from 3 (Summoner
+## 2026-07-30: "the AO is huge... too little enemy areas"). CAMP_CAPS is the
+## outer band radius per camp index (last value repeats for any camp past its
+## length); the first stays close (the close-camp promise), later ones push
+## further into the AO instead of clustering in the same narrow 400-540m ring.
+const CAMP_COUNT: int = 5
+const CAMP_CAPS: Array[float] = [480.0, 540.0, 620.0, 680.0, 720.0]
+
 const WEATHER_TABLE: Array[String] =["CLEAR", "CLEAR", "CLEAR", "CLOUDY", "CLOUDY", "RAIN", "RAIN", "FOG", "MONSOON", "CLEAR"]
 const TIME_TABLE: Array[String] = ["DAY", "DAY", "DAY", "DAY", "DAWN", "DUSK", "NIGHT", "NIGHT", "DAY", "DUSK"]
 
@@ -558,12 +566,15 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 	p["village_centers"] = villages
 
 	# Camps: deeper band, spread; the first stays <=480 (the close-camp promise).
+	# The AO is 1280m across (WorldConfig.MAP_SIZE) but the old 400-540m band only
+	# ever used a narrow ring close to the wire - CAMP_COUNT/CAMP_CAPS widen that
+	# so the back half of a huge map isn't just empty jungle.
 	var camps: Array[Vector3] = []
-	for ci in range(3):
-		var cap: float = 480.0 if ci == 0 else 540.0
+	for ci in range(CAMP_COUNT):
+		var cap: float = CAMP_CAPS[mini(ci, CAMP_CAPS.size() - 1)]
 		var cand: Vector3 = planner.find_site(rng, 14.0, 120.0, [], gate, 400.0, cap)
 		if cand == Vector3.ZERO:
-			var ang2: float = TAU * float(ci) / 3.0 + 0.5
+			var ang2: float = TAU * float(ci) / float(CAMP_COUNT) + 0.5
 			cand = _outward_site(world, rng, gate,
 				Vector3(cos(ang2), 0, sin(ang2)), 440.0, 70.0,
 				SitePlanner.FSB_SITE_CLEARANCE)
@@ -822,7 +833,7 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 
 	var watchdog := TerrainWatchdog.new()
 	world.add_child(watchdog)
-	watchdog.setup(world.terrain_manager)
+	watchdog.setup(world)
 
 	return {"sites": built_sites, "spawn_pos": fsb.spawn_pos, "gate_pos": fsb.gate_pos,
 		"gate_out": fsb.gate_out, "center": fsb.center, "bench": bench}

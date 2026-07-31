@@ -414,6 +414,11 @@ func surface_y(at: Vector3) -> float:
 	q.collision_mask = 1   # world layer: terrain and placed structures both
 	var hit: Dictionary = space.intersect_ray(q)
 	if hit.is_empty():
+		# This is the exact fallback surface_y() exists to avoid: bare terrain
+		# height, which sits under the firebase mound's floor. A silent miss
+		# here reads as "it just works" until someone spawns inside the ground -
+		# log it so a bad seat is visible instead of invisible (2026-07-30).
+		push_warning("[SURFACE_Y] no collider found probing down from %s (ground=%.2f) - falling back to bare terrain height, this WILL bury anyone seated here if it's inside the firebase" % [at, ground])
 		return ground
 	return maxf(ground, (hit.position as Vector3).y)
 
@@ -486,6 +491,15 @@ func _flush_terrain_dirty() -> void:
 		water_system.reseat_region(rect)
 	if gameplay_grid != null:
 		gameplay_grid.rebuild_rect(rect)
+	# The chunk collider swap that just happened (TerrainManager's
+	# _rebuild_chunk_immediate) can drop a standing player through the old
+	# floor before the new one is queryable - re-seat with the SAME
+	# surface_y() the spawn path trusts (raycast-aware, not raw heightmap),
+	# so this is safe inside the firebase where the mound model IS the floor.
+	if player != null and rect.has_point(Vector2(player.global_position.x, player.global_position.z)):
+		var seated_y: float = surface_y(player.global_position)
+		if absf(player.global_position.y - seated_y) > 0.5:
+			player.global_position.y = seated_y + 0.5
 
 
 func _on_vegetation_updated(_region: Rect2i) -> void:
@@ -543,7 +557,12 @@ func _physics_process(delta: float) -> void:
 	# Never re-seat a tunnel rat.
 	if "_in_tunnel" in player and player._in_tunnel != null:
 		return
-	var ground_y: float = terrain_manager.get_height_at(player.global_position)
+	var ground_y: float = surface_y(player.global_position)
 	if player.global_position.y < ground_y - RESEAT_DEPTH:
+		# SPAWN-TRUTH PROBE (2026-07-30): this loop firing at all means the player
+		# fell more than RESEAT_DEPTH below solid ground SOMETIME after spawn - it
+		# is not a spawn-moment bug if this prints, it's an ongoing fall/sink bug.
+		push_warning("[RESEAT] player fell to y=%.2f (ground=%.2f, %.1fm below) - reseating to %.2f" % [
+			player.global_position.y, ground_y, ground_y - player.global_position.y, ground_y + 1.0])
 		player.global_position.y = ground_y + 1.0
 		player.velocity = Vector3.ZERO
