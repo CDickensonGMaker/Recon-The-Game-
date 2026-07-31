@@ -36,11 +36,17 @@ const SAPPERS: int = 3
 const APPROACH_M: float = 45.0
 ## How many of each kind stand in the rank, keyed by FireSupportBench.TARGET_KINDS order.
 const PER_KIND: Dictionary = {
-	"sandbag_wall": 4, "sandbag_stack": 2, "bunker": 2, "bunker_mg": 1, "tower": 1, "wire": 4,
+	"sandbag_wall": 4, "sandbag_stack": 2, "bunker": 2, "bunker_mg": 1, "tower": 1, "wire": 14,
 }
 const KIND_SPAN_M: float = 7.0
 ## The wire stands short of the rest so the sappers have to cross it to reach the structures.
 const WIRE_STANDOFF_M: float = 9.0
+## A SECOND BELT right against the buildings. One line of wire only ever proved they could
+## cut the first thing they met; a belt in front AND a belt on the structures is what proves
+## they clear their way IN rather than stopping at the first obstacle.
+const WIRE_INNER_STANDOFF_M: float = 2.5
+const WIRE_INNER_COUNT: int = 10
+const WIRE_SPAN_M: float = 3.0
 
 var player: CharacterBody3D = null
 var _director: FieldDirector = null
@@ -175,14 +181,26 @@ func _build_targets() -> void:
 				% str(spec["prefix"]))
 			continue
 		var is_wire: bool = kind == "wire"
-		var z: float = -APPROACH_M + (WIRE_STANDOFF_M if is_wire else 0.0)
-		# Wire spreads across the whole rank; structures take one lane each.
-		var span: float = 4.0 if is_wire else 2.4
+		# Structures take one lane each; the wire is laid as BELTS across the whole front.
+		var span: float = WIRE_SPAN_M if is_wire else 2.4
 		var base_x: float = 0.0 if is_wire else (float(lane) - 2.0) * KIND_SPAN_M
 		# The source may hold fewer distinct meshes than the rank wants (the wire is ONE
 		# card), so cycle the pool rather than shrinking the test.
 		for i in range(want):
-			var x: float = base_x + (float(i) - float(want - 1) * 0.5) * span
+			var z: float = -APPROACH_M
+			var n: int = want
+			var idx: int = i
+			if is_wire:
+				# Outer belt first, then an inner belt hard against the buildings.
+				var outer: int = want - WIRE_INNER_COUNT
+				if i < outer:
+					z += WIRE_STANDOFF_M
+					n = outer
+				else:
+					z += WIRE_INNER_STANDOFF_M
+					n = WIRE_INNER_COUNT
+					idx = i - outer
+			var x: float = base_x + (float(idx) - float(n - 1) * 0.5) * span
 			_walls.append(FireSupportBench.spawn_lifted(
 				_targets_root, meshes[i % meshes.size()], Vector3(x, 0.0, z),
 				kind, int(spec["hp"])))

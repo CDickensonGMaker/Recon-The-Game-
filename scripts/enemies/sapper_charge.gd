@@ -17,9 +17,10 @@ extends Node
 const PLACE_RANGE: float = 2.0
 ## Kneeling over it, working. Long enough to be a moment you can shoot him during.
 const PLANT_SECONDS: float = 3.0
-## The pose while he works. cargo_unload_stack is the library's crouch-and-set-down; the
-## crouch idle is the fallback for a rig that lacks it.
-const PLANT_CLIP: String = "cargo_unload_stack"
+## The pose while he works. mortar_dropper is the library's kneeling hands-busy clip;
+## idle_crouching is the guarantee that he is at least DOWN on a rig that lacks it.
+## There is no authored "planting a charge" clip - that is an art ask, not a wiring one.
+const PLANT_CLIPS: Array[String] = ["mortar_dropper", "idle_crouching", "kneeling_pointing"]
 const SATCHEL_DAMAGE: int = 250
 const SATCHEL_MIN: int = 70
 const SATCHEL_RADIUS: float = 14.0
@@ -136,6 +137,7 @@ func disarm() -> void:
 
 var _planting: bool = false
 var _plant_timer: float = 0.0
+var _plant_at: Vector3 = Vector3.ZERO
 
 
 ## Down on one knee against the thing, working. He STOPS here - a man setting a charge is
@@ -144,7 +146,11 @@ var _plant_timer: float = 0.0
 func _begin_planting(enemy: EnemyBase) -> void:
 	_planting = true
 	_plant_timer = PLANT_SECONDS
-	enemy.work_clip = PLANT_CLIP
+	# WHERE HE IS, not where the target's centre is. Aiming the charge at the object's
+	# origin walked men PAST the wire to stand behind it; the charge belongs against the
+	# face he reached, which is wherever he stopped.
+	_plant_at = enemy.global_position
+	enemy.work_clip = PLANT_CLIPS[0]
 	# Objective = where he stands, so the legs stop without touching assault_driven.
 	enemy.assault_objective = enemy.global_position
 	print("[SAPPER] planting - %.0fs" % PLANT_SECONDS)
@@ -190,9 +196,9 @@ func _detonate(enemy: EnemyBase) -> void:
 	if host == null:
 		set_physics_process(false)
 		return
-	# On the OBJECTIVE, not on the man: what it is meant to bring down is what it sits against.
-	var at: Vector3 = target_pos
-	at.y = enemy.global_position.y
+	# Where he knelt. The blast radius reaches the target from here, and it means the
+	# charge is always on the face he actually got to.
+	var at: Vector3 = _plant_at if _plant_at != Vector3.ZERO else enemy.global_position
 	PlacedSatchel.place(host, at, enemy, SATCHEL_DAMAGE, SATCHEL_MIN, SATCHEL_RADIUS)
 	_release()
 	_withdraw(enemy, at)

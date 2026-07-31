@@ -1422,8 +1422,13 @@ func _update_aim(delta: float) -> void:
 
 ## Drive the satchel to the objective at a run, ignoring cover and contact. The
 ## behaviour node (sapper_charge.gd) owns the detonation; this owns only the legs.
+##
+## URGENCY IS THE POINT. 1.15 read as a stroll across ground he knows is covered; a man
+## crossing the open with a charge on his back is running for the wire, and the assault
+## push is the one place in this file where cover discipline is deliberately absent.
+const ASSAULT_URGENCY: float = 1.55
 func _execute_assault(delta: float) -> void:
-	_move_toward(assault_objective, delta, 1.15)
+	_move_toward(assault_objective, delta, ASSAULT_URGENCY)
 
 
 func _execute_idle(delta: float) -> void:
