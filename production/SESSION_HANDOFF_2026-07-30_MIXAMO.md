@@ -80,7 +80,33 @@ or use them as BASE clips for a weapon-family bake (§5) — one hold makes them
 **The guard fix is worth a look on its own:** the role silently did nothing before — no error, no
 warning — so any camp guard you watched was running the plain state map, not a guard pose.
 
+### 1b. The one-chain-one-pose defect — FIXED 2026-07-31
+
+Found while wiring §1. `play_first()` plays the FIRST clip the rig carries, so **a role with one
+chain is a role with one pose.** Every off-duty man in the firebase smoked, together, forever;
+every resting man in a VC camp smoked with them; a hamlet asleep was sixteen copies of
+`sleeping_laying`. Chains now rotate per man off his spawn hash (ADR-010 holds — same seed, same
+ville). The last entry never rotates: it is the degrade target.
+
+Also fixed: **`cargo_carry` and `cargo_unload_stack` were never in `_LOOP_NAMES`.** `cargo_carry`
+stands in for a WALK cycle. Every man moving crates finished his clip and froze holding it.
+
+Also fixed: **54% of the firebase's work markers had no job.** `fsb_main_v3.glb` carries 198
+`work_*` markers across 20 types; `FSB_WORK_OCCUPATION` knew 9 of them. `medic`, `dig`, `wash`,
+`water`, `burn`, `latrine`, `pad` now map to real occupations (`medic`, `detail`), and the
+work-post sampler is round-robin by type instead of a positional stride over markers sorted by X.
+Council: `production/war_room/synthesis_garrison_variety_2026-07-31.md`.
+
 ### 2. The aid station — a whole system keeping score with nobody watching
+
+**PARTIAL 2026-07-31: it has a FLOOR now, not a ledger.** The station seeds itself with a medic
+AND a man on the cot (`site_planner.gd`, the `med_pool` pre-pass), which gives
+`medic_treat_receive` its first caller and stops the medic miming surgery over bare dirt.
+`ward_wounded` still has **zero consumers** — occupancy does not yet scale with real casualties.
+**And the patient lies on the aid station FLOOR:** the cots are in the new `medical_complex`
+(29k verts, `firebase_v3.1.blend`), which is not exported and not in `fsb_main_v3.glb` — the live
+aid station is still the older `fb_aid_station_i`. The rest of this section stands:
+
 `campaign_state.ward_wounded` grows from real casualties, caps at `WARD_BEDS_MAX`, and has
 **ZERO consumers outside `campaign_state.gd`** (measured). The ward is a number and an empty
 building. No man is spawned in a bed, at a desk, or over a casualty.
