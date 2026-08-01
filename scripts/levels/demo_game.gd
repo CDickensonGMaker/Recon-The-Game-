@@ -49,7 +49,8 @@ const SIEGE_STRENGTH: int = 45
 
 var _flow: GameFlow = null
 var _clock: float = 0.0
-var _phase: int = 0   ## 0 explore, 1 probed, 2 siege, 3 dawn
+var _phase: int = 0   ## 0 explore, 1 probed, 2 siege, 3 ended (dawn or KIA)
+var _card: CanvasLayer = null
 
 
 func _ready() -> void:
@@ -240,10 +241,22 @@ func _tick_air(delta: float) -> void:
 	_air_rotation_i += 1
 
 
+var _death_routed := false
+
+
 func _physics_process(delta: float) -> void:
 	if _flow == null or _flow.director == null:
 		return
-	_clock += delta
+	if not _death_routed:
+		# _begin_operation is async (awaits the world build), so the director does
+		# not exist until the arc's first live tick. The full game's KIA -> AAR ->
+		# teardown pipeline would free the world and leave this arc ticking over
+		# nothing; death in the demo is a card.
+		_death_routed = true
+		if EXCLUDE_DEBRIEF:
+			_flow.director.mission_failed.disconnect(_flow._on_mission_ended)
+			_flow.director.mission_failed.connect(_on_demo_death)
+	_clock += minf(delta, 0.066)
 	_tick_air(delta)
 	_tick_napalm()
 	match _phase:
@@ -298,16 +311,31 @@ func _open_siege(strength: int, toast: String) -> void:
 
 func _dawn() -> void:
 	print("[DEMO] dawn at %.0fs - end card" % _clock)
-	var d: FieldDirector = _flow.director
-	d.toast.emit("DAWN. YOU HELD.")
-	# End card: the named men who held with you (mitigates the cut debrief -
-	# the squad's long arc is the demo's biggest sacrifice, per the council).
+	_flow.director.toast.emit("DAWN. YOU HELD.")
+	_show_end_card("FIREBASE HELD")
+
+
+func _on_demo_death(_result: Dictionary) -> void:
+	print("[DEMO] KIA at %.0fs - end card" % _clock)
+	_phase = 3
+	_show_end_card("YOU FELL BEFORE DAWN")
+
+
+## The demo's one terminal screen, win or lose. The war freezes behind it, the
+## mouse is released, and it offers the only two verbs a stranger needs. The
+## named men who held with you mitigate the cut debrief - the squad's long arc
+## is the demo's biggest sacrifice, per the council.
+func _show_end_card(title: String) -> void:
+	if _card != null:
+		return
+	_flow._in_world = false   # Esc must not build a PauseMenu under the card
+	GameManager.pause_game()  # freezes the world, frees the mouse
 	var card := ReconUI.make_screen_root()
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 14)
-	col.add_child(ReconUI.make_label("FIREBASE HELD", 30, ReconUI.AMBER))
+	col.add_child(ReconUI.make_label(title, 30, ReconUI.AMBER))
 	if _flow.squad != null:
 		for a in _flow.squad.members:
 			if a == null or not is_instance_valid(a):
@@ -316,10 +344,22 @@ func _dawn() -> void:
 			col.add_child(ReconUI.make_label(
 				"%s - %s" % [str(a.member.get("name", "?")), status], 16,
 				ReconUI.DIM if a.is_dead() else ReconUI.AMBER))
+	col.add_child(ReconUI.make_menu_button("RESTART THE NIGHT", _restart))
+	col.add_child(ReconUI.make_menu_button("QUIT", _quit))
 	col.add_child(ReconUI.make_label("RECON - DEMO", 13, ReconUI.DIM))
 	cc.add_child(col)
 	card.add_child(cc)
-	var layer := CanvasLayer.new()
-	layer.layer = 90
-	add_child(layer)
-	layer.add_child(card)
+	_card = CanvasLayer.new()
+	_card.layer = 90
+	_card.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_card)
+	_card.add_child(card)
+
+
+func _restart() -> void:
+	GameManager.resume_game()
+	get_tree().reload_current_scene()
+
+
+func _quit() -> void:
+	get_tree().quit()

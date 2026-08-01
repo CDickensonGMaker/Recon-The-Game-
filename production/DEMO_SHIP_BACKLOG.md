@@ -308,3 +308,16 @@ Each of these turned a playtest complaint into a named line in the log:
 - `[DRESSER]` stranded-skin and missing-stock-helmet warnings
 - `[TOPO]` rect-too-small warning
 - `[FSB] stand to: promoted N` - the garrison question, answered every boot
+
+---
+
+## 2026-07-31 WAR ROOM AUDIT POINTER
+Full audit (demo vs full game, ship verdict) decreed at
+`production/war_room/2026-07-31_demo_ship_audit/synthesis.md` (evidence + debate alongside).
+Verdict: shippable by 8/9 IF export preset + playthrough #1 land by Mon 8/4.
+Week plan: W1 export/launch → W2 death-path freeze → W3 end card → W4 boot gate → W5 M60 →
+W6 furnish interiors → W7 garrison ceiling (measure once) → W8 SimClock air dedup → W9 M79.
+His bench: S1 wire-ring split, S2 medical_complex export. All else WAIVED (costs named in discussion.md).
+AMENDMENT 7/31: Summoner revoked the D8 waiver — bunkers must be shootable-through. Added as S3
+(embrasures + fighting step, his Blender, recipe in blender/FIREBASE_BLENDER_HANDOFF.md §2/§2b/§2.5,
+fold into the S1/S2 re-export). AI-manned bunker positions stay deferred.

@@ -258,7 +258,10 @@ func reinforce(extra: int) -> void:
 	_build_assault(extra)
 	print("[Siege] reinforced +%d - the assault is now %d men (peak %d)"
 		% [extra, run_strength, run_peak])
-	siege_began.emit(run_strength, is_probe)
+	# Announce ONLY the probe-becomes-assault moment. Re-emitting on every
+	# reinforcement re-ran stand-to and the siren over a garrison already fighting.
+	if was_probe and not is_probe:
+		siege_began.emit(run_strength, is_probe)
 
 
 ## Sappers are 2d6 of the strength, clamped so a probe cannot field more sappers

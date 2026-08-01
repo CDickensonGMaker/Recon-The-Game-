@@ -24,6 +24,11 @@ var _in_mission: bool = false   ## ...and it is a MISSION (not the hub)
 func _ready() -> void:
 	add_to_group("game_flow")
 	process_mode = Node.PROCESS_MODE_ALWAYS   # Esc must work while paused
+	# DemoGame sets demo_mode before adding its flow and drives _begin_operation
+	# itself - booting the default operation here would build a second world on
+	# the wrong seed and throw it away.
+	if GameFlow.demo_mode:
+		return
 	# Boot lands in the patrol, not on the menu. The menu stays reachable at
 	# Esc -> QUIT TO MENU. Swap this call back to show_menu() to restore it.
 	start_default_operation()
@@ -575,6 +580,9 @@ func enter_hub() -> void:
 	loading.add_child(lc)
 	_swap_screen(loading)
 	world = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld
+	# GameFlow runs ALWAYS so Esc works while paused - but INHERIT resolves to the
+	# parent, so without this the entire war kept running behind the pause menu.
+	world.process_mode = Node.PROCESS_MODE_PAUSABLE
 	world.mission_seed = op_seed
 	world.spawn_player_on_ready = false
 	if demo_mode:
