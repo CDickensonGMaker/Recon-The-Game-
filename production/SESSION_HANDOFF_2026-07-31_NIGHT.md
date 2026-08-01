@@ -46,3 +46,32 @@ Fix = re-export those three (`blender -b` pipeline only). ppsh41's GLB is not at
 - His live work open in Blender at wrap: `fp_arms_rifle.blend` — nothing was written to it.
 - 155 dirty files are HIS (art + weapon .tres) — stage by path only, never broad add.
 - `build/` is now gitignored (1.4 GB exe).
+
+## FIREBASE GENERATOR MAP (landed at wrap — read BEFORE the Blender day)
+Full pipeline: fb_kit.py -> gen_firebase.py (the KIT, fam_* builders) -> gen_firebase_v3.py
+(the SITE + export) -> gen_fb_interior.py. Hand-edit file is kit/firebase_v3.1.blend.
+
+**His three named defects, root-caused:**
+- **WRONG FACES = `box()` winding is inside-out** (`gen_firebase.py:135-150`) — all six index
+  tuples reversed; doubleSided glTF hides the cull but shades interiors as lit-from-inside.
+  Zero recalc_normals anywhere in the tools. FIX THE WINDING FIRST, then
+  `refresh_family_meshes([...])` once BEFORE any hand-sculpt (after would eat the sculpt).
+- **THE NEEDLESS STAIRS**: generated unconditionally — `gen_firebase.py:612-614` (TOC: 5
+  treads for a 1.15m sink) and `:354-356` (sleeping bunker). Delete the loops, refresh.
+- **THE GATE** is 22 boxes at one polar coords (`fam_gate_gap` `gen_firebase.py:447-469`,
+  placed `gen_firebase_v3.py:992`) with a ±7.5° suppression wedge — a hole, not an approach.
+- **AI-ism structure**: bunkers are a strict mod-4 cycle on a uniform ring offset
+  (`gen_firebase_v3.py:964-975`); guns a perfect pentagon r=30; hootches a sine wave; total
+  rotation budget ±3.4°. Structural, not fixable by jitter constants.
+
+**WORKFLOW LAW for the hand pass (the generator's own comments say this):**
+1. NEVER run `gen_firebase_v3.main()` again — `read_homefile(use_empty=True)` at :944 wipes
+   placements. Retired the moment hand work starts.
+2. Safe tools: `redress()` (ground/veg only), `refresh_family_meshes()` (mesh swap under
+   placements), `furnish_firebase()` (fb_int_* only — hand props must NOT use that prefix),
+   `legacy_garrison_markers()`, `export_firebase()` headless.
+3. Hand-sculpting ONE instance: Make Single User (Object & Data) AND rename off the family
+   stem (e.g. fb_bunker_mg_i.003 -> fb_hq_bunker_hand) or the next refresh deletes the sculpt.
+4. `write_mound_manifest` step_h=0.9 conflicts with the handoff doc's modelled-banquette plan —
+   zero step_h when the fighting step gets modelled or the two stack.
+5. Back up firebase_v3.1.blend before every export run (export saves over it).
