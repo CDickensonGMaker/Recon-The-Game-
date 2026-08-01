@@ -845,7 +845,10 @@ const FSB_WORK_PRIORITY: Array[String] = [
 
 ## THE garrison ceiling: how many men stand inside the wire, curated and work-post
 ## alike. Guarded by tests/test_firebase_garrison.gd, which reads THIS constant.
-const FSB_GARRISON_MAX_MEN: int = 24
+## 24 -> 40 measured 2026-07-31 on the exported demo (--print-fps, 150s A/B):
+## mid-siege 48.0 FPS at both values - the men are not the frame cost. If the
+## siege now feels too safe to hold, this is the dial back toward 28-32.
+const FSB_GARRISON_MAX_MEN: int = 40
 
 ## Upper bound on work_* variety. fsb_main_v3.glb carries 191 work markers
 ## (measured) and one man each would be a crowd the frame cannot pay for.
@@ -855,7 +858,7 @@ const FSB_GARRISON_MAX_MEN: int = 24
 ## FSB_GARRISON_MAX_MEN leaves after the curated posts are seated. Holding both as
 ## independent constants is how the compound came to hold 17 curated + 12 work =
 ## 29 men against a documented ceiling of 24.
-const FSB_WORK_POST_CAP: int = 12
+const FSB_WORK_POST_CAP: int = 24
 
 
 ## Men already promised by the curated post table.

@@ -321,3 +321,26 @@ His bench: S1 wire-ring split, S2 medical_complex export. All else WAIVED (costs
 AMENDMENT 7/31: Summoner revoked the D8 waiver — bunkers must be shootable-through. Added as S3
 (embrasures + fighting step, his Blender, recipe in blender/FIREBASE_BLENDER_HANDOFF.md §2/§2b/§2.5,
 fold into the S1/S2 re-export). AI-manned bunker positions stay deferred.
+UPDATE 7/31 (evening, Wyrm): W1-W9 DISCHARGED except two that closed differently.
+- W1 SHIPPED: build/RECON_Demo.exe exists (first export in project history; templates were
+  never installed). "Windows Demo" preset, custom feature "demo", run/main_scene.demo override.
+  Smoke-verified in RELEASE: boot -> probe(11) -> 4-squad(45) -> unattended player KIA at 70s
+  -> end card. Zero script errors.
+- W2/W3 SHIPPED: KIA routes to a shared pausable end card (RESTART/QUIT, mouse freed);
+  double-siren fixed (reinforce announces only probe->assault). ROOT FIX: world is now
+  PROCESS_MODE_PAUSABLE - tree-pause NEVER froze the war before, in the full game either.
+- W4 SHIPPED: no more double world-build on demo boot.
+- W5 -> HIS BENCH: M60 reaches the demo via the MG emplacement (cannot pull); hip_position
+  fix is a bench-eyes job. NEW PLAYTEST ROW: man the MG, check where rounds land.
+- W6 CLOSED INVALID: interiors are NOT empty - 178 baked props confirmed in the release log
+  ("[FSB] 178 interior prop(s) culled past 40m"). Furnishing would DOUBLE them (doc §5 was
+  right; the audit scout was wrong). HeliLift also ran live: "[LIFT] delivered 4 - 28/28".
+- W7 MEASURED AND SET: FSB_GARRISON_MAX_MEN 24->40, FSB_WORK_POST_CAP 12->24.
+  A/B on the exported demo (--print-fps, 150s): mid-siege 48.0 FPS at BOTH values.
+  TRADEOFF NAMED: 40 defenders vs 45 attackers may soften the overrun drama - if holding
+  feels safe now, dial back toward 28-32. Playtest row.
+- W8 SHIPPED: SimClock dedup key now per-entry (3 transits/hr were collapsing to 1) and
+  air books day=-1 (the sky died at the first midnight rollover).
+- W9 SHIPPED: m79_arms_viewmodel.tscn + model_path - the Blooper is a whole weapon now.
+REMAINING FOR 8/9: his bench (S1 wire split, S2 medical export, S3 bunker slits), his
+45-min playtest on build/RECON_Demo.exe, M60 bench row, playthrough #2 on the polished build.

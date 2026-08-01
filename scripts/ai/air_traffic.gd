@@ -98,11 +98,13 @@ func _seed_default_schedule() -> void:
 		for slot in range(TRANSITS_PER_HOUR):
 			var kind: String = String(kinds[rng.randi() % kinds.size()])
 			var at_h: float = float(h) + (float(slot) / float(TRANSITS_PER_HOUR))
-			SimClock.schedule_event(SimClock.sim_day, at_h, &"air_traffic",
+			# day -1 = every day: booked against the boot day only, the whole sky
+			# died at the first midnight rollover (13.5 real minutes at the 60x clock).
+			SimClock.schedule_event(-1, at_h, &"air_traffic",
 				{"kind": kind, "profile": "transit"})
 	for h in [7, 11, 15, 19]:
 		var kind: String = String(ROTARY[rng.randi() % ROTARY.size()])
-		SimClock.schedule_event(SimClock.sim_day, float(h) + 0.5, &"air_traffic",
+		SimClock.schedule_event(-1, float(h) + 0.5, &"air_traffic",
 			{"kind": kind, "profile": "lz_cycle"})
 
 

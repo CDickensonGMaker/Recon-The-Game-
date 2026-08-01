@@ -21,7 +21,7 @@ var paused: bool = false
 # with day == -1 meaning "every day". Tests can pre-fill schedules before
 # calling advance().
 var _schedules: Array[Dictionary] = []
-var _fired_event_keys: Dictionary = {}  ## { "day-hour-kind" : true }
+var _fired_event_keys: Dictionary = {}  ## { "day-hour-entryindex" : true }
 
 
 func _ready() -> void:
@@ -80,7 +80,8 @@ func clear_schedules() -> void:
 
 func _tick_schedules(_prev_day: int) -> void:
 	var cur_hour_int: int = int(sim_hour)
-	for s in _schedules:
+	for i in _schedules.size():
+		var s: Dictionary = _schedules[i]
 		var s_day: int = int(s.day)
 		var s_hour: int = int(s.hour)
 		var s_kind: StringName = s.kind
@@ -89,7 +90,9 @@ func _tick_schedules(_prev_day: int) -> void:
 			continue
 		if s_hour != cur_hour_int:
 			continue
-		var key: String = "%d-%d-%s" % [sim_day, s_hour, String(s_kind)]
+		# Keyed per ENTRY, not per kind: three transits booked in the same hour are
+		# three flights, and a kind-wide key silently dropped all but the first.
+		var key: String = "%d-%d-%d" % [sim_day, s_hour, i]
 		if _fired_event_keys.has(key):
 			continue
 		_fired_event_keys[key] = true

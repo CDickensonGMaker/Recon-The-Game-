@@ -1,10 +1,11 @@
 ## test_schedule_reset.gd - SimClock is an autoload, so its schedule outlives the
 ## world that seeded it. AirTraffic seeds 22 events per patrol
 ## (air_traffic.gd:63,68). Nothing cleared them, so patrol N carried patrols
-## 1..N-1's flights: _schedules and _fired_event_keys grew without bound, and the
-## dedupe key (sim_clock.gd:95 - day+hour+kind, NOT payload) meant a later
-## patrol's flight at an already-fired hour was SILENTLY SUPPRESSED. Air traffic
-## thinned out the longer you played.
+## 1..N-1's flights: _schedules and _fired_event_keys grew without bound, and a
+## stale fired key meant a later patrol's flight at an already-fired hour was
+## SILENTLY SUPPRESSED. Air traffic thinned out the longer you played. (The
+## dedupe key is per-entry - day+hour+index - since 2026-07-31; it was
+## day+hour+kind, which also ate same-hour same-kind flights within ONE patrol.)
 ##
 ## Fixed by calling SimClock.clear_schedules() in mission_generator._wire_systems
 ## before AirTraffic is constructed. This probe holds that line.
