@@ -100,6 +100,36 @@ must match exactly.
 - **End of the loop is a rack of galvanised wash cans**, not a bussing table.
 - Men eat seated AND standing, often with their hands.
 
+## ⚠ TWO FILES ON DISK — MERGE THEM FIRST THING
+
+After I wrote the section below, the agent finished one more pass and **ran a whole-file
+`orphans_purge(do_recursive=True)`**. Nothing load-bearing was lost, but memory and disk
+diverged, so there are now two files and each has something the other lacks:
+
+| file | size | has | lacks |
+|---|---|---|---|
+| `firebase_v3.1_RECOVERED_medical.blend` | 58.92 MB | `hq_bunker_layout_mesh`, everything up to my save | the newest chow-line work, the rigs |
+| `firebase_v3.1_WIP_chowline.blend` | **8.66 MB** | corrected chow line, split tray meshes, 5 pose rigs, slim | `hq_bunker_layout_mesh` |
+
+**Core scene verified intact in BOTH** — medical complex, mound, berm, 8 fighting + 4 MG
+bunkers, 4 M101 emplacements, all 81 sandbag segments.
+
+**The purge was safe, verified two ways.** It swept 4 armature datablocks named
+`PSXRig_gunner/_agunner/_loader/_ammo` — which are **husks left by MY OWN M101 crew strip
+earlier the same session**, zero users, referenced by no object. The agent linked a
+pre-purge snapshot read-only and enumerated every armature object: exactly 4, all using
+`M101Rig`. Independently confirmed after the fact: the live scene still has all 4 M101
+emplacements and the whole compound.
+
+**Recommendation:** take `WIP_chowline` as the base (it is 50 MB smaller and holds more work)
+and re-create the 204-tri HQ outline from scratch — it is trivial, and its design note is
+below. Do NOT try to merge by appending; the HQ layout is not worth the risk.
+
+**Process fix the agent adopted, worth keeping:** never blanket-purge a shared file — scope
+cleanup to an explicit name list of data you created yourself. And the real lesson on the
+40 MB: `anim_library.glb` bundles **177 actions**; import it with `import_animations=False`
+rather than import-then-purge.
+
 ## TWO THINGS THAT NEED A DECISION TOMORROW
 1. **The file tripled: 18.69 → 58.92 MB.** The agent appended `PSXRig` plus **177 actions and
    118 images** for animation authoring. On a disk at 97% full that is a real cost. Decide:
