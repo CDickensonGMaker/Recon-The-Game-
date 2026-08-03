@@ -73,10 +73,12 @@ def fb_field_desk(bm, rng):
 def fb_field_chair(bm, rng):
     box(bm, (0, 0, 0.44), (0.44, 0.42, 0.035), "fb_canvas")
     box(bm, (0, 0.20, 0.66), (0.44, 0.035, 0.40), "fb_canvas")
+    ## Legs run along Z. Authored along Y they lay down flat under a 14 degree tilt and the
+    ## seat floated 122 mm above nothing - the chair read as loose pieces.
     for sx in (-1, 1):
-        box(bm, (sx * 0.20, -0.02, 0.22), (0.035, 0.52, 0.035), "fb_gunmetal",
+        box(bm, (sx * 0.20, -0.09, 0.23), (0.035, 0.035, 0.46), "fb_gunmetal",
             rot=(math.radians(14), 0, 0))
-        box(bm, (sx * 0.20, 0.02, 0.22), (0.035, 0.52, 0.035), "fb_gunmetal",
+        box(bm, (sx * 0.20, 0.09, 0.23), (0.035, 0.035, 0.46), "fb_gunmetal",
             rot=(math.radians(-14), 0, 0))
         box(bm, (sx * 0.20, 0.20, 0.66), (0.035, 0.035, 0.42), "fb_gunmetal")
     return 0.44, 0.46, 0.86
@@ -274,6 +276,54 @@ def fb_water_can(bm, rng):
     return 0.28, 0.28, 0.52
 
 
+# --------------------------------------------------------------------- chow line --
+
+## The progressive tray - owner's ruling 2026-08-02: the tray must be EMPTY at pickup and
+## fill one food item per serving station via visibility toggling, not new props. That
+## requires tray body and each food portion to be SEPARATE meshes the game can show/hide
+## independently, so this is 5 builder functions sharing one coordinate frame (not one bm).
+## Object names are exact and load-bearing for the Godot wiring - do not rename on contact:
+##   tray_base, food_01 (entree), food_02 (veg), food_03 (starch), food_04 (bread/dessert)
+def fb_tray_base(bm, rng):
+    """Stamped-steel compartmented shell, empty. What a man is handed at the stack."""
+    box(bm, (0, 0, 0.008), (0.30, 0.38, 0.016), "fb_gunmetal")          # tray shell
+    box(bm, (0, -0.045, 0.020), (0.27, 0.010, 0.010), "fb_gunmetal")    # divider
+    box(bm, (0, 0.075, 0.020), (0.27, 0.010, 0.010), "fb_gunmetal")     # divider
+    return 0.30, 0.38, 0.03
+
+
+def fb_food_01(bm, rng):
+    """Entree, station 1 - the big well."""
+    box(bm, (0, -0.15, 0.022), (0.24, 0.14, 0.014), "fb_earth")
+    return 0.24, 0.14, 0.03
+
+
+def fb_food_02(bm, rng):
+    """Veg, station 2 - left small well."""
+    box(bm, (-0.065, 0.015, 0.020), (0.115, 0.10, 0.010), "fb_olive")
+    return 0.115, 0.10, 0.03
+
+
+def fb_food_03(bm, rng):
+    """Starch, station 3 - right small well."""
+    box(bm, (0.065, 0.015, 0.020), (0.115, 0.10, 0.010), "fb_crate")
+    return 0.115, 0.10, 0.03
+
+
+def fb_food_04(bm, rng):
+    """Bread/dessert, station 4 - the top compartment."""
+    cyl(bm, (0.0, 0.15, 0.024), 0.045, 0.024, "fb_timber", seg=8)
+    return 0.09, 0.09, 0.03
+
+
+def fb_tray_stack(bm, rng):
+    """Clean trays on a timber stand - the head of the chow line."""
+    box(bm, (0, 0, 0.02), (0.34, 0.42, 0.04), "fb_timber")              # stand
+    for i in range(7):
+        box(bm, (0, 0, 0.048 + i * 0.017), (0.30, 0.38, 0.013), "fb_gunmetal")
+    return 0.34, 0.42, 0.048 + 7 * 0.017
+
+
 PROPS = {
     "fb_field_desk": fb_field_desk, "fb_field_chair": fb_field_chair,
     "fb_radio_prc25": fb_radio_prc25, "fb_radio_shelf": fb_radio_shelf,
@@ -285,6 +335,8 @@ PROPS = {
     "fb_field_range": fb_field_range, "fb_mermite": fb_mermite,
     "fb_folding_table": fb_folding_table, "fb_bench": fb_bench,
     "fb_wash_drum": fb_wash_drum,
+    "fb_tray_base": fb_tray_base, "fb_food_01": fb_food_01, "fb_food_02": fb_food_02,
+    "fb_food_03": fb_food_03, "fb_food_04": fb_food_04, "fb_tray_stack": fb_tray_stack,
     "fb_litter": fb_litter, "fb_medical_chest": fb_medical_chest,
     "fb_jerry_can": fb_jerry_can, "fb_water_can": fb_water_can,
 }
@@ -305,6 +357,7 @@ PROP_CLASSES = {
     "wash":       ["fb_wash_drum"],
     "medic":      ["fb_litter", "fb_medical_chest"],
     "light":      ["fb_hanging_bulb"],
+    "tray":       ["fb_tray_base", "fb_tray_stack"],
 }
 
 BUDGET = [("micro", 20, 100), ("small", 60, 200), ("medium", 150, 400)]

@@ -234,7 +234,10 @@ def terrain_mound(rng):
         for si in range(seg):
             s2 = (si + 1) % seg
             try:
-                f = bm.faces.new((grid[ri][si], grid[ri][s2], grid[ri + 1][s2], grid[ri + 1][si]))
+                # Radial-then-tangential winding: r_hat x theta_hat = +Z. The reverse order
+                # gives every face a DOWNWARD normal, and Godot's ConcavePolygonShape3D has
+                # backface_collision off - a down-facing ground is walked through from above.
+                f = bm.faces.new((grid[ri][si], grid[ri + 1][si], grid[ri + 1][s2], grid[ri][s2]))
                 f.material_index = idx
             except ValueError:
                 pass
@@ -258,7 +261,9 @@ def berm(path, rng):
         cc.append(bm.verts.new((path[i][0], path[i][1], max(zi, zo) + h)))
     for i in range(n):
         j = (i + 1) % n
-        for quad in ((ci[i], ci[j], cc[j], cc[i]), (cc[i], cc[j], co[j], co[i])):
+        ## Wound so both flanks face UP and OUT. Reversed, all 360 faces point down and the
+        ## berm becomes a trimesh you walk through - the same defect as terrain_mound.
+        for quad in ((ci[i], cc[i], cc[j], ci[j]), (cc[i], co[i], co[j], cc[j])):
             try:
                 bm.faces.new(quad).material_index = idx
             except ValueError:
@@ -810,14 +815,6 @@ def legacy_garrison_markers():
 ## invisible mesh with no collision. Every twin here is numbered BEFORE the suffix instead.
 
 ## Alpha cards and ground decals: the player walks through leaves and over mud.
-##
-## fb_terrain_mound is here, NOT on the trimesh list, and that is the 2026-07-29 decree:
-## site_planner sculpts the TERRAIN to this mound's own surface (via the mound manifest
-## above), so the terrain IS the ground. Shipping a second full-compound ground collider on
-## top of it is what put an invisible floor 0.5-2.4 m above the visible dirt - the player
-## jumped, landed on nothing, and was walled in by its rim. ONE ground.
-## Named cost: the authored craters become visual dishes you walk over, not holes you step
-## into. A 4 m heightmap could not have held them anyway.
 COL_NONE = ("fb_mud_patch", "fb_scorch", "fb_road_", "fb_duckboard",
             "fb_veg_bush", "fb_veg_fern", "fb_veg_elephant", "fb_veg_tall_grass",
             "fb_veg_grass", "fb_veg_jungle_palm", "fb_veg_palm_sapling")

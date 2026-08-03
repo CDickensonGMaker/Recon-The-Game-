@@ -3,6 +3,8 @@
 class_name SitePlanner
 extends RefCounted
 
+const LitterTeamScript := preload("res://scripts/world/litter_team.gd")
+
 const MARGIN: float = 100.0  ## keep sites away from AO edges
 const MAX_SLOPE: float = 0.25
 const SITE_ATTEMPTS: int = 300
@@ -974,6 +976,18 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 			posts.append({"pos": pp, "occupation": "patient", "men": 1})
 			taken = 2
 			type_order.erase("medic")
+			# THE LITTER TEAM IS THE BUTCHER'S BILL MADE VISIBLE. Seeded on the same
+			# rule as the station itself, but CONDITIONALLY: a stretcher crossing the
+			# compound has to MEAN someone got hurt, so it runs only when the ward is
+			# above its floor. Otherwise these three posts return to the rotation and
+			# the working party keeps its men. Cost when it runs: 3 of the 7 work posts
+			# (two bearers plus the man on the litter).
+			var ward_full: bool = CampaignState.ward_wounded > CampaignState.WARD_SEED_ON_NEW_TOUR
+			if med_pool.size() >= 3 and work_budget >= 5 and ward_full and LitterTeamScript.available():
+				var cot: Vector3 = origin + (med_pool[2] as Vector3)
+				cot.y = 0.0
+				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": mp})
+				taken = 5
 		var round_i: int = 0
 		while taken < work_budget:
 			var placed_this_round: bool = false
@@ -1223,8 +1237,28 @@ func _cull_interior_props(root: Node3D) -> void:
 	print("[FSB] %d interior prop(s) culled past %.0fm" % [n_props, INTERIOR_CULL_M])
 
 
+## EVERY structure in the shipped GLB winds inward - measured 2026-08-02, signed volume is
+## negative for all 19 families tested and fb_terrain_mound / fb_berm_ring are 100% down-facing.
+## ConcavePolygonShape3D only collides on its front face, so the ground and the walls were both
+## one-sided. Root cause was gen_firebase.py::box() plus the two swept surfaces, all fixed at
+## source; this holds the shipped GLB solid until that re-export lands, and returns 0 once it has.
+func _force_backface_collision(body: StaticBody3D) -> int:
+	var fixed: int = 0
+	for child in body.get_children():
+		var cs := child as CollisionShape3D
+		if cs == null:
+			continue
+		var concave := cs.shape as ConcavePolygonShape3D
+		if concave == null or concave.backface_collision:
+			continue
+		concave.backface_collision = true
+		fixed += 1
+	return fixed
+
+
 func _repair_glb_colliders(root: Node3D) -> void:
 	var mound: int = 0
+	var mound_backfaced: int = 0
 	var veg_boxed: int = 0
 	var veg_remeshed: int = 0
 	# Collected in a FULL pass before anything is touched: re-meshing adds StaticBody3D children
@@ -1268,6 +1302,17 @@ func _repair_glb_colliders(root: Node3D) -> void:
 	if veg_boxed > 0:
 		print("[FSB] replaced %d box hull(s) (vegetation + parapet), %d re-meshed as trimesh"
 			% [veg_boxed, veg_remeshed])
+	# Runs LAST: _remesh_collider builds new bodies above, and they inherit the same winding.
+	var stack2: Array[Node] = [root]
+	while not stack2.is_empty():
+		var n2: Node = stack2.pop_back()
+		for c in n2.get_children():
+			stack2.append(c)
+		var b2 := n2 as StaticBody3D
+		if b2 != null:
+			mound_backfaced += _force_backface_collision(b2)
+	print("[FSB] %d concave shape(s) forced double-sided (inward winding in the shipped GLB)"
+		% mound_backfaced)
 	_audit_floating_colliders(root)
 
 

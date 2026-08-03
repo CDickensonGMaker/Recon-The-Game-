@@ -143,7 +143,10 @@ def box(bm, centre, size, mat="fb_timber", rot=None, taper=1.0):
         pts = [R @ Vector(p) for p in pts]
     vs = [bm.verts.new((p[0] + cx, p[1] + cy, p[2] + cz)) for p in pts]
     idx = MAT_INDEX[mat]
-    for f in [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]:
+    ## Faces wind CCW seen from OUTSIDE, so every normal points out and the signed volume is
+    ## positive. Reversed, glTF doubleSided hides the shading but Godot does not: a -colonly
+    ## trimesh only collides on its front face, so an inward-wound wall is walked through.
+    for f in [(3, 2, 1, 0), (4, 5, 6, 7), (1, 5, 4, 0), (2, 6, 5, 1), (3, 7, 6, 2), (0, 4, 7, 3)]:
         try:
             bm.faces.new([vs[i] for i in f]).material_index = idx
         except ValueError:
@@ -243,6 +246,29 @@ def overhead_cover(bm, cx, cy, cz, w, d, rng):
 
     This layering is the whole reason a bunker reads as protection instead of a shed.
     """
+    ## TIMBER FRAME AT THE WALL HEAD. Posts sit at 0.36 of the span from centre, which keeps
+    ## them clear of the frontal slit, the rear crawlway and the flanking embrasures on every
+    ## bunker that calls this - put one on the centreline and it bricks up a firing port.
+    plate, post_h, post_t = 0.20, 0.66, 0.22
+    for sy in (-1, 1):
+        box(bm, (cx, cy + sy * (d / 2.0 + 0.03), cz - plate / 2.0),
+            (w + 0.52, 0.22, plate), "fb_timber")
+    for sx in (-1, 1):
+        box(bm, (cx + sx * (w / 2.0 + 0.03), cy, cz - plate / 2.0),
+            (0.22, d + 0.52, plate), "fb_timber")
+    pz = cz - plate - post_h / 2.0
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(bm, (cx + sx * (w / 2.0 + 0.03), cy + sy * (d / 2.0 + 0.03), pz),
+                (post_t, post_t, post_h), "fb_timber")
+        box(bm, (cx + sx * 0.36 * w, cy - d / 2.0 - 0.03, pz), (post_t, post_t, post_h),
+            "fb_timber")
+        box(bm, (cx + sx * 0.36 * w, cy + d / 2.0 + 0.03, pz), (post_t, post_t, post_h),
+            "fb_timber")
+        box(bm, (cx - w / 2.0 - 0.03, cy + sx * 0.36 * d, pz), (post_t, post_t, post_h),
+            "fb_timber")
+        box(bm, (cx + w / 2.0 + 0.03, cy + sx * 0.36 * d, pz), (post_t, post_t, post_h),
+            "fb_timber")
     for i in range(max(3, int(d / 0.55))):
         y = cy - d / 2.0 + d * (i + 0.5) / max(3, int(d / 0.55))
         box(bm, (cx, y, cz + 0.09), (w + 0.35, 0.16, 0.18), "fb_timber")
@@ -250,18 +276,22 @@ def overhead_cover(bm, cx, cy, cz, w, d, rng):
     # Same trick as the walls: the sandbag mass is a slab, and only the PERIMETER ring
     # is individual bags. A full 2-course field over a 7x5 m roof is 216 boxes, and you
     # can only ever see the edge of it from the ground.
-    box(bm, (cx, cy, cz + 0.42), (w + 0.3, d + 0.3, 0.32), "fb_sandbag")
+    ## fb_sandbag_wall, NOT fb_sandbag. The revetment courses the player stands next to are
+    ## built by fb_kit with the wall texture; the roof mass and its perimeter ring were the
+    ## only bags still on the flat kit slot, which is why the tops read wrong and the bottoms
+    ## read right. One texture for every bag in the base.
+    box(bm, (cx, cy, cz + 0.42), (w + 0.3, d + 0.3, 0.32), "fb_sandbag_wall")
     nx, ny = max(2, int(w / 0.62)), max(2, int(d / 0.62))
     for i in range(nx):
         x = cx - w / 2.0 + w * (i + 0.5) / nx
         for sy in (-1, 1):
             box(bm, (x, cy + sy * (d / 2.0 + 0.12), cz + 0.60), (0.60, 0.42, 0.22),
-                "fb_sandbag", rot=(0, 0, rng.uniform(-0.07, 0.07)))
+                "fb_sandbag_wall", rot=(0, 0, rng.uniform(-0.07, 0.07)))
     for j in range(ny):
         y = cy - d / 2.0 + d * (j + 0.5) / ny
         for sx in (-1, 1):
             box(bm, (cx + sx * (w / 2.0 + 0.12), y, cz + 0.60), (0.42, 0.60, 0.22),
-                "fb_sandbag", rot=(0, 0, rng.uniform(-0.07, 0.07)))
+                "fb_sandbag_wall", rot=(0, 0, rng.uniform(-0.07, 0.07)))
 
 
 # ------------------------------------------------------------------- markers --
@@ -307,10 +337,25 @@ def fam_bunker_mg(bm, rng):
     for s in (-1, 1):
         bag_run((s * CRAWL_W / 2.0, d / 2.0, 0), (s * w / 2.0, d / 2.0, 0), wall, rng)
     box(bm, (0, d / 2.0, CRAWL_H + 0.2), (CRAWL_W + 0.4, 0.55, 0.34), "fb_timber")
+    ## Same head-planking as the fighting bunker - see the note there.
+    lint_top = slit_z + 0.94
+    ph = wall - lint_top
+    if ph > 0.05:
+        box(bm, (0, -d / 2.0, lint_top + ph / 2.0), (slit_w + 0.4, 0.55, ph), "fb_timber")
+    dh = wall - (CRAWL_H + 0.37)
+    if dh > 0.05:
+        box(bm, (0, d / 2.0, CRAWL_H + 0.37 + dh / 2.0), (CRAWL_W + 0.4, 0.5, dh), "fb_timber")
     overhead_cover(bm, 0, 0, wall, w, d, rng)
     box(bm, (0, -d / 2.0 + 0.55, -sink + 0.5), (1.5, 0.5, 0.75), "fb_crate")
     marker("mg_fire_point", (0.0, -d / 2.0 + 0.35, slit_z - sink + 0.55), -math.pi / 2.0,
            work_type="mg")
+    ## mg_fire_point carries work_type as a custom property, and the kit exports with Custom
+    ## Properties OFF - so the gunner post only survives the export under a work_* NAME.
+    marker("work_mg", (0.0, -d / 2.0 + 0.35, slit_z - sink + 0.55), -math.pi / 2.0,
+           work_type="mg")
+    for sx in (-1, 1):
+        marker("work_bunker", (sx * (w / 2.0 - 0.5), 0.35, -sink + 0.08),
+               0.0 if sx > 0 else math.pi, work_type="bunker")
     marker("bunker_los_point", (0.0, -d / 2.0 + 0.2, slit_z + 0.1), -math.pi / 2.0)
     marker("door_main", (0.0, d / 2.0 + 0.9, -sink + 0.12), math.pi / 2.0, door_width=CRAWL_W)
     return w, d, wall + 0.6
@@ -326,8 +371,17 @@ def fam_bunker_fighting(bm, rng, sealed=False):
         bag_run((s * slit_w / 2.0, -d / 2.0, 0), (s * w / 2.0, -d / 2.0, 0), wall, rng)
     bag_run((-slit_w / 2.0, -d / 2.0, 0), (slit_w / 2.0, -d / 2.0, 0), slit_z, rng)
     box(bm, (0, -d / 2.0, slit_z + 0.73), (slit_w + 0.35, 0.55, 0.3), "fb_timber")
+    ## FLANKING EMBRASURES. A single frontal slit gives one bunker ~50 degrees of fire, so a
+    ## perimeter of them has dead arcs between neighbours and cannot cover the man next door.
+    ## Each side wall is split around a narrower slit at the same sill height as the front.
+    flank_w = 1.0
+    flank_c = -0.35                     # biased forward, so the fire crosses in front of the line
+    fy0, fy1 = flank_c - flank_w / 2.0, flank_c + flank_w / 2.0
     for sx in (-1, 1):
-        bag_run((sx * w / 2.0, -d / 2.0, 0), (sx * w / 2.0, d / 2.0, 0), wall, rng)
+        bag_run((sx * w / 2.0, -d / 2.0, 0), (sx * w / 2.0, fy0, 0), wall, rng)
+        bag_run((sx * w / 2.0, fy1, 0), (sx * w / 2.0, d / 2.0, 0), wall, rng)
+        bag_run((sx * w / 2.0, fy0, 0), (sx * w / 2.0, fy1, 0), slit_z, rng)
+        box(bm, (sx * w / 2.0, flank_c, slit_z + 0.73), (0.5, flank_w + 0.3, 0.3), "fb_timber")
     if sealed:
         bag_run((-w / 2.0, d / 2.0, 0), (w / 2.0, d / 2.0, 0), wall, rng)
     else:
@@ -337,6 +391,32 @@ def fam_bunker_fighting(bm, rng, sealed=False):
         box(bm, (0, d / 2.0, CRAWL_H + 0.18), (CRAWL_W + 0.35, 0.5, 0.3), "fb_timber")
         marker("door_main", (0.0, d / 2.0 + 0.8, -sink + 0.12), math.pi / 2.0,
                door_width=CRAWL_W)
+    ## THE FIREBASE'S 7 FIGHTING BUNKERS EMITTED NO STATION AT ALL - only door_main - so no
+    ## garrison man could ever occupy one and they were scenery through every siege. One post
+    ## per embrasure. Named work_* so _collect_stations resolves the type from the name, which
+    ## is what survives an export with Custom Properties off.
+    marker("work_bunker", (0.0, -d / 2.0 + 0.4, -sink + 0.08), -math.pi / 2.0,
+           work_type="bunker")
+    for sx in (-1, 1):
+        marker("work_bunker", (sx * (w / 2.0 - 0.4), flank_c, -sink + 0.08),
+               0.0 if sx > 0 else math.pi, work_type="bunker")
+    marker("bunker_los_point", (0.0, -d / 2.0 + 0.2, slit_z + 0.1), -math.pi / 2.0)
+    ## PLANK THE HEAD OF EVERY OPENING. The slit's bag course stops at slit_z and the lintel
+    ## only caps the port, so the wall was missing from the lintel top to the wall head - a
+    ## 0.57 m hole on all three firing faces, and on the crawlway. Timber closes it without
+    ## touching the firing arc, which sits below the lintel.
+    lint_top = slit_z + 0.88
+    ph = wall - lint_top
+    if ph > 0.05:
+        pz = lint_top + ph / 2.0
+        box(bm, (0, -d / 2.0, pz), (slit_w + 0.35, 0.5, ph), "fb_timber")
+        for sx in (-1, 1):
+            box(bm, (sx * w / 2.0, flank_c, pz), (0.5, flank_w + 0.3, ph), "fb_timber")
+    if not sealed:
+        dh = wall - (CRAWL_H + 0.33)
+        if dh > 0.05:
+            box(bm, (0, d / 2.0, CRAWL_H + 0.33 + dh / 2.0),
+                (CRAWL_W + 0.35, 0.45, dh), "fb_timber")
     overhead_cover(bm, 0, 0, wall, w, d, rng)
     return w, d, wall + 0.6
 
@@ -747,7 +827,7 @@ def fam_sandbag_stack(bm, rng):
         for i in range(4 - c):
             for j in range(2):
                 box(bm, (-0.9 + i * 0.62 + c * 0.15, -0.25 + j * 0.5, 0.11 + c * 0.22),
-                    (0.60, 0.42, 0.22), "fb_sandbag", rot=(0, 0, rng.uniform(-0.09, 0.09)))
+                    (0.60, 0.42, 0.22), "fb_sandbag_wall", rot=(0, 0, rng.uniform(-0.09, 0.09)))
     return 2.6, 1.2, 0.9
 
 
