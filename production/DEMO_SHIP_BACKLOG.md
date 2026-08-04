@@ -756,6 +756,15 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
       explosion). His freeze on the DUSK-boot build stays OPEN — if it recurs on the DAWN
       build, capture how he launched (editor vs export) first.
 
+### Housekeeping flag (2026-08-04, Overseer)
+- A pre-existing `git stash` entry named **"autostash"** sits in this repo (27 files,
+  122+/745-, touches `tools/viewmodel_manifest.json`) — it predates the 8/4 fix-train
+  session and was NOT created or consumed by it. Inspect with
+  `git stash show -p "stash@{0}"` before dropping; it may hold a lost session's work.
+- The worktree also carries ~15 modified + ~195 untracked files from OTHER sessions
+  (Blender WIP, viewmodels, seat_system/model_actor/hitzone_builder edits) — left
+  uncommitted on purpose; they are not the fix train's to ship.
+
 ### FULL-GAME items logged (not demo work)
 - [ ] **F-1 Bank the night** — siege AAR handler banks nothing under a comment claiming it does
       (`field_director.gd:1466-1478`). Machinery ~120 lines away.
