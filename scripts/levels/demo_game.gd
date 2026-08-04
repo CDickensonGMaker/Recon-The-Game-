@@ -38,15 +38,16 @@ const EXCLUDE_AMBIENT_WAR := false
 ## ON *IS* THE PLAYER CLEARING THE GATE.
 const START_HOUR: float = 6.5
 
-## 06:30 -> 21:00 is 14.5 sim hours. Across DAY_END_S that is ~38x.
+## 06:30 at 38x reaches NIGHT (sim 19.0, sim_clock.period_at) at ~1184s. The ratio seam
+## below tracks MissionWeather.is_night - the same authority the siege rolls on - so the
+## slow-down lands when night actually falls, wherever the boot put the clock.
 const DAY_RATIO: float = 38.0
-const DAY_END_S: float = 1380.0      ## ~23 min: NIGHT snaps on, the garrison stands to
 
 ## NIGHT RUNS SLOW, and for the opposite reason the briefing assumed. Acceleration past
 ## midnight breaks three things: it re-arms a second siege roll, it unlatches the
 ## fire-support allotment through `_granted_day` (an exploit named in its own comment at
 ## `field_director.gd:1240-1245`), and it RAISES THE SUN during the night attack. At 20x
-## the 420 s night covers 2h20m and the arc ends ~23:20 - inside the same sim day.
+## the ~616 s from the 19:00 seam cover ~3h25m and the arc ends ~22:25 - same sim day.
 const NIGHT_RATIO: float = 20.0
 
 const PROBE_AT_S: float = 1395.0     ## first contact on the wire, just after stand-to
@@ -98,8 +99,14 @@ func _ready() -> void:
 	_flow = GameFlow.new()
 	add_child(_flow)
 	_flow._begin_operation(DEMO_SEED, DEMO_NAME)
-	# AFTER the build: the generator seeds its own hour and the weather table wins over it
-	# via game_flow. The demo's arc is only true if it starts where the arc says it does.
+	# The build seeds its own hour from the plan (mission_weather.gd:51), so the arc's clock
+	# can only be set AFTER the world is up - _in_world is the last latch enter_hub flips.
+	# START_HOUR must stay inside the plan's DAWN period (5-7, sim_clock.period_at): set_time
+	# does not emit time_period_changed, so a cross-period jump here would desync the sun.
+	while _flow != null and is_instance_valid(_flow) and not _flow._in_world:
+		await get_tree().process_frame
+	if _flow == null or not is_instance_valid(_flow) or not is_inside_tree():
+		return
 	SimClock.set_time(1, START_HOUR)
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds end@%ds" % [
 		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
@@ -267,6 +274,7 @@ func _tick_air(delta: float) -> void:
 
 var _death_routed := false
 var _night_ratio_set := false
+var _m6_printed := false
 
 ## ---- THE OPENING BEAT (council §2.2) ----
 ## There is no gate pointer in this game and the right one is not a marker: it is YOUR OWN
@@ -344,11 +352,16 @@ func _physics_process(delta: float) -> void:
 			_flow.director.mission_failed.disconnect(_flow._on_mission_ended)
 			_flow.director.mission_failed.connect(_on_demo_death)
 	_clock += minf(delta, 0.066)
+	# M-6 (audit 2026-08-04): the one-shot clock print that proves the 06:30 arc is real.
+	# At 38x, 60s after the seat should read ~07:08; a DUSK boot reads ~18:08 here.
+	if not _m6_printed and _clock >= 60.0:
+		_m6_printed = true
+		print("[M-6] sim %05.2f day %d at %.0fs after seat" % [SimClock.sim_hour, SimClock.sim_day, _clock])
 	_tick_opening()
 	_tick_air(delta)
 	_tick_napalm()
 	# The ratio drops ONCE, at the day/night seam, and never climbs back inside a run.
-	if not _night_ratio_set and _clock >= DAY_END_S:
+	if not _night_ratio_set and MissionWeather.is_night:
 		_night_ratio_set = true
 		SimClock.real_to_sim_ratio = NIGHT_RATIO
 		print("[DEMO] night at %.0fs - clock %.0fx -> %.0fx, sim %05.2f"
@@ -405,9 +418,11 @@ func _open_siege(strength: int, toast: String) -> void:
 
 ## THE LAST IMAGE: a flight of Huey gunships circling the wire, M60 gunners working. Not
 ## dawn - the sun cannot be made to rise without the three exploits named at NIGHT_RATIO.
-## The card waits GUNSHIP_HOLD_S so the flight is on station and audible BEFORE the war
-## freezes behind it; showing the card first would make the gunships a menu background.
-const GUNSHIP_HOLD_S: float = 12.0
+## HIS RULING 2026-08-04 (Q2): the freeze lands only once the pair is ON STATION - a
+## wall-clock hold let the fly-in eat the image - and the frozen frame then holds until
+## he clicks out of the program. No timer dismisses it, no key continues past it.
+## The timeout below guards a failed spawn only; it is not a pacing knob.
+const GUNSHIP_WAIT_MAX_S: float = 25.0
 
 func _ending() -> void:
 	var d: FieldDirector = _flow.director
@@ -415,14 +430,17 @@ func _ending() -> void:
 	var at := _flow.world.get_node_or_null("AirTraffic") as AirTraffic if _flow.world != null \
 		else null
 	if at != null:
-		# A PAIR ON STATION, circling the wire at ORBIT_RADIUS_M for ORBIT_SECONDS before
-		# running out. The door gunners are ART - he is staging them in the Huey later
-		# (his ruling 2026-08-04, "i just want that idea to be there"), so nothing here
-		# fires and the orbit carries the image on its own until they land.
-		at.launch("huey", "gun_orbit")
+		# A PAIR ON STATION, circling the wire at ORBIT_RADIUS_M. finale=true: nearer
+		# spawn, exempt from the airframe ceiling. The door gunners are ART - he is
+		# staging them in the Huey later (his ruling 2026-08-04, "i just want that idea
+		# to be there"), so nothing here fires; the orbit carries the image on its own.
+		at.launch("huey", "gun_orbit", 0, true)
 	if d != null:
 		d.toast.emit("GUNSHIPS ON STATION - GET YOUR HEADS DOWN")
-	await get_tree().create_timer(GUNSHIP_HOLD_S).timeout
+	var waited: float = 0.0
+	while at != null and not at.orbit_on_station() and waited < GUNSHIP_WAIT_MAX_S:
+		await get_tree().create_timer(0.5).timeout
+		waited += 0.5
 	if _card != null:
 		return   # he died under the orbit; that card already stands
 	_show_end_card("FIREBASE HELD" if ENDING_PLAYER_SURVIVES else "THEY CAME BACK FOR THE WIRE")

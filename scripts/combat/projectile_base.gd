@@ -366,7 +366,12 @@ func _dud_impact() -> void:
 ## is FACTION-BLIND, does knockback, and respects cover. (A faction-scoped query
 ## here would let an enemy rocket never touch the player.)
 func _apply_aoe_damage() -> void:
-	if terminal_effect.is_valid():
+	# is_valid() does NOT check a LAMBDA's captured instance - a shell whose author
+	# (CASAirplane/Spectre, reaped mid-flight by air_traffic) died in the air passed the
+	# test and errored on call ("Trying to call a lambda with an invalid instance",
+	# caught live 2026-08-04). The dead author's round still detonates: fall through to
+	# the shared explosion below rather than fizzling.
+	if terminal_effect.is_valid() and is_instance_valid(terminal_effect.get_object()):
 		terminal_effect.call(global_position)
 		return
 	# ADR-016 Amendment F: a rocket outclasses a grenade. The centre is death; the

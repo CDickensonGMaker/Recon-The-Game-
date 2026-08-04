@@ -157,9 +157,18 @@ func setup(terrain_manager: TerrainManager) -> void:
 	terrain = terrain_manager
 
 
+## The pad is RESERVED here, at assignment, not on touchdown: presence used to count
+## only landed ships (_process_landing), so two cycles dispatched inside one fly-in
+## window both saw a free pad and landed on the same square metre (his playtest
+## 2026-08-04, two Chinooks overlapped). take_off/_exit_tree release the claim.
 func fly_to(target: Vector3, lz: LandingZone = null) -> void:
 	_target = target
-	_lz = lz
+	if _lz != lz:
+		if _lz != null and is_instance_valid(_lz):
+			_lz.helicopters_present = maxi(0, _lz.helicopters_present - 1)
+		_lz = lz
+		if _lz != null:
+			_lz.helicopters_present += 1
 	state = State.FLYING
 
 
@@ -170,6 +179,14 @@ func take_off() -> void:
 		_lz.helicopters_present = maxi(0, _lz.helicopters_present - 1)
 		_lz = null
 	state = State.TAKING_OFF
+
+
+## A flight reaped mid-cycle (air_traffic's MAX_FLIGHT_SECONDS) must release its pad
+## reservation, or the pad reads occupied forever and no bird ever lands again.
+func _exit_tree() -> void:
+	if _lz != null and is_instance_valid(_lz):
+		_lz.helicopters_present = maxi(0, _lz.helicopters_present - 1)
+		_lz = null
 
 
 func _ground_y(pos: Vector3) -> float:
@@ -240,8 +257,6 @@ func _process_landing(delta: float) -> void:
 	if global_position.y <= _land_y:
 		global_position.y = _land_y
 		state = State.LANDED
-		if _lz:
-			_lz.helicopters_present += 1
 		landed.emit(self, _lz)
 
 

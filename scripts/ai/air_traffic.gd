@@ -214,12 +214,13 @@ func _tick_load(delta: float) -> void:
 ##
 ## Deliberately NOT a second scheduler: this is the same _dispatch the sim event calls, so
 ## formations, routes, the flight roster and the MAX_FLIGHT_SECONDS reaper all still apply.
-func launch(flight_kind: String, profile: String = "transit", ships: int = 0) -> void:
+func launch(flight_kind: String, profile: String = "transit", ships: int = 0,
+		finale: bool = false) -> void:
 	match profile:
 		"lz_cycle":
 			_dispatch_lz_cycle(flight_kind)
 		"gun_orbit":
-			_dispatch_gun_orbit(flight_kind, ships)
+			_dispatch_gun_orbit(flight_kind, ships, finale)
 		_:
 			_dispatch(flight_kind, ships)
 
@@ -245,7 +246,11 @@ const ORBIT_SECONDS: float = 75.0
 ## Inbound from here, not from the map edge: the whole sortie - run in, orbit, run out - has
 ## to finish inside MAX_FLIGHT_SECONDS or the reaper deletes the gunships mid-shot.
 const ORBIT_INBOUND_M: float = 330.0
-## Ships in the flight. Two reads as a pair working; the ceiling still binds.
+## The FINALE pair enters from here instead (his ruling 2026-08-04, Q2): the freeze waits
+## for ships on station, so the run-in must be seconds, not a scene of its own.
+const ORBIT_FINALE_INBOUND_M: float = 200.0
+## Ships in the flight. Two reads as a pair working; the ceiling still binds -
+## except for the finale pair, a priced one-time overspend (decree 2026-08-04, W-5).
 const ORBIT_SHIPS: int = 2
 ## NO DOOR GUN IN CODE. Ruled by Caleb 2026-08-04, mid-build: "dont build the gun... im
 ## going to stage that in a heuy eventually. i just want that idea to be there."
@@ -259,7 +264,7 @@ const ORBIT_SHIPS: int = 2
 
 ## `centre` defaults to the firebase. Ships are staggered around the circle so they never
 ## overlap and never fire from the same bearing.
-func _dispatch_gun_orbit(kind: String, ships: int = 0) -> void:
+func _dispatch_gun_orbit(kind: String, ships: int = 0, finale: bool = false) -> void:
 	var world := _world()
 	if world == null:
 		return
@@ -268,8 +273,11 @@ func _dispatch_gun_orbit(kind: String, ships: int = 0) -> void:
 		_dispatch(kind, ships)
 		return
 	var count: int = ships if ships > 0 else ORBIT_SHIPS
+	var inbound_m: float = ORBIT_FINALE_INBOUND_M if finale else ORBIT_INBOUND_M
 	for i in range(count):
-		if _in_flight.size() >= MAX_IN_FLIGHT:
+		# The finale pair is exempt from the ceiling (ruled 2026-08-04, Q2/W-5): a full
+		# sky at minute 30 must not zero the demo's last image. Priced once, at the freeze.
+		if not finale and _in_flight.size() >= MAX_IN_FLIGHT:
 			print("[AIR] gun orbit cut to %d of %d - ceiling %d reached"
 				% [i, count, MAX_IN_FLIGHT])
 			return
@@ -287,7 +295,7 @@ func _dispatch_gun_orbit(kind: String, ships: int = 0) -> void:
 		# pair reads as two aircraft working a problem rather than one bird cloned.
 		var entry: float = rng.randf_range(0.0, TAU) + TAU * float(i) / float(count)
 		var slot: float = entry + PI      # arrive at the far side, having flown across
-		var inbound: Vector3 = centre + Vector3(cos(entry), 0.0, sin(entry)) * ORBIT_INBOUND_M
+		var inbound: Vector3 = centre + Vector3(cos(entry), 0.0, sin(entry)) * inbound_m
 		inbound.y = _ground_at(inbound) + ORBIT_ALTITUDE_M
 		heli.global_position = inbound
 		var first: Vector3 = _orbit_point(centre, slot)
@@ -342,6 +350,15 @@ func _step_orbit(f: Dictionary, heli: Helicopter, centre: Vector3) -> void:
 	var next: Vector3 = _orbit_point(centre, angle)
 	f["dest"] = next
 	heli.fly_to(next)
+
+
+## True while any flight is walking the orbit circle. The demo's end freeze waits on this
+## so the gunships are IN the frozen frame (his ruling 2026-08-04, Q2).
+func orbit_on_station() -> bool:
+	for f in _in_flight:
+		if String((f as Dictionary).get("phase", "")) == "orbit":
+			return true
+	return false
 
 
 ## How many airframes are in the sky right now. The demo's air package reads this before adding

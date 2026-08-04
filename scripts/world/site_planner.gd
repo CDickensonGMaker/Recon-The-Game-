@@ -856,7 +856,8 @@ const FSB_WORK_PRIORITY: Array[String] = [
 
 ## THE garrison ceiling: how many men stand inside the wire, curated and work-post
 ## alike. Guarded by tests/test_firebase_garrison.gd, which reads THIS constant.
-## 24 -> 40 measured 2026-07-31 on the exported demo (--print-fps, 150s A/B):
+## 24 -> 40 measured 2026-07-31 on the exported demo (150s A/B; the flag that run
+## cited did not exist then - `--print-fps` became real 2026-08-04, W-4):
 ## mid-siege 48.0 FPS at both values - the men are not the frame cost. If the
 ## siege now feels too safe to hold, this is the dial back toward 28-32.
 const FSB_GARRISON_MAX_MEN: int = 40
@@ -936,8 +937,11 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		var key: String = entry[0]
 		if not _fsb_markers.has(key):
 			continue
+		# AUTHORED HEIGHT KEPT (2026-08-04). Zeroing Y here forced every consumer onto a
+		# top-down surface_y probe, which hits the ROOF over any covered post - the whole
+		# garrison stood on the buildings. The marker's Y IS the floor it was placed on;
+		# seat with GameWorld.floor_y from it.
 		var p: Vector3 = origin + (_fsb_markers[key] as Vector3)
-		p.y = 0.0
 		posts.append({"pos": p, "occupation": str(entry[1]), "men": int(entry[2])})
 	# The work_* markers authored across the compound, so the garrison stands at the mess
 	# line, the wash drums and the ammo niches instead of only the thirteen curated posts.
@@ -978,9 +982,7 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		var med_pool: Array = by_type.get("medic", [])
 		if med_pool.size() >= 2 and work_budget >= 2:
 			var mp: Vector3 = origin + (med_pool[0] as Vector3)
-			mp.y = 0.0
 			var pp: Vector3 = origin + (med_pool[1] as Vector3)
-			pp.y = 0.0
 			posts.append({"pos": mp, "occupation": "medic", "men": 1})
 			posts.append({"pos": pp, "occupation": "patient", "men": 1})
 			taken = 2
@@ -994,7 +996,6 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 			var ward_full: bool = CampaignState.ward_wounded > CampaignState.WARD_SEED_ON_NEW_TOUR
 			if med_pool.size() >= 3 and work_budget >= 5 and ward_full and LitterTeamScript.available():
 				var cot: Vector3 = origin + (med_pool[2] as Vector3)
-				cot.y = 0.0
 				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": mp})
 				taken = 5
 		var round_i: int = 0
@@ -1007,7 +1008,6 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 				if round_i >= pool.size():
 					continue
 				var wp: Vector3 = origin + (pool[round_i] as Vector3)
-				wp.y = 0.0
 				var occ: String = str(FSB_WORK_OCCUPATION.get(wt, "off_duty"))
 				# Alternate the two sentry shifts so the wire is not empty after dark.
 				if occ == "sentry" and taken % 2 == 1:
@@ -1024,7 +1024,6 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		if not _fsb_markers.has(key):
 			continue
 		var q: Vector3 = origin + (_fsb_markers[key] as Vector3)
-		q.y = 0.0
 		quarters.append(q)
 	return {"posts": posts, "quarters": quarters}
 

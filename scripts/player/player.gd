@@ -18,6 +18,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 ## Crouch settings
 const STAND_HEIGHT: float = 1.8
 const CROUCH_HEIGHT: float = 0.9
+## Must match player.tscn's CapsuleShape3D radius (player.tscn:10).
+const CAPSULE_RADIUS: float = 0.4
 const CROUCH_TRANSITION_SPEED: float = 10.0
 
 ## Lean settings
@@ -1699,6 +1701,12 @@ func _handle_crouch(delta: float) -> void:
 	if collision_shape.shape is CapsuleShape3D:
 		var capsule := collision_shape.shape as CapsuleShape3D
 		capsule.height = lerpf(capsule.height, target_height, delta * CROUCH_TRANSITION_SPEED)
+		# PRONE_HEIGHT 0.5 < 2*radius: the height setter silently shrinks radius to keep
+		# the capsule legal (MEASURED 2026-08-04 on 4.7: r 0.4 -> 0.25) and nothing ever
+		# restored it - one prone left a pencil capsule that slips mound-trimesh seams
+		# ("Z put me inside the ground", his playtest). Re-assert the authored radius;
+		# the setter re-clamps it while low and this returns it on the way up.
+		capsule.radius = minf(CAPSULE_RADIUS, capsule.height * 0.5)
 		collision_shape.position.y = capsule.height / 2.0
 		# THE ZONES FOLLOW THE CAPSULE. They did not, and a prone player's fatal HEAD
 		# sphere floated a metre above him while rounds through his real body found

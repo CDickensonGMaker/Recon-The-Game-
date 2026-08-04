@@ -68,13 +68,21 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 		var m: Dictionary = roster[i]
 		var a := TAU * float(i) / float(squad_n)
 		var pos := spawn_pos + Vector3(cos(a), 0, sin(a)) * 3.5
-		# Same seat as the player: terrain height alone buries the squad under the
-		# firebase mound when the spawn point sits inside the base.
-		pos.y = world.surface_y(pos) + 0.5
+		# floor_y, from the BUNK'S authored height - the spawn ring sits around an
+		# indoor cot, and surface_y's top-down ray put the whole squad on the hootch
+		# ROOF, off the navmesh, where no order could ever move them (his playtest,
+		# 2026-08-04: "my squad never follows me").
+		pos.y = world.floor_y(pos) + 0.5
 		var ally := AllyBase.spawn_ally(world, pos)
 		ally.member = m
 		ally.director = director  ## toast channel for promotion barks
 		var mos: String = str(m.mos)
+		# MOS-weighted courage (decree 2026-08-03 §2.11 item 2): the flat ambient roll let
+		# the RTO play hero ~25% of the time and skip the cover trip (ally_base.gd:106-109).
+		# The RTO/MEDIC caps sit under the 0.75 go-getter bar, so the men the squad cannot
+		# afford to spend always take cover first.
+		var band: Vector2 = MOS_COURAGE.get(mos, Vector2(0.25, 0.85)) as Vector2
+		ally.courage = _roster_rng.randf_range(band.x, band.y)
 		var unit: String = _pick_unit_for_mos(mos)
 		var weapon: String = MOS_WEAPON.get(mos, "m16a1")
 		if mos == "MG":
@@ -105,6 +113,18 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 ## Every MOS carries a weapon. Rifle roles draw a random v3 grunt body so the squad
 ## looks like a mixed fireteam instead of seven identical action figures. Specialist
 ## roles (MG/GRENADIER/MARKSMAN/RTO) keep deterministic bodies for silhouette clarity.
+## Courage band per MOS, sampled by the roster RNG (ADR-010: same seed, same men).
+## ally_base.wants_cover_first: >= 0.75 skips the cover trip; < 0.35 anchors on his rock.
+const MOS_COURAGE: Dictionary = {
+	"POINTMAN":  Vector2(0.5, 0.95),
+	"RTO":       Vector2(0.1, 0.55),
+	"MEDIC":     Vector2(0.15, 0.6),
+	"MG":        Vector2(0.45, 0.95),
+	"GRENADIER": Vector2(0.3, 0.8),
+	"MARKSMAN":  Vector2(0.3, 0.8),
+	"RIFLEMAN":  Vector2(0.25, 0.9),
+}
+
 const MOS_WEAPON: Dictionary = {
 	"POINTMAN":  "m16a1",
 	"RTO":       "m16a1",
@@ -583,18 +603,33 @@ func _hand_off_radio(fallen: AllyBase) -> void:
 	# A dead man left in the radioman group is a lie the group probe cannot see through.
 	if fallen.is_in_group("radioman"):
 		fallen.remove_from_group("radioman")
+	# THE MEDIC NEVER INHERITS (his ruling 2026-08-04, Q1: "medics cant pick up radio, and
+	# riflemen should be first to pick it up"). A medic-heir silently deletes revive for the
+	# rest of the run - the radio is not worth the aid bag. Riflemen first; any other
+	# non-medic specialist only when no rifleman is left standing.
 	var heir: AllyBase = null
+	var fallback: AllyBase = null
 	var best: float = 1.0e9
+	var best_fallback: float = 1.0e9
 	for a in members:
 		if not is_instance_valid(a) or a.is_dead() or a == fallen:
 			continue
-		if str(a.member.get("mos", "")) == "RTO":
+		var mos: String = str(a.member.get("mos", ""))
+		if mos == "RTO":
 			return   # a second radioman is already carrying it
+		if mos == "MEDIC":
+			continue
 		# Nearest living man to the body: he is the one who could actually reach it.
 		var d: float = a.global_position.distance_to(fallen.global_position)
-		if d < best:
-			best = d
-			heir = a
+		if mos == "RIFLEMAN":
+			if d < best:
+				best = d
+				heir = a
+		elif d < best_fallback:
+			best_fallback = d
+			fallback = a
+	if heir == null:
+		heir = fallback
 	if heir == null:
 		_toast("THE RADIO IS GONE - NOBODY LEFT TO CARRY IT")
 		return

@@ -4,8 +4,8 @@
 ## 1..N-1's flights: _schedules and _fired_event_keys grew without bound, and a
 ## stale fired key meant a later patrol's flight at an already-fired hour was
 ## SILENTLY SUPPRESSED. Air traffic thinned out the longer you played. (The
-## dedupe key is per-entry - day+hour+index - since 2026-07-31; it was
-## day+hour+kind, which also ate same-hour same-kind flights within ONE patrol.)
+## dedupe key is per-entry - day+index - since 2026-08-04's fractional-window
+## model; it was day+hour+kind, which ate same-hour same-kind flights.)
 ##
 ## Fixed by calling SimClock.clear_schedules() in mission_generator._wire_systems
 ## before AirTraffic is constructed. This probe holds that line.
@@ -63,10 +63,10 @@ func _test_two_patrols_do_not_accumulate() -> int:
 ## flight is silently eaten by patrol 1's already-fired 09:00 key.
 func _test_clear_resets_fired_keys() -> int:
 	SimClock.clear_schedules()
-	# The hour gate is exact (sim_clock.gd:93), so park the clock on the event.
-	SimClock.set_time(SimClock.sim_day, 9.0)
+	# Schedule FIRST: set_time fires entries already due inside the destination hour
+	# (the fractional-window model, 2026-08-04), which is what parks the clock on it.
 	SimClock.schedule_event(SimClock.sim_day, 9.0, &"probe_kind", {"tag": "first"})
-	SimClock._tick_schedules(SimClock.sim_day)
+	SimClock.set_time(SimClock.sim_day, 9.0)
 	if SimClock._fired_event_keys.is_empty():
 		printerr("FAIL: firing an event recorded no key - probe cannot detect suppression")
 		return 1

@@ -17,11 +17,11 @@ var sim_day: int = 1
 var real_to_sim_ratio: float = 60.0
 var paused: bool = false
 
-# Schedules are read on sim_hour change. Each entry is {day, hour, kind, payload}
-# with day == -1 meaning "every day". Tests can pre-fill schedules before
-# calling advance().
+# Schedules fire when the clock CROSSES their fractional hour. Each entry is
+# {day, hour, kind, payload} with day == -1 meaning "every day". Tests can
+# pre-fill schedules before calling advance().
 var _schedules: Array[Dictionary] = []
-var _fired_event_keys: Dictionary = {}  ## { "day-hour-entryindex" : true }
+var _fired_event_keys: Dictionary = {}  ## { "day-entryindex" : true }
 
 
 func _ready() -> void:
@@ -39,16 +39,21 @@ func _process(delta: float) -> void:
 ## DAWN/DAY/DUSK/NIGHT transitions, and sim_event when a schedule entry matches.
 ## Day granularity is polled (sim_day), never signalled.
 func advance(delta: float) -> void:
-	var prev_hour_int: int = int(sim_hour)
+	var prev_hour: float = sim_hour
 	var prev_day: int = sim_day
 	var prev_period: int = period_at(sim_hour)
 	sim_hour += delta * real_to_sim_ratio / 3600.0
 	while sim_hour >= 24.0:
 		sim_hour -= 24.0
 		sim_day += 1
-	if int(sim_hour) != prev_hour_int:
+	if int(sim_hour) != int(prev_hour) or sim_day != prev_day:
 		hour_advanced.emit(int(sim_hour))
-		_tick_schedules(prev_day)
+	# Schedules fire at their FRACTIONAL hour, not on the integer crossing: truncation
+	# used to fire every same-hour booking in one frame - up to ~14 airframes at the
+	# demo's 38x clock (audit 2026-08-04, W-8).
+	for d in range(prev_day, sim_day + 1):
+		_fire_window(d, prev_hour if d == prev_day else -0.001,
+			sim_hour if d == sim_day else 24.0)
 	var new_period: int = period_at(sim_hour)
 	if new_period != prev_period:
 		time_period_changed.emit(new_period)
@@ -78,30 +83,29 @@ func clear_schedules() -> void:
 	_fired_event_keys.clear()
 
 
-func _tick_schedules(_prev_day: int) -> void:
-	var cur_hour_int: int = int(sim_hour)
+## Fire every entry whose fractional hour lies in (from_h, to_h] on `day`. Keyed per
+## ENTRY per day: three transits booked in the same hour are three flights, and an entry
+## fires at most once per sim day.
+func _fire_window(day: int, from_h: float, to_h: float) -> void:
 	for i in _schedules.size():
 		var s: Dictionary = _schedules[i]
 		var s_day: int = int(s.day)
-		var s_hour: int = int(s.hour)
-		var s_kind: StringName = s.kind
-		var match_day: bool = s_day == -1 or s_day == sim_day
-		if not match_day:
+		if s_day != -1 and s_day != day:
 			continue
-		if s_hour != cur_hour_int:
+		var s_hour: float = float(s.hour)
+		if s_hour <= from_h or s_hour > to_h:
 			continue
-		# Keyed per ENTRY, not per kind: three transits booked in the same hour are
-		# three flights, and a kind-wide key silently dropped all but the first.
-		var key: String = "%d-%d-%d" % [sim_day, s_hour, i]
+		var key: String = "%d-%d" % [day, i]
 		if _fired_event_keys.has(key):
 			continue
 		_fired_event_keys[key] = true
-		sim_event.emit(s_kind, s.payload)
+		sim_event.emit(s.kind as StringName, s.payload)
 
 
-## Test helper: jump to a sim-time without firing per-hour schedules between.
+## Jump to a sim-time. Skipped hours never fire; entries already due inside the
+## destination hour fire once, which is what parks a test clock ON its event.
 func set_time(new_day: int, new_hour: float) -> void:
 	sim_day = new_day
 	sim_hour = new_hour
 	hour_advanced.emit(int(sim_hour))
-	_tick_schedules(sim_day)
+	_fire_window(sim_day, float(int(sim_hour)) - 0.001, sim_hour)

@@ -168,6 +168,11 @@ func _physics_process(delta: float) -> void:
 func _maybe_open(_step: float) -> void:
 	if director == null or fsb_center == Vector3.ZERO:
 		return
+	# DEMO: the arc owns every siege (open_siege driven from demo_game's clock). The
+	# 1-in-20 random night roll stays full-game only - a rogue second assault mid-arc
+	# re-arms strength and steps on the authored probe (decree 2026-08-04, W-6).
+	if GameFlow.demo_mode:
+		return
 	var day: int = _sim_day()
 	if day != _last_sim_day:
 		_last_sim_day = day

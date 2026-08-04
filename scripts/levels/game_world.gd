@@ -428,6 +428,23 @@ func surface_y(at: Vector3) -> float:
 const SURFACE_PROBE_UP: float = 18.0
 
 
+## Floor under a point that may sit INSIDE a building: probe down a short reach from
+## just above `at.y` (the authored/known height), so a roof overhead is never sampled.
+## surface_y's top-down ray stood every covered garrison post - and the whole squad,
+## ringed around an indoor bunk - ON THE ROOFS (his playtest, 2026-08-04). Falls back
+## to surface_y when the caller's Y carries no information (the miss case).
+func floor_y(at: Vector3, reach: float = 3.0) -> float:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space != null:
+		var q := PhysicsRayQueryParameters3D.create(
+			at + Vector3.UP * 0.4, at + Vector3.DOWN * reach)
+		q.collision_mask = 1
+		var hit: Dictionary = space.intersect_ray(q)
+		if not hit.is_empty():
+			return (hit.position as Vector3).y
+	return surface_y(at)
+
+
 ## `seat_on_surface` false trusts the caller's Y. An AUTHORED interior point - a bunk
 ## inside a hootch - is already on its floor, and probing down from above would find
 ## the ROOF and stand the man on it.

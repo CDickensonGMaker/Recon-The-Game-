@@ -89,6 +89,10 @@ func _spawn_men() -> void:
 		spawned_men.append(enemy)
 		if not group_tag.is_empty():
 			enemy.add_to_group(group_tag)
+		# Demo: the ambient walking cell IS hunt-net presence (decree 2026-08-03 §2.5
+		# constraint 3, wired 2026-08-04) - fold it into the "hunters" count.
+		if is_patrol and GameFlow.demo_mode:
+			enemy.add_to_group("hunters")
 		if is_patrol and not route.is_empty():
 			enemy.patrol_route = route.duplicate()
 			# SINGLE FILE: every man starts at _patrol_index 0, so one point man walks

@@ -464,7 +464,7 @@ func _show_debrief_delayed(result: Dictionary) -> void:
 	_swap_screen(debrief)
 
 
-## ---------------- THE OPEN PATROL WORLD (ADR-029 draft) ----------------
+## ---------------- THE OPEN PATROL WORLD (ADR-029, Accepted 2026-08-04) ----------------
 ## menu -> NEW/CONTINUE -> live at the firebase inside the populated AO ->
 ## walk out the wire -> patrol. One world, one build, one operation seed.
 
@@ -598,7 +598,7 @@ func enter_hub() -> void:
 	world.add_child(director)
 	director.setup(world)
 	director.state.seed_value = op_seed
-	# THE OPEN PATROL WORLD (ADR-029 draft): the firebase and its populated AO are
+	# THE OPEN PATROL WORLD (ADR-029): the firebase and its populated AO are
 	# ONE build - form up, walk out the wire, go find problems.
 	# DEMO GAME rides this same boot with an authored small-slice plan; the
 	# patrol planner's 240-560m bands collapse under ~900m maps.
@@ -707,15 +707,24 @@ func enter_hub() -> void:
 	# spawn - the save teleport was invisible to a spawn-point ray.
 	_report_spawn_truth(world.player.global_position if world.player != null else spawn, op_seed)
 	# Instruments attach to the world the player actually walks - never a world of
-	# their own. `--perf-probe` samples, `--perf-cycle` runs the attribution phases.
+	# their own. `--print-fps` is the export-safe printer (M-2/M-3); `--perf-probe`
+	# samples, `--perf-cycle` runs the attribution phases.
 	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if args.has("--print-fps"):
+		world.add_child(FpsPrinter.new())
 	if args.has("--perf-probe"):
-		var probe: Node = (load("res://tests/perf_probe.tscn") as PackedScene).instantiate()
-		probe.set("cycle_systems", args.has("--perf-cycle"))
-		probe.set("siege_study", args.has("--perf-siege"))
-		probe.set("shadow_study", args.has("--shadow-study"))
-		world.add_child(probe)
-		probe.call("attach", world)
+		# res://tests ships in no export, so this load returns null in a shipped build -
+		# it must degrade to a warning, never instantiate on null (audit 2026-08-04, W-4).
+		var packed_probe: PackedScene = load("res://tests/perf_probe.tscn") as PackedScene
+		if packed_probe == null:
+			push_warning("[PERF] perf_probe.tscn absent in this build - use --print-fps")
+		else:
+			var probe: Node = packed_probe.instantiate()
+			probe.set("cycle_systems", args.has("--perf-cycle"))
+			probe.set("siege_study", args.has("--perf-siege"))
+			probe.set("shadow_study", args.has("--shadow-study"))
+			world.add_child(probe)
+			probe.call("attach", world)
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

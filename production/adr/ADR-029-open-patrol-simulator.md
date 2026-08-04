@@ -1,7 +1,8 @@
 # ADR-029: The Open Patrol Simulator
 
-**Status: DRAFT — awaiting Summoner ratification (written overnight 2026-07-18 under the
-2026-07-17 pivot decree; nothing here self-ratifies).**
+**Status: ACCEPTED — ratified as-is by Summoner ruling 2026-08-04 (full-audit decision
+queue Q5, verbatim "do whatever"; recorded in `production/DEMO_SHIP_BACKLOG.md` §Decision
+queue — RULED 2026-08-04). Written overnight 2026-07-18 under the 2026-07-17 pivot decree.**
 
 ## Decree (Summoner, 2026-07-17, near-verbatim)
 "Combine what we have working in the AI stress test with the game world. Remove the whole briefing

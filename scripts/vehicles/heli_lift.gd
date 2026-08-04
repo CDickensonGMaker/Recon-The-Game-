@@ -17,7 +17,7 @@
 class_name HeliLift
 extends Node
 
-enum Mission { NONE, DELIVER, EXTRACT }
+enum Mission { NONE, DELIVER, EXTRACT, ROTATE }
 
 ## Establishment strength of the firebase garrison. Delivery fills TOWARD this and never past it:
 ## bodies are ~94% of AI cost (PERF_LEDGER), so an uncapped pad grows the garrison every sortie
@@ -58,6 +58,10 @@ var _door_want_open: bool = false
 var _door_t: float = 0.0
 var _pax: Array[Civilian] = []
 var _delivered: bool = false
+## Men THIS ship just put on the ground - a rotation must not lift its own
+## arrivals straight back out.
+var _rotated_off: Array[Civilian] = []
+var _delivered_count: int = 0
 
 
 ## Bolt a lift onto a helicopter that is about to fly a landing cycle. Returns null when the
@@ -84,7 +88,7 @@ func _ready() -> void:
 	_find_doors()
 	_shut_doors_now()
 	_choose_mission()
-	if mission == Mission.DELIVER:
+	if mission == Mission.DELIVER or mission == Mission.ROTATE:
 		_load_pax()
 	if not heli.landed.is_connected(_on_landed):
 		heli.landed.connect(_on_landed)
@@ -93,8 +97,15 @@ func _ready() -> void:
 
 
 ## Under strength: bring men. At strength: take men out.
+## DEMO: a garrison seeded at 40 vs ESTABLISHMENT 28 made EVERY sortie an EXTRACT, so the
+## one lz_cycle the opening flies landed, sat 35s and left - "nobody disembarked" (his
+## playtest, 2026-08-04). A demo EXTRACT becomes a ROTATION: replacements walk off with
+## the full disembark show, the same headcount is lifted out, net garrison ~0. The full
+## game keeps pure need-driven logistics.
 func _choose_mission() -> void:
 	mission = Mission.DELIVER if garrison_strength() < ESTABLISHMENT else Mission.EXTRACT
+	if GameFlow.demo_mode and mission == Mission.EXTRACT:
+		mission = Mission.ROTATE
 
 
 ## Every man the firebase counts as its own, whichever side of a stand-to he is on. A garrison
@@ -173,7 +184,9 @@ func _load_pax() -> void:
 	var world: Node = heli.get_parent()
 	if world == null or seats == null:
 		return
-	var room: int = maxi(0, ESTABLISHMENT - garrison_strength())
+	# A rotation swaps headcount 1:1, so establishment room does not gate its load.
+	var room: int = PAX_MAX if mission == Mission.ROTATE \
+		else maxi(0, ESTABLISHMENT - garrison_strength())
 	var n: int = mini(room, randi_range(PAX_MIN, PAX_MAX))
 	for i in range(n):
 		var man: Civilian = Civilian.spawn(world, heli.global_position, director, false,
@@ -201,6 +214,11 @@ func _on_landed(_h: Helicopter, _lz: LandingZone) -> void:
 			_deliver()
 		Mission.EXTRACT:
 			_extract()
+		Mission.ROTATE:
+			# Deliver FIRST: it frees the seats the outbound men take, and the
+			# fresh arrivals are excluded from the lift home (_rotated_off).
+			_deliver()
+			_extract()
 		Mission.NONE:
 			pass
 
@@ -220,7 +238,9 @@ func _deliver() -> void:
 		man.add_to_group("firebase_garrison")
 		if man.actor != null and is_instance_valid(man.actor):
 			man.actor.play_first(DISEMBARK_CLIPS)
+		_rotated_off.append(man)
 		landed_men += 1
+	_delivered_count = landed_men
 	_pax.clear()
 	# A ship that lands INTO a fight puts its men on the wire now. Waiting for the next stand-to
 	# would leave replacements wandering to work posts while the base is being assaulted.
@@ -245,9 +265,15 @@ func _extract() -> void:
 		return
 	var pad: Vector3 = heli.global_position
 	var going: Array = []
+	# A rotation lifts out at most the headcount it landed, so the swap nets zero.
+	var out_cap: int = mini(PAX_MAX, _delivered_count) if mission == Mission.ROTATE else PAX_MAX
+	if out_cap <= 0:
+		return
 	for n in tree.get_nodes_in_group("firebase_garrison"):
 		var civ := n as Civilian
 		if civ == null or not is_instance_valid(civ):
+			continue
+		if _rotated_off.has(civ):
 			continue
 		if civ.global_position.distance_to(pad) > EXTRACT_REACH_M:
 			continue
@@ -256,7 +282,7 @@ func _extract() -> void:
 		if not BOARD_CLIPS.is_empty() and civ.actor != null and is_instance_valid(civ.actor):
 			civ.actor.play_first(BOARD_CLIPS)
 		going.append(civ)
-		if going.size() >= PAX_MAX:
+		if going.size() >= out_cap:
 			break
 	var queued: int = seats.board_squad(going) if not going.is_empty() else 0
 	print("[LIFT] extracting %d man/men from the pad" % queued)

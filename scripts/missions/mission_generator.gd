@@ -490,7 +490,7 @@ static func _enemy_anchors(p: Dictionary) -> Array[Vector3]:
 	return out
 
 
-## ---------- THE OPEN PATROL WORLD (ADR-029 draft) ----------
+## ---------- THE OPEN PATROL WORLD (ADR-029, Accepted 2026-08-04) ----------
 ## One operation seed -> the populated AO around Caleb's firebase. plan is pure
 ## positions (probe-able twice); build stamps. Density bands are WALKING distance,
 ## measured from the GATE marker: first-sign 150-300m, villages 280-450m, camps
@@ -670,7 +670,9 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	var p := {
 		"seed": op_seed,
 		"codename": "DEMO",
-		"weather": "CLEAR", "time": "DUSK",
+		# mission_weather seeds the sim clock from this string (mission_weather.gd:51), so it
+		# must agree with DemoGame.START_HOUR's period or the boot lighting lies about the arc.
+		"weather": "CLEAR", "time": "DAWN",
 		"sites": [], "enemy_groups": [],
 		"fire_support": {"mortar": 1},
 	}
@@ -930,16 +932,16 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			var bearers: Array[Civilian] = []
 			for li in range(3):
 				var lpos: Vector3 = post_pos
-				lpos.y = world.surface_y(lpos) + 0.5
+				lpos.y = world.floor_y(lpos) + 0.5
 				var lman: Civilian = Civilian.spawn(world, lpos, director, false,
 					CivilianScript.GARRISON_MEN, true)
 				lman.occupation = "litter"
 				lman.add_to_group("firebase_garrison")
 				bearers.append(lman)
 			var ward: Vector3 = post.get("ward", post_pos)
-			ward.y = world.surface_y(ward)
+			ward.y = world.floor_y(ward)
 			var cot_g: Vector3 = post_pos
-			cot_g.y = world.surface_y(cot_g)
+			cot_g.y = world.floor_y(cot_g)
 			var team: Node = LitterTeamScript.new()
 			if not team.setup(world, bearers, cot_g, ward):
 				team.free()
@@ -955,22 +957,21 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			var r: float = 1.8 if men_n > 1 else rng.randf_range(0.0, 1.0)
 			var station: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * r
 			var pos: Vector3 = station
-			# THE MOUND IS THE FLOOR, not the terrain. The firebase model became the walkable
-			# ground on 2026-07-29 and the terrain now stops at its toe, so a post seated on
-			# terrain height sits 1.5-5.3m UNDER the surface these men stand on. Every BT arrive
-			# check is 3-D within ~1.6m, so a buried working point can never be reached: the man
-			# walks at it forever. It read as harmless only while every work action FROZE him in
-			# place (fixed 2026-07-30), which is what turned a data bug into a visible one.
-			pos.y = world.surface_y(pos) + 0.5
+			# THE MOUND IS THE FLOOR, not the terrain (2026-07-29) - and the ROOF is not the
+			# floor either (2026-08-04): the plan now carries the marker's AUTHORED height and
+			# floor_y probes a short reach down from it, so a post inside a tent seats on the
+			# tent floor instead of surface_y's first-hit ROOF. Every BT arrive check is 3-D
+			# within ~1.6m, so a wrong-height working point is a man walking at it forever.
+			pos.y = world.floor_y(pos) + 0.5
 			var man: Civilian = Civilian.spawn(world, pos, director, false,
 				CivilianScript.GARRISON_MEN, true)
 			man.occupation = str(post.occupation)
 			var wp: Vector3 = station
-			wp.y = world.surface_y(wp)
+			wp.y = world.floor_y(wp)
 			man.working_point_pos = wp
 			if quarters.size() > 0:
 				var q: Vector3 = quarters[qi % quarters.size()]
-				q.y = world.surface_y(q)
+				q.y = world.floor_y(q)
 				man.home = q
 				qi += 1
 			man.add_to_group("firebase_garrison")
@@ -979,16 +980,16 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 		man.build_bt()
 
 
-## One mannable M60 post per firebase gun_crew post, seated on terrain (the plan
-## returns y=0) and set one step downrange so the sandbags sit on the perimeter
-## and the crew mills behind. GarrisonDefender.promote mans it when the wire is
+## One mannable M60 post per firebase gun_crew post, floor-seated from the plan's
+## authored marker height and set one step downrange so the sandbags sit on the
+## perimeter and the crew mills behind. GarrisonDefender.promote mans it when the wire is
 ## hit; the player can man it any time via player._nearby_mg_emplacement.
 static func _place_firebase_mg(world: GameWorld, center: Vector3, post_pos: Vector3) -> void:
 	var outward: Vector3 = post_pos - center
 	outward.y = 0.0
 	outward = outward.normalized() if outward.length() > 0.1 else Vector3.FORWARD
 	var gun_pos: Vector3 = post_pos + outward * 1.0
-	gun_pos.y = world.surface_y(gun_pos)
+	gun_pos.y = world.floor_y(gun_pos)
 	MGEmplacement.create(world, gun_pos, outward)
 
 
@@ -1007,7 +1008,11 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 	for st in (v.get("work_stations", []) as Array):
 		wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
 	var civ_count: int = rng.randi_range(civ_range.x, civ_range.y)
-	var informer_idx: int = rng.randi() % civ_count if rng.randf() < 0.5 else -1
+	# Demo: ALWAYS an informer (ruled 2026-08-03 §2.6 - a coin flip on the demo's central
+	# idea is a dice roll on the shop window). Demo short-circuits BEFORE the randf so the
+	# full game's draw order is untouched (ADR-010).
+	var informer_idx: int = rng.randi() % civ_count \
+		if (GameFlow.demo_mode or rng.randf() < 0.5) else -1
 	var villagers: Array[Civilian] = []
 	for ci in range(civ_count):
 		var ca := rng.randf_range(0.0, TAU)

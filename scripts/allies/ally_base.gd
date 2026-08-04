@@ -291,7 +291,8 @@ func _ready() -> void:
 	_router.setup(nav_agent, get_tree(), "ally")
 	var slot_angle: float = randf_range(0.0, TAU)
 	_follow_offset = Vector3(cos(slot_angle), 0.0, sin(slot_angle)) * randf_range(2.5, 4.5)
-	# The man he is this playthrough: a random point on the spectrum.
+	# Ambient default only - SquadSystem re-rolls squad members on their MOS band
+	# (squad_system.gd MOS_COURAGE, decree 2026-08-03 §2.11 item 2).
 	courage = randf()
 	skill = randf()
 
@@ -799,11 +800,38 @@ func _evaluate_goals() -> void:
 		c.flanks = may_close_distance(nerve)
 		c.retreats_when_hurt = true
 		c.retreat_hp_frac = 0.35
+		# The squad-break toast is a cheque this scorer must cash (decree 2026-08-03
+		# §2.11 item 1) - the enemy already feeds both (enemy_base.gd:1416-1417).
+		c.squad_broken = squad_broken
+		c.force_ratio = _local_force_ratio()
 		_apply_combat_goal(CombatGoals.pick(c))
 		return
 
 	current_goal = Enums.AIGoal.HOLD_POSITION
 	_change_state(Enums.AIState.IDLE)
+
+
+## Sides-swapped mirror of EnemyBase._local_force_ratio: friends are this man, nearby
+## living allies and the player; foes are nearby living enemies. 25m band, both sides.
+func _local_force_ratio() -> float:
+	var friends: int = 1
+	var p: Node = GameManager.player
+	if p != null and is_instance_valid(p) and p is Node3D \
+			and (p as Node3D).global_position.distance_to(global_position) < 25.0:
+		friends += 1
+	for a in AgentRegistry.allies:
+		var other := a as AllyBase
+		if other != null and other != self and is_instance_valid(other) \
+				and not other.is_dead() \
+				and other.global_position.distance_to(global_position) < 25.0:
+			friends += 1
+	var foes: int = 0
+	for e in AgentRegistry.enemies:
+		var man := e as EnemyBase
+		if man != null and is_instance_valid(man) and not man.is_dead() \
+				and man.global_position.distance_to(global_position) < 25.0:
+			foes += 1
+	return float(friends) / float(maxi(1, foes))
 
 
 ## How bad it is right now, 0-1, for the shared scorer. EnemyBase computes a real
@@ -1307,6 +1335,27 @@ func _find_cover_point() -> Vector3:
 	for c in candidates:
 		if EnemyBase._claim_cover(c, self):
 			return c
+	# THE VIETCONG GAP (decree 2026-08-03 §2.11 item 3). Grass/fern/bush carry no collider
+	# by contract (tree_cover_layer.gd:17-19), so the ray test above cannot see them - but
+	# the sim already pays for that ground: heavy jungle blocks LOS 30% per cell
+	# (gameplay_grid.gd:406-411) and vegetation cuts every sight cap. When no hard block
+	# claims, CONCEALMENT is the answer: one O(1) grid read per candidate, same claim
+	# broker so two men never share one bush.
+	var grid: GameplayGrid = _sight_grid()
+	if grid != null:
+		var concealed: Array[Vector3] = []
+		for off in EnemyBase.COVER_SEARCH_OFFSETS:
+			var spot: Vector3 = global_position + off
+			var t: int = grid.get_terrain_type(spot)
+			if t == GameplayGrid.TerrainType.MEDIUM_JUNGLE \
+					or t == GameplayGrid.TerrainType.HEAVY_JUNGLE:
+				concealed.append(spot)
+		concealed.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+			return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
+				< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
+		for c in concealed:
+			if EnemyBase._claim_cover(c, self):
+				return c
 	return Vector3.ZERO
 
 

@@ -336,7 +336,8 @@ UPDATE 7/31 (evening, Wyrm): W1-W9 DISCHARGED except two that closed differently
   ("[FSB] 178 interior prop(s) culled past 40m"). Furnishing would DOUBLE them (doc §5 was
   right; the audit scout was wrong). HeliLift also ran live: "[LIFT] delivered 4 - 28/28".
 - W7 MEASURED AND SET: FSB_GARRISON_MAX_MEN 24->40, FSB_WORK_POST_CAP 12->24.
-  A/B on the exported demo (--print-fps, 150s): mid-siege 48.0 FPS at BOTH values.
+  A/B on the exported demo (150s): mid-siege 48.0 FPS at BOTH values. *(Provenance broken —
+  the `--print-fps` this row cited did not exist until 2026-08-04; treat 48.0 as unverified.)*
   TRADEOFF NAMED: 40 defenders vs 45 attackers may soften the overrun drama - if holding
   feels safe now, dial back toward 28-32. Playtest row.
 - W8 SHIPPED: SimClock dedup key now per-entry (3 transits/hr were collapsing to 1) and
@@ -364,8 +365,8 @@ Every estimate drawn from it **UNDER-counts**.
 | # | Measurement | Gates | Note |
 |---|---|---|---|
 | **M-1** | `tests/test_firebase_garrison.tscn` then print the occupation histogram from `fsb_garrison_plan`. **FAIL = a wall of `off_duty`.** GLB markers carry Blender's DOT suffix (`work_rest.001`); `site_planner.gd:905-909` strips only `_<int>`. If the dot survives import, **~185 of 198 markers are junk** and the aid-station seed (`:969-978`) + litter team have **never fired**. | every chow-hall and medical decision, and the whole marker convention | **HIGHEST-VALUE HOUR AVAILABLE. RUN IT FIRST.** |
-| **M-2** | `build/RECON_Demo.exe --print-fps`, A/B/A at `SIEGE_STRENGTH` 45 â†’ 55 â†’ 45, 300s each. **FAIL if run B prints `[Siege] cell of N held at the ring` (`siege_director.gd:445-446`) at all, or ends with no `_break_siege`.** | D-1 and D-9 | prior: FPS moves ~0 |
-| **M-3** | Run the exported demo **30 minutes** with `--print-fps`, watch draw calls | D-2 | nothing has EVER run 30 min |
+| **M-2** | `build/RECON_Demo.exe --print-fps`, A/B/A at `SIEGE_STRENGTH` 45 â†’ 55 â†’ 45, 300s each. **FAIL if run B prints `[Siege] cell of N held at the ring` (`siege_director.gd:445-446`) at all, or ends with no `_break_siege`.** *(Spec repaired 2026-08-04: `--print-fps` now exists — `scripts/dev/fps_printer.gd`, attached in `game_flow.gd:enter_hub`. It did NOT exist when this row was written.)* | D-1 and D-9 | prior: FPS moves ~0 |
+| **M-3** | Run the exported demo **30 minutes** with `--print-fps`, watch draw calls *(flag real as of 2026-08-04, see M-2)* | D-2 | nothing has EVER run 30 min |
 | **M-4** | Count squad arrivals at the gate on a T+10 move order, 10 runs | D-4 | pathing risk |
 | **M-5** | Time a Huey from launch-on-pad to clearing the compound | D-6 | no launch path exists |
 
@@ -545,6 +546,12 @@ part of stealth's memory (if the corpse array gets a TTL) Â· `AmbientWar` dens
 
 ## 2026-08-04 — THE RESCOPE, WIRED (Wyrm, coding window)
 
+> **CORRECTED BY THE 2026-08-04 FULL AUDIT (see the AUDIT section below):** this section
+> OVERCLAIMS. Five ruled items are NOT in code (hunter top-up, §2.8 arithmetic, informer 100%,
+> §2.11 ally items, "hunters" tag), the 06:30 start is defeated by a boot race (demo starts
+> 17:30 DUSK), and the ruled ending renders ~2-3s. Pointers in
+> `war_room/2026-08-04_full_audit/synthesis.md`.
+
 Executes `war_room/2026-08-03_demo_day_scope/synthesis.md` including his §8 rulings.
 Every item below is CODE WRITTEN AND PARSE-CHECKED, **NONE OF IT IS RUN.** The two
 landmines in particular are discharged only by M-2 and M-3 on the exported build.
@@ -632,3 +639,148 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
   huey.tscn carries no gunner rig, so a firing gun today would be rounds leaving an empty
   doorway. The hook when his staged gunner lands is the `orbit` phase.
 - **Every measurement M-1..M-5.** Nothing here has been run.
+
+---
+
+## 2026-08-04 — FULL AUDIT (War Room, six architects; decree at `war_room/2026-08-04_full_audit/synthesis.md`)
+
+**AUDIT ONLY — no code written. Every pointer verified against the tree this day.**
+
+### DEMO fixes ordered (value/effort order; sacrifices named in synthesis §4)
+- [x] **W-1 Clock race** — **BUILT 2026-08-04.** The fossil is dead: the demo plan now carries
+      `"time": "DAWN"` (`mission_generator.gd:674-676`), and `demo_game.gd` awaits the
+      `_in_world` latch before `SimClock.set_time(1, 6.5)` (`demo_game.gd:101-109`). 06:30 sits
+      inside the plan's DAWN period so the no-period-signal limit of set_time never bites.
+      Verified by M-6 below.
+- [x] **W-2 Radio heir guard** — **BUILT 2026-08-04** per Q1: the MEDIC is skipped outright,
+      nearest RIFLEMAN first, nearest other non-medic specialist as last resort
+      (`squad_system.gd:_hand_off_radio`, the MEDIC/RIFLEMAN triage loop). M-7 still to run.
+- [x] **W-3 (SHRUNK per Q3) — BUILT 2026-08-04.** Hunter top-up to 6 at the outbound gate seam,
+      demo-only (`field_director.gd:_poll_wire_gate`, above `_grant_fire_support()`); informer
+      100% in demo, full-game draw order untouched (`mission_generator.gd:_build_village_site`);
+      "hunters" node group on the field hunters (`field_director.gd:_process_escalation`) AND the
+      demo ambient cells (`lazy_group.gd:_spawn_men`); §2.11 items 1-3: allies now feed
+      `squad_broken`/`force_ratio` to the shared scorer with a sides-swapped
+      `_local_force_ratio` (`ally_base.gd`), MOS-weighted courage via `SquadSystem.MOS_COURAGE`
+      (RTO caps at 0.55 — under the 0.75 hero bar), and a concealment term in
+      `AllyBase._find_cover_point` (MEDIUM/HEAVY_JUNGLE cells claimable when no hard block
+      answers). **§2.8 day-feeds-night DROPPED per Q3 — not built, per the ruling.**
+      Squadmate-nameplate legibility check rides his next playtest (named sacrifice).
+- [x] **W-4 Verification instrument** — **BUILT 2026-08-04.** `--print-fps` is now REAL:
+      `scripts/dev/fps_printer.gd` (export-safe, no res://tests dependency), attached in
+      `game_flow.gd:enter_hub` beside the probe; `--perf-probe` now warns instead of
+      null-crashing an export (`game_flow.gd`, packed_probe null guard). M-2/M-3 as written in
+      this file now name a flag that exists. The 7/31 "48.0 FPS via --print-fps" A/B is flagged
+      as broken-provenance at `site_planner.gd:859-861`.
+- [x] **W-5 Guarantee the ending** — **BUILT 2026-08-04** per Q2: freeze waits for
+      `AirTraffic.orbit_on_station()` (not wall-clock; 25s spawn-failure guard only), finale
+      pair spawns at `ORBIT_FINALE_INBOUND_M 200` and is EXEMPT from the airframe ceiling
+      (`air_traffic.gd:_dispatch_gun_orbit(finale)`), and the frozen frame + card hold until he
+      exits the program — no timer, no key-continue (`demo_game.gd:_ending`).
+      `ENDING_PLAYER_SURVIVES` remains the one flag. M-8 still to run.
+- [x] **W-6** — **BUILT 2026-08-04.** The 1-in-20 random night roll is demo-gated
+      (`siege_director.gd:_maybe_open`, `GameFlow.demo_mode` early return; full game keeps it),
+      and the speed seam now tracks `MissionWeather.is_night` — it lands when night actually
+      falls (~1184s on the 06:30 arc), not at a wall-clock constant (`demo_game.gd`,
+      `DAY_END_S` deleted).
+- [ ] **W-7 Eyes-on drop check** — baked drops may render 1.81m underground
+      (`world_weapon.gd:143,186-192`). 60 seconds before his playtest.
+- [ ] **W-10 (NEW, his playtest 2026-08-04) — RECOIL BENCH SESSION, WITH HIM.** His ruling: M16
+      recoil "feels real and right" = THE REFERENCE FEEL; PPSh is "all over the place." Feel
+      discharges only by his hands (ADR-015). Measured table (all `data/weapons/*.tres`,
+      2026-08-04) — the convict is the PRODUCT of rate and random horizontal: **PPSh 900rpm x
+      `recoil_horizontal 0.9` = ~13.5 deg/s of jitter vs the M16 reference's ~6.25** (M16: 750rpm,
+      v 1.1, h 0.5 default, recovery 14; PPSh: v 1.4, h 0.9, recovery 11; AK shares h 0.9 but at
+      ~600rpm). Nothing is order-of-magnitude broken, so nothing was retuned unilaterally.
+      Bench starting numbers: PPSh `recoil_horizontal` 0.9 -> ~0.55, `recoil_recovery` 11 -> 13-14.
+- [ ] **W-9 (NEW, his playtest 2026-08-04) — "Nobody disembarked from the landed Huey."
+      CONVICTED, two counts, by reading the code:**
+      (1) **DELIVER is unreachable in a healthy base.** `HeliLift._choose_mission` delivers only
+      when garrison < `ESTABLISHMENT 28` (`heli_lift.gd:96-97`) — but the garrison is seeded at
+      `FSB_GARRISON_MAX_MEN 40` (`site_planner.gd:864`), so EVERY lz_cycle is an EXTRACT until
+      12+ garrison men die. The men he saw inside were the pilots + already-seated extract pax;
+      on an EXTRACT nobody is supposed to get out. The disembark show he was promised can
+      currently only fire mid/post-siege.
+      (2) **Nobody visibly walks up to load.** `SeatSystem.board_squad` issues MOVE_TO only to
+      `AllyBase` (`seat_system.gd:332-334`); garrison `Civilian`s have no public move verb
+      (`civilian.gd` — `_step_toward` is BT-internal), so an extracted man is GLUE-TELEPORTED
+      into his seat at the 0.6s stagger (`_board_one` → `seat()`). Reads as men popping into
+      the cabin. Fix needs a walk-to-door verb on Civilian or routing extract through the BT —
+      not a triage-scope change; priced here for the queue.
+- [x] **W-8 De-burst air transits** — **BUILT 2026-08-04.** SimClock schedules now fire at their
+      FRACTIONAL hour via `_fire_window` (`sim_clock.gd:advance`/`set_time`;
+      `_tick_schedules` deleted, fossil law); the three per-hour transit bookings at
+      h+0/20/40min spread across the hour instead of one frame. `test_schedule_reset.gd`
+      updated to the new firing model.
+
+### 2026-08-04 EVENING — HIS LIVE PLAYTEST CONVICTIONS (triage same day)
+- [x] **Squad never follows + NPCs on rooftops — ONE BUG, FIXED.** Every derived seat used
+      `surface_y` (top-down ray, first hit = the ROOF over any covered point): the squad ring
+      around the indoor bunk (`squad_system.gd:73`) and every garrison post/working
+      point/quarters (`mission_generator.gd:_build_firebase_garrison`) — men stood on roofs,
+      off the navmesh, where no order could move them (run-3 stderr: "[NAV] garrison on baked
+      region 0, 257.5m to target, no path"). Fix: `fsb_garrison_plan` no longer ZEROES the
+      authored marker heights (`site_planner.gd`, five `.y = 0.0` deleted) and the new
+      `GameWorld.floor_y` (`game_world.gd`) probes a 3m reach DOWN from the authored height —
+      the `_firebase_bunk` pattern, generalized. Squad + garrison + litter + MG + quarters all
+      reseated through it. **Needs his eyes at next boot.**
+- [x] **"Z put me inside the ground" — FIXED, and it was PRONE, not crouch.** Input map truth:
+      crouch is ALREADY Ctrl (`project.godot:93-95`, physical 4194326), Z = `prone`
+      (`:214-218`), X = `squad_move` (`:231-233`) — his keybind ruling is already satisfied; Z/X
+      are shipping verbs, kept. The sink: `PRONE_HEIGHT 0.5 < 2*radius`, and Godot's height
+      setter silently shrinks the capsule radius 0.4 -> 0.25 (MEASURED on 4.7, probe script)
+      with nothing restoring it — one prone left a pencil capsule that slips mound-trimesh
+      seams. Fix: radius re-asserted every posture frame (`player.gd:_handle_crouch`,
+      `CAPSULE_RADIUS` const pinned to `player.tscn:10`).
+- [x] **Huey lands, someone aboard, nothing happens — FIXED for the demo.** Two counts
+      convicted (W-9 below has the full read): DELIVER unreachable at garrison 40 >=
+      ESTABLISHMENT 28, and extract men glue-teleport aboard. Demo fix: EXTRACT sorties become
+      **ROTATIONS** (`heli_lift.gd`: `Mission.ROTATE`, demo-only) — replacements fly in loaded,
+      walk off with the disembark clips, the same headcount lifts out (`_rotated_off` guard,
+      net garrison ~0). Full game keeps pure need-driven logistics. The invisible walk-up
+      (W-9 count 2) remains open.
+- [x] **Two Chinooks landed overlapping — FIXED.** The pad was claimed at TOUCHDOWN
+      (`helicopter.gd:_process_landing`), so two cycles dispatched inside one fly-in window
+      both saw a free pad — and the demo's authored 95s chinook lands exactly when the
+      schedule's 7.5h lz_cycle arrives at 38x. Fix: reservation moved to assignment
+      (`Helicopter.fly_to`), released on take_off AND on `_exit_tree` so a reaped flight
+      cannot hold the pad forever. Second dispatch now falls back to an overflight.
+- [ ] **His FREEZE — NOT REPRODUCED, one instrument artifact ruled out.** Under the godot MCP
+      the game froze twice at exactly 51,577 buffered bytes: the MCP stops draining stdout,
+      the pipe fills, `print()` blocks the main thread (window Not Responding at ~3% CPU) —
+      an INSTRUMENT artifact, not the game (memory: godot-mcp-pipe-freeze). A file-redirected
+      run then held 43-47 FPS for 6.5 minutes to a clean window-close exit, zero script
+      errors. One real error found and fixed on the way: a reaped CAS plane's shells called a
+      dead lambda (`projectile_base.gd:_apply_aoe_damage` — `is_valid()` does not check a
+      lambda's captured instance; dead author's round now falls through to the shared
+      explosion). His freeze on the DUSK-boot build stays OPEN — if it recurs on the DAWN
+      build, capture how he launched (editor vs export) first.
+
+### FULL-GAME items logged (not demo work)
+- [ ] **F-1 Bank the night** — siege AAR handler banks nothing under a comment claiming it does
+      (`field_director.gd:1466-1478`). Machinery ~120 lines away.
+- [ ] **F-2 ADR-007 amendments + false `to_dict` mirror** (drops 4 fields, cross-campaign bleed).
+- [x] **F-3 Ratify ADR-029** — **DONE 2026-08-04** per Q5: header now ACCEPTED
+      (`production/adr/ADR-029-open-patrol-simulator.md:3`); the four "ADR-029 draft" code
+      banners corrected on contact (`game_flow.gd`, `mission_generator.gd`, `field_director.gd`).
+- [ ] **F-4 Sleep verb** with siege-wake interrupt (night economy has no consumer).
+- [ ] **F-5 M-AI-1** — forced 50+20 thaw test; `_thaw_held_cells` can NEVER run in the demo
+      (45 < LIVE_CAP 50) and double-spends headroom (`siege_director.gd:448-479`).
+- [ ] **F-6 Place the 21 interior props** — pure code, on disk since 7/31, unclaimed twice.
+- [ ] **F-7 MARKSMAN into `MOS_ORDER`** (`squad_roster.gd:64`) or delete the alternate-draw promise.
+- [ ] **F-8 Hearts & minds thin slice** — `civilian.gd:4-7` hook counts one thing.
+- [ ] Correct ART_Track_Log on next touch (chow clips ARE merged; seven chow types mapped).
+
+### Decision queue — RULED 2026-08-04 (his words verbatim)
+- **Q1:** "medics cant pick up radio, and riflemen should be first to pick it up" → W-2 spec.
+- **Q2:** "final hold stays until they click out of the program to end the demo" → W-5 spec.
+- **Q3:** "I dont think the kills in the day should effect the assault later on" → §2.8 DROPPED,
+  fixed 45-man assault stands.
+- **Q4:** "whatever works" → council rec stands: THREE SITTINGS, base never empties.
+  **STATUS 2026-08-04: the sitting schedule is ALREADY CODED** — `civilian_schedules.gd:196-207`
+  derives a man's sitting from his own name (`_sitting_for`, `:296`; breakfast 06:00+24min
+  steps, supper 19:30+24min steps). **GATED on his bench:** the chow markers are not in the
+  shipped `fsb_main_v3.glb` (Jul 26), so no code change can light it before the M-1 histogram
+  + re-export. Nothing further to wire on the code side.
+- **Q5:** "do whatever" → ratify ADR-029 as-is (F-3).
+- **Q6:** "doesnt matter" → audit's value order stands: F-1 → F-4 → F-8 (after demo fixes).

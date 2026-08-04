@@ -167,6 +167,9 @@ func _process_escalation(delta: float) -> void:
 	for i in range(count):
 		var pos := base + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
 		var hunter := spawn_tracked_enemy(pos, "res://data/enemies/nva_regular.tres", "hunters")
+		# The tag is a squad_id hash, not a node group - the group is what
+		# live_enemy_count("hunters") actually counts, so both must be set.
+		hunter.add_to_group("hunters")
 		# They search the LEAD, and they are allowed to be wrong about it.
 		hunter.last_known_target_pos = lead
 		hunter.target_last_seen_time = 0.0
@@ -956,7 +959,7 @@ func _cas_ground_target() -> Vector3:
 	return Vector3(far.x, world.terrain_manager.get_height_at(far), far.z)
 
 
-## ---------- THE WIRE GATE (ADR-029 draft, W2) ----------
+## ---------- THE WIRE GATE (ADR-029, W2) ----------
 ## Crossing ~120m walking distance from the gate marker starts an excursion and
 ## points the patrol at a LIVING location in the push direction. Re-crossing
 ## inward is the commit moment: the AAR banks, the gate re-arms. No objective,
@@ -1230,6 +1233,11 @@ func _poll_wire_gate() -> void:
 			var kind_name: String = "VC CAMP" if patrol_location_kind == "vc_camp" else "VILLAGE"
 			toast.emit("S2 INTEL: %s REPORTED %s" % [kind_name,
 				_bearing_name(patrol_location - patrol_gate_pos)])
+		if GameFlow.demo_mode:
+			# Demo-scoped exception to ADR-035's finite pool (decree 2026-08-03 §2.9, wired
+			# 2026-08-04): 12 men at 2-4 a wave is ~7.7 minutes of contact and then an empty
+			# AO for the rest of a 30-minute day. The full game keeps the finite pool.
+			_hunter_pool = maxi(_hunter_pool, 6)
 		_grant_fire_support()
 		rebark_patrol()
 	elif patrol_out and d < WIRE_RETURN_M:
