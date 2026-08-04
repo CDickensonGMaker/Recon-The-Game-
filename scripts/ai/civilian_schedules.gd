@@ -22,7 +22,11 @@ const ACTION_TALK: StringName = &"talk"
 ## Returns the action the BT should pursue for (occupation, sim_hour).
 ## sim_hour is 0.0-24.0. Returns an empty StringName if no action fits
 ## (caller falls back to idle).
-static func action_for(occupation: String, sim_hour: float) -> StringName:
+## `who` is the man's NAME, used only to derive a deterministic sitting for the mess hall
+## (ADR-010: same man, same sitting, every boot). Optional so every existing caller and the
+## suite keep working unchanged - an unnamed man simply eats in the first sitting.
+static func action_for(occupation: String, sim_hour: float, who: String = "") -> StringName:
+	var name_seed: int = absi(hash(who))
 	match occupation:
 		"farmer":
 			if sim_hour < 5.0 or sim_hour >= 22.0:
@@ -183,6 +187,35 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 			if sim_hour < 20.0:
 				return ACTION_COOK           # hot meal before the night shift goes on
 			return ACTION_WORK               # cleaning down
+		# THE CHOW HALL. His ruling 2026-08-03: "if we can fill the whole chow hall we
+		# should fill it up" - all 24 seats.
+		#
+		# BUT NOT ALL AT ONCE. The garrison ceiling is 40 men; 24 of them eating at the
+		# same hour leaves 16 running the whole firebase in the hour before stand-to, so
+		# the mess looks alive and the wire looks abandoned. The meal therefore runs in
+		# THREE SITTINGS, and a man's sitting is derived from his own name - the same
+		# deterministic trick the work offsets use (ADR-010: same man, same sitting, every
+		# boot), so the hall fills and empties instead of teleporting.
+		#
+		# The evening meal is the one the demo shows: it lands just before the 21:00
+		# stand-to, the last warm human beat before the wire breaks.
+		"mess_hall":
+			if sim_hour >= 22.0 or sim_hour < 5.0:
+				return ACTION_SLEEP
+			var sitting: int = _sitting_for(name_seed)
+			var breakfast: float = 6.0 + 0.4 * float(sitting)
+			var supper: float = 19.5 + 0.4 * float(sitting)
+			if sim_hour >= breakfast and sim_hour < breakfast + 0.4:
+				return ACTION_WORK           # walks to his own chow marker and holds
+			if sim_hour >= supper and sim_hour < supper + 0.4:
+				return ACTION_WORK
+			if sim_hour < 12.0:
+				return ACTION_WALK_FIRE
+			if sim_hour < 15.0:
+				return ACTION_SIT
+			if sim_hour < 19.5:
+				return ACTION_WALK_FIRE
+			return ACTION_TALK
 		"medic":
 			# The aid station is never shut. He sleeps light and short, and he is at
 			# the station through both the morning sick call and the hours a patrol
@@ -255,6 +288,15 @@ static func action_for(occupation: String, sim_hour: float) -> StringName:
 
 
 ## Pick an occupation from a weighted list. Returns a string id.
+## Three sittings, spread off the man's own name hash. Never a roll: a man who ate in the
+## second sitting yesterday eats in the second sitting today, so the hall fills and drains
+## in waves the player can watch instead of blinking between states.
+const MESS_SITTINGS: int = 3
+
+static func _sitting_for(name_seed: int) -> int:
+	return name_seed % MESS_SITTINGS
+
+
 static func pick_occupation(rng: RandomNumberGenerator) -> String:
 	var roll: float = rng.randf()
 	if roll < 0.60:

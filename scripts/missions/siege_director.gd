@@ -432,18 +432,51 @@ func _light_check() -> void:
 
 ## The cells defer the spike; this bounds it. A deferred cell is logged, never
 ## silently dropped - a silent cap reads as "we fielded everything" when we did not.
+##
+## THE HOLD MUST BE TWO-WAY. A dormant cell that stops ticking never marches again and
+## still answers live_strength() with its full paper strength (marching_cell.gd:55-57),
+## so live/peak can never fall and the assault can never break - it runs to
+## MAX_DURATION_S past the end card. A cell is IDENTIFIED as held by being dormant with
+## its physics off: marching_cell only stops its own tick on materialize (:71, :112), so
+## that pair is unambiguous.
+##
+## Thawing needs headroom, not equality. Releasing at exactly LIVE_CAP-1 lets one cell
+## materialize, breach the cap and be frozen again on the next tick - a thrash that
+## reads as men flickering at the ring.
+const THAW_HEADROOM: int = 6
+
 func _enforce_live_cap() -> void:
 	var materialized_men: int = 0
 	for c in cells:
 		if is_instance_valid(c) and c.materialized:
 			materialized_men += c.live_strength()
 	if materialized_men < LIVE_CAP:
+		if materialized_men <= LIVE_CAP - THAW_HEADROOM:
+			_thaw_held_cells(materialized_men)
 		return
 	for c in cells:
 		if is_instance_valid(c) and not c.materialized and c.is_physics_processing():
 			c.set_physics_process(false)
 			print("[Siege] cell of %d held at the ring - live cap %d reached"
 				% [c.strength, LIVE_CAP])
+
+
+## The dead on the wire are what buy the held cells their room. Released one at a time
+## and only while its own strength still fits, so a 12-man cell cannot resume into 4
+## slots and re-breach the cap the moment it arrives.
+func _thaw_held_cells(materialized_men: int) -> void:
+	var room: int = LIVE_CAP - materialized_men
+	for c in cells:
+		if room <= 0:
+			return
+		if not is_instance_valid(c) or c.materialized or c.is_physics_processing():
+			continue
+		if c.strength > room:
+			continue
+		c.set_physics_process(true)
+		room -= c.strength
+		print("[Siege] cell of %d released from the ring - %d live of cap %d"
+			% [c.strength, materialized_men, LIVE_CAP])
 
 
 ## ---------- LIGHTING THE WIRE ----------

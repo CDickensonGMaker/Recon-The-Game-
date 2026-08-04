@@ -107,6 +107,10 @@ var group_destination: Vector3 = Vector3.ZERO
 var group_members: Array = []
 ## Is this civilian the LEAD of their group? The lead picks the path; followers slot.
 var is_group_lead: bool = false
+## PUPPET. This body is inside a scripted performance (LitterTeam) and its driver
+## owns position AND clip. The BT, the schedule and _animate() all stand down: an
+## unlatched body re-issues its own pose and the casualty sits up on the stretcher.
+var puppet: bool = false
 var _bt_bb: Dictionary = {}
 ## Behavior tree root. Typed as RefCounted to avoid class_name lookup hazards;
 ## BTSelector/BTAction are duck-typed at runtime via .tick().
@@ -275,11 +279,15 @@ func _physics_process(delta: float) -> void:
 	# drawn thinking, rather than letting it walk to its post from its bunk.
 	if not _placed_for_hour:
 		_placed_for_hour = true
-		place_for_current_hour()
+		if not puppet:
+			place_for_current_hour()
 	_update_lod(delta)
 	if lod_tier == LOD_FAR:
 		# Skip the body, never the tick: _update_lod is the only thing that can
 		# tier this civilian back IN, and it runs from here.
+		return
+	if puppet:
+		# The driver writes position every frame; gravity and the BT would fight it.
 		return
 	velocity.y -= 9.8 * delta
 
@@ -335,6 +343,8 @@ func _physics_process(delta: float) -> void:
 ## next one instead of freezing the model mid-stride.
 func _animate() -> void:
 	if actor == null or not is_instance_valid(actor):
+		return
+	if puppet:
 		return
 	var moving: bool = Vector2(velocity.x, velocity.z).length() > 0.4
 	var want: String = ""
@@ -395,6 +405,16 @@ func _animate() -> void:
 			actor.play_first([_idle_variant, "idle_unarmed"])
 
 
+## An untyped Array cannot be passed where Array[String] is declared, and `as Array[String]`
+## does NOT convert one - it fails the call at runtime. Const Array-of-Array literals hold
+## untyped inners, so every chain read out of one must come through here.
+func _as_clips(chain: Array) -> Array[String]:
+	var out: Array[String] = []
+	for c in chain:
+		out.append(str(c))
+	return out
+
+
 ## Same clips, different head, fixed per man by his spawn hash so the ville rebuilds
 ## identical (ADR-010). The LAST entry never rotates: it is the degrade target - the
 ## clip every rig is known to carry - and promoting it to the head would answer "what
@@ -402,7 +422,7 @@ func _animate() -> void:
 func _rotate(chain: Array) -> Array[String]:
 	var rotatable: int = chain.size() - 1
 	if rotatable < 2:
-		return chain as Array[String]
+		return _as_clips(chain)
 	@warning_ignore("integer_division")
 	var off: int = (_idle_seed / 11) % rotatable
 	var out: Array[String] = []
@@ -424,7 +444,7 @@ func _play_garrison(want: String) -> void:
 		# Seeded per man so six off-duty men are not one man six times.
 		@warning_ignore("integer_division")
 		var pick: int = (_idle_seed / 3) % OFF_DUTY_CHAINS.size()
-		actor.play_first(OFF_DUTY_CHAINS[pick] as Array[String])
+		actor.play_first(_as_clips(OFF_DUTY_CHAINS[pick] as Array))
 		return
 	# The aid station. medic_treat_give had exactly one caller (the squad revive) and
 	# medic_treat_receive had none at all - the library carried a whole aid station
@@ -638,7 +658,9 @@ func _bt_tick(delta: float) -> void:
 	var last_hour: float = float(_bt_bb.get("last_pick_hour", -1.0))
 	if int(hour) != int(last_hour):
 		_bt_bb["last_pick_hour"] = hour
-		var picked: StringName = CivilianSchedulesS.action_for(occupation, hour)
+		# The man's own node name, the same identity the work offset derives from below
+		# (:870) - it is what makes his mess sitting identical every run.
+		var picked: StringName = CivilianSchedulesS.action_for(occupation, hour, String(name))
 		_bt_bb["scheduled_action"] = picked
 		_bt_bb["target_pos"] = _resolve_target(picked)
 	_bt_bb["delta"] = delta
@@ -757,7 +779,7 @@ func place_for_current_hour() -> void:
 		return
 	var hour: float = SimClock.sim_hour if SimClock != null else 12.0
 	var target: Vector3 = _resolve_target(
-		CivilianSchedulesS.action_for(occupation, hour))
+		CivilianSchedulesS.action_for(occupation, hour, String(name)))
 	if target == Vector3.ZERO:
 		return
 	# home/working_point come from markers and carry valid ground Y, and the

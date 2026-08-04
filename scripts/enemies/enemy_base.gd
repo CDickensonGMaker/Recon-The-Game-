@@ -608,7 +608,12 @@ func _role_chain(role: String) -> Array[String]:
 	var chain: Array = CAMP_ROLE_CLIPS[role]
 	var rotatable: int = chain.size() - 1
 	if rotatable < 2:
-		return chain as Array[String]
+		# The const's inner arrays are UNTYPED; `as Array[String]` does not convert one
+		# and the call fails at runtime. Copy the elements.
+		var short: Array[String] = []
+		for c in chain:
+			short.append(str(c))
+		return short
 	var off: int = absi(hash(Vector2i(int(work_pos.x * 4.0), int(work_pos.z * 4.0)))) % rotatable
 	var out: Array[String] = []
 	for i in range(rotatable):
@@ -953,6 +958,12 @@ func _fov_deg() -> float:
 
 ## Bodies nobody reported. A kill nobody saw does not raise the alarm; the body will.
 ## Cleared per mission by FieldDirector.
+##
+## BOUNDED, because this is scanned by every living unit on every heartbeat and was only
+## ever emptied at world build - over a 30-minute patrol it is the scan that grows, not
+## the memory. The OLDEST body is forgotten first: the witness logic is untouched, the
+## record just stops being infinite.
+const MAX_UNREPORTED_CORPSES: int = 48
 static var unreported_corpses: Array[Vector3] = []
 
 ## Can this man actually SEE that point? Sight cap + facing cone + smoke + a real ray.
@@ -1004,6 +1015,8 @@ func _witness_check(killer: Node) -> void:
 		return
 	# NOBODY SAW IT. The kill is clean. But he is still lying there.
 	EnemyBase.unreported_corpses.append(global_position)
+	while EnemyBase.unreported_corpses.size() > MAX_UNREPORTED_CORPSES:
+		EnemyBase.unreported_corpses.remove_at(0)
 	# ...and a body does not decay out of the record the way a sound does. ADR-022
 	# already calls a corpse you left a liability; this is where it becomes one.
 	var fd: Node = get_tree().get_first_node_in_group("mission_director")

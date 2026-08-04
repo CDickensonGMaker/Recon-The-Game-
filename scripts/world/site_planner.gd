@@ -826,6 +826,13 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 	"radio": "radioman", "plot": "radioman",
 	"cook": "mess_cook", "mess": "mess_cook",
 	"medic": "medic",
+	# THE CHOW HALL (marker names locked by Caleb 2026-08-03, convention
+	# work_<building>_<role>). The servery side is a POST - a man stands it. The diner
+	# side, the seats and the queue are where the garrison GOES, so they carry the
+	# mess_hall schedule instead of a job.
+	"chow_server": "mess_cook", "chow_server_line": "mess_cook",
+	"chow_diner": "mess_hall", "chow_trigger": "mess_hall", "chow_exit": "mess_hall",
+	"eat": "mess_hall", "queue": "mess_hall",
 	# The working party. Digging, filling, burning, hauling water, washing down,
 	# policing the pad - the labour that fills a firebase day.
 	"dig": "detail", "burn": "detail", "latrine": "detail",
@@ -841,8 +848,10 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 const FSB_WORK_PRIORITY: Array[String] = [
 	"medic",
 	"dig", "wash", "water", "burn", "latrine", "pad",
+	"chow_server", "chow_server_line", "eat", "chow_diner", "queue",
 	"radio", "supply", "cook", "mess", "ammo",
 	"watch", "guard", "mg", "plot", "smoke", "rest",
+	"chow_trigger", "chow_exit",
 ]
 
 ## THE garrison ceiling: how many men stand inside the wire, curated and work-post

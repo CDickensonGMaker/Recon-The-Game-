@@ -9,6 +9,7 @@ const PaddyStamperScript := preload("res://scripts/world/paddy_stamper.gd")
 const WorkingPointResolverScript := preload("res://scripts/world/working_point_resolver.gd")
 const CivilianSchedulesScript := preload("res://scripts/ai/civilian_schedules.gd")
 const CivilianScript := preload("res://scripts/world/civilian.gd")
+const LitterTeamScript := preload("res://scripts/world/litter_team.gd")
 const PatrolGeneratorScript := preload("res://scripts/enemies/patrol_generator.gd")
 const AmbushPlannerScript := preload("res://scripts/enemies/ambush_planner.gd")
 const CampDirectorScript := preload("res://scripts/enemies/camp_director.gd")
@@ -719,8 +720,22 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	if temple != Vector3.ZERO:
 		p.sites.append({"kind": "temple", "center": temple})
 
-	var no_signs: Array[Vector3] = []
-	p["first_signs"] = no_signs
+	# THE 200m LANDMARK. The demo used to declare zero first-signs, so the walk out was
+	# the one stretch with nothing in it - and under the 2026-08-03 rescope that stretch
+	# is exactly where the five-minute rule is won or lost. Two to three craters on the
+	# outbound bearing, at the patrol planner's own 150-300m band, consumed by the
+	# existing loop in build_patrol_world.
+	var signs: Array[Vector3] = []
+	var sign_ang: float = atan2(out_v.z, out_v.x)
+	for si in range(rng.randi_range(2, 3)):
+		var sa: float = sign_ang + deg_to_rad(rng.randf_range(-35.0, 35.0))
+		var sbase: Vector3 = gate + Vector3(cos(sa), 0.0, sin(sa)) * rng.randf_range(150.0, 300.0)
+		var spos: Vector3 = _passable_near(world, rng, sbase, 0.0, 40.0, 90, _crater_keepout_grow())
+		if spos == Vector3.ZERO:
+			spos = _passable_near(world, rng, sbase, 0.0, 100.0, 90, _crater_keepout_grow())
+		if spos != Vector3.ZERO:
+			signs.append(spos)
+	p["first_signs"] = signs
 	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
 	roads.build(gate, demo_villages)
 	p["roads"] = roads
@@ -736,8 +751,25 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 			"tag": "treeline_watchers", "lazy": true, "spread": 12.0})
 	var no_ambush: Array[Dictionary] = []
 	p["ambush_sites"] = no_ambush
-	var no_camps: Array[Vector3] = []
-	p["camp_centers"] = no_camps
+
+	# THE ENEMY CAMP (his rescope, 2026-08-03: "there is at least one village and one enemy
+	# camp"). The demo used to declare zero camps. It sits on the OPPOSITE flank from the
+	# village and further out, so the two are a day's walk apart rather than one loop, and
+	# the temple at 170m on this bearing becomes a landmark on the way to it.
+	var camps: Array[Vector3] = []
+	var camp := _passable_near(world, rng,
+		fsb_center + t_dir * 300.0, 20.0, 70.0, 90,
+		SitePlanner.FSB_SITE_CLEARANCE)
+	if camp == Vector3.ZERO:
+		camp = _passable_near(world, rng,
+			fsb_center + t_dir * 265.0, 20.0, 110.0, 90,
+			SitePlanner.FSB_SITE_CLEARANCE)
+	if camp != Vector3.ZERO:
+		p.sites.append({"kind": "vc_camp", "center": camp})
+		camps.append(camp)
+	else:
+		push_warning("[DEMO] no passable ground for the enemy camp - the day has one site only")
+	p["camp_centers"] = camps
 	return p
 
 
@@ -891,6 +923,27 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 		var post_pos: Vector3 = post.pos
 		if str(post.occupation) == "gun_crew":
 			_place_firebase_mg(world, center, post_pos)
+		# The litter team is a scripted three-body performance, not three men at three
+		# stations: LitterTeam owns their positions and their clips. They are spawned
+		# here and handed over whole, and never get a working point or a BT.
+		if str(post.occupation) == "litter":
+			var bearers: Array[Civilian] = []
+			for li in range(3):
+				var lpos: Vector3 = post_pos
+				lpos.y = world.surface_y(lpos) + 0.5
+				var lman: Civilian = Civilian.spawn(world, lpos, director, false,
+					CivilianScript.GARRISON_MEN, true)
+				lman.occupation = "litter"
+				lman.add_to_group("firebase_garrison")
+				bearers.append(lman)
+			var ward: Vector3 = post.get("ward", post_pos)
+			ward.y = world.surface_y(ward)
+			var cot_g: Vector3 = post_pos
+			cot_g.y = world.surface_y(cot_g)
+			var team: Node = LitterTeamScript.new()
+			if not team.setup(world, bearers, cot_g, ward):
+				team.free()
+			continue
 		# EVERY MAN GETS HIS OWN STATION. A post with men=2 used to give both the SAME
 		# working_point_pos and a random 1-3.5m spawn ring, so two of them could roll onto the
 		# same spot - and once stood-to, GarrisonDefender hands both the identical post anchor

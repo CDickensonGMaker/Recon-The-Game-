@@ -51,7 +51,12 @@ const MAX_FLIGHT_SECONDS: float = 240.0
 const OVERHEAD_M: float = 120.0
 ## Rotors-turning time on the pad before the bird lifts off again.
 const GROUND_SECONDS: float = 35.0
-## Pad markers inside the firebase GLB (measured: three 15x15m PSP pads).
+## Pad markers inside the firebase GLB.
+## DRIFT CORRECTED 2026-08-03: this said "measured: three 15x15m PSP pads". The shipped GLB
+## has ONE. Three nodes match the prefixes and all three sit at the IDENTICAL position, so
+## `_free_pad` would happily land three aircraft on one square metre. `_firebase_lzs` now
+## de-duplicates co-located markers, and a second real pad is Blender work, not code.
+const PAD_DISTINCT_M: float = 12.0
 ## Matched by PREFIX, not by exact name: v2 authored PSPHelipad_001.._003 and the
 ## v3 re-export renamed them (PSPHelipad, fb_helipad_i, fb_helipad_i_182), which
 ## resolved to ZERO landing zones without anything failing to load. A Blender
@@ -210,10 +215,133 @@ func _tick_load(delta: float) -> void:
 ## Deliberately NOT a second scheduler: this is the same _dispatch the sim event calls, so
 ## formations, routes, the flight roster and the MAX_FLIGHT_SECONDS reaper all still apply.
 func launch(flight_kind: String, profile: String = "transit", ships: int = 0) -> void:
-	if profile == "lz_cycle":
-		_dispatch_lz_cycle(flight_kind)
-	else:
-		_dispatch(flight_kind, ships)
+	match profile:
+		"lz_cycle":
+			_dispatch_lz_cycle(flight_kind)
+		"gun_orbit":
+			_dispatch_gun_orbit(flight_kind, ships)
+		_:
+			_dispatch(flight_kind, ships)
+
+
+## ---------- THE GUN ORBIT (the demo's last image) ----------
+##
+## A flight of gunships circling the wire with the door guns working. There was NO rotary
+## orbit in this file - `transit` crosses and leaves, `lz_cycle` lands, and the only thing
+## that circled was SpectreGunship, which is a FIXED-WING kind. So the ending had no shape
+## to fly.
+##
+## The circle is flown as WAYPOINTS, not as a parametric curve, because Helicopter already
+## knows how to fly to a point and go IDLE on arrival (`helicopter.gd:210-236`). Handing it
+## the next point each time it settles reuses the whole existing flight model - speed
+## ramping, altitude lerp, yaw lerp - instead of a second movement system that would drift
+## out of sync with the first.
+const ORBIT_RADIUS_M: float = 130.0
+const ORBIT_ALTITUDE_M: float = 45.0
+## Twelve waypoints: at 130m that is a ~68m chord, comfortably past the 4m arrival gate and
+## short enough that the yaw lerp reads as a bank rather than a series of turns.
+const ORBIT_WAYPOINTS: int = 12
+const ORBIT_SECONDS: float = 75.0
+## Inbound from here, not from the map edge: the whole sortie - run in, orbit, run out - has
+## to finish inside MAX_FLIGHT_SECONDS or the reaper deletes the gunships mid-shot.
+const ORBIT_INBOUND_M: float = 330.0
+## Ships in the flight. Two reads as a pair working; the ceiling still binds.
+const ORBIT_SHIPS: int = 2
+## NO DOOR GUN IN CODE. Ruled by Caleb 2026-08-04, mid-build: "dont build the gun... im
+## going to stage that in a heuy eventually. i just want that idea to be there."
+##
+## So the ORBIT is the deliverable and the gunner is ART, staged in the Huey on his bench
+## later. Nothing here fires, and that is correct rather than unfinished: the huey.tscn
+## carries no gunner rig, so a firing door gun today would be rounds leaving an empty
+## doorway. When the staged gunner lands, the hook is this phase - the ship is already
+## flying a stable circle at a fixed radius and altitude with its nose on the tangent.
+
+
+## `centre` defaults to the firebase. Ships are staggered around the circle so they never
+## overlap and never fire from the same bearing.
+func _dispatch_gun_orbit(kind: String, ships: int = 0) -> void:
+	var world := _world()
+	if world == null:
+		return
+	var centre: Vector3 = _fsb_center()
+	if centre == Vector3.ZERO:
+		_dispatch(kind, ships)
+		return
+	var count: int = ships if ships > 0 else ORBIT_SHIPS
+	for i in range(count):
+		if _in_flight.size() >= MAX_IN_FLIGHT:
+			print("[AIR] gun orbit cut to %d of %d - ceiling %d reached"
+				% [i, count, MAX_IN_FLIGHT])
+			return
+		var craft := _instance(kind)
+		var heli := craft as Helicopter if craft != null else null
+		if heli == null:
+			if craft != null:
+				craft.free()
+			continue
+		world.add_child(heli)
+		heli.add_to_group("air_traffic")
+		heli.cruise_altitude = ORBIT_ALTITUDE_M
+		heli.setup(_terrain())
+		# Each ship enters on its own bearing and holds its own slot on the circle, so the
+		# pair reads as two aircraft working a problem rather than one bird cloned.
+		var entry: float = rng.randf_range(0.0, TAU) + TAU * float(i) / float(count)
+		var slot: float = entry + PI      # arrive at the far side, having flown across
+		var inbound: Vector3 = centre + Vector3(cos(entry), 0.0, sin(entry)) * ORBIT_INBOUND_M
+		inbound.y = _ground_at(inbound) + ORBIT_ALTITUDE_M
+		heli.global_position = inbound
+		var first: Vector3 = _orbit_point(centre, slot)
+		_roster(kind, heli, inbound, first, "orbit_in")
+		var f: Dictionary = _in_flight[_in_flight.size() - 1]
+		f["orbit_centre"] = centre
+		f["orbit_angle"] = slot
+		f["orbit_until_ms"] = 0
+		var out_ang: float = rng.randf_range(0.0, TAU)
+		f["exit"] = centre + Vector3(cos(out_ang), 0.0, sin(out_ang)) * _map_size() * 0.55
+		heli.fly_to(first)
+	print("[AIR] gun orbit: %d %s on station at %.0fm" % [count, kind, ORBIT_RADIUS_M])
+
+
+func _orbit_point(centre: Vector3, angle: float) -> Vector3:
+	var p: Vector3 = centre + Vector3(cos(angle), 0.0, sin(angle)) * ORBIT_RADIUS_M
+	p.y = _ground_at(p) + ORBIT_ALTITUDE_M
+	return p
+
+
+func _fsb_center() -> Vector3:
+	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	if d != null and "fsb_center" in d:
+		return d.get("fsb_center") as Vector3
+	return Vector3.ZERO
+
+
+## Walk the circle, then leave. Called from _advance_cycle on the roster's own clock.
+func _advance_orbit(f: Dictionary, heli: Helicopter, now: int) -> void:
+	var centre: Vector3 = f.get("orbit_centre", Vector3.ZERO)
+	match String(f.get("phase", "")):
+		"orbit_in":
+			if heli.state != Helicopter.State.IDLE:
+				return
+			f["phase"] = "orbit"
+			f["orbit_until_ms"] = now + int(ORBIT_SECONDS * 1000.0)
+			_step_orbit(f, heli, centre)
+		"orbit":
+			if now >= int(f.get("orbit_until_ms", now)):
+				f["phase"] = "outbound"
+				var exit_pos: Vector3 = f.get("exit", f["dest"])
+				f["dest"] = exit_pos
+				heli.fly_to(exit_pos)
+				return
+			if heli.state == Helicopter.State.IDLE:
+				_step_orbit(f, heli, centre)
+
+
+func _step_orbit(f: Dictionary, heli: Helicopter, centre: Vector3) -> void:
+	var angle: float = float(f.get("orbit_angle", 0.0)) + TAU / float(ORBIT_WAYPOINTS)
+	f["orbit_angle"] = angle
+	var next: Vector3 = _orbit_point(centre, angle)
+	f["dest"] = next
+	heli.fly_to(next)
 
 
 ## How many airframes are in the sky right now. The demo's air package reads this before adding
@@ -341,6 +469,15 @@ func _dispatch(kind: String, force_ships: int = 0) -> void:
 	var dir: Vector3 = (to - from).normalized()
 	var side: Vector3 = Vector3(-dir.z, 0.0, dir.x) * (1.0 if frng.randf() < 0.5 else -1.0)
 	for i in range(1, ships):
+		# THE CEILING BINDS EVERY SHIP, NOT JUST THE LEAD. It used to be checked once,
+		# above, and then up to eight wingmen were added unchecked - so a dispatch at
+		# MAX_IN_FLIGHT - 1 could put 22 airframes up against a ceiling of 14, on a
+		# call-bound project. The pack size is what he asked for; the ceiling is what
+		# pays for it, and a truncated pack is the honest lever.
+		if _in_flight.size() >= MAX_IN_FLIGHT:
+			print("[AIR] %s pack cut to %d of %d - ceiling %d reached"
+				% [kind, i, ships, MAX_IN_FLIGHT])
+			return
 		var off: Vector3 = side * (frng.randf_range(ECHELON_LATERAL_M.x, ECHELON_LATERAL_M.y) * float(i)) \
 			- dir * (frng.randf_range(ECHELON_TRAIL_M.x, ECHELON_TRAIL_M.y) * float(i))
 		var wing: Node3D = _spawn_transit(kind, from + off, to + off,
@@ -494,6 +631,17 @@ func _firebase_lzs() -> Array:
 				break
 	pads.sort_custom(func(x: Node3D, y: Node3D) -> bool: return String(x.name) < String(y.name))
 	for pad in pads:
+		# Co-located markers are ONE pad wearing three names. Landing a second bird on a
+		# square metre already occupied is worse than making it wait for the pad to clear.
+		var duplicate: bool = false
+		for existing in _pad_lzs:
+			var e := existing as LandingZone
+			if e != null and e.global_position.distance_to(pad.global_position) < PAD_DISTINCT_M:
+				duplicate = true
+				break
+		if duplicate:
+			print("[AIR] pad marker %s is co-located with a live pad - ignored" % pad.name)
+			continue
 		var lz := LandingZone.new()
 		lz.lz_name = String(pad.name)
 		lz.lz_radius = 7.0
@@ -554,7 +702,11 @@ func _dispatch_lz_cycle(kind: String) -> void:
 ## Advance a landing cycle through its phases. The roster is the only clock:
 ## no timer node, no second scheduler.
 func _advance_cycle(f: Dictionary, heli: Helicopter, now: int) -> void:
-	match String(f.get("phase", "")):
+	var phase: String = String(f.get("phase", ""))
+	if phase == "orbit_in" or phase == "orbit":
+		_advance_orbit(f, heli, now)
+		return
+	match phase:
 		"inbound":
 			if heli.state == Helicopter.State.LANDED:
 				f["phase"] = "ground"
@@ -591,7 +743,11 @@ func _process(delta: float) -> void:
 				_advance_cycle(f, heli, now)
 			f["pos"] = node.global_position
 			var dest: Vector3 = f.get("dest", (f["route"] as Array)[1])
-			var settled: bool = String(f.get("phase", "")) in ["inbound", "ground", "climbout"]
+			# "orbit_in"/"orbit" MUST be here. An orbiting ship is permanently within 20m of
+			# its current waypoint by design, so without this the reaper deletes the flight
+			# on its first arrival and the gunships vanish one lap in.
+			var settled: bool = String(f.get("phase", "")) in \
+				["inbound", "ground", "climbout", "orbit_in", "orbit"]
 			# Horizontal only: destinations are ground-plane points and the
 			# aircraft is at cruise, so a 3D compare never reaches the gate.
 			var flat: float = Vector2(node.global_position.x - dest.x,

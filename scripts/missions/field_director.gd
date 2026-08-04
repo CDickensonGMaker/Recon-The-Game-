@@ -110,13 +110,25 @@ var evidence: EvidenceLedger = null
 
 
 ## Raise the alarm the first time the player is DETECTED (any enemy in COMBAT).
+##
+## `last_combat_contact_ms` is a GLOBAL STATIC (`enemy_base.gd:272`) - it rises when ANY
+## enemy anywhere goes loud, including an ambient patrol trading with a friendly patrol the
+## player never saw. On the seven-minute slice that was nearly unreachable; across a
+## thirty-minute day with ambient cells walking the roads it fires a "YOU'VE BEEN MADE"
+## with NOTHING BEHIND IT - the hunter spawn below already refuses to send anyone without
+## an evidence fix, so the toast was a promise the system would not keep.
+##
+## So the alarm now requires what the hunters require: something the PLAYER left behind.
 func _check_detection() -> void:
 	if _escalation_active:
 		return
-	if EnemyBase.last_combat_contact_ms > _detect_baseline_ms:
-		_escalation_active = true
-		_hunter_timer = randf_range(70.0, 110.0)
-		toast.emit("YOU'VE BEEN MADE - THEY'RE MOVING TO CONTACT")
+	if EnemyBase.last_combat_contact_ms <= _detect_baseline_ms:
+		return
+	if evidence == null or evidence.best_fix(float(Time.get_ticks_msec()) * 0.001).is_empty():
+		return
+	_escalation_active = true
+	_hunter_timer = randf_range(70.0, 110.0)
+	toast.emit("YOU'VE BEEN MADE - THEY'RE MOVING TO CONTACT")
 
 
 func _process_escalation(delta: float) -> void:
@@ -1258,6 +1270,16 @@ func _grant_fire_support() -> void:
 		fire_support["cbu"] = 1
 	if tier == "CRITICAL":
 		fire_support["spectre"] = 1
+	if GameFlow.demo_mode:
+		# HIS RULING 2026-08-03: "there should be 3 bombing runs thats it." Three calls of
+		# ONE kind, overruling the council's bomb/arty/mortar split - spending the first
+		# teaches the other two, and a stranger learning one verb well beats three badly.
+		# The night raid's napalm and the daytime bursts are SCRIPTED SPECTACLE and are
+		# billed to nobody; the garrison lights its own wire without touching this stock
+		# either (`garrison_illum`), so zeroing illum costs the player no light.
+		fire_support = {"bombs": 3, "napalm": 0, "arty": 0, "mortar": 0,
+			"spectre": 0, "cbu": 0, "illum": 0}
+		print("[DEMO] fire support: 3 bombing runs, nothing else")
 	# A breached depot short-changes THIS allotment (persistent, consumed here - the
 	# loss is one patrol's, not forever). Without this read, Fork B is cosmetic: the
 	# hard-assign above wipes any docked stock.

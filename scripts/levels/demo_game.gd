@@ -1,5 +1,6 @@
-## demo_game.gd - DEMO GAME: the 20-minute firebase-attack slice
-## (War Room 2026-07-29, production/war_room/2026-07-29_demo_slice/).
+## demo_game.gd - DEMO GAME: the 30-minute ONE-DAY arc, dawn spawn to the night attack
+## (War Room 2026-08-03, production/war_room/2026-08-03_demo_day_scope/, which rescoped the
+## 2026-07-29 seven-minute slice).
 ##
 ## Boots the REAL flow (GameFlow.demo_mode -> plan_demo_world on a 512m map) -
 ## one world-build path, never a parallel copy (ADR-028). This scene owns only
@@ -22,24 +23,43 @@ const EXCLUDE_AIR_TRAFFIC := false
 const EXCLUDE_AMBIENT_WAR := false
 
 ## ---- THE ARC (seconds; pacing knobs for the Summoner's playtest) ----
-## dusk arrival -> probe -> main assault -> dawn card.
+## dawn spawn -> the day out -> dusk return -> night stand-to -> probe -> assault -> gunships.
 ##
-## HIS RULING 2026-07-30: "the assault should happen within 60 seconds of the player
-## spawning in. no debug needed." The ten-minute explore window is DELETED, not shortened -
-## a demo that makes you wait twelve minutes for its best minute is showing off the wait.
-## The probe survives at 20s because the escalation is the drama (11 men, then 45) and
-## because _open_siege's reinforce() path is the one that was fixed on 07-30; going
-## straight to full strength would leave that path untested in the only build anyone sees.
-const PROBE_AT_S: float = 20.0       ## a probe finds the wire almost immediately
-const SIEGE_AT_S: float = 60.0       ## the assault, inside his minute
-const DAWN_AT_S: float = 420.0       ## it breaks; card at ~7 minutes
+## HIS RESCOPE 2026-08-03 (council `war_room/2026-08-03_demo_day_scope/`): the demo is ONE
+## DAY, 30 real minutes, ending on the night attack. This REVERSES his 2026-07-30 ruling
+## ("the assault should happen within 60 seconds"), deliberately: the day is the only thing
+## that turns on the garrison schedule, the chow hall and the hunt net, none of which a
+## seven-minute slice can show.
+##
+## THE ENGINE'S HARDEST LIMIT IS THE OPENING BEAT. The sun does not move - lighting is a
+## four-state table that only changes on a period boundary (`mission_weather.gd:40` holds
+## {5.5, 10.0, 17.5, 21.0}), so a day cannot be RENDERED as a day. It is sold instead as
+## four hard lighting events, and spawning at 06:30 rather than 07:00 means DAY SNAPPING
+## ON *IS* THE PLAYER CLEARING THE GATE.
+const START_HOUR: float = 6.5
 
-## The sim clock is what makes DAWN true rather than a caption. At the default 60x a real
-## second is a sim minute, so a 7-minute demo would end at half past midnight and the end
-## card would be lying. 110x runs 17:30 -> ~06:20 across the arc: the assault lands around
-## 19:20 in failing light (which SHOWS the compound, the aircraft and the napalm - pitch
-## dark hides the art), and the sun is genuinely up when the card reads DAWN.
-const DEMO_CLOCK_RATIO: float = 110.0
+## 06:30 -> 21:00 is 14.5 sim hours. Across DAY_END_S that is ~38x.
+const DAY_RATIO: float = 38.0
+const DAY_END_S: float = 1380.0      ## ~23 min: NIGHT snaps on, the garrison stands to
+
+## NIGHT RUNS SLOW, and for the opposite reason the briefing assumed. Acceleration past
+## midnight breaks three things: it re-arms a second siege roll, it unlatches the
+## fire-support allotment through `_granted_day` (an exploit named in its own comment at
+## `field_director.gd:1240-1245`), and it RAISES THE SUN during the night attack. At 20x
+## the 420 s night covers 2h20m and the arc ends ~23:20 - inside the same sim day.
+const NIGHT_RATIO: float = 20.0
+
+const PROBE_AT_S: float = 1395.0     ## first contact on the wire, just after stand-to
+const SIEGE_AT_S: float = 1440.0     ## the assault - 360 s of it, the tuning SIEGE_AIR_BEATS assumes
+const END_AT_S: float = 1800.0       ## 30 minutes: the gunships come in
+
+## THE DAWN CARD IS DEAD (Law 2, and his ruling Q1). Making the sun genuinely come up costs
+## the three exploits above, so the demo no longer claims it. The last image is a flight of
+## Huey gunships circling the wire, and THE PLAYER LIVES.
+##
+## The survive/die choice was delegated to the Arbiter and is deliberately ONE FLAG: if his
+## playthrough says the ending lands flat, flip this and the flight circles his body instead.
+const ENDING_PLAYER_SURVIVES: bool = true
 const PROBE_STRENGTH: int = 11
 ## Total men on the wire after the escalation, NOT an increment. 45 and not 50: LIVE_CAP
 ## is 50 materialized men, and an assault authored at the cap freezes its late cells at
@@ -73,13 +93,17 @@ func _ready() -> void:
 		SaveManager.save_dir = "user://saves_demo"
 		DirAccess.make_dir_recursive_absolute(SaveManager.save_dir)
 		CampaignState.load_campaign()
-	SimClock.real_to_sim_ratio = DEMO_CLOCK_RATIO
+	SimClock.real_to_sim_ratio = DAY_RATIO
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
 	add_child(_flow)
 	_flow._begin_operation(DEMO_SEED, DEMO_NAME)
-	print("[DEMO] booted seed %d, %dm slice, arc probe@%ds siege@%ds dawn@%ds" % [
-		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(PROBE_AT_S), int(SIEGE_AT_S), int(DAWN_AT_S)])
+	# AFTER the build: the generator seeds its own hour and the weather table wins over it
+	# via game_flow. The demo's arc is only true if it starts where the arc says it does.
+	SimClock.set_time(1, START_HOUR)
+	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds end@%ds" % [
+		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
+		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_AT_S)])
 
 
 func _exit_tree() -> void:
@@ -141,7 +165,7 @@ const NAPALM_RANGE_M: float = 210.0
 var _napalm_early_done: bool = false
 
 ## ---- THE SIEGE AIR SHOW ----
-## The assault runs SIEGE_AT_S -> DAWN_AT_S: SIX MINUTES, and it used to carry exactly ONE
+## The assault runs SIEGE_AT_S -> END_AT_S: SIX MINUTES, and it used to carry exactly ONE
 ## air beat (the GUNS_NAPALM at +60). The climax of the demo was the quietest sky in it.
 ##
 ## Each beat is [seconds after SIEGE_AT_S, ordnance, metres out, bearing source]. They walk
@@ -242,23 +266,93 @@ func _tick_air(delta: float) -> void:
 
 
 var _death_routed := false
+var _night_ratio_set := false
+
+## ---- THE OPENING BEAT (council §2.2) ----
+## There is no gate pointer in this game and the right one is not a marker: it is YOUR OWN
+## SQUAD LEAVING WITHOUT YOU. It reads through the squadmate labels that already exist and
+## are already exempted from the no-rails ruling, so ADR-030's HUD deferral is untouched -
+## no new UI element is created for the demo.
+const GATE_ORDER_AT_S: float = 10.0
+## The order MUST expire or it becomes the rail it was written to avoid. Two expiries: the
+## squad reaching the gate, and a hard clock for the case where compound pathing strands
+## them. Whichever lands first hands the men back to FOLLOW.
+const GATE_ORDER_ARRIVE_M: float = 8.0
+const GATE_ORDER_MAX_S: float = 210.0
+
+var _gate_order_issued := false
+var _gate_order_released := false
+
+
+## Issue at T+10, release on arrival. A man who cannot path to the gate is released by the
+## clock rather than left walking into a wall for the rest of the demo.
+func _tick_opening() -> void:
+	if _gate_order_released:
+		return
+	var d: FieldDirector = _flow.director
+	if d == null or d.squad_system == null or not is_instance_valid(d.squad_system):
+		return
+	var gate: Vector3 = d.patrol_gate_pos
+	if gate == Vector3.ZERO:
+		return
+	var squad: SquadSystem = d.squad_system
+	if not _gate_order_issued:
+		if _clock < GATE_ORDER_AT_S:
+			return
+		_gate_order_issued = true
+		for a in squad.members:
+			if is_instance_valid(a) and not a.is_dead():
+				a.set_order(AllyBase.OrderMode.MOVE_TO, gate)
+		d.toast.emit("SQUAD MOVING OUT")
+		print("[DEMO] opening: squad ordered to the gate at %.0fs" % _clock)
+		return
+	var arrived: int = 0
+	var alive: int = 0
+	for a in squad.members:
+		if not is_instance_valid(a) or a.is_dead():
+			continue
+		alive += 1
+		if a.global_position.distance_to(gate) <= GATE_ORDER_ARRIVE_M:
+			arrived += 1
+	var timed_out: bool = _clock >= GATE_ORDER_AT_S + GATE_ORDER_MAX_S
+	if not timed_out and (alive == 0 or arrived < alive):
+		return
+	_gate_order_released = true
+	for a in squad.members:
+		if is_instance_valid(a) and not a.is_dead() \
+				and a.order_mode == AllyBase.OrderMode.MOVE_TO:
+			a.set_order(AllyBase.OrderMode.FOLLOW)
+	# M-4 counts these two numbers. The opening beat is hostage to compound pathing and
+	# this line is the only place that says so out loud.
+	print("[DEMO] opening: gate order released at %.0fs - %d/%d arrived%s"
+		% [_clock, arrived, alive, " (TIMED OUT)" if timed_out else ""])
 
 
 func _physics_process(delta: float) -> void:
 	if _flow == null or _flow.director == null:
 		return
 	if not _death_routed:
-		# _begin_operation is async (awaits the world build), so the director does
-		# not exist until the arc's first live tick. The full game's KIA -> AAR ->
-		# teardown pipeline would free the world and leave this arc ticking over
-		# nothing; death in the demo is a card.
+		# enter_hub() constructs the director several awaits BEFORE it wires
+		# mission_failed -> _on_mission_ended, so a non-null director does NOT mean the
+		# flow is wired; that wire lands one line after the player is seated. Waiting on
+		# it is both the disconnect's precondition and the arc's true start - his 60s
+		# ruling counts from the spawn, not from the middle of the world build.
+		if not _flow.director.mission_failed.is_connected(_flow._on_mission_ended):
+			return
 		_death_routed = true
 		if EXCLUDE_DEBRIEF:
 			_flow.director.mission_failed.disconnect(_flow._on_mission_ended)
 			_flow.director.mission_failed.connect(_on_demo_death)
 	_clock += minf(delta, 0.066)
+	_tick_opening()
 	_tick_air(delta)
 	_tick_napalm()
+	# The ratio drops ONCE, at the day/night seam, and never climbs back inside a run.
+	if not _night_ratio_set and _clock >= DAY_END_S:
+		_night_ratio_set = true
+		SimClock.real_to_sim_ratio = NIGHT_RATIO
+		print("[DEMO] night at %.0fs - clock %.0fx -> %.0fx, sim %05.2f"
+			% [_clock, DAY_RATIO, NIGHT_RATIO, SimClock.sim_hour])
 	match _phase:
 		0:
 			if _clock >= PROBE_AT_S:
@@ -269,9 +363,9 @@ func _physics_process(delta: float) -> void:
 				_phase = 2
 				_open_siege(SIEGE_STRENGTH, "HERE THEY COME")
 		2:
-			if _clock >= DAWN_AT_S:
+			if _clock >= END_AT_S:
 				_phase = 3
-				_dawn()
+				_ending()
 
 
 func _open_siege(strength: int, toast: String) -> void:
@@ -296,7 +390,7 @@ func _open_siege(strength: int, toast: String) -> void:
 		return
 	if d.siege.active:
 		# THE PROBE BECOMES THE ASSAULT. This branch used to toast and return, and
-		# because the 600 s probe runs its 480 s duration to exactly DAWN_AT_S it was
+		# because the 600 s probe ran its 480 s duration to exactly the old dawn beat it was
 		# ALWAYS taken - so SIEGE_STRENGTH was dead and every demo night was 11 men
 		# announced twice. reinforce() grows strength and peak together so the break
 		# ratio still means something.
@@ -309,10 +403,29 @@ func _open_siege(strength: int, toast: String) -> void:
 	print("[DEMO] phase %d: open_siege(%d) at %.0fs" % [_phase, strength, _clock])
 
 
-func _dawn() -> void:
-	print("[DEMO] dawn at %.0fs - end card" % _clock)
-	_flow.director.toast.emit("DAWN. YOU HELD.")
-	_show_end_card("FIREBASE HELD")
+## THE LAST IMAGE: a flight of Huey gunships circling the wire, M60 gunners working. Not
+## dawn - the sun cannot be made to rise without the three exploits named at NIGHT_RATIO.
+## The card waits GUNSHIP_HOLD_S so the flight is on station and audible BEFORE the war
+## freezes behind it; showing the card first would make the gunships a menu background.
+const GUNSHIP_HOLD_S: float = 12.0
+
+func _ending() -> void:
+	var d: FieldDirector = _flow.director
+	print("[DEMO] ending at %.0fs (sim %05.2f) - gunships in" % [_clock, SimClock.sim_hour])
+	var at := _flow.world.get_node_or_null("AirTraffic") as AirTraffic if _flow.world != null \
+		else null
+	if at != null:
+		# A PAIR ON STATION, circling the wire at ORBIT_RADIUS_M for ORBIT_SECONDS before
+		# running out. The door gunners are ART - he is staging them in the Huey later
+		# (his ruling 2026-08-04, "i just want that idea to be there"), so nothing here
+		# fires and the orbit carries the image on its own until they land.
+		at.launch("huey", "gun_orbit")
+	if d != null:
+		d.toast.emit("GUNSHIPS ON STATION - GET YOUR HEADS DOWN")
+	await get_tree().create_timer(GUNSHIP_HOLD_S).timeout
+	if _card != null:
+		return   # he died under the orbit; that card already stands
+	_show_end_card("FIREBASE HELD" if ENDING_PLAYER_SURVIVES else "THEY CAME BACK FOR THE WIRE")
 
 
 func _on_demo_death(_result: Dictionary) -> void:

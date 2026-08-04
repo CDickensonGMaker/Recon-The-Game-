@@ -344,3 +344,291 @@ UPDATE 7/31 (evening, Wyrm): W1-W9 DISCHARGED except two that closed differently
 - W9 SHIPPED: m79_arms_viewmodel.tscn + model_path - the Blooper is a whole weapon now.
 REMAINING FOR 8/9: his bench (S1 wire split, S2 medical export, S3 bunker slits), his
 45-min playtest on build/RECON_Demo.exe, M60 bench row, playthrough #2 on the polished build.
+
+---
+
+# AMENDMENT 2026-08-03 â€” THE DAY RESCOPE (War Room decree)
+
+**Decree:** `production/war_room/2026-08-03_demo_day_scope/synthesis.md`. Six architects, code only.
+The Summoner rescoped the demo from the 7-minute night slice to a **~30-minute one-day arc ending
+with the night attack**. His ten rulings are recorded in that session's `briefing.md` Â§0 and are
+DECIDED â€” do not re-open them.
+
+**READ BEFORE COSTING ANYTHING:** this backlog was spot-checked 5/5 HONEST by the Devil's Advocate
+(C4 `game_flow.gd:50`, C3b `gen_firebase_v3.py:368`, A1 `nav_router.gd:37`, E5 `model_actor.gd:546`,
+W7 `site_planner.gd:853`) â€” **but it stops at 7/31.** No chow hall, no tiered expansion, no rescope.
+Every estimate drawn from it **UNDER-counts**.
+
+## D-0. MEASUREMENTS FIRST â€” these gate the build, nobody has ever run them
+
+| # | Measurement | Gates | Note |
+|---|---|---|---|
+| **M-1** | `tests/test_firebase_garrison.tscn` then print the occupation histogram from `fsb_garrison_plan`. **FAIL = a wall of `off_duty`.** GLB markers carry Blender's DOT suffix (`work_rest.001`); `site_planner.gd:905-909` strips only `_<int>`. If the dot survives import, **~185 of 198 markers are junk** and the aid-station seed (`:969-978`) + litter team have **never fired**. | every chow-hall and medical decision, and the whole marker convention | **HIGHEST-VALUE HOUR AVAILABLE. RUN IT FIRST.** |
+| **M-2** | `build/RECON_Demo.exe --print-fps`, A/B/A at `SIEGE_STRENGTH` 45 â†’ 55 â†’ 45, 300s each. **FAIL if run B prints `[Siege] cell of N held at the ring` (`siege_director.gd:445-446`) at all, or ends with no `_break_siege`.** | D-1 and D-9 | prior: FPS moves ~0 |
+| **M-3** | Run the exported demo **30 minutes** with `--print-fps`, watch draw calls | D-2 | nothing has EVER run 30 min |
+| **M-4** | Count squad arrivals at the gate on a T+10 move order, 10 runs | D-4 | pathing risk |
+| **M-5** | Time a Huey from launch-on-pad to clearing the compound | D-6 | no launch path exists |
+
+## D-1 â€¦ D-2. THE TWO LANDMINES â€” defuse before anything ships
+
+- **D-1 [C] THE ONE-WAY FREEZE LATCH â€” the 7/28 trickle failure, still loaded.**
+  `_enforce_live_cap` calls `set_physics_process(false)` (`siege_director.gd:444`) and
+  **`set_physics_process(true)` exists NOWHERE** in `marching_cell.gd` / `siege_director.gd`. A
+  frozen cell never marches again but still reports full paper strength (`marching_cell.gd:56-57`),
+  so `live/peak` never falls and **the assault can never break.** `SIEGE_STRENGTH = 45` is the only
+  thing disarming it. **DECREED: the day may move night strength DOWN from 45 and NEVER up. The
+  Arbiter's proposed 55 is STRUCK â€” it arms this on the worst-outcome branch.**
+- **D-2 [C] DROPPED WEAPONS SPAWN FIRST-PERSON VIEWMODELS â€” the largest unbudgeted accumulator.**
+  MEASURED: `ak47.tres:27` points at `ak_fp.glb` = **11 draw calls, 1 skin, 6 anims, `ArmsMesh`**,
+  offset âˆ’1.81m (buried underground). `LIFETIME_S = 600` has **never once expired** in a 7-minute
+  demo and **resets to 300s whenever the player is within 40m** (`world_weapon.gd:87-94`). 45
+  attackers dying on the wire the player is standing on is **~495 immortal draw calls** against a
+  ~1,350-call baseline. Secondary: `EnemyBase.unreported_corpses` is unbounded (`enemy_base.gd:961`,
+  appended `:1011`), scanned by every unit every heartbeat (`:804-807`, `:1022-1031`), cleared only
+  at world build. Decals, corpse meshes, evidence ledger and flight bookings are all **bounded â€” do
+  not spend time there.**
+
+## D-3 â€¦ D-10. THE ARC
+
+- **D-3 [C] THE CLOCK: day 38x, night 20x. Start 06:30, NOT 07:00.**
+  **0700 does not exist in code** â€” `mission_weather.gd:40` holds {5.5, 10.0, 17.5, 21.0} and wins
+  over `mission_generator.gd:248-255` via `game_flow.gd:677-679`. **THE SUN DOES NOT MOVE**
+  (`mission_weather.gd:20-25`, `:77-83`): lighting changes only on a period crossing, and DAY is one
+  flat block 07:00â€“17:00. So the arc is sold as **four lighting events, one per act** â€” spawn in
+  dawn, DAY snaps as you clear the gate, DUSK on the return, NIGHT at stand-to. **The night must run
+  SLOW**: crossing midnight re-arms a second siege roll (`siege_director.gd:171-174`), unlatches the
+  fire-support allotment (`field_director.gd:1240-1245`) and **raises the sun mid-attack**.
+  Sacrificed: the DAWN end card, and `AmbientWar`'s hour-driven density (`ambient_war.gd:62`).
+- **D-4 [C] THE OPENING: the squad walks out without you at T+10s.** There is no gate pointer in
+  code. Use `OrderMode.MOVE_TO` (`ally_base.gd:160`, `:206`; `squad_system.gd:201-205`) to
+  `patrol_gate_pos` (`field_director.gd:991`), rendered by the squadmate labels already exempt from
+  the no-rails ruling (`mission_hud.gd:336-368`). **Respects the ADR-030 HUD deferral â€” no new UI.**
+  The order MUST expire at the gate. Gated on M-4.
+- **D-5 [C] THE AMBIENT CELL â€” ruling 9 is structurally impossible today.** The hunt net is
+  double-gated: it needs a COMBAT contact (`field_director.gd:113-119`) AND a non-empty evidence
+  ledger fed only by player gunfire (`:35-38`, `:143-145`), then waits 70â€“110s (`:118`). Ship ONE
+  cell walking a road between village and camp, spawned at boot, crossing the player's front at
+  ~2:45 â€” let-pass-or-shoot. **Three hard constraints:** the road must stay **>90m from
+  `fsb_center`** or `_poll_firebase_threat` (`:1328`, `FSB_THREAT_MEN` 2) stands all 40 men to at
+  07:05; `last_combat_contact_ms` is a **global static** (`enemy_base.gd:272`) so any enemy going
+  loud fires a false "YOU'VE BEEN MADE"; tag it `"hunters"` so D-9 folds it in.
+- **D-6 [B]+[C] MULTI-PAD: the code is built, THE PADS ARE NOT.** `_free_pad` already walks all pads
+  at capacity 1 (`air_traffic.gd:467-515`). **MEASURED twice independently: the shipped GLB has ONE
+  pad â€” all three pad-prefix nodes sit at the identical position (22.18, 4.01, âˆ’41.29).**
+  `air_traffic.gd:54` ("three PSP pads") is **DRIFT â€” correct the comment.** Priced: Huey = **27
+  draw calls**, Chinook = **84 calls / 12,028 tris**, baseline ~1,350 where 1,000 calls is ~6 FPS
+  (`PERF_LEDGER.md:686,700`). **RULED: ONE new pad marker (two total), two concurrent cycles max,
+  Chinook never concurrent.** **BUG:** `_dispatch` checks the ceiling once before the lead (`:328`)
+  then adds 8 wingmen unchecked (`:343-349`) â€” up to 22 airframes, +44% calls. **AND no heli ever
+  starts ON a pad** â€” every `lz_cycle` begins airborne ~280m out (`:536-540`), so his "birds lifting
+  as he turns the corner" needs a launch path that does not exist. Gated on M-5.
+  **The rescope's real frame cost is DAYLIGHT, not men:** `air_traffic.gd:93-108` books hours 6â€“23,
+  so a day demo fires **~39 transits + all 4 LZ cycles versus today's ~18 + 1.**
+- **D-7 [C] THE MIDDAY RETURN IS STRUCK. The chow hall moves to 21:30, before stand-to.** The return
+  fires the after-action report the demo EXCLUDES (`field_director.gd:1564-1578` vs
+  `demo_game.gd:20`) â€” debrief toasts and a possible FIELD PROMOTION â€” and `_bank_patrol` resets
+  `state.start_time_ms` (`:1584`), **making the afternoon easier.** Sacrificed: the two-sortie
+  structure.
+- **D-8 [C] THE VILLAGE IS MOSTLY BUILT.** Civilians exist (`civilian.gd`, 38 KB, behaviour trees +
+  SimClock schedules + households); the informer path is real (`civilian.gd:582-594` to
+  `field_director.gd:627-641`). **The gap is a coin flip** â€” `mission_generator.gd:979` gives the
+  demo village a ~50% chance of an informer existing at all. **RULED: force it to 100% in the
+  demo.** Also **first-signs are TWO DISABLED LINES** â€” the planner already places them at 150â€“300m
+  (`:496`, consumed `:765-769`); the demo ships zero (`:723-724`). And **the enemy camp is a PLAN
+  EDIT** â€” the stamper is built (`site_planner.gd:1629`, dispatch `:761`), the demo just disables
+  camps (`mission_generator.gd:740-741`).
+  **THE DESTRUCTIBLE TUNNEL MOUTH IS ALREADY SHIPPED â€” ZERO ENGINEERING COST.** HOLD-interact
+  satchel, grenadier-skill hold time, blast, nav re-bake, cross-patrol permanence
+  (`player.gd:838-891`, `campaign_state.gd:478-490`, consumed `site_planner.gd:195-202`); **both
+  stampers already place one** (`:258`, `:1632`). Only remaining: confirm the demo loadout carries a
+  satchel (`player.gd:843`), and discoverability.
+- **D-9 [C] DAY FEEDS NIGHT, DOWNWARD ONLY.** `night = 45 âˆ’ hunters_killed âˆ’ 8 (mouth blown)`,
+  **clamped 28â€“45.** **Never price it off `state.kills`** â€” the bank wipes it
+  (`field_director.gd:1584`). **Hunters are never reaped** (`siege_director.gd:712-716` walks only
+  siege cells) â€” clear survivors with `despawn_tracked_enemy` (`:72`) at stand-to, **as a despawn,
+  not a casualty.** **A BODY COUNT IS IMPERCEPTIBLE** (night sight 56m, the assault crosses
+  190â€“235m, illum strobes 55s on / 15s off) â€” so express it in three places, none of them a number:
+  the RTO's gate line (`field_director.gd:667-673`), a **BREACH or no breach** (the siren is already
+  wired), and the end card (`demo_game.gd:331-359`). **IF ALL THREE ARE NOT BUILT, DO NOT BUILD THE
+  LINK** (r4bk Law).
+- **D-10 [C] TOP THE HUNT POOL TO 6 ON EACH OUTBOUND GATE CROSSING** (same seam as the fire-support
+  grant, `field_director.gd:1221`). 12 men (`:106`) at 2â€“4 per wave (`:149`) is **~7.7 minutes of
+  contact, then the AO is empty forever** â€” invisible at 7 minutes, arc-breaking at 30.
+  **SACRIFICED: ADR-035's finite-pool promise, inside the demo only, by documented exception. The
+  ADR is NOT amended.**
+  **QUESTION D IS CLOSED â€” the Arbiter's premise was BACKWARDS.** `field_mult` multiplies the WAIT
+  (`field_director.gd:148`, its own comment `:129`), so decay makes the AO HARDER; and it never runs
+  at all because `state` resets at every wire crossing (`:132`, `:1584-1587`). **Do not invert it.
+  Do not flatten it. Leave it.**
+
+## D-11 â€¦ D-13. FIRE SUPPORT, ALLIES, FAIL-FORWARD
+
+- **D-11 [C] THREE CALLS = THREE DIFFERENT VERBS: one bombing run, one artillery, one mortar.**
+  "3" matches nothing shipped â€” the grant is **5â€“8** (`field_director.gd:1251-1255`: up to 3â€“4
+  mortar + 1 bomb + 1 arty + 2â€“3 illum), and the demo actually runs the class default `mortar 2,
+  illum 2` (`:304-305`) because `demo_game.gd` has **zero** fire-support references. **Three defects
+  to fix alongside it:** **illumination has NO menu row** (`mission_hud.gd:97-104`) though key 7 is
+  bound (`:243`) â€” **a shipped r4bk violation**; `_granted_day` (`:1243`) lets a post-midnight 120m
+  step **re-arm mid-siege** (D-3's slow night prevents this incidentally â€” make it structural); and
+  `p["fire_support"]` (`mission_generator.gd:509`, `:675`) is read by nothing, with ADR-011's
+  pointers all stale.
+- **D-12 [C] ALLY AI TO THE VIETCONG BAR â€” minimum set, in cost order.** The Arbiter's five verified
+  pointers all HOLD (`ally_base.gd:78-117`, `:233-235`, `:395-409`, `:97`). **Scope correction: the
+  squad is 8, not 5** (`squad_system.gd:19`).
+  1. **~2 lines â€” feed `squad_broken` / `force_ratio` to the shared scorer.** Allies never do
+     (`ally_base.gd:782-801`); the enemy does (`enemy_base.gd:1408-1409`). The squad-break toast is
+     a cheque the AI does not cash. *Sacrificed: the squad will visibly leave you at the climax.*
+  2. **~6 lines â€” MOS-weighted courage.** MOS is read **NOWHERE** in the AI (one hit, and it is a
+     comment, `ally_base.gd:166`); courage is a flat `randf()` (`:296`), so **the RTO plays hero
+     ~25% of the time** and skips the cover trip (`:109`). *Sacrificed: a 10m radio leash dragging
+     the player backward.*
+  3. **~12 lines + a look-check â€” A CONCEALMENT TERM. THIS IS THE VIETCONG GAP.**
+     `_find_cover_point` accepts a position only if a physics ray is BLOCKED
+     (`ally_base.gd:1298-1303`), and grass/fern/bush have **no collider by contract**
+     (`tree_cover_layer.gd:17-19`). **But the simulation ALREADY rewards the grass** â€” vegetation
+     cuts sight (`sight_cap.gd:32-39`) and heavy jungle blocks LOS 30% per cell
+     (`gameplay_grid.gd:406-411`). **The AI cannot see a reward the sim is already paying. One O(1)
+     grid read.** *Sacrificed: your own men vanish into grass â€” check the squadmate nameplates in
+     the same session.*
+  4. **~15 lines â€” make the grenadier's cluster thumper PLAYER-PLACED** via the existing
+     `squad_move` aim. **THE VIETCONG INSIGHT, MEASURED:** the squad owns five verbs â€” trap-spot,
+     call-for-fire, player-revive + bandages, sustained fire, cluster thumper â€” and **four of the
+     five are AUTOMATIC**, which is precisely why only the radio's loss is ever felt. This converts
+     one. *Sacrificed: an r4bk debt â€” a bound key with no HUD, taken knowingly.*
+  **CUT FOR THE DEMO, ON THE RECORD (not dropped quietly):** downed allies (see Q9), and the 70m
+  trunk-collider ring â€” colliders exist only within 70m of the **player**
+  (`tree_cover_layer.gd:34-43`), so allies further out have **zero cover at all**.
+  **LOGGED:** MARKSMAN has a weapon and a body but is absent from `MOS_ORDER` (`squad_roster.gd:64`)
+  â€” **it never spawns.**
+- **D-13 [C] FAIL-FORWARD ALREADY EXISTS AND IS COMPLETE** (`squad_system.gd:224-345`,
+  `health_system.gd:248-286`, 6 bandages `:10`). **Ruling 7 needs no build.** Two contradictions sit
+  inside it instead, both for the Summoner: `revive()` restores **FULL HP**
+  (`health_system.gd:276-278`, his 7/18 decree) versus his 8/3 "come back degraded" (**Q3**); and
+  **the headshot BYPASSES the revive window entirely** (`:203-208`) â€” one round at minute 22 costs
+  22 minutes, and the only button is `reload_current_scene()` (`:362`). **Ruling 6 (no save) and
+  ruling 7 (fail forward) collide at exactly this one code path** (**Q2**).
+  **THE RTO QUESTION HE LISTED AS OPEN IS ALREADY ANSWERED BY THE CODE:** the calls stop totally and
+  permanently â€” `member_by_mos` skips dead men (`squad_system.gd:168`), `_radio_check` needs a living
+  RTO within 10m (`field_director.gd:654-663`), and the player is kicked off the net that frame
+  (`:257-268`); with no downed state, "goes down" and "dies" are the same event. The real question
+  is whether total deletion is the right punishment (**Q4**).
+
+## D-14. CHOW HALL / FIREBASE EXPORT â€” the blocker is older and bigger than reported
+
+The Arbiter's finding **STANDS**: `tools/gen_firebase_v3.py:912`'s default is **CORRECT â€” DO NOT
+REPOINT IT**; `:1104` is **confirmed still stale**. **But that was never the real blocker.**
+**MEASURED: `fsb_main_v3.glb` is dated Jul 26. It contains zero `WB_chowhall`, zero `work_eat` â€” and
+ZERO `WB_medical`. The recovered medical complex has never once been in the running game.**
+**TRAP:** exporting the chow hall as-is **silently steals garrison men** â€” 40 unknown `work_*` types
+enter the fixed 23-man round-robin (`site_planner.gd:936`, `:992-1008`) as `off_duty` statues on the
+mess benches. **Exclude the chow families from the garrison rotation before exporting.**
+**Gated on M-1** â€” if the dot suffix survives import, the whole marker convention is the bug.
+
+## D-15. THE DECISION QUEUE â€” blocked on the Summoner
+
+Ten questions, glossed in plain words, at `synthesis.md Â§7`. **Q1** what the demo ends on now that a
+true sunrise costs three exploits Â· **Q2** should the helmet save you once from a headshot Â· **Q3**
+full health or degraded after a revive Â· **Q4** can the radio be picked up off the RTO's body Â·
+**Q5** how many landing pads Â· **Q6** chow hall manned by rostered men or by fixtures Â· **Q7** how
+many men eat at once Â· **Q8** lock the marker names as final Â· **Q9** confirm cutting wounded
+squadmates Â· **Q10** confirm three calls means three different weapons.
+
+**EVERYTHING SACRIFICED (Law 2, collected):** the DAWN end card Â· the full-day illusion Â· the midday
+return and with it the two-sortie structure Â· ADR-035's finite hunt pool (demo-only exception) Â· the
+busy flightline Â· part of Pillar 3's quiet-play promise (the ambient cell can find a blameless
+player) Â· ADR-011's "the radio is a man" (if Q4 passes) Â· downed allies and the 70m cover ring Â·
+squad legibility (if concealment ships without a nameplate check) Â· an r4bk debt on the thumper Â·
+part of stealth's memory (if the corpse array gets a TTL) Â· `AmbientWar` density under a 38x day.
+
+
+---
+
+## 2026-08-04 — THE RESCOPE, WIRED (Wyrm, coding window)
+
+Executes `war_room/2026-08-03_demo_day_scope/synthesis.md` including his §8 rulings.
+Every item below is CODE WRITTEN AND PARSE-CHECKED, **NONE OF IT IS RUN.** The two
+landmines in particular are discharged only by M-2 and M-3 on the exported build.
+
+**THE TWO LANDMINES — DEFUSED**
+- **Freeze latch.** `siege_director._enforce_live_cap` froze dormant cells and nothing
+  anywhere called `set_physics_process(true)`, so a held cell never marched again while
+  still reporting full paper strength - `live/peak` could never fall and the assault could
+  never break. New `_thaw_held_cells` releases them as the dead make room, one at a time,
+  only while a cell's own strength fits, behind `THAW_HEADROOM 6` so it cannot thrash.
+- **Viewmodel accumulator.** Verified by reading the GLB: `ak_fp.glb` carries `ArmsMesh`,
+  a skinned ~40-bone skeleton and 6 animations, and EVERY weapon `.tres` points
+  `model_path` at its first-person viewmodel - so every dropped rifle instanced the whole
+  rig, arms 1.81m underground. `world_weapon._bake_gun_only` now keeps the gun meshes as
+  flat unskinned `MeshInstance3D`s at rest pose and drops the arms, skeleton and
+  AnimationPlayer. Plus `MAX_WORLD_WEAPONS 24` FIFO (the GunFX pattern) and
+  `MAX_REPRIEVES 3` - the old grace was granted for STANDING NEARBY, the default state at
+  the wire. `EnemyBase.unreported_corpses` bounded at 48, oldest forgotten first, witness
+  logic untouched.
+- **NOT a bug, checked and cleared:** `_check_corpse_discovery`'s `remove_at(i)` inside
+  `for i in range(size())` returns immediately after the removal. No index fault.
+
+**THE ARC** — `demo_game.gd`: 06:30 start (`SimClock.set_time` after the build, because the
+generator seeds its own hour and the weather table wins over it), day 38x, night 20x
+switching once at the 1380s seam, probe 1395 / assault 1440 / end 1800. Dawn card gone;
+`ENDING_PLAYER_SURVIVES` is the single flag for his Q1 delegation.
+
+**THE OPENING** — `_tick_opening`: T+10 `MOVE_TO` on `patrol_gate_pos`, released on arrival
+or by a 210s clock, whichever lands first, then everyone back to FOLLOW. The release line
+prints `N/M arrived`, which is **M-4's measurement**. No new UI element (ADR-030 intact).
+
+**THE WALK OUT** — `plan_demo_world` used to declare `no_signs` and `no_camps`. Both were
+lies about the demo's own content: it now places 2-3 first-signs at 150-300m on the
+outbound bearing, and **an enemy camp at ~300m on the opposite flank from the village**
+(his rescope: "one village and one enemy camp"). Ambient walking patrols were ALREADY
+built and already ship - `build_patrol_world` spawns 2-3 `LazyGroup` circuits between the
+gate and the sites. Do not build a second ambient-cell system.
+
+**THE FALSE ALARM** — `_check_detection` fired "YOU'VE BEEN MADE" off
+`EnemyBase.last_combat_contact_ms`, a GLOBAL static that rises when any enemy anywhere goes
+loud. The hunter spawn already refused to send anyone without an evidence fix, so the toast
+was a promise the system would not keep - nearly unreachable in 7 minutes, routine across a
+30-minute day with ambient cells walking. The alarm now requires what the hunters require.
+
+**AIR** — `_dispatch` checked the ceiling once before the lead then added up to 8 wingmen
+unchecked (22 airframes against a ceiling of 14, on a call-bound project); the check now
+binds every ship and a truncated pack prints. `FSB_PAD_PREFIXES` comment said "measured:
+three 15x15m PSP pads" - **drift**: three nodes match and all three sit at the same
+position, so `_free_pad` would land three aircraft on one square metre. `_firebase_lzs`
+now de-duplicates co-located markers past `PAD_DISTINCT_M 12`. A second REAL pad is his
+Blender bench, and he has said the dual-pad firebase is built but unexported.
+
+**FIRE SUPPORT / THE RADIO** — demo allotment is `bombs: 3` and zero of everything else
+(his ruling, overruling the council's bomb/arty/mortar split). Napalm at the raid and the
+daytime bursts are scripted spectacle billed to nobody, and `garrison_illum` never touched
+this stock, so zeroing illum costs the player no light. **The radio is now an object**:
+`SquadSystem._hand_off_radio` reassigns the RTO *MOS* to the nearest living man on the
+radioman's death, so all eight downstream `member_by_mos("RTO")` call sites keep working
+untouched and the heir carries it at full quality. Fire support dies with the SQUAD.
+This supersedes ADR-011's "the radio is a man" for the squad net.
+
+**CHOW HALL — HALF WIRED, AND THE HALF THAT IS BLOCKED IS NAMED.** Marker families now map
+to occupations (`chow_server*` -> `mess_cook` as a post; `eat`/`queue`/`chow_diner` ->
+a new `mess_hall` schedule) and are in the work priority. `civilian_schedules.action_for`
+takes an optional `who` so a man's **sitting** is derived from his own node name - the same
+ADR-010 identity the work offset uses. **THREE SITTINGS, deliberately:** filling all 24
+seats at once against a 40-man ceiling leaves 16 men running the firebase in the hour
+before stand-to - a full mess and an abandoned wire.
+**NOT BUILT: the 19-clip queue/tray/seat chain**, because the chow markers are not in the
+shipped GLB yet (his re-export) and because **M-1 gates every chow-hall decision** - if the
+dot suffix does not survive import, ~185 of 198 markers are junk and this is built on sand.
+
+**STILL OPEN**
+- ~~The gunship ending flies the wrong shape.~~ **BUILT 2026-08-04.** New `gun_orbit`
+  profile: a pair enters on its own bearing from `ORBIT_INBOUND_M 330`, crosses to the far
+  side and walks a 12-waypoint circle at `ORBIT_RADIUS_M 130` / `ORBIT_ALTITUDE_M 45` for
+  `ORBIT_SECONDS 75`, then runs out. Flown as WAYPOINTS rather than a parametric curve so it
+  reuses Helicopter's existing speed ramp, altitude lerp and yaw lerp instead of adding a
+  second movement model. **The reaper was the trap:** it deletes any flight within 20m of
+  its destination, and an orbiting ship is within 20m of its waypoint by design - the
+  gunships would have vanished one lap in. `orbit_in`/`orbit` are now in the `settled` list.
+  Budget: ~90s of the 240s `MAX_FLIGHT_SECONDS` at the Huey's 50 m/s.
+  **NO DOOR GUN, deliberately** - his ruling 2026-08-04 mid-build ("dont build the gun...
+  im going to stage that in a heuy eventually. i just want that idea to be there"). The
+  huey.tscn carries no gunner rig, so a firing gun today would be rounds leaving an empty
+  doorway. The hook when his staged gunner lands is the `orbit` phase.
+- **Every measurement M-1..M-5.** Nothing here has been run.

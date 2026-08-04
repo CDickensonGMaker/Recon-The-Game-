@@ -563,7 +563,44 @@ func _on_member_died(ally: AllyBase) -> void:
 	var nick: String = SquadRoster.earned_nick(m)
 	_toast("KIA: %s %s%s - %d confirmed" % [SquadRoster.rank_for(m), str(m.name),
 		(" \"%s\"" % nick) if nick != "" else "", int(m.get("kills", 0))])
+	if str(m.get("mos", "")) == "RTO":
+		_hand_off_radio(ally)
 	CampaignState.save_campaign()
+
+
+## THE RADIO IS AN OBJECT, NOT A MAN (his ruling, 2026-08-03: "IF the RTO guy dies we
+## should be able to have someone else pick it up. than they turn into the RTO guy. so
+## when the squads dead no more radio").
+##
+## Everything downstream resolves the net through `member_by_mos("RTO")` - the radio
+## check, the VO source, the allotment, the fire request. So the handoff is done by
+## REASSIGNING THE MOS rather than by teaching eight call sites about a handset: the man
+## who takes it IS the RTO, at full quality, with no sloppy-rounds penalty.
+##
+## This supersedes ADR-011's "the radio is a man" for the squad's own net. Fire support
+## still dies - it dies with the SQUAD, which is the point.
+func _hand_off_radio(fallen: AllyBase) -> void:
+	# A dead man left in the radioman group is a lie the group probe cannot see through.
+	if fallen.is_in_group("radioman"):
+		fallen.remove_from_group("radioman")
+	var heir: AllyBase = null
+	var best: float = 1.0e9
+	for a in members:
+		if not is_instance_valid(a) or a.is_dead() or a == fallen:
+			continue
+		if str(a.member.get("mos", "")) == "RTO":
+			return   # a second radioman is already carrying it
+		# Nearest living man to the body: he is the one who could actually reach it.
+		var d: float = a.global_position.distance_to(fallen.global_position)
+		if d < best:
+			best = d
+			heir = a
+	if heir == null:
+		_toast("THE RADIO IS GONE - NOBODY LEFT TO CARRY IT")
+		return
+	heir.member["mos"] = "RTO"
+	_wire_rto_radio(heir)
+	_toast("%s HAS THE RADIO NOW" % SquadRoster.call_name(heir.member))
 
 
 func on_mission_end() -> void:
