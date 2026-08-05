@@ -32,6 +32,16 @@ signal bullet_spawned(shooter: Node, weapon: WeaponData)
 const MAX_BULLETS: int = 500
 const MAX_TRACERS: int = 48        ## visual streaks cap (sim is unaffected)
 const MAX_TRAVEL: float = 1200.0   ## m - nothing on a 1280m AO flies further
+
+## SHOOTER-ANCHORED TREE PROMOTION (his ruling 2026-08-05: "the object knows its got a
+## collider as a bullet or something comes towards it"). The player carries a permanent
+## 70m collision bubble, so trunks near HIM are already solid both ways; a man firing
+## from beyond it had none, and the player's return fire passed through the tree he was
+## standing behind. Anchored to the SHOOTER and not to the round: a stable point hits
+## TreeCoverLayer's 4m dedupe every time, so sustained fire pays once instead of per
+## shot - a corridor endpoint 250m out would miss the dedupe on aim jitter alone.
+const SHOOTER_COVER_RADIUS: float = 8.0
+const SHOOTER_COVER_HOLD_S: float = 2.0
 const MAX_AGE: float = 4.0         ## s backstop
 const GRAVITY: float = 9.8
 
@@ -68,6 +78,8 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 				% [MAX_BULLETS, _cap_hits, _peak_bullets])
 		_finish(_bullets[0])
 		_bullets.remove_at(0)
+	if shooter is Node and not (shooter as Node).is_in_group("player"):
+		TreeCoverLayer.threat_zone(get_tree(), from, SHOOTER_COVER_RADIUS, SHOOTER_COVER_HOLD_S)
 	var excl_rids: Array[RID] = []
 	for e in exclude:
 		if e is CollisionObject3D:

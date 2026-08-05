@@ -300,6 +300,12 @@ func _ready() -> void:
 	# Mirror mode isolates the fire path: identical sides. Activity-tiering only
 	# touches EnemyBase (VC), not AllyBase (US), so leaving it on would tier one
 	# side and void the symmetry premise. Neutralize it for that probe only.
+	# These three are STATICS on shipped systems. The arena is a lab, not a mission, and
+	# a lab that edits the game and walks away is how a demo run inherits arena values
+	# without anything saying so - _exit_tree puts every one of them back.
+	_prev_tiering = EnemySquad.tiering_enabled
+	_prev_gib_lifetime = GibSystem.gib_lifetime_s
+	_prev_cone_mult = GameSettings.ai_vs_ai_cone_mult
 	if mirror_mode:
 		EnemySquad.tiering_enabled = false
 	GibSystem.gib_lifetime_s = 25.0
@@ -1558,6 +1564,11 @@ func _on_siege_began(strength: int, is_probe: bool) -> void:
 ## HOLDS it - the AllyBase zone doctrine forbids hunting off the firebase.
 const DEFENSE_ZONE_RADIUS: float = 16.0
 
+## Shipped-system statics the arena overrides for the lab, restored in _exit_tree.
+var _prev_tiering: bool = true
+var _prev_gib_lifetime: float = 12.0
+var _prev_cone_mult: float = 1.0
+
 
 func _assign_defense_zones() -> void:
 	var z_len: float = FORT_LINE_Z1 - FORT_LINE_Z0
@@ -2071,6 +2082,9 @@ func _print_final_summary() -> void:
 
 func _exit_tree() -> void:
 	GibSystem.force_all_gibs = false  # lab-only crank; never leak into a real mission
+	EnemySquad.tiering_enabled = _prev_tiering
+	GibSystem.gib_lifetime_s = _prev_gib_lifetime
+	GameSettings.ai_vs_ai_cone_mult = _prev_cone_mult
 	# MissionWeather.is_night is a global static; the bench set it, the bench clears it.
 	if bench_dressing:
 		MissionWeather.is_night = false
