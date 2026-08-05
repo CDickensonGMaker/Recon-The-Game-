@@ -306,6 +306,8 @@ func _ready() -> void:
 	_prev_tiering = EnemySquad.tiering_enabled
 	_prev_gib_lifetime = GibSystem.gib_lifetime_s
 	_prev_cone_mult = GameSettings.ai_vs_ai_cone_mult
+	_prev_player_dmg = GameSettings.player_outgoing_damage_mult
+	GameSettings.player_outgoing_damage_mult = player_damage_multiplier
 	if mirror_mode:
 		EnemySquad.tiering_enabled = false
 	GibSystem.gib_lifetime_s = 25.0
@@ -1568,6 +1570,7 @@ const DEFENSE_ZONE_RADIUS: float = 16.0
 var _prev_tiering: bool = true
 var _prev_gib_lifetime: float = 12.0
 var _prev_cone_mult: float = 1.0
+var _prev_player_dmg: float = 1.0
 
 
 func _assign_defense_zones() -> void:
@@ -2036,11 +2039,6 @@ func _total_vc() -> int:
 	return _vc_squads.size() * men_per_squad
 
 
-## Arena-local accessor so bullet_system can scale player damage without
-## hard-coding the arena reference. Safe to call from any scene; returns 1.0
-## if no arena is active.
-func get_player_damage_mult() -> float:
-	return player_damage_multiplier
 
 
 ## ---------- ROUND LIFECYCLE ----------
@@ -2085,6 +2083,7 @@ func _exit_tree() -> void:
 	EnemySquad.tiering_enabled = _prev_tiering
 	GibSystem.gib_lifetime_s = _prev_gib_lifetime
 	GameSettings.ai_vs_ai_cone_mult = _prev_cone_mult
+	GameSettings.player_outgoing_damage_mult = _prev_player_dmg
 	# MissionWeather.is_night is a global static; the bench set it, the bench clears it.
 	if bench_dressing:
 		MissionWeather.is_night = false

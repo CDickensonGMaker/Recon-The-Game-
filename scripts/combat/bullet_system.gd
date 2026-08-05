@@ -177,15 +177,13 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 		GunFX.blood(scene, hit.position, hit.normal, travel_dir, target)
 		var dist: float = float(b.traveled) + (b.pos as Vector3).distance_to(hit.position)
 		var falloff: float = wd.damage_multiplier_at(dist)
+		# His outgoing-damage dial. Shipped code no longer duck-types the current scene to
+		# ask whether it happens to be the arena (ADR-023): the value is a shared setting,
+		# so it also works in the demo and the patrol world, not only on the bench.
 		var player_dmg_mult: float = 1.0
-		# Arena-only: scale player damage independently of AI-vs-AI durability.
 		if shooter != null and is_instance_valid(shooter):
 			if shooter.is_in_group("player") or (shooter.get_parent() != null and shooter.get_parent().is_in_group("player")):
-				var arena: Node = scene
-				if arena == null:
-					arena = get_tree().current_scene
-				if arena != null and arena.has_method("get_player_damage_mult"):
-					player_dmg_mult = arena.get_player_damage_mult()
+				player_dmg_mult = GameSettings.player_outgoing_damage_mult
 		var dmg: int = maxi(1, int(float(wd.get_damage()) * falloff * mult * player_dmg_mult * float(b.dmg_scale)))
 		target.take_damage(dmg, wd.damage_type, shooter, zone)
 		# GORE channel: hand the struck zone's REGION (ARM_L_UP...) to the

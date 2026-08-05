@@ -17,6 +17,12 @@ var hardcore: bool = false  ## no compass, no markers, faster bleed
 ## fire. It only ever scales the non-player cone cap - AI-vs-player lethality is untouched.
 var ai_vs_ai_cone_mult: float = 1.0
 
+## Scales damage the PLAYER DEALS. Keeps his gunfeel independent of AI durability, so
+## AI HP can be raised to watch a long AI-vs-AI fight without his rifle going soft.
+## NOT to be confused with player_damage_mult() below, which is the OPPOSITE direction -
+## damage he TAKES, off the difficulty setting. Two names, two directions; read twice.
+var player_outgoing_damage_mult: float = 1.0
+
 const DIFFICULTY_NAMES: Array[String] = ["EASY", "NORMAL", "HARD"]
 
 
