@@ -100,3 +100,7 @@ production/cinematics/**/*.blend
 # never the blob, so the 100 MB ceiling is not in play.
 !assets/us/characters/us_base_v3.blend
 build/
+
+# Working backups - never tracked (no-blend-backups rule, storage-bloat law)
+*.bak
+*_PRE_*.blend
