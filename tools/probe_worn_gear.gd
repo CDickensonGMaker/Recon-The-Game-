@@ -7,7 +7,7 @@ extends SceneTree
 ##   4. did the hurtbox actually shrink (the whole point of the exercise)?
 
 func _initialize() -> void:
-	for unit in ["us_grunt_rifleman", "us_grunt_v3"]:
+	for unit in ["us_grunt_rifleman", "us_grunt_mg"]:
 		var ps: PackedScene = load(ModelActor.model_path(unit))
 		var root: Node3D = ps.instantiate()
 		get_root().add_child(root)

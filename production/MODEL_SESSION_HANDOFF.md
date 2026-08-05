@@ -91,11 +91,22 @@ so his gore head cap would not have followed him; it is now bound to his rig lik
 A rotated object has a taller world box while being exactly the same helmet — that is what made the
 first run of this fix "fail" a helmet it had already corrected.*
 
-**Open defect as of 2026-08-04, pre-existing:**
-- **`us_v3_soldier_lineup.blend`'s `grunt_head_*` meshes are bound to the wrong armature** — the
-  marksman's head evaluates 3.7 m from his own head bone, the pointman's 4.75 m. Helmets there are
-  correct relative to their bones; it is the heads that are wrong. That file does not ship, but it is
-  what `export_helmets.py` reads for the socket metadata.
+**FIXED 2026-08-04 — `tools/fix_lineup_rig_drift.py`. No open defects remain on these units.**
+In `us_v3_soldier_lineup.blend` each soldier was split across two positions: his rig, his joined body
+and every bone-parented item stood on a widening spread, while his separate GIB PIECES (`grunt_*`,
+`cap_*`, `Base_Human_*`) sat back on the original 1.5 m grid — up to **4.75 m** apart on the pointman.
+
+*This was twice mis-diagnosed before it was measured, so record what it was NOT:* it was **not** a
+mis-bind. Every mesh is bound to its own rig with **34/34 matching vertex groups**, and raw centre
+equals evaluated centre, so the skinning was never wrong. Nor were the rigs the drifted party — the
+joined body, which is what renders and exports, travels with the rig. The gib pieces were simply never
+moved when the lineup was spread out. Each man's delta was measured from **his own** head bone against
+**his own** `grunt_head`, never borrowed from a neighbour, and offsets *within* a soldier were left
+alone (a T-posed man's forearm genuinely sits 0.4 m off his centre; "fixing" that takes his arms off).
+
+Result, uniform across all seven: head-to-bone **0.0770 m**, helmet-to-head **0.0423 m**, gib-head to
+joined-body **0.0004 m**. Lineup audit: **0 rigid gear pieces with a real problem** (was 18).
+`helmets.json`'s socket is bone-relative and came out unchanged — `(0.0019, -0.0467, 0.0285)`.
 
 ---
 

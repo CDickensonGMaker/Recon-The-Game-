@@ -16,8 +16,11 @@ The squad exporter's three contracts still bind here:
   2. mesh names are load-bearing; the per-man suffix is stripped before export
   3. height is measured over the body AND the worn pieces (ADR-002)
 """
-import bpy, os
+import bpy, os, sys
 from mathutils import Vector, Matrix
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from flatten_procedural_colors import flatten, assert_none_white
 
 LINEUP = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 OUT_DIR = r"C:\Users\caleb\RECONgame\assets\us\characters"
@@ -29,10 +32,14 @@ UNITS = [
     ("us_pilot_white", "PSXRig_pointman.001"),
     ("us_pilot_black", "PSXRig_pilot_black"),
     ("us_medic",       "PSXRig_medic"),
+    ("us_medic_black", "PSXRig_medic_black"),
+    ("us_surgeon",     "PSXRig_surgeon"),
 ]
 
-# suffixes stripped off mesh names so gib/hitzone lookups resolve (contract 2)
-SUFFIXES = ("_pointman.001", "_pilot_black", "_medic_black", "_medic", "_pilot")
+# suffixes stripped off mesh names so gib/hitzone lookups resolve (contract 2).
+# LONGEST FIRST: "_medic_black" must be tried before "_medic", or the black medic's
+# meshes strip to "..._black" and every gib lookup misses.
+SUFFIXES = ("_pointman.001", "_pilot_black", "_medic_black", "_medic", "_surgeon", "_pilot")
 
 # an antenna in the height box squeezes the whole man; see export_us_squad.py
 HEIGHT_EXCLUDE = ("radio", "antenna", "prc25", "handset")
@@ -125,6 +132,13 @@ def export_one(unit_id, rig_name):
     for o in [rig] + meshes:
         o.select_set(True)
     bpy.context.view_layer.objects.active = rig
+
+    # see flatten_procedural_colors: a node-driven Base Color ships as WHITE
+    flatten(meshes)
+    left = assert_none_white(meshes)
+    if left:
+        raise SystemExit("ABORT %s: material(s) would ship on the engine default: %s"
+                         % (unit_id, left))
 
     out = os.path.join(OUT_DIR, "%s.glb" % unit_id)
     bpy.ops.export_scene.gltf(

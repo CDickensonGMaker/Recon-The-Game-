@@ -23,6 +23,13 @@ var _dying: bool = false
 var _dead: bool = false
 
 
+## bullet_system reads the soft_cover/hard_surface group off the collider a round hits.
+## Every kind this class wraps is sandbag/earth/timber - real cover - except wire, which
+## blocks a man and not a bullet. Every spawn site sets `kind` before add_child.
+func _ready() -> void:
+	add_to_group("soft_cover" if kind == "wire" else "hard_surface")
+
+
 ## The one damage grammar as a receiver (ADR-003). Only explosions reach it (no Hitzone, so
 ## rifle fire is merely blocked by the collider — cover). A lethal hit queues the swap.
 func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:

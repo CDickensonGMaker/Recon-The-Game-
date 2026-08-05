@@ -23,7 +23,7 @@ COLS, ROWS = 13, 10
 # Spread the fireteam across the white and black bands so it reads as a squad
 # of different men, not octuplets.
 PICKS = {
-    "us_grunt_v3": 4 * COLS + 0,
+    # us_grunt_v3 retired 2026-08-04 - its cell (row 4, col 0) is free again
     "us_grunt_rifleman": 4 * COLS + 3,
     "us_grunt_pointman": 5 * COLS + 7,
     "us_grunt_mg": 1 * COLS + 2,

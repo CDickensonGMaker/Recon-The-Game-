@@ -963,8 +963,10 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			# tent floor instead of surface_y's first-hit ROOF. Every BT arrive check is 3-D
 			# within ~1.6m, so a wrong-height working point is a man walking at it forever.
 			pos.y = world.floor_y(pos) + 0.5
+			# The aid station gets the surgeon, not whoever the pool rolled
+			# (Civilian.models_for). Every other post still draws from GARRISON_MEN.
 			var man: Civilian = Civilian.spawn(world, pos, director, false,
-				CivilianScript.GARRISON_MEN, true)
+				CivilianScript.models_for(str(post.occupation)), true)
 			man.occupation = str(post.occupation)
 			var wp: Vector3 = station
 			wp.y = world.floor_y(wp)

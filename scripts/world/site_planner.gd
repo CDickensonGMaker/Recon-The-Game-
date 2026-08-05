@@ -145,6 +145,19 @@ static func _is_soft_cover(model_name: String) -> bool:
 	return false
 
 
+## bullet_system reads the soft_cover/hard_surface GROUP off the exact collider a
+## round hits - never a parent. This puts one material on every collision object
+## under a structure, so nested GLB -col bodies answer the same as the root.
+static func tag_ballistics(root: Node, soft: bool) -> void:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is CollisionObject3D:
+			n.add_to_group("soft_cover" if soft else "hard_surface")
+
+
 ## Place one structure: StaticBody3D root (layer 1) + GLB visual + authored box.
 func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
 	var model_name := model_path.get_file().get_basename()
@@ -160,10 +173,7 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	# CollisionTable.is_soft() is the one authority, and it push_warning()s loudly for
 	# any model it has no material for - so a gap is NOISY instead of silently making
 	# a bunker shootable through because its name contains "rack".
-	if CollisionTable.is_soft(model_name):
-		body.add_to_group("soft_cover")   # rounds punch through it (x0.8, soft_left=2)
-	else:
-		body.add_to_group("hard_surface")  # stops the round - and finally SPARKS
+	var soft: bool = CollisionTable.is_soft(model_name)
 	var scene: PackedScene = load(model_path)
 	if scene:
 		var visual := scene.instantiate()
@@ -172,6 +182,11 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 			visual.scale = Vector3(s, s, s)
 		body.add_child(visual)
 		_apply_visibility_range(visual)  # R92: cull distant structure geometry
+	# Runs on the WHOLE subtree, not just this root: for mesh-collision GLBs the
+	# collider a bullet actually hits is the -col StaticBody3D nested inside the
+	# visual scene, and a group on the root alone never reaches it - every thatch
+	# hut was silently bulletproof.
+	tag_ballistics(body, soft)
 	var box_size: Vector3 = entry.box
 	if box_size.length() > 0.01:
 		# NavBaker carves these out of the site navmesh. punji_trap has a zero box
@@ -1321,7 +1336,45 @@ func _repair_glb_colliders(root: Node3D) -> void:
 			mound_backfaced += _force_backface_collision(b2)
 	print("[FSB] %d concave shape(s) forced double-sided (inward winding in the shipped GLB)"
 		% mound_backfaced)
+	_tag_fsb_ballistics(root)
 	_audit_floating_colliders(root)
+
+
+## Ballistic material for the firebase GLB's own colliders, by mesh family (the family
+## name IS the material: gen_firebase_v3.py builds each list from one master). Canvas,
+## plywood and tin are CONCEALMENT - a GP tent, a hootch wall or a water trailer does
+## not stop a 7.62. Everything else on this compound is filled sandbags, earth, timber
+## or steel, so hard is the default. The TOC is deliberately hard: a firebase TOC is
+## the most sandbagged structure inside the wire.
+const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
+	"fb_aid_station", "fb_latrine", "fb_supply_dump", "fb_water_point",
+	"fb_burn_barrel", "bwire_card"]
+
+
+func _tag_fsb_ballistics(root: Node3D) -> void:
+	var soft_n: int = 0
+	var hard_n: int = 0
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var body := n as CollisionObject3D
+		if body == null:
+			continue
+		var nm := String(body.name)
+		var soft: bool = false
+		for p in FSB_SOFT_PREFIXES:
+			if nm.begins_with(p):
+				soft = true
+				break
+		body.add_to_group("soft_cover" if soft else "hard_surface")
+		if soft:
+			soft_n += 1
+		else:
+			hard_n += 1
+	print("[FSB] ballistic tags: %d soft (tent/hootch/tin), %d hard (earth/sandbag/timber)"
+		% [soft_n, hard_n])
 
 
 ## Rebuild one merged-vegetation collider from its own visual mesh. Returns whether it found

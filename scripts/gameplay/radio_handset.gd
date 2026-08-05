@@ -8,15 +8,16 @@ extends Node3D
 ## player's hand/viewmodel), and reparenting a bone-attached mesh across skeletons
 ## is how gear ends up on the floor.
 ##
-## The cord NEVER blocks movement. It bellies, reads TAUT at `taut_at`, and past
-## full stretch the handset is RIPPED out of the holder's hand and snaps back.
+## The cord NEVER blocks movement and NEVER rips the handset away (his ruling
+## 2026-08-04: taking the radio must never break what is in your hand). It
+## bellies, reads TAUT at `taut_at`, and past that it just pulls - the leashed
+## RTO closes the distance (AllyBase.radio_leash).
 ##
 ## `handset_taken` is emitted so the weapon system can stow the weapon - holding
 ## the handset costs you your rifle.
 
 signal handset_taken(by: Node3D)
 signal handset_returned()
-signal cord_snapped()
 signal cord_taut(is_taut: bool)
 
 enum State { STOWED, HELD }
@@ -58,7 +59,7 @@ func take(by: Node3D) -> bool:
 	return true
 
 
-## Put it back. Also called when the cord snaps.
+## Put it back.
 func stow() -> void:
 	if state == State.STOWED:
 		return
@@ -85,12 +86,6 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	var t: float = cord.tension()
-
-	if t >= 1.0:
-		# Past full stretch. Rip it out of his hand rather than trapping him.
-		cord_snapped.emit()
-		stow()
-		return
 
 	var taut: bool = t >= taut_at
 	if taut != _was_taut:

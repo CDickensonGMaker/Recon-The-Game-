@@ -80,6 +80,7 @@ func _ready() -> void:
 	_build_light()
 	_build_target_field()
 	_build_cover_line()
+	_build_bunkers()
 	_bake_navmesh()
 	# The navigation server needs physics frames to register the baked region before
 	# agents can resolve paths on it (same wait the AI arena takes).
@@ -201,7 +202,7 @@ func _spawn_ally_squad() -> void:
 		if ally == null:
 			continue
 		ally.member = {"nick": str(spec["nick"]), "mos": "RIFLEMAN"}
-		ally.set_sprite("us_grunt_v3", SquadSystem.weapon_for_mos("RIFLEMAN"), "US")
+		ally.set_sprite("us_grunt_rifleman", SquadSystem.weapon_for_mos("RIFLEMAN"), "US")
 		ally.set_order(AllyBase.OrderMode.FOLLOW)
 		ally.courage = float(spec["courage"])
 		ally.skill = 0.55
@@ -237,6 +238,33 @@ func _plant_tree(pos: Vector3) -> void:
 	_trees.append(tree)
 
 
+## His two ORIGINAL hand-built fighting bunkers (exported from the firebase truth
+## source 2026-08-04), flanking the line facing the tree field so he can walk in
+## and shoot out of the slits. The -colonly twins import as real collision with
+## the slits OPEN. Kit facing convention: Blender +Y = Godot -Z, so yaw 0 should
+## point the front at the field - tell him to say so if a slit faces the wrong way.
+const BUNKERS: Array = [
+	["res://assets/world/building models/structures/firebase/kit/fb_bunker_mg.glb",
+		Vector3(-14.0, 0.0, 5.0)],
+	["res://assets/world/building models/structures/firebase/kit/fb_bunker_fighting.glb",
+		Vector3(14.0, 0.0, 5.0)],
+]
+
+
+func _build_bunkers() -> void:
+	for spec in BUNKERS:
+		if not ResourceLoader.exists(str(spec[0])):
+			print("[SUPPORT FIRE RANGE] bunker GLB not imported yet: %s" % str(spec[0]))
+			continue
+		var packed := load(str(spec[0])) as PackedScene
+		if packed == null:
+			continue
+		var b := packed.instantiate() as Node3D
+		add_child(b)
+		b.global_position = spec[1] as Vector3
+		b.add_to_group("nav_source")
+
+
 ## The friendly line. spawn_fort centres the mesh on the node, so the visual box is
 ## doubled in Y to match the 0..1.4 collider instead of sinking half underground.
 func _build_cover_line() -> void:
@@ -250,16 +278,42 @@ func _build_cover_line() -> void:
 		_cover_line.append(fort)
 
 
+## The rounds board (his ruling 2026-08-04: "i need to be told what buttons to hit
+## to switch to whatever rounds I have available"). Live: reads the director's
+## actual stock every refresh, so an expended tier reads OUT instead of lying.
+const _LEGEND_ROWS: Array = [
+	["1", "SNAKE EYE BOMBS", "bombs"], ["2", "NAPALM", "napalm"],
+	["3", "ARTILLERY", "arty"], ["4", "MORTARS", "mortar"],
+	["5", "SPECTRE", "spectre"], ["6", "CBU CLUSTER", "cbu"],
+	["7", "WILLY PETE", "wp"], ["8", "ILLUM", "illum"],
+]
+var _legend: Label = null
+var _legend_t: float = 0.0
+
+
 func _build_hint() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	var hint := Label.new()
-	hint.text = "SUPPORT FIRE RANGE   press a number to FIRE 60m ahead of your aim  |  1 bombs 2 napalm 3 arty 4 mortar 5 spectre 6 CBU 7 WP 8 illum  |  9 ENEMY ASSAULT (cover lab)"
-	hint.position = Vector2(16.0, 12.0)
-	layer.add_child(hint)
+	_legend = Label.new()
+	_legend.position = Vector2(16.0, 12.0)
+	layer.add_child(_legend)
 	_toast = Label.new()
-	_toast.position = Vector2(16.0, 40.0)
+	_toast.position = Vector2(16.0, 240.0)
 	layer.add_child(_toast)
+	_update_legend()
+
+
+func _update_legend() -> void:
+	if _legend == null or _director == null:
+		return
+	var lines: PackedStringArray = [
+		"SUPPORT FIRE RANGE - press the number, it fires 60m ahead of your aim"]
+	for row in _LEGEND_ROWS:
+		var count: int = int(_director.fire_support.get(str(row[2]), 0))
+		lines.append("[%s] %s %s" % [str(row[0]), str(row[1]),
+			("x%d" % count) if count > 0 else "- OUT"])
+	lines.append("[9] ENEMY ASSAULT   LMB send / RMB back out   [T] net on-off")
+	_legend.text = "\n".join(lines)
 
 
 ## BENCH SHORTCUT: number keys fire the mission DIRECTLY at a point 60m along the
@@ -1082,6 +1136,10 @@ func _process(delta: float) -> void:
 	_update_cover_markers()
 	_update_metrics(delta)
 	_update_lethality_poll()
+	_legend_t -= delta
+	if _legend_t <= 0.0:
+		_legend_t = 0.5
+		_update_legend()
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		if _toast_t <= 0.0 and _toast != null:

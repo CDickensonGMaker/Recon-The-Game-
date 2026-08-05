@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -12,13 +12,15 @@ firing_mode = 2
 fire_rate = 70.0
 magazine_size = 8
 reload_time = 3.2
+empty_reload_time = 4.6667
+jam_clear_time = 1.8667
 base_damage = 35
 pellet_count = 9
 pellet_spread_deg = 3.0
 base_spread = 1.2
 ads_spread_mult = 0.5
-recoil_vertical = 3.4
-recoil_horizontal = 0.9
+recoil_vertical = 10.35
+recoil_horizontal = 8.85
 viewmodel_fov = 58.0
 ads_fov = 65.0
 effective_range = 25.0
@@ -29,7 +31,7 @@ tracer_ratio = 0
 recoil_first_shot_mult = 1.2
 recoil_climb_per_shot = 0.0
 recoil_climb_max = 1.0
-recoil_recovery = 9.0
+recoil_recovery = 0.5
 fire_volume_db = 2.0
 fire_pitch_variance = 0.05
 audio_max_distance = 380.0

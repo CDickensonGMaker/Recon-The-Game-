@@ -168,12 +168,12 @@ func _test_funnel() -> void:
 
 ## --- PART B: the crouch clips actually exist on a real merged rig and play.
 func _test_clips_exist() -> void:
-	print("\n[B] clips exist + play on us_grunt_v3 (merged library)")
+	print("\n[B] clips exist + play on us_grunt_rifleman (merged library)")
 	var ma: ModelActor = ModelActorScript.new()
 	add_child(ma)
-	if not ma.setup("us_grunt_v3"):
+	if not ma.setup("us_grunt_rifleman"):
 		_fails += 1
-		print("  FAIL: could not set up us_grunt_v3 model (cannot verify clips)")
+		print("  FAIL: could not set up us_grunt_rifleman model (cannot verify clips)")
 		ma.queue_free()
 		return
 	await get_tree().process_frame
@@ -258,7 +258,7 @@ func _test_cover_exit() -> void:
 	await get_tree().process_frame
 	var ma: ModelActor = ModelActorScript.new()
 	e.add_child(ma)
-	if not ma.setup("us_grunt_v3"):
+	if not ma.setup("us_grunt_rifleman"):
 		_fails += 1
 		print("  FAIL: could not set up model for cover-exit test")
 		e.queue_free()

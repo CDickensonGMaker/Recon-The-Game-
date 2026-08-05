@@ -150,16 +150,25 @@ const MOS_WEAPON: Dictionary = {
 	"RIFLEMAN":  "m16a1",
 }
 
+## us_grunt_v3 was RETIRED 2026-08-04. It was the July base body and it was the fallback
+## in five places, so any lookup that missed quietly handed back the old model. The six
+## role bodies below are the whole allied US cast now.
 const WEAPON_BODY_POOLS: Dictionary = {
-	"m16a1": ["us_grunt_v3", "us_grunt_pointman", "us_grunt_rifleman"],
+	"m16a1": ["us_grunt_pointman", "us_grunt_rifleman"],
 	"m60":   ["us_grunt_mg"],
 	"m79":   ["us_grunt_grenadier"],
 	"m70":   ["us_grunt_marksman"],
 }
 
+## A medic who spawns as a rifleman is a medic nobody can pick out of a firefight -
+## and us_medic.glb existed for weeks while MEDIC fell through to the generic pool.
 const DETERMINISTIC_MOS_BODY: Dictionary = {
-	"RTO": "us_grunt_rto",
+	"RTO":   "us_grunt_rto",
+	"MEDIC": "us_medic",
 }
+
+## Every miss lands here. It must be a body that ships.
+const FALLBACK_BODY: String = "us_grunt_rifleman"
 
 
 static func weapon_for_mos(mos: String) -> String:
@@ -170,9 +179,9 @@ static func pick_body_for_mos(mos: String, rng: RandomNumberGenerator) -> String
 	if DETERMINISTIC_MOS_BODY.has(mos):
 		return str(DETERMINISTIC_MOS_BODY[mos])
 	var weapon: String = weapon_for_mos(mos)
-	var pool: Array = WEAPON_BODY_POOLS.get(weapon, ["us_grunt_v3"]) as Array
+	var pool: Array = WEAPON_BODY_POOLS.get(weapon, [FALLBACK_BODY]) as Array
 	if pool.is_empty():
-		return "us_grunt_v3"
+		return FALLBACK_BODY
 	return str(pool[rng.randi_range(0, pool.size() - 1)])
 
 
@@ -180,10 +189,11 @@ func _pick_unit_for_mos(mos: String) -> String:
 	return pick_body_for_mos(mos, _roster_rng)
 
 
-## The squad RTO carries a live PRC-25: put him in group "radioman" so RadioMenu
-## opens, build his handset rig (shared RadioHandset.attach_to), and bind it to the
-## player's FP viewmodel/cord. The fire-support proximity path (field_director) is
-## separate and already worked - this is what lets the player grab the handset.
+## The squad RTO carries a live PRC-25: put him in group "radioman" so the player's
+## [F] passes the handset instantly, build his handset rig (shared
+## RadioHandset.attach_to), and bind it to the player's FP viewmodel/cord. The
+## fire-support proximity path (field_director) is separate and already worked -
+## this is what lets the player grab the handset.
 func _wire_rto_radio(rto: AllyBase) -> void:
 	rto.add_to_group("radioman")
 	var handset: RadioHandset = RadioHandset.attach_to(rto)

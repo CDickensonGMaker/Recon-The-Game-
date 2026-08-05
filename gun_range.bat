@@ -1,1 +1,1 @@
-@echo offrem THE RANGE - every gun in the armory, docile targets at 25-500m.rem [ ] cycle weapon | H hitzones | R reset targets | B bullet-drop sheet"C:\Users\caleb\Downloads\Godot_v4.7-stable_win64.exe\Godot_v4.7-stable_win64.exe" --path "%~dp0" res://scenes/levels/gun_range.tscn
+@echo offrem THE RANGE - every gun in the armory, docile targets at 25-500m.rem [ ] cycle weapon | H hitzones | R reset targets | B bullet-drop sheet"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0" res://scenes/levels/gun_range.tscn

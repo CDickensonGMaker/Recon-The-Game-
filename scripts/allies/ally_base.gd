@@ -125,6 +125,18 @@ var aim_speed: float = 7.0
 ## Slot tolerance when halted. A man INSIDE it is where he belongs and moves on
 ## his own business; only outside it does he correct toward the slot.
 var follow_distance: float = 2.5
+## While the player is on this man's radio the formation slot is overridden: he
+## shadows the player's BACK at cord range so the handset never pulls (his ruling
+## 2026-08-04). Set by the player on net enter/exit.
+var radio_leash: bool = false
+const RADIO_LEASH_M: float = 4.5
+## DEFENSIVE ZONE DOCTRINE (his decree 2026-08-05: "no real us army unit would be
+## full of the gung ho assaulters... the usual contact on defense is hold and
+## fight"). A man assigned ground HOLDS it: the scorer never hands him
+## ADVANCE/FLANK, his combat footwork stops at the rim, and past the radius his
+## one legal move is back onto his ground. Zero radius = no zone (patrol AI as-is).
+var defense_zone: Vector3 = Vector3.ZERO
+var defense_zone_radius: float = 0.0
 ## Slot lag that puts a man into catch-up.
 var max_follow_distance: float = 10.0
 ## Slot tolerance on the move. Wider - a walking file breathes.
@@ -294,7 +306,8 @@ var last_hit_zone: String = "BODY"
 ## Which rendered unit this man wears. SquadSystem overrides it per MOS.
 var sprite_faction: String = "US Army and Co"
 ## The gib-rig grunt: full gore contract, big clip library, cover/crouch anim set.
-var sprite_unit: String = "us_grunt_v3"
+## us_grunt_v3 RETIRED 2026-08-04 - the rifleman is the reference body now.
+var sprite_unit: String = "us_grunt_rifleman"
 var sprite_weapon: String = "m16a1"
 
 
@@ -839,7 +852,9 @@ func _evaluate_goals() -> void:
 		c.squad_broken = squad_broken
 		c.force_ratio = _local_force_ratio()
 		var picked: int = CombatGoals.pick(c)
-		if _cord_anchor() != null \
+		# The cord AND the zone both ground a man: a living net never flanks away,
+		# and a man defending assigned ground never leaves it to hunt.
+		if (_cord_anchor() != null or defense_zone_radius > 0.0) \
 				and (picked == Enums.AIGoal.ADVANCE or picked == Enums.AIGoal.FLANK_TARGET):
 			picked = Enums.AIGoal.ENGAGE_TARGET
 		# Switch cooldown: a fresh verb waits out the lockout; SEEK_COVER/RETREAT
@@ -1023,6 +1038,22 @@ func _execute_idle(delta: float) -> void:
 				else:
 					_settle(delta)
 				return
+			if radio_leash and player and is_instance_valid(player) and player is Node3D:
+				var back: Vector3 = (player as Node3D).global_transform.basis.z
+				back.y = 0.0
+				var behind: Vector3 = back.normalized() if back.length() > 0.1 else Vector3.BACK
+				var leash_slot: Vector3 = (player as Node3D).global_position + behind * RADIO_LEASH_M
+				if not _slot_valid:
+					_slot_smooth = leash_slot
+					_slot_valid = true
+				else:
+					_slot_smooth = _slot_smooth.move_toward(leash_slot, SLOT_TRACK_SPEED * delta)
+				var ldist := global_position.distance_to(_slot_smooth)
+				if ldist > 1.2:
+					_move_toward(_slot_smooth, delta, CATCHUP_MULT if ldist > 8.0 else 1.0)
+				else:
+					_micro_idle(delta)
+				return
 			if player and is_instance_valid(player) and player is Node3D:
 				# Formation slot, not a conga line: each man holds his own
 				# offset around the player so the squad has spacing and arcs.
@@ -1145,7 +1176,10 @@ func _execute_combat(delta: float) -> void:
 		var hold_band: float = 1.0 if squad_broken else 0.6
 
 		if dist > preferred_range * advance_band:
-			if may_close_distance(nerve):
+			# A zoned defender's aggressive footwork stops at his zone's core - he
+			# works his ground, he does not creep off it toward the contact.
+			if may_close_distance(nerve) and (defense_zone_radius <= 0.0
+					or global_position.distance_to(defense_zone) < defense_zone_radius * 0.8):
 				move_dir = (target.global_position - global_position).normalized()
 		elif dist < preferred_range * hold_band:
 			move_dir = (global_position - target.global_position).normalized()
@@ -1164,11 +1198,21 @@ func _execute_combat(delta: float) -> void:
 				_release_cover()
 			move_dir = (cord.global_position - global_position).normalized()
 
+		# Defense zone over footwork (his decree 2026-08-05, cord outranks zone):
+		# past the rim the one legal move is back onto his ground.
+		var zone_pull: bool = false
+		if not cord_pull and defense_zone_radius > 0.0 \
+				and global_position.distance_to(defense_zone) > defense_zone_radius:
+			zone_pull = true
+			if has_cover:
+				_release_cover()
+			move_dir = (defense_zone - global_position).normalized()
+
 		# Covered men HOLD their piece of cover: the leash RE-ANCHORS and never
 		# releases by drift (that release loop was the cover-obsession bug).
 		var now_ms: float = float(Time.get_ticks_msec())
 		var firing_now: bool = now_ms < _fired_until_ms or burst_count > 0
-		if cord_pull:
+		if cord_pull or zone_pull:
 			pass
 		elif has_cover:
 			var leash: float = global_position.distance_to(current_cover) if current_cover != Vector3.ZERO else 0.0
@@ -1236,6 +1280,11 @@ func _execute_advancing(delta: float) -> void:
 			or (target.has_method("is_dead") and target.is_dead()):
 		target = null
 		_change_state(Enums.AIState.IDLE)
+		return
+	# A man assigned defensive ground does not advance - if a zone lands on him
+	# mid-push (the wave siren), he drops back into the hold-and-fight loop.
+	if defense_zone_radius > 0.0:
+		_change_state(Enums.AIState.COMBAT)
 		return
 	var dist := global_position.distance_to(target.global_position)
 	if dist <= preferred_range * 0.8 or suppression_level >= CombatPosture.CROUCH_SUPPRESS \

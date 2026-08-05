@@ -11,6 +11,10 @@ extends RefCounted
 ## 1.2 -> 1.0 deg, exposure peak 2.0 -> 1.4. First shots still telegraph (Fairness Law);
 ## a converged shooter kills an exposed man.
 const PLAYER_CONE_CAP_DEG: float = 1.0
+## Summoner ruling 2026-08-04, live at the destruction chamber: shots AT the player fly a
+## 15% wider cone ("tone down the enemy accuracy by 15 percent i was killed pretty
+## quickly"). Player branch only - allies and the AI-vs-AI mirror are untouched.
+const PLAYER_TONE_MULT: float = 1.15
 const BASE_SPREAD_MULT: float = 1.25
 const BLOOM_PER_SHOT: float = 0.06
 const BLOOM_CAP: float = 0.8
@@ -82,8 +86,8 @@ static func aim_with_spread(base_aim: Vector3, pre_cap_spread_deg: float, is_pla
 		# (AK base 2.2 -> ~1.7 deg) fires the capped cone both fresh AND converged, so a fixed
 		# cap silently clips the whole exposure ramp away - the opening volley was as lethal as
 		# the converged one. Breathing the cap restores the "first shots miss, accuracy ramps".
-		s *= exposure_spread_mult(exposure_t) * GameSettings.enemy_spread_mult()
-		cap *= exposure_spread_mult(exposure_t)
+		s *= exposure_spread_mult(exposure_t) * GameSettings.enemy_spread_mult() * PLAYER_TONE_MULT
+		cap *= exposure_spread_mult(exposure_t) * PLAYER_TONE_MULT
 	else:
 		cap *= maxf(1.0, GameSettings.ai_vs_ai_cone_mult)
 	var aim: Vector3 = _apply_cone(base_aim, minf(s, cap))

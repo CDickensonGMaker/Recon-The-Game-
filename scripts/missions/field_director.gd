@@ -838,7 +838,7 @@ func _arty_impact(pos: Vector3) -> void:
 	# the floor digs a crater.
 	var floor_y: float = world.terrain_manager.get_height_at(pos)
 	var ground := Vector3(pos.x, maxf(pos.y, floor_y), pos.z)
-	CombatManager.apply_explosion_damage(ground, 200, 60, FirePlan.ARTY_BLAST_M, null)
+	CombatManager.apply_explosion_damage(ground, 260, 90, FirePlan.ARTY_BLAST_M, null)
 	if ground.y - floor_y <= 2.0:
 		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
 			DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.9)

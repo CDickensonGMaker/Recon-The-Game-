@@ -121,8 +121,9 @@ func apply_explosion_damage(
 		var dist: float = center.distance_to(player_pos)
 		if dist <= radius:
 			# Multi-point visibility check (Quake 3 pattern)
-			if _can_damage_multipoint(space_state, center, player_pos, player):
-				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
+			var pmult: float = _blast_multiplier(space_state, center, player_pos, player, max_damage)
+			if pmult > 0.0:
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * pmult))
 
 				if player.has_method("take_damage"):
 					player.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)
@@ -141,8 +142,9 @@ func apply_explosion_damage(
 		var ally_pos: Vector3 = (ally as Node3D).global_position
 		var dist: float = center.distance_to(ally_pos)
 		if dist <= radius:
-			if _can_damage_multipoint(space_state, center, ally_pos, ally):
-				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
+			var amult: float = _blast_multiplier(space_state, center, ally_pos, ally, max_damage)
+			if amult > 0.0:
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * amult))
 				# Asymmetric danger-close: INDIRECT fire (attacker == null - arty, CAS,
 				# napalm, CBU, placed charges) does only ~0.4x to your own men, so a
 				# called strike threatens without deleting your squad. Direct fire is full.
@@ -168,8 +170,9 @@ func apply_explosion_damage(
 		var civ_pos: Vector3 = (civ as Node3D).global_position
 		var civ_dist: float = center.distance_to(civ_pos)
 		if civ_dist <= radius:
-			if _can_damage_multipoint(space_state, center, civ_pos, civ):
-				var damage: int = _explosion_damage_at(civ_dist, radius, max_damage, min_damage)
+			var cmult: float = _blast_multiplier(space_state, center, civ_pos, civ, max_damage)
+			if cmult > 0.0:
+				var damage: int = maxi(1, int(float(_explosion_damage_at(civ_dist, radius, max_damage, min_damage)) * cmult))
 				if civ.has_method("take_damage"):
 					civ.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker, "BODY")
 
@@ -191,8 +194,9 @@ func apply_explosion_damage(
 		var enemy_pos: Vector3 = (enemy as Node3D).global_position
 		var dist: float = center.distance_to(enemy_pos)
 		if dist <= radius:
-			if _can_damage_multipoint(space_state, center, enemy_pos, enemy):
-				var damage: int = _explosion_damage_at(dist, radius, max_damage, min_damage)
+			var emult: float = _blast_multiplier(space_state, center, enemy_pos, enemy, max_damage)
+			if emult > 0.0:
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * emult))
 
 				if enemy.has_method("take_damage"):
 					enemy.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)
@@ -225,9 +229,30 @@ const SUPPRESS_RADIUS_MULT: float = 2.5
 const SUPPRESS_DAMAGE_FULL: float = 190.0
 
 
-## Multi-point visibility check (Quake 3 CanDamage pattern)
-## Traces to 8 points around target bounds, returns true if ANY point is visible
-func _can_damage_multipoint(space_state: PhysicsDirectSpaceState3D, from: Vector3, target_pos: Vector3, target: Node) -> bool:
+## COVER DEFEAT (Summoner ruling 2026-08-04, at the gun range: "the rpg thumper grenades
+## and any bombs and stuff can penetrate sandbags and bunkers 50 percent of the time or
+## something like that"). Explosives only - bullets keep the absolute hard stop in
+## bullet_system. Damage through defeated cover is bled, not full: the wall soaks part
+## of the pressure even when it fails the man behind it.
+const BLAST_THROUGH_COVER_MULT: float = 0.6
+## Untagged colliders (terrain heightmap) and these families stay absolute: meters of
+## earth stop blast outright, and the compound mound/berm double as the ground itself -
+## a 50% roll there would half-disarm the wire against every arty shell.
+const BLAST_PROOF_PREFIXES: Array[String] = ["fb_terrain_mound", "fb_berm_ring"]
+
+
+## Defeat chance per blast, keyed to ordnance class via max_damage: his 50% floor for
+## grenade/thumper grade, rising for rockets (LAW/RPG-2 ~0.66, RPG-7 0.75 cap).
+static func _blast_defeat_chance(max_damage: int) -> float:
+	return clampf(float(max_damage) / 380.0, 0.5, 0.75)
+
+
+## Multi-point blast reach (Quake 3 CanDamage pattern + cover defeat). Traces to 8
+## points around target bounds. Returns the damage multiplier: 1.0 with any clear line,
+## 0.0 fully blocked by blast-proof cover, BLAST_THROUGH_COVER_MULT when the blast
+## defeats the cover - soft cover (thatch/canvas) always fails, hard cover
+## (sandbag/bunker/masonry) fails on the per-target roll.
+func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, target_pos: Vector3, target: Node, max_damage: int) -> float:
 	# Define 8 check points around target (corners of a box + center)
 	var offsets: Array[Vector3] = [
 		Vector3.ZERO,           # Center
@@ -244,6 +269,8 @@ func _can_damage_multipoint(space_state: PhysicsDirectSpaceState3D, from: Vector
 	if target is CollisionObject3D:
 		exclude_rids.append((target as CollisionObject3D).get_rid())
 
+	var soft_blocker: bool = false
+	var hard_blocker: bool = false
 	for offset in offsets:
 		var check_pos: Vector3 = target_pos + offset
 		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
@@ -256,8 +283,27 @@ func _can_damage_multipoint(space_state: PhysicsDirectSpaceState3D, from: Vector
 		var result: Dictionary = space_state.intersect_ray(query)
 		if result.is_empty():
 			# Clear line of sight to this point
-			return true
+			return 1.0
+		var blocker: Object = result.collider
+		if blocker is Node:
+			var bn := blocker as Node
+			if bn.is_in_group("soft_cover"):
+				soft_blocker = true
+			elif bn.is_in_group("hard_surface") and not _blast_proof(bn):
+				hard_blocker = true
 
+	if soft_blocker:
+		return BLAST_THROUGH_COVER_MULT
+	if hard_blocker and randf() < _blast_defeat_chance(max_damage):
+		return BLAST_THROUGH_COVER_MULT
+	return 0.0
+
+
+static func _blast_proof(blocker: Node) -> bool:
+	var nm := String(blocker.name)
+	for p in BLAST_PROOF_PREFIXES:
+		if nm.begins_with(p):
+			return true
 	return false
 
 

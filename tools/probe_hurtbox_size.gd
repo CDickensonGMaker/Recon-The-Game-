@@ -11,7 +11,7 @@ extends SceneTree
 ##   godot --headless --path . -s res://tools/probe_hurtbox_size.gd
 
 func _initialize() -> void:
-	for unit in ["us_grunt_rifleman", "us_grunt_v3"]:
+	for unit in ["us_grunt_rifleman", "us_grunt_mg"]:
 		var holder := Node3D.new()
 		root.add_child(holder)
 		var model := ModelActor.new()

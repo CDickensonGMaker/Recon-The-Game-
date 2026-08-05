@@ -17,6 +17,10 @@ enum DamageType {
 ## anchors: grenade/mortar scrape 0.3-1m, 105mm shell 1-2m, 750lb bomb ~9m
 ## deep x 14m wide. mission_generator._crater_keepout_grow derives from
 ## LARGE radius_cells - the safety envelope tracks this table automatically.
+## canopy_clear_m: radius that fells 12m JunglePatchLayer tiles (0 = the blast is
+## below canopy-clearing grade - a grenade does not drop a jungle tile). Sized so
+## ordnance visibly tears its hole (his conviction 2026-08-05); a tile falls when
+## its ORIGIN is inside the radius, so this runs larger than the crater radius.
 const DAMAGE_PROFILES: Dictionary = {
 	DamageType.SMALL_EXPLOSION: {
 		"radius_cells": 2,
@@ -25,6 +29,7 @@ const DAMAGE_PROFILES: Dictionary = {
 		"falloff_power": 2.0,
 		"scar_color": Color(0.2, 0.15, 0.1),
 		"scar_type": "crater",
+		"canopy_clear_m": 0.0,
 	},
 	DamageType.MEDIUM_EXPLOSION: {
 		"radius_cells": 3,
@@ -33,6 +38,7 @@ const DAMAGE_PROFILES: Dictionary = {
 		"falloff_power": 1.8,
 		"scar_color": Color(0.25, 0.18, 0.1),
 		"scar_type": "crater",
+		"canopy_clear_m": 13.0,
 	},
 	DamageType.LARGE_EXPLOSION: {
 		"radius_cells": 5,
@@ -41,6 +47,7 @@ const DAMAGE_PROFILES: Dictionary = {
 		"falloff_power": 1.5,
 		"scar_color": Color(0.3, 0.2, 0.12),
 		"scar_type": "crater",
+		"canopy_clear_m": 18.0,
 	},
 	DamageType.NAPALM: {
 		"radius_cells": 15,
@@ -49,6 +56,7 @@ const DAMAGE_PROFILES: Dictionary = {
 		"falloff_power": 3.0,
 		"scar_color": Color(0.05, 0.03, 0.02),  # Charred black
 		"scar_type": "burn",
+		"canopy_clear_m": 26.0,
 	},
 	DamageType.BUNKER_COLLAPSE: {
 		"radius_cells": 4,
@@ -57,6 +65,7 @@ const DAMAGE_PROFILES: Dictionary = {
 		"falloff_power": 2.5,
 		"scar_color": Color(0.4, 0.32, 0.22),
 		"scar_type": "crater",
+		"canopy_clear_m": 0.0,
 	},
 }
 
@@ -150,6 +159,17 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 			terrain_manager.chunk_size,
 			terrain_manager.heightmap,
 		)
+
+	# Batched jungle patch tiles take the blast too, wherever a layer lives (group
+	# self-registration) - before this, arena/bench ordnance visibly cleared
+	# NOTHING under the canopy (his conviction 2026-08-05).
+	var canopy_r: float = float(profile.get("canopy_clear_m", 0.0)) * intensity
+	if canopy_r > 0.0:
+		for jl in get_tree().get_nodes_in_group("jungle_patch_layer"):
+			if jl is JunglePatchLayer:
+				var felled: int = (jl as JunglePatchLayer).blast_clear(world_pos, canopy_r)
+				if felled > 0:
+					print("[DAMAGE] blast felled %d jungle tile(s) at %s" % [felled, world_pos])
 
 	var terrain_height: float = terrain_manager.get_height_at(world_pos)
 

@@ -1,0 +1,1440 @@
+{
+ "Base_Human": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_grenadier": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_marksman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_mg": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_pilot": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_pointman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_rifleman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "Base_Human_rto": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  }
+ ],
+ "us_grunt_joined": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined.002": [
+  {
+   "slot": "us_grunt_mat.012",
+   "material": "us_grunt_mat.012",
+   "images": [
+    {
+     "image": "ref_factions.012",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat.002",
+   "material": "gore_cap_mat.002",
+   "images": [
+    {
+     "image": "gore_tex.002",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat.002",
+   "material": "face_atlas_mat.002",
+   "images": [
+    {
+     "image": "face_atlas_v3.002",
+     "path": "C:\\Users\\caleb\\AppData\\Local\\Temp\\claude\\C--Users-caleb\\1a17d70a-cd1b-4324-976d-e809f1610208\\scratchpad\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth.002",
+   "material": "BandolierCloth.002",
+   "images": []
+  },
+  {
+   "slot": "bugjuice.002",
+   "material": "bugjuice.002",
+   "images": [
+    {
+     "image": "bugjuice_label.002",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack.002",
+   "material": "CigPack.002",
+   "images": [
+    {
+     "image": "cigs.webp.002",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo.002",
+   "material": "MitchellCamo.002",
+   "images": []
+  },
+  {
+   "slot": "Webbing.002",
+   "material": "Webbing.002",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu.002",
+   "material": "BlackAlu.002",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel.003",
+   "material": "BluedSteel.003",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer.003",
+   "material": "BlackPolymer.003",
+   "images": []
+  },
+  {
+   "slot": "AluMag.002",
+   "material": "AluMag.002",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack.002",
+   "material": "MatteBlack.002",
+   "images": []
+  },
+  {
+   "slot": "Fatigue.002",
+   "material": "Fatigue.002",
+   "images": [
+    {
+     "image": "ref_ruck_radio.002",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame.002",
+   "material": "AluFrame.002",
+   "images": []
+  }
+ ],
+ "us_grunt_joined.003": [
+  {
+   "slot": "us_grunt_mat.012",
+   "material": "us_grunt_mat.012",
+   "images": [
+    {
+     "image": "ref_factions.012",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat.002",
+   "material": "gore_cap_mat.002",
+   "images": [
+    {
+     "image": "gore_tex.002",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat.002",
+   "material": "face_atlas_mat.002",
+   "images": [
+    {
+     "image": "face_atlas_v3.002",
+     "path": "C:\\Users\\caleb\\AppData\\Local\\Temp\\claude\\C--Users-caleb\\1a17d70a-cd1b-4324-976d-e809f1610208\\scratchpad\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth.002",
+   "material": "BandolierCloth.002",
+   "images": []
+  },
+  {
+   "slot": "bugjuice.002",
+   "material": "bugjuice.002",
+   "images": [
+    {
+     "image": "bugjuice_label.002",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack.002",
+   "material": "CigPack.002",
+   "images": [
+    {
+     "image": "cigs.webp.002",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo.002",
+   "material": "MitchellCamo.002",
+   "images": []
+  },
+  {
+   "slot": "Webbing.002",
+   "material": "Webbing.002",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu.002",
+   "material": "BlackAlu.002",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel.003",
+   "material": "BluedSteel.003",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer.003",
+   "material": "BlackPolymer.003",
+   "images": []
+  },
+  {
+   "slot": "AluMag.002",
+   "material": "AluMag.002",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack.002",
+   "material": "MatteBlack.002",
+   "images": []
+  },
+  {
+   "slot": "Fatigue.002",
+   "material": "Fatigue.002",
+   "images": [
+    {
+     "image": "ref_ruck_radio.002",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame.002",
+   "material": "AluFrame.002",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_grenadier": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_marksman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_mg": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_pilot": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_pointman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_rifleman": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ],
+ "us_grunt_joined_rto": [
+  {
+   "slot": "us_grunt_mat",
+   "material": "us_grunt_mat",
+   "images": [
+    {
+     "image": "ref_factions",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\better textures.png",
+     "size": [
+      3600,
+      5700
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "gore_cap_mat",
+   "material": "gore_cap_mat",
+   "images": [
+    {
+     "image": "gore_tex",
+     "path": "",
+     "size": [
+      128,
+      128
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "face_atlas_mat",
+   "material": "face_atlas_mat",
+   "images": [
+    {
+     "image": "face_atlas_v3",
+     "path": "C:\\Users\\caleb\\RECONgame\\art_source\\characters\\base_psx\\face_atlas_v3.png",
+     "size": [
+      960,
+      896
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "BandolierCloth",
+   "material": "BandolierCloth",
+   "images": []
+  },
+  {
+   "slot": "bugjuice",
+   "material": "bugjuice",
+   "images": [
+    {
+     "image": "bugjuice_label",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\insectrepl.jpg",
+     "size": [
+      178,
+      291
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "CigPack",
+   "material": "CigPack",
+   "images": [
+    {
+     "image": "cigs.webp",
+     "path": "C:\\Users\\caleb\\Downloads\\cigs.webp",
+     "size": [
+      288,
+      198
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "MitchellCamo",
+   "material": "MitchellCamo",
+   "images": []
+  },
+  {
+   "slot": "Webbing",
+   "material": "Webbing",
+   "images": []
+  },
+  {
+   "slot": "BlackAlu",
+   "material": "BlackAlu",
+   "images": []
+  },
+  {
+   "slot": "BluedSteel",
+   "material": "BluedSteel",
+   "images": []
+  },
+  {
+   "slot": "BlackPolymer",
+   "material": "BlackPolymer",
+   "images": []
+  },
+  {
+   "slot": "AluMag",
+   "material": "AluMag",
+   "images": []
+  },
+  {
+   "slot": "MatteBlack",
+   "material": "MatteBlack",
+   "images": []
+  },
+  {
+   "slot": "Fatigue",
+   "material": "Fatigue",
+   "images": [
+    {
+     "image": "ref_ruck_radio",
+     "path": "C:\\Users\\caleb\\Desktop\\recon game image ideas\\usarmybitmap.png",
+     "size": [
+      1298,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "slot": "AluFrame",
+   "material": "AluFrame",
+   "images": []
+  }
+ ]
+}

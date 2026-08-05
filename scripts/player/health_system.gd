@@ -192,8 +192,24 @@ func _bleed_out() -> void:
 	_die()
 
 
+## LAB GOD MODE (his order 2026-08-05: "i need a god mode for this ai stress test
+## ... so i can really test everything"). Nothing lands: no damage, no headshot,
+## no bleed. Set only by test scenes - nothing in the shipped game flips it.
+var god_mode: bool = false
+
+
+func set_god_mode(on: bool) -> void:
+	god_mode = on
+	if on:
+		current_hp = max_hp
+		is_bleeding = false
+		health_changed.emit(current_hp, max_hp)
+
+
 ## Take damage; starts or pressures the bleed clock.
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL, _attacker: Node = null, zone: String = "BODY") -> int:
+	if god_mode:
+		return 0
 	if is_healing:
 		_interrupt_healing()
 

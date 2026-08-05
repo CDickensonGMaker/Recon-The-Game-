@@ -1,0 +1,1108 @@
+{
+ "ChowTrayAvg_trayreturn": {
+  "local": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "parent": null,
+  "rot_z_deg": 0.0,
+  "world": [
+   1.7349,
+   -242.474,
+   1.0412
+  ]
+ },
+ "WB_chowhall": {
+  "local": [
+   0.0,
+   -240.0,
+   0.0
+  ],
+  "parent": null,
+  "rot_z_deg": 0.0,
+  "world": [
+   0.0,
+   -240.0,
+   0.0
+  ]
+ },
+ "prop_cook.004": {
+  "local": [
+   -1.5,
+   0.0,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -1.5,
+   -240.0,
+   0.75
+  ]
+ },
+ "prop_cook.005": {
+  "local": [
+   -0.5,
+   0.0,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -0.5,
+   -240.0,
+   0.75
+  ]
+ },
+ "prop_cook.006": {
+  "local": [
+   0.5,
+   0.0,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   0.5,
+   -240.0,
+   0.75
+  ]
+ },
+ "prop_cook.007": {
+  "local": [
+   1.5,
+   0.0,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   1.5,
+   -240.0,
+   0.75
+  ]
+ },
+ "prop_cook.008": {
+  "local": [
+   -0.7,
+   1.7,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 270.0,
+  "world": [
+   -0.7,
+   -238.3,
+   0.0
+  ]
+ },
+ "prop_cook.009": {
+  "local": [
+   0.7,
+   1.7,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 270.0,
+  "world": [
+   0.7,
+   -238.3,
+   0.0
+  ]
+ },
+ "prop_furniture.004": {
+  "local": [
+   -0.95,
+   0.0,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -0.95,
+   -240.0,
+   0.0
+  ]
+ },
+ "prop_furniture.005": {
+  "local": [
+   0.95,
+   0.0,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   0.95,
+   -240.0,
+   0.0
+  ]
+ },
+ "prop_furniture.006": {
+  "local": [
+   1.91,
+   -2.12,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.91,
+   -242.12,
+   0.0
+  ]
+ },
+ "prop_furniture.007": {
+  "local": [
+   -1.55,
+   -4.2,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -244.2,
+   0.0
+  ]
+ },
+ "prop_furniture.008": {
+  "local": [
+   1.55,
+   -4.2,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -244.2,
+   0.0
+  ]
+ },
+ "prop_furniture.009": {
+  "local": [
+   -1.55,
+   -6.6,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -246.6,
+   0.0
+  ]
+ },
+ "prop_furniture.010": {
+  "local": [
+   1.55,
+   -6.6,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -246.6,
+   0.0
+  ]
+ },
+ "prop_seat.002": {
+  "local": [
+   -2.9,
+   0.6,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.9,
+   -239.4,
+   0.0
+  ]
+ },
+ "prop_seat.003": {
+  "local": [
+   2.9,
+   1.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 180.0,
+  "world": [
+   2.9,
+   -238.1,
+   0.0
+  ]
+ },
+ "prop_seat.004": {
+  "local": [
+   -1.55,
+   -4.83,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -244.83,
+   0.0
+  ]
+ },
+ "prop_seat.005": {
+  "local": [
+   -1.55,
+   -3.57,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -243.57,
+   0.0
+  ]
+ },
+ "prop_seat.006": {
+  "local": [
+   1.55,
+   -4.83,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -244.83,
+   0.0
+  ]
+ },
+ "prop_seat.007": {
+  "local": [
+   1.55,
+   -3.57,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -243.57,
+   0.0
+  ]
+ },
+ "prop_seat.008": {
+  "local": [
+   -1.55,
+   -7.23,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -247.23,
+   0.0
+  ]
+ },
+ "prop_seat.009": {
+  "local": [
+   -1.55,
+   -5.97,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.55,
+   -245.97,
+   0.0
+  ]
+ },
+ "prop_seat.010": {
+  "local": [
+   1.55,
+   -7.23,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -247.23,
+   0.0
+  ]
+ },
+ "prop_seat.011": {
+  "local": [
+   1.55,
+   -5.97,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.55,
+   -245.97,
+   0.0
+  ]
+ },
+ "prop_storage.028": {
+  "local": [
+   -2.35,
+   0.0,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.35,
+   -240.0,
+   0.75
+  ]
+ },
+ "prop_storage.051": {
+  "local": [
+   -2.6,
+   2.6,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.6,
+   -237.4,
+   0.0
+  ]
+ },
+ "prop_storage.052": {
+  "local": [
+   -2.0,
+   2.6,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.0,
+   -237.4,
+   0.0
+  ]
+ },
+ "prop_storage.053": {
+  "local": [
+   -2.6,
+   1.0,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.6,
+   -239.0,
+   0.0
+  ]
+ },
+ "prop_storage.054": {
+  "local": [
+   2.8,
+   -1.2,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.8,
+   -241.2,
+   0.0
+  ]
+ },
+ "prop_storage.055": {
+  "local": [
+   2.1,
+   1.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.1,
+   -238.1,
+   0.0
+  ]
+ },
+ "prop_storage_low.025": {
+  "local": [
+   -2.1,
+   1.7,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.1,
+   -238.3,
+   0.0
+  ]
+ },
+ "prop_storage_low.026": {
+  "local": [
+   2.1,
+   1.7,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.1,
+   -238.3,
+   0.0
+  ]
+ },
+ "prop_tray": {
+  "local": [
+   -1.5,
+   -0.9,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -1.5,
+   -240.9,
+   0.75
+  ]
+ },
+ "prop_tray.005": {
+  "local": [
+   -0.5,
+   -0.9,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   -0.5,
+   -240.9,
+   0.75
+  ]
+ },
+ "prop_tray.010": {
+  "local": [
+   0.5,
+   -0.9,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   0.5,
+   -240.9,
+   0.75
+  ]
+ },
+ "prop_tray.015": {
+  "local": [
+   1.5,
+   -0.9,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.5,
+   -240.9,
+   0.75
+  ]
+ },
+ "prop_tray.020": {
+  "local": [
+   1.91,
+   -2.12,
+   0.75
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 0.0,
+  "world": [
+   1.91,
+   -242.12,
+   0.75
+  ]
+ },
+ "prop_wash": {
+  "local": [
+   2.8,
+   -0.4,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.8,
+   -240.4,
+   0.0
+  ]
+ },
+ "work_cook.004": {
+  "local": [
+   -0.7,
+   2.5,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -0.7,
+   -237.5,
+   0.0
+  ]
+ },
+ "work_cook.005": {
+  "local": [
+   0.285,
+   2.5,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   0.285,
+   -237.5,
+   0.0
+  ]
+ },
+ "work_eat": {
+  "local": [
+   -2.15,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.15,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.001": {
+  "local": [
+   -1.55,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -1.55,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.002": {
+  "local": [
+   -0.95,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -0.95,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.003": {
+  "local": [
+   -2.15,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -2.15,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.004": {
+  "local": [
+   -1.55,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -1.55,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.005": {
+  "local": [
+   -0.95,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -0.95,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.006": {
+  "local": [
+   0.95,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   0.95,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.007": {
+  "local": [
+   1.55,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   1.55,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.008": {
+  "local": [
+   2.15,
+   -4.73,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.15,
+   -244.73,
+   0.0
+  ]
+ },
+ "work_eat.009": {
+  "local": [
+   0.95,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   0.95,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.010": {
+  "local": [
+   1.55,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   1.55,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.011": {
+  "local": [
+   2.15,
+   -3.67,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   2.15,
+   -243.67,
+   0.0
+  ]
+ },
+ "work_eat.012": {
+  "local": [
+   -2.15,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.15,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.013": {
+  "local": [
+   -1.55,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -1.55,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.014": {
+  "local": [
+   -0.95,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -0.95,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.015": {
+  "local": [
+   -2.15,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -2.15,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_eat.016": {
+  "local": [
+   -1.55,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -1.55,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_eat.017": {
+  "local": [
+   -0.95,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -0.95,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_eat.018": {
+  "local": [
+   0.95,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   0.95,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.019": {
+  "local": [
+   1.55,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   1.55,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.020": {
+  "local": [
+   2.15,
+   -7.13,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   2.15,
+   -247.13,
+   0.0
+  ]
+ },
+ "work_eat.021": {
+  "local": [
+   0.95,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   0.95,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_eat.022": {
+  "local": [
+   1.55,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   1.55,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_eat.023": {
+  "local": [
+   2.15,
+   -6.07,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   2.15,
+   -246.07,
+   0.0
+  ]
+ },
+ "work_mess.006": {
+  "local": [
+   0.0,
+   -0.9,
+   0.9
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   0.0,
+   -240.9,
+   0.9
+  ]
+ },
+ "work_queue": {
+  "local": [
+   -2.05,
+   -0.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.05,
+   -240.9,
+   0.0
+  ]
+ },
+ "work_queue.001": {
+  "local": [
+   -2.05,
+   -1.885,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.05,
+   -241.885,
+   0.0
+  ]
+ },
+ "work_queue.002": {
+  "local": [
+   -2.05,
+   -2.87,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -2.05,
+   -242.87,
+   0.0
+  ]
+ },
+ "work_serve": {
+  "local": [
+   -1.5,
+   -0.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -1.5,
+   -240.9,
+   0.0
+  ]
+ },
+ "work_serve.001": {
+  "local": [
+   -0.5,
+   -0.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   -0.5,
+   -240.9,
+   0.0
+  ]
+ },
+ "work_serve.002": {
+  "local": [
+   0.5,
+   -0.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   0.5,
+   -240.9,
+   0.0
+  ]
+ },
+ "work_serve.003": {
+  "local": [
+   1.5,
+   -0.9,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 90.0,
+  "world": [
+   1.5,
+   -240.9,
+   0.0
+  ]
+ },
+ "work_server": {
+  "local": [
+   -1.5,
+   0.89,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -1.5,
+   -239.11,
+   0.0
+  ]
+ },
+ "work_server.001": {
+  "local": [
+   -0.5,
+   0.89,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   -0.5,
+   -239.11,
+   0.0
+  ]
+ },
+ "work_server.002": {
+  "local": [
+   0.5,
+   0.89,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   0.5,
+   -239.11,
+   0.0
+  ]
+ },
+ "work_server.003": {
+  "local": [
+   1.5,
+   0.89,
+   0.0
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": -90.0,
+  "world": [
+   1.5,
+   -239.11,
+   0.0
+  ]
+ },
+ "work_trayreturn": {
+  "local": [
+   1.91,
+   -2.12,
+   0.9
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 200.0,
+  "world": [
+   1.91,
+   -242.12,
+   0.9
+  ]
+ },
+ "work_wash.010": {
+  "local": [
+   2.8,
+   -0.4,
+   0.9
+  ],
+  "parent": "WB_chowhall",
+  "rot_z_deg": 180.0,
+  "world": [
+   2.8,
+   -240.4,
+   0.9
+  ]
+ }
+}

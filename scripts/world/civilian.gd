@@ -152,9 +152,31 @@ const VILLAGERS: Array[String] = [
 const ARMED_POSTS: Array[String] = ["sentry", "sentry_night", "gun_crew", "radioman"]
 
 const GARRISON_MEN: Array[String] = [
-	"us_grunt_rifleman", "us_grunt_v3", "us_grunt_pointman",
+	"us_grunt_rifleman", "us_grunt_pointman", "us_medic",
 	"us_grunt_mg", "us_grunt_grenadier", "us_grunt_marksman", "us_grunt_rto",
 ]
+
+## A few posts are a SPECIFIC man, not a body off the pool. The medical station is
+## staffed by the surgeon - a rifleman bent over a cot reads as a guard, not a doctor -
+## and the aircrew fly the ship. Everything not named here draws from GARRISON_MEN.
+const OCCUPATION_MODELS: Dictionary = {
+	"medic": ["us_surgeon"],
+}
+
+## Aircrew. Two men, and the ship has exactly two pilot seats (SeatSystem.SEAT_NAMES).
+const AIRCREW: Array[String] = ["us_pilot_white", "us_pilot_black"]
+
+
+## Bodies allowed to stand a given post. Keeps the special-casing in one place so a
+## caller cannot quietly staff the aid station with whoever the pool rolled.
+static func models_for(occupation: String) -> Array[String]:
+	var got: Array = OCCUPATION_MODELS.get(occupation, []) as Array
+	if got.is_empty():
+		return GARRISON_MEN
+	var out: Array[String] = []
+	for m in got:
+		out.append(String(m))
+	return out
 
 
 static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, informer: bool,

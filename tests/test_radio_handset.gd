@@ -1,26 +1,26 @@
-## test_radio_handset.gd - the RTO handset loop (per-man follow, aim-to-open, grab,
-## cord snap). Holds the wiring that buries radio_handset.gd's TEST-ONLY fossils.
+## test_radio_handset.gd - the RTO handset loop (instant pass + radio leash, aim
+## gate, grab, cord-never-snaps). Holds the wiring that buries radio_handset.gd's
+## TEST-ONLY fossils.
 ##
-## Every assertion here has been mutation-checked: the real source was broken by
-## hand, this probe was run, and the FAIL was observed before the revert. See the
-## build report for the quoted failures - a green probe against both the fix and its
-## absence proves nothing.
+## The original assertions were mutation-checked (source broken by hand, FAIL
+## observed, reverted). Tests A and D were REWRITTEN 2026-08-04 for his rulings
+## (instant handset, no menu; the cord never rips) and have not been re-mutation-
+## checked yet.
 ##
 ## Run: godot --headless --path . res://tests/test_radio_handset.tscn
 extends Node
 
 var _fails: int = 0
 var _taken_fired: int = 0
-var _snapped_fired: int = 0
 
 
 func _ready() -> void:
 	print("=== RADIO HANDSET (RTO loop) ===")
 	await get_tree().physics_frame
-	await _test_per_man_follow_only()
+	await _test_instant_pass_leashes_rto_only()
 	await _test_aim_opens_only_on_rto()
 	await _test_grab_swaps_and_slings_rifle()
-	_test_cord_snap_returns_to_stowed()
+	_test_cord_never_snaps()
 
 	if _fails == 0:
 		print("=== RADIO HANDSET PASS ===")
@@ -37,10 +37,11 @@ func _ok(cond: bool, msg: String) -> void:
 		_fails += 1
 
 
-## A: pressing FOLLOW ME in the real radio menu moves the RTO ONLY - the rest of the
-## squad is untouched. Drives the actual production path (player._open_radio_menu ->
-## the menu's follow_requested lambda), not a hand-copy of it.
-func _test_per_man_follow_only() -> void:
+## A: taking the handset leashes the RTO ONLY - radio_leash set, order FOLLOW, the
+## rest of the squad untouched; handing it back clears the leash. Drives the real
+## path (bind_radio_handset -> set_on_net -> _enter_net/_exit_net), the same one
+## the player's [F] instant pass rides (his ruling 2026-08-04: no menu).
+func _test_instant_pass_leashes_rto_only() -> void:
 	var player := load("res://scenes/player/player.tscn").instantiate() as CharacterBody3D
 	add_child(player)
 	player.set_physics_process(false)
@@ -55,16 +56,19 @@ func _test_per_man_follow_only() -> void:
 	var rto: AllyBase = allies[1]
 	rto.add_to_group("radioman")
 
-	player.call("_open_radio_menu", rto)
-	var menu = player.get("_radio_menu")
-	_ok(menu != null, "the radio menu opened")
-	if menu != null:
-		menu.emit_signal("follow_requested")
+	var h := _build_handset(rto.global_position, rto)
+	player.call("bind_radio_handset", h)
+	player.call("set_on_net", true)
 
+	_ok(bool(player.get("holding_handset")), "handset passed INSTANTLY - no menu")
+	_ok(rto.radio_leash, "RTO is radio-leashed to the player's back")
 	_ok(rto.order_mode == AllyBase.OrderMode.FOLLOW, "RTO is now FOLLOW")
 	_ok(allies[0].order_mode == AllyBase.OrderMode.HOLD
 		and allies[2].order_mode == AllyBase.OrderMode.HOLD,
 		"the other two men are STILL HOLD - the squad was not ordered")
+
+	player.call("set_on_net", false)
+	_ok(not rto.radio_leash, "hand-back clears the leash")
 
 	for a in allies:
 		a.queue_free()
@@ -154,37 +158,39 @@ var _snap_stowed: MeshInstance3D = null
 var _snap_held: MeshInstance3D = null
 
 
-## D: walk past full cord stretch -> the handset is ripped back to STOWED and the
-## rifle comes back up.
-func _test_cord_snap_returns_to_stowed() -> void:
+## D: walk past full cord stretch -> NOTHING rips (his ruling 2026-08-04: taking
+## the radio never breaks what is in your hand). The handset stays HELD and the
+## cord just reads taut.
+func _test_cord_never_snaps() -> void:
 	var h: RadioHandset = _snap_handset
 	if h == null:
 		_ok(false, "no handset carried over from grab test")
 		return
-	h.cord_snapped.connect(func() -> void: _snapped_fired += 1)
+	var taut_events: Array[bool] = []
+	h.cord_taut.connect(func(t: bool) -> void: taut_events.append(t))
 
-	# Drag the held end 10m from the radio: past cord_length (3m) => tension >= 1.
-	h.held_endpoint.global_position = h.cord.port.global_position + Vector3(10, 0, 0)
-	h._physics_process(0.016)  # the cord/snap tick
+	# Drag the held end 30m from the radio: far past cord_length (8m) => tension >= 1.
+	h.held_endpoint.global_position = h.cord.port.global_position + Vector3(30, 0, 0)
+	h._physics_process(0.016)  # the cord tick
 
-	_ok(h.state == RadioHandset.State.STOWED, "handset is back to STOWED after the snap")
-	_ok(_snapped_fired == 1, "cord_snapped fired once")
-	_ok(_snap_stowed.visible and not _snap_held.visible, "stowed shown, held hidden again")
-	_ok(not bool(_snap_player.get("holding_handset")), "player.holding_handset cleared")
-	var wh: Node = _snap_player.get_node("Head/Camera3D/WeaponHolder")
-	var wm = wh.get("weapon_model")
-	_ok(wm != null and (wm as Node3D).visible, "rifle viewmodel is BACK UP")
+	_ok(h.state == RadioHandset.State.HELD, "handset STILL IN HAND past full stretch")
+	_ok(taut_events.has(true), "cord read TAUT")
+	_ok(not _snap_stowed.visible and _snap_held.visible, "held mesh still the visible one")
+	_ok(bool(_snap_player.get("holding_handset")), "player is still on the net")
 
 	_snap_player.queue_free()
 
 
 ## Minimal RTO-side handset: a stowed mesh, a cord with real anchors. The held mesh
 ## and held endpoint are supplied by player.bind_radio_handset(). Mirrors what
-## ai_stress_arena._attach_radio_to_rto builds on a real RTO body.
-func _build_handset(at: Vector3) -> RadioHandset:
-	var rto := Node3D.new()
-	add_child(rto)
-	rto.global_position = at
+## ai_stress_arena._attach_radio_to_rto builds on a real RTO body. `host` puts the
+## rig on a real ally (the leash test needs the handset's parent to BE the RTO).
+func _build_handset(at: Vector3, host: Node3D = null) -> RadioHandset:
+	var rto: Node3D = host
+	if rto == null:
+		rto = Node3D.new()
+		add_child(rto)
+		rto.global_position = at
 
 	var stowed := MeshInstance3D.new()
 	stowed.mesh = BoxMesh.new()

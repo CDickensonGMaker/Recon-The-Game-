@@ -42,7 +42,7 @@ func _initialize() -> void:
 		actor.queue_free()
 
 	# ---- x1bs: what meshes does a grunt actually ship, and which are hidden? ----
-	for unit in ["us_grunt_v3", "civ_kid", "civ_kid_b", "civ_elder", "vc_guerilla"]:
+	for unit in ["us_grunt_rifleman", "civ_kid", "civ_kid_b", "civ_elder", "vc_guerilla"]:
 		if not ModelActor.model_exists(unit):
 			continue
 		var a := ModelActor.new()

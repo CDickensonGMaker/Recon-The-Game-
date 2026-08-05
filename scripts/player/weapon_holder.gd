@@ -404,12 +404,14 @@ func _try_fire() -> void:
 			# get_fire_delay() already IS the bolt throw. Do not scale it again.
 			_fire_shot()
 			GunFX.play_bolt_2d(self, current_weapon)
+			_play_vm_rack()
 		Enums.FiringMode.BURST:
 			if not Input.is_action_just_pressed("fire") or _burst_left > 0:
 				return
 			_burst_left = 3
 			_fire_shot()
 			_burst_left -= 1
+			_play_vm_rack()
 
 
 func _fire_shot() -> void:
@@ -856,6 +858,11 @@ func _finish_switch() -> void:
 
 
 var _punch: float = 0.0
+## Stock-end z of the gun in weapon_model space (rifle_idle pose). Some GLBs
+## park their geometry metres from the node origin (armory rack station baked
+## into the idle), so a punch rotated about the origin see-saws the gun: butt
+## drops, barrel stays pinned. The punch pivots about this z instead.
+var _recoil_pivot_z: float = 0.0
 
 
 func _update_weapon_position(delta: float) -> void:
@@ -911,10 +918,61 @@ func _update_weapon_position(delta: float) -> void:
 	var w: float = current_weapon.recoil_vertical / 2.5
 	target_pos.z += punch_amt * 0.05 * w * bump
 	target_pos.y += punch_amt * 0.012 * w * bump
-	target_rot.x += punch_amt * 3.5 * w
+	var punch_pitch: float = punch_amt * 3.5 * w
+	target_rot.x += punch_pitch
+	# Geometric re-seat of the rotation pivot, so it stays raw (no bump).
+	target_pos += punch_pivot_comp(target_rot, punch_pitch, _recoil_pivot_z)
 
 	weapon_model.position = weapon_model.position.lerp(target_pos, delta * ADS_SPEED)
 	weapon_model.rotation_degrees = weapon_model.rotation_degrees.lerp(target_rot, delta * ADS_SPEED)
+
+
+## Translation that moves the punch pitch's pivot from the node origin to the
+## stock at local (0, 0, pivot_z): the stock holds its point in camera space
+## and the muzzle arcs up, on every gun, regardless of where the GLB parked
+## its geometry. Zero pivot_z or zero pitch degenerates to the origin pivot.
+static func punch_pivot_comp(rot_deg: Vector3, pitch_deg: float, pivot_z: float) -> Vector3:
+	if absf(pitch_deg) < 0.0001 or absf(pivot_z) < 0.0001:
+		return Vector3.ZERO
+	var stock := Vector3(0.0, 0.0, pivot_z)
+	var punched := Basis.from_euler(Vector3(
+		deg_to_rad(rot_deg.x), deg_to_rad(rot_deg.y), deg_to_rad(rot_deg.z)))
+	var unpunched := Basis.from_euler(Vector3(
+		deg_to_rad(rot_deg.x - pitch_deg), deg_to_rad(rot_deg.y), deg_to_rad(rot_deg.z)))
+	return unpunched * stock - punched * stock
+
+
+## Rear-most gun-mesh z in weapon_model space, posed by rifle_idle. Arms and
+## hand meshes are excluded so a trailing elbow cannot read as the stock;
+## the result never sits forward of the origin (clamped to >= 0).
+func _measure_recoil_pivot() -> float:
+	if weapon_model == null or _vm_anim == null or not _vm_anim.has_animation("rifle_idle"):
+		return 0.0
+	_vm_anim.play("rifle_idle")
+	_vm_anim.seek(0.0, true)
+	var to_local: Transform3D = weapon_model.global_transform.affine_inverse()
+	var zmax: float = 0.0
+	var stack: Array[Node] = [weapon_model]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi == null:
+			continue
+		var nm: String = mi.name.to_lower()
+		if nm.contains("arm") or nm.contains("hand") or nm.contains("finger") \
+				or nm.contains("sleeve") or nm.contains("glove"):
+			continue
+		var aabb: AABB = mi.get_aabb()
+		var xf: Transform3D = to_local * mi.global_transform
+		for i in range(8):
+			var corner: Vector3 = xf * (aabb.position + Vector3(
+				aabb.size.x * float(i & 1),
+				aabb.size.y * float((i >> 1) & 1),
+				aabb.size.z * float((i >> 2) & 1)))
+			zmax = maxf(zmax, corner.z)
+	return zmax
 
 
 ## Play an authored viewmodel clip fitted to the gameplay timer. ADR-018: the
@@ -933,6 +991,27 @@ func _play_vm_idle() -> void:
 	_vm_anim.speed_scale = 1.0
 	if _vm_anim.has_animation("rifle_idle"):
 		_vm_anim.play("rifle_idle")
+
+
+## Manual actions SHOW their cycle: the pump/bolt clip plays after every shot,
+## stretched into the cycle time the fire_rate already enforces. Fire itself stays
+## procedural (decree 2026-07-29) - the rack is the post-shot animation worth
+## authoring, and until 2026-08-05 nothing ever called it outside the draw.
+func _play_vm_rack() -> void:
+	if _vm_anim == null or not _vm_anim.has_animation("charge_handle"):
+		return
+	var cycle: float = current_weapon.get_fire_delay() if current_weapon != null else 0.8
+	_play_vm_clip("charge_handle", maxf(0.3, cycle * 0.85))
+	if not _vm_anim.animation_finished.is_connected(_on_vm_rack_finished):
+		_vm_anim.animation_finished.connect(_on_vm_rack_finished)
+
+
+func _on_vm_rack_finished(anim_name: StringName) -> void:
+	if anim_name != &"charge_handle":
+		return
+	if _vm_anim != null and _vm_anim.animation_finished.is_connected(_on_vm_rack_finished):
+		_vm_anim.animation_finished.disconnect(_on_vm_rack_finished)
+	_play_vm_idle()
 
 
 ## Drawing a rifle chambers it: rack the bolt once, then settle to idle.
@@ -963,6 +1042,7 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 		weapon_model = null
 		_vm_anim = null
 		_vm_meshes = []
+		_recoil_pivot_z = 0.0
 
 	if weapon_data and not weapon_data.model_path.is_empty():
 		var scene := load(weapon_data.model_path)
@@ -983,6 +1063,7 @@ func _load_weapon_model(weapon_data: WeaponData) -> void:
 			weapon_model.rotation_degrees = weapon_data.hip_rotation
 			# Arms viewmodels need their idle clip played or the rig renders in bind pose.
 			_vm_anim = weapon_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			_recoil_pivot_z = _measure_recoil_pivot()
 			_play_vm_draw()
 			_scan_warhead(weapon_model)   # a fresh launcher comes loaded
 

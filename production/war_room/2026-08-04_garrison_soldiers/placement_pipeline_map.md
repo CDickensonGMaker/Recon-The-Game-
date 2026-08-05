@@ -186,6 +186,18 @@ Plain words, for the Blender bench:
 7. **Footprint growth**: if the compound outgrows today's bounds, raise BOTH
    `site_planner.FSB_HALF (149.3, 111.2)` (`:664`) and `nav_baker FSB_HALF 185.0`
    (`:44`), and check `FSB_FLATTEN_RADIUS 215` — three hardcoded twins of the mound size.
+8. **Ballistic material rides the mesh-family NAME** (Summoner ruling 2026-08-04, at the
+   gun range: shooting-through must work on the game world's buildings). At load,
+   `site_planner._tag_fsb_ballistics` (`site_planner.gd`, after `_repair_glb_colliders`)
+   puts every firebase collider in a bullet group by name prefix — soft (lead punches
+   through, ×0.8/layer, 3rd layer stops): `fb_hootch`, `fb_gp_tent`, `fb_mess`,
+   `fb_aid_station`, `fb_latrine`, `fb_supply_dump`, `fb_water_point`, `fb_burn_barrel`,
+   `bwire_card` (list: `FSB_SOFT_PREFIXES`). **Everything else is hard** (stops the
+   round): earth, sandbag, timber, bunker, tower, mound. So: a NEW canvas/plywood/tin
+   structure must take one of the soft family prefixes (or its prefix must be added to
+   `FSB_SOFT_PREFIXES` in the same change); renaming a family silently flips it to
+   bulletproof. Boot proof: `[FSB] ballistic tags: 35 soft ... 330 hard` (2026-08-04
+   shipped GLB) — a re-export whose soft count collapses to 0 renamed the tents.
 
 ---
 

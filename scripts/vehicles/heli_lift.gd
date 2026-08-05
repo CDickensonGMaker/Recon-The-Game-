@@ -56,6 +56,9 @@ var _door_r_shut: float = 0.0
 var _door_want_open: bool = false
 var _door_t: float = 0.0
 var _pax: Array[Civilian] = []
+## The two men in the cockpit. Held apart from _pax: passengers get unseated on
+## landing, aircrew ride the ship.
+var _crew: Array[Civilian] = []
 var _delivered: bool = false
 ## Men THIS ship just put on the ground - a rotation must not lift its own
 ## arrivals straight back out.
@@ -87,6 +90,7 @@ func _ready() -> void:
 	heli.add_child(seats)
 	_find_doors()
 	_shut_doors_now()
+	_crew_ship()
 	_choose_mission()
 	if mission == Mission.DELIVER or mission == Mission.ROTATE:
 		_load_pax()
@@ -94,6 +98,40 @@ func _ready() -> void:
 		heli.landed.connect(_on_landed)
 	if not heli.took_off.is_connected(_on_took_off):
 		heli.took_off.connect(_on_took_off)
+
+
+## Put two men in the cockpit. SeatSystem has reserved seat_pilot_l/r since it was
+## written and dresses whoever sits there (`_dress_pilots`, seat_system.gd:152) - but
+## nothing ever seated them, so every Huey in the game has been flying itself.
+##
+## Aircrew are NOT garrison: `Civilian.spawn(garrison=true)` puts a man in the
+## firebase_garrison group, and a pilot counted there inflates garrison_strength(),
+## which is what decides whether a sortie DELIVERs or EXTRACTs - and would get him
+## walked to a post by place_for_current_hour. So they come straight back out of it,
+## the same way _load_pax does for men still in the air.
+##
+## They are never unseated: _on_landed only empties SeatSystem.PASSENGER_SEATS.
+func _crew_ship() -> void:
+	var world: Node = heli.get_parent()
+	if world == null or seats == null:
+		return
+	var berths: Array[StringName] = [&"seat_pilot_l", &"seat_pilot_r"]
+	for i in berths.size():
+		if seats.occupant(berths[i]) != null:
+			continue
+		# Spread the mint point: Civilian.spawn derives model, face and dress from a
+		# POSITION hash, so two men minted at one spot are the same man twice.
+		var mint: Vector3 = heli.global_position + Vector3(float(i * 3 + 1), 0.0, float(i * 4 + 2))
+		var crew: Civilian = Civilian.spawn(world, mint, director, false,
+			Civilian.AIRCREW, true)
+		if crew == null:
+			continue
+		crew.remove_from_group("firebase_garrison")
+		if not seats.seat(crew, berths[i]):
+			crew.queue_free()
+			continue
+		_crew.append(crew)
+	print("[LIFT] crewed with %d pilot(s)" % _crew.size())
 
 
 ## Under strength: bring men. At strength: take men out.

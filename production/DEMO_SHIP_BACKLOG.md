@@ -11,6 +11,86 @@ Legend: **[C]** code, I can do it · **[B]** Blender, needs him · **[?]** needs
 
 ---
 
+## SHIPPED 2026-08-04 — RECOIL PIVOT: AK/PPSh/M14 see-sawed from the stock (gun-range feel report)
+
+Summoner, live at the range: *"the motion should be deriving from the barrel going up... it
+feels like the barrel is going up but the motion is the butt of the gun going down and keeping
+the barrel from rising from its horizon point."* Measured, not eyeballed
+(`tools/probe_recoil_pivot.tscn`): the viewmodel punch (`weapon_holder.gd` `_update_weapon_position`)
+rotates the model about its node origin — and three GLBs park their geometry at their armory
+rack station in the rifle_idle pose, metres from that origin (root-local z, gun span):
+**m16a1 0.00..−0.93 (origin AT the butt — why it felt right) · shotgun −0.88..+0.12 · ak47
++7.2..+8.1 · m14 +2.9..+4.0 · ppsh41 +27.2..+28.1**, the bench hip poses compensating with
+`hip_position.z` of −8.0/−4.0/−28.0. A pitch about a pivot 4–28 m away = translation + slight
+nose-up about the gun's middle: butt sags, barrel pinned. Fix (one mechanism, all guns):
+
+- `weapon_holder.gd` — `_measure_recoil_pivot()` measures the stock-end z (gun meshes only,
+  rifle_idle pose) at model load; `punch_pivot_comp()` (static) adds the translation that
+  re-seats the punch rotation's pivot at that stock point. `.tres` untouched.
+- Probe numbers, full-strength punch, muzzle dy vs stock dy (BEFORE → AFTER):
+  m16a1 +0.024/+0.0002 → +0.024/+0.0003 (**reference preserved to 0.1 mm**) ·
+  ak47 −0.158/−0.178 → +0.020/+0.0004 · ppsh41 −0.232/−0.241 → +0.008/±0.000 ·
+  m14 −0.081/−0.113 → +0.032/−0.000 · shotgun −0.020/−0.021 → +0.009/+0.008 (butt no
+  longer dips; character kept). Muzzle now rises, stock holds, on every gun. Headless boot
+  0 SCRIPT ERROR.
+- **He may want a light re-dial of AK/PPSh/M14 recoil `.tres` values** — today's numbers were
+  tuned against the broken motion (PPSh at 0.35 recoil_vertical looks dialed-down to hide it).
+- **FOUND, not fixed:** shotgun `MuzzlePoint` sits at the STOCK end (z=+0.115, front is −z on
+  every gun) and its SightRear/SightFront markers are absent from the GLB — hip fire spawns
+  at the butt. Source-blend fix, goes through `tools/export_all_viewmodels.py`.
+- **Deep defect, deferred:** those three GLBs are off the ruler contract (station offset baked
+  into every clip). Re-export would move the guns on screen and void his saved bench poses, so
+  it waits for a session where he can re-aim poses after re-export.
+
+## SHIPPED 2026-08-04 — SHOOTING THROUGH THE WORLD'S BUILDINGS (gun-range ruling)
+
+Summoner, at the gun range: *"how do we get that shooting thru to work with our buildings
+that exist in the game world?"* Measured first: `bullet_system.gd:199-209` full-stops any
+untagged world collider, and for every `mesh: true` structure the collider a round hits is
+the GLB's own nested `-col` StaticBody3D — which the old root-only tag never reached. **Every
+thatch hut in the game was silently bulletproof.** Fixed in three places, one group API
+(`soft_cover`/`hard_surface`, unchanged):
+
+- **Structures** — `site_planner.gd` `tag_ballistics()` (new static) stamps the material
+  from `CollisionTable.is_soft()` onto EVERY collision object under the placed structure,
+  nested GLB bodies included (`place_structure`). Village, temple, VC camp, RTS sets covered.
+- **Firebase GLB** — `_tag_fsb_ballistics()` tags all compound colliders by mesh-family name:
+  soft = `FSB_SOFT_PREFIXES` (hootch, GP tent, mess, aid station, latrine, supply dump,
+  water point, burn barrel, barbwire); hard = everything else (earth/sandbag/timber/bunker).
+  Boot: `[FSB] ballistic tags: 35 soft, 330 hard`.
+- **Destructibles** — `destructible.gd` `_ready()` tags by `kind`: `wire` soft, all other
+  kinds hard (they are sandbag/earth/timber); `_do_destroy` already dropped both groups.
+- **Probe** — `tools/probe_structure_ballistics.tscn` PASS: 4x M16 through a real
+  `nha_tranh_01.glb` wall kills the man inside (concealment is not cover); 2x M16 into
+  `bunker.glb` = 0 damage (cover still covers). Headless boot: 0 SCRIPT ERROR.
+- **Re-export contract** extended: `placement_pipeline_map.md` §3.8 — soft/hard rides the
+  mesh-family NAME; a renamed tent family flips bulletproof.
+
+Vietnam-honest calls made where a name was ambiguous (noted for override): supply dump
+(crates) SOFT · water point (thin-steel trailer) SOFT · burn barrel (empty drum) SOFT ·
+TOC HARD (most-sandbagged structure inside the wire) · tower/timber HARD.
+
+**Follow-on ruling, same range session, verbatim:** *"the rpg thumper grenades and any bombs
+and stuff can penetrate sandbags and bunkers 50 percent of the time or something like that."*
+Shipped in the blast path only (`combat_manager.gd` — `_can_damage_multipoint` replaced by
+`_blast_multiplier`, all four target loops updated; bullets keep the absolute hard stop in
+`bullet_system.gd`):
+- Fully-blocked 8-point check + hard-cover blocker → per-target roll
+  `_blast_defeat_chance(max_damage) = clamp(max_damage/380, 0.5, 0.75)` — his 50% floor for
+  grenade/M79 grade, LAW/RPG-2 ~0.66, RPG-7 caps 0.75. On defeat the man takes
+  `BLAST_THROUGH_COVER_MULT 0.6` of the blast (the wall bleeds the pressure, named choice).
+- Soft cover (thatch/canvas) never stops blast — always defeated at the same 0.6.
+- `BLAST_PROOF_PREFIXES` = `fb_terrain_mound`, `fb_berm_ring` + all untagged colliders
+  (terrain): meters of earth stay absolute, so the compound berm is not half-disarmed
+  against every arty shell.
+- Big HE vs a live Destructible is untouched and correct: the props loop
+  (`combat_manager.gd` radius-only, no LOS) still simply destroys a 110-hp sandbag.
+- Probe `tools/probe_blast_cover.tscn` PASS: 20x M26 vs hard wall → 10/20 damaging; 20x
+  RPG-7 → 19/20; 5x M26 vs soft wall → 5/5; 4x M16 vs the same hard wall → 0. Headless
+  boot 0 SCRIPT ERROR; `probe_structure_ballistics` still PASS.
+
+---
+
 ## SHIPPED 2026-08-04 — THE EXPLOSION DECREE (visuals x5 · destruction parity · napalm/CBU/WP/arty re-authored)
 
 Live-judged on the bench and ruled the same night (memory `recon-explosion-scale-decree.md` + two
@@ -1112,3 +1192,155 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
   + re-export. Nothing further to wire on the code side.
 - **Q5:** "do whatever" → ratify ADR-029 as-is (F-3).
 - **Q6:** "doesnt matter" → audit's value order stands: F-1 → F-4 → F-8 (after demo fixes).
+
+## 2026-08-04 — SEGMENTED TREES (his ruling, live at the destruction chamber)
+
+**Summoner, verbatim:** *"i know how to solve our problem with the higher up tree destruction,
+we need to make our tree models split apart in more areas."*
+
+Today a tree is ONE piece: `FellableTree` hinges the whole standing GLB at its BASE regardless
+of where the blast hit (`scripts/world/fellable_tree.gd:72-106` — `_begin_fall` picks only a
+direction, never a height) and swaps to a single `felled_trunk.glb` log. A canopy hit felling
+the entire trunk from the roots is the defect he named.
+
+**The solve, two halves:**
+1. **ART — segment the tree models.** `felled_tree.glb` (and the live-world tree models when
+   the TreeCoverLayer path ships) get authored as stacked separable segments — lower trunk /
+   upper trunk / canopy at minimum — sharing one contract for joint heights. Blender job.
+2. **CODE — break at the joint nearest the blast.** `FellableTree` picks the break joint from
+   the blast's height, hinges only the segments ABOVE it (they become the falling piece and the
+   downed cover), and leaves the segments BELOW standing as a snag with a shortened collider.
+   State-swap stays the law — never fracture, never RigidBody (ADR-031).
+
+Not built; awaiting his chamber verdict on today's destruction pass before the art job is
+dispatched.
+
+## 2026-08-04 — CHAMBER SESSION RULINGS (live, support_fire_range)
+
+His words, in order: *"still didnt quite seem like enemies were dying to the artillery"* /
+*"maybe we need to increase the damage higher"* / *"tone down the enemy accuracy by 15
+percent i was killed pretty quickly"* / *"given we have hard blocks we survived alot longer
+but in the jungle it wouldnt be anything"* / *"but also we do need to test what jungle
+combat feels like"*.
+
+- **Arty shell 200/60 → 260/90** (`field_director.gd` `_arty_impact`). At 260 max / 90 min
+  the full 14 m blast radius kills an enemy (HP 65–85) in the OPEN; behind hard cover the
+  0.6 through-cover mult still leaves survivors at range — which matches his hard-blocks
+  read. Side effect, accepted: `_blast_defeat_chance` keys off max_damage, so a 105 mm shell
+  now defeats sandbag-grade cover ~68% instead of ~53% (`combat_manager.gd:246-247`).
+- **Enemy accuracy at the PLAYER −15%**: new `PLAYER_TONE_MULT 1.15` widens both the spread
+  and the breathing cone cap on the is_player_target branch only
+  (`ai_marksmanship.gd`). Allies and the AI-vs-AI mirror untouched; tests reference the
+  consts symbolically, still green. This partially rebalances the 2026-08-04 lethality
+  ruling (cap 1.2→1.0) — his call, made live after dying too fast in the chamber.
+- **Launcher bats de-drifted**: all 12 root `.bat` files pointed at the DELETED
+  `Downloads\Godot_v4.7...` exe (sapper_room at a bare `godot`); repointed to
+  `C:\Users\caleb\_tools\godot47\`.
+- **NEXT: jungle combat feel** — `night_jungle_bench.bat` (ai_stress_arena, dense night
+  jungle, US vs VC) launched for him with the new tuning; his verdict pending. The segmented
+  trees ruling (§ above) rides on the same verdict.
+
+## 2026-08-04 — JUNGLE-BENCH VERDICT + THE EVENING WORK WAVE (all BUILT, his eye pending)
+
+**His verdict on the night-jungle run: "that was pretty fun and intense... the combat in that
+run felt good and frantic and i was having real fun doing it."** Rule #1 witnessed in the
+combat lab. Orders that came with it, all built same evening:
+
+- **FLOATING CORPSES (arena + range, even gibbed) — root-caused and fixed.** Two stacked
+  mechanisms in `model_actor.gd`: (1) `physical_bones_stop_simulation()` at the 4s settle
+  reverted the skeleton to its pre-ragdoll pose (the simulator is a SkeletonModifier), so
+  EVERY ragdolled corpse snapped back to its death-moment pose — and the `_die()` flat-corpse
+  guard deliberately skips ragdolled bodies; (2) `ground_current_pose()` measured against the
+  actor's own origin, which death freezes mid-air under explosion knockback. Fix:
+  `sleep_ragdoll()` now BAKES the simulated pose into the bone poses before stopping (settle
+  path routes through it), and grounding ray-probes the real floor (layer 1, own-origin
+  fallback on a miss).
+- **RTO RADIO, his three rulings:** [F] on the RTO passes the handset INSTANTLY (RadioMenu
+  DELETED per fossil law, tests rewritten: `test_radio_handset.gd` A/D, `test_squad_identity`
+  §8); on the net the RTO leashes 4.5 m off the player's BACK (`AllyBase.radio_leash`,
+  `RADIO_LEASH_M`, own FOLLOW branch — formation slot untouched off-net); **the cord NEVER
+  rips the handset away** (`radio_handset.gd` snap deleted, `cord_snapped` signal removed,
+  cord_length 3→8 m to cover the leash). Prompt now reads TAKE/RETURN HANDSET.
+- **ROUNDS BOARD (bench):** `support_fire_range.gd` top-left legend, live counts per tier
+  from `director.fire_support` ("x3" / "- OUT"), keys 1-8 + [9] assault + LMB/RMB/[T]. The
+  main-game HUD already had this (mission_hud.gd fire panel) — the bench just never did.
+- **BUNKERS EXPORTED AND PLACED:** blender agent exported his two originals from
+  `WORKBENCH_bunkers` (y≈-170) — `fb_bunker_mg.glb` (668 KB, mounted M60 included) +
+  `fb_bunker_fighting.glb` (139 KB) into the kit dir; `-colonly` twins share the real mesh so
+  the slits stay OPEN; truth source untouched (worked from a copy, deleted after). Placed
+  flanking the line in `support_fire_range.gd` (`BUNKERS`) and in the arena firebase corner
+  (`_build_firebase`). **GATED on one editor import pass** — fresh GLBs print a graceful
+  skip until then.
+- **ARENA READABILITY + DESTRUCTIBLE TREES (his ruling):** jungle carve in
+  `ai_stress_arena.gd` `_build_jungle` — grassland inside `CLEAR_RADIUS_M 38` of
+  `FIREBASE_ORIGIN` (-62, 62), light-jungle band to 52 m, heavy beyond; AI sight grid
+  stamped honest to match; `_plant_fellable_treeline()` puts 26 real FellableTrees on the
+  rim arc so blasts drop trunks he can watch fall. Arena night env is ALREADY the shared
+  MissionWeather preset + shared GunFX x5 explosions (ship parity, ADR-026) — nothing
+  changed there; if he means a specific main-world look beyond that, that's a new ask.
+- **STILL OPEN WITH HIM:** M60 mounted FPS view placement ("i still also need to figure out
+  how to place the m60 mounted fps view") — note `[F] MAN THE GUN` / `mg_emplacement.gd`
+  exists, and the exported `fb_bunker_mg.glb` carries a mounted M60 + `mg_fire_point`
+  marker: the natural mount. Needs his bench session. Medical-complex animation agent still
+  running (blender-overseer, med_anim_workbench pipeline).
+
+## 2026-08-05 — THE DEFENSIVE ZONE DOCTRINE (his decree, live from the wave run)
+
+**His words:** *"instantly they go hunting and attack and no one was trying to defend the
+firebase we had. we need to create this idea of defensive zones since no real us army unit
+would be full of the gung ho assaulters even if they were strong. the usual contact on
+defense is hold and fight. thats why the vc are trying to mortar us and overwhelm us."*
+
+Built same session, arena-scoped, on the two existing grounding precedents (the RTO cord
+gate in `_think` and the cord-pull in `_execute_combat`):
+- `AllyBase.defense_zone` + `defense_zone_radius` (0 = no zone, patrol AI untouched).
+  Zoned man: scorer never hands him ADVANCE/FLANK (`ally_base.gd` goal gate), his
+  close-the-distance footwork stops at 0.8× the rim, past the rim his one legal move is
+  back onto his ground (zone-pull, cord outranks zone), and a zone landing mid-push flips
+  ADVANCING → COMBAT. Cover search is already local, so zoned men fight from cover on
+  their ground. RETREAT/SEEK_COVER stay legal — a breaking man still breaks (Pillar 5).
+- Arena: `_assign_defense_zones()` on every wave start — all living US men get one of 3
+  wire sectors (16 m radius, MOVE_TO their sector, RESCUE exempt), so the siege is
+  defended, not hunted.
+- **FULL-GAME INTEGRATION IS COUNCIL WORK, not done:** garrison at fsb_main (its stations
+  should BE zones), patrol-squad "strongpoint" verb for the player, enemy camp defenders
+  using the same doctrine (EnemyBase has no zone yet). The AllyBase mechanism is the seed.
+- **AMENDMENT, his words same session:** *"what ties into the main game is when ambient
+  squads form up to go on patrol they switch from defense to 'attack walk this route'."*
+  The doctrine is a TWO-STATE life: DEFEND (zone held, hold-and-fight) ⇄ PATROL (zone
+  released, walk the route, fight forward). **THE GATE IS THE SWITCH (his words):** *"the
+  gate for the switch off is when they walk out the gates just like when and where players
+  return to fire base"* — crossing the wire gate flips the state in BOTH directions, the
+  same diegetic seam where the player's patrol banks (`_bank_patrol`,
+  `field_director.gd`; the W-3 hunter top-up already keys off that gate seam). One
+  doorway, one law, player and ambient squads alike. The VC already live this shape (camp guards hold, `patrol_route`
+  squads walk) — the US side mirrors it. DEPENDENCY: main-game garrison men are
+  Civilian-class until the POST-DEMO soldier-class migration (garrison decree 2026-08-04),
+  so ambient US patrols forming up out of zones ride that migration; the schedule
+  machinery that would drive form-up times already exists (`civilian_schedules.gd`).
+
+## 2026-08-05 — SURVIVAL WAVES + ARTY MUST TEAR THE JUNGLE (his live-run convictions)
+
+- **Survival mode (his order):** arena siege is now 30-man waves (`SIEGE_STRENGTH 30`),
+  auto-chained 15 s after each break until the player falls, with a wave counter and a
+  final "N WAVES HELD" toast (`_on_siege_ended` chain). Random 81mm illum pops over the
+  fight every 20–45 s while waves run (`_random_illum_tick` → `_illum_burst`, no stock).
+- **PERF: "its def laggy with everything going on" (his run, 30-man waves + 18v18, Intel
+  UHD).** He ruled the load stays — *"thats what doing these large waves are for."* The
+  stress test produced its first bill: `MAX_ACTIVE_RAGDOLLS` 256 → 12 (`model_actor.gd`) —
+  the 2026-07-28 NO-CAP ruling existed only because capped men froze standing, and the
+  8/4 settle-flat guard cured that; the const's own comment authorized the number's return
+  when the bill showed. FURTHER TUNING GATED ON MEASUREMENT: the arena perf overlay
+  (CPU/GPU split, per-system buckets, spike catcher, F1 jungle / F2 clutter / F3 lights /
+  F4 characters / F6 shadows attribution toggles) is the instrument; his readout during a
+  laggy wave names the next cut. ADR-026 Part B remains the standing systemic answer.
+- **"i dont really see anything happen to the jungle" — root cause, fixed.** Three stacked
+  facts: bench terrain never digs (by design), the scar radius for arty computes to ~4 m
+  (3 cells × 0.9 × 2 m — invisible under canopy at night), and `JunglePatchLayer` was
+  invisible to DamageSystem entirely — batched 12 m tiles took no blast. Fix:
+  `JunglePatchLayer.blast_clear(pos, r)` fells whole patch tiles (zero-scale, indices
+  stable, permanent), layers self-register in group `jungle_patch_layer`, and
+  `DamageSystem.apply_damage` routes every blast through it at a new per-profile
+  `canopy_clear_m` (arty 13 · bomb 18 · napalm 26 · grenade/bunker 0 — a grenade must not
+  drop a jungle tile). Tile origins sit up to ~8.5 m from an impact, hence radii larger
+  than the crater's. Applies to main world AND benches (group-based).

@@ -664,9 +664,28 @@ func pose_end_of(clip: String) -> bool:
 
 
 ## Park a live ragdoll (stop solving; pose stays). wake_ragdoll() resumes.
+## The simulator is a SkeletonModifier: stopping it REVERTS the skeleton to the
+## pre-ragdoll pose on the next update, which snapped every ragdolled corpse back
+## to its death-moment pose - the floating-corpse bug (his report 2026-08-04,
+## arena + firing range, gibbed included). Bake the simulated pose into the bone
+## poses FIRST so the body stays where physics left it.
 func sleep_ragdoll() -> void:
-	if _ragdoll_sim != null and _ragdoll_sim.is_simulating_physics():
+	if _ragdoll_sim == null or not _ragdoll_sim.is_simulating_physics():
+		return
+	if _skel == null:
 		_ragdoll_sim.physical_bones_stop_simulation()
+		return
+	var poses: Array[Transform3D] = []
+	for bi in range(_skel.get_bone_count()):
+		poses.append(_skel.get_bone_global_pose(bi))
+	_ragdoll_sim.physical_bones_stop_simulation()
+	for bi in range(_skel.get_bone_count()):
+		var parent: int = _skel.get_bone_parent(bi)
+		var local: Transform3D = poses[bi] if parent == -1 \
+			else poses[parent].affine_inverse() * poses[bi]
+		_skel.set_bone_pose_position(bi, local.origin)
+		_skel.set_bone_pose_rotation(bi, local.basis.get_rotation_quaternion())
+		_skel.set_bone_pose_scale(bi, local.basis.get_scale())
 
 
 # ---- ragdoll ----------------------------------------------------------------
@@ -675,11 +694,13 @@ func sleep_ragdoll() -> void:
 ## grenade killing a squad cannot spike the solver; corpses stop simulating after
 ## a settle window and sleep as static bodies.
 const RAGDOLL_SCENE_PATH := "res://scenes/characters/ragdoll_mixamo.tscn"
-## Summoner's ruling 2026-07-28: NO CAP. At 8 a 36-man firefight starved most
-## clean kills of a ragdoll and left the corpses standing. The guard survives only
-## to stop an unbounded solver count; put a real number back here if the frametime
-## bill shows up in a fight.
-const MAX_ACTIVE_RAGDOLLS: int = 256
+## Summoner's ruling 2026-07-28 was NO CAP, because at 8 a 36-man firefight
+## starved most clean kills of a ragdoll and the corpses FROZE STANDING. That
+## failure mode is gone (2026-08-04): a capped man now falls through the death
+## clip -> settle-flat guard and reads dead either way. The frametime bill his
+## uncapped solver was deferred against arrived 2026-08-05 ("its def laggy with
+## everything going on" - 30-man waves), so the real number goes back in.
+const MAX_ACTIVE_RAGDOLLS: int = 12
 const RAGDOLL_SETTLE_S: float = 4.0
 ## A man is 1.71m; anything still spanning this much vertical is on his feet.
 const PRONE_SPAN_MAX: float = 1.2
@@ -744,8 +765,9 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	tree_exited.connect(_release_ragdoll_slot)
 	var settle: SceneTreeTimer = get_tree().create_timer(RAGDOLL_SETTLE_S)
 	settle.timeout.connect(func() -> void:
-		if is_instance_valid(sim) and sim.is_simulating_physics():
-			sim.physical_bones_stop_simulation()
+		if is_instance_valid(self) and is_instance_valid(sim):
+			sleep_ragdoll()   # bakes the fallen pose before stopping - see sleep_ragdoll
+			ground_current_pose()
 		# The cap gates CONCURRENT solvers, not parked corpses: a settled body
 		# costs nothing, so its slot frees HERE, not when the corpse despawns.
 		_release_ragdoll_slot())
@@ -761,19 +783,29 @@ func _release_ragdoll_slot() -> void:
 		_active_ragdolls = maxi(0, _active_ragdolls - 1)
 
 
-## Pin the CURRENT pose to the ground: shift the visual down so the lowest bone
-## touches the body's floor plane. For clips authored off the floor (some death
-## clips lie the man a metre in the air). Elevation-safe: measures against this
-## node's own origin (the feet plane), NOT world zero.
+## Pin the CURRENT pose to the ground: shift the visual so the lowest bone
+## touches the REAL floor, found by a downward ray on the world layer. The old
+## own-origin measure kept a corpse floating whenever the actor root itself was
+## frozen mid-air (death during explosion knockback - his floating-corpse report
+## 2026-08-04). Ray miss falls back to the origin (feet-plane) measure, which
+## stays elevation-safe on mounds.
 func ground_current_pose() -> void:
 	if _skel == null or _inst == null:
 		return
-	var base: float = global_position.y
 	var lo: float = INF
 	for bi in range(_skel.get_bone_count()):
-		lo = minf(lo, (_skel.global_transform * _skel.get_bone_global_pose(bi).origin).y - base)
-	if lo < INF and absf(lo) > 0.05:
-		_inst.position.y -= lo - 0.02
+		lo = minf(lo, (_skel.global_transform * _skel.get_bone_global_pose(bi).origin).y)
+	if lo == INF:
+		return
+	var floor_y: float = global_position.y
+	if is_inside_tree():
+		var from: Vector3 = global_position + Vector3.UP * 2.0
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 30.0, 1)
+		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			floor_y = (hit.position as Vector3).y
+	if absf(lo - floor_y) > 0.05:
+		_inst.position.y -= (lo - floor_y) - 0.02
 
 
 ## Guaranteed prone corpse for the NON-ragdoll death path: snap to the flat end

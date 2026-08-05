@@ -91,7 +91,37 @@ var _water_material: ShaderMaterial = null
 
 
 func _ready() -> void:
+	add_to_group("jungle_patch_layer")   # DamageSystem routes blast clears to the group
 	_load_patches()
+
+
+## Blast damage (his conviction 2026-08-05: "when i call in artillery i dont
+## really see anything happen to the jungle"). A patch is ONE merged 12m tile, so
+## the honest visible effect is the whole tile going down - an artillery-sized
+## hole torn in the canopy. Zero-scaling keeps the MultiMesh buffer indices
+## stable; cleared tiles stay cleared (permanence doctrine). Returns tiles felled.
+func blast_clear(world_pos: Vector3, radius: float) -> int:
+	var cleared: int = 0
+	var r2: float = radius * radius
+	for chunk_v: Variant in _chunk_nodes:
+		for n: MultiMeshInstance3D in (_chunk_nodes[chunk_v] as Array):
+			if n == null or not is_instance_valid(n) or n.multimesh == null:
+				continue
+			var local_pos: Vector3 = n.global_transform.affine_inverse() * world_pos
+			if not n.get_aabb().grow(radius).has_point(local_pos):
+				continue
+			var mm: MultiMesh = n.multimesh
+			for i in range(mm.instance_count):
+				var xf: Transform3D = mm.get_instance_transform(i)
+				if xf.basis.get_scale().length_squared() < 0.001:
+					continue   # already felled
+				var dx: float = xf.origin.x - local_pos.x
+				var dz: float = xf.origin.z - local_pos.z
+				if dx * dx + dz * dz <= r2:
+					mm.set_instance_transform(i,
+						Transform3D(xf.basis.scaled(Vector3.ONE * 0.001), xf.origin))
+					cleared += 1
+	return cleared
 
 
 func _load_patches() -> void:

@@ -22,6 +22,9 @@ var _log: Array[String] = []
 var _zone_im: ImmediateMesh = null
 var _zones_visible: bool = false
 var _sheet_visible: bool = true
+var _wd: WeaponData = null
+var _tune: Label = null
+var _tune_dirty: bool = false
 
 
 func _ready() -> void:
@@ -58,6 +61,28 @@ func _build_lane() -> void:
 	floor_body.add_child(cs)
 	add_child(floor_body)
 	floor_body.position.z = -560.0
+
+	# Side apron under the penetration lanes — the row sits at x 34..86, past the
+	# 40m main lane, and without this slab it floats over the void.
+	var apron := StaticBody3D.new()
+	apron.collision_layer = 1
+	apron.collision_mask = 0
+	var ami := MeshInstance3D.new()
+	var aplane := PlaneMesh.new()
+	aplane.size = Vector2(80.0, 260.0)
+	ami.mesh = aplane
+	var asm := ShaderMaterial.new()
+	asm.shader = load("res://terrain/shaders/lab_grid.gdshader")
+	ami.material_override = asm
+	apron.add_child(ami)
+	var acs := CollisionShape3D.new()
+	var abox := BoxShape3D.new()
+	abox.size = Vector3(80.0, 0.2, 260.0)
+	acs.shape = abox
+	acs.position.y = -0.1
+	apron.add_child(acs)
+	add_child(apron)
+	apron.position = Vector3(60.0, 0.0, -120.0)
 
 	for d in range(50, 551, 50):
 		var post := MeshInstance3D.new()
@@ -117,6 +142,8 @@ func _equip(idx: int) -> void:
 	var wd: WeaponData = load("res://data/weapons/%s.tres" % ARMORY[_weapon_idx])
 	if wd == null or _holder == null:
 		return
+	_wd = wd
+	_tune_dirty = false
 	_holder.equip_captured_weapon(wd)
 	_holder.spare_magazines = 99
 	_flash_board("== %s ==  zero %.0fm  |  %d dmg  |  %.0f m/s" % [
@@ -202,6 +229,15 @@ func _build_hud() -> void:
 	_sheet.add_theme_constant_override("outline_size", 3)
 	layer.add_child(_sheet)
 
+	_tune = Label.new()
+	_tune.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_tune.position = Vector2(14, -150)
+	_tune.add_theme_font_size_override("font_size", 15)
+	_tune.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+	_tune.add_theme_color_override("font_outline_color", Color.BLACK)
+	_tune.add_theme_constant_override("outline_size", 3)
+	layer.add_child(_tune)
+
 	_zone_im = ImmediateMesh.new()
 	var zm := MeshInstance3D.new()
 	zm.mesh = _zone_im
@@ -253,9 +289,62 @@ func _unhandled_input(event: InputEvent) -> void:
 			_reset_targets()
 		KEY_B:
 			_sheet_visible = not _sheet_visible
+		KEY_F1:
+			_nudge("recoil_vertical", -0.05)
+		KEY_F2:
+			_nudge("recoil_vertical", 0.05)
+		KEY_F3:
+			_nudge("recoil_horizontal", -0.05)
+		KEY_F4:
+			_nudge("recoil_horizontal", 0.05)
+		KEY_F6:
+			_nudge("recoil_recovery", -0.5)
+		KEY_F7:
+			_nudge("recoil_recovery", 0.5)
+		KEY_F5:
+			_save_tuning()
+
+
+## Recoil tuning bench (W-10). The M16 is HIS reference feel (ruling 2026-08-04);
+## jitter deg/s = shots/s x random horizontal is the number that convicted the PPSh.
+const _M16_JITTER: float = 6.25
+
+func _nudge(field: String, step: float) -> void:
+	if _wd == null:
+		return
+	var v: float = maxf(0.0, float(_wd.get(field)) + step)
+	_wd.set(field, v)
+	_tune_dirty = true
+
+
+func _save_tuning() -> void:
+	if _wd == null:
+		return
+	var path: String = "res://data/weapons/%s.tres" % ARMORY[_weapon_idx]
+	var err: int = ResourceSaver.save(_wd, path)
+	if err == OK:
+		_tune_dirty = false
+		_flash_board("SAVED %s -> %s" % [_wd.display_name, path])
+	else:
+		_flash_board("SAVE FAILED (%d) %s" % [err, path])
+
+
+func _tune_text() -> String:
+	if _wd == null:
+		return ""
+	var jitter: float = (_wd.fire_rate / 60.0) * _wd.recoil_horizontal
+	return "RECOIL TUNE  %s%s\nvert  %.2f   [F1-/F2+]\nhoriz %.2f   [F3-/F4+]\nrecov %.1f   [F6-/F7+]\njitter %.2f deg/s  (M16 ref %.2f)\nF5 save to .tres" % [
+		_wd.display_name, "  *UNSAVED*" if _tune_dirty else "",
+		_wd.recoil_vertical, _wd.recoil_horizontal, _wd.recoil_recovery,
+		jitter, _M16_JITTER]
 
 
 func _process(_delta: float) -> void:
+	# Bench rule: the mag never empties - dialing recoil must not stop for reloads.
+	if _holder != null and _holder.current_weapon != null:
+		_holder.current_ammo = _holder.current_weapon.magazine_size
+	if _tune != null:
+		_tune.text = _tune_text()
 	_zone_im.clear_surfaces()
 	if _zones_visible:
 		_zone_im.surface_begin(Mesh.PRIMITIVE_LINES)

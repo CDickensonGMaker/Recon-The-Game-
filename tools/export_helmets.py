@@ -12,8 +12,11 @@ a mesh from the hurtbox by SUBSTRING, and "helmet" is on that list. Without the
 prefix a bug-juice bottle or a playing card would be harvested into the man's
 damage volume and you could shoot him by hitting his smokes.
 """
-import bpy, os, json
+import bpy, os, json, sys
 from mathutils import Vector
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from flatten_procedural_colors import flatten, assert_none_white
 
 SRC     = r"C:\Users\caleb\RECONgame\assets\us\characters\helmet_variants.blend"
 LINEUP  = r"C:\Users\caleb\RECONgame\assets\us\characters\us_v3_soldier_lineup.blend"
@@ -78,6 +81,15 @@ for name in names:
     for o in meshes:
         o.select_set(True)
     bpy.context.view_layer.objects.active = meshes[0]
+
+    # see flatten_procedural_colors: a node-driven Base Color ships as WHITE.
+    # The cover is re-textured at runtime by grunt_dresser._texture_helmet, but the
+    # band and the props are not - they rely on their palette colour.
+    flatten(meshes)
+    left = assert_none_white(meshes)
+    if left:
+        raise SystemExit("ABORT %s: material(s) would ship on the engine default: %s"
+                         % (name, left))
 
     out = os.path.join(OUT_DIR, "%s.glb" % name)
     bpy.ops.export_scene.gltf(

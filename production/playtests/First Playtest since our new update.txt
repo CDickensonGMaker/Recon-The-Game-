@@ -1,0 +1,22 @@
+First Playtest since our new updates:
+
+Great things to take away: The terrain is there, the map and flow of what the game is there. You leave the firebase and than you get a mission (sweep this direction) it lead us right into a village which had both villagers and VC. I wasn't able to kill the civilians either and im not sure if everyone has gib set to them. I wasn't spotted right away so that was good too. 
+
+Things I didn't like:
+
+Some textures for different assets and buildings still isn't there. Soldier straps were white but should have had a olive green color. Civilians hats were still in the middle of their heads which is someting ive fixed twice. There was random objects floating in the air for the village we visisted. I did run across a trap and it did hurt me, but i wasn't able to destroy it. Also we cleared the village and tried to leave and it was like wait sweep this area and i did find a vc tunnel but couldn't do anything about it. couldn't blow it up or hit F to destroy or anything. So we have to have a understood way to "finish the clearing"
+
+And than with the squad AI, as soon as a firefight quickly started i had a squadmate just stay right ontop of me it wouldn't leave me alone or do their own thing. The enemy ai didn't really try to stay alive too long and even the civilians that were there were in more of a crouched aiming pose and not in a work pose etc and even when we shot the other vc they just kinda stood around. 
+
+But overall this is the right flow of how i wanted the game to be. I think i need to spend more time making detailed village chunks that can be the parts of villages that spawn in. and im curious how we can add the next layer of a living world with other friendly squads doing their own patrols and flying and landing helicoptors etc. Also is there a way to raise where the firebase is a bit in the terrain? so it doesn't feel like its just in a flat area by itself. and i need more passive localized npcs in the firebase etc 
+
+lets talk about any other things we should identify for this cemented first layer of the game. but overall it feels strong and just needs alot of polish. the barked out orders sound great for what they are and i still haven't tested out any fire misisons or anything. But i also need to be aware of token usage and large running order since I only have 69% of my tokens useage until Friday coming up (my days off are Tuesday and Wednesday so i dont wanna blow thru everything today) 
+
+
+Ak47
+PPSH41
+RPD (using the visible bullet belt we made for the m60)
+Mosin Rifle
+RPG2
+
+

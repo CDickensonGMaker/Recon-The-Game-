@@ -110,11 +110,10 @@ var _handset_vm: ItemViewmodel = null
 var _knife_vm: ItemViewmodel = null
 const HANDSET_HOLD_POSITION: Vector3 = Vector3(0.16, -0.14, -0.32)
 var _handset_cord_anchor: Marker3D = null
-var _radio_menu: RadioMenu = null
 ## The RTO's handset this player is wired to (arena binds it; real game has none yet).
 ## set_on_net drives it so "on the net" and "handset in hand" are one state.
 var _bound_handset: RadioHandset = null
-## Aim reach for opening the radio menu on your RTO.
+## Aim reach for the instant handset pass off your RTO.
 const RADIO_REACH: float = 3.0
 
 ## Hold-breath: short meter, big sway/spread cut while aiming.
@@ -384,8 +383,6 @@ func bind_radio_handset(h: RadioHandset) -> void:
 		h.handset_taken.connect(_on_handset_taken)
 	if not h.handset_returned.is_connected(_on_handset_returned):
 		h.handset_returned.connect(_on_handset_returned)
-	if not h.cord_snapped.is_connected(_on_cord_snapped):
-		h.cord_snapped.connect(_on_cord_snapped)
 	if not h.cord_taut.is_connected(_on_cord_taut):
 		h.cord_taut.connect(_on_cord_taut)
 
@@ -447,45 +444,12 @@ func _aimed_radioman() -> AllyBase:
 	return null
 
 
-## The RadioHandset attached to this RTO, or null. The arena stamps it as meta when
-## it dresses the man with a live radio (there is exactly one per RTO).
-func _rto_handset(rto: AllyBase) -> RadioHandset:
-	if rto != null and rto.has_meta("handset"):
-		return rto.get_meta("handset") as RadioHandset
+## The man whose handset is wired to this player, or null. The handset is built
+## as a child of its RTO (RadioHandset.attach_to).
+func _rto_of_bound_handset() -> AllyBase:
+	if _bound_handset != null and is_instance_valid(_bound_handset):
+		return _bound_handset.get_parent() as AllyBase
 	return null
-
-
-func _open_radio_menu(rto: AllyBase) -> void:
-	if _radio_menu != null or rto == null:
-		return
-	var h: RadioHandset = _rto_handset(rto)
-	var can_grab: bool = h != null and h.can_take()
-	var who: String = SquadRoster.call_name(rto.member)
-	_radio_menu = RadioMenu.new()
-	get_tree().current_scene.add_child(_radio_menu)
-	_radio_menu.build(who, can_grab)
-	_radio_menu.follow_requested.connect(func() -> void:
-		rto.set_order(AllyBase.OrderMode.FOLLOW)
-		_field_toast("%s: ON YOU" % who)
-		_close_radio_menu())
-	_radio_menu.hold_requested.connect(func() -> void:
-		rto.set_order(AllyBase.OrderMode.HOLD, rto.global_position)
-		_field_toast("%s: HOLDING HERE" % who)
-		_close_radio_menu())
-	_radio_menu.grab_requested.connect(func() -> void:
-		set_on_net(true)  # one entry: raises the handset AND opens the fire net together
-		_close_radio_menu())
-	_radio_menu.close_requested.connect(_close_radio_menu)
-	GameManager.is_in_menu = true
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-
-
-func _close_radio_menu() -> void:
-	if _radio_menu != null:
-		_radio_menu.queue_free()
-		_radio_menu = null
-	GameManager.is_in_menu = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
 ## THE NET - single source of truth for "on the radio". holding_handset is the
@@ -542,6 +506,11 @@ func _enter_net() -> void:
 		weapon_holder.weapon_model.visible = false
 	if _handset_placeholder:
 		_handset_placeholder.visible = true
+	# On the net the RTO shadows your back at cord range (his ruling 2026-08-04).
+	var rto: AllyBase = _rto_of_bound_handset()
+	if rto != null:
+		rto.radio_leash = true
+		rto.set_order(AllyBase.OrderMode.FOLLOW)
 	_field_toast("HANDSET IN HAND - RIFLE SLUNG")
 	_notify_net(true)
 
@@ -554,6 +523,9 @@ func _exit_net() -> void:
 		weapon_holder.weapon_model.visible = true
 	if _handset_placeholder:
 		_handset_placeholder.visible = false
+	var rto: AllyBase = _rto_of_bound_handset()
+	if rto != null:
+		rto.radio_leash = false
 	_notify_net(false)
 
 
@@ -581,12 +553,6 @@ func _on_handset_returned() -> void:
 	_exit_net()
 
 
-func _on_cord_snapped() -> void:
-	# stow() runs inside the handset right after this and fires handset_returned,
-	# which restores the rifle; this is only the bark.
-	_field_toast("CORD SNAPPED - HANDSET RIPPED FROM YOUR HAND")
-
-
 func _on_cord_taut(is_taut: bool) -> void:
 	if is_taut:
 		_field_toast("CORD TAUT - THE RADIO IS PULLING")
@@ -612,7 +578,7 @@ func field_interact_prompt() -> String:
 			return "[F] SEARCH THE CACHE"
 		return ""
 	if _aimed_radioman() != null:
-		return "[F] RADIO"
+		return "[F] RETURN HANDSET" if holding_handset else "[F] TAKE HANDSET"
 	for t in get_tree().get_nodes_in_group("temple_shrines"):
 		var shrine := t as Node3D
 		if shrine and not shrine.has_meta("searched") \
@@ -936,11 +902,11 @@ func _try_field_interact() -> void:
 	if mg != null:
 		mg.call("man_by_player", self)
 		return
-	# Aiming at your RTO within reach: open the radio menu (per-man orders + the
-	# handset grab). One affordance, reachable wherever he stands (player freedom).
+	# Aiming at your RTO within reach: the handset passes INSTANTLY - no menu (his
+	# ruling 2026-08-04). Already holding it -> hand it back.
 	var rto: AllyBase = _aimed_radioman()
 	if rto != null:
-		_open_radio_menu(rto)
+		set_on_net(not holding_handset)
 		return
 	# Temple shrine: one-time offering search (intel + flavor).
 	for t in get_tree().get_nodes_in_group("temple_shrines"):

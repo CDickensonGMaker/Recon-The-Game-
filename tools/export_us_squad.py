@@ -23,6 +23,7 @@ from mathutils import Vector, Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_head_frags import build_head_frags
+from flatten_procedural_colors import flatten, assert_none_white
 
 LINEUP = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
 OUT_DIR = r"C:\Users\caleb\RECONgame\assets\us\characters"
@@ -162,6 +163,14 @@ def export_one(tag):
     for o in exportables:
         o.select_set(True)
     bpy.context.view_layer.objects.active = rig
+
+    # glTF cannot carry a node tree: MitchellCamo (Color Ramp), Webbing (Mix) and the
+    # Walnut stocks would export with no baseColorFactor and land in Godot as WHITE.
+    flatten(exportables)
+    left = assert_none_white(exportables)
+    if left:
+        raise SystemExit("ABORT %s: material(s) would ship on the engine default: %s"
+                         % (tag, left))
 
     out = os.path.join(OUT_DIR, "us_grunt_%s.glb" % tag)
     bpy.ops.export_scene.gltf(

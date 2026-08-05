@@ -1,0 +1,6 @@
+{
+ "object": "tray_base",
+ "parent": "PSXRig_line1",
+ "parent_type": "BONE",
+ "parent_bone": "mixamorig:LeftHand"
+}

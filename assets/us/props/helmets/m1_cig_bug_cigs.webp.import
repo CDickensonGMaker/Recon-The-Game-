@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bl8k07u3waqcr"
-path="res://.godot/imported/m1_cig_bug_cigs.webp-b7efa907dfb93bd411e94aace255a4a7.ctex"
+path.s3tc="res://.godot/imported/m1_cig_bug_cigs.webp-b7efa907dfb93bd411e94aace255a4a7.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c6cd380f039b803b4c12882a93fce8e4"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/us/props/helmets/m1_cig_bug_cigs.webp"
-dest_files=["res://.godot/imported/m1_cig_bug_cigs.webp-b7efa907dfb93bd411e94aace255a4a7.ctex"]
+dest_files=["res://.godot/imported/m1_cig_bug_cigs.webp-b7efa907dfb93bd411e94aace255a4a7.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

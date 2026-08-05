@@ -21,8 +21,10 @@ extends MeshInstance3D
 ## The handset's cord boss - on the RTO when stowed, on the player's hand when held.
 @export var endpoint: Node3D
 
-## Full stretch, in metres. Past this the handset is ripped out of the player's hand.
-@export var cord_length: float = 3.0
+## Full stretch, in metres. Long enough to cover the RTO's 4.5m radio leash
+## (AllyBase.RADIO_LEASH_M) plus the port->shoulder->hand path - nothing rips the
+## handset away any more (his ruling 2026-08-04).
+@export var cord_length: float = 8.0
 ## How far the slack cord bellies downward at maximum slack.
 @export var max_sag: float = 0.35
 @export var radius: float = 0.006

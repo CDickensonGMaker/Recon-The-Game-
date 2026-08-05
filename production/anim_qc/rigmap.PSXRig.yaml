@@ -1,0 +1,58 @@
+# PSXRig semantic-role -> real bone name map.
+# Measured headlessly from assets/shared/anim_library.blend, 2026-07-31.
+# Armature object name: PSXRig. Mesh: Base_Human (203 verts, ARMATURE modifier, low-poly PSX block-man).
+# Bone names are colon-separated ("mixamorig:RightForeArm") IN THIS SOURCE FILE. Godot import sanitizes
+# the colon to underscore on the consuming side (scripts/visuals/model_actor.gd) -- both forms exist
+# depending on which file you're reading (ADR/README precedent, not re-verified here).
+#
+# World axes for this rig, MEASURED (not assumed) via evaluated Base_Human mesh bbox at idle@frame1:
+#   Z = up (head-to-toe, standard Blender convention)
+#   X, Y = horizontal plane (character facing direction varies by clip / is bladed for aiming poses --
+#          do not assume a single "front" camera angle catches every clip's worst silhouette overlap.
+#          Use the turntable renderer (anim_qc.py render_turntable) and check multiple angles,
+#          especially the 45/135/225/315 obliques -- true front (a0/a180) foreschortens a bladed
+#          shooting stance into a false-positive scramble; true side (a90/a270) can hide an overlap
+#          that only reads from a 3/4 angle. Confirmed on idle_aiming frame 6: a0 looks broken,
+#          a90/a270 look clean, a315 shows the real defect.
+
+n_bones: 41
+
+bones:
+  head: "mixamorig:Head"
+  head_top: "mixamorig:HeadTop_End"
+  neck: "mixamorig:Neck"
+  hips: "mixamorig:Hips"
+  spine: "mixamorig:Spine"
+  spine1: "mixamorig:Spine1"
+  spine2: "mixamorig:Spine2"          # top of torso, chest -- use as torso-clearance reference for elbow checks
+  l_shoulder: "mixamorig:LeftShoulder"
+  l_arm: "mixamorig:LeftArm"           # upper arm, shoulder->elbow
+  l_forearm: "mixamorig:LeftForeArm"   # elbow->wrist -- THE bone that clips into torso when goofy
+  l_hand: "mixamorig:LeftHand"
+  r_shoulder: "mixamorig:RightShoulder"
+  r_arm: "mixamorig:RightArm"
+  r_forearm: "mixamorig:RightForeArm"  # elbow->wrist -- THE bone that clips into torso when goofy
+  r_hand: "mixamorig:RightHand"
+  l_upleg: "mixamorig:LeftUpLeg"
+  l_leg: "mixamorig:LeftLeg"           # shin
+  l_foot: "mixamorig:LeftFoot"
+  l_toe: "mixamorig:LeftToeBase"
+  l_toe_end: "mixamorig:LeftToe_End"
+  r_upleg: "mixamorig:RightUpLeg"
+  r_leg: "mixamorig:RightLeg"
+  r_foot: "mixamorig:RightFoot"
+  r_toe: "mixamorig:RightToeBase"
+  r_toe_end: "mixamorig:RightToe_End"
+  # finger chains exist (LeftHandIndex1-4, LeftHandThumb1-4, mirrored Right) -- not used by any QC
+  # check yet, listed here so a future run doesn't have to re-discover them.
+
+rotation_mode: QUATERNION   # every arm/leg bone checked so far uses rotation_quaternion fcurves, not euler
+
+objects:
+  armature: PSXRig
+  mesh: Base_Human   # parented to PSXRig, ARMATURE modifier, 203 verts -- use for visual-pass renders
+
+# Measured torso/reach geometry (idle @ frame 1, rest-ish pose), world space, meters:
+#   Hips head (0.003, -0.009, 0.98)  Spine2 tail (0.018, 0.506, ~1.4 est.)
+#   Head top (-0.083, -0.09, 1.706)  feet ~z0.02-0.1 (ground)
+# Overall standing height ~1.72-1.88m top-of-head depending on clip's neck curl.

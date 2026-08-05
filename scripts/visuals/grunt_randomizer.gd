@@ -10,9 +10,12 @@ extends RefCounted
 
 ## Units that are not dressable roles: base rigs, legacy exports without the
 ## stock-helmet contract, and aircrew (own skin materials, flight helmet).
+## us_grunt_v3 dropped 2026-08-04 - retired, the file is gone. us_surgeon has no
+## helmet_shell_worn (a surgeon in a field hospital wears none), so the helmet swap
+## has nothing to hang on and the dresser would warn on every spawn.
 const NON_ROLES: Array[String] = [
-	"us_grunt_rifleman", "us_grunt_v3",
-	"us_pilot_white", "us_pilot_black",
+	"us_grunt_rifleman",
+	"us_pilot_white", "us_pilot_black", "us_surgeon",
 ]
 
 const RUCK_CHANCE: float = 0.5
@@ -31,8 +34,11 @@ static func roles() -> Array[String]:
 
 
 ## Spawn + dress one grunt under `parent`. `role` empty = random role.
+## `opts` is handed straight to the dresser, so a bench can pin one variable
+## (helmet_id, face, ruck, radio) and let the rng roll the rest.
 ## Returns {} on failure, else {"unit", "actor", "loadout"}.
-static func spawn(parent: Node, rng: RandomNumberGenerator, role: String = "") -> Dictionary:
+static func spawn(parent: Node, rng: RandomNumberGenerator, role: String = "",
+		opts: Dictionary = {}) -> Dictionary:
 	var pool: Array[String] = roles()
 	if pool.is_empty():
 		return {}
@@ -48,7 +54,7 @@ static func spawn(parent: Node, rng: RandomNumberGenerator, role: String = "") -
 		actor.queue_free()
 		return {}
 
-	var loadout: Dictionary = dress_actor(actor, rng)
+	var loadout: Dictionary = dress_actor(actor, rng, opts)
 	return {"unit": unit, "actor": actor, "loadout": loadout}
 
 

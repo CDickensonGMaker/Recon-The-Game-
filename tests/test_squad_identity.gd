@@ -99,16 +99,12 @@ func _run() -> void:
 	if not MissionHUD.squad_row(vet_rto, "OK").contains("DUFFY"):
 		print("FAIL: squad strip lead line '%s' is not his name" % MissionHUD.squad_row(vet_rto, "OK"))
 		failures += 1
-	var menu := RadioMenu.new()
-	add_child(menu)
-	menu.build("DUFFY", true)
-	failures += _labels_leaking_rto(menu)
-	menu.queue_free()
+	# (RadioMenu retired 2026-08-04 - the handset passes instantly on [F]; no
+	# menu labels left to leak.)
 
 	# --- 9. drift guard: every roster screen routes through the one map ----------
 	for path: String in ["res://scripts/ui/screens/barracks.gd",
-			"res://scripts/ui/mission_hud.gd", "res://scripts/ui/squad_nameplate.gd",
-			"res://scripts/ui/radio_menu.gd"]:
+			"res://scripts/ui/mission_hud.gd", "res://scripts/ui/squad_nameplate.gd"]:
 		if not FileAccess.get_file_as_string(path).contains("mos_display("):
 			print("FAIL: %s prints a role without mos_display - it can drift" % path)
 			failures += 1
@@ -123,11 +119,3 @@ func _run() -> void:
 	get_tree().quit(1 if failures > 0 else 0)
 
 
-func _labels_leaking_rto(node: Node) -> int:
-	var leaks: int = 0
-	if node is Label and (node as Label).text.contains("RTO"):
-		print("FAIL: RadioMenu label '%s' leaks the raw MOS key" % (node as Label).text)
-		leaks += 1
-	for c in node.get_children():
-		leaks += _labels_leaking_rto(c)
-	return leaks

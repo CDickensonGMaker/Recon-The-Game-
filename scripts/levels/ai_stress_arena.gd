@@ -83,7 +83,10 @@ const SAPPER_AUTO_DELAY: float = 10.0   ## first wave crosses on its own so he s
 ## watched in isolation instead of waiting on the campaign's night roll. Distances are
 ## the campaign geometry scaled into this 200 m box - the ring must clear the
 ## materialize range or every cell becomes bodies on the frame it spawns.
-const SIEGE_STRENGTH: int = 50
+## His ruling 2026-08-04: "send 30 people at a time" - survival waves, chained
+## for as long as he lasts (_on_siege_ended relaunches after a breather).
+const SIEGE_STRENGTH: int = 30
+const WAVE_BREATHER_S: float = 15.0
 const SIEGE_RING_MIN: float = 70.0
 const SIEGE_RING_MAX: float = 95.0
 const SIEGE_MATERIALIZE_M: float = 35.0
@@ -118,10 +121,14 @@ const US_SQUAD_MOS: Array[String] = [
 	"POINTMAN", "RTO", "MEDIC", "RIFLEMAN", "GRENADIER", "MG",
 ]
 
-## US body pool for arena grunts. us_grunt_v3 is the only clean single-body export;
-## the role-specific exports carry a second skinned body and must not be added until
-## that is exported out of them.
-const ARENA_US_BODIES: Array[String] = ["us_grunt_v3"]
+## US body pool for arena grunts. The old note here said us_grunt_v3 was the only clean
+## single-body export and the role exports must be kept out because they carry a second
+## skinned body - that second body is Base_Human, and model_actor.gd:542 hides it on
+## every unit, so the caution is spent. us_grunt_v3 was retired 2026-08-04.
+const ARENA_US_BODIES: Array[String] = [
+	"us_grunt_rifleman", "us_grunt_pointman", "us_grunt_mg",
+	"us_grunt_grenadier", "us_grunt_marksman", "us_grunt_rto",
+]
 
 ## VC/NVA enemy data resources. Each squad gets a mix.
 const VC_PATHS: Array[String] = [
@@ -526,11 +533,51 @@ func _build_jungle() -> void:
 	var terrain := PackedByteArray()
 	terrain.resize(bundles * bundles)
 	terrain.fill(JunglePatchLayer.T_HEAVY_JUNGLE)
+	# CLEARED FIELDS OF FIRE (his ruling 2026-08-04: "if we could have a cleared
+	# treeline a little bit it would be a bit easier to tell whats going on a more
+	# faux firebase"). Open grass around the firebase corner, a light-jungle
+	# transition band, then the heavy stuff - the fight arrives ACROSS open ground.
+	for j in range(bundles):
+		for i in range(bundles):
+			var wx: float = -ARENA * 0.5 + (float(i) + 0.5) * bundle_m
+			var wz: float = -ARENA * 0.5 + (float(j) + 0.5) * bundle_m
+			var d: float = Vector2(wx, wz).distance_to(Vector2(FIREBASE_ORIGIN.x, FIREBASE_ORIGIN.z))
+			if d < CLEAR_RADIUS_M:
+				terrain[j * bundles + i] = JunglePatchLayer.T_GRASSLAND
+			elif d < CLEAR_RADIUS_M + 14.0:
+				terrain[j * bundles + i] = JunglePatchLayer.T_LIGHT_JUNGLE
 	_jungle_layer.generate_for_chunk(Vector2i(0, 0), terrain, bundles, bundle_m,
 			FlatHeightmap.new(), ARENA)
-	# Wherever the eye sees jungle the AI's sight cap must drop to match: stamp heavy
-	# density across the whole play area so the fight happens in genuine concealment.
+	# Wherever the eye sees jungle the AI's sight cap must drop to match: heavy
+	# density outside the clearing, honest open ground inside it.
 	_stamp_veg_rect(Rect2(-ARENA * 0.5, -ARENA * 0.5, ARENA, ARENA), VEG_HEAVY)
+	_stamp_veg_rect(Rect2(FIREBASE_ORIGIN.x - CLEAR_RADIUS_M, FIREBASE_ORIGIN.z - CLEAR_RADIUS_M,
+			CLEAR_RADIUS_M * 2.0, CLEAR_RADIUS_M * 2.0), VEG_RICE)
+	_plant_fellable_treeline()
+
+
+## The clearing geometry shared by the jungle carve and the treeline planter.
+const FIREBASE_ORIGIN := Vector3(-62.0, 0.0, 62.0)   # _build_firebase's origin
+const CLEAR_RADIUS_M: float = 38.0
+
+
+## Real FELLABLE trees on the clearing's rim - the destructible treeline he asked
+## for (2026-08-04): a blast into the edge drops trunks he can watch fall and
+## then use as cover, unlike the batched jungle behind them.
+func _plant_fellable_treeline() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260804
+	var planted: int = 0
+	for i in range(26):
+		var ang: float = rng.randf_range(-PI * 0.55, PI * 0.10)   # the arc facing the arena
+		var r: float = CLEAR_RADIUS_M + rng.randf_range(0.0, 10.0)
+		var pos := FIREBASE_ORIGIN + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
+		if absf(pos.x) > ARENA * 0.5 - 6.0 or absf(pos.z) > ARENA * 0.5 - 6.0:
+			continue
+		var tree: FellableTree = FellableTree.create(self, pos)
+		tree.add_to_group("nav_source")
+		planted += 1
+	print("[ARENA] fellable treeline: %d trees on the clearing rim" % planted)
 
 
 ## Ground density between the patch tiles, MultiMesh-instanced from Caleb's OWN individual
@@ -752,6 +799,27 @@ func _build_firebase() -> void:
 
 	# A simple resupply/landing zone platform.
 	_platform(origin + Vector3(-5, 0, -33), Vector3(12, 0.2, 8))
+
+	# His two ORIGINAL hand-built bunkers (exported 2026-08-04), slits toward the
+	# arena interior (-Z front at yaw 0, interior is NE of this corner). Graceful
+	# no-op until the editor has imported the fresh GLBs.
+	for spec in [
+			["res://assets/world/building models/structures/firebase/kit/fb_bunker_mg.glb",
+				origin + Vector3(-12.0, 0.0, -10.0)],
+			["res://assets/world/building models/structures/firebase/kit/fb_bunker_fighting.glb",
+				origin + Vector3(14.0, 0.0, -8.0)]]:
+		var path: String = str((spec as Array)[0])
+		if not ResourceLoader.exists(path):
+			print("[ARENA] bunker GLB not imported yet: %s" % path)
+			continue
+		var packed := load(path) as PackedScene
+		if packed == null:
+			continue
+		var b := packed.instantiate() as Node3D
+		add_child(b)
+		b.global_position = (spec as Array)[1] as Vector3
+		b.rotation.y = -PI * 0.25
+		b.add_to_group("nav_source")
 
 
 func _build_village() -> void:
@@ -1215,6 +1283,10 @@ func _spawn_player() -> void:
 	if cam != null:
 		cam.current = true
 
+	# God mode comes up the way he left it (default ON), [F7] toggles.
+	_load_lab_prefs()
+	_set_god_mode(_god_on)
+
 	_spawn_player_rto()
 
 	if not spawn_hud:
@@ -1464,18 +1536,90 @@ func _launch_arena_siege() -> void:
 	_siege.open_siege(SIEGE_STRENGTH)
 
 
+var _siege_wave: int = 0
+
+
 func _on_siege_began(strength: int, is_probe: bool) -> void:
+	_siege_wave += 1
 	var cell_sizes: Array[int] = []
 	for c in _siege.cells:
 		cell_sizes.append(c.strength)
-	print("[AI STRESS ARENA] SIEGE: %d attackers in %d cells %s%s" % [
-		strength, cell_sizes.size(), str(cell_sizes), " (PROBE)" if is_probe else ""])
-	_on_director_toast("SIEGE: %d ATTACKERS IN %d CELLS" % [strength, cell_sizes.size()])
+	print("[AI STRESS ARENA] WAVE %d: %d attackers in %d cells %s%s" % [
+		_siege_wave, strength, cell_sizes.size(), str(cell_sizes), " (PROBE)" if is_probe else ""])
+	_on_director_toast("WAVE %d: %d ATTACKERS IN %d CELLS" % [_siege_wave, strength, cell_sizes.size()])
+	_assign_defense_zones()
+	if _siege_wave == 1:
+		_random_illum_tick()
 
 
+## DEFENSIVE ZONES (his decree 2026-08-05): "no one was trying to defend the
+## firebase we had... the usual contact on defense is hold and fight." The moment
+## a wave steps off, every living US man is assigned a sector on the wire and
+## HOLDS it - the AllyBase zone doctrine forbids hunting off the firebase.
+const DEFENSE_ZONE_RADIUS: float = 16.0
+
+
+func _assign_defense_zones() -> void:
+	var z_len: float = FORT_LINE_Z1 - FORT_LINE_Z0
+	var anchors: Array[Vector3] = [
+		Vector3(FORT_LINE_X, 0.0, FORT_LINE_Z0 + z_len * 0.25),
+		Vector3(FORT_LINE_X, 0.0, FORT_LINE_Z0 + z_len * 0.5),
+		Vector3(FORT_LINE_X, 0.0, FORT_LINE_Z0 + z_len * 0.75),
+	]
+	var n: int = 0
+	for squad in _us_squads:
+		for a in squad:
+			if a == null or not is_instance_valid(a) or a.is_dead():
+				continue
+			if a.defense_zone_radius > 0.0:
+				n += 1
+				continue   # already manning his sector from an earlier wave
+			a.defense_zone = anchors[n % anchors.size()]
+			a.defense_zone_radius = DEFENSE_ZONE_RADIUS
+			# Man the line: run to the sector; combat + the zone keep him there.
+			if a.order_mode != AllyBase.OrderMode.RESCUE:
+				a.set_order(AllyBase.OrderMode.MOVE_TO,
+					a.defense_zone + Vector3(_rng.randf_range(-6.0, 6.0), 0.0, _rng.randf_range(-6.0, 6.0)))
+			n += 1
+	if n > 0:
+		print("[AI STRESS ARENA] defense zones assigned: %d men on 3 wire sectors" % n)
+
+
+## SURVIVAL CHAIN (his ruling 2026-08-04: "as many enemy assault waves as i can
+## last... send 30 people at a time"). A broken wave breathes, then the next one
+## steps off - it ends when HE ends.
 func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
-	print("[AI STRESS ARENA] SIEGE END - %s | %d of %d killed" % [reason, killed, strength])
-	_on_director_toast("SIEGE BROKE: %s - %d/%d KILLED" % [reason.to_upper(), killed, strength])
+	print("[AI STRESS ARENA] WAVE %d END - %s | %d of %d killed" % [_siege_wave, reason, killed, strength])
+	if _player_gone():
+		_on_director_toast("WAVE %d TOOK YOU - %d WAVES HELD" % [_siege_wave, _siege_wave - 1])
+		return
+	_on_director_toast("WAVE %d BROKE: %s - %d/%d KILLED. NEXT WAVE IN %ds" % [
+		_siege_wave, reason.to_upper(), killed, strength, int(WAVE_BREATHER_S)])
+	get_tree().create_timer(WAVE_BREATHER_S).timeout.connect(func() -> void:
+		if not _player_gone() and _siege != null and is_instance_valid(_siege) and not _siege.active:
+			_launch_arena_siege())
+
+
+func _player_gone() -> bool:
+	return player == null or not is_instance_valid(player) \
+		or (player.has_method("is_dead") and bool(player.call("is_dead")))
+
+
+## RANDOM ILLUMINATION (his ruling 2026-08-04: "give me random illumination
+## rounds"). While waves run, an 81mm illum pops over a random patch of the
+## fight every 20-45s - the real _illum_burst theatre, no stock spent.
+func _random_illum_tick() -> void:
+	if _player_gone():
+		return
+	if _siege != null and is_instance_valid(_siege) and _siege.active \
+			and _field_director != null and is_instance_valid(_field_director):
+		var wire_center := Vector3(FORT_LINE_X, 0.0, (FORT_LINE_Z0 + FORT_LINE_Z1) * 0.5)
+		var ang: float = randf() * TAU
+		var r: float = randf_range(15.0, 65.0)
+		_field_director._fire_shell(FieldDirector.MORTAR_SHELL,
+			wire_center + Vector3(cos(ang) * r, 0.0, sin(ang) * r),
+			_field_director._illum_burst)
+	get_tree().create_timer(randf_range(20.0, 45.0)).timeout.connect(_random_illum_tick)
 
 
 func _on_director_toast(text: String) -> void:
@@ -1932,6 +2076,31 @@ func _exit_tree() -> void:
 		MissionWeather.is_night = false
 
 
+## LAB GOD MODE (his order 2026-08-05: on by default, [F7] toggles, and the
+## choice STAYS - persisted to user://arena_lab.cfg so every arena boot comes up
+## the way he left it. Lab-only: HealthSystem.god_mode ships false everywhere else.
+const LAB_CFG := "user://arena_lab.cfg"
+var _god_on: bool = true
+
+
+func _load_lab_prefs() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(LAB_CFG) == OK:
+		_god_on = bool(cfg.get_value("lab", "god_mode", true))
+
+
+func _set_god_mode(on: bool) -> void:
+	_god_on = on
+	if player != null and is_instance_valid(player):
+		var hs := player.get_node_or_null("HealthSystem") as HealthSystem
+		if hs != null:
+			hs.set_god_mode(on)
+	_on_director_toast("GOD MODE %s" % ("ON" if on else "OFF"))
+	var cfg := ConfigFile.new()
+	cfg.set_value("lab", "god_mode", on)
+	cfg.save(LAB_CFG)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reload") and _round_ended:
 		_restart_round()
@@ -1939,7 +2108,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			and not (event as InputEventKey).echo):
 		return
 	# K launches a fresh sapper wave at the wire so he can watch the breach repeatedly.
-	# J launches the whole siege - 50 attackers in 3-6 man cells on the same axis.
+	# J launches the whole siege - 30 attackers per wave, chained (survival).
 	match (event as InputEventKey).physical_keycode:
 		KEY_K:
 			_launch_arena_sappers()
@@ -1947,6 +2116,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_launch_arena_siege()
 		KEY_L:
 			_call_mortars_on_player()
+		KEY_F7:
+			_set_god_mode(not _god_on)
 		KEY_F3:
 			set_debug_vis_active(not _debug_vis_enabled)
 			if _hud != null:
