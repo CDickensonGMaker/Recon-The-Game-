@@ -76,6 +76,11 @@ CIV_ANIM_WORKBENCH = _p("assets", "civilians", "characters", "civ_anim_workbench
 CIV_PROPS = _p("assets", "civilians", "props", "civilian_props.blend")
 VILLAGE_PROPS = _p("assets", "civilians", "props", "village_props.blend")
 
+# Zombies (VC Zombies mode). Own faction folder, own workspace - a change to the
+# undead can never reach into the fireteam or the village.
+ZOMBIE_DIR = _p("assets", "zombies", "characters")
+ZOMBIE_FACE_ATLAS = _p("assets", "zombies", "characters", "zombie_face_atlas_v1.png")
+
 # Shared rig + animation
 ANIM_LIBRARY_BLEND = _p("assets", "shared", "anim_library.blend")
 ANIM_LIBRARY_GLB = _p("assets", "shared", "anim_library.glb")

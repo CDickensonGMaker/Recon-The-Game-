@@ -182,6 +182,9 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	clear_chunk(coord)
 	var groups: Dictionary = {}   ## [name, bucket_x, bucket_z] -> Array[Transform3D]
 	var origins := PackedVector3Array()
+	var trunk_pos := PackedVector3Array()
+	var trunk_rad := PackedFloat32Array()
+	var trunk_hgt := PackedFloat32Array()
 	for e: Dictionary in scatter:
 		var nm: String = String(e.get("name", ""))
 		if not _solid_mesh.has(nm):
@@ -192,10 +195,16 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 			groups[key] = []
 		(groups[key] as Array).append(xf)
 		origins.append(xf.origin)
+		# Collider per ENTRY, not per species: a blast-shortened snag and a lying log are
+		# the same species as the tree they came from and must not inherit its full post.
+		# trunk_r/trunk_h ride on the scatter entry; a plain plant falls back to the table.
+		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
+		if r > 0.0:
+			trunk_pos.append(xf.origin)
+			trunk_rad.append(r)
+			trunk_hgt.append(float(e.get("trunk_h", TRUNK_HEIGHT)))
 
 	var nodes: Array[Node] = []
-	var trunk_pos := PackedVector3Array()
-	var trunk_rad := PackedFloat32Array()
 	for key: Array in groups:
 		var nm: String = key[0]
 		var xforms: Array = groups[key]
@@ -213,12 +222,6 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		# FAR: the impostor card (if this species has one). Cards never cast.
 		if _card_mesh.has(nm):
 			nodes.append(_multimesh(_card_mesh[nm], local, near_distance, view_distance, centroid, false))
-		if COVER_TRUNK.has(nm):
-			var r: float = float(COVER_TRUNK[nm])
-			for xf: Transform3D in xforms:
-				trunk_pos.append(xf.origin)
-				trunk_rad.append(r)
-
 	for node: Node in nodes:
 		add_child(node)
 	_chunk_nodes[coord] = nodes
@@ -227,7 +230,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
 		for p: Vector3 in trunk_pos:
 			bounds = bounds.expand(Vector2(p.x, p.z))
-		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad, "bounds": bounds}
+		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad,
+			"heights": trunk_hgt, "bounds": bounds}
 	# Same-frame refresh so a blast rebuild never leaves in-ring trunks bodiless.
 	_update_ring(_resolve_center())
 
@@ -327,7 +331,8 @@ func _update_ring(center: Vector3) -> void:
 		var idx: int = w[2]
 		var data: Dictionary = _chunk_trunks[coord]
 		_place_body(body, (data["positions"] as PackedVector3Array)[idx],
-				(data["radii"] as PackedFloat32Array)[idx])
+				(data["radii"] as PackedFloat32Array)[idx],
+				(data["heights"] as PackedFloat32Array)[idx])
 		if not _chunk_bodies.has(coord):
 			_chunk_bodies[coord] = {}
 		(_chunk_bodies[coord] as Dictionary)[idx] = body
@@ -357,10 +362,11 @@ func _acquire_body() -> StaticBody3D:
 	return body
 
 
-func _place_body(body: StaticBody3D, pos: Vector3, radius: float) -> void:
+func _place_body(body: StaticBody3D, pos: Vector3, radius: float, height: float = TRUNK_HEIGHT) -> void:
+	var h: float = maxf(0.2, height)
 	var shape: CollisionShape3D = body.get_child(0) as CollisionShape3D
-	shape.shape = _shape_for(radius)
-	body.position = pos + Vector3(0.0, TRUNK_HEIGHT * 0.5, 0.0)
+	shape.shape = _shape_for(radius, h)
+	body.position = pos + Vector3(0.0, h * 0.5, 0.0)
 	body.collision_layer = COVER_COLLISION_LAYER
 
 
@@ -370,13 +376,14 @@ func _park_body(body: StaticBody3D) -> void:
 	_free_bodies.append(body)
 
 
-## One shared CylinderShape3D per distinct COVER_TRUNK radius.
-func _shape_for(radius: float) -> CylinderShape3D:
-	var key: float = snappedf(radius, 0.001)
+## One shared CylinderShape3D per distinct radius+height pair. Snags and lying logs add
+## a handful of heights, not one shape per instance.
+func _shape_for(radius: float, height: float = TRUNK_HEIGHT) -> CylinderShape3D:
+	var key: Vector2 = Vector2(snappedf(radius, 0.001), snappedf(height, 0.05))
 	if not _shape_by_radius.has(key):
 		var cyl := CylinderShape3D.new()
 		cyl.radius = radius
-		cyl.height = TRUNK_HEIGHT
+		cyl.height = height
 		_shape_by_radius[key] = cyl
 	return _shape_by_radius[key]
 

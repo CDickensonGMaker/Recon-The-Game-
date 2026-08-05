@@ -14,6 +14,7 @@ const MODEL_DIRS: Array[String] = [
 	"res://assets/us/characters/",
 	"res://assets/nva_vc/characters/",
 	"res://assets/civilians/characters/",
+	"res://assets/zombies/characters/",
 ]
 const TARGET_HEIGHT_M: float = 1.7132   ## metres; ADR-002 scale contract (== manifests' character_height_m)
 
