@@ -35,9 +35,14 @@ nose-up about the gun's middle: butt sags, barrel pinned. Fix (one mechanism, al
   0 SCRIPT ERROR.
 - **He may want a light re-dial of AK/PPSh/M14 recoil `.tres` values** — today's numbers were
   tuned against the broken motion (PPSh at 0.35 recoil_vertical looks dialed-down to hide it).
-- **FOUND, not fixed:** shotgun `MuzzlePoint` sits at the STOCK end (z=+0.115, front is −z on
-  every gun) and its SightRear/SightFront markers are absent from the GLB — hip fire spawns
-  at the butt. Source-blend fix, goes through `tools/export_all_viewmodels.py`.
+- **FIXED 2026-08-05** (`ithaca_fp.glb`, re-export). Verified against `f026f4fa~1`: the old GLB
+  had `MuzzlePoint` at +0.458 (stock end) and no sight markers at all; the new one has
+  `MuzzlePoint` −0.692 co-located with `SightFront` −0.692, plus a real `SightRear` −0.025.
+  The re-export also brought the rack station in (ArmsRig root z 0 → −59.546), so
+  `shotgun.tres` `hip_position.z` −0.148 → −59.694 and `ads_position.z` → −59.288, per the
+  AK/PPSh/M14 convention; re-aim on the bench. Same treatment applied to the new `m60_fp.glb`
+  (root z −36, `hip_position` was 0,0,0). NOTE: `tools/validate_viewmodel_glb.py` passes a gun
+  whose root sits metres off origin — it has no rack-station check.
 - **Deep defect, deferred:** those three GLBs are off the ruler contract (station offset baked
   into every clip). Re-export would move the guns on screen and void his saved bench poses, so
   it waits for a session where he can re-aim poses after re-export.
@@ -1344,3 +1349,123 @@ gate in `_think` and the cord-pull in `_execute_combat`):
   `canopy_clear_m` (arty 13 · bomb 18 · napalm 26 · grenade/bunker 0 — a grenade must not
   drop a jungle tile). Tile origins sit up to ~8.5 m from an impact, hence radii larger
   than the crater's. Applies to main world AND benches (group-based).
+
+**POINTER CORRECTION 2026-08-05 (NO-DRIFT law):** the last sentence above is false in mechanism.
+`vegetation_manager.gd:114-123` is an either/or and `WorldConfig.USE_TREE_COVER = true`
+(`world_config.gd:21`), so the generated AO builds `TreeCoverLayer` and **never constructs a
+`JunglePatchLayer`** — the `jungle_patch_layer` group is empty in the shipped world and
+`blast_clear` runs on the benches only. The OUTCOME claim still holds by a different path: the main
+world's `clear_area` clears vegetation at `radius_cells × cell_size 4.0` = **8 m grenade · 12 m
+arty/mortar · 20 m bomb · 60 m napalm**, i.e. as much or more canopy than the arena's tile-fell
+radii. Radius is not the gap; see the migration decree.
+
+## 2026-08-05 — THE MIGRATION DECREE (playtest zones → demo & game world)
+
+Full record: `production/war_room/2026-08-05_playtest_to_world_migration/`
+(briefing + 5 analyses + discussion + synthesis). Council: systems-designer, technical-director,
+world-architect, game-designer, devil's-advocate. Code only.
+
+**ALREADY TRANSFERS — no work exists:** shoot-through materials (tagged at `site_planner.gd:189`
+and `:1373`; four live consumers) · RTO fire support with every 8/4 tuned value (the range holds no
+copy — `support_fire_range.gd:91` wires the shipped `FieldDirector`) · threat-corridor tree promotion
+· firebase destruction (parapet **140 HP × 80 segs**, bunkers 260, towers 180, sandbag stacks 90 —
+`site_planner.gd:1542-1615`, nav rebake via `destructible.gd:92-94` → `nav_baker.gd:193`).
+
+**MECHANICAL LIFTS, in order:**
+- **M-1 · crater budget.** `MAX_DEFORMS_PER_MISSION = 40` (`damage_system.gd:81`) and every
+  ground-burst arty round spends one (`field_director.gd:842`) → 3–5 fire missions exhausts it and
+  the ground silently stops cratering mid-demo. Make it a rolling window. **DO FIRST.**
+- **M-2 · world structures get HP** — call `_wire_structure_destructibles`/`_adopt_structure`
+  (`site_planner.gd:1561-1615`) from `place_structure` (`:162`). Matches by mesh-name prefix, no
+  Blender re-export, lands in demo AND patrol at once (`game_flow.gd:582, :606`). Straight lift.
+- **M-3 · one HP table** — three exist and have already drifted (`fire_support_bench.gd:48-55` ·
+  `site_planner.gd:1552-1558` · `support_fire_range.gd:988` fort HP 110). **Blocks M-2.**
+- **M-4 · ballistic tags** on the felled log (`fellable_tree.gd:129`), `tunnel_room.gd:29`,
+  `field_director.gd:1027`.
+- **M-5 · arena stops writing on the game.** `EnemySquad.tiering_enabled = false`
+  (`ai_stress_arena.gd:304`, static, never restored — **ADR-026 Part B tiering off for the process**)
+  and `GibSystem.gib_lifetime_s = 25.0` (`:305`). `GameSettings.ai_vs_ai_cone_mult` (`:308`) is a real
+  mechanism with zero effect at defaults — hygiene.
+- **M-6 · delete the arena hook in shipped bullet code** — `bullet_system.gd:172-176` duck-types
+  `get_player_damage_mult()`; only provider is `ai_stress_arena.gd:2031-2032` (ADR-023).
+- **M-7 · drift pass:** `site_planner.gd:1479-1484` (pre-fix problem statement above its own fix) ·
+  `:1491-1492`/`:1536-1537` (SiegeDirector does NOT read a breach — `siege_director.gd:63-67`) ·
+  `ai_stress_arena.gd:1954-1955` · dead `site_planner.gd:140 _is_soft_cover()`.
+
+**NEEDS HIS RULING:** fallen trees become real cover (a small rewrite of the tree-candidate model,
+net-zero physics bodies inside the ADR-033 ring, but needs a rotated-capsule shape family, a
+hole-surviving candidate, and the 24-log FIFO fixed against ADR-031 permanence) · destruction reach ·
+segmented trees (council: WAIT until logs are cover) · defensive-zone full-game integration.
+
+**REFUSED:** arena `SPOT_*` constants (second perception authority, ADR-023) · bench unlimited stock
++ `_cas_cooldown = 0` (deletes the fire-support economy) · arena `SIEGE_STRENGTH` survival figure ·
+every instrument dial (ADR-029 Q5).
+
+**PERF, HONESTLY:** structure HP and log colliders are both priced from structure and are cheap
+(no per-instance process, adopted colliders, one shared rubble draw call, 2 levellings/frame,
+net-zero bodies in the 1280 ring). **UNKNOWN and unmeasured: any jungle sightline, ever**
+(`PERF_LEDGER.md:968-975`). Probes named: **A — THE WALK** (zero code, `game_world.gd:481`),
+**B — THE BARRAGE SPIKE** (this is the ADR-031 gate, open since 2026-07-25), **C — the log ring**
+(extend `tests/test_trunk_ring.gd`).
+
+**SEVEN DECISIONS FOR THE SUMMONER** — see `synthesis.md` closing section.
+
+## 2026-08-05 — HIS SEVEN RULINGS + THE ORDERED BUILD PLAN
+
+Full plan: `production/war_room/2026-08-05_playtest_to_world_migration/build_plan.md`.
+
+**FIVE THINGS THAT CHANGED THE PLAN:**
+1. **His "on call" collider ruling is already how the game works.** ADR-033 left NO permanent tree
+   colliders; a 1280-body pool serves a 70 m player-keyed ring plus time-boxed threat zones. So
+   ruling 1 (fallen trees are cover) is implemented as **data, not colliders** — and that collapses
+   ruling 6 (persistence) into the same change. `TreeCoverLayer.COVER_TRUNK:20-28` **already carries
+   radii for `fallen_log_a/b`, `felled_trunk`, `tree_stump`.**
+2. **`tools/make_felled_tree.py`'s own docstring specifies ruling 1 verbatim** ("what it LEAVES is
+   COVER") and `felled_trunk.glb` + `tree_stump.glb` are on disk. This is finishing an unwired
+   pipeline, not a new feature.
+3. **Ruling 2's premise is wrong.** `MAX_DEFORMS_PER_MISSION`'s comment claims it bounds frame
+   spikes; `TERRAIN_DEFORMS_PER_FRAME = 1` already does that completely. The 40 is a cumulative
+   work ceiling bounding **no memory at all**. ONE crater = a whole 256 m chunk rebuild (4,225 verts,
+   8,192 tris, ~24,576 GDScript `SurfaceTool` calls + `create_trimesh_shape` + full veg re-scatter),
+   synchronous main thread — **likely the direct cause of "its def laggy with everything going on."**
+   The answer is a measurement (P0-B), possibly a cheaper dig, not a bigger number.
+4. **Ruling 4's system does not exist.** `ProvinceState`/allegiance/sympathy = **zero hits repo-wide**.
+   ADR-017/019 are pure decree. Scoped to two live hooks: `EvidenceLedger` (in-patrol retaliation,
+   `field_director.gd:132-187`) + `CampaignState.add_threat_modifier` (`campaign_state.gd:222`,
+   persistent, already read by SiegeDirector).
+5. **Ruling 5 collides with the 8/4 no-procedural-geometry law — his own wording resolves it.**
+   "take an existing tree and fragment more parts of it" = mesh surgery on the existing GLB, never a
+   `make_jungle_flora.py` re-run. Headless-feasible. Needs his eye on cut heights, snag silhouette,
+   fallen-canopy read.
+
+**BULLET PROMOTION — briefing corrected.** The gap is narrower than "bullets don't promote": the
+player already carries a permanent 70 m collider bubble, and ADR-033 *ratified* "beyond 70 m bullets
+do not strike trunks." The real defect is **asymmetric** — an enemy beyond 70 m has no working cover
+of his own. **And the dedupe does NOT save corridors:** `_add_zone` needs BOTH endpoints within 4 m,
+which at 250 m is 0.92° — less than aim jitter, so most rounds would pay a full `_update_ring`.
+**Fix: anchor promotion to the SHOOTER'S POSITION** (stable → dedupe actually hits). Starting points
+only: radius 8 m, duration 2.0 s. Positive finding: `ZONE_MAX` eviction takes the soonest-to-expire,
+so short bullet zones can never displace a live shell corridor. Stays clear of the rejected
+gaze-based promotion — keyed to weapons firing, never to what is on screen.
+
+**PHASES:** P0 measure (THE WALK · ONE DIG · THE BARRAGE = the ADR-031 gate) → P1 landmines (crater
+ceiling · **unbounded scar `Decal` nodes, never freed during play** · **`_in_veg_hole` linear scan
+over every hole ever, per plant, per rebuild** · arena static leaks · bullet hook · drift) → P2 fell
+registry (rulings 1+6) → P3 shooter-anchored bullet promotion → P4 destructible world + temples
+(rulings 3) → P5 consequence hooks (ruling 4) → P6 defensive zones (ruling 7) → P7 segmented trees
+(plan only).
+
+**FOSSIL BLOCKER ON RULING 7:** `AllyBase` has TWO hold-ground systems — `post_anchor`/`post_leash`
+(`ally_base.gd:161-164`, garrison) and `defense_zone`/`defense_zone_radius` (`:138-139`, arena).
+Merge before adding a third caller. `EnemyBase` has **none** — enemy zones are a design build,
+**deferred** on depth-over-breadth.
+
+**BUGS FOUND:** `_bank_patrol` (`field_director.gd:1768-1791`) never copies `civilian_deaths` — every
+successful patrol silently discards it · `player.gd:249` calls `on_atrocity_witnessed`, which
+`Civilian` does not implement (permanent no-op) · scar decal Y is sampled before the queued dig runs.
+
+**SCOPED DOWN on his "few very fleshed out systems" brief:** ruling 4 → two hooks not ADR-019 ·
+ruling 7 → US side only · ruling 5 → one archetype (broadleaf) before fourteen species.
+
+**CHARTER DRIFT:** `OVERSEER_CHARTER.md §8/§10.3` still mandates driving `bd`; `CLAUDE.md:401-408`
+retired it 2026-07-22 and forbids running it. Repo law wins; charter to be corrected.
