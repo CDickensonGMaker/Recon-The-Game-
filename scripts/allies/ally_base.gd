@@ -112,8 +112,6 @@ func wants_cover_first(nerve: float) -> bool:
 ## May this man close the range? The coward anchors on his rock; a broken squad
 ## does not push at all.
 func may_close_distance(nerve: float) -> bool:
-	if _is_garrison_defender():
-		return false  # he holds the wire; the assault comes to him
 	return not squad_broken and not (nerve < 0.35 and has_cover)
 
 var has_line_of_sight: bool = false
@@ -135,6 +133,8 @@ const RADIO_LEASH_M: float = 4.5
 ## fight"). A man assigned ground HOLDS it: the scorer never hands him
 ## ADVANCE/FLANK, his combat footwork stops at the rim, and past the radius his
 ## one legal move is back onto his ground. Zero radius = no zone (patrol AI as-is).
+## THIS IS THE ONLY HOLD-GROUND AUTHORITY - garrison posts, crew stations and arena
+## zones all assign here. Do not add a second one.
 var defense_zone: Vector3 = Vector3.ZERO
 var defense_zone_radius: float = 0.0
 ## Slot lag that puts a man into catch-up.
@@ -156,16 +156,6 @@ const COMBAT_SPEED_MULT: float = 0.48
 ## Amble inside the deadzone. Slow enough to read as a man, not a reposition.
 const IDLE_DRIFT_SPEED: float = 0.45
 
-## GARRISON DEFENDER LEASH (war-room decree 2026-07-20). A promoted firebase man
-## holds his post: he fires outward from the wire and never chases the enemy off it.
-## post_anchor ZERO = a normal maneuvering ally (default; the squad and ambient
-## patrols are untouched). Non-ZERO pins his combat footwork inside post_leash of it.
-var post_anchor: Vector3 = Vector3.ZERO
-var post_leash: float = 8.0
-
-
-func _is_garrison_defender() -> bool:
-	return post_anchor != Vector3.ZERO
 
 
 ## Squad layer: roster identity + orders.
@@ -480,8 +470,8 @@ func _play_crew_station(speed: float) -> bool:
 	var station: String = str(get_meta("mortar_station", ""))
 	if station == "" or not CREW_STATION_CLIPS.has(station):
 		return false
-	if post_anchor == Vector3.ZERO \
-			or global_position.distance_to(post_anchor) > CREW_AT_STATION_M:
+	if defense_zone == Vector3.ZERO \
+			or global_position.distance_to(defense_zone) > CREW_AT_STATION_M:
 		return false
 	(sprite_actor as ModelActor).play(str(CREW_STATION_CLIPS[station]))
 	return true
@@ -1231,11 +1221,6 @@ func _execute_combat(delta: float) -> void:
 							_cover_pose_until_ms = now_ms + 600.0
 		else:
 			_anim_override = ""
-
-		# A garrison defender dragged past his leash is pulled home: the post outranks
-		# the fight footwork, so the perimeter never empties into the dark.
-		if _is_garrison_defender() and global_position.distance_to(post_anchor) > post_leash:
-			move_dir = (post_anchor - global_position).normalized()
 
 		move_dir.y = 0
 		if move_dir.length() > 0.1:

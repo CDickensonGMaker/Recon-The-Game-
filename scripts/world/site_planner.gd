@@ -1027,7 +1027,9 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 				# Alternate the two sentry shifts so the wire is not empty after dark.
 				if occ == "sentry" and taken % 2 == 1:
 					occ = "sentry_night"
-				posts.append({"pos": wp, "occupation": occ, "men": 1})
+				# "role" carries the raw work_type: occupation is lossy, and the animation
+				# picker needs to tell a chow server from a man in the queue.
+				posts.append({"pos": wp, "occupation": occ, "men": 1, "role": wt})
 				taken += 1
 				placed_this_round = true
 			if not placed_this_round:

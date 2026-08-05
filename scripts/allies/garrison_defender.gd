@@ -5,7 +5,7 @@
 ## the informer: one authority, one population, no second parallel spawn, and NO
 ## third combat brain - the promoted man reuses AllyBase's shipped fire logic whole.
 ## He is NOT the player's squad (squad_member=false, like friendly_patrol_group.gd),
-## he holds his post (post_anchor + OrderMode.HOLD, so the perimeter never empties),
+## he holds his post (defense_zone + OrderMode.HOLD, so the perimeter never empties),
 ## and he can be hit and can die like any other body.
 class_name GarrisonDefender
 extends RefCounted
@@ -61,8 +61,8 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	ally.member = SquadRoster.generate_member(_seeded_rng(stand), str(MOS_FOR.get(occ, "RIFLEMAN")))
 	ally.director = director
 	ally.set_order(AllyBase.OrderMode.HOLD, post)
-	ally.post_anchor = post
-	ally.post_leash = 8.0
+	ally.defense_zone = post
+	ally.defense_zone_radius = 8.0
 	# The gun crew mans the Pig: its MOS reads "MG", so it must FIRE an M60 (42 dmg)
 	# and LOOK like it - not stand a rifleman under an MG nameplate (drift law).
 	if occ == "gun_crew":
@@ -71,7 +71,7 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 		var emp: MGEmplacement = _nearest_free_emplacement(ally, stand)
 		if emp == null or not emp.man_by_ai(ally):
 			# No gun free: take a mortar station rather than stand in the open holding
-			# a Pig. claim() seats post_anchor on the station marker itself, so the man
+			# a Pig. claim() seats defense_zone on the station marker itself, so the man
 			# walks to the tube and works there.
 			if not _claim_mortar_station(ally, stand):
 				ally.weapon_data = load("res://data/weapons/m60.tres")
@@ -106,7 +106,7 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 	var parent: Node = ally.get_parent()
 	if parent == null:
 		return null
-	var post: Vector3 = ally.post_anchor if ally.post_anchor != Vector3.ZERO else ally.global_position
+	var post: Vector3 = ally.defense_zone if ally.defense_zone != Vector3.ZERO else ally.global_position
 	var stand: Vector3 = ally.global_position
 	var occ: String = str(ally.get_meta("garrison_occupation", "cook"))
 	var unit: String = str(ally.get_meta("garrison_unit", ""))
@@ -147,7 +147,7 @@ static func _seeded_rng(at: Vector3) -> RandomNumberGenerator:
 ## Put a man on the nearest free mortar station. `MortarPit.claim()` had ZERO callers, so
 ## every pit the firebase built stood empty behind its markers; this is the consumer.
 ## The man keeps a rifle - a mortar crewman is not an MG gunner - and claim() moves his
-## post_anchor onto the station so he walks to the tube instead of holding his spawn.
+## defense_zone onto the station so he walks to the tube instead of holding his spawn.
 static func _claim_mortar_station(ally: AllyBase, at: Vector3) -> bool:
 	if ally == null or ally.get_tree() == null:
 		return false
@@ -168,12 +168,12 @@ static func _claim_mortar_station(ally: AllyBase, at: Vector3) -> bool:
 			best_station = free[0]
 	if best == null or not best.claim(best_station, ally):
 		return false
-	# claim() moves post_anchor, but the HOLD order still names the old post - without
+	# claim() moves defense_zone, but the HOLD order still names the old post - without
 	# re-issuing it the man holds where he was seated and the station stays empty.
 	var station_pos: Vector3 = best.station_position(best_station)
 	ally.set_order(AllyBase.OrderMode.HOLD, station_pos)
-	ally.post_anchor = station_pos
-	ally.post_leash = 3.0      # a crewman works his station, he does not wander the pit
+	ally.defense_zone = station_pos
+	ally.defense_zone_radius = 3.0      # a crewman works his station, he does not wander the pit
 	ally.set_meta("mortar_pit", best)
 	ally.set_meta("mortar_station", best_station)
 	return true

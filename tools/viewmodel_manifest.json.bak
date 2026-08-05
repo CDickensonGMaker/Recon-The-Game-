@@ -16,7 +16,8 @@
    "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
   },
   "m60": {
-   "contact_chandle_M60NEW": "M60NEW_parts_rig"
+   "contact_chandle_M60_MG": "M60_chandle_charge_handle",
+   "contact_feedcover_M60_MG": "M60_feedcover"
   },
   "thompson": {
    "contact_chandle_Thompson_Submachine_Gun": "Thompson_charge_handle",
@@ -196,9 +197,9 @@
    "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
   },
   "m60": {
-   "collection": "RIG_M60NEW",
-   "gun_prefix": "M60NEW",
-   "gun_root": "M60NEW_root",
+   "collection": "RIG_M60_MG",
+   "gun_prefix": "M60_MG",
+   "gun_root": "M60_MG_root",
    "real_length_m": 1.105,
    "weapon_tres": "data/weapons/m60.tres",
    "clips": [
@@ -207,18 +208,17 @@
     "reload_empty",
     "charge_handle",
     "fire",
-    "jam",
-    "boxswap"
+    "jam"
    ],
    "parts": [
-    "M60NEW_root",
-    "ammobox_ctrl_M60NEW"
+    "M60_MG_root",
+    "M60_chandle_charge_handle"
    ],
    "markers_under_gun": true,
    "contacts": {
-    "contact_chandle_M60NEW": "M60NEW_parts_rig"
+    "contact_chandle_M60_MG": "M60_chandle_charge_handle"
    },
-   "_note": "REBUILT 2026-08-05: new low-poly M60 (M60NEW_*), hand-posed by Caleb. Moving parts are BONES on M60NEW_parts_rig (cover, charge_handle, belt_00..belt_17) plus the ammobox_ctrl_M60NEW object. Belt is baked bone keys in reload+boxswap. Replaces the old M60_MG rig whose clips were AK-retargeted. Box shell/latch (M60NEW_ammobox.049, body.050, body.051) are CHILDREN of ammobox_ctrl_M60NEW and inherit its motion - they are not independent parts."
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
   },
   "mosin": {
    "collection": "RIG_Mosin",
@@ -272,7 +272,7 @@
    "collection": "RIG_Ithaca37_Shotgun",
    "gun_prefix": "Ithaca37_Shotgun",
    "gun_root": "Ithaca37_Shotgun_root",
-   "real_length_m": 1.304,
+   "real_length_m": 1.003,
    "weapon_tres": "data/weapons/shotgun.tres",
    "clips": [
     "rifle_idle",
@@ -290,7 +290,7 @@
    "contacts": {
     "contact_pump_Ithaca37_Shotgun": "Ithaca37_pump"
    },
-   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py) 2026-08-05: gun+pump scaled 1.30x at Caleb's request to read larger in the hands (root scaled about grip_R so the right hand stays planted); real_length_m raised from 1.003 to 1.304 so the export scale gate matches the intended size, NOT real-world 1.003 m."
+   "_note": "clips RETARGETED from the AK-47 reference pack 2026-07-28 (tools/retarget_ref_anim.py)"
   },
   "m79": {
    "collection": "RIG_M79_Launcher",

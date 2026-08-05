@@ -968,6 +968,7 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			var man: Civilian = Civilian.spawn(world, pos, director, false,
 				CivilianScript.models_for(str(post.occupation)), true)
 			man.occupation = str(post.occupation)
+			man.role = str(post.get("role", ""))
 			var wp: Vector3 = station
 			wp.y = world.floor_y(wp)
 			man.working_point_pos = wp

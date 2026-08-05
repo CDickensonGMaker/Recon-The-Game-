@@ -51,8 +51,8 @@ func claim(station: String, body: Node3D) -> bool:
 	if not _occupants.has(station) or _occupants[station] != null:
 		return false
 	_occupants[station] = body
-	if "post_anchor" in body:
-		body.set("post_anchor", station_position(station))
+	if "defense_zone" in body:
+		body.set("defense_zone", station_position(station))
 	return true
 
 

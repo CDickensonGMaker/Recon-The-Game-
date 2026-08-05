@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "flashlight"
+display_name = "MX-991 Flashlight"
+description = "Angle-head GI light. Red lens, and you hood it with your hand anyway."
+viewmodel_fov = 75.0
+ads_fov = 75.0
+model_path = "res://scenes/weapons/flashlight_viewmodel.tscn"
+hip_position = Vector3(0, 0, -0.09319498)
+ads_position = Vector3(0, 0.05, 0.08)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

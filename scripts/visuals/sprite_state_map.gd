@@ -171,10 +171,11 @@ static func _intent_core(state: int, is_crippled: bool, is_surrendered: bool,
 
 ## Remap a standing intent to its crouch equivalent (locomotion, aim/fire, and
 ## the suppressed "cover" hunker). death/crippled/surrender pass through
-## untouched. sprint/sneak_l/sneak_r stay upright: a rushing man is not low, and
-## a sneaker already has the cover_sneak lateral clips.
+## untouched. sprint stays upright: a rushing man is not low.
 static func _to_crouch(intent: String, speed: float, lateral: float) -> String:
 	match intent:
+		"sneak_l", "sneak_r":
+			return "crouch_sneak_l" if intent == "sneak_l" else "crouch_sneak_r"
 		"run", "walk", "patrol", "aim_walk", "arrive":
 			if speed <= 0.5:
 				return "crouch_idle"
@@ -269,6 +270,10 @@ const MODEL_CLIP: Dictionary = {
 	"death_hs_back": "death_from_back_headshot",
 	"sprint": "sprint_forward",
 	"sneak_l": "cover_sneak_left", "sneak_r": "cover_sneak_right",
+	# The LOW sneak. cover_sneak_* are upright; a sneaker who is also in low posture
+	# was passing through to them and standing up out of his own crouch.
+	"crouch_sneak_l": "crouched_sneaking_left",
+	"crouch_sneak_r": "crouched_sneaking_right",
 	"arrive": "run_to_stop",
 	# Low-posture family (Track B2). Diagonals share the cardinal clips - the
 	# standing side has no diagonal intents either, so this keeps parity.

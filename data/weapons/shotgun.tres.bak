@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponData" format=3]
+﻿[gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
 
@@ -38,9 +38,8 @@ audio_max_distance = 380.0
 audio_unit_size = 18.0
 is_supersonic = false
 model_path = "res://scenes/weapons/ithaca_arms_viewmodel.tscn"
-bore_dir = Vector3(-0.08264192, 0.03057991, -0.9961101)
-ads_bore_dir = Vector3(-0.082641, 0.030579, -0.99611)
-hip_position = Vector3(4.6568074, -2.2931628, -59.39031)
-ads_position = Vector3(-0.0021903852, 0.0023770207, -0.592884)
-hip_rotation = Vector3(-2.4406505, -4.4285226, -8.498379)
+bore_dir = Vector3(-0.029141342, 0.03627417, -0.9989169)
+hip_position = Vector3(0.021599488, 0.09085261, -59.693581)
+ads_position = Vector3(-0.21903853, 0.23770206, -59.288403)
+hip_rotation = Vector3(-1.0665487, -1.4392482, 9.471822)
 ads_rotation = Vector3(0.5114338, 0.07835249, 2.7850494)

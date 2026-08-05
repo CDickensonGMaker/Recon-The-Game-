@@ -157,8 +157,8 @@ func man_by_ai(ally: Node) -> bool:
 	var stand: Vector3 = gunner_stand_pos()
 	(ally as Node3D).global_position = stand
 	(ally as Node3D).reset_physics_interpolation()
-	ally.set("post_anchor", stand)
-	ally.set("post_leash", 1.0)
+	ally.set("defense_zone", stand)
+	ally.set("defense_zone_radius", 1.0)
 	ally.set("current_aim_dir", arc_center_dir())
 	# The MG nameplate must match the gun: fire the Pig (42 dmg) AND look like it.
 	ally.set("weapon_data", load("res://data/weapons/m60.tres"))

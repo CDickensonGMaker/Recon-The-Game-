@@ -129,6 +129,9 @@ func _all_species() -> Array:
 	for pool: Array in TYPE_SPECIES.values():
 		for nm: String in pool:
 			seen[nm] = true
+	# Not a scatter species - nothing plants a felled log - but the mesh must be loaded
+	# or generate_for_chunk silently drops every entry _fell_registry re-emits.
+	seen[FELLED_SPECIES] = true
 	return seen.keys()
 
 
@@ -383,9 +386,34 @@ func _materialize_vegetation(chunk_coord: Vector2i, heightmap: Object) -> void:
 ## chunk rebuild keeps the crater clear. Cleared per-mission in clear_all().
 var _veg_holes: Array = []
 
+## Holes bucketed by world cell. _in_veg_hole runs per CANDIDATE PLANT on every chunk
+## re-scatter, so a linear scan makes every rebuild slower for the rest of the mission -
+## the cost that decides whether persistent damage is affordable at all. A hole is filed
+## in every cell its bounding square touches, so a lookup reads one cell.
+const HOLE_BUCKET_M: float = 32.0
+var _veg_hole_buckets: Dictionary = {}
+
+
+func _hole_cell(wx: float, wz: float) -> Vector2i:
+	return Vector2i(floori(wx / HOLE_BUCKET_M), floori(wz / HOLE_BUCKET_M))
+
+
+func _file_veg_hole(hole: Dictionary) -> void:
+	var c: Vector3 = hole["c"]
+	var r: float = sqrt(float(hole["r2"]))
+	var lo: Vector2i = _hole_cell(c.x - r, c.z - r)
+	var hi: Vector2i = _hole_cell(c.x + r, c.z + r)
+	for cx in range(lo.x, hi.x + 1):
+		for cz in range(lo.y, hi.y + 1):
+			var key := Vector2i(cx, cz)
+			if not _veg_hole_buckets.has(key):
+				_veg_hole_buckets[key] = []
+			(_veg_hole_buckets[key] as Array).append(hole)
+
 
 func _in_veg_hole(wx: float, wz: float) -> bool:
-	for hole: Dictionary in _veg_holes:
+	var bucket: Array = _veg_hole_buckets.get(_hole_cell(wx, wz), [])
+	for hole: Dictionary in bucket:
 		var c: Vector3 = hole["c"]
 		if (wx - c.x) ** 2 + (wz - c.z) ** 2 < float(hole["r2"]):
 			return true
@@ -420,7 +448,9 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 					doomed.append(e)
 					if doomed.size() >= FELL_MAX_PER_BLAST:
 						break
-	_veg_holes.append({"c": center, "r2": radius * radius})
+	var hole := {"c": center, "r2": radius * radius}
+	_veg_holes.append(hole)
+	_file_veg_hole(hole)
 
 	var rebuilt := 0
 	for cx in range(min_cx, max_cx + 1):
@@ -433,20 +463,47 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 				_rematerialize(chunk_coord, heightmap, chunk_size)
 			rebuilt += 1
 	for e: Dictionary in doomed:
-		_fell_tree_visual(String(e.name), e.xf as Transform3D, center)
+		_fell_tree_visual(String(e.name), e.xf as Transform3D, center, chunk_size)
+	# The logs just registered are not in the scatter yet - this chunk was rebuilt above,
+	# before they existed. Re-scatter once the fall has landed so they become cover then,
+	# not at some unrelated later rebuild. This is the VEGETATION MultiMesh rebuild, not
+	# the terrain SurfaceTool dig, so it is cheap; the chunks are deduped.
+	if not doomed.is_empty() and heightmap != null:
+		var touched: Dictionary = {}
+		for e: Dictionary in doomed:
+			var p: Vector3 = (e.xf as Transform3D).origin
+			touched[Vector2i(floori(p.x / chunk_size), floori(p.z / chunk_size))] = true
+		var hm: Object = heightmap
+		get_tree().create_timer(FELL_TIME).timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			for c: Vector2i in touched.keys():
+				if _chunk_terrain.has(c):
+					clear_chunk_visuals(c)
+					_rematerialize(c, hm, chunk_size), CONNECT_ONE_SHOT)
 	return rebuilt
 
 
-## LIVE-WORLD TREE FELLING (decree 2026-08-04: support fires must drop trees in the
-## real jungle, not only on the bench). The batched instance is already gone from the
-## rebuilt MultiMesh above; this stands a single MeshInstance3D of the same species
-## in its place, hinges it over at the base away from the blast (the FellableTree
-## motion), and leaves it lying. Visual only - no collider, no registry entry - and
-## FIFO-capped so a bombardment cannot accumulate scene nodes.
-const FELL_MAX_PER_BLAST := 5
+## LIVE-WORLD TREE FELLING (decree 2026-08-04). A felled tree is COVER, not decoration
+## (his ruling 2026-08-05): the tween below is only the falling MOTION. The log itself is
+## recorded in _fell_registry as DATA and re-emitted by _build_scatter as an ordinary
+## `felled_tree` scatter instance, so the pooled 70m ring bodies it on demand like any
+## other trunk. Nothing here holds a permanent collider and nothing accumulates nodes.
+const FELL_MAX_PER_BLAST := 12
 const FELL_TIME := 2.0
-const FALLEN_MAX := 24
+## Falling VISUALS only (transient, ~FELL_TIME each). Registry entries are not capped by
+## count: a FIFO would free the log a man is lying behind because of a blast 200m away,
+## which ADR-031 forbids inside the firefight radius.
+const FALLEN_VISUAL_MAX := 24
 var _fallen_visuals: Array[Node3D] = []
+
+## The species the ring bodies a lying log as. In COVER_TRUNK (0.40m) and on disk as
+## felled_tree.glb; added to the load list by _all_species().
+const FELLED_SPECIES := "felled_tree"
+
+## Every log dropped this mission: {name, xf (final, lying), chunk}. Survives chunk
+## rebuilds because _build_scatter re-emits it; cleared per-mission in clear_all().
+var _fell_registry: Array = []
 
 
 ## Only trunked cover-givers fall as logs; brush and grass just vanish in the blast.
@@ -456,7 +513,7 @@ func _is_fell_species(nm: String) -> bool:
 		or nm.begins_with("palm_")
 
 
-func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3) -> void:
+func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3, chunk_size: float) -> void:
 	var mesh: Mesh = _tree_cover.solid_mesh_for(nm) if _tree_cover != null else null
 	if mesh == null:
 		return
@@ -472,6 +529,16 @@ func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3) -> void:
 	if away.length() < 0.5:
 		away = Vector3(1, 0, 0)
 	var axis: Vector3 = away.normalized().cross(Vector3.UP).normalized()
+	var hinged := Basis(axis, PI * 0.47)
+	var chunk := Vector2i(floori(xf.origin.x / chunk_size), floori(xf.origin.z / chunk_size))
+	# Recorded at its RESTING transform up front, not when the tween lands: the entry is
+	# what makes the log cover, and a strike that kills the node mid-fall must not lose it.
+	_fell_registry.append({
+		"name": FELLED_SPECIES,
+		"xf": Transform3D(hinged * xf.basis, xf.origin),
+		"chunk": chunk,
+	})
+	root.set_meta("fell_chunk", chunk)
 	var tw := root.create_tween()
 	tw.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	tw.tween_method(func(a: float) -> void:
@@ -479,15 +546,31 @@ func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3) -> void:
 			root.basis = Basis(axis, a),
 		0.0, PI * 0.47, FELL_TIME)
 	_fallen_visuals.append(root)
-	while _fallen_visuals.size() > FALLEN_MAX:
+	while _fallen_visuals.size() > FALLEN_VISUAL_MAX:
 		var old: Variant = _fallen_visuals.pop_front()
 		if is_instance_valid(old):
 			(old as Node3D).queue_free()
 
 
+## THE HANDOFF. Once this chunk's scatter has re-emitted its logs from _fell_registry, the
+## transient falling visual is a duplicate standing in the same place - free it. Called at
+## the top of _rematerialize so the swap happens in one frame, never leaving a gap.
+func _retire_fallen_visuals(chunk_coord: Vector2i) -> void:
+	var keep: Array[Node3D] = []
+	for f: Node3D in _fallen_visuals:
+		if not is_instance_valid(f):
+			continue
+		if f.get_meta("fell_chunk", Vector2i(0, 0)) == chunk_coord:
+			f.queue_free()
+		else:
+			keep.append(f)
+	_fallen_visuals = keep
+
+
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
 ## and by clear_area() -- never duplicate this branch.
 func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
+	_retire_fallen_visuals(chunk_coord)
 	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
 		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
 		_tree_cover.generate_for_chunk(chunk_coord, _build_scatter(chunk_coord, heightmap, chunk_size))
@@ -548,6 +631,12 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				if _in_veg_hole(wx, wz):
 					continue
 				scatter.append({"name": nm, "xf": Transform3D(plant_basis, Vector3(wx, h, wz))})
+	# Logs dropped earlier this mission re-enter as ordinary candidates, so the ring
+	# bodies them. Deliberately NOT filtered by _in_veg_hole: the log lies in the crater
+	# the blast just made, which is exactly where he needs the cover.
+	for f: Dictionary in _fell_registry:
+		if f["chunk"] == chunk_coord:
+			scatter.append({"name": String(f["name"]), "xf": f["xf"] as Transform3D})
 	return scatter
 
 
@@ -654,6 +743,8 @@ func clear_all() -> void:
 	_chunk_terrain.clear()
 	_chunk_placements.clear()
 	_veg_holes.clear()
+	_veg_hole_buckets.clear()
+	_fell_registry.clear()
 
 
 ## OPTIMIZED: Single surface with vertex colors to reduce draw calls from 9 to 1

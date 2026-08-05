@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "knife"
+display_name = "Combat Knife"
+description = "Quiet work. The blade you carry when the rifle is the wrong answer."
+viewmodel_fov = 75.0
+ads_fov = 75.0
+model_path = "res://scenes/weapons/knife_viewmodel.tscn"
+hip_position = Vector3(0, 0, 0)
+ads_position = Vector3(0, 0, 0)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

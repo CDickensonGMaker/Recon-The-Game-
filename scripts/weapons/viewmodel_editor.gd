@@ -70,6 +70,16 @@ const BOARD_DIST: float = 25.0
 const BOARD_CENTER := Vector3(0.0, 1.7, -25.0)
 const ALIGN_TOLERANCE_M: float = 0.025  ## 1 mrad at 25m reads as "aligned"
 
+## Lobbed-weapon laser. Anything slower than this flies a visible arc, so the
+## beam is drawn as the integrated trajectory instead of a ray: M79 76 m/s,
+## LAW/RPG similar. Rifles (400+ m/s) keep the cheap straight line.
+const ARC_SPEED_MAX: float = 150.0
+const ARC_GRAVITY: float = 9.8    ## must match bullet_system.gd GRAVITY
+const ARC_DT: float = 0.02
+const ARC_STEPS: int = 900
+const ARC_MAX_Z: float = 200.0
+const ARC_MAX_DROP: float = 60.0
+
 const BASE_FOV: float = 75.0
 
 
@@ -499,14 +509,36 @@ func _update_laser() -> void:
 	var origin: Vector3 = ray[0]
 	var dir: Vector3 = ray[1]
 
-	# Intersect the board plane (z = -BOARD_DIST)
+	# A lobbed weapon's round does not travel the bore line - it falls. Drawing a
+	# straight beam for the M79/LAW/RPG class is a lie in both directions: it is
+	# neither the barrel nor the impact point, which is why their bore_dir used to
+	# get fudged onto the sight line. Integrate the SAME way bullet_system.gd does
+	# (GRAVITY 9.8, projectile_speed) so the drawn curve IS the round's path.
+	var arced: bool = current_weapon != null and current_weapon.projectile_speed <= ARC_SPEED_MAX
+	var path: PackedVector3Array = PackedVector3Array()
 	var end: Vector3 = origin + dir * 60.0
-	if dir.z < -0.001:
-		var t: float = (-BOARD_DIST - origin.z) / dir.z
-		if t > 0.0 and t < 60.0:
-			end = origin + dir * t
-			_bore_offset = Vector2(end.x - BOARD_CENTER.x, end.y - BOARD_CENTER.y)
-			_bore_valid = true
+	if arced:
+		path = _arc_points(origin, dir, current_weapon.projectile_speed)
+		if path.size() >= 2:
+			end = path[path.size() - 1]
+			# Where the arc crosses the board plane is the honest aim point.
+			for i in range(path.size() - 1):
+				var a: Vector3 = path[i]
+				var b: Vector3 = path[i + 1]
+				if (a.z + BOARD_DIST) * (b.z + BOARD_DIST) <= 0.0 and absf(b.z - a.z) > 1e-6:
+					var f: float = (-BOARD_DIST - a.z) / (b.z - a.z)
+					var cross: Vector3 = a.lerp(b, clampf(f, 0.0, 1.0))
+					_bore_offset = Vector2(cross.x - BOARD_CENTER.x, cross.y - BOARD_CENTER.y)
+					_bore_valid = true
+					break
+	else:
+		# Intersect the board plane (z = -BOARD_DIST)
+		if dir.z < -0.001:
+			var t: float = (-BOARD_DIST - origin.z) / dir.z
+			if t > 0.0 and t < 60.0:
+				end = origin + dir * t
+				_bore_offset = Vector2(end.x - BOARD_CENTER.x, end.y - BOARD_CENTER.y)
+				_bore_valid = true
 
 	# The laser MATH above uses the true muzzle (where rounds spawn). The DRAWN
 	# near end starts at the muzzle as it appears through the lens, or the beam
@@ -516,10 +548,20 @@ func _update_laser() -> void:
 		draw_origin = ViewmodelLens.apparent_point(camera, current_weapon.viewmodel_fov, origin)
 	_laser_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	var laser_col := Color(1.0, 0.15, 0.1)
-	_laser_mesh.surface_set_color(laser_col)
-	_laser_mesh.surface_add_vertex(draw_origin)
-	_laser_mesh.surface_set_color(laser_col)
-	_laser_mesh.surface_add_vertex(end)
+	if arced and path.size() >= 2:
+		# Same shift as the straight beam: the drawn curve must leave the drawn
+		# muzzle, not the true one, or it hangs off the barrel through the lens.
+		var shift: Vector3 = draw_origin - origin
+		for i in range(path.size() - 1):
+			_laser_mesh.surface_set_color(laser_col)
+			_laser_mesh.surface_add_vertex(path[i] + shift)
+			_laser_mesh.surface_set_color(laser_col)
+			_laser_mesh.surface_add_vertex(path[i + 1] + shift)
+	else:
+		_laser_mesh.surface_set_color(laser_col)
+		_laser_mesh.surface_add_vertex(draw_origin)
+		_laser_mesh.surface_set_color(laser_col)
+		_laser_mesh.surface_add_vertex(end)
 	# Impact diamond, drawn just off the board so it never z-fights
 	if _bore_valid:
 		var hit := Vector3(end.x, end.y, -BOARD_DIST + 0.05)
@@ -535,6 +577,24 @@ func _update_laser() -> void:
 			_laser_mesh.surface_set_color(dot_col)
 			_laser_mesh.surface_add_vertex(p)
 	_laser_mesh.surface_end()
+
+
+## Ballistic path of a lobbed round, integrated exactly as bullet_system.gd does
+## (Euler step, GRAVITY per second squared) so the drawn curve is the real
+## trajectory rather than an artist's approximation of one.
+func _arc_points(origin: Vector3, dir: Vector3, speed: float) -> PackedVector3Array:
+	var pts: PackedVector3Array = PackedVector3Array()
+	var p: Vector3 = origin
+	var v: Vector3 = dir.normalized() * maxf(1.0, speed)
+	var dt: float = ARC_DT
+	pts.append(p)
+	for _i in range(ARC_STEPS):
+		v.y -= ARC_GRAVITY * dt
+		p += v * dt
+		pts.append(p)
+		if p.z < -ARC_MAX_Z or p.y < origin.y - ARC_MAX_DROP:
+			break
+	return pts
 
 
 ## Rotate the model (pitch/yaw only, roll untouched) so the current mode's

@@ -127,6 +127,10 @@ func _settle() -> void:
 				log_vis.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, _fall_dir)),
 					global_position + Vector3(0.0, 0.4, 0.0))
 	var log_body := StaticBody3D.new()
+	# Named, not left as "StaticBody3D": bullet_system._surface_is_hard falls back to a name
+	# match when a body carries no material group, so an unnamed log drew dirt impacts.
+	# Untagged still means absolute stop, which is what a standing trunk already does.
+	log_body.name = "FelledLogTrunk"
 	log_body.collision_layer = 1
 	log_body.collision_mask = 0
 	var cap := CollisionShape3D.new()

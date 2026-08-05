@@ -4,7 +4,7 @@
 > **Engine / look:** Godot 4.7 stable · GDScript (strict typing) · PSX-era low-poly 3D · modern tactical UI.
 > **Document role:** The **operating charter & live coordination ledger** for the head-honcho agent role.
 > It holds **no canon of its own** — it enforces the canon (see §0) and tracks state.
-> **Status:** v0.3.1 — reconciled against `production/GAME_GUIDE.md` + the ADR set (Full Game Audit #2, ratified 2026-07-10). `production/adr/` now holds **ADR-001 … ADR-029** (31 ADR files + README, including the fossil law, the Forward+ decree and the open-patrol pivot); read the directory, never a fixed count. State reflects that canon; **live task truth is `bd`, not this doc.**
+> **Status:** v0.3.1 — reconciled against `production/GAME_GUIDE.md` + the ADR set (Full Game Audit #2, ratified 2026-07-10). `production/adr/` now holds **ADR-001 … ADR-029** (31 ADR files + README, including the fossil law, the Forward+ decree and the open-patrol pivot); read the directory, never a fixed count. State reflects that canon; **live task truth is `production/CALEB_TODO_7_22_updated.md`, `production/ART_Track_Log.md` and `production/DEMO_SHIP_BACKLOG.md` — not this doc.**
 
 ---
 
@@ -12,11 +12,11 @@
 
 | Class | Documents | Rule |
 |---|---|---|
-| **CANON** | `production/GAME_GUIDE.md` (doc of record) · `production/adr/` (ADR-001 … ADR-029 — read the directory, it grows) · `production/bible/` · `DESIGN.md` (founding vision) · `PLAYER_MANUAL.md` (must track the input map) | Amended by explicit decision only (War Room / Summoner). Code contradicting canon = a bead, never a shrug. |
+| **CANON** | `production/GAME_GUIDE.md` (doc of record) · `production/adr/` (ADR-001 … ADR-029 — read the directory, it grows) · `production/bible/` · `DESIGN.md` (founding vision) · `PLAYER_MANUAL.md` (must track the input map) | Amended by explicit decision only (War Room / Summoner). Code contradicting canon = a tracked entry, never a shrug. |
 | **LOG** | dated reports (PROGRESS / WAVE / NIGHTSHIFT / CODE_AUDIT / CALEB_TODO …) | Disposable snapshots. Never cited as authority. |
 | **DEAD** | `war_room/archive/` · superseded roadmaps | History. Nobody obeys it. |
 
-**Task truth lives in beads (`bd ready`), never markdown.** This charter is process-memory, not canon — where it and `GAME_GUIDE` ever disagree, the guide wins and this doc gets corrected — but **both are pre-pivot documents**: a newer ratified ADR outranks either (ADR-014), and the code outranks all three when the question is what the game actually does.
+**Task truth lives in the tracking docs above and in Claude memory. Beads (`bd`) are RETIRED — `CLAUDE.md:401-408` forbids resurrecting `.beads/` or running `bd`, and any surviving bead ID in this file or an ADR is dated provenance, never a live pointer.** This charter is process-memory, not canon — where it and `GAME_GUIDE` ever disagree, the guide wins and this doc gets corrected — but **both are pre-pivot documents**: a newer ratified ADR outranks either (ADR-014), and the code outranks all three when the question is what the game actually does.
 
 ---
 
@@ -65,7 +65,7 @@
 | **FROZEN (post-core)** | co-op · tunnel/interior mode · driveable vehicles · capture/POW · battle director · RPG shop · ride-or-walk |
 | **SHRUNK** | 100 bios → 20 great ones · HQ interactions stay walk-up-simple |
 
-A frozen epic thaws only by explicit decree — a bead in `bd ready` is **not** a thaw. *(Marines/SF real-world research is retained as DLC-horizon reference only; do not work it.)*
+A frozen epic thaws only by explicit decree — an entry appearing in a tracking doc is **not** a thaw. *(Marines/SF real-world research is retained as DLC-horizon reference only; do not work it.)*
 
 ---
 
@@ -79,7 +79,7 @@ Mission grammar: quiet approach → recon ring → objective spike → lull → 
 
 ## 5. Domain agents & as-built status (audit-#2 canon state)
 
-Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation (beaded). Re-sync from `bd` for live truth.
+Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation. Re-sync from the tracking docs for live truth.
 
 | Domain | As-built | Deviations / open work |
 |---|---|---|
@@ -92,7 +92,7 @@ Concise pointers, not re-transcribed canon. ⚠ = the audit's verified deviation
 | **Campaign & Saves** (ADR-007/010) | Persistent hub; one-seed determinism; all-or-nothing exfil commit; 3 save tiers | ⚠ Offer labels ("ENEMY: HEAVY") never read by generator → campaign is flat; ✅ pause menu shipped (`scripts/ui/screens/pause_menu.gd`); corrupt-slot load is refused, not crashed (`save_manager.gd:170-179`); ⚠ still open: atomic writes (`save_manager.gd:101-105` writes the slot in place, no temp+rename) and future-version reject (`:174` only migrates *older*; a newer schema falls straight through to `from_dict`) |
 | **World & Presentation** (ADR-001/002/013) | 3D PSX renderer of record; 1280m AO; streaming OFF ≤2km | ✅ **Speck-soldier AABB bug FIXED 2026-07-10** (instance-space measurement; 9/9 characters at 1.7132m; probe `test_model_scale` added to suite) — Caleb visual confirm pending (n2ij); ⚠ jungle feel fails ground truth (item 6); invisible HUD systems (item 3); streaming-off open. **Renderer A/B is CLOSED** — ADR-026 Amendment A (RATIFIED 2026-07-17): `forward_plus` is canon; do not evaluate, propose, or draft a renderer switch again. **CORRECTION 2026-07-19:** the old `project.godot:300` pointer is dead — Godot **strips `renderer/rendering_method` on save** when it equals the desktop default, so Forward+ CANNOT be locked in config and holds only by being the default. Verify at runtime, not by grepping `project.godot` |
 | **Tech / Engine** (ADR-010) | Godot 4.7 stable, GDScript strict typing; per-mission determinism + MissionScope registry | ⚠ **No gating FPS number** — still unset, still the top systemic risk. `rendering_method` is Forward+ by desktop default, ratified by ADR-026 Amendment A — but **not lockable in `project.godot`** (Godot strips the key on save when it matches the default; corrected 2026-07-19). Last sourced bench (ADR-026:111, 18v18 stress arena): **14.0 → 23.1 fps** after the cheap graphics cuts, now CPU-bound — the frame is in the AI, so activity-tiered AI (Part B) is the lever, not jungle draw cuts. Load GodotPrompter skills + `godot_4.7_features.md` before Godot-facing design |
-| **QA / Verification** (ADR-015) | GATE bead + verification/truth laws; headless-boot validation | PLAYTEST **R4 (`RECONgame-qrg6`) is the session entry gate** — the ADR-029 open-patrol checklist, discharged only by a verified playtest; test suite still needs rendered-scale probe + gating FPS number |
+| **QA / Verification** (ADR-015) | The feature gate + verification/truth laws; headless-boot validation | **PLAYTEST R4 is the session entry gate** — the ADR-029 open-patrol checklist, discharged only by a verified playtest by the Summoner; test suite still needs rendered-scale probe + gating FPS number |
 
 ---
 
@@ -110,8 +110,8 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 
 ## 8. Process law & the mechanical gate (ADR-015)
 
-- **GATE bead (RECONgame-97u3):** feature epics are `bd dep`-blocked while playtest P1s are open — `bd ready` hides gated work. **The open list lives in `bd`, never here** — the gate is held by **`RECONgame-qrg6` (PLAYTEST R4)**, wired via `bd dep add 97u3 qrg6`. Query `bd list --limit 0` for current truth before acting on the gate — **`bd list` silently truncates at 50**. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
-- **Verification law:** "mitigated" / "likely fixed" never closes a bead; name the proof.
+- **THE FEATURE GATE:** gated feature work stays parked while **PLAYTEST R4** is open. R4 is discharged only by a verified playtest by the Summoner (ADR-015) — never by a probe and never by an agent's reading. The open list lives in the tracking docs. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
+- **Verification law:** "mitigated" / "likely fixed" never closes anything; name the proof.
 - **Truth law:** no comment or doc may claim behavior a probe hasn't verified.
 - **War Room:** loop-structure and pillar-touching decisions convene a council **before** build.
 
@@ -142,13 +142,13 @@ V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 
 
 ---
 
-## 9. State of the game (living ledger — audit-#2 canon, re-sync from `bd`)
+## 9. State of the game (living ledger — audit-#2 canon, re-sync from the tracking docs)
 
 - **Posture:** past Full Game Audit #2 remediation (2026-07-10) and into the 2026-07-17 open-patrol pivot. ADR-001 … ADR-029 on disk (several late ones still DRAFT — check each header before citing); a standing decree governs execution.
 - **Engine:** Godot 4.7 stable (upgraded from 4.6.2, 2026-07-10), GDScript strict typing.
 - **Performance:** `rendering_method = forward_plus` (ADR-026 Amendment A, closed to re-litigation). Last sourced bench: **14.0 → 23.1 fps** on the 18v18 stress arena, now CPU-bound in the AI. **No gating FPS number is set — perf remains the top systemic risk.**
-- **Feature gate:** ACTIVE, held by `RECONgame-qrg6` (PLAYTEST R4). Query `bd list --limit 0` for current truth.
-- **Where the build lags the vision (vision wins, all beaded):** detection pip, jungle feel (item 6), save hardening (atomic write + future-version reject), the gating FPS number.
+- **Feature gate:** ACTIVE, held by PLAYTEST R4. See the tracking docs for current truth.
+- **Where the build lags the vision (vision wins):** detection pip, jungle feel (item 6), save hardening (atomic write + future-version reject), the gating FPS number.
 - **Biggest single wound:** perf without a gate number — the frame is CPU-bound in the AI and nothing mechanically fails a regression. *(The stealth economy is no longer the wound: the witness rule and ±25 scoring both shipped.)*
 - ~~Live design decision in flight~~ **DECIDED 2026-07-10: ADR-016 ratified by direct Summoner decree**
   ("pure flat base × zone; drops the dice entirely") and shipped same-day with its probe. ADR-003's
@@ -162,7 +162,7 @@ V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 
 2. ~~**Damage grammar (ADR-016).**~~ **RESOLVED 2026-07-10 by direct Summoner decree** — flat base ×
    zone, dice dropped. The planned profiler became the regression probe (`test_flat_damage`); the
    migration ran once, with build item 4 folded in. Bead btnm closed as superseded.
-3. ~~**Overseer ↔ `bd`.**~~ **RESOLVED (v0.3.1, default):** the Overseer drives `bd` directly — `bd init` + `bd prime` at session start, creates/closes/links beads itself. (Repo CLAUDE.md already mandates this for any agent in the repo.) Summoner may override.
+3. ~~**Overseer ↔ `bd`.**~~ **SUPERSEDED 2026-08-05:** beads are retired (`CLAUDE.md:401-408`). The Overseer records work in the tracking docs and Claude memory, and runs no `bd` command.
 
 ---
 

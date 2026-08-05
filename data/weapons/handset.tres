@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "handset"
+display_name = "PRC-25 Handset"
+description = "The handset off the RTO's radio. Hold it to your ear and the net is yours."
+viewmodel_fov = 75.0
+ads_fov = 75.0
+model_path = "res://scenes/weapons/handset_viewmodel.tscn"
+hip_position = Vector3(0, 0, 0)
+ads_position = Vector3(0, 0, 0)
+hip_rotation = Vector3(0, 0, 0)
+ads_rotation = Vector3(0, 0, 0)

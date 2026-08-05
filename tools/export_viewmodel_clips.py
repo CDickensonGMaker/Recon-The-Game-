@@ -45,9 +45,15 @@ coll = bpy.data.collections.get(COLL)
 if coll is None:
     raise SystemExit(f"collection {COLL} not found")
 objs = list(coll.objects)
-rig = next((o for o in objs if o.type == 'ARMATURE'), None)
+armatures = [o for o in objs if o.type == 'ARMATURE']
+# The arms rig is the one holding the hands. A collection may carry a second
+# armature that drives the weapon's own moving parts (the M60's cover/charge
+# handle/belt chain live on M60NEW_parts_rig) - that one is a part, not the rig.
+rig = next((o for o in armatures if "hand.R" in o.pose.bones), None) or next(iter(armatures), None)
 if rig is None:
     raise SystemExit(f"no armature in {COLL}")
+if len(armatures) > 1:
+    print("armatures in collection:", [o.name for o in armatures], "-> arms rig:", rig.name)
 print(f"=== {OUTNAME}: {len(objs)} objects from {COLL}, rig {rig.name} ===")
 
 # --- make the collection visible and evaluable -------------------------------

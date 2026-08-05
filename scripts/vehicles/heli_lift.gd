@@ -39,6 +39,12 @@ const DISEMBARK_CLIPS: Array[String] = [
 	"disembark_heli", "disembark_heli_b", "disembark_heli_c",
 	"disembark_heli_d", "disembark_heli_e", "disembark_heli_f",
 ]
+## A door this far above the man's ground is a HOVER, and a hovering ship is jumped
+## out of rather than stepped down from. Below it the skids are effectively down and
+## the disembark clips carry the whole exit.
+const HOVER_DROP_M: float = 0.8
+## Above this he takes it in the knees instead of stepping off clean.
+const HARD_DROP_M: float = 1.6
 ## Grab-launch into a floor-seated crouch, spliced from `jump_up` (mount) into `sitting`'s
 ## opening pose (settle) - authored 2026-08-04, gated on the elbow/foot invariants. One clip;
 ## `play_first` degrades to no animation if the name is ever missing, so this stays additive.
@@ -294,7 +300,17 @@ func _deliver() -> void:
 			man.working_point_pos = bunk
 		man._placed_for_hour = true
 		if man.actor != null and is_instance_valid(man.actor):
-			man.actor.play_first(DISEMBARK_CLIPS)
+			# HOVER EXIT (his ruling 2026-08-05). The landing pair does NOT ride on top
+			# of a disembark clip - those already carry the step-off, and stacking a
+			# landing behind one lands the man twice (audit 2026-08-02). It REPLACES the
+			# step-off, and only when the door is genuinely above the ground.
+			var drop: float = door.y - man.global_position.y
+			if drop >= HARD_DROP_M:
+				man.actor.play_first(["hard_landing", "jump_down"])
+			elif drop >= HOVER_DROP_M:
+				man.actor.play_first(["jump_down", "hard_landing"])
+			else:
+				man.actor.play_first(DISEMBARK_CLIPS)
 		_rotated_off.append(man)
 		landed_men += 1
 	_delivered_count = landed_men

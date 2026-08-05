@@ -375,3 +375,105 @@ the `MOVE_TO` staging order. The board clip can start playing before the man has
 the door. Filling `BOARD_CLIPS` was the sanctioned "only change needed" per the code's own
 comment, so it's wired as instructed; the trigger-timing question is sequencing work, not an
 animation change, and belongs to whoever next touches `heli_lift.gd`/`seat_system.gd`.
+
+---
+
+## 2026-08-05 — HUEY v3, interior-first master (Phase 1+2, PARKED AT THE GATE)
+
+**Caleb's framing:** *"whatever better huey we make today will be the new source of truth for
+all the animations that derive from it"* — so the interior-first decree applies to a vehicle:
+space → contents → HIS GATE → people/animations → exterior last. Built to Phase 2 and stopped.
+
+**Why v1 had to go, measured not eyeballed.** `assets/us/vehicles/huey.glb` is md5-identical to
+`archive/huey_v1_ORIGINAL.glb` — the shipped bird has never been updated. Its real defect is
+proportion: **nose-to-tail 16.82 m against a real UH-1H's 12.77 m, ~30% too long**, which is why
+the rotor reads as a toy propeller on a barge. Also tail rotor 1.82 (real 2.59), skids 5.60
+(real 3.35), lowest point −0.12 (sunk 12 cm underground), nose −Y (nonconforming), and an origin
+**7.8 m off the airframe** that `scripts/vehicles/helicopter.gd:71-80` re-centres at runtime every
+spawn. v3 fixes the origin, so that band-aid can be deleted when v3 ships.
+
+`huey_v2.blend` was a never-exported box blockout (every part a literal 8-vert cube) but its FRAME
+was right — nose +Y, cabin floor z≈0.72 — so v3 inherits its coordinate frame, not v1's.
+
+**Study asset:** `Downloads/bell-huey-helicopter.zip` (2,014 tris, one 1024 atlas). Correct
+proportions on every axis. Used as a STUDY per standing law; nothing of it imported. Two things it
+does not give us and nobody should go looking for: its doors are merged into one shell, and its
+`Inside1` is a hollow window-cutout liner with **no interior at all**.
+
+**Built (2,928 tris, 64 meshes, 27 empties):** skids, cabin+cockpit floors, temporary `OUTLINE_`
+cage, troop bench, pilot/copilot armoured seats, cyclic + collective + twist-grip + pedals at both
+stations, centre console, transmission bulkhead/hump, gunner pads, and both M60 door mounts.
+
+**All 10 gates pass, independently re-measured:** lowest z = 0.0000 · skid track 2.590 / length
+3.350 · floor top 0.710 / cabin width 2.400 · cabin clear height 1.240 · nose +Y · origin on the
+built volume · all 11 seat markers inside their volume and above their surface · bench top 1.155
+(floor+0.445) · seated 1.674 m man clears the ceiling (cabin 0.361 m, cockpit 0.106 m) · 2,928 tris.
+
+**`seat_pax_7` now exists in a model for the first time.** `seat_system.gd` declares an
+**11-seat** contract (2 pilots + 2 gunners + 6 pax + 1 jump seat against the transmission wall) —
+neither v1 nor v2 had the jump seat, so the game has been auto-generating it from `FALLBACK_LAYOUT`
+every spawn. Also newly honoured: **socket ORIENTATION is part of the contract** (the occupant
+faces the socket's local +Z). All 11 are now rotated, not just placed — pilots to the nose, gunners
+and pax out their own door, jump seat forward. This matters beyond looks: `door_staging_pos()`
+derives the entire squad boarding point from `seat_gunner_l`'s +Z.
+
+**M60 door mounts — reused, not rebuilt, per Caleb.** Source is
+`structures/emplacements_real/m60_door_mount.glb`, whose mesh is literally named `huey_door_mount`
+(1,104 tris). **Its `MuzzlePoint` is −Y — backwards from the ratified facing law**; so is
+`m60_ring_mount.glb`. Corrected into v3 by composing each object's *measured* world rotation with a
+180°-about-Z and baking it into vertex data (never by yawing a root over pinned children), then
+re-deriving `MuzzlePoint` from the corrected geometry rather than transforming the old value.
+Verified: pre-traverse bore = exactly (0,1,0). **The source GLBs were left untouched and are still
+nonconforming** — flagged, not silently retro-flipped. Deliberately did NOT use `m60_pintle.glb`
+or `m60_mounted.glb`: their M60 is **10,552 tris**, ten times budget for an aircraft seen at range.
+
+Measured ROM by object-space ray cast against the OUTLINE cage: traverse left −88/+88, right
+−130/+88; elevation both −88/+36 (the +36 is a real geometric stop, the cockpit header). The L/R
+traverse asymmetry is most likely an artifact of the temporary cage's gaps — **re-verify once real
+exterior panels replace `OUTLINE_`**.
+
+**DEFECT CAUGHT ON REVIEW, not by the build's own gates: both collectives were on the wrong side.**
+The rule is that the collective sits to the occupant's LEFT. Every cockpit socket has local
++Z = (0,1,0), so both men face +Y; with +Z up, the occupant's left is −X (left = up × forward =
+Z × Y = −X). Both collectives had been placed at `seat_x + 0.20`, i.e. each man's RIGHT — which put
+the cyclic and the collective under the same hand and nothing under the left. **The build's own ten
+gates could not catch this**, because the reach table reported a direction-blind scalar (0.422 m
+for both, identical by construction). Fixed to `seat_x − 0.36` and re-verified with the *signed*
+vector: both grips now at Δ = (−0.360, +0.050, −0.215) from their seat — outboard for the man at
+−X, inboard against the console for the man at +X. Correctly non-mirrored. **Lesson for
+`blender_lessons.md`: a symmetric scalar reach measurement cannot detect a left/right error — gate
+the signed component.**
+
+**OPEN RULING FOR CALEB, not resolved:** with nose = +Y, the aircraft's starboard side is +X, so the
+socket named **`seat_pilot_l` is physically the right-hand seat** — where the pilot-in-command flies
+by US convention. The project's inherited `_l` = +X naming (confirmed independently in
+`huey_v2.blend` AND `SeatSystem.FALLBACK_LAYOUT`, matching the code comment "Door_Left side = +X")
+therefore points at the opposite socket from the role. Compounding it, the furniture named
+`pilot_*` was built at −X (port) while the role reasoning puts the flying pilot at +X — so the
+furniture naming and the role disagree too. Nothing renamed pending his call. **Phase 4's
+copilot-specific clip work cannot start until this is ruled**, because it has to target the seat
+holding the man who is actually flying.
+
+**Also flagged, not silently absorbed:** cockpit ceiling raised to 2.05 m (vs the cabin's 1.95 m)
+because a 1.674 m pilot on the 0.335 m armoured seat pan had under 1 cm of headroom — a real UH-1H
+solves this with the raised greenhouse canopy, approximated here as a stepped flat `OUTLINE_` plane
+pending Phase 5 canopy shaping. Pax floor-sit pelvis height assumed floor+0.12 m (no pinned number
+existed). Pintle pedestal 0.29 m so the gun is not too low for a standing gunner. Origin Y anchored
+at the cockpit/cabin firewall — **re-check against the true nose-to-tail midpoint when Phase 5 adds
+the nose and boom**; everything is built as one consistent block so that correction is a single
+rigid move, not a rebuild.
+
+**NOT touched, per his ruling "v3 first, re-stage after":** the four shipped `heli_*.glb` clips and
+all four `huey_*_staging.blend` files still bake v1 geometry (`Huey_Copy` / `New_Rotor_Hub` /
+`New_Skid_L`). They are now stale against the new source of truth and re-staging is queued, not done.
+
+**Companion research shipped:** `production/research/huey_pilot_motion/NOTES.md` (871 lines) —
+pilot and door-gunner motion spec from TM 55-1520-210-10. Three code defects it surfaced that no
+animation fixes: both pilots dressed with the same clip (`seat_system.gd:153-154`), both door
+gunners play `sitting` (the passenger idle) while being the most visible crew on a flyby, and all
+seven pax loop one 4.7 s clip in lockstep while six authored `sitting*` variants sit unwired.
+`cockpit_controls` is 1.600 s = 0.625 Hz, inside the 0.3–1.5 Hz band of real cyclic corrections, so
+the loop period is indistinguishable from the motion and the clip becomes its own metronome.
+**The video wall did not move** — YouTube returns the fetcher a footer, same as the `huey_loading`
+job, so every mechanical fact is primary-sourced but every motion amplitude remains an inference
+from text. §9 lists ten genuinely open items.

@@ -1,8 +1,8 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://assets/weapons/m26_grenade_low-poly/scene.gltf" id="1"]
+[ext_resource type="PackedScene" path="res://assets/player/viewmodels/m26_grenade_fp.glb" id="1"]
 
 [node name="M26GrenadeViewmodel" type="Node3D"]
 
 [node name="Model" parent="." instance=ExtResource("1")]
-transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 64)

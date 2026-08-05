@@ -99,6 +99,10 @@ var village_center: Vector3 = Vector3.ZERO
 var active_action: StringName = &"idle"
 var working_point: NodePath = NodePath()
 var working_point_pos: Vector3 = Vector3.ZERO
+## The work_* marker type this man was seated on ("cook", "mess", "dig"...). Finer
+## than occupation, which collapses several markers onto one schedule. Empty for
+## curated posts and villagers.
+var role: String = ""
 ## Group id: civilians with the same id walk as one group. -1 = solo.
 var group_id: int = -1
 ## Where THIS civilian walks while grouped: the destination if lead, else a
@@ -512,9 +516,28 @@ func _play_garrison(want: String) -> void:
 			actor.play_first(["digging", "plant_seeds", "cargo_unload_stack",
 				"idle_unarmed_3"])
 			return
-	if occupation == "mess_cook" and want == "stooped":
-		actor.play_first(["sitting_idle_b", "cargo_unload_stack", "idle_unarmed_3"])
-		return
+	# THE MESS. work_cook seats a man at the stoves, work_mess at the serving line -
+	# two different jobs that both resolved to mess_cook, so both sat on a crate.
+	# The chow clips shipped 2026-08-03 and had no caller until the marker role
+	# reached this far.
+	if occupation == "mess_cook":
+		if want == "walking_unarmed":
+			actor.play_first(["chow_carry_walk", "walk_forward", "walking_unarmed"])
+			return
+		if want == "stooped":
+			if role == "mess":
+				actor.play_first(["chow_serve_ladle", "chow_tray_hold",
+					"cargo_unload_stack", "idle_unarmed_3"])
+				return
+			# Three stove beats so four cooks are not one cook four times.
+			@warning_ignore("integer_division")
+			var beat: int = (_idle_seed / 5) % 3
+			var stove: Array[String] = ["chow_cook_stir", "chow_cook_prep",
+				"chow_cook_check"]
+			var chain: Array[String] = [stove[beat], "chow_cook_stir",
+				"sitting_idle_b", "idle_unarmed_3"]
+			actor.play_first(chain)
+			return
 	if occupation == "quartermaster":
 		if want == "walking_unarmed":
 			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
