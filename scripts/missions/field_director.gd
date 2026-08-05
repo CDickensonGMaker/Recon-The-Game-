@@ -828,8 +828,10 @@ func _danger_close_to_squad(target: Vector3, reach: float = 0.0) -> bool:
 
 
 ## Every round craters (destruction-parity decree 2026-08-04: arty must destroy
-## like napalm). Perf is safe: DamageSystem queues the digs and drains them
-## WorldConfig.TERRAIN_DEFORMS_PER_FRAME at a time, under MAX_DEFORMS_PER_MISSION.
+## like napalm). DamageSystem queues the digs and drains them
+## WorldConfig.TERRAIN_DEFORMS_PER_FRAME at a time, and caps craters per 64m cell
+## (MAX_DEFORMS_PER_CELL), so re-shelling one patch stops digging while fresh
+## ground still does. A barrage is bounded by the ground it walks over.
 func _arty_impact(pos: Vector3) -> void:
 	if world == null:
 		return

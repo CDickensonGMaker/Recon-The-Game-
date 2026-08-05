@@ -76,10 +76,32 @@ var scar_decals: Array[Decal] = []
 ## queued here and drained a bounded number per frame in _process (WorldConfig throttle).
 var _deform_queue: Array[Dictionary] = []
 
-## Aggregate per-mission ceiling on terrain deforms (the shipped cap is per-strike; this
-## bounds chunk-rebuild spikes under sustained ordnance). Reset in clear_all_damage().
-const MAX_DEFORMS_PER_MISSION: int = 40
+## CRATERS ARE CAPPED BY AREA, NOT BY MISSION (his ruling 2026-08-05: "if 40 craters is
+## hitting max lets say no more than 10 craters in a certain area. that way we get the
+## sense of war scaring but its not over budgeting things").
+##
+## The cost of a crater is a CHUNK REBUILD, and re-shelling ground that is already cratered
+## buys no new scarring for the same price. A per-cell cap spends the budget where it reads:
+## the tenth crater in a 64m square is the last one, while a fresh square anywhere else on
+## the AO still digs. The old global 40 stopped the whole map mid-mission instead - and it
+## was NOT the frame-spike guard its comment claimed to be; TERRAIN_DEFORMS_PER_FRAME
+## already bounds the spike, and this number bounded nothing but the total.
+const DEFORM_CELL_M: float = 64.0
+const MAX_DEFORMS_PER_CELL: int = 10
+var _deforms_by_cell: Dictionary = {}
+
+## Runaway backstop only - not a design budget. Reset in clear_all_damage().
+const MAX_DEFORMS_PER_MISSION: int = 400
 var _deforms_this_mission: int = 0
+
+
+func _deform_cell(p: Vector3) -> Vector2i:
+	return Vector2i(floori(p.x / DEFORM_CELL_M), floori(p.z / DEFORM_CELL_M))
+
+
+## Has this patch of ground taken all the cratering it is going to?
+func _cell_is_full(p: Vector3) -> bool:
+	return int(_deforms_by_cell.get(_deform_cell(p), 0)) >= MAX_DEFORMS_PER_CELL
 
 # Set by game_world during world build.
 var terrain_manager: Node
@@ -146,8 +168,11 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 
 	# Apply to terrain manager's heightmap (this also rebuilds affected chunks). Past the
 	# per-mission ceiling, skip the expensive dig but keep the cheap veg-clear + scar below.
-	if WorldConfig.TERRAIN_HOLES_ENABLED and _deforms_this_mission < MAX_DEFORMS_PER_MISSION:
+	if WorldConfig.TERRAIN_HOLES_ENABLED and _deforms_this_mission < MAX_DEFORMS_PER_MISSION \
+			and not _cell_is_full(world_pos):
 		_deforms_this_mission += 1
+		var cell: Vector2i = _deform_cell(world_pos)
+		_deforms_by_cell[cell] = int(_deforms_by_cell.get(cell, 0)) + 1
 		_deform_queue.append({"pos": world_pos, "radius": radius_meters, "func": crater_func})
 
 	# Clear vegetation in damaged area. Pass heightmap so clear_area re-materializes
@@ -291,6 +316,7 @@ func _create_scar_decal(position: Vector3, radius: float, color: Color, scar_typ
 func clear_all_damage() -> void:
 	damage_zones.clear()
 	_deforms_this_mission = 0  # fresh crater budget each mission
+	_deforms_by_cell.clear()
 	_deform_queue.clear()      # drop any undrained digs from the last mission
 
 	for decal in scar_decals:
