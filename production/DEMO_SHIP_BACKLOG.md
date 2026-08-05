@@ -1181,7 +1181,13 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
       (45 < LIVE_CAP 50) and double-spends headroom (`siege_director.gd:448-479`).
 - [ ] **F-6 Place the 21 interior props** — pure code, on disk since 7/31, unclaimed twice.
 - [ ] **F-7 MARKSMAN into `MOS_ORDER`** (`squad_roster.gd:64`) or delete the alternate-draw promise.
-- [ ] **F-8 Hearts & minds thin slice** — `civilian.gd:4-7` hook counts one thing.
+- [x] **F-8 Hearts & minds thin slice — OUT OF DEMO SCOPE, his ruling 2026-08-05**
+      ("it doesnt need to be in the demo scope but something were claiming as a system
+      and need to make"). Designed in `production/war_room/2026-08-05_hearts_and_minds/`
+      (synthesis is the read). ONE hook rides along now — a stable per-village id, ~3
+      lines, off the existing per-quadrant generation ordinal — because the wrong key
+      (`civilian.gd:309` position hash) is live and spreading, and retrofitting it later
+      costs far more. Everything else is main game.
 - [ ] Correct ART_Track_Log on next touch (chow clips ARE merged; seven chow types mapped).
 
 ### Decision queue — RULED 2026-08-04 (his words verbatim)
