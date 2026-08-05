@@ -609,10 +609,14 @@ func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3, chunk_size: 
 	var chunk := Vector2i(floori(xf.origin.x / chunk_size), floori(xf.origin.z / chunk_size))
 	# Recorded at its RESTING transform up front, not when the tween lands: the entry is
 	# what makes the log cover, and a strike that kills the node mid-fall must not lose it.
+	# trunk_h explicitly: felled_tree is in COVER_TRUNK, so without this the log inherits
+	# the default 3m upright post and a tree lying in the grass stops rounds at head height.
 	_fell_registry.append({
 		"name": FELLED_SPECIES,
 		"xf": Transform3D(hinged * xf.basis, xf.origin),
 		"chunk": chunk,
+		"trunk_r": float(TreeCoverLayer.COVER_TRUNK.get(FELLED_SPECIES, 0.40)),
+		"trunk_h": LOG_TRUNK_H,
 	})
 	root.set_meta("fell_chunk", chunk)
 	var tw := root.create_tween()

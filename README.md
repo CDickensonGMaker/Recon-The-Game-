@@ -18,7 +18,7 @@ back with your squad.
 One operation seed produces a populated area of operations stamped around the firebase — villages,
 enemy camps, trails, paddies, ambient ecology — and you patrol it. There is no briefing screen, no
 objective counter, and no exfil step: `"PATROL"` is the only mission type the generator produces
-(`scripts/missions/mission_generator.gd`).
+(ADR-029; assigned at `scripts/missions/mission_generator.gd:782`).
 
 Arma/OFP sandbox bones. SOCOM, Vietcong and Men of Valor flavor. Hell Let Loose lethality. The
 RECON tabletop RPG (1982) as the numbers backbone. PSX-era low-poly 3D throughout — the look of a
@@ -81,7 +81,8 @@ git clone https://github.com/CDickensonGMaker/Recon-The-Game-.git
 cd Recon-The-Game-
 ```
 
-Open the folder in Godot 4.7 and run. Main scene is `scenes/main/main.tscn`.
+Open the folder in Godot 4.7 and run. Main scene is `scenes/main/main.tscn`
+(`project.godot:18`; the demo overrides it to `scenes/levels/demo_game.tscn` at `project.godot:22`).
 
 ### Development benches
 
