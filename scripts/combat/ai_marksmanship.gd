@@ -7,11 +7,14 @@ extends RefCounted
 
 ## Cone hard cap in degrees for a shot AIMED AT THE PLAYER. AI-vs-player lethality is pinned to
 ## this; only the AI-vs-AI branch widens it via the firefight dial.
-const PLAYER_CONE_CAP_DEG: float = 1.2
+## Summoner lethality ruling 2026-08-04 ("star wars blaster effect" convicted): cap
+## 1.2 -> 1.0 deg, exposure peak 2.0 -> 1.4. First shots still telegraph (Fairness Law);
+## a converged shooter kills an exposed man.
+const PLAYER_CONE_CAP_DEG: float = 1.0
 const BASE_SPREAD_MULT: float = 1.25
 const BLOOM_PER_SHOT: float = 0.06
 const BLOOM_CAP: float = 0.8
-const EXPOSURE_PEAK: float = 2.0
+const EXPOSURE_PEAK: float = 1.4
 const MOVE_PENALTY: float = 1.5
 
 
@@ -75,7 +78,7 @@ static func aim_with_spread(base_aim: Vector3, pre_cap_spread_deg: float, is_pla
 	var cap: float = PLAYER_CONE_CAP_DEG
 	if is_player_target:
 		# Fairness ramp + the difficulty knob live here, on the shot at the player. The cap
-		# MUST breathe with the ramp: any weapon whose natural cone already exceeds 1.2 deg
+		# MUST breathe with the ramp: any weapon whose natural cone already exceeds the cap
 		# (AK base 2.2 -> ~1.7 deg) fires the capped cone both fresh AND converged, so a fixed
 		# cap silently clips the whole exposure ramp away - the opening volley was as lethal as
 		# the converged one. Breathing the cap restores the "first shots miss, accuracy ramps".

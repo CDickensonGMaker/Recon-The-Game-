@@ -101,6 +101,7 @@ func _on_fire_menu_changed(open: bool) -> void:
 		["4", "MORTAR FIRE MISSION", "mortar"],
 		["5", "SPECTRE GUNSHIP", "spectre"],
 		["6", "CAS - CLUSTER (CBU)", "cbu"],
+		["7", "ILLUMINATION ROUND", "illum"],
 	]
 	# Only what is actually on call. A row you can never press is not information.
 	var any: bool = false

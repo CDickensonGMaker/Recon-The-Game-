@@ -19,6 +19,20 @@ extends RefCounted
 
 const FACE_COLS: int = 10
 const FACE_ROWS: int = 7
+
+## The cells a 1968 US GRUNT may draw. The shared atlas also carries female faces
+## (cells 13,14,16,22,23,32,33,41,52), a turban (49) and the whole legacy bottom
+## row 60-69 with Asian villager faces - none may land on a soldier (Summoner
+## ruling 2026-08-04: a female grunt is "immposible... make sure we fix that").
+## An explicit opts["face"] bypasses this on purpose (bench/probe use).
+const US_FACES: Array[int] = [
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+	10, 11, 12, 15, 17, 18, 19,
+	20, 21, 24, 25, 26, 27, 28, 29,
+	30, 31, 34, 35, 36, 37, 38, 39,
+	40, 42, 43, 44, 45, 46, 47, 48,
+	50, 51, 53, 54, 55, 56, 57, 58, 59,
+]
 ## The merged head+skin material. The exports never renamed it, so match either
 ## name (same rule as tools/merge_face_skin_material.py).
 const FACE_MATERIALS: Array[String] = ["grunt_face_skin", "face_atlas"]
@@ -37,6 +51,15 @@ const HELMETS: Array[String] = [
 ## which dodges every Blender->Godot axis conversion. Where it renders is right
 ## by definition; it is the one the artist fitted.
 const STOCK_HELMET: String = "helmet_shell_worn"
+
+## Helmets are authored LEVEL in helmet_variants.blend. Hanging every man's at the
+## stock's basis gives a squad wearing one identical angle, which reads as a modelling
+## error rather than as men. Each gets his own tilt off the mission rng, so the same
+## seed rebuilds the same squad (ADR-010). Pitch is biased backward - a steel pot rides
+## back off the brow far more often than it tips forward over the eyes.
+const HELMET_PITCH_DEG: Vector2 = Vector2(-9.0, 4.0)
+const HELMET_YAW_DEG: float = 5.0
+const HELMET_ROLL_DEG: float = 4.0
 
 const ANTENNA_SHADER: String = "res://assets/shaders/antenna_sway.gdshader"
 const AntennaSwayScript := preload("res://scripts/visuals/antenna_sway.gd")
@@ -59,7 +82,7 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 	var out: Dictionary = {}
 
 	# --- 1. FACE + SKIN (one material, one offset, they move together) ---
-	var face: int = int(opts.get("face", rng.randi() % (FACE_COLS * FACE_ROWS)))
+	var face: int = int(opts.get("face", US_FACES[rng.randi() % US_FACES.size()]))
 	out["face"] = face
 	_set_face(root, face)
 
@@ -69,7 +92,7 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 		var pick: String = String(opts.get("helmet_id",
 			HELMETS[rng.randi() % HELMETS.size()]))
 		# The loadout must never claim a helmet the swap could not hang.
-		out["helmet"] = pick if _swap_helmet(actor, root, pick) else ""
+		out["helmet"] = pick if _swap_helmet(actor, root, pick, rng) else ""
 	else:
 		out["helmet"] = ""
 		_set_visible_by_name(root, STOCK_HELMET, false)
@@ -203,7 +226,8 @@ static func _is_face_material(m: Material) -> bool:
 
 ## Hide the stock helmet, hang a variant exactly where it was rendering.
 ## Returns false when nothing was hung, so dress() can report an honest loadout.
-static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> bool:
+static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String,
+		rng: RandomNumberGenerator) -> bool:
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
 		return false
@@ -245,7 +269,11 @@ static func _swap_helmet(actor: ModelActor, root: Node3D, helmet_id: String) -> 
 	stock.visible = false
 	var hel: Node3D = packed.instantiate()
 	att.add_child(hel)
-	hel.global_transform = Transform3D(basis, centre)
+	var tilt: Basis = Basis.from_euler(Vector3(
+		deg_to_rad(rng.randf_range(HELMET_PITCH_DEG.x, HELMET_PITCH_DEG.y)),
+		deg_to_rad(rng.randf_range(-HELMET_YAW_DEG, HELMET_YAW_DEG)),
+		deg_to_rad(rng.randf_range(-HELMET_ROLL_DEG, HELMET_ROLL_DEG))))
+	hel.global_transform = Transform3D(basis * tilt, centre)
 	_texture_helmet(hel, helmet_id)
 	return true
 

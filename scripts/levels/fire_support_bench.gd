@@ -123,6 +123,11 @@ static func wire(host: Node, player: CharacterBody3D, map_size: float) -> FieldD
 	var tm := BenchTerrain.new()
 	tm.name = "BenchTerrain"
 	host.add_child(tm)
+	# Point the destruction authority at the bench ground. Without this every
+	# DamageSystem.apply_damage from bench ordnance early-returns UNRECORDED -
+	# no scar, no ledger entry - and the bench lies about destruction parity.
+	# BenchTerrain.modify_terrain is a no-op, so no real digging happens.
+	DamageSystem.set_terrain_manager(tm)
 	var fw := BenchWorld.new()
 	fw.name = "BenchWorld"
 	host.add_child(fw)
@@ -148,7 +153,8 @@ static func wire(host: Node, player: CharacterBody3D, map_size: float) -> FieldD
 	d.squad_system = ss
 	# T opens the net; 1 bombs / 2 napalm / 3 arty / 4 mortar / 5 spectre / 6 CBU. WP is
 	# stocked for a bench that drives it directly (request_fire_support("wp", target)).
-	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spectre": 9, "cbu": 9, "wp": 9}
+	d.fire_support = {"bombs": 9, "napalm": 9, "arty": 9, "mortar": 9, "spectre": 9, "cbu": 9,
+		"wp": 9, "illum": 9}
 	d._hunter_pool = 0   # no escalation hunters on the inert host
 	return d
 

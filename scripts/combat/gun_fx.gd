@@ -112,13 +112,27 @@ const _KIND_SCALE: Dictionary = {
 	"explosion_grenade": 1.0,
 	"explosion_40mm": 0.8,
 	"explosion_rocket": 1.4,
+	"explosion_mortar": 1.6,
 	"explosion_heavy": 1.9,
+	"explosion_napalm": 2.4,
 }
+## Spectacle multiplier on TOP of the class ladder (Summoner's decree 2026-08-04:
+## all explosion visuals x5). This scales the LOOK only - no damage radius reads it.
+const ORDNANCE_VISUAL_MULT: float = 5.0
+## Kinds with no audio bank of their own borrow a real one (the ears ladder is
+## AudioManager._KIND_AUDIO; an unknown kind there falls back to grenade).
+const _AUDIO_KIND: Dictionary = {"explosion_napalm": "explosion_heavy"}
+## Napalm's bloom holds longer so the column reads above a treeline.
+const _KIND_LIFE: Dictionary = {"explosion_napalm": 1.6}
 
 
-static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explosion_grenade") -> void:
-	AudioManager.play_explosion_3d(pos, kind)
-	_spawn_explosion_visual(parent, pos, float(_KIND_SCALE.get(kind, 1.0)))
+## `visual_mult` exists for the callers whose event is NOT ordnance (a tree
+## crashing down, a structure collapsing) - they pass 1.0 to stay off the x5.
+static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explosion_grenade",
+		visual_mult: float = ORDNANCE_VISUAL_MULT) -> void:
+	AudioManager.play_explosion_3d(pos, String(_AUDIO_KIND.get(kind, kind)))
+	_spawn_explosion_visual(parent, pos, float(_KIND_SCALE.get(kind, 1.0)) * visual_mult,
+		float(_KIND_LIFE.get(kind, 1.0)))
 
 
 ## ---------- SHARED FX RESOURCES (built once; per-event nodes reference them,

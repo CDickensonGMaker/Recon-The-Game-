@@ -351,23 +351,25 @@ func despawn() -> void:
 
 func _apply_personality() -> void:
 	match personality:
+		# Accuracy floors raised + self-preservation floors raised (Summoner lethality +
+		# FEAR ruling 2026-08-04): every archetype shoots to kill and none charges naked.
 		Enums.AIPersonality.AGGRESSIVE:
 			char_aggression = randf_range(0.7, 0.9)
-			char_accuracy = randf_range(0.5, 0.7)
+			char_accuracy = randf_range(0.6, 0.78)
 			char_reaction = randf_range(0.6, 0.8)
-			char_self_preservation = randf_range(0.2, 0.4)
+			char_self_preservation = randf_range(0.3, 0.5)
 			aim_speed = randf_range(6.0, 9.0)
 		Enums.AIPersonality.DEFENSIVE:
 			char_aggression = randf_range(0.2, 0.4)
-			char_accuracy = randf_range(0.7, 0.9)
+			char_accuracy = randf_range(0.75, 0.92)
 			char_reaction = randf_range(0.5, 0.7)
 			char_self_preservation = randf_range(0.7, 0.9)
 			aim_speed = randf_range(5.0, 7.0)
 		Enums.AIPersonality.BALANCED:
 			char_aggression = randf_range(0.4, 0.6)
-			char_accuracy = randf_range(0.6, 0.8)
+			char_accuracy = randf_range(0.68, 0.85)
 			char_reaction = randf_range(0.5, 0.7)
-			char_self_preservation = randf_range(0.4, 0.6)
+			char_self_preservation = randf_range(0.5, 0.7)
 			aim_speed = randf_range(5.0, 8.0)
 
 
@@ -1215,6 +1217,12 @@ var _last_attacker: Node3D = null
 var _last_attacker_ms: float = -1e9
 
 
+## Only ever a player/ally node (take_damage sets it group-gated) - the patrol AAR's
+## kill-credit source. Null when no friendly hand ever touched this man.
+func last_friendly_attacker() -> Node3D:
+	return _last_attacker if is_instance_valid(_last_attacker) else null
+
+
 func _target_score(candidate: Node3D, dist: float, now_ms: float) -> float:
 	var score: float = 10.0 / maxf(dist, 2.0)              # proximity - NO player bias
 	if candidate == _last_attacker and now_ms - _last_attacker_ms < 6000.0:
@@ -1416,6 +1424,11 @@ func _evaluate_goals() -> void:
 	c.squad_broken = EnemySquad.is_broken(squad_id)
 	c.force_ratio = _last_force_ratio
 	c.assault_press = siege_press
+	# Player reads `suppression` 0..1; allies read `suppression_level`.
+	var ts: Variant = target.get("suppression_level")
+	if ts == null:
+		ts = target.get("suppression")
+	c.target_suppressed = ts is float and (ts as float) > 0.5
 
 	best_goal = CombatGoals.pick(c)
 	if best_goal != current_goal:

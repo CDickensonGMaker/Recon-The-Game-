@@ -111,7 +111,8 @@ func _settle() -> void:
 	_fallen = true
 	set_physics_process(false)
 	# Impact dust + a crash tick (reuse the shared explosion FX, NOT a second spawner).
-	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
+	# visual_mult 1.0: a falling trunk is not ordnance - the x5 spectacle stays off.
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_grenade", 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
 	# Swap the transient for the PERMANENT log + a prone-height capsule = hard cover.
 	if _vis != null and is_instance_valid(_vis):

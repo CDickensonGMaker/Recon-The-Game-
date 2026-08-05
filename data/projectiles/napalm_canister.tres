@@ -23,6 +23,7 @@ hits_players = false
 hits_world = true
 mesh_path = ""
 scale = Vector3(2.2, 2.2, 2.2)
+tumble_rate = 6.0
 has_trail = true
 trail_color = Color(0.3, 0.3, 0.3, 0.6)
 trail_lifetime = 0.8

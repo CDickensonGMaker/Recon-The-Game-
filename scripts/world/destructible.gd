@@ -88,7 +88,8 @@ func _do_destroy() -> void:
 	_scatter_rubble()
 	# The blast that killed it also scars the ground (this crater rides the terrain throttle).
 	DamageSystem.apply_damage(global_position, DamageSystem.DamageType.BUNKER_COLLAPSE, 1.0)
-	GunFX.play_explosion_3d(get_tree().current_scene, global_position)
+	# visual_mult 1.0: collapse dust, not ordnance - the x5 spectacle stays off.
+	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_grenade", 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
 
 

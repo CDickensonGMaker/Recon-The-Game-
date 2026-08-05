@@ -73,7 +73,82 @@ var _ring_elapsed: float = 0.0
 var _pool_starved: bool = false
 
 
+## THREAT ZONES (decree 2026-08-04: "anything with explosives / heavy ordnance is
+## being called out to the tree"). Ordnance promotes trunk colliders wherever it
+## flies, so a contact fuze has something to strike beyond the player ring. A zone
+## is just another reason a candidate is wanted - same pool, same park path, so
+## expiry parks bodies through the existing delta pass and nothing can leak.
+const ZONE_MAX: int = 16
+const ZONE_DEDUPE_M: float = 4.0
+var _zones: Array[Dictionary] = []   ## {a: Vector3, b: Vector3, r: float, until_ms: int}
+
+
+static func threat_zone(tree: SceneTree, center: Vector3, radius: float, duration_s: float) -> void:
+	threat_corridor(tree, center, center, radius, duration_s)
+
+
+static func threat_corridor(tree: SceneTree, from: Vector3, to: Vector3,
+		half_width: float, duration_s: float) -> void:
+	if tree == null:
+		return
+	for layer in tree.get_nodes_in_group("tree_cover"):
+		(layer as TreeCoverLayer)._add_zone(from, to, half_width, duration_s)
+
+
+func _add_zone(a: Vector3, b: Vector3, r: float, duration_s: float) -> void:
+	var until: int = Time.get_ticks_msec() + int(duration_s * 1000.0)
+	for z: Dictionary in _zones:
+		if (z["a"] as Vector3).distance_to(a) < ZONE_DEDUPE_M \
+				and (z["b"] as Vector3).distance_to(b) < ZONE_DEDUPE_M:
+			z["until_ms"] = maxi(int(z["until_ms"]), until)
+			z["r"] = maxf(float(z["r"]), r)
+			return
+	if _zones.size() >= ZONE_MAX:
+		# Evict the soonest-to-expire, never the oldest-added: shell-corridor churn
+		# must not knock a live dispatch footprint out mid-barrage.
+		var evict: int = 0
+		for i in range(1, _zones.size()):
+			if int(_zones[i]["until_ms"]) < int(_zones[evict]["until_ms"]):
+				evict = i
+		_zones.remove_at(evict)
+	_zones.append({"a": a, "b": b, "r": r, "until_ms": until})
+	_update_ring(_resolve_center())
+
+
+func _prune_zones() -> void:
+	var now: int = Time.get_ticks_msec()
+	var i: int = _zones.size() - 1
+	while i >= 0:
+		if int(_zones[i]["until_ms"]) <= now:
+			_zones.remove_at(i)
+		i -= 1
+
+
+## XZ distance from p to the zone's segment <= its radius.
+func _zone_wants(p: Vector3) -> bool:
+	var p2 := Vector2(p.x, p.z)
+	for z: Dictionary in _zones:
+		var a2 := Vector2((z["a"] as Vector3).x, (z["a"] as Vector3).z)
+		var b2 := Vector2((z["b"] as Vector3).x, (z["b"] as Vector3).z)
+		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(p2, a2, b2)
+		if p2.distance_to(closest) <= float(z["r"]):
+			return true
+	return false
+
+
+func _zone_overlaps(bounds: Rect2) -> bool:
+	for z: Dictionary in _zones:
+		var a2 := Vector2((z["a"] as Vector3).x, (z["a"] as Vector3).z)
+		var b2 := Vector2((z["b"] as Vector3).x, (z["b"] as Vector3).z)
+		var grown: Rect2 = bounds.grow(float(z["r"]))
+		if grown.has_point(a2) or grown.has_point(b2) \
+				or grown.intersects(Rect2(a2, Vector2.ZERO).expand(b2)):
+			return true
+	return false
+
+
 func _ready() -> void:
+	add_to_group("tree_cover")
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--card-dist="):
 			view_distance = maxf(near_distance, float(a.split("=")[1]))
@@ -92,6 +167,11 @@ func load_species(names: Array) -> void:
 			var cm: Mesh = _extract_mesh(CARD_DIR + n + "_card.glb")
 			if cm != null:
 				_card_mesh[n] = cm
+
+
+## The near-solid mesh for a species, for a one-off visual (the felling swap).
+func solid_mesh_for(species: String) -> Mesh:
+	return _solid_mesh.get(species) as Mesh
 
 
 ## scatter: Array of {name: String, xf: Transform3D}. Builds, for this chunk:
@@ -195,31 +275,38 @@ func _resolve_center() -> Vector3:
 	return Vector3.INF
 
 
-## Delta pass: release bodies whose candidate left the ring, body candidates that
-## entered it. Nearest-first only when demand exceeds the pool (logged once).
+## Delta pass: release bodies whose candidate left the ring AND every threat zone,
+## body candidates that entered either. Nearest-first only when demand exceeds the
+## pool (logged once).
 func _update_ring(center: Vector3) -> void:
 	_last_center = center
 	_ring_elapsed = 0.0
-	if center == Vector3.INF:
+	_prune_zones()
+	if center == Vector3.INF and _zones.is_empty():
 		if collider_count() > 0:
 			for coord: Vector2i in _chunk_bodies.keys():
 				_release_chunk(coord)
 		return
-	var c2 := Vector2(center.x, center.z)
+	var has_player: bool = center != Vector3.INF
+	var c2 := Vector2(center.x, center.z) if has_player else Vector2.ZERO
 	var r2: float = RING_RADIUS * RING_RADIUS
-	var wanted: Array = []   ## [dist2, coord, idx] per in-ring candidate without a body
+	var wanted: Array = []   ## [dist2, coord, idx] per wanted candidate without a body
 	for coord: Vector2i in _chunk_trunks:
 		var data: Dictionary = _chunk_trunks[coord]
 		var assigned: Dictionary = _chunk_bodies.get(coord, {})
-		if not (data["bounds"] as Rect2).grow(RING_RADIUS).has_point(c2):
+		var near_player: bool = has_player \
+			and (data["bounds"] as Rect2).grow(RING_RADIUS).has_point(c2)
+		var near_zone: bool = not _zones.is_empty() and _zone_overlaps(data["bounds"] as Rect2)
+		if not near_player and not near_zone:
 			if not assigned.is_empty():
 				_release_chunk(coord)
 			continue
 		var positions: PackedVector3Array = data["positions"]
 		for i: int in positions.size():
 			var p: Vector3 = positions[i]
-			var d2: float = (Vector2(p.x, p.z) - c2).length_squared()
-			if d2 <= r2:
+			var d2: float = (Vector2(p.x, p.z) - c2).length_squared() if near_player else 1e18
+			var want: bool = d2 <= r2 or (near_zone and _zone_wants(p))
+			if want:
 				if not assigned.has(i):
 					wanted.append([d2, coord, i])
 			elif assigned.has(i):

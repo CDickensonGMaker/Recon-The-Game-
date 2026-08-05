@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://dnvaofficer01"]
+﻿[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://dnvaofficer01"]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
 
@@ -19,7 +19,7 @@ flanks = true
 retreats_when_hurt = false
 courage = 0.9
 determination = 1.0
-exposure_ramp_time = 2.0
+exposure_ramp_time = 1.5
 sprite_faction = "Vietcong and NVA"
 sprite_unit = "nva_officer"
 sprite_unit_fallback = "nva_regular"

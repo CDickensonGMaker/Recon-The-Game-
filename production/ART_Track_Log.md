@@ -13,7 +13,12 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 - **Slim-base remake of the 8 v1-rig characters** (us_grunt, us_grunt_black, us_medic, vc1/2/3/5/6)DONE. Us Grunt v3 is the source of truth for Us models as well as the workflow for making multiple variants of models. 
 - **Headgear library** — pith helmet, boonie, straw conical (VC), USMC utility cover, bare-head hair
   variants. [qcsb] Half way done
-- **US visual variety** — helmet/torso/arm variants so the fireteam isn't clones. [qrzf] Needs to be addressed
+- **US visual variety** — helmet/torso/arm variants so the fireteam isn't clones. [qrzf] **HELMETS DONE
+  2026-08-04**: 15 M1 variants rebuilt off a high-quality reference (660–848 tris, flared brim, egg
+  taper, rolled rim), props re-seated, and `grunt_dresser.gd` now applies a per-man tilt off the mission
+  rng so a squad no longer wears one identical angle. The welded `helmet_shell_worn` was reshaped to
+  match on all nine soldiers and its 1.13 depth stretch removed. Torso/arm variety still open.
+  State of record: `production/MODEL_SESSION_HANDOFF.md` §1b.
 - **NVA gunner for ZPU #2** + finalized sights mirrored. [htxn] Not finished yet. Animation will apply for both factions as it will be mannable by everyone, as well as another gun the player can mount. 
 - **Gore stump painting** on gore_tex (gib cells exist, cells unpainted). [yp0g] Gib exists, haven't seen it in too many playtests lately but its based on damage done and we haven't been going crazy with the damage yet. 
 
@@ -260,3 +265,113 @@ fcurve-level blends of existing library clips with mocap-measured timings - zero
 NEEDS CALEB: eye pass (MOCAP_REF armature sits 2m right for comparison), then sync into anim_library.
 Note: his cover source video is a downward-angle reference reel - for future captures, re-perform
 at 3/4 angle and the toolkit flow works clean.
+
+---
+
+## 2026-08-03 — CHOW HALL: dining half + five station clips (NEEDS CALEB)
+
+Finished the half of the chow hall that was open at the 8/2 wrap, then authored its
+animations. Truth source: `firebase_v3.1_RECOVERED_medical.blend`, `WORKBENCH_chowhall`
+@ (0, -240) — **off to the side of the compound; the dining block is at world
+y -243..-247**, outside the old workbench extent.
+
+**Props** (`tools/build_chowhall_dining.py`): 4 folding tables + 8 benches (benches, not
+chairs — 0.46 m seat) + 24 `work_eat` markers. 1,008 tris. Verified: zero overlap with
+existing geometry, seat spacing >= 0.42 m, every seat square to its table edge.
+
+**Marker facing is the +X axis** — measured three independent ways off the existing
+cook/server/queue markers, NOT +Y. Godot must match.
+
+**Clips** (`tools/make_chowhall_anims.py` -> `assets/shared/chow_anim_workbench.blend`,
+fake users set, **not yet merged into anim_library**): `chow_cook_stir`,
+`chow_serve_ladle`, `chow_tray_hold`, `chow_eat_seated`, `chow_tray_dump`. All pass
+hand-to-target (<=1.7 cm), planted-foot slide (<=2.6 mm/frame), foot sink, hands-crossed,
+hand-behind-chest, arm-lockout and a new anatomy gate, evaluated clean-room.
+
+**No shuffle clip, deliberately.** `walk_right` carries 2.000 m per 31-frame cycle —
+1.94 m/s. Retiming it to chow-line speed skates the feet by the slowdown factor. Travel
+between the 0.70 m queue markers is Godot's locomotion; the library owes the stations.
+
+**Crew** (`tools/gen_chowhall_crew.py`): 13 men on real grunt v3 bodies — 5 on the line,
+8 eating, facing each other across the tables, each dephased via NLA. Off-duty men carry
+nothing: no helmet, webbing, ruck or rifle (those meshes are never appended, same rule as
+the M101 crew). 221 objects / 6,188 tris, linked dupes sharing mesh data.
+
+Renders: `_scratch/chow_preview/scene/` (overhead, line, dining, chowhall_motion.mp4)
+and one mp4 per clip in `_scratch/chow_preview/`.
+
+**NEEDS CALEB:** eye pass on the five clips; ruling on the marker names (`work_queue`,
+`work_serve`, `work_server`, `work_trayreturn`, `work_eat`) before Godot is wired; then
+merge the clips into `anim_library.blend`. **Godot consumes none of these markers yet** —
+`site_planner.gd` maps only `mess`/`cook` -> `mess_cook`; the rest fall through to
+`off_duty`.
+
+**Two traps that cost the session, both recorded in the crew-choreography LESSONS:**
+a pose bone left in EULER mode ignores its quaternion channels, so a baked clip is dead
+on arrival; and a clip that keys location only on the Hips depends on unkeyed pose state
+and collapses in a clean file (knees and toes above the man's own head).
+
+## 2026-08-04 — Huey DISEMBARK/BOARD studied against real footage; `board_heli` shipped (animation half; the walk-up landed that EVENING — DEMO_SHIP_BACKLOG W-9/W-10)
+
+**Source:** `scratchpad/huey_footage.mp4`, "genuine Vietnam War color footage" compilation,
+712 s. Contact sheets every 4 s across the whole runtime, then 5 fps dense passes over the
+usable segments (`~22-42s`, `~202-218s`, `~326-358s`, `~415-440s`, `~645-660s`).
+
+**Beat catalog (measured off frames, not memory):**
+- Disembark = door exit -> immediate crouch-run away from the ship on a diagonal, staggered
+  spacing between men (not lockstep), weapon carried low-ready across the chest, forward
+  torso lean. Seen clean at 202-218s (3-4 men fanning off a landed ship) and 415-440s.
+- Board/embark = approach on foot -> one hand plants on the doorframe/tailgate around chest
+  height -> trailing foot finds the sill/skid -> push-up-and-swing-through -> settle. Clearest
+  analogue is the truck-boarding beat at 334-338s (same biomechanic, different vehicle — a
+  Huey-door mount was never captured clean/unblurred in this compilation). Confirms the
+  standing ruling: **men sit the cabin FLOOR** (seated-crouch, not a bench) — matches the
+  in-flight door-sitting shots at ~652-655s (feet dangling out the open door).
+- Medevac wave-off (Vietnam standard: purple smoke, both arms raised) seen 436s — ambient
+  detail only, not actioned this session.
+
+**AUDIT finding that reframed the whole session:** `tools/export_anim_library.py:62-64`
+strips `pose.bones["mixamorig:Hips"].location` array_index 0 and 2 (horizontal) from EVERY
+clip in the library at export time — "engine drives velocity." Measuring the SOURCE
+`.blend`'s `disembark_heli` family showed one clip traveling 2.37 m and five traveling
+~0.3 m, which read as a bug (5 of 6 men rooted to the door); re-measuring the SHIPPED
+`.glb` showed **all six travel exactly 0.0 m**, confirmed correct by design. **Lesson for
+next session and for `blender_lessons.md`: always audit the EXPORTED asset, not the source
+`.blend` — root-motion stripping is invisible until you check what the engine actually
+receives.** No wasted disembark edit shipped; the six clips were left untouched. Re-verified
+elbow gate on the shipped six: max 0.056-0.099 (all under the visible-clipping range, none
+gated red), foot-sink -0.027..-0.107 m (source-clip characteristic, present before this
+session, `disembark_heli_d` is the outlier at -0.107 m — flagged, not fixed this session).
+
+**BOARD_HELI authored — PARTIAL fix for W-9 count 2** ("nobody visibly walks up to load").
+Checked the diagnosis before claiming a close: `SeatSystem.board_squad` (`seat_system.gd:332`)
+casts each boarding body `as AllyBase` and only issues `MOVE_TO` if that cast succeeds — but
+`Civilian extends CharacterBody3D` (`scripts/world/civilian.gd:9`), NOT `AllyBase`, so the
+cast is null for every garrison man and the walk-to-door order is **never issued** regardless
+of this session's work. **This fix does not close count 2** — it replaces "nothing plays" with
+"a real climb-and-sit animation plays in place," which is a real visible improvement but the
+man still doesn't walk from wherever he's standing to the door first. The missing
+Civilian move-verb is unchanged and re-logged in the backlog. No true
+mount/vault clip existed in the 182-clip library to splice untouched, so `board_heli` is built from two
+already-shipped, already-gated pieces plus a hand-authored bridge:
+`jump_up` (frames 1-17, verbatim — the crouch-launch/reach beat) into a 24-frame eased
+settle to `sitting`'s opening pose (hips 0.98 m -> 0.71 m crouch -> 0.99 m peak -> 0.55 m
+seated, continuous, no pop). Elbow gate max 0.0191 (very safe) at both source and after
+re-import from the shipped `.glb`. This is a **compromise**, logged honestly: it reads as
+"launch up onto the sill and sit down," not the footage's "grab a high doorframe and vault,"
+because no overhead-reach clip existed to splice and the task law forbids inventing motion
+from imagination. Flag for a follow-up session if the owner wants the doorframe-grab beat
+specifically.
+
+Shipped: `assets/shared/anim_library.blend` (`board_heli` action, fake user set) ->
+re-exported `assets/shared/anim_library.glb` (183 clips now, 15.33 MB, verified `board_heli`
+present with matching frame range/pose after re-import). Wired:
+`scripts/vehicles/heli_lift.gd:46` `BOARD_CLIPS = ["board_heli"]` (was `[]`).
+
+**Structural item NOT fixed this session (logged per the fossil/pointer law, not silently
+patched):** `heli_lift.gd:_extract()` calls `civ.actor.play_first(BOARD_CLIPS)` in the SAME
+loop tick that appends the man to `going[]`, before `seats.board_squad(going)` even issues
+the `MOVE_TO` staging order. The board clip can start playing before the man has walked to
+the door. Filling `BOARD_CLIPS` was the sanctioned "only change needed" per the code's own
+comment, so it's wired as instructed; the trigger-timing question is sequencing work, not an
+animation change, and belongs to whoever next touches `heli_lift.gd`/`seat_system.gd`.

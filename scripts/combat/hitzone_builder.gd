@@ -45,7 +45,8 @@ const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
 	"bandolier", "glasses",
 	"radio", "antenna", "handset", "cord", "satchel", "rig", "entrench",
 	"cover", "shovel", "canteen",
-	"basket", "sickle", "pole", "bundle", "jug", "hoe", "yoke"]
+	"basket", "sickle", "pole", "bundle", "jug", "hoe", "yoke",
+	"apron", "gown", "scrub", "mask", "glove"]
 
 ## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points.
 ## Harvested once per unit type.

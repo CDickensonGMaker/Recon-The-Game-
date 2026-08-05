@@ -48,9 +48,28 @@ const FALLBACK_LAYOUT: Dictionary = {
 	&"seat_pax_7": [Vector3(0.0, 1.30, -3.80), 0.0],
 }
 
+## Pilot clips by flight state. A ship on the ground holds PILOT_CLIP; one run
+## through the panel plays on touchdown and falls through to the hold; airborne
+## is hands-on-the-controls. cockpit_dead is deliberately NOT here - there is no
+## pilot damage model in the ADR-029 slice and ADR-023 forbids the dead hook.
 const PILOT_CLIP := "cockpit_idle"
+const PILOT_CLIP_PANEL := "pilot_flips_switches"
+const PILOT_CLIP_FLYING := "cockpit_controls"
+## Length of PILOT_CLIP_PANEL, measured off anim_library.glb. The panel run is a
+## one-shot; this is how long before the pilot settles back to the ground hold.
+const PILOT_PANEL_S: float = 4.03
 const SITTING_CLIP := "sitting"
 const BOARD_STAGGER_S: float = 0.6   ## seconds between ally boardings
+## Close enough to the SHIP to climb in - measured to the airframe, never to the
+## door staging point: the staging point sits off the LEFT door, the airframe is
+## not in any navmesh, and a man approaching from the right presses the fuselage
+## with the target unreachable through it (measured 2026-08-04: boarders stalled
+## 6-11m from staging for the full 24s). Touching the bird is boarding it; the
+## mount clip covers the last metres.
+const BOARD_NEAR_M: float = 8.0
+const BOARD_RETRY_S: float = 0.4     ## re-check cadence while a boarder walks up
+const BOARD_RETRIES_MAX: int = 60    ## ~24s of walking, then the ship gives up on him
+const BOARD_MOUNT_S: float = 1.6     ## the climb-in beat before the seat glue takes him
 const FADE_S: float = 0.25           ## seconds of the board/dismount fade
 const BOARD_RANGE: float = 4.5       ## player-to-door interact radius, metres
 const EXIT_PUSH_M: float = 2.5       ## how far outside the door you land
@@ -63,6 +82,9 @@ const EXIT_PUSH_M: float = 2.5       ## how far outside the door you land
 		set_physics_process(v)
 
 var auto_generated: bool = false
+## Mount performance played at the door before seating (set by the vehicle's
+## owner, e.g. HeliLift). Empty = seat with no clip.
+var board_clips: Array[String] = []
 
 var _vehicle: Node3D = null
 var _sockets: Dictionary = {}        ## StringName -> Node3D
@@ -71,6 +93,10 @@ var _prompt: Label = null
 var _prompt_text: String = ""
 var _fading: bool = false
 var _interact_cd: float = 0.0
+## Last flight state the pilots were dressed for, and the panel one-shot's
+## remaining time. -1 is "never dressed", which forces the first refresh.
+var _pilot_state: int = -1
+var _pilot_panel_s: float = 0.0
 
 
 var _scanned: bool = false
@@ -86,6 +112,53 @@ func _ready() -> void:
 	# is forbidden while the scene is still setting up ("parent busy" error).
 	_scan_sockets.call_deferred()
 	set_physics_process(player_boarding)
+	# The pilot dressing tick is independent of player_boarding: a ship nobody can
+	# board still lands with visible pilots in it.
+	set_process(_vehicle is Helicopter)
+
+
+## The clip a pilot should be holding right now. Ground states hold, everything
+## airborne flies. The panel one-shot is owned by _process.
+func _pilot_clip() -> String:
+	var heli := _vehicle as Helicopter
+	if heli == null:
+		return PILOT_CLIP
+	if heli.state == Helicopter.State.LANDED:
+		return PILOT_CLIP_PANEL if _pilot_panel_s > 0.0 else PILOT_CLIP
+	if heli.state == Helicopter.State.CRASHING or heli.state == Helicopter.State.DESTROYED:
+		return PILOT_CLIP
+	return PILOT_CLIP_FLYING
+
+
+## Re-dress both pilot seats when the flight state changes. Runs on _process
+## rather than _physics_process because player_boarding owns the physics tick.
+func _process(delta: float) -> void:
+	var heli := _vehicle as Helicopter
+	if heli == null:
+		return
+	if _pilot_panel_s > 0.0:
+		_pilot_panel_s = maxf(0.0, _pilot_panel_s - delta)
+		if _pilot_panel_s <= 0.0:
+			_dress_pilots()
+	if heli.state == _pilot_state:
+		return
+	# Touchdown starts one run through the panel; it expires into the ground hold.
+	if heli.state == Helicopter.State.LANDED and _pilot_state != Helicopter.State.LANDED:
+		_pilot_panel_s = PILOT_PANEL_S
+	_pilot_state = heli.state
+	_dress_pilots()
+
+
+func _dress_pilots() -> void:
+	var clip: String = _pilot_clip()
+	for seat_name: StringName in [&"seat_pilot_l", &"seat_pilot_r"]:
+		var rec: Dictionary = _occupants.get(seat_name, {})
+		var body := rec.get("body") as Node3D
+		if body == null or not is_instance_valid(body):
+			continue
+		var model: ModelActor = _model_of(body)
+		if model != null:
+			model.play(clip, true)
 
 
 ## Find real sockets by name anywhere under the vehicle (the GLB export lands them
@@ -205,7 +278,7 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 		# the socket's +Z (set_facing writes GLOBAL yaw, so mid-walk actors
 		# carry an arbitrary local offset in).
 		model.rotation = Vector3.ZERO
-		model.play(PILOT_CLIP if String(seat_name).begins_with("seat_pilot") else SITTING_CLIP)
+		model.play(_pilot_clip() if String(seat_name).begins_with("seat_pilot") else SITTING_CLIP)
 
 	_occupants[seat_name] = rec
 	return true
@@ -272,23 +345,63 @@ func board_squad(allies: Array) -> int:
 		var ally := body as AllyBase
 		if ally != null:
 			ally.set_order(AllyBase.OrderMode.MOVE_TO, staging)
+		elif body is Civilian:
+			(body as Civilian).board_target = staging
 		queued += 1
 		get_tree().create_timer(BOARD_STAGGER_S * float(queued)).timeout.connect(
 			_board_one.bind(body))
 	return queued
 
 
-func _board_one(body: Node3D) -> void:
+## Arrival-gated: a boarder is seated only once he has WALKED to the door, so the
+## glue never teleports a man across the pad. Retries bound the wait; an abandoned
+## boarder gets his latch back so the schedule reclaims him.
+func _board_one(body: Node3D, retries: int = 0) -> void:
 	if body == null or not is_instance_valid(body):
 		return
 	if body.has_method("is_dead") and bool(body.call("is_dead")):
 		return
 	if seat_of(body) != &"":
 		return
+	var civ := body as Civilian
+	var ship: Vector3 = _vehicle.global_position if _vehicle != null and is_instance_valid(_vehicle) \
+		else door_staging_pos()
+	if Vector2(body.global_position.x - ship.x, body.global_position.z - ship.z).length() > BOARD_NEAR_M:
+		if retries < BOARD_RETRIES_MAX:
+			get_tree().create_timer(BOARD_RETRY_S).timeout.connect(
+				_board_one.bind(body, retries + 1))
+		else:
+			print("[SEATS] boarder never reached the ship (%.0fm out after %.0fs) - abandoned"
+				% [body.global_position.distance_to(ship),
+					float(BOARD_RETRIES_MAX) * BOARD_RETRY_S])
+			if civ != null:
+				civ.board_target = Vector3.ZERO
+		return
+	if civ != null and not board_clips.is_empty() \
+			and civ.actor != null and is_instance_valid(civ.actor):
+		print("[SEATS] boarder at the door after ~%.1fs walk - mounting"
+			% (float(retries) * BOARD_RETRY_S))
+		civ.actor.play_first(board_clips)
+		get_tree().create_timer(BOARD_MOUNT_S).timeout.connect(_seat_boarder.bind(body))
+		return
+	_seat_boarder(body)
+
+
+func _seat_boarder(body: Node3D) -> void:
+	if body == null or not is_instance_valid(body):
+		return
+	if body.has_method("is_dead") and bool(body.call("is_dead")):
+		return
+	if seat_of(body) != &"":
+		return
+	var civ := body as Civilian
+	if civ != null:
+		civ.board_target = Vector3.ZERO
 	var seat_name: StringName = _next_free_passenger_seat()
 	if seat_name == &"":
 		return
-	seat(body, seat_name)
+	if seat(body, seat_name):
+		print("[SEATS] boarder seated in %s" % seat_name)
 
 
 func _next_free_passenger_seat() -> StringName:

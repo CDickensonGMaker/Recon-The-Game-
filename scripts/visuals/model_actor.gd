@@ -334,7 +334,9 @@ const _LOOP_PREFIXES: Array[String] = ["idle", "run", "walk", "sprint", "strafe"
 ## (retreat/crippled/cover/surrender/seated), so play-once would freeze them
 ## mid-stride. laying_breathless stays one-shot deliberately.
 const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing",
-	"sitting", "cockpit_idle",
+	# cockpit_controls is the airborne hold and MUST loop; pilot_flips_switches is
+	# a one-shot panel run and cockpit_dead a slump, so both stay out.
+	"sitting", "cockpit_idle", "cockpit_controls",
 	# Held poses and ambient loops. The prefix heuristic misses every one of these
 	# ("sitting_idle_b" is not "sitting"; "prone_idle" does not start with "idle"),
 	# and a play-once ambient clip freezes the man the instant it ends.

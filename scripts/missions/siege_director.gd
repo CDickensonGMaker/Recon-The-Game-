@@ -662,6 +662,9 @@ func fire_mortar_volley(at: Vector3, spread: float) -> void:
 	# reason a ranging round is survivable.
 	AudioManager.play_mortar_tube(tube)
 	AudioManager.play_incoming(at)
+	# Enemy indirect fire calls out the trees over its beaten zone too (decree
+	# 2026-08-04) - contact fuzing is faction-blind.
+	TreeCoverLayer.threat_zone(get_tree(), at, spread + FirePlan.MORTAR_BLAST_M + 6.0, 20.0)
 	for i in range(MORTAR_VOLLEY):
 		var impact: Vector3 = at + Vector3(_rng.randf_range(-spread, spread), 0.0,
 			_rng.randf_range(-spread, spread))
@@ -673,12 +676,17 @@ func fire_mortar_volley(at: Vector3, spread: float) -> void:
 func _mortar_impact(pos: Vector3) -> void:
 	if director == null or director.world == null or not is_instance_valid(director.world):
 		return
+	# Contact fuse: burst where it stopped; only a floor burst digs.
 	var ground: Vector3 = pos
+	var floor_y: float = pos.y
 	var tm: Object = director.world.terrain_manager
 	if tm != null:
-		ground.y = director.world.terrain_manager.get_height_at(pos)
+		floor_y = director.world.terrain_manager.get_height_at(pos)
+		ground.y = maxf(pos.y, floor_y)
 	GunFX.play_explosion_3d(get_tree().current_scene, ground, "explosion_mortar")
-	DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
+	if ground.y - floor_y <= 2.0:
+		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
+			DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 1)
 	_blast_defenders_only(ground)
 

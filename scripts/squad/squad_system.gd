@@ -98,6 +98,21 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 		if mos == "RTO":
 			_wire_rto_radio(ally)
 		members.append(ally)
+	# SPAWN PEN PROBE (his playtest 2026-08-04: squad "stuck by collision boxes").
+	# Four 0.6m test moves per man; 4/4 blocked = he spawned inside a pen. The ring
+	# sits around an INDOOR cot, so wall/prop colliders are the prime suspect.
+	for a3 in members:
+		var probe := a3 as AllyBase
+		if probe == null:
+			continue
+		var blocked: int = 0
+		for dirv: Vector3 in [Vector3(0.6, 0, 0), Vector3(-0.6, 0, 0),
+				Vector3(0, 0, 0.6), Vector3(0, 0, -0.6)]:
+			if probe.test_move(probe.global_transform, dirv):
+				blocked += 1
+		print("[SQUAD] spawn %s at (%.1f, %.1f, %.1f) - %d/4 dirs blocked" % [
+			str(probe.member.get("mos", "?")), probe.global_position.x,
+			probe.global_position.y, probe.global_position.z, blocked])
 	# Ally doctrine (Pillar 3+4): the squad walks out weapons-tight and goes loud
 	# with the player. Each man still defends himself if engaged (AllyBase).
 	weapons_free = false

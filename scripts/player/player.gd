@@ -496,6 +496,8 @@ func _close_radio_menu() -> void:
 ## only be on the net if the cord reaches. With none wired (real game) the caller's
 ## _radio_check is the leash and the net opens rifle-slung with no art.
 func set_on_net(want: bool) -> void:
+	print("[NETDBG] set_on_net(%s) holding=%s bound=%s can_take=%s" % [want, holding_handset,
+		_bound_handset, _bound_handset != null and _bound_handset.can_take()])
 	if want == holding_handset:
 		return
 	if want:
@@ -560,6 +562,7 @@ func _exit_net() -> void:
 ## here, or the two states ping-pong. Do not connect fire_menu_changed to set_on_net.
 func _notify_net(open: bool) -> void:
 	var d: Node = get_tree().get_first_node_in_group("mission_director")
+	print("[NETDBG] _notify_net(%s): director=%s is_fd=%s" % [open, d, d is FieldDirector])
 	if d is FieldDirector:
 		(d as FieldDirector).set_fire_menu_mirror(open)
 

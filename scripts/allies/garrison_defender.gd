@@ -28,6 +28,11 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 		return null
 	if civ.state == Civilian.CivState.GONE:
 		return null
+	# A man on the lift is not on the wire. Boarding (latched) and seated (physics
+	# frozen by SeatSystem) men stay Civilians, or a stand-to spawns armed defenders
+	# INSIDE the cabin holding a post they cannot reach. Puppets belong to their driver.
+	if civ.puppet or civ.board_target != Vector3.ZERO or not civ.is_physics_processing():
+		return null
 	var parent: Node = civ.get_parent()
 	if parent == null:
 		return null
@@ -118,7 +123,14 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 	ally.set_physics_process(false)
 	ally.queue_free()
 
-	var models: Array[String] = [unit] if not unit.is_empty() else Civilian.GARRISON_MEN
+	# NEVER a ternary here: `[unit] if ... else TYPED` types as plain Array and the
+	# assign throws at runtime - every stand-down then deletes the man instead of
+	# restoring him (measured 2026-08-04: a 48-man garrison fell to 4 in one night).
+	var models: Array[String] = []
+	if unit.is_empty():
+		models = Civilian.GARRISON_MEN
+	else:
+		models.append(unit)
 	var civ: Civilian = Civilian.spawn(parent, stand, director, false, models, true)
 	civ.occupation = occ
 	civ.working_point_pos = post

@@ -108,6 +108,30 @@ const AMBIENT_BANK: Array = ["AMBIENT / ROLE POSES", [
 	["planting charge", "plant_charge"]]]
 
 
+## CREW BANKS. A crew is judged as a crew or not at all: these rows are placed at
+## their station offsets and restarted together on one cycle, so the four men hold
+## phase for the whole performance instead of being paged one at a time.
+##
+## The gun_* set was MEASURED in place off anim_library.glb (2026-08-02): 27.30-27.40s
+## each, 0.000-0.024m of hip drift. They carry no root motion, so the offsets below are
+## the ONLY thing setting the men apart - they are a first read of an M60 pit, not an
+## authored layout, and they are the thing to correct once the crew has been seen.
+## Format: [caption, clip, station offset]. Cycle is the longest clip in the bank.
+const CREW_BANKS: Array = [
+	["MG CREW (gun pit) - UNWIRED, judging before wiring", 27.4, [
+		["gunner", "gun_gunner", Vector3(0.0, 0.0, 0.0)],
+		["loader", "gun_loader", Vector3(1.0, 0.0, -0.4)],
+		["a-gunner", "gun_agunner", Vector3(-1.0, 0.0, -0.4)],
+		["ammo bearer", "gun_ammo_bearer", Vector3(0.2, 0.0, -1.6)]]],
+	["LITTER TEAM", 2.4, [
+		["front", "litter_carry_front", Vector3(0.0, 0.0, 0.0)],
+		["rear", "litter_carry_rear", Vector3(0.0, 0.0, -1.8)]]],
+	["LITTER LOAD", 1.07, [
+		["load front", "litter_load_front", Vector3(0.0, 0.0, 0.0)],
+		["load rear", "litter_load_rear", Vector3(0.0, 0.0, -1.8)]]],
+]
+
+
 func _ready() -> void:
 	_unit_ids = ModelActor.all_units()
 	_build_ground()
@@ -130,7 +154,7 @@ func _read_clips() -> void:
 	# man in the game can play is the only list worth reviewing.
 	var probe := ModelActor.new()
 	add_child(probe)
-	if _unit_ids.is_empty() or not probe.setup(ModelActor.model_path(_unit_ids[_unit_i])):
+	if _unit_ids.is_empty() or not probe.setup(_unit_ids[_unit_i]):
 		push_warning("[ANIM REVIEW] no character model resolved - the wall will be empty")
 		_clips = PackedStringArray()
 	else:
@@ -143,10 +167,10 @@ func _read_clips() -> void:
 	_clips = PackedStringArray(sorted)
 
 
-func _current_model() -> String:
+func _current_unit() -> String:
 	if _unit_ids.is_empty():
 		return ""
-	return ModelActor.model_path(_unit_ids[_unit_i % _unit_ids.size()])
+	return _unit_ids[_unit_i % _unit_ids.size()]
 
 
 func _build_ground() -> void:
@@ -195,7 +219,7 @@ func _build_wall() -> void:
 	_wall_labels.clear()
 	var per: int = WALL_COLS * WALL_ROWS
 	var start: int = _page * per
-	var path: String = _current_model()
+	var unit_id: String = _current_unit()
 	for i in range(per):
 		var idx: int = start + i
 		if idx >= _clips.size():
@@ -209,7 +233,7 @@ func _build_wall() -> void:
 		_wall.add_child(holder)
 		var actor := ModelActor.new()
 		holder.add_child(actor)
-		if path.is_empty() or not actor.setup(path):
+		if unit_id.is_empty() or not actor.setup(unit_id):
 			continue
 		actor.play(String(_clips[idx]), true)
 		_wall_actors.append(actor)
@@ -222,13 +246,26 @@ func _build_wall() -> void:
 ## ------------------------------------------------------------------ the drivers
 
 func _bank() -> Array:
-	if _bank_i >= BANKS.size():
+	if _bank_i > BANKS.size():
+		return CREW_BANKS[_bank_i - BANKS.size() - 1]
+	if _bank_i == BANKS.size():
 		return AMBIENT_BANK
 	return BANKS[_bank_i]
 
 
 func _bank_count() -> int:
-	return BANKS.size() + 1
+	return BANKS.size() + 1 + CREW_BANKS.size()
+
+
+## Crew banks carry their cycle length in slot 1 and their rows in slot 2; the
+## intent and ambient banks carry rows in slot 1.
+func _is_crew() -> bool:
+	return _bank_i > BANKS.size()
+
+
+func _bank_rows() -> Array:
+	var bank: Array = _bank()
+	return bank[2] as Array if _is_crew() else bank[1] as Array
 
 
 func _build_bank() -> void:
@@ -237,17 +274,22 @@ func _build_bank() -> void:
 	_driver_actors.clear()
 	_driver_labels.clear()
 	_driver_idx.clear()
-	var bank: Array = _bank()
-	var rows: Array = bank[1]
-	var path: String = _current_model()
+	var rows: Array = _bank_rows()
+	var unit_id: String = _current_unit()
+	# A crew holds its station offsets and restarts on the clip's own cycle, so the
+	# men stay in phase for the whole performance. Every other bank keeps the row.
+	var crew: bool = _is_crew()
+	_step_s = float((_bank() as Array)[1]) if crew else DEFAULT_STEP_S
 	for i in range(rows.size()):
 		var pos := Vector3((float(i) - float(rows.size() - 1) * 0.5) * DRIVER_SPACING, 0.0, 4.0)
+		if crew:
+			pos = (rows[i] as Array)[2] as Vector3 + Vector3(0.0, 0.0, 4.0)
 		var holder := Node3D.new()
 		holder.position = pos
 		_drivers.add_child(holder)
 		var actor := ModelActor.new()
 		holder.add_child(actor)
-		if path.is_empty() or not actor.setup(path):
+		if unit_id.is_empty() or not actor.setup(unit_id):
 			continue
 		_driver_actors.append(actor)
 		_driver_idx.append(i)
@@ -262,8 +304,7 @@ func _build_bank() -> void:
 ## Resolve through the REAL state map, so a wrong MODEL_CLIP row or a missing octant
 ## shows here rather than in a firefight three days from now.
 func _apply_bank(restart: bool) -> void:
-	var bank: Array = _bank()
-	var rows: Array = bank[1]
+	var rows: Array = _bank_rows()
 	var ambient: bool = _bank_i >= BANKS.size()
 	for n in range(_driver_actors.size()):
 		var row: Array = rows[_driver_idx[n] % rows.size()]

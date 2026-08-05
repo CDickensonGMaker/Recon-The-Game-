@@ -11,6 +11,54 @@ Legend: **[C]** code, I can do it · **[B]** Blender, needs him · **[?]** needs
 
 ---
 
+## SHIPPED 2026-08-04 — THE EXPLOSION DECREE (visuals x5 · destruction parity · napalm/CBU/WP/arty re-authored)
+
+Live-judged on the bench and ruled the same night (memory `recon-explosion-scale-decree.md` + two
+follow-up ruling batches). All verified by `tools/probe_fire_parity.tscn` (PASS, all seven kinds)
++ `tools/probe_fell_visual.tscn` (PASS) + clean headless boots of the project and the bench.
+
+- **All explosion visuals x5, split from damage** — `GunFX.ORDNANCE_VISUAL_MULT`
+  (`scripts/combat/gun_fx.gd:118`) multiplies the class ladder; no damage radius reads it.
+  Tree-crash and structure-collapse dust pass `visual_mult 1.0` and stay off the x5.
+  New `explosion_napalm` kind (scale 2.4 → root 12.0, 1.6x lifetime, heavy audio bank).
+- **Destruction parity** — arty: every round craters + `explosion_heavy`
+  (`field_director.gd` `_arty_impact`); mortar: `explosion_mortar` (real mortar audio profile);
+  Spectre: Bofors craters every 3rd shell + Vulcan chews the zone every 4s hot
+  (`spectre_gunship.gd` `VULCAN_CHEW_S`); WP: 3-round barrage leaving FireHazard burn
+  (`FirePlan.WP_*`). Probe measured: arty 12 destruction calls, spectre 12, forts die to all three.
+- **Napalm delivery** — 5 real tumbling canisters (`ProjectileData.tumble_rate`,
+  `projectile_base.gd` `_canister_mesh`) released from the airframe on forward ballistic arcs
+  (`cas_airplane.gd` `PICKLE_LEAD_M` — the old code threw late canisters BACKWARD off the plane).
+  Probe measured every release ≤1.5m from the airframe at alt 34, velocities forward-down.
+- **CBU is a raid** — `FirePlan.CBU_CANS 3` dispensers down the run, each raining 16 bomblets
+  over its own ellipse (~134m strip), a crater per dispenser (`cas_airplane.gd` `_open_cluster_at`).
+- **Live-jungle felling** — `vegetation_manager.gd` `clear_area` now swaps up to 5 canopy trees
+  per blast for hinging fall visuals (FellableTree motion), FIFO-capped at 24 lying logs.
+- **Battery telegraphs** — friendly arty/mortar/WP/illum play tube thump + incoming whistle
+  (siege pattern, `field_director.gd` `_battery_telegraph`).
+- **Illum reachable** — HUD net row 7 (`mission_hud.gd`), bench key 8, bench stock; probe proved
+  the flare lights a bounded circle (target lit, +250m not lit, OmniLight range 252m).
+- **Bench fix** — `FireSupportBench.wire` now points DamageSystem at the bench terrain; before
+  this every bench crater/scar call silently no-opped.
+- **Dispatch mark** — EVERY dispatched call (bench direct keys included) stands its FirePlan
+  footprint on the target until the ordnance is down (`field_director.gd` `_mark_dispatch` +
+  `DISPATCH_MARK_S`; illum got a real 180m footprint in `FirePlan`, figure moved to the one table).
+- **Overfly guard** — no aircraft approach ever crosses within 40m of the player's ground
+  position, danger close included (`field_director.gd` `_no_overfly_axis`, enforced inside
+  `_run_axis` so every CAS strike AND F-4 flyby resolves through it). Probed across four
+  geometries + two live flights by `tools/probe_run_axis.tscn` (PASS): overfly axes rotate by
+  the smallest compliant angle; a target nearer than 40m gets broadside (the max possible miss);
+  live airframes never closed within 40.0m. Spectre's orbit stays as-is — RULED 2026-08-04
+  ("spectere is fine"), the near-overhead orbit at 130m altitude is accepted. CLOSED.
+
+**Verify on the bench (his eyes, the real gate):** keys 1-8 fire 60m along the look axis —
+1 bombs · 2 napalm (canister rack + chain above the trees) · 3 arty (8-12 round spiral barrage)
+· 4 mortar · 5 spectre (watch the ground get chewed over 30s) · 6 CBU raid · 7 WP burn ·
+8 illum. Still open to HIS judgment: whether napalm's bloom clears the treeline visually, and
+arty barrage pattern "prettiness".
+
+---
+
 ## AUDIT 2026-07-31 — SIX ITEMS BELOW ARE ALREADY BUILT. READ THIS FIRST.
 
 I came here to build the air spectacle and found it shipped. Every line below is verified against
@@ -707,6 +755,277 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
       into his seat at the 0.6s stagger (`_board_one` → `seat()`). Reads as men popping into
       the cabin. Fix needs a walk-to-door verb on Civilian or routing extract through the BT —
       not a triage-scope change; priced here for the queue.
+      **2026-08-04 UPDATE (animation half only, count 2 still open):** authored `board_heli`
+      from footage-derived beats (approach/grab/mount/settle-to-floor), gated on the elbow
+      invariant (max 0.019, clean), and wired `HeliLift.BOARD_CLIPS = ["board_heli"]`
+      (`heli_lift.gd:46`, was empty). `civ.actor.play_first(BOARD_CLIPS)` now plays a real
+      climb-and-sit performance instead of nothing — but the `Civilian`-is-not-`AllyBase` cast
+      failure above is UNCHANGED, so the man still doesn't walk to the door first; he plays the
+      mount animation wherever he happens to be standing, then glue-teleports into the seat as
+      before. **Count 2 needs the move-verb fix on top of this before it reads right; the
+      animation is ready and waiting for it.** Detail + QC numbers: `production/ART_Track_Log.md`
+      2026-08-04 entry.
+      **2026-08-04 EVENING UPDATE — count 2 BUILT, awaits his eyes.** War Room
+      `war_room/2026-08-04_garrison_soldiers/` decreed a boarding LATCH, not a promotion:
+      `Civilian.board_target` (`civilian.gd`, walked in the WANDER branch at
+      `BOARD_WALK_SPEED` 1.8), set by `SeatSystem.board_squad` (`seat_system.gd` — the
+      `as AllyBase` cast now has a Civilian branch), and `_board_one` is ARRIVAL-GATED:
+      retries every 0.4s until the man is within 3.0m of the door (cap ~24s, then the
+      ship abandons him and the latch clears), plays `board_heli` AT the door, seats
+      after a 1.6s mount beat (`BOARD_MOUNT_S` is a timed const, not a measured clip
+      length — named sacrifice, synthesis §4). Headless boot clean, 0 SCRIPT ERROR.
+      **MEASURED WORKING 2026-08-04 late (instrumented demo run, seed 29072026):**
+      `[SEATS] boarder at the door after ~3.2s walk - mounting` → `seated in seat_pax_1`,
+      and a second man `~12.8s walk` → `seat_pax_2` — DURING a live stand-to, which
+      exempted exactly the 2 latched boarders (43 of 45 promoted). Two earlier failures
+      taught two fixes: the arrival gate now measures to the AIRFRAME (8.0m, XZ), never
+      the door staging point — the staging point sits off the LEFT door, the heli is in
+      no navmesh, and approach from the right pressed men against the fuselage 6-11m
+      from target for the full 24s. CLOSE on his playtest (ADR-015).
+- [ ] **W-12 (NEW, his live playtest 2026-08-04 late — FOUR convictions, evening fix train
+      applied same night, ALL await his eyes):**
+      (1) **All replacements were RADIOMEN — FIXED.** `Civilian.spawn` derives model, face
+      AND dress from a POSITION hash (`civilian.gd:186-189`), and `heli_lift._load_pax`
+      minted the whole stick at one point (`heli.global_position`) — one man, n times.
+      Sticks now mint at per-man offsets (`heli_lift.gd _load_pax`).
+      (2) **Delivered men stood on the pad forever — FIXED.** Pax landed with occupation
+      "farmer" (Civilian default), no working point, and `home` = the pad, so the schedule
+      held them where they stood. `_deliver` now hands each man to camp life: off_duty/
+      detail occupation + a bunk point inside the compound, deterministic per man
+      (ADR-010), `_placed_for_hour` latched so he WALKS off the pad, never teleports.
+      (3) **A FEMALE (Asian villager) face on a US grunt — FIXED, HIS RULING** (verbatim:
+      "thats immposible to do make sure we fix that"). The shared 10x7 face atlas
+      (`assets/shared/textures/face_atlas_v3.png`, VERIFIED BY EYES) carries female cells
+      (13,14,16,22,23,32,33,41,52), a turban (49) and a legacy bottom row 60-69 including
+      Asian villager faces — and `GruntDresser.dress` drew `randi() % 70` across all of it.
+      US soldier draws now come from `GruntDresser.US_FACES` (49 male cells); explicit
+      `opts["face"]` still bypasses for the bench. Villagers don't use the dresser
+      (`grunt_randomizer.gd:96-97` — us_* only), so they are untouched.
+      (4) **PHANTOM PATROL banked with 7 kills while he never left the wire — FIXED,
+      BOTH HALVES (credit half built 2026-08-04 late, awaits his verify).**
+      GATE: `_poll_wire_gate` (`field_director.gd:1221`) requires >120m from the gate
+      AND from `fsb_center`. CREDIT: attribution already existed end-to-end — every
+      damage path carries the attacker (`bullet_system.gd:178`,
+      `combat_manager.gd apply_explosion_damage`), and `EnemyBase._last_attacker` is
+      group-gated to player/allies at `enemy_base.gd take_damage` — so the scoping was
+      a small change, taken under his "i didnt do anything" ruling. BEFORE:
+      `_on_enemy_died` banked EVERY death in the AO. AFTER: a kill banks only when
+      `patrol_out` is true AND the killer is the player or a `squad_member` AllyBase
+      (promoted garrison spawns with `squad_member=false`, `garrison_defender.gd:57`;
+      friendly patrols likewise). New `EnemyBase.last_friendly_attacker()` is the
+      credit source. Headless boot clean.
+      **VERIFY (his eyes):** patrol out, shoot 2, squad kills 1 → "PATROL N LOGGED,
+      3 KILLS"; sit out a base defense → next AAR banks 0.
+      **TWO GLOSSED EDGES, his call if either bothers him:** (a) base-defense and siege
+      kills now bank NOWHERE (they were only ever mis-banked into the patrol AAR; F-1
+      "bank the night" is the logged home for siege accounting); (b) air kills never
+      credit the patrol — including a danger-close run HE called in (the killer is the
+      airframe). Both are conservative reads of "kills he made".
+      **STILL OPEN, not reproduced:** (5) rooftop NPC spawns near LZ→hooch persist on his
+      build — the COMPLETE placement pipeline is now mapped with suspects ranked at
+      `war_room/2026-08-04_garrison_soldiers/placement_pipeline_map.md` (top candidates:
+      tracked-enemy spawns and the terrain_watchdog LOD reseat still ride `surface_y`;
+      heli-delivered pax get pad-height homes) — re-judge on the NEW GLB, no fixes
+      against the old geometry by decree; (6) squad "stuck by collision boxes" —
+      a 4-direction pen probe now prints at boot (`squad_system.gd setup`,
+      `[SQUAD] spawn <MOS> at (...) - N/4 dirs blocked`); on seed 29072026 all 8 men
+      probed 0-1/4 blocked at spawn, so the pen is NOT at spawn — next suspect is the
+      hootch doorway during follow (fresh-navmesh law, agent radius vs door width). His
+      next run's `[SQUAD]` lines are the evidence to bring; (7) wrong animations for the
+      action — partially explained by (2) farmer-occupation pax + the permanent stand-to
+      (fixed via the W-10 alarm gate); re-judge after this build.
+- [ ] **W-11b VERIFY (his report 2026-08-04 late): "i see napalm called out but have yet to see
+      a huge explosion."** Plausibly W-11 itself — the dead-author callback sat in the detonation
+      path, so napalm may NEVER have fully detonated for him. HIS RULING same night: "just double
+      it anyways and if its too big ill dial it back" → `FirePlan.NAPALM_BLAST_M` 10.0 → 20.0
+      (one constant; drives fireball, fire carpet AND damage circle — the strip is now ~40m wide
+      of overlapping 20m fires). Verify row: on the fixed build, call a napalm run and judge by
+      eyes; dial the constant to taste.
+- [x] **W-11 napalm impact callback — BUILT 2026-08-04 late (structural fix, not a guessed
+      guard).** The trace (`Nonexistent function '_ignite_nearby_structures' in base
+      'Node3D (TerrainChunk)'`) shows the terminal lambda's self-dispatch resolving against
+      a RECYCLED object after the plane's reap — the shell outlives the aircraft, and the
+      projectile-side guard (`projectile_base.gd:374` checks `get_object()`) passes because
+      the binding still reports a live object. Why :301-303 "worked": they are autoload/
+      static calls, and `get_tree()` exists on the wrong base too; only :304 named a method
+      the impostor lacks. The exact rebinding mechanism stays engine-side and unproven —
+      so the fix removes the dependency instead of guarding it: **every deferred terminal
+      lambda in `cas_airplane.gd` is now self-free** (captured `tree: SceneTree` for
+      FireHazard/GunFX scene lookups; `_ignite_nearby_structures` is `static func
+      (tree, impact)`), bomb + napalm + CBU bomblet paths all converted, and the CBU
+      open-timer gained the same `is_instance_valid(self)` guard the napalm stagger has.
+      No behavior change; structures now ignite even from a reaped plane's rack. Headless
+      boot clean. **Verify: his next napalm run, grep the log for SCRIPT ERROR.**
+- [ ] **W-10 (NEW, his ruling 2026-08-04, verbatim: "Garrison men are soldiers they shoudnt
+      be civilians. They can fight and react to enemies so thats not correct." + "and we need
+      to make sure VC units arent lableed as civilans too in their camps.") — GARRISON
+      SOLDIERS. War Room `war_room/2026-08-04_garrison_soldiers/` (3 architects, synthesis
+      has the full decree). DEMO SLICE BUILT 2026-08-04 evening, awaits his playtest:**
+      (1) **Soldiers answer fire** — the garrison deaf gate (`civilian.gd` `_on_noise`
+      `if is_garrison: return`) replaced: enemy-team GUNSHOT/EXPLOSION audible at the man
+      (distance ≤ emitted radius), or a hit from an enemy, raises
+      `FieldDirector.garrison_alarm(at)` → the EXISTING `_garrison_stand_to()` promote path
+      (garrison_defender.gd — one path, ADR-023). Before this, stand-to had exactly 3 doors
+      (siege, ≥2-in-90m poll, heli into a fight) and a lone sapper was ignored forever.
+      **AMENDED same night after his live run:** the alarm is gated to sources within
+      `GARRISON_ALARM_M` 120m of `fsb_center` — ungated, the demo's near-constant ambient
+      contact kept the garrison PERMANENTLY promoted and camp life read as dead ("no one
+      moves around or does anything"). A fight 300m out is the AO's business.
+      **CRASH FIXED same night:** `GarrisonDefender.stand_down` built its model list with a
+      ternary (`[unit] if ... else GARRISON_MEN`) which types as plain Array → runtime
+      assign error → EVERY stand-down deleted the man instead of restoring him (measured:
+      48-man garrison fell to 4 in one night of my instrumented run; log flood
+      `Trying to assign an array of type "Array" to "Array[String]"` at
+      garrison_defender.gd stand_down). The all-clear multiplied its firing rate, which is
+      *[entry truncated here by an earlier write — the sentence ends mid-clause; the fix
+      itself is described complete above. Noted on contact 2026-08-04, NO MORE DRIFT.]*
+
+- [ ] **W-13 (Summoner ruling 2026-08-04, verbatim: "follow me to safety instead of us being
+      outside in the line of cover... get him to be behind me when im in cover and theres an
+      intense firefight.") — RTO CORD DOCTRINE. BUILT 2026-08-04, awaits his playtest.**
+      No new command verbs (Pillar 4); the RTO's OWN cover search gained two doctrine
+      weights, RTO-only + player-alive gated, in the §2.11 scoring seam — one path, both
+      the hard-cover and concealment passes route through `AllyBase._claim_scored`
+      (`ally_base.gd`, above `_find_cover_point`); the shared claim broker and ENEMY
+      scoring are untouched (the bias is caller-side in the ally copy only).
+      (1) **CORD LEASH** — `RTO_CORD_LEASH 8.0` (10m net cord minus margin): candidates
+      beyond 8m of the player are dropped; if none survive, nearest-to-player wins
+      outright. (2) **SHADOW WEIGHT** — `RTO_SHADOW_WEIGHT 3.0` bonus by the flat-plane
+      dot of candidate→player vs candidate→threat ("get behind the man with the map");
+      a bonus, never a filter. `net_planted` precedent verified, not changed: the plant
+      binds only IDLE/FOLLOW (`ally_base.gd:968`), combat states already override it
+      under direct fire, and SEEKING_COVER opens only via suppression or the shared
+      scorer with a live target — so a planted RTO is yanked only in a fight, and the
+      leash makes the yank a shuffle near the player. Logic lives in AllyBase, so demo
+      and bench behave identically.
+      **MEASURED (`tools/probe_rto_cover.tscn`, 5/5 PASS, headless 0 SCRIPT ERROR):**
+      wall behind the player → RTO cover 1.09m from player, shadow dot 1.000 (RIFLEMAN
+      control same spot: 5.00m, dot 0.850 — unbiased path intact); RTO strayed to 14.56m
+      with only far cover → fallback picks the candidate 8.94m from the player while the
+      RIFLEMAN control takes his own 3m rock 17.46m out.
+      **VERIFY (his eyes):** take cover in a firefight with the net open or SPARKS
+      following — he should tuck in behind you instead of holding a rock across the
+      danger space.
+
+- [ ] **W-14 (Summoner ruling 2026-08-04: "sandbags and a few more trees and a squad of 5
+      enemies shooting at us... prove the loop that the allies will fall in their supposed
+      places while taking cover.") — SUPPORT-FIRE BENCH IS NOW A LIVE-FIRE COVER LAB.
+      BUILT 2026-08-04, awaits his playtest.** All in `scripts/levels/support_fire_range.gd`
+      (scene-build only; fire_preview/cas_airplane/field_director/FirePlan untouched):
+      6-bag low sandbag arc at the spawn (one bag BEHIND the player for the W-13 shadow spot),
+      tree field densified 24→57 trunks with near clumps, 4 riflemen (TEX/PREACHER/JUNIOR/
+      MOOSE, courage pinned 0.20–0.32 — the rally bonus put nerve on the CombatGoals
+      cover-vs-engage knife edge and the break became a per-run coin flip) on the BenchSquad
+      roster in FOLLOW, in-code navmesh baked arena-style (`lab_navmesh` group, 567 polys).
+      **[9] launches a 5-man VC/NVA assault** from the far tree line (3 press via
+      `assault_driven`, 2 NVA base of fire) with the arena hot-start contact seam + a
+      half-bar opening-volley suppression seed (below the 0.6 seek band and the pin gate).
+      **Witness:** every claimed cover point draws a sphere + nick label (yellow moving,
+      green held, cyan RTO), claim/hold/release printed to console — bench-only, gated in
+      this scene script.
+      **MEASURED (`support_fire_range.tscn ++ --cover-probe`, headless, 0 SCRIPT ERROR):**
+      5/5 men CLAIM within ~2s of [9] and 5/5 reach HOLD within 1.4m of the claim; claims
+      land 1.8–5.9m from the nearest sandbag on the friendly side; SPARKS claims the rear
+      bag 5.0m from the player at **shadow_dot 1.00** (player exactly between his cover and
+      the threat — W-13 satisfied); the enemy squad presses and lives 15s+ (5→2→1 across
+      the samples).
+      **VERIFY (his eyes):** boot the bench, set up, press [9], watch the markers pop and
+      the men fall into them.
+
+- [ ] **W-15 (Summoner rulings 2026-08-04, same lab session) — RTO CORD + ALLY COMMITMENT
+      + FEAR DOCTRINE + LETHALITY. BUILT, awaits his playtest.**
+      (1) **RTO cord over everything** (`ally_base.gd`): no FLANK/ADVANCE goals under the
+      cord, beyond 8m his only legal move is toward the player (COMBAT + lost-sight
+      branches), commits to his hole until the player moves off the cord.
+      (2) **Ally commitment** (`ally_base.gd` + `combat_goals.gd` Context.incumbent_mult):
+      cover dwell 8s (`ALLY_COVER_DWELL_MS`), goal-switch cooldown 3s (survival verbs
+      exempt), incumbent 1.6 ally / 1.5 enemy / 1.25 pressed (C3 press calibration
+      preserved); a covered man whose target drops holds the rock and retargets instead
+      of standing down (`_execute_combat` + `_hostiles_remain`).
+      **MEASURED (bench SQUIRRELLY-METER):** goal switches 17.5-34.9/min -> 2-8/min;
+      cover dwells 1.4-2.1s -> 4-8.6s; RTO max dist from player 11.5m -> 5.2-10.2m.
+      (3) **FEAR doctrine, BOTH sides** (`combat_goals.gd`): under un-answered fire and
+      unpressed, ADVANCE x0.15 / FLANK x0.4; SUPPRESS +0.15 vs an unsuppressed target;
+      RETREAT floor 0.5 when outnumbered <0.6; Context.target_suppressed fed by both
+      callers. Press men exempt everywhere (siege decree C3 intact).
+      **MEASURED:** advances-under-unanswered-fire 0.0 man-s across two 30s assaults.
+      (4) **Lethality** (`ai_marksmanship.gd` cap 1.2->1.0 deg, EXPOSURE_PEAK 2.0->1.4;
+      `enemy_base.gd` accuracy floors up ~0.1/archetype, self-pres floors up 0.1;
+      `data/enemies/*.tres` exposure_ramp_time trimmed ~30%; damage table UNTOUCHED,
+      Fairness Law mercy round + ramp intact, torso aim unchanged).
+      **MEASURED (bench LETHALITY probe, 3 VC bolt rifles at 40/50/60m vs exposed still
+      player):** hits/100 46 -> 75; time-to-first-hit from cold acquisition 5.3s;
+      suppressed (0.9) shooters fire ZERO rounds - cover protects.
+      (5) **Assault scaled** ([9] = 10 men: 2x2 MG/NVA bases of fire + 2x3 bounding
+      maneuver, waves STACK): two runs - enemies lose 4-6/10, REACH the line (6-8m),
+      **ally squad 5/5 dead in ~30s both runs (headless: no player rifle, no fire
+      support)**. Bench-only perf note: headless cannot measure the Intel-UHD floor
+      with ~16 AI - measure on his box.
+      **NEEDS HIS EYES:** whether 5/5 friendly dead per assault reads as danger or as
+      fragile friendlies - ally accuracy floors were NOT raised (enemy-only personality
+      code), so the lethality raise is asymmetric; a council should rule if allies get
+      the same floors.
+
+- [ ] **W-16 (Summoner convictions 2026-08-04) — FIRE-MISSION DAMAGE AUDIT + CONTACT
+      FUZES + THREAT-CORRIDOR JUNGLE PROMOTION. BUILT + MEASURED, awaits his eyes.**
+      (1) **Damage audit (`support_fire_range.tscn ++ --strike-probe`):** every kind vs
+      a 6-man standing cluster - arty/mortar/bombs/napalm/cbu/spectre all 6/6 killed
+      (420 dmg = full wipe), WP 3-5/6 (small blast, correct), **arty on a TREELINE
+      cluster 6/6 killed** (his acceptance test), enemy siege mortars kill player
+      (100->0) + 3/3 allies. The 0.4x indirect mitigation discounts FRIENDLIES only -
+      but 8 rounds still killed all 4 bystanders (danger close is danger). **On the
+      bench nothing is broken** - if his live run showed nothing, it predates today's
+      fixes or is live-world-terrain specific; the LOS-from-ground-level suspect is
+      now moot because bursts sit at contact height.
+      (2) **Contact fuzes (decree, verbatim "if a bomb hits the tree above you thats
+      gonna blow up... blast downward"):** munitions already segment-cast layer 1 every
+      tick (`projectile_base.gd:264-291`, `hits_world=true` in every shell .tres); the
+      defeat was the four tube terminals flattening the burst to `get_height_at`. Fixed
+      in `_arty_impact`/`_mortar_impact`/`_wp_impact` (field_director) + siege
+      `_mortar_impact`: burst stays at contact height (`maxf(pos.y, floor)`), craters
+      only dig when the burst is <=2m off the floor, WP's burn patch drops to the floor
+      beneath its burst. CAS lambdas already honored contact. Dud/arming untouched
+      (all support ordnance arming_distance 0).
+      **MEASURED (`++ --airburst-probe`):** crown contact at 4.9m kills the man beside
+      the trunk; ground burst is SHIELDED by a 1.4m sandbag (untouched); the same crown
+      burst over the same wall kills him - directional pressure both ways.
+      (3) **Threat corridors (`tree_cover_layer.gd`):** ordnance promotes REAL trunk
+      colliders from the EXISTING 70m-ring pool (no second mechanism) via
+      `threat_zone`/`threat_corridor` + expiring zones (ZONE_MAX 16, expiry-first
+      eviction, dedupe-refresh). Fed by: `_mark_dispatch` (footprint + air-run
+      corridor), `CombatManager.spawn_projectile` (every flying explosive, both
+      factions), `Grenade` first tick, `SapperCharge.setup`, siege
+      `fire_mortar_volley`. No mine class exists (verified zero `class_name` hits).
+      **MEASURED (`++ --corridor-probe`):** 0 baseline -> 40/40 promoted on dispatch ->
+      contact burst ON a promoted trunk at 2.8m -> 0 after expiry; 10 stacked strikes
+      hold 40 promoted with zones capped at 16 and pool stable at 40; full demotion to
+      0/0 after all expiries - leak-proof.
+      **HONEST LIMIT + his-eyes flags:** canopy contact needs a trunk collider - the
+      promotion covers wherever ordnance goes, but collider height is TRUNK_HEIGHT 3m
+      (trunk hits, not high-canopy hits); grass/fern/bush stay concealment by contract.
+      Napalm canisters contact-fuze like the rest (jungle canopy bursts) - flagged, his
+      call if the strip should force ground function. Live-jungle felling itself is the
+      pre-existing `vegetation_manager.clear_area` path (`:400-437`).
+      how it surfaced. Promote also now skips boarding/seated/puppet men (measured: 43 of
+      45 promoted with exactly the 2 lift boarders exempt).
+      (2) **All-clear** — `_poll_firebase_threat` stands an alarm stand-to down after ~90s
+      of empty wire (`ALARM_CLEAR_POLLS` 180 × 0.5s, `near == 0`, never while
+      `siege.active`); toast "STAND DOWN - THE WIRE'S QUIET".
+      (3) **A dead garrison man is a soldier on the ledger** — `_record_noncombatant_death`
+      excludes `is_garrison`; he stays in the `civilians` group so `spare_garrison` blast
+      semantics (`combat_manager.gd:114-166`) are untouched.
+      (4) **W-9 count 2** — see the W-9 update above (board latch, same decree).
+      **VC AUDIT: CLEAN, 3 independent passes** — VC camp life is already on EnemyBase
+      (`camp_director.gd:29`, `enemy_base.gd:584`); no armed VC runs as Civilian; the
+      informer swaps model only after GONE+invisible. NO VC change shipped, on purpose.
+      **POST-DEMO (decreed in principle, GATED):** migrate garrison onto the soldier class
+      per the VC pattern and DELETE GarrisonDefender + the double-group bookkeeping in the
+      same change (fossil law). Preconditions before it may start: static hitzone bands +
+      3-tier LOD + the schedule brain ported (Civilian's bands exist because bone-synced
+      hulls measured ~6.4ms/frame at 16-40 heads, `civilian.gd:214-218`; AllyBase pins
+      zones HOT with no LOD). Blast-radius map:
+      `war_room/2026-08-04_garrison_soldiers/analysis/systems_designer.md`. Until then the
+      demo ships soldiers in a class still NAMED Civilian — named sacrifice, synthesis §4.
 - [x] **W-8 De-burst air transits** — **BUILT 2026-08-04.** SimClock schedules now fire at their
       FRACTIONAL hour via `_fire_window` (`sim_clock.gd:advance`/`set_time`;
       `_tick_schedules` deleted, fossil law); the three per-hour transit bookings at

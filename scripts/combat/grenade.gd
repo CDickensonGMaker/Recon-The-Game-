@@ -78,9 +78,21 @@ func _on_touched_world(_body: Node) -> void:
 	angular_damp = minf(angular_damp + 4.0, 12.0)
 
 
+var _threat_called: bool = false
+
+
 func _physics_process(delta: float) -> void:
 	if has_exploded:
 		return
+
+	# Armed ordnance calls out the trees on its line (decree 2026-08-04). First tick,
+	# not _ready: the thrower assigns global_position AFTER add_child.
+	if not _threat_called:
+		_threat_called = true
+		var flat := Vector3(linear_velocity.x, 0.0, linear_velocity.z)
+		var dir: Vector3 = flat.normalized() if flat.length() > 0.5 else Vector3.FORWARD
+		TreeCoverLayer.threat_corridor(get_tree(), global_position,
+			global_position + dir * 25.0, 8.0, 12.0)
 
 	remaining_fuse -= delta
 

@@ -89,8 +89,9 @@ const OFF_DUTY_CHAINS: Array = [
 # remains the reactive override (FLEE/COWER/GONE) which wins regardless.
 var occupation: String = "farmer"
 ## A US garrison man inside the wire: same schedule machinery, US model, armed
-## idle chains, and no noncombatant panic. Background life, never a combatant
-## and never a squad member.
+## idle chains. A SOLDIER, not a noncombatant (Summoner ruling 2026-08-04): enemy
+## fire on the wire stands him to via GarrisonDefender.promote. Never the player's
+## squad.
 var is_garrison: bool = false
 ## The village this man belongs to. Written at build time so a panicking villager
 ## can name his own hamlet without a radius scan guessing at it.
@@ -107,6 +108,10 @@ var group_destination: Vector3 = Vector3.ZERO
 var group_members: Array = []
 ## Is this civilian the LEAD of their group? The lead picks the path; followers slot.
 var is_group_lead: bool = false
+## Boarding latch (SeatSystem.board_squad). While set, the man walks here instead of
+## ticking his schedule; SeatSystem clears it when it seats him or the ship gives up.
+var board_target: Vector3 = Vector3.ZERO
+const BOARD_WALK_SPEED: float = 1.8
 ## PUPPET. This body is inside a scripted performance (LitterTeam) and its driver
 ## owns position AND clip. The BT, the schedule and _animate() all stand down: an
 ## unlatched body re-issues its own pose and the casualty sits up on the stretcher.
@@ -244,10 +249,18 @@ func _exit_tree() -> void:
 	AgentRegistry.unregister(self)
 
 
-func _on_noise(type: int, noise_pos: Vector3, _radius: float, _team: int) -> void:
+func _on_noise(type: int, noise_pos: Vector3, radius: float, team: int) -> void:
 	if state == CivState.GONE:
 		return
 	if is_garrison:
+		# A soldier answers audible ENEMY fire (audibility = the emitted radius).
+		# Friendly noise never stands the base to, and the director gates on the
+		# noise being AT the wire - a fight raging 300m out is the AO's business,
+		# or camp life dies to every ambient contact. One promote path (ADR-023).
+		if (type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION) \
+				and team != 0 and director != null \
+				and global_position.distance_to(noise_pos) <= radius:
+			director.garrison_alarm(noise_pos)
 		return
 	if type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION:
 		if global_position.distance_to(noise_pos) < 60.0:
@@ -322,7 +335,11 @@ func _physics_process(delta: float) -> void:
 
 	match state:
 		CivState.WANDER:
-			_bt_tick(delta)
+			if board_target != Vector3.ZERO:
+				active_action = &"board"
+				_step_toward(board_target, BOARD_WALK_SPEED, delta)
+			else:
+				_bt_tick(delta)
 		CivState.FLEE:
 			var flee_from := _saw_player_at
 			if player and flee_from == Vector3.ZERO:
@@ -524,6 +541,9 @@ func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL,
 		attacker: Node = null, zone: String = "BODY") -> int:
 	if state == CivState.GONE:
 		return 0
+	# Deferred: promote() is a synchronous teardown and this body is mid-damage.
+	if is_garrison and attacker is EnemyBase and director != null:
+		director.garrison_alarm.call_deferred(global_position)
 	if Hitzone.zone_name_is_fatal(zone):
 		amount = _hp + 999
 	_hp -= amount
@@ -563,6 +583,10 @@ func _die(attacker: Node, zone: String, amount: int) -> void:
 ## (ADR-006 re-host). A revealed informer is a combatant now: _transform_to_vc drops
 ## him from "civilians" without going GONE, so the group check keeps him out of it.
 func _record_noncombatant_death(_killer: Node) -> void:
+	# A garrison man is a soldier (ruling 2026-08-04) - his death is a casualty,
+	# never a noncombatant tally. He stays in "civilians" for blast semantics only.
+	if is_garrison:
+		return
 	if not is_in_group("civilians"):
 		return
 	if director != null:

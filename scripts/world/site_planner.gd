@@ -927,8 +927,8 @@ static func _ensure_fsb_markers() -> void:
 	inst.free()
 
 
-## Garrison post/quarters positions in WORLD XZ, y left at 0 for the caller to
-## seat on terrain (same contract as fsb_gate_metrics).
+## Garrison post/quarters positions in WORLD space. Y is the AUTHORED marker height
+## (kept since 2026-08-04); seat with GameWorld.floor_y from it, never surface_y.
 static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 	_ensure_fsb_markers()
 	var origin: Vector3 = center - FSB_AABB_CENTER

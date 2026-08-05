@@ -92,11 +92,21 @@ func record_noncombatant_death() -> void:
 
 
 func _on_enemy_died(enemy: EnemyBase, _group_tag: String) -> void:
-	state.record_kill()
 	_live_enemies.erase(enemy)
 	# Escalation is driven by DETECTION, not by the kill - see _check_detection().
 	# A silent, unwitnessed kill leaves the AO cold; that is what makes stealth
 	# an economy.
+	# The AAR is the PATROL's book: only kills by the player or his own squad, made
+	# while he is outside the wire, bank into it. Garrison, air and siege kills are
+	# the base's business, not his (playtest 2026-08-04: a phantom "7 kills" AAR).
+	if not patrol_out:
+		return
+	var killer: Node3D = enemy.last_friendly_attacker()
+	if killer == null:
+		return
+	var killer_ally := killer as AllyBase
+	if killer.is_in_group("player") or (killer_ally != null and killer_ally.squad_member):
+		state.record_kill()
 
 
 ## Hunter escalation: after first contact, patrols move in looking for you.
@@ -296,10 +306,12 @@ var fire_menu_open: bool = false:
 ## keeps "handset in hand" and "fire options visible" from ever disagreeing.
 func _open_net() -> void:
 	var pl: Node = world.player if world != null else null
+	print("[NETDBG] _open_net: pl=%s has_set_on_net=%s" % [pl, pl != null and pl.has_method("set_on_net")])
 	if pl != null and pl.has_method("set_on_net"):
 		pl.set_on_net(true)  # raises the handset (if wired) -> mirrors this menu open
 	else:
 		set_fire_menu_mirror(true)  # no player (probe harness): open directly
+	print("[NETDBG] _open_net done: fire_menu_open=%s" % fire_menu_open)
 	# Only crow "on the horn" if the net actually opened - the player can refuse the
 	# grab (cord out of reach) and give its own "too far" bark.
 	if fire_menu_open:
@@ -310,9 +322,11 @@ func _open_net() -> void:
 ## Terminal mirror, called ONLY from the player's _enter_net/_exit_net. Sets the flag
 ## and emits - it must never call back into the player, or the two states ping-pong.
 func set_fire_menu_mirror(open: bool) -> void:
+	print("[NETDBG] mirror(%s) was=%s" % [open, fire_menu_open])
 	if fire_menu_open == open:
 		return
 	fire_menu_open = open
+	_set_rto_planted(open)
 	if not open:
 		clear_armed()
 	fire_menu_changed.emit(open)
@@ -324,7 +338,7 @@ var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2,
 ## against a company crossing 300-500m is a spotlight, not battlefield illumination.
 const ILLUM_HEIGHT_M: float = 140.0
 const ILLUM_DURATION_S: float = 75.0
-const ILLUM_RADIUS_M: float = 180.0
+const ILLUM_RADIUS_M: float = FirePlan.ILLUM_LIGHT_M  # the one table owns the figure
 
 ## Off-map gun geometry: how long a round is in the air, and where it comes from.
 const SHELL_FLIGHT_S: float = 4.0
@@ -420,6 +434,41 @@ func armed_danger_close() -> bool:
 	return _danger_close_to_squad(armed_target, FirePlan.reach(armed_kind, fo_skill()))
 
 
+## EVERY dispatched call marks its impact area (decree 2026-08-04) - the same
+## FirePlan footprint the placement flow draws, standing on the target from the
+## moment the call goes out until the ordnance is down. This is what the bench's
+## direct keys and the shortcut paths see, since they never arm a placement.
+## Seconds per kind ~ last impact: shells ride the volley spread + SHELL_FLIGHT_S,
+## air rides spawn-to-release + fall, spectre holds its whole time on station.
+const DISPATCH_MARK_S: Dictionary = {"bombs": 10.0, "napalm": 6.0, "arty": 15.0,
+	"mortar": 11.0, "spectre": 30.0, "cbu": 6.0, "wp": 8.0, "illum": 5.0}
+
+
+func _mark_dispatch(kind: String, target: Vector3, run_dir: Vector3) -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	var mark := FirePreview.new()
+	mark.name = "DispatchMark"
+	mark.terrain = world.terrain_manager
+	world.add_child(mark)
+	var dir: Vector3 = run_dir.normalized() if run_dir.length() > 0.01 else Vector3.FORWARD
+	mark.show_plan(kind, target, dir, fo_skill(), false)
+	# Threat corridor (decree 2026-08-04): the strike promotes real trunk colliders
+	# in its footprint for its duration, so contact fuzes have canopy to strike.
+	if kind != "illum":
+		var fp: Dictionary = FirePlan.footprint(kind, fo_skill())
+		var reach: float = maxf(float(fp.get("radius", 0.0)),
+			maxf(float(fp.get("along", 0.0)), float(fp.get("across", 0.0))) * 0.5) + 8.0
+		var dur: float = float(DISPATCH_MARK_S.get(kind, 8.0)) + 5.0
+		TreeCoverLayer.threat_zone(get_tree(), target, reach, dur)
+		if kind == "bombs" or kind == "napalm" or kind == "cbu":
+			TreeCoverLayer.threat_corridor(get_tree(), target - dir * 80.0, target + dir * 80.0,
+				float(fp.get("across", 30.0)) * 0.5 + 8.0, dur)
+	get_tree().create_timer(float(DISPATCH_MARK_S.get(kind, 8.0))).timeout.connect(func() -> void:
+		if is_instance_valid(mark):
+			mark.queue_free())
+
+
 func _update_placement() -> void:
 	if armed_kind == "":
 		return
@@ -489,6 +538,7 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 	clear_armed()
 	_close_net()  # call is going out - off the horn
 	fire_support[kind] = int(fire_support[kind]) - 1
+	_mark_dispatch(kind, target, _run_axis(target, run_dir))
 	# FO/FAC is the RADIOMAN's skill, not the player's.
 	var _rto := squad_system.member_by_mos("RTO") if squad_system != null else null
 	var _fo: int = SquadRoster.skill_level(_rto.member, "fo_fac") if _rto != null else 0
@@ -503,18 +553,26 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
 			_radio_vo("napalm_run")
 		"arty":
-			toast.emit("BATTERY FIRE MISSION - SHOT OUT (%d left)" % fire_support[kind])
 			_radio_vo("arty_barrage")
+			_battery_telegraph(target)
 			# fo_fac tightens the sheaf: a green radioman scatters wide, a veteran walks
 			# it onto the target (lerp 1.0 -> 0.45 across 8 skill levels).
 			var scat: float = FirePlan.sheaf_scale(_fo)
-			for i in range(6):
-				var round_pos: Vector3 = target + Vector3(
-					randf_range(-FirePlan.ARTY_SHEAF_M, FirePlan.ARTY_SHEAF_M) * scat, 0.0,
-					randf_range(-FirePlan.ARTY_SHEAF_M, FirePlan.ARTY_SHEAF_M) * scat)
-				var deform: bool = i % 3 == 0
-				get_tree().create_timer(float(i) * 0.7).timeout.connect(
-					func() -> void: _fire_shell(ARTY_SHELL, round_pos, _arty_impact.bind(deform)))
+			# 8-12 rounds on a golden-angle spiral (decree 2026-08-04: a real barrage,
+			# never a grid): successive rounds never neighbour each other and the
+			# pattern never repeats. Timing is a gun line, not a metronome.
+			var rounds: int = randi_range(FirePlan.ARTY_ROUNDS_MIN, FirePlan.ARTY_ROUNDS_MAX)
+			toast.emit("BATTERY FIRE MISSION - %d ROUNDS - SHOT OUT (%d left)" % [rounds, fire_support[kind]])
+			var spiral_phase: float = randf() * TAU
+			var t_acc: float = 0.0
+			for i in range(rounds):
+				var ang: float = spiral_phase + float(i) * 2.399963  # golden angle
+				var rad: float = FirePlan.ARTY_SHEAF_M * scat * sqrt(float(i) + 0.5) / sqrt(float(rounds))
+				var round_pos: Vector3 = target + Vector3(cos(ang), 0.0, sin(ang)) * rad \
+					+ Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-3.0, 3.0))
+				t_acc += randf_range(0.35, 1.0)
+				get_tree().create_timer(t_acc).timeout.connect(
+					func() -> void: _fire_shell(ARTY_SHELL, round_pos, _arty_impact))
 		"mortar":
 			_run_mortar_mission(target, _fo)
 		"spectre":
@@ -627,13 +685,55 @@ func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3
 ## The line the aircraft flies. A placed call hands one down - it comes in over the
 ## player's right shoulder and runs left, so the strip lies BROADSIDE across his
 ## view and he can read its length at a glance. Without a placement (a probe, a
-## shortcut) it falls back to the old run down the line of sight.
+## shortcut) it falls back to the sight line - which the overfly guard below then
+## rotates off his head. EVERY aircraft launch resolves through here.
 func _run_axis(target: Vector3, run: Vector3) -> Vector3:
-	if run.length() > 0.01:
-		return run
-	if world != null and world.player != null and is_instance_valid(world.player):
-		return target - world.player.global_position
-	return Vector3.ZERO
+	var axis: Vector3 = run
+	if axis.length() <= 0.01:
+		if world != null and world.player != null and is_instance_valid(world.player):
+			axis = target - world.player.global_position
+		else:
+			return Vector3.ZERO
+	axis.y = 0.0
+	if axis.length() < 0.01:
+		return Vector3.ZERO
+	return _no_overfly_axis(target, axis.normalized())
+
+
+## NO AIRCRAFT APPROACHES OVER THE PLAYER'S HEAD - not even danger close (decree
+## 2026-08-04). The run's ground track (the line through the target along the run
+## axis: spawn, approach, pass, climb-out all lie on it) must miss him laterally by
+## OVERFLY_MISS_M. A violating axis rotates by the SMALLEST angle that complies;
+## when the target itself is nearer him than the miss distance no line through it
+## can comply, and broadside (perpendicular to his bearing) is the best possible.
+const OVERFLY_MISS_M: float = 40.0
+
+
+func _track_miss(target: Vector3, axis: Vector3) -> float:
+	if world == null or world.player == null or not is_instance_valid(world.player):
+		return INF
+	var p: Vector3 = (world.player as Node3D).global_position
+	var d := Vector2(axis.x, axis.z).normalized()
+	var to_p := Vector2(p.x - target.x, p.z - target.z)
+	return absf(to_p.x * d.y - to_p.y * d.x)
+
+
+func _no_overfly_axis(target: Vector3, axis: Vector3) -> Vector3:
+	if _track_miss(target, axis) >= OVERFLY_MISS_M:
+		return axis
+	for i in range(1, 13):
+		var ang: float = float(i) * (TAU / 24.0)
+		for s in [1.0, -1.0]:
+			var cand: Vector3 = axis.rotated(Vector3.UP, ang * s)
+			if _track_miss(target, cand) >= OVERFLY_MISS_M:
+				return cand
+	# Target closer to him than OVERFLY_MISS_M: broadside maximises the miss.
+	var p: Vector3 = (world.player as Node3D).global_position
+	var to_target := Vector3(target.x - p.x, 0.0, target.z - p.z)
+	if to_target.length() < 1.0:
+		to_target = Vector3.FORWARD
+	var broadside := Vector3(-to_target.z, 0.0, to_target.x).normalized()
+	return broadside if axis.dot(broadside) >= 0.0 else -broadside
 
 
 ## An informer reached his people. They come looking from the far side, ALERT but
@@ -699,6 +799,13 @@ func _close_net() -> void:
 		set_fire_menu_mirror(false)  # no player (probe harness): close directly
 
 
+func _set_rto_planted(planted: bool) -> void:
+	var rto: AllyBase = squad_system.member_by_mos("RTO") \
+		if (squad_system != null and is_instance_valid(squad_system)) else null
+	if rto != null and is_instance_valid(rto) and not rto.is_dead():
+		rto.net_planted = planted
+
+
 ## True if any living friendly - INCLUDING THE PLAYER - is within DANGER_CLOSE_M
 ## of the aim point (gates the confirm). ADR-011 required amendment: dropping a
 ## snake-eye on your own head must cost the same second press as dropping it on
@@ -720,21 +827,37 @@ func _danger_close_to_squad(target: Vector3, reach: float = 0.0) -> bool:
 	return false
 
 
-func _arty_impact(pos: Vector3, deform: bool) -> void:
+## Every round craters (destruction-parity decree 2026-08-04: arty must destroy
+## like napalm). Perf is safe: DamageSystem queues the digs and drains them
+## WorldConfig.TERRAIN_DEFORMS_PER_FRAME at a time, under MAX_DEFORMS_PER_MISSION.
+func _arty_impact(pos: Vector3) -> void:
 	if world == null:
 		return
-	var ground := pos
-	ground.y = world.terrain_manager.get_height_at(pos)
+	# Contact fuse (decree 2026-08-04): the round burst WHERE it stopped - a canopy or
+	# structure contact stays an airburst, never re-seated to the dirt. Only a burst at
+	# the floor digs a crater.
+	var floor_y: float = world.terrain_manager.get_height_at(pos)
+	var ground := Vector3(pos.x, maxf(pos.y, floor_y), pos.z)
 	CombatManager.apply_explosion_damage(ground, 200, 60, FirePlan.ARTY_BLAST_M, null)
-	if deform:  # crater cap: 2 of 6 rounds deform
-		DamageSystem.apply_damage(ground, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.9)
-	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	if ground.y - floor_y <= 2.0:
+		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
+			DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.9)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground, "explosion_heavy")
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
+
+
+## The friendly battery telegraphs like the enemy's (decree 2026-08-04, siege
+## pattern siege_director.gd:663-664): tube thump from the gun line, whistle over
+## the impact - the gap between them is the warning.
+func _battery_telegraph(target: Vector3) -> void:
+	AudioManager.play_mortar_tube(fsb_center)
+	AudioManager.play_incoming(target)
 
 
 func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
 	_radio_vo("mortar_mission")
+	_battery_telegraph(target)
 	# fo_fac tightens the sheaf and, for a veteran radioman (fo>=5), adds a 4th round.
 	var scat: float = FirePlan.sheaf_scale(fo)
 	var rounds: int = 3 + (1 if fo >= 5 else 0)
@@ -752,14 +875,21 @@ func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 			func() -> void: _fire_shell(MORTAR_SHELL, round_pos, _mortar_impact.bind(1.0)))
 
 
-## WHITE PHOSPHORUS - a screening/marking round: a white smoke bloom + a light incendiary
-## bite. Same shell arc as the mortar (not the arty sheaf); the impact effect is what
-## differs. Uses only the confirmed blast/FX/noise verbs, and a self-lit smoke puff (no
-## real light, ADR-026).
+## WHITE PHOSPHORUS - a small BARRAGE that burns an area (decree 2026-08-04: "that
+## should be a small barrage that burns an area"). Several rounds on mortar arcs,
+## each a white smoke bloom + burning ground over the beaten zone. Self-lit smoke
+## only (no real light, ADR-026).
 func _run_wp_mission(target: Vector3) -> void:
-	toast.emit("WILLY PETE - SHOT OUT (%d left)" % int(fire_support.get("wp", 0)))
+	toast.emit("WILLY PETE - BATTERY OF %d - SHOT OUT (%d left)"
+		% [FirePlan.WP_ROUNDS, int(fire_support.get("wp", 0))])
 	_radio_vo("mortar_mission")
-	_fire_shell(MORTAR_SHELL, target, _wp_impact)
+	_battery_telegraph(target)
+	for i in range(FirePlan.WP_ROUNDS):
+		var round_pos: Vector3 = target + Vector3(
+			randf_range(-FirePlan.WP_SPREAD_M, FirePlan.WP_SPREAD_M), 0.0,
+			randf_range(-FirePlan.WP_SPREAD_M, FirePlan.WP_SPREAD_M))
+		get_tree().create_timer(float(i) * 0.9).timeout.connect(
+			func() -> void: _fire_shell(MORTAR_SHELL, round_pos, _wp_impact))
 
 
 ## The siege's strategic verb: deciding WHEN to light the wire. Night sight is 56m
@@ -769,6 +899,7 @@ func _run_wp_mission(target: Vector3) -> void:
 func _run_illum_mission(target: Vector3) -> void:
 	toast.emit("ILLUMINATION - SHOT OUT (%d left)" % int(fire_support.get("illum", 0)))
 	_radio_vo("mortar_mission")
+	_battery_telegraph(target)
 	_fire_shell(MORTAR_SHELL, target, _illum_burst)
 
 
@@ -808,10 +939,14 @@ func garrison_illum(at: Vector3) -> void:
 func _wp_impact(pos: Vector3) -> void:
 	if world == null or not is_instance_valid(world):
 		return
-	var ground := pos
-	ground.y = world.terrain_manager.get_height_at(pos)
+	# Contact fuse: the flash bursts where it stopped; the burning phosphorus falls,
+	# so the fire patch always carpets the floor beneath the burst.
+	var floor_y: float = world.terrain_manager.get_height_at(pos)
+	var ground := Vector3(pos.x, maxf(pos.y, floor_y), pos.z)
 	GunFX.play_explosion_3d(get_tree().current_scene, ground)
-	CombatManager.apply_explosion_damage(ground, 40, 20, 8.0, null)
+	CombatManager.apply_explosion_damage(ground, 40, 20, FirePlan.WP_BLAST_M, null)
+	FireHazard.create_at(get_tree().current_scene, Vector3(pos.x, floor_y, pos.z),
+		FirePlan.WP_BURN_M, FirePlan.WP_BURN_S)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
 	var smoke := CPUParticles3D.new()
 	smoke.one_shot = true
@@ -917,12 +1052,14 @@ func _drop_supply_crate(pos: Vector3) -> void:
 func _mortar_impact(pos: Vector3, intensity: float) -> void:
 	if world == null:
 		return
-	var ground := pos
-	ground.y = world.terrain_manager.get_height_at(pos)
+	# Contact fuse: burst where it stopped; only a floor burst digs.
+	var floor_y: float = world.terrain_manager.get_height_at(pos)
+	var ground := Vector3(pos.x, maxf(pos.y, floor_y), pos.z)
 	CombatManager.apply_explosion_damage(ground, int(140 * intensity), 40, FirePlan.MORTAR_BLAST_M, null)
-	if intensity >= 1.0:
-		DamageSystem.apply_damage(ground, DamageSystem.DamageType.SMALL_EXPLOSION, intensity)
-	GunFX.play_explosion_3d(get_tree().current_scene, ground)
+	if intensity >= 1.0 and ground.y - floor_y <= 2.0:
+		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
+			DamageSystem.DamageType.SMALL_EXPLOSION, intensity)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground, "explosion_mortar")
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
 
 
@@ -992,6 +1129,10 @@ var _fsb_threat_active: bool = false
 var _fsb_wave: int = 0
 var _fsb_clear_polls: int = 0
 const FSB_CLEAR_POLLS: int = 20   ## ~10s of SUSTAINED quiet (0.5s poll) re-arms a new wave
+## Alarm stand-to all-clear: ~90s of EMPTY wire (0.5s poll) sends the men back to
+## their jobs. Only for non-siege stand-tos - a live siege owns its dawn stand-down.
+var _alarm_clear_polls: int = 0
+const ALARM_CLEAR_POLLS: int = 180
 
 ## Radio wording per crisis kind. A crisis the player is never told about does
 ## not exist (r4bk), and the only channel that carries it is the RTO's net.
@@ -1219,6 +1360,14 @@ func _poll_wire_gate() -> void:
 		return
 	var d: float = Vector2(world.player.global_position.x - patrol_gate_pos.x,
 		world.player.global_position.z - patrol_gate_pos.z).length()
+	# Distance from the GATE alone is not "outside the wire": the compound is wide
+	# enough that a walk from the LZ to the hooches trips 120m-from-the-gate without
+	# ever leaving the base, and the return then BANKS a patrol never taken (his
+	# playtest 2026-08-04: a phantom loop credited with the garrison's kills). An
+	# excursion requires being far from the gate AND far from the compound center.
+	if fsb_center != Vector3.ZERO:
+		d = minf(d, Vector2(world.player.global_position.x - fsb_center.x,
+			world.player.global_position.z - fsb_center.z).length())
 	if not patrol_out and d > WIRE_GATE_M:
 		patrol_out = true
 		patrol_count += 1
@@ -1341,10 +1490,9 @@ func raise_crisis(loc: Dictionary) -> void:
 	_radio_vo("on_the_horn")
 
 
-## Enemies closing on the compound. The garrison cannot call this in itself - they
-## are noncombatant Civilians (mission_generator.gd:744). This runs whether or not
-## the player is outside the wire: a siege happens TO him at home, and gating on
-## patrol_out meant a man in his own compound was never told (ADR-035 §1).
+## Enemies closing on the compound. Runs whether or not the player is outside the
+## wire: a siege happens TO him at home, and gating on patrol_out meant a man in
+## his own compound was never told (ADR-035 §1).
 func _poll_firebase_threat() -> void:
 	if fsb_center == Vector3.ZERO:
 		return
@@ -1357,6 +1505,7 @@ func _poll_firebase_threat() -> void:
 			near += 1
 	if near >= FSB_THREAT_MEN:
 		_fsb_clear_polls = 0
+		_alarm_clear_polls = 0
 		# The garrison answers the wire whether or not the net carries the word.
 		_garrison_stand_to()
 		if not _fsb_threat_active:
@@ -1384,13 +1533,24 @@ func _poll_firebase_threat() -> void:
 		if _fsb_clear_polls >= FSB_CLEAR_POLLS:
 			_fsb_threat_active = false
 			_fsb_clear_polls = 0
+	# All-clear for an ALARM stand-to. near==0 only - one live enemy on the wire is
+	# not quiet - and never while a siege runs: dawn owns that stand-down.
+	if _garrison_stood_to and near == 0 and (siege == null or not siege.active):
+		_alarm_clear_polls += 1
+		if _alarm_clear_polls >= ALARM_CLEAR_POLLS:
+			_alarm_clear_polls = 0
+			_garrison_stand_down()
+			toast.emit("STAND DOWN - THE WIRE'S QUIET")
+	else:
+		_alarm_clear_polls = 0
 
 
 ## The garrison stands to and fights. Each firebase Civilian hands off 1:1 to an
-## AllyBase holding his post (GarrisonDefender.promote). Idempotent within a night;
-## _garrison_stand_down re-arms it at dawn. Called ONLY from a genuine siege or a
-## confirmed multi-man threat on the wire - never for a lone wanderer - so the
-## garrison stays passive noncombatants until the base is actually hit.
+## AllyBase holding his post (GarrisonDefender.promote). Idempotent while stood-to;
+## re-armed by _garrison_stand_down (siege dawn, or the alarm all-clear above).
+## Doors in: siege, the multi-man wire poll, a delivery into a fight, and
+## garrison_alarm() - a soldier who HEARS enemy fire or takes a hit answers it
+## (Summoner ruling 2026-08-04: garrison men are soldiers, not civilians).
 func _garrison_stand_to() -> void:
 	if _garrison_stood_to:
 		return
@@ -1408,6 +1568,20 @@ func _garrison_stand_to() -> void:
 	print("[FSB] stand to: promoted %d garrison civilian(s) to defenders" % promoted)
 	if promoted > 0:
 		toast.emit("STAND TO - THE WIRE'S IN CONTACT")
+
+
+## The public alarm. A garrison man heard enemy fire or took a hit (civilian.gd
+## garrison branches). Stands the base to ONLY when the source is at the wire -
+## the demo AO carries near-constant ambient contact, and an ungated alarm keeps
+## the garrison permanently promoted (measured 2026-08-04: camp life dead).
+const GARRISON_ALARM_M: float = 120.0
+
+func garrison_alarm(at: Vector3) -> void:
+	if fsb_center == Vector3.ZERO:
+		return
+	if Vector2(at.x - fsb_center.x, at.z - fsb_center.z).length() > GARRISON_ALARM_M:
+		return
+	_garrison_stand_to()
 
 
 ## A satchel breached the munitions dump. The cost lands: the player loses the mortars

@@ -1,6 +1,7 @@
 ## cas_airplane.gd - Close air support run: 4-phase dive-bomb, or a fast flyby.
 ## CRATER CAP: BOMB = 1 terrain deformation; the NAPALM strip deforms only its
-## centre drop. Drops are staggered to spread the chunk rebuilds.
+## centre drop; the CBU raid deforms one point per dispenser. DamageSystem
+## queues and throttles all digs (WorldConfig.TERRAIN_DEFORMS_PER_FRAME).
 class_name CASAirplane
 extends Node3D
 
@@ -14,7 +15,15 @@ enum Phase { APPROACH, DIVE, CLIMB, DONE }
 const APPROACH_ALT: float = 80.0
 const RELEASE_ALT: float = 30.0
 const SPEED: float = 120.0
-const DROP_STAGGER: float = 0.4
+## Strip-store release cadence and pickle LEAD (decree 2026-08-04: canisters must
+## visibly fall from the airframe on real arcs). A finless store falls BEHIND a
+## fast jet, so every strip point must still be AHEAD of the aircraft when its
+## canister leaves the rack - napalm/CBU pickle early, never over the mark.
+const NAPALM_STAGGER: float = 0.1
+const CBU_STAGGER: float = 0.12
+const PICKLE_LEAD_M: Dictionary = {
+	Ordnance.NAPALM: 130.0, Ordnance.GUNS_NAPALM: 130.0, Ordnance.CBU: 140.0,
+}
 
 # F-4 fast horizontal flyby profile (call_flyby).
 const F4_SPEED: float = 250.0
@@ -184,7 +193,7 @@ func _fly_run(delta: float) -> void:
 		desired_y = _target.y + RELEASE_ALT
 	global_position += _run_dir * SPEED * delta
 	global_position.y = lerpf(global_position.y, desired_y, 2.0 * delta)
-	if phase == Phase.DIVE and not _released and flat_dist < 40.0:
+	if phase == Phase.DIVE and not _released and flat_dist < maxf(40.0, _pickle_lead()):
 		_released = true
 		_release_ordnance()
 		phase = Phase.CLIMB
@@ -204,7 +213,7 @@ func _fly_flyby(delta: float) -> void:
 			if _gun_timer <= 0.0 and along >= STRAFE_OPEN_M and along <= STRAFE_CLOSE_M:
 				_gun_timer = STRAFE_INTERVAL
 				_fire_strafe_burst()
-		if not _released and along >= -6.0:  # pickle just as it reaches the target
+		if not _released and along >= -_pickle_lead():
 			_released = true
 			_release_ordnance()
 		if along > 20.0:  # past the target -> climb out
@@ -230,6 +239,12 @@ func _release_ordnance() -> void:
 
 func _guns_hot() -> bool:
 	return _ordnance == Ordnance.GUNS or _ordnance == Ordnance.GUNS_NAPALM
+
+
+## Distance short of the target at which this ordnance leaves the rack. Bombs
+## pickle over the mark (6m); strips pickle early - see PICKLE_LEAD_M.
+func _pickle_lead() -> float:
+	return float(PICKLE_LEAD_M.get(_ordnance, 6.0))
 
 
 ## One burst of real rounds down the run line. Aimed at the ground ahead of the aircraft rather
@@ -276,77 +291,101 @@ func _release(shell_path: String, pos: Vector3, terminal: Callable) -> Projectil
 
 
 func _drop_bomb() -> void:
+	# A terminal lambda outlives this plane (shell flight vs air_traffic's reaper), and a
+	# reaped author's lambda can dispatch self-calls against a RECYCLED object - caught
+	# live 2026-08-04 as "Nonexistent function '_ignite_nearby_structures' in base
+	# 'TerrainChunk'". So terminal lambdas carry the tree and never touch self.
+	var tree: SceneTree = get_tree()
 	_release(BOMB_SHELL, _target, func(impact: Vector3) -> void:
 		# Visual FIRST so a throw in the terrain/veg damage step can never abort the
 		# fireball (the "plane flew by, no explosion" bug). Suppression is no longer
 		# called here: apply_explosion_damage now suppresses for EVERY explosive, at the
 		# same 16m -> 40m relationship this drop used to be the only one to get.
-		GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
+		GunFX.play_explosion_3d(tree.current_scene, impact, "explosion_heavy")
 		CombatManager.apply_explosion_damage(impact, 220, 60, FirePlan.BOMB_BLAST_M, null)
 		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0))
 
 
+## Five canisters ripple off the rack (NAPALM_STAGGER apart) well SHORT of the
+## strip - see PICKLE_LEAD_M - so each one tumbles forward and down from the
+## airframe onto its own mark, nearest first, and the burst chain marches up the
+## run. Impacts inherit the release ripple: the strip goes up as a CHAIN.
 func _drop_napalm_strip() -> void:
+	var tree: SceneTree = get_tree()
 	for i in range(FirePlan.NAPALM_DROPS):
 		@warning_ignore("integer_division")
 		var offset: float = float(i - FirePlan.NAPALM_DROPS / 2) * FirePlan.NAPALM_SPACING
 		var pos := _target + _run_dir * offset
 		@warning_ignore("integer_division")
 		var is_center: bool = (i == FirePlan.NAPALM_DROPS / 2)
-		# The rack pickles in sequence, and the aircraft has moved between each one.
-		get_tree().create_timer(float(i) * DROP_STAGGER).timeout.connect(func() -> void:
+		tree.create_timer(float(i) * NAPALM_STAGGER).timeout.connect(func() -> void:
 			if not is_instance_valid(self):
 				return
 			_release(NAPALM_SHELL, pos, func(impact: Vector3) -> void:
 				CombatManager.apply_explosion_damage(impact, 90, 30, FirePlan.NAPALM_BLAST_M, null)
-				FireHazard.create_at(get_tree().current_scene, impact, FirePlan.NAPALM_BLAST_M, FirePlan.NAPALM_BURN_S)
-				GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_heavy")
-				_ignite_nearby_structures(impact)
+				FireHazard.create_at(tree.current_scene, impact, FirePlan.NAPALM_BLAST_M, FirePlan.NAPALM_BURN_S)
+				GunFX.play_explosion_3d(tree.current_scene, impact, "explosion_napalm")
+				CASAirplane._ignite_nearby_structures(tree, impact)
 				if is_center:
 					DamageSystem.apply_damage(impact, DamageSystem.DamageType.NAPALM, 1.0)))
 
 
-## CBU dispenser: one canister off the rack that OPENS in the air, scattering
-## bomblets across an ellipse along the run. One crater (honors the crater cap).
+## CBU raid (decree 2026-08-04: "like a napalm raid but raining down" submunitions):
+## CBU_CANS dispensers ripple off the rack down the run line, each OPENS in the
+## air and rains its own bomblet ellipse - a saturation strip wider and longer
+## than napalm's, shallow per hit. Each dispenser's first bomblet craters.
 func _drop_cluster() -> void:
-	var canister: ProjectileBase = _release(CBU_SHELL, _target, func(_p: Vector3) -> void: pass)
-	if canister == null:
-		return
-	var sol: Dictionary = _drop_solution(_target)
-	get_tree().create_timer(float(sol.time) * CBU_OPEN_FRAC).timeout.connect(func() -> void:
-		if is_instance_valid(canister) and canister.is_active:
-			_open_cluster(canister.global_position)
-			canister.expire_now())
+	var tree: SceneTree = get_tree()
+	var tm: TerrainManager = terrain
+	var rd: Vector3 = _run_dir
+	for i in range(FirePlan.CBU_CANS):
+		var offset: float = (float(i) - float(FirePlan.CBU_CANS - 1) * 0.5) * FirePlan.CBU_CAN_SPACING
+		var pos: Vector3 = _target + rd * offset
+		tree.create_timer(float(i) * CBU_STAGGER).timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			var canister: ProjectileBase = _release(CBU_SHELL, pos, func(_p: Vector3) -> void: pass)
+			if canister == null:
+				return
+			var sol: Dictionary = _drop_solution(pos)
+			# The open-timer must not touch self: this plane can be reaped mid-fall
+			# (the _drop_bomb lesson) and the dispenser still has to split open.
+			tree.create_timer(float(sol.time) * CBU_OPEN_FRAC).timeout.connect(func() -> void:
+				if is_instance_valid(canister) and canister.is_active:
+					CASAirplane._open_cluster_at(tree, tm, rd, canister.global_position, pos)
+					canister.expire_now()))
 
 
-func _open_cluster(from: Vector3) -> void:
+static func _open_cluster_at(tree: SceneTree, tm: TerrainManager, run_dir: Vector3,
+		from: Vector3, centre: Vector3) -> void:
 	var data: ProjectileData = load(CBU_BOMBLET) as ProjectileData
 	if data == null:
 		return
-	var side := _run_dir.cross(Vector3.UP).normalized()
+	var side: Vector3 = run_dir.cross(Vector3.UP).normalized()
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 	for i in range(FirePlan.CBU_BOMBLETS):
 		var ang := TAU * float(i) / float(FirePlan.CBU_BOMBLETS) + randf() * 0.6
 		var rad := FirePlan.CBU_SPREAD * sqrt(randf())
-		var pos := _target + _run_dir * (rad * cos(ang)) + side * (rad * FirePlan.CBU_CROSS_FRAC * sin(ang))
+		var pos := centre + run_dir * (rad * cos(ang)) + side * (rad * FirePlan.CBU_CROSS_FRAC * sin(ang))
 		var ground := pos
-		ground.y = terrain.get_height_at(pos) if terrain else pos.y
+		ground.y = tm.get_height_at(pos) if tm else pos.y
 		var t: float = sqrt(2.0 * maxf(2.0, from.y - ground.y) / g)
 		var is_first := (i == 0)
-		Ballistics.fire_arc(data, from, ground, t, terrain, func(impact: Vector3) -> void:
+		Ballistics.fire_arc(data, from, ground, t, tm, func(impact: Vector3) -> void:
 			CombatManager.apply_explosion_damage(impact, 55, 15, FirePlan.CBU_BOMBLET_BLAST_M, null)
-			GunFX.play_explosion_3d(get_tree().current_scene, impact, "explosion_grenade")
+			GunFX.play_explosion_3d(tree.current_scene, impact, "explosion_grenade")
 			if is_first:
 				DamageSystem.apply_damage(impact, DamageSystem.DamageType.MEDIUM_EXPLOSION, 0.7))
 
 
 ## Nearby thatch huts catch too: a bigger, longer-lived blaze at the structure.
-func _ignite_nearby_structures(impact: Vector3) -> void:
-	for s in get_tree().get_nodes_in_group("flammable_structures"):
+## Static: it runs from terminal lambdas after this plane may be reaped.
+static func _ignite_nearby_structures(tree: SceneTree, impact: Vector3) -> void:
+	for s in tree.get_nodes_in_group("flammable_structures"):
 		var structure := s as Node3D
 		if structure == null or structure.has_meta("burned"):
 			continue
 		if structure.global_position.distance_to(impact) > 14.0:
 			continue
 		structure.set_meta("burned", true)
-		FireHazard.create_at(get_tree().current_scene, structure.global_position, 6.0, 40.0)
+		FireHazard.create_at(tree.current_scene, structure.global_position, 6.0, 40.0)

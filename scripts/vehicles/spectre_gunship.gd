@@ -50,6 +50,10 @@ const VULCAN_MASK: int = 1 | 32 | 64 | 512
 ## it. Suppression is most of what makes Spooky frightening from the ground, so it is applied
 ## per burst from the aim point rather than lost with the explosion.
 const VULCAN_SUPPRESS_M: float = 18.0
+## The beaten zone must LOOK beaten (decree 2026-08-04: a gunship pass that leaves
+## no marks is convicted): every few seconds of hot gun, one shallow scrape +
+## veg-clear + scar somewhere in the zone. ~5 over a 30s orbit.
+const VULCAN_CHEW_S: float = 4.0
 
 const BOFORS_INTERVAL: float = 1.2
 ## The 40mm walks the inner half of the zone - the heavy gun is aimed, the Vulcan
@@ -64,6 +68,8 @@ var terrain: TerrainManager
 var _angle: float = 0.0
 var _age: float = 0.0
 var _bofors_timer: float = 0.6
+var _bofors_count: int = 0
+var _chew_timer: float = VULCAN_CHEW_S
 var _duty: float = 0.0            ## seconds into the current hot/cold cycle
 var _report_timer: float = 0.0
 static var _vulcan_wd: WeaponData = null
@@ -170,6 +176,10 @@ func _physics_process(delta: float) -> void:
 		if _report_timer <= 0.0:
 			_report_timer = VULCAN_REPORT_S
 			_play_gun(VULCAN_SFX, 4.0)
+		_chew_timer -= delta
+		if _chew_timer <= 0.0:
+			_chew_timer = VULCAN_CHEW_S
+			DamageSystem.apply_damage(_zone_point(1.0), DamageSystem.DamageType.SMALL_EXPLOSION, 0.6)
 
 	_bofors_timer -= delta
 	if _bofors_timer <= 0.0:
@@ -220,8 +230,15 @@ func _fire_bofors() -> void:
 	var impact := _zone_point(BOFORS_ZONE_FRAC)
 	_play_gun(BOFORS_SFX, 6.0)
 	var flight: float = maxf(0.6, global_position.distance_to(impact) / data.speed)
+	# Destruction parity (decree 2026-08-04: the chain must chew the treeline like
+	# napalm chews it): every 3rd shell scars/clears ground - throttled so a 25-shell
+	# orbit does not drain the per-mission deform budget alone.
+	_bofors_count += 1
+	var crater: bool = (_bofors_count % 3 == 0)
 	Ballistics.fire_arc(data, global_position, impact, flight, terrain, func(at: Vector3) -> void:
 		@warning_ignore("integer_division")
 		CombatManager.apply_explosion_damage(at, BOFORS_DAMAGE, BOFORS_DAMAGE / 4, BOFORS_BLAST_M, null)
+		if crater:
+			DamageSystem.apply_damage(at, DamageSystem.DamageType.SMALL_EXPLOSION, 1.0)
 		GunFX.play_explosion_3d(get_tree().current_scene, at, "explosion_40mm")
 		NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, at, 0))

@@ -27,6 +27,78 @@ it. **THE DOCS ARE OUT OF DATE, NOT CALEB.**
 
 ---
 
+## 1b · RE-VERIFIED 2026-08-04 — STILL THE TRUTH SOURCE, AND NOW MEASURED
+
+**Ruled by Caleb, 2026-08-04:** `us_base_v3.blend` is the main source of truth for the **allied grunt
+NPC models**. Everything below was measured that day, not asserted.
+
+**What ships out of it, and by what:**
+
+| exporter | output |
+|---|---|
+| `tools/export_us_squad.py:30` | `us_grunt_{rifleman,grenadier,mg,rto,marksman,pointman}.glb` |
+| `tools/export_pilots_medics.py:28-32` | `us_medic.glb`, `us_pilot_white.glb`, `us_pilot_black.glb` |
+| `tools/export_helmets.py` | the 15 detachable M1s + `assets/us/props/helmets/helmets.json` |
+
+**The 2026-08-04 helmet pass** (`tools/reshape_helmet_shell.py`, `reseat_helmet_props.py`,
+`reshape_welded_helmet.py`): all 15 variants and the welded `helmet_shell_worn` were rebuilt from a
+high-quality M1 reference. Welded shell **660 tris**, crown **1.8489** in REST, **+49.0 mm** clearance
+over the skull, placement fitted by Caleb and propagated off the **Head bone** (never the head mesh —
+in the lineup those are mis-bound, see below). Variants 660–848 tris, props seated 0.5–2 mm proud.
+
+**Two silent bugs it killed, both invisible in Blender:**
+1. `helmet_shell_worn` carried `Scale(1, 1.13, 1)`, and `grunt_dresser.gd:235` copies the stock's basis
+   onto every variant it hangs — so all 15 helmets rendered **13% too deep** in game. Scale is now 1.0.
+2. `<variant>_socket_head` had drifted off the cover∪band bbox centre. `export_helmets.py:59-62` zeroes
+   each helmet on that socket and `grunt_dresser.gd:233-234` drops the GLB origin on the stock helmet's
+   runtime AABB centre — so an off-centre socket hangs every helmet low. **The invariant is
+   `socket_head == bbox_centre(cover ∪ band)`, and it is now exact on all 15.**
+
+**Gates, all green 2026-08-04** — `tools/verify_character_glb.py` on all nine GLBs: rig `PSXRig`,
+`body_h` 1.7266 (ADR-002 target 1.7132, tolerance ±0.02), no missing UVs, no dead images.
+`tools/audit_character_sockets.py` (rewritten that day): every rigid helmet piece bone-parented to
+`mixamorig:Head` on **its own** rig, none displaced.
+
+**Three things that look like faults and are not:**
+- **`us_base_v3.blend` has no `socket_head` on any rig — by design.** `grunt_dresser.gd:233-234` reads
+  the stock helmet's runtime AABB; it never reads a socket. The `socket_head_*` empties live only in
+  `us_v3_soldier_lineup.blend`, which `export_helmets.py:24-25` reads to write `helmets.json` — and that
+  socket block has **zero readers in `scripts/`**. It is documentation, not a contract.
+- **No character carries a MuzzlePoint.** Muzzle markers live on the weapons
+  (`weapons_us.blend`: `muzzle_M16A1`, `muzzle_Colt45_Pistol`, …, 11 of them). A character without one
+  is not missing anything.
+- **`verify_character_glb.py` reports `junk=['Icosphere']` on every GLB.** It is a false positive from
+  the verifier's own scene — the `Icosphere` sits in the `glTF_not_exported` collection and appears in
+  **no** exported GLB (checked by parsing the GLB JSON chunks directly).
+
+**FIXED 2026-08-04 — `tools/fix_medic_strays.py`.** `us_medic.glb` was shipping three pieces at the
+world origin, ~13.5 m from the man: `medic_cross_arm_h/v` (the red cross for his brassard) and
+`satchel_sling_*_OLD`. His full extent measured **11.61 m** against every other man's 2.73 m. The arm
+cross is now parented to `medic_brassard_*` and seated proud of its +X face by **6 mm** — the margin
+measured off `medic_cross_bag_*`, which was already correct on the satchel, so both crosses are placed
+by one rule. The `_OLD` slings were deleted (FOSSIL LAW; the live 100-tri `satchel_sling_*` had already
+replaced them). Medic now reads **full = 2.73**, 43 meshes. Gate: no piece of a medic may sit more
+than 1.6 m from his body centre — furthest is now his own M16 at 1.290 m.
+
+**ALSO FIXED 2026-08-04 — `tools/fix_pilot_rig_defects.py`.** Two on the white pilot
+(`PSXRig_pointman.001`): `helmet_sph4_pilot` carried `Scale(1.0003, 1.0058, 1.1256)`, rendering his
+flight helmet **19.5% / 34 mm taller** than the black pilot's from an identical 211-vert mesh — the
+same class of bug as the M1 shells' 1.13. Scale is now 1.0 and it sits at the black pilot's exact bone
+offset (0.1098 m). And `cap_head_pilot` had **no parent and an armature modifier pointing at nothing**,
+so his gore head cap would not have followed him; it is now bound to his rig like all eleven siblings.
+
+*Note for whoever measures this next: size is the MESH's own dimensions, never the world bounding box.
+A rotated object has a taller world box while being exactly the same helmet — that is what made the
+first run of this fix "fail" a helmet it had already corrected.*
+
+**Open defect as of 2026-08-04, pre-existing:**
+- **`us_v3_soldier_lineup.blend`'s `grunt_head_*` meshes are bound to the wrong armature** — the
+  marksman's head evaluates 3.7 m from his own head bone, the pointman's 4.75 m. Helmets there are
+  correct relative to their bones; it is the heads that are wrong. That file does not ship, but it is
+  what `export_helmets.py` reads for the socket metadata.
+
+---
+
 ## 2 · WHAT THE MODELS ACTUALLY MEASURE (all 25, verified 2026-07-13)
 
 | | |

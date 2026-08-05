@@ -174,6 +174,9 @@ func on_skill_up(skill_id: String, _level: int) -> void:
 	var sk_name: String = str(SkillCatalog.SKILLS.get(skill_id, {}).get("name", skill_id))
 	director.toast.emit("%s — %s" % [SquadRoster.call_name(member), sk_name])
 var order_mode: OrderMode = OrderMode.FOLLOW
+## While the player is on the net this man PLANTS (an RTO shifting his feet under an
+## aiming player is unusable). He moves only to keep the 10m cord alive.
+var net_planted: bool = false
 var order_pos: Vector3 = Vector3.ZERO
 ## Staggered-file slot on the move (SquadSystem assigns; point man walks ahead).
 var file_slot: int = 1
@@ -215,6 +218,16 @@ const MAX_BURST: int = 6
 
 var suppression_level: float = 0.0
 const SUPPRESSION_DECAY: float = 0.4
+
+## ---- COMMITMENT (Summoner verdict 2026-08-04: "the friendly AI is super squierly") ----
+## Ally-only hysteresis; enemy scoring is untouched (divergent-systems law). A claimed
+## piece of cover is fought from for a real dwell, and goal switches need both a score
+## margin (Context.incumbent_mult) and a cooldown. Survival verbs are exempt.
+const ALLY_COVER_DWELL_MS: int = 8000
+const ALLY_GOAL_COOLDOWN_MS: int = 3000
+const ALLY_INCUMBENT_MULT: float = 1.6
+var _goal_switch_ms: int = -100000
+var _cover_hold_start_ms: int = -100000
 
 ## ---- COVER ----
 ## Same raycast LOS-block sampling + the SAME claim broker as enemies, so
@@ -774,6 +787,22 @@ func _evaluate_goals() -> void:
 		_change_state(Enums.AIState.SEEKING_COVER)
 		return
 
+	# COVER COMMITMENT: a man who claimed cover fights FROM it for the dwell instead of
+	# re-planning his way off the rock two seconds in. The RTO commits until the player
+	# moves off the cord (W-13); the pin path above still breaks anyone out.
+	if has_cover and ((target != null and is_instance_valid(target)) or _hostiles_remain()):
+		var anchor: Node3D = _cord_anchor()
+		var committed: bool
+		if anchor != null:
+			committed = current_cover != Vector3.ZERO \
+				and current_cover.distance_to(anchor.global_position) <= RTO_CORD_LEASH
+		else:
+			committed = Time.get_ticks_msec() - _cover_hold_start_ms < ALLY_COVER_DWELL_MS
+		if committed:
+			current_goal = Enums.AIGoal.ENGAGE_TARGET
+			_change_state(Enums.AIState.COMBAT)
+			return
+
 	# In contact = FIGHT. Reads the DEBOUNCED confidence, never raw LOS.
 	# The goal comes from the SHARED scorer (CombatGoals) - the same nine-verb brain
 	# the enemy runs. Before this the squad had five verbs and could not flank,
@@ -797,18 +826,43 @@ func _evaluate_goals() -> void:
 		c.aggression = nerve
 		c.self_preservation = 1.0 - nerve
 		c.uses_cover = wants_cover_first(nerve) or has_cover
-		c.flanks = may_close_distance(nerve)
+		# The cord gates the whole verb set, not just cover choice (his verdict
+		# 2026-08-04): a living net never flanks away from the map.
+		c.flanks = may_close_distance(nerve) and _cord_anchor() == null
+		c.incumbent_mult = ALLY_INCUMBENT_MULT
+		c.target_suppressed = target is EnemyBase \
+			and (target as EnemyBase).suppression_level > 0.5
 		c.retreats_when_hurt = true
 		c.retreat_hp_frac = 0.35
 		# The squad-break toast is a cheque this scorer must cash (decree 2026-08-03
 		# §2.11 item 1) - the enemy already feeds both (enemy_base.gd:1416-1417).
 		c.squad_broken = squad_broken
 		c.force_ratio = _local_force_ratio()
-		_apply_combat_goal(CombatGoals.pick(c))
+		var picked: int = CombatGoals.pick(c)
+		if _cord_anchor() != null \
+				and (picked == Enums.AIGoal.ADVANCE or picked == Enums.AIGoal.FLANK_TARGET):
+			picked = Enums.AIGoal.ENGAGE_TARGET
+		# Switch cooldown: a fresh verb waits out the lockout; SEEK_COVER/RETREAT
+		# (survival) are exempt.
+		if picked != current_goal and current_goal != Enums.AIGoal.NONE \
+				and picked != Enums.AIGoal.SEEK_COVER and picked != Enums.AIGoal.RETREAT \
+				and Time.get_ticks_msec() - _goal_switch_ms < ALLY_GOAL_COOLDOWN_MS:
+			picked = current_goal
+		if picked != current_goal:
+			_goal_switch_ms = Time.get_ticks_msec()
+		_apply_combat_goal(picked)
 		return
 
 	current_goal = Enums.AIGoal.HOLD_POSITION
 	_change_state(Enums.AIState.IDLE)
+
+
+func _hostiles_remain() -> bool:
+	for e in AgentRegistry.enemies:
+		var man := e as EnemyBase
+		if man != null and is_instance_valid(man) and not man.is_dead():
+			return true
+	return false
 
 
 ## Sides-swapped mirror of EnemyBase._local_force_ratio: friends are this man, nearby
@@ -962,6 +1016,13 @@ func _execute_idle(delta: float) -> void:
 	match order_mode:
 		OrderMode.FOLLOW:
 			var player := GameManager.player
+			if net_planted and player and is_instance_valid(player) and player is Node3D:
+				var cord: float = global_position.distance_to((player as Node3D).global_position)
+				if cord > 8.0:
+					_move_toward((player as Node3D).global_position, delta)
+				else:
+					_settle(delta)
+				return
 			if player and is_instance_valid(player) and player is Node3D:
 				# Formation slot, not a conga line: each man holds his own
 				# offset around the player so the squad has spacing and arcs.
@@ -1054,12 +1115,15 @@ func _micro_idle(delta: float) -> void:
 
 
 func _execute_combat(delta: float) -> void:
-	if not target or not is_instance_valid(target):
-		_change_state(Enums.AIState.IDLE)
-		return
-
-	if target.has_method("is_dead") and target.is_dead():
+	if not target or not is_instance_valid(target) \
+			or (target.has_method("is_dead") and target.is_dead()):
 		target = null
+		# Commitment law: a covered man whose target drops does NOT stand up while
+		# hostiles remain - he holds the rock and _think retargets within a beat.
+		# Standing down here was the mid-fight release that read as squirrelly.
+		if has_cover and _hostiles_remain():
+			_settle(delta)
+			return
 		_change_state(Enums.AIState.IDLE)
 		return
 
@@ -1090,11 +1154,23 @@ func _execute_combat(delta: float) -> void:
 			var strafe_vec := transform.basis.x * strafe_direction
 			move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
+		# RTO cord over footwork (his verdict 2026-08-04): beyond the leash his one
+		# legal move is toward the player - the claim is dropped, the pull wins.
+		var cord: Node3D = _cord_anchor()
+		var cord_pull: bool = false
+		if cord != null and global_position.distance_to(cord.global_position) > RTO_CORD_LEASH:
+			cord_pull = true
+			if has_cover:
+				_release_cover()
+			move_dir = (cord.global_position - global_position).normalized()
+
 		# Covered men HOLD their piece of cover: the leash RE-ANCHORS and never
 		# releases by drift (that release loop was the cover-obsession bug).
 		var now_ms: float = float(Time.get_ticks_msec())
 		var firing_now: bool = now_ms < _fired_until_ms or burst_count > 0
-		if has_cover:
+		if cord_pull:
+			pass
+		elif has_cover:
 			var leash: float = global_position.distance_to(current_cover) if current_cover != Vector3.ZERO else 0.0
 			if leash > 1.5:
 				move_dir = (current_cover - global_position).normalized()  # step back to the rock
@@ -1138,8 +1214,13 @@ func _execute_combat(delta: float) -> void:
 				burst_count = 0
 				shots_fired = 0
 	else:
-		# Lost sight - move toward target
-		_move_toward(last_known_target_pos, delta)
+		# Lost sight - move toward target (the RTO's cord outranks the hunt).
+		var blind_cord: Node3D = _cord_anchor()
+		if blind_cord != null \
+				and global_position.distance_to(blind_cord.global_position) > RTO_CORD_LEASH:
+			_move_toward(blind_cord.global_position, delta)
+		else:
+			_move_toward(last_known_target_pos, delta)
 
 		state_timer += delta
 		if state_timer > 3.0:
@@ -1216,6 +1297,7 @@ func _execute_seeking_cover(delta: float) -> void:
 			# LEAP INTO COVER: one-shot arrival clip, then crouch-hold.
 			_moving_to_cover = false
 			has_cover = true
+			_cover_hold_start_ms = Time.get_ticks_msec()
 			_anim_override = _pick_cover_arrival_clip() if _wall_within(1.2) else ""
 			var leap: String = _anim_override
 			# Window sized by the ACTUAL clip length: a fixed window freezes short
@@ -1310,6 +1392,71 @@ func _arrival_hash() -> float:
 	return float(h & 0xFFFFFF) / float(0x1000000)
 
 
+## RTO cord doctrine (Summoner ruling 2026-08-04): the radio stays with the map.
+## Leash = the 10m net cord (field_director.RTO_RADIO_RANGE) minus margin.
+const RTO_CORD_LEASH: float = 8.0
+const RTO_SHADOW_WEIGHT: float = 3.0
+
+
+## Non-null while the cord binds this man's cover search: he is the living RTO
+## and the player is alive to anchor the cord.
+func _cord_anchor() -> Node3D:
+	if str(member.get("mos", "")) != "RTO":
+		return null
+	var p: Node = GameManager.player
+	if p == null or not is_instance_valid(p) or not (p is Node3D):
+		return null
+	if p.has_method("is_dead") and p.is_dead():
+		return null
+	return p as Node3D
+
+
+## Ordering + claim shared by the hard-cover and concealment passes. Base score is
+## the enemy's exact formula (my distance + broker crowding); the RTO bias is
+## caller-side only, so enemy scoring never sees it. Under the cord: candidates
+## beyond RTO_CORD_LEASH of the player are dropped, and if none survive the
+## nearest-to-player candidate wins outright - he must never pick distant cover.
+func _claim_scored(candidates: Array[Vector3], threat_pos: Vector3) -> Vector3:
+	var anchor: Node3D = _cord_anchor()
+	if anchor != null:
+		var player_pos: Vector3 = anchor.global_position
+		var inside: Array[Vector3] = []
+		for c in candidates:
+			if c.distance_to(player_pos) <= RTO_CORD_LEASH:
+				inside.append(c)
+		if inside.is_empty():
+			candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+				return a.distance_to(player_pos) < b.distance_to(player_pos))
+		else:
+			candidates = inside
+			candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+				return _rto_cover_score(a, threat_pos, player_pos) \
+					< _rto_cover_score(b, threat_pos, player_pos))
+	else:
+		candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+			return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
+				< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
+	for c in candidates:
+		if EnemyBase._claim_cover(c, self):
+			return c
+	return Vector3.ZERO
+
+
+## SHADOW WEIGHT: prefer spots where the player sits between the RTO and the
+## threat - "get behind the man with the map". Flat-plane dot of candidate->player
+## vs candidate->threat; a bonus, never a filter.
+func _rto_cover_score(c: Vector3, threat_pos: Vector3, player_pos: Vector3) -> float:
+	var score: float = global_position.distance_to(c) + EnemyBase._crowding_cost(c)
+	var to_player: Vector3 = player_pos - c
+	var to_threat: Vector3 = threat_pos - c
+	to_player.y = 0.0
+	to_threat.y = 0.0
+	if to_player.length() > 0.05 and to_threat.length() > 0.05:
+		score -= RTO_SHADOW_WEIGHT \
+			* maxf(0.0, to_player.normalized().dot(to_threat.normalized()))
+	return score
+
+
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
 func _find_cover_point() -> Vector3:
 	var threat_pos: Vector3 = Vector3.ZERO
@@ -1329,12 +1476,9 @@ func _find_cover_point() -> Vector3:
 		CombatManager.rays_cover += 1
 		if space_state.intersect_ray(query):
 			candidates.append(candidate)
-	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
-			< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
-	for c in candidates:
-		if EnemyBase._claim_cover(c, self):
-			return c
+	var hard: Vector3 = _claim_scored(candidates, threat_pos)
+	if hard != Vector3.ZERO:
+		return hard
 	# THE VIETCONG GAP (decree 2026-08-03 §2.11 item 3). Grass/fern/bush carry no collider
 	# by contract (tree_cover_layer.gd:17-19), so the ray test above cannot see them - but
 	# the sim already pays for that ground: heavy jungle blocks LOS 30% per cell
@@ -1350,12 +1494,7 @@ func _find_cover_point() -> Vector3:
 			if t == GameplayGrid.TerrainType.MEDIUM_JUNGLE \
 					or t == GameplayGrid.TerrainType.HEAVY_JUNGLE:
 				concealed.append(spot)
-		concealed.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-			return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
-				< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
-		for c in concealed:
-			if EnemyBase._claim_cover(c, self):
-				return c
+		return _claim_scored(concealed, threat_pos)
 	return Vector3.ZERO
 
 

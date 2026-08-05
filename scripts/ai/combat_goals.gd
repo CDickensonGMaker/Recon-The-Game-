@@ -43,6 +43,12 @@ class Context:
 	## Doctrine gates. A false gate scores its goal -1 (never chosen).
 	var uses_cover: bool = true
 	var flanks: bool = true
+	## Whether THIS man's target is currently suppressed (FEAR doctrine: suppress
+	## before moving). Callers feed it; false is the conservative default.
+	var target_suppressed: bool = false
+	## Incumbent hysteresis multiplier applied in pick(). 1.5 is the commitment law
+	## (Summoner 2026-08-04, both sides); allies raise it further.
+	var incumbent_mult: float = 1.5
 	var retreats_when_hurt: bool = true
 	var retreat_hp_frac: float = 0.35
 
@@ -61,6 +67,11 @@ class Context:
 ## Score every goal. Returns {Enums.AIGoal: float}; -1.0 means doctrinally forbidden.
 static func score(c: Context) -> Dictionary:
 	var scores: Dictionary = {}
+
+	# FEAR doctrine (Summoner ruling 2026-08-04): taking fire nobody is answering, a man
+	# does not cross open ground - he suppresses, works an angle from cover, or breaks.
+	# Press men are exempt (siege decree C3: they represent mass, not line doctrine).
+	var under_unanswered_fire: bool = c.suppression > 0.25 and not c.target_suppressed
 
 	# ENGAGE - direct combat. COVER-FIRST: caught in the open on fresh contact the
 	# duel can wait; fighting FROM cover is the preferred engagement.
@@ -85,20 +96,25 @@ static func score(c: Context) -> Dictionary:
 			cover += 0.4 * (1.0 - c.aggression * 0.7)
 	scores[Enums.AIGoal.SEEK_COVER] = cover if c.uses_cover else -1.0
 
-	# SUPPRESS - pin down target.
+	# SUPPRESS - pin down target. Suppress-before-moving: an unanswered target is
+	# the one worth pinning first.
 	var suppress: float = 0.3
 	if c.eyes_on and c.full_auto:
 		suppress += 0.3
 	if c.dist > c.preferred_range:
 		suppress += 0.2
+	if c.eyes_on and not c.target_suppressed:
+		suppress += 0.15
 	scores[Enums.AIGoal.SUPPRESS_TARGET] = suppress * (1.0 - c.aggression * 0.3)
 
-	# FLANK - move to better position.
+	# FLANK - move to better position, never a naked cross under unanswered fire.
 	var flank: float = c.aggression * 0.4
 	if not c.eyes_on and c.target_last_seen < 3.0:
 		flank += 0.3
 	if c.threat_level < 0.3:
 		flank += 0.2
+	if under_unanswered_fire and not c.assault_press:
+		flank *= 0.4
 	scores[Enums.AIGoal.FLANK_TARGET] = flank if c.flanks else -1.0
 
 	# ADVANCE - push forward. OPEN-GROUND DISCIPLINE: crossing needs covering fire
@@ -112,6 +128,8 @@ static func score(c: Context) -> Dictionary:
 		advance += 0.2
 	elif c.aggression < 0.7 and not c.assault_press:
 		advance *= 0.45
+	if under_unanswered_fire and not c.assault_press and not c.has_covering_fire:
+		advance *= 0.15
 	if c.force_ratio >= 2.0:
 		advance += 0.15  # weight of numbers: press the lone shooter
 	if c.assault_press:
@@ -127,6 +145,9 @@ static func score(c: Context) -> Dictionary:
 		retreat += 0.4
 	if c.squad_broken:
 		retreat += 0.7
+	# Break contact when losing: badly outnumbered is a reason of its own.
+	if c.force_ratio < 0.6:
+		retreat = maxf(retreat, 0.5)
 	# Outnumbering men hold: ~3:1 quarters the retreat urge; outnumbered men break.
 	var numbers: float = clampf(1.6 - c.force_ratio * 0.45, 0.25, 1.4)
 	scores[Enums.AIGoal.RETREAT] = retreat * c.self_preservation * numbers
@@ -134,11 +155,15 @@ static func score(c: Context) -> Dictionary:
 	return scores
 
 
-## The winning goal, with the 25% incumbent hysteresis that stops goal flutter.
+## The winning goal, with incumbent hysteresis (Context.incumbent_mult) that stops
+## goal flutter.
 static func pick(c: Context) -> int:
 	var scores: Dictionary = score(c)
 	if scores.has(c.current_goal):
-		scores[c.current_goal] *= 1.25
+		# A pressed man keeps the pre-commitment 1.25: PRESS_ADVANCE 0.75 was
+		# calibrated to clear a 1.25x incumbent (decree C3) - a taller incumbent
+		# would stall the siege at the wire again.
+		scores[c.current_goal] *= 1.25 if c.assault_press else c.incumbent_mult
 	var best_goal: int = Enums.AIGoal.NONE
 	var best_score: float = 0.0
 	for goal in scores:

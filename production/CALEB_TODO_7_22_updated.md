@@ -466,3 +466,67 @@ Data: `production/research/viewmodel_rig_audit.json`. Re-run the probe with
 
 **Still unproven for every gun:** the clips have only ever been watched on the bench. Nobody has
 confirmed they play correctly in-game through `weapon_holder`'s reload path.
+
+---
+
+## ORPHAN CLIP WIRING — War Room 2026-08-02
+Full record: `production/war_room/2026-08-02_orphan_clip_wiring/` (briefing · 4 analyses · discussion · synthesis).
+
+**The audit.** `assets/shared/anim_library.glb` carries 163 clips. Measured against every `.gd`/
+`.tscn`/`.tres`/`.json`: **32 have zero call site.** 8 more (`*__smg`) have no literal call site but
+ARE reachable — `sprite_state_map.gd:403` builds `base + "__" + family` and `ppsh41 -> smg`.
+
+**Root motion is stripped project-wide** (measured off the glTF Hips channel: `walk_forward` = 0.000m
+is the control). The lone exception is `disembark_heli_*` at 0.200–0.534m.
+
+### DONE this session
+- **Cockpit wired.** `seat_system.gd` — `PILOT_CLIP` became a three-state map: `cockpit_idle` parked ·
+  `pilot_flips_switches` one-shot on touchdown · `cockpit_controls` airborne. Driven off the existing
+  `Helicopter.State`; the tick is independent of `player_boarding`, since a ship nobody can board still
+  lands with visible pilots. `cockpit_controls` added to `model_actor.gd:_LOOP_NAMES` in the SAME change
+  — it is not caught by `_LOOP_PREFIXES` and would have frozen the pilot on its last frame.
+- **`anim_review.gd` was BROKEN and is fixed.** `ModelActor.setup()` takes a **unit_id**; the bench was
+  handing it a **path** from `model_path()`, so `model_exists()` failed on every unit and the whole room
+  came up empty. Pre-existing drift, unrelated to this session's work. Now boots at **163 clips, 7 pages**.
+- **Crew banks added to the bench** (press `N`): MG CREW · LITTER TEAM · LITTER LOAD. Crew rows hold
+  station offsets and restart on the clip's own cycle so the men stay in phase for the whole performance
+  instead of being paged one at a time.
+- **Litter team built** — `scripts/world/litter_team.gd` (new), seeded in `site_planner.gd`, spawned in
+  `mission_generator.gd`, latched via a new `Civilian.puppet` flag. **DORMANT until the art lands, by
+  design** (see blocker below).
+
+### BLOCKED — needs Caleb
+1. **THE LITTER PROP.** `fb_litter` exists only INSIDE
+   `assets/us/characters/camp_clips/stretcher_carry.glb` (the 4-rig authoring reference — it also holds
+   `MC_litter`, the prop's own motion clip, and a `PSXRig_casualty` pose that was never split into
+   anim_library). It needs exporting standalone to
+   `assets/world/building models/structures/firebase/kit/fb_litter.glb`. `LitterTeam.available()` gates
+   the entire feature on that path existing, so the code is inert and harmless until it does — the same
+   contract `heli_lift.gd:42-46` uses for the unmade boarding clips.
+2. **JUMP / LANDING — cannot be done as ruled.** A routine is a man at a `work_*` marker doing a job, and
+   a station never involves a jump. Jumping is TRAVERSAL and there is no traversal system:
+   **`NavigationLink3D` appears zero times** repo-wide, so no NPC is ever airborne and the clips have no
+   trigger. The player jumps (`player.gd:1671`) but is first-person — no third-person body to animate.
+   The heli-skid slice was proposed and REFUSED: `disembark_heli_*` carries 0.2–0.53m of authored
+   step-off, so bolting on `jump_down`/`hard_landing` risks a man landing twice.
+   **His call: open a traversal epic, or leave `jump_up`/`jump_up_2`/`jump_down`/`jump_away`/
+   `hard_landing` orphaned.**
+3. **MG CREW — his visual check, then wire.** Measured: all four `gun_*` clips are IN PLACE (0.000–0.024m
+   drift over 27.3s), so they will NOT drift apart — the wiring is mechanically safe and only the look is
+   unproven. Cost if approved: a 4-man crew is **more than half the 7-man firebase work budget** on one
+   position, and `site_planner` carries 20 `gun` markers.
+
+### Deliberately left orphaned (do not "fix")
+- `cockpit_dead` — no pilot damage model exists; wiring it means inventing a state to justify a 0.33s
+  clip. ADR-023 forbids the dead hook.
+- `turn_90_left/right`, `crouching_turn_90_left/right` — carry up to −161.6° of ROOT rotation
+  (`sprite_state_map.gd:54-56`). Only the in-place `turn_left`/`turn_right` pair is safe to loop.
+- `jump_away` (a dive, no grenade-flee behaviour to hang on) · `jumping_jacks` (no PT routine) ·
+  `signal_move_up` (a beckon; looping it waves forever) · `crouched_sneaking_*`, `cover_reposition`,
+  `rifle_turn`, `rifle_crouch_idle_to_walk`, `stop_walking_with_rifle`, `action_idle_to_standing_idle`,
+  `strafe_2`, `salute`.
+
+### Known gap, unrelated but recorded
+`WEAPON_FAMILY` (`sprite_state_map.gd:385-391`) declares `mg`, `bolt`, `launcher` and `pistol` families
+with **zero clips authored**. `model_actor.gd:877` warns once per family and falls back to the rifle hold
+— the RPD gunner and the RPG man carry their weapons like rifles.

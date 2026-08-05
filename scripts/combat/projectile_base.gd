@@ -126,6 +126,10 @@ func _setup_visuals() -> void:
 	if not projectile_data:
 		return
 	mesh_instance.scale = projectile_data.scale
+	# Pool reuse: a tumbling store must not hand its spin to the next round. A
+	# tumbler starts laid along the flight axis (capsule +Y onto local Z).
+	mesh_instance.rotation = Vector3(PI * 0.5, 0.0, 0.0) \
+		if projectile_data.tumble_rate > 0.0 else Vector3.ZERO
 	if not projectile_data.mesh_path.is_empty():
 		var packed: PackedScene = load(projectile_data.mesh_path)
 		if packed != null:
@@ -134,6 +138,9 @@ func _setup_visuals() -> void:
 			mesh_instance.add_child(packed.instantiate())
 			mesh_instance.mesh = null
 			return
+	if projectile_data.tumble_rate > 0.0:
+		mesh_instance.mesh = _canister_mesh()
+		return
 	mesh_instance.mesh = _rocket_mesh() if projectile_data.aoe_radius > 0.0 else _bullet_mesh()
 
 
@@ -151,6 +158,21 @@ static func _rocket_mesh() -> Mesh:
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.55, 0.15)
 	mat.emission_energy_multiplier = 2.2
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	m.material = mat
+	return m
+
+
+## Finless store: an olive-drab canister, no emission - it reads by silhouette
+## and by the tumble, not by glow.
+static func _canister_mesh() -> Mesh:
+	var m := CapsuleMesh.new()
+	m.radius = 0.16
+	m.height = 1.4
+	m.radial_segments = 8
+	m.rings = 2
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.33, 0.35, 0.26)
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	m.material = mat
 	return m
@@ -274,6 +296,8 @@ func _physics_process(delta: float) -> void:
 	# Face movement direction
 	if velocity.length() > 0.1:
 		look_at(global_position + velocity.normalized())
+	if projectile_data.tumble_rate > 0.0:
+		mesh_instance.rotate_object_local(Vector3.RIGHT, projectile_data.tumble_rate * delta)
 
 
 func _on_area_entered(area: Area3D) -> void:

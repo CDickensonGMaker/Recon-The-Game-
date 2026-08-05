@@ -39,11 +39,10 @@ const DISEMBARK_CLIPS: Array[String] = [
 	"disembark_heli", "disembark_heli_b", "disembark_heli_c",
 	"disembark_heli_d", "disembark_heli_e", "disembark_heli_f",
 ]
-## EMPTY ON PURPOSE. Boarding is being mocapped and no clip exists yet, so there are no names
-## here to invent - the library holds zero clips matching `board`. Add their REAL exported names
-## when they land; until then a man walks to the door and seats with no boarding animation, which
-## is what `play_first` returning "" already means.
-const BOARD_CLIPS: Array[String] = []
+## Grab-launch into a floor-seated crouch, spliced from `jump_up` (mount) into `sitting`'s
+## opening pose (settle) - authored 2026-08-04, gated on the elbow/foot invariants. One clip;
+## `play_first` degrades to no animation if the name is ever missing, so this stays additive.
+const BOARD_CLIPS: Array[String] = ["board_heli"]
 
 var heli: Helicopter = null
 var director: FieldDirector = null
@@ -84,6 +83,7 @@ func _ready() -> void:
 	# layout, so it works whether or not the airframe exports sockets.
 	seats = SeatSystem.new()
 	seats.name = "Seats"
+	seats.board_clips = BOARD_CLIPS
 	heli.add_child(seats)
 	_find_doors()
 	_shut_doors_now()
@@ -176,10 +176,11 @@ func _free_berth() -> StringName:
 
 
 ## Men are spawned and seated BEFORE the flight, so the ship that lands is really carrying them.
-## They are garrison Civilians, not AllyBase (his ruling 2026-07-30): the garrison pipeline
-## already runs spawn -> promote at stand-to -> stand_down at dawn, an AllyBase would be a second
-## path against ADR-023, and an AllyBase has no schedule or work marker so it would stand where it
-## landed forever. A Civilian joins camp life.
+## They ride as garrison Civilians, not AllyBase (his ruling 2026-07-30, REFINED not revoked by
+## the 2026-08-04 soldiers ruling - war_room/2026-08-04_garrison_soldiers/synthesis.md §2): the
+## garrison pipeline runs spawn -> promote at stand-to/alarm -> stand_down, an AllyBase here
+## would be a second path against ADR-023, and an AllyBase has no schedule or work marker so it
+## would stand where it landed forever. A soldier with a job joins camp life.
 func _load_pax() -> void:
 	var world: Node = heli.get_parent()
 	if world == null or seats == null:
@@ -189,7 +190,11 @@ func _load_pax() -> void:
 		else maxi(0, ESTABLISHMENT - garrison_strength())
 	var n: int = mini(room, randi_range(PAX_MIN, PAX_MAX))
 	for i in range(n):
-		var man: Civilian = Civilian.spawn(world, heli.global_position, director, false,
+		# Spread the spawn positions: Civilian.spawn derives model, face and dress
+		# from a POSITION hash, so a stick minted at one point is one man n times
+		# (his playtest 2026-08-04: "the dropped-off replacements were all radiomen").
+		var mint: Vector3 = heli.global_position + Vector3(float(i * 3 + 1), 0.0, float(i * 5 + 2))
+		var man: Civilian = Civilian.spawn(world, mint, director, false,
 			Civilian.GARRISON_MEN, true)
 		if man == null:
 			continue
@@ -236,6 +241,20 @@ func _deliver() -> void:
 		# `unseat` has already restored his collision, physics tick, ground position and levelled
 		# the airframe's bank out of his rotation, so he is a live actor from here.
 		man.add_to_group("firebase_garrison")
+		# HAND HIM TO CAMP LIFE (his playtest 2026-08-04: "they just stand on the
+		# helipad"). A replacement lands with occupation "farmer", no working point
+		# and home ON THE PAD, so the schedule holds him where he stands forever.
+		# Deterministic per man (ADR-010: his spawn hash, not a fresh roll), and
+		# _placed_for_hour stays true so he WALKS off the pad instead of teleporting.
+		man.occupation = "off_duty" if man._idle_seed % 2 == 0 else "detail"
+		if director != null and is_instance_valid(director) and director.fsb_center != Vector3.ZERO:
+			var a: float = float(man._idle_seed % 360) * (TAU / 360.0)
+			var bunk: Vector3 = director.fsb_center \
+				+ Vector3(cos(a), 0.0, sin(a)) * (10.0 + float(man._idle_seed % 12))
+			bunk.y = man.global_position.y
+			man.home = bunk
+			man.working_point_pos = bunk
+		man._placed_for_hour = true
 		if man.actor != null and is_instance_valid(man.actor):
 			man.actor.play_first(DISEMBARK_CLIPS)
 		_rotated_off.append(man)
@@ -277,10 +296,6 @@ func _extract() -> void:
 			continue
 		if civ.global_position.distance_to(pad) > EXTRACT_REACH_M:
 			continue
-		# No-op while BOARD_CLIPS is empty. The call stays so that filling that const is the ONLY
-		# change needed when the boarding mocap lands - not a const plus a forgotten call site.
-		if not BOARD_CLIPS.is_empty() and civ.actor != null and is_instance_valid(civ.actor):
-			civ.actor.play_first(BOARD_CLIPS)
 		going.append(civ)
 		if going.size() >= out_cap:
 			break

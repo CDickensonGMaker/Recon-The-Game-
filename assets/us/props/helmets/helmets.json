@@ -44,7 +44,7 @@
   "helmets": {
     "m1_ace": {
       "glb": "res://assets/us/props/helmets/m1_ace.glb",
-      "tris": 340,
+      "tris": 736,
       "parts": [
         "helmet_ace_band",
         "helmet_ace_card_ace",
@@ -53,7 +53,7 @@
     },
     "m1_ace_cig": {
       "glb": "res://assets/us/props/helmets/m1_ace_cig.glb",
-      "tris": 352,
+      "tris": 748,
       "parts": [
         "helmet_ace_cig_band",
         "helmet_ace_cig_card_ace",
@@ -63,7 +63,7 @@
     },
     "m1_barepot": {
       "glb": "res://assets/us/props/helmets/m1_barepot.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_barepot_band",
         "helmet_barepot_cover"
@@ -71,7 +71,7 @@
     },
     "m1_barepot_fta": {
       "glb": "res://assets/us/props/helmets/m1_barepot_fta.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_barepot_fta_band",
         "helmet_barepot_fta_cover"
@@ -79,7 +79,7 @@
     },
     "m1_born_to_kill": {
       "glb": "res://assets/us/props/helmets/m1_born_to_kill.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_born_to_kill_band",
         "helmet_born_to_kill_cover"
@@ -87,7 +87,7 @@
     },
     "m1_bugjuice": {
       "glb": "res://assets/us/props/helmets/m1_bugjuice.glb",
-      "tris": 288,
+      "tris": 684,
       "parts": [
         "helmet_bugjuice_band",
         "helmet_bugjuice_bugjuice",
@@ -96,7 +96,7 @@
     },
     "m1_cig": {
       "glb": "res://assets/us/props/helmets/m1_cig.glb",
-      "tris": 276,
+      "tris": 672,
       "parts": [
         "helmet_cig_band",
         "helmet_cig_cigpack",
@@ -105,7 +105,7 @@
     },
     "m1_cig_bug": {
       "glb": "res://assets/us/props/helmets/m1_cig_bug.glb",
-      "tris": 300,
+      "tris": 696,
       "parts": [
         "helmet_cig_bug_band",
         "helmet_cig_bug_bugjuice",
@@ -115,7 +115,7 @@
     },
     "m1_erdl_short": {
       "glb": "res://assets/us/props/helmets/m1_erdl_short.glb",
-      "tris": 352,
+      "tris": 748,
       "parts": [
         "helmet_erdl_short_band",
         "helmet_erdl_short_card_ace",
@@ -125,7 +125,7 @@
     },
     "m1_foliage": {
       "glb": "res://assets/us/props/helmets/m1_foliage.glb",
-      "tris": 300,
+      "tris": 696,
       "parts": [
         "helmet_foliage_band",
         "helmet_foliage_cover",
@@ -136,7 +136,7 @@
     },
     "m1_foliage_graf": {
       "glb": "res://assets/us/props/helmets/m1_foliage_graf.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_foliage_graf_band",
         "helmet_foliage_graf_cover"
@@ -144,7 +144,7 @@
     },
     "m1_plain": {
       "glb": "res://assets/us/props/helmets/m1_plain.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_plain_band",
         "helmet_plain_cover"
@@ -152,7 +152,7 @@
     },
     "m1_rounds": {
       "glb": "res://assets/us/props/helmets/m1_rounds.glb",
-      "tris": 324,
+      "tris": 780,
       "parts": [
         "helmet_rounds_band",
         "helmet_rounds_cover",
@@ -161,7 +161,7 @@
     },
     "m1_veteran": {
       "glb": "res://assets/us/props/helmets/m1_veteran.glb",
-      "tris": 452,
+      "tris": 848,
       "parts": [
         "helmet_veteran_band",
         "helmet_veteran_bugjuice",
@@ -173,7 +173,7 @@
     },
     "m1_war_is_hell": {
       "glb": "res://assets/us/props/helmets/m1_war_is_hell.glb",
-      "tris": 264,
+      "tris": 660,
       "parts": [
         "helmet_war_is_hell_band",
         "helmet_war_is_hell_cover"

@@ -327,4 +327,10 @@ func spawn_projectile(data: ProjectileData, source: Node, spawn_position: Vector
 	if not projectile_pool:
 		push_warning("[CombatManager] Projectile pool not initialized!")
 		return null
+	# Every flying explosive promotes trunk colliders down its corridor (decree
+	# 2026-08-04), so a canopy contact is possible wherever ordnance goes.
+	if data != null and data.aoe_radius > 0.0:
+		var reach: float = minf(data.speed * data.lifetime, 250.0)
+		TreeCoverLayer.threat_corridor(get_tree(), spawn_position,
+			spawn_position + direction.normalized() * reach, data.aoe_radius + 3.0, 10.0)
 	return projectile_pool.spawn(data, source, spawn_position, direction, target)

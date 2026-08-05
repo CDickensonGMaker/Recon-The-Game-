@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+﻿[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
 
@@ -20,7 +20,7 @@ retreats_when_hurt = true
 retreat_hp_threshold = 0.25
 courage = 0.35
 determination = 0.25
-exposure_ramp_time = 3.5
+exposure_ramp_time = 2.6
 sprite_faction = "Vietcong and NVA"
 sprite_unit = "vc_guerilla"
 sprite_weapon = "ak47"

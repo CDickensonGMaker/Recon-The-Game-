@@ -44,6 +44,9 @@ func setup(objective_center: Vector3) -> void:
 	_objective = objective_center
 	target_pos = objective_center
 	_armed = true
+	# The satchel is heavy ordnance: call out the trees around the breach point for
+	# the whole approach (decree 2026-08-04).
+	TreeCoverLayer.threat_zone(get_tree(), objective_center, 18.0, 60.0)
 	var enemy := get_parent() as EnemyBase
 	if enemy != null:
 		_retarget(enemy)

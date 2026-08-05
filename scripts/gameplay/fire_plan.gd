@@ -17,18 +17,35 @@ const MORTAR_SPOT_M: float = 15.0
 const MORTAR_BLAST_M: float = 10.0
 const ARTY_SHEAF_M: float = 18.0
 const ARTY_BLAST_M: float = 14.0
+## A battery mission is a BARRAGE (decree 2026-08-04): 8-12 rounds, count drawn per call.
+const ARTY_ROUNDS_MIN: int = 8
+const ARTY_ROUNDS_MAX: int = 12
 
 ## Air-delivered.
 const BOMB_BLAST_M: float = 16.0
 const NAPALM_DROPS: int = 5
 const NAPALM_SPACING: float = 15.0
-const NAPALM_BLAST_M: float = 10.0
+const NAPALM_BLAST_M: float = 20.0
 const NAPALM_BURN_S: float = 15.0
 const CBU_BOMBLETS: int = 16
 const CBU_SPREAD: float = 22.0
 ## The cluster pattern is an ellipse laid ALONG the run; this is its cross-run axis.
 const CBU_CROSS_FRAC: float = 0.6
 const CBU_BOMBLET_BLAST_M: float = 5.0
+## The CBU is a RAID, not one bomb (decree 2026-08-04): several dispensers off the
+## rack down the run line, each opening into its own bomblet ellipse.
+const CBU_CANS: int = 3
+const CBU_CAN_SPACING: float = 45.0
+
+## Illumination: the circle the flare takes the dark away from.
+const ILLUM_LIGHT_M: float = 180.0
+
+## White phosphorus: a small barrage that leaves burning ground (decree 2026-08-04).
+const WP_ROUNDS: int = 3
+const WP_SPREAD_M: float = 10.0
+const WP_BLAST_M: float = 8.0
+const WP_BURN_M: float = 6.0
+const WP_BURN_S: float = 12.0
 
 ## Gunship. The Vulcan fires real rounds through BulletSystem, so it no longer has a "kill
 ## radius" - it has DISPERSION, the slop around the aim point that widens the beaten zone
@@ -70,10 +87,14 @@ static func footprint(kind: String, fo: int = 0) -> Dictionary:
 			return {
 				"shape": "ellipse",
 				"radius": 0.0,
-				"along": 2.0 * (CBU_SPREAD + CBU_BOMBLET_BLAST_M),
+				"along": float(CBU_CANS - 1) * CBU_CAN_SPACING + 2.0 * (CBU_SPREAD + CBU_BOMBLET_BLAST_M),
 				"across": 2.0 * (CBU_SPREAD * CBU_CROSS_FRAC + CBU_BOMBLET_BLAST_M),
 				"label": "CLUSTER",
 			}
+		"wp":
+			return _circle(WP_SPREAD_M + WP_BLAST_M, "WILLY PETE")
+		"illum":
+			return _circle(ILLUM_LIGHT_M, "ILLUM")
 	return {}
 
 

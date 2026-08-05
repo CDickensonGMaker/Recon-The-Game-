@@ -398,12 +398,30 @@ func _in_veg_hole(wx: float, wz: float) -> bool:
 ## wiped a chunk's worth of trees - "half the trees gone, not a crater". The veg
 ## terrain grid is untouched, so AI sight is unaffected; this is visual removal.
 func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Object = null) -> int:
-	_veg_holes.append({"c": center, "r2": radius * radius})
-
 	var min_cx := floori((center.x - radius) / chunk_size)
 	var max_cx := floori((center.x + radius) / chunk_size)
 	var min_cz := floori((center.z - radius) / chunk_size)
 	var max_cz := floori((center.z + radius) / chunk_size)
+	# The canopy trees this hole is about to delete, gathered BEFORE the hole is
+	# recorded (the hole filters them out of the scatter): they go down VISIBLY.
+	var doomed: Array = []
+	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and heightmap != null:
+		for cx in range(min_cx, max_cx + 1):
+			for cz in range(min_cz, max_cz + 1):
+				var chunk_coord := Vector2i(cx, cz)
+				if not _chunk_terrain.has(chunk_coord) or doomed.size() >= FELL_MAX_PER_BLAST:
+					continue
+				for e: Dictionary in _build_scatter(chunk_coord, heightmap, chunk_size):
+					var p: Vector3 = (e.xf as Transform3D).origin
+					if Vector2(p.x - center.x, p.z - center.z).length() > radius:
+						continue
+					if not _is_fell_species(String(e.name)):
+						continue
+					doomed.append(e)
+					if doomed.size() >= FELL_MAX_PER_BLAST:
+						break
+	_veg_holes.append({"c": center, "r2": radius * radius})
+
 	var rebuilt := 0
 	for cx in range(min_cx, max_cx + 1):
 		for cz in range(min_cz, max_cz + 1):
@@ -414,7 +432,57 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 			if heightmap:
 				_rematerialize(chunk_coord, heightmap, chunk_size)
 			rebuilt += 1
+	for e: Dictionary in doomed:
+		_fell_tree_visual(String(e.name), e.xf as Transform3D, center)
 	return rebuilt
+
+
+## LIVE-WORLD TREE FELLING (decree 2026-08-04: support fires must drop trees in the
+## real jungle, not only on the bench). The batched instance is already gone from the
+## rebuilt MultiMesh above; this stands a single MeshInstance3D of the same species
+## in its place, hinges it over at the base away from the blast (the FellableTree
+## motion), and leaves it lying. Visual only - no collider, no registry entry - and
+## FIFO-capped so a bombardment cannot accumulate scene nodes.
+const FELL_MAX_PER_BLAST := 5
+const FELL_TIME := 2.0
+const FALLEN_MAX := 24
+var _fallen_visuals: Array[Node3D] = []
+
+
+## Only trunked cover-givers fall as logs; brush and grass just vanish in the blast.
+func _is_fell_species(nm: String) -> bool:
+	return nm.begins_with("broadleaf") or nm.begins_with("banana") \
+		or nm.begins_with("bamboo") or nm.begins_with("jungle_palm") \
+		or nm.begins_with("palm_")
+
+
+func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3) -> void:
+	var mesh: Mesh = _tree_cover.solid_mesh_for(nm) if _tree_cover != null else null
+	if mesh == null:
+		return
+	var root := Node3D.new()
+	add_child(root)
+	root.global_transform = Transform3D(Basis.IDENTITY, xf.origin)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.transform = Transform3D(xf.basis, Vector3.ZERO)
+	root.add_child(mi)
+	var away: Vector3 = xf.origin - blast
+	away.y = 0.0
+	if away.length() < 0.5:
+		away = Vector3(1, 0, 0)
+	var axis: Vector3 = away.normalized().cross(Vector3.UP).normalized()
+	var tw := root.create_tween()
+	tw.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tw.tween_method(func(a: float) -> void:
+		if is_instance_valid(root):
+			root.basis = Basis(axis, a),
+		0.0, PI * 0.47, FELL_TIME)
+	_fallen_visuals.append(root)
+	while _fallen_visuals.size() > FALLEN_MAX:
+		var old: Variant = _fallen_visuals.pop_front()
+		if is_instance_valid(old):
+			(old as Node3D).queue_free()
 
 
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
@@ -575,6 +643,10 @@ func clear_chunk(chunk_coord: Vector2i) -> void:
 
 
 func clear_all() -> void:
+	for f in _fallen_visuals:
+		if is_instance_valid(f):
+			f.queue_free()
+	_fallen_visuals.clear()
 	for instance: MultiMeshInstance3D in _chunk_instances.values():
 		if is_instance_valid(instance):
 			instance.queue_free()

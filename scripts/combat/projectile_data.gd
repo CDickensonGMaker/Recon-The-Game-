@@ -45,6 +45,9 @@ extends Resource
 @export_group("Visuals")
 @export var mesh_path: String = ""
 @export var scale: Vector3 = Vector3(0.1, 0.1, 0.1)
+## rad/s of end-over-end spin for a FINLESS store (napalm can, CBU dispenser):
+## it renders as a tumbling canister instead of a warhead cone. 0 = flies true.
+@export var tumble_rate: float = 0.0
 
 @export_group("Trail Effect")
 @export var has_trail: bool = true
