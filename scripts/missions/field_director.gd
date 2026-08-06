@@ -769,19 +769,46 @@ func on_informer_escaped(from_pos: Vector3, last_seen: Vector3) -> void:
 ## The radio is a man: a LIVING RTO within RTO_RADIO_RANGE. Returns "" when usable,
 ## else the toast to show. MUST be called by every fire request, not just the net
 ## toggle, or the shortcut keys bypass the leash.
+## ANY RADIOMAN IS THE NET (his ruling 2026-08-05: "make it so all radiomen are valid call
+## options and the menu is universal" — "that does feul that feeling of a larger war too").
+## The net used to be ONE man on ONE roster: your squad's RTO and nobody else, so standing
+## next to a firebase radioman with a live PRC-25 on his back got you nothing. Nearest
+## living man in "radioman" wins, wherever he came from. This is the ONE authority for
+## "whose radio am I on" — do not re-derive it from a squad roster.
+func nearest_radioman() -> Node3D:
+	var pl: Node3D = world.player if world != null else null
+	if pl == null:
+		return null
+	var best: Node3D = null
+	var best_d: float = INF
+	for r in get_tree().get_nodes_in_group("radioman"):
+		var n := r as Node3D
+		if n == null or not is_instance_valid(n):
+			continue
+		if n.has_method("is_dead") and n.call("is_dead"):
+			continue
+		var d: float = pl.global_position.distance_to(n.global_position)
+		if d < best_d:
+			best_d = d
+			best = n
+	return best
+
+
 func _radio_check() -> String:
-	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
+	var rto: Node3D = nearest_radioman()
 	if rto == null:
 		return "NO RADIO - YOUR RADIO MAN IS DOWN"
 	var pl: Node3D = world.player if world != null else null
 	if pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
-		return "TOO FAR FROM THE RADIO - GET TO YOUR RADIO MAN (%dm)" % int(RTO_RADIO_RANGE)
+		return "TOO FAR FROM THE RADIO - GET TO A RADIO MAN (%dm)" % int(RTO_RADIO_RANGE)
 	return ""
 
 
 ## Radio VO is diegetic: it comes from the PRC-25 on the RTO's back, positionally.
 func _radio_vo(line_id: String) -> void:
-	var rto: AllyBase = squad_system.member_by_mos("RTO") if (squad_system != null and is_instance_valid(squad_system)) else null
+	# Diegetic: the voice comes out of the PRC-25 you are actually speaking through, which
+	# is whichever radioman the net picked - not always your own squad's man.
+	var rto: Node3D = nearest_radioman()
 	var src: Variant = null
 	if rto != null:
 		src = rto.global_position

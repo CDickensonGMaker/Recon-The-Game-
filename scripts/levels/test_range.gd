@@ -103,6 +103,15 @@ func _spawn_player_and_rto(plan: Dictionary) -> void:
 	if cam != null:
 		cam.current = true
 
+	# ONLY IF THE WORLD DID NOT ALREADY MAKE ONE. build_patrol_world stands up the firebase
+	# garrison, and adding a second radioman on top of it put a duplicate squad in the
+	# range. Any radioman is a valid net now (field_director.nearest_radioman), so if the
+	# world supplied one, use his - just walk to him.
+	var existing: Array = get_tree().get_nodes_in_group("radioman")
+	if not existing.is_empty():
+		print("[TEST RANGE] world already fielded %d radioman/men - not spawning another"
+			% existing.size())
+		return
 	var rto: AllyBase = AllyBase.spawn_ally(self, at + Vector3(2.0, 0.0, 1.0))
 	if rto == null:
 		push_warning("[TEST RANGE] no RTO - every fire mission will be refused")
