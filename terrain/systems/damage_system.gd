@@ -306,7 +306,9 @@ func _create_scar_decal(position: Vector3, radius: float, color: Color, scar_typ
 
 	decal.albedo_mix = 0.85 * intensity  # How much to blend with terrain
 	decal.modulate = color  # Tint the texture
-	decal.cull_mask = 1  # Only affect terrain layer
+	# Layer 1 is Godot's DEFAULT, so this used to exclude nothing and men wore the scar.
+	# ModelActor.CHARACTER_VISUAL_LAYER (2) is what keeps a helmet out of a burn mark.
+	decal.cull_mask = 1
 	decal.upper_fade = 0.1
 	decal.lower_fade = 0.3
 

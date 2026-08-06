@@ -9,20 +9,29 @@
 extends Node3D
 
 const ARMORY: Array[String] = ["m16", "ak", "shotgun", "m60", "rpg"]
-## Held-use key. Resolved against the project's InputMap at boot rather than
-## hardcoded, so this follows a rebind.
-const USE_ACTIONS: Array[String] = ["interact", "use", "ui_accept"]
+
+## THE USE KEY IS E, HARDCODED, AND THAT IS DELIBERATE.
+##
+## The project's `interact` action is bound to F (project.godot:253), while E is
+## bound to `lean_right`. This mode has no leaning - his ruling: "in this game
+## mode you cannot lean so it makes holding E the true interaction button" - so E
+## is free and it is the key every prompt in here names.
+##
+## Repointing the global `interact` action instead would be worse: InputMap is
+## global and the rebind would follow him back into the campaign.
+const USE_KEY: Key = KEY_E
 
 @export var spawn_player: bool = true
 @export var spawn_hud: bool = true
 @export var rng_seed: int = 20260805
 
-var map: ZombieMapDepot = null
+var map: ZombieMapLot = null
+var night: ZombieNight = null
+var body_light: SpotLight3D = null
 var economy: ZombieEconomy = null
 var director: ZombieWaveDirector = null
 var player: CharacterBody3D = null
 
-var _use_action: String = ""
 var _focus: ZombieInteractable = null
 var _focus_barricade: ZombieBarricade = null
 var _label: Label = null
@@ -31,16 +40,21 @@ var _prompt: Label = null
 
 func _ready() -> void:
 	add_to_group("game_world")
-	_resolve_use_action()
 
 	economy = ZombieEconomy.new()
 	economy.name = "ZombieEconomy"
 	add_child(economy)
 
-	map = ZombieMapDepot.new()
-	map.name = "Depot"
+	map = ZombieMapLot.new()
+	map.name = "Lot"
 	add_child(map)
 	map.build(rng_seed)
+
+	night = ZombieNight.new()
+	night.name = "Night"
+	add_child(night)
+	night.apply_night(self, rng_seed)
+	_light_the_lot()
 
 	# Navigation needs physics frames to register the freshly baked region before
 	# any agent can resolve a path on it. Spawning the first wave before that
@@ -50,6 +64,7 @@ func _ready() -> void:
 
 	_spawn_player()
 	_build_hud()
+	_audit_spawn_points()
 
 	director = ZombieWaveDirector.new()
 	director.name = "WaveDirector"
@@ -60,19 +75,80 @@ func _ready() -> void:
 	economy.points_changed.connect(func(_p: int, _d: int, _r: String) -> void: _refresh_hud())
 	director.begin()
 
-	print("[VC ZOMBIES] depot up - %d spawn point(s), %d barricade(s), %d door(s)" % [
+	print("[VC ZOMBIES] the lot is up - %d spawn point(s), %d breach(es), %d gate(s)" % [
 		get_tree().get_nodes_in_group("zombie_spawns").size(),
 		get_tree().get_nodes_in_group("zombie_barricades").size(),
 		get_tree().get_nodes_in_group("zombie_doors").size()])
+	_report_first_wave()
 
 
-func _resolve_use_action() -> void:
-	for a in USE_ACTIONS:
-		if InputMap.has_action(a):
-			_use_action = a
-			return
-	push_warning("[VC ZOMBIES] no interact action in the InputMap (tried %s) - "
-		% ", ".join(USE_ACTIONS) + "falling back to the E key")
+## PROOF OF LIFE. "Round 1 - 6 coming" only says the director INTENDED to spawn;
+## the silent-lot bug printed exactly that line while producing nobody. This
+## reports what actually stood up, which is the thing worth knowing.
+func _report_first_wave() -> void:
+	await get_tree().create_timer(6.0).timeout
+	if director == null or not is_instance_valid(director):
+		return
+	print("[VC ZOMBIES] 6s in - %d alive, %d still to spawn"
+		% [director.alive.size(), director.left_to_spawn()])
+
+
+## Lamps go where the player has to WALK, not where the map is prettiest: the lot,
+## the gates and the yard. Lit ground is the safe ground, so its shape is a level
+## design decision - the dark stretches between these are the route choices.
+func _light_the_lot() -> void:
+	# the lot itself - two rows, so the start is legible on round 1
+	night.place_lamp_row(self, Vector3(32, 0, 66), Vector3(70, 0, 66), 3)
+	night.place_lamp_row(self, Vector3(32, 0, 90), Vector3(70, 0, 90), 3)
+	# the gates, so an opening always reads as an opening
+	for g in ZombieMapLot.GATES:
+		night.place_lamp(self, (g["at"] as Vector3) + Vector3(2.0, 0.0, 2.0), false)
+	# hangar and yard: sparser and faultier, so bought ground feels less safe than
+	# the ground you started on
+	night.place_lamp(self, Vector3(88, 0, 68), true)
+	night.place_lamp(self, Vector3(112, 0, 84), false)
+	night.place_lamp(self, Vector3(96, 0, 30), true)
+	night.place_lamp(self, Vector3(40, 0, 34), false)
+	night.place_lamp(self, Vector3(62, 0, 44), true)
+
+
+## EVERY SPAWN POINT MUST STAND ON THE NAVMESH, AND THIS IS CHECKED OUT LOUD.
+##
+## The first layout's ground plane was exactly the compound footprint while spawns
+## are pushed OUTSIDE the perimeter, so all fourteen sat in the void. Nothing ever
+## spawned and the map was silent. Nothing failed, nothing warned - the round just
+## never filled, which reads to the player as a broken game and to me as a broken
+## director. This is the guard for that whole class of bug.
+func _audit_spawn_points() -> void:
+	var map_rid: RID = get_world_3d().navigation_map
+	# The map must have SYNCHRONISED before it can be queried. Querying earlier
+	# returns garbage and the server says so ("query failed because it was made
+	# before first map synchronization") - which made this audit's first run
+	# report all 14 points stranded when every one of them was fine. An audit that
+	# cries wolf is worse than no audit.
+	NavigationServer3D.map_force_update(map_rid)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var points: Array[Node] = get_tree().get_nodes_in_group("zombie_spawns")
+	var stranded: Array[String] = []
+	for n in points:
+		var s := n as Node3D
+		if s == null:
+			continue
+		var closest: Vector3 = NavigationServer3D.map_get_closest_point(
+			map_rid, s.global_position)
+		# A point off the mesh snaps to a far-away edge. On the mesh it barely moves.
+		if closest.distance_to(s.global_position) > 3.0:
+			stranded.append("%s @ %.0f,%.0f" % [s.name, s.global_position.x,
+				s.global_position.z])
+	if stranded.is_empty():
+		print("[VC ZOMBIES] all %d spawn point(s) sit on navmesh" % points.size())
+		return
+	push_warning(("[VC ZOMBIES] %d of %d spawn point(s) are OFF the navmesh and can "
+		+ "never produce a zombie: %s. The ground plane must extend past anything "
+		+ "the horde spawns behind.") % [stranded.size(), points.size(),
+		", ".join(stranded)])
 
 
 func _spawn_player() -> void:
@@ -82,6 +158,9 @@ func _spawn_player() -> void:
 	player = scene.instantiate() as CharacterBody3D
 	add_child(player)
 	player.set("allow_photo_mode", false)
+	# No leaning in this mode (his ruling), which is what frees E to be the use key.
+	player.set("allow_lean", false)
+	body_light = ZombieNight.attach_body_light(player)
 	player.global_position = map.player_start() + Vector3.UP
 	GameManager.player = player
 	var cam := player.get_node_or_null("Head/Camera3D") as Camera3D
@@ -135,8 +214,7 @@ func _update_focus() -> void:
 
 
 func _update_use(delta: float) -> void:
-	var held: bool = Input.is_key_pressed(KEY_E) if _use_action.is_empty() \
-		else Input.is_action_pressed(_use_action)
+	var held: bool = Input.is_key_pressed(USE_KEY)
 	if not held:
 		if _focus != null:
 			_focus.release()

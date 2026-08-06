@@ -465,6 +465,7 @@ func set_on_net(want: bool) -> void:
 	if want == holding_handset:
 		return
 	if want:
+		_rebind_nearest_handset()
 		if _bound_handset != null and is_instance_valid(_bound_handset) and _bound_handset.can_take():
 			if _handset_within_reach():
 				_bound_handset.take(self)  # -> handset_taken -> _on_handset_taken -> _enter_net
@@ -478,6 +479,36 @@ func set_on_net(want: bool) -> void:
 			_bound_handset.stow()  # -> handset_returned -> _on_handset_returned -> _exit_net
 		else:
 			_exit_net()
+
+
+## THE HANDSET FOLLOWS THE NEAREST RADIOMAN (his ruling 2026-08-05: "make it so all
+## radiomen are valid call options"). _bound_handset was fixed at spawn to ONE man, so
+## standing beside any other radioman failed the cord check and toasted TOO FAR - the
+## exact complaint. FieldDirector already accepts any radioman; this is the other half.
+## A radioman with no physical handset is still a radio: set_on_net's existing
+## no-handset branch takes him onto the net directly.
+func _rebind_nearest_handset() -> void:
+	if holding_handset:
+		return
+	var best: RadioHandset = null
+	var best_d: float = INF
+	for r in get_tree().get_nodes_in_group("radioman"):
+		var man := r as Node3D
+		if man == null or not is_instance_valid(man):
+			continue
+		if man.has_method("is_dead") and man.call("is_dead"):
+			continue
+		var d: float = global_position.distance_to(man.global_position)
+		if d >= best_d:
+			continue
+		for h in man.find_children("*", "RadioHandset", true, false):
+			var hs := h as RadioHandset
+			if hs != null and is_instance_valid(hs) and hs.can_take():
+				best = hs
+				best_d = d
+				break
+	if best != null and best != _bound_handset:
+		_bound_handset = best
 
 
 ## Would grabbing the handset now leave the cord already snapped? The held cord runs
@@ -1418,6 +1449,9 @@ var _photo_saved_pos: Vector3 = Vector3.ZERO
 const PHOTO_FLY_SPEED: float = 9.0
 ## Combat benches disable the free-fly photo cam so a stray P can't drone off mid-firefight.
 var allow_photo_mode: bool = true
+## Off in VC Zombies, which has no leaning - and that is what frees E (bound to
+## lean_right) to be that mode's use key. Default true so the campaign is unchanged.
+var allow_lean: bool = true
 
 
 func _toggle_photo_mode() -> void:
@@ -1686,6 +1720,13 @@ func _handle_crouch(delta: float) -> void:
 
 
 func _handle_lean(delta: float) -> void:
+	if not allow_lean:
+		# Settle upright rather than snapping - a hard zero mid-lean reads as a
+		# camera glitch if the flag is ever flipped at runtime.
+		lean_amount = lerpf(lean_amount, 0.0, delta * LEAN_SPEED)
+		camera.rotation_degrees.z = lean_amount * LEAN_ANGLE
+		camera.position.x = lean_amount * LEAN_OFFSET
+		return
 	if is_sprinting:
 		lean_amount = lerpf(lean_amount, 0.0, delta * LEAN_SPEED)
 	else:

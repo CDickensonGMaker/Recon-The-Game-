@@ -111,6 +111,11 @@ func start_round(n: int) -> void:
 	wave_count_changed.emit(alive.size(), _to_spawn)
 
 
+## How many of this round are still queued to stand up.
+func left_to_spawn() -> int:
+	return _to_spawn
+
+
 static func strength_for(n: int) -> int:
 	return mini(MAX_COUNT, BASE_COUNT + COUNT_PER_ROUND * maxi(0, n - 1))
 

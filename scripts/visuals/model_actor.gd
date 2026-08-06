@@ -123,6 +123,7 @@ func setup(unit_id: String) -> bool:
 		return false
 	_inst = packed.instantiate() as Node3D
 	add_child(_inst)
+	_set_visual_layer(_inst, CHARACTER_VISUAL_LAYER)
 
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
@@ -625,6 +626,28 @@ func has_visual() -> bool:
 ## Rig access for the gore system.
 func skeleton() -> Skeleton3D:
 	return _skel
+
+
+## MEN DO NOT RECEIVE GROUND SCARS (his report 2026-08-05: "the helmets are having those
+## massive black spots on them"). DamageSystem scar decals are boxes TEN METRES tall
+## projecting down, and a Godot Decal paints every VisualInstance inside its volume - so a
+## man standing in a crater or a burn wore the charred texture, worst on the upward faces:
+## his helmet. The decal's own `cull_mask = 1` carried the comment "only affect terrain
+## layer", but layer 1 is Godot's DEFAULT - nothing in this project had ever set a visual
+## layer, so terrain and men shared it and the mask excluded nothing. Characters move to
+## their own layer; terrain, structures and foliage keep 1 and still take scars.
+const CHARACTER_VISUAL_LAYER: int = 2
+
+
+static func _set_visual_layer(root: Node, layer: int) -> void:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var vi := n as VisualInstance3D
+		if vi != null:
+			vi.layers = layer
+		for c in n.get_children():
+			stack.append(c)
 
 
 func instance_root() -> Node3D:
