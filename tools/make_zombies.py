@@ -64,6 +64,17 @@ US_KIT = [
     "bando_mag2", "m16_world", "Base_Human",
 ]
 
+# WHOLE FAMILIES OF KIT, stripped by prefix. The exact-name list above cannot
+# express "every piece of US load-bearing equipment": the harness is 15 separate
+# objects (web_belt, web_susp_l, web_pouch_r, web_clip_f_l, ...) and naming them
+# one by one is a list that goes stale the next time the base is re-rigged.
+#
+# Found by comparing exports: civ_farmer_m.glb carries ZERO web_* meshes and the
+# first zombie build carried all 15 - a hospital patient in US webbing, with
+# web_bandolier the only one loud enough to trip model_actor's default-white
+# probe. The other 14 were textured, so they would have shipped silently.
+US_KIT_PREFIXES = ["web_", "bando_", "ruck_", "helmet_"]
+
 # Atlas rows 0-4 are the 50 faces off the sheet; rows 5-6 are the 20 advanced-decay
 # recolours make_zombie_atlas.py derived. Cell index == row * 10 + col.
 FRESH_FACES = list(range(0, 50))
@@ -209,7 +220,9 @@ def build(unit, spec):
                   if x.name == n or x.name.startswith(n + ".")]:
             bpy.data.objects.remove(o, do_unlink=True)
             gone += 1
-    for o in [x for x in bpy.data.objects if x.name.startswith("canteen_l")]:
+    for o in [x for x in bpy.data.objects
+              if x.name.startswith("canteen_l")
+              or any(x.name.startswith(p) for p in US_KIT_PREFIXES)]:
         bpy.data.objects.remove(o, do_unlink=True)
         gone += 1
 

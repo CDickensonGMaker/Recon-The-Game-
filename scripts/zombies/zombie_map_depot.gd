@@ -424,7 +424,11 @@ func bake_nav() -> void:
 	nm.agent_radius = 0.4
 	nm.agent_height = 1.8
 	nm.agent_max_climb = 0.4
-	nm.cell_size = 0.2
+	# MUST match the navigation map's own cell_size (0.25, the project default) or
+	# Godot rasterises the mesh edges against a coarser grid and warns. A mismatch
+	# here shows up as agents clipping doorway corners, which on this map is every
+	# zombie coming through every window.
+	nm.cell_size = 0.25
 	_nav_region.navigation_mesh = nm
 	# Fresh mesh, never a reused resource - a stale bake is the classic way a map
 	# ships with the previous layout's holes in it.
