@@ -89,8 +89,33 @@ func _report_first_wave() -> void:
 	await get_tree().create_timer(6.0).timeout
 	if director == null or not is_instance_valid(director):
 		return
-	print("[VC ZOMBIES] 6s in - %d alive, %d still to spawn"
-		% [director.alive.size(), director.left_to_spawn()])
+	var first: float = _mean_range()
+	print("[VC ZOMBIES] 6s in - %d alive, %d still to spawn, mean range %.1fm"
+		% [director.alive.size(), director.left_to_spawn(), first])
+	await get_tree().create_timer(10.0).timeout
+	if director == null or not is_instance_valid(director):
+		return
+	# CLOSING is the only proof the navmesh is actually being walked. A horde that
+	# spawned and then held its distance means paths are not resolving, and that
+	# looks identical to a healthy round in every other line this scene prints.
+	var second: float = _mean_range()
+	print("[VC ZOMBIES] 16s in - %d alive, mean range %.1fm (%s)"
+		% [director.alive.size(), second,
+		"CLOSING" if second < first - 1.0 else "NOT CLOSING"])
+
+
+func _mean_range() -> float:
+	if player == null or not is_instance_valid(player):
+		return -1.0
+	var total: float = 0.0
+	var n: int = 0
+	for z in get_tree().get_nodes_in_group("zombies"):
+		var b := z as Node3D
+		if b == null or not is_instance_valid(b):
+			continue
+		total += b.global_position.distance_to(player.global_position)
+		n += 1
+	return total / float(n) if n > 0 else -1.0
 
 
 ## Lamps go where the player has to WALK, not where the map is prettiest: the lot,

@@ -105,11 +105,21 @@ func _build_mesh() -> void:
 			var p10 := _vert(i + 1, j, step)
 			var p01 := _vert(i, j + 1, step)
 			var p11 := _vert(i + 1, j + 1, step)
-			# WINDING MATTERS: a down-facing trimesh floor is walked straight
-			# through. This order gives +Y normals; do not "tidy" it.
-			_tri(st, p00, p01, p10)
-			_tri(st, p10, p01, p11)
+			# WINDING MATTERS, AND GODOT'S IS CLOCKWISE-FRONT.
+			# The obvious (p00, p01, p10) order is counter-clockwise here, which
+			# makes the whole field face DOWN: it renders backface-culled and
+			# Recast throws every triangle away on slope, so the navmesh bakes
+			# empty while the game looks like it merely has an AI bug. Verified by
+			# probe - a flat plane baked 235 polygons where this mesh baked 0.
+			_tri(st, p00, p10, p01)
+			_tri(st, p10, p11, p01)
 
+	# INDEX BEFORE COMMIT. SurfaceTool emits an unindexed triangle soup by default,
+	# and navigation baking reads indexed triangles - an unindexed surface
+	# contributes NOTHING and the navmesh comes out empty. The walls are BoxMesh
+	# (indexed) but vertical, so they add no walkable area either, and the whole
+	# map ends up with no navigation while looking perfectly fine.
+	st.index()
 	st.generate_normals()
 	var mesh: ArrayMesh = st.commit()
 

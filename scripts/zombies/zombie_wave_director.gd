@@ -164,7 +164,10 @@ func _spawn_one() -> void:
 	_host.add_child(z)
 	actor.reparent(z)
 	actor.position = Vector3.ZERO
-	z.global_position = point.global_position
+	# Dropped in from above. Spawn points are authored at y=0 while the Ohio ground
+	# rolls to +1.9 m out on the apron, so a body placed at the point's own height
+	# can arrive buried inside the hillside.
+	z.global_position = point.global_position + Vector3.UP * 2.5
 	z.setup(actor, prof, round_number)
 	z.died.connect(_on_zombie_died)
 

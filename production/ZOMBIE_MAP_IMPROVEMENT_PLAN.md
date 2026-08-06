@@ -12,13 +12,46 @@ ships in this repo. Verified against disk on the date above.
    up/have zombies come out of it"*
 4. *"in this game mode you cannot lean so it makes holding E the true interaction button"*
 
-**State on arrival:** `zombie_map_lot.gd` (the outdoor fenced-lot layout) is
-WRITTEN but NOT YET WIRED — `vc_zombies.gd` still instantiates `ZombieMapDepot`.
-Step 1 closes that, and deletes the depot per the FOSSIL LAW.
+**State as of 2026-08-05 night:** steps 1 and 2 are DONE and verified headless.
+`vc_zombies.gd:48` builds `ZombieMapLot`; `zombie_map_depot.gd` is deleted (fossil
+law). Steps 3–10 are untouched. The open gate is HIS PLAYTEST of the lot.
 
 ---
 
-## Step 1 — Fix the spawn bug and land the outdoor lot *(blocking; nothing else matters until this is true)*
+## Step 1 — Fix the spawn bug and land the outdoor lot — **DONE 2026-08-05**
+
+**Verified by headless boot:** 236-polygon navmesh, all 14 spawn points on it,
+6 alive at 6 s, mean range 35.1 m → 25.2 m at 16 s (**CLOSING**), 0 script errors.
+
+Three separate faults sat behind "nothing spawns", and each one hid the next:
+
+1. **The ground plane was the compound footprint.** Fixed by `ZombieMapLot`'s
+   150x120 ground with an 18 m apron (`zombie_map_lot.gd`), and guarded by the
+   boot audit at `vc_zombies.gd:122`.
+2. **The navmesh baked empty.** Godot cannot parse MeshInstance3D source geometry
+   at runtime, and collider parsing died the moment the ground became the Ohio
+   heightfield's `ConcavePolygonShape`. The mesh is now fed to Recast directly via
+   `NavigationMeshSourceGeometryData3D` (`zombie_map_lot.gd:_bake_from_meshes`).
+   Two things it depends on: `SurfaceTool.index()` before `commit()` (an unindexed
+   soup contributes nothing), and the clockwise-front winding in
+   `zombie_terrain_ohio.gd:114` — reverting either bakes 0 polygons.
+3. **`ZombieBase` had no collision shape at all.** A shapeless CharacterBody3D
+   does not fall over, it falls THROUGH: the horde was 400 m under the map while
+   the round count, the spawn audit and every log line read healthy. Capsule added
+   at `zombie_base.gd:_build_body_shape`; the director now drops bodies in from
+   2.5 m so apron relief cannot bury them.
+
+**The permanent guard for this whole class:** `_report_first_wave` now samples mean
+range at 6 s and 16 s and prints CLOSING / NOT CLOSING. Every other signal this mode
+emits was green while the horde was in freefall — only closing distance was not.
+
+---
+
+## Step 2 — Fix the interaction key — **DONE** (`vc_zombies.gd:22`, `allow_lean` false at `:162`)
+
+---
+
+## Step 1 (original text) — *(blocking; nothing else matters until this is true)*
 
 The first map's ground plane was 70x34, exactly the compound footprint, and spawn
 points are pushed 3.5 m OUTSIDE the perimeter. **All fourteen sat off the floor,
@@ -39,7 +72,7 @@ me as "the director stopped".
 
 ---
 
-## Step 2 — Fix the interaction key *(his note 4; two-line change)*
+## Step 2 (original text) — *(his note 4; two-line change)*
 
 `interact` is bound to **F** (`project.godot:253`, physical keycode 70), while my
 prompts all read `[E]`. Worse, **`lean_right` is bound to E**, so pressing the key

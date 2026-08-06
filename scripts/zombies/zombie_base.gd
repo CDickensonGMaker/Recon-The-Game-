@@ -105,6 +105,7 @@ func _ready() -> void:
 	# mean auditing every shooter in the project for one game mode.
 	collision_layer = 4
 	collision_mask = 1
+	_build_body_shape()
 	_nav = get_node_or_null("NavigationAgent3D")
 	if _nav == null:
 		_nav = NavigationAgent3D.new()
@@ -116,6 +117,27 @@ func _ready() -> void:
 		add_child(_nav)
 	if _actor != null:
 		_hitzone_sync = HitzoneBuilder.build(self, _actor, 64, 8, ["hitzone"], true)
+
+
+## The body a zombie stands on the ground with.
+##
+## A CharacterBody3D with no shape does not fall over - it falls THROUGH, forever,
+## and every other signal reads healthy while it does: the round fills, the count
+## is right, the audit passes, and the horde is 400 m below the map. The hitzones
+## HitzoneBuilder hangs off the skeleton are Areas and collide with nothing.
+func _build_body_shape() -> void:
+	for c in get_children():
+		if c is CollisionShape3D:
+			return
+	var cs := CollisionShape3D.new()
+	cs.name = "Body"
+	var cap := CapsuleShape3D.new()
+	# The cast is 1.674 m tall; the capsule sits on the floor, not through it.
+	cap.height = 1.7
+	cap.radius = 0.35
+	cs.shape = cap
+	cs.position = Vector3(0.0, 0.85, 0.0)
+	add_child(cs)
 
 
 func _physics_process(delta: float) -> void:

@@ -454,44 +454,64 @@ func bake_nav() -> void:
 	_nav_region.name = "LotNav"
 	add_child(_nav_region)
 	var nm := NavigationMesh.new()
-	# Whole multiples of the voxel size (cell_size 0.25 / cell_height 0.25), or
-	# the baker rounds each one and warns about the lost precision.
+	# MUST match the navigation map's cell_size (0.25) or Godot rasterises the
+	# edges on a coarser grid and agents clip every opening's corners. The three
+	# agent dimensions must be whole multiples of it, or the baker rounds each one
+	# and warns about the lost precision.
+	nm.cell_size = 0.25
 	nm.agent_radius = 0.5
 	nm.agent_height = 1.75
 	nm.agent_max_climb = 0.5
-	# MUST match the navigation map's cell_size (0.25) or Godot rasterises the
-	# edges on a coarser grid and agents clip every opening's corners.
-	nm.cell_size = 0.25
-
-	# PARSE THE `nav_source` GROUP, NOT THE REGION'S CHILDREN.
-	# NavigationRegion3D defaults to SOURCE_GEOMETRY_ROOT_NODE_CHILDREN, and this
-	# region has NO children - the ground and walls are its SIBLINGS. That default
-	# baked a completely EMPTY navmesh, and nothing looked broken: ZombieBase falls
-	# back to straight-line movement when a path will not resolve, so the horde
-	# still walked at the player and would simply have jammed on the first wall.
-	# The group is the project's existing convention for exactly this.
-	# STATIC_COLLIDERS, and it is the only option that works here. Godot cannot
-	# parse MeshInstance3D source geometry at RUNTIME - it says so itself when you
-	# try ("For runtime (re)baking navigation meshes use and parse collision shapes
-	# as source geometry") - so MESH_INSTANCES and BOTH both bake empty outside the
-	# editor. Every nav_source node must therefore carry a real collision shape.
-	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	nm.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
-	nm.geometry_source_group_name = "nav_source"
 	_nav_region.navigation_mesh = nm
-	print("[LOT] baking nav from %d 'nav_source' node(s)"
-		% get_tree().get_nodes_in_group("nav_source").size())
-	_nav_region.bake_navigation_mesh(false)
+	_bake_from_meshes(nm)
 
-	# Say how big the mesh came out. An empty bake is silent and its symptom
-	# (agents walking into walls) looks like an AI bug, not a navigation one.
+
+## Feed Recast the meshes DIRECTLY, rather than asking it to find them.
+##
+## Godot cannot parse MeshInstance3D source geometry at runtime, and it says so
+## when you try: "For runtime (re)baking navigation meshes use and parse collision
+## shapes as source geometry OR CREATE GEOMETRY DATA PROCEDURALLY IN SCRIPTS."
+## Collider parsing is not an option either - it worked while the ground was a
+## BoxShape and baked EMPTY the moment the ground became the Ohio heightfield's
+## ConcavePolygonShape. This is the third route, it is the one the engine
+## recommends, and it depends on no parser behaviour at all.
+func _bake_from_meshes(nm: NavigationMesh) -> void:
+	var src := NavigationMeshSourceGeometryData3D.new()
+	var added: int = 0
+	for n in get_tree().get_nodes_in_group("nav_source"):
+		var node := n as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		for mi in _meshes_under(node):
+			if mi.mesh == null:
+				continue
+			src.add_mesh(mi.mesh, mi.global_transform)
+			added += 1
+	if added == 0:
+		push_warning("[LOT] no nav source meshes found - navmesh will be empty")
+		return
+	NavigationServer3D.bake_from_source_geometry_data(nm, src)
 	var polys: int = nm.get_polygon_count()
 	if polys == 0:
-		push_warning("[LOT] navmesh baked EMPTY - every zombie will straight-line "
-			+ "into the nearest wall. Check the 'nav_source' group.")
+		push_warning("[LOT] navmesh baked EMPTY from %d mesh(es) - every zombie "
+			% added + "will straight-line into the nearest wall.")
 	else:
-		print("[LOT] navmesh baked: %d polygons, %d vertices"
-			% [polys, nm.get_vertices().size()])
+		print("[LOT] navmesh baked: %d polygons from %d source mesh(es)"
+			% [polys, added])
+	# The region needs the freshly baked mesh re-assigned to pick it up.
+	_nav_region.navigation_mesh = nm
+
+
+func _meshes_under(root: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.push_back(c)
+		if n is MeshInstance3D:
+			out.append(n as MeshInstance3D)
+	return out
 
 
 func player_start() -> Vector3:

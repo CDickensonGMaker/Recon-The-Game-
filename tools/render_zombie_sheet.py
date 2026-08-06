@@ -96,7 +96,13 @@ def render_one(blend_path, out_png):
         _aim(bpy.data.objects[n], centre)
 
     sc = bpy.context.scene
-    sc.render.engine = 'BLENDER_EEVEE_NEXT'
+    # Blender 5.0 dropped the transitional BLENDER_EEVEE_NEXT id and the engine is
+    # BLENDER_EEVEE again. Pick whichever this build actually offers.
+    engines = sc.render.bl_rna.properties['engine'].enum_items.keys()
+    for want in ('BLENDER_EEVEE', 'BLENDER_EEVEE_NEXT', 'BLENDER_WORKBENCH'):
+        if want in engines:
+            sc.render.engine = want
+            break
     try:
         sc.eevee.taa_render_samples = SAMPLES
     except Exception:
