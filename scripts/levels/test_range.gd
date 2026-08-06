@@ -59,6 +59,15 @@ func _ready() -> void:
 	print("[TEST RANGE] world built: %d site(s)" % (built.get("sites", []) as Array).size())
 
 	_spawn_player_and_rto(plan)
+
+	# THE FIRE MENU IS THE HUD'S. MissionHUD listens to director.fire_menu_changed and
+	# draws the "ON THE NET - FIRE MISSION" panel; without it [T] opens a net with no
+	# menu on screen and the range cannot be used the way the demo is.
+	var hud := MissionHUD.new()
+	hud.name = "RangeHUD"
+	world.add_child(hud)
+	hud.setup(world, _director, plan)
+	print("[TEST RANGE] MissionHUD up - [T] draws the fire menu")
 	print("[TEST RANGE] [T] net · 1 bombs 2 napalm 3 arty 4 mortar 5 spectre 6 CBU (unlimited) · [G] airburst")
 
 
