@@ -49,13 +49,6 @@ const RISE_POOL: Array[String] = [
 var _idle_clips: Array[String] = ["zombie_idle", "idle_unarmed", "idle"]
 var _rise_clip: String = "zombie_stand_up"
 
-## Zone multipliers. ADR-016 Amendment D for the body; HEAD is the headshot law -
-## a head hit kills EVERYONE, undead included. A zombie you cannot drop with a
-## head shot is a zombie that breaks the only rule the player brought with him.
-const ZONE_MULT: Dictionary = {
-	"HEAD": 99.0, "TORSO": 1.0, "GUT": 0.9, "LIMB": 0.55,
-}
-
 ## The profile the wave director deals. Kept a plain Dictionary rather than a
 ## Resource so a round can scale HP without authoring 40 .tres files.
 var profile: Dictionary = {
@@ -100,9 +93,14 @@ func setup(actor: ModelActor, prof: Dictionary, rnd: int = 1) -> void:
 
 func _ready() -> void:
 	add_to_group("zombies")
-	# The damage layers are the ENEMY ones on purpose: every weapon, explosion and
-	# hitzone query in the game already targets them. A zombie-only layer would
-	# mean auditing every shooter in the project for one game mode.
+	# THE ENEMY LAYERS, THE ENEMY GROUP AND THE ENEMY ROSTER, all on purpose: every
+	# weapon, explosion and hitzone query in the game already targets those. Being
+	# only a "zombie" made the horde invisible to two whole damage paths - blast
+	# damage walks AgentRegistry.enemies (combat_manager.gd:191), and claymores and
+	# melee walk the group - so the RPG on the wall did nothing to it. Nothing in
+	# the campaign sees this: zombies exist only inside this mode's own scene.
+	add_to_group("enemies")
+	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
 	collision_layer = 4
 	collision_mask = 1
 	_build_body_shape()
@@ -299,44 +297,64 @@ func _play_gait(clips: Array[String], key: String) -> void:
 	_actor.play_first(clips, true)
 
 
+## THE SAME DAMAGE CONTRACT EVERY OTHER BODY IN THIS GAME USES.
+##
+## `amount` arrives ALREADY multiplied by the struck zone - the shooter does that
+## (weapon_holder.gd:666, bullet_system.gd:165) - and `zone` is one of the four
+## law names HEAD/BODY/GUT/LIMB. Multiplying again here is how a zombie ended up
+## taking a different number from a man for the identical shot.
 func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL,
-		attacker: Node = null, zone: String = "TORSO") -> int:
+		attacker: Node = null, zone: String = "BODY") -> int:
 	if _dead:
 		return 0
-	var region: String = HitzoneBuilder.base_region(zone)
-	var mult: float = float(ZONE_MULT.get(region, 1.0))
-	var dealt: int = maxi(1, int(round(float(amount) * mult)))
 	if attacker != null and attacker is Node3D:
 		_last_hit_dir = (global_position - (attacker as Node3D).global_position).normalized()
 
-	# Limbs come off before death, exactly as they do on a man.
-	if _actor != null and region != "HEAD" and amount >= GibSystem.LIMB_POP_HIT \
-			and not _removed.has(region):
-		if GibSystem.dismember(_actor, region, _last_hit_dir, get_tree().current_scene):
-			_removed.append(region)
+	# One bullet of any kind pops a head, at any range, in any round. The fatal
+	# authority is shared with soldiers (Hitzone.zone_name_is_fatal); what is
+	# zombie-only is that the burst is GUARANTEED, where a man rolls 0.25 for it.
+	if Hitzone.zone_name_is_fatal(zone):
+		amount = health + 999
 
-	health -= dealt
+	health -= amount
 	ZombieEconomy.award_hit(attacker, int(profile["points_hit"]))
 	if health <= 0:
-		_die(region, attacker)
+		_die(zone, attacker)
 	elif _actor != null:
 		_actor.play_first(ANIM_FLINCH, true)
 		_gait_playing = ""
-	return dealt
+	return amount
 
 
-func _die(region: String, attacker: Node) -> void:
+## The region-resolved gore channel, mirroring EnemyBase.on_zone_hit.
+##
+## Limb dismemberment CANNOT key on the zone string: the four-name law only ever
+## says "LIMB", and the GIB map speaks ARM_L/ARM_R/LEG_L/LEG_R. The old code
+## passed "LIMB" straight to GibSystem, so no zombie ever lost an arm while every
+## soldier did.
+func on_zone_hit(region: String, amount: int, dir: Vector3) -> void:
+	if _actor == null:
+		return
+	var limb: String = HitzoneBuilder.base_region(region)
+	if limb in ["ARM_L", "ARM_R", "LEG_L", "LEG_R"] \
+			and amount >= GibSystem.LIMB_POP_HIT and not _removed.has(limb):
+		if GibSystem.dismember(_actor, limb, dir, get_tree().current_scene):
+			_removed.append(limb)
+
+
+func _die(zone: String, attacker: Node) -> void:
 	if _dead:
 		return
 	_dead = true
 	set_physics_process(false)
+	AgentRegistry.unregister(self)
 	collision_layer = 0
 	collision_mask = 0
-	ZombieEconomy.award_kill(attacker, int(profile["points_kill"]), region == "HEAD")
+	ZombieEconomy.award_kill(attacker, int(profile["points_kill"]), zone == "HEAD")
 
 	if _actor != null:
 		var burst: bool = false
-		if region == "HEAD":
+		if zone == "HEAD":
 			burst = GibSystem.dismember_head_burst(_actor, _last_hit_dir,
 				get_tree().current_scene)
 			if not burst:
@@ -345,6 +363,12 @@ func _die(region: String, attacker: Node) -> void:
 		if not burst:
 			_actor.play_any_death()
 	died.emit(self)
+
+
+## A body freed without dying - a despawn, a scene teardown - must leave the
+## roster too, or the next round's explosions walk freed nodes.
+func _exit_tree() -> void:
+	AgentRegistry.unregister(self)
 
 
 func is_dead() -> bool:
