@@ -49,14 +49,18 @@ const DAMAGE_PROFILES: Dictionary = {
 		"scar_type": "crater",
 		"canopy_clear_m": 18.0,
 	},
+	## NAPALM BURNS, IT DOES NOT EXCAVATE (his ruling 2026-08-05: "napalm just scorches
+	## areas and maybe does half the terrain destruction that its doing now"). Depth is
+	## halved; the SCORCH and the canopy it strips both grow, so the mark it leaves is
+	## wider and blacker while the ground stays walkable.
 	DamageType.NAPALM: {
-		"radius_cells": 15,
-		"depth_m": 0.3,
+		"radius_cells": 22,
+		"depth_m": 0.15,
 		"rim_m": 0.0,
 		"falloff_power": 3.0,
 		"scar_color": Color(0.05, 0.03, 0.02),  # Charred black
 		"scar_type": "burn",
-		"canopy_clear_m": 26.0,
+		"canopy_clear_m": 34.0,
 	},
 	DamageType.BUNKER_COLLAPSE: {
 		"radius_cells": 4,

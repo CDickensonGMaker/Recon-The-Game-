@@ -31,10 +31,23 @@ const GRAVITY: float = 24.0
 const ANIM_WALK: Array[String] = ["zombie_walk", "walking_unarmed", "walk_forward"]
 const ANIM_RUN: Array[String] = ["zombie_run", "running_unarmed", "run_forward"]
 const ANIM_CRAWL: Array[String] = ["zombie_crawl", "wounded_crawl"]
-const ANIM_IDLE: Array[String] = ["zombie_idle", "idle_unarmed", "idle"]
 const ANIM_ATTACK: Array[String] = ["zombie_attack", "zombie_punching", "grenade_throw"]
 const ANIM_TEAR: Array[String] = ["zombie_scratch_idle", "zombie_attack", "digging"]
-const ANIM_FLINCH: Array[String] = ["zombie_reaction_hit", "stumble_hit"]
+const ANIM_FLINCH: Array[String] = ["zombie_reaction_hit", "zombie_stumbling", "stumble_hit"]
+
+## Five idles and three rises are in the shared library, and the whole reason to
+## have pulled them is that a crowd all playing loop 0 in lockstep is the single
+## clearest tell that they came out of a spawner. One is dealt per zombie at setup.
+const IDLE_POOL: Array[String] = [
+	"zombie_idle", "zombie_idle_b", "zombie_idle_c", "zombie_idle_d", "zombie_idle_e",
+]
+const RISE_POOL: Array[String] = [
+	"zombie_stand_up", "zombie_stand_up_b", "zombie_stand_up_c",
+]
+
+## This man's dealt idle, then the fallbacks for a library that predates the pull.
+var _idle_clips: Array[String] = ["zombie_idle", "idle_unarmed", "idle"]
+var _rise_clip: String = "zombie_stand_up"
 
 ## Zone multipliers. ADR-016 Amendment D for the body; HEAD is the headshot law -
 ## a head hit kills EVERYONE, undead included. A zombie you cannot drop with a
@@ -78,6 +91,11 @@ func setup(actor: ModelActor, prof: Dictionary, rnd: int = 1) -> void:
 	for k in prof:
 		profile[k] = prof[k]
 	health = int(profile["hp"])
+	# Dealt from the wave's rng where one is passed, so a seeded round rebuilds the
+	# same crowd (ADR-010); a bench spawning one by hand still gets variety.
+	var pick: int = int(prof.get("variant_roll", randi()))
+	_idle_clips = [IDLE_POOL[pick % IDLE_POOL.size()], "idle_unarmed", "idle"]
+	_rise_clip = RISE_POOL[pick % RISE_POOL.size()]
 
 
 func _ready() -> void:
@@ -142,7 +160,7 @@ func _execute(delta: float) -> void:
 			return
 
 	if target == null or not is_instance_valid(target):
-		_play_gait(ANIM_IDLE, "idle")
+		_play_gait(_idle_clips, "idle")
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()

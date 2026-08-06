@@ -23,10 +23,15 @@ const ARTY_ROUNDS_MAX: int = 12
 
 ## Air-delivered.
 const BOMB_BLAST_M: float = 16.0
-const NAPALM_DROPS: int = 5
-const NAPALM_SPACING: float = 15.0
-const NAPALM_BLAST_M: float = 20.0
-const NAPALM_BURN_S: float = 15.0
+## A NAPALM RUN IS A ROLLING WALL, NOT FIVE PUFFS (his ruling 2026-08-05: "it needs to be
+## a rolling huge explosion"). Nine cans laid 22m apart at 30m blast is a ~236m lane of
+## fire 60m wide, against the old ~100x40 - and it burns 25s, long enough that men have to
+## go round it. The cans fall in sequence as the aircraft flies the run, so the length IS
+## the roll. Starting numbers; the feel is his to discharge (ADR-015).
+const NAPALM_DROPS: int = 9
+const NAPALM_SPACING: float = 22.0
+const NAPALM_BLAST_M: float = 30.0
+const NAPALM_BURN_S: float = 25.0
 const CBU_BOMBLETS: int = 16
 const CBU_SPREAD: float = 22.0
 ## The cluster pattern is an ellipse laid ALONG the run; this is its cross-run axis.

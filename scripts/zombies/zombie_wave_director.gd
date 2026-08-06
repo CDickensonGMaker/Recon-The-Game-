@@ -145,6 +145,9 @@ func _spawn_one() -> void:
 		return
 	var point: Node3D = _spawn_points[_rng.randi() % _spawn_points.size()]
 	var prof: Dictionary = _profile_for_round()
+	# Drawn from the wave rng, not from randi() inside the zombie, so a seeded
+	# round rebuilds the identical crowd down to which idle each man loops.
+	prof["variant_roll"] = _rng.randi()
 	var tier: String = String(prof["body_tier"])
 
 	var made: Dictionary = ZombieRandomizer.spawn(_host, _rng, tier)
