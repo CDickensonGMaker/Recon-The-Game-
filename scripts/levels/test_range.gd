@@ -58,6 +58,14 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	print("[TEST RANGE] world built: %d site(s)" % (built.get("sites", []) as Array).size())
 
+	# NO AIR TRAFFIC ON A RANGE. build_patrol_world stands up AirTraffic, which runs the
+	# garrison replacement lift - that is the squads he saw spawn off to his right and jog
+	# into the firebase, and on a range it is pure noise between him and the treeline.
+	var at_node: Node = world.get_node_or_null("AirTraffic")
+	if at_node != null:
+		at_node.queue_free()
+		print("[TEST RANGE] AirTraffic removed - no replacement lifts, no flyovers")
+
 	_spawn_player_and_rto(plan)
 
 	# THE FIRE MENU IS THE HUD'S. MissionHUD listens to director.fire_menu_changed and
