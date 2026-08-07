@@ -40,7 +40,13 @@ func _run() -> void:
 
     # Rifle roles must draw from the M16 pool only.
     var m16_pool: Array = SquadSystem.WEAPON_BODY_POOLS["m16a1"]
-    var rifle_roles: Array = ["POINTMAN", "RIFLEMAN", "MEDIC"]
+    # MEDIC IS NOT POOLED. DETERMINISTIC_MOS_BODY (squad_system.gd:165) short-circuits
+    # pick_body_for_mos before it ever reads a pool, deliberately: "a medic who spawns as a
+    # rifleman is a medic nobody can pick out of a firefight". Listing him here demanded he
+    # come from the m16 pool - the exact behaviour that fix removed - and the variety check
+    # below would fail him a second time for correctly returning one body every roll. The
+    # deterministic section above already covers him.
+    var rifle_roles: Array = ["POINTMAN", "RIFLEMAN"]
     var seen: Dictionary = {}
     for mos in rifle_roles:
         var local_seen: Dictionary = {}
