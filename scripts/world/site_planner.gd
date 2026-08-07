@@ -126,28 +126,14 @@ func clear_and_flatten(center: Vector3, radius: float) -> void:
 		_grid.update_region(center, radius)
 
 
-## SOFT COVER: what lead goes THROUGH. In this war most "walls" are thatch,
-## bamboo and palm leaf - concealment, not cover - and a hooch wall stopping a
-## 7.62 was a lie the physics told. Bunkers, rock and vehicles are NOT on this
-## list: those actually stop a round. (00 buck - nine 0.33in balls - punches
-## brush better than anything else a man can carry, which is the historical
-## reason a point man in the bush carried a 12-gauge.)
-const _SOFT_NAME_HINTS: Array[String] = ["hooch", "hut", "thatch", "bamboo",
-	"fence", "shack", "lean_to", "leanto", "basket", "drying", "rack", "hedge",
-	"brush", "crate", "cart"]
-
-
-static func _is_soft_cover(model_name: String) -> bool:
-	var n: String = model_name.to_lower()
-	for h in _SOFT_NAME_HINTS:
-		if n.contains(h):
-			return true
-	return false
-
-
-## bullet_system reads the soft_cover/hard_surface GROUP off the exact collider a
-## round hits - never a parent. This puts one material on every collision object
-## under a structure, so nested GLB -col bodies answer the same as the root.
+## SOFT COVER: what lead goes THROUGH. In this war most "walls" are thatch, bamboo and
+## palm leaf - concealment, not cover - and a hooch wall stopping a 7.62 was a lie the
+## physics told. Bunkers, rock and vehicles are NOT soft: those actually stop a round.
+## Which model is which is AUTHORED DATA - CollisionTable.is_soft() is the one authority.
+##
+## bullet_system reads the soft_cover/hard_surface GROUP off the exact collider a round
+## hits - never a parent. This puts one material on every collision object under a
+## structure, so nested GLB -col bodies answer the same as the root.
 static func tag_ballistics(root: Node, soft: bool) -> void:
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():

@@ -410,12 +410,26 @@ the two docs above and code pointers win.
 
 ### THE SESSION ENTRY GATE
 
-**PLAYTEST R4 is the standing session entry gate — resolve it FIRST, before anything else.** It checks
-the ADR-029 open-patrol loop: boot seated at `fsb_main` → out the wire gate on one diegetic pointer →
-find a site unguided → fair contact → squad behaves → AAR banks at the gate
-(`_bank_patrol`, `scripts/missions/field_director.gd:1066`). It is discharged only by a **verified playtest by the
-Summoner** (ADR-015) — never by a probe, never by an agent's reading. Until he has verified it, gated
-feature work stays parked.
+**THE DEMO PLAYTHROUGH is the standing session entry gate — resolve it FIRST, before anything else.**
+
+**Changed 2026-08-06 by the Summoner's EA scope ruling.** Early Access ships the DEMO'S SHAPE —
+one firebase, one day, 30 real minutes (`scenes/levels/demo_game.tscn`, 512m, `plan_demo_world`),
+target 2026-09-06. The gate must check the product that is shipping.
+
+The checklist, straight off the arc (`scripts/levels/demo_game.gd:26-69`): boot seated on the bunk
+inside `fsb_main` → the squad moves out at T+10s and the day runs on the garrison schedule → night
+falls and the clock slows at the seam → the probe hits the wire (`PROBE_AT_S`) → the assault comes,
+45 men (`SIEGE_STRENGTH`) → the air beats walk the compass → gunships on station at `END_AT_S` →
+end card, and **the player lives**.
+
+It is discharged only by a **verified playtest by the Summoner** (ADR-015) — never by a probe,
+never by an agent's reading. Until he has verified it, gated feature work stays parked.
+
+**PLAYTEST R4 — the ADR-029 open-patrol checklist (boot at `fsb_main` → out the wire → find a site
+unguided → fair contact → squad behaves → AAR banks at `_bank_patrol`,
+`scripts/missions/field_director.gd:1797`) — is NOT retired. It is DEFERRED to post-launch with the
+open-patrol world.** It was never discharged, in 30 documents, and that fact is exactly why EA
+ships the demo's shape instead: the open-patrol loop has never been verified end to end.
 
 ### THE DECISION QUEUE — open every session by asking him, not by building
 

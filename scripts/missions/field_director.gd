@@ -1800,6 +1800,9 @@ func _bank_patrol() -> void:
 	if not report.is_empty():
 		toast.emit("ROUTE: %s" % report)
 	var result: Dictionary = state.build_result(true, "PATROL")
+	# Same read as fail_mission():210 - it is off _base_result on purpose (mission_state.gd:18-22),
+	# so every bank point must take it or that patrol's noncombatant count is discarded.
+	result["civilian_deaths"] = state.civilian_deaths
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits
 	if CampaignState.bank_reputation(DebriefScreen.compute_score(result)):

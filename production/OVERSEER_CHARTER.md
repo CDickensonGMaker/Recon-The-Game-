@@ -110,7 +110,7 @@ Perf first (a gating FPS number beats any feature) · no HUD affordance = doesn'
 
 ## 8. Process law & the mechanical gate (ADR-015)
 
-- **THE FEATURE GATE:** gated feature work stays parked while **PLAYTEST R4** is open. R4 is discharged only by a verified playtest by the Summoner (ADR-015) — never by a probe and never by an agent's reading. The open list lives in the tracking docs. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements.
+- **THE FEATURE GATE:** gated feature work stays parked while **THE DEMO PLAYTHROUGH** is open (changed 2026-08-06 by the EA scope ruling — EA ships the demo's shape, so the gate checks the shipping product). Discharged only by a verified playtest by the Summoner (ADR-015) — never by a probe and never by an agent's reading. The open list lives in the tracking docs. **Exempt (may proceed while gated):** bug fixes, presentation for already-shipped systems, standing-decree items, and evidence-gathering probes/measurements. **PLAYTEST R4 (open-patrol) is DEFERRED post-launch, not retired** — it was never discharged, and that is precisely why the demo's shape is what ships.
 - **Verification law:** "mitigated" / "likely fixed" never closes anything; name the proof.
 - **Truth law:** no comment or doc may claim behavior a probe hasn't verified.
 - **War Room:** loop-structure and pillar-touching decisions convene a council **before** build.
@@ -131,7 +131,7 @@ m16/ak/m14 re-exported, his 5h of clips landed), pipeline v1 live (`tools/viewmo
 V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 fittings reparent
 (manifest `_debt`) · extend manifest per new gun (ppsh next) · research §F multi-slot experiment.
 
-0. **PLAYTEST R4 (`RECONgame-qrg6`)** — session entry gate; nothing new ships until the Summoner verifies the ADR-029 open-patrol checklist (boot seated at `fsb_main` → wire gate → find a site unguided → fair contact → squad behaves → AAR banks at the gate, `field_director.gd:602-614`). Discharged only by a verified playtest (ADR-015), never by a probe.
+0. **THE DEMO PLAYTHROUGH** — session entry gate (changed 2026-08-06, EA scope ruling). Nothing new ships until the Summoner verifies the demo arc end to end: boot on the bunk in `fsb_main` → squad moves out at T+10s → the day on the garrison schedule → night seam → probe on the wire → the 45-man assault → gunships on station → end card, player alive (`scripts/levels/demo_game.gd:26-69`). Discharged only by a verified playtest (ADR-015), never by a probe. **PLAYTEST R4 (`RECONgame-qrg6`, the ADR-029 open-patrol checklist, `_bank_patrol` at `field_director.gd:1797`) is DEFERRED post-launch with the open-patrol world — never discharged, which is why it is not what ships.**
 1. ~~**Stealth restoration bundle**~~ ✅ **DONE** — witness guard live (`enemy_base.gd:736/756/2351`, probe `test_witness_rule`) and ±25 contact scoring live (`debrief.gd:25-26`); o18o closed.
 2. **Trust-restoration day (measured)** — ✅ `rendering_method` set (`forward_plus`, ADR-026 Amdt A) · ✅ ModelActor AABB fix · remaining: streaming off ≤2km, `MAX_THINK_TIME`, and the gating FPS number (mhfv; closes 8pbo, n2ij 1-2).
 3. **Player-State HUD layer (fmc8 m0)** — condition/consumables/stamina/breath + detection pip + save/load feedback + pause menu + prompt-key truth (fy45).

@@ -47,3 +47,38 @@ not here. This file is RECONgame's own conventions and asset-specific history.
   pintles) untouched in this pass - do not reshape it without a fresh War Room
   ruling; it was declared final ("shape correct Huey with blade animations that
   fits around the declared interior").
+
+## 2026-08-06 · VC/NVA gear variant library (headgear + packs)
+
+New file `assets/nva_vc/props/nva_vc_gear_variants.blend` + exported GLBs in
+`assets/nva_vc/props/headgear/` and `assets/nva_vc/props/packs/`, manifest
+`assets/nva_vc/props/nva_vc_gear.json`. Built by editing donors only (no
+procedural geometry): `pith_helmet` (nva_rifleman.glb) tightened by a uniform
+k=0.60 scale (measured brim-to-skull clearance -> ~0, matching the M1's own
+measured min clearance of 0.0002 m), band transplanted from
+`helmet_plain_band` (m1_plain.glb) and radius-scaled 0.90 to the pith's rim.
+`rice_hat` tightened more gently (k=0.85 - a real nón lá sits with an
+intentional air gap, not helmet-tight). Packs are the `gear_armory.blend`
+ruck kit (`ruck_body`/`flap`/`pocket_0-2`/`frame_l-r-bar`/`buckle_l-r`),
+recentred by translation onto `mixamorig:Spine1`, placed ~2 cm clear of
+`grunt_torso`'s own back surface (measured, not eyeballed - a first attempt
+put the pack on the CHEST because "+Y = front" was assumed from mesh volume,
+not confirmed by render; see the universal ledger entry).
+
+**Socket contract chosen: IDENTITY**, not the US helmets.json's non-identity
+rotation. Every headgear/pack mesh here is authored with vertices expressed
+directly in `(rig.matrix_world @ bone.matrix).inverted()` space, so a plain
+BoneAttachment3D with zero extra transform reproduces the fitted position.
+This is NOT bit-compatible with `assets/us/props/helmets/helmets.json`'s
+socket matrix - do not copy one convention onto the other's asset family.
+
+**Known gap - packs are not yet wired to `vc_nva_dresser.gd`.** Its
+`GEAR_TOGGLES` only toggles visibility of meshes already welded into the body
+(substring match on `pack_worn`/`pack_roll`); there is no `_rehang_pack()`
+mirroring `_rehang_headgear()`. This library's meshes carry the right
+substrings but need that function written before they reach runtime.
+
+**Two variants explicitly NOT built, reported instead of generated:**
+`pith_net` (no US helmet net mesh exists anywhere in the project - checked
+`helmets.json`'s parts lists and grepped the whole `assets/us` tree) and
+`pack_rice_tube` (no donor, no reference supplied).

@@ -1,0 +1,228 @@
+{
+  "socket_headgear": {
+    "bone": "mixamorig:Head",
+    "matrix_basis": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "note": "IDENTITY by construction: every headgear GLB is authored with its vertices already expressed directly in mixamorig:Head bone-local space (measured by baking the welded pith_helmet/rice_hat's true world position through (rig.matrix_world @ Head-pose-bone.matrix).inverted() - see nva_vc/props build script). A BoneAttachment3D on mixamorig:Head with this (identity) local transform, holding the mesh as a direct child, reproduces the fitted position exactly. This differs from assets/us/props/helmets/helmets.json, whose socket carries a non-identity rotation because that helmet was authored in a different reference frame - the two are not interchangeable, each is correct for its own asset family."
+  },
+  "socket_pack": {
+    "bone": "mixamorig:Spine1",
+    "matrix_basis": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "note": "IDENTITY by the same construction, on mixamorig:Spine1 (upper-mid back). Placement was measured against grunt_torso's own back surface at spine height (see build script) - frame/body sits ~2cm clear of the torso mesh."
+  },
+  "headgear": {
+    "pith_plain": {
+      "glb": "res://assets/nva_vc/props/headgear/pith_plain.glb",
+      "tris": 210,
+      "verts": 488,
+      "parts": [
+        "pith_plain_band",
+        "pith_plain"
+      ]
+    },
+    "pith_faded": {
+      "glb": "res://assets/nva_vc/props/headgear/pith_faded.glb",
+      "tris": 210,
+      "verts": 488,
+      "parts": [
+        "pith_faded_band",
+        "pith_faded"
+      ]
+    },
+    "pith_worn": {
+      "glb": "res://assets/nva_vc/props/headgear/pith_worn.glb",
+      "tris": 210,
+      "verts": 488,
+      "parts": [
+        "pith_worn_band",
+        "pith_worn"
+      ]
+    },
+    "pith_star": {
+      "glb": "res://assets/nva_vc/props/headgear/pith_star.glb",
+      "tris": 210,
+      "verts": 488,
+      "parts": [
+        "pith_star_band",
+        "pith_star"
+      ]
+    },
+    "pith_foliage": {
+      "glb": "res://assets/nva_vc/props/headgear/pith_foliage.glb",
+      "tris": 246,
+      "verts": 560,
+      "parts": [
+        "pith_foliage_leaf_2",
+        "pith_foliage_leaf_1",
+        "pith_foliage_leaf_0",
+        "pith_foliage_band",
+        "pith_foliage"
+      ]
+    },
+    "rice_hat_plain": {
+      "glb": "res://assets/nva_vc/props/headgear/rice_hat_plain.glb",
+      "tris": 44,
+      "verts": 24,
+      "parts": [
+        "rice_hat_plain"
+      ]
+    },
+    "rice_hat_frayed": {
+      "glb": "res://assets/nva_vc/props/headgear/rice_hat_frayed.glb",
+      "tris": 34,
+      "verts": 24,
+      "parts": [
+        "rice_hat_frayed"
+      ]
+    },
+    "cap_cloth": {
+      "glb": "res://assets/nva_vc/props/headgear/cap_cloth.glb",
+      "tris": 210,
+      "verts": 488,
+      "parts": [
+        "cap_cloth_band",
+        "cap_cloth"
+      ]
+    },
+    "bare": {
+      "glb": null,
+      "tris": 0,
+      "verts": 0,
+      "parts": [],
+      "note": "no mesh - dresser rolls no headgear"
+    }
+  },
+  "packs": {
+    "pack_satchel": {
+      "glb": "res://assets/nva_vc/props/packs/pack_satchel.glb",
+      "tris": 48,
+      "verts": 26,
+      "parts": [
+        "pack_worn_satchel"
+      ]
+    },
+    "pack_roll": {
+      "glb": "res://assets/nva_vc/props/packs/pack_roll.glb",
+      "tris": 20,
+      "verts": 12,
+      "parts": [
+        "pack_roll"
+      ]
+    },
+    "pack_ruck_light": {
+      "glb": "res://assets/nva_vc/props/packs/pack_ruck_light.glb",
+      "tris": 68,
+      "verts": 38,
+      "parts": [
+        "pack_worn_ruck_light"
+      ]
+    },
+    "pack_ruck_full": {
+      "glb": "res://assets/nva_vc/props/packs/pack_ruck_full.glb",
+      "tris": 236,
+      "verts": 132,
+      "parts": [
+        "pack_worn_ruck_full"
+      ]
+    },
+    "pack_frame": {
+      "glb": "res://assets/nva_vc/props/packs/pack_frame.glb",
+      "tris": 84,
+      "verts": 50,
+      "parts": [
+        "pack_worn_frame"
+      ]
+    },
+    "pack_ammo": {
+      "glb": "res://assets/nva_vc/props/packs/pack_ammo.glb",
+      "tris": 144,
+      "verts": 78,
+      "parts": [
+        "pack_worn_ammo"
+      ]
+    },
+    "pack_rpg": {
+      "glb": "res://assets/nva_vc/props/packs/pack_rpg.glb",
+      "tris": 520,
+      "verts": 298,
+      "parts": [
+        "pack_worn_rpg"
+      ]
+    },
+    "pack_medical": {
+      "glb": "res://assets/nva_vc/props/packs/pack_medical.glb",
+      "tris": 68,
+      "verts": 38,
+      "parts": [
+        "pack_worn_medical"
+      ]
+    },
+    "pack_none": {
+      "glb": null,
+      "tris": 0,
+      "verts": 0,
+      "parts": [],
+      "note": "no mesh - dresser rolls no pack"
+    }
+  },
+  "gaps": [
+    {
+      "item": "pith_net",
+      "reason": "No US helmet net mesh exists anywhere in the project (helmets.json parts list + a repo-wide grep for 'net' geometry both return zero hits). NOT BUILT."
+    },
+    {
+      "item": "pack_rice_tube",
+      "reason": "No donor exists in the project for the NVA rice sock (rolled cloth tube of rice, worn bandolier-style). No reference supplied. NOT BUILT."
+    }
+  ],
+  "dresser_contract_note": "vc_nva_dresser.gd's GEAR_TOGGLES only TOGGLES VISIBILITY of meshes already welded into the character body (by substring match on 'pack_worn'/'pack_roll'/'foliage_back'/'foliage_headgear'); it has no re-hang path for a separate prop library the way _rehang_headgear() does for HEADGEAR. All pack meshes here are named with the 'pack_worn'/'pack_roll' substrings per the letter of that contract, but wiring this library in requires a new _rehang_pack()-style function mirroring _rehang_headgear() (same BoneAttachment3D pattern, on socket_pack above) - it does not work automatically today. This needs a code change to actually reach these props at runtime."
+}

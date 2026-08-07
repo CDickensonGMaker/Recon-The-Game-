@@ -108,7 +108,8 @@ heat-scaled exfil → boarding catharsis.
 
 ## 4 · Systems of record (intent → as-built truth → state)
 
-The **⚠ lines are the audit's verified deviations** — each is beaded; fixing them is the build order (§8).
+The **⚠ lines are the audit's verified deviations.** Beads are retired (2026-07-22); the live queue
+is §8 THE SHIP ORDER, and anything not on it is post-launch.
 
 ### 4.1 Gunplay & damage (Pillar 1, ADR-016/003/004)
 - **One grammar: flat base × zone (ADR-016, Summoner-decreed).** Deterministic per hit; ALL variance
@@ -130,7 +131,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
   deleted 2026-07-23 by the Summoner; see CLAUDE.md).
 - ~~⚠ 4 legacy WW2 .tres / Mosin one-shot~~ **RESOLVED with ADR-016 (2026-07-10):** MP40/Kar98k deleted,
   Mosin retuned to 32 and Thompson to 17, vc_rifleman fires its stated SKS, descriptions honest.
-- ⚠ No gating FPS number exists; last measured 19–25 FPS with `rendering_method` unset (ADR-015/§8.2).
+- ⚠ No gating FPS number exists; last measured 19–25 FPS with `rendering_method` unset. **§8 step 1
+  is where it finally gets taken** — THE WALK / ONE DIG / THE BARRAGE have never been run.
 
 ### 4.2 Detection & stealth (Pillar 3, ADR-005/006)
 - Four tiers RELAXED→SUSPICIOUS→ALERT→COMBAT; visibility accumulator; NoiseBus with typed radii
@@ -240,7 +242,8 @@ The **⚠ lines are the audit's verified deviations** — each is beaded; fixing
 ### 4.11 UI & audio (Pillar 2)
 - Diegetic-first: barks, VO (162 wired via VOManager — toast text = subtitles), positional radio from the
   RTO's back, wildlife silence, weather. Minimal HUD; **sleek tactical modernization (Delta Force/R6) is
-  the declared next major focus (fmc8)** — milestone 0 is the Player-State layer (§8.3).
+  the declared next major focus (fmc8)** — but for Early Access this is scoped to **§8 step 7: one
+  day of legibility, not the research week.**
 - ⚠ Invisible today: condition/consumables/stamina/breath (no HUD), detection pip, save feedback.
 
 ---
@@ -312,21 +315,81 @@ The next project prompt must **not** carry these forward (all verified false 202
 
 ---
 
-## 8 · Build order (the standing decree, 2026-07-10)
+## 8 · Build order — THE SHIP ORDER (standing decree, 2026-08-06)
 
-0. **PLAYTEST R4 is the session entry point (`RECONgame-qrg6`)** — the ADR-029 open-patrol checklist: boot seated at `fsb_main` → out the wire gate on one diegetic pointer → find a site unguided → fair contact → squad behaves → AAR banks at the gate (`scripts/missions/field_director.gd:602-614`). Nothing NEW ships until the Summoner verifies it by playtest (ADR-015).
-1. **Stealth restoration bundle (THE one build):** real witness guard + delete the lying comments +
-   GUNSHOT 55→150m + ±25 contact scoring + optional village clear. Close o18o with a headless probe.
-2. **Trust-restoration day (measured):** `rendering_method` A/B → set it · ModelActor instance-space AABB
-   fix (k≈0.9 accept) · streaming OFF ≤2km · decal FIFO cap · wire MAX_THINK_TIME. Close 8pbo + n2ij(1,2)
-   with before/after numbers.
-3. **Player-State HUD layer (fmc8 milestone 0):** condition/consumables/stamina/breath + detection pip +
-   save/load feedback + pause menu + prompt-key truth.
-4. **Damage data finish:** WW2 .tres out, vc_rifleman→SKS, descriptions honest, CLAUDE.md law rewritten.
-5. **Hub conditions:** RECON 7-element briefing in the TOC + Huey ride restored.
-6. **Jungle feel pass:** wind sway, undergrowth, composition — priced by #2's numbers.
-7. **Law & ledger cleanup:** GameEnums (722 dead lines) + dead RTS code purged · roadmaps consolidated ·
-   PLAYER_MANUAL corrected (9 known gaps).
+> **The 2026-07-10 build order was DELETED by the Summoner, 2026-08-06.** Every item on it was
+> written for a game that shipped nothing on a date. Do not restore it, do not cite it, and treat
+> a reference to it in an older doc as dead.
+
+### THE TARGET
+
+**STEAM EARLY ACCESS, 2026-09-06. The product is THE DEMO'S SHAPE**
+(`scenes/levels/demo_game.tscn` · 512 m · `plan_demo_world` · `GameFlow.demo_mode`): one firebase,
+one day, ~30 real minutes — dawn on the bunk → the day out on a small AO → dusk return → night
+stand-to → probe on the wire → the assault → gunships circling, and the player lives.
+
+**The AO is NOT bare, and none of it may be cut.** `plan_demo_world`
+(`scripts/missions/mission_generator.gd:666-775`) stamps **one village** (`:716`), **one enemy
+camp** (`:770`), **a temple** (`:723`), paddy fields, a road net and 2–3 landmark craters — and
+**hunter teams are live** (`field_director.gd:112-182`: `_hunter_pool` 12, 2–4 per wave after first
+contact, converging on the `EvidenceLedger` lead, never on the player's transform). That is the day
+half of the arc.
+
+**Deferred post-launch by the same ruling:** the 1280 m open-patrol AO · *multiple* villages and
+camps · the unbounded patrol loop · village CQB interiors · tunnels · ADR-019 allegiance.
+**This supersedes §6.0's 2026-07-12 slice** (PATROL / VILLAGE RAID / BASE ASSAULT + village
+allegiance). That target is now the roadmap, not the product.
+
+**The sacrifice, named:** the ADR-029 open-patrol identity ships as ROADMAP. The store page says so.
+
+### 8.0 · THE GATE
+
+**THE DEMO PLAYTHROUGH is the session entry gate** (replaces PLAYTEST R4, 2026-08-06). Nothing new
+ships until the Summoner verifies the arc end to end (`scripts/levels/demo_game.gd:26-69`).
+Discharged only by his verified playtest (ADR-015) — never by a probe, never by an agent's reading.
+**PLAYTEST R4 is deferred post-launch with the open-patrol world. It was never discharged, in 30
+documents — which is precisely why it is not what ships.**
+
+### 8.1 · THE ORDER
+
+Full detail, evidence and costing: **`production/SHIP_AUDIT_2026-08-06.md`**. Estimates are in
+**ART-DAYS** at his measured velocity (**~1 large animation sequence OR 1–2 models per working
+day**). Code costs him **zero art-days** — that split drives all planning.
+**Budget: 13–19 art-days of ~26 available.**
+
+1. **KNOW WHERE YOU STAND.** Run the suite and record it (last baseline 2026-07-27: 101 pass /
+   18 fail / 14 error, unverified since). Then the three perf probes that have never run —
+   THE WALK · ONE DIG · THE BARRAGE. **Nothing below is trustworthy until this is done, and a red
+   suite IS the day.** *(This is where the long-open "gating FPS number" finally gets taken.)*
+2. **STOP THE BLEEDING.** Atomic saves — `save_manager.gd:99-107` writes in place with no
+   temp/rename/`.bak` and autosave rewrites slot 8 every 30 s, so a crash mid-write destroys it ·
+   reject future-version saves (`:177`, `save_data.gd:43`) · close the demo save-dir leak on the
+   abnormal-exit path · export hygiene (no `res://tests` dep, no live dev keys).
+3. **THE BUGS HE SEES FIRST.** Spawn-under-world · enemy dressing (**`EnemyBase` has no dresser
+   call at all** — every VC/NVA man is a clone in the 45-man climax, and the art is already on
+   disk) · cover-seek reads (men break 10 m early) · legs clipping trousers.
+4. **RECOVER WHAT IS ALREADY BUILT — before authoring anything new.** Wire the stranded M101
+   artillery crew (~497 authored channels in `fb_emplacement_m101.glb`, **zero readers**, off
+   behind one guard at `site_planner.gd:822-823`) · run the animation audit and the staged-GLB
+   sweep. **Costs zero art-days and gives days back.**
+5. **THE ONE ASSET EVERYTHING STANDS ON.** Final firebase export → regenerate
+   `firebase_v3_destructibles.json` (80 exact-name segments; a re-export without it breaks all 80
+   **and blinds SiegeDirector**) → verify the contract on it (skill: `recon-destructible-export`)
+   → firebase interiors and animations closed.
+6. **THE AO HE ASKED FOR.** More temples and scattered ruins through the jungle (plan-time, code) ·
+   the 3D clutter swap replacing the alpha-scissored billboard quads in `ground_clutter.gd:99`
+   (his 2026-08-04 ruling, unshipped) — **draw-call measured before it ships; this project is
+   call-bound and the cards exist for that reason.**
+7. **MAKE IT FEEL FINISHED.** The mounted MG must actually fire · M79 (the only reachable
+   stand-in) · UI legibility — **one scoped day, NOT the research week** *(the old Player-State HUD
+   milestone, scoped down to what Early Access actually needs)* · launcher/shotgun audio ·
+   balance the arc.
+8. **SHIP.** Three full playthroughs on the Intel UHD floor · store page, capsule art, trailer
+   (**his days, and they were never budgeted**) · build · Early Access.
+
+**Unruled, ask him early:** stretch the arc 30 → 45 min (every beat is tuned around `END_AT_S`
+1800), and replay value (fixed seed, one end card — cheap existing levers are varying `DEMO_SEED`
+or the arena's chained survival waves).
 
 ---
 

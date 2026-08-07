@@ -8,39 +8,31 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
   `civ_farmer_f` 1.52 / `civ_elder` 1.55 / `civ_kid` 1.26, barefoot under conical hats, plus
   `us_pilot_white` / `us_pilot_black`. Built on the v3 gear-cut base by `tools/make_civilians.py`,
   so they inherit the 100-clip library and the gib contract. Villages no longer need capsules. [4o7e]
-- **RTO + PRC-25 radio backpack** — needed twice: worn by the RTO ally AND the handset reused as the
-  player's FP support-call viewmodel. [i1vu, w8ep]
+- **RTO + PRC-25 radio backpack** — all finished. Just narrowing in on which radio man can the player use to call in strikes (should be any radioman)
 - **Slim-base remake of the 8 v1-rig characters** (us_grunt, us_grunt_black, us_medic, vc1/2/3/5/6)DONE. Us Grunt v3 is the source of truth for Us models as well as the workflow for making multiple variants of models. 
-- **Headgear library** — pith helmet, boonie, straw conical (VC), USMC utility cover, bare-head hair
-  variants. [qcsb] Half way done
-- **US visual variety** — helmet/torso/arm variants so the fireteam isn't clones. [qrzf] **HELMETS DONE
+- **Headgear library** — Finished for US. Working on the NVA VC headgear today 8/6
+  
+- **US visual variety** — helmet/torso/arm variants so the fireteam isn't clones. [qrzf] **HELMETS DONE/ Full Grunt Spawner Finished as of 8/4
   2026-08-04**: 15 M1 variants rebuilt off a high-quality reference (660–848 tris, flared brim, egg
   taper, rolled rim), props re-seated, and `grunt_dresser.gd` now applies a per-man tilt off the mission
   rng so a squad no longer wears one identical angle. The welded `helmet_shell_worn` was reshaped to
-  match on all nine soldiers and its 1.13 depth stretch removed. Torso/arm variety still open.
+  match on all nine soldiers and its 1.13 depth stretch removed. Torso/arm variety still open. Later date, update down the line problem. 
   State of record: `production/MODEL_SESSION_HANDOFF.md` §1b.
 - **NVA gunner for ZPU #2** + finalized sights mirrored. [htxn] Not finished yet. Animation will apply for both factions as it will be mannable by everyone, as well as another gun the player can mount. 
-- **Gore stump painting** on gore_tex (gib cells exist, cells unpainted). [yp0g] Gib exists, haven't seen it in too many playtests lately but its based on damage done and we haven't been going crazy with the damage yet. 
+- **Gore stump painting** Finished, works, part of making psx rigging entirely. 
 
 ## 2. WEAPONS — FP models still on stand-ins
-- **SKS** — shows a Kar98k. Enemy-common weapon, worst offender (capture hands you a WW2 rifle). Model made, working on getting the arm models and animations in one pass. Saving time and workflows.*
-- **M79** — shows an MP40. Model already built in weapons_us.blend, needs FP hold + export. Model made, working on getting the arm models and animations in one pass. Saving time and workflows.*
-- **CAR-15** — shows a Thompson. I think we have the v1 m16 model and the faux fps down the sights aiming. 
-- **FP radio handset** — blocks Batch 6 close. [of80] Were mid wiring up the loop for this. I have a placeholder phone model when you grab the phone as I have to do the phone animation with the arm rigs. In the middle of confirming the radio support loop. I also made a AC 47 spooky gun ship thats almost done instead of the square block we have. 
-- **M26 FP hold finalize + export** (model done, staged). [rzlk] Model made, working on getting the arm models and animations in one pass. Saving time and workflows.*
-- **MX-991 flashlight two-prop export** (tunnel rat). [awip] I thought I had exported this? but theres going to be some animations i want to add too. 
-- **MuzzlePoint verify per arms scene** — zero current viewmodels expose one in Godot. [vi32] Why is that? the models have them. 
-- Period models if ratified: BAR, Kar98k(return), Nagant. [ycib]
+-Sks is skipped for this first shipped wave. Gun is made hasn't been placed in hands. 
+- **M79** — working on making the right lazer for the viewmodel editor so the gun angles properly but aligns with the crosshairs. Model itself needs to be bigger and molded to player fps hands better. 60 percent done over all 
+- Car-15 will be a update/new weapon after game launches
+All of radio is done and works with the player. 
+
+- **M26 arms and animations made. need to align the arms along with bandages and radios in viewmodel editor. needs a pass in blender with hip placement markers similar to all the guns. 
+- **MX-991 flashlight This is in the game but has no flashlight wired to it. kinda doesn't matter since were gonna hold the tunnels off for a larger update. 
+- **MuzzlePoint all guns have them
 
 ## 3. ANIMATIONS (Caleb posing queue — priority order) I haven't worked on these animations too much but I think we can do them all soon. We also need to add a few more "seeking cover" animations or fix when the models switch from crouched to the leaning against the wall. I saw them taking cover a good 10m before they were actually to the building and than they slowly made their way to the wall. 
-1. **mg family** 8-clip set — unblocks vc_sapper + PIGMAN (two units rifle-holding LMGs)
-2. **launcher family** 8-clip set — nva_rpg rifle-holds the tube, worst visual read in combat
-3. **bolt family** 8-clip set — mosin/m70 carriers
-4. **pistol family** 8-clip set — lowest (no AI carries one yet)
-5. **Family reloads** where the motion differs most: mg belt / bolt cycle / launcher muzzle-load
-6. **Missing base clips:** grenade_throw, surrender_idle (hands-up), wounded_crawl,
-   death_from_the_left (deaths currently favor one side), stumble_hit, heli_board/heli_exit
-7. **Per-gun FP idle/fidget/inspect** (HL1-style; specs in fp_arms/IDLE_ANIM_SPEC.md). [4uuu]
+I want a new audit of whats there and not there. weve made 300+ animations in our library at this point. 
 
 ## 4. VEHICLES / AIRCRAFT
 - **C-47 Spooky** — model WIRED 2026-07-25: `ac47_spooky.glb` flies on `SpectreGunship` (`spectre_gunship.gd:50`), baked `prop_spin` clip looping in-game, left pylon turn so the port guns face the target. Still to do: model the guns that stick out of the left side. 
@@ -48,36 +40,26 @@ category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Cl
 - a4_skyhawk unwired (modeled, no scene). It should be in the game we have it already. 
 
 ## 5. STRUCTURES / WORLD
-- **Building interiors (CQB kit)** — 0%; every building is a shell. Gated epic.
-- **Tunnel interior kit** — entrance+ladder, corridors, rooms, props. [u0e0]
-- **Roads** — LIVE (as of 2026-07-24): `RoadNetwork.new(...)` builds the hub-and-spoke net (`scripts/missions/mission_generator.gd:562`) and carves the corridor through vegetation (`scripts/missions/mission_generator.gd:680`); guarded by `tests/test_roads.gd`.
-- **Bunker firing slits — next Blender pass, researched 2026-07-30, not started.** `fb_bunker_mg`/
+- **Building interiors for firebase, about half done. 
+- **Tunnel interior kit** — entrance+ladder, corridors, rooms, props. [u0e0] Gated and held for the post launch updates. 
+- **Roads** — LIVE (as of 2026-07-24): `RoadNetwork.new(...)` builds the hub-and-spoke net (`scripts/missions/mission_generator.gd:562`) and carves the corridor through vegetation (`scripts/missions/mission_generator.gd:680`); guarded by `tests/test_roads.gd`. I haven't seen any real roads in the game as of 8/6
+- **Bunker firing slits — We spent time working on this but I have yet to get inside a bunker and shoot out of it still to prove it happened. 
   `fb_bunker_fighting` are already flagged `COL_TRIMESH` in the generator (holes stay holes on
   trimesh; a box hull would seal them shut), but no aperture is actually modeled yet — nobody has
   confirmed one exists in the mesh. Full recipe (embrasure cut + matching firing step, sized off
   eye height not the yard floor) is in `production/blender/FIREBASE_BLENDER_HANDOFF.md` §2/§2b/§2.5.
   Note: modeling the slit only gets shootable geometry — an occupiable/AI-aware bunker position is
   a separate code task, nothing wires that up automatically today (only the standalone
-  `MGEmplacement` pintle mount has "man this position" logic, unrelated to the bunker meshes).
-- ~64 modeled+measured structures sit unplaced (placement/wiring work, not art). Alot of these models are old rips from the spring1944 opensource game we were using as holders or bad makes of things I had tried using those old models from a fwe months ago with the REALVIETNAMRTS project. Even our newer current firebase is okay but I need to spend like a full day making a more detailed firebase and I think I should do that too with the villages and make more finished buildings so they can be fleshed out. Also adding more geometry to the villages will be a win and allow some close quarters battles and more places for the players to have to clear out. 
+  `MGEmplacement` pintle mount has "man this position" logic, unrelated to the bunker meshes). IT works i just need the m60 model to swing around and move with the player and shoot too. it  doesn't produce any bullets or fire from the tip so i cant tell if im shooting anything. 
+
 
 ## 6. UI ART
 - Topo paper texture, medal/ribbon icons, MACV-SOG patch PNG, offer-card thumbnails. [fmc8 adjacent] There needs to be a whole day spent fixing and refining the whole UI/UX. its all total placeholder right now and worth something to spend our deep dive of a week learning more about the pros and cons of UI UX experiences in a deep research. 
 
-## 7. AUDIO (the emptiest bucket — ~10%)
-- ~~**Every weapon SFX is procedural-synth placeholder**~~ — **8 of 9 base guns now carry real
-  recordings (2026-07-27)**, from Snake's Authentic Gun Sounds. m16a1 · ak47 · rpd · ppsh41 · m60 ·
-  mosin · m70 · m14 have real near-report variants + distant reports; m70 and m14 had **no audio at
-  all** before this and were falling through to the generic rifle bank. `m1911` deliberately KEEPS
-  its synth render (no pistol stock in the pack; .45 is subsonic). Launchers (m79/m72_law/rpg2/rpg7)
-  and `shotgun` are still synth — no source exists for them.
-  Proof: `tests/test_audio_pack.tscn` (in-suite) + `tests/probe_audio_live.tscn` (real WASAPI driver,
-  8/8 weapons resolved to their own render).
-- **VO barks** — Vietnamese + US callouts for the bark system (lngs); voice_studio.py pipeline ready.
-- More ambience beds (only jungle_day.mp3 is real; night/rain/river missing).
-I just got a bunch more radio bits I edited with audacity mixing ai generated radio broadcasts and real broadcasts from the time mixed with radio ads and a radio hiss that covers the dead parts. 
+## 7. AUDIO Do a full audit of the audio because lots has changed in the good way. 
 
-## 8. TEXTURE OPTIMIZATION (the real 85MB)
+
+## 8. TEXTURE OPTIMIZATION (the real 85MB) This all still needs to happen and even if we could do it heedlessly over night would be great. I need to optimize all the models in the game. 
 - **ar5c**: crop/downscale the 3600×5700 faction sheets per-character in Blender, re-point UVs,
   re-export. NOTE (audit #3 proven): the loose `*_better textures.png` are LIVE external deps of the
   GLB imports — do not delete from disk; shrink them at the source. If this will help game performance its something will ahve to do soon but wont this change the way textures appear on units? also noticed that units legs appear thru their pants texture when they move sometimes. is that something we did wrong?
@@ -103,19 +85,6 @@ I just got a bunch more radio bits I edited with audacity mixing ai generated ra
 - New probes in the suite: `test_viewmodel_sync_contract` (bench camera == player camera),
   `test_viewmodel_poses` (no NEW stub ADS poses; ak47/m1911/mosin/rpd/rpg2 grandfathered).
 
-**Needs CALEB (in rough order):**
-1. Playtest the lens look (m16/ak/m14/ppsh re-exported; all guns render real-scale through the
-   shader now). Poses will read slightly shifted — bench-tune per gun (Ctrl+S), starting with your
-   mains. `ViewmodelLens.ENABLED = false` in viewmodel_lens.gd is the escape hatch if it's wrong.
-2. The 5 grandfathered stub ADS poses (ak47, m1911, mosin, rpd, rpg2 share a copy-paste
-   placeholder) — bench V-align + save, then shrink the test list.
-3. Authoring gap measured in the staging file (`tools/probe_all_rigs.py`): colt45, ithaca, m60,
-   m70, m79, m72_law, rpg2, rpg7, thompson rigs have NO clips staged (old GLBs are fossil-exporter
-   output); mosin/rpd/sks armatures have no animation at all. Each needs at least a staged idle
-   before it can join the strict manifest.
-4. `STALE_muzzle_*` fossil empties in fp_arms_rifle.blend — delete when convenient.
-5. `tools/gen_weapon_data.py` still emits pre-ADR-016 `base_damage = Array[int]` — stale
-   generator, fix or retire before next use.
 
 ## 2026-07-27 — Viewmodel pipeline v2: bleed-hole fix + contact-marker/rail contract
 
@@ -163,11 +132,6 @@ mag pairing and PPSh clips.
 - `tools/gen_radio_manifest.py` + `radio_manifest.json`: track lengths as data, so the radio walks its
   timeline without loading 96 MB of ogg at world load.
 
-**LICENSING — read before you package a build:** the folk music is a commercial recording and this
-repo is public, so `assets/audio/Radio Vietnam/music/*.ogg` is **gitignored**. A fresh clone gets a
-broadcast-only radio and one `push_warning`, by design — it is not a bug. `radio_manifest.json` names
-the tracks so the absence is legible rather than silent.
-
 **Fossil law (ADR-023):** 64 placeholder wavs + sidecars deleted for the five weapons retired by
 ADR-016 Amendment C (`car15`, `sks`, `thompson`, `kar98k`, `mp40`) — verified zero references outside
 `tests/`. Also removed `fire_mosin_2/3` synth clones that would otherwise have round-robined against
@@ -191,7 +155,7 @@ candidate slices cross-correlate 0.99–1.00 — they are the same shot copy-pas
   existing ADR-004 path. Awaiting his playtest.
 
 **Needs CALEB (adds to yesterday's list):**
-1. Playtest the M70 scope (equip sniper, hold aim): overlay look, reticle weight, 12° zoom taste.
+1. Playtest the M70 scope (equip sniper, hold aim): overlay look, reticle weight, 12° zoom taste. (STILL HAVENT CONFIRMED THE SNIPER WORKS YET, maybe hold off in the post launch updates)
 2. Eyeball the transplanted rows in Blender — esp. Mosin (sits high-forward of hands), LAW + Ithaca
    (re-staged onto arms), M70 bolt rest angle (armory's -63.8°).
 3. Colt45 sights ride the slide again (your ADS-tracks-the-rack call) — confirm when posing.
