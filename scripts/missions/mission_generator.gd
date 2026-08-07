@@ -722,6 +722,34 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	if temple != Vector3.ZERO:
 		p.sites.append({"kind": "temple", "center": temple})
 
+	# RUINS IN THE JUNGLE (his ask, 2026-08-06: "some random temples and ruins"). One temple
+	# was the whole of it, so every bearing but that flank was empty ground.
+	#
+	# stamp_temple_shrine ALREADY answers this: it draws mostly from the ruined prasat pool
+	# (prasat_ruin_01..10) and only 28% of the time from the intact set, so more temple sites
+	# IS more scattered ruins - no new site kind, no new art. Each one also joins
+	# `temple_shrines`, which is what the player's [F] SEARCH THE SHRINE reads, so every extra
+	# ruin is another thing to find rather than scenery.
+	#
+	# Bearings walk the compass away from the two authored flanks. The gate arc is deliberately
+	# skipped: the walk out already carries the first-sign craters, and a ruin on that bearing
+	# would be tripped over rather than discovered. Radii stay inside 230m - the slice is 512m,
+	# so the firebase sits 256m from every edge and anything further has no passable ground left.
+	var ruin_bearings: Array[float] = [1.15, -0.55, 3.05]
+	var ruin_radii: Array[float] = [205.0, 150.0, 185.0]
+	var extra_ruins: int = 0
+	for i in range(ruin_bearings.size()):
+		var r_dir: Vector3 = out_v.rotated(Vector3.UP, ruin_bearings[i])
+		var spot: Vector3 = _passable_near(world, rng,
+			fsb_center + r_dir * ruin_radii[i], 18.0, 70.0, 90,
+			SitePlanner.FSB_SITE_CLEARANCE)
+		if spot == Vector3.ZERO:
+			continue
+		p.sites.append({"kind": "temple", "center": spot})
+		extra_ruins += 1
+	print("[DEMO] jungle ruins: %d of %d placed (plus the authored temple)"
+		% [extra_ruins, ruin_bearings.size()])
+
 	# THE 200m LANDMARK. The demo used to declare zero first-signs, so the walk out was
 	# the one stretch with nothing in it - and under the 2026-08-03 rescope that stretch
 	# is exactly where the five-minute rule is won or lost. Two to three craters on the
