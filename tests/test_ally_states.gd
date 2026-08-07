@@ -67,6 +67,15 @@ func _part_advancing(a: AllyBase, e: EnemyBase) -> void:
 	a.target_last_seen_time = 0.0
 	a.suppression_level = 0.0
 	a.goal_timer = 99.0
+	# HE NEEDS SUPPORT TO CROSS OPEN GROUND. The posture merge put the ADVANCE score behind
+	# OPEN-GROUND DISCIPLINE (combat_goals.gd:120-121): "crossing needs covering fire or real
+	# aggression; a lone unsupported man holds and shoots", and its header records that an
+	# unpressed advance tops out at 0.61 and therefore loses to an incumbent ENGAGE - "which is
+	# why a night assault has always stalled". This probe staged a lone, unsupported, unpressed
+	# man and demanded he push, which is exactly the behaviour that discipline removed.
+	# Give him the covering fire the scorer names as the legitimate route, so the probe tests
+	# the ladder the game actually has.
+	a.has_covering_fire = true
 	a._evaluate_goals()
 	_check(a.current_state == Enums.AIState.ADVANCING, "goal ladder enters ADVANCING")
 	_check(a.current_goal == Enums.AIGoal.ADVANCE, "goal is ADVANCE")
