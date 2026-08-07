@@ -1,5 +1,9 @@
 # RECON — Design Document
 
+*Founding vision, approved 2026-07-19 (CLAUDE.md pillars merge). Read this as of-its-time prose:
+where it names a live system, `production/adr/` and `production/GAME_GUIDE.md` outrank it
+(ADR-014). `DESIGN.md:67-94` is explicitly superseded pre-merge text — do not cite it.*
+
 ## One-Sentence Pitch
 
 RECON is a systems-driven Vietnam combat-tour simulator where the player lives inside the war, not above it. What makes it unforgettable is the atmosphere of a lost 2002 PS1-era tactical shooter—*Parasite Eve* production values meets *Medal of Honor* memory-stain meets *SOCOM* squad tension—powered by emergent AI, persistent soldiers, and a randomly seeded world that tells a story with the player rather than to the player.

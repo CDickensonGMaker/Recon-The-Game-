@@ -17,8 +17,7 @@ back with your squad.
 
 One operation seed produces a populated area of operations stamped around the firebase — villages,
 enemy camps, trails, paddies, ambient ecology — and you patrol it. There is no briefing screen, no
-objective counter, and no exfil step: `"PATROL"` is the only mission type the generator produces
-(ADR-029; assigned at `scripts/missions/mission_generator.gd:782`).
+objective counter, and no exfil step: `"PATROL"` is the only mission type the generator produces (ADR-029; assigned at `scripts/missions/mission_generator.gd:782`).
 
 Arma/OFP sandbox bones. SOCOM, Vietcong and Men of Valor flavor. Hell Let Loose lethality. The
 RECON tabletop RPG (1982) as the numbers backbone. PSX-era low-poly 3D throughout — the look of a
@@ -81,8 +80,7 @@ git clone https://github.com/CDickensonGMaker/Recon-The-Game-.git
 cd Recon-The-Game-
 ```
 
-Open the folder in Godot 4.7 and run. Main scene is `scenes/main/main.tscn`
-(`project.godot:18`; the demo overrides it to `scenes/levels/demo_game.tscn` at `project.godot:22`).
+Open the folder in Godot 4.7 and run. As of 2026-08-07, the main scene is `scenes/main/main.tscn` (`project.godot:18`; the demo overrides it to `scenes/levels/demo_game.tscn` at `project.godot:22`).
 
 ### Development benches
 
@@ -129,7 +127,7 @@ RECONgame/
 
 ## Documentation
 
-Documents belong to exactly one class — **CANON**, **LOG**, or **DEAD** (ADR-014). Canon is
+As of 2026-08-07, documents belong to exactly one class — **CANON**, **LOG**, or **DEAD** (`production/adr/ADR-014-doc-hierarchy.md:35`). Canon is
 amended only by explicit decision, never by drift. If code and canon disagree, one of them is
 wrong and gets resolved, not quietly reconciled.
 
@@ -155,5 +153,5 @@ public build. See [CHANGELOG.md](CHANGELOG.md) for the development history.
 
 ## License
 
-All rights reserved. See [LICENSE](LICENSE). The source is public for visibility; it is not
-licensed for reuse, redistribution, or derivative works.
+All rights reserved as of 2026-08-07. See [LICENSE](LICENSE). The source is public for visibility;
+it is not licensed for reuse, redistribution, or derivative works.

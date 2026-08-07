@@ -1,10 +1,11 @@
 {
 	"_comment": "Test scripts that NOTHING invokes. run_all_tests.ps1 globs tests/test_*.tscn only, so a probe_* scene is dead weight until it is wired or renamed. THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'uninvoked', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>.",
 	"uninvoked": [
+		"probe_gun_streams",
 		"probe_perf_decay"
 	],
-	"count": 1,
-	"ceiling": 1,
+	"count": 2,
+	"ceiling": 2,
 	"grandfather_log": [
 		{
 			"date": "2026-07-19",
@@ -27,6 +28,13 @@
 				"probe_worldbuild_phase1",
 				"probe_zoning_histogram",
 				"test_world_minimap"
+			]
+		},
+		{
+			"date": "2026-08-07",
+			"reason": "2026-08-07: wired with the other four stranded probes, but it HANGS AT SHUTDOWN headless - reaches get_tree().quit() (RID-leak lines print) then never exits, on an unjoined Thread ('call wait_to_finish()'). Same exit fault class as test_night_sight. Left as probe_* so it cannot cost the suite 200s a run; the debt is declared here instead of hidden. Wire it when the thread teardown is fixed.",
+			"added": [
+				"probe_gun_streams"
 			]
 		}
 	]

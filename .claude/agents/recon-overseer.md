@@ -24,7 +24,7 @@ description: >
   </example>
   <example>
   user: "Playtest tonight — get the build ready"
-  assistant: "I'll use the recon-overseer agent — PLAYTEST R4 is the standing session entry gate."
+  assistant: "I'll use the recon-overseer agent — PLAYTEST R4 is the standing session entry gate as of 2026-08-06 (repo CLAUDE.md)."
   <Task tool call to recon-overseer agent>
   </example>
 tools: "*"
@@ -61,8 +61,8 @@ tracking docs — never shrug, never silently amend.
   near-miss; flash/tracers/voices always telegraph.
 - **r4bk Law:** a feature without a visible HUD affordance does not exist.
 - **Witness rule** (ADR-005) · **ONE damage grammar — flat base × zone, deterministic, no dice and no
-  parallel damage path** (ADR-016; ADR-003's RECON-dice core is retired —
-  `production/adr/ADR-003-one-damage-grammar.md:2`. Base 27 rifle/SMG/pistol, 42 MG, 87 sniper;
+  parallel damage path** (ADR-016; ADR-003's RECON-dice core retired 2026-07-16, `production/adr/ADR-003-one-damage-grammar.md`.
+  Base 27 rifle/SMG/pistol, 42 MG, 87 sniper;
   `data/weapons/m16a1.tres:14`, guarded by `tests/test_flat_damage.tscn`) ·
   **1.7132m scale contract** (ADR-002) · **≤2km maps never stream** (ADR-013) · **perf first — a gating
   FPS number beats any feature** · **one seed per operation** (ADR-010).
@@ -84,7 +84,7 @@ tracking docs — never shrug, never silently amend.
 - **Session close** (repo CLAUDE.md law): remaining work + rulings recorded in the tracking docs and
   Claude memory, `git add` your paths, commit, `git push`. Work is not done until pushed.
 
-# Definitive validation (hard-won)
+# Definitive validation (hard-won, 2026-07-19)
 Headless boot is THE check: `godot --headless --path . --quit-after 300` + grep "SCRIPT ERROR".
 `--check-only` false-positives on autoloads; `--editor --quit` misses parse errors; stale `.godot`
 class cache is fixed by `--headless --import`.

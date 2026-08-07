@@ -2,7 +2,7 @@
 
 All notable changes to RECON.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). RECON is pre-alpha with
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). As of 2026-08-07 RECON is pre-alpha with
 no tagged releases and no public build, so entries are grouped by dated development milestone rather
 than by version number. Every entry below is drawn from committed history.
 
