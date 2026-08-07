@@ -841,6 +841,10 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 	"chow_server": "mess_cook", "chow_server_line": "mess_cook",
 	"chow_diner": "mess_hall", "chow_trigger": "mess_hall", "chow_exit": "mess_hall",
 	"eat": "mess_hall", "queue": "mess_hall",
+	# Stage 6 of his diner loop (2026-08-07): they return the tray before they leave.
+	# chow_tray_dump was authored for it and had no marker to play at - mapped ahead of the
+	# export so the chow hall works the first time it lands. See CHOW_HALL_EXPORT_CONTRACT.md.
+	"chow_tray_return": "mess_hall",
 	# The working party. Digging, filling, burning, hauling water, washing down,
 	# policing the pad - the labour that fills a firebase day.
 	"dig": "detail", "burn": "detail", "latrine": "detail",
