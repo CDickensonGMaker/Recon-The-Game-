@@ -10,10 +10,23 @@ extends Node
 const CivScript := preload("res://scripts/world/civilian.gd")
 const SchedScript := preload("res://scripts/ai/civilian_schedules.gd")
 
+## Every occupation the compound actually seats: the curated posts
+## (SitePlanner.FSB_GARRISON_POSTS) plus every value in FSB_WORK_OCCUPATION. This list had
+## drifted behind the aid station, the working party, the chow hall and the guns, so the
+## probe failed on four occupations that were working correctly.
+##
+## `litter` and `patient` are deliberately absent from the SCHEDULE check below: LitterTeam
+## owns its three men whole with no working point and no schedule
+## (mission_generator.gd:956-958), and a patient is a man on a cot - one action for 24h is
+## what a wounded man DOES, so the "statue with a job title" rule does not describe him.
+## Both still have to pass the spawn checks, hence the two lists.
 const GARRISON_OCCUPATIONS: Array[String] = [
-	"sentry", "sentry_night", "quartermaster", "gun_crew",
-	"radioman", "mess_cook", "off_duty",
+	"sentry", "sentry_night", "quartermaster", "gun_crew", "gun_crew_arty",
+	"radioman", "mess_cook", "mess_hall", "medic", "detail", "off_duty",
 ]
+
+## Everything the compound may seat, including the men who legitimately hold one pose.
+const GARRISON_OCCUPATIONS_ALL: Array[String] = GARRISON_OCCUPATIONS + ["patient", "litter"]
 const MIN_MEN: int = 12
 ## Read from the planner, never restated here: a second copy of the ceiling is how
 ## the compound drifted to 29 men while this file still said 24.
@@ -135,10 +148,16 @@ func _check_world() -> void:
 			_fail("garrison man at %s is OUTSIDE the compound %s" % [xz, wire])
 		if not m.is_garrison:
 			_fail("garrison man spawned without is_garrison")
-		if m.actor == null or not CivScript.GARRISON_MEN.has(m.actor.unit):
+		# models_for() is the ONE authority on which body may stand which post
+		# (civilian.gd:174-175) - the aid station is the surgeon, not a rifleman bent over a
+		# cot. Checking the raw GARRISON_MEN pool bypassed that and failed the surgeon for
+		# being exactly what he is meant to be. Asking the resolver is also STRICTER: it
+		# catches a man wearing a body that is legal somewhere but not at HIS post.
+		if m.actor == null or not CivScript.models_for(m.occupation).has(m.actor.unit):
 			var got: String = m.actor.unit if m.actor != null else "<no actor>"
-			_fail("garrison man wears '%s', not a US model" % got)
-		if not GARRISON_OCCUPATIONS.has(m.occupation):
+			_fail("garrison man at '%s' wears '%s', not a body legal for that post"
+				% [m.occupation, got])
+		if not GARRISON_OCCUPATIONS_ALL.has(m.occupation):
 			_fail("garrison man has occupation '%s'" % m.occupation)
 		if m._bt == null:
 			_fail("garrison man never had build_bt() called - his schedule is inert")
