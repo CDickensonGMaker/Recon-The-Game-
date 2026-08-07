@@ -31,3 +31,4 @@ recoil_climb_per_shot = 0.065
 recoil_climb_max = 1.8
 recoil_recovery = 13.0
 model_path = ""
+ads_rotation = Vector3(0, 0, 0)

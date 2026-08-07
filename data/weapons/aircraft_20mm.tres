@@ -34,3 +34,4 @@ recoil_climb_per_shot = 0.0
 recoil_climb_max = 0.0
 recoil_recovery = 1.0
 fire_volume_db = 4.0
+ads_rotation = Vector3(0, 0, 0)

@@ -50,8 +50,8 @@ func _check_rack_membership() -> void:
 		if data.model_path.ends_with(ARMS_SUFFIX):
 			expected.append(path)
 
-	if expected.size() != 11:
-		_fail("expected 11 weapons with arms viewmodels, data says %d" % expected.size())
+	if expected.size() != 12:
+		_fail("expected 12 weapons with arms viewmodels, data says %d" % expected.size())
 
 	var served: Array[String] = ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1)
 	for path: String in expected:
@@ -158,9 +158,10 @@ func _check_negative_controls() -> void:
 	if wh.weapon_condition >= 99.99:
 		_fail("cycling weapons laundered a dirty rifle back to clean")
 
+	# m72_law (empty model_path) and rpg7/m26_grenade (never in RACK) have no
+	# arms viewmodel and must stay off the rack. m79 is complete and belongs on it.
 	var top: Array[String] = ArmorersBench.rack_for_tier(CampaignState.TITLES.size() - 1)
-	if top.has("res://data/weapons/m79.tres") \
-			or top.has("res://data/weapons/m72_law.tres") \
+	if top.has("res://data/weapons/m72_law.tres") \
 			or top.has("res://data/weapons/rpg7.tres") \
 			or top.has("res://data/weapons/m26_grenade.tres"):
 		_fail("a weapon with no arms viewmodel reached the rack")
