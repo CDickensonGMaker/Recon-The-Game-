@@ -538,6 +538,39 @@ func _play_garrison(want: String) -> void:
 				"sitting_idle_b", "idle_unarmed_3"]
 			actor.play_first(chain)
 			return
+	# THE DINER SIDE. The servery above shipped wired; the twelve clips the men EATING
+	# use had no caller at all, so the cook stirred and the server ladled to an empty
+	# hall. `role` is the marker that seated him (site_planner FSB_WORK_OCCUPATION):
+	# queue/eat/chow_diner/chow_exit are different jobs at the same meal.
+	if occupation == "mess_hall":
+		if want == "walking_unarmed":
+			if role == "queue":
+				actor.play_first(["chow_queue_walk", "walk_forward", "walking_unarmed"])
+			else:
+				actor.play_first(["chow_tray_carry_walk", "chow_carry_walk",
+					"walk_forward", "walking_unarmed"])
+			return
+		if want == "stooped" or want == "seated":
+			if role == "queue":
+				# Shuffling forward, waiting, taking the tray - three beats so a queue
+				# is not one pose repeated down the line.
+				@warning_ignore("integer_division")
+				var qb: int = (_idle_seed / 7) % 3
+				var q: Array[String] = ["chow_queue_step", "chow_tray_wait",
+					"chow_tray_receive"]
+				actor.play_first([q[qb], "chow_tray_wait", "idle_unarmed_3", "idle"])
+				return
+			if role == "chow_exit":
+				actor.play_first(["chow_tray_dump", "chow_stand_up", "idle_unarmed_3"])
+				return
+			# At table. Eating and talking alternate per man so a full bench is not
+			# twenty men chewing in unison.
+			@warning_ignore("integer_division")
+			var eb: int = (_idle_seed / 11) % 4
+			var table: Array[String] = ["chow_eat_seated", "chow_talk_seated_a",
+				"chow_eat_seated", "chow_talk_seated_b"]
+			actor.play_first([table[eb], "chow_eat_seated", "sitting_idle_b", "sitting"])
+			return
 	if occupation == "quartermaster":
 		if want == "walking_unarmed":
 			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
