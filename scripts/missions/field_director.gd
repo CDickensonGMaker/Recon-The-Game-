@@ -1190,7 +1190,7 @@ var surveyed_sites: Array[Dictionary] = []     ## {pos: Vector3, kind: String, r
 ## THE CIRCLES (patrol-contract decree, 2026-07-28). Places the world offers this
 ## patrol. The player assigns the ORDER; he may also ignore them entirely - they are
 ## OFFERED, never REQUIRED, and skipping one is not a failure of anything.
-const PATROL_OBJECTIVE_COUNT: int = 4
+const PATROL_CIRCLE_COUNT: int = 4
 var patrol_objectives: Array[Dictionary] = []  ## {pos: Vector3, kind: String}
 var patrol_location := Vector3.ZERO
 var patrol_location_kind: String = ""
@@ -1380,7 +1380,7 @@ func _pick_patrol_objectives() -> void:
 	pool.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return origin.distance_squared_to(a.pos as Vector3) \
 			< origin.distance_squared_to(b.pos as Vector3))
-	var want: int = mini(PATROL_OBJECTIVE_COUNT, pool.size())
+	var want: int = mini(PATROL_CIRCLE_COUNT, pool.size())
 	for i in range(want):
 		var idx: int = int(round(float(i) * float(pool.size() - 1) / float(maxi(1, want - 1))))
 		patrol_objectives.append(pool[idx])
@@ -1771,9 +1771,9 @@ func bank_field_marks() -> void:
 	CampaignState.pencil_marks = state.pencil_marks.duplicate(true)
 
 
-## Metres from an objective at which the AAR counts it as walked. Generous on purpose:
+## Metres from a CIRCLE at which the AAR counts it as walked. Generous on purpose:
 ## the man was THERE, and the sheet's own circle is a general area, not a trigger.
-const OBJECTIVE_REACHED_M: float = 70.0
+const CIRCLE_WALKED_M: float = 70.0
 
 
 ## What he planned against what he actually walked. ADR-006 pays for what was learned,
@@ -1790,7 +1790,7 @@ func _route_report() -> String:
 			continue
 		var p: Vector3 = patrol_objectives[oi].pos as Vector3
 		for v in _visited_locations:
-			if (v as Vector3).distance_to(p) <= OBJECTIVE_REACHED_M:
+			if (v as Vector3).distance_to(p) <= CIRCLE_WALKED_M:
 				walked += 1
 				break
 	return "PLANNED %d, WALKED %d" % [order.size(), walked]
