@@ -131,7 +131,27 @@ func _run() -> void:
 		_fail("already-seated body accepted into a second seat")
 
 	# --- 4. clips: pilots in cockpit_idle, everyone else sitting; both loop
+	# THE PILOT CLIP IS CHOSEN BY FLIGHT STATE (seat_system.gd:122-130), and State.IDLE is not
+	# the ground - air_traffic.gd:332,344 holds an ORBITING ship in IDLE between waypoints. A
+	# freshly instantiated huey.tscn is therefore airborne as far as the clip is concerned, so
+	# asserting the grounded clip without setting a state tested nothing the game does.
+	heli.state = Helicopter.State.LANDED
 	await get_tree().process_frame  # let glue/anim tick once
+	# Touchdown runs the panel ONCE (PILOT_PANEL_S) and then falls through to the hold, so the
+	# grounded clip is a SEQUENCE, not a state. Asserting the hold the instant she lands caught
+	# the one-shot and read as a failure.
+	for seat_name in modeled:
+		if not String(seat_name).begins_with("seat_pilot"):
+			continue
+		var panel_model: ModelActor = null
+		for c in bodies[seat_name].get_children():
+			if c is ModelActor:
+				panel_model = c as ModelActor
+		if panel_model != null and panel_model.current_action != SeatSystem.PILOT_CLIP_PANEL:
+			_fail("%s on touchdown playing '%s', wanted the panel run '%s'" % [
+				seat_name, panel_model.current_action, SeatSystem.PILOT_CLIP_PANEL])
+	await get_tree().create_timer(SeatSystem.PILOT_PANEL_S + 0.5).timeout
+
 	for seat_name in modeled:
 		var body2: CharacterBody3D = bodies[seat_name]
 		var model: ModelActor = null
@@ -148,6 +168,20 @@ func _run() -> void:
 			_fail("%s occupant playing '%s', wanted '%s'" % [seat_name, model.current_action, want])
 		else:
 			print("  %s: playing '%s' OK" % [seat_name, want])
+
+	# The other half of the same contract: put her in the air and the pilots take the controls.
+	heli.state = Helicopter.State.FLYING
+	await get_tree().create_timer(0.3).timeout
+	for seat_name in modeled:
+		if not String(seat_name).begins_with("seat_pilot"):
+			continue
+		var pm: ModelActor = null
+		for c in bodies[seat_name].get_children():
+			if c is ModelActor:
+				pm = c as ModelActor
+		if pm != null and pm.current_action != SeatSystem.PILOT_CLIP_FLYING:
+			_fail("%s airborne playing '%s', wanted '%s'" % [
+				seat_name, pm.current_action, SeatSystem.PILOT_CLIP_FLYING])
 
 	# --- 5. unseat all: processing + collision restored at the exit point
 	var i: int = 0
