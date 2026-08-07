@@ -118,7 +118,13 @@ func _run() -> void:
 	at._dispatch("huey")
 	var n2: int = at.get_in_flight().size()
 	_retire_all(at)
-	_expect(n1 >= 1 and n1 <= 3, "unforced huey flight sized 1..3 (got %d)" % n1)
+	# Read the range off the table instead of hardcoding it: this asserted 1..3 from before
+	# his 2026-07-28 ruling ("heuys fly in packs of 6 to 9") and has been failing on a
+	# correct pack ever since. A lone ship is still legal - FORMATION_CHANCE leaves room for
+	# one - so the floor is 1, but the ceiling has to track the table.
+	var huey_max: int = int((AirTraffic.FORMATION_SIZES["huey"] as Array)[1])
+	_expect(n1 >= 1 and n1 <= huey_max,
+		"unforced huey flight sized 1..%d (got %d)" % [huey_max, n1])
 	_expect(n1 == n2, "same sim hour rolls the same formation (%d vs %d)" % [n1, n2])
 
 	print("")
