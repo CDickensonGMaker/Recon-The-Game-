@@ -61,11 +61,20 @@ func _test_enemy_retreat_wired() -> int:
 	var src: String = FileAccess.get_file_as_string("res://scripts/enemies/enemy_base.gd")
 	var goals: String = _func_body(src, "func _evaluate_goals()")
 	var fails: int = 0
-	if goals.find("EnemySquad.is_broken(squad_id)") < 0 or goals.find("retreat_score") < 0:
-		printerr("FAIL: squad-break must add to retreat_score in _evaluate_goals (layered on the ladder)")
+	# `retreat_score` was a LOCAL in _evaluate_goals until the posture merge (8074af38) moved
+	# goal scoring into the shared CombatGoals scorer. The contract did not change - the break
+	# must still ride the existing ladder rather than steer the man directly - so assert the
+	# contract, not the vanished local: _evaluate_goals stamps the break onto the goal context,
+	# and the shared scorer is what reads it.
+	if goals.find("EnemySquad.is_broken(squad_id)") < 0 or goals.find("squad_broken") < 0:
+		printerr("FAIL: _evaluate_goals must stamp the squad break onto the goal context")
+		fails += 1
+	var scorer: String = FileAccess.get_file_as_string("res://scripts/ai/combat_goals.gd")
+	if scorer.find("squad_broken") < 0:
+		printerr("FAIL: CombatGoals must READ squad_broken - a break nothing scores is not layered")
 		fails += 1
 	if fails == 0:
-		print("  [OK] enemy withdrawal layered on the existing retreat goal")
+		print("  [OK] enemy withdrawal layered on the shared goal ladder")
 	return fails
 
 
@@ -107,7 +116,11 @@ func _test_one_break_authority() -> int:
 	if src.find("EnemySquad.break_state(") < 0:
 		printerr("FAIL: SquadSystem must break via EnemySquad.break_state (one authority)")
 		fails += 1
-	if src.find("BREAK_RATIO:") >= 0 or src.find("0.45") >= 0:
+	# Scanning for the bare literal "0.45" matched squad_system.gd:137's MG accuracy tuple
+	# `Vector2(0.45, 0.95)` - a weapon figure with nothing to do with morale - so this probe
+	# reported a second morale authority that does not exist. Match the SYMBOL, not a number
+	# that any unrelated tuning value can collide with.
+	if src.find("BREAK_RATIO") >= 0:
 		printerr("FAIL: SquadSystem carries its own break threshold - two morale authorities")
 		fails += 1
 	if fails == 0:
