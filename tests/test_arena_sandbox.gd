@@ -41,8 +41,12 @@ func _run() -> void:
 		await get_tree().physics_frame
 
 	_t_forts_spawn(arena)
-	_t_fire_support(arena)
+	# Sapper breach BEFORE fire support: T5 below calls real bombs/napalm/arty/mortar/
+	# spectre/cbu at the player's aim point near the fort line, and CAS travel time means
+	# ordnance can land WHILE T2/T3 is still sampling. That contaminated the "control"
+	# segment - the isolation test needs to own the fort line while it runs.
 	await _t_sapper_breach(arena)
+	_t_fire_support(arena)
 	_t_tunnel(arena)
 
 	print("\n%s: %d failure(s)" % ["PASS" if _fail == 0 else "FAIL", _fail])
@@ -57,7 +61,10 @@ func _t_forts_spawn(arena: Node3D) -> void:
 		if not is_instance_valid(f):
 			continue
 		match str(f.get("kind")):
-			"sandbag": sand += 1
+			# fire_support_bench.gd:48's TARGET_KINDS names this kind "sandbag_wall", never
+			# bare "sandbag" - this probe was matching a string that appears nowhere in the
+			# codebase and so always counted 0.
+			"sandbag_wall": sand += 1
 			"wire": wire += 1
 	print("forts: %d sandbag, %d wire" % [sand, wire])
 	if sand < 3:
@@ -105,6 +112,17 @@ func _t_sapper_breach(arena: Node3D) -> void:
 		_f("no sappers spawned by _launch_arena_sappers")
 		return
 	var s: Node3D = sappers[0]
+	# Isolate the probe: ARENA_SAPPER_COUNT (3) all go for the wire line at once, and the
+	# control-segment check below needs ground zero to be the ONLY blast on the line - a
+	# second sapper's charge landing near the "control" segment reads as blast overreach
+	# from OUR charge when it is really an unrelated detonation. Disarm every sapper but
+	# the one under test so only its charge can go off.
+	for other in sappers:
+		if other == s:
+			continue
+		for c in (other as Node).get_children():
+			if c is SapperCharge:
+				(c as SapperCharge).disarm()
 	var target: Vector3 = Vector3.ZERO
 	for c in s.get_children():
 		if c is SapperCharge:
@@ -122,14 +140,35 @@ func _t_sapper_breach(arena: Node3D) -> void:
 	var near_before: int = _forts_within(arena, gz_pos, 6.0)
 	# Force the crossing: put the sapper on its objective so the live charge detonates.
 	s.global_position = target
+	# This probe isolates the PLANT -> DETONATE mechanic, not the sapper's odds of surviving
+	# a live firefight to reach the wire - he now stands still in the open, in the US squad's
+	# LOS, for the whole 3s plant, and take_damage (enemy_base.gd:2334) killed him inside the
+	# first second on every run before he ever got to plant. sapper_charge.gd:194's own comment
+	# says death-during-plant is a real, INTENDED outcome in play ("a moment you can shoot him
+	# during") - so that is not a bug to fix here. Give him HP the probe's squad cannot burn
+	# through in 3s so the mechanic under test - not the firefight around it - decides the run.
+	s.set("current_hp", 999999)
+	s.set("max_hp", 999999)
+	# NOT "does the sapper die" - sapper_charge.gd:194's own comment says the opposite is the
+	# point: "the charge is a THING now (PlacedSatchel)... which is what lets him live through
+	# his own work." He kneels for PLANT_SECONDS (3s), spawns a PlacedSatchel, and withdraws
+	# alive; the satchel itself burns FUSE_S (5s, placed_satchel.gd:22) before it blows. So the
+	# real "did it detonate" signal is the PlacedSatchel node appearing and then being freed by
+	# its own _blow() - not the sapper's death, and not a 40-frame (~0.67s) window that ends
+	# before the 3s plant even finishes.
+	var saw_satchel: bool = false
 	var blew: bool = false
-	for _i in range(40):
+	for _i in range(600):
 		await get_tree().physics_frame
-		if not is_instance_valid(s) or s.is_dead():
+		var present: bool = _find_placed_satchel(get_tree().root) != null
+		if present:
+			saw_satchel = true
+		elif saw_satchel:
 			blew = true
 			break
 	if not blew:
-		_f("sapper never detonated after reaching its objective")
+		_f("sapper charge never detonated after reaching its objective (satchel seen: %s)"
+				% saw_satchel)
 		return
 	var near_after: int = _forts_within(arena, gz_pos, 6.0)
 	print("sapper breach: forts within 6m of ground zero %d -> %d | control at %.1fm standing: %s" % [
@@ -163,6 +202,16 @@ func _t_tunnel(arena: Node3D) -> void:
 		_f("satchel not consumed collapsing the mouth")
 	if still_grouped:
 		_f("mouth still in tunnel_entrances after collapse - not removed from the world")
+
+
+func _find_placed_satchel(n: Node) -> PlacedSatchel:
+	if n is PlacedSatchel:
+		return n as PlacedSatchel
+	for c in n.get_children():
+		var r: PlacedSatchel = _find_placed_satchel(c)
+		if r != null:
+			return r
+	return null
 
 
 func _nearest_fort(arena: Node3D, p: Vector3) -> Node3D:

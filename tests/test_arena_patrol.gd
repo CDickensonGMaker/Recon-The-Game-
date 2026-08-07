@@ -67,6 +67,12 @@ func _ready() -> void:
 	_arena.set("spawn_player", false)
 	_arena.set("spawn_hud", false)
 	_arena.set("bench_dressing", false)
+	# Build it the way it SHIPS: scenes/levels/ai_stress_arena.tscn sets both of these
+	# true. ArenaScript.new() otherwise takes the `false` defaults (ai_stress_arena.gd
+	# :170-171), which is a configuration that never ships - see the comment on check
+	# (e) below for why that matters to the nav-warning signal.
+	_arena.set("spawn_cover", true)
+	_arena.set("spawn_vegetation", true)
 	add_child(_arena)
 
 
@@ -191,10 +197,10 @@ func _finish() -> void:
 		print("FAIL (d): VC wave %d not in 16-26" % _wave_vc)
 	# (e) nav baked and nobody off-map / in a wall
 	# POLY COUNT IS NOT THE SIGNAL, and a floor here would fail forever on a correct bake:
-	# this probe builds the arena with ArenaScript.new(), so spawn_cover and spawn_vegetation
-	# take their `false` defaults (:175-176) rather than the .tscn's `true`. A bare floor
-	# inside a wall ring triangulates to exactly 2 polygons. The honest signal is the warning
-	# count below - a path that failed - not how many triangles the mesh has.
+	# even with spawn_cover/spawn_vegetation forced true above (matching the shipped
+	# .tscn), a sparse arena can still triangulate to very few polygons. The honest
+	# signal is the warning count below - a path that failed - not how many triangles
+	# the mesh has.
 	if nav_polys <= 0:
 		_failures += 1
 		print("FAIL (e): navmesh did not bake (0 polys)")
