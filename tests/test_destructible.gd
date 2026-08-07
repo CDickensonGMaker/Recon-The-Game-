@@ -46,6 +46,12 @@ func _run() -> void:
 	d.global_position = Vector3(10.0, 0.0, 10.0)
 	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
 
+	# THE RUIN MUST RESOLVE, or destruction silently goes back to a pop-out. Every kind in the
+	# map names a real GLB and yields a real mesh - a renamed ruin asset fails here, not in play.
+	for k in Destructible.RUIN_FOR.keys():
+		if Destructible.ruin_mesh_for(String(k)) == null:
+			_fail("kind '%s' maps to %s but no mesh came out of it" % [k, Destructible.RUIN_FOR[k]])
+
 	# GUNFIRE NEVER DEMOLISHES (Summoner, 2026-08-07). A round PENETRATES a wall; only an
 	# explosion brings it down. Enough PHYSICAL damage to kill it twice over must not scratch it.
 	d.take_damage(9999, Enums.DamageType.PHYSICAL)

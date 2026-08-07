@@ -19,6 +19,53 @@ static var _destroy_queue: Array[Node] = []   ## doomed destructibles awaiting t
 var kind: String = ""
 var hp: int = 110
 var destroyed_mesh: Mesh = null   ## optional rubble mesh to swap in; null = just clear the intact one
+
+## THE SWAP IS HIDDEN BY THE BLAST (Summoner, 2026-08-07). A building does not dissolve - it is
+## blown apart and the burned shell is what is left. The intact->ruin swap is instant and would
+## read as a pop, so the explosion plays over it on the same frame and the eye never catches it.
+## One generic burned hut serves every house until per-building burned versions are authored;
+## that is ART, and the code needs no change when they land - extend this map.
+const RUINS_DIR: String = "res://assets/world/building models/structures/ruins/"
+const RUIN_FOR: Dictionary = {
+	"hut_thatch": "burned_hut.glb",
+	"hut_timber": "burned_hut.glb",
+	"bunker": "destroyed_bunker.glb",
+	"bunker_mg": "destroyed_bunker.glb",
+	"tower": "rubble_heap_tall.glb",
+	"sandbag_stack": "rubble_pile.glb",
+}
+## A building's blast is heavier than a grenade's, and thatch burns.
+const BLAST_FOR: Dictionary = {
+	"hut_thatch": "explosion_napalm",
+	"hut_timber": "explosion_napalm",
+}
+static var _ruin_cache: Dictionary = {}
+
+
+## First mesh out of a ruin GLB, cached per kind. Returns null when the kind has no ruin
+## authored - the caller then falls back to simply clearing the intact mesh.
+static func ruin_mesh_for(k: String) -> Mesh:
+	if _ruin_cache.has(k):
+		return _ruin_cache[k] as Mesh
+	var found: Mesh = null
+	if RUIN_FOR.has(k):
+		var path: String = RUINS_DIR + String(RUIN_FOR[k])
+		if ResourceLoader.exists(path):
+			var ps: PackedScene = load(path) as PackedScene
+			if ps != null:
+				var inst: Node = ps.instantiate()
+				var stack: Array[Node] = [inst]
+				while not stack.is_empty():
+					var n: Node = stack.pop_back()
+					var mi := n as MeshInstance3D
+					if mi != null and mi.mesh != null:
+						found = mi.mesh
+						break
+					for c in n.get_children():
+						stack.append(c)
+				inst.free()
+	_ruin_cache[k] = found
+	return found
 var _dying: bool = false
 var _dead: bool = false
 
@@ -82,6 +129,11 @@ func _do_destroy() -> void:
 	if _dead:
 		return
 	_dead = true
+	if destroyed_mesh == null:
+		destroyed_mesh = ruin_mesh_for(kind)
+	# Over the swap, not after it: same frame, so the intact->ruin cut lands inside the flash.
+	GunFX.play_explosion_3d(get_tree().current_scene if is_inside_tree() else self,
+		global_position, String(BLAST_FOR.get(kind, "explosion_heavy")))
 	for c in get_children():
 		if c is MeshInstance3D:
 			(c as MeshInstance3D).visible = false
