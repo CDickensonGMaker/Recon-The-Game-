@@ -1553,6 +1553,13 @@ const FSB_STRUCTURE_KINDS: Array[Dictionary] = [
 	{"prefix": "fb_sleeping_bunker_i", "kind": "bunker", "hp": 260},
 	{"prefix": "fb_tower_i", "kind": "tower", "hp": 180},
 	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "hp": 90},
+	# VILLAGE BUILDINGS (Summoner, 2026-08-07: the explosives-only rule covers ALL buildings,
+	# so they must first be damageable at all). Only fb_* was listed, so every hut in the AO
+	# was indestructible while the firebase was not. HP is FIRST-PASS and his to tune: thatch
+	# gives way to one satchel, the timber/stilt houses take more.
+	{"prefix": "nha_tranh_", "kind": "hut_thatch", "hp": 120},
+	{"prefix": "nha_san_", "kind": "hut_timber", "hp": 150},
+	{"prefix": "nha_ruong_", "kind": "hut_timber", "hp": 150},
 ]
 
 

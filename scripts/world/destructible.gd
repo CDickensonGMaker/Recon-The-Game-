@@ -30,10 +30,18 @@ func _ready() -> void:
 	add_to_group("soft_cover" if kind == "wire" else "hard_surface")
 
 
-## The one damage grammar as a receiver (ADR-003). Only explosions reach it (no Hitzone, so
-## rifle fire is merely blocked by the collider — cover). A lethal hit queues the swap.
-func take_damage(amount: int, _t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
+## The one damage grammar as a receiver (ADR-003). ONLY EXPLOSIVES BRING A BUILDING DOWN
+## (Summoner, 2026-08-07) - gunfire PENETRATES a wall, it never demolishes one. Those are two
+## different systems and this is the seam between them: penetration is the round's business
+## (bullet_system + the export naming contract), demolition is this class's.
+## The rule was already the documented intent above this function and held only by caller
+## discipline - bullet_system damages nothing outside enemies/player/allies, and the props
+## loop passes EXPLOSIVE. But projectile_base.gd:344 passes PHYSICAL kinetic, so the door was
+## open. Enforce it here, where it cannot be reopened by a new caller.
+func take_damage(amount: int, t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
 	if _dying or _dead:
+		return
+	if t != Enums.DamageType.EXPLOSIVE:
 		return
 	hp -= amount
 	if hp <= 0:
