@@ -31,11 +31,6 @@ class WarningCapture extends Logger:
 			count += 1
 
 
-## A 200m arena whose agents path 51-108m needs a mesh, not a token. The observed bake is
-## 2 polys (ai_stress_arena.gd:_bake_navmesh), which is what pins every long path. This is a
-## FLOOR, deliberately loose - it is here to catch "the bake collapsed", not to grade quality.
-const MIN_NAV_POLYS: int = 8
-
 var _arena: Node3D
 var _elapsed: float = 0.0
 var _failures: int = 0
@@ -195,13 +190,14 @@ func _finish() -> void:
 		_failures += 1
 		print("FAIL (d): VC wave %d not in 16-26" % _wave_vc)
 	# (e) nav baked and nobody off-map / in a wall
-	# `<= 0` was too weak to catch the real failure: the bake returns 2 polys, which is
-	# non-zero and still useless under a 200m arena. A floor catches a COLLAPSED bake; the
-	# old check only caught a total absence.
-	if nav_polys < MIN_NAV_POLYS:
+	# POLY COUNT IS NOT THE SIGNAL, and a floor here would fail forever on a correct bake:
+	# this probe builds the arena with ArenaScript.new(), so spawn_cover and spawn_vegetation
+	# take their `false` defaults (:175-176) rather than the .tscn's `true`. A bare floor
+	# inside a wall ring triangulates to exactly 2 polygons. The honest signal is the warning
+	# count below - a path that failed - not how many triangles the mesh has.
+	if nav_polys <= 0:
 		_failures += 1
-		print("FAIL (e): navmesh baked %d polys, under the %d floor - agents cannot path"
-			% [nav_polys, MIN_NAV_POLYS])
+		print("FAIL (e): navmesh did not bake (0 polys)")
 	if off_map > 0:
 		_failures += 1
 		print("FAIL (e): %d units off-map or at a bad height" % off_map)
