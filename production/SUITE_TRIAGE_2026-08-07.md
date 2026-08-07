@@ -195,3 +195,39 @@ ambient patrols be scenery; (c) leave as-is and grandfather the group with his r
 
 Until he rules, the probe stays honestly red on this one entry. **Do not add `hunters` to
 `ALLOWED_WRITE_ONLY`** — that list's own contract is that entries never join it without a ruling.
+
+---
+
+## SUITE STATE AT END OF 2026-08-07 — AND A CAVEAT ON THE NUMBER
+
+**I could not complete a full suite run after the fixes landed.** Runs 8 and 9 were both killed
+externally mid-flight (run 8 at 50 of 138 tests, run 9 at 31), each sooner than the last. The last
+number from a run that *finished* is **run 6: 96 PASS / 26 FAIL / 16 LEAK / 3 TIMEOUT** — and that
+one is itself untrustworthy: it ran while the game could not boot (the missing `VcNvaDresser` `.uid`)
+and while other Godot processes competed for CPU, which is where its 3 timeouts came from.
+
+**The defensible measurement is the like-for-like slice**, run 6 vs run 8 over the same 50 tests:
+
+| | PASS | FAIL | LEAK | TIMEOUT |
+|---|---|---|---|---|
+| run 6 | 31 | 9 | 7 | 0 |
+| run 8 | **39** | **5** | 6 | 0 |
+
+**Individually verified green today** (each re-run by hand after the fix, not inferred from a suite
+log): `test_patrol_contract` · `test_actor_damage_contract` · `test_think_budget` · `test_bullet_flight`
+· `test_seat_system` · `test_spawn_zoning` · `test_destructible` · `test_demo_planner` (new) ·
+`test_bench_rack` · `test_weapon_projectile_contract` · `test_dispatch_contract` ·
+`test_hitzone_rebuild` · `test_fresh_tour` · `test_ally_states` · `test_friendly_patrols` ·
+`test_air_formation` · `test_arena_sandbox` · `test_suite_health` · `test_doc_hygiene` ·
+`test_audio_live` · `test_eject` · `test_eject2` · `test_topo_sheet`
+
+**Known still red, with the reason:**
+- `test_fossils` — 24 of 26 entries are zombie mode. His ruling; honestly red.
+- `test_group_contract` — one entry (`hunters`). **Awaiting his ruling.**
+- `test_group_walk` — real defect in `group_walk.gd`. **Awaiting his ruling (A or B).**
+- `test_arena_patrol` — real: 12 nav failures + 2 units off-map **in the shipped config**.
+- `test_import_refs` — 12 zombie character GLBs absent from disk (74 `.import` sidecars, 0 `.glb`).
+- `test_asset_probe` — 4 staged Huey vignettes span 67m; two authored groups never re-centred.
+- `test_viewmodel_contract` / `test_viewmodel_poses` / `test_ally_cover_roll` — **all art**, logged.
+
+**Next session: get one uninterrupted full run before trusting any total.**
