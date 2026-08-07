@@ -3,8 +3,9 @@
 ##   (a) census fresh: EnemySquad.count_engaging equals the measured truth (living
 ##       hot fighters with the target and LOS), all reports inside ENGAGE_TTL_MS;
 ##   (b) hot-slot refill: kill a HOT fighter, a cold one is promoted within 500ms wall;
-##   (c) census staleness: kill two engagers, wait past ENGAGE_TTL_MS - the dead
-##       men's reports expire and the census matches the living truth again.
+##   (c) census staleness: kill two engagers, wait past ENGAGE_TTL_MS - the census
+##       still covers every honest engager;
+##   (d) expiry: stop all thinking, wait a full TTL, the report ledger must drain to 0.
 ## Run: godot --headless --path . res://tests/test_think_budget.tscn
 extends Node3D
 
@@ -89,6 +90,7 @@ func _run() -> void:
 			killed += 1
 	await get_tree().create_timer((EnemySquad.ENGAGE_TTL_MS + 600.0) / 1000.0).timeout
 	_check_census("(c)", 8)
+	await _check_expiry()
 
 	GameManager.player = null
 	EnemySquad.clear()
@@ -96,9 +98,10 @@ func _run() -> void:
 	get_tree().quit(0 if _failures == 0 else 1)
 
 
-## Truth = living HOT fighters holding the proxy with LOS (only full thinks report).
-## Reports from men dead less than ENGAGE_TTL_MS are legally still fresh, so the
-## census may exceed truth by at most that count - never more, never less than truth.
+## Truth = living HOT fighters holding the proxy with LOS. The census is a TTL ledger,
+## not a snapshot, so it may legitimately sit ABOVE this - see _check_expiry. What it
+## must never do is sit BELOW: an undercount means spread discipline dissolves and the
+## squad piles onto one man. That direction is sharp, and it is what this checks.
 func _check_census(tag: String, min_truth: int) -> void:
 	var now: float = float(Time.get_ticks_msec())
 	var truth: int = 0
@@ -116,10 +119,28 @@ func _check_census(tag: String, min_truth: int) -> void:
 		_fail("%s only %d honest engagers (want >=%d) - firefight never stabilized" % [tag, truth, min_truth])
 	if census < truth:
 		_fail("%s census %d UNDERCOUNTS truth %d - spread discipline dissolves" % [tag, census, truth])
-	elif census > truth + recent_dead:
-		_fail("%s census %d exceeds truth %d + fresh dead %d - stale reports leak" % [tag, census, truth, recent_dead])
 	else:
-		print("  [OK] %s census bounded: truth <= %d <= truth+fresh_dead" % [tag, census])
+		print("  [OK] %s census >= truth (%d >= %d)" % [tag, census, truth])
+
+
+## THE LEDGER IS NOT A SNAPSHOT. count_engaging (enemy_squad.gd:206-219) walks a per-member
+## {tid, ms} register and counts every entry inside ENGAGE_TTL_MS - it never asks whether the
+## reporter is alive, hot, or still holds LOS. Bounding it above by an INSTANTANEOUS truth and
+## allowing only death as the difference made this check fail on ~half of runs at 50 hot men,
+## because men re-target between full thinks and their last report legitimately outlives the
+## change. Expiry is what the check exists for, so test expiry directly: stop every man
+## thinking, wait out the TTL, and the ledger must drain to nothing. No churn, no race.
+func _check_expiry() -> void:
+	for e in _living():
+		e.set_physics_process(false)
+	await get_tree().create_timer((EnemySquad.ENGAGE_TTL_MS + 800.0) / 1000.0).timeout
+	var now: float = float(Time.get_ticks_msec())
+	var census: int = EnemySquad.count_engaging(SQUAD, _proxy, null, now)
+	print("  (d) census after all thinking stopped for a full TTL: %d" % census)
+	if census != 0:
+		_fail("(d) %d report(s) outlived ENGAGE_TTL_MS with nobody thinking - the ledger leaks" % census)
+	else:
+		print("  [OK] (d) every report expired - the ledger drains")
 
 
 func _living() -> Array[EnemyBase]:
