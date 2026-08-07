@@ -73,18 +73,50 @@ func _check_objective_drive() -> void:
 	idle.queue_free()
 
 
+## PlacedSatchel joins no group, so count it by type off the scene root - the charge is
+## parented to get_tree().current_scene by _detonate.
+func _count_satchels() -> int:
+	var n: int = 0
+	var host: Node = get_tree().current_scene
+	if host == null:
+		return 0
+	for c in host.get_children():
+		if c is PlacedSatchel:
+			n += 1
+	return n
+
+
 ## B ------------------------------------------------------- arrival, not before.
 func _check_detonation_condition() -> void:
-	# POSITIVE: at the objective, he blows (take_damage 9999 -> dead).
+	# POSITIVE: at the objective he PLANTS, and the charge goes in when the fuse runs out.
+	#
+	# This asserted `at.is_dead()` after a single tick - the old suicide-bomber design, on
+	# both counts. _detonate's own comment records why that was replaced: "three sappers on
+	# one objective died in one blast - a suicide squad, not demolition men. The charge is a
+	# THING now (PlacedSatchel), which is what lets him live through his own work." And the
+	# plant takes PLANT_SECONDS, deliberately, because "killing him DURING the three-second
+	# plant is the window that makes the timer matter" - one tick cannot reach it.
+	#
+	# So: drive the fuse to completion, and assert the SATCHEL exists. A living sapper is now
+	# the correct outcome, not a failure.
 	var at := EnemyBase.spawn_enemy(self, Vector3(2000, 0, 0), SAPPER_DATA)
 	var c_at := SapperChargeScript.new()
 	at.add_child(c_at)
 	c_at.setup(Vector3(2000, 0, 0))
 	if not c_at._armed:
 		_fail("charge refused a valid objective")
+	var satchels_before: int = _count_satchels()
 	c_at._physics_process(0.1)
-	if not at.is_dead():
-		_fail("a sapper AT the objective did not detonate")
+	if not c_at._planting:
+		_fail("a sapper AT the objective did not begin planting")
+	# Run the fuse out. One extra tick past PLANT_SECONDS so the <= 0.0 branch is reached.
+	c_at._physics_process(SapperChargeScript.PLANT_SECONDS + 0.1)
+	if c_at._armed:
+		_fail("the fuse ran out and the charge never went in (still armed)")
+	if _count_satchels() <= satchels_before:
+		_fail("no PlacedSatchel was left on the objective")
+	if at.is_dead():
+		_fail("the sapper died to his own charge - he is meant to place it and withdraw")
 
 	# NEGATIVE: 100m short, he must NOT detonate.
 	var far := EnemyBase.spawn_enemy(self, Vector3(3000, 0, 0), SAPPER_DATA)

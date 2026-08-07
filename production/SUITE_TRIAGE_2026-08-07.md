@@ -11,14 +11,31 @@ would have been worse than measuring them.
 
 ## REAL DEFECTS — ranked by what they cost the demo
 
-### 1. SAPPERS DO NOT DETONATE ⚠ highest
+### 1. ~~SAPPERS DO NOT DETONATE~~ — **WRONG. I misread this. It is a STALE PROBE.**
 ```
-test_sapper_assault : FAIL: a sapper AT the objective did not detonate
+test_sapper_assault : FAIL: a sapper AT the objective did not detonate   <- the TEST was wrong
 test_arena_sandbox  : FAIL: sapper never detonated after reaching its objective
 ```
-**Two independent probes, same finding.** The sapper breach is how the assault gets through the
-wire, and the night assault is the demo's climax. A sapper that walks to the charge point and
-does nothing means the wire never opens. **This is the one to fix first.**
+**Corrected 2026-08-07, same day. The breach chain works and the demo's climax was never at
+risk.** I ranked this #1 on two probes agreeing, without reading the probe.
+
+`test_sapper_assault:85` called `_physics_process(0.1)` **once** and then asserted
+`at.is_dead()`. Both halves are the old design:
+- The plant now takes `PLANT_SECONDS = 3.0` **deliberately** — `sapper_charge.gd:165`: *"Killing
+  him DURING the three-second plant is the window that makes the timer matter."* One tick cannot
+  reach the fuse.
+- Death is no longer the success condition. `_detonate`'s comment: *"This used to detonate at the
+  man's own feet and then kill him outright, so three sappers on one objective died in one blast
+  — a suicide squad, not demolition men. The charge is a THING now (PlacedSatchel), which is what
+  lets him live through his own work."* The probe asserted the suicide-bomber build that was
+  explicitly replaced on his 2026-07-30 ruling.
+
+Rewritten to run the fuse out and assert a `PlacedSatchel` exists **and the sapper survives**.
+`test_sapper_assault: PASS`.
+
+**The lesson is about me, not the code:** two probes agreeing is not evidence when both were
+written against the same superseded design. `test_arena_sandbox` carries the identical stale
+assumption and is parked with the rest of the arena.
 
 ### 2. KILLS ARE NOT COUNTED
 ```
@@ -130,7 +147,7 @@ blind to that call, or the count really is unread.
 
 ## COUNTS
 
-**9 real defects · 4 stale probes · 3 art gaps · 2 self-admitted vacuous probes · 1 flaky**
+**8 real defects · 5 stale probes · 3 art gaps · 2 self-admitted vacuous probes · 1 flaky**
 
 The prior held: examined-and-real is now 11 of 34 across the day, so roughly two thirds of this
 suite's red was probe rot. But the third that is real contains **the sapper breach**, and that
