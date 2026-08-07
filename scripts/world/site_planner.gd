@@ -1552,18 +1552,18 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 ## are already in the GLB: this costs no Blender re-export. HP matches the bench
 ## (FireSupportBench.TARGET_KINDS) so the sapper room grades the same art the same way.
 const FSB_STRUCTURE_KINDS: Array[Dictionary] = [
-	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "hp": 260},
-	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "hp": 260},
-	{"prefix": "fb_sleeping_bunker_i", "kind": "bunker", "hp": 260},
-	{"prefix": "fb_tower_i", "kind": "tower", "hp": 180},
-	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "hp": 90},
+	{"prefix": "fb_bunker_fighting_i", "kind": "bunker"},
+	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg"},
+	{"prefix": "fb_sleeping_bunker_i", "kind": "bunker"},
+	{"prefix": "fb_tower_i", "kind": "tower"},
+	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack"},
 	# VILLAGE BUILDINGS (Summoner, 2026-08-07: the explosives-only rule covers ALL buildings,
 	# so they must first be damageable at all). Only fb_* was listed, so every hut in the AO
 	# was indestructible while the firebase was not. HP is FIRST-PASS and his to tune: thatch
 	# gives way to one satchel, the timber/stilt houses take more.
-	{"prefix": "nha_tranh_", "kind": "hut_thatch", "hp": 120},
-	{"prefix": "nha_san_", "kind": "hut_timber", "hp": 150},
-	{"prefix": "nha_ruong_", "kind": "hut_timber", "hp": 150},
+	{"prefix": "nha_tranh_", "kind": "hut_thatch"},
+	{"prefix": "nha_san_", "kind": "hut_timber"},
+	{"prefix": "nha_ruong_", "kind": "hut_timber"},
 ]
 
 
@@ -1583,7 +1583,7 @@ func _wire_structure_destructibles(root: Node3D) -> void:
 		for spec in FSB_STRUCTURE_KINDS:
 			if not nm.begins_with(str(spec["prefix"])):
 				continue
-			_adopt_structure(mi, str(spec["kind"]), int(spec["hp"]))
+			_adopt_structure(mi, str(spec["kind"]), Destructible.hp_for(str(spec["kind"])))
 			by_kind[spec["kind"]] = int(by_kind.get(spec["kind"], 0)) + 1
 			break
 	if by_kind.is_empty():

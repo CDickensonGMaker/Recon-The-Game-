@@ -70,11 +70,6 @@ const FORT_LINE_X: float = -30.0        ## the line runs along Z at this X (play
 const FORT_LINE_Z0: float = 18.0
 const FORT_LINE_Z1: float = 52.0
 const FORT_SEG_LEN: float = 2.6
-## HP per fort kind. Matches FireSupportBench.TARGET_KINDS so the arena and the sapper bench
-## grade the same art the same way; the shipped parapet's 140 is the datum.
-const FORT_HP: Dictionary = {
-	"sandbag_wall": 140, "wire": 60, "bunker": 260, "bunker_mg": 260, "tower": 180,
-}
 ## How many distinct meshes of each kind to lift, so the line is not one mesh repeated.
 const FORT_MESH_VARIANTS: int = 4
 const ARENA_SAPPER_COUNT: int = 3
@@ -1375,7 +1370,7 @@ func _load_fort_meshes() -> void:
 	_fort_mesh_pool.clear()
 	for spec in FireSupportBench.TARGET_KINDS:
 		var kind: String = str(spec["kind"])
-		if not FORT_HP.has(kind):
+		if not Destructible.HP_FOR.has(kind):
 			continue
 		var meshes: Array[Mesh] = FireSupportBench.lift_meshes(
 			str(spec["prefix"]), FORT_MESH_VARIANTS, str(spec["src"]))
@@ -1396,7 +1391,7 @@ func _spawn_fort(pos: Vector3, kind: String) -> void:
 	# never Time - ADR-010).
 	var mesh: Mesh = meshes[_forts.size() % meshes.size()]
 	var fort: Destructible = FireSupportBench.spawn_lifted(
-		self, mesh, pos, kind, int(FORT_HP.get(kind, 140)))
+		self, mesh, pos, kind, Destructible.hp_for(kind))
 	fort.add_to_group("nav_source")
 	fort.add_to_group("arena_fortification")
 	_forts.append(fort)

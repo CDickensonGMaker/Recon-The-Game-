@@ -203,7 +203,7 @@ func _build_targets() -> void:
 			var x: float = base_x + (float(idx) - float(n - 1) * 0.5) * span
 			_walls.append(FireSupportBench.spawn_lifted(
 				_targets_root, meshes[i % meshes.size()], Vector3(x, 0.0, z),
-				kind, int(spec["hp"])))
+				kind, Destructible.hp_for(kind)))
 		if not is_wire:
 			lane += 1
 		built.append("%d %s" % [want, kind])

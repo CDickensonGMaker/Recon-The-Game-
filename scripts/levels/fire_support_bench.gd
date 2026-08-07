@@ -43,15 +43,15 @@ const FSB_PATH: String = "res://assets/world/building models/structures/firebase
 ## map-sized wall. This is the single card the ring is built from.
 const WIRE_PATH: String = "res://assets/us/props/emplacements/barbwire_card.glb"
 
-## prefix -> [kind, hp, source]. HP is a first pass to tune by eye; the satchel does 250 at
-## the centre and 70 at its 14 m edge, and the shipped parapet's 140 is the datum.
+## prefix -> [kind, source]. The HP for each kind lives in Destructible.HP_FOR - one table,
+## because this list and the arena's and the world's all carried the same numbers by hand.
 const TARGET_KINDS: Array[Dictionary] = [
-	{"prefix": "fb_sbg_seg_", "kind": "sandbag_wall", "hp": 140, "src": "fsb"},
-	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "hp": 90, "src": "fsb"},
-	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "hp": 260, "src": "fsb"},
-	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "hp": 260, "src": "fsb"},
-	{"prefix": "fb_tower_i", "kind": "tower", "hp": 180, "src": "fsb"},
-	{"prefix": "bwire_card", "kind": "wire", "hp": 60, "src": "wire"},
+	{"prefix": "fb_sbg_seg_", "kind": "sandbag_wall", "src": "fsb"},
+	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "src": "fsb"},
+	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "src": "fsb"},
+	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "src": "fsb"},
+	{"prefix": "fb_tower_i", "kind": "tower", "src": "fsb"},
+	{"prefix": "bwire_card", "kind": "wire", "src": "wire"},
 ]
 
 

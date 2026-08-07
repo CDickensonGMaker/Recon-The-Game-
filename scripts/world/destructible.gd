@@ -39,6 +39,29 @@ const BLAST_FOR: Dictionary = {
 	"hut_thatch": "explosion_napalm",
 	"hut_timber": "explosion_napalm",
 }
+
+## THE ONE HP TABLE - every structure's HP is decided here and nowhere else. The prefix lists
+## that name the art stay with their owners (the bench grades wire, the world stamps village
+## huts); only the number is shared, so tuning a kind is one edit and cannot drift.
+## The satchel does 250 at the centre and 70 at its 14 m edge, and the parapet's 140 is the datum.
+const HP_FOR: Dictionary = {
+	"sandbag_wall": 140,
+	"sandbag_stack": 90,
+	"bunker": 260,
+	"bunker_mg": 260,
+	"tower": 180,
+	"wire": 60,
+	"hut_thatch": 120,
+	"hut_timber": 150,
+}
+
+
+## HP for a kind. An unknown kind is a wiring mistake, not a tuning one, so it is loud.
+static func hp_for(k: String) -> int:
+	if not HP_FOR.has(k):
+		push_warning("[Destructible] no HP for kind '%s' - falling back to 100" % k)
+		return 100
+	return int(HP_FOR[k])
 static var _ruin_cache: Dictionary = {}
 
 
