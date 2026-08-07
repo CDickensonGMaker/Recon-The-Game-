@@ -230,10 +230,11 @@ try:
             rig.location = pos
             rig.keyframe_insert("location", frame=f)
 
-        # to face (dx,dy): yaw = atan2(dy,dx) - pi/2. Seated faces OUT of the door.
+        # Rig forward is -Y (mc_pose.face): to face (dx,dy), yaw = atan2(dy,dx) + pi/2.
+        # The old -pi/2 ran every man backwards both legs. Seated faces OUT of the door.
         face_out = math.atan2(0.0, side) + math.pi / 2
-        out_hdg = math.atan2(flank.y - muster.y, flank.x - muster.x) - math.pi / 2
-        in_hdg = math.atan2(muster.y - flank.y, muster.x - flank.x) - math.pi / 2
+        out_hdg = math.atan2(flank.y - muster.y, flank.x - muster.x) + math.pi / 2
+        in_hdg = math.atan2(muster.y - flank.y, muster.x - flank.x) + math.pi / 2
         for f, yz in ((F_START, face_out), (t_off, face_out), (t_down, out_hdg),
                       (t_flank, out_hdg), (t_back, out_hdg), (t_back + 25, in_hdg),
                       (t_muster, in_hdg), (t_lip, face_out), (F_END, face_out)):

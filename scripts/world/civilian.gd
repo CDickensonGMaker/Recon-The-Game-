@@ -377,6 +377,12 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0
 			velocity.z = 0
 	move_and_slide()
+	# Face travel. Without this the only yaw a civilian ever gets is the one
+	# SeatSystem.unseat() stamps from the seat socket, and heli-delivered men
+	# cross the pad locked at the door's sideways heading.
+	var vel := Vector3(velocity.x, 0.0, velocity.z)
+	if vel.length_squared() > 0.09 and actor != null and is_instance_valid(actor):
+		actor.set_facing(vel)
 	_animate()
 
 

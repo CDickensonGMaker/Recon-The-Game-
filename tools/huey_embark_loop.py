@@ -220,10 +220,12 @@ try:
             rig.location = pos
             rig.keyframe_insert("location", frame=f)
 
-        # Facing convention matches the walk aim: to face (dx,dy), yaw = atan2(dy,dx) - pi/2.
+        # Rig forward is -Y (mc_pose.face): to face (dx,dy), yaw = atan2(dy,dx) + pi/2.
+        # The old -pi/2 pointed every run heading 180 deg backwards; the seated
+        # "add pi" patch below was the same error noticed once and masked.
         yaw0 = rig.rotation_euler.z
-        out = math.atan2(lane.y - start.y, lane.x - start.x) - math.pi / 2
-        turn_in = math.atan2(muster.y - lane.y, muster.x - lane.x) - math.pi / 2
+        out = math.atan2(lane.y - start.y, lane.x - start.x) + math.pi / 2
+        turn_in = math.atan2(muster.y - lane.y, muster.x - lane.x) + math.pi / 2
         # Seated facing OUT of the door. atan2(0,side) - pi/2 pointed his legs into the
         # cabin, so it is the opposite heading: add pi.
         face_out = math.atan2(0.0, side) + math.pi / 2
