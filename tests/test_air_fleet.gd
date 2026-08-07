@@ -50,12 +50,25 @@ func _run() -> void:
 		at.get_in_flight().clear()
 		at._dispatch(kind)
 		var roster: Array = at.get_in_flight()
-		var ok: bool = roster.size() == 1
-		var node: Node3D = (roster[0].get("node") as Node3D) if ok else null
-		_expect(node != null and is_instance_valid(node),
-			"%s materialises a real aircraft node" % kind)
-		if node != null:
-			_expect(node.get_parent() == world, "%s is parented into the world" % kind)
+		# A DISPATCH IS A FORMATION, NOT A SHIP. This demanded roster.size() == 1, which
+		# predates FORMATION_SIZES - so huey (6-9), f4 and skyhawk (3-5) failed for flying
+		# the packs his 2026-07-28 ruling asked for. What the probe is actually here to
+		# prove is that the kind materialises REAL nodes parented into the world, however
+		# many of them, so assert that and let the size come from the table.
+		var live: int = 0
+		var orphaned: int = 0
+		for entry: Dictionary in roster:
+			var n: Node3D = entry.get("node") as Node3D
+			if n == null or not is_instance_valid(n):
+				continue
+			live += 1
+			if n.get_parent() != world:
+				orphaned += 1
+		_expect(live > 0 and live == roster.size(),
+			"%s materialises real aircraft nodes (%d live of %d rostered)"
+				% [kind, live, roster.size()])
+		_expect(orphaned == 0,
+			"%s is parented into the world (%d orphaned)" % [kind, orphaned])
 
 	# NEGATIVE CONTROL: an unregistered kind must NOT be rostered as a phantom.
 	# A null-node entry sits on the roster for MAX_FLIGHT_SECONDS hushing the
@@ -112,7 +125,12 @@ func _run() -> void:
 				t += 0.25
 			_expect(heli.state == Helicopter.State.LANDED,
 				"huey reached the firebase pad and landed (%.1fs)" % t)
-			var pad_y: float = world.terrain_manager.get_height_at(heli.global_position)
+			# surface_y, NOT get_height_at. The pads are authored nodes inside fsb_main_v3,
+			# which is built with y=0 at the mound TOE and reaches 14.5m - so bare terrain
+			# height is metres BELOW the deck the ship actually touched, and the probe read
+			# that gap as a hover (dy=4.51 measured). surface_y raycasts to whatever is
+			# solid there, which is the same answer the spawn path trusts.
+			var pad_y: float = world.surface_y(heli.global_position)
 			_expect(absf(heli.global_position.y - pad_y) < 2.0,
 				"landed on the deck, not hovering (dy=%.2f)" %
 				absf(heli.global_position.y - pad_y))
