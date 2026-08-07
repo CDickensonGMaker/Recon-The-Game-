@@ -538,6 +538,25 @@ func _play_garrison(want: String) -> void:
 				"sitting_idle_b", "idle_unarmed_3"]
 			actor.play_first(chain)
 			return
+	# THE GUNS. fsb_main_v3 carries six gun pits with six howitzers and four mortar pits, and
+	# the crew clips have been in anim_library since they were authored - reachable only from
+	# the review bench, never from the game. `role` is the raw work_type, so one occupation
+	# serves both weapons: a howitzer crew is four men, a mortar crew three.
+	if occupation == "gun_crew_arty":
+		if want == "walking_unarmed":
+			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
+			return
+		if want == "stooped" or want == "seated":
+			# Every man on the piece has a DIFFERENT job - that is the whole read of a served
+			# gun. Seeded per man so a pit is a crew and not four gunners.
+			var crew: Array[String] = ["gun_gunner", "gun_loader", "gun_agunner",
+				"gun_ammo_bearer"]
+			if role == "mortar":
+				crew = ["mortar_gunner", "mortar_dropper", "mortar_runner"]
+			@warning_ignore("integer_division")
+			var seat: int = (_idle_seed / 13) % crew.size()
+			actor.play_first([crew[seat], "kneeling_idle", "idle_unarmed_3", "idle"])
+			return
 	# THE DINER SIDE. The servery above shipped wired; the twelve clips the men EATING
 	# use had no caller at all, so the cook stirred and the server ladled to an empty
 	# hall. `role` is the marker that seated him (site_planner FSB_WORK_OCCUPATION):

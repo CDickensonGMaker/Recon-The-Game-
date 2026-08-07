@@ -819,9 +819,16 @@ static var _fsb_work_markers: Array = []
 
 ## work_type -> Civilian occupation. A work_type with no entry here becomes off_duty
 ## rather than inventing a schedule.
-## gun/mortar deliberately do NOT map to gun_crew: mission_generator._place_firebase_mg
-## spawns a mannable M60 per gun_crew post, and 20 of them is not a firebase, it is a joke.
+##
+## THE GUNS. gun/mortar must never map to the CURATED "gun_crew" occupation: that one is
+## read at mission_generator.gd:954 to stand up a mannable M60 per post, and the GLB carries
+## 20 work_gun markers - twenty M60s is not a firebase, it is a joke. That is why these two
+## were left unmapped, and the cost was that the whole crew went to off_duty: six gun pits
+## with six static howitzers and nobody serving them, while anim_library carried gun_gunner /
+## gun_loader / gun_agunner / gun_ammo_bearer with no caller outside the review bench.
+## A SEPARATE occupation gets the crew without going near the M60 path.
 const FSB_WORK_OCCUPATION: Dictionary = {
+	"gun": "gun_crew_arty", "mortar": "gun_crew_arty",
 	"watch": "sentry", "guard": "sentry", "mg": "sentry",
 	"ammo": "quartermaster", "supply": "quartermaster",
 	"radio": "radioman", "plot": "radioman",
@@ -848,6 +855,11 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 ## party. Types absent here still get seated, after these, in marker order.
 const FSB_WORK_PRIORITY: Array[String] = [
 	"medic",
+	# A served gun is the firebase's signature image, and the round-robin below takes one
+	# marker per type per pass - so listing gun/mortar high buys a crew on each piece, not
+	# twenty men on one. 20 work_gun + 4 work_mortar markers exist; FSB_WORK_POST_CAP and
+	# FSB_GARRISON_MAX_MEN are what actually bound the total.
+	"gun", "mortar",
 	"dig", "wash", "water", "burn", "latrine", "pad",
 	"chow_server", "chow_server_line", "eat", "chow_diner", "queue",
 	"radio", "supply", "cook", "mess", "ammo",

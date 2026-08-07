@@ -147,7 +147,7 @@ static func action_for(occupation: String, sim_hour: float, who: String = "") ->
 				return ACTION_WORK
 			# Ammo goes UP to the posts before dark, and stays available after it.
 			return ACTION_WORK
-		"gun_crew":
+		"gun_crew", "gun_crew_arty":
 			# Guns are laid and manned around the clock; fire missions come at night.
 			if sim_hour >= 23.0 or sim_hour < 4.0:
 				return ACTION_REST           # resting AT the pit, not in a hootch
