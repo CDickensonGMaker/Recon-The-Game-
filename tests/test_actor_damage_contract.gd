@@ -32,6 +32,7 @@ const ACTOR_CONTRACT: Dictionary = {
 	"res://scripts/allies/ally_base.gd": {"hitzones": true, "gib": true},
 	"res://scripts/player/player.gd": {"hitzones": true, "gib": false},
 	"res://scripts/levels/gore_dummy.gd": {"hitzones": true, "gib": true},
+	"res://scripts/zombies/zombie_base.gd": {"hitzones": true, "gib": true},
 	"res://scripts/combat/punji_trap.gd": {"hitzones": true, "gib": false, "rig": false},
 	# HealthSystem is the player's damage SINK, not a spawnable actor: it owns no
 	# body and no zones. player.gd delegates to it.
