@@ -65,6 +65,17 @@ func _rig(rto_dist: float) -> FieldDirector:
 	var rto := AllyBase.new()
 	ss.add_child(rto)
 	rto.member = {"mos": "RTO", "nick": "SPARKS"}
+	# THE NET IS A GROUP, NOT A JOB TITLE. nearest_radioman (field_director.gd:786) walks the
+	# "radioman" group, so an RTO with the MOS and no group membership is invisible to
+	# _radio_check - the rig's "on the net" cases were all silently OFF the net, which is
+	# exactly what the r4bk failures were reporting.
+	#
+	# The group is GLOBAL and these rigs share one scene, so a previous rig's RTO would still
+	# answer this rig's radio - and every "off the net" negative control would be on it. Evict
+	# the old ones first: one rig, one radioman.
+	for old in get_tree().get_nodes_in_group("radioman"):
+		(old as Node).remove_from_group("radioman")
+	rto.add_to_group("radioman")
 	rto.global_position = pl.global_position + Vector3(rto_dist, 0, 0)
 	ss.members.append(rto)
 	d.squad_system = ss

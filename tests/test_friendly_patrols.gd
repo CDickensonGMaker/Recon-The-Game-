@@ -173,6 +173,13 @@ func _rig(rto_dist: float) -> FieldDirector:
 	var rto := AllyBase.new()
 	ss.add_child(rto)
 	rto.member = {"mos": "RTO", "nick": "SPARKS"}
+	# nearest_radioman (field_director.gd:786) resolves the net through the "radioman" GROUP,
+	# not the MOS - so this rig was off the net and the pinned call had nowhere to land.
+	# The group is global and these rigs share one scene, so evict the previous rig's RTO or
+	# he answers this rig's radio and every off-the-net control is silently on it.
+	for old in get_tree().get_nodes_in_group("radioman"):
+		(old as Node).remove_from_group("radioman")
+	rto.add_to_group("radioman")
 	rto.global_position = pl.global_position + Vector3(rto_dist, 0, 0)
 	ss.members.append(rto)
 	d.squad_system = ss
