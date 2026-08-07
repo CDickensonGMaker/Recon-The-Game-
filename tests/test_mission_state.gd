@@ -40,6 +40,11 @@ func _run() -> void:
 	var director := FieldDirector.new()
 	add_child(director)
 	director.setup(null)  # no GameWorld in this synthetic scene
+	# THE LEDGER IS ONLY OPEN OUTSIDE THE WIRE. _on_enemy_died returns early unless
+	# patrol_out (field_director.gd:104) - his 2026-08-04 ruling after a phantom "7 kills"
+	# AAR: garrison, air and siege kills are the base's business, not the patrol's book.
+	# This probe is testing the PATROL ledger, so it has to be on patrol.
+	director.patrol_out = true
 
 	for i in range(3):
 		director.spawn_tracked_enemy(Vector3(10.0 + float(i) * 3.0, 1.0, 10.0), ENEMY_DATA)
