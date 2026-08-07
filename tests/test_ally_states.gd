@@ -30,11 +30,16 @@ func _ready() -> void:
 	add_child(a)
 	var e: EnemyBase = EnemyScript.new()
 	add_child(e)
-	await get_tree().process_frame
-	await get_tree().process_frame
 	# The probe drives think/execute by hand - the engine loop must not race it.
+	# Disabled BEFORE the first awaited frame: both bodies start coincident at
+	# the origin, and one live physics tick with a default target-scan is
+	# enough to auto-acquire a contact and run a real _evaluate_goals() call,
+	# poisoning current_goal's incumbent hysteresis before the controlled
+	# part of the probe ever runs.
 	a.set_physics_process(false)
 	e.set_physics_process(false)
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 	a.global_position = Vector3.ZERO
 	a.courage = 0.9   # go-getter: skips the cover-first trip, advance_band 0.9

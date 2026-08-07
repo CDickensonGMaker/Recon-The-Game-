@@ -97,6 +97,13 @@ func effective_courage() -> float:
 ## (EnemySquad.break_state - the same authority the enemy side breaks on).
 var squad_broken: bool = false
 
+## Whether this man's squad currently has someone laying down covering fire
+## (the same fact EnemySquad.has_covering_fire feeds EnemyBase - see
+## enemy_base.gd:1435). No ally-side squad support system sets this yet, so it
+## stays false in real play; the property exists so CombatGoals.Context can be
+## fed the fact once one does.
+var has_covering_fire: bool = false
+
 
 ## COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover trip
 ## and push; everyone else covers once, on fresh contact only (<5s). A BROKEN squad
@@ -840,6 +847,7 @@ func _evaluate_goals() -> void:
 		# The squad-break toast is a cheque this scorer must cash (decree 2026-08-03
 		# §2.11 item 1) - the enemy already feeds both (enemy_base.gd:1416-1417).
 		c.squad_broken = squad_broken
+		c.has_covering_fire = has_covering_fire
 		c.force_ratio = _local_force_ratio()
 		var picked: int = CombatGoals.pick(c)
 		# The cord AND the zone both ground a man: a living net never flanks away,
