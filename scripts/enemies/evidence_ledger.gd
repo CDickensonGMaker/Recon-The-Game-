@@ -15,7 +15,6 @@ extends RefCounted
 const WEIGHT_GUNSHOT: float = 1.0
 const WEIGHT_EXPLOSION: float = 1.4
 const WEIGHT_BODY: float = 2.0
-const WEIGHT_BURNED: float = 1.6
 
 ## Seconds for a fix to decay to nothing. Bodies and burned huts outlast noise: they
 ## are still there to be found tomorrow, a sound is gone the moment it stops.
@@ -66,10 +65,6 @@ func on_noise(type: int, pos: Vector3, source_team: int, now_s: float) -> void:
 
 func on_body_left(pos: Vector3, now_s: float) -> void:
 	record(pos, WEIGHT_BODY, DECAY_PHYSICAL_S, SCATTER_PHYSICAL_M, now_s)
-
-
-func on_structure_burned(pos: Vector3, now_s: float) -> void:
-	record(pos, WEIGHT_BURNED, DECAY_PHYSICAL_S, SCATTER_PHYSICAL_M, now_s)
 
 
 func prune(now_s: float) -> void:

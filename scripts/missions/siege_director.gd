@@ -16,7 +16,6 @@ const MAX_RUN_NIGHTS: int = 3
 ## three-man "siege" reads as a broken feature rather than a quiet night.
 const PROBE_MAX: int = 11
 
-const SECTOR_DEG: float = 60.0
 const RING_MIN: float = 300.0
 const RING_MAX: float = 500.0
 const CELL_MIN: int = 3
@@ -66,7 +65,6 @@ const MORTAR_BLAST_M: float = 18.0
 ## doctrinally correct answer: a night attack goes through ONE lane, not over a line.
 ## Parapet destruction stays spectacle. Nothing here reads a breach.
 const PRESS_CYCLE_S: float = 8.0
-const PRESS_FRACTION: float = 0.35
 ## Men measurably inside the wire before the compound counts as overrun.
 const OVERRUN_MEN: int = 3
 ## Bearing bins used to measure the perimeter. The parapet is not one radius - it runs
@@ -291,8 +289,8 @@ func reinforce(extra: int) -> void:
 ## FIGHT toward the one opening, which is what flanking against a wired perimeter actually
 ## looks like.
 const ASSAULT_SQUADS: int = 4
-## How far apart the squads come in. Wider than SECTOR_DEG because the point is that they
-## do NOT arrive as one wedge; each squad still spreads its own cells within its lane.
+## How far apart the squads come in. Deliberately wide: the point is that they do NOT arrive
+## as one wedge; each squad still spreads its own cells within its lane.
 const SQUAD_SPREAD_DEG: float = 150.0
 const SQUAD_LANE_DEG: float = 34.0
 ## One squad in four holds off and shoots instead of closing. Without a base of fire the

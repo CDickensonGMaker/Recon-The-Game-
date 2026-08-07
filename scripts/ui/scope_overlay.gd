@@ -25,10 +25,6 @@ func setup(wpn: WeaponHolder) -> void:
 	_weapon_holder = wpn
 
 
-func is_scoped() -> bool:
-	return visible
-
-
 func _process(_delta: float) -> void:
 	var tex: Texture2D = null
 	if _weapon_holder and _weapon_holder.current_weapon:

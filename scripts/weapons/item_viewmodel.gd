@@ -93,10 +93,6 @@ static func create(parent: Node, scene_path: String, at: Vector3,
 	return vm
 
 
-func has_clips() -> bool:
-	return _anim != null
-
-
 func has_clip(clip: StringName) -> bool:
 	return _anim != null and _anim.has_animation(String(clip))
 

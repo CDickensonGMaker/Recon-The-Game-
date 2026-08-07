@@ -159,12 +159,6 @@ var _deferred_kind: String = ""
 var _gate_reported: Load = Load.CLEAR
 
 
-## What the sky is allowed to do right now. Public so the demo package and any probe can
-## read the same answer this class acts on.
-func load_tier() -> Load:
-	return _load
-
-
 func _sample_load() -> void:
 	var fighters: int = 0
 	for e in AgentRegistry.enemies:

@@ -42,10 +42,6 @@ func station_position(station: String) -> Vector3:
 	return m.global_position if m != null else global_position
 
 
-func is_free(station: String) -> bool:
-	return _occupants.get(station, null) == null
-
-
 ## A garrison body claims a station; returns false if it is taken.
 func claim(station: String, body: Node3D) -> bool:
 	if not _occupants.has(station) or _occupants[station] != null:
