@@ -735,14 +735,24 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	# skipped: the walk out already carries the first-sign craters, and a ruin on that bearing
 	# would be tripped over rather than discovered. Radii stay inside 230m - the slice is 512m,
 	# so the firebase sits 256m from every edge and anything further has no passable ground left.
+	## Radii are pulled IN from the first pass (205/150/185): on the shipped DEMO_SEED those
+	## put two of the three outside anything passable and only one ruin landed. The village
+	## and the camp both carry a second, shorter attempt for exactly this reason - a bearing
+	## that fails at range usually succeeds nearer the base - so these do too.
 	var ruin_bearings: Array[float] = [1.15, -0.55, 3.05]
-	var ruin_radii: Array[float] = [205.0, 150.0, 185.0]
+	var ruin_radii: Array[float] = [175.0, 140.0, 160.0]
 	var extra_ruins: int = 0
 	for i in range(ruin_bearings.size()):
 		var r_dir: Vector3 = out_v.rotated(Vector3.UP, ruin_bearings[i])
 		var spot: Vector3 = _passable_near(world, rng,
-			fsb_center + r_dir * ruin_radii[i], 18.0, 70.0, 90,
+			fsb_center + r_dir * ruin_radii[i], 18.0, 95.0, 120,
 			SitePlanner.FSB_SITE_CLEARANCE)
+		if spot == Vector3.ZERO:
+			# Second attempt, closer in and wider. A jungle ruin 40m nearer the wire is still
+			# a thing found off the path; no ruin at all is the failure that matters.
+			spot = _passable_near(world, rng,
+				fsb_center + r_dir * (ruin_radii[i] - 40.0), 18.0, 110.0, 120,
+				SitePlanner.FSB_SITE_CLEARANCE)
 		if spot == Vector3.ZERO:
 			continue
 		p.sites.append({"kind": "temple", "center": spot})
