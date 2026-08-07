@@ -256,7 +256,13 @@ func _check_assault_is_coordinated() -> void:
 	for c in d.siege.cells:
 		c.materialize()
 	var sappers := get_tree().get_nodes_in_group("siege_sappers")
-	var chargers := get_tree().get_nodes_in_group("siege_assault")
+	# The assault is FOUR squads, each under its own tag, because field_director derives
+	# squad_id from hash(group_tag) (his ruling 2026-07-30). Only a probe - strength <=
+	# SiegeDirector.PROBE_MAX - still spawns under the single "siege_assault" name, so both
+	# shapes have to be counted or a 30-man assault reads as zero men on the field.
+	var chargers: Array[Node] = get_tree().get_nodes_in_group("siege_assault")
+	for i in range(SiegeDirector.ASSAULT_SQUADS):
+		chargers.append_array(get_tree().get_nodes_in_group("siege_assault_%d" % i))
 	_expect(sappers.size() > 0, "a 30-man siege fields sappers (got %d)" % sappers.size())
 	_expect(chargers.size() > 0, "a 30-man siege fields an assault element (got %d)" % chargers.size())
 	_expect(sappers.size() + chargers.size() == 30,
