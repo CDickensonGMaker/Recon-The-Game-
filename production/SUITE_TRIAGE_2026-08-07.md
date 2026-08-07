@@ -169,3 +169,29 @@ one is the demo's climax.
 **The pattern held again, twice.** In `test_think_budget` the header comment said *"only full thinks report"* and in `field_director` the constants' comments already described THE CIRCLES correctly — both times the comment was right and the assertion around it was wrong.
 
 **A rejected fix worth recording.** The obvious repair for the census was widening the bound to `truth + recent_dead + (hot − truth)`. That computes to **50 against a census of 18** — a check that can never fail. A fake green is worse than a red, so it was rejected in favour of testing expiry directly.
+
+## OPEN — NEEDS HIS RULING: the `hunters` group has no reader
+
+`test_group_contract` flags `hunters` as written-but-never-read, and **it is right**.
+
+- Written twice: `field_director.gd:184` (the hunter teams themselves) and `lazy_group.gd:95`
+  (demo ambient patrols).
+- `lazy_group.gd:93-94` says why: *"the ambient walking cell IS hunt-net presence (decree
+  2026-08-03 §2.5 constraint 3, wired 2026-08-04) — fold it into the 'hunters' count."*
+- **There is no such count.** The only occurrence of `live_enemy_count("hunters")` in the repo is
+  inside a comment at `field_director.gd:183`. Nothing calls it with that tag.
+
+The cap that IS real is `_hunter_pool` (ADR-035: *"The cap was already real (`_hunter_pool`) and is
+kept"*), decremented only when hunter teams spawn. Ambient demo patrols join the `hunters` group but
+never touch the pool.
+
+**Consequence, and why it is his call:** in the demo, ambient patrol presence does **not** count
+against the hunter budget, so hunt pressure can exceed what constraint 3 intended. That is a
+difficulty question, not a code-tidiness one.
+
+**Options:** (a) enforce it — have `_process_escalation` weigh `live_enemy_count("hunters")` against
+the pool before sending a team; (b) drop the fold — remove the `lazy_group` group write and let
+ambient patrols be scenery; (c) leave as-is and grandfather the group with his ruling recorded.
+
+Until he rules, the probe stays honestly red on this one entry. **Do not add `hunters` to
+`ALLOWED_WRITE_ONLY`** — that list's own contract is that entries never join it without a ruling.

@@ -16,6 +16,9 @@ const PRODUCTION_DIRS: Array[String] = ["res://scripts", "res://terrain"]
 ## its own sterile world and its groups answer to nothing shipping.
 const EXCLUDED_BENCHES: Array[String] = [
 	"res://scripts/levels/ai_stress_arena.gd",
+	# Same ruling, same kind of room: the sapper bench is "me and the blank room and three
+	# sappers" (sapper_room.gd:3-6) and its groups answer to nothing shipping.
+	"res://scripts/levels/sapper_room.gd",
 ]
 
 ## Group names reach the tree two ways: a literal add_to_group, or a string
@@ -30,6 +33,13 @@ const GROUP_BUILDER_CALLS: Array[String] = [
 const ALLOWED_WRITE_ONLY: Array[String] = [
 	"nav_source",      # gun_range.gd:45 - gun_range bakes no navmesh
 	"armorers_bench",  # armorers_bench.gd:63 - bench resolved by preload, not by group
+	# Zombie mode is PARKED MID-BUILD, not superseded (Summoner, 2026-08-07: "don't delete
+	# anything zombies related"). Its readers are the half that was not written yet, so these
+	# are UNFINISHED under ADR-023's triage, and the ratchet must not force a deletion he
+	# has forbidden. They leave this list when zombie mode is finished, not before.
+	"zombie_mystery_box",
+	"zombie_power_ups",
+	"zombie_wall_buys",
 ]
 
 ## Accepted readerless-in-production groups.
