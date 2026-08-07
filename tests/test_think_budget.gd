@@ -10,7 +10,11 @@ extends Node3D
 
 const ENEMY_DATA := "res://data/enemies/vc_rifleman.tres"
 const SQUAD: int = 5
-const FORCE: int = 14
+## MUST EXCEED HOT_CAP, or check (a) is vacuous — which the probe already said of itself:
+## "no cold fighters with 14 men vs HOT_CAP 50 - probe vacuous". Fourteen men against fifty
+## slots all run hot, so there was never a cold fighter to promote and (b) could not fire
+## either. Sized off the constant so a retune of the cap cannot re-hollow this.
+const FORCE: int = EnemySquad.HOT_CAP + 4
 
 var _failures: int = 0
 var _enemies: Array[EnemyBase] = []
