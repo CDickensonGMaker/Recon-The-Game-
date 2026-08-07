@@ -30,12 +30,25 @@ func _ready() -> void:
 		return
 
 	# --- exposure ramp (DESIGN 4.2: accuracy ramps with exposure) -----------
-	if absf(nva.d_exposure_ramp - 2.2) > 0.01:
-		_bad("nva exposure_ramp %.2f != 2.2 (data not plumbed)" % nva.d_exposure_ramp)
-	if absf(farmer.d_exposure_ramp - 3.5) > 0.01:
-		_bad("farmer exposure_ramp %.2f != 3.5" % farmer.d_exposure_ramp)
+	# PLUMBING IS THE CONTRACT, NOT THE TUNING. This asserted 2.2 and 3.5 - values these two
+	# archetypes were retuned off (nva_regular is 1.6, vc_farmer 2.6) - so a probe named
+	# "data not plumbed" failed while the data was plumbed perfectly, and would fail again on
+	# every balance pass. Read the expected value off the RESOURCE: that catches the thing the
+	# check exists for (a value that never reached the man, which reads as the 2.5 default)
+	# without freezing a number the designer must be free to move.
+	var nva_data: EnemyData = load("res://data/enemies/nva_regular.tres")
+	var farmer_data: EnemyData = load("res://data/enemies/vc_farmer.tres")
+	if absf(nva.d_exposure_ramp - nva_data.exposure_ramp_time) > 0.01:
+		_bad("nva exposure_ramp %.2f != its data's %.2f (not plumbed)" % [
+			nva.d_exposure_ramp, nva_data.exposure_ramp_time])
+	if absf(farmer.d_exposure_ramp - farmer_data.exposure_ramp_time) > 0.01:
+		_bad("farmer exposure_ramp %.2f != its data's %.2f (not plumbed)" % [
+			farmer.d_exposure_ramp, farmer_data.exposure_ramp_time])
+	# The ordering is the DESIGN claim and survives any retune: a trained soldier converges
+	# faster than a farmer with a rifle.
 	if nva.d_exposure_ramp >= farmer.d_exposure_ramp:
-		_bad("NVA must lock on faster than a farmer")
+		_bad("NVA must lock on faster than a farmer (%.2f vs %.2f)" % [
+			nva.d_exposure_ramp, farmer.d_exposure_ramp])
 	var m0: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, 0.0))
 	var m_half: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, nva.d_exposure_ramp * 0.5))
 	var m1: float = AIMarksmanship.exposure_spread_mult(_exposure_t(nva, nva.d_exposure_ramp))
