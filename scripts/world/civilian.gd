@@ -696,6 +696,33 @@ func _teardown_hitzones() -> void:
 			(c as Hitzone).queue_free()
 
 
+## HE WATCHED YOU TAKE AN EAR, AND NOW HE HAS SOMETHING TO CARRY.
+##
+## player.gd:249 has called this on every witness within EAR_WITNESS_M since the ear system
+## shipped, guarded by has_method - and nothing implemented it, so the branch was a permanent
+## no-op and "THEY SAW YOU DO THAT" was a toast with nothing behind it. Wired on his ruling,
+## 2026-08-07.
+##
+## Deliberately NOT a new system. ADR-019's sentiment ledger does not exist and is deferred
+## post-launch; what DOES exist is the informer, who already runs, already carries the word,
+## and already trips the alarm at 25s. A witness becomes one of those. No meter, no score - the
+## consequence is a man leaving with your position, which is the shape ADR-019 asked for
+## anyway: sentiment moves in words, never as a number.
+##
+## `at` is the corpse, which is where you were standing when he saw you - so it is the honest
+## value for the fix he carries, and it is already what the caller passes.
+func on_atrocity_witnessed(at: Vector3) -> void:
+	if state == CivState.GONE or is_garrison:
+		return
+	# Already running with a story: seeing a second one does not restart his clock.
+	if _inform_clock >= 0.0:
+		return
+	is_informer = true
+	_inform_clock = 0.0
+	_saw_player_at = at
+	state = CivState.FLEE
+
+
 ## Informer alarm fired. Swap the model to a VC variant, drop the civilian out
 ## of the civilians group, ready the faction flip. The actual `EnemyBase` is
 ## spawned by the mission director (it owns the enemy roster); here we just
