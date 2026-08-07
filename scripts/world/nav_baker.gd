@@ -363,7 +363,7 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 ## having to model it.
 ##
 ## fb_int_ is interior dressing - hanging bulbs, crates, bunks. Same story, indoors.
-const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_"]
+const NAV_IGNORE_PREFIXES: Array[String] = [SitePlanner.VEG_COLLIDER_PREFIX, "fb_int_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:

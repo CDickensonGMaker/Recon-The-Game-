@@ -37,7 +37,6 @@ class BenchTerrain extends TerrainManager:
 ## THE REAL FIREBASE ART, NOT A STAND-IN. A bench that proves a grey box breaks has proved
 ## nothing about the thing that has to break. Both benches lift their targets out of the
 ## shipped GLBs through here, so there is ONE lifter and no second target vocabulary.
-const FSB_PATH: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
 ## The wire is NOT taken from the firebase: gen_firebase_v3 bakes all ~450 cards into one
 ## merged `bwire_card_ring` measuring 230 x 4 x 169 m, and a box hull off that AABB is a
 ## map-sized wall. This is the single card the ring is built from.
@@ -61,7 +60,7 @@ const TARGET_KINDS: Array[Dictionary] = [
 ## transform or a second collider into the bench.
 static func lift_meshes(prefix: String, want: int, src: String = "fsb") -> Array[Mesh]:
 	var out: Array[Mesh] = []
-	var path: String = WIRE_PATH if src == "wire" else FSB_PATH
+	var path: String = WIRE_PATH if src == "wire" else SitePlanner.FSB_MODEL_GLB
 	var packed: PackedScene = load(path) as PackedScene
 	if packed == null:
 		push_error("[BENCH] %s missing - cannot lift '%s' targets" % [path, prefix])

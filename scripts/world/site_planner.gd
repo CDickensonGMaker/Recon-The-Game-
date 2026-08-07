@@ -1229,8 +1229,8 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 const MOUND_COLLIDER_PREFIX: String = "fb_terrain_mound"
 ## Box-hulled in the shipped GLB, re-meshed from their own geometry at load. Both are already
 ## corrected at source; when the re-export lands these counts go to 0 and this all deletes.
-const REMESH_COLLIDER_PREFIXES: Array[String] = ["fb_veg_", "fb_sbg_seg_"]
 const VEG_COLLIDER_PREFIX: String = "fb_veg_"
+const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX, "fb_sbg_seg_"]
 
 
 ## THE INTERIORS COST 45% OF THE COMPOUND'S DRAW CALLS FOR 4% OF ITS GEOMETRY. Measured
