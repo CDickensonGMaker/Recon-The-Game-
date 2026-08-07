@@ -363,7 +363,12 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 ## having to model it.
 ##
 ## fb_int_ is interior dressing - hanging bulbs, crates, bunks. Same story, indoors.
-const NAV_IGNORE_PREFIXES: Array[String] = [SitePlanner.VEG_COLLIDER_PREFIX, "fb_int_"]
+## Authority for the vegetation prefix is SitePlanner.VEG_COLLIDER_PREFIX. It is repeated as a
+## literal here on purpose: naming SitePlanner inside a CONST INITIALISER makes this script's
+## class resolution depend on that whole graph, and doing so broke an unrelated parse
+## (enemy_base._dress_visual "not found in base self") in the same run. A const initialiser is
+## not the place to reach across files.
+const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
