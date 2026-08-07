@@ -144,7 +144,15 @@ func _check_promotion_gate() -> void:
 	if any.size() > 0:
 		var a := any[0] as AllyBase
 		_expect(a != null and not a.squad_member, "a promoted defender is NOT in the player's squad")
-		_expect(a != null and a._is_garrison_defender(), "a promoted defender holds a post (leash armed)")
+		# `_is_garrison_defender()` never existed on AllyBase - this line called a method
+		# that is defined nowhere in scripts/, so the whole test errored out before it could
+		# check anything. Assert the OBSERVABLE contract GarrisonDefender.promote() actually
+		# writes instead of inventing a predicate for production to carry: a promoted man is
+		# anchored to his post (defense_zone + a live radius) and ordered to HOLD it.
+		_expect(a != null and a.defense_zone != Vector3.ZERO and a.defense_zone_radius > 0.0,
+			"a promoted defender is anchored to his post (defense_zone + radius armed)")
+		_expect(a != null and a.order_mode == AllyBase.OrderMode.HOLD,
+			"a promoted defender is ordered to HOLD his post, not to follow")
 	_free_group("garrison_promoted")
 	for e in d._live_enemies:
 		(e as Node).queue_free()
