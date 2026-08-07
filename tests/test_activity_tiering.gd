@@ -52,9 +52,15 @@ func _test_hotset_math() -> int:
 	var fails: int = 0
 	EnemySquadScript.clear()
 	EnemySquadScript.tiering_enabled = true
-	var men: Array[FakeFighter] = _make(20)
+	# THE FORCE MUST EXCEED THE CAP OR THERE IS NOTHING TO CAP. This mustered a hardcoded 20
+	# against HOT_CAP, which is 50 - so all twenty got slots, `granted` could never equal the
+	# cap, and the two checks below (a cold man exists, a cold man is refused) were asserting
+	# against a roster that was never full. Sized off the constant so a retune cannot
+	# re-hollow it; the surplus is what makes a cold fighter exist at all.
+	const SURPLUS: int = 4
+	var men: Array[FakeFighter] = _make(EnemySquadScript.HOT_CAP + SURPLUS)
 
-	# CAP: 20 want in, only HOT_CAP get slots.
+	# CAP: more men want in than there are slots.
 	var granted: int = 0
 	for m in men:
 		if EnemySquadScript.request_hot(m):
@@ -67,10 +73,18 @@ func _test_hotset_math() -> int:
 		fails += 1
 
 	# A cold man is denied while the roster is full.
-	var cold: FakeFighter = men[15] if not EnemySquadScript.is_hot(men[15]) else men[19]
-	if EnemySquadScript.is_hot(cold):
+	# Find a genuinely cold man rather than guessing an index: request_hot grants in call
+	# order, so the surplus is at the tail - but asserting that is asserting an implementation
+	# detail. Ask instead.
+	var cold: FakeFighter = null
+	for m in men:
+		if not EnemySquadScript.is_hot(m):
+			cold = m
+			break
+	if cold == null:
 		printerr("FAIL: expected a cold fighter with a full roster")
 		fails += 1
+		return fails
 	if EnemySquadScript.request_hot(cold):
 		printerr("FAIL: cold fighter promoted into a full roster (cap breached)")
 		fails += 1
