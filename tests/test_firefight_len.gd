@@ -61,14 +61,21 @@ func _run_fairness_assertions() -> void:
 		max_ai_dev = maxf(max_ai_dev, rad_to_deg(base.angle_to(aa)))
 		var fs: Vector3 = AIMarksmanship.aim_with_spread(base, big, true, 1.0, true)
 		max_firstshot_dev = maxf(max_firstshot_dev, rad_to_deg(base.angle_to(fs)))
-	var player_cap: float = AIMarksmanship.PLAYER_CONE_CAP_DEG
+	# THE EFFECTIVE CAP, derived the same way aim_with_spread derives it (:90) rather than
+	# assumed: the player branch breathes the cap by the exposure ramp AND by PLAYER_TONE_MULT,
+	# his 2026-08-04 ruling ("tone down the enemy accuracy by 15 percent"). This probe read the
+	# bare PLAYER_CONE_CAP_DEG and so failed the moment that ruling shipped — reporting a dial
+	# leak with the dial at 1.0, which cannot widen anything. Compute it, and a future retune of
+	# either constant cannot re-break the probe.
+	var player_cap: float = AIMarksmanship.PLAYER_CONE_CAP_DEG \
+		* AIMarksmanship.exposure_spread_mult(1.0) * AIMarksmanship.PLAYER_TONE_MULT
 	print("  player-target max deviation: %.2f deg (cap %.2f, dial ignored)" % [max_player_dev, player_cap])
 	print("  ai-target max deviation:     %.2f deg (cap widened by dial %.1f)" % [max_ai_dev, _cone_mult])
 	print("  first-shot-at-player max dev: %.2f deg (telegraphed near-miss)" % max_firstshot_dev)
 	# Player cone is never widened by the dial - allow a hair for the elevation-basis math.
 	if max_player_dev > player_cap + 0.05:
 		_fairness_failures += 1
-		print("  FAIL: player cone %.2f exceeded the fixed cap %.2f - the dial LEAKED to the player" % [max_player_dev, player_cap])
+		print("  FAIL: player cone %.2f exceeded its effective cap %.2f - the dial LEAKED to the player" % [max_player_dev, player_cap])
 	# With a dial > 1, AI-vs-AI must actually be able to exceed the player cap (proves the widen works).
 	if _cone_mult > 1.5 and max_ai_dev <= player_cap + 0.05:
 		_fairness_failures += 1
