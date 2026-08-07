@@ -52,7 +52,21 @@ const NIGHT_RATIO: float = 20.0
 
 const PROBE_AT_S: float = 1395.0     ## first contact on the wire, just after stand-to
 const SIEGE_AT_S: float = 1440.0     ## the assault - 360 s of it, the tuning SIEGE_AIR_BEATS assumes
-const END_AT_S: float = 1800.0       ## 30 minutes: the gunships come in
+
+## THE RAID ENDS THE DEMO, NOT A STOPWATCH (his ruling 2026-08-07: "there shouldn't really be
+## a dead cut off time, it's just like whenever the end of the firebase raid happened").
+##
+## END_AT_S used to fire the gunships on the clock whether the assault was resolved or not, so
+## a wave that broke early left the player standing in a won fight waiting for a timer, and one
+## that ran long got its ending cut across it. SiegeDirector already announces the answer -
+## `siege_ended` carries the reason, the killed count and the peak - and the arena has listened
+## to it since the survival waves. The demo now does too.
+##
+## This is a BACKSTOP, not the pacing. It only fires if the assault never resolves at all -
+## every cell dead-ended, or a break that cannot compute - because an unbounded demo is worse
+## than an early one. Generous on purpose: at ~24 min to the assault it leaves a 21-minute
+## fight before it ever bites.
+const END_BACKSTOP_S: float = 2700.0
 
 ## THE DAWN CARD IS DEAD (Law 2, and his ruling Q1). Making the sun genuinely come up costs
 ## the three exploits above, so the demo no longer claims it. The last image is a flight of
@@ -108,9 +122,9 @@ func _ready() -> void:
 	if _flow == null or not is_instance_valid(_flow) or not is_inside_tree():
 		return
 	SimClock.set_time(1, START_HOUR)
-	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds end@%ds" % [
+	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
 		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
-		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_AT_S)])
+		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
 
 
 func _exit_tree() -> void:
@@ -172,7 +186,7 @@ const NAPALM_RANGE_M: float = 210.0
 var _napalm_early_done: bool = false
 
 ## ---- THE SIEGE AIR SHOW ----
-## The assault runs SIEGE_AT_S -> END_AT_S: SIX MINUTES, and it used to carry exactly ONE
+## The assault runs from SIEGE_AT_S until the raid resolves - about six minutes - and it used to carry exactly ONE
 ## air beat (the GUNS_NAPALM at +60). The climax of the demo was the quietest sky in it.
 ##
 ## Each beat is [seconds after SIEGE_AT_S, ordnance, metres out, bearing source]. They walk
@@ -376,7 +390,8 @@ func _physics_process(delta: float) -> void:
 				_phase = 2
 				_open_siege(SIEGE_STRENGTH, "HERE THEY COME")
 		2:
-			if _clock >= END_AT_S:
+			if _clock >= END_BACKSTOP_S:
+				print("[DEMO] BACKSTOP at %.0fs - the assault never resolved, ending anyway" % _clock)
 				_phase = 3
 				_ending()
 
@@ -408,12 +423,35 @@ func _open_siege(strength: int, toast: String) -> void:
 		# announced twice. reinforce() grows strength and peak together so the break
 		# ratio still means something.
 		d.siege.reinforce(maxi(1, strength - d.siege.run_strength))
+		# ARM THE WATCH HERE TOO. This branch is the one the demo actually takes - the probe is
+		# still up at SIEGE_AT_S, so the assault arrives as a reinforcement, not a fresh siege.
+		# Arming only on the open_siege path below would have left the ending on the backstop.
+		_watch_for_the_raids_end(d)
 		d.toast.emit(toast)
 		print("[DEMO] phase %d: reinforced to %d at %.0fs" % [_phase, strength, _clock])
 		return
 	d.siege.open_siege(strength)
+	_watch_for_the_raids_end(d)
 	d.toast.emit(toast)
 	print("[DEMO] phase %d: open_siege(%d) at %.0fs" % [_phase, strength, _clock])
+
+
+## THE RAID'S END IS THE DEMO'S END. Armed on the ASSAULT only: a probe that breaks is the
+## night's first beat, not its last, and ending on it would cut the demo at minute 23.
+func _watch_for_the_raids_end(d: FieldDirector) -> void:
+	if _phase < 2 or d.siege == null:
+		return
+	if not d.siege.siege_ended.is_connected(_on_raid_ended):
+		d.siege.siege_ended.connect(_on_raid_ended)
+
+
+func _on_raid_ended(reason: String, killed: int, strength: int) -> void:
+	if _phase >= 3:
+		return
+	_phase = 3
+	print("[DEMO] the raid ended at %.0fs (%s) - %d of %d down, sim %05.2f" % [
+		_clock, reason, killed, strength, SimClock.sim_hour])
+	_ending()
 
 
 ## THE LAST IMAGE: a flight of Huey gunships circling the wire, M60 gunners working. Not
