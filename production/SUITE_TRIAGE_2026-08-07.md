@@ -152,3 +152,20 @@ blind to that call, or the count really is unread.
 The prior held: examined-and-real is now 11 of 34 across the day, so roughly two thirds of this
 suite's red was probe rot. But the third that is real contains **the sapper breach**, and that
 one is the demo's climax.
+
+---
+
+## RESOLUTION LOG — 2026-08-07 (afternoon)
+
+| Probe | Verdict | Evidence |
+|---|---|---|
+| `test_bullet_flight` (drop) | **STALE PROBE** | Probe waited 60 frames and called it one second; `project.godot:312` runs physics at **30 Hz**. 19.93m was the *two*-second figure (½·9.8·2²=19.6). Now reads `Engine.physics_ticks_per_second` → **5.06m**, correct. `bullet_system.gd:118` integrates gravity correctly and always did. |
+| `test_patrol_contract` | **NAMING FOSSIL (real, cosmetic)** | Probe substring-scans source for `OBJECTIVE` and hit two *internal constant names*, not player-facing vocabulary. But ADR-029 deleted the objective loop, and both constants' own comments already described the replacement correctly ("THE CIRCLES — offered, never required"). Renamed `PATROL_OBJECTIVE_COUNT`→`PATROL_CIRCLE_COUNT`, `OBJECTIVE_REACHED_M`→`CIRCLE_WALKED_M`. No semantic change. |
+| `test_actor_damage_contract` | **REAL — ratchet fired correctly** | `zombie_base.gd` declares a 4-arg `take_damage` and was never registered in `ACTOR_CONTRACT`. It carries both hitzones (`zombie_base.gd:117`) and gib (`:341`, `:358`). Row added; checks **77 → 81**, so the row is *exercised*, not silencing. |
+| `test_think_budget` (c) | **MIS-SPECIFIED PROBE — no production defect** | `count_engaging` (`enemy_squad.gd:206-219`) is a **TTL report ledger**, not a snapshot — it counts every `{tid, ms}` inside `ENGAGE_TTL_MS` without asking if the reporter is alive, hot, or holds LOS. Check (c) bounded it above by *instantaneous* truth allowing only death as the difference → failed **4 of 8** runs at 50 hot men. Both hypotheses ruled out by instrumentation (`lost_los=0`, `cold_claim=0` every run). Replaced with check (d): stop all thinking, wait a full TTL, ledger must drain to **0**. 8/8 green. |
+
+**Running tally: 24 stale/mis-specified probes · 3 real defects · 1 open (bullet vs Area3D hitzone).**
+
+**The pattern held again, twice.** In `test_think_budget` the header comment said *"only full thinks report"* and in `field_director` the constants' comments already described THE CIRCLES correctly — both times the comment was right and the assertion around it was wrong.
+
+**A rejected fix worth recording.** The obvious repair for the census was widening the bound to `truth + recent_dead + (hot − truth)`. That computes to **50 against a census of 18** — a check that can never fail. A fake green is worse than a red, so it was rejected in favour of testing expiry directly.
