@@ -9,16 +9,32 @@ const ArenaScript := preload("res://scripts/levels/ai_stress_arena.gd")
 const MAX_SECONDS: float = 90.0
 
 
-## Captures [NAV] push_warnings: a spawn that misses the navmesh (off-map / in a
-## wall) fires one, so a count of 0 is the "everyone landed on the mesh" proof.
+## Captures [NAV] warnings. A count of 0 is the "everyone landed on the mesh" proof -
+## but ONLY once the count can actually rise.
+##
+## IT COULD NOT. push_warning() routes to Logger._log_error, NOT _log_message, and
+## _log_error was stubbed `pass` - so this counter was structurally pinned at 0 while
+## nav_router.gd:120 fired 18 warnings in the same run. The probe then printed
+## "[NAV] warnings: 0" and PASSED. A dead capture and a clean run are indistinguishable
+## from the outside, and this file called the dead one proof.
 class WarningCapture extends Logger:
 	var count: int = 0
 	func _log_message(message: String, _verbose: bool) -> void:
 		if message.contains("[NAV]"):
 			count += 1
-	func _log_error(_m: String, _f: String, _l: int, _fi: String, _e: String, _v: bool, _s: int, _b: Array) -> void:
-		pass
+	## Godot hands push_warning's text through the `code`/`rationale` pair; check both
+	## rather than betting on which one carries it.
+	func _log_error(_function: String, _file: String, _line: int, code: String,
+			rationale: String, _editor_notify: bool, _error_type: int,
+			_backtraces: Array) -> void:
+		if code.contains("[NAV]") or rationale.contains("[NAV]"):
+			count += 1
 
+
+## A 200m arena whose agents path 51-108m needs a mesh, not a token. The observed bake is
+## 2 polys (ai_stress_arena.gd:_bake_navmesh), which is what pins every long path. This is a
+## FLOOR, deliberately loose - it is here to catch "the bake collapsed", not to grade quality.
+const MIN_NAV_POLYS: int = 8
 
 var _arena: Node3D
 var _elapsed: float = 0.0
@@ -179,9 +195,13 @@ func _finish() -> void:
 		_failures += 1
 		print("FAIL (d): VC wave %d not in 16-26" % _wave_vc)
 	# (e) nav baked and nobody off-map / in a wall
-	if nav_polys <= 0:
+	# `<= 0` was too weak to catch the real failure: the bake returns 2 polys, which is
+	# non-zero and still useless under a 200m arena. A floor catches a COLLAPSED bake; the
+	# old check only caught a total absence.
+	if nav_polys < MIN_NAV_POLYS:
 		_failures += 1
-		print("FAIL (e): navmesh did not bake (0 polys)")
+		print("FAIL (e): navmesh baked %d polys, under the %d floor - agents cannot path"
+			% [nav_polys, MIN_NAV_POLYS])
 	if off_map > 0:
 		_failures += 1
 		print("FAIL (e): %d units off-map or at a bad height" % off_map)
