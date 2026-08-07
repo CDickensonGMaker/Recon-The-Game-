@@ -61,6 +61,8 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 ## Engine.has_singleton and ClassDB, so it is reachable only by node path. 1 is the
 ## out-of-tree fallback for unit tests.
 func _sim_day() -> int:
+	if not is_inside_tree():
+		return 1
 	var clock: Node = get_node_or_null(^"/root/SimClock")
 	if clock == null:
 		return 1

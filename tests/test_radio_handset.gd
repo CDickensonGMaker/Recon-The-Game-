@@ -130,8 +130,8 @@ func _test_grab_swaps_and_slings_rifle() -> void:
 	player.call("bind_radio_handset", h)
 	h.handset_taken.connect(func(_by: Node3D) -> void: _taken_fired += 1)
 
-	var stowed: MeshInstance3D = h.stowed_mesh
-	var held: MeshInstance3D = h.held_mesh   # the player's viewmodel placeholder
+	var stowed: Node3D = h.stowed_mesh
+	var held: Node3D = h.held_mesh   # the player's viewmodel placeholder
 	_ok(stowed.visible and not held.visible, "before grab: stowed shown, held hidden")
 
 	var took: bool = h.take(player)
@@ -154,8 +154,8 @@ func _test_grab_swaps_and_slings_rifle() -> void:
 
 var _snap_player: CharacterBody3D = null
 var _snap_handset: RadioHandset = null
-var _snap_stowed: MeshInstance3D = null
-var _snap_held: MeshInstance3D = null
+var _snap_stowed: Node3D = null
+var _snap_held: Node3D = null
 
 
 ## D: walk past full cord stretch -> NOTHING rips (his ruling 2026-08-04: taking

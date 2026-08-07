@@ -377,7 +377,12 @@ func _check_foe_ratio_is_local() -> void:
 func _check_ambient_patrol_lods() -> void:
 	var wd := TerrainWatchdog.new()
 	add_child(wd)
-	wd.setup(TerrainManager.new())
+	var w := GameWorld.new()
+	w.build_terrain_on_ready = false
+	add_child(w)
+	w.terrain_manager = TerrainManager.new()
+	w.add_child(w.terrain_manager)
+	wd.setup(w)
 	var pl := CharacterBody3D.new()
 	add_child(pl)
 	pl.global_position = Vector3.ZERO
@@ -405,3 +410,4 @@ func _check_ambient_patrol_lods() -> void:
 	squaddie.queue_free()
 	pl.queue_free()
 	wd.queue_free()
+	w.queue_free()
