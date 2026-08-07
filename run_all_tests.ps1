@@ -17,7 +17,11 @@ param([string]$Filter = "", [switch]$Verbose1, [int]$TimeoutSec = 420)
 
 $ErrorActionPreference = 'Continue'
 
-$godot = "C:\Users\caleb\Downloads\Godot_v4.7-stable_win64.exe\Godot_v4.7-stable_win64_console.exe"
+# The exe moved to _tools\godot47 on 2026-08-04. All 12 root .bat launchers were repointed that
+# day; THIS FILE WAS MISSED, so the suite was unrunnable and its last artefact is 2026-07-17.
+# A dead interpreter path is a silent gate: nothing fails, the suite simply never runs.
+$godot = "C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64_console.exe"
+if (-not (Test-Path $godot)) { throw "Godot not found at $godot - the suite cannot run. Fix this path, do not skip the suite." }
 $root = $PSScriptRoot
 $tests = Get-ChildItem "$root\tests" -Filter "test_*.tscn" | Sort-Object Name
 if ($Filter) { $tests = $tests | Where-Object { $_.BaseName -like "*$Filter*" } }

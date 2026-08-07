@@ -56,7 +56,36 @@ I want a new audit of whats there and not there. weve made 300+ animations in ou
 ## 6. UI ART
 - Topo paper texture, medal/ribbon icons, MACV-SOG patch PNG, offer-card thumbnails. [fmc8 adjacent] There needs to be a whole day spent fixing and refining the whole UI/UX. its all total placeholder right now and worth something to spend our deep dive of a week learning more about the pros and cons of UI UX experiences in a deep research. 
 
-## 7. AUDIO Do a full audit of the audio because lots has changed in the good way. 
+## 7. AUDIO — AUDITED 2026-08-07 (he asked; every line below is measured, not remembered)
+
+**He was right: this is not the "~10% emptiest bucket" the 2026-07-11 header called it.** Method:
+inventory of `assets/audio`, filename-pattern match per `data/weapons/*.tres` id, and every `.wav`/
+`.mp3`/`.ogg` string literal in `scripts/` checked against disk.
+
+- **WEAPON FIRE — 9 guns on REAL recordings:** `m16a1 · ak47 · rpd · ppsh41 · m60 · mosin · m70 ·
+  m14 · car15`, each with near variants + a `_dist` layer (Snake's Authentic Gun Sounds, landed
+  2026-07-27/29). **Told apart by measurement, not by trust:** real renders have varied lengths
+  (m60 31,496 B · ppsh41 23,118 B · mosin 192,078 B); the synth batch is byte-identical at
+  **72,044 B, all stamped 2026-07-08 18:36**.
+- **`m1911` stays synth ON PURPOSE** — .45 ACP is subsonic and the pack carries no pistol stock
+  (`tests/test_audio_pack.gd:30-31`).
+- **THE ONE REAL GAP: launchers + shotgun** — `m79 · rpg2 · rpg7 · m72_law · shotgun` are still
+  synth renders. Explosive weapons sounding fake undercuts the lethality the game is built on.
+  This is ship-audit item M16.
+- ~~**VO barks needed**~~ — **THEY EXIST: 162 files across 8 voices** (`bryce` 25 · `hfc_male` 25 ·
+  `joe the radio man` 15 · `john` 25 · `norman` 17 · `ryan` 25) **including 30 Vietnamese** across
+  `vi_25hours` / `vi_vais1000` / `vi_vivos`. Matches GAME_GUIDE's "162 wired via VOManager".
+- ~~**only jungle_day is real; night/rain/river missing**~~ — **STALE.** `rain_loop`,
+  `wind_loop`, `night_insects_loop`, `distant_war_loop`, `radio_crackle` all exist **and every one
+  is referenced in code.** 12 ambience files, 12 wired.
+- **Radio Vietnam: 19 `.ogg`, ~104 MB** — his broadcast edits are in the tree (2 long-run beds at
+  41 MB and 33 MB, plus 14 period music tracks).
+- **ZERO missing files.** Every explicit audio path in `scripts/` resolves on disk.
+- Aircraft loops and the breath render are procedural by design (`tools/gen_aircraft_audio.py`,
+  `gen_breath_audio.py`) — physically keyed, loops cut to blade-passage periods. Not a gap.
+- **Size note, not a defect:** `ambience/jungle_day.mp3` is 53 MB and the Radio Vietnam beds are
+  41 MB + 33 MB. That is ~127 MB of the audio tree in three files, worth knowing before the
+  export-size conversation.
 
 
 ## 8. TEXTURE OPTIMIZATION (the real 85MB) This all still needs to happen and even if we could do it heedlessly over night would be great. I need to optimize all the models in the game. 
