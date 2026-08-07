@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestdemoplanner1"]
+
+[ext_resource type="Script" path="res://tests/test_demo_planner.gd" id="1_tdp"]
+
+[node name="TestDemoPlanner" type="Node"]
+script = ExtResource("1_tdp")
