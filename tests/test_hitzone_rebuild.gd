@@ -6,8 +6,12 @@
 ## if the swap does not rebuild them, the MG gunner is shot through the rifleman's
 ## silhouette for the whole mission.
 ##
-## Discriminator: us_grunt_v3 and us_grunt_mg harvest different hull point counts.
-## The probe asserts the discriminator is alive before it trusts any result.
+## Discriminator: every "us_grunt_*" role body (rifleman, mg, marksman, ...) is cut
+## from the SAME shared base humanoid mesh (gear/weapon differs, body does not -
+## verified 2026-08-07: identical hull point counts across all 10 zones), so no
+## grunt-vs-grunt pair can ever discriminate. us_grunt_rifleman vs us_pilot_white
+## (a genuinely different sculpted body) does. The probe asserts the discriminator
+## is alive before it trusts any result.
 ##
 ## NEGATIVE CONTROL (case D): the pre-fix code path is run deliberately and must
 ## FAIL to carry the new body's hulls. If D ever stops showing the defect, this
@@ -16,8 +20,8 @@
 ## Run: godot --headless --path . res://tests/test_hitzone_rebuild.tscn
 extends Node3D
 
-const SWAP_UNIT: String = "us_grunt_mg"
-const SWAP_WEAPON: String = "m60"
+const SWAP_UNIT: String = "us_pilot_white"
+const SWAP_WEAPON: String = "m16a1"
 
 var _failures: int = 0
 

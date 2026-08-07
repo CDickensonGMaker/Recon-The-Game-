@@ -750,6 +750,52 @@ func _take_world_weapon(gun: WorldWeapon) -> void:
 	_field_toast("PICKED UP THE %s" % taken.display_name.to_upper())
 
 
+## Zombie-mode wall buys/mystery box name a weapon by its .tres path, never a
+## WeaponData reference - they do not carry a live handle on the player. Give it
+## one the same way a battlefield pickup does: through equip_captured_weapon.
+func give_weapon(weapon_path: String) -> void:
+	if weapon_holder == null or weapon_path.is_empty():
+		return
+	var data := load(weapon_path) as WeaponData
+	if data == null:
+		return
+	weapon_holder.equip_captured_weapon(data)
+	_field_toast("PICKED UP THE %s" % data.display_name.to_upper())
+
+
+## True when either slot already carries the gun at this path - the wall buy uses
+## this to decide "sell me the gun" vs "sell me ammo for the one I have."
+func has_weapon_path(weapon_path: String) -> bool:
+	if weapon_holder == null or weapon_path.is_empty():
+		return false
+	var primary: WeaponData = weapon_holder.primary_weapon
+	var secondary: WeaponData = weapon_holder.secondary_weapon
+	return (primary != null and primary.resource_path == weapon_path) \
+		or (secondary != null and secondary.resource_path == weapon_path)
+
+
+## Top off the slot carrying this weapon: full magazine plus a paid resupply of
+## spare mags. Only fires on a slot that already holds the gun (has_weapon_path
+## gates the wall buy's "ammo" price before this is ever called).
+func refill_ammo(weapon_path: String) -> void:
+	if weapon_holder == null or weapon_path.is_empty():
+		return
+	var primary: WeaponData = weapon_holder.primary_weapon
+	var secondary: WeaponData = weapon_holder.secondary_weapon
+	if primary != null and primary.resource_path == weapon_path:
+		weapon_holder.primary_ammo = [primary.magazine_size, weapon_holder.primary_ammo[1] + 4]
+		if weapon_holder.current_slot == 0:
+			weapon_holder.current_ammo = weapon_holder.primary_ammo[0]
+			weapon_holder.spare_magazines = weapon_holder.primary_ammo[1]
+			weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+	elif secondary != null and secondary.resource_path == weapon_path:
+		weapon_holder.secondary_ammo = [secondary.magazine_size, weapon_holder.secondary_ammo[1] + 4]
+		if weapon_holder.current_slot == 1:
+			weapon_holder.current_ammo = weapon_holder.secondary_ammo[0]
+			weapon_holder.spare_magazines = weapon_holder.secondary_ammo[1]
+			weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+
+
 ## Put the current primary on the ground in front of you. Returns false when there is
 ## nothing to drop, so the [G] handler can stay quiet instead of toasting at empty hands.
 func drop_primary_weapon() -> bool:
