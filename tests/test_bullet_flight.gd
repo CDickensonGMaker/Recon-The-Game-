@@ -116,6 +116,11 @@ func _run() -> void:
 	hz.add_child(hcol)
 	add_child(hz)
 	hz.global_position = Vector3(0, 5, -30)
+	# AN AREA3D IS NOT IN THE PHYSICS SPACE THE FRAME YOU ADD IT. The probe built the zone and
+	# fired in the same frame, so the sweep queried a space the hitzone had not entered yet and
+	# "the bullet never resolved against the HEAD hitzone" was the rig, not the ballistics -
+	# bullet_system.gd:123 has set collide_with_areas since it was written. One tick to settle.
+	await get_tree().physics_frame
 
 	bullets.fire(m16, null, Vector3(0, 5, 0), Vector3(0, 0, -1), 64, [], false)
 	for t in range(60):
