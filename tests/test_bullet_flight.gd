@@ -55,7 +55,11 @@ func _run() -> void:
 		if bullets.live_count() == 0:
 			ticks_to_hit = t + 1
 			break
-	var expected_ticks: int = int(ceil((60.0 / m16.projectile_speed) / (1.0 / 60.0)))
+	# ASK THE ENGINE FOR THE TICK RATE. This project runs physics at 30 Hz
+	# (project.godot:312), not the 60 this probe assumed - so every "per tick" figure here was
+	# computed against a step half the real size.
+	var phys_hz: float = float(Engine.physics_ticks_per_second)
+	var expected_ticks: int = int(ceil((60.0 / m16.projectile_speed) / (1.0 / phys_hz)))
 	print("  wall hit after %d ticks (expected ~%d at %.0f m/s)" % [ticks_to_hit, expected_ticks, m16.projectile_speed])
 	if ticks_to_hit <= 1:
 		print("FAIL: round arrived instantly - that is a hitscan, not a projectile")
@@ -70,12 +74,17 @@ func _run() -> void:
 	var slow: WeaponData = m16.duplicate()
 	slow.projectile_speed = 100.0
 	bullets.fire(slow, null, Vector3(0, 200, 0), Vector3(0, 0, -1), 1, [], false)
-	var sixty: int = 0
+	# ONE SECOND IS `hz` FRAMES, NOT 60. At the project's 30 Hz this waited two seconds and
+	# then measured the drop against a one-second expectation - 19.93m read as broken gravity
+	# when it is exactly 1/2 * 9.8 * 2^2. GRAVITY is 9.8 and bullet_system.gd:118 integrates
+	# it correctly; only the probe's clock was wrong.
+	var ticks: int = 0
+	var one_second: int = Engine.physics_ticks_per_second
 	var pos_at_1s: Vector3 = Vector3.ZERO
-	while bullets.live_count() > 0 and sixty < 800:
+	while bullets.live_count() > 0 and ticks < 800:
 		await get_tree().physics_frame
-		sixty += 1
-		if sixty == 60:
+		ticks += 1
+		if ticks == one_second:
 			pos_at_1s = bullets._bullets[0].pos
 	if pos_at_1s == Vector3.ZERO:
 		print("FAIL: bullet did not survive to 1s of flight")
@@ -86,11 +95,11 @@ func _run() -> void:
 		if drop < 3.5 or drop > 6.5:
 			print("FAIL: gravity drop wrong (%.2fm)" % drop)
 			failures += 1
-	if sixty >= 800:
+	if ticks >= 800:
 		print("FAIL: round never expired (max travel/age dead)")
 		failures += 1
 	else:
-		print("  round expired after %d ticks (max travel honored past stat-card range)" % sixty)
+		print("  round expired after %d ticks (max travel honored past stat-card range)" % ticks)
 
 	# --- 3. arrival damage through the zone seams
 	var body := DamageRecorder.new()
