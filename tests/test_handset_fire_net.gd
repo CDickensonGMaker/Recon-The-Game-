@@ -23,7 +23,7 @@ func _ready() -> void:
 	await _test_grab_opens_menu()
 	await _test_return_closes_menu()
 	await _test_t_path_open_close()
-	await _test_cord_snap_closes_menu()
+	await _test_cord_stretch_keeps_the_handset()
 	await _test_radio_check_gates_on_living_rto()
 	await _test_invariant_never_desyncs()
 
@@ -164,21 +164,30 @@ func _test_t_path_open_close() -> void:
 	await _tear_down(r)
 
 
-## 4. Walk past cord stretch while on the net -> the handset is ripped back to STOWED
-## AND the menu closes with it (the physical leash closes the net).
-func _test_cord_snap_closes_menu() -> void:
-	print("[4] CORD SNAP closes the menu")
+## 4. THE CORD NEVER TAKES THE HANDSET AWAY. Walk past cord stretch on the net and he KEEPS
+## it — the call is not dropped by geometry.
+##
+## This section asserted the opposite: that stretching the cord ripped the handset back to
+## STOWED and closed the menu with it. That snap was DELETED on his 2026-08-04 ruling ("the
+## cord NEVER rips the handset away") along with the cord_snapped signal, and cord_length
+## went 3 -> 8m to cover the RTO's 4.5m leash. radio_handset.gd carries no snap logic at all
+## now, so the probe was demanding a behaviour the code was deliberately relieved of.
+##
+## Inverted, because the guarantee is worth a probe: the leash that governs the net is the
+## RTO (section 5), never the wire between them.
+func _test_cord_stretch_keeps_the_handset() -> void:
+	print("[4] CORD STRETCH does not take the handset")
 	var r := await _make_rig()
 	r.player.call("set_on_net", true)
-	_ok(r.director.fire_menu_open, "on the net before the snap")
+	_ok(r.director.fire_menu_open, "on the net before the stretch")
 
-	# Drag the held end 10m from the radio: past cord_length (3m) -> tension >= 1.
+	# Drag the held end 10m from the radio - well past the 8m cord.
 	r.handset.held_endpoint.global_position = r.handset.cord.port.global_position + Vector3(10, 0, 0)
 	r.handset._physics_process(0.016)
 
-	_ok(r.handset.state == RadioHandset.State.STOWED, "handset ripped back to STOWED")
-	_ok(not bool(r.player.get("holding_handset")), "holding_handset cleared by the snap")
-	_ok(not r.director.fire_menu_open, "the fire menu CLOSED with the handset")
+	_ok(r.handset.state == RadioHandset.State.HELD, "he still has the handset")
+	_ok(bool(r.player.get("holding_handset")), "holding_handset survives the stretch")
+	_ok(r.director.fire_menu_open, "the fire menu is still open - geometry does not drop the call")
 	await _tear_down(r)
 
 
@@ -198,8 +207,12 @@ func _test_radio_check_gates_on_living_rto() -> void:
 	r.player.global_position = Vector3.ZERO
 	await get_tree().physics_frame
 
-	# RTO down: member_by_mos drops him (mos cleared) -> no radio.
+	# RTO ABSENT. _radio_check resolves through nearest_radioman() - the "radioman" GROUP -
+	# not member_by_mos, so clearing his MOS no longer takes him off the net. That is the
+	# intended shape ("should be any radioman"), so take him out the way the code actually
+	# looks for him. MOS stays cleared too, so this holds if the resolver ever changes back.
 	r.rto.member = {"nick": "SPARKS", "mos": ""}
+	r.rto.remove_from_group("radioman")
 	_ok(str(r.director.call("_radio_check")) != "", "RTO down/absent -> gated (no radio)")
 	await _tear_down(r)
 
