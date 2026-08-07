@@ -174,10 +174,17 @@ func _sample_load() -> void:
 		if ally != null and is_instance_valid(ally) and not ally.is_dead() and ally.target != null:
 			fighters += 1
 	var process_ms: float = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	# THE CAUSE MUST BE PRESENT FOR THE EFFECT TO COUNT. The header above says frame time
+	# alone "throttles the sky on a slow machine that is doing nothing... the opposite of the
+	# ask" - and then `or` let it do exactly that. A frame can be expensive for reasons that
+	# have nothing to do with a firefight (a chunk rebuild, a headless test, a weak GPU on
+	# the ADR-026 floor), and thinning ambient air does not make any of those cheaper - it
+	# just empties the sky for free. Measured: "load SATURATED - 0 FIGHTING, 234.9ms".
+	var fighting: bool = fighters > 0
 	var tier: Load = Load.CLEAR
-	if fighters >= SATURATED_FIGHTERS or process_ms >= SATURATED_PROCESS_MS:
+	if fighters >= SATURATED_FIGHTERS or (fighting and process_ms >= SATURATED_PROCESS_MS):
 		tier = Load.SATURATED
-	elif fighters >= BUSY_FIGHTERS or process_ms >= BUSY_PROCESS_MS:
+	elif fighters >= BUSY_FIGHTERS or (fighting and process_ms >= BUSY_PROCESS_MS):
 		tier = Load.BUSY
 	_load = tier
 	if tier != _gate_reported:
