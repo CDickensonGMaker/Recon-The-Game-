@@ -108,7 +108,9 @@ const VILLAGE_PROP_ZONES: Dictionary = {
 	"edge":   Vector2(0.8, 1.1),
 }
 
-## Rigged farm animals (Quaternius CC0, recolored): Idle anim v1, wander later.
+## Rigged farm animals (Quaternius CC0, recolored). Day/night wander is live:
+## AnimalRoutine (scripts/world/animal_routine.gd) grazes them by day and beds
+## them at their home_<species> marker by night.
 const VILLAGE_ANIMAL_DIR: String = "res://assets/world/animals/"
 ## Free-roaming counts. These are the animals that are NOT already placed at a
 ## home_<species> marker - the homes seed the herd, this is the overflow wandering

@@ -98,6 +98,21 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       (`tree_break_system.gd`, `tree_cover_layer.gd _acquire_body`, `tunnel_room.gd:32`,
       `field_director.gd:1061`).
 - [ ] 12. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
+- [x] 12c. **Stranded-anim wiring sweep** — LANDED 8/8 night, static-only: punji trapdoors
+      swing on spring (`punji_trap.gd _open_doors`, called from `_spring`) · M29 recoil clip
+      exposed as `MortarPit.play_fire_anim()` (`mortar_pit.gd`) — **caller not yet placed**
+      (one line owed in `camp_mortar.gd _fire()`; note `camp_mortar.gd:69` hides the whole
+      M29, so the clip is invisible on the camp pit until the lift stops hiding it) ·
+      `jumping_jacks` PT chain into garrison off-duty rotation (`civilian.gd OFF_DUTY_CHAINS`
+      + loop entry `model_actor.gd _LOOP_NAMES`) · skipped with pointers: spider-hole lid
+      (pop-up site is `enemy_base.gd:893-906`, off-limits this sweep, and nothing links the
+      GLB prop to the ambusher), AC-47 stalls (`spectre_gunship.gd` has no damage model —
+      unfire-able), `salute` + the four transition clips (no one-shot beat/transition hook
+      outside off-limits files).
+- [x] 12b. **Village animals wander** — LANDED 8/7 night: day-graze / night-bed routine now
+      consumes `animal_homes` + `grazing_points` and the banked Walk/Run/Peck clips
+      (`scripts/world/animal_routine.gd`, wired `scripts/world/site_planner.gd:307-316`).
+      Unverified in-engine (static-only sweep); Death/Jump clips still dark by design.
 - [x] 12a. **PSX look toggle** — LANDED 8/7 per his ruling: "PSX LOOK" in settings, **default OFF —
       perf numbers (item 3) still govern default-on** (`scripts/autoload/psx_look.gd`; material-shader
       half filed in `ART_GAPS_2026-08-07.md` "PSX LOOK")

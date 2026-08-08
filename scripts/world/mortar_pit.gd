@@ -40,6 +40,18 @@ static func create(parent: Node, pos: Vector3, face: Vector3) -> MortarPit:
 	return pit
 
 
+## The tube's recoil thump (`MC_MORTARAction`, the GLB's only clip). Call once per
+## volley fired FROM this pit - the shells themselves stay with SiegeDirector.
+func play_fire_anim() -> void:
+	var m29: Node3D = get_node_or_null(^"M29") as Node3D
+	if m29 == null:
+		return
+	var ap: AnimationPlayer = m29.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap != null and ap.has_animation("MC_MORTARAction"):
+		ap.stop()
+		ap.play(&"MC_MORTARAction")
+
+
 func station_position(station: String) -> Vector3:
 	var m: Node3D = get_node_or_null(NodePath(station)) as Node3D
 	return m.global_position if m != null else global_position

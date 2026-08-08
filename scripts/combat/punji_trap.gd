@@ -111,8 +111,24 @@ func is_dead() -> bool:
 	return _destroyed
 
 
+## Both trapdoors swing on the spring. One AnimationPlayer plays ONE clip, and the
+## GLB carries the doors as two separate clips - the right door rides a duplicate
+## player (different target nodes, so the two never fight over a track).
+func _open_doors() -> void:
+	var ap: AnimationPlayer = find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if ap == null:
+		return
+	if ap.has_animation("DoorLeftAction.003"):
+		ap.play(&"DoorLeftAction.003")
+	if ap.has_animation("DoorRightAction.003"):
+		var twin: AnimationPlayer = ap.duplicate() as AnimationPlayer
+		ap.get_parent().add_child(twin)
+		twin.play(&"DoorRightAction.003")
+
+
 func _spring(victim: Node) -> void:
 	_sprung = true
+	_open_doors()
 	if victim.has_method("take_damage"):
 		victim.take_damage(DAMAGE, Enums.DamageType.PHYSICAL, null)
 	if victim.has_method("apply_wound"):

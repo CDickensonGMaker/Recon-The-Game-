@@ -361,7 +361,11 @@ const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing
 	# would spin the mesh off the body.
 	"turn_left", "turn_right",
 	"sentry_scan", "nervous_scan", "crouch_scan", "laying_idle",
-	"neck_stretch", "arm_stretch"]
+	"neck_stretch", "arm_stretch",
+	# PT loop. MEASURED in-place (hips 0.0m x/y travel, 0.32m vertical bounce, zero
+	# root yaw). Named here because the "jump" heuristic below would leave it
+	# play-once, freezing the man mid-jack.
+	"jumping_jacks"]
 
 func _apply_loop_modes() -> void:
 	if _anim == null:

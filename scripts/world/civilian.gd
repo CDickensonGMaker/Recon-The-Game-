@@ -77,6 +77,7 @@ const OFF_DUTY_CHAINS: Array = [
 	["sitting_drinking", "drinking", "sitting_idle_c", "idle_unarmed_5"],
 	["sitting_talking", "standing_talking", "sitting_idle_b", "idle_unarmed_4"],
 	["neck_stretch", "arm_stretch", "idle_unarmed_3"],
+	["jumping_jacks", "neck_stretch", "arm_stretch", "idle_unarmed_3"],
 	["sitting_idle_c", "sitting_idle_b", "sitting", "idle_unarmed_5"],
 	["standing_talking", "telling_secret", "idle_unarmed_2"],
 	# The American social set, US-ONLY by his 2026-07-31 ruling. These are the last three

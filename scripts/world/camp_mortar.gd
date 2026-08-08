@@ -66,11 +66,22 @@ static func _lift_tube(world: Node, mortar_pit: MortarPit) -> Destructible:
 			break
 	if mesh == null:
 		return null
-	m29.visible = false
 	var d: Destructible = FireSupportBench.spawn_lifted(world, mesh,
 		m29.global_position, "mortar_tube", Destructible.hp_for("sandbag_wall"))
 	d.global_rotation = m29.global_rotation
+	## The Destructible is a damage proxy: the animated GLB keeps the visual so
+	## the fire clip reads; the proxy's copy stays hidden until it turns to rubble.
+	_set_proxy_visible(d, false)
 	return d
+
+
+static func _set_proxy_visible(d: Destructible, on: bool) -> void:
+	if d == null or not is_instance_valid(d):
+		return
+	for c in d.get_children():
+		var mi := c as MeshInstance3D
+		if mi != null:
+			mi.visible = on
 
 
 func silenced() -> bool:
@@ -78,6 +89,10 @@ func silenced() -> bool:
 		return true
 	if tube != null and is_instance_valid(tube) and tube.is_destroyed():
 		_silence("tube destroyed")
+		var m29: Node3D = pit.get_node_or_null(^"M29") as Node3D if pit != null and is_instance_valid(pit) else null
+		if m29 != null:
+			m29.visible = false
+		_set_proxy_visible(tube, true)
 	elif _crew_gone():
 		_silence("crew dead")
 	return _silenced
@@ -125,5 +140,6 @@ func _fire() -> void:
 		return
 	director.siege.fire_mortar_volley(director.fsb_center,
 		SiegeDirector.MORTAR_DISPERSION_START, pit.global_position)
+	pit.play_fire_anim()
 	director.toast.emit("INCOMING - MORTARS ON THE COMPOUND")
 	print("[CampMortar] harassment volley at %.0fs from the camp pit" % _elapsed)

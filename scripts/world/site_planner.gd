@@ -304,6 +304,17 @@ func stamp_village(center: Vector3, rng: RandomNumberGenerator, working_points: 
 		nodes.append_array(_stable_animals(b, homes))
 		_collect_grazing(b, grazing)
 
+	# Both ends of the routine are collected only now, so the animals spawned above
+	# get their driver here rather than at place time.
+	for h in homes:
+		if h.node != null:
+			AnimalRoutine.attach(h.node as Node3D, str(h.species), h.pos as Vector3,
+				grazing, _terrain)
+	for rec in props.animals:
+		var an: Node3D = rec.node
+		AnimalRoutine.attach(an, str(rec.species),
+			_home_for(str(rec.species), homes, an.global_position), grazing, _terrain)
+
 	# working_points is a write-only contract the activity system reads.
 	var site := {
 		"kind": "village",
@@ -335,6 +346,7 @@ func _stamp_village_props(center: Vector3, footprint_r: float, rng: RandomNumber
 		buildings: Array[Node3D]) -> Dictionary:
 	var prop_nodes: Array[Node3D] = []
 	var stations: Array = []
+	var free_animals: Array = []
 	var placed_props: Array[Vector3] = []
 	var prop_names: Array = SiteLayouts.VILLAGE_PROPS.keys()
 	prop_names.sort()  # dictionary order is not a contract; the seed is
@@ -370,7 +382,8 @@ func _stamp_village_props(center: Vector3, footprint_r: float, rng: RandomNumber
 				continue
 			_play_idle(animal)
 			prop_nodes.append(animal)
-	return {"nodes": prop_nodes, "stations": stations}
+			free_animals.append({"species": str(animal_name), "node": animal})
+	return {"nodes": prop_nodes, "stations": stations, "animals": free_animals}
 
 
 ## Dressing prop: GLB visual only - no physics body. Distinct from place_structure
@@ -509,6 +522,21 @@ func _stable_animals(building: Node3D, homes: Array) -> Array[Node3D]:
 			_play_idle(node)
 			out.append(node)
 	return out
+
+
+## A free-roamer beds down at the nearest home of its own species, or where it
+## spawned when the village has none.
+func _home_for(species: String, homes: Array, fallback: Vector3) -> Vector3:
+	var best: Vector3 = fallback
+	var best_d: float = INF
+	for h in homes:
+		if str(h.species) != species:
+			continue
+		var d: float = fallback.distance_to(h.pos as Vector3)
+		if d < best_d:
+			best_d = d
+			best = h.pos as Vector3
+	return best
 
 
 ## graze_* markers: the daytime end of the routine. graze_for names which species may
