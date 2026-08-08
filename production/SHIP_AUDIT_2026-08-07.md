@@ -110,6 +110,13 @@ Effort scale: **Small** ≤ half a day · **Medium** 1–3 days · **Large** 4+ 
 | S25 | **Tighten the demo village** (his ruling 8/7: models exist, they need tightening — not interiors, not new buildings). The village is stamped ~185m off the gate flank (`mission_generator.gd:710-716`) and the player walks to it in the exploration window. | It's one of the two authored destinations of the demo's day half; rough models there read as rough game. | High | 1–2 art-days (tightening only) | none |
 | S26 | **Tighten the demo enemy camp** — same ruling, same bar. It holds a live garrison and a sited ambush, so it is where the day's fair contact happens. **His ruling 8/7 night: the VC/NVA mortar crew lives HERE — the crewed pit set piece may only ship as a resident of an EXISTING enemy camp, never as a new standalone site.** The art has a home now; what's missing is one code fix: camps cannot consume work stations at all today (`mission_generator.gd:296` gates on `kind == "village"`; `stamp_vc_camp()` never sets `work_stations`; the camp path also skips the `.001` suffix strip the firebase path does). Fossil law rides along: never export as `mortar_pit.glb` (a stale collision row keyed by that basename activates silently, `collision_table.gd:134`), and shipping the crewed pit means retiring the old `mortar_pit.tscn` convention — three are live today. | The other authored destination; the player fights here, and a mortar crew working the pit is the camp reading as alive. | High | ~1 art-day (tightening) + Small (code: camp station consumption) | none |
 
+### Tier 5 — the two ruled-in loops (his ruling, 8/7 night: "i think the pilot rescue and mortars should be in the game")
+
+| # | Task | Why it ships | Sev | Effort | Depends on |
+|---|---|---|---|---|---|
+| S27 | **Enemy mortar harassment loop.** The camp's crewed pit shells the firebase at RANDOM (his ruling: *"you can never predict what charlies thinking"* — no fixed cadence, ever). Bearing cue is diegetic only (tube thump + squad bark, no HUD marker per the Period HUD decree). Kill the crew or the tube → silence, no re-crewing that day → the night assault's mortar ranging walk (`siege_director.gd:640-684`) is cancelled too. Reuse `fire_mortar_volley` from the camp's real position. Defaults standing unless he overrules: rare-but-real garrison wounds feeding the casualty ledger; no fire in the first ~10 minutes. | The demo's day half finally has a reason to leave the wire, built from parts already paid for. | High | Medium (~1–2 code days, zero art beyond S26) | S26 camp-station code fix |
+| S28 | **Downed pilot recovery.** AA gun fires as a silent kill (no crew anims — unmanned-bunker precedent); chance roll against an air pass; plane trails smoke and dives; wreck placed via `_passable_near`; the smoke column IS the objective marker; pilot reuses ally-follow and walks to the aid station; one lazy VC group placed at the wreck; a saved pilot banks on the casualty ledger. Crashed A-1 Skyraider airframe prototyped 8/7 (headless build). **Tripwire: ONE airframe, ONE event type** — capture variants or crash-site loot is the frozen POW loop in disguise. | The AO's story engine: the crash generates the patrol, the patrol generates the fight. | High | Medium–Large (~2–4 code days + ~1 art-day) | pilot bind/gib fixes (S18 + known list); crashed GLB |
+
 ### Tier 4 — polish that is not optional
 
 | # | Task | Why it blocks release | Sev | Effort | Depends on |
@@ -164,18 +171,9 @@ Everything here is either your own standing ruling or a feature wearing a task's
 - Hearts & Minds / village allegiance (zero code exists) · enemy defensive zones (your 8/5 ruling)
 - The migration decree's P2–P7 systems phases · the arena rebuild · segmented trees
 - The UI/UX research week · major UI redesign · new weapons · new enemy archetypes
-- **Shot-down aircraft + pilot recovery** (his ask, 8/7 night — AA downs a plane, smoke column
-  gives the bearing, patrol out and bring the pilot home). **RE-PRICED after his pushback, and he
-  was right: with his simplifications this is ~2–4 code days + ~1 art-day, NOT a POW-class
-  system.** The cheap version: AA fires as a silent kill (no crew anims — unmanned-bunker
-  precedent) · chance roll per air pass, no real ballistics · `_passable_near` places the wreck ·
-  the smoke column IS the objective marker · pilot reuses ally-follow + walks to the aid station ·
-  one lazy VC group placed at the wreck · saved pilot banks on the casualty ledger. He can make
-  the crashed airframe from existing plane models. **Status: UNRULED — promotable.**
-  Recommendation: mortar loop first (cheaper, ruled), pilot recovery second, promoted into EA the
-  moment MUST SHIP is burning down on schedule; costs ~half the buffer week if ruled in now.
-  Tripwire: ONE crashed airframe, ONE event type — capture variants or crash-site loot is the
-  frozen POW loop in disguise.
+- ~~Shot-down aircraft + pilot recovery~~ — **PROMOTED TO MUST SHIP (S28) by his ruling 8/7
+  night.** What stays post-launch from this family: multiple airframe types, capture/POW variants,
+  crash-site loot, counter-battery and spotter systems.
 - **The PSX-style render push** (his ask, 8/7 night — he holds the details). **Queued behind
   Phase 0: no global render-treatment change before the perf numbers (S5) exist.** Done in
   order it may BUY frames (lower render target) and give the store page an identity; done
@@ -209,16 +207,23 @@ firebase." The village and camp are the next stops after it, not detours during 
 **Phase 4 — wire the banked art (2–3 days, code, unblocks as exports land).**
 S16 artillery crew (not blocked — start any time) → chow-hall diner side → Huey variant switch.
 
+**Phase 4b — the two ruled-in loops (3–6 days, mostly code).**
+S27 mortar harassment (rides the S26 camp-station fix) → S28 pilot recovery (rides the pilot
+fixes + crashed airframe). Build in that order; both must exist BEFORE S21 balances the arc,
+because both change what a day at the firebase is.
+
 **Phase 5 — make it feel finished (4–6 days).**
 S19 UI day → S20 launcher audio → S21 balance the arc.
 
 **Phase 6 — ship (3–5 days).**
 S23 store page/capsule/trailer → full playthrough ×3 on the Intel UHD floor → build → EA.
 
-**Total: roughly 20–29 working days against the ~30 the working target allows.** Tight but
-honest — and per his 8/7 ruling the date is his own pacing target, not a promise, so a slip here
-moves the date rather than gutting the list. It fits the target ONLY if Phase 0 comes back clean,
-the village/camp passes stay at "tighten," and nothing new gets invented.
+**Total: roughly 23–35 working days against the ~30 the working target allows.** The two
+ruled-in loops (S27/S28) added ~3–6 days, and the honest arithmetic now says the 9/6 target is
+about one loop's width past likely — which his own ruling absorbs: the date is his pacing target
+and it bends before the list does. What holds the line: Phase 0 clean, village/camp stays at
+"tighten," S27/S28 stay at their reuse-only builds, and NOTHING ELSE gets ruled in. **The list is
+now closed. The next "should be in the game" costs a named number of days on this page first.**
 
 ---
 
