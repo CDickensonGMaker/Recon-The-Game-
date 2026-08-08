@@ -14,7 +14,8 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] Huey v3: fix seat sockets / 180° flip FIRST, then export gunship + transport
 - [ ] RPD + RPG-2 re-exports (`python tools/export_all_viewmodels.py <gun>` — minutes each)
 - [ ] Tighten the demo village (models exist — TIGHTEN ONLY: no interiors, no new buildings)
-- [ ] Tighten the demo enemy camp (same bar)
+- [ ] Tighten the demo enemy camp (same bar) — **incl. the VC/NVA crewed mortar pit, which lives
+      IN this camp per his 8/7 ruling; never a standalone site, never exported as `mortar_pit.glb`**
 - [ ] Pilot gib donors (`us_pilot_white/_black`, via psx-npc-pipeline skill)
 - [ ] Aid station: surgeon double-body fix, surgeon mask + medic brassard palette
 
@@ -28,7 +29,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] 6. Mounted MG fires nothing (test the 33m-downrange hypothesis first)
 - [ ] 7. Artillery crew wiring — 497 channels banked, one guard line, NOT blocked on anything
 - [ ] 8. Cover-seek stops 10m short · trouser clipping
-- [ ] 9. After his exports land: chow-hall diner side (12 clips) · Huey variant switch
+- [ ] 9. After his exports land: chow-hall diner side (12 clips) · Huey variant switch ·
+      camp station consumption so the VC mortar crew can live in the camp
+      (`mission_generator.gd:296` village-only gate + `stamp_vc_camp` work_stations + `.001` strip)
 - [ ] 10. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
 
 ## DECISIONS ONLY CALEB CAN MAKE
