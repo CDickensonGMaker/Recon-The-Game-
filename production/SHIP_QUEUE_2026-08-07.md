@@ -44,6 +44,13 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] hunters count: enforce, drop, or record as scenery?
 - [ ] Roads: cut from EA (a 512m firebase map may legitimately have none)?
 - [ ] Huey gunship vs transport: any visual difference beyond doors? (Recommend: no, for EA)
+- [ ] **Enemy mortar harassment loop** (his direction 8/7: camp shells the firebase → bearing cue →
+      go kill the tubes → night assault loses its mortar walk).
+      **RULED: timing is RANDOM — *"you can never predict what charlies thinking."*** No fixed
+      cadence, no pattern to wait out; long silences and sudden stonks. Still his to call:
+      teeth (can rounds wound garrison men? recommend rare-but-real) · what silences it
+      (recommend: crew dead OR tube destroyed) · start delay (recommend: not in the first ~10 min) ·
+      confirm the night link. Reuse-only build (~1–2 code days); anything past that = post-launch.
 
 ## NOT BEFORE 9/6 — the tripwires
 

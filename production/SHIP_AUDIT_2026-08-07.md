@@ -164,6 +164,19 @@ Everything here is either your own standing ruling or a feature wearing a task's
 - Hearts & Minds / village allegiance (zero code exists) · enemy defensive zones (your 8/5 ruling)
 - The migration decree's P2–P7 systems phases · the arena rebuild · segmented trees
 - The UI/UX research week · major UI redesign · new weapons · new enemy archetypes
+- **Shot-down aircraft + pilot recovery** (his ask, 8/7 night — AA fire downs a plane or Huey,
+  player patrols out to recover the pilot). **Ruled post-launch, but near the TOP of the
+  post-launch list** — it's the open-patrol world's story engine and a strong first roadmap
+  update. Banked already: pilot models (gib/bind fixes are S18 + known list) · aircraft fly in
+  the demo rotation · ZPU guns exist (#2 gunner on the art list) · fire/smoke is Godot-side VFX.
+  Missing, and all of it systems: crash sequence, sane wreck placement, one crashed airframe
+  model, survivor AI, the recovery objective loop, enemies converging on the smoke. Same class
+  as the frozen POW loop.
+- **The PSX-style render push** (his ask, 8/7 night — he holds the details). **Queued behind
+  Phase 0: no global render-treatment change before the perf numbers (S5) exist.** Done in
+  order it may BUY frames (lower render target) and give the store page an identity; done
+  before measuring it's an unquantifiable change to an unmeasured system. Take his details any
+  time; act after S5.
 
 ---
 
