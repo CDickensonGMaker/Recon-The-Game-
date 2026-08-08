@@ -60,6 +60,11 @@ func request_down(plane: CASAirplane) -> bool:
 		return false
 	if director.siege != null and is_instance_valid(director.siege) and director.siege.active:
 		return false
+	# One ambient event at a time, AO-wide: the walking-dice encounters and this
+	# chain share a single exclusivity gate (AmbientEncounters.encounter_active).
+	for n in get_tree().get_nodes_in_group("ambient_encounters"):
+		if n is AmbientEncounters and (n as AmbientEncounters).encounter_active():
+			return false
 	var ahead: Vector3 = plane.global_position + plane.run_dir() * CRASH_AHEAD_M
 	var crash: Vector3 = MissionGenerator._passable_near(world, _rng, ahead, 40.0, 140.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
@@ -72,6 +77,12 @@ func request_down(plane: CASAirplane) -> bool:
 	director.toast.emit("SANDY'S HIT - HE'S GOING DOWN OVER THE TREES")
 	print("[PILOT] skyraider downed at %.0fs, falling toward %s" % [_elapsed, crash])
 	return true
+
+
+## The other half of the shared gate: while the pilot chain is mid-flight,
+## AmbientEncounters rolls nothing.
+func encounter_active() -> bool:
+	return _phase == Phase.WAIT or _phase == Phase.ESCORT
 
 
 func _on_crashed(pos: Vector3) -> void:

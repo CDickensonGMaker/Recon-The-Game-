@@ -13,6 +13,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] M79 to 100% (bench alignment + hand mould)
 - [ ] Huey v3: fix seat sockets / 180° flip FIRST, then export gunship + transport
 - [ ] RPD + RPG-2 re-exports (`python tools/export_all_viewmodels.py <gun>` — minutes each)
+- [ ] M70 sniper re-mount + re-export — he flagged it unconfirmed 8/8; measured 8/5: barrel
+      +19.13° / sights 7.92° off barrel in the GLB (model mis-mounted, pipeline itself passes).
+      Blender re-mount, then same export path as RPD/RPG-2
 - [ ] Crashed A-1 Skyraider: judge the prototype renders, then bless or redirect (feeds S28)
 - [ ] Tighten the demo village (models exist — TIGHTEN ONLY: no interiors, no new buildings)
 - [ ] Tighten the demo enemy camp (same bar) — **incl. the VC/NVA crewed mortar pit, which lives
@@ -43,7 +46,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       (`role` now survives the promote/stand-down round-trip). **The piece stays a statue
       until his artillery-placement export** — contract in `ART_GAPS_2026-08-07.md` "NOT ART";
       the recoil consumer is already coded (`_bind_piece`)
-- [ ] 8. Cover-seek stops 10m short · trouser clipping
+- [ ] 8. ~~Cover-seek stops 10m short~~ **CODE DONE 8/7 night, unverified**: false cover from
+      distant walls' LOS shadows; blocker must now sit ≤2.5m (`COVER_BLOCKER_MAX_M`,
+      `enemy_base.gd` cover+bound tests, `ally_base.gd`) · trouser clipping still open (art)
 - [ ] 9. After his exports land: chow-hall diner side (12 clips) · Huey variant switch ·
       ~~camp station consumption~~ **CODE HALF DONE 8/7**: `_stations_near` takes camps
       (`mission_generator.gd:296`), `stamp_vc_camp` publishes `work_stations`
@@ -73,9 +78,22 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       Ambient tracer AA decree (8/7 late) LANDED: 3 atmosphere-only points, `ZpuGun.attach_ambient`
       (`zpu_gun.gd`), planned/stamped at `mission_generator.gd` `plan_demo_world` ambient-AA block +
       `build_patrol_world` — no crew, no kill roll, world-masked, unverified by playtest.
-- [ ] 11b. **S29 destructible jungle** — wire the 60 segment GLBs (batch 8/5, ZERO readers).
-      His rulings: no standing colliders; projectile rays ahead, hit tree promotes to 3-part
-      form and breaks at hit height; crown falls as cover, stump stays. Never RigidBody.
+- [x] 11a. **Ambient walking-dice encounters** — CODE DONE 8/7 (late), unverified by playtest.
+      His decree: "vc harrasing villagers, or other friendly squads either on patrol or stuck in
+      their own firefights... a dice roll that happens as the player walks around so its not just
+      all happening at once." `scripts/world/ambient_encounters.gd` (roll every 65m walked outside
+      the wire, 35% chance, ONE live at a time, 240s cooldown, day caps 1/2/1, 600s hold, no rolls
+      at night or under siege) · stamped `mission_generator.gd` `plan_demo_world` (after the
+      ambient-AA block) + attached last in `build_patrol_world` (appended seed draws) · exclusivity
+      gate is two-way with the pilot chain (`pilot_recovery.gd` `encounter_active` both sides) ·
+      harass = LazyGroup at the ville + forced COWER, kill-them-all banks
+      `flags["villagers_freed"]` · patrol/firefight reuse `FriendlyPatrolGroup` + real VC via
+      `spawn_tracked_enemy`, RTB-to-gate then despawn beyond 220m.
+- [x] 11b. **S29 destructible jungle** — CODE DONE 8/7 (pre-freeze), unverified by playtest.
+      `scripts/world/tree_break_system.gd` autoload (register/query_ahead/apply_blast/promote),
+      wired from projectile_base/combat_manager/damage_system/tree_cover_layer; `FellableTree`
+      deleted per fossil law; 60 GLBs renamed `_stump`/`_stem`/`_crown`. Still owed: live-fire
+      at the support-fire range + M-4 ballistic tags on the fallen pieces (no group yet).
 - [ ] 12. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
 
 ## DECISIONS ONLY CALEB CAN MAKE

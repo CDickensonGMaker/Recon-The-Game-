@@ -840,6 +840,12 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 			aa_pts.append(apos)
 	p["ambient_aa"] = aa_pts
 	print("[DEMO] ambient AA: %d of %d points placed" % [aa_pts.size(), aa_bearings.size()])
+
+	# AMBIENT ENCOUNTERS (his decree 2026-08-07: "a dice roll that happens as the
+	# player walks around so its not just all happening at once"). The plan only
+	# stamps the flag; sites/routes draw in build via AmbientEncounters.attach,
+	# appended after every existing draw, and the dice are unseeded.
+	p["ambient_encounters"] = true
 	return p
 
 
@@ -904,6 +910,11 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		lg_p.global_position = _seat(world, ppos)
 
 	_spawn_friendly_patrols(world, director, p, rng)
+
+	# Demo-only (plan_demo_world is the sole stamp writer); its rng draws sit
+	# after every other consumer of this seed, so open-patrol seeds are untouched.
+	if bool(p.get("ambient_encounters", false)):
+		AmbientEncounters.attach(world, director, p, rng)
 
 	# The armorer's bench (ADR-018), just inside the wire.
 	var bench: Node3D = ARMORERS_BENCH.new()
