@@ -29,6 +29,10 @@ static func apply(root: Node) -> Array[MeshInstance3D]:
 		if mi == null or mi.mesh == null:
 			continue
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		## The lens owns these surfaces; the PSX material pass must not convert
+		## them, and vertex-snapping the player's own gun would be unreadable.
+		mi.add_to_group(PsxMaterial.EXEMPT_GROUP)
+		PsxMaterial.restore_one(mi)
 		for s in range(mi.mesh.get_surface_count()):
 			var src: Material = mi.get_surface_override_material(s)
 			if src == null:

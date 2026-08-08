@@ -126,8 +126,11 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       (`scripts/world/animal_routine.gd`, wired `scripts/world/site_planner.gd:307-316`).
       Unverified in-engine (static-only sweep); Death/Jump clips still dark by design.
 - [x] 12a. **PSX look toggle** — LANDED 8/7 per his ruling: "PSX LOOK" in settings, **default OFF —
-      perf numbers (item 3) still govern default-on** (`scripts/autoload/psx_look.gd`; material-shader
-      half filed in `ART_GAPS_2026-08-07.md` "PSX LOOK")
+      perf numbers (item 3) still govern default-on** (`scripts/autoload/psx_look.gd`). **Material
+      half LANDED 8/8** on his "finish wiring everything": `scripts/visuals/psx_material.gd` converts
+      imported `BaseMaterial3D` surfaces to `ps1_material` / `ps1_material_cutout` at runtime, driven
+      by the same toggle. Layer 4 (fog) is NOT a gap — see `ART_GAPS_2026-08-07.md` "PSX LOOK".
+      **Neither half has ever run.**
 
 ## DECISIONS ONLY CALEB CAN MAKE
 

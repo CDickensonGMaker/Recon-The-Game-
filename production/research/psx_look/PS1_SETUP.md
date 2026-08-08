@@ -13,8 +13,16 @@ resolution via `scaling_3d_scale` plus the postprocess pass on a negative Canvas
 SubViewport rebuild in step 1 stays the shipping option if the bilinear-upscale route reads soft;
 the postprocess shader was adapted to `hint_screen_texture` + grid snap for this wiring). **OFF by
 default — the ship-audit ruling stands: no default-on before the perf numbers exist (S5,
-`SHIP_AUDIT_2026-08-07.md`).** Layer 2 (`ps1_material.gdshader` per-mesh) and layer 4 (fog) are
-NOT wired — filed in `ART_GAPS_2026-08-07.md` under "PSX LOOK".
+`SHIP_AUDIT_2026-08-07.md`).**
+
+**Layer 2 wired 2026-08-08** ("lets finish wiring everything"): `scripts/visuals/psx_material.gd`
+converts imported `BaseMaterial3D` surfaces to `ps1_material.gdshader` (or the new
+`ps1_material_cutout.gdshader` for alpha-scissored foliage) at runtime, reading each mesh's own
+`albedo_texture` off the imported material — so **step 2 below is NOT a manual per-asset job; do
+not do it by hand.** Unshaded, billboarded and alpha-blended surfaces (tracers, muzzle flash, rain,
+smoke) are skipped by design, and anything in the `psx_exempt` group is left alone.
+
+**Layer 4 is already satisfied and its density number is FENCED — see §4.**
 
 ---
 
@@ -68,9 +76,12 @@ width/height to 320×240. Good for a quick test; use the SubViewport for shippin
 
 ## 2. The material shader — `ps1_material.gdshader`
 
-1. On a mesh, create a **ShaderMaterial** and assign `ps1_material.gdshader`
-   (Material Override, or per-surface).
-2. Set **albedo_tex** to your texture.
+**RECONgame does this in code — do not hand-assign these.** `PsxMaterial.apply()` walks the tree
+and converts every eligible surface, pulling `albedo_tex` / `albedo_color` / vertex-color use off
+the imported material. The two manual steps below describe the generic Godot workflow only.
+
+1. ~~On a mesh, create a **ShaderMaterial** and assign `ps1_material.gdshader`.~~
+2. ~~Set **albedo_tex** to your texture.~~
 
 Tunable uniforms:
 
@@ -120,9 +131,18 @@ On your **Camera3D**, pull **Far** in to ~40–80 m so geometry dissolves into f
 right where the fog hits full opacity. Then use **Visibility Range / LOD** on
 meshes and occlusion culling so the open world actually streams.
 
-**RECONgame caveat (why this waits for S5):** the game's sightline design (jungle 45m cap vs open
-paddies) and the demo's night assault both interact with fog distance and camera Far. Measure
-first, then tune these together — fog is a look AND the perf lever.
+**RECONgame status 2026-08-08 — ALREADY DONE, AND THE NUMBERS ABOVE ARE FORBIDDEN HERE.**
+`game_world.gd:72-87` already builds this environment: fog on at `0.0065` with aerial perspective,
+sky scatter, and **no** glow/SSAO/SSR/SSIL/volumetric fog anywhere in the project. So §4's
+checklist is satisfied without a line of new code.
+
+**Do NOT raise density to the `0.02–0.08` this guide suggests, and do NOT pull camera Far to 40–80m.**
+`game_world.gd:77-81` fences the density under a fairness floor: an open-ground enemy at the 140m AI
+sight cap (`enemy_base.SIGHT_CAP_OPEN`) must remain a visible hazy silhouette, so fog can never hide
+a shootable target. Denser fog or a nearer Far plane makes the AI able to see what the player cannot
+— a direct Pillar 1 violation. Fog is `MissionWeather`'s (`scripts/world/mission_weather.gd:12-18`,
+which reaches `0.035` only in FOG weather, where the AI sight cap drops to `0.35` in step). The look
+toggle deliberately does not touch it.
 
 ---
 
@@ -139,10 +159,13 @@ Select textures in the FileSystem → **Import** tab:
 
 ## Quick checklist for RECONgame
 
-- [ ] SubViewport at 320×240 or 480×270, displayed via nearest-filter TextureRect
-- [ ] `ps1_postprocess.gdshader` on that TextureRect
-- [ ] `ps1_material.gdshader` on world meshes, textures assigned
-- [ ] Extra edge loops on big floors/walls; `affine_amount` tuned
-- [ ] WorldEnvironment fog on, modern effects off, camera Far ~60 m
+- [x] Low internal 3D res — `scaling_3d_scale` to 270p (`psx_look.gd TARGET_HEIGHT_PX`)
+- [x] `ps1_postprocess.gdshader` on a negative CanvasLayer, UI stays crisp
+- [x] `ps1_material.gdshader` on world meshes — automatic, `PsxMaterial.apply()`
+- [x] WorldEnvironment fog on, modern effects off — `game_world.gd:72-87`, and **camera Far stays
+      where it is** (the fairness floor, §4)
+- [ ] `affine_amount` tuned against the real kit; extra edge loops on big floors/walls if the
+      warp swims (default is `0.85`, not the guide's `1.0`, for exactly this reason)
 - [ ] Textures imported small, nearest, no mipmaps
 - [ ] Bake lighting for static geometry; keep dynamic lights few
+- [ ] **Perf numbers (S5) — the gate on default-on. Nothing here has ever run.**

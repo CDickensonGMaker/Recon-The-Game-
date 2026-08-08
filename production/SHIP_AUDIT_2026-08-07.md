@@ -181,8 +181,11 @@ Everything here is either your own standing ruling or a feature wearing a task's
   before measuring it's an unquantifiable change to an unmeasured system. Take his details any
   time; act after S5. **Update 8/7 late — he delivered the package and ruled "make a toggle for
   it": the postprocess half is wired as the "PSX LOOK" settings toggle, DEFAULT OFF, so this
-  ruling still holds for default-on** (`scripts/autoload/psx_look.gd`; the per-mesh material half
-  stays post-S5, filed `ART_GAPS_2026-08-07.md` "PSX LOOK").
+  ruling still holds for default-on** (`scripts/autoload/psx_look.gd`). **Update 8/8 — the per-mesh
+  material half is wired too** (`scripts/visuals/psx_material.gd`, driven by the same toggle), so
+  the whole treatment is now behind one flag. **The S5 gate is unchanged and now matters MORE:**
+  default-on still waits on perf numbers, and the material half is the half that can cost frames
+  (every converted surface leaves Godot's standard-material batch for a custom shader).
 
 ---
 
