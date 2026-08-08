@@ -115,6 +115,7 @@ Effort scale: **Small** ≤ half a day · **Medium** 1–3 days · **Large** 4+ 
 | # | Task | Why it ships | Sev | Effort | Depends on |
 |---|---|---|---|---|---|
 | S27 | **Enemy mortar harassment loop.** The camp's crewed pit shells the firebase at RANDOM (his ruling: *"you can never predict what charlies thinking"* — no fixed cadence, ever). Bearing cue is diegetic only (tube thump + squad bark, no HUD marker per the Period HUD decree). Kill the crew or the tube → silence, no re-crewing that day → the night assault's mortar ranging walk (`siege_director.gd:640-684`) is cancelled too. Reuse `fire_mortar_volley` from the camp's real position. Defaults standing unless he overrules: rare-but-real garrison wounds feeding the casualty ledger; no fire in the first ~10 minutes. | The demo's day half finally has a reason to leave the wire, built from parts already paid for. | High | Medium (~1–2 code days, zero art beyond S26) | S26 camp-station code fix |
+| S29 | **Destructible jungle — wire the 60 banked segment meshes.** THE ART IS DONE AND STRANDED: all 20 species × 3 parts (`*_low/_mid/_high.glb`, batch-stamped 2026-08-05 18:45, spec'd in the "Vegetation break heights" artifact) sit in `assets/world/vegetation/` with **zero code readers** — the artillery-crew pattern again. His design rulings 8/7: **no standing colliders anywhere** ("so we dont have a bunch of colliders everywhere waiting") — the jungle stays bare MultiMesh; a projectile/blast **rays ahead** against tree instance data, and only the hit tree gets promoted to its 3-part segmented form with live colliders, breaking at the band nearest the hit height — crown/stem fall as cover, stump stays as a snag. State-swap only, never RigidBody (ADR-031). Extends the proven `FellableTree` verb; retire its whole-tree hinge when this ships (fossil law). | The jungle is the game's terrain; blasts that ignore it read as fake, and the art is already paid for. | High | Medium–Large (~2–4 code days, ZERO art) | none |
 | S28 | **Downed pilot recovery.** AA gun fires as a silent kill (no crew anims — unmanned-bunker precedent); chance roll against an air pass; plane trails smoke and dives; wreck placed via `_passable_near`; the smoke column IS the objective marker; pilot reuses ally-follow and walks to the aid station; one lazy VC group placed at the wreck; a saved pilot banks on the casualty ledger. Crashed A-1 Skyraider airframe prototyped 8/7 (headless build). **Tripwire: ONE airframe, ONE event type** — capture variants or crash-site loot is the frozen POW loop in disguise. | The AO's story engine: the crash generates the patrol, the patrol generates the fight. | High | Medium–Large (~2–4 code days + ~1 art-day) | pilot bind/gib fixes (S18 + known list); crashed GLB |
 
 ### Tier 4 — polish that is not optional
@@ -218,12 +219,14 @@ S19 UI day → S20 launcher audio → S21 balance the arc.
 **Phase 6 — ship (3–5 days).**
 S23 store page/capsule/trailer → full playthrough ×3 on the Intel UHD floor → build → EA.
 
-**Total: roughly 23–35 working days against the ~30 the working target allows.** The two
-ruled-in loops (S27/S28) added ~3–6 days, and the honest arithmetic now says the 9/6 target is
-about one loop's width past likely — which his own ruling absorbs: the date is his pacing target
-and it bends before the list does. What holds the line: Phase 0 clean, village/camp stays at
-"tighten," S27/S28 stay at their reuse-only builds, and NOTHING ELSE gets ruled in. **The list is
-now closed. The next "should be in the game" costs a named number of days on this page first.**
+**Total: roughly 25–39 working days against the ~30 the working target allows.** Three loops were
+ruled in on 8/7 night (S27 mortars, S28 pilot recovery, S29 destructible jungle — together ~5–10
+days, all code, zero new art since the jungle segments and the crew anims were already banked).
+The honest arithmetic now reads about one to two weeks past the 9/6 target — which his own ruling
+absorbs: the date is his pacing target and it bends before the list does. What holds the line:
+Phase 0 clean, village/camp stays at "tighten," the three loops stay at their reuse-only builds,
+and NOTHING ELSE gets ruled in. **The list is closed again. The next "should be in the game"
+costs a named number of days on this page first.**
 
 ---
 

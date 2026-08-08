@@ -37,6 +37,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       after the camp-station fix, BEFORE balance
 - [ ] 11. **S28 downed pilot recovery** (AA silent kill → smoke bearing → wreck → walk him home) —
       after S27 and the pilot bind/gib fixes
+- [ ] 11b. **S29 destructible jungle** — wire the 60 segment GLBs (batch 8/5, ZERO readers).
+      His rulings: no standing colliders; projectile rays ahead, hit tree promotes to 3-part
+      form and breaks at hit height; crown falls as cover, stump stays. Never RigidBody.
 - [ ] 12. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
 
 ## DECISIONS ONLY CALEB CAN MAKE
