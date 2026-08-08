@@ -164,14 +164,18 @@ Everything here is either your own standing ruling or a feature wearing a task's
 - Hearts & Minds / village allegiance (zero code exists) · enemy defensive zones (your 8/5 ruling)
 - The migration decree's P2–P7 systems phases · the arena rebuild · segmented trees
 - The UI/UX research week · major UI redesign · new weapons · new enemy archetypes
-- **Shot-down aircraft + pilot recovery** (his ask, 8/7 night — AA fire downs a plane or Huey,
-  player patrols out to recover the pilot). **Ruled post-launch, but near the TOP of the
-  post-launch list** — it's the open-patrol world's story engine and a strong first roadmap
-  update. Banked already: pilot models (gib/bind fixes are S18 + known list) · aircraft fly in
-  the demo rotation · ZPU guns exist (#2 gunner on the art list) · fire/smoke is Godot-side VFX.
-  Missing, and all of it systems: crash sequence, sane wreck placement, one crashed airframe
-  model, survivor AI, the recovery objective loop, enemies converging on the smoke. Same class
-  as the frozen POW loop.
+- **Shot-down aircraft + pilot recovery** (his ask, 8/7 night — AA downs a plane, smoke column
+  gives the bearing, patrol out and bring the pilot home). **RE-PRICED after his pushback, and he
+  was right: with his simplifications this is ~2–4 code days + ~1 art-day, NOT a POW-class
+  system.** The cheap version: AA fires as a silent kill (no crew anims — unmanned-bunker
+  precedent) · chance roll per air pass, no real ballistics · `_passable_near` places the wreck ·
+  the smoke column IS the objective marker · pilot reuses ally-follow + walks to the aid station ·
+  one lazy VC group placed at the wreck · saved pilot banks on the casualty ledger. He can make
+  the crashed airframe from existing plane models. **Status: UNRULED — promotable.**
+  Recommendation: mortar loop first (cheaper, ruled), pilot recovery second, promoted into EA the
+  moment MUST SHIP is burning down on schedule; costs ~half the buffer week if ruled in now.
+  Tripwire: ONE crashed airframe, ONE event type — capture variants or crash-site loot is the
+  frozen POW loop in disguise.
 - **The PSX-style render push** (his ask, 8/7 night — he holds the details). **Queued behind
   Phase 0: no global render-treatment change before the perf numbers (S5) exist.** Done in
   order it may BUY frames (lower render target) and give the store page an identity; done

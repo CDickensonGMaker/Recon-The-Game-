@@ -51,6 +51,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       teeth (can rounds wound garrison men? recommend rare-but-real) · what silences it
       (recommend: crew dead OR tube destroyed) · start delay (recommend: not in the first ~10 min) ·
       confirm the night link. Reuse-only build (~1–2 code days); anything past that = post-launch.
+- [ ] **Downed pilot recovery: in EA or post-launch?** Re-priced 8/7 at ~2–4 code days + ~1 art-day
+      (crashed airframe from existing planes; AA = silent kill, no anims needed). Recommend:
+      promote AFTER mortars once MUST SHIP is burning down. Crashed-airframe prototype underway 8/7.
 
 ## NOT BEFORE 9/6 — the tripwires
 
