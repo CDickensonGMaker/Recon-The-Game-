@@ -179,7 +179,10 @@ Everything here is either your own standing ruling or a feature wearing a task's
   Phase 0: no global render-treatment change before the perf numbers (S5) exist.** Done in
   order it may BUY frames (lower render target) and give the store page an identity; done
   before measuring it's an unquantifiable change to an unmeasured system. Take his details any
-  time; act after S5.
+  time; act after S5. **Update 8/7 late — he delivered the package and ruled "make a toggle for
+  it": the postprocess half is wired as the "PSX LOOK" settings toggle, DEFAULT OFF, so this
+  ruling still holds for default-on** (`scripts/autoload/psx_look.gd`; the per-mesh material half
+  stays post-S5, filed `ART_GAPS_2026-08-07.md` "PSX LOOK").
 
 ---
 

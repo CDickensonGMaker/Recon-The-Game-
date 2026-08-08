@@ -1057,6 +1057,8 @@ func _drop_supply_crate(pos: Vector3) -> void:
 		return
 	var crate := StaticBody3D.new()
 	crate.collision_layer = 1
+	# Wood crate: punch-through, same material call as weapons_cache (Mat.WOOD).
+	crate.add_to_group("soft_cover")
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(1.2, 1.0, 1.2)

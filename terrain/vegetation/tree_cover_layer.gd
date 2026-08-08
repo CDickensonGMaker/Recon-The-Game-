@@ -376,6 +376,7 @@ func _acquire_body() -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.collision_layer = 0
 	body.collision_mask = 0   ## static cover reacts to nothing; things test IT
+	body.add_to_group("hard_surface")   ## solid timber: rounds stop, wood FX resolve
 	body.add_child(CollisionShape3D.new())
 	add_child(body)
 	body.position = PARK_POS

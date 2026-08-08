@@ -1,5 +1,5 @@
 ## game_settings.gd - persisted user settings: sensitivity, volume,
-## difficulty, HARDCORE mode.
+## difficulty, HARDCORE mode, PSX look.
 extends Node
 
 const PATH := "user://settings.cfg"
@@ -11,6 +11,7 @@ var ambience_volume_db: float = 0.0
 var music_volume_db: float = -3.0
 var difficulty: int = 1  ## 0 EASY / 1 NORMAL / 2 HARD
 var hardcore: bool = false  ## no compass, no markers, faster bleed
+var psx_look: bool = false  ## PS1 render treatment; applied by PsxLook autoload
 
 ## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
 ## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
@@ -65,6 +66,7 @@ func save_settings() -> void:
 	cfg.set_value("settings", "music_volume_db", music_volume_db)
 	cfg.set_value("settings", "difficulty", difficulty)
 	cfg.set_value("settings", "hardcore", hardcore)
+	cfg.set_value("settings", "psx_look", psx_look)
 	cfg.save(PATH)
 
 
@@ -79,3 +81,4 @@ func load_settings() -> void:
 	music_volume_db = float(cfg.get_value("settings", "music_volume_db", -3.0))
 	difficulty = int(cfg.get_value("settings", "difficulty", 1))
 	hardcore = bool(cfg.get_value("settings", "hardcore", false))
+	psx_look = bool(cfg.get_value("settings", "psx_look", false))

@@ -1,4 +1,4 @@
-## settings_screen.gd - W82/W83: sensitivity, volume, difficulty, HARDCORE.
+## settings_screen.gd - sensitivity, volume, difficulty, HARDCORE, PSX LOOK.
 class_name SettingsScreen
 extends Control
 
@@ -63,6 +63,15 @@ func _ready() -> void:
 		GameSettings.hardcore = on
 		GameSettings.save_settings())
 	box.add_child(hardcore)
+
+	var psx := CheckBox.new()
+	psx.text = "PSX LOOK (low-res render, PS1 dither)"
+	psx.button_pressed = GameSettings.psx_look
+	psx.add_theme_font_override("font", ReconUI.mono_font())
+	psx.add_theme_color_override("font_color", ReconUI.DIM)
+	psx.toggled.connect(func(on: bool) -> void:
+		PsxLook.set_enabled(on))
+	box.add_child(psx)
 
 	var back := ReconUI.make_link_button("< BACK", 16)
 	back.pressed.connect(func() -> void: back_pressed.emit())

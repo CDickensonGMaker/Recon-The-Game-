@@ -28,6 +28,8 @@ func _build() -> void:
 	# Floor / ceiling / 4 walls as one StaticBody3D of boxes.
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
+	# 40m of earth overhead: Mat.EARTH semantics, rounds stop.
+	body.add_to_group("hard_surface")
 	add_child(body)
 	var panels := [
 		[Vector3(ROOM_SIZE.x, 0.4, ROOM_SIZE.z), Vector3(0, -0.2, 0)],

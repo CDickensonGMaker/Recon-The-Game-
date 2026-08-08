@@ -13,11 +13,9 @@
 class_name LitterTeam
 extends Node3D
 
-## The litter prop. `fb_litter` lives inside assets/us/characters/camp_clips/
-## stretcher_carry.glb as part of the 4-rig authoring reference and has NOT been
-## split out to a standalone prop yet. Until it exports to this path the team is
-## two men carrying air, so `available()` gates the whole feature on it.
-const LITTER_PROP: String = "res://assets/world/building models/structures/firebase/kit/fb_litter.glb"
+## The standalone litter prop, exported by tools/gen_fb_interior.py.
+## `available()` gates the whole feature on it existing.
+const LITTER_PROP: String = "res://assets/us/props/interior/fb_litter.glb"
 
 const BEARER_GAP: float = 1.8      ## metres, front bearer to rear bearer
 const LITTER_Y: float = 0.55       ## metres, litter deck above the bearers' feet

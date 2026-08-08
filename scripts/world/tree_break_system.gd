@@ -359,6 +359,8 @@ class BrokenTree:
 			snag.name = "SnagTrunk"
 			snag.collision_layer = 1
 			snag.collision_mask = 0
+			# Solid trunk stops rounds - timber is hard, like the FSB tagger's timber bunkers.
+			snag.add_to_group("hard_surface")
 			var cs := CollisionShape3D.new()
 			var cyl := CylinderShape3D.new()
 			cyl.radius = radius
@@ -438,10 +440,10 @@ class BrokenTree:
 		# capsule under the fallen top so it works as hard cover, like the old felled log.
 		if radius > 0.0 and fall_len > 0.5:
 			var log_body := StaticBody3D.new()
-			# Named so bullet_system._surface_is_hard's name fallback reads it as a stop.
 			log_body.name = "FelledLogTrunk"
 			log_body.collision_layer = 1
 			log_body.collision_mask = 0
+			log_body.add_to_group("hard_surface")
 			var cap := CollisionShape3D.new()
 			var shape := CapsuleShape3D.new()
 			shape.radius = maxf(0.35, radius)

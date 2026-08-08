@@ -1387,9 +1387,15 @@ copy — `support_fire_range.gd:91` wires the shipped `FieldDirector`) · threat
   Blender re-export, lands in demo AND patrol at once (`game_flow.gd:582, :606`). Straight lift.
 - **M-3 · one HP table** — three exist and have already drifted (`fire_support_bench.gd:48-55` ·
   `site_planner.gd:1552-1558` · `support_fire_range.gd:988` fort HP 110). **Blocks M-2.**
-- **M-4 · ballistic tags** on the felled log (was in the deleted `fellable_tree` script —
-  the item now targets the fallen pieces in `scripts/world/tree_break_system.gd`),
-  `tunnel_room.gd:29`, `field_director.gd:1027`.
+- **M-4 · ballistic tags — DONE 2026-08-07.** Snag + bench felled log tagged `hard_surface`
+  (`tree_break_system.gd:363`, `:446` — timber stops rounds, matching `_tag_fsb_ballistics`);
+  tunnel room earth walls `hard_surface` (`tunnel_room.gd:32`); the `field_director.gd:1027`
+  object is today the resupply crate (`_drop_supply_crate`), tagged `soft_cover` as wood
+  (`field_director.gd:1061`, same call as `weapons_cache` Mat.WOOD). **Residual gap:** in-game
+  the settled snag/log persist as `_fell_registry` entries bodied by the pooled ring
+  (`tree_cover_layer.gd:376 _acquire_body`) — those pooled trunk bodies carry NO group and
+  resolve as untagged stops; tagging them tags every standing trunk too (out of M-4's scope,
+  file owned elsewhere 8/7).
 - **M-5 · arena stops writing on the game.** `EnemySquad.tiering_enabled = false`
   (`ai_stress_arena.gd:304`, static, never restored — **ADR-026 Part B tiering off for the process**)
   and `GibSystem.gib_lifetime_s = 25.0` (`:305`). `GameSettings.ai_vs_ai_cone_mult` (`:308`) is a real

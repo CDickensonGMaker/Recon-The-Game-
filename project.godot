@@ -42,6 +42,7 @@ VOManager="*res://scripts/autoload/vo_manager.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 SimClock="*res://scripts/autoload/sim_clock.gd"
 WorldSim="*res://scripts/autoload/world_sim.gd"
+PsxLook="*res://scripts/autoload/psx_look.gd"
 
 [debug]
 

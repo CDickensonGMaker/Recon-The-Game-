@@ -93,8 +93,14 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       `scripts/world/tree_break_system.gd` autoload (register/query_ahead/apply_blast/promote),
       wired from projectile_base/combat_manager/damage_system/tree_cover_layer; `FellableTree`
       deleted per fossil law; 60 GLBs renamed `_stump`/`_stem`/`_crown`. Still owed: live-fire
-      at the support-fire range + M-4 ballistic tags on the fallen pieces (no group yet).
+      at the support-fire range. ~~M-4 ballistic tags~~ DONE 8/8 night: snag/log/bench/pooled
+      trunks `hard_surface`, tunnel `hard_surface`, resupply crate `soft_cover`
+      (`tree_break_system.gd`, `tree_cover_layer.gd _acquire_body`, `tunnel_room.gd:32`,
+      `field_director.gd:1061`).
 - [ ] 12. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
+- [x] 12a. **PSX look toggle** — LANDED 8/7 per his ruling: "PSX LOOK" in settings, **default OFF —
+      perf numbers (item 3) still govern default-on** (`scripts/autoload/psx_look.gd`; material-shader
+      half filed in `ART_GAPS_2026-08-07.md` "PSX LOOK")
 
 ## DECISIONS ONLY CALEB CAN MAKE
 
@@ -102,6 +108,19 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       existing models** (they're already stamped by `plan_demo_world`). Villages/camps AT SCALE
       stay post-launch per 8/6.
 - [ ] LAW and RPG-7: pull from the EA rack (free) or export viewmodels (~1 art-day each)?
+- [ ] **arms_rig.glb** (8/8 sweep find): a complete FP unarmed/melee set — 18 clips / 2,808
+      channels (jabs, grabs, knife draw/hits, guard, finger-gun) with ZERO readers and no doc
+      anywhere claiming it. Build unarmed/melee combat (a feature, days) or park it? No system
+      expresses melee states today.
+- [ ] **Huey vignette set** (4 GLBs, ~7,656 channels: approach/land, casualty load, liftoff,
+      troops disembark — 14 rigs each, zero readers): wiring is blocked on a re-centered
+      re-export (two authored groups never shared an origin; `test_asset_probe` flags all four
+      at 67.3m). Re-export first (art), then wire on the gun_crew_performance driver pattern?
+- [ ] **`us_artillery_m101.glb`**: 14.6 MB byte-duplicate of the kit emplacement, zero readers —
+      delete it? (Deletion is your call, never incidental.)
+- [ ] **seat_pax_7**: `seat_system.gd:24` declares it; the shipped `huey.glb` carries pax 1–6
+      only (the 7th exists in a .blend, never exported). Export it with Huey v3, or drop the
+      declaration?
 - [ ] group_walk backwards marchers: fix formation (recommended) or restage the probe?
 - [ ] hunters count: enforce, drop, or record as scenery?
 - [ ] Roads: cut from EA (a 512m firebase map may legitimately have none)?

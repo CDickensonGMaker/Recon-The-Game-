@@ -4,9 +4,17 @@
 `ps1_postprocess.gdshader`, filed alongside). An earlier agent's copy said "Catacombs of Gore" —
 **that was a mistake; this is for RECONgame.** References corrected.
 
-**Scheduling (ship-audit ruling):** FILED, NOT WIRED. No global render-treatment change before the
-perf numbers exist (S5, `SHIP_AUDIT_2026-08-07.md`). Done in order, the low internal resolution may
-BUY frames and give the store page its identity.
+**Wired 2026-08-07 (his ruling: "yeah make a toggle for it") — the shaders MOVED out of this
+folder to `assets/shaders/ps1_material.gdshader` + `assets/shaders/ps1_postprocess.gdshader`.**
+The toggle is "PSX LOOK" in the settings screen (`scripts/ui/screens/settings_screen.gd:67-74`),
+persisted as `psx_look` in `user://settings.cfg` (`scripts/autoload/game_settings.gd:14`), applied
+by the `PsxLook` autoload (`scripts/autoload/psx_look.gd`) — layers 1+3 below: low internal 3D
+resolution via `scaling_3d_scale` plus the postprocess pass on a negative CanvasLayer (the
+SubViewport rebuild in step 1 stays the shipping option if the bilinear-upscale route reads soft;
+the postprocess shader was adapted to `hint_screen_texture` + grid snap for this wiring). **OFF by
+default — the ship-audit ruling stands: no default-on before the perf numbers exist (S5,
+`SHIP_AUDIT_2026-08-07.md`).** Layer 2 (`ps1_material.gdshader` per-mesh) and layer 4 (fog) are
+NOT wired — filed in `ART_GAPS_2026-08-07.md` under "PSX LOOK".
 
 ---
 
