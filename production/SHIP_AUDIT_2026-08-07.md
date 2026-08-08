@@ -1,6 +1,11 @@
 # SHIP AUDIT — 2026-08-07 (re-run of the 8/6 audit, plain language)
 
-**Goal: Steam Early Access on 2026-09-06. About 30 days out.**
+**Goal: Steam Early Access, working target 2026-09-06.**
+**His ruling, 2026-08-07: the date is HIS OWN pacing target, not a hard deadline — "there isn't a
+real deadline and it can move if it has to."** No Steam page exists yet, so nothing external is
+promised. The target exists to set realistic expectations and keep the work honest. **Scope
+discipline stays either way — it is what makes any date possible — but the date bends before
+quality does, and no cut in this document should ever be forced by calendar panic.**
 **This document's only job is to make the remaining work SMALLER.**
 
 This replaces nothing — `SHIP_AUDIT_2026-08-06.md` stays as the record of the ruling. This is the
@@ -104,7 +109,7 @@ Effort scale: **Small** ≤ half a day · **Medium** 1–3 days · **Large** 4+ 
 | S20 | **Launcher + shotgun audio.** Five weapons still fire byte-identical synth renders (m79 · rpg2 · rpg7 · m72_law · shotgun). Source hunt, not modelling. VO barks and ambience turned out to be DONE (audited 8/7 — 162 files, 8 voices). | Explosive weapons sounding fake undercuts the lethality everything is built on. | Medium | Small | none |
 | S21 | **Balance the demo arc only** — the 30-minute day, the probe, the 45-man assault, the gunship ending. | It IS the product; it has to land. | High | Medium | S1, S5 |
 | S22 | **Steam build hygiene** — clean export boots with no `res://tests` dependency, no debug keys in release. | A dev key in a shipped build is an exploit and a support burden. | High | Small | everything |
-| S23 | **Steam store work — unbudgeted and real.** Store page, capsule art, trailer, age rating questionnaire. Nobody has priced this. | You cannot ship on Steam without it, and it eats days near the end when there is no buffer left. | High | Medium (budget 2–3 days now) | none |
+| S23 | **Steam store work — unbudgeted and real.** His words, 8/7: the page hasn't been made AT ALL. Store page, capsule art, trailer, age rating questionnaire — all greenfield. (Upside: nothing is publicly promised, which is why the date is free to move.) | You cannot ship on Steam without it, and it eats days near the end when there is no buffer left. | High | Medium (budget 2–3 days now) | none |
 | S24 | **Open code defects awaiting your ruling:** group_walk followers walking backward (recommend: fix the formation), the hunters count nothing reads, arena nav failures (verify whether they reach the demo path). | Each is a visible-or-invisible call only you can make; they're cheap once ruled. | Medium | Small each | your rulings |
 
 ---

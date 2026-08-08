@@ -1,6 +1,6 @@
 # THE SHIP QUEUE — one page, updated 2026-08-07
 
-**EA target 2026-09-06 · the product is THE DEMO'S SHAPE (ruled 8/6) · zombies parked, kept, not shipped (ruled 8/7).**
+**EA working target 2026-09-06 — HIS pacing target, not a hard deadline; it can move (ruled 8/7, no Steam page exists yet) · the product is THE DEMO'S SHAPE (ruled 8/6) · zombies parked, kept, not shipped (ruled 8/7).**
 Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this file when you do.
 
 ## YOUR ART TRACK (the critical path — nothing below replaces it)
