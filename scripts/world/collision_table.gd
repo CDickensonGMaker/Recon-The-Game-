@@ -68,6 +68,9 @@ const STRUCTURES := {
 	"RocketPod_LAU61_19tube": {"box": Vector3(0.5, 1.6, 0.6), "y_offset": 0.11, "footprint": Vector2(1.5, 2.0), "scale": 1.0},
 	"RocketPod_LAU68_7tube": {"box": Vector3(0.4, 1.4, 0.4), "y_offset": 0.09, "footprint": Vector2(1.5, 1.5), "scale": 1.0},
 	"a1_skyraider": {"box": Vector3(14.0, 5.1, 12.1), "y_offset": 0.30, "footprint": Vector2(15.0, 13.5), "scale": 1.0},
+	# Crashed variant: flying airframe's footprint, belly-down height. ESTIMATED, not
+	# AABB-measured - the GLB was banked 2026-08-07 with no headless measure pass yet.
+	"a1_skyraider_crashed": {"box": Vector3(14.0, 2.6, 12.1), "y_offset": 1.30, "footprint": Vector2(15.0, 13.5), "scale": 1.0},
 	"a4_skyhawk": {"box": Vector3(8.4, 3.6, 12.8), "y_offset": 0.82, "footprint": Vector2(9.5, 14.0), "scale": 1.0},
 	"aid_station": {"box": Vector3(8.0, 3.0, 6.0), "y_offset": 1.52, "footprint": Vector2(9.0, 7.5), "scale": 1.0},
 	"aircraft_revetment": {"box": Vector3(20.0, 3.0, 15.0), "y_offset": 1.50, "footprint": Vector2(21.0, 16.0), "scale": 1.0},
@@ -272,7 +275,8 @@ const MATERIALS := {
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
 	"ch47_chinook": Mat.METAL,
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
-	"zpu_aa_gun": Mat.METAL, "m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
+	"zpu_aa_gun": Mat.METAL, "a1_skyraider_crashed": Mat.METAL,
+	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
 	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,
 	"fire_direction_center": Mat.CONCRETE, "operations_building": Mat.CONCRETE,

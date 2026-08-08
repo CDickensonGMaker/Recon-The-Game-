@@ -162,6 +162,18 @@
         "rice_hat_frayed"
       ]
     },
+    "rice_hat_foliage": {
+      "glb": "res://assets/nva_vc/props/headgear/rice_hat_foliage.glb",
+      "tris": 64,
+      "verts": 49,
+      "parts": [
+        "rice_hat_foliage",
+        "rice_hat_foliage_sprig_0",
+        "rice_hat_foliage_sprig_1",
+        "rice_hat_foliage_sprig_2"
+      ],
+      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). rice_hat_plain unchanged, + 2 long-grass-sheaf sprigs (grass_tuft_a/b.glb) tucked under the brim's own tie-cord line + 1 bush sprig (bush_a_stump.glb) at the crown apex - mixes both foliage reads the brief asked for on one prop. Sprigs sampled from assets/world/vegetation/ (read-only, never edited) by the same contiguous-face-cluster technique as pass #1, never procedural. Fit-checked against vc_guerilla_joined on mixamorig:Head: 0/49 verts inside, max depth 0 - a hat sits clear of the skull by construction."
+    },
     "cap_cloth": {
       "glb": "res://assets/nva_vc/props/headgear/cap_cloth.glb",
       "tris": 90,
@@ -324,6 +336,19 @@
       ],
       "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07. Previously wore `pith_worn_cover.png` directly (a straight, undisguised borrow of the pith helmet's OWN cover sheet on a chest rig - the same root defect as pack_canvas, by a different path: this object's material slot pointed AT `pith_worn_cover` material itself rather than at `pack_canvas`). Given its own new material `chest_rig_worn_cover`: `canvas_od` image (the same real canvas sheet the fixed pack_canvas and the approved pack_rice_tube use) with a darker/desaturated tint for the weathered look - keeps the pith family's 'share topology, weather the material' trick, but built on the correct base material this time. Mesh unchanged (identical topology to chest_rig_ak)."
     },
+    "chest_rig_ak_foliage": {
+      "glb": "res://assets/nva_vc/props/chest/chest_rig_ak_foliage.glb",
+      "tris": 226,
+      "verts": 170,
+      "parts": [
+        "chest_rig_ak_foliage",
+        "chest_rig_ak_foliage_sprig_0",
+        "chest_rig_ak_foliage_sprig_1",
+        "chest_rig_ak_foliage_sprig_2",
+        "chest_rig_ak_foliage_sprig_3"
+      ],
+      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). chest_rig_ak unchanged (pack_canvas material), + 2 bush sprigs (bush_b/c_stump.glb) tucked under each shoulder strap, 1 long-grass-sheaf sprig (grass_tuft_c.glb) at the lower-left edge, 1 more bush sprig (bush_a_stump.glb) on the lower-right pouch - sampled from assets/world/vegetation/ (read-only) by the same contiguous-face-cluster technique as pass #1. Placement was NOT a straight eyeball guess: a grid scan of closest_point_on_mesh against vc_guerilla_joined on mixamorig:Spine2 found the rig's own dead-centre chest area sits INSIDE the body at every Y/Z tried (the joined mesh's chest front sits proud of the rig there) while the outer thirds clear cleanly - first attempt ignored this and drove 2 of 4 sprigs up to 9.2cm into the body; every sprig here sits only at a grid point that measured positive clearance. Fit-checked: 4 sprigs total 1-2 verts each with sub-3mm penetration (noise-level, matches the base rig's own unchanged 24/120-vert baseline penetration at 1.4cm max)."
+    },
     "bandolier_ammo": {
       "glb": "res://assets/nva_vc/props/chest/bandolier_ammo.glb",
       "tris": 140,
@@ -332,6 +357,16 @@
         "bandolier_ammo"
       ],
       "note": "NEW 2026-08-07. Reference (vietnam-surplus.com, cartridgecollectors.org): NVA 9-10 pocket cotton cartridge bandolier, worn diagonally across the chest on a neck strap. Built as a diagonal strap (opposite shoulder from chest_rig_ak, for visual variety) with 10 small pouch bumps. Fit-checked: 14/92 verts touch the body within 6.1mm (neckline contact, negligible), 78/92 clear by up to 5.3cm. TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note; this was one of the 9 props on the mis-wired `pack_canvas` material."
+    },
+    "bandolier_ammo_foliage": {
+      "glb": "res://assets/nva_vc/props/chest/bandolier_ammo_foliage.glb",
+      "tris": 146,
+      "verts": 100,
+      "parts": [
+        "bandolier_ammo_foliage",
+        "bandolier_ammo_foliage_sprig_0"
+      ],
+      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py). bandolier_ammo unchanged, + 1 long-grass-sheaf sprig (grass_tuft_a.glb, sampled from assets/world/vegetation/, read-only) tied across the strap near the collar edge, where the same Spine2 grid-scan method used for chest_rig_ak_foliage found clear positive clearance (the strap centreline does not - the FIRST placement guess sat exactly on it and read 100% embedded). Fit-checked: sprig itself 2/8 verts sub-1.4cm penetration. HONEST PRE-EXISTING GAP, NOT CAUSED BY THIS PASS: the base bandolier_ammo mesh itself measures 66/92 verts inside the body on this same test (max depth 5.6cm) - verified identical on the un-duplicated original object, so this is the shipped bandolier's own fit, not a regression introduced here. Flagging it since the existing manifest note above claims '78/92 clear' using an unstated test method that disagrees with this measurement; out of scope to fix as part of a foliage-variant pass."
     },
     "chest_none": {
       "glb": null,

@@ -2,7 +2,7 @@ extends Node3D
 
 ## Support Fire Range — the fire-support + destruction bench (ADR-031 PROPOSED), upgraded
 ## into a live-fire COVER LAB (Summoner ruling 2026-08-04). Player + RTO + 4 riflemen behind
-## a low sandbag arc facing a fellable tree field, every fire-support tier on tap via the
+## a low sandbag arc facing a breakable tree field, every fire-support tier on tap via the
 ## shared FireSupportBench rig (ADR-023). [9] sends a 5-man VC squad in from the far tree
 ## line; the proof is WATCHING the squad break to cover — each claimed cover point gets a
 ## marker sphere + nick label (bench-only witness, this scene script gates it).
@@ -60,7 +60,10 @@ var _toast_t: float = 0.0
 var _nav_region: NavigationRegion3D = null
 var _squad: Array[AllyBase] = []            ## RTO + riflemen, marker-witnessed
 var _cover_line: Array[Destructible] = []   ## the friendly sandbag arc
-var _trees: Array[FellableTree] = []
+var _trees: Array[Vector3] = []             ## planted tree positions (cover-probe report)
+var _tree_layer: TreeCoverLayer = null
+var _tree_scatter: Array = []
+var _probe_tree_chunk: int = 100            ## next spare chunk key for single probe trees
 var _enemies: Array[EnemyBase] = []
 var _assault_wave: int = 0
 var _markers: Dictionary = {}               ## ally instance_id -> {node, mat, label}
@@ -211,9 +214,17 @@ func _spawn_ally_squad() -> void:
 	print("[SUPPORT FIRE RANGE] ally squad up: %d men + SPARKS on the net" % RIFLEMEN.size())
 
 
-## Trees the player fells, and fort segments a blast tears out — the destruction targets.
-## Denser than the original 4x6 grid, plus near clumps so cover choices are non-trivial.
+## Trees the player breaks (S29 segmented system - registered, unbodied at rest), and
+## fort segments a blast tears out — the destruction targets. Denser than the original
+## 4x6 grid, plus near clumps so cover choices are non-trivial.
+const BENCH_TREE_SPECIES := "broadleaf_a"
+
+
 func _build_target_field() -> void:
+	_tree_layer = TreeCoverLayer.new()
+	_tree_layer.name = "TargetTreeField"
+	add_child(_tree_layer)
+	_tree_layer.load_species([BENCH_TREE_SPECIES])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 20260804   # one seed per operation (ADR-010)
 	for row in range(6):
@@ -226,6 +237,7 @@ func _build_target_field() -> void:
 		for i in range(3):
 			var off := Vector3(rng.randf_range(-2.5, 2.5), 0.0, rng.randf_range(-2.5, 2.5))
 			_plant_tree(clump + off)
+	_tree_layer.generate_for_chunk(Vector2i(0, 0), _tree_scatter)
 	var wall := BoxMesh.new()
 	wall.size = Vector3(3.0, 2.0, 1.0)
 	FireSupportBench.spawn_fort(self, Vector3(-8.0, 0.0, -14.0), wall, Vector3(3.0, 2.0, 1.0), "sandbag", 110)
@@ -233,9 +245,16 @@ func _build_target_field() -> void:
 
 
 func _plant_tree(pos: Vector3) -> void:
-	var tree: FellableTree = FellableTree.create(self, pos)
-	tree.add_to_group("nav_source")
-	_trees.append(tree)
+	_tree_scatter.append({"name": BENCH_TREE_SPECIES, "xf": Transform3D(Basis.IDENTITY, pos)})
+	_trees.append(pos)
+
+
+## One tree at an exact spot, mid-probe: its own chunk key so it never rebuilds the field.
+func _plant_probe_tree(pos: Vector3) -> void:
+	_probe_tree_chunk += 1
+	_tree_layer.generate_for_chunk(Vector2i(_probe_tree_chunk, 0),
+		[{"name": BENCH_TREE_SPECIES, "xf": Transform3D(Basis.IDENTITY, pos)}])
+	_trees.append(pos)
 
 
 ## His two ORIGINAL hand-built fighting bunkers (exported from the firebase truth
@@ -943,7 +962,7 @@ func _run_airburst_probe() -> void:
 	await get_tree().create_timer(1.0).timeout
 
 	var tree_a := Vector3(70.0, 0.0, -30.0)
-	FellableTree.create(self, tree_a)
+	_plant_probe_tree(tree_a)
 	var man_a := _sp_one_man(tree_a + Vector3(0.0, 0.0, 1.5))
 	await _sp_single_shell(_sp_crown_aim(tree_a))
 	_sp_airburst_report("A crown burst, man beside trunk (expect DEAD)", man_a)
@@ -955,7 +974,7 @@ func _run_airburst_probe() -> void:
 	_sp_airburst_report("B ground burst, man behind sandbag (expect UNTOUCHED)", man_b)
 
 	var tree_c := Vector3(90.0, 0.0, 20.0)
-	FellableTree.create(self, tree_c)
+	_plant_probe_tree(tree_c)
 	_sp_wall(tree_c + Vector3(0.0, 0.0, 6.0))
 	var man_c := _sp_one_man(tree_c + Vector3(0.0, 0.0, 7.6))
 	await _sp_single_shell(_sp_crown_aim(tree_c))
@@ -1073,11 +1092,7 @@ func _sandbag_positions() -> Array[Vector3]:
 
 
 func _tree_positions() -> Array[Vector3]:
-	var out: Array[Vector3] = []
-	for t in _trees:
-		if t != null and is_instance_valid(t):
-			out.append(t.global_position)
-	return out
+	return _trees
 
 
 func _nearest_dist(from: Vector3, points: Array[Vector3]) -> float:

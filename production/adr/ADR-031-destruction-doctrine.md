@@ -38,7 +38,8 @@ verb and carry the perf tail (built last); permanence is a rising per-patrol tax
 ## Build state
 **SHIPPED (local commit `1bc01c4b`, unpushed):** the shared `FireSupportBench` rig (extracted from the AI
 arena), the support-fire range (`scripts/levels/support_fire_range.*`), WP/Willy Pete as a real fire kind
-(bench-stocked only), and P3 tree felling (`scripts/world/fellable_tree.gd` — scripted hinge, permanent log).
+(bench-stocked only), and P3 tree felling (was `scripts/world/fellable_tree.gd`; superseded 2026-08-07 by
+S29's `scripts/world/tree_break_system.gd` — banded break at hit height, state-swap, still never RigidBody).
 Probe: `tests/test_support_fire_bench`. **P2 perf-proof, P4 terrain holes, P5 buildings: NOT built — held
 behind the gate above.**
 

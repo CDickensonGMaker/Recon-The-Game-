@@ -96,16 +96,37 @@ func can_manual_save() -> bool:
 
 ## ------------------------------------------------------------------ save
 
+## Atomic write-and-swap: the slot file always holds a COMPLETE save. Write to
+## .tmp, verify, rotate the previous good file to .bak, then rename .tmp into
+## place - a crash at any step leaves either the old save or the .bak intact.
 func save_game(slot: int, save_name: String = "") -> bool:
 	var data := collect()
 	data.meta.save_name = save_name if save_name != "" else "SLOT %d" % slot
 	var json := JSON.stringify(data.to_dict(), "\t")
-	var f := FileAccess.open(_slot_path(slot), FileAccess.WRITE)
+	var path := _slot_path(slot)
+	var tmp := path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
-		push_error("[SAVE] cannot open %s" % _slot_path(slot))
+		push_error("[SAVE] cannot open %s" % tmp)
 		return false
 	f.store_string(json)
+	f.flush()
+	var write_err: Error = f.get_error()
 	f.close()
+	if write_err != OK:
+		DirAccess.remove_absolute(tmp)
+		push_error("[SAVE] write failed for %s (err %d)" % [tmp, write_err])
+		return false
+	var bak := path + ".bak"
+	if FileAccess.file_exists(path):
+		# Windows rename refuses an existing target - clear the old .bak first.
+		if FileAccess.file_exists(bak):
+			DirAccess.remove_absolute(bak)
+		DirAccess.rename_absolute(path, bak)
+	var swap_err: Error = DirAccess.rename_absolute(tmp, path)
+	if swap_err != OK:
+		push_error("[SAVE] cannot swap %s into place (err %d)" % [tmp, swap_err])
+		return false
 	return true
 
 
@@ -159,23 +180,24 @@ func _collect_player() -> SaveData.PlayerSection:
 
 func load_game(slot: int) -> SaveData:
 	var path := _slot_path(slot)
-	if not FileAccess.file_exists(path):
+	if not FileAccess.file_exists(path) and not FileAccess.file_exists(path + ".bak"):
 		return null
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
+	var d: Dictionary = _read_slot_dict(path)
+	if d.is_empty():
+		d = _read_slot_dict(path + ".bak")
+		if d.is_empty():
+			print("[SAVE] slot %d is corrupt - load refused (handled)" % slot)
+			return null
+		print("[SAVE] slot %d primary is corrupt - loaded from .bak (handled)" % slot)
+	var file_version: int = int(d.get("version", 1))
+	if file_version > SaveData.SCHEMA_VERSION:
+		# A future-version primary is intact, not corrupt - refuse it outright
+		# rather than silently rolling back to an older .bak.
+		print("[SAVE] slot %d is save v%d, this build reads v%d - load refused (handled)" % [
+			slot, file_version, SaveData.SCHEMA_VERSION])
 		return null
-	# Instance JSON.parse(), NOT static parse_string(): a corrupt save is a
-	# HANDLED runtime condition, and parse_string() pushes an engine ERROR on
-	# bad input (louder on 4.7), which reads as a crash in logs/test scans.
-	var json := JSON.new()
-	var parse_err: Error = json.parse(f.get_as_text())
-	f.close()
-	if parse_err != OK or not (json.data is Dictionary):
-		print("[SAVE] slot %d is corrupt - load refused (handled)" % slot)
-		return null
-	var d: Dictionary = json.data
-	if int(d.get("version", 1)) < SaveData.SCHEMA_VERSION:
-		d = _migrate(d, int(d.get("version", 1)))
+	if file_version < SaveData.SCHEMA_VERSION:
+		d = _migrate(d, file_version)
 	var s := SaveData.from_dict(d)
 	if not s.is_valid():
 		print("[SAVE] slot %d failed validation - load refused (handled)" % slot)
@@ -239,7 +261,8 @@ func apply_pending_player(player: Node3D) -> void:
 ## ------------------------------------------------------------------ info
 
 func has_save(slot: int) -> bool:
-	return FileAccess.file_exists(_slot_path(slot))
+	return FileAccess.file_exists(_slot_path(slot)) \
+		or FileAccess.file_exists(_slot_path(slot) + ".bak")
 
 
 ## Newest slot by timestamp - what CONTINUE loads.
@@ -256,16 +279,10 @@ func latest_slot() -> int:
 
 ## Metadata-only read for menus (no full deserialize).
 func get_save_info(slot: int) -> Dictionary:
-	if not has_save(slot):
-		return {}
-	var f := FileAccess.open(_slot_path(slot), FileAccess.READ)
-	if f == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	f.close()
-	if not (parsed is Dictionary):
-		return {}
-	return (parsed as Dictionary).get("meta", {})
+	var d: Dictionary = _read_slot_dict(_slot_path(slot))
+	if d.is_empty():
+		d = _read_slot_dict(_slot_path(slot) + ".bak")
+	return d.get("meta", {}) as Dictionary
 
 
 ## ------------------------------------------------------------------ internals
@@ -286,6 +303,24 @@ func _migrate(d: Dictionary, from_version: int) -> Dictionary:
 
 func _slot_path(slot: int) -> String:
 	return "%s/save_%d.sav" % [save_dir, slot]
+
+
+## Parse one slot file to its raw dict; {} for missing/unreadable/zero-byte/
+## garbage. Instance JSON.parse(), NOT static parse_string(): a corrupt save is
+## a HANDLED runtime condition, and parse_string() pushes an engine ERROR on
+## bad input (louder on 4.7), which reads as a crash in logs/test scans.
+func _read_slot_dict(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return {}
+	var json := JSON.new()
+	var parse_err: Error = json.parse(f.get_as_text())
+	f.close()
+	if parse_err != OK or not (json.data is Dictionary):
+		return {}
+	return json.data as Dictionary
 
 
 func _player_alive() -> bool:

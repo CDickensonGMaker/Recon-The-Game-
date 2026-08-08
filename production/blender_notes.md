@@ -82,3 +82,176 @@ substrings but need that function written before they reach runtime.
 `pith_net` (no US helmet net mesh exists anywhere in the project - checked
 `helmets.json`'s parts lists and grepped the whole `assets/us` tree) and
 `pack_rice_tube` (no donor, no reference supplied).
+
+## 2026-08-07 (later same day) · VC/NVA gear batch 3 - band/strap defect,
+## texture root cause, pack_rpg placement, foliage rebuild
+
+Headless only, on `nva_vc_gear_variants.blend`, same discipline as batch 2 -
+`nva_vc_soldiers.blend` stayed open in Caleb's live window the whole
+session, never touched, never opened via any bridge. Scripts:
+`tools/fix_nva_gear_bands.py`, `tools/fix_nva_gear_textures.py`,
+`tools/fix_pack_rpg.py`, `tools/build_nva_gear_foliage.py` (all four
+re-runnable from an empty starting point per the pipeline law).
+**`pith_plain/faded/worn/star`'s DOME geometry, `rice_hat_plain`,
+`rice_hat_frayed` and `pack_rice_tube` were RULED APPROVED and never
+touched in this pass** - only their bands (a different mesh) and, for the
+packs, a shared material were in scope.
+
+**Strap-reading-as-broken-geometry, found and fixed.** Every pith/cap
+`*_band` object (`pith_plain_band`/`pith_faded_band`/`pith_worn_band`/
+`pith_star_band`/`pith_net_band`/`cap_cloth_band`/`pith_foliage_band` - 7
+objects, the last one missed on the first pass and caught by re-checking
+the rebuild's own numbers) was a 338-vert disordered triangle fan. Its
+bounding box looked plausible by range comparison alone; a SIDE-ON render
+was what showed the real shape - a vertical hoop crossing the crown front-
+to-back, not a horizontal ring at the base. **Bounding-box comparison is
+not enough to validate a ring's orientation - render it from the side.**
+Rebuilt each as a proper 20-tri ring hugging the dome's own 10-point
+fluted base rim (derived from the dome's OWN lowest two distinct Y rings,
+not resampled into a plain circle), offset ~4mm out / 1cm down. Net tri
+change per prop: -120 (was riding on 140 wasted tris). One dome
+(`cap_cloth`) has a shorter crown with a different rim-ring height
+(+0.0094m vs the pith family's +0.0115m) - a hardcoded offset produced a
+**0-face band silently** on the first pass; fixed by deriving the second
+ring height from the mesh's own two lowest distinct Y values instead of a
+constant, and the fix is in the reusable function, not a one-off patch.
+
+**Texture root cause, systemic not per-prop.** `pack_canvas` material -
+shared by 9 unrelated props (`pack_ammo`/`pack_frame`/`pack_roll`/
+`pack_rpg`/`pack_ruck_full`/`pack_ruck_light`/`pack_satchel`/
+`chest_rig_ak`/`bandolier_ammo`) - had its Base Color Image Texture node
+wired to `pith_worn_cover.png`, the PITH HELMET's own cover sheet.
+`chest_rig_worn` had the same root defect by a different path (pointed
+directly at the `pith_worn_cover` MATERIAL). **Not a UV problem** - a
+wrong SOURCE IMAGE on a shared material, which is exactly why it read
+identically across 9+1 unrelated props at once instead of looking like 10
+separate mistakes. Repointed `pack_canvas` to `canvas_od` (the same real
+canvas sheet the APPROVED `pack_rice_tube`'s `webbing_canvas` material
+already used correctly - the working pattern was sitting right next to the
+broken one the whole time). Gave `chest_rig_worn` its own material
+(`chest_rig_worn_cover`: `canvas_od` + a darker tint) instead of a
+wholesale borrow. Also repointed `pith_band_cover` (all 7 bands, above)
+off the same pith cover PNG onto a flat dark vinyl/leather colour - a
+helmet trim band is a different material from the dome fabric and didn't
+need a bespoke image at this size.
+
+**`pack_rpg` was not an outlier, it was disconnected.** The 520-tri count
+looked like a budget problem in the manifest; measuring the ACTUAL
+geometry found the launcher tube (`BluedSteelVC.001`, 208 tris) and PG-7V
+warhead (`WarheadOD`, 264 tris) sitting **~2 metres away in Z** from their
+own canvas sling (`pack_canvas`, 48 tris) in the same object's local
+space - a rendering framing artifact made this look like "the steel parts
+just aren't visible" rather than "they are two metres off-screen" until
+per-material vertex bounding boxes were dumped. Rigidly repositioned the
+gun cluster onto the sling (no reshaping) using a small numeric SWEEP over
+placement offsets against a `closest_point_on_mesh` fit-check (the same
+technique that placed the RPG cleanly also applies to any future
+"two chunks that look unrelated" prop - sweep offsets and measure, don't
+eyeball one placement and call it done). Once joined, the 520-tri count is
+judged proportionate (a tube + conical warhead is a materially more complex
+form than a canvas rucksack) and was left alone.
+
+**Foliage rebuilt from the project's own vegetation library, not
+procedurally.** `pith_foliage`'s old crown (3 flat ~12-tri quad "leaves")
+replaced with 6 sprigs SAMPLED from `assets/world/vegetation/` (READ-ONLY -
+imported into memory, never edited, never re-exported): a random
+contiguous 16-26 face patch is cut from each source plant's own mesh (a
+real branch-tip cluster, not a procedural stand-in), recentred, and scaled
+to a fixed target diagonal size rather than an arbitrary multiplier (two
+different source patches can have wildly different raw sizes - normalising
+to a target size, not a multiplier, is the fix that actually made them
+visible; the first two placement passes used raw multipliers on unknown
+source sizes and the sprigs rendered as near-invisible specks).
+Two NEW pack variants for the same reason (Caleb: "decorate backpacks and
+helmets with them"): `pack_frame_foliage`, `pack_ruck_light_foliage`, base
+pack mesh unchanged + 3 sprigs each. All placements were tuned by
+SWEEPING body-clearance samples across the pack's own local Y/Z range
+first (clearance is worst near the neck/shoulder curve, best low on the
+back) rather than guessed - the first two placement attempts (guessed)
+produced WORSE fit-check numbers than the original broken RPG placement,
+in one case; a coordinate axis's "outward" direction is not intuitable
+from its bounding-box range alone, sample it.
+**Honest limitation, not fixed this pass:** the sampled patches from
+`bush_a/b/c_low.glb` read as thin blade/frond slivers rather than a full
+leafy clump at gameplay-camera distance - a bushier read needs denser
+source geometry or a bigger tri spend per sprig than was justified here.
+
+## 2026-08-07 · VC/NVA gear batch 2 - both gaps closed, new `chest` category
+
+Built headless via `tools/build_nva_gear_batch2.py` on
+`assets/nva_vc/props/nva_vc_gear_variants.blend` ONLY - a live Blender window
+had `nva_vc_soldiers.blend` open the whole session; never touched, never
+opened via any bridge. Blender 5.0 at
+`C:\Program Files\Blender Foundation\Blender 5.0\blender.exe` (headless
+`-b --factory-startup -P <script>` - no MCP).
+
+**`pith_net` gap closed.** Reference (enemymilitaria.com, IMA-USA NVA pith
+helmet listings) is unanimous: these were a hard shell covered in a **green
+oilcloth net/scrim**, homemade wartime construction - a SHELL glued or tied
+over the dome, never a knotted cord net. Built as pith_worn's own dome+band
+(duplicated verbatim - already correctly fitted, zero new placement risk) +
+a second shell offset 6mm outward along the dome's own vertex normals,
+textured with a procedural alpha diamond-lattice so the helmet colour shows
+through the gaps, + 6 loose rim tabs for the "cloth petal" silhouette break
+the references describe. 292 tris / 662 verts across 4 parts.
+
+**`pack_rice_tube` gap closed.** No reference was ever supplied and none was
+needed - WebSearch found ample photographic/dimensional reference in one
+pass (enemymilitaria.com): ~5.5 ft (1.68 m) long, ~5 in (0.127 m) diameter
+cotton tube of dried rice, issued per soldier, worn bandolier-style. Built as
+one continuous tapered/pinched tube ("sausage link" ties) looped over the
+right shoulder and down the back, tied-off coil at the hip. **Do not wait on
+"no reference supplied" for an iconic period item - WebSearch a specific
+noun phrase (here: the collector-market name for the object) before
+reporting a gap.**
+
+**NEW `socket_chest` (mixamorig:Spine2).** A `Chest` EMPTY already sat on
+this exact bone in the file (local Y=-0.130) - a leftover from an earlier
+pass, unused by anything, and it told me where chest-worn gear belongs
+before I had to derive it. Added `chest_rig_ak` (3+2 pouch AK/SKS mag rig,
+reference: mooremilitaria.com / AWM C153520 / phillosoph.blogspot.com),
+`chest_rig_worn` (same mesh, weathered texture - the pith family's
+plain/faded/worn/star trick applied to a new item), and `bandolier_ammo`
+(10-pocket cartridge bandolier, reference: vietnam-surplus.com /
+cartridgecollectors.org - opposite diagonal from the chest rig for variety).
+
+**Socket convention, reused not reinvented:** every new mesh's vertices are
+baked into the bone's local space via
+`(rig.matrix_world @ pose_bone.matrix).inverted() @ world_vertex`, matching
+batch 1 exactly. **Verified before building anything**, not assumed: forward-
+transformed the EXISTING `pack_worn_ruck_light` and `pith_worn` vertices
+through this same matrix and confirmed they land in plausible world
+positions (pack on the back at Y=0.06-0.26 against a measured back surface
+of Y=0.10 at that height; helmet above the measured head position). This
+caught nothing wrong here, but it is the cheap insurance the 2026-08-06
+"+Y=front" mis-placement (see the batch-1 entry above) should have had from
+the start.
+
+**Fit-checked quantitatively, not eyeballed** (`find_nearest` against
+`vc_guerilla_joined`, penetration = `(vert - nearest).dot(normal) < 0`):
+`chest_rig_ak` 0/120 verts inside the body; `bandolier_ammo` 14/92 touch
+within 6mm (neckline contact, negligible); `pack_rice_tube` first pass had
+47/184 verts up to 6.7cm inside at the shoulder curve and hip - the
+diagonal path's straight tube segments cut the corner across the rounded
+shoulder joint. **Two rounds of nudging the path waypoints outward** (not a
+blind clearance bump - each round re-ran the same numeric check and reported
+the worst-offending world coordinate first, so the fix targeted the actual
+joint rather than guessing) got it to 26/184 within 1.8cm, max 1.84cm -
+plausible soft-cloth resting contact, not clipping.
+
+**Idempotency bug caught and fixed on this project's own pipeline law:** the
+first build script had no cleanup step. A second run (after tuning the rice
+tube's path) silently renamed every new object to `.001` and left the STALE
+first-pass geometry in the file under the real names - the verification
+script then measured the OLD geometry and reported no improvement, because
+it was reading the wrong objects. Fixed by adding `purge_prior_batch2()` to
+the top of `main()` (removes every named batch-2 object/material/image, then
+`bpy.data.orphans_purge()` twice to catch mesh data `new_from_object()` names
+after its SOURCE, not the new object). The script is now safely re-runnable
+from the file batch 1 left behind, per the project's pipeline law.
+
+**Visual verification note:** Workbench `MATERIAL` shading renders new
+materials in a flat DEFAULT GREY indistinguishable from the body unless a
+distinct `material.diffuse_color` is set first - a placement render that
+"shows nothing new" is not evidence of a missing object, check object count
+and world bbox before concluding that.

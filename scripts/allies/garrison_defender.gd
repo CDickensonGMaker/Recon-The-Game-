@@ -30,9 +30,18 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 		return null
 	# A man on the lift is not on the wire. Boarding (latched) and seated (physics
 	# frozen by SeatSystem) men stay Civilians, or a stand-to spawns armed defenders
-	# INSIDE the cabin holding a post they cannot reach. Puppets belong to their driver.
-	if civ.puppet or civ.board_target != Vector3.ZERO or not civ.is_physics_processing():
+	# INSIDE the cabin holding a post they cannot reach.
+	if civ.board_target != Vector3.ZERO or not civ.is_physics_processing():
 		return null
+	# Puppets belong to their driver - EXCEPT the gun crew, whose driver releases on
+	# demand: garrison men are soldiers (2026-08-04), and the staged pit loop must
+	# not keep them performing through a ground assault.
+	if civ.puppet:
+		if civ.crew_driver != null and is_instance_valid(civ.crew_driver) \
+				and civ.crew_driver.has_method("release_man"):
+			civ.crew_driver.call("release_man", civ)
+		if civ.puppet:
+			return null
 	var parent: Node = civ.get_parent()
 	if parent == null:
 		return null
@@ -42,6 +51,7 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	var stand: Vector3 = civ.global_position
 	var unit: String = civ.actor.unit if (civ.actor != null and is_instance_valid(civ.actor)) else ""
 	var occ: String = civ.occupation
+	var role: String = civ.role
 
 	# Teardown, explicit (godot_standards: do not lean on engine auto-cleanup).
 	civ.remove_from_group("firebase_garrison")
@@ -88,9 +98,12 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 		ally.current_aim_dir = outward.normalized()
 	ally.add_to_group("garrison_promoted")
 	# Carried so dawn can hand the man back his job and his face. Without these the
-	# stand-down launders the garrison into anonymous men over three nights.
+	# stand-down launders the garrison into anonymous men over three nights. `role`
+	# rides along or a mortar crewman comes back from his first stand-to holding
+	# howitzer clips (the animation picker keys on it, civilian.gd).
 	ally.set_meta("garrison_occupation", occ)
 	ally.set_meta("garrison_unit", unit)
+	ally.set_meta("garrison_role", role)
 	return ally
 
 
@@ -133,6 +146,7 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 		models.append(unit)
 	var civ: Civilian = Civilian.spawn(parent, stand, director, false, models, true)
 	civ.occupation = occ
+	civ.role = str(ally.get_meta("garrison_role", ""))
 	civ.working_point_pos = post
 	civ.add_to_group("firebase_garrison")
 	return civ
@@ -156,7 +170,7 @@ static func _claim_mortar_station(ally: AllyBase, at: Vector3) -> bool:
 	var best_d: float = INF
 	for p in ally.get_tree().get_nodes_in_group("mortar_pits"):
 		var pit := p as MortarPit
-		if pit == null:
+		if pit == null or pit.enemy_owned:
 			continue
 		var free: Array[String] = pit.free_stations()
 		if free.is_empty():

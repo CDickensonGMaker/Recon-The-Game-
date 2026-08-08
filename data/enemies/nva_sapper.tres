@@ -1,0 +1,30 @@
+﻿[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "nva_sapper"
+display_name = "NVA Sapper"
+description = "Dac cong. Cuts the wire and walks the bangalore in ahead of the assault; does not fire - the breach is his job, not the firefight."
+max_hp = 65
+move_speed = 4.4
+preferred_range = 6.0
+alert_range = 14.0
+weapon_path = "res://data/weapons/ak47.tres"
+accuracy_modifier = 1.1
+aggression = 0.2
+uses_cover = true
+stealth = 0.55
+silent_infiltrator = true
+color = Color(0.35, 0.4, 0.3, 1)
+flanks = false
+retreats_when_hurt = false
+retreat_hp_threshold = 0.2
+courage = 0.85
+determination = 0.85
+exposure_ramp_time = 2
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "nva_sapper"
+sprite_unit_fallback = "nva_regular"
+sprite_weapon = "ak47"

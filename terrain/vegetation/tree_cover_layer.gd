@@ -23,8 +23,7 @@ const COVER_TRUNK := {
 	"bamboo_a": 0.34, "bamboo_b": 0.34, "bamboo_c": 0.34,
 	"jungle_palm_a1": 0.30, "jungle_palm_a2": 0.30, "jungle_palm_a3": 0.30,
 	"jungle_palm_b1": 0.30, "jungle_palm_b2": 0.30, "jungle_palm_b3": 0.30,
-	"fallen_log_a": 0.45, "fallen_log_b": 0.45,
-	"felled_tree": 0.40, "felled_trunk": 0.36, "tree_stump": 0.34,
+	"fallen_log_a": 0.45, "fallen_log_b": 0.45, "tree_stump": 0.34,
 }
 
 ## World-geometry layer: bullets and the player capsule test this, so a trunk stops both.
@@ -55,6 +54,7 @@ const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 var _solid_mesh: Dictionary = {}   ## name -> Mesh
 var _card_mesh: Dictionary = {}    ## name -> Mesh (only species with a card)
 var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs)
+var _chunk_scatter: Dictionary = {}  ## coord -> Array (the scatter as built, for single-instance removal)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
 ## transform read-back is blind headless in this build)
 var chunk_origins: Dictionary = {}
@@ -180,6 +180,8 @@ func solid_mesh_for(species: String) -> Mesh:
 ##   - trunk collider CANDIDATES per COVER instance (bodied by the ring, not here)
 func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	clear_chunk(coord)
+	_chunk_scatter[coord] = scatter
+	TreeBreakSystem.register_chunk(self, coord, scatter)
 	var groups: Dictionary = {}   ## [name, bucket_x, bucket_z] -> Array[Transform3D]
 	var origins := PackedVector3Array()
 	var trunk_pos := PackedVector3Array()
@@ -239,6 +241,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 func clear_chunk(coord: Vector2i) -> void:
 	chunk_origins.erase(coord)
 	_chunk_trunks.erase(coord)
+	_chunk_scatter.erase(coord)
+	TreeBreakSystem.unregister_chunk(self, coord)
 	_release_chunk(coord)
 	if not _chunk_nodes.has(coord):
 		return
@@ -251,6 +255,23 @@ func clear_chunk(coord: Vector2i) -> void:
 func clear_all() -> void:
 	for coord: Vector2i in _chunk_nodes.keys():
 		clear_chunk(coord)
+
+
+func _exit_tree() -> void:
+	TreeBreakSystem.unregister_layer(self)
+
+
+## Drop specific instances (a promoted tree's standing original) and rebuild the chunk
+## from its stored scatter. TreeBreakSystem is the only caller.
+func remove_scatter_entries(coord: Vector2i, indices: Array) -> void:
+	if not _chunk_scatter.has(coord):
+		return
+	var old: Array = _chunk_scatter[coord]
+	var kept: Array = []
+	for i in old.size():
+		if not indices.has(i):
+			kept.append(old[i])
+	generate_for_chunk(coord, kept)
 
 
 ## Assigned pool bodies right now (cover exists inside the ring). For the probe.

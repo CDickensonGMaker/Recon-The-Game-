@@ -1,0 +1,29 @@
+﻿[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_marksman"
+display_name = "VC Marksman"
+description = "Village shooter with an old Mosin. Takes one shot from the hedgerow and moves."
+max_hp = 65
+move_speed = 4.0
+preferred_range = 45.0
+alert_range = 28.0
+weapon_path = "res://data/weapons/mosin.tres"
+accuracy_modifier = 1.0
+aggression = 0.25
+uses_cover = true
+stealth = 0.8
+color = Color(0.3, 0.3, 0.25, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.4
+courage = 0.45
+determination = 0.6
+exposure_ramp_time = 1.7
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc_marksman"
+sprite_unit_fallback = "vc_guerilla_mosin"
+sprite_weapon = "mosin"

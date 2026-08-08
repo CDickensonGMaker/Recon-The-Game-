@@ -126,6 +126,9 @@ const COVER_SEARCH_OFFSETS: Array[Vector3] = [
 	Vector3(2.2, 0, 2.2), Vector3(-2.2, 0, 2.2), Vector3(2.2, 0, -2.2), Vector3(-2.2, 0, -2.2),
 	Vector3(6, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 6), Vector3(0, 0, -6),
 ]
+## A blocker only makes a candidate COVER when it stands within this of the man;
+## geometry further along the ray to the threat shadows the spot without protecting it.
+const COVER_BLOCKER_MAX_M: float = 2.5
 
 var patrol_route: Array[Vector3] = []
 var _patrol_index: int = 0
@@ -396,6 +399,7 @@ func _setup_visual() -> void:
 			if ma.setup(unit):
 				sprite_actor = ma
 				_visual_is_model = true
+				_dress_visual(ma)
 				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
 				return
 			ma.queue_free()
@@ -412,6 +416,19 @@ func _setup_visual() -> void:
 	mesh.material_override = mat
 
 	add_child(mesh)
+
+
+## Deal this man a face and his gear. The enemy side of the call allies make
+## (ally_base.gd dress_visual) and civilians make (civilian.gd) - without it the
+## whole force wears the one face it was exported with.
+## Seeded from the shared memberless-man walk, so an operation seed rebuilds the
+## same force (ADR-010); MissionScope.reset() rewinds it between missions.
+func _dress_visual(ma: ModelActor) -> void:
+	if not VcNvaDresser.is_dressable(ma.unit):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GruntRandomizer.next_bench_seed()
+	VcNvaDresser.dress(ma, rng)
 
 
 ## Low-posture (crouch) - shared contract via CombatPosture, identical for allies:
@@ -2003,11 +2020,13 @@ func _find_bound_point(to_target: Vector3) -> Vector3:
 		# a bound must actually gain ground
 		if candidate.distance_to(threat_pos) >= global_position.distance_to(threat_pos) - 1.0:
 			continue
+		var origin: Vector3 = candidate + Vector3.UP * 1.3
 		var query := PhysicsRayQueryParameters3D.create(
-			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
 		CombatManager.rays_cover += 1
-		if space_state.intersect_ray(query):
+		var hit: Dictionary = space_state.intersect_ray(query)
+		if hit and (hit.position as Vector3).distance_to(origin) <= COVER_BLOCKER_MAX_M:
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
 		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
@@ -2026,11 +2045,13 @@ func _find_cover_point() -> Vector3:
 	var candidates: Array[Vector3] = []
 	for off in COVER_SEARCH_OFFSETS:
 		var candidate: Vector3 = global_position + off
+		var origin: Vector3 = candidate + Vector3.UP * 1.3
 		var query := PhysicsRayQueryParameters3D.create(
-			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
 		CombatManager.rays_cover += 1
-		if space_state.intersect_ray(query):
+		var hit: Dictionary = space_state.intersect_ray(query)
+		if hit and (hit.position as Vector3).distance_to(origin) <= COVER_BLOCKER_MAX_M:
 			candidates.append(candidate)
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
 		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \

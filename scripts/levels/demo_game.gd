@@ -94,20 +94,15 @@ func _ready() -> void:
 		if x[1]:
 			print("[DEMO] EXCLUDED: %s" % x[0])
 	if EXCLUDE_SAVES:
-		# THE DEMO MUST NOT TOUCH HIS TOUR, and repointing the campaign file alone did not
-		# achieve that - two holes, both live:
-		#
-		# 1. SaveManager autosaves slot 8 every AUTOSAVE_INTERVAL_S from its own _process, slot 9
-		#    on exit, and game_flow.gd writes the autosave slot on "FIREBASE". `save_dir` was only
-		#    ever redirected for a TEST run, so a demo session was writing demo snapshots into his
-		#    REAL slots - "Continue" in the real game would boot the demo world.
-		# 2. CampaignState is an AUTOLOAD: its _ready ran load_campaign() against campaign.cfg
-		#    before this line executed, so the demo inherited his live rank, threat, rack condition
-		#    and depot losses. Repointing the path afterwards only changed where writes GO.
+		# THE DEMO MUST NOT TOUCH HIS TOUR, and it must not inherit one either:
+		# CampaignState is an AUTOLOAD whose _ready already loaded his REAL campaign
+		# into memory, and a killed demo session leaves its sandbox files on disk.
+		# Repoint both stores, burn the stale sandbox, start VIRGIN (fresh-player law).
 		CampaignState.save_path = "user://campaign_demo.cfg"
 		SaveManager.save_dir = "user://saves_demo"
 		DirAccess.make_dir_recursive_absolute(SaveManager.save_dir)
-		CampaignState.load_campaign()
+		_wipe_demo_sandbox()
+		CampaignState.reset_campaign()
 	SimClock.real_to_sim_ratio = DAY_RATIO
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
@@ -125,6 +120,14 @@ func _ready() -> void:
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
 		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
 		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
+
+
+func _wipe_demo_sandbox() -> void:
+	var dir := DirAccess.open(SaveManager.save_dir)
+	if dir == null:
+		return
+	for fname: String in dir.get_files():
+		dir.remove(fname)
 
 
 func _exit_tree() -> void:
@@ -513,6 +516,13 @@ func _show_end_card(title: String) -> void:
 			col.add_child(ReconUI.make_label(
 				"%s - %s" % [str(a.member.get("name", "?")), status], 16,
 				ReconUI.DIM if a.is_dead() else ReconUI.AMBER))
+	# S28: the demo skips the debrief (EXCLUDE_DEBRIEF), so the rescued pilot's
+	# only bank in this build is this card.
+	var fd: FieldDirector = _flow.director if _flow != null else null
+	if fd != null and int(fd.state.flags.get("pilot_recovered", 0)) > 0:
+		col.add_child(ReconUI.make_label("THE PILOT CAME HOME", 16, ReconUI.AMBER))
+	elif fd != null and int(fd.state.flags.get("pilot_lost", 0)) > 0:
+		col.add_child(ReconUI.make_label("THE PILOT DIDN'T MAKE IT", 16, ReconUI.DIM))
 	col.add_child(ReconUI.make_menu_button("RESTART THE NIGHT", _restart))
 	col.add_child(ReconUI.make_menu_button("QUIT", _quit))
 	col.add_child(ReconUI.make_label("RECON - DEMO", 13, ReconUI.DIM))

@@ -104,3 +104,4 @@ build/
 # Working backups - never tracked (no-blend-backups rule, storage-bloat law)
 *.bak
 *_PRE_*.blend
+test_results/

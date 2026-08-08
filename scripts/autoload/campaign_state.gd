@@ -60,6 +60,9 @@ var kia_total: int = 0
 var ward_wounded: int = 0
 ## Bags not yet flown out. Distinct from kia_total: this is what is STACKED and visible.
 var bags_unlifted: int = 0
+## Downed aircrew walked back to the wire alive (S28). A count, not a score - like
+## ears_taken, the world may have an opinion about it before the economy does.
+var pilots_recovered: int = 0
 ## Beds already occupied when a new tour opens. A fixed number, not a roll: ADR-010 forbids an
 ## unseeded one, and there is nothing to seed from on a wipe.
 const WARD_SEED_ON_NEW_TOUR: int = 2
@@ -248,6 +251,14 @@ func on_mission_end(result: Dictionary) -> void:
 		add_threat_modifier(-0.25, 3, "AA BATTERY DESTROYED")
 	elif int(result.get("aa_killed", 0)) > 0:
 		add_threat_modifier(-0.08 * float(result.aa_killed), 2, "AA SITE DESTROYED")
+	# S28: a pilot walked home is COUNTED, never priced - what he pays stays the
+	# Summoner's open call. A pilot who died in the AO enters the butcher's bill:
+	# he is a bagged American whether he wore the squad's patch or not.
+	if int(result.get("pilot_recovered", 0)) > 0:
+		pilots_recovered += 1
+	if int(result.get("pilot_lost", 0)) > 0:
+		kia_total += 1
+		bags_unlifted += 1
 	# THE DEAD ARE BANKED. squad_system.gd:443 has always named every man lost into
 	# state.flags["squad_kia"], and this function threw the list away - then
 	# SquadRoster.ensure_roster deleted the bodies, so nothing in the campaign remembered
@@ -320,6 +331,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "kia_total", kia_total)
 	cfg.set_value("campaign", "ward_wounded", ward_wounded)
 	cfg.set_value("campaign", "bags_unlifted", bags_unlifted)
+	cfg.set_value("campaign", "pilots_recovered", pilots_recovered)
 	cfg.set_value("campaign", "rack_condition", rack_condition)
 	cfg.set_value("campaign", "depot_loss", depot_loss)
 	var err: int = cfg.save(save_path)
@@ -369,6 +381,7 @@ func load_campaign() -> void:
 	kia_total = int(cfg.get_value("campaign", "kia_total", 0))
 	ward_wounded = int(cfg.get_value("campaign", "ward_wounded", 0))
 	bags_unlifted = int(cfg.get_value("campaign", "bags_unlifted", 0))
+	pilots_recovered = int(cfg.get_value("campaign", "pilots_recovered", 0))
 	rack_condition = cfg.get_value("campaign", "rack_condition", {}) as Dictionary
 	depot_loss = _migrate_depot_loss(cfg.get_value("campaign", "depot_loss", {}) as Dictionary)
 	# Persist a migrated save immediately - otherwise the migrate warning fires on
@@ -405,6 +418,7 @@ func to_dict() -> Dictionary:
 		"kia_total": kia_total,
 		"ward_wounded": ward_wounded,
 		"bags_unlifted": bags_unlifted,
+		"pilots_recovered": pilots_recovered,
 	}
 
 
@@ -430,6 +444,7 @@ func from_dict(d: Dictionary) -> void:
 	kia_total = int(d.get("kia_total", 0))
 	ward_wounded = int(d.get("ward_wounded", 0))
 	bags_unlifted = int(d.get("bags_unlifted", 0))
+	pilots_recovered = int(d.get("pilots_recovered", 0))
 
 
 func reset_campaign() -> void:
@@ -455,6 +470,7 @@ func reset_campaign() -> void:
 	ears_taken = 0
 	kia_total = 0
 	bags_unlifted = 0
+	pilots_recovered = 0
 	# SEEDED, not zeroed - his ruling 2026-07-30: "we could have 1 to 2 wounded when the player
 	# first appears". A brand-new tour with an EMPTY aid station reads as a war nobody is
 	# fighting, and this is the fresh-player failure the standing law warns about. The men in

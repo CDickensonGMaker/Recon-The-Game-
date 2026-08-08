@@ -187,6 +187,11 @@ func apply_explosion_damage(
 			prop.take_damage(_explosion_damage_at(prop_dist, radius, max_damage, min_damage),
 				Enums.DamageType.EXPLOSIVE, attacker, "BODY")
 
+	# The jungle takes the blast too (S29): registered trees break at the band nearest
+	# the burst height. Consumption in the registry makes the DamageSystem call for the
+	# same blast a no-op, so the two hooks cannot double-fell.
+	TreeBreakSystem.apply_blast(center, radius)
+
 	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
 	for enemy in AgentRegistry.enemies.duplicate():
 		if not is_instance_valid(enemy) or not enemy is Node3D:
@@ -373,10 +378,4 @@ func spawn_projectile(data: ProjectileData, source: Node, spawn_position: Vector
 	if not projectile_pool:
 		push_warning("[CombatManager] Projectile pool not initialized!")
 		return null
-	# Every flying explosive promotes trunk colliders down its corridor (decree
-	# 2026-08-04), so a canopy contact is possible wherever ordnance goes.
-	if data != null and data.aoe_radius > 0.0:
-		var reach: float = minf(data.speed * data.lifetime, 250.0)
-		TreeCoverLayer.threat_corridor(get_tree(), spawn_position,
-			spawn_position + direction.normalized() * reach, data.aoe_radius + 3.0, 10.0)
 	return projectile_pool.spawn(data, source, spawn_position, direction, target)

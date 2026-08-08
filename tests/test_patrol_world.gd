@@ -227,7 +227,9 @@ func _fingerprint(p: Dictionary) -> String:
 
 
 func _finish() -> void:
-	DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav" % SaveManager.AUTOSAVE_SLOT)
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav%s"
+			% [SaveManager.AUTOSAVE_SLOT, str(suffix)])
 	CampaignState.reset_campaign()
 	if _failures == 0:
 		print("PASS: open patrol world - fsb_main, squad, bands, determinism")

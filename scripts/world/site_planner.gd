@@ -564,6 +564,11 @@ func _collect_stations(prop_root: Node3D, stations: Array) -> void:
 		if n is Node3D and String(n.name).begins_with("work_"):
 			var wtype: String = str((n as Node3D).get_meta("work_type",
 				String(n.name).trim_prefix("work_")))
+			# Blender's .001 / glTF _001 duplicate suffix, same strip as the fsb
+			# marker reader below - "cook_001" is not a work type.
+			var cut: int = wtype.rfind("_")
+			if cut > 0 and wtype.substr(cut + 1).is_valid_int():
+				wtype = wtype.substr(0, cut)
 			if wtype.contains("cook"):
 				wtype = "cook"
 			stations.append({"pos": (n as Node3D).global_position, "type": wtype})
@@ -820,15 +825,14 @@ static var _fsb_work_markers: Array = []
 ## work_type -> Civilian occupation. A work_type with no entry here becomes off_duty
 ## rather than inventing a schedule.
 ##
-## THE GUNS. gun/mortar must never map to the CURATED "gun_crew" occupation: that one is
-## read at mission_generator.gd:954 to stand up a mannable M60 per post, and the GLB carries
-## 20 work_gun markers - twenty M60s is not a firebase, it is a joke. That is why these two
-## were left unmapped, and the cost was that the whole crew went to off_duty: six gun pits
-## with six static howitzers and nobody serving them, while anim_library carried gun_gunner /
-## gun_loader / gun_agunner / gun_ammo_bearer with no caller outside the review bench.
-## A SEPARATE occupation gets the crew without going near the M60 path.
+## THE GUNS ARE ABSENT ON PURPOSE, twice over. gun/mortar must never map to the
+## CURATED "gun_crew" occupation - mission_generator.gd:967 stands up a mannable M60
+## per gun_crew post, and 20 work_gun markers is twenty M60s. And they are not in the
+## round-robin either: a rotation seats one man per pass wherever the sorted pool
+## lands him, scattering singles across six pits, and a served gun is a CREW. They
+## are seeded whole as per-pit "gun_crew_arty" crews below (fsb_garrison_plan),
+## capped by FSB_ARTY_CREWS_PER_TYPE, and phase-locked by gun_crew_performance.gd.
 const FSB_WORK_OCCUPATION: Dictionary = {
-	"gun": "gun_crew_arty", "mortar": "gun_crew_arty",
 	"watch": "sentry", "guard": "sentry", "mg": "sentry",
 	"ammo": "quartermaster", "supply": "quartermaster",
 	"radio": "radioman", "plot": "radioman",
@@ -859,11 +863,6 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 ## party. Types absent here still get seated, after these, in marker order.
 const FSB_WORK_PRIORITY: Array[String] = [
 	"medic",
-	# A served gun is the firebase's signature image, and the round-robin below takes one
-	# marker per type per pass - so listing gun/mortar high buys a crew on each piece, not
-	# twenty men on one. 20 work_gun + 4 work_mortar markers exist; FSB_WORK_POST_CAP and
-	# FSB_GARRISON_MAX_MEN are what actually bound the total.
-	"gun", "mortar",
 	"dig", "wash", "water", "burn", "latrine", "pad",
 	"chow_server", "chow_server_line", "eat", "chow_diner", "queue",
 	"radio", "supply", "cook", "mess", "ammo",
@@ -888,6 +887,45 @@ const FSB_GARRISON_MAX_MEN: int = 40
 ## independent constants is how the compound came to hold 17 curated + 12 work =
 ## 29 men against a documented ceiling of 24.
 const FSB_WORK_POST_CAP: int = 24
+
+
+## THE ARTILLERY CREWS. fsb_main_v3.glb carries 6 gun pits x3 work_gun markers
+## (each <=3.7m from its howitzer) and 2 mortar pits x3 markers - one work_gun
+## marker sits INSIDE each mortar pit and is that crew's third station; clusters
+## are >=14m apart (all measured 2026-08-07). Seat caps are the staged clip sets:
+## four howitzer seats, three mortar seats. One crew of each ships - six of the
+## ~23 work-budget men; crewing all eight pits would spend the whole compound.
+const FSB_ARTY_LINK_M: float = 7.0        ## single-linkage cluster join distance
+const FSB_GUN_CREW_MEN: int = 4
+const FSB_MORTAR_CREW_MEN: int = 3
+const FSB_ARTY_CREWS_PER_TYPE: int = 1
+
+
+## Cluster gun/mortar work markers into pits: [{markers: Array[Vector3] (model
+## space), mortar: bool}]. Deterministic - _fsb_work_markers is already sorted.
+static func _arty_pits() -> Array:
+	var pits: Array = []
+	for entry_any in _fsb_work_markers:
+		var e: Array = entry_any
+		var wt: String = str(e[1])
+		if wt != "gun" and wt != "mortar":
+			continue
+		var p: Vector3 = e[0]
+		var joined: bool = false
+		for pit_any in pits:
+			var pit: Dictionary = pit_any
+			for q_any in (pit.markers as Array):
+				var q: Vector3 = q_any
+				if Vector2(p.x - q.x, p.z - q.z).length() <= FSB_ARTY_LINK_M:
+					(pit.markers as Array).append(p)
+					pit["mortar"] = bool(pit.mortar) or wt == "mortar"
+					joined = true
+					break
+			if joined:
+				break
+		if not joined:
+			pits.append({"markers": [p], "mortar": wt == "mortar"})
+	return pits
 
 
 ## Men already promised by the curated post table.
@@ -976,6 +1014,11 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		for entry_any in _fsb_work_markers:
 			var e: Array = entry_any
 			var wt: String = str(e[1])
+			# gun/mortar are crew-seeded below, never rotated - a marker left in this
+			# pool would fall through FSB_WORK_OCCUPATION to an off_duty man loafing
+			# in the pit, the exact pre-M22 failure.
+			if wt == "gun" or wt == "mortar":
+				continue
 			if not by_type.has(wt):
 				by_type[wt] = []
 				seen_order.append(wt)
@@ -1015,6 +1058,27 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 				var cot: Vector3 = origin + (med_pool[2] as Vector3)
 				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": mp})
 				taken = 5
+		# THE ARTILLERY CREWS ARE SEEDED WHOLE, one pit per weapon type, ahead of the
+		# rotation - a served gun is the firebase's signature image and it only reads
+		# as served when the whole crew stands ONE piece. One post per station so
+		# every man spawns on his own marker; gun_crew_performance.gd reassembles
+		# them by pit and phase-locks the clips.
+		var crews_seeded: Dictionary = {"gun": 0, "mortar": 0}
+		for pit_any in _arty_pits():
+			var pit: Dictionary = pit_any
+			var wt: String = "mortar" if bool(pit.mortar) else "gun"
+			if int(crews_seeded[wt]) >= FSB_ARTY_CREWS_PER_TYPE:
+				continue
+			var mk: Array = pit.markers
+			var crew_n: int = mini(mk.size(),
+				FSB_MORTAR_CREW_MEN if wt == "mortar" else FSB_GUN_CREW_MEN)
+			if crew_n < 3 or taken + crew_n > work_budget:
+				continue
+			crews_seeded[wt] = int(crews_seeded[wt]) + 1
+			for i in range(crew_n):
+				posts.append({"pos": origin + (mk[i] as Vector3),
+					"occupation": "gun_crew_arty", "men": 1, "role": wt})
+				taken += 1
 		var round_i: int = 0
 		while taken < work_budget:
 			var placed_this_round: bool = false
@@ -1711,7 +1775,12 @@ func stamp_vc_camp(center: Vector3, rng: RandomNumberGenerator) -> Dictionary:
 		nodes.append(place_structure(
 			"res://assets/world/building models/structures/vc_nva/spider_hole.glb",
 			sp, rng.randf_range(0, 360)))
-	var site := {"kind": "vc_camp", "center": center, "nodes": nodes, "radius": 16.0}
+	var stations: Array = []
+	for n in nodes:
+		if n != null:
+			_collect_stations(n, stations)
+	var site := {"kind": "vc_camp", "center": center, "nodes": nodes, "radius": 16.0,
+		"work_stations": stations}
 	placed_sites.append(site)
 	return site
 

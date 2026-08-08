@@ -1209,10 +1209,11 @@ dot suffix does not survive import, ~185 of 198 markers are junk and this is bui
 **Summoner, verbatim:** *"i know how to solve our problem with the higher up tree destruction,
 we need to make our tree models split apart in more areas."*
 
-Today a tree is ONE piece: `FellableTree` hinges the whole standing GLB at its BASE regardless
-of where the blast hit (`scripts/world/fellable_tree.gd:72-106` — `_begin_fall` picks only a
-direction, never a height) and swaps to a single `felled_trunk.glb` log. A canopy hit felling
-the entire trunk from the roots is the defect he named.
+**[SUPERSEDED 2026-08-07 by S29: `FellableTree` deleted, replaced by the `TreeBreakSystem`
+autoload (`scripts/world/tree_break_system.gd`) breaking at `_stump`/`_stem`/`_crown` bands.]**
+As written 2026-08-04: a tree was ONE piece — `FellableTree` hinged the whole standing GLB at
+its BASE regardless of where the blast hit and swapped to a single `felled_trunk.glb` log. A
+canopy hit felling the entire trunk from the roots was the defect he named.
 
 **The solve, two halves:**
 1. **ART — segment the tree models.** `felled_tree.glb` (and the live-world tree models when
@@ -1386,8 +1387,9 @@ copy — `support_fire_range.gd:91` wires the shipped `FieldDirector`) · threat
   Blender re-export, lands in demo AND patrol at once (`game_flow.gd:582, :606`). Straight lift.
 - **M-3 · one HP table** — three exist and have already drifted (`fire_support_bench.gd:48-55` ·
   `site_planner.gd:1552-1558` · `support_fire_range.gd:988` fort HP 110). **Blocks M-2.**
-- **M-4 · ballistic tags** on the felled log (`fellable_tree.gd:129`), `tunnel_room.gd:29`,
-  `field_director.gd:1027`.
+- **M-4 · ballistic tags** on the felled log (was in the deleted `fellable_tree` script —
+  the item now targets the fallen pieces in `scripts/world/tree_break_system.gd`),
+  `tunnel_room.gd:29`, `field_director.gd:1027`.
 - **M-5 · arena stops writing on the game.** `EnemySquad.tiering_enabled = false`
   (`ai_stress_arena.gd:304`, static, never restored — **ADR-026 Part B tiering off for the process**)
   and `GibSystem.gib_lifetime_s = 25.0` (`:305`). `GameSettings.ai_vs_ai_cone_mult` (`:308`) is a real

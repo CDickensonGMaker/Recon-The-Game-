@@ -1512,11 +1512,13 @@ func _find_cover_point() -> Vector3:
 	var candidates: Array[Vector3] = []
 	for off in EnemyBase.COVER_SEARCH_OFFSETS:
 		var candidate: Vector3 = global_position + off
+		var origin: Vector3 = candidate + Vector3.UP * 1.3
 		var query := PhysicsRayQueryParameters3D.create(
-			candidate + Vector3.UP * 1.3, threat_pos + Vector3.UP * 1.0, 1 | 32)
+			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
 		query.exclude = [self]
 		CombatManager.rays_cover += 1
-		if space_state.intersect_ray(query):
+		var hit: Dictionary = space_state.intersect_ray(query)
+		if hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M:
 			candidates.append(candidate)
 	var hard: Vector3 = _claim_scored(candidates, threat_pos)
 	if hard != Vector3.ZERO:

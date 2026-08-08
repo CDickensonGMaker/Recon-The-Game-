@@ -129,9 +129,6 @@ func _all_species() -> Array:
 	for pool: Array in TYPE_SPECIES.values():
 		for nm: String in pool:
 			seen[nm] = true
-	# Not a scatter species - nothing plants a felled log - but the mesh must be loaded
-	# or generate_for_chunk silently drops every entry _fell_registry re-emits.
-	seen[FELLED_SPECIES] = true
 	return seen.keys()
 
 
@@ -430,32 +427,6 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 	var max_cx := floori((center.x + radius) / chunk_size)
 	var min_cz := floori((center.z - radius) / chunk_size)
 	var max_cz := floori((center.z + radius) / chunk_size)
-	# The canopy trees this hole is about to delete, gathered BEFORE the hole is
-	# recorded (the hole filters them out of the scatter): they go down VISIBLY.
-	var doomed: Array = []
-	var doomed_bush: Array = []
-	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and heightmap != null:
-		for cx in range(min_cx, max_cx + 1):
-			for cz in range(min_cz, max_cz + 1):
-				var chunk_coord := Vector2i(cx, cz)
-				if not _chunk_terrain.has(chunk_coord):
-					continue
-				if doomed.size() >= FELL_MAX_PER_BLAST and doomed_bush.size() >= FELL_BUSH_MAX:
-					continue
-				for e: Dictionary in _build_scatter(chunk_coord, heightmap, chunk_size):
-					var p: Vector3 = (e.xf as Transform3D).origin
-					if Vector2(p.x - center.x, p.z - center.z).length() > radius:
-						continue
-					# Bushes take their own budget. Sharing one would let the undergrowth -
-					# far more numerous than trees - spend the whole allowance on shrubs
-					# while the treeline he is watching stands there untouched.
-					if _is_bush_species(String(e.name)):
-						if doomed_bush.size() < FELL_BUSH_MAX:
-							doomed_bush.append(e)
-					elif _is_fell_species(String(e.name)):
-						if doomed.size() < FELL_MAX_PER_BLAST:
-							doomed.append(e)
-		doomed.append_array(doomed_bush)
 	var hole := {"c": center, "r2": radius * radius}
 	_veg_holes.append(hole)
 	_file_veg_hole(hole)
@@ -470,263 +441,44 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 			if heightmap:
 				_rematerialize(chunk_coord, heightmap, chunk_size)
 			rebuilt += 1
-	for e: Dictionary in doomed:
-		_fell_tree_visual(String(e.name), e.xf as Transform3D, center, chunk_size)
-	# The logs just registered are not in the scatter yet - this chunk was rebuilt above,
-	# before they existed. Re-scatter once the fall has landed so they become cover then,
-	# not at some unrelated later rebuild. This is the VEGETATION MultiMesh rebuild, not
-	# the terrain SurfaceTool dig, so it is cheap; the chunks are deduped.
-	if not doomed.is_empty() and heightmap != null:
-		var touched: Dictionary = {}
-		for e: Dictionary in doomed:
-			var p: Vector3 = (e.xf as Transform3D).origin
-			touched[Vector2i(floori(p.x / chunk_size), floori(p.z / chunk_size))] = true
-		var hm: Object = heightmap
-		# A beat AFTER the fall lands, not on the same tick: the tween's finish callback is
-		# what writes the resting log into the registry, and this re-scatter must read it.
-		get_tree().create_timer(FELL_TIME + 0.15).timeout.connect(func() -> void:
-			if not is_instance_valid(self):
-				return
-			for c: Vector2i in touched.keys():
-				if _chunk_terrain.has(c):
-					clear_chunk_visuals(c)
-					_rematerialize(c, hm, chunk_size), CONNECT_ONE_SHOT)
 	return rebuilt
 
 
-## LIVE-WORLD TREE FELLING (decree 2026-08-04). A felled tree is COVER, not decoration
-## (his ruling 2026-08-05): the tween below is only the falling MOTION. The log itself is
-## recorded in _fell_registry as DATA and re-emitted by _build_scatter as an ordinary
-## `felled_tree` scatter instance, so the pooled 70m ring bodies it on demand like any
-## other trunk. Nothing here holds a permanent collider and nothing accumulates nodes.
-const FELL_MAX_PER_BLAST := 12
-const FELL_BUSH_MAX := 8
-const FELL_TIME := 2.0
-## Falling VISUALS only (transient, ~FELL_TIME each). Registry entries are not capped by
-## count: a FIFO would free the log a man is lying behind because of a blast 200m away,
-## which ADR-031 forbids inside the firefight radius.
-const FALLEN_VISUAL_MAX := 24
-var _fallen_visuals: Array[Node3D] = []
-
-## The species the ring bodies a lying log as. In COVER_TRUNK (0.40m) and on disk as
-## felled_tree.glb; added to the load list by _all_species().
-const FELLED_SPECIES := "felled_tree"
-
-## SEGMENTED BREAKS (his ruling 2026-08-05). Each species ships _low/_mid/_high parts and
-## a manifest of the two joint heights, so a blast breaks the tree WHERE IT HIT instead of
-## always at the base: everything above the nearest joint goes over, everything below stays
-## up as a snag. State-swap only - the parts are keyed meshes, never RigidBody (ADR-031).
-const SEG_MANIFEST := "res://assets/world/vegetation/vegetation_segments_manifest.json"
-## A log lying in the grass is crouch cover, not a 3m post.
-const LOG_TRUNK_H := 0.9
-var _seg_cuts: Dictionary = {}
-
-
-## Joint heights for a species, or empty if it was never segmented (floor plants).
-func _seg_for(nm: String) -> Dictionary:
-	if _seg_cuts.is_empty():
-		_seg_cuts = {"_loaded": true}
-		var f: FileAccess = FileAccess.open(SEG_MANIFEST, FileAccess.READ)
-		if f != null:
-			var parsed: Variant = JSON.parse_string(f.get_as_text())
-			if parsed is Dictionary:
-				for k in (parsed as Dictionary).get("species", {}):
-					_seg_cuts[k] = (parsed as Dictionary)["species"][k]
-	var v: Variant = _seg_cuts.get(nm, {})
-	return v as Dictionary if v is Dictionary else {}
-
-
-## Where the ground actually is under a point. NOT arithmetic off the tree's own origin:
-## the blast that felled this tree also craters the terrain under it, and that dig is
-## QUEUED - so a resting height computed at detonation floats over the hole that arrives
-## a few frames later. Probed at touchdown, against the real floor.
-func _probe_ground(p: Vector3) -> float:
-	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 3.0, p + Vector3.DOWN * 60.0)
-	q.collision_mask = 1
-	var hit: Dictionary = space.intersect_ray(q)
-	return float((hit["position"] as Vector3).y) if hit.has("position") else p.y
-
-## Every log dropped this mission: {name, xf (final, lying), chunk}. Survives chunk
-## rebuilds because _build_scatter re-emits it; cleared per-mission in clear_all().
+## Every snag and lying log dropped this mission: {name (segment part), xf, chunk,
+## trunk_r?, trunk_h?}. TreeBreakSystem writes them when a broken tree settles; they
+## survive chunk rebuilds because _build_scatter re-emits them, and the pooled 70m ring
+## bodies them on demand. Cleared per-mission in clear_all().
 var _fell_registry: Array = []
 
 
-## Bushes break too (his ruling 2026-08-05: "trees and bushes for sure"), but a bush loses
-## its top and leaves a stub - it never becomes a log you can hide behind.
-func _is_bush_species(nm: String) -> bool:
-	return nm.begins_with("bush_") or nm.begins_with("lp_bush_")
-
-
-## Only trunked cover-givers fall as logs; grass and ferns just vanish in the blast.
-func _is_fell_species(nm: String) -> bool:
-	return nm.begins_with("broadleaf") or nm.begins_with("banana") \
-		or nm.begins_with("bamboo") or nm.begins_with("jungle_palm") \
-		or nm.begins_with("palm_")
-
-
-func _fell_tree_visual(nm: String, xf: Transform3D, blast: Vector3, chunk_size: float) -> void:
-	if _tree_cover == null:
-		return
-	# WHICH JOINT. The blast height above this tree's own base picks the break: above the
-	# canopy joint only the crown comes off; above the stem joint the whole top goes; below
-	# both, the tree is cut off at the ankles and falls entire, as it always did.
-	var cuts: Dictionary = _seg_for(nm)
-	var bh: float = blast.y - xf.origin.y
-	var lo: float = float(cuts.get("cut_low_m", 0.0))
-	var hi: float = float(cuts.get("cut_high_m", 0.0))
-	var cut: float = 0.0
-	var standing: Array[String] = []
-	var falling: Array[String] = []
-	if hi > 0.0 and bh >= hi:
-		cut = hi
-		standing = [nm + "_low", nm + "_mid"]
-		falling = [nm + "_high"]
-	elif lo > 0.0 and bh >= lo:
-		cut = lo
-		standing = [nm + "_low"]
-		falling = [nm + "_mid", nm + "_high"]
-	if not falling.is_empty():
-		_break_tree_at(nm, xf, blast, chunk_size, cut, standing, falling)
-		return
-
-	var mesh: Mesh = _tree_cover.solid_mesh_for(nm)
-	if mesh == null:
-		return
-	var root := Node3D.new()
-	add_child(root)
-	root.global_transform = Transform3D(Basis.IDENTITY, xf.origin)
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.transform = Transform3D(xf.basis, Vector3.ZERO)
-	root.add_child(mi)
-	var away: Vector3 = xf.origin - blast
-	away.y = 0.0
-	if away.length() < 0.5:
-		away = Vector3(1, 0, 0)
-	var axis: Vector3 = away.normalized().cross(Vector3.UP).normalized()
-	var hinged := Basis(axis, PI * 0.47)
-	var chunk := Vector2i(floori(xf.origin.x / chunk_size), floori(xf.origin.z / chunk_size))
-	# Recorded at its RESTING transform up front, not when the tween lands: the entry is
-	# what makes the log cover, and a strike that kills the node mid-fall must not lose it.
-	# trunk_h explicitly: felled_tree is in COVER_TRUNK, so without this the log inherits
-	# the default 3m upright post and a tree lying in the grass stops rounds at head height.
-	_fell_registry.append({
-		"name": FELLED_SPECIES,
-		"xf": Transform3D(hinged * xf.basis, xf.origin),
-		"chunk": chunk,
-		"trunk_r": float(TreeCoverLayer.COVER_TRUNK.get(FELLED_SPECIES, 0.40)),
-		"trunk_h": LOG_TRUNK_H,
-	})
-	root.set_meta("fell_chunk", chunk)
-	var tw := root.create_tween()
-	tw.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tw.tween_method(func(a: float) -> void:
-		if is_instance_valid(root):
-			root.basis = Basis(axis, a),
-		0.0, PI * 0.47, FELL_TIME)
-	_fallen_visuals.append(root)
-	while _fallen_visuals.size() > FALLEN_VISUAL_MAX:
-		var old: Variant = _fallen_visuals.pop_front()
-		if is_instance_valid(old):
-			(old as Node3D).queue_free()
-
-
-## A tree broken at height: the part below the joint stays up as a snag, the part above
-## hinges over and lies where it lands. Both halves end as _fell_registry DATA, so the
-## pooled ring bodies them on demand and a chunk rebuild cannot forget them.
-func _break_tree_at(nm: String, xf: Transform3D, blast: Vector3, chunk_size: float,
-		cut: float, standing: Array[String], falling: Array[String]) -> void:
-	_tree_cover.load_species(standing + falling)   # idempotent; segments load on first break
-	var chunk := Vector2i(floori(xf.origin.x / chunk_size), floori(xf.origin.z / chunk_size))
-	# ZERO for anything not in COVER_TRUNK. Bushes are CONCEALMENT - they cut sight, never
-	# stop a round - so a broken bush must not leave a solid stub behind.
-	var radius: float = float(TreeCoverLayer.COVER_TRUNK.get(nm, 0.0))
-	# Manifest cuts are UNSCALED object space; _build_scatter plants every instance at a
-	# random 0.85-1.2. Without this a big tree snaps below its real joint and a small one
-	# above it, and the snag collider is the wrong height for the stump you can see.
-	var s: float = xf.basis.get_scale().y
-	var cut_w: float = cut * s
-	var up_local: Vector3 = xf.basis * Vector3(0.0, cut, 0.0)
-
-	# THE SNAG. Only the first part carries the collider - one shortened post for the whole
-	# standing stump, not one per mesh, and cut high so you cannot shoot through what is
-	# still solid to head height.
-	for i in standing.size():
-		var e: Dictionary = {"name": standing[i], "xf": xf, "chunk": chunk}
-		if i == 0 and radius > 0.0:
-			e["trunk_r"] = radius * s
-			e["trunk_h"] = cut_w
+func add_fell_entries(entries: Array) -> void:
+	for e: Dictionary in entries:
 		_fell_registry.append(e)
 
-	# THE FALLING TOP. Hinged away from the blast on the same tween the whole-tree path
-	# uses, then resolved against the real floor at touchdown.
-	var away: Vector3 = xf.origin - blast
-	away.y = 0.0
-	if away.length() < 0.5:
-		away = Vector3(1, 0, 0)
-	var axis: Vector3 = away.normalized().cross(Vector3.UP).normalized()
-	var pivot: Vector3 = xf.origin + up_local
-	var root := Node3D.new()
-	add_child(root)
-	root.global_transform = Transform3D(Basis.IDENTITY, pivot)
-	root.set_meta("fell_chunk", chunk)
-	for part: String in falling:
-		var m: Mesh = _tree_cover.solid_mesh_for(part)
-		if m == null:
-			continue
-		var mi := MeshInstance3D.new()
-		mi.mesh = m
-		# Every part was cut IN PLACE, so it carries the whole tree's object space. Seating
-		# it at -up_local puts the geometry back exactly where it stood before the break.
-		mi.transform = Transform3D(xf.basis, -up_local)
-		root.add_child(mi)
-	_fallen_visuals.append(root)
 
-	var tw := root.create_tween()
-	tw.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tw.tween_method(func(a: float) -> void:
-		if is_instance_valid(root):
-			root.basis = Basis(axis, a),
-		0.0, PI * 0.47, FELL_TIME)
-	tw.finished.connect(func() -> void:
-		if not is_instance_valid(self):
-			return
-		# It came to rest a little way out from the stump, in the direction it fell, and
-		# its height is PROBED - the crater from the same blast may have arrived by now.
-		var rest: Vector3 = pivot + away.normalized() * (cut_w * 0.5)
-		rest.y = _probe_ground(rest)
-		var lying := Transform3D(Basis(axis, PI * 0.47) * xf.basis, rest)
-		for i in falling.size():
-			var e: Dictionary = {"name": falling[i], "xf": lying, "chunk": chunk}
-			if i == 0 and radius > 0.0:   # one log collider for the fallen top, not one per part
-				e["trunk_r"] = radius * s
-				e["trunk_h"] = LOG_TRUNK_H
-			_fell_registry.append(e)
-		if is_instance_valid(root):
-			root.queue_free()
-		_fallen_visuals.erase(root), CONNECT_ONE_SHOT)
+## A pin hole over one promoted tree, so no later _build_scatter re-emits the standing
+## original TreeBreakSystem just replaced.
+func add_break_hole(p: Vector3) -> void:
+	var hole := {"c": p, "r2": 0.36}
+	_veg_holes.append(hole)
+	_file_veg_hole(hole)
 
 
-## THE HANDOFF. Once this chunk's scatter has re-emitted its logs from _fell_registry, the
-## transient falling visual is a duplicate standing in the same place - free it. Called at
-## the top of _rematerialize so the swap happens in one frame, never leaving a gap.
-func _retire_fallen_visuals(chunk_coord: Vector2i) -> void:
-	var keep: Array[Node3D] = []
-	for f: Node3D in _fallen_visuals:
-		if not is_instance_valid(f):
-			continue
-		if f.get_meta("fell_chunk", Vector2i(0, 0)) == chunk_coord:
-			f.queue_free()
-		else:
-			keep.append(f)
-	_fallen_visuals = keep
+## Re-scatter one chunk so fresh _fell_registry entries become live cover candidates.
+func rebuild_chunk(chunk_coord: Vector2i) -> void:
+	if _terrain_manager == null or not _chunk_terrain.has(chunk_coord):
+		return
+	var hm: Object = _terrain_manager.heightmap
+	if hm == null:
+		return
+	var cs: float = _terrain_manager.chunk_size
+	clear_chunk_visuals(chunk_coord)
+	_rematerialize(chunk_coord, hm, cs)
 
 
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
 ## and by clear_area() -- never duplicate this branch.
 func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
-	_retire_fallen_visuals(chunk_coord)
 	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
 		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
 		_tree_cover.generate_for_chunk(chunk_coord, _build_scatter(chunk_coord, heightmap, chunk_size))
@@ -894,10 +646,6 @@ func clear_chunk(chunk_coord: Vector2i) -> void:
 
 
 func clear_all() -> void:
-	for f in _fallen_visuals:
-		if is_instance_valid(f):
-			f.queue_free()
-	_fallen_visuals.clear()
 	for instance: MultiMeshInstance3D in _chunk_instances.values():
 		if is_instance_valid(instance):
 			instance.queue_free()

@@ -28,6 +28,13 @@ Three save tiers, derived from existing settings AND displayed to the player. Th
 - **Backbone ratified with two REQUIRED amendments:**
   1. Atomic writes: `save_game()` writes `save_N.sav.tmp` then renames over the slot; keep prior file as `.bak` (`save_manager.gd:92-102`).
   2. Future-version rejection: `load_game()` MUST refuse (not silently accept) saves with `version > SCHEMA_VERSION` (`save_manager.gd:165`).
+
+  > **AMENDMENTS 1-2 IMPLEMENTED 2026-08-07.** Atomic write-and-swap with `.bak` retention:
+  > `save_manager.gd:99-130` (tmp write → verify → rotate previous good file to `.bak` → rename into
+  > place). Load falls back to `.bak` when the primary is corrupt/truncated and refuses
+  > `version > SCHEMA_VERSION` outright without `.bak` rollback: `save_manager.gd:181-205`.
+  > Guarded by `tests/test_save_roundtrip.gd`. The `:92-102`/`:165` pointers below describe the
+  > pre-amendment code and are history.
 - **Feedback rule (binding):** every save and every load produces visible feedback on every path, including the hub. Specifically: hub gets a toast surface for F5 (`save_manager.gd:292-297` currently falls through to `print`), F9 gets load confirmation/failure feedback, and the HARD wheels-down checkpoint announces itself.
 
 Testable: a probe can assert (a) tier label visible in save UI/checkbox copy, (b) `.tmp`+rename observable in `user://saves/`, (c) version N+1 save rejected, (d) toast emission on hub F5.

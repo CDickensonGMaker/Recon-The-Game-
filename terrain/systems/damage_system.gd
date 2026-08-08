@@ -188,6 +188,10 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 			terrain_manager.chunk_size,
 			terrain_manager.heightmap,
 		)
+	# Break registered trees for callers that never route through
+	# CombatManager.apply_explosion_damage (siege defender-only shells). Registry
+	# consumption makes this a no-op when the blast hook already ran.
+	TreeBreakSystem.apply_blast(world_pos, radius_meters)
 
 	# Batched jungle patch tiles take the blast too, wherever a layer lives (group
 	# self-registration) - before this, arena/bench ordnance visibly cleared

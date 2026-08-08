@@ -1,0 +1,99 @@
+{
+  "asset": "mortar_pit_crewed_US_v1",
+  "canonical": true,
+  "description": "The US Army 81mm M29 mortar pit, crewed and animated. US-side sibling of mortar_pit_crewed_v1 (NVA/VC). REVISION 2 (2026-08-07 evening): Caleb's direct ruling - 'the sandbags are in the way of the us soldiers running... if you make the mortar pit and the peoples positions the exact same as the NVA itll read fine.' The K=1/0.952 scale-up from revision 1 is GONE. Pit geometry and crew station positions are now numerically identical to mortar_pit_crewed_v1's own local coordinates. REVISION 3 (2026-08-07, later that night): Caleb's correction to the revision-2 finding below - 'i didnt want you to shrink anyone i wanted you to rotate the sandbags and the mortar pit alignment how the nva crew is... you really just need to rotate the sandbags.' He was right. ROOT CAUSE: `us_mortar_pit_sandbags` (and the 8 ammo-round objects) carried `rotation_mode='QUATERNION'` while the euler channel had already been set to match NVA's `1.4992 rad` Z rotation - Blender silently ignores the euler channel when `rotation_mode != 'XYZ'`, so every revision-2 penetration test below was measuring a sandbag mesh still sitting at its ORIGINAL import rotation (effective Z ~3.070 rad / ~176 deg, not the intended ~86 deg), not the NVA-matched one the manifest believed it had applied. Fixed by setting `rotation_mode='XYZ'` and copying NVA's exact euler on `us_mortar_pit_sandbags` and all 8 `us_mortar_round_p0_*/p1_*` objects (the latter had been left at identity rotation entirely, another instance of the same oversight). No rig scale, crew/marker position, or geometry was touched in revision 3 - rotation only, verified below.",
+  "source_scene": "assets/nva_vc/characters/nva_vc_soldiers.blend",
+  "source_collection": "MORTAR_PIT_CREWED_US_v1",
+  "packaged_file": "assets/world/building models/structures/mortar_pit_crewed_US_v1.blend",
+  "packaged_via": "bpy.data.libraries.write() from the live session, 2026-08-07 (re-written revision 3 for the sandbag-rotation fix) - no Scene datablock, live .blend untouched. Marker names freed via temporary rename/write/restore around NVA's own station_*/work_mortar* objects, restored and verified immediately after write; parent chains re-checked post-restore.",
+  "object_count": 163,
+  "root_object": "US_MORTAR_EMPLACEMENT",
+  "root_note": "root sits at world X=60 in the source scene (clear of the NVA pit at X=29); in the packaged file it is the (0,0,0) origin. ALL local coordinates below are now IDENTICAL to mortar_pit_crewed_v1_manifest.json's own NVA numbers - not scaled, not re-derived.",
+
+  "revision_2_change": {
+    "what_changed": "Dropped the K=1/0.952=1.05042 scale-up entirely, on Caleb's explicit ruling. Rebuilt: (1) a new US_MORTAR_PROPS_SCALE empty at scale 0.952, mirroring NVA_MORTAR_PROPS_SCALE exactly, now parenting the tube/sandbags/crate-root/round-pile - all at NVA's raw (unscaled) local transforms; (2) all 3 crew rig .location/.rotation_euler reset to NVA's raw values, rig .scale left at 1.0 (US native; explicitly NOT reset to 0.952, see measurement below); (3) all 8 markers reset to NVA's raw local_pos; (4) the 3 crew actions' object-level 'location' fcurves (which the mgunner/mdropper/mrunnerAction bake root motion into, not just pose bones) divided by K to undo revision 1's scaling and restore the exact NVA numbers; (5) us_MC_round_slide's location fcurve un-scaled the same way.",
+    "why_the_earlier_scale_up_existed": "Revision 1 reasoned that because the M29/sandbag/crate GLBs are real-world-scale assets and NVA's pit uses them at 0.952x to match its shorter crew, the geometrically 'correct' thing for a native-scale (1.0) US crew was to scale the whole composition back up by 1/0.952. That reasoning was sound in isolation but wrong in practice: it moved the sandbag nest 5% further from the pit centre than the runner's approved run path was choreographed for, and the runner's own leg motion (unchanged, since it's the same action) clipped through the corner of the now-relocated sandbag wall. Caleb's ruling supersedes it: match NVA's actual footprint, don't re-derive a 'more correct' one."
+  },
+
+  "geometry_reuse": {
+    "tube": "assets/world/building models/structures/emplacements_real/m29_mortar.glb - reused, now parented under US_MORTAR_PROPS_SCALE (0.952x, matching NVA_MORTAR_PROPS_SCALE exactly) at local (0,0,0)/identity rotation - the SAME effective transform as NVA's MC_MORTAR.",
+    "sandbag_pit": "assets/world/building models/structures/emplacements_real/mg_nest_sandbag.glb - reused, renamed us_mortar_pit_sandbags, parented under US_MORTAR_PROPS_SCALE at local (0,0,0) rot 1.4992 rad - the SAME effective transform NVA's MC_pit_sandbags uses.",
+    "ammo_crates": "assets/us/props/interior/fb_ammo_crate_stack.glb (shared with NVA already) - US_MC_crate_root parented under US_MORTAR_PROPS_SCALE at local (2.85,-0.95,0) rot -0.349 rad, verbatim from NVA's MC_crate_root.",
+    "ammo_rounds": "NVA's own round mesh data (linked duplicate), now parented under US_MORTAR_PROPS_SCALE at NVA's raw local positions (master (0,0,0); p0_0..3 along X=2.15..2.45,Y=-1.3,Z=0.045; p1_0..3 the depleting pile at its own scattered NVA coordinates). Visibility/depletion timing copied verbatim, unscaled.",
+    "handoff_props": "us_MC_round_carry/us_MC_round_drop bone-parented to the matching US rig hand exactly as before (bone-space offsets were never scaled, so revision 1 and 2 are identical here). us_MC_round_slide is object-parented under US_MORTAR_PROPS_SCALE; its location fcurve was un-scaled back to NVA's raw values."
+  },
+
+  "crew_authored": {
+    "note": "Unchanged from revision 1 - three US grunts built from us_base_v3.blend's 'rifleman' variant, ruck/alternate helmets excluded, m16_world present but hidden (mirrors NVA hiding ppsh_world for the same reason: both hands are busy on the tube).",
+    "rigs": {
+      "us_mortar_gunner_PSXRig":  { "action": "PSXRig_mgunnerAction_US (copy of NVA's, un-scaled back to raw values)",  "location": "(-0.7115, 0.2811, -0.0243) - IDENTICAL to NVA's nva_mortar_gunner_PSXRig", "rotation_euler": "(1.571, 0.0, 1.397) - IDENTICAL to NVA" },
+      "us_mortar_dropper_PSXRig": { "action": "PSXRig_mdropperAction_US (copy, un-scaled)", "location": "(0.4376, 0.1707, 0.0012) - IDENTICAL to NVA", "rotation_euler": "(1.571, 0.0, -1.59) - IDENTICAL to NVA" },
+      "us_mortar_runner_PSXRig":  { "action": "PSXRig_mrunnerAction_US (copy, un-scaled)",  "location": "(1.1122, 0.0405, -0.0014) - IDENTICAL to NVA", "rotation_euler": "(1.571, 0.0, -1.754) - IDENTICAL to NVA" }
+    },
+    "faction_stature_scale": 1.0,
+    "stature_note": "US rigs are scale 1.0 - kept at their correct native doctrine value, NOT reset to 0.952. See penetration_measurements below: switching the runner to 0.952 was tested and measured to NOT clear the clip, so there was no geometric reason to abandon the 1.0-scale doctrine for this asset."
+  },
+
+  "penetration_measurements": {
+    "method": "Ray-parity inside-test (BVH tree, ray cast along world +X, odd crossing count = inside) of every vertex of the runner's evaluated, deformed us_grunt_joined/vc_guerilla_joined body mesh against the evaluated sandbag mesh, sampled every 4th frame across the full 288-frame cycle (72 samples). Depth = distance from the inside vertex to the nearest sandbag surface point.",
+    "(a)_K_scaled_layout_revision_1": "WORST PENETRATION: 0.721 m at frame 245 (33 vertices inside). Clipping frames: 17/21/25/29 repeated identically every 72-frame cycle (89/93/97/101, 161/165/169/173, 233/237/241/245) - this is what Caleb saw and flagged.",
+    "(b)_NVA_identical_position_rig_scale_1.0": "WORST PENETRATION: 0.626 m at frame 165 (27 vertices inside). Same repeating frame pattern (17/21/25/29 x4 cycles). STILL CLIPS - matching NVA's raw position numbers alone did not clear it.",
+    "(c)_NVA_identical_position_rig_scale_0.952": "WORST PENETRATION: 0.687 m at frame 101 (33 vertices inside). Slightly WORSE than (b), not better - confirms rig scale (1.0 vs 0.952, a 5% difference) is not the driver of this clip.",
+    "NVA_reference_own_body_vs_own_sandbags_same_method": "ZERO penetration across the entire 288-frame cycle (0 inside vertices at every one of the 72 sampled frames). This is the decisive number: the approved reference choreography does not clip its own pit at all.",
+    "diagnosis": "Superseded by revision 3 - see (d) below. The (b)/(c) findings were real measurements of a real state, but that state was never the NVA-matched rotation the manifest believed had been applied (see the revision_3 root-cause note in `description`). The 'wider US silhouette' read was a plausible-sounding diagnosis for a penetration that was actually caused by a stale ~176 deg sandbag rotation instead of the intended ~86 deg.",
+    "(d)_revision_3_rotation_fix": "Root cause found and fixed: `us_mortar_pit_sandbags.rotation_mode` was `QUATERNION`, so its already-correct-looking `rotation_euler.z = 1.4992` (matching NVA) was never actually applied - Blender only reads the euler channel when `rotation_mode == 'XYZ'`. The object's real orientation was still its rotation_quaternion value, equivalent to Z ~3.070 rad. Also found and fixed the same way: 8 ammo-round objects (`us_mortar_round_p0_0..3`, `us_mortar_round_p1_0..3`) were left at identity rotation while their NVA counterparts (`mortar_round_p0_0..3`, `mortar_round_p1_0..3`) carry authored tilts. Fix: set `rotation_mode='XYZ'` and copy NVA's exact `rotation_euler` onto all 9 objects. Nothing else touched - no scale, no location, no mesh edit, no crew rig change.",
+    "(d)_verification_method": "Same closest-point-on-mesh + sign-of-dot penetration test (not the ray-parity method used in (a)-(c)), run on the CORRECTED file, EVERY frame of the 288-frame cycle (not sampled) against the runner's evaluated, armature-deformed `us_mortar_runner_us_grunt_joined` mesh vs the evaluated `us_mortar_pit_sandbags` mesh (world-space BVH tree, static per-frame since the sandbag object itself does not animate).",
+    "(d)_result": "ZERO penetration across all 288 frames. 75,744 vertex-samples checked; 0 came within the 30cm proximity band scanned for violations; overall closest approach across the whole cycle was 0.970 m (frame 19). Matches the NVA reference's own 0.0 m / zero-violations result exactly. STATUS: CLEARED.",
+    "status": "CLEARED (revision 3, 2026-08-07). The sandbag (and ammo-round) rotation bug is fixed and verified at 0.0 m worst-case penetration across the full animation cycle, matching the NVA reference. Nothing else in the pit was changed - rig scale, crew/marker positions, and geometry are exactly as revision 2 left them."
+  },
+
+  "markers": {
+    "work_station_convention": {
+      "consumer": "site_planner.gd (prefix work_ hard-coded; TYPE = everything after work_)",
+      "format": "plain Blender Empties, never Marker3D",
+      "entries": [
+        { "name": "work_mortar",      "role": "gunner",  "local_pos": [-0.714, 0.286, 0.0], "yaw_deg": 85.0 },
+        { "name": "work_mortar.001",  "role": "dropper", "local_pos": [0.428, 0.171, 0.0],  "yaw_deg": -96.9 },
+        { "name": "work_mortar.002",  "role": "runner",  "local_pos": [2.190, -1.238, 0.0], "yaw_deg": -123.7 }
+      ]
+    },
+    "garrison_station_convention": {
+      "consumer": "scripts/world/mortar_pit.gd (MortarPit.STATIONS + mortar_pit.tscn)",
+      "format": "child Marker3D-equivalent empties, exact names, REUSED VERBATIM from mortar_pit_crewed_v1 - numerically identical local_pos, no new convention",
+      "entries": [
+        { "name": "station_gunner",  "local_pos": [-0.714, 0.286, 0.0] },
+        { "name": "station_dropper", "local_pos": [0.428, 0.171, 0.0] },
+        { "name": "station_runner",  "local_pos": [2.190, -1.238, 0.0] },
+        { "name": "station_handoff", "local_pos": [0.762, 0.107, 0.0] },
+        { "name": "ammo_point",      "local_pos": [2.190, -1.238, 0.043] }
+      ]
+    },
+    "derivation": "Copied verbatim from mortar_pit_crewed_v1_manifest.json - no scaling, no re-derivation, per Caleb's direct ruling 2026-08-07 evening."
+  },
+
+  "intended_use": "US firebases and garrisons - intended drop-in replacement for scenes/world/mortar_pit.tscn's runtime pit (see retirement_plan). Penetration finding is now CLEARED (revision 3); not exported to GLB this session per the crew-not-done hard rule, see retirement_plan.",
+
+  "retirement_plan": {
+    "unchanged_from_revision_1": "Only the geometry changed between revisions, not the retirement checklist.",
+    "what_mortar_pit_tscn_currently_provides": "scenes/world/mortar_pit.tscn (scripts/world/mortar_pit.gd): Node3D, 5 Marker3D children (station_gunner/dropper/runner/handoff, ammo_point), group 'mortar_pits', claim()/release()/free_stations(). garrison_defender.gd:151-179 (_claim_mortar_station) is its only consumer - iterates 'mortar_pits' group, claims a station, re-issues a HOLD order at pit.station_position(station). MortarPit.STATIONS only lists 3 of the 5 markers.",
+    "what_a_drop_in_replacement_must_satisfy": [
+      "Get added to the 'mortar_pits' group at runtime - lowest-risk path is a mortar_pit_us.tscn wrapping this asset's (future) GLB export with a MortarPit-scripted root and Marker3D children at these exact local_pos values, mirroring mortar_pit.tscn's structure.",
+      "Keep station_gunner/dropper/runner as the exact names garrison_defender.gd:151-179 already claims - already true, no code change needed there.",
+      "NEVER export under basename 'mortar_pit.glb' - collision_table.gd:134 carries a stale 1.9x1.5x2.0 box keyed by that exact basename.",
+      "Not exported to GLB this session (crew not done, hard rule). Per recon-destructible-export skill, the pit's sandbags/tube meshes need the fb_ prefix + a FSB_STRUCTURE_KINDS row to not ship silently bulletproof, same unfixed flag as the NVA manifest carries."
+    ],
+    "fossils_this_makes_further_redundant": [
+      "scenes/world/mortar_pit.tscn + scripts/world/mortar_pit.gd - retire WITH the replacement, not before, per the fossil law.",
+      "2x fb_mortar_pit_i / .001 baked into fsb_main_v3.glb - already dead, unrelated to this asset directly.",
+      "No NEW fossil created: reuses garrison_station and work_station names verbatim, reuses M29/sandbag-nest/ammo-crate GLBs verbatim, does not touch mortar_pit.tscn/mortar_pit.gd/garrison_defender.gd/collision_table.gd/site_planner.gd."
+    ]
+  },
+
+  "hard_rules_observed": [
+    "NVA actions never edited in place - PSXRig_mgunnerAction/mdropperAction/mrunnerAction remain at 2 users each, unrenamed, untouched. Only their .copy()'d _US duplicates were modified (scaled by K in revision 1, un-scaled back to raw NVA values in revision 2).",
+    "No character GLB exported.",
+    "Live file bpy.data.filepath never changed - bpy.data.libraries.write() only.",
+    "NVA station_gunner/dropper/runner/handoff/ammo_point/work_mortar* were renamed to a temp namespace for the brief write, then renamed back and verified (parent-chain check) before saving.",
+    "Live .blend saved compress=True, OBJECT mode, frame 1."
+  ]
+}

@@ -293,7 +293,7 @@ static func _wire_convoy_to_factory(convoy: Node) -> void:
 static func _stations_near(p: Dictionary, pos: Vector3) -> Array:
 	for s in p.get("sites", []):
 		var sd: Dictionary = s
-		if str(sd.get("kind", "")) == "village" and sd.has("work_stations") \
+		if str(sd.get("kind", "")) in ["village", "vc_camp"] and sd.has("work_stations") \
 				and pos.distance_to(sd.center as Vector3) <= 70.0:
 			return sd.get("work_stations", [])
 	return []
@@ -807,6 +807,14 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	if camp != Vector3.ZERO:
 		p.sites.append({"kind": "vc_camp", "center": camp})
 		camps.append(camp)
+		p.enemy_groups.append({"pos": camp, "count": 3,
+			"tag": "camp_mortar_crew", "lazy": true, "spread": 10.0})
+		p["camp_mortar_tag"] = "camp_mortar_crew"
+		# S28: the ZPU's crew lives in the camp like the mortar's does. Killing
+		# these two men silences the gun the same way killing the tube does.
+		p.enemy_groups.append({"pos": camp, "count": 2,
+			"tag": "zpu_crew", "lazy": true, "spread": 8.0})
+		p["zpu_crew_tag"] = "zpu_crew"
 	else:
 		push_warning("[DEMO] no passable ground for the enemy camp - the day has one site only")
 	p["camp_centers"] = camps
@@ -830,7 +838,7 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 				built_sites.append(_build_village_site(world, director, planner, site, rng,
 					str(p.get("time", "DAY")), Vector2i(2, 4)))
 			"vc_camp":
-				built_sites.append(planner.stamp_vc_camp(site.center, rng))
+				built_sites.append(_build_camp_site(world, director, planner, site, p, rng))
 			"temple":
 				built_sites.append(planner.stamp_temple_shrine(site.center, rng))
 	for s: Vector3 in (p.first_signs as Array):
@@ -839,6 +847,17 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 		if rng.randf() < 0.4:
 			_spawn_crater_water(world, s, rng)
 	_spawn_enemy_groups(world, director, p, rng)
+
+	# S28: the ZPU stands beside the camp when the plan named a crew for it, and
+	# PilotRecovery rides only where a ZPU stands - no gun, no shoot-down.
+	var zpu_tag: String = str(p.get("zpu_crew_tag", ""))
+	var camp_list: Array = p.get("camp_centers", [])
+	if zpu_tag != "" and not camp_list.is_empty():
+		var gun_at: Vector3 = _passable_near(world, rng, camp_list[0] as Vector3, 12.0, 30.0, 60)
+		if gun_at != Vector3.ZERO:
+			ZpuGun.attach(world, director, _seat(world, gun_at),
+				p.fsb_center as Vector3, zpu_tag)
+			PilotRecovery.attach(world, director)
 
 	# Walking patrols between the wire and the locations - the ground the player
 	# crosses is the ground they cross.
@@ -1077,6 +1096,31 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		kpos.y = world.terrain_manager.get_height_at(kpos) + 0.3
 		_add_chicken(world, kpos)
 	return v
+
+
+## One camp build: stamp + the crewed mortar pit (S27). The pit lives IN the camp
+## (his 8/7 ruling - never a standalone site) and only stands where the plan named
+## a crew for it; stations are published back into the PLAN dict, the one
+## _stations_near reads, so the crew's LazyGroup/CampDirector can consume them.
+static func _build_camp_site(world: GameWorld, director: FieldDirector,
+		planner: SitePlanner, site: Dictionary, p: Dictionary,
+		rng: RandomNumberGenerator) -> Dictionary:
+	var built: Dictionary = planner.stamp_vc_camp(site.center, rng)
+	var stations: Array = built.get("work_stations", [])
+	var tag: String = str(p.get("camp_mortar_tag", ""))
+	if tag != "":
+		var fsb: Vector3 = p.get("fsb_center", Vector3.ZERO) as Vector3
+		var face: Vector3 = fsb - (site.center as Vector3)
+		var pit_pos: Vector3 = (site.center as Vector3) + face.normalized() * 6.0
+		pit_pos.y = world.terrain_manager.get_height_at(pit_pos)
+		var pit: MortarPit = MortarPit.create(world, pit_pos, face)
+		pit.enemy_owned = true
+		for s: String in MortarPit.STATIONS:
+			stations.append({"pos": pit.station_position(s), "type": "mortar"})
+		CampMortar.attach(world, director, pit, tag)
+	built["work_stations"] = stations
+	site["work_stations"] = stations
+	return built
 
 
 ## Partition a village's villagers into travelling parties who share a hut and a

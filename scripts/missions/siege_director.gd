@@ -638,6 +638,8 @@ func _check_overrun() -> void:
 ## ---------- THE RANGING WALK ----------
 
 func _walk_mortars(step: float) -> void:
+	if _camp_mortar_silenced():
+		return
 	_mortar_timer -= step
 	if _mortar_timer > 0.0:
 		return
@@ -646,15 +648,34 @@ func _walk_mortars(step: float) -> void:
 	fire_mortar_volley(objective, lerpf(MORTAR_DISPERSION_START, MORTAR_DISPERSION_END, t))
 
 
+## S27 night link (his ruling): a camp mortar silenced during the day means no
+## ranging walk tonight. A map with no camp mortar keeps the walk.
+func _camp_mortar_silenced() -> bool:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return false
+	var camps: Array[Node] = tree.get_nodes_in_group("camp_mortars")
+	if camps.is_empty():
+		return false
+	for c in camps:
+		var cm := c as CampMortar
+		if cm == null or not cm.silenced():
+			return false
+	return true
+
+
 ## One volley onto `at`, dispersed by `spread` metres. The ranging walk above is the
 ## campaign caller; a bench calls this directly to put enemy indirect fire on the
-## map without opening an assault. Shells fly from the tube on the attack bearing,
+## map without opening an assault. Shells fly from the tube on the attack bearing -
+## or from `tube_from` when a real emplaced tube (the camp's pit, S27) is firing -
 ## so they arrive from the enemy's side and not out of the defenders' own position.
-func fire_mortar_volley(at: Vector3, spread: float) -> void:
+func fire_mortar_volley(at: Vector3, spread: float, tube_from: Vector3 = Vector3.ZERO) -> void:
 	if director == null:
 		return
-	var tube: Vector3 = fsb_center + Vector3(cos(sector_bearing), 0.0,
-		sin(sector_bearing)) * mortar_standoff_m
+	var tube: Vector3 = tube_from
+	if tube == Vector3.ZERO:
+		tube = fsb_center + Vector3(cos(sector_bearing), 0.0,
+			sin(sector_bearing)) * mortar_standoff_m
 	# The thump from the tube line, then the whistle over the impact point. The
 	# gap between them is the only warning the defenders get, and it is the
 	# reason a ranging round is survivable.

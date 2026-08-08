@@ -1,0 +1,61 @@
+{
+  "asset": "mortar_pit_crewed_v1",
+  "canonical": true,
+  "description": "The NVA/VC 82-PM-41 mortar pit, crewed and animated. This is the version to include for firebases and enemy camps.",
+  "source_scene": "assets/nva_vc/characters/nva_vc_soldiers.blend",
+  "source_collection": "MORTAR_PIT_CREWED_v1",
+  "packaged_file": "assets/world/building models/structures/mortar_pit_crewed_v1.blend",
+  "packaged_via": "bpy.data.libraries.write() from the live session, 2026-08-07 — no Scene datablock, appendable/linkable component library, live .blend untouched",
+  "object_count": 141,
+  "root_object": "NVA_MORTAR_EMPLACEMENT",
+  "root_note": "root sits at world X=29 in the source scene; in the packaged file it is the (0,0,0) origin of the standalone asset. All marker coordinates below are LOCAL to this root.",
+  "crew_rigs": {
+    "nva_mortar_gunner_PSXRig":  { "action": "PSXRig_mgunnerAction",  "role": "kneels at the tube, sights and lays elevation" },
+    "nva_mortar_dropper_PSXRig": { "action": "PSXRig_mdropperAction", "role": "receives rounds, drops them down the tube" },
+    "nva_mortar_runner_PSXRig":  { "action": "PSXRig_mrunnerAction",  "role": "carries rounds from the ammo pile to the dropper" }
+  },
+  "faction_stature_scale": 0.9518,
+  "cycle": {
+    "frame_start": 1,
+    "frame_end": 288,
+    "cycles": 4,
+    "frames_per_cycle": 72,
+    "note": "APPROVED 2026-08-07. Do not retime, retarget, or otherwise alter this animation."
+  },
+  "props": {
+    "tube": "MC_MORTAR (mortar_baseplate, mortar_bipod_l/r, mortar_crank, mortar_sight, mortar_tube)",
+    "handoff_props": "MC_round_carry (runner->dropper carry, bone-parented to LeftHand), MC_round_drop (dropper's live round, bone-parented to LeftHand), MC_round_slide (tube-slide prop)",
+    "ammo_pile": "mortar_round_p0_0..3 (full stack) and mortar_round_p1_0..3 (depleting/staggered pile, do not replicate cycle-1 content onto these — see crew-choreography LESSONS.md 2026-08-07 entry)",
+    "crates": "fb_ammo_crate_stack + fb_ammo_crate_stack-colonly (already carries a -colonly collider naming pattern)"
+  },
+  "markers": {
+    "work_station_convention": {
+      "consumer": "site_planner.gd (prefix work_ hard-coded; TYPE = everything after work_)",
+      "format": "plain Blender Empties, never Marker3D",
+      "entries": [
+        { "name": "work_mortar",      "role": "gunner",  "local_pos": [-0.714, 0.286, 0.0], "yaw_deg": 85.0 },
+        { "name": "work_mortar.001",  "role": "dropper", "local_pos": [0.428, 0.171, 0.0],  "yaw_deg": -96.9 },
+        { "name": "work_mortar.002",  "role": "runner",  "local_pos": [2.190, -1.238, 0.0], "yaw_deg": -123.7 }
+      ]
+    },
+    "garrison_station_convention": {
+      "consumer": "scripts/world/mortar_pit.gd (MortarPit.STATIONS + mortar_pit.tscn)",
+      "format": "child Marker3D-equivalent empties, exact names",
+      "entries": [
+        { "name": "station_gunner",  "local_pos": [-0.714, 0.286, 0.0] },
+        { "name": "station_dropper", "local_pos": [0.428, 0.171, 0.0] },
+        { "name": "station_runner",  "local_pos": [2.190, -1.238, 0.0] },
+        { "name": "station_handoff", "local_pos": [0.762, 0.107, 0.0] },
+        { "name": "ammo_point",      "local_pos": [2.190, -1.238, 0.043] }
+      ]
+    },
+    "derivation": "All positions sampled from the actual armature Hips-bone world position across the 288-frame cycle (every 3rd frame), relative to NVA_MORTAR_EMPLACEMENT (identity scale/rotation). Gunner and dropper are near-static stances (hip XY range <0.02m) so a single-frame sample was used. Runner ranges from a home stance beside the ammo pile (X 2.19, Y -1.238, essentially zero-velocity across most of the cycle) to a close pass at frame 25 (0.676m hip-to-hip from the dropper) where the handoff happens; station_runner uses the home stance (matches the precedent in mortar_pit.tscn, where station_runner sits close to ammo_point), station_handoff uses the frame-25 hip midpoint. ammo_point is the centroid of the mortar_round_p0_0..3 pile. Z is ground-referenced (0.0) to match mortar_pit.tscn's own convention (its station markers all sit at Godot Y=0 / ground), not hip height."
+  },
+  "intended_use": "Both firebases and enemy camps.",
+  "destructible_naming_gap_FLAGGED_NOT_FIXED": {
+    "summary": "This pit ships INDESTRUCTIBLE and BULLETPROOF as-is if it were exported to GLB today. Flagged per recon-destructible-export skill; not restructured tonight.",
+    "destruction": "FSB_STRUCTURE_KINDS (scripts/world/site_planner.gd:1552-1558) has no fb_mortar_pit row. To make the pit blast-destructible, the visual meshes need a recognised prefix (e.g. a new fb_mortar_pit_i row added to FSB_STRUCTURE_KINDS) — no re-export needed once that row exists, since _wire_structure_destructibles matches by mesh-name prefix already present in the GLB.",
+    "ballistics": "Colliders must be named {base}_{i:03d}-colonly (derived from the mesh base name) for bullet_system.gd to read the right group off the exact collider hit. The one collider already in this set, fb_ammo_crate_stack-colonly, already follows that pattern; the pit's own sandbags/tube geometry currently has no separate collider authored at all in this file.",
+    "world_building_gap": "Even with correct naming, place_structure() (site_planner.gd:162) never calls _wire_structure_destructibles today (skill section 4, 'THE GAP') -- so a mortar pit placed as a world/camp building would need that migration (M-2) before naming alone would matter. The firebase path (_wire_structure_destructibles at :1542) already calls it."
+  }
+}

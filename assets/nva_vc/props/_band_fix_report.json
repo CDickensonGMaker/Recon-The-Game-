@@ -1,0 +1,44 @@
+{
+  "pith_plain_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "pith_faded_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "pith_worn_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "pith_star_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "pith_net_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "cap_cloth_band": {
+    "old_verts": 10,
+    "old_tris": 0,
+    "new_verts": 20,
+    "new_tris": 20
+  },
+  "pith_foliage_band": {
+    "old_verts": 20,
+    "old_tris": 20,
+    "new_verts": 20,
+    "new_tris": 20
+  }
+}

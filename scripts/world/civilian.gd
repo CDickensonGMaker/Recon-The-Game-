@@ -12,6 +12,7 @@ const BTSelectorS := preload("res://scripts/ai/bt/bt_selector.gd")
 const BTNodeS := preload("res://scripts/ai/bt/bt_node.gd")
 const BTActionS := preload("res://scripts/ai/bt/bt_action.gd")
 const CivilianSchedulesS := preload("res://scripts/ai/civilian_schedules.gd")
+const GunCrewPerformanceS := preload("res://scripts/world/gun_crew_performance.gd")
 
 enum CivState { WANDER, FLEE, COWER, GONE }
 
@@ -120,6 +121,10 @@ const BOARD_WALK_SPEED: float = 1.8
 ## owns position AND clip. The BT, the schedule and _animate() all stand down: an
 ## unlatched body re-issues its own pose and the casualty sits up on the stretcher.
 var puppet: bool = false
+## The staged crew driving this body (gun_crew_performance.gd). Null for every
+## other puppet. GarrisonDefender.promote releases through it at stand-to, so a
+## crewman fights while a litter bearer (no driver ref) stays guarded.
+var crew_driver: Node3D = null
 var _bt_bb: Dictionary = {}
 ## Behavior tree root. Typed as RefCounted to avoid class_name lookup hazards;
 ## BTSelector/BTAction are duck-typed at runtime via .tick().
@@ -544,10 +549,10 @@ func _play_garrison(want: String) -> void:
 				"sitting_idle_b", "idle_unarmed_3"]
 			actor.play_first(chain)
 			return
-	# THE GUNS. fsb_main_v3 carries six gun pits with six howitzers and four mortar pits, and
-	# the crew clips have been in anim_library since they were authored - reachable only from
-	# the review bench, never from the game. `role` is the raw work_type, so one occupation
-	# serves both weapons: a howitzer crew is four men, a mortar crew three.
+	# THE GUNS. The synchronised pit loop lives in gun_crew_performance.gd, which
+	# puppets this man once he reaches his station; this branch only covers the
+	# walk up and any man the driver has not captured. `role` is the raw work_type,
+	# so one occupation serves both weapons.
 	if occupation == "gun_crew_arty":
 		if want == "walking_unarmed":
 			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
@@ -786,6 +791,34 @@ func build_bt() -> void:
 		BTActionS.new(Callable(self, "_bt_dispatch"), "dispatch"),
 		idle_action,  # fallback: schedule named no action this hour
 	])
+	# The artillery crew assembles its own driver here because mission_generator
+	# hands crew posts through the generic path - and a dawn stand-down rebuilds
+	# this body lazily through _bt_tick, which lands back here.
+	if is_garrison and occupation == "gun_crew_arty":
+		_join_gun_crew()
+
+
+## Find-or-create the pit's GunCrewPerformance, LitterTeamScript-style external
+## construction (a static factory would self-reference a fresh class_name).
+func _join_gun_crew() -> void:
+	if working_point_pos == Vector3.ZERO or get_tree() == null:
+		return
+	for d in get_tree().get_nodes_in_group("gun_crew_performances"):
+		var drv := d as Node3D
+		if drv == null or not drv.has_method("register_man"):
+			continue
+		if Vector2(drv.global_position.x - working_point_pos.x,
+				drv.global_position.z - working_point_pos.z).length() \
+				<= GunCrewPerformanceS.PIT_RADIUS:
+			drv.call("register_man", self)
+			return
+	var parent: Node = get_parent()
+	if parent == null:
+		return
+	var drv2 := GunCrewPerformanceS.new() as Node3D
+	parent.add_child(drv2)
+	drv2.global_position = working_point_pos
+	drv2.call("register_man", self)
 
 
 ## Tick the leaf the schedule named. FAILURE when the hour maps to no action,

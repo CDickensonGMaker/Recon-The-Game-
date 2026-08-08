@@ -564,23 +564,31 @@ const FIREBASE_ORIGIN := Vector3(-62.0, 0.0, 62.0)   # _build_firebase's origin
 const CLEAR_RADIUS_M: float = 38.0
 
 
-## Real FELLABLE trees on the clearing's rim - the destructible treeline he asked
-## for (2026-08-04): a blast into the edge drops trunks he can watch fall and
-## then use as cover, unlike the batched jungle behind them.
+## Real BREAKABLE trees on the clearing's rim - the destructible treeline he asked
+## for (2026-08-04), now on the S29 segmented system: registered in TreeBreakSystem,
+## no standing colliders, a blast breaks them at the band nearest the burst height.
+const TREELINE_SPECIES: Array[String] = ["broadleaf_a", "broadleaf_b", "jungle_palm_a2"]
+
+
 func _plant_fellable_treeline() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 20260804
-	var planted: int = 0
+	var layer := TreeCoverLayer.new()
+	layer.name = "TreelineCover"
+	add_child(layer)
+	layer.load_species(TREELINE_SPECIES)
+	var scatter: Array = []
 	for i in range(26):
 		var ang: float = rng.randf_range(-PI * 0.55, PI * 0.10)   # the arc facing the arena
 		var r: float = CLEAR_RADIUS_M + rng.randf_range(0.0, 10.0)
 		var pos := FIREBASE_ORIGIN + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 		if absf(pos.x) > ARENA * 0.5 - 6.0 or absf(pos.z) > ARENA * 0.5 - 6.0:
 			continue
-		var tree: FellableTree = FellableTree.create(self, pos)
-		tree.add_to_group("nav_source")
-		planted += 1
-	print("[ARENA] fellable treeline: %d trees on the clearing rim" % planted)
+		var nm: String = TREELINE_SPECIES[rng.randi_range(0, TREELINE_SPECIES.size() - 1)]
+		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.2))
+		scatter.append({"name": nm, "xf": Transform3D(basis, pos)})
+	layer.generate_for_chunk(Vector2i(0, 0), scatter)
+	print("[ARENA] breakable treeline: %d trees on the clearing rim" % scatter.size())
 
 
 ## Ground density between the patch tiles, MultiMesh-instanced from Caleb's OWN individual

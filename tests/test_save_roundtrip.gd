@@ -73,12 +73,51 @@ func _run() -> void:
 		print("FAIL: get_save_info missions")
 		failures += 1
 
-	# --- corrupt-file safety ---
-	var f := FileAccess.open(SaveManager.save_dir + "/save_%d.sav" % TEST_SLOT, FileAccess.WRITE)
+	# --- atomic swap: a re-save retains the previous good file as .bak, no .tmp left ---
+	var slot_path := SaveManager.save_dir + "/save_%d.sav" % TEST_SLOT
+	var bak_path := slot_path + ".bak"
+	if not SaveManager.save_game(TEST_SLOT, "ROUNDTRIP2"):
+		print("FAIL: second save_game returned false")
+		failures += 1
+	if not FileAccess.file_exists(bak_path):
+		print("FAIL: re-save did not retain a .bak")
+		failures += 1
+	if FileAccess.file_exists(slot_path + ".tmp"):
+		print("FAIL: save left a .tmp behind")
+		failures += 1
+
+	# --- corrupt primary falls back to the .bak ---
+	var f := FileAccess.open(slot_path, FileAccess.WRITE)
 	f.store_string("{ not json !!!")
 	f.close()
+	var recovered: SaveData = SaveManager.load_game(TEST_SLOT)
+	if recovered == null:
+		print("FAIL: corrupt primary did not fall back to .bak")
+		failures += 1
+	elif int(recovered.campaign.data.get("reputation", 0)) != 777:
+		print("FAIL: .bak fallback lost campaign state")
+		failures += 1
+
+	# --- zero-byte primary with no .bak refused, no crash ---
+	DirAccess.remove_absolute(bak_path)
+	f = FileAccess.open(slot_path, FileAccess.WRITE)
+	f.store_string("")
+	f.close()
 	if SaveManager.load_game(TEST_SLOT) != null:
-		print("FAIL: corrupt save did not return null")
+		print("FAIL: zero-byte save did not return null")
+		failures += 1
+
+	# --- future-version save refused outright, even with a good .bak standing ---
+	if not SaveManager.save_game(TEST_SLOT, "GOOD"):
+		print("FAIL: post-corruption save_game returned false")
+		failures += 1
+	DirAccess.copy_absolute(slot_path, bak_path)
+	f = FileAccess.open(slot_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": SaveData.SCHEMA_VERSION + 1,
+		"campaign": {}, "player": {}, "hub": {}, "meta": {}}))
+	f.close()
+	if SaveManager.load_game(TEST_SLOT) != null:
+		print("FAIL: future-version save was not refused")
 		failures += 1
 
 	# --- tier gating ---
@@ -94,11 +133,13 @@ func _run() -> void:
 	CampaignState.iron_man = false
 
 	# cleanup
-	DirAccess.remove_absolute(SaveManager.save_dir + "/save_%d.sav" % TEST_SLOT)
+	for suffix in ["", ".bak", ".tmp"]:
+		if FileAccess.file_exists(slot_path + str(suffix)):
+			DirAccess.remove_absolute(slot_path + str(suffix))
 	CampaignState.reset_campaign()
 
 	if failures == 0:
-		print("PASS: save roundtrip (sections, meta, corrupt-safety, tier gating)")
+		print("PASS: save roundtrip (sections, meta, atomic swap, .bak fallback, version reject, tier gating)")
 	else:
 		print("FAIL: %d save roundtrip failures" % failures)
 	get_tree().quit(failures)

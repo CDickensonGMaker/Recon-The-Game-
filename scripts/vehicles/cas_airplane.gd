@@ -5,6 +5,10 @@
 class_name CASAirplane
 extends Node3D
 
+## S28: fired once, on impact, with the ground point. AirTraffic's roster needs no
+## notice - its reaper already treats an externally freed node as "vanished".
+signal crashed(pos: Vector3)
+
 
 ## GUNS is a strafing pass; GUNS_NAPALM strafes in and pickles the strip at the bottom of it -
 ## the Summoner's own picture: "a sky flyby that is a machinegun run and a few napalm canisters
@@ -49,6 +53,8 @@ var _flyby: bool = false
 var _transit: bool = false
 var _transit_agl: float = 60.0
 var _transit_speed: float = SPEED
+var _shot_down: bool = false
+var _crash_pos: Vector3 = Vector3.ZERO
 
 ## ---- THE GUN RUN ----
 ## Rounds are REAL: muzzle spawn on the airframe, gravity, segment-raycast per tick, damage
@@ -165,7 +171,86 @@ func _fly_transit(delta: float) -> void:
 		queue_free()
 
 
+func in_transit() -> bool:
+	return _transit
+
+
+func run_dir() -> Vector3:
+	return _run_dir
+
+
+func is_shot_down() -> bool:
+	return _shot_down
+
+
+## ---- THE SHOOT-DOWN (S28) ----
+## Only a TRANSIT overflight can be downed: strike/flyby airframes are the player's
+## own fire missions. `crash_pos` must arrive ground-seated - the dive solves its
+## sink rate against crash_pos.y every frame.
+func shoot_down(crash_pos: Vector3) -> void:
+	if _shot_down or not _transit:
+		return
+	_shot_down = true
+	_crash_pos = crash_pos
+	var flat := Vector3(crash_pos.x - global_position.x, 0.0, crash_pos.z - global_position.z)
+	if flat.length() > 1.0:
+		_run_dir = flat.normalized()
+	_build_smoke_trail()
+
+
+## World-space emitter: the puffs stay where the airframe was, which IS the trail.
+func _build_smoke_trail() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var trail := GPUParticles3D.new()
+	trail.amount = 36
+	trail.lifetime = 5.0
+	trail.local_coords = false
+	var proc := ParticleProcessMaterial.new()
+	proc.direction = Vector3.UP
+	proc.spread = 10.0
+	proc.initial_velocity_min = 0.4
+	proc.initial_velocity_max = 1.2
+	proc.gravity = Vector3(0.0, 0.4, 0.0)
+	proc.scale_min = 1.6
+	proc.scale_max = 3.0
+	proc.color = Color(0.10, 0.09, 0.08)
+	proc.color_ramp = GunFX._smoke_fade_ramp()
+	trail.process_material = proc
+	trail.draw_pass_1 = GunFX._fx_quad("crash_trail_quad", 2.4,
+		GunFX._sheet_mat("crash_trail_mat", "sheets/puff_sheet", 4, 2, false))
+	add_child(trail)
+
+
+func _fly_crash(delta: float) -> void:
+	var speed: float = maxf(_transit_speed, SPEED)
+	global_position += _run_dir * speed * delta
+	var flat: float = Vector2(global_position.x - _crash_pos.x,
+		global_position.z - _crash_pos.z).length()
+	var sink: float = (global_position.y - _crash_pos.y) / maxf(0.5, flat / speed)
+	global_position.y -= maxf(0.0, sink) * delta
+	var nose: Vector3 = (_run_dir * speed - Vector3.UP * maxf(0.0, sink)).normalized()
+	look_at(global_position + nose, Vector3.UP)
+	if flat < 12.0 or global_position.y <= _crash_pos.y + 1.5:
+		_impact()
+
+
+## Blast numbers mirror the helicopter's crash terminal (helicopter.gd:213-224) -
+## one airframe-death yardstick, no new figures.
+func _impact() -> void:
+	var ground := Vector3(global_position.x, _crash_pos.y, global_position.z)
+	GunFX.play_explosion_3d(get_tree().current_scene, ground, "explosion_heavy")
+	CombatManager.apply_explosion_damage(ground, 150, 40, 10.0, null)
+	DamageSystem.apply_damage(ground, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 0)
+	crashed.emit(ground)
+	queue_free()
+
+
 func _physics_process(delta: float) -> void:
+	if _shot_down:
+		_fly_crash(delta)
+		return
 	if _transit:
 		_fly_transit(delta)
 		return

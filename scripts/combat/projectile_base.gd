@@ -270,6 +270,24 @@ func _physics_process(delta: float) -> void:
 	q.collide_with_bodies = true
 	q.exclude = _exclude_rids
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(q)
+	# Warheads also test the UNBODIED jungle (S29): live trees carry no colliders, so a
+	# rocket/RPG/mortar shell asks the tree registry ahead of its step. Bullets
+	# (aoe_radius 0) never do - bullets do not fell trees.
+	if projectile_data.aoe_radius > 0.0:
+		var step_len: float = step.length()
+		if step_len > 0.001:
+			var tree_hit: Dictionary = TreeBreakSystem.query_ahead(from, step / step_len, step_len)
+			if not tree_hit.is_empty():
+				var td: float = float(tree_hit["distance"])
+				if hit.is_empty() or td <= from.distance_to(hit.position):
+					traveled += td
+					global_position = tree_hit["position"]
+					if not is_armed():
+						_dud_impact()
+						return
+					_apply_aoe_damage()
+					_expire()
+					return
 	if not hit.is_empty():
 		traveled += from.distance_to(hit.position)
 		global_position = hit.position

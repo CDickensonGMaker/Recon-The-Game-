@@ -16,6 +16,9 @@ const SCENE: String = "res://scenes/world/mortar_pit.tscn"
 ## station name -> the Node3D occupying it (null when free)
 var _occupants: Dictionary = {}
 
+## The enemy camp's tube (S27): garrison AI must never claim stations on it.
+var enemy_owned: bool = false
+
 const STATIONS: Array[String] = ["station_gunner", "station_dropper", "station_runner"]
 
 

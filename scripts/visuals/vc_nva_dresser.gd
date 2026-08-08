@@ -1,10 +1,10 @@
 ## vc_nva_dresser.gd - turns the exported NVA/VC men into a force that does not repeat.
 ##
 ## Deliberately the same shape as GruntDresser and ZombieDresser so the three read as
-## one system: the head and hands sit inside ONE cell of a 10x7 face atlas, so sliding
+## one system: the head and hands sit inside ONE cell of the face sheet, so sliding
 ## that material's `uv1_offset` by one cell deals a different man.
 ##
-##     faces x 7 bodies x headgear x gear toggles
+##     faces x bodies x headgear x packs x chest rigs x gear toggles
 ##
 ## THE ONE TRAP, inherited: `uv1_offset` is a MATERIAL property. Duplicate it per
 ## instance or every soldier on screen rerolls to the same face at once.
@@ -12,9 +12,8 @@
 ## FACE POOL. GruntDresser hardcodes US_FACES and that list has already had to be
 ## hand-corrected once; ZombieDresser's header calls deriving it from the builder the
 ## fix. This follows the zombie: the pool comes from vc_nva_manifest.json, emitted by
-## the builder that writes the characters. The fallback below is the atlas rows the US
-## pool explicitly refuses (grunt_dresser.gd:23-24 bans 60-69 as "Asian villager faces")
-## - which is precisely who these men are.
+## tools/make_vc_nva_manifest.py. The NVA pool is male; the VC pool is a deliberate mix
+## of women and men (Summoner ruling 2026-08-07).
 ##
 ## SKIN RIDES THE ATLAS, as on the grunt: face and hands are the same pixels, so a face
 ## can never land on a mismatched body. That invariant is matched on TEXTURE IDENTITY,
@@ -23,21 +22,32 @@
 class_name VcNvaDresser
 extends RefCounted
 
+## Grid of the VC/NVA face sheet. These are DEFAULTS: the manifest's atlas_cols /
+## atlas_rows win, because the sheet is art and changes without touching this file.
+## fixed_better_viet_faces.jpg is 10x3 - a 7-row assumption samples a third of a
+## cell and every man wears a sliver of two faces.
 const FACE_COLS: int = 10
-const FACE_ROWS: int = 7
+const FACE_ROWS: int = 3
 
 const MANIFEST: String = "res://assets/nva_vc/characters/vc_nva_manifest.json"
 
-## Used only when the manifest is missing. The rows the US pool refuses.
+## Used only when the manifest is missing: the male cells of the 10x3 sheet, so a
+## manifest-less run still deals a force of men rather than one repeated face.
 const FALLBACK_FACES: Array[int] = [
-	60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+	0, 1, 2, 4, 6, 7, 8,
+	11, 12, 13, 15, 16, 18, 19,
+	20, 21, 23, 24, 26, 27, 28,
 ]
 
 const FACE_MATERIALS: Array[String] = ["face_atlas", "Skin_VC", "vc_face_skin"]
 
+## The detachable gear library: headgear, packs and chest rigs, one entry per variant.
+## Read at RUNTIME so a new variant reaches the game with no code change here.
+const GEAR_MANIFEST: String = "res://assets/nva_vc/props/nva_vc_gear.json"
+
 ## Headgear ships welded into each GLB - NVA wear the pith helmet, VC the rice hat.
-## Both are re-hung rather than swapped: there is no library of variants to draw from,
-## and inventing one would be a fossil. Re-hanging buys the per-man tilt.
+## These are the names of THOSE meshes: the welded one comes off once the library
+## variant is hung in its place.
 const HEADGEAR: Array[String] = ["pith_helmet", "rice_hat"]
 
 ## Authored level. A section wearing one identical angle reads as a modelling error
@@ -61,6 +71,9 @@ const PACK_CHANCE: float = 0.45
 
 static var _manifest: Dictionary = {}
 static var _manifest_loaded: bool = false
+static var _gear: Dictionary = {}
+static var _gear_loaded: bool = false
+static var _reported: Dictionary = {}
 
 
 ## The manifest, loaded once. Empty dictionary if it is missing - callers fall back
@@ -70,14 +83,36 @@ static func manifest() -> Dictionary:
 		return _manifest
 	_manifest_loaded = true
 	if not ResourceLoader.exists(MANIFEST) and not FileAccess.file_exists(MANIFEST):
+		_report_once(MANIFEST, "[VCNVA] no %s - the force draws FALLBACK_FACES only" % MANIFEST)
 		return _manifest
 	var f: FileAccess = FileAccess.open(MANIFEST, FileAccess.READ)
 	if f == null:
+		_report_once(MANIFEST, "[VCNVA] cannot read %s" % MANIFEST)
 		return _manifest
 	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
 	if parsed is Dictionary:
 		_manifest = parsed as Dictionary
+	else:
+		_report_once(MANIFEST, "[VCNVA] %s is not a JSON object" % MANIFEST)
 	return _manifest
+
+
+## The face sheet's grid, manifest first. Zero or negative is a broken manifest,
+## not a request for an empty atlas - the default stands.
+static func atlas_cols() -> int:
+	return maxi(1, int(manifest().get("atlas_cols", FACE_COLS)))
+
+
+static func atlas_rows() -> int:
+	return maxi(1, int(manifest().get("atlas_rows", FACE_ROWS)))
+
+
+## The VC/NVA bodies this dresser understands. Prefix-gated, not list-gated:
+## a new export reaches the game with no code change here (GruntRandomizer.
+## is_dressable does the same for the US side).
+static func is_dressable(unit: String) -> bool:
+	return unit.begins_with("nva_") or unit.begins_with("vc_")
 
 
 ## Faces this faction may draw. `unit` lets the manifest carry a per-role pool
@@ -94,9 +129,47 @@ static func faces_for(unit: String) -> Array[int]:
 	return FALLBACK_FACES
 
 
+## The gear library, loaded once. Empty dictionary if it is missing - every category
+## then deals nothing and the man keeps whatever his body was exported wearing.
+static func gear_manifest() -> Dictionary:
+	if _gear_loaded:
+		return _gear
+	_gear_loaded = true
+	if not ResourceLoader.exists(GEAR_MANIFEST) and not FileAccess.file_exists(GEAR_MANIFEST):
+		_report_once(GEAR_MANIFEST, "[VCNVA] no %s - the men wear only welded gear"
+			% GEAR_MANIFEST)
+		return _gear
+	var f: FileAccess = FileAccess.open(GEAR_MANIFEST, FileAccess.READ)
+	if f == null:
+		_report_once(GEAR_MANIFEST, "[VCNVA] cannot read %s" % GEAR_MANIFEST)
+		return _gear
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if parsed is Dictionary:
+		_gear = parsed as Dictionary
+	else:
+		_report_once(GEAR_MANIFEST, "[VCNVA] %s is not a JSON object" % GEAR_MANIFEST)
+	return _gear
+
+
+## Every variant name in one gear category. Sorted, so the same seed deals the same
+## man whatever order the builder happened to write the JSON in.
+static func variants(category: String) -> Array[String]:
+	var cat: Dictionary = gear_manifest().get(category, {}) as Dictionary
+	var out: Array[String] = []
+	for k: Variant in cat.keys():
+		out.append(String(k))
+	out.sort()
+	return out
+
+
 ## Dress a soldier. `rng` in, so a mission can reproduce the same force from a seed.
 static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 		opts: Dictionary = {}) -> Dictionary:
+	# NOT re-entrant - a second pass stacks a second hat on the same socket.
+	if actor.get_meta("dressed", false):
+		return {}
+	actor.set_meta("dressed", true)
 	var root: Node3D = actor.instance_root()
 	if root == null:
 		return {}
@@ -104,24 +177,35 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 	var out: Dictionary = {}
 
 	var pool: Array[int] = faces_for(actor.unit)
+	if pool.is_empty():
+		pool = FALLBACK_FACES
 	var face: int = int(opts.get("face", pool[rng.randi() % pool.size()]))
 	out["face"] = face
-	_set_face(root, face)
+	_set_face(root, face, actor.unit)
 
 	var wants_headgear: bool = bool(opts.get("headgear", true))
-	out["headgear"] = _rehang_headgear(actor, root, rng) if wants_headgear else ""
+	out["headgear"] = _rehang_headgear(actor, root, rng, opts) if wants_headgear else ""
 	if not wants_headgear:
 		for name: String in HEADGEAR:
 			_set_visible_by_name(root, name, false)
 
+	var pack: String = _rehang_pack(actor, root, rng, opts)
+	out["pack_variant"] = pack
+	out["chest"] = _rehang_chest(actor, rng, opts)
+
 	for key: String in GEAR_TOGGLES:
+		# A hung library pack owns his back; the welded-mesh toggle must not put a
+		# second ruck back on top of it.
+		if key == "pack" and not pack.is_empty():
+			out[key] = pack != "pack_none"
+			continue
 		var on: bool = bool(opts[key]) if opts.has(key) else _roll_gear(key, rng)
 		var hit: int = 0
 		for mesh_name: String in GEAR_TOGGLES[key]:
 			hit += _set_visible_by_name(root, mesh_name, on)
 		if on and hit == 0:
-			push_warning("[VCNVA] %s has no %s meshes - loadout reports false"
-				% [actor.unit, key])
+			_report_once(actor.unit + "/" + key,
+				"[VCNVA] %s has no %s meshes - loadout reports false" % [actor.unit, key])
 			out[key] = false
 			continue
 		out[key] = on
@@ -140,10 +224,12 @@ static func _roll_gear(key: String, rng: RandomNumberGenerator) -> bool:
 
 ## Slide the face material to a different cell of the atlas. Head, neck, hands and
 ## forearms all live in that cell, so they follow as one.
-static func _set_face(root: Node3D, index: int) -> void:
-	var col: int = index % FACE_COLS
-	var row: int = int(index / float(FACE_COLS)) % FACE_ROWS
-	var off := Vector3(col / float(FACE_COLS), row / float(FACE_ROWS), 0.0)
+static func _set_face(root: Node3D, index: int, unit: String) -> void:
+	var cols: int = atlas_cols()
+	var rows: int = atlas_rows()
+	var col: int = index % cols
+	var row: int = int(index / float(cols)) % rows
+	var off := Vector3(col / float(cols), row / float(rows), 0.0)
 
 	var slid: int = 0
 	var stranded: Array[String] = []
@@ -167,14 +253,17 @@ static func _set_face(root: Node3D, index: int) -> void:
 			mine.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 			mi.set_surface_override_material(s, mine)
 			slid += 1
+	# One line per BODY, not per man: a 45-man assault is 45 copies of one defect.
 	if not stranded.is_empty():
-		push_warning(("[VCNVA] %d skin material(s) do NOT sample the face atlas and cannot "
+		_report_once("stranded/" + unit,
+			("[VCNVA] %s: %d skin material(s) do NOT sample the face atlas and cannot "
 			+ "follow the face: %s. That body needs the face/skin merge pass, or his skin "
 			+ "tone will not match the head he was dealt.")
-			% [stranded.size(), ", ".join(stranded)])
+			% [unit, stranded.size(), ", ".join(stranded)])
 	elif slid == 0:
-		push_warning("[VCNVA] no atlas surface found to slide - this man keeps the face "
-			+ "he was exported with")
+		_report_once("noatlas/" + unit,
+			"[VCNVA] %s has no atlas surface to slide - these men keep the face " % unit
+			+ "they were exported with")
 
 
 ## Texture identity, not resource name: the name is what drifted on the US side, and
@@ -193,62 +282,165 @@ static func _is_face_material(m: Material) -> bool:
 	return false
 
 
-## Hide the welded headgear and re-hang the same mesh on a bone socket with a tilt.
-## Its rendered transform is the placement the artist fitted, so matching it dodges
-## every Blender->Godot axis conversion. Returns the headgear name, or "" if none hung.
+## Deal a headgear variant from the library and hang it, then take the welded pith
+## helmet / rice hat off. Returns the variant name, or "" if nothing was hung.
 static func _rehang_headgear(actor: ModelActor, root: Node3D,
-		rng: RandomNumberGenerator) -> String:
+		rng: RandomNumberGenerator, opts: Dictionary) -> String:
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
 		return ""
-
-	var stock: MeshInstance3D = null
-	var worn: String = ""
-	for name: String in HEADGEAR:
-		stock = _find_mesh(root, name)
-		if stock != null:
-			worn = name
-			break
-	if stock == null:
+	var pick: String = _pick("headgear", rng, opts, "headgear_id")
+	if pick.is_empty():
 		return ""
 
-	var bone: int = skel.find_bone("mixamorig_Head")
-	if bone < 0:
-		bone = skel.find_bone("mixamorig:Head")
-	if bone < 0:
-		push_warning("[VCNVA] no Head bone on %s" % actor.unit)
-		return ""
-
-	var aabb: AABB = stock.get_aabb()
-	var centre: Vector3 = stock.global_transform * aabb.get_center()
-	var basis: Basis = stock.global_transform.basis
-	var mesh: Mesh = stock.mesh
-	if mesh == null:
-		return ""
-
-	var att := BoneAttachment3D.new()
-	att.name = "HeadgearSocket"
-	att.bone_idx = bone
-	skel.add_child(att)
-
-	var hung := MeshInstance3D.new()
-	hung.name = worn
-	hung.mesh = mesh
-	for s: int in mesh.get_surface_count():
-		var src: Material = stock.get_active_material(s)
-		if src != null:
-			hung.set_surface_override_material(s, src)
-	att.add_child(hung)
-
-	# Hide the stock only once the replacement is parented - a bail above must never
-	# leave a bare head.
-	stock.visible = false
 	var tilt: Basis = Basis.from_euler(Vector3(
 		deg_to_rad(rng.randf_range(HEADGEAR_PITCH_DEG.x, HEADGEAR_PITCH_DEG.y)),
 		deg_to_rad(rng.randf_range(-HEADGEAR_YAW_DEG, HEADGEAR_YAW_DEG)),
 		deg_to_rad(rng.randf_range(-HEADGEAR_ROLL_DEG, HEADGEAR_ROLL_DEG))))
-	hung.global_transform = Transform3D(basis * tilt, centre)
+	var worn: String = _hang(actor, skel, "headgear", "socket_headgear",
+		"mixamorig:Head", "HeadgearSocket", pick, tilt)
+
+	# The welded hat comes off only once the variant is decided - a bail above must
+	# never leave a bare head.
+	if worn.is_empty():
+		return ""
+	for name: String in HEADGEAR:
+		_set_visible_by_name(root, name, false)
 	return worn
+
+
+## Deal a pack and hang it on the spine socket, then hide the one welded into the
+## body. Returns the variant name, or "" if nothing was hung.
+static func _rehang_pack(actor: ModelActor, root: Node3D,
+		rng: RandomNumberGenerator, opts: Dictionary) -> String:
+	var skel: Skeleton3D = actor.skeleton()
+	if skel == null:
+		return ""
+	var pick: String = _pick("packs", rng, opts, "pack_id")
+	if pick.is_empty():
+		return ""
+	var worn: String = _hang(actor, skel, "packs", "socket_pack",
+		"mixamorig:Spine1", "PackSocket", pick)
+	if worn.is_empty():
+		return ""
+	for mesh_name: String in GEAR_TOGGLES["pack"]:
+		_set_visible_by_name(root, mesh_name, false)
+	return worn
+
+
+## Deal a chest rig or bandolier. Nothing is welded into the bodies here, so there is
+## no stock mesh to take off. Returns the variant name, or "" if nothing was hung.
+static func _rehang_chest(actor: ModelActor, rng: RandomNumberGenerator,
+		opts: Dictionary) -> String:
+	var skel: Skeleton3D = actor.skeleton()
+	if skel == null:
+		return ""
+	var pick: String = _pick("chest", rng, opts, "chest_id")
+	if pick.is_empty():
+		return ""
+	return _hang(actor, skel, "chest", "socket_chest",
+		"mixamorig:Spine2", "ChestSocket", pick)
+
+
+## The variant this man draws from one category, or "" when the library carries none.
+static func _pick(category: String, rng: RandomNumberGenerator, opts: Dictionary,
+		opt_key: String) -> String:
+	if opts.has(opt_key):
+		return String(opts[opt_key])
+	var names: Array[String] = variants(category)
+	if names.is_empty():
+		return ""
+	return names[rng.randi() % names.size()]
+
+
+## Hang one library prop on a bone socket. Every GLB in this library is authored with
+## its vertices already in bone-local space - the manifest's socket_* matrices are
+## IDENTITY by construction - so the attachment carries no transform of its own and no
+## Blender->Godot axis conversion can be got wrong. `tilt` turns the prop about its own
+## centre, never about the bone.
+##
+## Returns the variant name, including for the explicit "wear nothing" entries whose
+## `glb` is null: choosing to go without is a dressed man, not a failure to dress him.
+static func _hang(actor: ModelActor, skel: Skeleton3D, category: String,
+		socket_key: String, fallback_bone: String, socket_name: String,
+		pick: String, tilt: Basis = Basis.IDENTITY) -> String:
+	var cat: Dictionary = gear_manifest().get(category, {}) as Dictionary
+	var entry: Dictionary = cat.get(pick, {}) as Dictionary
+	if entry.is_empty():
+		_report_once(category + "/" + pick,
+			"[VCNVA] no '%s' in the %s library" % [pick, category])
+		return ""
+
+	var raw: Variant = entry.get("glb", null)
+	if raw == null or String(raw).is_empty():
+		return pick
+
+	var path: String = String(raw)
+	if not ResourceLoader.exists(path):
+		_report_once(path, "[VCNVA] missing %s - '%s' not hung" % [path, pick])
+		return ""
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null:
+		_report_once(path, "[VCNVA] %s is not a scene - '%s' not hung" % [path, pick])
+		return ""
+
+	var bone: int = _socket_bone(skel, socket_key, fallback_bone)
+	if bone < 0:
+		_report_once(socket_key, "[VCNVA] no %s bone on %s" % [fallback_bone, actor.unit])
+		return ""
+
+	var att := BoneAttachment3D.new()
+	att.name = socket_name
+	att.bone_idx = bone
+	skel.add_child(att)
+
+	var prop: Node3D = packed.instantiate() as Node3D
+	if prop == null:
+		att.queue_free()
+		_report_once(path, "[VCNVA] %s has no Node3D root - '%s' not hung" % [path, pick])
+		return ""
+	att.add_child(prop)
+
+	if not tilt.is_equal_approx(Basis.IDENTITY):
+		var centre: Vector3 = _local_centre(prop)
+		prop.transform = Transform3D(tilt, centre - tilt * centre)
+	return pick
+
+
+## The bone a category's socket rides. The manifest names it in Blender form
+## (`mixamorig:Spine1`); Godot's glTF importer sanitises the colon to an underscore,
+## so both spellings are tried.
+static func _socket_bone(skel: Skeleton3D, socket_key: String, fallback: String) -> int:
+	var socket: Dictionary = gear_manifest().get(socket_key, {}) as Dictionary
+	var named: String = String(socket.get("bone", fallback))
+	var bone: int = skel.find_bone(named.replace(":", "_"))
+	if bone < 0:
+		bone = skel.find_bone(named)
+	return bone
+
+
+## The prop's own centre in its own space, so a tilt rotates a hat on the head rather
+## than swinging it off the neck bone the socket sits on.
+static func _local_centre(prop: Node3D) -> Vector3:
+	var inv: Transform3D = prop.global_transform.affine_inverse()
+	var box: AABB = AABB()
+	var got: bool = false
+	for mi: MeshInstance3D in _all_meshes(prop):
+		if mi.mesh == null:
+			continue
+		var b: AABB = (inv * mi.global_transform) * mi.get_aabb()
+		box = b if not got else box.merge(b)
+		got = true
+	return box.get_center() if got else Vector3.ZERO
+
+
+## One line per problem for the whole session - a 45-man assault would print 45 copies
+## of the same missing file otherwise.
+static func _report_once(key: String, msg: String) -> void:
+	if _reported.has(key):
+		return
+	_reported[key] = true
+	push_warning(msg)
 
 
 ## Returns how many meshes it touched, so a caller can tell "switched off" from
@@ -260,13 +452,6 @@ static func _set_visible_by_name(root: Node3D, needle: String, on: bool) -> int:
 			mi.visible = on
 			hit += 1
 	return hit
-
-
-static func _find_mesh(root: Node3D, needle: String) -> MeshInstance3D:
-	for mi: MeshInstance3D in _all_meshes(root):
-		if mi.name.contains(needle):
-			return mi
-	return null
 
 
 static func _all_meshes(root: Node) -> Array[MeshInstance3D]:

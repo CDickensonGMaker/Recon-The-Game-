@@ -1,0 +1,28 @@
+﻿[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_rpg"
+display_name = "VC Rocketeer"
+description = "Local Force man with a captured tube. One rocket, then he is gone into the treeline."
+max_hp = 65
+move_speed = 4.0
+preferred_range = 45.0
+alert_range = 24.0
+weapon_path = "res://data/weapons/rpg2.tres"
+accuracy_modifier = 1.4
+aggression = 0.4
+uses_cover = true
+color = Color(0.3, 0.3, 0.25, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.35
+courage = 0.35
+determination = 0.5
+exposure_ramp_time = 2.3
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc_rpg"
+sprite_unit_fallback = "vc_guerilla_rpg"
+sprite_weapon = "rpg2"

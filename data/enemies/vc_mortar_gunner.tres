@@ -1,0 +1,28 @@
+﻿[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc_mortar_gunner"
+display_name = "VC Mortar Gunner"
+description = "Lays and fires the captured 60mm tube. DATA AHEAD OF WIRING - no code places an enemy mortar crew; enemy mortars fire from offscreen."
+max_hp = 65
+move_speed = 4.2
+preferred_range = 18.0
+alert_range = 20.0
+weapon_path = "res://data/weapons/ppsh41.tres"
+accuracy_modifier = 1.25
+aggression = 0.2
+uses_cover = true
+color = Color(0.3, 0.3, 0.25, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.35
+courage = 0.45
+determination = 0.5
+exposure_ramp_time = 2.3
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "vc_mortar_gunner"
+sprite_unit_fallback = "vc_guerilla_ppsh"
+sprite_weapon = "ppsh41"

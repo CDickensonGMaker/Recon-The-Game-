@@ -25,7 +25,7 @@ func _wipe_profile() -> void:
 		d.list_dir_begin()
 		var f := d.get_next()
 		while f != "":
-			if f.ends_with(".sav"):
+			if f.begins_with("save_"):
 				DirAccess.remove_absolute(SaveManager.save_dir + "/" + f)
 			f = d.get_next()
 	DirAccess.remove_absolute(CampaignState.TEST_SAVE_PATH)
