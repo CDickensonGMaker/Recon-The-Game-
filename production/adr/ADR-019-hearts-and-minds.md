@@ -86,6 +86,13 @@ ADR-006 stands: **+25 contact avoided, −25 detected, kills pay ZERO.** But it 
 score is a receipt; the province ledger is the game.** Kills no longer merely fail to pay: via §2 they can
 actively *cost* you, on a delay, through the district that watched you make them.
 
+**STATUS NOTE (binding honesty, added 2026-08-07):** NOT implemented. No allegiance value, sentiment
+ledger, conduct tracking, or district manpower pool exists in code — `scripts/world/civilian.gd:718-722`
+records the deferral in so many words ("ADR-019's sentiment ledger does not exist and is deferred
+... sentiment moves in words, never as a number"). Deferred to the post-launch open-patrol world per
+the Summoner's EA scope ruling of 2026-08-06 (EA ships the demo's shape). This record is the law the
+code will be brought to, not a description of the code.
+
 ## Consequences
 
 **Bought:** *Platoon*'s moral weight with zero written plot — the thing the Summoner most wants and the

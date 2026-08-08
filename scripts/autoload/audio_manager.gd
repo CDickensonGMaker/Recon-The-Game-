@@ -393,6 +393,41 @@ func play_incoming(pos: Vector3) -> void:
 	_play_oneshot_3d(pos, SHELL_INCOMING, -4.0, 420.0, 34.0)
 
 
+## The ballistic crack of an enemy round passing the player - the Fairness Law
+## telegraph (bible 03_AI_DETECTION: the crack precedes lethality). Positional
+## at the passing point; crack_1..3.wav round-robin.
+var _crack_streams: Array = []
+var _cracks_loaded: bool = false
+
+
+func play_crack_3d(pos: Vector3) -> void:
+	if _headless:
+		return
+	if not _cracks_loaded:
+		_cracks_loaded = true
+		for v in [1, 2, 3]:
+			var s := _try_load(WPATH + "crack_%d.wav" % v)
+			if s:
+				_crack_streams.append(s)
+	if _crack_streams.is_empty():
+		return
+	var i: int = int(_rr.get("crack", 0))
+	_rr["crack"] = (i + 1) % _crack_streams.size()
+	var idx := _acquire_voice(pos, 0.0)
+	if idx < 0:
+		return
+	var p := _voices[idx]
+	p.stream = _crack_streams[i]
+	p.global_position = pos
+	p.volume_db = -2.0
+	p.pitch_scale = randf_range(0.92, 1.08)
+	p.max_distance = 60.0
+	p.unit_size = 10.0
+	_voice_started[idx] = Time.get_ticks_msec()
+	_voice_prio[idx] = 5e5
+	p.play()
+
+
 func _play_oneshot_3d(pos: Vector3, path: String, db: float,
 		max_d: float, unit: float) -> void:
 	if _headless:

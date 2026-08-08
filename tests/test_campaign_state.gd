@@ -15,12 +15,12 @@ func _run() -> void:
 		print("FAIL: baseline threat wrong")
 		failures += 1
 
-	# ANTI-AA success applies a -0.25 modifier for 3 missions.
-	CampaignState.on_mission_end({"success": true, "is_anti_aa": true, "kills": 8, "mission_type": "ANTI-AA SWEEP", "seed": 1})
+	# AA killed on patrol applies -0.08 each for 2 missions (zpu_gun.gd:127 path).
+	CampaignState.on_mission_end({"success": true, "aa_killed": 2, "kills": 8, "mission_type": "PATROL", "seed": 1})
 	var after_aa: float = CampaignState.effective_threat()
-	print("threat after ANTI-AA: %.2f (%s)" % [after_aa, CampaignState.threat_label()])
+	print("threat after AA kills: %.2f (%s)" % [after_aa, CampaignState.threat_label()])
 	if after_aa >= CampaignState.BASE_THREAT - 0.1:
-		print("FAIL: ANTI-AA did not lower threat")
+		print("FAIL: AA kills did not lower threat")
 		failures += 1
 
 	# Modifier decays out after 3 more missions.

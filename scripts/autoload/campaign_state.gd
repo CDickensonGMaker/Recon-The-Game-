@@ -246,10 +246,8 @@ func on_mission_end(result: Dictionary) -> void:
 		threat_level = clampf(threat_level + 0.05, 0.1, 0.9)
 	elif bool(result.get("success", false)) and kills <= 3:
 		threat_level = clampf(threat_level - 0.03, 0.1, 0.9)
-	# ANTI-AA payoff: completing an ANTI-AA op, or killing AA opportunistically.
-	if bool(result.get("is_anti_aa", false)) and bool(result.get("success", false)):
-		add_threat_modifier(-0.25, 3, "AA BATTERY DESTROYED")
-	elif int(result.get("aa_killed", 0)) > 0:
+	# AA killed opportunistically cools the AO (writer: zpu_gun.gd:127).
+	if int(result.get("aa_killed", 0)) > 0:
 		add_threat_modifier(-0.08 * float(result.aa_killed), 2, "AA SITE DESTROYED")
 	# S28: a pilot walked home is COUNTED, never priced - what he pays stays the
 	# Summoner's open call. A pilot who died in the AO enters the butcher's bill:

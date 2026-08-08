@@ -4,7 +4,8 @@
 ## Context
 The entire mission-level alarm hangs on one static beacon: `EnemyBase.last_combat_contact_ms`
 (`scripts/enemies/enemy_base.gd:192`). `MissionDirector._check_detection()`
-(`scripts/missions/mission_director.gd:65-71`) polls it once per tick; the first stamp newer than the
+(`scripts/missions/mission_director.gd:65-71` — *dead pointer, noted 2026-08-07: the file was renamed
+`scripts/missions/field_director.gd`*) polls it once per tick; the first stamp newer than the
 mission baseline fires "YOU'VE BEEN MADE - THEY'RE MOVING TO CONTACT" (`:71`) and activates the finite
 hunter pool. This beacon architecture is sound — escalation keys off *detection*, never off the kill
 event itself (`mission_director.gd:47-54` correctly removed kill-triggered escalation). The half that
@@ -48,13 +49,17 @@ The global COMBAT beacon (`EnemyBase.last_combat_contact_ms`) may be stamped ONL
 - **Truth law applies:** the false comments at `enemy_base.gd:189-191` and `mission_director.gd:51-54`
   are deleted or rewritten to describe shipped behavior only.
 - **Definition of done:** bead o18o stays OPEN until a headless probe
-  (`tests/test_stealth_witness.tscn` or equivalent) proves both directions: silent unwitnessed kill →
+  (`tests/test_stealth_witness.tscn` or equivalent — *noted 2026-08-07: no `test_stealth_witness`
+  file was ever created; the shipped probe is `tests/test_witness_rule.gd` / `.tscn`*) proves both directions: silent unwitnessed kill →
   beacon unchanged; witnessed kill → beacon stamped. "Likely fixed" does not close it (ADR-015
   verification law).
 
-**STATUS NOTE (binding honesty):** as of this ADR the witness rule is NOT implemented. The code cited
-in Context is the current, wrong behavior. This record is the law the code must be brought to, not a
-description of the code.
+**STATUS NOTE (binding honesty — updated 2026-08-07; the original 2026-07-10 note declared the rule
+NOT implemented):** the witness rule IS implemented and guarded: `scripts/enemies/enemy_base.gd:989
+_can_witness`, `:1009 _witness_check`, and the `witnessed` guard on `_set_tier()` at `:1189-1191`;
+probe `tests/test_witness_rule.gd` (+ `.tscn`). Every `mission_director.gd` pointer in this record is
+dead — that file no longer exists; its successor is `scripts/missions/field_director.gd`. The Context
+and Evidence below describe the pre-fix code and are kept as history.
 
 ## Consequences
 **Buys:** Pillar 3 restored at its root — stealth becomes an economy, not a fail gate. Ghost bonus,

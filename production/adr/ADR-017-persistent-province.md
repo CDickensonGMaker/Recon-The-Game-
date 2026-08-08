@@ -76,6 +76,14 @@ render_window(district)   -> the ONE 1.5km AO actually walked in
     caches and tunnel mouths **rebuild or relocate**. A province whose destruction is permanent sterilizes
     itself into a checklist — the seek-and-destroy treadmill this design exists to avoid.
 
+**STATUS NOTE (binding honesty, added 2026-08-07):** NOT implemented. No `ProvinceState`, province
+ledger, or persistence-as-data exists in code — the only "province" hits in `scripts/` are comments
+(e.g. `scripts/world/civilian.gd:222`), and the determinism probe of item 8 was never written. The
+PATROL / VILLAGE RAID / AIR ASSAULT table was itself overtaken by ADR-029: the generator emits
+`"PATROL"` only (`scripts/missions/mission_generator.gd:856`). Deferred to the post-launch
+open-patrol world per the Summoner's EA scope ruling of 2026-08-06 (EA ships the demo's shape).
+This record is the law the code will be brought to, not a description of the code.
+
 ## Consequences
 
 **Bought:** the whole open-world fantasy at a fraction of the engineering — the player cannot distinguish

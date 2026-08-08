@@ -98,6 +98,10 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       (`tree_break_system.gd`, `tree_cover_layer.gd _acquire_body`, `tunnel_room.gd:32`,
       `field_director.gd:1061`).
 - [ ] 12. UI legibility (ONE day) · launcher/shotgun audio · balance the demo arc · build hygiene
+- [x] 12d. **Volume sliders + manual render scale** — LANDED 8/7 night, static-only: SFX/ambience/music
+      sliders (`settings_screen.gd _add_volume_row`) + RENDER SCALE rung FULL/75%/50%
+      (`game_settings.gd render_scale`; `psx_look.gd apply()` is the sole scaling_3d_scale writer —
+      PSX LOOK overrides the rung while ON, button disabled). Auto-fallback ladder still gated on item 3.
 - [x] 12c. **Stranded-anim wiring sweep** — LANDED 8/8 night, static-only: punji trapdoors
       swing on spring (`punji_trap.gd _open_doors`, called from `_spring`) · M29 recoil clip
       exposed as `MortarPit.play_fire_anim()` (`mortar_pit.gd`) — **caller not yet placed**
@@ -109,6 +113,14 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       GLB prop to the ambusher), AC-47 stalls (`spectre_gunship.gd` has no damage model —
       unfire-able), `salute` + the four transition clips (no one-shot beat/transition hook
       outside off-limits files).
+- [x] 12e. **Code wiring batch 8/8 night** — LANDED, static-only: demolitions now earnable at the
+      satchel plant (`player.gd _satchel_the_mouth`) · dead `is_anti_aa` branch deleted
+      (`campaign_state.gd on_mission_end` + its only writer, `tests/test_campaign_state.gd:19`) ·
+      AAR reports `waypoints_reached`/`villagers_freed` (`debrief.gd`) · informer turn = REPORTED
+      mark (`field_director.gd on_informer_escaped`) · rank tightens fire support, PVT/PFC only
+      (`field_director.gd _grant_fire_support`, demo untouched) · 4 unreachable enemy .tres carry
+      DATA AHEAD OF WIRING notes · supersonic crack telegraph wired
+      (`bullet_system.gd CRACK_NEAR_M` → `audio_manager.gd play_crack_3d`).
 - [x] 12b. **Village animals wander** — LANDED 8/7 night: day-graze / night-bed routine now
       consumes `animal_homes` + `grazing_points` and the banked Walk/Run/Peck clips
       (`scripts/world/animal_routine.gd`, wired `scripts/world/site_planner.gd:307-316`).
@@ -136,6 +148,20 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] **seat_pax_7**: `seat_system.gd:24` declares it; the shipped `huey.glb` carries pax 1–6
       only (the 7th exists in a .blend, never exported). Export it with Huey v3, or drop the
       declaration?
+- [ ] **pow_lost** (8/8 sweep): the −100 debrief penalty (`debrief.gd:40`) has zero writers —
+      the prisoner verb banks intel but there is no "you lost him" path. Rule what losing a
+      POW means (killed en route? left behind at exfil?) and it's 30 min to wire.
+- [ ] **Alarm carriers** (GAME_GUIDE:143 "killable counterplay", never built; `nva_rto.tres`
+      says so itself): build the minimal runner-to-camp version (~3–5h, touches the witness
+      rule — War-Room it) or banner it post-launch?
+- [ ] **HARD save tier**: today HARD = hub-only saves, identical to IRONMAN minus the wipe
+      (the checkpoint mechanism died with ADR-029). Give HARD a distinct behavior, or fold it?
+- [ ] **4 unreachable enemies** (`nva_sapper`, `vc_marksman`, `vc_officer`, `vc_rpg` — zero
+      load sites while their siblings are wired): add to camp/lazy-group compositions
+      (one line each + a balance look) or leave as banked data?
+- [ ] **Body bags beside the aid station** (`kia_total`/`bags_unlifted` count faithfully,
+      zero readers render them — your 7/30 decree's visible half): needs a bag prop GLB.
+      Export one (~minutes in Blender) and it's 1–2h of placement code.
 - [ ] group_walk backwards marchers: fix formation (recommended) or restage the probe?
 - [ ] hunters count: enforce, drop, or record as scenery?
 - [ ] Roads: cut from EA (a 512m firebase map may legitimately have none)?

@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "vc_rpg"
 display_name = "VC Rocketeer"
-description = "Local Force man with a captured tube. One rocket, then he is gone into the treeline."
+description = "Local Force man with a captured tube. One rocket, then he is gone into the treeline. DATA AHEAD OF WIRING - no code loads this file; the wired rocketeer is nva_rpg.tres (mission_generator.gd, lazy_group.gd)."
 max_hp = 65
 move_speed = 4.0
 preferred_range = 45.0

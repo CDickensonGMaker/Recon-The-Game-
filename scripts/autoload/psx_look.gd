@@ -2,6 +2,8 @@
 ## internal 3D resolution via scaling_3d_scale + the ps1_postprocess crush/
 ## dither pass. Driven by GameSettings.psx_look, OFF by default - perf
 ## numbers govern default-on (SHIP_AUDIT_2026-08-07.md S5).
+## SOLE writer of viewport scaling_3d_scale: PSX look owns the scale when ON;
+## the manual GameSettings.render_scale rung applies only when it is OFF.
 extends CanvasLayer
 
 const SHADER := preload("res://assets/shaders/ps1_postprocess.gdshader")
@@ -38,7 +40,7 @@ func apply() -> void:
 	_rect.visible = on
 	var vp: Viewport = get_viewport()
 	if not on:
-		vp.scaling_3d_scale = 1.0
+		vp.scaling_3d_scale = GameSettings.render_scale
 		return
 	var view: Vector2 = vp.get_visible_rect().size
 	var scale_3d: float = clampf(TARGET_HEIGHT_PX / maxf(view.y, 1.0), 0.1, 1.0)

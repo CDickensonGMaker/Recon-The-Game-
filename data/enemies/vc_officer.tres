@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "vc_officer"
 display_name = "VC Cadre"
-description = "Party cadre leading the local cell. Pushes the others forward and is the last to break."
+description = "Party cadre leading the local cell. Pushes the others forward and is the last to break. DATA AHEAD OF WIRING - no code loads this file; the wired officer is nva_officer.tres (mission_generator.gd)."
 max_hp = 70
 move_speed = 4.4
 preferred_range = 20.0

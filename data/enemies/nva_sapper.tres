@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "nva_sapper"
 display_name = "NVA Sapper"
-description = "Dac cong. Cuts the wire and walks the bangalore in ahead of the assault; does not fire - the breach is his job, not the firefight."
+description = "Dac cong. Cuts the wire and walks the bangalore in ahead of the assault; does not fire - the breach is his job, not the firefight. DATA AHEAD OF WIRING - no code loads this file; every sapper spawn site loads vc_sapper.tres instead."
 max_hp = 65
 move_speed = 4.4
 preferred_range = 6.0

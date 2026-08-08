@@ -745,8 +745,11 @@ func on_informer_escaped(from_pos: Vector3, last_seen: Vector3) -> void:
 	if _informer_answered:
 		return
 	_informer_answered = true
-	state.flags["informer_transformed"] = true
-	state.flags["informer_last_pos"] = from_pos
+	# THIRD INK: the squad's report of where the informer turned - a dated claim
+	# on the sheet (topo_map._draw_reported_marks), never reconciled. Committed by
+	# the mission-end save (campaign_state.on_mission_end).
+	CampaignState.reported_marks.append({"x": from_pos.x, "z": from_pos.z,
+		"kind": "INFORMER", "patrol_no": CampaignState.missions_played})
 	var away: Vector3 = (from_pos - last_seen)
 	away.y = 0.0
 	if away.length() < 1.0:
@@ -1460,6 +1463,18 @@ func _grant_fire_support() -> void:
 		fire_support["cbu"] = 1
 	if tier == "CRITICAL":
 		fire_support["spectre"] = 1
+	# RANK GATES HOW BIG (GAME_GUIDE 4.4 ladder law, ADR-018): a green leader is
+	# trusted with less steel. Tighten-only - top tiers match today's allotment
+	# exactly. Cut points are OWNER-RETUNABLE. Sits above the demo override so
+	# his 3-bombing-runs ruling is untouched.
+	var rank: int = CampaignState.title_tier()
+	if rank <= 0:  # PVT: tubes and guns, no fast movers
+		fire_support["bombs"] = 0
+		fire_support["napalm"] = 0
+		fire_support["mortar"] = maxi(1, int(fire_support["mortar"]) - 1)
+	if rank <= 1:  # PVT/PFC: the heavy air stays at battalion
+		fire_support["cbu"] = 0
+		fire_support["spectre"] = 0
 	if GameFlow.demo_mode:
 		# HIS RULING 2026-08-03: "there should be 3 bombing runs thats it." Three calls of
 		# ONE kind, overruling the council's bomb/arty/mortar split - spending the first

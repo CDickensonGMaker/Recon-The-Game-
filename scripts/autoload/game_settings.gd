@@ -10,8 +10,11 @@ var sfx_volume_db: float = 0.0
 var ambience_volume_db: float = 0.0
 var music_volume_db: float = -3.0
 var difficulty: int = 1  ## 0 EASY / 1 NORMAL / 2 HARD
-var hardcore: bool = false  ## no compass, no markers, faster bleed
+var hardcore: bool = false  ## no compass/markers (mission_hud) + HARD save tier (save_manager)
 var psx_look: bool = false  ## PS1 render treatment; applied by PsxLook autoload
+## Manual render-scale rung, one of RENDER_SCALE_STEPS. PsxLook.apply() is the
+## ONLY writer of viewport scaling_3d_scale; when psx_look is ON it overrides this.
+var render_scale: float = 1.0
 
 ## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
 ## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
@@ -25,6 +28,9 @@ var ai_vs_ai_cone_mult: float = 1.0
 var player_outgoing_damage_mult: float = 1.0
 
 const DIFFICULTY_NAMES: Array[String] = ["EASY", "NORMAL", "HARD"]
+
+const RENDER_SCALE_STEPS: Array[float] = [1.0, 0.75, 0.5]
+const RENDER_SCALE_NAMES: Array[String] = ["FULL", "75%", "50%"]
 
 
 func _ready() -> void:
@@ -40,6 +46,13 @@ func enemy_spread_mult() -> float:
 ## Damage the player takes.
 func player_damage_mult() -> float:
 	return [0.7, 1.0, 1.3][clampi(difficulty, 0, 2)]
+
+
+func render_scale_index() -> int:
+	for i in RENDER_SCALE_STEPS.size():
+		if is_equal_approx(render_scale, RENDER_SCALE_STEPS[i]):
+			return i
+	return 0
 
 
 func apply_audio() -> void:
@@ -67,6 +80,7 @@ func save_settings() -> void:
 	cfg.set_value("settings", "difficulty", difficulty)
 	cfg.set_value("settings", "hardcore", hardcore)
 	cfg.set_value("settings", "psx_look", psx_look)
+	cfg.set_value("settings", "render_scale", render_scale)
 	cfg.save(PATH)
 
 
@@ -82,3 +96,6 @@ func load_settings() -> void:
 	difficulty = int(cfg.get_value("settings", "difficulty", 1))
 	hardcore = bool(cfg.get_value("settings", "hardcore", false))
 	psx_look = bool(cfg.get_value("settings", "psx_look", false))
+	render_scale = RENDER_SCALE_STEPS[clampi(
+		RENDER_SCALE_STEPS.find(float(cfg.get_value("settings", "render_scale", 1.0))),
+		0, RENDER_SCALE_STEPS.size() - 1)]

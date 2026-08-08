@@ -46,7 +46,7 @@ surviving reference. Cinematic work is tracked in beads, not in canon.
 | 03 | Detection & Enemy AI | `03_AI_DETECTION.md` | ⬜ | 4 alert tiers, accumulator, NoiseBus, hybrid FSM, archetypes, cover, EnemySquad, escalation |
 | 04 | Squad (the RPG) | `04_SQUAD.md` | ⬜ | MOS verbs (Point/RTO/Medic…), 5 orders, revive chain, permadeath, buddy rules |
 | 05 | Campaign & Roster | `05_CAMPAIGN_ROSTER.md` | ✅ | operation styles (SF/Army/Marines), HQ tent, province/war-state, 100 bios, persistence, XP economy |
-| 06 | Mission Generation | `06_MISSION_GEN.md` | ⬜ | site pass, contact deck, intensity curve, rolls. **The "taxonomy / 2–4 objectives" framing is dead (ADR-029)** — one type, `"PATROL"` (`scripts/missions/mission_generator.gd:540`) |
+| 06 | Mission Generation | `06_MISSION_GEN.md` | ⬜ | site pass, contact deck, intensity curve, rolls. **The "taxonomy / 2–4 objectives" framing is dead (ADR-029)** — one type, `"PATROL"` (`scripts/missions/mission_generator.gd:856`) |
 | 07 | Insertion & Exfil | `07_INSERT_EXFIL.md` | ⛔ | **SUPERSEDED by ADR-029** — no Huey ride, no exfil step; `scripts/missions/insertion_ride.gd` is deleted |
 | 08 | World & Terrain | `08_WORLD_TERRAIN.md` | 🌱 | TerrainEngine FPS profile, site stamps, **roads**, firebase realism, **barbwire/hazards**, sight caps |
 | 09 | Characters & Art | `09_CHARACTERS_ART.md` | ✅ | 3D + FP viewmodel pipeline, **faction models, soldier variety, slimmer topology**, civilians, sprites |
@@ -139,7 +139,7 @@ Other 08 canon (barbwire hazard, sight caps, firebase realism, FPS terrain profi
 
 > **This whole block describes a loop that no longer exists in the game.** ADR-029 replaced it with the
 > **open patrol simulator**: no briefing UI, no offer card, no objective counter, no exfil step. The
-> generator produces exactly one mission type — `"PATROL"` (`scripts/missions/mission_generator.gd:540`).
+> generator produces exactly one mission type — `"PATROL"` (`scripts/missions/mission_generator.gd:856`).
 > Read below only to understand where the old vocabulary in other docs came from. **Do not build from it.**
 > The `DESIGN §2` citations it carried are dead pointers (`DESIGN.md` has no numbered sections).
 

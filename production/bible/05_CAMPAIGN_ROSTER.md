@@ -49,6 +49,13 @@ The between-missions home screen. Data + UI only, no 3D sim. *(The `DESIGN §3 l
 
 ## Persistent Roster (XCOM-level)
 
+> **⛔ UNBUILT SPEC (banner added 2026-08-07).** The soldier record below, the wounds/status/rotation
+> rules, and the 100 Bios section were never built. The shipped roster record is
+> `scripts/squad/squad_roster.gd:95-111` — name / mos / nick / st / ag / al / skills / skill_uses /
+> xp / kills / missions / alive / face / helmet, and nothing else: no `wounds[]`, no `status`, no
+> `bio_id`, no `portrait_keys`, and `data/roster/` does not exist. Read everything from here to the
+> end of the file as spec awaiting the post-launch open-patrol world (EA scope ruling 2026-08-06).
+
 `CampaignState` autoload (already exists) owns the roster and survives missions (MissionScope deliberately
 does NOT reset it). A soldier record:
 

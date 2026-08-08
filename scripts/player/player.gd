@@ -914,6 +914,12 @@ func _tick_satchel_hold(delta: float) -> void:
 
 func _satchel_the_mouth(entrance: Node3D) -> void:
 	satchel_count -= 1
+	var sq: SquadSystem = _squad_ref()
+	var demo: AllyBase = sq.member_by_mos("GRENADIER") if sq != null else null
+	if demo != null:
+		var dp: int = SquadRoster.credit_use(demo.member, "demolitions", 3)  # learn-by-doing
+		if dp > 0:
+			demo.on_skill_up("demolitions", dp)
 	var at: Vector3 = entrance.global_position
 	# Anyone still down there dies with it, and the blast is loud and lethal at
 	# the mouth - standing on your own charge is a way to die (Pillar 1).

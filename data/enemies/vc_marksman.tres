@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "vc_marksman"
 display_name = "VC Marksman"
-description = "Village shooter with an old Mosin. Takes one shot from the hedgerow and moves."
+description = "Village shooter with an old Mosin. Takes one shot from the hedgerow and moves. DATA AHEAD OF WIRING - no code loads this file; the wired marksman is nva_marksman.tres (mission_generator.gd)."
 max_hp = 65
 move_speed = 4.0
 preferred_range = 45.0

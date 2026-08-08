@@ -79,6 +79,12 @@ func _ready() -> void:
 		"TIME:         %d:%02d" % [int(result.get("time_sec", 0)) / 60, int(result.get("time_sec", 0)) % 60],
 		"GROUND COVERED: %d SECTORS" % int(result.get("ground_covered", 0)),
 	]
+	# Patrol quality, reported not scored - same standing as ground_covered
+	# (ADR-029 Amendment C PROPOSED; the payout hook stays unratified).
+	if int(result.get("waypoints_reached", 0)) > 0:
+		lines.append("ROUTE MARKS WALKED: %d" % int(result.get("waypoints_reached", 0)))
+	if int(result.get("villagers_freed", 0)) > 0:
+		lines.append("VILLES CLEARED: %d" % int(result.get("villagers_freed", 0)))
 	if int(result.get("shots", 0)) > 0:
 		lines.append("MARKSMANSHIP: %d/%d ROUNDS ON TARGET (%.0f%%)" % [
 			int(result.get("hits", 0)), int(result.get("shots", 0)), 100.0 * float(result.get("hits", 0)) / float(result.get("shots", 0))])

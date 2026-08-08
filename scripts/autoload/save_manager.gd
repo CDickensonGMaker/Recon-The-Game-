@@ -5,7 +5,8 @@
 ##
 ## SAVE TIERS derive from existing settings (no new knobs):
 ##   IRONMAN  (CampaignState.iron_man)  - saves only at the firebase hub
-##   HARD     (GameSettings.hardcore)   - hub saves + wheels-down mission checkpoint
+##   HARD     (GameSettings.hardcore)   - hub saves only (the wheels-down
+##            checkpoint died with ADR-029's insertion cut; never rebuilt)
 ##   REGULAR  (everything else)         - quicksave/quickload anywhere (F5/F9)
 extends Node
 

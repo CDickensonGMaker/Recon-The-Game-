@@ -45,6 +45,10 @@ const SHOOTER_COVER_HOLD_S: float = 2.0
 const MAX_AGE: float = 4.0         ## s backstop
 const GRAVITY: float = 9.8
 
+## Fairness Law telegraph (bible 03_AI_DETECTION): an enemy supersonic round
+## passing this close to the player's head plays a crack. OWNER-RETUNABLE.
+const CRACK_NEAR_M: float = 2.5
+
 var _bullets: Array = []
 var _visual_pool: Array[MeshInstance3D] = []
 ## High-water mark of rounds in flight, and how often the cap actually bit. These are what
@@ -98,6 +102,10 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 		# Two layers per round, 20% of its energy each.
 		"soft_left": 2,
 		"mark": mark_surface,
+		# One crack per round, enemy supersonic only - flagged at spawn so the
+		# flight loop pays no group lookup per tick.
+		"crack": wd.is_supersonic and shooter is Node
+			and (shooter as Node).is_in_group("enemies"),
 	}
 	if show_tracer:
 		b.visual = _visual_acquire(wd.tracer_color)
@@ -110,6 +118,9 @@ func _physics_process(delta: float) -> void:
 	if _bullets.is_empty():
 		return
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var pl := GameManager.player as Node3D
+	var has_ear: bool = pl != null and is_instance_valid(pl)
+	var ear: Vector3 = pl.global_position + Vector3.UP * 1.6 if has_ear else Vector3.ZERO
 	var i: int = 0
 	while i < _bullets.size():
 		var b: Dictionary = _bullets[i]
@@ -138,6 +149,11 @@ func _physics_process(delta: float) -> void:
 			continue
 		b.traveled = float(b.traveled) + from.distance_to(to)
 		b.pos = to
+		if has_ear and bool(b.get("crack", false)):
+			var cp: Vector3 = Geometry3D.get_closest_point_to_segment(ear, from, to)
+			if cp.distance_squared_to(ear) < CRACK_NEAR_M * CRACK_NEAR_M:
+				b.crack = false
+				AudioManager.play_crack_3d(cp)
 		if float(b.traveled) > MAX_TRAVEL or float(b.age) > MAX_AGE:
 			_finish(b)
 			_bullets.remove_at(i)

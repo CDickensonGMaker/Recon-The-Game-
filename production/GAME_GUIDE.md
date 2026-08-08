@@ -124,7 +124,8 @@ is §8 THE SHIP ORDER, and anything not on it is post-launch.
   Player HP 100; enemy HP 65–85. Bleed-out timer = the medic deadline. Pain-quota stagger for hit feedback.
 - **ADS: per-weapon `ads_fov`** (base 75, M16 ≈ 60, binocs 18). M60/RPD hip-fire; RPG-2 sight-raise.
   The old "FOV locked at 75, DO NOT CHANGE" law is amended (ADR-004).
-- Weapon condition degrades per shot; fouling → jams (kept, weapon-weight it — ADR-009). Cleaning kits [0].
+- Weapon condition degrades per shot; fouling → jams (kept, weapon-weight it — ADR-009). Cleaning kits [0] — carried and live (`scripts/player/player.gd:86`, `:1131-1156`; field clean is a
+  25% stopgap, the armorer's bench is the only full clean).
 - Three-situation asymmetry (undetected initiator wins the opening; the ambushed side is penalized until
   in cover) is the design's lethality engine. Its numbers live in ADR-016 and in
   `scripts/combat/hitzone.gd` MULTIPLIERS — the old `RECON_ADAPTATION.md` pointer is dead (file
@@ -137,11 +138,13 @@ is §8 THE SHIP ORDER, and anything not on it is post-launch.
 ### 4.2 Detection & stealth (Pillar 3, ADR-005/006)
 - Four tiers RELAXED→SUSPICIOUS→ALERT→COMBAT; visibility accumulator; NoiseBus with typed radii
   (suppressed = unidentifiable misc ~3m); believed-position aiming; breadcrumb search; sentry boredom.
-- **Witness rule (law, IMPLEMENTED — `enemy_base.gd:736 _can_witness` / `:756 _witness_check`, guarded
-  by `tests/test_witness_rule.tscn`):** the global COMBAT beacon stamps ONLY on witnessed contact.
+- **Witness rule (law, IMPLEMENTED — `enemy_base.gd:989 _can_witness` / `:1009 _witness_check`
+  (line numbers refreshed 2026-08-07), guarded by `tests/test_witness_rule.tscn`):** the global COMBAT beacon stamps ONLY on witnessed contact.
   An unwitnessed silent kill is silent. Noise is the honest price — GUNSHOT radius goes 55m→~150m.
-- Escalation ladder: finite-pool QRF, walking mortars on last-known, patrol doubling, alarm carriers
-  with radio/flare (killable counterplay). Civilians inform on a timer.
+- Escalation ladder: finite-pool QRF, walking mortars on last-known, patrol doubling; alarm carriers
+  with radio/flare (killable counterplay) are **designed, unbuilt (corrected 2026-08-07)** — no
+  alarm-carrier code exists, and the RTO's own data file says so (`data/enemies/nva_rto.tres:9`:
+  "DATA ONLY - no AI gives an enemy a radio"). Civilians inform on a timer.
 - **Scoring pays avoidance:** +25/contact avoided, −25/detected (replaces kills×10 — ADR-006). Loud stays
   viable; it stops being the optimal XP strategy.
 - ~~⚠ `take_damage()` stamps the COMBAT beacon before the death check~~ **FIXED 2026-07-12 (bead pwu5),
@@ -180,8 +183,16 @@ is §8 THE SHIP ORDER, and anything not on it is post-launch.
   - **Player RANK: NEW. It gates AUTHORITY, never ABILITY** — fire-support tier (60mm+smoke → 105s →
     fast movers/napalm → Arc Light), mission types you're trusted with, armory/ruck, cosmetics.
     **THE LADDER LAW: rank gates how BIG, never WHETHER.** ADR-011 stands — the RTO still gates it all.
-- Permadeath; wounded heal ~2 St/day; veterans rotate; replacements arrive. **Loss is still costless
-  (instant free rookies) — the debt ADR-018's silent veterancy exists to pay.**
+    **As-built (2026-08-07): only the armory gate is wired** — `title_tier()`'s one gameplay consumer
+    is the bench rack (`scripts/levels/armorers_bench.gd:152`, per-weapon tiers in
+    `scripts/weapons/weapon_data.gd:9`). The fire-support gate is landing 2026-08-08
+    (`scripts/missions/field_director.gd:1441 _grant_fire_support`). Mission types are unreachable —
+    one type since ADR-029 — and cosmetics have no system.
+- Permadeath; replacements arrive. **Wounds, status tracking, veteran rotation and bios were never
+  built (corrected 2026-08-07)** — the roster record (`scripts/squad/squad_roster.gd:95-111`) carries
+  name/MOS/stats/skills/xp/kills/missions/alive/face/helmet and nothing else, and `data/roster/` does
+  not exist. **Loss is still costless (instant free rookies) — the debt ADR-018's silent veterancy
+  exists to pay.**
 - ⚠ Squad-key input verified clean in code twice, never verified on Caleb's keyboard — R3 checklist item.
 
 ### 4.5 Fire support (ADR-011)
@@ -191,6 +202,14 @@ is §8 THE SHIP ORDER, and anything not on it is post-launch.
   (`scripts/missions/field_director.gd:357-359`, `DANGER_CLOSE_M` 45m).
 
 ### 4.6 Missions & generation (M6 target)
+
+> **⛔ SUPERSEDED BY ADR-029 (banner added 2026-08-07 — kept as history).** The mission table and the
+> taxonomy/exfil bullet below describe the multi-mission loop ADR-029 deleted. The generator emits
+> exactly one type, `"PATROL"` (`scripts/missions/mission_generator.gd:856`); `VILLAGE_RAID`,
+> `AIR_ASSAULT` and the fallback-LZ ladder have **zero hits** in `scripts/`, and "exfil" survives only
+> in comments and an unread `exfil_lz` plan key (`mission_generator.gd:525,697`). There is no
+> insertion ride and no exfil step — you walk out the wire and you walk back.
+
 - **MISSION LENGTH IS GEOGRAPHY, NOT A DIAL (ADR-017).** Objective count scales by type; target average
   **20–60 min, player-paced.** This amends the flat "2–4 objectives" below:
 
@@ -209,15 +228,24 @@ is §8 THE SHIP ORDER, and anything not on it is post-launch.
 
 ### 4.7 Saves & persistence (Pillar 5, ADR-007)
 - Versioned SaveData + SaveManager (deferred writes); tiers **REGULAR** (F5/F9 anywhere) / **HARD**
-  (checkpoints only; death spends the checkpoint; same-seed resume) / **IRONMAN** (one slot).
+  (hub-only saves — manual saves allowed only at the firebase, `scripts/autoload/save_manager.gd:87-94`,
+  and in-mission autosave is REGULAR-only, `:60-61`; identical to IRONMAN minus the one-slot wipe.
+  The old "checkpoints only; death spends the checkpoint" claim was a fossil, corrected 2026-08-07:
+  no checkpoint writer exists anywhere in `scripts/`, and the insertion ride the checkpoint keyed on
+  died with ADR-029) / **IRONMAN** (one slot).
   Mission results commit **all-or-nothing at exfil** — fail-forward, ratified.
 - ⚠ Needs: atomic writes, future-version rejection, visible save/load feedback everywhere (hub has
   none today), tier consequences stated in the settings UI checkboxes. The pause menu itself exists
   (`scripts/ui/screens/pause_menu.gd`).
 
 ### 4.8 Survival (ADR-009)
-- **Weapon condition: kept.** **Hunger: PARKED** (fields stay in SaveData; drain removed; returns only
-  if missions exceed ~40 min). Rations [9] = condition/stamina consumable.
+- **Weapon condition: kept.** **Hunger: LIVE — the old "PARKED (drain removed)" line was reverse
+  drift, corrected 2026-08-07.** The drain ticks every physics frame in the field
+  (`scripts/player/player.gd:1100-1106`, empty in ~45 min), scales `stamina_max` through
+  `hunger_stamina_mult()` (`:1110-1113`, applied at `:1246`), and `_eat_ration` is bound to [9]
+  (`:1611-1612`). Rations [9] = stamina consumable. Cleaning kits are likewise carried and live:
+  hold [0] in the field for a 25% stopgap clean (`player.gd:86`, `:1131-1156`, `:1616-1620`); the
+  armorer's bench remains the only full clean.
 
 ### 4.9 World & terrain (ADR-002/013)
 - TerrainEngine fork, FPS profile: 1280m AO (5×5 × 256m chunks, all loaded), sight caps from vegetation
