@@ -21,18 +21,25 @@ about code, it carries a file pointer or names the doc that proves it (pointer l
 
 ---
 
-## ⚠ ONE CONFLICT YOU NEED TO SEE — then everything else follows
+## ✅ THE VILLAGES/CAMPS QUESTION — RESOLVED (his ruling, 2026-08-07)
 
-Tonight's audit request lists **"finished villages and animations"** and **"finished enemy camps
-and animations"** as MUST SHIP examples. **Your own ruling on 8/6 moved both to POST-LAUNCH**,
-because by your own notes they are a 4–6 month job ("a full day each" for firebase *and*
-villages, plus interiors at 0%, plus animation passes) and the date is 30 days away.
+His words: *"theres one village and one enemy camp IE that proves both those things work. i have
+models for these things they just need to be tightened up."*
 
-**This document keeps villages and enemy camps in POST-LAUNCH, per your 8/6 ruling.**
-If you actually meant to pull them back into the release: that is your call to make, but then
-**the honest move is to move the date, not compress the work.** Say the word and this document
-gets rewritten around the new date. Until then, the firebase is MUST SHIP and the villages and
-camps are the Early Access roadmap — which is literally what Early Access is for.
+**And the code agrees with him.** `plan_demo_world` already stamps ONE village and ONE enemy camp
+(plus a temple and jungle ruins) on the 512m demo map — the village site at
+`mission_generator.gd:716`, the camp with its own second-attempt placement (`:738-741`). **They
+were never outside the demo's shape.** The apparent conflict with the 8/6 ruling was two documents
+using one word for two different things:
+
+- **IN SCOPE (MUST SHIP):** the one demo village and one demo camp, tightened up from models that
+  already exist. See S25/S26 below.
+- **STILL POST-LAUNCH (the 8/6 cut, unchanged):** villages *plural* across the 1280m AO,
+  fleshed-out building interiors, CQB geometry, civilian schedules, convoys — the open-patrol
+  world's content at scale.
+
+**The tripwire to watch:** "tighten up" is the scope. The moment the village work becomes
+interiors, new buildings, or a second village, it has crossed back into the post-launch pile.
 
 ---
 
@@ -100,6 +107,8 @@ Effort scale: **Small** ≤ half a day · **Medium** 1–3 days · **Large** 4+ 
 | S16 | **Firebase animation wiring — the banked art.** 12 of 19 chow-hall clips unwired (the whole diner side), the M101 artillery crew (~497 channels, 4-man performance) has ZERO readers behind one guard line (`site_planner.gd:822-823`), `stretcher_load_casualty.glb` has zero readers. All code-only. | 3–5 art-days of finished work sitting invisible. The living firebase IS the day half of the arc. | High | Medium, **all code, zero art-days** | chow-hall diner side blocked on your export; artillery is not blocked |
 | S17 | **Huey v3: export both variants, then the variant switch.** Order matters: fix the seat sockets/180° flip BEFORE export (the armed landmine — the moment real `seat_*` empties land, every occupant inverts), then export gunship + transport, then code the switch (`huey.tscn` hardcodes one GLB today). | The Huey is the demo's bookends (insert + gunships). | High | ~1 art-day (export) + Small (code) | socket fix first |
 | S18 | **Pilot gib contract** — `us_pilot_white`/`_black` missing all gib donors and caps; a hit that would dismember anyone else does nothing. Assembly via the `psx-npc-pipeline` skill, not new modelling. | Inconsistent gore in a game whose lethality is the identity. | Medium | ~half art-day | none |
+| S25 | **Tighten the demo village** (his ruling 8/7: models exist, they need tightening — not interiors, not new buildings). The village is stamped ~185m off the gate flank (`mission_generator.gd:710-716`) and the player walks to it in the exploration window. | It's one of the two authored destinations of the demo's day half; rough models there read as rough game. | High | 1–2 art-days (tightening only) | none |
+| S26 | **Tighten the demo enemy camp** — same ruling, same bar. It holds a live garrison and a sited ambush, so it is where the day's fair contact happens. | The other authored destination; the player fights here. | High | ~1 art-day (tightening only) | none |
 
 ### Tier 4 — polish that is not optional
 
@@ -141,8 +150,10 @@ Real improvements. **None of them ship the game. Do not start any until MUST SHI
 Everything here is either your own standing ruling or a feature wearing a task's clothes.
 **Do not spend an hour on any of it before 9/6.**
 
-- **Villages: finished buildings, interiors, CQB geometry, animation loops** (8/6 ruling — see the conflict note at top)
-- **Enemy camps: finished + animated** (same ruling)
+- **Villages AT SCALE: multiple villages, fleshed-out buildings, interiors, CQB geometry,
+  animation loops** (8/6 ruling — the ONE demo village is in scope as S25; everything past
+  "tightened" is here)
+- **Enemy camps at scale** (same — the one demo camp is S26; more camps are post-launch)
 - **The 1280m open-patrol AO as the shipped product** · civilian village schedules · convoys · roads
 - **Zombie mode** — parked, kept, not shipped, per your 8/7 ruling. The 12 missing `zed_*` GLB
   exports are post-launch work for when the mode resumes. `test_fossils` and `test_import_refs`
@@ -172,8 +183,11 @@ S2 atomic saves → S3 version rejection → S4 demo save leak → S22 build hyg
 S6 spawn-under-world → S7 mounted MG → S8 cover-seek → S9 trousers → S10 aid station → S24 rulings.
 
 **Phase 3 — YOUR ART CRITICAL PATH (runs in parallel with Phases 0–2, your Blender days).**
-S11 firebase checklist → S12 regen + contract verify → S15 M79 → S17 Huey sockets-then-export →
-S13 RPD/RPG-2 re-exports (minutes each) → S18 pilot gibs → S14 LAW/RPG-7 decision.
+S11 firebase checklist → S12 regen + contract verify → S25 village tighten → S26 camp tighten →
+S15 M79 → S17 Huey sockets-then-export → S13 RPD/RPG-2 re-exports (minutes each) →
+S18 pilot gibs → S14 LAW/RPG-7 decision.
+*The firebase still comes first — your own words, "a lot of the game hinges on me finishing the
+firebase." The village and camp are the next stops after it, not detours during it.*
 
 **Phase 4 — wire the banked art (2–3 days, code, unblocks as exports land).**
 S16 artillery crew (not blocked — start any time) → chow-hall diner side → Huey variant switch.
@@ -184,8 +198,10 @@ S19 UI day → S20 launcher audio → S21 balance the arc.
 **Phase 6 — ship (3–5 days).**
 S23 store page/capsule/trailer → full playthrough ×3 on the Intel UHD floor → build → EA.
 
-**Total: roughly 18–26 working days against ~30 available.** It fits ONLY if Phase 0 comes back
-clean, villages/camps stay post-launch, and nothing new gets invented. The buffer is one bad week.
+**Total: roughly 20–29 working days against the ~30 the working target allows.** Tight but
+honest — and per his 8/7 ruling the date is his own pacing target, not a promise, so a slip here
+moves the date rather than gutting the list. It fits the target ONLY if Phase 0 comes back clean,
+the village/camp passes stay at "tighten," and nothing new gets invented.
 
 ---
 
@@ -212,7 +228,8 @@ Tempting, defensible, and all of it costs the date:
 - **The UI/UX research week.** EA needs legible, not designed. One scoped day (S19).
 - **Texture optimisation.** Not until S5 proves textures are the bottleneck. You flagged the risk
   yourself: downscaling can change how units read, and re-fixing UVs is not a 30-day activity.
-- **Villages, camps, civilians, roads, convoys.** Post-launch under the standing ruling.
+- **Villages and camps BEYOND the two in the demo map.** The one village and one camp are S25/S26;
+  civilians-at-scale, roads, convoys, and everything plural stays post-launch.
 - **`__mg` clips and animation variety.** First promotion candidates AFTER the MUST list is empty — not before.
 - **Bunker firing slits.** Art task hiding a feature (needs AI-aware occupancy code nothing wires).
 - **The ~64 unplaced structures.** Content for a world that isn't shipping in EA.
@@ -250,10 +267,10 @@ Ranked by days saved per unit of pain. None of these hurt the shipped game notic
 
 What is growing past what ships, right now:
 
-1. **🚩 Villages and camps re-entering the MUST SHIP list — tonight's request did it.** This is
-   the single decision that sets the date, you already ruled it on 8/6, and the template pulled
-   them back in. The full game keeps trying to wear the release's clothes. Hold the line or move
-   the date — those are the only two honest options.
+1. **🚩 "Tighten up" is one Blender session away from "flesh out."** The village/camp ruling
+   (8/7) is scoped to tightening existing models. The known gravity wells: building interiors
+   (0%, a gated epic), a second village, CQB geometry, per-building burned variants. Any of those
+   appearing in the village pass means the post-launch world is sneaking into the release again.
 2. **🚩 NVA/VC roster depth.** 12+12 symmetric roster, 7 helmet variants, face-atlas sex/age
    classification, scrim texture debates. The decree itself says the remaining work is EXPORTING.
    Every additional variant pass is post-launch polish spending EA days.

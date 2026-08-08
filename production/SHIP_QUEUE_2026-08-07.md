@@ -13,6 +13,8 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 - [ ] M79 to 100% (bench alignment + hand mould)
 - [ ] Huey v3: fix seat sockets / 180° flip FIRST, then export gunship + transport
 - [ ] RPD + RPG-2 re-exports (`python tools/export_all_viewmodels.py <gun>` — minutes each)
+- [ ] Tighten the demo village (models exist — TIGHTEN ONLY: no interiors, no new buildings)
+- [ ] Tighten the demo enemy camp (same bar)
 - [ ] Pilot gib donors (`us_pilot_white/_black`, via psx-npc-pipeline skill)
 - [ ] Aid station: surgeon double-body fix, surgeon mask + medic brassard palette
 
@@ -31,8 +33,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 
 ## DECISIONS ONLY CALEB CAN MAKE
 
-- [ ] **Villages/camps: post-launch per your 8/6 ruling, or back in scope and the date moves?**
-      (Tonight's audit template listed them MUST SHIP; this queue assumes the 8/6 ruling holds.)
+- [x] ~~Villages/camps~~ **RULED 8/7: the ONE demo village + ONE demo camp ship, tightened from
+      existing models** (they're already stamped by `plan_demo_world`). Villages/camps AT SCALE
+      stay post-launch per 8/6.
 - [ ] LAW and RPG-7: pull from the EA rack (free) or export viewmodels (~1 art-day each)?
 - [ ] group_walk backwards marchers: fix formation (recommended) or restage the probe?
 - [ ] hunters count: enforce, drop, or record as scenery?
@@ -41,7 +44,8 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
 
 ## NOT BEFORE 9/6 — the tripwires
 
-Villages · camps · civilians · convoys · roads · tunnels · POW · gunship rides · zombie anything ·
+A SECOND village or camp · building interiors/CQB · civilians at scale · convoys · roads ·
+tunnels · POW · gunship rides · zombie anything ·
 UI research week · texture optimisation without perf numbers · `__mg` clips and animation variety ·
 bunker firing slits (feature in art's clothing) · NVA/VC variant passes beyond export ·
 migration decree P2–P7 · new weapons · new archetypes
