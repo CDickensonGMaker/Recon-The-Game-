@@ -818,6 +818,28 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	else:
 		push_warning("[DEMO] no passable ground for the enemy camp - the day has one site only")
 	p["camp_centers"] = camps
+
+	# AMBIENT AA (his decree 2026-08-07: "ambient tracer AA in general across different
+	# points in the map is cool"). Two-three atmosphere-only points deep in the jungle,
+	# read at range as distant tracer streams when aircraft are up. Positions are
+	# seed-fixed like every site; the FIRING is ambient-RNG inside ZpuGun. Bearings skip
+	# the gate arc (0), the camp flank (-2.35) and the village flank (2.35); radii sit
+	# near the 230m passable limit named at the ruin pass above, so they land at the
+	# edges of the slice, never beside the player's ground.
+	var aa_pts: Array[Vector3] = []
+	var aa_bearings: Array[float] = [0.9, 2.9, -1.35]
+	var aa_radii: Array[float] = [205.0, 195.0, 210.0]
+	for i in range(aa_bearings.size()):
+		var a_dir: Vector3 = out_v.rotated(Vector3.UP, aa_bearings[i])
+		var apos: Vector3 = _passable_near(world, rng,
+			fsb_center + a_dir * aa_radii[i], 10.0, 60.0, 90)
+		if apos == Vector3.ZERO:
+			apos = _passable_near(world, rng,
+				fsb_center + a_dir * (aa_radii[i] - 35.0), 10.0, 80.0, 90)
+		if apos != Vector3.ZERO:
+			aa_pts.append(apos)
+	p["ambient_aa"] = aa_pts
+	print("[DEMO] ambient AA: %d of %d points placed" % [aa_pts.size(), aa_bearings.size()])
 	return p
 
 
@@ -858,6 +880,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 			ZpuGun.attach(world, director, _seat(world, gun_at),
 				p.fsb_center as Vector3, zpu_tag)
 			PilotRecovery.attach(world, director)
+	for aa: Vector3 in (p.get("ambient_aa", []) as Array):
+		ZpuGun.attach_ambient(world, _seat(world, aa))
 
 	# Walking patrols between the wire and the locations - the ground the player
 	# crosses is the ground they cross.

@@ -70,6 +70,9 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       `campaign_state.gd:on_mission_end`). Silencing mirrors CampMortar: `zpu_crew` dead
       OR gun Destructible killed; a killed gun banks `aa_killed` (reader was stranded at
       `campaign_state.gd:249`). No event in the first 600s, ONE event per day.
+      Ambient tracer AA decree (8/7 late) LANDED: 3 atmosphere-only points, `ZpuGun.attach_ambient`
+      (`zpu_gun.gd`), planned/stamped at `mission_generator.gd` `plan_demo_world` ambient-AA block +
+      `build_patrol_world` — no crew, no kill roll, world-masked, unverified by playtest.
 - [ ] 11b. **S29 destructible jungle** — wire the 60 segment GLBs (batch 8/5, ZERO readers).
       His rulings: no standing colliders; projectile rays ahead, hit tree promotes to 3-part
       form and breaks at hit height; crown falls as cover, stump stays. Never RigidBody.

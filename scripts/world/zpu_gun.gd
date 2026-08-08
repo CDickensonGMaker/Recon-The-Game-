@@ -6,6 +6,10 @@
 ## Silencing mirrors CampMortar (camp_mortar.gd): crew dead OR gun destroyed,
 ## latched for the day. A destroyed gun banks the existing AA payoff -
 ## `aa_killed` already has a reader at campaign_state.gd:249.
+##
+## `ambient` mode (attach_ambient) is the same gun as pure atmosphere: distant
+## tracer streams from the deep jungle. No mesh, no crew, no kill roll, and it
+## must stay that way - only the camp gun is real.
 class_name ZpuGun
 extends Node3D
 
@@ -21,10 +25,22 @@ const GAP_MAX_S: float = 3.4
 ## Deliberate scatter: the bursts are the AO's theatre, the kill is the roll.
 const MISS_M: float = 14.0
 const KILL_CHANCE: float = 0.35
+## Ambient cadence (owner-retunable): long quiet stretches so the map's corners
+## speak occasionally, never over the camp gun.
+const AMB_GAP_MIN_S: float = 7.0
+const AMB_GAP_MAX_S: float = 16.0
+const AMB_ENGAGE_CHANCE: float = 0.55
 
 var director: FieldDirector = null
 var tube: Destructible = null
 var crew_tag: String = ""
+## Atmosphere-only mode (decree 2026-08-07): no crew, no Destructible, no kill
+## roll, no NoiseBus - a distant tracer stream and nothing else.
+var ambient: bool = false
+var burst_rounds: int = BURST_ROUNDS
+var round_gap_s: float = ROUND_GAP_S
+var gap_min_s: float = GAP_MIN_S
+var gap_max_s: float = GAP_MAX_S
 
 var _target: Node3D = null
 var _muzzle_h: float = 1.6
@@ -33,6 +49,7 @@ var _burst_gap: float = 0.0
 var _crew_seen: bool = false
 var _silenced: bool = false
 var _rolled: Dictionary = {}
+var _pass_roll: Dictionary = {}
 static var _wd: WeaponData = null
 ## Unseeded on purpose: AA fire timing is ambient life, not replayable layout
 ## (same exemption as AmbientWar/AirTraffic, demo_game.gd:9-11).
@@ -60,6 +77,25 @@ static func attach(world: Node, field_director: FieldDirector, pos: Vector3,
 		zg.tube.global_rotation.y = atan2(flat.x, flat.z)
 	zg._burst_gap = zg._rng.randf_range(GAP_MIN_S, GAP_MAX_S)
 	print("[ZPU] standing at the camp, tag '%s'" % tag)
+	return zg
+
+
+## One class, one mode: an ambient point is a ZpuGun with everything that makes
+## it a GUN switched off - no mesh, no Destructible, no crew, no director, so
+## silenced() can never latch and the siege deference never applies. Burst
+## character rolls per point so different corners of the map sound different.
+static func attach_ambient(world: Node, pos: Vector3) -> ZpuGun:
+	var zg := ZpuGun.new()
+	zg.name = "AmbientZpu"
+	zg.ambient = true
+	zg.gap_min_s = AMB_GAP_MIN_S
+	zg.gap_max_s = AMB_GAP_MAX_S
+	zg.burst_rounds = zg._rng.randi_range(3, 6)
+	zg.round_gap_s = zg._rng.randf_range(0.11, 0.17)
+	world.add_child(zg)
+	zg.add_to_group("zpu_guns")
+	zg.global_position = pos
+	zg._burst_gap = zg._rng.randf_range(zg.gap_min_s, zg.gap_max_s)
 	return zg
 
 
@@ -122,7 +158,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_burst_gap -= minf(delta, 0.066)
 	if _burst_gap <= 0.0:
-		_burst_gap = _rng.randf_range(GAP_MIN_S, GAP_MAX_S)
+		_burst_gap = _rng.randf_range(gap_min_s, gap_max_s)
 		_fire_burst()
 
 
@@ -135,8 +171,22 @@ func _think() -> void:
 		_target = null
 		return
 	_target = _acquire()
-	if _target != null:
-		_roll_kill(_target)
+	if _target == null:
+		return
+	if ambient:
+		if not _wants_pass(_target):
+			_target = null
+		return
+	_roll_kill(_target)
+
+
+## Ambient points sit out some flights entirely - one decision per airframe, so
+## a point that passes stays quiet for the whole pass and the corners take turns.
+func _wants_pass(t: Node3D) -> bool:
+	var id: int = t.get_instance_id()
+	if not _pass_roll.has(id):
+		_pass_roll[id] = _rng.randf() < AMB_ENGAGE_CHANCE
+	return bool(_pass_roll[id])
 
 
 func _acquire() -> Node3D:
@@ -192,9 +242,12 @@ func _fire_burst() -> void:
 		_wd = load(WEAPON) as WeaponData
 	if _wd == null:
 		return
-	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, global_position, 0, 260.0)
-	for i in range(BURST_ROUNDS):
-		tree.create_timer(float(i) * ROUND_GAP_S).timeout.connect(func() -> void:
+	# Ambient fire is scenery, not an AI perception event - a NoiseBus ping would
+	# steer the ground fight toward a gun that is not really there.
+	if not ambient:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, global_position, 0, 260.0)
+	for i in range(burst_rounds):
+		tree.create_timer(float(i) * round_gap_s).timeout.connect(func() -> void:
 			if not is_instance_valid(self) or _silenced:
 				return
 			if _target == null or not is_instance_valid(_target):
@@ -207,7 +260,8 @@ func _fire_round() -> void:
 	var miss := Vector3(_rng.randf_range(-1.0, 1.0), _rng.randf_range(-0.4, 0.4),
 		_rng.randf_range(-1.0, 1.0)) * MISS_M
 	var aim: Vector3 = (_target.global_position + miss - muzzle).normalized()
+	var excl: Array = [tube] if tube != null else []
 	# World-only mask: the theatre must never rake the camp fight below it.
-	CombatManager.bullets.fire(_wd, self, muzzle, aim, 1, [tube], true, false)
+	CombatManager.bullets.fire(_wd, self, muzzle, aim, 1, excl, true, false)
 	GunFX.play_shot_3d(get_tree().current_scene, muzzle, _wd)
 	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
