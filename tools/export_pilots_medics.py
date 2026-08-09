@@ -20,6 +20,7 @@ import bpy, os, sys
 from mathutils import Vector, Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from make_head_frags import build_head_frags
 from flatten_procedural_colors import flatten, assert_none_white
 
 LINEUP = r"C:\Users\caleb\RECONgame\assets\us\characters\us_base_v3.blend"
@@ -39,17 +40,114 @@ UNITS = [
 # suffixes stripped off mesh names so gib/hitzone lookups resolve (contract 2).
 # LONGEST FIRST: "_medic_black" must be tried before "_medic", or the black medic's
 # meshes strip to "..._black" and every gib lookup misses.
-SUFFIXES = ("_pointman.001", "_pilot_black", "_medic_black", "_medic", "_surgeon", "_pilot")
+SUFFIXES = ("_pointman.001", "_pilot_black", "_medic_black", "_medic", "_surgeon",
+            "_pilot", "_GRAFT")
 
 # an antenna in the height box squeezes the whole man; see export_us_squad.py
 HEIGHT_EXCLUDE = ("radio", "antenna", "prc25", "handset")
 
+# gib_system.gd REGIONS + the caps under them. tests/test_gib_contract_all.gd
+# requires the five regions; the uparm/torso pair round out the 8-piece split.
+GIB_CONTRACT = (
+    "grunt_head", "grunt_torso", "grunt_uparm_l", "grunt_uparm_r",
+    "grunt_forearm_l", "grunt_forearm_r", "grunt_leg_l", "grunt_leg_r",
+    "cap_head", "cap_torso", "cap_uparm_l", "cap_uparm_r",
+    "cap_forearm_l", "cap_forearm_r", "cap_leg_l", "cap_leg_r",
+)
+
+# unit_id -> the rig its gib donors are copied FROM, for units whose own rig
+# does not carry the set. us_pilot_white sits on PSXRig_pointman.001, a
+# whole-unit duplicate made when the original us_pilot_body bind was destroyed;
+# it was taken before the split donors existed, so the man could not lose a
+# limb and his one cap_head sat 10.46 m off his body (its parent-inverse
+# cancels the rig's X). Measured 2026-08-08: every donor mesh in this lineup is
+# bit-identical per-index across all five rigs, so this is a copy, not a rebuild.
+GIB_DONOR_RIG = {"us_pilot_white": "PSXRig_pointman"}
+
+# names that no SUFFIX rule can canonicalise. Left alone, us_pilot_white ships
+# belt_holster_pilot_NEW while us_pilot_black ships belt_holster.
+ALIAS = {"belt_holster_pilot_NEW": "belt_holster"}
+
 
 def canonical(name):
+    if name in ALIAS:
+        return ALIAS[name]
     for s in SUFFIXES:
         if name.endswith(s):
             return name[: -len(s)]
     return name
+
+
+def graft_gib_donors(unit_id, rig):
+    """Copy the missing gib donor set onto rig from a healthy sibling.
+
+    Object-level copy only: mesh data, vertex groups, materials, parent-inverse
+    and local matrix all come across from the donor untouched, and the armature
+    modifier is repointed. No vertex coordinate is written - the rig's position
+    is an object transform and must stay one (psx-npc-pipeline FAILURE MODE 1).
+    """
+    src_name = GIB_DONOR_RIG.get(unit_id)
+    if src_name is None:
+        return []
+    src = bpy.data.objects.get(src_name)
+    if src is None:
+        raise SystemExit("ABORT %s: donor rig '%s' not in the lineup" % (unit_id, src_name))
+    tag = src_name[len("PSXRig"):]
+    donors = {}
+    for o in src.children:
+        if o.type == 'MESH' and o.name.endswith(tag):
+            donors[o.name[: -len(tag)]] = o
+
+    made = []
+    for part in GIB_CONTRACT:
+        d = donors.get(part)
+        if d is None:
+            raise SystemExit("ABORT %s: donor rig %s has no %s" % (unit_id, src_name, part))
+        stale = [o for o in rig.children if o.type == 'MESH' and canonical(o.name) == part]
+        for o in stale:
+            bpy.data.objects.remove(o, do_unlink=True)
+        # the lineup already holds bare-named grunt_*/cap_* under the stock
+        # PSXRig, so naming the copy `part` here mints `grunt_forearm_l.001` and
+        # the collision check downstream aborts. Tag it; canonical() strips it.
+        n = d.copy()
+        n.data = d.data.copy()
+        n.name = part + "_GRAFT"
+        n.data.name = n.name
+        bpy.context.scene.collection.objects.link(n)
+        n.parent = rig
+        n.parent_type = 'OBJECT'
+        n.matrix_parent_inverse = d.matrix_parent_inverse.copy()
+        n.matrix_basis = d.matrix_basis.copy()
+        for m in n.modifiers:
+            if m.type == 'ARMATURE':
+                m.object = rig
+        made.append(n)
+    bpy.context.view_layer.update()
+
+    # The graft is only correct if each piece stands on THIS man exactly where
+    # the donor stands on his. Comparing to the rig centre would be wrong - a
+    # T-pose forearm legitimately sits 0.60 m out. The invariant is that the
+    # rig-relative offset is preserved; anything else means a parent-inverse
+    # survived that cancels the rig's own transform (the defect being repaired:
+    # us_pilot_white's old cap_head sat 10.46 m off him).
+    dg = bpy.context.evaluated_depsgraph_get()
+
+    def centre(o):
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        pts = [ev.matrix_world @ v.co for v in me.vertices]
+        ev.to_mesh_clear()
+        lo = Vector(map(min, *pts)) if len(pts) > 1 else pts[0]
+        hi = Vector(map(max, *pts)) if len(pts) > 1 else pts[0]
+        return (lo + hi) / 2
+
+    for n, d in zip(made, [donors[p] for p in GIB_CONTRACT]):
+        off = (centre(n) - rig.location) - (centre(d) - src.location)
+        if off.length > 1e-4:
+            raise SystemExit("ABORT %s: grafted %s is %.4f m off the donor's "
+                             "rig-relative place" % (unit_id, n.name, off.length))
+    print("  %-16s grafted %d gib donors from %s" % (unit_id, len(made), src_name), flush=True)
+    return made
 
 
 def export_one(unit_id, rig_name):
@@ -57,6 +155,9 @@ def export_one(unit_id, rig_name):
     rig = bpy.data.objects.get(rig_name)
     if rig is None:
         raise SystemExit("ABORT %s: rig '%s' not in the lineup" % (unit_id, rig_name))
+
+    # BEFORE the purge - the donor rig and its children have to still exist.
+    graft_gib_donors(unit_id, rig)
 
     # Superseded pieces kept in the lineup for recovery, and loose scratch
     # geometry, are NOT part of the character. They are hidden in the .blend,
@@ -99,6 +200,41 @@ def export_one(unit_id, rig_name):
         rig.animation_data.action = None
     bpy.context.view_layer.update()
 
+    # The split head donor keeps whatever face atlas it was cut with, and the
+    # black variants were cut from the white line: measured 2026-08-08,
+    # grunt_head on us_pilot_black pointed at face_atlas_v5 while his joined
+    # body used face_atlas_v5_black, so his severed head was a white man's.
+    # The two atlases share layout and size (1296x1132) and differ only in
+    # tone - donor-island mean RGB (0.404,0.279,0.194) vs (0.172,0.099,0.067) -
+    # so this is a material repoint, not a re-unwrap. Must run BEFORE
+    # build_head_frags, which copies grunt_head's mesh data materials and all.
+    jb = bpy.data.objects.get("us_grunt_joined")
+    head = bpy.data.objects.get("grunt_head")
+    if jb is not None and head is not None:
+        face = next((s.material for s in jb.material_slots
+                     if s.material and s.material.name.startswith("face_atlas")), None)
+        if face is not None:
+            for s in head.material_slots:
+                if s.material and s.material.name.startswith("face_atlas") and s.material != face:
+                    print("  %-16s head atlas %s -> %s"
+                          % (unit_id, s.material.name, face.name), flush=True)
+                    s.material = face
+
+    missing = [p for p in GIB_CONTRACT if bpy.data.objects.get(p) is None]
+    if missing:
+        raise SystemExit("ABORT %s: gib contract incomplete after rename: %s"
+                         % (unit_id, missing))
+
+    # GibSystem.dismember_head_burst() returns false on an empty head_frag_*
+    # list, so a rig without these cannot lose its head. After the rename (it
+    # resolves "grunt_head"/"PSXRig" by name), before the height normalize.
+    build_head_frags()
+    frags = [o for o in bpy.data.objects if o.name.startswith("head_frag_")]
+    for o in frags:                    # built hidden; select_set no-ops on hidden
+        o.hide_set(False)
+        o.hide_viewport = False
+        o.hide_render = False
+
     body = bpy.data.objects.get("us_grunt_joined")
     if body is None:
         raise SystemExit("ABORT %s: no us_grunt_joined after rename" % unit_id)
@@ -127,15 +263,16 @@ def export_one(unit_id, rig_name):
         Vector((-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z)))) @ rig.matrix_world
     bpy.context.view_layer.update()
 
+    exportables = [rig] + meshes + frags
     for o in bpy.context.view_layer.objects:
         o.select_set(False)
-    for o in [rig] + meshes:
+    for o in exportables:
         o.select_set(True)
     bpy.context.view_layer.objects.active = rig
 
     # see flatten_procedural_colors: a node-driven Base Color ships as WHITE
-    flatten(meshes)
-    left = assert_none_white(meshes)
+    flatten(exportables)
+    left = assert_none_white(exportables)
     if left:
         raise SystemExit("ABORT %s: material(s) would ship on the engine default: %s"
                          % (unit_id, left))
@@ -161,11 +298,14 @@ def export_one(unit_id, rig_name):
         export_extras=True,
     )
     mb = os.path.getsize(out) / (1024 * 1024)
-    print("  %-16s h=%.3f -> k=%.3f  %2d meshes  %5.2f MB  %s"
-          % (unit_id, h, s, len(meshes), mb, os.path.basename(out)), flush=True)
+    print("  %-16s h=%.3f -> k=%.3f  %2d meshes  %d frags  %5.2f MB  %s"
+          % (unit_id, h, s, len(meshes), len(frags), mb, os.path.basename(out)), flush=True)
 
 
+_only = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 print("=== exporting pilots + medic ===", flush=True)
 for uid, rig in UNITS:
+    if _only and uid not in _only:
+        continue
     export_one(uid, rig)
 print("=== done ===", flush=True)

@@ -17,7 +17,9 @@ enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 ## airframe (CH-47) overrides them in its scene.
 @export var main_rotor_node: String = "New_Blade_1"
 @export var tail_rotor_node: String = "New_TailBlade_2_002"
-@export var fuselage_node: String = "Huey_Copy"
+## Empty = the airframe's origin is already on the hull and needs no recentre
+## (huey_v3.glb). Only chinook.tscn sets it.
+@export var fuselage_node: String = ""
 ## Tandem lift (CH-47): the second rotor is a lifting rotor about Y, counter-
 ## rotating, not an anti-torque tail rotor about X.
 @export var tandem_rotor: bool = false
@@ -46,7 +48,6 @@ func _ready() -> void:
 	# Built before the model lookup: the rotor is audible whether or not the GLB
 	# resolved, and _ready returns early when it did not.
 	_build_rotor_audio()
-	# The GLB's scene root IS the "Model" node; the fuselage is its child Huey_Copy.
 	var root := get_node_or_null("Model") as Node3D
 	if root == null:
 		return
@@ -67,13 +68,14 @@ func _ready() -> void:
 	if _tail_rotor == null:
 		push_warning("[%s] tail rotor '%s' not found - tail will not spin" % [name, tail_rotor_node])
 
-	# Recenter on the fuselage's AABB centre, NOT its node origin: the mesh origin
-	# sits ~2m forward of the hull's true centre and would offset the CollisionTable
-	# box. MUST be basis-aware - huey.tscn rotates Model 180 degrees about Y, so the
-	# centre has to be mapped through the basis first; a raw "-= centre" DOUBLES the
-	# offset instead of cancelling it. The GLB's seat_* sockets ride inside Model and
-	# land in this recentered frame at the FALLBACK_LAYOUT coordinates.
-	var fuselage := root.find_child(fuselage_node, true, false) as MeshInstance3D
+	# Recenter on the fuselage's AABB centre, NOT its node origin, for airframes whose
+	# origin is off the hull. MUST be basis-aware: a scene that rotates Model has to map
+	# the centre through the basis first, or a raw "-= centre" DOUBLES the offset.
+	# INERT for huey.tscn since 2026-08-08 - huey_v3.glb has no "Huey_Copy" and its origin
+	# is already on the airframe. Still live for chinook.tscn (fuselage_node = "Fuselage").
+	var fuselage: MeshInstance3D = null
+	if fuselage_node != "":
+		fuselage = root.find_child(fuselage_node, true, false) as MeshInstance3D
 	if fuselage != null:
 		var centre: Vector3 = root.transform.basis * (fuselage.position + fuselage.get_aabb().get_center())
 		root.position.x -= centre.x

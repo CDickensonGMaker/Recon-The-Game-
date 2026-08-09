@@ -9,7 +9,10 @@ const EXPECTED := {
 	"res://assets/world/building models/structures/village/village_well_01.glb": [0.5, 6.0],
 	"res://assets/world/building models/structures/firebase/fsb_main_v3.glb": [250.0, 300.0],
 	"res://assets/world/building models/structures/vc_nva/weapons_cache.glb": [0.5, 8.0],
-	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],  # raw GLB oversized; CollisionTable scale 0.55 compensates at runtime
+	# huey.glb is v1 (17.46m, ~30% overlong) and no longer wired to huey.tscn - kept only
+	# because the four heli_*.glb staged clips still bake its geometry. huey_v3.glb is live.
+	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],
+	"res://assets/us/vehicles/huey_v3.glb": [12.0, 16.0],  # 14.63 = main rotor span
 	"res://assets/us/vehicles/m113_apc.glb": [2.0, 9.0],
 	"res://assets/us/aircraft/a1_skyraider.glb": [6.0, 18.0],
 	"res://assets/us/aircraft/ac47_spooky.glb": [26.0, 32.0],  # true DC-3 span 28.96m via import root_scale 0.1475; source blend keeps its working scale

@@ -55,7 +55,9 @@ const STRUCTURES := {
 	# Vehicles (props)
 	"m113_apc": {"box": Vector3(2.7, 2.2, 5), "y_offset": 1.1, "footprint": Vector2(6, 3.5), "scale": 1.0},
 	"m151_mutt_gun_jeep": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
-	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},  # duplicate fuselage stripped at runtime; single body ~17m
+	# huey_v3.glb measures 2.845 W x 3.003 H x 12.90 L (tail fin included); the box is a
+	# near-exact fit, but the last ~0.5m of tail boom sits outside it.
+	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},
 	"ch47_chinook": {"box": Vector3(4, 4, 16), "y_offset": 2.0, "footprint": Vector2(18, 18), "scale": 1.0},
 	# ---- Auto-measured from GLB AABBs (headless Blender, bead f5yf). box=(x, height, depth),
 	# y_offset=AABB center height. mesh:true = GLB carries -col trimesh (box = nav carve only).

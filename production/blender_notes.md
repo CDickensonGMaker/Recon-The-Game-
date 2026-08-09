@@ -255,3 +255,67 @@ materials in a flat DEFAULT GREY indistinguishable from the body unless a
 distinct `material.diffuse_color` is set first - a placement render that
 "shows nothing new" is not evidence of a missing object, check object count
 and world bbox before concluding that.
+
+---
+
+## 2026-08-08 · US pilots: gib contract completed, and how the pilot line is actually built
+
+**Source of truth for BOTH pilots is `assets/us/characters/us_base_v3.blend`**, not the
+94 MB `us_pilot_white.blend` / `us_pilot_black.blend` (2026-07-12, stale fossils — nothing
+exports from them; do not open them expecting current work).
+
+- `us_pilot_white` <- rig **`PSXRig_pointman.001`** (x=10.459), a whole-unit duplicate of the
+  pointman made when the original `us_pilot_body` bind was destroyed. Its body is HEALTHY:
+  263 v, raw dims 1.611 x 0.265 x 1.800, per-index vertex hash `114757d248d3` — **identical to
+  every other body in the file**. The pancake described in memory `us-pilot-body-broken-bind`
+  is gone; that object no longer exists and `PSXRig_pilot` is not in the file.
+- `us_pilot_black` <- rig **`PSXRig_pilot_black`** (x=15.0). Same body hash.
+- Both pilot rigs carry only **2 of 41 posed bones** (siblings carry 34). Harmless *for export*
+  — `export_pilots_medics.py` forces `pose_position='REST'` on every unit — but they read as
+  T-pose-only in the studio file. Not "fixed": the file is deliberately parked in T-pose.
+
+**What was wrong (measured, 2026-08-08):** `PSXRig_pointman.001` carried **no split gib donors
+at all** and exactly one cap, `cap_head_pilot`, whose `matrix_parent_inverse` cancelled the
+rig's X and parked it at world x=0 — **10.46 m off the man**. `us_pilot_white.glb` therefore
+shipped 0/5 `grunt_<region>` and 1/5 `cap_<region>`: that man could not lose a limb.
+
+**The repair, and where it lives.** `us_base_v3.blend` is READ ONLY, so the graft happens
+inside the export session, in `tools/export_pilots_medics.py`:
+- `GIB_DONOR_RIG = {"us_pilot_white": "PSXRig_pointman"}` — object-level copies of all 16
+  contract pieces, parent-inverse and local matrix carried over from the donor, armature
+  modifier repointed. No vertex coordinate is written. Justified because every donor mesh in
+  this lineup is **bit-identical per-index across all five rigs** (hashes above).
+- Grafted copies are named `<part>_GRAFT`, with `_GRAFT` added to `SUFFIXES`. Naming them
+  bare collides with the stock `PSXRig`'s own bare `grunt_*`, and Blender silently mints
+  `grunt_forearm_l.001` — which the exporter's collision guard then aborts on.
+- Graft gate: each piece's **rig-relative** centre must match the donor's to 1e-4 m. Do NOT
+  gate on distance from the rig centre — a T-pose forearm sits 0.60 m out legitimately.
+- `build_head_frags()` now runs for these five units too (it did not before): pilots, medics
+  and surgeon all shipped `head_frag x0`, so `dismember_head_burst()` returned false and none
+  of them could lose a head.
+- **Face atlas sync**: the split `grunt_head` keeps whatever atlas it was cut with, and the
+  black variants were cut from the white line — `us_pilot_black` and `us_medic_black` both had
+  `face_atlas_mat` on the severed head while their bodies used `face_atlas_black_mat`. Measured
+  at the head donor's UV island u[0.004..0.097] v[0.005..0.144]: `face_atlas_v5` mean RGB
+  (0.404,0.279,0.194) vs `face_atlas_v5_black` (0.172,0.099,0.067) — same 1296x1132 layout,
+  2.3x darker. The exporter now repoints the head donor to the joined body's atlas, generically,
+  **before** `build_head_frags` (which copies the head's mesh data, materials and all).
+- `ALIAS = {"belt_holster_pilot_NEW": "belt_holster"}` — no SUFFIX rule could canonicalise it,
+  so white shipped `belt_holster_pilot_NEW` while black shipped `belt_holster`.
+
+**Run one unit at a time:** `blender -b -P tools/export_pilots_medics.py -- us_pilot_white`.
+
+**Known, NOT fixed, needs Caleb:**
+- **Gibbed pilot limbs read as jungle fatigue, not flight suit.** The split donors use
+  `us_grunt_mat` (`ref_factions`, 3600x5700) while the joined pilot body uses `us_pilot_mat`
+  (`pilot_kit_sheet`). This is not a material repoint: the joined pilot body was **re-unwrapped**
+  for the flight suit (UV hash `dd3fbf661a77` vs the grunt's `feaf111934c2`), while the split
+  pieces still carry the grunt UVs. Fixing it means transplanting UVs, not swapping a material.
+  Pre-existing on `us_pilot_black` since 2026-08-04.
+- That same `us_grunt_mat` dependency is why `us_pilot_white.glb` went 5.4 -> 14.1 MB: the
+  donors drag in the 3600x5700 grunt atlas. The rest of the US cast already pays this.
+- **Loadout asymmetry:** white wears full webbing (`web_*` x12, bandolier); black wears none.
+  Both wear `helmet_sph4`, `belt_holster`, `m1911_world`.
+- `m1911_world` sits 0.758 m off centreline at hip height on BOTH pilots — identical on both,
+  so not a regression, but it is not in the holster either. Per
+  `pilot-holster-pistol-never-hides` the holster is a closed pouch and the pistol never hides.
