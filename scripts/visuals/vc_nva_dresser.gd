@@ -4,7 +4,7 @@
 ## one system: the head and hands sit inside ONE cell of the face sheet, so sliding
 ## that material's `uv1_offset` by one cell deals a different man.
 ##
-##     faces x bodies x headgear x packs x chest rigs x gear toggles
+##     faces x bodies x headgear x packs x chest rigs x belts x gear toggles
 ##
 ## THE ONE TRAP, inherited: `uv1_offset` is a MATERIAL property. Duplicate it per
 ## instance or every soldier on screen rerolls to the same face at once.
@@ -41,8 +41,9 @@ const FALLBACK_FACES: Array[int] = [
 
 const FACE_MATERIALS: Array[String] = ["face_atlas", "Skin_VC", "vc_face_skin"]
 
-## The detachable gear library: headgear, packs and chest rigs, one entry per variant.
-## Read at RUNTIME so a new variant reaches the game with no code change here.
+## The detachable gear library: headgear, packs, chest rigs and belts, one entry per
+## variant. Read at RUNTIME so a new variant reaches the game with no code change here.
+## Keys carrying a faction token (`_nva` / `_vc`) are gated to that faction - see _pick.
 const GEAR_MANIFEST: String = "res://assets/nva_vc/props/nva_vc_gear.json"
 
 ## Headgear ships welded into each GLB - NVA wear the pith helmet, VC the rice hat.
@@ -192,6 +193,7 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 	var pack: String = _rehang_pack(actor, root, rng, opts)
 	out["pack_variant"] = pack
 	out["chest"] = _rehang_chest(actor, rng, opts)
+	out["belt"] = _rehang_belt(actor, rng, opts)
 
 	for key: String in GEAR_TOGGLES:
 		# A hung library pack owns his back; the welded-mesh toggle must not put a
@@ -289,7 +291,7 @@ static func _rehang_headgear(actor: ModelActor, root: Node3D,
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
 		return ""
-	var pick: String = _pick("headgear", rng, opts, "headgear_id")
+	var pick: String = _pick("headgear", rng, opts, "headgear_id", actor.unit)
 	if pick.is_empty():
 		return ""
 
@@ -316,7 +318,7 @@ static func _rehang_pack(actor: ModelActor, root: Node3D,
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
 		return ""
-	var pick: String = _pick("packs", rng, opts, "pack_id")
+	var pick: String = _pick("packs", rng, opts, "pack_id", actor.unit)
 	if pick.is_empty():
 		return ""
 	var worn: String = _hang(actor, skel, "packs", "socket_pack",
@@ -335,22 +337,86 @@ static func _rehang_chest(actor: ModelActor, rng: RandomNumberGenerator,
 	var skel: Skeleton3D = actor.skeleton()
 	if skel == null:
 		return ""
-	var pick: String = _pick("chest", rng, opts, "chest_id")
+	var pick: String = _pick("chest", rng, opts, "chest_id", actor.unit)
 	if pick.is_empty():
 		return ""
 	return _hang(actor, skel, "chest", "socket_chest",
 		"mixamorig:Spine2", "ChestSocket", pick)
 
 
+## Deal a belt and hang it on the hips socket. Like the chest rig, nothing is welded into
+## the bodies, so there is no stock mesh to take off. Belts carry their faction's webbing
+## baked in (`belt_web_nva` black, `belt_web_vc` olive), so the pick is faction-gated.
+## Returns the variant name, or "" if nothing was hung - a library with no belt category
+## simply leaves the men beltless rather than erroring.
+static func _rehang_belt(actor: ModelActor, rng: RandomNumberGenerator,
+		opts: Dictionary) -> String:
+	var skel: Skeleton3D = actor.skeleton()
+	if skel == null:
+		return ""
+	var pick: String = _pick("belt", rng, opts, "belt_id", actor.unit)
+	if pick.is_empty():
+		return ""
+	return _hang(actor, skel, "belt", "socket_belt",
+		"mixamorig:Hips", "BeltSocket", pick)
+
+
 ## The variant this man draws from one category, or "" when the library carries none.
+##
+## FACTION-GATED. Some library keys carry their faction's webbing baked into the mesh
+## (`chest_rig_ak_nva_foliage` is black, `..._vc_foliage` olive - Summoner ruling
+## 2026-08-08: NVA wear black webbing, VC canvas/army-green). An ungated pick hands a
+## VC the black NVA rig, which is the exact thing that ruling was about. Keys with no
+## faction token stay available to both, so a library that never adopts the convention
+## behaves as it always did.
 static func _pick(category: String, rng: RandomNumberGenerator, opts: Dictionary,
-		opt_key: String) -> String:
+		opt_key: String, unit: String = "") -> String:
 	if opts.has(opt_key):
 		return String(opts[opt_key])
 	var names: Array[String] = variants(category)
-	if names.is_empty():
+	var allowed: Array[String] = []
+	for n: String in names:
+		if _wearable_by(category, n, unit):
+			allowed.append(n)
+	if allowed.is_empty():
+		# Every variant in this category is another faction's. Better a man in neutral
+		# gear than a VC in NVA black, so fall back to the unfiltered pool only when the
+		# category has NOTHING neutral either.
+		if not names.is_empty():
+			_report_once("faction/" + category + "/" + unit,
+				("[VCNVA] every '%s' variant is faction-locked away from %s - dealing "
+				+ "nothing rather than another faction's gear") % [category, unit])
 		return ""
-	return names[rng.randi() % names.size()]
+	return allowed[rng.randi() % allowed.size()]
+
+
+## The faction a library variant is locked to: "nva", "vc", or "" for neutral.
+##
+## The manifest's own `faction` field wins, so gear whose faction is a LOOK rather than a
+## naming convention can be locked from data with no code change here - the pith helmet is
+## the NVA's single most recognisable silhouette and its key carries no token. Falling back
+## to a delimited token in the key keeps `chest_rig_ak_nva_foliage` gated without needing
+## the field, and leaves `pack_ruck_light` neutral.
+static func _faction_of(category: String, key: String) -> String:
+	var cat: Dictionary = gear_manifest().get(category, {}) as Dictionary
+	var entry: Dictionary = cat.get(key, {}) as Dictionary
+	var declared: String = String(entry.get("faction", ""))
+	if not declared.is_empty():
+		return declared
+	if key.contains("_nva_") or key.ends_with("_nva"):
+		return "nva"
+	if key.contains("_vc_") or key.ends_with("_vc"):
+		return "vc"
+	return ""
+
+
+## May this unit wear this variant? Neutral gear is wearable by anyone; an unknown unit
+## (bench and probe callers pass "") may draw anything.
+static func _wearable_by(category: String, key: String, unit: String) -> bool:
+	var locked: String = _faction_of(category, key)
+	if locked.is_empty() or unit.is_empty():
+		return true
+	return unit.begins_with(locked + "_")
 
 
 ## Hang one library prop on a bone socket. Every GLB in this library is authored with

@@ -796,3 +796,236 @@ them **straight up like antlers**. Restoring his own documented style (tucked lo
 reading correctly, the full-body render shows the **pack itself is a featureless green box**, the
 **chest-rig pouches read as blocky lime-green blocks**, and the **uniform texture is streaky** (that last
 one is the known 3600x5700 reference-sheet strip, parked under his optimize-later ruling).
+
+### 2026-08-08 (late) — Roster re-geared: stale props out, new gear on all 22 NVA/VC units
+
+**Files:** `assets/nva_vc/characters/nva_vc_soldiers.blend` (the roster, 116.6 MB) and
+`assets/nva_vc/props/nva_vc_gear_variants.blend` (props source). Safety commit before any of it:
+**`4e15364f`** — revert with `git checkout -- assets/nva_vc/characters/nva_vc_soldiers.blend`.
+
+**Removed:** 72 stale per-unit pith objects (old domes, bands, `_leaf_N` sprigs, `pith_helmet_worn`) +
+23 loose stale grid pith copies + 15 loose unparented pack/rig props (`pack_frame_foliage` on
+`palm_bark`, `pack_canvas.018-.028` duplicates) + 77 camo cuts buried inside bodies (1,720 tris of
+invisible geometry) + 85 `GEAR_`/`TEMPLATE_` appended stock objects once instanced.
+
+**Added, all 22 units (12 NVA, 10 VC):** donor pith helmets (NVA only, each keeping the variant it
+already wore), packs, chest rigs/bandoliers, **belts**, and camo cuts. Everything **bone-parented** —
+headgear to `mixamorig:Head`, packs/rigs to `mixamorig:Spine1`, belts to `mixamorig:Hips` — so it
+follows animation. Readiness check: **22/22 units complete**, 41 bones each, 3.3k-12.6k tris per unit.
+
+**His rulings this session:**
+- **NVA = black webbing, VC = canvas/army-green webbing.** (Reverse of the usual assumption.)
+- Webbing colour belongs on the **webbing only** — I had painted whole rucks black; pack bodies are
+  canvas (33 slots restored), faction colour kept on the 22 rigs/bandoliers/belts.
+- **Bandoliers and medic satchels use the cloth weave** the US grunts use: `webbing_canvas.003` ->
+  `canvas_od.003`. NOTE the US *bandolier* itself is untextured flat (`bandolier_tex.001`, no image),
+  so match the cloth they use on belts/pouches, not that.
+- **Chest rigs need two tones** so they read as a rig, not a black blotch: base + lighter pouch faces
+  (NVA 0.086 -> 0.185, VC 0.302/0.353/0.183 -> 0.398/0.447/0.286), applied to faces pointing away from
+  the chest. 21 rigs, ~30 of 90 faces per rig.
+- **Belts** duplicated from the US `web_belt` (128 tris), waist-solved per unit.
+- Camo cut scaling matches his hand-set character: **only ~40% of sprigs are enlarged** (his own fix
+  scaled 5 of 13), packs X1.7-2.3 / Y1.0-1.5 / **Z 2.5-3.9**, gentler on rigs and headgear.
+
+### PACK PLACEMENT — four failed attempts, and the metric lesson
+
+Placing 20 packs took four passes because **every metric I chose was blind to the thing that was wrong**:
+
+1. **Pure translation, rotation discarded.** The gear templates carry an **87.1 deg X worn attitude** in
+   `matrix_world`. Dropping it turned a 363 mm-TALL ruck into a 363 mm-DEEP one — packs lay on their
+   side. My "distance from torso centre" metric read a healthy 315 mm the whole time. **Bounding-box
+   distance cannot see orientation.**
+2. **One offset for every pack type.** Solved on `ruck_light` (229 deep) and applied to `satchel`
+   (166) and `frame` (426) -> 5 satchels floating +147 mm, 2 posed frame packs buried -160 mm.
+3. **Iterative search along a guessed bone axis.** `Spine1.matrix @ (0,0,1)` points FORWARD, not back,
+   so "move inward" moved outward: satchels went +147 -> **+516 mm**.
+4. **Search along the surface normal.** Self-correcting on distance, and it hit -32 mm on all 20 - but
+   **min-signed-distance cannot tell back from front**, so it satisfied the target with the packs
+   pushed off the back entirely. The render caught it; no metric did.
+
+**What finally worked:** compute the offset **analytically per pack type** - take that type's own
+oriented geometry, align its body-side face to the torso's **ray-cast back surface** minus a 35 mm
+sink, express it in the `Spine1` bone frame (so posed units inherit it), apply. Verified with a
+**side-aware** check: pack centroid must sit on the +Y side of the spine (`+166 mm` for
+`nva_regular`). Note even that check first read "NOT BEHIND" on all 20 - because I inverted the axis
+AGAIN. The world +Y-is-back fact is the one to trust here; the bone axis is not what I assumed.
+
+**Process failure worth naming:** I saved and reported "placement consistent" *before* rendering, and
+he called it out — *"why did you finish knowing it wasnt right? thats silly."* Every subsequent pass
+rendered BEFORE saving, and every one of those renders caught something the numbers had passed.
+
+**Still open:** VC units all wear rice hats (never rebuilt, so no pith/new headgear on the VC half).
+`vc_medic` face UVs are unmatched — its UVs were in Edit Mode all session. Face-UV cloning is blocked
+on him naming which head has the face he wants (all 5 share 402/1206 topology so a loop-for-loop copy
+would be exact; three approximation attempts all failed). Pack/rig MODELS themselves are still crude
+boxes. GLB export for the enemy grunt spawner is the next step and has not been run.
+
+**Foliage attached and joined (same session, after the pack fix):** 138 of 257 pack camo cuts were
+floating up to **303 mm** off their pack — drift from my repeated pack re-placements, where I moved
+sprigs by translation delta only and ignored rotation changes. Nearest-pack check was clean (every cut
+already belonged to the right pack), so it was a snap not a re-home: each cut's ORIGIN is its stem base,
+so snapping the origin to `closest_point_on_mesh` seats it exactly — max gap 303 mm -> **0.0 mm**.
+
+Then **joined the cuts into their packs**: 20 packs, 257 separate objects -> 0, each pack now one mesh
+with 2 material slots (canvas + `jungle_atlas`). Object count 1373 -> 1122. Rig/headgear cuts (76) were
+already at 0.0 mm and were left as separate objects.
+
+**The join re-broke the foliage colour, and the cause is worth remembering:** the joined mesh HAD a
+`Color` attribute but **no ACTIVE colour attribute**, so `jungle_atlas`'s MULTIPLY against vertex colour
+resolved to black — all the fronds rendered black. Fix: set `color_attributes.active_color` (and
+`render_color_index`) and fill white, done on **96 meshes** carrying `jungle_atlas`. This is the third
+appearance of the same bug class this session; **after ANY join involving `jungle_atlas`, check the
+active colour attribute, not just that a colour attribute exists.**
+
+Verified by render before saving. Roster saved 21:29:50, 116.7 MB.
+
+### 2026-08-08 (night) — Gear library: the 7 pith helmets are IN the game pipeline
+
+**His direction:** *"the enemy grunt spawner should mimic how the us grunts v3 do it in game... same
+pipeline but fitted in the same manner."*
+
+**The pipeline already existed** — this was wiring, not building. `scripts/visuals/vc_nva_dresser.gd`
+(VcNvaDresser) is the NVA/VC twin of GruntDresser and already reads
+`assets/nva_vc/props/nva_vc_gear.json` at RUNTIME, so *a new variant reaches the game with no code
+change*. Sockets are **IDENTITY BoneAttachment3D** because every library GLB is authored with its
+vertices baked into the socket bone's LOCAL space — `socket_headgear`=`mixamorig:Head`,
+`socket_pack`=`Spine1`, `socket_chest`=`Spine2`. Welded stock meshes (`pith_helmet`, `rice_hat`,
+`pack_worn`, `pack_roll`) are hidden when a library variant is hung. Export recipe copied verbatim from
+`tools/build_nva_gear_batch2.py`: select props + rig, active = rig, `export_yup=True`, no
+skins/animations/morphs.
+
+**CRITICAL, found before exporting anything:** `nva_vc_soldiers.blend` is a **review/staging scene, NOT
+the export source**. The shipped unit GLBs come from `make_nva_variant.py` running against
+`vc_guerilla_v2.blend`, and that script **builds its own low-poly pith dome in code** (the very blob the
+donor replaced). Tonight's roster work does NOT reach the game by itself — the gear library is the bridge.
+
+**Rebuilt and verified on disk (7 GLBs, `assets/nva_vc/props/headgear/`):**
+
+| key | tris | parts | note |
+|---|---|---|---|
+| pith_plain / worn / faded | 365 | 1 | donor dome, clean mesh names |
+| pith_star | 378 | 1 | badge intact |
+| pith_net | 743 | 2 | + scrim |
+| pith_foliage | 505 | 7 | dome + **his 6 hand-arranged sprigs** |
+| pith_worn_foliage | 521 | 8 | NEW manifest key |
+
+Bone-local spans are **0.279 x 0.310 x 0.143 m** (donor family) replacing the old blob's
+**0.309 x 0.235 x 0.098**. Read-back verified: bone-local coords, textures embedded, part counts correct.
+
+**Two defects caught by verification, both mine:**
+1. **`pith_foliage` first exported as a bare dome** — when I swapped the roster helmets I placed only the
+   dome per unit; his 6 sprigs live in the PROPS file and were never copied across. Re-exported from the
+   props file, composing his sprig arrangement onto the roster's VERIFIED Head-local pose.
+2. **Axis mismatch between the two sources.** Props-file `grid_orig` stamps produced span
+   [0.268, 0.330, 0.141] while the roster gave [0.279, 0.143, 0.310] — Y/Z swapped, i.e. one was rotated
+   90 deg. The ROSTER pose is the trustworthy one (its fit was verified at 0/26 penetration), so the
+   props export now takes the roster's Head-local matrix as its base and applies only the sprigs'
+   dome-relative offsets. **Do not trust the grid_orig stamps as a Head-local pose without checking the
+   axis order against a fitted instance.**
+
+**Manifest updated** (`nva_vc_gear.json`, BOM stripped): pith entries refreshed from the actual files
+(tris/verts/parts probed from the GLBs, not asserted); new `pith_worn_foliage` key; and per his ruling a
+**NEW `belt` category + `socket_belt` on `mixamorig:Hips`** declared with the same identity construction —
+schema first so `_rehang_belt` can be written against something stable, with the note that a missing GLB
+must deal `belt_none` rather than error. **NOTE the entry schema is a DICT** (`glb`/`tris`/`verts`/`parts`/
+`note`) — a bare string silently fails the dresser's lookup; I made that mistake and fixed it.
+
+**Cosmetic, not functional:** `pith_foliage`/`pith_net`/`pith_worn_foliage` carry `.001` on some mesh
+datablock names (collisions inside their source file). The dresser matches names only on the WELDED body
+meshes, so this affects the manifest's `parts` documentation, not runtime.
+
+**STILL TO DO for the spawner (his 4 rulings recorded):**
+1. **Belt GLBs** — `belt_web_nva` / `belt_web_vc`, Hips-local, + `_rehang_belt` in VcNvaDresser
+2. **Packs and chest rigs** — rebuild BOTH clean and `_foliage` variants (his choice) from the donor-era
+   gear; the 11 pack + 5 chest GLBs on disk are still the pre-tonight versions
+3. **Re-export all 20 unit GLBs** (his choice) — bodies unchanged tonight, but he wants them refreshed
+4. Run `tools/verify_character_glb.py` as the gate
+
+### 2026-08-08 (loop) — Gear library COMPLETE: 35 GLBs, manifest consistent
+
+Exported, all bone-local to their socket bone, clean names, verified by read-back:
+- **belts (NEW category)** `belt_web_nva` / `belt_web_vc` — 128 tris, span 356x65x307mm, Hips-local,
+  faction webbing baked (`webbing_nva_black` / `webbing_vc_od`)
+- **packs, clean AND camo** (his ruling) — `pack_ruck_light` 68 / `pack_ruck_full` 236 /
+  `pack_satchel` 48 / `pack_frame` 84 tris, plus `_foliage` forms at 320-580 tris and 12-15 parts
+  (spans to 0.97m from the scaled-up peacock camo). `pack_ruck_full_foliage` + `pack_satchel_foliage`
+  are NEW keys.
+- **chest rigs per faction** — `chest_rig_ak_nva/vc_foliage`, `chest_rig_worn_nva/vc_foliage` (236/244
+  tris) with the TWO-TONE webbing baked (`webbing_*_black`+`_pouch`), plus `bandolier_ammo_foliage`
+  (140 tris, cloth weave). The bandolier exports as 1 part because its own camo cuts were among the 77
+  deleted for being 100% buried inside the body.
+
+Library now holds **11 headgear + 13 packs + 9 chest + 2 belt = 35 GLBs**, every manifest entry probed
+from the actual file (tris/verts/parts read out of the GLB, never asserted).
+
+**Re-exporting the 20 unit GLBs is a NO-OP for tonight's work — measured, not assumed.** The shipped
+`nva_*.glb` carry a welded `pith_helmet` which VcNvaDresser HIDES before hanging the library variant;
+the `vc_*.glb` carry **no gear mesh at all**, so there is nothing to hide. Either way gear arrives via
+`socket_headgear/pack/chest/belt`, not welded into the body. Bodies did not change tonight (the face-UV
+attempts were all reverted), so a re-export would emit identical geometry while touching shipped assets.
+Worth revisiting only when the bodies themselves change.
+
+**TWO CODE CHANGES still needed in `scripts/visuals/vc_nva_dresser.gd`** (recorded in the manifest's
+`gaps` too):
+1. `_rehang_belt` — mirror `_rehang_pack` against the new `socket_belt` / `belt` category; a missing GLB
+   must deal `belt_none` rather than error.
+2. **FACTION FILTERING for chest keys suffixed `_nva` / `_vc`** — the current unfiltered `_pick("chest")`
+   can hand a VC a black NVA rig, which is exactly the thing his ruling was about.
+
+### 2026-08-08 late — the two dresser changes LANDED, and a real export gate
+
+**Both code changes above are done and compile clean** (`godot --headless --path . --editor --quit`
+reports zero script errors project-wide; `scripts/visuals/vc_nva_dresser.gd`):
+1. **`_rehang_belt`** — hangs on `socket_belt` / `mixamorig:Hips` / `"BeltSocket"`, mirroring
+   `_rehang_chest` (nothing welded to hide). `dress()` records `out["belt"]`.
+2. **Faction filtering** — `_pick` takes `unit` and filters through `_wearable_by`. Every one of the
+   four call sites passes `actor.unit` now, not just chest.
+
+**The gate is DATA-DRIVEN, not a key convention.** `_faction_of(category, key)` reads the manifest's
+optional `faction` field first and falls back to a delimited `_nva_`/`_vc_` token. That mattered
+immediately: **no headgear key carries a token**, so token-only gating left a VC free to draw an NVA
+pith helmet — the single most recognisable NVA silhouette. `pith_*` is now tagged `"faction": "nva"`
+in the manifest. Draw pools measured after the change:
+`nva_regular` 12 headgear / 14 packs / 8 chest / 2 belt · `vc_guerilla` **5** / 14 / 8 / 2.
+Rice hats, `cap_cloth` and `bare` stay NEUTRAL — both sides wore them, and it is all the VC half has.
+
+**`tools/verify_gear_glb.py` — NEW, and it is a gate (exit 1 on any failure).**
+`blender -b -P tools/verify_gear_glb.py -- --json out.json`. It checks only bug classes that actually
+cost a rebuild on this library: unpacked texture images (the twelve images once repointed at a session
+scratchpad), missing UV layers, tri drift vs the manifest, bone-local bbox drift, and **dark `COLOR_0`
+on a `jungle_atlas` mesh**.
+
+**Two of the gate's first three checks were WRONG and were corrected before any finding was trusted:**
+- **Vertex counts are not comparable.** glTF splits vertices per unique (position, normal, uv), so
+  every "mismatch" was ~3x — flat-shaded low-poly geometry exploding on export. The check is gone;
+  the count is reported, never asserted. Only TRIS are invariant.
+- **The colour check was backwards.** An ABSENT `COLOR_0` is SAFE: Godot defaults vertex colour to
+  white and the palette multiplies through unharmed. Present-and-DARK is the defect. Measured across
+  the library: every sprig is either `COLOR_0` = **1.0** or has none at all, so the black-foliage bug
+  class is **not present in any shipped GLB** — `chest_rig_ak_foliage` (no attribute) and its
+  `_nva_`/`_vc_` siblings (1.0) render identically.
+
+**Three real defects the gate found, all fixed:**
+1. `belt/belt_none` was literal JSON `null`, not an entry object. `_hang` reads
+   `cat.get(pick, {}) as Dictionary`, so a null read as EMPTY → "no 'belt_none' in the belt library"
+   → returns `""`. Harmless for belts, but it is the same shape as `bare` and `pack_none`, where a
+   `""` return means **the welded hat is never taken off** — "bare" would have silently meant "keeps
+   his welded pith". Those three already carried an explicit `glb: null` and were fine; `belt_none`
+   is now a proper object too.
+2. `headgear/rice_hat_foliage` manifest said **64 tris**; the GLB has **200** across 9 meshes. The
+   number predated the sprigs. Corrected.
+3. `chest/bandolier_ammo_foliage` is **byte-identical in shape to `bandolier_ammo`** (140 tris, 1
+   mesh) — it carries no sprigs whatsoever, because its own camo cuts were among the 77 deleted for
+   being fully buried in the body. A variant whose name promises foliage and delivers none is a lie
+   in the library, so it is **DELISTED from the manifest**. The GLB is left on disk; re-list it only
+   once real cuts are joined onto it.
+
+Library is now **12 headgear + 14 packs + 9 chest + 3 belt**, and the gate reports
+**34 GLBs checked, 4 sentinels, 0 failures.**
+
+**The spawner ask is DISCHARGED.** *"the enemy grunt spawner should mimic how the us grunts v3 do it
+in game"* — it already did, and it is now verified end to end rather than assumed:
+`scripts/enemies/enemy_base.gd:426-431` (`_dress_visual` → `VcNvaDresser.dress`, seeded from
+`GruntRandomizer.next_bench_seed()`) is the exact mirror of the US path
+`scripts/visuals/grunt_randomizer.gd:94` (`GruntDresser.dress`). Every manifest GLB path resolves to
+a file on disk (35/35 probed).

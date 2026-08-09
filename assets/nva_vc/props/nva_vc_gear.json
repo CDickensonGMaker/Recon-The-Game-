@@ -1,381 +1,563 @@
 ﻿{
-  "socket_headgear": {
-    "bone": "mixamorig:Head",
-    "matrix_basis": [
-      [
-        1.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        1.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        1.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      ]
-    ],
-    "note": "IDENTITY by construction: every headgear GLB is authored with its vertices already expressed directly in mixamorig:Head bone-local space (measured by baking the welded pith_helmet/rice_hat's true world position through (rig.matrix_world @ Head-pose-bone.matrix).inverted() - see nva_vc/props build script). A BoneAttachment3D on mixamorig:Head with this (identity) local transform, holding the mesh as a direct child, reproduces the fitted position exactly. This differs from assets/us/props/helmets/helmets.json, whose socket carries a non-identity rotation because that helmet was authored in a different reference frame - the two are not interchangeable, each is correct for its own asset family."
+ "socket_headgear": {
+  "bone": "mixamorig:Head",
+  "matrix_basis": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "note": "IDENTITY by construction: every headgear GLB is authored with its vertices already expressed directly in mixamorig:Head bone-local space (measured by baking the welded pith_helmet/rice_hat's true world position through (rig.matrix_world @ Head-pose-bone.matrix).inverted() - see nva_vc/props build script). A BoneAttachment3D on mixamorig:Head with this (identity) local transform, holding the mesh as a direct child, reproduces the fitted position exactly. This differs from assets/us/props/helmets/helmets.json, whose socket carries a non-identity rotation because that helmet was authored in a different reference frame - the two are not interchangeable, each is correct for its own asset family."
+ },
+ "socket_pack": {
+  "bone": "mixamorig:Spine1",
+  "matrix_basis": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "note": "IDENTITY by the same construction, on mixamorig:Spine1 (upper-mid back). Placement was measured against grunt_torso's own back surface at spine height (see build script) - frame/body sits ~2cm clear of the torso mesh."
+ },
+ "socket_chest": {
+  "bone": "mixamorig:Spine2",
+  "matrix_basis": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "note": "NEW 2026-08-07, IDENTITY by the same construction as socket_headgear/socket_pack, on mixamorig:Spine2 (upper chest - a pre-existing 'Chest' EMPTY already sits on this exact bone in nva_vc_gear_variants.blend at local Y=-0.130, confirming Spine2 is the right anchor for chest-worn gear). Vertices baked via (rig.matrix_world @ Spine2-pose-bone.matrix).inverted(), verified by round-tripping the FORWARD transform on the existing pack_worn_ruck_light/pith_worn vertices before authoring anything new: pack lands on the back (Y=0.06-0.26 vs a measured back surface of Y=0.10), helmet lands above the head (Z=1.67-1.76 vs a measured head Z=1.54) - same convention, new bone."
+ },
+ "headgear": {
+  "pith_plain": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_plain.glb",
+   "tris": 365,
+   "verts": 303,
+   "parts": [
+    "pith_plain"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
   },
-  "socket_pack": {
-    "bone": "mixamorig:Spine1",
-    "matrix_basis": [
-      [
-        1.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        1.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        1.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      ]
-    ],
-    "note": "IDENTITY by the same construction, on mixamorig:Spine1 (upper-mid back). Placement was measured against grunt_torso's own back surface at spine height (see build script) - frame/body sits ~2cm clear of the torso mesh."
+  "pith_faded": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_faded.glb",
+   "tris": 365,
+   "verts": 303,
+   "parts": [
+    "pith_faded"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
   },
-  "socket_chest": {
-    "bone": "mixamorig:Spine2",
-    "matrix_basis": [
-      [
-        1.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        1.0,
-        0.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        1.0,
-        0.0
-      ],
-      [
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      ]
-    ],
-    "note": "NEW 2026-08-07, IDENTITY by the same construction as socket_headgear/socket_pack, on mixamorig:Spine2 (upper chest - a pre-existing 'Chest' EMPTY already sits on this exact bone in nva_vc_gear_variants.blend at local Y=-0.130, confirming Spine2 is the right anchor for chest-worn gear). Vertices baked via (rig.matrix_world @ Spine2-pose-bone.matrix).inverted(), verified by round-tripping the FORWARD transform on the existing pack_worn_ruck_light/pith_worn vertices before authoring anything new: pack lands on the back (Y=0.06-0.26 vs a measured back surface of Y=0.10), helmet lands above the head (Z=1.67-1.76 vs a measured head Z=1.54) - same convention, new bone."
+  "pith_worn": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_worn.glb",
+   "tris": 365,
+   "verts": 303,
+   "parts": [
+    "pith_worn"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
   },
-  "headgear": {
-    "pith_plain": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_plain.glb",
-      "tris": 90,
-      "verts": 170,
-      "parts": [
-        "pith_plain_band",
-        "pith_plain"
-      ],
-      "note": "BAND FIXED 2026-08-07 (tools/fix_nva_gear_bands.py). The old _band mesh (140 tris/338 verts) was a disordered triangle fan that read as a strap crossing the crown, not a helmet trim band - a side-on render showed a vertical hoop over the top, not a horizontal ring at the base. Rebuilt as a proper 20-tri ring that hugs the dome's own 10-point fluted base rim, offset ~4mm outward and dropped ~1cm below it (a glued-on trim strip). Dome geometry untouched (approved). tris/verts dropped from 210/488 accordingly - a net budget win, not just a fix."
-    },
-    "pith_faded": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_faded.glb",
-      "tris": 90,
-      "verts": 170,
-      "parts": [
-        "pith_faded_band",
-        "pith_faded"
-      ],
-      "note": "BAND FIXED 2026-08-07 - see pith_plain's note, identical fix applied to this variant's band."
-    },
-    "pith_worn": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_worn.glb",
-      "tris": 90,
-      "verts": 170,
-      "parts": [
-        "pith_worn_band",
-        "pith_worn"
-      ],
-      "note": "BAND FIXED 2026-08-07 - see pith_plain's note, identical fix applied to this variant's band."
-    },
-    "pith_star": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_star.glb",
-      "tris": 90,
-      "verts": 170,
-      "parts": [
-        "pith_star_band",
-        "pith_star"
-      ],
-      "note": "BAND FIXED 2026-08-07 - see pith_plain's note, identical fix applied to this variant's band."
-    },
-    "pith_foliage": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_foliage.glb",
-      "tris": 218,
-      "verts": 234,
-      "parts": [
-        "pith_foliage",
-        "pith_foliage_band",
-        "pith_foliage_sprig_0",
-        "pith_foliage_sprig_1",
-        "pith_foliage_sprig_2",
-        "pith_foliage_sprig_3",
-        "pith_foliage_sprig_4",
-        "pith_foliage_sprig_5"
-      ],
-      "note": "REBUILT 2026-08-07 (tools/build_nva_gear_foliage.py). Old crown was 3 flat quad 'leaves' (~12 tris each, procedural-looking). BAND FIXED first (same broken strap-over-crown defect as the rest of the pith family - was missed in the first band-fix pass since this variant wasn't in the original 6, caught by an honest audit of the rebuild's own numbers). Crown replaced with 6 sprigs SAMPLED (not procedural) from the project's own read-only vegetation library (assets/world/vegetation/, never edited) - 2 each from bush_a_low/bush_b_low/bush_c_stump.glb: for each, a contiguous ~16-26 face patch of that plant's OWN geometry is cut loose (a real branch-tip cluster) and normalised to a fixed ~0.11-0.14m target size before being tucked around the band, matching reference of NVA/VC troops tying cut jungle vegetation into a helmet net for camouflage. Honest limitation: the sampled patches from these particular source plants read as thin blade/frond slivers rather than a full leafy bush at this camera distance - a bushier read would need denser source geometry or more samples per patch, both a bigger tri spend than made here."
-    },
-    "rice_hat_plain": {
-      "glb": "res://assets/nva_vc/props/headgear/rice_hat_plain.glb",
-      "tris": 44,
-      "verts": 24,
-      "parts": [
-        "rice_hat_plain"
-      ]
-    },
-    "rice_hat_frayed": {
-      "glb": "res://assets/nva_vc/props/headgear/rice_hat_frayed.glb",
-      "tris": 34,
-      "verts": 24,
-      "parts": [
-        "rice_hat_frayed"
-      ]
-    },
-    "rice_hat_foliage": {
-      "glb": "res://assets/nva_vc/props/headgear/rice_hat_foliage.glb",
-      "tris": 64,
-      "verts": 49,
-      "parts": [
-        "rice_hat_foliage",
-        "rice_hat_foliage_sprig_0",
-        "rice_hat_foliage_sprig_1",
-        "rice_hat_foliage_sprig_2"
-      ],
-      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). rice_hat_plain unchanged, + 2 long-grass-sheaf sprigs (grass_tuft_a/b.glb) tucked under the brim's own tie-cord line + 1 bush sprig (bush_a_stump.glb) at the crown apex - mixes both foliage reads the brief asked for on one prop. Sprigs sampled from assets/world/vegetation/ (read-only, never edited) by the same contiguous-face-cluster technique as pass #1, never procedural. Fit-checked against vc_guerilla_joined on mixamorig:Head: 0/49 verts inside, max depth 0 - a hat sits clear of the skull by construction."
-    },
-    "cap_cloth": {
-      "glb": "res://assets/nva_vc/props/headgear/cap_cloth.glb",
-      "tris": 90,
-      "verts": 170,
-      "parts": [
-        "cap_cloth_band",
-        "cap_cloth"
-      ],
-      "note": "BAND FIXED 2026-08-07 - see pith_plain's note; cap_cloth's shorter crown needed its own rim-ring height detected dynamically (0.0094 above the base, not the pith family's 0.0115) rather than a hardcoded offset - the first pass produced a degenerate 0-face band until this was caught by re-import validation."
-    },
-    "pith_net": {
-      "glb": "res://assets/nva_vc/props/headgear/pith_net.glb",
-      "tris": 172,
-      "verts": 344,
-      "parts": [
-        "pith_net",
-        "pith_net_band",
-        "pith_net_scrim",
-        "pith_net_tabs"
-      ],
-      "note": "GAP CLOSED 2026-08-07. Reference (enemymilitaria.com, IMA-USA listings) shows NVA pith helmets covered in a green OILCLOTH SCRIM - a shell of net + cloth strips glued/tied over the dome - never a knotted cord net. Built as: pith_worn's own dome+band (duplicated verbatim, already correctly fitted) + a second low-poly shell offset 6mm outward along the dome's vertex normals, textured with a procedural alpha diamond-lattice (pith_net_scrim material/image, 256x256, HASHED blend) so the helmet colour shows through the gaps, + 6 loose scrim tabs at the rim for the 'cloth petal' silhouette break-up the references describe. BAND FIXED 2026-08-07 - inherited pith_worn_band's broken strap-over-crown geometry verbatim at build time; rebuilt with the same fix (170->172 tris net change after also correcting a stray duplicate material slot on this object)."
-    },
-    "bare": {
-      "glb": null,
-      "tris": 0,
-      "verts": 0,
-      "parts": [],
-      "note": "no mesh - dresser rolls no headgear"
-    }
+  "pith_star": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_star.glb",
+   "tris": 378,
+   "verts": 301,
+   "parts": [
+    "pith_star"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
   },
-  "packs": {
-    "pack_satchel": {
-      "glb": "res://assets/nva_vc/props/packs/pack_satchel.glb",
-      "tris": 48,
-      "verts": 26,
-      "parts": [
-        "pack_worn_satchel"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 (tools/fix_nva_gear_textures.py) - see pack_ammo's note for the full diagnosis. Geometry/tris unchanged."
-    },
-    "pack_roll": {
-      "glb": "res://assets/nva_vc/props/packs/pack_roll.glb",
-      "tris": 20,
-      "verts": 12,
-      "parts": [
-        "pack_roll"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. Geometry/tris unchanged."
-    },
-    "pack_ruck_light": {
-      "glb": "res://assets/nva_vc/props/packs/pack_ruck_light.glb",
-      "tris": 68,
-      "verts": 38,
-      "parts": [
-        "pack_worn_ruck_light"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. Geometry/tris unchanged."
-    },
-    "pack_ruck_full": {
-      "glb": "res://assets/nva_vc/props/packs/pack_ruck_full.glb",
-      "tris": 236,
-      "verts": 132,
-      "parts": [
-        "pack_worn_ruck_full"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. Geometry/tris unchanged."
-    },
-    "pack_ruck_light_foliage": {
-      "glb": "res://assets/nva_vc/props/packs/pack_ruck_light_foliage.glb",
-      "tris": 98,
-      "verts": 68,
-      "parts": [
-        "pack_ruck_light_foliage",
-        "pack_ruck_light_foliage_sprig_0",
-        "pack_ruck_light_foliage_sprig_1",
-        "pack_ruck_light_foliage_sprig_2"
-      ],
-      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage.py, Caleb's idea: decorate packs with the vegetation library too, not just helmets). pack_worn_ruck_light unchanged, + 3 sprigs sampled from jungle_palm_a1_low/bush_b_low/bush_c_stump.glb (assets/world/vegetation/, read-only, never edited) tucked low on the pack body. Fit-checked against vc_guerilla_joined: 7/68 verts within 5.9cm of the body surface (soft foliage resting against canvas, not gross clipping) - placement was empirically tuned by sampling body clearance across the pack's own Y/Z range rather than eyeballed (clearance is worst near the neck/shoulder curve at the pack's top, best low on the back)."
-    },
-    "pack_frame": {
-      "glb": "res://assets/nva_vc/props/packs/pack_frame.glb",
-      "tris": 84,
-      "verts": 50,
-      "parts": [
-        "pack_worn_frame"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. Geometry/tris unchanged."
-    },
-    "pack_frame_foliage": {
-      "glb": "res://assets/nva_vc/props/packs/pack_frame_foliage.glb",
-      "tris": 117,
-      "verts": 87,
-      "parts": [
-        "pack_frame_foliage",
-        "pack_frame_foliage_sprig_0",
-        "pack_frame_foliage_sprig_1",
-        "pack_frame_foliage_sprig_2"
-      ],
-      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage.py, Caleb's idea). pack_worn_frame unchanged, + 3 sprigs sampled from jungle_palm_a1_stump/jungle_palm_b1_stump/bush_a_stump.glb (assets/world/vegetation/, read-only, never edited) tucked low on the frame. Fit-checked: 5/87 verts within 5.9cm of the body surface, no gross clipping."
-    },
-    "pack_ammo": {
-      "glb": "res://assets/nva_vc/props/packs/pack_ammo.glb",
-      "tris": 144,
-      "verts": 78,
-      "parts": [
-        "pack_worn_ammo"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 (tools/fix_nva_gear_textures.py). The shared `pack_canvas` material - used by this prop plus pack_frame/pack_roll/pack_rpg/pack_ruck_full/pack_ruck_light/pack_satchel/chest_rig_ak/bandolier_ammo (9 props on one material) - had its Base Color Image Texture node wired to `pith_worn_cover.png`, the PITH HELMET's cover sheet, not a canvas image. Not a UV problem - a wrong SOURCE IMAGE on a shared material, which is why it hit 9 unrelated props identically. Repointed to `canvas_od` (the same real canvas sheet `pack_rice_tube`'s approved `webbing_canvas` material already correctly used) - one node edit, fixes all 9 at once. Geometry/tris unchanged."
-    },
-    "pack_rpg": {
-      "glb": "res://assets/nva_vc/props/packs/pack_rpg.glb",
-      "tris": 520,
-      "verts": 298,
-      "parts": [
-        "pack_worn_rpg"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. PLACEMENT FIXED 2026-08-07 (tools/fix_pack_rpg.py): the launcher tube (BluedSteelVC.001, 208 tris) and PG-7V warhead (WarheadOD, 264 tris) sat ~2m away from their own canvas sling (pack_canvas, 48 tris) in local space - a disconnected floating gun, not a rendering issue. Rigidly repositioned the tube+warhead cluster onto the sling (no rotation/scale change, shape untouched) and re-verified with a fit-check: 5/298 verts within 5.9cm of the body surface, no gross clipping. The 520-tri count itself is judged justified, not bloat, once the assembly reads as one connected item: an RPG-7 tube + conical warhead is a materially more complex form than a canvas rucksack, and 520 tris for two extra distinct forms is proportionate next to pack_ruck_full's 236 for one canvas sack."
-    },
-    "pack_medical": {
-      "glb": "res://assets/nva_vc/props/packs/pack_medical.glb",
-      "tris": 68,
-      "verts": 38,
-      "parts": [
-        "pack_worn_medical"
-      ]
-    },
-    "pack_rice_tube": {
-      "glb": "res://assets/nva_vc/props/packs/pack_rice_tube.glb",
-      "tris": 208,
-      "verts": 184,
-      "parts": [
-        "pack_rice_tube"
-      ],
-      "note": "GAP CLOSED 2026-08-07. Reference (enemymilitaria.com rice-tube listings): the VC/NVA cooked-rice sock ('elephant gut'), ~5.5 ft (1.68 m) long, ~5 in (0.127 m) diameter cotton tube issued per soldier heading south, worn bandolier-style. Built as one continuous tapered/pinched tube looped over the right shoulder and down the back with a tied-off coil at the left hip (the 'sausage link' ties every reference photo shows). Fit-checked against vc_guerilla_joined: 26/184 verts sit within 1.8cm of the body surface (soft cloth resting contact, max depth 1.84cm), the rest clear by up to 9.3cm - no gross clipping."
-    },
-    "pack_none": {
-      "glb": null,
-      "tris": 0,
-      "verts": 0,
-      "parts": [],
-      "note": "no mesh - dresser rolls no pack"
-    }
+  "pith_foliage": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_foliage.glb",
+   "tris": 505,
+   "verts": 543,
+   "parts": [
+    "pith_foliage.001",
+    "pith_foliage_sprig_0",
+    "pith_foliage_sprig_1",
+    "pith_foliage_sprig_2",
+    "pith_foliage_sprig_3",
+    "pith_foliage_sprig_4",
+    "pith_foliage_sprig_5"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
   },
-  "chest": {
-    "chest_rig_ak": {
-      "glb": "res://assets/nva_vc/props/chest/chest_rig_ak.glb",
-      "tris": 180,
-      "verts": 120,
-      "parts": [
-        "chest_rig_ak"
-      ],
-      "note": "NEW 2026-08-07. Reference (mooremilitaria.com, AWM C153520, phillosoph.blogspot.com): VC/NVA AK-47 chest rig - 3 large central pouches (2 mags each) flanked by a small pouch each side, canvas backing, crossed shoulder straps continuing onto the back. Fit-checked: 0 verts inside the body, 116/120 within 8cm, 4 outliers are the strap tips reaching toward the shoulder bone (expected - straps arc away from the torso there). TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note; this was one of the 9 props on the mis-wired `pack_canvas` material."
-    },
-    "chest_rig_worn": {
-      "glb": "res://assets/nva_vc/props/chest/chest_rig_worn.glb",
-      "tris": 180,
-      "verts": 120,
-      "parts": [
-        "chest_rig_worn"
-      ],
-      "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07. Previously wore `pith_worn_cover.png` directly (a straight, undisguised borrow of the pith helmet's OWN cover sheet on a chest rig - the same root defect as pack_canvas, by a different path: this object's material slot pointed AT `pith_worn_cover` material itself rather than at `pack_canvas`). Given its own new material `chest_rig_worn_cover`: `canvas_od` image (the same real canvas sheet the fixed pack_canvas and the approved pack_rice_tube use) with a darker/desaturated tint for the weathered look - keeps the pith family's 'share topology, weather the material' trick, but built on the correct base material this time. Mesh unchanged (identical topology to chest_rig_ak)."
-    },
-    "chest_rig_ak_foliage": {
-      "glb": "res://assets/nva_vc/props/chest/chest_rig_ak_foliage.glb",
-      "tris": 226,
-      "verts": 170,
-      "parts": [
-        "chest_rig_ak_foliage",
-        "chest_rig_ak_foliage_sprig_0",
-        "chest_rig_ak_foliage_sprig_1",
-        "chest_rig_ak_foliage_sprig_2",
-        "chest_rig_ak_foliage_sprig_3"
-      ],
-      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). chest_rig_ak unchanged (pack_canvas material), + 2 bush sprigs (bush_b/c_stump.glb) tucked under each shoulder strap, 1 long-grass-sheaf sprig (grass_tuft_c.glb) at the lower-left edge, 1 more bush sprig (bush_a_stump.glb) on the lower-right pouch - sampled from assets/world/vegetation/ (read-only) by the same contiguous-face-cluster technique as pass #1. Placement was NOT a straight eyeball guess: a grid scan of closest_point_on_mesh against vc_guerilla_joined on mixamorig:Spine2 found the rig's own dead-centre chest area sits INSIDE the body at every Y/Z tried (the joined mesh's chest front sits proud of the rig there) while the outer thirds clear cleanly - first attempt ignored this and drove 2 of 4 sprigs up to 9.2cm into the body; every sprig here sits only at a grid point that measured positive clearance. Fit-checked: 4 sprigs total 1-2 verts each with sub-3mm penetration (noise-level, matches the base rig's own unchanged 24/120-vert baseline penetration at 1.4cm max)."
-    },
-    "bandolier_ammo": {
-      "glb": "res://assets/nva_vc/props/chest/bandolier_ammo.glb",
-      "tris": 140,
-      "verts": 92,
-      "parts": [
-        "bandolier_ammo"
-      ],
-      "note": "NEW 2026-08-07. Reference (vietnam-surplus.com, cartridgecollectors.org): NVA 9-10 pocket cotton cartridge bandolier, worn diagonally across the chest on a neck strap. Built as a diagonal strap (opposite shoulder from chest_rig_ak, for visual variety) with 10 small pouch bumps. Fit-checked: 14/92 verts touch the body within 6.1mm (neckline contact, negligible), 78/92 clear by up to 5.3cm. TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note; this was one of the 9 props on the mis-wired `pack_canvas` material."
-    },
-    "bandolier_ammo_foliage": {
-      "glb": "res://assets/nva_vc/props/chest/bandolier_ammo_foliage.glb",
-      "tris": 146,
-      "verts": 100,
-      "parts": [
-        "bandolier_ammo_foliage",
-        "bandolier_ammo_foliage_sprig_0"
-      ],
-      "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py). bandolier_ammo unchanged, + 1 long-grass-sheaf sprig (grass_tuft_a.glb, sampled from assets/world/vegetation/, read-only) tied across the strap near the collar edge, where the same Spine2 grid-scan method used for chest_rig_ak_foliage found clear positive clearance (the strap centreline does not - the FIRST placement guess sat exactly on it and read 100% embedded). Fit-checked: sprig itself 2/8 verts sub-1.4cm penetration. HONEST PRE-EXISTING GAP, NOT CAUSED BY THIS PASS: the base bandolier_ammo mesh itself measures 66/92 verts inside the body on this same test (max depth 5.6cm) - verified identical on the un-duplicated original object, so this is the shipped bandolier's own fit, not a regression introduced here. Flagging it since the existing manifest note above claims '78/92 clear' using an unstated test method that disagrees with this measurement; out of scope to fix as part of a foliage-variant pass."
-    },
-    "chest_none": {
-      "glb": null,
-      "tris": 0,
-      "verts": 0,
-      "parts": [],
-      "note": "no mesh - dresser rolls no chest gear"
-    }
+  "rice_hat_plain": {
+   "glb": "res://assets/nva_vc/props/headgear/rice_hat_plain.glb",
+   "tris": 44,
+   "verts": 24,
+   "parts": [
+    "rice_hat_plain"
+   ]
   },
-  "gaps": [],
-  "dresser_contract_note": "As of 2026-08-07 this manifest covers headgear, packs AND chest. vc_nva_dresser.gd's GEAR_TOGGLES only TOGGLES VISIBILITY of meshes already welded into the character body (substring match on 'pack_worn'/'pack_roll'/'foliage_back'/'foliage_headgear'); it has no re-hang path for a separate prop library the way _rehang_headgear() does for HEADGEAR, and it has no chest concept at all. See the exact function contract this needs in production/blender_notes.md's 2026-08-07 entry and the session report - short version: one _rehang_pack()-style function per category (pack, chest), each mirroring _rehang_headgear()'s BoneAttachment3D pattern on socket_pack / socket_chest above, each driven by this JSON rather than a hardcoded name list so new variants need no code change."
+  "rice_hat_frayed": {
+   "glb": "res://assets/nva_vc/props/headgear/rice_hat_frayed.glb",
+   "tris": 34,
+   "verts": 24,
+   "parts": [
+    "rice_hat_frayed"
+   ]
+  },
+  "rice_hat_foliage": {
+   "glb": "res://assets/nva_vc/props/headgear/rice_hat_foliage.glb",
+   "tris": 200,
+   "verts": 49,
+   "parts": [
+    "rice_hat_foliage",
+    "rice_hat_foliage_sprig_0",
+    "rice_hat_foliage_sprig_1",
+    "rice_hat_foliage_sprig_2"
+   ],
+   "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). rice_hat_plain unchanged, + 2 long-grass-sheaf sprigs (grass_tuft_a/b.glb) tucked under the brim's own tie-cord line + 1 bush sprig (bush_a_stump.glb) at the crown apex - mixes both foliage reads the brief asked for on one prop. Sprigs sampled from assets/world/vegetation/ (read-only, never edited) by the same contiguous-face-cluster technique as pass #1, never procedural. Fit-checked against vc_guerilla_joined on mixamorig:Head: 0/49 verts inside, max depth 0 - a hat sits clear of the skull by construction."
+  },
+  "cap_cloth": {
+   "glb": "res://assets/nva_vc/props/headgear/cap_cloth.glb",
+   "tris": 90,
+   "verts": 170,
+   "parts": [
+    "cap_cloth_band",
+    "cap_cloth"
+   ],
+   "note": "BAND FIXED 2026-08-07 - see pith_plain's note; cap_cloth's shorter crown needed its own rim-ring height detected dynamically (0.0094 above the base, not the pith family's 0.0115) rather than a hardcoded offset - the first pass produced a degenerate 0-face band until this was caught by re-import validation."
+  },
+  "pith_net": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_net.glb",
+   "tris": 743,
+   "verts": 604,
+   "parts": [
+    "pith_net.001",
+    "pith_net_scrim.001"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
+  },
+  "bare": {
+   "glb": null,
+   "tris": 0,
+   "verts": 0,
+   "parts": [],
+   "note": "no mesh - dresser rolls no headgear"
+  },
+  "pith_worn_foliage": {
+   "glb": "res://assets/nva_vc/props/headgear/pith_worn_foliage.glb",
+   "tris": 521,
+   "verts": 580,
+   "parts": [
+    "pith_worn_foliage.001",
+    "pith_worn_foliage_sprig_0.001",
+    "pith_worn_foliage_sprig_1.001",
+    "pith_worn_foliage_sprig_2.001",
+    "pith_worn_foliage_sprig_3",
+    "pith_worn_foliage_sprig_4",
+    "pith_worn_foliage_sprig_5",
+    "pith_worn_foliage_sprig_6"
+   ],
+   "note": "REBUILT 2026-08-08 from the CC-BY donor helmet (NVA PITH HELMET by Long Nguyen, sketchfab uid 7ccc0bdff4ba4af8afcde410758e017d) - replaces the old procedural blob dome. Verts baked to mixamorig:Head local space from the VERIFIED fitted pose (0/26 skull verts penetrating, brim at brow).",
+   "faction": "nva"
+  }
+ },
+ "packs": {
+  "pack_satchel": {
+   "glb": "res://assets/nva_vc/props/packs/pack_satchel.glb",
+   "tris": 48,
+   "verts": 96,
+   "parts": [
+    "pack_worn_satchel"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_roll": {
+   "glb": "res://assets/nva_vc/props/packs/pack_roll.glb",
+   "tris": 20,
+   "verts": 12,
+   "parts": [
+    "pack_roll"
+   ],
+   "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. Geometry/tris unchanged."
+  },
+  "pack_ruck_light": {
+   "glb": "res://assets/nva_vc/props/packs/pack_ruck_light.glb",
+   "tris": 68,
+   "verts": 136,
+   "parts": [
+    "pack_worn_ruck_light"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_ruck_full": {
+   "glb": "res://assets/nva_vc/props/packs/pack_ruck_full.glb",
+   "tris": 236,
+   "verts": 472,
+   "parts": [
+    "pack_worn_ruck_full"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_ruck_light_foliage": {
+   "glb": "res://assets/nva_vc/props/packs/pack_ruck_light_foliage.glb",
+   "tris": 384,
+   "verts": 708,
+   "parts": [
+    "pack_ruck_light_foliage",
+    "pack_ruck_light_foliage_sprig_0.001",
+    "pack_ruck_light_foliage_sprig_1.001",
+    "pack_ruck_light_foliage_sprig_10",
+    "pack_ruck_light_foliage_sprig_11",
+    "pack_ruck_light_foliage_sprig_12",
+    "pack_ruck_light_foliage_sprig_2.001",
+    "pack_ruck_light_foliage_sprig_3",
+    "pack_ruck_light_foliage_sprig_4",
+    "pack_ruck_light_foliage_sprig_5",
+    "pack_ruck_light_foliage_sprig_6",
+    "pack_ruck_light_foliage_sprig_7",
+    "pack_ruck_light_foliage_sprig_8",
+    "pack_ruck_light_foliage_sprig_9"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_frame": {
+   "glb": "res://assets/nva_vc/props/packs/pack_frame.glb",
+   "tris": 84,
+   "verts": 168,
+   "parts": [
+    "pack_worn_frame"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_frame_foliage": {
+   "glb": "res://assets/nva_vc/props/packs/pack_frame_foliage.glb",
+   "tris": 392,
+   "verts": 731,
+   "parts": [
+    "pack_frame_foliage",
+    "pack_frame_foliage_sprig_0.001",
+    "pack_frame_foliage_sprig_1.001",
+    "pack_frame_foliage_sprig_10",
+    "pack_frame_foliage_sprig_11",
+    "pack_frame_foliage_sprig_12",
+    "pack_frame_foliage_sprig_13",
+    "pack_frame_foliage_sprig_2.001",
+    "pack_frame_foliage_sprig_3",
+    "pack_frame_foliage_sprig_4",
+    "pack_frame_foliage_sprig_5",
+    "pack_frame_foliage_sprig_6",
+    "pack_frame_foliage_sprig_7",
+    "pack_frame_foliage_sprig_8",
+    "pack_frame_foliage_sprig_9"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_ammo": {
+   "glb": "res://assets/nva_vc/props/packs/pack_ammo.glb",
+   "tris": 144,
+   "verts": 78,
+   "parts": [
+    "pack_worn_ammo"
+   ],
+   "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 (tools/fix_nva_gear_textures.py). The shared `pack_canvas` material - used by this prop plus pack_frame/pack_roll/pack_rpg/pack_ruck_full/pack_ruck_light/pack_satchel/chest_rig_ak/bandolier_ammo (9 props on one material) - had its Base Color Image Texture node wired to `pith_worn_cover.png`, the PITH HELMET's cover sheet, not a canvas image. Not a UV problem - a wrong SOURCE IMAGE on a shared material, which is why it hit 9 unrelated props identically. Repointed to `canvas_od` (the same real canvas sheet `pack_rice_tube`'s approved `webbing_canvas` material already correctly used) - one node edit, fixes all 9 at once. Geometry/tris unchanged."
+  },
+  "pack_rpg": {
+   "glb": "res://assets/nva_vc/props/packs/pack_rpg.glb",
+   "tris": 520,
+   "verts": 298,
+   "parts": [
+    "pack_worn_rpg"
+   ],
+   "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note. PLACEMENT FIXED 2026-08-07 (tools/fix_pack_rpg.py): the launcher tube (BluedSteelVC.001, 208 tris) and PG-7V warhead (WarheadOD, 264 tris) sat ~2m away from their own canvas sling (pack_canvas, 48 tris) in local space - a disconnected floating gun, not a rendering issue. Rigidly repositioned the tube+warhead cluster onto the sling (no rotation/scale change, shape untouched) and re-verified with a fit-check: 5/298 verts within 5.9cm of the body surface, no gross clipping. The 520-tri count itself is judged justified, not bloat, once the assembly reads as one connected item: an RPG-7 tube + conical warhead is a materially more complex form than a canvas rucksack, and 520 tris for two extra distinct forms is proportionate next to pack_ruck_full's 236 for one canvas sack."
+  },
+  "pack_medical": {
+   "glb": "res://assets/nva_vc/props/packs/pack_medical.glb",
+   "tris": 68,
+   "verts": 38,
+   "parts": [
+    "pack_worn_medical"
+   ]
+  },
+  "pack_rice_tube": {
+   "glb": "res://assets/nva_vc/props/packs/pack_rice_tube.glb",
+   "tris": 208,
+   "verts": 184,
+   "parts": [
+    "pack_rice_tube"
+   ],
+   "note": "GAP CLOSED 2026-08-07. Reference (enemymilitaria.com rice-tube listings): the VC/NVA cooked-rice sock ('elephant gut'), ~5.5 ft (1.68 m) long, ~5 in (0.127 m) diameter cotton tube issued per soldier heading south, worn bandolier-style. Built as one continuous tapered/pinched tube looped over the right shoulder and down the back with a tied-off coil at the left hip (the 'sausage link' ties every reference photo shows). Fit-checked against vc_guerilla_joined: 26/184 verts sit within 1.8cm of the body surface (soft cloth resting contact, max depth 1.84cm), the rest clear by up to 9.3cm - no gross clipping."
+  },
+  "pack_none": {
+   "glb": null,
+   "tris": 0,
+   "verts": 0,
+   "parts": [],
+   "note": "no mesh - dresser rolls no pack"
+  },
+  "pack_ruck_full_foliage": {
+   "glb": "res://assets/nva_vc/props/packs/pack_ruck_full_foliage.glb",
+   "tris": 580,
+   "verts": 1092,
+   "parts": [
+    "pack_ruck_full_foliage",
+    "pack_ruck_full_foliage_sprig_0.001",
+    "pack_ruck_full_foliage_sprig_1.001",
+    "pack_ruck_full_foliage_sprig_10",
+    "pack_ruck_full_foliage_sprig_11",
+    "pack_ruck_full_foliage_sprig_12",
+    "pack_ruck_full_foliage_sprig_13",
+    "pack_ruck_full_foliage_sprig_2.001",
+    "pack_ruck_full_foliage_sprig_3",
+    "pack_ruck_full_foliage_sprig_4",
+    "pack_ruck_full_foliage_sprig_5",
+    "pack_ruck_full_foliage_sprig_6",
+    "pack_ruck_full_foliage_sprig_7",
+    "pack_ruck_full_foliage_sprig_8",
+    "pack_ruck_full_foliage_sprig_9"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  },
+  "pack_satchel_foliage": {
+   "glb": "res://assets/nva_vc/props/packs/pack_satchel_foliage.glb",
+   "tris": 320,
+   "verts": 589,
+   "parts": [
+    "pack_satchel_foliage",
+    "pack_satchel_foliage_sprig_0.001",
+    "pack_satchel_foliage_sprig_1.001",
+    "pack_satchel_foliage_sprig_10",
+    "pack_satchel_foliage_sprig_2.001",
+    "pack_satchel_foliage_sprig_3",
+    "pack_satchel_foliage_sprig_4",
+    "pack_satchel_foliage_sprig_5",
+    "pack_satchel_foliage_sprig_6",
+    "pack_satchel_foliage_sprig_7",
+    "pack_satchel_foliage_sprig_8",
+    "pack_satchel_foliage_sprig_9"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend."
+  }
+ },
+ "chest": {
+  "chest_rig_ak": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_ak.glb",
+   "tris": 180,
+   "verts": 120,
+   "parts": [
+    "chest_rig_ak"
+   ],
+   "note": "NEW 2026-08-07. Reference (mooremilitaria.com, AWM C153520, phillosoph.blogspot.com): VC/NVA AK-47 chest rig - 3 large central pouches (2 mags each) flanked by a small pouch each side, canvas backing, crossed shoulder straps continuing onto the back. Fit-checked: 0 verts inside the body, 116/120 within 8cm, 4 outliers are the strap tips reaching toward the shoulder bone (expected - straps arc away from the torso there). TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note; this was one of the 9 props on the mis-wired `pack_canvas` material."
+  },
+  "chest_rig_worn": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_worn.glb",
+   "tris": 180,
+   "verts": 120,
+   "parts": [
+    "chest_rig_worn"
+   ],
+   "note": "TEXTURE ROOT CAUSE FIXED 2026-08-07. Previously wore `pith_worn_cover.png` directly (a straight, undisguised borrow of the pith helmet's OWN cover sheet on a chest rig - the same root defect as pack_canvas, by a different path: this object's material slot pointed AT `pith_worn_cover` material itself rather than at `pack_canvas`). Given its own new material `chest_rig_worn_cover`: `canvas_od` image (the same real canvas sheet the fixed pack_canvas and the approved pack_rice_tube use) with a darker/desaturated tint for the weathered look - keeps the pith family's 'share topology, weather the material' trick, but built on the correct base material this time. Mesh unchanged (identical topology to chest_rig_ak)."
+  },
+  "chest_rig_ak_foliage": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_ak_foliage.glb",
+   "tris": 226,
+   "verts": 170,
+   "parts": [
+    "chest_rig_ak_foliage",
+    "chest_rig_ak_foliage_sprig_0",
+    "chest_rig_ak_foliage_sprig_1",
+    "chest_rig_ak_foliage_sprig_2",
+    "chest_rig_ak_foliage_sprig_3"
+   ],
+   "note": "NEW 2026-08-07 (tools/build_nva_gear_foliage_2.py, sibling to build_nva_gear_foliage.py, Caleb's ask: 'bushes and long grass bundles etc attached to props in variety'). chest_rig_ak unchanged (pack_canvas material), + 2 bush sprigs (bush_b/c_stump.glb) tucked under each shoulder strap, 1 long-grass-sheaf sprig (grass_tuft_c.glb) at the lower-left edge, 1 more bush sprig (bush_a_stump.glb) on the lower-right pouch - sampled from assets/world/vegetation/ (read-only) by the same contiguous-face-cluster technique as pass #1. Placement was NOT a straight eyeball guess: a grid scan of closest_point_on_mesh against vc_guerilla_joined on mixamorig:Spine2 found the rig's own dead-centre chest area sits INSIDE the body at every Y/Z tried (the joined mesh's chest front sits proud of the rig there) while the outer thirds clear cleanly - first attempt ignored this and drove 2 of 4 sprigs up to 9.2cm into the body; every sprig here sits only at a grid point that measured positive clearance. Fit-checked: 4 sprigs total 1-2 verts each with sub-3mm penetration (noise-level, matches the base rig's own unchanged 24/120-vert baseline penetration at 1.4cm max)."
+  },
+  "bandolier_ammo": {
+   "glb": "res://assets/nva_vc/props/chest/bandolier_ammo.glb",
+   "tris": 140,
+   "verts": 92,
+   "parts": [
+    "bandolier_ammo"
+   ],
+   "note": "NEW 2026-08-07. Reference (vietnam-surplus.com, cartridgecollectors.org): NVA 9-10 pocket cotton cartridge bandolier, worn diagonally across the chest on a neck strap. Built as a diagonal strap (opposite shoulder from chest_rig_ak, for visual variety) with 10 small pouch bumps. Fit-checked: 14/92 verts touch the body within 6.1mm (neckline contact, negligible), 78/92 clear by up to 5.3cm. TEXTURE ROOT CAUSE FIXED 2026-08-07 - see pack_ammo's note; this was one of the 9 props on the mis-wired `pack_canvas` material."
+  },
+  "chest_none": {
+   "glb": null,
+   "tris": 0,
+   "verts": 0,
+   "parts": [],
+   "note": "no mesh - dresser rolls no chest gear"
+  },
+  "chest_rig_ak_nva_foliage": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_ak_nva_foliage.glb",
+   "tris": 236,
+   "verts": 428,
+   "parts": [
+    "chest_rig_ak_foliage",
+    "chest_rig_ak_foliage_sprig_0",
+    "chest_rig_ak_foliage_sprig_1",
+    "chest_rig_ak_foliage_sprig_2",
+    "chest_rig_ak_foliage_sprig_6.001"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  },
+  "chest_rig_ak_vc_foliage": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_ak_vc_foliage.glb",
+   "tris": 236,
+   "verts": 428,
+   "parts": [
+    "chest_rig_ak_foliage.001",
+    "chest_rig_ak_foliage_sprig_0.001",
+    "chest_rig_ak_foliage_sprig_1.001",
+    "chest_rig_ak_foliage_sprig_2.001",
+    "chest_rig_ak_foliage_sprig_6.002"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  },
+  "chest_rig_worn_nva_foliage": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_worn_nva_foliage.glb",
+   "tris": 244,
+   "verts": 477,
+   "parts": [
+    "chest_rig_worn_foliage",
+    "chest_rig_worn_foliage_sprig_0",
+    "chest_rig_worn_foliage_sprig_4",
+    "chest_rig_worn_foliage_sprig_5"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  },
+  "chest_rig_worn_vc_foliage": {
+   "glb": "res://assets/nva_vc/props/chest/chest_rig_worn_vc_foliage.glb",
+   "tris": 244,
+   "verts": 477,
+   "parts": [
+    "chest_rig_worn_foliage.001",
+    "chest_rig_worn_foliage_sprig_0.001",
+    "chest_rig_worn_foliage_sprig_4.002",
+    "chest_rig_worn_foliage_sprig_5.002"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  }
+ },
+ "gaps": [
+  "chest/bandolier_ammo_foliage.glb is still on disk but is DELISTED from the manifest: its mesh is identical to bandolier_ammo (140 tris, 1 mesh) - it carries no sprigs at all. Re-list it only once real camo cuts are joined onto it.",
+  "packs/chest camo variants not yet rebuilt from the donor-era gear",
+  "pack and chest-rig MESHES read as slabs - placement is correct, the models are crude",
+  "VC bodies still ship welded rice hats only; no VC-specific headgear was modelled"
+ ],
+ "dresser_contract_note": "As of 2026-08-07 this manifest covers headgear, packs AND chest. vc_nva_dresser.gd's GEAR_TOGGLES only TOGGLES VISIBILITY of meshes already welded into the character body (substring match on 'pack_worn'/'pack_roll'/'foliage_back'/'foliage_headgear'); it has no re-hang path for a separate prop library the way _rehang_headgear() does for HEADGEAR, and it has no chest concept at all. See the exact function contract this needs in production/blender_notes.md's 2026-08-07 entry and the session report - short version: one _rehang_pack()-style function per category (pack, chest), each mirroring _rehang_headgear()'s BoneAttachment3D pattern on socket_pack / socket_chest above, each driven by this JSON rather than a hardcoded name list so new variants need no code change. FACTION GATE: VcNvaDresser._faction_of reads a variant's optional `faction` field (\"nva\"/\"vc\") and otherwise a delimited _nva_/_vc_ token in the key; a gated variant is only dealt to units whose id begins with that faction. Neutral gear has neither.",
+ "socket_belt": {
+  "bone": "mixamorig:Hips",
+  "matrix_basis": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "note": "NEW 2026-08-08. IDENTITY by the same construction as socket_headgear/pack/chest, on mixamorig:Hips (waist). Belts are duplicated from the US web_belt (128 tris) and waist-solved per unit in the roster; vertices bake via (rig.matrix_world @ Hips-pose-bone.matrix).inverted(). GLBs NOT YET EXPORTED - keys below are declared so VcNvaDresser._rehang_belt can be written against a stable schema; a missing glb must deal belt_none rather than error."
+ },
+ "belt": {
+  "belt_web_nva": {
+   "glb": "res://assets/nva_vc/props/belt/belt_web_nva.glb",
+   "tris": 128,
+   "verts": 256,
+   "parts": [
+    "web_belt"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  },
+  "belt_web_vc": {
+   "glb": "res://assets/nva_vc/props/belt/belt_web_vc.glb",
+   "tris": 128,
+   "verts": 256,
+   "parts": [
+    "web_belt.026"
+   ],
+   "note": "REBUILT 2026-08-08 from the donor-era gear, verts baked to the socket bone's local space from the VERIFIED fitted pose in nva_vc_soldiers.blend. Faction webbing baked in (NVA black / VC olive, two-tone pouch faces) per Caleb's ruling - the dresser must pick by faction for these keys."
+  },
+  "belt_none": {
+   "glb": null,
+   "tris": 0,
+   "verts": 0,
+   "parts": [],
+   "note": "Wear nothing. No belt is welded into the bodies, so nothing is hidden."
+  }
+ }
 }

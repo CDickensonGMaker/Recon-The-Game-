@@ -2,13 +2,10 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://00ddhjvmjds0"
+uid="uid://dgqcvw8dbfs0i"
 path="res://.godot/imported/pack_ruck_light_foliage_jungle_palette.png-e8b137917f0dc33819cf0fc2b769a985.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "f06a4b7c4e78f340e07847a6e0f6454a"
 }
 
 [deps]
@@ -26,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
