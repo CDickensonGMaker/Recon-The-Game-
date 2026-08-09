@@ -63,9 +63,10 @@ Full reasoning: `SHIP_AUDIT_2026-08-07.md`. Check items off here; re-date this f
       stations (`mission_generator.gd:810-812,1086-1108`)
 - [x] 11. **S28 downed pilot recovery** — CODE DONE 8/7 (late), unverified by playtest and
       still riding the pilot bind/gib art fixes. The chain: ZPU stands at the demo camp
-      (`scripts/world/zpu_gun.gd`, stamped at `mission_generator.gd:851-860`, crew group
-      `zpu_crew` at `:816-820`) → fires real tracered bursts at overflights, rolls the kill
-      ONLY vs a transiting Skyraider (`zpu_gun.gd:163-176`) → plane dives on a smoke trail
+      (`scripts/world/zpu_gun.gd`, stamped at `mission_generator.gd:879-888`, crew group
+      `zpu_crew` at `:813-817`) → fires real tracered bursts at overflights, rolls the kill
+      ONLY vs a transiting Skyraider (`zpu_gun.gd:209-224`; pointers in this item re-walked
+      2026-08-08 after the ambient-AA additions shifted the file) → plane dives on a smoke trail
       and explodes (`cas_airplane.gd` `shoot_down`/`_fly_crash`/`crashed`) → wreck
       (`a1_skyraider_crashed.glb` via `place_structure`), burning FireHazard + tall smoke
       column = the only waypoint, pilot on HOLD beside it, lazy VC picket 25-60m off

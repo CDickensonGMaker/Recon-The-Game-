@@ -304,7 +304,7 @@ func _tick_harass(player: Node3D) -> void:
 			alive += 1
 	if alive == 0:
 		# The cheap surface the world remembers with: the same MissionState.flags
-		# bank the pilot uses (pilot_recovery.gd:192). No reputation system.
+		# bank the pilot uses (pilot_recovery.gd:203). No reputation system.
 		director.state.flags["villagers_freed"] = \
 			int(director.state.flags.get("villagers_freed", 0)) + 1
 		director.toast.emit("THE VILLE'S CLEAR - THEY WON'T FORGET WHO CAME")
