@@ -1,0 +1,82 @@
+{
+ "faction": "nva",
+ "cast": {
+  "gunner": "nva_regular",
+  "loader": "nva_rifleman"
+ },
+ "elev_sign": -1.0,
+ "seat_world": [
+  0.0,
+  0.7,
+  0.8
+ ],
+ "cradle_top_z": 1.393,
+ "gunner_parts": [
+  "nva_regular_vc_guerilla_joined",
+  "PSXRig_zgunner",
+  "nva_regular_pith_plain"
+ ],
+ "loader_parts": [
+  "nva_rifleman_vc_guerilla_joined",
+  "PSXRig_zloader",
+  "nva_rifleman_pith_worn"
+ ],
+ "up_axis_deg": [
+  90.0,
+  90.0
+ ],
+ "head_above_hips_m": [
+  0.517,
+  0.517
+ ],
+ "gunner_worst_hand_to_grip_m": 0.0044,
+ "gunner_elbow_failures": [],
+ "gunner_elbow_failure_count": 0,
+ "gunner_worst_seat_follow_m": 0.03,
+ "loader_schedule": {
+  "carry": [
+   null,
+   277
+  ],
+  "seated": 313,
+  "tail": 365
+ },
+ "cases": 16,
+ "quat_flips": {
+  "PSXRig_zgunner": 0,
+  "PSXRig_zloader": 274
+ },
+ "keyed_bones": {
+  "PSXRig_zgunner": [
+   41,
+   41,
+   41
+  ],
+  "PSXRig_zloader": [
+   41,
+   41,
+   41
+  ]
+ },
+ "euler_bones": {
+  "PSXRig_zgunner": [],
+  "PSXRig_zloader": []
+ },
+ "anatomy_failures": [],
+ "anatomy_failure_count": 0,
+ "loader_min_toe_z": -0.0288,
+ "min_body_gap_m": 0.949,
+ "carry_prop_gap_m": 0.2632,
+ "loader_plant_slide_mm_p95": 1.2,
+ "loader_plant_slide_mm_max": 1651.1,
+ "loop_seam_m": {
+  "gunner": 0.0,
+  "loader": 0.0,
+  "muzzle": 0.0
+ },
+ "sync_worst_hand_to_grip_m": 0.0043,
+ "sync_mean_hand_to_grip_m": 0.0002,
+ "trav_at_A_top_deg": 38.0,
+ "muzzle_z_at_A_top": 1.741,
+ "muzzle_z_at_rest": 1.282
+}

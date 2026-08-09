@@ -470,3 +470,329 @@ the loop period is indistinguishable from the motion and the clip becomes its ow
 **The video wall did not move** — YouTube returns the fetcher a footer, same as the `huey_loading`
 job, so every mechanical fact is primary-sourced but every motion amplitude remains an inference
 from text. §9 lists ten genuinely open items.
+
+---
+
+## 2026-08-08 — Gear camo foliage recut from the real jungle geometry
+
+**His rejection stands confirmed by measurement, not opinion.** The overnight "densified" foliage was
+confetti: `pack_satchel_foliage_sprig_0` was 368 verts / 126 tris in **121 disconnected single
+triangles**; `chest_rig_worn_foliage_sprig_0` was 1060 verts / 360 tris in **351 disconnected single
+triangles**. His own hand-made `pith_foliage_sprig_0` is 21 verts / 23 tris in **one connected
+frond**. Loose-triangle count, not density, was the defect.
+
+**Fixed by cutting real pieces off the shipped jungle plants**, per his ask. The solid vegetation
+geometry is still on disk at `assets/world/vegetation/*.glb` (only the impostor cards live in
+`cards/`), and it shares the identical 17x1 `jungle_palette` + vertex-colour material the gear sprigs
+already use — verified pixel-identical across 9 palette copies before consolidating onto one
+`jungle_atlas`.
+
+New `CAMO_CUTS` collection in `nva_vc_gear_variants.blend`: **45 pieces, 866 tris total**, each cut
+canonicalised to base-at-origin / tip-at-+Z / 150 mm long, carrying `cut_source`, `cut_src_len_m`,
+`cut_width_ratio`:
+- **24 fern fronds** from `fern_a/b/c` (20-32 tris) — a whole frond with its stem, the money piece
+- **7 banana blades** from `banana_a_crown` (16 tris, wide) — ruck drape
+- **12 bush leaf sprays** from `bush_a/b/c` (12 tris) — helmet band tucks
+- 1 palm frond, 1 broadleaf
+
+**`broadleaf_a/b/c_crown` cut badly and was rejected — 37 pieces failed a width/length >= 0.22
+gate.** Their "leaves" are 20-vert **twig tubes** with no blades (6 mm of cross-section at 150 mm of
+length), which is exactly why they impostor-card well and cut poorly. Recorded so nobody retries it.
+
+**Rolled across all 11 foliage props. 1784 tris total, DOWN from the confetti's 2696 tris**, every
+cut a connected piece, every base 0.0 mm off the prop surface (two initial floaters at 55/75 mm were
+caught by measurement and snapped with `closest_point_on_mesh`; the conical rice-hat brim defeats a
+horizontal raycast).
+
+| prop | cuts | tris | silhouette |
+|---|---|---|---|
+| `pith_foliage` (his layout) | 6 | 148 | 1.20x |
+| `pith_worn_foliage` | 7 | 156 | 1.15x |
+| `rice_hat_foliage` | 8 | 156 | 1.25x |
+| `helmet_foliage_*` (US M1) | 8 | 156 | 1.61x |
+| `chest_rig_ak` / `chest_rig_worn` | 6 / 6 | 144 / 112 | 1.63x / 1.66x |
+| `bandolier_ammo` | 4 | 92 | 0.92x* |
+| `pack_frame` / `pack_ruck_full` / `pack_ruck_light` / `pack_satchel` | 10 / 10 / 9 / 8 | 228 / 248 / 172 / 172 | 1.42x / 1.60x / 1.72x / 1.59x |
+
+*bandolier is a 0.184 x 0.462 m strap, so the max(x,y) width denominator makes its ratio meaningless.
+
+**Placement follows his pith arrangement, decoded numerically** ([[helmet-foliage-placement-reference]]):
+sprigs 107-132 mm, ring radius 73-118 mm against a 115 mm brim half-width (**on the brim, not the
+crown**), rel Z -33 to +15 mm (**tucked low at the band**), X-rot 1.11-1.97 rad (**tipped toward
+horizontal, splayed outward, not standing up**), azimuth gaps 40/45/45/58/82/90 deg (**deliberately
+uneven**). Packs instead anchor high and drape down per his rucksack reference photos.
+
+**He ruled: swap his pith geometry, keep his layout.** Done by replacing the mesh datablock only —
+all six object transforms are byte-identical afterwards (loc/rot/scale unchanged, verified), each new
+fern cut rotated onto that sprig's own base->tip axis at its own preserved length (135.0 / 113.4 /
+127.1 / 117.8 / 108.5 / 128.6 mm). His arrangement was never recomputed. Widths grew 35 -> 68 mm
+because a real frond is wider than the old sliver — that is the point.
+
+**Frame contract resolved and worth keeping:** the grid props carry a **-90 deg X worn-attitude
+rotation in `matrix_world`** while `rotation_euler` reads (0,0,0), and their `grid_orig_*` stamps are
+identity. So `world = prop.matrix_world @ bone_local`, and every new sprig stamps
+`grid_orig_loc`/`grid_orig_rot` from its bone-local matrix. The formula reproduces his sprig_0 to
+within 5 mm, the residual being his hand nudge.
+
+**Preview parity was a live trap, caught before it shipped:** the 36 `preview_*` loadout objects are
+linked dups **sharing mesh datablocks** (`users=2`), so new sprig objects leave them still pointing at
+confetti. All 8 affected preview loadouts were rebuilt as linked dups of the new cuts at
+`preview_prop.matrix_world @ (grid_prop.matrix_world.inv() @ grid_sprig.matrix_world)`.
+`pack_frame_foliage` has no preview (that body wears `pack_worn_frame`), so it was skipped, not missed.
+
+**Reversible and NOT SAVED.** The 29 old confetti sprigs are renamed `OLD_*` and hidden, not deleted.
+`CAMO_STOCK` holds the 12 imported whole plants and can be deleted once the cuts are approved.
+Nothing was written to disk — the file is his to save.
+
+---
+
+## 2026-08-08 — Pith helmets refit to the head, textures un-photographed
+
+**His ask:** *"fix the pith helmets the same way we modeled our newer us army helmets... they need to fit
+someones head better"*, plus *"fix the texture maps for them to fit properly"* and *"give all the
+backpack and chest riggings a canvas color texture."*
+
+### The M1 method, and why it applied verbatim
+`tools/reshape_helmet_shell.py:9-11` already states this exact diagnosis for the US shells: registration
+is *"UNIFORM scale anchored on the existing shell WIDTH (the head fit that already works), positioned by
+the BAND, so the rim stays where it sat and the extra depth goes upward into the crown — the shells were
+too shallow to cover the skull."* The pith had the same disease plus one the M1 never had.
+
+### Measured, against `nva_regular` head verts (weight>0.5 on `mixamorig:Head`)
+Head: 154.4 wide x 196.3 front-back x 221.0 tall, **plan aspect 1.272**.
+Pith (worn): 218.3 x 220.3 x 55.9, **plan aspect 1.009**.
+
+**The defect was OVALITY, not depth.** A circular helmet on an oval skull fits nowhere — loose at the
+temples, tight front-to-back. Photo reference (5 views pulled to
+`scratchpad/pith_ref/`, enemymilitaria.com listing) gives side-profile height/length 0.56 and a real
+helmet ~295 long x 255 wide, i.e. **longer than wide**. Ours was WIDER than long (239.2 x 228.0).
+
+Fit audit by surface-normal test (a skull vert on the OUTER side of the shell = poking through):
+
+| preview | through | clearance | spread |
+|---|---|---|---|
+| `pith_foliage` before | 5/26 | -5.0 .. +28.0 | 33.0 mm |
+| `pith_star` before | **19/26** | -17.0 .. +18.4 | 35.4 mm |
+| both after | **0/26** | +6.6 .. +30.1 | **23.2 mm** |
+
+### The reshape was SOLVED, not guessed
+Swept (k_length, k_height) over a 20-point grid and took the **smallest** change that clears the skull by
+>=3 mm everywhere — he said "super close", so over-correcting was the wrong move. Result **k_len 1.22,
+k_ht 1.10**. The sweep's real finding: **ovality alone (k_len 1.22, k_ht 1.00) already clears the skull
+with the helmet at its original height**; raising the crown mostly just lifts the helmet off the head
+(top-vs-crown grows to +33/+43 mm, a floating bucket). Final dome 239.2 x 112.0 x 278.2,
+**plan aspect 1.163 vs the real helmet's ~1.15-1.18**. Width untouched, exactly as the M1 script anchors.
+Applied per unique mesh datablock to all 7 domes, 7 bands, scrim and net tabs. Topology unchanged
+(70 tris/dome, 90 for the badge variant), 0 non-finite UVs.
+
+### Two regressions found while measuring, both pre-existing
+1. **`pith_foliage` was out of family** — dome 58.8 mm tall vs 101.8, band 82.3 vs 49.0, and its mesh was
+   authored in a **different local frame ~190 mm low** (local height axis -59.7..-0.9 vs the family's
+   96.8..198.6). Rebuilt dome+band from `pith_plain` (duplicate-known-good, per
+   [[no-procedural-geometry-generation]]), keeping the variant's own materials and relinking both users.
+2. **`preview_nva_medic_pith_star` sat 15.6 mm below the head bone** and
+   **`preview_nva_regular_pith_foliage_band` sat 44.3 mm below its own dome** while the grid pair share an
+   origin exactly. Both re-seated to mirror the grid relationship.
+
+**His hand-arranged sprigs survived**: re-seated by ONE best-fit rigid translation, iterated 4x to gaps of
+0.2-3.0 mm (mean 1.2). His relative arrangement was never recomputed — [[helmet-foliage-placement-reference]].
+
+### The textures were PHOTOGRAPHS, again
+`pith_plain_cover.png` is **not a UV atlas — it is a picture of a whole pith helmet**, brim, band, crown
+knob, grommets and star badge included, and the dome's UVs span the entire image (U 0..1, V 0..1). So a
+photo of a helmet, background corners and all, was wrapped over geometry that already has its own brim,
+band and knob. Same disease as [[us-base-v3-textures-are-reference-photos]].
+
+Two proofs it was wrong, both from measurement not opinion:
+- `pith_star` has **170 verts vs the family's 150 — the star badge is MODELLED geometry**, so the star
+  painted into the texture was pure duplication. A lowest-variance patch search over the mid-dome zone
+  returned `mean RGB (0.698, 0.094, 0.094)`, variance 0.0 — **it found the painted red star**.
+- the band materials sampled `V 0.80-0.97`, which in this image is **the crown**, not a band. (An earlier
+  pass recorded that range as "the dome rim strip" — it was reading the photo upside down.)
+
+**Fix:** for each variant, the lowest-variance cloth patch from **its own** texture was mirror-tiled into a
+64x64 `pith_<variant>_cloth` and the material repointed, so **his colours are preserved exactly** rather
+than invented — plain (0.423,0.403,0.257), worn (0.362,0.333,0.211), faded (0.495,0.485,0.408); the star
+variant borrows plain's cloth. Existing UVs were KEPT: a uniform tiling weave makes the old mapping
+harmless, so nothing downstream had to change. `pith_star_band_cover` was left alone on purpose — the
+modelled badge legitimately samples the photo art. Originals stay in-file for revert.
+
+### Canvas on the packs and rigs
+Already mostly right (`canvas_od`, a genuine 256x256 OD weave, on `pack_canvas`/`chest_rig_worn_cover`/
+`webbing_canvas`). Real work found: `canvas_od.001`/`.002` and `pack_canvas.001`/`.002` were
+**pixel-identical duplicates** — merged onto the originals, 2 slots repointed, both dupe images removed.
+And **`pack_medical_cross` was textured with `pack_medical_cover.png`, which is a photo of a PITH HELMET
+with a red cross on it** — the medic's backpack wearing helmet art. Repointed to `canvas_od`.
+All fabric materials now carry canvas; `BluedSteelVC`/`WarheadOD` stay flat colour (RPG metal, correct).
+
+**OPEN — not silently absorbed:** `pack_worn_medical`'s UVs run **outside 0-1** (U -0.150..0.297,
+V 0.107..1.461), crammed into a narrow band. A tiling canvas is forgiving of that, which is why it reads
+fine now, but **the medic pack has lost its red cross** and needs a real unwrap or a decal quad to get one
+back. Also untouched and flagged: `pith_helmet_worn` (294.5 x 223.5 x 93.4, y-major) is built differently
+from the variant family and was left alone pending his call.
+
+**NOT SAVED** — the file is his to save.
+
+### Same day, after the MCP reconnect — loadout staging for his eye
+
+Nothing was lost to the reconnect (bridge only, Blender stayed up); all pith/texture work verified intact.
+Confirmed every cloth image actually **reaches Base Color** — an unwired TEX_IMAGE would have left the
+helmets flat grey and looked like the texture fix had failed. `WarheadOD`/`BluedSteelVC` are correctly
+unlinked flat colour (RPG metal, not fabric).
+
+**Medic pack's red cross restored properly.** Its outward panel was identified by measurement, not guessed:
+face group with local normal (0,0,-1), 279 mm from the spine (so the wearer faces -Y). Built
+`canvas_od_cross` (64x64, canvas base + period red cross), cloned `pack_canvas` into
+`pack_medical_cross_panel` so shading matches exactly, assigned to those **5 faces only**, and re-boxed
+just those faces' UVs to 0..1 so the cross lands once and centred. No new geometry.
+
+**Two loadout defects fixed:** `vc_guerilla` wore BOTH `chest_rig_ak` and `chest_rig_ak_foliage`, and
+`nva_medic` wore BOTH `bandolier_ammo` and `bandolier_ammo_foliage` — two rigs overlapping in each case;
+the plain twin is now hidden. `nva_medic`'s `pith_star` had **no band ring** while every other pith wears
+one — created `preview_nva_medic_pith_star_band` as a linked dup off the grid relationship.
+
+**Three measurement traps caught in this pass — all three would have produced confident wrong fixes:**
+1. `vc_guerilla_joined` is the **stale x=-8 dummy**; the live body is `vc_guerilla_joined.001`. Using the
+   wrong one reported items "floating 7448 mm". Resolve bodies via their **ARMATURE modifier**, never by name.
+2. Bodies are **armature-deformed**, so `closest_point_on_mesh` on the object reads REST-pose geometry.
+   Must bake `evaluated_get(depsgraph)` into a temp object first.
+3. **Nearest-VERTEX distance is not surface distance.** On a 203-vert body it stayed at +47 mm while the
+   satchel was already buried in the torso. Use signed surface distance
+   (`(p-closest).dot(normal) < 0` = inside). This one caused a 200 mm overshoot that had to be reverted.
+
+**The real finding about worn gear:** packs and webbing are SUPPOSED to sink into the body — `ruck_light`
+reads correctly at **-59 mm with 7 verts inside**, so no gap shows. Only `pack_satchel_foliage` was wrong:
++121.7 mm OUTSIDE with zero penetration, a smaller bag hanging further out than the big ruck. Re-seated
+with its 8 cuts to -15.2 mm / 6 verts inside.
+
+Rice hats read +61.7 mm and are **correct, not floating** — a 473 mm cone over a 154 mm head cannot touch
+the skull, and its apex sits +73 mm above the crown, right for a coolie hat. Pith shells sit at a +9 to
++12 mm standoff, correct for a rigid shell (unlike soft webbing, which overlaps).
+
+Lineup for review: vc_guerilla @ x=0 y=0; nva_medic 1.5 / nva_regular 3.0 / vc_medic 4.5 / vc_sapper 6.0,
+all y=-2. **Still NOT SAVED.**
+
+### 2026-08-08 — VC/NVA units FINISHED: blueprint rebuild, faces proportioned, pith at reference
+
+He said it plainly: *"i feel like ive been fighting for 3 days to finish this task with the nva and vc."*
+Root cause of the three days, found this pass: **two competing base meshes**, so half the roster was a
+different build and every downstream fix (UVs, faces, gear) had to be done twice and still failed.
+
+**All 5 units now pass ONE topology gate: 402 polys · 1206 loops · 28 face-atlas polys · 41 vgroups.**
+`vc_guerilla` and `vc_sapper` were rebuilt from `vc_medic` — chosen over the NVA blueprint deliberately,
+because vc_medic is *already* a VC-textured body on blueprint topology (identical poly/loop/face-poly
+counts, **identical vertex-group ORDER**, 0 UV loops outside 0-1). Deriving from the NVA blueprint instead
+would have required remapping uniform UVs from the NVA strip (U .058-.939, V .379-.450) onto the VC block
+(U .019-.538, V .014-.561) — wildly different aspect ratios, guaranteed distortion. The old bodies are
+stowed as `OLD_vc_guerilla_joined.001` / `OLD_vc_sapper_joined`, hidden, not deleted.
+
+The rebuild also cleaned their object setup: both were at loc (0, 1.281, 0.0142) with a **-90° X object
+rotation** compensating for mesh authored in a rotated frame, and `vc_guerilla` had a **non-identity
+matrix_parent_inverse**. Both now match the correct derived bodies exactly — loc (0,0,0), rot 0, scale 1,
+identity mpi, single ARMATURE modifier. Placement verified: each body's deformed centre sits on its
+armature's x (0.00 / 4.50 / 6.00) and gear fit is unchanged (rig -14.0 mm / 24 verts in, packs -15 to
+-80 mm — worn gear is SUPPOSED to overlap so no gap shows).
+
+**Faces proportioned on all five.** The lit face content in an atlas cell spans only **34-71% of cell
+width (37%)** while the face polys spanned **74.3%** — so the cheeks sampled ear/shadow pixels and the
+features were crammed into the middle of the head. Face polys are now mapped to exactly 34-71%. The two
+rebuilt bodies inherited it from the donor and the cell shift preserved it.
+
+**Pith at reference proportion, and the earlier attempt diagnosed.** The first reshape failed his eye
+because **it solved for FIT while he was judging LOOK** — minimal height (k_ht 1.10) left it 112 mm tall
+on a 278 mm length, still a pancake. Reference side-profile gives height/length **0.56**. Now
+**239.2 × 155.8 × 278.2**, height/length **0.560**, plan aspect **1.163** (real pith ~1.15-1.18), all six
+variants identical, 0/26 skull verts through, clearance +19 to +51 mm, brim **83 mm below the crown = brow
+level**. Two of my own over-corrections were reverted along the way: lowering the helmet 45 mm to close
+the air gap (drove 11 verts through the skull), then widening the dome into a bell to fix that — the
+widening sweep proved the point, gaining only -7.9 → -4.4 mm across 40 mm of added width, i.e. **the
+penetration was never at the sides, it was the lowering**. A deep pith helmet genuinely rides high on its
+liner with a 19-51 mm gap.
+
+**Pack foliage rebuilt as a peacock fan, from research not guesswork.** The NVA/VC used a **camouflage
+foliage ring** — a double bamboo hoop worn on the back or lashed to the rucksack with branches **woven
+between the two rings**, so vegetation stands off the back and fans up and out instead of lying flat.
+Rebuilt accordingly: cuts anchored across the pack's upper-REAR band, standing 22-46° off vertical
+leaning AWAY from the wearer, fanned ±52° in azimuth, lengthened to 280-340 mm. Result: the medic's ruck
+foliage now rises **+223 mm above the shoulder** and **+338 mm behind the body** (was draping down the
+pack face). Satchel sits lower by design (small bag worn low): -76 mm vs shoulder, +249 mm behind.
+
+**A latent breakage of mine, caught and fixed before any save:** dumping textures to inspect them
+(`img.filepath_raw = ...; img.save()`) **repointed 12 images at my session temp scratchpad** — including
+`canvas_od` (4 users, every pack) and `fixed_better_viet_faces.001` (6 users, every face). That folder is
+deleted at session end. All 12 repacked and their paths cleared; every image in the file is now packed
+with no external dependency.
+
+**Optimization findings recorded and PARKED per his ruling** (*"id rather just keep making models and
+animations til i ahve everything i need, than go back and make them optimized"*): 4x duplicated
+3600x5700 sheets = **312 MB for one image** (`ref_factions.001` and `.002` resolve to the SAME file on his
+Desktop); **39 copies** of a 17x1 `jungle_palette` + 39 `jungle_atlas` materials; 64 redundant materials
+of 113; face atlas duplicated; 195 of 369 objects are review scaffolding needing an export allow-list.
+
+**STILL NOT SAVED** — he gated the save on his own eyeball of the pith, and that gate has not been passed.
+
+### 2026-08-08 — Pith helmets REPLACED from a donor model, full variant family, netting
+
+**Caleb approved: "new pith helmets look great."** After four rejected reshapes of the old blob, the fix
+was the one the M1 already proved — start from someone else's model.
+
+**Donor:** `NVA PITH HELMET - Mu Coi Sao Vang` by **Long Nguyen**, Sketchfab uid
+`7ccc0bdff4ba4af8afcde410758e017d`, **378 tris / 221 verts, CC-Attribution (commercial OK, credit
+required)**. Credit is stamped as a `donor` custom property on every derived object and the donor
+originals are kept hidden as `DONOR_*`. Found via Sketchfab's **public search API** (no key needed to
+search: `api.sketchfab.com/v3/search?type=models&downloadable=true&q=...`); only the download needs the
+key. Set `PYTHONIOENCODING=utf-8` — Vietnamese model names crash cp1252 on Windows.
+
+**Three of my own errors on the transplant, each caught by measurement:**
+1. **Applied the M1 scale rule blindly.** "Uniform-scale to the existing shell WIDTH" presumes that width
+   is *a head fit that already works*; the pith's 239 mm came from the bad blob. Scaling a real helmet
+   down to a broken reference broke it (8-11 skull verts through, no clean seat in a 60-step sweep).
+   **Native scale was correct** — donor and head are both real-world size.
+2. **Axes wrong twice.** The Sketchfab parent chain already applies a Z-up conversion, so baking
+   `matrix_world` rotated it once before my own rotation compounded it. True native frame: **X=width,
+   Y=height, Z=length** — NOT "already Z-up".
+3. **Rendered it upside down**, brim up and dome buried in the skull. That forced a permanent check:
+   **the widest cross-section must be at the BOTTOM** (`w_at(0,0.2) > w_at(0.8,1.0)`), which then caught
+   the inversion again automatically on the rebuild.
+
+**The donor also corrects the photo reference.** I had measured height/length **0.56** off a side photo;
+the real model is **0.462** — the drooping brim inflated my reading, part of why every reshape looked
+wrong. Final family: **265.1 W x 295.0 L x 136.3 H**, seated with **0/26 skull verts through**, clearance
++4.0..+35.8 mm, brim 94 mm below the crown (brow level).
+
+**Variant family, all from the one donor** (365 tris each; 378 for star and scrim):
+- **star** = donor as-is (badge intact)
+- **plain / worn / faded** = badge **geometry deleted** (13 faces, found by UV island U 0.684-0.902,
+  V 0.691-0.926) — painting the texture alone left a blank olive medallion, because **the badge is
+  modelled, not painted**. Textures derived from the donor's own 512x512 by tint: worn mul 0.60,
+  faded mul 1.38 (my first pass at 0.78/1.16 was too timid to read apart).
+- **net** = plain shell + `pith_net_scrim`, an offset shell (1.018x) with a generated coarse rope-cord
+  texture (128px, 32px spacing, 5px cord) and **cylindrical UVs (3.5 x 1.6 repeats)** so the cord tiles
+  instead of sampling the donor atlas. First attempt (16/2 px, 7x3 repeats, 1.035x offset) read as fine
+  window screen with a jagged fringe past the brim.
+- **foliage / worn_foliage** = plain/worn + camo cuts.
+
+**A bug affecting EVERY camo cut in the project, found only by rendering:** `jungle_atlas` **MULTIPLIES**
+the 17x1 palette against **vertex colour**, and the vegetation's vertex colours are not a tint — they are
+data (mean **(0.537, 0.260, 0.000)**, zero blue; individual values like 0.125/0.002/0.0). Leaf-green x
+that = black. **All the helmet AND pack foliage was rendering near-black.** Fixed by neutralising vertex
+colours to white on **123 cut meshes** — done on the cuts, not on the shared material, so the other 39
+`jungle_atlas` users are untouched.
+
+**Pack/rig foliage rebuilt again after seeing it worn:** the 320-340 mm "peacock" cuts read as **giant
+flat green cardboard wings**, because most were **banana blades — 16-tri flat quads**. Banana is now
+EXCLUDED as camo stock; fern fronds only (serrated silhouettes read as foliage, flat quads never will),
+at 160-200 mm for packs and 105-115 mm for rigs.
+
+**His hand-arranged pith sprigs:** the new dome is a different surface, so his fitted rotations pointed
+them **straight up like antlers**. Restoring his own documented style (tucked low at the band, tipped
+64-113 deg) while **keeping his six azimuths exactly** (+35.8/-51.3/-152.7/+158.0/-16.3/+111.1 deg) gave
+0.0-0.5 mm contact. A translation-only rigid fit could only reach 17 mm max gap; adding uniform scale
+(0.950, dz -28 mm) got it to 5.3 mm before the attitude fix superseded it.
+
+**61 old objects retired to `OLD_*`** (hidden, nothing deleted). **SAVED** — `bpy.data.is_dirty == False`.
+
+**Newly visible and NOT caused by this work — flagged, not silently absorbed:** with the foliage finally
+reading correctly, the full-body render shows the **pack itself is a featureless green box**, the
+**chest-rig pouches read as blocky lime-green blocks**, and the **uniform texture is streaky** (that last
+one is the known 3600x5700 reference-sheet strip, parked under his optimize-later ruling).
