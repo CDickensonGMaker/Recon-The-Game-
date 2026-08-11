@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
 
@@ -24,6 +24,8 @@ exposure_ramp_time = 2
 stealth = 0.6
 silent_infiltrator = true
 sprite_faction = "Vietcong and NVA"
-sprite_unit = "vc_guerilla_rpd"
+sprite_unit = "vc_sapper"
+sprite_unit_fallback = "vc_guerilla_rpd"
+sprite_unit_variants = Array[String](["vc_sapper_stripped"])
 sprite_weapon = "rpd"
 color = Color(0.28, 0.3, 0.22, 1)

@@ -50,9 +50,13 @@ NVA_UNITS = [
 VC_UNITS = [
     "vc_guerilla", "vc_guerilla_m16", "vc_guerilla_mosin", "vc_guerilla_ppsh",
     "vc_guerilla_rpd", "vc_guerilla_rpg", "vc_medic", "vc_sapper",
+    "vc_sapper_stripped",
     "vc_marksman", "vc_officer", "vc_rpg",
     "vc_mortar_gunner", "vc_mortar_dropper", "vc_mortar_runner",
 ]
+# Summoner ruling 2026-08-09: sappers are MALE on both sides. Narrows the VC
+# mixed pool above for these roles only.
+MALE_ONLY_VC = {"vc_sapper", "vc_sapper_stripped"}
 
 
 def cells(pred):
@@ -67,7 +71,7 @@ def main():
     for u in NVA_UNITS:
         pools[u] = male
     for u in VC_UNITS:
-        pools[u] = mixed
+        pools[u] = male if u in MALE_ONLY_VC else mixed
 
     doc = {
         "atlas": ATLAS,

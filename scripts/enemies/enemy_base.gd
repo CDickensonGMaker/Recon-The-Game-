@@ -393,6 +393,7 @@ func _setup_visual() -> void:
 					_model_gap_warned[unit] = true
 					push_warning("[Enemy] '%s' has no model yet - wearing '%s'. Export it and he changes." % [unit, fb])
 				unit = fb
+		unit = _pick_body(unit)
 		if ModelActor.model_exists(unit):
 			var ma := ModelActor.new()
 			add_child(ma)
@@ -416,6 +417,23 @@ func _setup_visual() -> void:
 	mesh.material_override = mat
 
 	add_child(mesh)
+
+
+## The body this man wears: `sprite_unit` plus whichever `sprite_unit_variants`
+## exist on disk. Seeded from the shared memberless-man walk, so an operation seed
+## rebuilds the same force (ADR-010).
+func _pick_body(unit: String) -> String:
+	if enemy_data == null or not ("sprite_unit_variants" in enemy_data):
+		return unit
+	var pool: Array[String] = [unit]
+	for v: String in enemy_data.sprite_unit_variants:
+		if not v.is_empty() and v != unit and ModelActor.model_exists(v):
+			pool.append(v)
+	if pool.size() == 1:
+		return unit
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GruntRandomizer.next_bench_seed()
+	return pool[rng.randi_range(0, pool.size() - 1)]
 
 
 ## Deal this man a face and his gear. The enemy side of the call allies make

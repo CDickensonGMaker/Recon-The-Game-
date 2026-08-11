@@ -56,5 +56,8 @@ extends Resource
 @export var sprite_unit: String = ""      ## "vc_guerilla"
 ## ART-AHEAD WIRING: what he wears until `sprite_unit` actually exists on disk.
 @export var sprite_unit_fallback: String = ""
+## Other bodies this archetype may wear, picked per spawn. A name with no .glb is
+## skipped, so an unexported variant is inert rather than a crash.
+@export var sprite_unit_variants: Array[String] = []
 @export var sprite_weapon: String = ""    ## "ak47"
 @export var color: Color = Color(0.4, 0.4, 0.3)  ## capsule placeholder tint, and sprite base modulate
