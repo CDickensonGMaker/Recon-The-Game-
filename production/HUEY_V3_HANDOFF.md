@@ -1,5 +1,47 @@
 # Huey v3 — merged, exported, wired. 2026-08-08
 
+---
+
+## 2026-08-10 CREW PASS — in his live window, **NOT SAVED, NOT EXPORTED**
+
+Everything in this section was measured in `huey_v3.blend` on 2026-08-10 and independently
+re-verified, not taken from an agent's report. His standing order holds: *"ill tell you when
+we export."*
+
+**His rulings this session:** gun stays the **infantry M60 on a BUNGEE mount**, not an M60D ·
+**transport flies clean** (no door gunners) · **pax stay on the troop seats** · gunner stool
+**"split the difference"** at ~0.30 m above the floor.
+
+| defect found | state now |
+|---|---|
+| right gunner stool pad floated **152 mm above its own post**; left "stool" was a solid 0.535 m column 115 mm too tall; left gunner raised 92 mm to compensate | one spec both sides, pad z 0.965–1.010, post 0.710–0.965, sockets `seat_gunner_l/r` at (±0.960, 2.384, 1.010) |
+| both gunners played `sitting` — a **passenger** clip (the "looks like they are complaining" slouch) | own action `m60_gunner_base_seated`; head-forward-of-hips 0.37 m → 0.06–0.12 m; feet planted 0.707–0.713 vs the 0.710 floor across all 143 frames; `gun_ik` chain 4→**2** so it no longer folds Spine2 |
+| pilots' hips sat **0.196 m behind the seat back** | hips y=5.238, mid seat-pan; head clears the seat-back top by 0.177 |
+| **the collective was physically unreachable** — modelled at z≈0.91, *below* the 1.02–1.07 seat pan; needed 0.657 m of reach against a 0.559 m arm | assembly raised +0.19 (grip z=1.100), post lengthened 0.710→1.100 with its base still on the floor; both hands now **1.7 mm** from their sockets (was 0.381 m / 0.637 m) |
+| rigid pintle post (actually a floor pedestal, z 0.71–1.20) | **bungee mount**: ceiling anchor (±1.30, 2.39, 1.95), 0.646 m elastic cord, + brass/link catch bag. Net **+28 tris**. `traverse` dropped 1.213→1.093 with the gunner |
+
+**Node contract re-verified intact:** `pintle_X_traverse` (yaw) → `GunPivot` (elevation, local X)
+→ `m60` → `MuzzlePoint` still **+Y (+0.549)**. Godot rotates traverse/GunPivot at runtime — this
+is the live-target "free will" aim. `M60_MG_huey` untouched at 2,212 verts, shared by both pintles.
+
+**DO NOT "fix" the collective asymmetry.** Each collective sits 0.36 m to *its own pilot's left*
+(the +0.55 pilot's at +0.19, the −0.55 pilot's at −0.91). Confirmed from an unrelated footage clip.
+A mirror pass across x=0 destroys it.
+
+**Open after this pass:** nothing is saved · the six `*_BAKED` gunner clips are stale (baked
+before the seat/body/gun/grip moves) and need re-baking before any export · the gun rides
+0.15–0.18 below Spine2, a tuning call for his eye · the gunner's head sits at 69% of the door
+aperture rather than the footage's midpoint, which is the direct consequence of his
+"split the difference" ruling and is **not** a bug to re-open.
+
+**Consequence of "transport flies clean":** `seat_system._scan_sockets` walks an 11-seat contract
+and **generates** any missing socket from `FALLBACK_LAYOUT`. A transport with no `seat_gunner_l/r`
+will invent two at (±1.15, 1.30, −2.70) — outside the airframe — and `PASSENGER_SEATS:32` uses
+them as overflow. Recommendation: keep the two `seat_gunner_*` empties in the transport GLB and
+omit only the crew and the pintles.
+
+---
+
 Supersedes the 2026-08-05 close-out. Both open items from that document are CLOSED.
 Every number below was measured headlessly on 2026-08-08; nothing here is re-derived
 from the 8/5 read.
@@ -134,15 +176,16 @@ pass (8/5 ruling 2). Untouched.
 
 ## STILL NEEDS CALEB — ranked
 
-1. **41,364 tris, and 36,168 of them are guns.** `pintle_l_m60` + `pintle_r_m60` are
-   **10,552 tris each** — that is the `m60_pintle.glb` donor the 8/5 decree explicitly
-   REJECTED ("10× budget, wrong for an aircraft"); the decree ruled the door mount's
-   1,012-tri M60. The 8/5 build used the heavy one and the handoff recorded it as the light
-   one. Not silently swapped here: the heavy gun's `MuzzlePoint` is verified +Y-correct and
-   re-transplanting risks reintroducing the backwards muzzle the shipped
-   `m60_door_mount.glb` / `m60_ring_mount.glb` still carry. Plus `rack_m16_1..3` at 5,032
-   tris each = 15,096 for three rifles in a wall rack.
-   **His call: swap to the 1,012-tri gun (−19,080 tris) and decimate the rack rifles, or keep.**
+1. ~~**41,364 tris, and 36,168 of them are guns.**~~ **CLOSED 2026-08-09/10.** The heavy
+   10,552-tri `m60_pintle.glb` donor is gone. `pintle_l_m60` / `pintle_r_m60` now share one
+   mesh datablock `M60_MG_huey` at **1,180 tris**, 1.098 m, grafted from
+   `assets/weapons/world/m60.glb` and matching the FP viewmodel's `M60NEW_*`. Measured in
+   his live window 2026-08-10. `rack_m16_1..3` also came down to **754 tris each**.
+   **Still open, ruled 2026-08-10:** the mounted gun is the INFANTRY M60 — it carries a
+   buttstock (90 verts aft of the trigger) and a pistol grip. A Huey door gun is an **M60D**:
+   spade grips, no stock, aircraft ring sight. Caleb ruled *build the M60D by reusing the FP
+   gun's parts* rather than modelling new ones. The ring sight built on 8/9 was welded into
+   the old mesh and is GONE — it needs rebuilding on the new gun.
 2. **`_l` names are on the aircraft's RIGHT.** `pintle_l`, `seat_gunner_l`, `door_l`,
    `door_rail_l`, `door_sill_l` all sit at Godot **+X**, which is starboard when the nose is
    −Z. Internally consistent across the whole file, so nothing is broken today, and
@@ -164,6 +207,70 @@ pass (8/5 ruling 2). Untouched.
 7. **CollisionTable box is 0.5 m short at the tail.** `collision_table.gd:58` is
    `Vector3(3, 3, 12)`; v3 measures 2.845 × 3.003 × 12.90. Near-perfect otherwise (v1 at
    17.46 m badly overflowed it). Not changed — a collision edit needs a playtest.
+
+## ~~THE CREW CLIPS CANNOT REACH THE GAME~~ — DELIVERED 2026-08-10
+
+**Resolved the same day.** Seven clips were carried into `anim_library.blend` with
+`tools/sync_clips_into_library.py --bones-only` (the `--bones-only` flag is mandatory for staged
+crew actions — their object curves are the man's PLACEMENT in the staging scene and would
+teleport every carrier), then re-exported with `tools/export_anim_library.py`.
+
+`assets/shared/anim_library.glb`: **202 → 209 clips**, 17.24 MB. Verified by parsing the GLB —
+each new clip carries 123 channels over all 41 bones:
+
+| clip | keys | moving channels | duration |
+|---|---|---|---|
+| `m60_gunner_idle_l` / `_r` | 96 | 29 | 3.20 s |
+| `m60_gunner_scan_l` / `_r` | 120 | 29 | 4.00 s |
+| `m60_gunner_fire_l` / `_r` | 48 | 29 | 1.60 s |
+| `pilot_flips_switches_overhead` | 90 | 12 | 3.00 s |
+
+The six gunner clips were **re-baked first** against the corrected rig — the previous bakes
+predated the seat drop, body re-pose, gun drop and wrist fix. Proof they hold the new pose
+independently of the live rig: replayed with all IK/copy-rotation constraints MUTED, they still
+give hips 1.066–1.093, feet planted 0.708–0.712 on the 0.710 floor, and support-hand
+palm·WORLD_DOWN of 0.964–0.988 (the stale bakes read −0.865).
+
+**`seat_system.gd` now points at the real clip**: `PILOT_CLIP_PANEL` = `pilot_flips_switches_overhead`,
+`PILOT_PANEL_S` 4.03 → **3.00**. `tests/test_seat_system.tscn` **PASS** (it caught a stale Godot
+import first — the engine served 202 clips until `--import` was forced; re-run it after any
+library export). `tests/test_huey_sim.tscn` **PASS**.
+
+**Still a fossil:** the fake `pilot_flips_switches` is now referenced by nothing and should be
+deleted from `anim_library.blend` — but that costs another ~9-minute library export, so it is
+flagged rather than done.
+
+## The original finding, kept for the record — measured 2026-08-10
+
+Fixing a crew animation inside `huey_v3.blend` changes **nothing in-engine**. The pilot and pax
+clips ship from `assets/shared/anim_library.glb` (17.7 MB, 202 animations, 2026-08-05), authored
+from `assets/shared/anim_library.blend`. Parsed straight out of the GLB JSON:
+
+| clip | in `huey_v3.blend` | in shipped `anim_library.glb` |
+|---|---|---|
+| `cockpit_controls`, `cockpit_idle`, `cockpit_dead`, `sitting`, `board_heli`, `disembark_heli*` | yes | **yes** |
+| `pilot_flips_switches_overhead` (90 f, 410 fcurves) | **yes** | **NO — stranded** |
+| all 18 `m60_gunner_{idle,scan,fire}_{l,r}_*` clips | **yes** | **NO — stranded** |
+
+`huey_v3.blend` is being used as a clip bank, which is exactly what
+[[recon-staged-scenes-are-not-clip-banks]] forbids. Every crew clip authored on 8/9–8/10 is
+stranded in the vehicle source. **The delivery step is: move them into `anim_library.blend`
+and re-export that**, not re-export the Huey.
+
+### `pilot_flips_switches` is a fake, and the game plays it on every touchdown
+
+`seat_system.gd:56` sets `PILOT_CLIP_PANEL := "pilot_flips_switches"` and `:60`
+`PILOT_PANEL_S := 4.03`, so on touchdown every Huey runs a 4-second "panel run".
+Verified in the shipped GLB (not just the blend): `pilot_flips_switches` and `cockpit_idle`
+have **123 channels each pointing at an identical accessor graph** — same samplers, same
+input/output accessors, different name only. `cockpit_controls` differs, so the comparison is
+sound. **The panel beat has never once been visible in game.**
+
+The real clip was authored — `pilot_flips_switches_overhead`, and today's footage pass confirms
+the beat is an **OVERHEAD reach**, not a forward one. It is sitting in `huey_v3.blend` unwired.
+Fix is two steps: carry the clip into `anim_library.blend` + re-export, then point
+`PILOT_CLIP_PANEL` at it and re-measure `PILOT_PANEL_S` (90 frames, not 4.03 s).
+`tools/unit_registry.py:37` also lists `pilot_flips_switches` in `SKIP_ACTIONS`.
 
 ## Explicitly NOT done
 

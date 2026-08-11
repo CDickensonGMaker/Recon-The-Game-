@@ -31,10 +31,14 @@ UNITS = {
         meshes='VC6_Heavy', gun='RPG2_Launcher', weapon='rpg2'),
 }
 
-# Actions we don't render. pilot_flips_switches only makes sense for pilots and
-# drivers, which don't exist yet - rendering it for infantry wastes ~1.5 hrs of
-# render time and 448 frames per unit.
-SKIP_ACTIONS = {'pilot_flips_switches'}
+# Actions we don't render. These only make sense for aircrew - rendering them for
+# infantry wastes ~1.5 hrs of render time and 448 frames per unit.
+SKIP_ACTIONS = {
+    'pilot_flips_switches', 'pilot_flips_switches_overhead',
+    'm60_gunner_idle_l', 'm60_gunner_idle_r',
+    'm60_gunner_scan_l', 'm60_gunner_scan_r',
+    'm60_gunner_fire_l', 'm60_gunner_fire_r',
+}
 
 # Actions that must NOT loop - they play once and hold the final frame.
 HOLD_LAST = {

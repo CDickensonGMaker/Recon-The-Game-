@@ -53,11 +53,16 @@ const FALLBACK_LAYOUT: Dictionary = {
 ## is hands-on-the-controls. cockpit_dead is deliberately NOT here - there is no
 ## pilot damage model in the ADR-029 slice and ADR-023 forbids the dead hook.
 const PILOT_CLIP := "cockpit_idle"
-const PILOT_CLIP_PANEL := "pilot_flips_switches"
+## The panel beat is an OVERHEAD reach (read off footage 2026-08-10), not a forward
+## one. `pilot_flips_switches` is NOT this clip: it and `cockpit_idle` resolve to an
+## identical accessor graph in anim_library.glb - same data, different name - so the
+## panel run was invisible from the day it was wired.
+const PILOT_CLIP_PANEL := "pilot_flips_switches_overhead"
 const PILOT_CLIP_FLYING := "cockpit_controls"
-## Length of PILOT_CLIP_PANEL, measured off anim_library.glb. The panel run is a
-## one-shot; this is how long before the pilot settles back to the ground hold.
-const PILOT_PANEL_S: float = 4.03
+## Length of PILOT_CLIP_PANEL, measured off anim_library.glb (90 keys @ 30fps).
+## The panel run is a one-shot; this is how long before the pilot settles back to
+## the ground hold.
+const PILOT_PANEL_S: float = 3.00
 const SITTING_CLIP := "sitting"
 const BOARD_STAGGER_S: float = 0.6   ## seconds between ally boardings
 ## Close enough to the SHIP to climb in - measured to the airframe, never to the
