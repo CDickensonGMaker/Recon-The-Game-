@@ -25,8 +25,18 @@ const BOUNCE: float = 0.16            ## overshoot on the slam, so it does not j
 @export var leaf_a_path: NodePath
 @export var leaf_b_path: NodePath
 
+## Synthesised, not recorded - there is no door foley in assets/audio/sfx and a sprung
+## screen door is two sounds. Regenerate with tools/gen_screen_door_sfx.py.
+const CREAK := preload("res://assets/audio/sfx/door_screen_creak.wav")
+const SLAP := preload("res://assets/audio/sfx/door_screen_slap.wav")
+## A door heard across the compound is a door that gives the position away.
+const AUDIO_RANGE_M: float = 22.0
+
 var _leaf_a: Node3D = null
 var _leaf_b: Node3D = null
+var _creak: AudioStreamPlayer3D = null
+var _slap: AudioStreamPlayer3D = null
+var _was_swinging: bool = false
 var _rest_a: float = 0.0
 var _rest_b: float = 0.0
 var _open: float = 0.0
@@ -48,6 +58,18 @@ func _ready() -> void:
 		return
 	threshold.body_entered.connect(_on_body_entered)
 	threshold.body_exited.connect(_on_body_exited)
+	_creak = _voice(CREAK, -8.0)
+	_slap = _voice(SLAP, -4.0)
+
+
+func _voice(stream: AudioStream, db: float) -> AudioStreamPlayer3D:
+	var p := AudioStreamPlayer3D.new()
+	p.stream = stream
+	p.volume_db = db
+	p.max_distance = AUDIO_RANGE_M
+	p.unit_size = 3.0
+	add_child(p)
+	return p
 
 
 func _on_body_entered(_body: Node3D) -> void:
@@ -77,9 +99,16 @@ func _physics_process(delta: float) -> void:
 		_open = maxf(-BOUNCE, _open + _vel * step)
 		if _open <= 0.0 and _vel < 0.0:
 			_vel = -_vel * 0.35
+			# The frame catching the leaf, not the leaf reaching zero: this fires on the
+			# bounce, so a hard shove slaps and a slow drift settles quietly.
+			if _slap != null and absf(_vel) > 0.6:
+				_slap.pitch_scale = randf_range(0.94, 1.08)
+				_slap.play()
 			if absf(_vel) < 0.25:
 				_vel = 0.0
 				_open = 0.0
+
+	_update_creak()
 
 	var swing: float = _open * OPEN_ANGLE
 	if _leaf_a != null:
@@ -88,6 +117,18 @@ func _physics_process(delta: float) -> void:
 		_leaf_b.rotation.y = _rest_b - swing
 
 
-## True while either leaf is off its jamb - for an ambient creak/slap cue.
+## True while either leaf is off its jamb.
 func is_swinging() -> bool:
 	return _open > 0.02 or absf(_vel) > 0.01
+
+
+## The creak rides the SWING, not the trigger: a man who stops in the doorway holds the
+## leaf still, and a still hinge is silent.
+func _update_creak() -> void:
+	var now: bool = is_swinging()
+	if now and not _was_swinging and _creak != null:
+		_creak.pitch_scale = randf_range(0.88, 1.12)
+		_creak.play()
+	elif not now and _was_swinging and _creak != null and _creak.playing:
+		_creak.stop()
+	_was_swinging = now
