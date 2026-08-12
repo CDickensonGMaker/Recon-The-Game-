@@ -43,3 +43,18 @@ squad appears behind you; kills stay down with belts on; AK has no shk-shk.
 - War Room ritual ran in full: 3 architects + Devil's Advocate (3 landmines caught pre-build,
   incl. an unguarded nav-clamp that would have teleported the squad TO the firebase).
 - #4 interacts with the pending firebase export — retest after it lands.
+- Shipped as commit `afa8a211`, pushed 2026-08-11.
+
+## Suite gate (2026-08-11, post-sweep)
+- Green on everything the sweep touches: seat_system (after deriving the cabin count from
+  SEAT_NAMES — it hardcoded 11 against the crew session's committed 12th seat), all 5 squad
+  tests, audio_pack, audio_live, bt_civilian, body_gate, fossils.
+- Fossil probe: the 24 "new" fossils were ALL parked zombie-mode symbols (protected by the
+  never-delete-zombie-code ruling) — grandfathered with reason, register 3 → 27.
+- Pre-existing reds, unchanged by this sweep (each verified against the pre-sweep
+  suite_2026-08-11_run1/run3 logs): air_fleet, arena trio, asset_probe (4 staged LZ-scene
+  GLBs flagged at 67.3 m — that's the baked flight path), fire_support_grant (flaky),
+  fresh_tour, friendly_patrols (PackedFloat32Array OOB), and the AUDIT-12 leak set.
+- **test_nav_path is standing debt**: TIMEOUT in every logged run since 8/7; standalone it
+  fails "regions on map: 1 | path points: 0" (path query against an unsynced/unmerged
+  region). Pre-dates this sweep; needs its own session.
