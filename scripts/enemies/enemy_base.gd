@@ -106,6 +106,8 @@ const SIGHT_CAP_JUNGLE: float = 45.0
 ## How close a man must come to NOTICE a body (he still needs eyes on it).
 const CORPSE_NOTICE_RANGE: float = 22.0
 const CLOSE_SENSE_RANGE: float = 10.0  ## contacts inside this are felt regardless of facing
+## What watching the man beside you drop does to you, mid-fight.
+const CASUALTY_SHOCK: float = 0.35
 
 var current_aim_dir: Vector3 = Vector3.FORWARD
 var target_aim_dir: Vector3 = Vector3.FORWARD
@@ -1068,8 +1070,14 @@ func _witness_check(killer: Node) -> void:
 		var w := e as EnemyBase
 		if w == null or w == self or w.is_dead() or w.is_surrendered:
 			continue
+		# ALARM versus REACTION. Raising the tier is pointless once the fight is on,
+		# but a man beside you dropping is not a stealth-phase event - bailing the whole
+		# loop here made casualty reaction impossible during an actual firefight.
 		if w.alert_tier == AlertTier.COMBAT:
-			return  # someone is already fighting. The alarm rang long ago.
+			if w.global_position.distance_to(global_position) < CLOSE_SENSE_RANGE:
+				w.apply_suppression(CASUALTY_SHOCK)
+				w.goal_timer = 99.0
+			continue
 		# EYES ON, or CLOSE ENOUGH TO HEAR HIM FALL. LOS is still required either way:
 		# a wall hides the sound of a fall as surely as the sight of it.
 		var heard_him_fall: bool = w.global_position.distance_to(global_position) < CLOSE_SENSE_RANGE 			and CombatManager.has_line_of_sight(
@@ -1265,7 +1273,11 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 
 ## Heard something. Investigation goes to the NOISE, not the source.
 func _on_noise_heard(_type: int, noise_pos: Vector3, radius: float, source_team: int) -> void:
-	if source_team == 1:  # our own side
+	# A man's own side SHOUTING is the whole point of shouting. Dropping every
+	# own-team noise muted six emitters - the witness alarm, corpse discovery, the
+	# grenade telegraph, pain, the crippled cry and orders - so no enemy had ever
+	# heard another. Only own-team GUNFIRE and movement are still ignored.
+	if source_team == 1 and _type != NoiseBus.NoiseType.VOICE:
 		return
 	if current_state == Enums.AIState.DEAD:
 		return

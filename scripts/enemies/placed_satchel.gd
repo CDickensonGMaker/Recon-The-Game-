@@ -22,8 +22,11 @@ extends Node3D
 const FUSE_S: float = 5.0
 
 var damage: int = 250
-var min_damage: int = 70
-var radius: float = 14.0
+var min_damage: int = 15
+var radius: float = 10.0
+## Curve shape, set by whoever placed it - see CombatManager._explosion_damage_at.
+var plateau_frac: float = 0.2
+var falloff_pow: float = 0.5
 ## Who set it - credited with the kills, and excluded from nothing.
 var placer: Node = null
 
@@ -31,13 +34,15 @@ var _fuse: float = FUSE_S
 
 
 static func place(host: Node, at: Vector3, by: Node, dmg: int, dmg_min: int,
-		blast_radius: float) -> PlacedSatchel:
+		blast_radius: float, plateau: float = 0.2, falloff: float = 0.5) -> PlacedSatchel:
 	if host == null:
 		return null
 	var s := PlacedSatchel.new()
 	s.damage = dmg
 	s.min_damage = dmg_min
 	s.radius = blast_radius
+	s.plateau_frac = plateau
+	s.falloff_pow = falloff
 	s.placer = by
 	host.add_child(s)
 	s.global_position = at
@@ -58,7 +63,8 @@ func _blow() -> void:
 	var pos: Vector3 = global_position
 	# spare_garrison FALSE: the garrison are participants - the charge does not discriminate,
 	# and neither does it spare the sappers who set it.
-	CombatManager.apply_explosion_damage(pos, damage, min_damage, radius, placer, 1.0, false)
+	CombatManager.apply_explosion_damage(pos, damage, min_damage, radius, placer, 1.0, false,
+		plateau_frac, falloff_pow)
 	DamageSystem.apply_damage(pos, DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
 	# A satchel is a demolition charge, not a frag: explosion_heavy is the biggest
 	# authored bank (GunFX scale 1.9) and the one that sounds like a wall coming down.

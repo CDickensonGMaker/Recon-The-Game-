@@ -92,15 +92,20 @@ func _apply_knockback(target: Node, direction: Vector3, force: float, damage: in
 	body.velocity += knockback_vel
 
 
-## Blast damage curve: FULL damage inside the kill plateau (40% of radius - a
-## grenade in a fireteam's lap WIPES it), then a linear taper to the edge. A pure
-## linear falloff is NOT enough: it lets men 4m from an M26 shrug it off.
-func _explosion_damage_at(dist: float, radius: float, max_damage: int, min_damage: int) -> int:
-	var plateau: float = radius * 0.4
+## Blast damage curve: FULL damage inside the kill plateau, then a taper to the edge.
+## The defaults (40% plateau, linear) are the M26 datum - a grenade in a fireteam's
+## lap WIPES it, and a pure linear falloff from zero let men 4m away shrug it off.
+## `plateau_frac` is the share of the radius that takes FULL damage; `falloff_pow`
+## shapes the taper beyond it - 1.0 is linear, BELOW 1.0 falls away sharply (a
+## demolition charge that levels what it is against without levelling the field).
+## Defaults reproduce the original curve exactly, so unchanged callers are unchanged.
+func _explosion_damage_at(dist: float, radius: float, max_damage: int, min_damage: int,
+		plateau_frac: float = 0.4, falloff_pow: float = 1.0) -> int:
+	var plateau: float = radius * plateau_frac
 	if dist <= plateau:
 		return max_damage
 	var t: float = clampf((dist - plateau) / maxf(0.01, radius - plateau), 0.0, 1.0)
-	return maxi(1, int(lerpf(float(max_damage), float(min_damage), t)))
+	return maxi(1, int(lerpf(float(max_damage), float(min_damage), pow(t, falloff_pow))))
 
 
 ## Apply explosion damage with multi-point visibility (Quake 3 CanDamage pattern)
@@ -111,7 +116,9 @@ func apply_explosion_damage(
 	radius: float,
 	attacker: Node,
 	knockback_scale: float = 1.0,
-	spare_garrison: bool = false
+	spare_garrison: bool = false,
+	plateau_frac: float = 0.4,
+	falloff_pow: float = 1.0
 ) -> void:
 	var space_state: PhysicsDirectSpaceState3D = get_tree().root.get_world_3d().direct_space_state
 
@@ -123,7 +130,7 @@ func apply_explosion_damage(
 			# Multi-point visibility check (Quake 3 pattern)
 			var pmult: float = _blast_multiplier(space_state, center, player_pos, player, max_damage)
 			if pmult > 0.0:
-				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * pmult))
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage, plateau_frac, falloff_pow)) * pmult))
 
 				if player.has_method("take_damage"):
 					player.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)
@@ -144,7 +151,7 @@ func apply_explosion_damage(
 		if dist <= radius:
 			var amult: float = _blast_multiplier(space_state, center, ally_pos, ally, max_damage)
 			if amult > 0.0:
-				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * amult))
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage, plateau_frac, falloff_pow)) * amult))
 				# Asymmetric danger-close: INDIRECT fire (attacker == null - arty, CAS,
 				# napalm, CBU, placed charges) does only ~0.4x to your own men, so a
 				# called strike threatens without deleting your squad. Direct fire is full.
@@ -172,7 +179,7 @@ func apply_explosion_damage(
 		if civ_dist <= radius:
 			var cmult: float = _blast_multiplier(space_state, center, civ_pos, civ, max_damage)
 			if cmult > 0.0:
-				var damage: int = maxi(1, int(float(_explosion_damage_at(civ_dist, radius, max_damage, min_damage)) * cmult))
+				var damage: int = maxi(1, int(float(_explosion_damage_at(civ_dist, radius, max_damage, min_damage, plateau_frac, falloff_pow)) * cmult))
 				if civ.has_method("take_damage"):
 					civ.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker, "BODY")
 
@@ -184,7 +191,7 @@ func apply_explosion_damage(
 		var prop_pos: Vector3 = (prop as Node3D).global_position
 		var prop_dist: float = center.distance_to(prop_pos)
 		if prop_dist <= radius and prop.has_method("take_damage"):
-			prop.take_damage(_explosion_damage_at(prop_dist, radius, max_damage, min_damage),
+			prop.take_damage(_explosion_damage_at(prop_dist, radius, max_damage, min_damage, plateau_frac, falloff_pow),
 				Enums.DamageType.EXPLOSIVE, attacker, "BODY")
 
 	# The jungle takes the blast too (S29): registered trees break at the band nearest
@@ -201,7 +208,7 @@ func apply_explosion_damage(
 		if dist <= radius:
 			var emult: float = _blast_multiplier(space_state, center, enemy_pos, enemy, max_damage)
 			if emult > 0.0:
-				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage)) * emult))
+				var damage: int = maxi(1, int(float(_explosion_damage_at(dist, radius, max_damage, min_damage, plateau_frac, falloff_pow)) * emult))
 
 				if enemy.has_method("take_damage"):
 					enemy.take_damage(damage, Enums.DamageType.EXPLOSIVE, attacker)

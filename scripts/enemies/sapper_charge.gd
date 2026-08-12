@@ -20,8 +20,14 @@ const PLANT_SECONDS: float = 3.0
 ## The pose while he works. EnemyBase.play_first falls back to idle_crouching.
 const PLANT_CLIP: String = "plant_charge"
 const SATCHEL_DAMAGE: int = 250
-const SATCHEL_MIN: int = 70
-const SATCHEL_RADIUS: float = 14.0
+## SHARP, not wide (Summoner ruling 2026-08-12): "i want to feel the impact of the line
+## being breached but only die if i let a sapper get right up onto my position". Full
+## 250 to 2m, then a sharp taper - ~106 at 5m, 84 at 6m, 46 at 8m, 15 at the edge - so
+## it still levels the work it is set against without levelling the position behind it.
+const SATCHEL_MIN: int = 15
+const SATCHEL_RADIUS: float = 10.0
+const SATCHEL_PLATEAU: float = 0.2
+const SATCHEL_FALLOFF: float = 0.5
 ## How far out he runs. Comfortably past the blast, so the survivable case is the DEFAULT
 ## and getting caught means something went wrong for him.
 const WITHDRAW_M: float = 26.0
@@ -206,7 +212,8 @@ func _detonate(enemy: EnemyBase) -> void:
 	# Where he knelt. The blast radius reaches the target from here, and it means the
 	# charge is always on the face he actually got to.
 	var at: Vector3 = _plant_at if _plant_at != Vector3.ZERO else enemy.global_position
-	PlacedSatchel.place(host, at, enemy, SATCHEL_DAMAGE, SATCHEL_MIN, SATCHEL_RADIUS)
+	PlacedSatchel.place(host, at, enemy, SATCHEL_DAMAGE, SATCHEL_MIN, SATCHEL_RADIUS,
+		SATCHEL_PLATEAU, SATCHEL_FALLOFF)
 	_release()
 	_withdraw(enemy, at)
 	set_physics_process(false)
