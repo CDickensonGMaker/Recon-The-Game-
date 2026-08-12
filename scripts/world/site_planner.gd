@@ -178,11 +178,14 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 		# NavBaker carves these out of the site navmesh. punji_trap has a zero box
 		# and is correctly skipped by this same guard.
 		body.add_to_group("nav_blockers")
-		body.set_meta("nav_box", box_size)
-		# mesh: true -> the GLB carries -col trimesh nodes (pow_cage, ruins). The
-		# authored box would double the collision AND block doorways/breaches, so
-		# skip it; the box entry above still drives the nav carve. [bead sjup]
-		if not bool(entry.get("mesh", false)):
+		if bool(entry.get("mesh", false)):
+			# mesh: true -> the GLB carries -col trimesh nodes, which are the whole
+			# collision: an authored box would double it AND seal the doorway the
+			# generator verified you can walk through. The nav carve must follow the
+			# same geometry, or the doorway is physically open and navigationally shut.
+			body.set_meta("nav_trimesh", true)
+		else:
+			body.set_meta("nav_box", box_size)
 			var shape := CollisionShape3D.new()
 			var box := BoxShape3D.new()
 			box.size = box_size

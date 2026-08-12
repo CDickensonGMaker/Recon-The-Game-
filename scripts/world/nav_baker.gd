@@ -33,8 +33,8 @@ const HALF_PAD: float = 25.0
 ## and leave the gate, the spawn point and the whole outer wire off-mesh - and off-mesh means
 ## NavRouter.step returns direct steering, which is the defect this bake exists to fix.
 ##
-## GEOMETRY: _add_structures only carves nodes in the "nav_blockers" group with a `nav_box`
-## meta, and the firebase GLB is one plain Node3D root that is in neither. Baked that way the
+## GEOMETRY: _add_structures only reads nodes in the "nav_blockers" group, and the firebase GLB
+## is one plain Node3D root that is not in it. Baked that way the
 ## mesh would run flat through every bunker and berm, and the men would path INTO walls with
 ## full confidence - worse than no navmesh, because it would look deliberate. So this one site
 ## parses the real `-colonly` trimeshes instead: the exact colliders move_and_slide() hits, so
@@ -389,8 +389,7 @@ const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_", "door_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
-	var added: int = 0
-	var stack: Array[Node] = [root]
+	var roots: Array[Node] = [root]
 	# SitePlanner reparents the ~80 perimeter segments and the adopted structures onto
 	# Destructibles under GameWorld BEFORE this bake runs, and this walk only descends
 	# the root it was handed - so the entire perimeter wall was absent from the mesh and
@@ -402,7 +401,13 @@ func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, bo
 	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_NAV_GEOM_GROUP):
 		var dn := d as Node3D
 		if dn != null and is_instance_valid(dn):
-			stack.append(dn)
+			roots.append(dn)
+	return _walk_shapes(source, roots, box)
+
+
+func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node], box: AABB) -> int:
+	var added: int = 0
+	var stack: Array[Node] = roots.duplicate()
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
 		for c in n.get_children():
@@ -475,6 +480,14 @@ func _add_structures(source: NavigationMeshSourceGeometryData3D, box: AABB) -> i
 			continue
 		var p: Vector3 = body.global_position
 		if not NavBaker._xz_contains(box, p):
+			continue
+		# An enterable model's own -col trimeshes ARE its collision (SitePlanner adds no
+		# box hull for it). Projecting its footprint instead would carve the interior and
+		# the doorway out of the mesh that the physics leaves open.
+		if bool(body.get_meta("nav_trimesh", false)):
+			var one: Array[Node] = [body]
+			if _walk_shapes(source, one, box) > 0:
+				carved += 1
 			continue
 		var size: Vector3 = body.get_meta("nav_box", Vector3.ZERO)
 		if size.length() < 0.01:
