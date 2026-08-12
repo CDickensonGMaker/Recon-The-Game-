@@ -20,6 +20,8 @@ var _clamp_src: Vector3 = Vector3.ZERO
 var _clamp_out: Vector3 = Vector3.ZERO
 var _clamp_valid: bool = false
 var _warned: bool = false
+## True on the frame target_position moved: the new path is async and has not landed.
+var _restaked: bool = false
 
 ## Same cache, for the agent's OWN footing.
 var _self_src: Vector3 = Vector3.ZERO
@@ -112,8 +114,10 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, to)
 		_clamp_out = clamped if to.distance_to(clamped) < CLAMP_MAX_M else to
 		_clamp_valid = true
+	_restaked = false
 	if agent.target_position.distance_squared_to(_clamp_out) > 9.0:
 		agent.target_position = _clamp_out   # each restake is a map_get_path()
+		_restaked = true
 	if not agent.is_navigation_finished():
 		return agent.get_next_path_position() - from
 	# THE PATH FAILED. Before falling back to a straight line into whatever wall is in front of
@@ -138,11 +142,27 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 	if off.length() > OFF_MESH_M:
 		return off
 
-	if OS.is_debug_build() and direct.length_squared() > 25.0 and not _warned:
+	# FLAT distance, and only after the restake has had a frame. Two things were being
+	# counted as pathing failures that are not:
+	#
+	# 1. A target directly overhead. Measured on the firebase: a garrison man 1.4m from his
+	#    post in XZ, warning because the post's work_* marker floats 2.4-4.1m up on a 2.56m
+	#    hootch. He has arrived; the navmesh cannot lift him onto a roof and should not try.
+	# 2. The frame target_position is restaked. Setting it queues an ASYNC path, and
+	#    is_navigation_finished() reads true until that path lands - which is not "no route",
+	#    it is "not yet". Every one of these had map_get_path returning a real path.
+	# 3. The agent's path simply has not landed yet. NavigationAgent3D computes
+	#    asynchronously and is_navigation_finished() reads true in that window, which is
+	#    indistinguishable from "no route" unless you ASK. So before claiming there is no
+	#    path, put the question to the server directly: a real absence returns under 2
+	#    points. Paid only on the failure path, and only until the one-shot fires.
+	var flat := Vector3(direct.x, 0.0, direct.z)
+	if OS.is_debug_build() and flat.length_squared() > 25.0 and not _warned and not _restaked \
+			and NavigationServer3D.map_get_path(map, _self_out, _clamp_out, true).size() < 2:
 		_warned = true
 		# Name the region honestly: under a lab navmesh `box` is -1 and meaningless,
 		# and printing "-1" reads as a bug in the box lookup rather than a missing path.
 		var where: String = "lab navmesh" if lab_nav else "baked region %d" % box
 		push_warning("[NAV] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
-			label, where, direct.length()])
+			label, where, flat.length()])
 	return direct
