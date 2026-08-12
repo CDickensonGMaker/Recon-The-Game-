@@ -372,7 +372,10 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 ## class resolution depend on that whole graph, and doing so broke an unrelated parse
 ## (enemy_base._dress_visual "not found in base self") in the same run. A const initialiser is
 ## not the place to reach across files.
-const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_"]
+## `door_` is here EXPLICITLY rather than by accident: a ScreenDoor leaf is visual only and
+## must never carry a collider, but naming it in the contract means a leaf that is ever
+## exported with one still cannot seal the doorway it hangs in.
+const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_", "door_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
