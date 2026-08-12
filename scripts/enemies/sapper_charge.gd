@@ -65,7 +65,11 @@ func setup(objective_center: Vector3) -> void:
 const TARGET_SEARCH_M: float = 70.0
 ## Claim marker. Meta, not a set: it dies with the target and cannot outlive a scene.
 const CLAIM_META: StringName = &"sapper_claimed_by"
-## What a sapper prefers, in order. Anything not named here is last.
+## The perimeter works a satchel is FOR, in order. This is a whitelist, not a preference:
+## anything not named here is not a demolition target at all. It used to rank unlisted
+## kinds last but still valid, which made every Destructible on the map a candidate - so
+## once the belt was down the party re-aimed onto the defender's own cover and walked
+## 250-damage charges into the position the player was fighting from.
 const TARGET_PRIORITY: Array[String] = ["wire", "sandbag_wall", "sandbag_stack",
 	"bunker_mg", "bunker", "tower"]
 
@@ -73,9 +77,9 @@ var _objective: Vector3 = Vector3.ZERO
 var _claimed: Destructible = null
 
 
+## -1 means "not a demolition target".
 func _priority_of(kind: String) -> int:
-	var i: int = TARGET_PRIORITY.find(kind)
-	return i if i >= 0 else TARGET_PRIORITY.size()
+	return TARGET_PRIORITY.find(kind)
 
 
 ## Pick the best STANDING, UNCLAIMED target near the objective and walk to that instead of
@@ -99,6 +103,8 @@ func _retarget(enemy: EnemyBase) -> void:
 			if claimer != null and is_instance_valid(claimer) and claimer != self:
 				continue
 		var rank: int = _priority_of(d.kind)
+		if rank < 0:
+			continue
 		var dist: float = enemy.global_position.distance_to(d.global_position)
 		# Priority first, distance only to break ties WITHIN a priority band: a man does
 		# not skip the wire because a bunker happens to be nearer.

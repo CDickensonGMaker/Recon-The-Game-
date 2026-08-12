@@ -347,6 +347,9 @@ func _build_bunkers() -> void:
 		b.global_position = spec[1] as Vector3
 		b.rotation.y = BUNKER_YAW
 		b.add_to_group("nav_source")
+		# Untagged colliders read as blast-proof and are not hard cover to a bullet.
+		# The shipped firebase tags every structure through site_planner.tag_ballistics.
+		SitePlanner.tag_ballistics(b, false)
 
 
 ## The friendly line. spawn_fort centres the mesh on the node, so the visual box is
