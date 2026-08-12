@@ -12,6 +12,48 @@ const CROUCH_SUPPRESS: float = 0.6   # a heavy pin crouches anyone, even mid-pus
 const SUPPRESS_PIN: float = 0.7      # engaged + above this = the SUPPRESSED freeze (both factions)
 const COVER_CROUCH_RANGE: float = 3.0  # start crouching within this of the cover point
 
+## THE FIRE CEILING, one value for both factions. A suppressed man fires WORSE and
+## WILDER, he does not go silent - a silent squad is a disarmed squad. Above this he is
+## face-down (PRONE_SUPPRESS_ENTER) and the freeze owns him.
+const SUPPRESS_FIRE_CEILING: float = 0.85
+
+## Cover multiplies BOTH sides of the suppression ledger (Company of Heroes doctrine):
+## a man behind something fills slower and empties faster, so four metres of movement
+## is a tactical decision. cover01: 0 = open ground, 1 = hard cover.
+const SUPPRESS_ACCRUAL_OPEN: float = 1.35
+const SUPPRESS_ACCRUAL_COVERED: float = 0.35
+const SUPPRESS_RECOVERY_OPEN: float = 0.7
+const SUPPRESS_RECOVERY_COVERED: float = 3.0
+
+## Grace on a fresh pin (CoH gives 4 s): rounds aimed at a newly-pinned man fly wide, so
+## being pinned buys a beat to plan instead of being a death sentence (Pillar 5).
+## Symmetric - both factions grant it and both receive it.
+const PIN_MERCY_S: float = 4.0
+const PIN_MERCY_SPREAD: float = 2.2
+
+
+static func suppress_accrual_mult(cover01: float) -> float:
+	return lerpf(SUPPRESS_ACCRUAL_OPEN, SUPPRESS_ACCRUAL_COVERED, clampf(cover01, 0.0, 1.0))
+
+
+static func suppress_recovery_mult(cover01: float) -> float:
+	return lerpf(SUPPRESS_RECOVERY_OPEN, SUPPRESS_RECOVERY_COVERED, clampf(cover01, 0.0, 1.0))
+
+
+## How much wider a suppressed man's cone gets. x1 calm -> x3.2 at the fire ceiling.
+static func suppress_spread_mult(suppression: float) -> float:
+	return 1.0 + clampf(suppression, 0.0, 1.0) * 2.6
+
+
+## The shooter's side of the mercy window: widen the cone at a target who was pinned
+## within the last PIN_MERCY_S. `pinned_since_ms` <= 0 means he is not pinned.
+static func pin_mercy_mult(pinned_since_ms: float, now_ms: float) -> float:
+	if pinned_since_ms <= 0.0:
+		return 1.0
+	if now_ms - pinned_since_ms >= PIN_MERCY_S * 1000.0:
+		return 1.0
+	return PIN_MERCY_SPREAD
+
 ## PRONE (War Room 2026-07-31). A LATCH, not a per-frame decision: a man commits to
 ## the deck under a heavy pin and stays there while the pin lasts, so as suppression
 ## decays back through COMBAT he is still down and CAN return fire from it. That is

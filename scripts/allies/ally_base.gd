@@ -178,11 +178,9 @@ func _player_is_forward(player_pos: Vector3) -> bool:
 ## (EnemySquad.break_state - the same authority the enemy side breaks on).
 var squad_broken: bool = false
 
-## Whether this man's squad currently has someone laying down covering fire
-## (the same fact EnemySquad.has_covering_fire feeds EnemyBase - see
-## enemy_base.gd:1435). No ally-side squad support system sets this yet, so it
-## stays false in real play; the property exists so CombatGoals.Context can be
-## fed the fact once one does.
+## Whether this man's squad currently has someone laying down covering fire (the same
+## fact EnemySquad.has_covering_fire feeds EnemyBase). Written each think from the
+## static fire census below.
 var has_covering_fire: bool = false
 ## Squad-wide "is anyone else shooting right now", the ally mirror of
 ## EnemySquad.report_firing. Without it CombatGoals reads a permanent false for the
@@ -734,7 +732,10 @@ func _physics_process(delta: float) -> void:
 	roll_traits()
 
 	if suppression_level > 0:
-		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * capped_delta)
+		suppression_level = maxf(0.0, suppression_level
+			- SUPPRESSION_DECAY * CombatPosture.suppress_recovery_mult(cover01()) * capped_delta)
+		if suppression_level <= CombatPosture.SUPPRESS_PIN:
+			pinned_since_ms = 0.0
 	if incoming_pressure > 0.0:
 		incoming_pressure = maxf(0.0, incoming_pressure - PRESSURE_DECAY * capped_delta)
 	elif _nerve_drift < 0.0:
@@ -919,6 +920,7 @@ func _update_line_of_sight() -> void:
 
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
+	_refresh_terrain_cover()
 
 	# Contact clock + new-contact reset of the cover fail counter.
 	if target != null and is_instance_valid(target):
@@ -982,6 +984,7 @@ func _evaluate_goals() -> void:
 	# the enemy runs. Before this the squad had five verbs and could not flank,
 	# suppress or fall back (posture merge Part B).
 	if target and _may_engage() and (contact_conf > 0.4 or target_last_seen_time < 6.0):
+		_refresh_separation()
 		var c := CombatGoals.Context.new()
 		c.current_goal = current_goal
 		c.dist = global_position.distance_to(target.global_position)
@@ -1016,6 +1019,12 @@ func _evaluate_goals() -> void:
 		c.has_covering_fire = has_covering_fire
 		c.force_ratio = _local_force_ratio()
 		var picked: int = CombatGoals.pick(c)
+		# OPEN-GROUND REFUSAL, spoken. combat_goals.gd:131 already damps ADVANCE x0.15
+		# under unanswered fire - the man was already deciding not to cross and saying
+		# nothing. VOManager's line + speaker cooldowns are the only throttle needed.
+		if picked != Enums.AIGoal.ADVANCE and not c.has_covering_fire \
+				and c.suppression > 0.25 and not c.target_suppressed:
+			VOManager.play_squad("taking_fire", member, global_position)
 		# The cord AND the zone both ground a man: a living net never flanks away,
 		# and a man defending assigned ground never leaves it to hunt.
 		if (_cord_anchor() != null or defense_zone_radius > 0.0) \
@@ -1335,7 +1344,7 @@ func _execute_combat(delta: float) -> void:
 	strafe_timer -= delta
 	if strafe_timer <= 0:
 		strafe_direction = [-1.0, 0.0, 1.0].pick_random()
-		strafe_timer = randf_range(0.8, 2.0)
+		strafe_timer = randf_range(0.8, 2.0) * _tempo()
 
 	if has_line_of_sight:
 		# Movement by range, PERSONALITY-SHAPED: the go-getter (nerve >= 0.7) closes
@@ -1411,6 +1420,7 @@ func _execute_combat(delta: float) -> void:
 		else:
 			_anim_override = ""
 
+		move_dir += _separation * (0.2 if has_cover else 0.6)
 		move_dir.y = 0
 		if move_dir.length() > 0.1:
 			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * COMBAT_SPEED_MULT, delta * 8.0)
@@ -1422,13 +1432,13 @@ func _execute_combat(delta: float) -> void:
 		# Fire at target (after the aim settles on a fresh acquisition)
 		if _aim_settle > 0.0:
 			_aim_settle -= delta
-		elif can_fire and suppression_level < 0.5:
+		elif can_fire and suppression_level < CombatPosture.SUPPRESS_FIRE_CEILING:
 			if burst_count < burst_len:
 				_fire_at_target()
 				burst_count += 1
 			else:
 				can_fire = false
-				fire_timer = randf_range(0.3, 1.0)
+				fire_timer = randf_range(0.3, 1.0) * _tempo()
 				burst_count = 0
 				shots_fired = 0
 	else:
@@ -1552,6 +1562,9 @@ func _execute_seeking_cover(delta: float) -> void:
 			return
 		_cover_fail_count += 1
 		_cover_fail_ms = Time.get_ticks_msec()
+		# A dead end the player can HEAR. The counter existed and said nothing.
+		if _cover_fail_count == 2:
+			VOManager.play_squad("fall_back", member, global_position)
 
 	# No point found (yet): perpendicular duck-and-dodge.
 	if target:
@@ -1831,7 +1844,7 @@ func _fire_at_target() -> void:
 	var acc01: float = clampf(skill + 0.04 * float(sa), 0.0, 1.0)
 	var moving: bool = Vector3(velocity.x, 0.0, velocity.z).length() > 0.5
 	var pre_cap: float = AIMarksmanship.cone_spread_deg(
-		weapon_data.base_spread, acc01, shots_fired, moving, 1.0)
+		weapon_data.base_spread, acc01, shots_fired, moving, _shot_pressure_mult())
 	# Same exposure ramp and first-burst looseness the enemy path uses. Passing a flat
 	# 1.0/false gave the squad perfect snap accuracy the men shooting at them never had.
 	var exposure_t: float = clampf(target_visible_duration / EXPOSURE_RAMP_S, 0.0, 1.0)
@@ -1865,6 +1878,10 @@ func _fire_at_target() -> void:
 		if lane_owner != null and lane_owner != self and is_instance_valid(lane_owner) \
 				and (lane_owner.is_in_group("player") or lane_owner.is_in_group("allies")):
 			return
+
+	# A hit is not a near-miss (that is damage). The squad's rounds press the men they
+	# snap past exactly as the enemy's press ours - suppression is not a one-way weapon.
+	pass  # AB-OFF
 
 	# Live BulletSystem round - muzzle spawn, drop, travel, arrival damage/FX
 	# through the shared resolver. The tracer IS the bullet; color from WeaponData.
@@ -1936,10 +1953,67 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 func apply_suppression(amount: float) -> void:
 	var was: float = suppression_level
-	suppression_level = minf(1.0, suppression_level + amount)
-	incoming_pressure = minf(1.0, incoming_pressure + amount)
+	var got: float = amount * CombatPosture.suppress_accrual_mult(cover01())
+	suppression_level = minf(1.0, suppression_level + got)
+	incoming_pressure = minf(1.0, incoming_pressure + got)
 	if was <= CombatPosture.SUPPRESS_PIN and suppression_level > CombatPosture.SUPPRESS_PIN:
+		pinned_since_ms = float(Time.get_ticks_msec())
 		VOManager.play_squad("taking_fire", member, global_position)
+
+
+## How covered this man is, 0 open -> 1 hard cover. A claimed rock outranks the ground;
+## the ground still counts, so a man in heavy jungle is harder to pin than one in a paddy.
+var _terrain_cover01: float = 0.0
+var pinned_since_ms: float = 0.0
+
+func cover01() -> float:
+	return maxf(_terrain_cover01, 0.7 if has_cover else 0.0)
+
+
+## PERSONAL TEMPO, 0.75-1.25 off the reaction trait. Relic's drift variable: a squad
+## whose timers all fire together moves as one organism instead of as men.
+func _tempo() -> float:
+	return 0.75 + (1.0 - clampf(char_reaction, 0.0, 1.0)) * 0.5
+
+
+## COMBAT SPACING. The follow ring governs patrol only, so nothing kept men apart once
+## the shooting started. A light push that must never beat cover or the cord - it is
+## added to move_dir, never substituted for it.
+const COMBAT_SPACING_M: float = 3.0
+var _separation: Vector3 = Vector3.ZERO
+
+func _refresh_separation() -> void:
+	var push: Vector3 = Vector3.ZERO
+	var r2: float = COMBAT_SPACING_M * COMBAT_SPACING_M
+	for man in AgentRegistry.allies:
+		if man == self or not is_instance_valid(man) or not man is Node3D:
+			continue
+		var other: Vector3 = (man as Node3D).global_position
+		if global_position.distance_squared_to(other) > r2:
+			continue
+		var off: Vector3 = global_position - other
+		off.y = 0.0
+		var d: float = off.length()
+		if d > 0.01:
+			push += off / d * (1.0 - d / COMBAT_SPACING_M)
+	_separation = push.limit_length(1.0)
+
+
+## Cone multiplier from the pressure in the situation: his own suppression spoils his
+## aim, and a target he has just pinned gets the mercy window.
+func _shot_pressure_mult() -> float:
+	var m: float = CombatPosture.suppress_spread_mult(suppression_level)
+	if target != null and is_instance_valid(target) and "pinned_since_ms" in target:
+		m *= CombatPosture.pin_mercy_mult(target.pinned_since_ms, float(Time.get_ticks_msec()))
+	return m
+
+
+func _refresh_terrain_cover() -> void:
+	var grid: GameplayGrid = _sight_grid()
+	if grid == null:
+		return
+	_terrain_cover01 = float(GameplayGrid.COVER_VALUES.get(
+		grid.get_terrain_type(global_position), 0.0))
 
 
 func _die() -> void:

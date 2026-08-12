@@ -524,14 +524,19 @@ func _fire_shot() -> void:
 	GunFX.muzzle_flash(get_tree().current_scene, flash_pos)
 	_punch = 1.0
 
-	# SUPPRESSION: every shot that snaps past an enemy pushes him down. Big, slow
-	# rounds (rockets, buckshot, full-auto) suppress in an area; precise rifles
-	# rely on near-miss detection. Radius and amount are weapon-scaled so an MG
-	# pins harder than a pistol.
+	# SUPPRESSION: every shot that snaps past a man pushes him down. Bullets use the
+	# shared near-miss geometry along the LANE - the area term is centred on the muzzle,
+	# so on a rifle it only ever pressed men standing beside the shooter. Buckshot and
+	# warheads keep the area, moved onto the aim point where the spray actually lands.
 	var suppress_radius: float = _calc_suppress_radius()
 	var suppress_amount: float = _calc_suppress_amount()
-	if suppress_radius > 0.0 and suppress_amount > 0.0:
-		CombatManager.apply_suppression_in_area(muzzle_pos, suppress_radius, suppress_amount, controller)
+	var spreads_wide: bool = current_weapon.pellet_count > 1 \
+		or not current_weapon.projectile_data_path.is_empty()
+	if spreads_wide:
+		if suppress_radius > 0.0 and suppress_amount > 0.0:
+			CombatManager.apply_suppression_in_area(aim_point, suppress_radius, suppress_amount, controller)
+	else:
+		CombatManager.suppress_along_shot(origin, final_dir, controller, aim_hit)
 
 	# DOWN THE SIGHTS = DOWN THE SIGHTLINE. Aimed rounds leave the CAMERA along
 	# the crosshair ray, so a viewmodel's muzzle position can never bend an aimed
@@ -1076,36 +1081,24 @@ func is_weapon_reloading() -> bool:
 	return is_reloading
 
 
-## SUPPRESSION RADIUS: bigger, slower, or explosive weapons pin in a wider area.
-## Pistol/SMG/AR: 3m. Shotgun: 6m. LMG/RPG: 8m. A near-miss inside this radius
-## always adds suppression through the combat manager's area falloff.
+## AREA-SUPPRESSION RADIUS around the AIM POINT, for weapons whose effect is not one
+## lane: buckshot 6m, warheads 8m.
 func _calc_suppress_radius() -> float:
 	if current_weapon == null:
 		return 0.0
 	if current_weapon.pellet_count > 1:
 		return 6.0
-	if current_weapon.projectile_data_path.is_empty():
-		return 3.0
-	# Rockets / launchers
+	# Rockets / launchers. Bullets never reach here - they use the near-miss lane.
 	return 8.0
 
 
-## SUPPRESSION AMOUNT PER SHOT: auto fire is cumulatively suppressive;
-## single shots add a small pulse; rockets and buckshot are heavy events.
+## AREA-SUPPRESSION AMOUNT PER SHOT. Rockets and buckshot are heavy events.
 func _calc_suppress_amount() -> float:
 	if current_weapon == null:
 		return 0.0
 	if current_weapon.pellet_count > 1:
 		return 0.35
-	if not current_weapon.projectile_data_path.is_empty():
-		return 0.45
-	match current_weapon.firing_mode:
-		Enums.FiringMode.FULL_AUTO:
-			return 0.08
-		Enums.FiringMode.BURST:
-			return 0.12
-		_:
-			return 0.05
+	return 0.45
 
 
 ## How much bigger the gun reads when shot through its own (narrower) lens

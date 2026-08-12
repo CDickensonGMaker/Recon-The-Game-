@@ -844,7 +844,10 @@ func _body_gate_open() -> bool:
 
 func _update_decay(delta: float) -> void:
 	if suppression_level > 0:
-		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * delta)
+		suppression_level = maxf(0.0, suppression_level
+			- SUPPRESSION_DECAY * CombatPosture.suppress_recovery_mult(cover01()) * delta)
+		if suppression_level <= CombatPosture.SUPPRESS_PIN:
+			pinned_since_ms = 0.0
 	if _gut_bleed_dps > 0.0 and current_state != Enums.AIState.DEAD:
 		_bleed_accum += _gut_bleed_dps * delta
 		if _bleed_accum >= 1.0:
@@ -872,6 +875,7 @@ func _update_decay(delta: float) -> void:
 
 func _think() -> void:
 	think_count += 1
+	_refresh_terrain_cover()
 	_router.refresh_box(global_position)
 	_check_spider_hole()
 	_check_tunnel_retreat()
@@ -890,6 +894,7 @@ func _think() -> void:
 	# slot frees (promote-on-death). Non-combat units are never tiered.
 	if alert_tier == AlertTier.COMBAT:
 		if EnemySquad.is_hot(self) or EnemySquad.request_hot(self):
+			_refresh_separation()
 			_think_full_combat()
 		else:
 			_think_cheap_combat()
@@ -1741,7 +1746,7 @@ func _execute_combat(delta: float) -> void:
 	strafe_timer -= delta
 	if strafe_timer <= 0:
 		strafe_direction = [-1.0, 0.0, 0.0, 1.0].pick_random()  # More likely to stop
-		strafe_timer = randf_range(0.8, 2.0)
+		strafe_timer = randf_range(0.8, 2.0) * _tempo()
 
 	if has_line_of_sight:
 		var move_dir := Vector3.ZERO
@@ -1756,7 +1761,7 @@ func _execute_combat(delta: float) -> void:
 			accuracy_modifier = base_accuracy_modifier * 1.3
 		else:
 			# Good range - minimal movement
-			accuracy_modifier = base_accuracy_modifier * (1.0 - (1.0 - suppression_level) * 0.2)
+			accuracy_modifier = base_accuracy_modifier
 
 		# Covered men HOLD their cover: damp the wander hard while has_cover
 		# (this IS the engage-from-cover feel); drifting off invalidates it.
@@ -1774,6 +1779,7 @@ func _execute_combat(delta: float) -> void:
 				move_dir = (move_dir + strafe_vec * 0.4).normalized()
 			accuracy_modifier *= 1.15
 
+		move_dir += _separation * (0.2 if has_cover else 0.6)
 		move_dir.y = 0
 		if move_dir.length() > 0.1:
 			velocity.x = lerpf(velocity.x, move_dir.x * move_speed * 0.5 * _suppression_move_mult(), delta * 8.0)
@@ -1783,13 +1789,13 @@ func _execute_combat(delta: float) -> void:
 			velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
 			accuracy_modifier *= 0.8  # More accurate when still
 
-		if can_fire and suppression_level < 0.8:
+		if can_fire and suppression_level < CombatPosture.SUPPRESS_FIRE_CEILING:
 			if burst_count < MAX_BURST:
 				_fire_at_target()
 				burst_count += 1
 			else:
 				can_fire = false
-				fire_timer = randf_range(0.4, 1.2)
+				fire_timer = randf_range(0.4, 1.2) * _tempo()
 				burst_count = 0
 	else:
 		# Target hiding behind cover - flush with a grenade. Hazard-rate roll (~1.7s
@@ -1839,6 +1845,9 @@ func _execute_seeking_cover(delta: float) -> void:
 					return
 				else:
 					_cover_fail_count += 1  # doctrine escape hatch: 2 dry searches lift cover-first
+					# A dead end the player can HEAR. The counter existed and said nothing.
+					if _cover_fail_count == 2:
+						VOManager.play_enemy("retreat", self)
 
 	# Concealment fallback: deep vegetation counts as soft cover.
 	if not has_cover and not _moving_to_cover and _grid != null \
@@ -1905,7 +1914,7 @@ func _execute_advancing(delta: float) -> void:
 		if global_position.distance_to(_bound_point) < 1.2:
 			_release_cover_point(_bound_point)
 			_bound_point = Vector3.ZERO
-			_bound_pause = randf_range(0.8, 1.6)
+			_bound_pause = randf_range(0.8, 1.6) * _tempo()
 			return
 		# Sprint the rush: full speed, honest fire penalty on the move. With the
 		# numbers, 1.3x crosses the sprint-clip animation band.
@@ -1928,6 +1937,8 @@ func _execute_advancing(delta: float) -> void:
 				return
 			else:
 				_bound_fail_count += 1
+				if _bound_fail_count == 2:
+					VOManager.play_enemy("retreat", self)
 		velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
 		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
 		if has_line_of_sight and can_fire and has_reacted and burst_count < 3:
@@ -2251,7 +2262,8 @@ func _fire_at_target() -> void:
 	var moving: bool = Vector3(velocity.x, 0.0, velocity.z).length() > 0.5
 	var exposure_t: float = clampf(target_visible_duration / maxf(d_exposure_ramp, 0.1), 0.0, 1.0)
 	var pre_cap: float = AIMarksmanship.cone_spread_deg(
-		weapon_data.base_spread, char_accuracy, shots_fired, moving, accuracy_modifier)
+		weapon_data.base_spread, char_accuracy, shots_fired, moving,
+		accuracy_modifier * _shot_pressure_mult())
 	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
 	var final_aim: Vector3 = AIMarksmanship.aim_with_spread(
 		current_aim_dir, pre_cap, _target_is_player(), exposure_t, not _first_shot_fired)
@@ -2313,9 +2325,8 @@ func _fire_at_target() -> void:
 				and lane_owner.is_in_group("enemies") and lane_owner != target:
 			return
 
-	# Suppression: a round that CRACKS PAST the player without hitting presses them.
 	# A hit is not a near-miss (that is damage, handled below).
-	_suppress_player_if_near(origin, final_aim, result)
+	CombatManager.suppress_along_shot(origin, final_aim, self, result)
 
 	# The round is a live BulletSystem bullet - muzzle spawn, gravity drop, travel
 	# time, arrival damage/FX through the shared resolver. The tracer IS the bullet;
@@ -2606,7 +2617,65 @@ func apply_wound(zone_name: String) -> void:
 
 
 func apply_suppression(amount: float) -> void:
-	suppression_level = minf(1.0, suppression_level + amount)
+	var was: float = suppression_level
+	suppression_level = minf(1.0, suppression_level
+		+ amount * CombatPosture.suppress_accrual_mult(cover01()))
+	if was <= CombatPosture.SUPPRESS_PIN and suppression_level > CombatPosture.SUPPRESS_PIN:
+		pinned_since_ms = float(Time.get_ticks_msec())
+
+
+## How covered this man is, 0 open -> 1 hard cover. A claimed rock outranks the ground;
+## the ground still counts, so a man in heavy jungle is harder to pin than one in a paddy.
+var _terrain_cover01: float = 0.0
+var pinned_since_ms: float = 0.0
+
+func cover01() -> float:
+	return maxf(_terrain_cover01, 0.7 if has_cover else 0.0)
+
+
+## PERSONAL TEMPO, 0.75-1.25 off the reaction trait. Relic's drift variable: a squad
+## whose timers all fire together moves as one organism instead of as men.
+func _tempo() -> float:
+	return 0.75 + (1.0 - clampf(char_reaction, 0.0, 1.0)) * 0.5
+
+
+## COMBAT SPACING. FILE_SPACING governs the patrol column only, so nothing kept men
+## apart once the shooting started and squads bunched onto one rock. A light push that
+## must never beat cover or a bound - it is added to move_dir, never substituted for it.
+const COMBAT_SPACING_M: float = 3.0
+var _separation: Vector3 = Vector3.ZERO
+
+func _refresh_separation() -> void:
+	var push: Vector3 = Vector3.ZERO
+	var r2: float = COMBAT_SPACING_M * COMBAT_SPACING_M
+	for man in AgentRegistry.enemies:
+		if man == self or not is_instance_valid(man) or not man is Node3D:
+			continue
+		var other: Vector3 = (man as Node3D).global_position
+		if global_position.distance_squared_to(other) > r2:
+			continue
+		var off: Vector3 = global_position - other
+		off.y = 0.0
+		var d: float = off.length()
+		if d > 0.01:
+			push += off / d * (1.0 - d / COMBAT_SPACING_M)
+	_separation = push.limit_length(1.0)
+
+
+## Cone multiplier from the pressure in the situation: his own suppression spoils his
+## aim, and a target he has just pinned gets the mercy window.
+func _shot_pressure_mult() -> float:
+	var m: float = CombatPosture.suppress_spread_mult(suppression_level)
+	if target != null and is_instance_valid(target) and "pinned_since_ms" in target:
+		m *= CombatPosture.pin_mercy_mult(target.pinned_since_ms, float(Time.get_ticks_msec()))
+	return m
+
+
+func _refresh_terrain_cover() -> void:
+	if _grid == null:
+		return
+	_terrain_cover01 = float(GameplayGrid.COVER_VALUES.get(
+		_grid.get_terrain_type(global_position), 0.0))
 
 
 func apply_stagger(power: float) -> void:
@@ -2957,44 +3026,3 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyB
 	return enemy
 
 
-## A round from origin along dir cracked by - if it passed close to the player
-## and did NOT hit them, add suppression. NEAR_MISS_RADIUS is generous (the
-## snap of a supersonic round is felt wider than its miss distance).
-const NEAR_MISS_RADIUS: float = 2.2
-
-func _suppress_player_if_near(origin: Vector3, dir: Vector3, hit: Dictionary) -> void:
-	# A supersonic crack near a man presses him even on a clean miss - the player
-	# AND friendly AI both feel it, so a firefight pins your squad, not just you.
-	var hit_player: bool = false
-	if hit and hit.get("collider") != null:
-		var c = hit.collider
-		if c is Node and ((c as Node).is_in_group("player") or ((c as Node).get_parent() and (c as Node).get_parent().is_in_group("player"))):
-			hit_player = true
-	var pl := GameManager.player as Node3D
-	if pl != null and is_instance_valid(pl) and not hit_player:
-		var s: float = _near_miss_suppress(origin, dir, pl.global_position + Vector3.UP * 1.0)
-		if s > 0.0 and pl.has_method("add_suppression"):
-			pl.add_suppression(s)
-	for ally in AgentRegistry.allies:
-		if not is_instance_valid(ally) or not ally is Node3D:
-			continue
-		var s2: float = _near_miss_suppress(origin, dir, (ally as Node3D).global_position + Vector3.UP * 1.0)
-		if s2 > 0.0 and ally.has_method("apply_suppression"):
-			ally.apply_suppression(s2)
-
-
-## Perpendicular near-miss suppression for a target centre. 0 if the round went the
-## other way or missed wider than NEAR_MISS_RADIUS; closer cracks press harder.
-func _near_miss_suppress(origin: Vector3, dir: Vector3, target_centre: Vector3) -> float:
-	var to_t: Vector3 = target_centre - origin
-	var along: float = to_t.dot(dir)
-	if along <= 0.0:
-		return 0.0
-	var closest: Vector3 = origin + dir * along
-	var d: float = closest.distance_to(target_centre)
-	if d >= NEAR_MISS_RADIUS:
-		return 0.0
-	return SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS)
-
-
-const SUPPRESS_ON_MISS: float = 0.34

@@ -328,7 +328,10 @@ func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, ta
 	if target is CollisionObject3D:
 		exclude_rids.append((target as CollisionObject3D).get_rid())
 
-	var defeat: float = _blast_defeat_chance(max_damage)
+	# ONE roll per blast, not one per sample point: his ruling is that a blast defeats
+	# hard cover "50 percent of the time", which means the wall sometimes HOLDS. Rolling
+	# per point averages that into a permanent ~40% leak and no cover ever holds.
+	var hard_defeated: bool = randf() < _blast_defeat_chance(max_damage)
 	var reach: float = 0.0
 	for offset in offsets:
 		var check_pos: Vector3 = target_pos + offset
@@ -348,8 +351,7 @@ func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, ta
 			var bn := blocker as Node
 			if bn.is_in_group("soft_cover"):
 				reach += BLAST_THROUGH_COVER_MULT
-			elif bn.is_in_group("hard_surface") and not _blast_proof(bn) \
-					and randf() < defeat:
+			elif hard_defeated and bn.is_in_group("hard_surface") and not _blast_proof(bn):
 				reach += BLAST_THROUGH_COVER_MULT
 
 	return reach / float(offsets.size())
@@ -385,16 +387,22 @@ static func near_miss_suppress(origin: Vector3, dir: Vector3, target_centre: Vec
 	return SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS)
 
 
-## Fan one round's crack over every body it passed. Faction-blind and shooter-blind:
-## whoever pulled the trigger, the men it snapped past feel it. `hit` is the shooter's
-## own ray result - the body actually struck took damage, not a near miss.
+## Fan one round's crack over the men it passed. `hit` is the shooter's own ray result -
+## the body actually struck took damage, not a near miss.
+##
+## OWN SIDE IS EXEMPT from a BULLET lane, unlike a blast (which stays faction-blind below):
+## a round from the mate beside you is a round you are not afraid of, and without this a
+## base of fire pins itself every time two men shoot past each other.
 func suppress_along_shot(origin: Vector3, dir: Vector3, shooter: Node, hit: Dictionary) -> void:
 	var struck: Node = null
 	if hit and hit.get("collider") != null:
 		var c: Object = hit.collider
 		struck = (c as Hitzone).owner_entity if c is Hitzone else c as Node
-	for man in AgentRegistry.enemies:
-		_crack_past(man as Node, origin, dir, shooter, struck)
+	var from_enemy: bool = shooter != null and shooter.is_in_group("enemies")
+	if not from_enemy:
+		for man in AgentRegistry.enemies:
+			_crack_past(man as Node, origin, dir, shooter, struck)
+		return
 	for man in AgentRegistry.allies:
 		_crack_past(man as Node, origin, dir, shooter, struck)
 	if player != null and is_instance_valid(player) and player != shooter and player is Node3D \

@@ -24,6 +24,12 @@ const FIELD := 200.0
 ## the camera clears is not automatically cover the barrel clears. EVERY bag on this
 ## bench uses this one box - a taller forward work would eat his own fire the same way.
 const SANDBAG_BOX := Vector3(2.6, 1.1, 0.9)
+## The BLAST probes' parapet, deliberately NOT SANDBAG_BOX. Two requirements pull the
+## fighting bag in opposite directions - tall enough to shield a standing man from a
+## ground burst, short enough that the player's viewmodel muzzle clears it - and they do
+## not meet. The fighting bag serves the muzzle; this one is full parapet, so the blast
+## test measures cover instead of measuring the muzzle compromise.
+const PROBE_WALL_BOX := Vector3(2.6, 1.6, 0.9)
 const SANDBAG_LINE: Array[Dictionary] = [
 	{"pos": Vector3(-7.0, 0.0, 1.2), "yaw": 0.5},
 	{"pos": Vector3(-3.5, 0.0, -0.3), "yaw": 0.22},
@@ -100,6 +106,11 @@ var _fight_start_ms: int = -1
 var _rto_max_d: float = 0.0
 var _enemy_adv_under_fire_s: float = 0.0    ## man-seconds advancing while suppressed >0.3
 var _ally_adv_under_fire_s: float = 0.0
+## Man-seconds spent above CombatPosture.SUPPRESS_PIN, per side. The adv-under-fire
+## counters above only see men who are ADVANCING, so a base of fire that is pinned
+## solid reads 0 there - these two are the honest bidirectional-suppression gauge.
+var _enemy_pinned_s: float = 0.0
+var _ally_pinned_s: float = 0.0
 var _enemy_min_line_d: float = 9999.0       ## closest any attacker got to the arc centre
 var _lp: Dictionary = {}                    ## lethality-probe live counters
 
@@ -755,6 +766,8 @@ func _update_metrics(delta: float) -> void:
 		if e == null or not is_instance_valid(e) or e.is_dead():
 			continue
 		_enemy_min_line_d = minf(_enemy_min_line_d, e.global_position.distance_to(Vector3.ZERO))
+		if e.suppression_level > CombatPosture.SUPPRESS_PIN:
+			_enemy_pinned_s += delta
 		if e.suppression_level > 0.3 and not e.assault_driven \
 				and (e.current_state == Enums.AIState.ADVANCING
 				or e.current_state == Enums.AIState.FLANKING):
@@ -783,6 +796,8 @@ func _update_metrics(delta: float) -> void:
 				and (a.current_state == Enums.AIState.ADVANCING
 				or a.current_state == Enums.AIState.FLANKING):
 			_ally_adv_under_fire_s += delta
+		if a.suppression_level > CombatPosture.SUPPRESS_PIN:
+			_ally_pinned_s += delta
 		if str(a.member.get("mos", "")) == "RTO" and player != null \
 				and _living_enemy_count() > 0:
 			_rto_max_d = maxf(_rto_max_d, a.global_position.distance_to(player.global_position))
@@ -803,6 +818,7 @@ func _print_metrics_report() -> void:
 		_enemies.size() - _living_enemy_count(), _enemies.size(),
 		ally_dead, _squad.size(), _enemy_min_line_d,
 		"REACHED THE LINE" if _enemy_min_line_d <= 10.0 else "held off"])
+	print("[SUPPRESSION] pinned man-s: enemy %.1f  ally %.1f" % [_enemy_pinned_s, _ally_pinned_s])
 	for id_v: Variant in _metrics:
 		var m: Dictionary = _metrics[id_v]
 		var dwells: Array[float] = (m["dwells"] as Array[float]).duplicate()
@@ -1260,8 +1276,9 @@ func _sp_one_man(at: Vector3) -> EnemyBase:
 
 func _sp_wall(at: Vector3) -> void:
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(SANDBAG_BOX.x, SANDBAG_BOX.y * 2.0, SANDBAG_BOX.z)
-	var fort: Destructible = FireSupportBench.spawn_fort(self, at, mesh, SANDBAG_BOX, "sandbag", 110)
+	mesh.size = Vector3(PROBE_WALL_BOX.x, PROBE_WALL_BOX.y * 2.0, PROBE_WALL_BOX.z)
+	var fort: Destructible = FireSupportBench.spawn_fort(self, at, mesh, PROBE_WALL_BOX,
+		"sandbag", 110)
 	fort.add_to_group("nav_source")
 
 
