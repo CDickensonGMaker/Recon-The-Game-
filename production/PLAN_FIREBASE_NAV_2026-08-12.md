@@ -179,6 +179,24 @@ so it is HIS call. **Do not start this without a ruling on (a) vs (b).**
 
 ---
 
+## HIS RULINGS, 2026-08-12 (asked plainly, answered)
+
+- **Roof markers → BLENDER.** He drops the `work_rest_*` / `work_supply_*` empties onto their
+  floors in `firebase_v3.2.blend` and re-exports. **No code clamp** — the data gets fixed at
+  source. PHASE A is done, so the re-export is safe. **PHASE D's gate stays open until he does.**
+- **Temple statues → ART.** He authors `-colonly` twins for all 14, so the temple ruins become
+  real cover rather than honest decoration. The `mesh: true` flag STAYS and becomes true.
+- **Road routing → RE-ORDER (step 28).** Plan the route AFTER the stamps, so it bends around real
+  footprints. He chose this over the keep-out. **I advised the keep-out and he ruled otherwise;
+  that is his call and it is made.** The cost I named is now MY problem to solve: it breaks
+  `plan_patrol_world`'s side-effect-free property, and `ambush_planner` reads traffic lines
+  DURING planning (`:52,90,98`), so moving roads later would blind it. The fix is a dependency
+  re-order, not a demotion: sites → stamps → roads → ambushes.
+- **Silent defaults → AFTER THE PLAN.** The 15-item register stands as recorded debt in
+  `SILENT_DEFAULTS_2026-08-12.md`. Do not detour into it.
+
+---
+
 ## WHAT THIS PLAN DELIBERATELY DOES NOT DO
 
 - **No Blender remodelling.** The nav architect's finding stands: the GLB is fine — 1,259 nodes,
