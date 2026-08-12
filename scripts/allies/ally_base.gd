@@ -7,7 +7,7 @@ signal died(ally: AllyBase)
 var max_hp: int = 80
 var current_hp: int = 80
 var move_speed: float = 5.6
-var preferred_range: float = 22.0
+var preferred_range: float = 14.0
 
 var weapon_data: WeaponData = null
 var fire_timer: float = 0.0
@@ -135,8 +135,10 @@ var has_covering_fire: bool = false
 ## hunting for it instead of thrashing.
 func wants_cover_first(nerve: float) -> bool:
 	if _cover_fail_count >= 2:
-		return false
-	return squad_broken or has_cover or suppression_level > ANCHOR_SUPPRESS \
+		if Time.get_ticks_msec() - _cover_fail_ms < COVER_FAIL_LOCKOUT_MS:
+			return false
+		_cover_fail_count = 0
+	return squad_broken or has_cover or incoming_pressure > ANCHOR_SUPPRESS \
 		or (_contact_time < 5.0 and nerve < 0.75)
 
 
@@ -262,6 +264,12 @@ const SUPPRESSION_DECAY: float = 0.3
 ## misses top out around 0.34, so a 0.6 threshold can never be reached.
 const ANCHOR_SUPPRESS: float = 0.25
 
+## suppression_level is an INSTANT: it decays in ~3.3s, so any decision sampled
+## between bursts sees zero and a man forgets he is in a firefight. incoming_pressure
+## is the same signal with a memory - it is what "I am being shot at" must read.
+var incoming_pressure: float = 0.0
+const PRESSURE_DECAY: float = 0.06
+
 ## ---- COMMITMENT (Summoner verdict 2026-08-04: "the friendly AI is super squierly") ----
 ## Ally-only hysteresis; enemy scoring is untouched (divergent-systems law). A claimed
 ## piece of cover is fought from for a real dwell, and goal switches need both a score
@@ -281,6 +289,10 @@ var current_cover: Vector3 = Vector3.ZERO
 var _moving_to_cover: bool = false
 var _cover_search_timer: float = 0.0
 var _cover_fail_count: int = 0
+## The lockout is a thrash guard, not a life sentence: ground that had no cover ten
+## seconds ago is not the ground he is standing on now.
+var _cover_fail_ms: int = -100000
+const COVER_FAIL_LOCKOUT_MS: int = 10000
 ## Animation override for cover behavior (leap in, crouch-hold, peek). Rigs
 ## differ, so these are fallback chains resolved by ModelActor.play_first.
 var _anim_override: String = ""
@@ -644,6 +656,7 @@ func _physics_process(delta: float) -> void:
 
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * capped_delta)
+		incoming_pressure = maxf(0.0, incoming_pressure - PRESSURE_DECAY * capped_delta)
 
 	if not can_fire:
 		fire_timer -= capped_delta
@@ -951,7 +964,7 @@ func _local_force_ratio() -> float:
 ## going out. Replace it with a measured term if the ally brain ever needs parity.
 func _threat_estimate() -> float:
 	var hurt: float = 1.0 - float(current_hp) / float(maxi(1, max_hp))
-	return clampf(suppression_level * 0.7 + hurt * 0.5, 0.0, 1.0)
+	return clampf(maxf(suppression_level, incoming_pressure) * 0.7 + hurt * 0.5, 0.0, 1.0)
 
 
 ## Goal -> state. SUPPRESS rides the COMBAT state: the difference is WHERE the rounds
@@ -1204,7 +1217,7 @@ func _execute_combat(delta: float) -> void:
 
 	strafe_timer -= delta
 	if strafe_timer <= 0:
-		strafe_direction = [-1.0, 0.0, 0.0, 0.0, 1.0].pick_random()
+		strafe_direction = [-1.0, 0.0, 1.0].pick_random()
 		strafe_timer = randf_range(0.8, 2.0)
 
 	if has_line_of_sight:
@@ -1217,7 +1230,7 @@ func _execute_combat(delta: float) -> void:
 		# will accept, so the fight is fought at arm's length while men get out.
 		var hold_band: float = 1.0 if squad_broken else 0.6
 
-		if dist > preferred_range * advance_band and suppression_level < ANCHOR_SUPPRESS:
+		if dist > preferred_range * advance_band and incoming_pressure < ANCHOR_SUPPRESS:
 			# A zoned defender's aggressive footwork stops at his zone's core - he
 			# works his ground, he does not creep off it toward the contact.
 			if may_close_distance(nerve) and (defense_zone_radius <= 0.0
@@ -1226,9 +1239,15 @@ func _execute_combat(delta: float) -> void:
 		elif dist < preferred_range * hold_band:
 			move_dir = (global_position - target.global_position).normalized()
 
-		if strafe_direction != 0.0 and suppression_level < ANCHOR_SUPPRESS:
+		if strafe_direction != 0.0:
 			var strafe_vec := transform.basis.x * strafe_direction
-			move_dir = (move_dir + strafe_vec * 0.4).normalized()
+			if move_dir.length() < 0.01:
+				# Footwork with nowhere to be. normalize() here ran a man at full
+				# combat speed for no tactical reason - that is the fidget, and
+				# standing him still instead is worse against a 1.0-degree AI cone.
+				move_dir = strafe_vec * (0.25 if incoming_pressure > ANCHOR_SUPPRESS else 0.45)
+			else:
+				move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
 		# RTO cord over footwork (his verdict 2026-08-04): beyond the leash his one
 		# legal move is toward the player - the claim is dropped, the pull wins.
@@ -1414,6 +1433,7 @@ func _execute_seeking_cover(delta: float) -> void:
 			_rush_clip = _pick_rush_clip()
 			return
 		_cover_fail_count += 1
+		_cover_fail_ms = Time.get_ticks_msec()
 
 	# No point found (yet): perpendicular duck-and-dodge.
 	if target:
@@ -1546,6 +1566,32 @@ func _rto_cover_score(c: Vector3, threat_pos: Vector3, player_pos: Vector3) -> f
 	return score
 
 
+## EnemyBase's ring stops at 6m and belongs to the enemy brain (divergent-systems law).
+## A squad holding a line stands further than that from its own works, so allies get a
+## second, wider sweep - paid for only when the near ring comes up empty.
+const ALLY_COVER_FAR_OFFSETS: Array[Vector3] = [
+	Vector3(9, 0, 0), Vector3(-9, 0, 0), Vector3(0, 0, 9), Vector3(0, 0, -9),
+	Vector3(6.4, 0, 6.4), Vector3(-6.4, 0, 6.4), Vector3(6.4, 0, -6.4), Vector3(-6.4, 0, -6.4),
+	Vector3(13, 0, 0), Vector3(-13, 0, 0), Vector3(0, 0, 13), Vector3(0, 0, -13),
+]
+
+
+func _sweep_cover(space_state: PhysicsDirectSpaceState3D, threat_pos: Vector3,
+		offsets: Array[Vector3]) -> Array[Vector3]:
+	var candidates: Array[Vector3] = []
+	for off in offsets:
+		var candidate: Vector3 = global_position + off
+		var origin: Vector3 = candidate + Vector3.UP * 1.3
+		var query := PhysicsRayQueryParameters3D.create(
+			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
+		query.exclude = [self]
+		CombatManager.rays_cover += 1
+		var hit: Dictionary = space_state.intersect_ray(query)
+		if hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M:
+			candidates.append(candidate)
+	return candidates
+
+
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
 func _find_cover_point() -> Vector3:
 	var threat_pos: Vector3 = Vector3.ZERO
@@ -1556,18 +1602,13 @@ func _find_cover_point() -> Vector3:
 	else:
 		return Vector3.ZERO
 	var space_state := get_world_3d().direct_space_state
-	var candidates: Array[Vector3] = []
-	for off in EnemyBase.COVER_SEARCH_OFFSETS:
-		var candidate: Vector3 = global_position + off
-		var origin: Vector3 = candidate + Vector3.UP * 1.3
-		var query := PhysicsRayQueryParameters3D.create(
-			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
-		query.exclude = [self]
-		CombatManager.rays_cover += 1
-		var hit: Dictionary = space_state.intersect_ray(query)
-		if hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M:
-			candidates.append(candidate)
-	var hard: Vector3 = _claim_scored(candidates, threat_pos)
+	var hard: Vector3 = _claim_scored(_sweep_cover(space_state, threat_pos,
+		EnemyBase.COVER_SEARCH_OFFSETS), threat_pos)
+	if hard != Vector3.ZERO:
+		return hard
+	# Only pay for the wider sweep when the near ring found nothing.
+	hard = _claim_scored(_sweep_cover(space_state, threat_pos,
+		ALLY_COVER_FAR_OFFSETS), threat_pos)
 	if hard != Vector3.ZERO:
 		return hard
 	# THE VIETCONG GAP (decree 2026-08-03 §2.11 item 3). Grass/fern/bush carry no collider
@@ -1770,6 +1811,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 func apply_suppression(amount: float) -> void:
 	suppression_level = minf(1.0, suppression_level + amount)
+	incoming_pressure = minf(1.0, incoming_pressure + amount)
 
 
 func _die() -> void:

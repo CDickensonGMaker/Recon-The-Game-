@@ -3,9 +3,10 @@ extends Node3D
 ## Support Fire Range — the fire-support + destruction bench (ADR-031 PROPOSED), upgraded
 ## into a live-fire COVER LAB (Summoner ruling 2026-08-04). Player + RTO + 4 riflemen behind
 ## a low sandbag arc facing a breakable tree field, every fire-support tier on tap via the
-## shared FireSupportBench rig (ADR-023). [9] sends a 5-man VC squad in from the far tree
-## line; the proof is WATCHING the squad break to cover — each claimed cover point gets a
-## marker sphere + nick label (bench-only witness, this scene script gates it).
+## shared FireSupportBench rig (ADR-023). [9] sends the assault in from the far tree line —
+## bases of fire, manoeuvre elements and a satchel party for the wire — so the whole siege
+## loop runs here; the proof is WATCHING the squad break to cover — each claimed cover point
+## gets a marker sphere + nick label (bench-only witness, this scene script gates it).
 ## Keys: T open the net · 1 bombs / 2 napalm / 3 arty / 4 mortar / 5 spectre / 6 CBU /
 ## 7 willy-pete / 8 illum · 9 enemy assault · LMB send while a call is placed · RMB back out.
 ## Run: godot --path . res://scenes/levels/support_fire_range.tscn
@@ -15,11 +16,13 @@ extends Node3D
 
 const FIELD := 200.0
 
-## The friendly line: low segments arced around the player spawn, facing the tree field.
+## The friendly line: low segments arced around the player spawn, facing the tree field,
+## plus the forward perimeter works the sappers have to come through.
 ## Collider must reach past the 1.3m cover-ray eye (ally_base.gd:1402) or it is scenery.
 ## Height is bounded by where rounds actually leave the player: the muzzle rides the
 ## viewmodel (weapon_holder._get_muzzle_position) well below the 1.7m eye, so cover
-## the camera clears is not automatically cover the barrel clears.
+## the camera clears is not automatically cover the barrel clears. EVERY bag on this
+## bench uses this one box - a taller forward work would eat his own fire the same way.
 const SANDBAG_BOX := Vector3(2.6, 1.1, 0.9)
 const SANDBAG_LINE: Array[Dictionary] = [
 	{"pos": Vector3(-7.0, 0.0, 1.2), "yaw": 0.5},
@@ -30,6 +33,17 @@ const SANDBAG_LINE: Array[Dictionary] = [
 	# One bag BEHIND the spawn: gives the RTO cord a hard-cover spot in the player's
 	# shadow so the W-13 tuck-in ("behind me relative to the threat") is witnessable here.
 	{"pos": Vector3(1.5, 0.0, 10.5), "yaw": 0.0},
+	# Forward perimeter, between the wire and the arc: staggered so no bag sits directly
+	# in a lane the arc shoots down.
+	{"pos": Vector3(-16.0, 0.0, -7.0), "yaw": 0.35},
+	{"pos": Vector3(-11.5, 0.0, -9.5), "yaw": 0.18},
+	{"pos": Vector3(11.5, 0.0, -9.5), "yaw": -0.18},
+	{"pos": Vector3(16.0, 0.0, -7.0), "yaw": -0.35},
+	{"pos": Vector3(-22.0, 0.0, -3.5), "yaw": 0.6},
+	{"pos": Vector3(22.0, 0.0, -3.5), "yaw": -0.6},
+	# Flank posts beside the bunkers, angled onto the wire.
+	{"pos": Vector3(-19.0, 0.0, 4.0), "yaw": 0.9},
+	{"pos": Vector3(19.0, 0.0, 4.0), "yaw": -0.9},
 ]
 
 ## Riflemen courage is pinned LOW: with the 6m rally bonus (+0.25) the CombatGoals
@@ -57,6 +71,10 @@ const ASSAULT_BASE_OF_FIRE: Array[String] = [
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
 ]
+## Dac cong. They carry the satchels, so they are the ONLY men in the wave whose legs
+## belong to the objective - SapperCharge.setup sets assault_driven, nothing here does.
+const ASSAULT_SAPPERS: int = 4
+const SAPPER_DATA: String = "res://data/enemies/vc_sapper.tres"
 ## Total width the assault deploys across, both element and base-of-fire lines.
 const ASSAULT_FRONTAGE_M: float = 96.0
 
@@ -67,6 +85,7 @@ var _toast_t: float = 0.0
 var _nav_region: NavigationRegion3D = null
 var _squad: Array[AllyBase] = []            ## RTO + riflemen, marker-witnessed
 var _cover_line: Array[Destructible] = []   ## the friendly sandbag arc
+var _wire: Array[Destructible] = []         ## the belt the sappers breach
 var _trees: Array[Vector3] = []             ## planted tree positions (cover-probe report)
 var _tree_layer: TreeCoverLayer = null
 var _tree_scatter: Array = []
@@ -90,7 +109,9 @@ func _ready() -> void:
 	_build_light()
 	_build_target_field()
 	_build_cover_line()
+	_build_wire_belt()
 	_build_bunkers()
+	_build_jungle()
 	_bake_navmesh()
 	# The navigation server needs physics frames to register the baked region before
 	# agents can resolve paths on it (same wait the AI arena takes).
@@ -295,10 +316,16 @@ func _plant_probe_tree(pos: Vector3) -> void:
 
 
 ## His two ORIGINAL hand-built fighting bunkers (exported from the firebase truth
-## source 2026-08-04), flanking the line facing the tree field so he can walk in
-## and shoot out of the slits. The -colonly twins import as real collision with
-## the slits OPEN. Kit facing convention: Blender +Y = Godot -Z, so yaw 0 should
-## point the front at the field - tell him to say so if a slit faces the wrong way.
+## source 2026-08-04), flanking the line so he can walk in and shoot out of the slits.
+## The -colonly twins import as real collision with the slits OPEN.
+##
+## These meshes are NOT symmetric and they do NOT follow the kit's Blender +Y = Godot -Z
+## rule: measured off the GLBs, both carry their open rear at local -Z and their walled,
+## embrasured face at local +Z (fb_bunker_mg has a horizontal slit through +Z at y~0.9;
+## fb_bunker_fighting has a firing gap in the 0.6-0.9 band and a solid +Z parapet above).
+## At yaw 0 that presents the open back to an attacker coming from -Z, which is what
+## BUNKER_YAW turns around.
+const BUNKER_YAW: float = PI
 const BUNKERS: Array = [
 	["res://assets/world/building models/structures/firebase/kit/fb_bunker_mg.glb",
 		Vector3(-14.0, 0.0, 5.0)],
@@ -318,6 +345,7 @@ func _build_bunkers() -> void:
 		var b := packed.instantiate() as Node3D
 		add_child(b)
 		b.global_position = spec[1] as Vector3
+		b.rotation.y = BUNKER_YAW
 		b.add_to_group("nav_source")
 
 
@@ -332,6 +360,145 @@ func _build_cover_line() -> void:
 		fort.rotation.y = float(spec["yaw"])
 		fort.add_to_group("nav_source")
 		_cover_line.append(fort)
+
+
+## ---------- THE WIRE ----------
+## The belt in front of the perimeter: the sappers' first-priority target
+## (sapper_charge.TARGET_PRIORITY) and the reason a breach has to happen before the
+## manoeuvre elements get a lane. It is in "nav_source", so an unbreached belt really
+## does push undriven riflemen out to the open flanks past +-WIRE_HALF_W.
+const WIRE_Z: float = -18.0
+const WIRE_HALF_W: float = 30.0
+const WIRE_ROWS: int = 2
+const WIRE_ROW_GAP: float = 2.2
+## The card art is a zero-thickness quad, so its own AABB cannot give the collider a
+## depth - a belt has to be given one or the box shape is degenerate.
+const WIRE_DEPTH: float = 0.8
+
+
+func _build_wire_belt() -> void:
+	var meshes: Array[Mesh] = FireSupportBench.lift_meshes("bwire_card", 1, "wire")
+	if meshes.is_empty():
+		push_warning("[SUPPORT FIRE RANGE] no barbwire card art - the belt is missing")
+		return
+	var mesh: Mesh = meshes[0]
+	var box: AABB = mesh.get_aabb()
+	var step: float = maxf(0.5, box.size.x)
+	var per_row: int = int((WIRE_HALF_W * 2.0) / step)
+	var hp: int = Destructible.hp_for("wire")
+	var shape := Vector3(step, box.size.y, WIRE_DEPTH)
+	for row in range(WIRE_ROWS):
+		var z: float = WIRE_Z + float(row) * WIRE_ROW_GAP
+		var stagger: float = step * 0.5 if row % 2 == 1 else 0.0
+		for i in range(per_row):
+			var x: float = -WIRE_HALF_W + step * (float(i) + 0.5) + stagger
+			var card: Destructible = FireSupportBench.spawn_fort(
+				self, Vector3(x, 0.0, z), mesh, shape, "wire", hp)
+			card.add_to_group("nav_source")
+			_wire.append(card)
+	print("[SUPPORT FIRE RANGE] wire belt: %d cards, %.0fm frontage at z=%.0f"
+		% [_wire.size(), WIRE_HALF_W * 2.0, WIRE_Z])
+
+
+## Centre of the belt - what a satchel is aimed at before SapperCharge picks its own card.
+func _wire_center() -> Vector3:
+	return Vector3(0.0, 0.0, WIRE_Z)
+
+
+## ---------- THE JUNGLE ----------
+## Real low-poly plant GLBs on MultiMeshes, one draw call per variant. OPAQUE models only:
+## every lp_* model is alphaMode BLEND and puts the convicted overdraw defect back.
+## Nothing is planted in the firing lanes this bench exists to test, and the tall band is
+## flanks-only so it never becomes a wall across the front.
+const VEG_DIR: String = "res://assets/world/vegetation/"
+const UNDERSTORY: Array[String] = [
+	"bush_a", "bush_b", "bush_c", "fern_a", "fern_b", "fern_c",
+	"fallen_log_a", "fallen_log_b", "moss_a", "moss_b",
+]
+const FLANK_GROWTH: Array[String] = [
+	"elephant_grass_a", "elephant_grass_b", "elephant_grass_c",
+	"banana_a", "banana_b", "palm_sapling_a", "palm_sapling_b", "liana_a", "liana_b",
+]
+const UNDERSTORY_PER_VARIANT: int = 70
+const FLANK_PER_VARIANT: int = 34
+const VEG_VIEW_M: float = 70.0
+## The lane kept clear: nothing inside this half-width forward of the arc, so every
+## direct-fire key and every rifle on the line has an unobstructed shot downrange.
+const LANE_HALF_W: float = 11.0
+const LANE_Z_FAR: float = -46.0
+## Tall growth starts outside this, measured from the centreline.
+const FLANK_MIN_X: float = 25.0
+## Nothing grows through the wire or inside the compound.
+const WIRE_CLEAR_M: float = 3.5
+const COMPOUND_HALF_W: float = 21.0
+const COMPOUND_Z_FRONT: float = -6.0
+
+
+func _build_jungle() -> void:
+	var root := Node3D.new()
+	root.name = "Jungle"
+	add_child(root)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260812   # one seed per operation (ADR-010)
+	var planted: int = 0
+	planted += _scatter_band(root, rng, UNDERSTORY, UNDERSTORY_PER_VARIANT, 0.0)
+	planted += _scatter_band(root, rng, FLANK_GROWTH, FLANK_PER_VARIANT, FLANK_MIN_X)
+	print("[SUPPORT FIRE RANGE] jungle: %d plants over %d variants" % [
+		planted, UNDERSTORY.size() + FLANK_GROWTH.size()])
+
+
+func _scatter_band(root: Node3D, rng: RandomNumberGenerator, variants: Array[String],
+		want: int, min_abs_x: float) -> int:
+	var half: float = FIELD * 0.5 - 8.0
+	var total: int = 0
+	for variant in variants:
+		var mesh: Mesh = GroundClutter.load_glb_mesh(VEG_DIR + variant + ".glb")
+		if mesh == null:
+			continue
+		var placed: Array[Transform3D] = []
+		# Bounded attempts: the rejection mask can refuse a candidate, and a while-loop
+		# on a full mask would never return.
+		for _attempt in range(want * 6):
+			if placed.size() >= want:
+				break
+			var pos := Vector3(rng.randf_range(-half, half), 0.0,
+				rng.randf_range(-half, 30.0))
+			if not _jungle_allows(pos, min_abs_x):
+				continue
+			var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
+			var s: float = rng.randf_range(0.85, 1.35)
+			placed.append(Transform3D(basis.scaled(Vector3(s, s, s)), pos))
+		if placed.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = placed.size()
+		for i in range(placed.size()):
+			mm.set_instance_transform(i, placed[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "veg_" + variant
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = VEG_VIEW_M
+		mmi.visibility_range_end_margin = 10.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		root.add_child(mmi)
+		total += placed.size()
+	return total
+
+
+func _jungle_allows(pos: Vector3, min_abs_x: float) -> bool:
+	var ax: float = absf(pos.x)
+	if ax < min_abs_x:
+		return false
+	if ax < COMPOUND_HALF_W and pos.z > COMPOUND_Z_FRONT:
+		return false
+	if ax < LANE_HALF_W and pos.z > LANE_Z_FAR:
+		return false
+	if absf(pos.z - WIRE_Z) < WIRE_CLEAR_M and ax < WIRE_HALF_W + 4.0:
+		return false
+	return true
 
 
 ## The rounds board (his ruling 2026-08-04: "i need to be told what buttons to hit
@@ -368,7 +535,7 @@ func _update_legend() -> void:
 		var count: int = int(_director.fire_support.get(str(row[2]), 0))
 		lines.append("[%s] %s %s" % [str(row[0]), str(row[1]),
 			("x%d" % count) if count > 0 else "- OUT"])
-	lines.append("[9] ENEMY ASSAULT   [N] day-night   LMB send / RMB back out   [T] net on-off")
+	lines.append("[9] ENEMY ASSAULT + SAPPERS   [N] day-night   LMB send / RMB back out   [T] net on-off")
 	_legend.text = "\n".join(lines)
 
 
@@ -405,10 +572,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_director.request_fire_support(kind, target, run)
 
 
-## [9]. A 10-man platoon slice at the far tree line — the arena's enemy spawn pattern
-## (alert tier + last-known point + explicit nav map binding). Maneuver elements bound
-## on the arc via `assault_driven` (sapper_room/MarchingCell doctrine); the bases of
-## fire hold at the trees and shoot.
+## [9]. A platoon slice at the far tree line — the arena's enemy spawn pattern
+## (alert tier + last-known point + explicit nav map binding). Manoeuvre elements get an
+## objective on the arc but keep their legs; the bases of fire hold at the trees and
+## shoot; the sappers (_launch_sappers) are the only driven men.
 func _launch_assault() -> void:
 	if player == null:
 		return
@@ -463,6 +630,7 @@ func _launch_assault() -> void:
 			nav_agent.set_navigation_map(_nav_region.get_navigation_map())
 		_enemies.append(enemy)
 		spawned += 1
+	spawned += _launch_sappers()
 	# Arena hot-start seam (ai_stress_arena._hot_start_combat): seed the squad's contact
 	# FRESH at the moment the assault steps off. Left to the perception ramp, contact_conf
 	# crosses the scorer's 0.4 gate only after the <5s cover-first window has expired, so
@@ -487,6 +655,38 @@ func _launch_assault() -> void:
 		_fight_start_ms = Time.get_ticks_msec()
 	_on_toast("ASSAULT: %d MEN AT THE FAR TREE LINE" % spawned)
 	print("[SUPPORT FIRE RANGE] wave %d: %d attackers advancing on the line" % [_assault_wave, spawned])
+
+
+## The satchel party, spread across the belt frontage a little ahead of the manoeuvre
+## elements. SapperCharge.setup is what sets assault_driven and what claims a card, so
+## nothing here touches either - a sapper is the only man in the wave who pushes through
+## contact, and he is driven because he carries the charge, not because he is a sapper.
+func _launch_sappers() -> int:
+	var spawned: int = 0
+	var centre: Vector3 = _wire_center()
+	for i in range(ASSAULT_SAPPERS):
+		var span: float = WIRE_HALF_W * 1.6 / maxf(1.0, float(ASSAULT_SAPPERS))
+		var x: float = -WIRE_HALF_W * 0.8 + span * (float(i) + 0.5)
+		var pos := Vector3(x, 0.6, ENEMY_LINE_Z + 8.0)
+		var sapper := EnemyBase.spawn_enemy(self, pos, SAPPER_DATA)
+		if sapper == null:
+			continue
+		# Lone: a squad hunt_point must never steer a driven man off his objective.
+		sapper.squad_id = -1
+		sapper.alert_tier = EnemyBase.AlertTier.ALERT
+		sapper.rotation.y = atan2(centre.x - pos.x, centre.z - pos.z)
+		var nav_agent := sapper.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
+		if nav_agent != null and _nav_region != null:
+			nav_agent.set_navigation_map(_nav_region.get_navigation_map())
+		var charge := SapperCharge.new()
+		sapper.add_child(charge)
+		charge.setup(Vector3(x, 0.0, WIRE_Z))
+		_enemies.append(sapper)
+		spawned += 1
+	if spawned > 0:
+		print("[SUPPORT FIRE RANGE] %d dac cong crossing for the wire at z=%.0f"
+			% [spawned, WIRE_Z])
+	return spawned
 
 
 ## ---------- THE COVER WITNESS (bench-only) ----------
