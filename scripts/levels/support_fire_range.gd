@@ -134,7 +134,9 @@ func _ready() -> void:
 		_director.toast.connect(_on_toast)
 	_spawn_ally_squad()
 	_build_hint()
-	if OS.get_cmdline_user_args().has("--cover-probe"):
+	if OS.get_cmdline_user_args().has("--fell-cover-probe"):
+		_run_fell_cover_probe()
+	elif OS.get_cmdline_user_args().has("--cover-probe"):
 		_run_cover_probe()
 	elif OS.get_cmdline_user_args().has("--lethality-probe"):
 		_run_lethality_probe()
@@ -1305,6 +1307,73 @@ func _sp_airburst_report(tag: String, man: EnemyBase) -> void:
 ## Drives the [9] path with no hands and prints each man's claim + distance to the
 ## nearest sandbag/tree — measured proof the squad falls into places (ADR-015).
 
+## ---------- FELL-COVER PROBE (--fell-cover-probe, headless) ----------
+## IS A DOWNED TREE COVER? The art breaks into _stump/_stem/_crown and TreeBreakSystem lays a
+## hard_surface log under the fallen top, but nothing has ever measured whether an ally will
+## actually fight from one. Plants timber inside the squad's cover reach (the ally ring is
+## 6m, with a 9/13m second sweep), fells it with a LOW blast so the whole tree goes over -
+## break_at:360 splits at the nearer of two joints, and a low hit drops stem+crown together -
+## then runs the fight and reports each man's claim against the lying logs.
+const FELL_PROBE_RING: Array[Vector3] = [
+	Vector3(-7.0, 0.0, -6.0), Vector3(7.0, 0.0, -6.0),
+	Vector3(-11.0, 0.0, 2.0), Vector3(11.0, 0.0, 2.0),
+]
+## Low enough to take the whole tree over rather than just the crown.
+const FELL_PROBE_BLAST_Y: float = 0.6
+const FELL_PROBE_BLAST_R: float = 6.0
+
+
+func _run_fell_cover_probe() -> void:
+	await get_tree().create_timer(1.0).timeout
+	print("\n[FELL-COVER] planting %d trees inside the squad's cover reach" % FELL_PROBE_RING.size())
+	for p in FELL_PROBE_RING:
+		_plant_probe_tree(p)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var felled: int = 0
+	for p in FELL_PROBE_RING:
+		felled += TreeBreakSystem.apply_blast(p + Vector3(0.0, FELL_PROBE_BLAST_Y, 0.0),
+			FELL_PROBE_BLAST_R)
+	await get_tree().create_timer(2.5).timeout
+	var logs: Array[Vector3] = _felled_log_positions()
+	print("[FELL-COVER] apply_blast consumed %d instance(s); %d FelledLogTrunk collider(s) standing"
+		% [felled, logs.size()])
+	if logs.is_empty():
+		print("[FELL-COVER] FAIL - nothing was felled, so nothing below measures cover.")
+		print("[FELL-COVER] check data/veg_break_bands.json exists (an empty _bands drops every"
+			+ " instance and the jungle is silently unbreakable)")
+		get_tree().quit(1)
+		return
+
+	_launch_assault()
+	await get_tree().create_timer(4.0).timeout
+	_print_cover_report("FELL T+4s")
+	await get_tree().create_timer(8.0).timeout
+	_print_cover_report("FELL T+12s")
+	_report_log_claims()
+	get_tree().quit()
+
+
+## The one number this probe exists for: how many men fought from the timber.
+func _report_log_claims() -> void:
+	var logs: Array[Vector3] = _felled_log_positions()
+	var claimed_on_log: int = 0
+	var alive: int = 0
+	for a in _squad:
+		if a == null or not is_instance_valid(a) or a.is_dead():
+			continue
+		alive += 1
+		if not (a.has_cover or a._moving_to_cover):
+			continue
+		# The ally cover ray needs a blocker within COVER_BLOCKER_MAX_M of the spot, so a
+		# claim that far from a log was not made because of the log.
+		if _nearest_dist(a.current_cover, logs) <= EnemyBase.COVER_BLOCKER_MAX_M:
+			claimed_on_log += 1
+	print("[FELL-COVER] %d of %d living men claimed cover on a downed log (%d logs on the field)"
+		% [claimed_on_log, alive, logs.size()])
+
+
 func _run_cover_probe() -> void:
 	await get_tree().create_timer(1.0).timeout
 	_launch_assault()
@@ -1345,6 +1414,9 @@ func _print_cover_report(tag: String) -> void:
 			a.global_position.distance_to(claimed),
 			_nearest_dist(claimed, _sandbag_positions()),
 			_nearest_dist(claimed, _tree_positions())]
+		var logs: Array[Vector3] = _felled_log_positions()
+		if not logs.is_empty():
+			line += "  d(claim->log)=%.1fm" % _nearest_dist(claimed, logs)
 		if mos == "RTO" and player != null:
 			var threat: Vector3 = _nearest_enemy_pos(claimed)
 			line += "  d(claim->player)=%.1fm  shadow_dot=%.2f" \
@@ -1367,6 +1439,22 @@ func _sandbag_positions() -> Array[Vector3]:
 
 func _tree_positions() -> Array[Vector3]:
 	return _trees
+
+
+## Where the DOWNED timber is. TreeBreakSystem lays a "FelledLogTrunk" StaticBody3D on
+## layer 1 in hard_surface under each BrokenTree on a bench (tree_break_system.gd:450-463),
+## which is exactly what the ally cover ray tests for - so a lying log SHOULD be claimable.
+## This is the measurement of whether it ever is.
+func _felled_log_positions() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is Node3D and String(n.name).begins_with("FelledLogTrunk"):
+			out.append((n as Node3D).global_position)
+	return out
 
 
 func _nearest_dist(from: Vector3, points: Array[Vector3]) -> float:
