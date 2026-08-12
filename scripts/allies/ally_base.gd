@@ -288,6 +288,11 @@ var has_cover: bool = false
 var current_cover: Vector3 = Vector3.ZERO
 var _moving_to_cover: bool = false
 var _cover_search_timer: float = 0.0
+## Exposure ramp and warning shot, mirroring the enemy path (enemy_base.gd:2237-2244).
+var target_visible_duration: float = 0.0
+var _first_shot_fired: bool = false
+const EXPOSURE_RAMP_S: float = 2.5
+
 var _cover_fail_count: int = 0
 ## The lockout is a thrash guard, not a life sentence: ground that had no cover ten
 ## seconds ago is not the ground he is standing on now.
@@ -802,9 +807,11 @@ func _update_line_of_sight() -> void:
 	if has_line_of_sight:
 		target_last_seen_time = 0.0
 		contact_conf = minf(1.0, contact_conf + THINK_INTERVAL / 0.3)
+		target_visible_duration += THINK_INTERVAL
 	else:
 		target_last_seen_time += THINK_INTERVAL
 		contact_conf = maxf(0.0, contact_conf - THINK_INTERVAL / 2.0)
+		target_visible_duration = maxf(0.0, target_visible_duration - THINK_INTERVAL * 3.0)
 
 	if has_line_of_sight:
 		last_known_target_pos = target.global_position
@@ -962,6 +969,14 @@ func _local_force_ratio() -> float:
 ## threat_level from its own perception; AllyBase has never had one, so this is an
 ## honest PROXY off the two signals our men do carry - rounds coming in, and blood
 ## going out. Replace it with a measured term if the ally brain ever needs parity.
+## CombatManager.apply_explosion_damage guards this with has_method, so an ally without
+## it was silently skipped: a man in a grenade blast did not stagger while the enemy did.
+func apply_stagger(power: float) -> void:
+	if power >= 1.0 and current_state != Enums.AIState.DEAD:
+		suppression_level = minf(1.0, suppression_level + 0.5)
+		incoming_pressure = minf(1.0, incoming_pressure + 0.5)
+
+
 func _threat_estimate() -> float:
 	var hurt: float = 1.0 - float(current_hp) / float(maxi(1, max_hp))
 	return clampf(maxf(suppression_level, incoming_pressure) * 0.7 + hurt * 0.5, 0.0, 1.0)
@@ -1712,7 +1727,12 @@ func _fire_at_target() -> void:
 	var moving: bool = Vector3(velocity.x, 0.0, velocity.z).length() > 0.5
 	var pre_cap: float = AIMarksmanship.cone_spread_deg(
 		weapon_data.base_spread, acc01, shots_fired, moving, 1.0)
-	final_aim = AIMarksmanship.aim_with_spread(final_aim, pre_cap, _target_is_player(), 1.0, false)
+	# Same exposure ramp and first-burst looseness the enemy path uses. Passing a flat
+	# 1.0/false gave the squad perfect snap accuracy the men shooting at them never had.
+	var exposure_t: float = clampf(target_visible_duration / EXPOSURE_RAMP_S, 0.0, 1.0)
+	final_aim = AIMarksmanship.aim_with_spread(final_aim, pre_cap, _target_is_player(),
+		exposure_t, not _first_shot_fired)
+	_first_shot_fired = true
 	if target != null and is_instance_valid(target) and target is Node3D:
 		var td: float = global_position.distance_to((target as Node3D).global_position)
 		var a_up: Vector3 = final_aim.cross(Vector3.UP).normalized().cross(final_aim).normalized()

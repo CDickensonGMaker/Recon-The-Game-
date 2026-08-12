@@ -212,8 +212,10 @@ func _withdraw(enemy: EnemyBase, from: Vector3) -> void:
 	var away: Vector3 = enemy.global_position - from
 	away.y = 0.0
 	# Placed at point-blank he may be standing ON it; fall back to the way he came in.
+	# +Z is BEHIND a Node3D - -Z would run him forward, through the objective and into
+	# his own blast, which is what made the breach read as a suicide run.
 	if away.length() < 0.5:
-		away = -enemy.global_transform.basis.z
+		away = enemy.global_transform.basis.z
 	away = away.normalized()
 	enemy.assault_objective = from + away * WITHDRAW_M
 	# assault_driven stays TRUE so the withdrawal outranks the fight the same way the
