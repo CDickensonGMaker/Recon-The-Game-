@@ -52,15 +52,10 @@ const ASSAULT_MANEUVER: Array[String] = [
 	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/nva_regular.tres", "res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/nva_regular.tres",
-	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/nva_regular.tres",
-	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/vc_rifleman.tres",
-	"res://data/enemies/nva_regular.tres", "res://data/enemies/vc_rifleman.tres",
 ]
 const ASSAULT_BASE_OF_FIRE: Array[String] = [
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
-	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
-	"res://data/enemies/nva_regular.tres", "res://data/enemies/nva_regular.tres",
 ]
 ## Total width the assault deploys across, both element and base-of-fire lines.
 const ASSAULT_FRONTAGE_M: float = 96.0

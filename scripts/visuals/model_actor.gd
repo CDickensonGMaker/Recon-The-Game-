@@ -791,6 +791,13 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	for i in range(bones.size()):
 		for j in range(i + 1, bones.size()):
 			(bones[i] as PhysicalBone3D).add_collision_exception_with(bones[j] as PhysicalBone3D)
+	# Gear sockets read the bone pose, so they must be processed AFTER the sim writes
+	# it. Left in their original order they resolve against the last ANIMATED pose and
+	# the pack hangs in the air while the body falls out from under it.
+	for c in _skel.get_children():
+		if c is BoneAttachment3D:
+			_skel.move_child(c, _skel.get_child_count() - 1)
+
 	# severed-bone modifier must stay LAST so dismembered parts survive the sim
 	var sever_mod: Node = _skel.find_child("SeveredBones", false, false)
 	if sever_mod != null:
