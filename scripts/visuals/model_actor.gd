@@ -85,6 +85,10 @@ func flinch(world_dir: Vector3, strength: float) -> void:
 	_flinch.punch(local.normalized(), strength)
 
 
+func _ready() -> void:
+	set_physics_process(false)
+
+
 func _exit_tree() -> void:
 	if _flinch != null:
 		_live_flinches -= 1
@@ -692,28 +696,26 @@ func pose_end_of(clip: String) -> bool:
 
 
 ## Park a live ragdoll (stop solving; pose stays). wake_ragdoll() resumes.
-## The simulator is a SkeletonModifier: stopping it REVERTS the skeleton to the
-## pre-ragdoll pose on the next update, which snapped every ragdolled corpse back
-## to its death-moment pose - the floating-corpse bug (his report 2026-08-04,
-## arena + firing range, gibbed included). Bake the simulated pose into the bone
-## poses FIRST so the body stays where physics left it.
+## The per-physics-frame bake in _physics_process keeps the bone poses tracking
+## the simulation, so stopping the modifier leaves the fallen pose in place.
 func sleep_ragdoll() -> void:
+	set_physics_process(false)
 	if _ragdoll_sim == null or not _ragdoll_sim.is_simulating_physics():
 		return
-	if _skel == null:
-		_ragdoll_sim.physical_bones_stop_simulation()
-		return
-	var poses: Array[Transform3D] = []
-	for bi in range(_skel.get_bone_count()):
-		poses.append(_skel.get_bone_global_pose(bi))
 	_ragdoll_sim.physical_bones_stop_simulation()
-	for bi in range(_skel.get_bone_count()):
-		var parent: int = _skel.get_bone_parent(bi)
-		var local: Transform3D = poses[bi] if parent == -1 \
-			else poses[parent].affine_inverse() * poses[bi]
-		_skel.set_bone_pose_position(bi, local.origin)
-		_skel.set_bone_pose_rotation(bi, local.basis.get_rotation_quaternion())
-		_skel.set_bone_pose_scale(bi, local.basis.get_scale())
+
+
+## Bone poses must be written in ASCENDING bone-index order: set_bone_global_pose
+## converts against parent globals, so a child written before its parent reads a
+## stale parent. _bake_ids is sorted once at bind time to hold that order.
+func _physics_process(_delta: float) -> void:
+	if _skel == null or _ragdoll_sim == null or not _ragdoll_sim.is_simulating_physics():
+		return
+	var to_skel: Transform3D = _skel.global_transform.affine_inverse()
+	for i in range(_bake_ids.size()):
+		var pb: PhysicalBone3D = _bake_bodies[i]
+		var pose: Transform3D = to_skel * pb.global_transform * pb.body_offset.affine_inverse()
+		_skel.set_bone_global_pose(_bake_ids[i], pose)
 
 
 # ---- ragdoll ----------------------------------------------------------------
@@ -734,6 +736,8 @@ const RAGDOLL_SETTLE_S: float = 4.0
 const PRONE_SPAN_MAX: float = 1.2
 static var _active_ragdolls: int = 0
 var _ragdoll_sim: PhysicalBoneSimulator3D = null
+var _bake_ids: PackedInt32Array = PackedInt32Array()
+var _bake_bodies: Array[PhysicalBone3D] = []
 
 
 func has_ragdoll() -> bool:
@@ -758,17 +762,26 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	# bind, the sim never topples the body, and pausing the clip first would latch
 	# the corpse UPRIGHT (the "staggering back" bug). If nothing binds, abort with
 	# the clip STILL RUNNING so _die() falls back to a death clip / flat pose.
-	var bound: int = 0
+	var bake_ids: Array[int] = []
+	var bake_bodies: Array[PhysicalBone3D] = []
 	for b in bones:
 		var pb: PhysicalBone3D = b as PhysicalBone3D
 		var bid: int = pb.get_bone_id()
 		if bid == -1:
 			bid = _skel.find_bone(pb.bone_name)
 		if bid != -1:
-			bound += 1
-	if bones.size() > 0 and bound == 0:
+			bake_ids.append(bid)
+			bake_bodies.append(pb)
+	if bones.size() > 0 and bake_ids.is_empty():
 		sim.queue_free()
 		return false
+	var order: Array = range(bake_ids.size())
+	order.sort_custom(func(a: int, b2: int) -> bool: return bake_ids[a] < bake_ids[b2])
+	_bake_ids.clear()
+	_bake_bodies.clear()
+	for oi in order:
+		_bake_ids.append(bake_ids[oi])
+		_bake_bodies.append(bake_bodies[oi])
 	_ragdoll_sim = sim
 	stop_anim()  # binding proven - stop the clip before the sim drives the pose
 	# A corpse must not collide with ITSELF: joints only exclude ADJACENT pairs,
@@ -783,6 +796,7 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	if sever_mod != null:
 		_skel.move_child(sever_mod, _skel.get_child_count() - 1)
 	sim.physical_bones_start_simulation()  # start FIRST, then impulse (same frame)
+	set_physics_process(true)
 	var spine := sim.find_child("Spine2", true, false) as PhysicalBone3D
 	if spine == null:
 		spine = sim.find_child("Hips", true, false) as PhysicalBone3D
@@ -794,7 +808,7 @@ func start_ragdoll(impulse_dir: Vector3, force: float = 8.0) -> bool:
 	var settle: SceneTreeTimer = get_tree().create_timer(RAGDOLL_SETTLE_S)
 	settle.timeout.connect(func() -> void:
 		if is_instance_valid(self) and is_instance_valid(sim):
-			sleep_ragdoll()   # bakes the fallen pose before stopping - see sleep_ragdoll
+			sleep_ragdoll()
 			ground_current_pose()
 		# The cap gates CONCURRENT solvers, not parked corpses: a settled body
 		# costs nothing, so its slot frees HERE, not when the corpse despawns.
@@ -906,6 +920,7 @@ func ragdoll_bone(bone: String) -> PhysicalBone3D:
 func wake_ragdoll() -> void:
 	if _ragdoll_sim != null and not _ragdoll_sim.is_simulating_physics():
 		_ragdoll_sim.physical_bones_start_simulation()
+		set_physics_process(true)
 
 
 ## World-space forward. This is the ONE yaw owner, and it sets GLOBAL yaw - never

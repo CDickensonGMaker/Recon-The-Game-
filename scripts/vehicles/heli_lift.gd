@@ -295,6 +295,7 @@ func _deliver() -> void:
 			var a: float = float(man._idle_seed % 360) * (TAU / 360.0)
 			var bunk: Vector3 = director.fsb_center \
 				+ Vector3(cos(a), 0.0, sin(a)) * (10.0 + float(man._idle_seed % 12))
+			bunk = _bunk_on_nav(bunk)
 			bunk.y = man.global_position.y
 			man.home = bunk
 			man.working_point_pos = bunk
@@ -324,6 +325,23 @@ func _deliver() -> void:
 		director._garrison_stand_to()
 	print("[LIFT] delivered %d man/men - garrison %d/%d"
 		% [landed_men, garrison_strength(), ESTABLISHMENT])
+
+
+## Pull a bunk hashed into a structure footprint back onto walkable ground.
+## Only inside a baked box: outside one, map_get_closest_point returns the
+## nearest FAR region and would drag the bunk across the map (guard pattern
+## nav_router.gd:67-69,87).
+func _bunk_on_nav(p: Vector3) -> Vector3:
+	if NavBaker.box_index_at(p) < 0:
+		return p
+	var w3d: World3D = heli.get_world_3d()
+	if w3d == null:
+		return p
+	var map: RID = w3d.navigation_map
+	if not map.is_valid() or NavigationServer3D.map_get_iteration_id(map) <= 0:
+		return p
+	var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, p)
+	return clamped if p.distance_to(clamped) < NavRouter.CLAMP_MAX_M else p
 
 
 # ---- EXTRACTION ----

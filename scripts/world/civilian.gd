@@ -37,6 +37,10 @@ var _idle_variant: String = "idle_unarmed_2"
 ## The same spawn hash _idle_variant is drawn from, kept so other per-man picks
 ## (the off-duty chain) vary with the man instead of all landing on one clip.
 var _idle_seed: int = 0
+## Latched when a diner has played his sit-down beat; cleared when he walks again.
+var _chow_seated: bool = false
+## Length of chow_sit_down, measured off anim_library.glb (25 keys @ 30fps).
+const CHOW_SIT_S: float = 0.83
 
 ## Travelling actions a household walks together. Stationary actions (work,
 ## cook, sleep) are done side by side at home, not in formation.
@@ -133,6 +137,54 @@ var _bt: RefCounted = null
 var _router := NavRouter.new()
 var _box_timer: float = 0.0
 
+## Stuck watchdog (mirrors EnemyBase): trying to move but pinned -> sidestep.
+## Threshold sits below IDLE_SPEED (0.8) - civilians amble where soldiers run.
+const UNSTICK_WANTS_MOVE: float = 0.5
+const UNSTICK_SPEED: float = 1.6
+var _stuck_pos: Vector3 = Vector3.ZERO
+var _stuck_t: float = 0.0
+var _unstick_t: float = 0.0
+var _unstick_dir: float = 1.0
+var _unstick_flips: int = 0
+
+func _update_unstick(delta: float) -> void:
+	if _unstick_t > 0.0:
+		_unstick_t -= delta
+		var side := global_transform.basis.x * _unstick_dir
+		velocity.x = side.x * UNSTICK_SPEED
+		velocity.z = side.z * UNSTICK_SPEED
+		return
+	_stuck_t += delta
+	if _stuck_t >= 1.0:
+		var wants_move: bool = Vector2(velocity.x, velocity.z).length() > UNSTICK_WANTS_MOVE
+		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
+			_unstick_t = 0.6
+			_unstick_dir = -_unstick_dir  # alternate sides so corners release
+			_unstick_flips += 1
+			if _unstick_flips >= 3:
+				_unstick_flips = 0
+				_rescue_snap()
+		else:
+			_unstick_flips = 0
+		_stuck_pos = global_position
+		_stuck_t = 0.0
+
+
+## The geometry has eaten this body: three sidesteps failed and he stands OFF the
+## mesh. Snap him back to walkable ground - only while no one can see it, and only
+## when the guarded helper found a covered point (an unchanged return means no safe
+## snap exists, so he keeps grinding rather than teleporting to a far region).
+func _rescue_snap() -> void:
+	if CombatManager.perceivable(self):
+		return
+	var snapped: Vector3 = _router.nearest_mesh_point(global_position)
+	var off: Vector3 = snapped - global_position
+	off.y = 0.0
+	if off.length() <= NavRouter.OFF_MESH_M:
+		return
+	global_position = snapped
+	reset_physics_interpolation()
+
 # L1 LOD. 3 tiers matching enemy_base.gd:39-54. Hysteresis band (5m) prevents
 # a civilian at a tier boundary from flapping between tiers every 2 seconds.
 const LOD_FULL: int = 0
@@ -173,7 +225,8 @@ const OCCUPATION_MODELS: Dictionary = {
 	"medic": ["us_surgeon"],
 }
 
-## Aircrew. Two men, and the ship has exactly two pilot seats (SeatSystem.SEAT_NAMES).
+## Aircrew: the two pilots, and the two door gunners on a gun-orbit ship
+## (AirTraffic._crew_gunners). Four crew berths in SeatSystem.SEAT_NAMES.
 const AIRCREW: Array[String] = ["us_pilot_white", "us_pilot_black"]
 
 
@@ -378,10 +431,14 @@ func _physics_process(delta: float) -> void:
 				flee_from = player.global_position
 			var away := (global_position - flee_from)
 			away.y = 0
-			_step_toward(global_position + away.normalized() * 10.0, 4.0, delta)
+			# Clamped only where a region covers the ville; at an unbaked one the
+			# helper hands the raw point back and the flee stays a direct line.
+			_step_toward(_router.nearest_mesh_point(
+				global_position + away.normalized() * 10.0), 4.0, delta)
 		CivState.COWER:
 			velocity.x = 0
 			velocity.z = 0
+	_update_unstick(delta)
 	move_and_slide()
 	# Face travel. Without this the only yaw a civilian ever gets is the one
 	# SeatSystem.unseat() stamps from the seat socket, and heli-delivered men
@@ -575,10 +632,15 @@ func _play_garrison(want: String) -> void:
 	# queue/eat/chow_diner/chow_exit are different jobs at the same meal.
 	if occupation == "mess_hall":
 		if want == "walking_unarmed":
+			_chow_seated = false
 			if role == "queue":
 				actor.play_first(["chow_queue_walk", "walk_forward", "walking_unarmed"])
 			else:
-				actor.play_first(["chow_tray_carry_walk", "chow_carry_walk",
+				# Two carry gaits so a tray line is not one stride copied down it.
+				@warning_ignore("integer_division")
+				var ci: int = (_idle_seed / 3) % 2
+				var carry: Array[String] = ["chow_tray_carry_walk", "chow_carry_step"]
+				actor.play_first([carry[ci], "chow_tray_carry_walk", "chow_carry_walk",
 					"walk_forward", "walking_unarmed"])
 			return
 		if want == "stooped" or want == "seated":
@@ -594,13 +656,31 @@ func _play_garrison(want: String) -> void:
 			if role == "chow_exit":
 				actor.play_first(["chow_tray_dump", "chow_stand_up", "idle_unarmed_3"])
 				return
+			# A man still on his FEET at the table eats standing. The seated chain on a
+			# standing man reads as a chair that is not there.
+			if want == "stooped":
+				actor.play_first(["chow_eat_standing", "chow_talk_seated_a",
+					"idle_unarmed_3"])
+				return
 			# At table. Eating and talking alternate per man so a full bench is not
 			# twenty men chewing in unison.
 			@warning_ignore("integer_division")
 			var eb: int = (_idle_seed / 11) % 4
-			var table: Array[String] = ["chow_eat_seated", "chow_talk_seated_a",
+			var beats: Array[String] = ["chow_eat_seated", "chow_talk_seated_a",
 				"chow_eat_seated", "chow_talk_seated_b"]
-			actor.play_first([table[eb], "chow_eat_seated", "sitting_idle_b", "sitting"])
+			var table: Array[String] = [beats[eb], "chow_eat_seated",
+				"sitting_idle_b", "sitting"]
+			# He sits DOWN before he sits: one beat, then the table hold. The latch is
+			# what keeps it from replaying every time the schedule re-dresses him.
+			if not _chow_seated:
+				_chow_seated = true
+				if actor.play_first(["chow_sit_down"]) != "":
+					get_tree().create_timer(CHOW_SIT_S).timeout.connect(
+						func() -> void:
+							if actor != null and is_instance_valid(actor):
+								actor.play_first(table))
+					return
+			actor.play_first(table)
 			return
 	if occupation == "quartermaster":
 		if want == "walking_unarmed":
@@ -682,7 +762,12 @@ func _die(attacker: Node, zone: String, amount: int) -> void:
 				popped = GibSystem.dismember(actor, "HEAD", dir, get_tree().current_scene)
 		if not popped:
 			actor.play_first(["death_from_the_front", "death_forward", "laying_breathless"])
-	rotation_degrees.x = 90
+		# GUARANTEED FLOOR (same contract as enemy_base): the clip gets its 1.5s to
+		# fall, then the pose is measured and laid flat if it never went prone.
+		var mac: ModelActor = actor
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			if is_instance_valid(mac):
+				mac.settle_flat_corpse())
 	_record_noncombatant_death(attacker)
 	get_tree().create_timer(30.0).timeout.connect(queue_free)
 
@@ -970,20 +1055,24 @@ func place_for_current_hour() -> void:
 		CivilianSchedulesS.action_for(occupation, hour, String(name)))
 	if target == Vector3.ZERO:
 		return
-	# home/working_point come from markers and carry valid ground Y, and the
-	# wander offset is XZ-only, so the target is already grounded.
+	# Markers carry valid ground Y; a nav-clamped point carries the mesh's Y,
+	# which sits at most a cell-height under it - gravity settles either.
 	global_position = target
 	_wander_target = target
 
 
 func _resolve_target(action: StringName) -> Vector3:
 	# Working_point is the only position-bound location today. Other actions
-	# (fire/market/home) fall back to home with a small wander.
+	# (fire/market/home) fall back to home with a small wander. Every return is
+	# clamped through the guarded helper - a marker inside a carved hut footprint
+	# is a destination no body can stand on, and place_for_current_hour teleports
+	# straight to this value.
 	if action == CivilianSchedulesS.ACTION_WALK_PADDY or action == CivilianSchedulesS.ACTION_WORK \
 			or action == CivilianSchedulesS.ACTION_FISH:
 		if working_point_pos != Vector3.ZERO:
-			return working_point_pos
-	return home + Vector3(randf_range(-3.0, 3.0), 0, randf_range(-3.0, 3.0))
+			return _router.nearest_mesh_point(working_point_pos)
+	return _router.nearest_mesh_point(
+		home + Vector3(randf_range(-3.0, 3.0), 0, randf_range(-3.0, 3.0)))
 
 
 # ---- BT actions ------------------------------------------------------------
@@ -1059,7 +1148,8 @@ func _bt_settle(action: StringName, bb: Dictionary, speed: float) -> int:
 		# Two men sent to one marker must not stand in each other. The offset comes from the
 		# name so it is identical every run (ADR-010 - never Time, never an unseeded roll).
 		var a: float = float(absi(hash(name)) % 360) * (TAU / 360.0)
-		var at: Vector3 = dest + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M
+		var at: Vector3 = _router.nearest_mesh_point(
+			dest + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M)
 		if global_position.distance_to(at) > WORK_ARRIVE_M:
 			bb["speed"] = speed
 			_wander_target = at

@@ -26,6 +26,11 @@ var _self_src: Vector3 = Vector3.ZERO
 var _self_out: Vector3 = Vector3.ZERO
 var _self_valid: bool = false
 
+## Same cache, for nearest_mesh_point.
+var _snap_src: Vector3 = Vector3.ZERO
+var _snap_out: Vector3 = Vector3.ZERO
+var _snap_valid: bool = false
+
 ## Further than this off the mesh and he is not standing on it. Generous: the mesh sits a
 ## cell-height under the ground and an agent on a slope reads a little off.
 const OFF_MESH_M: float = 1.2
@@ -46,6 +51,27 @@ func setup(nav_agent: NavigationAgent3D, tree: SceneTree, who: String) -> void:
 ## Which baked box the body stands in. Think rate, never per frame.
 func refresh_box(at: Vector3) -> void:
 	box = NavBaker.box_index_at(at) if WorldConfig.NAV_ENABLED else -1
+
+
+## The SANCTIONED public clamp. Returns `pos` UNCHANGED unless a baked region
+## actually covers it and the correction stays under CLAMP_MAX_M - a naked
+## map_get_closest_point against ground no region covers returns the nearest FAR
+## region (the firebase), dragging targets 100+m. Callers must treat an unchanged
+## return as "no safe clamp exists", never as "already on the mesh".
+func nearest_mesh_point(pos: Vector3) -> Vector3:
+	if agent == null or not WorldConfig.NAV_ENABLED:
+		return pos
+	if not lab_nav and NavBaker.box_index_at(pos) < 0:
+		return pos
+	var map: RID = agent.get_navigation_map()
+	if not map.is_valid() or NavigationServer3D.map_get_iteration_id(map) <= 0:
+		return pos
+	if not _snap_valid or pos.distance_squared_to(_snap_src) > 1.0:
+		_snap_src = pos
+		var snapped: Vector3 = NavigationServer3D.map_get_closest_point(map, pos)
+		_snap_out = snapped if pos.distance_to(snapped) < CLAMP_MAX_M else pos
+		_snap_valid = true
+	return _snap_out
 
 
 ## The UNNORMALISED step vector from `from` toward `to`.

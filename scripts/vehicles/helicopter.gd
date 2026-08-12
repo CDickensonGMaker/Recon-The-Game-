@@ -87,22 +87,24 @@ func _ready() -> void:
 ## band: a Huey does not change note much, it changes WEIGHT.
 const ROTOR_LOOP := preload("res://assets/audio/sfx/aircraft/heli_rotor_loop.wav")
 const ROTOR_MAX_DIST: float = 900.0
-const ROTOR_UNIT_SIZE: float = 55.0
-const ROTOR_DB_IDLE: float = -14.0
-const ROTOR_DB_FULL: float = 2.0
+const ROTOR_UNIT_SIZE: float = 30.0
+const ROTOR_DB_IDLE: float = -22.0
+const ROTOR_DB_FULL: float = -8.0
 
 var _rotor_audio: AudioStreamPlayer3D = null
+var _rotor_pitch_jitter: float = 0.0
 
 
 func _build_rotor_audio() -> void:
 	if DisplayServer.get_name() == "headless" or _rotor_audio != null:
 		return
+	_rotor_pitch_jitter = randf_range(-0.03, 0.03)
 	_rotor_audio = AudioStreamPlayer3D.new()
 	_rotor_audio.stream = ROTOR_LOOP
 	_rotor_audio.bus = "Vehicles" if AudioServer.get_bus_index("Vehicles") >= 0 else "SFX"
 	_rotor_audio.max_distance = ROTOR_MAX_DIST
 	_rotor_audio.unit_size = ROTOR_UNIT_SIZE
-	_rotor_audio.max_db = 0.0
+	_rotor_audio.max_db = -6.0
 	_rotor_audio.attenuation_filter_cutoff_hz = 3500.0
 	_rotor_audio.volume_db = ROTOR_DB_IDLE
 	add_child(_rotor_audio)
@@ -118,7 +120,7 @@ func _drive_rotor_audio() -> void:
 		return
 	if not _rotor_audio.playing:
 		_rotor_audio.play()
-	_rotor_audio.pitch_scale = 0.80 + 0.28 * _rotor_rpm
+	_rotor_audio.pitch_scale = 0.80 + 0.28 * _rotor_rpm + _rotor_pitch_jitter
 	_rotor_audio.volume_db = lerpf(ROTOR_DB_IDLE, ROTOR_DB_FULL, _rotor_rpm)
 
 

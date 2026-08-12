@@ -1,7 +1,7 @@
 ## test_seat_system.gd - HUEY SEATSYSTEM v1 probe (research batch §7).
-## Instantiates the real huey.tscn (no world needed) and proves the 11-soul
-## contract end to end:
-##   1. All 11 seat_* sockets exist (auto-generated today; the probe stays
+## Instantiates the real huey.tscn (no world needed) and proves the full-cabin
+## contract end to end (seat count derived from SEAT_NAMES, never hardcoded):
+##   1. All seat_* sockets exist (auto-generated today; the probe stays
 ##      green when Caleb's real GLB sockets land - it prints which mode).
 ##   2. 10 mock bodies seat: processing frozen, collision off, glued to socket.
 ##   3. is_full(), double-seat and overflow refused.
@@ -87,10 +87,11 @@ func _run() -> void:
 		return
 
 	# --- 1. socket contract
+	var total: int = SeatSystem.SEAT_NAMES.size()
 	var avail: Array[StringName] = seats.available_seats()
 	print("  sockets: %d available, auto_generated=%s" % [avail.size(), seats.auto_generated])
-	if avail.size() != 11:
-		_fail("expected 11 available seats, got %d" % avail.size())
+	if avail.size() != total:
+		_fail("expected %d available seats, got %d" % [total, avail.size()])
 	for seat_name in SeatSystem.SEAT_NAMES:
 		# GLB sockets are plain Node3D (empties), fallback sockets are Marker3D.
 		var sock: Node3D = seats.socket(seat_name)
@@ -101,7 +102,7 @@ func _run() -> void:
 	if seats.is_full():
 		_fail("empty bird reports is_full")
 
-	# --- 2. seat 11 mocks (models on a pilot, a gunner, two pax; rest bare)
+	# --- 2. seat a full cabin of mocks (models on a pilot, a gunner, two pax; rest bare)
 	var modeled: Array[StringName] = [&"seat_pilot_l", &"seat_gunner_l", &"seat_pax_1", &"seat_pax_6"]
 	var bodies: Dictionary = {}
 	for seat_name in SeatSystem.SEAT_NAMES:
@@ -120,7 +121,7 @@ func _run() -> void:
 
 	# --- 3. full-bird rules
 	if not seats.is_full():
-		_fail("11 seated but not is_full")
+		_fail("%d seated but not is_full" % total)
 	if not seats.available_seats().is_empty():
 		_fail("full bird still lists available seats")
 	var extra: CharacterBody3D = _mock_body(false)
@@ -200,9 +201,9 @@ func _run() -> void:
 		var col := body4.get_child(0) as CollisionShape3D
 		if col != null and col.disabled:
 			_fail("%s occupant collision still disabled after unseat" % seat_name)
-	if not seats.is_full() and seats.available_seats().size() != 11:
-		_fail("after unseat_all, %d seats available (want 11)" % seats.available_seats().size())
-	print("  unseat: all 11 restored")
+	if not seats.is_full() and seats.available_seats().size() != total:
+		_fail("after per-seat unseat, %d seats available (want %d)" % [seats.available_seats().size(), total])
+	print("  unseat: all %d restored" % total)
 
 	# --- 6. board_squad: dead man excluded, living file in on the stagger
 	var squad: Array = []
@@ -215,9 +216,9 @@ func _run() -> void:
 	if queued != 3:
 		_fail("board_squad queued %d, want 3 (dead excluded)" % queued)
 	await get_tree().create_timer(0.7).timeout  # after first stagger beat
-	var aboard_early: int = 11 - seats.available_seats().size()
+	var aboard_early: int = total - seats.available_seats().size()
 	await get_tree().create_timer(1.5).timeout  # all beats done
-	var aboard: int = 11 - seats.available_seats().size()
+	var aboard: int = total - seats.available_seats().size()
 	print("  board_squad: %d aboard after first beat, %d aboard at end" % [aboard_early, aboard])
 	if aboard_early >= 3:
 		_fail("file-in was not staggered (all aboard at 0.7s)")
@@ -244,7 +245,7 @@ func _run() -> void:
 		_fail("player path did not use exit_seat")
 
 	if failures == 0:
-		print("PASS: seat system (11-socket contract, clips, stagger, restore) OK")
+		print("PASS: seat system (full-cabin socket contract, clips, stagger, restore) OK")
 		get_tree().quit(0)
 	else:
 		print("FAIL: seat system probe had %d failure(s)" % failures)

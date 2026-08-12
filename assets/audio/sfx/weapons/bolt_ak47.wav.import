@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://deomvg4naiomo"
-path="res://.godot/imported/mech_ak47.wav-35be27dd3b58bf9e3117bf996023aae7.sample"
+path="res://.godot/imported/bolt_ak47.wav-a3b01b2a1c3d2858512a6bacbf57ce24.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/weapons/mech_ak47.wav"
-dest_files=["res://.godot/imported/mech_ak47.wav-35be27dd3b58bf9e3117bf996023aae7.sample"]
+source_file="res://assets/audio/sfx/weapons/bolt_ak47.wav"
+dest_files=["res://.godot/imported/bolt_ak47.wav-a3b01b2a1c3d2858512a6bacbf57ce24.sample"]
 
 [params]
 

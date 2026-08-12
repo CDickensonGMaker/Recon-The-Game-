@@ -340,7 +340,16 @@ func _tick_opening() -> void:
 		if a.global_position.distance_to(gate) <= GATE_ORDER_ARRIVE_M:
 			arrived += 1
 	var timed_out: bool = _clock >= GATE_ORDER_AT_S + GATE_ORDER_MAX_S
-	if not timed_out and (alive == 0 or arrived < alive):
+	# Third expiry: the beat is "your squad leaving without you", and it is over the
+	# moment the player himself is at or beyond the wire - through the gate OR over
+	# the berm anywhere (center-to-gate distance stands in for the perimeter radius).
+	var player_out: bool = false
+	var p: CharacterBody3D = _flow.world.player if _flow.world != null else null
+	if p != null and is_instance_valid(p):
+		var perimeter_m: float = d.fsb_center.distance_to(gate)
+		player_out = p.global_position.distance_to(gate) <= GATE_ORDER_ARRIVE_M \
+			or p.global_position.distance_to(d.fsb_center) >= perimeter_m
+	if not timed_out and not player_out and (alive == 0 or arrived < alive):
 		return
 	_gate_order_released = true
 	for a in squad.members:

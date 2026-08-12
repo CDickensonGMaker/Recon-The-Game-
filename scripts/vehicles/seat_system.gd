@@ -1,8 +1,7 @@
-## seat_system.gd - The 11-seat UH-1 slick contract: 2 pilots + 2 door gunners
-## + 6 pax + 1 jump seat (seat_pax_7, transmission wall - the 8-man squad plus
-## the player is 9 passenger bodies). Sockets are found ANYWHERE under the
-## vehicle by exact name -
-## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..7.
+## seat_system.gd - The 12-seat UH-1 slick contract: 2 pilots + 2 door gunners
+## + 8 pax (10 passenger seats - the 8-man squad plus the player is 9 passenger
+## bodies). Sockets are found ANYWHERE under the vehicle by exact name -
+## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..8.
 ## GLB-exported empties import as plain Node3D, NOT Marker3D: the scan must
 ## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUT.
 ##
@@ -19,16 +18,14 @@ extends Node
 const SEAT_NAMES: Array[StringName] = [
 	&"seat_pilot_l", &"seat_pilot_r",
 	&"seat_gunner_l", &"seat_gunner_r",
-	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3",
-	&"seat_pax_4", &"seat_pax_5", &"seat_pax_6",
-	&"seat_pax_7",
+	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3", &"seat_pax_4",
+	&"seat_pax_5", &"seat_pax_6", &"seat_pax_7", &"seat_pax_8",
 ]
-## Fill order for squad/player boarding: bench first, door guns as overflow.
+## Fill order for squad/player boarding: cabin first, door guns as overflow.
 ## Pilot seats are CREW seats - passengers never take the controls.
 const PASSENGER_SEATS: Array[StringName] = [
-	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3",
-	&"seat_pax_4", &"seat_pax_5", &"seat_pax_6",
-	&"seat_pax_7",
+	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3", &"seat_pax_4",
+	&"seat_pax_5", &"seat_pax_6", &"seat_pax_7", &"seat_pax_8",
 	&"seat_gunner_l", &"seat_gunner_r",
 ]
 
@@ -39,13 +36,14 @@ const FALLBACK_LAYOUT: Dictionary = {
 	&"seat_pilot_r": [Vector3(-0.55, 1.35, -5.35), 180.0],
 	&"seat_gunner_l": [Vector3(1.15, 1.30, -2.70), 90.0],
 	&"seat_gunner_r": [Vector3(-1.15, 1.30, -2.70), -90.0],
-	&"seat_pax_1": [Vector3(0.40, 1.30, -3.40), 90.0],
-	&"seat_pax_2": [Vector3(0.40, 1.30, -2.70), 90.0],
-	&"seat_pax_3": [Vector3(0.40, 1.30, -2.00), 90.0],
-	&"seat_pax_4": [Vector3(-0.40, 1.30, -3.40), -90.0],
-	&"seat_pax_5": [Vector3(-0.40, 1.30, -2.70), -90.0],
-	&"seat_pax_6": [Vector3(-0.40, 1.30, -2.00), -90.0],
-	&"seat_pax_7": [Vector3(0.0, 1.30, -3.80), 0.0],
+	&"seat_pax_1": [Vector3(1.05, 0.865, -4.442), 90.0],
+	&"seat_pax_2": [Vector3(1.05, 0.865, -3.984), 90.0],
+	&"seat_pax_3": [Vector3(1.05, 0.865, -3.525), 90.0],
+	&"seat_pax_4": [Vector3(1.05, 0.865, -3.067), 90.0],
+	&"seat_pax_5": [Vector3(-1.05, 0.865, -4.442), -90.0],
+	&"seat_pax_6": [Vector3(-1.05, 0.865, -3.984), -90.0],
+	&"seat_pax_7": [Vector3(-1.05, 0.865, -3.525), -90.0],
+	&"seat_pax_8": [Vector3(-1.05, 0.865, -3.067), -90.0],
 }
 
 ## Pilot clips by flight state. A ship on the ground holds PILOT_CLIP; one run
@@ -59,6 +57,16 @@ const PILOT_CLIP := "cockpit_idle"
 ## panel run was invisible from the day it was wired.
 const PILOT_CLIP_PANEL := "pilot_flips_switches_overhead"
 const PILOT_CLIP_FLYING := "cockpit_controls"
+## Door-gunner clips. The `_l`/`_r` suffix is the DOOR, and it must match the seat -
+## a right-side clip in the left seat works a gun that is not there.
+##
+## NOTHING HERE FIRES A ROUND (Caleb's ruling 2026-08-04: "dont build the gun... i
+## just want that idea to be there"). `gunners_firing` drives a performance only; the
+## orbit spawns no projectiles.
+const GUNNER_CLIP_IDLE := "m60_gunner_idle"
+const GUNNER_CLIP_SCAN := "m60_gunner_scan"
+const GUNNER_CLIP_FIRE := "m60_gunner_fire"
+const GUNNER_SEATS: Array[StringName] = [&"seat_gunner_l", &"seat_gunner_r"]
 ## Length of PILOT_CLIP_PANEL, measured off anim_library.glb (90 keys @ 30fps).
 ## The panel run is a one-shot; this is how long before the pilot settles back to
 ## the ground hold.
@@ -103,6 +111,14 @@ var _interact_cd: float = 0.0
 var _pilot_state: int = -1
 var _pilot_panel_s: float = 0.0
 
+## Set by whoever owns the sortie (AirTraffic's gun orbit). Visual only.
+var gunners_firing: bool = false:
+	set(v):
+		if v == gunners_firing:
+			return
+		gunners_firing = v
+		_dress_gunners()
+
 
 var _scanned: bool = false
 
@@ -135,7 +151,7 @@ func _pilot_clip() -> String:
 	return PILOT_CLIP_FLYING
 
 
-## Re-dress both pilot seats when the flight state changes. Runs on _process
+## Re-dress the crew seats when the flight state changes. Runs on _process
 ## rather than _physics_process because player_boarding owns the physics tick.
 func _process(delta: float) -> void:
 	var heli := _vehicle as Helicopter
@@ -152,6 +168,32 @@ func _process(delta: float) -> void:
 		_pilot_panel_s = PILOT_PANEL_S
 	_pilot_state = heli.state
 	_dress_pilots()
+	_dress_gunners()
+
+
+## Ground and wreck states hold the idle; airborne scans unless the sortie owner
+## has called for fire. Side suffix comes from the SEAT, never from the ship.
+func _gunner_clip(seat_name: StringName) -> String:
+	var side: String = "_l" if seat_name == &"seat_gunner_l" else "_r"
+	var heli := _vehicle as Helicopter
+	if heli == null or heli.state == Helicopter.State.LANDED \
+			or heli.state == Helicopter.State.CRASHING \
+			or heli.state == Helicopter.State.DESTROYED:
+		return GUNNER_CLIP_IDLE + side
+	return (GUNNER_CLIP_FIRE if gunners_firing else GUNNER_CLIP_SCAN) + side
+
+
+func _dress_gunners() -> void:
+	for seat_name in GUNNER_SEATS:
+		var rec: Dictionary = _occupants.get(seat_name, {})
+		if not bool(rec.get("crew", false)):
+			continue
+		var body := rec.get("body") as Node3D
+		if body == null or not is_instance_valid(body):
+			continue
+		var model: ModelActor = _model_of(body)
+		if model != null:
+			model.play_first([_gunner_clip(seat_name), SITTING_CLIP])
 
 
 func _dress_pilots() -> void:
@@ -239,7 +281,11 @@ func socket(seat_name: StringName) -> Node3D:
 
 ## Seat a body in a named socket. Returns false if the seat is unknown,
 ## occupied, or the body is already aboard.
-func seat(body: Node3D, seat_name: StringName) -> bool:
+##
+## `as_crew` is what separates a DOOR GUNNER from a passenger riding in the door
+## seat: the gunner berths are also squad overflow (PASSENGER_SEATS), so without
+## this an infantryman with a rifle works an M60 he is not holding.
+func seat(body: Node3D, seat_name: StringName, as_crew: bool = false) -> bool:
 	if body == null or not is_instance_valid(body):
 		return false
 	_scan_sockets()
@@ -248,7 +294,7 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 	if seat_of(body) != &"":
 		return false
 	var sock: Node3D = _sockets[seat_name]
-	var rec: Dictionary = {"body": body}
+	var rec: Dictionary = {"body": body, "crew": as_crew}
 
 	if body.has_method("enter_seat"):
 		# Player: position-only glue, never reparented.
@@ -283,7 +329,12 @@ func seat(body: Node3D, seat_name: StringName) -> bool:
 		# the socket's +Z (set_facing writes GLOBAL yaw, so mid-walk actors
 		# carry an arbitrary local offset in).
 		model.rotation = Vector3.ZERO
-		model.play(_pilot_clip() if String(seat_name).begins_with("seat_pilot") else SITTING_CLIP)
+		if String(seat_name).begins_with("seat_pilot"):
+			model.play(_pilot_clip())
+		elif as_crew and GUNNER_SEATS.has(seat_name):
+			model.play_first([_gunner_clip(seat_name), SITTING_CLIP])
+		else:
+			model.play(SITTING_CLIP)
 
 	_occupants[seat_name] = rec
 	return true
@@ -323,21 +374,38 @@ func unseat(body: Node3D, exit_pos: Vector3) -> void:
 	body.reset_physics_interpolation()
 
 
+## Empty the cabin - PASSENGER_SEATS only. Pilot seats are crew berths; a crew
+## bailout needs its own explicit unseat.
 func unseat_all(exit_center: Vector3) -> void:
-	var i: int = 0
-	for seat_name in SEAT_NAMES:
+	var bodies: Array[Node3D] = []
+	for seat_name in PASSENGER_SEATS:
 		var body: Node3D = occupant(seat_name)
-		if body == null:
-			continue
-		var ring: float = TAU * float(i) / 10.0
-		unseat(body, exit_center + Vector3(cos(ring), 0.0, sin(ring)) * 1.5)
-		i += 1
+		if body != null:
+			bodies.append(body)
+	if bodies.is_empty():
+		return
+	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
+	var origin: Vector3 = sock.global_position if sock != null else exit_center
+	var normal: Vector3 = sock.global_transform.basis.z if sock != null \
+		else Vector3(1.0, 0.0, 0.0)
+	var arc: float = deg_to_rad(140.0)
+	for i in bodies.size():
+		var t: float = 0.5 if bodies.size() == 1 \
+			else float(i) / float(bodies.size() - 1)
+		var dir: Vector3 = normal.rotated(Vector3.UP, arc * (t - 0.5))
+		var radius: float = minf(EXIT_PUSH_M + 0.9 * float(i), 7.0)
+		unseat(bodies[i], _exit_ground(origin + dir * radius))
 
 
 ## Order living allies to a staging point by the left door, then seat them one
 ## per BOARD_STAGGER_S. Dead/downed excluded. Returns how many were queued.
 func board_squad(allies: Array) -> int:
 	var staging: Vector3 = door_staging_pos()
+	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
+	# Stick line abeam the door. 1.4m spacing is the ceiling: BOARD_NEAR_M is
+	# measured to the airframe and the 6th slot sits 7.4m out - 0.6m of margin.
+	var side: Vector3 = sock.global_transform.basis.x if sock != null \
+		else Vector3(0.0, 0.0, 1.0)
 	var queued: int = 0
 	for a in allies:
 		var body := a as Node3D
@@ -347,11 +415,12 @@ func board_squad(allies: Array) -> int:
 			continue
 		if "is_downed" in body and bool(body.get("is_downed")):
 			continue
+		var slot: Vector3 = staging + side * (1.4 * float(queued))
 		var ally := body as AllyBase
 		if ally != null:
-			ally.set_order(AllyBase.OrderMode.MOVE_TO, staging)
+			ally.set_order(AllyBase.OrderMode.MOVE_TO, slot)
 		elif body is Civilian:
-			(body as Civilian).board_target = staging
+			(body as Civilian).board_target = slot
 		queued += 1
 		get_tree().create_timer(BOARD_STAGGER_S * float(queued)).timeout.connect(
 			_board_one.bind(body))

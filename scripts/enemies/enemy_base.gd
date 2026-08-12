@@ -200,6 +200,7 @@ var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
 var _unstick_t: float = 0.0
 var _unstick_dir: float = 1.0
+var _unstick_flips: int = 0
 
 func _update_unstick(delta: float) -> void:
 	if _unstick_t > 0.0:
@@ -214,8 +215,30 @@ func _update_unstick(delta: float) -> void:
 		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
 			_unstick_t = 0.6
 			_unstick_dir = -_unstick_dir  # alternate sides so corners release
+			_unstick_flips += 1
+			if _unstick_flips >= 3:
+				_unstick_flips = 0
+				_rescue_snap()
+		else:
+			_unstick_flips = 0
 		_stuck_pos = global_position
 		_stuck_t = 0.0
+
+
+## The geometry has eaten this body: three sidesteps failed and he stands OFF the
+## mesh. Snap him back to walkable ground - only while no one can see it, and only
+## when the guarded helper found a covered point (an unchanged return means no safe
+## snap exists, so he keeps grinding rather than teleporting to a far region).
+func _rescue_snap() -> void:
+	if CombatManager.perceivable(self):
+		return
+	var snapped: Vector3 = _router.nearest_mesh_point(global_position)
+	var off: Vector3 = snapped - global_position
+	off.y = 0.0
+	if off.length() <= NavRouter.OFF_MESH_M:
+		return
+	global_position = snapped
+	reset_physics_interpolation()
 
 var reaction_timer: float = 0.0
 var has_reacted: bool = false

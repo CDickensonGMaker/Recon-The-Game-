@@ -415,6 +415,10 @@ func _physics_process(delta: float) -> void:
 	if _grenadier_timer >= 0.4:
 		_grenadier_timer = 0.0
 		_grenadier_tick()
+	_catchup_timer += delta
+	if _catchup_timer >= CATCHUP_TICK_S:
+		_catchup_timer = 0.0
+		_catchup_tick()
 	_contact_barks()
 	_update_break()
 
@@ -551,6 +555,82 @@ static func _thumper_rim() -> int:
 static func _thumper_radius() -> float:
 	var round_data: ProjectileData = _thumper_round()
 	return round_data.aoe_radius if round_data != null else FALLBACK_THUMPER_RADIUS
+
+
+## ---- FOLLOW catch-up teleport ----
+const CATCHUP_TICK_S: float = 1.0
+const CATCHUP_TELEPORT_M: float = 40.0
+const CATCHUP_UNSEEN_M: float = 25.0
+const CATCHUP_CALM_S: float = 5.0
+const CATCHUP_MAX_PER_TICK: int = 2
+const CATCHUP_CLAMP_MAX_M: float = 12.0
+const CATCHUP_BASE_GAP_M: float = 6.0
+const CATCHUP_SLOT_STEP_M: float = 1.5
+var _catchup_timer: float = 0.0
+
+
+## A FOLLOW man the player cannot see and cannot catch by walking (CATCHUP_MULT
+## loses to sprint) is MOVED behind him. Never fires in combat, on a seated man,
+## or while the player is seated; at most CATCHUP_MAX_PER_TICK per tick so eight
+## men never pop the same frame.
+func _catchup_tick() -> void:
+	if not GameManager.can_player_act():
+		return
+	if world == null or world.player == null or not is_instance_valid(world.player):
+		return
+	var p: CharacterBody3D = world.player
+	if p.get("is_seated") == true:
+		return
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	var back: Vector3 = p.global_transform.basis.z
+	back.y = 0.0
+	var behind: Vector3 = back.normalized() if back.length() > 0.1 else Vector3.BACK
+	var moved: int = 0
+	for a in members:
+		if a == null or not is_instance_valid(a) or a.is_dead():
+			continue
+		if not a.squad_member or a.order_mode != AllyBase.OrderMode.FOLLOW:
+			continue
+		if a.target != null or a.target_last_seen_time <= CATCHUP_CALM_S:
+			continue
+		if not a.is_physics_processing():  # seated: SeatSystem froze him
+			continue
+		var dist: float = a.global_position.distance_to(p.global_position)
+		var unseen: bool = cam != null and cam.is_position_behind(a.global_position)
+		if dist <= CATCHUP_TELEPORT_M and not (dist > CATCHUP_UNSEEN_M and unseen):
+			continue
+		var dest: Vector3 = p.global_position \
+			+ behind * (CATCHUP_BASE_GAP_M + CATCHUP_SLOT_STEP_M * float(a.file_slot))
+		dest = _catchup_ground(a, dest)
+		a.global_position = dest
+		a.velocity = Vector3.ZERO
+		a.reset_physics_interpolation()
+		a.reset_follow_slot()
+		moved += 1
+		if moved >= CATCHUP_MAX_PER_TICK:
+			return
+
+
+## Nav-clamp ONLY inside a baked box - the nearest-point query on open country
+## returns the FAR firebase mesh and would teleport the man back to the wire.
+func _catchup_ground(a: AllyBase, dest: Vector3) -> Vector3:
+	if WorldConfig.NAV_ENABLED and NavBaker.box_index_at(dest) >= 0 and a.nav_agent != null:
+		var map: RID = a.nav_agent.get_navigation_map()
+		if map.is_valid() and NavigationServer3D.map_get_iteration_id(map) > 0:
+			var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, dest)
+			if dest.distance_to(clamped) < CATCHUP_CLAMP_MAX_M:
+				dest = clamped
+	var w3d: World3D = a.get_world_3d()
+	if w3d != null:
+		var query := PhysicsRayQueryParameters3D.create(
+			dest + Vector3.UP * 2.0, dest + Vector3.DOWN * 8.0, 1)
+		var hit: Dictionary = w3d.direct_space_state.intersect_ray(query)
+		if not hit.is_empty():
+			var hp: Vector3 = hit.position
+			dest.y = hp.y + 0.5
+			return dest
+	dest.y = world.floor_y(dest) + 0.5
+	return dest
 
 
 var _last_combat_count: int = 0

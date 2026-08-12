@@ -1,11 +1,68 @@
 {
 	"_comment": "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'fossils', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>, which records provenance in grandfather_log.",
-	"ceiling": 3,
-	"count": 3,
+	"ceiling": 27,
+	"count": 27,
 	"fossils": [
 		"scripts/missions/scripted_sequence.gd|signal|sequence_bark",
 		"scripts/visuals/model_actor.gd|func|ragdoll_bone",
-		"scripts/visuals/model_actor.gd|func|wake_ragdoll"
+		"scripts/visuals/model_actor.gd|func|wake_ragdoll",
+		"scripts/visuals/zombie_randomizer.gd|const|ZOMBIE_DIR",
+		"scripts/zombies/zombie_audio.gd|const|BREATH",
+		"scripts/zombies/zombie_audio.gd|func|on_round_began",
+		"scripts/zombies/zombie_audio.gd|func|on_round_cleared",
+		"scripts/zombies/zombie_audio.gd|func|place_radio",
+		"scripts/zombies/zombie_barricade.gd|signal|board_rebuilt",
+		"scripts/zombies/zombie_barricade.gd|signal|board_torn",
+		"scripts/zombies/zombie_barricade.gd|signal|breached",
+		"scripts/zombies/zombie_door.gd|signal|opened",
+		"scripts/zombies/zombie_economy.gd|func|buy_ammo",
+		"scripts/zombies/zombie_economy.gd|func|buy_wall",
+		"scripts/zombies/zombie_economy.gd|func|can_afford",
+		"scripts/zombies/zombie_economy.gd|signal|purchase_made",
+		"scripts/zombies/zombie_economy.gd|signal|purchase_refused",
+		"scripts/zombies/zombie_interactable.gd|func|hold_progress",
+		"scripts/zombies/zombie_interactable.gd|signal|refused",
+		"scripts/zombies/zombie_interactable.gd|signal|used",
+		"scripts/zombies/zombie_map_lot.gd|const|ZONES",
+		"scripts/zombies/zombie_mystery_box.gd|signal|moved",
+		"scripts/zombies/zombie_mystery_box.gd|signal|rolled",
+		"scripts/zombies/zombie_power_up.gd|signal|granted",
+		"scripts/zombies/zombie_spawn_point.gd|func|force_open",
+		"scripts/zombies/zombie_wave_director.gd|signal|round_cleared",
+		"scripts/zombies/zombie_wave_director.gd|signal|zombie_spawned"
 	],
-	"grandfather_log": []
+	"grandfather_log": [
+		{
+			"added": [
+				"scripts/visuals/zombie_randomizer.gd|const|ZOMBIE_DIR",
+				"scripts/zombies/zombie_audio.gd|const|BREATH",
+				"scripts/zombies/zombie_audio.gd|func|on_round_began",
+				"scripts/zombies/zombie_audio.gd|func|on_round_cleared",
+				"scripts/zombies/zombie_audio.gd|func|place_radio",
+				"scripts/zombies/zombie_barricade.gd|signal|board_rebuilt",
+				"scripts/zombies/zombie_barricade.gd|signal|board_torn",
+				"scripts/zombies/zombie_barricade.gd|signal|breached",
+				"scripts/zombies/zombie_door.gd|signal|opened",
+				"scripts/zombies/zombie_economy.gd|func|buy_ammo",
+				"scripts/zombies/zombie_economy.gd|func|buy_wall",
+				"scripts/zombies/zombie_economy.gd|func|can_afford",
+				"scripts/zombies/zombie_economy.gd|signal|purchase_made",
+				"scripts/zombies/zombie_economy.gd|signal|purchase_refused",
+				"scripts/zombies/zombie_interactable.gd|func|hold_progress",
+				"scripts/zombies/zombie_interactable.gd|signal|refused",
+				"scripts/zombies/zombie_interactable.gd|signal|used",
+				"scripts/zombies/zombie_map_lot.gd|const|ZONES",
+				"scripts/zombies/zombie_mystery_box.gd|signal|moved",
+				"scripts/zombies/zombie_mystery_box.gd|signal|rolled",
+				"scripts/zombies/zombie_power_up.gd|signal|granted",
+				"scripts/zombies/zombie_spawn_point.gd|func|force_open",
+				"scripts/zombies/zombie_wave_director.gd|signal|round_cleared",
+				"scripts/zombies/zombie_wave_director.gd|signal|zombie_spawned"
+			],
+			"date": "2026-08-12T02:16:14",
+			"from": 3,
+			"reason": "zombie mode parked live by Summoner ruling 2026-08-05; recon-never-delete-zombie-code forbids deletion, symbols wait for the mode to wake",
+			"to": 27
+		}
+	]
 }
