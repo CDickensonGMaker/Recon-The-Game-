@@ -270,6 +270,10 @@ func _start_bake(job: Dictionary) -> void:
 	nav.agent_max_climb = floorf(0.4 / nav.cell_height) * nav.cell_height
 	nav.agent_max_slope = 50.0
 	nav.border_size = 0.0
+	# The mound leaves a second walkable layer buried under the compound; anywhere it has
+	# less than agent_height of clearance is not floor, and map_get_closest_point should
+	# not be able to choose it.
+	nav.filter_walkable_low_height_spans = true
 	nav.filter_baking_aabb = box
 
 	if not is_equal_approx(nav.cell_size, NavigationServer3D.map_get_cell_size(map)):
@@ -374,6 +378,18 @@ const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_"]
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
 	var added: int = 0
 	var stack: Array[Node] = [root]
+	# SitePlanner reparents the ~80 perimeter segments and the adopted structures onto
+	# Destructibles under GameWorld BEFORE this bake runs, and this walk only descends
+	# the root it was handed - so the entire perimeter wall was absent from the mesh and
+	# pathing routed men into solid berm. They live in their own group; seed from it.
+	#
+	# NOTE for NAV_IGNORE_PREFIXES below: it tests the collider's PARENT name, which for
+	# these is now the Destructible, not the original fb_* node. That is safe only while
+	# nothing prefixed fb_veg_/fb_int_ is ever reparented this way.
+	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_PARAPET_GROUP):
+		var dn := d as Node3D
+		if dn != null and is_instance_valid(dn):
+			stack.append(dn)
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
 		for c in n.get_children():

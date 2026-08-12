@@ -1614,7 +1614,18 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		# Take the segment's collider off its auto-generated body and onto the Destructible, so
 		# _do_destroy can disable it. A shape left nested under a child body survives the blast
 		# and the "destroyed" wall keeps stopping rounds.
+		# Same flat-GLB contract as _adopt_structure: the collider may be a SIBLING named
+		# <mesh name>_<ord>-colonly, not a child.
+		var seg_bodies: Array[Node] = []
 		for c in mi.get_children():
+			if c is StaticBody3D:
+				seg_bodies.append(c)
+		var seg_parent: Node = mi.get_parent()
+		if seg_parent != null:
+			for c in seg_parent.get_children():
+				if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+					seg_bodies.append(c)
+		for c in seg_bodies:
 			var body := c as StaticBody3D
 			if body == null:
 				continue
@@ -1622,8 +1633,12 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 				var shape := cc as CollisionShape3D
 				if shape == null:
 					continue
+				# All 80 parapet nodes happen to be identity today, which is the only
+				# reason this worked without it. A sibling collider need not be.
+				var keep: Transform3D = shape.global_transform
 				body.remove_child(shape)
 				d.add_child(shape)
+				shape.global_transform = keep
 			body.queue_free()
 		mi.reparent(d, true)      # keep_global_transform: the wall must not move
 		AgentRegistry.register(d, AgentRegistry.Kind.PROP)
@@ -1703,7 +1718,20 @@ func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
 	d.global_position = mi.global_transform * (aabb.position + aabb.size * 0.5)
 	# A shape left nested under the mesh's auto-generated body survives the blast, and the
 	# "destroyed" bunker keeps stopping rounds.
+	#
+	# The GLB is FLAT: the collider is not a child of the mesh, it is a SIBLING named
+	# <mesh name>_<ord>-colonly. Walking mi.get_children() found nothing, so no bunker,
+	# tower or sandbag stack was ever adopted - a destroyed one stayed solid forever.
+	var bodies: Array[Node] = []
 	for c in mi.get_children():
+		if c is StaticBody3D:
+			bodies.append(c)
+	var sib_parent: Node = mi.get_parent()
+	if sib_parent != null:
+		for c in sib_parent.get_children():
+			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+				bodies.append(c)
+	for c in bodies:
 		var body := c as StaticBody3D
 		if body == null:
 			continue

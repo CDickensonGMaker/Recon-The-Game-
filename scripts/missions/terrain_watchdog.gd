@@ -52,9 +52,12 @@ func _physics_process(delta: float) -> void:
 					# never blanket-restore visible on resume.
 					var hidden_hole: bool = body.get("is_spider_hole") and not body.get("_spider_triggered")
 					body.visible = not hidden_hole
-					# surface_y(), not raw terrain height - the firebase mound model
-					# IS the floor and sits ABOVE bare terrain there (one-ground law).
-					body.global_position.y = world.surface_y(body.global_position) + 0.5
+					# floor_y(), not surface_y(): surface_y probes from high above and takes
+					# the FIRST hit, which under a roof is the roof - this is the one path
+					# that actively teleports a live man onto one. floor_y probes from just
+					# above him and still falls back to surface_y outdoors, so the
+					# one-ground law is unchanged where there is nothing overhead.
+					body.global_position.y = world.floor_y(body.global_position) + 0.5
 				elif suspended:
 					continue
 			# Fall-through re-seat.

@@ -309,6 +309,13 @@ pause={
 3d_physics/layer_7="enemy_hurtbox"
 3d_physics/layer_9="projectiles"
 
+[navigation]
+
+; NavBaker quantises agent_max_climb to the cell height: floor(0.4/h)*h. At Godot's
+; 0.25 default that floors a 0.4m step to 0.25m and every crater rim becomes a cliff.
+; 0.2 divides 0.4 exactly, so the step survives the quantisation.
+3d/default_cell_height=0.2
+
 [physics]
 
 common/physics_ticks_per_second=30
