@@ -903,13 +903,12 @@ def clear_collision():
     return n
 
 
-def export_firebase(glb=None, blend=None):
+def export_firebase(glb=None):
     """Collision twins are an EXPORT artefact: generated, exported, stripped. Keeping them
     in the .blend would double every object in the outliner and they would drift out of sync
     with the meshes the moment anything moved."""
     sc = bpy.context.scene
     glb = glb or os.path.join(ROOT, "fsb_main_v3.glb")
-    blend = blend or os.path.join(gf.KIT_DIR, "firebase_v3.1.blend")
 
     clear_collision()
     make_collision()
@@ -923,12 +922,14 @@ def export_firebase(glb=None, blend=None):
     size = os.path.getsize(glb) / 1048576.0
     write_mound_manifest(os.path.join(os.path.dirname(glb), MOUND_MANIFEST))
     clear_collision()
-    for blk in (bpy.data.meshes, bpy.data.materials, bpy.data.images):
-        for d in list(blk):
-            if d.users == 0:
-                blk.remove(d)
-    bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True)
-    print(f"exported {glb} ({size:.2f} MB); blend saved clean")
+    # THE EXPORT DOES NOT WRITE THE ARTIST'S FILE. This used to purge every zero-user
+    # mesh/material/image and then save_as_mainfile over the source blend - and zero users
+    # is not the same as garbage: anything held only by a temporarily unlinked collection,
+    # or by a workbench that is not exported, has zero users at this moment. That purge and
+    # save is what destroyed the medical complex on 2026-07-31. The GLB is already written
+    # above; the collision twins are an export artefact and clear_collision() has just
+    # removed them from the live session. Saving is the artist's call, in Blender, with undo.
+    print(f"exported {glb} ({size:.2f} MB); source blend untouched")
     return size
 
 
@@ -1101,9 +1102,16 @@ def main():
     print(f"parapet segments: {len(segs)}  placements: {n}  objects: {len(sc.objects)}  "
           f"tris: {tris}")
     print("destructible manifest:", out_json)
-    blend = os.path.join(gf.KIT_DIR, "firebase_v3.blend")
-    bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True)
-    print("saved", blend, round(os.path.getsize(blend) / 1048576.0, 2), "MB")
+    # DRY RUN BY DEFAULT, like every other blend-writing tool here
+    # (merge_chowhall_to_firebase.py:180, gen_chowhall_crew.py:478, gen_medical_crew.py:759).
+    # This wrote firebase_v3.blend unconditionally and by a HARDCODED name, so a bare run
+    # resurrected a file the kit has since moved past.
+    if "--save" in sys.argv:
+        blend = os.path.join(gf.KIT_DIR, "firebase_v3.blend")
+        bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True)
+        print("saved", blend, round(os.path.getsize(blend) / 1048576.0, 2), "MB")
+    else:
+        print("dry run - pass --save to write the kit blend")
 
 
 if __name__ == "__main__":
