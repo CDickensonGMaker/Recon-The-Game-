@@ -300,11 +300,17 @@ static func _blast_defeat_chance(max_damage: int) -> float:
 	return clampf(float(max_damage) / 380.0, 0.5, 0.75)
 
 
-## Multi-point blast reach (Quake 3 CanDamage pattern + cover defeat). Traces to 8
-## points around target bounds. Returns the damage multiplier: 1.0 with any clear line,
-## 0.0 fully blocked by blast-proof cover, BLAST_THROUGH_COVER_MULT when the blast
-## defeats the cover - soft cover (thatch/canvas) always fails, hard cover
-## (sandbag/bunker/masonry) fails on the per-target roll.
+## Multi-point blast reach. Traces 8 points around the target and returns the FRACTION
+## of them the blast reaches, so cover attenuates by how much of a man it actually
+## covers. Each point contributes 1.0 clear, BLAST_THROUGH_COVER_MULT through soft cover
+## (thatch/canvas, always fails) or through hard cover that loses its own defeat roll,
+## and 0.0 behind blast-proof earth.
+##
+## It used to return 1.0 on the FIRST clear point and exit, which meant the cover-defeat
+## system below it almost never ran: a bunker's own embrasure is a clear point, so a man
+## inside measured mult 1.00 in 20 of 20 samples and took exactly what a man in the open
+## took (Summoner ruling 2026-08-12 to make the shift). Fully-exposed is still 1.0, so
+## open-ground lethality is unchanged.
 func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, target_pos: Vector3, target: Node, max_damage: int) -> float:
 	# Define 8 check points around target (corners of a box + center)
 	var offsets: Array[Vector3] = [
@@ -322,8 +328,8 @@ func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, ta
 	if target is CollisionObject3D:
 		exclude_rids.append((target as CollisionObject3D).get_rid())
 
-	var soft_blocker: bool = false
-	var hard_blocker: bool = false
+	var defeat: float = _blast_defeat_chance(max_damage)
+	var reach: float = 0.0
 	for offset in offsets:
 		var check_pos: Vector3 = target_pos + offset
 		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
@@ -335,21 +341,18 @@ func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, ta
 
 		var result: Dictionary = space_state.intersect_ray(query)
 		if result.is_empty():
-			# Clear line of sight to this point
-			return 1.0
+			reach += 1.0
+			continue
 		var blocker: Object = result.collider
 		if blocker is Node:
 			var bn := blocker as Node
 			if bn.is_in_group("soft_cover"):
-				soft_blocker = true
-			elif bn.is_in_group("hard_surface") and not _blast_proof(bn):
-				hard_blocker = true
+				reach += BLAST_THROUGH_COVER_MULT
+			elif bn.is_in_group("hard_surface") and not _blast_proof(bn) \
+					and randf() < defeat:
+				reach += BLAST_THROUGH_COVER_MULT
 
-	if soft_blocker:
-		return BLAST_THROUGH_COVER_MULT
-	if hard_blocker and randf() < _blast_defeat_chance(max_damage):
-		return BLAST_THROUGH_COVER_MULT
-	return 0.0
+	return reach / float(offsets.size())
 
 
 static func _blast_proof(blocker: Node) -> bool:
@@ -358,6 +361,65 @@ static func _blast_proof(blocker: Node) -> bool:
 		if nm.begins_with(p):
 			return true
 	return false
+
+
+## THE ONE near-miss geometry, for every shooter in the game (Fossil Law: it lived in
+## EnemyBase and only the enemy could fire it, so the squad was suppressed by fire it
+## could not return). Wider than the miss distance: the crack of a supersonic round is
+## felt, not measured.
+const NEAR_MISS_RADIUS: float = 2.2
+const SUPPRESS_ON_MISS: float = 0.34
+
+
+## Perpendicular near-miss suppression for one target centre. 0 if the round went the
+## other way or missed wider than NEAR_MISS_RADIUS; closer cracks press harder.
+static func near_miss_suppress(origin: Vector3, dir: Vector3, target_centre: Vector3) -> float:
+	var to_t: Vector3 = target_centre - origin
+	var along: float = to_t.dot(dir)
+	if along <= 0.0:
+		return 0.0
+	var closest: Vector3 = origin + dir * along
+	var d: float = closest.distance_to(target_centre)
+	if d >= NEAR_MISS_RADIUS:
+		return 0.0
+	return SUPPRESS_ON_MISS * (1.0 - d / NEAR_MISS_RADIUS)
+
+
+## Fan one round's crack over every body it passed. Faction-blind and shooter-blind:
+## whoever pulled the trigger, the men it snapped past feel it. `hit` is the shooter's
+## own ray result - the body actually struck took damage, not a near miss.
+func suppress_along_shot(origin: Vector3, dir: Vector3, shooter: Node, hit: Dictionary) -> void:
+	var struck: Node = null
+	if hit and hit.get("collider") != null:
+		var c: Object = hit.collider
+		struck = (c as Hitzone).owner_entity if c is Hitzone else c as Node
+	for man in AgentRegistry.enemies:
+		_crack_past(man as Node, origin, dir, shooter, struck)
+	for man in AgentRegistry.allies:
+		_crack_past(man as Node, origin, dir, shooter, struck)
+	if player != null and is_instance_valid(player) and player != shooter and player is Node3D \
+			and not _is_struck(player, struck):
+		var sp: float = near_miss_suppress(origin, dir, (player as Node3D).global_position + Vector3.UP)
+		if sp > 0.0 and player.has_method("add_suppression"):
+			player.add_suppression(sp)
+
+
+func _crack_past(man: Node, origin: Vector3, dir: Vector3, shooter: Node, struck: Node) -> void:
+	if man == null or not is_instance_valid(man) or man == shooter or not man is Node3D:
+		return
+	if _is_struck(man, struck):
+		return
+	if not man.has_method("apply_suppression"):
+		return
+	var s: float = near_miss_suppress(origin, dir, (man as Node3D).global_position + Vector3.UP)
+	if s > 0.0:
+		man.apply_suppression(s)
+
+
+static func _is_struck(man: Node, struck: Node) -> bool:
+	if struck == null:
+		return false
+	return struck == man or (struck.get_parent() != null and struck.get_parent() == man)
 
 
 ## Apply suppression to nearby enemies (for sustained fire)

@@ -44,6 +44,7 @@ const BLAST_FOR: Dictionary = {
 	"hut_timber": "explosion_napalm",
 	"wire": "explosion_40mm",
 	"sandbag_stack": "explosion_40mm",
+	"sandbag": "explosion_grenade",
 	"sandbag_wall": "explosion_grenade",
 	"tower": "explosion_grenade",
 	"bunker": "explosion_mortar",
