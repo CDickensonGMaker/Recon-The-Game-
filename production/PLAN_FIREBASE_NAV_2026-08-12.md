@@ -119,6 +119,66 @@ adopted, `door_` added to `NAV_IGNORE_PREFIXES`. **It hangs nothing today — th
 
 ---
 
+## 26 — LOW COVER: make a downed tree usable *(added 2026-08-12, deferred to LAST by ruling)*
+
+**Measured, not suspected.** `--fell-cover-probe` on the support fire range: 5 logs felled and
+standing as `hard_surface` colliders inside the squad's cover reach, and **0 of 4 living men
+claimed one**. Every claim landed 2.3–7.1m from the nearest log against a 2.5m blocker limit.
+
+**The mechanism:** the log capsule sits at `y=0.5, radius ~0.35` (`tree_break_system.gd:450-463`)
+— top ~0.85m. The ally cover search casts from `candidate + 1.3m` toward a threat at 1.0m
+(`ally_base.gd _sweep_cover`), and that ray passes **over** the log. The timber is real, solid,
+on layer 1 and in the right group; the search only knows how to be **standing**.
+
+This is a DESIGN call, not a defect fix — whether men go prone behind low cover — and it touches
+the cover geometry BOTH brains now share. **Deliberately last**: it changes posture, which
+changes silhouette, exposure and the suppression exchange all at once, and none of that should
+move while the nav work is still settling.
+
+---
+
+## 27 — ROADS ARE INVISIBLE *(added 2026-08-12 from his playthrough)*
+
+*"convoys are rolling thru the jungle but theres no visible roads in the terrain being made"*
+
+`mission_generator.gd:942` calls `road_network.clear_corridor(...)`, and the planner's own comment
+at `:595-600` states the corridor clear is **the one write a road performs**. It removes
+vegetation. **Nothing paints a surface** — no texture, no splat, no ruts, no verge. A convoy
+therefore drives down a lane of missing jungle.
+
+Note this collides with a known constraint: `terrain.gdshader` has **one tiled `jungle_floor` set
+plus vertex colour, and no splat system** (found while chasing the riverbed texture — the same
+reason a creek bed cannot be sanded). A road surface and a river bed want the same missing
+machinery, so **cost them together, once.**
+
+## 28 — THE ROUTE IS CHOSEN BEFORE THE BUILDINGS EXIST *(same playthrough)*
+
+*"the route was thru a village and its buildings so that means the navigation routes need to be
+built after all the worlds buildings and than geography is made"*
+
+**He is right, and the code says so out loud.** `RoadNetwork.build(gate, villages)` runs at
+`mission_generator.gd:604`, inside `plan_patrol_world`, which `:597-598` explicitly keeps
+"side-effect free" — the stamps happen later in `build_patrol_world`. So the route is chosen
+against **village CENTRES**, with no building footprint in existence yet to route around.
+
+A road *reaching* a village is correct — the network is hub-and-spoke, gate to villages, by
+design. A road *through the huts* is the defect.
+
+Two candidate fixes, and they are not equivalent:
+- **(a) Re-order** — plan the route after the stamps, so footprints exist to avoid. Cleanest
+  conceptually and it is what he asked for, but it breaks the side-effect-free property that
+  `plan_patrol_world` was deliberately built to have, and `ambush_planner` already consumes the
+  traffic lines during planning (`:52,90,98`).
+- **(b) Reserve, then stamp** — keep planning first, but have the stamp pass treat the corridor
+  as a keep-out, the way `_fsb_keepout` already works for the firebase (`:113-115`,
+  `FSB_SITE_CLEARANCE`). Huts move off the road instead of the road bending around huts.
+
+**(b) is probably right** — the project already has exactly this pattern for the firebase, and it
+preserves an architectural property that was chosen on purpose. But it changes village layout,
+so it is HIS call. **Do not start this without a ruling on (a) vs (b).**
+
+---
+
 ## WHAT THIS PLAN DELIBERATELY DOES NOT DO
 
 - **No Blender remodelling.** The nav architect's finding stands: the GLB is fine — 1,259 nodes,
