@@ -7,7 +7,7 @@ signal died(ally: AllyBase)
 var max_hp: int = 80
 var current_hp: int = 80
 var move_speed: float = 5.6
-var preferred_range: float = 12.0
+var preferred_range: float = 22.0
 
 var weapon_data: WeaponData = null
 var fire_timer: float = 0.0
@@ -136,7 +136,8 @@ var has_covering_fire: bool = false
 func wants_cover_first(nerve: float) -> bool:
 	if _cover_fail_count >= 2:
 		return false
-	return squad_broken or (_contact_time < 5.0 and nerve < 0.75)
+	return squad_broken or has_cover or suppression_level > ANCHOR_SUPPRESS \
+		or (_contact_time < 5.0 and nerve < 0.75)
 
 
 ## May this man close the range? The coward anchors on his rock; a broken squad
@@ -255,7 +256,11 @@ var burst_count: int = 0
 const MAX_BURST: int = 6
 
 var suppression_level: float = 0.0
-const SUPPRESSION_DECAY: float = 0.4
+const SUPPRESSION_DECAY: float = 0.3
+## Above this, a man is under effective fire: he stops closing and stops strafing
+## and fights from where he is. Sits below the 0.6 cover gate deliberately - near
+## misses top out around 0.34, so a 0.6 threshold can never be reached.
+const ANCHOR_SUPPRESS: float = 0.25
 
 ## ---- COMMITMENT (Summoner verdict 2026-08-04: "the friendly AI is super squierly") ----
 ## Ally-only hysteresis; enemy scoring is untouched (divergent-systems law). A claimed
@@ -1199,8 +1204,8 @@ func _execute_combat(delta: float) -> void:
 
 	strafe_timer -= delta
 	if strafe_timer <= 0:
-		strafe_direction = [-1.0, 0.0, 1.0].pick_random()
-		strafe_timer = randf_range(1.5, 3.0)
+		strafe_direction = [-1.0, 0.0, 0.0, 0.0, 1.0].pick_random()
+		strafe_timer = randf_range(0.8, 2.0)
 
 	if has_line_of_sight:
 		# Movement by range, PERSONALITY-SHAPED: the go-getter (nerve >= 0.7) closes
@@ -1212,7 +1217,7 @@ func _execute_combat(delta: float) -> void:
 		# will accept, so the fight is fought at arm's length while men get out.
 		var hold_band: float = 1.0 if squad_broken else 0.6
 
-		if dist > preferred_range * advance_band:
+		if dist > preferred_range * advance_band and suppression_level < ANCHOR_SUPPRESS:
 			# A zoned defender's aggressive footwork stops at his zone's core - he
 			# works his ground, he does not creep off it toward the contact.
 			if may_close_distance(nerve) and (defense_zone_radius <= 0.0
@@ -1221,7 +1226,7 @@ func _execute_combat(delta: float) -> void:
 		elif dist < preferred_range * hold_band:
 			move_dir = (global_position - target.global_position).normalized()
 
-		if strafe_direction != 0.0:
+		if strafe_direction != 0.0 and suppression_level < ANCHOR_SUPPRESS:
 			var strafe_vec := transform.basis.x * strafe_direction
 			move_dir = (move_dir + strafe_vec * 0.4).normalized()
 
@@ -1295,8 +1300,11 @@ func _execute_combat(delta: float) -> void:
 		if blind_cord != null \
 				and global_position.distance_to(blind_cord.global_position) > RTO_CORD_LEASH:
 			_move_toward(blind_cord.global_position, delta)
+		elif has_cover and target_last_seen_time < 3.0:
+			velocity.x = lerpf(velocity.x, 0.0, delta * 5.0)
+			velocity.z = lerpf(velocity.z, 0.0, delta * 5.0)
 		else:
-			_move_toward(last_known_target_pos, delta)
+			_move_toward(last_known_target_pos, delta, COMBAT_SPEED_MULT)
 
 		state_timer += delta
 		if state_timer > 3.0:

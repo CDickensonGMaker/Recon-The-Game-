@@ -115,7 +115,7 @@ static func play_click(parent: Node) -> void:
 ## the demo square is 512m, napalm covers it, artillery covers about half, and a
 ## grenade is small. Rendered width = fireball quad 2.2m x particle scale
 ## 0.8-1.3 (avg ~1.05) x _KIND_SCALE x ORDNANCE_VISUAL_MULT, so at mult 2.0:
-##   40mm ~3m · grenade ~4.6m · rocket ~18m · mortar ~37m · heavy ~254m ·
+##   40mm ~3m · grenade ~4.6m · rocket ~18m · mortar ~37m · heavy ~111m ·
 ##   napalm ~513m
 const _KIND_SCALE: Dictionary = {
 	"explosion_grenade": 1.0,
@@ -124,7 +124,7 @@ const _KIND_SCALE: Dictionary = {
 	# Mortar sits between the grenade and the artillery shock by his ruling -
 	# ~46m against 4.6m and 254m, which is the geometric middle of that span.
 	"explosion_mortar": 10.0,
-	"explosion_heavy": 55.0,
+	"explosion_heavy": 24.0,
 	# Napalm is not an explosion class, it is a WALL OF FIRE: one drop covers the
 	# whole 512m demo square, and a run is 9 drops on 22m spacing. Deliberately
 	# map-sized; see _scorch(), which clamps its decal because the matching burn
@@ -133,13 +133,8 @@ const _KIND_SCALE: Dictionary = {
 }
 ## Spectacle multiplier on TOP of the class ladder.
 ##
-## Was 5.0 (Summoner's decree 2026-08-04, "all explosion visuals x5"). Amended
-## 2026-08-12 on his ruling that the classes must READ different sizes with
-## napalm largest: at x5 a hand grenade drew a 9-14m fireball, so every class
-## already filled the view and the 0.8-1.9 ladder had nothing to be compared
-## against. Halving the multiplier and widening the ladder buys a real 3x span
-## inside the ordnance classes (grenade ~3.5-5.7m, heavy ~11-18m) and puts
-## napalm 14x a grenade. Scales the LOOK only - no damage radius reads it.
+## Scales the LOOK only - no damage radius reads it. Rendered widths are in the
+## _KIND_SCALE header above and must be recomputed there if this moves.
 const ORDNANCE_VISUAL_MULT: float = 2.0
 ## Every explosion holds this many seconds longer (his ruling 2026-08-12).
 ##

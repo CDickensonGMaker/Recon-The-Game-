@@ -132,18 +132,48 @@ func _build_ground() -> void:
 func _build_light() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
-	sun.light_energy = 1.1
+	sun.light_energy = DAY_SUN_ENERGY
 	sun.shadow_enabled = false   # ADR-026: no dynamic shadow on the bench
 	add_child(sun)
+	_sun = sun
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	e.background_mode = Environment.BG_SKY
 	e.sky = Sky.new()
 	e.sky.sky_material = ProceduralSkyMaterial.new()
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 0.6
+	e.ambient_light_energy = DAY_AMBIENT
 	env.environment = e
 	add_child(env)
+	_env = e
+
+
+## Illum and any other light-emitting ordnance cannot be judged in daylight, so the
+## bench carries its own night. Values match the world's night, not black.
+const DAY_SUN_ENERGY: float = 1.1
+const DAY_AMBIENT: float = 0.6
+const NIGHT_SUN_ENERGY: float = 0.035
+const NIGHT_AMBIENT: float = 0.02
+const NIGHT_SUN_TINT: Color = Color(0.55, 0.62, 0.95)
+
+var _sun: DirectionalLight3D = null
+var _env: Environment = null
+var _is_night: bool = false
+
+
+func toggle_night() -> void:
+	_is_night = not _is_night
+	if _sun != null:
+		_sun.light_energy = NIGHT_SUN_ENERGY if _is_night else DAY_SUN_ENERGY
+		_sun.light_color = NIGHT_SUN_TINT if _is_night else Color(1.0, 1.0, 1.0)
+	if _env != null:
+		_env.ambient_light_energy = NIGHT_AMBIENT if _is_night else DAY_AMBIENT
+		var sky_mat: ProceduralSkyMaterial = _env.sky.sky_material as ProceduralSkyMaterial
+		if sky_mat != null:
+			sky_mat.sky_top_color = Color(0.01, 0.02, 0.05) if _is_night else Color(0.385, 0.454, 0.55)
+			sky_mat.sky_horizon_color = Color(0.04, 0.05, 0.09) if _is_night else Color(0.646, 0.656, 0.671)
+			sky_mat.ground_bottom_color = Color(0.02, 0.02, 0.03) if _is_night else Color(0.2, 0.169, 0.133)
+			sky_mat.ground_horizon_color = Color(0.04, 0.05, 0.09) if _is_night else Color(0.646, 0.656, 0.671)
 
 
 ## Same rig as the AI arena: one region in "lab_navmesh" so NavRouter routes every
@@ -331,7 +361,7 @@ func _update_legend() -> void:
 		var count: int = int(_director.fire_support.get(str(row[2]), 0))
 		lines.append("[%s] %s %s" % [str(row[0]), str(row[1]),
 			("x%d" % count) if count > 0 else "- OUT"])
-	lines.append("[9] ENEMY ASSAULT   LMB send / RMB back out   [T] net on-off")
+	lines.append("[9] ENEMY ASSAULT   [N] day-night   LMB send / RMB back out   [T] net on-off")
 	_legend.text = "\n".join(lines)
 
 
@@ -348,6 +378,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var keycode: Key = (event as InputEventKey).keycode
 		if keycode == KEY_9:
 			_launch_assault()
+			return
+		if keycode == KEY_N:
+			toggle_night()
 			return
 		var kind: String = _DIRECT_KEYS.get(keycode, "")
 		if kind == "":
