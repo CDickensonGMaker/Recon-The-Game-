@@ -103,18 +103,76 @@ var _contact_time: float = 0.0
 ## skill:   scales personal spread (0 = sprays, 1 = deadly)
 var courage: float = 0.5
 var skill: float = 0.5
+
+## PARITY WITH THE ENEMY ACTOR. enemy_base.gd:378-398 rolls five traits and an aim
+## speed per man; an ally had these two scalars, so every rifleman in a squad fought
+## identically. These are the traits that read at PSX fidelity - when he reacts, how
+## far he lets it close, how long he holds the trigger, whether he pushes.
+var char_reaction: float = 0.6
+var char_aggression: float = 0.5
+var char_self_preservation: float = 0.6
+var burst_len: int = 6
+var range_bias: float = 1.0
+## Nerve MOVES during a contact: it falls as men drop and pressure holds, and recovers
+## in a lull. courage alone was written once at spawn and never again.
+var _nerve_drift: float = 0.0
+var _traits_rolled: bool = false
+const NERVE_DRIFT_FLOOR: float = -0.30
+const NERVE_LOSS_PER_CASUALTY: float = 0.12
+const NERVE_RECOVER_PER_S: float = 0.02
+## How near a man has to be to be shaken by a mate going down.
+const CASUALTY_SHOCK_M: float = 25.0
+
 const RALLY_RADIUS: float = 6.0
-const RALLY_BONUS: float = 0.25  # presence rally (Army doctrine): lead from the front
+## LEAD FROM THE FRONT, not merely from nearby. The follow slot is rolled at 2.5-4.5m
+## (:367), so a proximity-only bonus was permanently on for every man - it floored
+## effective courage at 0.50 and made may_close_distance's coward branch (<0.35)
+## unreachable. The player must be BETWEEN the man and the threat to steady him.
+const RALLY_BONUS: float = 0.10
 
 
-## Effective nerve right now - the player standing close steadies a man.
+## Rolled off courage/skill so the roster still drives the man, but no two riflemen in
+## a squad are the same actor. Lazy: courage is assigned by SquadSystem AFTER spawn.
+func roll_traits() -> void:
+	if _traits_rolled:
+		return
+	_traits_rolled = true
+	char_reaction = clampf(0.35 + courage * 0.35 + randf_range(-0.12, 0.12), 0.15, 1.0)
+	char_aggression = clampf(courage + randf_range(-0.15, 0.15), 0.05, 1.0)
+	char_self_preservation = clampf(1.0 - courage * 0.6 + randf_range(-0.12, 0.12), 0.2, 1.0)
+	burst_len = randi_range(3, 8)
+	range_bias = randf_range(0.8, 1.25)
+	aim_speed = randf_range(5.0, 9.0)
+	move_speed *= randf_range(0.94, 1.06)
+
+
+## A man who watched someone drop is not the man he was a minute ago.
+func on_squadmate_down() -> void:
+	_nerve_drift = maxf(NERVE_DRIFT_FLOOR, _nerve_drift - NERVE_LOSS_PER_CASUALTY)
+	incoming_pressure = minf(1.0, incoming_pressure + 0.2)
+
+
+## Effective nerve right now - the player leading forward steadies a man.
 func effective_courage() -> float:
-	var c: float = courage
+	var c: float = courage + _nerve_drift
 	var p := GameManager.player
 	if p != null and is_instance_valid(p) and p is Node3D:
-		if global_position.distance_to((p as Node3D).global_position) < RALLY_RADIUS:
+		var pp: Vector3 = (p as Node3D).global_position
+		if global_position.distance_to(pp) < RALLY_RADIUS and _player_is_forward(pp):
 			c += RALLY_BONUS
 	return clampf(c, 0.0, 1.0)
+
+
+## Is the player closer to the threat than this man is? No threat, no lead to give.
+func _player_is_forward(player_pos: Vector3) -> bool:
+	var threat: Vector3 = Vector3.ZERO
+	if target != null and is_instance_valid(target) and target is Node3D:
+		threat = (target as Node3D).global_position
+	elif last_known_target_pos != Vector3.ZERO:
+		threat = last_known_target_pos
+	else:
+		return false
+	return player_pos.distance_to(threat) < global_position.distance_to(threat)
 
 ## Set by SquadSystem when the squad falls below its strength threshold
 ## (EnemySquad.break_state - the same authority the enemy side breaks on).
@@ -126,6 +184,12 @@ var squad_broken: bool = false
 ## stays false in real play; the property exists so CombatGoals.Context can be
 ## fed the fact once one does.
 var has_covering_fire: bool = false
+## Squad-wide "is anyone else shooting right now", the ally mirror of
+## EnemySquad.report_firing. Without it CombatGoals reads a permanent false for the
+## whole squad, so no ally could ever weigh a bound against a mate's covering fire.
+static var _last_ally_fire_ms: int = -100000
+static var _last_ally_firer: int = 0
+const COVERING_FIRE_WINDOW_MS: int = 1200
 
 
 ## COVER-FIRST is personality-gated: go-getters (nerve >= 0.75) skip the cover trip
@@ -138,14 +202,22 @@ func wants_cover_first(nerve: float) -> bool:
 		if Time.get_ticks_msec() - _cover_fail_ms < COVER_FAIL_LOCKOUT_MS:
 			return false
 		_cover_fail_count = 0
+	# The cautious man hunts cover for longer than the bold one: 5s to 11s by trait,
+	# where every rifleman used to share the same 5s window.
+	var window: float = 5.0 + char_self_preservation * 6.0
 	return squad_broken or has_cover or incoming_pressure > ANCHOR_SUPPRESS \
-		or (_contact_time < 5.0 and nerve < 0.75)
+		or (_contact_time < window and nerve < 0.75)
 
 
 ## May this man close the range? The coward anchors on his rock; a broken squad
 ## does not push at all.
 func may_close_distance(nerve: float) -> bool:
-	return not squad_broken and not (nerve < 0.35 and has_cover)
+	if squad_broken:
+		return false
+	if nerve < 0.35 and has_cover:
+		return false
+	# A man low on aggression works his ground rather than closing off it.
+	return char_aggression > 0.25 or not has_cover
 
 var has_line_of_sight: bool = false
 
@@ -659,9 +731,15 @@ func _physics_process(delta: float) -> void:
 	if _body_hot and not is_on_floor():
 		velocity.y -= gravity * capped_delta
 
+	roll_traits()
+
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level - SUPPRESSION_DECAY * capped_delta)
+	if incoming_pressure > 0.0:
 		incoming_pressure = maxf(0.0, incoming_pressure - PRESSURE_DECAY * capped_delta)
+	elif _nerve_drift < 0.0:
+		# Nerve only comes back in a real lull - nothing shooting at him.
+		_nerve_drift = minf(0.0, _nerve_drift + NERVE_RECOVER_PER_S * capped_delta)
 
 	if not can_fire:
 		fire_timer -= capped_delta
@@ -787,7 +865,9 @@ func _find_target() -> void:
 	# Aim settle: a NEW target costs a human beat before the first shot, so the
 	# squad is not an instant laser.
 	if closest_enemy != target and closest_enemy != null:
-		_aim_settle = randf_range(0.45, 0.9)
+		# Reaction is the MAN's, not the contact's: a fresh roll per contact made every
+		# rifleman equally quick on average, which is noise, not character.
+		_aim_settle = lerpf(0.95, 0.30, char_reaction) * randf_range(0.85, 1.15)
 		_call_contact(closest_enemy.global_position)
 	target = closest_enemy
 
@@ -931,6 +1011,8 @@ func _evaluate_goals() -> void:
 		# The squad-break toast is a cheque this scorer must cash (decree 2026-08-03
 		# §2.11 item 1) - the enemy already feeds both (enemy_base.gd:1416-1417).
 		c.squad_broken = squad_broken
+		has_covering_fire = (Time.get_ticks_msec() - _last_ally_fire_ms) < COVERING_FIRE_WINDOW_MS \
+			and _last_ally_firer != get_instance_id()
 		c.has_covering_fire = has_covering_fire
 		c.force_ratio = _local_force_ratio()
 		var picked: int = CombatGoals.pick(c)
@@ -1265,13 +1347,14 @@ func _execute_combat(delta: float) -> void:
 		# will accept, so the fight is fought at arm's length while men get out.
 		var hold_band: float = 1.0 if squad_broken else 0.6
 
-		if dist > preferred_range * advance_band and incoming_pressure < ANCHOR_SUPPRESS:
+		if dist > preferred_range * range_bias * advance_band \
+				and incoming_pressure < ANCHOR_SUPPRESS:
 			# A zoned defender's aggressive footwork stops at his zone's core - he
 			# works his ground, he does not creep off it toward the contact.
 			if may_close_distance(nerve) and (defense_zone_radius <= 0.0
 					or global_position.distance_to(defense_zone) < defense_zone_radius * 0.8):
 				move_dir = (target.global_position - global_position).normalized()
-		elif dist < preferred_range * hold_band:
+		elif dist < preferred_range * range_bias * hold_band:
 			move_dir = (global_position - target.global_position).normalized()
 
 		if strafe_direction != 0.0:
@@ -1340,7 +1423,7 @@ func _execute_combat(delta: float) -> void:
 		if _aim_settle > 0.0:
 			_aim_settle -= delta
 		elif can_fire and suppression_level < 0.5:
-			if burst_count < MAX_BURST:
+			if burst_count < burst_len:
 				_fire_at_target()
 				burst_count += 1
 			else:
@@ -1733,6 +1816,8 @@ func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 func _fire_at_target() -> void:
 	if not weapon_data or not target or not _may_engage():
 		return
+	_last_ally_fire_ms = Time.get_ticks_msec()
+	_last_ally_firer = get_instance_id()
 
 	can_fire = false
 	fire_timer = weapon_data.get_fire_delay() / maxf(0.5, fire_rate_mult)
@@ -1863,6 +1948,14 @@ func _die() -> void:
 	_release_cover()
 	_change_state(Enums.AIState.DEAD)
 	AgentRegistry.unregister(self)
+	# The men who saw it are changed by it. Enemies already have this through their
+	# witness system; allies had one listener that wrote a toast.
+	for a in AgentRegistry.allies:
+		var mate := a as AllyBase
+		if mate == null or mate == self or not is_instance_valid(mate):
+			continue
+		if mate.global_position.distance_to(global_position) <= CASUALTY_SHOCK_M:
+			mate.on_squadmate_down()
 	died.emit(self)
 
 	set_physics_process(false)
