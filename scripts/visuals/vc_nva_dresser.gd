@@ -284,6 +284,12 @@ static func _is_face_material(m: Material) -> bool:
 	return false
 
 
+## The headgear library was baked with the skull axis on -Z; the Head socket's is +Y.
+## nva_vc_gear.json declares these matrices identity and they are not, so the hat has
+## to be righted here until the 12 GLBs are re-baked as (x,y,z)->(x,-z,y).
+static var HEADGEAR_UPRIGHT: Basis = Basis(Vector3(1, 0, 0), PI * 0.5)
+
+
 ## Deal a headgear variant from the library and hang it, then take the welded pith
 ## helmet / rice hat off. Returns the variant name, or "" if nothing was hung.
 static func _rehang_headgear(actor: ModelActor, root: Node3D,
@@ -300,7 +306,7 @@ static func _rehang_headgear(actor: ModelActor, root: Node3D,
 		deg_to_rad(rng.randf_range(-HEADGEAR_YAW_DEG, HEADGEAR_YAW_DEG)),
 		deg_to_rad(rng.randf_range(-HEADGEAR_ROLL_DEG, HEADGEAR_ROLL_DEG))))
 	var worn: String = _hang(actor, skel, "headgear", "socket_headgear",
-		"mixamorig:Head", "HeadgearSocket", pick, tilt)
+		"mixamorig:Head", "HeadgearSocket", pick, tilt, HEADGEAR_UPRIGHT)
 
 	# The welded hat comes off only once the variant is decided - a bail above must
 	# never leave a bare head.
@@ -429,7 +435,8 @@ static func _wearable_by(category: String, key: String, unit: String) -> bool:
 ## `glb` is null: choosing to go without is a dressed man, not a failure to dress him.
 static func _hang(actor: ModelActor, skel: Skeleton3D, category: String,
 		socket_key: String, fallback_bone: String, socket_name: String,
-		pick: String, tilt: Basis = Basis.IDENTITY) -> String:
+		pick: String, tilt: Basis = Basis.IDENTITY,
+		fix: Basis = Basis.IDENTITY) -> String:
 	var cat: Dictionary = gear_manifest().get(category, {}) as Dictionary
 	var entry: Dictionary = cat.get(pick, {}) as Dictionary
 	if entry.is_empty():
@@ -467,9 +474,12 @@ static func _hang(actor: ModelActor, skel: Skeleton3D, category: String,
 		return ""
 	att.add_child(prop)
 
-	if not tilt.is_equal_approx(Basis.IDENTITY):
-		var centre: Vector3 = _local_centre(prop)
-		prop.transform = Transform3D(tilt, centre - tilt * centre)
+	# `fix` rights the prop about its ORIGIN (which is what carries its centre up onto
+	# the skull); `tilt` then rocks it about that righted centre.
+	var full: Basis = tilt * fix
+	if not full.is_equal_approx(Basis.IDENTITY):
+		var centre: Vector3 = fix * _local_centre(prop)
+		prop.transform = Transform3D(full, centre - tilt * centre)
 	return pick
 
 

@@ -459,7 +459,9 @@ func _launch_assault() -> void:
 			var obj_elems: int = int(ceil(float(ASSAULT_MANEUVER.size()) / 3.0))
 			var fan: float = (float(obj_elem) - (float(obj_elems) - 1.0) * 0.5) * 8.0
 			enemy.assault_objective = Vector3(-3.0 + float(i % 3) * 3.0 + fan, 0.0, -8.0)
-			enemy.assault_driven = true
+			# NOT assault_driven: that flag is the sapper's, and it makes a man ignore
+			# contact all the way to the objective. MarchingCell sets it from
+			# carries_charge; the bench must match or it tests a wave that never fights.
 		enemy.rotation.y = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
 		var nav_agent := enemy.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
 		if nav_agent != null and _nav_region != null:
