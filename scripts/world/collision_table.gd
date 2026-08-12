@@ -179,8 +179,20 @@ const STRUCTURES := {
 }
 
 
+## One warning per unlisted model per session: get_entry runs once per placed instance,
+## and a stamped village would otherwise print the same line dozens of times.
+static var _unlisted_reported: Dictionary = {}
+
+
+## Unknown models get a 3x2x3 stand-in - LOUDLY. The box drives BOTH the collision hull
+## and the navmesh carve, so a silent one lets men path through a 12m tent's canvas.
 static func get_entry(model_name: String) -> Dictionary:
-	return STRUCTURES.get(model_name, {"box": Vector3(3, 2, 3), "y_offset": 1.0, "footprint": Vector2(4, 4), "scale": 1.0})
+	if STRUCTURES.has(model_name):
+		return STRUCTURES[model_name]
+	if not _unlisted_reported.has(model_name):
+		_unlisted_reported[model_name] = true
+		push_warning("[CollisionTable] '%s' has NO AUTHORED ENTRY. Falling back to a 3x2x3 box and a 4x4 footprint - which is how a 12m HQ tent gets a 3m nav carve and men walk through canvas. Add it to STRUCTURES." % model_name)
+	return {"box": Vector3(3, 2, 3), "y_offset": 1.0, "footprint": Vector2(4, 4), "scale": 1.0}
 
 
 ## ============================ MATERIAL, AUTHORED ============================
@@ -275,7 +287,13 @@ const MATERIALS := {
 	"gate_entrance_lowpoly": Mat.MASONRY,
 
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
-	"ch47_chinook": Mat.METAL,
+	"ch47_chinook": Mat.METAL, "huey": Mat.METAL,
+	"m113_apc": Mat.METAL, "m151_mutt_gun_jeep": Mat.METAL, "m35_deuce_truck": Mat.METAL,
+	"a1_skyraider": Mat.METAL, "a4_skyhawk": Mat.METAL, "f4_phantom": Mat.METAL,
+	"Bomb_250lb_Mk81": Mat.METAL, "Bomb_500lb_Mk82": Mat.METAL,
+	"Bomb_1000lb_Mk83": Mat.METAL, "Bomb_2000lb_Mk84": Mat.METAL,
+	"Napalm_500lb_BLU27": Mat.METAL, "Napalm_750lb_BLU1": Mat.METAL,
+	"RocketPod_LAU61_19tube": Mat.METAL, "RocketPod_LAU68_7tube": Mat.METAL,
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
 	"zpu_aa_gun": Mat.METAL, "a1_skyraider_crashed": Mat.METAL,
 	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
