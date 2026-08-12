@@ -338,7 +338,7 @@ var fire_support: Dictionary = {"bombs": 0, "napalm": 0, "arty": 0, "mortar": 2,
 ## An 81mm illumination round: it hangs high under a parachute and lights the ground
 ## for a minute-plus. IllumFlare's own 25s/30m are HAND-flare values - a 30m circle
 ## against a company crossing 300-500m is a spotlight, not battlefield illumination.
-const ILLUM_HEIGHT_M: float = 140.0
+const ILLUM_HEIGHT_M: float = 200.0
 const ILLUM_DURATION_S: float = 75.0
 const ILLUM_RADIUS_M: float = FirePlan.ILLUM_LIGHT_M  # the one table owns the figure
 

@@ -17,7 +17,10 @@ const FIELD := 200.0
 
 ## The friendly line: low segments arced around the player spawn, facing the tree field.
 ## Collider must reach past the 1.3m cover-ray eye (ally_base.gd:1402) or it is scenery.
-const SANDBAG_BOX := Vector3(2.6, 1.4, 0.9)
+## Height is bounded by where rounds actually leave the player: the muzzle rides the
+## viewmodel (weapon_holder._get_muzzle_position) well below the 1.7m eye, so cover
+## the camera clears is not automatically cover the barrel clears.
+const SANDBAG_BOX := Vector3(2.6, 1.1, 0.9)
 const SANDBAG_LINE: Array[Dictionary] = [
 	{"pos": Vector3(-7.0, 0.0, 1.2), "yaw": 0.5},
 	{"pos": Vector3(-3.5, 0.0, -0.3), "yaw": 0.22},
@@ -43,15 +46,24 @@ const RIFLEMEN: Array[Dictionary] = [
 ## two 2-man fire-support bases hold the tree line, two 3-man maneuver elements bound in.
 ## Repeated [9] presses STACK waves.
 const ENEMY_LINE_Z := -72.0
+## Rosters are read by size, not by a hardcoded element count - add or remove men
+## and the frontage redistributes.
 const ASSAULT_MANEUVER: Array[String] = [
 	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/nva_regular.tres", "res://data/enemies/vc_rifleman.tres",
 	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/nva_regular.tres",
+	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/nva_regular.tres",
+	"res://data/enemies/vc_rifleman.tres", "res://data/enemies/vc_rifleman.tres",
+	"res://data/enemies/nva_regular.tres", "res://data/enemies/vc_rifleman.tres",
 ]
 const ASSAULT_BASE_OF_FIRE: Array[String] = [
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
 	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
+	"res://data/enemies/nva_mg.tres", "res://data/enemies/nva_regular.tres",
+	"res://data/enemies/nva_regular.tres", "res://data/enemies/nva_regular.tres",
 ]
+## Total width the assault deploys across, both element and base-of-fire lines.
+const ASSAULT_FRONTAGE_M: float = 96.0
 
 var player: CharacterBody3D = null
 var _director: FieldDirector = null
@@ -413,17 +425,26 @@ func _launch_assault() -> void:
 		var path: String
 		var pos: Vector3
 		if maneuver:
-			# Two 3-man elements, left and right of the axis.
+			# 3-man elements spread evenly across the frontage.
+			@warning_ignore("integer_division")
 			var element: int = i / 3
 			var slot: int = i % 3
-			pos = Vector3(-16.0 + float(element) * 32.0 + float(slot - 1) * 5.0, 0.6,
+			var elements: int = int(ceil(float(ASSAULT_MANEUVER.size()) / 3.0))
+			var span: float = ASSAULT_FRONTAGE_M / maxf(1.0, float(elements))
+			var ex: float = -ASSAULT_FRONTAGE_M * 0.5 + span * (float(element) + 0.5)
+			pos = Vector3(ex + float(slot - 1) * 5.0, 0.6,
 				ENEMY_LINE_Z + (2.0 if slot % 2 == 0 else -2.0))
 			path = ASSAULT_MANEUVER[i]
 		else:
-			# Two 2-man bases of fire on the flanks of the tree line.
+			# 2-man bases of fire, on a wider frontage than the manoeuvre elements.
 			var k: int = i - ASSAULT_MANEUVER.size()
-			pos = Vector3(-24.0 + float(k / 2) * 48.0 + float(k % 2) * 4.0, 0.6,
-				ENEMY_LINE_Z - 4.0)
+			var bases: int = int(ceil(float(ASSAULT_BASE_OF_FIRE.size()) / 2.0))
+			var wide: float = ASSAULT_FRONTAGE_M + 24.0
+			var bspan: float = wide / maxf(1.0, float(bases))
+			@warning_ignore("integer_division")
+			var bpair: int = k / 2
+			var bx: float = -wide * 0.5 + bspan * (float(bpair) + 0.5)
+			pos = Vector3(bx + float(k % 2) * 4.0, 0.6, ENEMY_LINE_Z - 4.0)
 			path = ASSAULT_BASE_OF_FIRE[k]
 		var enemy := EnemyBase.spawn_enemy(self, pos, path)
 		if enemy == null:
@@ -433,8 +454,11 @@ func _launch_assault() -> void:
 		enemy.last_known_target_pos = Vector3(0.0, 0.0, 0.0)   # the sandbag arc
 		enemy.target_last_seen_time = 0.0
 		if maneuver:
-			enemy.assault_objective = Vector3(-9.0 + float(i % 3) * 6.0 \
-				+ (6.0 if i >= 3 else -6.0), 0.0, -8.0)
+			@warning_ignore("integer_division")
+			var obj_elem: int = i / 3
+			var obj_elems: int = int(ceil(float(ASSAULT_MANEUVER.size()) / 3.0))
+			var fan: float = (float(obj_elem) - (float(obj_elems) - 1.0) * 0.5) * 8.0
+			enemy.assault_objective = Vector3(-3.0 + float(i % 3) * 3.0 + fan, 0.0, -8.0)
 			enemy.assault_driven = true
 		enemy.rotation.y = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
 		var nav_agent := enemy.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
@@ -980,7 +1004,7 @@ func _run_corridor_probe() -> void:
 ## Contact-fuse decree 2026-08-04: "if a bomb hits the tree above you thats gonna blow
 ## up and force that pressure and blast downward." Three single-shell cases:
 ##   A: shell into a tree crown, man beside the trunk -> AIRBURST kills him
-##   B: ground burst, man behind a 1.4m sandbag -> SHIELDED (all 8 LOS points blocked)
+##   B: ground burst, man behind a SANDBAG_BOX.y sandbag -> SHIELDED (all 8 LOS points blocked)
 ##   C: crown burst above the SAME wall geometry -> the elevated burst sees over it
 ## The shell is aimed 4m PAST the trunk along the incoming azimuth so the ~48 deg
 ## descent line crosses the trunk at ~4.5m (aimed at the base it lands beside it).

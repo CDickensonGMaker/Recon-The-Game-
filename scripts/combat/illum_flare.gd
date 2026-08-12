@@ -14,7 +14,9 @@ const DRIFT_M_PER_S: float = 1.2
 ## The downward cone has to reach the ground from wherever it is hung, so its range
 ## is driven by altitude, not by light_radius.
 const SPOT_RANGE_PAD_M: float = 60.0
-const SPOT_ENERGY: float = 34.0
+const SPOT_ENERGY: float = 48.0
+## How low a flare is by the time it burns out.
+const END_HEIGHT_M: float = 20.0
 const OMNI_ENERGY: float = 12.0
 ## Seconds of ramp at each end - a flare catches, then dies, it does not switch.
 const IGNITE_S: float = 0.6
@@ -49,8 +51,11 @@ static func pop(parent: Node, pos: Vector3, burn: float = DURATION,
 	var flare := IllumFlare.new()
 	flare.duration = burn
 	flare.light_radius = radius
-	# A round that hangs 3x higher must fall no faster, or it lands before it burns.
-	flare.drift = DRIFT_M_PER_S * (height / 40.0) * (DURATION / maxf(1.0, burn))
+	# Descend rate is whatever carries it from its burst height down to END_HEIGHT_M
+	# over its own burn, so a round that hangs higher falls faster instead of
+	# appearing to hover, and none of them reach the deck while still lit.
+	var end_h: float = minf(END_HEIGHT_M, height * 0.15)
+	flare.drift = maxf(0.4, (height - end_h) / maxf(1.0, burn))
 	parent.add_child(flare)
 	flare.global_position = pos + Vector3(0, height, 0)
 	return flare

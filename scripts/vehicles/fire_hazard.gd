@@ -11,8 +11,25 @@ const BURNING := preload("res://scripts/combat/burning.gd")
 @export var duration: float = 15.0
 @export var hazard_radius: float = 10.0
 
+## ADR-026 caps real-time lights at 8 on screen, 0 shadow-casting. Burning ground
+## draws against that budget so napalm reads as a light source at night; a napalm
+## run lays 9 patches, so the pool is capped and the rest keep the glow quad alone.
+const MAX_FIRE_LIGHTS: int = 4
+const FIRE_LIGHT_ENERGY: float = 6.0
+const FIRE_LIGHT_FADE_S: float = 3.0
+static var _fire_lights: int = 0
+
+## Secondary fires are the ones a non-incendiary blast starts by chance. Capped
+## separately so a napalm run (9 patches) is never squeezed out by grenade fires.
+const MAX_SECONDARY_FIRES: int = 6
+static var active: Array[FireHazard] = []
+var is_secondary: bool = false
+
 var _tick_timer: float = 0.0
 var _life: float = 0.0
+var _light: OmniLight3D = null
+var _light_checked: bool = false
+var _flicker: float = 1.0
 
 
 static func create_at(parent: Node, pos: Vector3, radius: float = 10.0, dur: float = 15.0) -> FireHazard:
@@ -28,13 +45,15 @@ static func create_at(parent: Node, pos: Vector3, radius: float = 10.0, dur: flo
 	hazard.collision_mask = 2 | 4  # player + enemies (allies share layer 2)
 	parent.add_child(hazard)
 	hazard.global_position = pos
+	active.append(hazard)
 	hazard._build_visual(radius)
 	# Scorch outlives the fire: parented to the WORLD, FIFO-capped by GunFX.
 	GunFX._scorch(parent, pos, radius / 1.2)
 	return hazard
 
 
-## Burning ground (ADR-026: zero real lights - the "glow" is an additive quad).
+## Burning ground: an additive glow quad plus, for the first MAX_FIRE_LIGHTS
+## hazards alight, one non-shadow OmniLight inside the ADR-026 budget.
 ## Flame coverage must reach the FULL damage radius: a gap the player reads as
 ## safe lane that still burns is a Fairness violation.
 func _build_visual(radius: float) -> void:
@@ -100,10 +119,10 @@ func _build_visual(radius: float) -> void:
 	gmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	gmat.albedo_texture = GunFX._fx_tex("particles/fire_glow")
-	gmat.albedo_color = Color(1.0, 0.62, 0.28, 0.45)
+	gmat.albedo_color = Color(1.0, 0.62, 0.28, 0.6)
 	gmat.emission_enabled = true
 	gmat.emission = Color(1.0, 0.4, 0.0)
-	gmat.emission_energy_multiplier = 1.6
+	gmat.emission_energy_multiplier = 2.4
 	glow.material_override = gmat
 	glow.rotation_degrees.x = -90.0
 	glow.position.y = 0.12
@@ -115,6 +134,24 @@ func _physics_process(delta: float) -> void:
 	if _life >= duration:
 		queue_free()
 		return
+
+	# Claimed on the first tick, not in create_at: damage_per_second is assigned by
+	# the caller AFTER construction, and the 0-dps shader-warm hazard must not take
+	# a light from the pool.
+	if not _light_checked:
+		_light_checked = true
+		if damage_per_second > 0.0 and _fire_lights < MAX_FIRE_LIGHTS:
+			_fire_lights += 1
+			_light = OmniLight3D.new()
+			_light.light_color = Color(1.0, 0.52, 0.20)
+			_light.omni_range = hazard_radius * 2.6
+			_light.shadow_enabled = false
+			_light.position.y = 1.0
+			add_child(_light)
+	if _light != null:
+		_flicker = lerpf(_flicker, randf_range(0.68, 1.0), clampf(delta * 7.0, 0.0, 1.0))
+		var fade: float = clampf((duration - _life) / FIRE_LIGHT_FADE_S, 0.0, 1.0)
+		_light.light_energy = FIRE_LIGHT_ENERGY * _flicker * fade
 	_tick_timer += delta
 	if _tick_timer < 0.5:
 		return
@@ -139,3 +176,27 @@ func _physics_process(delta: float) -> void:
 				b.name = "Burning"
 				body.add_child(b)
 				b.call("setup", body)
+
+
+func _exit_tree() -> void:
+	active.erase(self)
+	if _light != null:
+		_fire_lights = maxi(0, _fire_lights - 1)
+		_light = null
+
+
+## Is anything already alight within `dist` of here? Stops a secondary fire from
+## stacking on top of the napalm or WP patch that just lit the same ground.
+static func burning_near(pos: Vector3, dist: float) -> bool:
+	for h in active:
+		if is_instance_valid(h) and h.global_position.distance_to(pos) < dist:
+			return true
+	return false
+
+
+static func secondary_count() -> int:
+	var n: int = 0
+	for h in active:
+		if is_instance_valid(h) and h.is_secondary:
+			n += 1
+	return n

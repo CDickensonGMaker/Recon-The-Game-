@@ -221,6 +221,47 @@ func apply_explosion_damage(
 	apply_suppression_in_area(center, radius * SUPPRESS_RADIUS_MULT,
 		clampf(float(max_damage) / SUPPRESS_DAMAGE_FULL, 0.15, 1.0))
 
+	_maybe_ignite_ground(space_state, center, radius)
+
+
+## SECONDARY IGNITION (Summoner ruling 2026-08-12, 35%): a blast that is not itself
+## incendiary still sets the ground alight sometimes. Rolled here because this is the
+## one function every explosive in the game routes through.
+##
+## The napalm and WP patches call this too, so the burning_near test is what stops a
+## second fire being stacked on ground that is already alight.
+const IGNITE_CHANCE: float = 0.35
+## Below this blast radius the ordnance is too small to start anything.
+const IGNITE_MIN_RADIUS_M: float = 3.0
+const IGNITE_RADIUS_MULT: float = 0.55
+const IGNITE_BURN_S: float = 9.0
+const IGNITE_DPS: float = 12.0
+
+func _maybe_ignite_ground(space_state: PhysicsDirectSpaceState3D, center: Vector3,
+		radius: float) -> void:
+	if radius < IGNITE_MIN_RADIUS_M or randf() > IGNITE_CHANCE:
+		return
+	if FireHazard.secondary_count() >= FireHazard.MAX_SECONDARY_FIRES:
+		return
+	if FireHazard.burning_near(center, radius * 1.5):
+		return
+	var scene: Node = get_tree().current_scene
+	if scene == null:
+		return
+
+	# The blast point can be head-high or airburst; fire belongs on the deck.
+	var query := PhysicsRayQueryParameters3D.create(center + Vector3.UP * 2.0,
+		center + Vector3.DOWN * 40.0)
+	query.collision_mask = 1
+	var hit: Dictionary = space_state.intersect_ray(query)
+	if hit.is_empty():
+		return
+
+	var hazard: FireHazard = FireHazard.create_at(scene, hit.position as Vector3,
+		maxf(2.5, radius * IGNITE_RADIUS_MULT), IGNITE_BURN_S)
+	hazard.is_secondary = true
+	hazard.damage_per_second = IGNITE_DPS
+
 
 ## What a blast does to the men it does NOT hit. The kill radius is small on purpose (a 40mm
 ## is lethal at 5m) but the fear reaches much further, so suppression runs on a multiple of it.
