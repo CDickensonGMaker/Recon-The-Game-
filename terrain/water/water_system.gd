@@ -371,8 +371,8 @@ func _append_river_strip(points: PackedVector2Array, widths: PackedFloat32Array,
 		var l1: int = base + (i + 1) * 3
 		var c1: int = l1 + 1
 		var r1: int = l1 + 2
-		indices.append_array([l0, c0, c1, l0, c1, l1])
-		indices.append_array([c0, r0, r1, c0, r1, c1])
+		indices.append_array([l0, c1, c0, l0, l1, c1])
+		indices.append_array([c0, r1, r0, c0, c1, r1])
 
 
 ## Distance (in cells) from a cell to the nearest cell outside the body.
