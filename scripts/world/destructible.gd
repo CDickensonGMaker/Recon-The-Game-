@@ -35,10 +35,28 @@ const RUIN_FOR: Dictionary = {
 	"sandbag_stack": "rubble_pile.glb",
 }
 ## A building's blast is heavier than a grenade's, and thatch burns.
+## The blast a kind DIES with. Sized to the thing coming apart, not to the charge that
+## killed it: a wire picket is a pop, a bunker is a collapse. An unmapped kind used to
+## fall back to explosion_heavy - the artillery class - so a 42-card wire belt went up
+## as 42 artillery bursts.
 const BLAST_FOR: Dictionary = {
 	"hut_thatch": "explosion_napalm",
 	"hut_timber": "explosion_napalm",
+	"wire": "explosion_40mm",
+	"sandbag_stack": "explosion_40mm",
+	"sandbag_wall": "explosion_grenade",
+	"tower": "explosion_grenade",
+	"bunker": "explosion_mortar",
+	"bunker_mg": "explosion_mortar",
 }
+
+
+## An unmapped kind is a wiring mistake, not a tuning one, so it is loud and it is small.
+static func blast_for(k: String) -> String:
+	if not BLAST_FOR.has(k):
+		push_warning("[Destructible] no blast for kind '%s' - falling back to grenade" % k)
+		return "explosion_grenade"
+	return String(BLAST_FOR[k])
 
 ## THE ONE HP TABLE - every structure's HP is decided here and nowhere else. The prefix lists
 ## that name the art stay with their owners (the bench grades wire, the world stamps village
@@ -156,7 +174,7 @@ func _do_destroy() -> void:
 		destroyed_mesh = ruin_mesh_for(kind)
 	# Over the swap, not after it: same frame, so the intact->ruin cut lands inside the flash.
 	GunFX.play_explosion_3d(get_tree().current_scene if is_inside_tree() else self,
-		global_position, String(BLAST_FOR.get(kind, "explosion_heavy")))
+		global_position, blast_for(kind))
 	for c in get_children():
 		if c is MeshInstance3D:
 			(c as MeshInstance3D).visible = false
