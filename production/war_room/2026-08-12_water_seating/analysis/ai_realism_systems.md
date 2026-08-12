@@ -6,10 +6,17 @@ old school feeling game"* + *"for both enemies and allies"*. So: contemporary de
 PSX presentation. Everything below is ranked by whether it reads through **silhouette, position,
 timing, sound and decision-making** — the channels that survive low-poly.
 
-**Verdict up front.** The enemy brain is genuinely modern in its *goal* layer and genuinely
-bot-like in its *perception and body* layer. The ally brain is a decade behind the enemy brain on
-perception, and that gap — not the enemy AI — is the loudest thing in a firefight, because the
-squad is the thing the player stares at for thirty minutes (Pillar 4).
+**Verdict up front.** The enemy brain is genuinely modern in its *goal* layer and bot-like in its
+*perception, voice and body* layers. The ally brain is a full generation behind the enemy brain
+on perception and hit reaction — and that gap, not the enemy AI, is the loudest thing in a
+firefight, because the squad is what the player stares at for thirty minutes (Pillar 4).
+
+**The dominant pattern is not missing systems. It is finished systems held shut by one line
+each.** Three of them, found in this audit: every enemy shout is discarded by a team filter
+(`enemy_base.gd:1268-1269`); every casualty reaction is cancelled the instant anyone enters
+COMBAT (`:1071-1072`); and 23 recorded VO lines sit on disk with no caller while 5 live call
+sites point at files that do not exist. **The men in this game already know how to react. They
+have been muted.**
 
 ---
 
@@ -253,7 +260,31 @@ suppression audit — flagged here only to note it is the same shape of gap).
 
 ## 4 · Reaction to events other than the player
 
-### 4a. THE BIG ONE — nothing in either AI reacts to a squadmate dying.
+### 4·0 THE BIG ONE — casualty reaction is built, and one `return` deletes it the moment a fight starts.
+
+`_witness_check` (`enemy_base.gd:1064-1100`) is a real, well-built casualty reaction: the man who
+could genuinely see the death goes ALERT with `awareness 0.8`, is handed the killer's position,
+barks `contact`, and emits a 30 m VOICE event (`:1080-1088`).
+
+Then `:1071-1072`:
+```
+if w.alert_tier == AlertTier.COMBAT:
+    return
+```
+**If ANY enemy in the AO is already in COMBAT, the function bails on the first such man and
+nobody reacts to the death at all.** So the system fires only during the stealth phase. In an
+actual firefight — the entire Pillar-1 surface — a man's neighbour can be decapitated at three
+metres and produce zero behavioural or vocal response, forever.
+
+The only casualty signal that survives contact is `EnemySquad.is_broken` (`enemy_squad.gd:158`,
+read at `enemy_base.gd:1496`) — a **1 s-cached aggregate ratio** that cannot tell "the man beside
+me" from "a man 200 m away in the same squad". There is no per-death impulse anywhere.
+
+**Triage: UNFINISHED.** Do not delete the guard blindly — it exists to stop the alarm being
+re-raised. Split the two concerns: the *alarm* (stamp/tier) should keep the COMBAT guard; the
+*reaction* (suppression bump, goal interrupt, look, bark) should not.
+
+### 4a. And the death signal itself has no AI subscriber on either side.
 `died` is emitted at `enemy_base.gd:2694` / `:2744` and `ally_base.gd:1788`. Repo-wide, every
 consumer is **bookkeeping**:
 
@@ -300,9 +331,49 @@ no rout.** An ally soaks rounds like furniture. **MISSING (ally side); enemy is 
 is most of the value — but the *posture/cover* side never learns its cover is now useless.
 **Triage: UNFINISHED (the datum is captured; no behavioural consumer).**
 
-### 4e. Fire.
-`scripts/combat/burning.gd` — no AI reads it. A burning man keeps his goal. **MISSING**, low
-priority.
+### 4e. Fire — the brain never learns the body is burning.
+`combat/burning.gd` is real: `BURN_S 4.2` (`:25`), `DPS 22.0` (`:26`), three styles DROP/ROLL/
+COWER (`:41-44`), always fatal (`:220-221`). `enemy_base.gd:555-569` overrides **the animation
+only** — the comment at `:558` says "Burning owns him until it kills him", which is false: the
+FSM, goals, movement and firing are untouched, so a burning man keeps walking his goal path and
+shooting while playing `running_unarmed`. Allies have no `"Burning"` lookup at all
+(`ally_base.gd`), so an ally on fire gets damage and VFX and not even the clip chain.
+No AI reads `FireHazard`; nobody paths around a burning strip (`combat_manager.gd:240-263` ignites
+ground at 35% on ≥3 m blasts). **UNFINISHED (enemy anim-only), MISSING (ally, and avoidance).**
+
+### 4f. Allies have no `apply_stagger` at all — and it fails silently.
+`combat_manager.gd:208-209` calls `apply_stagger(2.0)` behind a `has_method` guard. `EnemyBase`
+has it (`:2578-2581`); `AllyBase` does not. **An ally standing in a grenade blast does not
+stagger, and nothing reports the miss.** Same shape as the mech-slot miscast class.
+
+### 4g. Ally pressure memory is never fed by being hit.
+`ally_base.gd` splits suppression into `suppression_level` (fast, decay 0.3) and
+`incoming_pressure` (memory, decay 0.06) at `:260-271`. Decisions read the *memory*
+(`:141`, `:1233`, `:1248`). But `take_damage` (`:1776`) raises only `suppression_level` — being
+**hit** never raises `incoming_pressure`; only near-misses via `apply_suppression` (`:1785-1787`)
+do. A man shot cleanly through the arm forgets it in ~3.3 s. **UNFINISHED (defect).**
+
+### 4h. `has_covering_fire` is never set on the ally side.
+`ally_base.gd:128`, self-documented as unfinished at `:123-127`, read at `:907`. Nothing ever
+writes it, so allies permanently forfeit the `+0.2` ADVANCE in `combat_goals.gd:127` — the squad
+structurally cannot recognise that it is being covered. Enemies get it from
+`EnemySquad.has_covering_fire` (`enemy_base.gd:1493`). **UNFINISHED (ally side).**
+
+### 4i. Allies never retarget onto whoever is shooting them.
+No `_last_attacker` and no attacker-weighted score exists in `ally_base.gd` (cf.
+`enemy_base.gd:1288-1289`, `:1300-1301`, `:1324-1329`). An ally shot in the back does not turn
+around. This compounds §2c. **MISSING (ally side).**
+
+### 4j. Fossils found in the squad layer (ADR-023 — delete these).
+- `EnemySquad.readable_crumbs()` `enemy_squad.gd:338` — zero callers. The "how much of the trail
+  this man can read" personality trait is never consulted; every searcher reads all 20 crumbs.
+  **This is a designed imperfect-information feature that was built and abandoned.**
+- `EnemySquad.strength_ratio()` `:151` — zero callers, superseded by `is_broken` `:158`. **FOSSIL.**
+- `EnemySquad.formation_positions()` `:466` — zero callers. The documented "leader dies →
+  formation collapses → promote the next man" behaviour does not exist. **FOSSIL.**
+- `EvidenceLedger.total_strength()` `evidence_ledger.gd:97-101` — zero callers. **UNFINISHED.**
+- `AgentRegistry`'s header claims "WB adds the tier field here" (`agent_registry.gd:3`) — no such
+  field. **FOSSIL prose.**
 
 ---
 
@@ -348,13 +419,41 @@ literal bot-tell, visible in silhouette, in every contact.
   gate (§2b), the missing sweep costs nothing *functionally* — which is exactly why nobody noticed.
   Wire both together or neither.
 - **Weather / night: MISSING** on both sides beyond `SightCap`.
-- **Ambient VO: MISSING.** `VOManager` (`scripts/autoload/vo_manager.gd:61-74`) has
-  `play_squad`/`play_enemy` and a cooldown gate (`:98`). Enemies bark 9 lines — pain (`:765`,
-  `:2715`), retreat (`:977`, `:2523`), contact (`:1087`, `:1122`), grenade (`:2330`), order
-  (`:2625`), surrender (`:2858`). Allies bark **only through `squad_system.gd`** (`:243`, `:348`,
-  `:491`, `:529`, `:655`, `:678`) — so a garrison ally or a `friendly_patrol_group` man is
-  permanently mute. And **neither side has a single idle/ambient line**: no chatter on the march,
-  no ammo call, no "moving!" on a bound. Sound is a PSX-proof channel and it is half-empty.
+### 6a. THE VOICE LIBRARY IS RECORDED, ON DISK, AND LARGELY UNPLAYED.
+
+`vo_manager.gd:106-114` resolves `vo/<dir>/<enemy|squad>_<line_id>.wav` and **no-ops silently on
+a missing file** (`:10`). Cross-checking the 9 `play_enemy` call sites against the shipped library
+(identical file set in `vi_vais1000`, `vi_25hours`, `vi_vivos`):
+
+| Call | File needed | On disk? |
+|---|---|---|
+| `"contact"` `:1087`, `:1122` | `enemy_contact.wav` | **NO — silent** |
+| `"pain"` `:765`, `:2715` | `enemy_pain.wav` | **NO — silent** |
+| `"order"` `:2625` | `enemy_order.wav` | **NO — silent** |
+| `"retreat"` `:977`, `:2523` | `enemy_retreat.wav` | yes |
+| `"grenade"` `:2330` | `enemy_grenade.wav` | yes |
+| `"surrender"` `:2858` | `enemy_surrender.wav` | yes |
+
+**5 of 9 enemy VO calls play nothing** — including *both* witness/contact barks and *both* pain
+barks. Going the other way, **7 recorded enemy lines have zero callers**: `enemy_man_down`,
+`enemy_spotted_us`, `enemy_open_fire`, `enemy_advance`, `enemy_flanking`, `enemy_taunt`,
+`enemy_reload`. `enemy_man_down.wav` — the exact line §4·0 needs — is sitting in all three voice
+folders, recorded, unused.
+
+Squad VO is healthier (`squad_system.gd:243,348,388,491,529,655,678`) but
+`bandages_over_here` has no wav in `john`/`ryan`/`norman`, and the medic voice `norman` is missing
+`contact_front`, `thumper_out`, `frag_out`, `grenade`, `sniper`, `ammo_low` and `weapons_*` — so
+a medic caller silently drops those lines. **16 recorded squad wavs have zero callers**:
+`ammo_low`, `clear`, `enemy_left`, `enemy_right`, `fall_back`, `fire_in_hole`, `frag_out`,
+`grenade`, `moving`, `on_me`, `push_up`, `reloading`, `reloading_cov`, `sniper`, `taking_fire`,
+`treeline`.
+
+Allies bark **only through `squad_system.gd`**, so a garrison ally or a `friendly_patrol_group`
+man is permanently mute. Neither side has a single idle/march line.
+
+**Triage: UNFINISHED (23 recorded lines with no caller; 5 calls with no file).** Sound is the
+single most PSX-proof channel in the game, the content is already paid for, and it is switched
+off at both ends.
 
 ---
 
@@ -374,16 +473,38 @@ Existing per-think O(n) sweeps that any new work must not multiply:
 
 Every one of these is **wiring or constants**, not new architecture, except R4.
 
-### R1. Casualty reaction — connect `died` to the brains. *(highest impact, near-zero CPU)*
-Event-driven; **no per-frame cost**. In `enemy_squad.gd` (or a small static broker) fan a death
-out to men within ~20 m: `apply_suppression(0.25)`, force `goal_timer = 99.0` (the existing
-class-A interrupt, `enemy_base.gd:2413`), reset `has_reacted = false`, point `facing_dir` at the
-death, and fire `VOManager.play_enemy("pain"/"contact")` on one nearby man only (the cooldown gate
-at `vo_manager.gd:98` already prevents a chorus). Mirror into `ally_base.gd` off
-`squad_system.gd:97`, which already has the handler.
-**Reads as:** the whole line ducks when a man drops. Silhouette + sound + timing.
-**Sacrifices:** enemies become slightly harder to whittle down one at a time; a suppression bump
-on death makes chained kills easier, so cap the fan-out at one bump per man per ~2 s.
+### R0. Turn the spoken layer back on. *(three switches, ~zero CPU, biggest sound payoff)*
+Three independent kill-switches currently silence the AI's entire information-by-voice layer:
+1. `enemy_base.gd:1268-1269` discards own-team noise, making all six enemy shouts inaudible to
+   other enemies. Replace the blanket `source_team == 1` return with a **type** test: keep
+   discarding friendly GUNSHOT/FOOTSTEP (which is what the guard was protecting against), and
+   **let VOICE through**. That single change converts telepathy into shouting.
+2. Record or alias the 3 missing enemy wavs (`enemy_contact`, `enemy_pain`, `enemy_order`) so 5
+   dead call sites become audible.
+3. Wire the 7 orphan enemy lines and the useful squad orphans (`man_down`, `taking_fire`,
+   `moving`, `reloading`, `ammo_low`, `frag_out`, `fall_back`, `enemy_left/right`) to the events
+   that already exist.
+**Cost:** the VOManager cooldown gate (`vo_manager.gd:98`) already prevents a chorus; a VOICE
+noise event is one signal emission with a listener-side distance check.
+**Reads as:** you hear them find the body, call the flank, scream when hit — and you hear it from
+a direction, at a range, *before* you see anything. This is the modern-AI information channel
+delivered through the one medium PSX fidelity cannot degrade.
+**Sacrifices:** the AO becomes noisier and stealth gets harder to sustain once one man shouts —
+which is the intent of ADR-005. Watch that the VOICE-through change does not let a pain grunt
+chain a whole camp to ALERT; cap the awareness bump for own-team VOICE below the 0.35 used for
+enemy noise.
+
+### R1. Casualty reaction — split the alarm from the reaction. *(highest impact, near-zero CPU)*
+Two edits. First, `enemy_base.gd:1071-1072`: the COMBAT early-return must guard only the
+*alarm* (`_stamp_contact` / tier promotion), not the *reaction*. Second, connect `died`
+(`enemy_base.gd:2694`, `ally_base.gd:1788`) to the brains — event-driven, **no per-frame cost**.
+Fan a death out to men within ~20 m: `apply_suppression(0.25)`, force `goal_timer = 99.0` (the
+existing class-A interrupt, `:2413`), reset `has_reacted = false`, point `facing_dir` at the
+death, and bark `man_down` on **one** nearby man. Mirror into `ally_base.gd` off
+`squad_system.gd:97`, which already holds the handler.
+**Reads as:** the whole line ducks when a man drops. Silhouette + sound + timing at once.
+**Sacrifices:** a suppression bump on death makes chained kills easier — cap the fan-out at one
+bump per man per ~2 s. Enemies get slightly harder to whittle down one at a time.
 
 ### R2. Make `aim_speed` an angular rate. *(one line each side, zero CPU)*
 `enemy_base.gd:1648-1649` and `ally_base.gd:1064`. Replace the lerp weight with a real slew cap —
@@ -456,10 +577,26 @@ force `SEEK_COVER` away from it plus a bark. Also stop `_on_noise_heard` walking
 VOICE event that was a grenade warning (`enemy_base.gd:1267-1280`).
 **Cost:** one distance loop over a near-empty array per think.
 
-### R10. Fix the awareness clock and the drifted comments. *(hygiene, do it in passing)*
-`enemy_base.gd:1204/1208` → `_think_interval_current`. Correct the `# Radians per second` lie at
-`enemy_base.gd:112` / `ally_base.gd:152` when R2 lands. Correct
-`ai_marksmanship.gd:3-6`'s "trends 1:1" claim, which `ally_base.gd:1674` falsifies.
+### R10. Bound the telepathic share, now that shouting works. *(one range check)*
+With R0 landed, `_squad_sync` (`enemy_base.gd:1000-1018`) should stop being the primary channel.
+Apply `SHARE_RANGE` (`enemy_squad.gd:8`) as the propagation filter its own comment claims it is,
+add a small position error that grows with the age of the intel, and range-gate the cold-brain
+copy at `:920-925` so a cold fighter stops tracking the player live through walls.
+**Cost:** one distance test per think. **Sacrifices:** enemy squads coordinate visibly worse —
+which is the point, but it will look like a regression unless R0 lands first. **Ship R0 before
+R10, never the reverse.**
+
+### R11. Hygiene, in passing. *(FOSSIL LAW / COMMENT DISCIPLINE)*
+Fix the awareness clock (`enemy_base.gd:1204/1208` → `_think_interval_current`). Correct the
+`# Radians per second` lie (`enemy_base.gd:112`, `ally_base.gd:152`) when R2 lands, the
+"trends 1:1" claim at `ai_marksmanship.gd:3-6` that `ally_base.gd:1674` falsifies, the
+`SHARE_RANGE` comment (`enemy_squad.gd:8`), the "Burning owns him" comment
+(`enemy_base.gd:558`), and the `AgentRegistry` tier-field claim (`agent_registry.gd:3`). Delete
+`EnemySquad.strength_ratio` (`:151`) and `formation_positions` (`:466`). Rule on
+`readable_crumbs` (`:338`) and `EvidenceLedger.total_strength` (`:97-101`) — both are unfinished
+imperfect-information features, and `readable_crumbs` is worth *wiring*, not deleting: it is a
+per-man search-quality trait sitting one call from being live. Fix the team labels at
+`marching_cell.gd:84` and `zpu_gun.gd:248`.
 
 ---
 
@@ -467,7 +604,22 @@ VOICE event that was a grenade warning (`enemy_base.gd:1267-1280`).
 
 | Finding | Pointer | Triage |
 |---|---|---|
+| **All 6 enemy shouts inaudible to enemies (own-team filter)** | `enemy_base.gd:1268-1269` vs `:963,1088,1123,2329,2467,2558` | **UNFINISHED** |
+| **Casualty reaction disabled the moment anyone is in COMBAT** | `enemy_base.gd:1071-1072` | **UNFINISHED** |
+| **5 of 9 enemy VO calls silent; 23 recorded lines with no caller** | `vo_manager.gd:106-114` | **UNFINISHED** |
+| Squad share is instant, perfect, unbounded; `SHARE_RANGE` unused | `enemy_base.gd:1008,1017`, `enemy_squad.gd:8,244-260` | **UNFINISHED** (+ FOSSIL comment) |
+| Cold fighter tracks player live through walls | `enemy_base.gd:920-925` | **UNFINISHED** (leak) |
+| Cross-squad / lone-wolf propagation | `enemy_squad.gd` `id < 0` early-returns | **MISSING** |
 | No AI consumer of `died` | `enemy_base.gd:2694`, `ally_base.gd:1788` | **UNFINISHED** |
+| Ally has no `apply_stagger`; blast stagger silently skipped | `combat_manager.gd:208` vs `ally_base.gd` | **MISSING** |
+| Ally `incoming_pressure` never raised by being hit | `ally_base.gd:1776` | **UNFINISHED** (defect) |
+| Ally `has_covering_fire` never set | `ally_base.gd:128,907` | **UNFINISHED** |
+| Ally never retargets onto its attacker | `ally_base.gd` (absent) | **MISSING** |
+| Burning changes animation only; no fire avoidance | `enemy_base.gd:555-569` | **UNFINISHED / MISSING** |
+| `readable_crumbs` — per-man trail-reading trait | `enemy_squad.gd:338` | **UNFINISHED** (worth wiring) |
+| `strength_ratio`, `formation_positions` | `enemy_squad.gd:151,466` | **FOSSIL** |
+| `EvidenceLedger.total_strength` | `evidence_ledger.gd:97-101` | **UNFINISHED** |
+| Team-label quirks (friendly footsteps / ZPU as team 0) | `marching_cell.gd:84`, `zpu_gun.gd:248` | **UNFINISHED** (defect) |
 | `aim_speed` is a lerp weight, not a rate | `enemy_base.gd:1648`, `ally_base.gd:1064` | **UNFINISHED** (+ FOSSIL comment) |
 | Reaction window 0.30–0.375 s, tier-blind | `enemy_base.gd:245,1721` | **UNFINISHED** |
 | Ally has no reaction gate | `ally_base.gd` (absent) | **MISSING** |
@@ -487,9 +639,16 @@ VOICE event that was a grenade warning (`enemy_base.gd:1267-1280`).
 | Ally has no think LOD | `ally_base.gd:659` vs `enemy_base.gd:37-52` | **UNFINISHED** |
 | Burning has no AI consumer | `scripts/combat/burning.gd` | **MISSING** |
 
-**Recommended order:** R2 → R1 → R3 → R5 → R7 (all constants/wiring, one session, no new
-systems, and together they cover reaction, casualty response, flanking and suppression) — then
-R6 + R4 + R10 as the ally-parity pass, then R8/R9 as content work.
+**Recommended order.**
+**Wave 1 (one session, all wiring/constants, no new systems):** R0 → R1 → R2 → R3 → R5 → R7.
+Together these give the AI a voice, a reaction to its dead, a real turn, a human reaction window,
+a blind spot, and suppression that spoils aim.
+**Wave 2 (ally parity):** R6 → R4 → §4f/4g/4h/4i → R11 hygiene.
+**Wave 3 (bound the telepathy, only after R0):** R10.
+**Wave 4 (content):** R8 ammo/reload, R9 grenade danger.
+
+*The dependency that matters: **R0 must precede R10.** Bounding the squad share before the men
+can shout removes coordination without replacing it, and will read as the AI getting worse.*
 
 *Nothing here proposes degrading AI sophistication to match the art. Every recommendation reads
 through silhouette, position, timing or sound.*

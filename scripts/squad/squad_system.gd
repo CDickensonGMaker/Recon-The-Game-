@@ -208,6 +208,15 @@ func _toast(text: String) -> void:
 		director.toast.emit(text)
 
 
+## Squad-level calls only (an order, a break) - anything a MAN perceives is spoken
+## by that man from ally_base.gd instead.
+func _first_living() -> AllyBase:
+	for a in members:
+		if is_instance_valid(a) and not a.is_dead():
+			return a
+	return null
+
+
 func member_by_mos(mos: String) -> AllyBase:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead() and str(a.member.get("mos", "")) == mos:
@@ -221,14 +230,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not GameManager.can_player_act() or director == null or director.is_ended():
 		return
 	if event.is_action_pressed("squad_follow"):
-		_order_all(AllyBase.OrderMode.FOLLOW, Vector3.ZERO, "SQUAD: ON ME")
+		_order_all(AllyBase.OrderMode.FOLLOW, Vector3.ZERO, "SQUAD: ON ME", "on_me")
 	elif event.is_action_pressed("squad_hold"):
 		_order_all(AllyBase.OrderMode.HOLD, Vector3.ZERO, "SQUAD: HOLD POSITION")
 		_drop_ammo_box()
 	elif event.is_action_pressed("squad_move"):
 		var target := _aim_ground_point()
 		if target != Vector3.ZERO:
-			_order_all(AllyBase.OrderMode.MOVE_TO, target, "SQUAD: MOVE THERE")
+			_order_all(AllyBase.OrderMode.MOVE_TO, target, "SQUAD: MOVE THERE", "moving")
 	elif event.is_action_pressed("squad_fire_toggle"):
 		_auto_flip_armed = false
 		_set_weapons_free(not weapons_free)
@@ -243,11 +252,15 @@ func _set_weapons_free(free: bool) -> void:
 	VOManager.play_squad("weapons_free" if free else "weapons_tight")
 
 
-func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String) -> void:
+func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String,
+		ack_line: String = "") -> void:
 	for a in members:
 		if is_instance_valid(a) and not a.is_dead():
 			a.set_order(mode, pos)
 	_toast(toast_text)
+	var ack: AllyBase = _first_living()
+	if ack_line != "" and ack != null:
+		VOManager.play_squad(ack_line, ack.member, ack.global_position)
 
 
 func _aim_ground_point() -> Vector3:
@@ -456,6 +469,10 @@ func _update_break() -> void:
 	if squad_broken != was:
 		_toast("SQUAD COMBAT INEFFECTIVE - BREAKING CONTACT" if squad_broken \
 			else "SQUAD BACK IN THE FIGHT")
+		if squad_broken:
+			var caller: AllyBase = _first_living()
+			if caller != null:
+				VOManager.play_squad("fall_back", caller.member, caller.global_position, true)
 
 
 var _point_scan_timer: float = 0.0
@@ -645,18 +662,16 @@ func _contact_barks() -> void:
 			in_combat += 1
 	if in_combat > 0 and _last_combat_count == 0:
 		_bark_cooldown = 8.0
-		var caller: AllyBase = null
-		for a in members:
-			if is_instance_valid(a) and not a.is_dead():
-				caller = a
-				break
+		var caller: AllyBase = _first_living()
 		if caller:
 			_toast("%s: CONTACT!" % SquadRoster.call_name(caller.member))
-			VOManager.play_squad("contact_front" if randf() < 0.5 else "contact", caller.member, caller.global_position)
 	# Peak, not current: a firefight is judged by how many men it pulled in at its worst,
 	# and that number is gone by the time the shooting stops.
 	_combat_peak = maxi(_combat_peak, in_combat)
 	if in_combat == 0 and _last_combat_count > 0:
+		var last_man: AllyBase = _first_living()
+		if last_man != null:
+			VOManager.play_squad("clear", last_man.member, last_man.global_position)
 		if _combat_peak >= LARGE_FIREFIGHT_MEN:
 			_medic_resupply()
 		_combat_peak = 0
@@ -675,7 +690,6 @@ func _medic_resupply() -> void:
 		return
 	MedicalCrate.drop(host, medic.global_position)
 	_toast("%s: BANDAGES OVER HERE!" % SquadRoster.call_name(medic.member))
-	VOManager.play_squad("bandages_over_here", medic.member, medic.global_position)
 
 
 ## ---------- CASUALTIES ----------

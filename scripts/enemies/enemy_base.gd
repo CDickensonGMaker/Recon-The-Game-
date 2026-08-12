@@ -762,7 +762,7 @@ func _physics_process(delta: float) -> void:
 			_downed_fx_s = randf_range(4.0, 9.0)
 			GunFX.blood_pool(get_tree().current_scene, global_position)
 			NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 15.0)
-			VOManager.play_enemy("pain", self)
+			VOManager.play_enemy("man_down", self, true)
 		if _downed_bleed_s <= 0.0:
 			_die()
 		return
@@ -1084,7 +1084,7 @@ func _witness_check(killer: Node) -> void:
 			w.target_last_seen_time = 0.0
 		else:
 			w.last_known_target_pos = global_position
-		VOManager.play_enemy("contact", w)
+		VOManager.play_enemy("spotted_us", w)
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, w.global_position, 1, 30.0)
 		return
 	# NOBODY SAW IT. The kill is clean. But he is still lying there.
@@ -1119,7 +1119,7 @@ func _check_corpse_discovery() -> void:
 		if squad_id >= 0:
 			EnemySquad.begin_hunt(squad_id, body, body - global_position, float(Time.get_ticks_msec()))
 			EnemySquad.reanchor_hunt(squad_id, body, float(Time.get_ticks_msec()))
-		VOManager.play_enemy("contact", self)
+		VOManager.play_enemy("spotted_us", self)
 		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
 		return
 
@@ -1563,12 +1563,15 @@ func _update_state_for_goal() -> void:
 			_change_state(Enums.AIState.COMBAT)
 		Enums.AIGoal.FLANK_TARGET:
 			_change_state(Enums.AIState.FLANKING)
+			VOManager.play_enemy("flanking", self)
 		Enums.AIGoal.ADVANCE:
 			_change_state(Enums.AIState.ADVANCING)
+			VOManager.play_enemy("advance", self)
 		Enums.AIGoal.RETREAT:
 			_change_state(Enums.AIState.RETREATING)
 		Enums.AIGoal.INVESTIGATE:
 			_change_state(Enums.AIState.ALERT)
+			VOManager.play_enemy("taunt", self)
 		Enums.AIGoal.HOLD_POSITION:
 			_change_state(Enums.AIState.IDLE)
 		_:
@@ -2242,6 +2245,7 @@ func _fire_at_target() -> void:
 		current_aim_dir, pre_cap, _target_is_player(), exposure_t, not _first_shot_fired)
 	if not _first_shot_fired:
 		_first_shot_fired = true
+		VOManager.play_enemy("open_fire", self)
 
 	# HOLD-OVER: a trained man elevates for the range, or he shoots low past ~100m.
 	if target != null and is_instance_valid(target):
@@ -2328,6 +2332,7 @@ func _throw_grenade() -> void:
 	# Telegraph: shout (noise event draws attention both ways) + floating text.
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
 	VOManager.play_enemy("grenade", self)
+	_warn_allies_of_grenade()
 	var shout := Label3D.new()
 	shout.text = "LUU DAN!"
 	shout.font_size = 26
@@ -2351,6 +2356,23 @@ func _throw_grenade() -> void:
 		var flat := Vector3(to_target.x, 0, to_target.z)
 		grenade.linear_velocity = flat.normalized() * minf(flat.length() * 0.55, 14.0) + Vector3(0, 6.0, 0)
 		grenade.remaining_fuse = 3.0)
+
+
+## The nearest friendly who can see the throw calls it. The telegraph is only a
+## telegraph if somebody on the player's side reacts to it out loud.
+func _warn_allies_of_grenade() -> void:
+	var best: Node3D = null
+	var best_d: float = 24.0
+	for a in AgentRegistry.allies:
+		var ally := a as AllyBase
+		if ally == null or not is_instance_valid(ally) or ally.is_dead():
+			continue
+		var d: float = ally.global_position.distance_to(global_position)
+		if d < best_d:
+			best_d = d
+			best = ally
+	if best != null:
+		VOManager.play_squad("grenade", (best as AllyBase).member, best.global_position, true)
 
 
 ## Gun muzzle world position: shoulder height, pushed out along the aim with a
@@ -2622,7 +2644,7 @@ func _medic_think() -> void:
 		_drag_started = false
 		_drag_dest = Vector3.ZERO
 		_aid_abort_s = 30.0
-		VOManager.play_enemy("order", self)
+		VOManager.play_enemy("man_down", self)
 
 
 func _reset_aid() -> void:
@@ -2712,7 +2734,7 @@ func _become_downed() -> void:
 				ma.start_ragdoll(last_hit_dir, 1.5)
 	elif sprite_actor != null:
 		sprite_actor.play(SpriteStateMap.clip_for(false, str(enemy_data.sprite_weapon), "crippled"))
-	VOManager.play_enemy("pain", self)
+	VOManager.play_enemy("man_down", self, true)
 
 
 ## SECURE verb: stabilize + capture a downed man (same economy as surrender).
@@ -2734,6 +2756,8 @@ func _die() -> void:
 	if is_instance_valid(_last_attacker):
 		killer = _last_attacker
 	EnemySquad.release_hot(self)  # a dead man holds no hot slot - promote a live one
+	if not is_downed:
+		VOManager.play_enemy("man_down", self, true)  # downed men already cried out
 	_witness_check(killer)
 	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_change_state(Enums.AIState.DEAD)

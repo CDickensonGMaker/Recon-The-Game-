@@ -7,7 +7,6 @@
 ##   enemy  -> vi_* Vietnamese voices, picked per-enemy so a soldier keeps his voice
 ##
 ## Text toasts stay on screen as subtitles - VO is additive, never a replacement.
-## Missing wavs no-op silently (the library is user-curated and regenerable).
 extends Node
 
 const VO_ROOT := "res://assets/audio/vo"
@@ -19,9 +18,16 @@ const ENEMY_DIRS: Array[String] = ["vi_vais1000", "vi_25hours", "vi_vivos"]
 ## line_id -> seconds until that line may play again (anti-spam; radio also
 ## refuses to talk over itself entirely).
 const LINE_COOLDOWN_S: float = 4.0
+## One speaker may not say ANYTHING again this soon. Without this the line budget
+## is per-line and a squad answers one trigger in chorus.
+const SPEAKER_COOLDOWN_S: float = 3.0
+## Field lines allowed to overlap. `urgent` (death, pain) bypasses this.
+const MAX_CONCURRENT_FIELD: int = 2
 
 var _cache: Dictionary = {}          # path -> AudioStream (or null after a failed load)
 var _line_next_ok: Dictionary = {}   # line key -> msec when it may fire again
+var _speaker_next_ok: Dictionary = {}  # speaker key -> msec when he may speak again
+var _field_active: int = 0
 var _radio: AudioStreamPlayer = null      # in-ear: player holding the handset
 var _radio3d: AudioStreamPlayer3D = null  # the PRC-25 on the RTO's back
 
@@ -58,24 +64,39 @@ func play_radio(line_id: String, source_pos: Variant = null) -> void:
 
 ## Squad field bark, positional at the speaking soldier. `member` picks the voice
 ## (medic -> norman; others split john/ryan by a stable name hash).
-func play_squad(line_id: String, member: Dictionary = {}, pos: Variant = null) -> void:
-	var dir := MEDIC_DIR if str(member.get("mos", "")) == "MEDIC" \
-		else SQUAD_DIRS[abs(hash(str(member.get("name", "x")))) % SQUAD_DIRS.size()]
-	_play_field(dir, "squad_%s" % line_id, pos)
+func play_squad(line_id: String, member: Dictionary = {}, pos: Variant = null,
+		urgent: bool = false) -> void:
+	var who := str(member.get("name", "squad"))
+	var fname := "squad_%s" % line_id
+	var dir := SQUAD_DIRS[abs(hash(who)) % SQUAD_DIRS.size()]
+	# norman is a MEDIC SUBSET, not a full set - a line he never recorded is cast back
+	# to a rifleman's voice rather than muting the doc.
+	if str(member.get("mos", "")) == "MEDIC" and _exists(MEDIC_DIR, fname):
+		dir = MEDIC_DIR
+	_play_field(dir, fname, pos, "sq:" + who, urgent)
 
 
 ## Enemy Vietnamese callout, positional at the enemy. Voice is stable per speaker.
-func play_enemy(line_id: String, speaker: Node3D) -> void:
+func play_enemy(line_id: String, speaker: Node3D, urgent: bool = false) -> void:
 	if speaker == null or not is_instance_valid(speaker):
 		return
-	var dir: String = ENEMY_DIRS[abs(speaker.get_instance_id()) % ENEMY_DIRS.size()]
-	_play_field(dir, "enemy_%s" % line_id, speaker.global_position)
+	var id: int = abs(speaker.get_instance_id())
+	var dir: String = ENEMY_DIRS[id % ENEMY_DIRS.size()]
+	_play_field(dir, "enemy_%s" % line_id, speaker.global_position, "en:%d" % id, urgent)
 
 
-func _play_field(dir: String, fname: String, pos: Variant) -> void:
+func _play_field(dir: String, fname: String, pos: Variant, speaker_key: String,
+		urgent: bool) -> void:
 	var stream := _load(dir, fname)
-	if stream == null or _on_cooldown(dir + "/" + fname):
+	if stream == null:
 		return
+	# Non-stamping gates first: a line refused for chorus must not burn its own cooldown.
+	if not urgent and (_field_active >= MAX_CONCURRENT_FIELD or _speaker_busy(speaker_key)):
+		return
+	if _on_cooldown(speaker_key + "/" + fname):
+		return
+	_speaker_next_ok[speaker_key] = Time.get_ticks_msec() + int(SPEAKER_COOLDOWN_S * 1000.0)
+	_field_active += 1
 	if pos is Vector3:
 		var p := AudioStreamPlayer3D.new()
 		p.stream = stream
@@ -85,14 +106,26 @@ func _play_field(dir: String, fname: String, pos: Variant) -> void:
 		add_child(p)
 		p.global_position = pos
 		p.play()
-		p.finished.connect(p.queue_free)
+		p.finished.connect(func() -> void:
+			_field_active = maxi(0, _field_active - 1)
+			p.queue_free())
 	else:
 		var p2 := AudioStreamPlayer.new()
 		p2.stream = stream
 		p2.bus = "Voice" if AudioServer.get_bus_index("Voice") >= 0 else "Master"
 		add_child(p2)
 		p2.play()
-		p2.finished.connect(p2.queue_free)
+		p2.finished.connect(func() -> void:
+			_field_active = maxi(0, _field_active - 1)
+			p2.queue_free())
+
+
+func _exists(dir: String, fname: String) -> bool:
+	return ResourceLoader.exists("%s/%s/%s.wav" % [VO_ROOT, dir, fname])
+
+
+func _speaker_busy(key: String) -> bool:
+	return int(_speaker_next_ok.get(key, 0)) > Time.get_ticks_msec()
 
 
 func _on_cooldown(key: String) -> bool:
@@ -103,6 +136,8 @@ func _on_cooldown(key: String) -> bool:
 	return false
 
 
+## A requested id with no wav is a PERMANENTLY MUTE soldier and nothing else in the
+## game will ever say so - the cache makes this one line per path per session.
 func _load(dir: String, fname: String) -> AudioStream:
 	var path := "%s/%s/%s.wav" % [VO_ROOT, dir, fname]
 	if _cache.has(path):
@@ -110,5 +145,7 @@ func _load(dir: String, fname: String) -> AudioStream:
 	var stream: AudioStream = null
 	if ResourceLoader.exists(path):
 		stream = load(path) as AudioStream
+	if stream == null:
+		push_error("[VO] no %s - that call site is silent. Fix the line id or add the file." % path)
 	_cache[path] = stream  # cache misses too - curated library, don't re-stat disk
 	return stream

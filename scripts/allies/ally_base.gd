@@ -788,7 +788,27 @@ func _find_target() -> void:
 	# squad is not an instant laser.
 	if closest_enemy != target and closest_enemy != null:
 		_aim_settle = randf_range(0.45, 0.9)
+		_call_contact(closest_enemy.global_position)
 	target = closest_enemy
+
+
+## The man who saw it is the man who says it, and he calls the BEARING off his own
+## facing - not the squad's, and not the player's.
+func _call_contact(enemy_pos: Vector3) -> void:
+	var to_enemy: Vector3 = enemy_pos - global_position
+	to_enemy.y = 0.0
+	if to_enemy.length_squared() < 0.01:
+		return
+	to_enemy = to_enemy.normalized()
+	var facing: Vector3 = -global_transform.basis.z
+	facing.y = 0.0
+	facing = facing.normalized()
+	# facing.cross(UP) is +X, the man's RIGHT - do not reorder the operands.
+	var side: float = facing.cross(Vector3.UP).dot(to_enemy)
+	var line: String = "contact_front" if randf() < 0.5 else "contact"
+	if facing.dot(to_enemy) < 0.5:
+		line = "enemy_right" if side > 0.0 else "enemy_left"
+	VOManager.play_squad(line, member, global_position)
 
 
 func _update_line_of_sight() -> void:
@@ -1830,11 +1850,15 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 
 func apply_suppression(amount: float) -> void:
+	var was: float = suppression_level
 	suppression_level = minf(1.0, suppression_level + amount)
 	incoming_pressure = minf(1.0, incoming_pressure + amount)
+	if was <= CombatPosture.SUPPRESS_PIN and suppression_level > CombatPosture.SUPPRESS_PIN:
+		VOManager.play_squad("taking_fire", member, global_position)
 
 
 func _die() -> void:
+	VOManager.play_squad("man_down", member, global_position, true)
 	GunFX.blood_pool(get_tree().current_scene, global_position)
 	_release_cover()
 	_change_state(Enums.AIState.DEAD)
