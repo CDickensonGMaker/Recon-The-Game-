@@ -1881,7 +1881,7 @@ func _fire_at_target() -> void:
 
 	# A hit is not a near-miss (that is damage). The squad's rounds press the men they
 	# snap past exactly as the enemy's press ours - suppression is not a one-way weapon.
-	pass  # AB-OFF
+	CombatManager.suppress_along_shot(origin, final_aim, self, result)
 
 	# Live BulletSystem round - muzzle spawn, drop, travel, arrival damage/FX
 	# through the shared resolver. The tracer IS the bullet; color from WeaponData.
