@@ -4,9 +4,6 @@ class_name SitePlanner
 extends RefCounted
 
 const LitterTeamScript := preload("res://scripts/world/litter_team.gd")
-## Preloaded, not referenced by class_name: a global class is not registered until the
-## editor rescans, so a fresh script fails every headless run until someone opens the editor.
-const SCREEN_DOOR := preload("res://scripts/world/screen_door.gd")
 
 const MARGIN: float = 100.0  ## keep sites away from AO edges
 const MAX_SLOPE: float = 0.25
@@ -1588,6 +1585,14 @@ const FSB_DESTRUCTIBLES_JSON: String = "res://assets/world/building models/struc
 ## The wired segments are the only runtime description of where the wire IS. SiegeDirector
 ## measures the perimeter off this group and reads a destroyed member as a breach.
 const FSB_PARAPET_GROUP: StringName = &"fsb_parapet"
+## EVERY Destructible that took a collider off the firebase model, parapet and structures
+## alike. NavBaker seeds its collider walk from this, because a reparented shape is no longer
+## reachable from the model root it was handed.
+##
+## Deliberately NOT FSB_PARAPET_GROUP: that one is the SIEGE's map of the perimeter -
+## SiegeDirector measures the wire's radius from it and reads a destroyed member as its breach
+## axis - so a bunker joining it would move the wire.
+const FSB_NAV_GEOM_GROUP: StringName = &"fsb_nav_geom"
 
 
 func _wire_parapet_destructibles(root: Node3D) -> void:
@@ -1628,6 +1633,7 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 			for c in seg_parent.get_children():
 				if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
 					seg_bodies.append(c)
+		var moved: int = 0
 		for c in seg_bodies:
 			var body := c as StaticBody3D
 			if body == null:
@@ -1636,6 +1642,7 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 				var shape := cc as CollisionShape3D
 				if shape == null:
 					continue
+				moved += 1
 				# All 80 parapet nodes happen to be identity today, which is the only
 				# reason this worked without it. A sibling collider need not be.
 				var keep: Transform3D = shape.global_transform
@@ -1643,20 +1650,20 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 				d.add_child(shape)
 				shape.global_transform = keep
 			body.queue_free()
+		if moved == 0:
+			print("[TEMPSEG] %s: children=%d siblings=%d MOVED 0" % [mi.name,
+				mi.get_children().size(),
+				(seg_parent.get_children().size() if seg_parent != null else -1)])
 		mi.reparent(d, true)      # keep_global_transform: the wall must not move
 		AgentRegistry.register(d, AgentRegistry.Kind.PROP)
 		# The perimeter is also the SIEGE's map of itself: SiegeDirector measures the wire's
 		# radius from this group and reads a destroyed segment as its breach axis.
 		d.add_to_group(FSB_PARAPET_GROUP)
+		d.add_to_group(FSB_NAV_GEOM_GROUP)
 		wired += 1
 	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s" % [wired,
 		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing])
 	_wire_structure_destructibles(root)
-	# Screen doors last: they hang off the leaves the model carries, and they must be hung
-	# AFTER the structures are adopted so a leaf reparented onto a Destructible is still found.
-	var doors: int = SCREEN_DOOR.wire_all(root)
-	if doors > 0:
-		print("[FSB] screen doors: %d hung" % doors)
 
 
 ## THE REST OF THE COMPOUND CAN BE BLOWN APART TOO. The manifest describes ONLY the 80 parapet
@@ -1753,6 +1760,7 @@ func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
 			shape.global_transform = keep
 		body.queue_free()
 	mi.reparent(d, true)      # keep_global_transform: the structure must not move
+	d.add_to_group(FSB_NAV_GEOM_GROUP)
 	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
 
 

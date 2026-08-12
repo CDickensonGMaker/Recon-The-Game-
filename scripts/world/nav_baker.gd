@@ -44,6 +44,8 @@ const FSB_HALF: float = 185.0
 const GRID_STEP: float = 4.0        ## == WorldConfig.CELL_SIZE; finer is pure interpolation
 const AGENT_RADIUS: float = 0.5     ## enemy capsule is 0.4 + clearance
 const AGENT_HEIGHT: float = 1.8
+## The step a man takes without it being a climb. Quantised to cell_height at bake.
+const AGENT_MAX_CLIMB: float = 0.4
 
 ## Boxes with a live navmesh. Static so EnemyBase can ask cheaply, at 6.7 Hz.
 static var _live_boxes: Array[AABB] = []
@@ -267,7 +269,11 @@ func _start_bake(job: Dictionary) -> void:
 	# (radius/height ceiled, climb floored) and warns per bake if they don't land exact.
 	nav.agent_radius = ceilf(AGENT_RADIUS / nav.cell_size) * nav.cell_size
 	nav.agent_height = ceilf(AGENT_HEIGHT / nav.cell_height) * nav.cell_height
-	nav.agent_max_climb = floorf(0.4 / nav.cell_height) * nav.cell_height
+	# ROUND, not floor. The climb must be a whole number of cell heights, but 0.4/0.2 in
+	# float32 lands a hair UNDER 2.0, so flooring it silently returned 1 cell - a 0.20m step,
+	# half what is asked for, with nothing in the log to say so. Every crater rim was a cliff.
+	nav.agent_max_climb = maxf(nav.cell_height,
+		roundf(AGENT_MAX_CLIMB / nav.cell_height) * nav.cell_height)
 	nav.agent_max_slope = 50.0
 	nav.border_size = 0.0
 	# The mound leaves a second walkable layer buried under the compound; anywhere it has
@@ -309,8 +315,12 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 	var polys: int = nav.get_polygon_count()
 	_total_ms += Time.get_ticks_msec() - _bake_start_ms
 	var geom: String = ("%d colliders" % (-carved - 1)) if carved < 0 else "%d carved" % carved
-	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f" % [
-		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size])
+	# climb is printed because it is QUANTISED to cell_height (floor(0.4/h)*h). With no
+	# [navigation] section in project.godot it silently floors to 0.25 and every crater rim
+	# becomes a cliff, with nothing in the log to say so.
+	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f" % [
+		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size,
+		nav.cell_height, nav.agent_max_climb])
 	if polys == 0:
 		push_error("[NAV] baked region has 0 polygons (box %s, geom %s)" % [box.size, geom])
 		region.queue_free()
@@ -389,7 +399,7 @@ func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, bo
 	# NOTE for NAV_IGNORE_PREFIXES below: it tests the collider's PARENT name, which for
 	# these is now the Destructible, not the original fb_* node. That is safe only while
 	# nothing prefixed fb_veg_/fb_int_ is ever reparented this way.
-	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_PARAPET_GROUP):
+	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_NAV_GEOM_GROUP):
 		var dn := d as Node3D
 		if dn != null and is_instance_valid(dn):
 			stack.append(dn)
