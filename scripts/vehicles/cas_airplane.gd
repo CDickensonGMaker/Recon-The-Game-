@@ -95,6 +95,13 @@ var _engine: AudioStreamPlayer3D = null
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
+	# The Skyraider ships A1_PropellerAction and Spooky ships prop_spin; both
+	# were authored and neither was ever played, so every prop sat dead still.
+	# (The Huey is NOT handled here - helicopter.gd:55 drives its own rotors and
+	# deliberately stops the imported AnimationPlayer.)
+	var model := get_node_or_null("Model") as Node3D
+	if model != null:
+		RotorSpin.attach(model)
 	_engine = AudioStreamPlayer3D.new()
 	_engine.stream = JET_LOOP
 	_engine.bus = "Vehicles" if AudioServer.get_bus_index("Vehicles") >= 0 else "SFX"
@@ -218,7 +225,7 @@ func _build_smoke_trail() -> void:
 	proc.color_ramp = GunFX._smoke_fade_ramp()
 	trail.process_material = proc
 	trail.draw_pass_1 = GunFX._fx_quad("crash_trail_quad", 2.4,
-		GunFX._sheet_mat("crash_trail_mat", "sheets/puff_sheet", 4, 2, false))
+		GunFX._sheet_mat("crash_trail_mat", "sheets/smoke_loop_sheet", 4, 4, false))
 	add_child(trail)
 
 

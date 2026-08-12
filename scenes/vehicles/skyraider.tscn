@@ -6,4 +6,7 @@
 [node name="Skyraider" type="Node3D"]
 script = ExtResource("1_cas")
 
+## a1_skyraider.glb is authored nose-+Z (propeller at z +0.6..+1.08, tail at z -11),
+## against the Blender-+Y / Godot--Z facing convention. Flip here until the GLB is
+## re-exported conforming; cas_airplane.gd look_at()s -Z down the run line.
 [node name="Model" parent="." instance=ExtResource("2_glb")]

@@ -458,6 +458,14 @@ func _animate() -> void:
 		return
 	if puppet:
 		return
+	# Burning outranks every state, BT action and reactive override. By node name,
+	# not class: an unregistered `class_name` fails to compile on a cold run.
+	var burn: Node = get_node_or_null("Burning")
+	if burn != null and burn.has_method("is_burning") and bool(burn.call("is_burning")):
+		var bclip: String = String(burn.call("clip"))
+		if bclip != "" and not actor.play(bclip):
+			actor.play(String(burn.call("clip_alt")))
+		return
 	var moving: bool = Vector2(velocity.x, velocity.z).length() > 0.4
 	var want: String = ""
 	# Reactive states (FLEE/COWER/GONE) win over the BT action; FLEE/COWER

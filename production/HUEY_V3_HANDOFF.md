@@ -280,3 +280,80 @@ Fix is two steps: carry the clip into `anim_library.blend` + re-export, then poi
   Untouched. They still bake v1 geometry, which is the only reason `huey.glb` still exists.
 - **Exterior detailing** — 8/5 ruling 1.
 - **M60 combat wiring** — 8/5 ruling 4, geometry and hierarchy only.
+
+---
+
+## 2026-08-11 — M60 CONSISTENCY + GUNNER REWORK (his rulings, work done in his live window, SAVED)
+
+**His ruling:** *"I WANT THE LOW POLY m60 in the game everywhere it should be... we need consistency."*
+
+### Why it was raised, and the measurement that settled it
+
+The Huey door guns were the ODD ONE OUT, not the heavy ones. Measured 8/11:
+
+| Site | tris before | tris after |
+|---|---|---|
+| Player FP `m60_fp.glb` | 11,728 | unchanged |
+| Ground mounts `m60_pintle.glb` (`mg_emplacement.gd:16`) | 10,652 | unchanged |
+| **Huey door guns** | **1,180** | **10,552** |
+| **NPC world `assets/weapons/world/m60.glb`** | **1,180** | **10,552** |
+
+The 8/9–8/10 pass had swapped the Huey guns to the 1,180-tri **world/NPC** model — the asset distant
+AI carry — on the one weapon the player sits directly behind. `m60_pintle.glb` contains mesh
+`Cylinder.004` at **10,552 tris**, byte-identical in name and count to
+`D:\Downloads\low-poly-m60\source\m60.blend`, so the "download" was already the shipped ground-mount
+gun. **Note: `C:\Users\caleb\Downloads\low-poly-m60` is an EMPTY shell** left by the 8/8 debloat; the
+real file lives on the flash drive.
+
+### Done in `huey_v3.blend` (SAVED, 42.44 MB)
+
+- Both door guns on one shared datablock **`M60_lowpoly_huey`** (10,552 tris), scale baked into the
+  vertices so object scale stays 1.0 and the marker children do not get dragged.
+- **8 stale M60 datablocks deleted** (`m60_belted_v2`, `.001`, `_huey`, `M60_MG_huey` + `.001/.002/.003`,
+  and the redundant unscaled import) plus the bench's old-gun object. One M60 mesh remains in the file.
+- **Markers re-seated from Caleb's hand-placed bench**, mapped `hand_l -> grip_fore`,
+  `hand_r -> grip_trigger`, `muzzle -> MuzzlePoint`. The `traverse -> GunPivot -> m60 -> MuzzlePoint`
+  contract Godot drives at runtime is intact.
+- **Both gunners hold his bench pose**, hands at **0.0191 m** from their markers (= the 2-bone IK
+  residual, identical on the bench).
+- **All six `_BAKED` clips re-baked** against the new grips, verified with constraints MUTED:
+  min = mean = max = **0.0191 m** across 1,056 samples.
+- **Bungee cords re-fitted and re-parented** to `pintle_X_traverse`. Gaps 12-17 mm -> **1-3 mm**, and
+  because the ceiling anchor sits on the traverse axis, yaw is exact: unchanged across +/-45 deg.
+- Staging `traverse`/`GunPivot` clips cleared off the mounts — Godot drives those at runtime.
+
+### THE TWO MOUNTS ARE A 180 deg YAW, NOT A MIRROR
+
+Measured: `det(GunPivot) = +1.000` both sides, `X_l = -X_r`. So the SAME GunPivot-local transform gives
+correctly outboard guns on both sides. **Never run a symmetry pass across x=0 here** — it would destroy
+the deliberate collective asymmetry and the `_l`-is-starboard convention.
+
+### MUZZLE END DIFFERS BETWEEN THE TWO MESHES — the trap that nearly shipped
+
+Cross-sections decide it, never the bounding box:
+- `M60_lowpoly_huey`: **muzzle at -Y** (15.8 x 18.2 mm) / stock at +Y (44.5 x 31.3 mm)
+- old world `m60.glb`: **muzzle at -X** (19.6 mm girth) / stock at +X (131.8 mm)
+
+A naive "furthest vertex along the long axis" put both `MuzzlePoint`s on the **buttstock**, firing
+into the cabin. Both are now on the bore exit and verified OUTBOARD of their guns
+(`pintle_l` +1.792 vs gun +1.288; `pintle_r` -2.005 vs gun -1.395).
+
+### `assets/weapons/world/m60.glb` REPLACED — needs an in-game look
+
+Exported from the same mesh, rotated so **muzzle = -X** and centred at origin to match the old
+convention, node name **`M60_MG`** preserved. 1,180 -> 10,552 tris, 77 KB -> 462 KB.
+Backup at `assets/weapons/world/m60.glb.prelowpoly.bak`; revert is a single `cp`.
+
+**RESIDUAL RISK, UNVERIFIED:** NPC hand alignment. The old and new guns have different proportions
+(glTF Y 0.326 -> 0.255, Z 0.143 -> 0.246), so a gun centred the same way can still sit slightly wrong
+in the hand. `ModelActor` attaches by bare name and there is no grip marker in the world GLB to align
+to. **Look at one M60-carrying NPC in game before trusting this.**
+
+### STILL OWED
+
+- **`huey_v3.glb` has NOT been re-exported** — every change above is blend-only until he says export
+  (his standing order). The game still flies the pre-8/11 gun.
+- Helmet drop is parked at **-20 mm** on all four pilots awaiting his eye; the shipped
+  `us_pilot_white.glb` sits 15 cm HIGHER than the blend, so the export has a floating helmet.
+- Two pre-existing preview mismatches, unrelated to this work: `cabin_panel_aft_r` off 37 mm,
+  `door_rail_l` off **1.300 m** (one of the six objects merged from the dead `huey_v3_transport.blend`).

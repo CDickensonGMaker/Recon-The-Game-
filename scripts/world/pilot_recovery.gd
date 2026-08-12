@@ -125,7 +125,7 @@ func _build_column(pos: Vector3) -> Node3D:
 	proc.color_ramp = GunFX._smoke_fade_ramp()
 	smoke.process_material = proc
 	smoke.draw_pass_1 = GunFX._fx_quad("crash_column_quad", 3.2,
-		GunFX._sheet_mat("crash_column_mat", "sheets/puff_sheet", 4, 2, false))
+		GunFX._sheet_mat("crash_column_mat", "sheets/smoke_loop_sheet", 4, 4, false))
 	smoke.position.y = 2.0
 	root.add_child(smoke)
 	return root

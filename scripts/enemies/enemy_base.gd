@@ -554,6 +554,20 @@ func _update_sprite() -> void:
 	sprite_actor.set_facing(facing_dir)
 	if current_state == Enums.AIState.DEAD or is_surrendered or is_downed:
 		return  # the death / surrender / downed clip was latched; do not restart it
+	# A man on fire outranks every other performance: he is not taking cover,
+	# throwing, or doing his job. Burning owns him until it kills him.
+	# Resolved by NODE NAME, not by class: a `class_name` is not registered until
+	# the editor rescans, and a script that only compiles after an editor visit
+	# is a script that breaks every headless run.
+	var burn: Node = get_node_or_null("Burning")
+	if burn != null and burn.has_method("is_burning") and bool(burn.call("is_burning")) \
+			and sprite_actor is ModelActor:
+		# "" once he has dropped: the ragdoll owns the skeleton and any clip
+		# would fight the physics for the same bones.
+		var bclip: String = String(burn.call("clip"))
+		if bclip != "" and not (sprite_actor as ModelActor).play(bclip):
+			(sprite_actor as ModelActor).play(String(burn.call("clip_alt")))
+		return
 	# Cover-exit one-shot (Track B3): a man leaving cover stands up before he moves.
 	# Self-clearing window - no _anim_override, so no "frozen crouch statue" leak.
 	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:

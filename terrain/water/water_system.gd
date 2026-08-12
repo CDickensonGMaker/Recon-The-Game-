@@ -234,6 +234,8 @@ const COMBINED_SHORE_FADE: float = 2.5
 const COMBINED_DEPTH_RANGE: float = 4.0
 ## River water sits this far below the sampled bank height (sits in its channel).
 const RIVER_RECESS: float = 0.1
+## Water depth over the carved bed at the channel centreline.
+const CHANNEL_WATER_DEPTH: float = 0.55
 const WATER_SHADER := preload("res://terrain/water/water_static.gdshader")
 
 ## Build ONE mesh + ONE material for every water body. Collapsing ~dozens of
@@ -276,6 +278,7 @@ func _build_combined_water_mesh(static_bodies: Array, rivers: Array) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "CombinedWater"
 	mi.mesh = array_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_water_container.add_child(mi)
 
 
@@ -320,31 +323,56 @@ func _append_river_strip(points: PackedVector2Array, widths: PackedFloat32Array,
 		return
 
 	var base: int = verts.size()
+	var run_len: float = 0.0
 	for i in range(points.size()):
 		var p: Vector2 = points[i]
 		var half: float = widths[i] * 0.5
 		var perp: Vector2 = _path_perpendicular(points, i)
 		var left: Vector2 = p - perp * half
 		var right: Vector2 = p + perp * half
-		# Water surface follows the terrain (rivers flow downhill), recessed slightly.
-		var y: float = (_heightmap.sample_world(left.x, left.y) + _heightmap.sample_world(right.x, right.y)) * 0.5 - RIVER_RECESS
-		# R = 1 (narrow channels shouldn't fade out), G = medium depth -> blue.
-		var col := Color(1.0, 0.35, 0.0, 1.0)
+		if i > 0:
+			run_len += points[i].distance_to(points[i - 1])
+
+		var bed: float = _heightmap.sample_world(p.x, p.y)
+		var bank_l: float = _heightmap.sample_world(left.x, left.y)
+		var bank_r: float = _heightmap.sample_world(right.x, right.y)
+		# Seat the sheet IN the carved bed, never above the banks it runs between.
+		var y: float = minf(bed + CHANNEL_WATER_DEPTH, minf(bank_l, bank_r) - RIVER_RECESS)
+		y = maxf(y, bed + 0.05)
+
+		# Downstream heading -> COLOR.b as angle/TAU, biased into 0.02..0.98 so
+		# b == 0.0 stays the unambiguous "standing water" marker the shader tests.
+		var tangent := Vector2(-perp.y, perp.x)
+		var flow01: float = 0.02 + 0.96 * (fposmod(tangent.angle(), TAU) / TAU)
+
+		var d_mid: float = clampf((y - bed) / COMBINED_DEPTH_RANGE, 0.0, 1.0)
+		var d_l: float = clampf((y - bank_l) / COMBINED_DEPTH_RANGE, 0.0, 1.0)
+		var d_r: float = clampf((y - bank_r) / COMBINED_DEPTH_RANGE, 0.0, 1.0)
+
 		verts.append(Vector3(left.x, y, left.y))
 		normals.append(Vector3.UP)
-		uvs.append(Vector2(0.0, float(i)))
-		colors.append(col)
+		uvs.append(Vector2(0.0, run_len))
+		colors.append(Color(0.0, d_l, flow01, 1.0))
+
+		verts.append(Vector3(p.x, y, p.y))
+		normals.append(Vector3.UP)
+		uvs.append(Vector2(0.5, run_len))
+		colors.append(Color(1.0, d_mid, flow01, 1.0))
+
 		verts.append(Vector3(right.x, y, right.y))
 		normals.append(Vector3.UP)
-		uvs.append(Vector2(1.0, float(i)))
-		colors.append(col)
+		uvs.append(Vector2(1.0, run_len))
+		colors.append(Color(0.0, d_r, flow01, 1.0))
 
 	for i in range(points.size() - 1):
-		var l0: int = base + i * 2
-		var r0: int = l0 + 1
-		var l1: int = base + (i + 1) * 2
-		var r1: int = l1 + 1
-		indices.append_array([l0, r0, r1, l0, r1, l1])
+		var l0: int = base + i * 3
+		var c0: int = l0 + 1
+		var r0: int = l0 + 2
+		var l1: int = base + (i + 1) * 3
+		var c1: int = l1 + 1
+		var r1: int = l1 + 2
+		indices.append_array([l0, c0, c1, l0, c1, l1])
+		indices.append_array([c0, r0, r1, c0, r1, c1])
 
 
 ## Distance (in cells) from a cell to the nearest cell outside the body.

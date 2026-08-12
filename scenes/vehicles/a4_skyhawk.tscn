@@ -6,4 +6,7 @@
 [node name="A4Skyhawk" type="Node3D"]
 script = ExtResource("1_cas")
 
+## a4_skyhawk.glb is authored nose-+Z (pitot at z +0.55, exhaust/VStab at z -12),
+## against the Blender-+Y / Godot--Z facing convention. Flip here until the GLB is
+## re-exported conforming. f4_phantom.glb already conforms and takes no flip.
 [node name="Model" parent="." instance=ExtResource("2_glb")]

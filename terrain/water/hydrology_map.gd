@@ -47,6 +47,11 @@ var min_lake_depth: float = INF
 ## Tiny upward tilt applied while flood-filling so flats still drain (meters).
 var flood_epsilon: float = 0.001
 
+## Drop from pre-carve grade to the channel water surface (meters). Must equal
+## TerrainManager.CHANNEL_CARVE_DEPTH - WaterSystem.CHANNEL_WATER_DEPTH, so the
+## depth this reports for gameplay matches the sheet WaterSystem renders.
+const CHANNEL_SURFACE_DROP: float = 0.65
+
 ## Flow-accumulation threshold (in upstream hydrology cells) for a channel to form.
 ## A channel appears once this many cells drain through it; higher = fewer, larger
 ## waterways (less spaghetti, cheaper to render). Raised 100 -> 200 so only
@@ -506,6 +511,12 @@ func _trace_channel(sx: int, sz: int, _is_channel: PackedByteArray, visited: Pac
 
 		# Mark the channel into the type grid (creek vs river by width).
 		_type_h[i] = WaterBodyDataClass.Type.CREEK if w < 6.0 else WaterBodyDataClass.Type.RIVER
+		# ...and its surface. Without this every channel cell keeps surface 0.0, so
+		# get_water_depth() returns 0 for every creek in the AO and the wade gate
+		# in GameplayGrid can never fire. _elev is pre-carve grade; the bed is cut
+		# CHANNEL_CARVE_DEPTH below it and the sheet sits CHANNEL_WATER_DEPTH up.
+		if i < _surface_h.size():
+			_surface_h[i] = _elev[i] - CHANNEL_SURFACE_DROP
 
 		var dir: int = _flow[i]
 		if dir >= 8:

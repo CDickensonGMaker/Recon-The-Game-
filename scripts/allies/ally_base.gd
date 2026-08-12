@@ -521,6 +521,16 @@ func _near_cover() -> bool:
 func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
+	# A man on fire outranks every other performance. Resolved by NODE NAME, not
+	# class: a `class_name` is unregistered until the editor rescans, and a
+	# script that only compiles after an editor visit breaks every headless run.
+	var burn: Node = get_node_or_null("Burning")
+	if burn != null and burn.has_method("is_burning") and bool(burn.call("is_burning")) \
+			and sprite_actor is ModelActor:
+		var bclip: String = String(burn.call("clip"))
+		if bclip != "" and not (sprite_actor as ModelActor).play(bclip):
+			(sprite_actor as ModelActor).play(String(burn.call("clip_alt")))
+		return
 	var facing: Vector3 = current_aim_dir
 	# Without LOS, current_aim_dir never updates - so moving without eyes-on must
 	# face where you are going, or the man runs sideways facing his OLD aim.

@@ -264,4 +264,4 @@ func _fire_round() -> void:
 	# World-only mask: the theatre must never rake the camp fight below it.
 	CombatManager.bullets.fire(_wd, self, muzzle, aim, 1, excl, true, false)
 	GunFX.play_shot_3d(get_tree().current_scene, muzzle, _wd)
-	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
+	GunFX.cannon_flash(get_tree().current_scene, muzzle, 2.4)

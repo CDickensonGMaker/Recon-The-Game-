@@ -300,6 +300,7 @@ func _dispatch_gun_orbit(kind: String, ships: int = 0, finale: bool = false) -> 
 		inbound.y = _ground_at(inbound) + ORBIT_ALTITUDE_M
 		heli.global_position = inbound
 		var first: Vector3 = _orbit_point(centre, slot)
+		_crew_gunners(heli)
 		_roster(kind, heli, inbound, first, "orbit_in")
 		var f: Dictionary = _in_flight[_in_flight.size() - 1]
 		f["orbit_centre"] = centre
@@ -324,6 +325,46 @@ func _fsb_center() -> Vector3:
 	return Vector3.ZERO
 
 
+## Two men in the doors of a gun-orbit ship. ONLY the orbit ships get them: the gunner
+## seats double as passenger overflow (SeatSystem.PASSENGER_SEATS), so crewing a
+## transport slick would cost the 8-man squad plus the player two of its nine berths.
+##
+## Aircrew are not garrison - a man counted there inflates garrison_strength() and gets
+## walked to a post (heli_lift.gd:113-117 carries the same removal for the pilots).
+func _crew_gunners(heli: Helicopter) -> void:
+	var world := _world()
+	var seats := heli.find_child("Seats", true, false) as SeatSystem
+	if world == null or seats == null:
+		return
+	var manned: int = 0
+	for i in SeatSystem.GUNNER_SEATS.size():
+		var berth: StringName = SeatSystem.GUNNER_SEATS[i]
+		if seats.occupant(berth) != null:
+			continue
+		# Civilian.spawn hashes POSITION for model/face/dress, so two men minted on one
+		# spot are the same man twice.
+		var mint: Vector3 = heli.global_position + Vector3(float(i * 3 + 1), 0.0, float(i * 4 + 2))
+		var crew: Civilian = Civilian.spawn(world, mint, _friendly_director(), false,
+			Civilian.AIRCREW, true)
+		if crew == null:
+			continue
+		crew.remove_from_group("firebase_garrison")
+		if not seats.seat(crew, berth, true):
+			crew.queue_free()
+			continue
+		manned += 1
+	if manned > 0:
+		print("[AIR] gun orbit ship crewed with %d door gunner(s)" % manned)
+
+
+## The door guns work while the ship is walking its circle and are stood down for the
+## run in and the run out. No rounds leave the airframe - see SeatSystem's clip block.
+func _set_gunners_firing(heli: Helicopter, firing: bool) -> void:
+	var seats := heli.find_child("Seats", true, false) as SeatSystem
+	if seats != null:
+		seats.gunners_firing = firing
+
+
 ## Walk the circle, then leave. Called from _advance_cycle on the roster's own clock.
 func _advance_orbit(f: Dictionary, heli: Helicopter, now: int) -> void:
 	var centre: Vector3 = f.get("orbit_centre", Vector3.ZERO)
@@ -333,10 +374,12 @@ func _advance_orbit(f: Dictionary, heli: Helicopter, now: int) -> void:
 				return
 			f["phase"] = "orbit"
 			f["orbit_until_ms"] = now + int(ORBIT_SECONDS * 1000.0)
+			_set_gunners_firing(heli, true)
 			_step_orbit(f, heli, centre)
 		"orbit":
 			if now >= int(f.get("orbit_until_ms", now)):
 				f["phase"] = "outbound"
+				_set_gunners_firing(heli, false)
 				var exit_pos: Vector3 = f.get("exit", f["dest"])
 				f["dest"] = exit_pos
 				heli.fly_to(exit_pos)

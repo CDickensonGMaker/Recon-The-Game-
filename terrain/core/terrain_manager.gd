@@ -25,6 +25,11 @@ signal region_rebuilt(world_rect: Rect2)
 ## ADR-013: maps at or below this size load whole and never stream (resident world).
 const STREAMING_MIN_MAP_SIZE: float = 2000.0
 
+## Depth of the carved channel bed below grade. WaterSystem seats its sheet
+## CHANNEL_WATER_DEPTH above this bed, and HydrologyMap derives the same figure
+## for gameplay depth - change one and the other two must follow.
+const CHANNEL_CARVE_DEPTH: float = 1.2
+
 @export var rivers_enabled: bool = true
 
 var heightmap: RefCounted  # HeightmapStorage
@@ -400,13 +405,17 @@ func _smooth_river_path(path: Dictionary) -> void:
 ## Carve radius follows the channel's own hydrology width, so a headwater creek
 ## cuts a narrow groove and a trunk river cuts a wide one.
 func _carve_riverbed(path: Dictionary) -> void:
-	var carve_depth_meters: float = 1.8
 	var points: PackedVector2Array = path["points"]
 	var widths: PackedFloat32Array = path["widths"]
 	for i in points.size():
 		var p: Vector2 = points[i]
 		var half_w: float = (widths[i] if i < widths.size() else 4.0) * 0.5
-		var carve_radius: int = clampi(int(round(half_w / heightmap.cell_size)), 1, 12)
+		# Full depth across the channel, then a shoulder that ramps back to grade.
+		# A radius derived from half_w alone rounds to one cell on a 4m grid, which
+		# cuts a single-node spike with no floor for the water sheet to sit in.
+		var shoulder: float = maxf(half_w * 0.6, heightmap.cell_size)
+		var reach: float = half_w + shoulder
+		var carve_radius: int = clampi(int(ceil(reach / heightmap.cell_size)), 2, 14)
 		var center_cell: Vector2i = heightmap.world_to_cell(p.x, p.y)
 		for dz in range(-carve_radius, carve_radius + 1):
 			for dx in range(-carve_radius, carve_radius + 1):
@@ -416,12 +425,12 @@ func _carve_riverbed(path: Dictionary) -> void:
 					continue
 				if nz < 0 or nz >= heightmap.size:
 					continue
-				var dist: float = sqrt(float(dx * dx + dz * dz))
-				if dist > float(carve_radius):
+				var dist_m: float = sqrt(float(dx * dx + dz * dz)) * heightmap.cell_size
+				if dist_m > reach:
 					continue
-				var falloff: float = 1.0 - (dist / float(carve_radius))
+				var falloff: float = 1.0 - smoothstep(half_w, reach, dist_m)
 				var current: float = heightmap.get_cell(nx, nz)
-				var depth_normalized: float = heightmap.meters_to_norm(carve_depth_meters * falloff)
+				var depth_normalized: float = heightmap.meters_to_norm(CHANNEL_CARVE_DEPTH * falloff)
 				heightmap.set_cell(nx, nz, maxf(0.0, current - depth_normalized))
 
 

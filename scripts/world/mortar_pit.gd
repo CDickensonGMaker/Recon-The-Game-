@@ -50,6 +50,9 @@ func play_fire_anim() -> void:
 	if ap != null and ap.has_animation("MC_MORTARAction"):
 		ap.stop()
 		ap.play(&"MC_MORTARAction")
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		GunFX.cannon_flash(tree.current_scene, m29.global_position + Vector3.UP * 1.3, 1.6)
 
 
 func station_position(station: String) -> Vector3:

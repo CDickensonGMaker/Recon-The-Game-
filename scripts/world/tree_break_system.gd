@@ -6,8 +6,11 @@ extends Node
 ## break bands), breaks at the joint nearest the hit height, and the parts above hinge-fall
 ## as cover - state-swap only, never RigidBody (ADR-031). Bullets do not fell trees: only
 ## blasts (apply_blast) and AOE warheads (query_ahead from projectile_base.gd) reach this.
-## Band data comes from data/veg_break_bands.json (written+validated by
-## tests/test_veg_break_bands.gd); instances come from TreeCoverLayer.generate_for_chunk.
+## Band data comes from data/veg_break_bands.json, GENERATED from the segment art by
+## tools/gen_veg_break_bands.py - re-run it after re-exporting any *_stump/_stem/_crown
+## GLB. Without that file _bands is empty, register_chunk drops every instance and the
+## jungle is silently unbreakable (it was, from 8/7 until 8/11). Covered by
+## tests/test_support_fire_bench.gd. Instances come from TreeCoverLayer.generate_for_chunk.
 
 const BANDS_JSON := "res://data/veg_break_bands.json"
 const CELL_M: float = 16.0
@@ -350,8 +353,13 @@ class BrokenTree:
 		var at_high: bool = absf(height_m - hi) < absf(height_m - lo)
 		var cut_obj: float = float(band["cut_high"] if at_high else band["cut_low"])
 		var cut_w: float = cut_obj * s
-		var standing: Array[String] = ["stump", "stem"] if at_high else ["stump"]
-		var falling: Array[String] = ["crown"] if at_high else ["stem", "crown"]
+		# A ternary over two array literals yields an untyped Array, which cannot be
+		# assigned to Array[String] - it throws at runtime, not at parse.
+		var standing: Array[String] = ["stump", "stem"]
+		var falling: Array[String] = ["crown"]
+		if not at_high:
+			standing = ["stump"]
+			falling = ["stem", "crown"]
 		var radius: float = float(band["trunk_r"]) * s
 
 		if radius > 0.0:

@@ -67,7 +67,7 @@ func _ready() -> void:
 	_puffs.process_material = proc
 	# quad 2.0 * scale 1.0 => half-extent ~1.0 * (max_radius*0.38) puff size cap
 	_puffs.draw_pass_1 = GunFX._fx_quad("cloud_puff_quad_%d" % int(max_radius),
-		max_radius * 0.76, GunFX._sheet_mat("cloud_puff_mat", "sheets/puff_sheet", 4, 2, false))
+		max_radius * 0.76, GunFX._sheet_mat("cloud_puff_mat", "sheets/smoke_loop_sheet", 4, 4, false))
 	_puffs.position = Vector3(0, 1.5, 0)
 	add_child(_puffs)
 

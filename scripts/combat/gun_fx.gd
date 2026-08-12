@@ -65,7 +65,10 @@ static var _explosion_nodes: Array[Node3D] = []
 ## shooter the player could see.
 const MAX_FLASHES: int = 64
 const MAX_IMPACTS: int = 12
-const MAX_EXPLOSIONS: int = 6   ## concurrent explosion visuals
+## Sized to the largest deterministic single-event burst in the game: a napalm run
+## is FirePlan.NAPALM_DROPS (9) explosions inside 0.9s. Over the cap the OLDEST is
+## recycled, never the newest dropped - a dropped newest reads as "nothing happened".
+const MAX_EXPLOSIONS: int = 9   ## concurrent explosion visuals
 const MAX_DECALS: int = 48   ## bullet holes, FIFO-recycled
 
 
@@ -108,22 +111,51 @@ static func play_click(parent: Node) -> void:
 
 ## Visual scale per ordnance class (ADR-016 lethality decree: an RPG must READ
 ## bigger than a grenade; arty bigger than both).
+## Sizes are anchored to the Summoner's ruling 2026-08-12, stated in map widths:
+## the demo square is 512m, napalm covers it, artillery covers about half, and a
+## grenade is small. Rendered width = fireball quad 2.2m x particle scale
+## 0.8-1.3 (avg ~1.05) x _KIND_SCALE x ORDNANCE_VISUAL_MULT, so at mult 2.0:
+##   40mm ~3m · grenade ~4.6m · rocket ~18m · mortar ~37m · heavy ~254m ·
+##   napalm ~513m
 const _KIND_SCALE: Dictionary = {
 	"explosion_grenade": 1.0,
-	"explosion_40mm": 0.8,
-	"explosion_rocket": 1.4,
-	"explosion_mortar": 1.6,
-	"explosion_heavy": 1.9,
-	"explosion_napalm": 2.4,
+	"explosion_40mm": 0.7,
+	"explosion_rocket": 4.0,
+	# Mortar sits between the grenade and the artillery shock by his ruling -
+	# ~46m against 4.6m and 254m, which is the geometric middle of that span.
+	"explosion_mortar": 10.0,
+	"explosion_heavy": 55.0,
+	# Napalm is not an explosion class, it is a WALL OF FIRE: one drop covers the
+	# whole 512m demo square, and a run is 9 drops on 22m spacing. Deliberately
+	# map-sized; see _scorch(), which clamps its decal because the matching burn
+	# mark would otherwise carpet the level.
+	"explosion_napalm": 111.0,
 }
-## Spectacle multiplier on TOP of the class ladder (Summoner's decree 2026-08-04:
-## all explosion visuals x5). This scales the LOOK only - no damage radius reads it.
-const ORDNANCE_VISUAL_MULT: float = 5.0
+## Spectacle multiplier on TOP of the class ladder.
+##
+## Was 5.0 (Summoner's decree 2026-08-04, "all explosion visuals x5"). Amended
+## 2026-08-12 on his ruling that the classes must READ different sizes with
+## napalm largest: at x5 a hand grenade drew a 9-14m fireball, so every class
+## already filled the view and the 0.8-1.9 ladder had nothing to be compared
+## against. Halving the multiplier and widening the ladder buys a real 3x span
+## inside the ordnance classes (grenade ~3.5-5.7m, heavy ~11-18m) and puts
+## napalm 14x a grenade. Scales the LOOK only - no damage radius reads it.
+const ORDNANCE_VISUAL_MULT: float = 2.0
+## Every explosion holds this many seconds longer (his ruling 2026-08-12).
+##
+## Added as a CONSTANT, not folded into _KIND_LIFE, because that dictionary is a
+## multiplier: scaling it would stretch the flipbook itself and play a 36-frame
+## napalm roll in slow motion. The hold goes on the tail - the lingering smoke
+## and how long the root survives - while the fireball gains only part of it and
+## gains particles to cover the rest, so the sheet keeps a sane frame rate.
+const EXPLOSION_HOLD_S: float = 3.0
 ## Kinds with no audio bank of their own borrow a real one (the ears ladder is
 ## AudioManager._KIND_AUDIO; an unknown kind there falls back to grenade).
 const _AUDIO_KIND: Dictionary = {"explosion_napalm": "explosion_heavy"}
-## Napalm's bloom holds longer so the column reads above a treeline.
-const _KIND_LIFE: Dictionary = {"explosion_napalm": 1.6}
+## Napalm's bloom holds longer so the column reads above a treeline. Mortar holds
+## too: its sheet is a dirt burst that throws, arcs and settles, and at the base
+## 0.7s the debris was gone before the eye caught it.
+const _KIND_LIFE: Dictionary = {"explosion_napalm": 2.6, "explosion_mortar": 2.0}
 
 
 ## `visual_mult` exists for the callers whose event is NOT ordnance (a tree
@@ -132,7 +164,7 @@ static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explos
 		visual_mult: float = ORDNANCE_VISUAL_MULT) -> void:
 	AudioManager.play_explosion_3d(pos, String(_AUDIO_KIND.get(kind, kind)))
 	_spawn_explosion_visual(parent, pos, float(_KIND_SCALE.get(kind, 1.0)) * visual_mult,
-		float(_KIND_LIFE.get(kind, 1.0)))
+		float(_KIND_LIFE.get(kind, 1.0)), kind)
 
 
 ## ---------- SHARED FX RESOURCES (built once; per-event nodes reference them,
@@ -156,6 +188,12 @@ static func _sheet_mat(key: String, rel: String, h: int, v: int, additive: bool)
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	# WITHOUT THIS THE ORDNANCE SIZE LADDER DOES NOTHING. A billboard shader
+	# rebuilds the model-view matrix to face the camera and DISCARDS the node's
+	# scale unless keep_scale is set - so root.scale in _spawn_explosion_visual,
+	# which is the single lever every explosion class scales through, was being
+	# thrown away. Grenade and napalm rendered identically at every value.
+	m.billboard_keep_scale = true
 	m.vertex_color_use_as_albedo = true
 	m.albedo_texture = _fx_tex(rel)
 	m.particles_anim_h_frames = h
@@ -163,11 +201,9 @@ static func _sheet_mat(key: String, rel: String, h: int, v: int, additive: bool)
 	m.particles_anim_loop = false
 	if additive:
 		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		# The rendered sheets tonemap toward tan; warm them back to fire here.
-		m.albedo_color = Color(1.0, 0.72, 0.42)
 		m.emission_enabled = true
-		m.emission = Color(1.0, 0.6, 0.2)
-		m.emission_energy_multiplier = 3.0
+		m.emission = Color(1.0, 0.75, 0.45)
+		m.emission_energy_multiplier = 2.0
 	_fx_res_cache[key] = m
 	return m
 
@@ -179,11 +215,28 @@ static func _plain_mat(key: String, tex_rel: String) -> StandardMaterial3D:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.billboard_keep_scale = true   # see _sheet_mat: billboards drop node scale
 	m.vertex_color_use_as_albedo = true
 	if tex_rel != "":
 		m.albedo_texture = _fx_tex(tex_rel)
 	_fx_res_cache[key] = m
 	return m
+
+
+## Play a flipbook sheet exactly ONCE across the particle's lifetime.
+##
+## ParticleProcessMaterial.anim_speed defaults to 0, and at 0 the particle's
+## animation offset never advances - so a sheet material renders a SINGLE STATIC
+## FRAME for the particle's whole life. Every explosion flipbook in this file was
+## doing that; it went unnoticed only because the old sheets were 16 near-identical
+## blobs, where any one frame passed for the whole animation. A sheet with a real
+## arc (a fireball that grows and burns out) freezes on its first frame instead.
+## Any new sheet-driven emitter MUST call this or it will not animate.
+static func _play_sheet_once(p: ParticleProcessMaterial) -> void:
+	p.anim_speed_min = 1.0
+	p.anim_speed_max = 1.0
+	p.anim_offset_min = 0.0
+	p.anim_offset_max = 0.0
 
 
 static func _fx_quad(key: String, size: float, mat: Material) -> QuadMesh:
@@ -232,6 +285,11 @@ static func _burst(root: Node3D, amount: int, lifetime: float, proc: ParticlePro
 	p.process_material = proc
 	p.draw_pass_1 = mesh
 	p.position.y = y
+	# GPUParticles3D culls against visibility_aabb, which defaults to about +/-4
+	# units. Debris leaves at up to 13 m/s and travels ~10 units in its lifetime,
+	# so the default box CLIPS THE TOP OFF every explosion. This is local space
+	# and culling-only, so a generous box costs nothing but stops the pop.
+	p.visibility_aabb = AABB(Vector3(-40.0, -12.0, -40.0), Vector3(80.0, 100.0, 80.0))
 	root.add_child(p)
 	p.emitting = true
 	return p
@@ -249,7 +307,8 @@ static var _scorch_decals: Array[Decal] = []
 ## Layered explosion (ADR-026: FAKE light — every layer is unshaded sprite
 ## geometry). scale_mult sizes ordnance classes; AmbientWar horizon events pass
 ## big scale + lifetime holds so it reads at 200-800m.
-static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: float = 1.0, lifetime_mult: float = 1.0) -> void:
+static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: float = 1.0,
+		lifetime_mult: float = 1.0, kind: String = "explosion_grenade") -> void:
 	if parent == null:
 		return
 	# Prune freed explosions so a teardown that frees one early can't leak the
@@ -257,8 +316,10 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	# Param stays untyped: a freed object cannot convert to Node, so typing it
 	# throws on exactly the entries this filter exists to drop.
 	_explosion_nodes = _explosion_nodes.filter(func(n: Variant) -> bool: return is_instance_valid(n))
-	if _explosion_nodes.size() >= MAX_EXPLOSIONS:
-		return
+	while _explosion_nodes.size() >= MAX_EXPLOSIONS:
+		var oldest: Variant = _explosion_nodes.pop_front()
+		if is_instance_valid(oldest):
+			(oldest as Node3D).queue_free()
 	var root := Node3D.new()
 	parent.add_child(root)
 	root.global_position = pos
@@ -273,6 +334,7 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true   # or the class size ladder is discarded
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.albedo_texture = _get_flash_tex()
@@ -285,6 +347,11 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	root.add_child(quad)
 
 	# 2. fireball: 3 desynced flipbook particles.
+	#
+	# ALPHA, not additive. These sheets carry their soot baked in around the
+	# flame, and additive blending renders black as nothing - the soot simply
+	# vanishes and the era look with it. Mixed blending is the whole reason the
+	# sheets were authored with the smoke inside the fire frames.
 	var fire_proc := _fx_proc("expl_fire_proc", func(p: ParticleProcessMaterial) -> void:
 		p.direction = Vector3.UP
 		p.spread = 25.0
@@ -293,12 +360,55 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		p.gravity = Vector3(0, 1.2, 0)
 		p.scale_min = 0.8
 		p.scale_max = 1.3
-		p.lifetime_randomness = 0.25
+		# Higher randomness so the extra sprites stagger across the hold instead
+		# of all playing the sheet at once.
+		p.lifetime_randomness = 0.55
 		p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		p.emission_sphere_radius = 0.35)
-	var fire_mesh := _fx_quad("expl_fire_quad", 2.2,
-		_sheet_mat("expl_fire_mat", "sheets/fireball_sheet", 4, 4, true))
-	_burst(root, 3, 0.7 * lifetime_mult, fire_proc, fire_mesh, 0.7)
+		p.emission_sphere_radius = 0.35
+		_play_sheet_once(p))
+	var is_mortar: bool = kind == "explosion_mortar"
+	var fire_mesh: QuadMesh
+	if is_mortar:
+		fire_mesh = _fx_quad("expl_mortar_quad", 2.2,
+			_sheet_mat("expl_mortar_mat", "sheets/mortar_burst_sheet", 4, 4, false))
+	else:
+		fire_mesh = _fx_quad("expl_fire_quad", 2.2,
+			_sheet_mat("expl_fire_mat", "sheets/napalm_explosion_sheet", 6, 6, false))
+	_burst(root, 6, 0.7 * lifetime_mult + EXPLOSION_HOLD_S * 0.45, fire_proc, fire_mesh, 0.7)
+
+	# 2b. hot core: the additive inner layer the alpha fireball can't provide.
+	# Skipped for mortar - a ground burst is dirt, not a fireball.
+	if not is_mortar:
+		var core_proc := _fx_proc("expl_core_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 12.0
+			p.initial_velocity_min = 0.3
+			p.initial_velocity_max = 0.9
+			p.gravity = Vector3(0, 0.8, 0)
+			p.scale_min = 0.6
+			p.scale_max = 0.9
+			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			p.emission_sphere_radius = 0.2
+			_play_sheet_once(p))
+		_burst(root, 3, 0.45 * lifetime_mult + EXPLOSION_HOLD_S * 0.35, core_proc,
+			_fx_quad("expl_core_quad", 1.5,
+				_sheet_mat("expl_core_mat", "sheets/fire_core_sheet", 4, 4, true)), 0.65)
+
+	# 2c. embers: rising sparks, additive.
+	var ember_proc := _fx_proc("expl_ember_proc", func(p: ParticleProcessMaterial) -> void:
+		p.direction = Vector3.UP
+		p.spread = 45.0
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 6.0
+		p.gravity = Vector3(0, -3.0, 0)
+		p.scale_min = 0.05
+		p.scale_max = 0.14
+		p.lifetime_randomness = 0.5
+		p.color_ramp = _smoke_fade_ramp())
+	var ember_mat := _plain_mat("expl_ember_mat", "particles/ember")
+	ember_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_burst(root, 14, 1.1 * lifetime_mult + EXPLOSION_HOLD_S, ember_proc,
+		_fx_quad("expl_ember_quad", 0.5, ember_mat), 0.5)
 
 	# 3. shock ring: flat additive disc, tween-expanded.
 	var ring := MeshInstance3D.new()
@@ -335,17 +445,22 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		_fx_quad("expl_dirt_quad", 1.4, _plain_mat("expl_dirt_mat", "particles/dirt_01")), 0.2)
 
 	# 5. debris chunks.
+	# Debris was 12 chunks at scale 0.06-0.16 on an UNTEXTURED quad. Multiplied by
+	# the x5 spectacle scale that is a ~1m flat coloured square - the "blocks".
+	# Many small textured specks read as thrown earth; few big ones read as cards.
 	var debris_proc := _fx_proc("expl_debris_proc", func(p: ParticleProcessMaterial) -> void:
 		p.direction = Vector3.UP
-		p.spread = 55.0
+		p.spread = 60.0
 		p.initial_velocity_min = 5.0
-		p.initial_velocity_max = 11.0
+		p.initial_velocity_max = 13.0
 		p.gravity = Vector3(0, -20.0, 0)
-		p.scale_min = 0.06
-		p.scale_max = 0.16
-		p.color = Color(0.3, 0.25, 0.18))
-	_burst(root, 12, 0.9 * lifetime_mult, debris_proc,
-		_fx_quad("expl_debris_quad", 1.0, _plain_mat("expl_debris_mat", "")), 0.3)
+		p.scale_min = 0.015
+		p.scale_max = 0.05
+		p.lifetime_randomness = 0.4
+		p.color = Color(0.26, 0.21, 0.15))
+	_burst(root, 48, 0.9 * lifetime_mult, debris_proc,
+		_fx_quad("expl_debris_quad", 1.0,
+			_plain_mat("expl_debris_mat", "particles/dirt_02")), 0.3)
 
 	# 6. lingering smoke: own root + own cap so barrages keep their flashes.
 	_linger_nodes = _linger_nodes.filter(func(n: Variant) -> bool: return is_instance_valid(n))
@@ -366,12 +481,14 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 			p.lifetime_randomness = 0.35
 			p.color = Color(0.30, 0.28, 0.24)
 			p.color_ramp = _smoke_fade_ramp()
+			_play_sheet_once(p)
 			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 			p.emission_sphere_radius = 0.5)
 		var linger_mesh := _fx_quad("expl_linger_quad", 2.6,
-			_sheet_mat("expl_linger_mat", "sheets/puff_sheet", 4, 2, false))
-		_burst(linger_root, 6, 3.2 * lifetime_mult, linger_proc, linger_mesh, 0.8)
-		_expire(linger_root, 4.4 * lifetime_mult, func() -> void:
+			_sheet_mat("expl_linger_mat", "sheets/smoke_loop_sheet", 4, 4, false))
+		_burst(linger_root, 8, 3.2 * lifetime_mult + EXPLOSION_HOLD_S, linger_proc,
+			linger_mesh, 0.8)
+		_expire(linger_root, 4.4 * lifetime_mult + EXPLOSION_HOLD_S, func() -> void:
 			linger_root.queue_free())
 
 	# 7. scorch decal.
@@ -383,13 +500,20 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
 	tw.tween_property(ring, "scale", Vector3(4.5, 4.5, 4.5), 0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
 	tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
-	_expire(root, 1.6 * lifetime_mult, func() -> void:
+	_expire(root, 1.6 * lifetime_mult + EXPLOSION_HOLD_S, func() -> void:
 		root.queue_free())
 
 
+## Ground scorch. CLAMPED: the burn mark tracks the ordnance's real footprint,
+## not its spectacle scale. Napalm's visual is 100x a grenade, and 2.4 * that is
+## a 480m black square - wider than the demo map and lying over everything on a
+## 0.4m projection. The visual may exceed the world; the mark on the ground may
+## not.
+const SCORCH_MAX_M: float = 44.0
+
 static func _scorch(parent: Node, pos: Vector3, scale_mult: float) -> void:
 	var d := Decal.new()
-	var s: float = 2.4 * scale_mult
+	var s: float = minf(2.4 * scale_mult, SCORCH_MAX_M)
 	d.size = Vector3(s, 0.4, s)
 	d.texture_albedo = _fx_tex("particles/scorch_0%d" % (randi() % 3 + 1))
 	d.modulate = Color(0.1, 0.09, 0.08)
@@ -497,6 +621,39 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	root.add_child(spikes)
 
 	_expire(root, FLASH_SECONDS, func() -> void:
+		_active_flashes -= 1
+		root.queue_free())
+
+
+## Big-gun muzzle blast: the 8-frame muzzle_flash_sheet played once, additive.
+##
+## SEPARATE from muzzle_flash() on purpose. That one's FLASH_SECONDS is a fairness
+## floor sized to a single rendered frame, so an 8-frame flipbook cannot resolve
+## there. This runs long enough to show the whole arc, which only suits weapons that
+## fire slower than it lives - cannon, AA, mortar tube. Never the rifle line.
+const CANNON_FLASH_SECONDS: float = 0.18
+
+static func cannon_flash(parent: Node, pos: Vector3, size: float = 2.0) -> void:
+	if parent == null or _active_flashes >= MAX_FLASHES:
+		return
+	_active_flashes += 1
+	var root := Node3D.new()
+	parent.add_child(root)
+	root.global_position = pos
+	root.scale = Vector3.ONE * size
+	var proc := _fx_proc("cannon_flash_proc", func(p: ParticleProcessMaterial) -> void:
+		p.direction = Vector3.UP
+		p.spread = 0.0
+		p.initial_velocity_min = 0.0
+		p.initial_velocity_max = 0.0
+		p.gravity = Vector3.ZERO
+		p.scale_min = 0.85
+		p.scale_max = 1.2
+		_play_sheet_once(p))
+	_burst(root, 1, CANNON_FLASH_SECONDS, proc,
+		_fx_quad("cannon_flash_quad", 1.0,
+			_sheet_mat("cannon_flash_mat", "sheets/muzzle_flash_sheet", 8, 1, true)))
+	_expire(root, CANNON_FLASH_SECONDS + 0.1, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())
 

@@ -68,6 +68,8 @@ func _ready() -> void:
 	if _tail_rotor == null:
 		push_warning("[%s] tail rotor '%s' not found - tail will not spin" % [name, tail_rotor_node])
 
+	_pick_markings(root)
+
 	# Recenter on the fuselage's AABB centre, NOT its node origin, for airframes whose
 	# origin is off the hull. MUST be basis-aware: a scene that rotates Model has to map
 	# the centre through the basis first, or a raw "-= centre" DOUBLES the offset.
@@ -80,6 +82,25 @@ func _ready() -> void:
 		var centre: Vector3 = root.transform.basis * (fuselage.position + fuselage.get_aabb().get_center())
 		root.position.x -= centre.x
 		root.position.z -= centre.z
+
+
+## Marking sets authored in huey_v3.blend as VARIANT_A/B/C. Each ship shows exactly
+## one, so a flight of slicks does not read as the same airframe repeated.
+## Silent no-op on airframes that ship no variants - the Chinook has none.
+const MARKING_VARIANTS: Array[String] = ["VARIANT_A", "VARIANT_B", "VARIANT_C"]
+
+
+func _pick_markings(root: Node3D) -> void:
+	var found: Array[Node3D] = []
+	for vname in MARKING_VARIANTS:
+		var n := root.find_child(vname, true, false) as Node3D
+		if n != null:
+			found.append(n)
+	if found.is_empty():
+		return
+	var chosen: int = randi() % found.size()
+	for i in found.size():
+		found[i].visible = (i == chosen)
 
 
 ## Rotor audio rides the SAME _rotor_rpm that drives the blades, so the sound can

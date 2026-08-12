@@ -1,7 +1,8 @@
-## seat_system.gd - The 12-seat UH-1 slick contract: 2 pilots + 2 door gunners
-## + 8 pax (10 passenger seats - the 8-man squad plus the player is 9 passenger
-## bodies). Sockets are found ANYWHERE under the vehicle by exact name -
-## seat_pilot_l / seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..8.
+## seat_system.gd - The 18-seat UH-1 slick contract: 2 pilots + 2 door gunners
+## + 8 lip pax + 6 centre-bench pax (16 passenger seats). The 8 lip seats carry
+## the squad plus the player; the bench is the overloaded-ship overflow.
+## Sockets are found ANYWHERE under the vehicle by exact name - seat_pilot_l /
+## seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..8 / seat_bench_1..6.
 ## GLB-exported empties import as plain Node3D, NOT Marker3D: the scan must
 ## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUT.
 ##
@@ -20,12 +21,17 @@ const SEAT_NAMES: Array[StringName] = [
 	&"seat_gunner_l", &"seat_gunner_r",
 	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3", &"seat_pax_4",
 	&"seat_pax_5", &"seat_pax_6", &"seat_pax_7", &"seat_pax_8",
+	&"seat_bench_1", &"seat_bench_2", &"seat_bench_3",
+	&"seat_bench_4", &"seat_bench_5", &"seat_bench_6",
 ]
-## Fill order for squad/player boarding: cabin first, door guns as overflow.
+## Fill order for squad/player boarding: the door lip first (the iconic silhouette),
+## then the centre bench for an overloaded ship, door guns as last overflow.
 ## Pilot seats are CREW seats - passengers never take the controls.
 const PASSENGER_SEATS: Array[StringName] = [
 	&"seat_pax_1", &"seat_pax_2", &"seat_pax_3", &"seat_pax_4",
 	&"seat_pax_5", &"seat_pax_6", &"seat_pax_7", &"seat_pax_8",
+	&"seat_bench_1", &"seat_bench_2", &"seat_bench_3",
+	&"seat_bench_4", &"seat_bench_5", &"seat_bench_6",
 	&"seat_gunner_l", &"seat_gunner_r",
 ]
 
@@ -44,6 +50,14 @@ const FALLBACK_LAYOUT: Dictionary = {
 	&"seat_pax_6": [Vector3(-1.05, 0.865, -3.984), -90.0],
 	&"seat_pax_7": [Vector3(-1.05, 0.865, -3.525), -90.0],
 	&"seat_pax_8": [Vector3(-1.05, 0.865, -3.067), -90.0],
+	## Centre bench, back to back down the spine. Pan measured at y 1.125 off
+	## huey_v3.blend; the two rows sit +-0.25 either side of the centreline.
+	&"seat_bench_1": [Vector3(-0.25, 1.125, -4.015), -90.0],
+	&"seat_bench_2": [Vector3(-0.25, 1.125, -3.565), -90.0],
+	&"seat_bench_3": [Vector3(-0.25, 1.125, -3.115), -90.0],
+	&"seat_bench_4": [Vector3(0.25, 1.125, -4.015), 90.0],
+	&"seat_bench_5": [Vector3(0.25, 1.125, -3.565), 90.0],
+	&"seat_bench_6": [Vector3(0.25, 1.125, -3.115), 90.0],
 }
 
 ## Pilot clips by flight state. A ship on the ground holds PILOT_CLIP; one run
@@ -71,7 +85,31 @@ const GUNNER_SEATS: Array[StringName] = [&"seat_gunner_l", &"seat_gunner_r"]
 ## The panel run is a one-shot; this is how long before the pilot settles back to
 ## the ground hold.
 const PILOT_PANEL_S: float = 3.00
+## Seated-troop postures. The pax seats are the OUTBOARD DOOR LIP (x +/-1.05,
+## y 0.865 - the sill) and the bench is the centre row (x +/-0.25, y 1.125), so
+## they are not the same pose and must not share one clip.
+##
+## These are play_first CHAINS rather than bare names on purpose. The lip and
+## bench clips are authored but anim_library.glb has not shipped them yet
+## (measured 2026-08-12: 209 clips in assets/shared/anim_library.glb, none of
+## the three present). play() returns false for a clip the library lacks, so the
+## chain plays the generic SITTING_CLIP today and picks up the authored posture
+## by itself the moment the export lands - no second wiring pass, and no seated
+## man ever plays nothing because a name was wrong.
 const SITTING_CLIP := "sitting"
+const LIP_CLIPS: Array[String] = ["sit_lip_outboard_a", "sit_lip_outboard_b"]
+const BENCH_CLIP := "sit_bench_upright"
+
+
+static func _seat_clips(seat_name: StringName) -> Array[String]:
+	var s := String(seat_name)
+	if s.begins_with("seat_bench"):
+		return [BENCH_CLIP, SITTING_CLIP]
+	if s.begins_with("seat_pax"):
+		# Alternate a/b down the row so a full stick does not sit in unison.
+		var idx: int = s.get_slice("_", 2).to_int()
+		return [LIP_CLIPS[idx % 2], LIP_CLIPS[(idx + 1) % 2], SITTING_CLIP]
+	return [SITTING_CLIP]
 const BOARD_STAGGER_S: float = 0.6   ## seconds between ally boardings
 ## Close enough to the SHIP to climb in - measured to the airframe, never to the
 ## door staging point: the staging point sits off the LEFT door, the airframe is
@@ -232,9 +270,9 @@ func _scan_sockets() -> void:
 		generated += 1
 	auto_generated = generated > 0
 	if generated > 0:
-		print("[SeatSystem] %s: auto-generated %d/10 UH-1 fallback sockets (real seat_* markers will override when exported)" % [_vehicle.name, generated])
+		print("[SeatSystem] %s: auto-generated %d/%d UH-1 fallback sockets (real seat_* markers will override when exported)" % [_vehicle.name, generated, SEAT_NAMES.size()])
 	else:
-		print("[SeatSystem] %s: all 10 seat_* sockets found in the model - fallback table retired" % _vehicle.name)
+		print("[SeatSystem] %s: all %d seat_* sockets found in the model - fallback table retired" % [_vehicle.name, SEAT_NAMES.size()])
 
 
 func available_seats() -> Array[StringName]:
@@ -334,7 +372,7 @@ func seat(body: Node3D, seat_name: StringName, as_crew: bool = false) -> bool:
 		elif as_crew and GUNNER_SEATS.has(seat_name):
 			model.play_first([_gunner_clip(seat_name), SITTING_CLIP])
 		else:
-			model.play(SITTING_CLIP)
+			model.play_first(_seat_clips(seat_name))
 
 	_occupants[seat_name] = rec
 	return true

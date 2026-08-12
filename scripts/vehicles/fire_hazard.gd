@@ -2,6 +2,11 @@
 class_name FireHazard
 extends Area3D
 
+## Preloaded rather than referenced by class_name: global classes are not
+## registered until the editor rescans, so a fresh script would fail every
+## headless run until someone opened the editor.
+const BURNING := preload("res://scripts/combat/burning.gd")
+
 @export var damage_per_second: float = 25.0
 @export var duration: float = 15.0
 @export var hazard_radius: float = 10.0
@@ -50,9 +55,15 @@ func _build_visual(radius: float) -> void:
 	fproc.gravity = Vector3.ZERO
 	fproc.scale_min = 0.7
 	fproc.scale_max = 1.3
+	# anim_speed defaults to 0, which freezes the flipbook on one static frame -
+	# the fire must ADVANCE, and the offset only staggers where each starts.
+	fproc.anim_speed_min = 1.0
+	fproc.anim_speed_max = 1.0
 	fproc.anim_offset_max = 1.0   # desync the loops or the field breathes in unison
 	flames.process_material = fproc
-	var fmat := GunFX._sheet_mat("napalm_flame_mat", "sheets/flame_sheet", 5, 5, true)
+	# Alpha, not additive: the sheet's soot is baked around the flame and
+	# additive blending would erase it (black adds to nothing).
+	var fmat := GunFX._sheet_mat("napalm_flame_mat", "sheets/fire_loop_sheet", 4, 4, false)
 	fmat.particles_anim_loop = true
 	flames.draw_pass_1 = GunFX._fx_quad("napalm_flame_quad", 2.0, fmat)
 	flames.position.y = 0.7
@@ -76,7 +87,7 @@ func _build_visual(radius: float) -> void:
 	sproc.color_ramp = GunFX._smoke_fade_ramp()
 	smoke.process_material = sproc
 	smoke.draw_pass_1 = GunFX._fx_quad("napalm_smoke_quad", 2.6,
-		GunFX._sheet_mat("napalm_smoke_mat", "sheets/puff_sheet", 4, 2, false))
+		GunFX._sheet_mat("napalm_smoke_mat", "sheets/smoke_loop_sheet", 4, 4, false))
 	smoke.position.y = 1.5
 	add_child(smoke)
 
@@ -88,8 +99,8 @@ func _build_visual(radius: float) -> void:
 	gmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	gmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	gmat.albedo_texture = GunFX._fx_tex("particles/circle_05")
-	gmat.albedo_color = Color(1.0, 0.45, 0.1, 0.35)
+	gmat.albedo_texture = GunFX._fx_tex("particles/fire_glow")
+	gmat.albedo_color = Color(1.0, 0.62, 0.28, 0.45)
 	gmat.emission_enabled = true
 	gmat.emission = Color(1.0, 0.4, 0.0)
 	gmat.emission_energy_multiplier = 1.6
@@ -108,6 +119,23 @@ func _physics_process(delta: float) -> void:
 	if _tick_timer < 0.5:
 		return
 	_tick_timer = 0.0
+	# A hazard that does no damage does not set men alight. game_world.gd:230
+	# spawns a 0-dps FireHazard purely to warm the shaders at level load, right
+	# where the squad spawns - without this guard it ignites the whole squad on
+	# the first frame of the main game.
+	var lights_men: bool = damage_per_second > 0.0
 	for body in get_overlapping_bodies():
 		if body.has_method("take_damage"):
 			body.take_damage(int(damage_per_second * 0.5), Enums.DamageType.FIRE, null)
+		# Catching fire is not the same as standing in it: Burning rides the man
+		# out of the strip and keeps burning him, so a runner does not escape by
+		# clearing the radius.
+		if lights_men and body is Node3D:
+			var lit: Node = body.get_node_or_null("Burning")
+			if lit != null:
+				lit.call("refresh")
+			else:
+				var b: Node3D = BURNING.new()
+				b.name = "Burning"
+				body.add_child(b)
+				b.call("setup", body)
