@@ -23,29 +23,26 @@ func _ready() -> void:
 	await get_tree().process_frame
 	print("\n=== INTERIOR NAV ===\n")
 
-	var world: GameWorld = (load("res://scenes/levels/game_world.tscn") as PackedScene).instantiate() as GameWorld
-	world.mission_seed = 47225
-	world.spawn_player_on_ready = false
-	add_child(world)
+	# The DEMO world is the one that stamps the firebase and its village kit, which is where
+	# the enterable structures are. A bare patrol world at this seed stamps none.
+	var scene: PackedScene = load("res://scenes/levels/demo_game.tscn") as PackedScene
+	add_child(scene.instantiate())
 	var spins: int = 0
-	while not world.is_world_ready and spins < 600:
+	while spins < 400 and get_tree().get_nodes_in_group(&"nav_baker").is_empty():
 		spins += 1
 		await get_tree().create_timer(0.1).timeout
-	if not world.is_world_ready:
-		print("  [FAIL] world never became ready")
-		get_tree().quit(1)
-		return
+	await get_tree().create_timer(6.0).timeout
 	# The bake is async; the region is assigned on a later frame than world_ready.
 	await get_tree().create_timer(3.0).timeout
 
-	var map: RID = world.get_world_3d().navigation_map
+	var map: RID = get_viewport().world_3d.navigation_map
 	if not map.is_valid():
 		print("  [FAIL] no navigation map")
 		get_tree().quit(1)
 		return
 
 	var bodies: Array[Node3D] = []
-	var stack: Array[Node] = [world]
+	var stack: Array[Node] = [get_tree().root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
 		for c in n.get_children():
