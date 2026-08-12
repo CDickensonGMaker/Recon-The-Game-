@@ -686,14 +686,13 @@ func enter_hub() -> void:
 	# A restored position is X/Z memory, never Y truth: the world reseats terrain
 	# every build, so a stale saved height puts the player under the ground. Only
 	# a RESTORED save needs this - a fresh boot already has the correct bunk seat
-	# from spawn_player_at(), and surface_y()'s top-down raycast misses the hootch
-	# floor from inside, re-burying the player 4m+ below the authored marker
-	# (2026-07-30 SPAWN-TRUTH probe: asked spawn.y=193.56, surface_y=189.18).
+	# from spawn_player_at(). floor_y, not surface_y: the saved point can be under a
+	# hootch roof, and surface_y's top-down ray would stand him on it.
 	var had_save: bool = SaveManager.pending_player != null
 	SaveManager.apply_pending_player(world.player)
 	if had_save and world.player != null:
 		var pp: Vector3 = world.player.global_position
-		world.player.global_position.y = world.surface_y(pp) + 1.0
+		world.player.global_position.y = world.floor_y(pp) + 1.0
 	# Hot chow is free. YOUR RIFLE IS NOT (Summoner's decree, 2026-07-13): weapon
 	# condition persists across missions and is only restored by working the
 	# armorer's bench - it costs time, and it cannot be done in the field.
@@ -725,6 +724,13 @@ func enter_hub() -> void:
 			probe.set("shadow_study", args.has("--shadow-study"))
 			world.add_child(probe)
 			probe.call("attach", world)
+	if args.has("--roof-probe"):
+		# res://tools ships in no export - degrade to a warning, never instantiate on null.
+		var roof: GDScript = load("res://tools/probe_roof_spawn.gd") as GDScript
+		if roof == null:
+			push_warning("[ROOF-PROBE] probe_roof_spawn.gd absent in this build")
+		else:
+			world.add_child(roof.new())
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

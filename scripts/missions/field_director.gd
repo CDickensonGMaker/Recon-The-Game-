@@ -41,9 +41,11 @@ func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: in
 func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = "") -> EnemyBase:
 	var seated := pos
 	if world and world.terrain_manager:
-		# surface_y, not terrain height: a man spawned inside the firebase must land on
-		# the mound he is standing on, not at its buried toe (game_world.surface_y).
-		seated.y = world.surface_y(pos) + 0.5
+		# floor_y, not surface_y: surface_y's 18m top-down ray returns the ROOF over any
+		# covered point, and mission_generator's spawn points are already floor-seated
+		# (mission_generator.gd:1027). floor_y falls back to surface_y when the caller's
+		# Y carries no information, so an arbitrary outdoor point still clears the mound.
+		seated.y = world.floor_y(pos) + 0.5
 	var parent: Node = world if world != null else get_parent()
 	var enemy: EnemyBase = EnemyBase.spawn_enemy(parent, seated, data_path)
 	# Same group_tag -> same fireteam. hash gives a stable per-group id; lone

@@ -107,7 +107,12 @@ func _ready() -> void:
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
 	add_child(_flow)
-	_flow._begin_operation(DEMO_SEED, DEMO_NAME)
+	# `--demo-seed=N` re-rolls the layout for measurement only. The shipped demo is DEMO_SEED.
+	var boot_seed: int = DEMO_SEED
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--demo-seed="):
+			boot_seed = int(a.get_slice("=", 1))
+	_flow._begin_operation(boot_seed, DEMO_NAME)
 	# The build seeds its own hour from the plan (mission_weather.gd:51), so the arc's clock
 	# can only be set AFTER the world is up - _in_world is the last latch enter_hub flips.
 	# START_HOUR must stay inside the plan's DAWN period (5-7, sim_clock.period_at): set_time
@@ -118,7 +123,7 @@ func _ready() -> void:
 		return
 	SimClock.set_time(1, START_HOUR)
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
-		DEMO_SEED, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
+		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
 		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
 
 
