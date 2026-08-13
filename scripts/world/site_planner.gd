@@ -1336,6 +1336,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	spawn_pos.y = _terrain.get_height_at(spawn_pos)
 	gate_pos.y = _terrain.get_height_at(gate_pos)
 	_stamp_radio(spawn_pos)
+	_stamp_hooch_radios(root)
 	_fsb_rect = Rect2(center.x - FSB_HALF.x, center.z - FSB_HALF.y,
 		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
 	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
@@ -1909,8 +1910,19 @@ func _wire_claymores(root: Node3D, center: Vector3) -> void:
 
 
 const RADIO_SCENE: String = "res://scenes/props/radio.tscn"
+## The firebase's own radio furniture. `fb_int_radio` and its .001-.011 duplicates are the
+## eleven hooch sets; the -colonly twins are skipped because only MeshInstance3D is considered.
+const HOOCH_RADIO_MESH_PREFIX: String = "fb_int_radio"
+## Wider than a hooch (10.97m long) so one billet gets one voice, narrower than the gap to the
+## next so no hooch is left silent.
+const RADIO_MIN_SEP_M: float = 12.0
 
 ## Drop a diegetic field radio near the TOC spawn so the player boots to the broadcast.
+##
+## Seated on the FLOOR, not on the terrain. get_height_at returns the raw heightmap, and the
+## compound floor is the firebase MODEL sitting on a raised mound - so this buried the only
+## audible radio in the game inside the hill, which is exactly how it played: music from under
+## the firebase, and every radio the player could SEE silent (his playtest, 2026-08-12).
 func _stamp_radio(near: Vector3) -> void:
 	var ps: PackedScene = load(RADIO_SCENE) as PackedScene
 	if ps == null:
@@ -1918,8 +1930,61 @@ func _stamp_radio(near: Vector3) -> void:
 	var radio := ps.instantiate() as Node3D
 	_parent.add_child(radio)
 	var spot: Vector3 = near + Vector3(1.5, 0.0, 0.0)
-	spot.y = _terrain.get_height_at(spot)
+	var world := _parent as GameWorld
+	spot.y = world.floor_y(Vector3(spot.x, near.y + 1.0, spot.z)) if world != null \
+		else _terrain.get_height_at(spot)
 	radio.global_position = spot
+
+
+## THE RADIOS THE PLAYER CAN SEE ARE THE ONES HE HEARS. The firebase ships eleven radio props
+## as furniture (fb_int_radio*) and they were meshes only - nothing ever attached audio to one,
+## so the hooch radios were silent while the single stamped radio played from under the mound.
+##
+## RadioProp was already built for a compound full of them: activation_distance 125m decides
+## whether a stream exists at all, hear_distance 25m how far it carries, and the playlist is
+## seeded from the radio's own POSITION so two in earshot never play in unison. The model is
+## suppressed - the GLB already draws the set; this adds only the voice.
+func _stamp_hooch_radios(root: Node3D) -> int:
+	var ps: PackedScene = load(RADIO_SCENE) as PackedScene
+	if ps == null:
+		return 0
+	var spots: Array[Vector3] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		for c in nd.get_children():
+			stack.append(c)
+		var mi := nd as MeshInstance3D
+		if mi == null:
+			continue
+		var nm := String(mi.name)
+		if not nm.begins_with(HOOCH_RADIO_MESH_PREFIX) or nm.contains("-col"):
+			continue
+		spots.append(mi.global_position)
+	# The set dresses the room three times over - 33 radio meshes across eleven hooches - and
+	# every one of them voiced would put three different shuffled tracks inside one billet.
+	# One voice per hooch: a radio is skipped if another already speaks within RADIO_MIN_SEP_M,
+	# which is wider than a hooch (10.97m) and narrower than the gap between them.
+	spots.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return a.x < b.x if not is_equal_approx(a.x, b.x) else a.z < b.z)
+	var made: int = 0
+	var taken: Array[Vector3] = []
+	for p: Vector3 in spots:
+		var near: bool = false
+		for q: Vector3 in taken:
+			if Vector2(p.x - q.x, p.z - q.z).length() < RADIO_MIN_SEP_M:
+				near = true
+				break
+		if near:
+			continue
+		taken.append(p)
+		var radio := ps.instantiate() as Node3D
+		radio.set("model_path", "")     # set before _ready: the set is already drawn
+		_parent.add_child(radio)
+		radio.global_position = p
+		made += 1
+	print("[FSB] radios: %d hooch set(s) given a voice" % made)
+	return made
 
 
 ## VC jungle camp: tunnel + cache + spider holes tucked under canopy. Deliberately
