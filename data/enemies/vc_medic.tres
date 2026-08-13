@@ -1,4 +1,4 @@
-﻿[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://dvcmedic0001"]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://dvcmedic0001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
 
