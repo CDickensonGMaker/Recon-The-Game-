@@ -7,12 +7,42 @@
   "mound_fall": 34.0,
   "berm_w": 3.2,
   "berm_h": 1.22,
-  "edge_harmonics": [[0.155, 2.0, 0.7], [0.085, 3.0, 2.1], [0.045, 5.0, 4.3]],
-  "top_xy": [1.05, 0.042, 0.6, 0.036, -0.3],
-  "top_y": [0.55, 0.021, -0.9],
-  "top_xy2": [0.3, 0.075, 0.055, 1.7],
-  "_step": "OFF BY RULING (2026-07-29). A terrain banquette works mechanically but BURIES the model's cratered earth and mud in that band, and a 4m heightmap cannot show that detail at all - the Summoner wants the MESH mound because it is the destroyed ground. The step belongs in Blender, on the model, where the art lives. Set step_h back above 0 only if the mound ever stops being a mesh.",
-  "step_h": 0.0,
+  "edge_harmonics": [
+    [
+      0.155,
+      2.0,
+      0.7
+    ],
+    [
+      0.085,
+      3.0,
+      2.1
+    ],
+    [
+      0.045,
+      5.0,
+      4.3
+    ]
+  ],
+  "top_xy": [
+    1.05,
+    0.042,
+    0.6,
+    0.036,
+    -0.3
+  ],
+  "top_y": [
+    0.55,
+    0.021,
+    -0.9
+  ],
+  "top_xy2": [
+    0.3,
+    0.075,
+    0.055,
+    1.7
+  ],
+  "step_h": 0.9,
   "step_gap_m": 3.0,
   "step_width_m": 11.0
 }
