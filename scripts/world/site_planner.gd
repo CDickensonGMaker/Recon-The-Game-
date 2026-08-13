@@ -979,7 +979,13 @@ static func _arty_pits() -> Array:
 	for entry_any in _fsb_work_markers:
 		var e: Array = entry_any
 		var wt: String = str(e[1])
-		if wt != "gun" and wt != "mortar":
+		# The howitzers are bare `work_gun`; the mortar pits carry a pit ordinal AND a role,
+		# `work_mortar_<pit>_<gunner|dropper|runner>`, which the single-ordinal strip in
+		# _ensure_fsb_markers cannot reduce to "mortar". Matching the prefix is what lets a
+		# mortar pit crew at all - without it both pits seated nobody and the mortar_gunner /
+		# mortar_dropper / mortar_runner clips had no caller.
+		var is_mortar: bool = wt == "mortar" or wt.begins_with("mortar_")
+		if wt != "gun" and not is_mortar:
 			continue
 		var p: Vector3 = e[0]
 		var joined: bool = false
@@ -989,13 +995,13 @@ static func _arty_pits() -> Array:
 				var q: Vector3 = q_any
 				if Vector2(p.x - q.x, p.z - q.z).length() <= FSB_ARTY_LINK_M:
 					(pit.markers as Array).append(p)
-					pit["mortar"] = bool(pit.mortar) or wt == "mortar"
+					pit["mortar"] = bool(pit.mortar) or is_mortar
 					joined = true
 					break
 			if joined:
 				break
 		if not joined:
-			pits.append({"markers": [p], "mortar": wt == "mortar"})
+			pits.append({"markers": [p], "mortar": is_mortar})
 	return pits
 
 
@@ -1039,9 +1045,15 @@ static func _ensure_fsb_markers() -> void:
 			t2 = cur2.transform * t2
 			cur2 = cur2.get_parent() as Node3D
 		# work_<type>, with Blender's .001 / glTF _001 duplicate suffix stripped.
+		# REPEATED, not once: an authored name that already ends in an ordinal picks up a
+		# second one from Blender, so work_hooch_sleep_0.001 arrives as hooch_sleep_0_001
+		# and one strip leaves hooch_sleep_0 - a type FSB_WORK_OCCUPATION does not list, which
+		# then reaches off_duty by accident and reads exactly like a type nobody wired.
 		var wt: String = String(nd.name).trim_prefix("work_")
-		var cut: int = wt.rfind("_")
-		if cut > 0 and wt.substr(cut + 1).is_valid_int():
+		while true:
+			var cut: int = wt.rfind("_")
+			if cut <= 0 or not wt.substr(cut + 1).is_valid_int():
+				break
 			wt = wt.substr(0, cut)
 		_fsb_work_markers.append([t2.origin, wt])
 	_fsb_work_markers.sort_custom(func(a: Array, b: Array) -> bool:
@@ -1775,6 +1787,12 @@ func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
 	d.hp = hp
 	d.collision_layer = 1
 	d.collision_mask = 0
+	# NavBaker reads the SHAPE'S PARENT name (nav_baker.gd:482) to match
+	# NAV_IGNORE_PREFIXES and NAV_ROOF_CULL_PREFIXES. The shapes below are reparented
+	# onto this node, so an unnamed Destructible makes every adopted structure invisible
+	# to both contracts and its roof bakes walkable. A uniquifying suffix is harmless -
+	# both contracts test begins_with.
+	d.name = mi.name
 	_parent.add_child(d)
 	var aabb: AABB = mi.get_aabb()
 	d.global_position = mi.global_transform * (aabb.position + aabb.size * 0.5)

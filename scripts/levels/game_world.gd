@@ -516,11 +516,12 @@ func _flush_terrain_dirty() -> void:
 		gameplay_grid.rebuild_rect(rect)
 	# The chunk collider swap that just happened (TerrainManager's
 	# _rebuild_chunk_immediate) can drop a standing player through the old
-	# floor before the new one is queryable - re-seat with the SAME
-	# surface_y() the spawn path trusts (raycast-aware, not raw heightmap),
-	# so this is safe inside the firebase where the mound model IS the floor.
+	# floor before the new one is queryable. floor_y, NOT surface_y: this fires
+	# whenever cratering marks the rect dirty, so a player standing INSIDE a
+	# hootch during the assault is in scope, and surface_y's top-down ray would
+	# re-seat him on the roof over his head.
 	if player != null and rect.has_point(Vector2(player.global_position.x, player.global_position.z)):
-		var seated_y: float = surface_y(player.global_position)
+		var seated_y: float = floor_y(player.global_position)
 		if absf(player.global_position.y - seated_y) > 0.5:
 			player.global_position.y = seated_y + 0.5
 

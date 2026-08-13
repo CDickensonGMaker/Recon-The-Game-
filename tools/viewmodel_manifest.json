@@ -344,7 +344,8 @@
    "collection": "RIG_RPG2",
    "gun_prefix": "RPG2",
    "gun_root": "RPG2",
-   "real_length_m": 0.95,
+   "_length_note": "1.20 is the LOADED launcher - tube 0.65 plus the PG-2 on the nose, which is how the viewmodel is built and how the player ever sees it. 0.95 described neither state and failed the 15% --strict gate at a measured 1.1995.",
+   "real_length_m": 1.20,
    "weapon_tres": "data/weapons/rpg2.tres",
    "clips": [
     "rifle_idle",

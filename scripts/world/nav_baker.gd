@@ -504,8 +504,13 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 ##
 ## fb_tower is deliberately ABSENT: a tower is meant to be climbed, and its ladder_bottom /
 ## ladder_top markers exist precisely so men can stand the platform.
+## medical_complex joined 2026-08-12 with the export that first shipped it: it is ONE mesh
+## with ONE collider, so its roof bakes walkable exactly like the bunkers above. The chow
+## hall needs the same entry and CANNOT have one yet - its parts are named tent_roof_chowhall
+## / WB_chowhall_backwall, so the building has no common leading token to match.
 const NAV_ROOF_CULL_PREFIXES: Array[String] = [
 	"fb_gp_tent", "fb_mess", "fb_bunker_mg", "fb_bunker_fighting", "fb_sleeping_bunker",
+	"medical_complex",
 ]
 ## How far above a structure's own base a surface stops being its floor and starts being its
 ## roof. Bunker interiors sit ~0.97m BELOW grade and their roofs ~3.2m above it, so 1.9m

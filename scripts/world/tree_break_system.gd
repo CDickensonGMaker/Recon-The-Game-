@@ -153,6 +153,11 @@ func query_ahead(from: Vector3, dir: Vector3, range_m: float) -> Dictionary:
 				for entry: Dictionary in _cells[cell]:
 					if bool(entry["dead"]):
 						continue
+					# Undergrowth is not a fuze. bush_c is 0.93m and banana_a 1.64m across,
+					# so without this a rocket detonates in the weeds a metre from the
+					# muzzle instead of on the man standing behind them.
+					if _is_bush(String(entry["species"])):
+						continue
 					var t: float = _ray_hits_trunk(from, d, r, entry)
 					if t >= 0.0 and t < best_t:
 						best_t = t
