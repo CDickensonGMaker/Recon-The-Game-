@@ -433,7 +433,13 @@ const SURFACE_PROBE_UP: float = 18.0
 ## surface_y's top-down ray stood every covered garrison post - and the whole squad,
 ## ringed around an indoor bunk - ON THE ROOFS (his playtest, 2026-08-04). Falls back
 ## to surface_y when the caller's Y carries no information (the miss case).
-func floor_y(at: Vector3, reach: float = 3.0) -> float:
+## MEASURED against the shipped firebase, 2026-08-12: authored markers sit 2.8-3.2m above
+## the floor they belong to (work_rest med 2.97 / work_supply med 3.20 / prop_sleep med
+## 2.78), while the hootch ROOF is at 2.88. A 3.0 reach probes from marker+0.4 and lands
+## 0.18m SHORT of a floor at zero - so it found nothing, fell through to surface_y, and
+## surface_y takes the first hit from above, which is the roof. That 18cm is the whole
+## reason the garrison and the player spawned on rooftops.
+func floor_y(at: Vector3, reach: float = 5.5) -> float:
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	if space != null:
 		var q := PhysicsRayQueryParameters3D.create(

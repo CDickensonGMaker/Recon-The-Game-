@@ -145,7 +145,7 @@ func _dev_report_time(what: String) -> void:
 ## How far under a cot marker to look for a floor. Must clear the drop from a hootch's authored
 ## cot height down to the mound surface it stands on; 0.8m only ever worked because terrain used
 ## to be sculpted up to meet it.
-const BUNK_FLOOR_REACH_M: float = 3.0
+const BUNK_FLOOR_REACH_M: float = 5.5
 
 
 func _firebase_bunk(fsb_center: Vector3) -> Vector3:
