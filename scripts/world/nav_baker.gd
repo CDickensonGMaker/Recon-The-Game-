@@ -447,7 +447,12 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 ## 1.22m - about 27 degrees - which is comfortably under agent_max_slope, so the navmesh
 ## treated every roof in the compound as walkable floor and men pathed onto them. The collider
 ## stays: rounds still behave and nobody falls through. It is only no longer somewhere to walk.
-const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_", "door_", "fb_hootch_roof_"]
+## fb_int_ LEFT this list 2026-08-13, on his ruling. It was in NAV_IGNORE_PREFIXES but NOT in
+## COL_NONE, so all 572 interior props were SOLID to physics and INVISIBLE to pathing: the
+## navmesh said walkable, the collider said no. That contradiction is the stuck-NPC recipe -
+## a man paths into a footlocker the mesh swore was floor and stands there. His ruling was
+## that the furniture should be real in both, not absent from both.
+const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "door_", "fb_hootch_roof_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
@@ -457,9 +462,10 @@ func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, bo
 	# the root it was handed - so the entire perimeter wall was absent from the mesh and
 	# pathing routed men into solid berm. They live in their own group; seed from it.
 	#
-	# NOTE for NAV_IGNORE_PREFIXES below: it tests the collider's PARENT name, which for
-	# these is now the Destructible, not the original fb_* node. That is safe only while
-	# nothing prefixed fb_veg_/fb_int_ is ever reparented this way.
+	# NAV_IGNORE_PREFIXES tests the collider's PARENT name, which for these is the
+	# Destructible. That used to make every adopted structure anonymous to the contract;
+	# _adopt_structure now names the Destructible after its mesh (site_planner.gd), so the
+	# prefix reads through the reparent and the old caveat no longer applies.
 	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_NAV_GEOM_GROUP):
 		var dn := d as Node3D
 		if dn != null and is_instance_valid(dn):
