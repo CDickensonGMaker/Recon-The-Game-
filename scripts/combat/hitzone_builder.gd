@@ -106,6 +106,10 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 	# bad rig must never be able to balloon a zone.
 	var span := func(bone_a: String, bone_b: String, fallback: float, lo: float, hi: float) -> float:
 		if skel.find_bone(bone_a) < 0 or skel.find_bone(bone_b) < 0:
+			# The fallback is bounded and deliberate, but it was also SILENT: a rig with a
+			# renamed or missing bone got stand-in hit geometry for the life of the build and
+			# nothing said so. A man is only as fair to shoot as his zones are measured.
+			_report_span_fallback(body, bone_a, bone_b)
 			return fallback
 		var a: Vector3 = bw.call(bone_a)
 		var b: Vector3 = bw.call(bone_b)
@@ -181,6 +185,23 @@ static func build(body: Node3D, model: ModelActor, layer: int, mask: int,
 ## are measured against a skeleton that no longer exists - they must go before
 ## build() runs again or the man carries two overlapping sets, one of them dead.
 ## Detached synchronously (queue_free alone leaves them in the group all frame).
+## One line per (unit, bone pair) per session. A squad of eight identical rigs must not
+## print eight times, and a stamped AO would otherwise flood the log.
+static var _span_reported: Dictionary = {}
+
+
+static func _report_span_fallback(body: Node3D, bone_a: String, bone_b: String) -> void:
+	var unit: String = String(body.get("unit_id")) if body != null and body.get("unit_id") != null \
+		else (String(body.name) if body != null else "?")
+	var key: String = "%s|%s|%s" % [unit, bone_a, bone_b]
+	if _span_reported.has(key):
+		return
+	_span_reported[key] = true
+	push_warning(("[HITZONE] %s: no '%s' or '%s' on the rig - that zone is using STAND-IN "
+		+ "dimensions, not measured ones. Hit geometry on this unit is a guess.")
+		% [unit, bone_a, bone_b])
+
+
 static func clear(body: Node3D) -> void:
 	for c in body.get_children():
 		var hz := c as Hitzone
