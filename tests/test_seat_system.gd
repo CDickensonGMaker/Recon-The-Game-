@@ -46,6 +46,25 @@ class MockPlayer:
 var failures: int = 0
 
 
+## Mirrors SeatSystem._seat_clips: the first clip in the seat's chain that the shared library
+## actually carries. Returns "" when the library has none of them, which IS a broken contract.
+func _expected_seat_clip(seat_name: StringName, model: ModelActor) -> String:
+	var s := String(seat_name)
+	var chain: Array[String] = [SeatSystem.SITTING_CLIP]
+	if s.begins_with("seat_pilot"):
+		chain = ["cockpit_idle"]
+	elif s.begins_with("seat_bench"):
+		chain = [SeatSystem.BENCH_CLIP, SeatSystem.SITTING_CLIP]
+	elif s.begins_with("seat_pax"):
+		var idx: int = s.get_slice("_", 2).to_int()
+		chain = [SeatSystem.LIP_CLIPS[idx % 2], SeatSystem.LIP_CLIPS[(idx + 1) % 2],
+			SeatSystem.SITTING_CLIP]
+	for c: String in chain:
+		if model.has_clip(c):
+			return c
+	return ""
+
+
 func _fail(msg: String) -> void:
 	print("FAIL: %s" % msg)
 	failures += 1
@@ -159,12 +178,19 @@ func _run() -> void:
 		for c in body2.get_children():
 			if c is ModelActor:
 				model = c as ModelActor
-		var want: String = "cockpit_idle" if String(seat_name).begins_with("seat_pilot") else "sitting"
 		if model == null:
 			_fail("no ModelActor on %s mock" % seat_name)
 			continue
-		if not model.has_clip(want):
-			_fail("shared anim library lacks '%s' (contract broken)" % want)
+		# The seat clips are a play_first CHAIN, not a fixed name (seat_system.gd:101-113):
+		# a pax seat asks for its authored lip posture and falls back to the generic sitting
+		# clip only while the library lacks it. Hardcoding "sitting" here asserted the state
+		# of the anim library rather than the contract, so it went red the moment aba5ca53
+		# shipped the lip clips (216 -> 232) and the chain started doing exactly what it
+		# promised. Expect the first clip the library actually has.
+		var want: String = _expected_seat_clip(seat_name, model)
+		if want == "":
+			_fail("shared anim library has NO clip in %s's chain (contract broken)" % seat_name)
+			continue
 		if model.current_action != want:
 			_fail("%s occupant playing '%s', wanted '%s'" % [seat_name, model.current_action, want])
 		else:

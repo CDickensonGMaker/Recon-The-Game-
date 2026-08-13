@@ -90,13 +90,13 @@ const PILOT_PANEL_S: float = 3.00
 ## y 0.865 - the sill) and the bench is the centre row (x +/-0.25, y 1.125), so
 ## they are not the same pose and must not share one clip.
 ##
-## These are play_first CHAINS rather than bare names on purpose. The lip and
-## bench clips are authored but anim_library.glb has not shipped them yet
-## (measured 2026-08-12: 209 clips in assets/shared/anim_library.glb, none of
-## the three present). play() returns false for a clip the library lacks, so the
-## chain plays the generic SITTING_CLIP today and picks up the authored posture
-## by itself the moment the export lands - no second wiring pass, and no seated
-## man ever plays nothing because a name was wrong.
+## These are play_first CHAINS rather than bare names on purpose. play() returns false for a
+## clip the library lacks, so a chain degrades to SITTING_CLIP instead of leaving a seated man
+## playing nothing because a name was wrong.
+##
+## It did exactly what it was built to do: written 2026-08-12 when none of the three clips
+## existed (209 clips in anim_library.glb), it picked the authored postures up unassisted when
+## aba5ca53 shipped them the same day - no second wiring pass. The lip clips are LIVE now.
 const SITTING_CLIP := "sitting"
 const LIP_CLIPS: Array[String] = ["sit_lip_outboard_a", "sit_lip_outboard_b"]
 const BENCH_CLIP := "sit_bench_upright"
