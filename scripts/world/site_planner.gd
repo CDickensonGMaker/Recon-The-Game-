@@ -830,7 +830,10 @@ const FSB_MARKER_KEYS: Array[String] = [
 const FSB_GARRISON_POSTS: Array = [
 	["SOCKET_A_001", "sentry", 1],
 	["SOCKET_B_001", "sentry_night", 1],
-	["mg_fire_point_001", "sentry", 1],
+	# The MG bunker's own firing point. "sentry" gave it a man and no gun, so the one
+	# emplacement the compound is built around could not be manned - by him or by the
+	# garrison. gun_crew is what stands an MGEmplacement there (mission_generator:1045).
+	["mg_fire_point_001", "gun_crew", 1],
 	["bunker_los_point_001", "sentry_night", 1],
 	["tower_los_point_001", "sentry", 1],
 	["GUN_POINT_001", "gun_crew", 2],

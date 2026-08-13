@@ -24,6 +24,7 @@ const REACH: float = 3.0            ## how close the player stands to see the ve
 
 var _face_dir: Vector3 = Vector3.FORWARD
 var _stand: Marker3D = null
+var _with_cover: bool = true
 
 ## Who mans it now, or null. _occupant_is_ai routes the self-heal: an AI gunner is
 ## a normal AllyBase (no frozen physics to restore), the player restores itself.
@@ -32,10 +33,15 @@ var _occupant_is_ai: bool = false
 
 
 ## Stand an emplacement at `pos`, its arc centred on the horizontal `face`.
-static func create(parent: Node, pos: Vector3, face: Vector3) -> MGEmplacement:
+## `with_cover` builds the sandbag lip and its collider. A post standing in the open needs
+## it; a gun on the pintle INSIDE a bunker does not - the bunker already is the cover, and a
+## second box across the embrasure would seal the very slit the gun fires through.
+static func create(parent: Node, pos: Vector3, face: Vector3,
+		with_cover: bool = true) -> MGEmplacement:
 	var emp := MGEmplacement.new()
 	var f := Vector3(face.x, 0.0, face.z)
 	emp._face_dir = f.normalized() if f.length() > 0.01 else Vector3.FORWARD
+	emp._with_cover = with_cover
 	parent.add_child(emp)
 	emp.global_position = pos
 	# Yaw so local -Z is downrange: rotating (0,0,-1) by y gives (-sin y, 0, -cos y).
@@ -52,20 +58,21 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	# Sandbag cover, kept BELOW the gunner's muzzle line so the crew fires over it.
-	var cover_size := Vector3(2.0, 1.0, 0.8)
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = cover_size
-	cs.shape = box
-	cs.position = Vector3(0.0, cover_size.y * 0.5, -0.35)
-	add_child(cs)
+	if _with_cover:
+		# Sandbag cover, kept BELOW the gunner's muzzle line so the crew fires over it.
+		var cover_size := Vector3(2.0, 1.0, 0.8)
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = cover_size
+		cs.shape = box
+		cs.position = Vector3(0.0, cover_size.y * 0.5, -0.35)
+		add_child(cs)
 
-	if ResourceLoader.exists(SANDBAG_MODEL):
-		var bag := (load(SANDBAG_MODEL) as PackedScene).instantiate() as Node3D
-		if bag != null:
-			add_child(bag)
-			bag.position = Vector3(0.0, 0.0, -0.35)
+		if ResourceLoader.exists(SANDBAG_MODEL):
+			var bag := (load(SANDBAG_MODEL) as PackedScene).instantiate() as Node3D
+			if bag != null:
+				add_child(bag)
+				bag.position = Vector3(0.0, 0.0, -0.35)
 	if ResourceLoader.exists(PINTLE_MODEL):
 		var pintle := (load(PINTLE_MODEL) as PackedScene).instantiate() as Node3D
 		if pintle != null:

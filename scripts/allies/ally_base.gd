@@ -808,7 +808,48 @@ func _think() -> void:
 	_find_target()
 	_check_threat()
 	_update_line_of_sight()
+	_seek_mg_post()
 	_evaluate_goals()
+
+
+## THE GUN IS COVER THAT SHOOTS BACK. An MGEmplacement already accepts any AllyBase
+## through man_by_ai, but only GarrisonDefender ever went looking for one - so the
+## player's own squad walked past a mounted M60 in a firefight.
+##
+## Pillar 4: this is the man's OWN intent, not an order. He only considers it when he is
+## in contact, has NO cover of his own, and the gun is closer than the fight. A man who
+## has found a rock does not leave it for a gun, and nobody crosses open ground for one.
+const MG_SEEK_M: float = 18.0
+const MG_MOUNT_M: float = 1.4
+var _mg_post: Node3D = null
+
+
+func _seek_mg_post() -> void:
+	if _mg_post != null:
+		return
+	if target == null or not is_instance_valid(target) or has_cover or squad_broken:
+		return
+	if weapon_data != null and String(weapon_data.get("id")) == "m60":
+		return   # he already carries the Pig; the post is worth more to someone else
+	var best: Node3D = null
+	var best_d: float = MG_SEEK_M
+	for e in get_tree().get_nodes_in_group("mg_emplacements"):
+		var emp := e as Node3D
+		if emp == null or not is_instance_valid(emp) or bool(emp.call("is_occupied")):
+			continue
+		var d: float = global_position.distance_to(emp.call("gunner_stand_pos"))
+		# Never toward the enemy: a gun he has to cross the beaten zone to reach is a
+		# worse idea than the ground he is already on.
+		if d < best_d and d < global_position.distance_to(target.global_position):
+			best_d = d
+			best = emp
+	if best == null:
+		return
+	if best_d <= MG_MOUNT_M:
+		if bool(best.call("man_by_ai", self)):
+			_mg_post = best
+		return
+	_move_toward(best.call("gunner_stand_pos"), THINK_INTERVAL, COMBAT_SPEED_MULT)
 
 
 func _check_threat() -> void:
