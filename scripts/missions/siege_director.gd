@@ -59,11 +59,10 @@ const MORTAR_BLAST_M: float = 18.0
 ## (EnemyBase._execute_advancing fires on the move). Rotated over a share of the assault
 ## so the attack arrives in rushes rather than one line standing up together.
 ##
-## The lane is the GATE. Nothing re-bakes the navmesh when a parapet segment dies
-## (nav_baker.gd:16-18) and the barbwire is one merged ring that cannot be broken at all,
-## so the only opening through both obstacles is the wire gate - which is also the
-## doctrinally correct answer: a night attack goes through ONE lane, not over a line.
-## Parapet destruction stays spectacle. Nothing here reads a breach.
+## The DEFAULT lane is the GATE (a night attack goes through one lane, not over a
+## line) - but a satchel HOLE outranks it (his ruling 2026-08-13): NavBaker's breach
+## re-bake makes a dead parapet segment walkable, _scan_breaches reads it, and every
+## squad nearer the hole than the gate presses through the breach instead.
 const PRESS_CYCLE_S: float = 8.0
 ## Men measurably inside the wire before the compound counts as overrun.
 const OVERRUN_MEN: int = 3
@@ -287,9 +286,11 @@ func reinforce(extra: int) -> void:
 ## put three of them milling at impassable wire - a mass that does nothing, spread out. So
 ## they APPROACH wide and FIGHT toward the one opening, which is what flanking against a
 ## wired perimeter actually looks like.
-## NOTE: breach re-bakes EXIST now (nav_baker.gd BREACHING, breach_at) - a satchel hole in
-## the parapet becomes walkable. Whether assault squads should USE sapper breaches instead
-## of converging on the gate is a design ruling for the Summoner, queued 2026-08-13.
+## RULED 2026-08-13 (his words: "assault squads should be using the blown holes yes
+## otherwise whats the point of blowing it up"): a dead parapet segment is a HOLE -
+## NavBaker's breach re-bake makes it walkable - and squads whose lane sits nearer the
+## hole than the gate re-aim through it (_scan_breaches). The gate stays the default
+## lane until a hole exists.
 const ASSAULT_SQUADS: int = 4
 ## How far apart the squads come in. Deliberately wide: the point is that they do NOT arrive
 ## as one wedge; each squad still spreads its own cells within its lane.
@@ -349,6 +350,71 @@ func _build_assault(count: int) -> void:
 		% [ASSAULT_SQUADS, SQUAD_SPREAD_DEG, SUPPORT_SQUAD])
 
 
+## ---------- BREACHES ----------
+## His ruling 2026-08-13: "assault squads should be using the blown holes yes
+## otherwise whats the point of blowing it up." A hole is a dead FSB_PARAPET_GROUP
+## member; the breach re-bake has made it walkable. Squads re-aim through it when
+## the hole is nearer their bearing than the gate; the base of fire keeps
+## shooting and sappers keep their own charge logic.
+const BREACH_SCAN_S: float = 1.5
+## How far INSIDE the wire the re-aim lands - through the hole, into the
+## compound, so the press continues rather than parking men in the gap.
+const BREACH_INSIDE_M: float = 12.0
+var _breach_scan_t: float = 0.0
+var _dead_segs: Dictionary = {}
+
+
+func _scan_breaches(step: float) -> void:
+	_breach_scan_t -= step
+	if _breach_scan_t > 0.0:
+		return
+	_breach_scan_t = BREACH_SCAN_S
+	var tree := get_tree()
+	if tree == null:
+		return
+	for s in tree.get_nodes_in_group(SitePlanner.FSB_PARAPET_GROUP):
+		var d := s as Destructible
+		if d == null or not is_instance_valid(d) or not d.is_destroyed():
+			continue
+		var id: int = d.get_instance_id()
+		if _dead_segs.has(id):
+			continue
+		_dead_segs[id] = true
+		_redirect_through_breach(d.global_position)
+
+
+func _redirect_through_breach(hole: Vector3) -> void:
+	var th: Vector3 = hole - fsb_center
+	var hole_bearing: float = atan2(th.z, th.x)
+	var gate_bearing: float = hole_bearing + PI
+	if director != null and director.patrol_gate_pos != Vector3.ZERO:
+		var tg: Vector3 = director.patrol_gate_pos - fsb_center
+		gate_bearing = atan2(tg.z, tg.x)
+	var inside: Vector3 = hole + (fsb_center - hole).normalized() * BREACH_INSIDE_M
+	inside.y = 0.0
+	var support_tag: String = "siege_assault_%d" % SUPPORT_SQUAD
+	var moved: int = 0
+	for c in cells:
+		var cell := c as MarchingCell
+		if cell == null or not is_instance_valid(cell):
+			continue
+		if cell.carries_charge or cell.group_tag == support_tag:
+			continue
+		var cb: Vector3 = cell.global_position - fsb_center
+		var cell_bearing: float = atan2(cb.z, cb.x)
+		if absf(angle_difference(cell_bearing, hole_bearing)) \
+				>= absf(angle_difference(cell_bearing, gate_bearing)):
+			continue
+		cell.objective = inside
+		for m in cell.men:
+			if m != null and is_instance_valid(m) and not m.is_dead():
+				m.assault_objective = inside
+		moved += 1
+	if moved > 0:
+		print("[Siege] BREACH at (%.0f,%.0f): %d cell(s) press through the hole"
+			% [hole.x, hole.z, moved])
+
+
 func _spawn_cells_for(count: int, data: String, tag: String, charges: bool,
 		bearing: float, aim: Vector3) -> void:
 	var remaining: int = count
@@ -379,6 +445,7 @@ func _run_siege(step: float) -> void:
 	_light_check()
 	_enforce_live_cap()
 	_rotate_press(step)
+	_scan_breaches(step)
 	_check_overrun()
 	if _elapsed >= MAX_DURATION_S:
 		_break_siege("dawn")

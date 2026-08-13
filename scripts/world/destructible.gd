@@ -40,8 +40,10 @@ const RUIN_FOR: Dictionary = {
 ## fall back to explosion_heavy - the artillery class - so a 42-card wire belt went up
 ## as 42 artillery bursts.
 const BLAST_FOR: Dictionary = {
-	"hut_thatch": "explosion_napalm",
-	"hut_timber": "explosion_napalm",
+	# Mortar-sized, not napalm-sized (his ruling 2026-08-13) - the hut's READ is
+	# the burst + catching fire + the burned-model swap, not a giant fireball.
+	"hut_thatch": "explosion_mortar",
+	"hut_timber": "explosion_mortar",
 	"wire": "explosion_40mm",
 	"sandbag_stack": "explosion_40mm",
 	"sandbag": "explosion_grenade",
@@ -49,6 +51,16 @@ const BLAST_FOR: Dictionary = {
 	"tower": "explosion_grenade",
 	"bunker": "explosion_mortar",
 	"bunker_mg": "explosion_mortar",
+}
+
+
+## Kinds that BURN when they die (his ruling 2026-08-13: a hooch should "just
+## burst and catch on fire with effects and switch to their burned model").
+## [radius_m, seconds] - the radius covers the RUIN, never the approach ground,
+## so a burning hut is a hazard inside itself and safe to fight around.
+const BURN_FOR: Dictionary = {
+	"hut_thatch": [4.0, 22.0],
+	"hut_timber": [3.5, 18.0],
 }
 
 
@@ -185,6 +197,10 @@ func _do_destroy() -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = destroyed_mesh
 		add_child(mi)
+	var burn: Array = BURN_FOR.get(kind, [])
+	if not burn.is_empty() and is_inside_tree():
+		FireHazard.create_at(get_tree().current_scene, global_position,
+			float(burn[0]), float(burn[1]))
 	remove_from_group("soft_cover")
 	remove_from_group("hard_surface")
 	# THE HOLE MUST BE WALKABLE, or destruction is decoration. The colliders above are now
