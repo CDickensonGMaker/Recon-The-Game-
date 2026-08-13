@@ -3,6 +3,10 @@
 class_name GameFlow
 extends Node
 
+## Preloaded, not by class_name: a global class is not registered until the editor
+## rescans, so a fresh script fails every headless run.
+const TITLE_SPLASH := preload("res://scripts/ui/screens/title_splash.gd")
+
 var current_screen: Node = null
 var world: GameWorld = null
 var director: FieldDirector = null
@@ -29,9 +33,19 @@ func _ready() -> void:
 	# the wrong seed and throw it away.
 	if GameFlow.demo_mode:
 		return
-	# Boot lands in the patrol, not on the menu. The menu stays reachable at
-	# Esc -> QUIT TO MENU. Swap this call back to show_menu() to restore it.
-	start_default_operation()
+	# THE TITLE CARD COMES FIRST. Boot used to land straight in the patrol, so the first
+	# thing anyone saw was terrain streaming in. The card holds until he clicks, then the
+	# menu comes up behind it.
+	show_title()
+
+
+## Splash -> menu. The card is added over whatever is there and frees itself on dismiss,
+## so it never has to know what it is covering - which is why the demo can reuse it.
+func show_title() -> void:
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	var splash: Control = TITLE_SPLASH.new()
+	splash.dismissed.connect(show_menu)
+	add_child(splash)
 
 
 func _unhandled_input(event: InputEvent) -> void:

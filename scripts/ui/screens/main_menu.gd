@@ -9,7 +9,9 @@ signal barracks_pressed
 signal record_pressed
 signal settings_pressed
 
-const BG := preload("res://assets/ui/menu_bg.png")
+## The title card IS the menu background (his ruling 2026-08-12), so the splash and the
+## menu are one continuous image - the card does not cut to a different picture.
+const BG := preload("res://assets/ui/title_logo.jpg")
 
 var _buttons: Array[Button] = []
 

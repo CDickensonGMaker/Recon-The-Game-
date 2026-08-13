@@ -12,6 +12,10 @@
 class_name DemoGame
 extends Node
 
+## Preloaded, not by class_name: a global class is not registered until the editor
+## rescans, so a fresh script fails every headless run.
+const TITLE_SPLASH := preload("res://scripts/ui/screens/title_splash.gd")
+
 const DEMO_SEED: int = 29072026
 const DEMO_NAME := "FIREBASE HOLDOUT"
 
@@ -104,6 +108,12 @@ func _ready() -> void:
 		_wipe_demo_sandbox()
 		CampaignState.reset_campaign()
 	SimClock.real_to_sim_ratio = DAY_RATIO
+	# THE TITLE CARD FIRST, same as the campaign. The demo builds its world behind it, so
+	# the card covers the terrain streaming in rather than being a wait bolted in front of
+	# it. Probe runs skip it: a headless gate must never sit waiting for a click.
+	if not _is_probe_run():
+		var splash: Control = TITLE_SPLASH.new()
+		add_child(splash)
 	GameFlow.demo_mode = true
 	_flow = GameFlow.new()
 	add_child(_flow)
@@ -125,6 +135,16 @@ func _ready() -> void:
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
 		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
 		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
+
+
+## Any probe/automation flag means nobody is at the keyboard to dismiss a splash.
+func _is_probe_run() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return true
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--") and a.ends_with("-probe"):
+			return true
+	return false
 
 
 func _wipe_demo_sandbox() -> void:
