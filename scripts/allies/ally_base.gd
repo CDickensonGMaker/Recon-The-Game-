@@ -1751,35 +1751,18 @@ const ALLY_COVER_FAR_OFFSETS: Array[Vector3] = [
 ]
 
 
-## Standing eye. Anything that blocks THIS is cover he can fight from on his feet.
-const COVER_EYE_STAND: float = 1.3
-## Prone eye. A felled log tops out ~0.85m: it blocks this and never the one above, which
-## is why timber that stops rounds was never claimed. A candidate that only passes here is
-## LOW cover - real, but only from the deck.
-const COVER_EYE_PRONE: float = 0.45
-
-
 func _sweep_cover(space_state: PhysicsDirectSpaceState3D, threat_pos: Vector3,
 		offsets: Array[Vector3], low_out: Array[Vector3] = []) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
 	for off in offsets:
 		var candidate: Vector3 = global_position + off
-		if _blocked_from(space_state, candidate, threat_pos, COVER_EYE_STAND):
+		if EnemyBase.cover_blocked_from(space_state, candidate, threat_pos,
+				EnemyBase.COVER_EYE_STAND, self):
 			candidates.append(candidate)
-		elif _blocked_from(space_state, candidate, threat_pos, COVER_EYE_PRONE):
+		elif EnemyBase.cover_blocked_from(space_state, candidate, threat_pos,
+				EnemyBase.COVER_EYE_PRONE, self):
 			low_out.append(candidate)
 	return candidates
-
-
-func _blocked_from(space_state: PhysicsDirectSpaceState3D, candidate: Vector3,
-		threat_pos: Vector3, eye: float) -> bool:
-	var origin: Vector3 = candidate + Vector3.UP * eye
-	var query := PhysicsRayQueryParameters3D.create(
-		origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
-	query.exclude = [self]
-	CombatManager.rays_cover += 1
-	var hit: Dictionary = space_state.intersect_ray(query)
-	return hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M
 
 
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.

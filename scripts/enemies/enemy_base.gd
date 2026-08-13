@@ -131,6 +131,8 @@ const COVER_SEARCH_OFFSETS: Array[Vector3] = [
 ## A blocker only makes a candidate COVER when it stands within this of the man;
 ## geometry further along the ray to the threat shadows the spot without protecting it.
 const COVER_BLOCKER_MAX_M: float = 2.5
+## The claimed cover only works from the deck. Drives the prone commit, same as the ally's.
+var cover_is_low: bool = false
 
 var patrol_route: Array[Vector3] = []
 var _patrol_index: int = 0
@@ -506,7 +508,8 @@ func _update_prone_latch(now: float, speed: float) -> void:
 			_prone_pin_since_ms = 0.0
 			_prone_rise_until_ms = now + PRONE_TRANSITION_MS
 		return
-	if CombatPosture.wants_prone(current_state, suppression_level, moving):
+	if CombatPosture.wants_prone(current_state, suppression_level, moving,
+			has_cover and cover_is_low):
 		if _prone_pin_since_ms <= 0.0:
 			_prone_pin_since_ms = now
 		elif now - _prone_pin_since_ms >= CombatPosture.PRONE_ENTER_HOLD_S * 1000.0:
@@ -2120,20 +2123,53 @@ func _find_bound_point(to_target: Vector3) -> Vector3:
 
 ## Sample nearby points that block line-of-sight to the threat; claim the
 ## closest unclaimed one. Live raycasts against world geometry, no authored markers.
+## Standing eye, and the prone eye beneath it. ONE definition, read by both brains: the
+## cover constants already live here and AllyBase already reads them, so a second copy of
+## the ray test is exactly the divergence the fossil law forbids.
+const COVER_EYE_STAND: float = 1.3
+## A felled log tops out ~0.85m (tree_break_system.gd:450-463). It blocks this and never
+## the one above, which is why timber that stops rounds was never scored as cover.
+const COVER_EYE_PRONE: float = 0.45
+
+
+## Is the line from `candidate` (at `eye` height) to the threat blocked by something CLOSE
+## enough to be cover rather than distant scenery?
+static func cover_blocked_from(space_state: PhysicsDirectSpaceState3D, candidate: Vector3,
+		threat_pos: Vector3, eye: float, exclude: Node) -> bool:
+	var origin: Vector3 = candidate + Vector3.UP * eye
+	var query := PhysicsRayQueryParameters3D.create(
+		origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
+	query.exclude = [exclude]
+	CombatManager.rays_cover += 1
+	var hit: Dictionary = space_state.intersect_ray(query)
+	return hit and (hit.position as Vector3).distance_to(origin) <= COVER_BLOCKER_MAX_M
+
+
 func _find_cover_point() -> Vector3:
 	var threat_pos: Vector3 = last_known_target_pos if last_known_target_pos != Vector3.ZERO else global_position
 	var space_state := get_world_3d().direct_space_state
 	var candidates: Array[Vector3] = []
+	# Low cover is collected but never preferred: a wall he can fight from standing beats a
+	# log he has to lie down behind, so it is used only if nothing upright turns up.
+	var low: Array[Vector3] = []
 	for off in COVER_SEARCH_OFFSETS:
 		var candidate: Vector3 = global_position + off
-		var origin: Vector3 = candidate + Vector3.UP * 1.3
-		var query := PhysicsRayQueryParameters3D.create(
-			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
-		query.exclude = [self]
-		CombatManager.rays_cover += 1
-		var hit: Dictionary = space_state.intersect_ray(query)
-		if hit and (hit.position as Vector3).distance_to(origin) <= COVER_BLOCKER_MAX_M:
+		if EnemyBase.cover_blocked_from(space_state, candidate, threat_pos,
+				COVER_EYE_STAND, self):
 			candidates.append(candidate)
+		elif EnemyBase.cover_blocked_from(space_state, candidate, threat_pos,
+				COVER_EYE_PRONE, self):
+			low.append(candidate)
+	var picked: Vector3 = _claim_nearest(candidates)
+	if picked != Vector3.ZERO:
+		cover_is_low = false
+		return picked
+	picked = _claim_nearest(low)
+	cover_is_low = picked != Vector3.ZERO
+	return picked
+
+
+func _claim_nearest(candidates: Array[Vector3]) -> Vector3:
 	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
 		return global_position.distance_to(a) + EnemyBase._crowding_cost(a) \
 			< global_position.distance_to(b) + EnemyBase._crowding_cost(b))
