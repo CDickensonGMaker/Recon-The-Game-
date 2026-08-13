@@ -1583,3 +1583,18 @@ real lip, eyeball at next playtest) · **the demo gate RE-OPENS: the validated s
 the fictional mesh — the siege night needs his re-play.** New decision-queue items: should
 assault squads use sapper breaches now that breach re-bakes exist? (siege still converges
 on the gate by design.)
+
+## 2026-08-13 — THE FULL AUDIT (his order), fixed same day
+
+Four auditors, record + synthesis at `war_room/2026-08-13_full_audit/`. Shipped `d2f8f013`.
+**Suite: 107 PASS / 17 LEAK / 19 FAIL / 0 TIMEOUT of 143** (morning 103/20/20); only REGRESS
+is the known water item. Fixed: the demo's Esc→menu two-click self-destruct (demo quit =
+RESTART DAY) · siege materialize ring center-trued (measured 47.2m astray, worse than
+audited) · stray-parapet twin lookup alias-blindness (adoption now PROVEN — twin found,
+stray offset) · CH-47 door guns aimed out the nose (outward from seat yaw now) · fossil
+machine gained `static func` sight (4 fossils cut, use_large grandfathered for his
+wire-or-cut) · 521MB tracked _PRE_ blend backups untracked · office-chair texture committed
+(fresh clone builds) · viewmodel_contract KnownRed'd (new breaks visible again) ·
+END_AT_S doc drift purged (CLAUDE.md + GAME_GUIDE). IN FLIGHT: the crashed-aircraft
+commission (Skyraider rebuild + Huey + Phantom, his four rulings encoded). His replay of
+the siege night remains the day's price: the validated siege ran on the fictional mesh.

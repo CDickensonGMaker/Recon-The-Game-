@@ -2,6 +2,22 @@
 
 ---
 
+## ADDENDUM 2, 2026-08-13 evening — the whole day session in one paragraph
+
+Four commits pushed (`f6b323a6` napalm scale · `a5d077a7` nav-truth · `d2f8f013` full audit
+· records). The napalm ladder re-anchored to the canopy (~60m/drop, the RUN is the
+spectacle) with the size knob live on the fire range. **The navmesh under the compound was
+FICTION** (baked on the flat seat 1.7m under the mound — your "AI can get in and I can't");
+it walks the real geometry now, per your decree. Casualty figures read as flesh (144 parts,
+not 548), the 81st parapet segment dies, the Chinook seats its men inside its own hull, the
+demo's Esc→menu trap is RESTART DAY, the siege pop-ring is center-true (was 47.2m astray).
+Full audit ran and its findings are fixed; suite 107/17/19/0 of 143 vs your 103/20/20.
+Crashed Skyraider rebuild + crashed Huey + crashed Phantom are building headless per your
+four rulings. **Your queue: replay the siege night (the honest mesh re-opens the gate), the
+decision list in `DEMO_SHIP_BACKLOG.md` §2026-08-13, cover-seek lands next watched session.**
+
+---
+
 ## ADDENDUM, 2026-08-13 day session — the scale-pipeline job below is DONE (awaiting your eye)
 
 The napalm/bench job in the next section was measured, war-roomed (4 architects,
