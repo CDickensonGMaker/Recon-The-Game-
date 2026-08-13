@@ -2,6 +2,64 @@
 
 ---
 
+## NEXT SESSION STARTS HERE
+
+**16 commits, all pushed, `master` in sync. Nothing is stranded.**
+
+### The job he asked for and I have not started
+**The bench/test scene is a different SCALE from the game world.** His words: the napalm *"comes
+off like a nuclear bomb"*, and *"the scene I've been testing them in isn't the right scale as to
+what the game world scale is, so there's discrepancies between those tools and the pipeline to
+the real thing."* If true, **every VFX size tuned on the bench reads wrong in game** — which makes
+it a pipeline defect, not a napalm defect, and nudging the napalm scalar would paper over it.
+
+**Measure before touching any scalar.** There is precedent: the explosion size ladder was inert
+once already because the number being tuned was disconnected from what actually draws
+(`godot-billboard-discards-node-scale` — Godot billboards discard node scale). Establish first
+whether the bench and the world agree on a metre, then whether the VFX size input reaches the
+drawn quad at all.
+
+### Open, his side (Blender / bench — I cannot do these)
+- **Ladder MESH** for the four tower `ladder_bottom`/`ladder_top` pairs, 7.4 m apart. The climb
+  works; **no ladder mesh exists anywhere in the project.** He saw the bare markers in play.
+- **HQ**, **village interiors and cabinets**, and the **non-gun handheld exports** with proper
+  hit-placement markers.
+- **M72 LAW has no viewmodel at all** — `m72_law.tres` has `model_path = ""` and `m72_law_fp.glb`
+  was never exported. That is why `test_viewmodel_contract` is red. The manifest declares
+  `RIG_M72_LAW`.
+- **Re-export RPD and RPG-2** — `python tools/export_all_viewmodels.py rpd rpg2`. The manifest now
+  passes the `--strict` gate (0.95 → 1.20 on the RPG-2).
+- **Re-aim m60 / m79 / shotgun on the bench** — hip and ADS are 35.69 / 11.37 / 59.03 m apart.
+  The suite prints those spans every run and they are grandfathered until fixed.
+- **Blender renames**: the med/chow soft+destructible ruling, and the 242 hard `fb_hwall_*` hooch
+  walls whose own screens and roofs are soft.
+
+### Open, code side
+- **His bunker-entry blocker is PHYSICS, not nav.** Measured: **37 of 37** bunker fire points
+  reachable (`tools/probe_bunker_entry.tscn`). He is a 0.4 m capsule and nav erodes 0.5 m from
+  every wall, so anywhere reachable already fits him. Look for colliders **solid to physics and
+  invisible to pathing** — `fb_veg_` and `fb_hootch_roof_` are still in that state by design.
+- **Cover-seek stops 4–5 m short.** ~1–2 h, but it moves men closer to every wall the siege was
+  tuned against — do it while he can watch.
+- **548 character-part colliders** tagged `hard_surface` — men who stop rounds with no hit
+  reaction and carve navmesh.
+- **`test_height_authority` is the only REGRESS left**, and it is the **water** geometry defect:
+  *"water surface sits 26.71 m off the carved bed (tol 2.50)"*, 9 of its 10 checks pass.
+- **The Chinook still has no authored seat markers** — it runs on the auto-generated UH-1 fallback
+  layout, which is the wrong size for that airframe even though the dismount now works.
+
+### Things NOT to re-learn (each cost real time this session)
+- **HOT_CAP is 50**, not 20 — the 45-man assault has no cold set at all.
+- **`[FSB] 0 concave shape(s)` can never print 0.** It prints **2048**, verified live. Strike it
+  from every checklist.
+- **The `model_actor` donor-prefix diagnosis was REFUTED** — parse the asset before writing a fix.
+- **The AUDIT-12 leak column is flaky**: LEAK, LEAK, PASS on byte-identical code. Never convict a
+  change on a single leak reading; FAIL/PASS is the stable signal.
+
+---
+
+---
+
 ## 0. SECOND WAVE (written after he woke and said "keep working on everything we didn't finish")
 
 **`test_nav_path` was never hanging, and the nav bake was never slow. TIMEOUT 420s → PASS 10.8s.**
