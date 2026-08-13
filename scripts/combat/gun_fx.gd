@@ -25,6 +25,7 @@ static func reset_session() -> void:
 	_sting_cooldown_until = 0
 	_active_flashes = 0
 	_active_impacts = 0
+	bench_size_mult = 1.0
 	_explosion_nodes.clear()
 	_linger_nodes.clear()
 	_blood_tex.clear()  # static cache would otherwise hold textures to process exit (leak scan)
@@ -111,25 +112,27 @@ static func play_click(parent: Node) -> void:
 
 ## Visual scale per ordnance class (ADR-016 lethality decree: an RPG must READ
 ## bigger than a grenade; arty bigger than both).
-## Sizes are anchored to the Summoner's ruling 2026-08-12, stated in map widths:
-## the demo square is 512m, napalm covers it, artillery covers about half, and a
-## grenade is small. Rendered width = fireball quad 2.2m x particle scale
-## 0.8-1.3 (avg ~1.05) x _KIND_SCALE x ORDNANCE_VISUAL_MULT, so at mult 2.0:
-##   40mm ~3m · grenade ~4.6m · rocket ~18m · mortar ~37m · heavy ~111m ·
-##   napalm ~513m
+## Sizes anchor to the CANOPY, not the map: the tallest shipped tree is 13.378m
+## (data/veg_break_bands.json, measured off the GLBs), and every class is judged
+## at player eye height against that treeline. Map-width anchoring was overturned
+## 2026-08-13 (war_room/2026-08-13_napalm_scale/) - a size ruled from a god
+## camera does not transfer to the ground. Rendered width = fireball quad 2.2m x
+## particle scale 0.8-1.3 (avg ~1.05) x _KIND_SCALE x ORDNANCE_VISUAL_MULT, so
+## at mult 2.0:
+##   40mm ~3m · grenade ~4.6m · rocket ~18m · mortar ~28m · heavy ~46m ·
+##   napalm ~60m
 const _KIND_SCALE: Dictionary = {
 	"explosion_grenade": 1.0,
 	"explosion_40mm": 0.7,
 	"explosion_rocket": 4.0,
-	# Mortar sits between the grenade and the artillery shock by his ruling -
-	# ~46m against 4.6m and 254m, which is the geometric middle of that span.
-	"explosion_mortar": 10.0,
-	"explosion_heavy": 24.0,
-	# Napalm is not an explosion class, it is a WALL OF FIRE: one drop covers the
-	# whole 512m demo square, and a run is 9 drops on 22m spacing. Deliberately
-	# map-sized; see _scorch(), which clamps its decal because the matching burn
-	# mark would otherwise carpet the level.
-	"explosion_napalm": 111.0,
+	"explosion_mortar": 6.0,
+	"explosion_heavy": 10.0,
+	# Napalm's spectacle is the RUN, not the drop: 9 cans on 22m spacing read as
+	# one ~240m rolling chain - the same lane FirePlan authors for the damage and
+	# the 25s burn. Per-drop ~60m = the lane's width = ~4.5 canopies; one drop
+	# must never dome the map. See _scorch(), which clamps the burn decal to the
+	# ordnance's real footprint.
+	"explosion_napalm": 13.0,
 }
 ## Spectacle multiplier on TOP of the class ladder.
 ##
@@ -153,12 +156,27 @@ const _AUDIO_KIND: Dictionary = {"explosion_napalm": "explosion_heavy"}
 const _KIND_LIFE: Dictionary = {"explosion_napalm": 2.6, "explosion_mortar": 2.0}
 
 
+## Live size knob for the RULING bench only (support_fire_range [ / ]): sweeps
+## every explosion through the REAL path so the Summoner's taste pass needs no
+## code edit. The world never sets it; MissionScope resets it via reset_session.
+static var bench_size_mult: float = 1.0
+
+
+## Rendered fireball width for a kind under the current mults. The ONE place
+## the fireball-quad (2.2m) x avg-particle-scale (1.05) formula lives - benches
+## and probes read it from here, never re-type it.
+static func rendered_width_m(kind: String) -> float:
+	return 2.2 * 1.05 * float(_KIND_SCALE.get(kind, 1.0)) * ORDNANCE_VISUAL_MULT * bench_size_mult
+
+
 ## `visual_mult` exists for the callers whose event is NOT ordnance (a tree
-## crashing down, a structure collapsing) - they pass 1.0 to stay off the x5.
+## crashing down, a structure collapsing) - they pass 1.0 to stay off the
+## ordnance spectacle mult.
 static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explosion_grenade",
 		visual_mult: float = ORDNANCE_VISUAL_MULT) -> void:
 	AudioManager.play_explosion_3d(pos, String(_AUDIO_KIND.get(kind, kind)))
-	_spawn_explosion_visual(parent, pos, float(_KIND_SCALE.get(kind, 1.0)) * visual_mult,
+	_spawn_explosion_visual(parent, pos,
+		float(_KIND_SCALE.get(kind, 1.0)) * visual_mult * bench_size_mult,
 		float(_KIND_LIFE.get(kind, 1.0)), kind)
 
 
@@ -292,7 +310,9 @@ static func _burst(root: Node3D, amount: int, lifetime: float, proc: ParticlePro
 
 ## Lingering smoke has its OWN cap: it lives ~3.5s, so under a barrage it would
 ## otherwise saturate MAX_EXPLOSIONS and silence the flashes (siege arty bug).
-const MAX_LINGER: int = 8
+## Must be >= FirePlan.NAPALM_DROPS (9): a napalm run lands all its drops inside
+## one lifetime, and at 8 the last canister of EVERY run got no smoke column.
+const MAX_LINGER: int = 9
 static var _linger_nodes: Array[Node3D] = []
 
 const MAX_SCORCH: int = 12
@@ -347,21 +367,42 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	# flame, and additive blending renders black as nothing - the soot simply
 	# vanishes and the era look with it. Mixed blending is the whole reason the
 	# sheets were authored with the smoke inside the fire frames.
-	var fire_proc := _fx_proc("expl_fire_proc", func(p: ParticleProcessMaterial) -> void:
-		p.direction = Vector3.UP
-		p.spread = 25.0
-		p.initial_velocity_min = 0.6
-		p.initial_velocity_max = 1.6
-		p.gravity = Vector3(0, 1.2, 0)
-		p.scale_min = 0.8
-		p.scale_max = 1.3
-		# Higher randomness so the extra sprites stagger across the hold instead
-		# of all playing the sheet at once.
-		p.lifetime_randomness = 0.55
-		p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		p.emission_sphere_radius = 0.35
-		_play_sheet_once(p))
+	#
+	# Napalm rides its own cached procs: local_coords scales VELOCITY by root
+	# scale, so the shared ordnance figures at napalm's root scale still climb
+	# hundreds of metres and read as a mushroom column. Napalm's bound is event
+	# top <= ~2x its width - petrol blooms and hangs, it does not launch.
 	var is_mortar: bool = kind == "explosion_mortar"
+	var is_napalm: bool = kind == "explosion_napalm"
+	var fire_proc: ParticleProcessMaterial
+	if is_napalm:
+		fire_proc = _fx_proc("napalm_fire_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 25.0
+			p.initial_velocity_min = 0.25
+			p.initial_velocity_max = 0.6
+			p.gravity = Vector3(0, 0.1, 0)
+			p.scale_min = 0.8
+			p.scale_max = 1.3
+			p.lifetime_randomness = 0.55
+			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			p.emission_sphere_radius = 0.35
+			_play_sheet_once(p))
+	else:
+		fire_proc = _fx_proc("expl_fire_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 25.0
+			p.initial_velocity_min = 0.6
+			p.initial_velocity_max = 1.6
+			p.gravity = Vector3(0, 1.2, 0)
+			p.scale_min = 0.8
+			p.scale_max = 1.3
+			# Higher randomness so the extra sprites stagger across the hold instead
+			# of all playing the sheet at once.
+			p.lifetime_randomness = 0.55
+			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			p.emission_sphere_radius = 0.35
+			_play_sheet_once(p))
 	var fire_mesh: QuadMesh
 	if is_mortar:
 		fire_mesh = _fx_quad("expl_mortar_quad", 2.2,
@@ -374,12 +415,13 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	# 2b. hot core: the additive inner layer the alpha fireball can't provide.
 	# Skipped for mortar - a ground burst is dirt, not a fireball.
 	if not is_mortar:
-		var core_proc := _fx_proc("expl_core_proc", func(p: ParticleProcessMaterial) -> void:
+		var core_key := "napalm_core_proc" if is_napalm else "expl_core_proc"
+		var core_proc := _fx_proc(core_key, func(p: ParticleProcessMaterial) -> void:
 			p.direction = Vector3.UP
 			p.spread = 12.0
-			p.initial_velocity_min = 0.3
-			p.initial_velocity_max = 0.9
-			p.gravity = Vector3(0, 0.8, 0)
+			p.initial_velocity_min = 0.15 if is_napalm else 0.3
+			p.initial_velocity_max = 0.45 if is_napalm else 0.9
+			p.gravity = Vector3(0, 0.1 if is_napalm else 0.8, 0)
 			p.scale_min = 0.6
 			p.scale_max = 0.9
 			p.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
@@ -389,12 +431,14 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 			_fx_quad("expl_core_quad", 1.5,
 				_sheet_mat("expl_core_mat", "sheets/fire_core_sheet", 4, 4, true)), 0.65)
 
-	# 2c. embers: rising sparks, additive.
-	var ember_proc := _fx_proc("expl_ember_proc", func(p: ParticleProcessMaterial) -> void:
+	# 2c. embers: rising sparks, additive. Napalm's arc lower and fall - thrown
+	# burning gel, not launch sparks.
+	var ember_key := "napalm_ember_proc" if is_napalm else "expl_ember_proc"
+	var ember_proc := _fx_proc(ember_key, func(p: ParticleProcessMaterial) -> void:
 		p.direction = Vector3.UP
 		p.spread = 45.0
-		p.initial_velocity_min = 2.5
-		p.initial_velocity_max = 6.0
+		p.initial_velocity_min = 1.2 if is_napalm else 2.5
+		p.initial_velocity_max = 3.0 if is_napalm else 6.0
 		p.gravity = Vector3(0, -3.0, 0)
 		p.scale_min = 0.05
 		p.scale_max = 0.14
@@ -405,57 +449,67 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	_burst(root, 14, 1.1 * lifetime_mult + EXPLOSION_HOLD_S, ember_proc,
 		_fx_quad("expl_ember_quad", 0.5, ember_mat), 0.5)
 
-	# 3. shock ring: flat additive disc, tween-expanded.
-	var ring := MeshInstance3D.new()
-	var ring_mesh := QuadMesh.new()
-	ring_mesh.size = Vector2(1.0, 1.0)
-	ring.mesh = ring_mesh
-	var ring_mat := StandardMaterial3D.new()
-	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	ring_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	ring_mat.albedo_texture = _fx_tex("particles/circle_05")
-	ring_mat.albedo_color = Color(1.0, 0.8, 0.5, 0.7)
-	ring_mat.emission_enabled = true
-	ring_mat.emission = Color(1.0, 0.7, 0.3)
-	ring_mat.emission_energy_multiplier = 2.0
-	ring.material_override = ring_mat
-	ring.rotation_degrees.x = -90.0
-	ring.position.y = 0.15
-	root.add_child(ring)
+	# 3. shock ring: flat additive disc, tween-expanded. NOT for napalm - a
+	# ground ring under a fire bloom is the nuclear schema (ring + pop + column);
+	# petrol has no shockwave worth drawing.
+	var ring: MeshInstance3D = null
+	var ring_mat: StandardMaterial3D = null
+	if not is_napalm:
+		ring = MeshInstance3D.new()
+		var ring_mesh := QuadMesh.new()
+		ring_mesh.size = Vector2(1.0, 1.0)
+		ring.mesh = ring_mesh
+		ring_mat = StandardMaterial3D.new()
+		ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		ring_mat.albedo_texture = _fx_tex("particles/circle_05")
+		ring_mat.albedo_color = Color(1.0, 0.8, 0.5, 0.7)
+		ring_mat.emission_enabled = true
+		ring_mat.emission = Color(1.0, 0.7, 0.3)
+		ring_mat.emission_energy_multiplier = 2.0
+		ring.material_override = ring_mat
+		ring.rotation_degrees.x = -90.0
+		ring.position.y = 0.15
+		root.add_child(ring)
 
-	# 4. dirt column.
-	var dirt_proc := _fx_proc("expl_dirt_proc", func(p: ParticleProcessMaterial) -> void:
-		p.direction = Vector3.UP
-		p.spread = 14.0
-		p.initial_velocity_min = 5.0
-		p.initial_velocity_max = 9.0
-		p.gravity = Vector3(0, -9.0, 0)
-		p.scale_min = 0.5
-		p.scale_max = 1.1
-		p.lifetime_randomness = 0.3
-		p.color = Color(0.42, 0.35, 0.24)
-		p.color_ramp = _smoke_fade_ramp())
-	_burst(root, 8, 1.0 * lifetime_mult, dirt_proc,
-		_fx_quad("expl_dirt_quad", 1.4, _plain_mat("expl_dirt_mat", "particles/dirt_01")), 0.2)
+	# 4. dirt column. Skipped for napalm: a petrol bloom throws fire, not earth,
+	# and at napalm's root scale the shared column velocities read as a launch.
+	if not is_napalm:
+		var dirt_proc := _fx_proc("expl_dirt_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 14.0
+			p.initial_velocity_min = 5.0
+			p.initial_velocity_max = 9.0
+			p.gravity = Vector3(0, -9.0, 0)
+			p.scale_min = 0.5
+			p.scale_max = 1.1
+			p.lifetime_randomness = 0.3
+			p.color = Color(0.42, 0.35, 0.24)
+			p.color_ramp = _smoke_fade_ramp())
+		_burst(root, 8, 1.0 * lifetime_mult, dirt_proc,
+			_fx_quad("expl_dirt_quad", 1.4, _plain_mat("expl_dirt_mat", "particles/dirt_01")), 0.2)
 
-	# 5. debris chunks.
+	# 5. debris chunks. Skipped for napalm (same launch problem; the embers carry
+	# the thrown-matter read there).
 	# Debris was 12 chunks at scale 0.06-0.16 on an UNTEXTURED quad. Multiplied by
-	# the x5 spectacle scale that is a ~1m flat coloured square - the "blocks".
-	# Many small textured specks read as thrown earth; few big ones read as cards.
-	var debris_proc := _fx_proc("expl_debris_proc", func(p: ParticleProcessMaterial) -> void:
-		p.direction = Vector3.UP
-		p.spread = 60.0
-		p.initial_velocity_min = 5.0
-		p.initial_velocity_max = 13.0
-		p.gravity = Vector3(0, -20.0, 0)
-		p.scale_min = 0.015
-		p.scale_max = 0.05
-		p.lifetime_randomness = 0.4
-		p.color = Color(0.26, 0.21, 0.15))
-	_burst(root, 48, 0.9 * lifetime_mult, debris_proc,
-		_fx_quad("expl_debris_quad", 1.0,
-			_plain_mat("expl_debris_mat", "particles/dirt_02")), 0.3)
+	# the ordnance spectacle scale that is a ~1m flat coloured square - the
+	# "blocks". Many small textured specks read as thrown earth; few big ones
+	# read as cards.
+	if not is_napalm:
+		var debris_proc := _fx_proc("expl_debris_proc", func(p: ParticleProcessMaterial) -> void:
+			p.direction = Vector3.UP
+			p.spread = 60.0
+			p.initial_velocity_min = 5.0
+			p.initial_velocity_max = 13.0
+			p.gravity = Vector3(0, -20.0, 0)
+			p.scale_min = 0.015
+			p.scale_max = 0.05
+			p.lifetime_randomness = 0.4
+			p.color = Color(0.26, 0.21, 0.15))
+		_burst(root, 48, 0.9 * lifetime_mult, debris_proc,
+			_fx_quad("expl_debris_quad", 1.0,
+				_plain_mat("expl_debris_mat", "particles/dirt_02")), 0.3)
 
 	# 6. lingering smoke: own root + own cap so barrages keep their flashes.
 	_linger_nodes = _linger_nodes.filter(func(n: Variant) -> bool: return is_instance_valid(n))
@@ -465,12 +519,16 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		linger_root.global_position = pos
 		linger_root.scale = Vector3.ONE * scale_mult
 		_linger_nodes.append(linger_root)
-		var linger_proc := _fx_proc("expl_linger_proc", func(p: ParticleProcessMaterial) -> void:
+		# Napalm's slow variant: the smoke rides the same root scale as the
+		# fireball, so the shared drift rates would push its column kilometres up
+		# over the linger lifetime.
+		var linger_key := "napalm_linger_proc" if is_napalm else "expl_linger_proc"
+		var linger_proc := _fx_proc(linger_key, func(p: ParticleProcessMaterial) -> void:
 			p.direction = Vector3.UP
 			p.spread = 30.0
-			p.initial_velocity_min = 0.7
-			p.initial_velocity_max = 1.6
-			p.gravity = Vector3(0, 0.5, 0)
+			p.initial_velocity_min = 0.2 if is_napalm else 0.7
+			p.initial_velocity_max = 0.5 if is_napalm else 1.6
+			p.gravity = Vector3(0, 0.05 if is_napalm else 0.5, 0)
 			p.scale_min = 1.0
 			p.scale_max = 1.8
 			p.lifetime_randomness = 0.35
@@ -493,17 +551,17 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	tw.set_parallel(true)
 	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.3 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6))
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
-	tw.tween_property(ring, "scale", Vector3(4.5, 4.5, 4.5), 0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
-	tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
+	if ring != null:
+		tw.tween_property(ring, "scale", Vector3(4.5, 4.5, 4.5), 0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
+		tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
 	_expire(root, 1.6 * lifetime_mult + EXPLOSION_HOLD_S, func() -> void:
 		root.queue_free())
 
 
 ## Ground scorch. CLAMPED: the burn mark tracks the ordnance's real footprint,
-## not its spectacle scale. Napalm's visual is 100x a grenade, and 2.4 * that is
-## a 480m black square - wider than the demo map and lying over everything on a
-## 0.4m projection. The visual may exceed the world; the mark on the ground may
-## not.
+## not its spectacle scale - an unclamped 2.4 x root-scale decal outgrows the
+## blast radius for every big class and lies over everything on a 0.4m
+## projection. The visual may exceed the world; the mark on the ground may not.
 const SCORCH_MAX_M: float = 44.0
 
 static func _scorch(parent: Node, pos: Vector3, scale_mult: float) -> void:

@@ -1,9 +1,10 @@
 ## probe_fire_parity.gd - the 2026-08-04 explosion decree, measured.
-## Boots the shared FireSupportBench rig, rings a fresh target field (FellableTrees +
-## a Destructible fort) per weapon, fires arty / mortar / wp / napalm / cbu / spectre /
-## illum through the REAL request_fire_support path, and prints per weapon: trees felled,
-## fort destroyed, DamageSystem destruction calls (craters/veg-clears), FireHazards
-## alive, and - for the air strips - every canister release (position vs the airframe,
+## Boots the shared FireSupportBench rig, rings a fresh target field (S29 segmented
+## trees registered in TreeBreakSystem + a Destructible fort) per weapon, fires
+## arty / mortar / wp / napalm / cbu / spectre / illum through the REAL
+## request_fire_support path, and prints per weapon: trees felled, fort destroyed,
+## DamageSystem destruction calls (craters/veg-clears), FireHazards alive, and -
+## for the air strips - every canister release (position vs the airframe,
 ## velocity) plus the visual scale ladder after ORDNANCE_VISUAL_MULT.
 ## Run: godot --headless --path . res://tools/probe_fire_parity.tscn
 extends Node3D
@@ -65,10 +66,19 @@ func _ready() -> void:
 
 
 func _run_weapon(kind: String, at: Vector3, wait_s: float) -> void:
-	var trees: Array[FellableTree] = []
+	# S29: a standing tree is a REGISTRY ENTRY (TreeBreakSystem), not a body.
+	# Plant the ring the way TreeCoverLayer does and count consumption - a blast
+	# that reaches trees removes entries, and the break queue spawns the visuals.
+	var tree_layer := Node3D.new()
+	tree_layer.name = "ring_" + kind
+	add_child(tree_layer)
+	var scatter: Array = []
 	for i in range(TREE_RING):
 		var a: float = TAU * float(i) / float(TREE_RING)
-		trees.append(FellableTree.create(self, at + Vector3(cos(a) * TREE_R, 0.0, sin(a) * TREE_R)))
+		scatter.append({"name": "broadleaf_a",
+			"xf": Transform3D(Basis.IDENTITY, at + Vector3(cos(a) * TREE_R, 0.0, sin(a) * TREE_R))})
+	TreeBreakSystem.register_chunk(tree_layer, Vector2i.ZERO, scatter)
+	var trees_before: int = TreeBreakSystem.registered_count()
 	var wall := BoxMesh.new()
 	wall.size = Vector3(3.0, 2.0, 1.0)
 	var fort: Destructible = FireSupportBench.spawn_fort(self, at + Vector3(3.0, 0.0, 0.0),
@@ -84,10 +94,7 @@ func _run_weapon(kind: String, at: Vector3, wait_s: float) -> void:
 	await get_tree().create_timer(wait_s).timeout
 	_watch_canisters = false
 
-	var felled: int = 0
-	for t in trees:
-		if is_instance_valid(t) and (t.get("_fallen") == true or t.get("_felling") == true):
-			felled += 1
+	var felled: int = trees_before - TreeBreakSystem.registered_count()
 	var fort_dead: bool = is_instance_valid(fort) and fort.is_destroyed()
 	var zones: int = DamageSystem.damage_zones.size() - zones_before
 	var fires: int = _count_fire_hazards()
@@ -140,10 +147,8 @@ func _run_weapon(kind: String, at: Vector3, wait_s: float) -> void:
 				_failures += 1
 				print("FAIL: illum round did not light a bounded circle over the target")
 
-	for t in trees:
-		if is_instance_valid(t):
-			AgentRegistry.unregister(t)
-			t.queue_free()
+	TreeBreakSystem.unregister_layer(tree_layer)
+	tree_layer.queue_free()
 	if is_instance_valid(fort):
 		AgentRegistry.unregister(fort)
 		fort.queue_free()

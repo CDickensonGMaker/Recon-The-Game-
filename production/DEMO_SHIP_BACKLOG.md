@@ -1483,3 +1483,57 @@ ruling 7 → US side only · ruling 5 → one archetype (broadleaf) before fourt
 
 **CHARTER DRIFT:** `OVERSEER_CHARTER.md §8/§10.3` still mandates driving `bd`; `CLAUDE.md:401-408`
 retired it 2026-07-22 and forbids running it. Repo law wins; charter to be corrected.
+
+## 2026-08-13 — THE BENCH-VS-WORLD SCALE PIPELINE (napalm), council decree BUILT
+
+His playtest conviction ("napalm comes off like a nuclear bomb... the scene I've been testing
+them in isn't the right scale") was measured, war-roomed and shipped in one session. Council of
+four, full record: `war_room/2026-08-13_napalm_scale/` (briefing, 4 analyses, synthesis).
+
+**THE DEFECT WAS THE INSTRUMENT, NOT THE UNITS.** The metre agrees bench↔world (verified three
+independent ways). The 8/12 map-width ladder was ruled through a god camera ~950 m out, on ONE
+drop, with no treeline in frame — the game shows nine drops from 210 m at eye height. Same
+object: ~30° of screen on the bench, >100° in the world. Every pre-8/12 size ruling was made on
+a disconnected lever besides (`billboard_keep_scale`, fixed 8/12).
+
+**SHIPPED:**
+- **Ladder re-anchored to the canopy** (tallest shipped tree 13.378 m, `data/veg_break_bands.json`):
+  napalm 111→13 (~60 m/drop = the FirePlan lane width, ~4.5 canopies), heavy 24→10 (~46 m),
+  mortar 10→6 (~28 m). Small kinds untouched (never map-anchored, never convicted). Order holds:
+  napalm > heavy > mortar > rocket > grenade > 40mm. `gun_fx.gd _KIND_SCALE`. **All three sizes
+  are LABELLED STARTING VALUES awaiting his eye (ADR-015).**
+- **Napalm got its own composition** (`gun_fx.gd _spawn_explosion_visual`): no ground shock ring
+  (ring+pop+column was the literal nuclear schema; petrol has no shockwave), no dirt column, no
+  debris launch; its own cached procs bound the climb (local_coords multiplies velocities by root
+  scale — the shared figures put the plume at 11 km) so the event tops ≤ ~2× its width; embers
+  arc as burning gel. Zero per-event cost — all cached.
+- **MAX_LINGER 8→9** — the last canister of EVERY napalm run got no smoke column (cap < drops).
+- **The RULING bench is `support_fire_range`** (real dispatch, eye height): now carries
+  world-matched fog (a size judged in clean air reads smaller in the world's haze), SHIFT+number
+  fires at 210 m (the demo's early-beat range), and `[`/`]` sweep `GunFX.bench_size_mult` live
+  through the REAL path with the computed widths on the legend — his taste pass needs no code
+  edit. Knob resets via `reset_session`; world always ×1.0.
+- **`vfx_range` is the composition lab, labelled clean-air**: V cycles GOD → PLAYER-EYE-210 →
+  PLAYER-EYE-100, N fires the REAL 9-drop run (constants read from FirePlan/CASAirplane, never
+  re-typed) with burn carpets, real broadleaf treeline band at the strike line, 1.8 m man, 50 m
+  height ladder, row-view caveated ("napalm shown as ONE DROP").
+- **Free perf win:** the siege climax no longer stacks ~150 screen-filling alpha layers of
+  map-sized fireballs on the Intel-UHD floor.
+- Drift corrected on touch: gun_fx header arithmetic, three "x5" fossils, "Five canisters" (nine),
+  vfx_range "~90m" header, scorch comment.
+
+**HIDDEN CONSUMER FOUND:** `destructible.gd:42-44` — thatch/timber hut deaths fire
+`"explosion_napalm"` at full ordnance mult. Every hut death was ALSO a ~513 m fireball; his nuke
+night had two sources. Retune carries huts to ~60 m automatically; the class question is his
+(decision queue).
+
+**FOR HIS EYE (the decision queue):** 1) napalm's bigness now lives in the CHAIN (nine 60 m
+bursts up a 240 m lane matching the map footprint + 25 s burn) — confirm or sweep `[`/`]`;
+2) hut deaths: own smaller fire class (~20-25 m) or keep napalm-size; 3) heavy/mortar moved with
+napalm to keep the order — re-rule on the bench if the eye disagrees; 4) napalm AUDIO still
+borrows the heavy-arty bank ×9 — the sound is now the loudest thing saying "nuke".
+
+**FOLLOW-UPS (not this session):** `ambient_war.gd:193` fixed scale 12.0 horizon events now equal
+napalm's size — verify they still read at 200-800 m · napalm audio bank (above) · the
+`probe_fire_parity` bench wires `map_size` 600 vs SFR 200 vs world 512 (behaviour-only, UX
+architect cleared it — hunter clamps, zeroed on benches).

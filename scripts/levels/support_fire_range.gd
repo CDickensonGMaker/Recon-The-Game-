@@ -8,7 +8,10 @@ extends Node3D
 ## loop runs here; the proof is WATCHING the squad break to cover — each claimed cover point
 ## gets a marker sphere + nick label (bench-only witness, this scene script gates it).
 ## Keys: T open the net · 1 bombs / 2 napalm / 3 arty / 4 mortar / 5 spectre / 6 CBU /
-## 7 willy-pete / 8 illum · 9 enemy assault · LMB send while a call is placed · RMB back out.
+## 7 willy-pete / 8 illum (SHIFT+key fires at 210m demo range instead of 60m) ·
+## 9 enemy assault · N day-night · [ / ] VFX size knob · LMB send while a call is placed ·
+## RMB back out. This is the RULING bench for VFX size: real dispatch, eye height,
+## world-matched fog, night on tap (war_room/2026-08-13_napalm_scale/).
 ## Run: godot --path . res://scenes/levels/support_fire_range.tscn
 ## Probe: godot --headless --path . res://scenes/levels/support_fire_range.tscn ++ --cover-probe
 ## NOT the worst-case PERF rig — that is the AI arena (18v18 + this same bench). Measure the
@@ -184,6 +187,16 @@ func _build_light() -> void:
 	e.sky.sky_material = ProceduralSkyMaterial.new()
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_energy = DAY_AMBIENT
+	# World-matched fog (game_world.gd CLEAR values). This bench is where VFX
+	# sizes get RULED at player eye height, and clean bench air overstates
+	# contrast at range - a size judged without the world's haze reads smaller
+	# in the world than it did here.
+	e.fog_enabled = true
+	e.fog_light_color = Color(0.75, 0.78, 0.7)
+	e.fog_density = 0.0065
+	e.fog_aerial_perspective = 1.0
+	e.fog_sky_affect = 0.5
+	e.fog_sun_scatter = 0.1
 	env.environment = e
 	add_child(env)
 	_env = e
@@ -546,12 +559,14 @@ func _update_legend() -> void:
 	if _legend == null or _director == null:
 		return
 	var lines: PackedStringArray = [
-		"SUPPORT FIRE RANGE - press the number, it fires 60m ahead of your aim"]
+		"SUPPORT FIRE RANGE - number fires 60m ahead of your aim, SHIFT+number at 210m (demo range)"]
 	for row in _LEGEND_ROWS:
 		var count: int = int(_director.fire_support.get(str(row[2]), 0))
 		lines.append("[%s] %s %s" % [str(row[0]), str(row[1]),
 			("x%d" % count) if count > 0 else "- OUT"])
 	lines.append("[9] ENEMY ASSAULT + SAPPERS   [N] day-night   LMB send / RMB back out   [T] net on-off")
+	lines.append("[ / ] VFX size x%.2f - napalm ~%.0fm/drop (a run is 9 on 22m spacing)" % [
+		GunFX.bench_size_mult, GunFX.rendered_width_m("explosion_napalm")])
 	_legend.text = "\n".join(lines)
 
 
@@ -560,6 +575,17 @@ func _update_legend() -> void:
 ## broadside to his look, and FieldDirector's overfly guard enforces it besides.
 const _DIRECT_KEYS: Dictionary = {KEY_1: "bombs", KEY_2: "napalm", KEY_3: "arty",
 	KEY_4: "mortar", KEY_5: "spectre", KEY_6: "cbu", KEY_7: "wp", KEY_8: "illum"}
+
+## SHIFT+number fires at the demo's early-beat range instead of the close lab
+## default, so a size ruling here is made at the distance the game shows it
+## (demo_game.gd NAPALM_RANGE_M).
+const STRIKE_NEAR_M: float = 60.0
+const STRIKE_DEMO_M: float = 210.0
+## The VFX size knob steps and its bounds ([ / ] keys -> GunFX.bench_size_mult).
+const SIZE_KNOB_STEP: float = 1.1
+const SIZE_KNOB_MIN: float = 0.2
+const SIZE_KNOB_MAX: float = 3.0
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _director == null or player == null:
@@ -572,6 +598,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if keycode == KEY_N:
 			toggle_night()
 			return
+		if keycode == KEY_BRACKETLEFT or keycode == KEY_BRACKETRIGHT:
+			var step: float = SIZE_KNOB_STEP if keycode == KEY_BRACKETRIGHT else 1.0 / SIZE_KNOB_STEP
+			GunFX.bench_size_mult = clampf(GunFX.bench_size_mult * step, SIZE_KNOB_MIN, SIZE_KNOB_MAX)
+			_on_toast("VFX SIZE x%.2f - napalm ~%.0fm/drop, arty ~%.0fm, mortar ~%.0fm" % [
+				GunFX.bench_size_mult, GunFX.rendered_width_m("explosion_napalm"),
+				GunFX.rendered_width_m("explosion_heavy"), GunFX.rendered_width_m("explosion_mortar")])
+			return
 		var kind: String = _DIRECT_KEYS.get(keycode, "")
 		if kind == "":
 			return
@@ -580,7 +613,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			else -player.global_transform.basis.z
 		fwd.y = 0.0
 		fwd = fwd.normalized()
-		var target: Vector3 = player.global_position + fwd * 60.0
+		var dist: float = STRIKE_DEMO_M if (event as InputEventKey).shift_pressed else STRIKE_NEAR_M
+		var target: Vector3 = player.global_position + fwd * dist
 		target.y = 0.0
 		# Run axis is BROADSIDE (his ruling 2026-08-04): aircraft cross the front,
 		# never fly in over the player's head.

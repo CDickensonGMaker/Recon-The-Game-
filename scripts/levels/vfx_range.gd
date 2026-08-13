@@ -13,8 +13,13 @@ extends Node3D
 ## the art. Both frozen => the sheet itself is wrong.
 ##
 ## Keys: 1-6 fire a kind · SPACE cycle · A auto-cycle on/off · F toggle a burning
-## FireHazard · G grid of every raw sheet · R reset camera
+## FireHazard · G grid of every raw sheet · N the REAL napalm run (9 drops) ·
+## V cycle vantage (god cam / player eye 210m / player eye 100m) · R home god cam
 ## Run: godot --path . res://scenes/levels/vfx_range.tscn
+##
+## ROLE (war_room/2026-08-13_napalm_scale/): this is the GEOMETRY and
+## COMPOSITION lab, in clean air. Size RULINGS happen on support_fire_range
+## (real dispatch, world fog, night); the world is the final bench (ADR-015).
 
 const KINDS: Array[String] = [
 	"explosion_grenade", "explosion_40mm", "explosion_rocket",
@@ -25,21 +30,40 @@ const AUTO_PERIOD: float = 2.2
 const CTRL_SHEET := "res://assets/textures/fx/sheets/napalm_explosion_sheet.png"
 const CTRL_H: int = 6
 const CTRL_V: int = 6
-## Napalm now reads ~90m wide, so the bench is laid out at that scale.
-## The demo map is 512m across and napalm is sized to cover it, so the bench is
-## laid out in map widths and carries a 512m outline as an absolute ruler.
+## Napalm reads ~60m per drop (the run of 9 is the spectacle); the 512m outline
+## stays as an absolute ruler so "covers the square" is visible, never trusted.
 const DEMO_SQUARE_M: float = 512.0
 const CAM_POS := Vector3(0.0, 300.0, 900.0)
 const CAM_ROT := Vector3(-17.0, 0.0, 0.0)
 const SHOT_POS := Vector3(0.0, 0.0, 0.0)      # centred IN the square
 const CTRL_POS := Vector3(-560.0, 150.0, 0.0)
 const CTRL_SIZE: float = 200.0
-## Side-by-side row (key 0). Spacing must clear napalm's ~513m read.
+## Side-by-side row (key 0). Spacing was sized when napalm read ~513m; kept
+## wide - the row is a composition strip, not a ruler (see _fire_all caveat).
 const ROW_X0: float = -1550.0
 const ROW_SPACING: float = 620.0
 const ROW_Z: float = -900.0
 const CAM_ROW := Vector3(0.0, 900.0, 2100.0)
 const CAM_ROW_ROT := Vector3(-19.0, 0.0, 0.0)
+## The vantages a size must be seen from before anyone calls it ruled. The god
+## cam manufactured the 8/12 mis-ruling - ~950m out it shows a fireball at a
+## quarter of the screen the 210m ground eye gives it. The demo's early beat
+## lands 210m from the fsb centre (demo_game.gd NAPALM_RANGE_M); the siege
+## beats read from the parapet at ~100m.
+const VANTAGES: Array[Dictionary] = [
+	{"name": "GOD CAM - composition only, NOT for size rulings",
+		"pos": Vector3(0.0, 300.0, 900.0), "rot": Vector3(-17.0, 0.0, 0.0), "fov": 70.0},
+	{"name": "PLAYER EYE 210m - the demo's early napalm beat",
+		"pos": Vector3(0.0, 1.7, 210.0), "rot": Vector3.ZERO, "fov": 75.0},
+	{"name": "PLAYER EYE 100m - the siege parapet",
+		"pos": Vector3(0.0, 1.7, 100.0), "rot": Vector3.ZERO, "fov": 75.0},
+]
+## The real-canopy yardstick at the strike line: his 8/4 ruling sizes napalm
+## "above the treelines", so the treeline is IN FRAME. Tallest shipped tree is
+## broadleaf_c at 13.4m (data/veg_break_bands.json).
+const TREELINE_Z: float = -30.0
+const TREELINE_SPAN: float = 300.0
+const TREELINE_STEP: float = 14.0
 
 var _idx: int = 0
 var _auto: bool = true
@@ -57,14 +81,89 @@ var _hazard: Node = null
 var _grid: Node3D = null
 var _poles: Node3D = null
 var _cam: Camera3D = null
+var _vantage_i: int = 0
+var _vantage_lbl: Label = null
 
 
 func _ready() -> void:
 	_build_world()
 	_build_demo_square()
+	_build_treeline()
+	_build_yardsticks()
 	_build_control_quad()
 	_build_ui()
+	_apply_vantage()
 	_fire(KINDS[0])
+
+
+func _apply_vantage() -> void:
+	var v: Dictionary = VANTAGES[_vantage_i]
+	_cam.position = v["pos"] as Vector3
+	_cam.rotation_degrees = v["rot"] as Vector3
+	_cam.fov = float(v["fov"])
+	if _vantage_lbl != null:
+		_vantage_lbl.text = "VIEW: %s   (V cycles)" % str(v["name"])
+
+
+## Real shipped tree art in a band behind the strike line - the canopy the
+## Summoner's "above the treelines" ruling measures against, one MultiMesh per
+## variant. Deterministic yaw; a yardstick must not reshuffle between runs.
+func _build_treeline() -> void:
+	var variants: Array[String] = ["broadleaf_a", "broadleaf_b", "broadleaf_c"]
+	var idx: int = 0
+	for variant in variants:
+		var mesh: Mesh = GroundClutter.load_glb_mesh("res://assets/world/vegetation/%s.glb" % variant)
+		if mesh == null:
+			continue
+		var xforms: Array[Transform3D] = []
+		var x: float = -TREELINE_SPAN + float(idx) * TREELINE_STEP
+		while x <= TREELINE_SPAN:
+			xforms.append(Transform3D(Basis(Vector3.UP, fposmod(x * 0.7, TAU)),
+				Vector3(x, 0.0, TREELINE_Z)))
+			x += TREELINE_STEP * float(variants.size())
+		if xforms.is_empty():
+			idx += 1
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = xforms.size()
+		for i in range(xforms.size()):
+			mm.set_instance_transform(i, xforms[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "treeline_" + variant
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
+		idx += 1
+	_sign(Vector3(-60.0, 20.0, TREELINE_Z), "TREELINE - tallest 13.4m", Color(0.55, 1.0, 0.55))
+
+
+## Human and height references: sizes are measurements here, not impressions.
+func _build_yardsticks() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.92, 0.92, 0.86)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var man := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.25
+	cap.height = 1.8
+	man.mesh = cap
+	man.material_override = mat
+	man.position = Vector3(6.0, 0.9, 180.0)
+	add_child(man)
+	_sign(Vector3(6.0, 3.2, 180.0), "MAN 1.8m", Color(0.8, 0.9, 1.0))
+	var pole := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.4
+	cm.bottom_radius = 0.4
+	cm.height = 50.0
+	pole.mesh = cm
+	pole.material_override = mat
+	pole.position = Vector3(40.0, 25.0, 0.0)
+	add_child(pole)
+	for h in range(10, 51, 10):
+		_sign(Vector3(40.0, float(h), 0.0), "- %dm" % h, Color(1.0, 1.0, 0.6))
 
 
 ## A 512m outline on the ground - the demo map's footprint, as an absolute
@@ -124,7 +223,7 @@ func _build_world() -> void:
 	_cam.position = CAM_POS
 	_cam.rotation_degrees = CAM_ROT
 	_cam.fov = 70.0
-	_cam.far = 12000.0       # napalm reads ~513m across; do not clip it away
+	_cam.far = 12000.0       # the 0-key row view sits ~3km out; do not clip it away
 	_cam.current = true
 	add_child(_cam)
 
@@ -176,11 +275,15 @@ func _build_ui() -> void:
 	_hint = Label.new()
 	_hint.position = Vector2(24, 56)
 	_hint.add_theme_font_size_override("font_size", 16)
-	_hint.text = ("1-6 kind  |  SPACE next  |  A auto-cycle  |  F fire hazard  |  "
-		+ "G raw sheet grid  |  0 FIRE ALL side by side  |  R reset cam\n"
+	_hint.text = ("1-6 kind  |  SPACE next  |  A auto-cycle  |  N REAL napalm run (9 drops)  |  "
+		+ "V vantage  |  F fire hazard  |  G raw sheet grid  |  0 FIRE ALL side by side  |  R home god cam\n"
 		+ "LEFT quad = hand-stepped control (must animate).  "
-		+ "RIGHT = real GunFX particle path.")
+		+ "RIGHT = real GunFX particle path.  CLEAN AIR - size rulings live on support_fire_range.")
 	layer.add_child(_hint)
+	_vantage_lbl = Label.new()
+	_vantage_lbl.position = Vector2(24, 100)
+	_vantage_lbl.add_theme_font_size_override("font_size", 18)
+	layer.add_child(_vantage_lbl)
 
 
 func _process(delta: float) -> void:
@@ -225,12 +328,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_hazard()
 		KEY_G:
 			_toggle_grid()
+		KEY_N:
+			_auto = false
+			_fire_run()
+		KEY_V:
+			_vantage_i = (_vantage_i + 1) % VANTAGES.size()
+			_apply_vantage()
 		KEY_0:
 			_auto = false
 			_fire_all()
 		KEY_R:
-			_cam.position = CAM_POS
-			_cam.rotation_degrees = CAM_ROT
+			_vantage_i = 0
+			_apply_vantage()
 
 
 func _next() -> void:
@@ -239,9 +348,30 @@ func _next() -> void:
 
 
 func _fire(kind: String) -> void:
-	_label.text = "%s        (%d/%d)" % [kind, _idx + 1, KINDS.size()]
+	var caveat: String = "   [ONE drop - the game fires %d, key N]" % FirePlan.NAPALM_DROPS \
+		if kind == "explosion_napalm" else ""
+	_label.text = "%s        (%d/%d)%s" % [kind, _idx + 1, KINDS.size(), caveat]
 	_arm_control(kind)
 	GunFX.play_explosion_3d(self, SHOT_POS, kind)
+
+
+## The REAL napalm pattern - drop count, spacing and release ripple come from
+## FirePlan/CASAirplane so this cannot drift from the shipping run, and every
+## drop lays its burn carpet, exactly as cas_airplane._drop_napalm_strip does.
+## Run axis is X: broadside to the player-eye vantages, per the broadside law.
+func _fire_run() -> void:
+	_label.text = "NAPALM RUN - %d drops on %.0fm spacing, the real pattern" % [
+		FirePlan.NAPALM_DROPS, FirePlan.NAPALM_SPACING]
+	_arm_control("explosion_napalm")
+	for i in range(FirePlan.NAPALM_DROPS):
+		@warning_ignore("integer_division")
+		var off: float = float(i - FirePlan.NAPALM_DROPS / 2) * FirePlan.NAPALM_SPACING
+		var pos: Vector3 = SHOT_POS + Vector3(off, 0.0, 0.0)
+		get_tree().create_timer(float(i) * CASAirplane.NAPALM_STAGGER).timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			GunFX.play_explosion_3d(self, pos, "explosion_napalm")
+			FireHazard.create_at(self, pos, FirePlan.NAPALM_BLAST_M, FirePlan.NAPALM_BURN_S))
 
 
 ## Point the control quad at the SAME sheet this kind uses, and run it over the
@@ -268,7 +398,7 @@ func _arm_control(kind: String) -> void:
 ## judged by cycling one at a time - the eye has nothing to compare against and
 ## every explosion looks "big". Side by side is the only honest test.
 func _fire_all() -> void:
-	_label.text = "ALL KINDS - each pole is 10m"
+	_label.text = "ALL KINDS - each pole is 10m.  Napalm shown as ONE DROP - the game fires 9 (key N)"
 	_arm_control("explosion_napalm")
 	# Pull back far enough that a 525m row of blasts fits in one frame.
 	_cam.position = CAM_ROW

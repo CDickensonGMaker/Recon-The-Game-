@@ -2,6 +2,21 @@
 
 ---
 
+## ADDENDUM, 2026-08-13 day session — the scale-pipeline job below is DONE (awaiting your eye)
+
+The napalm/bench job in the next section was measured, war-roomed (4 architects,
+`war_room/2026-08-13_napalm_scale/`) and shipped. Short version: **the metre agreed all along —
+the instrument lied** (god camera 950 m out, one drop instead of nine, no treeline in frame), and
+`_KIND_SCALE` napalm 111 drew each of the 9 canisters as a ~513 m fireball with a 1 km shock
+ring. Now: napalm ~60 m/drop with its own composition (no ring, bounded climb), heavy ~46 m,
+mortar ~28 m, and **hut deaths were firing the napalm-size fireball too** (`destructible.gd:42-44`)
+— your nuke night had two sources. `support_fire_range` is the ruling bench: world fog, night,
+SHIFT+number = 210 m demo range, **`[`/`]` sweeps the size live** — no code edit needed for your
+taste pass. Full ledger + your decision queue: `DEMO_SHIP_BACKLOG.md` §2026-08-13. Ratchet
+registers all green this session. Everything below this block is the overnight report as written.
+
+---
+
 ## NEXT SESSION STARTS HERE
 
 **16 commits, all pushed, `master` in sync. Nothing is stranded.**

@@ -398,10 +398,11 @@ func _drop_bomb() -> void:
 		DamageSystem.apply_damage(impact, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0))
 
 
-## Five canisters ripple off the rack (NAPALM_STAGGER apart) well SHORT of the
-## strip - see PICKLE_LEAD_M - so each one tumbles forward and down from the
-## airframe onto its own mark, nearest first, and the burst chain marches up the
-## run. Impacts inherit the release ripple: the strip goes up as a CHAIN.
+## The canisters (FirePlan.NAPALM_DROPS of them) ripple off the rack
+## (NAPALM_STAGGER apart) well SHORT of the strip - see PICKLE_LEAD_M - so each
+## one tumbles forward and down from the airframe onto its own mark, nearest
+## first, and the burst chain marches up the run. Impacts inherit the release
+## ripple: the strip goes up as a CHAIN.
 func _drop_napalm_strip() -> void:
 	var tree: SceneTree = get_tree()
 	for i in range(FirePlan.NAPALM_DROPS):
