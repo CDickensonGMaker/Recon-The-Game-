@@ -57,6 +57,9 @@ func _ready() -> void:
 	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_prompt)
 
+	# The card is the first pointer anyone sees, so it sets the default rather than
+	# inheriting whatever the OS was showing.
+	CursorSet.set_context(CursorSet.Ctx.DEFAULT)
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, FADE_IN_S)
 

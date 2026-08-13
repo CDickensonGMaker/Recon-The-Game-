@@ -102,3 +102,6 @@ func _ready() -> void:
 	var cont := ReconUI.make_card_button("[ CONTINUE ]", 18)
 	cont.pressed.connect(func() -> void: continue_pressed.emit())
 	outer.add_child(cont)
+
+	# the butcher’s bill. One call: a screen should not have to know which control is which.
+	CursorSet.hook_buttons(self, CursorSet.Ctx.CASUALTY)

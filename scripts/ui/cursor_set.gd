@@ -86,6 +86,30 @@ static func reset() -> void:
 	Input.set_custom_mouse_cursor(null, Input.CURSOR_ARROW)
 
 
+## Hook every Button under `root` so hovering it swaps the pointer and leaving restores it.
+## One call per screen: a screen should not have to know which control is which, and a
+## per-button connect at every callsite is how half of them end up missed.
+##
+## A DISABLED button reports SPENT - a spent casing over a fire mission you have no rounds
+## for says "not available" faster than any tooltip, and nothing else in the UI says it.
+static func hook_buttons(root: Node, base: int = Ctx.DEFAULT,
+		hover: int = Ctx.CONFIRM) -> void:
+	if root == null:
+		return
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var b := n as BaseButton
+		if b == null or b.has_meta(&"cursor_hooked"):
+			continue
+		b.set_meta(&"cursor_hooked", true)
+		b.mouse_entered.connect(func() -> void:
+			set_context(Ctx.SPENT if b.disabled else hover))
+		b.mouse_exited.connect(set_context.bind(base))
+
+
 static func _texture(name: String) -> Texture2D:
 	var key: String = "%s_%d" % [name, _size]
 	if _cache.has(key):

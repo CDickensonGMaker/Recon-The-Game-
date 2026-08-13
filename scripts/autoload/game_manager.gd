@@ -24,6 +24,7 @@ func pause_game() -> void:
 	is_paused = true
 	get_tree().paused = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	CursorSet.set_context(CursorSet.Ctx.DEFAULT)
 
 
 ## Resume the game
@@ -31,6 +32,9 @@ func resume_game() -> void:
 	is_paused = false
 	get_tree().paused = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	# Hand the pointer back on the way into the world: a captured mouse draws no cursor,
+	# and leaving a custom one set means the next screen inherits whatever was last hovered.
+	CursorSet.reset()
 
 
 ## Toggle pause
@@ -50,6 +54,7 @@ func can_player_act() -> bool:
 func on_player_death() -> void:
 	player_died.emit()
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	CursorSet.set_context(CursorSet.Ctx.CASUALTY)
 
 
 ## Register player reference

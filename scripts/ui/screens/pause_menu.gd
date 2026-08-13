@@ -24,6 +24,10 @@ func _ready() -> void:
 
 
 ## in_mission=false means we are standing in the hub (no ABANDON, but SAVE).
+
+	# the pause menu. One call: a screen should not have to know which control is which.
+	CursorSet.hook_buttons(self, CursorSet.Ctx.DEFAULT)
+
 func build(in_mission: bool) -> void:
 	if _root != null:
 		_root.queue_free()

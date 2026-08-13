@@ -77,6 +77,10 @@ func _ready() -> void:
 
 
 ## Menu row with the mockup's olive highlight bar on hover/focus.
+
+	# the title screen. One call: a screen should not have to know which control is which.
+	CursorSet.hook_buttons(self, CursorSet.Ctx.DEFAULT)
+
 func _add_menu_button(parent: Control, text: String, action: Callable) -> void:
 	var b := ReconUI.make_menu_button(text, action)
 	parent.add_child(b)

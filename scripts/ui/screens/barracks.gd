@@ -39,6 +39,8 @@ func _ready() -> void:
 	box.add_child(back)
 	_refresh()
 
+	# the roster - these are his men. One call: a screen should not have to know which control is which.
+	CursorSet.hook_buttons(self, CursorSet.Ctx.CASUALTY)
 
 func _refresh() -> void:
 	_status_label.text = "%s   //   MISSIONS: %d   //   THREAT: %s" % [
