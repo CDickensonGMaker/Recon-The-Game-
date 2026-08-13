@@ -1325,7 +1325,25 @@ const FELL_PROBE_BLAST_R: float = 6.0
 
 func _run_fell_cover_probe() -> void:
 	await get_tree().create_timer(1.0).timeout
-	print("\n[FELL-COVER] planting %d trees inside the squad's cover reach" % FELL_PROBE_RING.size())
+	# ISOLATE THE VARIABLE. Low cover is deliberately the LAST resort - a wall a man can
+	# fight from standing beats a log he has to lie down behind - so with the sandbag arc
+	# up, the standing sweep always wins and the timber is never reached. Taking the bags
+	# away asks the question this probe exists for: if the ONLY cover is felled timber,
+	# will he use it?
+	# Colliders DISABLED, not freed: AgentRegistry and the blast bus both hold these, and
+	# freeing them mid-run throws "cast a freed object" from every holder.
+	var removed: int = 0
+	for f in _cover_line:
+		if f == null or not is_instance_valid(f):
+			continue
+		for c in f.get_children():
+			var cs := c as CollisionShape3D
+			if cs != null:
+				cs.disabled = true
+		removed += 1
+	await get_tree().physics_frame
+	print("\n[FELL-COVER] removed %d sandbag segment(s) - timber is the only cover now" % removed)
+	print("[FELL-COVER] planting %d trees inside the squad's cover reach" % FELL_PROBE_RING.size())
 	for p in FELL_PROBE_RING:
 		_plant_probe_tree(p)
 	await get_tree().physics_frame
@@ -1349,13 +1367,34 @@ func _run_fell_cover_probe() -> void:
 	_launch_assault()
 	await get_tree().create_timer(4.0).timeout
 	_print_cover_report("FELL T+4s")
+	_sample_log_claims()
 	await get_tree().create_timer(8.0).timeout
 	_print_cover_report("FELL T+12s")
+	_sample_log_claims()
 	_report_log_claims()
 	get_tree().quit()
 
 
 ## The one number this probe exists for: how many men fought from the timber.
+## Sampled at every report, not just the last: "will he use it" is answered by whether he
+## EVER did, and a single end-of-fight snapshot misses a man who fought from the timber
+## for ten seconds and then moved.
+var _log_users: Dictionary = {}
+
+
+func _sample_log_claims() -> void:
+	var logs: Array[Vector3] = _felled_log_positions()
+	if logs.is_empty():
+		return
+	for a in _squad:
+		if a == null or not is_instance_valid(a) or a.is_dead():
+			continue
+		if not (a.has_cover or a._moving_to_cover):
+			continue
+		if _nearest_dist(a.current_cover, logs) <= EnemyBase.COVER_BLOCKER_MAX_M:
+			_log_users[a.get_instance_id()] = str(a.member.get("nick", "?"))
+
+
 func _report_log_claims() -> void:
 	var logs: Array[Vector3] = _felled_log_positions()
 	var claimed_on_log: int = 0
@@ -1370,8 +1409,11 @@ func _report_log_claims() -> void:
 		# claim that far from a log was not made because of the log.
 		if _nearest_dist(a.current_cover, logs) <= EnemyBase.COVER_BLOCKER_MAX_M:
 			claimed_on_log += 1
-	print("[FELL-COVER] %d of %d living men claimed cover on a downed log (%d logs on the field)"
-		% [claimed_on_log, alive, logs.size()])
+	print(("[FELL-COVER] %d of %d living men on a log RIGHT NOW; %d used one at any point"
+		+ " (%d logs on the field)") % [claimed_on_log, alive, _log_users.size(),
+		logs.size()])
+	if not _log_users.is_empty():
+		print("[FELL-COVER] fought from the timber: %s" % ", ".join(_log_users.values()))
 
 
 func _run_cover_probe() -> void:
@@ -1453,7 +1495,13 @@ func _felled_log_positions() -> Array[Vector3]:
 		for c in n.get_children():
 			stack.append(c)
 		if n is Node3D and String(n.name).begins_with("FelledLogTrunk"):
-			out.append((n as Node3D).global_position)
+			# The CAPSULE, not the body origin. tree_break_system.gd:461 offsets the shape
+			# away * fall_len * 0.5, so a body-origin reading is metres off the timber and
+			# reports "nobody used it" for men lying against it.
+			for c in n.get_children():
+				var cs := c as CollisionShape3D
+				if cs != null:
+					out.append(cs.global_position)
 	return out
 
 

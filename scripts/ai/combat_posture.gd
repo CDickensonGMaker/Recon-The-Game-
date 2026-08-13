@@ -97,9 +97,19 @@ static func decide(state: int, suppression: float, near_cover: bool,
 ##
 ## A MOVING man never goes prone. That is not a nicety - there is no prone
 ## locomotion clip, so a prone man who still wants to move can only ice-skate.
-static func wants_prone(state: int, suppression: float, moving: bool) -> bool:
+## LOW COVER IS PRONE COVER. A felled tree is a real hard_surface collider (tree_break_
+## system.gd:450-463) whose capsule tops out about 0.85m, and a cover ray cast from a
+## standing 1.3m eye passes clean over it - so timber that stops rounds was never once
+## claimed. Measured: 5 logs inside the squad's reach, 0 of 4 men on one.
+##
+## A man who has taken low cover goes DOWN, whatever his suppression. That is the whole
+## difference between a log being cover and being scenery.
+static func wants_prone(state: int, suppression: float, moving: bool,
+		at_low_cover: bool = false) -> bool:
 	if moving:
 		return false
+	if at_low_cover and state != Enums.AIState.ADVANCING and state != Enums.AIState.FLANKING:
+		return true
 	return state == Enums.AIState.SUPPRESSED and suppression >= PRONE_SUPPRESS_ENTER
 
 

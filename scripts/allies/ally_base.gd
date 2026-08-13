@@ -367,6 +367,8 @@ var _cover_fail_count: int = 0
 ## The lockout is a thrash guard, not a life sentence: ground that had no cover ten
 ## seconds ago is not the ground he is standing on now.
 var _cover_fail_ms: int = -100000
+## The claimed cover only works from the deck (a felled log). Drives the prone commit.
+var _cover_is_low: bool = false
 const COVER_FAIL_LOCKOUT_MS: int = 10000
 ## Animation override for cover behavior (leap in, crouch-hold, peek). Rigs
 ## differ, so these are fallback chains resolved by ModelActor.play_first.
@@ -546,7 +548,8 @@ func _update_prone_latch(now: float, speed: float) -> void:
 			_prone_pin_since_ms = 0.0
 			_prone_rise_until_ms = now + EnemyBase.PRONE_TRANSITION_MS
 		return
-	if CombatPosture.wants_prone(current_state, suppression_level, moving):
+	if CombatPosture.wants_prone(current_state, suppression_level, moving,
+			has_cover and _cover_is_low):
 		if _prone_pin_since_ms <= 0.0:
 			_prone_pin_since_ms = now
 		elif now - _prone_pin_since_ms >= CombatPosture.PRONE_ENTER_HOLD_S * 1000.0:
@@ -1748,20 +1751,35 @@ const ALLY_COVER_FAR_OFFSETS: Array[Vector3] = [
 ]
 
 
+## Standing eye. Anything that blocks THIS is cover he can fight from on his feet.
+const COVER_EYE_STAND: float = 1.3
+## Prone eye. A felled log tops out ~0.85m: it blocks this and never the one above, which
+## is why timber that stops rounds was never claimed. A candidate that only passes here is
+## LOW cover - real, but only from the deck.
+const COVER_EYE_PRONE: float = 0.45
+
+
 func _sweep_cover(space_state: PhysicsDirectSpaceState3D, threat_pos: Vector3,
-		offsets: Array[Vector3]) -> Array[Vector3]:
+		offsets: Array[Vector3], low_out: Array[Vector3] = []) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
 	for off in offsets:
 		var candidate: Vector3 = global_position + off
-		var origin: Vector3 = candidate + Vector3.UP * 1.3
-		var query := PhysicsRayQueryParameters3D.create(
-			origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
-		query.exclude = [self]
-		CombatManager.rays_cover += 1
-		var hit: Dictionary = space_state.intersect_ray(query)
-		if hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M:
+		if _blocked_from(space_state, candidate, threat_pos, COVER_EYE_STAND):
 			candidates.append(candidate)
+		elif _blocked_from(space_state, candidate, threat_pos, COVER_EYE_PRONE):
+			low_out.append(candidate)
 	return candidates
+
+
+func _blocked_from(space_state: PhysicsDirectSpaceState3D, candidate: Vector3,
+		threat_pos: Vector3, eye: float) -> bool:
+	var origin: Vector3 = candidate + Vector3.UP * eye
+	var query := PhysicsRayQueryParameters3D.create(
+		origin, threat_pos + Vector3.UP * 1.0, 1 | 32)
+	query.exclude = [self]
+	CombatManager.rays_cover += 1
+	var hit: Dictionary = space_state.intersect_ray(query)
+	return hit and (hit.position as Vector3).distance_to(origin) <= EnemyBase.COVER_BLOCKER_MAX_M
 
 
 ## Same LOS-block sampling as EnemyBase._find_cover_point, same claim broker.
@@ -1774,15 +1792,27 @@ func _find_cover_point() -> Vector3:
 	else:
 		return Vector3.ZERO
 	var space_state := get_world_3d().direct_space_state
+	# Low cover is collected on the way past and only used if nothing he can stand behind
+	# turns up: a wall he can fight from beats a log he has to lie down for.
+	var low: Array[Vector3] = []
 	var hard: Vector3 = _claim_scored(_sweep_cover(space_state, threat_pos,
-		EnemyBase.COVER_SEARCH_OFFSETS), threat_pos)
+		EnemyBase.COVER_SEARCH_OFFSETS, low), threat_pos)
 	if hard != Vector3.ZERO:
+		_cover_is_low = false
 		return hard
 	# Only pay for the wider sweep when the near ring found nothing.
 	hard = _claim_scored(_sweep_cover(space_state, threat_pos,
-		ALLY_COVER_FAR_OFFSETS), threat_pos)
+		ALLY_COVER_FAR_OFFSETS, low), threat_pos)
 	if hard != Vector3.ZERO:
+		_cover_is_low = false
 		return hard
+	# Nothing to stand behind. Timber he can lie behind beats open ground.
+	if not low.is_empty():
+		var lying: Vector3 = _claim_scored(low, threat_pos)
+		if lying != Vector3.ZERO:
+			_cover_is_low = true
+			return lying
+
 	# THE VIETCONG GAP (decree 2026-08-03 §2.11 item 3). Grass/fern/bush carry no collider
 	# by contract (tree_cover_layer.gd:17-19), so the ray test above cannot see them - but
 	# the sim already pays for that ground: heavy jungle blocks LOS 30% per cell
