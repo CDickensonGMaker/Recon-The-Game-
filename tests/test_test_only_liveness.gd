@@ -328,12 +328,22 @@ func _grandfather(found: PackedStringArray, args: PackedStringArray) -> void:
 	var doc: Dictionary = _load_baseline()
 	var debt: PackedStringArray = PackedStringArray(doc.get("debt", []))
 	var seams: PackedStringArray = PackedStringArray(doc.get("seams", []))
+	# --seam files the entry as a read-only observer instead of as debt. Without it every
+	# entry landed in `debt` and the `seams` list, which BASELINE_COMMENT documents as the
+	# category for "read-only observers a test legitimately needs", had no entry path at all:
+	# it could only shrink, from empty, forever. The escape hatch the register advertised was
+	# unreachable, so a genuine seam had to be carried as debt that nobody could ever pay.
+	var as_seam: bool = "--seam" in args
 	var added: PackedStringArray = PackedStringArray()
 	for e: String in found:
 		if not (e in debt) and not (e in seams):
-			debt.append(e)
+			if as_seam:
+				seams.append(e)
+			else:
+				debt.append(e)
 			added.append(e)
 	debt.sort()
+	seams.sort()
 	doc["_comment"] = BASELINE_COMMENT
 	doc["debt"] = debt
 	doc["count"] = debt.size()
@@ -346,10 +356,13 @@ func _grandfather(found: PackedStringArray, args: PackedStringArray) -> void:
 		"date": Time.get_date_string_from_system(),
 		"reason": reason,
 		"added": added,
+		"as": "seams" if as_seam else "debt",
 	})
 	doc["grandfather_log"] = log
 	_save(doc)
-	print("grandfathered %d into debt, ceiling %d, reason: %s" % [added.size(), debt.size(), reason])
+	print("grandfathered %d into %s, ceiling %d, reason: %s" % [
+		added.size(), "seams" if as_seam else "debt",
+		seams.size() if as_seam else debt.size(), reason])
 
 
 func _save(doc: Dictionary) -> void:

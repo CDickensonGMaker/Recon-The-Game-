@@ -21,18 +21,21 @@
 		"scripts/enemies/enemy_squad.gd|hot_count",
 		"scripts/enemies/enemy_squad.gd|readable_crumbs",
 		"scripts/enemies/enemy_squad.gd|strength_ratio",
+		"scripts/enemies/evidence_ledger.gd|total_strength",
 		"scripts/levels/gore_dummy.gd|regions_removed",
 		"scripts/missions/field_director.gd|live_enemy_count",
 		"scripts/missions/scripted_sequence.gd|is_running",
 		"scripts/vehicles/seat_system.gd|available_seats",
 		"scripts/vehicles/seat_system.gd|is_full",
+		"scripts/world/tree_break_system.gd|registered_count",
+		"scripts/world/tree_break_system.gd|species_count",
 		"terrain/core/heightmap_storage.gd|norm_to_meters",
 		"terrain/core/terrain_manager.gd|get_loaded_chunk_count",
 		"terrain/vegetation/tree_cover_layer.gd|collider_count",
 		"terrain/water/water_system.gd|get_stats"
 	],
-	"seam_count": 14,
-	"seam_ceiling": 14,
+	"seam_count": 17,
+	"seam_ceiling": 17,
 	"grandfather_log": [
 		{
 			"date": "2026-07-20",
@@ -104,6 +107,16 @@
 				"scripts/missions/friendly_patrol_group.gd|living_count",
 				"scripts/world/road_network.gd|total_length"
 			]
+		},
+		{
+			"date": "2026-08-13",
+			"reason": "read-only observers with no sensible production caller: registered_count/species_count report registry size, total_strength sums decayed evidence. A test cannot see any of the three otherwise, and there is nothing to wire them into.",
+			"added": [
+				"scripts/enemies/evidence_ledger.gd|total_strength",
+				"scripts/world/tree_break_system.gd|registered_count",
+				"scripts/world/tree_break_system.gd|species_count"
+			],
+			"as": "seams"
 		}
 	]
 }

@@ -78,7 +78,7 @@ func register_chunk(layer: Node3D, coord: Vector2i, scatter: Array) -> void:
 	for i in scatter.size():
 		var e: Dictionary = scatter[i]
 		var nm: String = String(e.get("name", ""))
-		if not _bands.has(nm):
+		if not is_breakable(nm):
 			continue
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
 		var entry: Dictionary = {
