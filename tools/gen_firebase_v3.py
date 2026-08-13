@@ -859,6 +859,11 @@ COL_TRIMESH = COL_VEG_SOLID + (
                "fb_terrain_mound",
                "fb_sbg_seg_",
                "fb_berm_ring", "fb_helipad", "fb_tower", "fb_gun_pit",
+               # fb_bunker_steps joined 2026-08-12. The stairs are 28-33 degrees, well inside
+               # agent_max_slope, but a BOX hull over a staircase is a solid ramp-shaped block:
+               # men walked over the top instead of down into the bunker, and the entrance the
+               # steps exist to provide was sealed. Same failure as a box over a doorway.
+               "fb_bunker_steps",
                "fb_mortar_pit", "fb_trench_run", "fb_gate_gap", "fb_toc", "fb_mess",
                "fb_hootch", "fb_gp_tent", "fb_aid_station", "fb_bunker_mg",
                "fb_bunker_fighting", "fb_sleeping_bunker", "bwire_card_ring")
@@ -924,8 +929,14 @@ def export_firebase(glb=None):
     clear_collision()
     make_collision()
     bpy.context.view_layer.update()
+    # ARMATURE joined this set 2026-08-12. Without it the staged crews - the surgery, the
+    # officers, the tended wounded - exported as skinned meshes with no skeleton, so Godot
+    # fell back to the BIND pose and every figure in the compound stood in a T-pose. The
+    # exporter says so out loud ("Armature must be the parent of skinned mesh"); nine of
+    # those warnings were in the log and read as noise. glTF stores each joint's CURRENT
+    # transform, so exporting the armature carries the staged pose with it.
     for o in sc.objects:
-        o.select_set(o.type in {'MESH', 'EMPTY'})
+        o.select_set(o.type in {'MESH', 'EMPTY', 'ARMATURE'})
     bpy.context.view_layer.objects.active = next(o for o in sc.objects if o.type == 'MESH')
     bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', use_selection=True,
                               export_apply=True, export_yup=True, export_cameras=False,
