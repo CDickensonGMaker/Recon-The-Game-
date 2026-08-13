@@ -573,10 +573,20 @@ func _report_second_body() -> void:
 		var mi := n as MeshInstance3D
 		if mi == null or not mi.visible or mi.mesh == null:
 			continue
-		# A body is TALL AND WIDE. Height alone flags the RTO's whip antenna, which is a metre
-		# of legitimate kit - this is looking for a second MAN, not a second aerial.
+		# A WHOLE MAN, not a part and not a garment. Measured 2026-08-13 across us_surgeon
+		# and us_grunt_rifleman: the real bodies (us_grunt_joined, Base_Human) are
+		# 1.53 x 1.71; the largest part or garment is 0.39 x 0.65 (grunt_torso 0.391x0.652,
+		# apron_front 0.394x0.634). NOTHING lives between them.
+		#
+		# The old 0.6 / 0.25 gate could not tell a surgeon's APRON from a torso donor - they
+		# are the same box to within 2cm - so it reported us_surgeon as "two men" and three
+		# ledger rows carried that as half an art day of work that did not exist.
+		#
+		# What this gives up, deliberately: a lone part donor left visible no longer trips
+		# this warning. The hide net above already covers those BY NAME, and the failure this
+		# report was written for is Base_Human - a whole second man inside the skin.
 		var box: Vector3 = mi.mesh.get_aabb().size
-		if box.y >= 0.6 and box.x >= 0.25:
+		if box.y >= 1.2 and box.x >= 0.9:
 			bodies.append(String(mi.name))
 	if bodies.size() > 1:
 		push_warning("[MODEL] %s renders %d body-sized meshes, not 1 - a donor slipped the gib "

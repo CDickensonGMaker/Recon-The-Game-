@@ -128,10 +128,15 @@ func _run() -> void:
 	# The one that matters: proves _move_toward() actually CONSUMES the navmesh.
 	# Today's bee-line code fails both halves - it jams on the hut and never
 	# arrives.
+	# The nav-box lives on the shared NavRouter (nav_router.gd:13/54), NOT on a
+	# per-enemy `_nav_box` - that field was deleted in the AI consolidation and this
+	# test kept assigning it. GDScript raises on the assignment, which aborted _run()
+	# before _finish() could call quit(), so the process idled at 120 FPS until the
+	# suite's 420s box killed it. A "hang" that was a fossil reference all along.
 	var enemy := EnemyBase.spawn_enemy(world, a, "res://data/enemies/vc_rifleman.tres")
 	await get_tree().process_frame
 	enemy.set_physics_process(false)  # we drive it by hand at a fixed step
-	enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
+	enemy._router.refresh_box(enemy.global_position)
 	var closest: float = INF
 	var reached: bool = false
 	# Gravity is enemy_base.gd:481-482, inside the _physics_process we just
@@ -139,7 +144,7 @@ func _run() -> void:
 	# descends, and NavigationAgent3D's path_desired_distance is a 3D distance -
 	# so it hovers over each waypoint's XZ and never advances.
 	for i in range(1200):  # up to 20s @ 60Hz
-		enemy._nav_box = NavBaker.box_index_at(enemy.global_position)
+		enemy._router.refresh_box(enemy.global_position)
 		enemy._move_toward(b, 1.0 / 60.0)
 		if not enemy.is_on_floor():
 			enemy.velocity.y -= enemy.gravity * (1.0 / 60.0)
