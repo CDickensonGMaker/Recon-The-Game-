@@ -609,6 +609,13 @@ func _report_untextured() -> void:
 		return
 	_untextured_report[unit] = true
 	var bare: Array[String] = []
+	## THE COLOUR TEST CANNOT SEE THIS ONE. medic_brassard_white is [0.86,0.85,0.82] and still
+	## carries no red cross; the surgeon's mask_face is [0.86,0.84,0.79] and is CORRECT - a
+	## chosen bone-white. No albedo threshold separates 0.82 from 0.79, and the 8/8 re-export
+	## nudged the brassard under WHITE_ALBEDO_MIN, so the probe went silent on an unfixed
+	## defect. What does separate them is that one material's NAME still declares it a
+	## placeholder. An asset that says it is unfinished is taken at its word.
+	var placeholder: Array[String] = []
 	for n in _walk(_inst):
 		var mi := n as MeshInstance3D
 		if mi == null or not mi.visible or mi.mesh == null:
@@ -622,6 +629,11 @@ func _report_untextured() -> void:
 				continue           # shader material: it supplies its own sampling
 			if bm.albedo_texture != null:
 				continue                      # textured: nothing to judge
+			var mat_name: String = m.resource_name.to_lower()
+			for tag: String in PLACEHOLDER_NAME_TAGS:
+				if mat_name.ends_with(tag):
+					placeholder.append("%s[%d]:%s" % [String(mi.name), s, m.resource_name])
+					break
 			var c: Color = bm.albedo_color
 			if minf(minf(c.r, c.g), c.b) < WHITE_ALBEDO_MIN:
 				continue                      # a real palette colour - by design, stay quiet
@@ -630,11 +642,20 @@ func _report_untextured() -> void:
 	if not bare.is_empty():
 		push_warning(("[MODEL] %s has %d surface(s) left on DEFAULT WHITE with no texture - "
 			+ "they never got a palette colour: %s") % [unit, bare.size(), ", ".join(bare)])
+	if not placeholder.is_empty():
+		push_warning(("[MODEL] %s has %d surface(s) whose MATERIAL NAME still says it is "
+			+ "unfinished, with no texture to prove otherwise: %s") % [
+			unit, placeholder.size(), ", ".join(placeholder)])
 
 
 ## Above this on every channel, an untextured material is the engine default rather than a
 ## chosen colour. Nothing in a 1968 palette is this bright.
 const WHITE_ALBEDO_MIN: float = 0.9
+
+## Material-name suffixes that describe an unfinished state rather than a material. Checked
+## only when the surface carries NO texture, so a finished asset that kept its working name
+## stays quiet. Suffix-matched, so `medic_brassard_white` trips and `white_phosphorus` does not.
+const PLACEHOLDER_NAME_TAGS: Array[String] = ["_white", "_placeholder", "_todo", "_wip", "_temp"]
 
 
 func has_visual() -> bool:

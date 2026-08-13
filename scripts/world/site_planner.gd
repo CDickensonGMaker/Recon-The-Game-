@@ -1637,6 +1637,9 @@ func _audit_floating_colliders(root: Node3D) -> void:
 ## its mesh as a child - which is exactly what _do_destroy() expects to find when it hides the
 ## intact wall and disables its cover. No second wall, no second collider.
 const FSB_DESTRUCTIBLES_JSON: String = "res://assets/world/building models/structures/firebase/kit/firebase_v3_destructibles.json"
+## Every parapet segment the exporter emits carries this, manifest entry or not - which is
+## what lets the reconciliation below see a segment the manifest never claimed.
+const FSB_PARAPET_MESH_PREFIX: String = "fb_sbg_seg_"
 ## The wired segments are the only runtime description of where the wire IS. SiegeDirector
 ## measures the perimeter off this group and reads a destroyed member as a breach.
 const FSB_PARAPET_GROUP: StringName = &"fsb_parapet"
@@ -1661,6 +1664,9 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 	var segments: Array = (parsed as Dictionary).get("segments", [])
 	var wired: int = 0
 	var missing: int = 0
+	var claimed: Dictionary = {}
+	for s in segments:
+		claimed[str((s as Dictionary).get("name", ""))] = true
 	for s in segments:
 		var seg: Dictionary = s
 		var mi := root.find_child(str(seg.get("name", "")), true, false) as MeshInstance3D
@@ -1716,8 +1722,27 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		d.add_to_group(FSB_PARAPET_GROUP)
 		d.add_to_group(FSB_NAV_GEOM_GROUP)
 		wired += 1
-	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s" % [wired,
-		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing])
+	# THE OTHER DIRECTION, and the one that fails silently. `missing` catches a manifest entry
+	# with no mesh - loud, because the wall visibly is not there. A mesh with no MANIFEST entry
+	# is the dangerous case: it looks exactly like its 80 destructible twins and is INVULNERABLE,
+	# and `missing == 0` cannot see it. fb_sbg_seg_046_001 is one such stray, shipped in the
+	# 2026-08-12 export.
+	var unclaimed: Array[String] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		for c in nd.get_children():
+			stack.append(c)
+		var nm := String(nd.name)
+		if nd is MeshInstance3D and nm.begins_with(FSB_PARAPET_MESH_PREFIX) and not claimed.has(nm):
+			unclaimed.append(nm)
+	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s%s" % [wired,
+		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing,
+		"" if unclaimed.is_empty() else ", %d in the GLB with NO manifest entry (INVULNERABLE): %s"
+			% [unclaimed.size(), ", ".join(unclaimed)]])
+	if not unclaimed.is_empty():
+		push_warning("[FSB] %d parapet segment(s) ship invulnerable - no manifest entry: %s"
+			% [unclaimed.size(), ", ".join(unclaimed)])
 	_wire_structure_destructibles(root)
 	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented
 	# onto a Destructible by the pass above must still be findable.
