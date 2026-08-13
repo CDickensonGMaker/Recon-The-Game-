@@ -22,6 +22,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fb_kit
 import gen_firebase as gf
 
+## Where the exported GLB lands. Used at :917 and :942 but never defined here - so this
+## module raised NameError on IMPORT and could not be run at all, which is why the firebase
+## had not been re-exported since 2026-07-26. fb_kit is the one authority for the path.
+ROOT = fb_kit.ROOT
+
 SEED = 90210
 R0 = 66.0                 # mean perimeter radius; ~150 m across the short axis
 RIDGE_STRETCH = 1.28      # long axis of the ridge
