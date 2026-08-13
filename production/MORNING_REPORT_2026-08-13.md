@@ -48,6 +48,27 @@ torso donor (0.391 × 0.652) — the same box to within 2 cm — which is why `u
 "two men" and three ledger rows carried half an art day that did not exist. Gated on a whole man
 (1.53 × 1.71) now, in a gap where nothing lives.
 
+**THE LEAK COLUMN CANNOT BE TRUSTED AT SINGLE-RUN RESOLUTION — and this is the finding of the
+second wave.** The suite's AUDIT-12 "resources leaked at exit" check is FLAKY. Measured
+2026-08-13: `test_bullet_flight`, three consecutive runs, byte-identical code →
+**LEAK, LEAK, PASS.** `test_firefight_len` and `test_mission_state` read LEAK inside a full
+suite run and PASS in isolation. 20 of 143 results are LEAK and that column has been read as a
+standing debt register; it is partly noise.
+
+It caught me out directly: two batched versions of the tree-break chunk rebuild appeared to move
+three tests PASS → LEAK, I called it confirmed on one run each, and re-running the *reverted*
+code reproduced the same leaks. The batching was never demonstrated guilty. **I reverted it
+anyway** — on your content-first-optimise-later rule, because the ~960 rebuilds is a static
+estimate never measured on a frame, and an optimisation with unmeasured benefit and
+undemonstrable safety should not ship the week of a demo. `perf_probe` reports ms now, so the
+assault frame can finally be measured; if the cost is real, batch it on the VegetationManager
+side, which owns the chunk lifetime.
+
+**CLEAN SUITE SCOREBOARD (first uninterrupted run since the audit): 103 PASS / 20 LEAK /
+20 FAIL / 0 TIMEOUT, of 143.** Baseline was 106 / 14 / 23 / 1. Fails 23 → 20, the timeout gone,
+and `test_squad_break` off the regression list — `test_height_authority` (water) is the only
+REGRESS left. The PASS/LEAK movement is inside the noise described above.
+
 **Still open and unchanged:** the Chinook (`chinook.tscn` has two nodes and **no seat sockets at
 all**, so `door_staging_pos()` falls through to the airframe origin and men unseat inside the
 fuselage — `test_seat_system` drives the Huey and does not cover it) · cover-seek stopping 4–5 m
