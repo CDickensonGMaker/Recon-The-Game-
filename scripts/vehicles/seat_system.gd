@@ -221,7 +221,11 @@ func _door_target(side: int) -> Node3D:
 		return null
 	var muzzle: Vector3 = _door_muzzle(side)
 	# The door's outward normal in world space: +X for the left seat, -X for the right.
-	var outward: Vector3 = global_transform.basis.x * (1.0 if (entry[0] as Vector3).x > 0.0 else -1.0)
+	var body := _vehicle as Node3D
+	if body == null or not is_instance_valid(body):
+		return null
+	var outward: Vector3 = body.global_transform.basis.x \
+		* (1.0 if (entry[0] as Vector3).x > 0.0 else -1.0)
 	outward.y = 0.0
 	if outward.length() < 0.01:
 		return null
@@ -266,7 +270,9 @@ func _friendly_near(aim: Vector3) -> bool:
 func _door_muzzle(side: int) -> Vector3:
 	var entry: Array = FALLBACK_LAYOUT.get(GUNNER_SEATS[side], [])
 	var local: Vector3 = (entry[0] as Vector3) if not entry.is_empty() else Vector3.ZERO
-	return global_transform * local
+	var body := _vehicle as Node3D
+	# SeatSystem is a plain Node hanging off the airframe: the TRANSFORM is the vehicle's.
+	return (body.global_transform * local) if body != null and is_instance_valid(body) else local
 
 
 func _fire_door_gun(side: int) -> void:
