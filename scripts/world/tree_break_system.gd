@@ -269,6 +269,21 @@ func _consume(doomed: Array[Dictionary]) -> void:
 			layer.remove_scatter_entries(job["coord"] as Vector2i, job["idx"] as Array)
 
 
+## COALESCING THE CHUNK REBUILD IS OPEN, AND IT IS A PERF ITEM, NOT A CORRECTNESS ONE.
+## One blast fells up to twelve trees and the CBU beat can queue hundreds (fire_plan.gd:35,42),
+## each calling rebuild_chunk on its own at ~1645s - inside the assault. That cost is a STATIC
+## estimate and has never been measured on a frame.
+##
+## Two batched versions were built and both reverted - but NOT for the reason it first looked
+## like. The suite's AUDIT-12 "resources leaked at exit" check is FLAKY: measured 2026-08-13,
+## test_bullet_flight run three times against byte-identical code reported LEAK, LEAK, PASS.
+## It cannot adjudicate a change, and the PASS -> LEAK readings that appeared to convict the
+## batched version were single runs of that noisy detector.
+##
+## So this stays the plain direct call on his standing content-first-optimise-later rule: an
+## optimisation whose benefit is unmeasured and whose safety cannot be demonstrated does not
+## ship the week of a demo. Measure the assault frame first; if it is real, batch it on the
+## VegetationManager side, which owns the chunk and its lifetime.
 func _process(_delta: float) -> void:
 	var n: int = mini(BREAKS_PER_FRAME, _break_queue.size())
 	for _i in n:
@@ -316,24 +331,6 @@ class BrokenTree:
 	## A log lying in the grass is crouch cover, not a 3m post.
 	const LOG_TRUNK_H: float = 0.9
 
-	## One blast fells up to twelve trees and a CBU beat can queue hundreds, and every one
-	## of them used to rebuild its whole vegetation chunk on its own. DEFERRED and deduped,
-	## not skipped: the rebuild has to land AFTER every tree in the cascade has run
-	## add_fell_entries, or the last one's parts never render.
-	static var _rebuild_pending: Dictionary = {}
-
-	static func _request_rebuild(vm: Node, chunk: Variant) -> void:
-		if vm == null or not is_instance_valid(vm):
-			return
-		var key: String = "%d|%s" % [vm.get_instance_id(), str(chunk)]
-		if _rebuild_pending.has(key):
-			return
-		_rebuild_pending[key] = true
-		var flush: Callable = func() -> void:
-			_rebuild_pending.erase(key)
-			if is_instance_valid(vm):
-				vm.call("rebuild_chunk", chunk)
-		flush.call_deferred()
 
 	var species: String = ""
 	var source_xf: Transform3D = Transform3D.IDENTITY
@@ -455,7 +452,7 @@ class BrokenTree:
 					e2["trunk_h"] = LOG_TRUNK_H
 				entries.append(e2)
 			vm.call("add_fell_entries", entries)
-			_request_rebuild(vm, chunk)
+			vm.call("rebuild_chunk", chunk)
 			queue_free()
 			return
 		# Bench (no VegetationManager): the node IS the permanence. Lay a prone-height
