@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b0k2g1ep8h2ts"
-path="res://.godot/imported/fsb_main_v3_radio_lores.png-82be0a6cab9053c86deae68f1c9726e1.ctex"
+path.s3tc="res://.godot/imported/fsb_main_v3_radio_lores.png-82be0a6cab9053c86deae68f1c9726e1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0ada5181a35608da966b737513e45f6c"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/building models/structures/firebase/fsb_main_v3_radio_lores.png"
-dest_files=["res://.godot/imported/fsb_main_v3_radio_lores.png-82be0a6cab9053c86deae68f1c9726e1.ctex"]
+dest_files=["res://.godot/imported/fsb_main_v3_radio_lores.png-82be0a6cab9053c86deae68f1c9726e1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

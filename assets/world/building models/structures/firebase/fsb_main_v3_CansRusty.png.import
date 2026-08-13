@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://byg4o3v23cjxv"
-path="res://.godot/imported/fsb_main_v3_CansRusty.png-2ef4651cb61ac70860f771e647e50fd1.ctex"
+path.s3tc="res://.godot/imported/fsb_main_v3_CansRusty.png-2ef4651cb61ac70860f771e647e50fd1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "64a6380f37771457eae8ae33c62da8c3"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/building models/structures/firebase/fsb_main_v3_CansRusty.png"
-dest_files=["res://.godot/imported/fsb_main_v3_CansRusty.png-2ef4651cb61ac70860f771e647e50fd1.ctex"]
+dest_files=["res://.godot/imported/fsb_main_v3_CansRusty.png-2ef4651cb61ac70860f771e647e50fd1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
