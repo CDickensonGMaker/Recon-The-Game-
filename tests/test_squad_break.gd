@@ -197,6 +197,12 @@ func _test_broken_man_goals() -> int:
 		printerr("FAIL: a broken squad's man still closes the range")
 		fails += 1
 	# The thrash guard survives the break: two failed cover hunts stop the trip.
+	# The guard gained a LOCKOUT WINDOW in 63b4fe6f (2026-08-12) - two failures suppress the
+	# trip only until COVER_FAIL_LOCKOUT_MS has passed, then the count resets and the man is
+	# allowed to try again. Stamping the clock is what puts us inside that window; without it
+	# _cover_fail_ms is 0, the lockout reads as long expired, and the guard correctly lets him
+	# retry. Asserting the old unconditional behaviour is what turned this test red.
+	a._cover_fail_ms = Time.get_ticks_msec()
 	a._cover_fail_count = 2
 	if a.wants_cover_first(0.9):
 		printerr("FAIL: break bypassed the cover fail-count guard (thrash)")

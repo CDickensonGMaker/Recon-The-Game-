@@ -471,7 +471,11 @@ func _update_break() -> void:
 			else "SQUAD BACK IN THE FIGHT")
 		if squad_broken:
 			var caller: AllyBase = _first_living()
-			if caller != null:
+			# global_position on a man who is not in the tree returns identity AND prints an
+			# engine error, so the fall-back call would place itself at the world origin.
+			# Reachable for real during teardown, when a member is freed between the roster
+			# scan and this line.
+			if caller != null and caller.is_inside_tree():
 				VOManager.play_squad("fall_back", caller.member, caller.global_position, true)
 
 
