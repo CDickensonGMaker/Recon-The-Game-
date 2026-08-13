@@ -592,19 +592,6 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		if s_pos != Vector3.ZERO:
 			p.sites.append({"kind": "temple", "center": s_pos})
 
-	# ROADS. Planned here because a road is PURE DERIVED POSITION - it routes over the
-	# finished GameplayGrid and seats on the finished terrain, writing nothing. That
-	# keeps plan_patrol_world side-effect free, and it means the ambush planner below
-	# can already see the traffic lines. The corridor clearing (the one write a road
-	# performs) happens in build_patrol_world, not here.
-	#
-	# The hub is the wire gate and the spokes are the villages. VC camps are
-	# deliberately unconnected: a paved road to a Viet Cong base camp is absurd, and
-	# the planner scores distance to traffic rather than requiring it.
-	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
-	roads.build(gate, villages)
-	p["roads"] = roads
-
 	# First-sign craters: four sectors fanned across the gate's OUTWARD half-plane
 	# (ADR-029 amendment 2026-07-18) - the inward compass is the player's own base,
 	# and a crater must clear the wire by its own blast radius. Signs are
@@ -634,28 +621,72 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 	for vi in range(villages.size()):
 		p.enemy_groups.append({"pos": villages[vi], "count": rng.randi_range(4, 7),
 			"tag": "village_defenders_%d" % vi, "lazy": villages[vi] != nearest, "spread": 20.0})
-	# The garrison IS the ambush party. AmbushPlanner sites 4-6 of a camp's men on
-	# cover-scored ground within 200m; the camp keeps the rest. One garrison roll,
-	# two placements - the AO does not gain men, it moves them onto chosen ground.
+	# The garrison IS the ambush party, split by route_roads_and_ambushes() once the
+	# buildings exist. The ROLL stays here so the plan pass owns every draw off this
+	# seed and nothing downstream can reorder the stream (ADR-010).
+	var garrisons: Array[int] = []
+	for _ci2 in range(camps.size()):
+		garrisons.append(rng.randi_range(6, 9))
+	p["camp_garrisons"] = garrisons
+	return p
+
+
+## ROADS, then AMBUSHES - after every site is stamped (Summoner's ruling
+## 2026-08-12: the routes are built after the world's buildings). A road is still
+## pure derived position, but it can only route AROUND huts that exist, so it is
+## routed from build_patrol_world rather than from the plan pass. The ambush
+## planner moves with it: it scores distance to a traffic line and would be blind
+## to one if it ran first.
+##
+## Writes p.roads, p.ambush_sites and the camp enemy_groups. MUST run before
+## _spawn_enemy_groups and before NavBaker reads _enemy_anchors.
+##
+## Deterministic without drawing: garrison sizes come from p.camp_garrisons and
+## each camp's ambush search gets its own seed-derived generator.
+static func route_roads_and_ambushes(world: GameWorld, p: Dictionary) -> void:
+	# The hub is the wire gate and the spokes are the villages. VC camps are
+	# deliberately unconnected: a paved road to a Viet Cong base camp is absurd, and
+	# the planner scores distance to traffic rather than requiring it.
+	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
+	roads.set_blockers(_road_blockers(world))
+	roads.build(p.gate_pos as Vector3, p.get("village_centers", []))
+	p["roads"] = roads
+
 	var ambush_sites: Array[Dictionary] = []
+	var camps: Array = p.get("camp_centers", [])
+	var garrisons: Array = p.get("camp_garrisons", [])
 	var site_keepout: Rect2 = _fsb_keepout.grow(SitePlanner.FSB_SITE_CLEARANCE)
-	for ci2 in range(camps.size()):
-		var garrison: int = rng.randi_range(6, 9)
+	for ci in range(mini(camps.size(), garrisons.size())):
+		var garrison: int = int(garrisons[ci])
 		var arng := RandomNumberGenerator.new()
-		arng.seed = op_seed + 5171 * (ci2 + 1)
-		var ambush: Dictionary = AmbushPlannerScript.plan(camps[ci2], garrison,
-			world.gameplay_grid, p.paddy_centroids, arng, site_keepout, roads)
+		arng.seed = int(p.seed) + 5171 * (ci + 1)
+		var ambush: Dictionary = AmbushPlannerScript.plan(camps[ci] as Vector3, garrison,
+			world.gameplay_grid, p.get("paddy_centroids", []), arng, site_keepout, roads)
 		if not ambush.is_empty():
 			var party: int = mini(int(ambush.soldiers), garrison - AMBUSH_CAMP_FLOOR)
 			ambush["soldiers"] = party
 			ambush_sites.append(ambush)
 			p.enemy_groups.append({"pos": ambush.trigger_pos, "count": party,
-				"tag": "camp_ambush_%d" % ci2, "lazy": true, "spread": 8.0})
+				"tag": "camp_ambush_%d" % ci, "lazy": true, "spread": 8.0})
 			garrison -= party
-		p.enemy_groups.append({"pos": camps[ci2], "count": garrison,
-			"tag": "camp_garrison_%d" % ci2, "lazy": true, "spread": 14.0})
+		p.enemy_groups.append({"pos": camps[ci], "count": garrison,
+			"tag": "camp_garrison_%d" % ci, "lazy": true, "spread": 14.0})
 	p["ambush_sites"] = ambush_sites
-	return p
+
+
+## Every stamped structure the router must go around. The firebase's own contents
+## are excluded: the network's hub is the gate marker just outside the wire, and a
+## compound full of blockers around it walls the hub in.
+static func _road_blockers(world: GameWorld) -> Array:
+	var out: Array = []
+	for n in world.get_tree().get_nodes_in_group("nav_blockers"):
+		var n3 := n as Node3D
+		if n3 == null:
+			continue
+		if _fsb_keepout.has_point(Vector2(n3.global_position.x, n3.global_position.z)):
+			continue
+		out.append(n3)
+	return out
 
 
 ## DEMO GAME (War Room 2026-07-29): the authored 512m-slice plan. Same dict
@@ -776,9 +807,6 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 		if spos != Vector3.ZERO:
 			signs.append(spos)
 	p["first_signs"] = signs
-	var roads := RoadNetwork.new(world.gameplay_grid, world.terrain_manager)
-	roads.build(gate, demo_villages)
-	p["roads"] = roads
 
 	# Light daytime presence only - the siege brings the real enemy at night.
 	p.enemy_groups.append({"pos": village, "count": rng.randi_range(3, 4),
@@ -789,9 +817,6 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	if treeline != Vector3.ZERO:
 		p.enemy_groups.append({"pos": treeline, "count": rng.randi_range(3, 5),
 			"tag": "treeline_watchers", "lazy": true, "spread": 12.0})
-	var no_ambush: Array[Dictionary] = []
-	p["ambush_sites"] = no_ambush
-
 	# THE ENEMY CAMP (his rescope, 2026-08-03: "there is at least one village and one enemy
 	# camp"). The demo used to declare zero camps. It sits on the OPPOSITE flank from the
 	# village and further out, so the two are a day's walk apart rather than one loop, and
@@ -874,6 +899,18 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 			rng.randf_range(0.8, FIRST_SIGN_INTENSITY_MAX))
 		if rng.randf() < 0.4:
 			_spawn_crater_water(world, s, rng)
+
+	# ROADS + AMBUSHES. Here and not in the plan pass: the router needs the huts to
+	# route around them, and the ambush planner needs the roads. Both must land
+	# before _spawn_enemy_groups, which consumes the camp groups this appends.
+	route_roads_and_ambushes(world, p)
+	world.road_network = p.get("roads", null) as RoadNetwork
+	if world.road_network != null:
+		# The only write a road performs: vegetation bundles thinned along the
+		# corridor - never height, never terrain_type, never water.
+		world.road_network.clear_corridor(world.vegetation_manager,
+			world.terrain_manager.chunk_size, world.terrain_manager.heightmap)
+
 	_spawn_enemy_groups(world, director, p, rng)
 
 	# S28: the ZPU stands beside the camp when the plan named a crew for it, and
@@ -931,16 +968,6 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var pit_pos: Vector3 = (fsb.center as Vector3) + pit_dir * 10.0
 	pit_pos.y = world.terrain_manager.get_height_at(pit_pos)
 	MortarPit.create(world, pit_pos, pit_dir)
-
-	# ROADS. The network was ROUTED in the plan pass (pure positions); this is where it
-	# becomes part of the world. Two things happen and nothing else: the world gets its
-	# authority reference, and the corridor is thinned - vegetation bundles only, never
-	# height, never terrain_type, never water. Deliberately before _wire_systems, which
-	# schedules the convoy that drives these roads.
-	world.road_network = p.get("roads", null) as RoadNetwork
-	if world.road_network != null:
-		world.road_network.clear_corridor(world.vegetation_manager,
-			world.terrain_manager.chunk_size, world.terrain_manager.heightmap)
 
 	var nav_baker: NavBaker = null
 	if WorldConfig.NAV_ENABLED:

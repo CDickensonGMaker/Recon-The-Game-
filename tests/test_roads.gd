@@ -250,9 +250,12 @@ func _check_real_world() -> void:
 		return
 
 	var plan: Dictionary = MissionGenerator.plan_patrol_world(world, SEED_VAL)
+	# Nothing is stamped in this probe, so the router sees no buildings - which is
+	# the point here: terrain routing must stand on its own.
+	MissionGenerator.route_roads_and_ambushes(world, plan)
 	var net: RoadNetwork = plan.get("roads", null) as RoadNetwork
 	if net == null:
-		_fail("plan_patrol_world produced no road network")
+		_fail("route_roads_and_ambushes produced no road network")
 		return
 
 	if net.segments.size() > 0:

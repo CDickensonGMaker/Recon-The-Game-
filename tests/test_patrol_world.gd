@@ -101,6 +101,14 @@ func _run() -> void:
 	# Bands + quadrants + determinism at plan level, on the same world.
 	var p1: Dictionary = MissionGenerator.plan_patrol_world(flow.world, 31337)
 	var p2: Dictionary = MissionGenerator.plan_patrol_world(flow.world, 31337)
+	# Roads and ambushes are routed against the STAMPED world, so the plan dict does
+	# not carry them until this runs (mission_generator.gd, route_roads_and_ambushes).
+	MissionGenerator.route_roads_and_ambushes(flow.world, p1)
+	MissionGenerator.route_roads_and_ambushes(flow.world, p2)
+	if _road_print(p1) != _road_print(p2):
+		_fail("road/ambush routing not deterministic")
+		print("A=" + _road_print(p1))
+		print("B=" + _road_print(p2))
 	if _fingerprint(p1) != _fingerprint(p2):
 		_fail("patrol plan not deterministic")
 		print("A=" + _fingerprint(p1))
@@ -209,11 +217,83 @@ func _run() -> void:
 			_fail("camp garrison left with %d men - the ambush emptied the camp" % int(gd2.count))
 	print("ambush siting: %d camps sited, %d groups placed" % [sited.size(), ambush_groups.size()])
 
+	# THE ROUTE GOES AROUND THE VILLAGE, NOT THROUGH IT (Summoner, 2026-08-12).
+	# Roads are routed after the stamps, so no road point may stand on a building's
+	# authored footprint. The firebase's own contents are excluded from the router's
+	# blocker set (the hub is the gate marker), so they are excluded here too.
+	var road_net: RoadNetwork = p1.get("roads", null) as RoadNetwork
+	if road_net == null:
+		_fail("no road network after routing")
+	else:
+		var inside: int = 0
+		var pts: int = 0
+		var closest: float = 1.0e9
+		for seg in road_net.segments:
+			for rp in seg:
+				pts += 1
+				for nb in flow.world.get_tree().get_nodes_in_group("nav_blockers"):
+					var n3 := nb as Node3D
+					if n3 == null or not n3.has_meta("model_name"):
+						continue
+					var bp: Vector3 = n3.global_position
+					if fsb_rect.has_point(Vector2(bp.x, bp.z)):
+						continue
+					var fp: Vector2 = CollisionTable.get_entry(str(n3.get_meta("model_name"))).footprint
+					var edge: float = Vector2(rp.x - bp.x, rp.z - bp.z).length() - fp.length() * 0.5
+					closest = minf(closest, edge)
+					if edge <= RoadNetwork.BUILDING_CLEARANCE_M:
+						inside += 1
+						break
+		# CONTROL: the same routing with no blocker set is the pre-2026-08-12 order
+		# (routed in the plan pass, before any hut existed). If it scores zero too,
+		# the measurement above is proving nothing.
+		var blind := RoadNetwork.new(flow.world.gameplay_grid, flow.world.terrain_manager)
+		blind.build(p1.gate_pos as Vector3, villages)
+		var blind_inside: int = 0
+		var blind_closest: float = 1.0e9
+		for seg2 in blind.segments:
+			for rp2 in seg2:
+				for nb2 in flow.world.get_tree().get_nodes_in_group("nav_blockers"):
+					var m3 := nb2 as Node3D
+					if m3 == null or not m3.has_meta("model_name"):
+						continue
+					var mp: Vector3 = m3.global_position
+					if fsb_rect.has_point(Vector2(mp.x, mp.z)):
+						continue
+					var mfp: Vector2 = CollisionTable.get_entry(str(m3.get_meta("model_name"))).footprint
+					var bedge: float = Vector2(rp2.x - mp.x, rp2.z - mp.z).length() - mfp.length() * 0.5
+					blind_closest = minf(blind_closest, bedge)
+					if bedge <= RoadNetwork.BUILDING_CLEARANCE_M:
+						blind_inside += 1
+						break
+		print("road points within %.0fm of a building: %d of %d (nearest wall %.1fm)"
+			% [RoadNetwork.BUILDING_CLEARANCE_M, inside, pts, closest])
+		print("blind control (pre-stamp routing): %d intrusions, nearest wall %.1fm"
+			% [blind_inside, blind_closest])
+		if blind_inside == 0:
+			_fail("the blind control also scores zero - this seed cannot prove the fix")
+		if inside > 0:
+			_fail("%d of %d road points stand on a building - the road runs through the huts" % [inside, pts])
+
 	if (p1.first_signs as Array).size() < 3:
 		_fail("only %d first signs planned (want >=3 across the outward fan)" % (p1.first_signs as Array).size())
 	print("patrol world: %d villages, %d camps, gate %.0f,%.0f out %s" % [
 		villages.size(), camps.size(), gate.x, gate.z, str(p1.gate_out)])
 	_finish()
+
+
+## Road termini + ambush triggers - the two outputs the post-stamp routing owns.
+func _road_print(p: Dictionary) -> String:
+	var parts: Array[String] = []
+	var net: RoadNetwork = p.get("roads", null) as RoadNetwork
+	if net != null:
+		for seg in net.segments:
+			parts.append("%d@%.1f,%.1f" % [seg.size(), seg[seg.size() - 1].x, seg[seg.size() - 1].z])
+	for s in (p.get("ambush_sites", []) as Array):
+		var sd: Dictionary = s
+		var t: Vector3 = sd.trigger_pos
+		parts.append("amb%.1f,%.1f:%d" % [t.x, t.z, int(sd.soldiers)])
+	return " | ".join(parts)
 
 
 func _fingerprint(p: Dictionary) -> String:

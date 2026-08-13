@@ -7,6 +7,10 @@
 ## hydrology. Everything downstream - convoys, the ambush planner, the topo sheet -
 ## asks THIS object, and there is no second place to ask.
 ##
+## It is also routed AFTER every site is stamped, so set_blockers() can be given the
+## real buildings. Routing it in the plan pass routes it against village CENTRES and
+## puts the road through the huts.
+##
 ## Consequences of that rule, all deliberate:
 ##   - NO terrain height edits. Roads are SEATED on the ground, never graded into it.
 ##     A graded roadbed crossing a carved river channel can dam it, and the channel
@@ -46,6 +50,17 @@ const SLOPE_COST: float = 40.0
 const BRAID_DISCOUNT: float = 0.25
 ## Slope above this is refused outright - a road does not climb a cliff.
 const MAX_ROAD_SLOPE: float = 0.55
+## Clearance kept between a road centreline and a building's footprint edge, in
+## meters. The corridor is thinned ROAD_HALF_WIDTH_M either side, so anything
+## nearer than that is a road running through the wall.
+const BUILDING_CLEARANCE_M: float = ROAD_HALF_WIDTH_M
+## Cost of entering a cell a building stands on. LARGE BUT FINITE for the same
+## reason WATER_COST is: a hard block can ring a village centre with its own huts
+## and disconnect it, and reaching every village is the network's contract.
+const BUILDING_COST: float = 4000.0
+## Rings searched when a route endpoint lands on a building. Beyond this the
+## endpoint is used as given - a terminus 5 cells out is no longer that village.
+const ENDPOINT_SEARCH_RINGS: int = 5
 
 ## Road polylines. Each is a PackedVector3Array of SEATED world points (Y = terrain
 ## height at that XZ). Shaped deliberately like HydrologyMap.rivers so the two read
@@ -56,6 +71,8 @@ var _grid: GameplayGrid
 var _terrain: TerrainManager
 ## Grid cells carrying road, for the braid discount and fast proximity rejection.
 var _road_cells: Dictionary = {}
+## Grid cells a stamped building stands on. Populated by set_blockers().
+var _building_cells: Dictionary = {}
 
 
 func _init(grid: GameplayGrid, terrain: TerrainManager) -> void:
@@ -68,6 +85,39 @@ func _init(grid: GameplayGrid, terrain: TerrainManager) -> void:
 ## VC camps are deliberately NOT connected. A paved road to a Viet Cong base camp is
 ## absurd on its face, and the ambush planner does not need one - it scores distance
 ## to a traffic line rather than requiring one (see AmbushPlanner.TRAFFIC_NEAR_M).
+## The buildings the router must not cross. Roads are routed AFTER every site is
+## stamped (Summoner's ruling 2026-08-12), so `bodies` is the real world: the
+## "nav_blockers" group, every member carrying a `model_name` meta whose
+## CollisionTable entry gives the authored footprint.
+##
+## Rotation is ignored deliberately: stamped structures are yaw-only and the
+## reach that matters is the half-diagonal, which no yaw changes.
+func set_blockers(bodies: Array) -> void:
+	_building_cells.clear()
+	if _grid == null:
+		return
+	for b in bodies:
+		var n := b as Node3D
+		if n == null or not n.has_meta("model_name"):
+			continue
+		var entry: Dictionary = CollisionTable.get_entry(str(n.get_meta("model_name")))
+		var fp: Vector2 = entry.footprint
+		_mark_building(n.global_position, fp.length() * 0.5 + BUILDING_CLEARANCE_M)
+
+
+func _mark_building(center: Vector3, reach: float) -> void:
+	var span: int = maxi(1, int(ceil(reach / _grid.cell_size_meters)))
+	var c: Vector2i = _grid.world_to_grid(center)
+	for dz in range(-span, span + 1):
+		for dx in range(-span, span + 1):
+			var cell := Vector2i(c.x + dx, c.y + dz)
+			if not _in_bounds(cell, _grid.grid_size):
+				continue
+			var w: Vector3 = _grid.grid_to_world(cell)
+			if Vector2(w.x - center.x, w.z - center.z).length() <= reach:
+				_building_cells[cell] = true
+
+
 func build(gate_pos: Vector3, village_centers: Array) -> void:
 	segments.clear()
 	_road_cells.clear()
@@ -84,8 +134,8 @@ func build(gate_pos: Vector3, village_centers: Array) -> void:
 ## Shortest sensible road between two world points, seated on the terrain.
 ## Returns an empty array if no route exists.
 func _route(from_pos: Vector3, to_pos: Vector3) -> PackedVector3Array:
-	var start: Vector2i = _grid.world_to_grid(from_pos)
-	var goal: Vector2i = _grid.world_to_grid(to_pos)
+	var start: Vector2i = _open_endpoint(_grid.world_to_grid(from_pos))
+	var goal: Vector2i = _open_endpoint(_grid.world_to_grid(to_pos))
 	var cells: Array[Vector2i] = _astar(start, goal)
 	if cells.size() < 2:
 		return PackedVector3Array()
@@ -168,7 +218,39 @@ func _cell_cost(gx: int, gz: int) -> float:
 	var cost: float = base + slope_val * SLOPE_COST
 	if _road_cells.has(Vector2i(gx, gz)):
 		cost *= BRAID_DISCOUNT
+	if _building_cells.has(Vector2i(gx, gz)):
+		cost += BUILDING_COST
 	return cost
+
+
+## A village centre is normally the middle of its own hut cluster, so ending a
+## route there would seat its last points inside a wall. The terminus walks out
+## to the nearest cell no building stands on: the road reaches the village and
+## stops at its edge. The scan order is fixed, so this draws nothing and the same
+## seed yields the same terminus.
+func _open_endpoint(c: Vector2i) -> Vector2i:
+	if not _building_cells.has(c):
+		return c
+	var n: int = _grid.grid_size
+	for r in range(1, ENDPOINT_SEARCH_RINGS + 1):
+		var best := Vector2i(-1, -1)
+		var best_d: float = INF
+		for dz in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dz)) != r:
+					continue
+				var cell := Vector2i(c.x + dx, c.y + dz)
+				if not _in_bounds(cell, n) or _building_cells.has(cell):
+					continue
+				if _cell_cost(cell.x, cell.y) < 0.0:
+					continue
+				var d: float = Vector2(float(dx), float(dz)).length()
+				if d < best_d:
+					best_d = d
+					best = cell
+		if best.x >= 0:
+			return best
+	return c
 
 
 func _heuristic(a: Vector2i, b: Vector2i) -> float:
