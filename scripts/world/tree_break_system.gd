@@ -239,16 +239,6 @@ func apply_blast(center: Vector3, radius: float) -> int:
 	return doomed.size()
 
 
-## Front door for a resolved single hit (query_ahead result): consume the instance and
-## return its segmented stand-in, still whole. Caller then break_at()s it.
-func promote(hit: Dictionary) -> BrokenTree:
-	var entry: Dictionary = hit.get("entry", hit)
-	if entry.is_empty() or bool(entry.get("dead", true)):
-		return null
-	_consume([entry])
-	return _spawn_broken(entry)
-
-
 ## Pull consumed entries out of the registry AND out of their layers' stored scatter
 ## (one chunk regen per touched chunk), so nothing re-renders the standing original.
 func _consume(doomed: Array[Dictionary]) -> void:

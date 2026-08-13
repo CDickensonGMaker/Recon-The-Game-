@@ -132,9 +132,31 @@ func _ready() -> void:
 	if _flow == null or not is_instance_valid(_flow) or not is_inside_tree():
 		return
 	SimClock.set_time(1, START_HOUR)
+	_apply_ambient_exclusions()
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
 		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
 		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
+
+
+## The other half of the switchboard. EXCLUDE_AIR_TRAFFIC and EXCLUDE_AMBIENT_WAR were read
+## by nothing but the boot print above, so flipping either to true printed "EXCLUDED" and
+## excluded nothing - the one thing the switchboard's own contract forbids. Both systems are
+## built by mission_generator (:263-268) under fixed names, and both seed their schedules off
+## SimClock in _ready, so removing the node is what "exclude" means for them.
+func _apply_ambient_exclusions() -> void:
+	if not (EXCLUDE_AIR_TRAFFIC or EXCLUDE_AMBIENT_WAR):
+		return
+	var world: Node = _flow.world if _flow != null else null
+	if world == null or not is_instance_valid(world):
+		return
+	for pair in [["AirTraffic", EXCLUDE_AIR_TRAFFIC], ["AmbientWar", EXCLUDE_AMBIENT_WAR]]:
+		if not bool(pair[1]):
+			continue
+		var n: Node = world.find_child(String(pair[0]), false, false)
+		if n != null:
+			n.queue_free()
+		else:
+			push_warning("[DEMO] EXCLUDE_%s is set but no such node was built" % String(pair[0]).to_upper())
 
 
 ## Any probe/automation flag means nobody is at the keyboard to dismiss a splash.
