@@ -98,6 +98,10 @@ const PILOT_PANEL_S: float = 3.00
 ## existed (209 clips in anim_library.glb), it picked the authored postures up unassisted when
 ## aba5ca53 shipped them the same day - no second wiring pass. The lip clips are LIVE now.
 const SITTING_CLIP := "sitting"
+## What a man is painted with the instant he leaves a seat, so he is never left holding the
+## seated pose on the ground. A chain, same reason as the seat clips: the first one the shared
+## library actually carries wins, and his own think loop repaints over it on its next tick.
+const EXIT_CLIPS: Array[String] = ["idle", "idle_unarmed"]
 const LIP_CLIPS: Array[String] = ["sit_lip_outboard_a", "sit_lip_outboard_b"]
 const BENCH_CLIP := "sit_bench_upright"
 
@@ -538,8 +542,13 @@ func unseat(body: Node3D, exit_pos: Vector3) -> void:
 			var cs := s as CollisionShape3D
 			if cs != null and is_instance_valid(cs):
 				cs.set_deferred("disabled", false)
-		body.set_physics_process(bool(rec.get("was_physics", true)))
-		body.set_process(bool(rec.get("was_process", true)))
+		# ON, not "whatever it was". was_physics/was_process are sampled at seat() time, and
+		# troops are seated the same frame they spawn (the TR pax convention) - BEFORE _ready
+		# has turned their processing on. So the capture reads false and this faithfully
+		# restored false, and the man stood on the LZ forever, never thinking. There is no
+		# case where a delivered passenger should stay frozen.
+		body.set_physics_process(true)
+		body.set_process(true)
 		body.global_position = exit_pos
 		# Level the body: the socket basis carried the airframe's bank/pitch.
 		var e: Vector3 = body.global_rotation
@@ -547,6 +556,12 @@ func unseat(body: Node3D, exit_pos: Vector3) -> void:
 		var cb := body as CharacterBody3D
 		if cb != null:
 			cb.velocity = Vector3.ZERO
+	# seat() paints the seated pose and nothing ever painted it back off, so a delivered man
+	# stood on the pad still holding sit_lip_outboard_* until something else happened to him.
+	# His own think loop repaints from here; this just clears the seat.
+	var out_model: ModelActor = _model_of(body)
+	if out_model != null:
+		out_model.play_first(EXIT_CLIPS)
 	body.reset_physics_interpolation()
 
 
