@@ -88,10 +88,12 @@ static func attach(h: Helicopter, d: FieldDirector) -> HeliLift:
 func _ready() -> void:
 	if heli == null or not is_instance_valid(heli):
 		return
-	# The huey scene ships no SeatSystem node, but SeatSystem carries a measured UH-1 fallback
-	# layout, so it works whether or not the airframe exports sockets.
+	# No airframe scene ships a SeatSystem node; SeatSystem carries measured
+	# per-airframe fallback layouts, keyed off the scene's own tandem_rotor flag
+	# (the CH-47 declares it; the UH-1 default covers everything else).
 	seats = SeatSystem.new()
 	seats.name = "Seats"
+	seats.fallback_key = &"ch47" if heli.tandem_rotor else &"uh1"
 	seats.board_clips = BOARD_CLIPS
 	heli.add_child(seats)
 	_find_doors()

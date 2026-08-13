@@ -249,6 +249,8 @@ func _check_channels(tm: TerrainManager, water: WaterSystem) -> void:
 	var wet: int = 0
 	var dry_examples: Array[String] = []
 	var worst_gap: float = 0.0
+	var worst_at := Vector2.ZERO
+	var over_tol: int = 0
 
 	for path in paths:
 		for p in path.points:
@@ -260,7 +262,12 @@ func _check_channels(tm: TerrainManager, water: WaterSystem) -> void:
 				var bed: float = tm.get_height_at(Vector3(wx, 0.0, wz))
 				var surf: float = water.get_water_level_at(wx, wz)
 				if surf > -INF and surf > 0.0:
-					worst_gap = maxf(worst_gap, absf(surf - bed))
+					var gap: float = absf(surf - bed)
+					if gap > CHANNEL_TOL_M:
+						over_tol += 1
+					if gap > worst_gap:
+						worst_gap = gap
+						worst_at = Vector2(wx, wz)
 			elif dry_examples.size() < 5:
 				dry_examples.append("(%.0f, %.0f)" % [wx, wz])
 
@@ -269,7 +276,9 @@ func _check_channels(tm: TerrainManager, water: WaterSystem) -> void:
 	print("  of those, WaterSystem reports water: %d (%.1f%%)" % [wet, pct])
 	if dry_examples.size() > 0:
 		print("  dry carved-groove examples: %s" % ", ".join(dry_examples))
-	print("  worst bed-vs-surface gap where both exist: %.2f m" % worst_gap)
+	print("  worst bed-vs-surface gap where both exist: %.2f m at (%.0f, %.0f)" % [
+		worst_gap, worst_at.x, worst_at.y])
+	print("  points over the %.1fm tolerance: %d of %d wet" % [CHANNEL_TOL_M, over_tol, wet])
 
 	# This is the owner's visible bug: a carved creekbed with no water in it, or
 	# water sitting off its own bed.

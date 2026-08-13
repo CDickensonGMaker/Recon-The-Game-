@@ -77,6 +77,7 @@ func _ready() -> void:
 	var off_mesh: int = 0
 	var no_route: int = 0
 	var reached: int = 0
+	var routes: Array[Dictionary] = []
 	for i in range(posts.size()):
 		var world_p: Vector3 = posts[i] + Vector3(0.0, SAMPLE_UP_M, 0.0)
 		var snapped: Vector3 = NavigationServer3D.map_get_closest_point(map, world_p)
@@ -100,9 +101,76 @@ func _ready() -> void:
 				i, world_p.x, world_p.z])
 			continue
 		reached += 1
+		routes.append({"i": i, "path": path})
 
 	print("\n%d reachable, %d OFF-MESH, %d SEALED, of %d bunker fire points" % [
 		reached, off_mesh, no_route, posts.size()])
 	print("An OFF-MESH post has no navmesh under it at all - the interior never baked.")
 	print("A SEALED post baked, but no route reaches it - the padding closed the doorway.")
-	get_tree().quit(0 if off_mesh == 0 and no_route == 0 else 1)
+
+	# PHYSICS PASS - nav reachability is not enterability (his playtest: "the AI
+	# can get in and I can't"). Walk each route with the PLAYER'S capsule
+	# (player.tscn: r 0.4, h 1.8) and name the first world collider that blocks
+	# it. The test band starts 0.5m up so risers and steps he can climb do not
+	# read as walls; anything solid in the torso/head band on a route the navmesh
+	# calls open is the solid-but-nav-invisible class (NAV_IGNORE_PREFIXES).
+	var space: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.4
+	capsule.height = 1.3
+	var blocked: int = 0
+	for r in routes:
+		var path: PackedVector3Array = r["path"]
+		var hit_name: String = ""
+		var hit_at := Vector3.ZERO
+		for seg in range(path.size() - 1):
+			var a: Vector3 = path[seg]
+			var b: Vector3 = path[seg + 1]
+			var steps: int = maxi(1, int(a.distance_to(b) / 0.25))
+			for s in range(steps + 1):
+				var p: Vector3 = a.lerp(b, float(s) / float(steps))
+				var q := PhysicsShapeQueryParameters3D.new()
+				q.shape = capsule
+				q.transform = Transform3D(Basis.IDENTITY, p + Vector3(0.0, 1.15, 0.0))
+				q.collision_mask = 1
+				var hits: Array[Dictionary] = space.intersect_shape(q, 8)
+				for h in hits:
+					var col := h["collider"] as Node
+					if col == null:
+						continue
+					var nm: String = String(col.name)
+					var parent_nm: String = String(col.get_parent().name) if col.get_parent() != null else "-"
+					# The ground under his feet is not a blocker.
+					if nm == "RaycastCollision" or parent_nm.begins_with("Chunk_"):
+						continue
+					hit_name = "%s (parent %s)" % [nm, parent_nm]
+					hit_at = p
+					break
+				if hit_name != "":
+					break
+			if hit_name != "":
+				break
+		if hit_name != "":
+			blocked += 1
+			# Diagnose the block: where is the REAL ground under this point, and how
+			# high does the blocking solid reach? ground >> path-point = the straight
+			# chord between nav corners is cutting through a rising slope (a climb
+			# route, possibly honest); a solid face reaching chest height above the
+			# local ground = a wall the capsule genuinely cannot pass.
+			var down := PhysicsRayQueryParameters3D.create(
+				hit_at + Vector3(0, 6.0, 0), hit_at + Vector3(0, -6.0, 0), 1)
+			var dh: Dictionary = space.intersect_ray(down)
+			var ground_y: float = (dh.position as Vector3).y if dh else -999.0
+			var up := PhysicsRayQueryParameters3D.create(
+				Vector3(hit_at.x, ground_y + 0.05, hit_at.z),
+				Vector3(hit_at.x, ground_y + 2.4, hit_at.z), 1)
+			var uh: Dictionary = space.intersect_ray(up)
+			var head_y: float = (uh.position as Vector3).y if uh else 999.0
+			print("  post %2d CAPSULE-BLOCKED at (%7.1f,%7.1f) by %s | path_y %.2f ground_y %.2f (chord %.2fm under ground) | overhead solid at +%.2fm" % [
+				int(r["i"]), hit_at.x, hit_at.z, hit_name, hit_at.y, ground_y,
+				ground_y - hit_at.y, head_y - ground_y])
+	print("\nPHYSICS: %d of %d nav-reachable routes pass the player's capsule, %d blocked" % [
+		routes.size() - blocked, routes.size(), blocked])
+	print("chord-under-ground >0.5m = the probe's straight line is inside a climbable rise;")
+	print("overhead solid under 2.0m over TRUE ground = a real lintel/slab in the walk path.")
+	get_tree().quit(0 if off_mesh == 0 and no_route == 0 and blocked == 0 else 1)

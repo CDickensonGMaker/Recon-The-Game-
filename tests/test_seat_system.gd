@@ -270,9 +270,52 @@ func _run() -> void:
 	if mp.is_seated or mp.exit_at != Vector3(30, 1, 30):
 		_fail("player path did not use exit_seat")
 
+	await _run_chinook_envelope()
+
 	if failures == 0:
-		print("PASS: seat system (full-cabin socket contract, clips, stagger, restore) OK")
+		print("PASS: seat system (full-cabin socket contract, clips, stagger, restore, CH-47 envelope) OK")
 		get_tree().quit(0)
 	else:
 		print("FAIL: seat system probe had %d failure(s)" % failures)
 		get_tree().quit(1)
+
+
+## The Chinook ran the UH-1 fallback layout and men unseated inside the hull —
+## every seat must land inside the airframe's own envelope (measured off
+## chinook.tscn by tools/probe_chinook_dims.gd: fuselage x -4.05..4.05 along X,
+## cockpit forward to -5.2, walls z +-0.9, cabin y 0.75..2.25).
+func _run_chinook_envelope() -> void:
+	var packed: PackedScene = load("res://scenes/vehicles/chinook.tscn") as PackedScene
+	if packed == null:
+		_fail("chinook.tscn missing - CH-47 envelope unverifiable")
+		return
+	var heli := packed.instantiate() as Node3D
+	add_child(heli)
+	await get_tree().process_frame
+	if heli.get("tandem_rotor") != true:
+		_fail("chinook.tscn no longer sets tandem_rotor - the ch47 seat key has no trigger")
+	var seats := SeatSystem.new()
+	seats.name = "Seats"
+	seats.fallback_key = &"ch47"
+	heli.add_child(seats)
+	seats._scan_sockets()
+	for seat_name in SeatSystem.SEAT_NAMES:
+		var sock := heli.find_child(String(seat_name), true, false) as Node3D
+		if sock == null:
+			_fail("ch47 socket %s never generated" % seat_name)
+			continue
+		var p: Vector3 = sock.position
+		if p.x < -5.2 or p.x > 4.4 or absf(p.z) > 0.9 or p.y < 0.7 or p.y > 2.3:
+			_fail("ch47 seat %s at %v is outside the fuselage envelope" % [seat_name, p])
+	# The discriminator: the UH-1 layout must NOT fit this envelope, or this
+	# check could never catch the key wiring regressing back to the Huey.
+	var uh1: Dictionary = SeatSystem.FALLBACK_LAYOUTS[&"uh1"]
+	var uh1_escapes: bool = false
+	for seat_name: StringName in uh1:
+		var p: Vector3 = (uh1[seat_name] as Array)[0] as Vector3
+		if absf(p.z) > 0.9:
+			uh1_escapes = true
+			break
+	if not uh1_escapes:
+		_fail("uh1 layout fits the ch47 envelope - this check can no longer discriminate")
+	heli.queue_free()

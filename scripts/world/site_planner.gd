@@ -1500,12 +1500,18 @@ func _repair_glb_colliders(root: Node3D) -> void:
 ## the most sandbagged structure inside the wire.
 const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
 	"fb_aid_station", "fb_latrine", "fb_supply_dump", "fb_water_point",
-	"fb_burn_barrel", "bwire_card"]
+	"fb_burn_barrel", "bwire_card",
+	# The casualty display figures (wounded + medical staff, per-part colliders in
+	# the GLB). A body is flesh: rounds pass through with soft falloff and blasts
+	# reach past it - it must never read as a sandbag wall that gives no hit
+	# reaction. They stay in the nav bake per the fb_int_ ruling (real in both).
+	"grunt_"]
 
 
 func _tag_fsb_ballistics(root: Node3D) -> void:
 	var soft_n: int = 0
 	var hard_n: int = 0
+	var figure_n: int = 0
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -1523,10 +1529,12 @@ func _tag_fsb_ballistics(root: Node3D) -> void:
 		body.add_to_group("soft_cover" if soft else "hard_surface")
 		if soft:
 			soft_n += 1
+			if nm.begins_with("grunt_"):
+				figure_n += 1
 		else:
 			hard_n += 1
-	print("[FSB] ballistic tags: %d soft (tent/hootch/tin), %d hard (earth/sandbag/timber)"
-		% [soft_n, hard_n])
+	print("[FSB] ballistic tags: %d soft (tent/hootch/tin, %d casualty-figure parts), %d hard (earth/sandbag/timber)"
+		% [soft_n, figure_n, hard_n])
 
 
 ## Rebuild one merged-vegetation collider from its own visual mesh. Returns whether it found
@@ -1674,60 +1682,14 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		if mi == null:
 			missing += 1
 			continue
-		var d := Destructible.new()
-		d.kind = str(seg.get("kind", "sandbag_wall"))
-		d.hp = int(seg.get("hp", 140))
-		d.collision_layer = 1
-		d.collision_mask = 0
-		_parent.add_child(d)
-		d.global_position = mi.global_position
-		# Take the segment's collider off its auto-generated body and onto the Destructible, so
-		# _do_destroy can disable it. A shape left nested under a child body survives the blast
-		# and the "destroyed" wall keeps stopping rounds.
-		# Same flat-GLB contract as _adopt_structure: the collider may be a SIBLING named
-		# <mesh name>_<ord>-colonly, not a child.
-		var seg_bodies: Array[Node] = []
-		for c in mi.get_children():
-			if c is StaticBody3D:
-				seg_bodies.append(c)
-		var seg_parent: Node = mi.get_parent()
-		if seg_parent != null:
-			for c in seg_parent.get_children():
-				if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
-					seg_bodies.append(c)
-		var moved: int = 0
-		for c in seg_bodies:
-			var body := c as StaticBody3D
-			if body == null:
-				continue
-			for cc in body.get_children():
-				var shape := cc as CollisionShape3D
-				if shape == null:
-					continue
-				moved += 1
-				# All 80 parapet nodes happen to be identity today, which is the only
-				# reason this worked without it. A sibling collider need not be.
-				var keep: Transform3D = shape.global_transform
-				body.remove_child(shape)
-				d.add_child(shape)
-				shape.global_transform = keep
-			body.queue_free()
-		if moved == 0:
-			print("[TEMPSEG] %s: children=%d siblings=%d MOVED 0" % [mi.name,
-				mi.get_children().size(),
-				(seg_parent.get_children().size() if seg_parent != null else -1)])
-		mi.reparent(d, true)      # keep_global_transform: the wall must not move
-		AgentRegistry.register(d, AgentRegistry.Kind.PROP)
-		# The perimeter is also the SIEGE's map of itself: SiegeDirector measures the wire's
-		# radius from this group and reads a destroyed segment as its breach axis.
-		d.add_to_group(FSB_PARAPET_GROUP)
-		d.add_to_group(FSB_NAV_GEOM_GROUP)
+		_wire_parapet_segment(mi, str(seg.get("kind", "sandbag_wall")), int(seg.get("hp", 140)))
 		wired += 1
 	# THE OTHER DIRECTION, and the one that fails silently. `missing` catches a manifest entry
 	# with no mesh - loud, because the wall visibly is not there. A mesh with no MANIFEST entry
-	# is the dangerous case: it looks exactly like its 80 destructible twins and is INVULNERABLE,
-	# and `missing == 0` cannot see it. fb_sbg_seg_046_001 is one such stray, shipped in the
-	# 2026-08-12 export.
+	# looks exactly like its 80 destructible twins and is INVULNERABLE - sappers spend real
+	# charges on a wall that cannot die. So a stray is HANDLED, not just named: co-located
+	# with its manifest twin = an export duplicate, hidden with its colliders disabled;
+	# standing apart = a real wall piece, adopted with its twin's kind and hp.
 	var unclaimed: Array[String] = []
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():
@@ -1737,18 +1699,119 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		var nm := String(nd.name)
 		if nd is MeshInstance3D and nm.begins_with(FSB_PARAPET_MESH_PREFIX) and not claimed.has(nm):
 			unclaimed.append(nm)
+	var seg_by_name: Dictionary = {}
+	for s in segments:
+		seg_by_name[str((s as Dictionary).get("name", ""))] = s
+	var strays_adopted: int = 0
+	var strays_hidden: int = 0
+	for nm in unclaimed:
+		var stray := root.find_child(nm, true, false) as MeshInstance3D
+		if stray == null:
+			push_warning("[FSB] stray parapet %s vanished between census and handling" % nm)
+			continue
+		var base: String = nm
+		var ord_re := RegEx.new()
+		ord_re.compile("^(.*)_[0-9]+$")
+		var om: RegExMatch = ord_re.search(nm)
+		if om != null:
+			base = om.get_string(1)
+		var twin := root.find_child(base, true, false) as MeshInstance3D
+		if twin != null and twin.global_position.distance_to(stray.global_position) < 0.05:
+			stray.visible = false
+			_disable_parapet_colliders(stray)
+			strays_hidden += 1
+			print("[FSB] stray parapet %s co-locates with %s - duplicate hidden, colliders off"
+				% [nm, base])
+			continue
+		var twin_seg: Dictionary = seg_by_name.get(base, {})
+		_wire_parapet_segment(stray, str(twin_seg.get("kind", "sandbag_wall")),
+			int(twin_seg.get("hp", 140)))
+		strays_adopted += 1
+		wired += 1
+		print("[FSB] stray parapet %s adopted as destructible (manifest twin %s %s)"
+			% [nm, base, "found" if twin != null else "absent"])
 	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s%s" % [wired,
 		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing,
-		"" if unclaimed.is_empty() else ", %d in the GLB with NO manifest entry (INVULNERABLE): %s"
-			% [unclaimed.size(), ", ".join(unclaimed)]])
-	if not unclaimed.is_empty():
-		push_warning("[FSB] %d parapet segment(s) ship invulnerable - no manifest entry: %s"
-			% [unclaimed.size(), ", ".join(unclaimed)])
+		"" if unclaimed.is_empty() else ", %d stray(s): %d adopted, %d duplicate(s) hidden"
+			% [unclaimed.size(), strays_adopted, strays_hidden]])
 	_wire_structure_destructibles(root)
 	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented
 	# onto a Destructible by the pass above must still be findable.
 	var doors: int = SCREEN_DOOR.wire_all(root)
 	print("[FSB] screen doors: %d hung" % doors)
+
+
+## Stand ONE parapet mesh up as a Destructible on the blast bus - the single
+## definition serving both the manifest loop and the stray-adoption pass.
+func _wire_parapet_segment(mi: MeshInstance3D, kind: String, hp: int) -> void:
+	var d := Destructible.new()
+	d.kind = kind
+	d.hp = hp
+	d.collision_layer = 1
+	d.collision_mask = 0
+	_parent.add_child(d)
+	d.global_position = mi.global_position
+	# Take the segment's collider off its auto-generated body and onto the Destructible, so
+	# _do_destroy can disable it. A shape left nested under a child body survives the blast
+	# and the "destroyed" wall keeps stopping rounds.
+	# Same flat-GLB contract as _adopt_structure: the collider may be a SIBLING named
+	# <mesh name>_<ord>-colonly, not a child.
+	var seg_bodies: Array[Node] = []
+	for c in mi.get_children():
+		if c is StaticBody3D:
+			seg_bodies.append(c)
+	var seg_parent: Node = mi.get_parent()
+	if seg_parent != null:
+		for c in seg_parent.get_children():
+			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+				seg_bodies.append(c)
+	var moved: int = 0
+	for c in seg_bodies:
+		var body := c as StaticBody3D
+		if body == null:
+			continue
+		for cc in body.get_children():
+			var shape := cc as CollisionShape3D
+			if shape == null:
+				continue
+			moved += 1
+			# All 80 parapet nodes happen to be identity today, which is the only
+			# reason this worked without it. A sibling collider need not be.
+			var keep: Transform3D = shape.global_transform
+			body.remove_child(shape)
+			d.add_child(shape)
+			shape.global_transform = keep
+		body.queue_free()
+	if moved == 0:
+		print("[TEMPSEG] %s: children=%d siblings=%d MOVED 0" % [mi.name,
+			mi.get_children().size(),
+			(seg_parent.get_children().size() if seg_parent != null else -1)])
+	mi.reparent(d, true)      # keep_global_transform: the wall must not move
+	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
+	# The perimeter is also the SIEGE's map of itself: SiegeDirector measures the wire's
+	# radius from this group and reads a destroyed segment as its breach axis.
+	d.add_to_group(FSB_PARAPET_GROUP)
+	d.add_to_group(FSB_NAV_GEOM_GROUP)
+
+
+## Disable a duplicate stray's colliders in place - hidden art must not keep
+## stopping rounds or feeding the nav bake (the bake already skips disabled
+## shapes).
+func _disable_parapet_colliders(mi: MeshInstance3D) -> void:
+	var bodies: Array[Node] = []
+	for c in mi.get_children():
+		if c is StaticBody3D:
+			bodies.append(c)
+	var mp: Node = mi.get_parent()
+	if mp != null:
+		for c in mp.get_children():
+			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+				bodies.append(c)
+	for b in bodies:
+		for cc in b.get_children():
+			var shape := cc as CollisionShape3D
+			if shape != null:
+				shape.disabled = true
 
 
 ## THE REST OF THE COMPOUND CAN BE BLOWN APART TOO. The manifest describes ONLY the 80 parapet

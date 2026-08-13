@@ -1537,3 +1537,49 @@ borrows the heavy-arty bank ×9 — the sound is now the loudest thing saying "n
 napalm's size — verify they still read at 200-800 m · napalm audio bank (above) · the
 `probe_fire_parity` bench wires `map_size` 600 vs SFR 200 vs world 512 (behaviour-only, UX
 architect cleared it — hunter clamps, zeroed on benches).
+
+## 2026-08-13 — THE NAV-TRUTH WAVE (his decree: "make the ai walk all the real geometry")
+
+Council record: `war_room/2026-08-13_nav_truth_wave/` (briefing, 2 analyses, synthesis; the
+specialist seat went silent and was killed — probe-gating covered its role).
+
+**THE NAVMESH UNDER THE COMPOUND WAS FICTION.** Baked routes ran on the flat terrain seat at
+exactly 174.00 while the real mound ground sits at ~175.7 — routes tunnelled through berm
+volume, "reachable" meant nothing, and "the AI can get in and I can't" was the player
+colliding with geometry the AI's map pretends is flat. Mechanism: the GLB winds inward;
+physics was repaired via backface_collision (2048 shapes), but the nav bake reads WINDING —
+a down-facing floor contributes no walkable surface (`nav_baker.gd _shape_faces` raw
+`get_faces()`).
+
+**SHIPPED (each with its probe reading):**
+- Nav source now double-sides exactly where physics is double-sided; ground sheets
+  (fb_terrain_mound/fb_berm_ring) flip whole, everything else's flipped faces respect the
+  1.9 m roof line; slope 50→45 matches physics; per-bake `ms=` instrument added (the old
+  total was a dead frame-raced print). **Measured: path heights real (175.4–178.3), polys
+  4272→9557, capsule-blocked bunker routes 19→4 (none by the mound), FSB bake 1970 ms
+  async, test_nav_path PASS, interior 30/5 of 35 and compound 8/8 both IDENTICAL to
+  baseline.**
+- Casualty display figures soft, not hard — the audit's "548" measured to **144** part
+  colliders (18 figures × 8 parts); boot prints the count. Floating +6.5 m parts remain
+  (Blender placement, queued).
+- The invulnerable 81st parapet segment: stray-handling added to the manifest pass (
+  duplicate→hidden, offset→adopted); `fb_sbg_seg_046_001` was an export RENAME (twin absent
+  from the GLB) and is now adopted — **81 segments on the blast bus**, sappers can no longer
+  waste charges on an unkillable wall.
+- Chinook seats: measured CH-47 layout (`tools/probe_chinook_dims.gd` — fuselage 8.1 m along
+  X, walls z ±0.9, floor 0.75) keyed off the scene's own tandem_rotor flag;
+  test_seat_system PASS with a new fuselage-envelope guard + discriminator.
+- Water scoped honestly: **systemic** — 2668/3365 wet channel points >2.5 m off their bed
+  (flat ribbon vs carved descending beds), full-world only, zero demo exposure. Designed
+  fix queued post-demo; the test now prints distribution + worst point.
+
+**PARKED:** cover-seek snap-to-face — shared with HIS squad, raw snap breaks the 3D arrival
+check; one-hour landing plan in the DA analysis, for his next WATCHED session (his own
+original ruling).
+
+**HONEST LOSSES + HIS EYE:** 1 bunker post now honestly OFF-MESH (was fictionally
+reachable) · 4 routes blocked at fb_bunker_revet lips (posts 0/6/14/35 — probe chord vs
+real lip, eyeball at next playtest) · **the demo gate RE-OPENS: the validated siege ran on
+the fictional mesh — the siege night needs his re-play.** New decision-queue items: should
+assault squads use sapper breaches now that breach re-bakes exist? (siege still converges
+on the gate by design.)

@@ -324,7 +324,10 @@ func _start_bake(job: Dictionary) -> void:
 	# half what is asked for, with nothing in the log to say so. Every crater rim was a cliff.
 	nav.agent_max_climb = maxf(nav.cell_height,
 		roundf(AGENT_MAX_CLIMB / nav.cell_height) * nav.cell_height)
-	nav.agent_max_slope = 50.0
+	# Matches physics: CharacterBody3D floor_max_angle defaults to 45 deg and no
+	# body in this project overrides it. A steeper nav slope opens an inverse
+	# fiction band - faces nav calls walkable that move_and_slide refuses.
+	nav.agent_max_slope = 45.0
 	nav.border_size = 0.0
 	# The mound leaves a second walkable layer buried under the compound; anywhere it has
 	# less than agent_height of clearance is not floor, and map_get_closest_point should
@@ -370,14 +373,18 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 	if not is_instance_valid(region):
 		return
 	var polys: int = nav.get_polygon_count()
-	_total_ms += Time.get_ticks_msec() - _bake_start_ms
+	var bake_ms: int = Time.get_ticks_msec() - _bake_start_ms
+	_total_ms += bake_ms
 	var geom: String = ("%d colliders" % (-carved - 1)) if carved < 0 else "%d carved" % carved
 	# climb is printed because it is QUANTISED to cell_height (floor(0.4/h)*h). With no
 	# [navigation] section in project.godot it silently floors to 0.25 and every crater rim
 	# becomes a cliff, with nothing in the log to say so.
-	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f" % [
+	# ms is per bake and printed HERE because the queue-empty summary below can
+	# race _process's _active_mesh poll and stay silent - this line is the one
+	# reliable bake-cost instrument (breach re-bakes pay it mid-siege).
+	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f ms=%d" % [
 		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size,
-		nav.cell_height, nav.agent_max_climb])
+		nav.cell_height, nav.agent_max_climb, bake_ms])
 	if polys == 0:
 		push_error("[NAV] baked region has 0 polygons (box %s, geom %s)" % [box.size, geom])
 		region.queue_free()
@@ -498,8 +505,54 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 			continue
 		faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
 		source.add_faces(faces, cs.global_transform)
+		# THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward
+		# (2048 shapes; physics is repaired via backface_collision -
+		# site_planner._force_backface_collision), but the bake reads WINDING, not
+		# that flag: a down-facing floor contributes no walkable surface, so the
+		# whole compound's mesh sat on the flat terrain seat ~1.7m under the mound
+		# and routes tunnelled through berm volume ("the AI can get in and I
+		# can't", measured by tools/probe_bunker_entry). Where physics is
+		# double-sided, the nav source must be too (Summoner decree 2026-08-13:
+		# "make the ai walk all the real geometry in the game").
+		#
+		# Flipped faces of NON-ground shapes still respect the roof line for EVERY
+		# family - a tower top or chow-hall roof was never walkable before the
+		# flip and must not become so because of it. Ground sheets are exempt from
+		# that cull: the mound spans the compound, so its crests sit far above its
+		# own lowest point and the height rule would amputate the berms the flip
+		# exists to restore.
+		var concave := cs.shape as ConcavePolygonShape3D
+		if concave != null and concave.backface_collision:
+			var flipped: PackedVector3Array = _flip_faces(_shape_faces(cs.shape))
+			var is_ground: bool = false
+			for gp in NAV_GROUND_PREFIXES:
+				if owner_name.begins_with(gp):
+					is_ground = true
+					break
+			if not is_ground:
+				flipped = _cull_above_base(flipped, cs.global_transform)
+			if not flipped.is_empty():
+				source.add_faces(flipped, cs.global_transform)
 		added += 1
 	return added
+
+
+## The compound's ground-of-record sheets (the model IS the ground, ruling
+## 2026-07-29). Same two families combat_manager treats as BLAST_PROOF - the
+## coincidence is real but the meanings differ, so the list is declared here,
+## not shared.
+const NAV_GROUND_PREFIXES: Array[String] = ["fb_terrain_mound", "fb_berm_ring"]
+
+
+## Reverse each triangle's winding so its face normal inverts.
+func _flip_faces(faces: PackedVector3Array) -> PackedVector3Array:
+	var out: PackedVector3Array = PackedVector3Array()
+	out.resize(faces.size())
+	for i in range(0, faces.size() - 2, 3):
+		out[i] = faces[i]
+		out[i + 1] = faces[i + 2]
+		out[i + 2] = faces[i + 1]
+	return out
 
 
 ## Structures whose ROOF bakes as walkable floor. Each is ONE mesh - roof and interior floor
@@ -535,6 +588,13 @@ func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
 			break
 	if not match_found:
 		return faces
+	return _cull_above_base(faces, xform)
+
+
+## The height rule itself, shared by the listed roof cull and the flipped-face
+## pass: cut every triangle sitting entirely above the shape's own base + the
+## roof line.
+func _cull_above_base(faces: PackedVector3Array, xform: Transform3D) -> PackedVector3Array:
 	var base_y: float = INF
 	for v in faces:
 		var wy: float = (xform * v).y

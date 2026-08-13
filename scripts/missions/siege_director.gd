@@ -282,12 +282,14 @@ func reinforce(extra: int) -> void:
 ## that is supposed to be situational), force_ratio computed against the whole force rather
 ## than the men in contact, and the entire assault breaking as a single body.
 ##
-## THEY CONVERGE ON THE GATE ON PURPOSE. The barbwire is one merged ring and nothing
-## re-bakes the navmesh on destroy (nav_baker.gd:16-18), so the gate is the only way in
-## (backlog C3b). Four squads sent at four compass points would put three of them milling
-## at impassable wire - a mass that does nothing, spread out. So they APPROACH wide and
-## FIGHT toward the one opening, which is what flanking against a wired perimeter actually
-## looks like.
+## THEY CONVERGE ON THE GATE ON PURPOSE. The barbwire is one merged ring, so the gate is
+## the only authored way in (backlog C3b). Four squads sent at four compass points would
+## put three of them milling at impassable wire - a mass that does nothing, spread out. So
+## they APPROACH wide and FIGHT toward the one opening, which is what flanking against a
+## wired perimeter actually looks like.
+## NOTE: breach re-bakes EXIST now (nav_baker.gd BREACHING, breach_at) - a satchel hole in
+## the parapet becomes walkable. Whether assault squads should USE sapper breaches instead
+## of converging on the gate is a design ruling for the Summoner, queued 2026-08-13.
 const ASSAULT_SQUADS: int = 4
 ## How far apart the squads come in. Deliberately wide: the point is that they do NOT arrive
 ## as one wedge; each squad still spreads its own cells within its lane.

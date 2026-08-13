@@ -4,7 +4,8 @@
 ## Sockets are found ANYWHERE under the vehicle by exact name - seat_pilot_l /
 ## seat_pilot_r / seat_gunner_l / seat_gunner_r / seat_pax_1..8 / seat_bench_1..6.
 ## GLB-exported empties import as plain Node3D, NOT Marker3D: the scan must
-## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUT.
+## accept any Node3D. Missing sockets are generated from FALLBACK_LAYOUTS,
+## keyed per airframe via fallback_key.
 ##
 ## SOCKET ORIENTATION CONTRACT: the occupant faces the socket's LOCAL +Z
 ## (characters are authored facing +Z; ModelActor yaw 0 == facing +Z).
@@ -35,30 +36,67 @@ const PASSENGER_SEATS: Array[StringName] = [
 	&"seat_gunner_l", &"seat_gunner_r",
 ]
 
-## UH-1 fallback layout in vehicle-root space: seat -> [position, facing yaw degrees].
-## Doors sit at z -3.4..-1.9 with walls at x +-1.56; nose = -Z, Door_Left side = +X.
-const FALLBACK_LAYOUT: Dictionary = {
-	&"seat_pilot_l": [Vector3(0.55, 1.35, -5.35), 180.0],
-	&"seat_pilot_r": [Vector3(-0.55, 1.35, -5.35), 180.0],
-	&"seat_gunner_l": [Vector3(1.15, 1.30, -2.70), 90.0],
-	&"seat_gunner_r": [Vector3(-1.15, 1.30, -2.70), -90.0],
-	&"seat_pax_1": [Vector3(1.05, 0.865, -4.442), 90.0],
-	&"seat_pax_2": [Vector3(1.05, 0.865, -3.984), 90.0],
-	&"seat_pax_3": [Vector3(1.05, 0.865, -3.525), 90.0],
-	&"seat_pax_4": [Vector3(1.05, 0.865, -3.067), 90.0],
-	&"seat_pax_5": [Vector3(-1.05, 0.865, -4.442), -90.0],
-	&"seat_pax_6": [Vector3(-1.05, 0.865, -3.984), -90.0],
-	&"seat_pax_7": [Vector3(-1.05, 0.865, -3.525), -90.0],
-	&"seat_pax_8": [Vector3(-1.05, 0.865, -3.067), -90.0],
-	## Centre bench, back to back down the spine. Pan measured at y 1.125 off
-	## huey_v3.blend; the two rows sit +-0.25 either side of the centreline.
-	&"seat_bench_1": [Vector3(-0.25, 1.125, -4.015), -90.0],
-	&"seat_bench_2": [Vector3(-0.25, 1.125, -3.565), -90.0],
-	&"seat_bench_3": [Vector3(-0.25, 1.125, -3.115), -90.0],
-	&"seat_bench_4": [Vector3(0.25, 1.125, -4.015), 90.0],
-	&"seat_bench_5": [Vector3(0.25, 1.125, -3.565), 90.0],
-	&"seat_bench_6": [Vector3(0.25, 1.125, -3.115), 90.0],
+## Fallback layouts in vehicle-root space, KEYED BY AIRFRAME: seat -> [position,
+## facing yaw degrees]. The attacher declares the key (heli_lift reads the
+## scene's own Helicopter.tandem_rotor flag) - a CH-47 running the UH-1 layout
+## put every seat crosswise in a Huey-sized pocket and men unseated inside the
+## fuselage.
+## uh1: doors at z -3.4..-1.9, walls x +-1.56, nose = -Z, Door_Left side = +X.
+## ch47: measured off chinook.tscn (tools/probe_chinook_dims.gd) - fuselage
+## x -4.05..4.05 ALONG X, nose -X, ramp +X to 4.82, walls z +-0.9, floor y 0.75;
+## wall benches face inward across the bay.
+const FALLBACK_LAYOUTS: Dictionary = {
+	&"uh1": {
+		&"seat_pilot_l": [Vector3(0.55, 1.35, -5.35), 180.0],
+		&"seat_pilot_r": [Vector3(-0.55, 1.35, -5.35), 180.0],
+		&"seat_gunner_l": [Vector3(1.15, 1.30, -2.70), 90.0],
+		&"seat_gunner_r": [Vector3(-1.15, 1.30, -2.70), -90.0],
+		&"seat_pax_1": [Vector3(1.05, 0.865, -4.442), 90.0],
+		&"seat_pax_2": [Vector3(1.05, 0.865, -3.984), 90.0],
+		&"seat_pax_3": [Vector3(1.05, 0.865, -3.525), 90.0],
+		&"seat_pax_4": [Vector3(1.05, 0.865, -3.067), 90.0],
+		&"seat_pax_5": [Vector3(-1.05, 0.865, -4.442), -90.0],
+		&"seat_pax_6": [Vector3(-1.05, 0.865, -3.984), -90.0],
+		&"seat_pax_7": [Vector3(-1.05, 0.865, -3.525), -90.0],
+		&"seat_pax_8": [Vector3(-1.05, 0.865, -3.067), -90.0],
+		## Centre bench, back to back down the spine. Pan measured at y 1.125 off
+		## huey_v3.blend; the two rows sit +-0.25 either side of the centreline.
+		&"seat_bench_1": [Vector3(-0.25, 1.125, -4.015), -90.0],
+		&"seat_bench_2": [Vector3(-0.25, 1.125, -3.565), -90.0],
+		&"seat_bench_3": [Vector3(-0.25, 1.125, -3.115), -90.0],
+		&"seat_bench_4": [Vector3(0.25, 1.125, -4.015), 90.0],
+		&"seat_bench_5": [Vector3(0.25, 1.125, -3.565), 90.0],
+		&"seat_bench_6": [Vector3(0.25, 1.125, -3.115), 90.0],
+	},
+	&"ch47": {
+		&"seat_pilot_l": [Vector3(-4.6, 1.45, 0.45), -90.0],
+		&"seat_pilot_r": [Vector3(-4.6, 1.45, -0.45), -90.0],
+		&"seat_gunner_l": [Vector3(-2.6, 1.10, 0.70), 0.0],
+		&"seat_gunner_r": [Vector3(-2.6, 1.10, -0.70), 180.0],
+		## The squad stick sits aft, nearest the ramp it boards through.
+		&"seat_pax_1": [Vector3(3.0, 1.10, -0.65), 0.0],
+		&"seat_pax_2": [Vector3(2.2, 1.10, -0.65), 0.0],
+		&"seat_pax_3": [Vector3(1.4, 1.10, -0.65), 0.0],
+		&"seat_pax_4": [Vector3(0.6, 1.10, -0.65), 0.0],
+		&"seat_pax_5": [Vector3(3.0, 1.10, 0.65), 180.0],
+		&"seat_pax_6": [Vector3(2.2, 1.10, 0.65), 180.0],
+		&"seat_pax_7": [Vector3(1.4, 1.10, 0.65), 180.0],
+		&"seat_pax_8": [Vector3(0.6, 1.10, 0.65), 180.0],
+		&"seat_bench_1": [Vector3(-0.2, 1.10, -0.65), 0.0],
+		&"seat_bench_2": [Vector3(-1.0, 1.10, -0.65), 0.0],
+		&"seat_bench_3": [Vector3(-1.8, 1.10, -0.65), 0.0],
+		&"seat_bench_4": [Vector3(-0.2, 1.10, 0.65), 180.0],
+		&"seat_bench_5": [Vector3(-1.0, 1.10, 0.65), 180.0],
+		&"seat_bench_6": [Vector3(-1.8, 1.10, 0.65), 180.0],
+	},
 }
+## Set by the attacher BEFORE any seat call (heli_lift.gd). Unknown keys fall
+## back to uh1 rather than crash a sortie.
+var fallback_key: StringName = &"uh1"
+
+
+func _layout() -> Dictionary:
+	return FALLBACK_LAYOUTS.get(fallback_key, FALLBACK_LAYOUTS[&"uh1"])
 
 ## Pilot clips by flight state. A ship on the ground holds PILOT_CLIP; one run
 ## through the panel plays on touchdown and falls through to the hold; airborne
@@ -220,7 +258,7 @@ func _tick_door_guns(delta: float) -> void:
 ## which is what stands it down - a gunship that fires at nothing is a firework.
 func _door_target(side: int) -> Node3D:
 	var seat: StringName = GUNNER_SEATS[side]
-	var entry: Array = FALLBACK_LAYOUT.get(seat, [])
+	var entry: Array = _layout().get(seat, [])
 	if entry.is_empty():
 		return null
 	var muzzle: Vector3 = _door_muzzle(side)
@@ -272,7 +310,7 @@ func _friendly_near(aim: Vector3) -> bool:
 
 
 func _door_muzzle(side: int) -> Vector3:
-	var entry: Array = FALLBACK_LAYOUT.get(GUNNER_SEATS[side], [])
+	var entry: Array = _layout().get(GUNNER_SEATS[side], [])
 	var local: Vector3 = (entry[0] as Vector3) if not entry.is_empty() else Vector3.ZERO
 	var body := _vehicle as Node3D
 	# SeatSystem is a plain Node hanging off the airframe: the TRANSFORM is the vehicle's.
@@ -389,7 +427,8 @@ func _dress_pilots() -> void:
 
 
 ## Find real sockets by name anywhere under the vehicle (the GLB export lands them
-## inside the Model subtree); generate any missing one from FALLBACK_LAYOUT.
+## inside the Model subtree); generate any missing one from the airframe's
+## fallback layout.
 ## Idempotent - the public API calls it lazily in case someone seats pre-frame-1.
 func _scan_sockets() -> void:
 	if _scanned or _vehicle == null:
@@ -402,7 +441,7 @@ func _scan_sockets() -> void:
 		if existing != null:
 			_sockets[seat_name] = existing
 			continue
-		var entry: Array = FALLBACK_LAYOUT[seat_name]
+		var entry: Array = _layout()[seat_name]
 		var m := Marker3D.new()
 		m.name = String(seat_name)
 		_vehicle.add_child(m)
