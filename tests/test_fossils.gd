@@ -242,7 +242,11 @@ func _check_file(path: String, freq: Dictionary, decls: Dictionary, conn_sites: 
 	var re_signal: RegEx = RegEx.new()
 	re_signal.compile("^\\s*signal\\s+([A-Za-z_][A-Za-z0-9_]*)")
 	var re_func: RegEx = RegEx.new()
-	re_func.compile("^\\s*func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
+	# `static func` too: the probe was blind to static declarations for its whole
+	# life, and CursorSet.use_large sat fossil-invisible behind that hole
+	# (found by the 2026-08-13 audit). ADR-023's machine must see every
+	# declaration class it claims to guard.
+	re_func.compile("^\\s*(?:static\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(")
 
 	for i: int in range(lines.size()):
 		var line: String = lines[i]

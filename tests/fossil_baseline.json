@@ -1,9 +1,10 @@
 {
 	"_comment": "ADR-023 THE FOSSIL LAW. Grandfathered dead symbols, keyed file|kind|symbol (NOT line - lines move). THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'fossils', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>, which records provenance in grandfather_log.",
-	"ceiling": 27,
-	"count": 27,
+	"ceiling": 28,
+	"count": 28,
 	"fossils": [
 		"scripts/missions/scripted_sequence.gd|signal|sequence_bark",
+		"scripts/ui/cursor_set.gd|func|use_large",
 		"scripts/visuals/model_actor.gd|func|ragdoll_bone",
 		"scripts/visuals/model_actor.gd|func|wake_ragdoll",
 		"scripts/visuals/zombie_randomizer.gd|const|ZOMBIE_DIR",
@@ -60,9 +61,18 @@
 				"scripts/zombies/zombie_wave_director.gd|signal|zombie_spawned"
 			],
 			"date": "2026-08-12T02:16:14",
-			"from": 3,
+			"from": 3.0,
 			"reason": "zombie mode parked live by Summoner ruling 2026-08-05; recon-never-delete-zombie-code forbids deletion, symbols wait for the mode to wake",
-			"to": 27
+			"to": 27.0
+		},
+		{
+			"added": [
+				"scripts/ui/cursor_set.gd|func|use_large"
+			],
+			"date": "2026-08-13T23:07:45",
+			"from": 27,
+			"reason": "CursorSet.use_large: deliberate large-cursor accessibility rung built 2026-08-12 ahead of its settings toggle - wire-or-cut is the Summoner's call, queued 2026-08-13",
+			"to": 28
 		}
 	]
 }

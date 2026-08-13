@@ -50,7 +50,7 @@ const DAY_RATIO: float = 38.0
 ## NIGHT RUNS SLOW, and for the opposite reason the briefing assumed. Acceleration past
 ## midnight breaks three things: it re-arms a second siege roll, it unlatches the
 ## fire-support allotment through `_granted_day` (an exploit named in its own comment at
-## `field_director.gd:1240-1245`), and it RAISES THE SUN during the night attack. At 20x
+## `field_director.gd:1159,1451-1453`), and it RAISES THE SUN during the night attack. At 20x
 ## the ~616 s from the 19:00 seam cover ~3h25m and the arc ends ~22:25 - same sim day.
 const NIGHT_RATIO: float = 20.0
 

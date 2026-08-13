@@ -28,6 +28,10 @@ var carries_charge: bool = false
 ## Overridden by SiegeDirector so a small test chamber does not materialize every
 ## cell on the frame it spawns.
 var materialize_m: float = MATERIALIZE_M
+## When set, the materialize ring is measured from HERE instead of the march
+## objective (the siege passes fsb_center; the objective is the bench aim inside
+## the wire). ZERO = objective-measured, the bench/chamber default.
+var materialize_center: Vector3 = Vector3.ZERO
 var director: FieldDirector = null
 var men: Array[EnemyBase] = []
 var materialized: bool = false
@@ -86,6 +90,15 @@ func _physics_process(delta: float) -> void:
 	var to: Vector3 = objective - global_position
 	to.y = 0.0
 	var d: float = to.length()
+	# The pop ring is measured from materialize_center when set (the siege sets
+	# fsb_center), NOT from the march objective: the objective is the bench aim
+	# ~32m INSIDE the wire, so an objective-measured ring dips inside the
+	# compound on anti-gate bearings and bodies appear inside the wire the
+	# overrun call cannot see (audit 2026-08-13 D-2).
+	if materialize_center != Vector3.ZERO:
+		var toc: Vector3 = materialize_center - global_position
+		toc.y = 0.0
+		d = toc.length()
 	if d <= materialize_m:
 		materialize()
 		return

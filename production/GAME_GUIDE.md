@@ -415,9 +415,10 @@ day**). Code costs him **zero art-days** — that split drives all planning.
 8. **SHIP.** Three full playthroughs on the Intel UHD floor · store page, capsule art, trailer
    (**his days, and they were never budgeted**) · build · Early Access.
 
-**Unruled, ask him early:** stretch the arc 30 → 45 min (every beat is tuned around `END_AT_S`
-1800), and replay value (fixed seed, one end card — cheap existing levers are varying `DEMO_SEED`
-or the arena's chained survival waves).
+**Unruled, ask him early:** stretch the arc 30 → 45 min (the ending rides `siege_ended` since
+2026-08-07 with `END_BACKSTOP_S` 2700 as the failsafe — the old fixed `END_AT_S` 1800 is retired,
+so a stretch means retuning the beat clocks, not one constant), and replay value (fixed seed, one
+end card — cheap existing levers are varying `DEMO_SEED` or the arena's chained survival waves).
 
 ---
 

@@ -29,10 +29,3 @@ static func resolve(site: Dictionary) -> Array[Vector3]:
 	return out
 
 
-## Resolve all sites in a plan dict in place. Each site that has
-## working_points gets `working_point_positions` written. The site must
-## have `root` set to its world node for path resolution to work.
-static func resolve_plan(plan: Dictionary) -> void:
-	for site in plan.get("sites", []):
-		if site is Dictionary:
-			resolve(site)

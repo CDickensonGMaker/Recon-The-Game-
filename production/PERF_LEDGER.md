@@ -1108,3 +1108,14 @@ arena-only `--fill_chance=/--view_distance=` (`ai_stress_arena.gd:471`) and the 
 **Prerequisite before ANY bench: restore `renderer/rendering_method="forward_plus"` to `project.godot`.**
 `perf_probe.gd:208` now prints a fallback string instead of a read value — **every row measured without
 it violates the measurement contract.**
+
+---
+
+## 2026-08-13 — the GPU/CPU instrument EXISTS now; no number has landed yet
+
+`perf_probe` gained real millisecond rows on 2026-08-13 (commit `e2868da2`:
+`viewport_set_measure_render_time` wired, `PERF MS` per phase — `perf_probe.gd:47-53,300`).
+The 2026-07-26 finding above ("the CPU-vs-GPU split has never been measured") describes the
+OLD probe and is CORRECTED as of that commit: the instrument works; **the three poses (THE
+WALK · ONE DIG · THE BARRAGE) still have not been taken with it** — that is the Summoner's
+run, queued. No row below this line exists yet.

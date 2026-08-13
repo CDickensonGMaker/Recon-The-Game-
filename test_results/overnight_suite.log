@@ -1,69 +1,0 @@
-test_activity_tiering | 2s | test_activity_tiering        PASS      1.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_ai_fairness | 3s | test_ai_fairness             PASS      2.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_ai_stress_arena | 20s | test_ai_stress_arena         FAIL     19.3s <- [NAV] warnings counted: 0 ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_ally_cover_roll | 3s | test_ally_cover_roll         FAIL      2.6s <- ERROR: Parameter "material" is null. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_ally_dressing | 3s | test_ally_dressing           FAIL      2.5s <- ERROR: Parameter "material" is null. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_anim_library | 3s | test_anim_library            PASS      2.4s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_anim_list | 3s | test_anim_list               LEAK      2.2s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_anti_aa_sim | 109s | test_anti_aa_sim             FAIL    108.2s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_archetypes | 3s | test_archetypes              PASS        3s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_arena_patrol | 35s | test_arena_patrol            FAIL     35.1s <- nav polys: 1116 | off-map/bad-Y units: 0 | [NAV] warnings: 0 ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_arena_perf | 22s | test_arena_perf              PASS     21.6s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_asset_probe | 4s | test_asset_probe             FAIL      3.7s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_ballistics | 2s | test_ballistics              PASS      1.9s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_bt_civilian | 2s | test_bt_civilian             FAIL        2s <- ERROR: Condition "!is_inside_tree()" is true. Returning: Transform3D() ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_bullet_flight | 6s | test_bullet_flight           LEAK      6.1s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_campaign_state | 2s | test_campaign_state          PASS      1.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_cas_sim | 31s | test_cas_sim                 PASS     31.1s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_crater | 12s | test_crater                  PASS     11.6s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_detection | 8s | test_detection               LEAK      7.4s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_downed_enemy | 3s | test_downed_enemy            PASS      2.3s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_exfil_sim | 28s | test_exfil_sim               FAIL     28.1s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_firebase_sim | 39s | test_firebase_sim            FAIL     38.3s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_firefight_len | 51s | test_firefight_len           FAIL     50.6s <- ERROR: Lambda capture at index 0 was freed. Passed "null" instead. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_flat_damage | 2s | test_flat_damage             PASS        2s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_fossils | 4s | test_fossils                 FAIL      3.4s <- ERROR: FOSSIL LAW: 31 new dead symbol(s) - delete the old system, don't bury it. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_full_loop | 143s | test_full_loop               FAIL    142.5s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_generator | 22s | test_generator               FAIL     21.4s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_gore_rig | 3s | test_gore_rig                PASS      2.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_grid_queries | 10s | test_grid_queries            PASS      9.7s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_grunt_dresser | 4s | test_grunt_dresser           FAIL      3.5s <- ERROR: Parameter "material" is null. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_head_burst | 2s | test_head_burst              PASS      2.1s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_hitzones | 3s | test_hitzones                PASS      2.2s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_huey_ride | 37s | test_huey_ride               FAIL     36.6s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_huey_sim | 31s | test_huey_sim                PASS     30.2s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_los_determinism | 2s | test_los_determinism         PASS      1.9s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_low_posture | 4s | test_low_posture             PASS      3.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_mirror_match | 96s | test_mirror_match            PASS     95.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_mission_plan | 16s | test_mission_plan            FAIL     15.5s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_mission_scope | 2s | test_mission_scope           PASS      1.9s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_mission_state | 4s | test_mission_state           LEAK      3.2s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_model_actor_animations | 8s | test_model_actor_animations  PASS      7.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_model_scale | 8s | test_model_scale             PASS      7.3s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_nav_path | 11s | test_nav_path                FAIL     10.2s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_one_classifier | 2s | test_one_classifier          LEAK      1.9s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_paddy_stamper | 13s | test_paddy_stamper           FAIL     12.2s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_patrol_sim | 33s | test_patrol_sim              FAIL     32.6s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_patrol_world | 24s | test_patrol_world            FAIL     23.8s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_rescue_sim | 32s | test_rescue_sim              FAIL     31.8s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_save_roundtrip | 2s | test_save_roundtrip          PASS      1.9s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_scripted_events | 3s | test_scripted_events         PASS      3.1s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_seat_system | 5s | test_seat_system             FAIL      4.3s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_seed_replay | 3s | test_seed_replay             PASS      2.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_sensors | 5s | test_sensors                 PASS      4.7s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_site_stamp | 27s | test_site_stamp              PASS       27s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_skills | 2s | test_skills                  LEAK      1.8s <- resources leaked at exit (AUDIT-12) ; === 0 PASS / 1 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_sprite_actor | 2s | test_sprite_actor            FAIL      1.8s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_sprite_enemy | 4s | test_sprite_enemy            FAIL      3.2s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_sprite_manifest | 2s | test_sprite_manifest         FAIL      1.7s  ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_squad | 37s | test_squad                   PASS     32.7s  ; test_squad_body_pool         PASS      1.8s
-test_squad_body_pool | 2s | test_squad_body_pool         PASS      1.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_squad_break | 2s | test_squad_break             PASS      1.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_terrain_relief_bounds | 66s | test_terrain_relief_bounds   PASS     65.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_tree_cover_lod | 2s | test_tree_cover_lod          PASS      1.8s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_veg_cover | 5s | test_veg_cover               PASS        5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_vehicle_kill | 18s | test_vehicle_kill            FAIL     17.5s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_village_props | 9s | test_village_props           PASS      8.6s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_village_sim | 110s | test_village_sim             FAIL    109.5s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_world_alive | 74s | test_world_alive             FAIL     73.6s <- ERROR: 2 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit. ; === 0 PASS / 0 LEAK / 1 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===
-test_world_boot | 13s | test_world_boot              PASS     12.5s  ; === 1 PASS / 0 LEAK / 0 FAIL / 0 XFAIL / 0 TIMEOUT (of 1) ===

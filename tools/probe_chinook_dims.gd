@@ -1,7 +1,7 @@
-## probe_chinook_dims.gd - measure the Chinook airframe so a CH-47 seat fallback
-## can be authored from the GLB's own numbers instead of the UH-1's
-## (seat_system.gd FALLBACK_LAYOUT is Huey-measured; the Chinook inherits it and
-## men unseat inside the fuselage).
+## probe_chinook_dims.gd - measure the Chinook airframe. Its numbers authored the
+## ch47 entry in seat_system.gd FALLBACK_LAYOUTS (2026-08-13; before that the
+## Chinook inherited the Huey-measured layout and men unseated inside the
+## fuselage). Re-run after any chinook re-export to re-verify the envelope.
 ##   godot --headless --path . res://tools/probe_chinook_dims.tscn
 extends Node
 

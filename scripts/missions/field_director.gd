@@ -1283,6 +1283,10 @@ func setup_patrol(built: Dictionary) -> void:
 	var bench: Node = built.get("bench", null) as Node
 	if bench is Node3D:
 		siege_aim = (bench as Node3D).global_position
+		# The bench-vs-center offset decides how far the seed's materialize ring
+		# strayed before it was center-trued; every boot carries the number.
+		print("[SIEGE] aim offset |siege_aim - fsb_center| = %.1fm" % Vector2(
+			siege_aim.x - fsb_center.x, siege_aim.z - fsb_center.z).length())
 	_attach_siege()
 	patrol_locations.clear()
 	surveyed_sites.clear()

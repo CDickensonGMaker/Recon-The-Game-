@@ -58,10 +58,3 @@ enum AIPersonality {
 	BALANCED        # Adapts to situation
 }
 
-## Get damage type name for UI
-static func get_damage_type_name(damage_type: DamageType) -> String:
-	match damage_type:
-		DamageType.PHYSICAL: return "Physical"
-		DamageType.EXPLOSIVE: return "Explosive"
-		DamageType.FIRE: return "Fire"
-		_: return "Unknown"

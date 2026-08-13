@@ -262,12 +262,14 @@ func _door_target(side: int) -> Node3D:
 	if entry.is_empty():
 		return null
 	var muzzle: Vector3 = _door_muzzle(side)
-	# The door's outward normal in world space: +X for the left seat, -X for the right.
+	# The door's outward normal is the SEAT'S OWN FACING (layout yaw rotates
+	# local +Z), never a hardcoded body axis: the Huey's doors are +-X but the
+	# Chinook's are +-Z, and the old +-X rule aimed both its guns out the nose.
 	var body := _vehicle as Node3D
 	if body == null or not is_instance_valid(body):
 		return null
-	var outward: Vector3 = body.global_transform.basis.x \
-		* (1.0 if (entry[0] as Vector3).x > 0.0 else -1.0)
+	var outward: Vector3 = body.global_transform.basis \
+		* (Basis(Vector3.UP, deg_to_rad(float(entry[1]))) * Vector3(0.0, 0.0, 1.0))
 	outward.y = 0.0
 	if outward.length() < 0.01:
 		return null
@@ -451,7 +453,7 @@ func _scan_sockets() -> void:
 		generated += 1
 	auto_generated = generated > 0
 	if generated > 0:
-		print("[SeatSystem] %s: auto-generated %d/%d UH-1 fallback sockets (real seat_* markers will override when exported)" % [_vehicle.name, generated, SEAT_NAMES.size()])
+		print("[SeatSystem] %s: auto-generated %d/%d %s fallback sockets (real seat_* markers will override when exported)" % [_vehicle.name, generated, SEAT_NAMES.size(), fallback_key])
 	else:
 		print("[SeatSystem] %s: all %d seat_* sockets found in the model - fallback table retired" % [_vehicle.name, SEAT_NAMES.size()])
 

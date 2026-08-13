@@ -382,6 +382,14 @@ func _pause_abandon() -> void:
 
 func _pause_quit() -> void:
 	_close_pause()
+	# The demo has no menu front door: routing its quit into the real MainMenu
+	# let NEW GAME rebuild a demo-planned world with the arc clock half-spent
+	# and death rewired to the real debrief (audit 2026-08-13, D-1). A demo
+	# quit is a clean fresh day.
+	if GameFlow.demo_mode:
+		get_tree().paused = false
+		get_tree().change_scene_to_file("res://scenes/levels/demo_game.tscn")
+		return
 	show_menu()
 
 

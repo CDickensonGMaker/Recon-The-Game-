@@ -6,9 +6,6 @@
 class_name GunFX
 extends RefCounted
 
-const SHOT_RIFLE := preload("res://assets/audio/sfx/shot_rifle.wav")
-const SHOT_SMG := preload("res://assets/audio/sfx/shot_smg.wav")
-const SHOT_PISTOL := preload("res://assets/audio/sfx/shot_pistol.wav")
 const IMPACT_DIRT := preload("res://assets/audio/sfx/impact_dirt.wav")
 const IMPACT_HARD := preload("res://assets/audio/sfx/impact_hard.wav")
 const DRY_CLICK := preload("res://assets/audio/sfx/dry_click.wav")
@@ -71,15 +68,6 @@ const MAX_IMPACTS: int = 12
 ## recycled, never the newest dropped - a dropped newest reads as "nothing happened".
 const MAX_EXPLOSIONS: int = 9   ## concurrent explosion visuals
 const MAX_DECALS: int = 48   ## bullet holes, FIFO-recycled
-
-
-static func shot_stream_for(weapon_name: String) -> AudioStream:
-	var n := weapon_name.to_lower()
-	if n.contains("1911") or n.contains("pistol"):
-		return SHOT_PISTOL
-	if n.contains("ppsh") or n.contains("smg"):
-		return SHOT_SMG
-	return SHOT_RIFLE
 
 
 ## 3D positional gunshot (NPCs/allies). `data` is a WeaponData (preferred) or a

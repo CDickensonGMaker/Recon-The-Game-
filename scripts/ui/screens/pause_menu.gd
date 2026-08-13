@@ -58,7 +58,10 @@ func build(in_mission: bool) -> void:
 		box.add_child(ReconUI.make_menu_button("ABANDON MISSION", func() -> void:
 			abandon_pressed.emit()))
 	box.add_child(ReconUI.make_divider(330.0))
-	box.add_child(ReconUI.make_menu_button("QUIT TO MENU", func() -> void:
+	# The demo has no menu front door - its quit is a fresh demo day, and the
+	# button must say what it does.
+	box.add_child(ReconUI.make_menu_button(
+		"RESTART DAY" if GameFlow.demo_mode else "QUIT TO MENU", func() -> void:
 		quit_to_menu_pressed.emit()))
 
 	var note := ReconUI.make_label(

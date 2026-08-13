@@ -1715,7 +1715,13 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		var om: RegExMatch = ord_re.search(nm)
 		if om != null:
 			base = om.get_string(1)
+		# The manifest loop has already REPARENTED every claimed twin off `root`
+		# onto a Destructible under _parent - a root-only search reports every
+		# twin "absent" and a real co-located duplicate would be adopted as a
+		# SECOND stacked wall whose breach never reads open. Search both homes.
 		var twin := root.find_child(base, true, false) as MeshInstance3D
+		if twin == null and _parent != null:
+			twin = _parent.find_child(base, true, false) as MeshInstance3D
 		if twin != null and twin.global_position.distance_to(stray.global_position) < 0.05:
 			stray.visible = false
 			_disable_parapet_colliders(stray)

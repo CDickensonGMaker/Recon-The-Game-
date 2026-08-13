@@ -364,6 +364,7 @@ func _spawn_cells_for(count: int, data: String, tag: String, charges: bool,
 		var cell := MarchingCell.new()
 		cell.carries_charge = charges
 		cell.materialize_m = cell_materialize_m
+		cell.materialize_center = fsb_center
 		add_child(cell)
 		cell.setup(director, at, aim, size, data, tag, int(_rng.randi()))
 		cells.append(cell)

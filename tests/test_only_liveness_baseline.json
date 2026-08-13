@@ -2,19 +2,15 @@
 	"_comment": "Production symbols whose ONLY references are tests. 'debt' = alive only by its test, shrink by wiring or cutting. 'seams' = read-only observers a test legitimately needs. BOTH ONLY SHRINK. 'count'/'ceiling' witness a hand-edit. New entries enter ONLY via --grandfather --reason=<text>.",
 	"debt": [
 		"scripts/missions/field_director.gd|set_player_route",
-		"scripts/missions/friendly_patrol_group.gd|is_pinned",
-		"scripts/missions/friendly_patrol_group.gd|living_count",
 		"scripts/missions/scripted_sequence.gd|abort",
-		"scripts/vehicles/seat_system.gd|board_squad",
-		"scripts/vehicles/seat_system.gd|unseat_all",
 		"scripts/world/nav_baker.gd|queue_site",
 		"scripts/world/road_network.gd|total_length",
 		"scripts/world/site_planner.gd|stamp_lz",
 		"terrain/vegetation/jungle_patch_layer.gd|T_CLEAR",
 		"terrain/water/water_system.gd|get_water_level_at"
 	],
-	"count": 11,
-	"ceiling": 11,
+	"count": 7,
+	"ceiling": 7,
 	"seams": [
 		"scripts/autoload/world_sim.gd|count_live",
 		"scripts/combat/bullet_system.gd|live_count",
@@ -31,11 +27,10 @@
 		"scripts/world/tree_break_system.gd|species_count",
 		"terrain/core/heightmap_storage.gd|norm_to_meters",
 		"terrain/core/terrain_manager.gd|get_loaded_chunk_count",
-		"terrain/vegetation/tree_cover_layer.gd|collider_count",
 		"terrain/water/water_system.gd|get_stats"
 	],
-	"seam_count": 17,
-	"seam_ceiling": 17,
+	"seam_count": 16,
+	"seam_ceiling": 16,
 	"grandfather_log": [
 		{
 			"date": "2026-07-20",

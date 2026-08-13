@@ -453,36 +453,3 @@ static func hunt_radius(id: int, now_ms: float, determination: float) -> float:
 	return minf(cap, HUNT_R0 + HUNT_GROWTH * elapsed * (0.6 + det))
 
 
-## ---- formation slots: where each squad member should stand RIGHT NOW ------
-## The leader publishes its position + facing; followers slot relative to both.
-## Slot 0 is the point (returns leader_pos). Slot 1 cover-left, 2 cover-right,
-## 3+ trail behind in pairs. The formation KEYS the squad to the leader's body
-## - if the leader dies the formation collapses; promote the next man.
-
-const FORMATION_SPACING: float = 3.2
-const FORMATION_TRAIL_SPACING: float = 2.4
-
-
-static func formation_positions(leader_pos: Vector3, leader_facing: Vector3, count: int) -> Array[Vector3]:
-	var out: Array[Vector3] = []
-	if count <= 0:
-		return out
-	var fwd: Vector3 = Vector3(leader_facing.x, 0.0, leader_facing.z)
-	if fwd.length() < 0.01:
-		fwd = Vector3.FORWARD
-	else:
-		fwd = fwd.normalized()
-	var right: Vector3 = fwd.cross(Vector3.UP).normalized()
-	out.append(leader_pos)
-	if count >= 2:
-		out.append(leader_pos - right * FORMATION_SPACING)
-	if count >= 3:
-		out.append(leader_pos + right * FORMATION_SPACING)
-	for i in range(3, count):
-		@warning_ignore("integer_division")
-		var pair: int = (i - 3) / 2
-		var side: float = -1.0 if (i % 2) == 1 else 1.0
-		var offset: Vector3 = -fwd * (FORMATION_TRAIL_SPACING * (pair + 1)) \
-			+ right * side * FORMATION_SPACING
-		out.append(leader_pos + offset)
-	return out

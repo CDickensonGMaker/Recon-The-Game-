@@ -32,8 +32,15 @@ if ($Filter) { $tests = $tests | Where-Object { $_.BaseName -like "*$Filter*" } 
 # moment the underlying bug is fixed. The list is the scoreboard, not an excuse.
 $KnownRed = @(
     # test_nav_path graduated: NavBaker bakes per-site navmesh, enemies path
-    # around structures. Kept empty rather than deleted so the next known-red
-    # test has a home.
+    # around structures.
+    #
+    # test_viewmodel_contract is red on FOUR guns that are all the Summoner's
+    # own export/bench work (2026-08-13 register audit): m72_law + rpg7 have no
+    # viewmodel GLB at all (model_path ""), rpd + rpg2 ship only rifle_idle
+    # until re-exported. With the test as a bare FAIL, a NEW break in the
+    # contract was scoreboard-invisible among the expected reds. XPASS forces
+    # this entry out the moment his exports land.
+    "test_viewmodel_contract"
 )
 
 # The other half of the ratchet. $KnownRed catches a red test going green (XPASS);
@@ -89,7 +96,9 @@ $ErrorSubstrings = @(
 )
 
 # Known-benign engine chatter. These are NOT whitelisted into silence: a test whose
-# only error lines are these reports LEAK (loud, tracked in Beads), not PASS.
+# only error lines are these reports LEAK (loud, tracked in the tracking docs;
+# the column is FLAKY at single-run resolution - measured LEAK/LEAK/PASS on
+# byte-identical code 2026-08-13 - so never convict a change on one reading), not PASS.
 # Anything not on this list is FATAL. Never add to this list to make a build green.
 $BenignPatterns = @(
     "resources still in use at exit"     # GunFX combat_sting.wav outlives teardown (AUDIT-12)

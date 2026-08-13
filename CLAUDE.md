@@ -419,8 +419,9 @@ target 2026-09-06. The gate must check the product that is shipping.
 The checklist, straight off the arc (`scripts/levels/demo_game.gd:26-69`): boot seated on the bunk
 inside `fsb_main` → the squad moves out at T+10s and the day runs on the garrison schedule → night
 falls and the clock slows at the seam → the probe hits the wire (`PROBE_AT_S`) → the assault comes,
-45 men (`SIEGE_STRENGTH`) → the air beats walk the compass → gunships on station at `END_AT_S` →
-end card, and **the player lives**.
+45 men (`SIEGE_STRENGTH`) → the air beats walk the compass → the assault resolves and
+`siege_ended` brings the gunships on station (`END_BACKSTOP_S` 2700 is only the failsafe clock;
+the old `END_AT_S` hard trigger was retired 2026-08-07) → end card, and **the player lives**.
 
 It is discharged only by a **verified playtest by the Summoner** (ADR-015) — never by a probe,
 never by an agent's reading. Until he has verified it, gated feature work stays parked.
