@@ -1,0 +1,86 @@
+{
+ "bayonet": {
+  "hotspot": [
+   0.078125,
+   0.0
+  ],
+  "pointed": true
+ },
+ "belt": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "bullet": {
+  "hotspot": [
+   0.015625,
+   0.046875
+  ],
+  "pointed": true
+ },
+ "casing": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "chevron": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "compass": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "crossed": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "dogtags": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "grenade": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "huey": {
+  "hotspot": [
+   0.5,
+   0.5
+  ],
+  "pointed": false
+ },
+ "kbar": {
+  "hotspot": [
+   0.078125,
+   0.015625
+  ],
+  "pointed": true
+ },
+ "knife": {
+  "hotspot": [
+   0.03125,
+   0.03125
+  ],
+  "pointed": true
+ }
+}
