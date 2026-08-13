@@ -133,8 +133,58 @@ func queue_sites(sites: Array, anchors: Array[Vector3]) -> void:
 			continue
 		boxes.append(_box_for(site.get("center", Vector3.ZERO), float(site.get("radius", 20.0))))
 	boxes = _merge(boxes)
-	for b in boxes:
+	# _merge exists because overlapping, non-coincident regions produce NO edge connections
+	# - but the firebase is deliberately kept OUT of it (a merged box would lose its
+	# collider root), so it is the one box that can still overlap a site. Measured on the
+	# demo: the firebase overlapped BOTH other regions, and an ally standing on one could
+	# not path to a point on the other. Pull the sites clear of it.
+	for b in _clear_of_firebase(boxes):
 		_queue.append({"box": b})
+
+
+## Shrink each site box out of the firebase's, or drop it if the firebase already covers
+## it - that ground is baked from real colliders and does not want a second, coarser mesh
+## sitting in the same place.
+func _clear_of_firebase(boxes: Array[AABB]) -> Array[AABB]:
+	var fsb: AABB = AABB()
+	var have: bool = false
+	for j in _queue:
+		var job: Dictionary = j
+		if job.has("colliders"):
+			fsb = job["box"]
+			have = true
+			break
+	if not have:
+		return boxes
+	var out: Array[AABB] = []
+	for b in boxes:
+		if not _xz_overlap(b, fsb):
+			out.append(b)
+			continue
+		# Penetration on each side; retreat along the cheapest one so the two boxes end
+		# ADJACENT. Aligned edges can connect through the map's edge_connection_margin;
+		# overlapping ones can never connect at all.
+		var pen_xl: float = (fsb.position.x + fsb.size.x) - b.position.x
+		var pen_xh: float = (b.position.x + b.size.x) - fsb.position.x
+		var pen_zl: float = (fsb.position.z + fsb.size.z) - b.position.z
+		var pen_zh: float = (b.position.z + b.size.z) - fsb.position.z
+		var best: float = minf(minf(pen_xl, pen_xh), minf(pen_zl, pen_zh))
+		var trimmed: AABB = b
+		if is_equal_approx(best, pen_xl):
+			trimmed.position.x += pen_xl
+			trimmed.size.x -= pen_xl
+		elif is_equal_approx(best, pen_xh):
+			trimmed.size.x -= pen_xh
+		elif is_equal_approx(best, pen_zl):
+			trimmed.position.z += pen_zl
+			trimmed.size.z -= pen_zl
+		else:
+			trimmed.size.z -= pen_zh
+		# What is left has to be worth baking. Anything smaller is inside the firebase's
+		# own mesh in every way that matters.
+		if trimmed.size.x >= HALF_MIN and trimmed.size.z >= HALF_MIN:
+			out.append(trimmed)
+	return out
 
 
 func queue_site(center: Vector3, radius: float) -> void:
@@ -293,6 +343,13 @@ func _start_bake(job: Dictionary) -> void:
 	var croot: Node3D = job.get("colliders", null) as Node3D
 	if croot != null and is_instance_valid(croot):
 		carved = -_add_colliders(source, croot, box) - 1   # negative = collider count, see below
+		# AND the stamped structures inside it. The firebase box is 370m and now swallows
+		# whole village and ruin sites, whose own regions are pulled clear of it to stop
+		# the overlap that severed every path between them. Its collider walk only knows
+		# firebase geometry, so without this a hut inside the wire's box would be baked
+		# straight through - navmesh disagreeing with physics, which is the one thing this
+		# baker exists to prevent.
+		_add_structures(source, box)
 	else:
 		carved = _add_structures(source, box)
 

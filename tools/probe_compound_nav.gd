@@ -35,6 +35,28 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
+	# REGION OVERLAP. _merge() folds overlapping boxes together for exactly one reason,
+	# stated at nav_baker.gd:167-169: two overlapping, non-coincident regions produce NO
+	# edge connections and a path between them cannot exist. The firebase is deliberately
+	# kept OUT of that merge, so it is the one box that can still overlap another.
+	print("baked regions: %d" % NavBaker._live_boxes.size())
+	for i in range(NavBaker._live_boxes.size()):
+		var b: AABB = NavBaker._live_boxes[i]
+		print("  %d: x %.0f..%.0f  z %.0f..%.0f" % [i, b.position.x, b.position.x + b.size.x,
+			b.position.z, b.position.z + b.size.z])
+	var overlaps: int = 0
+	for i in range(NavBaker._live_boxes.size()):
+		for j in range(i + 1, NavBaker._live_boxes.size()):
+			var a: AABB = NavBaker._live_boxes[i]
+			var c: AABB = NavBaker._live_boxes[j]
+			if a.position.x < c.position.x + c.size.x \
+					and c.position.x < a.position.x + a.size.x \
+					and a.position.z < c.position.z + c.size.z \
+					and c.position.z < a.position.z + a.size.z:
+				overlaps += 1
+				print("  OVERLAP %d x %d - no edge connections between them" % [i, j])
+	print("region overlaps: %d" % overlaps)
+
 	# The parapet IS the perimeter, and it is already a group.
 	var wall: Array[Vector3] = []
 	for d in get_tree().get_nodes_in_group(&"fsb_parapet"):
