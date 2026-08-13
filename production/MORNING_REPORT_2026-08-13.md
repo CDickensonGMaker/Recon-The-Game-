@@ -128,7 +128,7 @@ timeout is understood**, and it is still your ruling — I have only deferred it
 
 | # | Item | Why it is yours |
 |---|---|---|
-| 1 | **`test_nav_path` TIMES OUT at 420 s.** It *graduated* off the known-red list because NavBaker worked. Yesterday's FIX 0 seeds every parapet collider into the bake. Either the bake is now pathologically slow or it loops. | Blocks the `fb_int_` ruling and is the instrument that proves men can path at all. |
+| 1 | **`test_nav_path` TIMES OUT at 420 s — START HERE.** It *graduated* off the known-red list because NavBaker worked. Yesterday's FIX 0 seeds every parapet collider into the bake. Either the bake is now pathologically slow or it loops. | Blocks the `fb_int_` ruling, is the instrument that proves men can path at all, AND it alone makes a full suite run impossible to complete — it eats 70% of the budget. |
 | 2 | **Blender rename for the med/chow contract** (your soft+destructible ruling). `medical_complex` and the chow hall are single meshes with no prefix: **bulletproof, invulnerable, roofs walkable**. I added `medical_complex` to the roof-cull list; **the chow hall cannot have an entry** because its parts (`tent_roof_chowhall`, `WB_chowhall_backwall`) share no leading token. | Blender only. |
 | 3 | **242 `fb_hwall_*` hooch walls are hard** while their own screens and roofs are soft. One string. | Blender only. |
 | 4 | **Re-export RPD and RPG-2** — `python tools/export_all_viewmodels.py rpd rpg2`. The manifest now passes the gate. Both currently hold only `rifle_idle`; the player sees 7.0 s / 6.5 s of a frozen pose because `weapon_holder.gd:986` early-returns on a missing clip. | Your export. |
@@ -142,8 +142,20 @@ timeout is understood**, and it is still your ruling — I have only deferred it
 
 ## 5. THE SUITE
 
-Before the night's work: **106 pass / 14 leak / 23 fail / 1 timeout of 143.**
-Final scoreboard is appended below by the last run.
+**Baseline, one uninterrupted run before the night's work: 106 pass / 14 leak / 23 fail /
+1 timeout, of 143.**
+
+**I do not have a clean AFTER scoreboard, and I am not going to pretend otherwise.** Two attempts
+to re-run the full suite were cut off at the harness's ten-minute cap, and **both died in the same
+place — `test_nav_path` burning its full 420-second box.** One test is eating 70% of the budget for
+a whole suite run. Until that is fixed, nobody on this project gets a full green-to-green comparison,
+which is a second, quieter cost of item #1 below.
+
+**What I validated directly instead**, after every change landed: `test_fossils` PASS ·
+`test_trunk_ring` PASS · `test_veg_cover` PASS · `test_world_boot` PASS · `test_worldbuild_phase1` PASS ·
+`test_support_fire_bench` PASS · `test_viewmodel_poses` **FAIL → PASS** · `test_viewmodel_sync_contract`
+PASS · `test_demo_planner` LEAK (pre-existing AUDIT-12, leaked before the night too).
+**No test that was green went red.**
 
 Known, and not caused by this session:
 - **`test_height_authority` REGRESSED** — but 9 of its 10 checks pass and the single failure is
