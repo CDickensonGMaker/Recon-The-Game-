@@ -1,7 +1,39 @@
 {
 	"_comment": "ADR-023 THE FOSSIL LAW, file level. Orphaned .uid/.import sidecars whose source is gone, keyed by repo-relative path. THIS LIST ONLY SHRINKS. 'count' and 'ceiling' are the ratchet's witnesses: the probe FAILS if either disagrees with 'orphans', so a hand-edit cannot pass quietly. --write-baseline can only ever remove entries. New entries enter ONLY via --grandfather --reason=<text>.",
-	"orphans": [],
-	"count": 0,
-	"ceiling": 0,
-	"grandfather_log": []
+	"orphans": [
+		"assets/zombies/characters/zed_cult.glb.import",
+		"assets/zombies/characters/zed_cult_b.glb.import",
+		"assets/zombies/characters/zed_farmer.glb.import",
+		"assets/zombies/characters/zed_farmer_b.glb.import",
+		"assets/zombies/characters/zed_patient.glb.import",
+		"assets/zombies/characters/zed_patient_b.glb.import",
+		"assets/zombies/characters/zed_rotted.glb.import",
+		"assets/zombies/characters/zed_rotted_b.glb.import",
+		"assets/zombies/characters/zed_security.glb.import",
+		"assets/zombies/characters/zed_security_b.glb.import",
+		"assets/zombies/characters/zed_staff.glb.import",
+		"assets/zombies/characters/zed_staff_b.glb.import"
+	],
+	"count": 12,
+	"ceiling": 12,
+	"grandfather_log": [
+		{
+			"date": "2026-08-13",
+			"reason": "zombie mode parked 2026-08-05 (recon-never-delete-zombie-code); the zed_*.glb sources were removed but the sidecars are kept so the mode can be revived without re-importing",
+			"added": [
+				"assets/zombies/characters/zed_cult.glb.import",
+				"assets/zombies/characters/zed_cult_b.glb.import",
+				"assets/zombies/characters/zed_farmer.glb.import",
+				"assets/zombies/characters/zed_farmer_b.glb.import",
+				"assets/zombies/characters/zed_patient.glb.import",
+				"assets/zombies/characters/zed_patient_b.glb.import",
+				"assets/zombies/characters/zed_rotted.glb.import",
+				"assets/zombies/characters/zed_rotted_b.glb.import",
+				"assets/zombies/characters/zed_security.glb.import",
+				"assets/zombies/characters/zed_security_b.glb.import",
+				"assets/zombies/characters/zed_staff.glb.import",
+				"assets/zombies/characters/zed_staff_b.glb.import"
+			]
+		}
+	]
 }

@@ -8,9 +8,26 @@
 extends Node
 
 const PLACEHOLDER_ADS := Vector3(0.0, 0.05, 0.08)
+
+## HIP AND ADS MUST DESCRIBE THE SAME GUN. weapon_holder lerps one into the other every
+## time the player raises his sights (weapon_holder.gd:878), and _get_muzzle_position reads
+## the MuzzlePoint that rides with them - so a pose pair in two different coordinate
+## regimes flies the weapon across the world mid-transition and spawns rounds where the
+## gun is not. The armory ruler parks each GLB at its own station down -Z (m60 -36, m79
+## -12, m70 -24, colt45 -56) and the idle clip brings it back, so a pose carrying that
+## station is a bench value that was saved against the wrong frame.
+##
+## Measured 2026-08-13, every shipped gun: the healthy span is 0.32-0.42m (ppsh41 0.32,
+## m16a1 0.41, m70 0.42). The broken ones are not near the line - m79 11.4m, m60 35.0m,
+## shotgun 59.0m. 1.0m sits in an empty gap two orders of magnitude wide.
+const POSE_SPAN_MAX_M: float = 1.0
+## Shrink-only, same law as GRANDFATHERED below: fix a gun on the bench, delete it here
+## in the same change. These three have never been re-aimed since the ruler regime.
+const SPAN_GRANDFATHERED: Array[String] = ["m60", "m79", "shotgun"]
 ## 2026-07-26 audit: five guns carried the placeholder (ak47/m1911/rpd/rpg2) or a
 ## hip-copied ads_rotation with the placeholder position (mosin).
-const GRANDFATHERED: Array[String] = ["ak47", "m1911", "mosin", "rpd", "rpg2"]
+## ak47 and mosin were re-aimed and left the list 2026-08-13; the register only shrinks.
+const GRANDFATHERED: Array[String] = ["m1911", "rpd", "rpg2"]
 
 var _failures := 0
 
@@ -20,9 +37,20 @@ func _fail(msg: String) -> void:
 	_failures += 1
 
 
+## A gun by the project's own convention (CLAUDE.md, ADR-034): gun viewmodels are
+## `{weapon}_arms_viewmodel.tscn` and non-gun items drop the `_arms_`. Bandage,
+## flashlight, handset, knife and m26_grenade have no sights, so hip == ads is the
+## CORRECT authored answer for them - the stub test was reading five deliberate poses
+## as five unaimed ones and had been red on them ever since the equipment shipped.
+func _is_gun(w: WeaponData) -> bool:
+	return w.model_path.contains("_arms_viewmodel")
+
+
 func _is_stub(w: WeaponData) -> bool:
 	if w.model_path.is_empty():
 		return false  # nothing to pose yet - covered by the manifest gap, not here
+	if not _is_gun(w):
+		return false
 	if w.ads_position.distance_to(PLACEHOLDER_ADS) < 0.0001:
 		return true
 	# hip==ads pose entirely = never aimed (identical rotation alone is legal on
@@ -36,6 +64,7 @@ func _ready() -> void:
 		_fail("data/weapons missing")
 		return _finish()
 	var cleaned: Array[String] = []
+	var span_cleaned: Array[String] = []
 	for f in dir.get_files():
 		if not f.ends_with(".tres"):
 			continue
@@ -48,8 +77,18 @@ func _ready() -> void:
 			_fail("%s: NEW stub ADS pose (placeholder position or hip==ads) - aim it on the bench" % w.id)
 		elif not stub and w.id in GRANDFATHERED:
 			cleaned.append(w.id)
+		if _is_gun(w):
+			var span: float = w.hip_position.distance_to(w.ads_position)
+			if w.id in SPAN_GRANDFATHERED:
+				print("NOTE: %s hip/ADS span %.2fm - grandfathered, re-aim it on the bench" % [w.id, span])
+			if span > POSE_SPAN_MAX_M and not w.id in SPAN_GRANDFATHERED:
+				_fail("%s: hip and ADS are %.2fm apart (max %.2f) - one of the pair carries the armory-ruler offset, so the gun flies across the world during the ADS transition and fires from where it is not" % [w.id, span, POSE_SPAN_MAX_M])
+			elif span <= POSE_SPAN_MAX_M and w.id in SPAN_GRANDFATHERED:
+				span_cleaned.append(w.id)
 	if not cleaned.is_empty():
 		print("NOTE: %s now have real ADS poses - shrink GRANDFATHERED in this test" % str(cleaned))
+	if not span_cleaned.is_empty():
+		print("NOTE: %s now have same-regime hip/ADS poses - shrink SPAN_GRANDFATHERED in this test" % str(span_cleaned))
 	_finish()
 
 
