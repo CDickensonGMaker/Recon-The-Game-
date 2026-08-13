@@ -490,9 +490,59 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 		var faces: PackedVector3Array = _shape_faces(cs.shape)
 		if faces.is_empty():
 			continue
+		faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
 		source.add_faces(faces, cs.global_transform)
 		added += 1
 	return added
+
+
+## Structures whose ROOF bakes as walkable floor. Each is ONE mesh - roof and interior floor
+## in the same shape - so a NAV_IGNORE_PREFIXES entry would delete the inside too, and the
+## fighting bunkers now carry 37 work_bunker posts men have to reach. Measured 2026-08-12 in
+## firebase_v3.2.blend, upward faces under agent_max_slope and >=1.9m above their own base:
+## bunker_fighting 341.7 m2, bunker_mg 256.8, sleeping_bunker 192.1, gp_tent 154.0, mess 44.7.
+##
+## fb_tower is deliberately ABSENT: a tower is meant to be climbed, and its ladder_bottom /
+## ladder_top markers exist precisely so men can stand the platform.
+const NAV_ROOF_CULL_PREFIXES: Array[String] = [
+	"fb_gp_tent", "fb_mess", "fb_bunker_mg", "fb_bunker_fighting", "fb_sleeping_bunker",
+]
+## How far above a structure's own base a surface stops being its floor and starts being its
+## roof. Bunker interiors sit ~0.97m BELOW grade and their roofs ~3.2m above it, so 1.9m
+## separates the two with room on both sides.
+const NAV_ROOF_HEIGHT_M: float = 1.9
+
+
+## Drop the roof triangles of a monolithic structure while keeping its floor. Returns the
+## faces unchanged for everything else, which is nearly every shape in the compound.
+func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
+		xform: Transform3D) -> PackedVector3Array:
+	var match_found: bool = false
+	for p in NAV_ROOF_CULL_PREFIXES:
+		if owner_name.begins_with(p):
+			match_found = true
+			break
+	if not match_found:
+		return faces
+	var base_y: float = INF
+	for v in faces:
+		var wy: float = (xform * v).y
+		if wy < base_y:
+			base_y = wy
+	var cut: float = base_y + NAV_ROOF_HEIGHT_M
+	var kept: PackedVector3Array = PackedVector3Array()
+	for i in range(0, faces.size() - 2, 3):
+		var a: Vector3 = xform * faces[i]
+		var b: Vector3 = xform * faces[i + 1]
+		var c: Vector3 = xform * faces[i + 2]
+		# a triangle is roof only if ALL of it is up there - a wall crossing the line stays,
+		# or the structure loses the sides that hold its floor in.
+		if a.y >= cut and b.y >= cut and c.y >= cut:
+			continue
+		kept.append(faces[i])
+		kept.append(faces[i + 1])
+		kept.append(faces[i + 2])
+	return kept
 
 
 ## Triangles for the shape kinds the firebase GLB actually imports: `-colonly` trimeshes come
