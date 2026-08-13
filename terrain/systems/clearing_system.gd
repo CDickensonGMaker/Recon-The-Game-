@@ -232,6 +232,56 @@ func get_vegetation_density(world_pos: Vector3) -> float:
 
 
 ## Get clearing color overlay texture
+## STAMP GROUND, without a zone. A ClearingZone is a circle or a rectangle with a stage,
+## which is the right shape for a cleared LZ and the wrong one for a road: a road is a
+## polyline, it has no stage, and it must not touch vegetation_map (RoadNetwork already
+## pulled the plants, and writing density here a second time would fight the AI's own
+## reading of that ground).
+##
+## Feathered over the outer FEATHER_FRAC of the half-width so the band has an edge rather
+## than a cut. Alpha only ever RISES - a road crossing a cleared zone must not erase it.
+const FEATHER_FRAC: float = 0.35
+
+
+func stamp_ground_line(a: Vector3, b: Vector3, half_width: float, tint: Color,
+		strength: float) -> void:
+	if clearing_texture == null or terrain_manager == null:
+		return
+	var scale: float = float(vegetation_size) / terrain_manager.map_size
+	var pa := Vector2(a.x * scale, a.z * scale)
+	var pb := Vector2(b.x * scale, b.z * scale)
+	var hw: float = maxf(1.0, half_width * scale)
+	var lo := Vector2i(int(floor(minf(pa.x, pb.x) - hw)), int(floor(minf(pa.y, pb.y) - hw)))
+	var hi := Vector2i(int(ceil(maxf(pa.x, pb.x) + hw)), int(ceil(maxf(pa.y, pb.y) + hw)))
+	var seg: Vector2 = pb - pa
+	var seg_len2: float = maxf(0.0001, seg.length_squared())
+
+	for y in range(maxi(0, lo.y), mini(vegetation_size, hi.y + 1)):
+		for x in range(maxi(0, lo.x), mini(vegetation_size, hi.x + 1)):
+			var p := Vector2(float(x), float(y))
+			var t: float = clampf((p - pa).dot(seg) / seg_len2, 0.0, 1.0)
+			var d: float = p.distance_to(pa + seg * t)
+			if d > hw:
+				continue
+			var feather: float = clampf((hw - d) / maxf(0.001, hw * FEATHER_FRAC), 0.0, 1.0)
+			var alpha: float = strength * feather
+			if alpha <= 0.002:
+				continue
+			var cur: Color = clearing_texture.get_pixel(x, y)
+			clearing_texture.set_pixel(x, y, Color(
+				lerpf(cur.r, tint.r, alpha),
+				lerpf(cur.g, tint.g, alpha),
+				lerpf(cur.b, tint.b, alpha),
+				maxf(cur.a, alpha)))
+
+
+## Push a batch of stamps to the terrain material. Called ONCE after a run of
+## stamp_ground_line - game_world rebuilds an ImageTexture from the whole image on this
+## signal, so emitting per segment would rebuild it hundreds of times for one road.
+func flush_ground() -> void:
+	vegetation_updated.emit(Rect2i(0, 0, vegetation_size, vegetation_size))
+
+
 func get_clearing_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(clearing_texture)
 

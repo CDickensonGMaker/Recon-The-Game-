@@ -179,6 +179,35 @@ so it is HIS call. **Do not start this without a ruling on (a) vs (b).**
 
 ---
 
+## 29 — THE DUST SPLAT ALREADY EXISTS *(added 2026-08-12; supersedes the "build a splat system" half of 27)*
+
+**There is no splat system to build.** `clearing_system.gd:77` already keeps a full-map **RGBA8**
+`Image`, writes colour AND alpha per pixel at `:216`, hands it to the shader at `:235`, and
+`terrain.gdshader:99-100` applies it as `color = mix(color, clearing.rgb, clearing.a)`. The engine
+can already paint any colour at any alpha anywhere on the map, and it is already doing it for
+cleared jungle. That texture is sampled on every terrain pixel every frame whether it is used or
+not, so a road costs **nothing new**: no sampler, no uniform, no material, no art.
+
+And the road already knows where to paint. `road_network.clear_corridor()` is, by the planner's
+own comment, "the one write a road performs" — it walks the corridor pulling vegetation. It simply
+does not stamp the mask while it is there.
+
+**Build the TINT version** — dust colour along the corridor, feathered at the edges. At PSX
+fidelity a flat dustier band reads correctly, and it is hours, not days.
+- *Not* a second ground tile set: three new textures and a blend to gain ~20% at this resolution.
+- Traffic wear (the busiest spoke barer than a footpath) is a later refinement on the same
+  mechanism — `longest_route()` already identifies it, and the topo map already draws it as an
+  improved double line.
+
+**The riverbed rides the same change.** Sand or silt in a creek bed was blocked on exactly this
+missing capability, and it was never missing. `hydrology` knows where the channels are.
+
+**KNOWN CAVEAT:** the mask is authored at `vegetation_size`, not terrain resolution. A 10m road may
+render as a soft band rather than a crisp edge. Arguably correct at PSX fidelity — but look before
+ruling.
+
+---
+
 ## HIS RULINGS, 2026-08-12 (asked plainly, answered)
 
 - **Roof markers → BLENDER.** He drops the `work_rest_*` / `work_supply_*` empties onto their

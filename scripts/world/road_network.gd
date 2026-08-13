@@ -371,6 +371,15 @@ func total_length() -> float:
 ## into the world, and it writes VEGETATION BUNDLES ONLY - never height, never
 ## terrain_type, never water. A road you can see from the ground is a corridor of
 ## open sky; this is what makes one.
+## The dust a road wears into the ground. Pulling the plants was the ONLY trace a road left,
+## so convoys drove a lane of missing jungle that the topo map confidently drew as a highway.
+## ClearingSystem's texture is already a full-map RGBA overlay the terrain shader mixes on
+## every pixel (terrain.gdshader:99-100), so this costs no sampler, no uniform and no art.
+const ROAD_DUST: Color = Color(0.42, 0.35, 0.24)
+## Under 1.0 on purpose: a track worn through jungle keeps some of the ground under it.
+const ROAD_DUST_STRENGTH: float = 0.72
+
+
 func clear_corridor(veg: VegetationManager, chunk_size: float, heightmap: Object) -> int:
 	if veg == null or not veg.has_method("clear_area"):
 		return 0
@@ -378,7 +387,22 @@ func clear_corridor(veg: VegetationManager, chunk_size: float, heightmap: Object
 	for seg in segments:
 		for p in seg:
 			cleared += int(veg.clear_area(p, ROAD_HALF_WIDTH_M, chunk_size, heightmap))
+	_stamp_dust()
 	return cleared
+
+
+func _stamp_dust() -> void:
+	if not ClearingSystem.has_method("stamp_ground_line"):
+		return
+	var lines: int = 0
+	for seg in segments:
+		for i in range(seg.size() - 1):
+			ClearingSystem.stamp_ground_line(seg[i], seg[i + 1], ROAD_HALF_WIDTH_M,
+				ROAD_DUST, ROAD_DUST_STRENGTH)
+			lines += 1
+	if lines > 0:
+		ClearingSystem.flush_ground()
+	print("[ROADS] dust stamped on %d segment line(s)" % lines)
 
 
 # ---------------------------------------------------------------------------
