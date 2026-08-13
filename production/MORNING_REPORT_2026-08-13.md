@@ -1,5 +1,61 @@
 # MORNING REPORT — the demo audit night, 2026-08-13
 
+---
+
+## 0. SECOND WAVE (written after he woke and said "keep working on everything we didn't finish")
+
+**`test_nav_path` was never hanging, and the nav bake was never slow. TIMEOUT 420s → PASS 10.8s.**
+The test assigned `enemy._nav_box`, a field the AI consolidation deleted — the nav box lives on
+the shared `NavRouter` now (`nav_router.gd:13`, `refresh_box` at `:54`). GDScript raises on the
+assignment, which aborted `_run()` before it reached `_finish()` — and `_finish()` is the only
+caller of `get_tree().quit()`. So the process sat at 120 FPS printing PERF lines until the 420s
+box killed it. **It reads as "the bake broke when FIX 0 landed" and has nothing to do with the
+bake.** That one test was eating 70% of a full suite run, which is why no clean scoreboard could
+be produced.
+
+**Both named REGRESSIONS are now closed:**
+- `test_squad_break` → PASS. The real failure was the thrash guard, and the guard was right:
+  `COVER_FAIL_LOCKOUT_MS` arrived in `63b4fe6f` yesterday, so two failed cover hunts suppress the
+  trip only until the window passes. The test left `_cover_fail_ms` at 0, which reads as long
+  expired. The test was asserting yesterday's contract. Also hardened `squad_system.gd:475`,
+  which read `global_position` off a man who may not be in the tree — identity plus an engine
+  error, so the fall-back callout would have played from the world origin.
+- `test_seat_system` → PASS, **and the failure was the design succeeding.** The seat clips are
+  `play_first` chains written so the authored postures would land unassisted "the moment the
+  export does". `aba5ca53` shipped them (209 → 232 clips), the chain picked them up, and the test
+  went red only because it had hardcoded `"sitting"`. It now reads
+  `seat_pax_1 sit_lip_outboard_b` / `seat_pax_6 sit_lip_outboard_a` — the a/b alternation so a
+  full stick does not sit in unison. **Your "troops ride the lip" ruling, visible in a probe for
+  the first time.**
+
+**Your `fb_int_` ruling is IMPLEMENTED and verified.** 1,144 `fb_int_` nodes ship 572 `-colonly`
+twins, and every one now enters the bake, so the furniture is real to physics and to pathing
+instead of contradicting itself. Verified against the aisle-sealing risk, before and after:
+`probe_interior_nav` 30 reachable / 5 SEALED of 35 → **identical**; `probe_compound_nav` 8/8
+bearings reach, 0 CUT → **identical**. Nothing sealed, the compound did not become an island.
+(The 5 sealed interiors are pre-existing and unrelated.)
+
+**Two alarms that could not see the defect they were built for:**
+- The parapet reconciliation only looked one way. A manifest entry with no mesh is loud; **a mesh
+  with no manifest entry is invulnerable and invisible to the check** — `fb_sbg_seg_046_001`
+  shipped that way and the boot line reported a clean 80/0 over it. Now counted and named.
+- No albedo threshold can separate the unfinished brassard (0.82) from the *correct* bone-white
+  surgeon's mask (0.79) — so the probe was silent on a real defect. It now also reports an
+  untextured surface whose material NAME still says `_white`/`_placeholder`/`_todo`/`_wip`/`_temp`.
+
+**Also corrected:** the second-body probe could not tell a surgeon's apron (0.394 × 0.634) from a
+torso donor (0.391 × 0.652) — the same box to within 2 cm — which is why `us_surgeon` read as
+"two men" and three ledger rows carried half an art day that did not exist. Gated on a whole man
+(1.53 × 1.71) now, in a gap where nothing lives.
+
+**Still open and unchanged:** the Chinook (`chinook.tscn` has two nodes and **no seat sockets at
+all**, so `door_staging_pos()` falls through to the airframe origin and men unseat inside the
+fuselage — `test_seat_system` drives the Huey and does not cover it) · cover-seek stopping 4–5 m
+short · the 548 character-part colliders tagged `hard_surface` · everything in §4 that needs
+Blender or the bench.
+
+---
+
 **Written while you slept. Everything here carries a `file:line` or a measured number.**
 Council record: `production/war_room/synthesis_demo_audit_2026-08-12.md` + five analyses in
 `production/war_room/analysis/`.
@@ -128,7 +184,7 @@ timeout is understood**, and it is still your ruling — I have only deferred it
 
 | # | Item | Why it is yours |
 |---|---|---|
-| 1 | **`test_nav_path` TIMES OUT at 420 s — START HERE.** It *graduated* off the known-red list because NavBaker worked. Yesterday's FIX 0 seeds every parapet collider into the bake. Either the bake is now pathologically slow or it loops. | Blocks the `fb_int_` ruling, is the instrument that proves men can path at all, AND it alone makes a full suite run impossible to complete — it eats 70% of the budget. |
+| 1 | ~~**`test_nav_path` TIMES OUT at 420 s**~~ **RESOLVED in the second wave — see §0.** A fossil field reference, not the bake. PASS in 10.8 s. Nothing was ever wrong with FIX 0. | — |
 | 2 | **Blender rename for the med/chow contract** (your soft+destructible ruling). `medical_complex` and the chow hall are single meshes with no prefix: **bulletproof, invulnerable, roofs walkable**. I added `medical_complex` to the roof-cull list; **the chow hall cannot have an entry** because its parts (`tent_roof_chowhall`, `WB_chowhall_backwall`) share no leading token. | Blender only. |
 | 3 | **242 `fb_hwall_*` hooch walls are hard** while their own screens and roofs are soft. One string. | Blender only. |
 | 4 | **Re-export RPD and RPG-2** — `python tools/export_all_viewmodels.py rpd rpg2`. The manifest now passes the gate. Both currently hold only `rifle_idle`; the player sees 7.0 s / 6.5 s of a frozen pose because `weapon_holder.gd:986` early-returns on a missing clip. | Your export. |
