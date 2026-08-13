@@ -442,7 +442,12 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 ## `door_` is here EXPLICITLY rather than by accident: a ScreenDoor leaf is visual only and
 ## must never carry a collider, but naming it in the contract means a leaf that is ever
 ## exported with one still cannot seal the doorway it hangs in.
-const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_", "door_"]
+## fb_hootch_roof_ joined this list 2026-08-12. The eleven hooches ship 176 roof panels and
+## fb_hootch is in COL_TRIMESH, so every one bakes as a real surface. A panel rises 0.61m over
+## 1.22m - about 27 degrees - which is comfortably under agent_max_slope, so the navmesh
+## treated every roof in the compound as walkable floor and men pathed onto them. The collider
+## stays: rounds still behave and nobody falls through. It is only no longer somewhere to walk.
+const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "fb_int_", "door_", "fb_hootch_roof_"]
 
 
 func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
