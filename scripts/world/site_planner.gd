@@ -887,6 +887,28 @@ const FSB_WORK_OCCUPATION: Dictionary = {
 	# policing the pad - the labour that fills a firebase day.
 	"dig": "detail", "burn": "detail", "latrine": "detail",
 	"water": "detail", "wash": "detail", "pad": "detail",
+	# THE BUNKER FIRE POINTS. 37 markers - 28 at fighting bunkers, 8 at MG bunkers.
+	# The fighting bunkers used to emit NO station at all, so no garrison man could
+	# ever occupy one during a siege; the art side was fixed, but the type was never
+	# registered here, so all 37 fell through to off_duty and the bunkers stayed empty
+	# in a different way. A man in an embrasure is watching his arc.
+	"bunker": "sentry",
+	# THE AID STATION. Staff and wounded are different occupations - "patient" drives
+	# the lying/immobile clip set, and mapping a casualty to "medic" stands him up and
+	# walks him around his own ward.
+	"med_surgeon": "medic", "med_scrubnurse": "medic", "med_anesthetist": "medic",
+	"med_tend": "medic", "med_officer": "medic",
+	"med_cot": "patient", "med_or_patient": "patient",
+	# The rest of the chow line. cook_range is the servery's hot side; the tray pair
+	# are the return end of his diner loop (2026-08-07), same as chow_tray_return.
+	"cook_range": "mess_cook",
+	"traycollector": "mess_hall", "trayhandoff": "mess_hall",
+	# THE HOOCH (marker names work_<building>_<role>, same convention as the chow hall).
+	# off_duty is the CORRECT answer here - a billet is where men are not working - but
+	# it has to be stated, because an unlisted type reaches off_duty by accident and
+	# reads identically to a type nobody remembered to wire.
+	"hooch_sleep": "off_duty", "hooch_table": "off_duty", "hooch_radio": "off_duty",
+	"hooch_locker": "off_duty", "hooch_door": "off_duty",
 	# Named so the fall-through is a decision, not an accident.
 	"rest": "off_duty", "smoke": "off_duty",
 }
@@ -901,7 +923,20 @@ const FSB_WORK_PRIORITY: Array[String] = [
 	"chow_server", "chow_server_line", "eat", "chow_diner", "queue",
 	"radio", "supply", "cook", "mess", "ammo",
 	"watch", "guard", "mg", "plot", "smoke", "rest",
-	"chow_trigger", "chow_exit",
+	"chow_trigger", "chow_exit", "chow_tray_return",
+	# The aid station staff rank with "medic" - a manned ward is worth more than another
+	# man on a working party. The wounded come straight after: an empty ward reads as a
+	# firebase that has never been hit.
+	"med_surgeon", "med_scrubnurse", "med_anesthetist", "med_tend", "med_officer",
+	"med_cot", "med_or_patient",
+	# Bunkers sit with the other sentry posts - below the working party, above the
+	# off-duty billet, and 37 markers means the stride samples them rather than
+	# flooding the budget.
+	"bunker",
+	"cook_range", "traycollector", "trayhandoff",
+	# The billet is last on purpose: a man asleep in a hooch is the cheapest thing the
+	# garrison can spend a post on, and there are 8 sleep markers per hooch x 11.
+	"hooch_sleep", "hooch_table", "hooch_radio", "hooch_locker", "hooch_door",
 ]
 
 ## THE garrison ceiling: how many men stand inside the wire, curated and work-post

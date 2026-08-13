@@ -218,9 +218,23 @@ entry.
 
 ---
 
-## FIX 6 — screen door (NEW FEATURE, ruled by Caleb 2026-08-12)
+## FIX 6 — screen door — **WRITTEN ALREADY, DO NOT REBUILD**
 
-Do this **after** FIX 0 and FIX 2. Without them it is decoration on a sealed room.
+**`scripts/world/screen_door.gd` exists as of 2026-08-12 19:0x** (written from the Blender
+session). `class_name ScreenDoor`. Do not write a second one. What is left for this window:
+
+- a `ScreenDoor` node in the hooch scene with a **`Threshold` Area3D** child spanning the
+  doorway, and `leaf_a_path` / `leaf_b_path` pointed at the two door leaves
+- confirm the leaves never receive a collider and never join `nav_blockers`
+- optional: an ambient creak/slap cue off `ScreenDoor.is_swinging()`
+
+The Blender side is done: two leaves `A_door_leaf_l` / `A_door_leaf_r`, 0.80 x 2.03 each,
+hinged at their own jambs, **no `-colonly` twins by design**, and a `HOOCH_door` marker at the
+gable line carrying the full contract as custom properties (`collision=NONE`,
+`nav=bakes OPEN permanently`, the swing spec, and the reason).
+
+Still true, and still the reason this must land after FIX 0 and FIX 2: without them the door
+opens onto a room no AI can path into.
 
 **The ruling, and the reason for it, in his words:** *"if the firebase ever gets over run you can
 hide in the hooch and enemies can come in."* The door is deliberately **always passable** so an

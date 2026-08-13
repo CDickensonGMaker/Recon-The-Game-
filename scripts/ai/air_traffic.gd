@@ -357,8 +357,11 @@ func _crew_gunners(heli: Helicopter) -> void:
 		print("[AIR] gun orbit ship crewed with %d door gunner(s)" % manned)
 
 
-## The door guns work while the ship is walking its circle and are stood down for the
-## run in and the run out. No rounds leave the airframe - see SeatSystem's clip block.
+## The door guns work while the ship is walking its circle and are stood down for the run
+## in and the run out. They FIRE now (Summoner 2026-08-12, superseding the 2026-08-04
+## "dont build the gun" - that predates the gunship Hueys, which shipped today): a firing
+## Huey is part of the living world. SeatSystem owns the arc, the burst and the
+## danger-close stand-down.
 func _set_gunners_firing(heli: Helicopter, firing: bool) -> void:
 	var seats := heli.find_child("Seats", true, false) as SeatSystem
 	if seats != null:

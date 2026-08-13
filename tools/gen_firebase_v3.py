@@ -815,9 +815,15 @@ def legacy_garrison_markers():
 ## invisible mesh with no collision. Every twin here is numbered BEFORE the suffix instead.
 
 ## Alpha cards and ground decals: the player walks through leaves and over mud.
+## door_ leaves are VISUAL ONLY and must never receive a collider. A box hull here bricks
+## up the doorway it hangs in, and the leaf would also join nav_blockers - both fatal to the
+## screen door, which is deliberately always passable so a hooch interior can never become a
+## player safe room (Pillar 1: "if the firebase ever gets over run you can hide in the hooch
+## and enemies can come in"). ScreenDoor swings it off an Area3D; nothing ever collides with it.
 COL_NONE = ("fb_mud_patch", "fb_scorch", "fb_road_", "fb_duckboard",
             "fb_veg_bush", "fb_veg_fern", "fb_veg_elephant", "fb_veg_tall_grass",
-            "fb_veg_grass", "fb_veg_jungle_palm", "fb_veg_palm_sapling")
+            "fb_veg_grass", "fb_veg_jungle_palm", "fb_veg_palm_sapling",
+            "door_")
 
 ## scatter_veg MERGES every instance of a card into ONE object spanning the whole treeline
 ## ring, so the solid veg cannot take the default box hull: a box around 90 merged stumps is a

@@ -74,9 +74,10 @@ const PILOT_CLIP_FLYING := "cockpit_controls"
 ## Door-gunner clips. The `_l`/`_r` suffix is the DOOR, and it must match the seat -
 ## a right-side clip in the left seat works a gun that is not there.
 ##
-## NOTHING HERE FIRES A ROUND (Caleb's ruling 2026-08-04: "dont build the gun... i
-## just want that idea to be there"). `gunners_firing` drives a performance only; the
-## orbit spawns no projectiles.
+## THE GUNS ARE REAL (Summoner, 2026-08-12, superseding his 2026-08-04 "dont build the
+## gun... i just want that idea to be there" - that was said before the gunship Hueys
+## existed, and they shipped today). `gunners_firing` still drives the performance; it now
+## also lets the door guns engage.
 const GUNNER_CLIP_IDLE := "m60_gunner_idle"
 const GUNNER_CLIP_SCAN := "m60_gunner_scan"
 const GUNNER_CLIP_FIRE := "m60_gunner_fire"
@@ -158,6 +159,135 @@ var gunners_firing: bool = false:
 		_dress_gunners()
 
 
+## ---------- THE DOOR GUNS ----------
+## A door gun is a SHORTER, SLOWER strafe run: same BulletSystem call the CAS pass already
+## makes (cas_airplane.gd:363), so tracers, penetration, suppression and audio all come for
+## free and none of it is a second implementation.
+##
+## Each gun only sees its OWN side. The `_l`/`_r` suffix is the door, and a gunner cannot
+## traverse across the airframe - that is the whole reason an orbit is flown at all.
+const GUN_WEAPON: String = "res://data/weapons/m60.tres"
+const GUN_RANGE_M: float = 220.0
+## Half-arc off the door's outward normal. Generous, but it cannot reach the far side.
+const GUN_ARC_DEG: float = 62.0
+## Burst cadence. A door gun talks in bursts, not a continuous stream.
+const GUN_BURST_MIN: int = 5
+const GUN_BURST_MAX: int = 9
+const GUN_BURST_GAP_S: float = 1.1
+const GUN_ROUND_GAP_S: float = 0.09
+## Cone the burst is walked through, so it hoses ground rather than sniping.
+const GUN_SPREAD_DEG: float = 3.4
+## NOBODY SHOOTS OVER HIS OWN PEOPLE. A friendly this close to the aim point stands the
+## gun down - the airborne mirror of FieldDirector's 40m no-overfly rule.
+const GUN_DANGER_CLOSE_M: float = 35.0
+## Layer 4 = enemies (project.godot layer table).
+const GUN_MASK: int = 4
+
+var _gun_wd: WeaponData = null
+var _gun_cd: Array[float] = [0.0, 0.0]
+var _gun_left: Array[int] = [0, 0]
+var _gun_tick: Array[float] = [0.0, 0.0]
+
+## Each door runs its own burst clock, so the two guns never speak in unison - a Huey
+## working a treeline is two voices, not a stereo pair.
+func _tick_door_guns(delta: float) -> void:
+	if _gun_wd == null:
+		_gun_wd = load(GUN_WEAPON) as WeaponData
+		if _gun_wd == null:
+			return
+	for i in range(GUNNER_SEATS.size()):
+		if _gun_left[i] > 0:
+			_gun_tick[i] -= delta
+			if _gun_tick[i] <= 0.0:
+				_gun_tick[i] = GUN_ROUND_GAP_S
+				_gun_left[i] -= 1
+				_fire_door_gun(i)
+			continue
+		_gun_cd[i] -= delta
+		if _gun_cd[i] > 0.0:
+			continue
+		_gun_cd[i] = GUN_BURST_GAP_S * randf_range(0.7, 1.5)
+		if _door_target(i) != null:
+			_gun_left[i] = randi_range(GUN_BURST_MIN, GUN_BURST_MAX)
+			_gun_tick[i] = 0.0
+
+
+## The nearest live enemy inside THIS door's arc. Returns null when the gun has nothing,
+## which is what stands it down - a gunship that fires at nothing is a firework.
+func _door_target(side: int) -> Node3D:
+	var seat: StringName = GUNNER_SEATS[side]
+	var entry: Array = FALLBACK_LAYOUT.get(seat, [])
+	if entry.is_empty():
+		return null
+	var muzzle: Vector3 = _door_muzzle(side)
+	# The door's outward normal in world space: +X for the left seat, -X for the right.
+	var outward: Vector3 = global_transform.basis.x * (1.0 if (entry[0] as Vector3).x > 0.0 else -1.0)
+	outward.y = 0.0
+	if outward.length() < 0.01:
+		return null
+	outward = outward.normalized()
+	var best: Node3D = null
+	var best_d: float = GUN_RANGE_M
+	for e in AgentRegistry.enemies:
+		var man := e as Node3D
+		if man == null or not is_instance_valid(man):
+			continue
+		if man.has_method("is_dead") and bool(man.call("is_dead")):
+			continue
+		var to: Vector3 = man.global_position - muzzle
+		var flat := Vector3(to.x, 0.0, to.z)
+		var d: float = flat.length()
+		if d > best_d or d < 1.0:
+			continue
+		if rad_to_deg(flat.normalized().angle_to(outward)) > GUN_ARC_DEG:
+			continue
+		if _friendly_near(man.global_position):
+			continue
+		best_d = d
+		best = man
+	return best
+
+
+## Nobody shoots over his own people. Checked at the AIM POINT, not the muzzle: the round
+## lands where the gunner is looking, and that is where a friendly would be hit.
+func _friendly_near(aim: Vector3) -> bool:
+	var pl := GameManager.player as Node3D
+	if pl != null and is_instance_valid(pl) \
+			and pl.global_position.distance_to(aim) < GUN_DANGER_CLOSE_M:
+		return true
+	for a in AgentRegistry.allies:
+		var man := a as Node3D
+		if man != null and is_instance_valid(man) \
+				and man.global_position.distance_to(aim) < GUN_DANGER_CLOSE_M:
+			return true
+	return false
+
+
+func _door_muzzle(side: int) -> Vector3:
+	var entry: Array = FALLBACK_LAYOUT.get(GUNNER_SEATS[side], [])
+	var local: Vector3 = (entry[0] as Vector3) if not entry.is_empty() else Vector3.ZERO
+	return global_transform * local
+
+
+func _fire_door_gun(side: int) -> void:
+	var man: Node3D = _door_target(side)
+	if man == null:
+		_gun_left[side] = 0
+		return
+	var muzzle: Vector3 = _door_muzzle(side)
+	var aim: Vector3 = man.global_position + Vector3.UP * 0.9
+	var dir: Vector3 = (aim - muzzle).normalized()
+	# Walk the burst through a cone so it hoses ground instead of sniping from 200m.
+	var spread: float = deg_to_rad(GUN_SPREAD_DEG)
+	dir = dir.rotated(Vector3.UP, randf_range(-spread, spread))
+	var side_axis: Vector3 = dir.cross(Vector3.UP).normalized()
+	if side_axis.length() > 0.01:
+		dir = dir.rotated(side_axis, randf_range(-spread, spread)).normalized()
+	CombatManager.bullets.fire(_gun_wd, self, muzzle, dir, GUN_MASK, [self, _vehicle], true)
+	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle, 0, 180.0)
+
+
 var _scanned: bool = false
 
 
@@ -195,6 +325,8 @@ func _process(delta: float) -> void:
 	var heli := _vehicle as Helicopter
 	if heli == null:
 		return
+	if gunners_firing:
+		_tick_door_guns(delta)
 	if _pilot_panel_s > 0.0:
 		_pilot_panel_s = maxf(0.0, _pilot_panel_s - delta)
 		if _pilot_panel_s <= 0.0:
