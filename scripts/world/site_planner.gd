@@ -4,6 +4,8 @@ class_name SitePlanner
 extends RefCounted
 
 const LitterTeamScript := preload("res://scripts/world/litter_team.gd")
+## Preloaded, not by class_name: a global class is not registered until the editor rescans.
+const SCREEN_DOOR := preload("res://scripts/world/screen_door.gd")
 
 const MARGIN: float = 100.0  ## keep sites away from AO edges
 const MAX_SLOPE: float = 0.25
@@ -1705,6 +1707,10 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s" % [wired,
 		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing])
 	_wire_structure_destructibles(root)
+	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented
+	# onto a Destructible by the pass above must still be findable.
+	var doors: int = SCREEN_DOOR.wire_all(root)
+	print("[FSB] screen doors: %d hung" % doors)
 
 
 ## THE REST OF THE COMPOUND CAN BE BLOWN APART TOO. The manifest describes ONLY the 80 parapet
