@@ -126,10 +126,14 @@ func _physics_process(delta: float) -> void:
 		return
 	if director.fsb_center == Vector3.ZERO or _elapsed < _next_fire:
 		return
-	# The assault's own ranging walk owns the night's mortars; harassment is the day's.
+	# Rescheduled BEFORE the siege gate, never after it. Returning without pushing
+	# _next_fire left _elapsed running past a due shot for the whole assault, so the
+	# instant the siege cleared, a three-shell volley fired within a second - onto the
+	# gunship end card.
+	_next_fire = _elapsed + _rng.randf_range(GAP_MIN_S, GAP_MAX_S)
+	# The assault's own ranging walk owns the mortars while it is up.
 	if director.siege != null and is_instance_valid(director.siege) and director.siege.active:
 		return
-	_next_fire = _elapsed + _rng.randf_range(GAP_MIN_S, GAP_MAX_S)
 	_fire()
 
 

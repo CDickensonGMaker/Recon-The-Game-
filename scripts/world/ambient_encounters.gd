@@ -143,6 +143,14 @@ func _physics_process(delta: float) -> void:
 	if player == null or not is_instance_valid(player):
 		return
 	if _live != "":
+		# _try_roll refuses to START one during the assault, but a LIVE encounter had no
+		# such gate - a contact opened at 1370s runs MAX_LIVE_S past 1790s, straight through
+		# the 45-man siege, competing with it for men and for the player's attention.
+		if director != null and is_instance_valid(director) \
+				and director.siege != null and is_instance_valid(director.siege) \
+				and director.siege.active:
+			_finish()
+			return
 		_tick_live(player)
 		return
 	_track_walk(player)

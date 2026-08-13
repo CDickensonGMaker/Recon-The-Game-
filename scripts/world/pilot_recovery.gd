@@ -20,6 +20,12 @@ const WRECK_BURN_S: float = 1500.0
 ## He stands up for the man who came for him, not for a passer-by at 40m.
 const WAKE_M: float = 12.0
 const HOME_M: float = 30.0
+## THE UNCONDITIONAL CLOCK. Neither phase had one, and encounter_active() suppresses every
+## ambient encounter while this chain is live - so a pilot the player never walked out to
+## silently killed the walking dice for the whole rest of the run, and the symptom read as
+## "the encounters are boring", not "a system is stuck".
+const WAIT_TIMEOUT_S: float = 420.0
+const ESCORT_TIMEOUT_S: float = 420.0
 
 enum Phase { IDLE, WAIT, ESCORT, DONE }
 
@@ -28,6 +34,8 @@ var world: GameWorld = null
 
 var _phase: Phase = Phase.IDLE
 var _elapsed: float = 0.0
+## When the CURRENT phase began, so each one can time out on its own.
+var _phase_since: float = 0.0
 var _poll: float = 0.0
 var _used: bool = false
 var _pilot: AllyBase = null
@@ -94,6 +102,7 @@ func _on_crashed(pos: Vector3) -> void:
 	_spawn_pilot(pos)
 	_spawn_pickets(pos)
 	_phase = Phase.WAIT
+	_phase_since = _elapsed
 	director.toast.emit("SMOKE COLUMN TO THE %s - THAT'S WHERE HE WENT IN"
 		% _bearing8(director.fsb_center, pos))
 	print("[PILOT] wreck at %s, pilot waiting" % pos)
@@ -178,18 +187,25 @@ func _tick_wait() -> void:
 	if _pilot == null or not is_instance_valid(_pilot) or _pilot.is_dead():
 		_lose()
 		return
+	if _elapsed - _phase_since > WAIT_TIMEOUT_S:
+		_lose()
+		return
 	var player: Node3D = GameManager.player as Node3D
 	if player == null or not is_instance_valid(player):
 		return
 	if player.global_position.distance_to(_pilot.global_position) > WAKE_M:
 		return
 	_phase = Phase.ESCORT
+	_phase_since = _elapsed
 	_pilot.set_order(AllyBase.OrderMode.FOLLOW)
 	director.toast.emit("GET ME BACK TO THE WIRE - I'LL KEEP UP")
 
 
 func _tick_escort() -> void:
 	if _pilot == null or not is_instance_valid(_pilot) or _pilot.is_dead():
+		_lose()
+		return
+	if _elapsed - _phase_since > ESCORT_TIMEOUT_S:
 		_lose()
 		return
 	if _pilot.global_position.distance_to(director.fsb_center) > HOME_M:

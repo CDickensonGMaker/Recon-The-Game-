@@ -44,6 +44,13 @@ var _fps: Dictionary = {}     ## phase -> Array[float]
 var _prims: Dictionary = {}   ## phase -> Array[float]
 var _calls: Dictionary = {}   ## phase -> Array[float]
 var _objs: Dictionary = {}    ## phase -> Array[float]
+## THE SPLIT THIS PROBE NEVER HAD. Counters alone cannot say whether a frame is GPU-bound
+## or CPU-bound, so every lever pulled against them was aimed blind - the finding
+## PERF_LEDGER.md recorded on 2026-07-26 and which stood unfixed until 2026-08-13.
+## viewport_set_measure_render_time must be enabled on the viewport before either reads
+## anything but 0.0, and both lag the current frame by two.
+var _gpu_ms: Dictionary = {}  ## phase -> Array[float]
+var _cpu_ms: Dictionary = {}  ## phase -> Array[float]
 var _shot_taken: bool = false
 ## The world's OWN shadow config, captured before any phase runs. Baselines must reproduce ship,
 ## never force a shadow on: ADR-026:137-144 voided a 12ms "sun-shadow win" that was the arena bench
@@ -92,6 +99,11 @@ func attach(w: GameWorld) -> void:
 		_objs[p] = [] as Array[float]
 		_think[p] = [] as Array[float]
 		_live[p] = [] as Array[float]
+		_gpu_ms[p] = [] as Array[float]
+		_cpu_ms[p] = [] as Array[float]
+	var vp: Viewport = get_viewport()
+	if vp != null:
+		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 	set_process(true)
 
 
@@ -137,6 +149,13 @@ func _process(delta: float) -> void:
 	# to say whether the brain or the bodies bought it - the exact mistake ADR-026's
 	# attribution pass was run to stop.
 	(_think[phase_name] as Array).append(float(CombatManager.ai_usec_think) * 0.001)
+	var vp2: Viewport = get_viewport()
+	if vp2 != null:
+		var rid: RID = vp2.get_viewport_rid()
+		(_gpu_ms[phase_name] as Array).append(
+			RenderingServer.viewport_get_measured_render_time_gpu(rid))
+		(_cpu_ms[phase_name] as Array).append(
+			RenderingServer.viewport_get_measured_render_time_cpu(rid))
 	var alive: int = 0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is EnemyBase and not (e as EnemyBase).is_dead():
@@ -278,6 +297,8 @@ func _finish() -> void:
 			int(_avg(_prims[p])), int(_avg(_calls[p])), int(_avg(_objs[p])),
 			(_fps[p] as Array).size(),
 		])
+		print("PERF MS  %-14s gpu_ms_avg=%5.2f gpu_ms_max=%5.2f cpu_ms_avg=%5.2f cpu_ms_max=%5.2f" % [
+			p, _avg(_gpu_ms[p]), _maximum(_gpu_ms[p]), _avg(_cpu_ms[p]), _maximum(_cpu_ms[p])])
 		if siege_study:
 			print("PERF AI  %-14s think_ms_avg=%5.2f think_ms_max=%5.2f live_avg=%5.1f live_max=%5.1f" % [
 				p, _avg(_think[p]), _maximum(_think[p]), _avg(_live[p]), _maximum(_live[p])])

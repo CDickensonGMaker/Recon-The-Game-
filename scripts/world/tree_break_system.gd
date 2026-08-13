@@ -326,6 +326,25 @@ class BrokenTree:
 	## A log lying in the grass is crouch cover, not a 3m post.
 	const LOG_TRUNK_H: float = 0.9
 
+	## One blast fells up to twelve trees and a CBU beat can queue hundreds, and every one
+	## of them used to rebuild its whole vegetation chunk on its own. DEFERRED and deduped,
+	## not skipped: the rebuild has to land AFTER every tree in the cascade has run
+	## add_fell_entries, or the last one's parts never render.
+	static var _rebuild_pending: Dictionary = {}
+
+	static func _request_rebuild(vm: Node, chunk: Variant) -> void:
+		if vm == null or not is_instance_valid(vm):
+			return
+		var key: String = "%d|%s" % [vm.get_instance_id(), str(chunk)]
+		if _rebuild_pending.has(key):
+			return
+		_rebuild_pending[key] = true
+		var flush: Callable = func() -> void:
+			_rebuild_pending.erase(key)
+			if is_instance_valid(vm):
+				vm.call("rebuild_chunk", chunk)
+		flush.call_deferred()
+
 	var species: String = ""
 	var source_xf: Transform3D = Transform3D.IDENTITY
 	var band: Dictionary = {}
@@ -446,7 +465,7 @@ class BrokenTree:
 					e2["trunk_h"] = LOG_TRUNK_H
 				entries.append(e2)
 			vm.call("add_fell_entries", entries)
-			vm.call("rebuild_chunk", chunk)
+			_request_rebuild(vm, chunk)
 			queue_free()
 			return
 		# Bench (no VegetationManager): the node IS the permanence. Lay a prone-height
