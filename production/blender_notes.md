@@ -1550,3 +1550,208 @@ wreck, `pilot_anchor` 6.17/6.48/6.40 m off the hull and ≥ 8.64 m from any fire
    gate lists loaded IMAGE DATABLOCKS with users, not what the exporter wrote — the shipped GLB
    embeds only `fb_earth` (verified by `verify_wrecks.py` reading the file). Pre-existing;
    `assert_texture_names` is measuring the scene when the question is about the file.
+
+---
+
+## 2026-08-14 · `m35_deuce_truck_v2` shipped — new variant, originals untouched
+
+`assets/us/vehicles/m35_deuce_truck_v2.glb` (112 KB) + `.blend`. Built entirely from
+`tools/build_m35_v2.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_m35_v2.py` — **VERIFY PASS, 0 failures** on the shipped GLB.
+`m35_deuce_truck.glb` (2026-05-20, 7.96 MB) and `m35_rigged.blend` (2026-07-29) are
+untouched, mtimes intact. No `.blend1` (`filepaths.save_version = 0` in the build).
+
+**7.96 MB to 112 KB. 16,600 tris to 2,170. 12 materials + 8 x 1024 textures to 7 flat
+materials and zero textures.**
+
+**Numbers.** 2,170 visible tris (+24 collider) · 12 mesh nodes + 13 socket empties ·
+length **6.980** (real 6.980) · width **2.438** (real 2.438) · height **3.000** to the
+tarp crown, cab roof 2.820 (real 2.82) · wheelbase **3.912** · bogie **1.118** ·
+front track **1.645** · tyre OD **1.054** · bed floor 3.658 x 2.438 at z **1.270**.
+**Every linear dimension is exact.**
+
+**Distribution.** Body 792 (36.5%) · CargoBed 368 · Tarp 118 · Windscreen 132 —
+**bodywork 58.9%**. Six wheel nodes 760 = **35.0%**. The shipped truck spent **69.4% on
+ten tyre tori** and 4.8% on all 67 bodywork boxes. The verifier asserts bodywork >= 45%.
+
+**ORIGIN: the GROUND LINE**, centreline, longitudinal centre of the bumper-to-tailgate
+envelope — the M151 v2 decision, same two consumers (`destructible_vehicle.gd:30-31`
+drops the node origin onto terrain; `collision_table.gd:154` carries `y_offset 1.60`,
+which is half a 3.2 m box, i.e. a box resting on a ground-line origin).
+
+**SIX wheel nodes, not ten.** `m35_wheel_fl/fr` are single tyres; `m35_wheel_ml/mr/rl/rr`
+are **DUAL PAIRS in one mesh**. On a real deuce a dual pair is bolted to one hub and
+turns as one body, so one node per hub is the physically correct split — and it is what
+lets a 6x6 with ten tyres cost 760 tris. The verifier asserts the split by measuring each
+node's mesh half-width (0.114 single / 0.269 dual), not by trusting the name.
+
+**+X is the vehicle's RIGHT and the verifier checks every wheel's L/R suffix BY POSITION**,
+because `m35_rigged.blend` has that pair inverted (`FrontLeft_Tire` at x +0.6..+0.9) and it
+must not be inherited.
+
+### What `m35_rigged.blend` (2026-07-29) actually measured
+
+Measured this session, and it settles the question: **its facing IS fixed and its geometry
+is worthless.** 113 mesh objects, **16,600 tris — the same primitive soup as the shipped
+GLB**: ten 1,152-tri default tori (11,520 = **69.4%**), 67 twelve-tri cubes (804 = 4.8%),
+**unapplied scale on 67 of 113 objects**, size `[2.100, 5.778, 3.300]` with the 3.30 being
+a radio antenna. `Grille` at y +3.254..+3.304, `CargoBed_Tailgate` at −2.213 → nose
+**+Y, conforming**. It adds 25 empties (11 wheel, `TAILGATE_PIVOT`, `tail_point`,
+12 seats) and 11 wheel/tailgate actions the shipped GLB does not have.
+
+**Kept from it:** the nose-+Y convention (confirmed by measurement, not trusted), the
+socket vocabulary `seat_driver` / `seat_passenger` / `seat_troop_l_1..5` /
+`seat_troop_r_1..5` / `TAILGATE_PIVOT`, and the material vocabulary.
+**Its L/R naming is inverted on the WHEELS and the BED WALLS but CORRECT on the SEATS** —
+`seat_driver` sits at x −0.3, which IS the vehicle's left with +Y forward, i.e. left-hand
+drive. So the seats were rebuilt at the same signs and the wheels were not.
+**Dropped:** the 11 wheel empties (superseded by the wheel mesh nodes, which carry the
+pivot themselves), `tail_point` and `RadioAntenna` — nothing in `scripts/` reads any of
+these (grepped), and an antenna inside the bbox is the exact defect the review named.
+
+### Reference of record (gathered before modelling, per the standing law)
+
+Two YouTube walkarounds via `yt-dlp` + `ffmpeg` 4x3 contact sheets; videos deleted after,
+sheets kept in the session scratchpad (`ref/m35_sheetA|C|D.png`, `ref/zoom_*.png`).
+The Pit Stop For Patriots M35A2 (`eESnIpzfS-c`, 94 s) is the one that paid: 12 frames
+covering dead-front, both front three-quarters, side, rear, the dual tandem in near-profile
+and the bed interior. Eight observations, all of which changed a number or a decision:
+
+1. **The cab is essentially bed-width.** In every frame the cab sides and the bed sides
+   read as one line. Built at CAB_HW 1.100 against a bed HW of 1.219 — **90%**. The
+   shipped truck was 1.05 m wide against a 2.10 m bed: **50%**, and that single ratio is
+   why it read as a toy.
+2. **The nose is TWO ROUND-TOPPED FENDERS with a long flat hood between them**, and the
+   fender crowns sit *below* the hood top. Built: hood top 1.68 rear to 1.60 front, fender
+   crown 1.55 inner to 1.14 outer over a 1.04 skirt.
+3. **The grille is a dark mesh panel with SEPARATED VERTICAL BARS**, recessed between the
+   fenders, with a separate bar brush guard in front of it — one horizontal rail plus four
+   uprights running down to the bumper. Confirmed in words by truck-encyclopedia
+   ("the radiator grille was meshed with separated bars").
+4. **THE BONNET HAS NO LOUVRES.** truck-encyclopedia: *"The bonnet lacked louvres, opening
+   in the centre along a twin hinged system"*, and the walkaround hood side is a smooth
+   flat panel. **The review's rebuild spec asked for "distinct side louvre panels"
+   (`VEHICLE_REVIEW_2026-08-14.md:364`) and that is wrong** — the CCKW has them, the deuce
+   does not. Not built. Reference overrode the brief, as the M151's spare tyre did.
+5. **The Vietnam-era cab is a SOFT TOP** — solid metal doors, canvas roof, folding
+   two-pane windscreen. Built that way, in `M35_Canvas` so the roof reads different from
+   the steel, with the crown at exactly the published 2.82 m.
+6. **The bed side is a ribbed panel with a strong horizontal belt rail, a top rail, and
+   evenly spaced vertical stakes** — not planks, not an open rack. Six ribs a side.
+7. **Bogie spacing measured, not quoted.** No source I could reach publishes the M35's
+   wheelbase and the two that mention one disagree (142 in at generalequipment.info vs the
+   commonly repeated 154 in). Measured off the near-profile tandem frame with the
+   9.00x20 tyre OD as the scale datum: **rear axle centres 1.076 tyre-OD apart -> 1.134 m,
+   i.e. the 44 in tandem**; and **the bed runs 1.39 tyre-OD aft of the last axle -> 1.47 m**,
+   which is only consistent with the **154 in (3.912 m)** wheelbase, not 142. Built to
+   3.912 / 1.118, and the rear overhang comes out 1.559 m against the measured 1.47.
+8. **The tail lamps are on the bed's rear CORNERS, not on the tailgate.** Built on the
+   corner posts so they do not travel with a dropped gate. (The shipped truck's two tail
+   lights are **11 cm apart fore-and-aft**; these are at identical y and the verifier
+   asserts the lamp clusters are laterally balanced to 0.05 m.)
+
+Published dimensions of record: `en.wikipedia.org/wiki/M35_series_2½-ton_6×6_cargo_truck`
+(274-3/4 in / 96 in / 111-112 in, bed 8 ft x 12 ft, 9.00x20, dual tandem) ·
+`truck-encyclopedia.com/coldwar/us/M35-truck.php` (274-3/4 / 93 / 111 in, soft-top cab, no
+louvres, meshed grille) · `generalequipment.info/M35A2.htm` (**bed floor 50 in = 1.27 m**,
+9.00x20 8-ply).
+
+**On the two published widths.** 93 in (2.36) and 96 in (2.44) both appear. **The 8 ft bed
+settles it** — a 2.438 m bed cannot sit on a 2.36 m truck. Built to **2.438**, and the bed
+is the widest point, with the cab and fenders at 2.20 inboard of it. The review's table
+carries 2.36; that is the chassis figure, not the envelope.
+
+**The commission brief's dimensions were wrong and were not used**: it gave 6.71 x 2.39 x
+2.9. Every source says 6.98 long, and the review's own spec (`:352`) says 6.98 x 2.36 x
+2.82. Built to the sources.
+
+### THE TARP IS ONE SKIN AND THERE ARE NO BOW OBJECTS
+
+The shipped truck's `BowRail_±0.93` spans z 2.212-2.242 over a `Canvas_Top` at 2.113-2.143
+— **the bows sit 7 cm ABOVE the cover**, so the truck wears a bright metal cage over its
+own tarp. Under a fitted tarp the bows are inside and invisible, so the only honest
+low-poly answer is to model **the arc the bows make and nothing else**: `TARP_PROFILE` is
+that arc, `M35_Tarp` is one 118-tri skin with a laced-shut rear flap, and **there is no
+geometry above the bed rail for a future edit to get wrong.** The verifier asserts that
+no vertex of any other mesh rises above the tarp crown, and that the tarp is centred on
+x=0 (the shipped `Canvas_Top` runs x −0.934..+1.010, a 7.6 cm overhang to one side).
+
+**No `hessian_230`.** The photographic burlap that renders as wicker, and the
+`worn_asphalt` road-surface photo on all ten tyres, are gone with every other texture.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+
+1. `mission_generator.gd:374` — change `"m35_deuce_truck"` to `"m35_deuce_truck_v2"`.
+   `convoy_spawner.gd:108` builds the path from the name, so nothing else changes, and
+   **no facing correction is needed and none exists to remove**.
+2. **THE TRAP, and it is worse than the M151's.** `collision_table.gd:154` reads
+   `"m35_deuce_truck": box (2.1, 3.3, 5.8), y_offset 1.60`. **That box was measured off
+   the OLD truck and inherits its −17% length and −11% width, so a correctly sized deuce
+   cannot fit inside it** — 2.438 > 2.1 and 6.980 > 5.8. Unlike the M151's, this entry
+   is NOT already correct. Add:
+   `"m35_deuce_truck_v2": {"box": Vector3(2.50, 3.20, 7.10), "y_offset": 1.60, "footprint": Vector2(3.6, 8.2), "scale": 1.0}`
+   and a `Mat.METAL` entry at `:309`. Note `y_offset 1.60` is already exactly half of
+   **3.2**, not of the 3.3 in the file — the authored offset was written for a 3.2 box and
+   the box height is the number that is 5 cm out with itself.
+   **Without an entry, `collision_table.gd:204-210` falls through to a 3x2x3 default box
+   with a `push_warning` — a 7 m truck with a 3 m nav carve.**
+3. `tests/test_roads.gd:392` lists convoy model basenames that must resolve to a file —
+   add the v2 name when the roster changes, or the guard stops covering what ships.
+
+### THE GATE — `tools/verify_m35_v2.py`, and it was negative-tested
+
+Copied from `tools/verify_m151_v2.py` with a new SPEC, which is exactly what that file was
+written for. New checks this one adds and the M151's should inherit: the **cab-to-bed width
+ratio** (> 0.82), **nothing standing proud of the tarp crown**, **tarp centred on x=0**,
+**dual-pair vs single wheel by measured mesh half-width**, **three axles in front-to-back
+order** with wheelbase measured front-axle-to-bogie-centre, and it **reads
+`collision_table.gd` live** — if the `m35_deuce_truck_v2` key exists it asserts the model
+fits that entry, and if it does not it prints the exact line to add and asserts the model
+fits the box this asset requires. The gate grows teeth the moment the adopter wires it.
+
+**Negative-tested against the shipped truck before being trusted**
+(`-- --glb assets/us/vehicles/m35_deuce_truck.glb --legacy`, which swaps in that model's own
+lens material names so the facing probe reads something real): **VERIFY FAIL, 188 failures.**
+It reports headlamps at y **−3.329** and tail lamps at **+2.289** — a head-to-tail separation
+of **−5.618 m**, i.e. the truck is 180 degrees out — plus length −17.2%, width −13.9%,
+height +10.0%, a bbox floor at **z −0.050** (below the ground line), all **ten 1,152-tri
+tori**, and all **8 embedded textures** by name. The gate catches every defect it was
+written for.
+
+### Four things this build learned, each caught by a measurement, not by reading the code
+
+1. **A 10-sided tyre does not touch the ground.** Its lowest vertex sits at
+   sin(−72 deg) = −0.951 r, so the truck floated **26 mm** and the ground-line assertion
+   convicted it. 12 divides 360 into a bottom vertex for free, which is why the M151
+   never needed a phase term; 10 does not. `tyre()` now phases the ring by tau/4.
+2. **COINCIDENT SURFACES ARE THE LOW-POLY EQUIVALENT OF Z-FIGHTING AND THEY LOOK LIKE
+   DIRT.** Three separate pairs in this model rendered as a grid of black speckles down
+   the bed side — rib-vs-rail, then rib-vs-panel after the first fix, then hood-vs-fender
+   at the nose. Fixed by putting the bed side on **three distinct planes and no two the
+   same**: panel 1.189, ribs 1.209, rails 1.219. Same defect class as the A-1 wreck's
+   buried wing (`:1544-1548`). **A build QC that checks n-gons, doubles and loose verts
+   cannot see it. Only a render can.**
+3. **`Shell.box()` given an inverted range builds the solid inside out, silently.** The
+   hood-crease strip was written `z 1.640 -> 1.600`; the "top" corner ring came out below
+   the bottom one and all twelve faces pointed inward, rendering as a bright flipped-normal
+   slab beside each headlight. Nothing in the QC pass could see it. `box()` now asserts
+   `hi > lo` on all three axes.
+4. **A hand-wound end cap is a coin flip, so stop flipping it.** The tarp's two end caps
+   and both fender caps were all inverted on the first pass and every one rendered as a
+   black wedge. `Shell.cap(pts, outward, tag)` computes Newell's normal and reverses the
+   point list if it disagrees with the direction the cap is supposed to face.
+   **And underneath that was a worse bug the caps merely exposed:** the tarp's
+   cross-section list reversed BOTH halves, so the section ran −0.66, −1.02, −1.22, **0.0**,
+   +0.66 — a self-intersecting bowtie. The swept skin still bridged cleanly, which is
+   exactly why it looked almost right; only the caps showed it. `build_tarp()` now asserts
+   the section is monotonic in x.
+
+**One cosmetic nit left, measured and not fixed:** the front fender's end cap is a small
+bright triangle beside each headlight in the dead-front render. It is a correctly wound,
+correctly lit facet at a grazing angle to the sun, not a normals or coincidence fault
+(verified — `cap()` forces its winding and the coplanar probe finds no unshared coplanar
+pair there). About 6 px in a 1000 px render; invisible at convoy distance. Left for the
+Summoner to judge rather than self-iterated on.
+
+**Renders (final geometry):**
+`C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\0201f774-4017-48d5-924a-0296e7efee35\scratchpad\vehicles\m35v2_{side,front,threequarter,rear_quarter,datum}.png`

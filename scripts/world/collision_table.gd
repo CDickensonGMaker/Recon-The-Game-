@@ -152,6 +152,9 @@ const STRUCTURES := {
 	"hq_building": {"box": Vector3(12.0, 2.5, 12.0), "y_offset": 1.26, "footprint": Vector2(13.0, 13.0), "scale": 1.0},
 	"latrine": {"box": Vector3(2.2, 2.5, 1.7), "y_offset": 1.25, "footprint": Vector2(3.5, 3.0), "scale": 1.0},
 	"m35_deuce_truck": {"box": Vector3(2.1, 3.3, 5.8), "y_offset": 1.60, "footprint": Vector2(3.5, 7.0), "scale": 1.0},
+	# v2 rebuild 2026-08-14 (verify_m35_v2.py): 2.438 x 3.000 x 6.980 on a
+	# ground-line origin - the old box cannot hold a correctly sized deuce.
+	"m35_deuce_truck_v2": {"box": Vector3(2.50, 3.20, 7.10), "y_offset": 1.60, "footprint": Vector2(3.5, 7.5), "scale": 1.0, "mesh": true},
 	"market_hall": {"box": Vector3(22.0, 6.0, 17.0), "y_offset": 3.00, "footprint": Vector2(23.0, 18.0), "scale": 1.0},
 	"mess_hall": {"box": Vector3(13.0, 4.5, 9.0), "y_offset": 2.25, "footprint": Vector2(14.0, 10.0), "scale": 1.0},
 	"mortar_pit": {"box": Vector3(1.9, 1.5, 2.0), "y_offset": 0.51, "footprint": Vector2(3.0, 3.5), "scale": 1.0},
@@ -307,7 +310,7 @@ const MATERIALS := {
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
 	"ch47_chinook": Mat.METAL, "huey": Mat.METAL,
 	"m113_apc": Mat.METAL, "m151_mutt_gun_jeep": Mat.METAL, "m35_deuce_truck": Mat.METAL,
-	"m151_mutt_gun_jeep_v2": Mat.METAL,
+	"m151_mutt_gun_jeep_v2": Mat.METAL, "m35_deuce_truck_v2": Mat.METAL,
 	"a1_skyraider": Mat.METAL, "a4_skyhawk": Mat.METAL, "f4_phantom": Mat.METAL,
 	"Bomb_250lb_Mk81": Mat.METAL, "Bomb_500lb_Mk82": Mat.METAL,
 	"Bomb_1000lb_Mk83": Mat.METAL, "Bomb_2000lb_Mk84": Mat.METAL,
