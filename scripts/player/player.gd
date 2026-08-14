@@ -1128,7 +1128,7 @@ func _eat_ration() -> void:
 	ration_count -= 1
 	hunger = minf(100.0, hunger + 45.0)
 	_hunger_warned = false
-	_field_toast("C-RATS DOWN. (%d left)" % ration_count)
+	_field_toast("C-RATS DOWN (%d LEFT)" % ration_count)
 
 
 ## A kit is a stopgap, never a fix: 25% and twelve seconds on your knees in the weeds.
@@ -1158,7 +1158,7 @@ func _advance_repair_kit(delta: float) -> void:
 	weapon_holder.set("weapon_condition", minf(100.0, cond + FIELD_REPAIR_PCT))
 	if weapon_holder.has_method("refresh_after_load"):
 		weapon_holder.call("refresh_after_load")
-	_field_toast("WEAPON CLEANED TO %d%%. (%d kits left)" % [
+	_field_toast("WEAPON CLEANED TO %d%% (%d KITS LEFT)" % [
 		int(minf(100.0, cond + FIELD_REPAIR_PCT)), repair_kit_count])
 
 

@@ -395,7 +395,7 @@ func arm_fire_mission(kind: String) -> void:
 	armed_kind = kind
 	_pending_danger_close = ""   # a fresh placement is not a confirm of the last one
 	_update_placement()
-	toast.emit("%s - PLACE IT, LMB TO SEND, RMB TO BACK OUT" % kind.to_upper())
+	toast.emit("%s - PLACE IT, [LMB] TO SEND, [RMB] TO BACK OUT" % kind.to_upper())
 
 
 func commit_fire_mission() -> void:
@@ -551,11 +551,11 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 	match kind:
 		"bombs":
 			_launch_cas(target, CASAirplane.Ordnance.BOMB, run_dir)
-			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d left)" % fire_support[kind])
+			toast.emit("FAST MOVER INBOUND - SNAKE EYE (%d LEFT)" % fire_support[kind])
 			_radio_vo("snake_eye")
 		"napalm":
 			_launch_flyby(target, CASAirplane.Ordnance.NAPALM, run_dir)
-			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d left)" % fire_support[kind])
+			toast.emit("FAST MOVER - NAPALM RUN INBOUND - GET BACK (%d LEFT)" % fire_support[kind])
 			_radio_vo("napalm_run")
 		"arty":
 			_radio_vo("arty_barrage")
@@ -567,7 +567,7 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			# never a grid): successive rounds never neighbour each other and the
 			# pattern never repeats. Timing is a gun line, not a metronome.
 			var rounds: int = randi_range(FirePlan.ARTY_ROUNDS_MIN, FirePlan.ARTY_ROUNDS_MAX)
-			toast.emit("BATTERY FIRE MISSION - %d ROUNDS - SHOT OUT (%d left)" % [rounds, fire_support[kind]])
+			toast.emit("BATTERY FIRE MISSION - %d ROUNDS - SHOT OUT (%d LEFT)" % [rounds, fire_support[kind]])
 			var spiral_phase: float = randf() * TAU
 			var t_acc: float = 0.0
 			for i in range(rounds):
@@ -582,11 +582,11 @@ func request_fire_support(kind: String, at: Vector3 = Vector3.ZERO, run: Vector3
 			_run_mortar_mission(target, _fo)
 		"spectre":
 			SpectreGunship.call_in(world, world.terrain_manager, target)
-			toast.emit("SPECTRE ON STATION - 30 SECONDS OF RAIN (%d left)" % fire_support[kind])
+			toast.emit("SPECTRE ON STATION - 30 SECONDS OF RAIN (%d LEFT)" % fire_support[kind])
 			_radio_vo("spooky")  # the recorded line is radio_spooky.wav - asset name, not the aircraft
 		"cbu":
 			_launch_flyby(target, CASAirplane.Ordnance.CBU, run_dir)
-			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d left)" % fire_support[kind])
+			toast.emit("FAST MOVER - CLUSTER RUN INBOUND - DANGER CLOSE (%d LEFT)" % fire_support[kind])
 			_radio_vo("cbu_cluster")
 		"wp":
 			_run_wp_mission(target)
@@ -808,7 +808,7 @@ func _radio_check() -> String:
 		return "NO RADIO - YOUR RADIO MAN IS DOWN"
 	var pl: Node3D = world.player if world != null else null
 	if pl != null and pl.global_position.distance_to(rto.global_position) > RTO_RADIO_RANGE:
-		return "TOO FAR FROM THE RADIO - GET TO A RADIO MAN (%dm)" % int(RTO_RADIO_RANGE)
+		return "TOO FAR FROM THE RADIO - GET TO A RADIO MAN (%dM)" % int(RTO_RADIO_RANGE)
 	return ""
 
 
@@ -892,7 +892,7 @@ func _battery_telegraph(target: Vector3) -> void:
 
 
 func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
-	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d left)" % fire_support["mortar"])
+	toast.emit("FIRE MISSION - SPOT ROUND OUT (%d LEFT)" % fire_support["mortar"])
 	_radio_vo("mortar_mission")
 	_battery_telegraph(target)
 	# fo_fac tightens the sheaf and, for a veteran radioman (fo>=5), adds a 4th round.
@@ -917,7 +917,7 @@ func _run_mortar_mission(target: Vector3, fo: int = 0) -> void:
 ## each a white smoke bloom + burning ground over the beaten zone. Self-lit smoke
 ## only (no real light, ADR-026).
 func _run_wp_mission(target: Vector3) -> void:
-	toast.emit("WILLY PETE - BATTERY OF %d - SHOT OUT (%d left)"
+	toast.emit("WILLY PETE - BATTERY OF %d - SHOT OUT (%d LEFT)"
 		% [FirePlan.WP_ROUNDS, int(fire_support.get("wp", 0))])
 	_radio_vo("mortar_mission")
 	_battery_telegraph(target)
@@ -934,7 +934,7 @@ func _run_wp_mission(target: Vector3) -> void:
 ## muzzle flashes. The round does no damage - it only takes the dark away, from both
 ## sides (IllumFlare strips concealment for whoever stands in it).
 func _run_illum_mission(target: Vector3) -> void:
-	toast.emit("ILLUMINATION - SHOT OUT (%d left)" % int(fire_support.get("illum", 0)))
+	toast.emit("ILLUMINATION - SHOT OUT (%d LEFT)" % int(fire_support.get("illum", 0)))
 	_radio_vo("mortar_mission")
 	_battery_telegraph(target)
 	_fire_shell(MORTAR_SHELL, target, _illum_burst)

@@ -277,7 +277,7 @@ func on_skill_up(skill_id: String, _level: int) -> void:
 	if director == null:
 		return
 	var sk_name: String = str(SkillCatalog.SKILLS.get(skill_id, {}).get("name", skill_id))
-	director.toast.emit("%s — %s" % [SquadRoster.call_name(member), sk_name])
+	director.toast.emit("%s - %s" % [SquadRoster.call_name(member), sk_name])
 var order_mode: OrderMode = OrderMode.FOLLOW
 ## While the player is on the net this man PLANTS (an RTO shifting his feet under an
 ## aiming player is unusable). He moves only to keep the 10m cord alive.

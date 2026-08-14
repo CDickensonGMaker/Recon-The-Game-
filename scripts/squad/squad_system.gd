@@ -352,7 +352,7 @@ func begin_revive(_health_system: HealthSystem) -> void:
 	_revive_timer = 0.0
 	_downed_clock = 0.0
 	medic_bandages -= 1
-	_toast("MAN DOWN! DOC IS MOVING TO YOU (%d bandages left)" % medic_bandages)
+	_toast("MAN DOWN - DOC IS MOVING TO YOU (%d BANDAGES LEFT)" % medic_bandages)
 	# THE BAG COMES OFF HIS SHOULDER WHERE HE WORKS. Not on an order - this is the moment
 	# he actually opens it, and it leaves something on the ground the player finds later.
 	_drop_medical_box()
@@ -378,7 +378,7 @@ func _process_revive(delta: float) -> void:
 		if medic != null:
 			medic.set_order(AllyBase.OrderMode.FOLLOW)  # never leave RESCUE latched
 			medic.set_performance("")
-		_toast("DOC DIDN'T MAKE IT TO YOU.")
+		_toast("DOC DIDN'T MAKE IT TO YOU")
 		_health.force_death()
 		return
 	var player := world.player
