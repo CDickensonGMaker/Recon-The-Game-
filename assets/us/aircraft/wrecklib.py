@@ -141,6 +141,147 @@ def face_centres(obj):
     return [mw @ p.center for p in obj.data.polygons]
 
 
+def weld(obj, dist=2e-4):
+    """Re-merge the vertices a glTF export split apart, and go flat-shaded.
+
+    THE TRAP THIS EXISTS FOR. A donor `.glb` is NOT the mesh its author built: the
+    exporter splits every vertex whose normal or material differs per face, so a
+    flat-shaded airframe arrives as a soup of unconnected quads. Measured on
+    `f4_phantom_v2.glb`: 3,082 verts / 20 real parts arriving as 842 verts once welded,
+    but as ~500 one-quad "components" before.
+
+    Two things break silently without this:
+      * connected-component surgery (`part_split`) cannot find a part at all;
+      * every per-vertex random displacement - `crumple`, `dent`, `tear_seam` - hands two
+        coincident duplicates different offsets and SHREDS the panel into confetti. Same
+        defect the mound hit (see `build_mound`), same fix.
+    """
+    n0 = len(obj.data.vertices)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=dist)
+    bm.to_mesh(obj.data)
+    bm.free()
+    # a welded vertex is shared, so smooth shading would now average across a hard
+    # chine. These airframes are faceted by design; keep them faceted.
+    try:
+        obj.data.normals_split_custom_set([])
+    except Exception:
+        pass
+    for p in obj.data.polygons:
+        p.use_smooth = False
+    obj.data.update()
+    return n0, len(obj.data.vertices)
+
+
+def components(obj):
+    """Connected components of `obj`, as {root: {faces, lo, hi, ctr, n}} in world space.
+
+    Derived part-finding: the v2 airframes are lofted shell by shell, so the wing, the
+    fin, each intake trunk and each nozzle are separate islands of one mesh. Nothing has
+    to be named or guessed - `weld()` then this finds the aeroplane's own parts.
+    """
+    me = obj.data
+    parent = list(range(len(me.vertices)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for e in me.edges:
+        a, b = find(e.vertices[0]), find(e.vertices[1])
+        if a != b:
+            parent[a] = b
+    mw = obj.matrix_world
+    info = {}
+    for p in me.polygons:
+        r = find(p.vertices[0])
+        d = info.get(r)
+        if d is None:
+            d = info[r] = {"faces": [], "lo": Vector((1e9, 1e9, 1e9)),
+                           "hi": Vector((-1e9, -1e9, -1e9))}
+        d["faces"].append(p.index)
+        for vi in p.vertices:
+            w = mw @ me.vertices[vi].co
+            for k in range(3):
+                d["lo"][k] = min(d["lo"][k], w[k])
+                d["hi"][k] = max(d["hi"][k], w[k])
+    for d in info.values():
+        d["ctr"] = (d["lo"] + d["hi"]) / 2.0
+        d["n"] = len(d["faces"])
+    return info
+
+
+def part_split(obj, want, newname):
+    """Move WHOLE connected components matching `want(lo, hi, ctr, nfaces)` to a new object.
+
+    Coordinate predicates alone cut through the middle of a bomb; this can only ever take
+    complete parts, so a store either travels or it does not.
+    """
+    info = components(obj)
+    take = set()
+    for d in info.values():
+        if want(d["lo"], d["hi"], d["ctr"], d["n"]):
+            take.update(d["faces"])
+    if not take:
+        return None
+    new = obj.copy()
+    new.data = obj.data.copy()
+    new.name = newname
+    new.data.name = newname
+    bpy.context.scene.collection.objects.link(new)
+    for target, want_taken in ((new, True), (obj, False)):
+        bm = bmesh.new()
+        bm.from_mesh(target.data)
+        bm.faces.ensure_lookup_table()
+        kill = [f for f in bm.faces if ((f.index in take) is not want_taken)]
+        if kill:
+            bmesh.ops.delete(bm, geom=kill, context='FACES')
+        bm.to_mesh(target.data)
+        bm.free()
+        target.data.update()
+    if len(new.data.polygons) == 0:
+        bpy.data.objects.remove(new, do_unlink=True)
+        return None
+    return new
+
+
+def join_objs(target, others):
+    """Merge `others` into `target` (materials remapped by the operator).
+
+    Used to keep a decal on the wing it is painted on and a bomb on the pylon it hangs
+    from: once joined they are ONE piece, so no later throw can leave them behind in
+    mid-air, and the debris gate has one fewer lone plate to argue about.
+    """
+    others = [o for o in others if o is not None and o is not target]
+    # `bpy.ops.object.join()` SILENTLY SKIPS a source whose mesh has zero vertices - it
+    # returns FINISHED and the object is still in the scene. A donor that `part_split`
+    # emptied completely therefore survives the join under its donor name, and the only
+    # thing that caught it was finish()'s unprefixed-mesh gate. Delete them here.
+    # rebuild the kept list BEFORE removing anything: a removed Object leaves a dead
+    # StructRNA in any list still holding it, and touching `.name` then raises.
+    keep = [o for o in others if len(o.data.vertices) > 0]
+    for o in [o for o in others if len(o.data.vertices) == 0]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    others = keep
+    if not others:
+        return target
+    deselect()
+    target.select_set(True)
+    for o in others:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = target
+    names = [o.name for o in others]
+    bpy.ops.object.join()
+    deselect()
+    left = [n for n in names if n in bpy.data.objects]
+    if left:
+        raise SystemExit("FATAL: join left %s in the scene" % left)
+    return target
+
+
 def split_faces(obj, pred, newname):
     """Cut `obj` in two along existing edges. Faces whose CENTRE satisfies `pred` move
     to a new object. Classify per polygon, never per vertex - a per-vertex test leaks
@@ -383,18 +524,24 @@ def plate_tilt(obj):
             ax[2][0] < 0.28 * ax[1][0])
 
 
-def lay_flat(obj, tilt_deg=0.0, tilt_dir_deg=0.0, spin_deg=0.0):
+def lay_flat(obj, tilt_deg=0.0, tilt_dir_deg=0.0, spin_deg=0.0, flip=False):
     """Rotate a thin piece about its own centroid until its plate faces the sky, then
     apply a deliberate residual tilt.
 
     Solves for the piece's MEASURED normal rather than composing Eulers, so it is immune
     both to the donor's part orientation and to whatever rotations already ran on it.
+
+    `flip` turns the piece OVER (ref obs 8: a separated wing lands on edge or INVERTED).
+    It is not cosmetic. A wing thrown with its pylons and bombs still attached comes to
+    rest ON THE STORES if it lands upright - the panel then floats ~0.4 m clear and scores
+    single-digit ground contact, while inverted it lies on its own skin with the pylons in
+    the air, which is both the honest read and the one that passes the gate.
     """
     ax = principal_axes(obj)
     if ax is None:
         return None
     n = ax[2][1]
-    if n.z < 0.0:
+    if (n.z < 0.0) is not bool(flip):
         n = -n
     m = n.rotation_difference(Vector((0.0, 0.0, 1.0))).to_matrix().to_4x4()
     a = math.radians(tilt_dir_deg)
@@ -446,45 +593,12 @@ def bend_mid(obj, angle_deg, frac=0.55, toward=None):
     edit_verts(obj, f)
 
 
-def assert_lying_flat(names, mound, limit=25.0, min_contact=0.25, near=0.10):
-    """SUPERSEDED by assert_debris_grounded(). Live only for the A-1 and the F-4, which
-    have not been rebuilt on the derived gate (2026-08-14). Delete it when they are.
-
-    Two numbers, because each hides a defect the other passes:
-      tilt    - a plank standing on its end still seats at negative clearance, which is
-                how a door and a rotor blade shipped as sign-boards
-      contact - fraction of the piece within `near` of the ground. seat_on_mound() drops a
-                piece until its LOWEST vertex touches, so one corner on a berm scores a
-                perfect clearance while the rest hangs in daylight. A deliberately KINKED
-                piece still passes this, where a max-gap test would convict it.
-
-    Its fatal flaw is not either number: it is that `names` is written by hand. Three
-    pieces were listed, the scene held twenty-nine, and the ones nobody thought to type
-    were never measured at all.
-    """
-    bad = []
-    for entry in names:
-        # an entry may carry its own limit: a thrown WING legitimately lands on edge
-        # (ref obs 8) where a door or a blade never does
-        nm, lim = entry if isinstance(entry, tuple) else (entry, limit)
-        o = by_name(nm)
-        if o is None:
-            continue
-        t, is_plate = plate_tilt(o)
-        cl = [p.z - mound_height_at(mound, p.x, p.y) for p in verts(o)]
-        con = sum(1 for c in cl if c < near) / float(len(cl))
-        print("   flat check %-30s tilt %5.1f /%4.0f  clearance %6.2f..%5.2f  "
-              "contact %3.0f%%  %s" % (nm, t, lim, min(cl), max(cl), con * 100.0,
-                                       "PLATE" if is_plate else "rod"))
-        if is_plate and t > lim:
-            bad.append((nm, "tilt %.1f" % t))
-        if con < min_contact:
-            bad.append((nm, "contact %.0f%%" % (con * 100.0)))
-    if bad:
-        raise SystemExit("FATAL: thrown debris not lying on the ground: %s" % bad)
-
-
 # --------------------------------------------------- the derived debris gate
+# `assert_lying_flat()` lived here until 2026-08-14. It took a HAND LIST of names, and a
+# hand list can only check what somebody remembered to type: three names were listed while
+# the scene exported twenty-nine pieces. Deleted the moment the last two wrecks (A-1, F-4)
+# were rebuilt on the derived gate below - a superseded check that still runs is a fossil,
+# and a second opinion nobody reads is worse than none.
 def ground_clear(obj, mound, reach=1.6):
     """Per-vertex clearance above the mound surface as a numpy array.
 
@@ -685,6 +799,32 @@ def image_mat(name, png, colour, scale=1.6):
     return m
 
 
+def soil(name_subs, k=0.45):
+    """Darken the light paint. A wreck's underside is filthy - and once a wing lands
+    inverted, the light-grey belly and the white national insignia are the two biggest
+    upward-facing surfaces on the whole site.
+
+    Measured, not a preference: `a1_underside_grey` is FS36622 light grey, which at the
+    render's sun energy blows out to near-white. The thrown wing read as a sheet of paper
+    lying in the mud from every one of the four angles.
+    """
+    n = 0
+    for m in bpy.data.materials:
+        if not m.use_nodes or not any(sub in m.name.lower() for sub in name_subs):
+            continue
+        for b in m.node_tree.nodes:
+            if b.type != 'BSDF_PRINCIPLED':
+                continue
+            bc = b.inputs.get('Base Color')
+            if bc is None or bc.is_linked:
+                continue
+            c = bc.default_value
+            bc.default_value = (c[0] * k, c[1] * k, c[2] * k, c[3])
+            m.diffuse_color = bc.default_value
+            n += 1
+    print("  soil: %d materials darkened x%.2f %s" % (n, k, list(name_subs)))
+
+
 def scorch(objs, centres, radius, seed=11, mat=None, core=0.34):
     """Assign a soot material to faces near the burn seats. Fresh burn is SOOT ON METAL,
     not rust and not overgrowth - the whole point of Caleb's brief.
@@ -717,6 +857,34 @@ def scorch(objs, centres, radius, seed=11, mat=None, core=0.34):
                 touched += 1
         o.data.update()
     return touched, total
+
+
+def spatter(objs, frac=0.42, seed=17, mat=None, colour=(0.15, 0.11, 0.07, 1.0)):
+    """Cake a piece in mud - a deterministic fraction of its faces take an earth material.
+
+    Not decoration. A thrown wing lands inverted, so the single biggest upward-facing
+    surface on the whole site is one unbroken 15 m2 sheet of aircraft paint. Whatever its
+    albedo, an uninterrupted flat plane reads as a placed prop; a mottled one reads as a
+    panel lying in a ploughed field. Keyed on face POSITION so a re-run is identical.
+    """
+    mat = mat or flat_mat("wreck_mud", colour, rough=0.96)
+    hit, tot = 0, 0
+    for o in objs:
+        if o is None:
+            continue
+        if mat.name not in [m.name for m in o.data.materials if m]:
+            o.data.materials.append(mat)
+        idx = [i for i, m in enumerate(o.data.materials) if m and m.name == mat.name][0]
+        mw = o.matrix_world
+        for p in o.data.polygons:
+            tot += 1
+            c = mw @ p.center
+            if (pnoise(c.x * 3.1, c.y * 3.1, seed) * 0.5 + 0.5) < frac:
+                p.material_index = idx
+                hit += 1
+        o.data.update()
+    print("  spatter: %d / %d faces muddied" % (hit, tot))
+    return hit, tot
 
 
 def pnoise(x, y, seed=0):
@@ -928,6 +1096,45 @@ def seat_on_mound(obj, mound, bury=0.06):
     clear = min(p.z - mound_height_at(mound, p.x, p.y) for p in verts(obj))
     d = -(clear + bury)
     edit_verts(obj, lambda p: p + Vector((0, 0, d)))
+    return d
+
+
+def drape_on_mound(obj, mound, bury=0.10, max_deg=14.0, samples=160):
+    """Lay a piece ALONG the ground it landed on, then seat it.
+
+    `lay_flat` levels a plate against the HORIZON, which is the right answer only on
+    billiard-table ground. Every wreck here lies in a ploughed scar with 20-30 deg flanks,
+    so a levelled panel resting on a berm touches at one corner and leaves a metre of
+    daylight under the far end - measured 11-12% ground contact on the F-4's thrown wing
+    and canopy while both were provably "flat".
+
+    Fits a least-squares plane to the mound surface UNDER the piece's own footprint and
+    rotates the piece onto it about its centroid. The rotation is clamped: `max_deg` +
+    whatever residual tilt `lay_flat` was asked for must stay inside the debris gate's
+    limit, or this would fix contact by breaking orientation.
+    """
+    import numpy as np
+    pts = verts(obj)
+    step = max(1, len(pts) // samples)
+    S = [(p.x, p.y, mound_height_at(mound, p.x, p.y)) for p in pts[::step]]
+    A = np.array([[s[0], s[1], 1.0] for s in S])
+    z = np.array([s[2] for s in S])
+    try:
+        (a, b, _c), *_ = np.linalg.lstsq(A, z, rcond=None)
+    except np.linalg.LinAlgError:
+        return seat_on_mound(obj, mound, bury)
+    n = Vector((-float(a), -float(b), 1.0)).normalized()
+    ang = math.degrees(math.acos(min(1.0, n.z)))
+    if ang > 1e-3:
+        k = min(1.0, max_deg / ang)
+        q = Vector((0.0, 0.0, 1.0)).rotation_difference(n)
+        ax, an = q.to_axis_angle()
+        m = Matrix.Rotation(an * k, 4, ax)
+        piv = sum((p for p in pts), Vector()) / len(pts)
+        edit_verts(obj, lambda p: (m @ (p - piv)) + piv)
+    d = seat_on_mound(obj, mound, bury)
+    print("   drape %-28s ground slope %4.1f deg, applied %4.1f, seated %+.2f"
+          % (obj.name, ang, min(ang, max_deg), d))
     return d
 
 
@@ -1148,9 +1355,15 @@ def make_colonly(trimesh_names=(), skip=()):
 
 # ----------------------------------------------------------------- ship
 def zero_to_ground(objs=None, centre_xy=True):
-    """Origin at the footprint centre, lowest EARTH point at z=0. place_structure() drops
-    the GLB origin straight onto terrain height, so a mound whose toe is not at 0 either
-    floats or sinks."""
+    """Origin at the footprint CENTRE IN PLAN. Z is deliberately not touched.
+
+    The docstring here used to claim it also put the lowest earth point at z=0; it never
+    did, and the three shipped wrecks all carry a bbox floor near -0.40 because the entry
+    furrow is dug below the rim. The rim itself is already at z 0 by construction (the
+    taper drives the profile to zero), which is what place_structure() needs when it drops
+    the GLB origin onto terrain height. Verified by verify_wrecks.py, on the rim, not on
+    the bounding box.
+    """
     objs = objs if objs is not None else meshes()
     lo, hi = bbox(objs)
     dx = -(lo.x + hi.x) / 2.0 if centre_xy else 0.0
@@ -1170,8 +1383,39 @@ def assert_names():
             raise SystemExit("FATAL: collider suffix not final: %s" % o.name)
 
 
+def assert_texture_names(glb_path):
+    """Every image that will be embedded must carry a name a human chose.
+
+    Godot extracts an embedded glTF image to `{glb_stem}_{image_name}.{ext}` beside the
+    file. `f4_phantom.glb` embeds its metal map as `tmpwamani3w.jpg` - a Python
+    tempfile name baked into the donor years ago - so the wreck derived from it kept
+    regenerating `f4_phantom_crashed_tmpwamani3w.jpg` on every import: an artifact nobody
+    could name, delete or match to a material. The name is the artifact, so gate the name.
+    The pattern to copy is `ac47_spooky_v2.glb` -> `ac47_spooky_v2_planecamo.png`.
+    """
+    import re
+    stem = os.path.splitext(os.path.basename(glb_path))[0]
+    bad, ok = [], []
+    for im in bpy.data.images:
+        if im.name == "Render Result" or im.users == 0:
+            continue
+        base, ext = os.path.splitext(im.name)
+        ext = (ext or ".png").lower()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_]*", base) or base.startswith("tmp"):
+            bad.append(im.name)
+        else:
+            ok.append("%s_%s%s" % (stem, base, ext))
+    if bad:
+        raise SystemExit(
+            "FATAL: image datablock(s) %s would embed under a machine-generated name. "
+            "Godot re-extracts one file per import and nobody can tell what it is - "
+            "rename the image (or repoint the material) before export." % bad)
+    print("  textures: %d embedded -> Godot will extract %s" % (len(ok), ok or "nothing"))
+
+
 def export_glb(path):
     assert_names()
+    assert_texture_names(path)
     sc = bpy.context.scene
     deselect()
     for o in sc.objects:
@@ -1211,6 +1455,16 @@ def render_views(outdir, tag, radius=None, samples=28, res=(760, 470)):
     sc.cycles.max_bounces = 3
     sc.render.resolution_x, sc.render.resolution_y = res
     sc.render.film_transparent = False
+    # AgX, explicitly. On Standard a 0.21-albedo surface under this sun clips to white,
+    # and the thrown wing's deliberately dirtied underside was read - twice - as a sheet
+    # of white paper when the exported baseColorFactor said 0.213. A render that clips is
+    # not evidence about a material; set the transform or measure the albedo instead.
+    try:
+        sc.view_settings.view_transform = 'AgX'
+        sc.view_settings.look = 'None'
+        sc.view_settings.exposure = 0.0
+    except TypeError:
+        pass
     sc.world = sc.world or bpy.data.worlds.new("W")
     sc.world.use_nodes = True
     bg = sc.world.node_tree.nodes.get('Background')
@@ -1233,7 +1487,7 @@ def render_views(outdir, tag, radius=None, samples=28, res=(760, 470)):
     sc.collection.objects.link(ground)
 
     sun = bpy.data.objects.new("SUN", bpy.data.lights.new("SUN", 'SUN'))
-    sun.data.energy = 3.2
+    sun.data.energy = 2.4
     sun.data.angle = math.radians(6)
     sun.rotation_euler = Euler((math.radians(52), 0, math.radians(38)), 'XYZ')
     sc.collection.objects.link(sun)

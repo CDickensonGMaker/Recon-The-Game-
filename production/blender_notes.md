@@ -63,11 +63,14 @@ Pipeline lives beside the assets: **`assets/us/aircraft/build_wrecks.py`** +
 asset**, so a change is judged from its renders before anything ships; `--tag` suffixes the
 render filenames so the new pass sits beside the one it is being judged against. Use both.
 
+**The A-1 and F-4 rows below are SUPERSEDED (2026-08-14, v2 re-derivation — see the entry
+at the top of this file for the shipping figures). The Huey row is current.**
+
 | | donor | visual tris | dims X/Y/Z (m) | GLB |
 |---|---|---|---|---|
-| `a1_skyraider_crashed` | `a1_skyraider.glb` (11,870) | 5,130 | 18.70 / 15.20 / 3.41 | 0.27 MB |
+| ~~`a1_skyraider_crashed`~~ | ~~`a1_skyraider.glb` (11,870)~~ | ~~5,130~~ | ~~18.70 / 15.20 / 3.41~~ | ~~0.27 MB~~ |
 | `huey_crashed` | `huey_v3.glb` (60,354) | 5,976 | 20.01 / 19.95 / 4.16 | 0.53 MB |
-| `f4_phantom_crashed` | `f4_phantom.glb` (1,024) | 2,560 | 16.07 / 25.00 / 3.06 | 0.40 MB |
+| ~~`f4_phantom_crashed`~~ | ~~`f4_phantom.glb` (1,024)~~ | ~~2,560~~ | ~~16.07 / 25.00 / 3.06~~ | ~~0.40 MB~~ |
 
 **2026-08-14 fix pass — what changed and why (Caleb's verdicts: A-1 SOLID, F-4 DECENT,
 HUEY FAILS).**
@@ -501,6 +504,139 @@ inside the export session, in `tools/export_pilots_medics.py`:
 
 ---
 
+## 2026-08-14 (later) · A-1 and F-4 wrecks RE-DERIVED from the v2 donors; gate is now HARD
+
+`build_wrecks.py` + `wrecklib.py`, headless only. **The Huey was not touched** —
+`huey_crashed.glb` / `.blend` verified byte-identical by md5 before and after, as were
+`a1_skyraider_v2`, `f4_phantom_v2`, `ac47_spooky_v2`, `a1_skyraider` and `f4_phantom`.
+New standalone gate: **`assets/us/aircraft/verify_wrecks.py`**, which asserts the contract
+on the SHIPPED files from a clean scene (`blender -b --factory-startup -P verify_wrecks.py
+-- all`). All three pass.
+
+| | donor | visual tris | dims X/Y/Z (m) | parts | colliders | GLB |
+|---|---|---|---|---|---|---|
+| `a1_skyraider_crashed` | `a1_skyraider_v2.glb` (1,908) | 3,652 | 18.79 / 15.20 / 2.65 | 14 | 14 (10 tri / 4 box) | 0.29 MB |
+| `f4_phantom_crashed` | `f4_phantom_v2.glb` (2,060) | 3,644 | 20.22 / 21.03 / 2.36 | 15 | 15 (11 / 4) | 0.30 MB |
+| `huey_crashed` | UNTOUCHED | 5,976 | 19.62 / 19.95 / 4.16 | 33 | 33 | 0.53 MB |
+
+**Every prior conviction comes back clean, and both wrecks now run the gate STRICT**
+(`debris_gate` defaults to `"strict"`; the report-only mode is gone from both call sites).
+F-4 `pylon_l` floating 0.15 m, `tailfin` at 88.7°, `gunpod` 12%, `nose` 5%; A-1
+`wing_thrown` 1%, `canopy` 11%, `panel_1` 21% + 56.7°, `ord_mk82` 22% — all of those
+pieces are either gone with the old donor or now measure 41-100% contact. **`assert_lying_flat()`
+is DELETED**; nothing calls it, and a superseded check that still runs is a fossil.
+
+### The v2 donors are three meshes, not a part tree — so parts are found, not named
+
+`a1_skyraider_v2.glb` ships `A1_Airframe / Stores / Markings / Prop`; `f4_phantom_v2.glb`
+ships `F4_Airframe / Stores / Markings`. New `wrecklib` primitives:
+
+* **`weld()`** — **a donor `.glb` is not the mesh its author built.** The glTF exporter
+  splits every vertex whose normal or material differs per face, so a flat-shaded airframe
+  arrives as a soup of one-quad islands: `F4_Airframe` imports as 3,082 verts / ~500
+  "components" and welds to 842 verts / **20 real parts**. Without the weld, `part_split`
+  finds nothing AND every per-vertex random displacement (`crumple`, `dent`, `tear_seam`)
+  gives coincident duplicates different offsets and shreds the panel. Same defect
+  `build_mound` hit on `bomb_crater`, same fix.
+* **`components()` / `part_split()`** — split whole connected components by a predicate on
+  their own bbox. Coordinate predicates alone cut a bomb in half; this can only take
+  complete parts. Every wing, fin, intake trunk, nozzle, stabilator, tank and bomb in both
+  wrecks is found this way. **No donor part name is referenced anywhere any more.**
+* **`join_objs()`** — decals ride the wing they are painted on, bombs ride their pylon.
+  **`bpy.ops.object.join()` SILENTLY SKIPS a source whose mesh has zero vertices** and
+  returns FINISHED; the emptied `A1_Stores` donor survived under its own name and only
+  `finish()`'s unprefixed-mesh gate caught it. `join_objs` now deletes empties itself and
+  asserts every source is gone.
+* **`drape_on_mound()`** — fits a least-squares plane to the mound *under the piece's own
+  footprint* and lays it along that, clamped to 14°. `lay_flat` levels against the HORIZON,
+  which is right only on billiard-table ground: on a 20-30° plough flank a "provably flat"
+  panel touches at one corner and leaves a metre of daylight (F-4 wing 11%, canopy 12%).
+* **`soil()` / `spatter()`** — see below.
+* **`assert_texture_names()`**, called from `export_glb()`.
+
+### The re-extracting texture is fixed AT SOURCE
+
+`f4_phantom.glb` (the old donor) embeds its metal map as **`tmpwamani3w.jpg`** — a Python
+tempfile name baked into the third-party asset — so Godot regenerated
+`f4_phantom_crashed_tmpwamani3w.jpg` on every import. The v2 donors carry **no images at
+all**, so the only embedded image in either wreck is now `fb_earth` (the mound), and Godot
+extracts `a1_skyraider_crashed_fb_earth.png` / `f4_phantom_crashed_fb_earth.png` — the
+`ac47_spooky_v2_planecamo.png` pattern. The stale `f4_phantom_crashed_tmpwamani3w.jpg`
++ `.import` are **deleted**. `f4_phantom_tmpwamani3w.jpg` / `_tmpxc1gk1yi.png` stay: they
+belong to the intact `f4_phantom.glb`, which is still in the project.
+**The guard, so it cannot come back:** `assert_texture_names()` fails the export if any
+image datablock is named `tmp*` or is not `[a-z0-9_]+`, and prints the exact filenames
+Godot will produce.
+
+### Five defects found by measuring, each of which the build ran happily through
+
+1. **A rotation about the wrong axis.** `rigid(fin, rot_deg=(34,0,7))` was supposed to lean
+   the F-4's fin; a fin plate lies in the x=0 plane, so an X euler RAKES it fore-and-aft
+   and leaves it dead upright — measured plate tilt **90.0°** after the "lean". `ry` is the
+   axis that knocks a fin over (now 36°, tilt 54°). Same class on both attached wings:
+   `rx` pitches the CHORD, `ry` droops the TIP.
+2. **…and then 10° of the correct rotation buried the wing.** `build_mound`'s slot is only
+   as wide as the hull, so past ±1.7 m the ground climbs into the berm: a 10° droop over a
+   7.3 m half-span dropped the tip 1.5 m and the whole starboard wing vanished under the
+   spoil. Now 4°.
+3. **Seating an aeroplane on the group minimum seats it on its drop tank.** `sink()` uses
+   the lowest point of everything given to it, and the F-4's centreline tank hangs 0.8 m
+   below the keel — the fuselage floated **0.58 m proud** of the scar it was supposed to be
+   ploughed into. New `sink_ref(objs, ref, z)` takes the datum from the KEEL. Both wrecks
+   now throw the centreline tank clear as debris, which is also the better read.
+4. **Build the mound BEFORE seating the hull.** Sinking to a fixed world z first makes the
+   burial depth whatever the mound profile happens to work out at — it came out at 0.02 m
+   of hull standing proud. Now: dig the scar, sample the slot floor under the hull, seat
+   the keel `HULL_BURY` (0.04 m) under it. Measured hull proud: A-1 1.08-1.42 m, F-4
+   0.56-0.90 m. **And exclude the mound from the sink list** — `meshes()` now contains it,
+   and sinking the ground with the aeroplane leaves every clearance exactly where it was.
+5. **The burial report was sampling the wrong ground.** It read the mound at WORLD x=0,
+   which after `zero_to_ground()` is the FOOTPRINT centre — a thrown wing drags that
+   metres off the fuselage and out onto the flank berm. Now samples the hull's own
+   centreline. (The 0.96-1.20 m figures in the 08-13 entry below were measured that way.)
+
+### Two render-instrument lessons
+
+* **A clipping render is not evidence about a material.** The thrown wing was read as
+  "white paper" twice; its exported `baseColorFactor` was **0.213** neutral grey. Sun
+  energy 3.2 on `Standard` clipped it. `render_views()` now sets **AgX explicitly** and the
+  sun to 2.4 — and the answer came from the GLB's own material JSON, not from the picture.
+* **The real fix was still a modelling one.** An uninterrupted 15 m² flat plane reads as a
+  placed prop whatever its albedo. `soil()` darkens the light paint (FS36622 underside grey
+  and the white insignia — ×0.32, and both face the SKY once a wing lands inverted) and
+  `spatter()` mottles ~45% of thrown-debris faces with mud, keyed on face position so a
+  re-run is identical.
+
+### Other decisions worth knowing
+
+* Both thrown wings land **INVERTED** (ref obs 8: "on edge or inverted"). Upright, a wing
+  comes to rest on its own pylons and bombs with the panel 0.4 m clear of the dirt — 17%
+  contact. Inverted it lies on its skin with the racks in the air. `lay_flat(flip=True)`.
+* **Long debris gets flattened, not tilted.** 6° of residual tilt on a 4 m F-4 canopy lifts
+  one end 0.42 m and took contact to 14%. Canopies are now crushed to 0.18-0.34 of height
+  (a canopy off a crash is a smashed frame) and thrown with 0-8° of tilt.
+* **`pick_pilot_anchor` used a 6 m fire clearance while `verify_roundtrip` asserts 8 m.**
+  Two thresholds for one rule; the sweep's scoring term happened to carry it every time.
+  Now 8 m in both.
+* F-4 soot was radius 4.2 / core 0.42 and covered the whole spine — the Phantom read as a
+  black smear with camo edges. Now 2.8 / 0.28 (13% of faces).
+* Part names changed with the donor: the F-4 gains `nozzle_l/r`, loses `gunpod`,
+  `pylon_*`, `tank_r`, `stab_aft`; the A-1 gains `tailfin`, `stab_l/r`, `tank_thrown`.
+  Nothing in Godot reads a wreck's part names (only the model name, via `CollisionTable`).
+
+### OPEN, for the code owner — `collision_table.gd:86-88` is now stale again
+
+Measured on the re-imported GLBs (Godot X/Y/Z = Blender X/Z/Y):
+
+* `a1_skyraider_crashed` — entry `box (18.7, 3.2, 15.2)`, footprint `(19.7, 16.2)`.
+  **Measured 18.79 wide / 1.93 above ground / 15.20 long.** Height is over-tall by 1.3 m.
+* `f4_phantom_crashed` — entry `box (16.2, 3.2, 25.0)`, footprint `(17.2, 26.0)`.
+  **Measured 20.22 / 1.45 / 21.03.** Too narrow by 4 m, 4 m too long, 1.75 m too tall.
+* `huey_crashed` — entry `(22.0, 3.2, 20.9)` vs measured 19.62 / 3.21 / 19.95. Close.
+
+Each wreck ships per-part `-colonly` meshes that cover it properly, so the box only
+matters wherever `get_entry` is used for footprint reservation.
+
 ## 2026-08-14 · Crashed-aircraft wrecks: the debris gate is now DERIVED, and what it found
 
 `assets/us/aircraft/build_wrecks.py` + `wrecklib.py`. Huey rebuilt and re-exported;
@@ -543,11 +679,12 @@ the socket names: every mesh AND collider carries a `wreck_hard_`/`wreck_soft_` 
 each `fire_socket_*` ≤ 2.5 m from wreck geometry · `pilot_anchor` 4–7 m off the hull in plan
 and ≥ 8 m from every fire socket. All three wrecks passed as shipped, so the asserts are safe.
 
-### OPEN — found by the new gate, deliberately NOT fixed (out of scope: do not touch A-1/F-4)
+### ~~OPEN~~ CLOSED 2026-08-14 by the v2 re-derivation above — kept for the failure record
 
-Both are run in **report-only** mode (`debris_gate="report"`, the default) so their builds
-still complete; the Huey is `"strict"`. Flip them when those wrecks are next rebuilt, and
-delete `assert_lying_flat()` at that point — it is retained ONLY for these two.
+Both wrecks were rebuilt from the v2 donors, both now run the gate **strict**, and
+`assert_lying_flat()` is deleted. The list below is what report-only mode found on the
+superseded (old-donor) files; every one of these pieces is either gone with its donor or
+now measures 41-100% ground contact.
 
 - **F-4 `wreck_soft_pylon_l` is FLOATING** — a cluster of one, lowest point **0.15 m above
   the ground**, 90° tilt, 0% contact. It is in the shipped `f4_phantom_crashed.glb`.

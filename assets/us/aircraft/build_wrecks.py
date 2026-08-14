@@ -26,7 +26,8 @@ from wrecklib import (wipe, meshes, by_name, drop, import_glb, keep_only, verts,
                       tris, vcount, edit_verts, split_faces, tear_seam, crush, buckle,
                       rigid, bend_blades, dent, crumple, flat_mat, scorch, build_mound,
                       mound_height_at, max_slope_deg, socket, make_colonly, zero_to_ground,
-                      export_glb, save_blend, render_views, verify_roundtrip, AIR)
+                      export_glb, save_blend, render_views, verify_roundtrip, AIR,
+                      weld, components, part_split, join_objs)
 
 OUT = r"C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\0201f774-4017-48d5-924a-0296e7efee35\scratchpad\wrecks"
 HUEY_GLB = os.path.join(W.ART, "us", "vehicles", "huey_v3.glb")
@@ -35,6 +36,13 @@ HUEY_GLB = os.path.join(W.ART, "us", "vehicles", "huey_v3.glb")
 # renders can be judged before anything ships. TAG suffixes the render filenames.
 SHIP_DIR = AIR
 TAG = ""
+
+# How deep the keel sits below the FLOOR OF ITS OWN SLOT - the trench build_mound digs
+# along the centreline, not the berm crest beside it. Those differ by 0.6 m here, and
+# burying 0.55 below the slot floor (i.e. ~1.1 below the berm) put the cowl top 0.12 m
+# above the dirt: the aeroplane had gone into the ground. Earth comes up the SIDES, and
+# the berm has to stay under the wreck's own crushed height or the dirt is the subject.
+HULL_BURY = 0.04
 
 
 # --------------------------------------------------------------- shared helpers
@@ -48,6 +56,21 @@ def sink(objs, target_min_z):
     """Drop a group so its lowest point lands at `target_min_z`. Negative = plowed in."""
     lo, _ = bbox(objs)
     d = target_min_z - lo.z
+    for o in objs:
+        edit_verts(o, lambda p, d=d: p + Vector((0, 0, d)))
+    return d
+
+
+def sink_ref(objs, ref, target_min_z):
+    """Sink a whole attached assembly by the amount that puts the REFERENCE piece's
+    lowest point at `target_min_z`.
+
+    `sink()` uses the GROUP minimum, which seats the aeroplane on whatever hangs lowest -
+    a wing pylon, a bomb, a drop tank - and leaves the fuselage standing 0.58 m proud of
+    the scar it is supposed to be ploughed into. The keel is the datum; the stores under
+    the wings go into the dirt with it, which is what ploughing in means.
+    """
+    d = target_min_z - bbox([ref])[0].z
     for o in objs:
         edit_verts(o, lambda p, d=d: p + Vector((0, 0, d)))
     return d
@@ -94,19 +117,23 @@ def pick_pilot_anchor(body_objs, fire_pts, mound, r_lo=4.0, r_hi=6.5):
                 continue
             gz = mound_height_at(mound, px, py)
             dmin = min(math.hypot(px - f.x, py - f.y) for f in fp)
-            if dmin < 6.0 or abs(gz) > 0.45:
+            # 8 m, not 6: verify_roundtrip() asserts >= 8 m on the SHIPPED file, so a
+            # sweep that accepted 6 could hand the exporter a placement its own gate
+            # would then reject. Two thresholds for one rule is a defect waiting for
+            # the day the scoring term stops carrying it.
+            if dmin < 8.0 or abs(gz) > 0.45:
                 continue
             s = dmin - abs(gz) * 6.0
             if s > best_s:
                 best_s, best = s, (px, py, max(0.0, gz), dmin, db)
     if best is None:
-        raise SystemExit("FATAL: no pilot_anchor satisfies 4-6 m off the hull, "
-                         ">=6 m from fire, on flat ground")
+        raise SystemExit("FATAL: no pilot_anchor satisfies 4-6.5 m off the hull, "
+                         ">=8 m from fire, on flat ground")
     return best
 
 
 def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True,
-           flat_debris=(), debris_gate="report", excuse=()):
+           debris_gate="strict", excuse=()):
     """Common tail: collision twins, origin, export, round-trip proof, renders."""
     print("\n-- %s: sealing" % tag)
     shown = [o for o in meshes() if not o.name.endswith("-colonly")]
@@ -124,8 +151,6 @@ def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True,
     # of twenty-nine. This enumeration comes off the scene, so nothing can miss it.
     W.assert_debris_grounded(mound, view_az=W.VIEW_AZ, excuse=excuse,
                              strict=(debris_gate == "strict"))
-    if flat_debris:
-        W.assert_lying_flat(flat_debris, mound)
     rr = W.rim_report(mound)
     print("   mound rim: r %.2f..%.2f  |  r/ellipse spread %.2f over %d bulges"
           % (rr["rmin"], rr["rmax"], rr["spread"], rr["bulges"]))
@@ -168,12 +193,16 @@ def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True,
     if hull:
         hl, hh = bbox(hull)
         rows = []
+        hx = (hl.x + hh.x) / 2.0
         for t in (0.15, 0.35, 0.55, 0.75):
             yy = hl.y + (hh.y - hl.y) * t
             band = [p.z for o in hull for p in verts(o) if abs(p.y - yy) < 0.9]
             if not band:
                 continue
-            gz = mound_height_at(mound, 0.0, yy)
+            # the HULL's own centreline. World x=0 is the FOOTPRINT centre after
+            # zero_to_ground(), which a thrown wing drags metres off the fuselage and
+            # out onto the flank berm - the old figures were sampling the wrong ground.
+            gz = mound_height_at(mound, hx, yy)
             rows.append((round(yy, 1), round(gz, 2), round(max(band), 2),
                          round(max(band) - gz, 2)))
         print("   burial (y, earth_z, hull_top_z, proud_m): %s" % rows)
@@ -193,110 +222,191 @@ def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True,
 
 
 # =============================================================== A-1 SKYRAIDER
+# DONOR: `a1_skyraider_v2.glb` (2026-08-14), which replaced the 11,870-tri third-party
+# `a1_skyraider.glb`. The v2 airframe is FOUR meshes, not a per-part tree, so the wreck's
+# pieces are found by welding the donor and taking whole connected components - the wing,
+# the fin, each stabiliser, each bomb are separate lofted shells of one mesh. Nothing here
+# depends on a donor part NAME any more, only on the aeroplane's own topology.
 def build_a1(render=True):
     print("=" * 72)
-    print("A-1 SKYRAIDER WRECK")
+    print("A-1 SKYRAIDER WRECK  (donor a1_skyraider_v2.glb)")
     wipe()
-    got = import_glb(os.path.join(AIR, "a1_skyraider.glb"))
-    body = got["A1_Skyraider_Body"]
-    prop = got["A1_Propeller"]
-    bomb = got["Ord_L5_Mk82"]
-    keep_only([body.name, prop.name, bomb.name])
+    import_glb(os.path.join(AIR, "a1_skyraider_v2.glb"))
+    keep_only(["A1_Airframe", "A1_Stores", "A1_Markings", "A1_Prop"])
+    air, stores = by_name("A1_Airframe"), by_name("A1_Stores")
+    marks, prop = by_name("A1_Markings"), by_name("A1_Prop")
+    for o in (air, stores, marks, prop):
+        n0, n1 = weld(o)
+        print("  weld %-14s %4d -> %4d verts, %d parts"
+              % (o.name, n0, n1, len(components(o))))
 
     # nose must be +Y before anything else is believed
-    lo, hi = bbox([body])
-    assert hi.y > lo.y, "degenerate"
     pv = verts(prop)
-    assert sum(p.y for p in pv) / len(pv) > 0.0, "prop is not at +Y: donor facing changed"
-    print("  donor body %s .. %s  prop mean y %.3f" %
+    assert sum(p.y for p in pv) / len(pv) > 3.0, "prop is not at +Y: donor facing changed"
+    lo, hi = bbox([air])
+    print("  donor airframe %s .. %s  prop mean y %.3f" %
           ([round(x, 2) for x in lo], [round(x, 2) for x in hi],
            sum(p.y for p in pv) / len(pv)))
+    # the keel line, MEASURED off the fuselage barrel (the largest component) rather than
+    # typed. The old build hardcoded -0.805 for a donor that no longer exists, and the
+    # v2 chin duct and centreline tank both hang below the keel - crushing about the
+    # object bbox floor would leave the fuselage untouched and squash only the tank.
+    keel = max(components(air).values(), key=lambda d: d["n"])["lo"].z
+    print("  keel (fuselage barrel lowest z) %.3f" % keel)
 
-    # ---- 1. break the airframe up along existing edges
-    canopy = W.split_material(body, "Canopy", "wreck_soft_canopy")
-    wing_t = split_faces(body, lambda c: c.x < -1.15 and -4.75 < c.y < -2.25,
-                         "wreck_soft_wing_thrown")
-    wing_a = split_faces(body, lambda c: c.x > 1.15 and -4.75 < c.y < -2.25,
-                         "wreck_soft_wing_r")
-    tail = split_faces(body, lambda c: c.y < -9.2, "wreck_soft_tail")
-    engine = split_faces(body, lambda c: c.y > -0.20, "wreck_hard_engine")
-    rename(body, "wreck_hard_fuselage")
-    print("  split: fus %d, engine %d, wing_a %d, wing_t %d, tail %d, canopy %d tris" %
-          (tris([body]), tris([engine]) if engine else 0, tris([wing_a]) if wing_a else 0,
-           tris([wing_t]) if wing_t else 0, tris([tail]) if tail else 0,
-           tris([canopy]) if canopy else 0))
+    # ---- 1. the decals ride the wing they are painted on
+    join_objs(air, [marks])
 
-    # a torn-off wing tip panel, cut from the wing's own outer bay
-    panel = split_faces(wing_t, lambda c: c.x < -5.4, "wreck_soft_panel_1")
+    # ---- 2. take the aeroplane apart by its own parts
+    canopy = W.split_material(air, "canopy", "wreck_soft_canopy")
 
-    # ---- 2. crush the core. Nose worst: it went in first and stopped first.
-    floor = -0.805
-    crush(body, floor, lambda y: 0.46 if y > -1.0 else (0.62 if y > -6.0 else 0.88),
-          widen=0.30)
-    crush(engine, floor, lambda y: 0.44, widen=0.34)
-    buckle(body, -3.1, 7.5, hinge_z=floor)
-    dent(engine, (0.0, 0.30, 0.05), 1.5, 0.55)
+    def wing(sgn):
+        return lambda lo, hi, c, n: c.x * sgn > 0.25 and -2.8 < c.y < 1.6
+
+    wing_a = part_split(air, wing(1.0), "wreck_soft_wing_r")
+    wing_t = part_split(air, wing(-1.0), "wreck_soft_wing_thrown")
+    fin = part_split(air, lambda lo, hi, c, n: c.y < -3.0 and abs(c.x) < 0.3
+                     and hi.z > 1.5, "wreck_soft_tailfin")
+    stab_r = part_split(air, lambda lo, hi, c, n: c.y < -3.0 and c.x > 0.3,
+                        "wreck_soft_stab_r")
+    stab_l = part_split(air, lambda lo, hi, c, n: c.y < -3.0 and c.x < -0.3,
+                        "wreck_soft_stab_l")
+
+    # stores: one bomb tears clear, the rest go with the wing they hang under. A pylon
+    # left behind on a wing that has been thrown 10 m is a rack floating in mid-air.
+    bomb = part_split(stores, lambda lo, hi, c, n: c.x < -2.0 and n >= 40,
+                      "wreck_soft_ord_mk82")
+    # the centreline tank and its pylon come off too. Left bolted on they hang 0.7 m
+    # below the keel, and any "sit the wreck in the ground" pass then seats the whole
+    # aeroplane ON THE TANK instead of on its belly.
+    tank = part_split(stores, lambda lo, hi, c, n: abs(c.x) < 0.5, "wreck_soft_tank_thrown")
+    st_r = part_split(stores, lambda lo, hi, c, n: c.x > 0.2, "a1_stores_r")
+    st_l = part_split(stores, lambda lo, hi, c, n: c.x < -0.2, "a1_stores_l")
+    join_objs(air, [stores])            # centreline tank + its pylon stay on the hull
+    join_objs(wing_a, [st_r])
+    join_objs(wing_t, [st_l])
+    print("  parts: wing_r %d, wing_thrown %d, fin %d, stab %d/%d, canopy %d, bomb %d tris"
+          % (tris([wing_a]), tris([wing_t]), tris([fin]), tris([stab_r]), tris([stab_l]),
+             tris([canopy]), tris([bomb])))
+
+    # a torn-off wing tip panel, cut from the thrown wing's own outer bay (ref obs 7)
+    panel = W.cut_at(wing_t, 0, -5.6, "wreck_soft_panel_1")
+
+    # ---- 3. break the hull in two at the FIREWALL (y 2.70 is the donor's own barrel
+    # step, FUSE_STATIONS 3.16 in build_a1_skyraider_v2.py) and again at the fin root
+    body = W.cut_at(air, 1, 2.70, "wreck_hard_fuselage")
+    engine = rename(air, "wreck_hard_engine")
+    tail = W.cut_at(body, 1, -2.95, "wreck_soft_tail")
+    tear_seam(engine, 1, 2.70, band=0.22, amp=0.09, seed=31)
+    tear_seam(body, 1, 2.70, band=0.22, amp=0.09, seed=32)
+    tear_seam(body, 1, -2.95, band=0.20, amp=0.08, seed=33)
+    tear_seam(tail, 1, -2.95, band=0.20, amp=0.08, seed=34)
+
+    # ---- 4. crush the core. Nose worst: it went in first and stopped first.
+    crush(body, keel, lambda y: 0.62 if y > 0.6 else (0.74 if y > -1.5 else 0.90),
+          widen=0.28)
+    crush(engine, keel, lambda y: 0.54, widen=0.34)
+    buckle(body, -1.2, 7.5, hinge_z=keel)
+    dent(engine, (0.0, 3.9, 0.10), 1.6, 0.55)
     crumple(body, 0.045, seed=21)
     crumple(engine, 0.05, seed=22)
-    tear_seam(body, 0, 1.15, band=0.22, amp=0.09, seed=31)
-    tear_seam(body, 0, -1.15, band=0.22, amp=0.09, seed=32)
+    # the whole tail group is bolted to the aft fuselage: it rides the same crush and the
+    # same buckle, then the assembly twists about the BREAK, not about its own centroid.
+    tail_grp = [o for o in (tail, fin, stab_l, stab_r) if o is not None]
+    for o in tail_grp:
+        crush(o, keel, lambda y: 0.86, widen=0.0)
+        buckle(o, -1.2, 7.5, hinge_z=keel)
+        rigid(o, rot_deg=(0, 21.0, 0), translate=(0.35, 0.10, 0.0),
+              pivot=(0.0, -2.95, keel))
 
-    # ---- 3. prop: aft sweep with curled tips (engine was making power)
-    bend_blades(prop, (0.0, 0.78, 0.30), radial_axes=(0, 2), span_axis=1,
-                sweep=0.42, curl=0.30, shorten=0.13, rmin=0.42)
-    # and FOLD the disc. A 5.1 m prop left at full diameter stands 4.1 m proud and the
-    # wreck reads as a windmill; blades that reach the ground get flattened, not swept.
-    crush(prop, 0.30, lambda y: 0.42, widen=0.0)
-    rigid(prop, rot_deg=(0, 0, 0), translate=(0.10, -0.35, 0.0))
+    # ---- 5. prop: aft sweep with curled tips (engine was making power, ref obs 4)
+    hub = (0.0, 5.20, 0.13)
+    bend_blades(prop, hub, radial_axes=(0, 2), span_axis=1,
+                sweep=0.34, curl=0.26, shorten=0.13, rmin=0.40)
+    # and FOLD the disc. A 4.12 m prop left at full diameter stands 2 m proud of a wreck
+    # whose whole point is a crushed silhouette; blades that reach the ground flatten.
+    crush(prop, hub[2], lambda y: 0.40, widen=0.0)
+    rigid(prop, rot_deg=(0, 0, 0), translate=(0.10, -0.30, 0.0))
     rename(prop, "wreck_soft_prop")
 
-    # ---- 4. attached wing droops and digs in; thrown wing lands on edge 10 m out
-    rigid(wing_a, rot_deg=(-14.0, 0, 4.0))
-    edit_verts(wing_a, lambda p: p + Vector((0, 0, -0.30 * max(0.0, (p.x - 1.2) / 5.8))))
-    tear_seam(wing_a, 0, 1.15, band=0.22, amp=0.10, seed=33)
+    # ---- 6. attached wing droops and digs in; thrown wing lands inverted 9 m out.
+    # Pivot at the ROOT: rigid() about the centroid swings the root clear of the
+    # fuselage it is still bolted to and opens daylight along the wing root.
+    # ry droops the tip; rx only pitches the CHORD. The old builds leaned wings and fins
+    # with an X euler and got a wing whose tip rode 1.5 m in the air with its leading edge
+    # tipped up - a rotation that does not do what its comment says it does.
+    # 4 deg of droop, not 10. The slot build_mound digs is only as wide as the hull, so
+    # past +-1.7 m the ground climbs into the berm - a 10 deg droop over a 7.3 m half-span
+    # dropped the tip 1.5 m and the whole starboard wing disappeared under the spoil.
+    rigid(wing_a, rot_deg=(-5.0, 4.0, 3.0), pivot=(0.30, -0.6, keel + 0.55))
+    edit_verts(wing_a, lambda p: p + Vector((0, 0, -0.18 * max(0.0, (p.x - 1.2) / 6.4))))
+    tear_seam(wing_a, 0, 0.30, band=0.22, amp=0.10, seed=35)
 
-    rigid(wing_t, rot_deg=(31.0, 5.0, -38.0), translate=(-3.4, 3.6, 0))
-    tear_seam(wing_t, 0, -1.15, band=0.26, amp=0.12, seed=34)
-    rigid(panel, rot_deg=(48.0, 0, 51.0), translate=(2.2, -6.0, 0))
-    crumple(panel, 0.07, seed=35)
+    # INVERTED (ref obs 8). Upright it comes to rest on its own pylons and bombs with the
+    # panel 0.4 m clear of the dirt; inverted it lies on its skin with the racks in the air.
+    tear_seam(wing_t, 0, -0.30, band=0.26, amp=0.12, seed=36)
+    W.place_at(wing_t, -9.4, 2.9)
+    W.lay_flat(wing_t, tilt_deg=8.0, tilt_dir_deg=210.0, spin_deg=118.0, flip=True)
+    crumple(panel, 0.07, seed=37)
+    W.place_at(panel, 4.6, -6.4)
+    W.lay_flat(panel, tilt_deg=7.0, tilt_dir_deg=40.0, spin_deg=64.0, flip=True)
 
-    rigid(tail, rot_deg=(0, 26.0, 0), translate=(0.5, 0.2, -0.25))
-    rigid(canopy, rot_deg=(38.0, 0, 22.0), translate=(-3.1, -2.4, 0))
-    rename(bomb, "wreck_soft_ord_mk82")
-    rigid(bomb, rot_deg=(0, 74.0, 28.0), translate=(3.4, 1.4, 0))
+    # a canopy off a crash is a smashed frame, not a bubble: crush it before it is thrown,
+    # or it lies on the dirt as a dome touching along one arc and reads as hovering.
+    cl, ch = bbox([canopy])
+    crush(canopy, cl.z, lambda y: 0.34, widen=0.22)
+    crumple(canopy, 0.04, seed=38)
+    W.place_at(canopy, -4.9, -4.6)
+    W.lay_flat(canopy, tilt_deg=6.0, tilt_dir_deg=120.0, spin_deg=27.0)
+    rigid(bomb, rot_deg=(0, 6.0, 34.0))
+    W.place_at(bomb, 5.4, 2.6)
+    rigid(tank, rot_deg=(0, 86.0, 63.0))
+    crumple(tank, 0.05, seed=39)
+    W.place_at(tank, 2.9, -7.4)
 
-    # ---- 5. ground it, then plough the earth up around it
-    core = [body, engine]
-    sink(core, -0.30)
-    for o in (wing_a, prop):
-        sink([o], -0.22)
-
-    # light lobing only. This wreck was signed off as it stood and its long airframe
-    # already breaks the outline; the rim only has to stop resolving into a smooth arc.
-    mound = build_mound("wreck_hard_mound", half_x=6.2, half_y=7.6,
-                        nose_y=0.3, tail_y=-7.4, berm_h=1.05, furrow_d=0.50,
-                        hull_hw=1.35, seed=5, rim_noise=0.14,
-                        lobes=((2, 0.055, 35.0), (3, 0.050, 155.0)))
-    for o in (wing_t, panel, tail, canopy, bomb):
-        W.seat_on_mound(o, mound, bury=0.10)
+    # ---- 7. plough the earth, THEN seat the aeroplane in the scar it dug.
+    # Order matters. Sinking to a fixed world z before the mound exists means the burial
+    # depth is whatever the mound's centreline profile happens to work out at - it came
+    # out at 0.02 m of hull standing proud, i.e. the aeroplane had vanished into the dirt.
+    # light lobing only. This wreck's long airframe already breaks the outline; the rim
+    # only has to stop resolving into a smooth arc.
+    mound = build_mound("wreck_hard_mound", half_x=6.4, half_y=7.6,
+                        nose_y=4.0, tail_y=-5.8, berm_h=0.86, furrow_d=0.50,
+                        hull_hw=1.15, seed=5, rim_noise=0.20,
+                        lobes=((1, 0.09, 70.0), (2, 0.10, 25.0), (3, 0.085, 150.0)))
+    hl, hh = bbox([body])
+    grade = mound_height_at(mound, 0.0, (hl.y + hh.y) * 0.5)
+    print("  slot floor under the hull %.2f -> keel %.2f" % (grade, grade - HULL_BURY))
+    sink_ref([body, engine, wing_a, prop] + tail_grp, body, grade - HULL_BURY)
+    # the thrown wing goes 0.30 m INTO the plough, not 0.16. Inverted, better than half
+    # its vertices are pylon and bomb geometry standing clear of the skin, so a seating
+    # that only kisses the dirt scored 17% contact - the panel has to be in the ground.
+    for o, bury in ((wing_t, 0.30), (panel, 0.10), (canopy, 0.09)):
+        W.drape_on_mound(o, mound, bury=bury)
+    W.seat_on_mound(bomb, mound, bury=0.26)
+    W.seat_on_mound(tank, mound, bury=0.24)
     gaps = [(o.name, round(min(p.z - mound_height_at(mound, p.x, p.y)
                                for p in verts(o)), 3))
-            for o in (wing_t, panel, tail, canopy, bomb)]
+            for o in (wing_t, panel, canopy, bomb)]
     print("  seated (name, min clearance to ground): %s" % gaps)
 
-    # ---- 6. fresh burn: soot at the engine and along the wing-root fuel spill
-    fire = [(0.0, -0.15, 0.35), (2.0, -3.3, -0.05), (-1.3, -3.6, -0.15)]
-    n, tot = scorch([body, engine, wing_a, prop, tail], fire, 2.1, seed=11)
+    # ---- 8. fresh burn: soot at the engine and along the wing-root fuel spill
+    fire = [(0.0, 3.55, 0.10), (1.7, -0.30, -0.25), (-1.4, -1.20, -0.30)]
+    W.soil(("underside", "marking", "store_grey"), k=0.32)
+    W.spatter([wing_t, panel, canopy, bomb, tank], frac=0.45, seed=17)
+    n, tot = scorch([body, engine, wing_a, prop] + tail_grp, fire, 2.3, seed=11)
     print("  scorched %d / %d faces (%.0f%%)" % (n, tot, 100.0 * n / max(1, tot)))
 
     anchor = pick_pilot_anchor([body, engine], fire, mound)
     print("  pilot_anchor %s : %.2f m off the hull, %.2f m from nearest fire, "
           "ground z %.2f" % ([round(x, 2) for x in anchor[:2]], anchor[4],
                              anchor[3], anchor[2]))
+    W.matte()
 
     finish("a1", "a1_skyraider_crashed.glb",
            trimesh_prefixes=("wreck_hard_mound", "wreck_soft_wing", "wreck_soft_tail",
-                             "wreck_soft_panel", "wreck_soft_prop", "wreck_soft_canopy"),
+                             "wreck_soft_panel", "wreck_soft_prop", "wreck_soft_canopy",
+                             "wreck_soft_stab", "wreck_soft_tailfin"),
            sockets=[("fire_socket_1", fire[0]), ("fire_socket_2", fire[1]),
                     ("fire_socket_3", fire[2])],
            anchor=anchor, mound=mound, render=render)
@@ -490,136 +600,196 @@ def build_huey(render=True):
 
 
 # =================================================================== F-4 PHANTOM
+# DONOR: `f4_phantom_v2.glb` (2026-08-14), which replaced the third-party `f4_phantom.glb`
+# whose part NAMES were swapped against its geometry (`F4_Exhaust_R` was the fin) and
+# which embedded a tempfile-named JPEG that Godot re-extracted on every import. The v2
+# airframe is three meshes; parts are found by welding and taking whole components.
 def build_f4(render=True):
     print("=" * 72)
-    print("F-4 PHANTOM WRECK")
+    print("F-4 PHANTOM WRECK  (donor f4_phantom_v2.glb)")
     wipe()
-    got = import_glb(os.path.join(AIR, "f4_phantom.glb"))
-    keep_only(["F4_Fuselage", "F4_Wing_L", "F4_Wing_R", "F4_Canopy", "F4_Intake_L",
-               "F4_Intake_R", "F4_Tank_L", "F4_Tank_R", "F4_GunPod_M61", "F4_HStab_R",
-               "F4_VFin_L", "F4_VFin_L.001", "F4_Exhaust_R", "F4_Pylon_Center",
-               "F4_Pylon_L", "F4_Pylon_R"])
-    # the donor ships two parts whose names are swapped relative to their geometry:
-    # `F4_Exhaust_R` is the 2.9 m VERTICAL FIN (z 1.62..4.51) and the `F4_VFin_*` pair
-    # are the horizontal stabilators. Named here for what they ARE.
-    fus = by_name("F4_Fuselage")
-    lo, hi = bbox([fus])
-    assert hi.y > 10.0, "nose is not at +Y: donor facing changed"
-    print("  donor fuselage %s .. %s" % ([round(x, 2) for x in lo],
+    import_glb(os.path.join(AIR, "f4_phantom_v2.glb"))
+    keep_only(["F4_Airframe", "F4_Stores", "F4_Markings"])
+    air, stores, marks = by_name("F4_Airframe"), by_name("F4_Stores"), by_name("F4_Markings")
+    for o in (air, stores, marks):
+        n0, n1 = weld(o)
+        print("  weld %-14s %4d -> %4d verts, %d parts"
+              % (o.name, n0, n1, len(components(o))))
+
+    lo, hi = bbox([air])
+    assert hi.y > 9.0, "nose is not at +Y: donor facing changed"
+    print("  donor airframe %s .. %s" % ([round(x, 2) for x in lo],
                                          [round(x, 2) for x in hi]))
+    keel = max(components(air).values(), key=lambda d: d["n"])["lo"].z
+    print("  keel (fuselage barrel lowest z) %.3f" % keel)
 
-    # ---- 1. jets break behind the cockpit; keep it to TWO big pieces (ref obs 9)
-    nose = split_faces(fus, lambda c: c.y > 3.05, "wreck_hard_nose")
-    rename(fus, "wreck_hard_fuselage")
-    tear_seam(fus, 1, 3.05, band=0.45, amp=0.16, seed=51)
-    tear_seam(nose, 1, 3.05, band=0.45, amp=0.16, seed=52)
+    join_objs(air, [marks])
 
-    crush(fus, 0.084, lambda y: 0.55 if y > -2.0 else 0.78, widen=0.32)
-    buckle(fus, -3.0, 8.0, hinge_z=0.084)
-    crumple(fus, 0.06, seed=53)
+    # ---- 1. take the aeroplane apart by its own parts
+    canopy = W.split_material(air, "canopy", "wreck_soft_canopy")
+    wing_a = part_split(air, lambda lo, hi, c, n: hi.x > 3.0 and lo.x > 0.3,
+                        "wreck_soft_wing_r")
+    wing_t = part_split(air, lambda lo, hi, c, n: lo.x < -3.0 and hi.x < -0.3,
+                        "wreck_soft_wing_thrown")
+    fin = part_split(air, lambda lo, hi, c, n: abs(c.x) < 0.3 and c.y < -3.0
+                     and hi.z > 1.5, "wreck_soft_tailfin")
+    intake_r = part_split(air, lambda lo, hi, c, n: 0.3 < c.x < 2.0 and c.y > 0.0,
+                          "wreck_soft_intake_r")
+    intake_l = part_split(air, lambda lo, hi, c, n: -2.0 < c.x < -0.3 and c.y > 0.0,
+                          "wreck_soft_intake_l")
+    noz_r = part_split(air, lambda lo, hi, c, n: c.x > 0.1 and -6.0 < c.y < -3.0,
+                       "wreck_soft_nozzle_r")
+    noz_l = part_split(air, lambda lo, hi, c, n: c.x < -0.1 and -6.0 < c.y < -3.0,
+                       "wreck_soft_nozzle_l")
+    stab_r = part_split(air, lambda lo, hi, c, n: c.x > 0.3 and c.y < -6.0,
+                        "wreck_soft_stab_r")
+    stab_l = part_split(air, lambda lo, hi, c, n: c.x < -0.3 and c.y < -6.0,
+                        "wreck_soft_stab_l")
+
+    # stores: one 500 lb bomb tears clear, the wing racks travel with their wing, and the
+    # centreline tank and the belly Sparrows stay on the hull (|x| 0.4-0.8: a plan-x rule
+    # alone would have thrown them 9 m with the port wing).
+    bomb = part_split(stores, lambda lo, hi, c, n: 1.8 < c.x < 2.2 and n >= 40,
+                      "wreck_soft_ord_bomb")
+    # the centreline tank and its pylon go too. Left bolted on they hang 0.8 m below the
+    # keel, so any "sit the wreck in the ground" pass seats the aeroplane ON THE TANK and
+    # the belly ends up 0.41 m proud of a scar it is supposed to be ploughed into.
+    tank = part_split(stores, lambda lo, hi, c, n: abs(c.x) < 0.5, "wreck_soft_tank_thrown")
+    st_r = part_split(stores, lambda lo, hi, c, n: c.x > 1.5, "f4_stores_r")
+    st_l = part_split(stores, lambda lo, hi, c, n: c.x < -1.5, "f4_stores_l")
+    join_objs(air, [stores])
+    join_objs(wing_a, [st_r])
+    join_objs(wing_t, [st_l])
+    print("  parts: wing_r %d, wing_thrown %d, fin %d, intake %d/%d, nozzle %d/%d, "
+          "stab %d/%d, canopy %d, bomb %d tris"
+          % (tris([wing_a]), tris([wing_t]), tris([fin]), tris([intake_r]),
+             tris([intake_l]), tris([noz_r]), tris([noz_l]), tris([stab_r]),
+             tris([stab_l]), tris([canopy]), tris([bomb])))
+
+    # ---- 2. jets break behind the cockpit; keep it to TWO big pieces (ref obs 9).
+    # y 4.80 is just forward of the intake lips (donor station 5.55), so the break takes
+    # the radome, the gun bay and the cockpit floor and leaves the intakes on the centre
+    # section where they belong.
+    body = W.cut_at(air, 1, 4.80, "wreck_hard_fuselage")
+    nose = rename(air, "wreck_hard_nose")
+    tear_seam(nose, 1, 4.80, band=0.45, amp=0.16, seed=51)
+    tear_seam(body, 1, 4.80, band=0.45, amp=0.16, seed=52)
+
+    crush(body, keel, lambda y: 0.72 if y > -2.0 else 0.88, widen=0.32)
+    buckle(body, -3.0, 8.0, hinge_z=keel)
+    crumple(body, 0.06, seed=53)
     # the whole tail group is bolted to the aft fuselage and has to ride the crush and the
     # buckle down with it. Left out, the fin's root ends up standing clear of the spine it
     # is attached to and the fin reads as a loose plate planted in the ground.
-    for nm in ("F4_Exhaust_R", "F4_VFin_L", "F4_VFin_L.001", "F4_HStab_R"):
-        o = by_name(nm)
-        if o:
-            crush(o, 0.084, lambda y: 0.78, widen=0.0)
-            buckle(o, -3.0, 8.0, hinge_z=0.084)
-
-    rigid(nose, rot_deg=(19.0, 0, -33.0), translate=(-2.4, 3.4, -1.1))
-    crush(nose, 0.10, lambda y: 0.72, widen=0.20)
-
-    # ---- 2. one wing attached and bent, one thrown clear
-    wr = rename(by_name("F4_Wing_R"), "wreck_soft_wing_r")
-    rigid(wr, rot_deg=(-19.0, 0, 6.0))
-    edit_verts(wr, lambda p: p + Vector((0, 0, -0.34 * max(0.0, (p.x - 1.0) / 4.8))))
-    tear_seam(wr, 0, 1.0, band=0.25, amp=0.11, seed=54)
-
-    # 38 deg, not 63: a wing lands on edge (ref obs 8), but at 63 deg with 3.18 m of it in
-    # the air it reads as a card planted in flat ground rather than a wing that skidded in
-    wl = rename(by_name("F4_Wing_L"), "wreck_soft_wing_thrown")
-    rigid(wl, rot_deg=(33.0, 8.0, 41.0), translate=(-5.6, -5.9, 0))
-    tear_seam(wl, 0, -1.0, band=0.28, amp=0.13, seed=55)
-
-    # ---- 3. intakes crumple, fin leans, one tank bursts clear
-    for nm, new, sd in (("F4_Intake_L", "wreck_soft_intake_l", 56),
-                        ("F4_Intake_R", "wreck_soft_intake_r", 57)):
-        o = rename(by_name(nm), new)
-        dent(o, (0.0, 4.2, 1.1), 3.0, 0.55, seed=sd)
-        crush(o, 0.58, lambda y: 0.55, widen=0.35)
-
+    tail_grp = [o for o in (fin, stab_l, stab_r, noz_l, noz_r) if o is not None]
+    for o in tail_grp:
+        crush(o, keel, lambda y: 0.78, widen=0.0)
+        buckle(o, -3.0, 8.0, hinge_z=keel)
     # lean the fin about its ROOT. rigid() defaults to the vertex centroid, which for a
-    # 2.9 m fin swings the root 0.4 m clear of the spine and opens daylight under it.
-    fin = rename(by_name("F4_Exhaust_R"), "wreck_soft_tailfin")
+    # 2.4 m fin swings the root clear of the spine and opens daylight under it.
+    # rot_deg=(34, 0, 7) RAKED the fin fore-and-aft and left it dead upright at a
+    # measured 90 deg plate tilt - a fin plate lies in the x=0 plane, so an X euler
+    # cannot lean it. ry is the axis that knocks a fin over.
     fl, fh = bbox([fin])
-    rigid(fin, rot_deg=(41.0, 0, 9.0),
+    rigid(fin, rot_deg=(14.0, 36.0, 0.0),
           pivot=((fl.x + fh.x) / 2.0, (fl.y + fh.y) / 2.0, fl.z))
-    for nm, new in (("F4_VFin_L", "wreck_soft_stab_l"),
-                    ("F4_VFin_L.001", "wreck_soft_stab_r"),
-                    ("F4_HStab_R", "wreck_soft_stab_aft")):
-        o = by_name(nm)
+    for o in (stab_l, stab_r):
         if o:
-            rename(o, new)
-            rigid(o, rot_deg=(0, 17.0, 0))
-    rename(by_name("F4_Tank_R"), "wreck_soft_tank_r")
-    tk = rename(by_name("F4_Tank_L"), "wreck_soft_tank_thrown")
-    rigid(tk, rot_deg=(0, 84.0, 37.0), translate=(-2.6, -3.4, -0.4))
-    crumple(tk, 0.05, seed=58)
-    gp = rename(by_name("F4_GunPod_M61"), "wreck_soft_gunpod")
-    rigid(gp, rot_deg=(8.0, 0, -21.0), translate=(-1.9, -1.4, -0.7))
-    # a canopy off a burning wreck is crazed and opaque, and the donor's glass is
-    # Transmission 0.9 / Alpha 0.35 on a BLENDED material - at 28 Cycles samples with no
-    # denoiser that is the white firefly speckle, and it ships a see-through canopy into
-    # a PSX scene as well. Replace the material rather than dim it.
-    cp = rename(by_name("F4_Canopy"), "wreck_soft_canopy")
-    cp.data.materials.clear()
-    cp.data.materials.append(flat_mat("wreck_canopy_crazed", (0.10, 0.11, 0.10, 1.0),
-                                      rough=0.85))
-    rigid(cp, rot_deg=(44.0, 0, 31.0), translate=(3.7, -2.2, -1.3))
-    for nm in ("F4_Pylon_Center", "F4_Pylon_L", "F4_Pylon_R"):
-        o = by_name(nm)
-        if o:
-            rename(o, "wreck_soft_" + nm.lower()[3:])
+            rigid(o, rot_deg=(0, 15.0, 0))
 
-    # ---- 4. ground and plough
-    thrown = {"wreck_hard_nose", "wreck_soft_wing_thrown", "wreck_soft_tank_thrown",
-              "wreck_soft_gunpod", "wreck_soft_canopy"}
-    sink([o for o in meshes() if o.name not in thrown], -0.26)
+    # ---- 3. intakes crumple where the centre section ploughed in
+    for o, sd in ((intake_r, 56), (intake_l, 57)):
+        if o is None:
+            continue
+        ic = bbox([o])
+        dent(o, (ic[0].x + (ic[1].x - ic[0].x) * 0.5, 3.6, 0.35), 2.6, 0.45, seed=sd)
+        crush(o, keel, lambda y: 0.62, widen=0.30)
 
-    mound = build_mound("wreck_hard_mound", half_x=5.6, half_y=9.0,
-                        nose_y=3.0, tail_y=-8.4, berm_h=1.05, furrow_d=0.52,
-                        hull_hw=1.10, seed=7, rim_noise=0.15,
-                        lobes=((1, 0.045, 75.0), (2, 0.050, 20.0), (3, 0.035, 145.0)))
-    for nm in sorted(thrown):
-        o = by_name(nm)
-        if o:
-            W.seat_on_mound(o, mound, bury=0.30 if nm == "wreck_soft_wing_thrown" else 0.12)
+    # ---- 4. one wing attached and bent, one thrown clear and INVERTED (ref obs 8) -
+    # upright it rests on its own pylons with the panel 0.4 m clear of the dirt.
+    rigid(wing_a, rot_deg=(-6.0, 6.0, 6.0), pivot=(0.95, -0.7, keel + 0.6))
+    edit_verts(wing_a, lambda p: p + Vector((0, 0, -0.20 * max(0.0, (p.x - 1.0) / 4.9))))
+    tear_seam(wing_a, 0, 0.95, band=0.25, amp=0.11, seed=54)
+    tear_seam(wing_t, 0, -0.95, band=0.28, amp=0.13, seed=55)
+    W.place_at(wing_t, -8.2, -6.4)
+    W.lay_flat(wing_t, tilt_deg=8.0, tilt_dir_deg=150.0, spin_deg=64.0, flip=True)
 
-    fire = [(0.0, -4.6, 0.6), (0.0, 1.4, 0.7), (-2.6, -3.4, 0.1)]
+    # a canopy off a burning wreck is crazed and OPAQUE - and it is a smashed frame by the
+    # time it lands, not a bubble sitting on one arc of contact.
+    canopy.data.materials.clear()
+    canopy.data.materials.append(flat_mat("wreck_canopy_crazed", (0.10, 0.11, 0.10, 1.0),
+                                          rough=0.85))
+    # crushed to 0.18 of its height, and NO residual tilt. A 4 m tandem greenhouse is a
+    # long piece: 6 deg of deliberate tilt lifts one end 0.42 m, which on its own took
+    # ground contact down to 14%. Long debris gets flattened, not tilted.
+    ccl, cch = bbox([canopy])
+    crush(canopy, ccl.z, lambda y: 0.18, widen=0.20)
+    crumple(canopy, 0.045, seed=58)
+    W.place_at(canopy, 4.9, 2.4)
+    W.lay_flat(canopy, tilt_deg=0.0, spin_deg=118.0)
+    # heading, not decoration: render azimuths are 0/40/90/150 and a 1.8 m bomb
+    # lying along 152 deg projects to a vertical bar in the high view.
+    rigid(bomb, rot_deg=(0, 8.0, 25.0))
+    W.place_at(bomb, -3.9, 5.6)
+
+    # the nose section is thrown, yawed and dropped just off the break: a 5 m chunk of
+    # fuselage that clears the hulk entirely is a lone rounded body, and a rounded body
+    # lying on flat ground touches along one line - 5% contact was the old build's score.
+    rigid(nose, rot_deg=(11.0, 0, -29.0), translate=(-2.3, 0.5, -1.35))
+    crush(nose, keel, lambda y: 0.70, widen=0.20)
+    crumple(nose, 0.05, seed=59)
+
+    # ---- 5. ground and plough
+    thrown = {"wreck_soft_wing_thrown", "wreck_soft_canopy", "wreck_soft_ord_bomb",
+              "wreck_soft_tank_thrown"}
+    mound = build_mound("wreck_hard_mound", half_x=5.9, half_y=9.4,
+                        nose_y=5.2, tail_y=-8.0, berm_h=0.88, furrow_d=0.52,
+                        hull_hw=1.15, seed=7, rim_noise=0.20,
+                        lobes=((1, 0.10, 55.0), (2, 0.09, 15.0), (3, 0.075, 140.0)))
+    hl, hh = bbox([body])
+    grade = mound_height_at(mound, 0.0, (hl.y + hh.y) * 0.5)
+    print("  slot floor under the hull %.2f -> keel %.2f" % (grade, grade - HULL_BURY))
+    # the mound is in meshes() now that it is built first, and sinking THE GROUND with
+    # the aeroplane leaves every relative clearance exactly where it started.
+    sink_ref([o for o in meshes() if o.name not in thrown and o is not mound],
+             body, grade - HULL_BURY)
+    W.drape_on_mound(wing_t, mound, bury=0.30)
+    W.drape_on_mound(canopy, mound, bury=0.12)
+    rigid(tank, rot_deg=(0, 88.0, 118.0))
+    crumple(tank, 0.05, seed=60)
+    W.place_at(tank, -5.4, 4.4)
+    W.seat_on_mound(tank, mound, bury=0.24)
+    W.seat_on_mound(bomb, mound, bury=0.26)
+    W.seat_group_on_mound([nose], mound, bury=0.42)
+
+    fire = [(0.0, -2.6, 0.20), (1.5, 1.0, -0.10), (-1.6, -0.4, -0.15)]
+    W.soil(("underside", "marking", "store_grey"), k=0.32)
+    W.spatter([wing_t, canopy, bomb, tank], frac=0.45, seed=17)
+    # 2.8 m and a 0.28 core, not 4.2 / 0.42: at the wider setting the soot covered the
+    # whole spine and the Phantom read as a black smear with camo edges. Fresh burn is
+    # soot AT THE SEATS fading out, and the aeroplane has to survive it.
     n, tot = scorch([o for o in meshes() if o.name.startswith("wreck_")
                      and "mound" not in o.name and "canopy" not in o.name],
-                    fire, 4.2, seed=13, core=0.42)
+                    fire, 2.8, seed=13, core=0.28)
     print("  scorched %d / %d faces (%.0f%%)" % (n, tot, 100.0 * n / max(1, tot)))
 
-    anchor = pick_pilot_anchor([fus], fire, mound)
+    anchor = pick_pilot_anchor([body], fire, mound)
     print("  pilot_anchor %s : %.2f m off the hull, %.2f m from nearest fire, "
           "ground z %.2f" % ([round(x, 2) for x in anchor[:2]], anchor[4],
                              anchor[3], anchor[2]))
 
-    # the donor's GunPod_Metal is metallic 0.9 and F4_Tank_Metal 0.8, and the intake's
-    # green_metal_rust drives metallic from a MAP. At 28 Cycles samples with no denoiser
-    # that is the white firefly speckle on the intake, and the values export into the GLB
-    # so Godot inherits the same gloss. PSX materials do not sparkle.
+    # PSX materials do not sparkle, and metallic/roughness export into the GLB so Godot
+    # inherits whatever the donor carried. The v2 donor is already flat, so this is the
+    # guard rather than the fix - it also forces the canopy opaque.
     W.matte()
 
     finish("f4", "f4_phantom_crashed.glb",
            trimesh_prefixes=("wreck_hard_mound", "wreck_soft_wing", "wreck_soft_stab",
                              "wreck_soft_tailfin", "wreck_soft_canopy",
-                             "wreck_soft_intake"),
+                             "wreck_soft_intake", "wreck_soft_nozzle"),
            sockets=[("fire_socket_1", fire[0]), ("fire_socket_2", fire[1]),
                     ("fire_socket_3", fire[2])],
-           anchor=anchor, mound=mound, render=render,
-           flat_debris=(("wreck_soft_wing_thrown", 45.0), "wreck_soft_tank_thrown"))
+           anchor=anchor, mound=mound, render=render)
 
 
 if __name__ == "__main__":

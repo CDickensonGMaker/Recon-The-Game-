@@ -83,9 +83,11 @@ const STRUCTURES := {
 	# ---- Crashed aircraft wrecks (rebuilt 2026-08-13, assets/us/aircraft/build_wrecks.py;
 	# AABBs measured on re-import). Each carries -colonly part colliders + a mound trimesh,
 	# so the box is nav-carve only. Dims include the thrown wing and debris scatter.
-	"a1_skyraider_crashed": {"box": Vector3(18.7, 3.2, 15.2), "y_offset": 1.60, "footprint": Vector2(19.7, 16.2), "scale": 1.0, "mesh": true},
-	"huey_crashed": {"box": Vector3(22.0, 3.2, 20.9), "y_offset": 1.60, "footprint": Vector2(23.0, 21.9), "scale": 1.0, "mesh": true},
-	"f4_phantom_crashed": {"box": Vector3(16.2, 3.2, 25.0), "y_offset": 1.62, "footprint": Vector2(17.2, 26.0), "scale": 1.0, "mesh": true},
+	# a1/f4 re-derived 2026-08-14 from the v2 donors (verify_wrecks.py measures
+	# them); the huey holds its 08-14 fix-pass numbers.
+	"a1_skyraider_crashed": {"box": Vector3(18.8, 1.9, 15.2), "y_offset": 0.95, "footprint": Vector2(19.8, 16.2), "scale": 1.0, "mesh": true},
+	"huey_crashed": {"box": Vector3(20.0, 3.2, 20.0), "y_offset": 1.60, "footprint": Vector2(21.0, 21.0), "scale": 1.0, "mesh": true},
+	"f4_phantom_crashed": {"box": Vector3(20.2, 1.5, 21.0), "y_offset": 0.72, "footprint": Vector2(21.2, 22.0), "scale": 1.0, "mesh": true},
 	"a4_skyhawk": {"box": Vector3(8.4, 3.6, 12.8), "y_offset": 0.82, "footprint": Vector2(9.5, 14.0), "scale": 1.0},
 	"aid_station": {"box": Vector3(8.0, 3.0, 6.0), "y_offset": 1.52, "footprint": Vector2(9.0, 7.5), "scale": 1.0},
 	"aircraft_revetment": {"box": Vector3(20.0, 3.0, 15.0), "y_offset": 1.50, "footprint": Vector2(21.0, 16.0), "scale": 1.0},

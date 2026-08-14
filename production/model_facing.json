@@ -1,7 +1,7 @@
 {
-	"res://assets/us/aircraft/a1_skyraider.glb": -180.0,
-	"res://assets/us/aircraft/a1_skyraider_crashed.glb": -180.0,
+	"res://assets/us/aircraft/a1_skyraider.glb": 0.0,
+	"res://assets/us/aircraft/a1_skyraider_crashed.glb": 0.0,
 	"res://assets/us/aircraft/a4_skyhawk.glb": 0.0,
-	"res://assets/us/aircraft/ac47_spooky.glb": -180.0,
+	"res://assets/us/aircraft/ac47_spooky.glb": 0.0,
 	"res://assets/us/aircraft/f4_phantom.glb": 0.0
 }
