@@ -1179,3 +1179,12 @@ Phase averages improved across runs (EVERYTHING 43.6 -> ~19-21ms over three post
 runs) but single-run variance is high and wave timing differs per run — the average
 claims wait for a fixed-seed crucible. The leak-column lesson applies to perf: never
 celebrate on one reading.
+
+### 2026-08-14 morning — THE DEMO'S OWN NUMBERS, first rows (perf_probe, real renderer)
+
+`--perf-probe` on the shipping demo scene, 1280x720, Intel UHD, render scale 0.75 (the
+shipped lever): **baseline 34.5 fps avg / 33.0 min · GPU 24.06ms avg (26.64 max) · CPU
+3.67ms (7.81 max) · 1,764 draw calls · 324k prims · 2,597 objects.** The demo's quiet
+frame is markedly lighter than the arena bench's (24 vs 41.6ms GPU) - the arena
+over-represents jungle density. The siege-study phases (quiet / assault_in /
+assault_on_wire) are running as this is written; their rows land next.
