@@ -1647,3 +1647,32 @@ ac47_spooky measured raw at 4.34m against its import-scale band [26,32]) — non
 today's assets, all predate the chain, none in $KnownRed so the test reads FAIL.
 Triage: post-demo unless a band was wrong all along. Also queued from the M113 report:
 cupola traverse clamp (swinging the .50 sweeps outside the authored box).
+
+## 2026-08-15 - AIR-SUPPORT STUTTER: KILLED, AND THE HANDOFF'S SUSPECT WAS INNOCENT
+
+The 8/14 handoff blamed fire-support dispatch instantiation; the fixed SpawnLedger
+(process-frame key + two-frame window - the old physics key made every burst frame
+read "no spawns") proved the bursts were **mass man instantiation**: 18-24 enemies /
+22-23 allies in single frames, via MarchingCell's physics-keyed budget multiplying
+under catch-up ticks plus three ungated bulk loops (arena waves,
+`_garrison_stand_to` - the demo's siege-moment burst). Fix: one global render-frame
+spawn gate (2 men/frame), all bulk spawners drip through it. GunFX/canister timing
+UNTOUCHED - the napalm/arty look cannot have changed (zero visual-path edits; the
+only GunFX diff is ledger note() calls). Full numbers: PERF_LEDGER 2026-08-15 entry.
+Crucible burst class (+2-4.6k nodes/frame) eliminated; demo siege averages all
+improved (33.9/27.4/22.6 vs 31.6/22.4/21.9); ~5fps minimums remain, now GPU-led.
+
+**HIS HUEY ASK (same evening) SHIPPED:** rotary transits now fly a loose gaggle -
+shuffled lanes both sides of the lead, random following distances, per-ship altitude,
+no term multiplies by slot index so no line can form (`air_traffic.gd` GAGGLE_*).
+Jets/props keep the rigid echelon per his ruling ("jets and planes would read better
+as solid formations"). test_air_formation min-separation gate holds (39.1m).
+
+**QUEUED:** pre-pooled ModelActor bodies (kills the ~35ms/man drip window, post-demo) -
+lazy_group/ambient_encounters/mission_generator bulk loops not yet gated (small groups,
+patrol-world paths; gate them when the open world returns) - the arena WAVE/FIRES 1%
+regression is the drip visible under arena-only arrival rates.
+
+**RATCHETS this session:** doc-pointers 2 new violations in SIEGE_REPLAY_CHECKLIST.md
+fixed on contact (0 now) - liveness: frame_report seam-registered (17 seams) -
+fossils 28/28 clean - ship parity PASS.

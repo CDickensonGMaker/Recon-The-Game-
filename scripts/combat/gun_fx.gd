@@ -314,6 +314,7 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		lifetime_mult: float = 1.0, kind: String = "explosion_grenade") -> void:
 	if parent == null:
 		return
+	SpawnLedger.note("gunfx_explosion")
 	# Prune freed explosions so a teardown that frees one early can't leak the
 	# count and silence ALL future explosions (the cap-leak bug).
 	# Param stays untyped: a freed object cannot convert to Node, so typing it
@@ -638,6 +639,7 @@ const FLASH_SECONDS: float = 0.06
 static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
+	SpawnLedger.note("muzzle_flash")
 	_active_flashes += 1
 	var root := Node3D.new()
 	parent.add_child(root)
@@ -702,6 +704,7 @@ static func cannon_flash(parent: Node, pos: Vector3, size: float = 2.0) -> void:
 ## Bullet impact: dirt/dust puff + positional thud.
 static func impact(parent: Node, pos: Vector3, normal: Vector3, hard: bool = false) -> void:
 	if _active_impacts < MAX_IMPACTS:
+		SpawnLedger.note("gunfx_impact")
 		_active_impacts += 1
 		var key := "impact_hard_proc" if hard else "impact_dirt_proc"
 		var col := Color(0.75, 0.7, 0.55) if hard else Color(0.45, 0.38, 0.28)

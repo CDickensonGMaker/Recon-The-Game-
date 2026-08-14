@@ -107,6 +107,7 @@ func _play_gun(stream: AudioStream, db: float) -> void:
 
 
 static func call_in(parent: Node, terrain_manager: TerrainManager, target_pos: Vector3) -> SpectreGunship:
+	SpawnLedger.note("spectre")
 	var ship := SpectreGunship.new()
 	ship.terrain = terrain_manager
 	ship.target = target_pos

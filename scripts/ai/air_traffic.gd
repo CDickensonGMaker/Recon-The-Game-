@@ -45,6 +45,19 @@ const FORMATION_CHANCE: float = 0.85
 const ECHELON_LATERAL_M := Vector2(45.0, 70.0)
 const ECHELON_ALT_M := Vector2(8.0, 12.0)
 const ECHELON_TRAIL_M := Vector2(15.0, 30.0)
+## Rotary flies a loose GAGGLE, never the echelon (his ruling 2026-08-14: Hueys
+## were reading as one straight/diagonal line; they should disperse as if
+## maneuvering around each other, while jets keep solid formations). Each
+## wingman draws a shuffled lateral LANE (both sides of the lead, no two shared,
+## so ships never overlap) plus jitter, a cumulative random following distance,
+## and its own altitude - no term multiplies by slot index, so no line can form.
+## Bounds contract (test_air_formation min-separation gate, 30m): worst case
+## lead-to-first-wingman is sqrt((LANE - JITTER)^2 + TRAIL.x^2) = 32.3m.
+const GAGGLE_KINDS: Array[String] = ["huey"]
+const GAGGLE_LANE_M: float = 24.0
+const GAGGLE_LANE_JITTER_M: float = 8.0
+const GAGGLE_TRAIL_M := Vector2(28.0, 60.0)
+const GAGGLE_ALT_M := Vector2(3.0, 17.0)
 ## A flight that never arrives is a leak. Nothing may outlive this.
 const MAX_FLIGHT_SECONDS: float = 240.0
 ## How close a flight has to pass for the jungle to hear it.
@@ -532,6 +545,8 @@ func _dispatch(kind: String, force_ships: int = 0) -> void:
 		return
 	var dir: Vector3 = (to - from).normalized()
 	var side: Vector3 = Vector3(-dir.z, 0.0, dir.x) * (1.0 if frng.randf() < 0.5 else -1.0)
+	var lanes: Array[int] = _gaggle_lanes(ships - 1, frng)
+	var trail_acc: float = 0.0
 	for i in range(1, ships):
 		# THE CEILING BINDS EVERY SHIP, NOT JUST THE LEAD. It used to be checked once,
 		# above, and then up to eight wingmen were added unchecked - so a dispatch at
@@ -542,12 +557,36 @@ func _dispatch(kind: String, force_ships: int = 0) -> void:
 			print("[AIR] %s pack cut to %d of %d - ceiling %d reached"
 				% [kind, i, ships, MAX_IN_FLIGHT])
 			return
-		var off: Vector3 = side * (frng.randf_range(ECHELON_LATERAL_M.x, ECHELON_LATERAL_M.y) * float(i)) \
-			- dir * (frng.randf_range(ECHELON_TRAIL_M.x, ECHELON_TRAIL_M.y) * float(i))
-		var wing: Node3D = _spawn_transit(kind, from + off, to + off,
-			frng.randf_range(ECHELON_ALT_M.x, ECHELON_ALT_M.y) * float(i))
+		var off: Vector3
+		var alt: float
+		if kind in GAGGLE_KINDS:
+			trail_acc += frng.randf_range(GAGGLE_TRAIL_M.x, GAGGLE_TRAIL_M.y)
+			var lane: float = float(lanes[i - 1]) * GAGGLE_LANE_M \
+				+ frng.randf_range(-GAGGLE_LANE_JITTER_M, GAGGLE_LANE_JITTER_M)
+			off = side * lane - dir * trail_acc
+			alt = frng.randf_range(GAGGLE_ALT_M.x, GAGGLE_ALT_M.y)
+		else:
+			off = side * (frng.randf_range(ECHELON_LATERAL_M.x, ECHELON_LATERAL_M.y) * float(i)) \
+				- dir * (frng.randf_range(ECHELON_TRAIL_M.x, ECHELON_TRAIL_M.y) * float(i))
+			alt = frng.randf_range(ECHELON_ALT_M.x, ECHELON_ALT_M.y) * float(i)
+		var wing: Node3D = _spawn_transit(kind, from + off, to + off, alt)
 		if wing != null:
 			_roster(kind, wing, from + off, to + off, "transit")
+
+
+## Shuffled lane indices spanning both sides of the lead (lead holds lane 0),
+## Fisher-Yates on the flight's own RNG (ADR-010: never the global RNG).
+func _gaggle_lanes(count: int, frng: RandomNumberGenerator) -> Array[int]:
+	var lanes: Array[int] = []
+	for j in range(count):
+		var mag: int = (j / 2) + 1
+		lanes.append(mag if j % 2 == 0 else -mag)
+	for j in range(lanes.size() - 1, 0, -1):
+		var k: int = frng.randi_range(0, j)
+		var tmp: int = lanes[j]
+		lanes[j] = lanes[k]
+		lanes[k] = tmp
+	return lanes
 
 
 ## The transit schedule payload carries no seed, so a wingman roll derives its

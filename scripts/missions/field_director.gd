@@ -675,6 +675,7 @@ func authored_strike(at: Vector3, ordnance: CASAirplane.Ordnance,
 
 
 func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
+	SpawnLedger.note("cas_airframe_a1")
 	var plane: CASAirplane = SKYRAIDER_SCENE.instantiate()
 	world.add_child(plane)
 	plane.call_strike(world.terrain_manager, target, ordnance, _run_axis(target, run))
@@ -682,6 +683,7 @@ func _launch_cas(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 =
 
 ## F-4 fast horizontal flyby (napalm/CBU): in low, pickle on the pass, climb out.
 func _launch_flyby(target: Vector3, ordnance: CASAirplane.Ordnance, run: Vector3 = Vector3.ZERO) -> void:
+	SpawnLedger.note("cas_airframe_f4")
 	var plane: CASAirplane = F4_SCENE.instantiate()
 	world.add_child(plane)
 	plane.call_flyby(world.terrain_manager, target, ordnance, _run_axis(target, run))
@@ -1025,6 +1027,7 @@ func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable,
 	if source == Vector3.ZERO and fsb_center == Vector3.ZERO:
 		azimuth = Vector3(0.6, 0.0, -0.8)
 	var from: Vector3 = Ballistics.firing_point(ground, azimuth, SHELL_APEX_M, SHELL_STANDOFF_M)
+	SpawnLedger.note("fd_shell")
 	Ballistics.fire_arc(data, from, ground, SHELL_FLIGHT_S, world.terrain_manager, terminal)
 
 
@@ -1611,9 +1614,18 @@ func _garrison_stand_to() -> void:
 		return
 	_garrison_stood_to = true
 	var promoted: int = 0
+	# Dripped through the global spawn gate: promoting the whole garrison in one
+	# frame is the same worst-frame class the crucible ledger named (each promote
+	# is a full AllyBase instantiation). ~2 men a frame, the wire cannot tell.
 	for n in get_tree().get_nodes_in_group("firebase_garrison"):
 		var civ := n as Civilian
 		if civ == null:
+			continue
+		while not MarchingCell._take_spawn_token():
+			await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		if not is_instance_valid(civ):
 			continue
 		if GarrisonDefender.promote(civ, self, fsb_center) != null:
 			promoted += 1

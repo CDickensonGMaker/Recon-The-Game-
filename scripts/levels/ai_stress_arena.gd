@@ -253,6 +253,9 @@ var _us_reserves_left: int = 0
 var _vc_reserves_left: int = 0
 var _us_reinforce_cd: float = 0.0
 var _vc_reinforce_cd: float = 0.0
+## Squad drips still arriving. The attrition trigger must not read a half-dripped
+## roster as casualties - that burned every reserve wave into BASELINE.
+var _waves_dripping: int = 0
 const REINFORCE_INTERVAL_MIN: float = 25.0
 const REINFORCE_INTERVAL_MAX: float = 40.0
 
@@ -1655,6 +1658,10 @@ func _launch_arena_sappers() -> void:
 	var aim_z: float = (FORT_LINE_Z0 + FORT_LINE_Z1) * 0.5
 	var base := Vector3(FORT_LINE_X + 55.0, 1.0, aim_z)
 	for i in range(ARENA_SAPPER_COUNT):
+		while not MarchingCell._take_spawn_token():
+			await get_tree().process_frame
+		if not is_inside_tree():
+			return
 		var off := Vector3(_rng.randf_range(-5, 5), 0.0, float(i - 1) * 7.0)
 		var sapper := EnemyBase.spawn_enemy(self, base + off, SiegeDirector.SAPPER_DATA)
 		if sapper == null:
@@ -1733,18 +1740,35 @@ func _spawn_initial_forces() -> void:
 		else:
 			order = AllyBase.OrderMode.MOVE_TO
 			order_pos = Vector3(-20.0 + float(i) * 8.0, 1.0, 10.0)
-		_spawn_us_squad(center, order, order_pos, men_per_squad)
+		_spawn_us_squad(center, order, order_pos, men_per_squad, true)
 
 	for i in range(vc_squads_active):
 		var center: Vector3 = vc_bases[i % vc_bases.size()] + Vector3(_rng.randf_range(-5, 5), 0, _rng.randf_range(-5, 5))
-		_spawn_vc_squad(center, i, men_per_squad, _patrol_active)
+		_spawn_vc_squad(center, i, men_per_squad, _patrol_active, true)
 
 
-func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vector3, count: int) -> void:
+## Drips men through the global spawn gate - a whole squad in one frame is the
+## measured worst-frame class (+2,000..+4,600 nodes; crucible ledger 2026-08-15).
+## Fire-and-forget coroutine: the squad array is filed BEFORE the drip so counts
+## and iteration see men as they arrive. `instant` is the BOOT path only - the
+## pre-settle frame is off every scoreboard, and a boot drip left the roster
+## half-empty long enough for _update_reinforcements to burn reserve waves
+## into BASELINE (measured on the first post-fix crucible).
+func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vector3,
+		count: int, instant: bool = false) -> void:
 	var squad: Array[AllyBase] = []
+	_us_squads.append(squad)
+	if not instant:
+		_waves_dripping += 1
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.seed + _us_squads.size() * 97
 	for i in range(count):
+		if not instant:
+			while not MarchingCell._take_spawn_token():
+				await get_tree().process_frame
+			if not is_inside_tree():
+				_waves_dripping -= 1
+				return
 		var mos: String = US_SQUAD_MOS[i % US_SQUAD_MOS.size()]
 		var pos := center + _ring_offset(i)
 		var ally := AllyBase.spawn_ally(self, pos)
@@ -1756,7 +1780,9 @@ func _spawn_us_squad(center: Vector3, order: AllyBase.OrderMode, order_pos: Vect
 		if mos == "MG":
 			ally.fire_rate_mult = 1.6
 		squad.append(ally)
-	_us_squads.append(squad)
+	if not instant:
+		_waves_dripping -= 1
+	call_deferred("_finish_agent_setup")
 
 
 ## Concentric rings of 8 so a wave of up to 26 men spreads out instead of stacking.
@@ -1768,8 +1794,13 @@ func _ring_offset(i: int) -> Vector3:
 	return Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 
 
-func _spawn_vc_squad(center: Vector3, squad_idx: int, count: int, patrol: bool) -> void:
+## Drips through the global spawn gate - see _spawn_us_squad.
+func _spawn_vc_squad(center: Vector3, squad_idx: int, count: int, patrol: bool,
+		instant: bool = false) -> void:
 	var squad: Array[EnemyBase] = []
+	_vc_squads.append(squad)
+	if not instant:
+		_waves_dripping += 1
 	var squad_id: int = 1000 + squad_idx
 	# One patrol route per squad, from the spawn toward the central contact zone.
 	var route: Array[Vector3] = []
@@ -1778,6 +1809,12 @@ func _spawn_vc_squad(center: Vector3, squad_idx: int, count: int, patrol: bool) 
 		var near_centre: Vector3 = CONTACT_POINT + Vector3(_rng.randf_range(-12, 12), 0, _rng.randf_range(-12, 12))
 		route = [center, mid, near_centre]
 	for i in range(count):
+		if not instant:
+			while not MarchingCell._take_spawn_token():
+				await get_tree().process_frame
+			if not is_inside_tree():
+				_waves_dripping -= 1
+				return
 		var dp: String = VC_PATHS[i % VC_PATHS.size()]
 		var pos := center + _ring_offset(i)
 		var enemy := EnemyBase.spawn_enemy(self, pos, dp)
@@ -1804,7 +1841,9 @@ func _spawn_vc_squad(center: Vector3, squad_idx: int, count: int, patrol: bool) 
 		if nav_agent != null and _nav_region != null:
 			nav_agent.set_navigation_map(_nav_region.get_navigation_map())
 		squad.append(enemy)
-	_vc_squads.append(squad)
+	if not instant:
+		_waves_dripping -= 1
+	call_deferred("_finish_agent_setup")
 
 
 func _hot_start_combat() -> void:
@@ -1926,6 +1965,8 @@ func _wave_size() -> int:
 
 
 func _update_reinforcements(delta: float) -> void:
+	if _waves_dripping > 0:
+		return
 	var spawned: bool = false
 	var interval_min: float = REINFORCE_INTERVAL_MIN / maxf(0.1, reserve_rate_multiplier)
 	var interval_max: float = REINFORCE_INTERVAL_MAX / maxf(0.1, reserve_rate_multiplier)
@@ -1964,7 +2005,8 @@ func debug_spawn_wave(is_us: bool) -> int:
 	else:
 		var center := Vector3(70.0 + _rng.randf_range(-6, 6), 1.0, -70.0 + _rng.randf_range(-6, 6))
 		_spawn_vc_squad(center, 2000 + _vc_squads.size(), n, false)
-	call_deferred("_finish_agent_setup")
+	# _finish_agent_setup runs from each squad drip's completion, covering the
+	# men that arrive after this returns.
 	return n
 
 

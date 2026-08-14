@@ -379,6 +379,7 @@ func _release(shell_path: String, pos: Vector3, terminal: Callable) -> Projectil
 	if data == null:
 		return null
 	var sol: Dictionary = _drop_solution(pos)
+	SpawnLedger.note("cas_store")
 	return Ballistics.fire_arc(data, global_position, sol.ground, sol.time, terrain, terminal)
 
 
@@ -464,6 +465,7 @@ static func _open_cluster_at(tree: SceneTree, tm: TerrainManager, run_dir: Vecto
 		ground.y = tm.get_height_at(pos) if tm else pos.y
 		var t: float = sqrt(2.0 * maxf(2.0, from.y - ground.y) / g)
 		var is_first := (i == 0)
+		SpawnLedger.note("cbu_bomblet")
 		Ballistics.fire_arc(data, from, ground, t, tm, func(impact: Vector3) -> void:
 			CombatManager.apply_explosion_damage(impact, 55, 15, FirePlan.CBU_BOMBLET_BLAST_M, null)
 			GunFX.play_explosion_3d(tree.current_scene, impact, "explosion_grenade")

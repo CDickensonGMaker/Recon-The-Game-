@@ -1,9 +1,11 @@
 # THE SIEGE REPLAY — one run, one page (DEMO_TIGHT_40 step 1)
 
-Boot the demo (`demo_game.tscn`), play the day into the night attack, live to the end
-card. Everything below changed since your last validated siege and lands in this one
-run. Tick what reads right; anything that reads wrong, just note WHAT you saw — the
-probes carry the numbers.
+*(Written 2026-08-14; claims below are as of that date.)*
+
+Boot the demo (`scenes/levels/demo_game.tscn`), play the day into the night attack,
+live to the end card. Everything below changed since your last validated siege and
+lands in this one run. Tick what reads right; anything that reads wrong, just note
+WHAT you saw — the probes carry the numbers.
 
 ## On the walk out (daytime)
 - [ ] **Berms and bunkers**: walk INTO a berm-side bunker (posts 0/6/14/35 were the
@@ -19,8 +21,8 @@ probes carry the numbers.
 
 ## The night attack
 - [ ] **The assault spawns outside the wire** — no bodies popping inside the compound
-      (the ring was straying 47m; it is center-true now, and `[SIEGE] aim offset`
-      prints the number in the log).
+      (the ring was straying 47m as of 2026-08-13; it is center-true now, and
+      `[SIEGE] aim offset` prints the number in the log).
 - [ ] **Squads use satchel holes**: when sappers blow the parapet, the squads nearer
       the hole press THROUGH it into the compound instead of queueing at the gate.
 - [ ] **Hooches that die BURST at mortar size, catch fire, and swap to the burned

@@ -303,6 +303,7 @@ func _spawn_broken(entry: Dictionary) -> BrokenTree:
 	var parts: Array[String] = [nm + "_stump", nm + "_stem", nm + "_crown"]
 	if layer.has_method("load_species"):
 		layer.call("load_species", parts)
+	SpawnLedger.note("tree_break")
 	var bt := BrokenTree.new()
 	bt.species = nm
 	bt.source_xf = entry["xf"]

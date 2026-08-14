@@ -33,6 +33,7 @@ var _flicker: float = 1.0
 
 
 static func create_at(parent: Node, pos: Vector3, radius: float = 10.0, dur: float = 15.0) -> FireHazard:
+	SpawnLedger.note("fire_hazard")
 	var hazard := FireHazard.new()
 	hazard.hazard_radius = radius
 	hazard.duration = dur

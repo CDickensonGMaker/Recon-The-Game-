@@ -1225,3 +1225,57 @@ phase signature:
   instantiation** (napalm run airframe + canisters + GunFX procs; arty barrage). This is
   the demo-relevant class — the demo's 5-7fps siege minimums live here. Next lever:
   stagger or pool the fire-support proc instantiation the way MarchingCell was staggered.
+
+### 2026-08-15 - THE SPAWN-BURST FIX (crucible x4 + demo siege study; supersedes the 8/14 attribution)
+
+**The 8/14 negative attribution above was an instrument bug, and its conclusion was
+wrong.** SpawnLedger keyed its counts on the PHYSICS frame; a 280ms hitch frame runs
+many catch-up physics ticks, each wiping the previous tick's counts, so the burst
+frames read "no spawns" on exactly the frames the ledger existed to explain. A second
+off-by-one hid the rest: the tracer reports in frame N+1 with a node delta measured
+across frame N, but read only frame N+1's bucket. Both fixed
+(`scripts/world/spawn_ledger.gd` - process-frame key + two-frame report window), the
+re-run named every burst frame: **EnemyBase.spawn_enemy x18-24 and AllyBase.spawn_ally
+x22-23 per hitch frame - mass MAN instantiation, not fire-support dispatch.** The
+fire-support procs measured small on the same frames (gunfx_explosion x2-3, fire_hazard
+x2, fd_shell x3). `_hot_start_combat` was also mis-blamed on 8/14: it spawns nobody
+(state flips only); COMBAT's +4k frame was a reinforcement wave.
+
+**Root cause:** MarchingCell's 2/frame token bucket refilled per PHYSICS frame, so a
+hitching render frame's catch-up ticks each granted fresh tokens - 15-24 men in one
+260ms rendered frame while the budget reported "as designed". A death spiral: the slow
+frame buys itself more spawns. And three bulk loops never used the bucket at all
+(arena wave/squad/sapper spawns, `FieldDirector._garrison_stand_to` - the demo's own
+siege-moment burst, the whole garrison promoted in one frame).
+
+**Fix** (`marching_cell.gd` bucket keyed on `Engine.get_process_frames()`;
+`ai_stress_arena.gd` wave/squad/sapper loops + `field_director.gd:_garrison_stand_to`
+drip through it; boot-time initial forces stay instant and `_waves_dripping` holds the
+attrition trigger while a wave is still arriving - a half-dripped roster read as
+casualties and burned reserves into BASELINE on the first attempt):
+
+Crucible headless, same box, before (8/15 run with ledger armed) -> after:
+```
+phase        avg ms          1% ms           worst ms        hitch>100ms
+BASELINE     9.3  -> 8.8     22   -> 22      92   -> 73      0  -> 0
+COMBAT       10.0 -> 9.9     23   -> 24      271  -> 96      3  -> 9
+WAVE         18.6 -> 21.9    60   -> 134     263  -> 244     9  -> ~30
+FIRES        25.2 -> 30.1    54   -> 183     270  -> 240     2  -> ~15
+EVERYTHING   21.9 -> 17.7    36   -> 68      286  -> 161     13 -> ~7
+```
+The +2,000-4,600-node single-frame class is GONE (biggest node delta after: +650).
+The trade is explicit: the one-frame freeze became a run of 100-160ms frames across a
+wave's arrival (~30-40ms/man instantiation on this box is the floor - the drip
+spreads it, nothing yet removes it). SPAWN_PER_FRAME=1 was measured and REJECTED
+(doubles the arrival window: FIRES avg 30->37, hitches 61->107); 2/frame stands.
+
+Demo siege study (`--perf-probe --perf-siege`, shipping scene, 0.75 scale, same box,
+vs the 8/14 rows): **quiet 33.9 avg / 9 min (was 31.6/5) - assault_in 27.4 / 5 (was
+22.4/6) - assault_on_wire 22.6 / 5 (was 21.9/7)**. Every average improved; the ~5fps
+minimums remain and are GPU-led dips (gpu_ms_max 35-41 vs cpu_ms_max 9-10), no longer
+CPU spawn bursts. The proposed >=20avg gate now carries ~2.6fps margin on the wire.
+
+**Queued from this run:** per-man instantiation cost (~35ms) is the remaining lever -
+pre-pooled ModelActor bodies would kill the drip window entirely (post-demo,
+content-first rule). The WAVE/FIRES 1% regression on the ARENA bench is the drip made
+visible under a 30-man siege + 26-man waves; the demo never fields that arrival rate.

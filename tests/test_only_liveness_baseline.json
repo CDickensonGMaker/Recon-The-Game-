@@ -23,14 +23,15 @@
 		"scripts/missions/scripted_sequence.gd|is_running",
 		"scripts/vehicles/seat_system.gd|available_seats",
 		"scripts/vehicles/seat_system.gd|is_full",
+		"scripts/world/spawn_ledger.gd|frame_report",
 		"scripts/world/tree_break_system.gd|registered_count",
 		"scripts/world/tree_break_system.gd|species_count",
 		"terrain/core/heightmap_storage.gd|norm_to_meters",
 		"terrain/core/terrain_manager.gd|get_loaded_chunk_count",
 		"terrain/water/water_system.gd|get_stats"
 	],
-	"seam_count": 16,
-	"seam_ceiling": 16,
+	"seam_count": 17,
+	"seam_ceiling": 17,
 	"grandfather_log": [
 		{
 			"date": "2026-07-20",
@@ -112,6 +113,15 @@
 				"scripts/world/tree_break_system.gd|species_count"
 			],
 			"as": "seams"
+		},
+		{
+			"date": "2026-08-14",
+			"reason": "frame_report is the crucible hitch tracer's read-only ledger observer (tools/probe_crucible.gd); production writes the ledger via note(), only the instrument reads it",
+			"added": [
+				"scripts/world/spawn_ledger.gd|frame_report"
+			],
+			"as": "seams",
+			"note": "entered via --grandfather without --seam, reclassified to seams by hand the same session (the 2026-07-20 classification-pass precedent); debt witnesses restored to 7/7"
 		}
 	]
 }

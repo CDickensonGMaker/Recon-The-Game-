@@ -129,8 +129,21 @@ func materialize_if_lit() -> bool:
 ## The budget is SHARED across cells because the center-true pop ring lands
 ## several cells on the same frame - a per-cell cap alone still burst +1,547
 ## nodes (measured on the post-fix crucible). The first man of a pop spawns
-## inside materialize() so the pop is never an empty frame; the budget refills
-## per physics frame, keyed by frame id (no reset hook needed).
+## inside materialize() so the pop is never an empty frame.
+##
+## Keyed on the RENDER frame, not the physics frame: a hitching frame runs many
+## catch-up physics ticks, and a physics-keyed budget refilled on every one of
+## them - 15-24 men in a single 260ms rendered frame while the budget reported
+## "as designed" (crucible ledger 2026-08-15). That is a death spiral: the slow
+## frame buys itself MORE spawns. This bucket is the game-wide gate; any bulk
+## man-spawner (arena waves included) drips through it.
+##
+## TWO men a frame, measured against 1/frame on back-to-back crucibles
+## (2026-08-15): 1/frame doubles the arrival window and made every phase
+## average WORSE (FIRES 30->37ms avg, 61->107 hitch lines) while the per-frame
+## cost barely moved - the drip frame's floor is combat load + physics
+## catch-up, not the second man. Do not "optimise" this to 1 without re-running
+## both configs.
 const SPAWN_PER_FRAME: int = 2
 static var _budget_frame: int = -1
 static var _budget_left: int = 0
@@ -138,7 +151,7 @@ var _spawn_left: int = 0
 
 
 static func _take_spawn_token() -> bool:
-	var f: int = Engine.get_physics_frames()
+	var f: int = Engine.get_process_frames()
 	if f != _budget_frame:
 		_budget_frame = f
 		_budget_left = SPAWN_PER_FRAME
