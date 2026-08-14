@@ -369,11 +369,11 @@ const CONVOY_MAX: int = 6
 
 static func _convoy_composition(rng: RandomNumberGenerator) -> Array:
 	var total: int = rng.randi_range(CONVOY_MIN, CONVOY_MAX)
-	var out: Array = ["m151_mutt_gun_jeep"]
+	var out: Array = ["m151_mutt_gun_jeep_v2"]
 	for i in range(total - 2):
 		out.append("m35_deuce_truck" if rng.randf() < 0.75 else "m113_apc")
 	if total >= 2:
-		out.append("m151_mutt_gun_jeep" if rng.randf() < 0.6 else "m113_apc")
+		out.append("m151_mutt_gun_jeep_v2" if rng.randf() < 0.6 else "m113_apc")
 	return out
 
 

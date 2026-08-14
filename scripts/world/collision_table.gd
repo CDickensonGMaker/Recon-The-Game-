@@ -55,6 +55,9 @@ const STRUCTURES := {
 	# Vehicles (props)
 	"m113_apc": {"box": Vector3(2.7, 2.2, 5), "y_offset": 1.1, "footprint": Vector2(6, 3.5), "scale": 1.0},
 	"m151_mutt_gun_jeep": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
+	# v2 rebuild 2026-08-14 (verify_m151_v2.py): 1.633 x 1.765 x 3.371 on a
+	# ground-line origin - fits the same authored box; ships its own -colonly tub.
+	"m151_mutt_gun_jeep_v2": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0, "mesh": true},
 	# huey_v3.glb measures 2.845 W x 3.003 H x 12.90 L (tail fin included); the box is a
 	# near-exact fit, but the last ~0.5m of tail boom sits outside it.
 	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},
@@ -304,6 +307,7 @@ const MATERIALS := {
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
 	"ch47_chinook": Mat.METAL, "huey": Mat.METAL,
 	"m113_apc": Mat.METAL, "m151_mutt_gun_jeep": Mat.METAL, "m35_deuce_truck": Mat.METAL,
+	"m151_mutt_gun_jeep_v2": Mat.METAL,
 	"a1_skyraider": Mat.METAL, "a4_skyhawk": Mat.METAL, "f4_phantom": Mat.METAL,
 	"Bomb_250lb_Mk81": Mat.METAL, "Bomb_500lb_Mk82": Mat.METAL,
 	"Bomb_1000lb_Mk83": Mat.METAL, "Bomb_2000lb_Mk84": Mat.METAL,

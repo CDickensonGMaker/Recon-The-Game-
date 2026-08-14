@@ -1167,3 +1167,116 @@ comparable figure is fin-top-above-the-aft-centreline, **3.01 m** (real ~2.8).
   where a real C-47's runs parallel to s 13.6, so the battery sits 0.5 m forward of the drawing's
   stations and the door is 1.28 m tall rather than 1.73. Every corner is ray-verified against the
   skin, so that compromise cannot silently drift.
+
+## 2026-08-14 · `m151_mutt_gun_jeep_v2` shipped — new variant, originals untouched
+
+`assets/us/vehicles/m151_mutt_gun_jeep_v2.glb` (101 KB) + `.blend`. Built entirely from
+`tools/build_m151_v2.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_m151_v2.py`, which asserts the contract on the SHIPPED GLB — **VERIFY PASS,
+0 failures**. `m151_mutt_gun_jeep.glb` (2026-05-25) and `m151_rigged.blend` (2026-07-29)
+are untouched, mtimes intact. No `.blend1` (`filepaths.save_version = 0` in the build).
+
+**Numbers.** **1,828 visible tris** (+24 collider) · 11 mesh nodes + 4 socket empties ·
+**7 flat materials, all metallic 0.0, no textures at all** · length **3.371** (real 3.371) ·
+width **1.633** (real 1.633) · height **1.765** (real 1.803 top-up, −2.1%) · wheelbase
+**2.159** · track **1.346** · tyre OD **0.780**. Every linear dimension is exact except
+height, which is driven by the pedestal M60 rather than a canvas top.
+
+**Distribution is the point, not the count.** Body 1,000 tris (**54.7%**); wheels+spare 564
+(31%); gun+mount 272; windscreen 84. The shipped jeep spent **41.3% on two tow hooks and a
+steering wheel** and 5.4% on all bodywork. **No tori anywhere** — the steering wheel is a
+10-segment ring, the tow eyes are boxes. The verifier asserts body >= 40% of visible tris.
+
+**ORIGIN: the GROUND LINE**, on the centreline, at the longitudinal centre of the
+bumper-to-bumper envelope. This is NOT the aircraft convention (centre of mass) and the
+consumers decided it:
+- `destructible_vehicle.gd:30-31` sets `global_position = (x, terrain.get_height_at(p), z)`
+  — the node origin is dropped ONTO the terrain surface. A centred origin buries the jeep.
+- `collision_table.gd:57` gives it `box (1.8, 1.8, 3.5)` with **`y_offset 0.9`** — a box
+  half its own height above the node, i.e. exactly a box resting on a ground-line origin.
+
+The axle midpoint lands **+0.041 m** forward of that origin, so "midway between the axles"
+and "longitudinal centre" agree to 4 cm.
+
+**`collision_table.gd:57` NEEDS NO CHANGE.** Measured: 1.633 W x 1.765 H x 3.371 L fits
+inside (1.8, 1.8, 3.5) on every axis. **The authored box was always correct — it was written
+for a conforming jeep, and only the MODEL was 90 degrees out.** The verifier asserts the fit
+and asserts `y_offset == box.y / 2`.
+
+**Wheels are separate nodes** `m151_wheel_fl/fr/rl/rr`, mesh centred on the hub, identity
+rotation and scale, translation to the hub. Godot local **X is the spin axis**, local **Y
+the steer axis**. `M151_Gun` is likewise a node at the traverse pivot (0, −0.45, 1.560) with
+`MuzzlePoint` as its child, so a future mount can yaw and pitch it. Everything else — body,
+windscreen, gun mount, spare, both colliders — is at **full identity**. **+X is the vehicle's
+RIGHT**; the verifier checks the L/R suffixes BY POSITION, because `m35_rigged.blend` has
+that pair inverted and it must not be inherited.
+
+**Kept from `m151_rigged.blend`:** the nose-+Y facing convention (confirmed by measurement,
+not by trusting it), the socket names `seat_driver` / `seat_passenger` / `seat_gunner` /
+`MuzzlePoint`, and the material vocabulary (OliveDrab / MetalDark / Rubber / Glass / lens).
+**Its geometry was NOT usable** — measured this session it is the same primitive soup as the
+shipped GLB: 8,376 tris, 38 twelve-tri cubes, 3 default tori at 41.3%, unapplied scale on 40
+of 77 objects. Only the facing had been fixed.
+
+**Dropped deliberately, and why:** `Rollbar_Post_L/R` + `Rollbar_Top` (the ROPS bar is a
+late-1970s retrofit; no Vietnam-era reference carries one) · `Radio_Antenna` (a whip put the
+old model 1.682 m tall — an antenna in the bbox is exactly the defect the review named on the
+M35 and M113, and it would push this model past the 1.8 collision box) · `seat_rear` and the
+rear bench (removed on a pedestal gun jeep; shipping the empty would be a lie in the map) ·
+`Red_L`/`Red_R` and `LightLens_L`/`LightLens_R` merged to one material each.
+
+**Materials: 7, not the review's suggested 4-5.** OliveDrab · MetalDark · Rubber · Glass ·
+LensAmber · LensRed · Canvas. Zero duplicates, zero textures. Amber vs red lenses earn
+separate slots because they are the vehicle's face and tail, and the amber/red split is what
+the facing probe measures. Canvas is the seat cushions, which read tan against OD in every
+reference photo.
+
+### Reference of record (gathered before modelling, per the standing law)
+- YouTube M151A1 detail walkaround (`yt-dlp` + `ffmpeg` 4x3 contact sheets, 12.5 min, 24
+  frames) — the only source that gave rear-quarter and tub-interior angles.
+- `en.wikipedia.org/wiki/M151_jeep` — 132.7 / 64.3 / 71 in top up, 53 in reduced, 85 in
+  wheelbase; **"the M151 did not feature Jeep's distinctive seven vertical slot grille,
+  instead, a horizontal grille was used"**; unitary body-and-frame; the M151A2's **large
+  combination turn-signal / blackout lights on the front fenders**.
+- `warwheels.net` M151A2 data sheet — **wheel tread 53 in (1.346 m)**, ground clearance
+  9.4 in, tyres **7.00x16**. This is the number the review did not have (it estimated 1.377).
+
+**Reference overrode the brief on one point.** The commission said "spare tire on the tail".
+Every walkaround angle carries it **upright INSIDE the body on the LEFT, immediately behind
+the driver**, breaking the body line by ~0.40 m. Built that way. It also keeps the spare
+inboard of the tub wall — the shipped jeep measured **1.740 m wide (+6.6%)** because its
+spare and mirror hung outside the body, and my first pass repeated the mirror half of that
+exact mistake (1.695 m) before the width assertion caught it.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+1. Point the convoy roster at the new asset. `convoy_spawner.gd:108` builds the path as
+   `VEHICLE_MODEL_DIR + name + ".glb"`, so `mission_generator.gd:372,376` only needs the
+   string changed to `"m151_mutt_gun_jeep_v2"`. **No facing correction is needed and none
+   exists to remove** — `destructible_vehicle.gd:7-33` applies none.
+2. **THE TRAP:** `DestructibleVehicle.create` calls `CollisionTable.get_entry(basename)`.
+   `m151_mutt_gun_jeep_v2` has **no entry**, so `collision_table.gd:204-210` falls through to
+   a **3x2x3 default box with a push_warning** — a jeep with a 3 m nav carve. Add a
+   `"m151_mutt_gun_jeep_v2"` key duplicating `:57`'s `(1.8, 1.8, 3.5) / 0.9`, and a
+   `Mat.METAL` entry at `:306`. Verified as still fitting; do not resize it.
+3. `tests/test_roads.gd:392` lists convoy model basenames that must resolve to a file — add
+   the v2 name there when the roster changes, or the guard stops covering what ships.
+
+### THE GROUND-VEHICLE GATE NOW EXISTS — `tools/verify_m151_v2.py`
+The review's cross-fleet finding 5 was that no ground vehicle had a verifier and that is why
+a sideways jeep shipped for three months. This one is **written to be copied**: everything it
+knows lives in a `SPEC` dict at the top, so the M35 and M113 verifiers are a copy with a new
+SPEC and no other edit. It asserts facing by part position, real dimensions, ground-line
+origin, wheel naming BY POSITION, wheelbase/track, glTF node translations (not just the
+imported objects), collider coverage, fit inside the authored `collision_table` box, zero
+textures, no `.001` duplicate materials, no `rotor_spin.gd:25` hint words in any node name,
+no default tori, no n-gons, no loose verts, and the tri-distribution rule.
+
+**Negative-tested before being trusted** (per the standing "run a new gate against something
+you already know" law): pointed at the OLD `m151_mutt_gun_jeep.glb` with its own lens
+material names, the facing probe reports head-to-tail separation of **+3.230 m on X and
+0.000 m on Y** and FAILS. The gate catches the exact defect it was written for.
+
+**A done-but-unexported `.blend` is invisible to every GLB check.** The July facing fix was
+never exported and no check in this project could see it, because they all read GLBs. The
+tell is a `.blend` newer than its sibling export — `m35_rigged.blend` (2026-07-29) vs
+`m35_deuce_truck.glb` (2026-05-20) is still in that state today.
