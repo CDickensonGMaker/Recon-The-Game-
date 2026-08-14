@@ -53,18 +53,69 @@ F-4D site. Ten observations, each of which changed a modelling decision:
 10. **Fresh burn = soot on metal and bare churned earth. No rust, no overgrowth.** Scorch
     concentrates at the engine and along the wing-root fuel spill and fades aft.
 
-### The three wrecks, as shipped 2026-08-13
+### The three wrecks, as shipped 2026-08-14 (fix pass; supersedes the 08-13 figures)
 
 Built headless (Blender 5.0.1, `-b --factory-startup`). Never touched a live window.
 Pipeline lives beside the assets: **`assets/us/aircraft/build_wrecks.py`** +
 **`wrecklib.py`**, re-runnable from an empty scene —
-`blender -b --factory-startup -P build_wrecks.py -- a1|huey|f4|all [--norender]`.
+`blender -b --factory-startup -P build_wrecks.py -- a1|huey|f4|all [--norender] [--dry] [--tag=X]`.
+**`--dry` writes the .blend/.glb into the render directory instead of over the shipped
+asset**, so a change is judged from its renders before anything ships; `--tag` suffixes the
+render filenames so the new pass sits beside the one it is being judged against. Use both.
 
 | | donor | visual tris | dims X/Y/Z (m) | GLB |
 |---|---|---|---|---|
-| `a1_skyraider_crashed` | `a1_skyraider.glb` (11,870) | 5,130 | 18.70 / 15.20 / 3.66 | 0.26 MB |
-| `huey_crashed` | `huey_v3.glb` (60,354) | 5,960 | 22.02 / 20.89 / 4.16 | 0.51 MB |
-| `f4_phantom_crashed` | `f4_phantom.glb` (1,024) | 2,560 | 16.21 / 25.00 / 3.67 | 0.92 MB |
+| `a1_skyraider_crashed` | `a1_skyraider.glb` (11,870) | 5,130 | 18.70 / 15.20 / 3.41 | 0.27 MB |
+| `huey_crashed` | `huey_v3.glb` (60,354) | 5,976 | 20.01 / 19.95 / 4.16 | 0.53 MB |
+| `f4_phantom_crashed` | `f4_phantom.glb` (1,024) | 2,560 | 16.07 / 25.00 / 3.06 | 0.40 MB |
+
+**2026-08-14 fix pass — what changed and why (Caleb's verdicts: A-1 SOLID, F-4 DECENT,
+HUEY FAILS).**
+
+* **Thrown flat pieces stood ON END.** A door and a rotor blade shipped as sign-boards at
+  the edge of the scatter while every seating number read healthy — clearance measures
+  CONTACT and is blind to orientation. New `wrecklib` primitives do the surgery and the
+  proof: `principal_axes` / `plate_tilt` (angle of the thin axis from +Z), `lay_flat`,
+  `bend_mid(toward=)`, `place_at`, `cut_at`, and the gate `assert_lying_flat`, which is
+  wired into `finish(flat_debris=...)` and **fails the build**. Measured now: door 3.8°,
+  rotor fragment 5.5°, thrown blade 3.3°, all against a 25° limit, contact 50-74%.
+* **`split_faces` cannot cut a low-poly part mid-span, and it fails silently.** A rotor
+  blade is one six-face box over 7.3 m, so every long face has its centre at mid-span:
+  asking for a 3.9 m stub returned a 7.79 m stub AND a 7.23 m fragment. `cut_at` does a
+  real `bisect_plane`. Ref obs 3's "one blade snapped short at the hub" is now actually
+  built: a 3.9 m drooping stub plus a separated fragment lying in the dirt.
+* **The Huey mound read as a donut ring.** Flank ridges carried full height the whole
+  length and closed behind the tail. `build_mound` gained `ridge_rear` / `ridge_fwd` /
+  `rear_fade` so they die out aft. Measured: the rear 40° of rim now carries ZERO berm.
+* **All three mounds read round.** `lobes` (bearing harmonics on the taper radius) and
+  `rim_noise` (a toe that only ever pulls inward, so the taper can never end in a cliff)
+  plus `rim_report`, which normalises radius by the FITTED ELLIPSE and counts bulges —
+  raw min/max scores a 5.2 x 7.2 ellipse at 0.72 and passes it. Applied to all three; the
+  A-1 and F-4 got light values only, and the A-1 was proven pixel-identical first.
+* **THE HUEY MOUND MUST STAY UNDER THE WRECK'S OWN HEIGHT.** The A-1 and Phantom are long
+  airframes that cover their own scar. A crushed Huey cabin is 1.5 m of low dark heap, so
+  a 1.9 m ejecta pile simply stood in front of it and the dirt became the subject. Its
+  berm is 0.92 with `nose_gain` 1.05; do not raise it to match the other two.
+* **F-4 "intake sparkle" was the CANOPY.** `F4_Canopy_Glass.003` ships
+  `Transmission 0.9 / Alpha 0.35` on a `BLENDED` material — refraction fireflies at 28
+  samples, and a see-through canopy shipping into a PSX scene. Replaced with an opaque
+  crazed material. Checked and ruled out first: gloss (flattened, speckle persisted) and
+  z-fighting (zero surfaces within 1.5 mm across every pair).
+* **F-4 loose fin.** The tail group was left out of the fuselage crush and buckle, so the
+  fin's root stood clear of the spine it is bolted to, and `rigid()` then leaned it about
+  its own CENTROID. It now rides the crush and pivots about its ROOT. Same defect fixed on
+  the Huey's exhaust stack, which was hanging 1.6 m over the ground behind the cabin.
+* **`matte()`** flattens metallic/roughness/transmission to diffuse. Two traps it exists to
+  handle: a LINKED input ignores `default_value` (cut the link), and zeroing Metallic turns
+  a metal's SPECULAR albedo into a diffuse one, so base colour is scaled 0.45 or the part
+  ends up brighter than the gloss removed. Called for the F-4 only. **The A-1's `A1_Spinner`
+  (0.9) and `Napalm_Aluminum` (0.85) and the Huey's `huey_metal` (0.75) still carry high
+  metallic** — untouched deliberately, because the A-1 was signed off and no sparkle was
+  visible on either. Apply the same call if it shows in Godot.
+* **Side effect to know about:** `matte()` cuts the F-4's metallic/roughness MAP, so
+  `f4_phantom_crashed.glb` no longer embeds `tmpxc1gk1yi.png` (0.92 -> 0.40 MB). The
+  previously extracted `f4_phantom_crashed_tmpxc1gk1yi.png` + `.import` in this folder are
+  now **orphans** — Godot re-extracts on import and will not reference them again.
 
 **Naming contract (new prefix pair, and the reason it had to be new).** The
 `recon-destructible-export` skill's `FSB_SOFT_PREFIXES` are firebase-only, and the world
@@ -85,8 +136,8 @@ instruction): one prefix added to the soft list plus a per-part tagger called fr
 `CollisionTable.MATERIALS["a1_skyraider_crashed"] = Mat.METAL` (`collision_table.gd:298`)
 and METAL is not in `SOFT_MATS`.
 
-**Colliders:** `{base}_{i:03d}-colonly` per part — A-1 10 (7 trimesh / 3 box), Huey 32
-(26/6), F-4 18 (10/8). Trimesh for the mound (walkable) and for thin plates whose box
+**Colliders:** `{base}_{i:03d}-colonly` per part — A-1 10 (7 trimesh / 3 box), Huey 33
+(27/6), F-4 18 (10/8). Trimesh for the mound (walkable) and for thin plates whose box
 hull would be a huge invisible block; box for compact solids.
 
 **Sockets (exact names, verified present after a clean-scene re-import):**
@@ -94,8 +145,9 @@ hull would be a huge invisible block; box for compact solids.
 of wreck geometry** (measured 0.20-1.95 m) — Caleb's ruling is that danger lives inside
 the flames only, so a socket out on the approach ground would send the rescue AI into
 fire. `pilot_anchor` is swept, not placed by hand: 4-6.5 m off the hull surface, >= 6 m
-from every fire socket, on ground measured flat. Results: A-1 6.32 m / 12.07 m,
-Huey 6.48 m / 8.83 m, F-4 6.47 m / 10.61 m, all at ground z 0.00.
+from every fire socket, on ground measured flat. Results (re-measured 2026-08-14, unchanged
+by the fix pass): A-1 6.32 m / 12.07 m, Huey 6.48 m / 8.83 m, F-4 6.47 m / 10.61 m, all at
+ground z 0.00. Fire-socket range to nearest wreck surface now 0.20-2.04 m.
 
 **Origin/scale:** origin at footprint centre, mound toe at z=0 (that is what
 `place_structure` drops onto terrain height), nose = Blender +Y == Godot -Z, **asserted on
@@ -446,3 +498,63 @@ inside the export session, in `tools/export_pilots_medics.py`:
 - `m1911_world` sits 0.758 m off centreline at hip height on BOTH pilots — identical on both,
   so not a regression, but it is not in the holster either. Per
   `pilot-holster-pistol-never-hides` the holster is a closed pouch and the pistol never hides.
+
+---
+
+## 2026-08-14 · Crashed-aircraft wrecks: the debris gate is now DERIVED, and what it found
+
+`assets/us/aircraft/build_wrecks.py` + `wrecklib.py`. Huey rebuilt and re-exported;
+**A-1 and F-4 not touched** (their `.glb` verified byte-identical by md5 afterwards).
+
+**What was wrong.** `finish(flat_debris=...)` took a hand-typed list of three names.
+The Huey scene exports **32 pieces**. Everything outside those three names was
+unmeasured, and the pass was signed off on renders that still showed a plank on end.
+
+**The replacement: `wrecklib.assert_debris_grounded()`** (`wrecklib.py`, after
+`assert_lying_flat`). It enumerates every exported non-collider mesh except the mound,
+clusters them by real surface contact (`touch_clusters`, AABB reject then
+`closest_point_on_mesh` ≤ 0.30 m), and judges each piece by what is holding it up:
+
+| classification | rule |
+|---|---|
+| any cluster | must reach the ground (min clearance ≤ 0.10 m) or it is FLOATING |
+| lone piece | plate must lie ≤ 25° from flat · ≥ 25% of verts within 0.10 m of ground |
+| lone piece, aspect ≥ 6 | plan heading must clear every render azimuth by ≥ 22° |
+| member of a grounded assembly | exempt from tilt — a tail fin at 76° is bolted to a boom |
+
+Huey clusters came out **[22, 7, 1, 1, 1]** — the hulk, the boom assembly, and exactly the
+three thrown pieces. The classification is correct and nothing named it.
+
+**THE DEFECT THE TILT NUMBER COULD NOT SEE.** `wreck_soft_rotor_thrown` and
+`wreck_soft_rotor_frag` measured **3.3° and 5.5°** from flat with bbox heights of 0.45 m
+and 0.40 m — provably on the ground — while their plan headings were **52.0° and 37.4°**
+against the threequarter camera's **azimuth 40°**. A flat 7 m blade viewed down its own
+long axis projects to a vertical bar. Renders `huey_v2_*` were read as showing a standing
+plank and that reading was fair. Fixed by re-heading the throws to **120° and 65°**, the
+only headings clear of all four render azimuths (0/40/90/150) by ≥ 25°. Camera angles now
+live in one place, `wrecklib.VIEWS` / `VIEW_AZ`, read by both `render_views()` and the gate.
+
+Also: `wreck_soft_door_thrown` residual tilt 4.0° → 2.0° and bury 0.05 → 0.09 m;
+contact **74% → 90%**, clearance now −0.09..0.17 m (was −0.05..0.26, and 0.26 m of daylight
+under a 2.5 m panel reads as hovering).
+
+**`verify_roundtrip()` now asserts the export contract on the re-imported GLB**, not just
+the socket names: every mesh AND collider carries a `wreck_hard_`/`wreck_soft_` prefix ·
+each `fire_socket_*` ≤ 2.5 m from wreck geometry · `pilot_anchor` 4–7 m off the hull in plan
+and ≥ 8 m from every fire socket. All three wrecks passed as shipped, so the asserts are safe.
+
+### OPEN — found by the new gate, deliberately NOT fixed (out of scope: do not touch A-1/F-4)
+
+Both are run in **report-only** mode (`debris_gate="report"`, the default) so their builds
+still complete; the Huey is `"strict"`. Flip them when those wrecks are next rebuilt, and
+delete `assert_lying_flat()` at that point — it is retained ONLY for these two.
+
+- **F-4 `wreck_soft_pylon_l` is FLOATING** — a cluster of one, lowest point **0.15 m above
+  the ground**, 90° tilt, 0% contact. It is in the shipped `f4_phantom_crashed.glb`.
+- **F-4 `wreck_soft_tailfin`** — a lone 2.9 m plate at **88.7°**, 25% contact: planted like a
+  signpost. The code comment claims it was leaned about its root to stay against the spine;
+  the clustering says it touches nothing.
+- **F-4 `wreck_soft_gunpod`** — 12% contact, and heading 69° is only 21° off a render azimuth.
+- **F-4 `wreck_hard_nose`** — 5% contact, clearance 2.62 m at its high end.
+- **A-1** — all four thrown pieces are low-contact: `wing_thrown` **1%**, `canopy` 11%,
+  `panel_1` 21%, `ord_mk82` 22%. `panel_1` also sits at 56.7°.

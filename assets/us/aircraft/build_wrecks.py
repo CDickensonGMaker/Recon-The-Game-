@@ -1,6 +1,11 @@
 """Build the three RECONgame crashed-aircraft wrecks, headless.
 
-  blender -b --factory-startup -P build_wrecks.py -- a1|huey|f4|all [--norender]
+  blender -b --factory-startup -P build_wrecks.py -- a1|huey|f4|all
+                                                     [--norender] [--dry] [--tag=_v2]
+
+`--dry` writes the .blend/.glb into the render directory instead of over the shipped
+asset, so a change can be judged from its renders before anything ships. `--tag`
+suffixes the render filenames so a new pass sits beside the one it is being judged against.
 
 Each wreck is DERIVED from its shipped donor GLB plus the shipped bomb_crater mesh.
 Nothing is invented from parameters. See production/blender_notes.md (2026-08-13) for
@@ -25,6 +30,11 @@ from wrecklib import (wipe, meshes, by_name, drop, import_glb, keep_only, verts,
 
 OUT = r"C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\0201f774-4017-48d5-924a-0296e7efee35\scratchpad\wrecks"
 HUEY_GLB = os.path.join(W.ART, "us", "vehicles", "huey_v3.glb")
+
+# `--dry` writes the .blend/.glb to OUT instead of over the shipped asset, so the
+# renders can be judged before anything ships. TAG suffixes the render filenames.
+SHIP_DIR = AIR
+TAG = ""
 
 
 # --------------------------------------------------------------- shared helpers
@@ -95,7 +105,8 @@ def pick_pilot_anchor(body_objs, fire_pts, mound, r_lo=4.0, r_hi=6.5):
     return best
 
 
-def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True):
+def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True,
+           flat_debris=(), debris_gate="report", excuse=()):
     """Common tail: collision twins, origin, export, round-trip proof, renders."""
     print("\n-- %s: sealing" % tag)
     shown = [o for o in meshes() if not o.name.endswith("-colonly")]
@@ -107,6 +118,18 @@ def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True)
         raise SystemExit("FATAL: unprefixed mesh(es) would ship bulletproof: %s" % stray)
     print("   HARD %d: %s" % (len(hard), hard))
     print("   SOFT %d: %s" % (len(soft), soft))
+
+    # ORIENTATION, before anything else is believed. Clearance cannot see which way up a
+    # panel is, and the hand list that was supposed to cover that named three pieces out
+    # of twenty-nine. This enumeration comes off the scene, so nothing can miss it.
+    W.assert_debris_grounded(mound, view_az=W.VIEW_AZ, excuse=excuse,
+                             strict=(debris_gate == "strict"))
+    if flat_debris:
+        W.assert_lying_flat(flat_debris, mound)
+    rr = W.rim_report(mound)
+    print("   mound rim: r %.2f..%.2f  |  r/ellipse spread %.2f over %d bulges"
+          % (rr["rmin"], rr["rmax"], rr["spread"], rr["bulges"]))
+    print("   rim k by bearing: %s" % " ".join("%.2f" % v for v in rr["k"]))
 
     wreck_pts = [p for o in shown if "mound" not in o.name for p in verts(o)]
     for nm, loc in sockets:
@@ -158,13 +181,13 @@ def finish(tag, glb_name, trimesh_prefixes, sockets, anchor, mound, render=True)
                    if not o.name.endswith("-colonly")), reverse=True)[:4]
     print("   tallest parts: %s" % [(n, round(z, 2)) for z, n in tall])
 
-    blend = os.path.join(AIR, glb_name.replace(".glb", ".blend"))
+    blend = os.path.join(SHIP_DIR, glb_name.replace(".glb", ".blend"))
     save_blend(blend)
-    glb = os.path.join(AIR, glb_name)
+    glb = os.path.join(SHIP_DIR, glb_name)
     mb = export_glb(glb)
-    print("   exported %s  %.2f MB" % (glb_name, mb))
+    print("   exported %s -> %s  %.2f MB" % (glb_name, SHIP_DIR, mb))
     if render:
-        render_views(OUT, tag)
+        render_views(OUT, tag + TAG)
     # LAST, because it wipes the scene: prove the shipped file, not the build scene.
     verify_roundtrip(glb, [s[0] for s in sockets] + ["pilot_anchor"])
 
@@ -248,9 +271,12 @@ def build_a1(render=True):
     for o in (wing_a, prop):
         sink([o], -0.22)
 
+    # light lobing only. This wreck was signed off as it stood and its long airframe
+    # already breaks the outline; the rim only has to stop resolving into a smooth arc.
     mound = build_mound("wreck_hard_mound", half_x=6.2, half_y=7.6,
                         nose_y=0.3, tail_y=-7.4, berm_h=1.05, furrow_d=0.50,
-                        hull_hw=1.35, seed=5)
+                        hull_hw=1.35, seed=5, rim_noise=0.14,
+                        lobes=((2, 0.055, 35.0), (3, 0.050, 155.0)))
     for o in (wing_t, panel, tail, canopy, bomb):
         W.seat_on_mound(o, mound, bury=0.10)
     gaps = [(o.name, round(min(p.z - mound_height_at(mound, p.x, p.y)
@@ -314,15 +340,22 @@ def build_huey(render=True):
     rename(boom, "wreck_soft_boom")
     for o in boom_grp[1:]:
         rename(o, "wreck_soft_boom_" + o.name.lower().replace("new_", ""))
-    rigid_group(boom_grp, translate=(-7.0, -4.8, 0.0), rot_deg=(2.0, 0.0, 41.0))
+    # ry is the boom's ROLL: the XYZ euler applies X first, and the boom's long axis is
+    # still +Y at this point, so rx would pitch it instead. A boom set down dead upright
+    # on its belly reads as placed; rolled onto a chine it reads as landed.
+    rigid_group(boom_grp, translate=(-7.0, -4.8, 0.0), rot_deg=(2.0, 14.0, 41.0))
     tear_seam(boom, 1, -0.815, band=0.30, amp=0.13, seed=41)
 
     # blade-strike notch in the boom - the classic tell (ref obs 3)
     dent(boom, (-8.6, -9.0, 1.2), 1.1, 0.42, seed=42)
 
     # ---- 3. crush the cabin. A downed Huey reads as a LOW DARK HEAP (ref obs 1).
-    crush(fwd, 0.32, lambda y: 0.50 if y > 3.4 else (0.44 if y > 0.5 else 0.70),
-          widen=0.26)
+    cabin_k = lambda y: 0.50 if y > 3.4 else (0.44 if y > 0.5 else 0.70)
+    crush(fwd, 0.32, cabin_k, widen=0.26)
+    # the exhaust stack is bolted to the roof and has to ride the roof down with it. Left
+    # out of the crush it ends up hanging 1.6 m over the ground behind the cabin, reading
+    # as a rock rather than as part of the aircraft.
+    crush(by_name("exhaust_stack"), 0.32, cabin_k, widen=0.26)
     buckle(fwd, 1.2, 6.0, hinge_z=0.32)
     dent(fwd, (0.0, 5.4, 2.2), 2.3, 0.85, seed=43)
     crumple(fwd, 0.05, seed=44)
@@ -349,10 +382,37 @@ def build_huey(render=True):
             by_name("wreck_soft_rotor_att")]
     head = [o for o in head if o is not None]
     rigid_group(head, rot_deg=(23.0, 0.0, 0.0), translate=(0.15, -0.35, -1.35))
-    # the attached blade droops until its tip is in the dirt
+
+    # ref obs 3: one blade SNAPPED SHORT at the hub, one drooping to the dirt. Left at
+    # full span the attached blade is a 7.8 m razor ruled straight across the silhouette
+    # from every angle - the single most prominent line in the whole wreck.
     ba = by_name("wreck_soft_rotor_att")
-    edit_verts(ba, lambda p: p + Vector((0, 0, -2.35 * min(1.0, (abs(p.x) / 7.3)) ** 1.3)))
-    rigid(blade_t, rot_deg=(3.0, 4.0, 63.0), translate=(6.6, -7.8, -3.6))
+    hub_x = bbox([ba])[1].x
+    frag = W.cut_at(ba, 0, hub_x - 3.9, "wreck_soft_rotor_frag")
+    tear_seam(ba, 0, hub_x - 3.9, band=0.16, amp=0.10, seed=46)
+    edit_verts(ba, lambda p: p + Vector(
+        (0, 0, -2.45 * min(1.0, abs(p.x - hub_x) / 3.9) ** 2.0)))
+
+    # the separated pieces LIE DOWN. A rotor blade is a 7 m plank 30 mm thick: stood on
+    # its edge it is a one-pixel card from every angle and reads as a render glitch, which
+    # is how the first pass shipped it. lay_flat solves for the plate's measured normal,
+    # and bend_mid's `toward` decides which end rises instead of leaving it to an SVD sign.
+    def throw(o, heading, x, y, kink, frac):
+        d = (math.cos(math.radians(heading)), math.sin(math.radians(heading)))
+        rigid(o, rot_deg=(0.0, 0.0, heading))
+        W.place_at(o, x, y)
+        W.lay_flat(o)
+        W.bend_mid(o, kink, frac=frac, toward=d)
+
+    # HEADINGS ARE NOT FREE. A 7 m blade lying perfectly flat still reads as a plank
+    # standing on end when its plan heading points at the camera - measured 52 deg
+    # against the threequarter view's 40 deg azimuth, and the frag was worse at 37 deg.
+    # Both were 3-5 deg of tilt, both passed every seating number, and the render showed
+    # a vertical bar. Render azimuths are 0/40/90/150 (wrecklib.VIEW_AZ), so the only
+    # headings clear of all four by >=25 deg are ~65 and ~120. The gate now enforces it.
+    throw(blade_t, 120.0, 7.6, -4.1, 9.0, 0.63)
+    throw(frag, 65.0, -6.2, -1.6, 12.0, 0.55)
+    crumple(frag, 0.04, seed=47)
 
     # ---- 4. skids splay, one door torn off
     for nm, roll in (("skid_rail_l", -26.0), ("skid_rail_r", 26.0)):
@@ -364,8 +424,15 @@ def build_huey(render=True):
         o = by_name(nm)
         if o:
             rename(o, "wreck_soft_" + nm)
+    # the torn-off door lands as a flattish bent sheet, half in the dirt (ref obs 7) -
+    # not as a signboard. Thrown forward-left, off the mound, on flat ground where a
+    # rigid plate can make contact along its whole face.
     dl = by_name("door_l")
-    rigid(dl, rot_deg=(22.0, 0, 38.0), translate=(4.3, -3.1, -1.2))
+    W.place_at(dl, -7.7, 4.9)
+    # 2 deg, not 4: at 4 deg the crumpled panel still showed 0.26 m of daylight under its
+    # far edge and read as hovering. Measured contact went 74% -> see the gate table.
+    W.lay_flat(dl, tilt_deg=2.0, tilt_dir_deg=200.0, spin_deg=34.0)
+    crumple(dl, 0.055, seed=45)
     rename(dl, "wreck_soft_door_thrown")
     dr = by_name("door_r")
     rigid(dr, rot_deg=(0, 0, -22.0), translate=(-0.35, 0.1, -0.55))
@@ -376,17 +443,32 @@ def build_huey(render=True):
             rename(o, "wreck_soft_" + nm)
 
     # ---- 5. ground and plough
-    attached = [o for o in meshes() if o.name not in
-                {"wreck_soft_rotor_thrown", "wreck_soft_door_thrown"}
-                and o not in boom_grp]
+    THROWN = {"wreck_soft_rotor_thrown", "wreck_soft_door_thrown", "wreck_soft_rotor_frag"}
+    attached = [o for o in meshes() if o.name not in THROWN and o not in boom_grp]
     sink(attached, -0.95)
 
-    mound = build_mound("wreck_hard_mound", half_x=5.2, half_y=7.2,
-                        nose_y=5.4, tail_y=-1.6, berm_h=1.02, furrow_d=0.46,
-                        hull_hw=1.31, seed=6)
-    W.seat_group_on_mound(boom_grp, mound, bury=0.12)
-    for nm in ("wreck_soft_rotor_thrown", "wreck_soft_door_thrown"):
-        W.seat_on_mound(by_name(nm), mound, bury=0.10)
+    # ONE dominant ejecta lobe ahead of the nose, flank ridges dead behind the tail, and
+    # a lobed rim. The Huey is the wreck that needed all three: its hulk is a low crushed
+    # heap that fills almost none of the scar, so a ring berm around it read as a donut
+    # with a nut in the middle from every angle.
+    # and it is SMALLER and LOWER than the other two. The A-1 and the Phantom are long
+    # airframes that cover their own scar; a crushed Huey cabin is 1.5 m of low dark heap,
+    # so a 1.9 m ejecta pile simply stood in front of it and the dirt became the subject.
+    # Spoil must stay under the wreck's own height or the silhouette belongs to the mound.
+    mound = build_mound("wreck_hard_mound", half_x=4.5, half_y=6.1,
+                        nose_y=5.4, tail_y=-1.6, berm_h=0.92, furrow_d=0.38,
+                        hull_hw=1.20, seed=6, centre_y=2.2, churn=1.6, rim_noise=0.16,
+                        lobes=((1, 0.10, 92.0), (2, 0.11, 22.0), (3, 0.09, 150.0)),
+                        ridge_rear=0.20, ridge_fwd=1.35, rear_fade=0.60,
+                        nose_gain=1.05, nose_reach=1.45, nose_sig=1.55,
+                        nose_wx=0.72, nose_skew=0.85, furrow_w=2.2)
+    # 0.30 m of a 1.05 m boom below grade: the first pass buried 0.12 m and the contact
+    # was arguable from every angle. A thrown structure has to be measurably IN the ground.
+    W.seat_group_on_mound(boom_grp, mound, bury=0.30)
+    # thin plates get a thin burial or they vanish under the terrain they are lying on
+    W.seat_on_mound(by_name("wreck_soft_rotor_thrown"), mound, bury=0.015)
+    W.seat_on_mound(by_name("wreck_soft_rotor_frag"), mound, bury=0.02)
+    W.seat_on_mound(by_name("wreck_soft_door_thrown"), mound, bury=0.09)
 
     fire = [(0.0, 1.3, 1.05), (0.55, 4.6, 0.55), (-6.9, -6.4, 0.2)]
     n, tot = scorch([o for o in meshes() if o.name.startswith("wreck_")
@@ -404,7 +486,7 @@ def build_huey(render=True):
                              "wreck_soft_door", "wreck_soft_skid", "wreck_hard_floor"),
            sockets=[("fire_socket_1", fire[0]), ("fire_socket_2", fire[1]),
                     ("fire_socket_3", fire[2])],
-           anchor=anchor, mound=mound, render=render)
+           anchor=anchor, mound=mound, render=render, debris_gate="strict")
 
 
 # =================================================================== F-4 PHANTOM
@@ -435,6 +517,14 @@ def build_f4(render=True):
     crush(fus, 0.084, lambda y: 0.55 if y > -2.0 else 0.78, widen=0.32)
     buckle(fus, -3.0, 8.0, hinge_z=0.084)
     crumple(fus, 0.06, seed=53)
+    # the whole tail group is bolted to the aft fuselage and has to ride the crush and the
+    # buckle down with it. Left out, the fin's root ends up standing clear of the spine it
+    # is attached to and the fin reads as a loose plate planted in the ground.
+    for nm in ("F4_Exhaust_R", "F4_VFin_L", "F4_VFin_L.001", "F4_HStab_R"):
+        o = by_name(nm)
+        if o:
+            crush(o, 0.084, lambda y: 0.78, widen=0.0)
+            buckle(o, -3.0, 8.0, hinge_z=0.084)
 
     rigid(nose, rot_deg=(19.0, 0, -33.0), translate=(-2.4, 3.4, -1.1))
     crush(nose, 0.10, lambda y: 0.72, widen=0.20)
@@ -445,8 +535,10 @@ def build_f4(render=True):
     edit_verts(wr, lambda p: p + Vector((0, 0, -0.34 * max(0.0, (p.x - 1.0) / 4.8))))
     tear_seam(wr, 0, 1.0, band=0.25, amp=0.11, seed=54)
 
+    # 38 deg, not 63: a wing lands on edge (ref obs 8), but at 63 deg with 3.18 m of it in
+    # the air it reads as a card planted in flat ground rather than a wing that skidded in
     wl = rename(by_name("F4_Wing_L"), "wreck_soft_wing_thrown")
-    rigid(wl, rot_deg=(63.0, 8.0, 41.0), translate=(-5.6, -5.9, 0))
+    rigid(wl, rot_deg=(33.0, 8.0, 41.0), translate=(-5.6, -5.9, 0))
     tear_seam(wl, 0, -1.0, band=0.28, amp=0.13, seed=55)
 
     # ---- 3. intakes crumple, fin leans, one tank bursts clear
@@ -456,8 +548,12 @@ def build_f4(render=True):
         dent(o, (0.0, 4.2, 1.1), 3.0, 0.55, seed=sd)
         crush(o, 0.58, lambda y: 0.55, widen=0.35)
 
+    # lean the fin about its ROOT. rigid() defaults to the vertex centroid, which for a
+    # 2.9 m fin swings the root 0.4 m clear of the spine and opens daylight under it.
     fin = rename(by_name("F4_Exhaust_R"), "wreck_soft_tailfin")
-    rigid(fin, rot_deg=(41.0, 0, 9.0))
+    fl, fh = bbox([fin])
+    rigid(fin, rot_deg=(41.0, 0, 9.0),
+          pivot=((fl.x + fh.x) / 2.0, (fl.y + fh.y) / 2.0, fl.z))
     for nm, new in (("F4_VFin_L", "wreck_soft_stab_l"),
                     ("F4_VFin_L.001", "wreck_soft_stab_r"),
                     ("F4_HStab_R", "wreck_soft_stab_aft")):
@@ -471,7 +567,14 @@ def build_f4(render=True):
     crumple(tk, 0.05, seed=58)
     gp = rename(by_name("F4_GunPod_M61"), "wreck_soft_gunpod")
     rigid(gp, rot_deg=(8.0, 0, -21.0), translate=(-1.9, -1.4, -0.7))
+    # a canopy off a burning wreck is crazed and opaque, and the donor's glass is
+    # Transmission 0.9 / Alpha 0.35 on a BLENDED material - at 28 Cycles samples with no
+    # denoiser that is the white firefly speckle, and it ships a see-through canopy into
+    # a PSX scene as well. Replace the material rather than dim it.
     cp = rename(by_name("F4_Canopy"), "wreck_soft_canopy")
+    cp.data.materials.clear()
+    cp.data.materials.append(flat_mat("wreck_canopy_crazed", (0.10, 0.11, 0.10, 1.0),
+                                      rough=0.85))
     rigid(cp, rot_deg=(44.0, 0, 31.0), translate=(3.7, -2.2, -1.3))
     for nm in ("F4_Pylon_Center", "F4_Pylon_L", "F4_Pylon_R"):
         o = by_name(nm)
@@ -485,11 +588,12 @@ def build_f4(render=True):
 
     mound = build_mound("wreck_hard_mound", half_x=5.6, half_y=9.0,
                         nose_y=3.0, tail_y=-8.4, berm_h=1.05, furrow_d=0.52,
-                        hull_hw=1.10, seed=7)
+                        hull_hw=1.10, seed=7, rim_noise=0.15,
+                        lobes=((1, 0.045, 75.0), (2, 0.050, 20.0), (3, 0.035, 145.0)))
     for nm in sorted(thrown):
         o = by_name(nm)
         if o:
-            W.seat_on_mound(o, mound, bury=0.12)
+            W.seat_on_mound(o, mound, bury=0.30 if nm == "wreck_soft_wing_thrown" else 0.12)
 
     fire = [(0.0, -4.6, 0.6), (0.0, 1.4, 0.7), (-2.6, -3.4, 0.1)]
     n, tot = scorch([o for o in meshes() if o.name.startswith("wreck_")
@@ -502,19 +606,31 @@ def build_f4(render=True):
           "ground z %.2f" % ([round(x, 2) for x in anchor[:2]], anchor[4],
                              anchor[3], anchor[2]))
 
+    # the donor's GunPod_Metal is metallic 0.9 and F4_Tank_Metal 0.8, and the intake's
+    # green_metal_rust drives metallic from a MAP. At 28 Cycles samples with no denoiser
+    # that is the white firefly speckle on the intake, and the values export into the GLB
+    # so Godot inherits the same gloss. PSX materials do not sparkle.
+    W.matte()
+
     finish("f4", "f4_phantom_crashed.glb",
            trimesh_prefixes=("wreck_hard_mound", "wreck_soft_wing", "wreck_soft_stab",
                              "wreck_soft_tailfin", "wreck_soft_canopy",
                              "wreck_soft_intake"),
            sockets=[("fire_socket_1", fire[0]), ("fire_socket_2", fire[1]),
                     ("fire_socket_3", fire[2])],
-           anchor=anchor, mound=mound, render=render)
+           anchor=anchor, mound=mound, render=render,
+           flat_debris=(("wreck_soft_wing_thrown", 45.0), "wreck_soft_tank_thrown"))
 
 
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else ["all"]
     which = argv[0] if argv else "all"
     rend = "--norender" not in argv
+    if "--dry" in argv:
+        SHIP_DIR = OUT
+    for a in argv:
+        if a.startswith("--tag="):
+            TAG = a.split("=", 1)[1]
     os.makedirs(OUT, exist_ok=True)
     if which in ("a1", "all"):
         build_a1(rend)

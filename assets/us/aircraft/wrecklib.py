@@ -168,6 +168,42 @@ def split_faces(obj, pred, newname):
     return new
 
 
+def cut_at(obj, axis, at, newname, fill=True):
+    """Bisect a piece on a PLANE. `obj` keeps the positive side, `newname` the negative.
+
+    split_faces() cannot do this and fails silently when asked. It classifies EXISTING
+    faces by their centre, so it can only cut where a face boundary already runs. A Huey
+    rotor blade is one six-face box spanning 7.3 m - every long face has its centre at
+    mid-span, so a centre test hands both halves nearly the whole blade. Measured: asking
+    for a 3.9 m stub returned a 7.79 m stub and a 7.23 m fragment, and both objects then
+    passed every downstream check because each was a perfectly valid blade.
+    """
+    new = obj.copy()
+    new.data = obj.data.copy()
+    new.name = newname
+    new.data.name = newname
+    bpy.context.scene.collection.objects.link(new)
+    n = Vector((0.0, 0.0, 0.0))
+    n[axis] = 1.0
+    co = Vector((0.0, 0.0, 0.0))
+    co[axis] = at
+    for target, keep_pos in ((obj, True), (new, False)):
+        bm = bmesh.new()
+        bm.from_mesh(target.data)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+                               dist=1e-5, plane_co=co, plane_no=n,
+                               clear_inner=keep_pos, clear_outer=not keep_pos)
+        if fill:
+            bmesh.ops.holes_fill(bm, edges=bm.edges[:], sides=8)
+        bm.to_mesh(target.data)
+        bm.free()
+        target.data.update()
+    if len(new.data.polygons) == 0:
+        bpy.data.objects.remove(new, do_unlink=True)
+        return None
+    return new
+
+
 def split_material(obj, name_sub, newname):
     """Split off every face carrying a material whose name contains `name_sub`.
     Exact, unlike matching face-centre coordinates between two bmesh builds."""
@@ -310,6 +346,304 @@ def crumple(obj, amp=0.05, seed=7):
     edit_verts(obj, f)
 
 
+# ----------------------------------------------------------------- orientation
+def principal_axes(obj):
+    """Vertex-cloud principal axes, longest first: [(extent, unit Vector)] x3.
+
+    The THIN axis is a flat piece's plate normal, and it is the only honest way to ask
+    which way a panel faces. A bounding box cannot answer it once the piece has been
+    rotated, and an author-side Euler cannot either once two rotations have composed.
+    """
+    import numpy as np
+    P = np.array([[p.x, p.y, p.z] for p in verts(obj)])
+    if len(P) < 4:
+        return None
+    C = P - P.mean(axis=0)
+    _, _, vt = np.linalg.svd(C, full_matrices=False)
+    out = []
+    for i in range(3):
+        proj = C @ vt[i]
+        out.append((float(proj.max() - proj.min()), Vector(vt[i])))
+    out.sort(key=lambda t: -t[0])
+    return out
+
+
+def plate_tilt(obj):
+    """(tilt_deg, is_plate). tilt 0 = the piece lies flat, 90 = it stands on its edge.
+
+    THE defect this exists to catch, because every seating number passed while it shipped:
+    `min clearance -0.10 m` is equally true of a panel lying half-buried in the dirt and
+    of one driven into the ground like a signpost. Clearance measures CONTACT.
+    Orientation is a different question and needs its own measurement.
+    """
+    ax = principal_axes(obj)
+    if ax is None:
+        return None, False
+    return (math.degrees(math.acos(min(1.0, abs(ax[2][1].z)))),
+            ax[2][0] < 0.28 * ax[1][0])
+
+
+def lay_flat(obj, tilt_deg=0.0, tilt_dir_deg=0.0, spin_deg=0.0):
+    """Rotate a thin piece about its own centroid until its plate faces the sky, then
+    apply a deliberate residual tilt.
+
+    Solves for the piece's MEASURED normal rather than composing Eulers, so it is immune
+    both to the donor's part orientation and to whatever rotations already ran on it.
+    """
+    ax = principal_axes(obj)
+    if ax is None:
+        return None
+    n = ax[2][1]
+    if n.z < 0.0:
+        n = -n
+    m = n.rotation_difference(Vector((0.0, 0.0, 1.0))).to_matrix().to_4x4()
+    a = math.radians(tilt_dir_deg)
+    m = (Matrix.Rotation(math.radians(tilt_deg), 4,
+                         Vector((math.cos(a), math.sin(a), 0.0)))
+         @ Matrix.Rotation(math.radians(spin_deg), 4, 'Z') @ m)
+    piv = sum((p for p in verts(obj)), Vector()) / len(obj.data.vertices)
+    edit_verts(obj, lambda p: (m @ (p - piv)) + piv)
+    return plate_tilt(obj)[0]
+
+
+def place_at(obj, x, y, z=None):
+    """Translate a piece so its centroid lands at a chosen plan position. An offset
+    composed against the donor's own coordinates is unreadable, and it silently moves the
+    moment any earlier edit shifts the part."""
+    pts = verts(obj)
+    c = sum((p for p in pts), Vector()) / len(pts)
+    edit_verts(obj, lambda p: p + Vector((x - c.x, y - c.y,
+                                          0.0 if z is None else z - c.z)))
+
+
+def bend_mid(obj, angle_deg, frac=0.55, toward=None):
+    """Kink a long piece upward about a station along its own longest axis. A thrown rotor
+    blade is always bent; a straight one lying on flat ground reads as a dropped ruler.
+
+    `toward` (an x,y direction) picks WHICH END rises, and passing it is not optional
+    housekeeping: an SVD eigenvector's sign is arbitrary, so without it the kink lifts a
+    coin-flip end. It flattened a deliberately tilted blade back to a dead-level plank and
+    every clearance number still read healthy.
+    """
+    ax = principal_axes(obj)
+    if ax is None:
+        return
+    L = Vector((ax[0][1].x, ax[0][1].y, 0.0))
+    if L.length < 1e-6:
+        return
+    L.normalize()
+    if toward is not None and L.dot(Vector((toward[0], toward[1], 0.0))) < 0.0:
+        L = -L
+    pts = verts(obj)
+    piv = sum((p for p in pts), Vector()) / len(pts)
+    s = [(p - piv).dot(L) for p in pts]
+    cut = min(s) + (max(s) - min(s)) * frac
+    # axis = L turned -90 deg in plan, so a POSITIVE angle lifts the outboard end
+    rot = Matrix.Rotation(math.radians(angle_deg), 4, Vector((L.y, -L.x, 0.0)))
+    hinge = piv + L * cut
+    def f(p):
+        return p if (p - piv).dot(L) <= cut else (rot @ (p - hinge)) + hinge
+    edit_verts(obj, f)
+
+
+def assert_lying_flat(names, mound, limit=25.0, min_contact=0.25, near=0.10):
+    """SUPERSEDED by assert_debris_grounded(). Live only for the A-1 and the F-4, which
+    have not been rebuilt on the derived gate (2026-08-14). Delete it when they are.
+
+    Two numbers, because each hides a defect the other passes:
+      tilt    - a plank standing on its end still seats at negative clearance, which is
+                how a door and a rotor blade shipped as sign-boards
+      contact - fraction of the piece within `near` of the ground. seat_on_mound() drops a
+                piece until its LOWEST vertex touches, so one corner on a berm scores a
+                perfect clearance while the rest hangs in daylight. A deliberately KINKED
+                piece still passes this, where a max-gap test would convict it.
+
+    Its fatal flaw is not either number: it is that `names` is written by hand. Three
+    pieces were listed, the scene held twenty-nine, and the ones nobody thought to type
+    were never measured at all.
+    """
+    bad = []
+    for entry in names:
+        # an entry may carry its own limit: a thrown WING legitimately lands on edge
+        # (ref obs 8) where a door or a blade never does
+        nm, lim = entry if isinstance(entry, tuple) else (entry, limit)
+        o = by_name(nm)
+        if o is None:
+            continue
+        t, is_plate = plate_tilt(o)
+        cl = [p.z - mound_height_at(mound, p.x, p.y) for p in verts(o)]
+        con = sum(1 for c in cl if c < near) / float(len(cl))
+        print("   flat check %-30s tilt %5.1f /%4.0f  clearance %6.2f..%5.2f  "
+              "contact %3.0f%%  %s" % (nm, t, lim, min(cl), max(cl), con * 100.0,
+                                       "PLATE" if is_plate else "rod"))
+        if is_plate and t > lim:
+            bad.append((nm, "tilt %.1f" % t))
+        if con < min_contact:
+            bad.append((nm, "contact %.0f%%" % (con * 100.0)))
+    if bad:
+        raise SystemExit("FATAL: thrown debris not lying on the ground: %s" % bad)
+
+
+# --------------------------------------------------- the derived debris gate
+def ground_clear(obj, mound, reach=1.6):
+    """Per-vertex clearance above the mound surface as a numpy array.
+
+    Vectorised twin of mound_height_at(), same inverse-distance-squared weighting and
+    the same `reach` cut-off to bare terrain. The gate samples EVERY vertex of EVERY
+    piece in the scene; the scalar version is O(piece verts x mound verts) in Python.
+
+    Deliberately builds the mound array on every call. Caching it is a silent-wrong-
+    answer trap: edit_verts() mutates the mound in place, so the vertex COUNT never
+    changes and no cheap cache key can tell a stale array from a live one.
+    """
+    import numpy as np
+    M = np.array([[p.x, p.y, p.z] for p in verts(mound)])
+    P = np.array([[p.x, p.y, p.z] for p in verts(obj)])
+    d = np.sqrt((P[:, None, 0] - M[None, :, 0]) ** 2
+                + (P[:, None, 1] - M[None, :, 1]) ** 2)
+    w = np.where(d < reach, 1.0 / np.maximum(0.08, d) ** 2, 0.0)
+    den = w.sum(axis=1)
+    gz = np.where(den > 0.0, (w * M[None, :, 2]).sum(axis=1) / np.maximum(den, 1e-12), 0.0)
+    gz = np.where(d.min(axis=1) >= reach, 0.0, gz)
+    return P[:, 2] - gz
+
+
+def surface_gap(a, b, samples=300):
+    """Smallest distance from b's vertices to a's SURFACE, in world units.
+
+    Vertex-to-vertex is not good enough here: a skid rail and the fuselage it is bolted
+    to are separate meshes whose nearest VERTICES can be half a metre apart across a
+    single large triangle, and the pair then reads as unconnected.
+    """
+    inv = a.matrix_world.inverted()
+    pts = verts(b)
+    step = max(1, len(pts) // samples)
+    best = 1e9
+    for p in pts[::step]:
+        try:
+            ok, hit, _n, _i = a.closest_point_on_mesh(inv @ p)
+        except RuntimeError:
+            return 1e9          # hidden object: no evaluated mesh, do not guess
+        if ok:
+            best = min(best, ((a.matrix_world @ hit) - p).length)
+    return best
+
+
+def touch_clusters(objs, gap=0.30):
+    """Group pieces that TOUCH, derived from geometry alone - no names, no hand list.
+
+    This is what makes the debris gate impossible to slip past. `wreck_soft_boom_tail_fin`
+    stands at 76 deg and legitimately so: it is bolted to a boom that reaches the ground.
+    A thrown blade at 76 deg is a defect. The only honest difference between them is
+    whether the piece is part of an assembly that is holding it up - so measure THAT,
+    rather than trusting whoever typed the list to know which is which.
+    """
+    n = len(objs)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    box = [bbox([o]) for o in objs]
+    for i in range(n):
+        for j in range(i + 1, n):
+            if find(i) == find(j):
+                continue
+            (li, hi_), (lj, hj) = box[i], box[j]
+            if any(li[k] - gap > hj[k] or lj[k] - gap > hi_[k] for k in range(3)):
+                continue        # AABBs cannot touch - cheap reject
+            # AABB overlap is NOT contact. A 7 m blade lying diagonally has a bounding
+            # box that swallows half the scatter; confirm against the real surface.
+            big, small = ((objs[i], objs[j])
+                          if len(objs[i].data.vertices) >= len(objs[j].data.vertices)
+                          else (objs[j], objs[i]))
+            if surface_gap(big, small) <= gap:
+                parent[find(j)] = find(i)
+    out = {}
+    for i, o in enumerate(objs):
+        out.setdefault(find(i), []).append(o)
+    return sorted(out.values(), key=lambda g: -len(g))
+
+
+def assert_debris_grounded(mound, view_az=(), limit=25.0, min_contact=0.25, near=0.10,
+                           gap=0.30, excuse=(), plank_deg=22.0, plank_aspect=6.0,
+                           strict=True):
+    """THE debris gate. Enumerates every exported piece FROM THE SCENE and measures all
+    of them, then decides what each one is allowed to do from its own connectivity.
+
+    Replaces a hand list of three names that a scene of twenty-nine pieces walked past.
+    A hand list can only ever check what somebody remembered to type, and the pieces
+    that ship wrong are by definition the ones nobody thought about.
+
+    Three convictions, and the third is the one numbers alone kept missing:
+      ungrounded  - a cluster whose lowest point never reaches the ground is floating,
+                    whatever its tilt says. Applies to assemblies too.
+      lying down  - a LONE plate must lie flat and touch over a real fraction of itself.
+                    A piece inside a grounded assembly is exempt: a tail fin at 76 deg is
+                    bolted to a boom, and convicting it would be measuring the wrong thing.
+      end-on      - a long thin piece whose plan heading points at a render camera
+                    projects to a vertical bar and READS as a standing plank even when it
+                    is measurably flat on the ground. Both thrown Huey blades passed tilt
+                    at 3.3 and 5.5 deg while lying within 13 deg of the threequarter
+                    camera's azimuth, and the render was judged - correctly - as showing a
+                    plank on end. Geometry that is right and reads wrong is still wrong.
+    """
+    ex = dict(excuse)
+    objs = [o for o in meshes() if not o.name.endswith("-colonly") and o is not mound]
+    groups = touch_clusters(objs, gap=gap)
+    print("   debris gate: %d pieces enumerated from the scene -> %d clusters %s"
+          % (len(objs), len(groups), [len(g) for g in groups]))
+    print("   %-32s %3s %5s %5s %5s %7s %7s %6s %6s  %s"
+          % ("piece", "cl", "tilt", "lim", "cont", "clr_lo", "clr_hi", "headg",
+             "aspct", "verdict"))
+    bad = []
+    for ci, grp in enumerate(groups):
+        cl = {o.name: ground_clear(o, mound) for o in grp}
+        grounded = min(float(v.min()) for v in cl.values()) <= near
+        if not grounded:
+            bad.append(("cluster %d %s" % (ci, [o.name for o in grp]),
+                        "floating, lowest point %.2f m above ground"
+                        % min(float(v.min()) for v in cl.values())))
+        for o in sorted(grp, key=lambda x: x.name):
+            t, is_plate = plate_tilt(o)
+            ax = principal_axes(o)
+            asp = ax[0][0] / max(1e-6, ax[1][0])
+            head = math.degrees(math.atan2(ax[0][1].y, ax[0][1].x)) % 180.0
+            c = cl[o.name]
+            con = float((c < near).mean())
+            lim = ex.get(o.name, limit)
+            v = []
+            if not grounded:
+                v.append("FLOATING")
+            if len(grp) == 1:
+                # a lone piece has nothing holding it up, so it answers for itself
+                if is_plate and t > lim:
+                    v.append("TILT")
+                    bad.append((o.name, "tilt %.1f > %.0f" % (t, lim)))
+                if con < min_contact:
+                    v.append("CONTACT")
+                    bad.append((o.name, "contact %.0f%%" % (con * 100.0)))
+                if asp >= plank_aspect and view_az:
+                    m = min(abs(((head - a + 90.0) % 180.0) - 90.0) for a in view_az)
+                    if m < plank_deg:
+                        v.append("END-ON %.0f" % m)
+                        bad.append((o.name, "heading %.0f is %.0f deg off a render "
+                                            "azimuth - reads as a standing plank"
+                                    % (head, m)))
+            print("   %-32s %3d %5.1f %5.0f %4.0f%% %7.2f %7.2f %6.1f %6.1f  %s"
+                  % (o.name, ci, t, lim if len(grp) == 1 else 0, con * 100.0,
+                     float(c.min()), float(c.max()), head, asp,
+                     " ".join(v) if v else ("ok" if len(grp) == 1 else "assembly")))
+    if bad:
+        msg = "FATAL: debris gate: %s" % bad
+        if strict:
+            raise SystemExit(msg)
+        print("   REPORT-ONLY %s" % msg)
+
+
 # ----------------------------------------------------------------- materials
 def flat_mat(name, colour, rough=0.9):
     m = bpy.data.materials.get(name)
@@ -397,8 +731,26 @@ def pnoise(x, y, seed=0):
 
 
 # ----------------------------------------------------------------- the mound
+def _lobe(th, lobes):
+    """Bearing-dependent radius multiplier, capped at 1.0.
+
+    `lobes` is a list of (harmonic, amplitude, phase_deg). The cap matters: the profile is
+    tapered to zero at `1.04 * lobe` of the crater donor's OWN half-extent, so a multiplier
+    above 1.0 would push the zero contour past the last ring of vertices and the mound
+    would end in a cliff instead of a toe.
+    """
+    if not lobes:
+        return 1.0
+    tot = sum(abs(a) for _, a, _ in lobes)
+    return 1.0 - tot + sum(a * math.cos(k * (th - math.radians(ph)))
+                           for k, a, ph in lobes)
+
+
 def build_mound(name, half_x, half_y, nose_y, tail_y, berm_h, furrow_d,
-                hull_hw=1.5, seed=5, tex=True, subdiv=1):
+                hull_hw=1.5, seed=5, tex=True, subdiv=1,
+                lobes=(), ridge_rear=0.62, ridge_fwd=1.196, rear_fade=None,
+                nose_gain=1.30, nose_reach=1.90, nose_sig=1.70, nose_wx=0.72,
+                nose_skew=0.0, furrow_w=1.0, centre_y=None, churn=1.0, rim_noise=0.0):
     """Sculpt the plough scar out of the shipped `bomb_crater` mesh.
 
     The crater supplies the geometry, the topology, the churn and the material - this
@@ -413,7 +765,13 @@ def build_mound(name, half_x, half_y, nose_y, tail_y, berm_h, furrow_d,
       lying ON the ground instead of in it. The relief has to be driven explicitly from
       the airframe's own geometry; the crater's z is kept only as surface churn.
     * The berm is not a ring. Ejecta piles ahead of and beside the airframe and leaves
-      the entry furrow open behind it (ref obs 5/6).
+      the entry furrow open behind it (ref obs 5/6). The flank ridges therefore have to
+      DIE OUT behind the tail (`ridge_rear`, `rear_fade`) - carried at full height the
+      whole length they meet round the back and the wreck reads as a plane in a mud
+      puddle, which is defect 5's exact wording.
+    * The outline must not be a circle or a smooth oval either. `lobes` warps the taper
+      radius by bearing so the rim carries 2-3 asymmetric bulges; without it every angle
+      shows the same ellipse. Verified by `rim_report`, not by eye alone.
     """
     got = import_glb(CRATER_GLB)
     src = next(iter(got.values()))
@@ -449,13 +807,14 @@ def build_mound(name, half_x, half_y, nose_y, tail_y, berm_h, furrow_d,
     ry = (hi.y - lo.y) / 2.0
     z_lo, z_hi = lo.z, hi.z
 
-    mid_y = (nose_y + tail_y) / 2.0
+    mid_y = centre_y if centre_y is not None else (nose_y + tail_y) / 2.0
 
     def f(p):
         # normalised crater coords
         u = (p.x - cx) / rx                       # -1..1
         v = (p.y - cy) / ry
         r = math.hypot(u, v)
+        th = math.atan2(v, u)
         # z as a 0..1 depth key: 0 at the rim crest, 1 at the pit floor
         key = (z_hi - p.z) / max(1e-6, (z_hi - z_lo))
 
@@ -471,14 +830,21 @@ def build_mound(name, half_x, half_y, nose_y, tail_y, berm_h, furrow_d,
         h = berm_h * 0.10 * math.exp(-((ax / (hull_hw * 2.6)) ** 2))
 
         # --- flanking spoil ridges, shouldered out either side of the hull and taller
-        #     towards the nose where the plough was still deep
-        ridge = berm_h * (0.62 + 0.48 * max(0.0, min(1.2, run)))
+        #     towards the nose where the plough was still deep. They must fall away aft
+        #     or they join behind the tail and close the berm into a ring.
+        g = ridge_rear + (ridge_fwd - ridge_rear) * max(0.0, min(1.0, run / 1.2))
+        if rear_fade is not None and run < 0.0:
+            g *= math.exp(-((run / rear_fade) ** 2))
+        ridge = berm_h * g
         h += ridge * math.exp(-(((ax - hull_hw * 1.55) / (hull_hw * 1.15)) ** 2)) \
              * math.exp(-max(0.0, (run - 1.25)) ** 2 * 3.0)
 
-        # --- the pile thrown up ahead of the nose, the deepest part of the gouge
-        dy = y - (nose_y + 1.90)
-        h += berm_h * 1.30 * math.exp(-((dy / 1.70) ** 2) - ((x / (half_x * 0.72)) ** 2))
+        # --- the pile thrown up ahead of the nose, the deepest part of the gouge, and
+        #     the one lobe that has to dominate: ejecta is thickest along the travel
+        #     direction, and `nose_skew` throws it to one side so it is not a crescent
+        dy = y - (nose_y + nose_reach)
+        h += berm_h * nose_gain * math.exp(
+            -((dy / nose_sig) ** 2) - (((x - nose_skew) / (half_x * nose_wx)) ** 2))
 
         # --- the SLOT the hull lies in. Without it the spoil closes over the top and
         #     the aeroplane vanishes: measured 60% of hull height buried and only 0.4 m
@@ -489,16 +855,25 @@ def build_mound(name, half_x, half_y, nose_y, tail_y, berm_h, furrow_d,
         # --- the entry furrow, open behind on the centreline
         behind = (tail_y - y) / max(1.0, half_y)
         if behind > 0.0:
-            h -= furrow_d * math.exp(-(x * x) / (hull_hw * hull_hw * 3.2)) \
+            h -= furrow_d * math.exp(-(x * x) / (hull_hw * hull_hw * 3.2 * furrow_w)) \
                  * min(1.0, behind * 2.2)
 
         # --- churn: the crater's OWN surface relief, kept small and scaled by its z key
+        # `churn` scales the two NOISE terms only. Scaling the crater's own z key with it
+        # inflates a broad smooth apron across the whole footprint instead, and the mound
+        # reads as a flat brown puddle with the wreck sitting on top of it.
         h += (0.5 - key) * 0.20
-        h += 0.09 * math.sin(u * 5.1 + v * 3.3) * math.cos(v * 4.7 - u * 2.1)
-        h += 0.055 * pnoise(x, y, seed)
+        h += 0.09 * churn * math.sin(u * 5.1 + v * 3.3) * math.cos(v * 4.7 - u * 2.1)
+        h += 0.055 * churn * pnoise(x, y, seed)
 
-        # --- taper to zero at the rim so there is no step against the terrain
-        h *= max(0.0, 1.0 - max(0.0, (r - 0.70) / 0.34) ** 1.2)
+        # --- taper to zero at the rim so there is no step against the terrain, on a
+        #     radius that wobbles with bearing so the outline is not an oval
+        # rim_noise only ever pulls the toe INWARD, so the taper can never finish outside
+        # the donor's last ring of vertices and end in a cliff
+        lb = _lobe(th, lobes) * (1.0 - rim_noise
+                                 * (0.5 + 0.5 * pnoise(x * 0.55, y * 0.55, seed + 3)))
+        t0, t1 = 0.70 * lb, 1.04 * lb
+        h *= max(0.0, 1.0 - max(0.0, (r - t0) / (t1 - t0)) ** 1.2)
         return Vector((x, y, max(-furrow_d, h)))
 
     edit_verts(src, f)
@@ -636,6 +1011,92 @@ def max_slope_deg(mound):
     return slope_report(mound)["max"]
 
 
+def rim_report(mound, bins=36, prominence=0.055, visible_z=0.06):
+    """Does the outline read as a CIRCLE? Radius by bearing, NORMALISED BY THE BEST-FIT
+    ELLIPSE, plus a count of the local bulges.
+
+    Two traps, both of which return a confident wrong answer:
+    * Raw min/max radius is worthless here. A 5.2 x 7.2 m ellipse scores 0.72 and still
+      shows a smooth oval from every angle - which is exactly what shipped. Only LOCAL
+      wobble breaks the read, so normalise by the fitted ellipse and count the bulges.
+    * The mound mesh always spans the full donor footprint; the taper zeroes the HEIGHT,
+      not the geometry. Measuring every vertex therefore measures the flat skirt, reports
+      a smooth ellipse whatever the profile does, and is blind to the lobes entirely.
+      Only vertices above `visible_z` are part of the silhouette.
+    """
+    lo, hi = bbox([mound])
+    cx, cy = (lo.x + hi.x) / 2.0, (lo.y + hi.y) / 2.0
+    pts = [p for p in verts(mound) if p.z > visible_z]
+    if not pts:
+        return {"k": [], "spread": 0.0, "bulges": 0, "rmin": 0.0, "rmax": 0.0}
+    a = max(abs(p.x - cx) for p in pts)
+    b = max(abs(p.y - cy) for p in pts)
+    rad = [0.0] * bins
+    for p in pts:
+        i = int(((math.degrees(math.atan2(p.y - cy, p.x - cx)) + 360.0) % 360.0)
+                / (360.0 / bins)) % bins
+        rad[i] = max(rad[i], math.hypot(p.x - cx, p.y - cy))
+    k = []
+    for i in range(bins):
+        th = math.radians((i + 0.5) * 360.0 / bins)
+        re = 1.0 / math.sqrt((math.cos(th) / a) ** 2 + (math.sin(th) / b) ** 2)
+        k.append(rad[i] / re)
+    s = [(k[(i - 1) % bins] + k[i] * 2.0 + k[(i + 1) % bins]) / 4.0 for i in range(bins)]
+    floor = min(s)
+    n = sum(1 for i in range(bins)
+            if s[i] > s[(i - 1) % bins] and s[i] >= s[(i + 1) % bins]
+            and (s[i] - floor) > prominence)
+    return {"k": s, "spread": max(s) - min(s), "bulges": n,
+            "rmin": min(rad), "rmax": max(rad)}
+
+
+def matte(objs=None, rough=0.88, spec=0.16):
+    """Flatten every material to near-diffuse. PSX materials do not sparkle.
+
+    This is not a render-only fix: metallic/roughness export into the GLB, so a donor's
+    glossy value follows the wreck into Godot. At 28 Cycles samples with no denoiser a
+    metallic surface also throws firefly speckle, which is what the F-4 intake was doing.
+    """
+    objs = objs if objs is not None else meshes()
+    seen = set()
+    for o in objs:
+        for m in o.data.materials:
+            if m is None or m.name in seen or not m.use_nodes:
+                continue
+            seen.add(m.name)
+            if hasattr(m, "surface_render_method"):
+                m.surface_render_method = 'DITHERED'
+            for b in m.node_tree.nodes:
+                if b.type != 'BSDF_PRINCIPLED':
+                    continue
+                # a metal's base colour is a SPECULAR albedo. Zero the metallic and that
+                # same 0.8 grey becomes a diffuse albedo, and a sooty drop tank turns into
+                # a bright white cylinder - brighter than the gloss we set out to remove.
+                mi = b.inputs.get('Metallic')
+                bc = b.inputs.get('Base Color')
+                if (mi is not None and not mi.is_linked and mi.default_value > 0.5
+                        and bc is not None and not bc.is_linked):
+                    c = bc.default_value
+                    bc.default_value = (c[0] * 0.45, c[1] * 0.45, c[2] * 0.45, c[3])
+                for nm, val in (('Metallic', 0.0), ('Specular IOR Level', spec),
+                                ('Specular', spec), ('Coat Weight', 0.0),
+                                ('Sheen Weight', 0.0), ('Roughness', rough),
+                                ('Transmission Weight', 0.0), ('Transmission', 0.0),
+                                ('Alpha', 1.0)):
+                    i = b.inputs.get(nm)
+                    if i is None:
+                        continue
+                    # a LINKED input must be cut, not overwritten. The F-4's
+                    # `green_metal_rust` drives Metallic and Roughness from a map, so
+                    # setting the default value changes nothing at all and the intake
+                    # goes on sparkling.
+                    for lk in list(i.links):
+                        m.node_tree.links.remove(lk)
+                    i.default_value = max(val, i.default_value) if nm == 'Roughness' \
+                        else val
+    print("  matte: %d materials flattened to diffuse" % len(seen))
+
+
 # ----------------------------------------------------------------- sockets
 def socket(name, loc, rz=0.0, size=0.6):
     e = bpy.data.objects.new(name, None)
@@ -734,6 +1195,13 @@ def save_blend(path):
 
 
 # ----------------------------------------------------------------- look at it
+# ONE definition of the angles this asset is judged from. The debris gate's end-on test
+# reads the same tuple render_views() shoots, so a new camera angle cannot appear without
+# the gate learning about it.
+VIEWS = (("front", 90, 13), ("threequarter", 40, 20), ("side", 0, 11), ("high", 150, 42))
+VIEW_AZ = tuple(v[1] for v in VIEWS)
+
+
 def render_views(outdir, tag, radius=None, samples=28, res=(760, 470)):
     os.makedirs(outdir, exist_ok=True)
     sc = bpy.context.scene
@@ -786,10 +1254,8 @@ def render_views(outdir, tag, radius=None, samples=28, res=(760, 470)):
     sc.collection.objects.link(cam)
     sc.camera = cam
 
-    views = [("front", 90, 13), ("threequarter", 40, 20),
-             ("side", 0, 11), ("high", 150, 42)]
     out = []
-    for nm, az, el in views:
+    for nm, az, el in VIEWS:
         a = math.radians(az)
         e = math.radians(el)
         pos = ctr + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e),
@@ -809,7 +1275,8 @@ def render_views(outdir, tag, radius=None, samples=28, res=(760, 470)):
     return out
 
 
-def verify_roundtrip(path, expect_empties):
+def verify_roundtrip(path, expect_empties, socket_reach=2.5, anchor_fire_min=8.0,
+                     anchor_hull=(4.0, 7.0)):
     """Re-import the shipped file INTO AN EMPTY SCENE and prove it.
 
     The empty scene is the whole point. Re-importing alongside the objects that were just
@@ -857,4 +1324,44 @@ def verify_roundtrip(path, expect_empties):
         if fwd <= aft:
             raise SystemExit("FATAL: exported nose is not +Y; look_at() would fly it "
                              "backwards and the .tscn would need a compensating flip")
+
+    # NAMING IS THE API, asserted on the shipped file. A mesh or collider that loses its
+    # `wreck_hard_`/`wreck_soft_` prefix in export ships invulnerable and silent -
+    # ballistics reads the collider name, destruction reads the mesh name.
+    unpref = [o.name for o in got_m
+              if not o.name.startswith(("wreck_hard_", "wreck_soft_"))]
+    if unpref:
+        raise SystemExit("FATAL: exported mesh/collider without a wreck_ prefix, would "
+                         "ship bulletproof: %s" % unpref)
+
+    # Socket geometry, re-measured against the file rather than the build scene.
+    vis = [o for o in got_m if not o.name.endswith("-colonly")]
+    wp = [p for o in vis if "mound" not in o.name for p in verts(o)]
+    hull = [p for o in vis if o.name.startswith("wreck_hard")
+            and "mound" not in o.name for p in verts(o)]
+    fires = [o for o in bpy.context.scene.objects
+             if o.type == 'EMPTY' and o.name.startswith("fire_socket")]
+    for f in sorted(fires, key=lambda o: o.name):
+        loc = f.matrix_world.translation
+        d = min((loc - p).length for p in wp)
+        print("    %s: %.2f m to nearest wreck surface (max %.1f)"
+              % (f.name, d, socket_reach))
+        if d > socket_reach:
+            raise SystemExit("FATAL: %s is %.2f m off the wreck. Danger lives INSIDE the "
+                             "flames, so a socket out on the approach ground walks the "
+                             "rescue AI into fire." % (f.name, d))
+    anc = next((o for o in bpy.context.scene.objects
+                if o.type == 'EMPTY' and o.name == "pilot_anchor"), None)
+    if anc is not None and fires and hull:
+        a = anc.matrix_world.translation
+        dh = min(math.hypot(a.x - p.x, a.y - p.y) for p in hull)
+        df = min(math.hypot(a.x - f.matrix_world.translation.x,
+                            a.y - f.matrix_world.translation.y) for f in fires)
+        print("    pilot_anchor: %.2f m off the hull in plan (want %.1f..%.1f), "
+              "%.2f m to nearest fire socket (min %.1f)"
+              % (dh, anchor_hull[0], anchor_hull[1], df, anchor_fire_min))
+        if not (anchor_hull[0] <= dh <= anchor_hull[1]):
+            raise SystemExit("FATAL: pilot_anchor %.2f m off the hull" % dh)
+        if df < anchor_fire_min:
+            raise SystemExit("FATAL: pilot_anchor only %.2f m from a fire socket" % df)
     return n, lo, hi
