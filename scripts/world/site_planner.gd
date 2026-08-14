@@ -143,7 +143,18 @@ static func tag_ballistics(root: Node, soft: bool) -> void:
 		for c in n.get_children():
 			stack.append(c)
 		if n is CollisionObject3D:
-			n.add_to_group("soft_cover" if soft else "hard_surface")
+			# Per-part override: the crashed-aircraft wrecks author their split in
+			# the part names (wreck_hard_ engine/fuselage/mound stops rounds,
+			# wreck_soft_ skin shoots through) - one per-file material cannot
+			# express a wreck that is cover on one side and concealment on the
+			# other (his ruling 2026-08-13).
+			var nm := String(n.name)
+			var part_soft: bool = soft
+			if nm.begins_with("wreck_soft_"):
+				part_soft = true
+			elif nm.begins_with("wreck_hard_"):
+				part_soft = false
+			n.add_to_group("soft_cover" if part_soft else "hard_surface")
 
 
 ## Place one structure: StaticBody3D root (layer 1) + GLB visual + authored box.

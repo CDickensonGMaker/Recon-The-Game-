@@ -70,9 +70,12 @@ const STRUCTURES := {
 	"RocketPod_LAU61_19tube": {"box": Vector3(0.5, 1.6, 0.6), "y_offset": 0.11, "footprint": Vector2(1.5, 2.0), "scale": 1.0},
 	"RocketPod_LAU68_7tube": {"box": Vector3(0.4, 1.4, 0.4), "y_offset": 0.09, "footprint": Vector2(1.5, 1.5), "scale": 1.0},
 	"a1_skyraider": {"box": Vector3(14.0, 5.1, 12.1), "y_offset": 0.30, "footprint": Vector2(15.0, 13.5), "scale": 1.0},
-	# Crashed variant: flying airframe's footprint, belly-down height. ESTIMATED, not
-	# AABB-measured - the GLB was banked 2026-08-07 with no headless measure pass yet.
-	"a1_skyraider_crashed": {"box": Vector3(14.0, 2.6, 12.1), "y_offset": 1.30, "footprint": Vector2(15.0, 13.5), "scale": 1.0},
+	# ---- Crashed aircraft wrecks (rebuilt 2026-08-13, assets/us/aircraft/build_wrecks.py;
+	# AABBs measured on re-import). Each carries -colonly part colliders + a mound trimesh,
+	# so the box is nav-carve only. Dims include the thrown wing and debris scatter.
+	"a1_skyraider_crashed": {"box": Vector3(18.7, 3.2, 15.2), "y_offset": 1.60, "footprint": Vector2(19.7, 16.2), "scale": 1.0, "mesh": true},
+	"huey_crashed": {"box": Vector3(22.0, 3.2, 20.9), "y_offset": 1.60, "footprint": Vector2(23.0, 21.9), "scale": 1.0, "mesh": true},
+	"f4_phantom_crashed": {"box": Vector3(16.2, 3.2, 25.0), "y_offset": 1.62, "footprint": Vector2(17.2, 26.0), "scale": 1.0, "mesh": true},
 	"a4_skyhawk": {"box": Vector3(8.4, 3.6, 12.8), "y_offset": 0.82, "footprint": Vector2(9.5, 14.0), "scale": 1.0},
 	"aid_station": {"box": Vector3(8.0, 3.0, 6.0), "y_offset": 1.52, "footprint": Vector2(9.0, 7.5), "scale": 1.0},
 	"aircraft_revetment": {"box": Vector3(20.0, 3.0, 15.0), "y_offset": 1.50, "footprint": Vector2(21.0, 16.0), "scale": 1.0},
@@ -296,6 +299,7 @@ const MATERIALS := {
 	"RocketPod_LAU61_19tube": Mat.METAL, "RocketPod_LAU68_7tube": Mat.METAL,
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
 	"zpu_aa_gun": Mat.METAL, "a1_skyraider_crashed": Mat.METAL,
+	"huey_crashed": Mat.METAL, "f4_phantom_crashed": Mat.METAL,
 	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
 	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,

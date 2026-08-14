@@ -96,10 +96,12 @@ func encounter_active() -> bool:
 func _on_crashed(pos: Vector3) -> void:
 	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager,
 		world.vegetation_manager, world)
-	planner.place_structure(WRECK_MODEL, pos, _rng.randf_range(0.0, 360.0))
-	FireHazard.create_at(world, pos, 3.5, WRECK_BURN_S)
+	var wreck: Node3D = planner.place_structure(WRECK_MODEL, pos, _rng.randf_range(0.0, 360.0))
+	_light_wreck_fires(wreck, pos)
 	_column = _build_column(pos)
-	_spawn_pilot(pos)
+	var anchor: Node3D = wreck.find_child("pilot_anchor", true, false) as Node3D \
+		if wreck != null else null
+	_spawn_pilot(anchor.global_position if anchor != null else Vector3.ZERO, pos)
 	_spawn_pickets(pos)
 	_phase = Phase.WAIT
 	_phase_since = _elapsed
@@ -140,8 +142,28 @@ func _build_column(pos: Vector3) -> Node3D:
 	return root
 
 
-func _spawn_pilot(pos: Vector3) -> void:
-	var seat: Vector3 = MissionGenerator._passable_near(world, _rng, pos, 6.0, 14.0, 60)
+## The wreck GLBs author their fire points and a swept pilot anchor (2026-08-13
+## commission): fire_socket_* sit ON the wreck itself so danger lives inside the
+## flames, and pilot_anchor is measured clear of every fire on open ground - his
+## rescue doctrine ("high chance the AI will just have them run into the fire and
+## it moots the point of saving them"). Both degrade to the old behavior on a
+## wreck that ships without them.
+func _light_wreck_fires(wreck: Node3D, pos: Vector3) -> void:
+	var lit: int = 0
+	if wreck != null:
+		for i in range(1, 4):
+			var sock := wreck.find_child("fire_socket_%d" % i, true, false) as Node3D
+			if sock != null:
+				FireHazard.create_at(world, sock.global_position, 2.5, WRECK_BURN_S)
+				lit += 1
+	if lit == 0:
+		FireHazard.create_at(world, pos, 3.5, WRECK_BURN_S)
+
+
+func _spawn_pilot(authored: Vector3, pos: Vector3) -> void:
+	var seat: Vector3 = authored
+	if seat == Vector3.ZERO:
+		seat = MissionGenerator._passable_near(world, _rng, pos, 6.0, 14.0, 60)
 	if seat == Vector3.ZERO:
 		seat = pos + Vector3(6.0, 0.0, 0.0)
 	seat = MissionGenerator._seat(world, seat) + Vector3.UP * 0.5

@@ -5,6 +5,133 @@ not here. This file is RECONgame's own conventions and asset-specific history.
 
 ---
 
+## 2026-08-13 · CRASHED-AIRCRAFT FORM STUDY — read before touching any wreck asset
+
+Gathered before modelling the three wrecks (`a1_skyraider_crashed`, `huey_crashed`,
+`f4_phantom_crashed`). Sources: AP news footage of a recovered downed helicopter
+(YouTube `8zuRYKMNiZM`), a WWII fighter crash-site walkaround (YouTube `_O5_RDHxPB0`),
+NTSB wreckage-examination language, UH-1 tail-boom separation reports, aircraftwrecks.com
+F-4D site. Ten observations, each of which changed a modelling decision:
+
+1. **A crashed helicopter is a LOW DARK HEAP, not a helicopter lying down.** In the AP
+   footage the wreck barely tops the wheels of the recovery truck beside it — call it
+   1.5-2.0 m against a 4.4 m flying height. Cabin roof and greenhouse are down on the
+   floor. **Crush the Huey cabin to ~50% height; the boom is the only long straight
+   element left.**
+2. **A UH-1 tail boom parts at its ATTACH FITTINGS, never mid-boom.** NTSB: the four
+   attach points to the aft fuselage bulkhead (upper two are the fatigue pair); in one
+   case "a piece of the aft fuselage bulkhead ... approximately 100 feet from the tail
+   boom", fuselage inverted, boom at rest ~140 ft away. **Model a clean ring break at the
+   fuselage/boom joint with a torn bulkhead ring on the stub.**
+3. **Main rotor blades diverge and strike/sever the boom.** Reported boom damage is
+   "multiple impact marks and punctures consistent with main rotor blade strikes", boom
+   section 135 ft downrange. **One blade snapped short at the hub, one drooping to the
+   dirt, and the boom notched where the blade went through.**
+4. **A propeller turning under power bends AFT — never forward, never straight.** NTSB
+   examination language: "multiple aft bends ... bent aft approximately 45°", "strongly
+   twisted toward low pitch", tips "curled with rotational scoring", chordwise scoring.
+   A stopped prop stays straight. These are burning fresh crashes, so **every Skyraider
+   blade sweeps back ~45° with a second bend and a curled tip.**
+5. **Impact ejecta settles on the crater RIM, thickest in the direction of travel,** and
+   wreckage scatters concentrated downrange (documented crater 24 ft x 15 ft = 7.3 x 4.6 m).
+   **The dirt mound is ASYMMETRIC — a berm heaviest ahead of and beside the airframe —
+   never a symmetric dome. A symmetric dome is what makes a wreck read as "plane on a bump".**
+6. **The first ground scar sits ~40 ft (12 m) BEHIND the main wreckage.** The wreck lies in
+   its own plough furrow with the berm crowding its flanks; nose/engine/inboard leading
+   edges are the buried parts and the tail rides highest.
+7. **Torn aluminium skin is never a clean plate.** Every surviving panel in the fighter
+   walkaround is a crumpled, irregular-edged sheet with visible rivet lines, lying nearly
+   flat and half-buried, 0.3-1.2 m across. **Debris = flattish bent sheets, not tidy boxes.**
+8. **Fixed-wing failure is at the wing ROOT and leaves a ragged stub.** The separated wing
+   keeps its planform (it is a stiff box) and lands largely intact, on edge or inverted.
+   **Jitter the cut seam on BOTH halves; keep the thrown wing's shape.**
+9. **Jets fragment far more than prop aircraft** — the F-4D site left only turbine blades,
+   one piece of fuselage structure and an unburned gear leg, "high speed impact in which
+   the fuel vaporizes resulting in a flash fire only". A game prop must not go that far:
+   **the readable compromise is the Phantom fuselage in TWO large pieces (nose/cockpit
+   snapped off the engine bays), everything else small.**
+10. **Fresh burn = soot on metal and bare churned earth. No rust, no overgrowth.** Scorch
+    concentrates at the engine and along the wing-root fuel spill and fades aft.
+
+### The three wrecks, as shipped 2026-08-13
+
+Built headless (Blender 5.0.1, `-b --factory-startup`). Never touched a live window.
+Pipeline lives beside the assets: **`assets/us/aircraft/build_wrecks.py`** +
+**`wrecklib.py`**, re-runnable from an empty scene —
+`blender -b --factory-startup -P build_wrecks.py -- a1|huey|f4|all [--norender]`.
+
+| | donor | visual tris | dims X/Y/Z (m) | GLB |
+|---|---|---|---|---|
+| `a1_skyraider_crashed` | `a1_skyraider.glb` (11,870) | 5,130 | 18.70 / 15.20 / 3.66 | 0.26 MB |
+| `huey_crashed` | `huey_v3.glb` (60,354) | 5,960 | 22.02 / 20.89 / 4.16 | 0.51 MB |
+| `f4_phantom_crashed` | `f4_phantom.glb` (1,024) | 2,560 | 16.21 / 25.00 / 3.67 | 0.92 MB |
+
+**Naming contract (new prefix pair, and the reason it had to be new).** The
+`recon-destructible-export` skill's `FSB_SOFT_PREFIXES` are firebase-only, and the world
+path (`place_structure` -> `CollisionTable.is_soft(model_name)`,
+`site_planner.gd:164`) tags the WHOLE subtree from ONE per-FILE material — it cannot
+express a per-part split at all (that is the skill's own §4 gap). So every mesh AND its
+collider carries one of:
+
+* **`wreck_hard_*`** — stops rounds: engine, fuselage/cockpit structure, nose section,
+  transmission, floors, mast, exhaust, **and the earth mound**.
+* **`wreck_soft_*`** — shoot-through: wings, tail surfaces, boom, doors, skids, rotor and
+  propeller blades, intakes, tanks, canopy, panels, ordnance.
+
+Ballistics reads the COLLIDER name and destruction reads the MESH name, so putting the
+prefix on both covers both systems with one string. **Code side (not done here, by
+instruction): one prefix added to the soft list plus a per-part tagger called from
+`place_structure`.** Until that lands these ship uniformly HARD, because
+`CollisionTable.MATERIALS["a1_skyraider_crashed"] = Mat.METAL` (`collision_table.gd:298`)
+and METAL is not in `SOFT_MATS`.
+
+**Colliders:** `{base}_{i:03d}-colonly` per part — A-1 10 (7 trimesh / 3 box), Huey 32
+(26/6), F-4 18 (10/8). Trimesh for the mound (walkable) and for thin plates whose box
+hull would be a huge invisible block; box for compact solids.
+
+**Sockets (exact names, verified present after a clean-scene re-import):**
+`fire_socket_1..3` + `pilot_anchor` on each. Every fire socket is asserted **within 2.5 m
+of wreck geometry** (measured 0.20-1.95 m) — Caleb's ruling is that danger lives inside
+the flames only, so a socket out on the approach ground would send the rescue AI into
+fire. `pilot_anchor` is swept, not placed by hand: 4-6.5 m off the hull surface, >= 6 m
+from every fire socket, on ground measured flat. Results: A-1 6.32 m / 12.07 m,
+Huey 6.48 m / 8.83 m, F-4 6.47 m / 10.61 m, all at ground z 0.00.
+
+**Origin/scale:** origin at footprint centre, mound toe at z=0 (that is what
+`place_structure` drops onto terrain height), nose = Blender +Y == Godot -Z, **asserted on
+the re-imported GLB**, not on the donor.
+
+**COLLISION TABLE IS NOW STALE for all three** (`collision_table.gd:75`) — the A-1 entry
+is `box (14.0, 2.6, 12.1)`, `footprint (15.0, 13.5)`, and its own comment admits it was
+ESTIMATED, never measured. Measured above-ground heights are 3.19 / 3.21 / 3.23 m and the
+footprints are much wider because of the thrown wing and debris. `huey_crashed` and
+`f4_phantom_crashed` have **no entry at all**, which means `get_entry` falls back to a
+3x2x3 box with a loud warning (`:194`).
+
+**DRIFT CORRECTED:** the brief for this job stated `a1_skyraider.glb` is exported nose-+Z
+and wrong. It is **not** — measured on import, the nose sits at +Y (prop mean y +0.778),
+i.e. Godot -Z, which is the convention. That was fixed on 2026-08-12 by the facing bake
+(see `recon-aircraft-facing-and-scale`); the claim survived past its own repair.
+
+**Mound craft, because it took six passes.** Derived from `bomb_crater.glb`'s mesh and
+material, welded and subdivided once (1,536 tris), then sculpted to a plough profile:
+flank spoil ridges, a pile ahead of the nose, an open entry furrow behind, and **a slot
+along the hull so earth comes up the SIDES rather than closing over the top**. Without
+the slot the fuselage measured 60% buried and 0.4 m proud, and the aeroplane vanished;
+with it, 0.96-1.20 m of hull stands clear on the A-1. Slopes: median 26-27°, p95 35-39°,
+only 4-20 of 1,536 faces over the 45° agent limit — walkable.
+
+**Known and left (needs Caleb or code, not art):** the mound assumes flat ground under it;
+`place_structure` does not flatten terrain for this path (`pilot_recovery.gd:99` calls it
+directly), so on a slope the mound toe will float or sink on one side. The edges taper to
+zero to minimise it.
+
+**The failure mode these exist to prevent:** the superseded `a1_skyraider_crashed.glb`
+(2026-08-07) was an INTACT airframe with a full ordnance load still on the pylons, one wing
+moved sideways, and no ground at all — 11,862 tris of flying aeroplane. It read as a parked
+plane, which is exactly what Caleb rejected. **A wreck is a silhouette problem: crush the
+height, break the line, and put earth over the bottom third.**
+
 ## Huey (`assets/us/vehicles/huey_v3.blend`, `huey_v3_transport.blend`)
 
 **2026-08-05 - full airframe reshape to match the `Bell Huey.fbx` study.**
