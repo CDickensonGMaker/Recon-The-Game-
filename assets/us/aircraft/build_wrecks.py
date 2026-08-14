@@ -44,6 +44,34 @@ TAG = ""
 # the berm has to stay under the wreck's own crushed height or the dirt is the subject.
 HULL_BURY = 0.04
 
+# ------------------------------------------------------------------- the paint
+# ONE muted base per airframe. The values are chosen AGAINST THE EARTH MOUND the wreck
+# lies in: the old SEA tan measured 0.393 linear, within a few percent of the mound's
+# own value, so the fuselage dissolved into the dirt in patches while the dark green
+# blobs read as unrelated objects. Linear here; the hex is what a paint chip would read.
+OLIVE = (0.062, 0.062, 0.032, 1.0)             # #464632  scorched olive - A-1 and Huey
+OLIVE_LIT = (0.084, 0.084, 0.045, 1.0)         # #52523C  control surfaces, sun-bleached
+# The Phantom's blue channel is what decides whether it reads as grey-green or as naval
+# slate: the render sky is 0.42/0.46/0.52, so a near-neutral paint takes the sky's cast
+# into every shadowed facet. Holding blue at ~0.6 of green keeps it green in the shade.
+GREYGREEN = (0.048, 0.056, 0.034, 1.0)         # #3E4334  darker grey-green - F-4
+GREYGREEN_LIT = (0.065, 0.076, 0.046, 1.0)     # #484E3D
+TRIM_BLACK = (0.018, 0.018, 0.018, 1.0)        # #242424  anti-glare, prop, rotor
+INSIGNIA = (0.075, 0.075, 0.073, 1.0)          # #4D4D4C  one faded star, nothing brighter
+
+
+def repaint(base_name, base, lit_name, lit, camo_subs, lit_parts):
+    """One solid base across the whole airframe - thrown pieces included, so the scatter
+    reads as ONE aeroplane - plus a single lighter value on the control surfaces so the
+    mass is not dead flat. Materials only: no vertex moves, no renames, no reordering."""
+    shown = [o for o in meshes() if not o.name.endswith("-colonly")
+             and "mound" not in o.name]
+    W.unify_paint(shown, camo_subs, base_name, base)
+    W.unify_paint([o for o in shown if any(k in o.name for k in lit_parts)],
+                  (base_name,), lit_name, lit)
+    W.set_base(("black", "prop_blade", "huey_rotor"), TRIM_BLACK)
+    W.set_base(("marking",), INSIGNIA)
+
 
 # --------------------------------------------------------------- shared helpers
 def rename(obj, new):
@@ -392,9 +420,15 @@ def build_a1(render=True):
 
     # ---- 8. fresh burn: soot at the engine and along the wing-root fuel spill
     fire = [(0.0, 3.55, 0.10), (1.7, -0.30, -0.25), (-1.4, -1.20, -0.30)]
-    W.soil(("underside", "marking", "store_grey"), k=0.32)
+    repaint("wreck_a1_olive", OLIVE, "wreck_a1_olive_lit", OLIVE_LIT,
+            camo_subs=("sea_", "underside_grey", "store_"),
+            lit_parts=("stab", "tailfin", "panel_"))
     W.spatter([wing_t, panel, canopy, bomb, tank], frac=0.45, seed=17)
-    n, tot = scorch([body, engine, wing_a, prop] + tail_grp, fire, 2.3, seed=11)
+    # SOLID at the seat, then STOP. A wide radius with a small core dithers ~50% of the
+    # faces over the whole airframe, and on the low-poly sunlit wing that half-and-half
+    # speckle is exactly the chequerboard the camo repaint was done to kill - the same
+    # defect wearing soot instead of tan.
+    n, tot = scorch([body, engine, wing_a, prop] + tail_grp, fire, 1.8, seed=11, core=0.72)
     print("  scorched %d / %d faces (%.0f%%)" % (n, tot, 100.0 * n / max(1, tot)))
 
     anchor = pick_pilot_anchor([body, engine], fire, mound)
@@ -581,9 +615,12 @@ def build_huey(render=True):
     W.seat_on_mound(by_name("wreck_soft_door_thrown"), mound, bury=0.09)
 
     fire = [(0.0, 1.3, 1.05), (0.55, 4.6, 0.55), (-6.9, -6.4, 0.2)]
+    repaint("wreck_huey_olive", OLIVE, "wreck_huey_olive_lit", OLIVE_LIT,
+            camo_subs=("od_exterior", "od_interior", "deck", "huey_metal"),
+            lit_parts=("door", "elevator", "tail_fin"))
     n, tot = scorch([o for o in meshes() if o.name.startswith("wreck_")
                      and "mound" not in o.name and "canopy" not in o.name],
-                    fire, 2.0, seed=12)
+                    fire, 1.9, seed=12, core=0.72)
     print("  scorched %d / %d faces (%.0f%%)" % (n, tot, 100.0 * n / max(1, tot)))
 
     anchor = pick_pilot_anchor([by_name("wreck_hard_fuselage")], fire, mound)
@@ -717,8 +754,12 @@ def build_f4(render=True):
     # a canopy off a burning wreck is crazed and OPAQUE - and it is a smashed frame by the
     # time it lands, not a bubble sitting on one arc of contact.
     canopy.data.materials.clear()
-    canopy.data.materials.append(flat_mat("wreck_canopy_crazed", (0.10, 0.11, 0.10, 1.0),
-                                          rough=0.85))
+    # 0.065, not 0.10. Measured on the shipped palette, the crazed canopy was the
+    # BRIGHTEST thing on the site (lum 0.107 against a 0.053 airframe) and, being neutral,
+    # it took the sky's blue - a slate slab lying beside the hulk pulling the eye off the
+    # aeroplane. Crazed perspex is lighter than paint, but not by two stops.
+    canopy.data.materials.append(flat_mat("wreck_canopy_crazed",
+                                          (0.065, 0.070, 0.062, 1.0), rough=0.85))
     # crushed to 0.18 of its height, and NO residual tilt. A 4 m tandem greenhouse is a
     # long piece: 6 deg of deliberate tilt lifts one end 0.42 m, which on its own took
     # ground contact down to 14%. Long debris gets flattened, not tilted.
@@ -763,14 +804,16 @@ def build_f4(render=True):
     W.seat_group_on_mound([nose], mound, bury=0.42)
 
     fire = [(0.0, -2.6, 0.20), (1.5, 1.0, -0.10), (-1.6, -0.4, -0.15)]
-    W.soil(("underside", "marking", "store_grey"), k=0.32)
+    repaint("wreck_f4_greygreen", GREYGREEN, "wreck_f4_greygreen_lit", GREYGREEN_LIT,
+            camo_subs=("sea_", "underside_grey", "store_"),
+            lit_parts=("stab", "tailfin"))
     W.spatter([wing_t, canopy, bomb, tank], frac=0.45, seed=17)
     # 2.8 m and a 0.28 core, not 4.2 / 0.42: at the wider setting the soot covered the
     # whole spine and the Phantom read as a black smear with camo edges. Fresh burn is
     # soot AT THE SEATS fading out, and the aeroplane has to survive it.
     n, tot = scorch([o for o in meshes() if o.name.startswith("wreck_")
                      and "mound" not in o.name and "canopy" not in o.name],
-                    fire, 2.8, seed=13, core=0.28)
+                    fire, 2.3, seed=13, core=0.70)
     print("  scorched %d / %d faces (%.0f%%)" % (n, tot, 100.0 * n / max(1, tot)))
 
     anchor = pick_pilot_anchor([body], fire, mound)

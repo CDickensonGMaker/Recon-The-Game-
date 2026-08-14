@@ -19,7 +19,10 @@ FB_TEX = os.path.join(ART, "world", "building models", "structures", "firebase",
 
 CRATER_GLB = os.path.join(RUINS, "bomb_crater.glb")
 
-SOOT = (0.055, 0.048, 0.043, 1.0)      # rubble_field_wide's own `charred` value, darkened
+# Soot has to read as BURN against a solid airframe. At the old 0.055 it sat within 10%
+# of the F-4's new grey-green base and the fire seats vanished; char is darker than paint.
+SOOT = (0.032, 0.029, 0.026, 1.0)
+MUD = (0.075, 0.056, 0.036, 1.0)       # wet dirt, not the old 0.15 dry-clay near-tan
 EARTH_TINT = (0.42, 0.31, 0.21, 1.0)
 
 
@@ -799,18 +802,64 @@ def image_mat(name, png, colour, scale=1.6):
     return m
 
 
-def soil(name_subs, k=0.45):
-    """Darken the light paint. A wreck's underside is filthy - and once a wing lands
-    inverted, the light-grey belly and the white national insignia are the two biggest
-    upward-facing surfaces on the whole site.
+def unify_paint(objs, subs, name, colour, rough=0.92):
+    """Collapse every material whose name contains one of `subs` onto ONE solid base,
+    remapping per FACE.
 
-    Measured, not a preference: `a1_underside_grey` is FS36622 light grey, which at the
-    render's sun energy blows out to near-white. The thrown wing read as a sheet of paper
-    lying in the mud from every one of the four angles.
+    Silhouette is the whole read at PSX distance, and SEA camo is three blobs whose
+    albedos span 10x - measured on the shipped wrecks, `sea_tan` 0.393 against
+    `sea_green_dark` 0.036, with the tan landing within a few percent of the earth
+    mound's own value. So the airframe dissolved into the dirt in patches while the
+    surviving green blobs read as unrelated objects: Caleb's "reads like a log".
+
+    Touches material_index and nothing else - geometry, part names, sockets, colliders
+    and every gate are unaffected, and a slot left with no faces is not written by the
+    glTF exporter, so the collapsed camo materials simply stop shipping.
     """
-    n = 0
+    mat = flat_mat(name, colour, rough)
+    hit, objs_hit = 0, 0
+    low = tuple(s.lower() for s in subs)
+    for o in objs:
+        if o is None or o.name.endswith("-colonly"):
+            continue
+        idxs = {i for i, m in enumerate(o.data.materials)
+                if m and any(s in m.name.lower() for s in low)}
+        if not idxs:
+            continue
+        slot = [i for i, m in enumerate(o.data.materials) if m and m.name == mat.name]
+        if slot:
+            k = slot[0]
+        else:
+            o.data.materials.append(mat)
+            k = len(o.data.materials) - 1
+        n = 0
+        for p in o.data.polygons:
+            if p.material_index in idxs:
+                p.material_index = k
+                n += 1
+        o.data.update()
+        hit += n
+        objs_hit += 1 if n else 0
+    print("  paint: %-24s %4d faces on %2d pieces  <- %s"
+          % (name, hit, objs_hit, list(subs)))
+    return mat, hit
+
+
+def set_base(subs, colour):
+    """Set an ABSOLUTE base colour on every material matching `subs`.
+
+    Replaces `soil(subs, k)`, which MULTIPLIED - the wrong tool when a value has to land
+    somewhere. A donor trim at 0.006 linear is a hole in the airframe whatever it is
+    scaled by, and scaling a value you did not choose only moves an unknown. What soil()
+    was for still holds and is now enforced by construction: `underside_grey` is FS36622
+    light grey, which at this sun energy blows out to near-white, and once a wing lands
+    inverted that belly is the biggest upward-facing surface on the site - it is absorbed
+    into the one solid base by `unify_paint` instead of being darkened by a guess.
+    """
+    n = []
+    low = tuple(s.lower() for s in subs)
     for m in bpy.data.materials:
-        if not m.use_nodes or not any(sub in m.name.lower() for sub in name_subs):
+        if not m.use_nodes or not any(s in m.name.lower() for s in low):
             continue
         for b in m.node_tree.nodes:
             if b.type != 'BSDF_PRINCIPLED':
@@ -818,11 +867,11 @@ def soil(name_subs, k=0.45):
             bc = b.inputs.get('Base Color')
             if bc is None or bc.is_linked:
                 continue
-            c = bc.default_value
-            bc.default_value = (c[0] * k, c[1] * k, c[2] * k, c[3])
-            m.diffuse_color = bc.default_value
-            n += 1
-    print("  soil: %d materials darkened x%.2f %s" % (n, k, list(name_subs)))
+            bc.default_value = colour
+            m.diffuse_color = colour
+            n.append(m.name)
+    print("  set_base %s -> %s" % (n, [round(c, 3) for c in colour]))
+    return n
 
 
 def scorch(objs, centres, radius, seed=11, mat=None, core=0.34):
@@ -859,7 +908,7 @@ def scorch(objs, centres, radius, seed=11, mat=None, core=0.34):
     return touched, total
 
 
-def spatter(objs, frac=0.42, seed=17, mat=None, colour=(0.15, 0.11, 0.07, 1.0)):
+def spatter(objs, frac=0.42, seed=17, mat=None, colour=MUD):
     """Cake a piece in mud - a deterministic fraction of its faces take an earth material.
 
     Not decoration. A thrown wing lands inverted, so the single biggest upward-facing

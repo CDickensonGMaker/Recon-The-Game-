@@ -1480,3 +1480,73 @@ material names, the facing probe reports head-to-tail separation of **+3.230 m o
 never exported and no check in this project could see it, because they all read GLBs. The
 tell is a `.blend` newer than its sibling export — `m35_rigged.blend` (2026-07-29) vs
 `m35_deuce_truck.glb` (2026-05-20) is still in that state today.
+
+---
+
+## 2026-08-14 · The three crashed aircraft: SOLID PAINT pass (materials only, no geometry)
+
+Caleb, verbatim: *"can you make the planes that crashed have a more solid color? so they read
+better?"* The A-1 was the worst case — its SEA camo read as a chequered log from every angle.
+
+**Measured cause, not taste.** Dumped the shipped GLBs' material tables
+(`assets/us/aircraft/build_wrecks.py`, `wrecklib.py`): `a1_sea_tan` base colour **0.393 linear**
+against `a1_sea_green_dark` **0.036** — a 10x albedo span across three blobs on one 11 m
+fuselage — and the tan sat within a few percent of the earth mound's own value, so the airframe
+DISSOLVED into the dirt in patches while the dark green blobs read as unrelated objects. Camo
+works at 300 m in the air; it is the wrong tool on a 15 m prop that must read as an aeroplane in
+one glance.
+
+**What shipped.** One solid muted base per airframe, thrown pieces included, plus one lighter
+value on the control surfaces so the mass is not dead flat. Linear, with the sRGB chip value:
+
+| | base | lit panel | trim | insignia |
+|---|---|---|---|---|
+| A-1, Huey | `0.062 0.062 0.032` **#464632** | `0.084 0.084 0.045` **#52523C** | **#242424** | **#4D4D4C** |
+| F-4 | `0.048 0.056 0.034` **#3E4334** | `0.065 0.076 0.046` **#484E3D** | **#242424** | **#4D4D4C** |
+
+Materials per wreck fell 13 → 9 (A-1), 7 → 5 (Huey), 13 → 9 (F-4). Tri counts UNCHANGED
+(3652 / 5976 / 3644) — the pass touches `material_index` and base colours and nothing else.
+
+### Four things this pass learned, each of which changed a number
+
+* **KILLING THE CAMO EXPOSED THE SAME DEFECT WEARING SOOT.** `scorch()`'s dither is 50/50 in its
+  falloff band, and on a low-poly sunlit wing a 50% chequer of soot against paint is exactly the
+  read that was just removed. The lever is the CORE, not the radius: faces closer than
+  `radius*core` are solid, the rest dither. All three went to `core` 0.70-0.72 (was 0.28-0.34) on
+  a slightly smaller radius — solid burn at the seat, a narrow broken edge, no static.
+* **SOOT HAS TO BE DARKER THAN THE PAINT IT SITS ON.** At the old `SOOT` 0.055 the char was
+  within 10% of the F-4's new base and the fire seats vanished. Now 0.032 (`wrecklib.SOOT`).
+* **THE BRIGHTEST THING ON THE F-4 SITE WAS THE CANOPY.** `wreck_canopy_crazed` measured
+  luminance **0.107** against a 0.053 airframe, and being near-neutral it took the render sky's
+  blue — a slate slab beside the hulk pulling the eye off the aeroplane. Now 0.065/0.070/0.062.
+* **THE BLUE CHANNEL DECIDES WHETHER A GREY-GREEN READS AS SLATE.** The render sky is
+  0.42/0.46/0.52, so any near-neutral paint takes a blue cast in every shadowed facet. Holding
+  blue at ~0.6 of green keeps the Phantom green in the shade; at 0.044/0.058 it looked naval.
+
+### Pipeline changes
+* NEW `wrecklib.unify_paint(objs, subs, name, colour)` — collapses every material matching `subs`
+  onto ONE solid base per FACE. Geometry, part names, sockets, colliders and every gate untouched;
+  a slot left with no faces is not written by the glTF exporter, so the camo materials simply
+  stop shipping.
+* NEW `wrecklib.set_base(subs, colour)` — absolute base colour, for trim and insignia.
+* **DELETED `wrecklib.soil()`** (fossil law): its only callers are gone, because `underside_grey`
+  and the store greys are now absorbed into the base rather than multiplied by a guessed factor.
+  Its lesson is carried in `set_base`'s docstring.
+
+### Gates, on the shipped files
+`build_wrecks.py -- all` green for all three: `assert_debris_grounded` STRICT (13/32/14 pieces,
+no convictions), `assert_texture_names` (only `fb_earth` embeds), round-trip re-import
+(`wreck_hard_`/`wreck_soft_` prefixes on every mesh AND collider, 3 fire sockets ≤ 1.55 m off the
+wreck, `pilot_anchor` 6.17/6.48/6.40 m off the hull and ≥ 8.64 m from any fire, nose +Y).
+`verify_wrecks.py` → **ALL WRECKS PASS**. Donor md5s byte-identical before and after.
+
+### Two pre-existing defects this pass found and did NOT fix (out of a materials lane)
+1. **`a1 wreck_soft_wing_r` renders as fine grey static along its inboard span.** Coincident
+   surfaces: the gate measures clearance **-1.28 .. 0.71 m with 85% contact**, i.e. the wing skin
+   is flush inside the mound over most of its area, and Cycles picks between the two coplanar
+   surfaces per sample. Present identically in the pre-change renders. It will z-fight in Godot
+   too. Fixing it is a burial-depth change and re-opens the debris gate.
+2. **The Huey build reports `2 embedded` textures including `huey_crashed_fb_crate.png`.** The
+   gate lists loaded IMAGE DATABLOCKS with users, not what the exporter wrote — the shipped GLB
+   embeds only `fb_earth` (verified by `verify_wrecks.py` reading the file). Pre-existing;
+   `assert_texture_names` is measuring the scene when the question is about the file.
