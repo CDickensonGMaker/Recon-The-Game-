@@ -1206,3 +1206,22 @@ the hitch tail to hunt with SpawnLedger next time the probe runs.
 it is a hold-the-line gate, not an aspiration. An aspirational 30/15 requires the GPU
 work (the demo's own veg/dressing splits not yet measured — the arena's numbers do not
 transfer directly). His ratification makes either law.
+
+### 2026-08-14 — SPAWNLEDGER ATTRIBUTION RUN (crucible, headless, CPU truth)
+
+Second crucible with the ledger armed (log: session scratchpad
+`crucible_spawnledger.log`). Curve reproduces the 8/14 baseline (BASELINE 9.05ms avg /
+COMBAT 10.10 / WAVE 25.92 / FIRES 30.31 / EVERYTHING 23.09; worst frames 265-283ms
+class, 1 [NAV-FALLBACK] the whole run). The attribution finding is NEGATIVE and it
+narrows the hunt: **the big hitch frames (+2,000-4,600 nodes in one frame) report "no
+spawns this frame"** — the four ledgered NPC sites (spawn_tracked_enemy, AllyBase,
+EnemyBase, Civilian) are NOT the burst class. MarchingCell's 2/frame stagger shows up
+exactly as designed (spawn_tracked_enemy x2 on ledgered frames). Remaining suspects, by
+phase signature:
+- COMBAT +4,135 nodes one frame = the arena's `_hot_start_combat` direct spawn path
+  (36 men x ~115 nodes) — bench-only, un-ledgered, and the arena is sterile by ruling;
+  instrument only if a demo path shares it.
+- WAVE/FIRES +2,000-4,000-node frames with no spawns = **fire-support dispatch
+  instantiation** (napalm run airframe + canisters + GunFX procs; arty barrage). This is
+  the demo-relevant class — the demo's 5-7fps siege minimums live here. Next lever:
+  stagger or pool the fire-support proc instantiation the way MarchingCell was staggered.
