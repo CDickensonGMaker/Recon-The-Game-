@@ -684,3 +684,153 @@ lands it), so the comparable figure is fin-top-above-belly.
   stripes. Landed on ~1.9 m spacing along the fuselage, ~1.4 m across the wing, wobble 0.45+0.15.
 - **An upward-facing polygon must never take the grey underside colour.** Without that rule the
   wing upper surface crosses the demarcation line and paints a white blob mid-wing.
+
+---
+
+## 2026-08-14 · F-4 Phantom II reference study (before any modelling)
+
+**Sources, and what each one gave.** Everything below was MEASURED off the drawing, not eyeballed.
+
+- **`McDonnell_Douglas_F-4E_Phantom_II_3-view_line_drawing_(manual).png`** (Wikimedia Commons, PD, from
+  the aircraft manual) — **a DIMENSIONED three-view**: 19.2 m length · 11.71 m span · 4.98 m ground-to-
+  fin-top · 8.41 m across the wing-fold stations · 5.0 m stabilator span · 7.09 m wheelbase · 5.46 m
+  main-gear track. Scale derived, not assumed: the 19.2 m dimension line spans 1921 px and the span
+  spans 1167 px, so the **top view is 100.05 px/m** (the two agree to 0.4%); the side view fin-top-to-
+  ground spans 483 px, so the **side view is 97.0 px/m**. The two views are at DIFFERENT scales -
+  measuring the side view with the top view's scale puts every waterline out by 3%.
+- `McDonnell_F-4C_Phantom_IIs_of_the_558th_TFS_in_flight_over_Vietnam,_in_December_1968.jpg` -
+  **rear-3/4 from above, SEA camo, tail code XT.** The single best angle for this aeroplane: the
+  canted-surface X, the patch size, the grey underside, the centreline tank.
+- `McDonnell_F-4D-29-MC_Phantom_II.jpg` - **forward-3/4 close-up.** Radome droop, the splitter-plate
+  bleed gap, the intake ramp, the tandem canopy framing.
+- `390th_Tactical_Fighter_Squadron_F-4Cs_flying_over_Vietnam.jpg` - **low side/below, pre-camo grey.**
+  Stabilator anhedral and the store train read cleanly against the sky.
+- en.wikipedia.org/wiki/McDonnell_Douglas_F-4_Phantom_II - the design reasons: outer panels angled up
+  **12 deg** to buy 5 deg effective dihedral, stabilator **23 deg anhedral** to clear the exhaust,
+  the **dogtooth** leading edge for high-alpha control.
+- Hill Aerospace Museum / Museum of Flight - **F-4C: 58 ft 3.75 in (17.77 m) long, 38 ft 4.875 in
+  (11.71 m) span, 16 ft 3 in (4.95 m) high.**
+
+**Ten form observations that must survive into the mesh:**
+
+1. **"45 deg wing sweep" is the QUARTER-CHORD figure and is wrong as a leading edge.** Measured off
+   the top view the inner-panel LE rakes **51.5 deg** and the outer panel **54 deg**. Build a 45 deg
+   LE and the planform stops being a Phantom.
+2. **The dogtooth and the dihedral break are the SAME station: y = +/-4.205 m** (half of the drawing's
+   8.41 m fold dimension), which is **71.8% of semi-span** - the outer panel is only 1.65 m long. The
+   sawtooth is a **0.28 m FORWARD step of the leading edge** at that station: measured LE 11.30 m
+   inboard of it, 11.02 m outboard.
+3. **The engine nozzles exit at ~80% of the length and the last 3.9 m is a SLIM BOOM.** Fuselage
+   half-width measured aft: 1.16 m at the wing TE, **0.68 m at 15.4 m, 0.44 m at 16.4 m.** Both
+   stabilators and the whole fin mount on that thin boom. Carry the wide fuselage to the tail and it
+   reads as an A-7.
+4. **The intakes are the widest thing on the forward aircraft.** Half-width goes 0.64 m (bare
+   fuselage) to **1.41 m at station 6.8 m** - each intake box adds 0.77 m per side. They are tall
+   slabs with a splitter plate standing off the fuselage on a visible bleed gap.
+5. **The radome droops, and it is measurable.** Radome axis sits ~0.55 m BELOW the fuselage centreline
+   while the belly line stays flat. Under it runs a shallow chin fairing (the M61 bay on the E, the
+   seeker fairing on the D) from station 1.6 to 4.6 - that lobe is why the nose looks heavy.
+6. **Stabilator:** LE sweep **46.6 deg** (measured (16.6, 0.58) to (18.6, 2.47)), span **4.92 m**,
+   **23 deg anhedral**, mounted LOW on the boom well below the fin root. One-piece slab, no elevator.
+7. **Fin:** leading edge raked **~62 deg from vertical**, root chord ~4.6 m starting at station
+   13.7 m, tip chord ~1.0 m. Fin TE and stabilator TE both land at 19.2 m - they define the tail.
+   A near-vertical fin turns it into an F-105.
+8. **Waterlines, gear down, above the ground line:** belly **1.30** · spine aft of the canopy
+   **2.80** · canopy top **3.40** · fin top **4.98**. So the fuselage centreline is at 2.05 and
+   **fin-top-above-belly is 3.68 m** - THAT is the comparable figure for a gear-up level model, not
+   the published 4.95-5.0 m, which is a three-point ground height. Same trap as the A-1's 4.78 m.
+9. **The canopy is only ~0.6 m proud of the spine, and the spine STEPS DOWN behind it.** The F-4 has
+   no bubble; it has a long tandem greenhouse whose top is barely above the deck behind it.
+10. **SEA camo patches are METRES across** - on the 558th TFS photo one patch covers a third of the
+    fin - with wavy edges, a light grey underside and a wavy demarcation up the fuselage sides. The
+    **radome is BLACK**, and there is a dark antiglare deck ahead of the windscreen.
+
+**Variant, and why this build is the F-4E-proportioned airframe at 19.2 m.** The commission asked for
+F-4C/D reference but specified **19.2 m / 11.71 m / 5.0 m, which are the F-4E's numbers** - the
+F-4C/D is **17.76 m**, the whole 1.45 m difference being the lengthened gun/radar nose. The only
+DIMENSIONED drawing available is the F-4E one, so building the C/D would mean inventing where 1.45 m
+comes out of a measured nose. Three further reasons the E is the right call here and not a
+compromise: the commissioned dimensions are the E's; `collision_table.gd:131` already sizes
+`f4_phantom` as a 19.4 m box; and `cas_airplane.gd` flies a **GUNS** ordnance mode
+(`_guns_hot()`, `_fire_strafe_burst()` at :355) - the F-4E carries the M61 internally, the C/D needs
+a centreline SUU-16 pod. Everything the brief lists as identity (canted stabilator, canted outer
+panels, chin intakes, drooped radome, tandem canopy, sawtooth) is common to all F-4s.
+`build_f4_phantom_v2.py` exposes **`NOSE_CUT`** so an F-4C/D is a one-constant change.
+
+**No spinning part exists on this airframe and that is the contract.** `cas_airplane.gd:104` calls
+`RotorSpin.attach()` on every fixed-wing model. `rotor_spin.gd:25` spins any node whose lowered name
+contains `prop` / `spinner` / `blade` (also `mainrotor`/`rotor_hub`/`new_blade`/`rotor_flybar`/
+`new_rotor`, and `tailrotor`/`tailblade`/`new_tailblade`), and `:20` plays any action named
+`prop_spin` / `A1_PropellerAction*` / `rotor_spin`. A jet must trip NONE of them: no node may be
+called anything with those substrings (note `F4_Col_Aft-colonly`, not `..._Tail...`), and no action
+may ship. The verifier asserts both.
+
+## 2026-08-14 · `f4_phantom_v2` shipped — new variant, old asset untouched
+
+`assets/us/aircraft/f4_phantom_v2.glb` + `.blend`. Built entirely from
+`tools/build_f4_phantom_v2.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_f4_phantom_v2.py`, which asserts the contract on the SHIPPED GLB. `f4_phantom.glb`
+and its `.import` verified byte-identical afterwards by md5. No `.blend1`
+(`preferences.filepaths.save_version = 0` is set in the build script).
+
+**Numbers.** **2,060 visible tris** (+96 collider) · 6 objects · 10 flat materials, all metallic 0.0,
+**no textures at all**. Span **11.710** (real 11.71) · length **19.230** (real 19.20) · stabilator
+span **4.920** (real 4.92) · wing area **48.8 m²** (real 49.24) · fin top **3.910 m** above the
+airframe belly · outer panel dihedral **12.8°** measured (12° designed) · stabilator anhedral 23° ·
+dogtooth a 0.280 m forward step at x ±4.205.
+
+**Frame contract.** Nose at Blender +Y = **Godot −Z**, real metres, **every node at identity** — no
+translation, no rotation, no scale on any of the six. Origin = centre of mass: x on the centreline,
+**y at the wing quarter MAC (station 10.233 of 19.2)**, z on the fuselage centreline at the wing —
+**NOT the ground line**, for the same reason as the A-1: `cas_airplane.gd:355` spawns the strafe
+muzzle at `global_position + Vector3(0, -1.2, 0)`. The airframe belly is 0.98 m below the origin, so
+that muzzle sits 0.22 m clear under the skin. **The ground line is at local z −2.050** — add it to
+park the jet gear-down.
+
+**This is a JET and the contract is that NOTHING spins.** `cas_airplane.gd:104` attaches
+`RotorSpin` to every fixed-wing model regardless of type. Correct behaviour for a Phantom is for it
+to bind nothing: no node name contains `prop`/`spinner`/`blade`/`mainrotor`/`rotor_hub`/`new_blade`/
+`rotor_flybar`/`new_rotor`/`tailrotor`/`tailblade` (which is why the aft collider is
+`F4_Col_Aft-colonly`, not `..._Tail...`), and **no action ships**, so `rotor_spin.gd:20` finds no
+`prop_spin`/`A1_PropellerAction*`/`rotor_spin` clip either. Both build and verifier assert this.
+
+**Facing, measured not assumed.** Old `f4_phantom.glb`: `F4_GunPod_M61` at Blender y **+10.77**,
+exhaust at **−8.09** — the old placeholder ALREADY faces nose-+Y, so unlike the Skyraider there is
+no flip to undo. It is 1,024 tris, ships **two textures** (`tmpwamani3w`, `tmpxc1gk1yi` — off-spec
+for the flat-material fleet), carries duplicate/asymmetric node names (`F4_VFin_L` and
+`F4_VFin_L.001`, an `F4_Exhaust_R` with no `_L`) and has **no `-colonly` meshes at all**. Its span
+of y −8.58..+10.77 confirms it was already built to F-4E length.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+1. Point `scenes/vehicles/f4_phantom.tscn:4` at `f4_phantom_v2.glb`. No facing correction is needed
+   and none is present to remove.
+2. `collision_table.gd:131` `"f4_phantom"` box (11.6, 4.5, 19.4) / `y_offset` 2.29 was sized for the
+   old airframe on a GROUND-LINE origin. v2 measures span 11.71, length 19.23, height 4.61 with a
+   **centred** origin, so `y_offset` should go to ~0 or the box floats 2.29 m high. Either retune it
+   or let the three shipped `-colonly` meshes serve — the verifier asserts they span the solid
+   airframe in plan.
+
+### Traps this build hit, so the next aircraft does not
+- **A quarter-chord formula copied between opposite sign conventions.** The A-1 script computes the
+  wing quarter chord as `LE − 0.25·chord` and is right, because it works in aft-NEGATIVE Blender y.
+  This script works in aft-POSITIVE stations, where the same expression moves the point FORWARD half
+  a chord. It put the origin on the wing root leading edge and left the model 2.4 m nose-biased. The
+  tell was in the printed bounds — nose +6.87, tail −11.48 on a 19.2 m aeroplane. The verifier now
+  asserts `|(nose+tail)/2| < 1.0 m`.
+- **A 5 cm pitot needle silently failed the collider-coverage test.** The hull collider stopped
+  0.68 m short of the airframe's forward-most VERTEX, which is the probe tip — and it should. The
+  fix was not to loosen the tolerance but to measure the SOLID nose by radius about the probe axis
+  (`hypot(x, z+0.60) > 0.12`) and then assert separately that the hull deliberately stops short of
+  the boom. **A bbox test cannot tell a needle from a nose.**
+- **Voronoi camo checkerboards above a wobble/spacing ratio of about 0.4.** The A-1 note says keep
+  the wobble under the spacing; here is the number. First pass: wing seeds 1.1 m apart under a
+  0.55+0.18 wobble, ratio **0.66** — the outer wing panels rendered as a tan/green chequerboard.
+  Fixed at seeds 1.7 m apart, wobble 0.40+0.13, ratio **0.31**.
+- **Fuselage camo seeds all on the centreline paint transverse BANDS, not blobs.** Voronoi with no
+  lateral seed variation degenerates to 1-D. Spreading the seed x over 0.10..0.55 broke it up.
+- **One global camera pull-back crops an overhead plan.** In a 1000x620 frame the 19.2 m length
+  lands on the SHORT axis of a top view, so the distance that frames the side view beautifully cuts
+  the nose and tail off the plan. `VIEWS` now carries a per-view distance multiplier (3.15 for top).
+- **The published height did not apply, again.** 4.98 m is the ground-to-fin-top with the gear DOWN.
+  This model is level and gear UP, so the comparable figure is fin-top-above-belly, **3.91 m**. Both
+  the build and the verifier print the caveat next to the number so nobody "fixes" it.

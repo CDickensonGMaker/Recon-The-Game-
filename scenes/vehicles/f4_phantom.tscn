@@ -1,9 +1,12 @@
 [gd_scene load_steps=3 format=3 uid="uid://cf4phantom0001"]
 
 [ext_resource type="Script" path="res://scripts/vehicles/cas_airplane.gd" id="1_cas"]
-[ext_resource type="PackedScene" path="res://assets/us/aircraft/f4_phantom.glb" id="2_glb"]
+[ext_resource type="PackedScene" path="res://assets/us/aircraft/f4_phantom_v2.glb" id="2_glb"]
 
 [node name="F4Phantom" type="Node3D"]
 script = ExtResource("1_cas")
 
+## f4_phantom_v2.glb conforms: nose Blender-+Y / Godot--Z at identity, real
+## scale, no spin-hint node names (a jet binds nothing in rotor_spin - asserted
+## by tools/verify_f4_phantom_v2.py).
 [node name="Model" parent="." instance=ExtResource("2_glb")]
