@@ -54,6 +54,9 @@ const STRUCTURES := {
 	"punji_trap": {"box": Vector3(0, 0, 0), "y_offset": 0.0, "footprint": Vector2(2, 2), "scale": 1.0},  # no collision - trap
 	# Vehicles (props)
 	"m113_apc": {"box": Vector3(2.7, 2.2, 5), "y_offset": 1.1, "footprint": Vector2(6, 3.5), "scale": 1.0},
+	# v2 rebuild 2026-08-14 (verify_m113_v2.py): 2.686 x 2.500 x 4.863 on a
+	# ground-line origin - the old box's 2.2 height was measured without the cupola.
+	"m113_apc_v2": {"box": Vector3(2.80, 2.60, 5.00), "y_offset": 1.30, "footprint": Vector2(3.8, 6.0), "scale": 1.0, "mesh": true},
 	"m151_mutt_gun_jeep": {"box": Vector3(1.8, 1.8, 3.5), "y_offset": 0.9, "footprint": Vector2(4, 2.5), "scale": 1.0},
 	# v2 rebuild 2026-08-14 (verify_m151_v2.py): 1.633 x 1.765 x 3.371 on a
 	# ground-line origin - fits the same authored box; ships its own -colonly tub.
@@ -310,7 +313,7 @@ const MATERIALS := {
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
 	"ch47_chinook": Mat.METAL, "huey": Mat.METAL,
 	"m113_apc": Mat.METAL, "m151_mutt_gun_jeep": Mat.METAL, "m35_deuce_truck": Mat.METAL,
-	"m151_mutt_gun_jeep_v2": Mat.METAL, "m35_deuce_truck_v2": Mat.METAL,
+	"m151_mutt_gun_jeep_v2": Mat.METAL, "m35_deuce_truck_v2": Mat.METAL, "m113_apc_v2": Mat.METAL,
 	"a1_skyraider": Mat.METAL, "a4_skyhawk": Mat.METAL, "f4_phantom": Mat.METAL,
 	"Bomb_250lb_Mk81": Mat.METAL, "Bomb_500lb_Mk82": Mat.METAL,
 	"Bomb_1000lb_Mk83": Mat.METAL, "Bomb_2000lb_Mk84": Mat.METAL,

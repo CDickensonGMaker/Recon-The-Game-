@@ -14,6 +14,10 @@ const EXPECTED := {
 	"res://assets/us/vehicles/huey.glb": [6.0, 32.0],
 	"res://assets/us/vehicles/huey_v3.glb": [12.0, 16.0],  # 14.63 = main rotor span
 	"res://assets/us/vehicles/m113_apc.glb": [2.0, 9.0],
+	# v2 convoy fleet, 2026-08-14: real dims, verified by tools/verify_*_v2.py
+	"res://assets/us/vehicles/m151_mutt_gun_jeep_v2.glb": [3.0, 3.7],
+	"res://assets/us/vehicles/m35_deuce_truck_v2.glb": [6.5, 7.3],
+	"res://assets/us/vehicles/m113_apc_v2.glb": [4.5, 5.2],
 	"res://assets/us/aircraft/a1_skyraider.glb": [6.0, 18.0],
 	"res://assets/us/aircraft/ac47_spooky.glb": [26.0, 32.0],  # true DC-3 span 28.96m via import root_scale 0.1475; source blend keeps its working scale
 

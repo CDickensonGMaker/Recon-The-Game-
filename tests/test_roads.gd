@@ -389,7 +389,7 @@ func _check_convoy_drives() -> void:
 	# the empty-array bug was fixed, every convoy would still have spawned with zero
 	# vehicles and silently never moved. A name is not a file until you check.
 	var missing: Array[String] = []
-	for model_name in ["m35_deuce_truck", "m151_mutt_gun_jeep"]:
+	for model_name in ["m35_deuce_truck_v2", "m151_mutt_gun_jeep_v2", "m113_apc_v2"]:
 		var path: String = ConvoySpawner.VEHICLE_MODEL_DIR + model_name + ".glb"
 		if not ResourceLoader.exists(path):
 			missing.append(path)

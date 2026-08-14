@@ -1755,3 +1755,165 @@ Summoner to judge rather than self-iterated on.
 
 **Renders (final geometry):**
 `C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\0201f774-4017-48d5-924a-0296e7efee35\scratchpad\vehicles\m35v2_{side,front,threequarter,rear_quarter,datum}.png`
+
+---
+
+## 2026-08-14 · `m113_apc_v2` shipped — new variant, original untouched
+
+Third and last of the convoy-vehicle rebuilds, after `m151_mutt_gun_jeep_v2` and
+`m35_deuce_truck_v2`. **`assets/us/vehicles/m113_apc.glb` was not opened and is byte-identical**
+(mtime still 2026-05-13). Ships `assets/us/vehicles/m113_apc_v2.glb` (**146 KB** against the old
+model's 1.18 MB) beside `m113_apc_v2.blend`. No `.blend1`.
+
+Builder `tools/build_m113_v2.py`, gate `tools/verify_m113_v2.py`, both headless
+(`blender -b --factory-startup`), both re-runnable from an empty scene.
+
+### Measured, on the re-imported GLB
+
+| | v2 | real M113A1 | shipped model |
+|---|---|---|---|
+| length | **4.863** | 4.863 | 5.515 (+13.4%) |
+| width, over tracks | **2.686** | 2.686 | 3.366 (+25.3%) |
+| height, over the ACAV shield | **2.500** | 2.500 | 3.841 w/ antenna |
+| hull roof | **1.850** | ~1.85 | — |
+| **track width** | **0.381** | 0.381 (15 in) | **0.120 (−68%)** |
+| hull side half-width | **1.292** | inboard of the track | 1.358 (outboard) |
+| ground clearance | **0.434** | 0.434 (17.1 in) | −0.044 (below ground) |
+| road wheel OD | **0.610** | 0.610 (24 in) | — |
+| road wheels/side, spacing | 5 @ 0.660 | 5 | 5 |
+| track loop length | 9.493 | 9.601 (63 × 6 in) | — |
+| nose overhang past the sprocket | **0.180** | — | **0.730** |
+| materials | **7, no textures** | — | **26** |
+| visible tris | **2,526** | — | 18,808 |
+
+Tri split: **bodywork 1,494 = 59.1%** (hull 776 · trim vane 72 · ramp 84 · cupola 338 ·
+ACAV rear 224), tracks 416 = 16.5%, fourteen wheel nodes at 44 each = 616 = 24.4%. Zero tori.
+Colliders 24 tris on top, in two `-colonly` boxes.
+
+### THE PUBLISHED 2.5 m IS THE OVERALL HEIGHT, NOT THE ROOF — the brief had it the other way
+
+The commission read Wikipedia's `Height 2.5 m` as "2.5 m to hull roof". It is not: it is over the
+commander's cupola. **In the Puckapunyal walkaround the fitters standing beside the vehicle have
+their heads AT the roof line**, so with a 1.75 m man the roof is ~1.85 m. Built to roof 1.850 and
+2.500 over the ACAV gunshield ring, and the datum render (a 1.7132 m box figure) puts his head
+0.14 m below the roof, which is what the footage shows. A 2.5 m roof would have made the vehicle
+read a third too tall. **Measurement beat the brief; the brief is the thing that was wrong.**
+
+### THE HULL IS NOT ONE BOX — the sponson is why the running gear works
+
+The relationship the shipped model had inverted, and the geometry that falls out of fixing it:
+
+* the **track's outer skin at ±1.343 is the widest AND lowest surface on the vehicle** — it alone
+  defines both the 2.686 m width and the z = 0 ground line;
+* the **hull side sits at ±1.270**, 73 mm INBOARD of it; road wheels at ±1.303 in between;
+* the upper hull **stops at z 0.800 and overhangs the track** — that sponson is why the road
+  wheels are visible under the hull in every photograph;
+* between the tracks a **belly tub drops to the published 0.434 m clearance**, and it is held
+  **32 mm inboard of the track's inner face (0.930, not 0.962)**: flush, the tub's side wall and
+  the track band's inner wall were the SAME PLANE down the whole vehicle.
+
+Running gear: drive sprocket **front and raised** (y +1.965, z 0.500, and its band wrap tops out
+at 0.793 — it MUST stay under the 0.800 sponson or the sprocket eats the hull side), idler
+**rear** (y −1.865), five road wheels at 0.660 pitch, **no return rollers** — the top run rests
+directly on the road wheel tops, which is why the track contour is built by a taut-belt walk over
+the wheel circles and not by a convex hull (a hull pulls the top run 0.16 m into the air).
+
+### Sources
+
+`en.wikipedia.org/wiki/M113_armored_personnel_carrier` (4.863 × 2.686 × 2.5, clearance 17.1 in on
+the A1, 5 road wheels, 5083 aluminium) · `army-guide.com/eng/product1424.html` (**drive sprocket
+front, idler rear, no track-return rollers**, 63/64 track links) · T130E1 track 15 in wide, 6 in
+pitch, so the 63-link loop is 9.601 m, which the builder asserts against the belt path it
+computes · YouTube **RAAC M113A1 walkaround** (`YCPt5OOkIBY` — stowed trim vane on the glacis,
+caged headlights, ramp personnel door and hinges) and **Squadron ScaleWorkshop M113 APC,
+Puckapunyal** (`X3EIWuEKmoI` — the only clean broadside and rear-3/4 with the ramp down, and the
+men who settle the roof height). Frames and contact sheets deleted after use.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+
+1. `scripts/missions/mission_generator.gd:374,376` — change both `"m113_apc"` to `"m113_apc_v2"`.
+   `convoy_spawner.gd:108` builds the path from the name, so nothing else changes, and **no facing
+   correction is needed and none exists to remove** (the shipped model's facing was already right;
+   it is the one thing it got right).
+2. `scripts/world/collision_table.gd` — the existing `"m113_apc"` entry at `:56`,
+   `box (2.7, 2.2, 5) y_offset 1.1`, **fits in plan but its 2.2 m height is 0.30 m SHORTER than
+   the vehicle** — it was measured without the cupola. Add:
+   `"m113_apc_v2": {"box": Vector3(2.80, 2.60, 5.00), "y_offset": 1.30, "footprint": Vector2(3.8, 6.0), "scale": 1.0, "mesh": true},`
+   and a `Mat.METAL` entry at `:312-313` beside the other two v2 vehicles. Note the old entry's
+   `footprint Vector2(6, 3.5)` is **(length, width)**, the reverse of the convention the
+   `m151_v2` / `m35_v2` entries use; the line above is (width, depth).
+3. `tests/test_asset_probe.gd:16` lists `m113_apc.glb` with bounds `[2.0, 9.0]` — add the v2 path.
+4. `tests/test_roads.gd:392` iterates `["m35_deuce_truck", "m151_mutt_gun_jeep"]` and **has never
+   listed the M113 at all**, so the convoy-model guard has never covered it. Add both names.
+5. The cupola is a **live pivot node** (`m113_cupola`, origin on the roof at y +0.300): traversing
+   it in game sweeps the .50's barrel outside the authored collision box. Cosmetic, but it is the
+   adopter's call whether to clamp the traverse.
+
+### THE TWO PROBES THIS BUILD ADDED — back-port them to the M151 and M35 gates
+
+Both live in `tools/build_m113_v2.py` and are IMPORTED by `tools/verify_m113_v2.py`, so the
+shipped GLB is re-checked with the same code that built it.
+
+**`coincident(objs)` — the coincident-face probe.** The project ledger recorded coplanar skins as
+a class that "no build-time check can see, only a render". It can be seen, and this is the check:
+face pairs **parallel to 0.999, within 1.6 mm of the same plane, overlapping in area (separating-
+axis test in the plane's own 2D basis), AND SHARING NO VERTEX**. It found **181 seams in a model
+whose renders I had already looked at twice and passed.** Driven to **0**.
+
+**`floaters(objs)` — every disconnected island must touch something.** BVH nearest-surface, per
+island, in world space. It convicted my own final-drive housing, which I had hung in the void
+between the belly tub and the track — the shipped model's floating `Shovel` defect, rebuilt by me
+from scratch, in the same session I was there to fix it.
+
+### Five things this build learned, each caught by a measurement or a render, not by reading code
+
+1. **The floater test MUST be symmetric.** Measuring only my-vertices-to-their-surface convicts
+   every correctly PENETRATING detail: a 0.23 m box driven into a 4.8 m hull plate has all eight
+   corners outside its neighbours' skins, and the hull prism's own ten corners are metres from
+   anything. The first run reported the main hull solid and a .50 cal ammo can as floating. An
+   island is attached if **either** side can reach the other.
+2. **And the symmetric floater probe still does NOT catch the shipped model's shovel.** That
+   shovel is 0.32 m clear of the hull — but **0.03 m clear of the TRACK**, so "does it touch
+   anything" answers yes. It is bolted to a moving part. The rule that convicts it is a different
+   one: **nothing may reach outboard of the running gear.** Both checks ship, and each catches a
+   class the other misses. *Do not assume a probe covers a defect just because it was written for
+   that defect — measure it against the defect.*
+3. **Butt joints are the dominant source of coincident faces, and a shared BURIED plane counts.**
+   Twenty of the 181 seams were a dozen roof details — grab rails, shovel, axe, hatches, ACAV
+   shield plates, pintle, ammo box — all bottoming out at the same `ROOF_Z − 0.020`. Every one of
+   those faces is inside the hull and invisible, and every one of them will z-fight. **Rule: every
+   applied detail PENETRATES its parent and gets its OWN offset, including on the hidden side.**
+4. **A taut-belt track contour must handle CONCAVE joints.** Where the top run drops off the
+   raised drive sprocket onto the first road wheel, the wrap sweep is **negative** — the two
+   tangent lines cross before they reach the circle. Emitting an arc there walks backwards along
+   the contour and folds the band over itself: 12 coincident seams, six at each end of the top
+   run, and the fold is invisible in a render because the band still bridges cleanly. Emit one
+   point at the mid-angle. *(Same shape as the m35's bowtie tarp section: a scrambled sweep still
+   makes a plausible-looking skin.)*
+5. **Rebuilding a defect while fixing it is normal, so automate the conviction.** I placed the
+   final-drive housing at x 0.930..1.285, z 0.315..0.685 — floating between the belly tub and the
+   track, attached to nothing, which is exactly the review's Defect 5 I was there to remove. The
+   probe caught it in the run after I wrote it. **A defect without a guard comes back inside the
+   same session.**
+
+**Deliberate deviations, stated so nobody scores them as bugs:**
+the road wheels are **8-sided** (chunky by choice; 8 divides 360 into a bottom vertex, which is
+what puts the model on the ground line) · the track band carries **no cleat detail** — flat outer
+skin, because a cleat ripple costs ~100 tris a side and cannot be offset outward without breaking
+the z = 0 ground line · the two ramp actuating cylinders the review asked for are **internal on a
+real M113**, so what ships is the pair of bottom hinge/actuator housings that are actually visible
+on the vehicle · the hull's rear corners **do not come down to the belly outboard of the idler**
+(only 0.10 m of hull sits aft of the track wrap, so the notch is negligible, and bringing it down
+full width would clip the idler).
+
+**Renders (final geometry):**
+`C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\0201f774-4017-48d5-924a-0296e7efee35\scratchpad\vehicles\m113v2_{side,front,threequarter,rear_quarter,datum}.png`
+
+**The gate, negative-tested before being trusted**
+(`-- --glb assets/us/vehicles/m113_apc.glb --legacy`, which swaps in that model's own
+`Light_L` / `Red_Light_L` lamp materials so the facing probe reads something real):
+**VERIFY FAIL, 122 failures** against **VERIFY PASS, 0** on the v2. It reports width +25.3%,
+length +13.4%, height +53.7%, a bbox floor at **z −0.0436** (below the ground line), lateral
+asymmetry of 0.054, **the widest mesh on the whole vehicle is `Shovel` and it is 0.020 m thick**,
+**324 coincident seams**, no trim vane, no named wheel nodes, 26 materials, and eleven objects
+carrying unapplied locations. The gate catches every defect it was written for.
