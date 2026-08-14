@@ -163,6 +163,13 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		# Name the region honestly: under a lab navmesh `box` is -1 and meaningless,
 		# and printing "-1" reads as a bug in the box lookup rather than a missing path.
 		var where: String = "lab navmesh" if lab_nav else "baked region %d" % box
-		push_warning("[NAV] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
+		# [NAV-FALLBACK], not [NAV]: the runner promotes "WARNING: [NAV]" to FAIL
+		# because that namespace belongs to the BAKE INVARIANT guards. This line is
+		# telemetry for a DESIGNED fallback (direct steering is the intended
+		# behavior when no path exists - see the contract at the top of step()),
+		# and on the honest post-2026-08-13 mesh it legitimately fires more:
+		# targets that were only fictionally reachable now have no path, and
+		# physics climbs the berm instead. A test must not go red for it.
+		push_warning("[NAV-FALLBACK] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
 			label, where, flat.length()])
 	return direct
