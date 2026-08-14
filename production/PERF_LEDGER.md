@@ -1188,3 +1188,21 @@ shipped lever): **baseline 34.5 fps avg / 33.0 min · GPU 24.06ms avg (26.64 max
 frame is markedly lighter than the arena bench's (24 vs 41.6ms GPU) - the arena
 over-represents jungle density. The siege-study phases (quiet / assault_in /
 assault_on_wire) are running as this is written; their rows land next.
+
+### 2026-08-14 — THE SIEGE STUDY rows (the demo's fight, measured)
+
+`--perf-probe --perf-siege`, shipping demo scene, 1280x720 @ 0.75 scale, Intel UHD:
+**quiet 31.6 avg / 5 min · GPU 27.1/36.4 · CPU 3.9/33.6** —
+**assault_in 22.4 / 6 · GPU 32.3/40.7 · CPU 4.5/12.8** —
+**assault_on_wire 21.9 / 7 · GPU 33.2/48.5 · CPU 5.0/13.4** (calls 1814→2073).
+
+Readings: the demo's fight is GPU-led on the floor (6-7x the CPU column) — the crucible
+doctrine holds on the shipping scene; CPU worst-frames are 13-34ms, far under the
+arena's 285ms class (the spawn budget + smaller demo cells); the 5-7fps minimums are
+the hitch tail to hunt with SpawnLedger next time the probe runs.
+
+**GATE PROPOSAL for the Summoner (step 18):** at the shipped 0.75 scale on this box —
+**assault_on_wire ≥ 20 fps average, ≥ 10 fps minimum.** Passes TODAY with ~2fps margin;
+it is a hold-the-line gate, not an aspiration. An aspirational 30/15 requires the GPU
+work (the demo's own veg/dressing splits not yet measured — the arena's numbers do not
+transfer directly). His ratification makes either law.
