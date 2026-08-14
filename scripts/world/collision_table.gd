@@ -65,6 +65,9 @@ const STRUCTURES := {
 	# near-exact fit, but the last ~0.5m of tail boom sits outside it.
 	"huey": {"box": Vector3(3, 3, 12), "y_offset": 1.5, "footprint": Vector2(14, 14), "scale": 1.0},
 	"ch47_chinook": {"box": Vector3(4, 4, 16), "y_offset": 2.0, "footprint": Vector2(18, 18), "scale": 1.0},
+	# v2 rebuild 2026-08-14 (verify_ch47_v2.py): 3.78 wide x 5.68 high x 29.90
+	# rotors turning, fuselage 16.40, nose -Z; footprint spans the rotor discs.
+	"ch47_chinook_v2": {"box": Vector3(4.00, 5.70, 17.90), "y_offset": 2.85, "footprint": Vector2(5.2, 19.4), "scale": 1.0, "mesh": true},
 	# ---- Auto-measured from GLB AABBs (headless Blender, bead f5yf). box=(x, height, depth),
 	# y_offset=AABB center height. mesh:true = GLB carries -col trimesh (box = nav carve only).
 	"Bomb_1000lb_Mk83": {"box": Vector3(0.8, 0.8, 2.6), "y_offset": 0.00, "footprint": Vector2(2.0, 4.0), "scale": 1.0},
@@ -311,7 +314,7 @@ const MATERIALS := {
 	"gate_entrance_lowpoly": Mat.MASONRY,
 
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
-	"ch47_chinook": Mat.METAL, "huey": Mat.METAL,
+	"ch47_chinook": Mat.METAL, "ch47_chinook_v2": Mat.METAL, "huey": Mat.METAL,
 	"m113_apc": Mat.METAL, "m151_mutt_gun_jeep": Mat.METAL, "m35_deuce_truck": Mat.METAL,
 	"m151_mutt_gun_jeep_v2": Mat.METAL, "m35_deuce_truck_v2": Mat.METAL, "m113_apc_v2": Mat.METAL,
 	"a1_skyraider": Mat.METAL, "a4_skyhawk": Mat.METAL, "f4_phantom": Mat.METAL,

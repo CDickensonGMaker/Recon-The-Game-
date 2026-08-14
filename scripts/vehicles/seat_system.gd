@@ -42,9 +42,11 @@ const PASSENGER_SEATS: Array[StringName] = [
 ## put every seat crosswise in a Huey-sized pocket and men unseated inside the
 ## fuselage.
 ## uh1: doors at z -3.4..-1.9, walls x +-1.56, nose = -Z, Door_Left side = +X.
-## ch47: measured off chinook.tscn (tools/probe_chinook_dims.gd) - fuselage
-## x -4.05..4.05 ALONG X, nose -X, ramp +X to 4.82, walls z +-0.9, floor y 0.75;
-## wall benches face inward across the bay.
+## ch47: ch47_chinook_v2 bakes ALL 18 seat_* empties into the GLB, so this table
+## is retired for that ship (_scan_sockets prefers real markers). It stays as
+## the emergency fallback, rotated to the v2 frame: nose -Z, ramp +Z, benches
+## face inward across the bay. The pre-v2 numbers (nose -X, ramp +X 4.82) died
+## with the old GLB.
 const FALLBACK_LAYOUTS: Dictionary = {
 	&"uh1": {
 		&"seat_pilot_l": [Vector3(0.55, 1.35, -5.35), 180.0],
@@ -69,25 +71,25 @@ const FALLBACK_LAYOUTS: Dictionary = {
 		&"seat_bench_6": [Vector3(0.25, 1.125, -3.115), 90.0],
 	},
 	&"ch47": {
-		&"seat_pilot_l": [Vector3(-4.6, 1.45, 0.45), -90.0],
-		&"seat_pilot_r": [Vector3(-4.6, 1.45, -0.45), -90.0],
-		&"seat_gunner_l": [Vector3(-2.6, 1.10, 0.70), 0.0],
-		&"seat_gunner_r": [Vector3(-2.6, 1.10, -0.70), 180.0],
+		&"seat_pilot_l": [Vector3(0.45, 1.45, -4.6), 180.0],
+		&"seat_pilot_r": [Vector3(-0.45, 1.45, -4.6), 180.0],
+		&"seat_gunner_l": [Vector3(0.70, 1.10, -2.6), -90.0],
+		&"seat_gunner_r": [Vector3(-0.70, 1.10, -2.6), 90.0],
 		## The squad stick sits aft, nearest the ramp it boards through.
-		&"seat_pax_1": [Vector3(3.0, 1.10, -0.65), 0.0],
-		&"seat_pax_2": [Vector3(2.2, 1.10, -0.65), 0.0],
-		&"seat_pax_3": [Vector3(1.4, 1.10, -0.65), 0.0],
-		&"seat_pax_4": [Vector3(0.6, 1.10, -0.65), 0.0],
-		&"seat_pax_5": [Vector3(3.0, 1.10, 0.65), 180.0],
-		&"seat_pax_6": [Vector3(2.2, 1.10, 0.65), 180.0],
-		&"seat_pax_7": [Vector3(1.4, 1.10, 0.65), 180.0],
-		&"seat_pax_8": [Vector3(0.6, 1.10, 0.65), 180.0],
-		&"seat_bench_1": [Vector3(-0.2, 1.10, -0.65), 0.0],
-		&"seat_bench_2": [Vector3(-1.0, 1.10, -0.65), 0.0],
-		&"seat_bench_3": [Vector3(-1.8, 1.10, -0.65), 0.0],
-		&"seat_bench_4": [Vector3(-0.2, 1.10, 0.65), 180.0],
-		&"seat_bench_5": [Vector3(-1.0, 1.10, 0.65), 180.0],
-		&"seat_bench_6": [Vector3(-1.8, 1.10, 0.65), 180.0],
+		&"seat_pax_1": [Vector3(0.65, 1.10, 3.0), -90.0],
+		&"seat_pax_2": [Vector3(0.65, 1.10, 2.2), -90.0],
+		&"seat_pax_3": [Vector3(0.65, 1.10, 1.4), -90.0],
+		&"seat_pax_4": [Vector3(0.65, 1.10, 0.6), -90.0],
+		&"seat_pax_5": [Vector3(-0.65, 1.10, 3.0), 90.0],
+		&"seat_pax_6": [Vector3(-0.65, 1.10, 2.2), 90.0],
+		&"seat_pax_7": [Vector3(-0.65, 1.10, 1.4), 90.0],
+		&"seat_pax_8": [Vector3(-0.65, 1.10, 0.6), 90.0],
+		&"seat_bench_1": [Vector3(0.65, 1.10, -0.2), -90.0],
+		&"seat_bench_2": [Vector3(0.65, 1.10, -1.0), -90.0],
+		&"seat_bench_3": [Vector3(0.65, 1.10, -1.8), -90.0],
+		&"seat_bench_4": [Vector3(-0.65, 1.10, -0.2), 90.0],
+		&"seat_bench_5": [Vector3(-0.65, 1.10, -1.0), 90.0],
+		&"seat_bench_6": [Vector3(-0.65, 1.10, -1.8), 90.0],
 	},
 }
 ## Set by the attacher BEFORE any seat call (heli_lift.gd). Unknown keys fall
@@ -644,7 +646,8 @@ func board_squad(allies: Array) -> int:
 	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
 	var side: Vector3 = Vector3(0.0, 0.0, 1.0)
 	if fallback_key == &"ch47" and _vehicle != null and is_instance_valid(_vehicle):
-		side = ((_vehicle as Node3D).global_transform.basis * Vector3(0.0, 0.0, 1.0)).normalized()
+		# Abeam the ramp: the v2 ramp axis is +Z, so the stick line runs +X.
+		side = ((_vehicle as Node3D).global_transform.basis * Vector3(1.0, 0.0, 0.0)).normalized()
 	elif sock != null:
 		side = sock.global_transform.basis.x
 	var queued: int = 0
@@ -740,9 +743,10 @@ func door_staging_pos() -> Vector3:
 func _egress() -> Array:
 	if fallback_key == &"ch47" and _vehicle != null and is_instance_valid(_vehicle):
 		var xf: Transform3D = (_vehicle as Node3D).global_transform
-		# Ramp lip sits at root-space +X 4.8 (tools/probe_chinook_dims.gd);
-		# stage a metre aft of it, fanning straight aft.
-		return [xf * Vector3(5.8, 0.0, 0.0), (xf.basis * Vector3(1.0, 0.0, 0.0)).normalized()]
+		# ch47_chinook_v2 is convention-true: nose -Z, ramp aft at +Z (ramp hinge
+		# 15.47m from the nose, plan centre 0,0 - build record production/
+		# blender_notes.md 2026-08-14). Stage aft of the lip, fanning straight aft.
+		return [xf * Vector3(0.0, 0.0, 9.0), (xf.basis * Vector3(0.0, 0.0, 1.0)).normalized()]
 	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
 	if sock != null:
 		# Gunner sockets face outward: local +Z is straight out the door.

@@ -1917,3 +1917,189 @@ length +13.4%, height +53.7%, a bbox floor at **z −0.0436** (below the ground 
 asymmetry of 0.054, **the widest mesh on the whole vehicle is `Shovel` and it is 0.020 m thick**,
 **324 coincident seams**, no trim vane, no named wheel nodes, 26 materials, and eleven objects
 carrying unapplied locations. The gate catches every defect it was written for.
+
+---
+
+## 2026-08-14 · `ch47_chinook_v2` shipped — new variant, original untouched, FACING FIXED
+
+Fourth of the vehicle rebuilds after `m151_mutt_gun_jeep_v2`, `m35_deuce_truck_v2` and
+`m113_apc_v2`, and the first AIRCRAFT to run the ground-fleet pattern.
+**`assets/us/vehicles/ch47_chinook.glb` was not opened for writing and is byte-identical**
+(md5 `9dc159c2a4103d2cdc0bd129f709c992`, mtime still 2026-05-25). Ships
+`assets/us/vehicles/ch47_chinook_v2.glb` (**79 KB** against the old model's 543 KB) beside
+`ch47_chinook_v2.blend`. No `.blend1`.
+
+Builder `tools/build_ch47_v2.py`, gate `tools/verify_ch47_v2.py`, both headless
+(`blender -b --factory-startup`), both re-runnable from an empty scene.
+**VERIFY PASS, 0 failures** on the v2; **VERIFY FAIL, 129 failures** on the shipped model
+(`-- --glb assets/us/vehicles/ch47_chinook.glb --legacy`).
+
+### THE DEFECT THIS EXISTS TO KILL: the old Chinook flies sideways
+
+`ch47_chinook.glb` is exported with its **fuselage along X, nose at -X**. Measured on the
+re-imported file: the `Fuselage` mesh is **8.104 m along X and 1.800 along Y**, and the raw
+glTF accessor bounds are `X -3.75..+3.75, Z -0.90..+0.90` — ninety degrees off the fleet
+convention, in the file Godot reads. Nothing in `scenes/vehicles/chinook.tscn` compensates.
+`seat_system.gd`'s `ch47` fallback layout was then authored AROUND the defect
+(`:45-47`, "fuselage x -4.05..4.05 ALONG X, nose -X, ramp +X"), so the layout is now the
+thing that is wrong.
+
+Everything else the gate found on it, in one list: **rotors-turning length 9.911 m** against a
+real 29.90 (its rotors are a third scale, and its three blades are three different lengths) ·
+height 4.565 · lowest point **z -0.600**, below its own origin · lateral asymmetry **4.345 m** ·
+a `Nose_Strut` + `Nose_Wheel_+/-` that no Chinook has ever had · gear base 0.639 m ·
+**two floating islands** · 8 coincident seams · 10 materials with `.001` duplicates ·
+`DarkMetal` at metallic 0.80 · two baked rotor actions that `helicopter.gd:56-59` has to stop
+every time · five default 960-tri UV spheres · eleven objects carrying unapplied locations.
+
+### Measured, on the re-imported GLB
+
+| | v2 | real CH-47A | shipped model |
+|---|---|---|---|
+| rotor diameter (each) | **18.018** | 18.01 | ~8.4 |
+| length, rotors turning | **29.900** | 29.90 | 9.911 |
+| rotor hub separation | **11.890** | 11.89 (derived) | 8.11 |
+| fuselage width over sponsons | **3.780** | 3.78 | 8.104 (it is the LENGTH) |
+| height | **5.680** | 5.68 | 4.565 |
+| airframe, nose -> lowered ramp lip | **17.848** | — | — |
+| nose -> ramp hinge | **15.470** | 15.47 | — |
+| nose -> aft pylon TE | **16.400** | ~16.4 (drawing) | — |
+| gear base | **6.860** | 6.86 | 0.639 |
+| cabin (w x h) | **2.280 x 1.980** | 2.29 x 1.98 | none |
+| materials | **7, no textures** | — | 10 |
+| visible tris | **1,330** | — | 12,028 |
+
+Tri split: airframe 1,202 = 90.4%, two rotors 128 = 9.6%. Colliders 24 tris in two
+`-colonly` boxes. Ground line z = 0 (wheels on the pad), lateral symmetry exact.
+
+### HUB SEPARATION IS DERIVED, NOT LOOKED UP — and that is what makes both numbers fit
+
+With one blade of each rotor clocked dead ahead and dead astern,
+`overall = R + separation + R`, so `separation = 29.90 - 18.01 = 11.89`. Building to that
+honours the published rotor diameter AND the published rotors-turning length by
+construction rather than by fitting. The blades are clocked 90/210/330 forward and
+270/30/150 aft — 60 degrees interleaved, which is both what a real Chinook does and what puts
+a measurable extreme at each end.
+
+### THE THREE-VIEW OVERRULED A REMEMBERED STATION NUMBER
+
+The forward rotor sits **2.30 m aft of the nose** — over the COCKPIT, which is what
+inetres.com means by "one above the nose and one above the tail section". A remembered
+"fuselage station 240" would have put it at 4.83 m, more than twice as far back. Measured
+off the Wikimedia three-view (`File:Boeing_CH-47_Chinook_3-view_line_drawing.svg`, CC BY 3.0)
+at 1920 px, side elevation, nose LEFT: nose 226 px · fwd head 343 · aft head 950 ·
+pylon TE 1063 · fwd wheel 545 · aft wheel 888 · ground 342 · aft head height 50.
+**Three independent scales agree**, which is the only reason the drawing is usable:
+hub separation 607 px / 11.887 m = 51.06 px/m · aft rotor head height 290 px / 5.68 m =
+51.06 px/m · wheelbase 343.5 px / 6.86 m = 50.07 px/m.
+
+**Two published "lengths", both real:** 15.47 m is nose -> aft fuselage/ramp face, ~16.4 m is
+nose -> aft pylon trailing edge (flugzeuginfo's CH-47C "fuselage 18.00 m" is a third measure
+again). The pylon overhangs the ramp; that is not a discrepancy, it is two datums.
+
+### THE RAMP IS MODELLED DOWN, deliberately
+
+`seat_system.gd:735-745` empties a Chinook out of the BACK, and nothing in Godot animates a
+ramp (`heli_lift.gd` only knows `Door_Left`/`Door_Right`, which are Huey side doors rotated
+about Y). A closed ramp would be a wall the stick walks through. It hangs at **18 degrees**,
+lip at z 0.377, which reads as a lowered ramp on the ground and as the ramp-down cruise pose
+in the air. It is why the airframe measures 17.848 m rather than 16.40.
+
+### THE SEAT SOCKETS SHIP, AND THAT RETIRES THE ch47 FALLBACK TABLE
+
+`seat_system.gd:434-456` prefers real `seat_*` markers found anywhere under the vehicle and
+only generates `FALLBACK_LAYOUTS` entries for the ones it cannot find. All **18** ship in the
+GLB, in the corrected frame, so the ch47 fallback table stops being consulted the moment this
+model is adopted — **no `seat_system.gd` edit is needed and none was made.** Sockets rotate
+about Z ONLY (Godot local +Z is Blender local -Y; `rz 180` faces the nose), verified on the
+exported node quaternions. Cabin envelope for anyone re-authoring: floor z 1.15, walls
+x +-1.14, ceiling z 3.13, bay y +4.98 .. -6.60, cockpit y ~+6.8.
+
+### Origin, and why it is where it is
+
+Ground line (wheel contact) on the centreline, at the longitudinal centre of the airframe
+envelope. **`helicopter.gd:78-84` finds `Fuselage`, takes its AABB centre and subtracts it
+from the model's x/z**, so the Fuselage mesh is built symmetric about the origin in plan and
+that recentre provably moves nothing (asserted in both the builder and the gate on the raw
+glTF accessor bounds: `X -1.89..+1.89`, `Z -8.92..+8.92`).
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+
+1. `scenes/vehicles/chinook.tscn:4` — point `ext_resource` at `ch47_chinook_v2.glb`.
+   `main_rotor_node`/`tail_rotor_node`/`fuselage_node` need **no change**: `FrontRotor`,
+   `RearRotor` and `Fuselage` are the exact node names shipped. **Add no compensating
+   rotation to the Model node** — the asset's facing is now correct, and a flip on a node
+   that contains sockets negates every socket's facing inside it.
+2. `scripts/vehicles/seat_system.gd` — the `ch47` entry in `FALLBACK_LAYOUTS` (`:71-91`) and
+   its comment at `:45-47` are now **fossils**: they describe the old sideways frame. They
+   are inert once the sockets are found, but `_egress()` (`:741-745`) is NOT — it still
+   returns `xf * Vector3(5.8, 0, 0)` and fans along `+X`. **That must become `+Z`**
+   (`Vector3(0, 0, 9.0)` puts the stage a metre aft of the ramp lip at z 8.9), and
+   `board_squad`'s `side` at `:646-647` is already `Vector3(0,0,1)` and becomes correct
+   automatically.
+3. `scripts/world/collision_table.gd` — `"ch47_chinook"` at `:67` is `box (4, 4, 16)`
+   `y_offset 2.0`: **1.68 m too short** for a 5.68 m airframe and measured off the sideways
+   model. Add
+   `"ch47_chinook_v2": {"box": Vector3(4.00, 5.70, 17.90), "y_offset": 2.85, "footprint": Vector2(5.2, 19.4), "scale": 1.0, "mesh": true},`
+   plus a `Mat.METAL` entry at `:314` beside the other v2 vehicles. The box covers the
+   AIRFRAME only — a box round the 29.9 m rotor envelope would reserve a footprint the size
+   of the helipad.
+4. `scripts/ai/air_traffic.gd:16` needs nothing (it loads the .tscn, not the .glb).
+
+### Sources
+
+`vertipedia.vtol.org/aircraft/getAircraft/aircraftID/284` (CH-47A: rotor 18.01, overall
+29.90, height 5.68, fuselage 15.47 x 3.78, gear base 6.86, tracks 3.20/3.40, cabin
+9.30 x 2.29 x 1.98) · `chinook-helicopter.com/standards/areas/main_cabin.html` (cargo
+compartment "366 inches long, 90 inches wide, and 78 inches high") ·
+`flugzeuginfo.net/acdata_php/acdata_ch47_en.php` (CH-47C 30.18 / 18.29 — the D-model 60 ft
+blade, **deliberately not used**, the Vietnam ship is the A) ·
+`inetres.com/gp/military/ar/rotor/CH-47.html` (rotor placement description) · Wikimedia
+three-view (above) · YouTube **CH-47 walkaround at the War Remnants Museum, Ho Chi Minh City**
+(`7ExLshCVv-U` — a period A-model in overall olive drab: round cabin ports, nose glazing and
+chin bubbles, sponsons, dual forward / single aft wheels) and **CH-47 close-up walkaround,
+Katterbach** (`sazd62EVxrU` — the only clean ramp-down rear views). Frames and contact sheets
+deleted after use.
+
+### Deliberate deviations, stated so nobody scores them as bugs
+
+The rotors are **3 flat blades with 1.9 degrees of coning**, no droop stops, no pitch links,
+swashplates or control rods — the shipped model spends 1,984 tris on that hardware at a
+distance where none of it resolves · **no markings**: `helicopter.gd:90-103` looks for
+`VARIANT_A/B/C` and its own comment says the Chinook has none, and a star-and-bar decal is the
+backfacing-decal defect class for 60 tris nobody sees · the aft underside does **not** sweep
+up, because the sweep on the real aircraft IS the closed ramp and this ramp is down · road
+wheels are **6-sided** (6 divides 360 into a bottom vertex, which is what puts the model on
+the ground line) · one **`Fuselage` mesh** carries the whole airframe rather than a part tree,
+because that is what makes `helicopter.gd`'s AABB recentre exactly inert.
+
+### Four things this build learned, each caught by a measurement or a render
+
+1. **A flat panel spanning a curved loft BURIES ITSELF.** The whole cockpit greenhouse was
+   drawn as one quad per ring edge across 0.77 m of a nose flaring from 0.26 m to 1.00 m
+   half-width. A chord across that curve sits INSIDE the hull: only the few centimetres
+   nearest each end station emerged, and the nose rendered as bare olive with two dark
+   slivers. Tri count, the coincident probe and the floater probe all reported it healthy.
+   `panel()` now subdivides along the sweep at 0.16 m.
+2. **`range(i0, i1)` over an edge loop is an off-by-one waiting to happen.** The windscreen
+   was authored `(3, 9)`, which emits edges 3-4 ... **8-9** — one facet with no mirror,
+   wrapping 0.52 m2 of extra glass down the PORT side of an aircraft that is symmetric to the
+   last vertex. Invisible in five renders and in every bounding box, because the extremes were
+   still symmetric. **A mirror-symmetry assert over the raw vertex set** now runs on every
+   visible mesh and is the only check that can see it.
+3. **An unweighted mean of face centres is not triangulation-invariant, and it nearly buried
+   a real defect.** `cap()` reverses a quad's point list when Newell disagrees with the
+   outward direction, which flips WHICH DIAGONAL the fan uses — so a mirrored pair of quads
+   yields two tri-centres that do not mirror. The gate's 62 mm lateral bias was dismissed as
+   that artefact; area-weighting the centroid (exact for a planar quad either way) put it at
+   94 mm and proved the asymmetry was geometry.
+4. **A "0 seams" result can be masked by shared vertices.** The ramp rails ran flush to the
+   deck's edge, so their corner vertices were bit-identical to the deck's and the
+   coincident-face probe's own share-no-vertex clause suppressed the pair. Insetting the rail
+   ends by 60 mm made seven coplanar seams appear at once. **Flush-butting a detail can hide a
+   seam from the probe written to find seams** — every applied part now penetrates and carries
+   its own offset in x AND z.
+
+Renders (final geometry, 8 views incl. a nose close-up, a ramp close-up and the 1.7132 m
+grunt datum):
+`C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\f2a96a99-609e-4e11-8172-5911f8b6f749\scratchpad\vehicles\ch47v2_{side,front,threequarter,rear_quarter,top,nose,ramp,datum}.png`

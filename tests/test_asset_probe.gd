@@ -18,6 +18,7 @@ const EXPECTED := {
 	"res://assets/us/vehicles/m151_mutt_gun_jeep_v2.glb": [3.0, 3.7],
 	"res://assets/us/vehicles/m35_deuce_truck_v2.glb": [6.5, 7.3],
 	"res://assets/us/vehicles/m113_apc_v2.glb": [4.5, 5.2],
+	"res://assets/us/vehicles/ch47_chinook_v2.glb": [29.5, 30.3],  # 29.90 = rotors turning (CH-47A)
 	"res://assets/us/aircraft/a1_skyraider.glb": [6.0, 18.0],
 	"res://assets/us/aircraft/ac47_spooky.glb": [26.0, 32.0],  # true DC-3 span 28.96m via import root_scale 0.1475; source blend keeps its working scale
 

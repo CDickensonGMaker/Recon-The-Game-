@@ -281,9 +281,16 @@ func _run() -> void:
 
 
 ## The Chinook ran the UH-1 fallback layout and men unseated inside the hull —
-## every seat must land inside the airframe's own envelope (measured off
-## chinook.tscn by tools/probe_chinook_dims.gd: fuselage x -4.05..4.05 along X,
-## cockpit forward to -5.2, walls z +-0.9, cabin y 0.75..2.25).
+## every seat must land inside the airframe's own envelope. ch47_chinook_v2 is
+## convention-true (tools/probe_chinook_dims.gd 2026-08-14: fuselage x +-1.89,
+## z -8.92..8.92 along Z, nose -Z); its baked seat_* sockets span x +-0.90,
+## z -6.83..5.28, y 1.50..1.75. Bounds are that span plus margin, kept TIGHT so
+## the UH-1 layout still escapes (pax x 1.05; bench/pilot y under 1.4).
+func _in_ch47_envelope(p: Vector3) -> bool:
+	return absf(p.x) <= 0.95 and p.z >= -7.0 and p.z <= 5.6 \
+		and p.y >= 1.4 and p.y <= 1.8
+
+
 func _run_chinook_envelope() -> void:
 	var packed: PackedScene = load("res://scenes/vehicles/chinook.tscn") as PackedScene
 	if packed == null:
@@ -305,7 +312,7 @@ func _run_chinook_envelope() -> void:
 			_fail("ch47 socket %s never generated" % seat_name)
 			continue
 		var p: Vector3 = sock.position
-		if p.x < -5.2 or p.x > 4.4 or absf(p.z) > 0.9 or p.y < 0.7 or p.y > 2.3:
+		if not _in_ch47_envelope(p):
 			_fail("ch47 seat %s at %v is outside the fuselage envelope" % [seat_name, p])
 	# The discriminator: the UH-1 layout must NOT fit this envelope, or this
 	# check could never catch the key wiring regressing back to the Huey.
@@ -313,7 +320,7 @@ func _run_chinook_envelope() -> void:
 	var uh1_escapes: bool = false
 	for seat_name: StringName in uh1:
 		var p: Vector3 = (uh1[seat_name] as Array)[0] as Vector3
-		if absf(p.z) > 0.9:
+		if not _in_ch47_envelope(p):
 			uh1_escapes = true
 			break
 	if not uh1_escapes:
