@@ -56,10 +56,11 @@ func setup(field_director: FieldDirector, at: Vector3, aim: Vector3, count: int,
 ## Men still in the fight. A DORMANT cell answers with its full paper strength -
 ## the siege ledger must count men who have not materialized yet, or the break
 ## ratio is computed against an assault that is still arriving (ADR-035 §2/§4).
+## Mid-stagger the unspawned remainder still counts for the same reason.
 func live_strength() -> int:
 	if not materialized:
 		return strength
-	var n: int = 0
+	var n: int = _spawn_left
 	for m in men:
 		if is_instance_valid(m) and not m.is_dead():
 			n += 1
@@ -72,7 +73,10 @@ func is_spent() -> bool:
 
 func _physics_process(delta: float) -> void:
 	if materialized:
-		set_physics_process(false)
+		if _spawn_left > 0:
+			_spawn_tick()
+		else:
+			set_physics_process(false)
 		return
 	_step_timer += delta
 	if _step_timer < STEP_INTERVAL:
@@ -118,34 +122,77 @@ func materialize_if_lit() -> bool:
 	return true
 
 
+## Spawns are STAGGERED against a GLOBAL per-frame budget. A 5-6 man cell
+## materializing in one frame measured 267-288ms on the crucible (2026-08-14
+## hitch trace: +2,300..+2,900 nodes in the hitch frame - every man is a full
+## ModelActor instantiation) and was the game's recurring worst-frame class.
+## The budget is SHARED across cells because the center-true pop ring lands
+## several cells on the same frame - a per-cell cap alone still burst +1,547
+## nodes (measured on the post-fix crucible). The first man of a pop spawns
+## inside materialize() so the pop is never an empty frame; the budget refills
+## per physics frame, keyed by frame id (no reset hook needed).
+const SPAWN_PER_FRAME: int = 2
+static var _budget_frame: int = -1
+static var _budget_left: int = 0
+var _spawn_left: int = 0
+
+
+static func _take_spawn_token() -> bool:
+	var f: int = Engine.get_physics_frames()
+	if f != _budget_frame:
+		_budget_frame = f
+		_budget_left = SPAWN_PER_FRAME
+	if _budget_left <= 0:
+		return false
+	_budget_left -= 1
+	return true
+
+
 func materialize() -> void:
 	if materialized or director == null:
 		return
 	materialized = true
-	set_physics_process(false)
-	for i in range(strength):
-		var a: float = _rng.randf_range(0.0, TAU)
-		var r: float = _rng.randf_range(1.5, 5.0)
-		var pos: Vector3 = global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
-		var man: EnemyBase = director.spawn_tracked_enemy(pos, data_path, group_tag)
-		if man == null:
-			continue
-		man.add_to_group(group_tag)
-		man.assault_objective = objective
-		# Only the satchel man's legs belong to the objective. The assault element marches
-		# to it and then fights - see EnemyBase.assault_driven.
-		man.assault_driven = carries_charge
-		if carries_charge:
-			var charge := SapperCharge.new()
-			man.add_child(charge)
-			charge.setup(objective)
-		men.append(man)
+	_spawn_left = strength
+	# NO first-man exemption: an illum flare materializes every lit cell in the
+	# SAME frame (ADR-035 scopes the button to the lit circle, but the circle
+	# holds several cells), and five exempt first men re-created the +2,800-node
+	# burst the budget exists to kill (measured 2026-08-14). Men arriving over
+	# the next 2-3 physics frames is ~50ms - invisible at the pop ring.
+	_spawn_tick()
+
+
+func _spawn_tick() -> void:
+	while _spawn_left > 0 and MarchingCell._take_spawn_token():
+		_spawn_one()
+		_spawn_left -= 1
+
+
+func _spawn_one() -> void:
+	var a: float = _rng.randf_range(0.0, TAU)
+	var r: float = _rng.randf_range(1.5, 5.0)
+	var pos: Vector3 = global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
+	var man: EnemyBase = director.spawn_tracked_enemy(pos, data_path, group_tag)
+	if man == null:
+		return
+	man.add_to_group(group_tag)
+	man.assault_objective = objective
+	# Only the satchel man's legs belong to the objective. The assault element marches
+	# to it and then fights - see EnemyBase.assault_driven.
+	man.assault_driven = carries_charge
+	if carries_charge:
+		var charge := SapperCharge.new()
+		man.add_child(charge)
+		charge.setup(objective)
+	men.append(man)
 
 
 ## Send every survivor out on the axis he came in on - known-traversable ground,
 ## because _move_toward only navmeshes inside a shared NavBaker box and a rally
 ## across open map is straight-line steering.
 func withdraw_to(rally: Vector3) -> Array[EnemyBase]:
+	# A withdrawing cell stops birthing men - the unspawned stagger remainder
+	# would otherwise arrive INTO the retreat.
+	_spawn_left = 0
 	var leaving: Array[EnemyBase] = []
 	for m in men:
 		if not is_instance_valid(m) or m.is_dead():

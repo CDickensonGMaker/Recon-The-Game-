@@ -1159,3 +1159,23 @@ EVERYTHING **130.5/262.1/291 | 4.3/94.4** (8fps avg).
 currently missed ~4x on the floor box. The gate number goes to the Summoner AFTER the
 top-2 fixes land and the three demo poses are taken — a gate set against an unattributed
 frame would just be red forever.
+
+### 2026-08-14 03:00 addendum — the spawn-burst class is SYSTEMIC; MarchingCell's site is closed
+
+Fix shipped: MarchingCell spawns drain against an UNCONDITIONAL global budget (2/frame,
+frame-keyed static token; no exemptions — the illum path materializes several cells in one
+frame and five "exempt first men" re-created the burst). The cell-pop signature
+(+2,900-node frames) is gone by construction at that site.
+
+Measured across four crucible runs: the CLASS persists from OTHER sites — WAVE +2,276,
+FIRES +4,626-node hitch frames with the cell budget active. Suspects: arena reserve
+spawns, and at least one unidentified mass-instantiation path. NEXT INSTRUMENT (plan
+step 17 cont.): a caller-tagged spawn counter that prints the spawning call site on any
+>100ms frame — no more whack-a-mole without names. The no-node-delta ~285ms class is
+ATTRIBUTED-AS-SUSPECT to breach re-bake SOURCE ASSEMBLY (sync main-thread collider walk
+in _start_bake during waves with satchels) — needs its own ms split before any fix.
+
+Phase averages improved across runs (EVERYTHING 43.6 -> ~19-21ms over three post-fix
+runs) but single-run variance is high and wave timing differs per run — the average
+claims wait for a fixed-seed crucible. The leak-column lesson applies to perf: never
+celebrate on one reading.

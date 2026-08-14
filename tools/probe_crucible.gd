@@ -30,13 +30,23 @@ var _sampling: bool = false
 var _headless: bool = false
 
 
+## Attribution knobs: --no-veg / --no-dress strip one scene element so the GPU
+## baseline delta names its cost; --baseline-only runs one 20s phase for cheap
+## A/B toggles.
+var _baseline_only: bool = false
+
+
 func _ready() -> void:
 	_headless = DisplayServer.get_name() == "headless"
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	_baseline_only = args.has("--baseline-only")
 	_arena = ArenaScene.instantiate()
 	_arena.set("spawn_player", true)
 	_arena.set("spawn_hud", true)
 	_arena.set("hot_start", false)
-	_arena.set("bench_dressing", true)   # night: the demo's siege is a night fight
+	_arena.set("bench_dressing", not args.has("--no-dress"))
+	if args.has("--no-veg"):
+		_arena.set("spawn_vegetation", false)
 	add_child(_arena)
 	await get_tree().process_frame
 	await get_tree().create_timer(6.0).timeout   # world build + nav settle
@@ -49,7 +59,7 @@ func _ready() -> void:
 
 func _next_phase() -> void:
 	_phase_i += 1
-	if _phase_i >= PHASES.size():
+	if _phase_i >= PHASES.size() or (_baseline_only and _phase_i >= 1):
 		_report()
 		return
 	var phase: String = PHASES[_phase_i]
@@ -97,11 +107,26 @@ func _tick_fires(delta: float) -> void:
 	d.request_fire_support(kind, at, Vector3.RIGHT)
 
 
+## HITCH TRACER: on any >100ms frame, print what MOVED that frame - node and
+## object deltas name a spawn burst without instrumenting game code.
+var _prev_nodes: int = 0
+var _prev_objects: int = 0
+
+
 func _process(delta: float) -> void:
 	if not _sampling:
 		return
 	var phase: String = PHASES[_phase_i]
-	(_samples[phase] as Array).append(delta * 1000.0)
+	var ms: float = delta * 1000.0
+	var nodes: int = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var objects: int = int(Performance.get_monitor(Performance.OBJECT_COUNT))
+	if ms > 100.0 and _prev_nodes > 0:
+		print("[HITCH] %s %.0fms | nodes %+d (%d) objects %+d | orphans %d" % [
+			phase, ms, nodes - _prev_nodes, nodes, objects - _prev_objects,
+			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))])
+	_prev_nodes = nodes
+	_prev_objects = objects
+	(_samples[phase] as Array).append(ms)
 	var vp_rid: RID = get_viewport().get_viewport_rid()
 	var c: float = RenderingServer.viewport_get_measured_render_time_cpu(vp_rid)
 	var g: float = RenderingServer.viewport_get_measured_render_time_gpu(vp_rid)
