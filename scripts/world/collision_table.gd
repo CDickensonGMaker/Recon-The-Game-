@@ -70,6 +70,10 @@ const STRUCTURES := {
 	"RocketPod_LAU61_19tube": {"box": Vector3(0.5, 1.6, 0.6), "y_offset": 0.11, "footprint": Vector2(1.5, 2.0), "scale": 1.0},
 	"RocketPod_LAU68_7tube": {"box": Vector3(0.4, 1.4, 0.4), "y_offset": 0.09, "footprint": Vector2(1.5, 1.5), "scale": 1.0},
 	"a1_skyraider": {"box": Vector3(14.0, 5.1, 12.1), "y_offset": 0.30, "footprint": Vector2(15.0, 13.5), "scale": 1.0},
+	# v2: measured on export (tools/verify_a1_skyraider_v2.py) - wingspan 15.25,
+	# length 11.87, fin-top-above-belly 3.36, origin at centre of mass with the
+	# ground line at local -1.6. Ships its own -colonly hulls.
+	"a1_skyraider_v2": {"box": Vector3(15.3, 3.4, 11.9), "y_offset": 0.08, "footprint": Vector2(16.3, 12.9), "scale": 1.0, "mesh": true},
 	# ---- Crashed aircraft wrecks (rebuilt 2026-08-13, assets/us/aircraft/build_wrecks.py;
 	# AABBs measured on re-import). Each carries -colonly part colliders + a mound trimesh,
 	# so the box is nav-carve only. Dims include the thrown wing and debris scatter.
@@ -300,6 +304,7 @@ const MATERIALS := {
 	"supply_depot": Mat.METAL, "radar_dome": Mat.METAL, "radar_network": Mat.METAL,
 	"zpu_aa_gun": Mat.METAL, "a1_skyraider_crashed": Mat.METAL,
 	"huey_crashed": Mat.METAL, "f4_phantom_crashed": Mat.METAL,
+	"a1_skyraider_v2": Mat.METAL,
 	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
 	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,

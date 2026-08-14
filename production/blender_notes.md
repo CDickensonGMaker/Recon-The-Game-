@@ -558,3 +558,129 @@ delete `assert_lying_flat()` at that point — it is retained ONLY for these two
 - **F-4 `wreck_hard_nose`** — 5% contact, clearance 2.62 m at its high end.
 - **A-1** — all four thrown pieces are low-contact: `wing_thrown` **1%**, `canopy` 11%,
   `panel_1` 21%, `ord_mk82` 22%. `panel_1` also sits at 56.7°.
+
+---
+
+## 2026-08-14 · A-1 Skyraider reference study (before modelling `a1_skyraider_v2`)
+
+Sources, all Wikimedia Commons, each read for a specific angle:
+- `20180512_A-1H_Skyraider_Dyess_AFB_Air_Show_2018_4.jpg` — **left side, on the ground, USAF SEA camo**
+  ("Wiley Coyote", AF 39606). The master profile: cowl-vs-fuselage depth, canopy step, fin planform.
+- `..._2018_6.jpg` — **head-on, taxiing.** Cowl diameter vs fuselage width, wing crank, gear track.
+- `..._2018_1.jpg` — **in flight, low side-3/4 from below.** Outer-panel dihedral, stab planform.
+- `Douglas_A-1_Skyraider_(19888890798).jpg` — **underside 3/4, SEA camo, "6T 509".** Wing planform,
+  grey belly demarcation, pylon row.
+- `Douglas_A-1_Skyraider_(20082405451).jpg` — "NAKED FANNY", **fully loaded underside.** The 15-station
+  pylon row, centreline tank, MERs.
+- `Douglas_A-1J_Skyraider_at_the_Royal_Thai_Air_Force_Museum_in_2012.jpg` — **static left profile**,
+  wings folded down, camo demarcation readable.
+- `Douglas_A-1J_Skyraider_of_the_6th_SOS_..._1968.jpg` — **6th SOS SEA, in flight** (the Sandy mission).
+- `Douglas_AD-6_Skyraider_of_VA-42_..._1956.jpg` — Navy grey, below-side, belly + fin shape.
+- `Douglas_A-1_Skyraider_drops_napalm_in_Southeast_Asia_...jpg` — the ordnance the demo needs.
+- en.wikipedia.org/wiki/Douglas_A-1_Skyraider — dims; thisdayinaviation.com — prop 13 ft 6 in (4.115 m).
+
+**Ten form observations that must survive into the mesh:**
+
+1. **The cowl is bigger than the fuselage in BOTH directions.** Head-on, the cowl drum is visibly
+   wider than the fuselage behind it; in profile its top line sits ABOVE the spine and its bottom
+   line hangs BELOW the belly. The aeroplane reads as a cockpit bolted onto a barrel. Any model
+   where the cowl blends smoothly into the fuselage is not a Skyraider.
+2. **Under the cowl there is a second, deeper mass** — the oil-cooler / carburettor duct fairing,
+   running from the cowl lip aft to about the wing leading edge. It is the deepest thing on the
+   forward fuselage and it is what makes the nose look heavy.
+3. **The cooling inlet is an ANNULUS around a small blunt spinner**, not a solid nose. There is a
+   real dark gap between spinner base and cowl lip; that dark ring reads even at 50 m.
+4. **4-blade prop, 4.115 m diameter = 2.5x the cowl diameter** and 27% of the wingspan. It is
+   enormous relative to the airframe. The old asset's 5.1 m prop is 24% oversize.
+5. **Cranked wing.** Inner panel (root → fold, ~38% semi-span) is flat; outer panels carry ~7°
+   dihedral. Head-on this shows as a distinct upward break, not a smooth curve.
+6. **Straight leading edge, tapered trailing edge.** LE is near-perpendicular to the centreline;
+   all the taper is in the TE. Tips are squared with a rounded outboard corner. Root chord ~3.5 m,
+   tip ~1.5 m.
+7. **Canopy is a short single-seat greenhouse sat HIGH and FAR FORWARD**, its top level with the
+   cowl top. Behind it the spine drops steeply, then runs long and slim to the tail. That
+   forward-biased mass is half the silhouette.
+8. **Tall broad fin with a long root.** The fin root chord runs nearly a third of the fuselage and
+   fairs forward into a dorsal fillet; the rudder trailing edge overhangs the tail cone and is the
+   aftmost point of the aircraft. Stabiliser is mounted LOW on the fuselage, well below the fin.
+9. **Fifteen stub pylons.** Two heavy inboard + centreline, then a row of small stubs marching out
+   to near the tip. Even clean, the stub row is visible from below and it is part of the identity.
+10. **SEA camo is BIG blobs with wavy edges, grey belly, wavy demarcation up the fuselage sides** —
+    tan FS30219 / medium green FS34102 / dark green FS34079 over light grey FS36622. Patch size is
+    metres, not centimetres. A dark antiglare panel sits on the deck ahead of the windscreen.
+
+**Dimensional targets (A-1H/J):** length 11.84 m · span 15.25 m · height 4.78 m (three-point, gear
+DOWN, nose-up ~12°) · prop 4.115 m · wing area 37.19 m² · 15 hardpoints · 4 x 20 mm in the wings.
+
+**Note on the height figure:** 4.78 m is the published three-point ground height. This asset is
+built LEVEL with the gear UP (it is a CAS overflight model; `cas_airplane.gd` never lands it), so
+the correct comparison is fin-top-above-belly, not 4.78 m. Recorded so the next reader does not
+"fix" the model to a number that does not apply to its attitude.
+
+---
+
+## 2026-08-14 · `a1_skyraider_v2` shipped — new variant, old asset untouched
+
+`assets/us/aircraft/a1_skyraider_v2.glb` + `.blend`. Built entirely from
+`tools/build_a1_skyraider_v2.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_a1_skyraider_v2.py`, which asserts the contract on the SHIPPED GLB.
+`a1_skyraider.glb` verified byte-identical afterwards by md5. No `.blend1`
+(`preferences.filepaths.save_version = 0` is set in the build script).
+
+**Frame contract.** Nose at Blender +Y = **Godot −Z**, real metres, all node transforms identity
+except `A1_Prop`'s translation. Origin = centre of mass: x on the centreline, y at the wing
+quarter chord, **z on the fuselage centreline — NOT the ground line.**
+
+*That is a deliberate deviation from the commission, and here is the pointer.* `cas_airplane.gd:355`
+spawns the strafe muzzle at `global_position + Vector3(0, -1.2, 0)` and calls it "slightly under the
+fuselage", and `collision_table.gd:72` carries `y_offset: 0.30` on a 5.1 m box. Both assume a centred
+origin. With a ground-line origin the gun run would fire from 1.2 m under the aeroplane.
+**The ground line is at local z −1.600** (the prop tip) — add that to park it.
+
+**`A1_Prop` is the whole propeller-and-spinner assembly, at IDENTITY rotation**, translation
+`(0, 0.13, −4.9875)` in Godot space. `rotor_spin.gd:76` turns a `PROP_HINTS` node about
+`Vector3.BACK` = its local Z; with identity rotation that local Z IS the thrust line, so it spins
+correctly with no clip and no code change. The verifier asserts the node rotation is absent/identity
+by parsing the GLB JSON, and asserts that **no other node trips a `PROP_HINTS`/`MAIN_HINTS`/
+`TAIL_HINTS` string** — `A1_Col_Aft-colonly` is named to stay clear of `tailrotor`/`tailblade`.
+No baked action ships, so `RotorSpin` takes the runtime path.
+
+**Facing, measured not assumed.** Old `a1_skyraider.glb`: `A1_Propeller` at Godot z **+0.48..+1.08**,
+`A1_Skyraider_Body` back to z **−11**. Nose at +Z — **the shipping asset points backwards** and
+`scenes/vehicles/skyraider.tscn:9-11` says so but applies no correction. v2: `A1_Prop` at Godot z
+**−5.55..−4.87**, `A1_Col_Aft-colonly` at **+3.66..+6.36**. Conforming.
+
+**Numbers.** 1,908 visible tris (+84 collider) · 7 objects · 10 flat materials, all metallic 0.0,
+**no textures at all** (matches the fleet: huey_v3 ships 32 flat Principled materials and one 256px
+image). Span 15.250 (real 15.25) · length 11.870 (real 11.84) · prop 4.121 (real 4.115) ·
+wing area 38.2 m² (real 37.19) · fin top 3.360 m above the belly.
+
+**On the 4.78 m height figure: it does not apply to this asset and must not be "fixed" to.**
+4.78 m is the published THREE-POINT ground height — tailwheel down, nose up ~12°, gear extended.
+This model is level with the **gear UP** (it is a CAS overflight airframe; `cas_airplane.gd` never
+lands it), so the comparable figure is fin-top-above-belly.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+1. Point `scenes/vehicles/skyraider.tscn:4` at `a1_skyraider_v2.glb` and **delete the stale
+   facing comment at :9-11** — v2 needs no flip.
+2. `collision_table.gd:72` `"a1_skyraider"` box (14.0, 5.1, 12.1) / y_offset 0.30 is sized for the
+   old airframe. v2 measures span 15.25, length 11.87, height 3.80 with a centred origin. Either
+   retune the box or let the three shipped `-colonly` meshes serve (they cover hull, wing and
+   empennage and span the airframe in plan — the verifier asserts that).
+
+### Traps this build hit, so the next aircraft does not
+- **Colliders render.** Six renders were judged against white collision boxes standing in front of
+  the airframe before anyone noticed. `hide_render = True` on every collider at creation; glTF
+  exports them anyway.
+- **Silhouette errors that only a photo measurement catches.** The fin was wrong twice — first too
+  broad in chord, then raked 45° at the leading edge when the real one rakes **29°**. Both were
+  fixed by scaling off the Dyess AFB side photo at a derived 82.4 px/m (aircraft length 11.84 m
+  spans 975 px) and cropping the tail to 118.7 px/m. Eyeballing a fin against a photo does not work;
+  measuring one does.
+- **A canopy whose base floats above the spine reads as a roll bar.** Bury the lower edge in the
+  fuselage.
+- **Camo by Voronoi seed needs the wobble amplitude well UNDER the seed spacing**, or big blobs
+  fragment into a checkerboard. Seeds must also not line up in y or the wings paint as spanwise
+  stripes. Landed on ~1.9 m spacing along the fuselage, ~1.4 m across the wing, wobble 0.45+0.15.
+- **An upward-facing polygon must never take the grey underside colour.** Without that rule the
+  wing upper surface crosses the demarcation line and paints a white blob mid-wing.

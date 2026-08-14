@@ -1,12 +1,11 @@
 [gd_scene load_steps=3 format=3 uid="uid://cskyraider00001"]
 
 [ext_resource type="Script" path="res://scripts/vehicles/cas_airplane.gd" id="1_cas"]
-[ext_resource type="PackedScene" path="res://assets/us/aircraft/a1_skyraider.glb" id="2_glb"]
+[ext_resource type="PackedScene" path="res://assets/us/aircraft/a1_skyraider_v2.glb" id="2_glb"]
 
 [node name="Skyraider" type="Node3D"]
 script = ExtResource("1_cas")
 
-## a1_skyraider.glb is authored nose-+Z (propeller at z +0.6..+1.08, tail at z -11),
-## against the Blender-+Y / Godot--Z facing convention. Flip here until the GLB is
-## re-exported conforming; cas_airplane.gd look_at()s -Z down the run line.
+## a1_skyraider_v2.glb conforms: nose Blender-+Y / Godot--Z at identity, real
+## scale, A1_Prop on the thrust line for rotor_spin. No flip, no band-aid.
 [node name="Model" parent="." instance=ExtResource("2_glb")]
