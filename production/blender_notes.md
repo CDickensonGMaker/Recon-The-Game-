@@ -834,3 +834,199 @@ of y −8.58..+10.77 confirms it was already built to F-4E length.
 - **The published height did not apply, again.** 4.98 m is the ground-to-fin-top with the gear DOWN.
   This model is level and gear UP, so the comparable figure is fin-top-above-belly, **3.91 m**. Both
   the build and the verifier print the caveat next to the number so nobody "fixes" it.
+
+---
+
+## 2026-08-14 · AC-47D "Spooky" reference study (before touching `ac47_spooky.glb`)
+
+**This asset is different from the A-1 and F-4 jobs: `ac47_spooky.glb` is the Summoner's OWN model.**
+The commission is to mature it, not to replace it. Everything below is a measurement against
+reference, so that "keep" and "fix" are decisions with numbers behind them rather than taste.
+
+**Sources, and what each one gave.**
+- NASA 3-view line drawing, `File:Douglas_C-47_Skytrain_3-view_line_drawing.gif` (Wikimedia Commons,
+  public domain, NASA Photo ID EG-0016-01, 2919x1939) — **the measuring instrument.** Side view read
+  at **71.3 px/m** (nose-to-rudder 1385 px over 19.43 m), plan view at **43.4 px/m** (span 1267 px
+  over 29.11 m). Every station below is off this drawing.
+- en.wikipedia.org/wiki/Douglas_AC-47_Spooky — AC-47D dims (length 19.63 m, span 28.96 m,
+  height 5.16 m, wing area 91.7 m2), 2 x R-1830, **3 x 7.62 mm GAU-2/M134**, crew 7 incl. 2 gunners,
+  32 x Mk 24 flares; guns fire "through two rear window openings and the side cargo door, all on the
+  left (pilot's) side".
+- vietnam.warbirdsresourcegroup.org/ac47-design.html + theaviationist.com (2024-10-25) — the mount
+  story: **SUU-11/A gun pods on locally fabricated mounts** first, **Emerson MXU-470/A** later. The
+  two window guns sit in the **5th and 6th windows**, i.e. the last two aft of the port wing; the
+  third is in the **aft cargo door**.
+- ww2aircraft.net "Dimensions of cargo door on C-47" — **cargo door 85 in wide (2.16 m) x 68 in tall
+  (1.73 m)**, two-piece (forward third / aft two-thirds), port side, aft of the wing.
+- theaviationzone.com/douglas-ac-47 + militaryfactory.com — corroborate the three-gun port battery.
+
+**Eight form observations that must survive into the mesh.**
+
+1. **The props are mounted CLOSE IN, and that is the DC-3's whole front-view identity.** Plan view
+   puts the nacelle centrelines at **x = +/-2.88 m** — with a 3.51 m (11 ft 6 in) Hamilton Standard
+   23E50 the inboard prop tip passes about **0.25 m** from the fuselage side. An AC-47 with widely
+   spaced engines reads as a bomber. *(The base model has them at +/-6.1 m — see the fix list.)*
+2. **The fuselage is TALLER THAN WIDE**, not a flat slab: ~2.6 m across, ~2.9 m deep. Head-on it is
+   an upright oval with the wing hung under it.
+3. **The wing centre section is straight and unswept out to about +/-3.7 m**, carrying both nacelles;
+   only outboard of that does the leading edge sweep and the dihedral start. Root chord **4.42 m**,
+   tip chord ~1.5 m, rounded tips.
+4. **The tailplane is small: span ~8.7 m** (measured 380 px at 43.4 px/m), root chord ~3.2 m — under
+   30% of the wingspan. It sits **low on the tail cone**, not on top of it, and its trailing edge is
+   nearly level with the rudder trailing edge.
+5. **The fin is modest and rounded**, about **2.8 m above the aft fuselage centreline**, with a long
+   dorsal fillet running forward. It is not a tall swept airliner fin.
+6. **The main wheels stay half-exposed under the nacelles when retracted.** This is a DC-3 signature
+   visible from every angle below the horizon and it costs about 60 tris.
+7. **The port side is the gunship side and it must read as one.** Cargo door aft of the wing
+   (2.16 x 1.73 m), two gun-port windows immediately forward of it at roughly 1 m pitch, and short
+   barrel clusters standing proud of the skin, **depressed about 12 deg** so the pylon turn puts the
+   beaten zone under the left wing. Everything else on the aircraft is symmetric; this is not.
+8. **Station layout off the side view** (s = m aft of the nose, total 19.43): windscreen 1.6 ·
+   prop disc 2.3-2.6 · wing LE root 5.16 · cabin windows at ~0.98 m pitch from 4.3 · wing TE root
+   ~10.5 (incl. fillet) · cargo door 11.4-13.6 · stab LE 16.1 · fin LE 16.5 · rudder TE 19.43.
+
+**Dimensional targets used for `ac47_spooky_v2`:** length **19.43 m** and span **29.11 m** (the
+commission's C-47B/DC-3 figures). Wikipedia's AC-47D entry gives 19.63 / 28.96 — a 1.0% and 0.5%
+disagreement. The commission's numbers win because the rest of the fleet was built to the same
+source style; the variance is recorded here so nobody "fixes" the model to the other pair.
+
+### What the base model measured, and the keep/fix ruling
+
+Measured by importing the shipped `ac47_spooky.glb` and baking every node transform into vertex data
+(the file carries non-uniform object scales up to 68x, so bbox-from-node-scale would have lied).
+
+| feature | his base | real | delta | ruling |
+|---|---|---|---|---|
+| overall length | 22.757 | 19.43 | **+17.1%** | FIX |
+| span | 29.408 | 29.11 | +1.0% | fix (free, also centres it) |
+| fuselage width | 3.631 | ~2.60 | **+40%** | FIX |
+| fuselage height | 2.664 | ~2.90 | -8% | keep |
+| nacelle / prop station | +6.27 / -5.96 | +/-2.88 | **+115%, and 0.31 m ASYMMETRIC** | FIX |
+| prop diameter | 3.64 | 3.51 | +3.7% | keep |
+| tailplane span | 12.855 | ~8.7 | **+48%** | FIX |
+| fin above aft centreline | 4.18 | ~2.8 | **+49%** | FIX |
+| wing root chord | 4.518 | 4.42 | +2.2% | keep |
+| visible tris | 2,483 | - | - | keep (budget class) |
+
+**Facing and scale: MEASURED, and the memory note is now out of date.** `ac47_spooky.glb` already
+carries the 2026-08-12 correction baked in as a parent node — `AirframeRoot` with rotation
+`[0,1,0,0]` (180 deg about Y) and scale **0.1498**. After that root the shipped nose is at Blender
++Y = **Godot -Z**, which is the fleet convention **already satisfied**. The commission's "nose +Z,
+10x scale" describes the file *before* that bake; the true residual scale error is **zero** and the
+true residual facing error is **zero**. What is left is the 17% length error, which is proportion,
+not transform.
+
+**Therefore `spectre_gunship.gd:117-120` is a live double-flip.** It sets `airframe.rotation.y = PI`
+on the strength of a comment that says "the GLB's nose points +Z". It does not any more, so the
+gunship currently flies its airframe **backwards**. Out of lane to fix here; recorded for the adopter.
+
+
+---
+
+## 2026-08-14 · `ac47_spooky_v2` shipped — HIS model matured, old asset untouched
+
+`assets/us/aircraft/ac47_spooky_v2.glb` + `.blend`, built by
+`tools/build_ac47_spooky_v2.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_ac47_spooky_v2.py` — **VERIFY PASS, 0 failures.** No `.blend1`.
+
+**The pipeline is different from the A-1 and F-4 and that is the point.** Those two build an
+airframe from nothing. This one **imports `ac47_spooky.glb`**, bakes its node transforms into vertex
+data, applies six measured corrections and adds the battery. His facets, his forms, his camo texture
+and his UV wrap are carried through untouched. The verifier asserts the source GLB is still
+**byte-identical** (md5 `5ee96aabf0d59ebe613e09189f63c3e2`) after every run.
+
+**Kept, deliberately:** the faceted chunky fuselage section · the swept tapered wing with raked tips ·
+the tall raked fin planform · the cockpit greenhouse · the nacelle and prop blade forms · the
+**`planecamo` 600x600 texture and its UVs** (367 unique UVs survive the merge — asserted) · the prop
+diameter (3.556 m vs a real 3.51, +1.3%) · the wing root chord (4.518 vs 4.42, +2.2%) · the tailplane
+sitting high on the tail cone and forward of the fin, which is his layout, not a C-47's.
+
+**Fixed, with the measured factor:** length 22.757 -> **19.430** · fuselage width 3.631 -> **2.600** ·
+tailplane span 12.855 -> **8.700** · fin 4.18 -> **3.01 m** above the aft centreline · nacelles
++6.31/-5.93 (0.38 m ASYMMETRIC) -> **+/-3.150 symmetric** · span 29.408 -> **29.110** and centred ·
+**78 zero-area faces deleted** (38 in each nacelle, 2 in the cockpit cap — invisible, and their
+removal lets the QC gate stay a hard failure).
+
+**How the length was taken out, and why not uniformly.** A piecewise y warp, identity forward of the
+wing trailing edge (s 8.535) and x0.766 aft of it, applied to the **FUSELAGE ONLY**. The wing,
+nacelles and props keep their y exactly — the wing is a separate object that interpenetrates the
+fuselage and shares no welded boundary, so warping the body does not distort his planform. The fin
+and tailplane are **TRANSLATED, not warped** (+3.327 and +1.404): warping them too would have taken
+23% out of their chords on top of the span fix and left a toy empennage.
+
+**Numbers.** 2,617 visible tris (+96 collider) — his base was 2,483, so the battery cost **134**.
+9 meshes + 3 empties · 2 flat materials, both metallic 0.0, one texture. Span **29.110** (real 29.11) ·
+length **19.430** (real 19.43) · fuselage **2.600** (real ~2.60) · tailplane **8.700** (real ~8.7) ·
+props **3.556 / 3.560** (real 3.51). **Nacelles are at +/-3.150, not the drawing's 2.88** — driven by
+clearance, not by taste: his prop is 3.56 m and his nose is fatter, and 3.15 leaves the inboard tip
+**0.247 m** clear of the skin, which is the real aeroplane's ~0.25 m. Both build and verifier compute
+that gap at the PROP STATION rather than at the widest fuselage station.
+
+**Frame contract.** Nose at Blender +Y = **Godot -Z**, real metres, **every node at identity** except
+the two prop translations and the three muzzle empties. Origin = centre of mass: x centreline,
+y wing quarter chord, z fuselage centreline at the wing. **Ground line at local z -2.335** — the
+SWEPT prop arc, not the static bbox (-2.314): no blade sits at bottom dead centre in the rest pose,
+but the disc sweeps there.
+
+**The port battery.** Three 7.62 mm miniguns, mount + barrel cluster, at s 9.55 / 10.45 / 11.95,
+**depressed 12 deg**, muzzles standing 0.80 m proud of the skin. Godot muzzle coordinates:
+`gun_muzzle_1` **(-1.840, 0.268, 4.404)** · `_2` **(-1.851, 0.268, 5.304)** ·
+`_3` **(-1.822, 0.268, 6.804)**. Each empty is oriented so its **Godot local -Z is the bore**, i.e.
+`-muzzle.global_transform.basis.z` — asserted at 12.0 deg down and 0.978 to port. Two-piece cargo
+door (2.16 x **1.28** m) and two 0.46 m gun ports as dark panels, plus half-exposed main wheels.
+
+**On the published 5.16 m height: it does not apply and must not be "fixed" to.** That is the
+ground-to-fin-top figure with the **tail down on its gear**. This model is level and gear up, so the
+comparable figure is fin-top-above-the-aft-centreline, **3.01 m** (real ~2.8).
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+1. **`spectre_gunship.gd:11` -> `ac47_spooky_v2.glb`, and DELETE `:117-120`.** That block sets
+   `airframe.rotation.y = PI` on the strength of a comment reading "the GLB's nose points +Z".
+   **It does not, and has not since the 2026-08-12 facing bake** — `ac47_spooky.glb` already carries
+   an `AirframeRoot` with rotation `[0,1,0,0]`, so the gunship is currently flying its airframe
+   **backwards**. v2 needs no flip either. This is a live defect on the SHIPPING asset, not just v2.
+2. **Feed the muzzle empties into `_fire_vulcan`.** `spectre_gunship.gd:217` currently synthesises
+   `global_position + inward * 3.2 + Vector3(0, -0.9, 0)` — a muzzle derived from the target
+   direction with **no reference to the model at all**, 3.2 m out and 0.9 m down. The three empties
+   are 1.84 m out and 0.27 m **up**, and they carry the bore direction. Round-robin them per round
+   and the tracer rope leaves the guns instead of a point in space.
+3. `:131-134` can stay as it is — v2 ships the `prop_spin` clip it asks for by name (one slotted
+   action, both props, 3.0 rev/s). Attaching `RotorSpin` instead also works: the props are the only
+   nodes matching `PROP_HINTS`, each with its origin ON its hub at identity rotation.
+4. Retune or drop any `collision_table.gd` box for `ac47_spooky` — three `-colonly` meshes ship and
+   the verifier asserts they span the airframe in plan.
+
+### Traps this build hit, so the next one does not
+- **A memory note about a facing/scale defect can outlive the defect.** The commission said "10x
+  scale, nose +Z". Measured: the shipped GLB already carries the corrective root (scale 0.1498,
+  180 deg about Y) and its facing is **conforming**. The residual error was 17% of LENGTH, which is
+  proportion and needs modelling. **Import and measure before believing any note about a file.**
+- **A 3-blade prop's hub is not its bbox centre, and a tip-centroid solver diverges.** Bucketing
+  vertices into three 120 deg sectors does not line the buckets up with the blades, so two "tips"
+  come off one blade; the solve read the disc as **4.68 m** across instead of 3.56. **His own
+  `Prop_Center_rotation` empties carry the hub** — read the file's authored data instead of solving.
+- **Measure the part BEFORE you merge it.** Post-merge, "widest vertex aft of the wing" answered
+  with the WING (tailplane read 29.11 m) and "fuselage centreline" answered with the wing hanging
+  under it (fuselage read 4.38 m). Both queries were syntactically fine and confidently wrong.
+- **Same class, second bite:** the verifier then measured fuselage width at `y ~ 0`, which on a
+  quarter-chord origin is mid-WING, and read 2.18 m. **A width query must name its band.**
+- **A decal on a low-poly hull must use HIS facet lines as its grid.** His cabin flank is a RIDGE at
+  y 0.97 with long triangles running to y +5.11 and y -4.35. A regular grid chorded across it and
+  the cargo door sank **0.144 m** into the skin — and *refining the regular grid made it worse*,
+  because a finer regular grid still straddles the crease. Snapping the grid to his own vertex rings
+  cut it to 0.04. Restrict those rings to the panel's own band, or the door inherits a cut at every
+  ring on the aeroplane and blows out to 216 tris.
+- **A per-row lift turns a door into a staircase.** Pushing each row out by its own sagitta made the
+  door read as a stack of crates in close-up. One uniform lift for the whole panel, sized for its
+  worst row, reads as a door. It cannot reach zero on a diagonally-triangulated flank.
+- **`ray_cast` on a faceted hull needs a normal check.** At z +0.10 the port ray landed on
+  near-tangent facets and the skin station swung 0.37 m over 0.3 m of height; at z +0.30 the same
+  scan is flat (normals -0.96..-0.99). `skin_x(..., need_flat=True)` asserts it now.
+- **Compute a translation delta ONCE.** `edit(fin, lambda p: p.y + (target - bounds([fin])[0].y))`
+  re-evaluates the bounds inside the per-vertex loop and gives every vertex a different shift. It
+  produced the right total length anyway, which is what made it dangerous.
+- **His hull, not the drawing, decides where a door goes.** His belly starts climbing at s 11.8
+  where a real C-47's runs parallel to s 13.6, so the battery sits 0.5 m forward of the drawing's
+  stations and the door is 1.28 m tall rather than 1.73. Every corner is ray-verified against the
+  skin, so that compromise cannot silently drift.

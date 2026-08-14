@@ -26,7 +26,14 @@ Every art asset we've identified, from code placeholders + design discussions. S
 
 ## VEHICLES / AIRCRAFT
 - 🟡 **F-4 Phantom** — GLB already in project (`aircraft/f4_phantom.glb`); needs wiring into the flyby (`mission_director.gd:291`, bead RECONgame-qs6l)
-- 🟡 **C-47 "Spooky" gunship** — `ac47_spooky.glb` now flies on `SpectreGunship` with props spinning (`spectre_gunship.gd:50`, 2026-07-25); still needs the side-firing minigun barrels modeled
+- 🟢 **C-47 "Spooky" gunship** — **`ac47_spooky_v2.glb` ships the three port miniguns** (2026-08-14):
+  barrels + mounts, `gun_muzzle_1..3` empties carrying the bore direction, cargo door and gun ports,
+  and his proportions corrected to real C-47 (19.43 x 29.11 m). Built by `tools/build_ac47_spooky_v2.py`,
+  gated by `tools/verify_ac47_spooky_v2.py`; his original `ac47_spooky.glb` is untouched and still
+  what `spectre_gunship.gd:11` loads. **Adopter work outstanding** — see the 2026-08-14 entry in
+  `production/blender_notes.md`: repoint `:11`, delete the stale 180° flip at `:117-120` (the GLB has
+  not pointed nose-+Z since the 2026-08-12 facing bake, so the gunship flies backwards today), and
+  fire from the empties instead of the synthesised muzzle at `:217`.
 - 🔴 **ZPU / DShK AA gun** — mg_nest GLB placeholder (`site_planner.gd:233`)
 - 🟡 **Driveable vehicle variants** — GLBs copied from RTS 2026-07-09: m35_deuce_truck, us_jeep, uh1_huey, us_bulldozer (+ M151/M113/Chinook already here); driveable *code* is bead RECONgame-2kcp
 - ✅ **Helipad** — copied from RTS 2026-07-09 (`converted/helipad.glb`, `airfield/psp_helipad.glb`); needs placement wiring

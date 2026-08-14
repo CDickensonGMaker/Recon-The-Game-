@@ -8,7 +8,10 @@
 class_name SpectreGunship
 extends Node3D
 
-const AIRFRAME_SCENE: PackedScene = preload("res://assets/us/aircraft/ac47_spooky.glb")
+const AIRFRAME_SCENE: PackedScene = preload("res://assets/us/aircraft/ac47_spooky_v2.glb")
+## The authored port-battery muzzle empties (gun_muzzle_1..3), cached at _ready.
+var _muzzles: Array[Node3D] = []
+var _muzzle_i: int = 0
 ## Night orbit bird, heard more than seen: cull the airframe past ~1200m.
 const VIS_END_M: float = 1200.0
 const VIS_MARGIN_M: float = 80.0
@@ -115,10 +118,16 @@ static func call_in(parent: Node, terrain_manager: TerrainManager, target_pos: V
 func _ready() -> void:
 	var airframe := AIRFRAME_SCENE.instantiate() as Node3D
 	airframe.name = "Airframe"
-	# The GLB's nose points +Z (cockpit +Z, tail fins -Z); the node flies
-	# along -Z via look_at, so the model mounts flipped 180 about Y.
-	airframe.rotation.y = PI
+	# NO flip. The 2026-08-12 bake made the GLB conform (nose -Z) and this
+	# rotation was missed then - the gunship flew its airframe BACKWARDS until
+	# the 2026-08-14 v2 measurement caught it. v2 conforms at identity.
 	add_child(airframe)
+	# The three port miniguns author their muzzles as gun_muzzle_1..3 empties
+	# (bore = local -Z). Cached here; _fire_vulcan round-robins them.
+	for i in range(1, 4):
+		var m := airframe.find_child("gun_muzzle_%d" % i, true, false) as Node3D
+		if m != null:
+			_muzzles.append(m)
 	var stack: Array[Node] = [airframe]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -207,14 +216,21 @@ func _fire_vulcan() -> void:
 	if _vulcan_wd == null:
 		push_warning("[SPECTRE] %s missing - the battery has no weapon card" % VULCAN_WEAPON)
 		return
-	# The port battery points at the orbit centre, and that direction is the flattened vector
-	# from the aircraft to the target - derived in WORLD space on purpose. The node's `basis` is
-	# LOCAL, and this ship is parented to the world, so reading a side off the basis would be
-	# silently wrong the day the world node carries a transform.
-	var inward: Vector3 = target - global_position
-	inward.y = 0.0
-	inward = inward.normalized() if inward.length() > 0.01 else Vector3.RIGHT
-	var muzzle: Vector3 = global_position + inward * 3.2 + Vector3(0.0, -0.9, 0.0)
+	# Rounds leave the AUTHORED muzzles (round-robin across the three-gun
+	# battery) so the tracer rope comes off the visible barrels. The aim-derived
+	# offset survives only as the fallback for an airframe with no muzzle
+	# empties - it fired from 0.9m UNDER the belly with no reference to the
+	# model at all.
+	var muzzle: Vector3
+	if not _muzzles.is_empty():
+		var mn: Node3D = _muzzles[_muzzle_i % _muzzles.size()]
+		_muzzle_i += 1
+		muzzle = mn.global_position
+	else:
+		var inward: Vector3 = target - global_position
+		inward.y = 0.0
+		inward = inward.normalized() if inward.length() > 0.01 else Vector3.RIGHT
+		muzzle = global_position + inward * 3.2 + Vector3(0.0, -0.9, 0.0)
 	var aim: Vector3 = _zone_point(1.0)
 	for i in range(VULCAN_ROUNDS_PER_TICK):
 		var dir: Vector3 = (aim - muzzle).normalized()

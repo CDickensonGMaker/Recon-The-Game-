@@ -35,7 +35,7 @@ All of radio is done and works with the player.
 I want a new audit of whats there and not there. weve made 300+ animations in our library at this point. 
 
 ## 4. VEHICLES / AIRCRAFT
-- **C-47 Spooky** — model WIRED 2026-07-25: `ac47_spooky.glb` flies on `SpectreGunship` (`spectre_gunship.gd:50`), baked `prop_spin` clip looping in-game, left pylon turn so the port guns face the target. Still to do: model the guns that stick out of the left side. 
+- **C-47 Spooky** — model WIRED 2026-07-25: `ac47_spooky.glb` flies on `SpectreGunship` (`spectre_gunship.gd:50`), baked `prop_spin` clip looping in-game, left pylon turn so the port guns face the target. **GUNS DONE 2026-08-14 in `ac47_spooky_v2.glb`** — three port miniguns with `gun_muzzle_1..3` empties, plus the proportion fixes (length was 17% over, tailplane 48% over, engines 0.38 m asymmetric). `ac47_spooky.glb` untouched. Remaining work is Godot-side and listed in `production/blender_notes.md`, 2026-08-14. 
 - **Ordnance mounting** — 8 bomb/napalm/rocket-pod props exist, none attached to the F-4 or dropped. Thats something well have to do during the dedicated vehicles. 
 - a4_skyhawk unwired (modeled, no scene). It should be in the game we have it already. 
 

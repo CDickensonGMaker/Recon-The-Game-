@@ -77,6 +77,9 @@ const STRUCTURES := {
 	"a1_skyraider_v2": {"box": Vector3(15.3, 3.4, 11.9), "y_offset": 0.08, "footprint": Vector2(16.3, 12.9), "scale": 1.0, "mesh": true},
 	# span 11.71, length 19.23, fin-top 3.91, ground at local -2.05.
 	"f4_phantom_v2": {"box": Vector3(11.8, 3.9, 19.3), "y_offset": -0.10, "footprint": Vector2(12.8, 20.3), "scale": 1.0, "mesh": true},
+	# span 29.11, length 19.43, fin ~3.0 above centreline, ground at local -2.335
+	# (the swept prop arc, not the static bbox).
+	"ac47_spooky_v2": {"box": Vector3(29.2, 5.4, 19.5), "y_offset": 0.35, "footprint": Vector2(30.2, 20.5), "scale": 1.0, "mesh": true},
 	# ---- Crashed aircraft wrecks (rebuilt 2026-08-13, assets/us/aircraft/build_wrecks.py;
 	# AABBs measured on re-import). Each carries -colonly part colliders + a mound trimesh,
 	# so the box is nav-carve only. Dims include the thrown wing and debris scatter.
@@ -308,6 +311,7 @@ const MATERIALS := {
 	"zpu_aa_gun": Mat.METAL, "a1_skyraider_crashed": Mat.METAL,
 	"huey_crashed": Mat.METAL, "f4_phantom_crashed": Mat.METAL,
 	"a1_skyraider_v2": Mat.METAL, "f4_phantom_v2": Mat.METAL,
+	"ac47_spooky_v2": Mat.METAL,
 	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
 	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
 	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,
