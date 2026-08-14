@@ -1611,3 +1611,14 @@ crucible's first full-load curve (GPU is the wall on the UHD floor; spawn-burst 
 class attributed, MarchingCell site closed), findings + suspects in PERF_LEDGER. QUEUED:
 m35 + m113 + m101 + water buffalo per VEHICLE_REVIEW_2026-08-14.md; DEMO_TIGHT_40
 execution behind his siege replay.
+
+## 2026-08-14 — r4bk SWEEP OUTCOMES (step 23 done; the queue it leaves)
+
+15 VISIBLE / 2 PARTIAL / 1 ABSENT of 18 demo-live systems - the period-HUD decree HOLDS
+(R4BK_SWEEP_2026-08-14.md, all pointered). Queue: **detection pip** = step 24, HIS
+decision (build the one missing whole-system read, or rule it post-EA) · **winded cue**
+= stamina hits 0 silently; joins the audio session (step 10's napalm bank work - author
+the breath sample properly there, no more synthetic placeholders) · **body-bag stack** =
+campaign_state.gd:61 promises "STACKED and visible", nothing consumes bags_unlifted; the
+canon scoreboard's accumulation half is a real small build (stacked bag meshes at the
+ward reading bags_unlifted).
