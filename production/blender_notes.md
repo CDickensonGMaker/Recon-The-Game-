@@ -974,6 +974,206 @@ of y −8.58..+10.77 confirms it was already built to F-4E length.
 
 ---
 
+## 2026-08-14 · C-47 / AC-47D **PURE-REFERENCE** form study — written BEFORE any geometry (v3 bake-off)
+
+`ac47_spooky_v3` is built from reference only: **no donor, no base model, nothing imported.**
+`ac47_spooky.glb` and `ac47_spooky_v2.glb` are untouched (md5-asserted by the verifier). The
+study below is deeper than the v2 one because v2 could lean on his mesh for the forms it kept;
+this build has to derive every one of them.
+
+**Sources, and what each gave.**
+- **NASA 3-view line drawing** `File:Douglas C-47 Skytrain 3-view line drawing.gif` (Wikimedia
+  Commons, PD, 2919x1939) — **the measuring instrument, measured programmatically**, not by eye:
+  thresholded, flood-filled into connected components so each view is isolated and no view can
+  leak into another's min/max scan, then scanned column-by-column. Scales derived per view.
+- thisdayinaviation.com (C-47B specs) — 95 ft 6 in span · 63 ft 9 in length · **wing area 988.9
+  sq ft (91.87 m2)** · **LE swept aft 15.5 deg** · **5 deg dihedral outboard of the nacelles** ·
+  **trailing edges unswept** · centre section straight · 2 deg incidence.
+- en.wikipedia.org/wiki/Douglas_AC-47_Spooky — 3 x 7.62 mm miniguns in the **fifth and sixth
+  windows** and the cargo door, all to port; crew 7-8; 19.63 m / 28.96 m / 5.16 m.
+- theaviationist.com (2024-10-25) — **"two guns pointing out the last two windows aft of the port
+  wing, and one out of the open cargo door"**; SUU-11BA pods; pilot's surplus gunsight in the
+  left-hand cockpit window; flares kicked out the open cargo door by the loadmaster.
+- theaviationist + gmodelart SEA-camo reference — **FS 34079 Forest Green / FS 34102 Medium Green
+  / FS 30219 Dark Tan over FS 17038 BLACK undersides** for night gunships (the usual FS 36622
+  light grey underside was replaced with black in-theatre for AC-47 / AC-119).
+- ww2aircraft.net — C-47 cargo door **85 x 68 in (2.16 x 1.73 m)**, two-piece, port, aft of the wing.
+- YouTube `r1LyyRzpsow` "C-47 Skytrain Walkaround, CAF Arizona" (partial pull, contact sheet at
+  4 s intervals) — the only 3-D check on the nose, cowl and undersling forms. Confirmed the nose
+  "whale" plan-taper, the cowl ring proportions, the exhaust stack low and outboard, the
+  half-exposed wheel and the yellow prop tips.
+
+### Sixteen form observations, each of which changed a modelling decision
+
+1. **The drawing's SIDE view is drawn TAIL-DOWN and every station read off it is wrong until it is
+   de-rotated.** Fitted the cabin-window centres (they are separate black blobs, so they can be
+   found exactly) and got **9.63 deg nose-up**. Un-corrected, the fin reads 0.5 m too tall and the
+   crown reads as sloping when it is nearly level. This is the single biggest trap in the drawing.
+2. **The three views are at three different scales** — plan **63.00 px/m**, front **63.07**, side
+   **61.72** (after de-rotation, matched to the plan's length). Derive px/m per view. The plan and
+   front agreeing to 0.1% is what makes both trustworthy.
+3. **The drawing is 19.634 m long** — i.e. it is drawn to Wikipedia's AC-47D 19.63, not to the
+   fleet's 19.43. The 1.05% disagreement recorded for v2 is real and is in the DRAWING too.
+   Resolved by scaling every longitudinal station by **0.98961** so length lands exactly on 19.43;
+   vertical and lateral come off the span, which is exact.
+4. **The crown is one continuous curve whose APEX IS OVER THE COCKPIT** (+1.39 m above the cabin
+   window line at s 3.35) and then declines almost dead flat aft: +1.17 at s 8.5, +1.03 at 15.5,
+   +0.90 at 18.5. **Essentially the whole tail taper comes off the BELLY** (-1.74 at s 8 to -0.30
+   at s 19.3). A C-47 in profile is a straight-topped, upswept-bottomed tube — build the taper into
+   the keel, not the spine, or it reads as a Dakota-shaped airliner.
+5. **The fuselage is TALLER THAN WIDE**: max depth **2.905 m** (s 8.5), max width **2.55 m** —
+   ratio 1.14. Head-on it is an upright oval with the wing hung through its lower third.
+6. **The cockpit glazing wraps INTO the nose contour; there is no stepped greenhouse.** Panes
+   occupy s 1.85-3.30 at z +0.55..+0.95, under a crown at +1.28..+1.39 — a 0.35-0.45 m fairing of
+   solid skin above the glass, and the front view shows six panes carried right across the full
+   fuselage width and over the centreline. Model it as a band ON the fuselage surface.
+7. **Wing: the centre section is straight and unswept out to |x| 3.66 m.** The panel joint is
+   literally drawn on the plan as a line at y +/-3.655 running the full chord. Root chord **4.37 m**,
+   LE s 4.87, TE s 9.24, and the **TE is unswept** the whole way out (9.24 -> 9.14 over 8 m).
+   Outboard the LE sweeps aft **14.5 deg measured**, against the published 15.5 — and unlike the
+   F-4 case that published figure IS a leading-edge figure, so the two agree.
+8. **Dihedral 5.4 deg measured** (published 5), starting at the panel joint, not at the root. Taken
+   from the front view's two separately-drawn outer-panel outlines: lower surface -4.74 at |x| 3.6
+   to -3.85 at |x| 13.0.
+9. **The nacelles are slung UNDER the wing and BELOW the fuselage centreline, and that undersling
+   is the front-view identity.** Nacelle centreline x **+/-2.82 m**, cowl **1.35 m** diameter
+   (an R-1830 in a NACA cowl, and the drawing agrees to the centimetre), thrust line **1.20 m below
+   the fuselage centreline** and **0.64 m below the wing chord plane**. Widely-spaced or in-line
+   engines turn a Dakota into a bomber.
+10. **Prop-tip clearance must be measured at THRUST-LINE height, not at the widest fuselage
+    station.** At +/-2.82 with a 3.51 m disc the inboard tip reaches x 1.065, and the fuselage
+    half-width is 1.09 — which "proves" an interference that does not exist. At the thrust line,
+    1.20 m below the fuselage centre, the section is only ~0.72 m half-wide, so the real clearance
+    is **~0.35 m** and the blade sweeps past the lower flank. Same class as the F-4 pitot-boom trap.
+11. **The nacelle runs s 2.95 (cowl lip) to 6.5 (tapered point)** — 3.5 m — max width 1.38 at
+    s 3.5-5.0, and its BOTTOM deepens aft to -2.57 because the main wheel lives in it. **The wheels
+    stay half-exposed when retracted**; the drawing carries both the stowed wheel and a dashed
+    extended one.
+12. **The fin is modest and rounded, 2.48 m above the crown** (top +3.58 at s 17.9 against a crown
+    of +1.10), with a **dorsal fillet that starts at s ~12.7** and visibly lifts the spine line
+    before the fin proper begins. The rudder TE rakes forward going up. Not a tall airliner fin.
+13. **The tailplane is small and low**: span **8.54 m** (29.3% of the wingspan), root chord 2.88 m,
+    LE swept 25-26 deg, TE at s 19.38 **level with the rudder TE**, mounted at z -0.06 — i.e.
+    essentially ON the cabin window line, low on the tail cone, with only ~2 deg of dihedral.
+14. **Both gunship sources resolve to the SAME two stations, which is the strongest fix in the
+    study.** The drawing's window ladder is 7 cabin windows at **1.015 m pitch starting s 4.41**.
+    Wikipedia's "fifth and sixth windows" gives 8.47 and 9.49. TheAviationist's "the last two
+    windows aft of the port wing" gives the same pair, because the wing root TE is at 9.24 and the
+    seventh window at 10.50 is swallowed by the cargo door. **Gun stations 8.47 / 9.49 / 10.90.**
+15. **The cargo door position is fixed by the drawing's passenger door.** The NASA drawing is a
+    DC-3, so it carries the 1.16 x 1.49 m passenger door at s 11.33-12.49; the C-47's 2.16 x 1.73 m
+    cargo door is the same aperture extended forward, so **s 10.33-12.49, sill z -1.20**.
+16. **In the FRONT view the near-horizontal element 3.6 m below the fin top spanning +/-4.09 m is
+    the TAILPLANE, not the wing.** Reading it as the wing puts the wing 0.9 m too high on the
+    fuselage and turns a low-wing transport into a mid-wing. The give-away is that +/-4.09 matches
+    the plan's tailplane half-span of 4.27 and nothing on the wing.
+
+**Datum used throughout:** s = metres aft of the nose; z measured from the **cabin window line**,
+which is the one horizontal datum both the side and front views agree on.
+
+---
+
+## 2026-08-14 · `ac47_spooky_v3` shipped — PURE REFERENCE, no donor. Three AC-47s now ship side by side
+
+`assets/us/aircraft/ac47_spooky_v3.glb` (160 KB) + `.blend`, built by
+`tools/build_ac47_spooky_v3.py` (re-runnable from an empty scene, headless only) and gated by
+`tools/verify_ac47_spooky_v3.py` — **VERIFY PASS, 0 failures.** No `.blend1`.
+
+**This is the bake-off variant.** v2 matured HIS mesh; v3 imports nothing at all and derives every
+station from the reference study above. The verifier md5-asserts **both** older files after every
+run: `ac47_spooky.glb` `5ee96aabf0d59ebe613e09189f63c3e2` and `ac47_spooky_v2.glb`
+`cd5b77d7afc5cbbe50d140d8898f6f27`. Both are untouched; all three are for him to compare.
+
+**Numbers.** **2,752 visible tris** (+120 collider) · 9 mesh nodes + 3 socket empties + 3 colliders ·
+**9 flat materials, all metallic 0.0, NO TEXTURES AT ALL** (the a1/f4 pattern — v2 is the fleet's
+one textured airframe because it carries his `planecamo` wrap).
+span **29.110** (real 29.11) · length **19.430** (real 19.43) · fuselage **2.550 wide x 2.905 deep**
+(real 2.55 x 2.905 — taller than wide by 13.9%) · tailplane **8.540** (real 8.54) · props
+**3.514** (real 3.51) · wing area **95.6 m2** gross against a published 91.87 (+4.0%, the one
+dimension that is out; the drawing's own planform gives 95.6 and the published figure is probably net).
+
+**Frame contract, same as the rest of the fleet.** Nose at Blender +Y = **Godot -Z**, real metres,
+**every node at identity** except the two prop translations and the three muzzle empties. Origin =
+centre of mass: x centreline, y wing quarter chord (s 5.9625 of 19.634 drawing-frame), z fuselage
+centreline at the wing. **Ground line at local z -3.008** — the SWEPT prop arc, 0.423 m below the
+static bbox floor of -2.585, because the blades are clocked 90/210/330 so none sits at bottom dead
+centre. Belly-to-fin-top **5.320 m**; the published 5.16 m is ground-to-fin-top with the tail DOWN
+and must not be "fixed" to.
+
+**The port battery.** Three 7.62 mm miniguns at s **8.47 / 9.49 / 10.90**, depressed **12 deg**,
+muzzles 0.55 m proud. Godot muzzle coordinates: `gun_muzzle_1` **(-1.788, 0.123, 2.481)** ·
+`_2` **(-1.787, 0.123, 3.486)** · `_3` **(-1.775, 0.123, 4.886)**. **Bore convention is v2's,
+unchanged** — Blender local +Y, i.e. `-muzzle.global_transform.basis.z` in Godot — so
+`spectre_gunship`'s adoption works against either variant with the same code. Cargo door
+**2.16 x 1.73 m** at s 10.33-12.49 (the real C-47 figure, not v2's 1.28 m compromise), two-piece,
+port only. Seven cabin windows at 1.015 m pitch; the port side ships four windows, two gun ports
+and no seventh (the door aperture eats it).
+
+**Paint: the SEA night-gunship scheme, per-face, no texture.** FS 30219 tan / FS 34102 medium green /
+FS 34079 forest green over **FS 17038 BLACK undersides** — the in-theatre replacement for FS 36622
+light grey on AC-47/AC-119 night aircraft, and the single most Spooky-specific thing on the model.
+Voronoi seeds 2.8 m apart under a 0.95 m wobble (ratio 0.34, under the 0.4 chequerboard threshold).
+The demarcation is **a fraction of the LOCAL fuselage depth, not a fixed z**: a constant-z line runs
+off the bottom of an upswept C-47 tail cone and leaves the last four metres unpainted. Exhaust and
+gun-gas soot use one extra material and are the only "character" painted on.
+
+### Where the pure-reference build beat the donor-derived v2, and where it did not
+
+* **Nacelles at the drawing's +/-2.82 m, not +/-3.15.** v2 had to move its engines 0.33 m outboard
+  because his prop is 3.56 m and his nose is fatter, and it measured tip clearance at the widest
+  fuselage station. v3 owns both, and sweeping the clearance over HEIGHT (the engines hang 1.20 m
+  below the fuselage centreline) gives **0.105 m** at the tightest point with the engines exactly
+  where the drawing puts them. This is the front-view identity and v3 has it outright.
+* **A full-size 2.16 x 1.73 m cargo door.** v2's is **1.28 m tall** because his belly starts climbing
+  at s 11.8 where a real C-47's runs parallel to 13.6, so the door had to be moved onto the hull he
+  drew. v3 built the hull to the drawing, so the door is the real one at the real station.
+* **Decals cannot sink, by construction.** v2 ray-cast his faceted flank, needed a `need_flat=True`
+  normal guard, snapped its grid to his vertex rings and still carried a per-panel sagitta lift that
+  could not reach zero on a diagonally triangulated hull. v3 has an ANALYTIC skin (`skin_x(s, z)`),
+  so every decal vertex is placed 30 mm outside a surface the faceted mesh is everywhere inside —
+  gated as "0 of 137 decal vertices sunk" and it is a theorem, not a tuning.
+* **Where v2 is better, honestly: the paint.** v2 carries HIS hand-painted `planecamo` 600x600 wrap
+  and its UVs. v3's camo is per-face flat colour, so its blobs are quantised to polygon boundaries
+  and can never be finer than the mesh. It reads well (the wing had to go from a 2 m to a 1 m
+  spanwise station pitch before the top view stopped looking like rectangles) but it is a different,
+  blockier idiom. If he wants his painted camo, v2 is the one that has it.
+* **Also v2's, not v3's: his forms.** The faceted chunky section, his cockpit greenhouse and his
+  raked fin are his authorship. v3 replaced them with the drawing's, which is more C-47 and less
+  his. That is the whole question the bake-off is asking.
+
+### What the Godot adopter still has to do (NOT done here — out of lane)
+
+Identical to v2's list, and every item is unchanged because v3 honours the same contract:
+1. `spectre_gunship.gd:11` -> whichever variant he picks, and **DELETE `:117-120`** — that block
+   sets `airframe.rotation.y = PI` on a comment claiming the GLB's nose points +Z. It has not since
+   the 2026-08-12 facing bake. All three variants are nose-+Y and need no flip.
+2. Feed the muzzle empties into `_fire_vulcan` (`:217` synthesises a muzzle from the target direction
+   with no reference to the model).
+3. `:131-134` works as-is: v3 ships the `prop_spin` clip it plays by name (one slotted action, both
+   props, 3.0 rev/s at 24 fps). Attaching `RotorSpin` also works — the two props are the only nodes
+   matching `PROP_HINTS`, each with its origin on its hub at identity rotation.
+4. `collision_table.gd` — three `-colonly` meshes ship and the verifier asserts they span the
+   airframe in plan.
+5. `ac47_spooky_v3.glb.import` does not exist yet; Godot writes it on the next editor open.
+
+### Traps this build hit
+
+- **A fan cap sits at its ring's own station.** Capping the fuselage loft's first ring at s 0.14
+  instead of closing to a point at s 0 cost **0.139 m of overall length** on a model whose length is
+  a hard contract. Nothing else noticed.
+- **Two mirrored lofts that both include the x = 0 section duplicate it.** 7 doubles on the wing and
+  7 on the tailplane, plus two buried caps, for nothing. One loft tip-to-tip through the fuselage.
+- **A paint rule keyed on POSITION leaks onto other parts.** The port gun-soot rule had no normal
+  clause and painted a black rectangle across the aft half of the port wing's upper surface. Every
+  scalar the build printed stayed green; only the top-view render showed it.
+- **The fin's leading-edge rake is the silhouette.** First pass raked it 52 deg from vertical against
+  the drawing's 34 and produced a shark fin, exactly as the A-1 build warned. Take the rake from the
+  side view's own upper silhouette where it leaves the crown, not from a table you like the look of.
+- **The verifier was measuring an animated propeller.** See the universal ledger — it convicted a
+  correct file twice.
+
+---
+
 ## 2026-08-14 · AC-47D "Spooky" reference study (before touching `ac47_spooky.glb`)
 
 **This asset is different from the A-1 and F-4 jobs: `ac47_spooky.glb` is the Summoner's OWN model.**
