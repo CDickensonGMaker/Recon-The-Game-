@@ -1622,3 +1622,28 @@ the breath sample properly there, no more synthetic placeholders) · **body-bag 
 campaign_state.gd:61 promises "STACKED and visible", nothing consumes bags_unlifted; the
 canon scoreboard's accumulation half is a real small build (stacked bag meshes at the
 ward reading bags_unlifted).
+
+## 2026-08-14 — THE MORNING CHAIN (his green light: recolor + the whole convoy fleet)
+
+Three commits (5e9c8ab5, 36b739e3, 6fefd7f7), gallery refreshed at the Night Fleet
+artifact (recompressed 15.4MB→1.2MB, headroom restored). **Wrecks recolored solid** per
+his call ("a more solid color? so they read better") — olive #464632 on A-1/Huey,
+grey-green #3E4334 on F-4, materials-only (tri counts unchanged prove it). **M35 deuce
+v2**: 2,170 tris from 16,600, every dim exact vs the M35A2 sheet (6.980/2.438/3.000,
+wheelbase 3.912), reference overrode the brief twice (no bonnet louvres — CCKW feature;
+brief dims wrong); old backwards GLB fails its verifier 188 ways. **M113 APC v2**: 2,526
+tris from 18,808, exact envelope (4.863/2.686, tracks 0.381 from 0.120), trim vane +
+ACAV cupola built; roof is ~1.85m, published 2.5m is over-cupola (Puckapunyal footage);
+its verifier adds coincident-seam + floater probes (they convicted the builder's own
+first attempt — back-port to the m151/m35 gates is queued). **Convoy roster is now 100%
+v2 fleet** (mission_generator.gd:372-376); collision_table gained measured v2 boxes (both
+old truck boxes could not hold a correctly sized vehicle); test_roads' convoy-name gate
+now tracks the live roster (was hardcoded to the retired names — drift); asset probe
+covers all three v2 vehicles with tight bands. Originals kept per the variant ruling.
+
+NOTED, pre-existing, not this chain's: test_asset_probe carries 6 old failures
+(fsb_main_v3 996m out-of-band · 4 heli staged clips 67.3m SUSPICIOUS · original
+ac47_spooky measured raw at 4.34m against its import-scale band [26,32]) — none touch
+today's assets, all predate the chain, none in $KnownRed so the test reads FAIL.
+Triage: post-demo unless a band was wrong all along. Also queued from the M113 report:
+cupola traverse clamp (swinging the .50 sweeps outside the authored box).
