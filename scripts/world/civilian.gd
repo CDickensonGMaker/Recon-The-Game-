@@ -1153,6 +1153,15 @@ const WORK_SPEED: float = 1.1
 func _bt_settle(action: StringName, bb: Dictionary, speed: float) -> int:
 	active_action = action
 	var dest: Vector3 = bb.get("target_pos", Vector3.ZERO)
+	# The pad is boarding/unloading ONLY (his ruling 2026-08-15). A no-marker
+	# action settles in place, so a man fresh off the ramp dug or bedded down on
+	# the LZ itself. If he is standing inside a pad's keep-out, he clears it
+	# first - home is off-pad by construction (heli_lift fences the bunk ring).
+	if dest == Vector3.ZERO and home != Vector3.ZERO \
+			and LandingZone.on_pad(global_position) and not LandingZone.on_pad(home):
+		bb["speed"] = speed
+		_wander_target = home
+		return BTNodeS.BTStatus.RUNNING
 	if dest != Vector3.ZERO:
 		# Two men sent to one marker must not stand in each other. The offset comes from the
 		# name so it is identical every run (ADR-010 - never Time, never an unseeded roll).

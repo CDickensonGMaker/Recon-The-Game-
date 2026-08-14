@@ -295,8 +295,16 @@ func _deliver() -> void:
 		man.occupation = "off_duty" if man._idle_seed % 2 == 0 else "detail"
 		if director != null and is_instance_valid(director) and director.fsb_center != Vector3.ZERO:
 			var a: float = float(man._idle_seed % 360) * (TAU / 360.0)
-			var bunk: Vector3 = director.fsb_center \
-				+ Vector3(cos(a), 0.0, sin(a)) * (10.0 + float(man._idle_seed % 12))
+			var r: float = 10.0 + float(man._idle_seed % 12)
+			var bunk: Vector3 = director.fsb_center + Vector3(cos(a), 0.0, sin(a)) * r
+			# The hashed ring can land the bunk ON a pad, and then the schedule digs
+			# the LZ / beds down on it. Walk the angle (golden step, deterministic)
+			# until the bunk clears every pad's keep-out.
+			for _try in range(12):
+				if not LandingZone.on_pad(bunk):
+					break
+				a += 2.399963
+				bunk = director.fsb_center + Vector3(cos(a), 0.0, sin(a)) * r
 			bunk = _bunk_on_nav(bunk)
 			bunk.y = man.global_position.y
 			man.home = bunk
