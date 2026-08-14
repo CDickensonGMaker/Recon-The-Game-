@@ -39,6 +39,7 @@ func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: in
 
 ## Spawn an enemy seated on terrain and wire its death into mission counters.
 func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = "") -> EnemyBase:
+	SpawnLedger.note("spawn_tracked_enemy")
 	var seated := pos
 	if world and world.terrain_manager:
 		# floor_y, not surface_y: surface_y's 18m top-down ray returns the ROOF over any

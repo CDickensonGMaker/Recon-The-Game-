@@ -2141,6 +2141,7 @@ func is_dead() -> bool:
 
 ## Static factory for spawning allies
 static func spawn_ally(parent: Node, pos: Vector3) -> AllyBase:
+	SpawnLedger.note("AllyBase.spawn_ally")
 	var ally := AllyBase.new()
 
 	var col := CollisionShape3D.new()

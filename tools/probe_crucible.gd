@@ -121,9 +121,10 @@ func _process(delta: float) -> void:
 	var nodes: int = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	var objects: int = int(Performance.get_monitor(Performance.OBJECT_COUNT))
 	if ms > 100.0 and _prev_nodes > 0:
-		print("[HITCH] %s %.0fms | nodes %+d (%d) objects %+d | orphans %d" % [
+		print("[HITCH] %s %.0fms | nodes %+d (%d) objects %+d | orphans %d | spawns: %s" % [
 			phase, ms, nodes - _prev_nodes, nodes, objects - _prev_objects,
-			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))])
+			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+			SpawnLedger.frame_report()])
 	_prev_nodes = nodes
 	_prev_objects = objects
 	(_samples[phase] as Array).append(ms)

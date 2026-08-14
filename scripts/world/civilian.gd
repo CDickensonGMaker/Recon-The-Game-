@@ -244,6 +244,7 @@ static func models_for(occupation: String) -> Array[String]:
 
 static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, informer: bool,
 		models: Array[String] = VILLAGERS, garrison: bool = false) -> Civilian:
+	SpawnLedger.note("Civilian.spawn")
 	var civ := Civilian.new()
 	civ.director = mission_director
 	civ.is_informer = informer

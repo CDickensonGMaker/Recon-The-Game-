@@ -3028,6 +3028,7 @@ func _target_is_player() -> bool:
 ## ============================================
 
 static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyBase:
+	SpawnLedger.note("EnemyBase.spawn_enemy")
 	var enemy := EnemyBase.new()
 	enemy.enemy_data_path = data_path
 
