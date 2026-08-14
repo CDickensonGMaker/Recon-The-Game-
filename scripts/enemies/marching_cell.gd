@@ -134,12 +134,12 @@ func materialize_if_lit() -> bool:
 ## Keyed on the RENDER frame, not the physics frame: a hitching frame runs many
 ## catch-up physics ticks, and a physics-keyed budget refilled on every one of
 ## them - 15-24 men in a single 260ms rendered frame while the budget reported
-## "as designed" (crucible ledger 2026-08-15). That is a death spiral: the slow
+## "as designed" (crucible ledger 2026-08-14 evening). That is a death spiral: the slow
 ## frame buys itself MORE spawns. This bucket is the game-wide gate; any bulk
 ## man-spawner (arena waves included) drips through it.
 ##
 ## TWO men a frame, measured against 1/frame on back-to-back crucibles
-## (2026-08-15): 1/frame doubles the arrival window and made every phase
+## (2026-08-14 evening): 1/frame doubles the arrival window and made every phase
 ## average WORSE (FIRES 30->37ms avg, 61->107 hitch lines) while the per-frame
 ## cost barely moved - the drip frame's floor is combat load + physics
 ## catch-up, not the second man. Do not "optimise" this to 1 without re-running

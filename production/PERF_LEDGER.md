@@ -1226,10 +1226,10 @@ phase signature:
   the demo-relevant class — the demo's 5-7fps siege minimums live here. Next lever:
   stagger or pool the fire-support proc instantiation the way MarchingCell was staggered.
 
-### 2026-08-15 - THE SPAWN-BURST FIX (crucible x4 + demo siege study; supersedes the 8/14 attribution)
+### 2026-08-14 EVENING - THE SPAWN-BURST FIX (crucible x4 + demo siege study; supersedes the morning attribution)
 
-**The 8/14 negative attribution above was an instrument bug, and its conclusion was
-wrong.** SpawnLedger keyed its counts on the PHYSICS frame; a 280ms hitch frame runs
+**The 8/14 morning negative attribution above was an instrument bug, and its
+conclusion was wrong.** SpawnLedger keyed its counts on the PHYSICS frame; a 280ms hitch frame runs
 many catch-up physics ticks, each wiping the previous tick's counts, so the burst
 frames read "no spawns" on exactly the frames the ledger existed to explain. A second
 off-by-one hid the rest: the tracer reports in frame N+1 with a node delta measured
@@ -1254,7 +1254,7 @@ drip through it; boot-time initial forces stay instant and `_waves_dripping` hol
 attrition trigger while a wave is still arriving - a half-dripped roster read as
 casualties and burned reserves into BASELINE on the first attempt):
 
-Crucible headless, same box, before (8/15 run with ledger armed) -> after:
+Crucible headless, same box, before (evening run with ledger armed) -> after:
 ```
 phase        avg ms          1% ms           worst ms        hitch>100ms
 BASELINE     9.3  -> 8.8     22   -> 22      92   -> 73      0  -> 0
@@ -1270,7 +1270,7 @@ spreads it, nothing yet removes it). SPAWN_PER_FRAME=1 was measured and REJECTED
 (doubles the arrival window: FIRES avg 30->37, hitches 61->107); 2/frame stands.
 
 Demo siege study (`--perf-probe --perf-siege`, shipping scene, 0.75 scale, same box,
-vs the 8/14 rows): **quiet 33.9 avg / 9 min (was 31.6/5) - assault_in 27.4 / 5 (was
+vs the morning rows): **quiet 33.9 avg / 9 min (was 31.6/5) - assault_in 27.4 / 5 (was
 22.4/6) - assault_on_wire 22.6 / 5 (was 21.9/7)**. Every average improved; the ~5fps
 minimums remain and are GPU-led dips (gpu_ms_max 35-41 vs cpu_ms_max 9-10), no longer
 CPU spawn bursts. The proposed >=20avg gate now carries ~2.6fps margin on the wire.

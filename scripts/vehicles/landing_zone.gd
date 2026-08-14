@@ -28,7 +28,7 @@ func _exit_tree() -> void:
 	active.erase(self)
 
 
-## The pad is for BOARDING AND UNLOADING ONLY (his ruling 2026-08-15: troops
+## The pad is for BOARDING AND UNLOADING ONLY (his ruling 2026-08-14 evening: troops
 ## off the Hueys were digging into the LZ and bedding down on it). Camp-life
 ## placement asks this before seating a bunk, a job or a rest spot; the
 ## board/extract flows never do - walking ONTO the pad to catch a lift is the

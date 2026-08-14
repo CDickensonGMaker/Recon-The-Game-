@@ -1748,7 +1748,7 @@ func _spawn_initial_forces() -> void:
 
 
 ## Drips men through the global spawn gate - a whole squad in one frame is the
-## measured worst-frame class (+2,000..+4,600 nodes; crucible ledger 2026-08-15).
+## measured worst-frame class (+2,000..+4,600 nodes; crucible ledger 2026-08-14 evening).
 ## Fire-and-forget coroutine: the squad array is filed BEFORE the drip so counts
 ## and iteration see men as they arrive. `instant` is the BOOT path only - the
 ## pre-settle frame is off every scoreboard, and a boot drip left the roster

@@ -1648,9 +1648,9 @@ today's assets, all predate the chain, none in $KnownRed so the test reads FAIL.
 Triage: post-demo unless a band was wrong all along. Also queued from the M113 report:
 cupola traverse clamp (swinging the .50 sweeps outside the authored box).
 
-## 2026-08-15 - AIR-SUPPORT STUTTER: KILLED, AND THE HANDOFF'S SUSPECT WAS INNOCENT
+## 2026-08-14 EVENING - AIR-SUPPORT STUTTER: KILLED, AND THE HANDOFF'S SUSPECT WAS INNOCENT
 
-The 8/14 handoff blamed fire-support dispatch instantiation; the fixed SpawnLedger
+The morning handoff blamed fire-support dispatch instantiation; the fixed SpawnLedger
 (process-frame key + two-frame window - the old physics key made every burst frame
 read "no spawns") proved the bursts were **mass man instantiation**: 18-24 enemies /
 22-23 allies in single frames, via MarchingCell's physics-keyed budget multiplying
@@ -1658,9 +1658,10 @@ under catch-up ticks plus three ungated bulk loops (arena waves,
 `_garrison_stand_to` - the demo's siege-moment burst). Fix: one global render-frame
 spawn gate (2 men/frame), all bulk spawners drip through it. GunFX/canister timing
 UNTOUCHED - the napalm/arty look cannot have changed (zero visual-path edits; the
-only GunFX diff is ledger note() calls). Full numbers: PERF_LEDGER 2026-08-15 entry.
+only GunFX diff is ledger note() calls).
 Crucible burst class (+2-4.6k nodes/frame) eliminated; demo siege averages all
 improved (33.9/27.4/22.6 vs 31.6/22.4/21.9); ~5fps minimums remain, now GPU-led.
+Full numbers: PERF_LEDGER 2026-08-14 EVENING entry.
 
 **HIS HUEY ASK (same evening) SHIPPED:** rotary transits now fly a loose gaggle -
 shuffled lanes both sides of the lead, random following distances, per-ship altitude,
