@@ -616,16 +616,21 @@ func unseat_all(exit_center: Vector3) -> void:
 			bodies.append(body)
 	if bodies.is_empty():
 		return
-	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
-	var origin: Vector3 = sock.global_position if sock != null else exit_center
-	var normal: Vector3 = sock.global_transform.basis.z if sock != null \
-		else Vector3(1.0, 0.0, 0.0)
-	var arc: float = deg_to_rad(140.0)
+	var eg: Array = _egress()
+	var origin: Vector3 = eg[0] as Vector3 if eg[0] != Vector3.ZERO else exit_center
+	var normal: Vector3 = eg[1] as Vector3
+	# A ramp stick files AFT in a tight fan and keeps going - a wide side-door
+	# arc wrapped Chinook men back around the hull. The longer radius is the
+	# "run away from the ship" half of his ruling: the last men off land 10m+
+	# behind the ramp, clear of the airframe.
+	var is_ramp: bool = fallback_key == &"ch47"
+	var arc: float = deg_to_rad(80.0 if is_ramp else 140.0)
+	var radius_cap: float = 11.0 if is_ramp else 7.0
 	for i in bodies.size():
 		var t: float = 0.5 if bodies.size() == 1 \
 			else float(i) / float(bodies.size() - 1)
 		var dir: Vector3 = normal.rotated(Vector3.UP, arc * (t - 0.5))
-		var radius: float = minf(EXIT_PUSH_M + 0.9 * float(i), 7.0)
+		var radius: float = minf(EXIT_PUSH_M + 0.9 * float(i), radius_cap)
 		unseat(bodies[i], _exit_ground(origin + dir * radius))
 
 
@@ -633,11 +638,15 @@ func unseat_all(exit_center: Vector3) -> void:
 ## per BOARD_STAGGER_S. Dead/downed excluded. Returns how many were queued.
 func board_squad(allies: Array) -> int:
 	var staging: Vector3 = door_staging_pos()
+	# Stick line abeam the exit: the door for a Huey, the ramp for a Chinook.
+	# 1.4m spacing is the ceiling: BOARD_NEAR_M is measured to the airframe and
+	# the 6th slot sits 7.4m out - 0.6m of margin.
 	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
-	# Stick line abeam the door. 1.4m spacing is the ceiling: BOARD_NEAR_M is
-	# measured to the airframe and the 6th slot sits 7.4m out - 0.6m of margin.
-	var side: Vector3 = sock.global_transform.basis.x if sock != null \
-		else Vector3(0.0, 0.0, 1.0)
+	var side: Vector3 = Vector3(0.0, 0.0, 1.0)
+	if fallback_key == &"ch47" and _vehicle != null and is_instance_valid(_vehicle):
+		side = ((_vehicle as Node3D).global_transform.basis * Vector3(0.0, 0.0, 1.0)).normalized()
+	elif sock != null:
+		side = sock.global_transform.basis.x
 	var queued: int = 0
 	for a in allies:
 		var body := a as Node3D
@@ -720,13 +729,29 @@ func _next_free_passenger_seat() -> StringName:
 ## World-space point EXIT_PUSH_M outside the left door - allies stage here,
 ## the player dismounts here.
 func door_staging_pos() -> Vector3:
+	return _egress()[0]
+
+
+## Where a stick exits and which way it fans, PER AIRFRAME. The Huey empties out
+## its side doors (gunner sockets face outward, local +Z); the Chinook empties
+## out the BACK RAMP - side-door egress walked its stick out under the forward
+## rotor arc and left the men bunched beside the hull (his playtest: "they dont
+## run away from the ship out the back"). Returns [origin, outward_normal].
+func _egress() -> Array:
+	if fallback_key == &"ch47" and _vehicle != null and is_instance_valid(_vehicle):
+		var xf: Transform3D = (_vehicle as Node3D).global_transform
+		# Ramp lip sits at root-space +X 4.8 (tools/probe_chinook_dims.gd);
+		# stage a metre aft of it, fanning straight aft.
+		return [xf * Vector3(5.8, 0.0, 0.0), (xf.basis * Vector3(1.0, 0.0, 0.0)).normalized()]
 	var sock: Node3D = _sockets.get(&"seat_gunner_l") as Node3D
 	if sock != null:
 		# Gunner sockets face outward: local +Z is straight out the door.
-		return sock.global_position + sock.global_transform.basis.z * EXIT_PUSH_M
-	if _vehicle != null:
-		return _vehicle.global_position + Vector3(EXIT_PUSH_M, 0.0, 0.0)
-	return Vector3.ZERO
+		return [sock.global_position + sock.global_transform.basis.z * EXIT_PUSH_M,
+			sock.global_transform.basis.z]
+	if _vehicle != null and is_instance_valid(_vehicle):
+		return [(_vehicle as Node3D).global_position + Vector3(EXIT_PUSH_M, 0.0, 0.0),
+			Vector3(1.0, 0.0, 0.0)]
+	return [Vector3.ZERO, Vector3(1.0, 0.0, 0.0)]
 
 
 func _physics_process(delta: float) -> void:
