@@ -1598,3 +1598,16 @@ wire-or-cut) · 521MB tracked _PRE_ blend backups untracked · office-chair text
 END_AT_S doc drift purged (CLAUDE.md + GAME_GUIDE). IN FLIGHT: the crashed-aircraft
 commission (Skyraider rebuild + Huey + Phantom, his four rulings encoded). His replay of
 the siege night remains the day's price: the validated siege ran on the fictional mesh.
+
+## 2026-08-14 — THE OVERNIGHT BUILD CHAIN (his commission, serial focused works)
+
+Eight commits (156c49ce..0375a9b0), gallery at the Night Fleet artifact. Fleet: three v2
+airframes (Skyraider/Phantom/his armed Spooky — old prop backwards, gunship code flying
+the airframe backwards on a stale flip, both fixed), wrecks re-derived on the STRICT
+grounding gate (tmp-texture cured + guarded), the jeep rebuilt (drove 90° sideways at
+every convoy's head; his July fix was never exported — a done-but-unexported .blend is
+invisible to every GLB check; verify_m151_v2.py closes the class SPEC-driven). Perf: the
+crucible's first full-load curve (GPU is the wall on the UHD floor; spawn-burst hitch
+class attributed, MarchingCell site closed), findings + suspects in PERF_LEDGER. QUEUED:
+m35 + m113 + m101 + water buffalo per VEHICLE_REVIEW_2026-08-14.md; DEMO_TIGHT_40
+execution behind his siege replay.

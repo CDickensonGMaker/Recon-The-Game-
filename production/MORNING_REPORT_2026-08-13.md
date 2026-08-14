@@ -2,6 +2,35 @@
 
 ---
 
+## ADDENDUM 3, 2026-08-14 dawn — the overnight build chain, complete
+
+Eight more commits pushed (156c49ce -> 0375a9b0). One focused work at a time, per your
+ruling, each verified and pushed before the next began. **Gallery for your eye:
+https://claude.ai/code/artifact/1d488f61-3b3f-4587-9ac5-bb0f0df0e673**
+
+**THE FLEET:** a1_skyraider_v2 (a real Skyraider, dims 0.0-0.3% off, the old prop pointed
+BACKWARDS) · f4_phantom_v2 (a real Phantom; the old was a May placeholder) ·
+ac47_spooky_v2 (YOUR model trued to scale and armed with the three port miniguns —
+and the gunship code was flying the airframe backwards on a stale flip; fixed, rounds
+now leave the authored muzzles) · both wrecks re-derived from the good donors (grounding
+gate now STRICT law; tmp-texture disease cured with a guard) · **the jeep drives
+forwards** — the old one drove 90° SIDEWAYS at the head of every convoy (your July
+rigged fix was never exported); v2 is 0.0% off real on four axes with your seat sockets
+kept, and a SPEC-driven ground-vehicle verifier now exists that convicts the sideways
+class by part position.
+
+**THE PERF CAMPAIGN (your addendum):** the crucible measured the first full-load curve —
+the GPU is the wall on the UHD floor (43.5ms QUIET, 94ms under everything; the July
+'CPU-bound' doctrine does not survive the floor hardware), the ~285ms hitch class is
+SPAWN BURSTS (MarchingCell site closed with a global 2-per-frame budget; other sites
+named for the caller-tagged instrument), veg 19.3ms / night dressing 18.0ms of the quiet
+frame. Gate number goes to you after the demo poses. Full curve in PERF_LEDGER.
+
+**QUEUED with specs written (VEHICLE_REVIEW_2026-08-14.md):** m35 deuce (drives 180°
+backwards, cab half its bed's width) · m113 (+25% wide, 26 materials for two colours) ·
+m101 split from its staged pit · water buffalo's floating horn · the DEMO_TIGHT_40 plan
+is approved and its Block 1-2 steps wait on your siege replay.
+
 ## ADDENDUM 2, 2026-08-13 evening — the whole day session in one paragraph
 
 Four commits pushed (`f6b323a6` napalm scale · `a5d077a7` nav-truth · `d2f8f013` full audit
