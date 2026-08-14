@@ -1119,3 +1119,43 @@ The 2026-07-26 finding above ("the CPU-vs-GPU split has never been measured") de
 OLD probe and is CORRECTED as of that commit: the instrument works; **the three poses (THE
 WALK · ONE DIG · THE BARRAGE) still have not been taken with it** — that is the Summoner's
 run, queued. No row below this line exists yet.
+
+---
+
+## 2026-08-14 — THE CRUCIBLE: first full-load curve, and the doctrine flips on the floor box
+
+`tools/probe_crucible.tscn` (new): five 30s phases — quiet arena → hot 18v18 → +30-man
+siege wave + sappers → +napalm/arty/CBU cycling → everything + mortars + second wave.
+Every frame sampled; render split via `viewport_set_measure_render_time`. Both runs on
+this box (12 cores, **Intel UHD Graphics, Vulkan Forward+** — the named floor), 1280x720,
+nothing else running.
+
+**HEADLESS (pure game-thread CPU):** avg ms / 1% / worst —
+BASELINE 9.0/21.5/101 · COMBAT 10.1/20.8/291 · WAVE 19.3/41.3/288 ·
+FIRES 32.0/61.0/284 · EVERYTHING **43.6/74.5/283** (23fps avg CPU-only).
+
+**REAL RENDERER (frame = CPU+GPU pipeline):** avg / 1% / worst | rCPU / rGPU ms —
+BASELINE 47.1/70.5/116 | 2.5/**43.5** · COMBAT 54.0/122.6/260 | 3.6/49.8 ·
+WAVE 75.6/186.5/285 | 3.7/67.6 · FIRES 100.3/252.5/275 | 4.8/75.9 ·
+EVERYTHING **130.5/262.1/291 | 4.3/94.4** (8fps avg).
+
+**FINDINGS, in rank order:**
+1. **The GPU is the wall on the UHD floor.** 43.5ms of GPU at a QUIET night arena —
+   21fps before one AI thinks — growing to 94ms under load. The 2026-07 "CPU-bound"
+   verdict came from a bench that assumed the frame after graphics cuts; on the floor
+   hardware the renderer eats 2-4x the game thread at every phase. Baseline attribution
+   (jungle/fog/night lights vs VFX) is the next measurement.
+2. **A recurring ~285ms CPU hitch class** — same signature (283-291ms) in every combat
+   phase, present even in plain COMBAT with no fires and no craters. One event class;
+   suspects: materialize spawn burst, chunk rebuild, breach-bake source assembly.
+   Instrumented hunt is next.
+3. CPU load curve: the 30-man siege wave alone doubles the game thread (10→19ms);
+   fires add 13ms; everything 44ms. The demo runs ~45 siege men + garrison — the demo's
+   CPU frame is expected WORSE than the crucible's WAVE phase.
+4. `[NAV-FALLBACK]` fired ONCE across the full crucible — the honest navmesh is not
+   spamming the designed fallback.
+
+**Gate implication:** a 30fps-avg/20fps-1% gate at the crucible EVERYTHING phase is
+currently missed ~4x on the floor box. The gate number goes to the Summoner AFTER the
+top-2 fixes land and the three demo poses are taken — a gate set against an unattributed
+frame would just be red forever.
