@@ -629,6 +629,68 @@ func _play_idle(prop_root: Node3D) -> void:
 			return
 
 
+## The firebase GLB's baked cast: skinned aid-station men and officers whose
+## clips import play-once and had no driver. One AnimationPlayer plays ONE
+## animation, so every clip past the first rides a sibling player sharing the
+## source library (gun_crew_performance._bind_piece's shape). Free-running idles,
+## not choreography. MC_* is a mechanism FIRE beat, not an idle: looping it would
+## fire the baked tube forever, and no fire path reaches this player.
+func _animate_fsb_baked_cast(root: Node3D) -> void:
+	var played: int = 0
+	for n in root.find_children("*", "AnimationPlayer", true, false):
+		var src := n as AnimationPlayer
+		if src == null:
+			continue
+		var first: bool = true
+		for anim_name in src.get_animation_list():
+			var clip: String = String(anim_name)
+			if clip.begins_with("MC_"):
+				continue
+			src.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+			var p: AnimationPlayer = src
+			if not first:
+				p = AnimationPlayer.new()
+				p.root_node = src.root_node
+				for lib in src.get_animation_library_list():
+					p.add_animation_library(lib, src.get_animation_library(lib))
+				src.get_parent().add_child(p)
+			p.play(clip)
+			first = false
+			played += 1
+	if played == 0:
+		push_warning("[FSB] no baked cast clips in the firebase GLB - export drift")
+
+
+## Swap each baked howitzer for the animated fb_emplacement_m101 chunk at its exact
+## transform, so GunCrewPerformance._bind_piece finds an AnimationPlayer carrying
+## "M101Rig" within PIECE_SEARCH_M of the pit. Kit and baked emplacement share local
+## coordinates 1:1 (measured 2026-08-24: M101Rig at [0,-0.043,0], stations identical).
+## The baked node is HIDDEN, never freed: its -colonly colliders are scene-root
+## siblings that stay live, and the chunk carries visuals only. The chunk's baked
+## crew rigs are hidden too - fsb_garrison_plan seats the real crew at the work_gun
+## markers. MUST run after _animate_fsb_baked_cast: that pass loops every non-MC_
+## clip it finds, and looping M101Rig would fire the recoil forever.
+func _wire_m101_rigs(root: Node3D) -> void:
+	var chunk: PackedScene = load(M101_CHUNK_PATH) as PackedScene
+	if chunk == null:
+		push_warning("[FSB] fb_emplacement_m101.glb missing - howitzers stay static")
+		return
+	var wired: int = 0
+	for n in root.find_children("m101_emplacement*", "Node3D", true, false):
+		var baked := n as Node3D
+		if baked == null:
+			continue
+		baked.visible = false
+		var inst := chunk.instantiate() as Node3D
+		root.add_child(inst)
+		inst.global_transform = baked.global_transform
+		for crew in inst.find_children("PSXRig_*", "Node3D", true, false):
+			(crew as Node3D).visible = false
+		wired += 1
+	if wired == 0:
+		push_warning("[FSB] no m101_emplacement nodes in the firebase GLB - export drift")
+
+
 ## Scatter up to `count` hut positions in the footprint disk, each >= min_sep from
 ## every already-placed structure and off water. Never collides and never relaxes
 ## the separation: on a cramped/wet site it returns FEWER huts rather than stack
@@ -708,6 +770,9 @@ func _separated(p: Vector3, min_sep: float, a: Array[Vector3], b: Array[Vector3]
 ## scene exactly where it used to instance the GLB.
 const FSB_MAIN_PATH: String = "res://scenes/world/firebase_main.tscn"
 const FSB_MODEL_GLB: String = "res://assets/world/building models/structures/firebase/fsb_main_v3.glb"
+## The animated M101 chunk: the same emplacement the fsb bakes, WITH the
+## M101Rig/MC_* clips the baked copy lacks (fsb ships M101Rig skins, 0 clips).
+const M101_CHUNK_PATH: String = "res://assets/world/building models/structures/firebase/kit/fb_emplacement_m101.glb"
 const FSB_AABB_CENTER := Vector3(0.0, 0.0, 0.0)     # authored about the origin, measured
 ## Half-extents from the ORIGIN, not from the AABB centre: the authored treeline runs further
 ## out on +x than -x, and _fsb_rect is built centred on `center`, so it must cover the reach.
@@ -865,9 +930,22 @@ const FSB_GARRISON_QUARTERS: Array[String] = [
 	"FOOTPRINT_001", "FOOTPRINT_002", "FOOTPRINT_004", "FOOTPRINT_007",
 ]
 
-## work_* markers baked into the firebase GLB, as [pos, work_type]. Cached alongside the
-## named keys because the garrison reads them by PREFIX, not by exact name.
+## work_* markers baked into the firebase GLB, as [pos, work_type, diggable]. Cached
+## alongside the named keys because the garrison reads them by PREFIX, not by exact name.
 static var _fsb_work_markers: Array = []
+
+## The dig clip may only play at a work_dig marker standing within DIG_NEAR_M of a
+## defensive earthwork mesh (his ruling 2026-08-24: "make specific spots where the DIG
+## animation can happen. like close to the berms or a bunker"). Measured 2026-08-24:
+## 10 of the GLB's 12 work_dig markers classify.
+const DIG_NEAR_M: float = 8.0
+const EARTHWORK_FAMILIES: Array[String] = [
+	"berm", "bunker", "sandbag", "foxhole", "trench", "revet", "parapet",
+]
+## fb_berm_ring's AABB spans ~198m - the whole compound - so proximity to it would
+## classify every marker. Meshes wider than this are perimeter rings, not spots; the
+## sandbag/revet meshes lining the berm carry the classification there instead.
+const EARTHWORK_SPAN_MAX_M: float = 60.0
 
 ## work_type -> Civilian occupation. A work_type with no entry here becomes off_duty
 ## rather than inventing a schedule.
@@ -960,8 +1038,8 @@ const FSB_WORK_PRIORITY: Array[String] = [
 ## siege now feels too safe to hold, this is the dial back toward 28-32.
 const FSB_GARRISON_MAX_MEN: int = 40
 
-## Upper bound on work_* variety. fsb_main_v3.glb carries 191 work markers
-## (measured) and one man each would be a crowd the frame cannot pay for.
+## Upper bound on work_* variety. fsb_main_v3.glb carries 487 work markers
+## (measured 2026-08-24) and one man each would be a crowd the frame cannot pay for.
 ## Sampled by a deterministic stride, never randomly - ADR-010, same seed same base.
 ##
 ## This is a VARIETY cap, not the population cap: the real limit is whatever
@@ -1043,12 +1121,29 @@ static func _ensure_fsb_markers() -> void:
 			cur = cur.get_parent() as Node3D
 		_fsb_markers[key] = t.origin
 	_fsb_work_markers.clear()
+	var earthworks: Array[AABB] = []
 	var stack: Array[Node] = [inst]
 	while not stack.is_empty():
 		var nd: Node = stack.pop_back()
 		for c in nd.get_children():
 			stack.append(c)
-		if not (nd is Node3D) or not String(nd.name).begins_with("work_"):
+		if not (nd is Node3D):
+			continue
+		if nd is MeshInstance3D and not String(nd.name).begins_with("work_"):
+			var low: String = String(nd.name).to_lower()
+			for fam in EARTHWORK_FAMILIES:
+				if low.contains(fam):
+					var t3 := Transform3D.IDENTITY
+					var cur3: Node3D = nd as Node3D
+					while cur3 != null and cur3 != inst:
+						t3 = cur3.transform * t3
+						cur3 = cur3.get_parent() as Node3D
+					var box: AABB = t3 * (nd as MeshInstance3D).get_aabb()
+					if box.size.x < EARTHWORK_SPAN_MAX_M and box.size.z < EARTHWORK_SPAN_MAX_M:
+						earthworks.append(box)
+					break
+			continue
+		if not String(nd.name).begins_with("work_"):
 			continue
 		var t2 := Transform3D.IDENTITY
 		var cur2: Node3D = nd as Node3D
@@ -1066,7 +1161,19 @@ static func _ensure_fsb_markers() -> void:
 			if cut <= 0 or not wt.substr(cut + 1).is_valid_int():
 				break
 			wt = wt.substr(0, cut)
-		_fsb_work_markers.append([t2.origin, wt])
+		_fsb_work_markers.append([t2.origin, wt, false])
+	for entry_any in _fsb_work_markers:
+		var e: Array = entry_any
+		if str(e[1]) != "dig":
+			continue
+		var p: Vector3 = e[0]
+		for box_any in earthworks:
+			var box: AABB = box_any
+			var dx: float = maxf(maxf(box.position.x - p.x, 0.0), p.x - box.end.x)
+			var dz: float = maxf(maxf(box.position.z - p.z, 0.0), p.z - box.end.z)
+			if Vector2(dx, dz).length() <= DIG_NEAR_M:
+				e[2] = true
+				break
 	_fsb_work_markers.sort_custom(func(a: Array, b: Array) -> bool:
 		var pa: Vector3 = a[0]
 		var pb: Vector3 = b[0]
@@ -1116,7 +1223,7 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 			if not by_type.has(wt):
 				by_type[wt] = []
 				seen_order.append(wt)
-			(by_type[wt] as Array).append(e[0])
+			(by_type[wt] as Array).append(e)
 		# FSB_WORK_PRIORITY first, then anything the GLB carries that it does not name,
 		# in marker order. Sorting alphabetically instead would spend the whole budget
 		# on ammo/burn/cook/dig and never reach the medic.
@@ -1135,8 +1242,8 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		# failure. Wounded ABOVE this floor are the ledger's job, not the layout's.
 		var med_pool: Array = by_type.get("medic", [])
 		if med_pool.size() >= 2 and work_budget >= 2:
-			var mp: Vector3 = origin + (med_pool[0] as Vector3)
-			var pp: Vector3 = origin + (med_pool[1] as Vector3)
+			var mp: Vector3 = origin + ((med_pool[0] as Array)[0] as Vector3)
+			var pp: Vector3 = origin + ((med_pool[1] as Array)[0] as Vector3)
 			posts.append({"pos": mp, "occupation": "medic", "men": 1})
 			posts.append({"pos": pp, "occupation": "patient", "men": 1})
 			taken = 2
@@ -1149,7 +1256,7 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 			# (two bearers plus the man on the litter).
 			var ward_full: bool = CampaignState.ward_wounded > CampaignState.WARD_SEED_ON_NEW_TOUR
 			if med_pool.size() >= 3 and work_budget >= 5 and ward_full and LitterTeamScript.available():
-				var cot: Vector3 = origin + (med_pool[2] as Vector3)
+				var cot: Vector3 = origin + ((med_pool[2] as Array)[0] as Vector3)
 				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": mp})
 				taken = 5
 		# THE ARTILLERY CREWS ARE SEEDED WHOLE, one pit per weapon type, ahead of the
@@ -1182,14 +1289,16 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 				var pool: Array = by_type[wt]
 				if round_i >= pool.size():
 					continue
-				var wp: Vector3 = origin + (pool[round_i] as Vector3)
+				var pe: Array = pool[round_i]
+				var wp: Vector3 = origin + (pe[0] as Vector3)
 				var occ: String = str(FSB_WORK_OCCUPATION.get(wt, "off_duty"))
 				# Alternate the two sentry shifts so the wire is not empty after dark.
 				if occ == "sentry" and taken % 2 == 1:
 					occ = "sentry_night"
 				# "role" carries the raw work_type: occupation is lossy, and the animation
 				# picker needs to tell a chow server from a man in the queue.
-				posts.append({"pos": wp, "occupation": occ, "men": 1, "role": wt})
+				posts.append({"pos": wp, "occupation": occ, "men": 1, "role": wt,
+					"dig_ok": bool(pe[2])})
 				taken += 1
 				placed_this_round = true
 			if not placed_this_round:
@@ -1340,6 +1449,8 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	var siren: SirenTower = SirenTower.build_from_markers(root)
 	if siren == null:
 		push_warning("[FSB] no fb_tower_i meshes in the firebase GLB - no alarm")
+	_animate_fsb_baked_cast(root)
+	_wire_m101_rigs(root)
 	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
 	var gate_pos: Vector3 = gm.gate_pos
 	var gate_out: Vector3 = gm.gate_out

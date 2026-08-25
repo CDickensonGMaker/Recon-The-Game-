@@ -68,7 +68,10 @@ const VILLAGE_ACTION_CLIPS: Dictionary = {
 	# never VC or villagers"). sitting_talking and telling_secret are modern open-palm
 	# gesturing; on a village elder they read as a man in costume.
 	&"talk": ["standing_talking", "sitting_idle_b", "sitting"],
-	&"work": ["plant_seeds", "digging", "idle_unarmed_3"],
+	# NO "digging" HERE (his ruling 2026-08-24): the dig clip is gated to diggable work
+	# points near firebase earthworks, and a village has none. plant_seeds is the
+	# kneeling ground-work read.
+	&"work": ["plant_seeds", "idle_unarmed_3"],
 	&"rest": ["sitting_idle_c", "sitting_drinking", "sitting"],
 	&"sit": ["sitting_idle_b", "sitting_idle_c", "sitting"],
 }
@@ -109,6 +112,17 @@ var working_point_pos: Vector3 = Vector3.ZERO
 ## than occupation, which collapses several markers onto one schedule. Empty for
 ## curated posts and villagers.
 var role: String = ""
+## True ONLY when this man's working point is a work_dig marker classified within
+## SitePlanner.DIG_NEAR_M of an earthwork mesh (his ruling 2026-08-24: dig happens
+## close to berms/bunkers, nowhere else). Set by the spawner; survives promote/
+## stand_down via the "garrison_dig_ok" meta.
+var dig_ok: bool = false
+## Entrenching tool in hand while the dig clip plays (his ruling 2026-08-24: digging
+## with empty hands "doesnt make sense"). The GLB's origin is the grip. Checked with
+## ResourceLoader.exists at use time - until the prop lands on disk, diggers fall
+## back to the non-dig working chain rather than mime.
+const SHOVEL_GLB: String = "res://assets/world/props/etool_shovel.glb"
+var _shovel: BoneAttachment3D = null
 ## Group id: civilians with the same id walk as one group. -1 = solo.
 var group_id: int = -1
 ## Where THIS civilian walks while grouped: the destination if lead, else a
@@ -481,8 +495,10 @@ func _animate() -> void:
 		match active_action:
 			&"walk_home", &"walk_paddy", &"walk_fire", &"walk_market", &"walk_group":
 				want = "walking_unarmed" if moving else "idle"
-			&"sit", &"talk", &"rest", &"sleep":
+			&"sit", &"talk", &"rest":
 				want = "walking_unarmed" if moving else "seated"
+			&"sleep":
+				want = "walking_unarmed" if moving else "sleeping"
 			&"work", &"cook", &"fish":
 				want = "walking_unarmed" if moving else "stooped"
 			_:
@@ -518,6 +534,8 @@ func _animate() -> void:
 			actor.play_first(["sitting", "idle_unarmed_4", "idle_unarmed"])
 		"seated":
 			actor.play_first(["sitting", "idle_unarmed_5", "idle_unarmed"])
+		"sleeping":
+			actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[&"sleep"] as Array))
 		"stooped":
 			actor.play_first([_idle_variant, "idle_unarmed_3", "idle_unarmed"])
 		"walking_unarmed":
@@ -557,6 +575,14 @@ func _rotate(chain: Array) -> Array[String]:
 ## a man standing his post holds a rifle, and `idle`/`walk_forward` are the
 ## rifleman clips. Off-post actions fall back to the unarmed loafing poses.
 func _play_garrison(want: String) -> void:
+	# Only a detail man mid-dig holds the e-tool; every other pose drops it.
+	if occupation != "detail" or want != "stooped":
+		_set_shovel(false)
+	# The garrison branch exits before VILLAGE_ACTION_CLIPS - a sleeping man is
+	# laid down here or every branch below reads his stillness as loafing.
+	if want == "sleeping":
+		actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[&"sleep"] as Array))
+		return
 	# The quartermaster's whole job is moving crates, and the library has carried
 	# `cargo_carry` / `cargo_unload_stack` with no caller since they landed.
 	# Off-duty men loaf; the schedule already keeps them away from a post. These are
@@ -591,8 +617,16 @@ func _play_garrison(want: String) -> void:
 			actor.play_first(["cargo_carry", "walk_forward", "walking_unarmed"])
 			return
 		if want == "stooped":
-			actor.play_first(["digging", "plant_seeds", "cargo_unload_stack",
-				"idle_unarmed_3"])
+			# DIG IS SPOT-GATED AND TOOL-GATED (his ruling 2026-08-24): only at a
+			# diggable work point, only with the shovel prop on disk. Everyone else
+			# works the party without breaking ground.
+			if dig_ok and ResourceLoader.exists(SHOVEL_GLB):
+				var played: String = actor.play_first(["digging", "plant_seeds",
+					"cargo_unload_stack", "idle_unarmed_3"])
+				_set_shovel(played == "digging")
+			else:
+				actor.play_first(["plant_seeds", "cargo_unload_stack",
+					"idle_unarmed_3"])
 			return
 	# THE MESS. work_cook seats a man at the stoves, work_mess at the serving line -
 	# two different jobs that both resolved to mess_cook, so both sat on a crate.
@@ -716,6 +750,42 @@ func _play_garrison(want: String) -> void:
 			actor.play_first(["idle", "idle_unarmed"])
 
 
+## Attach/free the e-tool on the man's own skeleton. Parented under the rig's hand
+## bone, so it can NEVER outlive the body - it dies with the actor. Idempotent per
+## state: _animate only calls on want changes, so no per-frame churn.
+func _set_shovel(on: bool) -> void:
+	if not on:
+		if _shovel != null and is_instance_valid(_shovel):
+			_shovel.queue_free()
+		_shovel = null
+		return
+	if _shovel != null and is_instance_valid(_shovel):
+		return
+	if actor == null or not is_instance_valid(actor):
+		return
+	var skel: Skeleton3D = actor.skeleton()
+	if skel == null:
+		return
+	# Importer sanitises the colon (vc_nva_dresser._socket_bone) - both spellings tried.
+	var bone: int = skel.find_bone("mixamorig_RightHand")
+	if bone < 0:
+		bone = skel.find_bone("mixamorig:RightHand")
+	if bone < 0:
+		return
+	var packed: PackedScene = load(SHOVEL_GLB) as PackedScene
+	if packed == null:
+		return
+	var prop: Node3D = packed.instantiate() as Node3D
+	if prop == null:
+		return
+	var att := BoneAttachment3D.new()
+	att.name = "ShovelSocket"
+	att.bone_idx = bone
+	skel.add_child(att)
+	att.add_child(prop)
+	_shovel = att
+
+
 func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 	# Routing is for the men you can see walking. A villager 300m out crossing a paddy has
 	# nothing to path around, and a populated AO carries 16-40 of them - each path query is
@@ -756,6 +826,7 @@ func _die(attacker: Node, zone: String, amount: int) -> void:
 	state = CivState.GONE
 	AgentRegistry.unregister(self)
 	set_physics_process(false)
+	_set_shovel(false)
 	# Zones ride the body. The body is about to be laid flat, which would swing a
 	# fatal HEAD zone out to chest height a metre and a half away, invisible, and
 	# leave it eating rounds for the whole corpse linger.
@@ -1135,8 +1206,8 @@ func _bt_walk_market(_civ: Civilian, bb: Dictionary) -> int:
 ## is why twelve scheduled actions collapsed into four behaviours and why the firebase night
 ## shift only LOOKED manned - place_for_current_hour() teleports everyone at spawn, so the
 ## sentries, gun crew, radioman and quartermaster appeared on station and then never walked
-## to one again for the rest of the night. The 191 work markers were already resolved into
-## bb["target_pos"] every sim hour and nothing read them.
+## to one again for the rest of the night. The 487 work markers (measured 2026-08-24) were
+## already resolved into bb["target_pos"] every sim hour and nothing read them.
 const WORK_ARRIVE_M: float = 1.6
 const WORK_JITTER_M: float = 1.5
 const WORK_SPEED: float = 1.1

@@ -2,7 +2,7 @@
 ## that shows him losing the fight with it.
 ##
 ## The animation is SPLICED FROM PROVEN LIBRARY CLIPS, not authored cold (the
-## project's standing animation law). There is no burn clip among the 216 in
+## project's standing animation law). There is no burn clip among the 232 in
 ## anim_library.glb, so this borrows the civilian panic beat and then hands the
 ## body to physics:
 ##
@@ -33,7 +33,9 @@ const CLIP_RUN := "running_unarmed"
 const CLIP_RUN_ALT := "stumble_hit"
 const CLIP_ROLL := "falling_to_roll"
 const CLIP_CRAWL := "wounded_crawl"
-const CLIP_COWER := "crouching"
+## kneeling_idle is the unarmed kneel - the one crouch the whole cast (armed and
+## civilian) carries that reads as a man folded up, not a rifleman's stance.
+const CLIP_COWER := "kneeling_idle"
 
 ## How a given man loses the fight. Rolled once, at ignition. Men do not all
 ## behave the same way on fire, and a strip where every body performs the same

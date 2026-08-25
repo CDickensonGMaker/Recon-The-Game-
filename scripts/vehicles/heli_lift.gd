@@ -297,11 +297,14 @@ func _deliver() -> void:
 			var a: float = float(man._idle_seed % 360) * (TAU / 360.0)
 			var r: float = 10.0 + float(man._idle_seed % 12)
 			var bunk: Vector3 = director.fsb_center + Vector3(cos(a), 0.0, sin(a)) * r
-			# The hashed ring can land the bunk ON a pad, and then the schedule digs
-			# the LZ / beds down on it. Walk the angle (golden step, deterministic)
-			# until the bunk clears every pad's keep-out.
+			# The hashed ring can land the bunk ON a pad - and then the schedule beds
+			# down on the LZ - or ON another man's working point, which stacks two
+			# arrivals into one body (his ruling 2026-08-24: one man per work point;
+			# the live firebase_garrison group IS the claim ledger, freed when a man
+			# dies or leaves the tree). Walk the angle (golden step, deterministic)
+			# until the bunk clears both.
 			for _try in range(12):
-				if not LandingZone.on_pad(bunk):
+				if not LandingZone.on_pad(bunk) and _point_unclaimed(bunk):
 					break
 				a += 2.399963
 				bunk = director.fsb_center + Vector3(cos(a), 0.0, sin(a)) * r
@@ -335,6 +338,24 @@ func _deliver() -> void:
 		director._garrison_stand_to()
 	print("[LIFT] delivered %d man/men - garrison %d/%d"
 		% [landed_men, garrison_strength(), ESTABLISHMENT])
+
+
+## Two working points closer than this read as one stack of men.
+const POINT_CLAIM_M: float = 2.0
+
+
+## No live garrison man already holds a working point within POINT_CLAIM_M of `p`.
+func _point_unclaimed(p: Vector3) -> bool:
+	if not is_inside_tree():
+		return true
+	for g in get_tree().get_nodes_in_group("firebase_garrison"):
+		var c := g as Civilian
+		if c == null or not is_instance_valid(c) or c.working_point_pos == Vector3.ZERO:
+			continue
+		if Vector2(c.working_point_pos.x - p.x, c.working_point_pos.z - p.z).length() \
+				< POINT_CLAIM_M:
+			return false
+	return true
 
 
 ## Pull a bunk hashed into a structure footprint back onto walkable ground.

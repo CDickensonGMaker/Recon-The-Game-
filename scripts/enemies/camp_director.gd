@@ -123,16 +123,26 @@ func _apply_schedule_for_hour(sim_hour: float) -> void:
 		if s in on_guard:
 			continue
 		s.camp_role = role
-		if stations.is_empty():
+		if role == "sleep":
+			# His post is his bed (same rule as _assign_guards): _play_camp_role
+			# refuses a zero work_pos, so zeroing here mutes the sleep chain.
+			s.work_pos = s.global_position
+		elif stations.is_empty():
 			s.work_pos = Vector3.ZERO
-		else:
-			var pick: Dictionary = stations[idx % stations.size()]
+		elif idx < stations.size():
+			var pick: Dictionary = stations[idx]
 			s.work_pos = (pick.get("pos", Vector3.ZERO) as Vector3) \
 				+ Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
+		else:
+			# ONE MAN PER STATION (his ruling 2026-08-24). The `% size()` wrap stacked
+			# the overflow onto occupied stations; the extra man holds where he stands
+			# instead, same rule as guard/sleep, and his role chain still plays there.
+			s.work_pos = s.global_position
 		idx += 1
 
 
-## Which stations a role gathers at. Patrol/sleep/guard keep their posts.
+## Which stations a role gathers at. Patrol/guard keep their posts; sleep beds
+## down wherever the hour finds him (the caller seats his own position).
 func _stations_for_role(role: String) -> Array:
 	if work_stations.is_empty():
 		return []

@@ -1088,6 +1088,7 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 				CivilianScript.models_for(str(post.occupation)), true)
 			man.occupation = str(post.occupation)
 			man.role = str(post.get("role", ""))
+			man.dig_ok = bool(post.get("dig_ok", false))
 			var wp: Vector3 = station
 			wp.y = world.floor_y(wp)
 			man.working_point_pos = wp
@@ -1130,6 +1131,7 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 	for st in (v.get("work_stations", []) as Array):
 		wp_positions.append((st as Dictionary).get("pos", Vector3.ZERO) as Vector3)
 	var civ_count: int = rng.randi_range(civ_range.x, civ_range.y)
+	var wp_deal: Array[Vector3] = wp_positions.duplicate()
 	# Demo: ALWAYS an informer (ruled 2026-08-03 §2.6 - a coin flip on the demo's central
 	# idea is a dice roll on the shop window). Demo short-circuits BEFORE the randf so the
 	# full game's draw order is untouched (ADR-010).
@@ -1143,8 +1145,14 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 		var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
 		civ.village_center = site.center
 		civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
+		# ONE MAN PER WORK POINT (his ruling 2026-08-24): points are DEALT, never drawn
+		# with replacement - the old `randi % size` handed one paddy point to several
+		# men. A man past the pool loafs at home (_resolve_target's fallback). The
+		# randi is drawn unconditionally so the seed's draw order is unchanged (ADR-010).
 		if wp_positions.size() > 0:
-			civ.working_point_pos = wp_positions[rng.randi() % wp_positions.size()]
+			var roll: int = rng.randi()
+			if not wp_deal.is_empty():
+				civ.working_point_pos = wp_deal.pop_at(roll % wp_deal.size()) as Vector3
 		villagers.append(civ)
 	_assign_households(villagers, rng)
 	for civ in villagers:

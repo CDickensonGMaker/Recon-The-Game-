@@ -37,9 +37,9 @@ const PIECE_SEARCH_M: float = 8.0
 ## his marker; capture must reach past that or the crew never assembles.
 const CAPTURE_M: float = 3.5
 const TICK_S: float = 0.25
-## The piece. fsb_main_v3.glb ships STATIC howitzers (0 animations, probed
-## 2026-08-07), so this binds nothing until the artillery-placement export lands
-## the fb_emplacement_m101 rig near the pit (ART_GAPS_2026-08-07.md).
+## The piece. fsb_main_v3.glb ships M101Rig SKINS but no M101Rig clip (probed
+## 2026-08-24); site_planner._wire_m101_rigs swaps each baked pit for the
+## animated fb_emplacement_m101 chunk at build, and this binds that chunk's player.
 const PIECE_CLIP: String = "M101Rig"
 
 var kind: String = "gun"

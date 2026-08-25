@@ -52,6 +52,7 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	var unit: String = civ.actor.unit if (civ.actor != null and is_instance_valid(civ.actor)) else ""
 	var occ: String = civ.occupation
 	var role: String = civ.role
+	var dig: bool = civ.dig_ok
 
 	# Teardown, explicit (godot_standards: do not lean on engine auto-cleanup).
 	civ.remove_from_group("firebase_garrison")
@@ -104,6 +105,7 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	ally.set_meta("garrison_occupation", occ)
 	ally.set_meta("garrison_unit", unit)
 	ally.set_meta("garrison_role", role)
+	ally.set_meta("garrison_dig_ok", dig)
 	return ally
 
 
@@ -147,6 +149,7 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 	var civ: Civilian = Civilian.spawn(parent, stand, director, false, models, true)
 	civ.occupation = occ
 	civ.role = str(ally.get_meta("garrison_role", ""))
+	civ.dig_ok = bool(ally.get_meta("garrison_dig_ok", false))
 	civ.working_point_pos = post
 	civ.add_to_group("firebase_garrison")
 	return civ
