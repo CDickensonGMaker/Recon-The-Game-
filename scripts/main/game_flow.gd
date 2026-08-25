@@ -743,6 +743,7 @@ func enter_hub() -> void:
 			var probe: Node = packed_probe.instantiate()
 			probe.set("cycle_systems", args.has("--perf-cycle"))
 			probe.set("siege_study", args.has("--perf-siege"))
+			probe.set("siege_cycle", args.has("--perf-siege-cycle"))
 			probe.set("shadow_study", args.has("--shadow-study"))
 			world.add_child(probe)
 			probe.call("attach", world)

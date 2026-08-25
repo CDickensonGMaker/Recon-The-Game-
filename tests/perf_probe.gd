@@ -37,6 +37,16 @@ var _phases: Array[String] = []
 ## ships: HOT_CAP 50, LIVE_CAP 50 and the uncapped ragdolls were all raised on the
 ## ledger's own attribution and NONE has been measured under a real assault.
 @export var siege_study: bool = false
+
+## Attribution DURING the assault. The scenery levers and the siege have never run
+## together, so no lever has ever been costed against the frame that actually misses
+## 30 fps - the quiet frame is 33.9 avg, the wire is 22.6 (PERF_LEDGER 2026-08-14).
+## Windows are short because the assault resolves; `live` per row is the confound
+## guard - a lever measured against a thinning field is not measured.
+@export var siege_cycle: bool = false
+const WINDOW_CYCLE: float = 8.0
+## Cells march 300-500 m at 2.2 m/s to an 80 m ring; nothing is on the wire before this.
+const SIEGE_WARM: float = 110.0
 var _think: Dictionary = {}   ## phase -> Array[float], AI think ms/physics-frame
 var _live: Dictionary = {}    ## phase -> Array[float], living enemies in the world
 
@@ -84,6 +94,13 @@ func attach(w: GameWorld) -> void:
 		# wider than some levers - a single baseline cannot carry four deltas.
 		_phases = ["baseline", "no_campfires", "baseline_2", "no_canopy",
 			"baseline_3", "no_clutter", "baseline_4", "no_sun_shadow", "baseline_5"]
+	elif siege_cycle:
+		# `warm` opens the assault and holds until bodies are on the wire; every row
+		# after it is measured against that fight. A/B/A for the same reason the
+		# daylight cycle uses it - drift here is 1.4 fps, wider than some levers.
+		_phases = ["warm", "wire", "no_canopy", "wire_2", "no_clutter", "wire_3",
+			"no_men", "wire_4", "no_sun_shadow", "wire_5"]
+		_window = WINDOW_CYCLE
 	elif siege_study:
 		# quiet -> the assault crossing the ring -> the assault ON the wire. Three
 		# windows so the cost of BODIES ARRIVING is separated from the cost of bodies
@@ -175,6 +192,19 @@ func _apply_toggle(phase_name: String) -> void:
 			_open_the_assault()
 		return
 
+	if siege_cycle and phase_name == "warm":
+		_open_the_assault()
+
+	# Visibility only; the men keep fighting. A hidden ModelActor still thinks, moves
+	# and dies, so the row costs the CAST's rendering and nothing else. Found by class:
+	# ModelActor joins no group, and a group that does not exist measures nothing.
+	var men: int = 0
+	for a: ModelActor in _find_actors(world):
+		a.visible = phase_name != "no_men"
+		men += 1
+	if men == 0 and phase_name == "no_men":
+		push_error("[PERF] 0 ModelActors under the world - the no_men row measures NOTHING.")
+
 	var vg: VegetationManager = world.vegetation_manager
 	var canopy_hit: bool = false
 	if vg != null:
@@ -228,6 +258,20 @@ func _apply_toggle(phase_name: String) -> void:
 	if fires.is_empty() and phase_name == "no_campfires":
 		push_warning("[PERF] 0 campfires in this world - the no_campfires row measures NOTHING.")
 	print("[PERF] phase -> %s (campfires=%d)" % [phase_name, fires.size()])
+
+
+## Re-walked per phase, never cached: men spawn and die between windows, and a stale
+## list would leave late arrivals visible on the row that claims they are hidden.
+func _find_actors(root: Node) -> Array[ModelActor]:
+	var out: Array[ModelActor] = []
+	if root == null:
+		return out
+	for c: Node in root.get_children():
+		if c is ModelActor:
+			out.append(c as ModelActor)
+		else:
+			out.append_array(_find_actors(c))
+	return out
 
 
 func _take_screenshot(phase_name: String) -> void:
