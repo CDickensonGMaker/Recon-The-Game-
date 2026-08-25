@@ -10,15 +10,14 @@ const CRUMB_INTERVAL: float = 0.6      ## seconds between trail crumbs
 const CRUMB_MAX: int = 20              ## ~12 seconds of the player's actual path
 const KNOWLEDGE_TTL: float = 12.0      ## squad "loses the scent" after this
 
-## Fire-and-maneuver + anti-spam brokers.
-const COVERING_FIRE_WINDOW_MS: float = 1500.0   ## a squadmate shot this recently = you're covered
+## Anti-spam brokers. The covering-fire census moved to SquadCoordinator
+## (2026-08-24 Phase 2): one per-squad census for BOTH sides.
 const SQUAD_GRENADE_COOLDOWN_MS: float = 12000.0
 const GLOBAL_GRENADE_SPACING_MS: float = 5000.0 ## max one grenade in the AO per this window
 const ENGAGE_TTL_MS: float = 3000.0             ## engagement reports go stale after this
 
 ## squad_id -> {target, last_known: Vector3, updated: float (ticks_msec),
-##              crumbs: Array[Vector3], last_crumb: float,
-##              last_fire: float, last_firer: int, last_grenade: float,
+##              crumbs: Array[Vector3], last_crumb: float, last_grenade: float,
 ##              engaged: Dictionary (member id -> {tid: int, ms: float})}
 static var _squads: Dictionary = {}
 static var _last_grenade_global_ms: float = -1e9
@@ -166,29 +165,8 @@ static func _s(id: int) -> Dictionary:
 	if not _squads.has(id):
 		_squads[id] = {"target": null, "last_known": Vector3.ZERO, "updated": 0.0,
 			"crumbs": [], "last_crumb": 0.0,
-			"last_fire": -1e9, "last_firer": 0, "last_grenade": -1e9, "engaged": {}}
+			"last_grenade": -1e9, "engaged": {}}
 	return _squads[id]
-
-
-## ---- fire-and-maneuver: covering fire -------------------------------------
-
-## A member fired a shot. One dict write per trigger pull.
-static func report_firing(id: int, who: Object, now_ms: float) -> void:
-	if id < 0 or who == null:
-		return
-	var sq := _s(id)
-	sq.last_fire = now_ms
-	sq.last_firer = who.get_instance_id()
-
-
-## Is a DIFFERENT squadmate currently putting rounds down? Advancing without
-## this (or high aggression) is how men die in the open.
-static func has_covering_fire(id: int, me: Object, now_ms: float) -> bool:
-	if id < 0 or not _squads.has(id) or me == null:
-		return false
-	var sq: Dictionary = _squads[id]
-	return (now_ms - float(sq.last_fire)) < COVERING_FIRE_WINDOW_MS \
-		and int(sq.last_firer) != me.get_instance_id()
 
 
 ## ---- honest attention: engagement census ----------------------------------

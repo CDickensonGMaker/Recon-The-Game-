@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="DoctrineData" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/doctrine_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "assault_press"
+exposure_tokens = 999
+suppressor_slots = 1
+token_ttl_ms = 6000
+grant_stagger_ms = 0
+suppress_point_ttl_ms = 8000
+bound_period_ms = 0

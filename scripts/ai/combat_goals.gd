@@ -19,6 +19,19 @@ extends RefCounted
 ## at the wire and traded shots. 0.75 clears it with margin and nothing more.
 const PRESS_ADVANCE: float = 0.75
 
+## ---- DE-BOUNCE KNOBS (War Room 2026-08-24 Phase 1; doctrine-file parameters later).
+## Both brains read these - keep them here, not re-declared per shell. ----
+## Class-A interrupts (hit / witnessed casualty / pin-lift): the FIRST in a window
+## re-plans immediately, the rest inside it only update memory/suppression.
+const INTERRUPT_REFRACTORY_MS: int = 2500
+## The fight counts as LIVE this long (ms) after the last target/pressure evidence;
+## cover leases renew and claims survive target death inside the window.
+const FIGHT_FRESH_MS: int = 8000
+## A challenger goal must beat the incumbent-multiplied score by this factor...
+const CHALLENGER_MARGIN: float = 1.15
+## ...and hold that lead this many consecutive pick() calls (2 = ~0.3s at think rate).
+const CHALLENGER_STREAK_THINKS: int = 2
+
 
 ## Everything the scorer reads. The caller fills it; the scorer touches no node.
 class Context:
@@ -56,6 +69,11 @@ class Context:
 	var has_covering_fire: bool = false
 	var squad_broken: bool = false
 	var force_ratio: float = 1.0
+
+	## Challenger persistence (the anim-intent stability filter pointed at goals).
+	## The caller persists these two between thinks and writes back what pick() set.
+	var cand_goal: int = Enums.AIGoal.NONE
+	var cand_streak: int = 0
 
 	## Under orders to cross. A night assault presses open ground because it was told to,
 	## not because the ground looks survivable, so the press both exempts the man from
@@ -155,8 +173,9 @@ static func score(c: Context) -> Dictionary:
 	return scores
 
 
-## The winning goal, with incumbent hysteresis (Context.incumbent_mult) that stops
-## goal flutter.
+## The winning goal, with incumbent hysteresis (Context.incumbent_mult) and the
+## challenger gate: a switch needs the challenger to beat the multiplied incumbent
+## by CHALLENGER_MARGIN and sustain it CHALLENGER_STREAK_THINKS consecutive calls.
 static func pick(c: Context) -> int:
 	var scores: Dictionary = score(c)
 	if scores.has(c.current_goal):
@@ -170,4 +189,30 @@ static func pick(c: Context) -> int:
 		if scores[goal] > best_score:
 			best_score = scores[goal]
 			best_goal = goal
+	if best_goal == c.current_goal or not scores.has(c.current_goal):
+		c.cand_goal = Enums.AIGoal.NONE
+		c.cand_streak = 0
+		return best_goal
+	# Press and survival switches stay immediate: PRESS_ADVANCE must clear a 1.25x
+	# incumbent and nothing more (the siege stalls behind a taller gate), and a man
+	# breaking for cover cannot wait out a streak.
+	if c.assault_press or best_goal == Enums.AIGoal.SEEK_COVER \
+			or best_goal == Enums.AIGoal.RETREAT:
+		c.cand_goal = Enums.AIGoal.NONE
+		c.cand_streak = 0
+		return best_goal
+	var incumbent_score: float = float(scores[c.current_goal])
+	if best_score < incumbent_score * CHALLENGER_MARGIN:
+		c.cand_goal = Enums.AIGoal.NONE
+		c.cand_streak = 0
+		return c.current_goal
+	if best_goal != c.cand_goal:
+		c.cand_goal = best_goal
+		c.cand_streak = 1
+		return c.current_goal
+	c.cand_streak += 1
+	if c.cand_streak < CHALLENGER_STREAK_THINKS:
+		return c.current_goal
+	c.cand_goal = Enums.AIGoal.NONE
+	c.cand_streak = 0
 	return best_goal

@@ -8,6 +8,16 @@
 extends Node3D
 
 const AllyScript := preload("res://scripts/allies/ally_base.gd")
+const SC := preload("res://scripts/ai/squad_coordinator.gd")
+
+## A synthetic squadmate for the fire census - only its instance id matters.
+var _mates: Array[Node] = []
+
+func _mate() -> Node:
+	var n := Node.new()
+	_mates.append(n)
+	add_child(n)
+	return n
 const EnemyScript := preload("res://scripts/enemies/enemy_base.gd")
 
 var _fails: int = 0
@@ -79,8 +89,9 @@ func _part_advancing(a: AllyBase, e: EnemyBase) -> void:
 	# why a night assault has always stalled". This probe staged a lone, unsupported, unpressed
 	# man and demanded he push, which is exactly the behaviour that discipline removed.
 	# Give him the covering fire the scorer names as the legitimate route, so the probe tests
-	# the ladder the game actually has.
-	a.has_covering_fire = true
+	# the ladder the game actually has. Staged through the per-squad census: the
+	# manual flag is overwritten from SquadCoordinator each think (Phase 2).
+	SC.report_firing(SC.SIDE_ALLY, 0, _mate(), float(Time.get_ticks_msec()))
 	a._evaluate_goals()
 	_check(a.current_state == Enums.AIState.ADVANCING, "goal ladder enters ADVANCING")
 	_check(a.current_goal == Enums.AIGoal.ADVANCE, "goal is ADVANCE")

@@ -21,6 +21,9 @@
 class_name MissionScope
 extends RefCounted
 
+## Preloaded by path: fresh class_names are not in the headless class cache.
+const SquadCoord := preload("res://scripts/ai/squad_coordinator.gd")
+
 
 static func reset() -> void:
 	FieldDirector.any_fire_menu_open = false
@@ -30,6 +33,7 @@ static func reset() -> void:
 	GunFX.clear_decals()
 	NavBaker.clear()
 	EnemySquad.clear()   ## stale AABBs would put mission 5's enemies in mission 1's village
+	SquadCoord.clear()  ## tokens/slots must not leak across missions
 	FriendlyPatrolGroup.clear_static()   ## a held crisis latch would mute the next operation
 	Destructible.reset_all()   ## static rubble/destroy queue outlive teardown, like scar_decals above
 	GruntRandomizer.reset_bench()   ## bench-face walk restarts, mission N+1 repeats deterministically

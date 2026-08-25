@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="DoctrineData" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/doctrine_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "vc"
+exposure_tokens = 2
+suppressor_slots = 1
+token_ttl_ms = 5000
+grant_stagger_ms = 500
+suppress_point_ttl_ms = 6000
+bound_period_ms = 5000
+fight_fresh_ms = 6000
+cover_dwell_ms = 5000

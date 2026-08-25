@@ -2,6 +2,10 @@
 class_name EnemyBase
 extends CharacterBody3D
 
+## Preloaded by path: fresh class_names are not in the headless class cache.
+const SquadCoord := preload("res://scripts/ai/squad_coordinator.gd")
+const DoctrineRes := preload("res://scripts/ai/doctrine_data.gd")
+
 signal died(enemy: EnemyBase)
 
 ## Enemy data resource
@@ -276,6 +280,42 @@ var suppression_level: float = 0.0  # 0-1, affects behavior
 var _gut_bleed_dps: float = 0.0     # locational: gutshot bleed-out rate
 var _bleed_accum: float = 0.0
 const SUPPRESSION_DECAY: float = 0.3  # Per second
+## When the last round cracked past (throttles decay - CombatPosture.CRACK_RECENT_S).
+var _last_crack_ms: float = -1e9
+## Class-A interrupt refractory clock (CombatGoals.INTERRUPT_REFRACTORY_MS).
+var _interrupt_ms: int = -100000
+## Last think with target/pressure evidence - the fight-liveness stamp that keeps a
+## covered man on his rock across a target death (CombatGoals.FIGHT_FRESH_MS).
+var _last_fight_ms: int = -100000
+## Challenger persistence for CombatGoals.pick() (written back from Context).
+var _goal_cand: int = Enums.AIGoal.NONE
+var _goal_cand_streak: int = 0
+
+
+## Class-A interrupt (hit / witnessed casualty): the first in the refractory window
+## force-expires the goal, the rest only update memory - the 2026-08-24 de-bounce.
+func _class_a_interrupt() -> void:
+	var now: int = Time.get_ticks_msec()
+	if now - _interrupt_ms < _doc().interrupt_refractory_ms:
+		return
+	_interrupt_ms = now
+	goal_timer = 99.0
+
+
+## Faction doctrine (R2, 2026-08-24): data over the one shared core. The id
+## prefix IS the faction - every VC archetype ships as vc_*.
+var _doctrine: DoctrineRes = null
+
+func _doctrine_id() -> String:
+	if enemy_data != null and String(enemy_data.id).begins_with("vc"):
+		return "vc"
+	return "nva"
+
+
+func _doc() -> DoctrineRes:
+	if _doctrine == null:
+		_doctrine = SquadCoord.doctrine(_doctrine_id())
+	return _doctrine
 
 var threat_level: float = 0.0
 var damage_taken_recently: int = 0
@@ -848,7 +888,9 @@ func _body_gate_open() -> bool:
 func _update_decay(delta: float) -> void:
 	if suppression_level > 0:
 		suppression_level = maxf(0.0, suppression_level
-			- SUPPRESSION_DECAY * CombatPosture.suppress_recovery_mult(cover01()) * delta)
+			- SUPPRESSION_DECAY * CombatPosture.suppress_recovery_mult(cover01())
+			* CombatPosture.suppress_decay_recency_mult(_last_crack_ms, float(Time.get_ticks_msec()))
+			* delta)
 		if suppression_level <= CombatPosture.SUPPRESS_PIN:
 			pinned_since_ms = 0.0
 	if _gut_bleed_dps > 0.0 and current_state != Enums.AIState.DEAD:
@@ -1084,7 +1126,7 @@ func _witness_check(killer: Node) -> void:
 		if w.alert_tier == AlertTier.COMBAT:
 			if w.global_position.distance_to(global_position) < CLOSE_SENSE_RANGE:
 				w.apply_suppression(CASUALTY_SHOCK)
-				w.goal_timer = 99.0
+				w._class_a_interrupt()
 			continue
 		# EYES ON, or CLOSE ENOUGH TO HEAR HIM FALL. LOS is still required either way:
 		# a wall hides the sound of a fall as surely as the sight of it.
@@ -1448,6 +1490,13 @@ var _bound_fail_count: int = 0
 func _evaluate_goals() -> void:
 	goal_timer += THINK_INTERVAL
 
+	# Standing roster upsert (O(1) dict write): the coordinator can only elect a
+	# suppressor or grant tokens to men it has seen this fight.
+	if squad_id >= 0:
+		SquadCoord.register(SquadCoord.SIDE_ENEMY, squad_id, self,
+			weapon_data != null and weapon_data.firing_mode == Enums.FiringMode.FULL_AUTO,
+			has_cover, _doctrine_id(), float(Time.get_ticks_msec()))
+
 	# Dwell ~1s. Class-A interrupts (taking damage) force goal_timer past this gate
 	# from take_damage().
 	if goal_timer < 1.0 and current_goal != Enums.AIGoal.NONE:
@@ -1464,6 +1513,17 @@ func _evaluate_goals() -> void:
 	if not target or not is_instance_valid(target):
 		_contact_time = 0.0
 		_cover_fail_count = 0
+		# HOLD THE ROCK: a covered man whose target dropped does not stand up to hunt
+		# while the fight is fresh - re-acquisition runs from cover on the retarget
+		# clocks. Pressed men are exempt (the siege press must keep crossing).
+		if has_cover and not siege_press \
+				and Time.get_ticks_msec() - _last_fight_ms < _doc().fight_fresh_ms:
+			# Direct assignment on purpose: _set_goal's SEEK_COVER->HOLD door would
+			# release the very claim this branch exists to keep.
+			if current_goal != Enums.AIGoal.HOLD_POSITION:
+				current_goal = Enums.AIGoal.HOLD_POSITION
+				goal_timer = 0.0
+			return
 		# CONTACT BROKEN -> THE HUNT BEGINS. How long the net stays open is his DETERMINATION.
 		var now_h: float = float(Time.get_ticks_msec())
 		if squad_id >= 0 and last_known_target_pos != Vector3.ZERO and alert_tier >= AlertTier.ALERT:
@@ -1485,7 +1545,10 @@ func _evaluate_goals() -> void:
 		return
 
 	_contact_time += _think_interval_current
+	_last_fight_ms = Time.get_ticks_msec()
 	var now_ms: float = float(Time.get_ticks_msec())
+	SquadCoord.report_fight(SquadCoord.SIDE_ENEMY, squad_id,
+		last_known_target_pos, now_ms)
 
 	# Local force ratio, refreshed on the think cadence; the rout ladder in
 	# take_damage reuses it.
@@ -1510,7 +1573,8 @@ func _evaluate_goals() -> void:
 	c.flanks = d_flanks
 	c.retreats_when_hurt = d_retreats_when_hurt
 	c.retreat_hp_frac = d_retreat_hp
-	c.has_covering_fire = EnemySquad.has_covering_fire(squad_id, self, now_ms)
+	c.has_covering_fire = SquadCoord.has_covering_fire(
+		SquadCoord.SIDE_ENEMY, squad_id, self, now_ms)
 	# 4utx: a combat-ineffective squad breaks as a body, layered on the individual
 	# rout ladder rather than competing with it.
 	c.squad_broken = EnemySquad.is_broken(squad_id)
@@ -1522,7 +1586,30 @@ func _evaluate_goals() -> void:
 		ts = target.get("suppression")
 	c.target_suppressed = ts is float and (ts as float) > 0.5
 
+	c.cand_goal = _goal_cand
+	c.cand_streak = _goal_cand_streak
 	best_goal = CombatGoals.pick(c)
+	_goal_cand = c.cand_goal
+	_goal_cand_streak = c.cand_streak
+	# THE COORDINATOR SHAPES THE PICK (Phases 2-3, refusable by construction:
+	# SEEK_COVER and RETREAT never route through it). The slot holder is ordered
+	# onto SUPPRESS_TARGET; leaving cover (ADVANCE / FLANK) costs an exposure
+	# token, and a refused man fights from where he is instead.
+	if squad_id >= 0:
+		var exposed: bool = best_goal == Enums.AIGoal.ADVANCE \
+			or best_goal == Enums.AIGoal.FLANK_TARGET
+		if best_goal != Enums.AIGoal.SEEK_COVER and best_goal != Enums.AIGoal.RETREAT \
+				and SquadCoord.is_suppressor(
+					SquadCoord.SIDE_ENEMY, squad_id, self, now_ms) \
+				and SquadCoord.suppress_point(
+					SquadCoord.SIDE_ENEMY, squad_id, now_ms) != Vector3.ZERO:
+			best_goal = Enums.AIGoal.SUPPRESS_TARGET
+		elif exposed and not SquadCoord.request_exposure(
+				SquadCoord.SIDE_ENEMY, squad_id, self, siege_press, now_ms):
+			best_goal = Enums.AIGoal.ENGAGE_TARGET if (has_cover or contact_conf > 0.5) \
+				else Enums.AIGoal.SEEK_COVER
+		if best_goal != Enums.AIGoal.ADVANCE and best_goal != Enums.AIGoal.FLANK_TARGET:
+			SquadCoord.release_exposure(SquadCoord.SIDE_ENEMY, squad_id, self)
 	if best_goal != current_goal:
 		_set_goal(best_goal)
 
@@ -1801,6 +1888,31 @@ func _execute_combat(delta: float) -> void:
 				fire_timer = randf_range(0.4, 1.2) * _tempo()
 				burst_count = 0
 	else:
+		# THE SUPPRESSOR SLOT EXECUTES (Phase 2, 2026-08-24): sustained fire on the
+		# squad's last-known cell WITHOUT LOS, from where he stands. Before this,
+		# SUPPRESS on a ducked target meant walking at him - the verb's opposite.
+		if current_goal == Enums.AIGoal.SUPPRESS_TARGET:
+			var sp: Vector3 = SquadCoord.suppress_point(
+				SquadCoord.SIDE_ENEMY, squad_id, float(Time.get_ticks_msec()))
+			if sp == Vector3.ZERO and target_last_seen_time < 5.0:
+				sp = last_known_target_pos
+			if sp != Vector3.ZERO:
+				velocity.x = lerpf(velocity.x, 0.0, delta * 8.0)
+				velocity.z = lerpf(velocity.z, 0.0, delta * 8.0)
+				# _update_aim early-returns without LOS, so the lay is steered here.
+				var eye: Vector3 = global_position + Vector3.UP * 1.5
+				current_aim_dir = current_aim_dir.lerp(
+					(sp + Vector3.UP * 0.8 - eye).normalized(), aim_speed * delta).normalized()
+				accuracy_modifier = base_accuracy_modifier * 1.7
+				if can_fire and suppression_level < CombatPosture.SUPPRESS_FIRE_CEILING:
+					if burst_count < MAX_BURST:
+						_fire_at_target()
+						burst_count += 1
+					else:
+						can_fire = false
+						fire_timer = randf_range(0.7, 1.4) * _tempo()
+						burst_count = 0
+				return
 		# Target hiding behind cover - flush with a grenade. Hazard-rate roll (~1.7s
 		# expected beat) + the squad/global broker: one grenade per AO/5s, per
 		# squad/12s, per man/15s.
@@ -2300,7 +2412,8 @@ func _fire_at_target() -> void:
 	var pre_cap: float = AIMarksmanship.cone_spread_deg(
 		weapon_data.base_spread, char_accuracy, shots_fired, moving,
 		accuracy_modifier * _shot_pressure_mult())
-	EnemySquad.report_firing(squad_id, self, float(Time.get_ticks_msec()))
+	SquadCoord.report_firing(SquadCoord.SIDE_ENEMY, squad_id, self,
+		float(Time.get_ticks_msec()))
 	var final_aim: Vector3 = AIMarksmanship.aim_with_spread(
 		current_aim_dir, pre_cap, _target_is_player(), exposure_t, not _first_shot_fired)
 	if not _first_shot_fired:
@@ -2491,7 +2604,8 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	current_hp -= amount
 	damage_taken_recently += amount
 	damage_decay_timer = 0.0
-	goal_timer = 99.0  # Class-A interrupt: getting HIT may always re-plan
+	_class_a_interrupt()  # first hit in the window re-plans; the rest update memory only
+	_last_fight_ms = Time.get_ticks_msec()
 
 	# Remember where it came from, and WHAT it found, so _die() can pick the fall.
 	last_hit_zone = zone
@@ -2527,6 +2641,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 	var suppress_amount: float = float(amount) / float(max_hp) * 0.5
 	suppression_level = minf(1.0, suppression_level + suppress_amount)
+	_last_crack_ms = float(Time.get_ticks_msec())
 
 	# Flinch: the trigger stalls AND the body yields. A man who only stalls reads
 	# as a man who ignored the round.
@@ -2656,6 +2771,7 @@ func apply_suppression(amount: float) -> void:
 	var was: float = suppression_level
 	suppression_level = minf(1.0, suppression_level
 		+ amount * CombatPosture.suppress_accrual_mult(cover01()))
+	_last_crack_ms = float(Time.get_ticks_msec())
 	if was <= CombatPosture.SUPPRESS_PIN and suppression_level > CombatPosture.SUPPRESS_PIN:
 		pinned_since_ms = float(Time.get_ticks_msec())
 
@@ -2717,6 +2833,7 @@ func _refresh_terrain_cover() -> void:
 func apply_stagger(power: float) -> void:
 	if power >= 1.0 and current_state != Enums.AIState.DEAD:
 		suppression_level = minf(1.0, suppression_level + 0.5)
+		_last_crack_ms = float(Time.get_ticks_msec())
 		_change_state(Enums.AIState.SUPPRESSED)
 
 
@@ -2873,6 +2990,7 @@ func _die() -> void:
 	if is_instance_valid(_last_attacker):
 		killer = _last_attacker
 	EnemySquad.release_hot(self)  # a dead man holds no hot slot - promote a live one
+	SquadCoord.release_exposure(SquadCoord.SIDE_ENEMY, squad_id, self)
 	if not is_downed:
 		VOManager.play_enemy("man_down", self, true)  # downed men already cried out
 	_witness_check(killer)
@@ -2971,7 +3089,9 @@ func _drop_carried_weapon() -> void:
 		return
 	var at: Vector3 = global_position
 	at.y += 0.08      # clear of the ground plane, not sunk into it
-	WorldWeapon.drop(host, weapon_data, at, 0, 1, true)
+	# No mags passed: WorldWeapon seeds a deterministic PARTIAL load from `at`.
+	var as_it_fell: Array[int] = []
+	WorldWeapon.drop(host, weapon_data, at, as_it_fell, true)
 
 
 ## Broken men throw their hands up. Interact to capture (intel).

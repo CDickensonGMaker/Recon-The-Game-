@@ -40,6 +40,20 @@ static func suppress_recovery_mult(cover01: float) -> float:
 	return lerpf(SUPPRESS_RECOVERY_OPEN, SUPPRESS_RECOVERY_COVERED, clampf(cover01, 0.0, 1.0))
 
 
+## Decay is throttled while rounds still crack past: within CRACK_RECENT_S of the last
+## suppression event a man sheds at CRACK_DECAY_MULT of the full rate (covered 0.9/s
+## -> ~0.15/s), so the FEAR gate (>0.25) HOLDS between bursts of recurring fire
+## instead of toggling every 0.4-1.2s fire pause (War Room 2026-08-24 Phase 1).
+const CRACK_RECENT_S: float = 2.0
+const CRACK_DECAY_MULT: float = 0.17
+
+
+static func suppress_decay_recency_mult(last_crack_ms: float, now_ms: float) -> float:
+	if now_ms - last_crack_ms < CRACK_RECENT_S * 1000.0:
+		return CRACK_DECAY_MULT
+	return 1.0
+
+
 ## How much wider a suppressed man's cone gets. x1 calm -> x3.2 at the fire ceiling.
 static func suppress_spread_mult(suppression: float) -> float:
 	return 1.0 + clampf(suppression, 0.0, 1.0) * 2.6
