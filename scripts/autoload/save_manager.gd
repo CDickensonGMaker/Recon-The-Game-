@@ -166,8 +166,8 @@ func _collect_player() -> SaveData.PlayerSection:
 		var sec: Resource = wh.get("secondary_weapon")
 		p.primary_path = prim.resource_path if prim != null else ""
 		p.secondary_path = sec.resource_path if sec != null else ""
-		p.primary_ammo = (wh.get("primary_ammo") as Array).duplicate()
-		p.secondary_ammo = (wh.get("secondary_ammo") as Array).duplicate()
+		p.primary_ammo = (wh.get("primary_mags") as Array).duplicate()
+		p.secondary_ammo = (wh.get("secondary_mags") as Array).duplicate()
 		p.weapon_condition = float(wh.get("weapon_condition") if wh.get("weapon_condition") != null else 100.0)
 	var eq: Node = player.get("equipment_manager")
 	if eq != null and is_instance_valid(eq):
@@ -251,8 +251,10 @@ func apply_pending_player(player: Node3D) -> void:
 			wh.set("primary_weapon", load(p.primary_path))
 		if p.secondary_path != "" and ResourceLoader.exists(p.secondary_path):
 			wh.set("secondary_weapon", load(p.secondary_path))
-		wh.set("primary_ammo", p.primary_ammo.duplicate())
-		wh.set("secondary_ammo", p.secondary_ammo.duplicate())
+		# Through set_slot_mags, not set(): it re-types the JSON ints and keeps
+		# pooled feeds shaped, and weapons were installed just above.
+		wh.call("set_slot_mags", 0, p.primary_ammo)
+		wh.call("set_slot_mags", 1, p.secondary_ammo)
 		if wh.get("weapon_condition") != null:
 			wh.set("weapon_condition", p.weapon_condition)
 		if wh.has_method("refresh_after_load"):

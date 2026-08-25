@@ -11,6 +11,7 @@ armory_tier = 1
 firing_mode = 2
 fire_rate = 70.0
 magazine_size = 8
+feed = 2
 reload_time = 3.2
 empty_reload_time = 4.6667
 jam_clear_time = 1.8667

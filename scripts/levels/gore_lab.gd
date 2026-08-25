@@ -279,7 +279,7 @@ func _spawn_player() -> void:
 	var shotty: WeaponData = load("res://data/weapons/shotgun.tres")
 	if shotty != null:
 		weapon_holder.secondary_weapon = shotty
-		weapon_holder.secondary_ammo = [shotty.magazine_size, 8]
+		weapon_holder.set_slot_mags(1, WeaponHolder.default_loadout(shotty, 8))
 
 
 ## Cover heights: 0.5 prone / 1.0 crouch / 1.5 standing chest / 2.5 full LOS block.

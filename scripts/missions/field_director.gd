@@ -1060,35 +1060,17 @@ func request_supply_drop() -> void:
 		_drop_supply_crate(smoke_pos))
 
 
+## The bird delivers the same box grammar the specialists lay down - counted
+## draws of one commodity per box, never a whole-kit refill.
 func _drop_supply_crate(pos: Vector3) -> void:
 	# `world` can be gone: the player may board the exfil bird inside the 20s delay.
 	if world == null or not is_instance_valid(world):
 		return
-	var crate := StaticBody3D.new()
-	crate.collision_layer = 1
-	# Wood crate: punch-through, same material call as weapons_cache (Mat.WOOD).
-	crate.add_to_group("soft_cover")
-	var col := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(1.2, 1.0, 1.2)
-	col.shape = box
-	col.position = Vector3(0, 0.5, 0)
-	crate.add_child(col)
-	var mesh := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1.2, 1.0, 1.2)
-	mesh.mesh = bm
-	mesh.position = Vector3(0, 0.5, 0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.35, 0.4, 0.28)
-	mesh.material_override = mat
-	crate.add_child(mesh)
-	crate.add_to_group("supply_crates")
-	world.add_child(crate)
 	var ground := pos
 	ground.y = world.terrain_manager.get_height_at(pos)
-	crate.global_position = ground
-	toast.emit("CRATE DOWN - [E] TO RESUPPLY")
+	FieldCache.deploy(world, ground + Vector3(0.7, 0.0, 0.0), FieldCache.Kind.AMMO)
+	FieldCache.deploy(world, ground + Vector3(-0.7, 0.0, 0.0), FieldCache.Kind.MEDICAL)
+	toast.emit("CRATES DOWN - AMMO AND MEDICAL ON YOUR SMOKE")
 
 
 func _mortar_impact(pos: Vector3, intensity: float) -> void:

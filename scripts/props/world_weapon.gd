@@ -29,8 +29,9 @@ const MAX_REPRIEVES: int = 3
 const MAX_WORLD_WEAPONS: int = 24
 
 var weapon_data: WeaponData = null
-var ammo_in_gun: int = 0
-var spare_mags: int = 0
+## Round counts, index 0 = seated mag (INTERNAL/SINGLE: [in_gun, loose pool]) -
+## the gun carries its TRUE state through the ground, never a rounded one.
+var mags: Array[int] = [0]
 ## Captured guns sound on the enemy's noise team (weapon_holder.gd:56-58). Carried through
 ## the ground so picking a rifle back up does not launder where it came from.
 var is_captured: bool = false
@@ -45,14 +46,14 @@ var seq: int = 0
 
 ## Drop `data` at `at`, lying flat with a deterministic yaw so a re-loaded save puts the
 ## same rifle at the same angle (ADR-010 - seeded from position, never Time).
-static func drop(host: Node, data: WeaponData, at: Vector3, ammo: int = 0,
-		mags: int = 0, captured: bool = false) -> WorldWeapon:
+## An empty `mags_in` means "as it fell off a man": a seeded PARTIAL load.
+static func drop(host: Node, data: WeaponData, at: Vector3, mags_in: Array[int] = [],
+		captured: bool = false) -> WorldWeapon:
 	if host == null or data == null:
 		return null
 	var w := WorldWeapon.new()
 	w.weapon_data = data
-	w.ammo_in_gun = ammo
-	w.spare_mags = mags
+	w.mags = mags_in.duplicate() if not mags_in.is_empty() else _seeded_partial(data, at)
 	w.is_captured = captured
 	host.add_child(w)
 	w.global_position = at
@@ -90,6 +91,21 @@ static func _enforce_ceiling(host: Node) -> void:
 			oldest = w
 	if oldest != null:
 		oldest.queue_free()
+
+
+## 5-18 rounds seeded from where the gun fell (ADR-010 - position, never Time).
+## A dead man's gun never lands with a rounded fresh magazine.
+static func _seeded_partial(data: WeaponData, at: Vector3) -> Array[int]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(int(at.x * 10.0), int(at.z * 10.0)))
+	var rounds: int = 5 + rng.randi() % 14
+	match data.feed:
+		Enums.FeedType.SINGLE:
+			return [0, 1]
+		Enums.FeedType.INTERNAL:
+			return [mini(rounds, data.magazine_size), 0]
+		_:
+			return [mini(rounds, data.magazine_size)]
 
 
 func display_name() -> String:

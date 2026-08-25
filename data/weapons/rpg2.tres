@@ -9,6 +9,7 @@ display_name = "RPG-2"
 description = "40mm rocket launcher. One shot, a long reload, and a smoke trail that tells everyone where you are."
 fire_rate = 12.0
 magazine_size = 1
+feed = 3
 reload_time = 6.5
 base_damage = 250
 damage_type = 1

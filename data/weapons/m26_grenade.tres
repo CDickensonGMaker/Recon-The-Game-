@@ -10,6 +10,7 @@ description = "American fragmentation grenade. Cook before throwing for airburst
 firing_mode = 0
 fire_rate = 30.0
 magazine_size = 1
+feed = 3
 reload_time = 0.0
 base_damage = 190
 damage_type = 1

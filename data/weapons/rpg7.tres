@@ -10,6 +10,7 @@ description = "Launch BANG, a beat, then the sustainer motor lights downrange wi
 firing_mode = 0
 fire_rate = 10.0
 magazine_size = 1
+feed = 3
 reload_time = 8.0
 base_damage = 290
 damage_type = 1

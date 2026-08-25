@@ -10,6 +10,8 @@ extends Resource
 
 @export_group("Firing Properties")
 @export var firing_mode: Enums.FiringMode = Enums.FiringMode.SEMI_AUTO
+## MAGAZINE is the default so only belt/internal/single .tres files carry a line.
+@export var feed: Enums.FeedType = Enums.FeedType.MAGAZINE
 @export var fire_rate: float = 600.0  ## Rounds per minute
 @export var magazine_size: int = 30
 @export var reload_time: float = 2.5  ## Seconds

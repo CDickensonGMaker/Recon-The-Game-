@@ -1314,7 +1314,7 @@ func _spawn_player() -> void:
 	hud.setup(health_system, weapon_holder, equipment_manager, grenade_handler)
 
 	equipment_manager.add_grenade(LAB_GRENADES - equipment_manager.get_grenade_count())
-	# Deferred: WeaponHolder._equip resets spares to 3 as it seats the starting weapon,
+	# Deferred: equipping the starting weapon issues a fresh 3-spare loadout,
 	# so stocking inside this frame would be overwritten by it.
 	call_deferred("_stock_player_ammo", weapon_holder)
 
@@ -1322,10 +1322,8 @@ func _spawn_player() -> void:
 func _stock_player_ammo(weapon_holder: WeaponHolder) -> void:
 	if weapon_holder == null or not is_instance_valid(weapon_holder):
 		return
-	weapon_holder.primary_ammo[1] = LAB_SPARE_MAGS
-	weapon_holder.secondary_ammo[1] = LAB_SPARE_MAGS
-	weapon_holder.spare_magazines = LAB_SPARE_MAGS
-	weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, LAB_SPARE_MAGS)
+	weapon_holder.stock_spares(0, LAB_SPARE_MAGS)
+	weapon_holder.stock_spares(1, LAB_SPARE_MAGS)
 
 
 ## The player's RTO: one commandable radioman who carries the PRC-25, follows the
@@ -1496,7 +1494,7 @@ func _probe_mg_mount() -> void:
 		return
 	print("[MG-PROBE] pre-mount: weapon=%s model=%s ammo=%d" % [
 		wh.current_weapon.id if wh.current_weapon else "<none>",
-		"yes" if wh.weapon_model != null else "NO", wh.current_ammo])
+		"yes" if wh.weapon_model != null else "NO", wh.current_rounds()])
 
 	var emp: MGEmplacement = null
 	for e in get_tree().get_nodes_in_group("mg_emplacements"):
@@ -1516,7 +1514,7 @@ func _probe_mg_mount() -> void:
 	print("[MG-PROBE] man_by_player=%s is_manning=%s" % [ok, player.get("is_manning_mg")])
 	print("[MG-PROBE] weapon=%s ammo=%d spare=%d mode=%d" % [
 		wh.current_weapon.id if wh.current_weapon else "<none>",
-		wh.current_ammo, wh.spare_magazines,
+		wh.current_rounds(), wh.spare_mag_count(),
 		wh.current_weapon.firing_mode if wh.current_weapon else -1])
 	print("[MG-PROBE] weapon_model=%s" % ("yes" if wh.weapon_model != null else "NO - INVISIBLE GUN"))
 	if wh.weapon_model != null:
@@ -1526,7 +1524,7 @@ func _probe_mg_mount() -> void:
 			mp.global_position if mp != null else "<no MuzzlePoint>",
 			cam.global_position if cam != null else "<no cam>"])
 
-	var before: int = wh.current_ammo
+	var before: int = wh.current_rounds()
 	var shots_before: int = WeaponHolder.session_shots
 	for i in range(5):
 		wh.can_fire = true
@@ -1534,7 +1532,7 @@ func _probe_mg_mount() -> void:
 		wh._try_fire()
 		await get_tree().physics_frame
 	print("[MG-PROBE] fired 5x -> ammo %d->%d, session_shots %d->%d" % [
-		before, wh.current_ammo, shots_before, WeaponHolder.session_shots])
+		before, wh.current_rounds(), shots_before, WeaponHolder.session_shots])
 	print("[MG-PROBE] jammed=%s reloading=%s switching=%s" % [
 		wh.is_jammed, wh.is_reloading, wh.is_switching])
 	get_tree().quit()

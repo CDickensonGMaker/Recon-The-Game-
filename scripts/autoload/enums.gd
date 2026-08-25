@@ -17,6 +17,16 @@ enum FiringMode {
 	BURST
 }
 
+## How a weapon is fed. Drives the reload model: MAGAZINE/BELT carry a pouch of
+## per-mag round counts, INTERNAL is a tube plus a loose-round pool, SINGLE is
+## one chambered round plus loose rounds.
+enum FeedType {
+	MAGAZINE,
+	BELT,
+	INTERNAL,
+	SINGLE
+}
+
 ## Equipment slot types
 enum SlotType {
 	WEAPON,

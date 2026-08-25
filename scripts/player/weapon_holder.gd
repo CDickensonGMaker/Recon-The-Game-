@@ -3,7 +3,7 @@ class_name WeaponHolder
 extends Node3D
 
 signal weapon_reloaded
-signal magazine_changed(current_ammo: int, spare_magazines: int)
+signal magazine_changed(current_rounds: int, mags: Array[int])
 signal weapon_switched(weapon_data: WeaponData)
 signal reload_started
 signal reload_progress(percent: float)
@@ -20,14 +20,14 @@ var primary_weapon: WeaponData = null
 var secondary_weapon: WeaponData = null
 var current_slot: int = 0  ## 0 = primary, 1 = secondary
 
-## Ammo tracking per weapon [current_magazine, spare_magazines]
-var primary_ammo: Array[int] = [30, 4]
-var secondary_ammo: Array[int] = [7, 3]
+## Per-slot round counts, index 0 = the SEATED magazine (a belt is a mag).
+## INTERNAL/SINGLE feeds instead carry exactly [rounds_in_gun, loose_round_pool].
+## These arrays are the ONLY live ammo state - everything else derives from them.
+var primary_mags: Array[int] = [20, 20, 20, 20, 20, 20, 20]
+var secondary_mags: Array[int] = [7, 7, 7, 7]
 
 ## Current weapon state
 var current_weapon: WeaponData = null
-var current_ammo: int = 30
-var spare_magazines: int = 4
 
 ## ADS state
 var is_aiming: bool = false
@@ -58,39 +58,219 @@ var _sway_time: float = 0.0
 var primary_is_captured: bool = false
 
 
+func slot_mags(slot: int) -> Array[int]:
+	return primary_mags if slot == 0 else secondary_mags
+
+
+func current_mags() -> Array[int]:
+	return slot_mags(current_slot)
+
+
+func current_rounds() -> int:
+	var m: Array[int] = current_mags()
+	return m[0] if not m.is_empty() else 0
+
+
+func spare_mag_count() -> int:
+	return maxi(0, current_mags().size() - 1)
+
+
+func _emit_mags() -> void:
+	magazine_changed.emit(current_rounds(), current_mags())
+
+
+## INTERNAL/SINGLE arrays must always expose [in_gun, pool].
+static func _ensure_pool(m: Array[int]) -> void:
+	while m.size() < 2:
+		m.append(0)
+
+
+## MODEL LAW: a shot leaves the SEATED mag and nothing else.
+static func fire_round(m: Array[int]) -> bool:
+	if m.is_empty() or m[0] <= 0:
+		return false
+	m[0] -= 1
+	return true
+
+
+## The fullest spare that BEATS the seated mag (ties -> lowest index), or -1.
+static func best_spare_index(m: Array[int]) -> int:
+	var best: int = -1
+	var best_rounds: int = m[0] if not m.is_empty() else 0
+	for i in range(1, m.size()):
+		if m[i] > best_rounds:
+			best_rounds = m[i]
+			best = i
+	return best
+
+
+## Pouch the seated mag at its TRUE count (a 0-round mag is dropped), seat the
+## fullest spare. False = no spare beats the seated mag; nothing moves.
+static func swap_to_best(m: Array[int]) -> bool:
+	var idx: int = best_spare_index(m)
+	if idx < 0:
+		return false
+	var incoming: int = m[idx]
+	m.remove_at(idx)
+	var pouched: int = m[0]
+	m[0] = incoming
+	if pouched > 0:
+		m.append(pouched)
+	return true
+
+
+## INTERNAL from-empty: one stroke (stripper clip / full top-up) fills the tube
+## from the pool. Returns rounds loaded.
+static func internal_stroke(m: Array[int], size: int) -> int:
+	_ensure_pool(m)
+	var load_n: int = mini(size - m[0], m[1])
+	m[0] += load_n
+	m[1] -= load_n
+	return load_n
+
+
+## INTERNAL partial / SINGLE chamber: one round from pool to gun.
+static func internal_step(m: Array[int], size: int) -> int:
+	_ensure_pool(m)
+	if m[0] >= size or m[1] <= 0:
+		return 0
+	m[0] += 1
+	m[1] -= 1
+	return 1
+
+
+## A fresh issue: 1 seated + `spares` in reserve, shaped by the feed type.
+static func default_loadout(data: WeaponData, spares: int) -> Array[int]:
+	if data == null:
+		return [0]
+	match data.feed:
+		Enums.FeedType.INTERNAL:
+			return [data.magazine_size, data.magazine_size * spares]
+		Enums.FeedType.SINGLE:
+			return [1, spares]
+		_:
+			var out: Array[int] = []
+			for _i in range(spares + 1):
+				out.append(data.magazine_size)
+			return out
+
+
+## Install a slot's pouch wholesale (pickups, saves, benches). Zero-round spares
+## are dropped for mag/belt feeds; a pool entry survives at 0.
+func set_slot_mags(slot: int, mags_in: Array) -> void:
+	var w: WeaponData = primary_weapon if slot == 0 else secondary_weapon
+	var pooled: bool = w != null and (w.feed == Enums.FeedType.INTERNAL
+		or w.feed == Enums.FeedType.SINGLE)
+	var m: Array[int] = []
+	for i in range(mags_in.size()):
+		var r: int = int(mags_in[i])
+		if i == 0 or pooled or r > 0:
+			m.append(r)
+	if m.is_empty():
+		m.append(0)
+	if pooled:
+		_ensure_pool(m)
+	if slot == 0:
+		primary_mags = m
+	else:
+		secondary_mags = m
+	if slot == current_slot:
+		_emit_mags()
+
+
+## Boxes hand WHOLE mags (discrete is allowed; rounded top-ups are not). Pool
+## feeds convert: a mag's worth of rounds for INTERNAL, one round for SINGLE.
+func add_full_mags(slot: int, n: int) -> void:
+	var w: WeaponData = primary_weapon if slot == 0 else secondary_weapon
+	if w == null:
+		return
+	var m: Array[int] = slot_mags(slot)
+	if m.is_empty():
+		m.append(0)
+	match w.feed:
+		Enums.FeedType.INTERNAL:
+			_ensure_pool(m)
+			m[1] += w.magazine_size * n
+		Enums.FeedType.SINGLE:
+			_ensure_pool(m)
+			m[1] += n
+		_:
+			for _i in range(n):
+				m.append(w.magazine_size)
+	if slot == current_slot:
+		_emit_mags()
+
+
+## Loot hands PARTIAL mags at their true counts - never rounded to full.
+func add_found_mags(slot: int, counts: Array[int]) -> void:
+	var w: WeaponData = primary_weapon if slot == 0 else secondary_weapon
+	if w == null:
+		return
+	var m: Array[int] = slot_mags(slot)
+	if m.is_empty():
+		m.append(0)
+	match w.feed:
+		Enums.FeedType.INTERNAL:
+			_ensure_pool(m)
+			for c in counts:
+				m[1] += maxi(0, c)
+		Enums.FeedType.SINGLE:
+			_ensure_pool(m)
+			m[1] += counts.size()
+		_:
+			for c in counts:
+				if c > 0:
+					m.append(mini(c, w.magazine_size))
+	if slot == current_slot:
+		_emit_mags()
+
+
+## Bench stocking: keep the seated rounds, set the reserve to `n` full issues.
+func stock_spares(slot: int, n: int) -> void:
+	var w: WeaponData = primary_weapon if slot == 0 else secondary_weapon
+	if w == null:
+		return
+	var seated: int = slot_mags(slot)[0] if not slot_mags(slot).is_empty() else 0
+	var fresh: Array[int] = default_loadout(w, n)
+	fresh[0] = seated
+	if slot == 0:
+		primary_mags = fresh
+	else:
+		secondary_mags = fresh
+	if slot == current_slot:
+		_emit_mags()
+
+
 ## Re-sync transient state after a load or a hub clean (SaveManager calls this).
 func refresh_after_load() -> void:
 	_condition_warned_60 = weapon_condition < 60.0
 	_condition_warned_30 = weapon_condition < 30.0
-	if current_slot == 0:
-		current_weapon = primary_weapon
-		current_ammo = primary_ammo[0]
-		spare_magazines = primary_ammo[1]
-	else:
-		current_weapon = secondary_weapon
-		current_ammo = secondary_ammo[0]
-		spare_magazines = secondary_ammo[1]
+	current_weapon = primary_weapon if current_slot == 0 else secondary_weapon
 	_load_weapon_model(current_weapon)
 	weapon_switched.emit(current_weapon)
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 func equip_captured_weapon(data: WeaponData) -> void:
 	if data == null:
 		return
 	primary_weapon = data
-	primary_ammo = [data.magazine_size, 3]
+	primary_mags = default_loadout(data, 3)
 	primary_is_captured = true
 	if current_slot == 0:
 		current_weapon = primary_weapon
-		current_ammo = primary_ammo[0]
-		spare_magazines = primary_ammo[1]
 		_load_weapon_model(current_weapon)
 		weapon_switched.emit(current_weapon)
-		magazine_changed.emit(current_ammo, spare_magazines)
+		_emit_mags()
 
 ## Mounted-gun state: the primary slot the emplacement borrowed, restored on dismount.
 var _mounted_snapshot: Dictionary = {}
+## The post feeds a mounted belt: reload always succeeds and consumes no pouch.
+var _mounted_infinite: bool = false
+
+
+func is_mounted_infinite() -> bool:
+	return _mounted_infinite
 
 
 ## Swap the rifle for a fixed mount's weapon (its OWN belt, not the player's mags).
@@ -100,7 +280,7 @@ func mount_gun(data: WeaponData) -> void:
 		return
 	_mounted_snapshot = {
 		"weapon": primary_weapon,
-		"ammo": primary_ammo.duplicate(),
+		"mags": primary_mags.duplicate(),
 		"captured": primary_is_captured,
 	}
 	is_switching = false
@@ -108,11 +288,10 @@ func mount_gun(data: WeaponData) -> void:
 	is_aiming = false
 	current_slot = 0
 	primary_weapon = data
-	primary_ammo = [data.magazine_size, 99]   # belt-fed: effectively fed by the post
+	primary_mags = [data.magazine_size]
+	_mounted_infinite = true
 	primary_is_captured = false
 	current_weapon = data
-	current_ammo = primary_ammo[0]
-	spare_magazines = primary_ammo[1]
 	_load_weapon_model(current_weapon)
 	# A mount that produced no viewmodel is the "invisible gun" failure - it reads
 	# as the mount working while the player holds nothing.
@@ -120,27 +299,30 @@ func mount_gun(data: WeaponData) -> void:
 		push_warning("[MG] mounted %s but no viewmodel loaded from '%s'" % [
 			data.id, data.model_path])
 	weapon_switched.emit(current_weapon)
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 func unmount_gun() -> void:
 	if _mounted_snapshot.is_empty():
 		return
 	primary_weapon = _mounted_snapshot["weapon"] as WeaponData
-	primary_ammo = _mounted_snapshot["ammo"]
+	# Re-typed element by element: the snapshot rode through a Dictionary and the
+	# pouch must come back its own array, never an alias of the snapshot's.
+	var restored: Array[int] = []
+	restored.assign(_mounted_snapshot["mags"] as Array)
+	primary_mags = restored
 	primary_is_captured = bool(_mounted_snapshot["captured"])
 	_mounted_snapshot = {}
+	_mounted_infinite = false
 	is_switching = false
 	is_reloading = false
 	is_aiming = false
 	# Come off the gun with the rifle up (slot 0), matching equipment_manager.
 	current_slot = 0
 	current_weapon = primary_weapon
-	current_ammo = primary_ammo[0]
-	spare_magazines = primary_ammo[1]
 	_load_weapon_model(current_weapon)
 	weapon_switched.emit(current_weapon)
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 ## Reload state
@@ -180,9 +362,7 @@ func _ready() -> void:
 	primary_weapon = load("res://data/weapons/m16a1.tres")
 	secondary_weapon = load("res://data/weapons/m1911.tres")
 	current_weapon = primary_weapon
-	current_ammo = primary_ammo[0]
-	spare_magazines = primary_ammo[1]
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 	_load_weapon_model(current_weapon)
 
@@ -367,7 +547,7 @@ static var session_hits: int = 0
 
 ## Burst continuation; timing lives in the _process accumulator.
 func _update_burst() -> void:
-	if _burst_left > 0 and fire_timer <= 0.0 and current_ammo > 0 and not is_reloading:
+	if _burst_left > 0 and fire_timer <= 0.0 and current_rounds() > 0 and not is_reloading:
 		_fire_shot()
 		_burst_left -= 1
 
@@ -380,7 +560,7 @@ func _try_fire() -> void:
 	if not can_fire or is_reloading or is_switching:
 		return
 
-	if current_ammo <= 0:
+	if current_rounds() <= 0:
 		if Input.is_action_just_pressed("fire"):
 			GunFX.play_click(self)
 		return
@@ -394,7 +574,7 @@ func _try_fire() -> void:
 			# Accumulator catch-up: if the frame was long enough to owe more than
 			# one round, fire them (capped, so a hitch can't dump the mag).
 			var fired: int = 0
-			while fire_timer <= 0.0 and fired < 2 and current_ammo > 0:
+			while fire_timer <= 0.0 and fired < 2 and current_rounds() > 0:
 				_fire_shot()
 				fired += 1
 		Enums.FiringMode.BOLT_ACTION:
@@ -420,7 +600,7 @@ func _fire_shot() -> void:
 	if current_weapon == null:
 		can_fire = false
 		return
-	current_ammo -= 1
+	fire_round(current_mags())
 	can_fire = false
 	# Accumulate, do NOT assign: the negative remainder from _process is the
 	# sub-frame credit that keeps average RPM exact and framerate-independent.
@@ -449,7 +629,7 @@ func _fire_shot() -> void:
 		GunFX.play_click(self)
 		_hud_toast("WEAPON JAMMED - HIT RELOAD TO CLEAR")
 		weapon_jammed.emit()
-		magazine_changed.emit(current_ammo, spare_magazines)
+		_emit_mags()
 		return
 
 	# ADR-018: spread is the weapon's, the stance's and the situation's. Never the
@@ -588,12 +768,7 @@ func _fire_shot() -> void:
 		current_weapon.recoil_recovery
 	)
 
-	if current_slot == 0:
-		primary_ammo[0] = current_ammo
-	else:
-		secondary_ammo[0] = current_ammo
-
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 ## The muzzle sits INSIDE the player's own HEAD zone band (camera height): his
@@ -735,6 +910,16 @@ func _fire_pellet_cluster(origin: Vector3, aim_dir: Vector3, right: Vector3, up:
 				target.on_zone_hit(region, final_damage, pdir)
 
 
+## Stepwise INTERNAL top-up in flight: each stroke loads ONE round, then chains.
+var _reload_step: bool = false
+
+
+## The authored full reload, split across the tube: topping up N rounds costs
+## the same pro-rata time the full load does.
+func _internal_step_time() -> float:
+	return current_weapon.reload_time / maxf(1.0, float(current_weapon.magazine_size))
+
+
 func _start_reload() -> void:
 	if is_jammed:
 		is_jammed = false
@@ -747,18 +932,32 @@ func _start_reload() -> void:
 		_play_vm_clip("jam", current_weapon.jam_clear_time)
 		reload_started.emit()
 		return
-	if spare_magazines <= 0:
+	if current_weapon == null:
 		return
-	if current_ammo >= current_weapon.magazine_size:
+	var m: Array[int] = current_mags()
+	if m.is_empty():
 		return
+	match current_weapon.feed:
+		Enums.FeedType.INTERNAL, Enums.FeedType.SINGLE:
+			_ensure_pool(m)
+			if m[1] <= 0 or m[0] >= current_weapon.magazine_size:
+				return
+		_:
+			if not _mounted_infinite and best_spare_index(m) < 0:
+				return
+			if m[0] >= current_weapon.magazine_size:
+				return
 
 	_clearing_jam = false
 	is_reloading = true
-	var from_empty: bool = current_ammo == 0
+	var from_empty: bool = m[0] == 0
 	# ADR-018: the authored time, always. Handling is not a stat.
 	var authored: float = current_weapon.reload_time
 	if from_empty and current_weapon.empty_reload_time > 0.0:
 		authored = current_weapon.empty_reload_time
+	_reload_step = current_weapon.feed == Enums.FeedType.INTERNAL and not from_empty
+	if _reload_step:
+		authored = _internal_step_time()
 	reload_timer = authored
 	reload_duration = authored
 	is_aiming = false
@@ -781,26 +980,41 @@ func _update_reload(delta: float) -> void:
 
 func _finish_reload() -> void:
 	is_reloading = false
-	_play_vm_idle()
 	_warhead_fired = false   # a fresh rocket goes down the tube
 	if _clearing_jam:
 		_clearing_jam = false
+		_play_vm_idle()
 		weapon_reloaded.emit()
-		magazine_changed.emit(current_ammo, spare_magazines)
+		_emit_mags()
 		return
 
-	spare_magazines -= 1
-	current_ammo = current_weapon.magazine_size
-
-	if current_slot == 0:
-		primary_ammo[0] = current_ammo
-		primary_ammo[1] = spare_magazines
-	else:
-		secondary_ammo[0] = current_ammo
-		secondary_ammo[1] = spare_magazines
-
+	var m: Array[int] = current_mags()
+	var size: int = current_weapon.magazine_size
+	match current_weapon.feed:
+		Enums.FeedType.INTERNAL:
+			if _reload_step:
+				internal_step(m, size)
+				if m[0] < size and m[1] > 0:
+					# Round-by-round top-up chains until the tube is full or dry.
+					is_reloading = true
+					reload_timer = _internal_step_time()
+					reload_duration = reload_timer
+					_play_vm_clip("reload", reload_timer)
+					_emit_mags()
+					return
+			else:
+				internal_stroke(m, size)
+		Enums.FeedType.SINGLE:
+			internal_step(m, size)
+		_:
+			if _mounted_infinite:
+				m[0] = size   # the post feeds the belt; nothing is pouched
+			else:
+				swap_to_best(m)
+	_reload_step = false
+	_play_vm_idle()
 	weapon_reloaded.emit()
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 func _hud_toast(text: String) -> void:
@@ -818,13 +1032,6 @@ func set_active_weapon_slot(new_slot: int) -> void:
 
 
 func _start_weapon_switch(new_slot: int) -> void:
-	if current_slot == 0:
-		primary_ammo[0] = current_ammo
-		primary_ammo[1] = spare_magazines
-	else:
-		secondary_ammo[0] = current_ammo
-		secondary_ammo[1] = spare_magazines
-
 	is_switching = true
 	switch_timer = SWITCH_TIME
 	current_slot = new_slot
@@ -846,20 +1053,10 @@ func _update_switch(delta: float) -> void:
 
 func _finish_switch() -> void:
 	is_switching = false
-
-	if current_slot == 0:
-		current_weapon = primary_weapon
-		current_ammo = primary_ammo[0]
-		spare_magazines = primary_ammo[1]
-	else:
-		current_weapon = secondary_weapon
-		current_ammo = secondary_ammo[0]
-		spare_magazines = secondary_ammo[1]
-
+	current_weapon = primary_weapon if current_slot == 0 else secondary_weapon
 	_load_weapon_model(current_weapon)
-
 	weapon_switched.emit(current_weapon)
-	magazine_changed.emit(current_ammo, spare_magazines)
+	_emit_mags()
 
 
 var _punch: float = 0.0

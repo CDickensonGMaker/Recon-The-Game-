@@ -13,9 +13,8 @@ extends Node3D
 ## plain Node3D with no collider: a box you walk up to, not a thing you trip over, and the
 ## player's [F] finds it by proximity like every other field verb.
 ##
-## Deliberately NOT in the `supply_crates` group. That group's verb hands over the WHOLE
-## kit - mags, frags, medkits, chow, claymores, satchels - and does it without limit. A
-## bandage box that refilled a man's claymores would make the whole supply economy free.
+## One commodity per box, counted draws - the RTO's supply bird drops these same boxes. A
+## box that refilled a man's whole kit would make the supply economy free.
 
 const GROUP: StringName = &"field_caches"
 ## Matches every other field verb's reach, and player.gd's prompt/verb contract.

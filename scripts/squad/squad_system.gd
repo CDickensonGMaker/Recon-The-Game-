@@ -8,6 +8,10 @@ extends Node
 ## over and take from it, so the same number gates both. Running it dry is meant to be one
 ## of the reasons you go home (Summoner, 2026-07-30) - do not make it self-refilling.
 const MEDIC_BANDAGES: int = 6
+## THE GUNNER'S SPARE BELTS, counted in 100-ROUND BELTS (ruling A4, 2026-08-24: ~8 draws).
+## Same law as Doc's bag: the player takes from it, it never self-refills beyond the ammo
+## box, and his corpse gives up whatever is left.
+const MG_BELTS: int = 8
 ## What Doc carries besides the two he can spend reviving: the rest of the bag. Laying the
 ## box down puts ten on the ground for the whole squad AND the player.
 const MEDIC_BOX_STOCK: int = 1
@@ -23,6 +27,7 @@ var director: FieldDirector
 var members: Array[AllyBase] = []
 var weapons_free: bool = true
 var medic_bandages: int = MEDIC_BANDAGES
+var mg_belts: int = MG_BELTS
 ## Boxes each specialist still has to lay. One apiece per mission - a box is a decision,
 ## not a consumable, and an infinite supply of them is an infinite supply of everything.
 var medic_boxes: int = MEDIC_BOX_STOCK
@@ -302,6 +307,30 @@ func _medic_restock() -> bool:
 	return true
 
 
+## The gunner pulls a belt off any AMMO box within reach, capped at his carry -
+## Doc's restock, pointed at the ammo box.
+func _gunner_restock() -> bool:
+	if mg_belts >= MG_BELTS:
+		return false
+	var gunner := member_by_mos("MG")
+	if gunner == null:
+		return false
+	var box: FieldCache = FieldCache.nearest(gunner, FieldCache.Kind.AMMO, 6.0)
+	if box == null or box.draw(1) <= 0:
+		return false
+	mg_belts += 1
+	_toast("GUNNER PULLED A BELT FROM THE AMMO BOX")
+	return true
+
+
+## Dry, but standing next to an ammo box: he takes one rather than turning the
+## player away (can_revive's law).
+func can_hand_belt() -> bool:
+	if mg_belts > 0:
+		return true
+	return _gunner_restock()
+
+
 ## Doc's box goes down WHERE HE TREATED SOMEONE, once per mission. An order was the wrong
 ## trigger: a medical box is not a decision, it is the bag he opened over a casualty, and
 ## leaving it there turns a place where something happened into a place worth finding again.
@@ -345,6 +374,18 @@ func take_medic_bandage() -> bool:
 
 func medic_bandage_count() -> int:
 	return medic_bandages
+
+
+## Hand ONE full belt to whoever asked. The gunner gives until his back is bare.
+func take_mg_belt() -> bool:
+	if mg_belts <= 0:
+		return false
+	mg_belts -= 1
+	return true
+
+
+func mg_belt_count() -> int:
+	return mg_belts
 
 
 func begin_revive(_health_system: HealthSystem) -> void:

@@ -62,6 +62,11 @@ class CampaignSection:
 ## Where you are and what you carry. `context` says where the save happened:
 ## "hub" (firebase), "mission" (checkpoint/save-anywhere), "menu".
 class PlayerSection:
+	## Magazine-model version: 1 = per-mag round arrays, index 0 seated
+	## (INTERNAL/SINGLE: [in_gun, pool]). An ABSENT key marks a legacy
+	## [rounds, spare_full_mags] pair and triggers the rebuild in _read_mags.
+	const MAG_MODEL: int = 1
+
 	var context: String = "menu"
 	var position: Vector3 = Vector3.ZERO
 	var rotation_y: float = 0.0
@@ -70,8 +75,9 @@ class PlayerSection:
 	var stamina: float = 100.0
 	var primary_path: String = ""
 	var secondary_path: String = ""
-	var primary_ammo: Array = [30, 4]
-	var secondary_ammo: Array = [7, 3]
+	var mag_model: int = MAG_MODEL
+	var primary_ammo: Array = [20, 20, 20, 20, 20, 20, 20]
+	var secondary_ammo: Array = [7, 7, 7, 7]
 	var grenade_count: int = 2
 	var smoke_count: int = 2
 	var claymore_count: int = 2
@@ -90,6 +96,7 @@ class PlayerSection:
 			"rot_y": rotation_y,
 			"hp": hp, "health_packs": health_packs, "stamina": stamina,
 			"primary_path": primary_path, "secondary_path": secondary_path,
+			"mag_model": mag_model,
 			"primary_ammo": primary_ammo, "secondary_ammo": secondary_ammo,
 			"grenade_count": grenade_count, "smoke_count": smoke_count,
 			"claymore_count": claymore_count, "satchel_count": satchel_count, "flare_count": flare_count,
@@ -109,8 +116,12 @@ class PlayerSection:
 		p.stamina = float(d.get("stamina", 100.0))
 		p.primary_path = str(d.get("primary_path", ""))
 		p.secondary_path = str(d.get("secondary_path", ""))
-		p.primary_ammo = d.get("primary_ammo", [30, 4])
-		p.secondary_ammo = d.get("secondary_ammo", [7, 3])
+		var legacy: bool = not d.has("mag_model")
+		p.mag_model = MAG_MODEL
+		p.primary_ammo = _read_mags(d.get("primary_ammo", []), legacy,
+			p.primary_path, p.primary_ammo)
+		p.secondary_ammo = _read_mags(d.get("secondary_ammo", []), legacy,
+			p.secondary_path, p.secondary_ammo)
 		p.grenade_count = int(d.get("grenade_count", 2))
 		p.smoke_count = int(d.get("smoke_count", 2))
 		p.claymore_count = int(d.get("claymore_count", 2))
@@ -121,6 +132,33 @@ class PlayerSection:
 		p.ration_count = int(d.get("ration_count", 2))
 		p.repair_kit_count = int(d.get("repair_kit_count", 1))
 		return p
+
+	## JSON numbers come back float; counts must round-trip bit-exact as ints,
+	## ragged arrays included. A legacy pair [rounds, spare_full_mags] rebuilds
+	## as [rounds] + N full mags, shaped by the feed of the weapon at `path`.
+	static func _read_mags(raw: Variant, legacy: bool, path: String, fallback: Array) -> Array:
+		var arr: Array = raw if raw is Array else []
+		var mags: Array = []
+		for v in arr:
+			mags.append(int(v))
+		if mags.is_empty():
+			return fallback.duplicate()
+		if not legacy:
+			return mags
+		var rounds: int = int(mags[0])
+		var spares: int = int(mags[1]) if mags.size() > 1 else 0
+		var data: WeaponData = null
+		if path != "" and ResourceLoader.exists(path):
+			data = load(path) as WeaponData
+		var size: int = data.magazine_size if data != null else maxi(rounds, 1)
+		if data != null and data.feed == Enums.FeedType.INTERNAL:
+			return [mini(rounds, size), spares * size]
+		if data != null and data.feed == Enums.FeedType.SINGLE:
+			return [mini(rounds, 1), spares]
+		var out: Array = [mini(rounds, size)]
+		for _i in range(spares):
+			out.append(size)
+		return out
 
 
 ## The firebase: which operation and its seed - the patrol world regenerates

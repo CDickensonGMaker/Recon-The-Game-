@@ -138,7 +138,7 @@ func setup(hp: HealthSystem, wpn: WeaponHolder, equip: EquipmentManager, gren: G
 	_on_health_changed(health_system.current_hp, health_system.max_hp)
 	_on_health_pack_changed(health_system.health_packs)
 	_on_grenade_count_changed(equipment_manager.grenade_count)
-	_on_magazine_changed(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+	_on_magazine_changed(weapon_holder.current_rounds(), weapon_holder.current_mags())
 	_update_weapon_display()
 	_update_slot_display()
 
@@ -157,9 +157,27 @@ func _on_health_pack_changed(count: int) -> void:
 	medkit_label.text = "MED: %d" % count
 
 
-func _on_magazine_changed(current_ammo: int, spare_mags: int) -> void:
-	ammo_label.text = "%d" % current_ammo
-	mag_label.text = "MAG: %d" % spare_mags
+## Ruled 2026-08-24: the seated mag keeps its round numeral; the pouch reads as
+## one glyph per spare mag by fill - "#" >= 2/3, "=" >= 1/3, "-" below. Loose
+## feeds (INTERNAL/SINGLE) carry a round pool: discrete objects, shown counted.
+func _on_magazine_changed(current_rounds: int, mags: Array[int]) -> void:
+	ammo_label.text = "%d" % current_rounds
+	if weapon_holder != null and weapon_holder.is_mounted_infinite():
+		mag_label.text = "BELT FED"
+		return
+	var w: WeaponData = weapon_holder.current_weapon if weapon_holder != null else null
+	if w != null and (w.feed == Enums.FeedType.INTERNAL or w.feed == Enums.FeedType.SINGLE):
+		mag_label.text = "RDS: %d" % (mags[1] if mags.size() > 1 else 0)
+		return
+	if mags.size() <= 1:
+		mag_label.text = "NO MAGS"
+		return
+	var size: int = maxi(1, w.magazine_size) if w != null else 1
+	var glyphs: PackedStringArray = []
+	for i in range(1, mags.size()):
+		var fill: float = float(mags[i]) / float(size)
+		glyphs.append("#" if fill >= 0.6667 else ("=" if fill >= 0.3333 else "-"))
+	mag_label.text = "MAGS " + " ".join(glyphs)
 
 
 func _on_weapon_switched(_weapon_data: WeaponData) -> void:

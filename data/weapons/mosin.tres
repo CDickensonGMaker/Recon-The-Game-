@@ -10,6 +10,7 @@ description = "7.62x54mmR bolt rifle. The deepest, sharpest report in the valley
 firing_mode = 2
 fire_rate = 35.0
 magazine_size = 5
+feed = 2
 reload_time = 6.5333
 empty_reload_time = 9.3333
 jam_clear_time = 4.6667

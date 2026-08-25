@@ -624,13 +624,13 @@ func field_interact_prompt() -> String:
 	var doc: AllyBase = _nearby_medic()
 	if doc != null:
 		return "[F] BANDAGE FROM DOC (%d)" % _squad_ref().medic_bandage_count()
+	var gunner: AllyBase = _nearby_gunner()
+	if gunner != null:
+		return "[F] BELT FROM %s (%d)" % [
+			SquadRoster.call_name(gunner.member), _squad_ref().mg_belt_count()]
 	var cache: FieldCache = _nearby_field_cache()
 	if cache != null:
 		return "[F] TAKE FROM %s" % cache.label()
-	for c in get_tree().get_nodes_in_group("supply_crates"):
-		var crate := c as Node3D
-		if crate and global_position.distance_to(crate.global_position) < 3.0:
-			return "[F] RESUPPLY"
 	if _nearby_downed_enemy() != null:
 		return "[F] SECURE THE PRISONER"
 	var gun: WorldWeapon = _nearby_world_weapon()
@@ -690,6 +690,31 @@ func _nearby_medic() -> AllyBase:
 	return doc if global_position.distance_to(doc.global_position) < 2.5 else null
 
 
+## Spare belts the gunner will let the player hump before cutting him off.
+const MG_BELT_CARRY_MAX: int = 4
+
+
+## The gunner, within reach, alive, with a belt to give - and ONLY when the player's
+## CURRENT gun eats belts (FeedType.BELT: m60/rpd). He hands BELTS, never rifle mags
+## (ruling A2) - offering one to a rifleman would be the prompt promising ammo the
+## gun cannot take.
+func _nearby_gunner() -> AllyBase:
+	var sq: SquadSystem = _squad_ref()
+	if sq == null or weapon_holder == null:
+		return null
+	var w: WeaponData = weapon_holder.current_weapon
+	if w == null or w.feed != Enums.FeedType.BELT:
+		return null
+	if weapon_holder.spare_mag_count() >= MG_BELT_CARRY_MAX:
+		return null
+	if not sq.can_hand_belt():
+		return null
+	var gunner: AllyBase = sq.member_by_mos("MG")
+	if gunner == null or not is_instance_valid(gunner) or gunner.is_dead():
+		return null
+	return gunner if global_position.distance_to(gunner.global_position) < 2.5 else null
+
+
 ## The nearest box a specialist laid down. Range lives on FieldCache so the prompt and the
 ## verb cannot drift apart.
 func _nearby_field_cache() -> FieldCache:
@@ -717,8 +742,8 @@ func _take_from_cache(cache: FieldCache) -> void:
 		return
 	if cache.draw(1) <= 0:
 		return
-	weapon_holder.spare_magazines += 2
-	weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+	# The box hands WHOLE mags - discrete objects, never a rounded top-up.
+	weapon_holder.add_full_mags(weapon_holder.current_slot, 2)
 	if equipment_manager != null:
 		equipment_manager.add_grenade(1)
 	_field_toast("AMMO TAKEN (%d LEFT IN THE BOX)" % cache.stock)
@@ -730,21 +755,14 @@ func _take_world_weapon(gun: WorldWeapon) -> void:
 	if weapon_holder == null or gun == null or gun.weapon_data == null:
 		return
 	var taken: WeaponData = gun.weapon_data
-	var ammo: int = gun.ammo_in_gun
-	var mags: int = gun.spare_mags
+	var mags: Array[int] = gun.mags.duplicate()
 	var captured: bool = gun.is_captured
 	gun.queue_free()
 	drop_primary_weapon()
 	weapon_holder.equip_captured_weapon(taken)
-	# equip_captured_weapon issues a FRESH magazine; a gun off the ground carries whatever
-	# was left in it. primary_ammo is the slot's own store - setting current_ammo alone
-	# loses the count the first time he switches to the sidearm and back.
-	if ammo > 0 or mags > 0:
-		weapon_holder.primary_ammo = [ammo, mags]
-		if weapon_holder.current_slot == 0:
-			weapon_holder.current_ammo = ammo
-			weapon_holder.spare_magazines = mags
-			weapon_holder.magazine_changed.emit(ammo, mags)
+	# equip_captured_weapon issues a FRESH loadout; a gun off the ground carries
+	# whatever was left in it - partial mags at their true counts.
+	weapon_holder.set_slot_mags(0, mags)
 	# A gun you took off the enemy still sounds like theirs; one of your own does not.
 	weapon_holder.primary_is_captured = captured
 	_field_toast("PICKED UP THE %s" % taken.display_name.to_upper())
@@ -782,18 +800,19 @@ func refill_ammo(weapon_path: String) -> void:
 		return
 	var primary: WeaponData = weapon_holder.primary_weapon
 	var secondary: WeaponData = weapon_holder.secondary_weapon
+	var slot: int = -1
 	if primary != null and primary.resource_path == weapon_path:
-		weapon_holder.primary_ammo = [primary.magazine_size, weapon_holder.primary_ammo[1] + 4]
-		if weapon_holder.current_slot == 0:
-			weapon_holder.current_ammo = weapon_holder.primary_ammo[0]
-			weapon_holder.spare_magazines = weapon_holder.primary_ammo[1]
-			weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+		slot = 0
 	elif secondary != null and secondary.resource_path == weapon_path:
-		weapon_holder.secondary_ammo = [secondary.magazine_size, weapon_holder.secondary_ammo[1] + 4]
-		if weapon_holder.current_slot == 1:
-			weapon_holder.current_ammo = weapon_holder.secondary_ammo[0]
-			weapon_holder.spare_magazines = weapon_holder.secondary_ammo[1]
-			weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+		slot = 1
+	if slot < 0:
+		return
+	var w: WeaponData = primary if slot == 0 else secondary
+	var m: Array[int] = weapon_holder.slot_mags(slot)
+	if m.is_empty():
+		m.append(0)
+	m[0] = w.magazine_size
+	weapon_holder.add_full_mags(slot, 4)
 
 
 ## Put the current primary on the ground in front of you. Returns false when there is
@@ -806,9 +825,19 @@ func drop_primary_weapon() -> bool:
 	flat = flat.normalized() if flat.length() > 0.01 else -global_transform.basis.z
 	var at: Vector3 = global_position + flat * 1.0
 	WorldWeapon.drop(get_tree().current_scene, weapon_holder.primary_weapon, at,
-		weapon_holder.current_ammo, weapon_holder.spare_magazines,
-		weapon_holder.primary_is_captured)
+		weapon_holder.primary_mags.duplicate(), weapon_holder.primary_is_captured)
 	return true
+
+
+## Loot mags come PARTIAL - 5-18 rounds each, seeded from where they lay
+## (ADR-010: a reloaded save finds the same rounds).
+static func _seeded_partial_mags(at: Vector3, n: int) -> Array[int]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(int(at.x * 10.0), int(at.z * 10.0)))
+	var out: Array[int] = []
+	for _i in range(n):
+		out.append(5 + rng.randi() % 14)
+	return out
 
 
 ## The nearest weapon on the ground within reach, or null. Range lives on WorldWeapon so
@@ -975,8 +1004,8 @@ func _try_field_interact() -> void:
 				fd_t.call("try_intel_stash")
 			CampaignState.save_campaign()
 			if weapon_holder:
-				weapon_holder.spare_magazines += 2
-				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+				weapon_holder.add_found_mags(weapon_holder.current_slot,
+					_seeded_partial_mags(_in_tunnel.cache_point(), 2))
 			_field_toast("TUNNEL CACHE - DOCUMENTS AND AMMO (+2 INTEL)")
 			return
 	# Mount an unoccupied MG emplacement within reach - you are still a rifleman,
@@ -1018,30 +1047,20 @@ func _try_field_interact() -> void:
 		else:
 			_field_toast("DOC IS OUT - NOTHING LEFT IN THE BAG")
 		return
+	var gunner: AllyBase = _nearby_gunner()
+	if gunner != null:
+		var sqg: SquadSystem = _squad_ref()
+		if sqg != null and sqg.take_mg_belt() and weapon_holder != null:
+			weapon_holder.add_full_mags(weapon_holder.current_slot, 1)
+			_field_toast("%s HANDED YOU A BELT (%d LEFT ON HIS BACK)" % [
+				SquadRoster.call_name(gunner.member), sqg.mg_belt_count()])
+		else:
+			_field_toast("%s IS OUT - NO BELTS LEFT" % SquadRoster.call_name(gunner.member))
+		return
 	var cache: FieldCache = _nearby_field_cache()
 	if cache != null:
 		_take_from_cache(cache)
 		return
-	for c in get_tree().get_nodes_in_group("supply_crates"):
-		var crate := c as Node3D
-		if crate and global_position.distance_to(crate.global_position) < 3.0:
-			if weapon_holder:
-				weapon_holder.spare_magazines += 3
-				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
-			if equipment_manager:
-				equipment_manager.add_grenade(2)
-			if health_system:
-				health_system.health_packs = mini(3, health_system.health_packs + 2)
-				health_system.health_pack_changed.emit(health_system.health_packs)
-			smoke_count = 2
-			claymore_count = 2
-			satchel_count = 2
-			flare_count = 3
-			ration_count = mini(4, ration_count + 2)
-			repair_kit_count = mini(2, repair_kit_count + 1)
-			_field_toast("RESUPPLIED - MAGS, FRAGS, MEDKITS, CHOW, KIT")
-			crate.queue_free()
-			return
 	# SECURE a downed-alive enemy: pins his bleed clock, joins the capture economy
 	# (same +1 intel as a surrender). He stays where he fell - died already fired
 	# when he went down, so the tallies hold at one.
@@ -1067,12 +1086,29 @@ func _try_field_interact() -> void:
 			continue
 		if global_position.distance_to(fallen.global_position) < 2.5:
 			fallen.set_meta("looted", true)
-			var who: String = SquadRoster.call_name(fallen.get("member") as Dictionary) if "member" in fallen else "HE"
+			var member: Dictionary = {}
+			if "member" in fallen:
+				member = fallen.get("member") as Dictionary
+			var who: String = SquadRoster.call_name(member) if not member.is_empty() else "HE"
 			if weapon_holder:
-				weapon_holder.spare_magazines += 2
-				weapon_holder.magazine_changed.emit(weapon_holder.current_ammo, weapon_holder.spare_magazines)
+				weapon_holder.add_found_mags(weapon_holder.current_slot,
+					_seeded_partial_mags(fallen.global_position, 2))
 			if equipment_manager:
 				equipment_manager.add_grenade(1)
+			# THE GUNNER'S BACK (ruling A4): his remaining belts come off the corpse -
+			# but only into a gun that takes them. They NEVER convert to rifle mags,
+			# and the squad stock zeroes either way: the belts were on him.
+			var sq_c: SquadSystem = _squad_ref()
+			if str(member.get("mos", "")) == "MG" and sq_c != null and sq_c.mg_belt_count() > 0:
+				var belts: int = sq_c.mg_belt_count()
+				sq_c.mg_belts = 0
+				var w: WeaponData = weapon_holder.current_weapon if weapon_holder else null
+				if w != null and w.feed == Enums.FeedType.BELT:
+					weapon_holder.add_full_mags(weapon_holder.current_slot, belts)
+					_field_toast("%s'S KIT - %d BELTS AND A FRAG RECOVERED" % [who, belts])
+				else:
+					_field_toast("%s'S KIT - MAGS AND A FRAG. HIS BELTS BURNED WITH HIM." % who)
+				return
 			_field_toast("%s'S KIT - MAGS AND A FRAG RECOVERED" % who)
 			return
 	for e in get_tree().get_nodes_in_group("lootable_corpses"):
@@ -1242,6 +1278,13 @@ func _ready() -> void:
 
 	health_system.setup(self, equipment_manager)
 	health_system.downed_ended.connect(_on_downed_ended)
+	# Collapse must fire on EVERY door into downed/dead - take_damage() covers the
+	# shot with its direction, these cover doors that bypass it (e.g. the direct
+	# health_system.take_damage environmental hits). _collapsed makes double-fire moot.
+	health_system.downed_started.connect(func(_secs: float) -> void:
+		_collapse_camera(-global_transform.basis.z))
+	health_system.died.connect(func() -> void:
+		_collapse_camera(-global_transform.basis.z))
 	equipment_manager.setup(self, weapon_holder, health_system, grenade_handler)
 	equipment_manager.slot_changed.connect(_on_slot_changed_knife)
 	grenade_handler.setup(self, equipment_manager)
@@ -1573,17 +1616,6 @@ func _physics_process(delta: float) -> void:
 			reset_physics_interpolation()
 		return
 
-	# Downed: on the deck waiting for the medic - no movement, low camera.
-	if health_system and health_system.is_downed:
-		velocity.x = 0.0
-		velocity.z = 0.0
-		velocity.y -= 9.8 * delta
-		move_and_slide()
-		var head_node := get_node_or_null("Head") as Node3D
-		if head_node:
-			head_node.position.y = lerpf(head_node.position.y, 0.45, delta * 3.0)
-		return
-
 	# Cap delta for framerate independence (Quake 3 pattern - max 66ms)
 	var capped_delta: float = minf(delta, 0.066)
 
@@ -1647,15 +1679,12 @@ func _handle_movement(delta: float) -> void:
 			var dropped: String = weapon_holder.primary_weapon.display_name.to_upper()
 			if drop_primary_weapon():
 				weapon_holder.primary_weapon = null
-				weapon_holder.primary_ammo = [0, 0]
 				weapon_holder.primary_is_captured = false
 				if weapon_holder.current_slot == 0:
 					weapon_holder.current_weapon = null
-					weapon_holder.current_ammo = 0
-					weapon_holder.spare_magazines = 0
-					weapon_holder.magazine_changed.emit(0, 0)
-					if equipment_manager != null:
-						equipment_manager.switch_to_slot(1)   # no rifle: draw the sidearm
+				weapon_holder.set_slot_mags(0, [0])
+				if weapon_holder.current_slot == 0 and equipment_manager != null:
+					equipment_manager.switch_to_slot(1)   # no rifle: draw the sidearm
 				_field_toast("DROPPED THE %s" % dropped)
 
 	_tick_satchel_hold(delta)
@@ -1734,6 +1763,7 @@ func _handle_movement(delta: float) -> void:
 func _on_downed_ended(revived: bool) -> void:
 	if not revived:
 		return
+	recover_from_collapse()
 	# On your feet with your rifle: a man who was on the horn when he went down is
 	# off it now (keeps holding_handset / fire_menu from surviving the revive).
 	set_on_net(false)
@@ -1845,10 +1875,13 @@ func take_damage(amount: int, damage_type: Enums.DamageType = Enums.DamageType.P
 
 
 var _collapsed: bool = false
+var _collapse_tween: Tween = null
 
-## Death collapse: there is no player body model, so the CAMERA becomes the
-## falling weight - it reparents onto a RigidBody3D "head" kicked by the killing
-## hit. The KIA flow is unaffected.
+## Death/downed collapse (his ruling 2026-08-24: "it should drop down and lay in
+## place", never tumble). There is no player body model, so the camera IS the
+## falling man: the head drops to ground height and rolls onto its side toward
+## the hit, then lies STILL through the medic window. The fade to black comes
+## only after force_death (BodySwapSystem's epitaph, or the end card).
 func _collapse_camera(hit_dir: Vector3) -> void:
 	if _collapsed or camera == null:
 		return
@@ -1859,20 +1892,40 @@ func _collapse_camera(hit_dir: Vector3) -> void:
 	var vm: Node3D = camera.get_node_or_null("WeaponHolder") as Node3D
 	if vm != null:
 		vm.visible = false  # dying men do not hold a perfect sight picture
-	var head_body := RigidBody3D.new()
-	head_body.collision_layer = 0
-	head_body.collision_mask = 1
-	head_body.mass = 5.0
-	var cs := CollisionShape3D.new()
-	var sph := SphereShape3D.new()
-	sph.radius = 0.18
-	cs.shape = sph
-	head_body.add_child(cs)
-	get_tree().current_scene.add_child(head_body)
-	head_body.global_position = camera.global_position
-	camera.reparent(head_body, true)
-	head_body.apply_central_impulse(hit_dir.normalized() * 8.0 + Vector3.UP * 1.0)
-	head_body.apply_torque_impulse(Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5)))
+	# Fall side: roll away from the hit, so the shot reads as what put you down.
+	var fwd: Vector3 = -camera.global_transform.basis.z
+	fwd.y = 0.0
+	var side: float = 1.0
+	if fwd.length() > 0.1 and hit_dir.length() > 0.1:
+		side = -signf(fwd.normalized().cross(hit_dir.normalized()).y)
+		if side == 0.0:
+			side = 1.0
+	_collapse_tween = create_tween().set_parallel(true)
+	_collapse_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if head != null:
+		_collapse_tween.tween_property(head, "position:y", 0.25, 0.7)
+	_collapse_tween.tween_property(camera, "rotation_degrees:z", 75.0 * side, 0.7)
+
+
+## Back on your feet: the medic made it, or the lives economy woke you in
+## another man. Everything _collapse_camera froze comes back in one place.
+func recover_from_collapse() -> void:
+	if not _collapsed:
+		return
+	_collapsed = false
+	if _collapse_tween != null and _collapse_tween.is_valid():
+		_collapse_tween.kill()
+	_collapse_tween = null
+	if head != null:
+		head.position.y = STAND_HEIGHT - 0.1
+	if camera != null:
+		camera.rotation_degrees.z = 0.0
+		var vm: Node3D = camera.get_node_or_null("WeaponHolder") as Node3D
+		if vm != null:
+			vm.visible = true
+	set_physics_process(true)
+	set_process_input(true)
+	set_process_unhandled_input(true)
 
 
 ## The AI drops a target via has_method("is_dead") + is_dead(), so this MUST

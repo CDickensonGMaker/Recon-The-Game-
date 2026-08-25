@@ -145,7 +145,7 @@ func _equip(idx: int) -> void:
 	_wd = wd
 	_tune_dirty = false
 	_holder.equip_captured_weapon(wd)
-	_holder.spare_magazines = 99
+	_holder.stock_spares(0, 8)
 	_flash_board("== %s ==  zero %.0fm  |  %d dmg  |  %.0f m/s" % [
 		wd.display_name, wd.zero_range, wd.base_damage, wd.projectile_speed])
 
@@ -342,7 +342,9 @@ func _tune_text() -> String:
 func _process(_delta: float) -> void:
 	# Bench rule: the mag never empties - dialing recoil must not stop for reloads.
 	if _holder != null and _holder.current_weapon != null:
-		_holder.current_ammo = _holder.current_weapon.magazine_size
+		var m: Array[int] = _holder.current_mags()
+		if not m.is_empty():
+			m[0] = _holder.current_weapon.magazine_size
 	if _tune != null:
 		_tune.text = _tune_text()
 	_zone_im.clear_surfaces()

@@ -11,6 +11,7 @@ description = "66mm disposable rocket. A hissing roar and a backblast that names
 firing_mode = 0
 fire_rate = 12.0
 magazine_size = 1
+feed = 3
 reload_time = 0.0
 base_damage = 250
 damage_type = 1

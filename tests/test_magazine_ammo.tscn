@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8magammo824a"]
+
+[ext_resource type="Script" path="res://tests/test_magazine_ammo.gd" id="1_ma"]
+
+[node name="TestMagazineAmmo" type="Node"]
+script = ExtResource("1_ma")

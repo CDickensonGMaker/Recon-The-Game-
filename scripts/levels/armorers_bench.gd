@@ -204,9 +204,9 @@ func _draw_from_rack(wh: WeaponHolder, tres_path: String) -> void:
 			return
 		CampaignState.store_rack_condition(wh.primary_weapon.id, wh.weapon_condition)
 
-	var ammo: Array[int] = [data.magazine_size, 4]
 	wh.primary_weapon = data
-	wh.primary_ammo = ammo
+	# Rack issue matches the ruled field loadout: 1 seated + 6 in reserve.
+	wh.set_slot_mags(0, WeaponHolder.default_loadout(data, 6))
 	wh.primary_is_captured = false
 	wh.weapon_condition = CampaignState.rack_condition_of(data.id)
 	wh.is_jammed = false
