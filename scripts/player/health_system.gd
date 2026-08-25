@@ -279,10 +279,20 @@ func _die() -> void:
 	force_death()
 
 
+## An installed lives-economy handler (BodySwapSystem) may spend this death on
+## the current BODY and wake the player in another man. Consulted only here,
+## after the downed/medic layer has already failed - a life is burned at
+## force_death, never at downed, so the medic sprint keeps mattering.
+var swap_handler: Node = null
+
+
 ## The real end (no medic, timer out, or no handler).
 func force_death() -> void:
 	is_downed = false
 	is_bleeding = false
+	if swap_handler != null and is_instance_valid(swap_handler) \
+			and swap_handler.has_method("try_swap") and bool(swap_handler.call("try_swap")):
+		return
 	died.emit()
 	GameManager.on_player_death()
 

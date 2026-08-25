@@ -15,6 +15,7 @@ extends Node
 ## Preloaded, not by class_name: a global class is not registered until the editor
 ## rescans, so a fresh script fails every headless run.
 const TITLE_SPLASH := preload("res://scripts/ui/screens/title_splash.gd")
+const BODY_SWAP := preload("res://scripts/player/body_swap_system.gd")
 
 const DEMO_SEED: int = 29072026
 const DEMO_NAME := "FIREBASE HOLDOUT"
@@ -90,6 +91,7 @@ var _flow: GameFlow = null
 var _clock: float = 0.0
 var _phase: int = 0   ## 0 explore, 1 probed, 2 siege, 3 ended (dawn or KIA)
 var _card: CanvasLayer = null
+var _swap: BODY_SWAP = null
 
 
 func _ready() -> void:
@@ -424,6 +426,7 @@ func _physics_process(delta: float) -> void:
 		if EXCLUDE_DEBRIEF:
 			_flow.director.mission_failed.disconnect(_flow._on_mission_ended)
 			_flow.director.mission_failed.connect(_on_demo_death)
+		_install_body_swap()
 	_clock += minf(delta, 0.066)
 	# M-6 (audit 2026-08-04): the one-shot clock print that proves the 06:30 arc is real.
 	# At 38x, 60s after the seat should read ~07:08; a DUSK boot reads ~18:08 here.
@@ -543,10 +546,34 @@ func _ending() -> void:
 	_show_end_card("FIREBASE HELD" if ENDING_PLAYER_SURVIVES else "THEY CAME BACK FOR THE WIRE")
 
 
+## THE LIVES ECONOMY (rulings 2026-08-22 + 08-24): death spends the current body
+## and wakes the player as a pre-picked garrison man - 4 men total, no number
+## ever rendered. BodySwapSystem intercepts force_death; this chain only fires
+## when the pool is spent (or never existed), so _on_demo_death IS the last man.
+func _install_body_swap() -> void:
+	var p := GameManager.player as Node3D
+	if p == null or not is_instance_valid(p):
+		return
+	var hs := p.get("health_system") as HealthSystem
+	if hs == null:
+		return
+	# The first body is a named man like every other: deterministic per the demo
+	# seed, learned at the moment of death - the only moment the demo needs it.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = DEMO_SEED
+	var me: Dictionary = SquadRoster.generate_member(rng, "RIFLEMAN")
+	_swap = BODY_SWAP.new()
+	add_child(_swap)
+	_swap.setup(p, hs, "PFC %s" % str(me.get("name", "?")),
+		func() -> bool: return _card != null)
+
+
 func _on_demo_death(_result: Dictionary) -> void:
 	print("[DEMO] KIA at %.0fs - end card" % _clock)
 	_phase = 3
-	_show_end_card("YOU FELL BEFORE DAWN")
+	var fell_through_bodies: bool = _swap != null and not _swap.bodies_spent.is_empty()
+	_show_end_card("THE WIRE BROKE BEFORE DAWN" if fell_through_bodies
+		else "YOU FELL BEFORE DAWN")
 
 
 ## The demo's one terminal screen, win or lose. The war freezes behind it, the
@@ -564,6 +591,11 @@ func _show_end_card(title: String) -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 14)
 	col.add_child(ReconUI.make_label(title, 30, ReconUI.AMBER))
+	# The men you were: every body the lives economy burned reads as its own KIA
+	# row, so the card carries the cost in names (never a count - R4, 2026-08-24).
+	if _swap != null:
+		for b in _swap.bodies_spent:
+			col.add_child(ReconUI.make_label("%s - KIA" % b, 16, ReconUI.DIM))
 	if _flow.squad != null:
 		for a in _flow.squad.members:
 			if a == null or not is_instance_valid(a):
