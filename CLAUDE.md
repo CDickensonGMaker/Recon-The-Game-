@@ -233,6 +233,15 @@ viewmodel mesh to change its on-screen size; tune `viewmodel_fov` in the .tres.
 5. Keep hip_rotation and ads_rotation numerically close (within 90°) to prevent
    spinning during the ADS transition — the bench warns when violated
 
+### Texture Budget (Summoner's law, 2026-08-18)
+No embedded image in a shipped GLB may exceed 1MB. After ANY GLB export, run
+`python tools/shrink_oversized_textures.py --apply` from the repo root (dry-run
+without the flag) — it halves every oversized embedded image identically, never
+touches geometry/rigs/UVs (UVs are 0–1 fractions; downscaling cannot shift a
+wrap), and never grows a file. Audit the whole tree with the wyrm scanner:
+`python C:\Users\caleb\wyrm-workshop\tools\run.py glb_textures`. Better: shrink
+the sheet in the source .blend so the export is born lean.
+
 
 ## NO MORE DRIFT — correct it on contact (Summoner's standing law, 2026-07-19)
 

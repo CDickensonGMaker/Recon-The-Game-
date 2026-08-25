@@ -2103,3 +2103,52 @@ because that is what makes `helicopter.gd`'s AABB recentre exactly inert.
 Renders (final geometry, 8 views incl. a nose close-up, a ramp close-up and the 1.7132 m
 grunt datum):
 `C:\Users\caleb\AppData\Local\Temp\claude\C--Users-caleb\f2a96a99-609e-4e11-8172-5911f8b6f749\scratchpad\vehicles\ch47v2_{side,front,threequarter,rear_quarter,top,nose,ramp,datum}.png`
+
+---
+
+## 2026-08-24 · `etool_shovel` — M-1943 folding entrenching tool, folded out (NPC hand prop)
+
+Headless only (`blender -b --factory-startup -P tools/build_etool_shovel.py`, Blender 5.0.1).
+Never touched a live window. Verify from a clean scene on the SHIPPED file:
+`blender -b --factory-startup -P tools/verify_etool.py`.
+
+`assets/world/props/etool_shovel.blend` / `.glb` · root+mesh `prop_etool_shovel` ·
+**144 tris / 88 source verts** · one material `etool_psx` · one **64x64** embedded PNG
+(**8,200 bytes**, NEAREST `magFilter 9728`) · **0.711 m** overall.
+
+**Researched dimensions, reconciled from three independent sources.** Overall extended
+28 in = 0.711 m; wood handle 16 in = 0.406 m; residual 3 in = shank + locking collar;
+blade 9 x 6.3 in = 0.229 x 0.160 m. The three add to 28 exactly, which is the check that
+made the residual trustworthy — no source states the shank length directly.
+**Vietnam truth worth knowing:** the tool actually carried through most of Vietnam is the
+**M1951** (shovel *plus* a folding pick, thicker OVAL handle, more rounded blade, lanyard
+hole in the butt). The M1943 is period-correct too (vietnamgear.com lists it) and is the
+cleaner PSX silhouette, so that is what shipped. A pick nub is ~12 tris if he wants M1951.
+
+**HELD-PROP ORIENTATION CONTRACT — measured, not assumed.** `sog_bowie.glb` is the project's
+only shipped held hand prop; its per-material vertex spans put the steel blade at glTF
+z 0..0.168 and the pommel at z −0.1185, i.e. **origin at the grip, working end toward
+glTF +Z**. The e-tool matches: blade tip glTF z +0.508, butt z −0.203, origin at the
+mid-shaft fist grip. Blender-side that is blade at −Y. This is NOT the world-prop
+convention — `medical_crate` / `m26_grenade` sit base-on-ground, centred in X/Y
+(`tools/export_m26_grenade_prop.py:44`). Do not copy one onto the other.
+
+**Two defects the first pass shipped, both caught by rendering and neither by any number.**
+1. **A butt joint where two parts meet reads as a BREAK.** The shank strap ended exactly on
+   the blade shoulder plane. Every measurement said "touching"; the three-quarter render
+   showed a black notch with daylight through it. Fixed by burying the shank 20 mm into the
+   blade — and then **dropping both of the box's end caps**, because a cap inside another
+   solid is an interior face. Overlap, never abut, and delete the caps you buried.
+2. **A blade that tapers to a 0.032 m tip reads as a SPEAR, not a spade.** Blunted to
+   0.060 m across the tip and the widest station pulled forward (`ROWS` in the build script).
+
+**Instrument note.** An ortho check camera at azimuth 0 on a long thin prop looks straight
+down its own axis and renders a 6-pixel smudge — the first "side" view proved nothing.
+Views are now `profile` (az 90) / `face` (el 88) / `threequarter`; `ortho_scale` 0.98 fits
+0.711 m in a 900x700 frame (vertical span = scale x 700/900 = 0.762, and 0.86 clipped it).
+
+**Existing e-tool asset: none.** `hitzone_builder.gd:46-47` lists `entrench` and `shovel` in
+`_GEAR_NAME_HINTS`, but the whole tree has zero files matching `*shovel*`/`*etool*`/
+`*entrench*` and no character GLB carries such a mesh — those hints were written ahead of
+the asset. Modelled fresh; nothing to harvest. The shipped mesh name contains `shovel`, so
+if it is ever welded onto a body it is correctly kept out of the hurtbox hulls.
