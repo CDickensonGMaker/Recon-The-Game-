@@ -14,6 +14,7 @@ signal barracks_pressed
 signal save_pressed
 signal abandon_pressed
 signal quit_to_menu_pressed
+signal quit_to_desktop_pressed
 
 var _root: Control = null
 
@@ -63,6 +64,10 @@ func build(in_mission: bool) -> void:
 	box.add_child(ReconUI.make_menu_button(
 		"RESTART DAY" if GameFlow.demo_mode else "QUIT TO MENU", func() -> void:
 		quit_to_menu_pressed.emit()))
+	# The demo has no front door to fall back to, so ESC had no way OUT of the game
+	# at all (his playtest, 2026-08-27). One menu, both exits.
+	box.add_child(ReconUI.make_menu_button("QUIT TO DESKTOP", func() -> void:
+		quit_to_desktop_pressed.emit()))
 
 	var note := ReconUI.make_label(
 		"the war keeps its own time - saves are honest" if not in_mission

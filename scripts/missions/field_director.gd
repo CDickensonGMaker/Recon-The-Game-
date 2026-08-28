@@ -106,6 +106,11 @@ func _on_enemy_died(enemy: EnemyBase, _group_tag: String) -> void:
 	# the base's business, not his (playtest 2026-08-04: a phantom "7 kills" AAR).
 	if not patrol_out:
 		return
+	# THE SWEEP counts a body dropped in the ring however it died - the man who called the
+	# artillery cleared that village too. The AAR's kill book below is deliberately
+	# stricter (player/squad only); these are two different questions and stay separate.
+	if patrol_location != Vector3.ZERO and _sweep_arrived and _in_sweep_ring(enemy.global_position):
+		_sweep_kills += 1
 	var killer: Node3D = enemy.last_friendly_attacker()
 	if killer == null:
 		return
@@ -238,6 +243,7 @@ func _process(delta: float) -> void:
 		_poll_wire_gate()
 		_poll_firebase_threat()
 		_advance_route_tasking()
+		_poll_sweep()
 		if patrol_out and world != null and world.player != null:
 			state.mark_covered(world.player.global_position)
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
@@ -1196,6 +1202,27 @@ var patrol_count: int = 0
 var _visited_locations: Array[Vector3] = []
 var _gate_poll: float = 0.0
 
+## THE SWEEP IS FINISHED IN THE FIELD (Summoner ruling, 2026-08-28, verbatim): "when you
+## sweep an area and kill the enemies or destroy the tunnel or stash that counts as a
+## finished sweep. Then it makes a new location to go check out, or the player can choose
+## to go back."
+##
+## This is a FINER-GRAINED beat than _bank_patrol(), which stays exactly what it was - the
+## excursion-end AAR at the wire. One walk-out may finish many sweeps and still banks
+## exactly once; the two must never be conflated.
+##
+## IT IS NOT A TRACKER (ADR-029 Amendment C §4 stands): nothing checks off, no count ever
+## reaches the in-field HUD, and the next place is OFFERED over the net by FEATURE and
+## BEARING - never a pin, never a rail. Walking home instead is always legal, and the
+## offer says so out loud so the player knows the choice is his (Pillar 3).
+const SWEEP_RADIUS_M: float = 90.0    ## what "at the location" means
+const SWEEP_ARRIVE_M: float = 120.0   ## he must have actually WALKED there before anything counts
+var _sweep_arrived: bool = false
+var _sweep_kills: int = 0             ## enemies killed inside the ring since he arrived
+var _sweep_tunnels: int = 0           ## live tunnel mouths counted the moment he arrived
+var _sweep_stash_cleared: bool = false
+var _sweep_done: bool = false
+
 ## THE ROUTE (patrol-contract, ADR-029 Amendment C — PROPOSED). The player's own
 ## grease-pencil PLAN: an ordered line of waypoints (world XZ). It is INPUT to the
 ## ONE location selector (_pick_patrol_location) and to the re-tasking cadence
@@ -1261,8 +1288,7 @@ func _advance_route_tasking() -> void:
 	if _radio_check() != "":
 		return
 	var picked: Dictionary = _pick_patrol_location()
-	patrol_location = picked.get("pos", Vector3.ZERO)
-	patrol_location_kind = str(picked.get("kind", ""))
+	_set_patrol_location(picked)
 	rebark_patrol()
 
 
@@ -1405,8 +1431,7 @@ func _poll_wire_gate() -> void:
 		patrol_count += 1
 		CampaignState.begin_mission()
 		var picked: Dictionary = _pick_patrol_location()
-		patrol_location = picked.get("pos", Vector3.ZERO)
-		patrol_location_kind = str(picked.get("kind", ""))
+		_set_patrol_location(picked)
 		# Intel economy (Q2 default): looted documents buy S2's read on WHAT is out
 		# there - one point per walk-out, the map circle stays a circle either way.
 		if CampaignState.intel_points > 0 and patrol_location != Vector3.ZERO:
@@ -1510,6 +1535,120 @@ func rebark_patrol() -> void:
 			VOManager.play_squad("movement_ahead", point.member, point.global_position)
 
 
+## THE ONE PLACE the sweep's location changes. Every re-tasking door (the wire, the route,
+## a crisis, a finished sweep) comes through here so the completion latches can never be
+## left reading the previous area - four separate assignment pairs used to drift.
+## An empty dict clears the tasking.
+func _set_patrol_location(loc: Dictionary) -> void:
+	patrol_location = loc.get("pos", Vector3.ZERO)
+	patrol_location_kind = str(loc.get("kind", ""))
+	_sweep_arrived = false
+	_sweep_kills = 0
+	_sweep_tunnels = 0
+	_sweep_stash_cleared = false
+	_sweep_done = false
+
+
+func _in_sweep_ring(pos: Vector3) -> bool:
+	return Vector2(pos.x - patrol_location.x, pos.z - patrol_location.z).length() <= SWEEP_RADIUS_M
+
+
+func _hostiles_in_ring() -> int:
+	var n: int = 0
+	for e in _live_enemies:
+		if not is_instance_valid(e) or e.is_dead():
+			continue
+		if _in_sweep_ring(e.global_position):
+			n += 1
+	return n
+
+
+## Live mouths only: SatchelCharge._collapse_mouth takes the node out of the group AND out
+## of the tree, so counting the group covers every way a hole can stop being a hole.
+func _tunnels_in_ring() -> int:
+	var n: int = 0
+	for t in get_tree().get_nodes_in_group("tunnel_entrances"):
+		var tn := t as Node3D
+		if tn == null or not is_instance_valid(tn) or not tn.is_inside_tree():
+			continue
+		if _in_sweep_ring(tn.global_position):
+			n += 1
+	return n
+
+
+## Player.gd calls this the moment he empties a tunnel cache. The stash is the one of the
+## Summoner's three that has no destroy verb yet - the surface `weapons_cache` prop is a
+## plain StaticBody3D with no HP entry in Destructible.HP_FOR, so it cannot be blown up at
+## all. Clearing the tunnel's cache is the only stash verb the game actually has today;
+## when the surface cache becomes destructible this function is where it reports in.
+func report_stash_cleared(at: Vector3) -> void:
+	if not patrol_out or patrol_location == Vector3.ZERO:
+		return
+	if _in_sweep_ring(at):
+		_sweep_stash_cleared = true
+
+
+## Did this sweep finish? Polled on the same 0.5s cadence as the wire gate.
+func _poll_sweep() -> void:
+	if _sweep_done or not patrol_out or patrol_location == Vector3.ZERO:
+		return
+	if world == null or world.player == null:
+		return
+	var pp: Vector3 = world.player.global_position
+	if not _sweep_arrived:
+		# ARRIVAL IS THE BASELINE, and he has to walk there himself: without this an
+		# artillery mission dropped on a village he never visited would "finish" a sweep.
+		if Vector2(pp.x - patrol_location.x, pp.z - patrol_location.z).length() > SWEEP_ARRIVE_M:
+			return
+		_sweep_arrived = true
+		_sweep_tunnels = _tunnels_in_ring()
+		return
+	# (a) THE ENEMIES HERE ARE DEAD. A kill inside the ring is required, or stepping into
+	#     an empty field would announce a sweep nobody swept.
+	if _sweep_kills > 0 and _hostiles_in_ring() == 0:
+		_finish_sweep("THE AREA'S CLEAR")
+		return
+	# (b) THE HOLE IS CLOSED.
+	if _sweep_tunnels > 0 and _tunnels_in_ring() == 0:
+		_finish_sweep("THAT TUNNEL'S SHUT")
+		return
+	# (c) THE STASH IS CLEARED.
+	if _sweep_stash_cleared:
+		_finish_sweep("THE CACHE IS STRIPPED")
+
+
+## The beat itself. Two channels, both period-correct and neither a HUD tracker:
+## HIS OWN MEN speak whether or not the radio works - they are standing in the place - and
+## BATTALION offers the next area only over a LIVE NET. Off the net there is no new tasking
+## and he walks where he likes, which is the entire point of Pillar 3.
+func _finish_sweep(what: String) -> void:
+	_sweep_done = true
+	var here: Vector3 = patrol_location
+	# THE MAP REMEMBERS (ADR-022): a dated mark in the same ink his own report verb writes.
+	# It records what he DID and is never reconciled, ticked, counted or auto-erased.
+	state.add_field_mark("SWEPT", here, SWEEP_RADIUS_M, patrol_count)
+	toast.emit("SWEEP COMPLETE - %s" % what)
+	if squad_system != null and is_instance_valid(squad_system):
+		var point: AllyBase = squad_system.member_by_mos("POINTMAN")
+		if point != null:
+			VOManager.play_squad("clear", point.member, point.global_position)
+	if _radio_check() != "":
+		toast.emit("NO NET - KEEP GOING OR BRING THEM IN, YOUR CALL")
+		return
+	var next: Dictionary = _pick_patrol_location()
+	var npos: Vector3 = next.get("pos", Vector3.ZERO)
+	if next.is_empty() or npos == Vector3.ZERO:
+		_set_patrol_location({})   # no tasking stands, so the sheet carries no sweep circle
+		toast.emit("SIX: NOTHING ELSE OUT HERE - BRING THEM IN")
+		return
+	var from: Vector3 = world.player.global_position
+	_set_patrol_location(next)
+	toast.emit("SIX: ANOTHER ONE %s, %dM - OR BRING THEM IN. YOUR CALL." % [
+		_bearing_name(npos - from),
+		int(Vector2(npos.x - from.x, npos.z - from.z).length())])
+	_radio_vo("on_the_horn")
+
+
 ## A live crisis raised by DynamicMissionFactory. It joins the ring at the front,
 ## and if the patrol is ALREADY outside the wire it retargets the sweep on the
 ## spot. THE NET IS THE CHANNEL: off the net the word never reaches him and the
@@ -1524,8 +1663,7 @@ func raise_crisis(loc: Dictionary) -> void:
 		return
 	if _radio_check() != "":
 		return
-	patrol_location = pos
-	patrol_location_kind = str(loc.get("kind", ""))
+	_set_patrol_location(loc)
 	_visited_locations.append(pos)
 	var from: Vector3 = world.player.global_position
 	toast.emit("%s - %s, %dM" % [
@@ -1837,8 +1975,7 @@ func _bank_patrol() -> void:
 	CampaignState.commit_mission()
 	toast.emit("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" % [
 		patrol_count, int(result.get("kills", 0))])
-	patrol_location = Vector3.ZERO
-	patrol_location_kind = ""
+	_set_patrol_location({})
 	_route_idx = 0   # the plan holds; the next walk-out re-walks it from the first mark
 	# Fresh ledger for the next walk-out; live groups re-register on spawn.
 	state = MissionState.new()
@@ -1857,5 +1994,3 @@ func _bearing_name(dir: Vector3) -> String:
 
 func is_ended() -> bool:
 	return _ended
-
-

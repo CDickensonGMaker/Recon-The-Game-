@@ -1,213 +1,265 @@
-# Devil's Advocate — 2026-08-11 Playtest Defect Sweep (attack on the pre-DA synthesis)
-
-Every finding: claim attacked → code evidence → verdict. Verified against code on
-2026-08-11; nothing edited outside this file.
-
----
-
-## W1 — Audio
-
-**1. Limiter swap breaks a script that indexes Master effects.**
-Evidence: `player.gd:1901-1906` appends its lowpass and remembers `get_bus_effect_count-1`;
-`:1969-1971` retrieves by that stored index and casts `as AudioEffectLowPassFilter` (a wrong
-node would just null out). The limiter stays effect 0; count is unchanged by a type swap.
-`spectre_gunship.gd:142`, `cas_airplane.gd:100`, `helicopter.gd:102` route by bus NAME with
-SFX fallback. **CONFIRMED-SAFE.**
-
-**2. "Swap the sub_resource to AudioEffectHardLimiter (ceiling −0.8)".**
-`default_bus_layout.tres:3-5` carries `threshold_db = -1.0`. `AudioEffectHardLimiter` has NO
-`threshold_db` (its properties are `ceiling_db`, `release`, `pre_gain_db`).
-**ADJUSTMENT:** drop the `threshold_db` line in the same edit or the .tres carries a dead
-property that warns on load.
-
-**3. Vehicles bus −6 survives boot.**
-`game_settings.gd:58-63` `apply_audio()` re-stamps only Master/SFX/Ambience/Music from saved
-settings; Vehicles is untouched. **CONFIRMED-SAFE.**
-
-**4. "Per-shot mech layer skips cleanly after the rename."**
-`audio_manager.gd:192-198` `_single` has no class-bank fallback (only `_next_fire` falls back,
-`:210-213`); `:330-331` `if mech:` skips on null. Repo-wide, nothing loads `mech_ak47.wav` by
-literal path (grep: only the `.import` sidecar and war-room docs). **CONFIRMED-SAFE.**
-
-**5. "Rack recording preserved in the reload/bolt slot" — implies it will be HEARD.**
-`play_bolt_player` (`audio_manager.gd:348-355`) is reached ONLY from
-`weapon_holder.gd:400-407`, the `FiringMode.BOLT_ACTION` arm. The AK is automatic; empty
-reload plays `reload_ak47.wav` via `play_reload_player`. So `bolt_ak47.wav` will be a
-**dormant asset** — preserved, never played. Acceptable (recordings are sacred), but the
-synthesis's "empty slot … changes what an empty reload sounds like" is wrong on both counts:
-nothing about the AK reload changes, and nothing plays the file.
-**ADJUSTMENT:** say this in the change; do not promise Caleb an audible bolt.
-
-**6. ".import sidecar rename — safe outside the editor?"**
-`mech_ak47.wav.import:6,10-11` embeds the old filename in `path`, `source_file` and
-`dest_files` (hash `mech_ak47.wav-35be27dd…`). Renaming both files works at RUNTIME (the old
-`.sample` still exists in `.godot/imported`), but the internals are stale: a cleaned
-`.godot/` fails to load the stream until an editor import pass regenerates it.
-**ADJUSTMENT:** rename both, update `source_file=` in the sidecar, and open the editor once
-before the next playtest so the reimport lands. Same for `mech_car15.wav` if it moves
-(102,078 B, same 20:35-20:43 Jul-29 batch on disk — the audit is warranted).
-
-**7. Per-ship pitch jitter "in `_build_rotor_audio`".**
-`helicopter.gd:121` `_drive_rotor_audio` re-stamps `pitch_scale` from the formula EVERY frame
-— a jitter applied only at build time is overwritten on the first tick.
-**ADJUSTMENT:** store a per-ship `_pitch_jitter` member at build, add it inside the `:121`
-formula. Constants `ROTOR_DB_FULL/IDLE/UNIT_SIZE/max_db` all confirmed at
-`helicopter.gd:89-92,105`; no test references any of them.
+# DEVIL'S ADVOCATE — the replacement economy
+**Matter:** "On patrol everyone but 2 other guys died. How does the player get more units back?"
+**Date:** 2026-08-28. Every claim below carries a `file:line` or names the probe. Where I have none, I say so.
 
 ---
 
-## W2 — LZ dispersal
+## 0. THE FINDING THAT SHOULD END THE SESSION
 
-**1. "unseat_all → PASSENGER_SEATS only" breaks another caller or a test.**
-Sole production caller: `heli_lift.gd:280`. `tests/test_seat_system.gd:186-205` never calls
-`unseat_all` — it unseats per-seat via `unseat()` (its `:204` failure STRING says
-"unseat_all"; message drift, not a dependency). `tests/test_only_liveness_baseline.json:9`
-still lists `unseat_all` as test-only — stale against `heli_lift.gd:280` (pre-existing
-drift, note in passing). Pilots staying aboard is what `heli_lift.gd:119` already promises,
-and `_deliver` (`heli_lift.gd:282-314`) walks `_pax` only. **CONFIRMED-SAFE**, and it kills
-the pilot hard-teleport (`civilian.gd:330-333` → `:993-1004`) for free.
+**Nobody has checked whether the mechanic under debate is reachable in the product that ships.**
 
-**2. "Will a 140° fan with radius up to 2.5+0.9·11 stay on the pad — 12 pax?"**
-Real numbers: `PASSENGER_SEATS` = **10** (8 pax + 2 gunners, `seat_system.gd:27-31`;
-`SEAT_NAMES` = 12 incl. pilots — the file header's "11-seat" is its own drift), and
-`heli_lift.gd:27` `PAX_MAX = 6`, so the demo fan tops out at index 5 → **6.9 m** radius.
-Fine on any pad. **CONFIRMED-SAFE** at demo loads; clamp radius at ~7 m anyway so a future
-10-body unseat cannot fan to 10.6 m.
+Two pointers, and they are fatal to the framing:
 
-**3. Bunk clamp via raw `NavigationServer3D.map_get_closest_point` (heli_lift.gd:294-300).**
-The precedent (`nav_router.gd:67-69, 84-88`) guards with map-valid + `map_get_iteration_id
-> 0` + a 12 m `CLAMP_MAX_M` cap. A naked call against an unsynced map, or with no region
-covering the point, returns garbage/far-region points. The firebase is always baked
-(`nav_baker.gd:124` comment) so steady-state is fine, but the guard is three lines.
-**ADJUSTMENT:** copy all three guards, cap at ~12 m else keep the raw bunk.
+1. `SquadRoster.ensure_roster()` is called from exactly **two** places repo-wide:
+   `scripts/squad/squad_system.gd:70` (once, inside `setup()`, at squad spawn) and
+   `scripts/ui/screens/barracks.gd:50` (a menu refresh). **It does not run during a mission.**
+   When Caleb's men died on patrol, nothing regenerated anybody. He finished that day with two men
+   because the squad is built once at `setup()` and never rebuilt. The "free instant reset" the
+   council was convened to replace **did not fire in the run that prompted the question.**
 
-**4. Stick line vs `BOARD_NEAR_M`.**
-Gate measures to the SHIP, not staging (`seat_system.gd:424-426`); 6th man ≈ 7.4 m from the
-airframe (2.5 m push + 5×1.4 m lateral) — inside the 8 m gate with 0.6 m margin.
-**CONFIRMED-SAFE at 1.4 m spacing; do not widen it.**
+2. The shipping EA product is `demo_game.tscn`, and it opens with
+   `CampaignState.reset_campaign()` behind `EXCLUDE_SAVES := true` (`scripts/levels/demo_game.gd:25,
+   100-108`). Every demo run starts with a **virgin campaign** — roster `[]`, `missions_played` 0,
+   `kia_total` 0 — written to `user://campaign_demo.cfg` and wiped on the next boot (`:108`,
+   `_wipe_demo_sandbox`). The arc is **one day**, ending on the gunships (`:70-78`, `END_BACKSTOP_S`).
 
----
+**Therefore: in the thing shipping 2026-09-06 there is no "between excursions".** There is one
+excursion. A replacement economy — cost, wait, trickle, battalion pipeline, all of it — would be
+built with **zero live consumers in the shipping build**. That is not a feature. Under ADR-023 that
+is a **fossil authored on purpose**: code that reads as load-bearing, that no shipping path executes,
+that the next agent will find and assume is live. This project has a written law against exactly
+this, and the law was written because five such systems were found in one session.
 
-## W3 — Squad catch-up
-
-**1. File path.** There is no `scripts/allies/squad_system.gd`. It lives at
-`scripts/squad/squad_system.gd`; `_physics_process` at `:397-419` with the cited 0.4 s
-cadence pattern (`:407-411`), `members` at `:23`, player via `world.player` (`:122,371`),
-camera precedent `:256`. **ADJUSTMENT:** fix the path in the plan. Fields confirmed:
-`order_mode`/`enum OrderMode {FOLLOW, HOLD, MOVE_TO, RESCUE}` (`ally_base.gd:169,185`),
-`squad_member` (`:174`), `target_last_seen_time` (`:27`), `_slot_valid` (`:199,1082-1086`).
-FOLLOW-only gating leaves HOLD/MOVE_TO/RESCUE untouched. `is_position_behind` is real
-Camera3D API with in-repo precedent (`squad_nameplate.gd`, guarded by
-`test_playtest_bundle.gd:139`) and returns true behind the camera plane — the right
-direction.
-
-**2. LANDMINE — nav-clamping the teleport destination drags the squad BACK TO BASE.**
-The plan clamps placement with `map_get_closest_point` "precedent nav_router.gd:86" — but
-the precedent only clamps AFTER proving the point is inside the agent's own baked box
-(`nav_router.gd:59` `box_contains`) and caps the correction at 12 m (`:37,87`). Regions
-exist only at the firebase and enemy-anchored sites (`nav_baker.gd:109-117` `should_bake`);
-the ground the player walks OUT INTO has none. An unguarded clamp there returns the nearest
-point on a FAR region — the firebase — and the "catch-up" teleports a lagging man to the
-wire, the exact inverse of the defect. **Required guard:** clamp only when
-`NavBaker.box_index_at(dest) >= 0` (`nav_baker.gd:81`), or accept the clamp only if it moved
-the point < ~12 m; otherwise use the raw dest + ground ray. Plus the map-iteration guard
-(`nav_router.gd:67-69`).
-
-**3. LANDMINE — individual gate release guts the opening beat.**
-`demo_game.gd:296-306`: the beat IS "your own squad leaving without you". Release a man to
-FOLLOW on HIS OWN arrival (`ally_base.gd:1028-1093` FOLLOW walks to the player) and the
-first arrivals turn around and walk BACK to the player still sitting on his bunk — the squad
-ping-pongs and never assembles at the wire. The defect Caleb hit needs only the third
-expiry. **ADJUSTMENT:** keep the collective release (`demo_game.gd:334-349`) exactly as-is,
-ADD ONLY "release-all when the player himself passes the gate radius". The M-4 canary print
-(`:352-353`) then survives with its semantics intact.
-
-**4. Player dead / end card.** The plan never gates on the player's state. Distance is
-static around a corpse so the 40 m tier rarely fires, but the end-card camera can face
-anywhere. **ADJUSTMENT (minor):** add `GameManager.can_player_act()` to the gate. Player
-seated flag exists as claimed (`player.gd:1294` `is_seated`).
+If the council wants to proceed anyway, it must first answer, out loud: *which build, on which date,
+runs `ensure_roster` a second time with a corpse in the array?* Today the answer is "the campaign
+loop, which is deferred post-launch with PLAYTEST R4" (`production/GAME_GUIDE.md:376-379`).
 
 ---
 
-## W4 — Ragdoll pose bake
+## 1. THE CASE **FOR** THE FREE RESET
 
-**1. `body_offset` and the inverse math.** `PhysicalBone3D.body_offset` exists in 4.x, and
-the engine's own simulator applies exactly
-`bone_global = skel.global_transform.affine_inverse() * body.global_transform *
-body_offset.affine_inverse()` — the plan's formula matches the engine's direction.
-**CONFIRMED.**
+I am supposed to attack the premise, so here it is: **the free reset is currently correct, and it is
+correct for reasons that have nothing to do with generosity.**
 
-**2. Feedback while simulating.** Once `physical_bones_start_simulation()` runs
-(`model_actor.gd:785`), simulated PhysicalBone3D bodies are dynamic — they are driven by
-physics only and never read bone poses back as targets; the modifier's per-frame output is
-the same values the bake writes (idempotent). The clip is paused (`:676-678,773`) so no
-AnimationPlayer fights the writes. **CONFIRMED-SAFE.**
+**a) It is a save-file integrity device, not an economy.** Read what it actually does. Lines 170-173
+drop the dead. Lines 178-185 refill the MOS slots. Lines 187-200 back-fill `skill_uses`, `xp`,
+`skills`, `face`, `helmet` onto records written by older builds. `ensure_roster` is the **migration
+shim** that guarantees `squad_system.setup()` gets eight well-formed dicts with a POINTMAN, an RTO
+and a MEDIC in them. Replace the "free rookies" line with an economy and you have also replaced the
+thing that stops a 3-man save from spawning a squad with no radio and no medic. Whatever ships must
+keep that guarantee, or `member_by_mos("RTO")` starts returning null in paths that do not all
+null-check.
 
-**3. Write order / non-simulated bones.** Naive iteration of `sim.get_children()` can
-convert a child bone against a STALE parent global. **ADJUSTMENT:** write in ascending
-bone-index order using `Skeleton3D.set_bone_global_pose()` (4.4+, present in 4.7) so each
-conversion sees the just-written parent; skip bones that failed to bind (reuse the
-`get_bone_id()`/`find_bone` fallback at `:763-766`). Non-simulated bones (fingers) keep
-their animation locals and ride their baked parents — same as the engine modifier. Real cost
-is ~11-15 physical bones per ragdoll, not "~50" — cheaper than the synthesis budgets.
+**b) The punishment for losing men ALREADY EXISTS, and it is severe.** Nobody in this council has
+priced what the current game already charges:
+- Lose the **RTO** → `_grant_fire_support` reads `member_by_mos("RTO")` for the `fo_fac` level
+  (`scripts/missions/field_director.gd:1448-1450`) and ADR-011 gates every fire-support verb on him.
+  The mitigation is the radio handoff (`squad_system.gd:774-786`) — which costs you *another man's
+  MOS*: the man who takes it stops being a rifleman/grenadier and becomes the RTO. You do not lose
+  the radio; you lose a gun to keep it.
+- Lose the **MEDIC** → no revive chain, no `MedicalCrate.drop` resupply (`squad_system.gd:741-748`).
+- Lose the **POINTMAN** → the trap/ambush warning verb goes with him (`GAME_GUIDE.md:172-173`).
+- And the men are lost **for the remainder of the day**, because of §0.1.
 
-**4. Cap interaction.** A capped kill never gets a sim (`:746-747` returns false) → falls to
-`settle_flat_corpse`, which no-ops only when a ragdoll EXISTS (`:843-845`); the per-frame
-bake keys on `_ragdoll_sim`/`is_simulating_physics()` and never runs for capped corpses.
-**CONFIRMED-SAFE.**
+A day where five men die is already a day with no air, no medic, no point warnings and three guns.
+**Adding a replacement cost taxes the same loss twice.** The council is about to design a punishment
+for an event that is already the harshest thing in the game, and to do it without measuring the
+existing penalty first.
 
-**5. Fossil.** With the per-frame bake live, `sleep_ragdoll`'s `get_bone_global_pose` bake
-(`:706-716`) reads back the very poses the bake wrote — a redundant no-op.
-**ADJUSTMENT:** delete it in the same change (Fossil Law), keep only `stop_simulation`.
+**c) The AI cannot yet be blamed for the deaths.** `production/PLAYTEST_FINDINGS_2026-08-28.md`,
+his own run of 8/27, open items: NPCs fall through the ground (#4), NPC squads spawn on the hooch
+**roof** (#6), the squad **does not crouch when you crouch and stands on top of you** (#28),
+squadmate muzzle flashes are detached from the muzzle (#29), the squad **opened fire inside the wire
+with no enemy** (#8), there is **no friendly-fire warning** (#33), and the squad cannot path into the
+hooches (#22). Item #28 is the one that matters here: a squadmate who stands on the player during a
+firefight is a squadmate standing in the player's line of fire, in a game with 27-damage rifles and a
+**×2.5 torso multiplier and a bypass-fatal head zone** (CLAUDE.md, ADR-016 Amendment D).
 
-**6. `_physics_process` on ModelActor.** None exists today (grep). Hundreds of ModelActors
-are alive at once. **ADJUSTMENT:** `set_physics_process(false)` in `_ready`, enable in
-`start_ragdoll`, disable in `sleep_ragdoll`/`_release_ragdoll_slot` — don't pay an
-early-return on every actor every frame. Note `wake_ragdoll` (`:906-908`) restarts the sim;
-re-enable there too.
+**A replacement cost is a bill for deaths the player did not cause.** Until #28, #8 and #33 are
+closed, the honest description of the proposed feature is: *charge the player for the AI's bugs.*
 
-**7. Civilian 90° pitch delete (`civilian.gd:712-713`).** Confirmed: death clip AND
-`rotation_degrees.x = 90` double-lay. But the pitch is the only prone GUARANTEE if a rig
-carries none of the three clips. **ADJUSTMENT:** replace the pitch with
-`actor.settle_flat_corpse()` (the guaranteed-prone path, `model_actor.gd:843-860`), not a
-bare delete.
-
----
-
-## W5 — Civilian/VC nav
-
-**1. LANDMINE — the suspected mis-clamp is real.** Quiet villages bake NO region:
-`should_bake` (`nav_baker.gd:109-117`) requires an enemy anchor within radius+60 m. A naked
-`map_get_closest_point` on the shared map then returns the closest point on a FAR region —
-clamping a villager's home/work/flee target onto the firebase mesh 100+ m away, teleporting
-him there via `place_for_current_hour` (`civilian.gd:1003`). **Required guard (same as W3):**
-clamp only when `NavBaker.box_index_at(target) >= 0`, cap the correction at ~12 m
-(`nav_router.gd:37,87` `CLAMP_MAX_M`), and copy the map-iteration guard
-(`nav_router.gd:67-69`). Where no region covers the point, fall back to the
-`nav_blockers`-box rejection the synthesis already names — that path has no far-region
-failure mode. Same guard on the FLEE clamp: in a no-region village, flee DIRECT, don't clamp.
-
-**2. Cited functions all exist as claimed:** `place_for_current_hour` `:993-1004`,
-`_resolve_target` `:1007-1014`, `_bt_settle` jitter `:1083-1099`, FLEE `:380-386`,
-`_step_toward` 1 m zero-band `:658-671`, router only at LOD_FULL `:662-663`, and no unstick
-logic anywhere in `civilian.gd` (grep). **CONFIRMED.**
-
-**3. Escalation snap "to `_self_out`".** That is NavRouter PRIVATE cache, populated only
-after a failed on-mesh query (`nav_router.gd:106-109`) — a civilian who direct-steered all
-day has never filled it. **ADJUSTMENT:** expose a guarded
-`NavRouter.nearest_mesh_point(from)` (same iteration + box + cap guards) rather than reading
-`_self_out`, and accept "no snap available" at unbaked villages — the blocker-box rejection
-in (1) is the fix that actually covers them.
+**d) The demo is a 30-minute first impression with no second day.** A punitive economy has literally
+nowhere to be felt inside 30 minutes; all it can do is make the last 10 minutes of a bad run worse
+right before the siege, which is the beat the whole demo exists to sell. `SIEGE_STRENGTH` 45 men
+against a firebase — arriving at that with 3 grunts because the economy would not give you men back
+is not "consequence", it is the demo failing to show the thing it was built to show.
 
 ---
 
-## Demo path + test blast radius
+## 2. THE DEATH SPIRAL — where the line is, in numbers
 
-- Demo runs every touched path: `AIR_OPENING` huey beats incl. `lz_cycle`
-  (`demo_game.gd:153-166`), gate order `:301-353`, garrison civilians, ragdolls on every kill.
-- Grep of `tests/` for `ROTOR_DB_FULL`, `unseat_all`, `mech_ak47`, `GATE_ORDER`, bus layout:
-  only `test_seat_system.gd` (per-seat `unseat`, unaffected) and `test_playtest_bundle.gd:139`
-  (the 2026-07-19 nameplate guard, unrelated). No suite goes red from these changes.
-- Pre-existing drift found, correct on contact: `seat_system.gd:1-2` "11-seat" vs 12
-  `SEAT_NAMES`; `test_seat_system.gd:204` message says "unseat_all" over per-seat code;
-  `test_only_liveness_baseline.json:9` lists `unseat_all` as test-only vs `heli_lift.gd:280`.
+State the mechanic honestly and it collapses on its own arithmetic.
+
+Let **L** = expected men lost per excursion, **R** = replacements delivered per excursion,
+**N** = 8 (`SquadRoster.SQUAD_SIZE:67`, locked in step with `SquadSystem.SQUAD_SIZE:23`).
+
+Roster level is a queue: `N(t+1) = min(8, N(t) − L + R)`.
+
+- **R ≥ L ⇒ no economy exists.** The roster returns to 8; the trickle is theatre. This is the free
+  reset with extra steps and a fresh save-migration risk. It is also the only setting that is safe
+  today.
+- **R < L ⇒ the spiral is not a risk, it is the definition.** Every excursion strictly reduces the
+  roster until L falls to meet R — and L does not fall as the squad shrinks, it **rises**, because
+  fewer guns means longer engagements, and because the first three specialists lost (RTO/MEDIC/POINT)
+  each remove a survival verb. The feedback loop has **positive gain**. There is no equilibrium
+  above zero except the floor you hand-code.
+
+Put his own run in it. He came home with **2 of 8**: L = 6.
+- R = 1/day → **6 days** at reduced strength; at ~30 real minutes/day that is **3 hours of play
+  before the squad is whole**, the first ~2 hours of it below the 5-man MOS set.
+- R = 2/day → 3 days, ~90 minutes.
+- R = "full refill" → today's behaviour.
+
+**The line, stated so it can be ruled on:** any R below L is a spiral, and the only thing that stops
+a spiral is a **floor**, not a rate. So the real question is not "how fast do FNGs arrive" — it is
+**"what is the smallest squad the game will ever hand you?"** Answer that and the rate becomes a
+cosmetic detail. If the floor is 5 (the MOS set), the economy can never actually hurt, and you have
+just built a trickle animation. If the floor is below 5, you have a 30-minute-day product that can
+put a player into the 45-man siege without a medic or a radio, permanently, with no way back.
+
+**Pillar 5 says fail forward, never reload-and-memorize.** `iron_man` is a *flag*, defaulting false
+(`scripts/autoload/campaign_state.gd:33`, `:352-353`) — the ordinary player **can** reload. A
+replacement cost is precisely the pressure that teaches him to. And note the shape of the lesson: he
+will not reload because he was outplayed, he will reload because a squadmate stood on top of him
+(#28) or opened fire at nothing (#8). **We would be teaching save-scumming as the correct response to
+our own defect list.** That is a Pillar 5 violation with a witness.
+
+---
+
+## 3. "MAKE IT HURT" — what does the player DO while he waits?
+
+Name the downtime activities the firebase offers, then check each against his 8/27 run:
+
+| Downtime activity | State on 2026-08-27 |
+|---|---|
+| Enter a bunker | **Cannot enter ANY bunker** (#3) |
+| Visit the aid station and see your wounded | **See-through tent, everyone T-posed, no wounded present** (#26) |
+| Mess hall | **No mess hall animations play** (#27) |
+| Watch the garrison work | Work points drop silently on a bare `continue` (Q1/24, `working_point_resolver.gd:20-28`); men sit where there is nothing to sit on |
+| Man the guns | **Nobody ever manned the artillery gun**; floating shells (#16) |
+| Look around the hooches | **Every hooch has the identical interior**; chairs face away from tables; radio lies wrong (#19-21) |
+| HQ | **Unbuilt** (#11) |
+
+**There is nothing to do.** So the honest name for the proposal is: *stand in a broken firebase and
+watch a number go down.* A wait timer is not a design; a wait timer pointed at content that does not
+work yet is a **guided tour of the bug list**. We would be using the replacement economy to force the
+player to look at items #3, #11, #16, #19, #20, #21, #26 and #27 for as long as the timer lasts.
+
+If a cost ships, it must be **paid in something the player does**, not in something he waits through
+— and every candidate ("run a supply mission", "escort the FNG convoy") is #35, the convoy Caleb
+himself flagged as *"big; not launch scope unless you say so."*
+
+---
+
+## 4. THE RPG ANGLE — you are solving the wrong variable
+
+Pillar 4: **the squad is the RPG.** Now measure how much RPG a man can actually accumulate before he
+dies, using the shipping build's own numbers:
+
+- A nickname requires **3 missions** (`squad_roster.gd:75` `NICK_MISSIONS`).
+- Rank requires 1 / 2 / 4 / 8 / 12 / 16 missions (`squad_roster.gd:210-225`).
+- Skill levels come from `credit_use` against `SkillCatalog.uses_for_level` (`:143-161`).
+- The demo runs **one day**, and wipes the campaign at boot (`demo_game.gd:100-108`).
+
+**In the shipping product, `missions` is 0 for every man, forever.** No nickname is ever earned. No
+man is ever above PVT. The entire veterancy ladder — the thing that is supposed to make you care who
+died — is **unreachable in EA**. The GAME_GUIDE already says it: "a free rookie must be visibly,
+audibly worse" is listed as **the debt ADR-018 exists to pay**, not as built (`GAME_GUIDE.md:181-183,
+191-195`).
+
+So: if men die often and are replaced by strangers, the player never bonds — **but he does not bond
+today either**, and no replacement economy fixes that. Bonding is bought with *time survived*, and
+the two levers on time survived are (a) how lethal the world is to allies and (b) whether the squad
+AI keeps itself alive. **Neither is a replacement-rate problem.**
+
+The proposal has misdiagnosed the variable. The player lost six men in one day. The interesting
+question is not "how does he get them back", it is **"why did six men die?"** — and the candidate
+answers in his own findings are: they stood on him (#28), they fired at nothing (#8), they could not
+crouch (#28), they could not path into cover indoors (#22), and he had no friendly-fire warning (#33).
+**Ally lethality is the disease. Replacement rate is the symptom he happened to notice.**
+
+There is a second, uglier RPG risk nobody has named: a scarcity economy makes losing a *veteran*
+catastrophic, which makes the correct play **leaving your veterans at home** — or, in a game with no
+bench, playing so conservatively that Pillar 3 (freedom) dies. Scarcity does not produce attachment.
+It produces hoarding.
+
+---
+
+## 5. PRECONDITIONS — what MUST be true before any replacement COST ships
+
+Non-negotiable, in order. Each is a pointer, not an opinion.
+
+1. **A second excursion must exist in the shipping build.** Today it does not (`demo_game.gd:25,
+   100-108`; campaign loop deferred, `GAME_GUIDE.md:376-379`). Until then the economy is unreachable
+   code and ADR-023 forbids it.
+2. **The squad must not kill itself or the player.** Close #8 (fires at nothing), #28 (stands on the
+   player, will not crouch), #33 (no FF warning). A death economy is only legitimate when deaths are
+   attributable to the player.
+3. **Men must stop dying to geometry.** #4 (falls through ground), #6 (spawns on roofs), #22 (cannot
+   path into hooches). A man who falls through the world is not a casualty, he is a crash report.
+4. **Loss must already be legible before it is priced.** The KIA toast exists (`squad_system.gd:
+   758-760`); **arrival is silent** and the dead are **deleted** from view by the living-only filter
+   (`squad_roster.gd:170-173`), so the barracks cannot show a memorial. Price nothing the player
+   cannot yet read.
+5. **A hard floor must be ruled by the Summoner**, in men, with the MOS set named. Per §2 the floor
+   *is* the economy; the rate is decoration.
+6. **`ensure_roster`'s migration duties must survive.** Whatever replaces it still back-fills
+   `skill_uses` / `xp` / `skills` / `face` / `helmet` (`:187-200`) and still guarantees the MOS set,
+   or old saves spawn squads with no radio.
+7. **The body-swap pool must be reconciled.** `demo_game.gd` installs a body swap on player death
+   (`_install_body_swap`, `:186`); the roster is therefore also the player's supply of lives. Any
+   scarcity rule silently shortens the demo run. Nobody has priced this interaction.
+
+**If precondition 1 is not met, nothing else on the list matters.**
+
+---
+
+## 6. THE CHEAPEST CORRECT FIX — if exactly one thing ships
+
+**Ship the LEDGER, not the ECONOMY.** Zero cost, zero wait, zero rate. Keep the refill exactly as it
+is, and make the game *say what happened*:
+
+- At the wire / on the roster screen, name the dead — rank, name, earned nick, kills — and name the
+  men who arrived to replace them, by name and MOS.
+- Nothing changes numerically. Nobody waits. Nothing spirals.
+
+Why this is the right single move:
+- It answers **Caleb's literal question**. He asked "how does the player get more units back" — that
+  is a man reporting that **the game never told him**. It is the same defect class as his Q2 ("a
+  sweep only banks when you re-enter the wire; the game never said you did the mission",
+  `field_director.gd:1821`). He is not asking for a tax. He is asking for **information**.
+- It is the precondition for every economy anyone might later want (precondition 4), so it is not
+  throwaway work under any future ruling.
+- It costs **zero art-days** — the binding budget (`GAME_GUIDE.md:384-386`).
+- It cannot make the 30-minute demo unwinnable, cannot teach save-scumming, and cannot interact with
+  the body-swap pool.
+
+**The sacrifice, named — and I will not pretend there isn't one:** shipping only the ledger means
+**loss stays costless at the campaign layer**, and the GAME_GUIDE's own indictment ("Loss is still
+costless (instant free rookies) — the debt ADR-018's silent veterancy exists to pay",
+`GAME_GUIDE.md:194-195`) stands unpaid for another release. A player who watches six men die, reads
+six names, and walks out next dawn with six new ones has been *informed* of a consequence he did not
+*suffer*. That is a real hole in Pillar 4, and I am recommending we leave it open on purpose, because
+the alternative is paying that debt with a currency (attrition pressure) the current AI is not
+competent to charge fairly.
+
+**Second sacrifice:** a named-arrival ledger makes the strangers *more* visible. Reading "PVT MERCER
+— REPLACING SGT KOWALSKI" every dawn will make the treadmill legible rather than hiding it. That is
+the correct trade — a visible problem gets fixed, an invisible one does not — but it is a trade, and
+the council should not be told it is free.
+
+---
+
+## 7. WHAT I WOULD ACTUALLY PUT TO THE SUMMONER
+
+Two questions, glossed, no file needed to answer:
+
+1. **"When your squad gets wiped down to two men, what is the smallest squad the game is ever allowed
+   to hand you the next morning?"** (This is the floor. It is the whole design; everything else is
+   pacing.)
+2. **"Do you want to be charged for men the AI got killed — or do you want to know their names
+   first?"** (Ledger now, economy after the AI is trustworthy — versus economy now.)
+
+And one statement he needs to hear before he answers either: **in the demo that ships on 9/6 there is
+no next morning.** Whatever is decided here is a decision about the post-launch campaign loop, not
+about the run he played on 8/27.

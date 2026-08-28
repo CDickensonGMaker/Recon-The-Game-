@@ -882,6 +882,7 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	director.state.seed_value = int(p.seed)
 	_set_fsb_keepout(p.fsb_center as Vector3)
 	var built_sites: Array[Dictionary] = []
+	WorkingPointResolverScript.reset_ledger()
 	var fsb: Dictionary = planner.place_firebase_main(p.fsb_center as Vector3)
 	built_sites.append(fsb)
 	_build_firebase_garrison(world, director, fsb.center as Vector3, rng)
@@ -899,6 +900,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 			rng.randf_range(0.8, FIRST_SIGN_INTENSITY_MAX))
 		if rng.randf() < 0.4:
 			_spawn_crater_water(world, s, rng)
+
+	print(WorkingPointResolverScript.ledger_line())
 
 	# ROADS + AMBUSHES. Here and not in the plan pass: the router needs the huts to
 	# route around them, and the ambush planner needs the roads. Both must land

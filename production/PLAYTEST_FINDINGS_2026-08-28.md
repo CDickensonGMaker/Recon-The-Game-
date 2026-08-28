@@ -14,12 +14,13 @@ Ordered. Tag = who does the work. `[x]` = fixed this run (2026-08-28), unverifie
 6. [ ] [CODE] NPC squads spawn on the hooch ROOF. Same class as 4 - top-down ray vs authored floor_y.
 7. [x] [CODE] Map screen fired the weapon on click. Map now declares itself a menu; trigger/grenade/knife/medkit all gated.
 8. [ ] [CODE] Own squad opened fire inside the wire with no enemy. Needs a repro + a target-acquisition trace.
-34. [x] [CODE] Pause menu - built (ESC). RESUME / QUIT TO DESKTOP.
+34. [!] [CODE] **Pause menu - the 8/27 "fix" was a second PauseMenu class and it BROKE THE BOOT.** A full pause screen already existed (`scripts/ui/screens/pause_menu.gd`: RESUME / BARRACKS / ABANDON / RESTART DAY, wired to ESC at `game_flow.gd:54-60`). Last run added a rival `scripts/ui/pause_menu.gd` with the same `class_name PauseMenu`; the headless boot reported `Parse Error: Class "PauseMenu" hides a global script class` and every dependent script - `player.gd`, `squad_system.gd`, `game_flow.gd`, `mission_hud.gd` - failed to compile. **The duplicate is deleted** (fossil law), QUIT TO DESKTOP is added to the one real menu, and boot is now clean. **Why the real menu did not appear in your playtest is still undiagnosed** - it needs a repro, and it is NOT closed.
 
 **P2 - MISSION LEGIBILITY (your two questions)**
-Q2/NEW. [ ] [CODE] **A sweep only banks when you re-enter the wire** (`field_director.gd:1821 _bank_patrol`). Nothing in the field ever tells you the objective is satisfied - the route report is cosmetic and prints only after you are home. You did the mission; the game never said so. Needs a field-side acknowledgement.
-Q1/24. [ ] [CODE] `WorkingPointResolver.resolve()` (`working_point_resolver.gd:20-28`) drops any working point whose NodePath misses, or whose site dict has no `root`, on a bare `continue` with no warning. Prime suspect for "far under 75% of place-nodes fire" AND for NPCs sitting where there is nothing to sit on. Probe first: count dropped vs resolved.
-24. [ ] [CODE] Work markers need an ACTIVITY TYPE so a man only plays a clip the marker can support.
+Q2/NEW. [x] [CODE] **A sweep now finishes IN THE FIELD** - your ruling, built. Killing the enemies at the location, closing the tunnel, or stripping the stash ends that sweep on the spot; your point man calls it whether or not the radio works, the map takes a dated SWEPT mark, and over a live net Six OFFERS the next place by bearing and distance with "OR BRING THEM IN. YOUR CALL." No pin, nothing ticks off, and walking home is still legal. `_bank_patrol()` is untouched and still the one AAR at the wire - a walk-out can finish many sweeps and banks exactly once. (`field_director.gd` `_poll_sweep` / `_finish_sweep` / `_set_patrol_location`.)
+Q2b. [ ] [CODE] **The surface `weapons_cache` prop cannot be destroyed at all.** `site_planner.place_structure` builds it as a plain StaticBody3D and `Destructible.HP_FOR` has no entry for it, so your "destroy the stash" verb only exists underground (looting the tunnel cache). Wiring it as a Destructible is a small job - say the word.
+Q1/24. **REFUTED BY MEASUREMENT, 2026-08-28.** The resolver is not the culprit. Instrumented `WorkingPointResolver.resolve()` with a drop ledger and booted the demo world headless: **`[WORKPOINTS] offered 0, resolved 0 - dropped: 0 of every kind`**. Nothing is dropped because **nothing is ever offered**: `working_points` is written in exactly one place, `mission_generator.gd:547`, and that line lives in `plan_patrol_world` - the open-patrol world that is deferred post-launch. `plan_demo_world` never writes it. In the build that ships, village work targets come only from `work_stations`. The ledger stays in (a drop is now loud and counted) but the under-75% cause is elsewhere - **next probe: the firebase STATION system, which emits no diagnostics at all.**
+24. [ ] [CODE] Work markers need an ACTIVITY TYPE so a man only plays a clip the marker can support. Still open, still the likely cause of men sitting on nothing.
 
 **P3 - SYSTEMS / UX**
 9.  [x] [CODE] Satchel now sets a charge on a 30-second fuse with the count on the HUD. Mouth de-registers on set, so nobody drops down a lit hole.
@@ -49,6 +50,45 @@ Q1/24. [ ] [CODE] `WorkingPointResolver.resolve()` (`working_point_resolver.gd:2
 31. [ ] [BLENDER] VC faces blown up too large. MEASURE the head UV island first (the last attempt was rejected for guessing).
 25. [ ] [BLENDER] NPC arms clip into their own bodies on idles.
 27. [ ] [BLENDER] Mess hall animations not playing.
+
+---
+
+## YOUR DECISION — REPLACEMENTS ("everyone but 2 other guys died. How do I get more units back?")
+
+Nothing is built on this. Three architects sat; full analyses in `production/war_room/analysis/`.
+**Correction to the answer you were given earlier:** `ensure_roster()` does NOT run during a mission
+(`squad_system.gd:70` fires once inside `setup()`), so on 8/27 nobody was regenerated - you finished
+that day with two men, correctly. The free refill happens BETWEEN operations, and also every time the
+barracks screen repaints (`barracks.gd:50` manufactures men on a UI paint and writes them to disk).
+And in the demo that ships, `demo_game.gd` resets the campaign at boot - **there is no next morning
+in the shipping build**, so this is a call about the campaign loop, not about the run you played.
+
+**Q1. When your squad is wiped to two men, what is the smallest squad the game is ever allowed to
+hand you the next morning?** The floor is the whole design; the arrival rate is only pacing.
+
+**Q2. Do you want to be CHARGED for men the AI got killed - or do you want to know their NAMES first?**
+(Squad still does not crouch, stands on top of you, and there is no friendly-fire warning.)
+
+Options, each with the price named:
+
+- **A - THE LEDGER ONLY (cheapest, no economy).** Keep the refill exactly as it is; make the game SAY
+  what happened. Name the dead at the wire - rank, name, patrols survived - name the arrivals by name
+  and MOS, and put STRENGTH / KIA / IN THE WARD on the roster board (all four numbers already exist in
+  `CampaignState` and none is displayed). *Price: losing men still costs you nothing at the campaign
+  layer. You are informed of a consequence you do not suffer.*
+- **B - THE REPLACEMENT BIRD.** Vacancies get posted; the Huey that already flies garrison
+  replacements (`heli_lift.gd`) carries 1-3 FNGs on top. You take them at the roster board. They come
+  GREEN - lower skills, no nickname, PVT. Six dead is 3-4 birds, not one. *Price: two or three patrols
+  genuinely short, and if you lose the MEDIC and the RTO together you have no revive chain and no
+  radio for a while. Needs a hard floor (recommend: the bird fills you to 4 men before it fills you to
+  8) or it is a death spiral by definition.*
+- **C - ROB YOUR OWN WIRE.** Take a man off the 28-man garrison at the CP, immediately, no waiting -
+  and the wire is thinner that night. Strongest version of "the squad is the RPG": your squad becomes
+  an allocation out of a finite firebase. *Price: it only works if the siege actually reads garrison
+  strength, which is unmeasured today, and in a one-day demo it is a button with one right answer.*
+
+**Recommendation: A now, B as the campaign spine once the squad AI stops killing your men for you,
+C after that.** Build nothing until you pick.
 
 ---
 

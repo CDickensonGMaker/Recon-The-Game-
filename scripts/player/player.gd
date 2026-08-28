@@ -988,6 +988,11 @@ func _try_field_interact() -> void:
 			var fd_t: Node = get_tree().get_first_node_in_group("mission_director")
 			if fd_t != null and fd_t.has_method("try_intel_stash"):
 				fd_t.call("try_intel_stash")
+			# Stripping the stash is one of the three things that FINISH a sweep
+			# (Summoner, 2026-08-28). The director decides whether this hole is the
+			# one he was sent to; here we only report that it happened.
+			if fd_t != null and fd_t.has_method("report_stash_cleared"):
+				fd_t.call("report_stash_cleared", _in_tunnel.surface_return)
 			CampaignState.save_campaign()
 			if weapon_holder:
 				weapon_holder.add_found_mags(weapon_holder.current_slot,

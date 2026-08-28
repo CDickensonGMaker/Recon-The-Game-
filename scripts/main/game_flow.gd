@@ -340,6 +340,9 @@ func _open_pause() -> void:
 	_pause_menu.save_pressed.connect(_pause_save)
 	_pause_menu.abandon_pressed.connect(_pause_abandon)
 	_pause_menu.quit_to_menu_pressed.connect(_pause_quit)
+	_pause_menu.quit_to_desktop_pressed.connect(func() -> void:
+		get_tree().paused = false
+		get_tree().quit())
 
 
 func _close_pause() -> void:

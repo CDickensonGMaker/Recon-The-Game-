@@ -4,7 +4,6 @@ class_name MissionHUD
 extends CanvasLayer
 
 const NAMEPLATE := preload("res://scripts/ui/squad_nameplate.gd")
-const PAUSE_MENU := preload("res://scripts/ui/pause_menu.gd")
 
 var world: GameWorld
 var director: FieldDirector
@@ -33,8 +32,6 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, _plan: Dictio
 
 
 func _build() -> void:
-	add_child(PAUSE_MENU.new())
-
 	_marker_box = Control.new()
 	_marker_box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_marker_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
