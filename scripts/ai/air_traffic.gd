@@ -183,8 +183,10 @@ func _sample_load() -> void:
 		if man.target != null or man.alert_tier >= EnemyBase.AlertTier.ALERT:
 			fighters += 1
 	for a in AgentRegistry.allies:
+		if not is_instance_valid(a):
+			continue
 		var ally := a as AllyBase
-		if ally != null and is_instance_valid(ally) and not ally.is_dead() and ally.target != null:
+		if ally != null and not ally.is_dead() and ally.target != null:
 			fighters += 1
 	var process_ms: float = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 	# THE CAUSE MUST BE PRESENT FOR THE EFFECT TO COUNT. The header above says frame time

@@ -1,5 +1,35 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000. PLAYTEST 2026-08-27 - THE QUEUE LIVES IN ITS OWN DOC
+
+All 35 items from your spoken notes are ordered and tagged in
+`production/PLAYTEST_FINDINGS_2026-08-28.md` under `## QUEUE`. Read that first.
+
+Fixed 2026-08-28, **all five unverified until you play them**:
+- Air-support crash: `field_director.gd:860` cast a squad member to `AllyBase` before validating it,
+  and `SquadSystem.members` never dropped a queue_free'd corpse (`ally_base.gd:2273`). Validate-first
+  + `SquadSystem._prune_freed()` per physics frame.
+- Gun-crew crash: `GarrisonDefender.promote` (`garrison_defender.gd:42,64`) calls `release_man()` and
+  then `queue_free()`s the man; `release_man` never took him out of `_members`, so the freed node was
+  read back as a typed `Civilian` on the next tick. Now released on the node's own `tree_exiting`.
+- Item 7: the topo map sets `GameManager.is_in_menu`; `weapon_holder._handle_input` and
+  `equipment_manager._handle_slot_action` gate on `can_player_act()`.
+- Item 9: `scripts/world/satchel_charge.gd` (NEW) - 30-second fuse, count on the HUD
+  (`MissionHUD.show_fuse`), mouth de-registers the moment the charge is set.
+- Item 34: `scripts/ui/pause_menu.gd` (NEW) - ESC, RESUME / QUIT TO DESKTOP. `GameManager` still owns
+  the pause state; the menu is only its face.
+
+**Not verified by a headless boot** - the boot command was blocked by the sandbox this run. First
+launch is the check.
+
+Two structural findings that are NOT fixed and need a probe:
+- A sweep only banks when you re-enter the wire (`field_director.gd:1821 _bank_patrol`). Nothing in the
+  field ever confirms the objective is satisfied. That is why the mission felt broken.
+- `WorkingPointResolver.resolve()` (`working_point_resolver.gd:20-28`) silently drops any working point
+  it cannot resolve - bare `continue`, no warning, and it drops EVERYTHING if the site dict has no
+  `root`. Prime suspect for both "under 75% of place-nodes fire" and item 24.
+
+
 Everything code-side is built or tracked here; this is the hands-on Blender/eyes work only you can do,
 roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset detail).
 

@@ -404,6 +404,12 @@ func _process(delta: float) -> void:
 func _handle_input() -> void:
 	# Slot selection is owned by EquipmentManager (drives set_active_weapon_slot)
 
+	# A full-screen sheet (topo map, pause menu) owns the mouse. LMB on the map was
+	# still reaching the trigger - his playtest, 2026-08-27, item 7.
+	if not GameManager.can_player_act():
+		is_aiming = false
+		return
+
 	if is_switching:
 		return
 

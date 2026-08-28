@@ -213,6 +213,16 @@ func _toast(text: String) -> void:
 		director.toast.emit(text)
 
 
+## A dead ally is queue_free'd 45s later (ally_base.gd:2273) and nothing ever took
+## him out of this array, so `members` accumulated dangling references for the rest
+## of the mission. Any consumer that dereferences an element before validating it
+## reads freed memory - field_director._danger_close_to_squad did exactly that.
+func _prune_freed() -> void:
+	for i in range(members.size() - 1, -1, -1):
+		if not is_instance_valid(members[i]):
+			members.remove_at(i)
+
+
 ## Squad-level calls only (an order, a break) - anything a MAN perceives is spoken
 ## by that man from ally_base.gd instead.
 func _first_living() -> AllyBase:
@@ -449,6 +459,7 @@ func _process_revive(delta: float) -> void:
 ## ---------- ROLE EFFECTS + BARKS ----------
 
 func _physics_process(delta: float) -> void:
+	_prune_freed()
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)
 	_resupply_clock += delta

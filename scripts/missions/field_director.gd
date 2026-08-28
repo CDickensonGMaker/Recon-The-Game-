@@ -857,8 +857,12 @@ func _danger_close_to_squad(target: Vector3, reach: float = 0.0) -> bool:
 	if squad_system == null or not is_instance_valid(squad_system):
 		return false
 	for a in squad_system.members:
+		# VALIDATE BEFORE THE CAST. `as` dereferences the object to read its class,
+		# so a freed member was read here before is_instance_valid could reject it.
+		if not is_instance_valid(a):
+			continue
 		var ally := a as AllyBase
-		if ally != null and is_instance_valid(ally) and not ally.is_dead():
+		if ally != null and not ally.is_dead():
 			if ally.global_position.distance_to(target) <= near:
 				return true
 	return false

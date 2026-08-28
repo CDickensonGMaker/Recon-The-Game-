@@ -4,6 +4,7 @@ class_name MissionHUD
 extends CanvasLayer
 
 const NAMEPLATE := preload("res://scripts/ui/squad_nameplate.gd")
+const PAUSE_MENU := preload("res://scripts/ui/pause_menu.gd")
 
 var world: GameWorld
 var director: FieldDirector
@@ -32,6 +33,8 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, _plan: Dictio
 
 
 func _build() -> void:
+	add_child(PAUSE_MENU.new())
+
 	_marker_box = Control.new()
 	_marker_box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_marker_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -51,6 +54,14 @@ func _build() -> void:
 	_toast_box.position.y = 40.0
 	_toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(_toast_box)
+
+	# Burning-fuse line. Owned by SatchelCharge, which clears it when it blows.
+	_fuse = ReconUI.make_label("", 20, Color(0.95, 0.25, 0.15))
+	_fuse.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_fuse.position = Vector2(-100, 92)
+	_fuse.custom_minimum_size = Vector2(200, 0)
+	_fuse.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(_fuse)
 
 
 	# PT8: right-side slot slider (appears on wheel/key switch, fades out).
@@ -295,6 +306,17 @@ func _radio_row(rto: AllyBase, dead: bool) -> Array:
 		return radio_state(false, 0.0)
 	return radio_state(not dead,
 		world.player.global_position.distance_to(rto.global_position))
+
+
+var _fuse: Label
+
+
+## A burning demolition fuse, counted down on screen. Empty text hides the line.
+func show_fuse(text: String) -> void:
+	if _fuse == null or not is_instance_valid(_fuse):
+		return
+	_fuse.text = text
+	_fuse.visible = text != ""
 
 
 func show_toast(text: String) -> void:

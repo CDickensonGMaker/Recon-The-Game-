@@ -464,6 +464,9 @@ func _unhandled_input(event: InputEvent) -> void:
 ## restored to whatever it was, never assumed to be CAPTURED.
 func _set_open(open: bool) -> void:
 	visible = open
+	# The world stays LIVE behind the sheet, but the player's hands are on the map,
+	# not the rifle: this is what stops LMB on the sheet from firing the weapon.
+	GameManager.is_in_menu = open
 	if open:
 		_prior_mouse_mode = Input.mouse_mode
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -474,6 +477,12 @@ func _set_open(open: bool) -> void:
 		_typing = -1
 		Input.mouse_mode = _prior_mouse_mode
 	_refresh_hint()
+
+
+## Never strand the menu flag if the sheet is torn down while open.
+func _exit_tree() -> void:
+	if visible:
+		GameManager.is_in_menu = false
 
 
 func _process(_delta: float) -> void:

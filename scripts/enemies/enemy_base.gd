@@ -2536,8 +2536,10 @@ func _warn_allies_of_grenade() -> void:
 	var best: Node3D = null
 	var best_d: float = 24.0
 	for a in AgentRegistry.allies:
+		if not is_instance_valid(a):
+			continue
 		var ally := a as AllyBase
-		if ally == null or not is_instance_valid(ally) or ally.is_dead():
+		if ally == null or ally.is_dead():
 			continue
 		var d: float = ally.global_position.distance_to(global_position)
 		if d < best_d:

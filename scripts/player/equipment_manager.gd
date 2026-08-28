@@ -82,6 +82,8 @@ func _handle_input() -> void:
 
 
 func _handle_slot_action() -> void:
+	if not GameManager.can_player_act():
+		return
 	match current_slot:
 		0, 1:  # Weapons - handled by weapon_holder
 			pass

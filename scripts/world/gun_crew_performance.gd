@@ -59,9 +59,14 @@ func _ready() -> void:
 
 
 func register_man(civ: Civilian) -> void:
-	if civ == null or _members.has(civ):
+	if civ == null or not is_instance_valid(civ) or _members.has(civ):
 		return
 	_members.append(civ)
+	# GarrisonDefender.promote calls release_man() and then queue_free()s the man
+	# (garrison_defender.gd:42,64). release_man only cleared _captured/_seats, so the
+	# freed node stayed in _members and was read back as a typed Civilian on the next
+	# tick. The node's own exit is the one signal every teardown path passes through.
+	civ.tree_exiting.connect(_forget_man.bind(civ), CONNECT_ONE_SHOT)
 	if civ.role == "mortar" or civ.role == "gun":
 		kind = civ.role
 	var sum: Vector3 = Vector3.ZERO
@@ -72,6 +77,12 @@ func register_man(civ: Civilian) -> void:
 			n += 1
 	if n > 0:
 		global_position = sum / float(n)
+
+
+## Called as the man leaves the tree, while he is still a valid object.
+func _forget_man(civ: Civilian) -> void:
+	_members.erase(civ)
+	release_man(civ)
 
 
 ## The one exit every door uses: schedule roll-over, stand-to promotion
@@ -104,8 +115,11 @@ func _physics_process(delta: float) -> void:
 
 func _evaluate() -> void:
 	for i in range(_members.size() - 1, -1, -1):
+		if not is_instance_valid(_members[i]):
+			_members.remove_at(i)
+			continue
 		var m: Civilian = _members[i]
-		if m == null or not is_instance_valid(m) or m.state == Civilian.CivState.GONE:
+		if m.state == Civilian.CivState.GONE:
 			_members.remove_at(i)
 			release_man(m)
 		elif _captured.has(m) and m.state != Civilian.CivState.WANDER:
@@ -131,10 +145,15 @@ func _evaluate() -> void:
 
 func _release_all() -> void:
 	for i in range(_captured.size() - 1, -1, -1):
-		release_man(_captured[i])
+		if is_instance_valid(_captured[i]):
+			release_man(_captured[i])
+		else:
+			_captured.remove_at(i)
 
 
 func _eligible(civ: Civilian) -> bool:
+	if civ == null or not is_instance_valid(civ):
+		return false
 	if civ.puppet or civ.state != Civilian.CivState.WANDER:
 		return false
 	if civ.board_target != Vector3.ZERO or not civ.is_physics_processing():
@@ -144,6 +163,8 @@ func _eligible(civ: Civilian) -> bool:
 
 
 func _capture(civ: Civilian) -> void:
+	if not _captured.has(civ):
+		_captured.append(civ)
 	civ.puppet = true
 	civ.crew_driver = self
 	civ.velocity = Vector3.ZERO
@@ -177,7 +198,8 @@ func _assign_seats() -> void:
 	_seats.clear()
 	var order: Array[Civilian] = []
 	for m in _captured:
-		order.append(m)
+		if is_instance_valid(m):
+			order.append(m)
 	order.sort_custom(func(a: Civilian, b: Civilian) -> bool:
 		return _anchor_d(a) < _anchor_d(b))
 	var seats: Array[String] = MORTAR_SEATS if kind == "mortar" else GUN_SEATS
@@ -194,7 +216,7 @@ func _anchor_d(civ: Civilian) -> float:
 ## (litter_team.gd learned this first).
 func _issue_clips() -> void:
 	for m in _captured:
-		if m == null or not is_instance_valid(m) or m.state == Civilian.CivState.GONE:
+		if not is_instance_valid(m) or m.state == Civilian.CivState.GONE:
 			continue
 		var clip: String = str(_seats.get(m, ""))
 		if clip != "" and m.actor != null and is_instance_valid(m.actor):
@@ -207,7 +229,11 @@ func _play_piece() -> void:
 		return
 	if not _piece_searched:
 		_bind_piece()
-	if _piece == null:
+	# _stop_piece has always validated this; _play_piece did not, and a round that
+	# destroys the emplacement frees the AnimationPlayer under it. A destroyed piece
+	# stays silent: the search does NOT re-arm, because the gun is gone.
+	if not is_instance_valid(_piece):
+		_piece = null
 		return
 	_piece.play(PIECE_CLIP)
 	_piece.seek(0.0, true)
@@ -241,14 +267,15 @@ func _bind_piece() -> void:
 		if p == null or not p.has_animation(PIECE_CLIP):
 			continue
 		var holder := p.get_parent() as Node3D
-		if holder == null:
+		if holder == null or not holder.is_inside_tree():
 			continue
 		if Vector2(holder.global_position.x - global_position.x,
 				holder.global_position.z - global_position.z).length() > PIECE_SEARCH_M:
 			continue
 		_piece = p
 		break
-	if _piece == null:
+	if _piece == null or _piece.get_parent() == null:
+		_piece = null
 		return
 	for nm in _piece.get_animation_list():
 		var s: String = String(nm)

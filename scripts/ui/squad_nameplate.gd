@@ -118,6 +118,8 @@ func _find_looked_at() -> Node3D:
 	var best: Node3D = null
 	var best_ang: float = LOOK_CONE_DEG
 	for a in get_tree().get_nodes_in_group("allies"):
+		if not is_instance_valid(a):
+			continue
 		var ally := a as AllyBase
 		if ally == null or ally.is_dead():
 			continue

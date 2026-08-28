@@ -1,6 +1,8 @@
 ## player.gd - Player root node that coordinates all player systems
 extends CharacterBody3D
 
+const SATCHEL_CHARGE := preload("res://scripts/world/satchel_charge.gd")
+
 ## Movement speeds
 const WALK_SPEED: float = 5.0
 const SPRINT_SPEED: float = 8.0
@@ -912,10 +914,11 @@ func _satchel_hold_seconds() -> float:
 	return maxf(0.9, 2.2 - 0.16 * float(lvl))
 
 
-## HOLD interact at a tunnel mouth to collapse it. A world verb: the mouth is
-## gone, the enemy can no longer surface there, and it is still gone next patrol
-## (ADR-029 Amendment B). There is deliberately no counter, panel or marker -
-## the only way to learn what you have destroyed is to walk back and look.
+## HOLD interact at a tunnel mouth to SET A CHARGE on it. The charge burns
+## SATCHEL_CHARGE.FUSE_S and then the mouth is gone: the enemy can no longer surface
+## there, and it is still gone next patrol (ADR-029 Amendment B). There is
+## deliberately no counter, panel or marker for what you have destroyed - the only
+## way to learn that is to walk back and look. The burning fuse IS on the HUD.
 func _tick_satchel_hold(delta: float) -> void:
 	if _in_tunnel != null or satchel_count <= 0 or not GameManager.can_player_act():
 		_satchel_hold_t = 0.0
@@ -949,29 +952,12 @@ func _satchel_the_mouth(entrance: Node3D) -> void:
 		var dp: int = SquadRoster.credit_use(demo.member, "demolitions", 3)  # learn-by-doing
 		if dp > 0:
 			demo.on_skill_up("demolitions", dp)
-	var at: Vector3 = entrance.global_position
-	# Anyone still down there dies with it, and the blast is loud and lethal at
-	# the mouth - standing on your own charge is a way to die (Pillar 1).
-	CombatManager.apply_explosion_damage(at, 200, 60, 9.0, self)
-	if DamageSystem.has_method("apply_damage"):
-		DamageSystem.apply_damage(at, DamageSystem.DamageType.SMALL_EXPLOSION, 1.4)
-	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, at, 0)
-	GunFX.play_explosion_3d(get_tree().current_scene, at)
-	CampaignState.remember_collapsed_tunnel(at)
-	_collapse_entrance(entrance)
-	_field_toast("THE MOUTH IS GONE.")
-
-
-## Take the mouth out of the world: no descent, no spider-hole surfacing
-## (enemy_base.gd:662 reads this same group), no mesh.
-static func _collapse_entrance(entrance: Node3D) -> void:
+	# THE FUSE IS THE POINT. The charge used to go off in the setter's hands and take
+	# the squad with it. It now burns SATCHEL_CHARGE.FUSE_S with the count on the HUD.
+	# Off the group first: nobody descends a charged hole and nobody charges it twice.
 	entrance.remove_from_group("tunnel_entrances")
-	if entrance.has_meta("tunnel_room"):
-		var room = entrance.get_meta("tunnel_room")
-		if room is Node and is_instance_valid(room):
-			(room as Node).queue_free()
-		entrance.remove_meta("tunnel_room")
-	entrance.queue_free()
+	SATCHEL_CHARGE.plant(get_tree().current_scene, entrance.global_position, entrance, self)
+	_field_toast("CHARGE SET - %d SECONDS - GET BACK" % int(SATCHEL_CHARGE.FUSE_S))
 
 
 ## Interact: capture / loot / crate / tunnel enter-exit.
