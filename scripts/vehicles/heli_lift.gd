@@ -17,7 +17,7 @@
 class_name HeliLift
 extends Node
 
-enum Mission { NONE, DELIVER, EXTRACT, ROTATE }
+enum Mission { NONE, DELIVER, EXTRACT, ROTATE, REPLACE }
 
 ## Establishment strength of the firebase garrison. Delivery fills TOWARD this and never past it:
 ## bodies are ~94% of AI cost (PERF_LEDGER), so an uncapped pad grows the garrison every sortie
@@ -65,22 +65,35 @@ var _pax: Array[Civilian] = []
 ## The two men in the cockpit. Held apart from _pax: passengers get unseated on
 ## landing, aircrew ride the ship.
 var _crew: Array[Civilian] = []
+## Squad replacements riding in. Held apart from _pax (garrison Civilians) - the two
+## never mix, and a REPLACE sortie touches the garrison books nowhere.
+var _pax_allies: Array[AllyBase] = []
 var _delivered: bool = false
 ## Men THIS ship just put on the ground - a rotation must not lift its own
 ## arrivals straight back out.
 var _rotated_off: Array[Civilian] = []
 var _delivered_count: int = 0
+## THE REPLACEMENT BIRD (Summoner, 2026-08-28: "i like replacements by bird"). Set by
+## AirTraffic.request_replacement_lift BEFORE this node enters the tree. Non-zero turns the
+## sortie into a SQUAD run: these men are AllyBase on CampaignState.roster, never garrison
+## Civilians, so garrison_strength() cannot see them and the firebase population is
+## untouched. The two paths share the airframe and nothing else.
+var squad_replacements: int = 0
+var _fresh: Array = []
 
 
 ## Bolt a lift onto a helicopter that is about to fly a landing cycle. Returns null when the
 ## world has no firebase to serve - an ambient sortie over open country carries nobody.
-static func attach(h: Helicopter, d: FieldDirector) -> HeliLift:
+## `replacements` must be passed HERE, not assigned after the call: add_child fires
+## _ready(), which picks the mission and loads the cabin.
+static func attach(h: Helicopter, d: FieldDirector, replacements: int = 0) -> HeliLift:
 	if h == null or not is_instance_valid(h) or d == null or d.fsb_center == Vector3.ZERO:
 		return null
 	var lift := HeliLift.new()
 	lift.name = "HeliLift"
 	lift.heli = h
 	lift.director = d
+	lift.squad_replacements = maxi(0, replacements)
 	h.add_child(lift)
 	return lift
 
@@ -102,6 +115,8 @@ func _ready() -> void:
 	_choose_mission()
 	if mission == Mission.DELIVER or mission == Mission.ROTATE:
 		_load_pax()
+	elif mission == Mission.REPLACE:
+		_load_replacements()
 	if not heli.landed.is_connected(_on_landed):
 		heli.landed.connect(_on_landed)
 	if not heli.took_off.is_connected(_on_took_off):
@@ -149,6 +164,9 @@ func _crew_ship() -> void:
 ## the full disembark show, the same headcount is lifted out, net garrison ~0. The full
 ## game keeps pure need-driven logistics.
 func _choose_mission() -> void:
+	if squad_replacements > 0:
+		mission = Mission.REPLACE
+		return
 	mission = Mission.DELIVER if garrison_strength() < ESTABLISHMENT else Mission.EXTRACT
 	if GameFlow.demo_mode and mission == Mission.EXTRACT:
 		mission = Mission.ROTATE
@@ -270,6 +288,8 @@ func _on_landed(_h: Helicopter, _lz: LandingZone) -> void:
 			# fresh arrivals are excluded from the lift home (_rotated_off).
 			_deliver()
 			_extract()
+		Mission.REPLACE:
+			_put_replacements_off()
 		Mission.NONE:
 			pass
 
@@ -373,6 +393,78 @@ func _bunk_on_nav(p: Vector3) -> Vector3:
 		return p
 	var clamped: Vector3 = NavigationServer3D.map_get_closest_point(map, p)
 	return clamped if p.distance_to(clamped) < NavRouter.CLAMP_MAX_M else p
+
+
+# ---- THE REPLACEMENT BIRD ----
+
+## Cut the men and put them in the cabin BEFORE the flight, the same contract the garrison
+## delivery keeps: a ship that lands with replacements was really carrying them. They are
+## AllyBase from the first frame, so the men who walk off the skids are the men who join the
+## squad - nothing is conjured at the door.
+##
+## SeatSystem already carries AllyBase (`board_squad` branches on it, seat_system.gd:659),
+## and `seat()` freezes physics and glues the body to the socket, so a seated ally runs no
+## AI while airborne.
+func _load_replacements() -> void:
+	var squad: SquadSystem = _squad()
+	if squad == null or seats == null:
+		squad_replacements = 0
+		return
+	var rng := RandomNumberGenerator.new()
+	# ADR-010: one seed per operation. The patrol count and the tour's mission count are both
+	# already-banked campaign facts, so the same wipe always sends the same men.
+	rng.seed = CampaignState.missions_played * 7919 + CampaignState.kia_total * 104729 		+ squad_replacements
+	_fresh = SquadRoster.draft_replacements(rng, squad_replacements)
+	if _fresh.is_empty():
+		return
+	# ON THE BOOKS THE MOMENT THEY ARE CUT. If the player quits between here and touchdown
+	# they are still his men - a save that forgot them would re-open the vacancy and send a
+	# second bird for the same hole.
+	CampaignState.roster.append_array(_fresh)
+	CampaignState.save_campaign()
+	var world: Node = heli.get_parent()
+	for m in _fresh:
+		var berth: StringName = _free_berth()
+		if berth == &"":
+			break
+		var ally: AllyBase = AllyBase.spawn_ally(world, heli.global_position)
+		if ally == null:
+			continue
+		ally.member = m as Dictionary
+		ally.director = director
+		if not seats.seat(ally, berth):
+			ally.queue_free()
+			continue
+		_pax_allies.append(ally)
+	print("[LIFT] inbound with %d replacement(s) for the squad" % _pax_allies.size())
+
+
+## Wheels down: unseat them at the door and hand them to SquadSystem, which stands each man
+## up through its ONE spawn path. The seated shells are freed - the squad's copy is the real
+## man, and two bodies for one roster dict is the bug this avoids.
+func _put_replacements_off() -> void:
+	if _delivered or seats == null:
+		return
+	_delivered = true
+	var door: Vector3 = seats.door_staging_pos()
+	seats.unseat_all(door)
+	for a in _pax_allies:
+		if a != null and is_instance_valid(a):
+			a.queue_free()
+	_pax_allies.clear()
+	var squad: SquadSystem = _squad()
+	if squad == null or _fresh.is_empty():
+		return
+	var landed: int = squad.receive_replacements(_fresh, door)
+	_fresh.clear()
+	print("[LIFT] %d replacement(s) joined the squad at the pad" % landed)
+
+
+func _squad() -> SquadSystem:
+	if director == null or not is_instance_valid(director):
+		return null
+	var s: SquadSystem = director.squad_system
+	return s if s != null and is_instance_valid(s) else null
 
 
 # ---- EXTRACTION ----

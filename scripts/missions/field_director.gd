@@ -1836,9 +1836,10 @@ func _sound_siren() -> void:
 		_siren.sound()
 
 
-## The night banks its own AAR. _bank_patrol only fires on crossing the wire inward,
-## so a siege fought at home produced no butcher's bill at all - while the contact
-## ledger debited him for being attacked in his sleep.
+## DAWN IS AN END OF PLAY. _bank_patrol only fires on crossing the wire INWARD, so a siege
+## fought at home named nobody and called no bird - and in the demo, where the siege IS the
+## day, that was the whole replacement loop unreachable. The names and the lift land here
+## too. This function still banks no SCORE; the header used to claim it did.
 func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
 	match reason:
 		"broken":
@@ -1849,6 +1850,8 @@ func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
 		_:
 			toast.emit("FIRST LIGHT - THEY'VE MELTED AWAY (%d OF %d DOWN)" % [killed, strength])
 	_garrison_stand_down()
+	_read_the_dead(state.flags.get("squad_kia", []) as Array)
+	_call_replacements()
 
 
 ## Dawn. The survivors go back to being men with jobs, and the dead are not replaced -
@@ -1975,6 +1978,8 @@ func _bank_patrol() -> void:
 	CampaignState.commit_mission()
 	toast.emit("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" % [
 		patrol_count, int(result.get("kills", 0))])
+	_read_the_dead(result.get("squad_kia", []) as Array)
+	_call_replacements()
 	_set_patrol_location({})
 	_route_idx = 0   # the plan holds; the next walk-out re-walks it from the first mark
 	# Fresh ledger for the next walk-out; live groups re-register on spawn.
@@ -1983,6 +1988,63 @@ func _bank_patrol() -> void:
 	state.seed_value = patrol_count  # unique per excursion; the op seed owns the world
 	state.start_time_ms = Time.get_ticks_msec()
 	restore_field_marks()
+
+
+## A LIFT IS WORTH COMING BACK FOR. His ruling, 2026-08-28: "smallest squad you get handed
+## back is an additional 4 more troops, largest is the full refreshed squad."
+const REPLACEMENT_FLOOR: int = 4
+## Names already spoken at a wire or a dawn. `state.flags["squad_kia"]` is only cleared by
+## _bank_patrol, so a man killed in a siege at home would be read again on the next walk
+## back in. A man is named ONCE.
+var _dead_read: Array[String] = []
+
+
+## THE NAMES ARE READ AT THE WIRE, NEVER IN THE FIGHT (his ruling, 2026-08-28: "game will
+## read the dead roster at the end of the play... shouldnt be interupting the game in the
+## moment"). This is the ONE place a squad death is spoken as a name rather than as a KIA
+## bark - the bark is the moment, this is the ledger.
+func _read_the_dead(dead: Array) -> void:
+	var fresh: Array[String] = []
+	for n in dead:
+		var nm: String = str(n)
+		if not _dead_read.has(nm):
+			_dead_read.append(nm)
+			fresh.append(nm)
+	if fresh.is_empty():
+		return
+	toast.emit("KILLED IN ACTION - %d MAN%s" % [
+		fresh.size(), "" if fresh.size() == 1 else " AND MORE"])
+	for nm in fresh:
+		toast.emit("  %s" % nm)
+	toast.emit("BUTCHER'S BILL: %d KIA, %d IN THE WARD"
+		% [CampaignState.kia_total, CampaignState.ward_wounded])
+
+
+## THE REPLACEMENT BIRD. Vacancies are read off the roster AFTER the patrol banked, so a man
+## who died on the walk home is already counted.
+##
+## THE 4/8 EDGE (his floor and ceiling are on the DELIVERY, not on the squad): four or more
+## holes and the ship brings between four men and enough to refresh the squad whole. FEWER
+## than four holes and it brings all of them - you cannot hand a man a seat that does not
+## exist, and holding the sortie until the hole is "worth flying" would leave a squad
+## permanently at 7 with the game refusing to say why. Change REPLACEMENT_FLOOR to change
+## the band; there is no second rule hiding anywhere else.
+func _call_replacements() -> void:
+	var short: int = SquadRoster.vacancies()
+	if short <= 0 or world == null or not is_instance_valid(world):
+		return
+	var at: AirTraffic = world.get_node_or_null("AirTraffic") as AirTraffic
+	if at == null:
+		return
+	var n: int = short
+	if short > REPLACEMENT_FLOOR:
+		# ADR-010: seeded off banked campaign facts, so the same tour sends the same lift.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = CampaignState.missions_played * 31 + patrol_count
+		n = rng.randi_range(REPLACEMENT_FLOOR, short)
+	if not at.request_replacement_lift(n):
+		return
+	toast.emit("SIX: REPLACEMENTS INBOUND - %d MEN ON THE NEXT SHIP. MEET THEM AT THE PAD." % n)
 
 
 func _bearing_name(dir: Vector3) -> String:

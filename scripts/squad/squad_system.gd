@@ -70,39 +70,9 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 	var roster: Array = SquadRoster.ensure_roster(int(director.state.seed_value) + 12345)
 	var squad_n: int = mini(SQUAD_SIZE, roster.size())
 	for i in range(squad_n):
-		var m: Dictionary = roster[i]
 		var a := TAU * float(i) / float(squad_n)
 		var pos := spawn_pos + Vector3(cos(a), 0, sin(a)) * 3.5
-		# floor_y, from the BUNK'S authored height - the spawn ring sits around an
-		# indoor cot, and surface_y's top-down ray put the whole squad on the hootch
-		# ROOF, off the navmesh, where no order could ever move them (his playtest,
-		# 2026-08-04: "my squad never follows me").
-		pos.y = world.floor_y(pos) + 0.5
-		var ally := AllyBase.spawn_ally(world, pos)
-		ally.member = m
-		ally.director = director  ## toast channel for promotion barks
-		var mos: String = str(m.mos)
-		# MOS-weighted courage (decree 2026-08-03 §2.11 item 2): the flat ambient roll let
-		# the RTO play hero ~25% of the time and skip the cover trip (ally_base.gd:106-109).
-		# The RTO/MEDIC caps sit under the 0.75 go-getter bar, so the men the squad cannot
-		# afford to spend always take cover first.
-		var band: Vector2 = MOS_COURAGE.get(mos, Vector2(0.25, 0.85)) as Vector2
-		ally.courage = _roster_rng.randf_range(band.x, band.y)
-		var unit: String = _pick_unit_for_mos(mos)
-		var weapon: String = MOS_WEAPON.get(mos, "m16a1")
-		if mos == "MG":
-			ally.fire_rate_mult = 1.6
-		# spawn_ally() already ran _setup_visual(), so this rebuilds it.
-		ally.set_sprite(unit, weapon)
-		# Explicit: he wears his roster face/helmet whether or not set_sprite
-		# rebuilt (the default-body draw early-returns and would keep bench paint).
-		ally.dress_visual()
-		ally.file_slot = i + 1
-		ally.point_slot = mos == "POINTMAN"
-		ally.died.connect(_on_member_died)
-		if mos == "RTO":
-			_wire_rto_radio(ally)
-		members.append(ally)
+		_stand_up_member(roster[i], pos, i + 1)
 	# SPAWN PEN PROBE (his playtest 2026-08-04: squad "stuck by collision boxes").
 	# Four 0.6m test moves per man; 4/4 blocked = he spawned inside a pen. The ring
 	# sits around an INDOOR cot, so wall/prop colliders are the prime suspect.
@@ -128,6 +98,69 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, spawn_pos: Ve
 		_health = world.player.get_node_or_null("HealthSystem") as HealthSystem
 		if _health:
 			_health.revive_handler = self
+
+
+## THE ONE PLACE A SQUADMATE IS STOOD UP. setup() walks the roster through here at dawn
+## and the replacement bird walks its FNGs through the same door - there is no second
+## spawn path for a squad member to drift away from (ADR-023).
+##
+## floor_y, from the BUNK'S authored height: surface_y's top-down ray put the whole squad
+## on the hootch ROOF, off the navmesh, where no order could ever move them (his playtest,
+## 2026-08-04: "my squad never follows me").
+func _stand_up_member(m: Dictionary, pos: Vector3, slot: int) -> AllyBase:
+	pos.y = world.floor_y(pos) + 0.5
+	var ally := AllyBase.spawn_ally(world, pos)
+	ally.member = m
+	ally.director = director  ## toast channel for promotion barks
+	var mos: String = str(m.mos)
+	# MOS-weighted courage (decree 2026-08-03 §2.11 item 2): the flat ambient roll let
+	# the RTO play hero ~25% of the time and skip the cover trip (ally_base.gd:106-109).
+	# The RTO/MEDIC caps sit under the 0.75 go-getter bar, so the men the squad cannot
+	# afford to spend always take cover first.
+	var band: Vector2 = MOS_COURAGE.get(mos, Vector2(0.25, 0.85)) as Vector2
+	ally.courage = _roster_rng.randf_range(band.x, band.y)
+	var unit: String = _pick_unit_for_mos(mos)
+	var weapon: String = MOS_WEAPON.get(mos, "m16a1")
+	if mos == "MG":
+		ally.fire_rate_mult = 1.6
+	# spawn_ally() already ran _setup_visual(), so this rebuilds it.
+	ally.set_sprite(unit, weapon)
+	# Explicit: he wears his roster face/helmet whether or not set_sprite
+	# rebuilt (the default-body draw early-returns and would keep bench paint).
+	ally.dress_visual()
+	ally.file_slot = slot
+	ally.point_slot = mos == "POINTMAN"
+	ally.died.connect(_on_member_died)
+	if mos == "RTO":
+		_wire_rto_radio(ally)
+	members.append(ally)
+	return ally
+
+
+## THE REPLACEMENT BIRD PUTS MEN IN THE SQUAD (Summoner, 2026-08-28: "i like replacements
+## by bird"). HeliLift calls this at the pad, once the wheels are down and the men have
+## stepped off. The dicts are already on CampaignState.roster - this is the body, not the
+## paperwork - and each man inherits the squad's current weapons posture so an arrival
+## during a stand-to does not walk in weapons-tight while everyone else is firing.
+func receive_replacements(fresh: Array, at: Vector3) -> int:
+	if world == null or not is_instance_valid(world) or fresh.is_empty():
+		return 0
+	var n: int = 0
+	for entry in fresh:
+		var m: Dictionary = entry as Dictionary
+		if m.is_empty():
+			continue
+		var a: float = TAU * float(n) / float(maxi(1, fresh.size()))
+		var ally: AllyBase = _stand_up_member(m, at + Vector3(cos(a), 0.0, sin(a)) * 2.4,
+			members.size() + 1)
+		if ally == null:
+			continue
+		ally.weapons_free = weapons_free
+		n += 1
+	if n > 0:
+		_toast("%d REPLACEMENT%s ON THE GROUND - GET THEM SQUARED AWAY"
+			% [n, "" if n == 1 else "S"])
+	return n
 
 
 ## Every MOS carries a weapon. Rifle roles draw a random v3 grunt body so the squad

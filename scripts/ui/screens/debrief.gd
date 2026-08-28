@@ -98,6 +98,31 @@ func _ready() -> void:
 		lines.append("ROE - WEAPONS DISCIPLINE: +75")
 	panel.add_child(ReconUI.make_label("\n".join(lines), 16, ReconUI.OLIVE))
 
+	# THE BUTCHER'S BILL (his ruling, 2026-08-28: "game will read the dead roster at the end
+	# of the play"). The four counters have lived in CampaignState since 2026-07-30 and were
+	# displayed NOWHERE. The AAR is the one screen allowed to name them, because it is the
+	# one place the player is out of the fight.
+	var bill := ReconUI.make_panel()
+	outer.add_child(bill)
+	var toll: Array[String] = []
+	var dead: Array = result.get("squad_kia", []) as Array
+	if dead.is_empty():
+		toll.append("NO ONE LOST THIS TIME OUT.")
+	else:
+		toll.append("KILLED IN ACTION:")
+		for n in dead:
+			toll.append("   %s" % str(n))
+	var short: int = SquadRoster.vacancies()
+	toll.append("")
+	toll.append("SQUAD STRENGTH: %d/%d" % [
+		SquadRoster.SQUAD_SIZE - short, SquadRoster.SQUAD_SIZE])
+	toll.append("TOUR TOTAL: %d KIA  //  %d IN THE WARD  //  %d BAGS UNLIFTED" % [
+		CampaignState.kia_total, CampaignState.ward_wounded, CampaignState.bags_unlifted])
+	if short > 0:
+		toll.append("REPLACEMENTS COME BY AIR - MEET THE SHIP AT THE PAD.")
+	bill.add_child(ReconUI.make_label("\n".join(toll), 15,
+		ReconUI.ALERT if not dead.is_empty() else ReconUI.DIM))
+
 	outer.add_child(ReconUI.make_label("SCORE: %d" % compute_score(result), 24, head_color))
 	var cont := ReconUI.make_card_button("[ CONTINUE ]", 18)
 	cont.pressed.connect(func() -> void: continue_pressed.emit())

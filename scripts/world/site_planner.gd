@@ -158,10 +158,31 @@ static func tag_ballistics(root: Node, soft: bool) -> void:
 
 
 ## Place one structure: StaticBody3D root (layer 1) + GLB visual + authored box.
+## Placed props that are DESTRUCTIBLE rather than scenery, keyed by model name. The
+## surface stash was a plain StaticBody3D with no HP entry, so his "destroy the stash"
+## verb existed only underground (his question, 2026-08-28; ruled: wire it).
+##
+## NOT the village huts: those are placed by this same function and are still scenery
+## here - the nha_* prefixes in FSB_STRUCTURE_KINDS are only ever matched inside the
+## firebase GLB by _wire_structure_destructibles, which never walks the AO. That is a
+## real, separate hole and it is logged, not silently widened by this map.
+const PLACED_DESTRUCTIBLE_KINDS := {
+	"weapons_cache": "weapons_cache",
+}
+
+
 func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
 	var model_name := model_path.get_file().get_basename()
 	var entry: Dictionary = CollisionTable.get_entry(model_name)
-	var body := StaticBody3D.new()
+	var dkind: String = str(PLACED_DESTRUCTIBLE_KINDS.get(model_name, ""))
+	var body: StaticBody3D
+	if dkind != "":
+		var d := Destructible.new()
+		d.kind = dkind
+		d.hp = Destructible.hp_for(dkind)
+		body = d
+	else:
+		body = StaticBody3D.new()
 	body.name = model_name
 	# The tree auto-renames duplicate names; anything reading identity back off a
 	# node must use this meta, never .name (CollisionTable lookups break silently).
@@ -209,6 +230,15 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 	var ground_y: float = _terrain.get_height_at(world_pos)
 	body.global_position = Vector3(world_pos.x, ground_y, world_pos.z)
 	body.rotation_degrees = Vector3(0, rotation_deg, 0)
+	if dkind != "":
+		# CollisionTable is the ONE ballistics authority (tag_ballistics above ran off it).
+		# Destructible._ready() then adds its own default group on the way into the tree, so
+		# the root would carry BOTH soft_cover and hard_surface and a round would read
+		# whichever the bullet system happened to test first. Drop the loser.
+		body.remove_from_group("hard_surface" if soft else "soft_cover")
+		# The blast bus damages PROPS on a radius test (combat_manager.gd:176-185); an
+		# unregistered Destructible is one nothing can ever hit.
+		AgentRegistry.register(body, AgentRegistry.Kind.PROP)
 	if model_name.contains("tunnel"):
 		# A mouth the player satchelled on an earlier patrol stays gone (ADR-029
 		# Amendment B: the world remembers). It is never re-placed and never

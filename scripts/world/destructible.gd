@@ -51,6 +51,8 @@ const BLAST_FOR: Dictionary = {
 	"tower": "explosion_grenade",
 	"bunker": "explosion_mortar",
 	"bunker_mg": "explosion_mortar",
+	# A stash going up is the ORDNANCE cooking off, not the crate splintering.
+	"weapons_cache": "explosion_mortar",
 }
 
 
@@ -84,6 +86,9 @@ const HP_FOR: Dictionary = {
 	"wire": 60,
 	"hut_thatch": 120,
 	"hut_timber": 150,
+	# Crates and a tarp. One satchel, one LAW, or a grenade in the right place - his
+	# "destroy the stash" verb has to be reachable with what a patrol actually carries.
+	"weapons_cache": 80,
 }
 
 
@@ -216,6 +221,15 @@ func _do_destroy() -> void:
 	# visual_mult 1.0: collapse dust, not ordnance - the spectacle mult stays off.
 	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_grenade", 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
+	# THE SWEEP CLOSES ON THE SURFACE STASH TOO. Emptying a tunnel cache already reported in
+	# (field_director.report_stash_cleared); blowing the above-ground one is the same verb and
+	# must finish the same sweep, or "destroy the stash" only exists underground.
+	if kind == "weapons_cache" and is_inside_tree():
+		# `mission_director` is the group the director actually registers under - the same
+		# handle player.gd:988 uses for the tunnel-cache report.
+		var fd: Node = get_tree().get_first_node_in_group("mission_director")
+		if fd != null and is_instance_valid(fd) and fd.has_method("report_stash_cleared"):
+			fd.call("report_stash_cleared", global_position)
 
 
 func _scatter_rubble() -> void:

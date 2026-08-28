@@ -161,7 +161,11 @@ static func credit_use(member: Dictionary, skill: String, n: int = 1) -> int:
 	return promoted
 
 
-## Ensure CampaignState.roster has SQUAD_SIZE living members; replaces KIA with rookies.
+## THE FREE REFILL IS DEAD (Summoner, 2026-08-28: "i like replacements by bird").
+## This prunes the dead and migrates old saves. It manufactures men in exactly ONE case -
+## an EMPTY roster, which is a new tour and the squad you are handed to start with. Every
+## man after that arrives on a Huey through `draft_replacements`, and losing one costs you
+## his slot until the bird comes.
 static func ensure_roster(rng_seed: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
@@ -171,18 +175,8 @@ static func ensure_roster(rng_seed: int) -> Array:
 	for m in roster:
 		if bool(m.get("alive", true)):
 			living.append(m)
-	# Fill missing MOS slots with rookies.
-	var have_mos: Array = []
-	for m in living:
-		have_mos.append(str(m.mos))
-	for mos in MOS_ORDER:
-		if living.size() >= SQUAD_SIZE:
-			break
-		if not have_mos.has(mos):
-			living.append(generate_member(rng, mos))
-			have_mos.append(mos)
-	while living.size() < SQUAD_SIZE:
-		living.append(generate_member(rng, FILL_MOS))
+	if living.is_empty():
+		living = draft_replacements(rng, SQUAD_SIZE, living)
 	# Back-fill fields added after an older save was written (learn-by-doing).
 	for m in living:
 		migrate_member(m)
@@ -207,6 +201,48 @@ static func ensure_roster(rng_seed: int) -> Array:
 ## Vietnam infantryman - a technician's grade, NOT an NCO. CPL is the same pay grade
 ## but carries command authority, so a man only crosses to CPL if he is holding a
 ## leader billet (POINTMAN / RTO): rank gates authority, never ability (ADR-018).
+## How many slots the squad is short. The ONE definition - the bird, the AAR and the
+## roster board all read this, so they can never disagree about who is missing.
+static func vacancies() -> int:
+	var living: int = 0
+	for m in CampaignState.roster:
+		if bool((m as Dictionary).get("alive", true)):
+			living += 1
+	return maxi(0, SQUAD_SIZE - living)
+
+
+## Cut `n` fresh men for the replacement bird. Specialist slots the squad has LOST are
+## filled before riflemen - the medic and the radio are what you actually feel missing.
+## They come green by construction: `generate_member` sets missions 0, so `rank_for`
+## reads PVT and `nick_earned` is false. There is no separate "FNG" flag to drift.
+static func draft_replacements(rng: RandomNumberGenerator, n: int,
+		living: Array = []) -> Array:
+	if n <= 0:
+		return []
+	var have: Array = living if not living.is_empty() else _living_roster()
+	var out: Array = []
+	var have_mos: Array = []
+	for m in have:
+		have_mos.append(str((m as Dictionary).get("mos", "")))
+	for mos in MOS_ORDER:
+		if out.size() >= n:
+			break
+		if not have_mos.has(mos):
+			out.append(generate_member(rng, mos))
+			have_mos.append(mos)
+	while out.size() < n:
+		out.append(generate_member(rng, FILL_MOS))
+	return out
+
+
+static func _living_roster() -> Array:
+	var living: Array = []
+	for m in CampaignState.roster:
+		if bool((m as Dictionary).get("alive", true)):
+			living.append(m)
+	return living
+
+
 static func rank_for(member: Dictionary) -> String:
 	var missions: int = int(member.get("missions", 0))
 	var leads: bool = str(member.get("mos", "")) in ["POINTMAN", "RTO"]

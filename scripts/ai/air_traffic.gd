@@ -770,7 +770,19 @@ func _free_pad() -> LandingZone:
 
 ## Fly in from the AO edge, land on a firebase pad, sit, then lift and depart.
 ## Falls back to a plain overflight when the base has no reachable pad.
-func _dispatch_lz_cycle(kind: String) -> void:
+## THE REPLACEMENT BIRD (Summoner, 2026-08-28). FieldDirector asks for one at the wire,
+## never mid-patrol: the ship uses the firebase PAD, so the men are waiting inside the wire
+## when he walks in - nothing lands on him in the field and no screen interrupts the fight.
+## False = no pad was free; the caller re-asks at the next bank rather than queueing a
+## sortie nobody can see arrive.
+func request_replacement_lift(n: int) -> bool:
+	if n <= 0 or _free_pad() == null:
+		return false
+	_dispatch_lz_cycle("huey", n)
+	return true
+
+
+func _dispatch_lz_cycle(kind: String, squad_replacements: int = 0) -> void:
 	var lz := _free_pad()
 	if lz == null:
 		_dispatch(kind)
@@ -796,7 +808,7 @@ func _dispatch_lz_cycle(kind: String) -> void:
 	# callers, so a Huey used to land on the pad, idle out its ground seconds and leave empty -
 	# the ship-gate clause "Huey landings with troops disembarking" was scenery. HeliLift decides
 	# at dispatch whether this sortie is replacements in or men out, and loads it accordingly.
-	HeliLift.attach(heli, _friendly_director())
+	HeliLift.attach(heli, _friendly_director(), squad_replacements)
 	_roster(kind, heli, inbound, lz.global_position, "inbound")
 	var f: Dictionary = _in_flight[_in_flight.size() - 1]
 	var out_ang: float = rng.randf_range(0.0, TAU)

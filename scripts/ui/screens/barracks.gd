@@ -43,13 +43,23 @@ func _ready() -> void:
 	CursorSet.hook_buttons(self, CursorSet.Ctx.CASUALTY)
 
 func _refresh() -> void:
-	_status_label.text = "%s   //   MISSIONS: %d   //   THREAT: %s" % [
-		CampaignState.title(), CampaignState.missions_played, CampaignState.threat_label()]
+	_status_label.text = "%s   //   MISSIONS: %d   //   THREAT: %s   //   STRENGTH %d/%d   //   KIA %d   //   WARD %d" % [
+		CampaignState.title(), CampaignState.missions_played, CampaignState.threat_label(),
+		SquadRoster.SQUAD_SIZE - SquadRoster.vacancies(), SquadRoster.SQUAD_SIZE,
+		CampaignState.kia_total, CampaignState.ward_wounded]
 	for c in _rows.get_children():
 		c.queue_free()
-	SquadRoster.ensure_roster(CampaignState.missions_played + 1)
+	# A REPAINT DOES NOT MANUFACTURE MEN. This called ensure_roster, which minted
+	# replacements and wrote them to disk as a side effect of drawing a screen -
+	# opening the roster board was a free refill. The board REPORTS; the bird fills.
+	var short: int = SquadRoster.vacancies()
+	if short > 0:
+		_rows.add_child(ReconUI.make_label(
+			"%d SLOT%s OPEN - REPLACEMENTS COME BY AIR" % [short, "" if short == 1 else "S"],
+			15, ReconUI.ALERT))
 	for m in CampaignState.roster:
-		_add_row(m)
+		if bool(m.get("alive", true)):
+			_add_row(m)
 
 
 ## ADR-018: there is no "YOU" row. The player buys nothing - no stats, no skills.
