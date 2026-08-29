@@ -190,6 +190,38 @@ func _maybe_open(_step: float) -> void:
 		open_siege()
 
 
+## THE NIGHT ROLL, ASKED AT THE MOMENT HE LIES DOWN.
+##
+## `_maybe_open` above polls for a player who is AWAKE AND PRESENT AT NIGHT, and nothing in
+## the game ever made him that - which is why the demo has to author its assault on a clock.
+## Sleep is the missing key (Summoner, 2026-07-30): the man racks out, and the roll is taken
+## THEN, against the same NIGHT_CHANCE table, the same earned threat tier, the same
+## MAX_RUN_NIGHTS chain. A sleep cannot be fast-forwarded through a night poll, so the poll
+## is asked once, here, for the night he is about to sleep through.
+##
+## Returns true if the night comes for him. `is_night` is deliberately NOT tested: the sleep
+## IS the night, and the clock has not been moved yet when this is called.
+func roll_night_for_sleep() -> bool:
+	if active or director == null or fsb_center == Vector3.ZERO:
+		return false
+	if nights_run >= MAX_RUN_NIGHTS:
+		return false
+	# A man who has never walked out has not earned a night. Same gate _maybe_open takes.
+	if director.patrol_count < 1:
+		return false
+	var day: int = _sim_day()
+	_last_sim_day = day
+	_rolled_this_night = true
+	var chance: float = float(NIGHT_CHANCE.get(CampaignState.threat_label(), 0.0))
+	var roll: float = _rng.randf()
+	print("[SLEEP] night roll: tier %s, chance %.2f, rolled %.2f, night %d of %d" % [
+		CampaignState.threat_label(), chance, roll, nights_run + 1, MAX_RUN_NIGHTS])
+	if roll >= chance:
+		return false
+	open_siege()
+	return active
+
+
 ## Public so a probe drives the assault without fighting the RNG gate.
 func open_siege(forced_strength: int = 0) -> void:
 	if active or director == null or fsb_center == Vector3.ZERO:

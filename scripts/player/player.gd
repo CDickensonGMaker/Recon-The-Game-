@@ -1,6 +1,11 @@
 ## player.gd - Player root node that coordinates all player systems
 extends CharacterBody3D
 
+## Preloaded, not by class_name: a fresh script has no global class until the editor
+## rescans, and a headless boot would fail on the name.
+const SLEEP_SCREEN := preload("res://scripts/ui/screens/sleep_screen.gd")
+const SLEEP_STATION := preload("res://scripts/world/sleep_station.gd")
+
 const SATCHEL_CHARGE := preload("res://scripts/world/satchel_charge.gd")
 
 ## Movement speeds
@@ -599,6 +604,12 @@ var _prompt_poll: float = 0.0
 ## What [F] would do right now, or "" for nothing. The ranges MUST match
 ## _try_field_interact's or the prompt promises a verb that will not fire.
 func field_interact_prompt() -> String:
+	# HIS RACK, FIRST. It only ever answers within 2.5m of one authored marker, so it can
+	# never shadow another verb, and it refuses WITH A REASON rather than going dead - a
+	# run-terminator the player cannot see the state of is a bug report waiting to happen.
+	var rack: String = SLEEP_STATION.prompt(self)
+	if not rack.is_empty():
+		return rack
 	if is_manning_mg:
 		return "[F] DISMOUNT"
 	var mg: Node3D = _nearby_mg_emplacement()
@@ -919,6 +930,40 @@ func _satchel_hold_seconds() -> float:
 ## there, and it is still gone next patrol (ADR-029 Amendment B). There is
 ## deliberately no counter, panel or marker for what you have destroyed - the only
 ## way to learn that is to walk back and look. The burning fuse IS on the HUD.
+## SACKING OUT IS A HOLD, NEVER A TAP (War Room 2026-08-28). Sleep ends the run and reads
+## the dead; an accidental tap that does that is the worst defect this verb can ship. Same
+## tap/hold split the satchel uses, and while the hold is live the tap verb is suppressed so
+## one press cannot fire both.
+const SLEEP_HOLD_S: float = 1.1
+var _sleep_hold_t: float = 0.0
+## Eight hours on a cot is not free rest. He wakes hungry - otherwise sleep hands out a bank,
+## a rank, a replacement lift and a fresh fire-support day and costs nothing at all.
+const SLEEP_HUNGER_COST: float = 35.0
+var _sleeping: bool = false
+
+
+func _tick_sleep_hold(delta: float) -> void:
+	if _sleeping or not SLEEP_STATION.can_sleep(self):
+		_sleep_hold_t = 0.0
+		return
+	if not Input.is_action_pressed("interact"):
+		_sleep_hold_t = 0.0
+		return
+	_sleep_hold_t += delta
+	if _sleep_hold_t >= SLEEP_HOLD_S:
+		_sleep_hold_t = 0.0
+		_sack_out()
+
+
+func _sack_out() -> void:
+	if _sleeping:
+		return
+	_sleeping = true
+	hunger = maxf(0.0, hunger - SLEEP_HUNGER_COST)
+	await SLEEP_SCREEN.run(self)
+	_sleeping = false
+
+
 func _tick_satchel_hold(delta: float) -> void:
 	if _in_tunnel != null or satchel_count <= 0 or not GameManager.can_player_act():
 		_satchel_hold_t = 0.0
@@ -1679,7 +1724,8 @@ func _handle_movement(delta: float) -> void:
 				_field_toast("DROPPED THE %s" % dropped)
 
 	_tick_satchel_hold(delta)
-	if Input.is_action_just_pressed("interact"):
+	_tick_sleep_hold(delta)
+	if Input.is_action_just_pressed("interact") and _sleep_hold_t <= 0.0:
 		_try_field_interact()
 
 	if Input.is_action_just_pressed("pop_flare") and flare_count > 0:

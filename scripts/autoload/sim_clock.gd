@@ -109,3 +109,54 @@ func set_time(new_day: int, new_hour: float) -> void:
 	sim_hour = new_hour
 	hour_advanced.emit(int(sim_hour))
 	_fire_window(sim_day, float(int(sim_hour)) - 0.001, sim_hour)
+
+
+## ---------- SLEEP ----------
+
+## A SLEEP IS A JUMP, NOT A FAST-FORWARD.
+##
+## advance() fires every schedule entry whose fractional hour falls in the window it
+## crosses. Handing it eight hours in one call would fire a whole night's bookings in a
+## single frame - the same failure class as the 38x truncation storm that launched ~14
+## airframes at once (audit 2026-08-04, W-8). The bookings a man sleeps through HAPPENED;
+## nobody was awake to watch them, so they are marked fired and never emitted.
+##
+## Emits `hour_advanced` once and `time_period_changed` if the destination sits in a
+## different period - MissionWeather listens on that signal alone (mission_weather.gd:80),
+## so a jump that skips it would leave the sun where he lay down.
+func sleep_advance(hours: float) -> void:
+	if hours <= 0.0:
+		return
+	var prev_period: int = period_at(sim_hour)
+	var from_h: float = sim_hour
+	var from_day: int = sim_day
+	var total: float = sim_hour + hours
+	var to_day: int = sim_day
+	while total >= 24.0:
+		total -= 24.0
+		to_day += 1
+	# Burn every booking inside the slept-through window so it cannot fire on the far side.
+	for d in range(from_day, to_day + 1):
+		var lo: float = from_h if d == from_day else -0.001
+		var hi: float = total if d == to_day else 24.0
+		_burn_window(d, lo, hi)
+	sim_day = to_day
+	sim_hour = total
+	hour_advanced.emit(int(sim_hour))
+	var new_period: int = period_at(sim_hour)
+	if new_period != prev_period:
+		time_period_changed.emit(new_period)
+
+
+## Mark, without emitting, every entry _fire_window would have fired. Same key format
+## ("day-index"), so the real window can never double-fire one of these later.
+func _burn_window(day: int, from_h: float, to_h: float) -> void:
+	for i in _schedules.size():
+		var s: Dictionary = _schedules[i]
+		var s_day: int = int(s.day)
+		if s_day != -1 and s_day != day:
+			continue
+		var s_hour: float = float(s.hour)
+		if s_hour <= from_h or s_hour > to_h:
+			continue
+		_fired_event_keys["%d-%d" % [day, i]] = true

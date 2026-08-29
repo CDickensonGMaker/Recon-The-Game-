@@ -97,6 +97,93 @@ night assault and the lift comes at dawn. But `EXCLUDE_DEBRIEF` is still `true`
 (`demo_game.gd:26`), so **in the demo you get the names as radio traffic, not the AAR screen.** The
 full butcher's-bill panel appears only in the campaign.
 
+## RULED AND BUILT - SLEEP ENDS THE RUN (Summoner, 2026-08-28)
+
+**His words, verbatim:** *"i think we add the sleeping mechanic and thats how you finish a run
+or something and during the sleep part is when we get read off the names of those who died.
+that way were keeping the player from potentially being attacked and its stopping them to read
+off names. that makes more sense. so looking at the catacombs of gore game we use the same idea
+at really any hooch or should we make a player specific hooch (which again can lead to post demo
+launch work of making more earnable customized hooch items)"*
+
+**COUNCIL VERDICT ON HIS OPEN QUESTION: PLAYER-SPECIFIC. One authored rack, `spawn_bunk_01`.**
+Both lenses landed there independently. The measured case against "any hooch": `game_flow.gd`'s
+own comments record that the `prop_sleep` pool contains **village cots 142m OUTSIDE the wire**
+(the nearest-to-centre sort exists only to stop one winning) and that **8 hooch visuals stand
+against 4 `-colonly` bodies** - so a verb offered on all 68 cots drops him through the floor on
+half of them and lets him bank a patrol from inside a VC village. It also cannot carry the
+earnable decor he wants post-demo: you cannot earn a poncho liner for "any hooch."
+The UX lens named the image that decides it: **the names are read while he lies in a room of
+empty cots that belonged to the men being named.** Nothing else in the build delivers Pillar 4
+by geometry. **Named tradeoff, taken:** the cross-compound walk at 04:00, wounded, to end a run -
+and it is the walk through the densest space in the game, which is the atmosphere argument.
+**Rejected on his behalf:** a player *room*. One of six identical racks, not officer's quarters.
+
+**FOR HIM, POST-DEMO (not built, per his own scope):** the squad hooch, six racks, his among
+them, the others emptying as men die; the parked player locker (item 23) belongs at the foot of
+this rack; a "rack anywhere" lesser verb that passes time but banks nothing, so a wrecked hooch
+can never lock him out of ending a run.
+
+**BUILT THIS RUN, unverified by you:**
+
+1. **The verb.** `[HOLD F] SACK OUT - ENDS THE PATROL` at his rack (`scripts/world/sleep_station.gd`,
+   wired at `player.gd` `_tick_sleep_hold` / `field_interact_prompt`). HOLD, never tap - an
+   accidental tap that ends a run is the worst defect this verb could ship. It **refuses with a
+   reason** rather than going dead: not on the wire during a siege, not outside the wire, not
+   downed, not with enemy inside 90m.
+2. **The ceremony** (`scripts/ui/screens/sleep_screen.gd`). Black, then the roll call of the dead
+   by name, then the butcher's bill, then the night. Nothing can shoot him and he cannot walk
+   away - `GameManager.is_in_menu` gates the player's whole `_physics_process` and `_input`.
+   **It is not a cutscene and neither is the wake:** control returns with the black.
+3. **THE DEAD ARE READ IN EXACTLY ONE PLACE.** The radio-traffic reading shipped in 39d61ce0 at
+   the wire is gone; `_read_the_dead` now has a quiet mode so the sleep screen renders the names
+   itself. `_on_siege_ended`'s dawn reading is **narrowed to `GameFlow.demo_mode`** - the demo's
+   authored one-day arc has no night to rack out into, and without it the whole replacement loop
+   is unreachable in the build that ships. In the campaign, sleep owns the ceremony outright.
+4. **Sleep drives `_bank_patrol` - it was not rebuilt.** Crossing the wire inward no longer banks;
+   it ends the excursion and sets `_patrol_pending`. **The phantom-bank guard:** a man who never
+   left his cot banks nothing by lying down twice (measured).
+5. **The night roll is asked at the moment he lies down** (`SiegeDirector.roll_night_for_sleep`) -
+   same NIGHT_CHANCE table, same earned threat tier, same MAX_RUN_NIGHTS chain. This closes the
+   hole the council found: a clock JUMP skips the `is_night` poll entirely, so a naive sleep would
+   have made the whole ADR-035 night assault opt-out by going to bed at dusk. On a hit the clock
+   moves only 3.5h and he is **shaken awake at his own bunk, in the dark, siren going**; on a miss
+   the full 8 hours and a morning. Existing beats reused, not rebuilt: `_garrison_stand_to`,
+   `SirenTower`/`_sound_siren`, the STAND TO toast, the ranging mortars that start at zero.
+6. **`SimClock.sleep_advance()`** - a sleep is a JUMP, not a fast-forward. It emits
+   `time_period_changed` (MissionWeather listens on that signal alone, so a jump without it would
+   leave the sun where he lay down) and it **burns** the bookings slept through instead of firing
+   a night's worth of airframes in one frame.
+7. **Sleep costs something.** He wakes hungry (`SLEEP_HUNGER_COST`). Otherwise it handed out a
+   bank, a rank, a replacement lift and a fresh fire-support day for free.
+8. **Found and corrected in passing (NO MORE DRIFT):** `WeaponHolder.session_shots/hits` were
+   never reset at a bank, so every accuracy figure after the first was the tour's, not the
+   patrol's. Fixed at `_bank_patrol`. The bank toast no longer says "BACK INSIDE THE WIRE" - it
+   fires at a bunk now.
+
+**THE FORCED DEMO SIEGE TIMER IS *NOT* RETIRED, AND SHOULD NOT BE.** The "720s wall-clock timer"
+in the standing record is **stale**: `demo_game.gd` runs an authored ONE-DAY arc at
+`PROBE_AT_S 1395` / `SIEGE_AT_S 1440` / `END_BACKSTOP_S 2700`, ratified by the War Room of
+2026-08-03 and your own 2026-08-07 ruling that the raid ends the demo, not a stopwatch. That arc
+IS the shipping demo and it is the standing session entry gate. Sleep is deliberately **refused
+in demo mode** (`"[F] NOT TONIGHT - THE DAY ISN'T DONE"`): the demo arc runs on accumulated REAL
+seconds, which a sim-clock jump cannot move, and a jump there would only desync the beats and
+re-arm the fire-support allotment the 20x night was bought to protect. **What sleep retires is
+the NEED for a forced timer in the campaign** - `SiegeDirector._maybe_open`'s per-night roll was
+unreachable because nothing ever made the player present at night, and now something does.
+**YOUR CALL if you want it in the demo:** it is one line in `sleep_station.gd:refusal()`.
+
+**PROOF:** `tests/probe_sleep_loop.tscn` - PASS on all three (clock lands 21:00 d3 +8h -> 05:00 d4
+with DAWN emitted; 3 bookings in the slept window fire 0 times and stay burned; no walk-out means
+no night, two sleeps bank nothing, MAX_RUN_NIGHTS refuses). Headless boot of the demo scene:
+**0 SCRIPT ERROR, 0 Parse Error**, `[SPAWN] authored bunk marker at (254.39, 177.64, 288.10)
+(2 placed, 32m from fsb centre)`.
+
+**STILL OPEN, named not buried:** the tour clock (`sim_day`/`sim_hour`) is not in the campaign
+save, so sleep makes the calendar player-facing for the first time and a save/reload resets it.
+`SimClock.set_time` still does not emit `time_period_changed` (the demo boot depends on that);
+only `sleep_advance` does.
+
 ## SOURCE NOTES — (Caleb, demo runs the night of 8/27)
 
 Source: Caleb's spoken notes, ~3 pages. Never reached the siege — blocked by the crashes below.

@@ -1199,6 +1199,11 @@ var patrol_location := Vector3.ZERO
 var patrol_location_kind: String = ""
 var patrol_out: bool = false
 var patrol_count: int = 0
+## An excursion has been walked and NOT yet banked. Set when he crosses the wire outbound,
+## cleared by _bank_patrol. This is what stops a man who never left his cot from banking a
+## phantom patrol by lying down twice - the same phantom-loop class as the 2026-08-04
+## gate-distance bug, arriving through the new verb instead of the old one.
+var _patrol_pending: bool = false
 var _visited_locations: Array[Vector3] = []
 var _gate_poll: float = 0.0
 
@@ -1428,6 +1433,7 @@ func _poll_wire_gate() -> void:
 			world.player.global_position.z - fsb_center.z).length())
 	if not patrol_out and d > WIRE_GATE_M:
 		patrol_out = true
+		_patrol_pending = true
 		patrol_count += 1
 		CampaignState.begin_mission()
 		var picked: Dictionary = _pick_patrol_location()
@@ -1447,8 +1453,15 @@ func _poll_wire_gate() -> void:
 		_grant_fire_support()
 		rebark_patrol()
 	elif patrol_out and d < WIRE_RETURN_M:
+		# CROSSING THE WIRE IS NO LONGER THE CEREMONY. His ruling 2026-08-28: "i think we add
+		# the sleeping mechanic and thats how you finish a run." Walking back in ends the
+		# EXCURSION - the hunt net stands down, the ledger stops growing - but the run is not
+		# banked and the dead are not read until he racks out, because the reading must happen
+		# where he cannot be shot at and cannot walk away from it. `_bank_patrol` is untouched
+		# and still the one bank; sleep drives it now (SleepStation -> turn_in_for_the_night).
 		patrol_out = false
-		_bank_patrol()
+		_patrol_pending = true
+		toast.emit("BACK INSIDE THE WIRE - RACK OUT WHEN YOU'RE DONE FOR THE DAY")
 
 
 ## Battalion allots the patrol its steel as you cross the wire outbound. The count
@@ -1850,8 +1863,15 @@ func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
 		_:
 			toast.emit("FIRST LIGHT - THEY'VE MELTED AWAY (%d OF %d DOWN)" % [killed, strength])
 	_garrison_stand_down()
-	_read_the_dead(state.flags.get("squad_kia", []) as Array)
-	_call_replacements()
+	# THE READING BELONGS TO THE SLEEP (his ruling 2026-08-28), and there is exactly ONE.
+	# In the campaign he racks out after the night and the names land there, over black.
+	# The demo has no sleep to reach - its authored one-day arc ENDS on this siege
+	# (demo_game.gd SIEGE_AT_S/END_BACKSTOP_S) - so there the dawn keeps the ceremony, or
+	# the whole replacement loop is unreachable in the build that ships.
+	# `_dead_read` guarantees a man is named once even if both paths ever ran.
+	if GameFlow.demo_mode:
+		_read_the_dead(state.flags.get("squad_kia", []) as Array)
+		_call_replacements()
 
 
 ## Dawn. The survivors go back to being men with jobs, and the dead are not replaced -
@@ -1959,7 +1979,52 @@ func _route_report() -> String:
 	return "PLANNED %d, WALKED %d" % [order.size(), walked]
 
 
+## ---------- SLEEP ENDS THE RUN (Summoner, 2026-08-28) ----------
+
+## His words: "i think we add the sleeping mechanic and thats how you finish a run or
+## something and during the sleep part is when we get read off the names of those who died.
+## that way were keeping the player from potentially being attacked and its stopping them to
+## read off names."
+##
+## This is the run-terminator. It BANKS (the same `_bank_patrol` that has always been the one
+## bank - nothing forked), takes the names QUIETLY so the sleep screen can render them over
+## black, and then asks SiegeDirector whether tonight comes for him.
+##
+## Returns { "banked": bool, "names": Array[String], "kia": int, "ward": int, "siege": bool }.
+## `banked` is false when no excursion is outstanding - a man who never left his cot cannot
+## bank a patrol by lying down twice - and the sleep still happens, it just logs nothing.
+func turn_in_for_the_night() -> Dictionary:
+	var names: Array[String] = []
+	var banked: bool = _patrol_pending
+	if banked:
+		_read_quiet = true
+		_bank_patrol()
+		_read_quiet = false
+		names = last_dead_read
+	else:
+		# Not a banked run, but a night still passed and men still died in it (a siege
+		# fought at home). Those names are owed and this is where they are paid.
+		_read_quiet = true
+		names = _read_the_dead(state.flags.get("squad_kia", []) as Array)
+		_read_quiet = false
+	return {
+		"banked": banked,
+		"names": names,
+		"kia": CampaignState.kia_total,
+		"ward": CampaignState.ward_wounded,
+	}
+
+
+## The night roll, taken at the moment he lies down. Separated from turn_in_for_the_night so
+## the ceremony reads the dead FIRST, over black, and only then finds out what the night holds.
+func roll_the_night() -> bool:
+	if siege == null or not is_instance_valid(siege):
+		return false
+	return siege.roll_night_for_sleep()
+
+
 func _bank_patrol() -> void:
+	_patrol_pending = false
 	bank_field_marks()
 	var report: String = _route_report()
 	if not report.is_empty():
@@ -1970,13 +2035,23 @@ func _bank_patrol() -> void:
 	result["civilian_deaths"] = state.civilian_deaths
 	result["shots"] = WeaponHolder.session_shots
 	result["hits"] = WeaponHolder.session_hits
+	# THE SESSION COUNTERS ARE PER-BANK, and nothing was ever resetting them here - they are
+	# zeroed once at world build (game_flow.gd) and then accumulated forever, so every
+	# accuracy figure after the first bank was the tour's, not the patrol's. Found by the
+	# War Room 2026-08-28 while adding the second bank point; corrected in the same change
+	# rather than read past (NO MORE DRIFT).
+	WeaponHolder.session_shots = 0
+	WeaponHolder.session_hits = 0
 	if CampaignState.bank_reputation(DebriefScreen.compute_score(result)):
 		toast.emit("FIELD PROMOTION: %s" % CampaignState.title())
 	CampaignState.on_mission_end(result)
 	if squad_system != null and is_instance_valid(squad_system):
 		squad_system.on_mission_end()
 	CampaignState.commit_mission()
-	toast.emit("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" % [
+	# The copy used to say "BACK INSIDE THE WIRE" because the wire crossing WAS the bank.
+	# It is not any more - this fires at the rack, and a line that names the wrong place is
+	# how a doc lies about the code (NO MORE DRIFT, 2026-07-19).
+	toast.emit("PATROL %d LOGGED - %d KILLS" % [
 		patrol_count, int(result.get("kills", 0))])
 	_read_the_dead(result.get("squad_kia", []) as Array)
 	_call_replacements()
@@ -2003,21 +2078,33 @@ var _dead_read: Array[String] = []
 ## read the dead roster at the end of the play... shouldnt be interupting the game in the
 ## moment"). This is the ONE place a squad death is spoken as a name rather than as a KIA
 ## bark - the bark is the moment, this is the ledger.
-func _read_the_dead(dead: Array) -> void:
+## ONE CEREMONY, AND IT IS THE SLEEP. When `_read_quiet` is set the names are collected and
+## marked read but NOT spoken as toasts - the sleep screen renders them itself, over black,
+## where nothing can shoot him and he cannot walk away mid-roll-call. The toast path below
+## survives for the one case sleep cannot reach: a siege that ends at dawn in the demo, whose
+## authored arc has no next night to rack out into.
+var _read_quiet: bool = false
+## The names taken by the last read, for whoever drove it.
+var last_dead_read: Array[String] = []
+
+
+func _read_the_dead(dead: Array) -> Array[String]:
 	var fresh: Array[String] = []
 	for n in dead:
 		var nm: String = str(n)
 		if not _dead_read.has(nm):
 			_dead_read.append(nm)
 			fresh.append(nm)
-	if fresh.is_empty():
-		return
+	last_dead_read = fresh
+	if fresh.is_empty() or _read_quiet:
+		return fresh
 	toast.emit("KILLED IN ACTION - %d MAN%s" % [
 		fresh.size(), "" if fresh.size() == 1 else " AND MORE"])
 	for nm in fresh:
 		toast.emit("  %s" % nm)
 	toast.emit("BUTCHER'S BILL: %d KIA, %d IN THE WARD"
 		% [CampaignState.kia_total, CampaignState.ward_wounded])
+	return fresh
 
 
 ## THE REPLACEMENT BIRD. Vacancies are read off the roster AFTER the patrol banked, so a man

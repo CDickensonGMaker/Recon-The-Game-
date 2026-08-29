@@ -573,6 +573,16 @@ var _world_entry: int = 0
 ## DEMO GAME (War Room 2026-07-29): demo_game.tscn sets this before booting the
 ## SAME flow - one world-build path, never a parallel copy (ADR-028).
 static var demo_mode: bool = false
+
+## HIS RACK. The authored bunk marker the player was seated on at spawn, kept so the sleep
+## station can find it without re-walking the scene tree every prompt poll. Vector3.ZERO
+## means the world had no authored marker and he was field-spawned - then the rack is
+## wherever he is standing (SleepStation's rubble fallback).
+##
+## The run STARTS in the place it ENDS: `_firebase_bunk` seats him here at boot, which is
+## the whole wayfinding system - no quest marker teaches a location like opening your eyes
+## in it (War Room 2026-08-28, UX lens).
+static var player_rack: Vector3 = Vector3.ZERO
 const DEMO_MAP_SIZE: float = 512.0
 
 
@@ -652,6 +662,7 @@ func enter_hub() -> void:
 	var spawn_seated: bool = bunk == Vector3.ZERO
 	if not spawn_seated:
 		spawn = bunk
+	GameFlow.player_rack = bunk
 	# Dev lens: `--spawn-at-village` drops the patrol at the nearest village edge so
 	# the living world can be judged without the walk (temporary, Summoner 2026-07-18).
 	if OS.get_cmdline_user_args().has("--spawn-at-village"):
