@@ -1,5 +1,9 @@
-## sleep_station.gd - THE RACK. Sleep is how a run ends (Summoner, 2026-08-28, extending his
-## own 2026-07-30 sleep-loop decree).
+## sleep_station.gd - THE RACK. **PARKED POST-LAUNCH, Summoner 2026-08-30: "lets have the
+## sleep be a post launch idea".** DORMANT, not dead: `FieldDirector.SLEEP_POST_LAUNCH` gates
+## the verb off and hands the run-ending ceremony back to the wire crossing. Everything below
+## is built and probed (`tests/probe_sleep_loop.tscn`) and thaws on one const.
+##
+## Sleep is how a run ends (Summoner, 2026-08-28, extending his 2026-07-30 sleep-loop decree).
 ##
 ## HIS WORDS: "i think we add the sleeping mechanic and thats how you finish a run or
 ## something and during the sleep part is when we get read off the names of those who died.
@@ -52,6 +56,11 @@ static func at_rack(player: Node3D) -> bool:
 ## Why he cannot sleep, or "" if he can. THE PROMPT REFUSES WITH A REASON - a dead prompt
 ## teaches nothing, and a verb that silently does nothing reads as a bug (r4bk law).
 static func refusal(player: Node3D) -> String:
+	# POST-LAUNCH, by his ruling 2026-08-30: "lets have the sleep be a post launch idea".
+	# The machinery below is intact and probed; it is simply not offered. One const governs
+	# it, and it lives with the bank it replaces (FieldDirector.SLEEP_POST_LAUNCH).
+	if FieldDirector.SLEEP_POST_LAUNCH:
+		return "NOT YET"
 	var d: FieldDirector = _director()
 	if d == null or not is_instance_valid(d):
 		return "NOT HERE"
@@ -80,6 +89,10 @@ static func refusal(player: Node3D) -> String:
 
 ## The [F] line. Empty when he is nowhere near a rack - the verb does not exist out in the AO.
 static func prompt(player: Node3D) -> String:
+	# Dormant means NO AFFORDANCE AT ALL - a prompt that only ever refuses would be a
+	# promise of a feature that is not in this build (r4bk cuts both ways).
+	if FieldDirector.SLEEP_POST_LAUNCH:
+		return ""
 	if not at_rack(player):
 		return ""
 	var why: String = refusal(player)

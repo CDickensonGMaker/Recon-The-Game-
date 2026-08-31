@@ -1199,6 +1199,12 @@ var patrol_location := Vector3.ZERO
 var patrol_location_kind: String = ""
 var patrol_out: bool = false
 var patrol_count: int = 0
+## SLEEP IS POST-LAUNCH (Summoner, 2026-08-30: "lets have the sleep be a post launch idea").
+## While this is true the wire crossing is the ceremony - it banks the run and the dead are
+## read there, exactly as it did before 2026-08-28 - and the rack verb does not exist
+## (sleep_station.gd reads this const). Flip it false to hand the ceremony to the sleep
+## screen; that is the ONE switch, there is no second one anywhere.
+const SLEEP_POST_LAUNCH: bool = true
 ## An excursion has been walked and NOT yet banked. Set when he crosses the wire outbound,
 ## cleared by _bank_patrol. This is what stops a man who never left his cot from banking a
 ## phantom patrol by lying down twice - the same phantom-loop class as the 2026-08-04
@@ -1453,15 +1459,17 @@ func _poll_wire_gate() -> void:
 		_grant_fire_support()
 		rebark_patrol()
 	elif patrol_out and d < WIRE_RETURN_M:
-		# CROSSING THE WIRE IS NO LONGER THE CEREMONY. His ruling 2026-08-28: "i think we add
-		# the sleeping mechanic and thats how you finish a run." Walking back in ends the
-		# EXCURSION - the hunt net stands down, the ledger stops growing - but the run is not
-		# banked and the dead are not read until he racks out, because the reading must happen
-		# where he cannot be shot at and cannot walk away from it. `_bank_patrol` is untouched
-		# and still the one bank; sleep drives it now (SleepStation -> turn_in_for_the_night).
+		# THE WIRE IS THE CEREMONY AT LAUNCH. His 2026-08-28 ruling handed it to the sleep;
+		# his 2026-08-30 ruling made sleep post-launch, so the wire keeps it until sleep
+		# thaws. `_bank_patrol` is the ONE bank on either side of that switch - the only
+		# thing SLEEP_POST_LAUNCH changes is who drives it.
 		patrol_out = false
 		_patrol_pending = true
-		toast.emit("BACK INSIDE THE WIRE - RACK OUT WHEN YOU'RE DONE FOR THE DAY")
+		if SLEEP_POST_LAUNCH:
+			# The wire IS the ceremony while sleep is dormant. _bank_patrol clears the latch.
+			_bank_patrol()
+		else:
+			toast.emit("BACK INSIDE THE WIRE - RACK OUT WHEN YOU'RE DONE FOR THE DAY")
 
 
 ## Battalion allots the patrol its steel as you cross the wire outbound. The count
@@ -1869,7 +1877,12 @@ func _on_siege_ended(reason: String, killed: int, strength: int) -> void:
 	# (demo_game.gd SIEGE_AT_S/END_BACKSTOP_S) - so there the dawn keeps the ceremony, or
 	# the whole replacement loop is unreachable in the build that ships.
 	# `_dead_read` guarantees a man is named once even if both paths ever ran.
-	if GameFlow.demo_mode:
+	# THE DAWN READ STANDS ON EVERY LAUNCH PATH. A campaign siege can be the only thing that
+	# happens between two walk-outs, and _bank_patrol only fires at the wire; without this the
+	# night's dead would go unnamed until the next patrol came home. `_dead_read` guarantees a
+	# man is spoken once even when both hooks run on the same path.
+	# When sleep thaws post-launch it takes the campaign ceremony and this narrows to demo_mode.
+	if GameFlow.demo_mode or SLEEP_POST_LAUNCH:
 		_read_the_dead(state.flags.get("squad_kia", []) as Array)
 		_call_replacements()
 
@@ -2048,11 +2061,10 @@ func _bank_patrol() -> void:
 	if squad_system != null and is_instance_valid(squad_system):
 		squad_system.on_mission_end()
 	CampaignState.commit_mission()
-	# The copy used to say "BACK INSIDE THE WIRE" because the wire crossing WAS the bank.
-	# It is not any more - this fires at the rack, and a line that names the wrong place is
-	# how a doc lies about the code (NO MORE DRIFT, 2026-07-19).
-	toast.emit("PATROL %d LOGGED - %d KILLS" % [
-		patrol_count, int(result.get("kills", 0))])
+	# The copy names where it actually fires - the wire at launch, the rack once sleep thaws.
+	# A line that names the wrong place is how a doc lies about the code (NO MORE DRIFT).
+	toast.emit(("BACK INSIDE THE WIRE - PATROL %d LOGGED, %d KILLS" if SLEEP_POST_LAUNCH
+		else "PATROL %d LOGGED - %d KILLS") % [patrol_count, int(result.get("kills", 0))])
 	_read_the_dead(result.get("squad_kia", []) as Array)
 	_call_replacements()
 	_set_patrol_location({})
@@ -2078,11 +2090,10 @@ var _dead_read: Array[String] = []
 ## read the dead roster at the end of the play... shouldnt be interupting the game in the
 ## moment"). This is the ONE place a squad death is spoken as a name rather than as a KIA
 ## bark - the bark is the moment, this is the ledger.
-## ONE CEREMONY, AND IT IS THE SLEEP. When `_read_quiet` is set the names are collected and
-## marked read but NOT spoken as toasts - the sleep screen renders them itself, over black,
-## where nothing can shoot him and he cannot walk away mid-roll-call. The toast path below
-## survives for the one case sleep cannot reach: a siege that ends at dawn in the demo, whose
-## authored arc has no next night to rack out into.
+## AT LAUNCH the toast path below IS the ceremony, driven from the wire bank and from dawn
+## when a siege ends. `_read_quiet` is the post-launch hook: with it set the names are
+## collected and marked read but not spoken, so the sleep screen can render them over black.
+## Nothing sets it while SLEEP_POST_LAUNCH is true.
 var _read_quiet: bool = false
 ## The names taken by the last read, for whoever drove it.
 var last_dead_read: Array[String] = []

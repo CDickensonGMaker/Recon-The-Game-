@@ -315,7 +315,7 @@ tunnels won't save it.**
 | Ruling | Items |
 |---|---|
 | **KILLED** | 8-directional sprite render matrix (ADR-001) · operation-style front door at launch (single faction) · **player stat progression (ADR-018)** |
-| **PARKED** | hunger (ADR-009) · SF/Marines (DLC) |
+| **PARKED** | hunger (ADR-009) · SF/Marines (DLC) · **THE SLEEP / RACK-OUT RUN-ENDER (Summoner, 2026-08-30: *"lets have the sleep be a post launch idea"*)** — his 2026-07-30 sleep-loop decree AND its 2026-08-28 amendment ("sleep is how you finish a run, and the dead are read there") now BOTH read POST-LAUNCH. The code is **built and DORMANT, not reverted**: `FieldDirector.SLEEP_POST_LAUNCH` (`scripts/missions/field_director.gd:1201`) gates the rack verb off and keeps the wire crossing as the run-ender and the one reading of the dead. Do not resurrect sleep as launch scope; do not delete it either. · player locker, one universal inventory pool (his ruling 2026-08-28) · convoy that forms up and drives out (his ruling 2026-08-28) |
 | **FROZEN (post-core)** | **tunnel INTERIORS** (a second game: different movement, light, combat — it eats a year. **Tunnel MOUTHS you mark and satchel are IN SCOPE TODAY.** Going down the hole is the FIRST THAW once the core is undeniable.) · supply-logistics sim · coop · driveable/flyable vehicles · riverine · capture/POW epic · full-volume battle director · RPG shop · ride-or-walk |
 | **SHRUNK** | 100 bios → 20 great ones · HQ interactions stay walk-up-simple |
 

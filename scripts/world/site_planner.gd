@@ -1749,10 +1749,27 @@ func _audit_one_ground(center: Vector3, seat_y: float) -> void:
 		% [over, samples, worst, worst_at.x, worst_at.z])
 
 
-## Name anything left standing on air. A collider whose LOWEST point floats well above the
-## ground is the shape of every "I got stuck on top of the base" report, and hunting one by
-## jumping around the compound is not a debugging method. Reports the worst offenders by name
-## so the next one is found in a log line instead of a playtest.
+## Name anything left standing on air. A collider whose LOWEST point floats well above what is
+## under it is the shape of every "I got stuck on top of the base" report, and hunting one by
+## jumping around the compound is not a debugging method.
+##
+## **READ THE COUNT CORRECTLY. THE DATUM IS THE TERRAIN HEIGHTMAP, NOT THE FLOOR THE SHAPE IS
+## STANDING ON** (measured and labelled honestly 2026-08-30). Inside the firebase THE MODEL IS
+## THE GROUND - this audit's own siblings print `kept 1 mound collider(s) - the MODEL is the
+## ground` and `terrain sits under the model everywhere` - and fsb_main_v3 is authored with y=0
+## at the mound TOE, rising to 14.5m. So the ~1441 this reports is **dominated by props
+## correctly standing on the compound floor**, plus ceiling fittings that belong in the air.
+## Measured composition: fb=636, fb_int=277, m101=141, MC=139, StaticBody3D=96, grunt=32,
+## OFF0/1/2=30 each, PSXRig=12; worst offenders are hanging bulbs (+7.8m) and the medical-tent
+## casualty figures' gib parts (+6.8m). **It is not a bug count and it was wrongly carried into
+## PLAYTEST_FINDINGS_2026-08-28 item 8 as a lead.**
+##
+## A true datum needs a downward cast from each shape's bottom, and that CANNOT be fired here:
+## a body added this frame is not in the physics space until the next physics step (the same
+## trap game_flow.gd:647 documents), so the cast hits nothing and returns the terrain delta
+## anyway - measured, 1417 of 1441 unchanged. Fixing it means moving this audit to a callsite
+## that runs after a physics flush. That is the first task of the collision pass, not a
+## one-liner here.
 const FLOAT_REPORT_M: float = 3.0
 
 
@@ -1772,8 +1789,7 @@ func _audit_floating_colliders(root: Node3D) -> void:
 		if aabb.size.length() < 0.01:
 			continue
 		var bottom: float = (cs.global_transform * aabb).position.y
-		var ground: float = _terrain.get_height_at(cs.global_position)
-		var air: float = bottom - ground
+		var air: float = bottom - _terrain.get_height_at(cs.global_position)
 		if air >= FLOAT_REPORT_M:
 			worst.append([air, String(cs.get_parent().name)])
 	if worst.is_empty():
@@ -1782,8 +1798,24 @@ func _audit_floating_colliders(root: Node3D) -> void:
 	var lines: Array[String] = []
 	for i in range(mini(6, worst.size())):
 		lines.append("%s +%.1fm" % [worst[i][1], worst[i][0]])
-	print("[FSB] %d collider(s) floating >%.0fm off the ground; worst: %s" % [
+	print("[FSB] %d collider(s) >%.0fm above the TERRAIN HEIGHTMAP (not above their own floor - see _audit_floating_colliders); worst: %s" % [
 		worst.size(), FLOAT_REPORT_M, ", ".join(lines)])
+	# THE COUNT ON ITS OWN IS NOT A FINDING - it says nothing about WHAT is in the air, and a
+	# ceiling bulb is supposed to be. Bucketed by name family so the number can be read.
+	var fam: Dictionary = {}
+	for w in worst:
+		var nm: String = String(w[1])
+		var key: String = nm.split("_")[0]
+		if nm.begins_with("fb_int"):
+			key = "fb_int"
+		fam[key] = int(fam.get(key, 0)) + 1
+	var fam_keys: Array = fam.keys()
+	fam_keys.sort_custom(func(a: Variant, b: Variant) -> bool: return int(fam[a]) > int(fam[b]))
+	var fl: Array[String] = []
+	for i in range(mini(10, fam_keys.size())):
+		fl.append("%s=%d" % [fam_keys[i], int(fam[fam_keys[i]])])
+	print("[FSB] floating by family: %s" % ", ".join(fl))
+
 
 
 ## THE PARAPET CAN BE BLOWN APART. gen_firebase_v3 has emitted the perimeter as 80 destructible

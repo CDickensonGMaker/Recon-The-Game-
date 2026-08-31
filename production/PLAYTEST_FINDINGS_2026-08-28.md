@@ -8,6 +8,36 @@ Ordered. Tag = who does the work. `[x]` = fixed this run (2026-08-28), unverifie
 2. [x] [CODE] Gun crew crash. Promoted garrison man was queue_free'd but left in `_members`. Fixed at the node's own exit.
 
 **P1 - BLOCKS THE SIEGE RUN**
+
+> **COLLISION PASS - FIRST MEASUREMENT, 2026-08-30. THE "1441 FLOATING COLLIDERS" NUMBER IS NOT
+> A LEAD; IT WAS A BROKEN INSTRUMENT.** `site_planner._audit_floating_colliders` measured
+> `shape_bottom - terrain.get_height_at()`. But **inside the firebase the MODEL is the ground** -
+> the same boot prints `kept 1 mound collider(s) - the MODEL is the ground` and `terrain sits
+> under the model everywhere (worst +0.00m)`, and fsb_main_v3 is authored with y=0 at the mound
+> TOE rising to 14.5m. So every bunker, gun and prop **correctly standing on the compound floor**
+> was counted as airborne, along with ceiling bulbs that belong up there. Composition, measured:
+> `fb=636, fb_int=277, m101=141, MC=139, StaticBody3D=96, grunt=32, OFF0/1/2=30 each, PSXRig=12`;
+> the worst offenders are hanging bulbs (+7.8m) and the medical-tent casualty figures' gib parts
+> (+6.8m). **The line now says what it actually measures** (`>3m above the TERRAIN HEIGHTMAP -
+> not above their own floor`) and prints the family histogram, so the number can never be
+> misread as a bug count again. A TRUE datum needs a downward cast from each shape's bottom, and
+> that cannot be fired at this callsite: a body added this frame is not in the physics space
+> until the next physics step (the trap `game_flow.gd:647` documents), so the cast hits nothing
+> and returns the terrain delta anyway - **tried and measured this run: 1417 of 1441 unchanged**,
+> and deferring the audit behind `await physics_frame` made it print nothing at all. **Moving
+> this audit to a post-physics callsite is task one of the collision pass.**
+>
+> **THE HEIGHT AUTHORITY FOR ITEMS 4 AND 6 IS ALREADY CORRECT - THE QUESTION IS WHO USES IT.**
+> `GameWorld.floor_y()` (`scripts/levels/game_world.gd:442`) probes a SHORT reach from just above
+> the caller's known Y. `GameWorld.surface_y()` (`:404`) fires an 18m ray from above and takes the
+> FIRST hit - **which is the ROOF over any covered point.** Its own comment records that this is
+> exactly what stood the garrison and the whole squad on the rooftops in your 2026-08-04 playtest
+> (authored markers sit 2.8-3.2m above their floor, the hootch roof at 2.88m). Items 4 and 6 are
+> the same bug class: a caller using `surface_y` or raw `get_height_at` where it needs `floor_y`.
+> **Not yet triaged, named so the next run starts here:** `marching_cell.gd:242`,
+> `squad_system.gd:322`, `litter_team.gd:172`, `air_traffic.gd:520` (`_ground_at`).
+> **The pass was NOT started beyond this measurement.**
+
 3. [ ] [SCENE-LAYOUT] Bunker collision - cannot enter ANY bunker. Collider shape/layer on the fsb bunker mesh.
 4. [ ] [CODE] NPCs fall through the ground (burn ground, Huey dismount). Spawn/dismount height authority.
 5. [ ] [CODE] Huey pilots leave the aircraft; empty Huey flies off. Pilots must be exempt from the disembark set.
@@ -97,7 +127,51 @@ night assault and the lift comes at dawn. But `EXCLUDE_DEBRIEF` is still `true`
 (`demo_game.gd:26`), so **in the demo you get the names as radio traffic, not the AAR screen.** The
 full butcher's-bill panel appears only in the campaign.
 
-## RULED AND BUILT - SLEEP ENDS THE RUN (Summoner, 2026-08-28)
+## REVERSED 2026-08-30 - SLEEP IS POST-LAUNCH. THE SECTION BELOW IS HISTORY, NOT LAW.
+
+**His words, verbatim (2026-08-30):** *"lets have the sleep be a post launch idea"*
+
+**BINDING. The sleeping mechanic is POST-LAUNCH. It is not a demo feature and it is not a launch
+feature.** His 2026-07-30 sleep-loop decree AND its 2026-08-28 amendment (below) now BOTH read
+POST-LAUNCH. Recorded in the scope table at `production/GAME_GUIDE.md` (PARKED row) so a future
+session cannot resurrect it as launch scope.
+
+**NOT REVERTED - PARKED DORMANT.** Ripping fc1af4c0 out would take two genuine fixes with it: the
+night roll that a clock jump would have skipped (`SiegeDirector.roll_night_for_sleep`) and the
+`WeaponHolder.session_shots/hits` reset at the bank. The machinery stays built and probed and
+thaws on **one const**:
+
+> `FieldDirector.SLEEP_POST_LAUNCH` — `scripts/missions/field_director.gd`
+
+While it is `true`: the rack offers **no verb at all** (`sleep_station.gd` `prompt()` returns "",
+`refusal()` returns "NOT YET"), the wire crossing banks the run again, and the dead are read
+where they were read before 8/28. There is no second switch anywhere.
+
+### WHERE THE DEAD ARE READ - MEASURED, not reasoned (`tests/probe_the_reading.tscn`)
+
+The 8/28 change moved the naming ceremony INTO the sleep screen and narrowed the dawn read to
+`GameFlow.demo_mode`. With sleep parked that would have left **the campaign banking nothing and
+naming nobody** - a silent regression against your own 8/28 ruling *"game will read the dead
+roster at the end of the play."* Restored and proven:
+
+| Path | Where the dead are read | Measured |
+|---|---|---|
+| **DEMO** | dawn, when the siege ends (`_on_siege_ended`) | `siege end named ["CPL VOSS"], repeat named []` |
+| **CAMPAIGN** | the wire bank (`_poll_wire_gate` inbound -> `_bank_patrol`) | `wire-inward named ["PFC HALVORSEN", "SGT REYES"] (banked=true), second crossing named []` |
+| **POST-LAUNCH** | the sleep screen takes it over on the const flip | rack today: `prompt="", refusal="NOT YET", can_sleep=false` while standing on it |
+
+**Exactly one reading per path, and a man is named exactly once** - `_dead_read` dedupes, which is
+what the empty "repeat"/"second crossing" columns prove.
+
+**THE sim_day/sim_hour SAVE GAP IS NOW POST-LAUNCH ONLY.** The tour clock is absent from the
+campaign save, but nothing on the launch path renders a day number to the player - `sim_day` is
+read only by schedulers (`air_traffic.gd:598`, `convoy_spawner.gd:68`, `siege_director.gd:173`)
+and by a demo debug print. Sleep was the thing that would have made the calendar player-facing.
+**Not fixed, deliberately. It thaws with sleep.**
+
+---
+
+## HISTORY - RULED AND BUILT, SLEEP ENDS THE RUN (Summoner, 2026-08-28; REVERSED 8/30 above)
 
 **His words, verbatim:** *"i think we add the sleeping mechanic and thats how you finish a run
 or something and during the sleep part is when we get read off the names of those who died.
