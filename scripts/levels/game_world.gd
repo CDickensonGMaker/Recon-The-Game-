@@ -50,6 +50,11 @@ func _ready() -> void:
 	_setup_environment()
 	if build_terrain_on_ready:
 		_setup_terrain()
+	# Pay the ordnance FX construction here, once, instead of on the first bomb of
+	# the first raid. Measured cold: 59.6 ms for the first explosion + 64.4 ms for
+	# the first burn patch (tools/probe_raid_cost.tscn, 2026-08-31). Idempotent.
+	GunFX.warm(self)
+	FireHazard.warm(self)
 
 
 func _setup_environment() -> void:

@@ -32,6 +32,25 @@ var _light_checked: bool = false
 var _flicker: float = 1.0
 
 
+## Build one patch and drop it, so the FIRST napalm canister of a mission does not
+## pay the flame/smoke sheet loads mid-flight. Measured cold on a fresh arena
+## (tools/probe_raid_cost.tscn, 2026-08-31): create_at cost 68.013 ms the first time
+## against a warm cost under 1 ms - the sheets it pulls through GunFX._sheet_mat
+## ("sheets/fire_loop_sheet") are not the ones the explosion path loads, so warming
+## GunFX alone still left 27.497 ms on the first burn. Idempotent.
+static var _warmed: bool = false
+
+
+static func warm(parent: Node) -> void:
+	if _warmed or parent == null or not is_instance_valid(parent):
+		return
+	_warmed = true
+	var h: FireHazard = create_at(parent, Vector3(0.0, -1000.0, 0.0), 4.0, 0.01)
+	if h != null and is_instance_valid(h):
+		active.erase(h)
+		h.queue_free()
+
+
 static func create_at(parent: Node, pos: Vector3, radius: float = 10.0, dur: float = 15.0) -> FireHazard:
 	SpawnLedger.note("fire_hazard")
 	var hazard := FireHazard.new()

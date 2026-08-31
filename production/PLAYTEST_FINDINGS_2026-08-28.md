@@ -7,6 +7,25 @@ Ordered. Tag = who does the work. `[x]` = fixed this run (2026-08-28), unverifie
 1. [x] [CODE] Air support crash. `_danger_close_to_squad` cast a freed squad member. Fixed + `members` now self-prunes.
 2. [x] [CODE] Gun crew crash. Promoted garrison man was queue_free'd but left in `_members`. Fixed at the node's own exit.
 
+**BOMBING RAID LAG - FIXED AND MEASURED 2026-08-31, NEEDS YOUR EYE**
+R1. [x] [CODE] **"Did we de-lag the bombing raids?" - we had not, and now we have.** The raid had
+never been benched on its own: FIRES always ran on top of WAVE, so the 8/14 "air-support stutter
+KILLED" record was a claim no probe had made (both stale lines corrected - `DEMO_SHIP_BACKLOG.md`
+and `WHEN_YOU_RETURN_2026-08-15.md`). Benched alone, the raid's real cost was **~121 ms in one
+frame on the FIRST bomb of a mission** - `GunFX`'s FX material/texture caches build lazily on first
+use, and `FireHazard` pulls sheets the explosion path does not, so the first napalm canister paid
+both while every canister after it was free. Second, **4.2 ms avg / 8.5 ms max per CBU dispenser**
+spent birthing 16 bomblets in a single call. Fixed: warm the caches at world build
+(`game_world.gd:56-57`), and spread the bomblet births 4 per frame
+(`cas_airplane.gd` `BOMBLETS_PER_FRAME`). Measured before -> after: first-raid cold **121.5 -> 14.6 ms**,
+dispenser worst single-frame block **4.57 -> 1.16 ms avg, 8.52 -> 2.11 ms max**, and **16 bomblets
+born before AND after** (frame shape `16` -> `4/4/4/4`) so nothing was thinned. `NAPALM_STAGGER` /
+`CBU_STAGGER` untouched. **REFUTED in passing:** the blast loop and its 8 raycasts per body, blamed
+earlier the same day on inspection alone, measures 0.07-0.14 ms per call - it was never the spike.
+Numbers and the full method: `PERF_LEDGER.md` 2026-08-31. **What is NOT proven: this is headless CPU
+truth. Call a napalm run and a CBU run in the demo and tell me whether the first strike still hitches
+- that is the only thing that closes this.**
+
 **P1 - BLOCKS THE SIEGE RUN**
 
 > **COLLISION PASS - FIRST MEASUREMENT, 2026-08-30. THE "1441 FLOATING COLLIDERS" NUMBER IS NOT

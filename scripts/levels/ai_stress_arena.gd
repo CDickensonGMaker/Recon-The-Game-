@@ -317,6 +317,13 @@ func _ready() -> void:
 	# environment (the veg planters stamp into it) and before any agent spawns.
 	add_to_group("game_world")
 	_build_gameplay_grid()
+	# SHIP PARITY (ADR-026 Amendment A): the shipped world warms the ordnance FX
+	# caches at build (game_world.gd). The arena is a bench, not a GameWorld, so it
+	# must do the same or every raid measured here pays a ~130 ms first-use cost the
+	# real game does not - which is exactly the confound that made the first probe
+	# run read 64 ms for a bomblet whose steady state is 0.09 ms.
+	GunFX.warm(self)
+	FireHazard.warm(self)
 
 	# Plug a terrain stub into the autoload so grenades don't spam warnings.
 	var terrain_stub := TerrainManagerStub.new()

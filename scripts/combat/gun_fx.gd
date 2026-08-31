@@ -168,10 +168,51 @@ static func play_explosion_3d(parent: Node, pos: Vector3, kind: String = "explos
 		float(_KIND_LIFE.get(kind, 1.0)), kind)
 
 
-## ---------- SHARED FX RESOURCES (built once; per-event nodes reference them,
-## so no material/pipeline compile ever happens mid-firefight) ----------
+## ---------- SHARED FX RESOURCES ----------
+## Built once and referenced by per-event nodes - but built LAZILY, on the first
+## event of each kind. The header here used to claim "no material/pipeline compile
+## ever happens mid-firefight"; that was true from the SECOND event onward and
+## false for the one that matters. Measured 2026-08-31 on a cold arena
+## (tools/probe_raid_cost.tscn): the first GunFX explosion cost 59.608 ms and the
+## first FireHazard (which routes here through _scorch) 64.384 ms, against a steady
+## state under 0.3 ms - so the first bomb of a raid paid ~124 ms in one frame while
+## every bomb after it was free. warm() below pays that at world build instead.
 static var _fx_tex_cache: Dictionary = {}
 static var _fx_res_cache: Dictionary = {}
+## Idempotent guard: every world build calls warm(), and a second call must cost nothing.
+static var _warmed: bool = false
+
+
+## Build every FX resource the ordnance path uses, at world build, so no raid ever
+## pays the first-use construction mid-flight. Cheap and idempotent: the visuals are
+## created 1 km under the map, freed the same frame, and only their CACHED materials,
+## meshes, process materials and textures survive - which is the whole point.
+##
+## This warms CPU-side resource construction, which is what was measured. GPU pipeline
+## compilation is a separate cost this cannot reach from headless.
+static func warm(parent: Node) -> void:
+	if _warmed or parent == null or not is_instance_valid(parent):
+		return
+	_warmed = true
+	var away := Vector3(0.0, -1000.0, 0.0)
+	# Every ordnance class the fire-support path can dispatch. Napalm and grenade are
+	# the raid's own two; the rest are here because a mortar or a LAW must not stutter
+	# on its first shot either, and they share most of the cache.
+	for kind: String in ["explosion_grenade", "explosion_napalm", "explosion_heavy",
+			"explosion_mortar", "explosion_rocket", "explosion_40mm"]:
+		_spawn_explosion_visual(parent, away, float(_KIND_SCALE.get(kind, 1.0)),
+			float(_KIND_LIFE.get(kind, 1.0)), kind)
+	# The burn decal FireHazard.create_at lays for every napalm patch.
+	_scorch(parent, away, 1.0)
+	# Drop the warm nodes immediately - the caches they populated are what we keep.
+	for n: Variant in _explosion_nodes:
+		if is_instance_valid(n):
+			(n as Node3D).queue_free()
+	_explosion_nodes.clear()
+	for i in range(_scorch_decals.size() - 1, -1, -1):
+		if is_instance_valid(_scorch_decals[i]):
+			(_scorch_decals[i] as Decal).queue_free()
+	_scorch_decals.clear()
 
 
 static func _fx_tex(rel: String) -> Texture2D:

@@ -1648,7 +1648,12 @@ today's assets, all predate the chain, none in $KnownRed so the test reads FAIL.
 Triage: post-demo unless a band was wrong all along. Also queued from the M113 report:
 cupola traverse clamp (swinging the .50 sweeps outside the authored box).
 
-## 2026-08-14 EVENING - AIR-SUPPORT STUTTER: KILLED, AND THE HANDOFF'S SUSPECT WAS INNOCENT
+## 2026-08-14 EVENING - THE SPAWN BURST KILLED, AND THE HANDOFF'S SUSPECT WAS INNOCENT
+*(HEADING CORRECTED 2026-08-31. It read "AIR-SUPPORT STUTTER: KILLED". The spawn-burst class
+was killed and the airstrike was exonerated of it — both true — but no air-support code was
+changed here, and the raid was never benched on its own, so "air-support stutter killed" was a
+claim no probe had made. The raid was measured alone on 2026-08-31 and did carry real cost;
+see PERF_LEDGER 2026-08-31 and the fix in the same entry.)*
 
 The morning handoff blamed fire-support dispatch instantiation; the fixed SpawnLedger
 (process-frame key + two-frame window - the old physics key made every burst frame

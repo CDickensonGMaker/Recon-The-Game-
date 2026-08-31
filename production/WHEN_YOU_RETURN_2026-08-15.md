@@ -3,9 +3,14 @@
 *Written 2026-08-15 at his ask: "a list of steps for what I should be doing the next
 time I return to the project for getting the game into demo shape."*
 
-**Where things stand.** The air-support stutter is DEAD (8/14 evening, commit `62a80716`)
-— and the handoff's suspect was innocent: the bursts were mass man-instantiation, not
-fire-support dispatch. Your ruling was *"the stutter is fixed FIRST, my siege replay runs
+**Where things stand.** *(CORRECTED 2026-08-31 — this line said the air-support stutter was
+"DEAD" and it claimed more than the probe proved. What 8/14 actually measured was that the
+SPAWN-BURST class was dead and that the airstrike was innocent of it; the raid path itself was
+never benched on its own, and no line of it was changed that day — the `62a80716` diff against
+every air-support file is `SpawnLedger.note()` calls and nothing else. The raid was finally
+measured alone on 2026-08-31 and it did carry real cost: see PERF_LEDGER 2026-08-31.)*
+The 8/14 spawn-burst fix is real and the handoff's suspect was innocent of THAT burst: it was
+mass man-instantiation, not fire-support dispatch. Your ruling was *"the stutter is fixed FIRST, my siege replay runs
 AFTER."* The first half is done. **The replay is now the next thing, and it is yours.**
 
 The plan you approved on 8/14 night is `DEMO_TIGHT_40_2026-08-14.md` — forty steps, six

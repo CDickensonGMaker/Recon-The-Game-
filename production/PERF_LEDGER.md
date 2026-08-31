@@ -1279,3 +1279,80 @@ CPU spawn bursts. The proposed >=20avg gate now carries ~2.6fps margin on the wi
 pre-pooled ModelActor bodies would kill the drip window entirely (post-demo,
 content-first rule). The WAVE/FIRES 1% regression on the ARENA bench is the drip made
 visible under a 30-man siege + 26-man waves; the demo never fields that arrival rate.
+
+### 2026-08-31 - THE RAID, MEASURED ALONE FOR THE FIRST TIME (his order: "fix the bombing raid lag")
+
+**The raid had never been benched on its own.** FIRES has always run straight after WAVE in the
+crucible, so every raid figure ever banked was measured on top of a siege arrival - the confound
+that let the 8/14 morning run blame the airstrike for a burst that was men. `--raid-only` was added
+to `tools/probe_crucible.gd` (BASELINE -> FIRES, no combat, no wave) and run first:
+
+```
+phase        frames   avg ms    1% ms    worst   hitch>100ms
+BASELINE        661    45.42   247.29   260.96      36
+FIRES           722    41.57   264.62   296.04      30
+```
+
+**The raid phase came in CHEAPER than the quiet one.** The hitch tracer named `EnemyBase.spawn_enemy`
+and mid-run `[MODEL] ... +232 clips from shared anim library` loads, not ordnance. So a frame-time
+instrument cannot see the raid at all in this arena: the arena fights and loads models on its own,
+and that noise is larger than the thing being measured. **A frame-time number from this bench is not
+raid attribution, and no future run should be read as one.**
+
+#### The instrument that CAN see it: `tools/probe_raid_cost.tscn`
+
+Times the raid path directly in usec against the arena's live population (18 enemies, 20 allies,
+17 props) and real colliders. Headless CPU truth. Before -> after, two runs each:
+
+```
+                              BEFORE (2 runs)     AFTER (2 runs)
+first burn patch  (cold)      57.132 / 60.662     13.922 / 10.210   ms
+first explosion   (cold)      60.948 / 64.299      1.286 /  3.700   ms
+  -> first raid pays          ~121.5 ms one frame  ~14.6 ms
+CBU dispenser, worst
+  single-frame block   avg     4.574 /  4.166      1.160 /  1.182   ms
+                       max     8.348 /  8.518      2.107 /  1.865   ms
+bomblets born per can           16, frame shape 16  16, shape 4/4/4/4
+blast resolution     avg     0.09 - 0.12 ms       unchanged
+```
+
+#### WHAT THE SPIKE ACTUALLY WAS - and what it was NOT
+
+1. **~121 ms, once, on the first bomb of a mission.** `GunFX`'s FX texture/material caches are built
+   LAZILY on first use of each kind, and `FireHazard` pulls sheets through them that the explosion
+   path does not (`sheets/fire_loop_sheet`). A napalm canister hits both, so the FIRST canister of a
+   run paid ~121 ms in one frame while every canister after it was free. The file's own header claimed
+   "no material/pipeline compile ever happens mid-firefight" - true from the second event onward,
+   false for the one that matters. **This is the big one, and it is exactly what "the first strike
+   stutters" feels like.** Fixed by `GunFX.warm()` + `FireHazard.warm()` at world build
+   (`game_world.gd:56-57`, mirrored into the arena for ship parity at `ai_stress_arena.gd:325-326`).
+2. **4.2 ms avg / 8.5 ms max per dispenser**, spent BIRTHING 16 bomblet projectiles in one call
+   (`cas_airplane.gd:_open_cluster_at`). Fixed by spreading the births 4 per frame
+   (`BOMBLETS_PER_FRAME`). **Nothing was thinned:** the probe counts 16 born before and 16 after, and
+   the frame shape moves from `16` to `4/4/4/4`. Each bomblet keeps the fall time computed for its own
+   release from the same split point, so the pattern is identical and the strip ripples over ~4 frames
+   instead of detonating as one instant. `NAPALM_STAGGER` / `CBU_STAGGER` were NOT touched - those are
+   period-correct ripple, not perf dials.
+3. **REFUTED BY MEASUREMENT: the blast loop is not a problem.** The standing suspicion was
+   `CombatManager.apply_explosion_damage` and its O(bodies x 8 raycasts) `_blast_multiplier`. Measured
+   steady state: **0.069 - 0.140 ms per call** at every ordnance's real parameters. 57 detonations in a
+   napalm+CBU raid spread over ~1 s of staggered impacts is single-digit milliseconds TOTAL. It was
+   named as a root cause earlier in this same session on inspection alone; the probe says no. **Do not
+   re-open it without a number.**
+
+#### A BROKEN INSTRUMENT FOUND WHILE BUILDING THIS ONE
+
+`SpawnLedger` only clears its counts when `note()` is NEXT called, so a frame in which nothing spawned
+still reports the previous frame's numbers. Reading it naively made a 16-bomblet dispenser report **44
+births across 11 idle frames**. Guard with `SpawnLedger._frame == Engine.get_process_frames()` before
+trusting a count - `probe_raid_cost.gd:_bomblets_this_frame()` is the pattern. This is the same
+stale-read class as the 8/14 physics-frame keying bug, in a different disguise.
+
+#### WHAT IS NOT CLAIMED
+
+These are CPU-side resource-construction and instantiation numbers, measured headless. **GPU pipeline
+compilation is a separate cost this bench cannot reach**, and the demo's ~5 fps siege minimums remain
+GPU-led (8/14 evening entry). **No windowed before/after was taken, and the Summoner has not seen a
+raid since the fix.** The crucible `--raid-only` re-run after the fix reported BASELINE 29.12 avg /
+10 hitches and FIRES 18.80 / 10 - better on both, but BASELINE (which contains no raid) moved just as
+far, so that pair attributes nothing and is recorded as context only.

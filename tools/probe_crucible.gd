@@ -16,7 +16,14 @@ extends Node
 
 const ArenaScene := preload("res://scenes/levels/ai_stress_arena.tscn")
 const PHASE_S: float = 30.0
-const PHASES: Array[String] = ["BASELINE", "COMBAT", "WAVE", "FIRES", "EVERYTHING"]
+const ALL_PHASES: Array[String] = ["BASELINE", "COMBAT", "WAVE", "FIRES", "EVERYTHING"]
+## THE RAID HAS NEVER BEEN BENCHED ALONE. FIRES has always run straight after WAVE,
+## so every raid number ever banked was measured on top of a siege arrival - the
+## confound that let the 2026-08-14 run blame the airstrike for a spawn burst that
+## was men (PERF_LEDGER 2026-08-14 EVENING). --raid-only walks BASELINE -> FIRES with
+## no combat and no wave, so the ordnance is the only thing that changed.
+const RAID_PHASES: Array[String] = ["BASELINE", "FIRES"]
+var PHASES: Array[String] = ALL_PHASES
 
 var _arena: Node = null
 var _phase_i: int = -1
@@ -26,6 +33,10 @@ var _fire_i: int = 0
 var _samples: Dictionary = {}       ## phase -> Array[float] frame ms
 var _rcpu: Dictionary = {}          ## phase -> [sum, n]
 var _rgpu: Dictionary = {}
+## Hitch count per phase. A worst-frame figure hides how OFTEN the stall lands, which
+## is the half a player actually feels; the ledger's own rows carry it, the report never did.
+var _hitch: Dictionary = {}         ## phase -> int, frames over HITCH_MS
+const HITCH_MS: float = 100.0
 var _sampling: bool = false
 var _headless: bool = false
 
@@ -40,6 +51,8 @@ func _ready() -> void:
 	_headless = DisplayServer.get_name() == "headless"
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	_baseline_only = args.has("--baseline-only")
+	if args.has("--raid-only"):
+		PHASES = RAID_PHASES
 	_arena = ArenaScene.instantiate()
 	_arena.set("spawn_player", true)
 	_arena.set("spawn_hud", true)
@@ -66,6 +79,7 @@ func _next_phase() -> void:
 	_samples[phase] = [] as Array[float]
 	_rcpu[phase] = [0.0, 0]
 	_rgpu[phase] = [0.0, 0]
+	_hitch[phase] = 0
 	_phase_t = PHASE_S
 	match phase:
 		"COMBAT":
@@ -120,6 +134,8 @@ func _process(delta: float) -> void:
 	var ms: float = delta * 1000.0
 	var nodes: int = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	var objects: int = int(Performance.get_monitor(Performance.OBJECT_COUNT))
+	if ms > HITCH_MS:
+		_hitch[phase] = int(_hitch.get(phase, 0)) + 1
 	if ms > 100.0 and _prev_nodes > 0:
 		print("[HITCH] %s %.0fms | nodes %+d (%d) objects %+d | orphans %d | spawns: %s" % [
 			phase, ms, nodes - _prev_nodes, nodes, objects - _prev_objects,
@@ -144,8 +160,8 @@ func _process(delta: float) -> void:
 
 func _report() -> void:
 	print("\n=== CRUCIBLE REPORT (%s) ===" % ("HEADLESS - CPU frame truth only" if _headless else "REAL RENDERER"))
-	print("%-11s %7s %8s %8s %8s %9s %9s" % [
-		"phase", "frames", "avg ms", "1% ms", "worst", "rCPU ms", "rGPU ms"])
+	print("%-11s %7s %8s %8s %8s %9s %9s %7s" % [
+		"phase", "frames", "avg ms", "1% ms", "worst", "rCPU ms", "rGPU ms", "hitch"])
 	for phase in PHASES:
 		var arr: Array = _samples.get(phase, [])
 		if arr.is_empty():
@@ -163,8 +179,8 @@ func _report() -> void:
 		var rg: Array = _rgpu[phase]
 		var rcm: float = (rc[0] as float) / maxf(1.0, float(rc[1] as int))
 		var rgm: float = (rg[0] as float) / maxf(1.0, float(rg[1] as int))
-		print("%-11s %7d %8.2f %8.2f %8.2f %9.2f %9.2f" % [
-			phase, ms.size(), avg, p99, worst, rcm, rgm])
+		print("%-11s %7d %8.2f %8.2f %8.2f %9.2f %9.2f %7d" % [
+			phase, ms.size(), avg, p99, worst, rcm, rgm, int(_hitch.get(phase, 0))])
 		print("%-11s %7s %7.0ffps %6.0ffps %6.0ffps" % [
 			"", "", 1000.0 / maxf(avg, 0.001), 1000.0 / maxf(p99, 0.001),
 			1000.0 / maxf(worst, 0.001)])

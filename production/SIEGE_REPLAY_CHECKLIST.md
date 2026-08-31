@@ -31,6 +31,12 @@ WHAT you saw — the probes carry the numbers.
       session you watch (it retunes your own squad too). Expected, not a regression.
 - [ ] **Frame feel during the assault**: worst hitches should be shorter than before
       (the spawn-burst fix); if it still stutters hard at wave arrivals, say when.
+- [ ] **THE FIRST STRIKE specifically** (added 2026-08-31): call napalm, then CBU. The
+      first bomb of a mission used to build its fire and explosion materials mid-flight,
+      measured at ~121 ms in one frame; that is now paid at world build, and the CBU
+      dispenser's 16 bomblets are born 4 per frame instead of all at once. Both are
+      headless CPU measurements - **your eye on a real raid is what closes them.** If the
+      first strike still hitches and later ones do not, the warm missed something.
 
 ## The end
 - [ ] Gunships arrive when the assault RESOLVES (not on a timer), no mortars landing

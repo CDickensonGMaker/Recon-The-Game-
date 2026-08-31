@@ -450,6 +450,22 @@ func _drop_cluster() -> void:
 					canister.expire_now()))
 
 
+## Births are SPREAD ACROSS FRAMES, not thinned. Measured 2026-08-31
+## (tools/probe_raid_cost.tscn, arena population 18 enemies / 20 allies / 17 props):
+## one dispenser splitting all CBU_BOMBLETS in a single call cost avg 4.199 ms,
+## max 10.516 ms - a third of a 30 fps frame spent in one function while the blast
+## resolution every one of those bomblets later runs measured 0.077-0.237 ms. The
+## spike was the BIRTH, not the damage.
+##
+## Every bomblet still flies, on its own authored mark, from the same split point.
+## Each carries the fall time computed for its own release, so a bomblet born three
+## frames later simply lands ~50 ms later: the pattern is identical and the strip
+## ripples instead of detonating as one instant, which is what a real dispenser does.
+## NAPALM_STAGGER / CBU_STAGGER are untouched - those are period-correct ripple, not
+## perf dials.
+const BOMBLETS_PER_FRAME: int = 4
+
+
 static func _open_cluster_at(tree: SceneTree, tm: TerrainManager, run_dir: Vector3,
 		from: Vector3, centre: Vector3) -> void:
 	var data: ProjectileData = load(CBU_BOMBLET) as ProjectileData
@@ -458,6 +474,14 @@ static func _open_cluster_at(tree: SceneTree, tm: TerrainManager, run_dir: Vecto
 	var side: Vector3 = run_dir.cross(Vector3.UP).normalized()
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 	for i in range(FirePlan.CBU_BOMBLETS):
+		# The tree outlives the plane but not the session; a world torn down mid-fall
+		# must not resume spawning ordnance into it.
+		if i > 0 and i % BOMBLETS_PER_FRAME == 0:
+			await tree.process_frame
+			if not is_instance_valid(tree) or tree.current_scene == null:
+				return
+			if tm != null and not is_instance_valid(tm):
+				return
 		var ang := TAU * float(i) / float(FirePlan.CBU_BOMBLETS) + randf() * 0.6
 		var rad := FirePlan.CBU_SPREAD * sqrt(randf())
 		var pos := centre + run_dir * (rad * cos(ang)) + side * (rad * FirePlan.CBU_CROSS_FRAC * sin(ang))
