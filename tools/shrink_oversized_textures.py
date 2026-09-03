@@ -77,10 +77,15 @@ def process(path, apply):
 
 
 def main():
+    global SCALE
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--scale", type=float, default=0.5,
+                    help="linear resize factor (0.25 = quarter width/height)")
     ap.add_argument("--root", default=r"C:\Users\caleb\RECONgame\assets")
     args = ap.parse_args()
+    SCALE = args.scale
+    print(f"scale = {SCALE}")
     total_saved = count = 0
     for dirpath, _dirs, files in os.walk(args.root):
         for fn in files:
