@@ -564,12 +564,20 @@ func _flip_faces(faces: PackedVector3Array) -> PackedVector3Array:
 ## fb_tower is deliberately ABSENT: a tower is meant to be climbed, and its ladder_bottom /
 ## ladder_top markers exist precisely so men can stand the platform.
 ## medical_complex joined 2026-08-12 with the export that first shipped it: it is ONE mesh
-## with ONE collider, so its roof bakes walkable exactly like the bunkers above. The chow
-## hall needs the same entry and CANNOT have one yet - its parts are named tent_roof_chowhall
-## / WB_chowhall_backwall, so the building has no common leading token to match.
+## with ONE collider, so its roof bakes walkable exactly like the bunkers above.
+##
+## The chow hall (item 27, 2026-09-06) has no single leading token - it is FOUR separate
+## collider owners (WB_chowhall_backwall, tent_frame_chowhall, tent_gable_chowhall,
+## tent_roof_chowhall), so it takes four entries instead of one. Measured before this fix
+## with tools/probe_chowhall_nav.gd: 16 of 48 work_chow*/work_eat/work_queue/work_cook
+## markers were SEALED (no navmesh polygon within 1.6m), including ALL FIVE server-side
+## posts and the whole stove (work_cook_004/_005/work_cook_range) - the uncut tent roof
+## sat close enough over the counter and the range that Recast found no clearance to walk
+## under it there. The open floor (queue, most seats) already had clearance and was fine.
 const NAV_ROOF_CULL_PREFIXES: Array[String] = [
 	"fb_gp_tent", "fb_mess", "fb_bunker_mg", "fb_bunker_fighting", "fb_sleeping_bunker",
-	"medical_complex",
+	"medical_complex", "WB_chowhall_backwall", "tent_frame_chowhall", "tent_gable_chowhall",
+	"tent_roof_chowhall",
 ]
 ## How far above a structure's own base a surface stops being its floor and starts being its
 ## roof. Bunker interiors sit ~0.97m BELOW grade and their roofs ~3.2m above it, so 1.9m
