@@ -2,6 +2,13 @@
 Caleb's own bench. Code items stripped out; this is Blender / texture / scene-layout only.
 Source: production/PLAYTEST_FINDINGS_2026-08-28.md
 
+> **AS OF 2026-08-28, AND NOT RE-VERIFIED SINCE.** Every defect below is what his eye saw in
+> the 2026-08-27 playtest. None of it has been re-measured against the current asset tree, so
+> read each line as a dated observation rather than as current fact - the same rule the
+> findings table now carries at its own head. (Banner added 2026-09-06: without a date in the
+> masthead this doc failed tests/test_doc_hygiene.tscn under the Pointer Law, and a worklist
+> that reads as verified truth is exactly what that law exists to stop.)
+
 ## TIER 1 — BREAKS THE ILLUSION ON SIGHT (do these first)
 1. **Mortar pits are untextured white boxes.** (item 13) Texture pass. Also reposition —
    they currently intersect the dirt mounds.
