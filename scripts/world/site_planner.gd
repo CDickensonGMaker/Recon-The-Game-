@@ -675,33 +675,102 @@ func _play_idle(prop_root: Node3D) -> void:
 			return
 
 
-## The firebase GLB's baked cast: skinned aid-station men and officers whose
-## clips import play-once and had no driver. One AnimationPlayer plays ONE
-## animation, so every clip past the first rides a sibling player sharing the
-## source library (gun_crew_performance._bind_piece's shape). Free-running idles,
-## not choreography. MC_* is a mechanism FIRE beat, not an idle: looping it would
-## fire the baked tube forever, and no fire path reaches this player.
-func _animate_fsb_baked_cast(root: Node3D) -> void:
+## THE BAKED CAST T-POSED IN THE MEDICAL TENT because every clip keys every rig.
+## Caleb, 2026-08-27: "all units inside are T-posed, no animations". Measured
+## 2026-09-06 out of the imported firebase scene: 13 clips, 386 tracks EACH, and
+## each clip's tracks cover ALL TEN skinned rigs - but exactly ONE rig's values
+## vary over the clip. Blender exported every scene rig into every action, so the
+## nine passengers ride at their REST pose, which for a mixamorig_* skeleton is
+## the T-pose. The old pass then played all twelve non-MC_ clips at once on twelve
+## sibling players sharing one skeleton set: last writer wins, so one rig moved and
+## nine were pinned in bind pose. It reported `played=12` and looked correct.
+##
+## THE FIX IS ONE PLAYER PER RIG, PLAYING ONLY THAT RIG'S TRACKS. The owner of a
+## clip is measured, never guessed from its name (`med_or_support_high` drives
+## medic0, `office_write` drives two officers): a rig owns a clip when its own
+## tracks actually CHANGE across the clip. A rig that several clips move keeps the
+## first in get_animation_list() order - deterministic, ADR-010, same GLB same cast.
+##
+## MC_* is a mechanism FIRE beat, not an idle: looping it would fire the baked tube
+## forever, and no fire path reaches this player.
+const CAST_QUAT_EPS: float = 0.02      ## radians of bone rotation that counts as motion
+const CAST_POS_EPS: float = 0.002      ## metres of bone translation that counts as motion
+
+
+## True when `rig`'s own tracks in `anim` change value across the clip. A track set
+## that never moves is a passenger the exporter welded in, not a performance.
+static func _cast_rig_moves(anim: Animation, rig: String) -> bool:
+	var prefix: String = rig + "/"
+	for t in range(anim.get_track_count()):
+		if not str(anim.track_get_path(t)).begins_with(prefix):
+			continue
+		var kc: int = anim.track_get_key_count(t)
+		if kc < 2:
+			continue
+		var v0: Variant = anim.track_get_key_value(t, 0)
+		for k in range(1, kc):
+			var vk: Variant = anim.track_get_key_value(t, k)
+			if typeof(v0) == TYPE_QUATERNION:
+				if (v0 as Quaternion).angle_to(vk as Quaternion) > CAST_QUAT_EPS:
+					return true
+			elif typeof(v0) == TYPE_VECTOR3:
+				if ((v0 as Vector3) - (vk as Vector3)).length() > CAST_POS_EPS:
+					return true
+	return false
+
+
+static func _animate_fsb_baked_cast(root: Node3D) -> void:
 	var played: int = 0
 	for n in root.find_children("*", "AnimationPlayer", true, false):
 		var src := n as AnimationPlayer
 		if src == null:
 			continue
-		var first: bool = true
+		# rig name -> the clip that actually moves it, first in list order.
+		var owner_clip: Dictionary = {}
+		var rig_order: Array[String] = []
 		for anim_name in src.get_animation_list():
 			var clip: String = String(anim_name)
 			if clip.begins_with("MC_"):
 				continue
-			src.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
-			var p: AnimationPlayer = src
-			if not first:
-				p = AnimationPlayer.new()
-				p.root_node = src.root_node
-				for lib in src.get_animation_library_list():
-					p.add_animation_library(lib, src.get_animation_library(lib))
-				src.get_parent().add_child(p)
-			p.play(clip)
-			first = false
+			var anim: Animation = src.get_animation(clip)
+			var seen: Dictionary = {}
+			for t in range(anim.get_track_count()):
+				var head: String = str(anim.track_get_path(t)).get_slice("/", 0)
+				if head == "" or head.contains(":"):
+					continue          # a track on the player root itself owns no rig
+				seen[head] = true
+			for rig in seen.keys():
+				var r: String = str(rig)
+				if owner_clip.has(r):
+					continue
+				if not _cast_rig_moves(anim, r):
+					continue
+				owner_clip[r] = clip
+				rig_order.append(r)
+		rig_order.sort()
+		for rig in rig_order:
+			var clip2: String = str(owner_clip[rig])
+			# One filtered copy per rig. Stripping the passenger tracks is what stops
+			# this player writing a T-pose over the nine rigs it does not own.
+			var cut: Animation = (src.get_animation(clip2) as Animation).duplicate(true)
+			for t in range(cut.get_track_count() - 1, -1, -1):
+				if not str(cut.track_get_path(t)).begins_with(rig + "/"):
+					cut.remove_track(t)
+			if cut.get_track_count() == 0:
+				continue
+			cut.loop_mode = Animation.LOOP_LINEAR
+			var lib := AnimationLibrary.new()
+			lib.add_animation(&"idle", cut)
+			var p := AnimationPlayer.new()
+			p.name = "CastPlayer_" + rig
+			p.add_animation_library(&"", lib)
+			src.get_parent().add_child(p)
+			p.root_node = p.get_path_to(src.get_node(src.root_node))
+			# Free-running idles, not choreography: each man starts at his own phase so
+			# three attendants are not one attendant three times. Deterministic in the
+			# rig name, so the same GLB always stages the same cast (ADR-010).
+			p.play(&"idle")
+			p.seek(fposmod(float(hash(rig) % 1000) * 0.001 * cut.length, cut.length), true)
 			played += 1
 	if played == 0:
 		push_warning("[FSB] no baked cast clips in the firebase GLB - export drift")
@@ -1061,11 +1130,10 @@ const FSB_WORK_PRIORITY: Array[String] = [
 	"radio", "supply", "cook", "mess", "ammo",
 	"watch", "guard", "mg", "plot", "smoke", "rest",
 	"chow_trigger", "chow_exit", "chow_tray_return",
-	# The aid station staff rank with "medic" - a manned ward is worth more than another
-	# man on a working party. The wounded come straight after: an empty ward reads as a
-	# firebase that has never been hit.
-	"med_surgeon", "med_scrubnurse", "med_anesthetist", "med_tend", "med_officer",
-	"med_cot", "med_or_patient",
+	# The aid station is NOT in this list. It is seeded whole in fsb_garrison_plan
+	# ahead of the rotation, exactly like the artillery crews, and its markers are
+	# skipped when the by-type pool is built. Listing them here as well would seat a
+	# second man on top of every one of them.
 	# Bunkers sit with the other sentry posts - below the working party, above the
 	# off-duty billet, and 37 markers means the stride samples them rather than
 	# flooding the budget.
@@ -1093,6 +1161,17 @@ const FSB_GARRISON_MAX_MEN: int = 40
 ## independent constants is how the compound came to hold 17 curated + 12 work =
 ## 29 men against a documented ceiling of 24.
 const FSB_WORK_POST_CAP: int = 24
+
+## THE AID STATION SEED. The OR table's three standing positions - measured
+## 2026-09-06 at 2.0-2.2m from the baked PSXRig_med_or_patient, and carrying no
+## baked body of their own. Ordered: the surgeon is the man the station is about,
+## so a two-man budget buys the surgeon and the scrub nurse.
+const MED_SURGICAL_TYPES: Array[String] = ["med_surgeon", "med_scrubnurse", "med_anesthetist"]
+## Two is the image - a man working and a man assisting. The anesthetist is the
+## third body and the first one a tight budget drops.
+const MED_SURGICAL_MEN: int = 2
+## Ceiling on live men in cots however bad the tour went. The GLB carries 7 cots.
+const MED_WARD_MEN_MAX: int = 3
 
 
 ## THE ARTILLERY CREWS. fsb_main_v3.glb carries 6 gun pits x3 work_gun markers
@@ -1278,6 +1357,15 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 			if by_type.has(wt):
 				type_order.append(wt)
 		for wt in seen_order:
+			# THE AID STATION NEVER ENTERS THE ROTATION, for two reasons measured
+			# 2026-09-06. One: the GLB's baked cast already STANDS at med_tend,
+			# med_officer and med_or_patient - within 1.05m of each marker - so a rotated
+			# man spawns inside a body that is already there. Two: med_root is a parent
+			# node, not a post, and loafing off-duty is not a thing to do in a ward. The
+			# station is seeded whole below, off the markers that are EMPTY - which is
+			# why the pools above still COLLECT med_*, they just do not rotate it.
+			if wt.begins_with("med"):
+				continue
 			if not type_order.has(wt):
 				type_order.append(wt)
 		var taken: int = 0
@@ -1286,25 +1374,62 @@ static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 		# dirt. So the station opens with a man on the table, which is also the
 		# casualty-ledger floor: an aid station with nobody in it is the fresh-player
 		# failure. Wounded ABOVE this floor are the ledger's job, not the layout's.
-		var med_pool: Array = by_type.get("medic", [])
-		if med_pool.size() >= 2 and work_budget >= 2:
-			var mp: Vector3 = origin + ((med_pool[0] as Array)[0] as Vector3)
-			var pp: Vector3 = origin + ((med_pool[1] as Array)[0] as Vector3)
-			posts.append({"pos": mp, "occupation": "medic", "men": 1})
-			posts.append({"pos": pp, "occupation": "patient", "men": 1})
-			taken = 2
-			type_order.erase("medic")
+		#
+		# THIS BLOCK WAS DEAD FOR AS LONG AS IT EXISTED. It keyed on work type "medic",
+		# and fsb_main_v3.glb carries no such marker - measured 2026-09-06: 488 work
+		# markers, zero "medic", and the aid station spelled out instead as
+		# med_surgeon / med_scrubnurse / med_anesthetist / med_cot / med_tend /
+		# med_officer / med_or_patient / med_root. So med_pool was always empty, the
+		# seed never ran, and med_* sat 27th in FSB_WORK_PRIORITY behind a budget that
+		# runs out at "rest": the plan came back with ZERO medic and ZERO patient posts
+		# out of 34. Caleb, 2026-08-27: "no wounded/dead present".
+		#
+		# It now seeds off the markers that are actually EMPTY. The three attendants,
+		# the three med officers and the man on the OR table are BAKED into the GLB and
+		# animate from _animate_fsb_baked_cast; live men there would stand inside them.
+		# The surgical positions around the table carry no baked body, and neither does
+		# a single cot.
+		var or_pool: Array = []
+		for mt in MED_SURGICAL_TYPES:
+			var tp: Array = by_type.get(mt, [])
+			if tp.size() > 0:
+				or_pool.append(tp[0])
+		var cot_pool: Array = by_type.get("med_cot", [])
+		var ward_pos: Vector3 = Vector3.ZERO
+		if or_pool.size() >= 2 and work_budget >= 2:
+			for i in range(mini(or_pool.size(), MED_SURGICAL_MEN)):
+				var mp: Vector3 = origin + ((or_pool[i] as Array)[0] as Vector3)
+				if i == 0:
+					ward_pos = mp
+				posts.append({"pos": mp, "occupation": "medic", "men": 1})
+				taken += 1
+		# THE WOUNDED ARE THE LEDGER MADE VISIBLE. How many cots are full is
+		# CampaignState.ward_wounded, not a layout constant - a fresh tour opens at
+		# WARD_SEED_ON_NEW_TOUR and a bad operation fills the ward. Capped so a
+		# catastrophic tour does not spend the whole work budget on bed rest.
+		var cots_full: int = clampi(CampaignState.ward_wounded, 0,
+			mini(cot_pool.size(), MED_WARD_MEN_MAX))
+		cots_full = mini(cots_full, maxi(0, work_budget - taken))
+		for i in range(cots_full):
+			var cp: Vector3 = origin + ((cot_pool[i] as Array)[0] as Vector3)
+			# `cot` tells the spawner this man does not stand: he is pinned on the
+			# mattress as a puppet. mission_generator._build_firebase_garrison owns it.
+			posts.append({"pos": cp, "occupation": "patient", "men": 1, "cot": true})
+			taken += 1
+		if taken > 0:
 			# THE LITTER TEAM IS THE BUTCHER'S BILL MADE VISIBLE. Seeded on the same
 			# rule as the station itself, but CONDITIONALLY: a stretcher crossing the
 			# compound has to MEAN someone got hurt, so it runs only when the ward is
 			# above its floor. Otherwise these three posts return to the rotation and
-			# the working party keeps its men. Cost when it runs: 3 of the 7 work posts
-			# (two bearers plus the man on the litter).
+			# the working party keeps its men. Cost when it runs: 3 work posts (two
+			# bearers plus the man on the litter). It collects from a cot NOBODY is lying
+			# on, so the bearers never load a man who is already in the bed.
 			var ward_full: bool = CampaignState.ward_wounded > CampaignState.WARD_SEED_ON_NEW_TOUR
-			if med_pool.size() >= 3 and work_budget >= 5 and ward_full and LitterTeamScript.available():
-				var cot: Vector3 = origin + ((med_pool[2] as Array)[0] as Vector3)
-				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": mp})
-				taken = 5
+			var litter_ok: bool = cot_pool.size() > cots_full and work_budget >= taken + 3
+			if litter_ok and ward_full and ward_pos != Vector3.ZERO and LitterTeamScript.available():
+				var cot: Vector3 = origin + ((cot_pool[cots_full] as Array)[0] as Vector3)
+				posts.append({"pos": cot, "occupation": "litter", "men": 3, "ward": ward_pos})
+				taken += 3
 		# THE ARTILLERY CREWS ARE SEEDED WHOLE, one pit per weapon type, ahead of the
 		# rotation - a served gun is the firebase's signature image and it only reads
 		# as served when the whole crew stands ONE piece. One post per station so

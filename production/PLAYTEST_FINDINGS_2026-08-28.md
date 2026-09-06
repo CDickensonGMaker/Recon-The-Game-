@@ -347,7 +347,7 @@ Q1/24. **REFUTED BY MEASUREMENT, 2026-08-28.** The resolver is not the culprit. 
 17. [ ] [SCENE-LAYOUT] Sandbags around the hooches.
 14. [ ] [SCENE-LAYOUT] No more weird craters inside the firebase.
 18. [ ] [SCENE-LAYOUT] More wooden plank walkways to tie the map together.
-26. [ ] [SCENE-LAYOUT]+[CODE] Medical tent: see-through, everyone T-posed, no wounded. Whole tent needs setting up.
+26. [x] [CODE] Medical tent: see-through, everyone T-posed, no wounded. **CLOSED 2026-09-06** - all three were CODE, not scene layout (see F.26).
 19. [ ] [SCENE-LAYOUT] Chairs not facing tables.
 20. [ ] [SCENE-LAYOUT] Radio lies wrong on the table.
 21. [ ] [SCENE-LAYOUT] Every hooch has the identical interior - randomize.
@@ -579,7 +579,31 @@ Status legend: [ ] open · [x] fixed · [?] needs his call
 ## F. AI / ANIMATION / ROUTINES
 24. [ ] **NPCs sit where there is nowhere to sit** at work markers. Work markers need to be specific about which activity is legal at each one (incl. leisure activities).
 25. [ ] **NPC arms clip into their own bodies** during idle animations.
-26. [ ] **Medical tent is completely see-through**; all units inside are **T-posed**, no animations, and no wounded/dead present. Whole tent needs setting up properly.
+26. [x] **Medical tent is completely see-through**; all units inside are **T-posed**, no animations, and no wounded/dead present. Whole tent needs setting up properly.
+    **CLOSED 2026-09-06** (probe `tests/probe_aid_station.tscn`, negative-controlled: 11 FAILURES on the pre-fix files, PASS after).
+    Three defects, all CODE, none of them art:
+    - **See-through**: fixed earlier by the art pass, commit `b67fda5e` (wall/roof canvas alpha 0.30/0.12 -> opaque).
+    - **T-pose**: `fsb_main_v3.glb` carries 13 clips of 386 tracks each and every clip keys ALL TEN skinned
+      rigs, but only ONE rig's values vary per clip - Blender exported the whole scene into every action.
+      `site_planner.gd:_animate_fsb_baked_cast` played all twelve non-`MC_` clips at once on twelve sibling
+      players sharing the same skeletons, so the last writer pinned nine rigs at bind pose while reporting
+      `played=12`. Now one player per rig, playing only that rig's tracks, owner measured (not guessed from
+      the clip name - `med_or_support_high` drives medic0, `office_write` drives two officers).
+      Measured: 0/7 medical rigs animating before, 7/7 after.
+    - **No wounded**: `site_planner.gd` `fsb_garrison_plan` seeded the aid station off work type `"medic"`,
+      which the GLB does not carry (488 work markers, zero `medic`; the station is spelled `med_surgeon` /
+      `med_scrubnurse` / `med_anesthetist` / `med_cot` / `med_tend` / `med_officer` / `med_or_patient` /
+      `med_root`). `med_pool` was always empty, the seed never ran, and `med_*` sat 27th in
+      `FSB_WORK_PRIORITY` behind a budget that runs out at `rest`: **0 medic and 0 patient posts in a
+      34-post plan**. Now seeded whole ahead of the rotation off the markers that are EMPTY - surgeon +
+      scrub nurse at the OR table (the three attendants, three med officers and the man on the table are
+      BAKED into the GLB, within 1.05m of their markers, so live men there would stand inside them), and
+      `CampaignState.ward_wounded` men laid on cots as puppets at a MEASURED deck height
+      (blanket tops +0.575m, bare frames +0.520m above the marker plane; `LitterTeam.LITTER_Y` is 0.55m -
+      all three agree inside 3cm). Measured: 2 medic + 2 patient posts on a fresh tour.
+    Files: `scripts/world/site_planner.gd`, `scripts/missions/mission_generator.gd:1042` (`COT_DECK_Y`).
+    **[ART] residual, does not block:** three of the seven `work_med_cot` markers (at local x/z 59.0/12.6,
+    65.9/11.9, 67.2/1.7) have no blanket geometry - bare frames. Cosmetic only; the men lie correctly.
 27. [ ] **No mess hall animations** playing.
 28. [ ] **Squad AI does not crouch when the player crouches**, and mostly stands right on top of the player.
 29. [ ] **Muzzle flash detaches from the gun** on squadmates' weapons — appears offset away from the muzzle.

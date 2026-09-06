@@ -1036,6 +1036,12 @@ static func _spawn_friendly_patrols(world: GameWorld, director: FieldDirector,
 ##
 ## This is the ONE place that spawns inside _fsb_keepout, deliberately: the
 ## keep-out guards site placement, and the garrison is the intended exception.
+## Height of a cot mattress above its work_med_cot marker. Measured 2026-09-06 off
+## medical_complex: blanket tops +0.575m, bare frames +0.520m - and LitterTeam.LITTER_Y,
+## the deck a laying body already rides right, is 0.55m. See the cot branch below.
+const COT_DECK_Y: float = 0.55
+
+
 static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 		center: Vector3, rng: RandomNumberGenerator) -> void:
 	var plan: Dictionary = SitePlanner.fsb_garrison_plan(center)
@@ -1067,6 +1073,34 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			var team: Node = LitterTeamScript.new()
 			if not team.setup(world, bearers, cot_g, ward):
 				team.free()
+			continue
+		# THE MAN IN THE COT. He does not stand, he does not walk and he has no
+		# working point - so he is a puppet, exactly like the litter casualty, or the
+		# schedule re-issues a standing pose over him and the wounded man gets up.
+		#
+		# COT_DECK_Y is measured, not guessed. The blanket tops of the aid station's
+		# cots sit +0.575m above the work_med_cot marker plane and the three bare
+		# frames +0.520m (medical_complex, sampled 2026-09-06), and LitterTeam.LITTER_Y
+		# - the stretcher deck a laying_idle body already rides correctly - is 0.55m.
+		# All three agree inside 3cm, so one constant serves. Seat him on the marker
+		# itself: the blanket centroid is 0.13m from it, which is inside the mattress.
+		if str(post.occupation) == "patient" and bool(post.get("cot", false)):
+			var cpos: Vector3 = post_pos
+			cpos.y = world.floor_y(cpos) + COT_DECK_Y
+			var pman: Civilian = Civilian.spawn(world, cpos, director, false,
+				CivilianScript.models_for("patient"), true)
+			pman.occupation = "patient"
+			pman.puppet = true
+			pman.global_position = cpos
+			pman.velocity = Vector3.ZERO
+			pman.add_to_group("firebase_garrison")
+			var pactor := pman.actor as ModelActor
+			if pactor != null:
+				# The cots run long on Z (measured span 0.79m x 1.52m), so he lies
+				# along Z, not across the bed.
+				pactor.global_rotation.y = 0.0
+				pactor.play_first(["medic_treat_receive", "laying_idle",
+					"sleeping_laying", "sitting"])
 			continue
 		# EVERY MAN GETS HIS OWN STATION. A post with men=2 used to give both the SAME
 		# working_point_pos and a random 1-3.5m spawn ring, so two of them could roll onto the

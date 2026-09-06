@@ -12,8 +12,9 @@ Source: production/PLAYTEST_FINDINGS_2026-08-28.md
 ## TIER 1 — BREAKS THE ILLUSION ON SIGHT (do these first)
 1. **Mortar pits are untextured white boxes.** (item 13) Texture pass. Also reposition —
    they currently intersect the dirt mounds.
-2. **Medical tent is see-through.** (item 26) Backface/normals or a missing material on the
-   canvas. Nothing else in the tent matters until you can't see through it.
+2. ~~**Medical tent is see-through.**~~ (item 26) **DONE** - not backface/normals: the wall-canvas
+   and roof-canvas materials sat at alpha 0.30 / 0.12, node-tree AND legacy `diffuse_color`. Fixed in
+   commit `b67fda5e`. The rest of item 26 (T-pose, no wounded) was CODE and closed 2026-09-06.
 3. **Helmet black spots.** (item 30) Not camo. Present since day one. Atlas/UV defect —
    MEASURE the helmet UV island before touching pixels.
 4. **VC face textures too large.** (item 31) Faces blown up. Prior fix was REJECTED for
@@ -41,7 +42,11 @@ Source: production/PLAYTEST_FINDINGS_2026-08-28.md
 
 ## ANIMATION BENCH (blender-overseer, not modelling)
 16. **NPC arms clip into their own torsos** on idle. (item 25)
-17. **Medical tent units are T-POSED** — no clips bound at all. (item 26)
+17. ~~**Medical tent units are T-POSED**~~ (item 26) **DONE 2026-09-06 — NO BLENDER WORK NEEDED.**
+    "No clips bound at all" was wrong: the GLB carries 13 clips that DO target all seven aid-station
+    rigs. The note below was right - it was a CODE binding failure. `_animate_fsb_baked_cast` played
+    twelve whole-scene clips at once on twelve players sharing one skeleton set, and every clip keys
+    every rig at rest, so the last writer T-posed nine of ten. Probe: `tests/probe_aid_station.tscn`.
 18. **No mess hall animations playing.** (item 27)
     NOTE: 17 and 18 may be a CODE binding failure, not missing clips. Check whether the
     clips exist in the library before authoring anything new.
