@@ -18,6 +18,38 @@
 > **So: the STATUS column and the numbers are load-bearing; a CAUSE with no probe named beside
 > it is a hypothesis.** Re-derive it from the code before you build against it.
 
+## NEEDS CALEB — three rulings, and nothing else is waiting on him
+
+Three things are built, measured, and **stopped** because the next step is a decision only he
+makes. None of them needs him to open a file.
+
+**1. When you die in daylight outside the wire, should you take over one of your own men?**
+Today you do. On 2026-08-24 he ruled the body-swap pool is **promoted garrison men only**, and
+those are only promoted at night — so a death at, say, ten minutes in found nobody to swap into,
+ended the run outright, and the player never saw the siege the whole demo is built toward. Wave 1
+extended the pool to fall back to any living squadmate in daylight. **That is an extension of his
+ruling, made without him.** Backing out that one commit restores night-only exactly — and the
+daylight-death probe then cannot pass, because there is nobody to swap into.
+*(`a47f0e01` · `body_swap_system.gd:59-71` · `tests/probe_daylight_death.tscn`)*
+
+**2. One kneeling idle has an elbow through the ribs, and it cannot be fixed by rotating the arm.**
+Twenty of twenty-one idle clips are now clean. `kneeling_idle` is not: a full 360° swivel search
+reaches only -0.046m, so at that pose **every** position the elbow can reach passes through the
+ribcage. The only way out is to move the hand itself, which moves the grip — and the grip is his
+master data, gated by the prop-to-hand and hand-miss checks. **Move the hand and accept the grip
+risk, or leave the clip as it is?** It was left open rather than nudged silently.
+*(`31a33403` · item 25)*
+
+**3. A villager standing under a stilt house: on the deck, or under it?**
+Item 6 says NPCs spawn on hooch roofs. The fix recorded for the civilian half is now **measured as
+a no-op** — it changes nothing, because the height helper it calls can only look 0.4m up from
+where the man was already planned. Making it reach further is easy; knowing where the man belongs
+is not. A stilt house has a floor you can stand ON and a shaded space you can stand UNDER, and
+both are correct-looking. **Which one should the village put him in?**
+*(`3c65804c` · `mission_generator.gd:1145-1150` · `tests/probe_ground_seat.tscn`)*
+
+---
+
 ## VERIFIED STATUS TABLE — audited 2026-09-06, probe-before-claim
 
 **He asked:** *"right now to get that more real, we need to make sure the last long list of things i
@@ -54,7 +86,7 @@ FAILED there. Still: not one has been verified by your eye, and the art half has
 | 3 | **Cannot enter ANY bunker** | **CODE HALF FIXED + PROBED 2026-09-06** (`8b7170de`) · **ART HALF OPEN, now measured** | **The recorded diagnosis was wrong twice.** `tools/probe_bunker_entry.gd` has existed since 2026-08-12 and measures exactly this, so "No probe" was false — and the doorways were never shut: **36 of 37 fire points are nav-reachable and 32 of 36 routes clear a torso capsule.** Extended it with a STAND pass that sweeps each bunker for a spot the player's own 0.4r x 1.8h capsule fits: **6 of 37 take him UPRIGHT, 19 crouch-only, 12 no fit within 1.5m**, blockers named (`fb_bunker_revet_*`, `fb_bunker_fighting_i`/`fb_bunker_mg_i`). So it is HEADROOM, and crouch was Ctrl and only Ctrl. **Fix:** `player.gd` `_auto_crouch_wanted()` — HOLD (standing here clips solid) plus DUCK (standing one stride ahead clips and crouching there does not); a wall fails the second test and never ducks him. r4bk: `MissionHUD.show_stance` shows "LOW COVER - DOWN". **Probe: `tests/probe_auto_crouch.tscn`** — negative control on the pre-fix file: 5x `SCRIPT ERROR "Nonexistent function '_auto_crouch_wanted'"`, no PASS. After: PASS, 5 cases. **Two instrument bugs fixed inside the probe:** its floor ray started 3m up and landed on the bunker ROOF (+2.87m over the post), and measuring exactly on the marker measures a point `nav_router` pulls the AI off anyway. **STILL OPEN [ART]: 12 fire points have no player-sized volume at all and 19 are crouch-only — that is `fsb_main_v3.glb` geometry, not code.** |
 | 4 | NPCs fall through the ground | **FIXED, PROBED 2026-09-06** (`c0136081`) | `marching_cell.gd:243` + `litter_team.gd:172` now `floor_y`; `air_traffic.gd:520-525` `_ground_at` now `surface_y` (it is a clearance datum, so the roof IS the right answer). **Probe: `tests/probe_ground_seat.tscn`** — negative control on the pre-fix files FAIL (3): bearer and cell both seated at 189.38 (the roof), air datum at 184.18 (under it). After: 184.18 / 184.18 / 189.38. `squad_system.gd:322` changed too, NOT probed (needs a live player camera) |
 | 5 | Huey pilots leave the aircraft | **FIXED** | `seat_system.gd:611-636` `unseat_all` iterates `PASSENGER_SEATS` only; `:31-37` excludes `seat_pilot_l/r`; crew seated at `heli_lift.gd:136-157` and never unseated. No probe. |
-| 6 | NPC squads spawn on the hooch ROOF | **MEASURED NO-OP 2026-09-06 (`3c65804c`) — needs a RULING, not a fix** | `mission_generator.gd:1150` now seats villagers `world.floor_y(cpos) + 0.5`, the same seat `field_director.gd:41-49` gives every enemy. **The leg used to report BLIND** — on the site it happened to pick, `floor_y` and `get_height_at` agreed at every villager (spread 0.00m), so it could not fail. **RE-SITED 2026-09-06** using the world condition the bunker work named: a COLLIDER DECK above bare terrain, laid by the probe itself where the villagers actually land, at a height the probe chose (external ground truth, not another height helper). **Run both ways on the real `_build_village_site`: with `floor_y` — 4 villagers under a 1.20m deck, 1 seated on it, 0 buried, 0 on a roof. With the pre-fix `get_height_at` — 4 under the deck, 1 on it, 0 buried, 0 on a roof. IDENTICAL.** The parity change corrects nothing measurable, and the reason is structural: `game_world.floor_y` probes DOWN from `cpos + 0.4m` and `mission_generator.gd:1145` builds `cpos` at the site's own height, so **it can never reach a floor above the man — its whole reach is 0.4m.** The leg now asserts only the two unambiguous things (buried under terrain, standing on a roof) and REPORTS the deck divergence instead of failing on it. **OPEN QUESTION FOR THE SUMMONER: should a villager planned at terrain height under a stilt deck be seated ON the deck or UNDER it?** Nobody has ruled it and this probe will not rule it by assertion. One instrument bug fixed on the way: the roof test first flagged a man standing on the probe's OWN deck — a probe that fails on its own scaffolding is measuring itself |
+| 6 | NPC squads spawn on the hooch ROOF | **NEEDS CALEB** · measured no-op 2026-09-06 (`3c65804c`) — a RULING, not a fix (see NEEDS CALEB #3 at the head) | `mission_generator.gd:1150` now seats villagers `world.floor_y(cpos) + 0.5`, the same seat `field_director.gd:41-49` gives every enemy. **The leg used to report BLIND** — on the site it happened to pick, `floor_y` and `get_height_at` agreed at every villager (spread 0.00m), so it could not fail. **RE-SITED 2026-09-06** using the world condition the bunker work named: a COLLIDER DECK above bare terrain, laid by the probe itself where the villagers actually land, at a height the probe chose (external ground truth, not another height helper). **Run both ways on the real `_build_village_site`: with `floor_y` — 4 villagers under a 1.20m deck, 1 seated on it, 0 buried, 0 on a roof. With the pre-fix `get_height_at` — 4 under the deck, 1 on it, 0 buried, 0 on a roof. IDENTICAL.** The parity change corrects nothing measurable, and the reason is structural: `game_world.floor_y` probes DOWN from `cpos + 0.4m` and `mission_generator.gd:1145` builds `cpos` at the site's own height, so **it can never reach a floor above the man — its whole reach is 0.4m.** The leg now asserts only the two unambiguous things (buried under terrain, standing on a roof) and REPORTS the deck divergence instead of failing on it. **OPEN QUESTION FOR THE SUMMONER: should a villager planned at terrain height under a stilt deck be seated ON the deck or UNDER it?** Nobody has ruled it and this probe will not rule it by assertion. One instrument bug fixed on the way: the roof test first flagged a man standing on the probe's OWN deck — a probe that fails on its own scaffolding is measuring itself |
 | 7 | Map screen fires the weapon | **FIXED** | `topo_map.gd:469` sets `is_in_menu`; gated at `weapon_holder.gd:376,409`, `equipment_manager.gd:42,85`, `player.gd:968,1244,1341,1617,1691` |
 | 8 | Own squad fires inside the wire | **FIXED, PROBED 2026-09-06** (`12769741`) | The sight half stays refuted: ally LOS tests terrain AND world colliders (`ally_base.gd:1032-1034`). **The collider half is not about sight at all:** LOS is measured from the EYE at +1.5m and the round leaves the MUZZLE, and behind a parapet those are not the same line — the eye clears the sandbags, the gun does not — while the pre-fire lane check aborted only on FLESH. So a squadmate with a clear view fired into the wall a foot in front of him. `AllyBase.muzzle_foul_distance()` holds the round when world geometry stands within 2.5m of the muzzle; anything further out is the ENEMY's cover and shooting it is suppression, which is the job. **Probe: `tests/probe_muzzle_cover.tscn`** — before: `Parse Error: Static function "muzzle_foul_distance()" not found`, no PASS. After: PASS — eye clear / muzzle FOULED at 0.30m / treeline at 22m not fouled / open ground clear |
 | 9 | Satchel 30s fuse + HUD count | **FIXED** | `satchel_charge.gd` `FUSE_S = 30.0` → `MissionHUD.show_fuse` (`mission_hud.gd:312-316`); mouth de-registers at `player.gd:1002` *before* the plant |
@@ -148,7 +180,7 @@ node group `garrison_promoted`. That group is populated only by `GarrisonDefende
 so swapping stays dead for the rest of the run even after stand-to populates the group. The player gets
 the end card at ~T+15 min and never sees the siege the whole demo is built toward.
 
-**FIXED AND PROBED 2026-09-06 (`a47f0e01`).** The latch now fires only after men are actually in the
+**FIXED AND PROBED 2026-09-06 (`a47f0e01`) — but see NEEDS CALEB #1 at the head of this document: the daylight fallback EXTENDS his 2026-08-24 pool ruling and he has not ruled on the extension.** The latch now fires only after men are actually in the
 pool (`body_swap_system.gd:71`), and the scan falls back to living `allies` when nobody is promoted yet
 (`:59-65`) — **that fallback is a deliberate extension of the 2026-08-24 pool ruling (promoted garrison
 only); backing out `a47f0e01` restores the night-only pool.** **Probe: `tests/probe_daylight_death.tscn`**
