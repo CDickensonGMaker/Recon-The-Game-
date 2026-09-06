@@ -4,9 +4,9 @@
 ## war never pauses under the epitaph - the black is a card over a running fight.
 ## Pool exhausted -> try_swap() refuses and the existing KIA chain runs unchanged.
 ##
-## The pool is picked ONCE from the promoted garrison (they exist from stand-to;
-## a death before any man stands to is a real KIA, exactly today's chain). No
-## count is ever rendered - the card carries names (ADR-032 extension, R4 8/24).
+## The pool is picked ONCE, preferring the promoted garrison and falling back to
+## the living men around you when stand-to has not run yet (daylight). No count
+## is ever rendered - the card carries names (ADR-032 extension, R4 8/24).
 class_name BodySwapSystem
 extends Node
 
@@ -50,23 +50,34 @@ func try_swap() -> bool:
 	return true
 
 
-## The pool is fixed at first need: the POOL_SIZE promoted garrison men nearest
-## the player. Fixed men, not a refilling slot - a pool that re-picks every death
-## is a ticket dispenser wearing names.
+## The pool is fixed at first need: the POOL_SIZE living men nearest the player.
+## Fixed men, not a refilling slot - a pool that re-picks every death is a ticket
+## dispenser wearing names. It latches only once men are actually in it.
 func _pick_pool() -> void:
-	_picked = true
 	if player.get_tree() == null:
 		return
-	var candidates: Array[AllyBase] = []
-	for n in player.get_tree().get_nodes_in_group("garrison_promoted"):
-		var a := n as AllyBase
-		if a != null and is_instance_valid(a) and not a.is_dead():
-			candidates.append(a)
+	var candidates: Array[AllyBase] = _living_in("garrison_promoted")
+	if candidates.is_empty():
+		# Daylight: stand-to has not run, so nobody is promoted yet. The pool
+		# falls back to the men actually beside you.
+		candidates = _living_in("allies")
+	if candidates.is_empty():
+		return    # nothing to latch onto; a later death re-scans
 	candidates.sort_custom(func(x: AllyBase, y: AllyBase) -> bool:
 		return x.global_position.distance_squared_to(player.global_position) \
 			< y.global_position.distance_squared_to(player.global_position))
 	for i in range(mini(POOL_SIZE, candidates.size())):
 		_pool.append(candidates[i])
+	_picked = true
+
+
+func _living_in(group: String) -> Array[AllyBase]:
+	var out: Array[AllyBase] = []
+	for n in player.get_tree().get_nodes_in_group(group):
+		var a := n as AllyBase
+		if a != null and is_instance_valid(a) and not a.is_dead():
+			out.append(a)
+	return out
 
 
 func _nearest_living() -> AllyBase:
