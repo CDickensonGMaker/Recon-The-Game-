@@ -36,6 +36,15 @@ var _halo: MeshInstance3D = null
 var _core: MeshInstance3D = null
 var _anchor_x: float = 0.0
 var _anchor_z: float = 0.0
+## The swing anchor is armed on the first physics tick, NOT in _ready(). pop()
+## assigns global_position AFTER parent.add_child(), and add_child runs _ready
+## synchronously on a parent already in the tree - so a _ready-armed anchor held
+## the PARENT'S ORIGIN, and the first tick's `global_position.x = _anchor_x +
+## swing` teleported the burning flare off the point it was fired at. Every
+## caller parents to world/current_scene/_lights_root, so every illum round in
+## the game lit the map origin instead of the sappers (probe_flare_stays_put:
+## 42m of teleport, measured).
+var _anchor_armed: bool = false
 var _flicker: float = 1.0
 
 
@@ -63,8 +72,6 @@ static func pop(parent: Node, pos: Vector3, burn: float = DURATION,
 
 func _ready() -> void:
 	active_flares.append(self)
-	_anchor_x = global_position.x
-	_anchor_z = global_position.z
 
 	var altitude: float = maxf(10.0, global_position.y)
 
@@ -154,6 +161,10 @@ func _burn01() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if not _anchor_armed:
+		_anchor_armed = true
+		_anchor_x = global_position.x
+		_anchor_z = global_position.z
 	_age += delta
 	global_position.y -= drift * delta
 
