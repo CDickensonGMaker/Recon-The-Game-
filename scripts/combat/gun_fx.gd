@@ -593,14 +593,37 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 ## blast radius for every big class and lies over everything on a 0.4m
 ## projection. The visual may exceed the world; the mark on the ground may not.
 const SCORCH_MAX_M: float = 44.0
+## THE FLIP-FLOP (item 10, his playtest). A Decal paints everything inside its BOX,
+## and the box was 0.4m deep whatever the mark's width: a 20m satchel scorch on ground
+## that rolls more than 20cm has most of its own footprint outside its own projection,
+## so the mark snapped on and off as the camera moved and as the ground rose through
+## the slab. Depth is a fraction of the width now, floored so a small mark still has a
+## box - a scorch has to follow the dirt it is burned into.
+const SCORCH_DEPTH_FRAC: float = 0.30
+const SCORCH_DEPTH_MIN_M: float = 0.6
+## And it only paints the GROUND. Without a normal fade the same box sprays the burn
+## up every wall, parapet and bunker face it touches; 0.55 keeps it on surfaces facing
+## roughly up, which is what a blast actually scorches.
+const SCORCH_NORMAL_FADE: float = 0.55
+## Fade it out with distance instead of culling it: a mark that vanishes at a hard
+## radius is the other half of what reads as flip-flop.
+const SCORCH_FADE_BEGIN_M: float = 90.0
+const SCORCH_FADE_LEN_M: float = 30.0
 
 static func _scorch(parent: Node, pos: Vector3, scale_mult: float) -> void:
 	var d := Decal.new()
 	var s: float = minf(2.4 * scale_mult, SCORCH_MAX_M)
-	d.size = Vector3(s, 0.4, s)
+	d.size = Vector3(s, maxf(s * SCORCH_DEPTH_FRAC, SCORCH_DEPTH_MIN_M), s)
 	d.texture_albedo = _fx_tex("particles/scorch_0%d" % (randi() % 3 + 1))
 	d.modulate = Color(0.1, 0.09, 0.08)
 	d.albedo_mix = 0.85
+	d.normal_fade = SCORCH_NORMAL_FADE
+	# Soft top and bottom edges, or the deeper box shows its own seam on a slope.
+	d.upper_fade = 1.0
+	d.lower_fade = 1.0
+	d.distance_fade_enabled = true
+	d.distance_fade_begin = SCORCH_FADE_BEGIN_M
+	d.distance_fade_length = SCORCH_FADE_LEN_M
 	parent.add_child(d)
 	d.global_position = pos + Vector3(0, 0.05, 0)
 	d.rotate_y(randf_range(0.0, TAU))

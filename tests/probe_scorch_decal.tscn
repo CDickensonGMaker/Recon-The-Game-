@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cprobescorchdcl"]
+
+[ext_resource type="Script" path="res://tests/probe_scorch_decal.gd" id="1_sc"]
+
+[node name="ProbeScorchDecal" type="Node"]
+script = ExtResource("1_sc")
