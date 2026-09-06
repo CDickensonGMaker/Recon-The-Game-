@@ -2073,9 +2073,13 @@ func _fire_at_target() -> void:
 
 	# Live BulletSystem round - muzzle spawn, drop, travel, arrival damage/FX
 	# through the shared resolver. The tracer IS the bullet; color from WeaponData.
+	# The FLASH hangs on the model's rendered facing, not the ballistic aim - the
+	# two diverge while the aim lerps, and the flash tore off the gun. EnemyBase
+	# has always split them this way.
+	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
-	GunFX.play_shot_3d(get_tree().current_scene, origin, weapon_data)
-	GunFX.muzzle_flash(get_tree().current_scene, origin)
+	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
+	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0
