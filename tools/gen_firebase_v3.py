@@ -175,14 +175,33 @@ CRATERS = []
 
 
 def crater_field(rng, n=22):
+    """Shell craters worked into the outer skirt - never the compound floor.
+
+    MEASURED DEFECT (2026-09-06, item 14): the old range let a crater CENTRE sit up to
+    0.10 * fall_at(a) INSIDE edge_at(a) (~2-4 m), and crater_delta()'s bowl (dist < radius,
+    radius up to 10.0) reads outward from that centre in every direction - so the bowl could
+    reach ~10 m past the centre, i.e. up to ~7-14 m inside the berm line, pockmarking the
+    parade ground and clipping hootches/gun pits placed near the inner edge. `edge_at(a)` is
+    the same radius berm() and parapet_segments() build on, so this is the actual compound
+    boundary, not an approximation.
+
+    Fix: choose the radius FIRST, then require the centre far enough outside edge_at(a) that
+    the bowl's inner lip lands at worst `allowed_bite` inside the edge - a small nibble at the
+    berm's outer toe (a round DID land there) rather than a hole in the yard.
+    """
     CRATERS.clear()
+    allowed_bite = 1.5  # metres the bowl may still creep past the edge, into the berm toe
     for i in range(n):
         a = math.tau * i / n + rng.uniform(-0.09, 0.09)
         e, fa = edge_at(a), fall_at(a)
-        r_local = e + fa * rng.uniform(-0.10, 0.85)
+        radius = rng.uniform(4.5, 10.0)
+        depth = rng.uniform(0.7, 1.9)
+        min_r = e + max(radius - allowed_bite, 0.0)
+        max_r = e + fa * 0.85
+        r_local = rng.uniform(min_r, max(min_r + 0.5, max_r))
         x = math.cos(a) * r_local * RIDGE_STRETCH
         y = math.sin(a) * r_local
-        CRATERS.append((x, y, rng.uniform(4.5, 10.0), rng.uniform(0.7, 1.9)))
+        CRATERS.append((x, y, radius, depth))
     return CRATERS
 
 
@@ -260,7 +279,11 @@ def berm(path, rng):
     for i in range(n):
         zi = platform_z(*inner[i])
         zo = platform_z(*outer[i])
-        h = BERM_H + rng.uniform(-0.09, 0.09)
+        # MEASURED DEFECT (2026-09-06, item 12): this used to jitter +/-0.09 m per vertex while
+        # parapet_segments() sits the sandbag wall base at a FIXED `max(platform_z) + BERM_H`
+        # (gen_firebase_v3.py:315) - up to an 18 cm gap/overlap between the earth crest and the
+        # sandbag row it carries, all the way round the perimeter. Deterministic height closes it.
+        h = BERM_H
         ci.append(bm.verts.new((inner[i][0], inner[i][1], zi)))
         co.append(bm.verts.new((outer[i][0], outer[i][1], zo)))
         cc.append(bm.verts.new((path[i][0], path[i][1], max(zi, zo) + h)))

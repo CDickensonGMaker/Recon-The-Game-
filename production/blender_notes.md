@@ -2152,3 +2152,99 @@ Views are now `profile` (az 90) / `face` (el 88) / `threequarter`; `ortho_scale`
 `*entrench*` and no character GLB carries such a mesh — those hints were written ahead of
 the asset. Modelled fresh; nothing to harvest. The shipped mesh name contains `shovel`, so
 if it is ever welded onto a body it is correctly kept out of the hurtbox hulls.
+
+---
+
+## 2026-09-06 · FIREBASE PLAYTEST DEFECT PASS — `fsb_main_v3.glb` is NOT one generator's output
+
+Caleb's 2026-08-27 playtest list, worked headlessly. **First finding, before any fix:** the
+shipped GLB is not a clean run of `tools/gen_firebase_v3.py::main()`. It is
+`assets/.../firebase/kit/firebase_v3.2.blend` — that procedural export, then HAND-MERGED
+with several separately-authored asset families (the real M101 howitzer battery from
+`assets/us/artillery/us_artillery_m101.blend`, a detailed `us_mortar_*` weapon kit, a
+purpose-built `medical_complex` mesh, `WB_chowhall`/`WB_bunker_*` staged pieces) — via
+`tools/merge_chowhall_to_firebase.py` and hand work. **Read the actual .blend before trusting
+`gen_firebase.py`'s FAMILIES dict to tell you what's really in the shipped model** — `fb_gun_pit`,
+`fb_howitzer` and `fb_toc` all show 0 objects in firebase_v3.2.blend; they were replaced, not
+missing by neglect (except `fb_toc`/HQ, which really is unbuilt — see below).
+
+**Fixed, all measured before AND after, `tools/gen_firebase_v3.py`:**
+1. **Item 14, craters inside the compound.** `crater_field()`'s old bound let a crater CENTRE
+   sit up to ~4m inside `edge_at(a)` (the same radius `berm()`/`parapet_segments()` build on),
+   and the bowl (radius up to 10m) read outward from there — up to ~14m of pockmarked "weird
+   craters" reaching the parade ground. Picked the radius FIRST, then required the centre far
+   enough outside the edge that the bowl's near lip lands at most `allowed_bite=1.5m` past it
+   (a nibble at the berm toe, not a hole in the yard). Verified by direct recomputation of
+   every crater's edge-intrusion post-fix: worst case 1.34m (was up to ~14m).
+2. **Item 12, berm/sandbag "gap".** `berm()` jittered crest height ±0.09m per vertex while
+   `parapet_segments()` sits the sandbag wall at a FIXED `platform_z + BERM_H` — up to an 18cm
+   mismatch, all the way round. Made berm() deterministic (dropped the jitter). Only
+   `fb_berm_ring` needed rebuilding; the sandbag segments were already deterministic, so the
+   destructible HP manifest (name/position keyed) was untouched.
+3. **Item 13, mortar pits.** TWO separate, unrelated defects hiding under one complaint:
+   (a) a fully orphaned (parent=None), zero-GDScript-referenced procedural `fb_mortar_pit_i` /
+   `.001` box sat exactly on top of the real, detailed `us_mortar_*` kit at both pit
+   locations — a FOSSIL, deleted; (b) the real mortar's `us_mortar_tube/bipod_l/bipod_r/
+   baseplate/sight/crank` (both instances) carried **zero material slots** — confirmed by
+   direct `len(o.data.materials)` read, not a render guess — so Godot's default-white applies.
+   Assigned `fb_gunmetal` (the kit's existing flat weapon-metal material).
+4. **Item 16, floating M101 shells.** `MC_casing_1..5` and `m101_shell_empty`, parented to
+   each of the 4 `m101_emplacement` instances, all read LOCAL `(0,0,0)` — a parent-without-
+   keep-transform snap during the merge. Recovered the artist's real relative offsets from
+   the untouched source library (`us_artillery_m101.blend`, where the same objects have
+   `parent=None` so `.location` IS the authored placement) and reapplied them under all 4
+   instances. **Lesson for any prop under a `parent=None` source that gets re-parented on
+   import: check `.location == (0,0,0)` across every instance — that exact tell is a lost
+   transform, not a legitimately-centred prop.**
+5. **Item 26, medical tent "completely see-through" — found while investigating item 11.**
+   Two isolated materials (`fb_curtain.001` on 1,708 wall-canvas faces, `fb_canvas.011` on the
+   904-face roof canopy, BOTH used by `medical_complex` alone, confirmed by a materials-user
+   scan before touching either) sat at alpha 0.30 and 0.12. **Fixing only the Principled BSDF
+   `Alpha` input did nothing in my Workbench render** — Workbench's transparency preview reads
+   `Material.diffuse_color`'s alpha channel (legacy field), NOT the node tree. Had to set BOTH
+   `bsdf.inputs['Alpha']` (what the glTF exporter reads) AND `material.diffuse_color[3]` (what
+   Workbench previews) to 1.0 before the render agreed with the data. **Filed as a Blender-
+   universal lesson below** — this is exactly the "instrument measuring the wrong thing"
+   trap the project's own laws warn about, caught here by rendering AFTER checking material
+   node data disagreed with the render, not by trusting either alone.
+
+**NOT fixed this session — investigated, with pointers for next time, not guessed at:**
+- **Item 11 (HQ unbuilt).** Confirmed genuinely missing, not merely misnamed: zero HQ-shaped
+  mesh anywhere in firebase_v3.2.blend or in any nearby staging pen. The `hq_door` /
+  `hq_door_approach` / `med_bearer_formup` / `med_door_main` empties ARE present but
+  mis-parented to `medical_complex` at a **local offset of ~(195, -14, 0)** — 200m from the
+  medical building's own footprint, landing in open terrain in world space. `assets/us/
+  characters/COMMAND BUNKER.blend` looked like a candidate source and is NOT ONE — it is an
+  unfinished Cube/Cylinder blockout mixed with unrelated donor gib parts
+  (`grunt_leg_l`, `head_frag_01..04`), not a usable asset. Building the HQ is a full
+  model from blockout to export, not a merge-in job.
+- **Item 15 (gate "must look better").** Not touched — `fb_gate_gap_i` is still the original
+  procedural piece (9.3 x 7.25 x 3.1m, 1448 verts); no measurement pinpointed a specific
+  defect the way items 13/16/26 had one. Needs a straight aesthetic pass, not a bug fix.
+- **Items 19/20/21 (hooch interiors).** Root mechanism found and confirmed reusable:
+  `tools/gen_fb_interior.py::furnish_firebase()` applies ONE `INTERIOR_LAYOUT["fb_hootch"]`
+  to every hootch by family-name match (`fam = o.name.split(".")[0].replace("_i","")`), which
+  is exactly why all 11 are identical (item 21) — but the CURRENT hooches in
+  firebase_v3.2.blend are the `swap_hooches_v32.py` replacement kit (`fb_hootch_roof_m0..7`,
+  `fb_hootch_screen_*`), a different part-name scheme than the simple `fam_hootch` box this
+  furnishing function targets, so it is unclear the layout table even still fires against
+  them — did not verify before running out of session budget. Chair-facing (19) and
+  radio-orientation (20) are almost certainly yaw-convention bugs inside
+  `INTERIOR_LAYOUT["fb_toc"]`/`fb_field_chair`/`fb_radio_shelf`, but there is no `fb_toc` in
+  the shipped file to check against (see item 11) — check whichever real command structure
+  eventually replaces it, not the dead `fam_toc` entry.
+- **Item 17 (hooch sandbags), Item 18 (walkways).** Rendered one hootch exterior
+  (`fb_hootch_screen_*`/`fb_hootch_roof_m0.001`) and saw a visibly jagged, uneven top edge on
+  one hootch's sandbag revetment versus a clean line on its neighbour — real signal, not
+  chased further; no root cause isolated. Walkways: only `fb_duckboard_toc` and
+  `fb_road_gate`/`fb_road_pad` exist; no camp-spine duckboard despite `main()` authoring one
+  (`fb_duckboard_camp`) — worth checking whether the hand-merge dropped it.
+
+**Verified after every fix, this session:** re-exported via `gen_firebase_v3.export_firebase()`
+(the real pipeline call, never a hand save-over), re-imported the GLB fresh, and confirmed by
+name: `fb_mortar_pit` = 0 (fossil gone), `fb_berm_ring`/`fb_terrain_mound`/`fb_sbg_seg_*`/
+`medical_complex` all still carry exactly one `-colonly` twin apiece with the prefix intact —
+**the destructible/ballistic naming contract survived the round trip.** Ran
+`tools/shrink_oversized_textures.py --root ".../firebase" --apply` per the texture budget
+law: 3 embedded images over 1MB (2.3/1.3/2.0MB) shrunk to under 1MB each, nothing else
+touched. Final export 41.7MB (was ~48.9MB source .blend's naive export before the shrink).
