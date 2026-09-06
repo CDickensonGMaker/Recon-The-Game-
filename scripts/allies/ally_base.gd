@@ -576,8 +576,37 @@ func dress_visual() -> void:
 ## crouch to hold/react/at-cover, stand to advance/flank/rush, a heavy pin crouches
 ## anyone. SEEKING_COVER crouches only once NEAR the cover point.
 func _is_low_posture(_firing: bool) -> bool:
-	return CombatPosture.decide(current_state, suppression_level, _near_cover(), _prone) \
-		== CombatPosture.Posture.CROUCH
+	var posture: int = CombatPosture.decide(
+		current_state, suppression_level, _near_cover(), _prone)
+	if posture != CombatPosture.Posture.STAND:
+		return posture == CombatPosture.Posture.CROUCH
+	return _mirrors_player_low()
+
+
+## HE CROUCHES, THEY CROUCH. `player.is_crouching` had no reader on this side at all -
+## only EnemyBase read it, and only to shoot at him - so the squad stood upright beside
+## a man who had just gone down behind the same berm.
+##
+## It only ever ADDS a crouch on top of the shared CombatPosture contract, and never
+## while a man is committed to a push: an advance, a flank or a fall-back outranks
+## copying you, or taking a knee would stall the squad mid-move.
+const CROUCH_MIRROR_M: float = 18.0
+const CROUCH_MIRROR_BLOCKED: Array[int] = [
+	Enums.AIState.ADVANCING, Enums.AIState.FLANKING, Enums.AIState.RETREATING,
+]
+
+
+func _mirrors_player_low() -> bool:
+	if current_state in CROUCH_MIRROR_BLOCKED:
+		return false
+	var p: Node = GameManager.player
+	if p == null or not is_instance_valid(p) or not p is Node3D:
+		return false
+	if global_position.distance_to((p as Node3D).global_position) > CROUCH_MIRROR_M:
+		return false
+	if "is_prone" in p and bool(p.is_prone):
+		return true
+	return "is_crouching" in p and bool(p.is_crouching)
 
 
 ## See EnemyBase._update_prone_latch - same rule, same constants, same reasons.
@@ -1359,6 +1388,8 @@ func _update_aim(delta: float) -> void:
 
 
 func _execute_idle(delta: float) -> void:
+	if order_mode == OrderMode.FOLLOW or order_mode == OrderMode.HOLD:
+		_apply_player_standoff(delta)
 	match order_mode:
 		OrderMode.FOLLOW:
 			var player := GameManager.player
@@ -2191,7 +2222,46 @@ func _refresh_separation() -> void:
 		var d: float = off.length()
 		if d > 0.01:
 			push += off / d * (1.0 - d / COMBAT_SPACING_M)
+	# THE PLAYER IS NOT IN AgentRegistry.allies, so nothing here ever pushed a man off
+	# the one body he is most likely to be standing in.
+	var pl: Node = GameManager.player
+	if pl != null and is_instance_valid(pl) and pl is Node3D:
+		var poff: Vector3 = global_position - (pl as Node3D).global_position
+		poff.y = 0.0
+		var pd: float = poff.length()
+		if pd > 0.01 and pd < PLAYER_SPACING_M:
+			push += poff / pd * (1.0 - pd / PLAYER_SPACING_M) * 1.5
 	_separation = push.limit_length(1.0)
+
+
+## How close a squadmate may stand to YOU before he steps off. Tighter than the 3m
+## combat ring on purpose - the squad belongs beside you, just not inside you.
+const PLAYER_SPACING_M: float = 1.6
+## How hard he steps off, in m/s. A nudge added to whatever the follow slot already
+## wanted, so it can never fight the formation.
+const PLAYER_STANDOFF_SPEED: float = 1.4
+
+
+## Step out of the player's body. Runs on the FOLLOW/HOLD path, where the separation
+## push never did - that is refreshed only once contact opens (_execute_combat), so
+## before a shot was fired nothing at all kept a man off you.
+func _apply_player_standoff(_delta: float) -> void:
+	var pl2: Node = GameManager.player
+	if pl2 == null or not is_instance_valid(pl2) or not pl2 is Node3D:
+		return
+	var off: Vector3 = global_position - (pl2 as Node3D).global_position
+	off.y = 0.0
+	var d: float = off.length()
+	if d >= PLAYER_SPACING_M:
+		return
+	if d < 0.01:
+		# Dead centre: no direction to push, so he uses his own facing and gets off.
+		off = -global_transform.basis.z
+		off.y = 0.0
+		d = maxf(off.length(), 0.01)
+	var step: Vector3 = off / d * PLAYER_STANDOFF_SPEED * (1.0 - d / PLAYER_SPACING_M)
+	velocity.x += step.x
+	velocity.z += step.z
 
 
 ## Cone multiplier from the pressure in the situation: his own suppression spoils his
