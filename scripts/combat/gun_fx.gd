@@ -352,6 +352,15 @@ const MAX_SCORCH: int = 12
 static var _scorch_decals: Array[Decal] = []
 
 
+## THE FLASH CORE, in numbers, because a probe has to read them rather than copy them.
+## Peak rendered width of the additive flash is FLASH_QUAD_M x root scale x
+## FLASH_PEAK_SCALE - for a satchel (grenade class, ORDNANCE_VISUAL_MULT 2.0) that is
+## 1.2 x 2.0 x 3.0 = 7.2m of blend-add emissive quad standing 0.6m off the ground.
+const FLASH_QUAD_M: float = 1.2
+const FLASH_PEAK_SCALE: float = 3.0
+## The shock ring is the same treatment lying flat.
+const RING_QUAD_M: float = 1.0
+const RING_PEAK_SCALE: float = 4.5
 ## Layered explosion (ADR-026: FAKE light — every layer is unshaded sprite
 ## geometry). scale_mult sizes ordnance classes; AmbientWar horizon events pass
 ## big scale + lifetime holds so it reads at 200-800m.
@@ -378,7 +387,7 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	# 1. flash core: emissive billboard pop (the probe's self-lit contract).
 	var quad := MeshInstance3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(1.2, 1.2)
+	qm.size = Vector2(FLASH_QUAD_M, FLASH_QUAD_M)
 	quad.mesh = qm
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -491,7 +500,7 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	if not is_napalm:
 		ring = MeshInstance3D.new()
 		var ring_mesh := QuadMesh.new()
-		ring_mesh.size = Vector2(1.0, 1.0)
+		ring_mesh.size = Vector2(RING_QUAD_M, RING_QUAD_M)
 		ring.mesh = ring_mesh
 		ring_mat = StandardMaterial3D.new()
 		ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -583,10 +592,12 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 
 	var tw := root.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(quad, "scale", Vector3(3.0, 3.0, 3.0), 0.3 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6))
+	tw.tween_property(quad, "scale", Vector3.ONE * FLASH_PEAK_SCALE,
+		0.3 * lifetime_mult).from(Vector3(0.6, 0.6, 0.6))
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
 	if ring != null:
-		tw.tween_property(ring, "scale", Vector3(4.5, 4.5, 4.5), 0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
+		tw.tween_property(ring, "scale", Vector3.ONE * RING_PEAK_SCALE,
+			0.35 * lifetime_mult).from(Vector3(0.4, 0.4, 0.4))
 		tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.35 * lifetime_mult)
 	_expire(root, 1.6 * lifetime_mult + EXPLOSION_HOLD_S, func() -> void:
 		root.queue_free())
