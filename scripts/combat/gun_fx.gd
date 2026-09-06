@@ -361,6 +361,46 @@ const FLASH_PEAK_SCALE: float = 3.0
 ## The shock ring is the same treatment lying flat.
 const RING_QUAD_M: float = 1.0
 const RING_PEAK_SCALE: float = 4.5
+## THE ORANGE BLOW-OUT (item 10, measured 2026-09-06 with tools/probe_explosion_bloom).
+## The flash core is an additive quad at emission x9 whose alpha never knew where the
+## camera was. Measured on the shipping path at the player's own 75-degree FOV:
+##   explosion_grenade   7.20m flash - 96% of screen HEIGHT at 5m, 164% at 3m
+##   explosion_mortar   43.20m flash - 95% at THIRTY metres, 461% at 8m
+##   explosion_heavy    72.00m flash - 160% at thirty metres
+## A satchel on a bunker fires the first and the second. That is the whole frame going
+## orange, and it is the layer nobody had measured.
+##
+## The flash keeps its full punch while it reads AS a flash and is dimmed once it starts
+## to BE the frame. It is never taken to zero: a blast at your feet must still light the
+## world, it just may not own it.
+const FLASH_COVER_SOFT: float = 0.45
+const FLASH_COVER_HARD: float = 1.20
+const FLASH_ALPHA_FLOOR: float = 0.22
+
+
+## What fraction of the screen's HEIGHT a billboard this wide covers from this camera.
+## Godot's Camera3D.fov is the vertical angle under the default KEEP_HEIGHT aspect, so
+## this needs no viewport size and works before the first frame is drawn.
+static func flash_screen_cover(cam: Camera3D, at: Vector3, width_m: float) -> float:
+	if cam == null or not is_instance_valid(cam):
+		return 0.0
+	var d: float = cam.global_position.distance_to(at)
+	if d < 0.01:
+		return 99.0
+	return (width_m * 0.5) / maxf(d * tan(deg_to_rad(cam.fov) * 0.5), 0.001)
+
+
+## Peak alpha for an additive layer covering this much of the frame.
+static func flash_alpha_for_cover(cover: float) -> float:
+	if cover <= FLASH_COVER_SOFT:
+		return 1.0
+	var t: float = clampf((cover - FLASH_COVER_SOFT)
+		/ (FLASH_COVER_HARD - FLASH_COVER_SOFT), 0.0, 1.0)
+	return lerpf(1.0, FLASH_ALPHA_FLOOR, t)
+
+
+
+
 ## Layered explosion (ADR-026: FAKE light — every layer is unshaded sprite
 ## geometry). scale_mult sizes ordnance classes; AmbientWar horizon events pass
 ## big scale + lifetime holds so it reads at 200-800m.
@@ -396,10 +436,18 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	mat.albedo_texture = _get_flash_tex()
-	mat.albedo_color = Color(1.0, 0.85, 0.5, 1.0)
+	# The camera is part of this material now. Both the alpha and the emission ride
+	# the fade: dimming one and leaving the other still floods an HDR frame.
+	var cam: Camera3D = null
+	if parent.is_inside_tree():
+		var vp: Viewport = parent.get_viewport()
+		cam = vp.get_camera_3d() if vp != null else null
+	var near_a: float = flash_alpha_for_cover(flash_screen_cover(cam, pos,
+		FLASH_QUAD_M * scale_mult * FLASH_PEAK_SCALE))
+	mat.albedo_color = Color(1.0, 0.85, 0.5, near_a)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.55, 0.15)
-	mat.emission_energy_multiplier = 9.0
+	mat.emission_energy_multiplier = 9.0 * near_a
 	quad.material_override = mat
 	quad.position.y = 0.6
 	root.add_child(quad)
@@ -507,10 +555,13 @@ static func _spawn_explosion_visual(parent: Node, pos: Vector3, scale_mult: floa
 		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		ring_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 		ring_mat.albedo_texture = _fx_tex("particles/circle_05")
-		ring_mat.albedo_color = Color(1.0, 0.8, 0.5, 0.7)
+		# Same fade, its own width: a 54m mortar ring at your boots is a floor of orange.
+		var ring_a: float = flash_alpha_for_cover(flash_screen_cover(cam, pos,
+			RING_QUAD_M * scale_mult * RING_PEAK_SCALE))
+		ring_mat.albedo_color = Color(1.0, 0.8, 0.5, 0.7 * ring_a)
 		ring_mat.emission_enabled = true
 		ring_mat.emission = Color(1.0, 0.7, 0.3)
-		ring_mat.emission_energy_multiplier = 2.0
+		ring_mat.emission_energy_multiplier = 2.0 * ring_a
 		ring.material_override = ring_mat
 		ring.rotation_degrees.x = -90.0
 		ring.position.y = 0.15
