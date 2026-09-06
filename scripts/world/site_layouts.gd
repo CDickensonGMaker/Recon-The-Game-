@@ -1,5 +1,11 @@
-## site_layouts.gd - Data-driven site layouts stamped by SitePlanner.
-## Offsets in meters relative to site center; rotation in degrees.
+## site_layouts.gd - The MODEL POOLS and prop manifests SitePlanner draws a site from.
+##
+## NOT a layout file, despite what this header claimed until 2026-09-06: there are no
+## offsets and no rotations in here, and there never were. Positions are computed at
+## stamp time by _scatter_huts / _prop_point / _dry_point against the seed. Authored
+## offsets are the thing ADR-041 records as POST-DEMO and FROZEN - if you are adding
+## an offset table here, read that ADR first, because the header used to promise one
+## and its absence is why every prop position is a radial draw.
 class_name SiteLayouts
 extends RefCounted
 

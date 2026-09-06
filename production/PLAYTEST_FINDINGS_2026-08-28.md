@@ -351,7 +351,9 @@ Q1/24. **REFUTED BY MEASUREMENT, 2026-08-28.** The resolver is not the culprit. 
 19. [ ] [SCENE-LAYOUT] Chairs not facing tables.
 20. [ ] [SCENE-LAYOUT] Radio lies wrong on the table.
 21. [ ] [SCENE-LAYOUT] Every hooch has the identical interior - randomize.
-32. [ ] [SCENE-LAYOUT] Villages: animals inside huts, tables through walls, NPCs stuck in walls.
+32. [ACCEPTED-OPEN] [SCENE-LAYOUT] Villages: animals inside huts, tables through walls, NPCs stuck in
+    walls. **Measured 1 real embed of 61, seed-dependent; root cause and one-line fix recorded in §H
+    and ADR-041 §11. Not a ship-window defect — do not re-open.**
 30. [ ] [BLENDER] Helmets still have black spots instead of camo.
 31. [ ] [BLENDER] VC faces blown up too large. MEASURE the head UV island first (the last attempt was rejected for guessing).
 25. [ ] [BLENDER] NPC arms clip into their own bodies on idles.
@@ -587,7 +589,21 @@ Status legend: [ ] open · [x] fixed · [?] needs his call
 31. [ ] **VC face textures wrong** — faces blown up too large, need shrinking. (See prior rejected fix: measure the head UV island.)
 
 ## H. VILLAGES
-32. [ ] Villages need tightening: **animals inside huts**, **tables intersecting walls**, **NPCs stuck inside walls**.
+32. **[ACCEPTED-OPEN — MEASURED 1 IN 61, seed-dependent. Not a ship-window defect.]** Villages need
+    tightening: **animals inside huts**, **tables intersecting walls**, **NPCs stuck inside walls**.
+    - **Measurement** (`tools/probe_village_embed.gd`, commit `6387c3e3`): the first pass reported
+      61/112 embedded and was **almost entirely a broken instrument** (`RaycastCollision`, an
+      engine-wide false positive, now excluded). The filtered pass found **exactly 1 real embed of
+      61** — one `chicken_coop` inside a neighbouring hut's wall — and it is **seed-dependent**.
+    - **Root cause, found 2026-09-06 (ADR-041 §11), not built:** `_near_building`
+      (`scripts/world/site_planner.gd:556-566`) approximates each building as a **circle** of radius
+      `maxf(fp.x, fp.y) * 0.5 + PROP_BUILDING_MARGIN`, which **under-covers the rectangle's diagonal
+      corners**. For `nha_ruong_02` (13.3 × 9.1) the circle is 7.85m while the hut's own corner reaches
+      8.06m, so a prop on the diagonal at 7.9m is inside the hut and passes the check. `chicken_coop`
+      is zoned `edge` — exactly that band. **Fix is `fp.length() * 0.5` plus the prop's own radius.**
+    - **Why it stays open:** one line, but it is placement-code surgery on the protected foundation in
+      a ship window. **Do not re-open this as a defect** — it is recorded, measured and priced.
+    - **This item may NEVER be cited as the reason to hand-author a village** (ADR-041 §11).
 
 ## I. SYSTEMS / UX
 33. [ ] **Warn the player about friendly units** (friendly-fire warning).

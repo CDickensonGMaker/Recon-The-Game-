@@ -48,6 +48,7 @@ Every citation was independently re-verified against source at writing time.
 | [040](ADR-040-the-down-state.md) | **Lethality is not negotiable — the DOWN state gets verbs, not the health pool more points** | **ACCEPTED 2026-09-06 as canon; POST-DEMO, BUILD NOTHING.** Reaffirms Pillar 1 and ADR-016 against a sympathetic attack. §4 records the Fairness-Law near-miss as **verified FIRING**, with one real hole |
 | [006-B](ADR-006-amendment-B-the-score-is-re-hosted.md) | **Amendment B: the mission score is RE-HOSTED, not repealed. HQ is the faucet** | **ACCEPTED 2026-09-06.** The scalar dies, the sensor lives. *Body count may move HQ's WORDS; never HQ's GRANT* |
 | [007-A](ADR-007-amendment-A-save-anywhere.md) | **Amendment A: save anywhere is POST-DEMO, and here is the bill** | **ACCEPTED 2026-09-06 as canon; BUILD NOTHING.** Six workstreams — the largest item in the decree. Both old save defects confirmed CLOSED |
+| [041](ADR-041-authored-places.md) | **The scene is a PLAN, not a prefab — authored places without a second placement path** | **ACCEPTED 2026-09-06 as canon; POST-DEMO, BUILD NOTHING.** Extends ADR-039 clause 1 from areas down to SITES. Names the ten contracts a composed `.tscn` skips, the one way it trips the structural probe, and the 0.7 flatten. Corrects ADR-039 §3's stale ADR-020 §4 citation. FROZEN FILES + price (20-31h) |
 
 **Deleted 2026-07-20 by the Summoner (never built against):** ADR-024 (cinematic direction),
 ADR-027 (PS2 world design). A citation to either is drift — correct it on contact.

@@ -90,9 +90,16 @@ Clause 1 forbids the fastest way to make a memorable place. **Every outdoor AO i
 procedurally derived** — no hand-composed landmark, no authored ridge, no set-piece geography. The price
 of never fracturing the world build is that the world can never be *composed*. This is the correct trade
 (Catacombs died of the alternative), but it is a real loss, and it collides with the vignette-place
-ambition of the same decree. **The reconciliation is §4 of ADR-020:** a memorable place is made by what
-is *stamped and dressed* on procedural ground, and by the authored interiors of clause 4 — not by
-hand-sculpting the ground itself.
+ambition of the same decree. **The reconciliation is ADR-020 §1-§2 and, in full, ADR-041:** a memorable
+place is made by what is *stamped and dressed* on procedural ground, and by the authored interiors of
+clause 4 — not by hand-sculpting the ground itself.
+
+> **CITATION CORRECTED 2026-09-06 (ADR-041 §9, no-more-drift).** This paragraph originally read *"the
+> reconciliation is §4 of ADR-020."* **ADR-020 §4 is the Ambience Law** — how often ambient events fire
+> at the firebase — and contains nothing about stamping or dressing places. The licence for authored
+> ground is ADR-020 **§1-§2** (the rail/guarantee distinction; the first patrol is *"AUTHORED-DENSE"*).
+> The argument was sound; the pointer was wrong. **ADR-041 now carries the mechanism in full**: the
+> scene is a plan, not a prefab — the GROUND can never be composed, but a PLACE can.
 
 ### 4 · YOU BOARD THE BIRD, YOU NEVER SELECT IT
 
