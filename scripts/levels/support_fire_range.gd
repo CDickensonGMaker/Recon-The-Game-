@@ -567,6 +567,9 @@ func _update_legend() -> void:
 	lines.append("[9] ENEMY ASSAULT + SAPPERS   [N] day-night   LMB send / RMB back out   [T] net on-off")
 	lines.append("[ / ] VFX size x%.2f - napalm ~%.0fm/drop (a run is 9 on 22m spacing)" % [
 		GunFX.bench_size_mult, GunFX.rendered_width_m("explosion_napalm")])
+	lines.append("; / ' MUZZLE flash x%.2f - enemy flash %.2fm wide, %.0fms (press 9, watch the treeline)" % [
+		GunFX.bench_muzzle_mult, GunFX.observed_muzzle_width_m(),
+		GunFX.observed_muzzle_ms()])
 	_legend.text = "\n".join(lines)
 
 
@@ -597,6 +600,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if keycode == KEY_N:
 			toggle_night()
+			return
+		## Muzzle-flash readability knob, ruled the same way sizes are: his eye, at
+		## range, on the bench. Press 9 for an assault and read the treeline.
+		if keycode == KEY_SEMICOLON or keycode == KEY_APOSTROPHE:
+			var m_step: float = SIZE_KNOB_STEP if keycode == KEY_APOSTROPHE \
+				else 1.0 / SIZE_KNOB_STEP
+			GunFX.bench_muzzle_mult = clampf(
+				GunFX.bench_muzzle_mult * m_step, SIZE_KNOB_MIN, SIZE_KNOB_MAX)
+			_on_toast("MUZZLE FLASH x%.2f - enemy flash %.2fm wide, %.0fms hold" % [
+				GunFX.bench_muzzle_mult, GunFX.observed_muzzle_width_m(),
+				GunFX.observed_muzzle_ms()])
 			return
 		if keycode == KEY_BRACKETLEFT or keycode == KEY_BRACKETRIGHT:
 			var step: float = SIZE_KNOB_STEP if keycode == KEY_BRACKETRIGHT else 1.0 / SIZE_KNOB_STEP

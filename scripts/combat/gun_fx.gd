@@ -23,6 +23,7 @@ static func reset_session() -> void:
 	_active_flashes = 0
 	_active_impacts = 0
 	bench_size_mult = 1.0
+	bench_muzzle_mult = 1.0
 	_explosion_nodes.clear()
 	_linger_nodes.clear()
 	_blood_tex.clear()  # static cache would otherwise hold textures to process exit (leak scan)
@@ -61,7 +62,10 @@ static var _explosion_nodes: Array[Node3D] = []
 ## exempt from the ADR-026 light cap - they are unshaded quads, not lights. This
 ## bound only stops a runaway leak; it must never be low enough to silence a
 ## shooter the player could see.
-const MAX_FLASHES: int = 64
+## 64 -> 96 (2026-09-06): observed flashes now hold MUZZLE_OBSERVED_SECONDS instead
+## of the fairness floor, and the bench knob can hold them longer still, so more are
+## alive at once. Headroom protects the "never silence a shooter" guarantee above.
+const MAX_FLASHES: int = 96
 const MAX_IMPACTS: int = 12
 ## Sized to the largest deterministic single-event burst in the game: a napalm run
 ## is FirePlan.NAPALM_DROPS (9) explosions inside 0.9s. Over the cap the OLDEST is
@@ -700,7 +704,37 @@ static func _muzzle_mat(key: String, tex_rel: String) -> StandardMaterial3D:
 ## worst measured framerate (~25 fps = 40ms/frame). Never shorten it for perf.
 const FLASH_SECONDS: float = 0.06
 
-static func muzzle_flash(parent: Node, pos: Vector3) -> void:
+## OBSERVED vs FIRED (2026-09-06, Summoner: "overly exagerated muzzle flash of enemies
+## to help spot them within the jungle... make sure we have a loud presence").
+##
+## The OBSERVED flash — somebody ELSE shooting at you — is the Fairness Law telegraph
+## and is deliberately exaggerated so a shooter reads through canopy at range. The
+## FIRED flash — your own viewmodel (weapon_holder.gd) — is NOT scaled: blowing that
+## one up blinds the shooter and wrecks ADS. One function, two scales; `viewmodel`
+## picks which.
+##
+## These are a STARTING POINT for his eye at the bench, NOT a ruling. Sizes are ruled
+## only at player eye on the fire range ([ and ] size explosions, ; and ' the flash).
+const MUZZLE_OBSERVED_SCALE: float = 1.7
+## Observed flashes hold longer than the fairness floor — persistence is most of what
+## makes a flash catchable in peripheral vision. Never scaled BELOW FLASH_SECONDS.
+const MUZZLE_OBSERVED_SECONDS: float = 0.09
+## VFX-bench knob for the observed flash only. Reset by reset_session().
+static var bench_muzzle_mult: float = 1.0
+
+
+## Bench readouts — the observed flash as ACTUALLY RENDERED, so a ruling is made
+## against a real number and not a multiplier. Nominal (jitter excluded); the flame
+## spike is the widest of the two quads and is what reads at range.
+static func observed_muzzle_width_m() -> float:
+	return 1.0 * MUZZLE_OBSERVED_SCALE * bench_muzzle_mult
+
+
+static func observed_muzzle_ms() -> float:
+	return maxf(FLASH_SECONDS, MUZZLE_OBSERVED_SECONDS * bench_muzzle_mult) * 1000.0
+
+
+static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
 	SpawnLedger.note("muzzle_flash")
@@ -710,6 +744,8 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	root.global_position = pos
 
 	var size_jitter: float = randf_range(0.85, 1.25)
+	if not viewmodel:
+		size_jitter *= MUZZLE_OBSERVED_SCALE * bench_muzzle_mult
 	var core := MeshInstance3D.new()
 	var core_mesh := QuadMesh.new()
 	core_mesh.size = Vector2(0.5, 0.5) * size_jitter
@@ -727,7 +763,10 @@ static func muzzle_flash(parent: Node, pos: Vector3) -> void:
 	spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
 	root.add_child(spikes)
 
-	_expire(root, FLASH_SECONDS, func() -> void:
+	## maxf keeps the fairness floor intact even if the bench knob is turned down.
+	var life: float = FLASH_SECONDS if viewmodel \
+		else maxf(FLASH_SECONDS, MUZZLE_OBSERVED_SECONDS * bench_muzzle_mult)
+	_expire(root, life, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())
 
