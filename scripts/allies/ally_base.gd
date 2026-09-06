@@ -2039,6 +2039,30 @@ func get_muzzle_position(aim_dir: Vector3) -> Vector3:
 	return global_position + Vector3.UP * 1.35 + flat_aim * 0.55 + right
 
 
+## How far in front of the muzzle his own cover stands, or -1 when the lane is clear.
+## Only WORLD geometry (layer 1) within MUZZLE_FOUL_M counts: anything further out is
+## the cover the ENEMY is behind, and putting rounds into that is suppression, which is
+## the job. Static and dictionary-in so tests/probe_muzzle_cover.gd can drive it off a
+## real physics ray without standing up a squad.
+const MUZZLE_FOUL_M: float = 2.5
+
+
+static func muzzle_foul_distance(ray_result: Dictionary, origin: Vector3) -> float:
+	if ray_result.is_empty():
+		return -1.0
+	var col := ray_result.get("collider") as Node
+	if col == null or not is_instance_valid(col):
+		return -1.0
+	# Flesh is the lane check's business; a hitzone area is never cover.
+	if col is Hitzone or col is CharacterBody3D:
+		return -1.0
+	var body := col as CollisionObject3D
+	if body == null or (body.collision_layer & 1) == 0:
+		return -1.0
+	var d: float = origin.distance_to(ray_result.get("position") as Vector3)
+	return d if d <= MUZZLE_FOUL_M else -1.0
+
+
 func get_muzzle_visual(aim_dir: Vector3) -> Vector3:
 	if sprite_actor != null:
 		return sprite_actor.muzzle_visual()
@@ -2097,6 +2121,15 @@ func _fire_at_target() -> void:
 		if lane_owner != null and lane_owner != self and is_instance_valid(lane_owner) \
 				and (lane_owner.is_in_group("player") or lane_owner.is_in_group("allies")):
 			return
+
+	# ...AND HIS OWN COVER (item 8, "own squad fires inside the wire"). LOS is tested
+	# from the EYE at +1.5m (ally_base.gd:1029-1034) and the round leaves the MUZZLE,
+	# and behind a parapet those are not the same line: the eye clears the sandbags and
+	# the gun does not. The lane check above aborts only on flesh, so a man with a clear
+	# view fired into the wall a foot in front of him - flash, tracer and report, all
+	# inside the wire, at his own parapet.
+	if muzzle_foul_distance(result, origin) >= 0.0:
+		return
 
 	# A hit is not a near-miss (that is damage). The squad's rounds press the men they
 	# snap past exactly as the enemy's press ours - suppression is not a one-way weapon.
