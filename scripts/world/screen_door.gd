@@ -99,6 +99,8 @@ static func wire_all(root: Node3D) -> int:
 		if best != null:
 			used[best.get_instance_id()] = true
 		if _hang(a, best, str(hung)):
+			if best != null:
+				_link_doorway(a, best, str(hung))
 			hung += 1
 	# A doorway that shipped only a right leaf still swings.
 	for b in rights:
@@ -107,6 +109,32 @@ static func wire_all(root: Node3D) -> int:
 		if _hang(b, null, str(hung)):
 			hung += 1
 	return hung
+
+
+## MEASURED (tests/probe_hooch_path.tscn): the doorway is 1.60m of clear opening and
+## nothing solid stands in it, but Recast erodes AGENT_RADIUS from each jamb and the
+## 0.6m slot that survives is thinner than a polygon it will keep - so the bake left a
+## ~3m hole centred on every threshold and 10 of 11 hooch interiors were unreachable.
+## A link is the sanctioned bridge across a gap the voxel bake cannot carve.
+const NAV_LINK_REACH_M: float = 2.0
+
+static func _link_doorway(a: Node3D, b: Node3D, suffix: String) -> void:
+	var parent: Node = a.get_parent()
+	if parent == null:
+		return
+	var centre: Vector3 = (a.global_position + b.global_position) * 0.5
+	var across: Vector3 = b.global_position - a.global_position
+	across.y = 0.0
+	if across.length() < 0.1:
+		return
+	var through: Vector3 = across.normalized().cross(Vector3.UP).normalized()
+	var link := NavigationLink3D.new()
+	link.name = "DoorLink_%s" % suffix
+	link.bidirectional = true
+	parent.add_child(link)
+	link.global_position = centre
+	link.start_position = through * NAV_LINK_REACH_M
+	link.end_position = -through * NAV_LINK_REACH_M
 
 
 static func _hang(a: Node3D, b: Node3D, suffix: String) -> bool:
