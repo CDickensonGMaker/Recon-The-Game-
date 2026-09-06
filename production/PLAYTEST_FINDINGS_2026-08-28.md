@@ -18,6 +18,52 @@
 > **So: the STATUS column and the numbers are load-bearing; a CAUSE with no probe named beside
 > it is a hypothesis.** Re-derive it from the code before you build against it.
 
+## THE SUITE, RUN 2026-09-06 — 145 scenes, and what the failures actually are
+
+`tests/test_*.tscn`, all 145, run at the close of the 2026-09-06 fix waves. **17 failed. Not one
+of them is caused by the three fix waves**, and that is stated from each test's own failure text,
+not from a hunch — every one names a system nothing in those waves touched.
+
+**Read the instrument's limits first.** The pass was run 5-wide for time, and 5-wide is not
+trustworthy on timing-sensitive world tests: `test_squad` reported a different verdict parallel and
+serial. **Every failure below was therefore RE-RUN SERIALLY, uncapped, and the serial result is
+what is recorded.** One scene, `test_terrain_relief_bounds`, does not honour `--quit-after` and did
+not finish in either pass — it is a long CPU-bound terrain sweep, and it is reported as
+NOT-COMPLETED rather than as a failure.
+
+### Named by what they assert
+
+| Test | Its own failure line | Whose |
+|---|---|---|
+| `test_squad` | "roster not refilled (7)" | the replacement system. MOVE orders passed in the same run (`MOVE_TO arrivals: 8/8`) |
+| `test_group_contract` | groups `hunters` and `zpu_guns` "written but NEVER READ" | a fossil-shaped wiring gap |
+| `test_group_walk` | "the household closed 4.0m on the paddy" | civilian group spacing |
+| `test_height_authority` | "water surface sits 26.71 m off the carved bed" | terrain/water, no seat call site |
+| `test_witness_rule` | witness not anchored on the killer / finder not on the corpse | ADR-005 |
+| `test_asset_probe` | 6 scale/load failures, e.g. `ac47_spooky.glb largest=4.34m OUT-OF-BAND` | aircraft asset debt |
+| `test_ai_stress_arena` · `test_arena_patrol` | 1 each | the arena, a sterile bench by his 2026-07-26 ruling |
+| `test_fire_support_grant` (13) · `test_night_sight` (4) · `test_viewmodel_contract` (12) · `test_import_refs` | — | untouched by these waves; `test_viewmodel_contract` sits on the bench he is ruling now |
+| `test_playtest_bundle` · `test_suite_health` | 1 / 16 across 673 checks | aggregates that reflect the rows above |
+
+### The two that CANNOT be attributed from this run, and why
+
+`test_firebase_defense` ("a 30-man siege fields an assault element (got 0)", "every one of the 30
+rolled men reached the field (got 2)") and `test_siege`. Both read siege spawn and navigation off
+the compound, and **`fsb_main_v3.glb` was rewritten at 15:43 and the source blend `firebase_v3.2.blend`
+at 15:56 — during this suite run — by the art pass working item 3's other half.** A result taken
+while the geometry underneath it is being replaced is not evidence in either direction. **Re-run
+these two once that export lands.** They are not claimed as passing and not blamed on the art
+either; they are unmeasured.
+
+### Fixed by this wave
+
+`test_doc_hygiene` was **RED before wave 3 and nobody had run it** —
+`ART_WORKLIST_2026-08-28.md` carried two claims about the asset tree with no pointer, no probe and
+no date, against a Pointer Law ceiling of 0. Banner added rather than pointers invented, because
+dating it is the true statement. **PASS** (`92f38114`).
+
+---
+
 ## NEEDS CALEB — three rulings, and nothing else is waiting on him
 
 Three things are built, measured, and **stopped** because the next step is a decision only he
