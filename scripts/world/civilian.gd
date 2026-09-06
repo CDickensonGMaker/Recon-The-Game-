@@ -79,20 +79,68 @@ const VILLAGE_ACTION_CLIPS: Dictionary = {
 ## Off-duty men had ONE chain, and play_first() takes the head of it whenever the
 ## rig carries it - so every off-duty man in the compound smoked, forever, together.
 ## Six of the seventeen curated garrison are off_duty, plus every unmapped work post.
-const OFF_DUTY_CHAINS: Array = [
-	["smoking", "sitting_drinking", "idle_unarmed_5"],
-	["sitting_drinking", "drinking", "sitting_idle_c", "idle_unarmed_5"],
-	["sitting_talking", "standing_talking", "sitting_idle_b", "idle_unarmed_4"],
+## OFF-DUTY IS NOT ONE POSE, AND HALF OF IT NEEDS A CHAIR. Item 24, his playtest:
+## "men sitting on nothing". Every hooch and rest marker collapsed onto ONE generic
+## pool that mixed standing and SEATED clips, so a man posted at a hooch doorway or
+## stood outside for a smoke played sitting_drinking on bare dirt.
+##
+## The marker already carried the answer and nothing read it: `role` is the raw work_*
+## type (site_planner FSB_WORK_OCCUPATION). A role that names a SEAT - a bunk, a table,
+## a rest spot - may sit. Everything else, named or not, stays on its feet. An unknown
+## role standing is merely generic; an unknown role sitting is a man on air.
+const OFF_DUTY_ROLE_CHAINS: Dictionary = {
+	"hooch_sleep": [
+		["sleeping_laying", "laying_idle", "sitting_idle_b"],
+		["laying_idle", "sleeping_laying", "sitting_idle_b"],
+	],
+	"hooch_table": [
+		["sitting_talking", "chow_talk_seated_a", "sitting_idle_b", "sitting"],
+		["sitting_drinking", "drinking", "sitting_idle_c", "sitting"],
+		["chow_talk_seated_b", "sitting_talking", "sitting_idle_b", "sitting"],
+	],
+	"hooch_radio": [
+		["sitting_idle_b", "sitting_talking", "sitting"],
+	],
+	"rest": [
+		["sitting_drinking", "sitting_idle_c", "sitting_idle_b", "sitting"],
+		["sitting_talking", "sitting_idle_b", "sitting"],
+	],
+	# ON HIS FEET. Nothing seated may appear below this line.
+	"hooch_locker": [
+		["cargo_unload_stack", "arm_stretch", "idle_unarmed_3"],
+	],
+	"hooch_door": [
+		["smoking", "standing_talking", "idle_unarmed_2"],
+		["standing_talking", "telling_secret", "idle_unarmed_2"],
+	],
+	"smoke": [
+		["smoking", "telling_secret", "standing_talking", "idle_unarmed_2"],
+		["smoking", "neck_stretch", "idle_unarmed_2"],
+	],
+}
+## The fall-through for every off-duty man whose marker does not name a seat -
+## including a work_* type nobody has wired yet. No seated clip may enter this list.
+const OFF_DUTY_STANDING: Array = [
+	["smoking", "standing_talking", "idle_unarmed_2"],
 	["neck_stretch", "arm_stretch", "idle_unarmed_3"],
-	["jumping_jacks", "neck_stretch", "arm_stretch", "idle_unarmed_3"],
-	["sitting_idle_c", "sitting_idle_b", "sitting", "idle_unarmed_5"],
 	["standing_talking", "telling_secret", "idle_unarmed_2"],
-	# The American social set, US-ONLY by his 2026-07-31 ruling. These are the last three
-	# clips of the Mixamo wave with no caller anywhere; off-duty GIs are the one cast they
-	# were ever going to read on.
+	# The American social set, US-ONLY by his 2026-07-31 ruling.
 	["standing_arguing", "telling_secret", "standing_talking", "idle_unarmed_2"],
-	["briefing_group", "standing_talking", "sitting_idle_b", "idle_unarmed_4"],
+	["briefing_group", "standing_talking", "idle_unarmed_4"],
+	["jumping_jacks", "neck_stretch", "arm_stretch", "idle_unarmed_3"],
 ]
+
+
+## The clip chain one off-duty man plays, decided by the marker that seated him.
+## Static and pure so tests/probe_off_duty_seating.gd can drive every work_* type in
+## SitePlanner.FSB_WORK_OCCUPATION through it without building a garrison.
+static func off_duty_chain(marker_role: String, idle_seed: int) -> Array:
+	var pool: Array = OFF_DUTY_STANDING
+	if OFF_DUTY_ROLE_CHAINS.has(marker_role):
+		pool = OFF_DUTY_ROLE_CHAINS[marker_role] as Array
+	@warning_ignore("integer_division")
+	var pick: int = absi(idle_seed / 3) % pool.size()
+	return pool[pick] as Array
 
 # L1 behavior-tree fields. active_action is the BT's current pick; state
 # remains the reactive override (FLEE/COWER/GONE) which wins regardless.
@@ -588,10 +636,9 @@ func _play_garrison(want: String) -> void:
 	# Off-duty men loaf; the schedule already keeps them away from a post. These are
 	# the unarmed poses, which is the point - a man smoking is not standing to.
 	if occupation == "off_duty" and want != "running_unarmed" and want != "walking_unarmed":
-		# Seeded per man so six off-duty men are not one man six times.
-		@warning_ignore("integer_division")
-		var pick: int = (_idle_seed / 3) % OFF_DUTY_CHAINS.size()
-		actor.play_first(_as_clips(OFF_DUTY_CHAINS[pick] as Array))
+		# Seeded per man so six off-duty men are not one man six times, and gated by
+		# the marker so none of them sits on ground with no chair on it.
+		actor.play_first(_as_clips(off_duty_chain(role, _idle_seed)))
 		return
 	# The aid station. medic_treat_give had exactly one caller (the squad revive) and
 	# medic_treat_receive had none at all - the library carried a whole aid station
