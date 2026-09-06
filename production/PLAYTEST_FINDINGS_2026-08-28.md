@@ -7,8 +7,15 @@ mentioned from my playtest has been fixed."* This is that audit. Every row was r
 and the asset tree this session, **not** from the checkmarks below — several of which were stale in both
 directions. Nothing is marked FIXED on a comment, a doc claim, a commit message or a log line.
 
-**THE COUNT: 8 fixed · 1 fixed-with-weak-proof · 1 unverified · 25 open · 1 new defect found.**
-**Not one of the 8 has been verified by your eye. The art half has not been started.**
+**THE COUNT (re-audited after the 2026-09-06 fix wave): 12 fixed · 1 fixed-with-weak-proof ·
+1 parity-corrected-but-unproven · 21 open.**
+**Four items (36, 22, 29, 4) closed 2026-09-06 with probes that were NEGATIVE-CONTROLLED — each probe was run against
+the pre-fix file and failed there. Still: not one has been verified by your eye, and the art half has
+not been started.**
+
+**The four probes added 2026-09-06:** `tests/probe_daylight_death.tscn` (36) ·
+`tests/probe_hooch_path.tscn` (22) · `tests/probe_ally_muzzle_fx.tscn` (29) ·
+`tests/probe_ground_seat.tscn` (4 + 6).
 
 ### CODE — the blockers
 
@@ -17,17 +24,17 @@ directions. Nothing is marked FIXED on a comment, a doc claim, a commit message 
 | 1 | Air support crash | **FIXED** (unverified by you) | validate-before-cast + `SquadSystem._prune_freed()` |
 | 2 | Gun crew crash | **FIXED** (unverified by you) | released on the node's own `tree_exiting` |
 | 3 | **Cannot enter ANY bunker** | **OPEN** | No bunker-entry code exists anywhere. Colliders are whatever the GLB ships; `site_planner.gd:2075-2107` `_adopt_structure` only reparents `-colonly` shapes. **No probe.** |
-| 4 | **NPCs fall through the ground** | **OPEN** | 3 of the 4 named height call sites still use the wrong function — see the table below |
+| 4 | NPCs fall through the ground | **FIXED, PROBED 2026-09-06** (`c0136081`) | `marching_cell.gd:243` + `litter_team.gd:172` now `floor_y`; `air_traffic.gd:520-525` `_ground_at` now `surface_y` (it is a clearance datum, so the roof IS the right answer). **Probe: `tests/probe_ground_seat.tscn`** — negative control on the pre-fix files FAIL (3): bearer and cell both seated at 189.38 (the roof), air datum at 184.18 (under it). After: 184.18 / 184.18 / 189.38. `squad_system.gd:322` changed too, NOT probed (needs a live player camera) |
 | 5 | Huey pilots leave the aircraft | **FIXED** | `seat_system.gd:611-636` `unseat_all` iterates `PASSENGER_SEATS` only; `:31-37` excludes `seat_pilot_l/r`; crew seated at `heli_lift.gd:136-157` and never unseated. No probe. |
-| 6 | **NPC squads spawn on the hooch ROOF** | **FIXED for enemy squads · UNVERIFIED overall** | `field_director.gd:41-49` `spawn_tracked_enemy` seats with `world.floor_y(pos) + 0.5`; both spawn paths route through it. **But village civilians still seat on raw terrain (`mission_generator.gd:1148`) and no probe measures any of it.** |
+| 6 | NPC squads spawn on the hooch ROOF | **PARITY DONE 2026-09-06 (`0b45b85d`) · civilian half UNPROVEN** | `mission_generator.gd:1150` now seats villagers `world.floor_y(cpos) + 0.5`, the same seat `field_director.gd:41-49` gives every enemy. **But `probe_ground_seat.gd`'s item-6 leg reports BLIND:** on the measured village site `floor_y` and `get_height_at` agree at every villager (spread 0.00m), so the change is a no-op there and the leg cannot fail. It bites only where a collider deck sits above bare terrain — the mound, a bund, a stilt deck. **"Civilians on raw terrain" is corrected by parity, not proven as a live defect.** |
 | 7 | Map screen fires the weapon | **FIXED** | `topo_map.gd:469` sets `is_in_menu`; gated at `weapon_holder.gd:376,409`, `equipment_manager.gd:42,85`, `player.gd:968,1244,1341,1617,1691` |
 | 8 | Own squad fires inside the wire | **OPEN (untouched)** | **Your hypothesis is half-refuted:** ally LOS *does* test terrain (`ally_base.gd:1003-1005` → `SightCap.has_terrain_los`), so the sight system is not blind. The collider hypothesis remains unmeasured. |
 | 9 | Satchel 30s fuse + HUD count | **FIXED** | `satchel_charge.gd` `FUSE_S = 30.0` → `MissionHUD.show_fuse` (`mission_hud.gd:312-316`); mouth de-registers at `player.gd:1002` *before* the plant |
 | 10 | Post-satchel orange blow-out / decal flip-flop | **OPEN** | `gun_fx.gd:601-618` `_scorch` sets size/albedo/modulate only — no distance or normal fade anywhere |
-| 22 | Squad cannot path into hooches | **OPEN — root cause found** | `nav_baker.gd:659-693`: `mesh:true` models get their trimesh walked, everything else gets a **projected box that seals the doorway**. `hootch` has **no `mesh` flag** in `collision_table.gd:39` and is absent from `NAV_ROOF_CULL_PREFIXES` (`:570-573`) |
+| 22 | Squad cannot path into hooches | **FIXED, PROBED 2026-09-06** (`09de947f`) | **The recorded root cause was WRONG.** `"hootch"` (`collision_table.gd:39`) is a FOSSIL key — nothing places it, its GLB died in `8afe830d`; the firebase hooches live inside `fsb_main_v3.glb` and ARE trimeshed with their doorways open. **Real cause, measured by `tests/probe_hooch_path.tscn`:** doorway is 1.60m clear, nothing solid stands in it (a shape query returns only the mound), headroom 2.0-3.0m, floor flat across the sill — but Recast erodes `AGENT_RADIUS` 0.5m off each jamb and drops the 0.6m slot that survives, leaving a ~3m navmesh hole on every threshold (nav 0.02m away 2m out, **1.43m away at the door itself**). Fix: a `NavigationLink3D` per doorway, `screen_door.gd` `_link_doorway`. **1/11 reachable before → 10/10 after** (1 skipped: the probe's own outside point is off-mesh there) |
 | 24 | Work markers need an ACTIVITY TYPE | **OPEN — partly built** | The type exists (`civilian.gd:114` `role` ← `site_planner.gd:~995-1035` `FSB_WORK_OCCUPATION`) and gates mess/gun/dig. But `hooch_sleep`, `hooch_table`, `rest`, `smoke`, `supply`, `watch` all collapse to `off_duty` generic idles. **That is "men sitting on nothing."** |
 | 28 | Squad won't crouch with you / stands on you | **OPEN** | Evidence of absence: `is_crouching` has **no reader** outside `player.gd` except `enemy_base.gd:1224,1254`. Ally posture is cover/pin only (`ally_base.gd:575-577`) |
-| 29 | Squadmate muzzle flash detaches | **OPEN — one-line fix located** | `ally_base.gd:2049` builds a synthetic `muzzle_ballistic(flat_aim, 0.55)` point and feeds *that* to the FX at `:2077-2078`. `get_muzzle_visual()` (`:2011-2014`) exists with **zero ally callers**, while `EnemyBase` uses it correctly at `enemy_base.gd:2445,2483`. **Fix is symmetry with EnemyBase.** |
+| 29 | Squadmate muzzle flash detaches | **FIXED, PROBED 2026-09-06** (`be36ab19`) | `ally_base.gd:2079` now takes `get_muzzle_visual(final_aim)` for the FX and keeps the ballistic origin for the ray — EnemyBase's split (`enemy_base.gd:2445,2483`). **Probe: `tests/probe_ally_muzzle_fx.tscn`** measures the real flash node GunFX drops in the scene: at 90° of aim/facing divergence the two origins are **0.680m** apart. Negative control: flash landed 0.681m off the muzzle. After: 0.000m |
 | 33 | Friendly-unit warning before you fire | **OPEN** | Evidence of absence: no friendly-lane check in `weapon_holder.gd` or `mission_hud.gd`. The muzzle-discipline check is **AI-only** (`ally_base.gd:2060-2067`) |
 | 34 | Pause menu | **FIXED, with a real probe** | `screens/pause_menu.gd:54-55` panel inside a full-rect `CenterContainer`; `CursorSet.hook_buttons` is now the last line of `build()` (`:95`). Rival class deleted. **Probe: `tests/probe_pause_menu.tscn`** measures the real panel's global rect |
 | Q2 | A sweep finishes in the field | **FIXED** | `field_director.gd:1613-1638` `_poll_sweep`, `:1645-1670` `_finish_sweep`. `_bank_patrol` untouched. No probe. |
@@ -38,14 +45,26 @@ directions. Nothing is marked FIXED on a comment, a doc claim, a commit message 
 
 | Call site | Uses today | Verdict |
 |---|---|---|
-| `marching_cell.gd:242` | `world.surface_y()` | **STILL WRONG** — 18m top-down ray; seats on bunker/hooch roofs |
-| `litter_team.gd:172` | `world.surface_y()` | **STILL WRONG** — same roof hazard on covered ground |
-| `air_traffic.gd:520-522` (`_ground_at`) | raw `get_height_at()` | **STILL WRONG** — cruise/orbit/Spectre altitudes |
-| `squad_system.gd:322` | raw `get_height_at()` | **Wrong function, lowest risk** — it aims an order point, it does not seat a body |
+| `marching_cell.gd:243` | `world.floor_y()` | **FIXED + probed** (`c0136081`) |
+| `litter_team.gd:172` | `world.floor_y()` | **FIXED + probed** (`c0136081`) |
+| `air_traffic.gd:520-525` (`_ground_at`) | `world.surface_y()` | **FIXED + probed** (`c0136081`) — it is a clearance datum, so the roof IS the right answer |
+| `squad_system.gd:322` | `world.surface_y()` | **CHANGED, NOT PROBED** — needs a live player camera |
 
 **Correct today:** helicopter landings seat on the LZ pad (`helicopter.gd:261-266`), and Huey dismount
-points raycast a real collider (`seat_system.gd:842-853` `_exit_ground`). **But nothing measures either**
-— no probe seats a stick and checks the men are above the floor.
+points raycast a real collider (`seat_system.gd:842-853` `_exit_ground`). Those two are still unmeasured.
+`tests/probe_ground_seat.tscn` (2026-09-06) is the first thing in this repo that measures a seat at all:
+it stands `nha_san_01` on cleared flat ground (floor 184.18, roof 189.38, 5.2m apart) and drives the real
+call sites.
+
+**FOSSIL NOTED, NOT SWEPT (2026-09-06, NO MORE DRIFT):** the whole `# Firebase` block in
+`collision_table.gd:38-49` — `hootch`, `sandbag_bunker`, `mg_nest`, `observation_tower`,
+`trench_modular`, `foxhole_sandbags`, `triple_concertina`, `barbed_wire_coil`, `sandbag_light`,
+`sandbag_heavy`, `gate_entrance` — keys the **v1 firebase kit whose GLBs were deleted in `8afe830d`**.
+Nothing places any of them; the shipping compound is `fb_*` meshes inside `fsb_main_v3.glb`. They stay
+alive only through `collision_table.gd:253` (a MATERIALS entry that exists to satisfy
+`test_collision_table.gd:16-31`) and `tools/probe_penetration.gd:80`. That is 11 dead keys reading as
+live structure kinds — and one of them sent this document's own item-22 diagnosis down the wrong road.
+**Sweeping them is a deliberate three-file change and has NOT been done.**
 
 ### ART / SCENE-LAYOUT — items 11-21, 25-27, 30-32
 
@@ -95,8 +114,12 @@ node group `garrison_promoted`. That group is populated only by `GarrisonDefende
 so swapping stays dead for the rest of the run even after stand-to populates the group. The player gets
 the end card at ~T+15 min and never sees the siege the whole demo is built toward.
 
-**Fix:** move `_picked = true` to after the candidate scan. **Probe:** `tests/probe_daylight_death.tscn`
-— kill the player at 900 s, assert a swap occurs.
+**FIXED AND PROBED 2026-09-06 (`a47f0e01`).** The latch now fires only after men are actually in the
+pool (`body_swap_system.gd:71`), and the scan falls back to living `allies` when nobody is promoted yet
+(`:59-65`) — **that fallback is a deliberate extension of the 2026-08-24 pool ruling (promoted garrison
+only); backing out `a47f0e01` restores the night-only pool.** **Probe: `tests/probe_daylight_death.tscn`**
+— two cases: an empty scan must not latch, and a daylight death must spend a body. Negative control on
+the pre-fix file: **FAIL (2)**, both cases. After: PASS.
 **Why it matters now:** the 2026-09-06 two-quest design exists to put the player outside the wire in
 daylight, which is precisely the window where this fires.
 
