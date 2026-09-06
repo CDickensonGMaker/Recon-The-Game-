@@ -173,4 +173,121 @@ func _ready() -> void:
 		routes.size() - blocked, routes.size(), blocked])
 	print("chord-under-ground >0.5m = the probe's straight line is inside a climbable rise;")
 	print("overhead solid under 2.0m over TRUE ground = a real lintel/slab in the walk path.")
-	get_tree().quit(0 if off_mesh == 0 and no_route == 0 and blocked == 0 else 1)
+
+	# PASS 3 - CAN HE STAND IN THERE? (item 3, 2026-09-06)
+	#
+	# Passes 1 and 2 answer "is there a route" and "does a 1.3m torso band clear it".
+	# Neither is what he reported. The player is a CharacterBody3D with a 0.4r x 1.8h
+	# capsule centred 0.9m over his feet (scenes/player/player.tscn:9-20) and he stands
+	# UPRIGHT by default - if the bunker's headroom is under 1.8m the doorway can be wide
+	# open, the navmesh can be perfect, the AI can walk in, and he still cannot follow,
+	# because his own capsule never fits. That is the exact shape of "the AI can get in
+	# and I can't", and nothing in this repo had ever measured it.
+	#
+	# Reported both ways: the standing capsule AND the crouched one (player.gd
+	# CROUCH_HEIGHT 0.9), so a bunker that takes him only on his knees is named as such
+	# instead of reading as sealed.
+	var stand_ok: int = 0
+	var crouch_only: int = 0
+	var no_fit: int = 0
+	for i in range(posts.size()):
+		var pw: Vector3 = posts[i]
+		# START LOW. A ray dropped from post+3.0 lands on the bunker ROOF (measured
+		# 2026-09-06: floor "fb_bunker_fighting_i at +2.87 over the post") and every
+		# reading after it describes a man standing on the lid. The work marker is
+		# authored AT the interior floor, so the ray must start inside the room.
+		var floor_ray := PhysicsRayQueryParameters3D.create(
+			pw + Vector3(0, FLOOR_RAY_UP_M, 0), pw + Vector3(0, -2.0, 0), 1)
+		var fh: Dictionary = space.intersect_ray(floor_ray)
+		if fh.is_empty():
+			print("  post %2d STAND: no floor under the post at all" % i)
+			no_fit += 1
+			continue
+		var feet: Vector3 = fh.position as Vector3
+		# THE MARKER IS NOT WHERE HE STANDS. nav_router pulls a post inside a structure's
+		# footprint onto the nearest mesh (nav_router.gd:40,129), so the AI does not
+		# occupy the raw marker either - measuring exactly on it measures a point nobody
+		# uses. Sweep the room instead: the nearest spot within SEARCH_M of the post that
+		# takes the player's own capsule, on that spot's own floor. A bunker with no such
+		# spot anywhere is a bunker he cannot be inside, whatever the navmesh says.
+		var best_stand: float = -1.0
+		var best_crouch: float = -1.0
+		var blocker: String = _capsule_blocker(space, feet, 0.4, STAND_H)
+		var step_n: int = int(SEARCH_M / SEARCH_STEP_M)
+		for gx in range(-step_n, step_n + 1):
+			for gz in range(-step_n, step_n + 1):
+				var off := Vector3(float(gx) * SEARCH_STEP_M, 0.0, float(gz) * SEARCH_STEP_M)
+				var r_flat: float = Vector2(off.x, off.z).length()
+				if r_flat > SEARCH_M:
+					continue
+				var probe_at: Vector3 = pw + off
+				var fr := PhysicsRayQueryParameters3D.create(
+					probe_at + Vector3(0, FLOOR_RAY_UP_M, 0), probe_at + Vector3(0, -2.0, 0), 1)
+				var h2: Dictionary = space.intersect_ray(fr)
+				if h2.is_empty():
+					continue
+				var f2: Vector3 = h2.position as Vector3
+				if _capsule_blocker(space, f2, 0.4, STAND_H) == "":
+					if best_stand < 0.0 or r_flat < best_stand:
+						best_stand = r_flat
+				if _capsule_blocker(space, f2, 0.4, CROUCH_H) == "":
+					if best_crouch < 0.0 or r_flat < best_crouch:
+						best_crouch = r_flat
+		if best_stand >= 0.0:
+			stand_ok += 1
+			if best_stand > 0.01:
+				print("  post %2d STAND: upright %.2fm off the marker (the marker itself is %s)" % [
+					i, best_stand, "clear" if blocker == "" else "inside " + blocker])
+		elif best_crouch >= 0.0:
+			crouch_only += 1
+			print("  post %2d STAND: CROUCH ONLY inside %.1fm - nearest crouch spot %.2fm off, upright blocked by %s" % [
+				i, SEARCH_M, best_crouch, blocker])
+		else:
+			no_fit += 1
+			print("  post %2d STAND: NO FIT anywhere inside %.1fm of the post - blocked by %s" % [
+				i, SEARCH_M, blocker])
+	print("\nSTAND: %d of %d fire points take the player UPRIGHT, %d crouch-only, %d no fit" % [
+		stand_ok, posts.size(), crouch_only, no_fit])
+
+	get_tree().quit(0 if off_mesh == 0 and no_route == 0 and blocked == 0 and no_fit == 0 else 1)
+
+
+## How far over the marker the floor ray starts. Under a fighting bunker's 2.87m lid and
+## over any doorsill, so it can only find the floor the marker stands on.
+const FLOOR_RAY_UP_M: float = 0.6
+## How far around the marker to look for a spot the player's body actually fits.
+const SEARCH_M: float = 1.5
+const SEARCH_STEP_M: float = 0.25
+## The player's own capsule, verbatim from scenes/player/player.tscn:9-20.
+const STAND_H: float = 1.8
+## player.gd:27 CROUCH_HEIGHT - what he shrinks to on ctrl.
+const CROUCH_H: float = 0.9
+
+
+## The name of the collider owner, for a diagnosis that can be acted on.
+static func _owner_name(col: Variant) -> String:
+	var n := col as Node
+	if n == null:
+		return "-"
+	var par: Node = n.get_parent()
+	return "%s/%s" % [String(par.name) if par != null else "-", String(n.name)]
+
+
+## "" when a capsule of this height stands at these feet touching nothing; otherwise the
+## name of the first world solid it hits.
+## Layer 1 only - layer 2 is the player and the agents, and they are not the walls.
+static func _capsule_blocker(space: PhysicsDirectSpaceState3D, feet: Vector3,
+		radius: float, height: float) -> String:
+	var cap := CapsuleShape3D.new()
+	cap.radius = radius
+	# 2cm of daylight top and bottom: a capsule resting exactly on the floor reports a
+	# contact with the floor, which is not a blocked bunker.
+	cap.height = maxf(height - 0.04, radius * 2.0 + 0.01)
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0.0, height * 0.5 + 0.02, 0.0))
+	q.collision_mask = 1
+	var hits: Array[Dictionary] = space.intersect_shape(q, 1)
+	if hits.is_empty():
+		return ""
+	return _owner_name(hits[0].get("collider"))

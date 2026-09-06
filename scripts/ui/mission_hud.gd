@@ -60,6 +60,14 @@ func _build() -> void:
 	_fuse.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_fuse)
 
+	_stance = ReconUI.make_label("", 15, ReconUI.AMBER)
+	_stance.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_stance.position = Vector2(-110, -64)
+	_stance.custom_minimum_size = Vector2(220, 0)
+	_stance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_stance.visible = false
+	add_child(_stance)
+
 
 	# PT8: right-side slot slider (appears on wheel/key switch, fades out).
 	_slot_slider = VBoxContainer.new()
@@ -306,6 +314,17 @@ func _radio_row(rto: AllyBase, dead: bool) -> Array:
 
 
 var _fuse: Label
+var _stance: Label
+
+
+## The world is holding him down, not the key (player.gd auto-crouch under a bunker
+## lintel). r4bk: a posture he did not ask for is on screen or it reads as broken
+## controls. Empty text hides the line.
+func show_stance(text: String) -> void:
+	if _stance == null or not is_instance_valid(_stance):
+		return
+	_stance.text = text
+	_stance.visible = text != ""
 
 
 ## A burning demolition fuse, counted down on screen. Empty text hides the line.

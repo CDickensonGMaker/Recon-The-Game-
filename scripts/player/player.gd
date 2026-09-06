@@ -1810,8 +1810,70 @@ func _on_downed_ended(revived: bool) -> void:
 		head.position.y = STAND_HEIGHT - 0.1
 
 
+## LOW CEILINGS DUCK YOU. Measured 2026-09-06, tools/probe_bunker_entry.tscn, on the
+## shipping compound: the navmesh reaches 36 of the 37 bunker fire points and 32 of 36
+## routes clear a torso capsule - the doorways were never shut - but only 6 of 37 take a
+## standing 1.8m player. 19 take him only crouched and 12 take him at neither. "The AI
+## can get in and I can't" was HEADROOM, and crouch was Ctrl and only Ctrl: he walked
+## into a bunker lintel and stopped, and if he ducked under it and released Ctrl he
+## stood back up into the roof.
+##
+## Two rules, both measured against the world, neither of them an input:
+##   HOLD - standing where he is would clip solid, so he stays down.
+##   DUCK - standing one stride AHEAD would clip solid but crouching there would not,
+##          so it is an opening he can pass rather than a wall he cannot.
+## A wall fails the second test (crouching hits it too) and never makes him crouch.
+const AUTO_CROUCH_LOOKAHEAD_M: float = 0.8
+
+
+## Does the player's capsule at this height, standing on these feet, touch world solid?
+func _capsule_clips(space: PhysicsDirectSpaceState3D, feet: Vector3, height: float) -> bool:
+	var cap := CapsuleShape3D.new()
+	cap.radius = CAPSULE_RADIUS
+	# 4cm of daylight: a capsule resting exactly on the floor contacts the floor.
+	cap.height = maxf(height - 0.04, CAPSULE_RADIUS * 2.0 + 0.01)
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0.0, height * 0.5 + 0.02, 0.0))
+	q.collision_mask = 1
+	q.exclude = [get_rid()]
+	return not space.intersect_shape(q, 1).is_empty()
+
+
+## True while the world, not the key, is holding him down.
+var _forced_crouch: bool = false
+
+
+func _auto_crouch_wanted() -> bool:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return false
+	if _capsule_clips(space, global_position, STAND_HEIGHT):
+		return true
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	if flat.length() < 0.5:
+		return false
+	var ahead: Vector3 = global_position + flat.normalized() * AUTO_CROUCH_LOOKAHEAD_M
+	return _capsule_clips(space, ahead, STAND_HEIGHT) 		and not _capsule_clips(space, ahead, CROUCH_HEIGHT)
+
+
+## r4bk: a posture the player did not ask for has to be on screen, or it reads as the
+## controls breaking. One line, the same channel the fuse uses.
+func _hud_stance(text: String) -> void:
+	var hud: Node = get_tree().get_first_node_in_group("mission_hud")
+	if hud != null and hud.has_method("show_stance"):
+		hud.call("show_stance", text)
+
+
 func _handle_crouch(delta: float) -> void:
-	is_crouching = Input.is_action_pressed("crouch") and not is_prone
+	var held: bool = Input.is_action_pressed("crouch")
+	var forced: bool = false
+	if not is_prone:
+		forced = _auto_crouch_wanted()
+	if forced != _forced_crouch:
+		_forced_crouch = forced
+		_hud_stance("LOW COVER - DOWN" if forced else "")
+	is_crouching = (held or forced) and not is_prone
 	if is_crouching:
 		is_prone = false
 	var target_height := STAND_HEIGHT
