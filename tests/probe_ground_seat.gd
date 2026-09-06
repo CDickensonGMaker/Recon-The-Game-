@@ -147,8 +147,46 @@ func _case_air_traffic(world: GameWorld, centre: Vector3) -> void:
 
 
 ## mission_generator.gd:1148 - the real village build, not a re-typed expression.
+##
+## RE-SITED 2026-09-06. This leg used to report BLIND: on the village site it happened to
+## pick, floor_y and get_height_at agreed at every villager (spread 0.00m), so the seat
+## change was a no-op there and the leg could not fail. A leg that cannot fail proves
+## nothing, and item 6 was being carried as "parity done, unproven".
+##
+## The bunker work (tools/probe_bunker_entry) named the world condition that bites: a
+## COLLIDER DECK standing above bare terrain. So this lays one where the villagers
+## actually land, rather than hoping the layout walks a man under a stilt house, and the
+## deck's height is the probe's OWN - external ground truth, not another height helper.
+##
+## Two things are asserted, and they are the two that are unambiguous:
+##   BURIED - a villager below the bare terrain is wrong on any reading.
+##   ON THE ROOF - the defect item 6 actually reports.
+## The deck divergence is MEASURED AND REPORTED, not failed on: whether a man planned at
+## terrain height belongs on a deck 1.2m over him or underneath it is a design question
+## nobody has ruled, and this probe will not rule it by assertion.
+const DECK_H: float = 1.2
+const DECK_R: float = 34.0
+const DECK_T: float = 0.2
+## mission_generator.gd:1150 lifts every villager this far off the floor it picks.
+const SEAT_LIFT: float = 0.5
+
+
 func _case_village_civilians(world: GameWorld, planner: SitePlanner,
 		centre: Vector3, rng: RandomNumberGenerator) -> void:
+	var terrain_here: float = world.terrain_manager.get_height_at(centre)
+	var deck_top: float = terrain_here + DECK_H
+	var deck := StaticBody3D.new()
+	deck.collision_layer = 1
+	deck.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(DECK_R * 2.0, DECK_T, DECK_R * 2.0)
+	cs.shape = box
+	deck.add_child(cs)
+	world.add_child(deck)
+	deck.global_position = Vector3(centre.x, deck_top - DECK_T * 0.5, centre.z)
+	await get_tree().physics_frame
+
 	var site: Dictionary = {"center": centre, "kind": "village"}
 	var built: Dictionary = MissionGenerator._build_village_site(
 		world, null, planner, site, rng, "day")
@@ -157,30 +195,71 @@ func _case_village_civilians(world: GameWorld, planner: SitePlanner,
 	var civs: Array[Node] = world.get_tree().get_nodes_in_group("civilians")
 	if civs.is_empty():
 		_fail("village build seated no civilians - nothing to measure (built=%s)" % str(built.keys()))
+		deck.queue_free()
 		return
+	var over_deck: int = 0
+	var on_deck: int = 0
 	var buried: int = 0
-	var worst: float = 0.0
-	var discriminator: float = 0.0
+	var on_roof: int = 0
+	var deepest: float = 0.0
 	for n in civs:
 		var c := n as Node3D
 		if c == null:
 			continue
 		var p: Vector3 = c.global_position
-		# How far apart the two functions are AT THIS MAN. Zero everywhere means
-		# the probe cannot tell the fixed seat from the old one.
-		discriminator = maxf(discriminator,
-			absf(world.floor_y(p) - world.terrain_manager.get_height_at(p)))
-		var under: float = world.floor_y(p) - p.y
-		if under > TOL_M:
+		var ground: float = world.terrain_manager.get_height_at(p)
+		if p.y < ground - TOL_M:
 			buried += 1
-			worst = maxf(worst, under)
-	print("[PROBE] %d village civilians, %d below their own floor (worst %.2fm), floor-vs-terrain spread %.2fm"
-		% [civs.size(), buried, worst, discriminator])
+			deepest = maxf(deepest, ground - p.y)
+		# The reported defect: standing on the lid of something the WORLD built.
+		# The probe's own deck is excluded - a probe that fails on its own scaffolding
+		# is measuring itself. First run of this leg flagged a man standing on the deck
+		# as a roof, which he was not: the deck is a floor.
+		var roof: float = _world_surface_excluding(world, p, deck)
+		if roof - ground > 1.0 and p.y >= roof - TOL_M:
+			on_roof += 1
+		if absf(p.x - centre.x) <= DECK_R - 1.0 and absf(p.z - centre.z) <= DECK_R - 1.0:
+			over_deck += 1
+			if p.y >= deck_top - TOL_M:
+				on_deck += 1
+	print("[PROBE] %d village civilians: %d under a deck %.2fm over bare terrain, %d of those seated ON it"
+		% [civs.size(), over_deck, DECK_H, on_deck])
+	print("[PROBE] %d buried under the terrain (deepest %.2fm), %d standing on a roof"
+		% [buried, deepest, on_roof])
 	if buried > 0:
-		_fail("%d villagers seated on raw terrain, up to %.2fm under the hut floor"
-			% [buried, worst])
-	if discriminator < 0.2:
-		_blind.append("item 6 (village civilians): floor_y and get_height_at agree at every villager on this site, so the seat change is a no-op here and this leg proves nothing")
+		_fail("%d villagers seated %.2fm under bare terrain" % [buried, deepest])
+	if on_roof > 0:
+		_fail("%d villagers seated on the roof of something (item 6's own defect)" % on_roof)
+	# NOT a failure, and NOT blind: a measured statement about what the wave-1 parity
+	# change can and cannot do. floor_y probes DOWN from cpos + 0.4m
+	# (game_world.gd floor_y), and mission_generator.gd:1145 builds cpos at the site's
+	# own height - so it is structurally incapable of lifting a villager onto a deck
+	# above him. It differs from get_height_at only for a collider within 0.4m of
+	# terrain. That is the whole reach of the fix, and it is now on the record.
+	if over_deck > 0 and on_deck < over_deck:
+		print("[FINDING] item 6: %d of %d villagers over a %.2fm deck were NOT seated on it."
+			% [over_deck - on_deck, over_deck, DECK_H]
+			+ " floor_y cannot reach a floor above cpos + 0.4m, so the parity change"
+			+ " corrects at most 0.4m. Unruled: whether a man planned at terrain height"
+			+ " belongs on the deck or under it.")
+	deck.queue_free()
+
+
+## surface_y with one body taken out of the world: the highest thing under this
+## point that the probe did not build itself.
+func _world_surface_excluding(world: GameWorld, at: Vector3, skip: StaticBody3D) -> float:
+	var ground: float = world.terrain_manager.get_height_at(at)
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	if space == null:
+		return ground
+	var q := PhysicsRayQueryParameters3D.create(
+		Vector3(at.x, ground + 18.0, at.z), Vector3(at.x, ground - 2.0, at.z), 1)
+	if skip != null and is_instance_valid(skip):
+		q.exclude = [skip.get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return ground
+	return maxf(ground, (hit.position as Vector3).y)
 
 
 func _finish(world: Node = null) -> void:
