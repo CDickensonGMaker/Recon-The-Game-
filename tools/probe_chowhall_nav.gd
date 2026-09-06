@@ -64,8 +64,9 @@ func _ready() -> void:
 			reachable += 1
 		else:
 			sealed += 1
-		print("  %-28s (%7.2f,%7.2f,%6.2f)  %-8.2f dy=%-6.2f %s" % [String(m.name).left(28),
-			p.x, p.z, p.y, d, dy, "reachable" if ok else "SEALED"])
+		print("  %-28s (%7.2f,%7.2f,%6.2f)  %-8.2f dy=%-6.2f %-9s nearest=(%.2f,%.2f,%.2f)" % [
+			String(m.name).left(28), p.x, p.z, p.y, d, dy,
+			"reachable" if ok else "SEALED", got.x, got.z, got.y])
 
 	print("\n%d reachable, %d SEALED, of %d chow markers" % [reachable, sealed, markers.size()])
 	get_tree().quit(1 if sealed > 0 else 0)

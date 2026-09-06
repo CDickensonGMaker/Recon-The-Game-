@@ -2248,3 +2248,115 @@ name: `fb_mortar_pit` = 0 (fossil gone), `fb_berm_ring`/`fb_terrain_mound`/`fb_s
 `tools/shrink_oversized_textures.py --root ".../firebase" --apply` per the texture budget
 law: 3 embedded images over 1MB (2.3/1.3/2.0MB) shrunk to under 1MB each, nothing else
 touched. Final export 41.7MB (was ~48.9MB source .blend's naive export before the shrink).
+
+---
+
+## 2026-09-06 pass 2 · CHOW-HALL NAV MARKERS, BUNKER HEADROOM, THE HQ — and a stale Godot
+## import cache that made pass 1's own bunker probe read a THREE-WEEK-OLD file
+
+**THE INSTRUMENT BUG THAT COULD HAVE INVALIDATED THIS WHOLE PASS.** `.godot/imported/
+fsb_main_v3.glb-*.scn` was dated **2026-08-27** — the playtest date, not today. Every Godot-side
+probe (`probe_chowhall_nav.tscn`, `probe_bunker_entry.tscn`) loads `demo_game.tscn`, which reads
+that CACHED import, not the raw `.glb` bytes. My first bunker-probe run this session (before I
+noticed) reproduced the coordinator's numbers EXACTLY (6 upright/19 crouch/12 no-fit) — meaning
+**the code agent's diagnosis was ALSO measured against the stale cache**, and it happened to still
+be roughly representative only because nothing between 8/27 and pass 1 had touched bunker
+geometry. It would not have been representative for the chow-hall check (my own pass-1 exports
+were invisible to Godot until I forced a reimport) or for anything pass 2 touched.
+**THE RULE, now also in the Blender-universal ledger: `godot --headless --path . --import` before
+EVERY probe run that follows a re-export, no exceptions, even when the previous probe looked
+plausible.** Confirmed the fix works: chow-hall went 16 SEALED -> 48/48 reachable ONLY after the
+forced reimport; the same probe against the stale cache before that showed the OLD (broken) counts
+regardless of the new export sitting on disk.
+
+**Item (new, highest value) — chow-hall work markers off the navmesh, closed outright.**
+`work_chow_server`/`.001-.003`/`_line` (5) and `work_cook.004`/`.005`/`_range` (3) and 8 of the
+`work_eat_*` overflow-seating markers sat 1.7-2.6m from the nearest navmesh polygon — the animation
+agent's item 27 ("no mess hall animations") was these markers, not missing clips.
+Recovered the chow hall's own local<->world affine map from 4 markers with known correspondences
+(`work_chow_diner`/`.001`, `work_chow_exit`, `work_queue`), solved it to ~0.02m, used it to invert
+each SEALED marker's own measured `NavigationServer3D.map_get_closest_point()` result back into
+hooch-local space, and moved the marker there plus a 0.45m push past the boundary (never guessed a
+direction). **16 SEALED -> 0 SEALED, verified after a forced reimport.**
+`tools/probe_chowhall_nav.gd` extended to print the nearest walkable point per marker (not just the
+distance) — that print is what made the fix possible without touching collision geometry at all.
+
+**Item (added mid-pass, made top priority) — bunker headroom. STAND: 8/37 upright, 19 crouch-only,
+10 no-fit -> 30/37 upright, 5 crouch-only, 2 no-fit**, via three independent, fully measured fixes
+in the SAME geometry family:
+1. **Every `work_bunker` marker sat exactly 0.4-0.5m from its own bunker's wall — precisely the
+   player capsule's radius, zero margin.** `probe_bunker_entry.tscn`'s STAND pass named the
+   bunker's OWN geometry (`fb_bunker_fighting_i`, `fb_bunker_mg_i`) as the blocker on a dozen-plus
+   posts. Moved all 37 baked marker empties out to 0.7-0.8m clearance (fighting bunkers: front
+   0.4->0.7, flank 0.4->0.7; MG bunkers: flank 0.5->0.8) and made the same change in
+   `gen_firebase.py`'s `fam_bunker_fighting`/`fam_bunker_mg` so a future regen matches.
+2. **11 `fb_bunker_revet` objects — an earthen-mound wrap kit sized for 11 of the 12 real bunkers,
+   varying dims 4.5-7.5m footprint, 0.28-1.58m tall — sat unparented at LOCAL (0,0,0), which a live
+   Godot query proved stamps to the exact centre of the 512m demo world** (`global=(256,173.65,256)`
+   for all 11, confirmed in the running scene, not just the asset). No manifest or correspondence
+   survives to say which mound belonged to which bunker. The probe's physics query still named these
+   exact objects as blockers on several REAL bunkers' fire points regardless of the stranded
+   position (mechanism not fully isolated — flagged, not chased further under this pass's budget).
+   Removed them (unambiguous, and testable): the STAND count improved when they left. **Real
+   earthen-mound dressing per bunker is genuine, deferred visual work** — the shapes exist and are
+   good, they just have no home.
+3. **`WB_bunker_m60` / `WB_bunker_rifle`** — two hand-authored bunker variants (their own models,
+   nicer than the procedural family) sit at the STAGING PEN `(+-18,-170,0)`, never moved into the
+   ring, yet their `work_bunker` markers get counted as 2 of the 37 real fire points because nothing
+   strips markers from unplaced staging content. I test-placed them at the two genuinely open
+   bearings in the ring (67.6 deg and 283.7 deg, found via a bearing-gap scan of the other 12
+   bunkers) using the exact `perimeter()`/`offset_closed(-5.0)`/`platform_z()` formulas the real
+   bunker line uses — and then **reverted it**: a proximity scan showed `WB_bunker_m60`'s candidate
+   spot only 5.85m from `fb_sleeping_bunker_i` (bunker footprints run ~3m half-width — likely
+   overlapping) and `WB_bunker_rifle`'s candidate spot was 8m from the camp hootch line, neither of
+   which I could verify clear without another render+probe cycle this pass didn't have budget for.
+   **Left at the staging pen on purpose** — that is a KNOWN, already-measured defect (2 ghost fire
+   points); a guessed placement that clips a sleeping bunker would have been a WORSE, unmeasured one.
+   Next pass: place using `free_spot()`/`OCCUPIED` like every other structure in `main()`, not by hand.
+4. **Two named blockers left unfixed, budget spent**: post 28 (`fb_berm_ring` — one bunker
+   genuinely intersects the regenerated berm crest at its specific location) and posts 17-19/22
+   (`WB_bunker_rifle`/`WB_bunker_m60`'s OWN interior geometry, unexamined — these are separate
+   hand-authored assets, not the procedural family the other fixes covered).
+
+**Item 11, the HQ — built.** Confirmed nothing existed: no HQ mesh anywhere in the file, `hq_door`/
+`hq_door_approach`/`med_bearer_formup`/`med_door_main` mis-parented under `medical_complex` at a
+~200m local offset (fossils, zero GDScript references, deleted). **But the TOC's own furniture was
+already sitting there** — `fb_int_fb_plotting_board`/`radio_shelf`/`map_board`/`field_desk`/
+`field_chair` x2/`field_phone`/`hanging_bulb` x2, exactly matching `gen_fb_interior.py`'s
+`INTERIOR_LAYOUT["fb_toc"]`, floating with no structure around it. `furnish_firebase()` had run
+against a TOC placeholder that was later deleted. Solved the placeholder's exact transform from that
+furniture (two independent point-pairs against the authored local layout agreed to within 0.12m:
+rotation 159.4 deg, position (-2.70,-20.94)) rather than trusting `main()`'s hardcoded call site,
+which was off by 3.9m against what actually got furnished. Built `fam_toc` (the existing,
+doctrine-researched TOC/FDC — dug in, sandbag walls, overhead cover, three antenna posts, map/radio/
+plotting stations; already researched, never re-derived) via `gf.build_piece("fb_toc", seed=4041)`,
+placed it at the solved transform, baked its `door_main`/`work_radio`/`prop_map` markers as real
+children. Verified numerically (every furniture piece now within 5cm of its authored local offset)
+AND visually (top-down render: the roof now sits exactly over what used to be exposed furniture).
+5,032 tris. **Not done**: no reference photos were fetched for this one — the project's OWN prior
+research (`assets/reference/references/reference_firebase_layout.md:23`, "TOC/FDC = nerve center,
+central, dug in, mortar FDCs co-located") already specified this exact shape and the generator
+already encoded it; re-gathering reference for a shape already doctrine-verified would have been
+performative, not useful.
+
+**Items 19/20/21, hooch interiors — mechanism now FULLY understood, not the one I guessed pass 1.**
+`gen_fb_interior.py::furnish_firebase()` is NOT what dresses the current hooches at all — it only
+ever furnished the TOC and the chow hall in this file. The 11 hooches carry a COMPLETELY separate,
+richer furniture set (`fb_int_chair_0-3`, `fb_int_cot_m0-3`/`p0-3`, `fb_int_radio`, `fb_int_
+radiotable`, `fb_int_girlymag_*`, `fb_int_beer_*`, `fb_int_fan_*`, zero hits for any of these names
+under `tools/`) authored by a workflow that has left no script behind. **`tools/swap_hooches_v32.py`
+is the smoking gun**: it places the new hooch as a `bpy.types.Object.instance_type == 'COLLECTION'`
+instance, once per old hooch spot — so by construction every one of the 11 showed the identical
+interior (item 21) UNTIL something later flattened them (all 11 `fb_int_chair_0.NNN` etc. now report
+`parent=None` with independent world transforms and shared mesh DATA, i.e. real per-instance objects,
+not live collection instances — so per-hooch editing is possible today without any extra "make
+instances real" step). **Not fixed this pass**: authoring 3-4 genuinely different dressing sets is
+real design work (which chair/cot/locker combination, where), and chair-facing/radio-orientation
+(19/20) needs a visual read I did not get to. Next pass: render one hootch interior close, confirm
+or deny the facing complaint with a picture (not more transform algebra), then author variants by
+editing 3-4 of the 11 already-independent copies directly — Approach A, no `prop_` restructuring.
+
+**Item 15, the gate — skipped, as instructed.** No specific defect was ever isolated (Caleb's only
+note is "must look better"); `fb_gate_gap_i` is untouched, still the original procedural piece.
+
+**Item 17 (hooch sandbag revetment) / item 18 (camp duckboard spine) — not reached this pass.**

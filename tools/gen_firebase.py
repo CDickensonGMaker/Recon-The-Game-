@@ -353,8 +353,11 @@ def fam_bunker_mg(bm, rng):
     ## Properties OFF - so the gunner post only survives the export under a work_* NAME.
     marker("work_mg", (0.0, -d / 2.0 + 0.35, slit_z - sink + 0.55), -math.pi / 2.0,
            work_type="mg")
+    ## MEASURED (bunker headroom pass, 2026-09-06): 0.5m from the wall is the player capsule's
+    ## own radius (0.4m) plus 0.1m - probe_bunker_entry.tscn's STAND pass still called several
+    ## of these "blocked by fb_bunker_mg_i" (their own wall). 0.8m gives real margin.
     for sx in (-1, 1):
-        marker("work_bunker", (sx * (w / 2.0 - 0.5), 0.35, -sink + 0.08),
+        marker("work_bunker", (sx * (w / 2.0 - 0.8), 0.35, -sink + 0.08),
                0.0 if sx > 0 else math.pi, work_type="bunker")
     marker("bunker_los_point", (0.0, -d / 2.0 + 0.2, slit_z + 0.1), -math.pi / 2.0)
     marker("door_main", (0.0, d / 2.0 + 0.9, -sink + 0.12), math.pi / 2.0, door_width=CRAWL_W)
@@ -395,10 +398,13 @@ def fam_bunker_fighting(bm, rng, sealed=False):
     ## garrison man could ever occupy one and they were scenery through every siege. One post
     ## per embrasure. Named work_* so _collect_stations resolves the type from the name, which
     ## is what survives an export with Custom Properties off.
-    marker("work_bunker", (0.0, -d / 2.0 + 0.4, -sink + 0.08), -math.pi / 2.0,
+    ## MEASURED (bunker headroom pass, 2026-09-06): 0.4m from the wall is exactly the player
+    ## capsule's own radius - zero margin, so probe_bunker_entry.tscn's STAND pass named this
+    ## bunker's OWN geometry as the blocker on every one of its three posts. 0.7m clears it.
+    marker("work_bunker", (0.0, -d / 2.0 + 0.7, -sink + 0.08), -math.pi / 2.0,
            work_type="bunker")
     for sx in (-1, 1):
-        marker("work_bunker", (sx * (w / 2.0 - 0.4), flank_c, -sink + 0.08),
+        marker("work_bunker", (sx * (w / 2.0 - 0.7), flank_c, -sink + 0.08),
                0.0 if sx > 0 else math.pi, work_type="bunker")
     marker("bunker_los_point", (0.0, -d / 2.0 + 0.2, slit_z + 0.1), -math.pi / 2.0)
     ## PLANK THE HEAD OF EVERY OPENING. The slit's bag course stops at slit_z and the lintel
