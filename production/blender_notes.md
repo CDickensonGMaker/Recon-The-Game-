@@ -2360,3 +2360,90 @@ editing 3-4 of the 11 already-independent copies directly — Approach A, no `pr
 note is "must look better"); `fb_gate_gap_i` is untouched, still the original procedural piece.
 
 **Item 17 (hooch sandbag revetment) / item 18 (camp duckboard spine) — not reached this pass.**
+
+**Owed dressing work, so it doesn't quietly become permanent:** the 11 `fb_bunker_revet`
+earthen mounds were removed (item, bunker headroom pass), not re-placed — real per-bunker
+dressing, no correspondence data survives to place them correctly. `WB_bunker_m60` /
+`WB_bunker_rifle` (2 hand-authored bunker variants, nicer than the procedural family) are
+still parked at their staging pen `(+-18,-170,0)`, never integrated into the ring — a test
+placement was tried and reverted after it risked overlapping `fb_sleeping_bunker_i` and the
+hootch line. Both are fine calls for THIS pass (no correspondence data / no collision-free
+spot found), not permanent decisions — flagging so they get picked up, not forgotten.
+
+---
+
+## 2026-09-06 pass 3 · hooch clutter variety, village embed measurement, helmet z-fight
+
+**Items 19/20/21, hooch interiors.** Rendered hootch #1's table/chair/radio setup with the
+roof pieces temporarily displaced (not hidden — `hide_set()` crashed Blender headless mid-
+render; moving objects 20m up and never saving is the safe workaround). **Chairs read as
+correctly pulled up to the table on two sides, and the radio sits on its radiotable at the
+matching height with real modelled geometry (70 verts, not a placeholder box)** — no facing
+defect found in this instance. Did not find evidence to fix 19/20 and did not guess a fix
+without one; if the complaint reproduces, it is likely a DIFFERENT one of the 11 hooches,
+not a defect common to all of them (the furniture pieces are independent per-instance
+objects, confirmed pass 2, so a bug could live on just one).
+
+**Item 21 (all 11 identical) — fixed differently than assumed.** The `chair_0-3`/`cot_m0-3`/
+`cot_p0-3`/`locker_m0-3`/`locker_p0-3` names are NOT style variants to pick between — every
+one of the 11 hooches already places ALL of them simultaneously (same dims across every
+numbered variant, confirmed by measurement); "m"/"p" is a room-side label, not a swappable
+option. Real variety instead came from the PERSONAL CLUTTER, which every hooch also shared
+identically: `girlymag_0/1`, `beer_bottle_0/1`, `beer_can_0`/`beer_can_tipped`, two posters.
+Split the 11 into three groups by editing which clutter objects exist per hooch (no new
+modelling): 4 "squared-away" (all personal clutter removed, poster stays), 4 "default"
+(unchanged), 3 "rowdier" (posters removed, an extra beer can duplicated in). Verify the
+split with `fb_int_girlymag_0.NNN` presence/absence per suffix before touching further.
+
+**Item 32, villages — measured, one confirmed embed, root cause is layout not per-asset
+authoring.** Built two measuring passes:
+1. A per-GLB Blender scan (`CLEARANCE_M=0.22` against each hut's own wall/roof BVH,
+   excluding floor-normal faces) found borderline (0.15-0.18m) proximities in
+   `nha_san_01`/`nha_san_02` (hearth/sleep/store markers) and `ancestor_tomb_01`/
+   `haystack_01` (single markers) - NOT fixed: could not identify which specific sub-element
+   (post, brace, wall) was close enough to justify a move without risking a worse spot; see
+   `tools/probe_village_embed.gd`'s docstring reasoning for why this per-asset check cannot
+   see the real defect class.
+2. **The real defect is cross-building, not per-asset**: `tools/probe_village_embed.gd`
+   (new, reusable, mirrors the chow-hall probe's approach) boots the live demo world and
+   physics-queries every spawned village prop/animal's own position against world collision.
+   First pass (61/112 "embedded") was almost entirely a broken instrument - nearly every hit
+   was `RaycastCollision`, an engine-wide false positive now excluded alongside `Chunk_`.
+   Second pass, filtered, found exactly **1 real embed of 61 checked**:
+   `chicken_coop` (from a `home_chicken` marker on one hooch/hut) sitting inside
+   `nha_tranh_03-col` - a DIFFERENT, neighbouring building's wall, at this seed's specific
+   layout. **This confirms the coordinator's diagnosis exactly** (`_stable_animals`/
+   `_furnish_interior` place from a marker's own authored offset with no check against
+   neighbours already placed) but also proves it is seed-dependent: nudging THIS marker's
+   outward offset does not guarantee no overlap under a different procedural layout. Also
+   filtered out civilian-CARRIED props (`rice_basket_back` etc., `probe_civilian.gd`'s own
+   PROPS dict) that legitimately brush past geometry while an NPC walks - counting those as
+   "embedded" was the second false-positive class this probe had to learn to exclude.
+   **Not fixed**: the actual fix is collision/overlap rejection at village prop-placement
+   time in `site_planner.gd` - code work, out of a Blender pass's reach. "NPCs stuck in
+   walls" (the third symptom in item 32) was not investigated at all this pass - it did not
+   show up in this prop/animal probe and is very possibly a navmesh/pathing issue rather
+   than a marker-placement one; flagging rather than guessing.
+
+**Item 30, helmet "black spots instead of camo" — SOLVED, and it was never a texture.**
+Every `us_grunt_*`/`us_medic` GLB (confirmed across 7 files) ships THREE coplanar helmet
+meshes at the same position: `helmet_camo_shell`, `helmet_bugjuice`, `helmet_shell_worn`.
+`gib_system.gd`'s `HEAD` region already hides the first two as gib gear
+(`scripts/combat/gib_system.gd:26`, with its own comment: "helmet_camo_shell/
+helmet_bugjuice... slipped this net and every grunt shipped wearing TWO helmets") but
+**`helmet_shell_worn` was never added to that list** - confirmed via direct material read:
+`helmet_shell_worn` and `helmet_camo_shell` carry the IDENTICAL two materials
+(`MitchellCamo`/`Webbing`, flat colour, no image) on the same 1,638-vert mesh at the same
+transform. Two near-identical coplanar surfaces is a textbook z-fighting setup - the
+GPU's depth-buffer indecision reads as flickering dark patches exactly where the camo
+texture should be continuous, which is "black spots instead of camo" without a single
+texture ever being wrong. **Fixed with one line** (`scripts/combat/gib_system.gd:26`,
+added `"helmet_shell_worn"` to the `HEAD` region's `gear` list - the same hide-as-donor
+path its two siblings already use). This is a code file, not a Blender file, but the root
+cause was only findable by comparing mesh/material data across the donor set, which is why
+it landed in this pass rather than being deferred to a code agent blind to the asset.
+
+**Items 17/18, 31 (VC face verify), 15 (gate) — not reached this pass**, budget spent on
+19/20/21 + 32 + 30 in that priority order. Item 31 specifically: did not render a play-
+distance shot before running out of budget - report it as UNVERIFIED this pass rather than
+assert closure without a picture, per the coordinator's own instruction not to guess.

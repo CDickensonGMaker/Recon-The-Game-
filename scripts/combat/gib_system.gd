@@ -23,7 +23,7 @@ const REGIONS: Dictionary = {
 	"HEAD": {
 		"bone": "mixamorig_Neck",
 		"meshes": ["grunt_head"],
-		"gear": ["helmet_camo_shell", "helmet_bugjuice"],
+		"gear": ["helmet_camo_shell", "helmet_bugjuice", "helmet_shell_worn"],
 		"caps": ["cap_head"],
 	},
 	"ARM_L": {
