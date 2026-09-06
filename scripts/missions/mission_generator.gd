@@ -1144,7 +1144,9 @@ static func _build_village_site(world: GameWorld, director: FieldDirector,
 	for ci in range(civ_count):
 		var ca := rng.randf_range(0.0, TAU)
 		var cpos: Vector3 = site.center + Vector3(cos(ca), 0, sin(ca)) * rng.randf_range(2.0, 12.0)
-		cpos.y = world.terrain_manager.get_height_at(cpos) + 0.5
+		# floor_y + 0.5, the same seat FieldDirector.spawn_tracked_enemy gives every
+		# enemy squad. Bare terrain height buries a villager under his own hut floor.
+		cpos.y = world.floor_y(cpos) + 0.5
 		var civ: Civilian = Civilian.spawn(world, cpos, director, ci == informer_idx)
 		civ.village_center = site.center
 		civ.occupation = CivilianSchedulesScript.pick_occupation(rng)
