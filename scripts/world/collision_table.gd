@@ -35,18 +35,6 @@ const STRUCTURES := {
 	"pigsty_01": {"box": Vector3(2.97, 1.6, 2.87), "y_offset": 0.8, "footprint": Vector2(4.0, 3.9), "scale": 1.0, "mesh": true},
 	"village_gate_01": {"box": Vector3(4.55, 3.28, 0.51), "y_offset": 1.64, "footprint": Vector2(5.5, 1.5), "scale": 1.0, "mesh": true},
 	"village_well_01": {"box": Vector3(2.47, 2.41, 2.43), "y_offset": 1.21, "footprint": Vector2(3.5, 3.4), "scale": 1.0, "mesh": true},
-	# Firebase
-	"hootch": {"box": Vector3(4, 2.5, 6), "y_offset": 1.25, "footprint": Vector2(6, 4), "scale": 1.0},
-	"sandbag_bunker": {"box": Vector3(3, 2, 3), "y_offset": 1.0, "footprint": Vector2(3, 3), "scale": 1.0},
-	"mg_nest": {"box": Vector3(3, 1.5, 3), "y_offset": 0.75, "footprint": Vector2(2, 2), "scale": 1.0},
-	"observation_tower": {"box": Vector3(3, 8, 3), "y_offset": 4.0, "footprint": Vector2(2, 2), "scale": 1.0},
-	"trench_modular": {"box": Vector3(2, 1.5, 4), "y_offset": 0.75, "footprint": Vector2(4, 2), "scale": 1.0},
-	"foxhole_sandbags": {"box": Vector3(2, 1, 2), "y_offset": 0.5, "footprint": Vector2(2, 2), "scale": 1.0},
-	"triple_concertina": {"box": Vector3(4, 1.5, 2), "y_offset": 0.75, "footprint": Vector2(6, 1), "scale": 1.0},
-	"barbed_wire_coil": {"box": Vector3(4, 1.0, 1), "y_offset": 0.5, "footprint": Vector2(4, 1), "scale": 1.0},
-	"sandbag_light": {"box": Vector3(2, 1.5, 2), "y_offset": 0.75, "footprint": Vector2(3, 1), "scale": 1.0},
-	"sandbag_heavy": {"box": Vector3(4, 1.2, 1.5), "y_offset": 0.6, "footprint": Vector2(4, 1.5), "scale": 1.0},
-	"gate_entrance": {"box": Vector3(6, 3, 2), "y_offset": 1.5, "footprint": Vector2(6, 2), "scale": 1.0},
 	# VC props
 	"tunnel_entrance_hidden": {"box": Vector3(2, 0.8, 2), "y_offset": 0.4, "footprint": Vector2(2, 2), "scale": 1.0},
 	"spider_hole": {"box": Vector3(1.5, 0.6, 1.5), "y_offset": 0.3, "footprint": Vector2(2, 2), "scale": 1.0},
@@ -250,7 +238,7 @@ const SOFT_MATS: Array = [Mat.THATCH, Mat.WOOD]
 
 const MATERIALS := {
 	# --- SOFT: lead goes through. Thatch, palm, bamboo, thin plank, cloth. ---
-	"hootch": Mat.THATCH, "market_hall": Mat.THATCH,
+	"market_hall": Mat.THATCH,
 	"nha_tranh_01": Mat.THATCH, "nha_tranh_02": Mat.THATCH,
 	"nha_tranh_03": Mat.THATCH, "nha_san_01": Mat.THATCH,
 	"nha_san_02": Mat.THATCH, "nha_san_03": Mat.THATCH,
@@ -267,17 +255,17 @@ const MATERIALS := {
 	"dinh_01": Mat.WOOD, "drying_rack_01": Mat.WOOD,
 	"village_gate_01": Mat.WOOD, "bell_frame_01": Mat.WOOD,
 	"french_barracks": Mat.WOOD, "mess_hall": Mat.WOOD, "aid_station": Mat.WOOD,
-	"barbed_wire": Mat.WOOD, "barbed_wire_coil": Mat.WOOD, "barbwire_tangle": Mat.WOOD,
-	"triple_concertina": Mat.WOOD, "claymore_line": Mat.WOOD, "tank_trap": Mat.WOOD,
+	"barbed_wire": Mat.WOOD, "barbwire_tangle": Mat.WOOD,
+	"claymore_line": Mat.WOOD, "tank_trap": Mat.WOOD,
 	"punji_pit": Mat.WOOD, "punji_trap": Mat.WOOD, "spider_hole": Mat.WOOD,
 
 	# --- HARD: stops the round. Earth, sandbag, timber-and-earth bunker, stone. ---
 	"bunker": Mat.EARTH, "barracks_bunker": Mat.EARTH, "ammo_bunker": Mat.EARTH,
 	"commo_bunker": Mat.EARTH, "conex_bunker": Mat.EARTH, "powder_bunker": Mat.EARTH,
-	"sandbag_bunker": Mat.EARTH, "destroyed_bunker": Mat.EARTH,
-	"sandbag_heavy": Mat.EARTH, "sandbag_light": Mat.EARTH, "foxhole_sandbags": Mat.EARTH,
-	"mg_nest": Mat.EARTH, "mg_nest_sandbag": Mat.EARTH, "mortar_pit": Mat.EARTH,
-	"artillery_pit": Mat.EARTH, "trench_modular": Mat.EARTH, "bomb_crater": Mat.EARTH,
+	"destroyed_bunker": Mat.EARTH,
+	
+	"mg_nest_sandbag": Mat.EARTH, "mortar_pit": Mat.EARTH,
+	"artillery_pit": Mat.EARTH, "bomb_crater": Mat.EARTH,
 	"tunnel_entrance_hidden": Mat.EARTH, "underground_hospital": Mat.EARTH,
 	"aircraft_revetment": Mat.EARTH, "tank_revetment": Mat.EARTH, "helipad": Mat.EARTH,
 	"psp_helipad": Mat.EARTH, "runway_section": Mat.EARTH,
@@ -310,7 +298,7 @@ const MATERIALS := {
 	"rubble_pile_medium": Mat.MASONRY, "rubble_heap_tall": Mat.MASONRY,
 	"rubble_debris_large": Mat.MASONRY, "rubble_debris_small": Mat.MASONRY,
 	"rubble_field_wide": Mat.MASONRY, "rubble_scatter_tiny": Mat.MASONRY,
-	"brick_pile": Mat.MASONRY, "gate_entrance": Mat.MASONRY,
+	"brick_pile": Mat.MASONRY, 
 	"gate_entrance_lowpoly": Mat.MASONRY,
 
 	"quonset_hut": Mat.METAL, "hangar": Mat.METAL, "fuel_depot": Mat.METAL,
@@ -328,7 +316,7 @@ const MATERIALS := {
 	"a1_skyraider_v2": Mat.METAL, "f4_phantom_v2": Mat.METAL,
 	"ac47_spooky_v2": Mat.METAL,
 	"m60_door_mount": Mat.METAL, "m60_pintle": Mat.METAL,
-	"m60_ring_mount": Mat.METAL, "observation_tower": Mat.METAL,
+	"m60_ring_mount": Mat.METAL, 
 	"control_tower": Mat.METAL, "hq_building": Mat.CONCRETE,
 	"fire_direction_center": Mat.CONCRETE, "operations_building": Mat.CONCRETE,
 }

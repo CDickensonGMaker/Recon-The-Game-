@@ -76,8 +76,8 @@ func _ready() -> void:
 	print("
 -- THE FILENAME FOOTGUN: material is AUTHORED, not guessed --")
 	var must_stop: Array[String] = ["barracks_bunker", "quonset_hut",
-		"bomb_crater", "sandbag_bunker", "mg_nest"]
-	var must_pass: Array[String] = ["nha_tranh_01", "hootch", "tent", "gate_fence"]
+		"bomb_crater", "ammo_bunker", "mg_nest_sandbag"]
+	var must_pass: Array[String] = ["nha_tranh_01", "nha_san_01", "tent", "gate_fence"]
 	var bad: int = 0
 	for m in must_stop:
 		if CollisionTable.is_soft(m):
