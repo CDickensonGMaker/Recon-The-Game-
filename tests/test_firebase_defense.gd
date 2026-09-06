@@ -49,7 +49,7 @@ func _run() -> void:
 	await _check_promotion_gate()
 	await _check_defender_returns_fire()
 	await _check_sapper_stealth()
-	_check_assault_is_coordinated()
+	await _check_assault_is_coordinated()
 	_check_silence_invariant()
 	await _check_breach_cost_and_persistence()
 	await _check_crisis_refires()
@@ -255,6 +255,21 @@ func _check_assault_is_coordinated() -> void:
 	d.siege.open_siege(30)
 	for c in d.siege.cells:
 		c.materialize()
+	# THE COUNT MUST NOT BE TAKEN ON THE MATERIALIZE FRAME. MarchingCell drips its
+	# men through a GLOBAL budget of SPAWN_PER_FRAME (2) per RENDER frame
+	# (marching_cell.gd:147, landed 2026-08-14) - so a same-frame count can never
+	# read higher than 2 however many men were rolled, and this check read
+	# "sappers 2, assault 0" for a siege that was in fact fielding all 30. Headless
+	# renders far slower than it steps physics, so the drip needs many physics
+	# frames per token; wait for the roll to arrive rather than for a fixed count
+	# (probe: tests/probe_siege_fields_men.tscn, 30/30 measured).
+	var paper: int = 0
+	for c in d.siege.cells:
+		paper += c.strength
+	for _f in range(600):
+		if _fielded(d) >= paper:
+			break
+		await get_tree().physics_frame
 	var sappers := get_tree().get_nodes_in_group("siege_sappers")
 	# The assault is FOUR squads, each under its own tag, because field_director derives
 	# squad_id from hash(group_tag) (his ruling 2026-07-30). Only a probe - strength <=
@@ -280,7 +295,19 @@ func _check_assault_is_coordinated() -> void:
 			"the assault element is driven at the compound, not left to a hunt anchor")
 	_free_group("siege_sappers")
 	_free_group("siege_assault")
+	for i in range(SiegeDirector.ASSAULT_SQUADS):
+		_free_group("siege_assault_%d" % i)
 	d.queue_free()
+	await get_tree().process_frame
+
+
+## Men actually standing on the field under any of the assault's tags.
+func _fielded(_d: FieldDirector) -> int:
+	var n: int = get_tree().get_nodes_in_group("siege_sappers").size()
+	n += get_tree().get_nodes_in_group("siege_assault").size()
+	for i in range(SiegeDirector.ASSAULT_SQUADS):
+		n += get_tree().get_nodes_in_group("siege_assault_%d" % i).size()
+	return n
 
 
 # ---- Silence is an INVARIANT (not an accident of the move override) --------

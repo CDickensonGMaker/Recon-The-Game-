@@ -119,8 +119,20 @@ func _check_reap_frees_survivors() -> void:
 	d.siege.open_siege(12)
 	for c in d.siege.cells:
 		c.materialize()
+	# materialize() does not put men on the field; it opens a DRIP. MarchingCell
+	# spends a global budget of SPAWN_PER_FRAME (2) per RENDER frame
+	# (marching_cell.gd:147), and headless steps physics far faster than it renders,
+	# so a roster read on the materialize frame sees 0-2 men however many were rolled
+	# - which is what this check was reading, and calling a broken siege.
+	for _f in range(600):
+		if d._live_enemies.size() - before >= 12:
+			break
+		await get_tree().physics_frame
 	if d._live_enemies.size() <= before:
 		_fail("materializing 12 men did not put anyone on the roster")
+	elif d._live_enemies.size() - before != 12:
+		_fail("only %d of 12 materialized men reached the roster"
+			% (d._live_enemies.size() - before))
 
 	d.siege._break_siege("broken")
 	if d.siege._reaping.is_empty():
