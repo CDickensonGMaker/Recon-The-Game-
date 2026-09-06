@@ -319,7 +319,7 @@ func _aim_ground_point() -> Vector3:
 	var dir: Vector3 = -cam.global_transform.basis.z
 	for i in range(1, 40):
 		var p := origin + dir * (float(i) * 5.0)
-		var ground: float = world.terrain_manager.get_height_at(p)
+		var ground: float = world.surface_y(p)
 		if p.y <= ground:
 			return Vector3(p.x, ground, p.z)
 	return Vector3.ZERO

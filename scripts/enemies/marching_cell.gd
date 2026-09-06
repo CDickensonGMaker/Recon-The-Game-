@@ -238,5 +238,6 @@ func _seat_on_terrain() -> void:
 	if tm == null:
 		return
 	# The march ends ON the firebase, so the cell rides the same surface its men will
-	# stand on - terrain height alone walks it into the mound.
-	global_position.y = director.world.surface_y(global_position)
+	# stand on - terrain height alone walks it into the mound. floor_y, not
+	# surface_y: an 18m top-down ray returns the ROOF over any covered point.
+	global_position.y = director.world.floor_y(global_position)

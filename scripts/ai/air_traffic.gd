@@ -517,7 +517,13 @@ func _ao_route() -> Array:
 	return [centre + side - dir * half, centre + side + dir * half]
 
 
+## Every caller adds a cruise/orbit altitude to this, so it must return the
+## HIGHEST solid thing at p - the tower and the hooch roofs included. Raw
+## get_height_at() is bare terrain and flies the ships through the compound.
 func _ground_at(p: Vector3) -> float:
+	var w := _world()
+	if w != null and w.has_method("surface_y"):
+		return float(w.call("surface_y", p))
 	var t := _terrain()
 	return t.get_height_at(p) if t != null else 0.0
 

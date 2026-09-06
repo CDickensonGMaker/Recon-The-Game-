@@ -163,13 +163,14 @@ func _advance(dest: Vector3, speed: float, delta: float) -> bool:
 
 ## The three bodies and the prop are written from ONE position and ONE facing, so
 ## the formation cannot drift. Ground height comes from the front bearer's own
-## surface so the team walks the mound, not the terrain under it.
+## floor so the team walks the mound, not the terrain under it - and not the roof
+## over it, which is what surface_y's top-down ray returned.
 func _write_bodies() -> void:
 	var yaw: float = atan2(_dir.x, _dir.z)
 	var ground: Vector3 = _pos
 	var world := get_parent() as GameWorld
 	if world != null:
-		ground.y = world.surface_y(_pos)
+		ground.y = world.floor_y(_pos)
 	_seat(_front, ground, yaw)
 	_seat(_rear, ground - _dir * BEARER_GAP, yaw)
 	var deck: Vector3 = ground - _dir * (BEARER_GAP * 0.5)
