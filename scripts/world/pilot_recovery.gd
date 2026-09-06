@@ -94,9 +94,9 @@ func encounter_active() -> bool:
 
 
 func _on_crashed(pos: Vector3) -> void:
-	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager,
-		world.vegetation_manager, world)
-	var wreck: Node3D = planner.place_structure(WRECK_MODEL, pos, _rng.randf_range(0.0, 360.0))
+	# ONE placement path (ADR-028): this file may not drive a stamp itself.
+	var wreck: Node3D = MissionGenerator.place_event_prop(
+		world, WRECK_MODEL, pos, _rng.randf_range(0.0, 360.0))
 	_light_wreck_fires(wreck, pos)
 	_column = _build_column(pos)
 	var anchor: Node3D = wreck.find_child("pilot_anchor", true, false) as Node3D \

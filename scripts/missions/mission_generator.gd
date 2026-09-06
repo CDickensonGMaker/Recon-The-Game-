@@ -1276,3 +1276,24 @@ static func apply_veg_boosts(world: GameWorld, near_pos: Vector3, sites: Array) 
 		for c in veg_centers:
 			var cd: Dictionary = c
 			world.gameplay_grid.boost_vegetation(cd.pos as Vector3, float(cd.radius), 0.55)
+
+
+## ---------- RUNTIME PLACEMENT (ADR-028: this file and site_planner.gd only) ----------
+##
+## PilotRecovery used to build its own SitePlanner and call place_structure() itself
+## (`pilot_recovery.gd:97-99`), which is a SECOND placement path and made
+## tests/test_placement_paths.gd fail — it had been failing, unnoticed, because nobody
+## ran it. The guard was right; the code was wrong. Mid-run props that appear from an
+## event (a crash wreck) still belong to the ONE placement path, so the call lives here
+## and the caller asks for it by name.
+##
+## Not a world-build entry: this places a single prop at a position the caller already
+## chose from its own seeded rng. It adds no rng of its own, so determinism stays with
+## the caller (ADR-010).
+static func place_event_prop(world: GameWorld, model_path: String, pos: Vector3,
+		yaw_deg: float) -> Node3D:
+	if world == null:
+		return null
+	var planner := SitePlanner.new(world.gameplay_grid, world.terrain_manager,
+		world.vegetation_manager, world)
+	return planner.place_structure(model_path, pos, yaw_deg)
