@@ -45,15 +45,33 @@ NOT-COMPLETED rather than as a failure.
 | `test_fire_support_grant` (13) · `test_night_sight` (4) · `test_viewmodel_contract` (12) · `test_import_refs` | — | untouched by these waves; `test_viewmodel_contract` sits on the bench he is ruling now |
 | `test_playtest_bundle` · `test_suite_health` | 1 / 16 across 673 checks | aggregates that reflect the rows above |
 
-### The two that CANNOT be attributed from this run, and why
+### The two that could not be attributed from this run — ATTRIBUTED AND CLOSED 2026-09-06
 
 `test_firebase_defense` ("a 30-man siege fields an assault element (got 0)", "every one of the 30
-rolled men reached the field (got 2)") and `test_siege`. Both read siege spawn and navigation off
-the compound, and **`fsb_main_v3.glb` was rewritten at 15:43 and the source blend `firebase_v3.2.blend`
-at 15:56 — during this suite run — by the art pass working item 3's other half.** A result taken
-while the geometry underneath it is being replaced is not evidence in either direction. **Re-run
-these two once that export lands.** They are not claimed as passing and not blamed on the art
-either; they are unmeasured.
+rolled men reached the field (got 2)") and `test_siege` ("materializing 12 men did not put anyone on
+the roster"). Re-run after the firebase export landed, and bisected: **both fail identically at
+`71912cfb` (2026-09-03), before any of the 09-06 art or code work. Pre-existing, and the geometry was
+never involved.**
+
+**The siege was not broken. Both checks counted on the frame they called `MarchingCell.materialize()`.**
+`materialize()` opens a drip, it does not put men on the ground: spawns are spent against a GLOBAL
+budget of `SPAWN_PER_FRAME = 2` per RENDER frame (`scripts/enemies/marching_cell.gd:147`, landed
+`156c49ce` 2026-08-14), so a same-frame count cannot read above 2 however many men were rolled. The
+asserts predate the budget (`a4ef3063`, 2026-07-28), which is why they were ever green. Measured with
+frames allowed to pass: **30 of 30 rolled men reach the field — 7 sappers, 23 assault**
+(`tests/probe_siege_fields_men.tscn`, whose own negative control asserts the same-frame count is
+capped at `SPAWN_PER_FRAME`). Fixed in `860446b9`; both suites green.
+
+**The two flare failures in the same file were REAL, and they were a shipping P0.** `IllumFlare._ready()`
+captured the swing anchor, but `pop()` assigns `global_position` AFTER `parent.add_child()`, and
+`add_child` runs `_ready` synchronously on a parent already in the tree — so the anchor held the
+PARENT'S origin and the first physics tick dragged the burning flare off the point it was fired at.
+Every caller parents to `world` / `current_scene` / `_lights_root`, all at or near (0,0,0):
+**every illum round in the game lit the map origin instead of the target.** Measured 42.0m of
+teleport in two ticks; 3.0m of canopy swing after the fix (`tests/probe_flare_stays_put.tscn`,
+negative-controlled on the pre-fix file). Landed `78acd962` 2026-08-12, live 25 days. Fixed in
+`d7e87718`. This matters to the demo directly: illum is the counter-play to the sapper tip, and it
+has not worked since it was written.
 
 ### Fixed by this wave
 
