@@ -311,18 +311,37 @@ func _order_all(mode: AllyBase.OrderMode, pos: Vector3, toast_text: String,
 		VOManager.play_squad(ack_line, ack.member, ack.global_position)
 
 
+## Where a MOVE order lands. The caller drops the order when this returns ZERO
+## (squad_system.gd:287), so a wrong answer here is not a wrong destination - it is a
+## key press that does nothing and says nothing.
+##
+## It used to MARCH the look direction in 5m steps to 195m, sampling surface_y at each,
+## which measured a ray it never cast: measured 2026-09-06 with
+## tests/probe_aim_ground_point.tscn, a shot at open ground the camera plainly hit
+## returned ZERO and the order was silently dropped, and a shot past a stilt house
+## landed 2.74m across and 3.99m high, on the roof rather than the ground beyond.
+## One ray answers both: the point he is looking at IS the first world surface his view
+## crosses. Layer 1 only, so his own men are never the destination.
+const AIM_REACH_M: float = 250.0
+
+
 func _aim_ground_point() -> Vector3:
-	if world.player == null:
+	if world == null or world.player == null:
 		return Vector3.ZERO
-	var cam: Camera3D = world.player.get_node("Head/Camera3D")
+	var cam: Camera3D = world.player.get_node_or_null("Head/Camera3D") as Camera3D
+	if cam == null:
+		return Vector3.ZERO
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	if space == null:
+		return Vector3.ZERO
 	var origin: Vector3 = cam.global_position
 	var dir: Vector3 = -cam.global_transform.basis.z
-	for i in range(1, 40):
-		var p := origin + dir * (float(i) * 5.0)
-		var ground: float = world.surface_y(p)
-		if p.y <= ground:
-			return Vector3(p.x, ground, p.z)
-	return Vector3.ZERO
+	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * AIM_REACH_M, 1)
+	q.exclude = [world.player.get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return Vector3.ZERO
+	return hit.position as Vector3
 
 
 ## ---------- MEDIC REVIVE CHAIN ----------
