@@ -68,6 +68,16 @@ func _build() -> void:
 	_stance.visible = false
 	add_child(_stance)
 
+	# ITEM 33: one of your own is standing in the bore. Red, over the sight picture,
+	# and it warns only - he may still take the shot (Pillar 3).
+	_check_fire = ReconUI.make_label("", 17, Color(0.95, 0.25, 0.15))
+	_check_fire.set_anchors_preset(Control.PRESET_CENTER)
+	_check_fire.position = Vector2(-170, -72)
+	_check_fire.custom_minimum_size = Vector2(340, 0)
+	_check_fire.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_check_fire.visible = false
+	add_child(_check_fire)
+
 
 	# PT8: right-side slot slider (appears on wheel/key switch, fades out).
 	_slot_slider = VBoxContainer.new()
@@ -315,6 +325,7 @@ func _radio_row(rto: AllyBase, dead: bool) -> Array:
 
 var _fuse: Label
 var _stance: Label
+var _check_fire: Label
 
 
 ## The world is holding him down, not the key (player.gd auto-crouch under a bunker
@@ -325,6 +336,15 @@ func show_stance(text: String) -> void:
 		return
 	_stance.text = text
 	_stance.visible = text != ""
+
+
+## A friendly is standing in the player's lane (player.gd _poll_friendly_lane).
+## Empty text hides the line.
+func show_check_fire(text: String) -> void:
+	if _check_fire == null or not is_instance_valid(_check_fire):
+		return
+	_check_fire.text = text
+	_check_fire.visible = text != ""
 
 
 ## A burning demolition fuse, counted down on screen. Empty text hides the line.

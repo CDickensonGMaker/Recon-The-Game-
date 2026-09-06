@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cprobefrndlane1"]
+
+[ext_resource type="Script" path="res://tests/probe_friendly_lane.gd" id="1_fl"]
+
+[node name="ProbeFriendlyLane" type="Node"]
+script = ExtResource("1_fl")

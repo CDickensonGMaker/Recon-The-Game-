@@ -1633,6 +1633,7 @@ func _physics_process(delta: float) -> void:
 
 	_update_suppression(minf(delta, 0.066))
 	_tick_hunger(delta)
+	_poll_friendly_lane(delta)
 
 	# On the gun: glued to the stand, kit frozen, view arc-clamped - but STILL firing
 	# (weapon_holder is not gated on is_manning_mg). Handle its own dismount and stop.
@@ -1921,6 +1922,75 @@ func _handle_lean(delta: float) -> void:
 
 	camera.rotation_degrees.z = lean_amount * LEAN_ANGLE
 	camera.position.x = lean_amount * LEAN_OFFSET
+
+
+## ---- ITEM 33: A FRIENDLY IN YOUR LANE ----
+##
+## There was no friendly-lane check anywhere on the player's side - not in
+## weapon_holder.gd, not in mission_hud.gd. The only muzzle discipline in the game was
+## the AI's own (ally_base.gd), so the one shooter who can actually hit his own squad
+## got no warning at all.
+##
+## It WARNS, it does not block. Pillar 3: he may take the shot, and he owns it.
+## Geometry, not physics: the squad is five men, so a perpendicular-distance test
+## against the aim line is exact and costs nothing, where a shape sweep down the lane
+## every frame would not be.
+const LANE_RANGE_M: float = 90.0
+## How far off the line of the bore still counts as "in it". A man is ~0.5m wide; this
+## is that plus the shot's own spread at speaking distance.
+const LANE_RADIUS_M: float = 1.0
+const LANE_POLL_S: float = 0.1
+
+var _lane_poll: float = 0.0
+var _lane_warned: bool = false
+
+
+func _poll_friendly_lane(delta: float) -> void:
+	_lane_poll += delta
+	if _lane_poll < LANE_POLL_S:
+		return
+	_lane_poll = 0.0
+	var blocked: bool = _friendly_in_lane()
+	if blocked == _lane_warned:
+		return
+	_lane_warned = blocked
+	var hud: Node = get_tree().get_first_node_in_group("mission_hud")
+	if hud != null and hud.has_method("show_check_fire"):
+		hud.call("show_check_fire", "CHECK FIRE - FRIENDLY IN YOUR LANE" if blocked else "")
+
+
+func _friendly_in_lane() -> bool:
+	if camera == null or not is_instance_valid(camera):
+		return false
+	var eye: Vector3 = get_camera_position()
+	var aim: Vector3 = get_aim_direction()
+	for man in _lane_candidates():
+		var n := man as Node3D
+		if n == null or not is_instance_valid(n):
+			continue
+		if n.has_method("is_dead") and bool(n.call("is_dead")):
+			continue
+		# Centre of mass, not the feet: a man's chest is what the bore crosses.
+		var to: Vector3 = (n.global_position + Vector3.UP * 1.0) - eye
+		var along: float = to.dot(aim)
+		if along <= 0.5 or along > LANE_RANGE_M:
+			continue
+		if (to - aim * along).length() > LANE_RADIUS_M:
+			continue
+		# Behind a wall he is not in the lane - the wall is. Same LOS the round takes.
+		if not CombatManager.has_line_of_sight(eye, n.global_position + Vector3.UP * 1.0, [self]):
+			continue
+		return true
+	return false
+
+
+## His own squad and the villagers. Enemy medics and prisoners are NOT friendlies for
+## this purpose - the warning has to mean one thing or it means nothing.
+func _lane_candidates() -> Array:
+	var out: Array = []
+	out.append_array(AgentRegistry.allies)
+	out.append_array(get_tree().get_nodes_in_group("civilians"))
+	return out
 
 
 func get_aim_direction() -> Vector3:
