@@ -588,7 +588,7 @@ Every estimate drawn from it **UNDER-counts**.
 - **D-10 [C] TOP THE HUNT POOL TO 6 ON EACH OUTBOUND GATE CROSSING** (same seam as the fire-support
   grant, `field_director.gd:1221`). 12 men (`:106`) at 2â€“4 per wave (`:149`) is **~7.7 minutes of
   contact, then the AO is empty forever** â€” invisible at 7 minutes, arc-breaking at 30.
-  **SACRIFICED: ADR-035's finite-pool promise, inside the demo only, by documented exception. The
+  **SACRIFICED: ADR-037's finite-pool promise, inside the demo only, by documented exception. The
   ADR is NOT amended.**
   **QUESTION D IS CLOSED â€” the Arbiter's premise was BACKWARDS.** `field_mult` multiplies the WAIT
   (`field_director.gd:148`, its own comment `:129`), so decay makes the AO HARDER; and it never runs
@@ -668,7 +668,7 @@ many men eat at once Â· **Q8** lock the marker names as final Â· **Q9** conf
 squadmates Â· **Q10** confirm three calls means three different weapons.
 
 **EVERYTHING SACRIFICED (Law 2, collected):** the DAWN end card Â· the full-day illusion Â· the midday
-return and with it the two-sortie structure Â· ADR-035's finite hunt pool (demo-only exception) Â· the
+return and with it the two-sortie structure Â· ADR-037's finite hunt pool (demo-only exception) Â· the
 busy flightline Â· part of Pillar 3's quiet-play promise (the ambient cell can find a blameless
 player) Â· ADR-011's "the radio is a man" (if Q4 passes) Â· downed allies and the 70m cover ring Â·
 squad legibility (if concealment ships without a nameplate check) Â· an r4bk debt on the thumper Â·

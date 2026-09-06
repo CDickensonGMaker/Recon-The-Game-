@@ -1,4 +1,4 @@
-# ADR-035: The route is an order, the pencil is yours, and the enemy hunts what you left
+# ADR-037: The route is an order, the pencil is yours, and the enemy hunts what you left
 **Date:** 2026-07-28 · **Status:** Accepted (Summoner decrees, this session) · **Depends on:** ADR-022 (the map is your memory), ADR-021 (the intel a patrol earns), ADR-006 (avoidance pays), ADR-029 (open patrol) · **Supersedes:** the freehand M-map pencil route of the 2026-07-24 patrol-contract decree
 
 ## Context

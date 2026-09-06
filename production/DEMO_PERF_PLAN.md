@@ -208,7 +208,7 @@ Detectability floor on this hardware: **~2.4 ms / ~3 FPS** (A/B/A floors 1.1/1.4
 - **Any tier that fires emits the full telegraph** (`ADR-026:99-100`); the flash sprite/tracer/
   report are exempt from every cap (`ADR-026:42-47`). No FX lever in §2.6 may touch them.
 - **The break math and the siege ledger** (`siege_director.gd:78-92`, paper-strength counting at
-  `marching_cell.gd:52-62`) — ADR-035 contracts, not perf surface.
+  `marching_cell.gd:52-62`) — ADR-037 contracts, not perf surface.
 
 ---
 

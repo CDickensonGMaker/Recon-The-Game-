@@ -1,7 +1,111 @@
 # PLAYTEST FINDINGS - 2026-08-28
 
+## VERIFIED STATUS TABLE — audited 2026-09-06, probe-before-claim
+
+**He asked:** *"right now to get that more real, we need to make sure the last long list of things i
+mentioned from my playtest has been fixed."* This is that audit. Every row was re-derived from the code
+and the asset tree this session, **not** from the checkmarks below — several of which were stale in both
+directions. Nothing is marked FIXED on a comment, a doc claim, a commit message or a log line.
+
+**THE COUNT: 8 fixed · 1 fixed-with-weak-proof · 1 unverified · 25 open · 1 new defect found.**
+**Not one of the 8 has been verified by your eye. The art half has not been started.**
+
+### CODE — the blockers
+
+| # | Item | Status | Evidence |
+|---|---|---|---|
+| 1 | Air support crash | **FIXED** (unverified by you) | validate-before-cast + `SquadSystem._prune_freed()` |
+| 2 | Gun crew crash | **FIXED** (unverified by you) | released on the node's own `tree_exiting` |
+| 3 | **Cannot enter ANY bunker** | **OPEN** | No bunker-entry code exists anywhere. Colliders are whatever the GLB ships; `site_planner.gd:2075-2107` `_adopt_structure` only reparents `-colonly` shapes. **No probe.** |
+| 4 | **NPCs fall through the ground** | **OPEN** | 3 of the 4 named height call sites still use the wrong function — see the table below |
+| 5 | Huey pilots leave the aircraft | **FIXED** | `seat_system.gd:611-636` `unseat_all` iterates `PASSENGER_SEATS` only; `:31-37` excludes `seat_pilot_l/r`; crew seated at `heli_lift.gd:136-157` and never unseated. No probe. |
+| 6 | **NPC squads spawn on the hooch ROOF** | **FIXED for enemy squads · UNVERIFIED overall** | `field_director.gd:41-49` `spawn_tracked_enemy` seats with `world.floor_y(pos) + 0.5`; both spawn paths route through it. **But village civilians still seat on raw terrain (`mission_generator.gd:1148`) and no probe measures any of it.** |
+| 7 | Map screen fires the weapon | **FIXED** | `topo_map.gd:469` sets `is_in_menu`; gated at `weapon_holder.gd:376,409`, `equipment_manager.gd:42,85`, `player.gd:968,1244,1341,1617,1691` |
+| 8 | Own squad fires inside the wire | **OPEN (untouched)** | **Your hypothesis is half-refuted:** ally LOS *does* test terrain (`ally_base.gd:1003-1005` → `SightCap.has_terrain_los`), so the sight system is not blind. The collider hypothesis remains unmeasured. |
+| 9 | Satchel 30s fuse + HUD count | **FIXED** | `satchel_charge.gd` `FUSE_S = 30.0` → `MissionHUD.show_fuse` (`mission_hud.gd:312-316`); mouth de-registers at `player.gd:1002` *before* the plant |
+| 10 | Post-satchel orange blow-out / decal flip-flop | **OPEN** | `gun_fx.gd:601-618` `_scorch` sets size/albedo/modulate only — no distance or normal fade anywhere |
+| 22 | Squad cannot path into hooches | **OPEN — root cause found** | `nav_baker.gd:659-693`: `mesh:true` models get their trimesh walked, everything else gets a **projected box that seals the doorway**. `hootch` has **no `mesh` flag** in `collision_table.gd:39` and is absent from `NAV_ROOF_CULL_PREFIXES` (`:570-573`) |
+| 24 | Work markers need an ACTIVITY TYPE | **OPEN — partly built** | The type exists (`civilian.gd:114` `role` ← `site_planner.gd:~995-1035` `FSB_WORK_OCCUPATION`) and gates mess/gun/dig. But `hooch_sleep`, `hooch_table`, `rest`, `smoke`, `supply`, `watch` all collapse to `off_duty` generic idles. **That is "men sitting on nothing."** |
+| 28 | Squad won't crouch with you / stands on you | **OPEN** | Evidence of absence: `is_crouching` has **no reader** outside `player.gd` except `enemy_base.gd:1224,1254`. Ally posture is cover/pin only (`ally_base.gd:575-577`) |
+| 29 | Squadmate muzzle flash detaches | **OPEN — one-line fix located** | `ally_base.gd:2049` builds a synthetic `muzzle_ballistic(flat_aim, 0.55)` point and feeds *that* to the FX at `:2077-2078`. `get_muzzle_visual()` (`:2011-2014`) exists with **zero ally callers**, while `EnemyBase` uses it correctly at `enemy_base.gd:2445,2483`. **Fix is symmetry with EnemyBase.** |
+| 33 | Friendly-unit warning before you fire | **OPEN** | Evidence of absence: no friendly-lane check in `weapon_holder.gd` or `mission_hud.gd`. The muzzle-discipline check is **AI-only** (`ally_base.gd:2060-2067`) |
+| 34 | Pause menu | **FIXED, with a real probe** | `screens/pause_menu.gd:54-55` panel inside a full-rect `CenterContainer`; `CursorSet.hook_buttons` is now the last line of `build()` (`:95`). Rival class deleted. **Probe: `tests/probe_pause_menu.tscn`** measures the real panel's global rect |
+| Q2 | A sweep finishes in the field | **FIXED** | `field_director.gd:1613-1638` `_poll_sweep`, `:1645-1670` `_finish_sweep`. `_bank_patrol` untouched. No probe. |
+| Q2b | Surface stash destructible, finishes a sweep | **FIXED — but the proof is weak** | Built: `site_planner.gd:169-182,241`, `destructible.gd:228-232`, `field_director.gd:1605-1611`. **`tests/probe_surface_cache.gd` only asserts three dictionary lookups — a table test, not a presence test. It never places a cache, never damages one, never proves a sweep closes.** |
+| NEW | **Village huts are indestructible** | **CONFIRMED OPEN** | `PLACED_DESTRUCTIBLE_KINDS` (`site_planner.gd:169-171`) contains **only** `weapons_cache`. `nha_tranh_`/`nha_san_`/`nha_ruong_` are only in `FSB_STRUCTURE_KINDS`, walked solely by `_wire_structure_destructibles`, whose only caller is the **firebase** GLB path (`:1927`) |
+
+### Items 4 and 6 — the four named height call sites, as they stand today
+
+| Call site | Uses today | Verdict |
+|---|---|---|
+| `marching_cell.gd:242` | `world.surface_y()` | **STILL WRONG** — 18m top-down ray; seats on bunker/hooch roofs |
+| `litter_team.gd:172` | `world.surface_y()` | **STILL WRONG** — same roof hazard on covered ground |
+| `air_traffic.gd:520-522` (`_ground_at`) | raw `get_height_at()` | **STILL WRONG** — cruise/orbit/Spectre altitudes |
+| `squad_system.gd:322` | raw `get_height_at()` | **Wrong function, lowest risk** — it aims an order point, it does not seat a body |
+
+**Correct today:** helicopter landings seat on the LZ pad (`helicopter.gd:261-266`), and Huey dismount
+points raycast a real collider (`seat_system.gd:842-853` `_exit_ground`). **But nothing measures either**
+— no probe seats a stick and checks the men are above the floor.
+
+### ART / SCENE-LAYOUT — items 11-21, 25-27, 30-32
+
+**ALL OPEN. Not one has been started.** Since the 8/27 playtest there have been 7 commits and exactly
+**one** touched art (`71912cfb`, the face atlas). `fsb_main_v3.glb`'s last change is `5ed4b181`
+(2026-08-24) — **three days before the playtest that reported these defects.** So every firebase, hooch,
+village and animation item is untouched by construction, not merely unclaimed.
+
+Three findings worth having:
+- **Item 16 splits.** The code half **is FIXED** — `gun_crew_performance.gd:161-163` `_capture()` now
+  appends the man (`git log -S` places it in `1a52e3dd`), so the crew performance that had *never run*
+  now runs. The floating shells are still layout.
+- **Items 19/20/21 are structural, not sloppy.** Firebase hooch interiors are **baked into the GLB**;
+  `site_planner._furnish_interior` (`:599`) only reads `prop_` markers and only runs on **village**
+  buildings. Nothing orients firebase furniture and no variant sets exist — the 11 hooches are one
+  dressing set repeated (`:2217`). **Randomising them requires a re-export, not a code change.**
+- **Item 32 has the same shape.** `_stable_animals` (`:558`) and `_furnish_interior` place from the
+  GLB's own markers with **no overlap rejection**, so a marker authored inside a wall puts the prop
+  inside the wall.
+
+### Item 31 (VC faces) — **UNVERIFIED, and there is a concrete blocker**
+
+The data change is real and measures out (the binary was parsed, not the commit message):
+`vc_guerilla.glb` face surface measures **u 0.0000-0.1000, v 0.0000-0.2400** — exactly cell 0 of a 10x3
+sheet — and `head_frag_01..07` sit inside that same island, so gib heads match the head they came off.
+
+**But Godot has never seen it.** `.godot/imported/vc_guerilla.glb-*.scn` is dated **Aug 8**; the GLB is
+dated **Sep 3**. No reimport has occurred, there is not one `*_face_atlas_viet.*` file on disk, and the
+code half is untested: `VcNvaDresser._rides_face_atlas` (`vc_nva_dresser.gd:273-277`) matches on
+`resource_path.contains("face_atlas")`, which the new name *should* satisfy — **but that link has never
+been exercised.**
+
+> **ACTION: run `godot --headless --path . --import`, then look at an NVA regular and a VC guerilla at
+> play distance.** Not run this session because you were editing in parallel.
+
+### 36. NEW DEFECT FOUND THIS SESSION — the lives economy is dead in daylight
+
+**[CODE] [P1] Dying outside the wire before nightfall ends the run outright, and permanently disables
+body-swap for the rest of it.**
+
+`BodySwapSystem._pick_pool()` (`scripts/player/body_swap_system.gd:56-69`) draws candidates only from the
+node group `garrison_promoted`. That group is populated only by `GarrisonDefender.promote()`
+(`garrison_defender.gd:100`), called only from `FieldDirector._stand_to()` (`field_director.gd:1775`) —
+**which runs at night.** So a death at, say, 900 s finds **zero** candidates.
+
+**And it is worse than a missing pool: `_picked = true` latches on line 57 BEFORE the candidate scan**,
+so swapping stays dead for the rest of the run even after stand-to populates the group. The player gets
+the end card at ~T+15 min and never sees the siege the whole demo is built toward.
+
+**Fix:** move `_picked = true` to after the candidate scan. **Probe:** `tests/probe_daylight_death.tscn`
+— kill the player at 900 s, assert a swap occurs.
+**Why it matters now:** the 2026-09-06 two-quest design exists to put the player outside the wire in
+daylight, which is precisely the window where this fires.
+
+---
+
 ## QUEUE
 Ordered. Tag = who does the work. `[x]` = fixed this run (2026-08-28), unverified by you.
+**The `[x]`/`[ ]` marks below are the 2026-08-28 claims. Where they disagree with the verified table
+above, the table wins.**
 
 **P0 - CRASHES (both fixed, both need your eye)**
 1. [x] [CODE] Air support crash. `_danger_close_to_squad` cast a freed squad member. Fixed + `members` now self-prunes.

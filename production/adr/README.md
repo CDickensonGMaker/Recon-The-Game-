@@ -41,9 +41,20 @@ Every citation was independently re-verified against source at writing time.
 | [031](ADR-031-destruction-doctrine.md) | **The Destruction Doctrine: state-swap, one blast bus, perf-gated terrain** | **ACCEPTED 2026-07-25** |
 | [035](ADR-035-the-siege.md) | **The Siege: the night assault on the firebase** | **DRAFT rev.2 2026-07-28** — revised after War Room review; awaiting Summoner ratification. Amends ADR-020 (Ambience Law) and ADR-026 (light budget) |
 | [036](ADR-036-the-fall-of-the-firebase.md) | **The Fall of the Firebase: objectives, respawn stake, lethality** | **DRAFT — BLOCKED 2026-07-28.** Summoner's rulings recorded; 9 dependencies do not exist (the firebase is one baked GLB node). Split out of ADR-035 rev.1 |
+| [037](ADR-037-the-route-the-pencil-and-the-hunters.md) | **The route is an order, the pencil is yours, and the enemy hunts what you left** | **Accepted 2026-07-28.** *Was a second file numbered 035* — **renumbered to 037 on 2026-09-06**, closing a collision open since 2026-07-28 (AUDIT_2026-07-28 §P1, AUDIT_2026-08-06 X-1). Citations meaning the hunters/route (`DEMO_PERF_PLAN.md`, `DEMO_SHIP_BACKLOG.md`) were repointed; every surviving `ADR-035` reference means **the siege** |
+
+| [038](ADR-038-the-firebase-factions.md) | **The Firebase Factions — four camps inside the wire, and the readout for Hearts & Minds** | **ACCEPTED 2026-09-06** (Summoner decree, THE RPG PIVOT). Amends ADR-019 §4. Demo ships **dressing only** — the readout is unbuildable until ADR-019's ledger exists, and may not be claimed. Carries the **imprecision law** (§2a) and the launch ruling on the racial element (§3a: placement ships, the verbal layer is cut) |
+| [039](ADR-039-zones-not-streaming.md) | **Zones, not streaming — one builder, many places; you BOARD the bird, you never select it** | **ACCEPTED 2026-09-06 as canon; POST-DEMO, BUILD NOTHING.** Amends ADR-013 (map-size gate), ADR-017 §4 (load-mask claim corrected), ADR-028. Six enforceable clauses + a FROZEN FILES section |
+| [040](ADR-040-the-down-state.md) | **Lethality is not negotiable — the DOWN state gets verbs, not the health pool more points** | **ACCEPTED 2026-09-06 as canon; POST-DEMO, BUILD NOTHING.** Reaffirms Pillar 1 and ADR-016 against a sympathetic attack. §4 records the Fairness-Law near-miss as **verified FIRING**, with one real hole |
+| [006-B](ADR-006-amendment-B-the-score-is-re-hosted.md) | **Amendment B: the mission score is RE-HOSTED, not repealed. HQ is the faucet** | **ACCEPTED 2026-09-06.** The scalar dies, the sensor lives. *Body count may move HQ's WORDS; never HQ's GRANT* |
+| [007-A](ADR-007-amendment-A-save-anywhere.md) | **Amendment A: save anywhere is POST-DEMO, and here is the bill** | **ACCEPTED 2026-09-06 as canon; BUILD NOTHING.** Six workstreams — the largest item in the decree. Both old save defects confirmed CLOSED |
 
 **Deleted 2026-07-20 by the Summoner (never built against):** ADR-024 (cinematic direction),
 ADR-027 (PS2 world design). A citation to either is drift — correct it on contact.
+
+**Numbering collision CLOSED 2026-09-06:** two files were numbered ADR-035 from 2026-07-28 (flagged by
+AUDIT_2026-07-28 §P1 and AUDIT_2026-08-06 X-1, unfixed for 40 days). The route/hunters ADR is now
+**ADR-037**; every surviving `ADR-035` citation means **the siege**.
 
 **Writing a new ADR:** next number, same template (Context / Decision / Consequences with the sacrifice
 named / Evidence with verified file:line / Related). An ADR that changes a shipped behavior gets a bead.

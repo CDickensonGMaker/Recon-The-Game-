@@ -321,6 +321,31 @@ tunnels won't save it.**
 
 A frozen epic thaws only by explicit decree — a bead in `bd ready` is not a thaw.
 
+### 6.1 THE RPG PIVOT (Summoner decree, 2026-09-06) — RECORDED AS CANON, BUILD NOTHING
+
+He reframed the project as an **RPG / STALKER-in-Vietnam** — the firebase is home, NPCs give you
+problems, no fantasy elements, *Apocalypse Now* as the tonal target — **and in the same breath held the
+scope wall himself: *"but the demo scope is still the overall goal."*** The 2026-08-06 EA ruling stands
+unchanged; §8's target is untouched. The decree is written down precisely so it stops competing with
+shipping. Full record: `production/war_room/2026-09-06_rpg_pivot/`.
+
+| Item | Where it now lives | Standing |
+|---|---|---|
+| Four firebase factions; the racial element as social geography, never plot | **ADR-038** | Canon. **Demo ships DRESSING ONLY** — and no doc may call it a readout, because ADR-019's ledger does not exist in code |
+| Factions are the READOUT for Hearts & Minds | **ADR-038 §2** | Canon; **unbuildable today** (no province value to read) |
+| The ADR-006 mission score is retired — **re-hosted, not repealed**; HQ is the faucet | **ADR-006 Amendment B** | Canon. Body count moves HQ's WORDS, never HQ's GRANT |
+| Contraband as the reward currency | **ADR-038 / ADR-006-B** | Canon, three guards: never from corpses · everything consumable · never buys a weapon |
+| **2km map** | **ADR-039 §6** | **PARKED behind a hard gate:** terrain LOD/distance-culling shipped and measured, AND placement bands that scale. One constant, but not cheap |
+| **Zones, not streaming** — one builder many places; **you BOARD the bird, you never select it** | **ADR-039** | **PARKED.** Streaming stays dead. Boarding is the guard that stops the offer board re-growing |
+| **Save anywhere** | **ADR-007 Amendment A** | **PARKED — the largest item in the decree.** Cheap intermediate ("save at base") to be offered to him first |
+| **Tunnels as dungeons** | **ADR-039 §8** | Still FROZEN per the row above; the thaw is *named*, not granted. Interior builder is ~70% built (`TunnelRoom`) |
+| **Player durability → extend the DOWN state, not the health pool** | **ADR-040** | **PARKED.** Health pool and headshot law do NOT move. Down state already ~30s and has zero verbs — the work is LOOK + VOICE |
+| *Apocalypse Now* structure — vignette PLACES, not a river journey | **ADR-020** (the authored threshold governs) | Roadmap only |
+
+**The one new DEMO-SCOPED design:** two quests out the wire, timed so the player returns at dusk into
+the night stand-to and the firebase attack. Planned and priced, **not built** — see
+`production/DEMO_TWO_QUESTS_PLAN_2026-09-06.md`.
+
 ---
 
 ## 7 · Corrections to stale law (for the CLAUDE.md / head-honcho rewrite)
@@ -389,10 +414,13 @@ day**). Code costs him **zero art-days** — that split drives all planning.
    18 fail / 14 error, unverified since). Then the three perf probes that have never run —
    THE WALK · ONE DIG · THE BARRAGE. **Nothing below is trustworthy until this is done, and a red
    suite IS the day.** *(This is where the long-open "gating FPS number" finally gets taken.)*
-2. **STOP THE BLEEDING.** Atomic saves — `save_manager.gd:99-107` writes in place with no
-   temp/rename/`.bak` and autosave rewrites slot 8 every 30 s, so a crash mid-write destroys it ·
-   reject future-version saves (`:177`, `save_data.gd:43`) · close the demo save-dir leak on the
-   abnormal-exit path · export hygiene (no `res://tests` dep, no live dev keys).
+2. **STOP THE BLEEDING.** ~~Atomic saves~~ **CLOSED 2026-09-06** — write-and-swap is live
+   (`save_manager.gd:100-131`: temp → flush → verify → `.bak` rotate → rename). ~~reject
+   future-version saves~~ **CLOSED 2026-09-06** — `save_manager.gd:193-199` returns null rather than
+   falling through to `from_dict`. *(Both verified against current code by the 2026-09-06 council; the
+   old `:99-107` / `:177` line numbers described a file that has since changed. NO MORE DRIFT.)*
+   **Still open:** close the demo save-dir leak on the abnormal-exit path · export hygiene (no
+   `res://tests` dep, no live dev keys).
 3. **THE BUGS HE SEES FIRST.** Spawn-under-world · enemy dressing (**`EnemyBase` has no dresser
    call at all** — every VC/NVA man is a clone in the 45-man climax, and the art is already on
    disk) · cover-seek reads (men break 10 m early) · legs clipping trousers.
