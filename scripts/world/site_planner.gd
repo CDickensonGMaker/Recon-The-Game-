@@ -162,19 +162,35 @@ static func tag_ballistics(root: Node, soft: bool) -> void:
 ## surface stash was a plain StaticBody3D with no HP entry, so his "destroy the stash"
 ## verb existed only underground (his question, 2026-08-28; ruled: wire it).
 ##
-## NOT the village huts: those are placed by this same function and are still scenery
-## here - the nha_* prefixes in FSB_STRUCTURE_KINDS are only ever matched inside the
-## firebase GLB by _wire_structure_destructibles, which never walks the AO. That is a
-## real, separate hole and it is logged, not silently widened by this map.
+## THE VILLAGE HUTS WERE INDESTRUCTIBLE (playtest 2026-08-28, fixed 2026-09-06). The
+## nha_* prefixes were declared in FSB_STRUCTURE_KINDS, but that table is walked ONLY by
+## _wire_structure_destructibles, whose only caller is the firebase GLB path (:1927) - so
+## a hut inside fsb_main_v3.glb could be blown down and the identical hut stamped into a
+## village by this function could not. Two tables would drift again, so there is ONE:
+## _destructible_kind_for() reads the exact map below first, then falls back to the SAME
+## prefix table the firebase path uses.
 const PLACED_DESTRUCTIBLE_KINDS := {
 	"weapons_cache": "weapons_cache",
 }
 
 
+## The destructible kind for a placed model, or "" for scenery. Exact key wins; then the
+## shared FSB_STRUCTURE_KINDS prefixes (nha_tranh_ / nha_san_ / nha_ruong_ and the fb_*
+## families, which this path never places but costs nothing to honour).
+static func _destructible_kind_for(model_name: String) -> String:
+	var exact: String = str(PLACED_DESTRUCTIBLE_KINDS.get(model_name, ""))
+	if exact != "":
+		return exact
+	for spec in FSB_STRUCTURE_KINDS:
+		if model_name.begins_with(str(spec["prefix"])):
+			return str(spec["kind"])
+	return ""
+
+
 func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float) -> Node3D:
 	var model_name := model_path.get_file().get_basename()
 	var entry: Dictionary = CollisionTable.get_entry(model_name)
-	var dkind: String = str(PLACED_DESTRUCTIBLE_KINDS.get(model_name, ""))
+	var dkind: String = _destructible_kind_for(model_name)
 	var body: StaticBody3D
 	if dkind != "":
 		var d := Destructible.new()

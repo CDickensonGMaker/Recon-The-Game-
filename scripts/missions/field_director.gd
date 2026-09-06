@@ -1597,11 +1597,9 @@ func _tunnels_in_ring() -> int:
 	return n
 
 
-## Player.gd calls this the moment he empties a tunnel cache. The stash is the one of the
-## Summoner's three that has no destroy verb yet - the surface `weapons_cache` prop is a
-## plain StaticBody3D with no HP entry in Destructible.HP_FOR, so it cannot be blown up at
-## all. Clearing the tunnel's cache is the only stash verb the game actually has today;
-## when the surface cache becomes destructible this function is where it reports in.
+## Both stash verbs report in here: player.gd calls it when he empties a TUNNEL cache, and
+## Destructible._do_destroy calls it through the "mission_director" group when the SURFACE
+## weapons_cache is blown. Proven end to end by tests/probe_destructible_placement.tscn.
 func report_stash_cleared(at: Vector3) -> void:
 	if not patrol_out or patrol_location == Vector3.ZERO:
 		return
