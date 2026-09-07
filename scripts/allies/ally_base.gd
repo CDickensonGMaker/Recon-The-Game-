@@ -429,6 +429,14 @@ var _yaw_prev: float = 0.0
 var _yaw_prev_ms: float = 0.0
 var _cover_exit_until_ms: float = 0.0  # one-shot cover_to_stand window (Track B3)
 var _last_cover_exit_ms: float = -1e9  # debounce so cover-thrash can't stutter the stand-up
+## Body-parity one-shots carried over from EnemyBase (War Room 2026-09-07, items 1-2).
+## Both clips were already authored and already mapped; only the ally callers were missing.
+var _stumble_until_ms: float = 0.0     # one-shot stumble_hit window (solid non-lethal hit)
+var _arrive_until_ms: float = 0.0      # one-shot run_to_stop plant (run -> halt)
+const ARRIVE_PLANT_MS: float = 450.0   # EnemyBase's window, unchanged
+## The hunker a PINNED man holds. Already authored and already listed in
+## COVER_HOLD_CLIPS below - it simply had no caller on the suppression path.
+const PIN_HUNKER_CLIP: String = "cover_kneel_brace"
 ## See EnemyBase.CROUCH_SPEED_CAP - the move-side half of B2 so the crouch does
 ## not ice-skate. Allies default aggressive, so low_posture is a high bar below.
 const CROUCH_SPEED_CAP: float = 1.9
@@ -712,6 +720,11 @@ func _update_sprite() -> void:
 	if _cover_exit_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).play("cover_to_stand")
 		return
+	# Stumble one-shot, mirroring `enemy_base.gd:621-623`. Self-clearing window, so it
+	# needs no _anim_override and cannot leak a frozen pose.
+	if _stumble_until_ms > float(Time.get_ticks_msec()) and sprite_actor is ModelActor:
+		(sprite_actor as ModelActor).play("stumble_hit")
+		return
 	var vel_flat := Vector3(velocity.x, 0.0, velocity.z)
 	var speed: float = vel_flat.length()
 	var lateral: float = 0.0
@@ -754,6 +767,7 @@ func _update_sprite() -> void:
 	var intent: String = SpriteStateMap.intent_for(current_state, false, false, firing, speed, lateral, sneaking, _low_posture, _prone, _turn_rate, forward_c)
 	# Stability filter: intent must win continuously for 180ms before the clip
 	# clip commits (1-frame blips can never grab the clip). Fire/death bypass.
+	var prev_intent: String = _last_intent
 	if intent != _last_intent:
 		if intent != _cand_intent:
 			_cand_intent = intent
@@ -764,6 +778,19 @@ func _update_sprite() -> void:
 			intent = _last_intent
 	else:
 		_cand_intent = intent
+	# ARRIVAL BEAT (War Room 2026-09-07, ranked item 2), lifted verbatim from
+	# `enemy_base.gd:681-690`. A fast man settling into a stationary pose plants his
+	# feet instead of stopping dead out of a 4.2 m/s run. Display-only: it rewrites
+	# the intent for the clip pick, never the latch state above.
+	if _arrive_until_ms > now:
+		if intent == "fire" or intent.begins_with("death"):
+			_arrive_until_ms = 0.0  # shooting/dying outranks footwork
+		else:
+			intent = "arrive"
+	elif (prev_intent == "run" or prev_intent == "sprint") \
+			and (intent == "aim" or intent == "idle" or intent == "cover"):
+		_arrive_until_ms = now + ARRIVE_PLANT_MS
+		intent = "arrive"
 	sprite_actor.play(SpriteStateMap.clip_for(_visual_is_model, sprite_weapon, intent))
 	if sprite_actor is ModelActor:
 		(sprite_actor as ModelActor).set_locomotion_speed(speed)
@@ -1709,7 +1736,16 @@ func _execute_suppressed(delta: float) -> void:
 	velocity.z = lerpf(velocity.z, 0.0, delta * 10.0)
 	burst_count = 0
 	shots_fired = 0
-	_anim_override = ""  # the pin hunker outranks any latched cover pose
+	# THE PIN HUNKER (War Room 2026-09-07, ranked item 3). This line used to read
+	# `_anim_override = ""` under the comment "the pin hunker outranks any latched
+	# cover pose" - but no hunker was ever played, so the comment claimed behaviour
+	# that did not exist (ADR-015 truth law) and a pinned man kept a kneeling AIM
+	# while rounds cracked over him. `cover_kneel_brace` was already authored and
+	# already in COVER_HOLD_CLIPS; only this caller was missing.
+	# It DOES outrank a latched cover pose, exactly as the old comment claimed -
+	# assignment, not clear. `_change_state` drops it on the way out of SUPPRESSED
+	# so it can never leak into COMBAT as a frozen crouch.
+	_anim_override = PIN_HUNKER_CLIP
 	if _aim_settle > 0.0:
 		_aim_settle -= delta
 	elif target != null and is_instance_valid(target) and has_line_of_sight \
@@ -1743,7 +1779,17 @@ func _execute_seeking_cover(delta: float) -> void:
 			_moving_to_cover = false
 			has_cover = true
 			_cover_hold_start_ms = Time.get_ticks_msec()
-			_anim_override = _pick_cover_arrival_clip() if _wall_within(1.2) else ""
+			# COVER ARRIVAL GATE (War Room 2026-09-07, ranked item 4). This used to be
+			# `if _wall_within(1.2)` alone - a layer-1 ray that only world geometry can
+			# answer. Vegetation, terrain and the felled-log low cover all returned
+			# false, so the whole stand_to_cover / dive-roll arrival set was skipped on
+			# the most common cover in a jungle map and men slid into a bush standing up.
+			# `_terrain_cover01` is the grid's own terrain cover value and is exactly the
+			# signal the ray could not see. Deliberately NOT `cover01()`: that folds in
+			# `has_cover`, which was set true two lines above, so it would open the gate
+			# on bare ground and play a cover arrival in the open.
+			_anim_override = _pick_cover_arrival_clip() \
+				if (_wall_within(1.2) or _terrain_cover01 >= 0.3) else ""
 			var leap: String = _anim_override
 			# Window sized by the ACTUAL clip length: a fixed window freezes short
 			# fallback clips and cuts long ones mid-roll.
@@ -2016,6 +2062,13 @@ func _change_state(new_state: Enums.AIState) -> void:
 		or new_state == Enums.AIState.SUPPRESSED
 	if was_fighting and not still_fighting:
 		_release_cover()  # also clears _anim_override
+	# The pin hunker is owned by SUPPRESSED and dies with it. Without this the brace
+	# survives SUPPRESSED->COMBAT (both are "still fighting", so _release_cover never
+	# runs) and the man fights on from a frozen crouch - the exact leak the cover-exit
+	# one-shot was written to avoid.
+	if current_state == Enums.AIState.SUPPRESSED and new_state != Enums.AIState.SUPPRESSED \
+			and _anim_override == PIN_HUNKER_CLIP:
+		_anim_override = ""
 	current_state = new_state
 	state_timer = 0.0
 
@@ -2201,6 +2254,23 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 
 	suppression_level = minf(1.0, suppression_level + 0.3)
 	_last_crack_ms = float(Time.get_ticks_msec())
+
+	# BODY PARITY WITH THE ENEMY (War Room 2026-09-07, ranked item 1). The enemy has
+	# flinched and stumbled since `enemy_base.gd:2649-2666`; the ally had NEITHER, so
+	# the half of the screen the player watches most absorbed rounds as a mannequin.
+	# Same thresholds, same clips, same low-posture guard - this is the enemy's block,
+	# not a new design.
+	if current_hp > 0 and sprite_actor != null and is_instance_valid(sprite_actor) \
+			and sprite_actor.has_method("flinch"):
+		sprite_actor.call("flinch", last_hit_dir,
+			clampf(float(amount) / float(max_hp) * 2.0, 0.35, 1.0))
+	# Pain-quota stagger: a solid non-lethal hit (>= a third of max HP) lurches him.
+	# A man already crouched or prone has nowhere to fall and the clip would launch
+	# him upright, so the low-posture guard is carried over verbatim.
+	if current_hp > 0 and float(amount) >= float(max_hp) / 3.0:
+		apply_stagger(1.0)
+		if not _low_posture and not _prone:
+			_stumble_until_ms = float(Time.get_ticks_msec()) + 500.0
 
 	if current_hp <= 0:
 		current_hp = 0

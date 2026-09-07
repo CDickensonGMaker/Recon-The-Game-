@@ -421,9 +421,15 @@ day**). Code costs him **zero art-days** — that split drives all planning.
    old `:99-107` / `:177` line numbers described a file that has since changed. NO MORE DRIFT.)*
    **Still open:** close the demo save-dir leak on the abnormal-exit path · export hygiene (no
    `res://tests` dep, no live dev keys).
-3. **THE BUGS HE SEES FIRST.** Spawn-under-world · enemy dressing (**`EnemyBase` has no dresser
-   call at all** — every VC/NVA man is a clone in the 45-man climax, and the art is already on
-   disk) · cover-seek reads (men break 10 m early) · legs clipping trousers.
+3. **THE BUGS HE SEES FIRST.** Spawn-under-world · ~~enemy dressing (`EnemyBase` has no dresser
+   call at all — every VC/NVA man is a clone in the 45-man climax)~~ **CORRECTED 2026-09-07**
+   (War Room `2026-09-07_squad_cohesion`, NO MORE DRIFT): **the dresser is built and IS called.**
+   `enemy_base.gd:470` invokes `_dress_visual`, which calls `VcNvaDresser.dress` (`:511-516`) seeded
+   off the shared memberless-man walk so an operation seed rebuilds the same force (ADR-010);
+   `scripts/visuals/vc_nva_dresser.gd` ships beside `grunt_dresser.gd` and `zombie_dresser.gd`.
+   The "45 clones" claim was true on 2026-08-06 and is false now. **The open half is whether the
+   variety READS on screen — unverified by playtest, never by a code read (ADR-015).**
+   · cover-seek reads (men break 10 m early) · legs clipping trousers.
 4. **RECOVER WHAT IS ALREADY BUILT — before authoring anything new.** Wire the stranded M101
    artillery crew (~497 authored channels in `fb_emplacement_m101.glb`, **zero readers**, off
    behind one guard at `site_planner.gd:822-823`) · run the animation audit and the staged-GLB

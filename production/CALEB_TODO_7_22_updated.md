@@ -560,3 +560,97 @@ is the control). The lone exception is `disembark_heli_*` at 0.200–0.534m.
 `WEAPON_FAMILY` (`sprite_state_map.gd:385-391`) declares `mg`, `bolt`, `launcher` and `pistol` families
 with **zero clips authored**. `model_actor.gd:877` warns once per family and falls back to the rifle hold
 — the RPD gunner and the RPG man carry their weapons like rifles.
+
+---
+
+# 2026-09-07 — COMBAT LEGIBILITY (War Room `war_room/2026-09-07_squad_cohesion/`)
+
+Full decree: `production/war_room/2026-09-07_squad_cohesion/synthesis.md`. Seven architects.
+Convened as "is squad cohesion a combat mechanic"; **he reframed it mid-council** to *"realistic
+feeling and looking combat... about 60 percent there, not as smooth as Call of Duty 1 or Brothers in
+Arms."* The cohesion machinery turned out to be ~80% built and 0% named; the animation architecture
+turned out to be **better than the reference games'**. The gap is parity and cadence, not clips.
+
+## THE PERF BASELINE — first one ever taken on the demo
+`--perf-probe` on `demo_game.tscn`, render_scale 0.75, forward_plus, seed 29072026, n=130:
+**FPS avg 27.9 / min 25.0 · GPU 27.14 ms avg (32.61 max) · CPU 5.24 ms avg (8.59 max) ·
+265,108 prims / 1,950 calls / 2,986 objs.**
+**The GPU is the wall by 5.2x.** Huge CPU headroom, so animation CPU work is cheap. **Standing caveat:
+at 27.9 FPS frame pacing competes with animation as the explanation for "not smooth" — no visual
+verdict is clean until the GPU wall moves.** NOT the siege: `--perf-siege` unrun, THE WALK · ONE DIG ·
+THE BARRAGE still untaken.
+
+## BUILT (zero art-days, gate-exempt, all probes green)
+Ally body parity — every clip already authored and mapped, only the ally callers were missing:
+1. **Ally flinch + stumble** on `take_damage` (enemy thresholds/clips/guards verbatim, prone guard added)
+2. **Ally arrival plant** — run/sprint → aim/idle/cover plays `run_to_stop` for 450 ms (display-only)
+3. **THE PIN HUNKER** — a pinned man holds `cover_kneel_brace` instead of a kneeling aim.
+   **Discharges the truth-law violation** where the old code cleared the override under a comment
+   claiming a hunker that never existed. Plus its leak guard in `_change_state` (the brace must not
+   survive SUPPRESSED→COMBAT, where `_release_cover` never runs)
+4. **Cover-arrival ungated** from the layer-1 wall ray that vegetation/terrain/log cover all failed —
+   now `wall OR terrain_cover >= 0.3`. Deliberately not `cover01()` (would fire on bare ground)
+
+**Verified:** headless boot CLEAN · `test_ally_states` PASS · `test_low_posture` PASS ·
+`test_squad_break` PASS · `test_squad_invariants` PASS · `test_squad_coordinator` PASS.
+**No probe proves it LOOKS better — that is his eye, by the council's own closing rule.**
+
+## AWAITING HIS RULING
+- **THE TOKEN DIAL.** `doctrine_us.tres` `exposure_tokens` 3→2, `grant_stagger_ms` 600→900. Applied,
+  **failed `test_squad_coordinator` ("doctrine data of record"), and was REVERTED** — the guard exists
+  to catch unruled doctrine changes and it worked. **The test was NOT edited to permit it.**
+  Two architects reached this independently and `siege_director.gd:615-618` already condemns the
+  pattern in writing. Siege is insulated (`assault_press` = 999/0, separately guarded).
+  **If approved: change the .tres AND `tests/test_squad_coordinator.gd:55` in the same commit.**
+- **AIM LAYER — scoped, not built (his ruling 3).** A bounded spine-only aim modifier does **NOT** need
+  the AnimationTree rewrite: **1 new file (~60-70 lines), 1 existing file touched, ~3 lines, ZERO of the
+  ~30 `play()` sites, ZERO of the 8 fossil-law files.** `FlinchModifier` is the shipping precedent
+  (52 lines, 2 lines of integration). **Named risk:** flinch is transient, an aim layer is persistent,
+  so it fights every clip that already rotates the spine (cover lean, turn-in-place, prone) — 1 day for
+  the modifier, **unknown** for the conflict set. **If an AnimationTree ever lands it lands as its own
+  decreed change, never dressed as a blend-time tweak.**
+
+## PARKED BY HIS RULING 2 (no art-days) — correct and unbuilt, he will want these
+- **Rifle-ready start poses 76° apart** (`firing_rifle` 76° off `idle_aiming`, `reloading` 69°,
+  `idle_aiming` 37.6° off `idle`; `ANIM_WISHLIST.md` B1). Crossfaded in 0.18 s, twice per shot, on the
+  most-played transition in the game. **1-2 art-days**
+- **`aim_walk` does not exist**, falls back to `walk_forward` — a man advancing under fire plays the
+  patrol stroll. **1 art-day**
+- **Hip lateral sway stripped by the exporter**, 31 locomotion clips (`ANIM_WISHLIST.md` C2).
+  **1-2 days + full rebake**
+- **Emotional-register axis + variant generation** (`tools/make_ambient_variants.py` written, never
+  run). **The month.** Right answer to "samey", wrong answer to "unsmooth" — must not start first
+- **FLESH IMPACT SAMPLE** — shooting a man plays `IMPACT_DIRT` under the comment *"placeholder wet tick
+  until a flesh sample exists"*. **No flesh audio exists on disk**, so this is an ASSET not a wire-up
+  and ruling 2 parks it. Cheapest perceptual win on the board; his own "they don't die" complaint in audio
+
+## NEXT CODE ITEMS — ranked, gate-exempt, unbuilt
+1. **Enemies have zero cover craft** — all cover clips + the arrival picker are ally-side only;
+   `enemy_base` sets `has_cover = true` with no clip. **The fix is already written on the other side.**
+   Largest remaining asymmetry
+2. Ally grenade-throw windup (the third enemy-only one-shot)
+3. **20 recorded voice lines never play** (12/25 squad, 7/15 radio) incl. the whole directional
+   vocabulary and both reload lines; **the contact moment fires a text toast with no voice under it**;
+   no bark at token grant or element swap
+4. **No animation LOD anywhere** — all 45 men animate at full rate at the climax. Ships only with its bench
+5. Per-transition blend times (0.18 s is one global constant, ~15 lines)
+6. Six deceleration paths in `ally_base`, two hard-setting velocity 4.2 → 0 in one frame (bug-class)
+7. `_CLIP_SPEED` holes — sprint/crouch diagonals, `run_to_stop`, **every `__smg` variant** (SMG men skate)
+8. NPCs never reload (clips authored, one test-scene caller)
+9. Nav restake threshold 3 m — the one surviving stutter suspect, unmeasured
+10. The three council probes: stillness census · `probe_anim_churn` · resolver log
+
+## RULED / PARKED — do not reopen
+- **Six free misses: DECIDED.** Per-man near-miss stands, generous and atmospheric by ruling
+- **Rotation / DEROS: OUT OF DEMO SCOPE.** Recorded, not planned. (Pillar 4's text still promises men who
+  "rotate home"; no rotation clock exists in code — post-demo)
+- **No cohesion resource, no meter, no number, no fifth order key.** The readout is the soldiers themselves
+- **Pillar 4's provisional anti-puppeteer clause: formally OPEN, PARKED**, no urgency, his call from play
+
+## DRIFT CORRECTED
+- `GAME_GUIDE.md` §8.1 item 3's "EnemyBase has no dresser call at all / 45 clones" was **FALSE** —
+  `enemy_base.gd:470` → `_dress_visual` → `VcNvaDresser.dress`. Corrected in place. Whether the variety
+  **reads** is still a playtest question
+- `production/research/squad_mechanics.md` — stale-baseline notice added (order enum, squad size,
+  dual-bind law, formations)
+- `ANIM_VARIETY_PLAN.md` **refuted** on "cower is the one gap with neither art nor code" — art existed

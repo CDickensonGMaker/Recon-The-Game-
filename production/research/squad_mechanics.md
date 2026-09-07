@@ -1,5 +1,17 @@
 # Squad Command Mechanics — Research & Roadmap
 
+> **STALE BASELINE NOTICE (added 2026-09-07, War Room `2026-09-07_squad_cohesion`, NO MORE DRIFT).**
+> The "What we have today (verified baseline)" section below was true when written and is not true now.
+> Corrections, verified by code read this session: `OrderMode` is **{ FOLLOW, HOLD, MOVE_TO, RESCUE }**
+> (`ally_base.gd:279`) — RESCUE is system-issued for the medic revive chain and pre-empts all states.
+> The squad is **8** (`squad_roster.gd` `SQUAD_SIZE`), not 5. Orders are **dual-bound** C/H/X/N + F1–F4
+> (ADR-012, binding — neither set may be removed). Formation slots **already exist** (`ally_base.gd:1420-1455`:
+> offset ring halted, staggered file above 3.2 m/s with hysteresis, point man 12 m ahead), so P2 below is
+> partly shipped. A `SquadCoordinator` (`scripts/ai/squad_coordinator.gd`) now runs exposure tokens, an
+> elected suppressor slot and bounding overwatch **for both sides**. Re-verify against code before citing
+> any priority in this document.
+
+
 Research into squad-command systems across the tactical-FPS canon, distilled into a
 **prioritized, low-bloat upgrade path** for RECONgame's existing squad. Every
 recommendation extends the current `AllyBase.OrderMode` enum and `SquadSystem`

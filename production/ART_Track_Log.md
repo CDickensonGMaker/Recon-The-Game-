@@ -1029,3 +1029,26 @@ in game"* — it already did, and it is now verified end to end rather than assu
 `GruntRandomizer.next_bench_seed()`) is the exact mirror of the US path
 `scripts/visuals/grunt_randomizer.gd:94` (`GruntDresser.dress`). Every manifest GLB path resolves to
 a file on disk (35/35 probed).
+
+---
+
+## 2026-09-07 — ART ITEMS NAMED BY THE COMBAT-LEGIBILITY COUNCIL (PARKED, ruling 2: no art-days)
+
+Council: `war_room/2026-09-07_squad_cohesion/synthesis.md` §7. His ruling was **code-only, hands stay
+on the store page / capsule art / trailer**. These are **PARKED, NOT REFUSED** — the technical artist's
+claims stand on the record as correct and unbuilt, sized at his measured velocity (~1 large sequence
+OR 1-2 models per working day).
+
+| Item | Defect it fixes | Size |
+|---|---|---|
+| **Rifle-ready start-pose alignment** | `firing_rifle` sits **76°** off `idle_aiming`, `reloading` **69°**, `idle_aiming` **37.6°** off `idle` (measured, `ANIM_WISHLIST.md` B1). At a 0.18 s crossfade that is a 76° upper-body whip **twice per shot, on the most-played transition in the game** | **1-2 art-days** |
+| **`aim_walk` clip** | Does not exist; falls back to `walk_forward`, so a man advancing under fire plays the patrol stroll. Bible 04 already names this gap | **1 art-day** |
+| **Hip lateral sway** | The exporter strips it across **31 locomotion clips** (`ANIM_WISHLIST.md` C2) — gaits read on rails | **1-2 days + full rebake** |
+| **Flesh impact audio** | Shooting a man plays `IMPACT_DIRT`; the source comment says *"placeholder wet tick until a flesh sample exists"*. **No flesh audio exists anywhere on disk.** Parked as an ASSET, not a wire-up | one sample set |
+| **Emotional-register axis + SPLICE/PHASE/RETIME variants** | `tools/make_ambient_variants.py` is written and **has never been run**. Right answer to "the world reads samey", **wrong answer to "combat is not smooth"** | **the month — must not start before the rows above** |
+
+**Art NOT needed (corrections to this log's own assumptions):** the four ally body behaviours shipped
+2026-09-07 (flinch, stumble, arrival plant, pin hunker, cover-arrival ungate) needed **zero new clips** —
+every one was already authored and already mapped, and only the ally caller was missing.
+**`ANIM_VARIETY_PLAN.md` is refuted** on its claim that cower is *"the one genuine gap with neither art
+nor code"*: `cover_kneel_brace` existed and is now wired.
