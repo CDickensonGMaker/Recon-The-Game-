@@ -13,7 +13,7 @@ REM   3. Turn and face the treeline. Hold still 15 seconds looking into the deep
 REM      that is the foliage fix and the render scale.
 REM   4. Walk 30 paces out the gate into the jungle and stop. Hold 15 seconds.
 REM Close the window when done.
-"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0" --perf-before --print-fps res://scenes/levels/demo_game.tscn > "%~dp0perf_before.log" 2>&1
+"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0." --perf-before --print-fps res://scenes/levels/demo_game.tscn > "%~dp0perf_before.log" 2>&1
 echo.
 echo BEFORE run written to perf_before.log
 pause
