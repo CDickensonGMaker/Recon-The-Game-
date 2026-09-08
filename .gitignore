@@ -105,3 +105,6 @@ build/
 *.bak
 *_PRE_*.blend
 test_results/
+perf_before.log
+perf_after.log
+suite_run.txt

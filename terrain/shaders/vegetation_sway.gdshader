@@ -8,11 +8,15 @@
 // Phase comes from the instance's world origin (MODEL_MATRIX[3] - folded per
 // instance by MultiMesh) so the jungle never sways in unison.
 //
-// No PBR - lambert diffuse, no specular, nearest filter, alpha scissor:
-// the ground_clutter.gd / PSX recipe as a ShaderMaterial. cull_disabled so
-// the grass star-fans and palm fronds read from both sides.
+// No PBR - vertex lighting, lambert diffuse, no specular, nearest filter, alpha
+// scissor: the ground_clutter.gd / PSX recipe as a ShaderMaterial. cull_disabled so
+// the grass star-fans and palm fronds read from both sides - measured 2026-09-08:
+// every foliage card is a crossed pair of single-sided quads and 116 of 117 near-ring
+// solids are open shells, so back-face culling would hole the jungle, not cheapen it.
+// vertex_lighting, NOT unshaded: unshaded foliage ignores the night light and glows at
+// full albedo, which would hand the player's own concealment away (Pillar 2, ADR-005).
 shader_type spatial;
-render_mode cull_disabled, diffuse_lambert, specular_disabled;
+render_mode cull_disabled, diffuse_lambert, specular_disabled, vertex_lighting;
 
 uniform sampler2D albedo_tex : source_color, filter_nearest, repeat_enable;
 uniform vec4 albedo_tint : source_color = vec4(1.0);

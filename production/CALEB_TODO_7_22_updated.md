@@ -33,6 +33,52 @@ Two structural findings that are NOT fixed and need a probe:
 Everything code-side is built or tracked here; this is the hands-on Blender/eyes work only you can do,
 roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset detail).
 
+## 0001. PERFORMANCE PASS 2026-09-08 — TWO DOUBLE-CLICKS, AND ONLY YOU CAN TAKE THEM
+
+The performance decree is built and headless-clean. **Nobody can tell you it is faster** — the discrete
+GPU on this box is dead (ADR-026 Amendment C) and GPU milliseconds read zero headless, so the whole win
+is unmeasured until you walk it.
+
+**What to do, in order:**
+
+1. Double-click **`perf_before.bat`**. It boots the demo exactly as it ran yesterday — full-resolution
+   frames, the old materials. Do the four-step walk printed at the top of that file: out of the hooch,
+   along the sandbag parapet, face the treeline and hold 15 s, then 30 paces out the gate and hold 15 s.
+   Close the window. It writes `perf_before.log`.
+2. Double-click **`perf_after.bat`**. Same scene, same seed, the fixes live. **Do the identical walk.**
+   It writes `perf_after.log`.
+3. Compare the `[FPS]` lines. Each one now states the render scale it was actually drawn at.
+
+**AND IT IS A LOOK CHECK, NOT ONLY A NUMBER.** Three things to judge with your eyes on the AFTER run:
+- **The jungle.** Leaf edges are now hard-cut instead of soft-blended. Does the canopy still read as
+  jungle, or has it gone crunchy at the edges?
+- **The night.** Vegetation is vertex-lit now instead of per-pixel. Grass and fronds should still go
+  properly dark. If anything glows, say so.
+- **The ground.** The jungle floor lost its specular sheen. Under a flare, does the mud still read wet?
+
+If any of those is wrong, the entire material half reverses by deleting one call, and the render scale
+reverses in the settings screen. Nothing here is one-way.
+
+**One call is yours, and only after you have seen night:** the decree asked for UNSHADED grass and it
+was refused and built as vertex-lit instead. Unshaded means the grass ignores the night light and glows
+at full brightness in the dark — that hands your own concealment away and inverts the stealth economy.
+It is one enum away if you want it after looking.
+
+**Refuted by measurement, so it was not built:** the order also asked for the foliage to go
+single-sided. It cannot. Zero of the 40 impostor cards are double-modelled (19 are lone quads, 21 are
+crossed X pairs — every quad single-sided) and 116 of 117 near-ring plants are open shells. Back-face
+culling this jungle would punch holes in it from half the compass. Making it safe means re-modelling
+the whole plant library, which is the art-days the decree excluded.
+
+**For the record, not for this pass:** the muzzle flash cannot aim down the bore. `gun_fx.muzzle_flash()`
+takes a position and never a direction, all eight call sites pass only a point, the quads are
+`BILLBOARD_ENABLED` (which throws away the node's Z-roll), and NPC flash origin comes from
+`muzzle_ballistic()`'s forward-bias estimate rather than the weapon's MuzzlePoint. The 2026-09-06 scale
+bump to 1.7x did not cause it, it exposed it. **The fix needs your ruling**, because bore-aligning the
+spike shrinks the flash seen head-on, and head-on is exactly the telegraph the Fairness Law protects.
+
+---
+
 ## 000. SPAWN-UNDER-FIREBASE — hardened 2026-07-30, still needs your eyes
 
 You reported spawning under the firebase in the main game despite two authored `spawn_bunk` markers

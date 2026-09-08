@@ -330,7 +330,12 @@ func _minimum(arr: Array) -> float:
 
 func _finish() -> void:
 	set_process(false)
-	var scale: float = float(ProjectSettings.get_setting("rendering/scaling_3d/scale", 1.0))
+	## ASK THE VIEWPORT, NEVER THE PROJECT SETTING (broken instrument, fixed 2026-09-08).
+	## PsxLook.apply() is the sole writer of scaling_3d_scale and overwrites the project
+	## value at every boot, so ProjectSettings reported the RATIFIED number while the frame
+	## was rendered at a different one. A month of ledger rows were stamped "0.75" onto
+	## frames drawn at 1.0. The live viewport is the only truth about what was rendered.
+	var scale: float = get_viewport().scaling_3d_scale
 	var method: String = str(ProjectSettings.get_setting(
 		"rendering/renderer/rendering_method", "forward_plus (default)"))
 

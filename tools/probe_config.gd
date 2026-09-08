@@ -11,8 +11,17 @@ func _initialize() -> void:
 		"<-- JOLT IS LIVE" if phys.contains("Jolt") else "<-- STILL GODOT PHYSICS"])
 	print("  physics server     : %s" % PhysicsServer3D.get_class())
 	print("  interpolation      : %s" % str(ProjectSettings.get_setting("physics/common/physics_interpolation", false)))
-	print("  scaling_3d mode    : %s (0=bilinear 1=FSR1 2=FSR2)" % str(ProjectSettings.get_setting("rendering/scaling_3d/mode", 0)))
-	print("  scaling_3d scale   : %s" % str(ProjectSettings.get_setting("rendering/scaling_3d/scale", 1.0)))
+	## LIVE VIEWPORT, not the project setting (broken instrument, fixed 2026-09-08): PsxLook
+	## rewrites scaling_3d_scale at boot, so the project value is a wish, not a measurement.
+	## Both numbers are printed - a gap between them is the defect, and it must stay visible.
+	var vp: Viewport = root
+	print("  scaling_3d mode    : live=%s (project=%s)  0=bilinear 1=FSR1 2=FSR2 5=nearest"
+		% [str(vp.scaling_3d_mode), str(ProjectSettings.get_setting("rendering/scaling_3d/mode", 0))])
+	print("  scaling_3d scale   : live=%.3f (project=%s)%s"
+		% [vp.scaling_3d_scale, str(ProjectSettings.get_setting("rendering/scaling_3d/scale", 1.0)),
+			"" if is_equal_approx(vp.scaling_3d_scale,
+				float(ProjectSettings.get_setting("rendering/scaling_3d/scale", 1.0)))
+			else "   <-- LIVE DISAGREES WITH THE RATIFIED PROJECT VALUE"])
 	print("  mesh LOD threshold : %s px" % str(ProjectSettings.get_setting("rendering/mesh_lod/lod_change/threshold_pixels", 1.0)))
 	print("  debanding          : %s" % str(ProjectSettings.get_setting("rendering/anti_aliasing/quality/use_debanding", false)))
 	print("  max_fps            : %s" % str(ProjectSettings.get_setting("application/run/max_fps", 0)))

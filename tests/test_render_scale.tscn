@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8renderscale026"]
+
+[ext_resource type="Script" path="res://tests/test_render_scale.gd" id="1_rs"]
+
+[node name="TestRenderScale" type="Node"]
+script = ExtResource("1_rs")

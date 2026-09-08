@@ -14,7 +14,19 @@ var hardcore: bool = false  ## no compass/markers (mission_hud) + HARD save tier
 var psx_look: bool = false  ## PS1 render treatment; applied by PsxLook autoload
 ## Manual render-scale rung, one of RENDER_SCALE_STEPS. PsxLook.apply() is the
 ## ONLY writer of viewport scaling_3d_scale; when psx_look is ON it overrides this.
-var render_scale: float = 1.0
+## THE DEFAULT IS THE RATIFIED ADR-026 PART A.4 VALUE, NOT 1.0. project.godot:329 sets
+## rendering/scaling_3d/scale=0.75, but PsxLook.apply() runs at every boot and writes
+## THIS variable over it - so a 1.0 default here silently shipped full-resolution frames
+## from 2026-08-07 to 2026-09-08 while the ADR and every perf row said 0.75. Keep this
+## const equal to project.godot's scaling_3d/scale; tests/test_render_scale.gd binds them.
+const DEFAULT_RENDER_SCALE: float = 0.75
+## Bumped when a shipped default changes in a way an old settings.cfg would mask. A cfg
+## written before this rung adopts the new default instead of pinning the stale one.
+const SETTINGS_VERSION: int = 2
+## Boots the pre-2026-09-08 render state (full-res frames + the as-imported foliage and
+## sandbag materials) for a before/after at player eye. MaterialBudget reads the same flag.
+const PERF_BEFORE_FLAG := "--perf-before"
+var render_scale: float = DEFAULT_RENDER_SCALE
 
 ## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
 ## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
@@ -35,6 +47,9 @@ const RENDER_SCALE_NAMES: Array[String] = ["FULL", "75%", "50%"]
 
 func _ready() -> void:
 	load_settings()
+	if OS.get_cmdline_args().has(PERF_BEFORE_FLAG):
+		render_scale = 1.0
+		print("[PERF] --perf-before: render scale forced to 1.0, material budget off")
 	apply_audio()
 
 
@@ -81,6 +96,7 @@ func save_settings() -> void:
 	cfg.set_value("settings", "hardcore", hardcore)
 	cfg.set_value("settings", "psx_look", psx_look)
 	cfg.set_value("settings", "render_scale", render_scale)
+	cfg.set_value("settings", "version", SETTINGS_VERSION)
 	cfg.save(PATH)
 
 
@@ -96,6 +112,13 @@ func load_settings() -> void:
 	difficulty = int(cfg.get_value("settings", "difficulty", 1))
 	hardcore = bool(cfg.get_value("settings", "hardcore", false))
 	psx_look = bool(cfg.get_value("settings", "psx_look", false))
+	## A cfg from before SETTINGS_VERSION 2 carries the old 1.0 default as if it were a
+	## choice. Adopt the ratified default instead - otherwise the fix ships to new players
+	## only, and the one machine that benches this game keeps rendering at full res.
+	if int(cfg.get_value("settings", "version", 1)) < 2:
+		render_scale = DEFAULT_RENDER_SCALE
+		return
 	render_scale = RENDER_SCALE_STEPS[clampi(
-		RENDER_SCALE_STEPS.find(float(cfg.get_value("settings", "render_scale", 1.0))),
+		RENDER_SCALE_STEPS.find(float(cfg.get_value(
+			"settings", "render_scale", DEFAULT_RENDER_SCALE))),
 		0, RENDER_SCALE_STEPS.size() - 1)]

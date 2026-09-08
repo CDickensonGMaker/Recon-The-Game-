@@ -71,6 +71,7 @@ func _build() -> void:
 		if ResourceLoader.exists(SANDBAG_MODEL):
 			var bag := (load(SANDBAG_MODEL) as PackedScene).instantiate() as Node3D
 			if bag != null:
+				MaterialBudget.structure(bag)
 				add_child(bag)
 				bag.position = Vector3(0.0, 0.0, -0.35)
 	if ResourceLoader.exists(PINTLE_MODEL):

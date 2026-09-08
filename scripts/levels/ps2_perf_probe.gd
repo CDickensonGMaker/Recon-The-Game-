@@ -1,4 +1,14 @@
 extends Node3D
+## THIS IS A DRONE. IT IS NOT A PLAYER VIEW, AND NO DECISION MAY REST ON IT ALONE.
+## CAM_POS pins the camera SIX METRES UP staring across the whole arena. The player stands
+## at 1.7m inside the foliage. A drone framing over-weights far geometry and under-weights
+## the near-ring fill and the viewmodel that dominate a real frame, so a ratio measured here
+## does NOT transfer to play. ADR-026's founding "+65% cheap wins" came from this camera and
+## has been annotated in the ADR for exactly that reason (2026-09-08).
+## WHAT IT IS GOOD FOR: an A/B of the SAME lever against ITSELF, held identical - a
+## regression tripwire and a direction check. Nothing else. A number that will be quoted at
+## a human belongs in a player-eye run (`--print-fps` on the demo, perf_after.bat).
+##
 ## PS2-budget perf probe: boots the AI stress arena at a FIXED camera pose, measures
 ## frame/CPU/GPU-ms over a fixed sample window, and prints a machine-readable SUMMARY
 ## line to stdout. Lets GPU fill-bound fixes be A/B'd from a windowed (real-GPU) run
@@ -57,6 +67,7 @@ func _ready() -> void:
 	_arena.spawn_player = true
 	add_child(_arena)
 
+	print("[PS2PROBE] DRONE CAMERA (6m up, not a player view) - A/B only, never a headline")
 	print("[PS2PROBE] booting | label=%s scale=%.2f mode=%d no_lights=%s no_shadows=%s"
 		% [_label, get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode,
 			str(_no_lights), str(_no_shadows)])
@@ -114,7 +125,7 @@ func _finish() -> void:
 	var median_frame: float = _median(_samples_frame)
 	var avg_fps: float = 1000.0 / maxf(0.001, avg_frame)
 	var median_fps: float = 1000.0 / maxf(0.001, median_frame)
-	print("[PS2PROBE] SUMMARY label=%s | frames=%d | avg_fps=%.1f median_fps=%.1f | frame=%.1fms cpu=%.1fms gpu=%.1fms render_cpu=%.1fms | calls=%d"
+	print("[PS2PROBE] SUMMARY (DRONE VIEW - not comparable to a player-eye number) label=%s | frames=%d | avg_fps=%.1f median_fps=%.1f | frame=%.1fms cpu=%.1fms gpu=%.1fms render_cpu=%.1fms | calls=%d"
 		% [_label, _frames, avg_fps, median_fps, avg_frame, _sum_cpu / n,
 			_sum_gpu / n, _sum_render_cpu / n, int(_sum_calls / n)])
 	var shot: String = _arg_str("--shot", "")

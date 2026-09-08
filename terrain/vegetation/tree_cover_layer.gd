@@ -443,7 +443,7 @@ func _extract_mesh(path: String) -> Mesh:
 	if packed == null:
 		return null
 	var root: Node = packed.instantiate()
-	var mesh: Mesh = _first_mesh(root)
+	var mesh: Mesh = MaterialBudget.foliage(_first_mesh(root))
 	root.queue_free()
 	return mesh
 

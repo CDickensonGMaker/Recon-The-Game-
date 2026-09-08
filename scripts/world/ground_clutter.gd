@@ -77,7 +77,7 @@ static func load_glb_mesh(path: String) -> Mesh:
 		for c in n.get_children():
 			stack.push_back(c)
 	inst.free()
-	return mesh
+	return MaterialBudget.foliage(mesh)
 
 
 func setup(game_world: GameWorld) -> void:
@@ -103,7 +103,10 @@ func setup(game_world: GameWorld) -> void:
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 			mat.alpha_scissor_threshold = 0.4
 			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-			mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+			## Per-vertex, not per-pixel: a 0.4m mushroom quad has nothing to gain from a
+			## per-fragment light loop. NOT unshaded - self-lit clutter glows at night.
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+			mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST  # PS1 crunch
 			quad.material = mat
 			mesh = quad

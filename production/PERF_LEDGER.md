@@ -1356,3 +1356,50 @@ GPU-led (8/14 evening entry). **No windowed before/after was taken, and the Summ
 raid since the fix.** The crucible `--raid-only` re-run after the fix reported BASELINE 29.12 avg /
 10 hitches and FIRES 18.80 / 10 - better on both, but BASELINE (which contains no raid) moved just as
 far, so that pair attributes nothing and is recorded as context only.
+
+---
+
+## 2026-09-08 — THE MEASUREMENT WINDOW 2026-08-07..2026-09-08 IS VOID
+
+**Read this before quoting any perf row dated in that window.**
+
+Every row taken between 2026-08-07 and 2026-09-08 that states a render scale states it from
+`ProjectSettings.get_setting("rendering/scaling_3d/scale")`. That is the ratified project value
+(0.75). **It is not what the frame was drawn at.** `PsxLook` is the sole writer of the viewport's
+`scaling_3d_scale` (`scripts/autoload/psx_look.gd:47`) and, with the PSX look off — the shipped
+default — it wrote `GameSettings.render_scale`, whose default was **1.0**. The frames were full
+resolution. The rows say 0.75.
+
+This is the same disease as the retracted sun-shadow bench artifact three entries up: **an
+instrument that reads the document instead of the machine agrees with the document forever.**
+
+- Fixed: `tests/perf_probe.gd` and `tools/probe_config.gd` now read `get_viewport().scaling_3d_scale`
+  (probe_config prints live AND project side by side and shouts when they disagree);
+  `--print-fps` states the live scale and GPU ms on every row; `tests/test_render_scale.gd` fails the
+  build if `GameSettings.DEFAULT_RENDER_SCALE` and `project.godot` ever drift apart again.
+- Rows from that window are not deleted. They are **unattributed to a render scale** — treat the scale
+  column as unknown, and do not A/B a post-fix number against one.
+
+## 2026-09-08 — the performance wave: BUILT, NOT MEASURED
+
+Shipped this session: the ratified 0.75 render scale actually reaching the viewport; vertex lighting
+on the vegetation shader; `specular_disabled, diffuse_lambert` on the terrain shader (it carried no
+`render_mode` line at all); per-vertex, specular-free ground clutter; 73 foliage materials converted
+from `ALPHA_DEPTH_PRE_PASS` (two passes per leaf, sorted) to `ALPHA_SCISSOR` (one, unsorted); 49
+sandbag materials forced opaque. Detail and the refuted single-sided half in ADR-026, wave 2026-09-08.
+
+**NO FPS NUMBER IS CLAIMED, IN EITHER DIRECTION.** GPU milliseconds read zero headless and this box's
+discrete GPU is dead (ADR-026 Amendment C), so the author of this change cannot see the win. The
+before/after is `perf_before.bat` and `perf_after.bat` — same scene, same seed, the real player camera
+under the Summoner's own hands, the walk written into the batch file — and only he can take it.
+
+Headless no-regression evidence, which is all that was earned here:
+- `godot --headless --path . --quit-after 300` — zero SCRIPT ERROR.
+- `tests/test_render_scale.tscn` — 5/5 PASS; fails as designed under `--perf-before`.
+- `tools/probe_material_budget.gd` with and without `--after`: cards 40 depth-prepass -> 40 scissor;
+  near-ring plants 33 -> 33 scissor; per-pixel 170 -> 0 and specular 170 -> 0 across the foliage;
+  structures opaque 3045 -> 3094 with depth-prepass 137 -> 88. The 286 blended `screen_mesh` surfaces
+  (hooch mosquito screening) are untouched on purpose.
+- Every `Sandbags*` texture in the tree measured at alpha 255 everywhere, or no alpha channel at all —
+  the blend mode was import noise, so forcing opaque cannot change the look.
+

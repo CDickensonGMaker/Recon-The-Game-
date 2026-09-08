@@ -67,6 +67,22 @@ Binding rules. Numbers are the ratification targets; tuning within them is not a
 4. **Render scale — sub-native + the 4.7 nearest-neighbor 3D filter.** `scaling_3d/scale ≤ 0.75`,
    `scaling_3d/mode=5` (NEAREST) — crisp and PSX-authentic, not blurry. This is the single cheapest,
    most aesthetic-aligned GPU win on a fill-bound frame.
+   - **DEFECT, FOUND AND FIXED 2026-09-08 (NO DRIFT law). This rule was documented as shipping and
+     was NOT shipping, for a month.** Amendment A below says "Part A.4 is therefore shipped" on the
+     strength of `project.godot:329` (`scaling_3d/scale=0.75`). That line is real, and it was
+     overwritten at every boot. `PsxLook` is the sole writer of the viewport's `scaling_3d_scale`
+     (`scripts/autoload/psx_look.gd:6-7, :47`); with the PSX look OFF — the shipped default — it
+     writes `GameSettings.render_scale`, whose default was **1.0**. So from 2026-08-07 (when the
+     manual rung was added) to 2026-09-08 the game rendered every frame at FULL resolution while
+     this ADR, and every perf row taken in that window, said 0.75.
+   - **It was invisible because both perf instruments read the project setting instead of the live
+     viewport** — `tests/perf_probe.gd` and `tools/probe_config.gd` printed the ratified wish, not
+     the rendered truth. Same broken-instrument class as the sun-shadow bench artifact above: the
+     measurement agreed with the document and neither described the frame.
+   - **FIXED:** `GameSettings.DEFAULT_RENDER_SCALE = 0.75` mirrors `project.godot`, a settings-file
+     version bump stops a stale `settings.cfg` from pinning the old 1.0, both probes now read
+     `get_viewport().scaling_3d_scale`, `--print-fps` states the live scale on every row, and
+     `tests/test_render_scale.gd` fails the build if the two ever disagree again.
 
 5. **Water & FX — animated texture planes + sprite particles**, not a double-sided transparent river
    sim. One batched water mesh (the `WaterSystem.CombinedWater` path), back-face culled.
@@ -117,6 +133,17 @@ by `WaterSystem.CombinedWater`).
 
 ## Status of this wave (2026-07-16, the cheap wins — measured, not projected)
 
+> **MEASURED FROM A VIEW NO PLAYER WILL EVER HAVE — annotated 2026-09-08 (NO DRIFT law).**
+> The "14.0 → 23.1 fps, +65%" below is this ADR's founding number, and it was taken by
+> `scripts/levels/ps2_perf_probe.gd` from a **fixed drone camera** pinned at
+> `CAM_POS = Vector3(-70, 6, 70)` looking at the arena origin (`ps2_perf_probe.gd:16-17`) — six
+> metres up, staring across the whole arena. The player stands at 1.7m inside the foliage with a
+> 75° FOV and never sees that framing. A drone view over-weights far geometry and under-weights the
+> near-ring fill and the viewmodel that dominate a real frame, so the RATIO is not transferable to
+> play. **The direction of the finding survives — the cheap GPU fixes helped, and the frame did move
+> to a CPU wall. The +65% does not.** Do not found another decision on it, and do not compare a
+> player-eye number against it. History is kept, not deleted (ADR-023).
+
 Cheap GPU fixes applied and measured on the bench (probe, consistent fixed wide-jungle view):
 **baseline 14.0 fps → 23.1 fps (frame 71ms → 43ms), +65%.** The frame is now CPU-bound at the ~41ms
 wall — proving Part B (activity-tiered AI + fake lights) is the next wave. ~~Light cost quantified: real
@@ -147,9 +174,13 @@ OmniLights (+their CPUParticles) are worth ~+8.6 fps on this bench — the #1 PS
 **closed and rejected** — do not evaluate, propose, or draft a renderer switch again. The FPS job is to
 claw the frame budget back **within Forward+**, never by changing renderer.
 
-- **Already live** (`project.godot:302-305`): `scaling_3d/mode=5` (nearest), `scaling_3d/scale=0.75`.
-  MSAA is off (default); `mesh_lod/lod_change/threshold_pixels=2.0`. Part A.4 (sub-native render
-  scale) is therefore shipped.
+- **Already live** (`project.godot:328-330`): `scaling_3d/mode=5` (nearest), `scaling_3d/scale=0.75`.
+  MSAA is off (default); `mesh_lod/lod_change/threshold_pixels=2.0`. ~~Part A.4 (sub-native render
+  scale) is therefore shipped.~~ **FALSE FROM 2026-08-07 TO 2026-09-08, struck 2026-09-08 (NO DRIFT
+  law).** The project setting was live; the RENDERED FRAME was not. `PsxLook` overwrote it at every
+  boot with `GameSettings.render_scale`, defaulted 1.0. See the DEFECT note under Part A.4 above.
+  "The setting is in project.godot" is not evidence that the frame was drawn at it — ask the
+  viewport, which is now what both probes and `--print-fps` do.
 - **`renderer/rendering_method` is NOT and cannot be a committed setting** (verified 2026-07-19).
   Godot strips any value matching the engine default on editor save; an explicit `"forward_plus"`
   line was committed and stripped the same day. Forward+ holds because it IS the desktop default,
@@ -212,3 +243,88 @@ CPU times ran 3–4× the historical baseline. What DOES survive:
 **Not implemented** — no config wins on trustworthy perf, and fill_chance 0.6 fails the Pillar-2 gate.
 **Next:** (1) a clean re-run with **Blender closed** + an AI-frozen/reduced arena to isolate jungle GPU;
 (2) the FPS effort pivots to **Part B (activity-tiered AI)** — that is where the frame actually is.
+
+---
+
+## Amendment C — 2026-09-08: the bench hardware is decided, and it is not the design target
+
+**Summoner's ruling, closed, not to be revisited.** The workstation's Quadro P620 is **dead hardware**.
+The stuck install was cleared and the fault moved from Code 31 to **Code 43**: the driver loads clean,
+`nvlddmkm` binds, HVCI is off, there is no resource conflict, and the GPU itself reports a fault back.
+The laptop was bought used with this as a known defect. It is not being fixed.
+
+**Consequence, and it is permanent: the Intel UHD is the only bench this project will ever have on the
+Summoner's machine.** Every perf number taken here is on integrated graphics.
+
+Two things follow, and both bind:
+
+1. **Keep it as the punishment bench.** A frame that holds on the UHD holds anywhere. It is the right
+   floor to design against and the right place to catch a regression.
+2. **It is NOT the design target, and the council's warning against designing scared STANDS — now
+   permanently.** The danger is real and specific: an integrated-GPU frame time invites cuts to
+   draw distance, foliage density, light count and effect richness that the actual target hardware
+   never needed, and every one of those cuts lands on Pillar 2. A number from this bench justifies
+   *no* atmosphere cut on its own.
+3. **Judging the unclamped look requires someone else's machine.** Nobody on this project has seen
+   this game run without the UHD's ceiling in the frame. Before any look-vs-perf tradeoff is ratified
+   on visual grounds, it must be seen on discrete hardware. Until then a look ruling taken here is a
+   ruling about the UHD, not about the game.
+
+### Compatibility renderer — never measured, and still not being measured
+
+For the record only, so a future reopening starts from fact instead of memory: **the Compatibility
+renderer has never once been measured on this project.** Amendment A closed the Forward+ → Mobile A/B
+and the decree is unchanged — *do not evaluate, propose, or draft a renderer switch* — and the
+Summoner did not reopen it on 2026-09-08. Mobile was measured and gave nothing; Compatibility is a
+different backend and simply has no row. **That gap is a fact on the record, not a work item.**
+Nothing about it is to be built, drafted, or costed unless he reopens it himself.
+
+---
+
+## Wave 2026-09-08 — the performance decree (built; the win is NOT yet measured)
+
+Summoner's order: make the game perform better, code-side only, no renderer work, no art days.
+Built, headless-clean, and **deliberately unquantified** — GPU milliseconds read zero headless, so
+nothing here may be reported as faster until a player-eye before/after is taken (`perf_before.bat` /
+`perf_after.bat`, same scene and seed, the Summoner walking). Verification law, ADR-015.
+
+1. **The ratified 0.75 render scale actually ships.** See the Part A.4 defect note above.
+2. **Both perf probes ask the viewport, not the project settings**, and `--print-fps` states the live
+   render scale and GPU ms on every row. Until this landed, no perf row in the 2026-08-07..2026-09-08
+   window was admissible. `tests/test_render_scale.gd` guards it.
+3. **Cheap shader wins.** `vegetation_sway.gdshader` gains `vertex_lighting`; `terrain.gdshader` gains
+   `specular_disabled, diffuse_lambert` (it had no `render_mode` line at all, so the jungle floor was
+   computing a Burley diffuse and a Schlick-GGX specular lobe per pixel); ground clutter billboards
+   drop to per-vertex with specular off.
+   - **Unshaded was REFUSED where the decree named it.** Unshaded foliage ignores the night light and
+     renders at full albedo — grass that glows in the dark hands the player's own concealment away and
+     inverts the stealth economy (Pillar 2, Pillar 3, ADR-005). Vertex lighting takes the per-pixel
+     light loop off without lying about the dark. If the Summoner wants the unshaded look after seeing
+     night, it is one enum away.
+4. **Foliage cutout conversion — `scripts/visuals/material_budget.gd`.** All **40 impostor cards and
+   33 near-ring plant materials** imported as `TRANSPARENCY_ALPHA_DEPTH_PRE_PASS`: every leaf drawn
+   twice, once for depth and once blended-and-sorted, on a fill-bound frame. They are cutouts, not
+   glass. Now `ALPHA_SCISSOR` — one opaque pass, no sort — plus per-vertex shading and no specular.
+   Applied in code at the GLB load chokepoints, so a shared embedded material is fixed once for every
+   instance: no re-export, no art days, no per-frame cost.
+   - **THE SINGLE-SIDED HALF OF THE ORDER IS REFUTED, and it is not built.** Measured
+     (`tools/probe_card_geometry.gd`, `tools/probe_solid_closure.gd`): **0 of 40 cards are
+     back-to-back double-modelled** — 19 are lone quads and 21 are crossed X pairs, every quad
+     single-sided — and **116 of 117 near-ring solids are open shells**, not closed geometry. Back-face
+     culling this jungle would punch holes in it from half the compass, not cheapen it. This is exactly
+     the carve-out Part A.2 already grants ("keep `cull_disabled` only where a single-plane billboard
+     genuinely needs both faces"). Making back-cull safe would mean double-modelling the whole library
+     — the art days the decree excluded. **`cull_disabled` stays, on measurement.**
+5. **The transparent sandbags — taken as a straight material fix, no art needed.** **49** `Sandbags*`
+   materials on solid close-range geometry (helipad revetments, firebase parapets, MG nest, the
+   heavy/light bag kits) also imported `DEPTH_PRE_PASS`. Every sandbag texture in the tree was checked
+   and is **fully opaque — alpha 255 everywhere, or no alpha channel at all** — so the blend mode was
+   pure import noise and forcing opaque cannot change the look. The 286 `screen_mesh` blended surfaces
+   on `fsb_main_v3` are the hooch mosquito screening and are LEFT ALONE: that one is really translucent.
+
+**Reversal is one flag.** `--perf-before` restores the full-resolution frame and switches the material
+budget off, which is how `perf_before.bat` produces its half of the A/B.
+
+**Instruments added:** `tools/probe_material_budget.gd` (`--after` re-counts with the budget applied),
+`tools/probe_blended_structs.gd`, `tools/probe_card_geometry.gd`, `tools/probe_solid_closure.gd`.
+

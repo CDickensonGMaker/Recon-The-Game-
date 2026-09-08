@@ -1,4 +1,9 @@
 shader_type spatial;
+// The jungle floor is mud and leaf litter - it has no specular lobe to compute
+// (ADR-026 Part A: no per-pixel ground fanciness). diffuse_lambert over Burley for
+// the same reason. Vertex lighting is NOT used here: terrain triangles are 4m across,
+// so per-vertex light would band across the ground under the flare and the sun.
+render_mode specular_disabled, diffuse_lambert;
 
 // Ground texture (jungle floor)
 uniform sampler2D ground_diffuse : source_color, filter_linear_mipmap, repeat_enable;

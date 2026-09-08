@@ -218,6 +218,7 @@ func place_structure(model_path: String, world_pos: Vector3, rotation_deg: float
 			visual.scale = Vector3(s, s, s)
 		body.add_child(visual)
 		_apply_visibility_range(visual)  # R92: cull distant structure geometry
+		MaterialBudget.structure(visual)
 	# Runs on the WHOLE subtree, not just this root: for mesh-collision GLBs the
 	# collider a bullet actually hits is the -col StaticBody3D nested inside the
 	# visual scene, and a group on the root alone never reaches it - every thatch
@@ -461,6 +462,7 @@ func place_prop(model_path: String, world_pos: Vector3, rotation_deg: float) -> 
 	var visual: Node = scene.instantiate()
 	root.add_child(visual)
 	_apply_visibility_range(visual)
+	MaterialBudget.structure(visual)
 	_parent.add_child(root)
 	var gy: float = _terrain.get_height_at(world_pos)
 	root.global_position = Vector3(world_pos.x, gy, world_pos.z)
@@ -1604,6 +1606,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	var scene: PackedScene = load(FSB_MAIN_PATH)
 	var root := scene.instantiate() as Node3D
 	root.set_meta("model_name", "fsb_main")
+	MaterialBudget.structure(root)
 	_parent.add_child(root)
 	var origin: Vector3 = center - FSB_AABB_CENTER
 	origin.y = seat_y
