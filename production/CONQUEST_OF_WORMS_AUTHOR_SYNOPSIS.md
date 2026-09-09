@@ -366,3 +366,59 @@ American WW1 kit anyone would reach for by default. Nothing in the project has i
 Everything in this document — the comic adaptation, the WW1 thread, the journal transition, the
 stress-driven horror layer — is **post-demo-launch work.** Recorded so it is not lost and so nobody
 starts it. The defect loop and the demo keep priority.
+
+---
+
+# THREE PERSPECTIVES — the player walks the whole chain
+
+**His, 2026-09-09:** *"yeah shit i guess we could even have the perspective of the russian soldier who
+eventually gets captured and burned in teh face"*
+
+**POST-DEMO, like everything else here. Recorded because it is the strongest structural idea in the
+adaptation.**
+
+## The shape
+
+| POV | War | What the player does |
+|---|---|---|
+| **LOUIE** | WW1, French service | spares a young German soldier |
+| **THE RUSSIAN** | WW2, Eastern Front | is captured and burned by that German, now SS |
+| **MICHAEL** | Vietnam, 1968 | is hunted by the man that made |
+
+**The player performs the mercy, then suffers its consequence, then is hunted by the result.** Three
+hands, one chain, and the player's own finger on every link.
+
+## Why this is the argument for a game and not a film
+
+A comic can show you the chain. **Only a game can make you the cause of it.** You, as Louie, lower the
+rifle. Hours later, as the Russian, the same face burns yours. You did that. Nobody told you it was a
+mistake, and it was not a mistake — it was mercy, and the game makes you carry what mercy cost.
+
+That is a thing this medium can do and no other can, and it is already in the story. Nothing has to be
+invented to get it; the chain is his.
+
+## It also solves the reveal
+
+The comic's issue 4 ends by cutting to the sniper — *"we really see him for the first time."* A
+Russian POV section is that reveal **from inside**. You would not merely learn what he is; you would
+have been him. Every later encounter in Vietnam is then an encounter with someone you have played.
+
+## The honest cost
+
+**Three eras is three art kits.** WW1 poilu — Adrian helmet, horizon-blue, Lebel, Chauchat. WW2
+Eastern Front — a wholly different war. Vietnam, which exists. Nothing of the first two is in the
+project.
+
+**But the WW2 section does not need to be a campaign.** It is a capture and a burning — one authored
+sequence, an interior, a handful of men. It is the shortest of the three by nature: the Russian's story
+is not a front, it is a room. That is the version worth costing first.
+
+**And the terrain tool he proposed the same night builds two of the three.** A WW1 battlefield is cut
+terrain plus trench modules; the Eastern Front is cut terrain plus a different kit. See
+`FIREBASE_REWORK_INTENT.md` — the tool that pays twice may pay three times.
+
+## Left open, deliberately
+
+Whether the Russian is playable, a scene, or panel-only is his ruling and nobody else's. So is whether
+the player CAN shoot the young German as Louie — because if he cannot, the mercy is scenery, and if he
+can, the game needs an answer for what happens when he does.
