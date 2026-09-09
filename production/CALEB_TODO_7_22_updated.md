@@ -75,6 +75,39 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, SEVENTH PASS — the HIGH tier, and condition 5 REOPENS
+
+**CONDITION 5 REOPENS. The six-window result was not the whole assault.** Across 90
+post-assault windows the tail carries **5 physics windows over 120 ms (worst 228.9)** and 2 idle
+(worst 468.6). Reporting it rather than letting the good number stand.
+
+Remaining causes, in order: `nav.collect` ~400-465 ms on a breach re-bake (**and this DOES fire
+mid-assault - my earlier "world build only" was true of a run with no breaches and wrong in
+general**), `terrain.crater` ~110 ms, `treebreak.consume` 55 ms, `spawn.man` worst 104 ms.
+
+**My own coarse epoch was costing.** One felled tree invalidated the scatter of every chunk on
+the map, and an assault fells trees continuously - `veg.build_scatter` was back at 80.1 ms
+inside the fight. Per-chunk invalidation now: **worst 21.4 ms**.
+
+**Four of the five HIGH items landed.**
+- **A GP tent and the mess hall were bulletproof.** The 128 nameless colliders are Godot-MINTED
+  bodies, one per `-colonly` node, called `StaticBody3D` - a name carrying no information. The
+  ballistics tagger reads the collider's name, so all 132 defaulted to hard. A probe says what
+  they are rather than guessing: 80 parapet segments (hard is right by accident), three
+  `fb_gp_tent_i` and one `fb_mess_i` (both on the soft list for years). Reads the parent now.
+- **`Destructible._ready()` made HARD the default**, and the kind sitting in it was
+  `hut_thatch`. Both lists explicit, unknown kinds loud - which immediately named `sandbag`.
+- **The two arms-stripping lists disagreed**: one had `arms`/`forearm` and no `finger`, the
+  other had `finger` and neither. A mesh named `finger_l` was stripped from the viewmodel and
+  left welded to a dropped rifle. One list now.
+- **The gore lookups name their misses** - a missing stump cap is open geometry where a man's
+  arm was, and it was silent. **REFUTED as a live defect:** every rig comes back clean.
+
+**Not reached:** `_LOOP_PREFIXES`/`_LOOP_NAMES` as a miss list (the resource-keyed skip is in,
+the hand-maintained list is not inverted), world structures unwired for destruction (18/26
+village, 7/7 vc_nva, 29/29 temple - and that one may be a ruling), `TreeBreakSystem.apply_blast`,
+and the dresser's rehang walk.
+
 ### REGISTER, SIXTH PASS — the spawn stall, and both first guesses were wrong
 
 **The assault stall is one man arriving, and it is now less than half what it was.**

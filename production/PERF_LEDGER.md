@@ -1340,6 +1340,20 @@ blast resolution     avg     0.09 - 0.12 ms       unchanged
    named as a root cause earlier in this same session on inspection alone; the probe says no. **Do not
    re-open it without a number.**
 
+#### THE BROKEN-INSTRUMENT REGISTER — a bench must check the box TWICE, 2026-09-09
+
+**A CLEAR-BOX CHECK THAT RUNS ONLY AT THE START CANNOT SEE CONTENTION THAT BEGINS MID-RUN.**
+
+A done-condition-5 measurement was taken on a box verified clear. Two Godot processes from
+ANOTHER project's audit started four minutes into it, and the run reported a 984 ms worst
+script step. That number is contention, not the game, and it was only caught by checking the
+process list AFTER the fact - the check at the start had passed honestly.
+
+**Every bench prints the process count at the START and at the END.** A run that ends dirty is
+not a measurement, whatever it says. Third time on 2026-09-09 that asking *when* rather than
+*how much* changed an answer: this, `nav.collect` (491 ms that turned out to be world build,
+not the fight), and the `SpawnLedger` stale-read below.
+
 #### THE BROKEN-INSTRUMENT REGISTER — a NEW class, 2026-09-09
 
 **A TEST WHOSE DISCRIMINATOR IS THE BUG IT IS MEANT TO BE BLIND TO.**
