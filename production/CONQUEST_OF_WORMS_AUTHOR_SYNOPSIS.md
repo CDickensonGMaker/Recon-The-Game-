@@ -167,3 +167,45 @@ had "thought about making" — so she is intent, not yet drawn. Verify against t
   The pages will say. Do not resolve it from his summary.
 - **The female revolutionary may not be drawn** — "the female cahracter i had thought about making".
   Treat as intent until a page proves otherwise.
+
+---
+
+# THE WORMS — the author's own answer
+
+Asked directly whether the worms appear in both wars, because if they cross, the title is the thesis
+made visible. **They do.** His words, 2026-09-09:
+
+> "yeah the worms show up in both wars because its more psychological than metaphorical but also like
+> war is gorey so yes theres lots of worms and once i get the game more solid of a state i was going
+> to add the idea of worms and maggots and rotting corpses etc"
+
+## What that settles
+
+**PSYCHOLOGICAL, NOT METAPHORICAL.** His distinction and it is precise. The worms are not a symbol
+standing in for decay — they are **in the men**, and they are **also literally there**, because a
+battlefield has maggots on it. Both at once. That is a far harder register than allegory and it is why
+the book can stay documentary and still be horror.
+
+**They cross both wars.** WW1 and Vietnam. Which makes them the visible form of the causal chain: the
+same thing eating through two generations. **The title is the thesis and the worms are how you see it.**
+
+**The tonal rule, stated:** play the war straight — The 'NAM, real unit research, draft cards — and let
+the rot be simply present in it. Never a monster, never a symbol. Something a soldier sees on a corpse
+and cannot stop seeing.
+
+## For the game — INTENT, POST-DEMO, BUILD NOTHING YET
+
+His words: **"once i get the game more solid of a state i was going to add the idea of worms and
+maggots and rotting corpses etc."** That is his own sequencing and it is correct. Recorded so it is not
+lost, not so it is started.
+
+When it is time, the substrate already exists and this is worth knowing now:
+- **BodyCount already makes corpses persist** — dead men do not disappear. A decay layer needs a
+  surface to run on and it already has one.
+- The gore/gib system, gore caps and wound caps exist.
+- ADR-026 Part A forbids per-pixel fanciness; decay here is texture and time, not a shader budget.
+
+The one design note worth carrying: if the worms are psychological AND literal, then a decay system that
+is purely cosmetic misses half of it. What a man SEES on a corpse — and whether he keeps seeing it —
+is the other half, and that is closer to the suppression/nerve systems than to a texture swap. Not a
+decision. A note for whoever builds it.
