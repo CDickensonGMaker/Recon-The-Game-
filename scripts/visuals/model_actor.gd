@@ -707,7 +707,24 @@ func play_first(clips: Array[String], restart: bool = false) -> String:
 	for c in clips:
 		if play(c, restart):
 			return c
+	# ADR-042 clause 1. A caller that asks for a clip set NONE of which this rig carries
+	# gets "" and, if it ignores the return, a body left in BIND POSE - which on a
+	# mixamorig_* skeleton is the T-pose Caleb keeps reporting. play() fails silently by
+	# design (a missing weapon-family variant is normal); a set that resolves to NOTHING is
+	# not, and it is the only failure mode that leaves a man frozen where he stands.
+	_report_dead_clip_set(unit, clips)
 	return ""
+
+
+static var _dead_clip_sets: Dictionary = {}
+
+static func _report_dead_clip_set(unit_id: String, clips: Array[String]) -> void:
+	var key: String = unit_id + "|" + ", ".join(PackedStringArray(clips))
+	if _dead_clip_sets.has(key):
+		return
+	_dead_clip_sets[key] = true
+	push_warning("[MODEL] %s carries NONE of [%s] - that body holds its bind pose (T-POSE)"
+		% [unit_id if unit_id != "" else "<unnamed rig>", ", ".join(PackedStringArray(clips))])
 
 
 func stop_anim() -> void:
@@ -1039,6 +1056,31 @@ func play(clip: String, restart: bool = false) -> bool:
 		if new_len > 0.01:
 			_anim.seek(fposmod(old_pos / old_len, 1.0) * new_len, false)
 	return true
+
+
+## Start a LOOPING clip at this actor's own phase, and run it at his own slight speed.
+##
+## Nothing in this project ever did this for a Civilian. Every garrison man is spawned in one
+## frame and plays his clip from frame 0, so two men who draw the same variant are twins down
+## to the frame - his report: "lots of them are doing things in sync at the same time so it
+## looks weird". The de-sync idea already existed, at site_planner.gd:776, wired to the GLB's
+## baked props instead of the live men.
+##
+## Deterministic in `seed_val` (ADR-010: same seed, same base), and a no-op on a one-shot -
+## seeking a death or a sit to the middle would start it halfway through.
+const DESYNC_SPEED_SPREAD: float = 0.12
+
+func desync_loop(seed_val: int) -> void:
+	if _anim == null or _anim.current_animation == "":
+		return
+	if not _clip_loops(_anim.current_animation):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(seed_val) | 1
+	var len_s: float = _anim.current_animation_length
+	if len_s > 0.01:
+		_anim.seek(rng.randf() * len_s, true)
+	_anim.speed_scale = 1.0 + rng.randf_range(-DESYNC_SPEED_SPREAD, DESYNC_SPEED_SPREAD)
 
 
 func _clip_loops(clip: String) -> bool:

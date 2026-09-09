@@ -723,6 +723,7 @@ static func _cast_rig_moves(anim: Animation, rig: String) -> bool:
 
 static func _animate_fsb_baked_cast(root: Node3D) -> void:
 	var played: int = 0
+	var staged: Dictionary = {}
 	for n in root.find_children("*", "AnimationPlayer", true, false):
 		var src := n as AnimationPlayer
 		if src == null:
@@ -774,8 +775,64 @@ static func _animate_fsb_baked_cast(root: Node3D) -> void:
 			p.play(&"idle")
 			p.seek(fposmod(float(hash(rig) % 1000) * 0.001 * cut.length, cut.length), true)
 			played += 1
+			staged[rig] = true
+	# ADR-042 clause 1. A rig this pass does not stage keeps its BIND POSE, and a bind-pose
+	# mixamorig_* skeleton IS the T-pose he keeps reporting. The skip is silent by
+	# construction - `_cast_rig_moves` returning false just `continue`s - so the only way to
+	# know which bodies are standing frozen is to name them.
+	var frozen: PackedStringArray = PackedStringArray()
+	for sk in root.find_children("*", "Skeleton3D", true, false):
+		var owner_name: String = String((sk as Node).get_parent().name) if (sk as Node).get_parent() != null else ""
+		if owner_name != "" and not staged.has(owner_name):
+			frozen.append(owner_name)
+	frozen.sort()
+	print("[FSB] baked cast: %d rig(s) staged, %d left at BIND POSE (T-pose)%s" % [
+		played, frozen.size(), "" if frozen.is_empty() else " - " + ", ".join(frozen)])
 	if played == 0:
 		push_warning("[FSB] no baked cast clips in the firebase GLB - export drift")
+
+
+## THE T-POSE AUDIT. His report, three playtests running: "medical tent has everyone t posed
+## still and all the soldiers just sit around." A mixamorig_* skeleton sitting at bind pose IS
+## the T-pose, and every way of getting there is SILENT - a rig no clip moves, a hide that
+## missed because the GLB is flat, an AnimationPlayer that was never given one. So measure the
+## outcome instead of any of the causes: a skeleton that is VISIBLE and has every bone on its
+## rest pose is a frozen body, whatever put it there.
+##
+## Deliberately excludes rigs that are hidden (the swapped howitzers) and machine rigs, which
+## have no bind pose worth the name. Reported by NAME - "some bodies are T-posed" is not a lead.
+const FROZEN_AUDIT_IGNORE: Array[String] = ["M101Rig"]
+
+static func _audit_frozen_bodies(root: Node3D) -> void:
+	var frozen: PackedStringArray = PackedStringArray()
+	var checked: int = 0
+	for n in root.find_children("*", "Skeleton3D", true, false):
+		var sk := n as Skeleton3D
+		if sk == null or not sk.is_visible_in_tree():
+			continue
+		var owner_node: Node = sk.get_parent()
+		var nm: String = String(owner_node.name) if owner_node != null else String(sk.name)
+		var skip: bool = false
+		for ig in FROZEN_AUDIT_IGNORE:
+			if nm.begins_with(ig):
+				skip = true
+				break
+		if skip:
+			continue
+		checked += 1
+		var moved: bool = false
+		for b in range(sk.get_bone_count()):
+			if not sk.get_bone_pose(b).is_equal_approx(sk.get_bone_rest(b)):
+				moved = true
+				break
+		if not moved:
+			frozen.append(nm)
+	frozen.sort()
+	if frozen.is_empty():
+		print("[FSB] frozen-body audit: %d visible rig(s), none at bind pose" % checked)
+	else:
+		push_warning("[FSB] T-POSE: %d of %d visible rig(s) sit at BIND POSE - %s"
+			% [frozen.size(), checked, ", ".join(frozen)])
 
 
 ## Swap each baked howitzer for the animated fb_emplacement_m101 chunk at its exact
@@ -806,6 +863,7 @@ func _wire_m101_rigs(root: Node3D) -> void:
 		wired += 1
 	if wired == 0:
 		push_warning("[FSB] no m101_emplacement nodes in the firebase GLB - export drift")
+	print("[FSB] m101: %d emplacement(s) swapped for the animated chunk" % wired)
 
 
 ## Scatter up to `count` hut positions in the footprint disk, each >= min_sep from
@@ -1238,11 +1296,21 @@ static func _arty_pits() -> Array:
 	return pits
 
 
-## Men already promised by the curated post table.
+## Men already promised by the curated post table - counting only the posts whose MARKER
+## EXISTS. A curated entry whose marker is absent from the GLB is skipped silently when the
+## posts are built (the `continue` below), but this function used to sum the TABLE, so the
+## budget still paid for men nobody ever spawned. ADR-042 clause 1: the misses are named.
 static func _fsb_curated_men() -> int:
 	var n: int = 0
+	var missing: PackedStringArray = PackedStringArray()
 	for entry in FSB_GARRISON_POSTS:
-		n += int(entry[2])
+		if _fsb_markers.has(String(entry[0])):
+			n += int(entry[2])
+		else:
+			missing.append("%s (%s x%d)" % [String(entry[0]), String(entry[1]), int(entry[2])])
+	if not missing.is_empty():
+		push_warning("[FSB] %d curated post(s) name a marker the GLB does not carry - %s"
+			% [missing.size(), ", ".join(missing)])
 	return n
 
 
@@ -1646,6 +1714,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 		push_warning("[FSB] no fb_tower_i meshes in the firebase GLB - no alarm")
 	_animate_fsb_baked_cast(root)
 	_wire_m101_rigs(root)
+	_audit_frozen_bodies(root)
 	var gm: Dictionary = SitePlanner.fsb_gate_metrics(center)
 	var gate_pos: Vector3 = gm.gate_pos
 	var gate_out: Vector3 = gm.gate_out

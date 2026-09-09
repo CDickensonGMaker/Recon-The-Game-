@@ -275,6 +275,11 @@ const VILLAGERS: Array[String] = [
 ## a job. Drives the armed idle chain.
 const ARMED_POSTS: Array[String] = ["sentry", "sentry_night", "gun_crew", "radioman"]
 
+## What standing a post LOOKS like. `idle` is last on purpose - it is the fallback for a rig
+## that carries none of the scans, not the intent.
+const ARMED_WATCH_CLIPS: Array = ["sentry_scan", "nervous_scan", "crouch_scan",
+	"idle_aiming", "idle"]
+
 const GARRISON_MEN: Array[String] = [
 	"us_grunt_rifleman", "us_grunt_pointman", "us_medic",
 	"us_grunt_mg", "us_grunt_grenadier", "us_grunt_marksman", "us_grunt_rto",
@@ -559,6 +564,11 @@ func _animate() -> void:
 	_last_clip = want
 	if is_garrison:
 		_play_garrison(want)
+		# HIS OWN PHASE, HIS OWN SPEED. Every garrison man is spawned in one frame and starts
+		# his loop at frame 0, so two men who draw the same variant are twins down to the
+		# frame ("lots of them are doing things in sync at the same time so it looks weird").
+		if actor != null and is_instance_valid(actor):
+			actor.desync_loop(_idle_seed ^ hash(want))
 		return
 	# CIVILIAN CHAINS CARRY NO ARMED CLIP. `idle` and `idle_crouching` are the
 	# RIFLEMAN idle and the rifleman weapon crouch - with either at the head of a
@@ -593,6 +603,8 @@ func _animate() -> void:
 			actor.play_first(["walking_unarmed", "running_unarmed"])
 		_:
 			actor.play_first([_idle_variant, "idle_unarmed"])
+	# Same reason as the garrison branch above: a ville of sixteen must not breathe in unison.
+	actor.desync_loop(_idle_seed ^ hash(want))
 
 
 ## An untyped Array cannot be passed where Array[String] is declared, and `as Array[String]`
@@ -791,7 +803,12 @@ func _play_garrison(want: String) -> void:
 			actor.play_first(["sitting", "idle_unarmed_5", "idle"])
 		"stooped":
 			if ARMED_POSTS.has(occupation):
-				actor.play_first(["idle", "idle_aiming"])
+				# A MAN ON WATCH WATCHES. sentry_scan / nervous_scan / crouch_scan are in the
+				# shared library and loop-flagged, and their only caller in the whole project
+				# was the VC camp guard - every US sentry, gun crew and radioman stood at the
+				# plain rifle `idle`, which is why the compound reads as men standing around.
+				# Rotated on his own seed so two men on the same wire are not one man twice.
+				actor.play_first(_rotate(ARMED_WATCH_CLIPS))
 			else:
 				actor.play_first([_idle_variant, "idle_unarmed_3", "idle"])
 		"walking_unarmed":
@@ -1258,7 +1275,11 @@ func _bt_walk_market(_civ: Civilian, bb: Dictionary) -> int:
 ## sentries, gun crew, radioman and quartermaster appeared on station and then never walked
 ## to one again for the rest of the night. The 487 work markers (measured 2026-08-24) were
 ## already resolved into bb["target_pos"] every sim hour and nothing read them.
-const WORK_ARRIVE_M: float = 1.6
+## ARRIVE MUST BE SMALLER THAN JITTER, or the anti-overlap offset cannot ever produce a
+## step: place_for_current_hour teleports a man ONTO his raw marker, _bt_settle then aims him
+## 1.5m off it, and a 1.6m arrive radius reported SUCCESS on frame one. Two men sharing a
+## marker stayed stacked and nobody ever walked to a post all day (measured 2026-09-09).
+const WORK_ARRIVE_M: float = 0.7
 const WORK_JITTER_M: float = 1.5
 const WORK_SPEED: float = 1.1
 

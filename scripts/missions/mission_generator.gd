@@ -1138,6 +1138,41 @@ static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,
 			men.append(man)
 	for man in men:
 		man.build_bt()
+	_report_garrison_census(plan, men)
+
+
+## The number the "base feels dead" question turns on. The compound carries hundreds of
+## authored work markers and staffs a few dozen men, so a plan is a SAMPLE of the posts,
+## not a filling of them - and how thinly it samples, and how many of the men it does place
+## land on a job that looks like doing nothing, is not knowable from the code alone.
+## Printed at every boot so the answer is a reading, not an argument.
+const IDLE_LOOKING_OCCUPATIONS: Array[String] = ["rest", "hooch_sleep", "queue", "eat",
+	"chow_diner", "off_duty", "patient", "sleep", "idle"]
+
+static func _report_garrison_census(plan: Dictionary, men: Array[Civilian]) -> void:
+	var posts: Array = plan.get("posts", []) as Array
+	var by_occ: Dictionary = {}
+	var idlers: int = 0
+	for m in men:
+		if m == null or not is_instance_valid(m):
+			continue
+		var occ: String = m.occupation
+		by_occ[occ] = int(by_occ.get(occ, 0)) + 1
+		if IDLE_LOOKING_OCCUPATIONS.has(occ):
+			idlers += 1
+	var keys: Array = by_occ.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool:
+		return int(by_occ[a]) > int(by_occ[b]))
+	var parts: PackedStringArray = PackedStringArray()
+	for k in keys:
+		parts.append("%s %d" % [k, int(by_occ[k])])
+	var live: int = 0
+	for m in men:
+		if m != null and is_instance_valid(m):
+			live += 1
+	print("[FSB] garrison census: %d post(s) planned, %d man/men placed, %d (%.0f%%) on a job that reads as IDLE | %s"
+		% [posts.size(), live, idlers,
+			100.0 * float(idlers) / maxf(1.0, float(live)), ", ".join(parts)])
 
 
 ## One mannable M60 post per firebase gun_crew post, floor-seated from the plan's
