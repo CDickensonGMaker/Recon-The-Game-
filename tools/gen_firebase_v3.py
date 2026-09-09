@@ -897,7 +897,11 @@ def make_collision():
     sc = bpy.context.scene
     made, boxes, tris, skipped = [], 0, 0, 0
     for i, o in enumerate(list(sc.objects)):
-        if o.type != 'MESH' or o.name.endswith("-colonly"):
+        # CONTAINS, not endswith. The suffix is the contract, and a name that carries it in
+        # the MIDDLE is still a collider: us_fb_ammo_crate_stack-colonly_P2 slipped this test,
+        # so a collider was given a collider of its own AND shipped as a visible mesh
+        # (measured in the 2026-08-12 and 2026-09-06 exports; one node, still there).
+        if o.type != 'MESH' or "-colonly" in o.name:
             continue
         base = o.name.split(".")[0]
         if base.startswith(COL_NONE):

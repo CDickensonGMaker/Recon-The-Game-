@@ -48,12 +48,30 @@ So nothing was given up by taking the older file.
 Moved, not deleted. Some are write-targets of `gen_firebase*.py`, which will simply
 recreate them if run — those generators are legacy and predate v3.2.
 
-## NOT DONE
+## DONE — corrected 2026-09-09
 
-`fsb_main_v3.glb` — the GLB the game actually loads (`game_world.gd:400`) — is still the
-**2026-07-26** export. It contains **no chow hall and no medical complex**. None of the
-above reaches the game until it is re-exported, and that export must honour the
-destructible naming contract or the new buildings ship invulnerable and bulletproof.
+`fsb_main_v3.glb` was re-exported from this blend on **2026-09-06** and DOES carry the chow
+hall and the medical complex. The section that stood here said it was still the 2026-07-26
+export and had neither; that was true when written and false for three days before anyone
+read it again.
+
+**The re-export recipe, proven 2026-09-09:**
+`blender --background --python tools/reexport_firebase_v3.py` — opens THIS blend, emits the
+`-colonly` twins, exports, strips them, then halves the oversized textures (this blend holds
+the full-size sheets, so every export restores them and the shrink must run again). That
+sequence reproduced the shipped GLB **byte for byte**, md5
+`6ce1bfbf35bcd9f7b9b090a23d705083`. It never saves the blend.
+
+**Do NOT re-export with `gen_firebase_v3.main()`.** It reads an EMPTY homefile and rebuilds
+the compound from constants — no chow hall, no medical complex, no staged crews — and it
+never calls `export_firebase()` at all. It would replace this firebase with an older one.
+
+Known defects still in this blend, both named by the export tool at open time:
+- `fb_sbg_seg_046.001` — a Blender duplicate of a manifest segment. Godot adopts it onto the
+  blast bus now, but it owns no collider (its twin's prefix claims it first).
+- `us_fb_ammo_crate_stack-colonly_P2` — the `-colonly` suffix is not at the END of the name,
+  so it ships as a VISIBLE mesh. The generator no longer builds a collider for it; the
+  visible half needs the object renamed here.
 
 No GDScript reads `work_med*` / `work_chow*` yet either — `work_pos`/`work_clip` walking
 exists only for VC camps (`camp_director.gd`, `enemy_base.gd:1660`).
