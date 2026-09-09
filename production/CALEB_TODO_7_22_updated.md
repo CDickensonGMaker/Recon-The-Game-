@@ -75,6 +75,48 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, FOURTH PASS — roofs, radios and the hurtbox
+
+**Fixed and pushed.**
+20. **The TOC roof was walkable floor**, and so were all five latrine roofs — 17 navmesh
+    polygons over the TOC, two or three over each latrine. A man could be PATHED up there
+    deliberately, which is a different defect from the top-down re-seat that used to put him
+    on a roof by accident. Both families culled; navmesh 8,782 -> 7,999 polygons.
+21. **You could shoot a man's suspender clip and hurt him.** Every US grunt was harvesting
+    eleven `web_*` clips, snaps and buckles into his hurtbox, plus the medic's brassard. The
+    exclusion list carried "webbing" and had never matched anything, because the meshes are
+    named `web_`. One underscore.
+22. **A probe was passing ON that defect.** `test_hitzone_rebuild` needs two units with
+    different hulls or it proves nothing, and its two only differed BECAUSE of the web gear.
+    Fixing the gear made them identical and the probe went red — correctly. Its discriminator
+    is a genuinely different body mesh now.
+23. **The roof probe was wrong about the helipad.** A PSP pad stands 4 m proud with open air
+    under it, which is that probe's exact definition of a roof, so it failed six men for
+    standing where the resupply Huey had just set them down.
+
+**REFUTED with a number.**
+- Radios do NOT leak onto non-RTOs. Every unit in the demo was checked for a visible
+  radio-looking mesh the opt-in list does not know. Zero. The check is permanent.
+- Two of the five suspect roof structures — the supply dump and the water point — produce no
+  uncut roof geometry at all. Two more are correct as they stand and are now marked so nobody
+  "fixes" them: the towers are fighting positions with ladders built to them, and bunker steps
+  are a floor.
+- The first roof measurement reported 4,871 walkable polygons on one structure. That was a
+  bounding-box artefact over the wire ring; the check judges building-sized footprints only
+  now and names what it cannot judge.
+
+**NOT STARTED, and honestly so — the queue is longer than the night.**
+- `gib_system`'s six `find_child` calls with no null check (a limb vanishes with no gib).
+- `_LOOP_PREFIXES` / `_LOOP_NAMES` — an unmatched clip plays once and freezes a man mid-stride.
+- `Destructible._ready()` making anything not "wire" hard_surface.
+- The two different arms-stripping substring lists.
+- The 128 colliders literally named `StaticBody3D` — unjudgeable by name, which is ADR-042's
+  thesis in its purest form.
+- **ALL PERF.** The crater's 80–94 ms chunk rebuild, `TreeBreakSystem.apply_blast` at 66 ms on
+  the physics tick, the 35–70 ms idle step with no attributed cause, and the 545 hooch props
+  appearing in one frame at 40 m. **And nobody has yet measured the 45-man assault for a stall
+  over 120 ms** — that is the last done-condition and it is untouched.
+
 ### REGISTER, THIRD PASS — the re-export and the 229
 
 **The firebase re-export: the PIPELINE is proven, the vegetation swap is NOT done.**
