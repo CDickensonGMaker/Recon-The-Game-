@@ -2572,3 +2572,77 @@ fails if an identity attach would also pass.
   it is derived from the skeleton and stays empty unless assigned after parenting.
 - Left hand, deliberately. `rice_sickle` is welded to `mixamorig:RightHand` on `civ_farmer_m_b`,
   so a cutting farmer now holds the sickle in one fist and the seedlings in the other.
+
+---
+
+## 2026-09-09 · CONQUEST OF WORMS cast (Michael Crawford + Gus x2) — and the face-atlas trap
+
+Built headless from `us_base_v3.blend` (never written to). Pipeline, all re-runnable:
+`tools/build_cow_face_atlases.py` (donor face cell) -> `tools/build_cow_cast.py`
+(assembly + gates + per-mesh face compositing) -> `tools/render_cow_cast.py` ->
+`tools/export_cow_cast.py` -> `tools/label_cow_renders.py`.
+`tools/build_ear_necklace_prop.py` emits the reusable prop.
+
+**THE FACE ATLAS HAS TWO INDEPENDENT TRAPS AND BOTH COST A RENDER PASS.** Grid is 10x7
+(`grunt_dresser.gd:20-21`), sheet `face_atlas_v5.png` 1296x1132.
+
+1. **The VISIBLE joined body and the HIDDEN `grunt_head` gib donor sample DIFFERENT CELLS.**
+   Measured on the rifleman: `us_grunt_joined` u[0.0136,0.0904] v[0.6019,0.6976] = col 0,
+   row 2 from top; `grunt_head` u[0.0043,0.0972] v[0.0050,0.1435] = col 0, row 6 from top.
+   `grunt_head` is the easy one to measure because it is named "head" — and painting its
+   cell changes nothing anyone can see on a living man.
+2. **EVERY VARIANT SAMPLES ITS OWN CELL.** That is *how* the squad has different faces
+   (`tools/bake_us_faces.py`: "measure the face rect this variant actually samples").
+   Michael is off the **grenadier**, whose joined body samples **col 1**, not the
+   rifleman's col 0. A cell measured on one man and applied to another paints a tile
+   nothing looks at, the render comes back wearing the STOCK face, and every gate passes.
+   **Symptom to recognise: you changed the face and the render did not change.**
+
+   The fix is in `build_cow_cast.build_face_sheet()`: measure the face-material polygon
+   UV centroid of EVERY mesh in the family and paint every cell any of them lands in.
+   It asserts the island fits inside one cell before it paints. Painting both cells also
+   makes the severed head match the living face, which the shipped cast does not manage.
+
+**Freckles cannot be done at this texel density — REMOVED, deliberately.** Cell is
+130x162 px and the head samples ~89x124 of it, so a cheek is ~25 px across and a "dot" is
+1-2 px. Rendered twice; both times it read as a rash. That is a CANON error, not a taste
+one: bible section 5 keeps pocks (contamination) and freckles (a young face) apart on
+purpose, and a diseased-looking Gus on arrival inverts his arc. `freckle()` is kept in
+`build_cow_face_atlases.py` for a future hand-painted cell.
+
+**The studio pose channels are not a usable stance.** All these rigs sit on `REST` with 34
+posed bones. Flip to `POSE` and the leftover channels swing a Spine2-bone-parented ruck
+**44 cm off the body** — measured on the STOCK rifleman too, so it is not variant-specific.
+`export_us_squad.py` forces `REST` on export for exactly this reason. Render in T-pose and
+say so, or drive a real clip.
+
+**Two of my own gates were wrong before the asset was:**
+- the pipeline's "no evaluated X dimension > 1.2 m" assumes a POSED character; the studio
+  T-pose legitimately spans the 1.6111 m arm span. Gate on `evaluated X <= own raw span`
+  instead — a pose reshapes, a smear inflates.
+- dotted MATERIAL names (`Parkerized.006`, `webbing_canvas.001`) are inherited from
+  `us_base_v3` and ship in every `us_grunt_*.glb`. Objects/meshes/images are the
+  load-bearing namespace (gib lookups are by exact name); materials are not. Report, don't fail.
+
+**Texture budget: estimate nothing, MEASURE THE BYTES.** `tools/shrink_oversized_textures.py`
+took the 2.6 MB face atlas and left `ref_factions` at **8.63 MB embedded — 88% of the file**.
+A pixel-count ceiling then failed too, because these sheets compress at wildly different
+rates (the flat uniform atlas ~0.86 bytes/px, the photographic face sheet ~1.64). The
+exporter now scales, writes a temp PNG, reads its real size, and repeats. 11.7 MB -> 2.3 MB
+per character, every embedded image under 1 MB. **The rest of the US cast still ships the
+full 3600x5700 sheet and still breaks the law.**
+
+**`D.images.new()` gives you a FLOAT buffer and glTF writes it as a 16-bit PNG** — 1.72 MB
+for a sheet that is 0.86 MB as ordinary bytes. Save it, then RELOAD it from disk.
+
+Shipped: `assets/us/characters/conquest_of_worms_us_cast.blend`, GLBs
+`cow_michael_crawford` / `cow_gus_arrival` / `cow_gus_ears`, prop
+`assets/world/props/ear_necklace.glb` (516 tris, bone-local, origin = hang point at
+`mixamorig_Spine2` head — the `etool_shovel` convention, NOT the `rice_bundle` one).
+**The Godot attach transform is UNVERIFIED — I cannot run the engine headless.**
+
+Measured stature, off evaluated mesh bounds: the shared body is **1.8000 m bare /
+1.8490 m to the top of the helmet at armature scale 1.0** — NOT the 1.705 m quoted in the
+handover. 6'2" (1.8796 m) is therefore armature scale **1.0442**, +8.0 cm, +4.4%; the
+1.1024 figure came from the 1.705 premise. Export normalises helmet-top to 1.7132 (ADR-002),
+k=0.9265, so the shipped bare body is 1.6677 m.
