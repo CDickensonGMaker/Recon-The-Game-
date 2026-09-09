@@ -53,6 +53,27 @@ uses a different function that nothing tests.
 
 This is a named instance of the standing law that **a green validator can pass empty work**.
 
+### The canonical illustration: one underscore, eleven pieces of a man's own webbing
+
+`hitzone_builder._GEAR_NAME_HINTS` excludes gear from a man's hurtbox by SUBSTRING. It carries
+the word `"webbing"`. The meshes are named `web_buckle`, `web_snap_l`, `web_susp_r` and so on.
+
+`"webbing"` has never matched anything. So every US grunt in this game has been carrying eleven
+suspender clips, snaps and buckles as HURTBOX VOLUME — **you could shoot a man's web snap and
+hurt him** — and the list's own comment warned about exactly this outcome ("you could shoot his
+ANTENNA and hurt him") while failing to deliver it. Measured 2026-09-09 by making the harvester
+name every skinned mesh it takes; the VC, whose bodies export as one joined mesh, were clean.
+
+All four properties of the bug class in one line of source: it failed silently, toward the
+dangerous default (harvested, not excluded), later than it was written, and invisibly to tests.
+
+**And the fourth property had teeth.** `test_hitzone_rebuild` needs two units with different
+hulls or it proves nothing, and its discriminating pair — `us_grunt_rifleman` vs
+`us_pilot_white` — only differed BECAUSE of the web gear. Fixing the gear made the two identical
+and turned the probe red. **The probe had been discriminating on the defect**, and would have
+gone quiet the instant anyone got it right, with nothing to say why. See the broken-instrument
+register.
+
 ---
 
 ## Decision
@@ -115,7 +136,13 @@ debugging or tooling, where a miss is harmless.
 
 ## Related
 
-- Helmet stacking: `ModelActor`'s gear-hiding pass — diagnosed 2026-09-08, unfixed
-- Firebase penetration: `_tag_fsb_ballistics` / `FSB_SOFT_PREFIXES` — probe ordered 2026-09-09
+- Helmet stacking: **CLOSED on the asset side** — all three variants are caught, because the gib
+  contract reads names off `GibSystem.REGIONS` instead of re-listing prefixes. (This line said
+  "diagnosed, unfixed" until 2026-09-09.)
+- `hitzone_builder._GEAR_NAME_HINTS` — FIXED 2026-09-09, and now this ADR's worked example above
+- Firebase penetration: `_tag_fsb_ballistics` / `FSB_SOFT_PREFIXES` — probe BUILT and ratcheting
+  2026-09-09 (`tools/probe_firebase_penetration.gd`, `--pen-probe`). It found 242 bulletproof
+  hooch walls, 262 bodies reading as hard cover, a dead prefix matching nothing, and a hanging
+  light bulb that stopped rifle rounds
 - `PERF_LEDGER.md` 2026-09-09 — the broken-instrument register, which is the same disease in the
   measurement layer: three retracted conclusions in one night, each from a mislabelled column

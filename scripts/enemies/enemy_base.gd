@@ -387,8 +387,15 @@ func _ready() -> void:
 
 	_home_facing = facing_dir
 	_scan_phase = randf() * TAU   # desync guards so they do not sweep in lockstep
+	# spawn.man measured 105-120ms per attacker in the 45-man assault (2026-09-09), of which
+	# the two spans already inside it - anim_library and hitzones - account for under 20.
+	# The other ~90ms had no name, and an unattributed cost is one nobody can attack.
+	StallLedger.begin("spawn.visual")
 	_setup_visual()
+	StallLedger.end()
+	StallLedger.begin("spawn.hurtbox")
 	_setup_hurtbox()
+	StallLedger.end()
 
 	current_aim_dir = -global_transform.basis.z
 	target_aim_dir = current_aim_dir
@@ -464,10 +471,15 @@ func _setup_visual() -> void:
 		if ModelActor.model_exists(unit):
 			var ma := ModelActor.new()
 			add_child(ma)
-			if ma.setup(unit):
+			StallLedger.begin("spawn.model_setup")
+			var ok_setup: bool = ma.setup(unit)
+			StallLedger.end()
+			if ok_setup:
 				sprite_actor = ma
 				_visual_is_model = true
+				StallLedger.begin("spawn.dress")
 				_dress_visual(ma)
+				StallLedger.end()
 				sprite_actor.play(SpriteStateMap.model_clip_for("idle"))
 				return
 			ma.queue_free()

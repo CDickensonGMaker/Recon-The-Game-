@@ -1340,6 +1340,28 @@ blast resolution     avg     0.09 - 0.12 ms       unchanged
    named as a root cause earlier in this same session on inspection alone; the probe says no. **Do not
    re-open it without a number.**
 
+#### THE BROKEN-INSTRUMENT REGISTER — a NEW class, 2026-09-09
+
+**A TEST WHOSE DISCRIMINATOR IS THE BUG IT IS MEANT TO BE BLIND TO.**
+
+`test_hitzone_rebuild` proves a body swap rebuilds a man's damage regions, and it needs two units
+with genuinely different hulls or it proves nothing - it asserts that discriminator is alive
+before trusting any result, which is exactly the right instinct. Its pair was
+`us_grunt_rifleman` vs `us_pilot_white`.
+
+Those two only differed **because eleven `web_*` suspender clips were being harvested into the
+rifleman's hurtbox** - gear `_GEAR_NAME_HINTS` was meant to exclude and missed, because it tests
+for `"webbing"` and the meshes are named `web_`. Fix the gear and the pilot and the grunt harvest
+the same `us_grunt_joined` body and are identical, so the probe goes red.
+
+**It would have gone quiet the instant anyone got it right, and said nothing about why.** A team
+that hit this without the fix in hand would have "repaired" the discriminator and re-buried the
+defect. The discriminator is a genuinely different BODY MESH now (`vc_guerilla_joined`).
+
+This is not the stale-read class below. It is: *an instrument calibrated against a defect reads
+as broken the moment the defect is cured.* Expect it wherever a probe's control is "these two
+things differ" and nobody wrote down WHY they differ.
+
 #### A BROKEN INSTRUMENT FOUND WHILE BUILDING THIS ONE
 
 `SpawnLedger` only clears its counts when `note()` is NEXT called, so a frame in which nothing spawned
