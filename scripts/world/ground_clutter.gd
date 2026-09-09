@@ -1,9 +1,18 @@
-## ground_clutter.gd - Resident near-ground cover: grass tufts, rocks, fallen logs,
-## mushrooms, flowers. Scattered ONCE across the AO behind the loading screen and bucketed
-## per sub-cell, each bucket carrying a visibility_range so only the near ring ever draws
-## (ADR-013 resident world; ADR-010 deterministic from mission_seed). Grass rides the 6-tri
-## star-fan mesh (grass_fan.glb) with the vegetation_sway wind shader; the other layers are
-## alpha-scissored billboard quads.
+## ground_clutter.gd - Resident near-ground cover: grass tufts, rocks, fallen logs, bushes.
+## Scattered ONCE across the AO behind the loading screen and bucketed per sub-cell, each
+## bucket carrying a visibility_range so only the near ring ever draws (ADR-013 resident
+## world; ADR-010 deterministic from mission_seed).
+##
+## EVERY LAYER IS A REAL 3D MESH (Summoner, 2026-09-08: "no more 2d terrain cards, or 3d
+## plane spliced cards or whatever. all 3d blender models only in game" - sharpened the
+## next day to "no swamp logs, no bushes that arent 3d models etc"). Seven of the eight
+## layers here used to be `QuadMesh` billboards with CULL_DISABLED and the eighth rode the
+## 6-triangle `grass_fan.glb` star-fan. A flat picture of a rock inside a 42 m draw radius
+## is the worst offender in the game and it is gone. ADR-001 Amendment A is the law;
+## barbwire is the single exemption and it does not live here.
+##
+## NO QUAD MAY COME BACK AS AN OPTIMISATION. If a distance cannot afford these meshes the
+## answer is a lower-poly real MESH.
 class_name GroundClutter
 extends Node3D
 
@@ -18,20 +27,50 @@ const NEAR_FADE: float = 8.0
 ## ring, so resident density matches what the moving ring used to show at any instant.
 const RING_AREA: float = 6361.73  # PI * 45 * 45
 
-const FAN_MESH_PATH := "res://assets/world/vegetation/grass_fan.glb"
 const SWAY_SHADER_PATH := "res://terrain/shaders/vegetation_sway.gdshader"
 
-## texture path, ring-count, quad size (w,h), y_sink, jungle-only, star-fan mesh
+const VEG_DIR := "res://assets/world/vegetation/"
+const ROCK_DIR := "res://assets/world/rocks/"
+
+## SWAY IS GATED ON PAINTED VERTEX COLOURS, and that is not decoration. The shader masks
+## displacement by COLOR.r (lean) and COLOR.g (flutter). A mesh with no COLOR_0 attribute
+## reads white, i.e. mask 1.0 everywhere INCLUDING the base, so the whole plant would slide
+## off its roots. Every mesh listed with sway=true below was verified to carry COLOR_0.
+## The orphaned lp_* set does NOT carry it - do not add one here without checking.
+##
+## mesh path, ring-count, y_sink (m), jungle-only, sway
 const LAYERS := [
-	["res://terrain/textures/clutter/grassland_2.png", 160, Vector2(1.4, 1.1), 0.05, false, true],
-	["res://terrain/textures/clutter/grassland_1.png", 90, Vector2(1.0, 0.9), 0.05, false, true],
-	["res://terrain/textures/clutter/grassland_3.png", 70, Vector2(1.2, 0.9), 0.05, false, true],
-	["res://terrain/textures/clutter/herb_bush_picked2.png", 30, Vector2(0.9, 0.7), 0.02, true, false],
-	["res://terrain/textures/clutter/rock.png", 22, Vector2(0.9, 0.55), 0.02, false, false],
-	["res://terrain/textures/clutter/swamp_fallen_1.png", 10, Vector2(2.2, 1.0), 0.02, true, false],
-	["res://terrain/textures/clutter/mushroom.png", 12, Vector2(0.4, 0.35), 0.0, true, false],
-	["res://terrain/textures/clutter/blue_flower.png", 14, Vector2(0.35, 0.35), 0.0, false, false],
+	[VEG_DIR + "grass_tuft_c.glb", 160, 0.05, false, true],
+	[VEG_DIR + "grass_tuft_a.glb", 90, 0.05, false, true],
+	[VEG_DIR + "grass_tuft_b.glb", 70, 0.05, false, true],
+	[VEG_DIR + "bush_a.glb", 18, 0.02, true, true],
+	[VEG_DIR + "bush_c.glb", 12, 0.02, true, true],
+	[ROCK_DIR + "rock_small_a.glb", 8, 0.04, false, false],
+	[ROCK_DIR + "rock_small_b.glb", 7, 0.04, false, false],
+	[ROCK_DIR + "rock_cluster_a.glb", 4, 0.05, false, false],
+	[ROCK_DIR + "rock_half_buried_a.glb", 3, 0.12, false, false],
+	[VEG_DIR + "tree_stump.glb", 10, 0.06, true, false],
 ]
+
+## THE "SWAMP LOG" IS NOT FIXED, AND THIS IS THE HONEST STATE OF IT.
+## The obvious replacement for the old `swamp_fallen` billboard was `fallen_log_a/b.glb`.
+## MEASURED 2026-09-08 (GLB geometry audit): those two are themselves flat. fallen_log_a
+## is 184 tris but only 12 distinct face normals, with 90.9% of its triangle area facing
+## near-vertically and 69% on ONE downward sheet; fallen_log_b is worse at 97.1% horizontal
+## area and a 4:1 flat mid-span cross-section. They are ribbons lying on the ground, not
+## cylinders. Swapping a log card for a log ribbon is not the ruling.
+## The only genuinely volumetric deadwood in the project is `felled_trunk.glb` (8.37 m long)
+## and `felled_tree.glb` (a whole 9.3 m tree) - both far too large for ground clutter - and
+## `tree_stump.glb` (1.75 m, 21 normals, real volume), which is what this layer now draws.
+## OWED ART: a correctly-scaled ~2-3 m volumetric fallen log. Until it exists this layer is
+## stumps, not logs. Note fallen_log_a/b are ALSO planted by TreeCoverLayer as COVER_TRUNK
+## cover-givers with a 0.45 m collider - flat geometry the player is invited to hide behind.
+
+## OWED ART, named rather than left as a quad: the old `mushroom` (12/ring) and
+## `blue_flower` (14/ring) layers had NO 3D model anywhere in the project. They are not
+## substituted with something else and they are not left as billboards - they are simply
+## not drawn until a real mesh exists. `terrain/textures/clutter/` still holds their
+## textures plus the retired grassland_*/rock/herb_bush/swamp_fallen sheets.
 
 var world: GameWorld
 var _templates: Array = []
@@ -59,7 +98,7 @@ static func make_sway_material(tex: Texture2D, wind_strength: float = 0.35,
 
 
 ## First MeshInstance3D mesh inside a GLB scene (null if missing/empty). Reused by callers.
-static func load_glb_mesh(path: String) -> Mesh:
+static func load_glb_mesh(path: String, as_foliage: bool = true) -> Mesh:
 	if not ResourceLoader.exists(path):
 		return null
 	var packed: PackedScene = load(path)
@@ -77,43 +116,37 @@ static func load_glb_mesh(path: String) -> Mesh:
 		for c in n.get_children():
 			stack.push_back(c)
 	inst.free()
-	return MaterialBudget.foliage(mesh)
+	return MaterialBudget.foliage(mesh) if as_foliage else MaterialBudget.solid(mesh)
+
+
+## The GLB's own albedo, so a sway material keeps the mesh's authored texture instead of
+## an unrelated clutter sheet. Null is survivable - make_sway_material skips the uniform.
+static func _albedo_of(mesh: Mesh) -> Texture2D:
+	if mesh == null or mesh.get_surface_count() == 0:
+		return null
+	var m := mesh.surface_get_material(0) as BaseMaterial3D
+	return m.albedo_texture if m != null else null
 
 
 func setup(game_world: GameWorld) -> void:
 	world = game_world
-	var fan_mesh: Mesh = load_glb_mesh(FAN_MESH_PATH)
-	if fan_mesh == null:
-		push_warning("[CLUTTER] grass_fan.glb missing - grass falls back to billboards")
 
-	# One shared mesh+material template per layer; every bucket reuses these resources.
+	# One shared mesh (+ optional sway material) per layer; every bucket reuses them.
 	for layer: Array in LAYERS:
-		var use_fan: bool = bool(layer[5]) and fan_mesh != null
-		var size: Vector2 = layer[2]
-		var mesh: Mesh
+		var path: String = String(layer[0])
+		var sway: bool = bool(layer[4])
+		var mesh: Mesh = load_glb_mesh(path, sway)
+		if mesh == null:
+			push_warning("[CLUTTER] %s missing - that layer draws nothing. It is NOT "
+				% path + "falling back to a billboard.")
+			continue
 		var override_mat: Material = null
-		if use_fan:
-			mesh = fan_mesh
-			override_mat = make_sway_material(load(str(layer[0])) as Texture2D, 0.18, 0.05)
-		else:
-			var quad := QuadMesh.new()
-			quad.size = size
-			var mat := StandardMaterial3D.new()
-			mat.albedo_texture = load(str(layer[0]))
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-			mat.alpha_scissor_threshold = 0.4
-			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-			## Per-vertex, not per-pixel: a 0.4m mushroom quad has nothing to gain from a
-			## per-fragment light loop. NOT unshaded - self-lit clutter glows at night.
-			mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
-			mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST  # PS1 crunch
-			quad.material = mat
-			mesh = quad
+		if sway:
+			override_mat = make_sway_material(_albedo_of(mesh), 0.18, 0.05)
 		var per_cell: int = int(ceil(float(int(layer[1])) * (SUBCELL * SUBCELL) / RING_AREA))
 		_templates.append({
-			"mesh": mesh, "override": override_mat, "fan": use_fan, "size": size,
-			"y_sink": float(layer[3]), "jungle_only": bool(layer[4]), "per_cell": per_cell,
+			"mesh": mesh, "override": override_mat,
+			"y_sink": float(layer[2]), "jungle_only": bool(layer[3]), "per_cell": per_cell,
 		})
 
 	var subcells: int = int(ceil(world.map_size / SUBCELL))
@@ -145,15 +178,11 @@ func _scatter_subcell(sc: Vector2i) -> void:
 			var plant_scale: float = rng.randf_range(0.75, 1.3)
 			if not _accept(pos, bool(t.jungle_only)):
 				continue
-			var plant_basis := Basis(Vector3.UP, ang)
-			var size: Vector2 = t.size
-			if bool(t.fan):
-				# star-fan: origin at the feet, stretched to the card size on the ground
-				pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
-				plant_basis = plant_basis.scaled(Vector3(size.x * plant_scale, size.y * plant_scale, size.x * plant_scale))
-			else:
-				pos.y = world.terrain_manager.get_height_at(pos) + size.y * 0.5 - float(t.y_sink)
-				plant_basis = plant_basis.scaled(Vector3.ONE * plant_scale)
+			# Real meshes are authored at world scale with their origin at the feet,
+			# so they seat on the ground directly - no half-height nudge, which only
+			# existed to centre a quad on its own face.
+			var plant_basis := Basis(Vector3.UP, ang).scaled(Vector3.ONE * plant_scale)
+			pos.y = world.terrain_manager.get_height_at(pos) - float(t.y_sink)
 			origins.append(pos)
 			xforms.append(Transform3D(plant_basis, pos - centre))
 		if not xforms.is_empty():

@@ -42,10 +42,24 @@ graphics work is cancelled with it — there will be no cards to atlas.
   firebase GLB** as `fb_veg_*` merged meshes. This is an art bake, not runtime code: re-running that
   script is the only way to change it. It is the least visible half of the work and it must not be
   forgotten.
-- Real 3D low-poly plant meshes already exist and are ORPHANED: `lp_bush_a/b/c`, `lp_fern_a/b`,
-  `lp_grass_tuft_a/b`, `lp_sprout_a/b/c` (measured 6-108 tris each; `lp_bush_a` is 36 tris against
-  `bush_a`'s 256). `lp_bush_*` already carry break bands and segment joints. Nothing plants any of them.
-  They are the obvious starting stock for the far-ring LOD meshes this amendment requires.
+- Orphaned low-poly plant meshes exist, but **only some of them are real** - corrected 2026-09-08 after
+  a geometry audit (face-normal count, planarity, area distribution), because triangle count alone
+  cannot tell a model from a card. **REAL:** `lp_bush_a` (36 tris, 16 normals), `lp_bush_b` (36/15),
+  `lp_bush_c` (54/18), `lp_fern_a` (72/29), `lp_fern_b` (108/46), `lp_grass_tuft_b` (54/23) - genuine
+  low-poly volumes and the correct starting stock for the far-ring LOD meshes. **CARDS, do not use:**
+  `lp_grass_tuft_a`, `lp_sprout_a`, `lp_sprout_b`, `lp_sprout_c` - all 6 tris / 3 normals with area
+  split in exact thirds, i.e. three crossed quads, the same construction as `grass_fan.glb`. An earlier
+  line here called the whole `lp_*` set real 3D; that was wrong and is retracted.
+- **Two shipped assets that LOOK like models and are not:** `fallen_log_a.glb` (184 tris but 12 normals,
+  90.9% of area near-horizontal, 69% on one downward sheet) and `fallen_log_b.glb` (97.1% horizontal,
+  4:1 flat cross-section) are flat ribbons. `moss_a/b.glb` are flat ground decals (100% horizontal),
+  which is defensible for moss. The logs are not defensible: `TreeCoverLayer.COVER_TRUNK` plants both as
+  cover-givers with a 0.45 m collider, so the player is invited to take cover behind a ribbon. **OWED
+  ART: a volumetric fallen log at ~2-3 m.** The only real deadwood today is `felled_trunk.glb` (8.37 m)
+  and `felled_tree.glb` (a 9.3 m tree), both too large for clutter, plus `tree_stump.glb` (1.75 m, real).
+- **No mushroom, fungus, flower, boulder or pebble asset exists anywhere in the project**, in any format.
+  The four rocks in `assets/world/rocks/` (`rock_small_a/b`, `rock_cluster_a`, `rock_half_buried_a`) are
+  genuinely volumetric (37-122 normals) and were orphaned - nothing referenced them before this ruling.
 
 **Measured facts that bear on the swap, so it is not costed by guess** (GLB binary parse, 2026-09-08):
 mean solid plant = 269 tris, mean card = 3.05 tris, an 88x triangle increase for the far ring. Against

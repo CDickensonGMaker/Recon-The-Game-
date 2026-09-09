@@ -42,6 +42,16 @@ static func foliage(mesh: Mesh) -> Mesh:
 	return mesh
 
 
+## Opaque-ise every surface of a solid prop mesh (rocks). A rock has no cutout in it, so
+## the foliage scissor path would be a lie about the material. Same chaining contract.
+static func solid(mesh: Mesh) -> Mesh:
+	if mesh == null or not enabled():
+		return mesh
+	for s in mesh.get_surface_count():
+		_solid(mesh.surface_get_material(s) as BaseMaterial3D)
+	return mesh
+
+
 ## Walk an instantiated structure kit and open up its opaque-but-blended surfaces.
 static func structure(root: Node) -> void:
 	if root == null or not enabled():
