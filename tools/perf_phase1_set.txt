@@ -1,0 +1,241 @@
+assets/civilians/characters/civ_elder_b_civ_elder_b_cloth_tex.png
+assets/civilians/characters/civ_elder_b_face_atlas_v3.png
+assets/civilians/characters/civ_elder_civ_elder_cloth_tex.png
+assets/civilians/characters/civ_elder_face_atlas_v3.png
+assets/civilians/characters/civ_elder_transparent faces.png
+assets/civilians/characters/civ_farmer_f_b_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_f_c_civ_farmer_f_c_cloth_tex.png
+assets/civilians/characters/civ_farmer_f_c_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_f_civ_farmer_f_cloth_tex.png
+assets/civilians/characters/civ_farmer_f_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_f_transparent faces.png
+assets/civilians/characters/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png
+assets/civilians/characters/civ_farmer_m_b_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_m_c_civ_farmer_m_c_cloth_tex.png
+assets/civilians/characters/civ_farmer_m_c_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_m_face_atlas_v3.png
+assets/civilians/characters/civ_farmer_m_transparent faces.png
+assets/civilians/characters/civ_kid_b_civ_kid_b_cloth_tex.png
+assets/civilians/characters/civ_kid_b_face_atlas_v3.png
+assets/civilians/characters/civ_kid_civ_kid_cloth_tex.png
+assets/civilians/characters/civ_kid_face_atlas_v3.png
+assets/civilians/characters/civ_kid_transparent faces.png
+assets/nva_vc/characters/mortar_pit_roster_render.png
+assets/nva_vc/characters/nva_marksman_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_medic_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_mg_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_mortar_dropper_better_textures.png
+assets/nva_vc/characters/nva_mortar_dropper_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_mortar_dropper_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_mortar_gunner_better_textures.png
+assets/nva_vc/characters/nva_mortar_gunner_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_mortar_gunner_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_mortar_runner_better_textures.png
+assets/nva_vc/characters/nva_mortar_runner_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_mortar_runner_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_officer_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_regular_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_rifleman_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_rpg_better_textures.png
+assets/nva_vc/characters/nva_rpg_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_rpg_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_rto_better_textures.png
+assets/nva_vc/characters/nva_rto_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_rto_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_sapper_better_textures.png
+assets/nva_vc/characters/nva_sapper_face_atlas_viet.jpg
+assets/nva_vc/characters/nva_sapper_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_vc_soldiers_textures/better_textures.png
+assets/nva_vc/characters/nva_vc_soldiers_textures/fixed_better_viet_faces.jpg
+assets/nva_vc/characters/nva_vc_soldiers_textures/newfacesfixed.png
+assets/nva_vc/characters/roster_render.png
+assets/nva_vc/characters/roster_render_detail.png
+assets/nva_vc/characters/vc_guerilla_better textures.png
+assets/nva_vc/characters/vc_guerilla_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_guerilla_m16_better textures.png
+assets/nva_vc/characters/vc_guerilla_m16_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_mosin_better textures.png
+assets/nva_vc/characters/vc_guerilla_mosin_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_mosin_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_guerilla_ppsh_better textures.png
+assets/nva_vc/characters/vc_guerilla_ppsh_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_ppsh_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_guerilla_rpd_better textures.png
+assets/nva_vc/characters/vc_guerilla_rpd_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_rpd_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_guerilla_rpg_better textures.png
+assets/nva_vc/characters/vc_guerilla_rpg_face_atlas_v2.png
+assets/nva_vc/characters/vc_guerilla_rpg_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_medic_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_rpg_better textures.png
+assets/nva_vc/characters/vc_rpg_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_rpg_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/vc_sapper_better textures.png
+assets/nva_vc/characters/vc_sapper_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_sapper_fixed_better_viet_faces.jpg
+assets/nva_vc/characters/vc_sapper_stripped_better_textures.png
+assets/nva_vc/characters/vc_sapper_stripped_face_atlas_viet.jpg
+assets/nva_vc/characters/vc_sapper_stripped_fixed_better_viet_faces.jpg
+assets/nva_vc/props/headgear/pith_faded_pith_v2_faded_tex.png
+assets/nva_vc/props/headgear/pith_foliage_pith_v2_plain_tex.png
+assets/nva_vc/props/headgear/pith_net_pith_v2_plain_tex.png
+assets/nva_vc/props/headgear/pith_plain_pith_v2_plain_tex.png
+assets/nva_vc/props/headgear/pith_star_pith_v2_star_tex.png
+assets/player/arms/arms_01.png
+assets/player/arms/arms_gloves_01.png
+assets/player/arms/arms_rig_arms_01.png
+assets/player/viewmodels/m79_fp_arms_gloves_01.png
+assets/player/viewmodels/mosin_wood_ph.jpg
+assets/player/viewmodels/rpd_fp_arms_gloves_01.png
+assets/shared/cover_previews/cover_kneel_brace_f075.png
+assets/shared/cover_previews/cover_peek_f004.png
+assets/shared/cover_previews/cover_peek_f030.png
+assets/shared/cover_previews/cover_reposition_f015.png
+assets/shared/cover_previews/cover_reposition_f060.png
+assets/shared/cover_previews/cover_slice_pie_f020.png
+assets/shared/cover_previews/cover_slice_pie_f100.png
+assets/shared/cover_previews/cover_wall_lean_idle_f063.png
+assets/shared/textures/face_atlas_v2.png
+assets/shared/textures/face_atlas_v3.png
+assets/textures/fx/sheets/fire_loop_sheet.png
+assets/textures/fx/sheets/mortar_burst_sheet.png
+assets/textures/fx/sheets/napalm_explosion_sheet.png
+assets/textures/fx/sheets/smoke_loop_sheet.png
+assets/us/characters/pilot_kit_sheet.png
+assets/us/characters/recovered_face_atlas.png
+assets/us/characters/recovered_face_atlas_v2.png
+assets/us/characters/recovered_face_atlas_v3.png
+assets/us/characters/recovered_gore_source.png
+assets/us/characters/recovered_ref_factions.001.png
+assets/us/characters/recovered_ref_factions.png
+assets/us/characters/recovered_ref_ruck_radio.001.png
+assets/us/characters/recovered_ref_ruck_radio.png
+assets/us/characters/recovered_ref_us_kit.png
+assets/us/characters/recovered_ref_vc_nva.png
+assets/us/characters/us_grunt_m14_better textures.png
+assets/us/characters/us_grunt_m14_face_atlas_v3.png
+assets/us/characters/us_grunt_m14_usarmybitmap.png
+assets/us/characters/us_grunt_m60_better textures.png
+assets/us/characters/us_grunt_m60_face_atlas_v3.png
+assets/us/characters/us_grunt_m60_usarmybitmap.png
+assets/us/characters/us_grunt_m79_better textures.png
+assets/us/characters/us_grunt_m79_face_atlas_v3.png
+assets/us/characters/us_grunt_m79_usarmybitmap.png
+assets/us/characters/us_grunt_v3_better textures.png
+assets/us/characters/us_grunt_v3_face_atlas_v3.png
+assets/us/characters/us_grunt_v3_usarmybitmap.png
+assets/us/characters/us_medic_aidbag_canvas.png
+assets/us/characters/us_pilot_better textures.png
+assets/us/characters/us_pilot_black_face_atlas_v3.png
+assets/us/characters/us_pilot_black_transparent faces.png
+assets/us/characters/us_pilot_holster_tex.png
+assets/us/characters/us_pilot_white_face_atlas_v3.png
+assets/us/characters/us_pilot_white_recovered_ref_factions.png
+assets/us/characters/us_pilot_white_transparent faces.png
+assets/us/characters/us_rto_better textures.png
+assets/us/characters/us_rto_face_atlas_v3.png
+assets/us/characters/us_rto_usarmybitmap.png
+assets/us/props/interior/hooch_posters_atlas.png
+assets/world/building models/structures/emplacements_real/zpu_crewed_nva_better_textures.png
+assets/world/building models/structures/emplacements_real/zpu_crewed_nva_fixed_better_viet_faces.jpg
+assets/world/building models/structures/emplacements_real/zpu_crewed_nva_pith_v2_plain_tex.png
+assets/world/building models/structures/firebase/kit/review_renders/batch1_hero.png
+assets/world/building models/structures/firebase/kit/review_renders/batch1_playereye.png
+assets/world/building models/structures/firebase/kit/review_renders/batch1_side.png
+assets/world/building models/structures/infrastructure/textures/hessian_230_Metal-hessian_230_Rough.001.png
+assets/world/building models/structures/infrastructure/textures/hessian_230_Metal-hessian_230_Rough.002.png
+assets/world/building models/structures/infrastructure/textures/hessian_230_Metal-hessian_230_Rough.png
+assets/world/building models/structures/infrastructure/textures/tmp6et7vtxj.001.png
+assets/world/building models/structures/infrastructure/textures/tmp6et7vtxj.png
+assets/world/building models/structures/infrastructure/textures/tmpecqgch6j.001.jpg
+assets/world/building models/structures/infrastructure/textures/tmpecqgch6j.jpg
+assets/world/building models/structures/infrastructure/textures/tmpgfp9xuhw.001.png
+assets/world/building models/structures/infrastructure/textures/tmpgfp9xuhw.003.png
+assets/world/building models/structures/infrastructure/textures/tmpgfp9xuhw.png
+assets/world/building models/structures/infrastructure/textures/tmplg1mem3v.001.png
+assets/world/building models/structures/infrastructure/textures/tmplg1mem3v.png
+assets/world/building models/structures/infrastructure/textures/tmpmq935ovv.001.jpg
+assets/world/building models/structures/infrastructure/textures/tmpmq935ovv.003.jpg
+assets/world/building models/structures/infrastructure/textures/tmpmq935ovv.jpg
+assets/world/building models/structures/infrastructure/textures/tmpvh8kf93x.001.jpg
+assets/world/building models/structures/infrastructure/textures/tmpvh8kf93x.002.jpg
+assets/world/building models/structures/infrastructure/textures/tmpvh8kf93x.jpg
+assets/world/textures/dirt_ground.png
+assets/world/textures/jungle_backdrop.png
+assets/world/vegetation/cards/bamboo_a_card_bamboo_a.png
+assets/world/vegetation/cards/bamboo_b_card_bamboo_b.png
+assets/world/vegetation/cards/bamboo_c_card_bamboo_c.png
+assets/world/vegetation/cards/broadleaf_a_card_broadleaf_a.png
+assets/world/vegetation/cards/broadleaf_b_card_broadleaf_b.png
+assets/world/vegetation/cards/broadleaf_c_card_broadleaf_c.png
+assets/world/vegetation/cards/bush_b_card_bush_b.png
+assets/world/vegetation/cards/grass_fan_card_grass_fan.png
+assets/world/vegetation/cards/jungle_palm_a1_card_jungle_palm_a1.png
+assets/world/vegetation/cards/jungle_palm_a2_card_jungle_palm_a2.png
+assets/world/vegetation/cards/jungle_palm_a3_card_jungle_palm_a3.png
+assets/world/vegetation/cards/jungle_palm_b1_card_jungle_palm_b1.png
+assets/world/vegetation/cards/liana_a_card_liana_a.png
+assets/world/vegetation/cards/liana_b_card_liana_b.png
+assets/world/vegetation/cards/tall_grass_a_card_tall_grass_a.png
+assets/world/vegetation/cards/tall_grass_b_card_tall_grass_b.png
+assets/world/vegetation/cards/tall_grass_c_card_tall_grass_c.png
+assets/world/vegetation/cards/tex/bamboo_a.png
+assets/world/vegetation/cards/tex/bamboo_b.png
+assets/world/vegetation/cards/tex/bamboo_c.png
+assets/world/vegetation/cards/tex/broadleaf_a.png
+assets/world/vegetation/cards/tex/broadleaf_b.png
+assets/world/vegetation/cards/tex/broadleaf_c.png
+assets/world/vegetation/cards/tex/bush_b.png
+assets/world/vegetation/cards/tex/grass_fan.png
+assets/world/vegetation/cards/tex/jungle_palm_a1.png
+assets/world/vegetation/cards/tex/jungle_palm_a2.png
+assets/world/vegetation/cards/tex/jungle_palm_a3.png
+assets/world/vegetation/cards/tex/jungle_palm_b1.png
+assets/world/vegetation/cards/tex/liana_a.png
+assets/world/vegetation/cards/tex/liana_b.png
+assets/world/vegetation/cards/tex/tall_grass_a.png
+assets/world/vegetation/cards/tex/tall_grass_b.png
+assets/world/vegetation/cards/tex/tall_grass_c.png
+assets/world/vegetation/cards/tex/trunk_vine_a.png
+assets/world/vegetation/cards/tex/trunk_vine_b.png
+assets/world/vegetation/cards/tex/vine_a.png
+assets/world/vegetation/cards/tex/vine_b.png
+assets/world/vegetation/cards/trunk_vine_a_card_trunk_vine_a.png
+assets/world/vegetation/cards/trunk_vine_b_card_trunk_vine_b.png
+assets/world/vegetation/cards/vine_a_card_vine_a.png
+assets/world/vegetation/cards/vine_b_card_vine_b.png
+assets/zombies/characters/zed_cult_cloth_tex.png
+assets/zombies/characters/zombie_face_atlas_v1.png
+terrain/vegetation/textures/1.png
+terrain/vegetation/textures/2.png
+terrain/vegetation/textures/3.png
+terrain/vegetation/textures/4.png
+terrain/vegetation/textures/5.png
+terrain/vegetation/textures/6.png
+terrain/vegetation/textures/7.png
+terrain/vegetation/textures/CocosNucifera_BaseColor.png
+terrain/vegetation/textures/CocosNucifera_Normal_DirectX.png
+terrain/vegetation/textures/CocosNucifera_Normal_OpenGL.png
+terrain/vegetation/textures/CocosNucifera_Roughness.png
+terrain/vegetation/textures/Plant alpha 1.png
+terrain/vegetation/textures/Plant alpha 2.png
+terrain/vegetation/textures/Plant alpha 3.png
+terrain/vegetation/textures/Plant alpha 4.png
+terrain/vegetation/textures/Plant alpha 5.png
+terrain/vegetation/textures/Plant alpha 6.png
+terrain/vegetation/textures/_kokos_apg_.png
+terrain/vegetation/textures/_palma_1_apg_.png
+terrain/vegetation/textures/_palma_1_leaves_apg_.png
+terrain/vegetation/textures/_palma_2_apg_.png
+terrain/vegetation/textures/_palma_2_leaves_apg_.png
+terrain/vegetation/textures/_palma_3_apg_.png
+terrain/vegetation/textures/_palma_3_leaves_apg_.png
+terrain/vegetation/textures/_palma_4_apg_.png
+terrain/vegetation/textures/_palma_4_leaves_apg_.png
+terrain/vegetation/textures/_plant_2_apg_.png
+terrain/vegetation/textures/_plant_2a_apg_.png
+terrain/vegetation/textures/_plant_3_apg_.png
+terrain/vegetation/textures/_plant_3a_apg_.png
+terrain/vegetation/textures/_plants_big_1_apg_.png
+terrain/vegetation/textures/_plants_big_2_apg_.png

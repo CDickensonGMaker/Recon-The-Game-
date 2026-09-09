@@ -29,6 +29,26 @@ func _ready() -> void:
 	## quotes a project setting is not a measurement of anything (fixed 2026-09-08).
 	print("[FPS] printer ATTACHED - %ss windows | vsync forced OFF | render scale %.3f (live) | mode %d"
 		% [WINDOW_S, get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode])
+	print("[FPS] texture state: %s" % _texture_state())
+
+
+## The log states its own texture compression, so a VRAM-compression A/B cannot be
+## mislabelled by remembering which run was which. The witness is a canopy card - the
+## largest single texture in the game and the one this test exists for.
+func _texture_state() -> String:
+	const WITNESS := "res://assets/world/vegetation/cards/vine_b_card_vine_b.png"
+	var t: Texture2D = load(WITNESS) as Texture2D
+	if t == null:
+		return "UNKNOWN - witness texture did not load (%s)" % WITNESS
+	var img: Image = t.get_image()
+	if img == null:
+		return "UNKNOWN - witness texture carries no image"
+	var fmt: int = img.get_format()
+	var compressed: bool = fmt >= Image.FORMAT_DXT1
+	return "%s (canopy witness %dx%d, format %d, %.1f MB)" % [
+		"VRAM COMPRESSED" if compressed else "LOSSLESS/UNCOMPRESSED",
+		img.get_width(), img.get_height(), fmt,
+		float(img.get_data().size()) / 1048576.0]
 
 
 func _process(delta: float) -> void:

@@ -1,6 +1,8 @@
 @echo off
-REM PERF: BEFORE. The demo exactly as it ran on 2026-09-07 - full-resolution frames
-REM and the as-imported foliage/sandbag materials. Same scene, same seed as perf_after.bat.
+REM PERF: BEFORE. Full-resolution frames and the as-imported foliage/sandbag materials.
+REM NOTE (2026-09-08): --perf-before does NOT revert texture compression - that is baked
+REM into the import and is switched by tools/perf_phase1_vram.py. For the VRAM-compression
+REM A/B use perf_walk.bat, whose log states its own texture state.
 REM
 REM YOU are the camera: normal controls, walk where you like. Do the SAME walk in both.
 REM Every 5 seconds a line lands in perf_before.log with fps, GPU ms and the render scale
