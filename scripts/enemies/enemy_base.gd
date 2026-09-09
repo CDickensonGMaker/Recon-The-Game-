@@ -843,11 +843,19 @@ func _physics_process(delta: float) -> void:
 	if think_timer >= _think_interval_current:
 		think_timer = 0.0
 		var t_think: int = Time.get_ticks_usec()
+		# The AI's cost has always been counted (ai_usec_think below) but never ATTRIBUTED -
+		# it was invisible to the stall ledger, so 107 of 110 worst physics steps in the
+		# assault reported "no instrumented cause". The usec counters answer "how much";
+		# these answer "was it this frame".
+		StallLedger.begin("ai.think")
 		_think()
+		StallLedger.end()
 		usec_think = Time.get_ticks_usec() - t_think
 		CombatManager.ai_usec_think += usec_think
 
+	StallLedger.begin("ai.execute")
 	_execute(capped_delta)
+	StallLedger.end()
 
 	_update_unstick(capped_delta)
 	# Move-side of low-posture (B2): cap ground speed so the crouch clip reads as a

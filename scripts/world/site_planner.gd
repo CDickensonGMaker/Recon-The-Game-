@@ -1785,6 +1785,9 @@ const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX, "fb_sbg_se
 const INTERIOR_PROP_PREFIX: String = "fb_int_"
 const INTERIOR_CULL_M: float = 40.0
 const INTERIOR_CULL_MARGIN_M: float = 8.0
+## How far the per-prop thresholds are spread. Small on purpose: it must not push a prop far
+## enough out to change the draw-call bill the ruling above is about.
+const INTERIOR_CULL_SPREAD_M: float = 6.0
 
 
 func _cull_interior_props(root: Node3D) -> void:
@@ -1797,10 +1800,19 @@ func _cull_interior_props(root: Node3D) -> void:
 		var mi := n as MeshInstance3D
 		if mi == null or not String(mi.name).begins_with(INTERIOR_PROP_PREFIX):
 			continue
-		mi.visibility_range_end = INTERIOR_CULL_M
+		# STAGGER THE THRESHOLD. All 545 shared one range, so they arrived in a SINGLE FRAME
+		# as you closed on a hooch. This does not fade them (FADE_SELF alpha-dithers and
+		# renders a prop see-through - the ADR-026 opacity bug) and it does not move the range
+		# out (that costs draw calls and is his open ruling below). It spreads the SAME
+		# threshold over a few metres of walking, so they arrive over ~10 frames instead of one.
+		# Deterministic in the prop's own name, so the same base always pops the same way
+		# (ADR-010).
+		var jitter: float = float(absi(hash(mi.name)) % 1000) / 1000.0 * INTERIOR_CULL_SPREAD_M
+		mi.visibility_range_end = INTERIOR_CULL_M + jitter
 		mi.visibility_range_end_margin = INTERIOR_CULL_MARGIN_M
 		n_props += 1
-	print("[FSB] %d interior prop(s) culled past %.0fm" % [n_props, INTERIOR_CULL_M])
+	print("[FSB] %d interior prop(s) culled past %.0f-%.0fm (staggered so they do not all arrive in one frame)"
+		% [n_props, INTERIOR_CULL_M, INTERIOR_CULL_M + INTERIOR_CULL_SPREAD_M])
 
 
 ## EVERY structure in the shipped GLB winds inward - measured 2026-08-02, signed volume is
