@@ -2576,7 +2576,14 @@ func _wire_structure_destructibles(root: Node3D) -> void:
 ## combat_manager.gd:176-185 damages a prop on a pure radius test against global_position with
 ## no LOS and no bounds check, so a 9.6 m tower keyed off its foot survives a blast that
 ## visibly engulfs it.
-func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
+## collider_root: KIT PARTS ONLY. When given, every StaticBody3D under it is taken as this
+## structure's collision, instead of matching siblings by name. The monolith must match by
+## name because it is one flat bake; a part must NOT, because its mesh and its collider carry
+## different names - fb_bunker_fighting.glb draws WB_bunker_rifle and collides as
+## fb_bunker_fighting_000, so a name match finds nothing and the bunker stands through a
+## satchel charge.
+func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int,
+		collider_root: Node = null) -> void:
 	var d := Destructible.new()
 	d.kind = kind
 	d.hp = hp
@@ -2598,14 +2605,17 @@ func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int) -> void:
 	# <mesh name>_<ord>-colonly. Walking mi.get_children() found nothing, so no bunker,
 	# tower or sandbag stack was ever adopted - a destroyed one stayed solid forever.
 	var bodies: Array[Node] = []
-	for c in mi.get_children():
-		if c is StaticBody3D:
-			bodies.append(c)
-	var sib_parent: Node = mi.get_parent()
-	if sib_parent != null:
-		for c in sib_parent.get_children():
-			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+	if collider_root != null:
+		bodies = _static_bodies_under(collider_root)
+	else:
+		for c in mi.get_children():
+			if c is StaticBody3D:
 				bodies.append(c)
+		var sib_parent: Node = mi.get_parent()
+		if sib_parent != null:
+			for c in sib_parent.get_children():
+				if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
+					bodies.append(c)
 	for c in bodies:
 		var body := c as StaticBody3D
 		if body == null:
@@ -2902,6 +2912,19 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 		push_error("[PLAN] refusing to stamp: %s" % why)
 		return {}
 
+	# THE CONTRACT GATE, before a single node is instanced. ADR-042's bug class fails by
+	# DEFAULT, never by error: an unrecognised mesh is bulletproof and indestructible and
+	# nothing says so. The first stamped compound shipped exactly that way - 5 meshes, 0 on
+	# the blast bus - and it was found by a suite run hours later. Refuse instead.
+	var gaps: PackedStringArray = PackedStringArray()
+	for entry in plan.parts:
+		var gap: String = reg.contract_gap(str(entry.get("id", "")))
+		if gap != "" and not gaps.has(gap):
+			gaps.append(gap)
+	if not gaps.is_empty():
+		push_error("[PLAN] refusing to stamp '%s': %s" % [plan.plan_name, ", ".join(gaps)])
+		return {}
+
 	# ADR-041 §6: the flatten is per-plan and declared, never mandatory and never 1.0 by
 	# default. A plan that asks for no seat gets none, and follows the ground it is on.
 	if plan.flatten_radius > 0.0 and plan.flatten_strength > 0.0:
@@ -2956,15 +2979,79 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 		compound.queue_free()
 		return {}
 
-	# The naming contract does the rest: a part whose meshes carry the destructible prefixes
-	# inherits destructibility, ballistics and the blast bus through the SAME walk the
-	# firebase uses. Names are portable; roots are not (ADR-042).
-	_wire_structure_destructibles(compound)
+	# A KIT PART RESOLVES ITS IDENTITY FROM DATA, NOT FROM A MESH NAME.
+	#
+	# _wire_structure_destructibles is the MONOLITH's mechanism and it cannot serve here. It
+	# matches mesh names against FSB_STRUCTURE_KINDS, which works in the bake only because
+	# gen_firebase.py stamped instances called fb_bunker_fighting_i*. The standalone kit GLBs
+	# are July review exports whose visible meshes carry Blender workbench names -
+	# fb_bunker_fighting.glb's mesh is WB_bunker_rifle while its collider is
+	# fb_bunker_fighting_000-colonly. Ballistics reads the collider, destruction reads the
+	# mesh, and that divergence is why the first stamped compound had nothing on the blast bus.
+	#
+	# A stamped part KNOWS what it is - we placed it by id - so it does not have to spell its
+	# identity in every mesh name. That is strictly better than the bake's mechanism and it is
+	# what keeps the vocabulary in data (ADR-043 §4) instead of in a const array.
+	var wired: int = 0
+	var no_collider: PackedStringArray = PackedStringArray()
+	for part_any in compound.get_children():
+		var part := part_any as Node3D
+		if part == null or not part.has_meta("part_id"):
+			continue
+		var pid: String = str(part.get_meta("part_id"))
+		tag_ballistics(part, reg.is_soft(pid))
+		var kind: String = reg.destructible_kind(pid)
+		if kind == "":
+			continue
+		if _static_bodies_under(part).is_empty():
+			if not no_collider.has(pid):
+				no_collider.append(pid)
+			continue
+		var want: Array[String] = reg.structure_meshes(pid)
+		var stack: Array[Node] = [part]
+		while not stack.is_empty():
+			var n: Node = stack.pop_back()
+			for c in n.get_children():
+				stack.append(c)
+			var mi := n as MeshInstance3D
+			if mi == null or not want.has(String(mi.name)):
+				continue
+			_adopt_structure(mi, kind, Destructible.hp_for(kind), part)
+			wired += 1
+			break
+	if not no_collider.is_empty():
+		# WARNING, not error, and the distinction is deliberate. run_all_tests.ps1 fails a
+		# test on any line beginning "ERROR:", so push_error here would paint the suite red
+		# over a KNOWN art gap nobody can close without Blender - and a permanently red gate
+		# is one people learn to ignore. The count is asserted against a ratchet in
+		# tests/test_site_plan_roundtrip.gd instead, so it cannot grow unnoticed.
+		push_warning("[PLAN] %s ship NO COLLIDER - nothing can hit them, and a structure "
+			% ", ".join(no_collider)
+			+ "that cannot be hit cannot be breached")
+	print("[PLAN] %d part(s) with no collider" % no_collider.size())
+	print("[PLAN] %d structure(s) on the blast bus" % wired)
 
 	var site := {"kind": "site_plan", "plan": plan.plan_name, "center": center,
-		"nodes": [compound], "stations": stations,
+		"nodes": [compound], "stations": stations, "wired": wired,
+		"no_collider": no_collider,
 		"radius": maxf(plan.flatten_radius, 16.0)}
 	placed_sites.append(site)
 	print("[PLAN] stamped '%s': %d part(s), %d station(s)"
 		% [plan.plan_name, placed, stations.size()])
 	return site
+
+
+## Every StaticBody3D under `root`, at any depth. A kit part's colliders belong to the part
+## whatever the exporter called them, which is the whole reason this exists.
+static func _static_bodies_under(root: Node) -> Array[Node]:
+	var out: Array[Node] = []
+	if root == null:
+		return out
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is StaticBody3D:
+			out.append(n)
+	return out

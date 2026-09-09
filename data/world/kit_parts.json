@@ -1,0 +1,49 @@
+{
+	"_doc": "AUTHORED contract overlay for kit parts (ADR-043). Merged over the GENERATED manifest assets/.../kit/firebase_set.json by KitRegistry. Authored, never generated: this is the CollisionTable precedent, where a naming heuristic once shipped barracks_bunker.glb as SOFT COVER because its name contained 'rack' - a bunker you could shoot through. Author the entry; do not name your way into a material.",
+	"_why_this_file_exists": "A kit part cannot use the monolith's mechanism. Destruction there matches the MESH name against FSB_STRUCTURE_KINDS, which works because gen_firebase.py stamped instances named fb_bunker_fighting_i*. The standalone kit GLBs were exported in July as a REVIEW artefact and their visible meshes carry Blender workbench names - fb_bunker_fighting.glb's mesh is 'WB_bunker_rifle' while its collider is 'fb_bunker_fighting_000-colonly'. That is FAILURE MODE 3 of the destructible-export skill exactly: ballistics reads the COLLIDER name, destruction reads the MESH name, and divergence gives you half a system that looks like it works. A stamped part knows its own id, so the kit resolves identity from DATA instead of inferring it from a name.",
+	"_fields": {
+		"destructible": "Destructible.HP_FOR kind, or \"\" for a DELIBERATE ruling that this part is not a structure. Never absent - an absent entry fails the stamp loudly, which is the point.",
+		"structure_meshes": "Exact visible mesh names that ARE the structure. Explicit, never a prefix guess: fb_bunker_mg.glb also contains m60.002 and m60_pintle, and a machine gun is not a bunker.",
+		"soft": "true = soft_cover (round passes at 0.8x, concealment). false = hard_surface. Earth, sandbag and timber are hard, and that is deliberate.",
+		"note": "Why, when the answer is not obvious."
+	},
+
+	"fb_bunker_fighting": {
+		"destructible": "bunker",
+		"structure_meshes": ["WB_bunker_rifle"],
+		"soft": false
+	},
+	"fb_bunker_mg": {
+		"destructible": "bunker_mg",
+		"structure_meshes": ["WB_bunker_m60"],
+		"soft": false,
+		"note": "m60.002 and m60_pintle are the gun on top of it, deliberately excluded - destroying the bunker must not require destroying the weapon as a separate structure."
+	},
+	"fb_FoxholeSandbags": {
+		"destructible": "sandbag_stack",
+		"structure_meshes": ["fb_FoxholeSandbags"],
+		"soft": false
+	},
+	"fb_sandbag_heavy": {
+		"destructible": "sandbag_wall",
+		"structure_meshes": ["sandbag_heavy"],
+		"soft": false
+	},
+	"fb_sandbag_light": {
+		"destructible": "sandbag_wall",
+		"structure_meshes": ["fb_sandbag_light"],
+		"soft": false
+	},
+	"fb_gate_assembly": {
+		"destructible": "",
+		"structure_meshes": [],
+		"soft": false,
+		"note": "DELIBERATE, and it is a P3 item rather than a ruling. This July review export is five loose meshes - watchtower_1.001, gate_left/right, gate_post_left/right - with NO colliders and a Blender .001 suffix. It is the gate house he asked to be rebuilt; give it a kind when the rebuilt part lands, not before."
+	},
+	"fb_emplacement_m101": {
+		"destructible": "",
+		"structure_meshes": [],
+		"soft": false,
+		"note": "DELIBERATE. Not a structure: it is the howitzer, its ammunition and its baked crew rigs (119 meshes). The firebase swaps this chunk in over its own baked emplacement via SitePlanner._wire_m101_rigs; it is not something a sapper blows down."
+	}
+}

@@ -56,6 +56,44 @@ rule**: `command_bunker` (a dug-in TOC should outlast a fighting bunker's 260) a
 
 ---
 
+## 0b · THE PART MASTERS DO NOT MEET THE CONTRACT, AND THE NUMBERS ARE WORSE THAN THE NAMES
+
+**Measured 2026-09-09 by parsing the seven kit GLBs directly** (pure Python on the glTF JSON chunk;
+no engine run). This is the census P3 has to close.
+
+| part | visible meshes | colliders | verdict |
+|---|---|---|---|
+| `fb_bunker_fighting` | `WB_bunker_rifle` | **1** | usable — but the mesh is a Blender workbench name |
+| `fb_bunker_mg` | `m60.002`, `m60_pintle`, `WB_bunker_m60` | **3** | usable — gun meshes must be excluded from the structure |
+| `fb_FoxholeSandbags` | `fb_FoxholeSandbags` | **0** | **you can walk through it** |
+| `fb_sandbag_heavy` | `sandbag_heavy` | **0** | **you can walk through it** |
+| `fb_sandbag_light` | `fb_sandbag_light` | **0** | **you can walk through it** |
+| `fb_gate_assembly` | `watchtower_1.001`, `gate_left/right`, `gate_post_left/right` | **0** | no collision, and a `.001` |
+| `fb_emplacement_m101` | 119 meshes (gun, rounds, crew rigs) | **0** | not a structure; the firebase swaps it in separately |
+
+> **FIVE OF THE SEVEN PLACEABLE PARTS HAVE NO COLLIDERS AT ALL.** A player walks through them, a
+> bullet passes through them, and a `Destructible` built on one has no shape to hit. This is not a
+> regression — `gen_firebase.py:1-13` says plainly that these are *"a REVIEW artefact, not a shipped
+> asset set."* **It is the actual size of the P3 art job**, and it is why the two bunkers are the
+> only parts that can prove the pipeline today.
+
+**And the naming half, which is the defect that went red:** `fb_bunker_fighting.glb` draws
+`WB_bunker_rifle` and collides as `fb_bunker_fighting_000-colonly`. **Ballistics reads the collider
+name; destruction reads the mesh name.** The monolith's `_wire_structure_destructibles` matches mesh
+names against `FSB_STRUCTURE_KINDS`, so it matched **nothing** — 5 meshes, 0 on the blast bus, a
+compound that sappers could not breach and bullets could not penetrate.
+
+**The fix shipped in code, not in the masters, and it is the better architecture:** a stamped part
+knows its own id, so the kit resolves identity from **authored data** (`data/world/kit_parts.json`)
+instead of inferring it from a Blender name. `stamp_site_plan` now refuses to stamp any part with no
+authored entry, **before a single node is instanced.** A part master that never gets its names right
+is still placeable; a part nobody has ruled on is not.
+
+**What P3 must still deliver per piece:** real colliders as `{base}_{i:03d}-colonly`, the marker at
+the END of the name, no `.001`, and — because the authored table now carries identity — mesh names
+that a human can read. The names no longer have to encode the contract, which is precisely the
+freedom the kit was supposed to buy.
+
 ## 1 · THE TWO CONTRACTS, AND THE ONE FACT PEOPLE GET WRONG
 
 | | reads the name of | default |

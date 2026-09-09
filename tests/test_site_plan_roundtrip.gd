@@ -18,6 +18,10 @@ const PLAN_NAME: String = "_probe_roundtrip"
 ## Local placement is exact - a part that lands further than this from its planned offset means
 ## the transform chain is wrong, not that the ground moved.
 const TOL_M: float = 0.01
+## Placed parts that ship with no collider. The plan places three structural parts and
+## fb_FoxholeSandbags is one of them; its July review export has zero -colonly nodes.
+## DRIVE THIS TO 0 as the proof pieces land. Raising it is the forbidden move.
+const NO_COLLIDER_BASELINE: int = 1
 
 var _failures: int = 0
 
@@ -74,10 +78,23 @@ func _ready() -> void:
 	plan.flatten_radius = 24.0
 	plan.flatten_strength = 0.7
 	plan.flatten_shoulder = 8.0
+	# Choose parts the authored contract says ARE structures. Picking blind off the palette is
+	# how the first version of this test passed while the whole compound was invulnerable:
+	# it placed three parts, asserted their POSITIONS, and never once asked whether anything
+	# could be shot or blown up.
+	var structural: Array[String] = []
+	for id in ids:
+		if reg.destructible_kind(id) != "":
+			structural.append(id)
+	if structural.is_empty():
+		_fail("no placeable part declares a destructible kind - a stamped compound would be "
+			+ "entirely invulnerable, which is ADR-042's bug class")
+		_finish(null)
+		return
 	var offsets: Array[Vector3] = [
 		Vector3(0.0, 0.0, 0.0), Vector3(9.0, 0.0, -4.0), Vector3(-7.5, 0.0, 6.0)]
 	for i in range(offsets.size()):
-		plan.add_part(ids[i % ids.size()], offsets[i], float(i) * 45.0)
+		plan.add_part(structural[i % structural.size()], offsets[i], float(i) * 45.0)
 	if not plan.save():
 		_fail("could not save the plan")
 		_finish(null)
@@ -168,6 +185,59 @@ func _ready() -> void:
 	# offsets are the only thing keeping them near each other.
 	if compound.global_position.distance_to(Vector3(centre.x, compound.global_position.y, centre.z)) > 1.0:
 		_fail("the compound is not seated at the site centre")
+
+	# THE ASSERTION THIS TEST WAS MISSING, AND THE REASON IT WENT RED.
+	#
+	# The first stamped compound put 5 meshes in the world and NOTHING on the blast bus:
+	# sappers could not breach it, bullets could not penetrate it, and the siege would have
+	# run against a base nothing could touch. The test passed anyway, because it only ever
+	# checked where the parts sat.
+	#
+	# A Destructible with no CollisionShape3D is the same defect wearing a different hat - it
+	# is registered, it reports a kind, and there is nothing in the world to hit. Assert the
+	# SHAPE, not just the node.
+	var kinds_wanted: Dictionary = {}
+	for entry_any in reloaded.parts:
+		var k: String = reg.destructible_kind(str((entry_any as Dictionary)["id"]))
+		if k != "":
+			kinds_wanted[k] = true
+	var destructibles: Array[Node] = []
+	var stack: Array[Node] = [world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is Destructible:
+			destructibles.append(n)
+	print("[PLAN] %d Destructible(s) in the world after the stamp" % destructibles.size())
+	if destructibles.is_empty():
+		_fail("NOTHING is destructible after stamping %d structural part(s) - the compound "
+			% reloaded.parts.size()
+			+ "is bulletproof and indestructible, which is exactly ADR-042's silent failure")
+	for d_any in destructibles:
+		var d := d_any as Destructible
+		var shapes: int = 0
+		for c in d.get_children():
+			if c is CollisionShape3D:
+				shapes += 1
+		if shapes == 0:
+			_fail("Destructible '%s' (kind '%s') has NO collision shape - nothing can hit it"
+				% [d.name, d.kind])
+		if not kinds_wanted.has(d.kind):
+			_fail("Destructible '%s' has kind '%s', which no placed part declared"
+				% [d.name, d.kind])
+		if d.hp <= 0:
+			_fail("Destructible '%s' has hp %d" % [d.name, d.hp])
+
+	# THE RATCHET. Five of the seven July review exports carry no collider at all - they were
+	# never meant to ship, which gen_firebase.py's own header says in as many words. That is
+	# an art gap for P3, not a code regression, so it warns rather than erroring. It must not
+	# be allowed to GROW, and it must be driven to zero as the proof pieces land.
+	var lame: int = (site.get("no_collider", PackedStringArray()) as PackedStringArray).size()
+	print("[PLAN] %d placed part(s) with no collider (baseline %d)" % [lame, NO_COLLIDER_BASELINE])
+	if lame > NO_COLLIDER_BASELINE:
+		_fail("%d placed part(s) ship with no collider, baseline is %d - a part lost its collision"
+			% [lame, NO_COLLIDER_BASELINE])
 
 	var stations: Array = site.get("stations", []) as Array
 	print("[PLAN] site carries %d station(s) from part manifests" % stations.size())

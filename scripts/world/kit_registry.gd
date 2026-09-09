@@ -16,6 +16,9 @@ extends RefCounted
 
 const KIT_DIR: String = "res://assets/world/building models/structures/firebase/kit"
 const MANIFEST: String = KIT_DIR + "/firebase_set.json"
+## AUTHORED overlay, merged over the generated manifest. Every placeable part must appear in
+## it or the stamp is refused - see contract_gap().
+const CONTRACT: String = "res://data/world/kit_parts.json"
 
 ## part_id -> {tris, size: Vector3, solid, enterable, stations: [{local, work_type}],
 ##             props: [{local, prop_class}], model: String ("" when no .glb exists)}
@@ -25,8 +28,51 @@ var parts: Dictionary = {}
 static func load_kit() -> KitRegistry:
 	var reg := KitRegistry.new()
 	reg._read_manifest()
+	reg._read_contract()
 	reg._attach_models()
 	return reg
+
+
+## "" when this part may be stamped; otherwise the reason it may not.
+##
+## THE STAMP-TIME GATE. The naming contract has now failed SILENTLY four times in this project
+## - a bulletproof tent, a bulletproof mess hall, an ammo crate that shipped as a white box for
+## a month, and a stamped compound where nothing at all was on the blast bus. Every one was
+## found by accident, hours or weeks later, because the failure mode is a DEFAULT rather than
+## an error. This turns the fourth one into a refusal at the moment of placement.
+func contract_gap(part_id: String) -> String:
+	var e: Dictionary = parts.get(part_id, {}) as Dictionary
+	if e == null or e.is_empty():
+		return "'%s' is not in the kit at all" % part_id
+	if not e.has("destructible"):
+		return ("'%s' has no entry in %s - a part with no authored material ships BULLETPROOF "
+			+ "and INDESTRUCTIBLE with no error, so it is refused instead") % [part_id, CONTRACT]
+	var kind: String = str(e.get("destructible", ""))
+	var meshes: Array = e.get("structure_meshes", []) as Array
+	if kind != "" and meshes.is_empty():
+		return "'%s' claims kind '%s' but names no structure mesh" % [part_id, kind]
+	# A KNOWN LIMIT, stated loudly rather than handled wrongly. One Destructible takes ALL of
+	# a part's colliders, so a second structure mesh in the same part would be adopted with
+	# no shape left to give it. Splitting collision per structure needs authored collider
+	# names, and the July review exports do not have them. Refuse until a part needs it.
+	if meshes.size() > 1:
+		return ("'%s' names %d structure meshes; only one per part is supported - split it "
+			+ "into separate parts, or author per-mesh collider names first")% [part_id, meshes.size()]
+	if kind != "" and not Destructible.HP_FOR.has(kind):
+		return "'%s' claims kind '%s', which has no HP in Destructible.HP_FOR" % [part_id, kind]
+	return ""
+
+
+func destructible_kind(part_id: String) -> String:
+	return str((parts.get(part_id, {}) as Dictionary).get("destructible", ""))
+
+
+func structure_meshes(part_id: String) -> Array[String]:
+	return _string_list((parts.get(part_id, {}) as Dictionary).get("structure_meshes", []))
+
+
+func is_soft(part_id: String) -> bool:
+	return bool((parts.get(part_id, {}) as Dictionary).get("soft", false))
 
 
 func has_model(part_id: String) -> bool:
@@ -123,6 +169,38 @@ static func _string_list(v: Variant) -> Array[String]:
 			if s != "":
 				out.append(s)
 	return out
+
+
+## Merge the authored overlay. Entries for parts the generated manifest never described are
+## kept: a part can exist as a .glb with no manifest row, and its material still has to be
+## authored somewhere.
+func _read_contract() -> void:
+	if not FileAccess.file_exists(CONTRACT):
+		push_warning("[KIT] no authored contract at %s - every part will refuse to stamp" % CONTRACT)
+		return
+	var f := FileAccess.open(CONTRACT, FileAccess.READ)
+	if f == null:
+		return
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if not (parsed is Dictionary):
+		push_error("[KIT] %s is not a JSON object" % CONTRACT)
+		return
+	for id_any in (parsed as Dictionary).keys():
+		var id: String = String(id_any)
+		if id.begins_with("_"):
+			continue  # _doc / _fields / _why_this_file_exists
+		var src: Dictionary = (parsed as Dictionary)[id_any] as Dictionary
+		if src == null:
+			continue
+		if not parts.has(id):
+			parts[id] = {"tris": 0, "size": Vector3.ZERO, "solid": true, "enterable": false,
+				"stations": [], "props": [], "crew": [], "demands": [], "supplies": [],
+				"model": ""}
+		var e: Dictionary = parts[id]
+		e["destructible"] = str(src.get("destructible", ""))
+		e["structure_meshes"] = _string_list(src.get("structure_meshes", []))
+		e["soft"] = bool(src.get("soft", false))
 
 
 ## A manifest entry earns a model when kit/<id>.glb is on disk. Models with no manifest entry
