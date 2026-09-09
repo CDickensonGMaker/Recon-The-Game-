@@ -1340,6 +1340,26 @@ blast resolution     avg     0.09 - 0.12 ms       unchanged
    named as a root cause earlier in this same session on inspection alone; the probe says no. **Do not
    re-open it without a number.**
 
+#### A CONSERVATIVE INVALIDATION IS RIGHT TO SHIP AND WRONG TO KEEP, 2026-09-09
+
+The vegetation scatter cache shipped with ONE epoch counter for the whole layer, bumped by every
+writer of its inputs. That was the correct first version: a stale scatter index when a crater and
+a felling touch the same chunk costs a wrong tree in the ground, and a redundant recompute costs
+milliseconds. Ship the safe one.
+
+**But keeping it cost the win where the win mattered.** One felled tree invalidated the scatter
+of every chunk on the map, and an assault fells trees continuously — `veg.build_scatter` was back
+at **80.1 ms inside the 45-man fight**, undoing most of the crater gain at exactly the moment the
+frame was tightest. Per-chunk invalidation took the worst to **21.4 ms**.
+
+The sequence is the point, and it is the right way round: **ship the conservative invalidation,
+measure it under load, then narrow it with the measurement in hand.** Narrowing first is how you
+get a wrong tree; never narrowing is how you get the 80 ms back.
+
+Same shape twice in one night: the roof-miss AUDIT added to `nav_baker` cost 97.9 ms of the
+314 ms collider walk it was written to investigate, until it was gated to the first bake. **An
+instrument is not free, and it is measured like anything else.**
+
 #### THE BROKEN-INSTRUMENT REGISTER — a bench must check the box TWICE, 2026-09-09
 
 **A CLEAR-BOX CHECK THAT RUNS ONLY AT THE START CANNOT SEE CONTENTION THAT BEGINS MID-RUN.**

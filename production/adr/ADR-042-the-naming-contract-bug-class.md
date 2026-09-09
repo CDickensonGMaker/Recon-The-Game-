@@ -67,6 +67,27 @@ name every skinned mesh it takes; the VC, whose bodies export as one joined mesh
 All four properties of the bug class in one line of source: it failed silently, toward the
 dangerous default (harvested, not excluded), later than it was written, and invisibly to tests.
 
+### The second worked example: the name the CODE reads is not the name the ARTIST wrote
+
+The webbing case is a list that missed a name. This one is worse, because the name the contract
+needs **does not exist on the node the contract inspects.**
+
+`_tag_fsb_ballistics` reads the ballistic family off the **CollisionObject3D**. But Godot's glTF
+importer **MINTS** a `StaticBody3D` for every `-colonly` node it converts, and names it
+`StaticBody3D` or `@StaticBody3D@20876` — a name carrying no information whatsoever. 132 of the
+firebase's colliders are born that way. All 132 matched no prefix and took the dangerous
+default.
+
+Measured 2026-09-09 by `tools/probe_unnamed_colliders.gd`, which was written specifically to
+avoid guessing what they were: 80 are parapet segments, where hard is right by accident — and
+**three are `fb_gp_tent_i` and one is `fb_mess_i`. A GP tent and the mess hall, both on the soft
+list for years, were bulletproof because their collider was born anonymous.** The identity was
+on the PARENT the whole time. The tagger falls back to it now.
+
+**The lesson a reader of the webbing case alone would not take away:** when a name is a contract,
+ask *which node* carries the name, and whether the engine invented it. An importer, an exporter
+or a `.duplicate()` can hand you a node whose name was never authored by anybody.
+
 **And the fourth property had teeth.** `test_hitzone_rebuild` needs two units with different
 hulls or it proves nothing, and its discriminating pair — `us_grunt_rifleman` vs
 `us_pilot_white` — only differed BECAUSE of the web gear. Fixing the gear made the two identical
