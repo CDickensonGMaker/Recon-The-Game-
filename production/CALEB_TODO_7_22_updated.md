@@ -1347,7 +1347,7 @@ re-exported GLB: **`0 flat (card-like), 19 volumetric`**, against 14 flat that m
     saved, and reverting the ruling is reverting one file.
   - **THE PRICE — see `production/PERF_LEDGER.md` 2026-09-09 for the full table.** Triangles
     28,646 -> 93,024 in the `fb_veg_` set; primitives +38.6%; **draw calls did NOT rise** (603
-    -> 597). Frame cost **+0.34 ms GPU and −3.7 fps mean** on an isolated bench running at
+    -> 597). Frame cost **+0.34 ms GPU, +0.39 ms wall frame time, −4.2 fps mean** on an isolated bench at
     ~105 fps — about **1% of the shipped demo's frame**, and under the ~2.4 ms floor the canopy
     work used. The pacing numbers (worst frame, 1% low) are INSIDE this instrument's own
     run-to-run noise and are NOT reported as a result.

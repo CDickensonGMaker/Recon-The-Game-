@@ -1998,12 +1998,12 @@ of the change, not the fraction that survives into a frame that also holds jungl
 | primitives in frame | 167,220 | 167,220 | 231,800 | 231,800 | **+64,580 (+38.6%)** |
 | draw calls | 603 | 603 | 597 | 597 | **−6 — it did not rise** |
 | gpu ms | 7.50 | 7.58 | 7.86 | 7.90 | **+0.34 ms** |
-| mean fps | 105.8 | 104.8 | 100.6 | 101.6 | **−3.7 fps (−3.5%)** |
+| mean fps | 105.8 | 104.8 | 100.6 | 101.6 | **−4.2 fps (−4.0%)** |
 | worst frame ms | 14.55 | 15.80 | 16.69 | 15.41 | **NO — ranges overlap** |
 | worst 1% low fps | 73.7 | 69.1 | 67.8 | 72.7 | **NO — ranges overlap** |
 
-**The transferable number is +0.34 ms of frame time.** At the demo's 24–35 fps (28–42 ms) that
-is about **1% of the frame**, and it is well under the ~2.4 ms detectability floor the canopy
+**The transferable number is +0.39 ms of frame time** (105.30 -> 101.10 fps is 9.497 -> 9.891 ms),
+of which +0.34 ms is GPU. At the demo's 24–35 fps (28–42 ms) that is about **1% of the frame**, and it is well under the ~2.4 ms detectability floor the canopy
 conversion was measured against. The canopy conversion cost +11.9 ms; this one costs +0.34 ms.
 
 **AND THE INSTRUMENT CAUGHT ITSELF.** The first pair alone said "worst 1% low 73.7 -> 67.8, −5.9
