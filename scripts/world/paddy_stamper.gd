@@ -1,6 +1,14 @@
 extends RefCounted
-## Stamps rice paddy polygons from the GameplayGrid's RICE_PADDY cells, scatters
-## rice_a/b props inside each paddy, and groups paddies into village anchors.
+## Stamps rice paddy polygons from the GameplayGrid's RICE_PADDY cells and groups them
+## into village anchors.
+##
+## IT DOES NOT PLANT THE RICE, and the scatter it used to carry never planted one clump in
+## the life of the project: `scene.instantiate() as MeshInstance3D` is NULL for these GLBs
+## (their root is a Node3D with the mesh as a child), so every prop hit the `continue` and
+## was dropped in silence. Deleted rather than fixed - the rice is a planted FIELD now,
+## laid on a row lattice by VegetationManager._plant_paddy_rows, which batches it into the
+## canopy MultiMeshes and seats every clump on its own ground instead of one MeshInstance3D
+## per plant at the paddy centroid height.
 ## Terrain-first: runs before any village or firebase is placed.
 
 const PaddyFieldScript := preload("res://scripts/world/paddy_field.gd")
@@ -9,15 +17,12 @@ const RICE_PADDY: int = 1  # GameplayGrid.TerrainType.RICE_PADDY
 
 # Cluster parameters — tune via smoke test until ≥4 viable village anchors.
 const MIN_PADDY_AREA_CELLS: int = 2
-const PROP_DENSITY: float = 0.8             # rice plants per cell, on average
 const VILLAGE_GROUPING_RADIUS_M: float = 140.0  # paddies within this band → one village (was 220; tighter = more villages)
 const VILLAGE_TARGET_PADDY_MAX: int = 2     # 1-2 paddies per village = 8-10 villages from a normal AO
 const ANCHOR_OFFSET_MIN_M: float = 8.0      # hut center sits on the bund, not in the water
 const ANCHOR_OFFSET_MAX_M: float = 15.0
 const HARD_FLOOR_VILLAGES: int = 4          # one village per quadrant — mission_generator.gd:459-462 builds exactly four
 
-const RICE_A := "res://assets/world/vegetation/rice_a.glb"
-const RICE_B := "res://assets/world/vegetation/rice_b.glb"
 
 
 ## Returns: {
@@ -156,31 +161,7 @@ static func _build_paddy_field(
 	parent.add_child(wp)
 	pf.working_point = parent.get_path_to(wp)
 
-	_scatter_rice_props(pf, parent, rng, cell_m)
 	return pf
-
-
-static func _scatter_rice_props(
-	pf: PaddyFieldScript, parent: Node, rng: RandomNumberGenerator, cell_m: float
-) -> void:
-	# Rice is visual only — MeshInstance3D, no StaticBody3D (programmer-council rule).
-	var plant_count: int = maxi(1, int(round(float(pf.cell_count) * PROP_DENSITY)))
-	for i in range(plant_count):
-		var gx: int = rng.randi_range(pf.bounds_min.x, pf.bounds_max.x)
-		var gz: int = rng.randi_range(pf.bounds_min.y, pf.bounds_max.y)
-		var world_x: float = (float(gx) + rng.randf()) * cell_m
-		var world_z: float = (float(gz) + rng.randf()) * cell_m
-		var world_y: float = pf.world_position.y
-		var model_path: String = RICE_A if rng.randf() < 0.5 else RICE_B
-		var scene: PackedScene = load(model_path)
-		if scene == null:
-			continue
-		var mi: MeshInstance3D = scene.instantiate() as MeshInstance3D
-		if mi == null:
-			continue
-		mi.position = Vector3(world_x, world_y, world_z)
-		mi.rotation.y = rng.randf() * TAU
-		parent.add_child(mi)
 
 
 static func _group_into_village_anchors(

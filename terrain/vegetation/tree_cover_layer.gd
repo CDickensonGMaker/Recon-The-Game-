@@ -86,6 +86,14 @@ const SMALL_PREFIXES: Array[String] = ["rice_", "tall_grass_", "elephant_grass_"
 ## 0 disables the short ring entirely, for the A/B. Set by --small-ring=<m>.
 var small_ring: float = SMALL_RING_M
 
+## BUSHES DRAW TO 350 m AND STAY THERE (his ruling, 2026-09-09: "bushes keep drawing to 350,
+## dont cut em"). The question was whether the 10,938 bush instances belonged on the ground-cover
+## ring with the grass; they do not, and it is settled. This stays a KEY, not a decision: the
+## dial is here so he can look again on his own eyes, and the shipped default is UNCUT.
+const BUSH_PREFIXES: Array[String] = ["bush_"]
+const BUSH_RING_M: float = 0.0   ## 0 = uncut; bushes draw with the trees
+var bush_ring: float = BUSH_RING_M
+
 ## visibility_range is per-NODE against the transformed AABB (godot#79471 - the
 ## docs say origin and are wrong). Chunk-sized nodes quantize both rings by
 ## +/-181m - that WAS the invisible-jungle bug. 64m buckets bound the error to
@@ -189,12 +197,26 @@ func _zone_overlaps(bounds: Rect2) -> bool:
 
 
 ## HIS DIALS, live, mid-walk. The bench that would have decided these runs a fixed camera on
-## quiet terrain, which is a scene nobody plays; his own law is that his eyes decide. F9 and F10
-## are unbound anywhere else in the project.
+## quiet terrain, which is a scene nobody plays; his own law is that his eyes decide.
+##
+## F9 IS NOT FREE, and the note that used to sit here saying "F9 and F10 are unbound anywhere
+## else in the project" was wrong when it was written. `quickload` is bound to F9 in
+## project.godot (physical_keycode 4194340) and SaveManager acts on it
+## (scripts/autoload/save_manager.gd:74) - so cycling the ground-cover ring mid-walk could also
+## reload his quicksave. The dial keys now mark the event handled, and because the world scene
+## takes _unhandled_input before an autoload does, SaveManager never sees the press. Which key
+## should keep F9 permanently is his call, not a silent rebind of his save keys.
+##
+## F12 is the bush ring. F11 is interior props (scripts/world/interior_prop_dial.gd:14); F1-F5
+## and F9 are the only other F-keys the input map binds, and F12 is bound by nothing.
 const RING_STEPS: Array[float] = [150.0, 100.0, 250.0, 0.0]
 const LOD_STEPS: Array[float] = [2.0, 1.0, 4.0]
+## 0 = uncut, and it is FIRST because uncut is what ships (his ruling). The rest are there so
+## he can see the price with his own eyes without a rebuild.
+const BUSH_STEPS: Array[float] = [0.0, 250.0, 200.0, 150.0]
 var _ring_step: int = 0
 var _lod_step: int = 0
+var _bush_step: int = 0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -209,12 +231,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		apply_rings()
 		_say("GROUND COVER (grass/rice/fern) draws to %s   [F9]"
 			% ("%.0f m" % small_ring if small_ring > 0.0 else "%.0f m - same as the trees" % view_distance))
+		get_viewport().set_input_as_handled()   # F9 is also `quickload` - do not reload his save
 	elif k.keycode == KEY_F10:
 		_lod_step = (_lod_step + 1) % LOD_STEPS.size()
 		get_viewport().mesh_lod_threshold = LOD_STEPS[_lod_step]
 		_say("MESH LOD swaps at %.0f px   %s   [F10]" % [LOD_STEPS[_lod_step],
 			"(smoother, costs frames)" if LOD_STEPS[_lod_step] < 2.0
 			else ("(shipped)" if LOD_STEPS[_lod_step] == 2.0 else "(coarser, cheaper)")])
+		get_viewport().set_input_as_handled()
+	elif k.keycode == KEY_F12:
+		_bush_step = (_bush_step + 1) % BUSH_STEPS.size()
+		bush_ring = BUSH_STEPS[_bush_step]
+		apply_rings()
+		_say("BUSHES draw to %s   [F12]"
+			% ("%.0f m - SHIPPED, uncut" % view_distance if bush_ring <= 0.0
+				else "%.0f m (trees still %.0f)" % [bush_ring, view_distance]))
+		get_viewport().set_input_as_handled()
 
 
 ## Console AND screen: he is playing, not reading a terminal.
@@ -236,7 +268,7 @@ func apply_rings() -> void:
 
 func _announce_keys() -> void:
 	await get_tree().create_timer(4.0).timeout
-	_say("F9 ground-cover draw distance  |  F10 mesh LOD sharpness")
+	_say("F9 ground-cover draw distance  |  F10 mesh LOD sharpness  |  F12 bush draw distance")
 
 
 func _ready() -> void:
@@ -244,6 +276,9 @@ func _ready() -> void:
 	_ring_step = RING_STEPS.find(small_ring)
 	if _ring_step < 0:
 		_ring_step = 0
+	_bush_step = BUSH_STEPS.find(bush_ring)
+	if _bush_step < 0:
+		_bush_step = 0
 	_announce_keys()
 	for a: String in OS.get_cmdline_user_args():
 		# --card-dist= is kept as the spelling the bench scripts already pass; what it
@@ -254,6 +289,9 @@ func _ready() -> void:
 		if a.begins_with("--small-ring="):
 			small_ring = float(a.split("=")[1])
 			print("[TreeCover] ground-cover ring lever: small_ring=%.0f" % small_ring)
+		if a.begins_with("--bush-ring="):
+			bush_ring = float(a.split("=")[1])
+			print("[TreeCover] bush ring lever: bush_ring=%.0f" % bush_ring)
 
 
 ## Load the real model for each species name (idempotent). A species with no GLB is not
@@ -287,8 +325,13 @@ func _report_cover_split(names: Array) -> void:
 		% [cover.size(), ", ".join(cover), conceal.size(), ", ".join(conceal)])
 
 
-## How far this species draws. Ground cover stops at small_ring; everything else is canopy.
+## How far this species draws. Ground cover stops at small_ring, bushes at bush_ring when he
+## has dialled one in, everything else is canopy out to view_distance.
 func _ring_for(nm: String) -> float:
+	if bush_ring > 0.0 and bush_ring < view_distance:
+		for b: String in BUSH_PREFIXES:
+			if nm.begins_with(b):
+				return bush_ring
 	if small_ring <= 0.0 or small_ring >= view_distance:
 		return view_distance
 	for p: String in SMALL_PREFIXES:

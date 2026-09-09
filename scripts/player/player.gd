@@ -1399,6 +1399,8 @@ func exit_seat(ground_pos: Vector3) -> void:
 ## and stalls, so the climb writes global_position directly (Ladder header, constraint 1).
 var is_climbing: bool = false
 var _ladder: Node3D = null
+## One toast per climb when the world offers nowhere to step off, not one per frame.
+var _ladder_blocked_toasted: bool = false
 
 
 ## Called by Ladder when its trigger catches the player.
@@ -1409,6 +1411,7 @@ func start_climbing(ladder: Node3D) -> void:
 		return
 	is_climbing = true
 	_ladder = ladder
+	_ladder_blocked_toasted = false
 	velocity = Vector3.ZERO
 	_snap_to_rail()
 	_field_toast("CLIMBING - [S] TO DROP OFF")
@@ -1445,21 +1448,39 @@ func _tick_climbing(delta: float) -> void:
 	var speed: float = float(_ladder.get("climb_speed"))
 	var new_y: float = clampf(global_position.y + climb * speed * delta, bot, top)
 
-	# Step off the bottom.
+	# Step off the bottom. CLEARANCE-TESTED since 2026-09-09: dropping him at `bot`
+	# unconditionally put him 0.31m INSIDE the tower shell on 3 of the 4 ladders in
+	# the game, every time, and backface_collision on the compound's concave shapes
+	# (site_planner.gd:1823-1832) means there is no face to escape through. That is
+	# the wedge he reported. Ladder.step_off_point resolves it or refuses.
 	if climb < -0.1 and new_y <= bot + 0.1:
-		global_position.y = bot
-		stop_climbing()
+		_leave_ladder_at(_ladder.call("step_off_point"))
 		return
 	# Top out ONTO the deck, inboard of the rail, or he slides straight back down.
 	if climb > 0.1 and new_y >= top - 0.1:
-		global_position = _ladder.call("dismount_point")
-		reset_physics_interpolation()
-		stop_climbing()
+		_leave_ladder_at(_ladder.call("dismount_point"))
 		return
 
 	global_position.y = new_y
 	_snap_to_rail()
 	velocity = Vector3.ZERO
+
+
+## Leave the rail at a point the Ladder has already tested against the world.
+## Ladder returns Ladder.NO_CLEAR_POINT when there is nowhere to stand; in that case
+## he STAYS ON THE LADDER. A hardcore sim may refuse an unstick, but it may not walk
+## the player into a wall he did not choose and then refuse him one - and on HARDCORE
+## he cannot even save his way out (save_manager.gd:76-82 is hub-only).
+## r4bk: a refusal the player did not ask for has to be on screen.
+func _leave_ladder_at(spot: Vector3) -> void:
+	if not spot.is_finite():
+		if not _ladder_blocked_toasted:
+			_ladder_blocked_toasted = true
+			_field_toast("NO ROOM TO STEP OFF")
+		return
+	global_position = spot
+	reset_physics_interpolation()
+	stop_climbing()
 
 
 ## MANNED MG. is_manning_mg is a SEPARATE state from is_seated: the seated ride

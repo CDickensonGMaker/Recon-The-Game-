@@ -1,5 +1,93 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-B. THE MODULAR WORLD KIT — you authorised it 2026-09-09. Four calls are yours.
+
+**You ruled it mid-council:** *"but even before that we should make a modular world building tool kit"*
+· *"and turn the firebase into model pieces we can build sets with"* · *"so i actually would want to
+make a better bunker"* · *"and we need a better hq that doesnt have floating lightbulbs"* · *"and a
+better gate house."*
+
+**Canon: `production/adr/ADR-043-the-modular-world-kit.md`. Plan, phases and price:
+`production/war_room/2026-09-09_firebase_kit_pivot/synthesis.md`.** Nine architects.
+
+**THE ARGUMENT, in one line:** a single floating lightbulb in the HQ cannot be moved without
+re-exporting a 43 MB monolith — the same wall that made tonight's one-crate rename need a Blender
+re-export and your permission. **In a kit, a bulb is a placed object.**
+
+**Price: 43-67 h engineering, 60-91 h all-in** for the kit; **90-145 h** including the terrain morph
+tool. Calibrated two ways against ADR-041's own 20-31 h for village+temple, agreeing within 12%.
+**Half of it already exists on disk and nothing reads it** — `firebase_set.json` is 23 parts with
+work-point markers, dated 2026-07-26, and `gen_firebase_v3.py` already stamps all 23 as separate
+masters in Python. **Your "work points saved to those locations" was built in July and shelved because
+it had no consumer.**
+
+**The three proof pieces are the acceptance test, not a content list.** Bunker → HQ → **gate house
+LAST**, because the gate is the one that proves the data model: it brings a guard, a work point, an
+animation, a road arriving, and a gap in the wire the sapper chain reads.
+
+### THE FOUR CALLS THAT ARE YOURS
+
+**Q1. THE GROUND — the big one, and the only irreversible step.** Do we move firebase collision off the
+model mesh onto the terrain heightfield, leaving the mound as visuals only? **This is the ACTUAL fix for
+men falling through berms — and the kit does NOT fix that without it.** Measured: `fb_berm_ring` is
+swept as **two quad strips, no bottom face, no end caps**; a trimesh shell has no volume, so anyone
+under it is in open air below a roof. A stamped berm has the identical hole **with 81 seams instead of
+1.** You already asked for the terrain-morph tool that makes this possible; this is the decision to use
+it as the repair.
+
+**Q2. NPC STACKING — the fix visibly thins your base.** A 10-line spatial filter closes the worst piles,
+but the chow line goes **5 men → 2**, and you have complained about an empty-feeling base before.
+**Thin the crowd to stop the stacking, or keep the crowd and accept the overlap?**
+
+**Q3. CONVOYS — you asked for work on something you parked yourself.** *"and same with the convoy.
+Build nothing"* (2026-08-28) killed the convoy that **forms up and drives out**. The **ambient** convoy
+is live and is what you watched. Polishing that one is ~3 h and gate-exempt. **Which did you mean?**
+
+**Q4. Do the three proof pieces come out of the demo's remaining art-days, or after it?**
+
+### WHAT THE COUNCIL WANTS ON THE RECORD BEFORE WORK STARTS
+
+- **The kit fixes NONE of the five defects you reported the same night.** They are ordinary bugs with
+  ordinary causes; see items 37-41 in `PLAYTEST_FINDINGS_2026-08-28.md`. The kit's case is the
+  lightbulb, not the five.
+- **Check WHICH bulbs first.** 545 interior props were folded into 69 MultiMeshes four hours before you
+  said it. Establish whether the bulbs float in the source bake or whether the fold moved them — the
+  2026-08-30 audit already measured hanging bulbs at +7.8 m as **correct**, because inside the firebase
+  the model is the ground.
+- **The draw-call risk is real and it is the phase to bench, not skip.** The interior fold took 1,010
+  surfaces → 132; stamping the hooches separately gives each MultiMesh ~1 instance and hands back the
+  batching win **and** +50 draw calls of frustum culling, on the Intel UHD bench. **MultiMesh cannot
+  rescue it — there is no `queue_free()` for instance 37, and the kit's parts are the destructible ones.**
+
+---
+
+## 0000-C. THE WAR AT RANGE — ratified in principle, and it is NOT what stuttered
+
+**Decree: `production/war_room/2026-09-09_firebase_kit_pivot/synthesis_distant_war.md`.**
+
+**YOUR STUTTER IS `terrain.crater` — 122.2 ms of a 125.43 ms frame, 97% in one call**, because a
+napalm's 88 m radius always spans four chunks and the partial-update fast path never engaged. Fire,
+explosion and blast VFX together were **7.6 ms**. **The expensive things are world-state rebuilds, not
+the pretty things.** Your instinct — *"we're not optimizing some of these events"* — is correct; the
+thing that is unoptimised is terrain, not AI. **This also closes a nine-day-old open question that asked
+for exactly the test you just ran.**
+
+**Abstract resolution of distant fights is ratified in principle, POST-DEMO, with four conditions —
+but as a WORLD FIDELITY feature, never as an optimisation.** The honest reason: `LazyGroup` deletes
+every man beyond 140 m today, so *"the same men die whether or not you watch"* is **already false in the
+shipped build, in the worst direction — absent, not degraded.** Two patrols can never meet.
+
+**Three bug fixes ARE authorised now, all gate-exempt:**
+1. **`AMBIENT_WAR_HUSH_M = 400.0` is exactly the ambient spawn floor, so the jungle NEVER hushes for the
+   war.** One number. It is the most likely reason the war does not feel present to you — you get ~32
+   distant war events in a 30-minute demo, one every ~56 seconds, and every one of them layers *under*
+   the birdsong.
+2. The `terrain.crater` four-chunk fast-path miss — your actual stutter.
+3. The near-tier `contact` cap of **one per demo day** — you can hear a war you can never reach, and
+   touch a war that almost never rolls.
+
+---
+
 ## 0000-A. DONE 2026-09-09 (night) — the white box in the mortar pit, and a plant in the villagers' hands
 
 Two jobs, both shipped, both gated. Nothing here needs your ruling; the open calls are at the
@@ -1509,6 +1597,93 @@ build moved off SurfaceTool (worst chunk 27.0 -> 6.4 ms; worst crater 119.4 -> 8
 4. The structural fix behind all three: stop rebuilding a whole 256 m chunk for a 5 m crater.
    **STILL OPEN** — what is left of a crater frame is the mesh rebuild and the canopy MultiMesh regen.
 
+### RULING 3 — "yes add grass to the rice paddies to make it look realistic". DONE.
+
+Full numbers in `production/PERF_LEDGER.md`, 2026-09-09 (night).
+
+**There were TWO reasons no rice existed, and only one of them was on the record.**
+`vegetation_manager.gd` set the rice-paddy plant chance to 0.00 — known. But `paddy_stamper.gd`
+ALSO scattered rice, and **it had never planted one clump in the life of the project**: it did
+`scene.instantiate() as MeshInstance3D` on a GLB whose root is a Node3D, so the cast returned null
+and every prop was dropped in silence. Proved headless twice (`0 rice MeshInstance3D nodes`). That
+dead path is **deleted**, not repaired — repairing it would have shipped a second, unbatched rice
+population on top of the new one, every plant at the paddy centroid height.
+
+**A paddy is now a PLANTED FIELD, not a scatter.** Rows are anchored to a 48 m field tile, so they
+run unbroken across bundle and chunk seams; each field picks one row direction and one crop, clumps
+sit 1.25 m apart along a row (they are 1.2-1.4 m wide, so a row reads as a continuous green line)
+and rows sit 2.6 m apart (an open lane of mud or water you can see down). Where the hydrology
+actually floods a cell the clump stands **in** the water; where it is more than 0.85 m deep nothing
+is planted, which cuts the open channels through a field.
+
+- **Demo slice: 2,964 clumps, 16 extra draw calls.** Patrol AO: 29,577 clumps, 103 draw calls.
+- **It moved nothing else.** The patrol AO held 49,695 plants before and holds exactly
+  49,695 + 29,577 after — the lattice draws no RNG, so it cannot shift a tree.
+- **Seating proved, not eyeballed:** worst clump 0.00 m below ground, 0.42 m above (that is the
+  flooded lift), 238 standing in water.
+- **AI sight is UNCHANGED.** Rice is concealment-class, the veg grid was not touched, and the grid
+  already rated a paddy at 0.1 cover / 0.2 vegetation. The visual now agrees with a number the sim
+  was already using instead of showing bare dirt.
+
+**ART ITEM, yours to hand off:** `rice_a` and `rice_b` are 84 tris and **generate no LOD ladder** —
+the importer declines on their topology and their `.import` files are byte-identical to twins that
+DO generate one. That cost zero while no rice was placed; it now costs 2.48 M full-detail triangles
+of stock in the patrol AO that never simplify. Only a lower-poly source mesh fixes it. Rice draws to
+150 m only, so this is stock, not frame.
+
+### RULING 4 — "bushes keep drawing to 350, dont cut em". CLOSED. Nothing was cut.
+
+Default is UNCUT and the first step of the key is uncut, so a stray press cannot leave a cut in.
+**F12 is the bush draw-distance key** (350 uncut -> 250 -> 200 -> 150), beside F9 ground cover, F10
+LOD sharpness, F11 interior props. It prints and toasts like the others and the startup line names
+it. What the cut you declined would have bought, from the AO centre: 250 m hides 1,301 more bushes
+/ 333 k tris / >=133 draw calls; 200 m hides 1,846 / 473 k / >=191; 150 m hides 2,469 / 632 k / >=233.
+
+**A REAL BUG FOUND ON THE WAY, AND IT IS YOURS TO SETTLE: F9 WAS ALREADY YOUR QUICKLOAD KEY.**
+`project.godot` binds F9 to `quickload` and `save_manager.gd:74` acts on it, so cycling the
+ground-cover ring mid-walk could reload your quicksave. The comment in the file claiming F9 was
+unbound was wrong the day it was written. All three dial keys now swallow the press so SaveManager
+never sees it — but **which key keeps F9 permanently is your call**, not a silent rebind of your
+save keys.
+
+### RULING 5 — "the cut away be 20 m around the firebase and stagger it at that too". DONE, with one honest limit.
+
+**What governed it: `site_planner.gd` `FSB_CLEAR_DISCS` — a single hard 140 m circle.** Not the
+230 m figure (that is a per-node draw fade for placed structures) and not the 215 m terrain seat.
+
+**Your wire is not a circle.** Read off the firebase model's own mound manifest, the berm crest
+stands at a world radius of **51.8 m on its narrowest bearing and 99.7 m on its widest**, mean 78.5.
+So "wire + 20 m" is a wobbly region running 72-120 m out. The old 140 m circle left **30,416 m2 of
+bald ground beyond your 20 m line**.
+
+- **Cut 140 -> 120 m** (exactly +20 past the widest part of the wire). Excess bald ground
+  **30,416 -> 13,904 m2, down 54%**.
+- **Staggered, as asked:** past 120 m the cut does not stop, it thins over 26 m with a survival
+  chance ramping outward from a position hash, and the band's own edge wanders +/-6 m. No bearing
+  shows a drawn radius any more.
+- **More growth around the base:** an apron ring (175 m, chance floor 0.78, +1 count) rides the
+  existing thickening hook, so the AI grid gets the same boost the player sees.
+- **The price, A/B in one instrument on one seed:** in the 120-200 m collar, **+942 plants (+28%)**,
+  **+363,974 full-detail triangles (+35%)**, **+85 draw calls**. The newly grown 120-140 m band is
+  MEDIUM/HEAVY jungle, so it is real trees, not just grass.
+
+**THE LIMIT, said plainly: one disc cannot be 20 m outside a wobbly ellipse on every bearing.** On
+the narrow bearings the collar is still ~68 m rather than 20. Making it hug the wire needs a SHAPED
+clear — and the same numbers are read by the firebase site picker, so shaping it moves the base for
+every patrol seed. **Say the word and it gets built; it was not smuggled in.**
+
+**WHAT THIS DOES TO THE SIEGE, and it is a design consequence of a look ruling, not a side effect.**
+Concealment now reaches to within 20 m of the wire on the wide bearings and thins rather than
+stopping. Sappers can close under cover almost to the wire, and the defenders' fields of fire
+shorten accordingly. That may be exactly the game you want — VC sappers infiltrating to the wire is
+authentic, and the 45-man assault gets more interesting for it — but the garrison's open ground is
+what its defensive zones and the AI's 140 m open-ground sight cap were tuned against. **It wants
+your eyes on one siege before it is called finished.**
+
+**PERF, said where you asked for it — at the perimeter, not world-wide.** The collar adds ~364 k
+full-detail triangles and 85 draw calls to the exact ground the assault crosses. No fps or GPU number
+is quoted: you ruled the quiet bench unrepresentative and you were at the machine all night.
+
 ### FOR HIM TO RULE ON
 - ~~**Terrain collision as `HeightMapShape3D`?**~~ **RULED IN, 2026-09-09, and shipped.**
 - **Plant conversion: build it next, or after more stall work?** STILL OPEN AND STILL YOURS. The stall
@@ -1516,6 +1691,15 @@ build moved off SurfaceTool (worst chunk 27.0 -> 6.4 ms; worst crater 119.4 -> 8
 - **The canopy real-mesh frame cost** (worst 1% low 37.2 -> 30.1 fps), **the 545 interior props'
   visibility range / fade mode**, and **`mesh_lod/lod_change/threshold_pixels`** are all still open and
   all still yours. Nothing in the 2026-09-09 stall wave touched any of them.
+- **Which key keeps F9?** F9 was already bound to `quickload` and now also cycles the ground-cover
+  ring. The dial swallows the press so your save is safe, but one of the two should move.
+- **Does the 20 m firebase collar want to HUG the wire?** Today it is one 120 m disc plus a
+  staggered feather, so the collar is 20 m on the wide bearings and ~68 m on the narrow ones. A
+  shaped clear fixes that and moves the firebase site pick for every patrol seed.
+- **The 20 m collar and the siege.** Concealment now reaches nearly to the wire. Worth one siege
+  under your eye before it is called finished.
+- **Rice density.** 2,964 clumps in the demo, 29,577 in the patrol AO, at 1.25 m along the row and
+  2.6 m between rows. Say thinner or thicker and it is two constants.
 
 ### OPEN / UNEXPLAINED (named, not rounded away)
 - A **35–70 ms idle script step with NO instrumented cause**, present even in a completely quiet world.

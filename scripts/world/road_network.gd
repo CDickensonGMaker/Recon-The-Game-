@@ -23,11 +23,18 @@
 ##   - Roads terminate at FORDS, never bridges. A bridge is a chokepoint with no
 ##     alternative crossing, which is a rail (Pillar 3).
 ##
-## The only thing a road writes to the world is VEGETATION: the corridor is thinned
-## via VegetationManager.clear_area(), which edits vegetation bundles and NOT height.
-## That is what makes a road legible on foot at PSX fidelity - a road reads as a
-## corridor of open sky, not as a texture - and it lowers instance counts rather
-## than raising them.
+## A road writes TWO things to the world, and NOT height, terrain_type or water:
+##   1. VEGETATION - the corridor is thinned via VegetationManager.clear_area().
+##      That is what makes a road legible on foot at PSX fidelity - a road reads as
+##      a corridor of open sky - and it lowers instance counts rather than raising
+##      them.
+##   2. DUST - _stamp_dust() tints ROAD_DUST into the ClearingSystem ground overlay
+##      the terrain shader already mixes (terrain.gdshader:104-106). Added
+##      2026-08-12 in 85ab41cf, because a lane of missing jungle alone read as
+##      nothing on the ground while the topo map drew a highway.
+## This header said "the only thing a road writes is VEGETATION" until 2026-09-09,
+## eighteen days after the dust shipped. It misled a council lens into reporting
+## dirt roads as never built. NO MORE DRIFT.
 class_name RoadNetwork
 extends RefCounted
 

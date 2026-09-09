@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cldrdsmnt0909"]
+
+[ext_resource type="Script" path="res://tests/test_ladder_dismount.gd" id="1_lad"]
+
+[node name="TestLadderDismount" type="Node"]
+script = ExtResource("1_lad")

@@ -53,11 +53,33 @@ const TYPE_SPECIES := {
 	TerrainType.HEAVY_JUNGLE: ["broadleaf_a", "broadleaf_b", "broadleaf_c", "bamboo_a", "bamboo_b", "bamboo_c", "banana_b", "jungle_palm_a2", "jungle_palm_b2", "bush_b", "bush_c", "fern_c", "liana_a", "vine_a"],
 }
 
+## A RICE PADDY IS A PLANTED FIELD, NOT A SCATTER. Every other zone rolls a per-bundle
+## chance and drops plants at random positions; a paddy is worked ground, so its rice is laid
+## on a ROW LATTICE anchored to the FIELD, which is why the rows run unbroken across bundle and
+## chunk seams instead of restarting every 8 m.
+const PADDY_FIELD_TILE: float = 48.0    ## one field; rows change direction at its edge
+const PADDY_ROW_PITCH: float = 2.6      ## m between rows - the open water/mud lane you see down
+const PADDY_HILL_PITCH: float = 1.25    ## m between clumps along a row; a clump is 1.2-1.4 m wide,
+                                        ## so a row reads as one continuous green line
+const PADDY_JITTER_ALONG: float = 0.16  ## hand-planted, not machine-planted - but small enough
+const PADDY_JITTER_ACROSS: float = 0.10 ## that the rows survive it
+## A clump seats this far BELOW a flooded cell's water surface, so it stands IN the water rather
+## than on the bed. Past PADDY_MAX_WADE the cell is a channel or a pond, not field: nothing is
+## planted there, and that is what cuts the open water lanes through a paddy.
+## How far a feathered clearing edge wanders in and out around its nominal radius. Small
+## enough that a 20 m stand-off is still 20 m; large enough that no bearing shows a drawn circle.
+const FEATHER_WOBBLE_M: float = 6.0
+
+const PADDY_SUBMERGE: float = 0.18
+const PADDY_MAX_WADE: float = 0.85
+
 # Bundle size in meters
 var bundle_meters: float:
 	get: return cell_size * BUNDLE_SIZE
 
 # Terrain type properties: [tree_chance, tree_count_min, tree_count_max]
+# RICE_PADDY's 0.00 is DELIBERATE and must stay: it governs the random per-bundle scatter,
+# and a worked field is not a scatter. Its rice comes from _plant_paddy_rows below.
 const TYPE_PROPS := {
 	TerrainType.CLEAR:         [0.00, 0, 0],
 	TerrainType.RICE_PADDY:    [0.00, 0, 0],
@@ -442,12 +464,10 @@ func _prune_scatter_cache(chunk_coord: Vector2i, hole: Dictionary) -> bool:
 	var hit: Dictionary = _scatter_cache.get(chunk_coord, {}) as Dictionary
 	if hit.is_empty() or int(hit["epoch"]) < int(_scatter_dirty.get(chunk_coord, 0)):
 		return false
-	var c: Vector3 = hole["c"]
-	var r2: float = float(hole["r2"])
 	var kept: Array = []
 	for e: Dictionary in hit["scatter"]:
 		var o: Vector3 = (e["xf"] as Transform3D).origin
-		if not bool(e.get("fell", false)) and (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < r2:
+		if not bool(e.get("fell", false)) and _hole_removes(hole, o.x, o.z):
 			continue
 		kept.append(e)
 	hit["scatter"] = kept
@@ -459,7 +479,7 @@ func _prune_scatter_cache(chunk_coord: Vector2i, hole: Dictionary) -> bool:
 func _file_veg_hole(hole: Dictionary) -> void:
 	_scatter_epoch += 1
 	var c: Vector3 = hole["c"]
-	var r: float = sqrt(float(hole["r2"]))
+	var r: float = sqrt(float(hole.get("r2_out", hole["r2"]))) + FEATHER_WOBBLE_M
 	var lo: Vector2i = _hole_cell(c.x - r, c.z - r)
 	var hi: Vector2i = _hole_cell(c.x + r, c.z + r)
 	for cx in range(lo.x, hi.x + 1):
@@ -470,13 +490,58 @@ func _file_veg_hole(hole: Dictionary) -> void:
 			(_veg_hole_buckets[key] as Array).append(hole)
 
 
+## A bundle whose centre sits well inside a hole's HARD radius has nothing to contribute:
+## every plant it would lay is thrown away one line later.
+##
+## THE PADDY LATTICE IS THE ONLY CALLER, and that is not a preference. The random scatter
+## draws its RNG BEFORE it tests the hole, on purpose: that is what makes pruning a cached
+## scatter identical to regenerating it with the hole in place (tools/probe_crater_veg.gd,
+## which caught exactly this - skipping a holed bundle there shifted the chunk's RNG stream
+## and moved 1,805 unrelated plants). The lattice draws no RNG at all, so skipping one of its
+## bundles moves nothing.
+func _bundle_fully_holed(bcx: float, bcz: float) -> bool:
+	var margin: float = bundle_meters * 0.7072
+	for hole: Dictionary in _veg_hole_buckets.get(_hole_cell(bcx, bcz), []):
+		var c: Vector3 = hole["c"]
+		var ri: float = sqrt(float(hole["r2"])) - margin
+		if ri > 0.0 and (bcx - c.x) ** 2 + (bcz - c.z) ** 2 < ri * ri:
+			return true
+	return false
+
+
 func _in_veg_hole(wx: float, wz: float) -> bool:
 	var bucket: Array = _veg_hole_buckets.get(_hole_cell(wx, wz), [])
 	for hole: Dictionary in bucket:
-		var c: Vector3 = hole["c"]
-		if (wx - c.x) ** 2 + (wz - c.z) ** 2 < float(hole["r2"]):
+		if _hole_removes(hole, wx, wz):
 			return true
 	return false
+
+
+## THE ONE HOLE PREDICATE. A blast footprint is a hard disc; a site clearing can carry a
+## FEATHER, and both are answered here so the live scatter and the cached-scatter prune can
+## never disagree about which plants a hole took.
+##
+## The feather is why a clearing no longer reads as a stamped circle. Inside r2 everything
+## goes. Between r2 and r2_out a plant SURVIVES with a probability that ramps 0 -> 1 outward,
+## drawn from a position hash (0.25 m grain) so it is deterministic and identical on every
+## rebuild, and the band's own edge wanders with a low-frequency angular term. What the player
+## walks out through is thinning scrub, not a shaved ring.
+func _hole_removes(hole: Dictionary, wx: float, wz: float) -> bool:
+	var c: Vector3 = hole["c"]
+	var dx: float = wx - c.x
+	var dz: float = wz - c.z
+	var d2: float = dx * dx + dz * dz
+	var r2i: float = float(hole["r2"])
+	if d2 < r2i:
+		return true
+	var r2o: float = float(hole.get("r2_out", r2i))
+	if d2 >= r2o:
+		return false
+	var ri: float = sqrt(r2i)
+	var ro: float = sqrt(r2o)
+	var wob: float = FEATHER_WOBBLE_M * sin(3.0 * atan2(dz, dx) + float(hole.get("phase", 0.0)))
+	var t: float = clampf((sqrt(d2) - ri - wob) / maxf(0.001, ro - ri), 0.0, 1.0)
+	return _hash01(floori(wx * 4.0), floori(wz * 4.0), 7919) > t
 
 
 ## Clear vegetation in a circular blast FOOTPRINT: record the hole and rebuild only
@@ -493,12 +558,16 @@ func _in_veg_hole(wx: float, wz: float) -> bool:
 ## the CORRECT one: it runs after the heightmap edit, so plants re-seat on the new ground
 ## instead of the old.
 func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Object = null,
-		defer_rebuild: bool = false) -> int:
-	var min_cx := floori((center.x - radius) / chunk_size)
-	var max_cx := floori((center.x + radius) / chunk_size)
-	var min_cz := floori((center.z - radius) / chunk_size)
-	var max_cz := floori((center.z + radius) / chunk_size)
+		defer_rebuild: bool = false, feather: float = 0.0) -> int:
+	var outer: float = radius + maxf(0.0, feather) + (FEATHER_WOBBLE_M if feather > 0.0 else 0.0)
+	var min_cx := floori((center.x - outer) / chunk_size)
+	var max_cx := floori((center.x + outer) / chunk_size)
+	var min_cz := floori((center.z - outer) / chunk_size)
+	var max_cz := floori((center.z + outer) / chunk_size)
 	var hole := {"c": center, "r2": radius * radius}
+	if feather > 0.0:
+		hole["r2_out"] = (radius + feather) * (radius + feather)
+		hole["phase"] = _hash01(floori(center.x), floori(center.z), 4441) * TAU
 	_veg_holes.append(hole)
 	_file_veg_hole(hole)
 	for cx2 in range(min_cx, max_cx + 1):
@@ -622,6 +691,13 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 			var pool: Array = TYPE_SPECIES.get(ttype, [])
 			if pool.is_empty():
 				continue
+			if ttype == TerrainType.RICE_PADDY:
+				if _bundle_fully_holed(origin_x + (bx + 0.5) * bundle_meters,
+						origin_z + (bz + 0.5) * bundle_meters):
+					continue
+				_plant_paddy_rows(scatter,
+					origin_x + bx * bundle_meters, origin_z + bz * bundle_meters, heightmap)
+				continue
 			var props: Array = TYPE_PROPS[ttype]
 			var chance: float = props[0]
 			var cmin: int = int(props[1])
@@ -666,6 +742,101 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter}
 	StallLedger.end()
 	return scatter
+
+
+## Lay this bundle's share of its field's row lattice. The lattice is anchored to the 48 m
+## FIELD tile, not to the bundle, so rows run unbroken across every bundle and chunk seam; a
+## lattice point is owned by exactly one bundle (half-open containment), so no clump is planted
+## twice at a seam and none is dropped.
+##
+## It draws NOTHING from the chunk's shared RNG - jitter, yaw and scale come from a position
+## hash. Planting a paddy therefore cannot shift one tree anywhere else in the world, and every
+## jungle that existed before rice did still generates identically.
+func _plant_paddy_rows(scatter: Array, bx0: float, bz0: float, heightmap: Object) -> void:
+	var tile_x: int = floori(bx0 / PADDY_FIELD_TILE)
+	var tile_z: int = floori(bz0 / PADDY_FIELD_TILE)
+	var ang: float = floor(_hash01(tile_x, tile_z, mission_seed) * 8.0) * (PI / 8.0)
+	# ONE crop per field, not per plant: a field is sown in one go, and it halves the MultiMesh
+	# nodes (TreeCoverLayer builds one per species x 64 m bucket).
+	var nm: String = "rice_a" if _hash01(tile_x, tile_z, mission_seed + 7) < 0.5 else "rice_b"
+	var ax: float = float(tile_x) * PADDY_FIELD_TILE
+	var az: float = float(tile_z) * PADDY_FIELD_TILE
+	var ca: float = cos(ang)
+	var sa: float = sin(ang)
+	var bx1: float = bx0 + bundle_meters
+	var bz1: float = bz0 + bundle_meters
+
+	# The bundle's four corners in field space bound the lattice indices that can reach it.
+	var u_lo: float = INF
+	var u_hi: float = -INF
+	var v_lo: float = INF
+	var v_hi: float = -INF
+	for cx: float in [bx0, bx1]:
+		for cz: float in [bz0, bz1]:
+			var dx: float = cx - ax
+			var dz: float = cz - az
+			var u: float = dx * ca + dz * sa
+			var v: float = -dx * sa + dz * ca
+			u_lo = minf(u_lo, u); u_hi = maxf(u_hi, u)
+			v_lo = minf(v_lo, v); v_hi = maxf(v_hi, v)
+
+	var hydro: Object = _terrain_manager.hydrology if _terrain_manager != null else null
+	var hm_size: int = int(heightmap.size)
+	var hm_cell: float = float(heightmap.cell_size)
+
+	for j in range(floori(v_lo / PADDY_ROW_PITCH), floori(v_hi / PADDY_ROW_PITCH) + 1):
+		var v: float = float(j) * PADDY_ROW_PITCH
+		for i in range(floori(u_lo / PADDY_HILL_PITCH), floori(u_hi / PADDY_HILL_PITCH) + 1):
+			var u: float = float(i) * PADDY_HILL_PITCH
+			var wx: float = ax + u * ca - v * sa
+			var wz: float = az + u * sa + v * ca
+			if wx < bx0 or wx >= bx1 or wz < bz0 or wz >= bz1:
+				continue
+			var ja: float = (_hash01(i, j, mission_seed + 11) - 0.5) * 2.0 * PADDY_JITTER_ALONG
+			var jc: float = (_hash01(i, j, mission_seed + 13) - 0.5) * 2.0 * PADDY_JITTER_ACROSS
+			wx += ja * ca - jc * sa
+			wz += ja * sa + jc * ca
+			if _in_veg_hole(wx, wz):
+				continue
+			var y: float = heightmap.sample_world(wx, wz)
+			var surf: float = _standing_water_y(hydro, hm_size, hm_cell, wx, wz)
+			if surf != -INF:
+				if surf - y > PADDY_MAX_WADE:
+					continue  # a channel or a pond, not field - leave the water open
+				y = maxf(y, surf - PADDY_SUBMERGE)
+			var rot: float = _hash01(i, j, mission_seed + 17) * TAU
+			var sc: float = 0.85 + 0.30 * _hash01(i, j, mission_seed + 19)
+			var basis := Basis(Vector3.UP, rot).scaled(Vector3.ONE * sc)
+			scatter.append({"name": nm, "xf": Transform3D(basis, Vector3(wx, y, wz))})
+
+
+## Water here is real geometry fed by ONE hydrology solve, so the paddy asks that solve
+## directly instead of the WaterSystem: the water bodies are built after the first chunks
+## load (game_world.gd _on_terrain_ready), while terrain_manager.hydrology exists before
+## them. Returns -INF where there is no standing water.
+func _standing_water_y(hydro: Object, hm_size: int, hm_cell: float, wx: float, wz: float) -> float:
+	if hydro == null or hm_size <= 0 or hm_cell <= 0.0:
+		return -INF
+	var cx: int = floori(wx / hm_cell)
+	var cz: int = floori(wz / hm_cell)
+	if cx < 0 or cx >= hm_size or cz < 0 or cz >= hm_size:
+		return -INF
+	var idx: int = cz * hm_size + cx
+	var types: PackedByteArray = hydro.water_type_full
+	var surfaces: PackedFloat32Array = hydro.water_surface_full
+	if idx >= types.size() or idx >= surfaces.size():
+		return -INF
+	if types[idx] == 0:
+		return -INF
+	return surfaces[idx]
+
+
+## Deterministic 0..1 from three ints. No RNG object and no allocation, which is what lets the
+## paddy lattice stay outside the chunk's RNG stream.
+static func _hash01(a: int, b: int, c: int) -> float:
+	var n: int = a * 374761393 + b * 668265263 + c * 1274126177
+	n = (n ^ (n >> 13)) * 1103515245
+	return float((n >> 8) & 0xFFFFFF) / 16777216.0
 
 
 ## Weighted pick from the cell's classified pool. Under bush_bias (hamlet brush) a

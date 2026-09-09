@@ -115,7 +115,12 @@ func _footprint_valid(center: Vector3, radius: float) -> bool:
 ## Idempotent per disc: the CLEARED flatten is a partial lerp toward the disc
 ## mean, so a repeat call sinks the pad again and breaks the ADR-010 re-stamp
 ## contract (same seed + center must yield identical heights).
-func clear_and_flatten(center: Vector3, radius: float) -> void:
+## `feather` extends the VEGETATION cut outward as a thinning band instead of ending it on a
+## drawn circle. The ClearingSystem zone and the AI grid stay on `radius`, the hard line, so
+## nothing the grid calls cleared has cover standing in it; in the feather band the grid still
+## reads full jungle while the player sees thinning scrub, which errs toward the player having
+## LESS cover than the AI credits him with - never more.
+func clear_and_flatten(center: Vector3, radius: float, feather: float = 0.0) -> void:
 	var disc_key := Vector3i(int(center.x * 10.0), int(center.z * 10.0), int(radius * 10.0))
 	if _cleared_discs.has(disc_key):
 		return
@@ -123,7 +128,7 @@ func clear_and_flatten(center: Vector3, radius: float) -> void:
 	var zone_id: int = ClearingSystem.create_zone(center, radius)
 	ClearingSystem.set_zone_stage(zone_id, ClearingSystem.ClearingStage.CLEARED)
 	if _veg and _veg.has_method("clear_area"):
-		_veg.clear_area(center, radius, _terrain.chunk_size, _terrain.heightmap)
+		_veg.clear_area(center, radius, _terrain.chunk_size, _terrain.heightmap, false, feather)
 	if _grid:
 		_grid.update_region(center, radius)
 
@@ -1054,13 +1059,26 @@ static func _fighting_step(m: Dictionary, r: float, edge: float) -> float:
 	return h * smoothstep(band_in, band_out, r)
 ## Vegetation-clear discs (model-space offsets from AABB center + radius). The base is authored
 ## cleared ground; trees through bunkers lie.
-## 140 m, not the v1 ring of five 58 m discs: v3 authors its OWN cut-over treeline out to ~149 m
-## (stumps, fallen logs, scrub, then palms). Clearing only to ~100 m would let procedural jungle
-## grow straight through the authored trees and double the treeline. Clearing to 140 leaves a
-## thin 140-149 m band where the two meet, which reads as the blend it is.
+##
+## HIS RULING 2026-09-09: "add more grass around the fire base and some trees too, just have the
+## cut away be 20 m around the firebase and stagger it at that too." 140 m was a hard-edged
+## circle that left up to 88 m of bald ground outside the wire.
+##
+## The wire is not a circle. Read off fsb_main_v3_mound.json through the same math
+## fsb_mound_height() uses (r0 66 m, ridge_stretch 1.28, three edge harmonics, berm_w 3.2), the
+## berm crest stands at a world radius of 51.8 m on its narrowest bearing and 99.7 m on its
+## widest, mean 78.5. A single disc cannot be 20 m outside all of that at once: 120 m is
+## exactly +20 on the widest bearing and more on the rest. Following the wire properly needs a
+## SHAPED clear, which also reshapes the patrol AO's firebase site pick (plan_firebase_main_center
+## scores off these offsets) - named for him, not smuggled in tonight.
+##
+## FSB_CLEAR_FEATHER is the "stagger it": past 120 m the cut does not stop, it thins, over 26 m
+## with a 6 m wobble on the band's own edge (vegetation_manager._hole_removes). No bearing shows
+## a drawn radius any more.
 const FSB_CLEAR_DISCS: Array = [
-	[Vector3.ZERO, 140.0],
+	[Vector3.ZERO, 120.0],
 ]
+const FSB_CLEAR_FEATHER: float = 26.0
 
 
 ## Marker locals cached once; plan-time band math and build-time placement use
@@ -1672,7 +1690,7 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	# it at full height, and the player ends up walking between the two - or inside the mound.
 	# The sculpt must have the last word on this ground.
 	for disc in FSB_CLEAR_DISCS:
-		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]))
+		clear_and_flatten(center + (disc[0] as Vector3), float(disc[1]), FSB_CLEAR_FEATHER)
 	# THE MODEL IS THE GROUND (ruling 2026-07-29). The terrain is levelled to the mound's TOE and
 	# stops there - it does NOT reproduce the mound any more. The mesh does, because the mesh is
 	# the one that can show the craters, the thrown-up lips and the mud: "i want that mesh mound

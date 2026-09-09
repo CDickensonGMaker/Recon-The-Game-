@@ -18,6 +18,122 @@
 > **So: the STATUS column and the numbers are load-bearing; a CAUSE with no probe named beside
 > it is a hypothesis.** Re-derive it from the code before you build against it.
 
+## HIS PLAYTEST, 2026-09-09 — FIVE OBSERVATIONS, ALL TRIAGED, NONE LEFT ON THE FLOOR
+
+Council: `production/war_room/2026-09-09_firebase_kit_pivot/`. He reported these in one breath with the
+firebase kit pivot, and the natural reading — that dissecting the base fixes them — **is false. The kit
+fixes none of the five.** Every one is an ordinary defect with an ordinary cause, and three were
+root-caused to a single line or a single missing stagger.
+
+### 37. STUCK BETWEEN A LADDER AND SANDBAGS GETTING OFF THE LADDER — **(a) known cause · FIXED 2026-09-09 · needs your eye**
+
+**REFUTED FIRST: no sandbag is involved.** Nearest sandbag mesh of any family is `fb_sbg_seg_026`,
+**3.91 m** from any ladder waypoint. What you read as sandbags is the tower's own parapet (deck 9.77,
+wall band 9.8-10.65, roof 11.84). **The asset is fine; no `.blend` was touched.**
+
+**Cause, measured:** all three position writes in the climb state machine wrote `global_position` with
+**zero clearance test**, off three constants (`FACE_OFFSET`/`DISMOUNT_LIP`/`DISMOUNT_IN`) **ported from
+CatacombsOfGore** and never re-measured against this tower. Against the GLB's own `-colonly` meshes with
+the player capsule (r 0.40, h 1.80): **the BOTTOM step-off deposits you 0.31 m INSIDE the tower shell on
+3 of the 4 ladders in the game, every time**; those three top out with **0.07 m** of margin. No constant
+fixes it — the obstruction is ~1 m deep (`FACE_OFFSET` 0.55→0.09, 0.70→0.00, 0.85→0.00, 1.20→0.29,
+1.50→0.52). Tight became *wedged* because `site_planner.gd:1823-1832` forces `backface_collision` on
+every concave shape in the compound — **a body inside one has no face to escape through in either
+direction** — and the player has no unstick watchdog although `enemy_base.gd:206-232` and
+`ally_base.gd:56-83` both give one to every AI.
+
+**FIXED:** `Ladder.dismount_point()` + new `Ladder.step_off_point()` resolve against the world (8
+bearings × rings of 0.25 m to 1.5 m, lifts both ways, every candidate must fit the capsule AND have
+ground under it). Nothing clear → `NO_CLEAR_POINT`, and **you stay on the ladder** with a line on
+screen, because the game may not walk you into a wall you did not choose and then refuse you a way out
+(on HARDCORE `can_manual_save()` is hub-only).
+**PROBE:** `tests/test_ladder_dismount.tscn` — PASS with the fix; **6 FAILURES with the resolver
+reverted**, all four ladders' step-off *"is INSIDE geometry"*.
+
+**ONE OPEN ITEM, RATCHETED NOT CLOSED:** `Ladder_1`'s top at (71.46, 10.31, -22.96) has **no landing
+surface at all** — a 5×5 m grid at six heights finds nothing solid. The probe carries
+`BASELINE_NO_LANDING = 1` so it can never grow unnoticed. **UNVERIFIED:** the probe forces windings but
+does not run the box-hull re-meshing the shipping path also performs, so a collider that path *creates*
+would not exist there. **Do not report "a tower has no deck collider" off this number until checked.**
+
+### 38. NPCs STILL STACKING AT WORK POINTS — **(a) known, FOUR causes at once · not a regression · NEEDS YOUR RULING**
+
+**Your 2026-08-24 ruling shipped and is intact** — all four claims of commit `5ed4b181` verified present
+today. **It shipped as "one man per marker"; the defect is that a marker is not a place.**
+
+1. **No NPC collides with or avoids any other NPC.** `civilian.gd:340,369-370`,
+   `enemy_base.gd:3202-3206`, `ally_base.gd:2480-2484` — avoidance off, mask = world only, 0.30 m
+   bodies. **Even a perfect claim ledger cannot stop two men standing in the same metre.**
+2. **The plan itself puts men on top of each other:** 35 posts / 38 men, **19 pairs under 3.0 m, five
+   under 1.0 m** — five men in a 2.2 m box at the chow servery.
+3. `mission_generator.gd:1133` `quarters[qi % 4]` — **9 men aimed at one identical coordinate**, the
+   exact modulo your ruling killed elsewhere. **Do not touch it in isolation:** `home` also feeds sleep,
+   LZ keep-out and the bunk ring.
+4. `mission_generator.gd:1302` undoes the deal 73 lines later for village households.
+
+**REFUTED:** multi-man posts (correctly ringed at 1.8 m), unreleased claims, and **the 488-vs-23 ratio
+is a red herring — the dealer is correct.** 23 is arithmetic: `clamp(40 - 17, 0, 24)`.
+**YOUR CALL:** the 10-line spatial filter closes the worst piles but **visibly thins the compound**
+(chow line 5 men → 2), and you have complained about an empty-feeling base before.
+
+### 39. HUEY DROPOFF NOT AS GOOD AS THE BLENDER REVIEW — **(a) known cause · ~1 h · your memory was right**
+
+**The standing trap was STALE and is corrected:** `BOARD_CLIPS` has not been empty since 2026-08-04
+(`heli_lift.gd:51` = `["board_heli"]`), and `:38-41` names **six real `disembark_heli_*` clips on
+`PSXRig`**. The diorama story is not the answer.
+
+**The real delta:** `tools/export_anim_library.py:59-63` **strips Hips X/Z from every action in the
+library.** `ART_Track_Log.md:374-381` measured both sides — source `.blend` clips travel **2.37 m**, the
+shipped `.glb` clips travel **exactly 0.0 m**. In Blender you watched men travel out of the ship; in the
+game `seat_system.gd:613-636` **teleports all six at once, in one frame**, into a fixed polar fan and
+plays the clip in place. **`board_squad` in the same file staggers by `BOARD_STAGGER_S = 0.6`. Boarding
+is staggered; disembarking is not.** It is the demo's **second beat** — `lz_cycle` on the pad at **T+14 s**.
+
+**A TRAP FOR WHOEVER TAKES IT:** `_exit_ground` places every man **1 m in the air and drops him**
+(`seat_system.gd:852`), and that undocumented `+1.0` is the only thing keeping `drop` (0.510 m) under
+the 0.8 threshold — **remove it and all six disembark clips become unreachable, silently.** The exit
+fan's 7.0 m cap also sits **inside** the 7.32 m rotor radius.
+
+### 40. DRIVING CONVOYS NEED WORK — **(a) known · BUT YOU PARKED THIS YOURSELF · NEEDS YOUR RULING**
+
+**Two different things wear one word.** `GAME_GUIDE.md:326` and item 35 below: *"Real convoy that forms
+up and drives out. **Your ruling 2026-08-28: 'and same with the convoy.' Build nothing.**"* But the
+**ambient** convoy driving `RoadNetwork.longest_route()` is live, and that is what you watched.
+**Polishing the live one is a bug fix and gate-exempt; reviving "forms up and drives out" is a thaw.**
+
+Ranked, worst first: **one convoy per operation, alive 13-17 seconds** (you saw the only one the world
+produces) · trailing vehicles chain-pulled toward the vehicle ahead so the tail cuts every bend off the
+road · `spacing` 6.0 m vs the deuce's 7.10 m box = **1.10 m of nose-to-tail overlap on 75% of vehicles**
+· yaw-only rotation, flat trucks on slopes · `StaticBody3D` with `collision_mask = 0` moved by direct
+position writes, so **it drives through the world and through you** · silent, frozen wheels, no dust ·
+carries no passengers. **A+B+C ≈ 3 hours closes the four worst.**
+
+### 41. NO DIRT ROADS ANYWHERE — **(a) known · TWO arithmetic causes · NOT "never built"**
+
+**The road is built, painted, and ran tonight.** `RoadNetwork._stamp_dust()` tints
+`ROAD_DUST (0.42,0.35,0.24)` at 0.72 in a 10 m band into the `ClearingSystem` overlay the terrain shader
+already mixes; shipped **2026-08-12**, commit `85ab41cf`. Your own log:
+`[ROADS] dust stamped on 163 segment line(s)`. **Two stale comments claiming vegetation was a road's
+only write are corrected** (`mission_generator.gd:911-915`, `road_network.gd:26-38`) — one of them sent
+a council lens to the wrong conclusion tonight.
+
+1. **THE CORRIDOR CLEAR IS A CHAIN OF TANGENT BUBBLES.** `clear_corridor` calls `clear_area(p, 5.0)`
+   once per polyline point, points are **10 m apart**, and the clear is a **sphere**. Radius-5 discs at
+   10 m spacing are tangent: **cleared width at the midpoint is 0.00 m**, 21.5% of the corridor keeps
+   its jungle, and a tree 1 m off the centreline survives at every 10 m interval. **The road is a brown
+   stripe with jungle growing out of the middle of it, every ten metres.** Fix: clearing stride ≤ 5 m.
+2. **THE ROAD IS PAINTED THE FIREBASE'S OWN COLOUR.** `ROAD_DUST` vs the `CLEARED` stage's "Exposed
+   dirt" `(0.45,0.38,0.28)`. The firebase stamps CLEARED at **radius 120 m** and the wire sits at
+   49.4-96.0 m, so the road's first stretch — **where you look first** — composites to **ΔRGB
+   0.022/0.022/0.029** against a terrain noise floor of ±0.01. **Invisible by colour at the gate, and
+   full of trees further out. Two mechanisms in the exact order you meet them.**
+
+**Roads, convoys and the gate house are ONE problem seen from three sides** — the convoy drives the road,
+and `mission_generator.gd:351` refuses to make a convoy without one: *"no road, no convoy - a truck does
+not drive through jungle."*
+
+---
+
 ## THE SUITE, RUN 2026-09-06 — 145 scenes, and what the failures actually are
 
 `tests/test_*.tscn`, all 145, run at the close of the 2026-09-06 fix waves. **17 failed. Not one

@@ -2865,8 +2865,66 @@ a holed bundle shifted the whole chunk's RNG stream and moved 1,805 unrelated pl
 applies **only to the paddy lattice**, which draws no RNG at all. Probe green again, 0 mismatches.
 The wasted work inside the apron is left in and named rather than traded for a wrong tree.
 
+## HANDED TO ME AND MEASURED, NOT TAKEN: `terrain.veg_generate` 62.8 ms for ONE chunk
+
+A distant napalm strike was measured at **62.8 ms of `terrain.veg_generate` for a single chunk** —
+ground he cannot see. That span wraps the whole rebuild and names no cause, so any fix aimed at it
+would be a guess. `tools/probe_veg_generate_cost.gd` (new) splits it. Demo slice, seed 29072026,
+the heaviest resident chunk (4,570 plants), 12 forced rebuilds, headless — CPU spans are honest
+headless because they are script time, not a renderer bucket.
+
+| span | mean ms | worst ms |
+|---|---:|---:|
+| **veg.tree_cover_mmi** (the whole DRAW half) | **17.74** | 18.66 |
+| &nbsp;&nbsp;`mmi.group` — species x 64 m bucket grouping | **8.27** | 8.93 |
+| &nbsp;&nbsp;`mmi.register` — `TreeBreakSystem.register_chunk` | **5.67** | 6.04 |
+| &nbsp;&nbsp;`mmi.build` — MultiMesh construction | 3.12 | 3.33 |
+| &nbsp;&nbsp;`mmi.addchild` | 0.51 | 0.57 |
+| &nbsp;&nbsp;`mmi.clear` / `mmi.ring` | 0.00 / 0.01 | — |
+| **veg.build_scatter** (the DATA half) | **4.99** | 5.95 |
+| &nbsp;&nbsp;`veg.scatter_hit` — re-seating every plant's Y on the current heightmap | **4.98** | 5.93 |
+
+**Read plainly:** the scatter CACHE is working — `build_scatter` is 5.0 ms and essentially all of it
+is the cache-hit path re-seating Y, not re-deriving anything. The cost is now in the DRAW half, and
+**`mmi.group` alone is the largest single item.** It builds a Dictionary keyed by a three-element
+Array per plant, appends a `Transform3D` per plant, then walks the groups a second time to compute
+centroids and build a second `Transform3D` per plant. That is two allocations and an Array-key hash
+per plant, 4,570 times.
+
+**Not taken tonight, deliberately.** Under his standing law — *outcome identical, presentation
+degraded* — only the `mmi.*` half may be deferred or skipped, and the two obvious moves both need a
+guard this box cannot give tonight:
+- Writing the MultiMesh through a single `buffer` assignment instead of N `set_instance_transform`
+  calls (the pattern `VegetationManager._materialize_vegetation` already uses) would cut `mmi.build`,
+  but **a wrong buffer layout is invisible headless** — `probe_chunk_patch` compares `chunk_origins`,
+  the scatter's own positions, precisely because MultiMesh transform read-back is blind under the
+  dummy renderer. It cannot catch a transposed row. It needs a windowed look, and he was at the
+  machine.
+- Distance-gating the MultiMesh build (build the buckets in range, queue the rest) is the real answer
+  to "62.8 ms for ground he cannot see", and it is safe for outcome — trunk candidates and the break
+  registry are derived from the scatter and would still run immediately. But it makes
+  `probe_chunk_patch`'s node/instance comparison viewpoint-dependent, so that probe has to be taught
+  the gate in the same change.
+
+`mmi.register` (5.67 ms) is `TreeBreakSystem.register_chunk` and belongs to whoever owns
+`tree_break_system.gd`, not to the vegetation layer.
+
 ## ONE NUMBER I COULD NOT ACCOUNT FOR
 
 The demo slice read **8,845** non-rice plants before this change and **8,852** after — seven plants,
 0.08%. The patrol AO reproduces EXACTLY (49,695 before, 49,695 after), which is the stronger test and
 the one the determinism claim rests on. The seven are recorded, not explained and not rounded away.
+
+## Gates, all green headless with everything above in
+
+`test_ship_parity` - `test_flat_damage` - `test_tree_cover_lod` - `test_grid_queries` -
+`test_render_scale` - `test_fossils` - `test_trunk_ring` - `test_tree_cover_wired` -
+`test_one_classifier` - `test_veg_density` - `test_zoning_histogram` - `test_spawn_zoning` -
+`test_paddy_stamper` (including its own determinism check) - `test_placement_paths` -
+`test_nav_path` - `test_settlement_spacing` - `test_world_alive` - `probe_ground_seat` -
+`probe_chunk_patch` - `probe_crater_veg` - `probe_terrain_collision` - `probe_bullet_damage` -
+main headless boot **0 SCRIPT ERROR** - `demo_game.tscn` headless boot **0 SCRIPT ERROR**.
+
+One transient, named rather than rounded away: `test_grid_queries` exited 1 on its first run and
+PASSED on a clean re-run. Another agent was mid-save on `player.gd` at that moment - that run's log
+carries its parse error and no other run does.

@@ -58,10 +58,18 @@ func _ready() -> void:
 	for nm: String in names:
 		var n: int = per_species[nm]
 		var mesh: Mesh = tc.call("solid_mesh_for", nm)
+		# INDEX buffer, not vertex count / 3. The vertex form under-counts every indexed mesh
+		# (rice_a reads 37 that way and 84 off the indices, which is what
+		# tools/probe_far_ring_meshes.gd has always reported). Every triangle figure this probe
+		# printed before 2026-09-09 is understated for that reason.
 		var tris: int = 0
 		if mesh != null:
 			for si in mesh.get_surface_count():
-				tris += (mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+				var arrays: Array = mesh.surface_get_arrays(si)
+				var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+				@warning_ignore("integer_division")
+				var t: int = (idx.size() / 3) if idx.size() > 0 					else ((arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3)
+				tris += t
 		var is_small: bool = false
 		for p: String in prefixes:
 			if nm.begins_with(String(p)):

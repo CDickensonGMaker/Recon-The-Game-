@@ -716,7 +716,8 @@ func enter_hub() -> void:
 	if MissionWeather.is_night:
 		world.start_night_ambience()
 	MissionGenerator.apply_veg_boosts(world,
-		(built.gate_pos as Vector3) + (built.gate_out as Vector3) * 90.0, patrol_plan.sites)
+		(built.gate_pos as Vector3) + (built.gate_out as Vector3) * 90.0, patrol_plan.sites,
+		patrol_plan.get("fsb_center", Vector3.INF) as Vector3)
 	WeaponHolder.session_shots = 0
 	WeaponHolder.session_hits = 0
 	# A restored position is X/Z memory, never Y truth: the world reseats terrain

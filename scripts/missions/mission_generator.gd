@@ -909,8 +909,11 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	route_roads_and_ambushes(world, p)
 	world.road_network = p.get("roads", null) as RoadNetwork
 	if world.road_network != null:
-		# The only write a road performs: vegetation bundles thinned along the
-		# corridor - never height, never terrain_type, never water.
+		# A road writes TWO things, never height, never terrain_type, never water:
+		# vegetation bundles thinned along the corridor, AND dust tinted into the
+		# ClearingSystem ground overlay (RoadNetwork._stamp_dust, added 2026-08-12
+		# in 85ab41cf). The "only write is vegetation" line this replaces predated
+		# the dust and sent a 2026-09-09 council lens to the wrong conclusion.
 		world.road_network.clear_corridor(world.vegetation_manager,
 			world.terrain_manager.chunk_size, world.terrain_manager.heightmap)
 
@@ -1329,12 +1332,26 @@ static func _spawn_enemy_groups(world: GameWorld, director: FieldDirector,
 				enemy.add_to_group(str(group.tag))
 
 
+## The firebase apron: how far out the base sits in thick growth, and how thick. Deliberately
+## modest - this is the ground the 45-man assault crosses.
+const FSB_APRON_RADIUS: float = 175.0
+const FSB_APRON_CHANCE: float = 0.78
+const FSB_APRON_BOOST: int = 1
+
 ## Jungle thickening rings + the GameplayGrid honesty mirror (asr5/y5ad law):
 ## the AI sight cap must see the same bushes the player does.
-static func apply_veg_boosts(world: GameWorld, near_pos: Vector3, sites: Array) -> void:
+## fsb_center: HIS RULING 2026-09-09 - "add more grass around the fire base and some trees too".
+## The apron ring thickens what grows outside the firebase clear; everything inside the clear is
+## removed by the veg hole anyway, and boost_vegetation clamps itself against the ClearingSystem
+## density, so the grid mirror cannot claim concealment on the bald compound.
+static func apply_veg_boosts(world: GameWorld, near_pos: Vector3, sites: Array,
+		fsb_center: Vector3 = Vector3.INF) -> void:
 	if world.vegetation_manager == null:
 		return
 	var veg_centers: Array = [{"pos": near_pos, "radius": 60.0, "chance_floor": 0.95, "count_boost": 3}]
+	if fsb_center != Vector3.INF:
+		veg_centers.append({"pos": fsb_center, "radius": FSB_APRON_RADIUS,
+			"chance_floor": FSB_APRON_CHANCE, "count_boost": FSB_APRON_BOOST})
 	for s in sites:
 		var site: Dictionary = s
 		if str(site.get("kind", "")) == "village" and site.has("center"):
