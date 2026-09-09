@@ -1821,19 +1821,34 @@ func _repair_glb_colliders(root: Node3D) -> void:
 ## or steel, so hard is the default. The TOC is deliberately hard: a firebase TOC is
 ## the most sandbagged structure inside the wire.
 const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
-	"fb_aid_station", "fb_latrine", "fb_supply_dump", "fb_water_point",
+	# The hooch WALL. This list has always said "a hootch wall does not stop a 7.62" and
+	# has never covered one: the walls export as fb_hwall_*, not fb_hootch_*, so 242 plywood
+	# panels shipped bulletproof while their own roofs and screens were penetrable.
+	"fb_hwall",
+	"fb_latrine", "fb_supply_dump", "fb_water_point",
 	"fb_burn_barrel", "bwire_card",
 	# The casualty display figures (wounded + medical staff, per-part colliders in
 	# the GLB). A body is flesh: rounds pass through with soft falloff and blasts
 	# reach past it - it must never read as a sandbag wall that gives no hit
 	# reaction. They stay in the nav bake per the fb_int_ ruling (real in both).
-	"grunt_"]
+	#
+	# `grunt_` alone reached 144 of 367 parts. The gore caps, the surgical dress and the
+	# three baked officers export under their own stems, so two-thirds of the figures in
+	# this compound were hard cover - a man's apron stopping a rifle round.
+	"grunt_", "cap_", "scrub_cap_", "apron_", "mask_", "PSXRig_",
+	"OFF0_", "OFF1_", "OFF2_"]
+
+## The subset of the above that is a BODY, so the count in the tag report means what it says.
+const FSB_FIGURE_PREFIXES: Array[String] = ["grunt_", "cap_", "scrub_cap_", "apron_",
+	"mask_", "PSXRig_", "OFF0_", "OFF1_", "OFF2_"]
 
 
 func _tag_fsb_ballistics(root: Node3D) -> void:
 	var soft_n: int = 0
 	var hard_n: int = 0
 	var figure_n: int = 0
+	var hard_families: Dictionary = {}
+	var hits: Dictionary = {}
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -1847,16 +1862,60 @@ func _tag_fsb_ballistics(root: Node3D) -> void:
 		for p in FSB_SOFT_PREFIXES:
 			if nm.begins_with(p):
 				soft = true
+				hits[p] = int(hits.get(p, 0)) + 1
 				break
 		body.add_to_group("soft_cover" if soft else "hard_surface")
 		if soft:
 			soft_n += 1
-			if nm.begins_with("grunt_"):
-				figure_n += 1
+			for fp in FSB_FIGURE_PREFIXES:
+				if nm.begins_with(fp):
+					figure_n += 1
+					break
 		else:
 			hard_n += 1
+			var fam: String = _collider_family(nm)
+			hard_families[fam] = int(hard_families.get(fam, 0)) + 1
 	print("[FSB] ballistic tags: %d soft (tent/hootch/tin, %d casualty-figure parts), %d hard (earth/sandbag/timber)"
 		% [soft_n, figure_n, hard_n])
+	_report_ballistic_misses(hard_families, hits)
+
+
+## ADR-042 clause 1. `hard` is the DEFAULT here, so a family the soft list has never heard
+## of ships bulletproof with no error - the same shape as the helmet defect. Two lists, both
+## required: what defaulted to hard (by FAMILY, because 1,847 names is not a report), and
+## which soft prefixes matched nothing at all. A prefix that matches zero nodes is a dead
+## contract that READS as covered, which is worse than an absent one.
+func _report_ballistic_misses(families: Dictionary, hits: Dictionary) -> void:
+	var dead: Array[String] = []
+	for p in FSB_SOFT_PREFIXES:
+		if int(hits.get(p, 0)) == 0:
+			dead.append(p)
+	if not dead.is_empty():
+		push_warning("[FSB] DEAD SOFT PREFIX: %s matched no collider - the family it names is either "
+			% ", ".join(dead) + "gone or renamed, and anything that took its place is bulletproof")
+	var names: Array = families.keys()
+	names.sort_custom(func(a: String, b: String) -> bool:
+		return int(families[a]) > int(families[b]))
+	var top: PackedStringArray = PackedStringArray()
+	for i in mini(names.size(), 18):
+		top.append("%s x%d" % [names[i], int(families[names[i]])])
+	print("[FSB] hard by DEFAULT (matched no soft prefix): %d famil(ies) - %s%s" % [
+		names.size(), ", ".join(top), "" if names.size() <= 18 else ", ..."])
+
+
+## Collider name -> the family a contract would be written against: ordinals and the
+## -colonly suffix stripped. `fb_hwall_042_003-colonly` and `fb_hwall_007` are one family.
+static func _collider_family(nm: String) -> String:
+	var s: String = nm
+	var dash: int = s.rfind("-colonly")
+	if dash > 0:
+		s = s.substr(0, dash)
+	while true:
+		var cut: int = s.rfind("_")
+		if cut <= 0 or not s.substr(cut + 1).is_valid_int():
+			break
+		s = s.substr(0, cut)
+	return s
 
 
 ## Rebuild one merged-vegetation collider from its own visual mesh. Returns whether it found
