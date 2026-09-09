@@ -312,3 +312,47 @@ and it has to be possible to shoot him, or the choice is scenery.
 
 **What happens if the player DOES shoot him** is the hardest and most interesting question in the whole
 adaptation, and it is nobody's call but the author's.
+
+## LOUIE — an American in French service
+
+**His, 2026-09-09:** *"where louie is a young guy from the usa who travels oversaes and joins the
+french army"*
+
+### The generational parallel is an INVERSION, not a repetition
+
+- **Louie VOLUNTEERED.** He travelled overseas and joined someone else's army, before it was his
+  country's war.
+- **Michael was DRAFTED.** The Issue 1 title page is built out of Selective Service registration cards
+  — *Michael Lee Crawford, registered 17 Aug 1967, aged seventeen.* The pilot's narrator said it
+  outright: *"I was the first from my town to be drafted."*
+
+**One generation crossed an ocean to get into a war. The next was carried into one.** That is a
+sharper parallel than a repetition would be, and it is already visible in the art he chose: the draft
+card as the page the story is printed on.
+
+### Historically this is exact, and it locks the chain tight
+
+Before US entry in April 1917, an American could not legally enlist in a foreign army without losing
+citizenship — so American volunteers went into the **French Foreign Legion**, the Lafayette Escadrille,
+or the American Field Service. An American in French service in that war is a Legionnaire or close to it.
+
+**And the WW1 bully "ends up being a old timer in the french foreigin legion"** who assaults the woman
+who then joins the revolution. So both Louie and the bully sit inside French colonial service — and the
+Legion in **Indochina** is the direct ancestor of the war Michael is drafted into.
+
+**The chain is now unbroken across four wars and it is all French and German and Russian before it is
+ever American:**
+
+    WW1, French service — Louie spares a young German
+      -> WW2 — that German, now SS, burns a Russian
+        -> the burned Russian becomes the skull-faced sniper
+          -> Vietnam 1968 — he hunts Louie's grandson
+
+    WW1, French service — the bully survives
+      -> Indochina, French Foreign Legion — he assaults a woman
+        -> she joins the revolution
+          -> Vietnam 1968 — the other enemy
+
+### Art consequence, for whenever WW1 is built
+Louie is **poilu**, not doughboy: Adrian helmet, horizon-blue, Lebel or Berthier, Chauchat. Not the
+American WW1 kit anyone would reach for by default. Nothing in the project has it.
