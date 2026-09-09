@@ -356,3 +356,13 @@ ever American:**
 ### Art consequence, for whenever WW1 is built
 Louie is **poilu**, not doughboy: Adrian helmet, horizon-blue, Lebel or Berthier, Chauchat. Not the
 American WW1 kit anyone would reach for by default. Nothing in the project has it.
+
+---
+
+# SCOPE RULING — all of the above is POST-DEMO LAUNCH
+
+**His, 2026-09-09: "but this is all post demo launch."**
+
+Everything in this document — the comic adaptation, the WW1 thread, the journal transition, the
+stress-driven horror layer — is **post-demo-launch work.** Recorded so it is not lost and so nobody
+starts it. The defect loop and the demo keep priority.
