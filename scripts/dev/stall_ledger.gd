@@ -69,9 +69,34 @@ static var _phys_steps: int = 0
 static var _phys_total_us: int = 0
 static var _stalls: int = 0
 
+## The MOST RECENT step, not the worst. A live overlay needs this frame's own script span
+## in the SAME time base as the per-frame buckets printed beside it; the worst-step figures
+## above are a window statistic and cannot be compared against a single frame's numbers.
+static var _last_idle_us: int = 0
+static var _last_phys_us: int = 0
+## Instrument health. Not cleared by reset_window() - it answers "did the sentinels ever
+## tick", which is a property of the run, not of the window.
+static var _idle_steps_ever: int = 0
+
 
 static func enable() -> void:
 	_on = true
+
+
+## True only once the sentinels have actually bracketed a frame. A reader that prints a
+## span without checking this is printing 0.00ms from a dead instrument.
+static func armed() -> bool:
+	return _on and _idle_steps_ever > 0
+
+
+## The last completed idle / physics step, in ms. Per-frame, measured by the sentinels in
+## Time.get_ticks_usec - never a Performance monitor bucket-max.
+static func last_idle_ms() -> float:
+	return float(_last_idle_us) / 1000.0
+
+
+static func last_phys_ms() -> float:
+	return float(_last_phys_us) / 1000.0
 
 
 ## Open a named span. MUST be paired with end() on every path, including early returns
@@ -106,6 +131,7 @@ static func physics_frame_end() -> void:
 	if not _on:
 		return
 	var dt: int = Time.get_ticks_usec() - _phys_t0
+	_last_phys_us = dt
 	_phys_steps += 1
 	_phys_total_us += dt
 	if dt >= STALL_US:
@@ -126,6 +152,8 @@ static func idle_frame_end() -> void:
 	if not _on:
 		return
 	var dt: int = Time.get_ticks_usec() - _idle_t0
+	_last_idle_us = dt
+	_idle_steps_ever += 1
 	if dt > _worst_idle_us:
 		_worst_idle_us = dt
 		_worst_idle_causes = _step.duplicate()

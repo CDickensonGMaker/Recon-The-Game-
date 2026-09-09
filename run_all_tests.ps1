@@ -66,6 +66,10 @@ $Graduated = @(
     # BINDING LAW - it going quietly red is the most expensive kind of silence this project has.
     "test_witness_rule"
     "test_firebase_garrison"
+    # Born green 2026-09-09 with the overlay time-base repair. It guards a CONTRACT, not a
+    # number: no CPU/GPU-BOUND verdict derived from Performance bucket maxima, and no
+    # fabricated `ai/agents` remainder. Both were live on the HUD until that day.
+    "test_perf_timebase"
 )
 # DELISTED 2026-07-27 (Summoner: "remove the ai stress test from the probes"):
 # test_arena_patrol. The stress arena is a sterile hand-wired debugging bench,

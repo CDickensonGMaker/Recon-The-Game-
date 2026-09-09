@@ -45,9 +45,14 @@ func _ready() -> void:
 		elapsed = Time.get_ticks_msec() / 1000.0 - t0
 	var fps: float = float(frames) / elapsed
 	var gpu_ms: float = (gpu_accum / float(gpu_samples)) if gpu_samples > 0 else -1.0
-	print("[PERFROW] patrol_world seed=%d | scale=%.2f | renderer=%s | fps=%.1f | gpu_ms=%.2f | draws=%d | prims=%d" % [
+	## The renderer is read from the RENDERING SERVER, not from ProjectSettings. Godot strips
+	## `rendering/renderer/rendering_method` on save when it equals the desktop default, so the
+	## setting reads "forward_plus" whether or not that is what is running - it agrees with
+	## reality by luck. `get_current_rendering_method()` is what the process actually booted.
+	print("[PERFROW] patrol_world seed=%d | scale=%.2f | renderer=%s/%s | fps=%.1f | gpu_ms=%.2f | draws=%d | prims=%d" % [
 		OP_SEED, get_viewport().scaling_3d_scale,
-		str(ProjectSettings.get_setting("rendering/renderer/rendering_method")),
+		RenderingServer.get_current_rendering_method(),
+		RenderingServer.get_current_rendering_driver_name(),
 		fps, gpu_ms,
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])

@@ -23,8 +23,14 @@ was measured at (the standing sin — bead `365s` — was quoting scaled numbers
   the file at all.** The `[rendering]` block (`project.godot:302-310`) contains only
   `renderer/rendering_method.mobile="gl_compatibility"` (`:305`); the desktop key has been stripped by
   an editor save, exactly as the failure mode predicted. Forward+ therefore holds **only by being the
-  desktop default**. **Verify the renderer AT RUNTIME** (the harness already prints it —
-  `tests/windowed_patrol_perf.gd:48`), never by grepping `project.godot`.
+  desktop default**. **Verify the renderer AT RUNTIME**, never by grepping `project.godot`.
+  **CORRECTED 2026-09-09: the harness this line sent you to was not doing that.**
+  `windowed_patrol_perf.gd` printed `ProjectSettings.get_setting("rendering/renderer/rendering_method")`
+  — the very setting the paragraph above says is stripped and untrustworthy. It agreed with reality by
+  luck, because `forward_plus` is also the default. Both it and `--print-fps` now print
+  `RenderingServer.get_current_rendering_method()` + `get_current_rendering_driver_name()`, which is
+  what the process actually booted (`tests/windowed_patrol_perf.gd:54-55`,
+  `scripts/dev/fps_printer.gd`).
 - **Always record the seed.** Terrain relief, site layout and therefore frame cost change with it.
   The shipped default is **47225** (`game_flow.gd:190`); older entries at 2077 do not describe it.
 - Harness (as of 2026-07-20): launch the game normally with `-- --perf-probe [--perf-cycle]`.
@@ -2928,3 +2934,85 @@ main headless boot **0 SCRIPT ERROR** - `demo_game.tscn` headless boot **0 SCRIP
 One transient, named rather than rounded away: `test_grid_queries` exited 1 on its first run and
 PASSED on a clean re-run. Another agent was mid-save on `player.gd` at that moment - that run's log
 carries its parse error and no other run does.
+
+---
+
+## 2026-09-09 (later) — PHASE 1: THE LIVE HUD WAS STILL RUNNING THE INSTRUMENT THE LOG ALREADY RETIRED
+
+`--print-fps` was corrected on 2026-09-08: it deleted its `game` column because that column summed
+`Performance.TIME_PROCESS` and `TIME_PHYSICS_PROCESS`, and both are **one-second bucket MAXIMA**
+(`main.cpp`: `process_max = MAX(process_ticks, process_max)`), not per-frame values. Two maxima need
+not come from the same frame, and `TIME_PROCESS`'s span in `main.cpp` also contains
+`RenderingServer::sync()` and `RenderingServer::draw()`, so renderer backpressure lands inside it.
+The reasoning is written out in `scripts/dev/stall_ledger.gd:1-40` and `scripts/dev/fps_printer.gd`.
+
+**The live bench HUD never got that correction.** `scripts/levels/arena_perf_overlay.gd` was still
+computing exactly the retired quantity and printing a verdict off it. As of the previous commit:
+
+    var cpu_ms: float = process_ms + physics_ms
+    bound = "GPU-BOUND" if gpu_ms >= cpu_ms + render_cpu_ms else "CPU-BOUND"
+
+and, when the driver timer was silent, deriving a GPU figure as `frame_ms - cpu_ms` and labelling the
+frame from that. Four defects, all measured against the source, all fixed:
+
+| # | defect | why it is wrong | fixed |
+|---|---|---|---|
+| 1 | `cpu_ms = TIME_PROCESS + TIME_PHYSICS_PROCESS` | two 1s bucket maxima, possibly different frames; the idle one contains `RenderingServer::sync/draw` | the sum is **deleted, not renamed**. The monitors print in their own row labelled `1s MAXIMA, not per-frame, never summed` |
+| 2 | `CPU-BOUND` / `GPU-BOUND` verdict from that sum | unsupportable — the very claim `fps_printer.gd` had already withdrawn | replaced by the one claim a driver timer supports: `GPU SATURATED (n% of frame)` at >=90% share, else `not GPU-limited (gpu n% of frame)`, else `BOUND-NESS UNPROVEN - driver GPU timer silent`. It never names which CPU-side worker holds a non-GPU-bound frame |
+| 3 | `"ai/agents" = TIME_PROCESS - itemised` | a bucket maximum minus a set of per-frame usec spans: two time bases subtracted, and **it was the largest number on the HUD** | deleted. The itemised buckets print with their own sum, against a real per-frame script span |
+| 4 | `frame_ms = 1000.0 / Engine.get_frames_per_second()` | that is a **one-second average**, so the "rolling frame-time graph" plotted a flat average and the 25 ms spike catcher could essentially never fire on a single stutter | `frame_ms = delta * 1000.0` — this frame's own wall time. Spike test is now `> SPIKE_MS` **and** `> SPIKE_RATIO x rolling mean` (an absolute 25 ms floor alone marks every frame on a 27 fps bench), and the spike line carries the multiple it was judged by |
+
+### What replaced the fabricated CPU number
+
+The honest per-frame script span already existed and the overlay was not using it. `FrameSentinel`
+(front/back `process_priority` bookends) brackets every node's `_process` / `_physics_process`, and
+`StallLedger` measures the span in `Time.get_ticks_usec` — the caller's own clock, not a Performance
+monitor. It was armed only by `--print-fps`.
+
+- `scripts/dev/frame_sentinel.gd` — new `FrameSentinel.install(host)`. Idempotent **by tree state**
+  (group `stall_sentinel`), not by a static flag, so a scene reload that frees the old host can re-arm.
+  This matters: a second front sentinel overwrites the first's `t0` and a second back sentinel
+  re-closes the same span, which inflates every span reported.
+- `scripts/dev/stall_ledger.gd` — added `last_idle_ms()` / `last_phys_ms()` (the **most recent** step,
+  not the window's worst, so it is comparable to the per-frame buckets printed beside it) and
+  `armed()`, which is false until the sentinels have actually bracketed a frame. The HUD prints
+  `INSTRUMENT NOT TICKING - no span measured, quote nothing` rather than a confident `0.00 ms`.
+- `scripts/dev/fps_printer.gd` — now calls `FrameSentinel.install(self)` instead of hand-rolling the
+  same three lines. One way to arm the instrument.
+- The GPU share and the frame figure are both **means over the same 120-frame window**
+  (`_gpu_history` added alongside `_history`), so the verdict is not two jittery single samples, and
+  the readout states `mean of N` beside `last`.
+
+### The gate: `tests/test_perf_timebase.tscn` (new, in the suite, listed in `$Graduated`)
+
+**12 checks, PASS.** It is a *contract* test, not a number test — a number is a machine's mood.
+It fails the build if the HUD text ever again contains `CPU-BOUND` or `GPU-BOUND`, if it prints the
+Performance monitors without saying they are 1s bucket maxima, if the `ai/agents` remainder returns,
+or if the silent-driver case stops saying `BOUND-NESS UNPROVEN`. It also asserts the sentinels arm,
+that `last_idle_ms()`/`last_phys_ms()` are non-zero after five frames, and that a double
+`FrameSentinel.install` plus a live `FpsPrinter` still yield **exactly 2** sentinels.
+
+**Why it had to be written at all:** nothing on the headless boot path loads
+`arena_perf_overlay.gd`, `frame_sentinel.gd` or `fps_printer.gd` — `FpsPrinter` attaches deep inside
+`GameFlow.enter_hub` (`scripts/main/game_flow.gd:751`), which a `--quit-after` boot never reaches. So
+`--headless --quit-after 300` **cannot** catch a parse error in any of the three. That blind spot is
+now covered by a test that instantiates all three.
+
+### Not measured, and it must not be read as measured
+
+Nothing in this entry is a frame-rate number. It repairs the instrument that would produce one. **No
+player-eye baseline has been taken since the render-scale correction landed**, and the
+2026-08-07..2026-09-08 window remains void.
+
+One thing the log did state on its own, headless: `[FPS] printer ATTACHED - ... render scale 0.750
+(live)`. That is the dummy renderer's viewport, not a windowed one, and it settles nothing about what
+a real window does — recorded because it was printed, not because it proves anything.
+
+### Observed red, not caused here: `test_ai_stress_arena`
+
+`FAIL: no VC entered COMBAT` (US wins at 5.7 s, 12-0). **Not this change**, and proven rather than
+asserted: `tests/test_ai_stress_arena.gd:48-49` sets `spawn_hud = false` and `bench_dressing = false`,
+so `ArenaPerfOverlay` is never constructed — the string appears **zero** times in the run's log, as do
+`StallSentinel` and any `StallLedger` arming. It is an AI/arena failure and it is on neither
+`$KnownRed` nor `$Graduated` in `run_all_tests.ps1`, so it has been reading as one FAIL among many
+with nothing watching it. Named for whoever owns the arena AI.

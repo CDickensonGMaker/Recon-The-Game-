@@ -1787,3 +1787,76 @@ flood cut from 439 lines per strike to 5.
   ordnance (Fairness Law); and any big night flash briefly changes what can be seen, **including the
   player** — a stealth-economy event (Pillar 2/3, ADR-005) to decide deliberately, not discover.
 - **`clutter.flush` 16.3 ms x1** — distance behaviour unattributed.
+
+---
+
+## 2026-09-09 (later) — PERF/QUALITY PLAN, PHASE 1: INSTRUMENT REPAIR (overseer)
+
+**BEADS ARE NOT USED.** The plan this wave came from tells the reader to file work in "the project's
+existing beads system" and to fix `bd prime`. That paragraph is void — beads were retired 2026-07-22
+(`CLAUDE.md`), `.beads/` is not to be resurrected and `bd` is not to be run. Work lives here, in
+`production/PERF_LEDGER.md` and in Claude memory.
+
+### DONE, headless, gate-exempt (evidence-gathering instrumentation)
+
+- **The live bench HUD was still computing the quantity `--print-fps` retired on 2026-09-08.**
+  `scripts/levels/arena_perf_overlay.gd` summed `TIME_PROCESS + TIME_PHYSICS_PROCESS` as "CPU ms" and
+  printed `CPU-BOUND` / `GPU-BOUND` from that sum. Both monitors are **1s bucket maxima**, they need
+  not come from the same frame, and the idle one's span contains `RenderingServer::sync/draw`. Fixed,
+  with three further defects found in the same file — full table in `production/PERF_LEDGER.md`.
+  The largest single number on that HUD, `ai/agents`, was a bucket-maximum minus per-frame spans.
+  **It is deleted, not renamed.**
+- **The graph and the spike catcher were plotting a one-second average** (`1000/get_frames_per_second()`),
+  so neither could ever show a stutter. Now per-frame `delta`, with an adaptive spike test.
+- **The HUD now reads the real per-frame script span** (`FrameSentinel` + `StallLedger`), which
+  already existed and was armed only by `--print-fps`. `FrameSentinel.install()` is now the one way to
+  arm it, idempotent by tree state, so two hosts cannot install two overlapping sentinel pairs.
+- **A second broken instrument, and the ledger's own measurement contract was pointing AT it.**
+  The contract says "verify the renderer AT RUNTIME (the harness already prints it —
+  `tests/windowed_patrol_perf.gd:48`)". That line printed
+  `ProjectSettings.get_setting("rendering/renderer/rendering_method")` — the setting the paragraph
+  directly above it calls stripped and untrustworthy. It agreed with reality **by luck**, because
+  `forward_plus` is also the default. Both that harness and `--print-fps` now print
+  `RenderingServer.get_current_rendering_method()` + `get_current_rendering_driver_name()`.
+- **`tests/test_perf_timebase.tscn` — new, in the suite, listed in `$Graduated`. 12 checks, PASS.**
+  A contract test, not a number test. It also closes a real blind spot: nothing on the headless boot
+  path loads `arena_perf_overlay.gd`, `frame_sentinel.gd` or `fps_printer.gd` (`FpsPrinter` attaches
+  inside `GameFlow.enter_hub`, `scripts/main/game_flow.gd:751`), so `--quit-after` **cannot** catch a
+  parse error in any of the three. It now can.
+
+### NOT DONE, and it needs him — the Phase 0 player-eye baseline
+
+**No frame-rate number was produced by this wave, and none may be inferred from it.** The
+2026-08-07..2026-09-08 window is still void and nothing has been measured since the render-scale
+correction landed. A baseline cannot be taken headless: GPU ms reads 0 under the dummy rasterizer,
+and every windowed run puts something on his screen, which needs his say-so.
+
+His two standing constraints on how it must be taken:
+1. **A bench on a quiet scene "isnt really gauging anything"** — the baseline runs under real load.
+2. **A drone shot is a lever A/B only, never a headline** (`scripts/levels/ps2_perf_probe.gd:2-11`).
+   The player stands at 1.7 m inside the foliage; a 6 m drone over-weights far geometry and
+   under-weights the near-ring fill and the viewmodel that dominate a real frame.
+
+Note against constraint 1: `tests/windowed_patrol_perf.tscn` boots the real world and then **stands
+still for 12 s**. It is a quiet-scene bench by his definition and is not the baseline instrument.
+
+### REFUSED CUTS — do not re-propose, they are his rulings
+
+- **Single-sided foliage.** 0 of 40 impostor cards are double-modelled and 116 of 117 near-ring solids
+  are open shells; back-face culling would hole the jungle.
+- **Unshaded grass.** It glows at night and inverts the stealth economy (Pillar 2/3, ADR-005).
+- **Cutting the bushes.** Ruled: they draw to 350 m, uncut (`BUSH_RING_M = 0.0`).
+
+**And the target itself:** 60 fps on the Intel UHD is provisional. The Quadro P620 is dead (Code 43,
+bought used with the fault) so the UHD is the only bench and it is **the punishment floor, not the
+design target** — a number from it justifies no atmosphere cut on its own (ADR-026 Amendment C). If
+the target cannot be met, measured options go to him; nothing gets quietly cut.
+
+### OBSERVED RED, not caused by this wave, named for its owner
+
+`test_ai_stress_arena` — `FAIL: no VC entered COMBAT` (US wins 12-0 at 5.7 s). Proven not to be this
+change rather than assumed: `tests/test_ai_stress_arena.gd:48-49` sets `spawn_hud = false` and
+`bench_dressing = false`, so `ArenaPerfOverlay` is never constructed and the string appears **zero**
+times in the run's log. It is on neither `$KnownRed` nor `$Graduated` in `run_all_tests.ps1`, so it
+has been reading as one FAIL among many with nothing watching it — the exact silence that list exists
+to prevent.

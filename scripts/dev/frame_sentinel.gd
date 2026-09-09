@@ -19,9 +19,22 @@ extends Node
 
 const FRONT: int = -100000
 const BACK: int = 100000
+const GROUP: StringName = &"stall_sentinel"
 
 ## true = the opening bookend, false = the closing one.
 var _is_front: bool = false
+
+
+## ONE way to arm the instrument, so two hosts cannot install two overlapping pairs (a
+## second front sentinel overwrites the first's t0 and a second back sentinel re-closes the
+## same span, which inflates every span it reports). Idempotent by tree state, not by a
+## static flag, so a scene reload that frees the old host can re-arm.
+static func install(host: Node) -> void:
+	if host.get_tree() != null and not host.get_tree().get_nodes_in_group(GROUP).is_empty():
+		return
+	StallLedger.enable()
+	host.add_child(make(true))
+	host.add_child(make(false))
 
 
 static func make(front: bool) -> FrameSentinel:
@@ -32,6 +45,7 @@ static func make(front: bool) -> FrameSentinel:
 	s.process_physics_priority = FRONT if front else BACK
 	## Must keep ticking through pause, or a paused frame silently drops out of the span.
 	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	s.add_to_group(GROUP)
 	return s
 
 

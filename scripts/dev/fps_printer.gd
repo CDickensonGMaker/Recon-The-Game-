@@ -24,17 +24,21 @@ func _ready() -> void:
 	## Stall attribution rides with the printer: the walk that shows the drop is the only
 	## run that can also say what was in it. Sentinels bracket every other node's
 	## callbacks, so they are added FIRST and last-priority sorted by the SceneTree.
-	StallLedger.enable()
-	add_child(FrameSentinel.make(true))
-	add_child(FrameSentinel.make(false))
+	FrameSentinel.install(self)
 	## A benched frame must not be quantised to the panel. Vsync at 24-35 fps delivers
 	## frames on 60Hz half-steps, which is both a pacing artefact and a throughput lie.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	## Every row states the scale it was DRAWN at, read off the live viewport. A row that
 	## quotes a project setting is not a measurement of anything (fixed 2026-09-08).
-	print("[FPS] printer ATTACHED - %ss windows | vsync forced OFF | render scale %.3f (live) | mode %d"
-		% [WINDOW_S, get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode])
+	## The measurement contract (PERF_LEDGER) needs scale AND renderer on every number. The
+	## renderer comes from the RENDERING SERVER: Godot strips
+	## `rendering/renderer/rendering_method` on save when it equals the desktop default, so
+	## the project setting agrees with reality by luck and proves nothing.
+	print("[FPS] printer ATTACHED - %ss windows | vsync forced OFF | render scale %.3f (live) | mode %d | renderer %s/%s"
+		% [WINDOW_S, get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode,
+			RenderingServer.get_current_rendering_method(),
+			RenderingServer.get_current_rendering_driver_name()])
 	print("[FPS] texture state: %s" % _texture_state())
 
 
