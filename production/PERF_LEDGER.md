@@ -1830,3 +1830,112 @@ close the stall work.
 
 **Do not regress this.** Any future change that puts vsync back on by default, or lets PsxLook
 overwrite the render scale again, is undoing the thing he just felt.
+
+---
+
+## 2026-09-09 (day) — THE CRATER, CUT IN HALF TWICE: the veg cache never hit, and the collision was a trimesh
+
+Instrument: `tests/stall_bench.tscn`, headless, **seed 47225**, CRATER phase (6 LARGE_EXPLOSION digs
+12–32 m from the player). Headless is legitimate here and only here — every span below is main-thread
+or physics-thread CPU. **No FPS and no GPU claim is made; that verdict is still his walk.**
+
+### 1. The scatter cache built on 2026-09-09 NEVER HIT ONCE, and the instrument had to be built to see it
+
+`veg.build_scatter` was still 402–423 ms across the crater phase after the cache shipped. Splitting the
+span into `veg.scatter_hit` / `veg.scatter_miss` (`vegetation_manager.gd`, `_build_scatter`) answered it
+in one run: **`veg.scatter_miss x36, veg.scatter_hit x0`.**
+
+Cause, `vegetation_manager.gd` `_dirty_scatter`: it set the chunk's required epoch to
+`_scatter_epoch + 1`, while `_build_scatter` stamps the cache it writes with `_scatter_epoch`. **No
+rebuild could ever satisfy its own dirty mark.** Every writer already bumps the epoch *before* naming
+its chunks, so the requirement is the current epoch, not the next one. One character; the cache the
+whole 2026-09-09 night entry is about had been inert since it shipped.
+
+### 2. A shell rebuilt every chunk it touched TWICE
+
+`DamageSystem.apply_damage` called `VegetationManager.clear_area` (immediate re-materialize) **and**
+queued a heightmap dig whose chunk rebuild ran the identical work a frame later. 6 shells over
+18 chunk rebuilds produced **36** `build_scatter` + **36** `tree_cover_mmi` calls — exactly two per
+chunk. `clear_area` now takes `defer_rebuild` and `damage_system.gd` passes it whenever the dig was
+actually queued (ceiling/`_cell_is_full`/holes-off still materialize immediately). The surviving pass
+is also the CORRECT one: it runs *after* the heightmap edit, so plants re-seat on the new ground.
+
+### 3. A hole is a DELETION, so the cache is PRUNED, not thrown away
+
+`clear_area` now filters the blasted plants out of the cached scatter (`_prune_scatter_cache`) instead
+of dirtying the chunk. This is safe for a reason that is checkable rather than plausible:
+`_build_scatter` draws every RNG value for a candidate — position, species, basis — **before** it tests
+the hole, so removing entries cannot perturb the stream. Felled logs are exempt (they are re-emitted
+inside holes on purpose). **Proved, not argued:** `tools/probe_crater_veg.gd` regenerates the same
+chunk from scratch after the shell and compares — **2,377 pruned vs 2,377 regenerated, 0 positional or
+species mismatches.**
+
+### 4. Terrain collision is a HEIGHTFIELD now (his ruling, 2026-09-09)
+
+`terrain_chunk.create_raycast_collision` built `create_trimesh_shape()` per chunk. **Correction to the
+standing figure: that is 8,192 triangles per chunk, not 32,768** — `world_config.gd:11 CELL_SIZE = 4.0`,
+so a 256 m chunk is 64×64 cells. The 32,768 in the earlier entry and in the todo assumed 2 m cells.
+
+`HeightMapShape3D` over the same 65×65 samples `build_mesh` already computes (`_height_samples`, filled
+in the same loop, so collider and visible mesh cannot describe different ground). Two contracts that are
+easy to get wrong: the shape has **no cell size** (one unit per sample → a `(4,1,4)` scale) and it is
+**centred** (→ a half-chunk offset).
+
+| measured | trimesh | heightfield |
+|---|---|---|
+| shape build, one real chunk (`probe_terrain_collision`) | 4.36 / 4.76 / 8.39 ms | **0.09 ms** |
+| synthetic 129×129 build (`probe_heightfield_shape`) | — | 0.48 ms |
+| `terrain.collision`, crater phase, 18 rebuilds | 175.3 ms (worst 10.3) | **below the 12-cause report floor (<10.8 ms total)** |
+
+**The ballistics evidence, because this is what bullets and boots hit** (`tools/probe_terrain_collision.gd`,
+real world, seed 47225, chunk (2,2), the OLD trimesh rebuilt beside the new shape and both fired at):
+
+| | pristine | after a real crater |
+|---|---|---|
+| downward ground height, 3,000 rays | mean 0.00004 m, **worst 0.00024 m** | mean 0.00004 m, **worst 0.00024 m** |
+| grazing bullet lines, 600 rays | worst separation **0.0008 m** | worst separation **0.0015 m** |
+| rays hitting one shape and missing the other | 0 | 0 |
+
+Godot/Jolt splits each cell on the **same diagonal** `build_mesh` does — that was the real risk and it
+is measured, not assumed. Jolt also accepts the non-uniform `(cell,1,cell)` scale, which was the other
+open question. Context, not a regression: the collider and the **bilinear** `get_height_at` oracle
+differ by up to 0.207 m (0.408 m cratered) and always have — a triangulated cell is not a bilinear patch.
+
+### The crater phase, three passes, same bench and seed
+
+| | before | + dedupe | + prune | + heightfield |
+|---|---:|---:|---:|---:|
+| `veg.build_scatter` | 422.9 ms x36 | 212.5 x18 | 72.2 x18 | **59.9 x18** (16 hit / 2 miss) |
+| `veg.tree_cover_mmi` | 366.8 x36 | 188.3 x18 | 177.9 x18 | 203.9 x18 |
+| `terrain.collision` | ~175 x18 | 175.3 x18 | 175.3 x18 | **off the report** |
+| `terrain.crater` total | 722.9 | 752.1 | 567.5 | **453.6** |
+| worst idle script step | 175.25 ms | 178.58 | 142.45 | **130.43** |
+
+**Read the two middle columns honestly:** the dedupe deletes ~390 ms of duplicated work but does NOT
+move the worst crater frame, because the two rebuilds were always in *different* frames — the shell's
+and the dig's. The frame the Summoner feels is moved by the prune and the heightfield.
+
+**Box hygiene, stated because the register demands it:** runs 1–3 were taken with no other Godot
+process alive. A foreign Godot process (pid 10060, started 10:51, not the console exe, **not killed**)
+was resident for the final row. So the 453.6 / 130.43 column was measured on a DIRTIER box than the
+567.5 / 142.45 it is compared against — the improvement is if anything understated, and the call
+counts (x36 → x18, 16 hit / 2 miss, collision off the report) are scale-free either way.
+
+### THE BROKEN-INSTRUMENT REGISTER — the ballistics gate passed one run in three
+
+`tools/probe_bullet_damage.tscn` is the probe the 2026-09-08 hitzone-monitoring change was closed on.
+Measured today at HEAD, unmodified: **PASS, FAIL, FAIL / and 1 of 4 on a second sample.** It aimed at a
+hardcoded `+1.52 m` above the man's origin, and a head is only there in some poses — so the run's
+outcome was decided by which idle frame he had settled into. Freezing the AnimationPlayer did NOT fix it
+(that only stops the pose drifting *after* the ray). Asking the HEAD region where it actually is did:
+**4 runs, 4 passes, with the heightfield collision in the tree.**
+
+A gate that adjudicates one time in three is not evidence in either direction, and it had been quoted as
+evidence. Same class as the AUDIT-12 leak flake named in `tree_break_system.gd`.
+
+### Regression gates, all green with both changes in
+`test_ship_parity` · `test_flat_damage` · `test_tree_cover_lod` · `test_grid_queries` ·
+`test_render_scale` · `test_fossils` 28/28 (it caught an unused accessor I had just added — deleted,
+not grandfathered) · `tools/probe_bullet_damage` (repaired, 4/4) · `tools/probe_crater_veg` ·
+`tools/probe_terrain_collision` · `tools/probe_heightfield_shape` · headless boot `--quit-after 300`,
+**0 SCRIPT ERROR**.

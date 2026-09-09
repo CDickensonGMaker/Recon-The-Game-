@@ -271,21 +271,15 @@ func _consume(doomed: Array[Dictionary]) -> void:
 			layer.remove_scatter_entries(job["coord"] as Vector2i, job["idx"] as Array)
 
 
-## COALESCING THE CHUNK REBUILD IS OPEN, AND IT IS A PERF ITEM, NOT A CORRECTNESS ONE.
-## One blast fells up to twelve trees and the CBU beat can queue hundreds (fire_plan.gd:35,42),
-## each calling rebuild_chunk on its own at ~1645s - inside the assault. That cost is a STATIC
-## estimate and has never been measured on a frame.
-##
-## Two batched versions were built and both reverted - but NOT for the reason it first looked
-## like. The suite's AUDIT-12 "resources leaked at exit" check is FLAKY: measured 2026-08-13,
-## test_bullet_flight run three times against byte-identical code reported LEAK, LEAK, PASS.
-## It cannot adjudicate a change, and the PASS -> LEAK readings that appeared to convict the
-## batched version were single runs of that noisy detector.
-##
-## So this stays the plain direct call on his standing content-first-optimise-later rule: an
-## optimisation whose benefit is unmeasured and whose safety cannot be demonstrated does not
-## ship the week of a demo. Measure the assault frame first; if it is real, batch it on the
-## VegetationManager side, which owns the chunk and its lifetime.
+## CLOSED 2026-09-09 - the chunk rebuild IS coalesced now, and this comment used to say the
+## opposite. _consume updates the stored scatter immediately and marks the chunk dirty;
+## TreeCoverLayer._flush_regen rebuilds ONE chunk per frame (tree_cover_layer.gd:340-352).
+## The precondition this block set - "measure the assault frame first; if it is real, batch
+## it" - was met: treebreak.consume measured 55.4 ms worst in the 45-man assault and is now
+## gone from the report, replaced by veg.regen_flush at 19.6 mean / 24.7 worst.
+## Deferring is safe because the felled entry leaves the registry, _chunks and _chunk_scatter
+## BEFORE _consume returns, so every other path that rebuilds the chunk in the window already
+## reads a scatter it is absent from.
 func _process(_delta: float) -> void:
 	var n: int = mini(BREAKS_PER_FRAME, _break_queue.size())
 	if n > 0:

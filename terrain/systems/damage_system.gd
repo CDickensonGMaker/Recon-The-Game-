@@ -172,21 +172,26 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 
 	# Apply to terrain manager's heightmap (this also rebuilds affected chunks). Past the
 	# per-mission ceiling, skip the expensive dig but keep the cheap veg-clear + scar below.
+	var dig_queued: bool = false
 	if WorldConfig.TERRAIN_HOLES_ENABLED and _deforms_this_mission < MAX_DEFORMS_PER_MISSION \
 			and not _cell_is_full(world_pos):
 		_deforms_this_mission += 1
 		var cell: Vector2i = _deform_cell(world_pos)
 		_deforms_by_cell[cell] = int(_deforms_by_cell.get(cell, 0)) + 1
 		_deform_queue.append({"pos": world_pos, "radius": radius_meters, "func": crater_func})
+		dig_queued = true
 
 	# Clear vegetation in damaged area. Pass heightmap so clear_area re-materializes
 	# the surviving (non-cleared) bundles; otherwise the MultiMesh stays wiped.
+	# When the dig above is queued it rebuilds these same chunks as it drains, so the
+	# re-materialize rides that pass instead of running twice per shell (see clear_area).
 	if vegetation_manager and vegetation_manager.has_method("clear_area"):
 		vegetation_manager.clear_area(
 			world_pos,
 			radius_meters,
 			terrain_manager.chunk_size,
 			terrain_manager.heightmap,
+			dig_queued,
 		)
 	# Break registered trees for callers that never route through
 	# CombatManager.apply_explosion_damage (siege defender-only shells). Registry

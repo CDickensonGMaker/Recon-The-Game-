@@ -27,15 +27,30 @@ func _ready() -> void:
 		return
 	await get_tree().create_timer(0.8).timeout  # zones built, model settled
 	(e as Node3D).set_physics_process(false)    # hold still for the range shot
+	# AND STOP THE ANIMATION. Disabling _physics_process only stops the BODY; the
+	# AnimationPlayer kept running, so the head region drifted out of the firing line
+	# between the aiming ray and the bullet's arrival a few frames later. Measured on this
+	# box before this line existed: 1 PASS in 3 runs at HEAD, with "direct ray: NO HIT" and
+	# a hit-then-zero-damage run in the same window. A gate that passes a third of the time
+	# adjudicates nothing.
+	for ap in _all_anim_players(e):
+		ap.pause()
+	await get_tree().physics_frame
 	var hp0: int = e.current_hp
 	var zones: int = 0
 	for hz in get_tree().get_nodes_in_group("hitzone"):
 		if hz is Area3D:
 			zones += 1
-	# Aim at the HEAD sphere: chest-line shots can legitimately catch an arm
-	# hull (LIMB x1.0 = flat-looking 28) depending on the idle pose. A head
-	# hit is unambiguous - fatal or the mask is broken.
-	var chest: Vector3 = (e as Node3D).global_position + Vector3(0, 1.52, 0)
+	# Aim at the HEAD sphere WHERE IT ACTUALLY IS. This used to aim at a hardcoded
+	# +1.52m above the man's origin, and a head is only there in some poses - so the
+	# gate passed 1 run in 3 or 4 on this box (measured 2026-09-09, at HEAD and with
+	# the animation frozen: the pose the man had settled into was the variable, not
+	# the bullet). Asking the zone where it is makes the shot pose-independent.
+	var chest: Vector3 = _head_of(e)
+	if chest == Vector3.INF:
+		print("FAIL: no HEAD hitzone on the spawned man - the probe cannot aim")
+		get_tree().quit(1)
+		return
 	print("  enemy at %s, %d hitzones live, aiming at %s" % [(e as Node3D).global_position, zones, chest])
 	var q := PhysicsRayQueryParameters3D.create(Vector3(0, chest.y, 0), chest + Vector3(0, 0, -2), 1 | 32 | 64)
 	q.collide_with_areas = true
@@ -61,3 +76,27 @@ func _ready() -> void:
 	else:
 		print("FAIL: round landed FLAT %d - a body capsule is shadowing the zones" % dealt)
 		get_tree().quit(1)
+
+
+func _all_anim_players(n: Node) -> Array[AnimationPlayer]:
+	var out: Array[AnimationPlayer] = []
+	if n is AnimationPlayer:
+		out.append(n as AnimationPlayer)
+	for c in n.get_children():
+		out.append_array(_all_anim_players(c))
+	return out
+
+
+## The live HEAD region belonging to THIS man, in world space.
+func _head_of(e: Node) -> Vector3:
+	for hz in get_tree().get_nodes_in_group("hitzone"):
+		if not (hz is Hitzone):
+			continue
+		if String((hz as Hitzone).get_zone_name()) != "HEAD":
+			continue
+		var n: Node = hz as Node
+		while n != null:
+			if n == e:
+				return (hz as Node3D).global_position
+			n = n.get_parent()
+	return Vector3.INF

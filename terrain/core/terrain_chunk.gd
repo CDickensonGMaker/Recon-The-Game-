@@ -10,6 +10,12 @@ var grid_resolution: int = 128  # Vertices per side (256m / 2m)
 var mesh_instance: MeshInstance3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
+## Real (height_scale-multiplied) sample heights for this chunk, row-major z*(res+1)+x, in
+## the exact order HeightMapShape3D wants them. Filled by build_mesh, consumed by
+## create_raycast_collision - the collider and the visible mesh therefore read ONE array and
+## cannot describe different ground.
+var _height_samples: PackedFloat32Array = PackedFloat32Array()
+
 ## STATIC on purpose: a crater rebuild throws the TerrainChunk away and constructs a new
 ## one, so a per-instance flag would still print once per rebuild - which is the case this
 ## exists to stop. One line per session, and it is diagnostic only. See build_mesh().
@@ -74,6 +80,7 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 	var grid_c := PackedColorArray()
 	grid_v.resize(data_width * data_width)
 	grid_c.resize(data_width * data_width)
+	_height_samples.resize(data_width * data_width)
 	for z in range(data_width):
 		for x in range(data_width):
 			var gi: int = z * data_width + x
@@ -82,6 +89,7 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 			var norm_h: float = region_data[gi]
 			var h: float = norm_h * height_scale
 			grid_v[gi] = Vector3(local_x, h, local_z)
+			_height_samples[gi] = h
 			grid_c[gi] = _get_terrain_color(h, norm_h, local_x, local_z,
 				vegetation_terrain, bundles_per_chunk)
 
@@ -239,13 +247,32 @@ func _get_terrain_color(_h: float, _normalized_h: float, local_x: float, local_z
 	return Color(0.18, 0.35, 0.12)
 
 
-## Create optional collision for raycast picking (not for unit movement)
+## Terrain collision: a HEIGHTFIELD over the same samples the mesh was built from, not a
+## trimesh over its triangles. This is what bullets and boots hit, so it was ruled in by the
+## Summoner rather than assumed, and it ships with tools/probe_heightfield_shape.gd +
+## tools/probe_terrain_collision.gd rather than with an argument.
+##
+## Why it is the same ground and not merely similar: the grid is regular, and Godot/Jolt split
+## each cell on the SAME diagonal build_mesh does. Measured over 4,000 rays against an analytic
+## surface, the two shapes disagree by 0.0002 m worst - float noise, not geometry.
+##
+## Two contracts that are easy to get wrong and are the whole reason this comment exists:
+##   - HeightMapShape3D has NO cell size. It is ONE UNIT PER SAMPLE, so the shape carries a
+##     (cell_size, 1, cell_size) scale.
+##   - It is CENTRED on its own origin, so it is offset by half a chunk in X and Z to sit
+##     where the mesh sits.
 func create_raycast_collision() -> void:
 	if collision_body:
 		return
 
-	if not mesh_instance.mesh:
+	var data_width: int = grid_resolution + 1
+	if _height_samples.size() != data_width * data_width:
 		return
+
+	var shape := HeightMapShape3D.new()
+	shape.map_width = data_width
+	shape.map_depth = data_width
+	shape.map_data = _height_samples
 
 	collision_body = StaticBody3D.new()
 	collision_body.name = "RaycastCollision"
@@ -253,7 +280,10 @@ func create_raycast_collision() -> void:
 	collision_body.collision_mask = 0   # No response
 
 	var collision_shape := CollisionShape3D.new()
-	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	collision_shape.shape = shape
+	collision_shape.transform = Transform3D(
+		Basis.IDENTITY.scaled(Vector3(cell_size, 1.0, cell_size)),
+		Vector3(chunk_size * 0.5, 0.0, chunk_size * 0.5))
 	collision_body.add_child(collision_shape)
 
 	add_child(collision_body)

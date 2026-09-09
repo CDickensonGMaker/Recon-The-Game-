@@ -139,6 +139,52 @@ authored placement on walkable ground clear of a site stamp, and starting a new 
 at the end of this session would be exactly the kind of half-finished thing the register exists
 to prevent.
 
+### REGISTER, ELEVENTH PASS — the crater is half the frame it was, and your collision ruling shipped
+
+**Your ruling on terrain collision is BUILT and it cost nothing in accuracy.** Terrain is a
+`HeightMapShape3D` now instead of a rebuilt trimesh. It is what bullets and boots hit, so it went
+out with evidence and not an argument: the OLD shape was rebuilt beside the new one in the real
+world and both were fired at, pristine and after a real shell.
+
+| | straight down, 3,000 rays | grazing bullet lines, 600 rays |
+|---|---|---|
+| pristine chunk | worst **0.24 mm** | worst **0.8 mm** |
+| after a crater | worst **0.24 mm** | worst **1.5 mm** |
+
+Zero rays hit one shape and miss the other. Shape build on a real chunk: **4.4-8.4 ms -> 0.09 ms.**
+`terrain.collision` has fallen off the bench report entirely (was 175 ms across a 6-shell phase).
+One correction while I was in there: it was **8,192 triangles a chunk, not 32,768** - the standing
+number assumed 2 m cells and the world ships 4 m.
+
+**Two shells' worth of work was being done for every one shell.** A crater re-materialized every
+chunk it touched twice: once when the vegetation was cleared, once when the dig actually landed a
+frame later. The surviving pass is the correct one - it runs after the ground moves, so plants sit
+on the new ground rather than the old.
+
+**And the cache built for exactly this last night had never once hit.** It required a chunk to be
+rebuilt at an epoch one higher than any rebuild could ever stamp. One character. I only found it
+because I split the measurement into hits and misses first: `36 miss, 0 hit`.
+
+**A blast now DELETES plants from the cache instead of throwing the chunk away.** Safe because the
+generator draws every random value for a plant before it asks whether the plant is in a hole - so
+removing entries cannot change the others. Checked rather than believed: regenerating the same
+chunk from scratch after the shell gives **2,377 plants against 2,377, with zero differences.**
+
+| crater phase, same bench, same seed | before | after |
+|---|---:|---:|
+| worst single frame | 175 ms | **130 ms** |
+| whole phase in crater work | 723 ms | **454 ms** |
+| canopy re-scatters per 6 shells | 36 | 18, and 16 of them free |
+
+**A gate I have to report rather than quote: the bullet-damage probe passed one run in three.**
+It is the probe the hitzone change was closed on last night. It aimed at a fixed height above a
+man's feet, and a head is only there in some poses, so which idle frame he had settled into decided
+the result. It asks the head where it is now: 4 runs, 4 passes.
+
+**What is left in a crater frame, and it is the last of this queue:** the chunk mesh rebuild and the
+canopy MultiMesh regen. Both exist because a 5 m hole still rebuilds a whole 256 m chunk. That is
+the structural fix and it is not started.
+
 ### CONDITION 5 — the final clean measurement, 2026-09-09
 
 **Box verified clear at BOTH ends.** 18 post-assault windows, one real breach in the run.
@@ -1313,20 +1359,25 @@ Shipped and verified: 495 dead monitoring Area3D turned off (damage probe PASSES
 build moved off SurfaceTool (worst chunk 27.0 -> 6.4 ms; worst crater 119.4 -> 80.7 ms) ·
 `affine_inverse` hoisted out of the hitzone harvest loop · per-rebuild chunk print silenced.
 
-**NEXT, in order, with measured sizes:**
-1. `veg.build_scatter` + `veg.tree_cover_mmi` — 680 ms across the crater phase, the largest slice left.
-2. `TreeBreakSystem._consume` off the physics tick — deliberately NOT done tonight: deferring it makes
-   scatter indices stale if anything else regenerates the chunk first, which a crater does. Needs a
-   designed invalidation; two earlier batched attempts were reverted.
-3. `terrain.collision` — `create_trimesh_shape()` on 32,768 tris per chunk. `HeightMapShape3D` is
-   geometrically identical for a grid and far cheaper. **Touches ballistics — NEEDS HIS RULING.**
+**NEXT, in order, with measured sizes — ALL FOUR CLOSED OR RULED, 2026-09-09:**
+1. ~~`veg.build_scatter` + `veg.tree_cover_mmi`~~ **DONE.** See the register pass at the top of this
+   file and `PERF_LEDGER.md` 2026-09-09 (day).
+2. ~~`TreeBreakSystem._consume` off the physics tick~~ **DONE overnight** (ninth pass): the stored
+   scatter is updated immediately and ONE chunk per frame is redrawn. `treebreak.consume` is gone from
+   the report. The comment in `tree_break_system.gd` that still said this was open has been corrected.
+3. `terrain.collision` — **RULED IN BY HIM AND BUILT 2026-09-09.** **Correction: it was 8,192 triangles
+   per chunk, not 32,768** (`world_config.gd:11 CELL_SIZE = 4.0`, so a 256 m chunk is 64x64 cells).
+   Shipped with the ballistics evidence he asked for.
 4. The structural fix behind all three: stop rebuilding a whole 256 m chunk for a 5 m crater.
+   **STILL OPEN** — what is left of a crater frame is the mesh rebuild and the canopy MultiMesh regen.
 
 ### FOR HIM TO RULE ON
-- **Terrain collision as `HeightMapShape3D` instead of a 32k-triangle trimesh?** Same shape, much
-  cheaper to build, but it is what bullets and bodies hit — so it is his call, with a probe.
-- **Plant conversion: build it next, or after more stall work?** The stall work has a measured queue;
-  the plant ruling has none of its cost measured yet.
+- ~~**Terrain collision as `HeightMapShape3D`?**~~ **RULED IN, 2026-09-09, and shipped.**
+- **Plant conversion: build it next, or after more stall work?** STILL OPEN AND STILL YOURS. The stall
+  work has a measured queue; the plant ruling has none of its cost measured yet.
+- **The canopy real-mesh frame cost** (worst 1% low 37.2 -> 30.1 fps), **the 545 interior props'
+  visibility range / fade mode**, and **`mesh_lod/lod_change/threshold_pixels`** are all still open and
+  all still yours. Nothing in the 2026-09-09 stall wave touched any of them.
 
 ### OPEN / UNEXPLAINED (named, not rounded away)
 - A **35–70 ms idle script step with NO instrumented cause**, present even in a completely quiet world.

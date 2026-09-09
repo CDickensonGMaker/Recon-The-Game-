@@ -417,8 +417,45 @@ func _hole_cell(wx: float, wz: float) -> Vector2i:
 ## Mark one chunk's scatter stale. Callers that know WHICH chunks they touched use this; the
 ## coarse global bump stays as the clock, so a caller that forgets to name a chunk is still
 ## caught by set_density_centers/clear_all invalidating everything.
+##
+## CONTRACT: every writer bumps _scatter_epoch BEFORE naming its chunks, so "the epoch this
+## chunk must beat" IS the current one - a rebuild stamped at it has already read the change.
+## This read `_scatter_epoch + 1`, which no rebuild can ever satisfy: _build_scatter stamps
+## the cache with the CURRENT epoch, so a dirtied chunk missed on its own rebuild and stayed
+## missing until some unrelated writer happened to raise the clock. Measured 2026-09-09,
+## stall_bench crater phase: `veg.scatter_miss x36, veg.scatter_hit x0` - the cache built to
+## make craters cheap never hit once.
 func _dirty_scatter(chunk_coord: Vector2i) -> void:
-	_scatter_dirty[chunk_coord] = _scatter_epoch + 1
+	_scatter_dirty[chunk_coord] = _scatter_epoch
+
+
+## Apply a hole to the CACHED scatter instead of invalidating it, and say whether it took.
+##
+## A blast footprint DELETES plants; it does not change what the generator would produce for
+## the survivors. _build_scatter draws every RNG value for a candidate - position, species,
+## basis - BEFORE it tests the hole, so removing entries cannot perturb the stream. Pruning is
+## therefore identical to regenerating with the hole in place (guarded by
+## tools/probe_crater_veg.gd, which regenerates the same chunk and compares), and it is the
+## difference between a ~15ms re-scatter and a sub-millisecond filter on the frame a shell lands.
+##
+## Felled logs are exempt: _build_scatter re-emits them INSIDE holes on purpose - the log lies
+## in the crater the blast just made, which is where the cover is wanted.
+func _prune_scatter_cache(chunk_coord: Vector2i, hole: Dictionary) -> bool:
+	var hit: Dictionary = _scatter_cache.get(chunk_coord, {}) as Dictionary
+	if hit.is_empty() or int(hit["epoch"]) < int(_scatter_dirty.get(chunk_coord, 0)):
+		return false
+	var c: Vector3 = hole["c"]
+	var r2: float = float(hole["r2"])
+	var kept: Array = []
+	for e: Dictionary in hit["scatter"]:
+		var o: Vector3 = (e["xf"] as Transform3D).origin
+		if not bool(e.get("fell", false)) and (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < r2:
+			continue
+		kept.append(e)
+	hit["scatter"] = kept
+	hit["epoch"] = _scatter_epoch
+	_scatter_cache[chunk_coord] = hit
+	return true
 
 
 func _file_veg_hole(hole: Dictionary) -> void:
@@ -449,7 +486,16 @@ func _in_veg_hole(wx: float, wz: float) -> bool:
 ## (see _build_scatter). The old path set whole 32m bundles to CLEAR, so a 10m blast
 ## wiped a chunk's worth of trees - "half the trees gone, not a crater". The veg
 ## terrain grid is untouched, so AI sight is unaffected; this is visual removal.
-func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Object = null) -> int:
+## defer_rebuild: the caller has ALREADY queued a terrain dig over this same footprint
+## (DamageSystem drains it at TERRAIN_DEFORMS_PER_FRAME), and that dig rebuilds every chunk
+## it touches. The hole is filed and the scatter dirtied here; the redraw rides the dig.
+## Without it a shell re-materialised each touched chunk TWICE - measured 2026-09-09,
+## stall_bench crater phase: 36 build_scatter + 36 tree_cover_mmi calls for 6 shells over
+## 18 chunk rebuilds, exactly two per chunk, 790ms of the phase. The deferred pass is also
+## the CORRECT one: it runs after the heightmap edit, so plants re-seat on the new ground
+## instead of the old.
+func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Object = null,
+		defer_rebuild: bool = false) -> int:
 	var min_cx := floori((center.x - radius) / chunk_size)
 	var max_cx := floori((center.x + radius) / chunk_size)
 	var min_cz := floori((center.z - radius) / chunk_size)
@@ -459,9 +505,17 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 	_file_veg_hole(hole)
 	for cx2 in range(min_cx, max_cx + 1):
 		for cz2 in range(min_cz, max_cz + 1):
-			_dirty_scatter(Vector2i(cx2, cz2))
+			var cc := Vector2i(cx2, cz2)
+			if not _prune_scatter_cache(cc, hole):
+				_dirty_scatter(cc)
 
 	var rebuilt := 0
+	if defer_rebuild:
+		for cx3 in range(min_cx, max_cx + 1):
+			for cz3 in range(min_cz, max_cz + 1):
+				if _chunk_terrain.has(Vector2i(cx3, cz3)):
+					rebuilt += 1
+		return rebuilt
 	for cx in range(min_cx, max_cx + 1):
 		for cz in range(min_cz, max_cz + 1):
 			var chunk_coord := Vector2i(cx, cz)
@@ -542,12 +596,15 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	if not hit.is_empty() and int(hit["epoch"]) >= int(_scatter_dirty.get(chunk_coord, 0)):
 		# Same answer, new ground: re-seat every plant on the current heightmap and hand back
 		# the cached list. This is the crater path - the shell moved the dirt, not the trees.
+		StallLedger.begin("veg.scatter_hit")
 		var cached: Array = hit["scatter"]
 		for e: Dictionary in cached:
 			var xf: Transform3D = e["xf"]
 			xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
 			e["xf"] = xf
+		StallLedger.end()
 		return cached
+	StallLedger.begin("veg.scatter_miss")
 	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([chunk_coord, mission_seed])
@@ -593,7 +650,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	# the blast just made, which is exactly where he needs the cover.
 	for f: Dictionary in _fell_registry:
 		if f["chunk"] == chunk_coord:
-			var e: Dictionary = {"name": String(f["name"]), "xf": f["xf"] as Transform3D}
+			var e: Dictionary = {"name": String(f["name"]), "xf": f["xf"] as Transform3D, "fell": true}
 			# Snags and lying logs carry their own collider size; without these they would
 			# inherit the standing tree's full-height post.
 			if f.has("trunk_r"):
@@ -601,6 +658,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				e["trunk_h"] = f.get("trunk_h", 1.0)
 			scatter.append(e)
 	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter}
+	StallLedger.end()
 	return scatter
 
 

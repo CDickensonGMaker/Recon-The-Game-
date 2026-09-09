@@ -173,8 +173,15 @@ static func report() -> String:
 	lines.append("[STALL]   worst physics step was: %s" % _rank_step(_worst_phys_causes, 6))
 	lines.append("[STALL] idle script span: WORST %.2fms | worst idle step was: %s"
 		% [float(_worst_idle_us) / 1000.0, _rank_step(_worst_idle_causes, 6)])
-	lines.append("[STALL] window totals: %s" % _rank(_total, 8))
+	lines.append("[STALL] window totals: %s" % _rank(_total, 12))
 	return "\n".join(lines)
+
+
+## How many times a named span ran this window. For probes that assert on the SHAPE of the
+## work ("this chunk was rebuilt once, not twice") rather than on its cost - a millisecond
+## figure is a machine's mood, a call count is a contract.
+static func count(cause: String) -> int:
+	return int(_count.get(cause, 0))
 
 
 static func reset_window() -> void:
