@@ -1475,3 +1475,49 @@ build moved off SurfaceTool (worst chunk 27.0 -> 6.4 ms; worst crater 119.4 -> 8
 - Two successive perf conclusions ("draw-call bound", then "game-thread bound") both came from
   mislabelled columns. The columns are now correct; treat any perf read dated before 2026-09-08 night
   as unverified.
+
+---
+
+## NAPALM STUTTER WAVE — 2026-09-09 night (recorded by the overseer)
+
+**FIXED and gated** (`tests/probe_napalm_stall.tscn`, full detail in `production/PERF_LEDGER.md`):
+the ambient napalm frame was **`terrain.crater` at 122.2 ms of a 125.43 ms idle step**, now **13.5 ms
+of 54.86 ms**. Cause: a NAPALM crater is an 88 m radius edit that spans four 256 m chunks, and none of
+them was armed for the partial patch, so all four fully rebuilt in one frame. Also shipped: his
+staggered tree falls, his silent falls past 350 m (proven outcome-identical), and a `[TreeCover]` print
+flood cut from 439 lines per strike to 5.
+
+### HIS CALLS — needle-movers, plain language
+
+1. **Trees now fall over ~3.7 seconds instead of instantly. That means cover, concealment and line of
+   sight change over a window** — including the sapper breach lane through felled timber, which now
+   opens over seconds rather than at the blast. Good, or does the breach need to be instant?
+2. **Every terrain chunk now keeps ~1 MB of working arrays so no shell ever pays a full rebuild.**
+   4 MB on the demo's 512 m map. On a 2 km map that would be ~67 MB. Ship it as-is, or make it
+   conditional on map size before any big map is built?
+3. **Distant engagements are simulated man by man and it is the biggest cost in the game:** the AI's
+   think + execute is ~30 ms of script every second with only 10 men fighting, and none of it cares
+   how far away the player is. Resolving far fights abstractly (same casualties, same ledger rows,
+   just not step by step) would be the single largest win available — but it changes the world-sim
+   premise, so it is a council question, not an agent's. **Do you want that deliberated?**
+4. **Ambient AA tracers have a standing decree as the distant-war visual, and your new ruling says
+   distant war should mostly be SOUND.** The tracers did not fire in the measured window so their cost
+   is unknown. Measure them first, or cut them on the ruling?
+5. **We cannot tell whether the distant-war ambience (`AmbientWar`) has ever fired in a real session** —
+   it only ever logged when it stayed SILENT. It now logs when it sounds. Next session's log answers it.
+
+### QUEUED, MEASURED, NOT STARTED (ranked)
+
+- **`terrain.veg_generate` 62.8 ms for ONE chunk** (`veg.build_scatter` 33.3 + `veg.scatter_miss` 33.3
+  inside it). Spread across frames now, not made cheaper, not distance-gated. Lives in
+  `terrain/vegetation/vegetation_manager.gd` — **the vegetation agent's file. Handed off.**
+- **`probe_crater_veg` is RED and it is not this wave** — 1805 prune-vs-regenerate mismatches,
+  reproduced identically with this wave reverted. It is the vegetation agent's in-flight feathered-hole
+  and paddy-row work. **Handed off.**
+- **Night events (Arc Light, rain lightning, distant napalm bloom).** `scripts/ai/ambient_war.gd`
+  already is the framework — 400-800 m placement, positional audio, fake emissive with no real light
+  (ADR-026). These are new `KINDS`, not new architecture. Craft notes recorded in the ledger: sound
+  must lag light by distance; an Arc Light is a walking line, not a flash; lightning must not read as
+  ordnance (Fairness Law); and any big night flash briefly changes what can be seen, **including the
+  player** — a stealth-economy event (Pillar 2/3, ADR-005) to decide deliberately, not discover.
+- **`clutter.flush` 16.3 ms x1** — distance behaviour unattributed.

@@ -1401,7 +1401,10 @@ func _run_fell_cover_probe() -> void:
 	for p in FELL_PROBE_RING:
 		felled += TreeBreakSystem.apply_blast(p + Vector3(0.0, FELL_PROBE_BLAST_Y, 0.0),
 			FELL_PROBE_BLAST_R)
-	await get_tree().create_timer(2.5).timeout
+	# Long enough for the STAGGERED fall to finish: TreeBreakSystem.FALL_WINDOW_S (3.0)
+	# + FALL_JITTER_S (0.7) is the worst case for a trunk on the edge of a blast, and the
+	# 2.5 s this used to wait would have measured cover that had not fallen yet.
+	await get_tree().create_timer(5.0).timeout
 	var logs: Array[Vector3] = _felled_log_positions()
 	print("[FELL-COVER] apply_blast consumed %d instance(s); %d FelledLogTrunk collider(s) standing"
 		% [felled, logs.size()])

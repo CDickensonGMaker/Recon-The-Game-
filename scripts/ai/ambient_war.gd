@@ -83,6 +83,14 @@ func _roll_events() -> void:
 			"next_thump_s": rng.randf_range(THUMP_MIN_S, THUMP_MAX_S),
 		}
 		_active.append(e)
+		## COUNT THE SUCCESSES, NOT THE ATTEMPTS. Until 2026-09-09 the only line this system
+		## ever printed was the "held silent" one below, so a log with no [AmbientWar] in it
+		## was indistinguishable between "the distant war sounded all day" and "this system
+		## has never once fired". The Summoner's own 2026-09-09 session log is exactly that
+		## case and cannot be read either way. An event that fires must say so.
+		if firing:
+			print("[AmbientWar] %s SOUNDING at %.0fm bearing %.0f deg for %.0fs"
+				% [kind, dist, rad_to_deg(bearing), life_s])
 		if not firing:
 			# A silent engagement is still an event (the flash, the hush duck), but it is
 			# NOT the war being heard. Say so rather than letting the cap read as coverage.

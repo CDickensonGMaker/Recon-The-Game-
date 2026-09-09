@@ -415,13 +415,26 @@ func _drop_napalm_strip() -> void:
 		tree.create_timer(float(i) * NAPALM_STAGGER).timeout.connect(func() -> void:
 			if not is_instance_valid(self):
 				return
+			## Every limb of the canister impact is named separately, because "the napalm
+			## frame" is four systems firing together and a single span cannot say which
+			## one owns the millisecond.
 			_release(NAPALM_SHELL, pos, func(impact: Vector3) -> void:
+				StallLedger.begin("nap.blast")
 				CombatManager.apply_explosion_damage(impact, 90, 30, FirePlan.NAPALM_BLAST_M, null)
+				StallLedger.end()
+				StallLedger.begin("nap.fire")
 				FireHazard.create_at(tree.current_scene, impact, FirePlan.NAPALM_BLAST_M, FirePlan.NAPALM_BURN_S)
+				StallLedger.end()
+				StallLedger.begin("nap.fx")
 				GunFX.play_explosion_3d(tree.current_scene, impact, "explosion_napalm")
+				StallLedger.end()
+				StallLedger.begin("nap.ignite")
 				CASAirplane._ignite_nearby_structures(tree, impact)
+				StallLedger.end()
 				if is_center:
-					DamageSystem.apply_damage(impact, DamageSystem.DamageType.NAPALM, 1.0)))
+					StallLedger.begin("nap.crater")
+					DamageSystem.apply_damage(impact, DamageSystem.DamageType.NAPALM, 1.0)
+					StallLedger.end()))
 
 
 ## CBU raid (decree 2026-08-04: "like a napalm raid but raining down" submunitions):

@@ -70,12 +70,24 @@ func _ready() -> void:
 
 	# ---- and again after a real shell has edited the heightmap under it ----
 	var centre := Vector3((coord.x + 0.5) * 256.0, 0.0, (coord.y + 0.5) * 256.0)
+	var ground_before: float = tm.call("get_height_at", centre)
 	DamageSystem.apply_damage(centre, DamageSystem.DamageType.LARGE_EXPLOSION, 1.0)
 	for _i in 30:
 		await get_tree().process_frame
 	var chunk2: Node3D = (tm.get("chunks") as Dictionary).get(coord, null)
-	_check("the chunk was rebuilt by the shell", chunk2 != null and chunk2 != chunk,
-		"rebuilt: %s" % (chunk2 != chunk))
+	# CORRECTED 2026-09-09. This used to assert `chunk2 != chunk` - that the shell had
+	# THROWN THE CHUNK NODE AWAY and built a new one. That was true when every shell took
+	# the full rebuild, and it is false now that every chunk is armed for the partial patch
+	# (terrain_manager._load_chunk): the node, its MeshInstance3D and its Jolt body all
+	# survive a crater on purpose. The assertion was demanding the expensive path.
+	# What the probe actually cares about is that the GROUND MOVED and the collider
+	# followed it, which is what the CRATERED comparisons below measure.
+	var ground_after: float = tm.call("get_height_at", centre)
+	_check("the shell actually dug the ground under the chunk",
+		chunk2 != null and absf(ground_after - ground_before) > 0.05,
+		"ground %.3f -> %.3f m (chunk node %s)"
+			% [ground_before, ground_after,
+				"replaced" if chunk2 != chunk else "patched in place"])
 	if chunk2 != null:
 		await _compare(chunk2, coord, tm, "CRATERED")
 

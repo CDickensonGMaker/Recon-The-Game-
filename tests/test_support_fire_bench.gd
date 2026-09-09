@@ -101,10 +101,19 @@ func _test_blast_consumes_a_registered_tree() -> void:
 		return
 	if int(tbs.call("apply_blast", at.origin, 8.0)) != 1:
 		_fail("a blast on top of the instance consumed nothing")
+	# STAGGERED FELLING (his ruling 2026-09-09). The blast CLAIMS the trunk; the trunk
+	# leaves the registry when it actually goes over, up to
+	# FALL_WINDOW_S + FALL_JITTER_S later. Asserting on the same frame - which this did
+	# until the stagger shipped - now measures the wrong contract. Wait the window out,
+	# then hold the same standard: it must be gone, not merely scheduled.
+	var waited: float = 0.0
+	while waited < 6.0 and int(tbs.call("registered_count")) != before:
+		await get_tree().create_timer(0.25).timeout
+		waited += 0.25
 	if int(tbs.call("registered_count")) != before:
-		_fail("a consumed tree is still in the registry (%d over baseline)"
+		_fail("a claimed tree never left the registry within 6s (%d over baseline)"
 			% [int(tbs.call("registered_count")) - before])
-	# The blast QUEUES the promotion; the singleton spawns it on later frames. Tearing
+	# The stagger QUEUES the promotion; the singleton spawns it on later frames. Tearing
 	# the layer down first hands _spawn_broken a freed node.
 	tbs.call("unregister_layer", layer)
 	for _i in 3:

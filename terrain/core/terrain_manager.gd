@@ -70,6 +70,8 @@ func _process(_delta: float) -> void:
 	if not is_ready:
 		return
 
+	_drain_veg_regen()
+
 	# ADR-013: streaming is disabled on <= 2km AOs - the world is fully resident and
 	# chunk count must not change after terrain_ready. Kept live only for 3km+ maps.
 	if camera and map_size > STREAMING_MIN_MAP_SIZE:
@@ -216,11 +218,25 @@ func _load_chunk(coord: Vector2i) -> void:
 	var chunk := TerrainChunkClass.new(coord, chunk_size, cell_size)
 	chunk.name = "Chunk_%d_%d" % [coord.x, coord.y]
 	add_child(chunk)
-	# Ground that has already taken a shell keeps its patch arrays from this build on, so
-	# the NEXT shell on it patches instead of rebuilding. Ground nothing has hit pays no
-	# memory for the possibility.
-	if _patch_armed.has(coord):
-		chunk.arm_patch_cache()
+	# EVERY chunk keeps its patch arrays, not just ground that has already been hit.
+	#
+	# MEASURED 2026-09-09 (tests/probe_napalm_stall.tscn, the Summoner's live "when the
+	# ambient napalm hits tho it still stutters really bad"): a NAPALM crater is
+	# radius_cells 22 = 88 m of ground, which spans FOUR 256 m chunks. On the first
+	# napalm of a mission none of those four was armed, so all four took the full
+	# _rebuild_chunk_immediate path in ONE idle frame: terrain.crater 122.2 ms of a
+	# 125.43 ms worst idle script step. The lazy arming was written for shells that
+	# CLUSTER, and it is right for artillery - but the first shell on a chunk is exactly
+	# the frame the player feels, and air support never gets a second one on the same
+	# ground to pay it off.
+	#
+	# The cost is RAM, not time: build_mesh already builds these arrays, arming only
+	# stops them being dropped afterwards. Measured at ~1.0 MB per 256 m chunk
+	# (24,576 verts+norms+colors plus the 65x65 sample grid) - 4 MB on the demo's 512 m
+	# map, ~67 MB on the 2 km ceiling ADR-013 sets. If that ceiling is ever built, this
+	# is the line to make conditional on chunk count, and it is the Summoner's call.
+	chunk.arm_patch_cache()
+	_patch_armed[coord] = true
 
 	# Classify vegetation BEFORE mesh build so the mesh can color rice paddies
 	var veg_bytes := PackedByteArray()
@@ -373,10 +389,59 @@ func _patch_chunk_region(coord: Vector2i, cell_region: Rect2i, cells_per_chunk: 
 	StallLedger.end()
 
 	if vegetation_manager:
-		StallLedger.begin("terrain.veg_generate")
-		vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size)
-		StallLedger.end()
+		_queue_veg_regen(coord)
 	return true
+
+
+## ---- DISTANT EVENTS MAY NOT COST A NEAR FRAME (his ruling 2026-09-09: "that way theres
+## not things happening across the map thats lagging the game") ----
+##
+## MEASURED, and this is the whole napalm stutter: one NAPALM canister edits 88 m of
+## heightmap, which touches FOUR 256 m chunks, and each touched chunk re-derived its
+## vegetation in the SAME frame - terrain.veg_generate 96.1 ms over 4 calls (worst single
+## 29.6 ms) inside a 125.43 ms idle step, on ground 210 m behind the player.
+##
+## THE SPLIT, and it is the law the coordinator set - outcome identical, presentation
+## degraded:
+##   OUTCOME, still immediate and never deferred:
+##     * the heightmap edit itself (modify_terrain, above) - every height query, every
+##       navmesh sample and every man's footing reads it the moment the shell lands;
+##     * the chunk's mesh patch and its HeightMapShape3D collision - so no round and no
+##       boot ever meets ground the shell has already moved;
+##     * TreeBreakSystem's registry and VegetationManager.clear_area - so ballistics
+##       already know the felled trunks are gone.
+##   PRESENTATION, deferred one chunk per frame:
+##     * the vegetation MultiMesh re-derive. What lags is which grass is DRAWN, for at
+##       most three frames, on chunks that are 88 m wide.
+##
+## Chunk-deduped: eight canisters walking one treeline queue the same four coords once,
+## not thirty-two times.
+var _veg_regen_queue: Array[Vector2i] = []
+## One chunk per frame. Same reasoning and the same number as TreeCoverLayer's
+## REGEN_PER_FRAME: a single re-derive is 14-30 ms and two in a frame is the stall.
+const VEG_REGEN_PER_FRAME: int = 1
+
+
+func _queue_veg_regen(coord: Vector2i) -> void:
+	if not _veg_regen_queue.has(coord):
+		_veg_regen_queue.append(coord)
+
+
+func _drain_veg_regen() -> void:
+	if _veg_regen_queue.is_empty() or vegetation_manager == null \
+			or not is_instance_valid(vegetation_manager):
+		return
+	StallLedger.begin("terrain.veg_generate")
+	for _i in range(mini(VEG_REGEN_PER_FRAME, _veg_regen_queue.size())):
+		var coord: Vector2i = _veg_regen_queue.pop_front()
+		if chunks.has(coord):
+			vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size)
+	StallLedger.end()
+
+
+## Chunks whose ground has moved and whose planting has not caught up. For the probe.
+func pending_veg_regen() -> int:
+	return _veg_regen_queue.size()
 
 
 func set_camera(cam: Camera3D) -> void:

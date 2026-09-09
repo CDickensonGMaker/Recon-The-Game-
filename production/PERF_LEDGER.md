@@ -2417,3 +2417,206 @@ settings he prefers, so no dial is closed by this verdict.
 number from a quiet-terrain bench may be quoted. His own ruling stands — *"its just terrain with no
 action so its not really gauging anything"* — so the re-pointed bench, running inside the live
 45-man assault from a player-height camera, is still owed before any fps figure is published again.
+
+---
+
+## 2026-09-09 (night, wave 2) — THE AMBIENT NAPALM STUTTER, ATTRIBUTED AND CUT
+
+**His report, mid-session, straight after "the rest felt smoother":** *"when the ambient napalm hits
+tho it still stutters really bad."*
+
+### It was in HIS OWN LOG, and the log named the frame
+
+`AppData/Roaming/Godot/app_userdata/RECONgame/logs/recon.log`, his live session, line 761 onward:
+
+```
+[DEMO] air beat: NAPALM at 256,466 (210m out on bearing 90 deg)
+[PERF] FPS=36 -> 35 -> 13 -> 1 -> 25 -> 38
+```
+
+**FPS=1.** Beside it, **145 `[TreeCover]` print lines** in the same window. That log rotates out after
+8 runs; a copy is preserved at
+`AppData/Local/Temp/claude/.../scratchpad/caleb_live_session_napalm_2026-09-09.log`.
+
+### The instrument: `tests/probe_napalm_stall.tscn` (new)
+
+Fires the **real** thing — `FieldDirector.authored_strike(..., Ordnance.NAPALM, ...)`, a real F-4
+flying a real pass and pickling `FirePlan.NAPALM_DROPS` (9) real canisters — at the demo's own 210 m
+ambient standoff, **after 24 real enemies are on the ground through the real spawn path**. It is not a
+quiet bench; his ruling on `bench_canopy` (*"its just terrain with no action so its not really gauging
+anything"*) is respected. Every number is a StallLedger per-frame span; no Performance bucket-max is
+quoted as a per-frame cost, and no fps or GPU figure is published from it.
+
+### WHAT THE NAPALM FRAME WAS ACTUALLY SPENT ON
+
+**Not the trees. Not the VFX. Not the AI. The terrain crater.**
+
+| span (StallLedger, per frame) | before | after |
+|---|---:|---:|
+| **worst idle script step** | **125.43 ms** | **54.86 ms** |
+| `terrain.crater` (x1) | **122.2 ms** | **13.5 ms** |
+| `terrain.chunk_rebuild` (x1) | 121.1 ms | 12.5 ms |
+| `terrain.veg_generate` | 96.1 ms over x4, one frame | 82.5 ms over x4, one per frame |
+| `terrain.patch_mesh` | *never ran* | 9.1 ms |
+| worst physics script step | 22.69 ms | 22.32 ms |
+| `[TreeCover]` print lines per strike | **439** | **5** |
+
+**The root cause, named:** `DamageType.NAPALM` is `radius_cells: 22` (`terrain/systems/damage_system.gd:57`),
+and at the demo's 4 m cell that is an **88 m radius heightmap edit — 176 m across, which always spans
+four 256 m chunks**. `_rebuild_chunks_in_region` rebuilt **all four in one idle frame**, and because
+`_patch_armed` was populated lazily *by the first shell*, none of the four was armed, so all four took
+the full `_rebuild_chunk_immediate` path. **The partial-update fast path shipped this morning never
+engaged for a napalm at all** — `terrain.patch_mesh` does not appear anywhere in the before column.
+The lazy arming was written for artillery, which clusters; **air support never gets a second shell on
+the same ground to pay it off.**
+
+### Fixes, all measured
+
+1. **Every chunk is armed for the patch at load** (`terrain/core/terrain_manager.gd`, `_load_chunk`).
+   Costs RAM, not time — `build_mesh` already builds these arrays; arming only stops them being
+   dropped. **~1.0 MB per 256 m chunk: 4 MB on the demo's 512 m map, ~67 MB at ADR-013's 2 km ceiling.
+   If that ceiling is ever built this line needs a chunk-count condition — HIS CALL.**
+2. **The crater's per-chunk vegetation re-derive is deferred, one chunk per frame**
+   (`terrain_manager._queue_veg_regen` / `_drain_veg_regen`). The heightmap edit, the mesh patch and
+   the `HeightMapShape3D` collision all still happen **immediately** — outcome intact; only which
+   grass is *drawn* lags, for at most three frames, on chunks 88 m wide.
+3. **`load_species` is asked once per species, not once per felled trunk**
+   (`scripts/world/tree_break_system.gd`, `_ensure_parts_loaded`). 710 trunks felled produced **1
+   call**. That is the 439 -> 5 print collapse. The dedupe lives in the CALLER on purpose: the printed
+   cover/concealment split is ADR-042 clause 1 reporting the vegetation layer owes on a genuine load,
+   and silencing it there would hide a real "no 3D model" gap.
+
+### HIS RULING 1 — staggered falls: BUILT
+
+*"why dont we stagger the trees falling for a few seconds after the explosions so its not just a all
+at once thing."*
+
+`tree_break_system._fall_delay`: delay rises with `sqrt(distance/radius)` over `FALL_WINDOW_S` 3.0 s
+plus a deterministic 0.7 s jitter; undergrowth burns through at `BUSH_HASTE` 0.45 of the timber's
+time, so the grass catches before the trunk does and the sweep reads as fire rather than as a queue
+draining. **Measured: 710 trunks, peak 138 waiting, spread 3.55 s.**
+
+- **Determinism:** the jitter is `hash()` of the trunk's 10-cm-quantised position, **not `randf()`**,
+  so it draws nothing from the operation's RNG stream and replays identically (ADR-010).
+- **No half state:** a scheduled trunk is STANDING in every system — `_cells` (so `query_ahead` still
+  fuzes rockets on it), the layer's stored scatter (so it draws), the trunk-collider ring (so rounds
+  stop on it). `_consume` and `_spawn_broken` remain one atomic pair; they simply happen later. The
+  only thing written early is a `doomed` flag that nothing but the blast selector reads.
+- **TRADEOFF, NAMED NOT ABSORBED (Law 2):** cover, concealment and line of sight now change over a
+  ~3.7 s window instead of instantly. A tree that falls two seconds later blocks, hits and reveals two
+  seconds later. This touches the stealth economy (Pillar 3, ADR-005) and **the sapper breach chain: a
+  breach lane through felled timber now opens over seconds rather than at the blast.** Surfaced for
+  him; not decided by an agent.
+
+### HIS RULING 2 — silent distant falls: BUILT
+
+*"can we just silently have trees fall if the players far away... but anything within a 350 sightline
+or less does actually fall over."*
+
+`SILENT_FALL_M` 350 m (the canopy draw radius) with a **deterministic per-trunk feather** over the
+next 70 m, so the band is not a line he can walk across and watch a rank snap. Past it a trunk skips
+its three MeshInstance3Ds, its Jolt snag body and its Tween — **and nothing else.**
+
+**Proven identical, not asserted:** the probe's EQUIVALENCE phase runs the same trunk with the same
+blast down both paths into a recording stand-in for the VegetationManager and compares every settled
+part's name, resting position, resting angle and collider size. It refuses to report agreement if
+`BrokenTree` has no `silent` property (a control that cannot fail is not a control) or if either path
+settled nothing. **Result: IDENTICAL.** The silent path also waits the same `FELL_TIME`, so the world
+changes at the same instant either way — not two seconds early for being unwatched.
+
+**Distance, NOT line of sight, and deliberately.** True occlusion means a tree behind a ridge is
+"unseen", skips its fall, and then **snaps** into its fallen state the moment he crests the ridge — a
+state change caused by the camera moving rather than by the world changing. Plain distance cannot do
+that.
+
+### A REAL BUG THE EQUIVALENCE PROBE FOUND
+
+The two paths disagreed by **1.601 m** on `banana_a_crown`. **The silent path was right.**
+`BrokenTree._probe_ground` casts down from a point `away * cut_w * 0.5` from the trunk base — on a
+wide stump that is still **inside the snag's own cylinder**, so on the animated path the felled log
+settled *on top of the stump it had just broken off*. Fixed by excluding the tree's own snag RID from
+the probe ray. **This had been shipping in every animated tree fall.**
+
+### THE CENSUS — what runs at full cost regardless of player distance
+
+14 s window, real strike, 24 spawned men + garrison, 710 trunks felled. StallLedger window totals:
+
+| system | total ms | worst call | calls | distance-scaled today? |
+|---|---:|---:|---:|---|
+| `ai.execute` | **309.3** | 0.2 | 12,168 | **NO** |
+| `ai.think` | **116.5** | 0.2 | 2,432 | **NO** |
+| `terrain.veg_generate` | 82.5 | 28.4 | 4 | **NO** (now spread, not cut) |
+| `veg.tree_cover_mmi` | 75.0 | 18.2 | 5 | **NO** |
+| `veg.build_scatter` | 35.6 | 16.6 | 5 | **NO** |
+| `veg.trunk_ring` | 35.5 | 0.7 | 60 | **yes** — player-centred ring |
+| `mmi.register` | 30.7 | 6.4 | 6 | **NO** |
+| `veg.scatter_miss` | 27.6 | 16.0 | 2 | **NO** |
+| `treebreak.spawn` | 16.6 | 16.6 | 1 | **yes now** — silent past 350 m |
+| `clutter.flush` | 16.3 | 16.3 | 1 | unknown |
+| `nap.fx` (9 canisters) | **2.7** | 1.2 | 9 | NO |
+| `nap.fire` (9 FireHazards) | **2.4** | 0.3 | 9 | NO |
+| `nap.blast` (9 blasts) | **2.2** | 0.3 | 9 | NO |
+| `nap.ignite` | 0.3 | 0.0 | 9 | NO |
+
+**REFUTED, with the number:** the fire VFX, the explosion FX and the blast damage together cost
+**7.6 ms for the whole nine-canister strip.** They were a listed suspect and they are not the problem.
+
+**THE PRICED QUESTION FOR THE COUNCIL — deliberately not built.** `ai.execute` + `ai.think` is
+**425.8 ms of main-thread script over 14 s (~30 ms/s) across 14,600 calls, with 10 men fighting**, and
+**not one of those calls is distance-gated**. That is the price of simulating distant engagements man
+by man, and it is the largest single line in the census. Abstract resolution of far engagements would
+be the biggest win available AND a Pillar-touching change to the world-sim premise, so it goes to the
+war room with this number attached — not to an agent.
+
+### STILL UNCUT — ranked, measured, and NOT half-built
+
+1. **`terrain.veg_generate` at 62.8 ms for a SINGLE chunk** on the far strike (`veg.build_scatter`
+   33.3 ms + `veg.scatter_miss` 33.3 ms inside it). It is spread across frames now but **not made
+   cheaper and not distance-gated.** It lives in `terrain/vegetation/vegetation_manager.gd`, held by
+   the vegetation agent — **HANDED OFF, not touched.**
+2. **`ai.execute` / `ai.think`** — above; council.
+3. **Ambient AA tracers** — did not fire in the measured window. **UNMEASURED.** A decreed distant-war
+   visual will not be weighed against his new "random battle sounds" ruling on no data.
+4. **`clutter.flush` 16.3 ms x1** — distance behaviour unattributed.
+
+### NIGHT EVENTS — what already exists (asked, answered, not built)
+
+**`scripts/ai/ambient_war.gd` is already the framework** the Arc Light / lightning / distant-napalm
+asks need. It rolls 1-3 events per `SimClock.hour_advanced`, places them **400-800 m** from the player
+(the 400 m floor is a playtest ruling from 07-29 — *a gunship visibly strafing nothing* at 200 m),
+plays positional audio, and spawns a **fake emissive fireball with no real light** — already
+ADR-026-compliant and already the right shape for night. `KINDS` today is
+`artillery, mortar, tracers, burning, gunship_attack`. **Arc Light, lightning and a distant napalm
+bloom are new KINDS on a wired system, not new architecture.**
+
+**But it had no success log line.** Its only `print` was the "held silent" branch, so a log with no
+`[AmbientWar]` in it could not be told apart from "this has never fired once" — and **his 2026-09-09
+session log is exactly that log.** A `SOUNDING` line now prints on every event that actually fires.
+**Whether AmbientWar has ever fired in a real session is still UNKNOWN; the next session can answer
+it.** Sound-lags-light, the walking Arc Light line, weather-vs-ordnance colour separation (a Fairness
+Law problem, not an art one) and the night stealth-economy question are all recorded and unbuilt: the
+stutter came first.
+
+### Gates, all green with everything above in
+`test_ship_parity` · `test_flat_damage` · `test_tree_cover_lod` · `test_grid_queries` ·
+`test_render_scale` · `test_fossils` · `test_trunk_ring` · `test_veg_density` ·
+`test_tree_cover_wired` · `test_terrain_desync` · `probe_chunk_patch` · `probe_terrain_collision` ·
+`probe_bullet_damage` · **`probe_napalm_stall` (new)** · headless boot **0 SCRIPT ERROR** ·
+`demo_game.tscn` headless boot **0 SCRIPT ERROR**.
+
+**PROVEN TO FAIL WHEN REVERTED.** With the pre-session `tree_break_system.gd` restored,
+`probe_napalm_stall` exits **1**: *"trunks were waiting to fall in only 0 sample(s) (need >= 8)"* and
+*"the fall spread over 0.00s (need >= 1.0s)"*, and the `[TreeCover]` flood returns at 439 lines
+against 5.
+
+**`probe_crater_veg` FAILS, and it is NOT this wave.** *"pruning the cache == regenerating the chunk
+with the hole — 1805 positional/species mismatch(es)."* **Controlled:** re-run with this wave's
+`terrain_manager.gd` reverted to HEAD, the failure is **byte-identical** (9472 vs 9472, 1805). It
+belongs to the vegetation agent's in-flight feathered-hole + paddy-row work (`_prune_scatter_cache`
+now routes through `_hole_removes`, `_file_veg_hole` adds `FEATHER_WOBBLE_M`, while `_build_scatter`
+rolls its own feather). **HANDED OFF.**
+
+**`probe_terrain_collision`'s "the chunk was rebuilt by the shell" assertion was CORRECTED, not
+silenced.** It asserted `chunk2 != chunk` — that the shell had *thrown the chunk node away*. That
+demanded the expensive path, and arming every chunk makes it false by design. It now asserts the
+ground actually moved: **PASS, ground 172.842 -> 164.842 m, "chunk node patched in place."**
