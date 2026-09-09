@@ -9,9 +9,9 @@ extends Node
 ## eyes decide", and a headless session cannot judge this at all, so the choice is wired to a
 ## key instead of guessed at and shipped silent.
 ##
-## F9 cycles the interior-prop draw distance. It prints what it just selected, every time.
+## F11 cycles the interior-prop draw distance. It prints what it just selected, every time.
 
-const CYCLE_KEY: Key = KEY_F9
+const CYCLE_KEY: Key = KEY_F11
 
 ## name, multiplier on each prop's own measured range.
 const STEPS: Array = [
@@ -28,7 +28,7 @@ var _step: int = 0
 func setup(mmis: Array[MultiMeshInstance3D], base: Array[float]) -> void:
 	_mmis = mmis
 	_base = base
-	print("[FSB] interior prop draw distance: press F9 to cycle (%s)" % _step_name())
+	print("[FSB] interior prop draw distance: press F11 to cycle (%s)" % _step_name())
 
 
 func _step_name() -> String:

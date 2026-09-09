@@ -39,7 +39,7 @@ extends RefCounted
 ## SCOPE OF THOSE NUMBERS: draw calls and surfaces from a STATIC camera in an empty compound.
 ## The Summoner ruled that bench unrepresentative the same day - "its just terrain with no
 ## action so its not really gauging anything" - so the counts stand as structural facts and NO
-## frame or gpu figure is claimed from it. What the change feels like is unmeasured, and F9
+## frame or gpu figure is claimed from it. What the change feels like is unmeasured, and F11
 ## exists so he can settle it himself.
 ##
 ## WHAT THIS DOES NOT TOUCH. Colliders are separate `StaticBody3D` siblings in the flat GLB, so
