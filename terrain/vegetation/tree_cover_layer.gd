@@ -195,6 +195,25 @@ func load_species(names: Array) -> void:
 				_solid_mesh[n] = sm
 			else:
 				push_warning("[TreeCover] no 3D model for species '%s' - NOT DRAWN" % n)
+	_report_cover_split(names)
+
+
+## ADR-042 clause 1. COVER_TRUNK is a hand-maintained allow-list keyed on species NAME, and
+## a name it has never heard of gets no collider at all - the player walks through the tree.
+## The default here is the SAFE one (concealment, not bulletproof), so this reports rather
+## than warns; what it must never do is stay silent about which half a species landed in.
+func _report_cover_split(names: Array) -> void:
+	var cover: PackedStringArray = PackedStringArray()
+	var conceal: PackedStringArray = PackedStringArray()
+	for n: String in names:
+		if float(COVER_TRUNK.get(n, 0.0)) > 0.0:
+			cover.append(n)
+		else:
+			conceal.append(n)
+	cover.sort()
+	conceal.sort()
+	print("[TreeCover] %d species give COVER (trunk collider): %s | %d give CONCEALMENT only: %s"
+		% [cover.size(), ", ".join(cover), conceal.size(), ", ".join(conceal)])
 
 
 ## The near-solid mesh for a species, for a one-off visual (the felling swap).
