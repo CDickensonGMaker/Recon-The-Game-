@@ -125,22 +125,51 @@ func setup(unit_id: String) -> bool:
 	var packed: PackedScene = load(ModelActor.model_path(unit_id))
 	if packed == null:
 		return false
+	# SPLIT THE 45-53ms. setup() is one instantiate followed by EIGHT passes that each walk the
+	# whole node tree of a gib-rigged PSX body. Which half costs what is not knowable by
+	# reading it, and the ledger has been wrong about this file before - it once had ~35ms per
+	# man on the hitzones and the anim library, and both measured under 1.5ms.
+	StallLedger.begin("spawn.glb_instance")
 	_inst = packed.instantiate() as Node3D
 	add_child(_inst)
+	StallLedger.end()
+	StallLedger.begin("spawn.model_passes")
+	# One walk for every pass below (see _walk). Released before setup returns, so anything
+	# that changes the tree afterwards - the dresser hanging a helmet - walks it fresh.
+	_walk_cache = _walk(_inst)
+	_walk_cached = true
+	StallLedger.begin("sp.layer")
 	_set_visual_layer(_inst, CHARACTER_VISUAL_LAYER)
-
+	StallLedger.end()
+	StallLedger.begin("sp.find")
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
+	StallLedger.end()
+	StallLedger.begin("sp.height")
 	_normalize_height()
+	StallLedger.end()
 	StallLedger.begin("spawn.anim_library")
 	_merge_shared_library()
 	StallLedger.end()
+	StallLedger.begin("sp.loops")
 	_apply_loop_modes()
+	StallLedger.end()
+	StallLedger.begin("sp.gibrig")
 	_apply_gib_rig_contract()
+	StallLedger.end()
+	StallLedger.begin("sp.optgear")
 	_apply_optional_gear()
+	StallLedger.end()
+	StallLedger.begin("sp.dupes")
 	_hide_export_duplicates()
+	StallLedger.end()
+	StallLedger.begin("spawn.material_passes")
 	_apply_untextured_gear_tints()
 	_apply_psx_filtering()
+	StallLedger.end()
+	_walk_cached = false
+	_walk_cache = []
+	StallLedger.end()
 	return true
 
 
@@ -373,23 +402,33 @@ const _LOOP_NAMES: Array[String] = ["injured_walk_backwards", "kneeling_pointing
 	# play-once, freezing the man mid-jack.
 	"jumping_jacks"]
 
+## Animation resources are SHARED, not copied: _merge_shared_library hands every man the same
+## 232 Animation objects out of one static library, so setting loop_mode on them is a global
+## write that the 65th man repeats identically to the 1st. Measured 2026-09-09 in the 45-man
+## assault: 6.0 ms per man, the single largest pass in a spawn.
+##
+## Keyed on the RESOURCE, never the clip name - two rigs may each carry their own `idle`, and
+## a name-keyed skip would leave the second one play-once, which is the frozen-mid-stride
+## defect this whole pass exists to prevent.
+static var _loop_mode_done: Dictionary = {}
+
 func _apply_loop_modes() -> void:
 	if _anim == null:
 		return
 	for clip_name in _anim.get_animation_list():
+		var a: Animation = _anim.get_animation(clip_name)
+		if a == null or _loop_mode_done.has(a.get_instance_id()):
+			continue
+		_loop_mode_done[a.get_instance_id()] = true
 		var nm := String(clip_name)
 		if nm in _LOOP_NAMES:
-			var a_named: Animation = _anim.get_animation(clip_name)
-			if a_named != null:
-				a_named.loop_mode = Animation.LOOP_LINEAR
+			a.loop_mode = Animation.LOOP_LINEAR
 			continue
 		if nm.contains("turn") or nm.contains("_to_") or nm.contains("jump"):
 			continue
 		for p in _LOOP_PREFIXES:
 			if nm.begins_with(p):
-				var a: Animation = _anim.get_animation(clip_name)
-				if a != null:
-					a.loop_mode = Animation.LOOP_LINEAR
+				a.loop_mode = Animation.LOOP_LINEAR
 				break
 
 
@@ -1219,8 +1258,28 @@ func _aabb_of(root: Node3D) -> AABB:
 	return out
 
 
+## ITERATIVE, and cached for the length of setup(). The recursive form allocated a fresh
+## Array at every node and append_array'd it upward, and setup() walks the tree SIX times over
+## a gib-rigged body that carries hundreds of nodes. Measured 2026-09-09: spawn.model_passes
+## was 16.0 ms mean per man in a 45-man assault, against 0.77 ms for the GLB instantiate it
+## was assumed to be.
+##
+## The cache is only valid while the node SET is stable. setup()'s passes HIDE meshes and add
+## animations; none adds or removes a node. The dresser does add nodes, and it runs after
+## setup() releases the cache.
+var _walk_cache: Array[Node] = []
+var _walk_cached: bool = false
+
 func _walk(n: Node) -> Array[Node]:
-	var out: Array[Node] = [n]
-	for c in n.get_children():
-		out.append_array(_walk(c))
+	if _walk_cached and n == _inst:
+		return _walk_cache
+	var out: Array[Node] = []
+	var stack: Array[Node] = [n]
+	while not stack.is_empty():
+		var cur: Node = stack.pop_back()
+		out.append(cur)
+		for c in cur.get_children():
+			stack.append(c)
+	if n == _inst and _walk_cached:
+		_walk_cache = out
 	return out
