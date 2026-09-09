@@ -383,6 +383,20 @@ func _materialize_vegetation(chunk_coord: Vector2i, heightmap: Object) -> void:
 ## chunk rebuild keeps the crater clear. Cleared per-mission in clear_all().
 var _veg_holes: Array = []
 
+## SCATTER CACHE. _build_scatter walks every bundle in the chunk, rolls the RNG, tests every
+## density centre and picks a species - and it is fully determined by (chunk_coord,
+## mission_seed, the terrain grid, the veg holes, the fell registry, the density centres).
+## A CRATER changes NONE of those: it edits the heightmap, so the only thing that moves is
+## each plant's Y. Rebuilding a chunk after a shell was paying 18.8ms to re-derive an answer
+## it already had (measured 2026-09-09, veg.build_scatter over 110 rebuilds).
+##
+## The epoch is the designed invalidation, and it is deliberately COARSE - one counter for
+## the whole layer, bumped by every writer of the inputs. A stale scatter index is a real
+## hazard (a crater and a felling can touch the same chunk in one window), and a
+## conservative bump costs one recompute where a clever key would cost a wrong tree.
+var _scatter_cache: Dictionary = {}
+var _scatter_epoch: int = 0
+
 ## Holes bucketed by world cell. _in_veg_hole runs per CANDIDATE PLANT on every chunk
 ## re-scatter, so a linear scan makes every rebuild slower for the rest of the mission -
 ## the cost that decides whether persistent damage is affordable at all. A hole is filed
@@ -396,6 +410,7 @@ func _hole_cell(wx: float, wz: float) -> Vector2i:
 
 
 func _file_veg_hole(hole: Dictionary) -> void:
+	_scatter_epoch += 1
 	var c: Vector3 = hole["c"]
 	var r: float = sqrt(float(hole["r2"]))
 	var lo: Vector2i = _hole_cell(c.x - r, c.z - r)
@@ -452,6 +467,7 @@ var _fell_registry: Array = []
 
 
 func add_fell_entries(entries: Array) -> void:
+	_scatter_epoch += 1
 	for e: Dictionary in entries:
 		_fell_registry.append(e)
 
@@ -504,6 +520,16 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	var scatter: Array = []
 	if not _chunk_terrain.has(chunk_coord):
 		return scatter
+	var hit: Dictionary = _scatter_cache.get(chunk_coord, {}) as Dictionary
+	if int(hit.get("epoch", -1)) == _scatter_epoch:
+		# Same answer, new ground: re-seat every plant on the current heightmap and hand back
+		# the cached list. This is the crater path - the shell moved the dirt, not the trees.
+		var cached: Array = hit["scatter"]
+		for e: Dictionary in cached:
+			var xf: Transform3D = e["xf"]
+			xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
+			e["xf"] = xf
+		return cached
 	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([chunk_coord, mission_seed])
@@ -556,6 +582,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				e["trunk_r"] = f["trunk_r"]
 				e["trunk_h"] = f.get("trunk_h", 1.0)
 			scatter.append(e)
+	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter}
 	return scatter
 
 
@@ -578,6 +605,7 @@ func _pick_species(pool: Array, bush_bias: bool, rng: RandomNumberGenerator) -> 
 ## _density_centers, so the world stays deterministic for a given (seed, centers).
 func set_density_centers(centers: Array) -> void:
 	_density_centers = centers
+	_scatter_epoch += 1
 	if canopy_source != CanopySource.TREE_COVER or _terrain_manager == null:
 		return
 	var hm: Object = _terrain_manager.heightmap
@@ -660,6 +688,8 @@ func clear_all() -> void:
 	_veg_holes.clear()
 	_veg_hole_buckets.clear()
 	_fell_registry.clear()
+	_scatter_cache.clear()
+	_scatter_epoch += 1
 
 
 ## OPTIMIZED: Single surface with vertex colors to reduce draw calls from 9 to 1
