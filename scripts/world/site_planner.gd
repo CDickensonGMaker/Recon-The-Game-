@@ -1943,7 +1943,7 @@ func _tag_fsb_ballistics(root: Node3D) -> void:
 		var body := n as CollisionObject3D
 		if body == null:
 			continue
-		var nm := String(body.name)
+		var nm := _ballistic_name(body)
 		var soft: bool = false
 		for p in FSB_SOFT_PREFIXES:
 			if nm.begins_with(p):
@@ -1992,6 +1992,21 @@ func _report_ballistic_misses(families: Dictionary, hits: Dictionary) -> void:
 		top.append("%s x%d" % [names[i], int(families[names[i]])])
 	print("[FSB] hard by DEFAULT (matched no soft prefix): %d famil(ies) - %s%s" % [
 		names.size(), ", ".join(top), "" if names.size() <= 18 else ", ..."])
+
+
+## THE NAME THAT MATTERS IS NOT ALWAYS ON THE NODE. Godot MINTS a StaticBody3D per -colonly
+## node it converts, and that body is called "StaticBody3D" or "@StaticBody3D@20876" - a name
+## carrying no information at all, which is why 132 of them sat in the hard-by-default pile.
+## The identity is on the PARENT. Measured 2026-09-09 (tools/probe_unnamed_colliders.gd):
+## 80 are parapet segments (hard is right by accident), but three are fb_gp_tent_i and one is
+## fb_mess_i - a GP tent and the mess hall, both on the SOFT list, reading as bulletproof
+## because their collider was born anonymous.
+static func _ballistic_name(body: CollisionObject3D) -> String:
+	var nm: String = String(body.name)
+	if not (nm.begins_with("@") or nm.begins_with("StaticBody3D")):
+		return nm
+	var p: Node = body.get_parent()
+	return String(p.name) if p != null else nm
 
 
 ## Collider name -> the family a contract would be written against: ordinals and the

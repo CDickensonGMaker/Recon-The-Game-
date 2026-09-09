@@ -130,10 +130,26 @@ var _dead: bool = false
 
 
 ## bullet_system reads the soft_cover/hard_surface group off the collider a round hits.
-## Every kind this class wraps is sandbag/earth/timber - real cover - except wire, which
-## blocks a man and not a bullet. Every spawn site sets `kind` before add_child.
+##
+## ADR-042 clause 2. This used to read `"soft_cover" if kind == "wire" else "hard_surface"`,
+## which made HARD the default for everything the author had not thought about - and the kind
+## sitting in that default was `hut_thatch`. A thatch hut stopping a 7.62 is the same defect as
+## the 242 bulletproof hooch walls, in a different file. The set of kinds is small, closed and
+## already enumerated by HP_FOR, so it is enumerated here too, and an unknown kind is LOUD
+## rather than silently bulletproof.
+const SOFT_KINDS: Array[String] = ["wire", "hut_thatch", "weapons_cache"]
+## "sandbag" is bench-only (support_fire_range, probe_fire_parity) - it is not in HP_FOR and
+## carries its HP inline. Listed so the warning names real gaps rather than crying wolf.
+const HARD_KINDS: Array[String] = ["sandbag_wall", "sandbag_stack", "sandbag", "bunker",
+	"bunker_mg", "tower", "hut_timber"]
+
 func _ready() -> void:
-	add_to_group("soft_cover" if kind == "wire" else "hard_surface")
+	if kind in SOFT_KINDS:
+		add_to_group("soft_cover")
+		return
+	if not (kind in HARD_KINDS):
+		push_warning("[DESTRUCTIBLE] kind '%s' is in neither material list - defaulting to hard_surface, which means BULLETPROOF. Add it to SOFT_KINDS or HARD_KINDS." % kind)
+	add_to_group("hard_surface")
 
 
 ## The one damage grammar as a receiver (ADR-003). ONLY EXPLOSIVES BRING A BUILDING DOWN

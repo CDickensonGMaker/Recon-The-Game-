@@ -149,7 +149,12 @@ func _build_visual() -> void:
 ## Everything that is not the gun. Matched on the mesh resource name, not the node name:
 ## the exporter names the node off the object and the mesh off the data, and it is the
 ## MESH that says ArmsMesh.
-const ARMS_HINTS: Array[String] = ["arms", "hand", "glove", "sleeve", "forearm"]
+## THE ONE LIST. weapon_holder carried its own, and the two DISAGREED: this one had `arms`
+## and `forearm` but no `finger` and no bare `arm`; that one had `arm` and `finger` but neither
+## `arms` nor `forearm`. So a mesh named finger_l was stripped from the viewmodel bounds and
+## left welded to a dropped rifle, and an `arm_upper` was caught by one and missed by the
+## other. Union, and bare `arm` subsumes both `arms` and `forearm`.
+const ARMS_HINTS: Array[String] = ["arm", "hand", "finger", "glove", "sleeve", "wrist"]
 
 ## Rebuild the gun as flat geometry. Skinned gun parts (bolt, magazine) keep their rest
 ## pose, which is the pose a gun in the mud should be in anyway - the alternative is

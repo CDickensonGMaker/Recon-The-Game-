@@ -396,6 +396,11 @@ var _veg_holes: Array = []
 ## conservative bump costs one recompute where a clever key would cost a wrong tree.
 var _scatter_cache: Dictionary = {}
 var _scatter_epoch: int = 0
+## chunk -> the epoch at which THAT chunk's inputs last changed. The global counter above is
+## the clock; this is what a chunk actually has to beat. A felled tree in one chunk used to
+## invalidate the scatter of every chunk on the map, and an assault fells trees continuously -
+## measured 2026-09-09: veg.build_scatter back at 80.1 ms inside the 45-man fight.
+var _scatter_dirty: Dictionary = {}
 
 ## Holes bucketed by world cell. _in_veg_hole runs per CANDIDATE PLANT on every chunk
 ## re-scatter, so a linear scan makes every rebuild slower for the rest of the mission -
@@ -407,6 +412,13 @@ var _veg_hole_buckets: Dictionary = {}
 
 func _hole_cell(wx: float, wz: float) -> Vector2i:
 	return Vector2i(floori(wx / HOLE_BUCKET_M), floori(wz / HOLE_BUCKET_M))
+
+
+## Mark one chunk's scatter stale. Callers that know WHICH chunks they touched use this; the
+## coarse global bump stays as the clock, so a caller that forgets to name a chunk is still
+## caught by set_density_centers/clear_all invalidating everything.
+func _dirty_scatter(chunk_coord: Vector2i) -> void:
+	_scatter_dirty[chunk_coord] = _scatter_epoch + 1
 
 
 func _file_veg_hole(hole: Dictionary) -> void:
@@ -445,6 +457,9 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 	var hole := {"c": center, "r2": radius * radius}
 	_veg_holes.append(hole)
 	_file_veg_hole(hole)
+	for cx2 in range(min_cx, max_cx + 1):
+		for cz2 in range(min_cz, max_cz + 1):
+			_dirty_scatter(Vector2i(cx2, cz2))
 
 	var rebuilt := 0
 	for cx in range(min_cx, max_cx + 1):
@@ -468,6 +483,9 @@ var _fell_registry: Array = []
 
 func add_fell_entries(entries: Array) -> void:
 	_scatter_epoch += 1
+	for e in entries:
+		if (e as Dictionary).has("chunk"):
+			_dirty_scatter((e as Dictionary)["chunk"] as Vector2i)
 	for e: Dictionary in entries:
 		_fell_registry.append(e)
 
@@ -521,7 +539,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 	if not _chunk_terrain.has(chunk_coord):
 		return scatter
 	var hit: Dictionary = _scatter_cache.get(chunk_coord, {}) as Dictionary
-	if int(hit.get("epoch", -1)) == _scatter_epoch:
+	if not hit.is_empty() and int(hit["epoch"]) >= int(_scatter_dirty.get(chunk_coord, 0)):
 		# Same answer, new ground: re-seat every plant on the current heightmap and hand back
 		# the cached list. This is the crater path - the shell moved the dirt, not the trees.
 		var cached: Array = hit["scatter"]
@@ -606,6 +624,7 @@ func _pick_species(pool: Array, bush_bias: bool, rng: RandomNumberGenerator) -> 
 func set_density_centers(centers: Array) -> void:
 	_density_centers = centers
 	_scatter_epoch += 1
+	_scatter_cache.clear()
 	if canopy_source != CanopySource.TREE_COVER or _terrain_manager == null:
 		return
 	var hm: Object = _terrain_manager.heightmap
@@ -689,6 +708,7 @@ func clear_all() -> void:
 	_veg_hole_buckets.clear()
 	_fell_registry.clear()
 	_scatter_cache.clear()
+	_scatter_dirty.clear()
 	_scatter_epoch += 1
 
 

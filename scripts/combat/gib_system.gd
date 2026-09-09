@@ -93,6 +93,24 @@ static func _gear_meshes(root: Node, region: String, spec: Dictionary) -> Array[
 			out.append(gm)
 	return out
 
+
+## ADR-042 clause 1. Every gore lookup is find_child BY EXACT NAME against a name written in
+## REGIONS, and a miss is silent: the limb goes, the CAP that should close the hole never
+## appears, and the player sees open geometry where a man's arm was. Reported once per
+## (unit, name) - a wound is not the moment to spam a log, and once is enough to fix an export.
+static var _gore_gap_reported: Dictionary = {}
+
+static func _find_named(root: Node, nm: String, unit: String, what: String) -> MeshInstance3D:
+	var mi := root.find_child(nm, true, false) as MeshInstance3D
+	if mi != null:
+		return mi
+	var key: String = "%s|%s" % [unit, nm]
+	if not _gore_gap_reported.has(key):
+		_gore_gap_reported[key] = true
+		push_warning("[GORE] %s: %s '%s' is not on this rig - OFF-CONTRACT (a missing cap leaves the stump OPEN)"
+			% [unit, what, nm])
+	return null
+
 ## ---- live gore rules + death doctrine (ONE authority, law for EVERY model) ---
 ##   LIMB single hit >= LIMB_POP_HIT   -> that limb pops
 ##   killing HEAD hit >= HEAD_POP_KILL -> head pops (burst variant by chance)
@@ -176,7 +194,7 @@ static func dismember(model: ModelActor, region: String, hit_dir: Vector3, gib_p
 	# 2.5 reveal the stump cap - caps ship hidden (ModelActor hides them with the
 	# gib donors).
 	for cap_name: String in spec.get("caps", []):
-		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
+		var cm: MeshInstance3D = _find_named(root, str(cap_name), model.unit, "stump cap")
 		if cm != null:
 			cm.visible = true
 
@@ -230,7 +248,7 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 
 	# The one-piece head donor stays hidden - burst and pop are exclusive.
 	for mesh_name: String in spec["meshes"]:
-		var solid: MeshInstance3D = root.find_child(str(mesh_name), true, false) as MeshInstance3D
+		var solid: MeshInstance3D = _find_named(root, str(mesh_name), model.unit, "region mesh")
 		if solid != null:
 			solid.visible = false
 
@@ -241,13 +259,13 @@ static func dismember_head_burst(model: ModelActor, hit_dir: Vector3, gib_parent
 		_spawn_frag(f, gib_at, hit_dir, gib_parent, model.gib_scale)
 	# Gear (helmet) flies as its own lighter piece.
 	for gear_name: String in spec["gear"]:
-		var gm: MeshInstance3D = root.find_child(str(gear_name), true, false) as MeshInstance3D
+		var gm: MeshInstance3D = _find_named(root, str(gear_name), model.unit, "gear mesh")
 		if gm != null and gm.mesh != null:
 			var gxf: Transform3D = gm.global_transform
 			gm.visible = false
 			_spawn_gib(gm, gxf, hit_dir + Vector3.UP * 0.9, 3.0, gib_parent)
 	for cap_name: String in spec.get("caps", []):
-		var cm: MeshInstance3D = root.find_child(str(cap_name), true, false) as MeshInstance3D
+		var cm: MeshInstance3D = _find_named(root, str(cap_name), model.unit, "stump cap")
 		if cm != null:
 			cm.visible = true
 	var stump: Vector3 = skel.global_transform * skel.get_bone_global_pose(bone_idx).origin

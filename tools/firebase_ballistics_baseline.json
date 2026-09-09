@@ -1,12 +1,10 @@
 {
 	"families": 214,
 	"family_names": [
-		"@auto@",
 		"MC_casing",
 		"MC_crate",
 		"MC_pit_floor",
 		"MC_spent",
-		"StaticBody3D",
 		"WB_bunker_m60",
 		"WB_bunker_rifle",
 		"fb_ammo_crate_stack",
@@ -77,6 +75,7 @@
 		"fb_sandbag_hooch_p3",
 		"fb_sandbag_parapet",
 		"fb_sandbag_stack_i",
+		"fb_sbg_seg",
 		"fb_sbg_seg_000_col",
 		"fb_sbg_seg_001_col",
 		"fb_sbg_seg_002_col",
@@ -170,6 +169,7 @@
 		"fb_veg_tree_stump_col",
 		"fb_wash_drum",
 		"fb_water_can",
+		"fsb_main_v3",
 		"m101_breech&cannon",
 		"m101_breechblock",
 		"m101_cradle",
@@ -217,6 +217,6 @@
 		"us_mortar_tube_P2"
 	],
 	"figures": 406,
-	"hard": 1187,
-	"soft": 1249
+	"hard": 1182,
+	"soft": 1254
 }

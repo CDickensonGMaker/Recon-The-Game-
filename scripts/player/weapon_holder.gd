@@ -1172,8 +1172,15 @@ func _measure_recoil_pivot() -> float:
 		if mi == null:
 			continue
 		var nm: String = mi.name.to_lower()
-		if nm.contains("arm") or nm.contains("hand") or nm.contains("finger") \
-				or nm.contains("sleeve") or nm.contains("glove"):
+		# WorldWeapon.ARMS_HINTS is the one authority. This file carried a second, different
+		# list and the two disagreed: that one had `arms` and `forearm` but no `finger`, this
+		# one had `finger` but neither `arms` nor `forearm`.
+		var is_arms: bool = false
+		for hint in WorldWeapon.ARMS_HINTS:
+			if nm.contains(hint):
+				is_arms = true
+				break
+		if is_arms:
 			continue
 		var aabb: AABB = mi.get_aabb()
 		var xf: Transform3D = to_local * mi.global_transform
