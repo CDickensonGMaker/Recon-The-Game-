@@ -40,6 +40,10 @@ var is_ready: bool = false
 var chunks_per_side: int  # Chunks per side
 var chunk_cells: int
 
+## Chunk coords that have taken a heightmap edit at least once. Their chunks keep the working
+## arrays build_mesh produces so a later edit can patch them in place.
+var _patch_armed: Dictionary = {}
+
 var camera: Camera3D
 var terrain_generator: Node  # TerrainEngine autoload
 var vegetation_manager: Node  # VegetationManager - set externally for rice paddy coloring
@@ -212,6 +216,11 @@ func _load_chunk(coord: Vector2i) -> void:
 	var chunk := TerrainChunkClass.new(coord, chunk_size, cell_size)
 	chunk.name = "Chunk_%d_%d" % [coord.x, coord.y]
 	add_child(chunk)
+	# Ground that has already taken a shell keeps its patch arrays from this build on, so
+	# the NEXT shell on it patches instead of rebuilding. Ground nothing has hit pays no
+	# memory for the possibility.
+	if _patch_armed.has(coord):
+		chunk.arm_patch_cache()
 
 	# Classify vegetation BEFORE mesh build so the mesh can color rice paddies
 	var veg_bytes := PackedByteArray()
@@ -327,11 +336,47 @@ func _rebuild_chunks_in_region(cell_region: Rect2i) -> void:
 		for cx in range(min_chunk.x, max_chunk.x + 1):
 			var coord := Vector2i(cx, cz)
 			if chunks.has(coord):
-				# Use _rebuild_chunk_immediate which preserves the vegetation cache.
-				# _unload_chunk calls vegetation_manager.clear_chunk_full() which wipes
-				# _chunk_terrain and _chunk_placements, causing trees to respawn in
-				# their original positions after every explosion.
-				_rebuild_chunk_immediate(coord)
+				# PATCH the chunk in place if it can be patched; otherwise the full
+				# rebuild, which arms the patch cache for the next shell on this ground.
+				# _rebuild_chunk_immediate (not _unload_chunk) because clear_chunk_full
+				# wipes _chunk_terrain and _chunk_placements, which respawns the trees in
+				# their pre-blast positions.
+				if not _patch_chunk_region(coord, cell_region, cells_per_chunk):
+					# Arm the COORD, not the node: _rebuild_chunk_immediate throws the
+					# chunk away and builds a new one, so arming the doomed instance
+					# armed nothing and every shell rebuilt forever.
+					_patch_armed[coord] = true
+					_rebuild_chunk_immediate(coord)
+
+
+## Re-derive only the part of a chunk a heightmap edit actually touched. The chunk node, its
+## MeshInstance3D and its Jolt static body all survive; the vegetation is re-seated from the
+## cached scatter exactly as the full path does. Returns false when this chunk has no patch
+## cache yet, so the caller can do the full build that arms it.
+func _patch_chunk_region(coord: Vector2i, cell_region: Rect2i, cells_per_chunk: int) -> bool:
+	var chunk: Node3D = chunks[coord]
+	var start_x: int = coord.x * cells_per_chunk
+	var start_z: int = coord.y * cells_per_chunk
+	var local := Rect2i(
+		cell_region.position.x - start_x, cell_region.position.y - start_z,
+		cell_region.size.x, cell_region.size.y)
+	var region: PackedFloat32Array = heightmap.extract_region(start_x, start_z, chunk_cells)
+
+	StallLedger.begin("terrain.patch_mesh")
+	var ok: bool = bool(chunk.call("patch_mesh", region, heightmap.height_scale, local))
+	StallLedger.end()
+	if not ok:
+		return false
+
+	StallLedger.begin("terrain.collision")
+	chunk.call("refresh_collision")
+	StallLedger.end()
+
+	if vegetation_manager:
+		StallLedger.begin("terrain.veg_generate")
+		vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size)
+		StallLedger.end()
+	return true
 
 
 func set_camera(cam: Camera3D) -> void:

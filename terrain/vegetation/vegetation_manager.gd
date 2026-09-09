@@ -401,6 +401,9 @@ var _scatter_epoch: int = 0
 ## invalidate the scatter of every chunk on the map, and an assault fells trees continuously -
 ## measured 2026-09-09: veg.build_scatter back at 80.1 ms inside the 45-man fight.
 var _scatter_dirty: Dictionary = {}
+## Did the LAST _build_scatter answer from cache? Only then is the plant list unchanged, which
+## is the precondition for re-seating the canopy in place instead of rebuilding it.
+var _last_scatter_hit: bool = false
 
 ## Holes bucketed by world cell. _in_veg_hole runs per CANDIDATE PLANT on every chunk
 ## re-scatter, so a linear scan makes every rebuild slower for the rest of the mission -
@@ -573,7 +576,16 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 		var scatter: Array = _build_scatter(chunk_coord, heightmap, chunk_size)
 		StallLedger.end()
 		StallLedger.begin("veg.tree_cover_mmi")
-		_tree_cover.generate_for_chunk(chunk_coord, scatter)
+		# A cache hit means the plant LIST is unchanged and only the ground moved, so the
+		# canopy can be re-seated in place. The refresh checks its own assumptions and
+		# returns false if any of them fails - then the full rebuild runs.
+		var refreshed: bool = false
+		if _last_scatter_hit:
+			StallLedger.begin("veg.canopy_refresh")
+			refreshed = _tree_cover.refresh_chunk_transforms(chunk_coord, scatter) 				and TreeBreakSystem.refresh_chunk_transforms(_tree_cover, chunk_coord, scatter)
+			StallLedger.end()
+		if not refreshed:
+			_tree_cover.generate_for_chunk(chunk_coord, scatter)
 		StallLedger.end()
 	elif _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
 		# Authored patches bring their own trees - the lone-tree layer would double
@@ -597,6 +609,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 		# Same answer, new ground: re-seat every plant on the current heightmap and hand back
 		# the cached list. This is the crater path - the shell moved the dirt, not the trees.
 		StallLedger.begin("veg.scatter_hit")
+		_last_scatter_hit = true
 		var cached: Array = hit["scatter"]
 		for e: Dictionary in cached:
 			var xf: Transform3D = e["xf"]
@@ -604,6 +617,7 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 			e["xf"] = xf
 		StallLedger.end()
 		return cached
+	_last_scatter_hit = false
 	StallLedger.begin("veg.scatter_miss")
 	var terrain: PackedByteArray = _chunk_terrain[chunk_coord]
 	var rng := RandomNumberGenerator.new()

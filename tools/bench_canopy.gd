@@ -51,6 +51,9 @@ func _ready() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	get_viewport().scaling_3d_scale = RENDER_SCALE
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--lod-threshold="):
+			get_viewport().mesh_lod_threshold = float(a.split("=")[1])
 	_announce()
 	_vp = get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(_vp, true)
@@ -74,6 +77,11 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.current = true
 	_cam.global_position = _stand()
+	# EVERY dial this bench can move is read back off the VIEWPORT, never off
+	# ProjectSettings - the 2026-08-07..09-08 measurement window was voided by exactly that
+	# confusion, and mesh_lod_threshold is now a lever this bench pulls.
+	print("[CANOPY] live viewport: scale %.3f | mesh_lod_threshold %.2f px | ground-cover ring %.0f m"
+		% [get_viewport().scaling_3d_scale, get_viewport().mesh_lod_threshold, _small_ring()])
 	print("[CANOPY] seed %d | stand %s | render scale %.2f | fov %.0f"
 		% [SEED, str(_cam.global_position.round()), RENDER_SCALE, _cam.fov])
 	await get_tree().create_timer(WARMUP).timeout
@@ -212,3 +220,10 @@ func _summarise() -> void:
 	print("[CANOPY] === mean over %d poses: %.1f fps | calls %.0f | prims %.0f | gpu %.2fms ==="
 		% [_rows.size(), sum_avg / n, sum_calls / n, sum_prims / n, sum_gpu / n])
 	get_tree().quit(0)
+
+
+## The ground-cover ring the TreeCoverLayer is actually running, read off the live node.
+func _small_ring() -> float:
+	for n in get_tree().get_nodes_in_group("tree_cover"):
+		return float(n.get("small_ring"))
+	return -1.0

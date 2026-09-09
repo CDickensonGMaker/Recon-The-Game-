@@ -16,6 +16,24 @@ var collision_body: StaticBody3D  # Optional - only for raycast picking
 ## cannot describe different ground.
 var _height_samples: PackedFloat32Array = PackedFloat32Array()
 
+## PATCH CACHE. A 5m crater edits a handful of samples and then rebuilt this whole chunk:
+## 64x64 quads re-derived, 49,152 vertices re-emitted, the node destroyed and a new Jolt body
+## swapped in. These four arrays are what patch_mesh() edits in place instead.
+##
+## ARMED BY THE FIRST PATCH, NOT BY THE FIRST BUILD, and that is the whole memory argument:
+## the fan-out arrays are ~2 MB a chunk, and in a mission only the few chunks that actually
+## take shells are ever patched. Holding them for all 25 would be ~49 MB to save time on
+## ground nothing ever hits.
+var _keep_patch_cache: bool = false
+var _grid_v: PackedVector3Array = PackedVector3Array()
+var _grid_c: PackedColorArray = PackedColorArray()
+var _verts: PackedVector3Array = PackedVector3Array()
+var _norms: PackedVector3Array = PackedVector3Array()
+var _cols: PackedColorArray = PackedColorArray()
+## The last inputs build_mesh was handed, so a patch can reproduce colours without them.
+var _veg_bytes: PackedByteArray = PackedByteArray()
+var _veg_bundles: int = 0
+
 ## STATIC on purpose: a crater rebuild throws the TerrainChunk away and constructs a new
 ## one, so a per-instance flag would still print once per rebuild - which is the case this
 ## exists to stop. One line per session, and it is diagnostic only. See build_mesh().
@@ -53,6 +71,8 @@ func _ready() -> void:
 ## bundles_per_chunk: Number of bundles per side (typically chunk_size / 8)
 func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.WORLD_HEIGHT_MAX, vegetation_terrain: PackedByteArray = PackedByteArray(), bundles_per_chunk: int = 0) -> void:
 	height_scale = h_scale
+	_veg_bytes = vegetation_terrain
+	_veg_bundles = bundles_per_chunk
 
 	if region_data.size() < (grid_resolution + 1) * (grid_resolution + 1):
 		push_error("[TerrainChunk] Region data too small: %d (expected %d)" % [
@@ -73,6 +93,7 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 	## This matters because a single crater rebuilds whole chunks: measured on the
 	## headless stall bench, 6 large explosions spent 534ms in the chunk rebuild chain,
 	## 185ms of it right here.
+	StallLedger.begin("mesh.grid")
 	var step: float = chunk_size / float(grid_resolution)
 	var data_width: int = grid_resolution + 1
 
@@ -93,6 +114,8 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 			grid_c[gi] = _get_terrain_color(h, norm_h, local_x, local_z,
 				vegetation_terrain, bundles_per_chunk)
 
+	StallLedger.end()
+	StallLedger.begin("mesh.fanout")
 	var quads: int = grid_resolution * grid_resolution
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
@@ -130,6 +153,8 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 			verts[w] = v3; norms[w] = n2; cols[w] = c3; w += 1
 			verts[w] = v2; norms[w] = n2; cols[w] = c2; w += 1
 
+	StallLedger.end()
+	StallLedger.begin("mesh.surface")
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -138,10 +163,17 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh_instance.mesh = am
+	if _keep_patch_cache:
+		_grid_v = grid_v
+		_grid_c = grid_c
+		_verts = verts
+		_norms = norms
+		_cols = cols
 
 	if not shared_material:
 		_create_shared_material()
 	mesh_instance.material_override = shared_material
+	StallLedger.end()
 
 	## Was an unconditional print. A raid rebuilds chunks continuously and each line was
 	## a synchronous write into the redirected bench log, inside the very stall being
@@ -245,6 +277,105 @@ func _get_terrain_color(_h: float, _normalized_h: float, local_x: float, local_z
 
 	# UNIFORM BASE GREEN - no height variation
 	return Color(0.18, 0.35, 0.12)
+
+
+## Re-derive ONLY the samples and quads a heightmap edit touched, in place, and hand the
+## surface back. The chunk NODE survives: no MeshInstance3D churn, no StaticBody3D destroyed
+## and re-added to Jolt, no re-classification of vegetation.
+##
+## cell_rect is in this chunk's own sample coordinates. A sample at x feeds the quads at x-1
+## and x, so the quad span is the sample span widened by one on the low side.
+##
+## Returns false when the chunk has no patch cache yet - the caller then does a full build,
+## which arms the cache (see _keep_patch_cache). The first shell on a chunk pays full price;
+## every later one on the same chunk does not, and shells cluster.
+func patch_mesh(region_data: PackedFloat32Array, h_scale: float, cell_rect: Rect2i) -> bool:
+	if not _keep_patch_cache or _grid_v.is_empty() or _verts.is_empty():
+		return false
+	height_scale = h_scale
+	var data_width: int = grid_resolution + 1
+	if region_data.size() < data_width * data_width:
+		return false
+
+	var step: float = chunk_size / float(grid_resolution)
+	var vx0: int = clampi(cell_rect.position.x, 0, data_width - 1)
+	var vz0: int = clampi(cell_rect.position.y, 0, data_width - 1)
+	var vx1: int = clampi(cell_rect.position.x + cell_rect.size.x, 0, data_width - 1)
+	var vz1: int = clampi(cell_rect.position.y + cell_rect.size.y, 0, data_width - 1)
+
+	StallLedger.begin("mesh.patch_grid")
+	for z in range(vz0, vz1 + 1):
+		for x in range(vx0, vx1 + 1):
+			var gi: int = z * data_width + x
+			var local_x: float = x * step
+			var local_z: float = z * step
+			var norm_h: float = region_data[gi]
+			var h: float = norm_h * height_scale
+			_grid_v[gi] = Vector3(local_x, h, local_z)
+			_grid_c[gi] = _get_terrain_color(h, norm_h, local_x, local_z,
+				_veg_bytes, _veg_bundles)
+			_height_samples[gi] = h
+	StallLedger.end()
+
+	StallLedger.begin("mesh.patch_quads")
+	var qx0: int = maxi(0, vx0 - 1)
+	var qz0: int = maxi(0, vz0 - 1)
+	var qx1: int = mini(grid_resolution - 1, vx1)
+	var qz1: int = mini(grid_resolution - 1, vz1)
+	for z in range(qz0, qz1 + 1):
+		for x in range(qx0, qx1 + 1):
+			var i: int = z * data_width + x
+			var v0: Vector3 = _grid_v[i]
+			var v1: Vector3 = _grid_v[i + 1]
+			var v2: Vector3 = _grid_v[i + data_width]
+			var v3: Vector3 = _grid_v[i + data_width + 1]
+			var n1: Vector3 = (v1 - v0).cross(v2 - v0).normalized()
+			if n1.y < 0.0:
+				n1 = -n1
+			var n2: Vector3 = (v3 - v1).cross(v2 - v1).normalized()
+			if n2.y < 0.0:
+				n2 = -n2
+			var w: int = (z * grid_resolution + x) * 6
+			_verts[w] = v0; _norms[w] = n1; _cols[w] = _grid_c[i]
+			_verts[w + 1] = v1; _norms[w + 1] = n1; _cols[w + 1] = _grid_c[i + 1]
+			_verts[w + 2] = v2; _norms[w + 2] = n1; _cols[w + 2] = _grid_c[i + data_width]
+			_verts[w + 3] = v1; _norms[w + 3] = n2; _cols[w + 3] = _grid_c[i + 1]
+			_verts[w + 4] = v3; _norms[w + 4] = n2; _cols[w + 4] = _grid_c[i + data_width + 1]
+			_verts[w + 5] = v2; _norms[w + 5] = n2; _cols[w + 5] = _grid_c[i + data_width]
+	StallLedger.end()
+
+	StallLedger.begin("mesh.patch_surface")
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = _verts
+	arrays[Mesh.ARRAY_NORMAL] = _norms
+	arrays[Mesh.ARRAY_COLOR] = _cols
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh_instance.mesh = am
+	mesh_instance.material_override = shared_material
+	StallLedger.end()
+	return true
+
+
+## Arm the patch cache. The next full build_mesh keeps its working arrays so the shell after
+## that can patch instead of rebuild.
+func arm_patch_cache() -> void:
+	_keep_patch_cache = true
+
+
+## Re-seat the heightfield on the patched samples. The shape is one array assignment; the
+## body and its Jolt registration are untouched, which is the other half of the saving.
+func refresh_collision() -> void:
+	if collision_body == null or collision_body.get_child_count() == 0:
+		return
+	var cs := collision_body.get_child(0) as CollisionShape3D
+	if cs == null:
+		return
+	var shape := cs.shape as HeightMapShape3D
+	if shape == null:
+		return
+	shape.map_data = _height_samples
 
 
 ## Terrain collision: a HEIGHTFIELD over the same samples the mesh was built from, not a

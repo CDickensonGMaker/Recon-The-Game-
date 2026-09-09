@@ -73,6 +73,19 @@ const PARK_POS := Vector3(0.0, -4000.0, 0.0)
 @export var near_distance: float = 65.0
 @export var view_distance: float = 350.0  ## whole canopy ring (fog transmittance <=10%)
 
+## GROUND COVER draws to here instead of view_distance. Grass tufts, rice and ferns are
+## 0.5-1.5 m tall, so past ~150 m they are a pixel of noise costing a real mesh each - and the
+## conversion to real meshes (his ruling, no cards) is what made that expensive. The number is
+## NOT taste: it sits just outside the AI's open-ground sight cap (SIGHT_CAP_OPEN 140 m), so
+## every metre of ground anyone can see you across, or shoot you across, still has its cover
+## drawn. Shortening it further would start deciding fights.
+##
+## Canopy species (trees, bamboo, palms, banana, bushes, vines) are untouched at 350 m.
+const SMALL_RING_M: float = 150.0
+const SMALL_PREFIXES: Array[String] = ["rice_", "tall_grass_", "elephant_grass_", "fern_"]
+## 0 disables the short ring entirely, for the A/B. Set by --small-ring=<m>.
+var small_ring: float = SMALL_RING_M
+
 ## visibility_range is per-NODE against the transformed AABB (godot#79471 - the
 ## docs say origin and are wrong). Chunk-sized nodes quantize both rings by
 ## +/-181m - that WAS the invisible-jungle bug. 64m buckets bound the error to
@@ -183,6 +196,9 @@ func _ready() -> void:
 		if a.begins_with("--card-dist=") or a.begins_with("--canopy-dist="):
 			view_distance = maxf(near_distance, float(a.split("=")[1]))
 			print("[TreeCover] canopy draw radius lever: view_distance=%.0f" % view_distance)
+		if a.begins_with("--small-ring="):
+			small_ring = float(a.split("=")[1])
+			print("[TreeCover] ground-cover ring lever: small_ring=%.0f" % small_ring)
 
 
 ## Load the real model for each species name (idempotent). A species with no GLB is not
@@ -216,6 +232,16 @@ func _report_cover_split(names: Array) -> void:
 		% [cover.size(), ", ".join(cover), conceal.size(), ", ".join(conceal)])
 
 
+## How far this species draws. Ground cover stops at small_ring; everything else is canopy.
+func _ring_for(nm: String) -> float:
+	if small_ring <= 0.0 or small_ring >= view_distance:
+		return view_distance
+	for p: String in SMALL_PREFIXES:
+		if nm.begins_with(p):
+			return small_ring
+	return view_distance
+
+
 ## The near-solid mesh for a species, for a one-off visual (the felling swap).
 func solid_mesh_for(species: String) -> Mesh:
 	return _solid_mesh.get(species) as Mesh
@@ -225,9 +251,14 @@ func solid_mesh_for(species: String) -> Mesh:
 ##   - ONE MultiMesh per (species, 64 m bucket) drawing the real model 0..view_distance
 ##   - trunk collider CANDIDATES per COVER instance (bodied by the ring, not here)
 func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
+	StallLedger.begin("mmi.clear")
 	clear_chunk(coord)
+	StallLedger.end()
 	_chunk_scatter[coord] = scatter
+	StallLedger.begin("mmi.register")
 	TreeBreakSystem.register_chunk(self, coord, scatter)
+	StallLedger.end()
+	StallLedger.begin("mmi.group")
 	var groups: Dictionary = {}   ## [name, bucket_x, bucket_z] -> Array[Transform3D]
 	var origins := PackedVector3Array()
 	var trunk_pos := PackedVector3Array()
@@ -252,6 +283,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 			trunk_rad.append(r)
 			trunk_hgt.append(float(e.get("trunk_h", TRUNK_HEIGHT)))
 
+	StallLedger.end()
+	StallLedger.begin("mmi.build")
 	var nodes: Array[Node] = []
 	for key: Array in groups:
 		var nm: String = key[0]
@@ -266,9 +299,12 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		for xf: Transform3D in xforms:
 			local.append(Transform3D(xf.basis, xf.origin - centroid))
 		# The real model, all the way out. One node, one mesh, no boundary to pop across.
-		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, view_distance, centroid))
+		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, _ring_for(nm), centroid))
+	StallLedger.end()
+	StallLedger.begin("mmi.addchild")
 	for node: Node in nodes:
 		add_child(node)
+	StallLedger.end()
 	_chunk_nodes[coord] = nodes
 	chunk_origins[coord] = origins
 	if trunk_pos.size() > 0:
@@ -278,7 +314,90 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad,
 			"heights": trunk_hgt, "bounds": bounds}
 	# Same-frame refresh so a blast rebuild never leaves in-ring trunks bodiless.
+	StallLedger.begin("mmi.ring")
 	_update_ring(_resolve_center())
+	StallLedger.end()
+
+
+## Y-ONLY REFRESH of a chunk already on screen. A crater moves the ground under a chunk's
+## plants; it changes neither which plants there are nor their bucket, because a bucket is an
+## XZ hash. generate_for_chunk would nonetheless free every MultiMeshInstance in the chunk,
+## re-register ~2,400 break entries and allocate every MultiMesh again - measured as ~86% of a
+## crater's chunk rebuild once the mesh was patched instead of rebuilt.
+##
+## This repeats the SAME walk in the SAME order and writes into the nodes that are already
+## there. The order is what makes it safe: Godot dictionaries iterate in insertion order, so
+## walking one array twice inserts the same keys in the same sequence, and node i is the node
+## for key i. Every assumption is CHECKED - a differing group count, node count or instance
+## count returns false and the caller does the full rebuild. It never guesses.
+func refresh_chunk_transforms(coord: Vector2i, scatter: Array) -> bool:
+	if not _chunk_nodes.has(coord) or not _chunk_scatter.has(coord):
+		return false
+	var groups: Dictionary = {}
+	var origins := PackedVector3Array()
+	var trunk_pos := PackedVector3Array()
+	var trunk_rad := PackedFloat32Array()
+	var trunk_hgt := PackedFloat32Array()
+	for e: Dictionary in scatter:
+		var nm: String = String(e.get("name", ""))
+		if not _solid_mesh.has(nm):
+			continue
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		var key: Array = [nm, int(floor(xf.origin.x / BUCKET)), int(floor(xf.origin.z / BUCKET))]
+		if not groups.has(key):
+			groups[key] = []
+		(groups[key] as Array).append(xf)
+		origins.append(xf.origin)
+		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
+		if r > 0.0:
+			trunk_pos.append(xf.origin)
+			trunk_rad.append(r)
+			trunk_hgt.append(float(e.get("trunk_h", TRUNK_HEIGHT)))
+
+	var nodes: Array = _chunk_nodes[coord]
+	if groups.size() != nodes.size():
+		return false
+	var i: int = 0
+	for key: Array in groups:
+		var mmi := nodes[i] as MultiMeshInstance3D
+		if mmi == null or not is_instance_valid(mmi) or mmi.multimesh == null:
+			return false
+		if mmi.multimesh.instance_count != (groups[key] as Array).size():
+			return false
+		i += 1
+	i = 0
+	for key: Array in groups:
+		var mmi := nodes[i] as MultiMeshInstance3D
+		var xforms: Array = groups[key]
+		var centroid := Vector3.ZERO
+		for xf: Transform3D in xforms:
+			centroid += xf.origin
+		centroid /= float(xforms.size())
+		mmi.position = centroid
+		for j in xforms.size():
+			var xf2: Transform3D = xforms[j]
+			mmi.multimesh.set_instance_transform(j,
+				Transform3D(xf2.basis, xf2.origin - centroid))
+		i += 1
+
+	_chunk_scatter[coord] = scatter
+	chunk_origins[coord] = origins
+	if trunk_pos.size() > 0:
+		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
+		for p: Vector3 in trunk_pos:
+			bounds = bounds.expand(Vector2(p.x, p.z))
+		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad,
+			"heights": trunk_hgt, "bounds": bounds}
+	else:
+		_chunk_trunks.erase(coord)
+	# Bodies already handed out keep their old seat otherwise - a trunk collider standing at
+	# the height the ground USED to be is a man shooting at air.
+	var assigned: Dictionary = _chunk_bodies.get(coord, {})
+	for idx: int in assigned:
+		if idx < trunk_pos.size():
+			_place_body(assigned[idx], trunk_pos[idx], trunk_rad[idx], trunk_hgt[idx])
+	_update_ring(_resolve_center())
+	return true
 
 
 func clear_chunk(coord: Vector2i) -> void:
