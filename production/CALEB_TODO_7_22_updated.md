@@ -75,6 +75,26 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### CONDITION 5 — the final clean measurement, 2026-09-09
+
+**Box verified clear at BOTH ends.** 18 post-assault windows, one real breach in the run.
+
+| | |
+|---|---|
+| physics windows over 120 ms | **1 of 18** (125.4 ms, a spawn frame) |
+| idle windows over 120 ms | **1 of 18** (317.3 ms, and that window IS the breach re-bake) |
+| `treebreak.consume` | **gone from the report** (was 55.4 ms worst) |
+| `veg.regen_flush` (its replacement) | 19.6 mean / 24.7 worst |
+| `spawn.man` | 20.4 mean / 30.8 worst (was 105-120 per man this morning) |
+| `terrain.crater` | 65.1 mean / 102.1 worst |
+
+**Exactly two offenders are left and both are named:** the nav breach re-bake at 313 ms, and a
+single spawn frame at 125.4 ms. Nothing else in the 45-man assault crosses the bar.
+
+Read the sample honestly: 18 windows. The 90-window run that first reopened this condition was
+taken on a dirty box. A full-length run on a verified-clean box has still not been taken, so
+this is the best measurement of the night rather than a closure.
+
 ### HIS RULING — the world outside the wire cannot be destroyed
 
 Not a defect list; a cost. **Almost nothing you can blow up outside the firebase actually blows
