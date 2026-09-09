@@ -346,20 +346,28 @@ func _start_bake(job: Dictionary) -> void:
 		return
 
 	var source := NavigationMeshSourceGeometryData3D.new()
+	StallLedger.begin("nav.terrain")
 	_add_terrain(source, box)
+	StallLedger.end()
 	var carved: int = 0
 	var croot: Node3D = job.get("colliders", null) as Node3D
 	if croot != null and is_instance_valid(croot):
+		StallLedger.begin("nav.colliders")
 		carved = -_add_colliders(source, croot, box) - 1   # negative = collider count, see below
+		StallLedger.end()
 		# AND the stamped structures inside it. The firebase box is 370m and now swallows
 		# whole village and ruin sites, whose own regions are pulled clear of it to stop
 		# the overlap that severed every path between them. Its collider walk only knows
 		# firebase geometry, so without this a hut inside the wire's box would be baked
 		# straight through - navmesh disagreeing with physics, which is the one thing this
 		# baker exists to prevent.
+		StallLedger.begin("nav.structures")
 		_add_structures(source, box)
+		StallLedger.end()
 	else:
+		StallLedger.begin("nav.structures")
 		carved = _add_structures(source, box)
+		StallLedger.end()
 
 	var region := NavigationRegion3D.new()
 	region.name = "NavRegion_%d" % regions_live
@@ -506,11 +514,20 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 				break
 		if skip:
 			continue
+		# ONE get_faces() PER SHAPE. ConcavePolygonShape3D.get_faces() COPIES the whole face
+		# array, and the flipped-winding branch below used to ask for a second copy of the
+		# same shape - 1,985 double-sided shapes in this compound, so ~2,000 redundant copies
+		# of trimesh geometry per bake. That is the breach re-bake's 320 ms.
 		var faces: PackedVector3Array = _shape_faces(cs.shape)
 		if faces.is_empty():
 			continue
+		var raw: PackedVector3Array = faces
+		StallLedger.begin("nav.cull")
 		faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
+		StallLedger.end()
+		StallLedger.begin("nav.addfaces")
 		source.add_faces(faces, cs.global_transform)
+		StallLedger.end()
 		# THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward
 		# (2048 shapes; physics is repaired via backface_collision -
 		# site_planner._force_backface_collision), but the bake reads WINDING, not
@@ -529,16 +546,22 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 		# exists to restore.
 		var concave := cs.shape as ConcavePolygonShape3D
 		if concave != null and concave.backface_collision:
-			var flipped: PackedVector3Array = _flip_faces(_shape_faces(cs.shape))
+			StallLedger.begin("nav.flip")
+			var flipped: PackedVector3Array = _flip_faces(raw)
+			StallLedger.end()
 			var is_ground: bool = false
 			for gp in NAV_GROUND_PREFIXES:
 				if owner_name.begins_with(gp):
 					is_ground = true
 					break
 			if not is_ground:
+				StallLedger.begin("nav.cullflip")
 				flipped = _cull_above_base(flipped, cs.global_transform)
+				StallLedger.end()
 			if not flipped.is_empty():
+				StallLedger.begin("nav.addfaces")
 				source.add_faces(flipped, cs.global_transform)
+				StallLedger.end()
 		added += 1
 	return added
 
@@ -626,33 +649,46 @@ func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
 		for gp in NAV_GROUND_PREFIXES:
 			if owner_name.begins_with(gp):
 				return faces
-		@warning_ignore("integer_division")
-		var over: int = (faces.size() - _cull_above_base(faces, xform).size()) / 3
-		if over > 0:
-			# Keep the ROOF PLANE and the XZ footprint, not just a count. A triangle above the
-			# roof line is not proof of a walkable roof - Recast still has to accept its slope,
-			# its winding and the headroom over it - so the honest question is asked of the
-			# BAKED MESH afterwards: are there polygons up there. A count alone cannot answer it.
-			var rec: Dictionary = _roof_misses.get(owner_name, {}) as Dictionary
-			var base_y: float = INF
-			var lo := Vector2(INF, INF)
-			var hi := Vector2(-INF, -INF)
-			for v in faces:
-				var w: Vector3 = xform * v
-				base_y = minf(base_y, w.y)
-				lo.x = minf(lo.x, w.x)
-				lo.y = minf(lo.y, w.z)
-				hi.x = maxf(hi.x, w.x)
-				hi.y = maxf(hi.y, w.z)
-			rec["tris"] = int(rec.get("tris", 0)) + over
-			rec["cut_y"] = minf(float(rec.get("cut_y", INF)), base_y + NAV_ROOF_HEIGHT_M)
-			rec["lo"] = Vector2(minf(float((rec.get("lo", lo) as Vector2).x), lo.x),
-				minf(float((rec.get("lo", lo) as Vector2).y), lo.y))
-			rec["hi"] = Vector2(maxf(float((rec.get("hi", hi) as Vector2).x), hi.x),
-				maxf(float((rec.get("hi", hi) as Vector2).y), hi.y))
-			_roof_misses[owner_name] = rec
+		# THE AUDIT IS A LOAD-TIME QUESTION, NOT A PER-BAKE ONE, and it was not free: counting
+		# what this pass would have culled cost 97.9 ms of the breach re-bake's 314 ms - an
+		# instrument I added tonight, charging a third of the stall it was meant to help
+		# investigate, on every hole a sapper blows. The roof geometry does not change when a
+		# wall comes down, so the answer from the first bake is still the answer.
+		if not _roof_audit_done:
+			var over: int = _count_above_base(faces, xform)
+			if over > 0:
+				# A triangle above the roof line is only a CANDIDATE - Recast still has to
+				# accept its slope, its winding and the headroom over it - so the roof plane
+				# and the XZ footprint are kept too, and the honest question is put to the
+				# BAKED MESH afterwards. A count alone cannot answer it.
+				_record_roof_miss(owner_name, over, faces, xform)
 		return faces
 	return _cull_above_base(faces, xform)
+
+
+## Ran once, on the first bake only - see the gate in _cull_roof_faces.
+var _roof_audit_done: bool = false
+
+func _record_roof_miss(owner_name: String, over: int, faces: PackedVector3Array,
+		xform: Transform3D) -> void:
+	var rec: Dictionary = _roof_misses.get(owner_name, {}) as Dictionary
+	var base_y: float = INF
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for v in faces:
+		var w: Vector3 = xform * v
+		base_y = minf(base_y, w.y)
+		lo.x = minf(lo.x, w.x)
+		lo.y = minf(lo.y, w.z)
+		hi.x = maxf(hi.x, w.x)
+		hi.y = maxf(hi.y, w.z)
+	rec["tris"] = int(rec.get("tris", 0)) + over
+	rec["cut_y"] = minf(float(rec.get("cut_y", INF)), base_y + NAV_ROOF_HEIGHT_M)
+	rec["lo"] = Vector2(minf(float((rec.get("lo", lo) as Vector2).x), lo.x),
+		minf(float((rec.get("lo", lo) as Vector2).y), lo.y))
+	rec["hi"] = Vector2(maxf(float((rec.get("hi", hi) as Vector2).x), hi.x),
+		maxf(float((rec.get("hi", hi) as Vector2).y), hi.y))
+	_roof_misses[owner_name] = rec
 
 
 ## Owner NAME -> {tris, cut_y, lo, hi} for the report below. Keyed by name, not prefix: the
@@ -665,6 +701,9 @@ var _roof_misses: Dictionary = {}
 ## its own roof line is a roof a man can be pathed onto deliberately, which is a different
 ## defect from the top-down re-seat that put him there by accident.
 func _report_roof_misses(nav: NavigationMesh = null) -> void:
+	if _roof_audit_done:
+		return
+	_roof_audit_done = true
 	if _roof_misses.is_empty():
 		print("[NavBaker] roof cull: every structure with geometry above its roof line is covered")
 		return
@@ -716,6 +755,19 @@ func _report_roof_misses(nav: NavigationMesh = null) -> void:
 		print("[NavBaker] roof check skipped (footprint too wide to judge by box): %s"
 			% ", ".join(too_big))
 	_roof_misses.clear()
+
+
+## How many triangles _cull_above_base WOULD remove, without building the array it returns.
+func _count_above_base(faces: PackedVector3Array, xform: Transform3D) -> int:
+	var base_y: float = INF
+	for v in faces:
+		base_y = minf(base_y, (xform * v).y)
+	var cut: float = base_y + NAV_ROOF_HEIGHT_M
+	var n: int = 0
+	for i in range(0, faces.size() - 2, 3):
+		if (xform * faces[i]).y >= cut and (xform * faces[i + 1]).y >= cut 				and (xform * faces[i + 2]).y >= cut:
+			n += 1
+	return n
 
 
 ## The height rule itself, shared by the listed roof cull and the flipped-face
