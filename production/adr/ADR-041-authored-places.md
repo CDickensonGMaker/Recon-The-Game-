@@ -174,6 +174,21 @@ transforms does care** — on a partly-rolling pad, props at the rim float or si
 > shoulder — or it does not ship.** A site that silently demands `flattening = 1.0` is requesting a
 > pancake, and pancakes are refused.
 
+> **IMPLEMENTED 2026-09-09 — and the declared profile now MEANS something.** Until that night a plan
+> declared radius/strength/shoulder, `stamp_site_plan` handed them to `clear_and_flatten()`, and the
+> ground ignored the strength entirely — the paragraph above says why. `SitePlanner.flatten_pad()`
+> (grep the function; do not trust a line number) takes the mean over the pad's own core in normalised
+> heightmap units, lerps every core cell to it at the declared strength, and ramps back out across the
+> declared shoulder. `clear_and_flatten()` still runs FIRST for the vegetation cut, the dirt disc and
+> the AI grid; the pad is levelled LAST so the final height is the pad's. Guarded once per disc by
+> `_flattened_pads`, which is what keeps ADR-010's re-stamp contract true.
+>
+> **Measured on a real world boot (`tests/test_site_plan_roundtrip.tscn`, seed 4242):** a 48 m pad
+> holding **5.64 m of relief** before, **0.03 m across the inner 43 m** after, and **0.00 m under each
+> of three placed buildings**, every one seated 0.00 m above its own ground. The rim still reads 0.31 m
+> over the full radius and always will — that ring IS the shoulder, and a pad with no shoulder is a
+> cliff.
+
 The firebase is the honest price list for seating an authored place on generated ground: a Blender
 generator, a mound manifest (`fsb_main_v3_mound.json`), a ported height function (`fsb_mound_height()`,
 `:868-897`), a measured falloff constant (`FSB_PLATEAU_FALLOFF = 0.107`), a real sculpt ordered *after*
@@ -330,8 +345,9 @@ All file:line verified this session unless marked otherwise.
   a composed root (verified).
 - `scripts/world/site_planner.gd:556-566` — `_near_building`'s circle approximation (verified; the
   8.06m-vs-7.85m arithmetic derived from `collision_table.gd:26`).
-- `scripts/world/site_planner.gd:118-131` — `clear_and_flatten` stages a clearing zone, not a flatten
-  (verified).
+- `scripts/world/site_planner.gd` — `clear_and_flatten` stages a clearing zone, not a flatten
+  (verified 2026-09-06; the line numbers drifted by 2026-09-09, grep the function). Its counterpart
+  `flatten_pad`, added 2026-09-09, is the one that levels ground — see §6.
 - `terrain/systems/clearing_system.gd:37-39, 140-148` — `height_flattening: 0.7` (council architect;
   **not independently re-measured by the Arbiter**).
 - `scenes/world/firebase_main.tscn` — 13 lines, 4 nodes, 2 `Marker3D`s (verified by direct read).

@@ -18,10 +18,25 @@ const PLAN_NAME: String = "_probe_roundtrip"
 ## Local placement is exact - a part that lands further than this from its planned offset means
 ## the transform chain is wrong, not that the ground moved.
 const TOL_M: float = 0.01
-## Placed parts that ship with no collider. The plan places three structural parts and
-## fb_FoxholeSandbags is one of them; its July review export has zero -colonly nodes.
-## DRIVE THIS TO 0 as the proof pieces land. Raising it is the forbidden move.
-const NO_COLLIDER_BASELINE: int = 1
+## Placed parts that ship with no collider. It was 1 until 2026-09-09, when
+## tools/add_kit_colliders.py cut a -colonly twin per solid mesh into all five of the July
+## review exports that had none. IT IS 0 NOW AND IT STAYS 0. Raising it is the forbidden move.
+const NO_COLLIDER_BASELINE: int = 0
+
+## How flat "flat" is. His ask was that placing a model "plants a flat area for the building
+## to exist"; at strength 1.0 the pad's core must be level to inside this, or flatten_pad()
+## is doing what clear_and_flatten() did - which is to say, not flattening.
+const FLAT_TOL_M: float = 0.05
+## Where the pad is measured: a 13x13 lattice, plus the ground directly under every placed
+## part. A centre sample alone would pass on any surface that happens to cross the middle at
+## the right height.
+const PAD_SAMPLES: int = 13
+## The CORE is what has to be flat. Measured to the declared radius the pad reads 0.31 m of
+## relief and always will: the outermost ring IS the lip where the shoulder ramp starts, and
+## sample_world() interpolates bilinearly across that boundary cell. A pad with no lip is a
+## cliff, which is the other half of his ask ("integrated into the world"), so the rim is
+## reported and the core is asserted.
+const CORE_FRACTION: float = 0.9
 
 var _failures: int = 0
 
@@ -76,7 +91,11 @@ func _ready() -> void:
 	var plan := SitePlan.new()
 	plan.plan_name = PLAN_NAME
 	plan.flatten_radius = 24.0
-	plan.flatten_strength = 0.7
+	# 1.0, deliberately. ADR-041 makes the declared strength BINDING and warns that a site
+	# silently demanding 1.0 is asking for a pancake - so this probe ASKS for one, out loud,
+	# and measures whether it gets one. A partial strength would prove nothing: the old
+	# clear_and_flatten path also moved the ground a little.
+	plan.flatten_strength = 1.0
 	plan.flatten_shoulder = 8.0
 	# Choose parts the authored contract says ARE structures. Picking blind off the palette is
 	# how the first version of this test passed while the whole compound was invulnerable:
@@ -149,6 +168,12 @@ func _ready() -> void:
 		_finish(world)
 		return
 
+	# THE GROUND BEFORE. Same lattice, same points, so the after-number is a comparison and
+	# not an assertion floating on its own.
+	var before: Array = _sample_pad(world.terrain_manager, centre, reloaded.flatten_radius)
+	print("[PLAN] ground BEFORE: min %.2f max %.2f range %.2f m over a %.0f m pad"
+		% [before[0], before[1], before[1] - before[0], reloaded.flatten_radius * 2.0])
+
 	var site: Dictionary = planner.stamp_site_plan(reloaded, centre, reg)
 	await get_tree().physics_frame
 	if site.is_empty():
@@ -214,6 +239,18 @@ func _ready() -> void:
 		_fail("NOTHING is destructible after stamping %d structural part(s) - the compound "
 			% reloaded.parts.size()
 			+ "is bulletproof and indestructible, which is exactly ADR-042's silent failure")
+	# COUNT THEM, not just "some". Non-empty passed while ONE of three parts was wired: the
+	# other two still carried Blender workbench mesh names, so structure_meshes matched
+	# nothing and two buildings were silently invulnerable. Every part that declares a kind
+	# owes a Destructible.
+	var want_destructible: int = 0
+	for entry_any in reloaded.parts:
+		if reg.destructible_kind(str((entry_any as Dictionary)["id"])) != "":
+			want_destructible += 1
+	if destructibles.size() < want_destructible:
+		_fail("%d part(s) declare a destructible kind but only %d Destructible(s) exist - the "
+			% [want_destructible, destructibles.size()]
+			+ "rest are invulnerable, and nothing raised an error")
 	for d_any in destructibles:
 		var d := d_any as Destructible
 		var shapes: int = 0
@@ -239,6 +276,84 @@ func _ready() -> void:
 		_fail("%d placed part(s) ship with no collider, baseline is %d - a part lost its collision"
 			% [lame, NO_COLLIDER_BASELINE])
 
+	# THE GROUND AFTER - the number his ask is actually about.
+	var after: Array = _sample_pad(world.terrain_manager, centre, reloaded.flatten_radius)
+	var core: Array = _sample_pad(world.terrain_manager, centre,
+		reloaded.flatten_radius * CORE_FRACTION)
+	print("[PLAN] ground AFTER:  min %.2f max %.2f range %.2f m over a %.0f m pad"
+		% [after[0], after[1], after[1] - after[0], reloaded.flatten_radius * 2.0])
+	print("[PLAN] ground CORE:   min %.2f max %.2f range %.2f m over the inner %.0f m"
+		% [core[0], core[1], core[1] - core[0],
+			reloaded.flatten_radius * CORE_FRACTION * 2.0])
+	if core[1] - core[0] > FLAT_TOL_M:
+		_fail("the pad core is not flat: %.2f m of relief across it, tolerance %.2f m"
+			% [core[1] - core[0], FLAT_TOL_M])
+
+	# AND UNDER EACH BUILDING, which is the thing that actually has to stand level. A part
+	# that hangs off a lip has men falling through the berm, which is the defect he named.
+	for child in compound.get_children():
+		var part := child as Node3D
+		if part == null or not part.has_meta("part_id"):
+			continue
+		var foot: Array = _sample_pad(world.terrain_manager, part.global_position, 3.0)
+		var seat_gap: float = absf(part.global_position.y - foot[0])
+		print("[PLAN] under %-22s ground min %.2f max %.2f range %.2f m, part seated %.2f m above it"
+			% [str(part.get_meta("part_id")), foot[0], foot[1], foot[1] - foot[0], seat_gap])
+		if foot[1] - foot[0] > FLAT_TOL_M:
+			_fail("ground under '%s' has %.2f m of relief" % [str(part.get_meta("part_id")),
+				foot[1] - foot[0]])
+
+	# THE NPC HALF (ADR-043 §4). crew/demands/supplies were read and consumed by NOTHING
+	# until 2026-09-09, and the generated manifest carried none of them - so the door was
+	# open onto an empty room. Assert a stamped plan actually produces posts.
+	var garrison: Array = site.get("garrison", []) as Array
+	var men: int = 0
+	for g_any in garrison:
+		var g: Dictionary = g_any
+		men += int(g.get("men", 0))
+		if str(g.get("occupation", "")) == "":
+			_fail("a garrison post arrived with no occupation")
+			break
+		if not (g.get("pos", null) is Vector3):
+			_fail("a garrison post arrived with no position")
+			break
+	print("[PLAN] garrison: %d post(s), %d man/men" % [garrison.size(), men])
+	var any_crew: bool = false
+	for entry_any in reloaded.parts:
+		if not reg.crew_for(str((entry_any as Dictionary)["id"])).is_empty():
+			any_crew = true
+			break
+	if any_crew and garrison.is_empty():
+		_fail("parts in this plan declare crew and the stamp produced NO posts - the NPC "
+			+ "half of the part contract is wired to nothing")
+
+	# THE COMBO RULE, proven both ways in the same booted world. His ask was "certian npcs
+	# thatll spawn with certian building combos", and a rule that only ever says yes is not
+	# a rule. The gate house demands `perimeter`; alone on open ground there is nothing to
+	# guard and no guard is posted, and beside a sandbag wall that supplies `perimeter`
+	# the same part brings its man.
+	if reg.contract_gap("fb_gate_assembly") == "" and reg.contract_gap("fb_sandbag_heavy") == "":
+		var lone := SitePlan.new()
+		lone.plan_name = "_probe_combo_lone"
+		lone.add_part("fb_gate_assembly", Vector3.ZERO)
+		var lone_site: Dictionary = planner.stamp_site_plan(lone,
+			centre + Vector3(90.0, 0.0, 0.0), reg)
+		var lone_posts: Array = lone_site.get("garrison", []) as Array
+		if not lone_posts.is_empty():
+			_fail("the gate house posted %d man/men with nothing supplying 'perimeter' - "
+				% lone_posts.size() + "the combo rule is not being applied")
+		var pair := SitePlan.new()
+		pair.plan_name = "_probe_combo_pair"
+		pair.add_part("fb_gate_assembly", Vector3.ZERO)
+		pair.add_part("fb_sandbag_heavy", Vector3(6.0, 0.0, 0.0))
+		var pair_site: Dictionary = planner.stamp_site_plan(pair,
+			centre + Vector3(-90.0, 0.0, 0.0), reg)
+		var pair_posts: Array = pair_site.get("garrison", []) as Array
+		if pair_posts.is_empty():
+			_fail("the gate house posted nobody even beside a part supplying 'perimeter'")
+		print("[PLAN] combo rule: gate alone %d post(s), gate + wall %d post(s)"
+			% [lone_posts.size(), pair_posts.size()])
+
 	var stations: Array = site.get("stations", []) as Array
 	print("[PLAN] site carries %d station(s) from part manifests" % stations.size())
 	for st_any in stations:
@@ -248,6 +363,25 @@ func _ready() -> void:
 			break
 
 	_finish(world)
+
+
+## [min_y, max_y] of the terrain over a square lattice covering `radius` around `centre`.
+## Reads the heightmap, not a raycast: a raycast hits the BUILDING and reports the roof,
+## which is how "hanging bulbs at +7.8 m" got measured as CORRECT once already.
+func _sample_pad(tm: Node, centre: Vector3, radius: float) -> Array:
+	var lo: float = 1.0e9
+	var hi: float = -1.0e9
+	for iz in range(PAD_SAMPLES):
+		for ix in range(PAD_SAMPLES):
+			var fx: float = float(ix) / float(PAD_SAMPLES - 1) * 2.0 - 1.0
+			var fz: float = float(iz) / float(PAD_SAMPLES - 1) * 2.0 - 1.0
+			if Vector2(fx, fz).length() > 1.0:
+				continue
+			var h: float = tm.get_height_at(
+				Vector3(centre.x + fx * radius, 0.0, centre.z + fz * radius))
+			lo = minf(lo, h)
+			hi = maxf(hi, h)
+	return [lo, hi]
 
 
 func _finish(world: Node) -> void:

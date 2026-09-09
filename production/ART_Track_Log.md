@@ -3,6 +3,38 @@
 Everything below is verified absent (or stand-in) as of audit #3. Ordered by impact within each
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 
+## THE KIT PARTS HAVE COLLISION — DONE 2026-09-09 (night). Two models still owed.
+
+Five of the seven placeable kit GLBs shipped with **zero colliders** since July — `fb_FoxholeSandbags`,
+`fb_sandbag_heavy`, `fb_sandbag_light`, `fb_gate_assembly`, `fb_emplacement_m101`. A player walked
+through every one. `tools/add_kit_colliders.py` cut **30 `-colonly` twins and 2 renames** directly into
+the glTF — no Blender, no re-export, no geometry touched. Measured after re-import: **0 parts with no
+collider**, and a 3-part plan that wired 1 structure to the blast bus now wires 3.
+
+**The renames, because names are the contract:** `WB_bunker_rifle` → `fb_bunker_fighting`,
+`WB_bunker_m60` → `fb_bunker_mg`, `sandbag_heavy` → `fb_sandbag_heavy`, and
+**`watchtower_1.001` → `fb_gate_tower`** — the `.001` that would have imported as `_001` and shipped
+invulnerable. The gate's four other meshes became `fb_gate_leaf_l|r` / `fb_gate_post_l|r`.
+
+**Deliberately left passable on the M101:** 32 skinned crew rigs (they are people), the `MC_` props in
+their hands, and 20 loose `m101_round_*` / `m101_shell_*` a man walks over. The M60 and its pintle on
+`fb_bunker_mg` too — a trimesh body round the gun is a wall between the player and the handles.
+
+### STILL OWED BY CALEB — 2 models. Full brief: `production/KIT_PART_CONTRACT.md` §8
+
+| file | size | structure mesh | the one thing that fails it |
+|---|---|---|---|
+| `fb_tower.glb` | 3.6 × 3.6 × 9.7 m | `fb_tower` | **< 2.0 m headroom on the platform.** 19 of 37 bunker fire points in the monolith take a man only crouched — it was never the doorways. |
+| `fb_toc.glb` | 7.4 × 5.6 × 5.05 m | `fb_toc` | floating lightbulbs. They become `prop_class` markers at their own ceiling height — measure against the CEILING, not the terrain. |
+
+Both into `assets/world/building models/structures/firebase/kit/`. Filename = part id. Origin at the
+ground contact point, +Z forward, zero tilt, transform on the node, no `.001`, no image over 1 MB.
+
+**Two bunkers only, his ruling:** `fb_bunker_fighting` + `fb_bunker_mg`. `fb_sleeping_bunker` retired
+from the palette (it never had a model). No bunker art is owed.
+
+---
+
 ## THE FIREBASE PLANT BAKE IS REAL 3D — DONE 2026-09-09 (night). No art needed.
 
 The last card population in the live world. `fsb_main_v3.glb` held 19 merged `fb_veg_` groups,

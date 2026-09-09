@@ -133,6 +133,95 @@ func clear_and_flatten(center: Vector3, radius: float, feather: float = 0.0) -> 
 		_grid.update_region(center, radius)
 
 
+## Discs already levelled by flatten_pad(). Same guard as _cleared_discs and for the same
+## reason: the pad is a LERP toward a mean, so a second call on the same disc moves the
+## ground again and breaks ADR-010's re-stamp contract (same seed + same centre must yield
+## identical heights). Once per disc, forever.
+var _flattened_pads: Dictionary = {}
+
+
+## PLANT A FLAT AREA FOR THE BUILDING TO STAND ON. His ask, 2026-09-09: *"if we can make it
+## when we place a model that it plants a flat area for the building to exist that we
+## shouldnt have any issue."*
+##
+## THIS IS NOT clear_and_flatten(), AND THAT IS THE WHOLE POINT. ADR-041 measured it and said
+## so in as many words: `clear_and_flatten()` DOES NOT FLATTEN. It stages a ClearingSystem
+## CLEARED zone, whose height_flattening is 0.7, and the heightmap's own falloff is
+## `1.0 - smoothstep(0, radius, dist)` - which is 1.0 only at the exact centre cell and falls
+## away immediately. So the strongest correction anywhere in that disc is a 0.7 lerp at one
+## cell, and a metre out it is already a fraction of that. It cuts vegetation, paints the
+## dirt and tells the AI grid the ground is open. It leaves the slope where it was, and a
+## building seated on it hangs off the hill exactly as before.
+##
+## What this does instead:
+##   - takes the MEAN height over the pad's own core, in the heightmap's own normalised units
+##   - lerps every core cell to that mean at full `strength` - a FLAT plateau at strength 1.0
+##   - ramps back out to the untouched ground across `shoulder` metres, so the pad meets the
+##     hill instead of standing on a cliff the player cannot climb
+##
+## Returns the pad height in METRES, which is the seat every part on it stands at.
+##
+## Why the mean and not the centre sample: on a slope the centre is not the middle of the
+## work. Levelling to the mean cuts as much as it fills, so the pad sits IN the hill; levelling
+## to the centre sample leaves half the footprint buried and half in the air.
+func flatten_pad(center: Vector3, radius: float, strength: float, shoulder: float) -> float:
+	if _terrain == null or radius <= 0.0 or strength <= 0.0:
+		return _terrain.get_height_at(center) if _terrain != null else center.y
+	var key := Vector3i(int(center.x * 10.0), int(center.z * 10.0), int(radius * 10.0))
+	if _flattened_pads.has(key):
+		return float(_flattened_pads[key])
+
+	var hm = _terrain.heightmap
+	if hm == null:
+		return _terrain.get_height_at(center)
+	var cell: float = _terrain.cell_size
+	var c: Vector2i = hm.world_to_cell(center.x, center.z)
+	var r_cells: int = int(ceil(radius / cell))
+
+	# The mean is taken in NORMALISED units because that is what modify_region hands the
+	# modifier and what set_cell clamps. Converting to metres here and back inside the
+	# lambda is two chances to divide by a height_scale that disagrees with the one
+	# sample_world() decodes with - the exact drift meters_to_norm() exists to prevent.
+	var total: float = 0.0
+	var count: int = 0
+	for z in range(maxi(0, c.y - r_cells), mini(hm.size, c.y + r_cells + 1)):
+		for x in range(maxi(0, c.x - r_cells), mini(hm.size, c.x + r_cells + 1)):
+			if Vector2(float(x - c.x), float(z - c.y)).length() > float(r_cells):
+				continue
+			total += hm.get_cell(x, z)
+			count += 1
+	if count == 0:
+		return _terrain.get_height_at(center)
+	var target: float = total / float(count)
+
+	# The falloff modify_region supplies is a fixed smoothstep over the WHOLE edited radius,
+	# so a modifier that used it would taper from the first cell out and never produce a
+	# plateau. The cell's world XZ is passed for exactly this reason (heightmap_storage.gd
+	# says so at modify_region): compute the pad's own profile - flat to `radius`, ramped
+	# across `shoulder`.
+	var cx: float = center.x
+	var cz: float = center.z
+	var s: float = clampf(strength, 0.0, 1.0)
+	var sh: float = maxf(shoulder, 0.0)
+	var level := func(h: float, _falloff: float, wx: float, wz: float) -> float:
+		var d: float = Vector2(wx - cx, wz - cz).length()
+		if d > radius + sh:
+			return h
+		var blend: float = s
+		if d > radius and sh > 0.0:
+			blend = s * (1.0 - smoothstep(0.0, 1.0, (d - radius) / sh))
+		return lerpf(h, target, blend)
+	_terrain.modify_terrain(center, radius + sh, level)
+
+	# The grid caches slope and walkability off the heights we just moved. Without this the
+	# AI still reads the hill that is no longer there.
+	if _grid:
+		_grid.update_region(center, radius + sh)
+	var seat: float = hm.norm_to_meters(target)
+	_flattened_pads[key] = seat
+	return seat
+
+
 ## SOFT COVER: what lead goes THROUGH. In this war most "walls" are thatch, bamboo and
 ## palm leaf - concealment, not cover - and a hooch wall stopping a 7.62 was a lie the
 ## physics told. Bunkers, rock and vehicles are NOT soft: those actually stop a round.
@@ -2905,6 +2994,105 @@ func stamp_lz(center: Vector3) -> Dictionary:
 ## ONE PATH (ADR-028). Parts are instanced here, seated here, and wired here, and nothing
 ## else in the codebase gains an entry point. The compound wrapper is the same shape
 ## place_firebase_main builds, so NavBaker's single collider root keeps working (ADR-043 P1).
+## A crew role, in the vocabulary the parts use, mapped to the occupation the garrison
+## already speaks. Same rule as FSB_WORK_OCCUPATION one system over: the PART names the role
+## as a bare string and nothing gates on it, and code that needs to know what a role MEANS
+## maps it here. A role nobody has mapped still turns up - as off_duty, loudly - because a
+## man standing in the wrong job is a tuning defect and a man who never spawned is invisible.
+const KIT_CREW_OCCUPATION: Dictionary = {
+	"rifleman": "sentry", "guard": "sentry", "sentry": "sentry",
+	"sentry_night": "sentry_night",
+	"mg_gunner": "gun_crew", "gun_crew": "gun_crew", "gun_crew_arty": "gun_crew_arty",
+	"radioman": "radioman", "medic": "medic", "cook": "mess_cook",
+	"quartermaster": "quartermaster", "detail": "detail",
+}
+
+
+## THE PART BRINGS ITS OWN PEOPLE (ADR-043 §4, his ask: *"certian npcs thatll spawn with
+## certian building combos"*).
+##
+## Returns posts in the SAME shape fsb_garrison_plan() emits - {pos, occupation, men} - so
+## the consumer at mission_generator.gd:1050 takes either without knowing which. That is the
+## whole reason for the shape: ADR-028 says Civilian.spawn is the one door, and a second
+## spawn authority is exactly what this function must not become. It emits REQUESTS. It never
+## instantiates anybody.
+##
+## THE COMBO RULE, and it is the half that makes this more than a crew list: a part's crew
+## turns up only when every string in its `demands` is in the union of every OTHER part's
+## `supplies` ACROSS THE SAME PLAN. A gate house demands `perimeter`; drop it on open ground
+## with no wall either side and there is nothing to guard, so no guard is posted. Put a
+## bunker line beside it and the guard appears - not because a function tested for a gate,
+## but because the parts said what they needed and what they gave.
+##
+## An unmet demand is PRINTED. The whole bug class this kit exists to close is defaults that
+## fail silently, and "the base spawned empty" is that class wearing a garrison's clothes.
+func _plan_garrison(plan: SitePlan, reg: KitRegistry, compound: Node3D,
+		stations: Array) -> Array[Dictionary]:
+	var supplied: Dictionary = {}
+	for entry_any in plan.parts:
+		for s in reg.supplies_for(str((entry_any as Dictionary).get("id", ""))):
+			supplied[s] = true
+
+	# Where a part's men stand: its own first station if it declares one, else the part
+	# itself. A station is a measured post on walkable ground (tests/test_marker_navmesh.gd
+	# ratchets every one of them); the part origin is the ground contact point and is the
+	# honest fallback when the art carries no marker yet.
+	var station_for: Dictionary = {}
+	for st_any in stations:
+		var st: Dictionary = st_any
+		var pid: String = str(st.get("part", ""))
+		if pid != "" and not station_for.has(pid):
+			station_for[pid] = st.get("pos", Vector3.ZERO)
+
+	var posts: Array[Dictionary] = []
+	var unmet: PackedStringArray = PackedStringArray()
+	var unmapped: PackedStringArray = PackedStringArray()
+	for entry_any in plan.parts:
+		var entry: Dictionary = entry_any
+		var id: String = str(entry.get("id", ""))
+		var crew: Array[String] = reg.crew_for(id)
+		if crew.is_empty():
+			continue
+		var blocked: bool = false
+		for d in reg.demands_for(id):
+			if not supplied.has(d):
+				var line: String = "%s demands '%s', nothing in the plan supplies it" % [id, d]
+				if not unmet.has(line):
+					unmet.append(line)
+				blocked = true
+		if blocked:
+			continue
+		var pos: Vector3 = station_for.get(id,
+			compound.global_position + (entry.get("pos", Vector3.ZERO) as Vector3))
+		# Identical roles at one part are ONE post with a count, which is how
+		# FSB_GARRISON_POSTS spells a two-man gun crew. Two posts on the same metre would
+		# put two men inside each other.
+		var by_role: Dictionary = {}
+		var role_order: Array[String] = []
+		for role in crew:
+			if not by_role.has(role):
+				by_role[role] = 0
+				role_order.append(role)
+			by_role[role] = int(by_role[role]) + 1
+		for role in role_order:
+			var occ: String = str(KIT_CREW_OCCUPATION.get(role, "off_duty"))
+			if not KIT_CREW_OCCUPATION.has(role) and not unmapped.has(role):
+				unmapped.append(role)
+			posts.append({"pos": pos, "occupation": occ, "men": int(by_role[role]),
+				"part": id, "role": role})
+	if not unmet.is_empty():
+		push_warning("[PLAN] %d unmet demand(s): %s" % [unmet.size(), ", ".join(unmet)])
+	if not unmapped.is_empty():
+		push_warning("[PLAN] crew role(s) with no occupation, posted as off_duty: %s"
+			% ", ".join(unmapped))
+	var men: int = 0
+	for p in posts:
+		men += int(p.get("men", 0))
+	print("[PLAN] garrison: %d post(s), %d man/men, %d unmet demand(s)"
+		% [posts.size(), men, unmet.size()])
+	return posts
+
+
 func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = null) -> Dictionary:
 	var reg: KitRegistry = registry if registry != null else KitRegistry.load_kit()
 	var why: String = plan.validate(reg)
@@ -2927,10 +3115,18 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 
 	# ADR-041 §6: the flatten is per-plan and declared, never mandatory and never 1.0 by
 	# default. A plan that asks for no seat gets none, and follows the ground it is on.
+	#
+	# TWO CALLS, AND THE ORDER IS LOAD-BEARING. clear_and_flatten() cuts the vegetation,
+	# paints the dirt disc and opens the AI grid - it is the CLEARING half, and despite its
+	# name it barely moves the ground (ADR-041 measured it: a 0.7 lerp at one cell, tapering
+	# from the first cell out). flatten_pad() is the half his ask names - it plants the level
+	# ground the building stands on. Clearing first, levelling last, so the final height is
+	# the pad's and not the clearing zone's partial lerp over it.
+	var seat_y: float = _terrain.get_height_at(center) if _terrain != null else center.y
 	if plan.flatten_radius > 0.0 and plan.flatten_strength > 0.0:
 		clear_and_flatten(center, plan.flatten_radius, plan.flatten_shoulder)
-
-	var seat_y: float = _terrain.get_height_at(center) if _terrain != null else center.y
+		seat_y = flatten_pad(center, plan.flatten_radius, plan.flatten_strength,
+			plan.flatten_shoulder)
 	var compound := Node3D.new()
 	compound.name = "SitePlan_%s" % plan.plan_name
 	compound.set_meta("model_name", plan.plan_name)
@@ -3031,9 +3227,11 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 	print("[PLAN] %d part(s) with no collider" % no_collider.size())
 	print("[PLAN] %d structure(s) on the blast bus" % wired)
 
+	var garrison: Array[Dictionary] = _plan_garrison(plan, reg, compound, stations)
+
 	var site := {"kind": "site_plan", "plan": plan.plan_name, "center": center,
 		"nodes": [compound], "stations": stations, "wired": wired,
-		"no_collider": no_collider,
+		"no_collider": no_collider, "garrison": garrison,
 		"radius": maxf(plan.flatten_radius, 16.0)}
 	placed_sites.append(site)
 	print("[PLAN] stamped '%s': %d part(s), %d station(s)"

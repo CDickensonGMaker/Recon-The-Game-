@@ -1,5 +1,52 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-A. THE KIT'S FOUR JOBS — DONE 2026-09-09 (night). Two rows left for you.
+
+**Your spec, verbatim:** *"so that means we need to have the different pieces that make up that
+current firebase are saved as seprate pieces with their work nodes and specific npcs attached to
+them. and if we can make it when we place a model that it plants a flat area for the building to
+exist that we shouldnt have any issue. and we just need two types of bunkers, i do need to fix art
+for the towers, the hq and than make sure the collision is correct for all these buildings too"*
+
+| job | before | after | proof |
+|---|---|---|---|
+| **1. Flatten on placement** | `clear_and_flatten()` never flattened (ADR-041 measured it: a 0.7 lerp at ONE cell, tapering from the first cell out). A plan declared a profile and the ground ignored it. | New `SitePlanner.flatten_pad()`. **5.64 m of relief across a 48 m pad became 0.03 m**, and **0.00 m under every one of the three placed buildings**, each seated 0.00 m above its own ground. | `tests/test_site_plan_roundtrip.tscn` measures a 13×13 lattice before and after and fails over 0.05 m |
+| **2. Collision on every part** | **5 of 7 parts had none.** You walked through the sandbags, the foxhole, the gate and the howitzer. | **0 parts with no collider.** 30 `-colonly` twins + 2 renames, cut straight into the glTF with no Blender window. The same plan now wires **3 structures on the blast bus where it wired 1**. | `NO_COLLIDER_BASELINE` is **0** and stays 0; `test_fsb_colonly_contract` green, 0 stray, 0 white |
+| **3. Parts carry their own work nodes AND NPCs** | Work types already came out as bare strings. `crew`/`demands`/`supplies` were read and consumed by **nothing** — and the generated manifest carried none of them, so every part answered empty. | Authored in `data/world/kit_parts.json`, resolved into the **same `{pos, occupation, men}` shape `fsb_garrison_plan()` emits**. A stamped plan now returns a garrison. `Civilian.spawn` is still the only spawn door (ADR-028) — this emits requests. | 4 posts / 5 men on a 3-part plan, and the combo rule proven **both ways**: the gate house posts **0** men alone, **1** beside a part that supplies `perimeter` |
+| **4. Two bunker types** | Three: `fb_bunker_fighting`, `fb_bunker_mg`, `fb_sleeping_bunker`. | **`fb_bunker_fighting` and `fb_bunker_mg` survive** — the line position and the crew-served one, and the only two that ever had a model or a collider. `fb_sleeping_bunker` is RETIRED from the palette. Sleeping quarters are `fb_hootch`'s job. | `KitRegistry.retired` refuses it even if a `.glb` appears later; the monolith's `fb_sleeping_bunker_i` row is untouched so the demo's firebase stays destructible |
+
+**0 SCRIPT ERROR on the definitive headless boot. `test_site_plan_roundtrip`, `test_fsb_colonly_contract`,
+`test_kit_editor_state`, `test_fossils` all green.**
+
+### THE ART LIST FOR YOU — full brief in `production/KIT_PART_CONTRACT.md` §8
+
+Two files, in `assets/world/building models/structures/firebase/kit/`. **The filename is the part id**;
+drop the `.glb` in and it is on the palette.
+
+- **`fb_tower.glb`** — 3.6 × 3.6 × 9.7 m. Structure mesh named `fb_tower`. A man must STAND on the
+  platform: **2.0 m floor to roof underside**, ladder/stair ≤ 35°. Keep `tower_los_point` at the top
+  with a real line of sight out. Kind is settled: existing `tower`, 180 hp.
+- **`fb_toc.glb`** — 7.4 × 5.6 × 5.05 m. Structure mesh named `fb_toc`. Standing headroom at the radio
+  and the map board. **The lightbulbs become `prop_class` markers at the height their own ceiling puts
+  them** — measure a bulb against its CEILING, never against the terrain (the 2026-08-30 audit called
+  "+7.8 m" correct because inside the firebase the model IS the ground).
+
+**Both:** origin at the ground contact point, +Z forward, zero tilt, transform ON the node (not baked
+into vertices), no `.001` anywhere, no embedded image over 1 MB. If the export makes no colliders, run
+`python tools/add_kit_colliders.py --apply` and it cuts them.
+
+### TWO ROWS THAT ARE YOURS TO RULE, one line each
+
+1. **How tough is the TOC?** `Destructible.HP_FOR` has no row for a dug-in command post. I propose
+   **`command_bunker` at 320 hp** (fighting bunker 260, parapet datum 140), dying with
+   `explosion_mortar`. **Not added — say a number.**
+2. **The gate house.** Its watchtower now takes the existing `tower` kind at 180 hp rather than a new
+   `gate_house` row, on the grounds that a watchtower on a gate is a tower. Say if you want it
+   separate. (The 28.6 m `SOCKET_A`→`SOCKET_B` span — *"which is a highway"* — is still open and is a
+   layout call, not an art one.)
+
+---
+
 ## 0000-B. THE MODULAR WORLD KIT — you authorised it 2026-09-09. Four calls are yours.
 
 **You ruled it mid-council:** *"but even before that we should make a modular world building tool kit"*

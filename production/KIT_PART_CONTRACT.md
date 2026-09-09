@@ -61,21 +61,36 @@ rule**: `command_bunker` (a dug-in TOC should outlast a fighting bunker's 260) a
 **Measured 2026-09-09 by parsing the seven kit GLBs directly** (pure Python on the glTF JSON chunk;
 no engine run). This is the census P3 has to close.
 
-| part | visible meshes | colliders | verdict |
-|---|---|---|---|
-| `fb_bunker_fighting` | `WB_bunker_rifle` | **1** | usable — but the mesh is a Blender workbench name |
-| `fb_bunker_mg` | `m60.002`, `m60_pintle`, `WB_bunker_m60` | **3** | usable — gun meshes must be excluded from the structure |
-| `fb_FoxholeSandbags` | `fb_FoxholeSandbags` | **0** | **you can walk through it** |
-| `fb_sandbag_heavy` | `sandbag_heavy` | **0** | **you can walk through it** |
-| `fb_sandbag_light` | `fb_sandbag_light` | **0** | **you can walk through it** |
-| `fb_gate_assembly` | `watchtower_1.001`, `gate_left/right`, `gate_post_left/right` | **0** | no collision, and a `.001` |
-| `fb_emplacement_m101` | 119 meshes (gun, rounds, crew rigs) | **0** | not a structure; the firebase swaps it in separately |
+> ## CLOSED 2026-09-09 — every part has collision, and the census below is the BEFORE.
+>
+> `tools/add_kit_colliders.py` cut 30 `-colonly` twins and 2 renames straight into the glTF, with no
+> Blender window: a twin node sharing the source mesh index and its local transform, which is exactly
+> the shape `fb_bunker_fighting.glb` already shipped. Re-measured after re-import:
+> **0 placed parts with no collider** (was 1 in the probe's plan, 5 across the palette) and
+> **3 structures on the blast bus** where the same plan wired 1 the hour before.
+> `tests/test_site_plan_roundtrip.gd`'s `NO_COLLIDER_BASELINE` is **0** and stays 0.
+> `tests/test_fsb_colonly_contract.tscn` still green: 2,435 collider bodies, 0 stray, 0 white.
 
-> **FIVE OF THE SEVEN PLACEABLE PARTS HAVE NO COLLIDERS AT ALL.** A player walks through them, a
-> bullet passes through them, and a `Destructible` built on one has no shape to hit. This is not a
-> regression — `gen_firebase.py:1-13` says plainly that these are *"a REVIEW artefact, not a shipped
-> asset set."* **It is the actual size of the P3 art job**, and it is why the two bunkers are the
-> only parts that can prove the pipeline today.
+| part | visible meshes | colliders **before** | colliders **now** |
+|---|---|---|---|
+| `fb_bunker_fighting` | `WB_bunker_rifle` → **`fb_bunker_fighting`** | 1 | 1 |
+| `fb_bunker_mg` | `WB_bunker_m60` → **`fb_bunker_mg`** (+ `m60`, `m60_pintle`) | 3 | 3 — the gun stays passable, deliberately |
+| `fb_FoxholeSandbags` | `fb_FoxholeSandbags` | **0** | **1** |
+| `fb_sandbag_heavy` | `sandbag_heavy` → **`fb_sandbag_heavy`** | **0** | **1** |
+| `fb_sandbag_light` | `fb_sandbag_light` | **0** | **1** |
+| `fb_gate_assembly` | `watchtower_1.001` → **`fb_gate_tower`**, + 4 renamed leaves/posts | **0** | **5** |
+| `fb_emplacement_m101` | 119 meshes (gun, rounds, crew rigs) | **0** | **24** — gun, carriage, 8 parapet segs |
+
+**THE `.001` IS GONE.** `watchtower_1.001` imported as `watchtower_1_001`; it is `fb_gate_tower` now,
+and the gate takes the existing `tower` kind at 180 hp rather than the `gate_house` row this document
+proposed — a watchtower on a gate is a tower, and a second kind for it would be vocabulary drift.
+
+**THE TRAP THIS RUN FOUND, because it nearly shipped.** The tool wrote the file only when it had made
+a twin. The two bunkers already had colliders, so their renames were applied to a dictionary that was
+then discarded — the tool printed a clean line, `kit_parts.json` was updated to the new names, and the
+next stamp wired **one structure out of three** because the GLBs still carried `WB_bunker_rifle` and
+`WB_bunker_m60`. A rename-only run that writes nothing is the same silent-default bug class one layer
+up. Measured and fixed the same hour; `process()` now writes on `made or renamed`.
 
 **And the naming half, which is the defect that went red:** `fb_bunker_fighting.glb` draws
 `WB_bunker_rifle` and collides as `fb_bunker_fighting_000-colonly`. **Ballistics reads the collider
@@ -89,10 +104,11 @@ instead of inferring it from a Blender name. `stamp_site_plan` now refuses to st
 authored entry, **before a single node is instanced.** A part master that never gets its names right
 is still placeable; a part nobody has ruled on is not.
 
-**What P3 must still deliver per piece:** real colliders as `{base}_{i:03d}-colonly`, the marker at
+**What his NEW art must deliver per piece:** real colliders as `{base}_{i:03d}-colonly`, the marker at
 the END of the name, no `.001`, and — because the authored table now carries identity — mesh names
 that a human can read. The names no longer have to encode the contract, which is precisely the
-freedom the kit was supposed to buy.
+freedom the kit was supposed to buy. **The July exports have all of that as of 2026-09-09**; the
+outstanding half is the tower and HQ art, specified in §8.
 
 ## 1 · THE TWO CONTRACTS, AND THE ONE FACT PEOPLE GET WRONG
 
@@ -229,12 +245,16 @@ a 43 MB monolith. **That is the argument, and it should be demonstrated on this 
 2. **`radio_post` anchor.** ✅ **Already expressible** — `work_type: "radio"` is in the manifest
    vocabulary and already maps to `radioman`.
 3. **NPC spawn by building combination** — *"certain npcs thatll spawn with certain building
-   combos."* The shape that keeps this open, and the one the part contract should adopt when parts
-   are authored: a part may declare `crew` (roles it brings) and `demands`/`supplies` (what must be
-   present for it to be staffed), **as strings**. A base with a TOC and a pad has a radioman because
-   the TOC supplies `command` and demands `power`, not because a function says so. **Combos must emit
-   post requests into the existing `fsb_garrison_plan()` list — `Civilian.spawn` stays the one door
-   (ADR-028). No second spawn authority.**
+   combos."* ✅ **WIRED 2026-09-09.** `crew` / `demands` / `supplies` are authored in
+   `data/world/kit_parts.json` (not in the generated manifest, which carried none of them — twenty-two
+   families, zero crew, so the door was open onto an empty room), read by `KitRegistry.crew_for` /
+   `demands_for` / `supplies_for`, and resolved by `SitePlanner._plan_garrison()` into the SAME
+   `{pos, occupation, men}` shape `fsb_garrison_plan()` emits, on the site dict as `garrison`.
+   **It emits REQUESTS and instantiates nobody** — `Civilian.spawn` stays the one door (ADR-028).
+   The combo rule is proven both ways in `tests/test_site_plan_roundtrip.gd`: `fb_gate_assembly`
+   demands `perimeter`, so it posts **0** men alone and **1** beside a part that supplies it.
+   A role with no occupation posts as `off_duty` and says so; `KIT_CREW_OCCUPATION` maps meaning,
+   never gates placement.
 4. **A neck/chest attach socket** on the character rig for a necklace prop. Not this document's
    work; recorded so it is not designed out.
 
@@ -256,3 +276,86 @@ For each of the three pieces, in order **bunker → HQ → gate house**:
 - [ ] A man can stand at every station the part declares, at the posture it implies.
 
 **None of these may be run until the perf baseline is taken and the machine is released.**
+
+
+---
+
+## 8 · THE ART LIST — what he owes the kit, and what the kit owes him back
+
+**Written 2026-09-09 after the collision pass. He is doing the tower and the HQ himself.** Everything
+below is measured off the parts already in the kit or read from the code that consumes them.
+
+### 8.1 · Files, one GLB per part, in `assets/world/building models/structures/firebase/kit/`
+
+| file | replaces | what it is |
+|---|---|---|
+| `fb_tower.glb` | the `fb_tower` manifest row, which has never had a model | the standalone watch tower |
+| `fb_gate_tower.glb` *(optional)* | `fb_gate_assembly`'s tower half | only if the gate tower differs from the line tower |
+| `fb_toc.glb` | the `fb_toc` manifest row, which has never had a model | the HQ / TOC, **without floating lightbulbs** |
+
+**The filename IS the part id.** `KitRegistry._attach_models()` takes the basename, and a part is
+placeable the moment its `.glb` sits beside the manifest. No import step, no registration.
+
+### 8.2 · Mesh naming — the whole destructibility contract, in four lines
+
+1. **One visible mesh is THE STRUCTURE, and it is named the part id**: `fb_tower`, `fb_toc`.
+   That name goes in `structure_meshes` in `data/world/kit_parts.json`, and it is the mesh the blast
+   bus adopts. **Exactly one per part** — `contract_gap()` refuses two, because one `Destructible`
+   takes all of a part's colliders and the second would be adopted with no shape left to give it.
+2. **Every solid mesh gets a collider twin named `{mesh}_{NNN}-colonly`**, marker at the **END**.
+   If the export does not make them, run `python tools/add_kit_colliders.py --apply` — it cuts them
+   in the glTF and never touches geometry.
+3. **NO `.001` ANYWHERE.** Blender's `.001` imports as `_001` and ships invulnerable beside its twins.
+   Rename in the blend before exporting.
+4. **Everything else in the part is free.** Interior props, furniture, the map board, the lightbulbs —
+   call them what you like. Identity comes from the authored table now, not from a name.
+
+### 8.3 · Sizes — from the manifest rows the kit already carries
+
+| part | footprint (X × Y × Z, Blender: Z is up) | notes |
+|---|---|---|
+| `fb_tower` | **3.6 × 3.6 × 9.7 m** | the current row. Anything within ±20% is fine; it is a plan offset, not a socket. |
+| `fb_toc` | **7.4 × 5.6 × 5.05 m** | the current row. |
+
+**Two constraints that are NOT negotiable:**
+
+- **ORIGIN AT THE GROUND CONTACT POINT, +Z FORWARD, ZERO TILT.** The stamper writes
+  `part.position = plan_offset` and `part.rotation.y = yaw` and re-seats nothing per-mesh. An origin
+  floating above the floor floats the whole building. `yaw_deg` is the only rotation a plan may carry.
+- **NO BAKED TRANSFORMS.** 80 of 81 parapet segments in the monolith carry no node transform, which is
+  why fourteen sappers all attacked the same point. Keep the transform on the node.
+
+**And one his own law already sets: no embedded image over 1 MB.** Shrink the sheet in the blend, or
+`python tools/shrink_oversized_textures.py --apply` after export.
+
+### 8.4 · Headroom — the measurement that explains "the AI can get in and I can't"
+
+**19 of 37 bunker fire points in the monolith take a man only crouched, and 12 take him at neither
+posture.** It was never the doorways. The player capsule is r 0.40 and stands 1.8 m.
+
+- **Tower**: a man must STAND on the platform. Floor to the underside of the roof ≥ **2.0 m**, and the
+  ladder or stair no steeper than ~35°.
+- **HQ / TOC**: a man must STAND at the radio and at the map board. Same 2.0 m, and leave the capsule
+  radius clear of the wall at every marker — every bunker marker in the monolith sits at *exactly*
+  0.40 m from its own wall, zero margin.
+
+### 8.5 · Markers the kit will read off these two parts
+
+Empties in the blend, exported with the mesh, listed in the manifest with `work_type` or `prop_class`.
+`work_type` is a bare string checked against nothing.
+
+- **`fb_tower`** — `tower_los_point` (already in the manifest at 8.9 m up) with a real line of sight
+  out; a `work_type: "watch"` post a man can stand at.
+- **`fb_toc`** — `work_radio` (already there, and `radio` already maps to occupation `radioman`),
+  `prop_map`, `door_main` with `door_width`. **The lightbulbs become `prop_class` markers at the
+  height their own ceiling puts them** — which is the whole argument for the kit, and this is the
+  piece it gets demonstrated on. Measure a bulb against its own CEILING, never against the terrain:
+  the 2026-08-30 audit measured "hanging bulbs +7.8 m" as CORRECT because inside the firebase the
+  model is the ground.
+
+### 8.6 · Two rows he has to rule on, one line each
+
+- **`fb_toc` destructible kind.** `HP_FOR` has no row that fits a dug-in command post. Proposed
+  **`command_bunker` at 320 hp** (a fighting bunker is 260, the parapet datum is 140) with
+  `explosion_mortar` as its death blast. **Not added — his number.**
+- **`fb_tower` kind is settled**: the existing `tower`, 180 hp, `explosion_grenade`. No new row.

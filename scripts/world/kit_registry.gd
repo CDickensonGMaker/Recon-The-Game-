@@ -21,8 +21,15 @@ const MANIFEST: String = KIT_DIR + "/firebase_set.json"
 const CONTRACT: String = "res://data/world/kit_parts.json"
 
 ## part_id -> {tris, size: Vector3, solid, enterable, stations: [{local, work_type}],
-##             props: [{local, prop_class}], model: String ("" when no .glb exists)}
+##             props: [{local, prop_class}], crew/demands/supplies: Array[String],
+##             model: String ("" when no .glb exists)}
 var parts: Dictionary = {}
+
+## part_id -> why it was retired, from the contract's "_retired" block. A retired part is
+## refused by contract_gap() and never reaches placeable_ids(), so a .glb reappearing in the
+## kit folder cannot quietly put it back on the palette. Retiring is a RULING and it lives in
+## authored data; deleting the file would only mean the next export re-created it.
+var retired: Dictionary = {}
 
 
 static func load_kit() -> KitRegistry:
@@ -41,6 +48,8 @@ static func load_kit() -> KitRegistry:
 ## found by accident, hours or weeks later, because the failure mode is a DEFAULT rather than
 ## an error. This turns the fourth one into a refusal at the moment of placement.
 func contract_gap(part_id: String) -> String:
+	if retired.has(part_id):
+		return "'%s' is RETIRED from the kit: %s" % [part_id, str(retired[part_id])]
 	var e: Dictionary = parts.get(part_id, {}) as Dictionary
 	if e == null or e.is_empty():
 		return "'%s' is not in the kit at all" % part_id
@@ -90,10 +99,28 @@ func stations_for(part_id: String) -> Array:
 	return (parts.get(part_id, {}) as Dictionary).get("stations", []) as Array
 
 
+## Roles a part BRINGS with it. Bare strings, checked against nothing here - the same rule
+## the work vocabulary follows, and for the same reason: a kit for another war must be able
+## to declare a role without editing this file. SitePlanner.site_plan_garrison() maps a role
+## to an occupation; code that PLACES one may not gate on it.
+func crew_for(part_id: String) -> Array[String]:
+	return _string_list((parts.get(part_id, {}) as Dictionary).get("crew", []))
+
+
+## What must be present in the same plan before this part's crew turns up.
+func demands_for(part_id: String) -> Array[String]:
+	return _string_list((parts.get(part_id, {}) as Dictionary).get("demands", []))
+
+
+## What this part provides to other parts' demands.
+func supplies_for(part_id: String) -> Array[String]:
+	return _string_list((parts.get(part_id, {}) as Dictionary).get("supplies", []))
+
+
 func placeable_ids() -> Array[String]:
 	var out: Array[String] = []
 	for k in parts.keys():
-		if has_model(String(k)):
+		if has_model(String(k)) and not retired.has(String(k)):
 			out.append(String(k))
 	out.sort()
 	return out
@@ -186,10 +213,16 @@ func _read_contract() -> void:
 	if not (parsed is Dictionary):
 		push_error("[KIT] %s is not a JSON object" % CONTRACT)
 		return
+	var retired_block: Dictionary = (parsed as Dictionary).get("_retired", {}) as Dictionary
+	if retired_block != null:
+		for id_any in retired_block.keys():
+			var rid: String = String(id_any)
+			if not rid.begins_with("_"):
+				retired[rid] = str(retired_block[id_any])
 	for id_any in (parsed as Dictionary).keys():
 		var id: String = String(id_any)
 		if id.begins_with("_"):
-			continue  # _doc / _fields / _why_this_file_exists
+			continue  # _doc / _fields / _retired / _why_this_file_exists
 		var src: Dictionary = (parsed as Dictionary)[id_any] as Dictionary
 		if src == null:
 			continue
@@ -201,6 +234,25 @@ func _read_contract() -> void:
 		e["destructible"] = str(src.get("destructible", ""))
 		e["structure_meshes"] = _string_list(src.get("structure_meshes", []))
 		e["soft"] = bool(src.get("soft", false))
+		# THE NPC HALF, AND WHY IT IS AUTHORED HERE RATHER THAN GENERATED.
+		#
+		# These three were read off the GENERATED manifest and nowhere else until
+		# 2026-09-09, and the generated manifest carries none of them - twenty-two part
+		# families, zero crew, zero demands, zero supplies. So the door his ask needed
+		# ("certian npcs thatll spawn with certian building combos") was open onto an
+		# empty room: every part answered [] and site_plan_garrison() would have had
+		# nothing to resolve.
+		#
+		# Who mans a bunker is a RULING, exactly like whether a bunker is soft cover, and
+		# it belongs beside that ruling in the authored file - not in a JSON a Blender
+		# script rewrites. The overlay wins; a generated value survives only where the
+		# author has said nothing.
+		if src.has("crew"):
+			e["crew"] = _string_list(src.get("crew", []))
+		if src.has("demands"):
+			e["demands"] = _string_list(src.get("demands", []))
+		if src.has("supplies"):
+			e["supplies"] = _string_list(src.get("supplies", []))
 
 
 ## A manifest entry earns a model when kit/<id>.glb is on disk. Models with no manifest entry
@@ -216,8 +268,13 @@ func _attach_models() -> void:
 		if not dir.current_is_dir() and fn.ends_with(".glb"):
 			var id: String = fn.get_basename()
 			if not parts.has(id):
+				# The same six fields _read_contract() seeds. This branch used to omit
+				# crew/demands/supplies, so a .glb with neither a manifest row nor a
+				# contract row produced an entry MISSING three of the contract's doors -
+				# and the roundtrip probe's own field check would have gone red on it.
 				parts[id] = {"tris": 0, "size": Vector3.ZERO, "solid": true,
-					"enterable": false, "stations": [], "props": [], "model": ""}
+					"enterable": false, "stations": [], "props": [],
+					"crew": [], "demands": [], "supplies": [], "model": ""}
 			(parts[id] as Dictionary)["model"] = "%s/%s" % [KIT_DIR, fn]
 		fn = dir.get_next()
 	dir.list_dir_end()
