@@ -1677,16 +1677,21 @@ const VEG_COLLIDER_PREFIX: String = "fb_veg_"
 const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX, "fb_sbg_seg_"]
 
 
-## THE INTERIORS COST 45% OF THE COMPOUND'S DRAW CALLS FOR 4% OF ITS GEOMETRY. Measured
-## 2026-07-30 out of fsb_main_v3.glb: 826 visible surfaces, of which 368 are the 178 `fb_int_`
-## props, carrying 11,936 of 318,056 triangles. This project is CALL-BOUND (PERF_LEDGER) and tri
-## budgets are style, not perf, so the props are not too heavy - they are too NUMEROUS, and every
-## one of them was drawn from any distance because nothing ever set a range on them.
+## THE INTERIOR PROPS ARE TOO NUMEROUS, not too heavy. Re-counted 2026-09-09 out of
+## fsb_main_v3.glb (tools/probe_interior_pop.gd): 545 `fb_int_` nodes, 1010 surfaces,
+## 43,941 triangles. The 2026-07-30 figures this comment used to carry (178 props / 368
+## surfaces / 11,936 tris) were stale by 3x. Every one of them was drawn from any distance
+## because nothing ever set a range on them.
 ##
-## A cot inside a hootch is not visible from outside it. Culling them at ~40m is free: they are
-## occluded by their own building long before the range bites, so the fade is unobservable.
-## This is the cheap half of the fix; folding each prop TYPE into one MultiMesh (368 -> ~11) is
-## the rest, and it needs the bake removed in the same change or every prop doubles.
+## AND CULLING THEM IS NOT FREE - IT POPS. The line below sets a range but never sets
+## visibility_range_fade_mode, so the default DISABLED applies and the margin is pure
+## hysteresis: all 545 appear in a SINGLE FRAME as you close on a hooch. The old claim that
+## "the fade is unobservable" was never measured and is wrong on its own terms - there is no
+## fade to observe. Turning FADE_SELF on is NOT the answer either: it alpha-dithers the mesh
+## and renders the props see-through (the ADR-026 opacity bug). Awaiting a ruling: either the
+## range moves out to where a cot is genuinely sub-pixel and costs calls, or it stays and pops.
+## Folding each prop TYPE into one MultiMesh (1010 surfaces -> ~11) is the standing fix and
+## needs the bake removed in the same change or every prop doubles.
 const INTERIOR_PROP_PREFIX: String = "fb_int_"
 const INTERIOR_CULL_M: float = 40.0
 const INTERIOR_CULL_MARGIN_M: float = 8.0

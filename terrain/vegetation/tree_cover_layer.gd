@@ -1,18 +1,44 @@
 class_name TreeCoverLayer
 extends Node3D
 
-## Near-solid-collidable / far-impostor-card vegetation LOD (bead: veg-LOD).
-## NEAR ring = the real 3D species SOLID as a MultiMesh; trunk COLLISION comes from a
-## player-keyed pooled body ring (RING_RADIUS) so the player can physically hide behind
-## cover (Pillar 3) without the AO holding thousands of resident StaticBody3D. FAR ring
-## = the species impostor CARD, no collision. Hard PS2 distance snap via visibility_range.
+## Individual-species vegetation instancing + trunk collision for the live AO.
 ##
-## This is the instancing+collision MECHANISM. Deriving the per-chunk scatter from the
-## terrain grid (and retiring the merged-patch / procedural-billboard paths, fossil law)
-## is the look-check-gated switchover - do NOT wire it live without eyes on the new look.
+## THE CANOPY IS REAL 3D AT EVERY DISTANCE (Summoner, 2026-09-08: "no more 2d terrain
+## cards, or 3d plane spliced cards or whatever. all 3d blender models only in game",
+## sharpened to "i do not want the old 2d made 3d terrain art pieces"). Barbwire is the
+## single exemption and it does not live here. ADR-001 Amendment A revoked the sprite
+## carve-out; ADR-026 Amendment D killed the canopy card atlas.
+##
+## WHAT THIS USED TO DO, and why it is gone: 0-65 m drew the real species GLB, 65-350 m
+## swapped it for a 4-triangle impostor CARD out of assets/world/vegetation/cards/. That
+## boundary was a HARD SNAP (see _multimesh) and it changed DIMENSION - a solid plant
+## became a flat picture in one frame. That is the popping Caleb reported. There is now
+## ONE MultiMeshInstance3D per (species x 64 m bucket) drawing the real model from 0 to
+## view_distance, so there is no 65 m boundary left to pop across, and HALF the canopy
+## nodes and draw calls of the old two-ring build.
+##
+## THE FAR RING IS NOT FULL DETAIL. Every vegetation GLB imports with
+## meshes/generate_lods=true, so each ArrayMesh carries an import-generated LOD ladder and
+## the renderer picks a level by screen coverage (measured 2026-09-09 by
+## tools/probe_far_ring_meshes.gd: broadleaf_a 752 tris -> 12, bamboo_a 830 -> 86). Two
+## live species, rice_a and elephant_grass_b, generated NO ladder and draw full detail at
+## every range - they are 84 and 160 tris, which is why that is tolerated and recorded
+## rather than papered over.
+##
+## NO QUAD MAY COME BACK AS AN OPTIMISATION. If a distance cannot afford these meshes the
+## answer is a lower-poly real MESH.
+##
+## project.godot:331 `mesh_lod/lod_change/threshold_pixels=2.0` is now LOAD-BEARING for the
+## whole canopy, where before it only touched the 0-65 m band. Godot's default is 1.0; 2.0
+## swaps a level at twice the screen error, which is the aggressive end and the first place
+## to look if the far ring is seen changing shape. Lowering it trades frames for smoothness
+## and is the Summoner's call, not a silent tweak.
+##
+## Trunk COLLISION comes from a player-keyed pooled body ring (RING_RADIUS) so the player
+## can physically hide behind cover (Pillar 3) without the AO holding thousands of
+## resident StaticBody3D.
 
 const SOLID_DIR := "res://assets/world/vegetation/"
-const CARD_DIR := "res://assets/world/vegetation/cards/"
 
 ## Cover-givers ONLY: a solid a bullet stops and a body hides behind. Value = trunk
 ## collider radius (m). Everything NOT listed (grass, fern, vine, moss, rice, bush,
@@ -41,8 +67,11 @@ const RING_INTERVAL: float = 0.25
 const RING_MOVE_EPS: float = 2.0
 const PARK_POS := Vector3(0.0, -4000.0, 0.0)
 
-@export var near_distance: float = 65.0   ## solid render ring (arena parity); RING_RADIUS covers it
-@export var view_distance: float = 350.0  ## card render ring (fog transmittance <=10%)
+## No longer a RENDER boundary - kept as the documented radius the trunk-collider ring
+## must cover. RING_RADIUS (70 m) still exceeds it, so anything close enough to hide
+## behind is bodied.
+@export var near_distance: float = 65.0
+@export var view_distance: float = 350.0  ## whole canopy ring (fog transmittance <=10%)
 
 ## visibility_range is per-NODE against the transformed AABB (godot#79471 - the
 ## docs say origin and are wrong). Chunk-sized nodes quantize both rings by
@@ -51,8 +80,7 @@ const PARK_POS := Vector3(0.0, -4000.0, 0.0)
 const BUCKET: float = 64.0
 const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 
-var _solid_mesh: Dictionary = {}   ## name -> Mesh
-var _card_mesh: Dictionary = {}    ## name -> Mesh (only species with a card)
+var _solid_mesh: Dictionary = {}   ## name -> Mesh (the real model; there is no second tier)
 var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs)
 var _chunk_scatter: Dictionary = {}  ## coord -> Array (the scatter as built, for single-instance removal)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
@@ -150,23 +178,23 @@ func _zone_overlaps(bounds: Rect2) -> bool:
 func _ready() -> void:
 	add_to_group("tree_cover")
 	for a: String in OS.get_cmdline_user_args():
-		if a.begins_with("--card-dist="):
+		# --card-dist= is kept as the spelling the bench scripts already pass; what it
+		# moves is the canopy draw radius, and there are no cards left behind it.
+		if a.begins_with("--card-dist=") or a.begins_with("--canopy-dist="):
 			view_distance = maxf(near_distance, float(a.split("=")[1]))
-			print("[TreeCover] --card-dist lever: view_distance=%.0f" % view_distance)
+			print("[TreeCover] canopy draw radius lever: view_distance=%.0f" % view_distance)
 
 
-## Load the solid + card mesh for each species name (idempotent). A missing card is
-## fine - deadfall/moss are solid-only (always near or culled).
+## Load the real model for each species name (idempotent). A species with no GLB is not
+## drawn at all - it is never substituted with a plane, and the gap is named out loud.
 func load_species(names: Array) -> void:
 	for n: String in names:
 		if not _solid_mesh.has(n):
 			var sm: Mesh = _extract_mesh(SOLID_DIR + n + ".glb")
 			if sm != null:
 				_solid_mesh[n] = sm
-		if not _card_mesh.has(n):
-			var cm: Mesh = _extract_mesh(CARD_DIR + n + "_card.glb")
-			if cm != null:
-				_card_mesh[n] = cm
+			else:
+				push_warning("[TreeCover] no 3D model for species '%s' - NOT DRAWN" % n)
 
 
 ## The near-solid mesh for a species, for a one-off visual (the felling swap).
@@ -175,8 +203,7 @@ func solid_mesh_for(species: String) -> Mesh:
 
 
 ## scatter: Array of {name: String, xf: Transform3D}. Builds, for this chunk:
-##   - one near-solid MultiMesh per species (visibility 0..near_distance)
-##   - one far-card MultiMesh per species that has a card (near_distance..view_distance)
+##   - ONE MultiMesh per (species, 64 m bucket) drawing the real model 0..view_distance
 ##   - trunk collider CANDIDATES per COVER instance (bodied by the ring, not here)
 func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	clear_chunk(coord)
@@ -219,11 +246,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		var local: Array = []
 		for xf: Transform3D in xforms:
 			local.append(Transform3D(xf.basis, xf.origin - centroid))
-		# NEAR: the real solid.
-		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, near_distance, centroid, true))
-		# FAR: the impostor card (if this species has one). Cards never cast.
-		if _card_mesh.has(nm):
-			nodes.append(_multimesh(_card_mesh[nm], local, near_distance, view_distance, centroid, false))
+		# The real model, all the way out. One node, one mesh, no boundary to pop across.
+		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, view_distance, centroid))
 	for node: Node in nodes:
 		add_child(node)
 	_chunk_nodes[coord] = nodes
@@ -413,7 +437,7 @@ func _shape_for(radius: float, height: float = TRUNK_HEIGHT) -> CylinderShape3D:
 
 
 func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
-		origin: Vector3, solid: bool) -> MultiMeshInstance3D:
+		origin: Vector3) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -423,16 +447,19 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.position = origin
-	if not solid:
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Shadow casting stays ON across the whole ring. The shipped world sun has shadows off
+	# (game_world.gd:65), so this is inert today; if directional shadows are ever turned
+	# back on, directional_shadow_max_distance is the engine's own bound on the cost - not
+	# a per-node cutoff that would make distant trees stop casting mid-view.
 	if vis_begin > 0.0:
 		mmi.visibility_range_begin = vis_begin
 		mmi.visibility_range_begin_margin = RANGE_MARGIN
 	mmi.visibility_range_end = vis_end
 	mmi.visibility_range_end_margin = RANGE_MARGIN
-	# HARD PS2 snap (ADR-026), NOT a fade: VISIBILITY_RANGE_FADE_SELF alpha-dithers the mesh
-	# across the fade margin, so trees near the near/card LOD boundaries render SEE-THROUGH.
-	# That was the "opacity" - the arena instances raw GLBs with no range and reads solid.
+	# Hard cut at view_distance (ADR-026), NEVER a fade: VISIBILITY_RANGE_FADE_SELF
+	# alpha-dithers the mesh across the fade margin, so foliage at the boundary renders
+	# SEE-THROUGH. That was the old "opacity" bug. With the card ring retired there is only
+	# ONE boundary left - the far edge of the canopy, out in the fog.
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	return mmi
 

@@ -1,8 +1,9 @@
-## veg_lod_lookcheck.gd - WINDOWED look-check for TreeCoverLayer (bead xih4).
-## Renders a dense lane of vegetation from 3m to 80m so one frame shows the NEAR
-## solids transitioning to the FAR impostor cards. Saves a screenshot and quits.
-## This validates the LOOK/LOD (solid near, card far, no pop, scale) in isolation -
-## the terrain-driven scatter + live switchover come only if this passes.
+## veg_lod_lookcheck.gd - WINDOWED look-check for TreeCoverLayer.
+## Renders a dense lane of vegetation from 3m to 80m and saves one screenshot.
+## It used to exist to eyeball the 65 m solid->CARD swap; that swap was deleted on
+## 2026-09-09 (the canopy is one real model at every distance), so what this frame now
+## shows is the run of import-generated mesh LODs down the lane - the silhouette must
+## stay the same shape the whole way out, only simpler.
 ## Run (4.7 windowed): Godot_v4.7 --path . res://tests/veg_lod_lookcheck.tscn -- --shot=<path>
 extends Node3D
 

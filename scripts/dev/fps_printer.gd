@@ -39,10 +39,15 @@ func _ready() -> void:
 
 
 ## The log states its own texture compression, so a VRAM-compression A/B cannot be
-## mislabelled by remembering which run was which. The witness is a canopy card - the
-## largest single texture in the game and the one this test exists for.
+## mislabelled by remembering which run was which.
+##
+## THE WITNESS MOVED 2026-09-09. It was a canopy CARD sheet, chosen when those were the
+## largest textures in the game. The card ring is retired (tree_cover_layer.gd) and no card
+## sheet is drawn any more, so that witness reported the compression state of something the
+## game never binds. It is now the US kit sheet - 17 MB, the largest single texture that is
+## actually drawn, and on every frame the squad is on screen.
 func _texture_state() -> String:
-	const WITNESS := "res://assets/world/vegetation/cards/vine_b_card_vine_b.png"
+	const WITNESS := "res://assets/us/characters/recovered_ref_us_kit.png"
 	var t: Texture2D = load(WITNESS) as Texture2D
 	if t == null:
 		return "UNKNOWN - witness texture did not load (%s)" % WITNESS
@@ -51,7 +56,7 @@ func _texture_state() -> String:
 		return "UNKNOWN - witness texture carries no image"
 	var fmt: int = img.get_format()
 	var compressed: bool = fmt >= Image.FORMAT_DXT1
-	return "%s (canopy witness %dx%d, format %d, %.1f MB)" % [
+	return "%s (witness %dx%d, format %d, %.1f MB)" % [
 		"VRAM COMPRESSED" if compressed else "LOSSLESS/UNCOMPRESSED",
 		img.get_width(), img.get_height(), fmt,
 		float(img.get_data().size()) / 1048576.0]

@@ -7,14 +7,13 @@ extends Node
 const NAMES: Array[String] = [
 	"broadleaf_a", "broadleaf_b", "banana_a", "bamboo_a", "jungle_palm_a1", "bush_a", "fern_a",
 ]
-const DIRS := ["res://assets/world/vegetation/", "res://assets/world/vegetation/cards/"]
+const DIRS := ["res://assets/world/vegetation/"]
 
 
 func _ready() -> void:
 	for nm in NAMES:
 		_dump(DIRS[0] + nm + ".glb", nm + " (solid)")
-	_dump(DIRS[1] + "broadleaf_a_card.glb", "broadleaf_a_card (card)")
-	_dump(DIRS[1] + "bamboo_a_card.glb", "bamboo_a_card (card)")
+	# The two card dumps that used to sit here are gone with the card ring (2026-09-09).
 	get_tree().quit(0)
 
 

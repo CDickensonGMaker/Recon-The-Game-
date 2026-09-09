@@ -1668,3 +1668,82 @@ in the entire project.
 **If the PSX look is ever revisited as an ART decision (his call alone, never as perf), the
 snap must be tessellation-aware or excluded from architecture entirely.** Applying it
 uniformly to the whole world is what he saw and rejected.
+
+---
+
+## 2026-09-09 — THE FAR CANOPY IS REAL 3D. It costs frames. His ruling is owed.
+
+Executing the Summoner's art ruling ("no more 2d terrain cards, or 3d plane spliced cards or
+whatever. all 3d blender models only in game" · "i do not want the old 2d made 3d terrain art
+pieces"), barbwire the single exemption. This is the second half of the near-ground
+`GroundClutter` conversion; it is an ART decision, and the numbers below are reported so he
+can price it, not to justify it.
+
+**What changed** (`terrain/vegetation/tree_cover_layer.gd`): the 65–350 m impostor-card ring is
+deleted. There is now ONE `MultiMeshInstance3D` per (species × 64 m bucket) drawing the real
+species GLB from 0 to 350 m. The 65 m boundary — a hard snap that changed a plant's DIMENSION
+in one frame — no longer exists.
+
+**Structure, measured** (`tests/test_tree_cover_wired.tscn`, seed 47225, whole AO):
+
+| | canopy child nodes | build |
+|---|---|---|
+| card ring | 14,418 | 742 ms |
+| real meshes | 7,268 | 732 ms |
+
+**Frame, measured** (`tools/bench_canopy.tscn`, seed 47225, 8 fixed yaws from one deep-jungle
+stand at 120/120, 6 s sampled per yaw, ship-parity 0.75 render scale, box clear of every other
+Godot process):
+
+| | worst frame | worst 1% low | mean fps | draw calls | primitives | gpu |
+|---|---|---|---|---|---|---|
+| card ring | 42.97 ms | 37.2 fps | 74.3 | 353 | 105,676 | 11.89 ms |
+| real meshes | 54.85 ms | 30.1 fps | 60.0 | 412 | 175,077 | 15.54 ms |
+| delta | **+11.9 ms** | **−7.1 fps** | −14.3 | **+59 (+17%)** | **+69,401 (+66%)** | **+3.65 ms** |
+
+Every delta clears the ~3 fps / ~2.4 ms detectability floor. **The conversion costs frames.**
+
+Two things the numbers say that are worth more than the totals:
+
+- **Mesh LOD is engaging on MultiMesh.** Primitives rose 66%, not 100×. Every vegetation GLB
+  imports with `generate_lods=true` and the renderer is picking down the ladder
+  (`tools/probe_far_ring_meshes.gd`: broadleaf_a 752→12 tris, bamboo_a 830→86). Without that
+  this change would have been unshippable. `rice_a` and `elephant_grass_b` generated NO ladder
+  and draw full detail everywhere; at 84 and 160 tris that is recorded, not fixed.
+- **Draw calls went UP while nodes halved.** A card is one surface; a real species GLB carries
+  more. The bound is surfaces, not nodes.
+
+**The fill-rate hypothesis stays dead.** It is not resurrected by this row: the cost here is
+geometry and surface count, and the 480×270 run already refuted fill.
+
+**Untested lever, named not pulled:** the 350 m ring draws grass tufts, rice and ferns as full
+meshes at ranges where they are under a pixel. Shortening the draw radius for the SMALL species
+only is a real-mesh answer, not a plane, and would take back most of the primitives — but it
+thins the distant jungle floor, so it is a LOOK change and his call.
+
+### The two other pop sources he may be seeing
+
+1. **545 firebase interior props appear in one frame at 40 m.** Counted
+   (`tools/probe_interior_pop.gd`): 545 `fb_int_` nodes, 1010 surfaces, 43,941 tris — the
+   comment at `site_planner.gd` claimed 178/368/11,936 and was stale by 3×; corrected in the
+   same change. `site_planner.gd:1705-1706` sets `visibility_range_end=40` and
+   `visibility_range_end_margin=8` but NEVER sets `visibility_range_fade_mode`, so the default
+   DISABLED applies and the margin is hysteresis, not a fade. `FADE_SELF` is not the fix — it
+   alpha-dithers the props see-through, the ADR-026 opacity bug. Either the range moves out and
+   costs calls, or it stays and pops. **Ruling owed.**
+2. **`project.godot:331 mesh_lod/lod_change/threshold_pixels=2.0`** (Godot's default is 1.0) is
+   now load-bearing for the WHOLE canopy rather than just the 0–65 m band. It swaps a level at
+   twice the screen error. Lowering it trades frames for smoothness. **Ruling owed** — not a
+   silent tweak.
+
+### Side effect worth its own line: 15 MB of card sheets left the drawn set
+
+The 40 card GLBs carried ~15 MB of PNG sheets (`vine_b_card_vine_b.png` alone is 1.5 MB) — the
+largest textures in the vegetation tree by three orders of magnitude against the 1 KB
+`*_jungle_palette.png` the real species use. **42 of the 241 entries in
+`tools/perf_phase1_set.txt`, the VRAM-compression set, are card textures the game no longer
+binds** — that fraction of the compression pass now buys nothing and the set wants re-picking.
+The card assets are LEFT ON DISK deliberately: `scripts/dev/fps_printer.gd` used one as its
+compression witness, and deleting them mid-A/B would have broken the instrument. The witness is
+repointed to the US kit sheet (17 MB, drawn every frame the squad is on screen); retiring the
+card assets themselves is a separate, reversible cleanup.

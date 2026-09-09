@@ -737,7 +737,27 @@ since that works better as cards or whatever"*.
 **Second time he has raised it.** Recorded in law: `ADR-001 Amendment A` (revokes the surviving sprite
 carve-out) and `ADR-026 Amendment D` (supersedes the Part A.2 card ring; kills the canopy card atlas).
 
-**RULED, NOT YET BUILT** — he moved priority to the physics stalls the same day. The work, surveyed:
+**STATUS 2026-09-09: BOTH RUNTIME HALVES ARE BUILT. THE FIREBASE ART BAKE IS NOT, and it is
+bigger than the survey below thought.** Details in `production/PERF_LEDGER.md` 2026-09-09.
+- DONE — `scripts/world/ground_clutter.gd`: every near-ground layer is a real mesh. He confirmed
+  it with his own eyes on 2026-09-09, unprompted: *"i can see the right terrain models on the
+  ground now"*.
+- DONE — `terrain/vegetation/tree_cover_layer.gd`: the 65–350 m card ring is deleted. ONE
+  MultiMesh per (species x 64 m bucket) draws the real model 0–350 m, so the 65 m boundary that
+  changed a plant's DIMENSION in one frame no longer exists. All 27 live species audited
+  volumetric first (`tools/probe_far_ring_meshes.gd`); none needed substituting and no species
+  was dropped. Guarded by `tests/test_tree_cover_lod.tscn`, which now FAILS if a plane or a
+  second distance-gated tier ever returns.
+- **COSTS FRAMES, HIS RULING OWED.** Worst 1% low 37.2 -> 30.1 fps, gpu 11.89 -> 15.54 ms, draw
+  calls +17%, primitives +66% (`tools/bench_canopy.tscn`, 8 fixed yaws, ship parity). Well above
+  the detectability floor. Reported as the price of his art ruling, not argued against it.
+- **STILL OPEN — the firebase bake, and the survey UNDERCOUNTED it.** `fsb_main_v3.glb` holds 19
+  merged `fb_veg_` groups; **14 of them are cards** (36–128 tris each; the 5 real ones are the
+  deadwood and stumps at 2,392–12,840 tris) — measured `tools/probe_firebase_cards.gd`. These are
+  baked art around the ~300 m treeline ring, so no code change reaches them: it needs a
+  `tools/gen_firebase_v3.py` re-export. **This, not the canopy, is the last card population in
+  the live world.**
+- Original survey, kept for the pointers:
 - `terrain/vegetation/tree_cover_layer.gd:15,166-169,224-226` — the 40-card far ring, 65–350 m.
 - `scripts/world/ground_clutter.gd:26-35` — 7 of 8 layers are QuadMesh billboards; the 8th is the
   6-tri star-fan `grass_fan.glb`. Second star-fan site: `scripts/levels/gore_lab.gd:201-236`.
