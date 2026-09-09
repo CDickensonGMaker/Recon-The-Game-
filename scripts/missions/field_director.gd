@@ -1025,8 +1025,10 @@ func _wp_impact(pos: Vector3) -> void:
 ## `source` is the gun's side of the map: the shell travels source -> impact. Left
 ## ZERO the round is BATTALION's and flies out from the firebase, which is why an
 ## enemy tube must pass its own origin or its shells arrive from inside the wire.
+## `flight_s` is the round's OWN time of flight. It must stay a parameter: a volley
+## whose rounds share one flight time solves to a single detonation frame.
 func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable,
-		source: Vector3 = Vector3.ZERO) -> void:
+		source: Vector3 = Vector3.ZERO, flight_s: float = SHELL_FLIGHT_S) -> void:
 	if world == null or not is_instance_valid(world):
 		return
 	var data: ProjectileData = load(shell_path) as ProjectileData
@@ -1039,7 +1041,7 @@ func _fire_shell(shell_path: String, impact: Vector3, terminal: Callable,
 		azimuth = Vector3(0.6, 0.0, -0.8)
 	var from: Vector3 = Ballistics.firing_point(ground, azimuth, SHELL_APEX_M, SHELL_STANDOFF_M)
 	SpawnLedger.note("fd_shell")
-	Ballistics.fire_arc(data, from, ground, SHELL_FLIGHT_S, world.terrain_manager, terminal)
+	Ballistics.fire_arc(data, from, ground, maxf(0.5, flight_s), world.terrain_manager, terminal)
 
 
 ## RTO-called resupply: pop smoke, the bird drops a crate on it.
@@ -1090,7 +1092,8 @@ func _mortar_impact(pos: Vector3, intensity: float) -> void:
 	# Contact fuse: burst where it stopped; only a floor burst digs.
 	var floor_y: float = world.terrain_manager.get_height_at(pos)
 	var ground := Vector3(pos.x, maxf(pos.y, floor_y), pos.z)
-	CombatManager.apply_explosion_damage(ground, int(140 * intensity), 40, FirePlan.MORTAR_BLAST_M, null)
+	CombatManager.apply_explosion_damage(ground, int(FirePlan.MORTAR_DAMAGE * intensity),
+		FirePlan.MORTAR_MIN_DAMAGE, FirePlan.MORTAR_BLAST_M, null)
 	if intensity >= 1.0 and ground.y - floor_y <= 2.0:
 		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
 			DamageSystem.DamageType.SMALL_EXPLOSION, intensity)

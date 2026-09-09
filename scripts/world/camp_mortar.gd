@@ -145,5 +145,6 @@ func _fire() -> void:
 	director.siege.fire_mortar_volley(director.fsb_center,
 		SiegeDirector.MORTAR_DISPERSION_START, pit.global_position)
 	pit.play_fire_anim()
-	director.toast.emit("INCOMING - MORTARS ON THE COMPOUND")
+	# fire_mortar_volley raises the shared INCOMING affordance; this adds only the where.
+	director.toast.emit("MORTARS ON THE COMPOUND")
 	print("[CampMortar] harassment volley at %.0fs from the camp pit" % _elapsed)

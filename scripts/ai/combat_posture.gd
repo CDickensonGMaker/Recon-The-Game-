@@ -135,3 +135,51 @@ static func wants_prone(state: int, suppression: float, moving: bool,
 ## left the fight. Any ONE of them frees him.
 static func must_rise(suppression: float, moving: bool, dwell_s: float) -> bool:
 	return moving or suppression < PRONE_SUPPRESS_EXIT or dwell_s >= PRONE_DWELL_MAX_S
+
+
+## ---------- THE ROUND THAT HAS NOT LANDED YET ----------
+## Summoner's ruling 2026-09-09: "the npcs should be reacting to the mortar rounds
+## too yes." Until now siege_director said it outright - "No AI consumes it: a
+## garrison man has no pre-impact reaction" - so the whistle warned the player and
+## nobody else, and a volley onto the defended point deleted the squad every time
+## because not one of them ever moved.
+##
+## THE REACTION IS DELIBERATELY IMPERFECT. A man who always hears the tube and always
+## reaches the deck in time makes the mortar decorative and makes the player the only
+## man in the game who can die. So: a quarter of them never hear it, the rest answer
+## on their own clock somewhere inside a second and a half, and men who are COMMITTED
+## - crossing open ground in the assault, flanking, running - mostly keep going,
+## because that is what committed means. The unlucky and the busy still get hit.
+##
+## He goes to GROUND, not to safety. Once prone genuinely protects (CombatManager
+## .blast_sample_offsets, the same ruling) getting flat is worth something real, and
+## neither half of the ruling needs a fudge factor to make the other one work.
+const INCOMING_HEAR_M: float = 60.0
+const INCOMING_DEAF_CHANCE: float = 0.25
+## A man already committed to crossing ground rarely breaks stride for a whistle.
+const INCOMING_COMMITTED_CHANCE: float = 0.25
+## How long after the cue he actually answers it. The whistle leads the burst by
+## FirePlan.MORTAR_WHISTLE_LEAD_S, so a man at the slow end is still on his way down
+## when it lands - which is the point.
+const INCOMING_REACT_MIN_S: float = 0.25
+const INCOMING_REACT_MAX_S: float = 1.6
+## How long he stays down afterwards. Under PRONE_DWELL_MAX_S on purpose: the dwell
+## ceiling stays the outer release and this can never become the prone-with-no-exit
+## bug class.
+const INCOMING_HOLD_S: float = 3.5
+
+
+## Does THIS man hear THIS round? `roll` is the caller's 0-1 draw, so the randomness
+## stays in the caller's seeded stream (ADR-010).
+static func hears_incoming(state: int, dist_m: float, roll: float) -> bool:
+	if dist_m > INCOMING_HEAR_M:
+		return false
+	if state == Enums.AIState.ADVANCING or state == Enums.AIState.FLANKING \
+			or state == Enums.AIState.RETREATING:
+		return roll < INCOMING_COMMITTED_CHANCE
+	return roll >= INCOMING_DEAF_CHANCE
+
+
+## Seconds between hearing it and being on the deck, from a 0-1 draw.
+static func incoming_react_delay_s(roll: float) -> float:
+	return lerpf(INCOMING_REACT_MIN_S, INCOMING_REACT_MAX_S, clampf(roll, 0.0, 1.0))

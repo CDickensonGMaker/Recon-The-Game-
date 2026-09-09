@@ -1691,7 +1691,9 @@ func _update_sandbox(delta: float) -> void:
 			_toast_label.text = ""
 	if not spawn_player:
 		return
-	if enemy_mortars and _siege != null:
+	# `.active`, not `!= null`: the siege is WIRED at setup and only opens on [J], so a
+	# null-check drops volleys on the player under every measurement taken on this bench.
+	if enemy_mortars and _siege != null and _siege.active:
 		_mortar_t -= delta
 		if _mortar_t <= 0.0:
 			_mortar_t = randf_range(MORTAR_INTERVAL_MIN, MORTAR_INTERVAL_MAX)
@@ -1704,13 +1706,13 @@ func _update_sandbox(delta: float) -> void:
 		_launch_arena_sappers()
 
 
-## The tube is ranging on the player, not on a fixed point - the volley is aimed
-## where he stands when the rounds leave, so standing still is what kills.
+## Called ON where he stands when the rounds LEAVE, so standing still is what kills.
+## Called on him, never welded to him - fire_mortar_volley's default aim_error puts the
+## beaten zone NEAR him, and passing 0.0 here would make the bench a homing weapon.
 func _call_mortars_on_player() -> void:
 	if _siege == null or player == null or not is_instance_valid(player):
 		return
 	_siege.fire_mortar_volley(player.global_position, MORTAR_SPREAD_M)
-	_on_director_toast("INCOMING - MORTARS")
 
 
 func _spawn_initial_forces() -> void:

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c8mortarbeaten9"]
+
+[ext_resource type="Script" path="res://tests/test_mortar_beaten_zone.gd" id="1_mbz"]
+
+[node name="TestMortarBeatenZone" type="Node"]
+script = ExtResource("1_mbz")

@@ -77,16 +77,25 @@ func play_squad(line_id: String, member: Dictionary = {}, pos: Variant = null,
 
 
 ## Enemy Vietnamese callout, positional at the enemy. Voice is stable per speaker.
-func play_enemy(line_id: String, speaker: Node3D, urgent: bool = false) -> void:
+## A shouted line carries further than a spoken one. `max_d` overrides FIELD_MAX_D for
+## a line that has to reach the player across a firefight - default keeps every
+## existing caller byte-identical.
+const FIELD_MAX_D: float = 45.0
+const SHOUT_MAX_D: float = 110.0
+
+
+func play_enemy(line_id: String, speaker: Node3D, urgent: bool = false,
+		max_d: float = FIELD_MAX_D) -> void:
 	if speaker == null or not is_instance_valid(speaker):
 		return
 	var id: int = abs(speaker.get_instance_id())
 	var dir: String = ENEMY_DIRS[id % ENEMY_DIRS.size()]
-	_play_field(dir, "enemy_%s" % line_id, speaker.global_position, "en:%d" % id, urgent)
+	_play_field(dir, "enemy_%s" % line_id, speaker.global_position, "en:%d" % id,
+		urgent, max_d)
 
 
 func _play_field(dir: String, fname: String, pos: Variant, speaker_key: String,
-		urgent: bool) -> void:
+		urgent: bool, max_d: float = FIELD_MAX_D) -> void:
 	var stream := _load(dir, fname)
 	if stream == null:
 		return
@@ -100,8 +109,8 @@ func _play_field(dir: String, fname: String, pos: Variant, speaker_key: String,
 	if pos is Vector3:
 		var p := AudioStreamPlayer3D.new()
 		p.stream = stream
-		p.max_distance = 45.0
-		p.unit_size = 6.0
+		p.max_distance = max_d
+		p.unit_size = 6.0 * maxf(1.0, max_d / FIELD_MAX_D)
 		p.bus = "Voice" if AudioServer.get_bus_index("Voice") >= 0 else "Master"
 		add_child(p)
 		p.global_position = pos

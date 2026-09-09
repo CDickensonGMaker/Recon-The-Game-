@@ -1173,7 +1173,9 @@ func _sp_enemy_mortars() -> void:
 	siege.set_physics_process(false)
 	await get_tree().physics_frame
 	_sp_explosions = 0
-	siege.fire_mortar_volley(at, 4.0)
+	# aim_error 0.0 ON PURPOSE: this probe measures a KNOWN volley on a known point.
+	# Every other caller takes the default bracket (siege_director.fire_mortar_volley).
+	siege.fire_mortar_volley(at, 4.0, Vector3.ZERO, 0.0)
 	await get_tree().create_timer(16.0).timeout
 	var total_dmg: int = 0
 	var killed: int = 0

@@ -14,7 +14,29 @@ class_name FirePlan
 ## before fo_fac tightens it; SPOT is the wider ranging shot; BLAST is the kill.
 const MORTAR_SHEAF_M: float = 8.0
 const MORTAR_SPOT_M: float = 15.0
-const MORTAR_BLAST_M: float = 10.0
+## ONE 81mm SHELL, ONE BLAST, whoever fires it. The player's own fire mission, the
+## enemy's ranging walk and mortar_81mm.tres all read these - never re-declare a mortar
+## figure elsewhere. BLAST also sizes the player's danger ring (line 76), which must
+## never promise less than the ordnance delivers (r4bk).
+const MORTAR_BLAST_M: float = 18.0
+## NOT ADR-016 values - mortar_81mm is absent from tests/test_flat_damage.gd's guarded
+## table, so these retune without an amendment.
+## DAMAGE is the plateau: a man standing on the impact point dies (Summoner 2026-09-09).
+## MIN is the fringe, bounded by MORTAR_VOLLEY x MIN < player HP 100 - above that, being
+## at the outer edge of every round in the volley is still a kill and the beaten zone
+## has no survivable band at all (Pillar 5: fail forward).
+const MORTAR_DAMAGE: int = 140
+const MORTAR_MIN_DAMAGE: int = 22
+## Rounds per mission, and seconds added to each successive round's time of flight.
+## STAGGER must stay > 0: rounds sharing one flight time detonate in a single physics
+## frame - one un-reactable event, and three blast passes plus three chunk deforms on
+## one tick.
+const MORTAR_VOLLEY: int = 3
+const MORTAR_VOLLEY_STAGGER_S: float = 1.2
+## Lead on each round's own whistle. MUST stay shorter than shell_incoming.wav (2.60s)
+## or the cue falls silent before the burst and reads as the danger passing
+## (Fairness Law: the telegraph must survive to the lethality).
+const MORTAR_WHISTLE_LEAD_S: float = 2.1
 const ARTY_SHEAF_M: float = 18.0
 const ARTY_BLAST_M: float = 14.0
 ## A battery mission is a BARRAGE (decree 2026-08-04): 8-12 rounds, count drawn per call.

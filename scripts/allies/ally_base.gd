@@ -424,6 +424,10 @@ var _prone_since_ms: float = 0.0
 var _prone_pin_since_ms: float = 0.0
 var _prone_drop_until_ms: float = 0.0
 var _prone_rise_until_ms: float = 0.0
+## PRE-IMPACT REACTION to a round still in the air (Summoner 2026-09-09; the roll and
+## the imperfection contract live in CombatPosture). 0 = he never heard it.
+var _incoming_drop_ms: float = 0.0   ## when he answers the whistle
+var _incoming_until_ms: float = 0.0  ## how long the round keeps him down
 var _turn_rate: float = 0.0
 var _yaw_prev: float = 0.0
 var _yaw_prev_ms: float = 0.0
@@ -622,10 +626,26 @@ func _update_prone_latch(now: float, speed: float) -> void:
 	var moving: bool = speed > EnemyBase.PRONE_STILL_SPEED
 	if _prone:
 		var dwell: float = (now - _prone_since_ms) / 1000.0
-		if CombatPosture.must_rise(suppression_level, moving, dwell):
+		# A round still in the air holds him down as surely as a pin does - but only
+		# against the SUPPRESSION release. Moving and the dwell ceiling still free him,
+		# so this can never become the prone-with-no-exit bug class.
+		var supp: float = suppression_level
+		if now < _incoming_until_ms:
+			supp = maxf(supp, CombatPosture.PRONE_SUPPRESS_EXIT)
+		if CombatPosture.must_rise(supp, moving, dwell):
 			_prone = false
 			_prone_pin_since_ms = 0.0
 			_prone_rise_until_ms = now + EnemyBase.PRONE_TRANSITION_MS
+		return
+	# A ROUND IN THE AIR OUTRANKS THE PIN. He is diving, not settling, so he skips the
+	# PRONE_ENTER_HOLD_S commit delay. A MOVING man still never goes prone (there is no
+	# prone locomotion clip) - he keeps running, which is the other counterplay.
+	if _incoming_drop_ms > 0.0 and now >= _incoming_drop_ms \
+			and now < _incoming_until_ms and not moving:
+		_prone = true
+		_prone_since_ms = now
+		_prone_pin_since_ms = 0.0
+		_prone_drop_until_ms = now + EnemyBase.PRONE_TRANSITION_MS
 		return
 	if CombatPosture.wants_prone(current_state, suppression_level, moving,
 			has_cover and _cover_is_low):
@@ -642,6 +662,40 @@ func _update_prone_latch(now: float, speed: float) -> void:
 func _in_prone_transition() -> bool:
 	var now: float = float(Time.get_ticks_msec())
 	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
+
+
+## A round is coming down near `impact`. Called PRE-IMPACT by the fire mission, once
+## per round, at the moment that round's whistle starts (SiegeDirector._schedule_whistle).
+##
+## Whether he hears it and how fast he answers are CombatPosture's rolls, drawn from
+## the CALLER's seeded stream so a replayed siege reacts identically (ADR-010). He is
+## meant to be caught out sometimes: see the imperfection contract on hears_incoming.
+func warn_incoming(impact: Vector3, hear_roll: float, react_roll: float,
+		volley_s: float) -> void:
+	if current_state == Enums.AIState.DEAD:
+		return
+	var now: float = float(Time.get_ticks_msec())
+	if now < _incoming_until_ms:
+		return  # already answering this volley
+	if not CombatPosture.hears_incoming(current_state,
+			global_position.distance_to(impact), hear_roll):
+		return
+	_incoming_drop_ms = now + CombatPosture.incoming_react_delay_s(react_roll) * 1000.0
+	# Down until the LAST round of the volley has landed, plus the tail. CombatPosture
+	# .must_rise still frees him the instant he wants to move, and PRONE_DWELL_MAX_S is
+	# still the outer ceiling - neither release is touched here.
+	_incoming_until_ms = now + (volley_s + CombatPosture.INCOMING_HOLD_S) * 1000.0
+	# The squad already calls out on the suppression pin; a shell in the air is the
+	# same event to the player's ear, so it uses the same line rather than a new one.
+	VOManager.play_squad("taking_fire", {}, global_position)
+
+
+## Public stance for the blast sampler (CombatManager.blast_sample_offsets). `_prone`
+## and `_low_posture` are private; the sampler must not reach into them.
+func blast_stance() -> int:
+	if _prone:
+		return CombatPosture.Posture.PRONE
+	return CombatPosture.Posture.CROUCH if _low_posture else CombatPosture.Posture.STAND
 
 
 ## See EnemyBase._update_turn_rate - same rule, same reasons.

@@ -46,11 +46,30 @@ const MORTAR_SHELL: String = "res://data/projectiles/mortar_81mm.tres"
 const MORTAR_DISPERSION_START: float = 50.0
 const MORTAR_DISPERSION_END: float = 12.0
 const MORTAR_WALK_S: float = 180.0
-const MORTAR_VOLLEY: int = 3
 const MORTAR_TUBE_STANDOFF: float = 700.0
-const MORTAR_DAMAGE: int = 140
-const MORTAR_MIN_DAMAGE: int = 40
-const MORTAR_BLAST_M: float = 18.0
+## The 81mm grammar is FirePlan's. Retune there, never here.
+const MORTAR_VOLLEY: int = FirePlan.MORTAR_VOLLEY
+const MORTAR_DAMAGE: int = FirePlan.MORTAR_DAMAGE
+const MORTAR_MIN_DAMAGE: int = FirePlan.MORTAR_MIN_DAMAGE
+const MORTAR_BLAST_M: float = FirePlan.MORTAR_BLAST_M
+
+## ---------- THE BRACKET ----------
+## A tube RANGES: the observer puts the first rounds off the target and walks them in,
+## so the aim point is NEVER the target's own coordinates. Dispersion alone is not a
+## bracket - scatter around a centre welded to the defended point cannot be walked
+## out of, whatever its width.
+##
+## MIN must stay > 0. The residual observer error IS the ground a man moves to; at zero
+## the late walk is a guided weapon again. Sized so a man standing on the objective at
+## the tight end still dies ~83% of the time and a man who runs takes nothing -
+## punishing, not absolute (Pillar 5).
+const MORTAR_WALK_OFFSET_M: float = 45.0      ## observer error on the first volley
+const MORTAR_WALK_OFFSET_MIN_M: float = 12.0  ## residual once the tube has ranged in
+
+## The assault must be heard before it is shelled: the first volley may not leave the
+## tube on the tick the siege opens.
+const MORTAR_FIRST_MIN_S: float = 12.0
+const MORTAR_FIRST_MAX_S: float = 20.0
 
 ## ---------- THE OVERRUN ----------
 ## An assault that reaches the wire and trades shots is a probe with more men. The press
@@ -84,9 +103,10 @@ const ILLUM_INTERVAL_S: float = 70.0
 ## Out on the attack bearing, between the wire and the ring, so the lit circle covers the
 ## ground they are actually crossing rather than the compound behind you.
 const ILLUM_STANDOFF_M: float = 140.0
-## First round goes up shortly after stand-to - but after the first ranging shells, which start
-## at zero, so the mortars still announce the night themselves.
-const ILLUM_FIRST_S: float = 12.0
+## First round goes up shortly after stand-to but AFTER the first ranging shells, so the
+## mortars announce the night themselves. DERIVED, not a literal - it must track the
+## tube's opening beat or the ordering silently inverts.
+const ILLUM_FIRST_S: float = MORTAR_FIRST_MIN_S + 4.0
 
 signal siege_began(strength: int, is_probe: bool)
 signal siege_ended(reason: String, killed: int, strength: int)
@@ -249,7 +269,7 @@ func open_siege(forced_strength: int = 0) -> void:
 	nights_run += 1
 	is_probe = run_strength <= PROBE_MAX
 	_elapsed = 0.0
-	_mortar_timer = 0.0
+	_mortar_timer = _rng.randf_range(MORTAR_FIRST_MIN_S, MORTAR_FIRST_MAX_S)
 	_press_clock = 0.0
 	_press_phase = 0
 	_illum_timer = ILLUM_FIRST_S
@@ -747,7 +767,14 @@ func _walk_mortars(step: float) -> void:
 		return
 	_mortar_timer = _rng.randf_range(20.0, 25.0)
 	var t: float = clampf(_elapsed / MORTAR_WALK_S, 0.0, 1.0)
-	fire_mortar_volley(objective, lerpf(MORTAR_DISPERSION_START, MORTAR_DISPERSION_END, t))
+	fire_mortar_volley(objective, lerpf(MORTAR_DISPERSION_START, MORTAR_DISPERSION_END, t),
+		Vector3.ZERO, walk_aim_offset_m(t))
+
+
+## Observer error in metres at walk fraction `t` (0 = the night's first volley, 1 = the
+## tube has ranged in). Never reaches zero: the residual is the ground a man moves to.
+static func walk_aim_offset_m(t: float) -> float:
+	return lerpf(MORTAR_WALK_OFFSET_M, MORTAR_WALK_OFFSET_MIN_M, clampf(t, 0.0, 1.0))
 
 
 ## S27 night link (his ruling): a camp mortar silenced during the day means no
@@ -771,25 +798,76 @@ func _camp_mortar_silenced() -> bool:
 ## map without opening an assault. Shells fly from the tube on the attack bearing -
 ## or from `tube_from` when a real emplaced tube (the camp's pit, S27) is firing -
 ## so they arrive from the enemy's side and not out of the defenders' own position.
-func fire_mortar_volley(at: Vector3, spread: float, tube_from: Vector3 = Vector3.ZERO) -> void:
+## `aim_error_m` is the observer's error - how far the CENTRE of the beaten zone sits
+## from the point the mission was called on. It defaults to the full bracket because a
+## tube that cannot miss is the defect this parameter exists to prevent; a caller that
+## genuinely wants a perfect sheaf (the support-fire probe, measuring a known volley)
+## must ask for 0.0 in as many words.
+func fire_mortar_volley(at: Vector3, spread: float, tube_from: Vector3 = Vector3.ZERO,
+		aim_error_m: float = MORTAR_WALK_OFFSET_M) -> void:
 	if director == null:
 		return
 	var tube: Vector3 = tube_from
 	if tube == Vector3.ZERO:
 		tube = fsb_center + Vector3(cos(sector_bearing), 0.0,
 			sin(sector_bearing)) * mortar_standoff_m
-	# The thump from the tube line, then the whistle over the impact point. That gap warns
-	# THE PLAYER. No AI consumes it: a garrison man has no pre-impact reaction, so what makes
-	# a ranging round survivable for him is cover and the blast falloff, not the whistle.
+	# THE AIM POINT IS NOT THE TARGET. Bearing from the siege's seeded rng, so the
+	# bracket replays identically (ADR-010).
+	var err_bearing: float = _rng.randf_range(0.0, TAU)
+	var aim: Vector3 = at + Vector3(cos(err_bearing), 0.0, sin(err_bearing)) * aim_error_m
+	# THE TUBE SPEAKS FIRST: the thump is the only cue early enough to run on. The
+	# whistle is NOT played here - it rides each round down to its own impact point
+	# (_schedule_whistle), or it resolves before anything lands.
 	AudioManager.play_mortar_tube(tube)
-	AudioManager.play_incoming(at)
+	director.toast.emit("INCOMING - MOVE")   # r4bk affordance
 	# Enemy indirect fire calls out the trees over its beaten zone too (decree
-	# 2026-08-04) - contact fuzing is faction-blind.
-	TreeCoverLayer.threat_zone(get_tree(), at, spread + FirePlan.MORTAR_BLAST_M + 6.0, 20.0)
+	# 2026-08-04) - contact fuzing is faction-blind. Threat follows the AIM point.
+	TreeCoverLayer.threat_zone(get_tree(), aim, spread + FirePlan.MORTAR_BLAST_M + 6.0, 20.0)
+	# THE VOLLEY IS THREE ROUNDS, NOT ONE EVENT: each round carries its own time of
+	# flight so they arrive MORTAR_VOLLEY_STAGGER_S apart.
+	# Warned ONCE for the whole volley - a per-round warn re-enters in this same frame,
+	# hits the "already answering" guard, and expires before the last round lands.
+	var volley_s: float = FieldDirector.SHELL_FLIGHT_S \
+		+ float(MORTAR_VOLLEY - 1) * FirePlan.MORTAR_VOLLEY_STAGGER_S
+	_warn_men_near(aim, volley_s)
 	for i in range(MORTAR_VOLLEY):
-		var impact: Vector3 = at + Vector3(_rng.randf_range(-spread, spread), 0.0,
+		var impact: Vector3 = aim + Vector3(_rng.randf_range(-spread, spread), 0.0,
 			_rng.randf_range(-spread, spread))
-		director._fire_shell(MORTAR_SHELL, impact, _mortar_impact, tube)
+		var flight: float = FieldDirector.SHELL_FLIGHT_S \
+			+ float(i) * FirePlan.MORTAR_VOLLEY_STAGGER_S
+		_schedule_whistle(impact, flight - FirePlan.MORTAR_WHISTLE_LEAD_S)
+		director._fire_shell(MORTAR_SHELL, impact, _mortar_impact, tube, flight)
+
+
+## THE MEN HEAR IT TOO (Summoner 2026-09-09). Warned at FIRE time, not on the whistle
+## timer: a man needs longer than the whistle's lead to get off his feet. Both rolls come
+## from the siege's seeded rng so a replayed night reacts identically (ADR-010);
+## CombatPosture owns who is deaf, who is committed and who is slow.
+func _warn_men_near(impact: Vector3, volley_s: float) -> void:
+	var men: Array[Node] = AgentRegistry.allies.duplicate()
+	men.append_array(AgentRegistry.enemies)
+	for man in men:
+		if not is_instance_valid(man) or not (man is Node3D):
+			continue
+		if not man.has_method("warn_incoming"):
+			continue
+		var m3: Node3D = man as Node3D
+		if m3.global_position.distance_to(impact) > CombatPosture.INCOMING_HEAR_M:
+			continue
+		man.call("warn_incoming", impact, _rng.randf(), _rng.randf(), volley_s)
+
+
+## One whistle per round, over the ground that round will hit, so the cue is still
+## sounding at the burst AND carries a bearing to run from.
+##
+## The lambda captures a Vector3 and an autoload ONLY - never `self`. A siege that
+## breaks mid-flight would take the callback with it (projectile_base.gd:409).
+func _schedule_whistle(at: Vector3, delay: float) -> void:
+	if delay <= 0.05:
+		AudioManager.play_incoming(at)
+		return
+	get_tree().create_timer(delay).timeout.connect(func() -> void:
+		AudioManager.play_incoming(at))
 
 
 ## The enemy's own ranging rounds must not break the enemy's own siege, and the break

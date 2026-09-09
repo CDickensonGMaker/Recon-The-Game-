@@ -181,6 +181,10 @@ var _prone_since_ms: float = 0.0       # when he went down, for the dwell ceilin
 var _prone_pin_since_ms: float = 0.0   # when the pin started holding, for the entry delay
 var _prone_drop_until_ms: float = 0.0  # crouch_to_prone one-shot window
 var _prone_rise_until_ms: float = 0.0  # prone_to_crouch one-shot window
+## PRE-IMPACT REACTION to a round still in the air (Summoner 2026-09-09; the roll and
+## the imperfection contract live in CombatPosture). 0 = he never heard it.
+var _incoming_drop_ms: float = 0.0     # when he answers the whistle
+var _incoming_until_ms: float = 0.0    # how long the round keeps him down
 var _turn_rate: float = 0.0            # signed yaw rad/s, smoothed - drives turn-in-place
 var _yaw_prev: float = 0.0
 var _yaw_prev_ms: float = 0.0
@@ -555,10 +559,26 @@ func _update_prone_latch(now: float, speed: float) -> void:
 	var moving: bool = speed > PRONE_STILL_SPEED
 	if _prone:
 		var dwell: float = (now - _prone_since_ms) / 1000.0
-		if CombatPosture.must_rise(suppression_level, moving, dwell):
+		# A round still in the air holds him down as surely as a pin does - but only
+		# against the SUPPRESSION release. Moving and the dwell ceiling still free him,
+		# so this can never become the prone-with-no-exit bug class.
+		var supp: float = suppression_level
+		if now < _incoming_until_ms:
+			supp = maxf(supp, CombatPosture.PRONE_SUPPRESS_EXIT)
+		if CombatPosture.must_rise(supp, moving, dwell):
 			_prone = false
 			_prone_pin_since_ms = 0.0
 			_prone_rise_until_ms = now + PRONE_TRANSITION_MS
+		return
+	# A ROUND IN THE AIR OUTRANKS THE PIN. He is diving, not settling, so he skips the
+	# PRONE_ENTER_HOLD_S commit delay. A MOVING man still never goes prone (there is no
+	# prone locomotion clip) - he keeps running, which is the other counterplay.
+	if _incoming_drop_ms > 0.0 and now >= _incoming_drop_ms \
+			and now < _incoming_until_ms and not moving:
+		_prone = true
+		_prone_since_ms = now
+		_prone_pin_since_ms = 0.0
+		_prone_drop_until_ms = now + PRONE_TRANSITION_MS
 		return
 	if CombatPosture.wants_prone(current_state, suppression_level, moving,
 			has_cover and cover_is_low):
@@ -577,6 +597,71 @@ func _update_prone_latch(now: float, speed: float) -> void:
 func _in_prone_transition() -> bool:
 	var now: float = float(Time.get_ticks_msec())
 	return _prone_drop_until_ms > now or _prone_rise_until_ms > now
+
+
+## A round is coming down near `impact`. Called PRE-IMPACT by the fire mission, once
+## per round, at the moment that round's whistle starts (SiegeDirector._schedule_whistle).
+##
+## Whether he hears it and how fast he answers are CombatPosture's rolls, drawn from
+## the CALLER's seeded stream so a replayed siege reacts identically (ADR-010). He is
+## meant to be caught out sometimes: see the imperfection contract on hears_incoming.
+##
+## The attackers get this too. Enemy indirect fire is faction-blind at the burst
+## (apply_explosion_damage), so the men walking their own barrage in must be able to
+## flinch from it - and a mortar that only the defenders duck is a tell.
+func warn_incoming(impact: Vector3, hear_roll: float, react_roll: float,
+		volley_s: float) -> void:
+	if current_state == Enums.AIState.DEAD:
+		return
+	var now: float = float(Time.get_ticks_msec())
+	if now < _incoming_until_ms:
+		return  # already answering this volley
+	if not CombatPosture.hears_incoming(current_state,
+			global_position.distance_to(impact), hear_roll):
+		return
+	_incoming_drop_ms = now + CombatPosture.incoming_react_delay_s(react_roll) * 1000.0
+	# Down until the LAST round of the volley has landed, plus the tail. CombatPosture
+	# .must_rise still frees him the instant he wants to move, and PRONE_DWELL_MAX_S is
+	# still the outer ceiling - neither release is touched here.
+	_incoming_until_ms = now + (volley_s + CombatPosture.INCOMING_HOLD_S) * 1000.0
+	pin_tell()   # same vocabulary as the pin: he goes down and he calls out
+
+
+## Public stance for the blast sampler (CombatManager.blast_sample_offsets). `_prone`
+## and `_low_posture` are private; the sampler must not reach into them.
+func blast_stance() -> int:
+	if _prone:
+		return CombatPosture.Posture.PRONE
+	return CombatPosture.Posture.CROUCH if _low_posture else CombatPosture.Posture.STAND
+
+
+## THE PIN MUST BE AUDIBLE (Summoner 2026-09-09: "make the suppression visible on the
+## enemy too"). Everything suppression already does to this man - the move multiplier
+## collapsing to 0.05, fire stopping at SUPPRESS_FIRE_CEILING, the spread opening,
+## the drop to crouch and prone - is only legible if the player can SEE him. At the
+## range this game is fought, at night and through canopy, he usually cannot.
+##
+## `enemy_reload` is the tell: it is the one line in the Vietnamese banks with no
+## caller, and it is semantically exact - a man who stops shooting and shouts that he
+## is reloading. It marks the TRANSITION, never the state: the cooldown means a long
+## pin is announced once, so the bark can never be read as a live "still harmless"
+## meter, and a reload call is a promise that he is about to shoot again rather than
+## a report that he is finished. Costed deliberately - see the ruling.
+const PIN_BARK_COOLDOWN_S: float = 7.0
+var _pin_bark_ms: float = -1e9
+
+
+## Called on the pin crossing and when a round in the air puts him down - one
+## vocabulary for both, because to the player they are the same event.
+func pin_tell() -> void:
+	var now: float = float(Time.get_ticks_msec())
+	if now - _pin_bark_ms < PIN_BARK_COOLDOWN_S * 1000.0:
+		return
+	_pin_bark_ms = now
+	# SHOUT range, not speech range. At the standard 45m field distance the player
+	# cannot hear the man he is pinning at the range this game is fought at, and a
+	# tell nobody can perceive is the same defect as no tell.
+	VOManager.play_enemy("reload", self, true, VOManager.SHOUT_MAX_D)
 
 
 ## Signed yaw rate in rad/s, smoothed. The state map has only ever read SPEED, so a
@@ -2803,6 +2888,7 @@ func apply_suppression(amount: float) -> void:
 	_last_crack_ms = float(Time.get_ticks_msec())
 	if was <= CombatPosture.SUPPRESS_PIN and suppression_level > CombatPosture.SUPPRESS_PIN:
 		pinned_since_ms = float(Time.get_ticks_msec())
+		pin_tell()
 
 
 ## How covered this man is, 0 open -> 1 hard cover. A claimed rock outranks the ground;

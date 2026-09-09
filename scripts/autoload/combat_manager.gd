@@ -306,6 +306,73 @@ static func _blast_defeat_chance(max_damage: int) -> float:
 	return clampf(float(max_damage) / 380.0, 0.5, 0.75)
 
 
+## ---------- STANCE AND THE BLAST SILHOUETTE ----------
+## Summoner's ruling 2026-09-09: "prone should protect you but not from a direct hit."
+##
+## THE MECHANISM IS THE SILHOUETTE, NOT A DISCOUNT. There is deliberately no
+## `if prone: damage *= x` anywhere - a flat multiplier would also blunt the round
+## that lands ON him, which is exactly the case that must stay lethal. Instead the
+## eight visibility samples follow the man's actual profile: flat on his belly he is
+## a few centimetres tall, so terrain, a berm, sandbags and the lip of the last
+## crater block rays that would clear a standing man's chest. He is protected by the
+## GROUND, which is how it works.
+##
+## What this changes, precisely:
+##   * A STANDING target: nothing. vertical scale is 1.0, so the offsets array is
+##     bit-identical to the one that shipped. Every explosive in the game - M26,
+##     M79, LAW, RPG-2, RPG-7, mortar, arty, CBU, satchel - behaves exactly as
+##     before against a man on his feet, and in the OPEN no stance changes anything
+##     either, because with no geometry between burst and body every sample is clear
+##     at any height and the multiplier is 1.0 regardless.
+##   * A PRONE target IN COVER: samples collapse toward the dirt, more of them are
+##     blocked, the multiplier falls. This is the ruling, and it applies to every
+##     explosive by design - going flat behind the berm should beat a grenade too.
+##   * A PRONE target under a DIRECT HIT: unchanged and still fatal. Nothing is
+##     between him and a round landing on him, all eight rays are clear at any
+##     height, multiplier 1.0, full plateau damage.
+## Prone is not free: a man lying down is LONGER, so his lateral samples spread out
+## to the length of a body and he presents more silhouette across the ground.
+const BLAST_PRONE_VSCALE: float = 0.22
+const BLAST_PRONE_HSCALE: float = 3.0
+const BLAST_CROUCH_VSCALE: float = 0.55
+const BLAST_CROUCH_HSCALE: float = 1.0
+
+
+## The eight sample points for `target`, in the target's own stance. Public so the
+## probe can measure a stance without staging an explosion.
+static func blast_sample_offsets(target: Object) -> Array[Vector3]:
+	var vs: float = 1.0
+	var hs: float = 1.0
+	# NPCs answer blast_stance() (their `_prone`/`_low_posture` are private and the
+	# sampler must not reach into them); the PLAYER carries plain is_prone/is_crouching.
+	var prone: bool = false
+	var crouched: bool = false
+	if target != null:
+		if target.has_method("blast_stance"):
+			var st: int = int(target.call("blast_stance"))
+			prone = st == CombatPosture.Posture.PRONE
+			crouched = st == CombatPosture.Posture.CROUCH
+		else:
+			prone = target.get("is_prone") == true
+			crouched = target.get("is_crouching") == true
+	if prone:
+		vs = BLAST_PRONE_VSCALE
+		hs = BLAST_PRONE_HSCALE
+	elif crouched:
+		vs = BLAST_CROUCH_VSCALE
+		hs = BLAST_CROUCH_HSCALE
+	return [
+		Vector3.ZERO,                        # ground contact
+		Vector3(0.0, 1.0 * vs, 0.0),         # chest
+		Vector3(0.0, 0.5 * vs, 0.0),         # waist
+		Vector3(0.3 * hs, 0.5 * vs, 0.0),    # right
+		Vector3(-0.3 * hs, 0.5 * vs, 0.0),   # left
+		Vector3(0.0, 0.5 * vs, 0.3 * hs),    # front
+		Vector3(0.0, 0.5 * vs, -0.3 * hs),   # back
+		Vector3(0.0, 0.1 * vs, 0.0),         # boots
+	] as Array[Vector3]
+
+
 ## Multi-point blast reach. Traces 8 points around the target and returns the FRACTION
 ## of them the blast reaches, so cover attenuates by how much of a man it actually
 ## covers. Each point contributes 1.0 clear, BLAST_THROUGH_COVER_MULT through soft cover
@@ -318,17 +385,10 @@ static func _blast_defeat_chance(max_damage: int) -> float:
 ## took (Summoner ruling 2026-08-12 to make the shift). Fully-exposed is still 1.0, so
 ## open-ground lethality is unchanged.
 func _blast_multiplier(space_state: PhysicsDirectSpaceState3D, from: Vector3, target_pos: Vector3, target: Node, max_damage: int) -> float:
-	# Define 8 check points around target (corners of a box + center)
-	var offsets: Array[Vector3] = [
-		Vector3.ZERO,           # Center
-		Vector3(0, 1.0, 0),     # Head
-		Vector3(0, 0.5, 0),     # Torso
-		Vector3(0.3, 0.5, 0),   # Right
-		Vector3(-0.3, 0.5, 0),  # Left
-		Vector3(0, 0.5, 0.3),   # Front
-		Vector3(0, 0.5, -0.3),  # Back
-		Vector3(0, 0.1, 0),     # Feet
-	]
+	# Eight check points on the target's SILHOUETTE. A body's origin is at its feet
+	# (player.tscn:19 - the 1.8m capsule sits +0.9 above the node), so these are
+	# ground-relative: 1.0 is chest, 0.5 waist, 0.1 boots.
+	var offsets: Array[Vector3] = blast_sample_offsets(target)
 
 	var exclude_rids: Array[RID] = []
 	if target is CollisionObject3D:
