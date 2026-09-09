@@ -1647,3 +1647,24 @@ The approved plan named the frame draw-call bound, then game-thread bound, then 
 All three came from mislabelled or wrong-camera columns. **Three retractions on this question.**
 Nothing about where this frame goes is established except: GPU 14–28 ms is not the wall, and
 the drops are crater chunk-rebuild and tree-break on the physics tick (measured, 2026-09-08).
+
+### WHY it looked worse — the mechanism, so nobody re-tries it blind
+
+His report: "the firebase models of buildings were flipping and flooping and changing shape
+with that new shader."
+
+That is `ps1_material.gdshader`'s **vertex snap** plus **affine (non-perspective-correct)
+texture mapping**. Both artefacts scale with POLYGON SIZE:
+
+- Vertex snap quantises positions to a coarse grid. Across a large triangle the snapped
+  corners jump between grid cells as the camera moves, so the surface visibly flexes.
+- Affine mapping omits perspective correction, so the texture swims across a large polygon.
+
+On small, densely-tessellated props these read as authentic PS1. On **large flat architecture
+they are catastrophic** - and `fsb_main_v3.glb` is a 43 MB kitbash of exactly that: bunker
+walls, revetments, hooch panels, 2,455 surfaces. It is the worst-case geometry for this shader
+in the entire project.
+
+**If the PSX look is ever revisited as an ART decision (his call alone, never as perf), the
+snap must be tessellation-aware or excluded from architecture entirely.** Applying it
+uniformly to the whole world is what he saw and rejected.
