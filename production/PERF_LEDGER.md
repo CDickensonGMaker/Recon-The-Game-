@@ -2266,3 +2266,126 @@ have caught this in August.
 **The GLB was NOT re-exported for this row**, so `fsb_main_v3.glb` still stands at the
 real-model export md5 `e47eba8dd1cca16962c5c05a9f32be06`. There is no hash correction to make
 until the rename lands.
+
+---
+
+## 2026-09-09 (afternoon) — THE PARTIAL CHUNK UPDATE, and two look dials handed to his hands
+
+His ruling on the whole open row was "ok do it all". Rows 3 and 6 went to the firebase agent; rows
+2, 4 and 5 are below. **Rows 2 and 4 end UNMEASURED for frames, on purpose — see the last section.**
+
+### Row 5 — a 5 m hole no longer rebuilds a 256 m chunk
+
+`terrain_manager.modify_terrain` destroyed the TerrainChunk, re-derived every quad, re-emitted every
+vertex, built a new Jolt body and rebuilt the whole canopy — for an edit that moves a handful of
+samples. The exact size of that edit, for the LARGE_EXPLOSION the bench and the siege both fire
+(`damage_system.gd:43-46` radius_cells 5, `world_config.gd:11` CELL_SIZE 4.0 → 20 m):
+
+| per shell, per chunk | before | after |
+|---|---:|---:|
+| height samples re-derived | 4,225 | **121** (2.9%) |
+| quads re-derived | 4,096 | **144** (3.5%) |
+| vertices re-emitted | 24,576 | 864 written, whole array re-submitted once |
+| chunk node + Jolt static body | destroyed and rebuilt | **untouched** |
+| collision shape | trimesh rebuilt | `map_data` re-assigned |
+
+The patch cache (the three fan-out arrays, ~1.2 MB a chunk) is armed by the FIRST shell on a chunk,
+not held for all 25 — ground nothing hits pays nothing.
+
+**Equivalence, which is the only thing that matters here** (`tools/probe_chunk_patch.gd`: two shells,
+then force the full rebuild the patch replaced and compare):
+
+| | patched vs fully rebuilt |
+|---|---|
+| vertices | **0 of 24,576 differ** |
+| collision samples | **0 of 4,225 differ**, worst 0.000000 m |
+| downward rays | **0 of 2,000 differ**, worst 0.000000 m |
+| canopy | 338 MultiMesh nodes, **0 of 2,132 instances differ** |
+
+Both fast paths carry their own control in the probe, so "the two agree" can never mean "the fast
+path never ran".
+
+### Row 5, the half that was BUILT, MEASURED AND REMOVED — the canopy cannot be re-seated
+
+An in-place canopy re-seat was written for the same reason: a height edit moves plants in Y without
+changing which plants there are. **It never fired once in the crater bench, and the reason is a
+design fact, not a bug:** the same blast that digs the hole FELLS TREES. `TreeBreakSystem` drops
+those entries, so the plant list HAS changed, which is exactly the case an in-place re-seat must
+refuse. Removed rather than left in as an unexercised path (ADR-023).
+
+**It was nearly kept on a false green.** The first control counted a `StallLedger` span — and a span
+counts ATTEMPTS. Every attempt was failing (`generate_for_chunk` cleared the chunk's visuals before
+the re-seat could reach them), and the probe read PASS. A success counter said 0. **A span is not a
+success count**, and this is the third instrument this week that answered a question it was not
+being asked.
+
+### Row 2 — the ground-cover ring, and what the census says its ceiling is
+
+Grass, rice and ferns now stop at **150 m** while the canopy still draws to 350
+(`tree_cover_layer.gd` SMALL_RING_M / SMALL_PREFIXES). The number is not taste: it sits just outside
+the AI's open-ground sight cap (SIGHT_CAP_OPEN 140 m), so every metre of ground anyone can see or
+shoot you across still has its cover drawn.
+
+**The census first, because it bounds what this lever can possibly buy**
+(`tools/probe_ground_cover_census.gd`, seed 47225, whole AO):
+
+| class | instances | share | full-detail tris | share |
+|---|---:|---:|---:|---:|
+| ground cover (grass, rice, fern) | 8,544 | 17.2% | 674,357 | **7.7%** |
+| canopy (trees, bamboo, palm, bush, vine) | 41,151 | 82.8% | 8,114,169 | 92.3% |
+
+**So the ceiling on this lever is 7.7% of drawn triangles, and only the part beyond 150 m.** Anyone
+expecting a large number from it should stop here.
+
+**Two findings from the same census that are worth more than the lever:**
+- **`bush_a/b/c` are 10,938 instances of the canopy class**, and a bush is waist-high concealment,
+  not canopy. On the same sight-cap argument they are the next candidate for the short ring — and a
+  bigger one. **His call, because it changes how thick the mid-distance jungle reads.**
+- **NO RICE IS EVER PLANTED.** `vegetation_manager.gd:63` sets `TYPE_PROPS[RICE_PADDY] = [0.00, 0, 0]`,
+  so the rice-paddy classification plants nothing at all; `rice_a`/`rice_b` are absent from the census.
+  Which also makes `rice_a`'s missing LOD ladder cost exactly zero.
+
+**The missing LOD ladders are an ART fact, not a setting.** `rice_a` and `elephant_grass_b` carry
+`meshes/generate_lods=true` and import settings **byte-identical** to `rice_b` and
+`elephant_grass_a`, which DO generate ladders (`diff` of the two `.import` files differs only in the
+cache path). The importer declines on those two meshes' topology. Nothing in the import pipeline can
+fix it; the source mesh can. Recorded, not churned.
+
+### Rows 2 and 4 — UNMEASURED FOR FRAMES, and why that is the honest answer
+
+The bench that would have decided them is `tools/bench_canopy.tscn`: eight fixed yaws on quiet
+terrain. **His verdict on it: "cuz its just terrain with no action so its not really gauging
+anything."** He is right, and it is the same bug class as ADR-026's founding "+65%" — a camera and a
+scene no player occupies. Every frame he has complained about came from the 45-man assault.
+
+Two runs were taken before that ruling landed and they are recorded for their GEOMETRY only, because
+a foreign Godot process was resident throughout and the timing is void:
+
+| 8 yaws, seed 47225, scale 0.75 | draw calls | primitives |
+|---|---:|---:|
+| ground cover to 350 m (before) | 414 | 176,237 |
+| ground cover to 150 m (after) | **378 (−8.7%)** | **164,394 (−6.7%)** |
+
+Those two counters reproduce the 2026-09-09 morning canopy row (412 calls / 175,077 prims) to within
+1% while fps and gpu ms read 2× worse — **which is itself the useful result: on a contended box the
+geometry counters are trustworthy and the timing counters are not.**
+
+**`mesh_lod/lod_change/threshold_pixels` STAYS AT 2.0 and is recorded as unmeasured.** GPU ms reads
+zero headless, no windowed run may be taken while he is at the machine, and guessing it would be the
+fourth retracted perf conclusion on this question.
+
+### What replaced the bench: two dials in his hands
+
+His own law is that his eyes decide, so both open questions are now switches he can flip mid-walk
+(`tree_cover_layer.gd`, F9/F10 unbound anywhere else in the project). Each prints to the console AND
+toasts on the HUD, and the game names both keys ~4 s after the world builds:
+
+- **F9** — ground-cover draw distance: 150 m (shipped) → 100 → 250 → same as the trees (350).
+- **F10** — mesh LOD sharpness: 2.0 px (shipped) → 1.0 (smoother, costs frames) → 4.0 (coarser, cheaper).
+
+### Gates, all green headless with everything above in
+`test_ship_parity` · `test_flat_damage` · `test_tree_cover_lod` · `test_grid_queries` ·
+`test_render_scale` · `test_fossils` · `test_trunk_ring` · `test_veg_density` ·
+`test_tree_cover_wired` · `probe_chunk_patch` · `probe_crater_veg` · `probe_terrain_collision` ·
+`probe_bullet_damage` · headless boot **0 SCRIPT ERROR** · `demo_game.tscn` headless boot
+**0 SCRIPT ERROR**.

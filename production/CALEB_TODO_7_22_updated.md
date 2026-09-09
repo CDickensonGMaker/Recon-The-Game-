@@ -185,6 +185,47 @@ the result. It asks the head where it is now: 4 runs, 4 passes.
 canopy MultiMesh regen. Both exist because a 5 m hole still rebuilds a whole 256 m chunk. That is
 the structural fix and it is not started.
 
+### TWO KEYS FOR YOU TO PRESS WHILE YOU PLAY — F9 and F10, 2026-09-09
+
+You ruled "ok do it all" on the open row, and then you ruled the bench itself out: *"cuz its just
+terrain with no action so its not really gauging anything."* You are right, so the two questions
+that were waiting on a bench are now switches in your hands. The game tells you the keys about four
+seconds after the world loads, and every press prints on screen.
+
+- **F9 — how far the GROUND COVER draws** (grass, rice, ferns; the trees are untouched).
+  150 m is what ships now -> 100 -> 250 -> all the way out like the trees. Shorter takes frames back
+  and thins the distant jungle floor. **Tell me which one looks like Vietnam.**
+- **F10 — how sharp the distant models stay.** 2.0 is what ships -> 1.0 (smoother shapes, costs
+  frames) -> 4.0 (coarser, cheaper). If you have been seeing far trees change shape as you walk,
+  press F10 once and see if it stops.
+
+Nothing is decided by me on either one. Whatever you press is the answer.
+
+### REGISTER, TWELFTH PASS — the crater is a patch now, and one idea was built then thrown away
+
+**A 5 m hole no longer rebuilds a 256 m chunk.** Per shell, per chunk, it now re-derives 121 of
+4,225 ground samples and 144 of 4,096 quads, and the chunk's node and its physics body are not
+touched at all. The proof is the only part that matters: a patched chunk was compared against the
+full rebuild it replaced and **every one of 24,576 vertices, all 4,225 collision samples, 2,000
+rays and all 2,132 plants across 338 canopy meshes are identical.**
+
+**Half of that idea was built, measured and thrown away, and it is worth a line.** The plants could
+in principle be lifted onto the new ground instead of rebuilt. They cannot - because the same shell
+that digs the hole knocks trees down, so the list of plants HAS changed, which is exactly the case
+that trick has to refuse. It never fired once. Deleted rather than left in looking useful.
+
+**And it nearly stayed in on a false green:** my own check counted how many times the fast path was
+TRIED, not how many times it WORKED. Tried 1, worked 0, and the check said PASS.
+
+**NO RICE IS EVER PLANTED IN THE PADDIES.** The rice-paddy ground type is set to a 0% plant chance
+(`vegetation_manager.gd:63`), so the two rice models are in the world's species list and have never
+been placed once. Whether paddies should have rice standing in them is a look question, and yours.
+
+**Also yours, on the same argument as F9:** bushes are 10,938 of the world's plants and a bush is
+waist-high, not canopy. Cutting them at the same distance as the grass would take back far more
+than the grass does - and would thin the mid-distance jungle noticeably. Say the word and it is a
+one-line change.
+
 ### CONDITION 5 — the final clean measurement, 2026-09-09
 
 **Box verified clear at BOTH ends.** 18 post-assault windows, one real breach in the run.

@@ -353,7 +353,8 @@ func patch_mesh(region_data: PackedFloat32Array, h_scale: float, cell_rect: Rect
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh_instance.mesh = am
-	mesh_instance.material_override = shared_material
+	if shared_material:
+		mesh_instance.material_override = shared_material
 	StallLedger.end()
 	return true
 

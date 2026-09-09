@@ -94,36 +94,6 @@ func register_chunk(layer: Node3D, coord: Vector2i, scatter: Array) -> void:
 		_chunks[_chunk_key(layer, coord)] = list
 
 
-## Y-ONLY REFRESH. A crater moves the ground under a chunk's plants; it does not change which
-## plants there are, in what order. Rebuilding the registry then re-allocates one Dictionary
-## per breakable plant - ~2,400 a chunk, measured as the largest single slice of a crater's
-## canopy work (mmi.register). This walks the registry the chunk already has and re-seats each
-## entry from its own scatter index instead.
-##
-## It refuses rather than guesses: a different array length, a missing index, a moved species
-## or a plant whose CELL changed all return false, and the caller does the full re-register.
-## The cell cannot move on a height edit (it is an XZ hash, `_cell_of`), so a cell change means
-## the assumption behind this call was wrong and the fast path must not be taken.
-func refresh_chunk_transforms(layer: Node3D, coord: Vector2i, scatter: Array) -> bool:
-	var key: String = _chunk_key(layer, coord)
-	if not _chunks.has(key):
-		return false
-	var list: Array = _chunks[key]
-	for entry: Dictionary in list:
-		var i: int = int(entry["idx"])
-		if i < 0 or i >= scatter.size():
-			return false
-		var e: Dictionary = scatter[i]
-		if String(e.get("name", "")) != String(entry["species"]):
-			return false
-		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		if _cell_of(xf.origin) != Vector2i(entry["cell"]):
-			return false
-	for entry: Dictionary in list:
-		entry["xf"] = (scatter[int(entry["idx"])] as Dictionary)["xf"]
-	return true
-
-
 ## FILTER EACH TOUCHED CELL ONCE, do not erase entry by entry. Array.erase is a linear scan,
 ## so unregistering a chunk that has many trees in one cell was quadratic in that cell - and
 ## every chunk rebuild in a crater or a tree break calls this first. Marking dead and then

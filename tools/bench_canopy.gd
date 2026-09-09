@@ -45,6 +45,10 @@ var _n: int = 0
 var _rows: Array[Dictionary] = []
 var _banner: Label = null
 var _run_left: float = 0.0
+## --shots=<dir> --tag=<name>: save the last sampled frame of each pose. A look change has to
+## be looked at, and the same yaw from the same stand is the only honest before/after pair.
+var _shot_dir: String = ""
+var _shot_tag: String = "run"
 
 
 func _ready() -> void:
@@ -54,6 +58,10 @@ func _ready() -> void:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--lod-threshold="):
 			get_viewport().mesh_lod_threshold = float(a.split("=")[1])
+		if a.begins_with("--shots="):
+			_shot_dir = a.split("=")[1]
+		if a.begins_with("--tag="):
+			_shot_tag = a.split("=")[1]
 	_announce()
 	_vp = get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(_vp, true)
@@ -168,6 +176,13 @@ func _process(delta: float) -> void:
 	_gpu += RenderingServer.viewport_get_measured_render_time_gpu(_vp)
 	_n += 1
 	if _t >= HOLD:
+		if _shot_dir != "":
+			# No await here: awaiting inside _process turns it into a coroutine and the
+			# frames that keep arriving before it resumes land in a row that is already
+			# being closed. The image is the previously presented frame, which is the
+			# same view - this is a look reference, not a measurement.
+			var img: Image = get_viewport().get_texture().get_image()
+			img.save_png("%s/canopy_%s_yaw%03d.png" % [_shot_dir, _shot_tag, int(YAWS[_pose])])
 		_advance()
 
 

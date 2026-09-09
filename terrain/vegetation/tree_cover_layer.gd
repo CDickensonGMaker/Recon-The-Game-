@@ -188,8 +188,63 @@ func _zone_overlaps(bounds: Rect2) -> bool:
 	return false
 
 
+## HIS DIALS, live, mid-walk. The bench that would have decided these runs a fixed camera on
+## quiet terrain, which is a scene nobody plays; his own law is that his eyes decide. F9 and F10
+## are unbound anywhere else in the project.
+const RING_STEPS: Array[float] = [150.0, 100.0, 250.0, 0.0]
+const LOD_STEPS: Array[float] = [2.0, 1.0, 4.0]
+var _ring_step: int = 0
+var _lod_step: int = 0
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey):
+		return
+	var k := event as InputEventKey
+	if not k.pressed or k.echo:
+		return
+	if k.keycode == KEY_F9:
+		_ring_step = (_ring_step + 1) % RING_STEPS.size()
+		small_ring = RING_STEPS[_ring_step]
+		apply_rings()
+		_say("GROUND COVER (grass/rice/fern) draws to %s   [F9]"
+			% ("%.0f m" % small_ring if small_ring > 0.0 else "%.0f m - same as the trees" % view_distance))
+	elif k.keycode == KEY_F10:
+		_lod_step = (_lod_step + 1) % LOD_STEPS.size()
+		get_viewport().mesh_lod_threshold = LOD_STEPS[_lod_step]
+		_say("MESH LOD swaps at %.0f px   %s   [F10]" % [LOD_STEPS[_lod_step],
+			"(smoother, costs frames)" if LOD_STEPS[_lod_step] < 2.0
+			else ("(shipped)" if LOD_STEPS[_lod_step] == 2.0 else "(coarser, cheaper)")])
+
+
+## Console AND screen: he is playing, not reading a terminal.
+func _say(msg: String) -> void:
+	print("[LOOK] %s" % msg)
+	var hud: Node = get_tree().get_first_node_in_group("mission_hud")
+	if hud != null and hud.has_method("show_toast"):
+		hud.call("show_toast", msg)
+
+
+## Push the current ring radii onto the nodes that are already drawn.
+func apply_rings() -> void:
+	for coord: Vector2i in _chunk_nodes:
+		for n in (_chunk_nodes[coord] as Array):
+			var mmi := n as MultiMeshInstance3D
+			if mmi != null and is_instance_valid(mmi):
+				mmi.visibility_range_end = _ring_for(String(mmi.get_meta("species", "")))
+
+
+func _announce_keys() -> void:
+	await get_tree().create_timer(4.0).timeout
+	_say("F9 ground-cover draw distance  |  F10 mesh LOD sharpness")
+
+
 func _ready() -> void:
 	add_to_group("tree_cover")
+	_ring_step = RING_STEPS.find(small_ring)
+	if _ring_step < 0:
+		_ring_step = 0
+	_announce_keys()
 	for a: String in OS.get_cmdline_user_args():
 		# --card-dist= is kept as the spelling the bench scripts already pass; what it
 		# moves is the canopy draw radius, and there are no cards left behind it.
@@ -299,7 +354,12 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		for xf: Transform3D in xforms:
 			local.append(Transform3D(xf.basis, xf.origin - centroid))
 		# The real model, all the way out. One node, one mesh, no boundary to pop across.
-		nodes.append(_multimesh(_solid_mesh[nm], local, 0.0, _ring_for(nm), centroid))
+		var mmi_node: MultiMeshInstance3D = _multimesh(
+			_solid_mesh[nm], local, 0.0, _ring_for(nm), centroid)
+		# The species is what decides this node's draw radius, and a node name cannot carry it
+		# (Godot uniquifies duplicates). The live toggle re-reads it.
+		mmi_node.set_meta("species", nm)
+		nodes.append(mmi_node)
 	StallLedger.end()
 	StallLedger.begin("mmi.addchild")
 	for node: Node in nodes:
@@ -317,87 +377,6 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	StallLedger.begin("mmi.ring")
 	_update_ring(_resolve_center())
 	StallLedger.end()
-
-
-## Y-ONLY REFRESH of a chunk already on screen. A crater moves the ground under a chunk's
-## plants; it changes neither which plants there are nor their bucket, because a bucket is an
-## XZ hash. generate_for_chunk would nonetheless free every MultiMeshInstance in the chunk,
-## re-register ~2,400 break entries and allocate every MultiMesh again - measured as ~86% of a
-## crater's chunk rebuild once the mesh was patched instead of rebuilt.
-##
-## This repeats the SAME walk in the SAME order and writes into the nodes that are already
-## there. The order is what makes it safe: Godot dictionaries iterate in insertion order, so
-## walking one array twice inserts the same keys in the same sequence, and node i is the node
-## for key i. Every assumption is CHECKED - a differing group count, node count or instance
-## count returns false and the caller does the full rebuild. It never guesses.
-func refresh_chunk_transforms(coord: Vector2i, scatter: Array) -> bool:
-	if not _chunk_nodes.has(coord) or not _chunk_scatter.has(coord):
-		return false
-	var groups: Dictionary = {}
-	var origins := PackedVector3Array()
-	var trunk_pos := PackedVector3Array()
-	var trunk_rad := PackedFloat32Array()
-	var trunk_hgt := PackedFloat32Array()
-	for e: Dictionary in scatter:
-		var nm: String = String(e.get("name", ""))
-		if not _solid_mesh.has(nm):
-			continue
-		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		var key: Array = [nm, int(floor(xf.origin.x / BUCKET)), int(floor(xf.origin.z / BUCKET))]
-		if not groups.has(key):
-			groups[key] = []
-		(groups[key] as Array).append(xf)
-		origins.append(xf.origin)
-		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
-		if r > 0.0:
-			trunk_pos.append(xf.origin)
-			trunk_rad.append(r)
-			trunk_hgt.append(float(e.get("trunk_h", TRUNK_HEIGHT)))
-
-	var nodes: Array = _chunk_nodes[coord]
-	if groups.size() != nodes.size():
-		return false
-	var i: int = 0
-	for key: Array in groups:
-		var mmi := nodes[i] as MultiMeshInstance3D
-		if mmi == null or not is_instance_valid(mmi) or mmi.multimesh == null:
-			return false
-		if mmi.multimesh.instance_count != (groups[key] as Array).size():
-			return false
-		i += 1
-	i = 0
-	for key: Array in groups:
-		var mmi := nodes[i] as MultiMeshInstance3D
-		var xforms: Array = groups[key]
-		var centroid := Vector3.ZERO
-		for xf: Transform3D in xforms:
-			centroid += xf.origin
-		centroid /= float(xforms.size())
-		mmi.position = centroid
-		for j in xforms.size():
-			var xf2: Transform3D = xforms[j]
-			mmi.multimesh.set_instance_transform(j,
-				Transform3D(xf2.basis, xf2.origin - centroid))
-		i += 1
-
-	_chunk_scatter[coord] = scatter
-	chunk_origins[coord] = origins
-	if trunk_pos.size() > 0:
-		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
-		for p: Vector3 in trunk_pos:
-			bounds = bounds.expand(Vector2(p.x, p.z))
-		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad,
-			"heights": trunk_hgt, "bounds": bounds}
-	else:
-		_chunk_trunks.erase(coord)
-	# Bodies already handed out keep their old seat otherwise - a trunk collider standing at
-	# the height the ground USED to be is a man shooting at air.
-	var assigned: Dictionary = _chunk_bodies.get(coord, {})
-	for idx: int in assigned:
-		if idx < trunk_pos.size():
-			_place_body(assigned[idx], trunk_pos[idx], trunk_rad[idx], trunk_hgt[idx])
-	_update_ring(_resolve_center())
-	return true
 
 
 func clear_chunk(coord: Vector2i) -> void:
