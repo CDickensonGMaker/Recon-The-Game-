@@ -2389,3 +2389,31 @@ toasts on the HUD, and the game names both keys ~4 s after the world builds:
 `test_tree_cover_wired` · `probe_chunk_patch` · `probe_crater_veg` · `probe_terrain_collision` ·
 `probe_bullet_damage` · headless boot **0 SCRIPT ERROR** · `demo_game.tscn` headless boot
 **0 SCRIPT ERROR**.
+
+### 2026-09-09 (night) — THE SUMMONER'S SECOND VERDICT: "yeah that felt smoother"
+
+His words after walking the build launched for him tonight. This is the second consecutive positive
+verdict from the only instrument that rules feel (his 2026-07-20 law: "No numeric gate — my eyes
+decide"), following "overall the game felt more stable tho" the same morning.
+
+**WHAT IT COVERS.** The build he walked carried, in one launch: the partial chunk update (a 5 m hole
+re-derives 2.9% of a chunk's ground samples instead of rebuilding 256 m, and the chunk node, mesh
+instance and Jolt body are never destroyed), the `HeightMapShape3D` terrain collider (shape build
+4.4–8.4 ms -> 0.09 ms, `terrain.collision` off the report), the scatter-cache epoch fix and crater
+double-rebuild dedupe (crater phase 723 -> 454 ms, worst idle script step 175 -> 130 ms), the
+ground-cover ring at 150 m, and the 545 interior props folded to 69 MultiMeshes.
+
+**WHAT IT DOES NOT DISCHARGE — the same caution as this morning's verdict, and for the same reason.**
+It CANNOT be attributed to any one change: too much landed in one build and no clean A/B was ever
+taken. It is recorded as a whole-build verdict, not as evidence for any single fix. In particular it
+is NOT a measurement of the canopy real-mesh cost, the LOD threshold, or the interior-prop fold — all
+three remain UNMEASURED, and the fold is a known +67 draw calls that buys the removal of the pop.
+
+**IT WAS ALMOST CERTAINLY TAKEN ON THE SHIPPED DEFAULTS** (ground cover 150 m, LOD threshold 2.0,
+interior props MEASURED) unless he pressed F9/F10/F11 during the walk. He has not yet said which
+settings he prefers, so no dial is closed by this verdict.
+
+**Still true from this morning and unchanged:** the measured stalls are not all gone, and no frame
+number from a quiet-terrain bench may be quoted. His own ruling stands — *"its just terrain with no
+action so its not really gauging anything"* — so the re-pointed bench, running inside the live
+45-man assault from a player-height camera, is still owed before any fps figure is published again.
