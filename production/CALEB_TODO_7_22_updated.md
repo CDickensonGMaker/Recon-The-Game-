@@ -75,6 +75,40 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, FIFTH PASS — PERF, and done-condition 5 is finally measured
+
+**THE ASSAULT STALLS. Measured, named, and it fails the 120 ms bar.** Nobody had taken this
+number in three batches. Worst script spans in the 45-man assault, headless on `--stress`:
+
+| cause | worst | what it is |
+|---|---|---|
+| `spawn.man` | 105–120 ms | ONE attacker, and two spawn per frame |
+| `terrain.crater` | 131.9 ms | a shell straddling a chunk seam |
+| `treebreak` | 52.7 / 50.7 ms | consume / spawn |
+
+**`spawn.man` is the assault's real cost and it now has a breakdown**: `spawn.model_setup`
+44–53 ms (instancing the body GLB) and `spawn.dress` 17–47 ms (the VC/NVA dresser). Both are
+per-man work on a body instanced dozens of times in one assault — that is where the next fix
+goes, and it is a bounded one.
+
+**Fixed: every shell was re-deriving a scatter it already had.** The crater's cost was never the
+hole (0.1 ms); it was `_build_scatter` walking a 256 m chunk again although a crater changes
+none of its inputs — it moves the ground, not the plants. Cached with a coarse, deliberately
+conservative epoch. Measured A/B, same seed, same 4,000 frames: worst crater per window
+**83.0→70.9, 140.5→73.2, 126.8→65.1, 203.0→177.0, 73.1→42.3 ms**. About 40% off in four of five.
+
+**YOUR RULING MOVED — heightmap terrain collision.** It was worth ~16–20 ms per crater among
+several items. With the vegetation cost gone it is now the SECOND biggest thing in a crater
+frame (15.7 of 61.5 ms, 26%), and there is no partial update for a trimesh collision shape, so
+nothing short of that ruling touches it. **It got more attractive tonight, not less.**
+
+**`nav.collect` 491.5 ms is real but is NOT an assault stall** — it fires twice during the world
+build, before the arc opens. A load cost, not a fight one.
+
+**Still not done:** `TreeBreakSystem.apply_blast` (~50 ms, confirmed real), the unattributed
+idle/physics steps (107 physics + 105 idle steps in the assault still report no instrumented
+cause), and the 545 hooch props appearing in one frame at 40 m.
+
 ### REGISTER, FOURTH PASS — roofs, radios and the hurtbox
 
 **Fixed and pushed.**
