@@ -1914,7 +1914,15 @@ const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
 	# three baked officers export under their own stems, so two-thirds of the figures in
 	# this compound were hard cover - a man's apron stopping a rifle round.
 	"grunt_", "cap_", "scrub_cap_", "apron_", "mask_", "PSXRig_",
-	"OFF0_", "OFF1_", "OFF2_"]
+	"OFF0_", "OFF1_", "OFF2_",
+	# HOOCH CLUTTER. Reading the 229 hard-by-default families found these, and they only
+	# started to matter when fb_hwall went soft: with the walls penetrable, the thing that now
+	# stops a round fired into a hooch is a hanging light bulb, a beer can or a girly mag.
+	# None of these is cover by any reading of the contract's own sentence. Furniture -
+	# lockers, cots, chairs, tables - is deliberately NOT here; that is his call, not mine.
+	"fb_int_beer", "fb_int_bulb", "fb_int_fan", "fb_int_girlymag", "fb_int_radio",
+	"fb_int_fb_hanging_bulb", "fb_int_fb_food_tray", "fb_int_fb_c_ration_case",
+	"fb_hanging_bulb", "fb_c_ration_case"]
 
 ## The subset of the above that is a BODY, so the count in the tag report means what it says.
 const FSB_FIGURE_PREFIXES: Array[String] = ["grunt_", "cap_", "scrub_cap_", "apron_",

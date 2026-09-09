@@ -3,6 +3,25 @@
 Everything below is verified absent (or stand-in) as of audit #3. Ordered by impact within each
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 
+## MUZZLE POINT MARKERS ON WORLD WEAPONS — added 2026-09-09, needs art not code
+
+His report: "all the muzzle flashes arent correct any more with the gun - they come off the top
+of the gun and go up instead of coming out the barrel." The DIRECTION half is fixed in code
+(the flash had no direction parameter at all). The ORIGIN half cannot be.
+
+**No world weapon mesh in this project carries a `MuzzlePoint` marker.** Only the player's
+first-person viewmodels do (`weapon_holder.gd` finds one and uses it). Every NPC's flash is
+therefore an ESTIMATE - `ModelActor.muzzle_visual()` returns body position + 1.35 m up +
+facing x 0.4 - so whenever a held gun sits lower or further out than that guess, the flash
+sits off the receiver instead of at the barrel.
+
+**What is needed:** an empty named `MuzzlePoint` at the bore exit of each world-weapon GLB
+(m16a1, m14, ak47, m60, rpd, mosin, ppsh41, m70, m79, m1911 and the launchers), exported with
+the mesh. Nothing else changes - the code already prefers a real marker and falls back to the
+estimate, and a comment in `gun_fx.muzzle_flash` records this as the remaining half.
+
+Do not substitute a guessed offset: the estimate IS the guessed offset, and it is the defect.
+
 ## 1. CHARACTERS (the biggest gap — ~55%)
 - ~~**Civilians / villagers**~~ — **DONE 2026-07-12** (commit 5949b50). `civ_farmer_m` 1.62 /
   `civ_farmer_f` 1.52 / `civ_elder` 1.55 / `civ_kid` 1.26, barefoot under conical hats, plus

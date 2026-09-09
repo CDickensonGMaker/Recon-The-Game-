@@ -75,6 +75,40 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, THIRD PASS — the re-export and the 229
+
+**The firebase re-export: the PIPELINE is proven, the vegetation swap is NOT done.**
+The recipe on file was wrong. `gen_firebase_v3.main()` reads an empty file and rebuilds the
+compound from constants — no chow hall, no medical complex, no staged crews — and never exports
+at all; running it would have replaced your firebase with an older one. The real source is
+`firebase_v3.2.blend`, and `tools/reexport_firebase_v3.py` is now the one command. **Proof: it
+rebuilt the shipped GLB byte for byte** (same md5, same 5,812 nodes, manifest untouched, every
+ballistics and parapet number identical). So the vegetation swap is now a change whose every
+difference is attributable to the vegetation and nothing else.
+
+**Why the swap itself is not in yet.** Measured the merged card geometry: 14 groups, ~1,000
+quads, and each plant is ONE quad — the per-instance transforms are gone from the file, so a
+swap has to recover position, yaw and scale from the quads. Footprints run from 0.98 m (grass
+tuft) to 9.59 m with a 12.6 m z-span (jungle_palm_b3). A palm that big stamped at a wrong yaw or
+scale is glaring, and no probe can judge it — only your eyes can. It is a bounded next job.
+
+**Read the 229 hard-by-default families, and it found a defect I had just created.** Making the
+hooch walls penetrable meant the thing that now stops a round fired into a hooch is a hanging
+light bulb, a beer can or a girly mag. Bulbs, fans, beer cans and bottles, magazines, ration
+cases, food trays and the hooch radio are concealment now. Soft 1,098 -> 1,249, hard 1,338 ->
+1,187, unheard-of families 229 -> 214. **Furniture is deliberately left hard and is your call:**
+lockers (33), chairs (44), cots, tables. A plywood locker does not stop 7.62 either, but that is
+a design line, not a bug.
+
+**The structure blast bus was silent when it failed.** `if by_kind.is_empty(): return` — an empty
+result means every bunker, tower and sandbag stack in the compound is invulnerable, and it
+printed nothing at all. It is a push_error now. It also revealed three prefixes that can never
+match: the village huts, because the only caller is the firebase.
+
+**Written into the art log, needs art not code:** no world weapon mesh carries a `MuzzlePoint`
+marker, only your first-person viewmodels. That is why an NPC's flash still sits off the
+receiver even though the direction is fixed.
+
 ### REGISTER, SECOND PASS — 2026-09-09, after the siege batch
 
 **Fixed and pushed.**
