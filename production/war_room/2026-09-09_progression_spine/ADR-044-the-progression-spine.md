@@ -1,5 +1,14 @@
 # ADR-044: THE PROGRESSION SPINE — you start alone, and you earn the war
 
+> ## ⛔ HIS SCOPE CORRECTION CLOSES THIS COUNCIL, 2026-09-09
+> > ***"this is all new system scope stuff"*** · ***"where the main focus should still be to make the
+> > modualr world building tool."***
+>
+> **He is right, and the correction is his own standing law: content first, and the demo keeps priority.**
+> **EVERYTHING in this ADR is NEW-SYSTEM SCOPE and POST-DEMO.** Nothing in it is on the critical path to
+> the demo or to the modular world kit, and nothing in it may be cited to justify touching either.
+> **This document is a record to be picked up later, not a plan to work from now.**
+
 **Date:** 2026-09-09 · **Status:** **ACCEPTED IN PRINCIPLE — POST-DEMO-LAUNCH. BUILD NOTHING.**
 **Decreed by:** the Summoner, in five messages, closing with *"and post demo launch work."*
 **War Room:** `production/war_room/2026-09-09_progression_spine/` (briefing, discussion, synthesis, 7 analyses)
@@ -308,6 +317,48 @@ feature. Post-demo. Build nothing.**
 builds it: **not a timer, not a meter — the necklace.** And the bible's note stands that whoever builds it
 starts from the **existing nerve and suppression systems** (`combat_posture.gd`, the suppression shader,
 the 650 Hz lowpass — a psychological readout already rendered on the player), **never from a decal.**
+
+#### 0.7.6b · HIS REFINEMENT — THE CONSEQUENCE IS SOCIAL, NOT PERCEPTUAL. §0.7.6 IS SUPERSEDED.
+
+> ***"so maybe the effect is just peoples reactions to you if you have lots of gore on your necklace"***
+> ***"but you get stronger damage or better health or something and thats the trade off"***
+> ***"where other charms could be like better intel loot or something idk"***
+
+**He stepped back from visions-as-consequence, and he is right.** **Gus's punishment in the book is
+entirely social** — mocked (*"God, what a fuckin freak"*, I3 p9), beaten by Champs, exiled from the AO
+(I3 p19). **Nothing supernatural happens to him.**
+
+> **RULING: §0.7.6's "the player's visions escalate" is SUPERSEDED by his own refinement. The horror layer
+> stays PARKED as the vibe and does not become a gameplay system.** §0.7.7's four constraints stay on
+> file for whenever it *is* built — they are now a spec for a parked feature, not a live design.
+
+**TWO CLASSES OF ITEM, and this is the part that matters most:**
+
+| | **TROPHIES — taken** | **CHARMS — bought or given** |
+|---|---|---|
+| Cost | **social. Men react.** | **none** |
+| Effect | the contested one — see 0.7.6c | utility. His example: **better intel loot** |
+| Canon | Gus's ears | the Vietnamese vendor sells Gus a charm, I3 p8 |
+
+> **A PLAYER MAY FILL THE NECKLACE ENTIRELY WITH CHARMS AND NEVER TAKE AN EAR. THE DARK ROAD IS A CHOICE,
+> NOT THE ONLY PROGRESSION PATH.** That single line is what keeps this from being a mutilation treadmill,
+> and it must survive any later simplification.
+
+**"Better intel loot" lands on a SHIPPED system and needs no new mechanic** (verified): `intel_points` /
+`lifetime_intel` / `next_stash_at` and `add_intel()` in `scripts/autoload/campaign_state.gd:32, 79, 86,
+91`, consumed by `FieldDirector.try_intel_stash()` (`scripts/missions/field_director.gd:1359`) with
+`STASH_REVEALS = 3` (`:1352`) — three marks, exactly one real. **A charm that sharpens what you read off
+the dead is a modifier on an existing economy.** This is the cheapest item class in the design and it
+should be the first one built.
+
+#### 0.7.6c · THE TROPHY EFFECT — **UNRULED. TWO OPTIONS, HIS CALL. DO NOT TREAT AS DECIDED.**
+
+| Option | What it costs in canon |
+|---|---|
+| **A · His: stronger damage / better health** | **Both are the two numbers most likely to break canon.** `base_damage` is flat per ADR-016 and **guarded by `tests/test_flat_damage.tscn`, which goes red on a retune.** Better health runs straight at the lethality pillar, where 1–2 shots kill, and at **ADR-040 §1**: *"A future request to make the player tougher is answered with this ADR, not with a number."* Choosing this means amending ADR-016 and/or ADR-040 deliberately — **which is his right; it is not drift if he decrees it.** |
+| **B · The council's alternative: FEAR** | **The player becomes frightening** — enemies near him break sooner, suppress harder, run earlier. **Issue 2 p23 says it outright:** *"We gotta take trophies and show those little men that were just as tough as they are."* **Trophy-taking WAS psychological warfare.** Same currency cutting both ways — **your own men trust you less, the enemy fears you more** — on the fear and morale systems that already exist (`combat_posture.gd`, the two-sided squad break), **with no stat inflation and no ADR amended.** |
+
+**This is his fork and the council does not close it.**
 
 #### 0.7.7 · FOUR HARD CONSTRAINTS ON THE HORROR LAYER — he raised this against his own idea, and he is right
 

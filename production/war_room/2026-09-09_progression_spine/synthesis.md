@@ -736,6 +736,24 @@ suppression legibility precedes solo · the carrier rule · WW1 is narration unt
 it need not be decided · the 150 m hold-or-rally question · whether the trigger may carry an order ·
 whether the opening squad is given and taken away · the fate of the player on death.
 
+**HIS SCOPE CORRECTION, 2026-09-09, which closed the council:** *"this is all new system scope stuff"* ·
+*"where the main focus should still be to make the modualr world building tool."* **All of it is
+post-demo. None of it is on the critical path to the demo or to the kit. The council closed here.**
+
+**ALSO DECIDED, late:** the necklace consequence is **SOCIAL, not perceptual** — the visions-escalate
+idea is **superseded by his own refinement**, and the horror layer stays parked as the vibe with its four
+constraints on file as a spec. **Two item classes: TROPHIES (taken, social cost) and CHARMS (bought or
+given, no cost, utility).** **A player may fill the necklace entirely with charms and never take an ear —
+the dark road is a choice, not the only path.** "Better intel loot" rides the shipped
+`add_intel`/`try_intel_stash` economy and is the cheapest item to build first.
+
+**ALSO DELIBERATELY NOT DECIDED:** **the trophy effect.** His *"stronger damage or better health"* versus
+the council's **FEAR** alternative. Option A means deliberately amending ADR-016 (guarded by
+`tests/test_flat_damage.tscn`, which goes red on a retune) and/or ADR-040 §1 (*"a request to make the
+player tougher is answered with this ADR, not with a number"*) — **his right, and not drift if he decrees
+it.** Option B — the player becomes frightening, enemies break sooner — rides the existing fear and morale
+systems, amends no ADR, and is what Issue 2 p23 says trophy-taking actually was.
+
 **WHAT WOULD CHANGE THIS DECREE:**
 - **P0's probe fails** → the "nothing is thrown away" finding falls, and the pivot's cost estimate is wrong.
 - **Break-contact cannot be made to release** → solo is a death spiral and the pivot dies on that alone.

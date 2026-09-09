@@ -75,3 +75,18 @@ Full detail in `synthesis.md` §6. Dependency-ordered:
 Listed verbatim in `synthesis.md` §5. The two that block the most downstream design:
 **(1) does the player start the campaign with no men?** and **(2) is the opening squad given and taken
 away?** — a lens voted against the whole pivot without (2).
+
+---
+
+## GROUP E — THE ONLY PART OF THIS THAT TOUCHES THE MODULAR WORLD KIT
+### Four doors the kit work must not close. Nothing else in this decree is on the kit's path.
+
+| # | Door | Why it is free now and expensive later |
+|---|---|---|
+| **E1** | **Work points travel WITH the models, not in a code table.** `FSB_WORK_OCCUPATION` / `FSB_WORK_PRIORITY` are `const Dictionary` in `site_planner.gd:1170-1240`. | A WW1 trench kit cannot add `work_firestep` / `work_sap` / `work_dugout_signals` without editing `site_planner.gd`. **This also answers the kit council's own open question 3 — yes, and the reason is the second war, not the 488/23 mismatch.** |
+| **E2** | **One of those work points is `radio_post`.** `site_planner.gd:1130, 1173` already map `"radio"`/`"plot"` → occupation `"radioman"`. | One named marker while the kit is being authored; a per-building retrofit into a frozen kit later. It is where the whole borrowed-radio ladder eventually attaches. |
+| **E3** | **NPC spawn by building COMBINATION must stay expressible.** The kit decides which men a place implies. | If spawn rules are baked per-building rather than per-combination, "a base with a TOC and a pad has a radioman" becomes unstateable. |
+| **E4** | **The necklace is a PROP ATTACHMENT on the character, not a kit concern — but the attachment socket must exist.** A Blender agent is building the modular prop now. | The character export contract already names sockets (`MuzzlePoint/HandR/HandL/Head/Chest`). **A neck/chest attach point that other men can see at conversational distance is the only art dependency this decree creates.** Do not duplicate the Blender agent's work. |
+
+**Nothing else here belongs anywhere near the demo or the kit.** Groups A (drift) and B (relays) are
+free-standing; group C is post-demo build work; group D is his to rule.
