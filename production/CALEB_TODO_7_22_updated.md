@@ -33,21 +33,42 @@ Two structural findings that are NOT fixed and need a probe:
 Everything code-side is built or tracked here; this is the hands-on Blender/eyes work only you can do,
 roughly in dependency order. Companion: `BLENDER_ASSET_LIST.md` (full asset detail).
 
+## 0001a. THE ONE WALK I NEED FROM YOU — added 2026-09-08 (later), this replaces step 1-3 below
+
+**Read this before the older instructions under 0001; they were written against an instrument that
+was not working.** `perf_before.bat` and `perf_after.bat` both wrote their `--print-fps` flag on the
+wrong side of the `--` separator, so the counter never attached and **both logs you were asked to
+compare contained no measurement at all**. That is fixed, and the fix is now self-checking: if the
+counter fails to attach the log says `INSTRUMENT FAILED TO ATTACH` in capitals.
+
+**Do this: double-click `perf_walk.bat`. Do the four-step walk printed at the top of it. Close the
+window.** That is the whole ask. It writes a timestamped log that states its own settings, so it
+cannot be mixed up with any other run.
+
+Then tell me and I will flip the texture state and ask you for the identical walk a second time. Two
+walks, roughly three minutes each, and they settle a question two months of work has been guessing at:
+whether this game is slow because of what it is *drawing* or because of how *many separate times per
+frame* it asks the driver to draw. Nothing else can answer it.
+
+**AND IT IS A LOOK CHECK. Every texture in the jungle and on every soldier is now lossy-compressed.**
+Look at the vines and the leaf edges in step 3 of the walk, and at a man's face up close. If anything
+has gone blocky, crunchy or muddy, say so — it reverses with one command and a re-import, and no art
+changes either way. **That call is yours, not mine.**
+
+---
+
 ## 0001. PERFORMANCE PASS 2026-09-08 — TWO DOUBLE-CLICKS, AND ONLY YOU CAN TAKE THEM
 
 The performance decree is built and headless-clean. **Nobody can tell you it is faster** — the discrete
 GPU on this box is dead (ADR-026 Amendment C) and GPU milliseconds read zero headless, so the whole win
 is unmeasured until you walk it.
 
-**What to do, in order:**
+**⚠ SUPERSEDED 2026-09-08 (later) by 0001a above — the instrument these three steps relied on was
+broken when they were written. Use `perf_walk.bat`. The look-check below still stands.**
 
-1. Double-click **`perf_before.bat`**. It boots the demo exactly as it ran yesterday — full-resolution
-   frames, the old materials. Do the four-step walk printed at the top of that file: out of the hooch,
-   along the sandbag parapet, face the treeline and hold 15 s, then 30 paces out the gate and hold 15 s.
-   Close the window. It writes `perf_before.log`.
-2. Double-click **`perf_after.bat`**. Same scene, same seed, the fixes live. **Do the identical walk.**
-   It writes `perf_after.log`.
-3. Compare the `[FPS]` lines. Each one now states the render scale it was actually drawn at.
+1. ~~Double-click `perf_before.bat`~~ — its log had no `[FPS]` line in it.
+2. ~~Double-click `perf_after.bat`~~ — same.
+3. ~~Compare the `[FPS]` lines.~~ — there were none to compare.
 
 **AND IT IS A LOOK CHECK, NOT ONLY A NUMBER.** Three things to judge with your eyes on the AFTER run:
 - **The jungle.** Leaf edges are now hard-cut instead of soft-blended. Does the canopy still read as
