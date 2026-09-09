@@ -243,3 +243,15 @@ the man looking is coming apart, not because a corpse has aged.
 That is not a texture feature. It is much closer to the **nerve/suppression systems that already
 exist** — a per-character psychological quantity, rendered. Still POST-DEMO and still build nothing.
 But whoever builds it should start from the nerve system, not from a decal.
+
+### His priority ruling on it, same conversation
+
+> "so we could still add a horror level and it comes from like stress and shit but thats not a main
+> focus right now but that is the vibe of the comic"
+
+**NOT NOW. His words, his call.** A stress-driven horror level is the right shape and he named the
+driver himself — stress — which is the **nerve system that already exists**, arrived at independently
+from the reading above. That convergence is worth trusting when the time comes.
+
+Until then it is **the VIBE, not a feature**: the register the game is made in, informing art
+direction, audio and atmosphere, with no system attached. Nobody starts this without him saying so.
