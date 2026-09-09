@@ -29,7 +29,7 @@ static var _enabled: int = -1  ## -1 unknown, 0 off, 1 on
 
 static func enabled() -> bool:
 	if _enabled < 0:
-		_enabled = 0 if OS.get_cmdline_args().has(DISABLE_FLAG) else 1
+		_enabled = 0 if GameSettings.has_flag(DISABLE_FLAG) else 1
 	return _enabled == 1
 
 

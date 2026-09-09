@@ -28,6 +28,17 @@ const SETTINGS_VERSION: int = 2
 const PERF_BEFORE_FLAG := "--perf-before"
 var render_scale: float = DEFAULT_RENDER_SCALE
 
+## Vsync quantises frame delivery to display half-steps. At 24-35 fps on a 60Hz panel that
+## is the sluggish FEEL, separate from throughput. Off is the bench state; players keep it.
+var vsync: bool = true
+
+## Every launcher flag in this project must be readable from EITHER side of the `--`
+## separator. `get_cmdline_args()` stops at `--` and `get_cmdline_user_args()` starts after
+## it (proved 2026-09-08), so a flag written on the wrong side vanished silently - which is
+## exactly how `--print-fps` produced two logs with no measurement in them, twice in one day.
+static func has_flag(f: String) -> bool:
+	return OS.get_cmdline_args().has(f) or OS.get_cmdline_user_args().has(f)
+
 ## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
 ## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
 ## fire. It only ever scales the non-player cone cap - AI-vs-player lethality is untouched.
@@ -47,10 +58,31 @@ const RENDER_SCALE_NAMES: Array[String] = ["FULL", "75%", "50%"]
 
 func _ready() -> void:
 	load_settings()
-	if OS.get_cmdline_args().has(PERF_BEFORE_FLAG):
+	if has_flag(PERF_BEFORE_FLAG):
 		render_scale = 1.0
 		print("[PERF] --perf-before: render scale forced to 1.0, material budget off")
 	apply_audio()
+	apply_vsync()
+	if has_flag("--print-fps"):
+		_watch_for_the_printer()
+
+
+func apply_vsync() -> void:
+	DisplayServer.window_set_vsync_mode(
+		DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+
+
+## The instrument check. FpsPrinter attaches deep inside GameFlow.enter_hub; if the flag
+## never reaches that code, or the hub is never entered, the run produces a log full of
+## boot spam and NO measurement - and nothing says so. This makes that state loud.
+func _watch_for_the_printer() -> void:
+	await get_tree().create_timer(30.0).timeout
+	if get_tree() == null:
+		return
+	if get_tree().get_nodes_in_group("fps_printer").is_empty():
+		push_error("[FPS] --print-fps was passed but NO FpsPrinter attached after 30s - "
+			+ "this log contains no measurement. Do not quote numbers from it.")
+		printerr("[FPS] INSTRUMENT FAILED TO ATTACH - log carries no measurement.")
 
 
 ## Enemy accuracy scale per difficulty (spread multiplier - higher = worse aim).
@@ -96,6 +128,7 @@ func save_settings() -> void:
 	cfg.set_value("settings", "hardcore", hardcore)
 	cfg.set_value("settings", "psx_look", psx_look)
 	cfg.set_value("settings", "render_scale", render_scale)
+	cfg.set_value("settings", "vsync", vsync)
 	cfg.set_value("settings", "version", SETTINGS_VERSION)
 	cfg.save(PATH)
 
@@ -112,6 +145,7 @@ func load_settings() -> void:
 	difficulty = int(cfg.get_value("settings", "difficulty", 1))
 	hardcore = bool(cfg.get_value("settings", "hardcore", false))
 	psx_look = bool(cfg.get_value("settings", "psx_look", false))
+	vsync = bool(cfg.get_value("settings", "vsync", true))
 	## A cfg from before SETTINGS_VERSION 2 carries the old 1.0 default as if it were a
 	## choice. Adopt the ratified default instead - otherwise the fix ships to new players
 	## only, and the one machine that benches this game keeps rendering at full res.

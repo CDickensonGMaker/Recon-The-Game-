@@ -9,7 +9,7 @@ REM
 REM THIS IS ALSO THE LOOK CHECK. The numbers are only half of it - the jungle has to
 REM still read as jungle. If it does not, say so and the whole material half reverses by
 REM deleting one call; the render scale reverses in the settings screen.
-"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0." --print-fps res://scenes/levels/demo_game.tscn > "%~dp0perf_after.log" 2>&1
+"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0." res://scenes/levels/demo_game.tscn -- --print-fps > "%~dp0perf_after.log" 2>&1
 echo.
 echo AFTER run written to perf_after.log
 pause

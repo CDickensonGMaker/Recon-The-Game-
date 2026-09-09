@@ -31,7 +31,7 @@ func _ready() -> void:
 	## The live viewport is what the frame is actually drawn at. PsxLook is the sole
 	## writer; if it has run, this is the number a perf row may quote - nothing else.
 	PsxLook.apply()
-	if OS.get_cmdline_args().has(GameSettings.PERF_BEFORE_FLAG):
+	if GameSettings.has_flag(GameSettings.PERF_BEFORE_FLAG):
 		print("  SKIP live viewport check - --perf-before deliberately holds 1.0 (%.3f)"
 			% get_viewport().scaling_3d_scale)
 	else:

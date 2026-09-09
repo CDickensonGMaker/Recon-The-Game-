@@ -79,6 +79,20 @@ func _ready() -> void:
 	box.add_child(psx)
 	box.add_child(scale_btn)
 
+	## Vsync quantises frame delivery to panel half-steps. Below the refresh rate that
+	## reads as stutter even when average throughput is unchanged, so it is the player's
+	## call, not a fixed engine default. `--print-fps` forces it off for benching.
+	var vs := CheckBox.new()
+	vs.text = "VSYNC (off can feel smoother below 60 fps)"
+	vs.button_pressed = GameSettings.vsync
+	vs.add_theme_font_override("font", ReconUI.mono_font())
+	vs.add_theme_color_override("font_color", ReconUI.DIM)
+	vs.toggled.connect(func(on: bool) -> void:
+		GameSettings.vsync = on
+		GameSettings.apply_vsync()
+		GameSettings.save_settings())
+	box.add_child(vs)
+
 	var back := ReconUI.make_link_button("< BACK", 16)
 	back.pressed.connect(func() -> void: back_pressed.emit())
 	outer.add_child(back)

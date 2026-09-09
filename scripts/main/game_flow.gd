@@ -745,6 +745,7 @@ func enter_hub() -> void:
 	# their own. `--print-fps` is the export-safe printer (M-2/M-3); `--perf-probe`
 	# samples, `--perf-cycle` runs the attribution phases.
 	var args: PackedStringArray = OS.get_cmdline_user_args()
+	args.append_array(OS.get_cmdline_args())
 	if args.has("--print-fps"):
 		world.add_child(FpsPrinter.new())
 	if args.has("--perf-probe"):
