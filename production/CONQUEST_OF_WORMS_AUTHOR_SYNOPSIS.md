@@ -99,3 +99,71 @@ Recorded as observation, not decision. The council rules.
   2–4; the worms are the register, not the plot. That is the tonal rule the Reboot cover already
   states by omission — two Hueys and a man in the grass, no worms anywhere, where the pilot cover led
   with them.
+
+---
+
+# THE WW1 THREAD — and how the two wars connect
+
+**Recorded 2026-09-09 from Caleb directly. This is the spine of the entire series and it exists
+nowhere else.** The four Reboot issues cut between Vietnam and WW1 in their own page order; this is
+what the WW1 half is, and how it causes the Vietnam half.
+
+## His words, verbatim
+
+> "the ww1 does have its own story and horror. theres a pussy boy who looks just like eugnue and he
+> gets bullied and almost gets louie micheals granddad killed, and he dies in a raid. but than louie
+> is stuck in a shellhole with his commander or someone i cant remember and after hours of tlakign
+> realizes that the dudes dead. and he avoids some german patrols and stumbles across a young german
+> soldier, but chooses to not shoot him. and that soldier would end up being the ss officer that
+> tortures and burns the skullface sniper in russia. and the bully of the ww1 story ends up being a
+> old timer in the french foreigin legion and tries to rape the female cahracter i had thought about
+> making and thats what inspired her to join the revolution"
+
+## The WW1 cast
+
+- **LOUIE** — Michael's grandfather. The WW1 point-of-view character. Michael reads his journal in
+  Vietnam; the issues cut between them.
+- **THE EUGENE DOUBLE** — a timid soldier who **looks just like Eugene**. Bullied. Almost gets Louie
+  killed. **Dies in a raid.** The parallel across time is not thematic here, it is a FACE.
+- **THE BULLY** — torments the Eugene double. Survives the war.
+- **THE COMMANDER (or someone — the author is unsure)** — trapped with Louie in a shell hole.
+- **THE YOUNG GERMAN SOLDIER** — Louie has him and does not shoot.
+
+## Louie's arc
+
+1. The Eugene-lookalike is bullied, nearly gets Louie killed, and dies in a raid.
+2. Louie is trapped in a shell hole with his commander. **They talk for hours. Then Louie realises
+   the man has been dead the whole time.**
+3. Evading German patrols, Louie comes on a young German soldier — **and chooses not to kill him.**
+
+## THE CAUSAL CHAIN — both Vietnam antagonists are downstream of Louie's war
+
+**THE SNIPER:**
+Louie spares the young German (WW1) → that German becomes an **SS officer** (WW2) → he **tortures and
+burns a Russian soldier in Russia** → the burned Russian becomes the **skull-faced sniper** → who takes
+Eugene and hunts **Louie's grandson's squad** in Vietnam, 1968.
+
+**Michael is being hunted by his grandfather's act of mercy.**
+
+**THE REVOLUTIONARY:**
+The WW1 bully survives → becomes an **old-timer in the French Foreign Legion** (Indochina) → **attempts
+to rape a woman** → **that is what drives her to join the revolution.** A planned character the author
+had "thought about making" — so she is intent, not yet drawn. Verify against the pages.
+
+## Why this matters — read before adapting anything
+
+- **The WW1 sections are not flavour, backstory or framing. They are the ORIGIN of both enemies.**
+  Cutting them out removes the reason the Vietnam story happens.
+- **The title is the thesis.** "Conquest of Worms" — the war eats down the generations; what a man
+  does in one war becomes the thing that hunts his grandson in the next. The worms are the register
+  that idea is drawn in.
+- **The double is a face, not a theme.** A WW1 soldier who LOOKS LIKE Eugene, bullied and killed, sets
+  up Eugene's decline before Eugene has decayed. That is a comics device — a reader recognises a face
+  across a cut. Whether a game can do the same thing is a real open question and belongs to the council.
+- **Nothing here is a rail in Pillar 3's sense.** These are authored moments in a past war, not a
+  corridor in the player's AO. His 2026-09-09 clarification already permits an authored beat inside a
+  quest; this is squarely inside that.
+- **The author is unsure who is in the shell hole** ("his commander or someone i cant remember").
+  The pages will say. Do not resolve it from his summary.
+- **The female revolutionary may not be drawn** — "the female cahracter i had thought about making".
+  Treat as intent until a page proves otherwise.
