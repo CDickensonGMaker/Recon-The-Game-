@@ -75,6 +75,42 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### DEFECT REGISTER — 2026-09-09 session, nothing dropped silently
+
+**Fixed and pushed (three batches).**
+1. `--stress` fought the night assault in daylight. Clock now jumps to 20:10.
+2. All 80 parapet segments sat on the compound centre. Seated from the baked AABB; sappers
+   now blow real holes and cells press through them.
+3. Enemy mortars killed through walls, roofs and bunkers. Routed through the shared explosion.
+4. Stand-to latched on its first call; mid-fight replacements stayed civilians. Re-scans now.
+5. `TerrainWatchdog` re-roofed men every 2 s with `surface_y`. Now `floor_y`, and it prints.
+6. 242 hooch walls (`fb_hwall_*`) were bulletproof while their own roofs were penetrable.
+7. 262 of 406 casualty-figure colliders were hard cover — a man's apron stopped a round.
+8. The chow hall and the canvas aid station were bulletproof. `fb_aid_station` was a dead
+   prefix matching nothing; the asset had been renamed `medical_complex`.
+9. `test_firebase_garrison` had been timing out for a month waiting for a world
+   `GameFlow._ready` stopped building. It drives the operation itself now.
+
+**New instruments (each fails loud instead of passing silently).**
+- `[FSB] parapet radii` — fails if the wall ever collapses to a point again.
+- `[FSB] hard by DEFAULT` + `DEAD SOFT PREFIX` — the ballistics tagger names its misses.
+- `[NavBaker] roof cull MISSES` — names structures whose roofs bake as walkable floor.
+- `--pen-probe` — the firebase's ballistics, ratcheted. `tools/firebase_ballistics_baseline.json`.
+- `[WATCHDOG] re-seat` — a live man being teleported is no longer silent.
+
+**Found, NOT fixed, needs work or a ruling.**
+- `test_witness_rule` FAILS (ADR-005 is a binding law): the witness is not anchored on the
+  killer and the finder is not anchored on the corpse. Was green on 2026-08-11.
+- `test_height_authority` REGRESSED since 2026-08-11: the water surface sits 26.71 m off the
+  carved bed (tolerance 2.5 m). Terrain/hydrology, nothing to do with the siege.
+- `test_firebase_garrison` now reports 4 real failures: two garrison men have no post and no
+  behaviour tree at all — replacements flown in by the resupply Huey, minted at the pad.
+- 19 structures bake a roof as walkable floor, 25,966 triangles: four towers, five latrines,
+  the TOC, the bunker steps and the gate gap. Towers are MEANT to be walkable (they have
+  ladders); the latrines and the TOC are not. Which of those five is a floor is your call.
+- The nav bake's roof cull runs on the ORIGINAL winding only. The flipped pass culls
+  universally, which is why this has not been worse.
+
 ### Still open, NOT fixed, flagged rather than silently changed
 
 - The sapper doctrine's first-choice target is `"wire"`, and **no barbwire in the game is destructible
