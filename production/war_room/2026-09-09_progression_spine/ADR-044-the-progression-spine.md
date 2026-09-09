@@ -309,6 +309,51 @@ builds it: **not a timer, not a meter — the necklace.** And the bible's note s
 starts from the **existing nerve and suppression systems** (`combat_posture.gd`, the suppression shader,
 the 650 Hz lowpass — a psychological readout already rendered on the player), **never from a decal.**
 
+#### 0.7.7 · FOUR HARD CONSTRAINTS ON THE HORROR LAYER — he raised this against his own idea, and he is right
+
+> ***"hmm this can be a fine line tho cuz if youre just suddenly seeing zobies and gore it doesnt make
+> much sense."***
+
+**He is guarding the documentary register, which is the thing that makes the book what it is.** These are
+written as **binding constraints, not taste notes** — every one is drawn from his own pages, so they are
+enforceable rather than anyone's opinion.
+
+**1 · A VISION IS NEVER A THREAT. State this first, because it is the rule that prevents the drift.**
+A vision **cannot damage the player, cannot be shot, cannot be interacted with, and does not react to
+being aimed at.** It has no collider, no faction, no health, and no entry in any target list.
+**The moment horror can hurt you or take a bullet, it is a monster, and the game has become something
+else.**
+
+**2 · RATIO — THE BOOK IS EIGHT-NINTHS DIRT.** The bible §6 counts roughly **one page in eight** going
+strange, and names exactly which: four Michael nightmares, the Durand crater, two back covers, Eugene's
+splash. Everything else is burning shit barrels and waiting in the grass. **So even at maximum bloodlust
+the horror is RARE and BRIEF. It is never a state the player enters and lives in, and it may never become
+an ambience that stays on.** A permanent filter is the failure mode.
+
+**3 · IT IS THE ORDINARY GOING WRONG, NOT MONSTERS ARRIVING.** The reference is `fya.11` — men in a chow
+line rendered as corpses. **The same men. Still standing in line. Nothing attacks, nobody rises.**
+**NO NEW ENTITY SPAWNS.** Existing, real, harmless things are rendered wrong for a moment, and then they
+are not.
+
+**4 · DOUBT BEATS SPECTACLE — and the bible names the calibration point.** Issue 1 p16, night watch under
+flares: *"I swear I saw skeletons out in the bush."* §5 calls that *"the book's calibration point — a
+frightened man's report, not an event."* **The strongest version of this system is the player being
+unsure, with nobody else reacting, rather than being shown a horror.**
+And §5 again: **Michael's visions are static and passive — things that stand there and look back — and he
+never sees himself in them.** Only Louie's are interactive, and that difference is the two men's clearest
+characterisation. **The player is Michael. The player's horror is PASSIVE, by canon.**
+
+> **THE PROJECT-SPECIFIC HAZARD, NAMED SO NOBODY ARRIVES AT IT INNOCENTLY.** This repo contains a **live,
+> complete zombie mode** — `scripts/zombies/` (`zombie_audio.gd`, `zombie_barricade.gd`),
+> `scripts/levels/vc_zombies.gd`, `scripts/visuals/zombie_dresser.gd`, `zombie_randomizer.gd` — and the
+> Summoner has ruled it **must never be deleted.**
+>
+> **A horror layer built without the four constraints above will find that code and reach for it**, because
+> it is right there, it is finished, and it renders exactly the imagery the vision wants. **The result is
+> precisely the game he just said would not make sense.** The zombie code is a separate mode and it is not
+> the horror layer's asset library. **Any future agent that wires a `vc_zombie` into a Michael vision has
+> violated this ADR.**
+
 **The line where this stops being progression and becomes the book's ending is §5 call 2d, and it is his
 alone: can the player go as far as Gus did, and what happens if he does.**
 
