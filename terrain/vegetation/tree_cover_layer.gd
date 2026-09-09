@@ -306,15 +306,49 @@ func _exit_tree() -> void:
 
 ## Drop specific instances (a promoted tree's standing original) and rebuild the chunk
 ## from its stored scatter. TreeBreakSystem is the only caller.
+## THE STORED SCATTER IS UPDATED NOW; THE MULTIMESH IS REBUILT LATER.
+##
+## This used to call generate_for_chunk immediately, which is a FULL MultiMesh rebuild of a
+## 256m chunk - measured 14-32 ms, and treebreak.consume at 55.4 ms in the 45-man assault is
+## two of them back to back. One blast fells up to twelve trees and a CBU beat queues hundreds,
+## so the pile-up is real and its own comment (tree_break_system._process) asked for exactly
+## this once the assault frame had been measured. It has been.
+##
+## THE INVALIDATION, and why deferring is safe here: the entry is marked dead in the registry,
+## pulled from _chunks, pulled from _chunk_scatter BEFORE this returns, and a break hole is
+## filed with the VegetationManager. So every OTHER path that could rebuild this chunk in the
+## window - a crater, a veg clear - reads a scatter the felled tree is already absent from.
+## What is deferred is only the redraw, and BrokenTree spawning is itself queued at
+## BREAKS_PER_FRAME, so the standing trunk and its broken replacement stay in step.
 func remove_scatter_entries(coord: Vector2i, indices: Array) -> void:
 	if not _chunk_scatter.has(coord):
 		return
+	# Dictionary, not Array.has: this ran a linear scan per entry against the doomed list,
+	# which is O(entries x felled) over a chunk holding thousands of plants.
+	var drop: Dictionary = {}
+	for i in indices:
+		drop[int(i)] = true
 	var old: Array = _chunk_scatter[coord]
 	var kept: Array = []
 	for i in old.size():
-		if not indices.has(i):
+		if not drop.has(i):
 			kept.append(old[i])
-	generate_for_chunk(coord, kept)
+	_chunk_scatter[coord] = kept
+	if not _regen_dirty.has(coord):
+		_regen_dirty.append(coord)
+
+
+## Chunks whose stored scatter has changed and whose MultiMesh has not caught up yet.
+var _regen_dirty: Array[Vector2i] = []
+## One chunk per frame. A rebuild is 14-32 ms; two in a frame is the stall this exists to stop.
+const REGEN_PER_FRAME: int = 1
+
+func _flush_regen() -> void:
+	var n: int = mini(REGEN_PER_FRAME, _regen_dirty.size())
+	for _i in n:
+		var coord: Vector2i = _regen_dirty.pop_front()
+		if _chunk_scatter.has(coord):
+			generate_for_chunk(coord, _chunk_scatter[coord])
 
 
 ## Assigned pool bodies right now (cover exists inside the ring). For the probe.
@@ -323,6 +357,10 @@ func collider_count() -> int:
 
 
 func _physics_process(delta: float) -> void:
+	if not _regen_dirty.is_empty():
+		StallLedger.begin("veg.regen_flush")
+		_flush_regen()
+		StallLedger.end()
 	_ring_elapsed += delta
 	var center: Vector3 = _resolve_center()
 	var moved: bool = center != _last_center and (
