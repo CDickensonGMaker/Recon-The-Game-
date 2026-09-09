@@ -75,6 +75,66 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, SECOND PASS — 2026-09-09, after the siege batch
+
+**Fixed and pushed.**
+10. **The witness rule had been broken for a month** (ADR-005 is binding law). A man heard his
+    OWN alarm shout through the noise bus and re-anchored `last_known_target_pos` on his own
+    feet, wiping the killer's position the witness rule had written there one line earlier.
+    Every alerted enemy in the game swept outward from himself instead of toward the threat.
+    Introduced 2026-08-12 by the commit that opened own-team voice ("the AI can finally hear
+    itself" — it did). The bus now carries who made the sound; an ear ignores its own mouth.
+11. **The rivers were cut six times deeper than the constant says.** The carve subtracted once
+    per path point and the smoothed points overlap, so 1.2 m became a 7.97 m mean and a
+    34.19 m worst, while the water sheet is seated from the pre-carve grade. Now a per-cell
+    maximum, subtracted once: deepest cut 1.20 m against a 1.20 m cap.
+12. **Two "broken" garrison men were cot patients** — posed puppets with no post and no
+    schedule by design. The probe predated the aid station. Test fixed, not the code.
+13. **The muzzle flash had no direction parameter at all**, and both quads were billboarded,
+    so the flame spike was oriented in screen space. The bore is now threaded through all
+    eight call sites; the spike aims down the barrel, the round core keeps its billboard
+    because ADR-026 A.1 says the telegraph must read from every angle.
+14. **Nobody on watch was watching.** `sentry_scan` / `nervous_scan` / `crouch_scan` are in
+    the library, loop-flagged, and their only caller was the VC camp guard. Every US sentry,
+    gun crew and radioman stood at the plain rifle idle.
+15. **Nobody ever walked to a post.** Arrive radius 1.6 m was LARGER than the 1.5 m
+    anti-overlap jitter, so the settle succeeded on frame one. Arrive is 0.7 m now.
+16. **Every man started his loop at frame 0** — two men on the same clip were twins down to
+    the frame. The de-sync code already existed and was wired to the baked props instead of
+    the live men. Civilians get their own phase and a +/-12% speed now.
+17. **The garrison budget paid for three men who do not exist** — two curated posts name
+    markers absent from the GLB, skipped silently, still deducted.
+18. **242 hooch walls and 262 casualty-figure colliders were bulletproof**, plus the chow
+    hall and the canvas aid station. `fb_aid_station` was a dead prefix matching nothing.
+19. **His two air rulings landed:** ambient transits 3/hour -> 1/hour, ambient flyby speeds
+    -30%. Authored beats untouched.
+
+**REFUTED with a number, do not re-litigate.**
+- "Every tree, bush, fern and banana is blanket-tagged bulletproof." 12 of 27 species give
+  cover (all trunks), 15 give concealment only. Printed at boot now.
+- "Too many work options, so they idle too long." The opposite: 488 markers, 23 filled
+  (4.7%), and the rotation dies after 12 men. `supply`, `bunker`, `watch`, `ammo`, `rest`
+  and all 209 hooch markers get NOBODY.
+- The T-pose could not be reproduced. A frozen-body audit runs at every build now (a visible
+  skeleton with every bone on its rest pose), and the demo reports 10 visible rigs, none at
+  bind pose. If he still sees one, it will name the body.
+
+**HIS CALL — now five open questions.**
+- Q1 pre-assault shelling · Q2 barrage lethality · Q3 garrison holds its post or runs to the
+  wire (all three from the siege pass, above).
+- **Q4: the garrison is far too small for the compound.** 36 men across 488 authored work
+  markers. Raising `FSB_GARRISON_MAX_MEN` from 40 is the single biggest lever on "the base
+  feels dead", and it is a design number, not a bug. The last measurement on record says the
+  men are not the frame cost (48 FPS at both 24 and 40, mid-siege).
+- **Q5: banana trees and fallen logs are bulletproof cover.** A banana pseudostem is water,
+  not timber; `fallen_log_a/b` are flat ribbons the player is invited to hide behind.
+
+**Found, still open.**
+- 19 structures bake a roof as walkable floor (four towers, five latrines, the TOC).
+- NPC muzzle flashes still use an ESTIMATED origin — no world weapon mesh in the project
+  carries a `MuzzlePoint`, only the player's viewmodels. That needs art, not code.
+- `test_squad` and `test_suite_health` were green on 2026-08-11 and are red now. Not chased.
+
 ### DEFECT REGISTER — 2026-09-09 session, nothing dropped silently
 
 **Fixed and pushed (three batches).**
