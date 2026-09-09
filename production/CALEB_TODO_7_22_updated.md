@@ -1,5 +1,44 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-0. READ FIRST — WHY YOUR MEN ARE STANDING AROUND. Needs your ruling, 2026-09-09
+
+You have said this twice: **"its got people standing around but they arent performing"** and
+**"all the soldiers just sit around."** Here is a cause, measured, and it is not a small one.
+
+**glTF carries no loop flag.** Every clip arrives play-once, and the loader marks the cyclic ones
+by NAME. Counted across all 232 clips in the shared library: 97 are marked to loop, **135 are
+not** — and a large share of those 135 are HELD POSES AND WALK CYCLES. **A clip that plays once
+and stops leaves the man frozen on its last frame.**
+
+**Every one of these is a post you walk past and see nothing happening at:**
+
+| the man | his clip |
+|---|---|
+| the M60 gunner on the wire | `m60_gunner_idle_l/r`, `m60_gunner_scan_l/r`, `m60_gunner_fire_l/r` |
+| the howitzer crew | `gun_gunner`, `gun_loader`, `gun_agunner`, `gun_ammo_bearer` |
+| the mortar crew | `mortar_gunner`, `mortar_dropper`, `mortar_runner` |
+| men in the hooches | `hooch_locker`, `hooch_poker`, `hooch_radio` |
+| the chow hall | `chow_cook_stir/check/prep`, `chow_serve_ladle`, `chow_tray_hold/wait`, `chow_eat_seated`, `chow_talk_seated_a/b` |
+| the officers at their desks | `office_write`, `office_smoke` |
+| the litter bearers | `litter_carry_front/rear`, `litter_load_front/rear` |
+| the aid station | `med_tend_medic/patient`, `med_surgeon_table`, `med_wounded_idle`, `med_rounds_glance` |
+| a man leaning on cover | `cover_wall_lean_idle` |
+| seated men | `sit_bench_upright`, `sit_lip_outboard_a/b` |
+| **every zombie** | `zombie_walk`, `zombie_run`, `zombie_crawl`, `zombie_stumbling`, five idles |
+
+**WHY IT IS NOT ALREADY FIXED, and this is the whole reason it needs you.** The obvious repair is
+to loop everything in those families by prefix. **That would loop a death animation.**
+`zombie_death`, `zombie_dying`, `chow_sit_down`, `chow_stand_up`, `chow_tray_dump`,
+`cockpit_dead` and `office_desk_transition` sit in the same families and are correctly one-shot.
+A man dying forever is worse than a man standing still.
+
+So it has to be done clip by clip, and that is a judgement about how the whole cast moves — which
+is yours, not mine. **The ask is small: confirm that a held pose should loop, and the list above
+gets worked through one name at a time with the one-shots left alone.**
+
+Measured by `tools/probe_loop_flags.gd`. Related and already settled: inverting the loop list is
+REFUTED (97 loop vs 135 one-shot — the inverted list would be three times longer).
+
 ## 0000-A. THE SIEGE PLAYTEST — your five defects, worked 2026-09-09
 
 You played the siege by hand for the first time in the project's history (the assault normally opens
