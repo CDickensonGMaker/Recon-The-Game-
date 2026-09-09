@@ -75,6 +75,44 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, SIXTH PASS — the spawn stall, and both first guesses were wrong
+
+**The assault stall is one man arriving, and it is now less than half what it was.**
+
+The two candidates everyone reached for were both refuted by measurement before anything was
+built. Instrumenting inside a spawn: the **GLB instantiate is 0.77 ms** and the material passes
+are **0.44 ms**. The 45-53 ms of "model setup" was eight tree passes over the body, and one of
+them was 6.0 ms on its own.
+
+**`_apply_loop_modes` was the single biggest thing in a spawn.** After the shared library merge
+a man carries 232 clips, and those Animation resources are SHARED, not copied - every man is
+handed the same objects out of one static library. So setting a loop mode is a GLOBAL write
+that the 65th man performs identically to the 1st: 65 x 232 redundant string matches and
+property writes, inside the frame where he is supposed to appear. Applied once per Animation
+RESOURCE now (never per clip name - two rigs can each carry their own `idle`, and a name-keyed
+skip would leave the second one play-once, which is the frozen-mid-stride defect).
+
+| | before | after |
+|---|---|---|
+| `sp.loops` | 6.0 ms/man | below the reporting floor |
+| `spawn.model_passes` | 15.8 ms/man | 9.1 ms |
+| **worst `spawn.man`** | **92.4 ms** | **62.4 ms** |
+
+**A tree-walk cache I tried first bought nothing** and the commit says so. `_walk` was not the
+cost. It is kept only because the iterative form beats the recursive one it replaced.
+
+**What is left in a spawn, in order:** `spawn.dress` 17.0 ms - and inside it `dr.rehang`
+17.5 ms against `dr.face` 3.4 ms, so it is hanging headgear, pack, chest and belt, not the face
+atlas. `_set_visible_by_name` runs a full tree walk per needle and the rehang phase calls it
+many times per man. **Not fixed on purpose:** the rehang functions ADD nodes partway through,
+so a cached walk means a man in two hats or none, on a body the player is looking at. That
+needs designed invalidation like the scatter cache had.
+Then `spawn.anim_library` 2.66 ms (the ledger's 0.11 ms figure does not survive assault scale)
+and `sp.height` 1.55 ms.
+
+**The dark frame is mostly named now.** Unattributed worst-physics-steps in the assault went
+from 107 of 110 to 28 of 111.
+
 ### REGISTER, FIFTH PASS — PERF, and done-condition 5 is finally measured
 
 **THE ASSAULT STALLS. Measured, named, and it fails the 120 ms bar.** Nobody had taken this
