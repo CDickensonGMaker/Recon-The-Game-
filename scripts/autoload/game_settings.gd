@@ -39,6 +39,19 @@ var vsync: bool = true
 static func has_flag(f: String) -> bool:
 	return OS.get_cmdline_args().has(f) or OS.get_cmdline_user_args().has(f)
 
+
+## The value half of a `--name=value` flag, or "" when the flag is absent or bare. Bare
+## `--name` and absent `--name` are DIFFERENT states and callers must be able to tell them
+## apart, so ask has_flag() for presence and this for the value.
+static func flag_value(name: String) -> String:
+	var all: PackedStringArray = OS.get_cmdline_args()
+	all.append_array(OS.get_cmdline_user_args())
+	var prefix: String = name + "="
+	for a: String in all:
+		if a.begins_with(prefix):
+			return a.substr(prefix.length())
+	return ""
+
 ## THE firefight-length dial (C2). Widens the AI-vs-AI cone cap so troopers spray and fights last.
 ## 1.0 = fair, lethal baseline (a mirror match trends ~1:1). 2.5-3.0 = "Star Wars trooper" volume of
 ## fire. It only ever scales the non-player cone cap - AI-vs-player lethality is untouched.

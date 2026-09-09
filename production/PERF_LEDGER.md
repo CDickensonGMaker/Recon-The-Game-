@@ -3008,6 +3008,37 @@ One thing the log did state on its own, headless: `[FPS] printer ATTACHED - ... 
 (live)`. That is the dummy renderer's viewport, not a windowed one, and it settles nothing about what
 a real window does — recorded because it was printed, not because it proves anything.
 
+### TWO INSTRUMENTS THAT COULD NOT SEE THE THING THEY EXISTED TO SEE
+
+Both were found on 2026-09-09 in the Phase 1 sweep, and they are the same disease as the
+2026-09-08 probes that read `ProjectSettings` instead of the viewport and hid a render scale that
+had been wrong for a month. Recorded separately from the fix table above because each is a finding
+in its own right, not a line item.
+
+**1. The bench HUD's frame-time graph and its spike catcher both ran on a one-second average.**
+`arena_perf_overlay.gd` computed `frame_ms = 1000.0 / Engine.get_frames_per_second()`.
+`get_frames_per_second()` is a smoothed one-second counter, so:
+- the "rolling frame-time graph" was a rolling graph of an average, which is close to a flat line;
+- `SPIKE_MS = 25.0` was tested against that average, so **a single 300 ms stutter could not move it**
+  unless the whole second was already bad;
+- the spike catcher — the feature whose entire purpose is to name the event behind a stutter, and
+  which had `note_event()` callers wired for flare pops and wave spawns — **could essentially never
+  fire on the thing it was built for.**
+
+An instrument that averages away the event it exists to catch reports a healthy world with total
+confidence. Nothing was broken; the graph drew, the log filled, and every frame looked fine.
+Fixed to per-frame `delta`, with an adaptive spike test (a flat 25 ms floor marks *every* frame on a
+27 fps bench, which is the same failure pointed the other way).
+
+**2. `windowed_patrol_perf.gd:48` printed the renderer from `ProjectSettings` — the exact setting the
+paragraph above it in this file calls stripped and untrustworthy.** The measurement contract said
+"verify the renderer AT RUNTIME (the harness already prints it)" and pointed AT this line. It read
+`ProjectSettings.get_setting("rendering/renderer/rendering_method")`. Godot strips that key on save
+when it equals the desktop default, so it returns `forward_plus` **whether or not that is what booted**
+— it agreed with reality by luck, and a renderer A/B run through it would have printed the same word
+in both halves. Now `RenderingServer.get_current_rendering_method()` +
+`get_current_rendering_driver_name()`, in that harness and in `--print-fps`.
+
 ### Observed red, not caused here: `test_ai_stress_arena`
 
 `FAIL: no VC entered COMBAT` (US wins at 5.7 s, 12-0). **Not this change**, and proven rather than
@@ -3016,3 +3047,67 @@ so `ArenaPerfOverlay` is never constructed — the string appears **zero** times
 `StallSentinel` and any `StallLedger` arming. It is an AI/arena failure and it is on neither
 `$KnownRed` nor `$Graduated` in `run_all_tests.ps1`, so it has been reading as one FAIL among many
 with nothing watching it. Named for whoever owns the arena AI.
+
+---
+
+## 2026-09-09 (later) — `--stress=<target>`: REACHING THE MEAT IN TWO MINUTES
+
+**HIS RULING, verbatim:** *"can we jsut have the assault start within 2 minutes of me spawning."*
+Then, on intent: *"to get into the meat of the problems."*
+
+**MOST OF THIS WAS ALREADY BUILT, and it is worth saying why that keeps happening.** `--stress`
+already existed in `demo_game.gd`: probe at 20 s, the real 45-man siege at 45 s, and — the part that
+matters — it already jumped the clock to the hour the shipping arc reaches at `SIEGE_AT_S`, so the
+compressed run gets a NIGHT assault rather than a daylight one. The arc also already fires a real
+ambient napalm at `NAPALM_EARLY_S = 35.0` on every demo boot. **His two-minute ask was substantially
+shipped before he made it.** What was missing was selection: you got everything at once, so no single
+event could be measured with nothing else in the frame.
+
+### What was added
+
+`--stress=<target>`, resolved by `DemoGame.resolve_stress()` — deliberately **static and pure**, so the
+arc's timings can be gated without booting a 512 m world.
+
+| target | what it does | clock |
+|---|---|---|
+| `assault` (and bare `--stress`) | unchanged: probe 20 s, real 45-man siege 45 s | seated to the arc's assault hour — NIGHT |
+| `reinforce` | **alias of `assault`.** The 11 -> 45 escalation IS the demo's reinforcement arrival; there is no second path to one, and inventing a fourth event would have been a different measurement wearing the right name | NIGHT |
+| `napalm` | siege never opens; a real `authored_strike` NAPALM lands on the **player's own bearing** at 210 m, first at T+60 s then every 40 s | DAY — the arc's own ambient napalm is a day beat |
+| `trees` | the same with `Ordnance.BOMB`: HE, no fire, so `TreeBreakSystem` dominates instead of the burn | DAY |
+
+Every target goes through `FieldDirector.authored_strike` and `SiegeDirector` exactly as the shipping
+beats do — same airframe, same 88 m radius, same crater, same `apply_blast`, 45 real men. A cheaper
+event is not a faster route to the same measurement.
+
+The strike is aimed off the **player**, not off `fsb_center`, so he is standing where a player stands
+when it fires. `authored_strike` still owns his safety and refuses an axis that runs on him.
+
+### THE CAVEAT — every compressed route arrives with a COLD WORLD
+
+Fewer chunks walked and their caches unwarmed, less accumulated destruction, fewer bodies on the
+ground, fewer nav rebakes behind it. Therefore:
+
+- **VALID** as a repeatable regression row, and as an honest look at the EVENT ITSELF.
+- **NOT** a substitute for the full 24-minute arc, and **it may flatter the numbers.**
+
+**One full-length run is owed**, to check the short ones against — on his say-so, not on an agent's
+initiative.
+
+### Verified headless, and what it is NOT
+
+Both targets booted with `--print-fps` and **0 SCRIPT ERROR**. `--stress=napalm` fired two real strikes
+(`[DEMO] air beat: NAPALM at 254,498 (210m out on bearing 90 deg)`), and the named spans came through:
+`terrain.crater`, `terrain.chunk_rebuild`, `nap.fire`. Bare `--stress` seated the clock at 20:10 NIGHT
+and opened the probe at 20 s.
+
+**No millisecond figure from those runs is quotable.** They were headless — GPU reads 0.00 and draw
+calls read 0 — and the 154-test suite was running on the same machine at the time. The runs prove the
+harness reaches the event and the instrument names it. They measure nothing.
+
+One bug the run exposed and it is fixed: the single-event targets park probe/siege at `INF`, and
+`int(INF)` is `INT_MIN`, so the boot line printed `probe@-9223372036854775808s` — a boot line that read
+"the assault already happened". The value was right; only the rendering lied. It now prints `never`.
+
+**Guarded by `tests/test_demo_arc.tscn` — 26 checks, PASS, in the suite and in `$Graduated`.** It
+asserts the shipping arc is untouched with the flag absent, and pins the constants THE SESSION ENTRY
+GATE is written against: probe 1395, siege 1440, 45 men, 06:30 start, 38x/20x, seed 29072026.

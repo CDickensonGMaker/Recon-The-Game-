@@ -1860,3 +1860,119 @@ change rather than assumed: `tests/test_ai_stress_arena.gd:48-49` sets `spawn_hu
 times in the run's log. It is on neither `$KnownRed` nor `$Graduated` in `run_all_tests.ps1`, so it
 has been reading as one FAIL among many with nothing watching it — the exact silence that list exists
 to prevent.
+
+---
+
+## PHASE 1 / PHASE 3 DIFF — the plan's asks against the checkout (2026-09-09, overseer)
+
+Plan of record: `production/PERF_IMPLEMENTATION_PLAN_2026-09-09.md`, including its CORRECTIONS
+section, which overrides it. Every row below was checked against code, not against the plan's own
+account of the code.
+
+### PHASE 1 — "repair measurement before following its advice"
+
+| the plan asks | state | pointer |
+|---|---|---|
+| Graph actual frame deltas, not the inverse of a smoothed FPS counter | **DONE 2026-09-09** | `arena_perf_overlay.gd` — `frame_ms = delta * 1000.0` |
+| ...retain **timestamps and frame IDs** | **NOT DONE** | the overlay keeps a bare `PackedFloat32Array` of ms; `fps_printer._ms` likewise, and it is `clear()`ed every window |
+| Sample GPU/render-thread **throughout the window** and label the collection scope | **HALF DONE** | overlay: DONE (`_gpu_history`, meaned over the same 120 frames, labelled "same window"). **`fps_printer` still takes ONE instantaneous GPU sample at report time** — the number that would be quoted at him is a single frame out of 5 seconds |
+| Do not invent GPU time when unavailable | **DONE** | `BOUND-NESS UNPROVEN`; guarded by `test_perf_timebase` |
+| Keep engine monitor maxima separate from directly timed script work | **DONE** | both instruments; guarded by `test_perf_timebase` |
+| **median / p95 / p99** and a defined low-FPS statistic | **NOT DONE — and it blocks the plan's own acceptance table** | `fps_printer` computes avg, worst and a defined 1% low. **Every budget the plan proposes is stated in median/p95/p99**, so as things stand no scenario can be judged against its own gate |
+| Event markers for spawning, vegetation, nav collection, terrain edits, first-use resources | **MOSTLY DONE** | named `StallLedger` spans already exist for all five families (`spawn.*`, `veg.*`, `nav.*`, `terrain.*`, `sp.*`). Missing: they are window aggregates, not timestamped markers |
+| **Inclusive vs exclusive** subsystem timings; "do not add crater and its nested chunk rebuild as independent costs" | **NOT DONE, and the plan names the exact case** | `stall_ledger.gd` says so itself: "nested causes double-count into parents". It already keeps a `_stack`, so it KNOWS the nesting and simply does not subtract. `terrain.crater` and `terrain.chunk_rebuild` are reported as siblings today |
+| Measure logger/overlay overhead with display disabled; avoid per-frame console printing | **NOT DONE** | no self-cost measurement exists. The overlay rebuilds a large `String` and assigns `Label.text` **every frame**. No per-frame console printing (the printer is 5 s) |
+| Gate: no unsupported CPU/GPU verdicts | **DONE** | guarded by `test_perf_timebase` |
+| Gate: "keep raw measurements sufficient to independently recompute summaries" | **NOT DONE** | nothing writes per-frame samples anywhere. p95 cannot be recomputed from the log even after it is added |
+| Test: a known frame-delay injection appears in the graph | **NOT DONE** | |
+| Test: missing GPU timestamps read unavailable | **DONE** | `test_perf_timebase` |
+| Test: nested spans do not double-count | **NOT DONE** (the behaviour is not implemented) | |
+| Test: exported and dev builds state their configuration | **HALF DONE** | `--print-fps` states scale, scaling mode, renderer, driver and texture compression. It does NOT state debug-vs-release, window resolution, seed, or actor counts — all of which Phase 0's run header requires |
+
+**Phase 1 ranked remainder:** (1) median/p95/p99 + raw sample retention, because the acceptance table
+is unusable without them; (2) `fps_printer`'s single-sample GPU read; (3) exclusive-vs-inclusive
+nesting, which the plan names by its exact case; (4) the overlay's own per-frame cost; (5) frame IDs.
+
+### PHASE 3 — "make vegetation/destruction updates local and bounded"
+
+The plan's central complaint is confirmed, and it is worse than it states.
+
+**"The current one-chunk-per-frame queues can still dispatch a job larger than an entire frame
+budget. Two independently bounded queues can also spend their allowances in the same frame."**
+There are **FOUR** independent allowances, with no shared budget, no priority and no backlog age:
+
+| queue | allowance | pointer |
+|---|---|---|
+| terrain deforms | 1/frame | `scripts/levels/world_config.gd:46` `TERRAIN_DEFORMS_PER_FRAME` |
+| vegetation regen | 1/frame | `terrain/core/terrain_manager.gd:422` `VEG_REGEN_PER_FRAME` |
+| tree-cover regen | 1/frame | `terrain/vegetation/tree_cover_layer.gd:485` `REGEN_PER_FRAME` |
+| tree falls | 6/frame | `scripts/world/tree_break_system.gd:19` `BREAKS_PER_FRAME` |
+
+**And one unit is already bigger than a frame.** `terrain_manager.gd:421` says so in its own comment:
+*"a single re-derive is 14-30 ms and two in a frame is the stall."* The tracking doc already records
+`terrain.veg_generate` at **62.8 ms for ONE chunk**. So the throttle is not protecting a 16.7 ms frame;
+it is spacing out units that each blow it, and four of them can still land together.
+
+| the plan asks | state |
+|---|---|
+| Stable plant identities independent of array indices; per-bucket lookup tables | **NOT DONE** — zero hits for `plant_id` / `stable_id` / generation in `vegetation_manager.gd` |
+| Coalesce edits by region/bucket and generation | **PARTLY DONE 2026-09-08/09** — the scatter-cache epoch (`vegetation_manager.gd:413-444`) and the crater double-rebuild dedupe. Chunk-level, not bucket-level |
+| Changes as add / remove / support-height / debris, not "the list is unchanged" | **NOT DONE** |
+| Update only affected species/buckets; slot reuse or compacted ranges | **NOT DONE** — the unit is still a whole chunk |
+| Prepare plain data incrementally or on worker jobs | **NOT DONE** — all on the main thread |
+| **One shared preparation budget across the related queues**, with priorities and backlog age | **NOT DONE — this is the single highest-value unbuilt item in the plan** |
+| Publish coherent state generations so collision/bullets/concealment/visible trees agree | **NOT DONE as a mechanism** — held today by ordering discipline (`tree_break_system.gd:391-409`, the half-state invariant) |
+| Keep the shipped terrain patching, cache/coalescing and tree-fall behaviour | **DONE — and left alone.** Partial chunk patching, `HeightMapShape3D` (`terrain/core/terrain_chunk.gd:376-404`), staggered falls with the silent >350 m band (`tree_break_system.gd:344`) are all in the tree and were not touched |
+
+**Phase 3 ranked remainder:** (1) the shared budget across the four queues; (2) shrinking the work
+UNIT below a frame, which the plan explicitly says is the real fix and which the 62.8 ms figure
+proves is not yet done; (3) stable plant identity, which the rest depends on.
+
+### Phases the diff did not cover
+
+Phases 0, 2, 4, 5, 6, 7 were not diffed this wave. Phase 0 is blocked on his windowed runs; Phase 4's
+subspans (`spawn.*`, `sp.*`) already exist and its measurement step is cheap once a run happens.
+
+---
+
+## `--stress=<target>` — HIS TWO-MINUTE ROUTE TO THE MEAT (2026-09-09)
+
+**His ruling, verbatim:** *"can we jsut have the assault start within 2 minutes of me spawning."*
+Then: *"to get into the meat of the problems."*
+
+**Most of it was already shipped.** `--stress` already gave probe@20s and the real 45-man siege@45s
+AND already seated the clock to the arc's night hour so the compressed run is not a daylight assault.
+The arc already fires a real ambient napalm at `NAPALM_EARLY_S = 35.0` on every boot. What was missing
+was SELECTION — one event in the frame with nothing else in it.
+
+Added: `--stress=assault|reinforce|napalm|trees` (bare `--stress` still means assault, so no existing
+invocation changed meaning). `reinforce` is a deliberate ALIAS of assault: the 11 -> 45 escalation is
+the demo's only reinforcement arrival, and inventing a fourth event would be a different measurement
+wearing the right name. `napalm`/`trees` never open the siege and put a real strike on the PLAYER's
+bearing at 210 m every 40 s from T+60 s.
+
+**Ready, dev-only, off by default, verified headless with 0 SCRIPT ERROR. NOTHING HAS BEEN RUN ON HIS
+SCREEN.** Run length he should expect: world build ~45-60 s, then the first event at T+60 s, so a
+useful row inside ~2 minutes and a full sample set in ~4-5 minutes per target.
+
+**THE CAVEAT, and it is in the ledger too:** a compressed route arrives with a COLD WORLD — unwalked
+chunks, unwarmed caches, less accumulated destruction, fewer bodies, fewer nav rebakes. Valid as a
+repeatable regression row and as an honest look at the event itself; **not** a substitute for the full
+arc, and it may flatter. **One full-length run is owed, on his say-so.**
+
+Guarded by `tests/test_demo_arc.tscn` (26 checks) which pins the SHIPPING arc against the flag and
+against a plain edit: probe 1395, siege 1440, 45 men, 06:30, 38x/20x, seed 29072026.
+
+## THE SIX UNOWNED RED TESTS — now named, not fixed (2026-09-09)
+
+They were failing anonymously in a 154-test run, which is how a real regression hides. Each was run
+alone to get its reason and all six are now on `$KnownRed` in `run_all_tests.ps1:44-55`, so an XPASS
+breaks the build the moment one is fixed and forces its name back off the list. **Not fixed this wave
+by instruction.**
+
+- `test_ai_stress_arena` — "no VC entered COMBAT", US wins 12-0 at 5.7 s. The VC never fight.
+- `test_air_formation` — 4x "Trying to assign invalid previously freed instance" (the test itself exits 0).
+- `test_ally_cover_roll` — only 1 distinct `stand_to_cover` clip; no per-man variant spread.
+- `test_arena_patrol` — delisted from `$Graduated` 2026-07-27 by his ruling; still red, now named.
+- `test_asset_probe` — 6 scale/load failures.
+- `test_fire_support_grant` — routine allotment moves with threat (bombs 0 / arty 1, want 1/1).

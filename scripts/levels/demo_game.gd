@@ -92,9 +92,57 @@ const ENDING_PLAYER_SURVIVES: bool = true
 ## player a DAYLIGHT assault - flares, night sight, muzzle-flash spotting and the whole
 ## lighting design absent. The stress boot jumps to the hour the real arc would reach at
 ## SIEGE_AT_S, so the fight he plays is the fight that ships.
+##
+## `--stress=<target>` SELECTS WHICH MEAT. Bare `--stress` is `assault` and behaves exactly
+## as it always has, so no existing bench invocation changes meaning.
+##   assault   probe at 20 s, the real 45-man siege at 45 s, clock seated to the arc's
+##             assault hour. This is also the reinforcement target: the 11 -> 45 escalation
+##             IS the demo's reinforcement arrival and there is no second path to one.
+##   napalm    the siege never opens; a REAL `authored_strike` NAPALM lands on the player's
+##             own bearing every STRESS_EVENT_EVERY_S, so the crater frame is measured with
+##             nothing else in it. Day clock, because the arc's own ambient napalm is a day
+##             beat (NAPALM_EARLY_S).
+##   trees     the same, with Ordnance.BOMB - HE and no fire, so the frame is dominated by
+##             TreeBreakSystem instead of by the burn.
+##
+## WHAT A COMPRESSED ROUTE CANNOT GIVE YOU, and it is written in PERF_LEDGER.md too: the
+## world arrives COLD. Fewer chunks walked and their caches unwarmed, less accumulated
+## destruction, fewer bodies, fewer nav rebakes behind it. Every target here is an honest
+## look at ITS OWN EVENT and a valid regression row. None of them is a substitute for the
+## full arc, and all of them may flatter.
+enum Stress { NONE, ASSAULT, NAPALM, TREES }
+
+## First event at T+60 s and one every 40 s after it: with world build in front, the first
+## sample lands about two minutes after he spawns, which is what he asked for.
+const STRESS_EVENT_FIRST_S: float = 60.0
+const STRESS_EVENT_EVERY_S: float = 40.0
+## Far enough that the 88 m napalm radius does not reach him, close enough that he is
+## looking at it from where a player stands. `authored_strike` still owns his safety.
+const STRESS_EVENT_RANGE_M: float = 210.0
+
 var probe_at: float = PROBE_AT_S
 var siege_at: float = SIEGE_AT_S
 var _stress: bool = false
+var _stress_target: int = Stress.NONE
+var _stress_next_event: float = STRESS_EVENT_FIRST_S
+
+
+## PURE, so the arc's timings can be gated without booting a 512 m world. Returns
+## {target, probe_at, siege_at}. `present` false = no flag at all = the shipping arc,
+## and this function is the ONLY place that decides otherwise.
+static func resolve_stress(present: bool, value: String) -> Dictionary:
+	if not present:
+		return {"target": Stress.NONE, "probe_at": PROBE_AT_S, "siege_at": SIEGE_AT_S}
+	match value.strip_edges().to_lower():
+		"", "assault", "reinforce":
+			return {"target": Stress.ASSAULT, "probe_at": 20.0, "siege_at": 45.0}
+		"napalm":
+			return {"target": Stress.NAPALM, "probe_at": INF, "siege_at": INF}
+		"trees":
+			return {"target": Stress.TREES, "probe_at": INF, "siege_at": INF}
+	push_error("[STRESS] unknown --stress target '%s' - expected assault|reinforce|napalm|trees. "
+		% value + "Falling back to assault.")
+	return {"target": Stress.ASSAULT, "probe_at": 20.0, "siege_at": 45.0}
 
 const PROBE_STRENGTH: int = 11
 ## Total men on the wire after the escalation, NOT an increment. 45 and not 50: LIVE_CAP
@@ -111,14 +159,25 @@ var _swap: BODY_SWAP = null
 
 
 func _ready() -> void:
-	if GameSettings.has_flag("--stress"):
-		_stress = true
-		probe_at = 20.0
-		siege_at = 45.0
-		print("[STRESS] --stress: probe at 20s, 45-man assault at 45s ",
+	var stress_present: bool = GameSettings.has_flag("--stress") \
+		or GameSettings.flag_value("--stress") != ""
+	var r: Dictionary = resolve_stress(stress_present, GameSettings.flag_value("--stress"))
+	_stress_target = int(r["target"])
+	_stress = _stress_target != Stress.NONE
+	probe_at = float(r["probe_at"])
+	siege_at = float(r["siege_at"])
+	if _stress_target == Stress.ASSAULT:
+		print("[STRESS] --stress=assault: probe at 20s, 45-man assault at 45s ",
 			"(normally %ds / %ds). The clock jumps with it - see the seat line below. " % [
 				int(PROBE_AT_S), int(SIEGE_AT_S)],
 			"Strengths, ring geometry, air beats and ordnance are untouched.")
+	elif _stress != false:
+		print("[STRESS] --stress=%s: the siege never opens. A REAL %s strike lands on your "
+			% ["napalm" if _stress_target == Stress.NAPALM else "trees",
+				"NAPALM" if _stress_target == Stress.NAPALM else "BOMB"],
+			"bearing at %dm, first at T+%ds then every %ds. Day clock, as the arc's own "
+			% [int(STRESS_EVENT_RANGE_M), int(STRESS_EVENT_FIRST_S), int(STRESS_EVENT_EVERY_S)],
+			"ambient napalm is a day beat. THE WORLD ARRIVES COLD - see PERF_LEDGER.md.")
 	for x in [["saves", EXCLUDE_SAVES], ["debrief", EXCLUDE_DEBRIEF],
 			["air_traffic", EXCLUDE_AIR_TRAFFIC], ["ambient_war", EXCLUDE_AMBIENT_WAR]]:
 		if x[1]:
@@ -158,14 +217,26 @@ func _ready() -> void:
 		await get_tree().process_frame
 	if _flow == null or not is_instance_valid(_flow) or not is_inside_tree():
 		return
-	var boot_hour: float = _stress_boot_hour() if _stress else START_HOUR
+	## Only the ASSAULT target moves the clock. Its event is a night event, so a compressed
+	## approach that left the hour alone would hand him a DAYLIGHT assault. The napalm and
+	## tree targets are day beats in the shipping arc and must stay on the day table, or the
+	## lighting - and therefore the frame - is not the one that ships.
+	var seats_night: bool = _stress_target == Stress.ASSAULT
+	var boot_hour: float = _stress_boot_hour() if seats_night else START_HOUR
 	SimClock.set_time(1, boot_hour)
-	if _stress:
+	if seats_night:
 		_seat_the_stress_night(boot_hour)
 	_apply_ambient_exclusions()
-	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
+	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%s siege@%s backstop@%ds" % [
 		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(boot_hour), int(fmod(boot_hour, 1.0) * 60.0),
-		DAY_RATIO, NIGHT_RATIO, int(probe_at), int(siege_at), int(END_BACKSTOP_S)])
+		DAY_RATIO, NIGHT_RATIO, _at_str(probe_at), _at_str(siege_at), int(END_BACKSTOP_S)])
+
+
+## The single-event stress targets park probe/siege at INF so the siege can never open.
+## `int(INF)` is INT_MIN, which printed as a large NEGATIVE second count - a boot line that
+## read "the assault already happened". The value is correct; only the rendering was a lie.
+static func _at_str(t: float) -> String:
+	return "never" if is_inf(t) else "%ds" % int(t)
 
 
 ## The sim hour the SHIPPING arc reaches `t` real seconds after the seat: DAY_RATIO until
@@ -337,11 +408,37 @@ func _tick_napalm() -> void:
 	var d: FieldDirector = _flow.director
 	if d == null or d.fsb_center == Vector3.ZERO:
 		return
+	if _stress_target == Stress.NAPALM or _stress_target == Stress.TREES:
+		_tick_stress_event(d)
+		return
 	if not _napalm_early_done and _clock >= NAPALM_EARLY_S:
 		_napalm_early_done = true
 		# A bearing the player is not standing on: opposite the gate, out over the jungle.
 		_strike_at(d, d.fsb_center, PI * 0.5, "SOMEBODY ELSE'S WAR - NAPALM ON THE TREELINE")
 	_tick_siege_air(d)
+
+
+## The repeated single event for the napalm/tree targets. It goes through `authored_strike`
+## exactly as every shipping beat does - same aircraft, same radius, same crater and the same
+## TreeBreakSystem call. A cheaper event would be a different measurement, not a faster route
+## to this one.
+##
+## It is aimed off the PLAYER, not off the firebase, so he is standing where a player stands
+## when it fires. `authored_strike` still owns his safety and refuses an axis that runs on him.
+func _tick_stress_event(d: FieldDirector) -> void:
+	if _clock < _stress_next_event:
+		return
+	_stress_next_event = _clock + STRESS_EVENT_EVERY_S
+	var centre: Vector3 = d.fsb_center
+	var bearing: float = 0.0
+	var pl: Node3D = _flow.world.player if _flow.world != null else null
+	if pl != null and is_instance_valid(pl):
+		centre = pl.global_position
+		bearing = -pl.global_rotation.y + PI * 0.5
+	var ord: CASAirplane.Ordnance = CASAirplane.Ordnance.NAPALM \
+		if _stress_target == Stress.NAPALM else CASAirplane.Ordnance.BOMB
+	_strike_at(d, centre, bearing, "STRESS RUN - %s INBOUND"
+		% CASAirplane.Ordnance.keys()[int(ord)], ord, STRESS_EVENT_RANGE_M)
 
 
 ## Walk the siege beat table. One beat per call at most, so two passes can never launch on
