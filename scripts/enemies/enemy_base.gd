@@ -808,7 +808,7 @@ func _physics_process(delta: float) -> void:
 		if _downed_fx_s <= 0.0:
 			_downed_fx_s = randf_range(4.0, 9.0)
 			GunFX.blood_pool(get_tree().current_scene, global_position)
-			NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 15.0)
+			NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 15.0, self)
 			VOManager.play_enemy("man_down", self, true)
 		if _downed_bleed_s <= 0.0:
 			_die()
@@ -1014,7 +1014,7 @@ func _check_spider_hole() -> void:
 	target = player
 	last_known_target_pos = player.global_position
 	_set_tier(AlertTier.COMBAT)
-	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, -1.0, self)
 
 
 ## A crippled fighter near a tunnel entrance slips underground and is gone.
@@ -1145,7 +1145,7 @@ func _witness_check(killer: Node) -> void:
 		else:
 			w.last_known_target_pos = global_position
 		VOManager.play_enemy("spotted_us", w)
-		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, w.global_position, 1, 30.0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, w.global_position, 1, 30.0, w)
 		return
 	# NOBODY SAW IT. The kill is clean. But he is still lying there.
 	EnemyBase.unreported_corpses.append(global_position)
@@ -1180,7 +1180,7 @@ func _check_corpse_discovery() -> void:
 			EnemySquad.begin_hunt(squad_id, body, body - global_position, float(Time.get_ticks_msec()))
 			EnemySquad.reanchor_hunt(squad_id, body, float(Time.get_ticks_msec()))
 		VOManager.play_enemy("spotted_us", self)
-		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0, self)
 		return
 
 
@@ -1324,7 +1324,12 @@ func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
 
 
 ## Heard something. Investigation goes to the NOISE, not the source.
-func _on_noise_heard(_type: int, noise_pos: Vector3, radius: float, source_team: int) -> void:
+func _on_noise_heard(_type: int, noise_pos: Vector3, radius: float, source_team: int,
+		source: Node = null) -> void:
+	# A MAN DOES NOT HEAR HIMSELF. His own shout would re-anchor last_known_target_pos on
+	# his own feet, wiping the killer position the witness rule wrote there one line earlier.
+	if source == self:
+		return
 	# A man's own side SHOUTING is the whole point of shouting. Dropping every
 	# own-team noise muted six emitters - the witness alarm, corpse discovery, the
 	# grenade telegraph, pain, the crippled cry and orders - so no enemy had ever
@@ -2504,7 +2509,7 @@ func _throw_grenade() -> void:
 	grenade_cooldown = 15.0
 	EnemySquad.claim_grenade(squad_id, float(Time.get_ticks_msec()))
 	# Telegraph: shout (noise event draws attention both ways) + floating text.
-	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, -1.0, self)
 	VOManager.play_enemy("grenade", self)
 	_warn_allies_of_grenade()
 	var shout := Label3D.new()
@@ -2664,7 +2669,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 		# to fall, and the clip would launch him upright.
 		if not _low_posture:
 			_stumble_until_ms = float(Time.get_ticks_msec()) + 500.0
-		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 20.0, self)
 
 	if current_hp <= 0:
 		var overkill: int = -current_hp
@@ -2755,7 +2760,7 @@ func _become_crippled() -> void:
 	elif mesh:
 		mesh.scale.y = 0.45
 		mesh.position.y = -0.35
-	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0)
+	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, 30.0, self)
 
 
 ## Limb hits degrade the man: arm = shaky aim, leg = slowed; a second leg wound

@@ -152,7 +152,7 @@ func _go(dest: Vector3) -> void:
 	_play(_walk_clip)
 
 
-func _on_noise(type: int, position: Vector3, radius: float, _team: int) -> void:
+func _on_noise(type: int, position: Vector3, radius: float, _team: int, _src: Node = null) -> void:
 	if type != NoiseBus.NoiseType.GUNSHOT and type != NoiseBus.NoiseType.EXPLOSION:
 		return
 	var pos: Vector3 = _body.global_position

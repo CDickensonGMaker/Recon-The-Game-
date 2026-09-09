@@ -32,7 +32,8 @@ func setup(game_world: GameWorld) -> void:
 
 ## Every shot the player fires is a bearing somebody could have taken. Team 1 (enemy)
 ## noise is ignored: the ledger records what the PLAYER left, not what the AO did.
-func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: int) -> void:
+func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: int,
+		_src: Node = null) -> void:
 	if evidence != null:
 		evidence.on_noise(type, pos, source_team, float(Time.get_ticks_msec()) * 0.001)
 

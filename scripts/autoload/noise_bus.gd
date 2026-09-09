@@ -2,7 +2,12 @@
 ## emit; AI ears subscribe. Weather scales radii via radius_multiplier.
 extends Node
 
-signal noise_emitted(type: int, position: Vector3, radius: float, source_team: int)
+## `source` is WHO MADE THE SOUND, and it exists for one reason: a man must not hear
+## himself. Without it every shout an enemy makes re-anchors his own beacon on his own
+## feet, which wipes the killer's position the witness rule had just written there
+## (ADR-005, measured by test_witness_rule 2026-09-09). Null means "nobody in particular",
+## which is right for a shell, a footstep or a bullet crack.
+signal noise_emitted(type: int, position: Vector3, radius: float, source_team: int, source: Node)
 
 enum NoiseType { FOOTSTEP, FOOTSTEP_SPRINT, GUNSHOT, SUPPRESSED, EXPLOSION, VOICE, IMPACT }
 
@@ -26,9 +31,10 @@ const RADII := {
 var radius_multiplier: float = 1.0  ## monsoon masking hook
 
 
-func emit_noise(type: int, position: Vector3, source_team: int = 0, radius_override: float = -1.0) -> void:
+func emit_noise(type: int, position: Vector3, source_team: int = 0, radius_override: float = -1.0,
+		source: Node = null) -> void:
 	var radius: float = radius_override
 	if radius < 0.0:
 		radius = float(RADII.get(type, 10.0))
 	radius *= radius_multiplier
-	noise_emitted.emit(type, position, radius, source_team)
+	noise_emitted.emit(type, position, radius, source_team, source)

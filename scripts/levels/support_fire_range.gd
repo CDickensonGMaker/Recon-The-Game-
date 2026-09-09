@@ -968,7 +968,7 @@ func _run_lethality_probe() -> void:
 	get_tree().quit()
 
 
-func _on_lp_noise(type: int, _pos: Vector3, _radius: float, _team: int) -> void:
+func _on_lp_noise(type: int, _pos: Vector3, _radius: float, _team: int, _src: Node = null) -> void:
 	if _lp.is_empty() or type != NoiseBus.NoiseType.GUNSHOT:
 		return
 	var w: int = int(_lp["window"])
@@ -1044,7 +1044,7 @@ func _run_strike_probe() -> void:
 var _sp_expl_pos: Array[Vector3] = []
 
 
-func _on_sp_noise(type: int, pos: Vector3, _radius: float, _team: int) -> void:
+func _on_sp_noise(type: int, pos: Vector3, _radius: float, _team: int, _src: Node = null) -> void:
 	if type == NoiseBus.NoiseType.EXPLOSION:
 		_sp_explosions += 1
 		_sp_expl_pos.append(pos)

@@ -161,10 +161,23 @@ func _check_world() -> void:
 				% [m.occupation, got])
 		if not GARRISON_OCCUPATIONS_ALL.has(m.occupation):
 			_fail("garrison man has occupation '%s'" % m.occupation)
+		# NAME HIM. "a garrison man" is not a lead: two of these turned up in the 2026-09-09
+		# sweep and there was nothing in the message to say which two, or where they came from.
+		var who: String = "'%s' (%s) at %s" % [m.occupation,
+			m.actor.unit if m.actor != null else "<no actor>", m.global_position]
+		if m.puppet:
+			# A PUPPET IS NOT A MAN WITH A JOB. The aid station's cot patients are posed
+			# bodies (mission_generator.gd:1087) - deliberately no working point and no
+			# schedule, because a wounded man lying in a cot is not walking a route. This
+			# probe predates the aid station and failed both of them for being exactly what
+			# they are meant to be. What a puppet OWES is a pose and non-combatant status.
+			if m.actor == null or not is_instance_valid(m.actor):
+				_fail("puppet garrison man %s has no actor to hold his pose" % who)
+			continue
 		if m._bt == null:
-			_fail("garrison man never had build_bt() called - his schedule is inert")
+			_fail("garrison man %s never had build_bt() called - his schedule is inert" % who)
 		if m.working_point_pos == Vector3.ZERO:
-			_fail("garrison man has no post to stand")
+			_fail("garrison man %s has no post to stand" % who)
 		occupations_seen[m.occupation] = true
 		if squad_ids.has(m.get_instance_id()):
 			_fail("a garrison man is IN THE SQUAD")

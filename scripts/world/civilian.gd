@@ -397,7 +397,10 @@ func _exit_tree() -> void:
 	AgentRegistry.unregister(self)
 
 
-func _on_noise(type: int, noise_pos: Vector3, radius: float, team: int) -> void:
+func _on_noise(type: int, noise_pos: Vector3, radius: float, team: int,
+		source: Node = null) -> void:
+	if source == self:
+		return
 	if state == CivState.GONE:
 		return
 	if is_garrison:

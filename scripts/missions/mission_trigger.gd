@@ -149,7 +149,8 @@ func _noise_team_matches(source_team: int) -> bool:
 	return false
 
 
-func _on_noise_emitted(type: int, position: Vector3, radius: float, source_team: int) -> void:
+func _on_noise_emitted(type: int, position: Vector3, radius: float, source_team: int,
+		_src: Node = null) -> void:
 	if mode != Mode.NOISE or not _can_consider():
 		return
 	if not noise_types.is_empty() and not noise_types.has(type):

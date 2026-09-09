@@ -61,6 +61,11 @@ $Graduated = @(
     "test_squad_invariants"
     "test_gib_contract_all"
     "test_firefight_len"
+    # Both were green on 2026-08-11 and red on 2026-09-09, and neither was on this list, so
+    # a month of runs read them as "never passed". test_witness_rule guards ADR-005, a
+    # BINDING LAW - it going quietly red is the most expensive kind of silence this project has.
+    "test_witness_rule"
+    "test_firebase_garrison"
 )
 # DELISTED 2026-07-27 (Summoner: "remove the ai stress test from the probes"):
 # test_arena_patrol. The stress arena is a sterile hand-wired debugging bench,
