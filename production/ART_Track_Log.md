@@ -1097,3 +1097,40 @@ OR 1-2 models per working day).
 every one was already authored and already mapped, and only the ally caller was missing.
 **`ANIM_VARIETY_PLAN.md` is refuted** on its claim that cower is *"the one genuine gap with neither art
 nor code"*: `cover_kneel_brace` existed and is now wired.
+
+
+---
+
+## 2026-09-09 (night) — VILLAGER SEEDLING PROP: no new art, no new clip, a grip inherited
+
+His ask: *"even when villagers are doing the work animation in the rice fields give them a plant
+in their hand."*
+
+**Nothing was modelled and nothing was animated, and both of those are the finding.**
+- The work clip already exists and is already correct: `plant_seeds` (Mixamo "Dig And Plant
+  Seeds"), mapped at `scripts/world/civilian.gd:74` for `VILLAGE_ACTION_CLIPS[&"work"]`, driven by
+  `civilian_schedules.gd:31-46` (farmers on `work` 06:30-11:00 and 13:00-17:00). No motion was
+  authored from imagination, and none needed to be.
+- The prop already exists: `assets/civilians/props/rice_bundle.glb`, 104 tris, `gear_atlas` on
+  `gear_palette` - his own locker asset, welded to `mixamorig:LeftHand` on `civ_farmer_f_c` and
+  `civ_kid_b` by `tools/make_civilians.py:110-142`. The other **8 of 10** variants carry nothing,
+  which is why the fists were empty.
+
+**What shipped is the wiring, not art:** `civilian.gd._set_seedling()` attaches the bundle for the
+duration of the work clip and frees it after; variants that already carry a welded one are skipped
+so nobody gets two.
+
+**THE CRAFT FINDING, for anyone hanging a prop on a civilian next:** the two prop conventions in
+this repo are NOT interchangeable. `etool_shovel.glb` is bone-local (identity attach, what
+`_set_shovel` does). `rice_bundle.glb` is in rig REST-POSE WORLD space, 1.40 m from origin, and an
+identity attach puts it across the room. Nor can the correction be derived - Godot's importer
+writes the bake as a local whose ORIGIN is `bone_global_rest.inverse()`'s but whose BASIS is not,
+so the derived transform misses by 1.70 m. **Read the Mesh and the Transform3D off the variant
+that already carries it.** Parity 0.000000 m, `tests/test_villager_seedling.tscn`.
+Full measurements: `production/blender_notes.md`, 2026-09-09 (night).
+
+**Unbuilt and still true** (from the 2026-09-09 clip survey, recorded so it is not rediscovered):
+`civ_work` - a bespoke paddy-work clip built from Caleb's own pose by `tools/make_work_from_pose.py`
+- exists in `assets/civilians/characters/civ_anim_workbench.blend` and was **never merged into
+`assets/shared/anim_library.glb`**. It has zero callers. `plant_seeds` is the stand-in that ships.
+Merging it is a separate art job and was not started.

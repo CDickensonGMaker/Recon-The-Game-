@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cfsbcolonlyctr"]
+
+[ext_resource type="Script" path="res://tests/test_fsb_colonly_contract.gd" id="1_fcc"]
+
+[node name="TestFsbColonlyContract" type="Node3D"]
+script = ExtResource("1_fcc")

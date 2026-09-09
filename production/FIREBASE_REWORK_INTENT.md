@@ -5,7 +5,22 @@ a circle but a bunch of modular parts i can stanmp into the terrain itself to ma
 feeling bases"*
 and, immediately after: *"but weve proved alot of elemnts within the blender build"*
 
-**POST-DEMO. Recorded as intent, not authorised.** Nothing starts without his word.
+> ## AUTHORISED BY HIM, 2026-09-09, SAME DAY. THIS DOC IS NO LONGER "INTENT".
+>
+> *"but even before that we should make a modular world building tool kit"* · *"and turn the firebase
+> into model pieces we can build sets with"* · *"so i actually would want to make a better bunker"* ·
+> *"and we need a better hq that doesnt have floating lightbulbs"* · *"and a better gate house."*
+>
+> **"Even before that" = before the post-demo progression work. It is near-term, and he decided it.**
+> The line below said POST-DEMO and NOT AUTHORISED for about eighteen hours. It is kept, struck, so the
+> record shows what the council advised before he ruled — the council's own reading was that the kit
+> fixes **none** of the five defects he reported the same night, and the case rests instead on the
+> floating lightbulb: a five-second edit trapped behind a 43 MB re-export and a permission prompt.
+>
+> **Plan, phases, price and the three proof pieces:**
+> `production/war_room/2026-09-09_firebase_kit_pivot/synthesis.md`. **Canon: ADR-043.**
+
+~~**POST-DEMO. Recorded as intent, not authorised.** Nothing starts without his word.~~
 
 ## He already ratified this idea three days ago — for villages
 
@@ -37,7 +52,7 @@ the parts.** Every one of them is an argument against baking 5,812 nodes into on
 | **The chow hall is bulletproof** | Merged in later by `merge_chowhall_to_firebase.py` *"under names no contract knows."* |
 | **`fb_aid_station` matches zero nodes** | The asset was renamed to `medical_complex` inside the bake and the prefix was left pointing at nothing. |
 | **`fb_sbg_seg_046_001`** | A Blender `.001` duplicate, invulnerable among 80 destructible twins. |
-| **`us_fb_ammo_crate_stack-colonly_P2`** | `-colonly` not at the end of the name, so it shipped as a visible mesh with a collider built for the collider. |
+| ~~**`us_fb_ammo_crate_stack-colonly_P2`**~~ **FIXED 2026-09-09** | `-colonly` not at the end of the name, so it shipped as a visible mesh with a collider built for the collider. Renamed in the source blend to `us_fb_ammo_crate_stack_P2-colonly`; gone from the export. |
 | **488 work markers, 23 staffed** | A compound authored for a garrison several times the size that fills it — a consequence of designing the whole base as one artefact. |
 | **45% of draw calls for 4% of geometry** | 545 interior props, every one its own mesh in the monolith. |
 

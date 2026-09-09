@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cvilseedlingprb"]
+
+[ext_resource type="Script" path="res://tests/test_villager_seedling.gd" id="1_vsd"]
+
+[node name="TestVillagerSeedling" type="Node3D"]
+script = ExtResource("1_vsd")

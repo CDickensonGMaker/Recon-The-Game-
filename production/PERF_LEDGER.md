@@ -2263,9 +2263,43 @@ regression.
 `-colonly` anywhere but at the end of its name. One set comparison over `nodes[].name`. It would
 have caught this in August.
 
-**The GLB was NOT re-exported for this row**, so `fsb_main_v3.glb` still stands at the
-real-model export md5 `e47eba8dd1cca16962c5c05a9f32be06`. There is no hash correction to make
-until the rename lands.
+~~**The GLB was NOT re-exported for this row**~~ **LANDED 2026-09-09 (night, second pass).**
+He approved the write; the rename ran in background Blender and the firebase was re-exported.
+
+| | before | after |
+|---|---|---|
+| blend | 50,534,041 B, `us_fb_ammo_crate_stack-colonly_P2` | 50,533,163 B, `us_fb_ammo_crate_stack_P2-colonly` (mesh `fb_ammo_crate_stack_002-colonly`) |
+| GLB md5 | `e47eba8dd1cca16962c5c05a9f32be06` | `6461852eff7c0c9e6dbb885b296767c7` |
+| GLB bytes | 44,647,644 | 44,646,444 |
+| nodes | 5,811 | 5,810 |
+| `-colonly` nodes | 2,308 (2,307 terminal, **1 stray**) | 2,307 (**all terminal, 0 stray**) |
+| visible material-less meshes | **1** | **0** |
+
+**The blend baseline held exactly** - 3,365 objects / 2,416 mesh / 565,702 tris / 651,966 verts /
+629 meshes / 281 materials / 65 images / 24 collections, before, after, and again after reopening
+the saved file. zstd compression preserved; no `.blend1` written (`save_version = 0` set for the
+run, because `--factory-startup` restores the stock value of 1).
+
+**Contract diff, both directions.** One node removed (`us_fb_ammo_crate_stack-colonly_P2`), zero
+added. The other 17 raw name differences are the predicted collider index shift and are all
+**exactly -1**, all inside the P2 mortar pit (`us_mortar_*_P2`, `us_MC_round_slide_P2`), because
+`make_collision` numbers off `enumerate(sc.objects)` and the stray no longer consumes a slot.
+Every prefix family is unchanged except `us_fb_ammo_crate_stack` 5 -> 4: parapet 162, bunkers
+16/8/6, towers 8, sandbag stacks 18, hootches 836, `fb_veg_` 24. COL_NONE membership identical
+both directions - 0 colliders on a COL_NONE family, and the 12 passable families keep their exact
+counts (door_ 84, mud 24, scorch 22, the rest unchanged).
+
+**THE MACHINE, so this cannot ship a third time** (it shipped in the 2026-08-12, 09-06 and 09-09
+exports): `gen_firebase_v3.assert_colonly_terminal()` raises before the exporter runs;
+`reexport_firebase_v3.audit_colonly()` re-reads the SHIPPED BYTES afterwards and raises on any
+stray; `tests/test_fsb_colonly_contract.tscn` asserts it against the imported Godot scene -
+**2,435 collider bodies, 2,130 visible meshes, 0 stray, 0 white**. The pre-flight was selftested
+against the exact historical name and trips on it.
+
+**The white box is gone, and it was the only one in this GLB.** A material-less-primitive audit of
+the shipped file finds 1,753 such meshes, every one of them a `-colonly` collider (invisible in
+Godot) and **zero visible ones**. That closes the firebase's contribution to the demo audit's
+"white surfaces on the walked path"; it does not speak for the terrain or the village models.
 
 ---
 
@@ -2620,3 +2654,219 @@ rolls its own feather). **HANDED OFF.**
 silenced.** It asserted `chunk2 != chunk` — that the shell had *thrown the chunk node away*. That
 demanded the expensive path, and arming every chunk makes it false by design. It now asserts the
 ground actually moved: **PASS, ground 172.842 -> 164.842 m, "chunk node patched in place."**
+
+---
+
+# 2026-09-09 (night) — RICE IN THE PADDIES, AND THE FIREBASE COLLAR
+
+Two of his rulings, both measured in COUNTS. No frame or GPU figure is offered: he ruled the quiet-
+terrain bench unrepresentative ("cuz its just terrain with no action"), and he was at the machine
+playing throughout, so every number below is an instance / triangle / draw-call census from
+`tools/probe_paddy_census.gd` (new) and the corrected `tools/probe_ground_cover_census.gd`.
+
+## The instrument correction that comes first: THIS LEDGER'S TRIANGLE COUNTS WERE ~2.3x LOW
+
+`tools/probe_ground_cover_census.gd` counted triangles as `ARRAY_VERTEX.size() / 3`. Every mesh here
+is INDEXED, so that is not a triangle count. `tools/probe_far_ring_meshes.gd` has always read the
+INDEX buffer and has always disagreed — it reads `rice_a` at 84 tris where the census read 37, and
+nobody reconciled the two.
+
+**Corrected, same world (seed 47225), rice excluded so it is a like-for-like re-read of the
+2026-09-09 (day) row:** ground cover **1,589,584 tris**, canopy **18,461,506** — against the
+674,357 / 8,114,169 published that morning. The RATIO barely moved (7.7% -> 8.0%), because the bug
+scaled everything alike, so the conclusion drawn from it stands. The absolute numbers do not.
+Probe fixed; it reads indices now and says why in a comment.
+
+## HIS RULING — "yes add grass to the rice paddies to make it look realistic"
+
+### What was actually wrong, and it was TWO things, not one
+
+1. `vegetation_manager.gd` set `TYPE_PROPS[RICE_PADDY] = [0.00, 0, 0]`, so the scatter planted
+   nothing in a paddy. That was the finding already on the record.
+2. **`paddy_stamper.gd` DID scatter rice, and it had never planted one clump.**
+   `_scatter_rice_props` did `scene.instantiate() as MeshInstance3D` on `rice_a.glb` / `rice_b.glb`,
+   whose root is a **Node3D with the mesh as a child** — the cast returns null, and every prop hit
+   the `continue` in silence. Verified twice headless: `PaddyStamper: 16 paddy polygons, 10 village
+   anchors, 0 rice MeshInstance3D nodes` (1280 m AO), and the same at 512 m.
+   **The dead path is deleted, not repaired** (ADR-023): repairing it would have put a second,
+   unbatched, un-ringed rice population on top of the new one, every plant at the paddy CENTROID
+   height instead of its own ground, one draw call each.
+
+### What a paddy is actually made of — measured before anything was planted
+
+| | patrol AO (seed 47225, 1280 m) | demo slice (seed 29072026, 512 m) |
+|---|---:|---:|
+| RICE_PADDY bundles | 1,481 (5.8%) | 149 (3.6%) |
+| paddy area | 94,784 m2 | 9,536 m2 |
+| of those, with standing water | **97 (6.5%)** | **9 (6.0%)** |
+| mean water depth where wet | 0.50 m | 0.50 m |
+| mean relief across an 8 m bundle | 0.40 m | 0.50 m |
+
+**A paddy in this world is mostly DRY.** The zone is a low-relief classification
+(`TerrainZoning.classify`, lowland ceiling 159.2 m at this seed); the water is a separate hydrology
+solve that fills 2-4% of the map. So "rows standing in water" is true of ~6% of paddy ground and the
+rest is worked mud. The planting had to hold up in both.
+
+### What was built
+
+`VegetationManager._plant_paddy_rows`. A paddy is a **planted field, not a scatter**:
+
+- **Rows anchored to the FIELD, not to the bundle.** A 48 m field tile picks one of 8 row directions
+  and ONE crop (`rice_a` or `rice_b`) from a position hash, so rows run unbroken across every 8 m
+  bundle and 256 m chunk seam, and neighbouring fields lie at different angles the way worked land
+  does. Clumps sit at **1.25 m along the row** (they are 1.2-1.4 m wide, so a row reads as one
+  continuous green line) and **2.6 m between rows** (an open lane of mud or water you can see down).
+  Jitter is +/-0.16 m along and +/-0.10 m across — enough to look hand-planted, small enough that
+  the rows survive it.
+- **It draws NOTHING from the chunk's RNG.** Jitter, yaw and scale come from an integer position
+  hash, so planting a paddy cannot move one tree anywhere else. **Measured, not asserted:** the
+  patrol AO held 49,695 plants before this change and holds **79,272 = 49,695 + 29,577 rice** after.
+  Every pre-existing plant is exactly where it was.
+- **It respects the real water geometry.** The lattice reads `terrain_manager.hydrology`
+  (`water_type_full` / `water_surface_full`) — the same solve `WaterSystem` builds its combined
+  surface mesh from — rather than `WaterSystem`, which does not exist yet when the first chunks
+  scatter. A flooded cell seats the clump 0.18 m UNDER the water surface so it stands IN the water;
+  a cell more than 0.85 m under is a channel or a pond, not field, and nothing is planted there,
+  which is what cuts the open water lanes through a paddy.
+- **Seating verified, not eyeballed:** 2,964 demo clumps checked against the same heightmap the
+  scatter used — **0.00 m worst below ground, 0.42 m worst above** (and that 0.42 is exactly the
+  flooded lift), **238 clumps standing in water**.
+
+### What it costs
+
+| | demo slice (512 m) | patrol AO (1280 m) |
+|---|---:|---:|
+| rice clumps planted | **2,964** | **29,577** |
+| triangles, FULL detail | 248,976 | 2,484,468 |
+| MultiMesh nodes (= draw calls) | **16** | **103** |
+| share of all plants | 25% | 37% |
+
+**The one honest worry, and it is an ART item.** `rice_a` and `rice_b` are 84 tris each and **neither
+generates an LOD ladder** — the importer declines on their topology, and their `.import` files are
+byte-identical to twins that DO generate one, so nothing in the pipeline can fix it. Until now that
+cost exactly zero because no rice was ever placed. It now costs 2.48 M full-detail triangles of stock
+in the patrol AO (11% of the world's plant triangles) that never simplify with distance. Bounded by
+the ground-cover ring: **rice draws to 150 m only** (`SMALL_PREFIXES` already carried `rice_`), so
+this is stock, not frame. **The fix is a lower-poly source mesh and it belongs to art.** The density
+dial, if he wants it thinner, is `PADDY_HILL_PITCH` / `PADDY_ROW_PITCH`.
+
+## HIS RULING — "just have the cut away be 20 m around the firebase and stagger it at that too"
+
+### What governed it before, said exactly
+
+`site_planner.gd` `FSB_CLEAR_DISCS = [[Vector3.ZERO, 140.0]]` — **one hard 140 m circle**, fed to
+`clear_and_flatten`, which does three things at that radius: a ClearingSystem CLEARED zone, the
+vegetation `clear_area`, and a grid `update_region`. It is NOT the 230 m figure (that is
+`STRUCTURE_VISIBILITY_END`, a per-node draw fade for placed structures) and it is not the terrain
+seat (`FSB_FLATTEN_RADIUS` 215 m, a plateau lerp that runs afterwards and has the last word on the
+ground).
+
+### Where the wire actually is — read off the model's own manifest
+
+`fsb_main_v3_mound.json` through the same math `SitePlanner.fsb_mound_height` uses (r0 66 m,
+ridge_stretch 1.28, three edge harmonics, berm_w 3.2):
+
+**the berm crest stands at a WORLD radius of 51.8 m on its narrowest bearing and 99.7 m on its
+widest, mean 78.5 m.** The wire is a wobbly ellipse, not a circle. "Wire + 20 m" is therefore a
+region whose boundary runs 71.8 -> 119.7 m (mean 98.5), enclosing 31,108 m2.
+
+**The old 140 m circle cleared 61,575 m2 — 30,416 m2 of bald ground beyond his 20 m line.**
+
+### What changed
+
+- `FSB_CLEAR_DISCS` **140.0 -> 120.0**, i.e. exactly +20 m past the widest part of the wire, and more
+  than that on narrower bearings. Excess bald ground beyond the 20 m line: **30,416 -> 13,904 m2, a
+  54% cut.**
+- `FSB_CLEAR_FEATHER = 26.0` — the "stagger it". Past 120 m the cut does not stop, it **thins**:
+  `VegetationManager._hole_removes` gives a plant a survival chance ramping 0 -> 1 across the band
+  from a 0.25 m position hash (deterministic, identical on every rebuild), and the band's own edge
+  wanders +/-6 m with a low-frequency angular term. **No bearing shows a drawn radius.**
+- `MissionGenerator.apply_veg_boosts` now takes the firebase centre and adds an apron ring (radius
+  175 m, chance floor 0.78, +1 count) so the base sits IN growth rather than beside it. It rides the
+  existing mechanism, so `gameplay_grid.boost_vegetation` mirrors it into the AI grid — and that call
+  already clamps itself against the ClearingSystem density, so the grid cannot claim concealment on
+  the bald compound.
+
+**A single disc still cannot be 20 m outside a wobbly ellipse at every bearing.** Making it follow
+the wire needs a SHAPED clear, and the same offsets are read by `plan_firebase_main_center`'s site
+scoring, so shaping it moves the firebase for every patrol seed. Named for him rather than smuggled
+in. Ruled: **the clearing zone and the vegetation hard cut share the same 120 m line**, so nothing
+the AI grid calls cleared has cover standing in it. In the 120-146 m feather band the grid still
+reads full jungle while the player sees thinning scrub — the mismatch errs toward the player having
+LESS cover than the AI credits him with, never more.
+
+### The perimeter cost, A/B in one instrument, one seed, one world
+
+`tools/probe_paddy_census.tscn` with and without `--legacy-collar` (140 m hard, no apron), demo slice,
+seed 29072026, firebase at map centre:
+
+| band from the firebase | legacy plants | shipped plants | delta |
+|---|---:|---:|---:|
+| 0-120 m | 0 | 0 | 0 |
+| 120-130 | 0 | **91** | +91 |
+| 130-140 | 0 | **305** | +305 |
+| 140-150 | 453 | 567 | +114 |
+| 150-160 | 552 | 729 | +177 |
+| 160-175 | 855 | 1,059 | +204 |
+| 175-200 | 1,485 | 1,536 | +51 |
+| **120-200 total** | **3,345** | **4,287** | **+942 (+28%)** |
+
+| | legacy | shipped | delta |
+|---|---:|---:|---:|
+| triangles in the 120-200 m collar, FULL detail | 1,027,368 | 1,391,342 | **+363,974 (+35%)** |
+| MultiMesh nodes in the collar (= draw calls) | 372 | 457 | **+85** |
+| whole-slice plants after the collar pass | 9,576 | 10,513 | +937 |
+| whole-slice MultiMesh nodes | 998 | 1,082 | **+84** |
+
+Zone mix in the newly-grown 120-140 m band: MEDIUM_JUNGLE 191, HEAVY_JUNGLE 146, LIGHT 22,
+RICE_PADDY 33, GRASSLAND 4 — so it is **real jungle with trees in it**, not just grass, which is what
+"some trees too" needs. Triangles are full detail; canopy species carry LOD ladders, so the submitted
+figure is lower.
+
+## HIS RULING — "bushes keep drawing to 350, dont cut em"
+
+**Closed. Nothing shipped.** `BUSH_RING_M = 0.0` (uncut) and the first step of the F12 cycle is uncut,
+so a stray press cannot leave a cut in. The dial exists only so he can look again on his own eyes.
+
+The price of the cut he declined, from the AO centre, patrol world (bushes are 256 tris each, and
+`bush_a/b/c` total **10,938** instances — that figure reproduces exactly on the corrected census):
+
+| bush ring | additional instances hidden | additional tris (full detail) | additional MultiMesh nodes |
+|---|---:|---:|---:|
+| 350 m (SHIPPED) | — | — | — |
+| 250 m | 1,301 | 333,056 | >= 133 |
+| 200 m | 1,846 | 472,576 | >= 191 |
+| 150 m | 2,469 | 632,064 | >= 233 |
+
+Node counts are a FLOOR: a 64 m bucket is hidden only when its whole transformed AABB clears the ring
+(godot#79471), so the allowance is the bucket half-diagonal. Triangles are full detail and bushes DO
+carry LOD ladders, so the submitted saving is smaller than the stock saving.
+
+## F9 WAS ALREADY TAKEN, AND THE COMMENT SAYING IT WAS NOT WAS WRONG WHEN IT WAS WRITTEN
+
+`tree_cover_layer.gd` carried the line *"F9 and F10 are unbound anywhere else in the project"*.
+**F9 is `quickload`** — `project.godot` binds physical_keycode 4194340 to it and `save_manager.gd:74`
+acts on it. Cycling the ground-cover ring mid-walk could reload his quicksave. All three dial keys
+now call `set_input_as_handled()`, and because the world scene takes `_unhandled_input` before an
+autoload does, SaveManager never sees the press. **Which key keeps F9 permanently is his call, not a
+silent rebind of his save keys.**
+
+F12 is the new bush key. The input map binds F1-F5 and F9 and nothing else in the F range; F11 is
+interior props (`interior_prop_dial.gd:14`). F12 was free and is verified free.
+
+## THE GUARD THAT CAUGHT ME
+
+A bundle whose centre sits deep inside a clearing was skipped outright, to stop the thickened apron
+generating a compound's worth of plants and throwing them away. `tools/probe_crater_veg.gd` went red:
+**"pruned 9472 vs regenerated 9472 plants, 1,805 positional/species mismatch(es)."** Same count,
+different plants. The random scatter draws its RNG *before* it tests the hole **on purpose** — that is
+what makes pruning a cached scatter identical to regenerating it with the hole in place — so skipping
+a holed bundle shifted the whole chunk's RNG stream and moved 1,805 unrelated plants. The skip now
+applies **only to the paddy lattice**, which draws no RNG at all. Probe green again, 0 mismatches.
+The wasted work inside the apron is left in and named rather than traded for a wrong tree.
+
+## ONE NUMBER I COULD NOT ACCOUNT FOR
+
+The demo slice read **8,845** non-rice plants before this change and **8,852** after — seven plants,
+0.08%. The patrol AO reproduces EXACTLY (49,695 before, 49,695 after), which is the stronger test and
+the one the determinism claim rests on. The seven are recorded, not explained and not rounded away.

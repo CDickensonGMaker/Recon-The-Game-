@@ -961,6 +961,19 @@ def make_collision():
     return made
 
 
+def assert_colonly_terminal(objects):
+    """`-colonly` is only a contract at the END of a name. Godot's glTF importer, this file's
+    make_collision() skip and clear_collision() all test the tail; a marker anywhere else
+    satisfies none of them and the object ships as a material-less white mesh with no error.
+    us_fb_ammo_crate_stack-colonly_P2 did exactly that through the 2026-08-12, 09-06 and 09-09
+    exports."""
+    strays = sorted(o.name for o in objects
+                    if "-colonly" in o.name and not o.name.endswith("-colonly"))
+    if strays:
+        raise RuntimeError("-colonly marker not at end of name (ships as a visible untextured "
+                           "mesh, no error): %s" % ", ".join(strays))
+
+
 def clear_collision():
     n = 0
     for o in list(bpy.context.scene.objects):
@@ -985,6 +998,7 @@ def export_firebase(glb=None):
     import refit_firebase_veg as refit
     veg_swap = refit.swap_cards_for_models()
     make_collision()
+    assert_colonly_terminal(sc.objects)
     bpy.context.view_layer.update()
     # ARMATURE joined this set 2026-08-12. Without it the staged crews - the surgery, the
     # officers, the tended wounded - exported as skinned meshes with no skeleton, so Godot

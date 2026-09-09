@@ -21,7 +21,10 @@ not a blend edit. The blend still holds the cards; the GLB never does.
 
 IT NEVER SAVES THE BLEND. Saving is the artist's call, in Blender, with undo.
 """
+import hashlib
+import json
 import os
+import struct
 import sys
 
 import bpy
@@ -67,16 +70,9 @@ def main():
     # that is why a bare re-export comes out ~3.9MB heavier than the file it replaces, and
     # it is not a defect in the export.
     #
-    # THE BYTE-FOR-BYTE CLAIM IS RETIRED, 2026-09-09 (measured, second run of the day).
-    # This used to say open -> export -> shrink rebuilds the shipped GLB byte for byte at
-    # md5 6ce1bfbf35bcd9f7b9b090a23d705083. It did, for about twelve hours. make_collision's
-    # "CONTAINS, not endswith" fix landed the same day and correctly stops emitting a
-    # collider for the collider named us_fb_ammo_crate_stack-colonly_P2 - so a control
-    # re-export with every other change disabled now yields md5
-    # e72085a36f935857815aecbf8102434d, 43,484,240 bytes against the old 43,485,624, with
-    # exactly one node gone: us_fb_ammo_crate_stack-colonly_P2_3339-colonly.
-    # The pipeline is still deterministic; it is reproducible against ITSELF, not against a
-    # file exported by older code. Re-derive the md5 when you need one, never quote this.
+    # THE BYTE-FOR-BYTE CLAIM IS RETIRED. The pipeline is deterministic against ITSELF, not
+    # against a file exported by older code: three separate 2026-09-09 fixes each moved the
+    # hash by one node. Re-derive the md5 when you need one; never quote a stored one.
     import shrink_oversized_textures as shrink
     glb = os.path.join(v3.ROOT, "fsb_main_v3.glb")
     res = shrink.process(glb, True)
@@ -86,6 +82,33 @@ def main():
         old_b, new_b, swaps = res
         print("textures: %d image(s) halved, %.2f -> %.2f MB"
               % (len(swaps), old_b / 1048576.0, new_b / 1048576.0))
+
+    audit_colonly(glb)
+
+
+def audit_colonly(glb):
+    """Post-flight on the SHIPPED BYTES. gen_firebase_v3.assert_colonly_terminal() guards the
+    session before the exporter runs; this reads the file that actually goes to Godot, because
+    the two have disagreed before."""
+    data = open(glb, "rb").read()
+    off = 12
+    doc = None
+    while off < len(data):
+        ln, ty = struct.unpack_from("<II", data, off)
+        if ty == 0x4E4F534A:
+            doc = json.loads(data[off + 8:off + 8 + ln].decode("utf-8"))
+            break
+        off += 8 + ln
+    names = [n.get("name", "") for n in doc.get("nodes", [])]
+    strays = [n for n in names if "-colonly" in n and not n.endswith("-colonly")]
+    total = sum(1 for n in names if "-colonly" in n)
+    print("colonly contract: %d node(s), %d terminal, %d stray %s"
+          % (total, total - len(strays), len(strays), strays or ""))
+    print("shipped: %d bytes, md5 %s, %d nodes"
+          % (len(data), hashlib.md5(data).hexdigest(), len(names)))
+    if strays:
+        raise RuntimeError("SHIPPED a -colonly marker that is not at the end of the name: %s"
+                           % ", ".join(strays))
 
 
 if __name__ == "__main__":

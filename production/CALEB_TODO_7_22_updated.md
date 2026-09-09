@@ -1,5 +1,53 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-A. DONE 2026-09-09 (night) — the white box in the mortar pit, and a plant in the villagers' hands
+
+Two jobs, both shipped, both gated. Nothing here needs your ruling; the open calls are at the
+bottom of this section.
+
+**1. `us_fb_ammo_crate_stack-colonly_P2` is gone from the export.** It was never a mislabelled
+prop: a 24-vert / 12-tri box hull with no UV and no material, at distance 0.0000 from the real
+crate, that had escaped `clear_collision()` because the `-colonly` marker sat in the MIDDLE of
+its name. Godot therefore imported it as a visible mesh and drew it in default **white**,
+z-fighting the textured crate in the P2 pit. Renaming it to `us_fb_ammo_crate_stack_P2` - the
+obvious fix - would have been worse: that name is the real crate's, Blender appends `.001`, and
+`make_collision` splits on `.`, so the untextured box would have shipped VISIBLE **and** picked up
+a collider of its own. It is now `us_fb_ammo_crate_stack_P2-colonly`, marker at the end, so the
+export strips it and it ships nothing. Full contract diff in `PERF_LEDGER.md` (2026-09-09 night):
+one node removed, zero added, 17 predicted collider index shifts all exactly -1, every prefix
+family unchanged. GLB md5 `e47eba8dd1cca16962c5c05a9f32be06` -> `6461852eff7c0c9e6dbb885b296767c7`.
+**The shipped firebase now contains ZERO visible material-less meshes** - that closes the
+firebase's share of the demo audit's "white surfaces on the walked path", and only the firebase's.
+
+Three gates so it cannot ship a fourth time (it shipped in the 08-12, 09-06 and 09-09 exports):
+`gen_firebase_v3.assert_colonly_terminal()` before the exporter runs · `reexport_firebase_v3.audit_colonly()`
+on the shipped bytes · `tests/test_fsb_colonly_contract.tscn` on the imported Godot scene.
+
+**2. A villager working a paddy now holds what he is planting.** Your ask, verbatim: *"even when
+villagers are doing the work animation in the rice fields give them a plant in their hand."*
+The clip was already the right one - `plant_seeds`, the kneeling ground-work read, at
+`scripts/world/civilian.gd:74` - so no motion was authored. The gap was the prop:
+`tools/make_civilians.py` welds a rice bundle onto only **2 of the 10** civilian variants, so
+eight villagers in ten planted with empty fists. `civilian.gd._set_seedling()` now hangs your own
+`rice_bundle` on `mixamorig_LeftHand` for the duration of the work clip and takes it away
+afterwards. It uses YOUR placement, read straight off `civ_farmer_f_c.glb` rather than solved -
+parity **0.000000 m**, gated by `tests/test_villager_seedling.tscn` with a control lane that fails
+if a wrong transform would also pass. Left hand on purpose: `rice_sickle` is welded to the right
+on `civ_farmer_m_b`, so a cutting farmer holds both.
+
+### YOUR CALLS (nothing is blocked on these)
+- **Should the bundle read as the same species as the paddy rice?** It uses `rice_bundle.glb`
+  (104 tris, `gear_palette`) - your civilian locker prop. The rice the other agent is planting in
+  the paddies is `rice_a/rice_b.glb` (84 tris, `jungle_palette`), a 1.2 m ground clump with no
+  hand placement. Using the paddy species would mean authoring a second model and solving a grip
+  you already solved, so it was not done. If the two greens read wrong side by side, say so and
+  the palette gets matched.
+- **Should the seedling also appear for the firebase working party?** It does not today - the
+  detail man's `plant_seeds` reads as filling sandbags, and he already has the e-tool.
+- **`test_suite_health` is RED and was red before this work** - 21 stranded `probe_*` scripts the
+  runner never invokes, against a ratchet register holding only 2. Not touched here; it is its own
+  job.
+
 ## 0000-0. READ FIRST — WHY YOUR MEN ARE STANDING AROUND. Needs your ruling, 2026-09-09
 
 You have said this twice: **"its got people standing around but they arent performing"** and

@@ -171,6 +171,27 @@ var dig_ok: bool = false
 ## back to the non-dig working chain rather than mime.
 const SHOVEL_GLB: String = "res://assets/world/props/etool_shovel.glb"
 var _shovel: BoneAttachment3D = null
+## A seedling bundle in the off hand while a villager works a paddy (his ask,
+## 2026-09-09: "even when villagers are doing the work animation in the rice fields
+## give them a plant in their hand"). His own locker prop, on his own LeftHand
+## placement - the same one make_civilians.py bakes onto civ_farmer_f_c and civ_kid_b.
+## ITS VERTS ARE IN RIG REST-POSE WORLD SPACE, NOT BONE SPACE, so it is attached with
+## the bone's global rest inverted, never with identity. The shovel above is the other
+## convention (bone-local, identity) and copying it here puts the bundle 1.4m from the
+## hand - measured, not guessed.
+## THE DONOR, not the loose prop. rice_bundle.glb's verts are in rig REST-POSE WORLD
+## space and the grip transform CANNOT BE DERIVED from the bone rest - Godot's glTF
+## importer writes a local whose origin is the rest inverse but whose basis is not
+## (measured: deriving it lands the bundle 1.70 m from the fist). So the placement is
+## READ OFF HIS OWN BAKE. civ_farmer_f_c is the variant make_civilians.py welds a
+## bundle onto; its mesh and its transform under mixamorig_LeftHand are the master data
+## every other villager inherits.
+const SEEDLING_DONOR: String = "res://assets/civilians/characters/civ_farmer_f_c.glb"
+static var _grip: Dictionary = {}
+var _seedling: BoneAttachment3D = null
+## -1 unknown, 0 no, 1 yes. Two of the ten variants ship the bundle welded on; giving
+## them a second is one bundle inside another.
+var _baked_bundle: int = -1
 ## Group id: civilians with the same id walk as one group. -1 = solo.
 var group_id: int = -1
 ## Where THIS civilian walks while grouped: the destination if lead, else a
@@ -536,6 +557,7 @@ func _animate() -> void:
 		var bclip: String = String(burn.call("clip"))
 		if bclip != "" and not actor.play(bclip):
 			actor.play(String(burn.call("clip_alt")))
+		_set_seedling(false)
 		return
 	var moving: bool = Vector2(velocity.x, velocity.z).length() > 0.4
 	var want: String = ""
@@ -546,6 +568,7 @@ func _animate() -> void:
 	elif state == CivState.COWER:
 		want = "hands_up" if is_informer and _inform_clock >= 0.0 else "crouching"
 	elif state == CivState.GONE:
+		_set_seedling(false)
 		return
 	else:
 		match active_action:
@@ -563,6 +586,8 @@ func _animate() -> void:
 		return
 	_last_clip = want
 	if is_garrison:
+		# The working party fills sandbags; the seedling is a village prop only.
+		_set_seedling(false)
 		_play_garrison(want)
 		# HIS OWN PHASE, HIS OWN SPEED. Every garrison man is spawned in one frame and starts
 		# his loop at frame 0, so two men who draw the same variant are twins down to the
@@ -584,8 +609,13 @@ func _animate() -> void:
 			actor.play_first(_rotate(["praying", "praying_b", "sitting_idle_b"]))
 			return
 		if VILLAGE_ACTION_CLIPS.has(act):
-			actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[act] as Array))
+			var played: String = actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[act] as Array))
+			# Only a man who actually got the paddy clip holds a seedling. If the chain
+			# degraded to its idle tail he is standing about, and a bundle in the fist
+			# would be the prop asserting work the body is not doing.
+			_set_seedling(act == &"work" and played == "plant_seeds")
 			return
+	_set_seedling(false)
 	match want:
 		"running_unarmed":
 			actor.play_first(["running_unarmed", "walking_unarmed"])
@@ -820,6 +850,90 @@ func _play_garrison(want: String) -> void:
 ## Attach/free the e-tool on the man's own skeleton. Parented under the rig's hand
 ## bone, so it can NEVER outlive the body - it dies with the actor. Idempotent per
 ## state: _animate only calls on want changes, so no per-frame churn.
+## Attach/free the seedling bundle on the man's own skeleton, LEFT hand - the right
+## is where rice_sickle lives, so a cutting farmer keeps both. Same lifetime rule as
+## the e-tool: parented under the rig, so it can never outlive the body.
+func _set_seedling(on: bool) -> void:
+	if not on:
+		if _seedling != null and is_instance_valid(_seedling):
+			_seedling.queue_free()
+		_seedling = null
+		return
+	if _seedling != null and is_instance_valid(_seedling):
+		return
+	if actor == null or not is_instance_valid(actor):
+		return
+	var skel: Skeleton3D = actor.skeleton()
+	if skel == null:
+		return
+	if _baked_bundle < 0:
+		_baked_bundle = 1 if _finds_bundle(skel) else 0
+	if _baked_bundle == 1:
+		return
+	# Importer sanitises the colon (vc_nva_dresser._socket_bone) - both spellings tried.
+	var bone: int = skel.find_bone("mixamorig_LeftHand")
+	if bone < 0:
+		bone = skel.find_bone("mixamorig:LeftHand")
+	if bone < 0:
+		return
+	var grip: Dictionary = _seedling_grip()
+	if grip.is_empty():
+		return
+	var att := BoneAttachment3D.new()
+	att.name = "SeedlingSocket"
+	# Parent first: bone_idx survives an out-of-tree write (measured - the e-tool sets it
+	# that way and lands 0.153 m from the fist), but bone_name is only DERIVED from the
+	# skeleton, so assigned early it stays empty and the socket cannot be identified.
+	skel.add_child(att)
+	att.bone_idx = bone
+	att.bone_name = skel.get_bone_name(bone)
+	var prop := MeshInstance3D.new()
+	prop.name = "rice_bundle"
+	prop.mesh = grip["mesh"] as Mesh
+	att.add_child(prop)
+	prop.transform = grip["xform"] as Transform3D
+	_seedling = att
+
+
+## His grip, read once off the donor and kept. The scene is freed immediately; only a
+## Mesh reference and a Transform3D are held.
+static func _seedling_grip() -> Dictionary:
+	if not _grip.is_empty():
+		return _grip
+	var packed: PackedScene = load(SEEDLING_DONOR) as PackedScene
+	if packed == null:
+		return _grip
+	var inst: Node = packed.instantiate()
+	var mi: MeshInstance3D = _find_bundle_mesh(inst)
+	if mi != null and mi.get_parent() is BoneAttachment3D and mi.mesh != null:
+		_grip = {"mesh": mi.mesh, "xform": mi.transform}
+	inst.free()
+	return _grip
+
+
+static func _find_bundle_mesh(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D and String(n.name).begins_with("rice_bundle"):
+		return n as MeshInstance3D
+	for c in n.get_children():
+		var r: MeshInstance3D = _find_bundle_mesh(c)
+		if r != null:
+			return r
+	return null
+
+
+## Does this variant already carry a welded bundle? Asked of the rig, not of a table
+## of unit ids - a new variant that gains one must not need this file edited too.
+func _finds_bundle(skel: Skeleton3D) -> bool:
+	var stack: Array[Node] = [skel]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is MeshInstance3D and String(n.name).begins_with("rice_bundle"):
+			return true
+	return false
+
+
 func _set_shovel(on: bool) -> void:
 	if not on:
 		if _shovel != null and is_instance_valid(_shovel):
@@ -894,6 +1008,7 @@ func _die(attacker: Node, zone: String, amount: int) -> void:
 	AgentRegistry.unregister(self)
 	set_physics_process(false)
 	_set_shovel(false)
+	_set_seedling(false)
 	# Zones ride the body. The body is about to be laid flat, which would swing a
 	# fatal HEAD zone out to chest height a metre and a half away, invisible, and
 	# leave it eating rounds for the whole corpse linger.

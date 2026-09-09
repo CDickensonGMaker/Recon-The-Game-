@@ -2450,6 +2450,19 @@ assert closure without a picture, per the coordinator's own instruction not to g
 
 ---
 
+## 2026-09-09 (night) · LANDED — `us_fb_ammo_crate_stack_P2-colonly`
+
+He approved the write. The rename ran in background Blender against
+`kit/firebase_v3.2.blend`, the firebase was re-exported, and the contract diff is in
+`PERF_LEDGER.md` (2026-09-09 night). Blend 50,534,041 -> 50,533,163 B with the 14-field
+inventory byte-identical before, after and after reopening; GLB md5
+`e47eba8dd1cca16962c5c05a9f32be06` -> `6461852eff7c0c9e6dbb885b296767c7`, 5,811 -> 5,810
+nodes, **0 stray `-colonly` and 0 visible material-less meshes**. Three gates now gate it:
+`gen_firebase_v3.assert_colonly_terminal()`, `reexport_firebase_v3.audit_colonly()` on the
+shipped bytes, and `tests/test_fsb_colonly_contract.tscn`.
+
+**The reasoning below stands as written and is why the obvious fix was refused.**
+
 ## 2026-09-09 · `us_fb_ammo_crate_stack-colonly_P2` — DO NOT RENAME IT TO `..._P2`. That name is taken.
 
 Authorised to do the source-blend half of FAILURE MODE 9 in `firebase_v3.2.blend` — rename
@@ -2516,3 +2529,46 @@ its name. That is a one-line set comparison over `nodes[].name` and it would hav
 **Lesson, general:** when a rename is prescribed as a fix, check the destination name is FREE
 before you run it. Blender does not refuse a name collision — it appends `.001` and reports
 success, and the operator that "worked" has produced a third name nobody's contract knows.
+
+
+---
+
+## 2026-09-09 (night) · THE CIVILIAN HAND GRIP CANNOT BE DERIVED — READ IT OFF HIS BAKE
+
+His ask: *"even when villagers are doing the work animation in the rice fields give them a
+plant in their hand."*
+
+**The clip was never the problem.** `civilian.gd:74` already plays `plant_seeds` (Mixamo
+"Dig And Plant Seeds", the kneeling ground-work read) for `VILLAGE_ACTION_CLIPS[&"work"]`,
+and `civilian_schedules.gd:31-46` puts farmers on `work` 06:30-11:00 and 13:00-17:00. What
+was missing was the prop: `tools/make_civilians.py:110-142` welds `rice_bundle` onto only
+**2 of the 10** civilian variants (`civ_farmer_f_c`, `civ_kid_b`), so eight villagers in ten
+planted with empty fists.
+
+**THE TRAP, measured, and it cost three wrong attempts.** `assets/civilians/props/rice_bundle.glb`
+is authored in rig **REST-POSE WORLD space**, not bone space: its AABB centre is at
+(0.6211, 0.0158, 1.2532), i.e. 1.40 m from the origin, at left-hand height. `etool_shovel.glb`
+next door is the OTHER convention - bone-local, centre 0.15 m from origin - which is why
+`_set_shovel` attaches it with an identity transform and gets away with it. **Copying that
+precedent puts the bundle 1.45 m from the fist.**
+
+And the derivation does not work either. `make_civilians.py:467-470` bone-parents the prop and
+then forces `matrix_world = Identity`, which Godot imports as a mesh whose local transform has
+the ORIGIN of `bone_global_rest.inverse()` - verified by hand, (-0.46162, 0.06418, 1.22774) to
+five places - but **not its basis**. Setting `prop.transform = rest.inverse()` lands the bundle
+**1.70 m** from the hand. Composing it with the prop root's own axis conversion does not help;
+the answer is byte-identical, because the basis was never the rest inverse to begin with.
+
+**So the grip is INHERITED, not solved** - which is his standing law and the law was right.
+`civilian.gd._seedling_grip()` reads the `Mesh` and the `Transform3D` straight off the
+`rice_bundle` MeshInstance3D under `civ_farmer_f_c.glb`'s `mixamorig_LeftHand` BoneAttachment3D,
+caches them statically, and builds every runtime bundle from that pair. Parity with his bake is
+**0.000000 m** (`tests/test_villager_seedling.tscn`), and the probe carries a control lane: it
+fails if an identity attach would also pass.
+
+**Two smaller measured facts from the same pass:**
+- `BoneAttachment3D.bone_idx` DOES survive an out-of-tree write (the e-tool sets it that way and
+  lands 0.153 m from the fist - not a bug, checked before reporting one). `bone_name` does not:
+  it is derived from the skeleton and stays empty unless assigned after parenting.
+- Left hand, deliberately. `rice_sickle` is welded to `mixamorig:RightHand` on `civ_farmer_m_b`,
+  so a cutting farmer now holds the sickle in one fist and the seedlings in the other.

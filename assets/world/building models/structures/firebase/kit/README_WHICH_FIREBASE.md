@@ -69,9 +69,11 @@ never calls `export_firebase()` at all. It would replace this firebase with an o
 Known defects still in this blend, both named by the export tool at open time:
 - `fb_sbg_seg_046.001` — a Blender duplicate of a manifest segment. Godot adopts it onto the
   blast bus now, but it owns no collider (its twin's prefix claims it first).
-- `us_fb_ammo_crate_stack-colonly_P2` — the `-colonly` suffix is not at the END of the name,
-  so it ships as a VISIBLE mesh. The generator no longer builds a collider for it; the
-  visible half needs the object renamed here.
+- ~~`us_fb_ammo_crate_stack-colonly_P2`~~ **FIXED 2026-09-09.** Renamed here to
+  `us_fb_ammo_crate_stack_P2-colonly` (marker at the END), so `clear_collision()` finally
+  matches it and strips it before export. It ships nothing; the real crate keeps its own
+  generated collider. Guarded by `tests/test_fsb_colonly_contract.tscn` and by
+  `gen_firebase_v3.assert_colonly_terminal()` at export.
 
 No GDScript reads `work_med*` / `work_chow*` yet either — `work_pos`/`work_clip` walking
 exists only for VC camps (`camp_director.gd`, `enemy_base.gd:1660`).
