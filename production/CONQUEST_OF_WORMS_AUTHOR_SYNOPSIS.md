@@ -9,6 +9,24 @@ Canon is the **Reboot** (2021–2022). The `conquest of worms 68` pilot is SUPER
 calls the name change between them "the major divergance" and says "i didnt really like the writing
 of the 68 comic." Do not mine the pilot for story, voice or theme.
 
+## Lineage — three works, one canon
+
+Recorded because the folder names mislead. `G:\My Drive\Rotten Sewer Productions\Comics\`:
+
+1. **`old comics\ww1` — 2015.** His words: *"the 2015 pre pre just flirting iwth the idea of comics comics."*
+   His first attempt at making comics at all. **NOT canon, NOT a source, and NOT the grandfather's
+   thread.** The trap: the Reboot genuinely cuts to a WW1 storyline, so a reader who finds this folder
+   will assume it is that material. **It is not.** Do not open it looking for the journal.
+2. **`old comics\conquest of worms 68` — the pilot.** Vietnam '68, "Replacements", Skull Curse Comics.
+   **SUPERSEDED.** The name change into the Reboot is, in his words, *"the major divergance"*, and
+   *"i didnt really like the writing of the 68 comic."* Not a source for story, voice or theme.
+3. **`Conquest of Worms Reboot`, Issues 1-4 — 2021-2022, Rotten Sewer Productions. THE CANON.**
+   *"this issue, and all issues moving forward will have a true vision and story."*
+
+**The grandfather's WW1 war is INSIDE the four Reboot issues.** His words: *"because it goes back and
+forth" / "inside the comics."* The issues interleave Vietnam and WW1 in their own page order - that is
+the series' form, not a framing device. Everything needed is in the four issues.
+
 ---
 
 ## His words, verbatim
