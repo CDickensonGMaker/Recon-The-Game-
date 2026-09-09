@@ -144,6 +144,174 @@ ratchet that never demotes, so a player is never stranded below his own armory t
 which some will read as punishment rather than consequence. **It is the price of the ladder meaning
 anything at all** — and it is the same bet ADR-018 already made when it gave squad veterancy teeth.
 
+### 0.7 · THE NECKLACE IS THE CHARACTER SHEET — and it is worn, not opened
+
+> ***"and the idea of a modular necklace because the player will have the ability to add and collect
+> things to their necklace (which could create skill attributes to their character instead of a
+> traditional rpg system)"***
+
+**ACCEPTED as the progression system, with one hard re-hosting that the council will not trade away.**
+
+**Why it is right on its own merits:** it is Pillar 4's *"minimal stats, maximal attachment"* made
+literal; it is **period-HUD-safe by construction** — there is nothing to draw, because the sheet is on
+the body; it satisfies the standing law that *no XP or reputation number may ever reach any screen*
+more purely than any UI could, because **there are no numbers, only objects**; and unlike an inventory
+screen **other men can see it.** That last clause is the whole design.
+
+And it argues the book's thesis as a mechanic. In *Conquest of Worms* the horror is a person going, and
+Gus's decline is trophies. **If the player's capability comes from what he took off the dead, then
+getting stronger IS becoming Gus.** Most war games' progression means nothing; this one means the title.
+
+---
+
+#### 0.7.1 · THE RE-HOSTING — the necklace may not touch anything a bullet cares about
+
+**ADR-018 §1 is absolute and this ADR does not amend it:**
+*"No player progression may touch accuracy, recoil, sway, handling, health, or stamina. **Ever.**"*
+
+**Three separate laws converge on the same answer, which is how the Arbiter knows it is the right one:**
+
+1. **ADR-018 / Pillar 1** — a charm that improved your aim is hit-point math wearing a fetish.
+2. **His own RPG-pivot decree: NO FANTASY ELEMENTS.** A charm that actually stopped a bullet is the
+   supernatural entering a game he defined by its absence.
+3. **His own horror rule, verbatim:** *"any horror gore scene in the comic is supposed to be
+   representative of the psychological state of the person expericing the vision."* Horror is a readout
+   of a mind, never a thing in the world. **A charm that works is a thing in the world.**
+
+> **THE RULING: THE NECKLACE IS A SOCIAL ORGAN, NOT A STAT BLOCK. It changes what the WORLD does about
+> you — never what your hands do.** A charm in 1967 had a real effect, and the real effect was on the
+> man wearing it and the men who saw it. **That is exactly what the game should model, and it is free.**
+
+**The legal attribute space** — precisely the space ADR-018 §3 leaves open when it lists what rank may
+gate:
+
+| Legal — the world's response | ILLEGAL — forever |
+|---|---|
+| **What you may carry** — ruck and capacity (ADR-018 blesses *"capacity grows"* by name) | accuracy, recoil, sway, handling |
+| **What you may ASK for** — the fire-support tier, and **who will hand you a handset** (§3's borrowed radio reads permission off standing) | health, stamina, bleed-out time |
+| **Who will walk behind you** — the earned-squad ladder of §0.5 | detection radius, noise, sight range *(a stealth stat is player ability by another name; Pillar 3 says stealth is an economy, not a stat)* |
+| **How villagers, factions and the four camps read you** (ADR-019, ADR-038) | anything a bullet cares about |
+| **What men SAY to you and about you** — the gutter | reload speed, ADS time, breath hold |
+
+**Named sacrifice, and it is real:** a player who expects an RPG will look at his necklace and ask what
+the numbers are. **There are none, and there never will be.** If the world's response is not legible
+enough to feel like power, this system has failed the same way ADR-018's silent squad veterancy can fail
+— **and the answer is the same: more world, never a meter.**
+
+#### 0.7.2 · TWO AXES, AND THE SOURCE GAVE US ONE FOR FREE
+
+The comic already separates them: a Vietnamese vendor **sells** Gus a protective charm; the ears are
+**taken.**
+
+| | **BOUGHT / GIVEN** — a charm, a St Christopher, a ring traded for, a thing a villager pressed on you | **TAKEN** — a trophy off a body |
+|---|---|---|
+| Trust cost | **none** | **yes, and it is visible** |
+| What it buys | standing with the people who gave it; small carry and access gains | the same capability band, faster and cheaper |
+| Who reacts | villagers warmly, men neutrally | **men, and not warmly** |
+| Reversible | you may take it off | **you may take it off. They already saw it.** |
+
+> **CAPABILITY UP, STANDING DOWN. THE NECKLACE IS HOW YOU SPEND TRUST FOR CAPABILITY.**
+
+**This completes the two-currency model of §0.5 and it was the piece that was missing:**
+**RANK/REPUTATION — the right to ASK — ratchets and never falls.**
+**TRUST — the willingness of men to walk behind you — is spendable.**
+**The necklace is the SHOP where trust is spent, and the price tag is around your neck where everyone
+can read it.** That is a real RPG decision — deliberate, visible, self-destructive, chosen — and it is
+his book's argument in mechanical form.
+
+#### 0.7.3 · THE REFUSAL THRESHOLD IS THE EARNED-SQUAD LADDER RUNNING IN REVERSE — no new system
+
+Past a threshold, **men decline to go out with you.** That is §0.5's grant mechanism read backwards, and
+it needs nothing new: the same trust that buys a man withdraws him. Gus was beaten by an officer and
+driven out of the AO for exactly this (Issue 3 p19), and the squad is already arguing about whether it
+is acceptable in Issue 2 p23 — **so the world's reaction is authored in the source and does not have to
+be invented.**
+
+**Three guards that stop it becoming a loot treadmill:**
+1. **ONE TROPHY PER MAN, NEVER RANDOM, NEVER A DROP.** *(This is what keeps it inside his own
+   2026-07-30 ruling — see 0.7.4.)*
+2. **NO SLOT THAT MUST BE FILLED.** A bare cord is a complete build. The necklace never displays an
+   empty socket, because an empty socket is a quest.
+3. **THE COST IS PAID ON SIGHT, NOT ON PICKUP.** Taking it in the green costs nothing until a man sees
+   it. **Wearing it is the decision; taking it is only the opportunity.** That single rule is what makes
+   this a choice rather than a tax, and it is why the object must be worn to work.
+
+#### 0.7.4 · THE COLLISION WITH HIS OWN 2026-07-30 RULING — HIS CALL, NOT THE COUNCIL'S
+
+> **His ruling, 2026-07-30, verbatim:** *"the only random thing we're getting from bodies should be
+> intel points…"* — and the reasoning the council must respect: **"searching a man is not a slot
+> machine."** The 20%/40%/20% corpse roll was deleted the same day. A related council line reads
+> *"contraband comes from CACHES AND SITES, never from corpses."*
+
+**A trophy is taken from a body. That is the collision, and it is named rather than assumed away.**
+
+**The council's reading — offered, not ruled:** the 7/30 ruling forbids a **slot machine**, and a trophy
+is not one. It is **not random, not a drop, not a reward roll, one per man, and it costs you something.**
+The ruling's own stated reason is satisfied. The `lootable_corpses` group already exists
+(`enemy_base.gd:3045`, `:3103`) and bodies are already searchable for intel, so there is no new verb —
+only a new, deliberate, priced outcome on an existing one.
+
+**But it is his ruling and only he can widen it. Flagged in §5 of the synthesis.**
+
+#### 0.7.5 · WHAT THIS FORECLOSES, AND WHAT IT COSTS
+
+- **It forecloses a stat screen, permanently.** Once the sheet is an object on the body, adding a numeric
+  character panel later would contradict the whole design. **That is the point, and it is a door closing
+  on purpose.**
+- **It forecloses "found a cool thing, strictly better."** Every taken item has a price, so the pure
+  upside pickup — the staple reward of the genre — does not exist here. Some players will read that as
+  the game punishing exploration.
+- **It puts art on the critical path of progression.** A necklace whose items do not read at a glance,
+  on a PSX-budget model, at conversational distance, **is a character sheet nobody can read** — and the
+  whole design rests on other men seeing it. *(A Blender agent is building the modular prop now; this
+  council does not duplicate that work.)*
+- **It costs the player the ability to un-know a decision.** He can remove the necklace; the men have
+  already seen it. That is deliberate and it will feel unfair to someone.
+- **And the honest risk:** if the world's reaction is thin, the necklace is jewellery. **It is only a
+  progression system to the exact extent the NPCs are.**
+
+#### 0.7.6 · THE THIRD CONSEQUENCE — the world starts to look wrong. **DIRECTION, NOT A RATIFIED FEATURE.**
+
+> ***"yeah if the player goes too blood lusty it changes their experineces i guess."***
+
+**The "i guess" is recorded honestly and it governs this whole subsection.** This is a direction he
+sketched, not a feature he ordered. **Nothing here is authorised, and the decree must not overbuild it.**
+
+**What it completes: the necklace now has three consequences, and none of them needs a new system.**
+
+| | Consequence | Mechanism |
+|---|---|---|
+| **1** | **Capability up** | the necklace is the skill sheet, worn (§0.7.1) |
+| **2** | **Trust down** | men see it; the earned-squad ladder runs in reverse (§0.7.3) |
+| **3** | **The player's own perception degrades** | **his own horror rule, applied** — see below |
+
+**On (3), the mechanism is already written in his canon and it is exact.** His binding rule: *"any horror
+gore scene in the comic is supposed to be representative of the psychological state of the person
+expericing the vision."* So a player who takes trophies **gets his own visions escalating** — the same
+battlefield showing him what it showed Gus. The reference frame is `fya.11`: **Gus sees the living men in
+a chow line rendered as corpses.**
+
+> **NO SANITY METER. NO HUD. NO NUMBER. The player is never told. He notices the world has started to
+> look wrong.**
+
+**And it closes a question the bible raised and left open.** A worms-and-decay layer built as **world
+state** would break his rule outright, because the horror must be **point-of-view and state-driven.**
+**The necklace supplies the state** — and the driver is **a choice the player made**, which is
+categorically better than a stress meter that ticks on its own. *(It also stays inside §0.7.1's ban: a
+vision is not accuracy, recoil, health or stamina. The player's hands are untouched. Only his eyes lie.)*
+
+**PARKED, on his own standing ruling:** *"we could still add a horror level and it comes from like stress
+and shit but thats not a main focus right now but that is the vibe of the comic."* **The VIBE, not a
+feature. Post-demo. Build nothing.**
+
+**The only reason to record it now is to tell the horror layer what its INPUT is** when someone eventually
+builds it: **not a timer, not a meter — the necklace.** And the bible's note stands that whoever builds it
+starts from the **existing nerve and suppression systems** (`combat_posture.gd`, the suppression shader,
+the 650 Hz lowpass — a psychological readout already rendered on the player), **never from a decal.**
+
+**The line where this stops being progression and becomes the book's ending is §5 call 2d, and it is his
+alone: can the player go as far as Gus did, and what happens if he does.**
+
 ### 1 · THE LADDER
 
 `solo, no net` → `a mission supplies an RTO` → `borrow any radioman you can reach` → `an RTO companion`

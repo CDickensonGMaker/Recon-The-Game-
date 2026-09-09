@@ -92,6 +92,65 @@ there is nothing to count.
    that back by going out alone again. **Without this the ladder is a ratchet and nothing on it means
    anything.**
 
+### 0.6 · AND THE NECKLACE IS THE CHARACTER SHEET — the piece the two-currency model was missing
+
+> ***"the idea of a modular necklace because the player will have the ability to add and collect things
+> to their necklace (which could create skill attributes to their character instead of a traditional rpg
+> system)"***
+
+**ACCEPTED as the progression system** (ADR-044 §0.7), with **one hard re-hosting the council will not
+trade away**, because three separate laws land on the same answer:
+
+- **ADR-018 §1 is absolute:** *"No player progression may touch accuracy, recoil, sway, handling, health,
+  or stamina. **Ever.**"*
+- **His own RPG-pivot decree: NO FANTASY ELEMENTS.**
+- **His own horror rule:** horror is *"representative of the psychological state of the person"* — a
+  readout of a mind, never a thing in the world.
+
+> **A charm that actually stopped a bullet would violate all three at once.**
+> **RULING: THE NECKLACE IS A SOCIAL ORGAN, NOT A STAT BLOCK. It changes what the WORLD does about you,
+> never what your hands do.** A charm's real effect in 1967 was on the man wearing it and the men who saw
+> it — which is exactly what the game should model, and it is free.
+
+Legal: what you may carry (ADR-018 blesses *"capacity grows"* by name) · what you may **ask** for and who
+will hand you a handset · **who will walk behind you** · how villagers and the four camps read you · what
+men say about you. Illegal forever: anything a bullet cares about — **and detection radius too, because a
+stealth stat is player ability by another name.**
+
+**Two axes, and the comic gave one for free:** a vendor **sells** Gus a protective charm; the ears are
+**taken.** **BOUGHT costs no trust. TAKEN does, and it is visible.**
+
+> **CAPABILITY UP, STANDING DOWN. THE NECKLACE IS HOW YOU SPEND TRUST FOR CAPABILITY** — and it completes
+> §0.5's model: **rank ratchets, trust is spendable, and the necklace is the shop where trust is spent,
+> with the price tag around your neck where everyone can read it.**
+
+**Past a threshold men decline to go out with you — the earned-squad ladder running in reverse, needing
+no new system.** Gus was beaten and driven out of the AO for exactly this (I3 p19), and the squad is
+already arguing about it in I2 p23, so **the world's reaction is authored in the source.**
+
+**The rule that makes it a choice rather than a tax: THE COST IS PAID ON SIGHT, NOT ON PICKUP.** Taking a
+thing in the green costs nothing until a man sees it. **Wearing it is the decision; taking it is only the
+opportunity.**
+
+**THE THIRD CONSEQUENCE — DIRECTION, NOT A FEATURE.** *"yeah if the player goes too blood lusty it
+changes their experineces i guess."* **The "i guess" is recorded honestly; nothing here is authorised.**
+The necklace now has three consequences and none needs a new system: **capability up · trust down · and
+the player's own perception degrades.** The mechanism is his own rule applied — horror is *"the
+psychological state of the person expericing the vision"*, so a trophy-taker's **visions escalate**, the
+battlefield showing him what it showed Gus (`fya.11`: living men in a chow line rendered as corpses).
+**No sanity meter, no HUD, no number — he is never told; he notices the world has started to look wrong.**
+It also closes a question the bible left open: a worms-and-decay layer as **world state** would break his
+rule, because horror must be point-of-view. **The necklace supplies the state, and the driver is a choice
+the player made rather than a timer that ticks on its own.** **PARKED** on his own ruling that the horror
+is *"the vibe of the comic"*, not a main focus. The only reason to record it now is to tell the horror
+layer what its **input** is — and that whoever builds it starts from the existing nerve/suppression
+systems, never from a decal.
+
+**Named collision, his to resolve — see §5.** His 2026-07-30 ruling says bodies yield **intel only**
+(*"searching a man is not a slot machine"*). A trophy comes off a body. The council reads a trophy as
+**not a slot machine** — not random, not a drop, one per man, and it costs you — so the ruling's stated
+reason is satisfied and `lootable_corpses` already exists (`enemy_base.gd:3045`). **But it is his ruling.**
+
 **And the arrival is the home of the onboarding this game does not have.** The 2026-09-07 audit measured
 *no in-game onboarding of any kind*. **A replacement being walked in and shown where things are is
 diegetic, unscripted and refusable** — the one place a no-rails game may legitimately teach. It is also
@@ -570,6 +629,16 @@ Put plainly, no file needed to answer (his 2026-07-19 rule):
    radio answered · fire discipline near a ville. **And does a man leaving at the end of his tour cost
    trust the way a man killed does?** (The council says no — a tour ending is not your fault, and that
    distinction is most of what makes the rotation clock worth having.)
+2c. **THE NECKLACE — does a trophy taken from a body break your own 2026-07-30 ruling?** You ruled bodies
+   yield **intel only**, because *"searching a man is not a slot machine."* A trophy is not a slot
+   machine — not random, one per man, and it costs you standing. **The council reads your reason as
+   satisfied, but only you can widen the ruling.**
+2d. **CAN THE PLAYER GO AS FAR AS GUS — and what happens if he does?** The council will not decide this,
+   because it is the book's argument and it is yours. The shape of the question: is there a floor
+   (men refuse, you play solo permanently, the ladder is spent), or a **wall** (an officer relieves you,
+   as happened to Gus in I3 p19, and the run ends the way Gus's did — on a plane, screaming)? **The
+   second is the comic's own answer and the strongest ending this game could have. It is also a run-ender
+   the player chose, which is Pillar 5 exactly.**
 3. **Men you ordered to hold a hill and then walked away from: do they hold until they die, or come back
    to you at ~150 m?** Genuinely split council. **This is a felt question, not a reasoned one.**
 4. **Is the aggressive attack allowed to share the trigger** (weapon lowered, held key, cannot fire)?
