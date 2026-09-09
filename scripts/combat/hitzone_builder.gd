@@ -41,7 +41,12 @@ const REGION_COLORS: Dictionary = {
 ## whose name misses this list is harvested straight into the man's hurtbox (you
 ## could shoot his ANTENNA and hurt him), so add every new gear/prop name here.
 const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
-	"rice", "gear", "pack", "pouch", "belt", "canteen", "strap", "webbing",
+	"rice", "gear", "pack", "pouch", "belt", "canteen", "strap",
+	# "webbing" never matched anything: the meshes are named web_buckle, web_snap_l,
+	# web_susp_r and so on, so every US grunt was harvesting ELEVEN suspender clips and
+	# buckles into his hurtbox and you could shoot a man's web snap to hurt him. Measured
+	# 2026-09-09 by the harvest report below, which is why the substring is "web_" now.
+	"web_", "webbing", "brassard",
 	"bandolier", "glasses",
 	"radio", "antenna", "handset", "cord", "satchel", "rig", "entrench",
 	"cover", "shovel", "canteen",
@@ -51,6 +56,9 @@ const _GEAR_NAME_HINTS: Array[String] = ["hat", "helmet", "boonie", "pith",
 ## unit(+gut variant) -> {region: PackedVector3Array} zone-local hull points.
 ## Harvested once per unit type.
 static var _hull_cache: Dictionary = {}
+
+## key -> true, so the harvest report below prints once per unit and not once per rebuild.
+static var _harvest_reported: Dictionary = {}
 
 
 ## Strip the _UP/_LO segment suffix: gib donors + gore maps speak the 4-limb
@@ -272,6 +280,7 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 		var k: float = _skel_world_scale(skel)
 		var pts: Dictionary = {}
 		var overrides: Array = []
+		var harvested: Array[String] = []
 		var stack: Array = [root]
 		while not stack.is_empty():
 			var n: Node = stack.pop_back()
@@ -295,7 +304,20 @@ static func _hulls_for(model: ModelActor, skel: Skeleton3D, with_gut: bool) -> D
 					break
 			if is_gear or mi.skin == null:
 				continue
+			# ADR-042 clause 1. This list is a substring guess, and the DEFAULT is dangerous:
+			# a SKINNED mesh whose name carries none of these words is harvested straight into
+			# the man's hurtbox, so a round through his antenna hurts him. Unskinned gear is
+			# already safe (the mi.skin test above), which is exactly the discipline
+			# tools/make_base_v3.py enforces by bone-parenting gear - but nothing checked the
+			# skinned case at load. Name what was harvested; a body has few skinned meshes and
+			# anything non-anatomical in this list is the defect.
+			harvested.append(String(mi.name))
 			_harvest(mi, skel, _bind_regions(mi.skin, skel, with_gut), frames, pts, "", k)
+		if not harvested.is_empty() and not _harvest_reported.has(key):
+			_harvest_reported[key] = true
+			harvested.sort()
+			print("[HITZONE] %s hurtbox harvested from %d skinned mesh(es): %s"
+				% [key, harvested.size(), ", ".join(PackedStringArray(harvested))])
 		# Artist overrides win outright, whatever the tree order: a hit_<REGION>
 		# mesh IS the zone. Hidden - it is collision authoring, not render.
 		for o in overrides:

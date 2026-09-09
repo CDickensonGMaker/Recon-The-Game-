@@ -431,6 +431,41 @@ func _apply_optional_gear() -> void:
 				break
 	if hidden > 0:
 		print("[MODEL] %s: hid %d opt-in gear meshes (not the radioman)" % [unit, hidden])
+	_report_unhidden_radio()
+
+
+## ADR-042 clause 1, and this one has a PILLAR consequence. ADR-011 gates fire support on the
+## RTO, and the player can only pick him out if he is the only man visibly wearing a radio.
+## OPTIONAL_GEAR_PREFIXES knows exactly one name; a radio mesh exported under any other stays
+## visible on every man, and nothing anywhere would say so. Reported once per unit.
+const RADIO_LOOKALIKE: Array[String] = ["prc", "radio", "antenna", "handset", "rt_", "anprc"]
+
+static var _radio_leak_reported: Dictionary = {}
+
+func _report_unhidden_radio() -> void:
+	if _inst == null or unit in CARRIES_RADIO or _radio_leak_reported.has(unit):
+		return
+	var leaked: PackedStringArray = PackedStringArray()
+	for n in _walk(_inst):
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.visible:
+			continue
+		var low: String = String(mi.name).to_lower()
+		var known: bool = false
+		for p: String in OPTIONAL_GEAR_PREFIXES:
+			if low.begins_with(p.to_lower()):
+				known = true
+				break
+		if known:
+			continue
+		for w in RADIO_LOOKALIKE:
+			if low.contains(w):
+				leaked.append(String(mi.name))
+				break
+	_radio_leak_reported[unit] = true
+	if not leaked.is_empty():
+		push_warning("[MODEL] %s still shows %d radio-looking mesh(es) the opt-in list does not know: %s. Every man wearing a radio makes the RTO unpickable, and ADR-011 gates fire support on him."
+			% [unit, leaked.size(), ", ".join(leaked)])
 
 
 ## Some exports ship with both a worn live mesh and its donor/constituent parts

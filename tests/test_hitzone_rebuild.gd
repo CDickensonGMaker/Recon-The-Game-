@@ -6,12 +6,19 @@
 ## if the swap does not rebuild them, the MG gunner is shot through the rifleman's
 ## silhouette for the whole mission.
 ##
-## Discriminator: every "us_grunt_*" role body (rifleman, mg, marksman, ...) is cut
-## from the SAME shared base humanoid mesh (gear/weapon differs, body does not -
-## verified 2026-08-07: identical hull point counts across all 10 zones), so no
-## grunt-vs-grunt pair can ever discriminate. us_grunt_rifleman vs us_pilot_white
-## (a genuinely different sculpted body) does. The probe asserts the discriminator
-## is alive before it trusts any result.
+## Discriminator: every "us_grunt_*" role body is cut from the SAME shared base humanoid
+## mesh, so no grunt-vs-grunt pair can discriminate.
+##
+## us_pilot_white WAS the discriminator and it was a false one. Its hull differed from the
+## rifleman's only because eleven `web_*` suspender clips were being harvested into the
+## hurtbox - gear the hint list was meant to exclude and missed, because it tested for
+## "webbing" and the meshes are named web_buckle, web_snap_l and so on (fixed 2026-09-09,
+## hitzone_builder._GEAR_NAME_HINTS). With the gear correctly out, the pilot and the grunt
+## harvest the same `us_grunt_joined` body and are identical - so this probe was
+## discriminating on a defect, and would have gone silent the moment the defect was fixed.
+##
+## The discriminator is a genuinely different BODY MESH now: `vc_guerilla_joined` against
+## `us_grunt_joined`. The probe still asserts it is alive before trusting any result.
 ##
 ## NEGATIVE CONTROL (case D): the pre-fix code path is run deliberately and must
 ## FAIL to carry the new body's hulls. If D ever stops showing the defect, this
@@ -20,7 +27,7 @@
 ## Run: godot --headless --path . res://tests/test_hitzone_rebuild.tscn
 extends Node3D
 
-const SWAP_UNIT: String = "us_pilot_white"
+const SWAP_UNIT: String = "vc_guerilla"
 const SWAP_WEAPON: String = "m16a1"
 
 var _failures: int = 0
