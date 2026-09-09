@@ -422,3 +422,35 @@ terrain plus trench modules; the Eastern Front is cut terrain plus a different k
 Whether the Russian is playable, a scene, or panel-only is his ruling and nobody else's. So is whether
 the player CAN shoot the young German as Louie — because if he cannot, the mercy is scenery, and if he
 can, the game needs an answer for what happens when he does.
+
+---
+
+## CORRECTION — HE IS CRYING, NOT MELTING
+
+**The author, 2026-09-09, correcting my reading of Issue 4: "oh hes crying not melting"**
+
+I described the large face on `fya.12` — the one that fills half the page immediately after the
+BLAM — as "melting", "running", "dissolving". **It is a man weeping.** The marks running down the
+face are TEARS. I repeated the error across several pages: `fya.13`'s big faces and the nurse on
+`fya.14` are the same thing.
+
+### Why the error matters, and it matters a lot
+
+"Melting" is **body horror** — a man becoming a monster. "Crying" is **grief** — a man staying human
+while doing something monstrous. They are opposite readings of the same ink and they produce opposite
+adaptations.
+
+Under the correct reading, the biggest horror image in the issue is not a transformation. **It is a
+boy sobbing in the instant after he shoots someone.** That is harder, sadder and far more in keeping
+with everything else on the page, and it is consistent with his own binding rule: the horror image
+measures the state of the mind experiencing it, and that mind's state here is **grief**, not
+monstrosity.
+
+It also means the pocks/rings on some faces are a SEPARATE motif from the tears, and must not be
+conflated. Tears run. Pocks are ring-shaped and sit on the skin. The nurse on `fya.14` has both, in
+different panels, and that distinction is now load-bearing.
+
+### Reading rule going forward
+**Do not describe a Conquest of Worms face as melting, running, dissolving or liquefying unless the
+page genuinely shows flesh coming apart.** Weeping is the default reading for marks running down a
+face in this book. When in doubt, say what the line does and let him decide what it depicts.
