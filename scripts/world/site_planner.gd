@@ -2403,12 +2403,30 @@ func _wire_structure_destructibles(root: Node3D) -> void:
 			_adopt_structure(mi, str(spec["kind"]), Destructible.hp_for(str(spec["kind"])))
 			by_kind[spec["kind"]] = int(by_kind.get(spec["kind"], 0)) + 1
 			break
+	# ADR-042 clause 1. This function is LOUDEST when it works and was SILENT when it did
+	# nothing: an empty by_kind means not one mesh in the compound matched a destructible
+	# prefix, i.e. every structure ships invulnerable - and the old early return printed
+	# nothing at all, so the absence of the line was the only tell and nobody reads an
+	# absence. It also names the prefixes that matched NOTHING, which is how a re-export
+	# renaming a family shows up here instead of in a playtest.
+	var dead: PackedStringArray = PackedStringArray()
+	for spec in FSB_STRUCTURE_KINDS:
+		if not by_kind.has(spec["kind"]):
+			dead.append("%s -> %s" % [str(spec["prefix"]), str(spec["kind"])])
 	if by_kind.is_empty():
+		push_error("[FSB] NOTHING is on the structure blast bus - %d mesh(es) matched none of the %d destructible prefixes, so every bunker, tower and stack in this compound is INVULNERABLE"
+			% [found.size(), FSB_STRUCTURE_KINDS.size()])
 		return
 	var parts: Array[String] = []
 	for k in by_kind:
 		parts.append("%d %s" % [int(by_kind[k]), k])
-	print("[FSB] structures on the blast bus: %s" % ", ".join(parts))
+	# The nha_* rows are the village huts and CANNOT match here: this walk only ever runs on
+	# the firebase root (place_structure never calls it - the skill's M-2 gap). They are named
+	# anyway, because a prefix that matches nothing is either a fossil or a missing caller and
+	# the log should not let anyone assume which.
+	print("[FSB] structures on the blast bus: %s%s" % [", ".join(parts),
+		"" if dead.is_empty() else " | %d prefix(es) matched nothing here: %s" % [
+			dead.size(), ", ".join(dead)]])
 
 
 ## Adopt one authored structure mesh onto a Destructible, taking its collider with it.
