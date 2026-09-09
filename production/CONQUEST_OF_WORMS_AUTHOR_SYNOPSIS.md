@@ -209,3 +209,37 @@ The one design note worth carrying: if the worms are psychological AND literal, 
 is purely cosmetic misses half of it. What a man SEES on a corpse — and whether he keeps seeing it —
 is the other half, and that is closer to the suppression/nerve systems than to a texture swap. Not a
 decision. A note for whoever builds it.
+
+## THE RULE, stated exactly — and a correction to what I wrote above
+
+He sharpened it immediately after, and this is the authoritative version:
+
+> "like any horror gore scene in the comic is supposed to be representative of the psychological state
+> of the person expericing the vision"
+
+**EVERY HORROR IMAGE HAS AN OWNER, AND IT IS ABOUT THE OWNER, NOT THE WORLD.**
+
+My paragraph above — "in the men, and also literally there, both at once" — is close but muddy, and
+the muddiness matters. Corrected:
+
+- A horror panel is a **VISION**, and it belongs to a specific character.
+- Its content and intensity **measure that character's state**. The image is a readout of a mind.
+- So the same battlefield yields different horror depending on who is looking. **Eugene's visions are
+  not Michael's are not Louie's**, and the difference between them IS the characterisation.
+- Escalating imagery around a man is that man escalating. Eugene's decline should be legible in what
+  the pages show while he is on them.
+- The literal gore of a real battlefield is the raw material. **The vision is what a particular mind
+  does with it.**
+
+### Reading instruction
+For every horror page: **whose vision is this?** If a horror image cannot be attributed to a character
+present in the scene, that is a finding worth reporting, not a detail to smooth over.
+
+### For the game — this changes the shape of the decay layer entirely
+A worms-and-maggots system built as WORLD STATE would break this rule. If the horror is a readout of a
+mind, then the decay a player sees must be **point-of-view and state-driven**: it intensifies because
+the man looking is coming apart, not because a corpse has aged.
+
+That is not a texture feature. It is much closer to the **nerve/suppression systems that already
+exist** — a per-character psychological quantity, rendered. Still POST-DEMO and still build nothing.
+But whoever builds it should start from the nerve system, not from a decal.
