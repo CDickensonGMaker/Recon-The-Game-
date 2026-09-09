@@ -390,6 +390,7 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f ms=%d" % [
 		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size,
 		nav.cell_height, nav.agent_max_climb, bake_ms])
+	_report_roof_misses()
 	if polys == 0:
 		push_error("[NAV] baked region has 0 polygons (box %s, geom %s)" % [box.size, geom])
 		region.queue_free()
@@ -600,8 +601,42 @@ func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
 			match_found = true
 			break
 	if not match_found:
+		# ADR-042 clause 1: a prefix list must name what it MISSED. A structure whose
+		# up-facing geometry reaches above its own roof line and matches nothing here
+		# bakes that roof as walkable floor. Counted, reported once per bake, never
+		# silently dropped - the flipped-winding pass culls universally, so this is the
+		# ONLY door a roof can still walk through.
+		# Ground sheets are exempt for the same reason the flipped pass exempts them: the
+		# mound spans the compound, so its crests sit far above its own lowest point and
+		# the height rule would call every berm a roof.
+		for gp in NAV_GROUND_PREFIXES:
+			if owner_name.begins_with(gp):
+				return faces
+		@warning_ignore("integer_division")
+		var over: int = (faces.size() - _cull_above_base(faces, xform).size()) / 3
+		if over > 0:
+			_roof_misses[owner_name] = int(_roof_misses.get(owner_name, 0)) + over
 		return faces
 	return _cull_above_base(faces, xform)
+
+
+## Family -> uncut roof triangles, for the report below. Keyed by owner NAME, not prefix:
+## the name is what a fix has to be written against.
+var _roof_misses: Dictionary = {}
+
+
+func _report_roof_misses() -> void:
+	if _roof_misses.is_empty():
+		print("[NavBaker] roof cull: every structure with geometry above its roof line is covered")
+		return
+	var names: Array = _roof_misses.keys()
+	names.sort()
+	var total: int = 0
+	for k in names:
+		total += int(_roof_misses[k])
+	print("[NavBaker] roof cull MISSES: %d structure(s), %d triangle(s) baked as walkable roof - %s"
+		% [names.size(), total, ", ".join(names)])
+	_roof_misses.clear()
 
 
 ## The height rule itself, shared by the listed roof cull and the flipped-face

@@ -101,9 +101,11 @@ func _check_world() -> void:
 	CampaignState.reset_campaign()
 	var flow := GameFlow.new()
 	add_child(flow)
-	# GameFlow._ready() starts the default operation itself (game_flow.gd:27).
-	# Beginning a second one here would build a second world and double every
-	# population count this probe measures.
+	# GameFlow._ready() no longer starts an operation - it raises the title card and waits
+	# for a click (game_flow.gd:27-37). This probe sat out its whole 150s budget waiting for
+	# a world nothing was building, and reported the garrison as absent. Drive it, the way
+	# test_patrol_aar does; there is no second world to double-count any more.
+	flow._begin_operation(31337, "OPERATION TEST CASE")
 	var waited := 0.0
 	while waited < 150.0:
 		if flow.world != null and flow.world.is_world_ready and flow.world.player != null \

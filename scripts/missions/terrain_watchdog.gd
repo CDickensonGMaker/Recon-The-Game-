@@ -9,8 +9,11 @@ const UNDER_DEPTH: float = 5.0
 const SUSPEND_DIST: float = 240.0
 const RESUME_DIST: float = 210.0  # hysteresis
 
+const RESEAT_REPORT_MAX: int = 20
+
 var world: GameWorld
 var _timer: float = 0.0
+var _reseats: int = 0
 
 
 func setup(game_world: GameWorld) -> void:
@@ -60,8 +63,17 @@ func _physics_process(delta: float) -> void:
 					body.global_position.y = world.floor_y(body.global_position) + 0.5
 				elif suspended:
 					continue
-			# Fall-through re-seat.
-			var ground_y: float = world.surface_y(body.global_position)
+			# Fall-through re-seat. floor_y for the reason spelled out above: this branch
+			# runs every 2s on every live body, so surface_y here re-roofs a man forever,
+			# no matter how clean his spawn was.
+			var ground_y: float = world.floor_y(body.global_position)
 			if body.global_position.y < ground_y - UNDER_DEPTH:
+				# Counted, not silent: a live man being teleported is either a real
+				# fall-through or this branch mis-reading a floor, and the two are
+				# indistinguishable without the number.
+				_reseats += 1
+				if _reseats <= RESEAT_REPORT_MAX:
+					print("[WATCHDOG] re-seat #%d: %s %+.1fm to %.1f" % [
+						_reseats, body.name, ground_y + 0.5 - body.global_position.y, ground_y + 0.5])
 				body.global_position.y = ground_y + 0.5
 				body.velocity = Vector3.ZERO

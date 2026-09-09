@@ -1,5 +1,93 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-A. THE SIEGE PLAYTEST — your five defects, worked 2026-09-09
+
+You played the siege by hand for the first time in the project's history (the assault normally opens
+24 minutes in; `--stress` brings it to 45 s). Five defects came out of it. Four are fixed; the fifth
+is two questions only you can answer.
+
+### FIXED — and the reason your run could not have judged the fight
+
+**0. `--stress` fought the night assault in daylight — mine, and it invalidated the rest.**
+The flag collapsed the approach but not the clock, so the assault opened at ~06:57 instead of ~20:25.
+Illumination flares, night sight caps and muzzle-flash spotting never ran at all. The stress boot now
+jumps the clock to the hour the shipping arc reaches at its own assault and emits the period crossing
+`set_time` skips (`scripts/levels/demo_game.gd`, `_stress_boot_hour` / `_seat_the_stress_night`).
+Measured: `[STRESS] clock seated at 20:10 (NIGHT)`, and the illum walk now appears in the log where it
+was absent from yours. **Treat every judgement from your run as made in the wrong lighting.**
+
+**3. The attackers never breached because all 80 wall segments were at the compound centre.**
+`fsb_main_v3.glb` is a flat scene: 80 of the 81 parapet nodes carry no node transform, the geometry is
+baked into vertices, and `SitePlanner._wire_parapet_segment` seated each `Destructible` at
+`mi.global_position` — the model root. Every system that reads a wall position was reading the middle
+of the base: sapper targets, the perimeter measure, the overrun call, the breach scan, the blast bus.
+Your log shows it: 14 sappers, 14 identical lines `[SAPPER] -> sandbag_wall at 256,256`, zero charges
+planted, zero holes. Now seated from the baked AABB, with a boot audit that fails loud if the parapet
+ever collapses to a point again. Measured after: `[FSB] parapet radii: 81 segment(s) spanning
+49.4-96.0m` (the manifest says 49.3-96.1), 14 sappers on 14 distinct segments, 3 satchels placed,
+3 breaches blown, `5 cell(s) press through the hole` each time, and the navmesh re-baking the hole.
+
+**1. Enemy mortars killed the garrison through walls, roofs and bunkers.**
+`_blast_defenders_only` was a bespoke faction-scoped damage query with no line-of-sight test, no cover
+roll, no falloff shape, no stagger and no suppression — the exact thing `projectile_base`'s own comment
+forbids. A man inside a bunker took the full 140. It now routes through
+`CombatManager.apply_explosion_damage` like every other explosion, with one new flag (`spare_enemies`)
+that keeps the only legitimate reason the bespoke path existed: the enemy's own prep fire must not
+break the enemy's own assault. Defenders now get cover, the 0.4x indirect-fire reduction, knockback,
+stagger and suppression — which is also the first pre-death reaction they have ever had to a shell.
+
+**2. Men who could not be promoted at stand-to stayed civilians all night.**
+`_garrison_stand_to` latched on its first call. Anyone the first pass could not take — a puppet working
+the gun, a man on the lift, a body frozen mid-seat — stayed an unarmed civilian for the rest of the
+fight, and so did **every replacement the resupply flew in mid-assault**. Your run delivered 9 men into
+a firefight as noncombatants. It now re-scans while the wire is in contact. Measured:
+`promoted 35`, then `promoted 4 (late)` twice, matching the two deliveries.
+
+**4. Friendly NPCs on roofs — the recurrence, not the spawn.**
+The spawn probe was already green; the defect was at runtime. `TerrainWatchdog`'s fall-through re-seat
+ran `surface_y` every 2 seconds on every live body — a top-down ray that takes the FIRST hit, which
+under a roof is the roof. Its sibling eleven lines above had been converted to `floor_y` in August with
+a comment naming this exact hazard; the fall-through branch was left behind. That is why the defect
+survived two previous fixes: **a correct spawn was being undone every two seconds forever.** Also fixed
+the datum it fed on — `SitePlanner.fsb_garrison_plan` built marker heights on `center.y`, which is
+`0.0` in the full game and a single pre-sculpt sample in the demo, not the footprint-mean height the
+model was actually seated at. Re-seats now print themselves instead of teleporting men silently.
+
+### YOUR CALL — two questions, both about how the fight is DESIGNED, not about a broken system
+
+**Q1. Should the enemy shell the compound before the assault at all?**
+`CampMortar` opens harassment fire at T+600-1020 s aimed at the exact centre of the base at maximum
+(50 m) dispersion, while the siege is still 6-13 minutes away. In the shipping 24-minute arc that is
+1-2 volleys landing on your garrison with no attacker anywhere on the map. It is now cover-checked and
+survivable, but it is still deliberate prep fire on your men before anything is visible to shoot back
+at. Keep it, delay it, or move its aim to a fringe offset instead of the middle?
+
+**Q2. How lethal should the enemy barrage be?**
+Enemy mortars: 18 m blast, 140 at the centre, a hard floor of 40 at the rim. Your own called fire:
+10 m blast, same 140/40. So the enemy's tube is nearly four times the beaten area of yours, and the
+40-point floor is an instant kill on an un-promoted garrison civilian (20 HP) anywhere in that 18 m.
+Should the enemy tube match yours at 10 m, or is the asymmetry the point of a siege?
+
+**Q3. Should a garrison man RUN TO THE WIRE, or hold the post he was working?**
+Today a cook promoted at stand-to becomes a rifleman standing at the cook's post, `HOLD` with an 8 m
+leash, facing outward. Most of those posts are deep inside the compound with buildings between the man
+and the wire, so from your camera he reads as a soldier standing around in a firefight. Moving the
+garrison to fighting positions is the single biggest change available to how the base reads under
+attack, and it is a design change, not a bug fix — so it waits on you.
+
+### Still open, NOT fixed, flagged rather than silently changed
+
+- The sapper doctrine's first-choice target is `"wire"`, and **no barbwire in the game is destructible
+  at all** — the ring is a merged impostor with no blast-bus entry. Barbwire is your one standing art
+  exemption, so whether it becomes breakable is your call.
+- `enemy_base.gd:1715` deletes an attacker's assault objective permanently on first contact. With
+  breaches working the objective is now re-issued through the hole, but a man who loses contact
+  anywhere else still has no objective and no target and simply stops. This is why the rush turns into
+  a static exchange.
+- The assault breaks after losing about half its men (23 of 45), which is the authored ratio. If the
+  fight ends too early for you now that they can actually get inside, that ratio is the dial.
+
+
 ## 0000. PLAYTEST 2026-08-27 - THE QUEUE LIVES IN ITS OWN DOC
 
 All 35 items from your spoken notes are ordered and tagged in

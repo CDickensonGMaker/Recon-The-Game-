@@ -778,9 +778,9 @@ func fire_mortar_volley(at: Vector3, spread: float, tube_from: Vector3 = Vector3
 	if tube == Vector3.ZERO:
 		tube = fsb_center + Vector3(cos(sector_bearing), 0.0,
 			sin(sector_bearing)) * mortar_standoff_m
-	# The thump from the tube line, then the whistle over the impact point. The
-	# gap between them is the only warning the defenders get, and it is the
-	# reason a ranging round is survivable.
+	# The thump from the tube line, then the whistle over the impact point. That gap warns
+	# THE PLAYER. No AI consumes it: a garrison man has no pre-impact reaction, so what makes
+	# a ranging round survivable for him is cover and the blast falloff, not the whistle.
 	AudioManager.play_mortar_tube(tube)
 	AudioManager.play_incoming(at)
 	# Enemy indirect fire calls out the trees over its beaten zone too (decree
@@ -792,8 +792,10 @@ func fire_mortar_volley(at: Vector3, spread: float, tube_from: Vector3 = Vector3
 		director._fire_shell(MORTAR_SHELL, impact, _mortar_impact, tube)
 
 
-## The enemy's own ranging rounds must not break the enemy's own siege, and the
-## break counts every attacker death - so this shell excludes them explicitly.
+## The enemy's own ranging rounds must not break the enemy's own siege, and the break
+## counts every attacker death - so this shell spares the attackers and nothing else.
+## It is otherwise the SHARED explosion: multi-point visibility, the cover roll, the
+## falloff curve, stagger and suppression (ADR-016 - one damage grammar).
 func _mortar_impact(pos: Vector3) -> void:
 	if director == null or director.world == null or not is_instance_valid(director.world):
 		return
@@ -809,35 +811,8 @@ func _mortar_impact(pos: Vector3) -> void:
 		DamageSystem.apply_damage(Vector3(pos.x, floor_y, pos.z),
 			DamageSystem.DamageType.MEDIUM_EXPLOSION, 1.0)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, ground, 1)
-	_blast_defenders_only(ground)
-
-
-func _blast_defenders_only(at: Vector3) -> void:
-	var tree: SceneTree = get_tree()
-	if tree == null:
-		return
-	var victims: Array[Node] = []
-	victims.append_array(tree.get_nodes_in_group("allies"))
-	victims.append_array(tree.get_nodes_in_group("garrison_promoted"))
-	victims.append_array(tree.get_nodes_in_group("civilians"))
-	if GameManager.player != null and is_instance_valid(GameManager.player):
-		victims.append(GameManager.player as Node)
-	var seen: Dictionary = {}
-	for v in victims:
-		if v == null or not is_instance_valid(v) or not (v is Node3D):
-			continue
-		var id: int = v.get_instance_id()
-		if seen.has(id):
-			continue
-		seen[id] = true
-		var d: float = (v as Node3D).global_position.distance_to(at)
-		if d > MORTAR_BLAST_M:
-			continue
-		var falloff: float = 1.0 - clampf(d / MORTAR_BLAST_M, 0.0, 1.0)
-		var dmg: int = maxi(MORTAR_MIN_DAMAGE, int(lerpf(float(MORTAR_MIN_DAMAGE),
-			float(MORTAR_DAMAGE), falloff)))
-		if v.has_method("take_damage"):
-			v.call("take_damage", dmg, Enums.DamageType.EXPLOSIVE, null)
+	CombatManager.apply_explosion_damage(ground, MORTAR_DAMAGE, MORTAR_MIN_DAMAGE,
+		MORTAR_BLAST_M, null, 1.0, false, 0.4, 1.0, true)
 
 
 ## ---------- THE BREAK AND THE REAP ----------

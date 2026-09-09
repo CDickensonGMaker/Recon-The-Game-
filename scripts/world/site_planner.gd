@@ -1007,6 +1007,23 @@ const FSB_CLEAR_DISCS: Array = [
 
 ## Marker locals cached once; plan-time band math and build-time placement use
 ## the SAME numbers (one math path, never re-derived by hand).
+## The Y the firebase model was ACTUALLY seated at - place_firebase_main's 7x7 footprint
+## MEAN. It is not `center.y`: plan_firebase_main_center returns y = 0.0, and the demo
+## seeds center.y from a single pre-sculpt height sample. Marker world positions built on
+## center.y are off by the difference, which drops the garrison under its own floor and
+## hands it to the watchdog's re-seat.
+static var _fsb_seat_y: float = 0.0
+static var _fsb_seated: bool = false
+
+
+## World origin for the firebase's authored markers, on the height the model was seated at.
+static func _fsb_marker_origin(center: Vector3) -> Vector3:
+	var origin: Vector3 = center - FSB_AABB_CENTER
+	if _fsb_seated:
+		origin.y = _fsb_seat_y
+	return origin
+
+
 static var _fsb_markers: Dictionary = {}
 
 const FSB_MARKER_KEYS: Array[String] = [
@@ -1310,11 +1327,13 @@ static func _ensure_fsb_markers() -> void:
 	inst.free()
 
 
-## Garrison post/quarters positions in WORLD space. Y is the AUTHORED marker height
-## (kept since 2026-08-04); seat with GameWorld.floor_y from it, never surface_y.
+## Garrison post/quarters positions in WORLD space. Y is the AUTHORED marker height over
+## the seat the MODEL was placed at (kept since 2026-08-04); seat with GameWorld.floor_y
+## from it, never surface_y. Call only after place_firebase_main - before it, the seat is
+## unknown and the marker Y falls back to center.y, which is not the model's ground.
 static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 	_ensure_fsb_markers()
-	var origin: Vector3 = center - FSB_AABB_CENTER
+	var origin: Vector3 = _fsb_marker_origin(center)
 	var posts: Array[Dictionary] = []
 	for entry in FSB_GARRISON_POSTS:
 		var key: String = entry[0]
@@ -1610,6 +1629,8 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	_parent.add_child(root)
 	var origin: Vector3 = center - FSB_AABB_CENTER
 	origin.y = seat_y
+	_fsb_seat_y = seat_y
+	_fsb_seated = true
 	root.global_position = origin
 	_repair_glb_colliders(root)
 	_cull_interior_props(root)
@@ -2055,7 +2076,7 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		var twin := root.find_child(base, true, false) as MeshInstance3D
 		if twin == null and _parent != null:
 			twin = _parent.find_child(base, true, false) as MeshInstance3D
-		if twin != null and twin.global_position.distance_to(stray.global_position) < 0.05:
+		if twin != null and _mesh_center(twin).distance_to(_mesh_center(stray)) < 0.05:
 			stray.visible = false
 			_disable_parapet_colliders(stray)
 			strays_hidden += 1
@@ -2073,11 +2094,45 @@ func _wire_parapet_destructibles(root: Node3D) -> void:
 		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing,
 		"" if unclaimed.is_empty() else ", %d stray(s): %d adopted, %d duplicate(s) hidden"
 			% [unclaimed.size(), strays_adopted, strays_hidden]])
+	_audit_parapet_spread(root)
 	_wire_structure_destructibles(root)
 	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented
 	# onto a Destructible by the pass above must still be findable.
 	var doors: int = SCREEN_DOOR.wire_all(root)
 	print("[FSB] screen doors: %d hung" % doors)
+
+
+## A wall that reads as ONE POINT is the failure this pass exists to prevent: every consumer
+## of a segment position (sapper target, perimeter measure, overrun call, breach scan, blast
+## radius) then aims at the compound centre, and one mortar round deletes the whole parapet.
+## The manifest's own span is 49.3-96.1m, so a range under a metre means the origins are dead.
+func _audit_parapet_spread(root: Node3D) -> void:
+	var center: Vector3 = root.global_position
+	var lo: float = INF
+	var hi: float = -INF
+	var n: int = 0
+	for node in _parent.get_tree().get_nodes_in_group(FSB_PARAPET_GROUP):
+		var d := node as Node3D
+		if d == null:
+			continue
+		n += 1
+		var r: float = Vector2(d.global_position.x - center.x, d.global_position.z - center.z).length()
+		lo = minf(lo, r)
+		hi = maxf(hi, r)
+	if n == 0:
+		return
+	print("[FSB] parapet radii: %d segment(s) spanning %.1f-%.1fm from centre" % [n, lo, hi])
+	if hi - lo < 1.0:
+		push_warning("[FSB] PARAPET COLLAPSED TO A POINT (%.1fm): every segment shares one position - "
+			% lo + "sapper targets, the perimeter and the blast bus are all reading the compound centre")
+
+
+## World centre of a mesh's BAKED geometry. In a flat GLB a node origin carries no
+## information - every parapet node in fsb_main_v3 is identity - so the AABB is the only
+## honest position. Same form _adopt_structure uses.
+static func _mesh_center(mi: MeshInstance3D) -> Vector3:
+	var aabb: AABB = mi.get_aabb()
+	return mi.global_transform * (aabb.position + aabb.size * 0.5)
 
 
 ## Stand ONE parapet mesh up as a Destructible on the blast bus - the single
@@ -2089,7 +2144,13 @@ func _wire_parapet_segment(mi: MeshInstance3D, kind: String, hp: int) -> void:
 	d.collision_layer = 1
 	d.collision_mask = 0
 	_parent.add_child(d)
-	d.global_position = mi.global_position
+	# THE MESH NODE'S ORIGIN IS NOT THE WALL. fsb_main_v3 is a flat scene and 80 of the 81
+	# parapet nodes carry NO node transform - the geometry is baked into vertices - so
+	# mi.global_position is the model root for all of them, i.e. the compound centre.
+	# Read the baked AABB instead, the same form _adopt_structure uses. Everything that
+	# reads a segment position (sapper targets, the perimeter measure, the overrun call,
+	# the breach scan, the blast radius test) reads THIS node's origin and nothing else.
+	d.global_position = _mesh_center(mi)
 	# Take the segment's collider off its auto-generated body and onto the Destructible, so
 	# _do_destroy can disable it. A shape left nested under a child body survives the blast
 	# and the "destroyed" wall keeps stopping rounds.

@@ -118,7 +118,8 @@ func apply_explosion_damage(
 	knockback_scale: float = 1.0,
 	spare_garrison: bool = false,
 	plateau_frac: float = 0.4,
-	falloff_pow: float = 1.0
+	falloff_pow: float = 1.0,
+	spare_enemies: bool = false
 ) -> void:
 	var space_state: PhysicsDirectSpaceState3D = get_tree().root.get_world_3d().direct_space_state
 
@@ -200,7 +201,12 @@ func apply_explosion_damage(
 	TreeBreakSystem.apply_blast(center, radius)
 
 	# Damage enemies in range - snapshot for the same mid-loop-kill reason.
+	# spare_enemies is for the ATTACKER'S OWN indirect fire only: the siege break ratio
+	# counts every attacker death, so a faction-blind prep barrage breaks the assault that
+	# fired it. It spares men, never trees or props.
 	for enemy in AgentRegistry.enemies.duplicate():
+		if spare_enemies:
+			break
 		if not is_instance_valid(enemy) or not enemy is Node3D:
 			continue
 		var enemy_pos: Vector3 = (enemy as Node3D).global_position

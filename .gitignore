@@ -108,3 +108,6 @@ test_results/
 perf_before.log
 perf_after.log
 suite_run.txt
+
+# Agent scratch: throwaway probe scripts and import logs, never shipped.
+_scratch/

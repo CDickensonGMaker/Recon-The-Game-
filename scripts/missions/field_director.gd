@@ -1154,6 +1154,7 @@ var siege_aim: Vector3 = Vector3.ZERO
 var siege: SiegeDirector = null
 var _granted_day: int = -1                    ## one fire-support allotment per sim day
 var _garrison_stood_to: bool = false          ## the garrison has been promoted to defenders
+var _standing_to: bool = false                ## a promotion sweep is mid-await
 var _firebase_breached: bool = false          ## the depot is already gone - one breach per op
 
 ## Firebase-attack crisis re-fire (bug fix 2026-07-20). The old constant fsb hash made
@@ -1753,8 +1754,17 @@ func _poll_firebase_threat() -> void:
 ## garrison_alarm() - a soldier who HEARS enemy fire or takes a hit answers it
 ## (Summoner ruling 2026-08-04: garrison men are soldiers, not civilians).
 func _garrison_stand_to() -> void:
-	if _garrison_stood_to:
+	# NOT one-shot. The latch used to return on the second call, so a man the first pass
+	# could not take - a puppet at the gun, a man on the lift, a body frozen mid-seat -
+	# stayed a civilian for the whole night, and every replacement the resupply flew in
+	# mid-assault landed unarmed and stayed unarmed. Re-scan instead: the group shrinks as
+	# men promote, so a settled garrison costs one empty iteration. The IN-FLIGHT guard is
+	# the real mutual exclusion - this function awaits the spawn token, so two overlapping
+	# calls would hand the same civilian to promote() twice.
+	if _standing_to:
 		return
+	_standing_to = true
+	var first: bool = not _garrison_stood_to
 	_garrison_stood_to = true
 	var promoted: int = 0
 	# Dripped through the global spawn gate: promoting the whole garrison in one
@@ -1767,16 +1777,21 @@ func _garrison_stand_to() -> void:
 		while not MarchingCell._take_spawn_token():
 			await get_tree().process_frame
 		if not is_inside_tree():
+			_standing_to = false
 			return
 		if not is_instance_valid(civ):
 			continue
 		if GarrisonDefender.promote(civ, self, fsb_center) != null:
 			promoted += 1
-	# Printed unconditionally, including the zero. "Did the garrison stand to?" was the
-	# central unanswerable question of the 2026-07-29 playtest, and a stand-to that promotes
-	# nobody looks exactly like one that never fired.
-	print("[FSB] stand to: promoted %d garrison civilian(s) to defenders" % promoted)
-	if promoted > 0:
+	_standing_to = false
+	# The FIRST pass prints its zero. "Did the garrison stand to?" was the central
+	# unanswerable question of the 2026-07-29 playtest, and a stand-to that promotes nobody
+	# looks exactly like one that never fired. Later passes print only when they took a man,
+	# because a settled garrison would otherwise print a zero every half-second poll.
+	if first or promoted > 0:
+		print("[FSB] stand to: promoted %d garrison civilian(s) to defenders%s"
+			% [promoted, "" if first else " (late)"])
+	if first and promoted > 0:
 		toast.emit("STAND TO - THE WIRE'S IN CONTACT")
 
 

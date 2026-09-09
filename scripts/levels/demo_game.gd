@@ -80,6 +80,22 @@ const END_BACKSTOP_S: float = 2700.0
 ## The survive/die choice was delegated to the Arbiter and is deliberately ONE FLAG: if his
 ## playthrough says the ending lands flat, flip this and the flight circles his body instead.
 const ENDING_PLAYER_SURVIVES: bool = true
+## --stress: the worst case, reachable by hand.
+## The assault opens at SIEGE_AT_S = 1440 s - TWENTY-FOUR MINUTES into a playthrough - so
+## the heaviest load this game ever carries has never once been walked by a human with an
+## instrument attached. Every siege figure in the ledger came from an automated probe.
+## This flag collapses the approach so he can play the 45-man assault himself. It moves
+## NOTHING else: strengths, ring geometry, air beats and ordnance are untouched.
+##
+## COLLAPSING THE APPROACH MUST ALSO CARRY THE CLOCK. The arc's hour is a function of
+## elapsed real seconds, so shortening the approach without moving the clock hands the
+## player a DAYLIGHT assault - flares, night sight, muzzle-flash spotting and the whole
+## lighting design absent. The stress boot jumps to the hour the real arc would reach at
+## SIEGE_AT_S, so the fight he plays is the fight that ships.
+var probe_at: float = PROBE_AT_S
+var siege_at: float = SIEGE_AT_S
+var _stress: bool = false
+
 const PROBE_STRENGTH: int = 11
 ## Total men on the wire after the escalation, NOT an increment. 45 and not 50: LIVE_CAP
 ## is 50 materialized men, and an assault authored at the cap freezes its late cells at
@@ -95,6 +111,14 @@ var _swap: BODY_SWAP = null
 
 
 func _ready() -> void:
+	if GameSettings.has_flag("--stress"):
+		_stress = true
+		probe_at = 20.0
+		siege_at = 45.0
+		print("[STRESS] --stress: probe at 20s, 45-man assault at 45s ",
+			"(normally %ds / %ds). The clock jumps with it - see the seat line below. " % [
+				int(PROBE_AT_S), int(SIEGE_AT_S)],
+			"Strengths, ring geometry, air beats and ordnance are untouched.")
 	for x in [["saves", EXCLUDE_SAVES], ["debrief", EXCLUDE_DEBRIEF],
 			["air_traffic", EXCLUDE_AIR_TRAFFIC], ["ambient_war", EXCLUDE_AMBIENT_WAR]]:
 		if x[1]:
@@ -128,16 +152,56 @@ func _ready() -> void:
 	# The build seeds its own hour from the plan (mission_weather.gd:51), so the arc's clock
 	# can only be set AFTER the world is up - _in_world is the last latch enter_hub flips.
 	# START_HOUR must stay inside the plan's DAWN period (5-7, sim_clock.period_at): set_time
-	# does not emit time_period_changed, so a cross-period jump here would desync the sun.
+	# does not emit time_period_changed. The stress boot DOES cross periods and emits the
+	# crossing itself (_seat_the_stress_night); the shipping boot must not need to.
 	while _flow != null and is_instance_valid(_flow) and not _flow._in_world:
 		await get_tree().process_frame
 	if _flow == null or not is_instance_valid(_flow) or not is_inside_tree():
 		return
-	SimClock.set_time(1, START_HOUR)
+	var boot_hour: float = _stress_boot_hour() if _stress else START_HOUR
+	SimClock.set_time(1, boot_hour)
+	if _stress:
+		_seat_the_stress_night(boot_hour)
 	_apply_ambient_exclusions()
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%ds siege@%ds backstop@%ds" % [
-		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(START_HOUR), int(fmod(START_HOUR, 1.0) * 60.0),
-		DAY_RATIO, NIGHT_RATIO, int(PROBE_AT_S), int(SIEGE_AT_S), int(END_BACKSTOP_S)])
+		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(boot_hour), int(fmod(boot_hour, 1.0) * 60.0),
+		DAY_RATIO, NIGHT_RATIO, int(probe_at), int(siege_at), int(END_BACKSTOP_S)])
+
+
+## The sim hour the SHIPPING arc reaches `t` real seconds after the seat: DAY_RATIO until
+## the NIGHT boundary, NIGHT_RATIO after it. Derived, never a literal - a change to either
+## ratio or to START_HOUR must move the stress boot with it.
+const NIGHT_HOUR: float = 19.0
+
+func _arc_hour_at(t: float) -> float:
+	var to_seam: float = (NIGHT_HOUR - START_HOUR) * 3600.0 / DAY_RATIO
+	if t <= to_seam:
+		return START_HOUR + t * DAY_RATIO / 3600.0
+	return NIGHT_HOUR + (t - to_seam) * NIGHT_RATIO / 3600.0
+
+
+## Boot the stress run so its assault opens at the same hour the shipping arc's does.
+func _stress_boot_hour() -> float:
+	return _arc_hour_at(SIEGE_AT_S) - siege_at * NIGHT_RATIO / 3600.0
+
+
+## set_time() moves the hands without emitting time_period_changed, so a boot that lands
+## in NIGHT would leave MissionWeather on the DAWN sun, is_night false, and every sight
+## cap on the day table. Emit the crossing the jump skipped, and take the night ratio at
+## the seat - the _tick seam below can only fire on a transition this boot has already made.
+func _seat_the_stress_night(hour: float) -> void:
+	var period: int = SimClock.period_at(hour)
+	SimClock.time_period_changed.emit(period)
+	if period == SimClock.Period.NIGHT:
+		SimClock.real_to_sim_ratio = NIGHT_RATIO
+		_night_ratio_set = true
+		if _flow.world != null and is_instance_valid(_flow.world):
+			_flow.world.start_night_ambience()
+	print("[STRESS] clock seated at %02d:%02d (%s) - the shipping arc reaches %02d:%02d at its %ds assault" % [
+		int(hour), int(fmod(hour, 1.0) * 60.0),
+		"NIGHT" if period == SimClock.Period.NIGHT else "NOT NIGHT",
+		int(_arc_hour_at(SIEGE_AT_S)), int(fmod(_arc_hour_at(SIEGE_AT_S), 1.0) * 60.0),
+		int(SIEGE_AT_S)])
 
 
 ## The other half of the switchboard. EXCLUDE_AIR_TRAFFIC and EXCLUDE_AMBIENT_WAR were read
@@ -283,10 +347,10 @@ func _tick_napalm() -> void:
 ## Walk the siege beat table. One beat per call at most, so two passes can never launch on
 ## the same frame however far the clock jumped.
 func _tick_siege_air(d: FieldDirector) -> void:
-	if _siege_air_next >= SIEGE_AIR_BEATS.size() or _clock < SIEGE_AT_S:
+	if _siege_air_next >= SIEGE_AIR_BEATS.size() or _clock < siege_at:
 		return
 	var beat: Array = SIEGE_AIR_BEATS[_siege_air_next]
-	if _clock < SIEGE_AT_S + float(beat[0]):
+	if _clock < siege_at + float(beat[0]):
 		return
 	_siege_air_next += 1
 	# The assault's own axis, so the steel lands on the men who are actually coming.
@@ -444,11 +508,11 @@ func _physics_process(delta: float) -> void:
 			% [_clock, DAY_RATIO, NIGHT_RATIO, SimClock.sim_hour])
 	match _phase:
 		0:
-			if _clock >= PROBE_AT_S:
+			if _clock >= probe_at:
 				_phase = 1
 				_open_siege(PROBE_STRENGTH, "PROBE ON THE WIRE")
 		1:
-			if _clock >= SIEGE_AT_S:
+			if _clock >= siege_at:
 				_phase = 2
 				_open_siege(SIEGE_STRENGTH, "HERE THEY COME")
 		2:
