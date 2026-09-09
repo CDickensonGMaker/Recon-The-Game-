@@ -218,6 +218,27 @@ P6 marker + garrison re-base *(484 lines — the one non-atomic commit)* · P7 b
 **43–67 h engineering, 60–91 h all-in** for the kit; **90–145 h** including the terrain morph tool.
 Calibrated two ways against ADR-041 §12's 20–31 h, agreeing within 12%.
 
+> ## STATUS 2026-09-09: P0, P1 AND P2 ARE BUILT AND PROBED. Stopped before P3 by instruction.
+>
+> - **P0** — `data/world/fsb_markers.json` (14 named markers, 488 work points, 10 dig-classified),
+>   written by `tools/bake_fsb_markers.tscn`, read by `SitePlanner._ensure_fsb_markers`. The walk
+>   survives as `bake_fsb_markers_from_scene()` with **two callers, the baker and the probe** — one
+>   implementation, so a re-export cannot silently disagree with the bake.
+>   Guard: `tests/test_fsb_marker_bake.tscn`.
+> - **P1** — the `FirebaseCompound` wrapper (`site_planner.gd`, `place_firebase_main`), so
+>   `nav_baker.gd:204`'s single-root assumption is TRUE again rather than worked around. `site.nodes[0]`
+>   is now the compound. Guard: `tests/test_marker_navmesh.tscn`, which also asserts the wrapper by
+>   name and measures **35 posts, 5 off-mesh, worst 1.19 m** against a ratchet.
+> - **P2** — `SitePlan` (`scripts/world/site_plan.gd`), `KitRegistry` (`scripts/world/kit_registry.gd`),
+>   `SitePlanner.stamp_site_plan()` (**the consumer §4 demanded ship first**), `KitEditorState`
+>   (`scripts/tools/kit_editor_state.gd`) and the in-game dev mode `tools/kit_editor.tscn`.
+>   Guards: `tests/test_site_plan_roundtrip.tscn`, `tests/test_kit_editor_state.tscn`.
+>   **Measured: the registry knows 28 parts, 7 are placeable today, 8 carry work stations.**
+>
+> **0 SCRIPT ERROR on the definitive headless boot.** A note for whoever builds next: adding these
+> `class_name` scripts wedged four headless probes until `--headless --import` rebuilt the class
+> cache — the project's own validation law names that fix, and it applies to new global classes too.
+
 ## Consequences
 
 **Bought.** A misplaced object becomes a five-second edit. Placement defects become visible where the

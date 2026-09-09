@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ctkiteditst09"]
+
+[ext_resource type="Script" path="res://tests/test_kit_editor_state.gd" id="1_ks"]
+
+[node name="TestKitEditorState" type="Node"]
+script = ExtResource("1_ks")

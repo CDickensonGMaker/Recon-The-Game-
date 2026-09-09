@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ctfsbmrkbake09"]
+
+[ext_resource type="Script" path="res://tests/test_fsb_marker_bake.gd" id="1_mb"]
+
+[node name="TestFsbMarkerBake" type="Node"]
+script = ExtResource("1_mb")

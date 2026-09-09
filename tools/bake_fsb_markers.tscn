@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cbakefsbmrk09"]
+
+[ext_resource type="Script" path="res://tools/bake_fsb_markers.gd" id="1_bk"]
+
+[node name="BakeFsbMarkers" type="Node"]
+script = ExtResource("1_bk")

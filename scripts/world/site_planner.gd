@@ -1335,9 +1335,91 @@ static func _fsb_curated_men() -> int:
 ## Offsets are accumulated up to the GLB root: every consumer adds them to the
 ## compound center, so a marker nested under a sub-node must not contribute its
 ## parent-local position.
+## ADR-043 P0. The runtime no longer builds the firebase to read its markers.
+##
+## THE DEFECT THIS CLOSES, measured 2026-09-09: this function instantiated the whole
+## 5,812-node scene and freed it purely to read ~500 marker origins - and it fired at
+## PLAN time, because mission_generator.gd:519 and :722 both call fsb_gate_metrics for
+## the gate and the LZ before the world exists. The world then built the same scene
+## AGAIN for real. Two full scene builds per world build, one of them thrown away.
+##
+## Now: bake once to disk with tools/bake_fsb_markers.tscn, read the JSON at runtime.
+## The walk survives as bake_fsb_markers_from_scene() because the baker and the probe
+## both need it - ONE implementation, two callers, which is why a re-export cannot
+## silently disagree with the bake.
+const FSB_MARKER_BAKE_PATH: String = "res://data/world/fsb_markers.json"
+## Bumped when the bake's SHAPE changes, never when the firebase does. A stale-shaped
+## file is refused rather than half-read.
+const FSB_MARKER_BAKE_VERSION: int = 1
+
+
 static func _ensure_fsb_markers() -> void:
 	if not _fsb_markers.is_empty():
 		return
+	if _load_fsb_marker_bake():
+		return
+	# The bake is the shipping path. Walking the scene here is a LAST RESORT that keeps
+	# the game playable on a fresh checkout before the baker has ever run - it is loud
+	# on purpose, and tests/test_fsb_marker_bake.tscn fails the build if the bake is
+	# missing or has drifted from the model.
+	push_warning("[FSB] marker bake missing or stale at %s - walking the scene instead. "
+		% FSB_MARKER_BAKE_PATH
+		+ "Run: godot --headless --path . res://tools/bake_fsb_markers.tscn")
+	var baked: Dictionary = bake_fsb_markers_from_scene()
+	_adopt_fsb_marker_bake(baked)
+
+
+## Read the baked markers. Returns false (having changed nothing) whenever the file is
+## absent, unparseable, of the wrong shape version, or empty - every one of which must
+## fall through to the walk rather than leave the compound with no markers at all.
+static func _load_fsb_marker_bake() -> bool:
+	if not FileAccess.file_exists(FSB_MARKER_BAKE_PATH):
+		return false
+	var f := FileAccess.open(FSB_MARKER_BAKE_PATH, FileAccess.READ)
+	if f == null:
+		return false
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if not (parsed is Dictionary):
+		return false
+	var d: Dictionary = parsed
+	if int(d.get("version", 0)) != FSB_MARKER_BAKE_VERSION:
+		return false
+	var raw_markers: Dictionary = d.get("markers", {}) as Dictionary
+	var raw_work: Array = d.get("work", []) as Array
+	if raw_markers.is_empty() and raw_work.is_empty():
+		return false
+	var markers: Dictionary = {}
+	for key_any in raw_markers.keys():
+		var v: Array = raw_markers[key_any] as Array
+		if v == null or v.size() != 3:
+			continue
+		markers[String(key_any)] = Vector3(float(v[0]), float(v[1]), float(v[2]))
+	var work: Array = []
+	for entry_any in raw_work:
+		var e: Array = entry_any as Array
+		if e == null or e.size() != 5:
+			continue
+		work.append([Vector3(float(e[0]), float(e[1]), float(e[2])), String(e[3]), bool(e[4])])
+	_adopt_fsb_marker_bake({"markers": markers, "work": work})
+	return true
+
+
+static func _adopt_fsb_marker_bake(baked: Dictionary) -> void:
+	_fsb_markers = (baked.get("markers", {}) as Dictionary).duplicate()
+	_fsb_work_markers.clear()
+	for entry_any in (baked.get("work", []) as Array):
+		_fsb_work_markers.append((entry_any as Array).duplicate())
+
+
+## Walk the firebase scene and derive every marker the game reads from it. THE ONE
+## implementation: tools/bake_fsb_markers.gd writes its output to disk and
+## tests/test_fsb_marker_bake.gd compares the file against a fresh call, so a
+## re-export that moves a marker turns the suite red instead of shipping stale data.
+## Returns {markers: {String: Vector3}, work: [[Vector3, String, bool]]}.
+static func bake_fsb_markers_from_scene() -> Dictionary:
+	var markers: Dictionary = {}
+	var work: Array = []
 	var scene: PackedScene = load(FSB_MAIN_PATH)
 	var inst := scene.instantiate() as Node3D
 	for key in FSB_MARKER_KEYS:
@@ -1349,8 +1431,7 @@ static func _ensure_fsb_markers() -> void:
 		while cur != null and cur != inst:
 			t = cur.transform * t
 			cur = cur.get_parent() as Node3D
-		_fsb_markers[key] = t.origin
-	_fsb_work_markers.clear()
+		markers[key] = t.origin
 	var earthworks: Array[AABB] = []
 	var stack: Array[Node] = [inst]
 	while not stack.is_empty():
@@ -1391,8 +1472,8 @@ static func _ensure_fsb_markers() -> void:
 			if cut <= 0 or not wt.substr(cut + 1).is_valid_int():
 				break
 			wt = wt.substr(0, cut)
-		_fsb_work_markers.append([t2.origin, wt, false])
-	for entry_any in _fsb_work_markers:
+		work.append([t2.origin, wt, false])
+	for entry_any in work:
 		var e: Array = entry_any
 		if str(e[1]) != "dig":
 			continue
@@ -1404,13 +1485,14 @@ static func _ensure_fsb_markers() -> void:
 			if Vector2(dx, dz).length() <= DIG_NEAR_M:
 				e[2] = true
 				break
-	_fsb_work_markers.sort_custom(func(a: Array, b: Array) -> bool:
+	work.sort_custom(func(a: Array, b: Array) -> bool:
 		var pa: Vector3 = a[0]
 		var pb: Vector3 = b[0]
 		if not is_equal_approx(pa.x, pb.x):
 			return pa.x < pb.x
 		return pa.z < pb.z)
 	inst.free()
+	return {"markers": markers, "work": work}
 
 
 ## Garrison post/quarters positions in WORLD space. Y is the AUTHORED marker height over
@@ -1708,16 +1790,38 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	if _grid:
 		_grid.update_region(center, FSB_FLATTEN_RADIUS)
 	_audit_one_ground(center, seat_y)
-	var scene: PackedScene = load(FSB_MAIN_PATH)
-	var root := scene.instantiate() as Node3D
-	root.set_meta("model_name", "fsb_main")
-	MaterialBudget.structure(root)
-	_parent.add_child(root)
+	# ADR-043 P1. THE COMPOUND WRAPPER - one seated parent that every part of the base
+	# hangs under, the bake included.
+	#
+	# The break it closes: NavBaker._queue_firebase takes site.nodes[0] and pushes exactly
+	# ONE collider root (nav_baker.gd:202-205). That is correct while the whole compound is
+	# a single GLB and wrong the moment a part is stamped beside it - the stamped part would
+	# be invisible to the navmesh, and the file's own header says what that looks like:
+	# "worse than no navmesh, because it would look deliberate."
+	#
+	# Fixing it here rather than in NavBaker is deliberate. A wrapper makes the single-root
+	# assumption TRUE again instead of teaching a second system to iterate; nav_baker keeps
+	# one root forever, and a kit part is simply another child. It also gives the seat one
+	# owner: parts added later inherit the compound's transform instead of each re-deriving
+	# origin/seat_y and drifting from it.
+	var compound := Node3D.new()
+	compound.name = "FirebaseCompound"
+	compound.set_meta("model_name", "fsb_main")
+	_parent.add_child(compound)
 	var origin: Vector3 = center - FSB_AABB_CENTER
 	origin.y = seat_y
 	_fsb_seat_y = seat_y
 	_fsb_seated = true
-	root.global_position = origin
+	compound.global_position = origin
+
+	var scene: PackedScene = load(FSB_MAIN_PATH)
+	var root := scene.instantiate() as Node3D
+	root.set_meta("model_name", "fsb_main")
+	MaterialBudget.structure(root)
+	# Added AFTER the compound is seated and at IDENTITY, so root's global transform is the
+	# same one it had when it was seated directly. Every walk below still measures world
+	# positions, so none of them can tell the difference - which is the point.
+	compound.add_child(root)
 	_repair_glb_colliders(root)
 	_wire_parapet_destructibles(root)
 	_wire_claymores(root, center)
@@ -1745,7 +1849,9 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	_fold_interior_props(root)
 	_fsb_rect = Rect2(center.x - FSB_HALF.x, center.z - FSB_HALF.y,
 		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
-	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
+	# nodes[0] is the COMPOUND, not the GLB. NavBaker walks colliders from it, so a part
+	# stamped under the compound is in the bake by construction (ADR-043 P1).
+	var site := {"kind": "firebase_main", "center": center, "nodes": [compound],
 		"gate_pos": gate_pos, "gate_out": gate_out, "spawn_pos": spawn_pos,
 		"radius": FSB_HALF.length(), "siren": siren}
 	placed_sites.append(site)
@@ -2773,4 +2879,92 @@ func stamp_lz(center: Vector3) -> Dictionary:
 	clear_and_flatten(center, 16.0)
 	var site := {"kind": "lz", "center": center, "nodes": [], "radius": 16.0}
 	placed_sites.append(site)
+	return site
+
+
+## ---------- THE KIT CONSUMER (ADR-043 §2) ----------
+## Stamp a SitePlan: instantiate its parts under ONE seated compound, wire them onto the
+## contracts every other structure in this game already obeys, and hand back a site dict in
+## the same shape place_firebase_main returns.
+##
+## This function is the CONSUMER the fossil law demanded before the kit could exist.
+## gen_firebase.py:1-13 refused to ship 24 kit GLBs in July because they would be "24 files
+## with one consumer, which ADR-023 would correctly come for" - the parts were never the
+## problem, the missing placer was. So this ships before any part master is authored.
+##
+## ONE PATH (ADR-028). Parts are instanced here, seated here, and wired here, and nothing
+## else in the codebase gains an entry point. The compound wrapper is the same shape
+## place_firebase_main builds, so NavBaker's single collider root keeps working (ADR-043 P1).
+func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = null) -> Dictionary:
+	var reg: KitRegistry = registry if registry != null else KitRegistry.load_kit()
+	var why: String = plan.validate(reg)
+	if why != "":
+		push_error("[PLAN] refusing to stamp: %s" % why)
+		return {}
+
+	# ADR-041 §6: the flatten is per-plan and declared, never mandatory and never 1.0 by
+	# default. A plan that asks for no seat gets none, and follows the ground it is on.
+	if plan.flatten_radius > 0.0 and plan.flatten_strength > 0.0:
+		clear_and_flatten(center, plan.flatten_radius, plan.flatten_shoulder)
+
+	var seat_y: float = _terrain.get_height_at(center) if _terrain != null else center.y
+	var compound := Node3D.new()
+	compound.name = "SitePlan_%s" % plan.plan_name
+	compound.set_meta("model_name", plan.plan_name)
+	_parent.add_child(compound)
+	compound.global_position = Vector3(center.x, seat_y, center.z)
+
+	var stations: Array = []
+	var placed: int = 0
+	for entry in plan.parts:
+		var id: String = str(entry.get("id", ""))
+		var scene: PackedScene = load(reg.model_path(id)) as PackedScene
+		if scene == null:
+			push_warning("[PLAN] part '%s' failed to load - skipped" % id)
+			continue
+		var part := scene.instantiate() as Node3D
+		if part == null:
+			continue
+		# set_meta BEFORE the tree, and the id NOT the node name: Godot auto-renames a
+		# duplicate child, so two hooches become hooch and hooch2 and every CollisionTable
+		# lookup keyed on the name breaks silently (ADR-041 §3 contract 3).
+		part.set_meta("model_name", id)
+		part.set_meta("part_id", id)
+		MaterialBudget.structure(part)
+		compound.add_child(part)
+		var local: Vector3 = entry.get("pos", Vector3.ZERO)
+		part.position = local
+		part.rotation.y = deg_to_rad(float(entry.get("yaw_deg", 0.0)))
+		_apply_visibility_range(part)
+		placed += 1
+
+		# Stations come from the PART MANIFEST, in the part's own local space, and their
+		# work_type is a bare string this function never inspects. A kit for another war
+		# adds a work type by adding a marker, never by editing this file (ADR-043 §4).
+		for st_any in reg.stations_for(id):
+			var st: Dictionary = st_any
+			var sl: Vector3 = st.get("local", Vector3.ZERO)
+			stations.append({
+				"pos": compound.global_position + local + Vector3(sl.x, sl.y, sl.z).rotated(
+					Vector3.UP, deg_to_rad(float(entry.get("yaw_deg", 0.0)))),
+				"type": str(st.get("work_type", "")),
+				"part": id,
+			})
+
+	if placed == 0:
+		push_error("[PLAN] '%s' stamped ZERO parts - the compound is empty" % plan.plan_name)
+		compound.queue_free()
+		return {}
+
+	# The naming contract does the rest: a part whose meshes carry the destructible prefixes
+	# inherits destructibility, ballistics and the blast bus through the SAME walk the
+	# firebase uses. Names are portable; roots are not (ADR-042).
+	_wire_structure_destructibles(compound)
+
+	var site := {"kind": "site_plan", "plan": plan.plan_name, "center": center,
+		"nodes": [compound], "stations": stations,
+		"radius": maxf(plan.flatten_radius, 16.0)}
+	placed_sites.append(site)
+	print("[PLAN] stamped '%s': %d part(s), %d station(s)"
+		% [plan.plan_name, placed, stations.size()])
 	return site

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ckiteditor0909"]
+
+[ext_resource type="Script" path="res://tools/kit_editor.gd" id="1_ke"]
+
+[node name="KitEditor" type="Node"]
+script = ExtResource("1_ke")

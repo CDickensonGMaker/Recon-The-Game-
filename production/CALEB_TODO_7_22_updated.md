@@ -10,6 +10,40 @@ better gate house."*
 **Canon: `production/adr/ADR-043-the-modular-world-kit.md`. Plan, phases and price:
 `production/war_room/2026-09-09_firebase_kit_pivot/synthesis.md`.** Nine architects.
 
+### BUILT 2026-09-09 — P0, P1 AND P2 ARE IN. THE TOOL IS READY FOR YOUR HANDS.
+
+**Open it: `godot --path . res://tools/kit_editor.tscn`** (I have not opened a window; that is
+yours to run). WASD/QE to fly, SHIFT for fast, LMB places, RMB selects, mouse wheel or `[` `]`
+cycles the palette, arrows nudge, PgUp/PgDn height, `,` `.` rotate, DEL removes, CTRL+Z undo,
+CTRL+S saves, and **G stamps the plan through `SitePlanner` — the same entry point the game
+uses, so if it looks right in the tool it is right in the build.**
+
+**Right now the palette has 7 parts** — the kit GLBs that already existed on disk since July:
+`fb_bunker_fighting`, `fb_bunker_mg`, `fb_gate_assembly`, `fb_sandbag_heavy`, `fb_sandbag_light`,
+`fb_FoxholeSandbags`, `fb_emplacement_m101`. The registry knows **28 parts and 8 of them carry
+work stations**; the other 21 are described in the manifest but have no model yet. **That gap is
+exactly what your three proof pieces fill.**
+
+| phase | what shipped | proof |
+|---|---|---|
+| **P0** | The runtime no longer builds the firebase to read its markers. It was instantiating the whole 5,812-node scene and freeing it just to read ~500 marker origins — **at PLAN time**, before the world existed — and then the world built the same scene again. Two builds per world build, one thrown away. Now baked to `data/world/fsb_markers.json`: **14 named markers, 488 work points, 10 dig-classified.** | `tests/test_fsb_marker_bake.tscn` walks the model fresh and compares — a re-export that moves a marker turns the suite red instead of shipping last week's posts |
+| **P1** | **The `FirebaseCompound` wrapper.** `NavBaker` takes `site.nodes[0]` and pushes exactly ONE collider root, which is right for a single GLB and wrong the moment a part is stamped beside it. A wrapper makes the assumption true again instead of teaching a second system to iterate, and gives the seat one owner. | `tests/test_marker_navmesh.tscn` — **35 posts, 5 further than 1 m from walkable ground, worst 1.19 m**, ratcheted so it can only improve |
+| **P2** | **The tool, the plan format and the consumer.** A plan is part ids + local offsets + a declared flatten profile in JSON — never a composed scene. `SitePlanner.stamp_site_plan()` is the one consumer. | `tests/test_site_plan_roundtrip.tscn` (write → read → stamp → parts land where the plan said) and `tests/test_kit_editor_state.tscn` (place, select, nudge, rotate, delete, undo, refuse-to-save-a-broken-plan) |
+
+**0 SCRIPT ERROR on the definitive headless boot. All five probes green.**
+
+**Why the consumer shipped before any part:** `gen_firebase.py` refused to ship the kit in July
+because it would be *"24 files with one consumer, which ADR-023 would correctly come for."* The
+parts were never the problem — the missing placer was. Now there is one.
+
+**A door held open, per the other council:** a station's work type is read as a **bare string** out
+of the part manifest and is never checked against any constant in the codebase. A WW1 trench part
+can declare `work_firestep` without anyone editing `site_planner.gd`. `radio` is already in the
+manifest vocabulary.
+
+**NEXT IS P3 AND IT IS YOURS TO LOOK AT FIRST** — the bunker, the HQ and the gate house. I stopped
+before building art against a tool you have not put your hands on.
+
 **THE ARGUMENT, in one line:** a single floating lightbulb in the HQ cannot be moved without
 re-exporting a 43 MB monolith — the same wall that made tonight's one-crate rename need a Blender
 re-export and your permission. **In a kit, a bulb is a placed object.**
