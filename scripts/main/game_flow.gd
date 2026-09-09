@@ -769,6 +769,12 @@ func enter_hub() -> void:
 			push_warning("[ROOF-PROBE] probe_roof_spawn.gd absent in this build")
 		else:
 			world.add_child(roof.new())
+	if args.has("--pen-probe"):
+		var pen: GDScript = load("res://tools/probe_firebase_penetration.gd") as GDScript
+		if pen == null:
+			push_warning("[PEN-PROBE] probe_firebase_penetration.gd absent in this build")
+		else:
+			world.add_child(pen.new())
 	_swap_screen(null)
 	_in_world = true
 	_in_mission = false   # the hub: Esc offers Barracks, SAVE and QUIT TO MENU

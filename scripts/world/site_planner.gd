@@ -1820,6 +1820,9 @@ func _repair_glb_colliders(root: Node3D) -> void:
 ## not stop a 7.62. Everything else on this compound is filled sandbags, earth, timber
 ## or steel, so hard is the default. The TOC is deliberately hard: a firebase TOC is
 ## the most sandbagged structure inside the wire.
+## Last firebase tagging pass, for the penetration probe's ratchet.
+static var fsb_ballistic_report: Dictionary = {}
+
 const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
 	# The hooch WALL. This list has always said "a hootch wall does not stop a 7.62" and
 	# has never covered one: the walls export as fb_hwall_*, not fb_hootch_*, so 242 plywood
@@ -1827,6 +1830,12 @@ const FSB_SOFT_PREFIXES: Array[String] = ["fb_hootch", "fb_gp_tent", "fb_mess",
 	"fb_hwall",
 	"fb_latrine", "fb_supply_dump", "fb_water_point",
 	"fb_burn_barrel", "bwire_card",
+	# The chow hall and the aid station are merged in by a separate tool under names no
+	# prefix here had ever heard of, so a canvas mess tent and a canvas surgical station
+	# stopped rifle rounds. fb_aid_station, the prefix that was MEANT to cover the second
+	# of them, matched nothing at all - the asset had been renamed to medical_complex.
+	"tent_roof_chowhall", "tent_gable_chowhall", "tent_frame_chowhall",
+	"WB_chowhall_backwall", "medical_complex",
 	# The casualty display figures (wounded + medical staff, per-part colliders in
 	# the GLB). A body is flesh: rounds pass through with soft falloff and blasts
 	# reach past it - it must never read as a sandbag wall that gives no hit
@@ -1877,6 +1886,11 @@ func _tag_fsb_ballistics(root: Node3D) -> void:
 			hard_families[fam] = int(hard_families.get(fam, 0)) + 1
 	print("[FSB] ballistic tags: %d soft (tent/hootch/tin, %d casualty-figure parts), %d hard (earth/sandbag/timber)"
 		% [soft_n, figure_n, hard_n])
+	# Published, not just printed: the penetration probe ratchets on these numbers, and a
+	# probe that re-derives them from the same prefix list would only prove the list agrees
+	# with itself.
+	fsb_ballistic_report = {"soft": soft_n, "hard": hard_n, "figures": figure_n,
+		"families": hard_families.keys().size(), "family_names": hard_families.keys()}
 	_report_ballistic_misses(hard_families, hits)
 
 
@@ -1906,6 +1920,11 @@ func _report_ballistic_misses(families: Dictionary, hits: Dictionary) -> void:
 ## Collider name -> the family a contract would be written against: ordinals and the
 ## -colonly suffix stripped. `fb_hwall_042_003-colonly` and `fb_hwall_007` are one family.
 static func _collider_family(nm: String) -> String:
+	# An engine auto-name (@StaticBody3D@20876) carries an instance id, not an identity. Left
+	# alone it would put a fresh "new family" in every run and the ratchet would cry wolf
+	# forever - the failure mode that gets a gate switched off.
+	if nm.begins_with("@"):
+		return "@auto@"
 	var s: String = nm
 	var dash: int = s.rfind("-colonly")
 	if dash > 0:
