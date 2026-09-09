@@ -7,6 +7,13 @@ extends Node
 const WINDOW_S: float = 5.0
 
 var _t: float = 0.0
+## Monotonic wall clock for the window. `_t` is the SUM OF FRAME DELTAS, and Godot CLAMPS
+## the delta it reports: main.cpp will not advance the sim by more than
+## max_physics_steps_per_frame / physics_ticks_per_second in one frame - 8/30 = 266.7ms in
+## this project. A frame that really took 400ms is reported as 266.7ms, so summed deltas
+## UNDER-COUNT elapsed time and the frame rate derived from them is OPTIMISTIC. Measured
+## 2026-09-09: a "5.0s" window by _t was 7.0s by this clock, so 3.8 fps was really 2.7.
+var _wall_t0: int = 0
 var _frames: int = 0
 var _worst_ms: float = 0.0
 var _ms: Array[float] = []
@@ -23,6 +30,12 @@ var _windows: int = 0
 var _raw: FileAccess = null
 var _raw_path: String = ""
 var _frame_id: int = 0
+## Frames in this window drawn while the tree was PAUSED. The demo's end card calls
+## GameManager.pause_game(), and this printer runs PROCESS_MODE_ALWAYS, so it kept printing
+## rows of a frozen scene: 24-28 fps with phys_max 0.2ms and draw calls that never change.
+## Averaging a run that ends on the card published ~15 fps for a 2.7 fps fight. A paused row
+## is not a measurement of the game and must SAY SO rather than rely on the reader knowing.
+var _paused_frames: int = 0
 
 
 func _ready() -> void:
@@ -50,6 +63,7 @@ func _ready() -> void:
 			RenderingServer.get_current_rendering_method(),
 			RenderingServer.get_current_rendering_driver_name()])
 	print("[FPS] texture state: %s" % _texture_state())
+	_wall_t0 = Time.get_ticks_usec()
 	_open_raw()
 
 
@@ -64,7 +78,9 @@ func _open_raw() -> void:
 		push_error("[FPS] could not open %s - THIS RUN KEEPS NO RAW SAMPLES and its "
 			% _raw_path + "percentiles cannot be independently recomputed.")
 		return
-	_raw.store_line("frame,window,frame_ms,gpu_ms,render_thread_ms")
+	## t_usec is the monotonic clock at the END of the frame. Without it, sum(frame_ms)
+	## cannot be checked against real elapsed time, and a clamped delta would be invisible.
+	_raw.store_line("frame,window,t_usec,frame_ms,gpu_ms,render_thread_ms")
 	print("[FPS] raw samples -> %s (absolute: %s)"
 		% [_raw_path, ProjectSettings.globalize_path(_raw_path)])
 
@@ -97,6 +113,8 @@ func _process(delta: float) -> void:
 	_t += delta
 	_frames += 1
 	_frame_id += 1
+	if get_tree().paused:
+		_paused_frames += 1
 	var ms: float = delta * 1000.0
 	_worst_ms = maxf(_worst_ms, ms)
 	_ms.append(ms)
@@ -107,9 +125,10 @@ func _process(delta: float) -> void:
 	if g > 0.0:
 		_gpu_ever = true
 	if _raw != null:
-		_raw.store_line("%d,%d,%.4f,%.4f,%.4f" % [_frame_id, _windows, ms, g, r])
+		_raw.store_line("%d,%d,%d,%.4f,%.4f,%.4f" % [_frame_id, _windows, Time.get_ticks_usec(), ms, g, r])
 	if _t < WINDOW_S:
 		return
+	var wall_s: float = float(Time.get_ticks_usec() - _wall_t0) / 1000000.0
 	var gpu: float = _mean(_gpu)
 	var render_ms: float = _mean(_render)
 	_windows += 1
@@ -134,7 +153,31 @@ func _process(delta: float) -> void:
 	## The acceptance budgets are stated in median/p95/p99 (PERF_IMPLEMENTATION_PLAN, Targets),
 	## so a row of avg + worst could not be judged against its own gate. Percentiles are of
 	## FRAME TIME, so higher is worse and p99 is the tail he feels.
-	print("[FPS] %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | median %.1fms p95 %.1fms p99 %.1fms | scale %.2f | gpu %.2fms (window mean of %d) render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
+	## THE HEADLINE IS THE WALL CLOCK. `sum_delta` is kept beside it only so a clamped window
+	## is visible: when they diverge, delta was capped and the true frame time is WORSE than
+	## the median below, which is itself capped at 266.7ms and cannot report anything slower.
+	if _paused_frames > 0:
+		print("[FPS] WINDOW EXCLUDED - %d of %d frames drawn while PAUSED (end card / pause menu)."
+			% [_paused_frames, _frames]
+			+ " A frozen scene is not a frame rate. %.1f wall fps over %.2fs, NOT GAMEPLAY."
+			% [float(_frames) / maxf(0.001, wall_s), wall_s])
+		var stall_p: String = StallLedger.report(_t * 1000.0)
+		if stall_p != "":
+			print(stall_p)
+		StallLedger.reset_window()
+		if _raw != null:
+			_raw.flush()
+		_t = 0.0
+		_wall_t0 = Time.get_ticks_usec()
+		_frames = 0
+		_paused_frames = 0
+		_worst_ms = 0.0
+		_ms.clear()
+		_gpu.clear()
+		_render.clear()
+		return
+	print("[FPS] %.1f WALL fps (%d frames / %.2fs real; sum_delta said %.2fs) | %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | median %.1fms p95 %.1fms p99 %.1fms | scale %.2f | gpu %.2fms (window mean of %d) render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
+		float(_frames) / maxf(0.001, wall_s), _frames, wall_s, _t,
 		float(_frames) / _t, _worst_ms, _one_percent_low(),
 		_pct(50.0), _pct(95.0), _pct(99.0),
 		get_viewport().scaling_3d_scale,
@@ -147,7 +190,7 @@ func _process(delta: float) -> void:
 		int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
 		int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)),
 		int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))])
-	var stall: String = StallLedger.report()
+	var stall: String = StallLedger.report(_t * 1000.0)
 	if stall != "":
 		print(stall)
 	StallLedger.reset_window()
@@ -159,7 +202,9 @@ func _process(delta: float) -> void:
 	if _raw != null:
 		_raw.flush()
 	_t = 0.0
+	_wall_t0 = Time.get_ticks_usec()
 	_frames = 0
+	_paused_frames = 0
 	_worst_ms = 0.0
 	_ms.clear()
 	_gpu.clear()

@@ -78,6 +78,13 @@ static var _worst_idle_excl: Dictionary = {}
 static var _phys_steps: int = 0
 static var _phys_total_us: int = 0
 static var _stalls: int = 0
+## Wall clock at the first begin and the last end of the window's physics steps. The sum of
+## the spans and the elapsed wall between the first and last step answer different questions,
+## and comparing them says WHICH clock is wrong when they disagree: spans > elapsed means a
+## begin() was skipped and spans overlap; elapsed > window means the frame delta is clamped
+## and the reported frame rate is optimistic.
+static var _phys_first_us: int = 0
+static var _phys_last_us: int = 0
 
 ## The MOST RECENT step, not the worst. A live overlay needs this frame's own script span
 ## in the SAME time base as the per-frame buckets printed beside it; the worst-step figures
@@ -145,12 +152,15 @@ static func physics_frame_begin() -> void:
 	_step.clear()
 	_step_excl.clear()
 	_phys_t0 = Time.get_ticks_usec()
+	if _phys_steps == 0:
+		_phys_first_us = _phys_t0
 
 
 static func physics_frame_end() -> void:
 	if not _on:
 		return
-	var dt: int = Time.get_ticks_usec() - _phys_t0
+	_phys_last_us = Time.get_ticks_usec()
+	var dt: int = _phys_last_us - _phys_t0
 	_last_phys_us = dt
 	_phys_steps += 1
 	_phys_total_us += dt
@@ -215,7 +225,7 @@ static func _rank_step(d: Dictionary, e: Dictionary, limit: int) -> String:
 
 ## The window report. Every number here is measured by this file, per frame, in the
 ## caller's own time base - none of it is a Performance monitor bucket-max.
-static func report() -> String:
+static func report(window_ms: float = 0.0) -> String:
 	if not _on:
 		return ""
 	var mean_phys: float = (float(_phys_total_us) / float(maxi(1, _phys_steps))) / 1000.0
@@ -236,6 +246,20 @@ static func report() -> String:
 			_rank_step(_worst_idle_causes, _worst_idle_excl, 6)])
 	lines.append("[STALL] window totals (excl(incl)/worst xN, ranked by EXCL): %s"
 		% _rank(_total, 12))
+	## SELF-CHECK. Physics steps are serial on the main thread, so their spans cannot sum to
+	## more wall time than the window holds. When they do, one of the two clocks is wrong and
+	## NEITHER may be quoted until it is known which. An instrument that cannot detect its own
+	## impossibility is the defect class this file exists to prevent.
+	if window_ms > 0.0:
+		var span_ms: float = float(_phys_total_us) / 1000.0
+		var elapsed_ms: float = float(_phys_last_us - _phys_first_us) / 1000.0
+		lines.append("[STALL] clocks: spans %.0fms | first-to-last step %.0fms | printer window %.0fms"
+			% [span_ms, elapsed_ms, window_ms])
+		if span_ms > window_ms:
+			lines.append("[STALL] INSTRUMENT DISAGREEMENT: physics spans total %.0fms inside a"
+				% span_ms + " %.0fms window (%.0f%%). Serial steps cannot exceed the wall."
+				% [window_ms, 100.0 * span_ms / window_ms]
+				+ " Do not quote the step mean or the frame rate until this is resolved.")
 	return "\n".join(lines)
 
 
@@ -269,5 +293,7 @@ static func reset_window() -> void:
 	_worst_idle_excl.clear()
 	_phys_steps = 0
 	_phys_total_us = 0
+	_phys_first_us = 0
+	_phys_last_us = 0
 	_stalls = 0
 	_stack.clear()

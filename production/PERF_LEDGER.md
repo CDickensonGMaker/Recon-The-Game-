@@ -2501,6 +2501,20 @@ quoted as a per-frame cost, and no fps or GPU figure is published from it.
 | worst physics script step | 22.69 ms | 22.32 ms |
 | `[TreeCover]` print lines per strike | **439** | **5** |
 
+> **CORRECTED 2026-09-09, when `StallLedger` learned to subtract nesting.** Every figure in that
+> table is INCLUSIVE, and `terrain.crater` **calls** `terrain.chunk_rebuild` — the nesting is visible
+> at `:1588` of this file (`terrain.crater 81.6ms -> terrain.chunk_rebuild 81.5ms`). Laid out as a
+> flat table the two rows read as siblings and invite a reader to add them: 122.2 + 121.1 = 243 ms
+> inside a 125.43 ms step, which is impossible.
+>
+> **The crater's OWN work was 122.2 − 121.1 = 1.1 ms.** The heading above — *"Not the trees. Not the
+> VFX. Not the AI. The terrain crater."* — is right that the crater CALL was the frame, and wrong
+> about where the time went inside it. **`terrain.chunk_rebuild` was 121.1 of the 122.2 ms**, and the
+> fix that worked was a chunk-rebuild fix. The distinction matters for the next person deciding what
+> to optimise: there is nothing left to win inside `crater` itself.
+>
+> The instrument now prints `name excl(incl)/worst xN` so this cannot be misread again.
+
 **The root cause, named:** `DamageType.NAPALM` is `radius_cells: 22` (`terrain/systems/damage_system.gd:57`),
 and at the demo's 4 m cell that is an **88 m radius heightmap edit — 176 m across, which always spans
 four 256 m chunks**. `_rebuild_chunks_in_region` rebuilt **all four in one idle frame**, and because

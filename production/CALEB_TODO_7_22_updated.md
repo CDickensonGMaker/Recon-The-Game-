@@ -1976,3 +1976,36 @@ by instruction.**
 - `test_arena_patrol` — delisted from `$Graduated` 2026-07-27 by his ruling; still red, now named.
 - `test_asset_probe` — 6 scale/load failures.
 - `test_fire_support_grant` — routine allotment moves with threat (bombs 0 / arty 1, want 1/1).
+
+## THE SKULL-FACED SNIPER IS A UNIT NOW, AND A FOSSIL TURNED UP NEXT TO HIM (2026-09-09)
+
+**Built: `data/enemies/cow_sniper.tres`** — the comic's sniper as a real enemy unit, derived from the
+wired marksman `data/enemies/nva_marksman.tres`. Model resolves through the only sanctioned route,
+`ModelActor.model_path()` (`scripts/visuals/model_actor.gd:22-30`), which searches each faction folder
+for `<unit_id>.glb` — so `id = "cow_sniper"` finds `assets/nva_vc/characters/cow_sniper.glb` with no
+new code and no second path table.
+
+**He carries the Mosin at 27, NOT the M70 at 87, and that was a decision — overturn it in one line if
+you disagree.** `data/weapons/m70.tres:19` is `base_damage = 87`; against 100 player HP with the ×2.5
+torso multiplier that is 217, a guaranteed one-shot kill at any range with no counterplay. The bible
+has him watch a whole file cross a stream and do nothing (I3 p13) and **take** Gus rather than kill him
+(I3 p22). An instant-kill sniper cannot abduct anybody. His menace is behaviour, not a damage number.
+`data/weapons/mosin.tres` carries no `base_damage` line at all, so it takes the default 27
+(`scripts/weapons/weapon_data.gd:22`) — an absent line is agreement, not a gap.
+
+**Tuned off the pages, each change named:** `preferred_range` 55 -> 70 and `aggression` 0.3 -> 0.15
+(he declines the shot far more often than he takes it), `stealth` 0.8 -> 0.95 ("a silhouette the squad
+never sees"), `max_hp` 75 -> 85 (a veteran, still inside the 65-85 enemy band). `accuracy_modifier`
+stays 0.8 — that field is a SPREAD multiplier where lower is more accurate
+(`scripts/enemies/enemy_data.gd:18`), so 0.8 is a crack shot, which is what he is.
+
+**NOT wired into the spawn pool, deliberately.** `scripts/missions/mission_generator.gd:41` lists the
+enemy types a patrol can roll. He is a named recurring antagonist, not a generic type — dropping him
+into the random pool turns a once-a-run presence into wallpaper and spends the reveal the comic
+withholds for 88 pages. Where he appears belongs with whoever builds his encounter.
+
+**FOSSIL, named not deleted (by instruction): `data/enemies/vc_marksman.tres`.** Nothing loads it —
+`mission_generator.gd:41` loads `nva_marksman.tres` instead — and **the file says so in its own
+description field**: *"DATA AHEAD OF WIRING - no code loads this file; the wired marksman is
+nva_marksman.tres (mission_generator.gd)."* That is the FOSSIL LAW's exact shape: data that reads as
+live and is not. Left in place this wave.

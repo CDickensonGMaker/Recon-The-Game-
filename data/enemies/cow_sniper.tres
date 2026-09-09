@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://dcowsniper001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "cow_sniper"
+display_name = "The Skull-Faced Sniper"
+description = "Burned face, captured helmets on his lintel, fed by the local VC. Watches far more often than he shoots, and sometimes takes a man instead of killing him."
+max_hp = 85
+move_speed = 4.0
+preferred_range = 70.0
+alert_range = 30.0
+weapon_path = "res://data/weapons/mosin.tres"
+accuracy_modifier = 0.8
+aggression = 0.15
+stealth = 0.95
+color = Color(0.3, 0.32, 0.26, 1)
+flanks = false
+retreats_when_hurt = true
+retreat_hp_threshold = 0.5
+courage = 0.7
+determination = 0.9
+exposure_ramp_time = 1.4
+sprite_faction = "Vietcong and NVA"
+sprite_unit = "cow_sniper"
+sprite_unit_fallback = "vc_guerilla_mosin"
+sprite_weapon = "mosin"

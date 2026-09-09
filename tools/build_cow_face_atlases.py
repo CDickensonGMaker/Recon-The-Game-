@@ -74,9 +74,12 @@ def freckle(a, seed=1967):
     lum = out.mean(axis=2)
     placed = 0
     patches = []
-    for (fx, fy), n, (sxf, syf) in ((CHEEK_L, 9, (0.038, 0.020)),
-                                    (CHEEK_R, 9, (0.038, 0.020)),
-                                    (NOSE_BRIDGE, 5, (0.026, 0.012))):
+    # These counts and sigmas are THE VERSION CALEB APPROVED. A sparser, lower-contrast
+    # variant exists in the history and was never put in front of him - do not quietly
+    # substitute it. He ruled on what he saw.
+    for (fx, fy), n, (sxf, syf) in ((CHEEK_L, 15, (0.045, 0.030)),
+                                    (CHEEK_R, 15, (0.045, 0.030)),
+                                    (NOSE_BRIDGE, 8, (0.030, 0.018))):
         cx, cy = fx * w, fy * h
         patch = lum[int(cy - syf * h * 2):int(cy + syf * h * 2),
                     int(cx - sxf * w * 2):int(cx + sxf * w * 2)]
@@ -89,7 +92,7 @@ def freckle(a, seed=1967):
     # LOW CONTRAST ON PURPOSE. The bible keeps two motifs apart (section 5): freckles are
     # just a young face, POCKS are contamination. A high-contrast red stipple reads as
     # disease and inverts Gus's arc, which starts ordinary.
-    tint = np.array([0.88, 0.82, 0.79], dtype=np.float32)
+    tint = np.array([0.68, 0.56, 0.52], dtype=np.float32)
     for cx, cy, sx, sy, n in patches:
         for _ in range(n):
             px = int(round(cx + rng.normal(0.0, sx)))
@@ -135,19 +138,27 @@ def build(donor_cell, out_name, do_freckles):
 
 if __name__ == "__main__":
     build(MICHAEL_CELL, "cow_michael_face_cell.png", False)
-    build(GUS_CELL, "cow_gus_face_cell.png", False)   # FRECKLES REMOVED - see the note below
+    build(GUS_CELL, "cow_gus_face_cell.png", True)    # FRECKLES ON - Caleb ruled, see the note below
 
-# FRECKLES: REMOVED, 2026-09-09, deliberately.
-# The bible names "dotted freckles across the cheekbones" as Gus's only facial mark, so
-# they were built and rendered twice. At this texel density they cannot be freckles.
-# Measured: the atlas cell is 130x162 px, and the head samples ~89x124 px of it - the
-# cheek is about 25 px across, so a "dot" is one or two pixels and at any render size
-# above a thumbnail it reads as blotching, not stippling.
-# That is not merely ugly, it is a CANON ERROR. Bible section 5 keeps two motifs apart on
-# purpose - "TWO MOTIFS THAT MUST BE KEPT APART": freckles are just a young face, POCKS
-# sit on the skin and mean contamination, and the nurse's freckles becoming pocks is one
-# of the book's horror beats. A Gus who looks diseased on ARRIVAL inverts his whole arc,
-# which depends on him starting ordinary.
-# So: clean young pale face, no stipple. `pale()` still runs - the gaunt bloodless lift is
-# free and safe. The freckle() code is kept because the author may hand-paint the cell
-# later at a resolution where it works.
+# FRECKLES: REMOVED 2026-09-09, then REINSTATED the same day on CALEB'S RULING:
+# "i felt like the older gus had freckles and it worked better."
+#
+# The measurement that argued for removal was CORRECT and still lost. The atlas cell is
+# 130x162 px and the head samples ~89x124 of it, so a cheek is ~25 px across and a
+# "freckle" is one or two pixels - it cannot be stippling at this density, and at portrait
+# size it reads blotchy. That is a true statement about the texel budget. It is NOT an
+# argument that the freckles should be absent.
+#
+# THE LESSON: a resolution argument tells you a thing is hard to draw, not that it should
+# not be there. Bible section 2 names "dotted freckles across the cheekbones" as the only
+# facial mark Gus and Pierre are given, and the author would rather have a coarse version
+# of the mark that identifies the character than a clean face that does not.
+#
+# The canon risk is real and stays worth watching: bible section 5 keeps POCKS
+# (contamination, they sit on the skin) and FRECKLES (just a young face) deliberately
+# apart, and Gus must start ORDINARY. If a future pass makes him read as diseased on
+# ARRIVAL, that is the thing to fix - by confining and softening the stipple, not by
+# deleting it.
+#
+# The parameters above are exactly what he saw and approved. Do not "improve" them
+# without putting the result in front of him.
