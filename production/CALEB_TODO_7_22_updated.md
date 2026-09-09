@@ -114,6 +114,31 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, TENTH PASS — the dark frame is named, and one ruling stays yours
+
+**The unattributed physics steps are gone.** 107 of 110 this morning -> 28 of 111 after the
+night's spans -> **0 of 6 sampled post-assault windows** with `ai.think` and `ai.execute`
+wrapped. The cost was never hidden — `CombatManager.ai_usec_think` has counted it for months —
+it was never ATTRIBUTED, so the ledger could say how much AI time a frame used but not whether
+THIS frame was one. Measured: `ai.execute` 18,961 calls / 1,576 ms across the run.
+
+**Hooch interiors no longer arrive in one frame.** All 545 shared a single visibility range with
+no fade mode, so the margin was pure hysteresis. Thresholds staggered over 6 m, deterministic per
+prop, so they arrive over ~10 frames of walking.
+
+**YOUR RULING, and the stagger does not settle it.** 545 props, 1,010 surfaces, 43,941 triangles
+inside a 40 m ring. Turning the fade on alpha-dithers them SEE-THROUGH (the ADR-026 opacity
+bug); moving the range out to where a cot is genuinely sub-pixel costs draw calls. The standing
+fix is folding each prop TYPE into one MultiMesh — 1,010 surfaces to ~11 — and that needs the
+bake removed in the same change or every prop doubles. **This is a RENDER cost; the stall ledger
+is script-side and headless cannot see it. Your eyes rule whether the stagger reads better than
+the pop.**
+
+**Not started, and named rather than half-built:** the jungle encounter. It is content, it wants
+authored placement on walkable ground clear of a site stamp, and starting a new authored place
+at the end of this session would be exactly the kind of half-finished thing the register exists
+to prevent.
+
 ### CONDITION 5 — the final clean measurement, 2026-09-09
 
 **Box verified clear at BOTH ends.** 18 post-assault windows, one real breach in the run.
