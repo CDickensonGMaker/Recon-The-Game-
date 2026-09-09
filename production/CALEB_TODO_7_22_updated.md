@@ -1302,6 +1302,35 @@ Ally body parity — every clip already authored and mapped, only the ally calle
 
 ## 2026-09-08 (night) — HIS TWO RULINGS + THE STALL HUNT
 
+### YOUR TWO ROWS FROM "ok do it all", worked 2026-09-09 (night)
+
+**ROW 3 — the 545 firebase interior props. BUILT, headless-verified, one thing waits on your eyes.**
+They are folded into one MultiMesh per type and the baked copies are removed in the same change:
+**545 props -> 69 MultiMeshes, 1,010 surfaces -> 132.** Two things the old note had wrong: they
+share **69** distinct meshes, not the ~11 it guessed, and 1,010 surfaces carry only 5,471
+triangles of unique geometry against 43,941 of copies.
+- The draw distance is measured per type now instead of a flat 40 m guess — each prop is shown
+  out to where it covers two screen pixels. A helmet earns 15 m, a cot 230 m.
+- **PRESS F9 IN GAME TO CYCLE IT** — MEASURED / NEAR (the old 40 m) / FAR. It prints which one
+  it just picked. The right distance is your eye, not arithmetic, so it is a key and not a
+  silent guess.
+- The honest cost: **+67 draw calls (+14%)** against this morning, for a pop that is gone.
+  Counterintuitive detail worth knowing — the fold on its own COSTS 50 of those, because a
+  MultiMesh cannot be frustum-culled per prop the way 545 separate nodes could. What it buys is
+  the range move, which costs +110 calls without it and +17 with it.
+- **No frame or fps number is claimed.** You ruled the bench unrepresentative ("its just terrain
+  with no action so its not really gauging anything") and you were right; it needs re-pointing
+  into the live assault before it is quoted again.
+
+**ROW 6 — the white box in the mortar pit. BLOCKED ON YOU, and the original plan was wrong.**
+`us_fb_ammo_crate_stack-colonly_P2` is NOT a visible prop with a bad name — it is a collision
+proxy sitting exactly on top of the real crate, and the rename I was given would have shipped a
+duplicate solid crate on top of it. Corrected plan: move the `-colonly` to the END of the name,
+which makes the exporter finally strip it, so it ships nothing at all and your blend keeps the
+object. **The write to `firebase_v3.2.blend` was refused by the permission gate three times.**
+Your blend is untouched. It needs you to approve the prompt or allow `blender.exe`; the script is
+ready and waiting at `tools/rename_fb_ammo_crate_colonly.py`. Full detail in `PERF_LEDGER.md`.
+
 ### RULING 1 — ALL PLANTS ARE 3D MODELS. BARBWIRE IS THE ONE EXEMPTION.
 
 His words: *"i'm still!! seeing the 2d billboard plants as the smaller terrain all over the world when I

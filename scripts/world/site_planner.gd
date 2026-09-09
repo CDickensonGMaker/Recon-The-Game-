@@ -1701,7 +1701,6 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	_fsb_seated = true
 	root.global_position = origin
 	_repair_glb_colliders(root)
-	_cull_interior_props(root)
 	_wire_parapet_destructibles(root)
 	_wire_claymores(root, center)
 	# Tower ladders. Built AFTER the root is seated - Ladder caches world positions off the
@@ -1723,6 +1722,9 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	gate_pos.y = _terrain.get_height_at(gate_pos)
 	_stamp_radio(spawn_pos)
 	_stamp_hooch_radios(root)
+	# AFTER the radios, never before: _stamp_hooch_radios reads the eleven fb_int_radio MESH
+	# positions to place the voices, and this removes those meshes.
+	_fold_interior_props(root)
 	_fsb_rect = Rect2(center.x - FSB_HALF.x, center.z - FSB_HALF.y,
 		FSB_HALF.x * 2.0, FSB_HALF.y * 2.0)
 	var site := {"kind": "firebase_main", "center": center, "nodes": [root],
@@ -1767,52 +1769,32 @@ const VEG_COLLIDER_PREFIX: String = "fb_veg_"
 const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX, "fb_sbg_seg_"]
 
 
-## THE INTERIOR PROPS ARE TOO NUMEROUS, not too heavy. Re-counted 2026-09-09 out of
-## fsb_main_v3.glb (tools/probe_interior_pop.gd): 545 `fb_int_` nodes, 1010 surfaces,
-## 43,941 triangles. The 2026-07-30 figures this comment used to carry (178 props / 368
-## surfaces / 11,936 tris) were stale by 3x. Every one of them was drawn from any distance
-## because nothing ever set a range on them.
+## THE INTERIOR PROPS ARE TOO NUMEROUS, not too heavy - and 545 of them are copies of 69
+## things. Counted out of fsb_main_v3.glb (tools/probe_interior_pop.gd, then
+## tools/probe_interior_fold.gd): 545 `fb_int_` nodes, 1,010 surfaces, 43,941 triangles of
+## baked copies, but only **69 distinct meshes** and **5,471 triangles** of unique geometry.
 ##
-## AND CULLING THEM IS NOT FREE - IT POPS. The line below sets a range but never sets
-## visibility_range_fade_mode, so the default DISABLED applies and the margin is pure
-## hysteresis: all 545 appear in a SINGLE FRAME as you close on a hooch. The old claim that
-## "the fade is unobservable" was never measured and is wrong on its own terms - there is no
-## fade to observe. Turning FADE_SELF on is NOT the answer either: it alpha-dithers the mesh
-## and renders the props see-through (the ADR-026 opacity bug). Awaiting a ruling: either the
-## range moves out to where a cot is genuinely sub-pixel and costs calls, or it stays and pops.
-## Folding each prop TYPE into one MultiMesh (1010 surfaces -> ~11) is the standing fix and
-## needs the bake removed in the same change or every prop doubles.
+## They are now folded into one MultiMesh per distinct mesh and the baked nodes are removed
+## (InteriorPropFold, scripts/world/interior_prop_fold.gd) - 1,010 surfaces to 132. That
+## replaces the range cull that used to live here, which set a 40 m range with no fade mode
+## and so landed all 545 in a SINGLE frame. FADE_SELF was never the answer: it alpha-dithers
+## a prop see-through, the ADR-026 opacity bug the Summoner rejected.
+##
+## The range is measured per TYPE now instead of guessed at 40 m for everything, and the 6 m
+## name-derived stagger this file used to carry moved with it: 69 measured thresholds spread
+## the arrival over ~150 m rather than 6 m, each landing while the prop covers two rendered
+## rows or less. See interior_prop_fold.gd for why banding was measured and rejected.
 const INTERIOR_PROP_PREFIX: String = "fb_int_"
-const INTERIOR_CULL_M: float = 40.0
-const INTERIOR_CULL_MARGIN_M: float = 8.0
-## How far the per-prop thresholds are spread. Small on purpose: it must not push a prop far
-## enough out to change the draw-call bill the ruling above is about.
-const INTERIOR_CULL_SPREAD_M: float = 6.0
 
 
-func _cull_interior_props(root: Node3D) -> void:
-	var n_props: int = 0
-	var stack: Array[Node] = [root]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.append(c)
-		var mi := n as MeshInstance3D
-		if mi == null or not String(mi.name).begins_with(INTERIOR_PROP_PREFIX):
-			continue
-		# STAGGER THE THRESHOLD. All 545 shared one range, so they arrived in a SINGLE FRAME
-		# as you closed on a hooch. This does not fade them (FADE_SELF alpha-dithers and
-		# renders a prop see-through - the ADR-026 opacity bug) and it does not move the range
-		# out (that costs draw calls and is his open ruling below). It spreads the SAME
-		# threshold over a few metres of walking, so they arrive over ~10 frames instead of one.
-		# Deterministic in the prop's own name, so the same base always pops the same way
-		# (ADR-010).
-		var jitter: float = float(absi(hash(mi.name)) % 1000) / 1000.0 * INTERIOR_CULL_SPREAD_M
-		mi.visibility_range_end = INTERIOR_CULL_M + jitter
-		mi.visibility_range_end_margin = INTERIOR_CULL_MARGIN_M
-		n_props += 1
-	print("[FSB] %d interior prop(s) culled past %.0f-%.0fm (staggered so they do not all arrive in one frame)"
-		% [n_props, INTERIOR_CULL_M, INTERIOR_CULL_M + INTERIOR_CULL_SPREAD_M])
+func _fold_interior_props(root: Node3D) -> void:
+	var r: Dictionary = InteriorPropFold.apply(root)
+	if int(r.get("props", 0)) == 0:
+		push_warning("[FSB] no %s props in the firebase GLB - nothing folded" % INTERIOR_PROP_PREFIX)
+		return
+	print("[FSB] interior props folded: %d prop(s) -> %d MultiMesh(es), %d surface(s) -> %d, shown to %.0f-%.0fm"
+		% [r["props"], r["meshes"], r["surfaces_before"], r["surfaces_after"],
+			r["near_m"], r["far_m"]])
 
 
 ## EVERY structure in the shipped GLB winds inward - measured 2026-08-02, signed volume is

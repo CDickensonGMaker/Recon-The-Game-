@@ -2079,3 +2079,190 @@ Geometry growth outweighed the texture saving.
 `tools/probe_firebase_cards.gd` **0 card-like** · both `[FSB]` boots green and diffed above ·
 headless boot `--quit-after 300`, **0 SCRIPT ERROR** · `tools/refit_firebase_veg.py` dry run,
 **14/14 groups, max residual 0.0000 m**.
+
+---
+
+## 2026-09-09 (night) — THE 545 INTERIOR PROPS ARE FOLDED. And the bench that priced it was refused.
+
+His ruling on the whole row was "ok do it all". This is the interior-prop half.
+
+### What the props actually are — the standing plan was wrong twice
+
+`site_planner.gd` carried a note saying the fix was "folding each prop TYPE into one MultiMesh
+(1010 surfaces -> ~11)". Measured instead of assumed (`tools/probe_interior_fold.gd`, new):
+
+- **545 `fb_int_` nodes share 69 DISTINCT meshes, not ~11.** The compound ships eleven identical
+  hooch sets, so nearly every prop is one of 69 things.
+- **1,010 surfaces of baked copies carry only 5,471 triangles of unique geometry**, against
+  43,941 triangles of copies — an 8x duplication.
+
+### What shipped
+
+`scripts/world/interior_prop_fold.gd` (new). One MultiMesh per distinct mesh, and **the baked
+nodes are removed in the same call** — detached from the tree and freed, not hidden. That is not
+optional: leaving them draws every prop twice, which is the trap the old note warned about.
+Measured on a real world boot: **`545 prop(s) -> 69 MultiMesh(es), 1010 surface(s) -> 132`**.
+
+**The range is measured now, not guessed.** 40 m for everything was chosen when every prop cost
+its own draw call. Each type is now shown out to the distance at which it covers two rendered
+rows — the same screen error `mesh_lod/lod_change/threshold_pixels` already accepts, reused
+deliberately and **without touching that setting, which is his open ruling.** A helmet earns
+15 m, a cot 230 m. Floor 40 m (never nearer than it shipped), ceiling 230 m
+(`STRUCTURE_VISIBILITY_END` — a prop may never outlive the building around it).
+
+**The staggered arrival is kept and widened.** It was 545 thresholds over 6 m, deterministic in
+each prop's name (ADR-010). It is now 69 measured per-type thresholds spread over ~150 m, with
+the name-derived jitter retained per type, and every one of them lands while the prop covers two
+pixels or less. Banding types further was measured and rejected: with 69 types, 4 bands costs 528
+draw calls and 6 costs 792 against 132 for one — it quadruples the bill to stagger an arrival
+that is already invisible.
+
+**FADE_SELF stayed refused.** It alpha-dithers a prop see-through — the ADR-026 opacity bug.
+
+### THE FOLD DOES NOT PAY FOR ITSELF. It pays for the range move.
+
+This is the counterintuitive result and it is the reason the row is worth reading. Draw calls and
+primitives, four lanes, deterministic (identical across repeat runs):
+
+| lane | interior surfaces | draw calls | primitives |
+|---|---|---|---|
+| A — baked + 40 m (what shipped this morning) | 1,010 | **476** | 223,851 |
+| C — folded + 40 m (the fold, isolated) | 132 | **526** | 240,649 |
+| B — folded + measured 40-230 m (**shipped**) | 132 | **543** | 241,993 |
+| D — baked + measured 40-230 m | 1,010 | **586** | 230,728 |
+
+- **Folding at the same 40 m range COSTS +50 draw calls** (A->C). A MultiMesh gives up per-node
+  frustum culling: 545 nodes cull one at a time, 69 MultiMeshes each span all eleven hooches and
+  draw whole. Surfaces are not the bill when the surfaces were being culled.
+- **The range move costs +110 calls on baked nodes (A->D) and only +17 on folded ones (C->B).**
+  That is what the fold buys, and it is the whole justification for it.
+- **Net against today: +67 calls (+14%) and +18,142 primitives (+8.1%)**, for a pop that is gone.
+- **If the 40 m range is ever restored, the fold must be restored with it or it is a straight loss.**
+
+### THE BENCH WAS REFUSED, AND HE IS RIGHT
+
+His words on `tools/bench_firebase_veg.tscn`: **"cuz its just terrain with no action so its not
+really gauging anything."**
+
+It is the same bug class as ADR-026's founding "+65%" drone shot — a camera and a scene no player
+ever occupies. **No fps or gpu-ms figure from it is reported here, for this row or any other.**
+The table above is draw calls, primitives and surfaces: structural counts that do not depend on
+what else is happening, taken at a fixed camera. What the change FEELS like is **UNMEASURED**.
+
+It also explains the pacing noise recorded earlier tonight: with nothing happening in the scene,
+there were no events for a 1% low to be about, which is why two identical runs moved it 4.6 fps.
+
+**Required before this bench is quoted again:** re-point it to the firebase during the actual
+assault — men fighting, craters, tree breaks live, a player-height camera walking the ground the
+player walks, seeded and repeatable. If a loaded bench still cannot resolve the difference, the
+honest answer is "not measurable under load", not a clean number from an empty base.
+
+### HIS EYES DECIDE THE DISTANCE — press F9
+
+A headless session cannot judge draw distance, so it is not shipped as a silent guess.
+**F9 cycles the interior-prop draw distance** in the running game — MEASURED (2 px, the default)
+-> NEAR (about the retired 40 m) -> FAR (1.5x measured) — and prints what it selected each press.
+`scripts/world/interior_prop_dial.gd`. The boot log names the key:
+`[FSB] interior prop draw distance: press F9 to cycle (MEASURED (2 px, the default))`.
+
+### A THIRD BROKEN INSTRUMENT, caught in the act
+
+`RenderingServer.viewport_get_measured_render_time_gpu` returned a mean of **4,434,311,963 ms**
+for one whole run — the timestamp counter handing back junk. Averaged in silently it destroys the
+column without failing anything. The bench now rejects any sample outside 0-1000 ms and prints how
+many it threw away. Nothing that bench measures can legitimately take a second of GPU time.
+
+### The destructible contract: diffed, and it did not move
+
+The fold creates `fb_int_mm_*` MultiMeshInstance3D nodes and frees the baked MeshInstance3D ones.
+Nothing the contract reads is involved: ballistics reads **collider** names, the navmesh reads
+`CollisionShape3D`, and both are untouched `StaticBody3D` siblings in the flat GLB — a footlocker
+is still solid, still shootable, still in the nav bake. Booted headless (`test_range.tscn`):
+
+`1254 soft / 1181 hard` · `parapet 81 segs, 1 stray adopted, 0 hidden` · `radii 49.4-96.0 m` ·
+`11 bunker, 9 sandbag_stack, 4 tower, 4 bunker_mg` · `86 box hulls replaced` · `1984 concave` —
+**every row identical to the pre-fold boot.**
+
+**And the ordering trap that would have killed the radios.** `_stamp_hooch_radios` reads the
+eleven `fb_int_radio` MESH positions to place the voices, and the fold removes those meshes. The
+fold is called AFTER it for that reason, with the reason written at the call site. Verified:
+`[FSB] radios: 11 hooch set(s) given a voice`.
+
+### Gates
+Headless boot `--quit-after 300`, **0 SCRIPT ERROR** · `test_fossils` **28/28 PASS, no new
+fossils** (the retired `INTERIOR_CULL_M/_MARGIN_M/_SPREAD_M` constants were deleted with the
+system they served, per ADR-023) · contract diff above.
+
+---
+
+## 2026-09-09 (night) — THE WHITE BOX IN THE MORTAR PIT: the premise was wrong, and the fix is BLOCKED on a permission prompt
+
+His ruling authorised renaming `us_fb_ammo_crate_stack-colonly_P2` in the canon blend, on the
+understanding that it was a visible prop whose name had a misplaced suffix.
+
+**IT IS NOT A PROP. It is a collision proxy, and the rename as prescribed would have shipped a
+duplicate solid crate.** Measured read-only in the blend before anything was touched:
+
+| | the offender | its visible twin |
+|---|---|---|
+| name | `us_fb_ammo_crate_stack-colonly_P2` | `us_fb_ammo_crate_stack_P2` |
+| verts / tris | 24 / 12 | 96 / 48 |
+| UV layers | **none** | `UVMap` |
+| materials | **0** | 1, on image `fb_crate.002` |
+| world location | −49.0983, −1.93674, 1.56025 | **identical, distance 0.0000** |
+
+24 verts, 12 tris, no UVs, no material, sitting on its twin's exact AABB: a box hull. **The
+prescribed destination name `us_fb_ammo_crate_stack_P2` was already taken by that twin** — and
+Blender does not refuse a name collision, it appends `.001`, which `make_collision` then strips
+with `base = o.name.split(".")[0]`. The untextured box would have shipped visible AND collected a
+fresh box collider. Strictly worse than today.
+
+**What it actually is:** a collider that escaped the strip. `clear_collision()` matches
+`endswith("-colonly")` or `"-colonly." in name`, and a MIDDLE suffix matches neither — the same
+character-position assumption that defeats Godot's importer and `make_collision`. Three call
+sites, one wrong assumption. It ships today as a Godot-default **white** box, 0.94 x 0.41 x 0.99 m,
+z-fighting the textured crate in the P2 mortar pit — **a candidate for the demo audit's "white
+surfaces on the walked path"**. Its twin is already correctly collided by the generated
+`us_fb_ammo_crate_stack_P2_3338-colonly`.
+
+**The corrected fix, non-destructive:** rename it to `us_fb_ammo_crate_stack_P2-colonly` — suffix
+at the END. `clear_collision()` then finally matches it and removes it from the session before
+export, so it ships *nothing at all*, while the object stays in his blend (the pipeline never
+saves that file). No geometry is deleted from his art source. The mesh datablock goes to
+`fb_ammo_crate_stack_002-colonly` — underscore, not `.002`, because `split(".")[0]` would
+otherwise destroy the marker one level down and recreate this exact bug class.
+
+### BLOCKED — and it needs him, not another attempt
+
+**The write to `firebase_v3.2.blend` was denied by the permission classifier three times.** The
+blend is untouched: mtime `2026-09-06 16:32:14`, size `50,534,041`, verified after every attempt.
+No backups, no `.blend1`, nothing written to that directory.
+
+A relayed instruction is not consent, and a denial is not something to route around. **This lands
+when Caleb approves the prompt or adds a permission rule for `blender.exe`, and not before.**
+
+Script, ready to run unchanged, now preserved in the repo rather than the session scratchpad:
+`tools/rename_fb_ammo_crate_colonly.py`. It asserts both destination names are free before
+assigning, captures a full identity signature and a 14-field inventory and aborts if either
+drifts, asserts the new name satisfies both exporter predicates, and saves with `compress=True`
+(the file is zstd, and `save_mainfile` does not inherit compression in background mode).
+
+**Blend baseline for whoever completes it** — all of it must be unchanged afterwards:
+3,365 objects (2,416 mesh), 565,702 tris, 651,966 verts, 629 mesh datablocks, 281 materials,
+65 images, 24 collections.
+
+**Expected side effects when it does land, so the contract diff is not misread:** GLB nodes
+5,811 -> 5,810 · generated collider indices shift down by one after that object's slot, because
+`make_collision` names them `{base}_{i:03d}-colonly` off `enumerate(sc.objects)` and the orphan
+currently consumes a slot even though it is skipped. Prefixes and families are unaffected, so
+ADR-042 tagging and `firebase_ballistics_baseline.json` (which keys on family names and counts,
+not node names) are safe — but a raw node-name diff will light up, and that is expected, not a
+regression.
+
+**A machine worth adding with it:** assert at export that no exported GLB node contains
+`-colonly` anywhere but at the end of its name. One set comparison over `nodes[].name`. It would
+have caught this in August.
+
+**The GLB was NOT re-exported for this row**, so `fsb_main_v3.glb` still stands at the
+real-model export md5 `e47eba8dd1cca16962c5c05a9f32be06`. There is no hash correction to make
+until the rename lands.

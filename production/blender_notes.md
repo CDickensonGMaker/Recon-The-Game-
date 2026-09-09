@@ -2447,3 +2447,72 @@ it landed in this pass rather than being deferred to a code agent blind to the a
 19/20/21 + 32 + 30 in that priority order. Item 31 specifically: did not render a play-
 distance shot before running out of budget - report it as UNVERIFIED this pass rather than
 assert closure without a picture, per the coordinator's own instruction not to guess.
+
+---
+
+## 2026-09-09 · `us_fb_ammo_crate_stack-colonly_P2` — DO NOT RENAME IT TO `..._P2`. That name is taken.
+
+Authorised to do the source-blend half of FAILURE MODE 9 in `firebase_v3.2.blend` — rename
+`us_fb_ammo_crate_stack-colonly_P2` to `us_fb_ammo_crate_stack_P2` so it stops shipping as a
+visible mesh. **Inspected first, and the rename is wrong. Nothing was changed.**
+
+`us_fb_ammo_crate_stack_P2` **already exists**, at distance 0.0000 from the offender: same
+parent (`US_MC_crate_root_P2`), byte-identical world bbox (x −49.5981..−48.5774,
+y −2.2979..−1.5918, z 1.5602..2.5503). It is the real crate — 96 verts / 48 tris, a `UVMap`,
+material `fb_crate.013` on texture `fb_crate.002`. The offender is 24 verts / **12 tris, no UV
+layer, no material slot at all** — an axis-aligned box hull. It is a COLLIDER sitting exactly on
+its own visible twin. Renaming would have Blender silently mint `us_fb_ammo_crate_stack_P2.001`,
+and `make_collision` splits on `.` for its base name, so the untextured box would then ship
+visible **AND** get a box collider of its own. Strictly worse than the defect.
+
+**Three independent confirmations that it is a stray, not authored art:**
+
+1. **Colliders are not supposed to be in this file.** `gen_firebase_v3.export_firebase()` calls
+   `make_collision()` at export and `clear_collision()` twice around it — the twins are
+   generated, exported and stripped. A `-colonly` object persisted in the artist file is by
+   definition a leftover that escaped the strip.
+2. **`clear_collision()` cannot see it either.** It removes `name.endswith("-colonly")` or
+   `"-colonly." in name`. The middle-suffix name matches neither, so the same character-position
+   assumption that broke `make_collision` also broke the cleanup that should have deleted this
+   object years ago. One wrong assumption, three call sites.
+3. **P1 has no such object.** `MORTAR_PITS_US` holds 57 objects: 28 matched P1/P2 pairs plus
+   exactly one orphan, this one. The P1 pit runs on `us_fb_ammo_crate_stack` alone. The `_P2`
+   suffix landing AFTER `-colonly` is the tell — a duplicate-and-suffix pass over a set that
+   still had a collider twin in it.
+
+**What ships today** (`fsb_main_v3.glb`, 44,647,644 B, 5,811 nodes, exported 11:11 today):
+`us_fb_ammo_crate_stack_P2` + its generated `us_fb_ammo_crate_stack_P2_3338-colonly` — the crate
+is already correctly collided. The orphan `us_fb_ammo_crate_stack-colonly_P2` ships as a mesh
+with `POSITION`/`NORMAL` only, **`material: None`** — i.e. Godot's default **WHITE** box,
+0.94 x 0.41 x 0.99 m, z-fighting the textured crate in the P2 mortar pit at
+(−49.10, −1.94, 1.56). It is a candidate for the demo audit's "white surfaces on the walked
+path". 2,307 of the GLB's 2,308 `-colonly` nodes end with the suffix; this is the only one that
+does not.
+
+**THE FIX IS `us_fb_ammo_crate_stack_P2-colonly` — suffix moved to the END. My first reading of
+this option, that it "hides it but ships a redundant second collider", was WRONG; corrected here
+same day rather than left to drift.** It ships NOTHING. `export_firebase()` calls
+`clear_collision()` **first** (`tools/gen_firebase_v3.py:980`), which removes any scene object
+whose name `endswith("-colonly")`. With the suffix terminal the object is stripped from the live
+session *before* `make_collision()` runs and before the exporter selects anything — so no visible
+mesh and no collider of its own. The visible crate keeps its own generated
+`us_fb_ammo_crate_stack_P2_3338-colonly`. And because **`export_firebase()` never writes the
+blend** (the only `save_as_mainfile` is at `:1191`, inside `main()`, which rebuilds a different
+older firebase), the object stays in the artist's file. Same shipped result as deletion, fully
+reversible, no geometry removed from his source. Deletion is therefore NOT needed.
+
+**Two side effects a contract diff must expect, since the node leaves the export:** total GLB
+nodes 5,811 -> 5,810, and `make_collision` names colliders `{base}_{i:03d}-colonly` off
+`enumerate(sc.objects)`, so every generated collider AFTER this object's slot shifts its index
+down by one. Prefixes and therefore ballistic families are unchanged, and
+`tools/firebase_ballistics_baseline.json` keys on family names and counts, not node names — but a
+raw node-name diff will show that shift and it is expected, not a regression.
+
+**The guard to add**, since a defect without a guard comes back: `reexport_firebase_v3.py`
+should assert, on the exported GLB, that no node contains `-colonly` anywhere but at the end of
+its name. That is a one-line set comparison over `nodes[].name` and it would have caught this in
+2026-08-12 instead of 2026-09-09.
+
+**Lesson, general:** when a rename is prescribed as a fix, check the destination name is FREE
+before you run it. Blender does not refuse a name collision — it appends `.001` and reports
+success, and the operator that "worked" has produced a third name nobody's contract knows.

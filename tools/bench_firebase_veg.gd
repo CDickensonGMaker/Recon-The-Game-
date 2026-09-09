@@ -44,6 +44,8 @@ var _ms: Array[float] = []
 var _calls: float = 0.0
 var _prims: float = 0.0
 var _gpu: float = 0.0
+var _gpu_n: int = 0
+var _gpu_bad: int = 0
 var _n: int = 0
 var _rows: Array[Dictionary] = []
 var _banner: Label = null
@@ -65,6 +67,32 @@ func _ready() -> void:
 		return
 	_fsb = packed.instantiate()
 	add_child(_fsb)
+
+	## `-- --fold-interior` runs InteriorPropFold on the same scene, at the same camera, so the
+	## 545-prop A/B differs by nothing else. The fold is a static on a plain RefCounted for
+	## exactly this reason - the shipping caller is SitePlanner, which would drag the whole
+	## world stack in here and put a live garrison between the two runs.
+	var fold: bool = OS.get_cmdline_user_args().has("--fold-interior")
+	if fold:
+		var r: Dictionary = InteriorPropFold.apply(_fsb as Node3D)
+		print("[FBVEG] interior fold ON: %d prop(s) -> %d MultiMesh(es), %d surface(s) -> %d, %.0f-%.0fm"
+			% [r["props"], r["meshes"], r["surfaces_before"], r["surfaces_after"],
+				r["near_m"], r["far_m"]])
+		## THE DECOMPOSITION LANE. The fold bundles two changes - fewer surfaces, and a range
+		## that moved from a flat 40 m out to a measured 40-230 m. Only this lane separates
+		## them: fold the surfaces, keep the OLD range, and whatever it saves is the fold's own
+		## doing. Without it the two are confounded and neither can be priced.
+		if OS.get_cmdline_user_args().has("--fold-range-40"):
+			var held: int = _hold_folded_range_at_40()
+			print("[FBVEG] range held at the RETIRED 40-46m on %d MultiMesh(es) - fold isolated" % held)
+	elif OS.get_cmdline_user_args().has("--range-measured"):
+		var rr: Dictionary = InteriorPropFold.apply_range_only(_fsb as Node3D)
+		print("[FBVEG] interior fold OFF, MEASURED range on the baked nodes: %d prop(s), %.0f-%.0fm"
+			% [rr["props"], rr["near_m"], rr["far_m"]])
+	else:
+		print("[FBVEG] interior fold OFF: %d prop(s) on the RETIRED 40-46m staggered cull"
+			% _apply_retired_interior_cull())
+	_census_interior(fold)
 
 	## One sun, matching the demo's daylight bearing closely enough to be identical between
 	## the two runs - which is all an A/B needs of it.
@@ -94,6 +122,80 @@ func _ready() -> void:
 		% [get_viewport().scaling_3d_scale, str(get_viewport().get_visible_rect().size)])
 	await get_tree().create_timer(WARMUP).timeout
 	_advance()
+
+
+func _hold_folded_range_at_40() -> int:
+	var n: int = 0
+	var stack: Array[Node] = [_fsb]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		for c in node.get_children():
+			stack.append(c)
+		var mmi := node as MultiMeshInstance3D
+		if mmi == null or not String(mmi.name).begins_with(InteriorPropFold.PREFIX):
+			continue
+		mmi.visibility_range_end = 40.0 + float(absi(String(mmi.name).hash()) % 1000) / 1000.0 * 6.0
+		mmi.visibility_range_end_margin = 8.0
+		n += 1
+	return n
+
+
+## THE CONTROL LANE, AND IT IS A REPRODUCTION, NOT LIVE CODE. This is the interior-prop cull
+## SitePlanner shipped until 2026-09-09 - one 40 m range per prop with a 6 m name-derived
+## stagger and no fade mode - deleted from site_planner.gd when InteriorPropFold replaced it
+## (the fossil law: bury the corpse). It lives on HERE, and only here, because an A/B against
+## "no cull at all" would flatter the fold by measuring it against something that never shipped.
+func _apply_retired_interior_cull() -> int:
+	var n: int = 0
+	var stack: Array[Node] = [_fsb]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		for c in node.get_children():
+			stack.append(c)
+		var mi := node as MeshInstance3D
+		if mi == null or not String(mi.name).begins_with(InteriorPropFold.PREFIX):
+			continue
+		mi.visibility_range_end = 40.0 + float(absi(String(mi.name).hash()) % 1000) / 1000.0 * 6.0
+		mi.visibility_range_end_margin = 8.0
+		n += 1
+	return n
+
+
+## Interior props, counted the same way in both lanes: surfaces are what the draw-call bill is
+## made of, and a MultiMeshInstance3D pays its MESH's surface count once however many instances
+## it carries. Triangles are counted as DRAWN triangles, so the folded lane's shared geometry is
+## not flattered by counting it once.
+func _census_interior(folded: bool) -> void:
+	var nodes: int = 0
+	var surfaces: int = 0
+	var tris: int = 0
+	var stack: Array[Node] = [_fsb]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		for c in node.get_children():
+			stack.append(c)
+		if not String(node.name).begins_with(InteriorPropFold.PREFIX):
+			continue
+		var mesh: Mesh = null
+		var copies: int = 1
+		var mmi := node as MultiMeshInstance3D
+		var mi := node as MeshInstance3D
+		if mmi != null and mmi.multimesh != null:
+			mesh = mmi.multimesh.mesh
+			copies = mmi.multimesh.instance_count
+		elif mi != null:
+			mesh = mi.mesh
+		if mesh == null:
+			continue
+		nodes += 1
+		surfaces += mesh.get_surface_count()
+		for si in mesh.get_surface_count():
+			var arr: Array = mesh.surface_get_arrays(si)
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			tris += ((idx.size() / 3) if idx.size() > 0 else (v.size() / 3)) * copies
+	print("[FBVEG] interior census (%s): %d node(s), %d surface(s), %d drawn triangle(s)"
+		% ["folded" if folded else "baked", nodes, surfaces, tris])
 
 
 ## The census AND the stand, from the same walk. Returns the veg ring's centre at eye height
@@ -180,6 +282,8 @@ func _advance() -> void:
 	_calls = 0.0
 	_prims = 0.0
 	_gpu = 0.0
+	_gpu_n = 0
+	_gpu_bad = 0
 	_n = 0
 
 
@@ -199,7 +303,17 @@ func _process(delta: float) -> void:
 	_ms.append(ms)
 	_calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
 	_prims += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
-	_gpu += RenderingServer.viewport_get_measured_render_time_gpu(_vp)
+	## REJECT A GARBAGE GPU SAMPLE. Caught 2026-09-09: one run reported a mean of
+	## 4,434,311,963 ms - the timestamp counter returning junk for a frame. Averaged in
+	## silently it destroys the column without failing anything, which is the exact shape of
+	## broken instrument this project keeps a register of. Nothing this bench measures can
+	## legitimately take a second of GPU time.
+	var g: float = RenderingServer.viewport_get_measured_render_time_gpu(_vp)
+	if g >= 0.0 and g < 1000.0:
+		_gpu += g
+		_gpu_n += 1
+	else:
+		_gpu_bad += 1
 	_n += 1
 	if _t >= HOLD:
 		_advance()
@@ -215,11 +329,13 @@ func _close_row() -> void:
 		"low1": _one_percent_low(),
 		"calls": _calls / float(_n),
 		"prims": _prims / float(_n),
-		"gpu": _gpu / float(_n),
+		"gpu": _gpu / float(maxi(1, _gpu_n)),
+		"gpu_bad": _gpu_bad,
 	}
 	_rows.append(row)
-	print("[FBVEG] yaw %3.0f | %5.1f avg | worst %6.2fms | 1%% low %5.1f | calls %6.0f | prims %9.0f | gpu %5.2fms"
-		% [row["yaw"], row["avg"], row["worst_ms"], row["low1"], row["calls"], row["prims"], row["gpu"]])
+	print("[FBVEG] yaw %3.0f | %5.1f avg | worst %6.2fms | 1%% low %5.1f | calls %6.0f | prims %9.0f | gpu %5.2fms%s"
+		% [row["yaw"], row["avg"], row["worst_ms"], row["low1"], row["calls"], row["prims"], row["gpu"],
+			("" if _gpu_bad == 0 else " (%d bad gpu sample(s) rejected)" % _gpu_bad)])
 
 
 ## Mean of the worst 1% of frames, as fps - the pacing number, not the throughput one.
