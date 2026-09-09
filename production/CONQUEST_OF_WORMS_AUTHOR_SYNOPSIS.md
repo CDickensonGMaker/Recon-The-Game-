@@ -255,3 +255,60 @@ from the reading above. That convergence is worth trusting when the time comes.
 
 Until then it is **the VIBE, not a feature**: the register the game is made in, informing art
 direction, audio and atmosphere, with no system attached. Nobody starts this without him saying so.
+
+---
+
+# THE ADAPTATION IDEA — the journal as the transition
+
+**His, 2026-09-09, verbatim:**
+
+> "well i was just thinking we could make it where you start in vietnam and youre just living your
+> life, doing the quests and stuff and at some point you get into your cabin and you read this journal
+> and the game teleports you into world war 1"
+
+## Why this is the right answer
+
+It turns the comic's **form** into the game's **mechanic**. The book cuts between two wars in its page
+order; the game cuts between them when the player sits down and opens the journal. Same device, native
+to each medium. Nothing else proposed tonight does that.
+
+**It is diegetic.** No menu, no chapter select, no cutscene seizing the camera. He walks to his own
+bunk and reads a book. The transition IS the object.
+
+**It is legal under Pillar 3, and not narrowly.** He chose to go there, he chose to read it, and he
+could have not. Pillar 3's "never on rails" governs the WORLD — route, order, approach — and his own
+2026-09-09 clarification permits an authored beat inside a quest. This passes the test written into
+that clarification: *could he have walked away?* Yes.
+
+**And it is why the player is Michael.** Michael is the one reading the journal in the comic. The
+player reading it in his bunk is the same act.
+
+## The machinery already exists — this is not a new system
+
+- **The bunk is already there.** The demo opens with him on it: *"You start on the bunk inside the
+  firebase."* The perf walk's own instructions begin "stand, walk out the hooch door."
+- **`sleep_station.gd` and `sleep_screen.gd` exist** in the tree. A station in the hooch that takes him
+  somewhere else is a shape the project already has.
+- **ADR-039 (zones, not streaming) is ACCEPTED CANON and says exactly this**: zones with loading
+  screens are how the game grows, one world builder and one interior builder, *"and it means chunk
+  streaming never has to be written."* A WW1 zone is the case that ADR is for.
+
+So the transition costs almost nothing structurally. **The cost is art**, and it is real: different
+uniforms, weapons, terrain, no jungle. That is the actual question, not the mechanism.
+
+## The two decisions this needs, which are the Summoner's
+
+1. **Do you PLAY Louie, or watch him?** Playing him makes WW1 a second game and multiplies the art.
+   Watching makes it a scene and risks becoming the cutscene Pillar 3 exists to prevent. There is a
+   third option worth measuring: play Louie in short, tight, authored sequences — a trench raid, a
+   shell hole, one patrol — rather than an open AO.
+2. **How much WW1 is there?** A shell hole and a single patrol is a demo. A front is a second game.
+
+## The one beat that must survive whatever is decided
+
+**Louie chooses not to shoot the young German.** That single act causes the skull-faced sniper who
+hunts Michael. If WW1 is playable at all, that moment has to be the player's finger on the trigger —
+and it has to be possible to shoot him, or the choice is scenery.
+
+**What happens if the player DOES shoot him** is the hardest and most interesting question in the whole
+adaptation, and it is nobody's call but the author's.
