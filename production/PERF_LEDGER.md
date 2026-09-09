@@ -1747,3 +1747,30 @@ The card assets are LEFT ON DISK deliberately: `scripts/dev/fps_printer.gd` used
 compression witness, and deleting them mid-A/B would have broken the instrument. The witness is
 repointed to the US kit sheet (17 MB, drawn every frame the squad is on screen); retiring the
 card assets themselves is a separate, reversible cleanup.
+
+### 2026-09-09 — THE SUMMONER'S VERDICT: "overall the game felt more stable tho"
+
+His words, after walking the demo and playing the 45-man assault. **This is the only instrument
+that rules feel** (his own 2026-07-20 law: "No numeric gate — my eyes decide"), and it is the first
+positive verdict since the instrument was repaired.
+
+**IT CANNOT BE ATTRIBUTED TO ONE CHANGE.** Too much landed in one night and no clean A/B was ever
+taken. Recorded honestly as a whole-session verdict, not as evidence for any single fix. Candidates,
+in the order I would bet on them:
+
+1. **VSYNC OFF.** It had been ON in every windowed run this project has ever taken. At 24–35 fps on a
+   60 Hz panel vsync does not smooth anything - it forces every frame to a refresh boundary, so the
+   rate steps 30 -> 20 -> 30 instead of drifting. That IS "unstable" as a felt quality, and it was
+   hiding inside the measurement tool.
+2. **The 0.75 render scale actually reaching the viewport** for the first time since 2026-08-07.
+3. **495 dead monitoring Area3D turned off** - nothing had ever read a hitzone overlap.
+4. **Chunk mesh build off SurfaceTool**: worst chunk 27.0 -> 6.4 ms, worst crater 119.4 -> 80.7 ms.
+5. VRAM texture compression: ~4,147 MB -> 937 MB.
+
+**What this does NOT discharge.** The measured stalls are still there: crater chunk-rebuild at
+80–94 ms and TreeBreakSystem at 66 ms on the physics tick. "More stable" is not "no drops", and the
+1% lows in his own stress walk were still 3.4–3.9 fps on the worst windows. Do not let this verdict
+close the stall work.
+
+**Do not regress this.** Any future change that puts vsync back on by default, or lets PsxLook
+overwrite the render scale again, is undoing the thing he just felt.
