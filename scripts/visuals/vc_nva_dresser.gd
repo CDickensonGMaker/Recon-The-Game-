@@ -182,8 +182,11 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 		pool = FALLBACK_FACES
 	var face: int = int(opts.get("face", pool[rng.randi() % pool.size()]))
 	out["face"] = face
+	StallLedger.begin("dr.face")
 	_set_face(root, face, actor.unit)
+	StallLedger.end()
 
+	StallLedger.begin("dr.rehang")
 	var wants_headgear: bool = bool(opts.get("headgear", true))
 	out["headgear"] = _rehang_headgear(actor, root, rng, opts) if wants_headgear else ""
 	if not wants_headgear:
@@ -194,6 +197,7 @@ static func dress(actor: ModelActor, rng: RandomNumberGenerator,
 	out["pack_variant"] = pack
 	out["chest"] = _rehang_chest(actor, rng, opts)
 	out["belt"] = _rehang_belt(actor, rng, opts)
+	StallLedger.end()
 
 	for key: String in GEAR_TOGGLES:
 		# A hung library pack owns his back; the welded-mesh toggle must not put a
