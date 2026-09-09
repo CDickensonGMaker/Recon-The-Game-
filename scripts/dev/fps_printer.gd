@@ -10,9 +10,19 @@ var _t: float = 0.0
 var _frames: int = 0
 var _worst_ms: float = 0.0
 var _ms: Array[float] = []
+## GPU and render-thread ms sampled EVERY FRAME, not once at report time. The old code read
+## the driver timer a single time per 5 s window and printed that one frame's value as the
+## window's GPU cost - one sample in ~150, quoted as if it described all of them.
+var _gpu: Array[float] = []
+var _render: Array[float] = []
 var _vp_rid: RID = RID()
 var _gpu_ever: bool = false
 var _windows: int = 0
+## Raw per-frame samples, so a summary can be recomputed by someone who does not trust ours.
+## A percentile printed with no way to check it is an assertion, not a measurement.
+var _raw: FileAccess = null
+var _raw_path: String = ""
+var _frame_id: int = 0
 
 
 func _ready() -> void:
@@ -40,6 +50,23 @@ func _ready() -> void:
 			RenderingServer.get_current_rendering_method(),
 			RenderingServer.get_current_rendering_driver_name()])
 	print("[FPS] texture state: %s" % _texture_state())
+	_open_raw()
+
+
+## One CSV per run under user://, never a shared or fixed name: two runs must not overwrite
+## each other and neither may touch his logs. Frame id is monotonic across the whole run so
+## windows can be reassembled in order.
+func _open_raw() -> void:
+	var stamp: String = Time.get_datetime_string_from_system(true).replace(":", "").replace("-", "")
+	_raw_path = "user://perf_raw_%s.csv" % stamp.replace("T", "_")
+	_raw = FileAccess.open(_raw_path, FileAccess.WRITE)
+	if _raw == null:
+		push_error("[FPS] could not open %s - THIS RUN KEEPS NO RAW SAMPLES and its "
+			% _raw_path + "percentiles cannot be independently recomputed.")
+		return
+	_raw.store_line("frame,window,frame_ms,gpu_ms,render_thread_ms")
+	print("[FPS] raw samples -> %s (absolute: %s)"
+		% [_raw_path, ProjectSettings.globalize_path(_raw_path)])
 
 
 ## The log states its own texture compression, so a VRAM-compression A/B cannot be
@@ -69,15 +96,22 @@ func _texture_state() -> String:
 func _process(delta: float) -> void:
 	_t += delta
 	_frames += 1
+	_frame_id += 1
 	var ms: float = delta * 1000.0
 	_worst_ms = maxf(_worst_ms, ms)
 	_ms.append(ms)
+	var g: float = RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid)
+	var r: float = RenderingServer.viewport_get_measured_render_time_cpu(_vp_rid)
+	_gpu.append(g)
+	_render.append(r)
+	if g > 0.0:
+		_gpu_ever = true
+	if _raw != null:
+		_raw.store_line("%d,%d,%.4f,%.4f,%.4f" % [_frame_id, _windows, ms, g, r])
 	if _t < WINDOW_S:
 		return
-	var gpu: float = RenderingServer.viewport_get_measured_render_time_gpu(_vp_rid)
-	var render_ms: float = RenderingServer.viewport_get_measured_render_time_cpu(_vp_rid)
-	if gpu > 0.0:
-		_gpu_ever = true
+	var gpu: float = _mean(_gpu)
+	var render_ms: float = _mean(_render)
 	_windows += 1
 	## `viewport_get_measured_render_time_cpu` is the RENDER THREAD, not the game thread.
 	## Calling it "cpu" hid the render thread's own cost, so part of the frame was
@@ -97,10 +131,14 @@ func _process(delta: float) -> void:
 	## also contains `RenderingServer::sync()` and `RenderingServer::draw()`, so renderer
 	## backpressure was being printed as game-thread cost. **It is deleted, not renamed.**
 	## Honest per-frame script time comes from the [STALL] lines below it.
-	print("[FPS] %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | scale %.2f | gpu %.2fms render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
+	## The acceptance budgets are stated in median/p95/p99 (PERF_IMPLEMENTATION_PLAN, Targets),
+	## so a row of avg + worst could not be judged against its own gate. Percentiles are of
+	## FRAME TIME, so higher is worse and p99 is the tail he feels.
+	print("[FPS] %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | median %.1fms p95 %.1fms p99 %.1fms | scale %.2f | gpu %.2fms (window mean of %d) render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
 		float(_frames) / _t, _worst_ms, _one_percent_low(),
+		_pct(50.0), _pct(95.0), _pct(99.0),
 		get_viewport().scaling_3d_scale,
-		gpu, render_ms,
+		gpu, _gpu.size(), render_ms,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
 		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
@@ -118,10 +156,41 @@ func _process(delta: float) -> void:
 	if _windows == 3 and not _gpu_ever and DisplayServer.get_name() != "headless":
 		push_error("[FPS] gpu ms has read 0.00 for 15s on a windowed run - "
 			+ "the GPU timer is not reporting. Do not quote gpu ms from this log.")
+	if _raw != null:
+		_raw.flush()
 	_t = 0.0
 	_frames = 0
 	_worst_ms = 0.0
 	_ms.clear()
+	_gpu.clear()
+	_render.clear()
+
+
+## Nearest-rank percentile of this window's frame times, in ms. Higher is worse.
+func _pct(q: float) -> float:
+	if _ms.is_empty():
+		return 0.0
+	var sorted: Array[float] = _ms.duplicate()
+	sorted.sort()
+	var i: int = clampi(int(ceil(q / 100.0 * float(sorted.size()))) - 1, 0, sorted.size() - 1)
+	return sorted[i]
+
+
+func _mean(a: Array[float]) -> float:
+	if a.is_empty():
+		return 0.0
+	var t: float = 0.0
+	for v: float in a:
+		t += v
+	return t / float(a.size())
+
+
+func _exit_tree() -> void:
+	if _raw != null:
+		_raw.flush()
+		_raw.close()
+		_raw = null
+		print("[FPS] raw samples closed: %s" % ProjectSettings.globalize_path(_raw_path))
 
 
 ## Frame PACING, not throughput: the mean of the worst 1% of frames, as fps. A run that

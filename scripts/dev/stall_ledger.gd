@@ -38,8 +38,10 @@
 ##                  Print the Godot bucket-maxima BESIDE it to see roughly how much of a
 ##                  step was engine rather than script - but never subtract one from the
 ##                  other and quote the result: they are different time bases.
-##   causes       : named spans a caller opened with begin()/end(), with the worst single
-##                  call and the total, plus a full breakdown OF THE WORST STEP ITSELF.
+##   causes       : named spans a caller opened with begin()/end(), reported BOTH inclusive
+##                  and exclusive of nesting, with the worst single call and a full
+##                  breakdown OF THE WORST STEP ITSELF. Only the exclusive column sums to
+##                  the step; adding a parent to its own child counts the child twice.
 ##
 ## COST WHEN OFF: one static bool test per call. It is off unless --print-fps is passed.
 class_name StallLedger
@@ -50,21 +52,29 @@ const STALL_US: int = 20000  ## 20ms - two thirds of a 30Hz physics budget
 
 static var _on: bool = false
 
-## cause -> accumulated usec over the window (nested causes double-count into parents)
+## cause -> accumulated usec over the window. INCLUSIVE: a parent's total contains its
+## children's. `terrain.crater` calls `terrain.chunk_rebuild`, so reading the two as
+## independent costs double-counts the rebuild and inflates the frame it is blamed for.
 static var _total: Dictionary = {}
+## cause -> the same window, EXCLUSIVE of nested spans: the time spent in THIS cause and
+## not in anything it called. Exclusive figures sum to the step; inclusive ones do not.
+static var _excl: Dictionary = {}
 static var _count: Dictionary = {}
 static var _worst_call: Dictionary = {}
 static var _stack: Array = []
 
 ## Per-step accumulation, snapshotted when a step turns out to be the window's worst.
 static var _step: Dictionary = {}
+static var _step_excl: Dictionary = {}
 static var _phys_t0: int = 0
 static var _idle_t0: int = 0
 
 static var _worst_phys_us: int = 0
 static var _worst_phys_causes: Dictionary = {}
+static var _worst_phys_excl: Dictionary = {}
 static var _worst_idle_us: int = 0
 static var _worst_idle_causes: Dictionary = {}
+static var _worst_idle_excl: Dictionary = {}
 static var _phys_steps: int = 0
 static var _phys_total_us: int = 0
 static var _stalls: int = 0
@@ -106,24 +116,34 @@ static func begin(cause: String) -> void:
 		return
 	_stack.push_back(cause)
 	_stack.push_back(Time.get_ticks_usec())
+	## Third slot: usec this span's CHILDREN consume. end() subtracts it to get exclusive
+	## time and then charges this span's whole duration to its own parent's slot.
+	_stack.push_back(0)
 
 
 static func end() -> void:
-	if not _on or _stack.size() < 2:
+	if not _on or _stack.size() < 3:
 		return
+	var child: int = int(_stack.pop_back())
 	var t0: int = int(_stack.pop_back())
 	var cause: String = String(_stack.pop_back())
 	var dt: int = Time.get_ticks_usec() - t0
+	var excl: int = maxi(0, dt - child)
 	_total[cause] = int(_total.get(cause, 0)) + dt
+	_excl[cause] = int(_excl.get(cause, 0)) + excl
 	_count[cause] = int(_count.get(cause, 0)) + 1
 	_worst_call[cause] = maxi(int(_worst_call.get(cause, 0)), dt)
 	_step[cause] = int(_step.get(cause, 0)) + dt
+	_step_excl[cause] = int(_step_excl.get(cause, 0)) + excl
+	if _stack.size() >= 3:
+		_stack[_stack.size() - 1] = int(_stack[_stack.size() - 1]) + dt
 
 
 static func physics_frame_begin() -> void:
 	if not _on:
 		return
 	_step.clear()
+	_step_excl.clear()
 	_phys_t0 = Time.get_ticks_usec()
 
 
@@ -139,12 +159,14 @@ static func physics_frame_end() -> void:
 	if dt > _worst_phys_us:
 		_worst_phys_us = dt
 		_worst_phys_causes = _step.duplicate()
+		_worst_phys_excl = _step_excl.duplicate()
 
 
 static func idle_frame_begin() -> void:
 	if not _on:
 		return
 	_step.clear()
+	_step_excl.clear()
 	_idle_t0 = Time.get_ticks_usec()
 
 
@@ -157,28 +179,37 @@ static func idle_frame_end() -> void:
 	if dt > _worst_idle_us:
 		_worst_idle_us = dt
 		_worst_idle_causes = _step.duplicate()
+		_worst_idle_excl = _step_excl.duplicate()
 
 
-## Causes sorted by total, "name total/worst xN", top `limit`.
+## Causes ranked by EXCLUSIVE time - the ordering that answers "where did the window go",
+## because exclusive figures sum to the wall and inclusive ones double-count.
+## Printed as "name excl(incl)/worst xN": excl is this cause's own work, incl contains
+## everything it called. `terrain.crater 5.5(19.1)` means 5.5 ms of crater and 13.6 ms of
+## the chunk rebuild it invoked - two numbers that must never be added together.
 static func _rank(d: Dictionary, limit: int) -> String:
 	var keys: Array = d.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool:
-		return int(d[a]) > int(d[b]))
+		return int(_excl.get(a, 0)) > int(_excl.get(b, 0)))
 	var out: PackedStringArray = []
 	for i in range(mini(limit, keys.size())):
 		var k: String = keys[i]
-		out.append("%s %.1f/%.1fms x%d" % [k, float(d[k]) / 1000.0,
+		out.append("%s %.1f(%.1f)/%.1fms x%d" % [k, float(_excl.get(k, 0)) / 1000.0,
+			float(d[k]) / 1000.0,
 			float(_worst_call.get(k, 0)) / 1000.0, int(_count.get(k, 0))])
 	return ", ".join(out) if out.size() > 0 else "nothing instrumented fired"
 
 
-static func _rank_step(d: Dictionary, limit: int) -> String:
+## The worst step's breakdown, in EXCLUSIVE ms, which is the only form that can be summed
+## against the step's own duration. `e` takes the exclusive companion of `d`.
+static func _rank_step(d: Dictionary, e: Dictionary, limit: int) -> String:
 	var keys: Array = d.keys()
 	keys.sort_custom(func(a: String, b: String) -> bool:
-		return int(d[a]) > int(d[b]))
+		return int(e.get(a, 0)) > int(e.get(b, 0)))
 	var out: PackedStringArray = []
 	for i in range(mini(limit, keys.size())):
-		out.append("%s %.1fms" % [keys[i], float(d[keys[i]]) / 1000.0])
+		var k: String = keys[i]
+		out.append("%s %.1f(%.1f)ms" % [k, float(e.get(k, 0)) / 1000.0, float(d[k]) / 1000.0])
 	return ", ".join(out) if out.size() > 0 else "UNATTRIBUTED - no instrumented cause ran in it"
 
 
@@ -198,10 +229,13 @@ static func report() -> String:
 		+ " | %d steps >= %.0fms")
 		% [mean_phys, float(_worst_phys_us) / 1000.0, _phys_steps, _stalls,
 			float(STALL_US) / 1000.0])
-	lines.append("[STALL]   worst physics step was: %s" % _rank_step(_worst_phys_causes, 6))
+	lines.append("[STALL]   worst physics step was: %s   [excl(incl)ms - sum the EXCL column]"
+		% _rank_step(_worst_phys_causes, _worst_phys_excl, 6))
 	lines.append("[STALL] idle script span: WORST %.2fms | worst idle step was: %s"
-		% [float(_worst_idle_us) / 1000.0, _rank_step(_worst_idle_causes, 6)])
-	lines.append("[STALL] window totals: %s" % _rank(_total, 12))
+		% [float(_worst_idle_us) / 1000.0,
+			_rank_step(_worst_idle_causes, _worst_idle_excl, 6)])
+	lines.append("[STALL] window totals (excl(incl)/worst xN, ranked by EXCL): %s"
+		% _rank(_total, 12))
 	return "\n".join(lines)
 
 
@@ -212,14 +246,27 @@ static func count(cause: String) -> int:
 	return int(_count.get(cause, 0))
 
 
+## Window totals for a named cause, for probes that assert on the SHAPE of the nesting.
+## incl contains everything the cause called; excl is its own work. Never add them.
+static func incl_ms(cause: String) -> float:
+	return float(_total.get(cause, 0)) / 1000.0
+
+
+static func excl_ms(cause: String) -> float:
+	return float(_excl.get(cause, 0)) / 1000.0
+
+
 static func reset_window() -> void:
 	_total.clear()
+	_excl.clear()
 	_count.clear()
 	_worst_call.clear()
 	_worst_phys_us = 0
 	_worst_phys_causes.clear()
+	_worst_phys_excl.clear()
 	_worst_idle_us = 0
 	_worst_idle_causes.clear()
+	_worst_idle_excl.clear()
 	_phys_steps = 0
 	_phys_total_us = 0
 	_stalls = 0

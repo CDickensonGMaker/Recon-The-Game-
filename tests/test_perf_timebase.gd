@@ -78,6 +78,30 @@ func _ready() -> void:
 	printer.queue_free()
 	await get_tree().process_frame
 
+	# 4. NESTED SPANS DO NOT DOUBLE-COUNT. The plan names the exact case: `terrain.crater`
+	# calls `terrain.chunk_rebuild`, and reporting them as siblings charges the rebuild twice.
+	# A parent's EXCLUSIVE time must exclude its child; its INCLUSIVE time must contain it.
+	StallLedger.reset_window()
+	StallLedger.begin("probe.parent")
+	_burn_us(4000)
+	StallLedger.begin("probe.child")
+	_burn_us(8000)
+	StallLedger.end()
+	_burn_us(2000)
+	StallLedger.end()
+	var p_in: float = StallLedger.incl_ms("probe.parent")
+	var p_ex: float = StallLedger.excl_ms("probe.parent")
+	var c_in: float = StallLedger.incl_ms("probe.child")
+	var c_ex: float = StallLedger.excl_ms("probe.child")
+	_ok(p_in > c_in, "parent inclusive (%.1f) must contain the child (%.1f)" % [p_in, c_in])
+	_ok(p_ex < p_in, "parent exclusive (%.1f) is not less than its inclusive (%.1f)" % [p_ex, p_in])
+	_ok(absf(c_ex - c_in) < 0.5, "a leaf's exclusive and inclusive must agree (%.1f vs %.1f)" % [c_ex, c_in])
+	# The child is charged to the parent exactly once: parent_excl + child_incl == parent_incl.
+	_ok(absf((p_ex + c_in) - p_in) < 1.0,
+		"parent_excl %.1f + child_incl %.1f != parent_incl %.1f - the child is double-counted"
+		% [p_ex, c_in, p_in])
+	StallLedger.reset_window()
+
 	if _fails.is_empty():
 		print("[TEST perf_timebase] PASS - %d checks" % _checks)
 	else:
@@ -85,3 +109,11 @@ func _ready() -> void:
 			printerr("[TEST perf_timebase] FAIL: %s" % f)
 		printerr("[TEST perf_timebase] FAIL - %d of %d checks failed" % [_fails.size(), _checks])
 	get_tree().quit(0 if _fails.is_empty() else 1)
+
+
+## Spin the clock rather than await: the spans under test are measured in Time.get_ticks_usec
+## and a frame boundary in the middle would add engine time to a number about script time.
+func _burn_us(us: int) -> void:
+	var t0: int = Time.get_ticks_usec()
+	while Time.get_ticks_usec() - t0 < us:
+		pass
