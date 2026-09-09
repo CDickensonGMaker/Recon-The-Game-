@@ -388,10 +388,25 @@ func _extract_and_carve_rivers() -> void:
 	for path in river_paths:
 		_smooth_river_path(path)
 
+	# ONE CUT PER CELL, NOT ONE PER PATH POINT. Consecutive points on a smoothed path sit
+	# well inside each other's reach, so a cell used to be carved once for every nearby
+	# point: intended 1.2m, measured 7.97m mean and 34.19m worst (tools/probe_carve_depth.gd).
+	# The water sheet is seated from the GRADE, so the river ran metres above its own bed.
+	# Depth is accumulated as a per-cell MAXIMUM across every path, then subtracted once.
+	var mask: Dictionary = {}
 	for path in river_paths:
-		_carve_riverbed(path)
-
-	print("[TerrainManager] Carved %d hydrology channels" % river_paths.size())
+		_carve_riverbed(path, mask)
+	var deepest: float = 0.0
+	for key in mask:
+		var d: float = float(mask[key])
+		deepest = maxf(deepest, d)
+		@warning_ignore("integer_division")
+		var nz: int = int(key) / heightmap.size
+		var nx: int = int(key) % heightmap.size
+		heightmap.set_cell(nx, nz,
+			maxf(0.0, heightmap.get_cell(nx, nz) - heightmap.meters_to_norm(d)))
+	print("[TerrainManager] Carved %d hydrology channels, %d cell(s), deepest cut %.2fm (cap %.2fm)"
+		% [river_paths.size(), mask.size(), deepest, CHANNEL_CARVE_DEPTH])
 
 
 ## Smooth a river path with windowed averaging
@@ -411,10 +426,12 @@ func _smooth_river_path(path: Dictionary) -> void:
 	path["points"] = smoothed
 
 
-## Carve riverbed into heightmap (must happen BEFORE chunk mesh generation).
-## Carve radius follows the channel's own hydrology width, so a headwater creek
-## cuts a narrow groove and a trunk river cuts a wide one.
-func _carve_riverbed(path: Dictionary) -> void:
+## Accumulate this path's cut into `mask` (cell key -> METRES, per-cell maximum). It does not
+## touch the heightmap: the caller subtracts once, after every path, or overlapping points
+## carve the same cell over and over. Radius follows the channel's own hydrology width, so a
+## headwater creek cuts a narrow groove and a trunk river cuts a wide one. Must run BEFORE
+## chunk mesh generation.
+func _carve_riverbed(path: Dictionary, mask: Dictionary) -> void:
 	var points: PackedVector2Array = path["points"]
 	var widths: PackedFloat32Array = path["widths"]
 	for i in points.size():
@@ -439,8 +456,7 @@ func _carve_riverbed(path: Dictionary) -> void:
 				if dist_m > reach:
 					continue
 				var falloff: float = 1.0 - smoothstep(half_w, reach, dist_m)
-				var current: float = heightmap.get_cell(nx, nz)
-				var depth_normalized: float = heightmap.meters_to_norm(CHANNEL_CARVE_DEPTH * falloff)
-				heightmap.set_cell(nx, nz, maxf(0.0, current - depth_normalized))
+				var key: int = nz * heightmap.size + nx
+				mask[key] = maxf(float(mask.get(key, 0.0)), CHANNEL_CARVE_DEPTH * falloff)
 
 
