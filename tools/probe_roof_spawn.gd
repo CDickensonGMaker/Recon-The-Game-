@@ -14,6 +14,11 @@ const SETTLE_S: float = 40.0
 ## is the ground, site_planner.gd:1321), and the terrain chunks carry RaycastCollision.
 const GROUND_NAMES: PackedStringArray = [
 	"fb_terrain_mound", "fb_berm_ring", "RaycastCollision", "TerrainChunk",
+	# THE HELIPAD IS A FLOOR. A PSP pad stands ~4m proud of the mound with open air under
+	# it, which is exactly this probe's definition of a roof - and it failed six men on
+	# 2026-09-09 for standing where the resupply Huey had just put them. The two prefixes
+	# are the ones AirTraffic resolves pads by (air_traffic.gd FSB_PAD_PREFIXES).
+	"fb_helipad", "PSPHelipad",
 ]
 ## Clear air under a surface, with another solid floor below it, is a ROOM - so the
 ## surface over it is a roof. Under this a man is on a step, a sandbag or a berm lip.

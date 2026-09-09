@@ -390,7 +390,7 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f ms=%d" % [
 		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size,
 		nav.cell_height, nav.agent_max_climb, bake_ms])
-	_report_roof_misses()
+	_report_roof_misses(nav)
 	if polys == 0:
 		push_error("[NAV] baked region has 0 polygons (box %s, geom %s)" % [box.size, geom])
 		region.queue_free()
@@ -584,11 +584,25 @@ const NAV_ROOF_CULL_PREFIXES: Array[String] = [
 	"fb_gp_tent", "fb_mess", "fb_bunker_mg", "fb_bunker_fighting", "fb_sleeping_bunker",
 	"medical_complex", "WB_chowhall_backwall", "tent_frame_chowhall", "tent_gable_chowhall",
 	"tent_roof_chowhall",
+	# Added 2026-09-09 after asking the BAKED MESH, not the triangle count: the TOC baked 17
+	# walkable polygons above its own roof line and each of the five latrines two or three.
+	# WB_bunker_* is the same naming miss as fb_hwall - a differently-named twin of a family
+	# already on this list.
+	"fb_latrine_i", "fb_toc_i", "WB_bunker_",
 ]
+
+## DELIBERATELY NOT CULLED, so nobody "fixes" them later: fb_tower_i (the towers are fighting
+## positions and Ladder.build_from_markers builds the way up - a man is MEANT to stand there)
+## and fb_bunker_steps (steps are a floor). Both show up in the roof report and both are
+## correct. fb_supply_dump_i and fb_water_point_i were on the suspect list and produce no
+## uncut roof geometry at all.
 ## How far above a structure's own base a surface stops being its floor and starts being its
 ## roof. Bunker interiors sit ~0.97m BELOW grade and their roofs ~3.2m above it, so 1.9m
 ## separates the two with room on both sides.
 const NAV_ROOF_HEIGHT_M: float = 1.9
+## Widest footprint the roof check will judge. Above this the owner is a ring, a trigger
+## volume or the ground itself, and its bounding box says nothing about a roof.
+const ROOF_JUDGE_MAX_M: float = 40.0
 
 
 ## Drop the roof triangles of a monolithic structure while keeping its floor. Returns the
@@ -615,27 +629,92 @@ func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
 		@warning_ignore("integer_division")
 		var over: int = (faces.size() - _cull_above_base(faces, xform).size()) / 3
 		if over > 0:
-			_roof_misses[owner_name] = int(_roof_misses.get(owner_name, 0)) + over
+			# Keep the ROOF PLANE and the XZ footprint, not just a count. A triangle above the
+			# roof line is not proof of a walkable roof - Recast still has to accept its slope,
+			# its winding and the headroom over it - so the honest question is asked of the
+			# BAKED MESH afterwards: are there polygons up there. A count alone cannot answer it.
+			var rec: Dictionary = _roof_misses.get(owner_name, {}) as Dictionary
+			var base_y: float = INF
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for v in faces:
+				var w: Vector3 = xform * v
+				base_y = minf(base_y, w.y)
+				lo.x = minf(lo.x, w.x)
+				lo.y = minf(lo.y, w.z)
+				hi.x = maxf(hi.x, w.x)
+				hi.y = maxf(hi.y, w.z)
+			rec["tris"] = int(rec.get("tris", 0)) + over
+			rec["cut_y"] = minf(float(rec.get("cut_y", INF)), base_y + NAV_ROOF_HEIGHT_M)
+			rec["lo"] = Vector2(minf(float((rec.get("lo", lo) as Vector2).x), lo.x),
+				minf(float((rec.get("lo", lo) as Vector2).y), lo.y))
+			rec["hi"] = Vector2(maxf(float((rec.get("hi", hi) as Vector2).x), hi.x),
+				maxf(float((rec.get("hi", hi) as Vector2).y), hi.y))
+			_roof_misses[owner_name] = rec
 		return faces
 	return _cull_above_base(faces, xform)
 
 
-## Family -> uncut roof triangles, for the report below. Keyed by owner NAME, not prefix:
-## the name is what a fix has to be written against.
+## Owner NAME -> {tris, cut_y, lo, hi} for the report below. Keyed by name, not prefix: the
+## name is what a fix has to be written against.
 var _roof_misses: Dictionary = {}
 
 
-func _report_roof_misses() -> void:
+## Did any of those uncut roofs actually become FLOOR? Asked of the finished mesh, because
+## an uncut triangle is only a candidate - Recast decides. A structure with polygons above
+## its own roof line is a roof a man can be pathed onto deliberately, which is a different
+## defect from the top-down re-seat that put him there by accident.
+func _report_roof_misses(nav: NavigationMesh = null) -> void:
 	if _roof_misses.is_empty():
 		print("[NavBaker] roof cull: every structure with geometry above its roof line is covered")
 		return
 	var names: Array = _roof_misses.keys()
 	names.sort()
 	var total: int = 0
+	var walkable: PackedStringArray = PackedStringArray()
+	var too_big: PackedStringArray = PackedStringArray()
+	var verts: PackedVector3Array = nav.get_vertices() if nav != null else PackedVector3Array()
 	for k in names:
-		total += int(_roof_misses[k])
-	print("[NavBaker] roof cull MISSES: %d structure(s), %d triangle(s) baked as walkable roof - %s"
+		var rec: Dictionary = _roof_misses[k]
+		total += int(rec.get("tris", 0))
+		if nav == null or verts.is_empty():
+			continue
+		var lo: Vector2 = rec.get("lo", Vector2.ZERO)
+		var hi: Vector2 = rec.get("hi", Vector2.ZERO)
+		var cut: float = float(rec.get("cut_y", INF))
+		# A BOUNDING BOX IS ONLY HONEST OVER A BUILDING. The wire ring and the compound-wide
+		# trigger volumes have footprints tens of metres across, so every polygon in the
+		# compound above their cut line falls inside the box and the count is meaningless -
+		# measured 4,871 and 3,181 on the first pass. Judge buildings; name the rest as
+		# unjudgeable rather than reporting a number that is not about a roof.
+		if hi.x - lo.x > ROOF_JUDGE_MAX_M or hi.y - lo.y > ROOF_JUDGE_MAX_M:
+			too_big.append("%s (%.0fx%.0fm)" % [String(k), hi.x - lo.x, hi.y - lo.y])
+			continue
+		var on_roof: int = 0
+		for pi in range(nav.get_polygon_count()):
+			var idx: PackedInt32Array = nav.get_polygon(pi)
+			var above: bool = true
+			for i in idx:
+				var v: Vector3 = verts[i]
+				if v.y < cut or v.x < lo.x or v.x > hi.x or v.z < lo.y or v.z > hi.y:
+					above = false
+					break
+			if above:
+				on_roof += 1
+		if on_roof > 0:
+			walkable.append("%s x%d" % [String(k), on_roof])
+	print("[NavBaker] roof cull MISSES: %d structure(s), %d uncut roof triangle(s) - %s"
 		% [names.size(), total, ", ".join(names)])
+	if nav == null:
+		pass
+	elif walkable.is_empty():
+		print("[NavBaker] ...and NONE of them baked a walkable polygon above its roof line")
+	else:
+		push_warning("[NAVROOF] %d structure(s) have WALKABLE navmesh on the roof: %s"
+			% [walkable.size(), ", ".join(walkable)])
+	if not too_big.is_empty():
+		print("[NavBaker] roof check skipped (footprint too wide to judge by box): %s"
+			% ", ".join(too_big))
 	_roof_misses.clear()
 
 
