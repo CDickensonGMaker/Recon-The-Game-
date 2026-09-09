@@ -31,7 +31,71 @@ Arbiter, not inferred:
 > **The capability is real. The population is empty. And the proposal converts ADR-020's saddest
 > promise into a verb: the war is bigger than you — but you can reach a man with a radio.**
 
-**RATIFIED IN PRINCIPLE.** Recorded as **ADR-043**, POST-DEMO, BUILD NOTHING.
+**RATIFIED IN PRINCIPLE.** Recorded as **ADR-044**, POST-DEMO, BUILD NOTHING.
+*(Drafted as 043; 043 was taken the same day by the firebase council's modular world kit.)*
+
+---
+
+## 0.5 · HE RULED THE TWO BLOCKING CALLS DURING THE COUNCIL — BOTH ANSWERED
+
+> ***"squad is for the demo, but for the main game itll start with the player arriving on a huey with no
+> squad mates but as a new replacement to the firebase."***
+> ***"and than over time and completing missions you earn squad members."***
+> ***"which isnt super historical but it works for the gaming aspect."***
+
+**Call 1 and Call 2 in §5 are closed. The demo keeps its squad. The main game opens solo.**
+
+**The dissent is DISSOLVED, not overruled.** The game-designer lens voted against the entire pivot unless
+the opening squad was *given and taken away*. **Under this ruling there is nothing to take away — the
+squad is never given. The player arrives owed nothing**, which is a stronger opening than a scripted loss
+and needs no authored bereavement to justify it. **The condition is satisfied by the ruling.**
+
+**And the game's opening is now the comic's opening** — a seventeen-year-old who *"by November is a
+replacement in the 101st Airborne"*, arriving where everyone already knows each other. ADR-021's follow
+patrol is what that replacement gets walked out on. **One event, two purposes, no new content.**
+
+### His apology is unnecessary, and the correction is worth more than the concession
+
+**Vietnam ran INDIVIDUAL ROTATION.** Men arrived and left one at a time, not as units. A replacement had
+no standing, and the FNG was avoided *precisely because he got people killed*. **What he had to earn was
+other men's willingness to walk behind him.** That is exactly the mechanic he just described — **not a
+concession to gaming, but the most Vietnam-specific personnel fact of the war, which no other shooter
+builds.**
+
+It is also **this project's own prior finding**: the 2026-09-07 squad-cohesion council named individual
+rotation as Vietnam's real cohesion failure, and this session verified that **Pillar 4 promises men who
+"rotate home" while no rotation clock exists anywhere in `scripts/`.** **His spine is that promise,
+finally built. The apology converts into a pillar.**
+
+**The one genuinely unhistorical part is the BOOKKEEPING** — and §1.5 already refuses counters, because
+there is nothing to count.
+
+> **HANG THE GRANT ON TRUST, NEVER ON A TALLY. A man is not awarded; a man agrees to go out with you.**
+> He gave the shape himself: mission four or five *"just to make sure the player understands the game by
+> that time"* — **that is competence, not a counter.**
+
+### The three things this ruling changes
+
+1. **THE BROKEN SERVO BECOMES THE REWARD CHANNEL.** `vacancies()` → `heli_lift.gd:417` currently flies
+   men in to top the player back to eight — under this ruling **the main game would spend its whole
+   length handing him the men he is supposed to earn.** Fixed, it becomes the delivery mechanism:
+   the set-point stops being `SQUAD_SIZE` and becomes `CampaignState.squad_authorised`. **The bird you
+   arrived on is the bird that brings you your men — one system, not two.**
+   **It is the first thing the ruling breaks, and it moves from a later cleanup to P0-adjacent.**
+2. **A ROTATION CLOCK BECOMES LOAD-BEARING.** Men who can be earned can also go home — Pillar 4's own
+   text, unbuilt since it was written.
+3. **THE RATCHET RULING — two currencies, and only one of them ratchets.**
+   **RANK/REPUTATION (the right to ASK) ratchets and never falls** — ADR-006 Amendment B stands
+   unamended; a demotion would strand the player below his own armory tier.
+   **TRUST (the willingness of men to WALK BEHIND YOU) is spendable, and getting men killed spends it.**
+   You keep the radio tier you earned; you lose the men and the standing that got them, and you earn
+   that back by going out alone again. **Without this the ladder is a ratchet and nothing on it means
+   anything.**
+
+**And the arrival is the home of the onboarding this game does not have.** The 2026-09-07 audit measured
+*no in-game onboarding of any kind*. **A replacement being walked in and shown where things are is
+diegetic, unscripted and refusable** — the one place a no-rails game may legitimately teach. It is also
+where the ladder starts: **a man with no squad and no radio, set down in a base full of both.**
 
 ---
 
@@ -497,11 +561,15 @@ Each verified by the Arbiter against current code (`analysis/measurements.md` §
 
 Put plainly, no file needed to answer (his 2026-07-19 rule):
 
-1. **Does the player start the campaign with NO men?** Everything above follows from this one word. The
-   council found it cheap to build and expensive to get wrong.
-2. **The opening squad — given and taken away, or never given?** *The game designer voted against the
-   whole pivot without it: you spend twenty hours earning back a thing you had on your first afternoon.
-   The alternative is that a player waits twenty hours for a thing he has never seen.*
+1. ~~**Does the player start the campaign with NO men?**~~ **ANSWERED 2026-09-09: yes — he arrives by
+   Huey as a new replacement. The demo keeps its squad.** See §0.5.
+2. ~~**The opening squad — given and taken away, or never given?**~~ **ANSWERED: never given. The
+   dissenting lens's condition is dissolved, not overruled.** See §0.5.
+2b. **NEW, and now the live one: what exactly earns a man?** The grant hangs on **trust, never a tally**
+   — but the ingredients are his to weight: excursions survived · men brought back alive · a failure the
+   radio answered · fire discipline near a ville. **And does a man leaving at the end of his tour cost
+   trust the way a man killed does?** (The council says no — a tour ending is not your fault, and that
+   distinction is most of what makes the rotation clock worth having.)
 3. **Men you ordered to hold a hill and then walked away from: do they hold until they die, or come back
    to you at ~150 m?** Genuinely split council. **This is a felt question, not a reasoned one.**
 4. **Is the aggressive attack allowed to share the trigger** (weapon lowered, held key, cannot fire)?
@@ -589,7 +657,7 @@ ever happens.** That is deliberate. A parked decision that only pays off at the 
 
 ## 8 · THE PARK — how this survives months of silence
 
-**DECIDED:** the ladder is ratified in principle (ADR-043) · the borrowed radio is the differentiator and
+**DECIDED:** the ladder is ratified in principle (ADR-044) · the borrowed radio is the differentiator and
 builds first · no dialogue system · no fifth key · no cursor · no mission counter · orders address the
 element and never a man · the handheld is a second satisfier inside `_radio_check()`, never a bypass ·
 suppression legibility precedes solo · the carrier rule · WW1 is narration until the trench kit exists ·

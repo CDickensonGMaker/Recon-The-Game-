@@ -45,6 +45,13 @@ Full detail in `synthesis.md` §6. Dependency-ordered:
 
 - **C0** Headless probe: stand up a `SquadSystem` with an **empty roster** and tick it. **It does not
   exist**, and the whole pivot rests on a reading of guards rather than an execution (ADR-015).
+- **C0b — PROMOTED BY HIS 2026-09-09 RULING** (*"the main game… no squad mates… a new replacement"* +
+  *"over time and completing missions you earn squad members"*). **`CampaignState.squad_authorised`,
+  read by all four `SQUAD_SIZE` sites AND by `vacancies()` (`squad_roster.gd:206-211`).** Without it
+  `heli_lift.gd:417` flies replacements in to top the player back to eight — **the main game would
+  spend its entire length handing him the men he is supposed to earn.** Fixed, the same servo becomes
+  the **reward channel**: the bird delivers a man when one has been earned. **This is the first thing
+  the ruling breaks; it is no longer a later cleanup.**
 - **C1** Suppression legibility (enemy chatter loses coordination then goes silent) + enemy-VO-as-contact-
   call. **`enemy_reload.wav` is recorded and imported in every `vi_*` set with zero callers.**
 - **C2** The borrowed radio: an RTO in ambient elements · the wordless offer/refusal grammar · element

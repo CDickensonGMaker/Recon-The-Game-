@@ -1,4 +1,4 @@
-# ADR-043: THE PROGRESSION SPINE — you start alone, and you earn the war
+# ADR-044: THE PROGRESSION SPINE — you start alone, and you earn the war
 
 **Date:** 2026-09-09 · **Status:** **ACCEPTED IN PRINCIPLE — POST-DEMO-LAUNCH. BUILD NOTHING.**
 **Decreed by:** the Summoner, in five messages, closing with *"and post demo launch work."*
@@ -9,8 +9,9 @@
 
 > **DRAFT PENDING FILING.** This file lives in the council folder, not in `production/adr/`, because a
 > second council was live in the tracking docs when it was written. **It is filed as
-> `production/adr/ADR-043-the-progression-spine.md` only on the Summoner's word.** Next free number was
-> verified as 043 (042 is the naming-contract bug class).
+> `production/adr/ADR-044-the-progression-spine.md` only on the Summoner's word.**
+> **Numbering:** drafted as 043; **043 was taken the same day by the firebase council's modular world
+> kit**, so this is **044**. Do not cite an "ADR-043 progression spine" — it never existed.
 
 ---
 
@@ -49,6 +50,99 @@ empty.
 ---
 
 ## Decision
+
+### 0 · THE OPENING — RULED BY THE SUMMONER, 2026-09-09, DURING THIS COUNCIL
+
+> ***"squad is for the demo, but for the main game itll start with the player arriving on a huey with no
+> squad mates but as a new replacement to the firebase."***
+
+**The demo keeps its squad, unchanged. The main game opens SOLO — the player arrives by Huey as a new
+replacement at the firebase.**
+
+This ruling **dissolves** the council's single largest open condition rather than overruling it. The
+game-designer lens voted against the whole pivot unless the opening squad was *given and taken away*,
+because a player who waits twenty hours for a thing he has never seen is waiting, not wanting.
+**Under this ruling there is nothing to take away — the squad is never given.**
+
+> **The player arrives owed nothing. That is a stronger opening than a scripted loss, and it needs no
+> authored bereavement to justify it.** The dissenting condition is **satisfied by the ruling, not
+> overridden by it.**
+
+**It is also the comic's own opening.** The bible's premise line has a seventeen-year-old who *"by
+November is a replacement in the 101st Airborne"*, and Michael enters Issue 1 p3 as exactly that — the
+new man arriving where everyone already knows each other. **The game's opening and the book's opening
+are now the same event**, and ADR-021's follow patrol (§4) is what the new replacement is walked out on.
+
+**Three consequences that follow immediately:**
+
+1. **THE ARRIVAL IS THE HOME OF THE ONBOARDING THIS GAME DOES NOT HAVE.** The 2026-09-07 demo audit
+   measured *no in-game onboarding of any kind* — controls surface nowhere, `grep PLAYER_MANUAL` = 0
+   hits. A replacement being walked in and shown where things are is diegetic, unscripted, refusable,
+   and is the one place a hardcore no-rails game may legitimately teach.
+2. **THE ARRIVAL IS WHERE THE LADDER STARTS.** A replacement with **no men and no radio, set down in a
+   base full of both.** Every rung above him is visible from the pad on his first morning. The ladder
+   does not need to be explained; it needs to be seen.
+3. **AND IT BREAKS THE REPLACEMENT BIRD — see §1.1 below. That is the first thing this ruling breaks
+   and it is now P0-adjacent, not a later cleanup.**
+
+### 0.5 · YOU EARN THE MEN — AND HE OWES NO APOLOGY FOR IT
+
+> ***"and than over time and completing missions you earn squad members"*** ·
+> ***"which isnt super historical but it works for the gaming aspect."***
+
+**The second half of that is wrong, and the decree records it as wrong, because the correction is worth
+more than the concession.**
+
+**Vietnam ran INDIVIDUAL ROTATION.** Men arrived and left the line one at a time, on their own clocks,
+not as units. A new replacement had no standing; the FNG was avoided *precisely because he got people
+killed*. **What a replacement actually had to earn was other men's willingness to walk behind him.**
+
+That is the mechanic he just described. **It is not a concession to gaming. It is the single most
+Vietnam-specific personnel fact of the war, and no other shooter builds it.**
+
+**And it is this project's own prior finding.** The 2026-09-07 squad-cohesion council concluded that
+individual rotation was Vietnam's real cohesion failure — and this session verified that **Pillar 4
+promises men who "rotate home" while no rotation clock exists anywhere in `scripts/`** (zero hits for
+`days_left` / `tour_days` / `rotate_home` / `DEROS`). **His progression spine is that promise, finally
+built. The apology converts into a pillar.**
+
+**THE ONE GENUINELY UNHISTORICAL PART IS THE BOOKKEEPING, AND THAT IS THE DESIGN WORK.**
+A mission counter that grants a man is a game ledger — and §2 already refuses counters, because
+`mission_generator.gd:881` emits one mission type and there is nothing to count.
+
+> **HANG THE GRANT ON TRUST, NEVER ON A TALLY. A man is not awarded; a man agrees to go out with you.**
+
+What earns it is competence made visible, not a number: excursions survived · men brought back alive ·
+a demonstrated failure the radio answered · fire discipline near a ville. **He gave the shape himself**
+when he said mission four or five, *"just to make sure the player understands the game by that time"* —
+**that is competence, not a counter.**
+
+**THREE CONSEQUENCES, and the first one turns a defect into a feature:**
+
+1. **THE BROKEN SERVO BECOMES THE REWARD CHANNEL.** `vacancies()` → `heli_lift.gd:417` currently flies
+   replacements in to top the player back up to eight (§1.1). Under this ruling **the replacement bird
+   delivers a man when a man has been EARNED.** The set-point stops being the constant `SQUAD_SIZE` and
+   becomes `CampaignState.squad_authorised`. **One system, not two — and the bird you arrived on is the
+   bird that brings you your men.** *(Still four hand-synced sites plus `vacancies()`; still the first
+   thing the ruling breaks; still P0-adjacent.)*
+2. **A ROTATION CLOCK BECOMES LOAD-BEARING, not optional.** Men who can be earned can also **go home** —
+   which is Pillar 4's own text, unbuilt since it was written. A man leaving at the end of his tour is
+   a loss the player cannot prevent, cannot blame himself for, and must absorb. **That is the war.**
+3. **LOSING A MAN MUST COST THE TRUST THAT WON HIM, OR THE LADDER IS A RATCHET.**
+
+**THE RATCHET RULING, reconciling this with ADR-006 Amendment B** (which made the reputation economy a
+ratchet that never demotes, so a player is never stranded below his own armory tier):
+
+> **TWO CURRENCIES, AND ONLY ONE OF THEM RATCHETS.**
+> **RANK/REPUTATION — the right to ASK — ratchets and never falls** (ADR-006-B stands unamended; a
+> demotion would strand the player below his own armory).
+> **TRUST — the willingness of men to WALK BEHIND YOU — is spendable, and getting men killed spends it.**
+> You do not lose the radio tier you earned. You lose the men, and you lose the standing that got them,
+> and you earn that back by going out alone again.
+
+**Named sacrifice:** a player who loses a squad late is put back down the ladder he has already climbed,
+which some will read as punishment rather than consequence. **It is the price of the ladder meaning
+anything at all** — and it is the same bet ADR-018 already made when it gave squad veterancy teeth.
 
 ### 1 · THE LADDER
 
