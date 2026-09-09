@@ -1939,3 +1939,143 @@ evidence. Same class as the AUDIT-12 leak flake named in `tree_break_system.gd`.
 not grandfathered) · `tools/probe_bullet_damage` (repaired, 4/4) · `tools/probe_crater_veg` ·
 `tools/probe_terrain_collision` · `tools/probe_heightfield_shape` · headless boot `--quit-after 300`,
 **0 SCRIPT ERROR**.
+
+---
+
+## 2026-09-09 (night) — THE FIREBASE BAKE IS REAL 3D TOO. The last cards in the world are gone.
+
+The third and final half of the Summoner's art ruling ("no more 2d terrain cards, or 3d plane
+spliced cards or whatever. all 3d blender models only in game"), barbwire the one exemption
+(`bwire_card` untouched, as decreed). The two runtime halves shipped this morning; this is the
+ART BAKE — ~350 plants baked into `fsb_main_v3.glb` around the treeline ring, which no runtime
+code reaches.
+
+**Discharged:** `tools/probe_firebase_cards.gd` reported `14 flat (card-like), 5 volumetric` in
+the morning and now reports **`0 flat (card-like), 19 volumetric`**.
+
+### What was re-exported, and how the plants found their places
+
+`scatter_veg()` fuses every instance of a species into ONE merged mesh, so the per-instance
+transforms are not stored anywhere in the blend. They are still recoverable EXACTLY, because
+`bmesh.from_mesh()` appends: instance *i* occupies the vertex block `[i*V, (i+1)*V)` where `V`
+is the source card's vertex count. A Umeyama fit per block returns translation, rotation and
+uniform scale.
+
+**Max fit residual across all 349 instances in all 14 groups: 0.0000 m.** That is the whole
+reason this is a swap and not a re-scatter — the real model stands on the card's exact
+transform. `tools/refit_firebase_veg.py` refuses to plant if any block exceeds 1 mm, and
+refuses outright if a merged mesh is no longer N copies in vertex order.
+
+**349 instances**, against the "~360 cards" every prior note guessed. Counted now, per species:
+bush_a 20 · bush_b 21 · bush_c 32 · fern_a 25 · fern_b 27 · fern_c 22 · elephant_grass_a 43 ·
+tall_grass_a 40 · grass_tuft_b 41 · jungle_palm_a1 19 · a2 15 · b1 18 · b3 9 · palm_sapling_a 17.
+
+**No species was invented or substituted.** All 14 real GLBs already existed under the identical
+stem, each imported as a single mesh part (audited on load; the export raises rather than
+substitute). Card and model bounding boxes agree in width and height to the centimetre — the
+card was rendered FROM the model, so scale parity is inherent, not assumed.
+
+**It is an export step, not a blend edit** — the same shape as the `-colonly` twins:
+generated inside `export_firebase()`, exported, undone. The artist's blend still holds the
+cards and is never saved. Reverting the ruling is reverting `tools/refit_firebase_veg.py`.
+
+### THE PRICE. Measured, reported as the cost of his ruling, not argued against it.
+
+Instrument: `tools/bench_firebase_veg.tscn`, 8 fixed yaws from the compound centre at eye
+height, 6 s sampled per yaw, **ship-parity 0.75 render scale asked of the VIEWPORT** (it read
+`0.750` at 1280x720, printed in every run), Forward+, vsync off. It loads the GLB, one sun and
+a fixed camera — NOT `build_patrol_world` — because the firebase bake is a baked asset that
+does not vary with the operation seed, and a live garrison between two runs would be noise in
+an A/B whose whole subject is one asset's geometry. **The cost below is therefore the FULL cost
+of the change, not the fraction that survives into a frame that also holds jungle and men.**
+
+**TWO RUNS PER STATE, because one pair cannot tell a result from noise:**
+
+| | cards run 1 | cards run 2 | real run 1 | real run 2 | resolved? |
+|---|---|---|---|---|---|
+| `fb_veg_` triangles | 28,646 | 28,646 | 93,024 | 93,024 | **+64,378** |
+| `fb_veg_` surfaces | 19 | 19 | 23 | 23 | **+4** |
+| primitives in frame | 167,220 | 167,220 | 231,800 | 231,800 | **+64,580 (+38.6%)** |
+| draw calls | 603 | 603 | 597 | 597 | **−6 — it did not rise** |
+| gpu ms | 7.50 | 7.58 | 7.86 | 7.90 | **+0.34 ms** |
+| mean fps | 105.8 | 104.8 | 100.6 | 101.6 | **−3.7 fps (−3.5%)** |
+| worst frame ms | 14.55 | 15.80 | 16.69 | 15.41 | **NO — ranges overlap** |
+| worst 1% low fps | 73.7 | 69.1 | 67.8 | 72.7 | **NO — ranges overlap** |
+
+**The transferable number is +0.34 ms of frame time.** At the demo's 24–35 fps (28–42 ms) that
+is about **1% of the frame**, and it is well under the ~2.4 ms detectability floor the canopy
+conversion was measured against. The canopy conversion cost +11.9 ms; this one costs +0.34 ms.
+
+**AND THE INSTRUMENT CAUGHT ITSELF.** The first pair alone said "worst 1% low 73.7 -> 67.8, −5.9
+fps" — a headline. The second CARDS run, with nothing changed at all, moved the same figure
+73.7 -> 69.1. **The pacing spread on an unchanged build is 1.25 ms / 4.6 fps, which swallows the
+delta.** Worst-frame and 1%-low are recorded above and deliberately NOT reported as a result.
+A single A/B pair on this bench cannot resolve pacing; mean fps, gpu ms, draw calls and
+primitives are deterministic or near-deterministic and can.
+
+**Draw calls did not rise, and that is the interesting row.** The canopy conversion's bound was
+surfaces (+17% calls). Here surfaces rose by 4 and calls fell by 6 — the merged-per-species bake
+means 349 plants are still 19 nodes, and Godot's mesh LOD (the GLB imports with
+`generate_lods=true`) is picking down the ladder on them.
+
+### The destructible / ballistic contract: measured before AND after, not reasoned about
+
+The naming contract is what makes a mesh shootable and destructible, and a miss ships
+INVULNERABLE and BULLETPROOF with no error (ADR-042). Object names, object count and collision
+class are all unchanged by design — the 14 groups keep their exact `fb_veg_<stem>` names and all
+14 sit in `COL_NONE`, so they emit no collider, before and after. Booted headless both ways
+(`res://scenes/levels/test_range.tscn`, which runs the real `plan_demo_world` ->
+`build_patrol_world`):
+
+| `[FSB]` line | cards | real models |
+|---|---|---|
+| ballistic tags | 1254 soft / 1182 hard | 1254 soft / **1181** hard |
+| box hulls replaced | 86 | 86 |
+| concave forced double-sided | 1985 | **1984** |
+| parapet | 81 segs, 1 stray adopted, 0 hidden | identical |
+| parapet radii | 49.4–96.0 m | identical |
+| structures on the blast bus | 11 bunker, 9 sandbag_stack, 4 tower, 4 bunker_mg | identical |
+
+**The two −1s are one node, and it is a FIX, not a regression.** A control export with the plant
+swap disabled — everything else identical — pinned it: the only node that left is
+`us_fb_ammo_crate_stack-colonly_P2_3339-colonly`, *a collider built for a collider*. That is
+FAILURE MODE 9 in the destructible-export contract, and `make_collision`'s "CONTAINS, not
+endswith" fix (2026-09-09, earlier the same day) correctly stops emitting it. The visible-mesh
+half of that defect is still there and still needs the object renamed in the source blend.
+
+### A STANDING CLAIM RETIRED: the firebase export is no longer byte-for-byte reproducible
+
+`tools/reexport_firebase_v3.py` asserted, with an md5, that open -> export -> shrink rebuilds
+the shipped GLB byte for byte (`6ce1bfbf35bcd9f7b9b090a23d705083`). **It was true for about
+twelve hours.** The control export above — cards, no plant swap, today's code — comes out at
+`e72085a36f935857815aecbf8102434d`, 43,484,240 bytes against 43,485,624, differing by that one
+collider-of-a-collider node. The claim is corrected in place at its source. The pipeline is
+still deterministic; it reproduces ITSELF, not a file exported by older code. **Do not quote a
+stored md5 for this asset — re-derive it.**
+
+### Bytes
+
+Shipped card GLB 43,485,624 -> real-model GLB **44,647,644 (+1.11 MB)**. 14 card sheets left the
+GLB (2.88 MB of PNG) and 2 palm textures entered; materials 155 -> 159, embedded images 42 -> 30.
+Geometry growth outweighed the texture saving.
+
+### Named, not pulled — three follow-ups, none of them a ruling
+
+1. **14 orphaned card sheets, 2.88 MB**, still sit beside the GLB as extracted sidecars
+   (`fsb_main_v3_bush_a.png` and 13 others). Nothing in the GLB references them any more and
+   none of them is in `tools/perf_phase1_set.txt`. A reversible cleanup, deliberately not done
+   in the same change as the export — and NOT the `assets/world/vegetation/cards/` originals,
+   which stay on disk as `scripts/dev/fps_printer.gd`'s compression witness required.
+2. **The merged bake is one AABB per species spanning a ~273 x 210 m ring**, so a group can
+   never be frustum-culled and its LOD is picked on the whole ring's screen size. It cost
+   nothing measurable at 93k tris. If the firebase bake ever grows again, bucketing each species
+   spatially — the same answer `tree_cover_layer` uses at runtime — is the lever, and it does
+   not touch any name the destructible contract reads.
+3. `VEG_GROUPS` in `tools/gen_firebase_v3.py` now names the real models, so a fresh
+   `redress()` bakes real plants from the start. Its `_load_mesh` still takes part one of a
+   multi-part GLB silently; all 14 species are single-part today, so it is not a live defect.
+
+### Gates
+`tools/probe_firebase_cards.gd` **0 card-like** · both `[FSB]` boots green and diffed above ·
+headless boot `--quit-after 300`, **0 SCRIPT ERROR** · `tools/refit_firebase_veg.py` dry run,
+**14/14 groups, max residual 0.0000 m**.

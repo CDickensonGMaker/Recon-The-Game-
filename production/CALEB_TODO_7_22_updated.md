@@ -1312,8 +1312,10 @@ since that works better as cards or whatever"*.
 **Second time he has raised it.** Recorded in law: `ADR-001 Amendment A` (revokes the surviving sprite
 carve-out) and `ADR-026 Amendment D` (supersedes the Part A.2 card ring; kills the canopy card atlas).
 
-**STATUS 2026-09-09: BOTH RUNTIME HALVES ARE BUILT. THE FIREBASE ART BAKE IS NOT, and it is
-bigger than the survey below thought.** Details in `production/PERF_LEDGER.md` 2026-09-09.
+**STATUS 2026-09-09 (night): DONE. ALL THREE HALVES ARE BUILT — the two runtime ones and the
+firebase art bake. There are no vegetation cards left in the live world.** Details in
+`production/PERF_LEDGER.md` 2026-09-09. Measured by `tools/probe_firebase_cards.gd` against the
+re-exported GLB: **`0 flat (card-like), 19 volumetric`**, against 14 flat that morning.
 - DONE — `scripts/world/ground_clutter.gd`: every near-ground layer is a real mesh. He confirmed
   it with his own eyes on 2026-09-09, unprompted: *"i can see the right terrain models on the
   ground now"*.
@@ -1326,13 +1328,31 @@ bigger than the survey below thought.** Details in `production/PERF_LEDGER.md` 2
 - **COSTS FRAMES, HIS RULING OWED.** Worst 1% low 37.2 -> 30.1 fps, gpu 11.89 -> 15.54 ms, draw
   calls +17%, primitives +66% (`tools/bench_canopy.tscn`, 8 fixed yaws, ship parity). Well above
   the detectability floor. Reported as the price of his art ruling, not argued against it.
-- **STILL OPEN — the firebase bake, and the survey UNDERCOUNTED it.** `fsb_main_v3.glb` holds 19
-  merged `fb_veg_` groups; **14 of them are cards** (36–128 tris each; the 5 real ones are the
-  deadwood and stumps at 2,392–12,840 tris) — measured `tools/probe_firebase_cards.gd`. These are
-  baked art around the ~300 m treeline ring, so no code change reaches them: it needs a
-  `tools/gen_firebase_v3.py` re-export. **This, not the canopy, is the last card population in
-  the live world.**
-- Original survey, kept for the pointers:
+- **DONE 2026-09-09 (night) — the firebase bake. The last card population in the live world is
+  gone.** All 14 card groups now carry the real species model. `tools/probe_firebase_cards.gd`
+  on the re-exported GLB: **`0 flat (card-like), 19 volumetric`**.
+  - **Nothing was invented and no species was substituted.** All 14 real GLBs already existed
+    under the identical stem (`bush_a.glb` for `cards/bush_a_card.glb`, and so on), each a
+    single-part, single-or-two-material mesh — audited on load, and the export REFUSES rather
+    than substitute if one is missing.
+  - **The plants stand exactly where the cards stood, and that is measured, not asserted.**
+    `scatter_veg` fuses every instance of a species into ONE mesh, so the per-instance
+    transforms are nowhere in the file — but `bmesh.from_mesh` appends, so instance *i* is the
+    vertex block `[i*V, (i+1)*V)`. A Umeyama fit per block recovers translation, rotation and
+    uniform scale at **max residual 0.0000 m across all 349 instances**
+    (`tools/refit_firebase_veg.py`, which refuses to plant above 1 mm).
+  - **349 instances**, not the "~360" the survey guessed. Now counted.
+  - It is an EXPORT step, not a blend edit — same shape as the `-colonly` twins, generated and
+    undone inside `export_firebase()`. The artist's blend still holds the cards, is never
+    saved, and reverting the ruling is reverting one file.
+  - **THE PRICE — see `production/PERF_LEDGER.md` 2026-09-09 for the full table.** Triangles
+    28,646 -> 93,024 in the `fb_veg_` set; primitives +38.6%; **draw calls did NOT rise** (603
+    -> 597). Frame cost **+0.34 ms GPU and −3.7 fps mean** on an isolated bench running at
+    ~105 fps — about **1% of the shipped demo's frame**, and under the ~2.4 ms floor the canopy
+    work used. The pacing numbers (worst frame, 1% low) are INSIDE this instrument's own
+    run-to-run noise and are NOT reported as a result.
+- Original survey, kept for the pointers (the `gen_firebase_v3.py:529-546` line below is stale:
+  that table now names real models, and `VEG_BAKED_CARDS` beneath it records what was baked):
 - `terrain/vegetation/tree_cover_layer.gd:15,166-169,224-226` — the 40-card far ring, 65–350 m.
 - `scripts/world/ground_clutter.gd:26-35` — 7 of 8 layers are QuadMesh billboards; the 8th is the
   6-tri star-fan `grass_fan.glb`. Second star-fan site: `scripts/levels/gore_lab.gd:201-236`.

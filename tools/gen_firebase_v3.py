@@ -526,22 +526,46 @@ def polar(r, a):
 
 VEG_DIR = r"C:\Users\caleb\RECONgame\assets\world\vegetation"
 
-## Cards for anything leafy (the impostor decree, war room 2026-07-17); logs and stumps stay
-## solid because the player takes cover behind them.
+## REAL MODELS ONLY. The impostor decree (war room 2026-07-17) that put cards in these three
+## leafy rows is SUPERSEDED by the Summoner's art ruling of 2026-09-08 - "no more 2d terrain
+## cards, or 3d plane spliced cards or whatever. all 3d blender models only in game" - recorded
+## as ADR-001 Amendment A and ADR-026 Amendment D. Barbwire is the one exemption and it is not
+## in this table. Logs and stumps were always solid; now everything is.
 VEG_GROUPS = {
     # file list, band as a fraction of the skirt, count, scale range
     "stump":  (["tree_stump.glb"], (-0.05, 0.55), 90, (0.75, 1.45)),
     "log":    (["fallen_log_a.glb", "fallen_log_b.glb", "felled_trunk.glb"],
                (-0.02, 0.62), 46, (0.85, 1.40)),
     "felled": (["felled_tree.glb"], (0.05, 0.55), 16, (0.90, 1.25)),
-    "shrub":  (["cards/bush_a_card.glb", "cards/bush_b_card.glb", "cards/bush_c_card.glb",
-                "cards/fern_a_card.glb", "cards/fern_b_card.glb", "cards/fern_c_card.glb"],
+    "shrub":  (["bush_a.glb", "bush_b.glb", "bush_c.glb",
+                "fern_a.glb", "fern_b.glb", "fern_c.glb"],
                (0.22, 1.10), 150, (0.80, 1.45)),
-    "grass":  (["cards/elephant_grass_a_card.glb", "cards/tall_grass_a_card.glb",
-                "cards/grass_tuft_b_card.glb"], (0.10, 1.20), 130, (0.75, 1.35)),
-    "tree":   (["cards/jungle_palm_a1_card.glb", "cards/jungle_palm_a2_card.glb",
-                "cards/jungle_palm_b1_card.glb", "cards/jungle_palm_b3_card.glb",
-                "cards/palm_sapling_a_card.glb"], (0.72, 1.45), 80, (0.85, 1.30)),
+    "grass":  (["elephant_grass_a.glb", "tall_grass_a.glb", "grass_tuft_b.glb"],
+               (0.10, 1.20), 130, (0.75, 1.35)),
+    "tree":   (["jungle_palm_a1.glb", "jungle_palm_a2.glb", "jungle_palm_b1.glb",
+                "jungle_palm_b3.glb", "palm_sapling_a.glb"], (0.72, 1.45), 80, (0.85, 1.30)),
+}
+
+## The 14 groups the SHIPPED blend was baked with while the table above said cards, and the card
+## each was baked from. This is not history for its own sake: refit_firebase_veg recovers every
+## instance transform by fitting the real model's vertices against blocks of the merged CARD
+## mesh, so it needs to know which card each group is made of. Delete a row and the export
+## refuses rather than shipping that species as quads.
+VEG_BAKED_CARDS = {
+    "bush_a":           "cards/bush_a_card.glb",
+    "bush_b":           "cards/bush_b_card.glb",
+    "bush_c":           "cards/bush_c_card.glb",
+    "fern_a":           "cards/fern_a_card.glb",
+    "fern_b":           "cards/fern_b_card.glb",
+    "fern_c":           "cards/fern_c_card.glb",
+    "elephant_grass_a": "cards/elephant_grass_a_card.glb",
+    "tall_grass_a":     "cards/tall_grass_a_card.glb",
+    "grass_tuft_b":     "cards/grass_tuft_b_card.glb",
+    "jungle_palm_a1":   "cards/jungle_palm_a1_card.glb",
+    "jungle_palm_a2":   "cards/jungle_palm_a2_card.glb",
+    "jungle_palm_b1":   "cards/jungle_palm_b1_card.glb",
+    "jungle_palm_b3":   "cards/jungle_palm_b3_card.glb",
+    "palm_sapling_a":   "cards/palm_sapling_a_card.glb",
 }
 
 
@@ -954,6 +978,12 @@ def export_firebase(glb=None):
     glb = glb or os.path.join(ROOT, "fsb_main_v3.glb")
 
     clear_collision()
+    # The 14 leafy fb_veg_ groups are baked as CARDS in the blend and ship as real models. Like
+    # the -colonly twins this is generated, exported and undone here; the artist's file keeps the
+    # cards. Object names and count do not change, so make_collision's positional collider names
+    # and every prefix contract downstream see exactly what they saw before.
+    import refit_firebase_veg as refit
+    veg_swap = refit.swap_cards_for_models()
     make_collision()
     bpy.context.view_layer.update()
     # ARMATURE joined this set 2026-08-12. Without it the staged crews - the surgery, the
@@ -970,6 +1000,7 @@ def export_firebase(glb=None):
                               export_lights=False, export_extras=False, export_tangents=False)
     size = os.path.getsize(glb) / 1048576.0
     write_mound_manifest(os.path.join(os.path.dirname(glb), MOUND_MANIFEST))
+    refit.restore(veg_swap)
     clear_collision()
     # THE EXPORT DOES NOT WRITE THE ARTIST'S FILE. This used to purge every zero-user
     # mesh/material/image and then save_as_mainfile over the source blend - and zero users

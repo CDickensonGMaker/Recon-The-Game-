@@ -13,8 +13,11 @@ v3.2." The generator's comment at export_firebase() records what happened the la
 and export were confused: "that purge and save is what destroyed the medical complex on
 2026-07-31."
 
-So the shipping GLB has exactly one source - `kit/firebase_v3.2.blend` - and one operation:
-open it, emit the `-colonly` twins, export, strip them again. That is all this does.
+So the shipping GLB has exactly one source - `kit/firebase_v3.2.blend` - and two export-time
+transforms, both generated and undone inside export_firebase(): the `-colonly` twins, and
+(from 2026-09-09) the vegetation swap that plants the real species models where the blend's
+14 baked CARD groups stand. `refit_firebase_veg.py` explains why that is an export step and
+not a blend edit. The blend still holds the cards; the GLB never does.
 
 IT NEVER SAVES THE BLEND. Saving is the artist's call, in Blender, with undo.
 """
@@ -62,9 +65,18 @@ def main():
     # HIS TEXTURE LAW (2026-08-18): no embedded image over 1MB. The BLEND holds the
     # full-size sheets, so every export restores them and the shrink has to run again -
     # that is why a bare re-export comes out ~3.9MB heavier than the file it replaces, and
-    # it is not a defect in the export. With this step the pipeline is EXACTLY reproducible:
-    # on 2026-09-09 open -> export -> shrink rebuilt the shipped GLB byte for byte
-    # (md5 6ce1bfbf35bcd9f7b9b090a23d705083).
+    # it is not a defect in the export.
+    #
+    # THE BYTE-FOR-BYTE CLAIM IS RETIRED, 2026-09-09 (measured, second run of the day).
+    # This used to say open -> export -> shrink rebuilds the shipped GLB byte for byte at
+    # md5 6ce1bfbf35bcd9f7b9b090a23d705083. It did, for about twelve hours. make_collision's
+    # "CONTAINS, not endswith" fix landed the same day and correctly stops emitting a
+    # collider for the collider named us_fb_ammo_crate_stack-colonly_P2 - so a control
+    # re-export with every other change disabled now yields md5
+    # e72085a36f935857815aecbf8102434d, 43,484,240 bytes against the old 43,485,624, with
+    # exactly one node gone: us_fb_ammo_crate_stack-colonly_P2_3339-colonly.
+    # The pipeline is still deterministic; it is reproducible against ITSELF, not against a
+    # file exported by older code. Re-derive the md5 when you need one, never quote this.
     import shrink_oversized_textures as shrink
     glb = os.path.join(v3.ROOT, "fsb_main_v3.glb")
     res = shrink.process(glb, True)

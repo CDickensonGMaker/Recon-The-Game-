@@ -3,6 +3,32 @@
 Everything below is verified absent (or stand-in) as of audit #3. Ordered by impact within each
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 
+## THE FIREBASE PLANT BAKE IS REAL 3D — DONE 2026-09-09 (night). No art needed.
+
+The last card population in the live world. `fsb_main_v3.glb` held 19 merged `fb_veg_` groups,
+**14 of them cards**; it now holds 19 volumetric groups and zero cards
+(`tools/probe_firebase_cards.gd`: `0 flat (card-like), 19 volumetric`). This closes the art half
+of his ruling — "no more 2d terrain cards, or 3d plane spliced cards or whatever. all 3d blender
+models only in game" — whose two runtime halves shipped the same morning. **`bwire_card` and
+`assets/us/props/emplacements/barbwire_card.glb` are untouched, as decreed.**
+
+**Nothing had to be modelled.** All 14 real species GLBs already existed under the identical
+stem in `assets/world/vegetation/`, single-part, sharing the 1 KB `jungle_palette`. The export
+refuses rather than substitute a species if one is ever missing.
+
+**The 349 plants stand exactly where the cards stood.** `scatter_veg` merges every instance of a
+species into one mesh, so the transforms are nowhere in the file — but they are recoverable, and
+`tools/refit_firebase_veg.py` recovers them at **max residual 0.0000 m** by fitting the real
+model against the merged mesh's per-instance vertex blocks. It refuses above 1 mm.
+
+**Where the change lives, for an artist opening the file:** `kit/firebase_v3.2.blend` STILL HOLDS
+THE CARDS and is never saved by the pipeline. The swap is an export-time transform, the same
+shape as the `-colonly` twins — generated in `export_firebase()`, exported, undone. If you
+re-dress from scratch, `VEG_GROUPS` now names the real models, so a fresh bake starts correct.
+
+Cost, gates and the two `[FSB]` contract diffs: `production/PERF_LEDGER.md`, 2026-09-09 (night).
+Headline: **+0.34 ms of frame time, about 1% of the demo's frame, and draw calls did not rise.**
+
 ## MUZZLE POINT MARKERS ON WORLD WEAPONS — added 2026-09-09, needs art not code
 
 His report: "all the muzzle flashes arent correct any more with the gun - they come off the top
