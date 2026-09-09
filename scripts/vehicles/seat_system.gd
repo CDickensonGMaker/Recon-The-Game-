@@ -336,7 +336,7 @@ func _fire_door_gun(side: int) -> void:
 	if side_axis.length() > 0.01:
 		dir = dir.rotated(side_axis, randf_range(-spread, spread)).normalized()
 	CombatManager.bullets.fire(_gun_wd, self, muzzle, dir, GUN_MASK, [self, _vehicle], true)
-	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
+	GunFX.muzzle_flash(get_tree().current_scene, muzzle, false, dir)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, muzzle, 0, 180.0)
 
 

@@ -741,12 +741,16 @@ static func _get_flash_tex() -> GradientTexture2D:
 
 ## Shared muzzle-flame materials - flashes differ by mesh size and roll, NOT by
 ## material; this runs twice per shot, never mint a StandardMaterial3D here.
-static func _muzzle_mat(key: String, tex_rel: String) -> StandardMaterial3D:
+static func _muzzle_mat(key: String, tex_rel: String, billboard: bool = true) -> StandardMaterial3D:
 	if _fx_res_cache.has(key):
 		return _fx_res_cache[key]
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	# BILLBOARD_ENABLED rebuilds the basis from the camera every frame and DISCARDS the
+	# node's own rotation, so a billboarded quad can never point down a barrel. The round
+	# CORE keeps it - that is the telegraph, and ADR-026 A.1 says the POP must read from
+	# every angle. The flame SPIKE must not: it is the part that says "out of the barrel".
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED if billboard else BaseMaterial3D.BILLBOARD_DISABLED
 	mat.albedo_texture = _fx_tex(tex_rel)
 	mat.albedo_color = Color(1.0, 0.82, 0.45)
 	mat.emission_enabled = true
@@ -796,7 +800,13 @@ static func observed_muzzle_ms() -> float:
 	return maxf(FLASH_SECONDS, MUZZLE_OBSERVED_SECONDS * bench_muzzle_mult) * 1000.0
 
 
-static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false) -> void:
+## `bore` is the direction the barrel is POINTING, in world space. Zero means "unknown",
+## and then the spike falls back to the old screen-space roll. His report 2026-09-08: "the
+## muzzle flashes come off the top of the gun and go up instead of coming out the barrel
+## and going outward" - this function had no direction parameter at all, so there was no
+## orientation code to regress. There is now.
+static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false,
+		bore: Vector3 = Vector3.ZERO) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
 	SpawnLedger.note("muzzle_flash")
@@ -821,8 +831,15 @@ static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false) ->
 	var spike_mesh := QuadMesh.new()
 	spike_mesh.size = Vector2(1.0, 0.28) * size_jitter
 	spikes.mesh = spike_mesh
-	spikes.material_override = _muzzle_mat("muzzle_spike_mat", "particles/muzzle_01")
-	spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
+	var aimed: Basis = _bore_basis(bore, pos, parent)
+	if aimed != Basis.IDENTITY:
+		# The quad is 1.0 x 0.28: its LONG axis is local X, so X is laid along the bore and
+		# the flame leaves the barrel pointing where the barrel points.
+		spikes.material_override = _muzzle_mat("muzzle_spike_mat_aimed", "particles/muzzle_01", false)
+		spikes.basis = aimed
+	else:
+		spikes.material_override = _muzzle_mat("muzzle_spike_mat", "particles/muzzle_01")
+		spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
 	root.add_child(spikes)
 
 	## maxf keeps the fairness floor intact even if the bench knob is turned down.
@@ -831,6 +848,30 @@ static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false) ->
 	_expire(root, life, func() -> void:
 		_active_flashes -= 1
 		root.queue_free())
+
+
+## Lay a quad's long axis (local X) down the bore and roll it to face the viewer, so a
+## non-billboarded spike still presents its face instead of vanishing edge-on. Returns
+## IDENTITY when there is no usable direction, and the caller keeps the old billboard.
+static func _bore_basis(bore: Vector3, pos: Vector3, parent: Node) -> Basis:
+	if bore.length_squared() < 0.0001:
+		return Basis.IDENTITY
+	var x: Vector3 = bore.normalized()
+	var to_eye := Vector3.ZERO
+	var vp: Viewport = parent.get_viewport() if parent != null and parent.is_inside_tree() else null
+	var cam: Camera3D = vp.get_camera_3d() if vp != null else null
+	if cam != null:
+		to_eye = cam.global_position - pos
+	if to_eye.length_squared() < 0.0001:
+		to_eye = Vector3.UP
+	var z: Vector3 = to_eye - x * to_eye.dot(x)
+	if z.length_squared() < 0.0001:
+		# Dead head-on: any perpendicular will do, the quad reads as a dot either way.
+		z = x.cross(Vector3.UP)
+		if z.length_squared() < 0.0001:
+			z = x.cross(Vector3.RIGHT)
+	z = z.normalized()
+	return Basis(x, z.cross(x).normalized(), z)
 
 
 ## Big-gun muzzle blast: the 8-frame muzzle_flash_sheet played once, additive.

@@ -361,7 +361,7 @@ func _fire_strafe_burst() -> void:
 			+ _run_dir * randf_range(-STRAFE_SPREAD_M, STRAFE_SPREAD_M)
 		var dir: Vector3 = ((aim + scatter) - muzzle).normalized()
 		CombatManager.bullets.fire(_strafe_wd, self, muzzle, dir, STRAFE_MASK, [self], true)
-	GunFX.muzzle_flash(get_tree().current_scene, muzzle)
+	GunFX.muzzle_flash(get_tree().current_scene, muzzle, false, _run_dir)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, aim, 0, 160.0)
 
 

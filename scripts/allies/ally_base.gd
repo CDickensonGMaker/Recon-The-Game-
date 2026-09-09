@@ -2196,7 +2196,7 @@ func _fire_at_target() -> void:
 	var fx_origin: Vector3 = get_muzzle_visual(final_aim)
 	NoiseBus.emit_noise(NoiseBus.NoiseType.GUNSHOT, origin, 0)
 	GunFX.play_shot_3d(get_tree().current_scene, fx_origin, weapon_data)
-	GunFX.muzzle_flash(get_tree().current_scene, fx_origin)
+	GunFX.muzzle_flash(get_tree().current_scene, fx_origin, false, final_aim)
 	_fired_until_ms = float(Time.get_ticks_msec()) + 350.0
 	var show_tracer: bool = weapon_data.tracer_ratio > 0 \
 		and (shots_fired % weapon_data.tracer_ratio) == 0

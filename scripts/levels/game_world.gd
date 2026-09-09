@@ -223,7 +223,7 @@ func _warm_effects() -> void:
 	var pos: Vector3 = cam.global_position + fwd * 60.0
 	pos.y = terrain_manager.get_height_at(pos) + 1.2
 	root.global_position = pos
-	GunFX.muzzle_flash(root, pos)
+	GunFX.muzzle_flash(root, pos, false, fwd)
 	GunFX.impact(root, pos, Vector3.UP, false)
 	GunFX.impact(root, pos, Vector3.UP, true)
 	GunFX.blood(root, pos, Vector3.UP, fwd, null)

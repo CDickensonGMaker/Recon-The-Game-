@@ -710,7 +710,7 @@ func _fire_shot() -> void:
 	## viewmodel=true: the FIRED flash stays at its tuned size. Only the OBSERVED
 	## flash (other shooters, GunFX.MUZZLE_OBSERVED_SCALE) is exaggerated for jungle
 	## readability — scaling this one blinds the player and wrecks ADS.
-	GunFX.muzzle_flash(get_tree().current_scene, flash_pos, true)
+	GunFX.muzzle_flash(get_tree().current_scene, flash_pos, true, final_dir)
 	_punch = 1.0
 
 	# SUPPRESSION: every shot that snaps past a man pushes him down. Bullets use the
