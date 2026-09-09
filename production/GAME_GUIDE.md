@@ -32,6 +32,14 @@ DLC forks (Bible 05).
 2. **Atmosphere** — dense jungle, weather, night, audio. The AO feels like a war is happening around you.
 3. **Freedom** — open AO; objectives are places/things in the world; any route, any order, loud or quiet.
    Stealth is an economy, never a gate. Nothing is on rails. Ever.
+   - **CLARIFICATION, Summoner, 2026-09-09** (his words: *"with the rpg progress were going to move for,
+     there is going to be some 'rail moments' but thsoe will relate to the quests"*). Pillar 3's "never"
+     governs the **WORLD**: how he reaches a place, in what order, by which route, loud or quiet. It does
+     **not** forbid an authored moment inside a **QUEST**. A quest may stage a scripted beat; the world
+     around it may not become a corridor. **The test: could he have walked away, or arrived another way,
+     or not taken this quest at all?** If yes, the rail is legal. If the AO itself has narrowed, it is not.
+     Not yet a formal amendment — a council is owed when the quest system is actually built (ADR-018,
+     `DEMO_TWO_QUESTS_PLAN_2026-09-06.md`). Recorded now so nobody builds against the absolute reading.
 4. **The squad is the RPG** — named persistent teammates with MOS roles who improve, get wounded, rotate
    home, and die for real. Minimal stats, maximal attachment.
 5. **Fail forward** — detection escalates, failure mutates, death of the mission generates the next
