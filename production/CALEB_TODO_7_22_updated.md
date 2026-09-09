@@ -75,6 +75,53 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### HIS RULING — the world outside the wire cannot be destroyed
+
+Not a defect list; a cost. **Almost nothing you can blow up outside the firebase actually blows
+up.** 18 of 26 village structures, 7 of 7 VC/NVA structures, 29 of 29 temple structures, and
+every ruin, colonial and airfield building are wired to nothing.
+
+What that costs you, concretely:
+- **`market_hall` is thatch and survives napalm.** You can put a full CAS run through a straw
+  building and it stands.
+- **`pow_cage` is wood and cannot be blown open.** There is no way in but the door.
+
+**This is a ruling, not a fix, because wiring them changes how a mission PLAYS.** A satchel
+becomes a way through a wall; a LAW becomes an entry tool; "burn the village" becomes a verb the
+player can actually perform. That is a design decision about what the sandbox affords, and it is
+yours. The code side is a straight lift — `_wire_structure_destructibles` already exists and
+matches by prefix; `place_structure` simply never calls it.
+
+### REGISTER, NINTH PASS — the tree break, and an inversion refuted by counting
+
+**Felling a tree rebuilt a whole 256 m chunk, immediately, twice when a blast spanned two.**
+`treebreak.consume` has carried ~55 ms across three batches. The stored scatter is updated now
+and the MultiMesh rebuilt one chunk per frame — using exactly the dirty-set mechanism the epoch
+work built. Safe to defer because the felled tree is out of every OTHER path's scatter before
+the call returns.
+
+**The `_LOOP_NAMES` inversion is REFUTED by counting, before anything was written.** All 232
+library clips classified under the live rules: **97 LOOP, 135 ONE-SHOT.** Inverting a 45-entry
+hand list into a 135-entry one makes it worse. Do not re-propose it.
+
+**But the count found something worse than the list.** A large set of HELD POSES and LOCOMOTION
+CYCLES is classified one-shot, so each plays once and **freezes on its last frame**:
+`m60_gunner_idle_l/r` and `_scan_l/r`, every zombie locomotion clip (walk, run, crawl,
+stumbling, five idles), `hooch_locker` / `hooch_poker` / `hooch_radio`, the chow-hall held
+poses, `gun_gunner` / `gun_loader` / `mortar_gunner` and the rest of the crew set,
+`office_write` / `office_smoke`, `cover_wall_lean_idle`, `litter_carry_front/rear`,
+`sit_bench_upright`.
+
+That is the frozen-mid-stride defect at scale, and **very likely part of what you keep reporting
+as men not performing.** NOT fixed: each of those families also contains real one-shots
+(`zombie_death`, `chow_sit_down`, `cockpit_dead`), so a prefix sweep would loop a death
+animation. It changes how the whole cast moves and it wants your eyes.
+
+**Not started, with its number attached:** the nav collector amortisation — ~215 ms of collect,
+~110 of it a cull that genuinely changes geometry. Turning the shape walk into a resumable pass
+is the bounded next piece of work. And the dresser rehang, 17.5 ms, still needing an
+invalidation design that survives nodes being added partway through the walk.
+
 ### REGISTER, EIGHTH PASS — nav.collect, and condition 5 down to ONE offender
 
 **Measured on a box verified clear at BOTH ends** (the first time tonight that is true), 24
