@@ -298,7 +298,12 @@ func _process(delta: float) -> void:
 		_active_mesh = null
 	if _queue.is_empty():
 		return
+	## The Recast solve is async, but source-geometry collection (terrain sampling +
+	## every collider walked into face arrays) is synchronous ON THIS THREAD, and so is
+	## the completion callback's navmesh assignment. This span is that main-thread half.
+	StallLedger.begin("nav.collect")
 	_start_bake(_queue.pop_front())
+	StallLedger.end()
 
 
 func _start_bake(job: Dictionary) -> void:

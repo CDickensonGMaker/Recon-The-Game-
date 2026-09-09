@@ -1,0 +1,63 @@
+## frame_sentinel.gd - the two bookends that let StallLedger measure SCRIPT time honestly.
+##
+## Godot's `TIME_PROCESS` / `TIME_PHYSICS_PROCESS` cannot answer "how long did our own
+## code take", because main.cpp's timed spans also contain RenderingServer::sync/draw,
+## the navigation servers and Jolt's PhysicsServer3D::step (see stall_ledger.gd's header).
+##
+## The SceneTree runs a frame's callbacks in `process_priority` order (lowest value
+## first). Two sentinels, one pinned to the front of the order and one to the back,
+## therefore bracket every other node's _process / _physics_process in the main process
+## group. The span between them IS the script time, and the gap between that span and the
+## Performance monitor is everything the engine did outside our code.
+##
+## KNOWN LIMIT, stated so nobody over-reads the number: a node placed in its own
+## `process_thread_group` runs outside this bracket and will not be counted. The project
+## uses no thread groups today; if one is ever added, this instrument silently under-reads
+## and the comment must be corrected with it.
+class_name FrameSentinel
+extends Node
+
+const FRONT: int = -100000
+const BACK: int = 100000
+
+## true = the opening bookend, false = the closing one.
+var _is_front: bool = false
+
+
+static func make(front: bool) -> FrameSentinel:
+	var s := FrameSentinel.new()
+	s._is_front = front
+	s.name = "StallSentinelFront" if front else "StallSentinelBack"
+	s.process_priority = FRONT if front else BACK
+	s.process_physics_priority = FRONT if front else BACK
+	## Must keep ticking through pause, or a paused frame silently drops out of the span.
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	return s
+
+
+## The property is `process_physics_priority`, NOT `physics_process_priority` - the wrong
+## name is a parse error, this script then never compiles, and a dead instrument reports
+## a confident 0.00ms that reads exactly like a frame which cost nothing. The standing
+## headless boot check does not cover it: nothing on the boot path loads this file. That
+## is why processing is asked for out loud here and why StallLedger.report() shouts
+## INSTRUMENT FAILED instead of printing zeros.
+func _ready() -> void:
+	set_process(true)
+	set_physics_process(true)
+	print("[STALL] sentinel %s live (process=%s physics=%s prio=%d/%d)"
+		% [name, is_processing(), is_physics_processing(),
+			process_priority, process_physics_priority])
+
+
+func _process(_delta: float) -> void:
+	if _is_front:
+		StallLedger.idle_frame_begin()
+	else:
+		StallLedger.idle_frame_end()
+
+
+func _physics_process(_delta: float) -> void:
+	if _is_front:
+		StallLedger.physics_frame_begin()
+	else:
+		StallLedger.physics_frame_end()

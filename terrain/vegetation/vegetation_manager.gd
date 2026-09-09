@@ -481,7 +481,12 @@ func rebuild_chunk(chunk_coord: Vector2i) -> void:
 func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
 	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
 		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
-		_tree_cover.generate_for_chunk(chunk_coord, _build_scatter(chunk_coord, heightmap, chunk_size))
+		StallLedger.begin("veg.build_scatter")
+		var scatter: Array = _build_scatter(chunk_coord, heightmap, chunk_size)
+		StallLedger.end()
+		StallLedger.begin("veg.tree_cover_mmi")
+		_tree_cover.generate_for_chunk(chunk_coord, scatter)
+		StallLedger.end()
 	elif _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
 		# Authored patches bring their own trees - the lone-tree layer would double
 		# the canopy and blow the tri budget, so it stays off.

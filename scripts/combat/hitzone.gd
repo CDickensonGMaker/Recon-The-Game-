@@ -37,8 +37,27 @@ var owner_entity: Node = null
 ## Layer and mask belong to whoever BUILDS the zone, never to the zone itself:
 ## a deferred rewrite here would land after the builder's and silently win, which
 ## is how enemy_base's mask argument became dead input.
+##
+## `monitoring` IS OFF, ON PURPOSE (2026-09-08). It was `true` from the day this file
+## was written, which made every one of a man's 11 zones an actively-polling Area3D:
+## Jolt re-queries a monitoring area against its mask every physics tick, and the
+## builder gives them real masks (enemies 8, allies/player 16), so at 45 men that was
+## ~495 broadphase overlap queries per tick against transforms that are ALSO rewritten
+## every tick as the zones ride their bones.
+##
+## Nothing has ever read the result. Verified 2026-09-08 across the whole tree: no
+## `area_entered` / `area_exited` / `body_entered` / `body_exited` is connected to a
+## Hitzone anywhere, and no caller calls `get_overlapping_areas/bodies` on one. Every
+## real consumer is a RAYCAST - `bullet_system.gd:134`, `projectile_base.gd:269`,
+## `weapon_holder.gd:695/830/876`, `enemy_base.gd:2463`, `ally_base.gd:2164` - each
+## setting `collide_with_areas = true`, which finds an area by SHAPE and does not
+## consult `monitoring` at all. So the flag bought overlap events nobody consumed.
+##
+## `monitorable` stays TRUE. It is a cheap detectability flag rather than a per-tick
+## query, and leaving it alone keeps this change one variable wide so the measurement
+## can only be attributed to one thing.
 func _ready() -> void:
-	monitoring = true
+	monitoring = false
 	monitorable = true
 	add_to_group("hitzone")
 

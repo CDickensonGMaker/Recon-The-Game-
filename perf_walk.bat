@@ -16,8 +16,10 @@ REM
 REM ALSO LOOK AT THE JUNGLE while you do it. The textures are now lossy-compressed.
 REM If the vines and leaf edges have gone blocky or crunchy, say so - it reverses.
 REM ============================================================================
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set DT=%%I
-set STAMP=%DT:~0,8%_%DT:~8,6%
+REM wmic was REMOVED in Windows 11 26200 - it wrote the log to a garbage
+REM filename ("perf_walk_~0,8DT", 0 bytes) and the walk measured nothing.
+set STAMP=%DATE:~-4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%
+set STAMP=%STAMP: =0%
 "C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64.exe" --path "%~dp0." res://scenes/levels/demo_game.tscn -- --print-fps > "%~dp0perf_walk_%STAMP%.log" 2>&1
 echo.
 echo Walk written to perf_walk_%STAMP%.log

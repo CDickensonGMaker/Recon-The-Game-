@@ -721,3 +721,67 @@ Ally body parity — every clip already authored and mapped, only the ally calle
 - `production/research/squad_mechanics.md` — stale-baseline notice added (order enum, squad size,
   dual-bind law, formations)
 - `ANIM_VARIETY_PLAN.md` **refuted** on "cower is the one gap with neither art nor code" — art existed
+
+
+---
+
+## 2026-09-08 (night) — HIS TWO RULINGS + THE STALL HUNT
+
+### RULING 1 — ALL PLANTS ARE 3D MODELS. BARBWIRE IS THE ONE EXEMPTION.
+
+His words: *"i'm still!! seeing the 2d billboard plants as the smaller terrain all over the world when I
+need those to be the 3d terrain models we've made or added to the project. no more 2d terrain cards, or
+3d plane spliced cards or whatever. all 3d blender models only in game"* — then: *"besides the barbwire
+since that works better as cards or whatever"*.
+
+**Second time he has raised it.** Recorded in law: `ADR-001 Amendment A` (revokes the surviving sprite
+carve-out) and `ADR-026 Amendment D` (supersedes the Part A.2 card ring; kills the canopy card atlas).
+
+**RULED, NOT YET BUILT** — he moved priority to the physics stalls the same day. The work, surveyed:
+- `terrain/vegetation/tree_cover_layer.gd:15,166-169,224-226` — the 40-card far ring, 65–350 m.
+- `scripts/world/ground_clutter.gd:26-35` — 7 of 8 layers are QuadMesh billboards; the 8th is the
+  6-tri star-fan `grass_fan.glb`. Second star-fan site: `scripts/levels/gore_lab.gd:201-236`.
+- `tools/gen_firebase_v3.py:529-546,566-612` — **~360 cards are BAKED INTO the shipped firebase GLB.**
+  An art bake, not runtime code. Easy to forget; it is half the job.
+- Starting stock for the far-ring LOD **meshes**: the orphaned `lp_bush_a/b/c`, `lp_fern_a/b`,
+  `lp_grass_tuft_a/b`, `lp_sprout_a/b/c` (6–108 tris; `lp_bush_a` is 36 tris vs `bush_a`'s 256).
+  `lp_bush_*` already have break bands and segment joints. Nothing plants any of them today.
+- Measured trade: mean solid 269 tris vs mean card 3.05 tris (88x more triangles), against card
+  textures totalling 173.8 MB uncompressed / 14.5 MB on disk — ~66x the unique texture bytes of every
+  solid plant combined — plus `CULL_DISABLED` alpha overdraw. Cost genuinely unknown until benched.
+- DO NOT TOUCH: `assets/us/props/emplacements/barbwire_card.glb` and everything keyed on the
+  `bwire_card` name prefix.
+
+### RULING 2 — "fix the physics stalls, thats whats killing it"
+
+Full measurements in `production/PERF_LEDGER.md`, 2026-09-08 (night). Headline: **the drop is a crater.**
+One large explosion = ~80–94 ms in a single idle frame, all of it a whole-256 m-chunk teardown and
+rebuild triggered by a heightmap edit that itself costs 0.1 ms. The physics-side spike is
+`TreeBreakSystem.apply_blast` doing unbounded per-chunk MultiMesh regen on the physics tick (23.9 ms of
+a 66.6 ms step).
+
+Shipped and verified: 495 dead monitoring Area3D turned off (damage probe PASSES) · terrain chunk mesh
+build moved off SurfaceTool (worst chunk 27.0 -> 6.4 ms; worst crater 119.4 -> 80.7 ms) ·
+`affine_inverse` hoisted out of the hitzone harvest loop · per-rebuild chunk print silenced.
+
+**NEXT, in order, with measured sizes:**
+1. `veg.build_scatter` + `veg.tree_cover_mmi` — 680 ms across the crater phase, the largest slice left.
+2. `TreeBreakSystem._consume` off the physics tick — deliberately NOT done tonight: deferring it makes
+   scatter indices stale if anything else regenerates the chunk first, which a crater does. Needs a
+   designed invalidation; two earlier batched attempts were reverted.
+3. `terrain.collision` — `create_trimesh_shape()` on 32,768 tris per chunk. `HeightMapShape3D` is
+   geometrically identical for a grid and far cheaper. **Touches ballistics — NEEDS HIS RULING.**
+4. The structural fix behind all three: stop rebuilding a whole 256 m chunk for a 5 m crater.
+
+### FOR HIM TO RULE ON
+- **Terrain collision as `HeightMapShape3D` instead of a 32k-triangle trimesh?** Same shape, much
+  cheaper to build, but it is what bullets and bodies hit — so it is his call, with a probe.
+- **Plant conversion: build it next, or after more stall work?** The stall work has a measured queue;
+  the plant ruling has none of its cost measured yet.
+
+### OPEN / UNEXPLAINED (named, not rounded away)
+- A **35–70 ms idle script step with NO instrumented cause**, present even in a completely quiet world.
+- His observation, logged not chased: **"weird loading chunks happening."**
+- Two successive perf conclusions ("draw-call bound", then "game-thread bound") both came from
+  mislabelled columns. The columns are now correct; treat any perf read dated before 2026-09-08 night
+  as unverified.

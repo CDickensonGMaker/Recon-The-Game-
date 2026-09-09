@@ -184,7 +184,9 @@ func _spawn_one() -> void:
 	var a: float = _rng.randf_range(0.0, TAU)
 	var r: float = _rng.randf_range(1.5, 5.0)
 	var pos: Vector3 = global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
+	StallLedger.begin("spawn.man")
 	var man: EnemyBase = director.spawn_tracked_enemy(pos, data_path, group_tag)
+	StallLedger.end()
 	if man == null:
 		return
 	man.add_to_group(group_tag)

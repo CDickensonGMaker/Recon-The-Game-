@@ -8,6 +8,56 @@
 > everything; the sprite renderer is dead.** Corrected downstream this pass:
 > `../bible/09_CHARACTERS_ART.md` still listed the killed sprite pipeline as owed work.
 
+## AMENDMENT A — THE SPRITE CARVE-OUT IS REVOKED (Summoner, 2026-09-08)
+
+**His words, verbatim:** *"i'm still!! seeing the 2d billboard plants as the smaller terrain all over
+the world when i need those to be the 3d terrain models we've made or added to the project. no more 2d
+terrain cards, or 3d plane spliced cards or whatever. all 3d blender models only in game"* — and
+immediately after: *"besides the barbwire since that works better as cards or whatever"*.
+
+**What this changes.** The ratification line at the top of this ADR left one door open: *"2d sprites can
+be used for far away action if its helpful resource wise."* **That door is now closed.** Every plant
+renders as a real 3D mesh at every distance. No impostor cards, no crossed quads, no star-fans, no
+billboards. Where the far ring genuinely cannot afford the full solid, the answer is a **lower-poly LOD
+MESH of the same plant** — still a real 3D model — never a card.
+
+**THE ONE EXEMPTION: barbwire.** `assets/us/props/emplacements/barbwire_card.glb` stays a card by his
+explicit carve-out. Nothing else inherits it.
+
+**Note this is his SECOND raising of it.** Treat it as a standing ask that was not executed, not a new
+idea.
+
+**What it makes dead.** The far-LOD A/B this ADR permitted ("Sprites may return ONLY as a far-LOD, and
+only if an A/B test proves a measured performance win") can no longer produce a shippable result for
+vegetation, because a win would not license a card. The canopy card atlas planned as Phase 2a of the
+graphics work is cancelled with it — there will be no cards to atlas.
+
+**Scope of the work this creates, as surveyed 2026-09-08 (pointers, not estimates):**
+- `terrain/vegetation/tree_cover_layer.gd:15` `CARD_DIR`, consumed at `:166-169` and `:224-226` — the
+  40-card far ring at 65-350 m. 28 species are actually planted (`vegetation_manager.gd:47-55`).
+- `scripts/world/ground_clutter.gd:26-35` — 7 of 8 layers are `QuadMesh` billboards with
+  `CULL_DISABLED`; the 8th rides `grass_fan.glb`, a 6-triangle star-fan, which the ruling also names.
+  Second star-fan call site: `scripts/levels/gore_lab.gd:201-236`.
+- `tools/gen_firebase_v3.py:529-546, 566-612` — **~360 vegetation cards are BAKED INTO the shipped
+  firebase GLB** as `fb_veg_*` merged meshes. This is an art bake, not runtime code: re-running that
+  script is the only way to change it. It is the least visible half of the work and it must not be
+  forgotten.
+- Real 3D low-poly plant meshes already exist and are ORPHANED: `lp_bush_a/b/c`, `lp_fern_a/b`,
+  `lp_grass_tuft_a/b`, `lp_sprout_a/b/c` (measured 6-108 tris each; `lp_bush_a` is 36 tris against
+  `bush_a`'s 256). `lp_bush_*` already carry break bands and segment joints. Nothing plants any of them.
+  They are the obvious starting stock for the far-ring LOD meshes this amendment requires.
+
+**Measured facts that bear on the swap, so it is not costed by guess** (GLB binary parse, 2026-09-08):
+mean solid plant = 269 tris, mean card = 3.05 tris, an 88x triangle increase for the far ring. Against
+that, the 40 card textures are 768 px wide with unbounded non-power-of-two heights up to 768x8838, and
+total **173.8 MB uncompressed / 14.5 MB on disk — about 66x the unique texture bytes of every solid
+plant combined** (the solids share 5 distinct textures totalling ~0.22 MB). The cards also draw with
+`CULL_DISABLED` alpha fill. So the swap trades triangles for a large texture-memory and overdraw
+refund, and the cost is genuinely unknown until measured — it is not assumed to be a loss.
+
+**Status: RULED, NOT YET BUILT.** Priority was moved to the physics stalls by the Summoner on the same
+day; this amendment records the ruling so it cannot be lost again while that work runs.
+
 ## Context
 The founding docs canonize a CULTIC-style sprite renderer. CLAUDE.md:3 sells the game as
 "8-directional billboard sprite characters (CULTIC-style)", and DESIGN.md:83-84 (§4.9) specifies the

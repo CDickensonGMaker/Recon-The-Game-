@@ -767,7 +767,9 @@ func _play_camp_role() -> bool:
 func _setup_hurtbox() -> void:
 	var ma: ModelActor = sprite_actor as ModelActor if _visual_is_model else null
 	# layer 64 = enemy_hurtbox, mask 8 = player_hitbox.
+	StallLedger.begin("spawn.hitzones")
 	_hitzone_sync = HitzoneBuilder.build(self, ma, 64, 8, ["hitzone"], true)
+	StallLedger.end()
 
 
 ## ============================================

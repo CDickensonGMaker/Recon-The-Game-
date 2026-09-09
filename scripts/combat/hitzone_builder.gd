@@ -325,6 +325,11 @@ static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 	var sk: Skin = mi.skin
 	var xforms: Array = _bind_rest_xforms(sk, skel) if sk != null else []
 	var to_skel: Transform3D = skel.global_transform.affine_inverse() * mi.global_transform
+	## region -> frames[region].affine_inverse(), computed ONCE. It used to be inverted
+	## inside the per-vertex loop below, so a 3,000-vertex body paid thousands of
+	## affine_inverse() calls to re-derive the same handful of constant frames. Pure
+	## hoisting - identical arithmetic, identical hulls (2026-09-08).
+	var inv_frames: Dictionary = {}
 	for s in range(mi.mesh.get_surface_count()):
 		var arrays: Array = mi.mesh.surface_get_arrays(s)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -365,8 +370,9 @@ static func _harvest(mi: MeshInstance3D, skel: Skeleton3D, bind_regions: Array,
 				for region in regions:
 					if not frames.has(region):
 						continue
-					var frame: Transform3D = frames[region]
-					var local: Vector3 = frame.affine_inverse() * v_rest
+					if not inv_frames.has(region):
+						inv_frames[region] = (frames[region] as Transform3D).affine_inverse()
+					var local: Vector3 = (inv_frames[region] as Transform3D) * v_rest
 					# Plain Array on purpose: Packed*Array is copy-on-write -
 					# appending through a Dictionary cast mutates a temporary.
 					if not pts.has(region):

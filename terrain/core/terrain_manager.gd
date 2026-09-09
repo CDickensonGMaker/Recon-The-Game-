@@ -217,14 +217,20 @@ func _load_chunk(coord: Vector2i) -> void:
 	var veg_bytes := PackedByteArray()
 	var bundles_per_chunk: int = 0
 	if vegetation_manager:
+		StallLedger.begin("terrain.veg_generate")
 		vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size)
+		StallLedger.end()
 		if vegetation_manager._chunk_terrain.has(coord):
 			veg_bytes = vegetation_manager._chunk_terrain[coord]
 			bundles_per_chunk = vegetation_manager._bundles_per_chunk
 
+	StallLedger.begin("terrain.build_mesh")
 	chunk.build_mesh(region, heightmap.height_scale, veg_bytes, bundles_per_chunk)
+	StallLedger.end()
 
+	StallLedger.begin("terrain.collision")
 	chunk.create_raycast_collision()
+	StallLedger.end()
 
 	# (Navigation is NOT baked per chunk. A 256m chunk at the nav map's 0.25 cell
 	#  size is a 1024x1024 Recast heightfield, x25, over jungle nobody paths
@@ -290,9 +296,13 @@ func modify_terrain(center: Vector3, radius_meters: float, modifier: Callable) -
 	var cell_center: Vector2i = heightmap.world_to_cell(center.x, center.z)
 	var cell_radius: int = int(ceil(radius_meters / cell_size))
 
+	StallLedger.begin("terrain.heightmap_edit")
 	var affected: Rect2i = heightmap.modify_region(cell_center, cell_radius, modifier)
+	StallLedger.end()
 
+	StallLedger.begin("terrain.chunk_rebuild")
 	_rebuild_chunks_in_region(affected)
+	StallLedger.end()
 	region_rebuilt.emit(Rect2(
 		Vector2(float(affected.position.x), float(affected.position.y)) * cell_size,
 		Vector2(float(affected.size.x), float(affected.size.y)) * cell_size))

@@ -229,13 +229,17 @@ func apply_damage(world_pos: Vector3, type: DamageType, intensity: float = 1.0) 
 func _process(_delta: float) -> void:
 	# One drainer for both throttles (ADR-031: DamageSystem is the destruction authority).
 	# Structure destructions first — they may enqueue their own crater below.
+	StallLedger.begin("destructible.drain")
 	Destructible.drain(maxi(0, WorldConfig.STRUCTURE_LEVELS_PER_FRAME))
+	StallLedger.end()
 	if _deform_queue.is_empty() or terrain_manager == null or not is_instance_valid(terrain_manager):
 		return
 	var n: int = mini(maxi(1, WorldConfig.TERRAIN_DEFORMS_PER_FRAME), _deform_queue.size())
+	StallLedger.begin("terrain.crater")
 	for _i in range(n):
 		var d: Dictionary = _deform_queue.pop_front()
 		terrain_manager.modify_terrain(d.pos as Vector3, float(d.radius), d.func as Callable)
+	StallLedger.end()
 
 
 func _create_scar_textures() -> void:

@@ -17,6 +17,26 @@ console-era rendering discipline every system checks against — **and names how
 affordable WITHOUT capping the number of soldiers**, because the scale of a Vietnam firefight is a
 pillar, not a negotiable.
 
+## AMENDMENT D — PART A.2's CARD RING IS SUPERSEDED FOR PLANTS (Summoner, 2026-09-08)
+
+Part A.2's carve-out — *"keep `cull_disabled` only where a single-plane billboard genuinely needs both
+faces"* — no longer applies to vegetation, because **there will be no vegetation billboards.** The
+Summoner ruled on 2026-09-08 that every plant renders as a real 3D Blender model at every distance, with
+barbwire the single exemption. See ADR-001 Amendment A for his words and the full scope; that amendment
+is the governing text and this one only records the knock-on here.
+
+Consequences inside this ADR:
+- The far impostor-card ring is retired for plants. Where the far ring cannot afford the full solid, the
+  replacement is a lower-poly LOD **mesh**, never a card.
+- The canopy card atlas (Phase 2a of the approved graphics plan) is **cancelled** — there will be no
+  cards to atlas.
+- `cull_disabled` on foliage survives only for whatever genuinely double-sided leaf geometry the real
+  meshes carry, and for barbwire. It is no longer a blanket vegetation carve-out.
+
+The 40 canopy cards this ADR's Phase 1 VRAM work compressed (243 MB -> 55.6 MB, recorded in
+PERF_LEDGER.md) become dead assets when the swap lands. That saving does not disappear — it is simply
+superseded by removing the textures altogether.
+
 ## Decision
 
 ### PART A — THE GRAPHICS BUDGET (rendering only; never limits gameplay scale)

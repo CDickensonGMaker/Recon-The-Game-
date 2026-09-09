@@ -194,10 +194,12 @@ func _flush_dirty() -> void:
 	var dirty: Array = _dirty_subcells.keys()
 	_dirty_subcells.clear()
 	var subcells: int = int(ceil(world.map_size / SUBCELL))
+	StallLedger.begin("clutter.flush")
 	for sc: Vector2i in dirty:
 		if sc.x < 0 or sc.y < 0 or sc.x >= subcells or sc.y >= subcells:
 			continue
 		_scatter_subcell(sc)
+	StallLedger.end()
 
 
 ## Water is never clutter; jungle-only layers need real jungle density (matches the old ring).

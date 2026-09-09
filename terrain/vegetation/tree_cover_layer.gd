@@ -288,7 +288,9 @@ func _physics_process(delta: float) -> void:
 			> RING_MOVE_EPS * RING_MOVE_EPS)
 	if _ring_elapsed < RING_INTERVAL and not moved:
 		return
+	StallLedger.begin("veg.trunk_ring")
 	_update_ring(center)
+	StallLedger.end()
 
 
 func _resolve_center() -> Vector3:

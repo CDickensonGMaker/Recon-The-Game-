@@ -132,7 +132,9 @@ func setup(unit_id: String) -> bool:
 	_anim = _inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_skel = _inst.find_child("Skeleton3D", true, false) as Skeleton3D
 	_normalize_height()
+	StallLedger.begin("spawn.anim_library")
 	_merge_shared_library()
+	StallLedger.end()
 	_apply_loop_modes()
 	_apply_gib_rig_contract()
 	_apply_optional_gear()

@@ -1463,3 +1463,139 @@ Headless no-regression evidence earned here:
 - `test_viewmodel_contract` FAILS with 12 errors, and it **failed before this work**:
   `assets/player/viewmodels/rpg7_fp.glb` does not exist in the tree at all. Unrelated, pre-existing,
   recorded here so nobody attributes it to the import change.
+
+
+## 2026-09-08 (night) — THE STALL HUNT: the columns were mislabelled, and the drop is a CRATER
+
+### The instrument, corrected AGAIN — read out of Godot's own source, not inferred
+
+`--print-fps` was printing `process`, `physics` and a summed `game` column. All three were wrong in the
+same way, and the error is in Godot's `main.cpp`, not in ours:
+
+    process_max = MAX(process_ticks, process_max);            // every frame
+    if (frame > 1000000) {                                    // ONCE PER SECOND
+        performance->set_process_time(USEC_TO_SEC(process_max));
+        performance->set_physics_process_time(USEC_TO_SEC(physics_process_max));
+        process_max = 0; physics_process_max = 0;
+    }
+
+**`Performance.TIME_PROCESS` and `TIME_PHYSICS_PROCESS` are MAXIMA OVER A ONE-SECOND BUCKET.** They are
+not per-frame values and not averages. That fully resolves the arithmetic that looked impossible — a
+43–56 ms `process` beside a 44 fps average was never a contradiction; it was the worst frame of each
+second sitting next to the mean of five.
+
+**And the span is not "game thread".** `process_ticks` is timed from before `MainLoop::process` to after
+`RenderingServer::draw()`, so it contains `message_queue->flush()`, both navigation servers,
+**`RenderingServer::sync()` (which BLOCKS on the render thread)** and **`RenderingServer::draw()`**. A
+large `process` can therefore be caused by the renderer. **The earlier read that "the game thread is the
+wall" is NOT established by that column** — it is retracted here alongside the draw-call-bound read it
+replaced. Two successive conclusions have now come from mislabelled columns.
+
+Fixed in `scripts/dev/fps_printer.gd`: the summed `game` column is **deleted, not renamed** (it added
+two maxima that need not come from the same frame, one of which contained the renderer). The remaining
+two are labelled `idle_max` / `phys_max` and the row says `1s bucket MAXIMA, not per-frame` in-line.
+`nav_max` and Jolt body/pair/island counts added.
+
+Honest per-frame script time now comes from `scripts/dev/stall_ledger.gd` + `scripts/dev/frame_sentinel.gd`:
+two sentinels pinned to the front and back of the SceneTree's `process_priority` order bracket every
+other node's callbacks, so the span between them IS script time, per frame, in our own clock. Named
+`begin()`/`end()` spans attribute a stall to a cause, and the worst step of each window is snapshotted
+with its full breakdown.
+
+**The instrument failed silently before it worked, and that is recorded on purpose:** the Node property
+is `process_physics_priority`, NOT `physics_process_priority`. The wrong name is a parse error, so
+`FrameSentinel` never compiled and two full bench runs reported **"0 steps"** — a confident zero that
+reads exactly like a frame which cost nothing. **The standing headless boot check did not catch it**,
+because nothing on the boot path loads a dev-only script. `StallLedger.report()` now shouts
+`INSTRUMENT FAILED` rather than printing 0.00 ms.
+
+### What is actually in the stalls — measured, `tests/stall_bench.tscn`, headless, seed 47225
+
+Headless is legitimate for this and only this: the work in question is main-thread and physics-thread
+CPU. No FPS or GPU claim is made here; that verdict stays the Summoner's walk.
+
+| phase | worst physics script step | worst idle script step | what was in the worst step |
+|---|---|---|---|
+| QUIET (nothing happening) | 10.4 ms | 35.5 ms | **unattributed** — see open item below |
+| SPAWN (30 men, 1/tick) | 12.7 ms | 70.3 ms | unattributed; spawn causes were tiny |
+| CRATER (6 large explosions) | **66.6 ms** | **107.2 ms** | crater chain, below |
+
+**THE DROP IS A CRATER.** One large explosion costs ~80–94 ms in a single IDLE frame, and every
+millisecond of it is the chunk rebuild:
+
+    terrain.crater 81.6ms -> terrain.chunk_rebuild 81.5ms
+        terrain.veg_generate   42.5ms  ( veg.tree_cover_mmi 21.6 + veg.build_scatter 20.9 )
+        terrain.collision      20.1ms
+        terrain.build_mesh     12.6ms
+        terrain.heightmap_edit  0.1ms
+
+A ~5 m crater edits a handful of heightmap cells and then **destroys and reconstructs whole 256 m
+chunks** — up to 4 when it straddles a seam. The heightmap edit itself is 0.1 ms. Everything else is
+rebuild overhead.
+
+**The physics-side stall is TreeBreakSystem.** Worst physics step in the crater phase, 66.6 ms:
+`treebreak.consume 23.9 ms, veg.tree_cover_mmi 19.4 ms, veg.build_scatter 12.5 ms`.
+`TreeBreakSystem.apply_blast` runs synchronously on the physics tick and calls `remove_scatter_entries`
+per touched chunk, each a full MultiMesh regen, unbounded. `scripts/world/tree_break_system.gd:273-286`
+already flagged this as an open perf item and set the precondition *"Measure the assault frame first; if
+it is real, batch it."* **It is real, and it is now measured.**
+
+### REFUTED by measurement — do not re-litigate without a number
+
+- **"Spawning a man costs ~35 ms."** Measured over 30 real spawns: `spawn.hitzones` **1.4 ms mean /
+  2.1 ms worst per man**, `spawn.anim_library` **0.11 ms per man**. The 100 `add_animation()` calls are
+  not a stall. Whatever produced 35 ms was not the steady-state per-man cost.
+- **The hitzone `skeleton_updated` gate "leaks".** It does not: `hitzone_builder.gd:170-178` is distance
+  gated at 40 m. That lead was stale.
+- **"11 `affine_inverse()` per man where 1 would do" at `hitzone_builder.gd:225`.** Not there. The real
+  waste was one per VERTEX per region inside the harvest loop — thousands of them, re-deriving a handful
+  of constant frames. Hoisted; that is part of the 1.4 ms above.
+
+### Shipped this pass
+
+1. **495 monitoring Area3D killed.** `scripts/combat/hitzone.gd:41` `monitoring` true -> **false**.
+   Every man carried 11 `Area3D` with `monitoring = true` and real masks (enemies 8, allies/player 16),
+   so Jolt re-queried each against the broadphase every tick while their transforms were also rewritten
+   every tick. **Nothing has ever read the result** — verified across the whole tree: no
+   `area_entered`/`area_exited`/`body_entered`/`body_exited` is connected to a Hitzone anywhere and no
+   caller uses `get_overlapping_*`. Every real consumer is a raycast with `collide_with_areas = true`,
+   which finds an area by shape and never consults `monitoring`. `monitorable` deliberately left true so
+   the change is one variable wide.
+   **Gate: `tools/probe_bullet_damage.tscn` PASSES** — `vc_rifleman hp 70 -> 0`, headshot resolves as a
+   headshot through the zone. Damage is unaffected.
+2. **Terrain chunk mesh build: SurfaceTool -> packed arrays.** `terrain/core/terrain_chunk.gd:build_mesh`.
+   Identical geometry, winding, flat normals and vertex colours; only the machinery changed. The old path
+   made 98,304 `add_vertex` + 196,608 `set_normal`/`set_color` boundary crossings per chunk and then paid
+   `st.index()` to hash all 98,304 verts hunting duplicates **that cannot exist** — the shading is flat,
+   so the two triangles of a quad never share a vertex. Measured, same bench, same seed:
+   **`terrain.build_mesh` 185.6 ms -> 61.7 ms total; worst chunk 27.0 ms -> 6.4 ms (4.2x).**
+   Whole crater chain **534.5 ms -> 399.0 ms; worst single crater 119.4 ms -> 80.7 ms.**
+3. **`affine_inverse()` hoisted out of the hitzone harvest vertex loop** (`hitzone_builder.gd`).
+4. **The per-rebuild `[TerrainChunk] mesh built` print is now once per session.** It was a synchronous
+   write into the redirected bench log from inside the very stall being measured — the instrument was
+   paying part of the cost it reported.
+
+Regression gates, all green after the change: `test_flat_damage` PASS (15 weapons) ·
+`test_fossils` PASS (28/28, no new fossils) · `test_tree_cover_lod` PASS · `test_hitzone_rebuild` PASS ·
+`test_ship_parity` PASS (4 declared deviations) · `tools/probe_bullet_damage` PASS ·
+headless boot `--quit-after 300` clean.
+
+### OPEN, with numbers, needing a decision rather than a keystroke
+
+- **`veg.build_scatter` + `veg.tree_cover_mmi` = 680 ms across the crater phase**, and they appear in
+  BOTH the idle stall and the physics stall. Every chunk rebuild and every tree break regenerates every
+  MultiMesh for the whole chunk. This is now the largest single slice.
+- **`TreeBreakSystem._consume` off the physics tick.** The obvious fix is to coalesce the per-chunk
+  regen into the existing idle `_process` drain. **NOT DONE TONIGHT, deliberately.**
+  `remove_scatter_entries` re-indexes `_chunk_scatter` and re-registers the break registry, so deferred
+  indices go stale if anything else regenerates that chunk in the window — and a crater doing exactly
+  that is the common case. Two earlier batched versions were already built and reverted. This needs a
+  designed invalidation, not a late-night defer.
+- **`terrain.collision` 20 ms worst: `create_trimesh_shape()` over 32,768 triangles per chunk**, plus a
+  Jolt static-body swap. The chunk is a regular grid, so `HeightMapShape3D` is both geometrically
+  identical and far cheaper to build. It touches ballistics, so it wants a ruling and a probe.
+- **The real structural fix is not to rebuild a whole 256 m chunk for a 5 m crater.** Everything above is
+  shaving an operation that should not be running at that size.
+- **UNEXPLAINED: a 35–70 ms idle script step in the QUIET and SPAWN phases with NO instrumented cause.**
+  Present with nothing happening. Not chased this pass. Named here rather than rounded away.
+- Summoner observation, logged not chased: **"weird loading chunks happening."**

@@ -233,7 +233,9 @@ func apply_blast(center: Vector3, radius: float) -> int:
 	var doomed: Array[Dictionary] = trees + bushes
 	if doomed.is_empty():
 		return 0
+	StallLedger.begin("treebreak.consume")
 	_consume(doomed)
+	StallLedger.end()
 	for entry: Dictionary in doomed:
 		_break_queue.append({"entry": entry, "blast": center})
 	return doomed.size()
@@ -286,6 +288,8 @@ func _consume(doomed: Array[Dictionary]) -> void:
 ## VegetationManager side, which owns the chunk and its lifetime.
 func _process(_delta: float) -> void:
 	var n: int = mini(BREAKS_PER_FRAME, _break_queue.size())
+	if n > 0:
+		StallLedger.begin("treebreak.spawn")
 	for _i in n:
 		var job: Dictionary = _break_queue.pop_front()
 		var entry: Dictionary = job["entry"]
@@ -293,6 +297,8 @@ func _process(_delta: float) -> void:
 		if bt != null:
 			var blast: Vector3 = job["blast"]
 			bt.break_at(blast.y - (entry["xf"] as Transform3D).origin.y, blast)
+	if n > 0:
+		StallLedger.end()
 
 
 func _spawn_broken(entry: Dictionary) -> BrokenTree:

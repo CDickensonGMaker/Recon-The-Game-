@@ -21,6 +21,12 @@ func _ready() -> void:
 	add_to_group("fps_printer")
 	_vp_rid = get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(_vp_rid, true)
+	## Stall attribution rides with the printer: the walk that shows the drop is the only
+	## run that can also say what was in it. Sentinels bracket every other node's
+	## callbacks, so they are added FIRST and last-priority sorted by the SceneTree.
+	StallLedger.enable()
+	add_child(FrameSentinel.make(true))
+	add_child(FrameSentinel.make(false))
 	## A benched frame must not be quantised to the panel. Vsync at 24-35 fps delivers
 	## frames on 60Hz half-steps, which is both a pacing artefact and a throughput lie.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -65,18 +71,39 @@ func _process(delta: float) -> void:
 		_gpu_ever = true
 	_windows += 1
 	## `viewport_get_measured_render_time_cpu` is the RENDER THREAD, not the game thread.
-	## Calling it "cpu" hid the game thread entirely, so ~24% of the frame was attributed
-	## to nothing. `game_ms` is that missing half (corrected 2026-09-08).
-	print("[FPS] %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | scale %.2f | gpu %.2fms render_thread %.2fms game %.2fms | draw calls %d | primitives %d | process %.2fms physics %.2fms" % [
+	## Calling it "cpu" hid the render thread's own cost, so part of the frame was
+	## attributed to nothing (corrected 2026-09-08).
+	##
+	## LABEL CORRECTION, 2026-09-08 (second pass), read straight out of Godot main.cpp:
+	## `TIME_PROCESS` and `TIME_PHYSICS_PROCESS` are **MAXIMA OVER A ONE-SECOND BUCKET**,
+	## not per-frame values - `process_max = MAX(process_ticks, process_max)` every frame,
+	## flushed and zeroed only when `frame > 1000000`. They are therefore named
+	## `idle_max` / `phys_max` here, and a reader must never multiply them by a frame count
+	## or read them as an average. That is why a 43ms `process` sat beside a 44 fps average
+	## and the arithmetic looked impossible: nothing was wrong with the fps, the other
+	## column was a worst-case.
+	##
+	## The former `game` column - their SUM - was worse than mislabelled: it added two
+	## maxima that need not come from the same frame, and `TIME_PROCESS`'s span in main.cpp
+	## also contains `RenderingServer::sync()` and `RenderingServer::draw()`, so renderer
+	## backpressure was being printed as game-thread cost. **It is deleted, not renamed.**
+	## Honest per-frame script time comes from the [STALL] lines below it.
+	print("[FPS] %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | scale %.2f | gpu %.2fms render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
 		float(_frames) / _t, _worst_ms, _one_percent_low(),
 		get_viewport().scaling_3d_scale,
 		gpu, render_ms,
-		(Performance.get_monitor(Performance.TIME_PROCESS)
-			+ Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
 		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
-		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
+		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0,
+		int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
+		int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)),
+		int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))])
+	var stall: String = StallLedger.report()
+	if stall != "":
+		print(stall)
+	StallLedger.reset_window()
 	## GPU ms reads 0.0 under the dummy renderer and stays 0.0 if measurement was never
 	## enabled. Either way the row is not a GPU measurement and must say so out loud.
 	if _windows == 3 and not _gpu_ever and DisplayServer.get_name() != "headless":

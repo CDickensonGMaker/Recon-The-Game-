@@ -10,6 +10,11 @@ var grid_resolution: int = 128  # Vertices per side (256m / 2m)
 var mesh_instance: MeshInstance3D
 var collision_body: StaticBody3D  # Optional - only for raycast picking
 
+## STATIC on purpose: a crater rebuild throws the TerrainChunk away and constructs a new
+## one, so a per-instance flag would still print once per rebuild - which is the case this
+## exists to stop. One line per session, and it is diagnostic only. See build_mesh().
+static var _announced: bool = false
+
 ## Handed down from HeightmapStorage at build time - never authored here.
 var height_scale: float = TerrainConfig.WORLD_HEIGHT_MAX
 
@@ -49,71 +54,94 @@ func build_mesh(region_data: PackedFloat32Array, h_scale: float = TerrainConfig.
 		])
 		return
 
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
+	## BUILT STRAIGHT INTO PACKED ARRAYS, NOT THROUGH SurfaceTool (2026-09-08).
+	## The geometry, winding, flat per-triangle normals and vertex colours below are
+	## IDENTICAL to the SurfaceTool version this replaces - only the machinery changed.
+	## Why it changed: a 128-resolution chunk is 16,384 quads, so the old path made
+	## 98,304 `add_vertex` calls plus 196,608 `set_normal`/`set_color` calls across the
+	## GDScript/engine boundary, and then paid `st.index()` to hash all 98,304 verts
+	## looking for duplicates it could never find - the shading is FLAT, so the two
+	## triangles of a quad carry different normals and nothing in the surface is ever a
+	## duplicate. That whole pass was cost for no vertices saved.
+	##
+	## This matters because a single crater rebuilds whole chunks: measured on the
+	## headless stall bench, 6 large explosions spent 534ms in the chunk rebuild chain,
+	## 185ms of it right here.
 	var step: float = chunk_size / float(grid_resolution)
 	var data_width: int = grid_resolution + 1
 
-	var vertices: Array[Vector3] = []
-	var colors: Array[Color] = []
-
-	for z in range(grid_resolution + 1):
-		for x in range(grid_resolution + 1):
+	var grid_v := PackedVector3Array()
+	var grid_c := PackedColorArray()
+	grid_v.resize(data_width * data_width)
+	grid_c.resize(data_width * data_width)
+	for z in range(data_width):
+		for x in range(data_width):
+			var gi: int = z * data_width + x
 			var local_x: float = x * step
 			var local_z: float = z * step
-			var h: float = region_data[z * data_width + x] * height_scale
+			var norm_h: float = region_data[gi]
+			var h: float = norm_h * height_scale
+			grid_v[gi] = Vector3(local_x, h, local_z)
+			grid_c[gi] = _get_terrain_color(h, norm_h, local_x, local_z,
+				vegetation_terrain, bundles_per_chunk)
 
-			vertices.append(Vector3(local_x, h, local_z))
-			colors.append(_get_terrain_color(h, region_data[z * data_width + x], local_x, local_z, vegetation_terrain, bundles_per_chunk))
+	var quads: int = grid_resolution * grid_resolution
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	verts.resize(quads * 6)
+	norms.resize(quads * 6)
+	cols.resize(quads * 6)
 
-	# Generate triangles (counter-clockwise winding for upward normals)
+	var w: int = 0
 	for z in range(grid_resolution):
 		for x in range(grid_resolution):
 			var i: int = z * data_width + x
+			var v0: Vector3 = grid_v[i]
+			var v1: Vector3 = grid_v[i + 1]
+			var v2: Vector3 = grid_v[i + data_width]
+			var v3: Vector3 = grid_v[i + data_width + 1]
+			var c0: Color = grid_c[i]
+			var c1: Color = grid_c[i + 1]
+			var c2: Color = grid_c[i + data_width]
+			var c3: Color = grid_c[i + data_width + 1]
 
-			var v0: Vector3 = vertices[i]
-			var v1: Vector3 = vertices[i + 1]
-			var v2: Vector3 = vertices[i + data_width]
-			var v3: Vector3 = vertices[i + data_width + 1]
-
-			var c0: Color = colors[i]
-			var c1: Color = colors[i + 1]
-			var c2: Color = colors[i + data_width]
-			var c3: Color = colors[i + data_width + 1]
-
-			# Triangle 1: v0, v1, v2
+			# Triangle 1: v0, v1, v2 (counter-clockwise winding for upward normals)
 			var n1: Vector3 = (v1 - v0).cross(v2 - v0).normalized()
-			if n1.y < 0:
+			if n1.y < 0.0:
 				n1 = -n1
-			st.set_normal(n1)
-			st.set_color(c0)
-			st.add_vertex(v0)
-			st.set_color(c1)
-			st.add_vertex(v1)
-			st.set_color(c2)
-			st.add_vertex(v2)
+			verts[w] = v0; norms[w] = n1; cols[w] = c0; w += 1
+			verts[w] = v1; norms[w] = n1; cols[w] = c1; w += 1
+			verts[w] = v2; norms[w] = n1; cols[w] = c2; w += 1
 
 			# Triangle 2: v1, v3, v2
 			var n2: Vector3 = (v3 - v1).cross(v2 - v1).normalized()
-			if n2.y < 0:
+			if n2.y < 0.0:
 				n2 = -n2
-			st.set_normal(n2)
-			st.set_color(c1)
-			st.add_vertex(v1)
-			st.set_color(c3)
-			st.add_vertex(v3)
-			st.set_color(c2)
-			st.add_vertex(v2)
+			verts[w] = v1; norms[w] = n2; cols[w] = c1; w += 1
+			verts[w] = v3; norms[w] = n2; cols[w] = c3; w += 1
+			verts[w] = v2; norms[w] = n2; cols[w] = c2; w += 1
 
-	st.index()
-	mesh_instance.mesh = st.commit()
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_COLOR] = cols
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh_instance.mesh = am
 
 	if not shared_material:
 		_create_shared_material()
 	mesh_instance.material_override = shared_material
 
-	print("[TerrainChunk] Chunk %s mesh built: %d vertices" % [coord, vertices.size()])
+	## Was an unconditional print. A raid rebuilds chunks continuously and each line was
+	## a synchronous write into the redirected bench log, inside the very stall being
+	## measured - the instrument was paying part of the cost it reported. First build of
+	## each chunk only.
+	if not _announced:
+		_announced = true
+		print("[TerrainChunk] Chunk %s mesh built: %d vertices" % [coord, verts.size()])
 
 
 ## Create shared material for all chunks
