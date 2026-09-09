@@ -75,9 +75,25 @@ const PAD_DISTINCT_M: float = 12.0
 ## resolved to ZERO landing zones without anything failing to load. A Blender
 ## re-export renumbers nodes freely; the prefix is the contract.
 const FSB_PAD_PREFIXES := ["PSPHelipad", "fb_helipad"]
-## Transit bookings per daylight sim-hour. At the 60x clock, 3 puts a movement up roughly
-## every 20s of wall time instead of every 60s.
-const TRANSITS_PER_HOUR: int = 3
+## Transit bookings per daylight sim-hour. HIS RULING 2026-09-09: "we should lower the number
+## of ambient air events, where the sparcity of it makes it special." This reverses the
+## earlier raise to 3, and it is an AESTHETIC ruling, not a perf one - the ledger's finding
+## that thinning ambient air buys no frames still stands and is not the reason for this.
+## A sky with something in it every twenty seconds is wallpaper. Dial, not axe: the
+## combat-load gate below is a safety valve and is untouched, and NOTHING authored thins -
+## the siege air beats, the gunships, medevac, resupply and CAS all enter by other doors.
+const TRANSITS_PER_HOUR: int = 1
+
+## HIS RULING 2026-09-09: "maybe lower the speeds of the fly bys by 30 percent too." Ambient
+## transits ONLY - _spawn_transit has exactly two callers, both inside _dispatch. A CAS run,
+## a gunship orbit or anything he calls in is gameplay timing and keeps its own speed.
+##
+## A slower aircraft is alive longer, so this pushes concurrency UP while the ruling above
+## pushes it down: 1/0.7 = 1.43x lifetime against a 3x drop in spawn rate, so the two do not
+## fight - net concurrency falls by about half. MAX_FLIGHT_SECONDS (240s) is a despawn
+## backstop and stays comfortable: the slowest ambient airframe still crosses the 1280m AO
+## in under 40 seconds.
+const AMBIENT_SPEED_SCALE: float = 0.7
 ## Hard ceiling on airframes in the sky, binding on EVERY caller. PERF_LEDGER: this project
 ## is call-bound and a nine-ship pack is nine sets of rotor meshes.
 const MAX_IN_FLIGHT: int = 14
@@ -682,6 +698,7 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3, alt_bonus: float =
 	if craft is Helicopter:
 		var heli := craft as Helicopter
 		heli.cruise_altitude += alt_bonus
+		heli.max_speed *= AMBIENT_SPEED_SCALE
 		var start := from
 		start.y = _ground_at(from) + heli.cruise_altitude
 		craft.global_position = start
@@ -694,7 +711,7 @@ func _spawn_transit(kind: String, from: Vector3, to: Vector3, alt_bonus: float =
 		start.y = _ground_at(from) + agl
 		craft.global_position = start
 		(craft as CASAirplane).call_transit(terrain, start, to,
-			agl, float(profile["speed"]))
+			agl, float(profile["speed"]) * AMBIENT_SPEED_SCALE)
 	return craft
 
 
