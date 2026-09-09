@@ -75,6 +75,39 @@ and the wire, so from your camera he reads as a soldier standing around in a fir
 garrison to fighting positions is the single biggest change available to how the base reads under
 attack, and it is a design change, not a bug fix — so it waits on you.
 
+### REGISTER, EIGHTH PASS — nav.collect, and condition 5 down to ONE offender
+
+**Measured on a box verified clear at BOTH ends** (the first time tonight that is true), 24
+post-assault windows: **physics 0 of 24 over 120 ms, worst 111.7.** Idle **1 of 24 over — 298.7
+ms, and that window IS the breach re-bake.** Previously 5 physics and 2 idle over, worst
+228.9/468.6.
+
+**Read that comparison honestly: 24 clean windows against 90 dirty ones.** The rate is much
+better and the physics side is under budget, but a full-length run on a clean box has not been
+taken, so condition 5 is *close*, not *closed*.
+
+**Splitting `nav.collect` found that a third of it was an instrument I added tonight.** Of
+365 ms: terrain 39.6, the collider walk 314.1. Inside the walk: **my ADR-042 roof-miss audit
+97.9 ms**, the real flipped-winding cull 109.8 ms, everything else below the reporting floor.
+The roof geometry does not change when a wall comes down, so the audit is gated to the first
+bake. Measured on a real breach: **364.8 ms at world build, 294.8 ms on the re-bake.**
+
+Answered rather than assumed: the bake IS async (the 365 ms is entirely the main-thread
+collect), and the 1.5 s debounce DOES coalesce (three holes, one re-bake).
+
+**What is left is a design decision, not a trim:** ~215 ms of collector, ~110 of it a cull that
+genuinely changes geometry. The bounded fix is amortising the collider walk across frames — the
+re-bake is already debounced and a hole that becomes walkable two frames later is invisible —
+but that makes the shape walk resumable and is real work.
+
+**HIS RULING, surfaced and not started: world structures are unwired for destruction.** 18 of 26
+village, 7 of 7 vc_nva, 29 of 29 temple, all ruins/colonial/airfield. `market_hall` is thatch and
+survives napalm; `pow_cage` is wood and cannot be blown open. Wiring them changes how a mission
+plays, not just how it looks, so it is a ruling rather than a fix.
+
+**Still not reached:** `TreeBreakSystem.apply_blast` ~55 ms, the `_LOOP_NAMES` inversion (half
+done — the resource-keyed skip is in), and the dresser rehang at 17.5 ms with its number.
+
 ### REGISTER, SEVENTH PASS — the HIGH tier, and condition 5 REOPENS
 
 **CONDITION 5 REOPENS. The six-window result was not the whole assault.** Across 90
