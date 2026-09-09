@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bn54txn5c1hd1"
-path="res://.godot/imported/m79_fp_arms_gloves_01.png-40a59769f469705b41e8eb771e951a14.ctex"
+path.s3tc="res://.godot/imported/m79_fp_arms_gloves_01.png-40a59769f469705b41e8eb771e951a14.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f5fa07ea91ab9339bf48a7aeb42cd271"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/player/viewmodels/m79_fp_arms_gloves_01.png"
-dest_files=["res://.godot/imported/m79_fp_arms_gloves_01.png-40a59769f469705b41e8eb771e951a14.ctex"]
+dest_files=["res://.godot/imported/m79_fp_arms_gloves_01.png-40a59769f469705b41e8eb771e951a14.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b80gty5lea12e"
-path="res://.godot/imported/bamboo_c_card_bamboo_c.png-9dded3e27e2f2f1deb383a350c86a48b.ctex"
+path.bptc="res://.godot/imported/bamboo_c_card_bamboo_c.png-9dded3e27e2f2f1deb383a350c86a48b.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5f12bdef397f3d43b742ec1812bf8161"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/bamboo_c_card_bamboo_c.png"
-dest_files=["res://.godot/imported/bamboo_c_card_bamboo_c.png-9dded3e27e2f2f1deb383a350c86a48b.ctex"]
+dest_files=["res://.godot/imported/bamboo_c_card_bamboo_c.png-9dded3e27e2f2f1deb383a350c86a48b.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

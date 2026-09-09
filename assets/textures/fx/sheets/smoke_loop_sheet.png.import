@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bw1irq8weagyi"
-path="res://.godot/imported/smoke_loop_sheet.png-dc449508632c67875ac334db2a72e0b3.ctex"
+path.s3tc="res://.godot/imported/smoke_loop_sheet.png-dc449508632c67875ac334db2a72e0b3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/fx/sheets/smoke_loop_sheet.png"
-dest_files=["res://.godot/imported/smoke_loop_sheet.png-dc449508632c67875ac334db2a72e0b3.ctex"]
+dest_files=["res://.godot/imported/smoke_loop_sheet.png-dc449508632c67875ac334db2a72e0b3.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dmt6yl7a1riov"
-path="res://.godot/imported/trunk_vine_a.png-c89273799e52b79f423eaa8c89165362.ctex"
+path.bptc="res://.godot/imported/trunk_vine_a.png-c89273799e52b79f423eaa8c89165362.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/world/vegetation/cards/tex/trunk_vine_a.png"
-dest_files=["res://.godot/imported/trunk_vine_a.png-c89273799e52b79f423eaa8c89165362.ctex"]
+dest_files=["res://.godot/imported/trunk_vine_a.png-c89273799e52b79f423eaa8c89165362.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

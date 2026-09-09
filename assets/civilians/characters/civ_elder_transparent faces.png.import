@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bln77lhjc2n4r"
-path="res://.godot/imported/civ_elder_transparent faces.png-c017d727c3547535727e15e80e737b3f.ctex"
+path.s3tc="res://.godot/imported/civ_elder_transparent faces.png-c017d727c3547535727e15e80e737b3f.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "dfabe9e6bbcd216d2bcdb59856a2e653"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/civilians/characters/civ_elder_transparent faces.png"
-dest_files=["res://.godot/imported/civ_elder_transparent faces.png-c017d727c3547535727e15e80e737b3f.ctex"]
+dest_files=["res://.godot/imported/civ_elder_transparent faces.png-c017d727c3547535727e15e80e737b3f.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

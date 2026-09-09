@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://g1buvnf8wniq"
-path="res://.godot/imported/broadleaf_a_card_broadleaf_a.png-2ed59eb5db7af21e4290300bb40cca02.ctex"
+path.bptc="res://.godot/imported/broadleaf_a_card_broadleaf_a.png-2ed59eb5db7af21e4290300bb40cca02.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "45dc3ced3bfc0be9b67b250f4d6eb301"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/broadleaf_a_card_broadleaf_a.png"
-dest_files=["res://.godot/imported/broadleaf_a_card_broadleaf_a.png-2ed59eb5db7af21e4290300bb40cca02.ctex"]
+dest_files=["res://.godot/imported/broadleaf_a_card_broadleaf_a.png-2ed59eb5db7af21e4290300bb40cca02.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ceai0sefw0h55"
-path="res://.godot/imported/cover_reposition_f015.png-d28963cd16132326ae3be8b3e1a874f5.ctex"
+path.s3tc="res://.godot/imported/cover_reposition_f015.png-d28963cd16132326ae3be8b3e1a874f5.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/shared/cover_previews/cover_reposition_f015.png"
-dest_files=["res://.godot/imported/cover_reposition_f015.png-d28963cd16132326ae3be8b3e1a874f5.ctex"]
+dest_files=["res://.godot/imported/cover_reposition_f015.png-d28963cd16132326ae3be8b3e1a874f5.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

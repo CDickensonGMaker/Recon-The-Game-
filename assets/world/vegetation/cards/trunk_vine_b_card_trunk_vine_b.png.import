@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bcrebpnwuqdgd"
-path="res://.godot/imported/trunk_vine_b_card_trunk_vine_b.png-ee002c921de05cd1b1a8430f52343575.ctex"
+path.bptc="res://.godot/imported/trunk_vine_b_card_trunk_vine_b.png-ee002c921de05cd1b1a8430f52343575.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "140b910f830556b704d4a98060a74633"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/trunk_vine_b_card_trunk_vine_b.png"
-dest_files=["res://.godot/imported/trunk_vine_b_card_trunk_vine_b.png-ee002c921de05cd1b1a8430f52343575.ctex"]
+dest_files=["res://.godot/imported/trunk_vine_b_card_trunk_vine_b.png-ee002c921de05cd1b1a8430f52343575.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

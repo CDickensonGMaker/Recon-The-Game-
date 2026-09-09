@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cettbkownh701"
-path="res://.godot/imported/civ_farmer_f_transparent faces.png-1304e7ec11b3651f0a2db1e03f5ae8b3.ctex"
+path.s3tc="res://.godot/imported/civ_farmer_f_transparent faces.png-1304e7ec11b3651f0a2db1e03f5ae8b3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3e79ba8d9d8797b3630162dbaddc834e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/civilians/characters/civ_farmer_f_transparent faces.png"
-dest_files=["res://.godot/imported/civ_farmer_f_transparent faces.png-1304e7ec11b3651f0a2db1e03f5ae8b3.ctex"]
+dest_files=["res://.godot/imported/civ_farmer_f_transparent faces.png-1304e7ec11b3651f0a2db1e03f5ae8b3.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b4p2a6lbhliho"
-path="res://.godot/imported/hessian_230_Metal-hessian_230_Rough.png-e623fe9b69cc2d23dd2bd70b55242cfc.ctex"
+path.s3tc="res://.godot/imported/hessian_230_Metal-hessian_230_Rough.png-e623fe9b69cc2d23dd2bd70b55242cfc.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/world/building models/structures/infrastructure/textures/hessian_230_Metal-hessian_230_Rough.png"
-dest_files=["res://.godot/imported/hessian_230_Metal-hessian_230_Rough.png-e623fe9b69cc2d23dd2bd70b55242cfc.ctex"]
+dest_files=["res://.godot/imported/hessian_230_Metal-hessian_230_Rough.png-e623fe9b69cc2d23dd2bd70b55242cfc.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

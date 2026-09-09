@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bewlnabdtehvv"
-path="res://.godot/imported/fixed_better_viet_faces.jpg-d087e9a2905cba94fcfed46ddacf30e3.ctex"
+path.s3tc="res://.godot/imported/fixed_better_viet_faces.jpg-d087e9a2905cba94fcfed46ddacf30e3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/nva_vc/characters/nva_vc_soldiers_textures/fixed_better_viet_faces.jpg"
-dest_files=["res://.godot/imported/fixed_better_viet_faces.jpg-d087e9a2905cba94fcfed46ddacf30e3.ctex"]
+dest_files=["res://.godot/imported/fixed_better_viet_faces.jpg-d087e9a2905cba94fcfed46ddacf30e3.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

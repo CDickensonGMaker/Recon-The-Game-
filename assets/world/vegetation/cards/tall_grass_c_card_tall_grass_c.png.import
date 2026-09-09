@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bmpmmpyktfvbn"
-path="res://.godot/imported/tall_grass_c_card_tall_grass_c.png-76dfcd5089f58054657ac1d3e6525ba9.ctex"
+path.bptc="res://.godot/imported/tall_grass_c_card_tall_grass_c.png-76dfcd5089f58054657ac1d3e6525ba9.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c1b607d60e15c69a2e0dccc98148243f"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/tall_grass_c_card_tall_grass_c.png"
-dest_files=["res://.godot/imported/tall_grass_c_card_tall_grass_c.png-76dfcd5089f58054657ac1d3e6525ba9.ctex"]
+dest_files=["res://.godot/imported/tall_grass_c_card_tall_grass_c.png-76dfcd5089f58054657ac1d3e6525ba9.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

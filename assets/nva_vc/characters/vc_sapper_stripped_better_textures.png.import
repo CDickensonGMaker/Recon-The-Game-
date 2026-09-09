@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b3h310cw6xjbl"
-path="res://.godot/imported/vc_sapper_stripped_better_textures.png-7adc010091d242519e01e19184f7c79d.ctex"
+path.s3tc="res://.godot/imported/vc_sapper_stripped_better_textures.png-7adc010091d242519e01e19184f7c79d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ea72ba400d1b679506cb0dadf5e40b6b"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/nva_vc/characters/vc_sapper_stripped_better_textures.png"
-dest_files=["res://.godot/imported/vc_sapper_stripped_better_textures.png-7adc010091d242519e01e19184f7c79d.ctex"]
+dest_files=["res://.godot/imported/vc_sapper_stripped_better_textures.png-7adc010091d242519e01e19184f7c79d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

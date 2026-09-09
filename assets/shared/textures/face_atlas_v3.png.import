@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://g5y0gcda1hqp"
-path="res://.godot/imported/face_atlas_v3.png-26ebd405275b332fb790df6f3b7ac0bf.ctex"
+path.s3tc="res://.godot/imported/face_atlas_v3.png-26ebd405275b332fb790df6f3b7ac0bf.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/shared/textures/face_atlas_v3.png"
-dest_files=["res://.godot/imported/face_atlas_v3.png-26ebd405275b332fb790df6f3b7ac0bf.ctex"]
+dest_files=["res://.godot/imported/face_atlas_v3.png-26ebd405275b332fb790df6f3b7ac0bf.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b3dcndhyqu8vc"
-path="res://.godot/imported/grass_fan_card_grass_fan.png-1e876495239620e5948c86ae86860a94.ctex"
+path.bptc="res://.godot/imported/grass_fan_card_grass_fan.png-1e876495239620e5948c86ae86860a94.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "05eb07efe24d951c5339123cc200fe95"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/grass_fan_card_grass_fan.png"
-dest_files=["res://.godot/imported/grass_fan_card_grass_fan.png-1e876495239620e5948c86ae86860a94.ctex"]
+dest_files=["res://.godot/imported/grass_fan_card_grass_fan.png-1e876495239620e5948c86ae86860a94.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

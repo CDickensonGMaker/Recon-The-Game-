@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cb0ba2e7bvb7q"
-path="res://.godot/imported/better_textures.png-3664fd5db926bfdbc2a52983ed14ece0.ctex"
+path.s3tc="res://.godot/imported/better_textures.png-3664fd5db926bfdbc2a52983ed14ece0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/nva_vc/characters/nva_vc_soldiers_textures/better_textures.png"
-dest_files=["res://.godot/imported/better_textures.png-3664fd5db926bfdbc2a52983ed14ece0.ctex"]
+dest_files=["res://.godot/imported/better_textures.png-3664fd5db926bfdbc2a52983ed14ece0.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

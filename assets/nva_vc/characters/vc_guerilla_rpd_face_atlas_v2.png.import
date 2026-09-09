@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bmf6glu8ccecw"
-path="res://.godot/imported/vc_guerilla_rpd_face_atlas_v2.png-db72e20024c98f3ef3f62b972742bdec.ctex"
+path.s3tc="res://.godot/imported/vc_guerilla_rpd_face_atlas_v2.png-db72e20024c98f3ef3f62b972742bdec.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "70ddaff0ac8bcdfdef819254e5fedea2"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/nva_vc/characters/vc_guerilla_rpd_face_atlas_v2.png"
-dest_files=["res://.godot/imported/vc_guerilla_rpd_face_atlas_v2.png-db72e20024c98f3ef3f62b972742bdec.ctex"]
+dest_files=["res://.godot/imported/vc_guerilla_rpd_face_atlas_v2.png-db72e20024c98f3ef3f62b972742bdec.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

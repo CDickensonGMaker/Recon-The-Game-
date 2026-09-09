@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://da5w8qk81ov2x"
-path="res://.godot/imported/zed_cult_cloth_tex.png-4aabeb08fd4e9da52bf54f9d9df980e8.ctex"
+path.s3tc="res://.godot/imported/zed_cult_cloth_tex.png-4aabeb08fd4e9da52bf54f9d9df980e8.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/zombies/characters/zed_cult_cloth_tex.png"
-dest_files=["res://.godot/imported/zed_cult_cloth_tex.png-4aabeb08fd4e9da52bf54f9d9df980e8.ctex"]
+dest_files=["res://.godot/imported/zed_cult_cloth_tex.png-4aabeb08fd4e9da52bf54f9d9df980e8.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

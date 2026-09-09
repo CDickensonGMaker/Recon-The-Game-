@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cpdakei80tmjf"
-path="res://.godot/imported/us_pilot_better textures.png-e1f5f25600a0d5224c47d14200c11a74.ctex"
+path.s3tc="res://.godot/imported/us_pilot_better textures.png-e1f5f25600a0d5224c47d14200c11a74.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/us/characters/us_pilot_better textures.png"
-dest_files=["res://.godot/imported/us_pilot_better textures.png-e1f5f25600a0d5224c47d14200c11a74.ctex"]
+dest_files=["res://.godot/imported/us_pilot_better textures.png-e1f5f25600a0d5224c47d14200c11a74.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

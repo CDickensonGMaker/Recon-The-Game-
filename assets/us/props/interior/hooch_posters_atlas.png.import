@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cbhb1os8hqml6"
-path="res://.godot/imported/hooch_posters_atlas.png-08597a7753db1f72d3cb5afa5cad5a88.ctex"
+path.s3tc="res://.godot/imported/hooch_posters_atlas.png-08597a7753db1f72d3cb5afa5cad5a88.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/us/props/interior/hooch_posters_atlas.png"
-dest_files=["res://.godot/imported/hooch_posters_atlas.png-08597a7753db1f72d3cb5afa5cad5a88.ctex"]
+dest_files=["res://.godot/imported/hooch_posters_atlas.png-08597a7753db1f72d3cb5afa5cad5a88.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

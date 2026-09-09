@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ovvhl5n0wne2"
-path="res://.godot/imported/pith_star_pith_v2_star_tex.png-60b0ecfa2ad16557d97bd2cbe1e229e1.ctex"
+path.s3tc="res://.godot/imported/pith_star_pith_v2_star_tex.png-60b0ecfa2ad16557d97bd2cbe1e229e1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3fe961616d1b1f34b318d95e5d138945"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/nva_vc/props/headgear/pith_star_pith_v2_star_tex.png"
-dest_files=["res://.godot/imported/pith_star_pith_v2_star_tex.png-60b0ecfa2ad16557d97bd2cbe1e229e1.ctex"]
+dest_files=["res://.godot/imported/pith_star_pith_v2_star_tex.png-60b0ecfa2ad16557d97bd2cbe1e229e1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

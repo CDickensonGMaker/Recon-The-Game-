@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dak4dd6o88885"
-path="res://.godot/imported/nva_rpg_face_atlas_viet.jpg-b2a38d0bfef2abacfdcab41738ca8e21.ctex"
+path.s3tc="res://.godot/imported/nva_rpg_face_atlas_viet.jpg-b2a38d0bfef2abacfdcab41738ca8e21.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bc1c04e0a9ad739eb882b007fb5513a1"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/nva_vc/characters/nva_rpg_face_atlas_viet.jpg"
-dest_files=["res://.godot/imported/nva_rpg_face_atlas_viet.jpg-b2a38d0bfef2abacfdcab41738ca8e21.ctex"]
+dest_files=["res://.godot/imported/nva_rpg_face_atlas_viet.jpg-b2a38d0bfef2abacfdcab41738ca8e21.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

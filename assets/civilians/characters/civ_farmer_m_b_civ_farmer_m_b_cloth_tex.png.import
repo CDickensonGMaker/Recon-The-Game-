@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bob4yawj6oysc"
-path="res://.godot/imported/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png-e66cd7582dbb906d10668f747d3dfb74.ctex"
+path.s3tc="res://.godot/imported/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png-e66cd7582dbb906d10668f747d3dfb74.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c9f343ee6042151d25e9536ab16f4914"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/civilians/characters/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png"
-dest_files=["res://.godot/imported/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png-e66cd7582dbb906d10668f747d3dfb74.ctex"]
+dest_files=["res://.godot/imported/civ_farmer_m_b_civ_farmer_m_b_cloth_tex.png-e66cd7582dbb906d10668f747d3dfb74.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://civbb7dcuv1ro"
-path="res://.godot/imported/us_pilot_black_transparent faces.png-aec0bd43c06964e885b78a00ab089cd5.ctex"
+path.s3tc="res://.godot/imported/us_pilot_black_transparent faces.png-aec0bd43c06964e885b78a00ab089cd5.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "af38cad634c773ec0a89105be4344712"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/us/characters/us_pilot_black_transparent faces.png"
-dest_files=["res://.godot/imported/us_pilot_black_transparent faces.png-aec0bd43c06964e885b78a00ab089cd5.ctex"]
+dest_files=["res://.godot/imported/us_pilot_black_transparent faces.png-aec0bd43c06964e885b78a00ab089cd5.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

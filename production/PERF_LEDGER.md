@@ -1403,3 +1403,63 @@ Headless no-regression evidence, which is all that was earned here:
 - Every `Sandbags*` texture in the tree measured at alpha 255 everywhere, or no alpha channel at all —
   the blend mode was import noise, so forcing opaque cannot change the look.
 
+
+## 2026-09-08 (later) — Phase 0: the instrument, fixed and PROVEN
+
+`--print-fps` had produced two logs with no measurement in them, twice in one day. Cause, proved by
+`_scratch/arg_probe.gd`: `OS.get_cmdline_args()` **stops at the `--` separator** and
+`OS.get_cmdline_user_args()` **starts after it**. The launchers wrote the flag before the separator;
+`scripts/main/game_flow.gd:747` read it after. FpsPrinter never attached and nothing said so.
+
+- `GameSettings.has_flag()` (`scripts/autoload/game_settings.gd`) reads BOTH arrays. Every launcher
+  flag now goes through it, so a flag on the wrong side of `--` can no longer vanish.
+- **The watchdog:** `--print-fps` with no `FpsPrinter` in group `fps_printer` after 30 s pushes an
+  error and prints `INSTRUMENT FAILED TO ATTACH`. Proved in both directions headless — the row prints
+  on `demo_game.tscn`, the error prints on a boot that never enters the hub.
+- **Vsync was ON in every prior windowed log** (`Requested V-Sync mode: Enabled` in both). At 24-35 fps
+  on a 60 Hz panel that quantises delivery, which is a direct cause of the "sluggish" feel independent
+  of throughput. FpsPrinter now forces it OFF whenever it attaches, and it is a player setting.
+- **`viewport_get_measured_render_time_cpu` is the RENDER THREAD, not the game thread.** It was
+  labelled `cpu_ms` in `tests/perf_probe.gd`, which meant the game thread — where the AI lives — was
+  never in a single perf row. Renamed to `render_thread_ms`; `game_ms` (TIME_PROCESS +
+  TIME_PHYSICS_PROCESS) added beside it. Rows now carry gpu / render_thread / game.
+- FpsPrinter rows also carry a **1% low** (frame pacing, not throughput) and shout if GPU ms reads
+  0.00 for 15 s on a windowed run.
+
+**Any perf row dated before this fix is instrument output of unknown validity. Do not A/B against one.**
+
+## 2026-09-08 (later) — Phase 1: VRAM compression applied, NOT YET BENCHED
+
+The de-risking test this ledger designed at :1032 — *"it changes zero calls and zero prims. FPS moves
+-> bandwidth-bound. FPS flat -> call-bound proven."* The asset half is now done; the bench needs the
+Summoner's hands.
+
+**241 texture imports flipped `compress/mode=0` -> `mode=2`.** Scope rule, deliberately narrower than
+the plan's "all of them": under `assets/` or `terrain/`, source >= 256 KB, excluding `assets/ui/`,
+`assets/reference/`, `production/` and `screenshots/`. Foliage and terrain (74 of the 241) went to
+`high_quality=true` (BC7) — identical 8 bpp to DXT5 but far better on the alpha edges that are the
+named look risk. All 241 re-imported with `vram_texture: true`; **zero failed**, including the 47
+whose dimensions are not multiples of 4.
+
+Measured, static (VRAM is upload-size for block-compressed data, so these are the pool figures):
+- **40 canopy cards: ~243 MB as RGBA8+mips -> 55.6 MB.** The four-triangle quads.
+- The whole converted set: ~4,147 MB theoretical RGBA8+mips -> **937 MB** of `.ctex` on disk.
+
+**Two of the plan's numbers were stale, corrected here:**
+- Not 939 lossless image imports — **1,654** texture imports carried `compress/mode=0`.
+- Not 11 byte-identical copies of the 3600x5700 body atlas — **43**, plus a second 10-copy group of a
+  different 3600x5700 image. At 109.4 MB each as RGBA8+mips that is the single largest texture fact in
+  this repo, and **compression does not fix it — deduplication does.** Post-compression each copy is
+  still ~27 MB and there are still 43 of them. Flagged, not fixed; it is not Phase 1's job.
+
+**No FPS number is claimed.** GPU ms reads zero headless. The bench is two walks by the Summoner with
+the now-working instrument. Reversal is `git revert` of the import commit plus one `--import`.
+
+Headless no-regression evidence earned here:
+- `--headless --quit-after 400 res://scenes/levels/demo_game.tscn` — no texture load failure, no
+  SCRIPT ERROR (only the usual exit-time RID-leak noise).
+- `test_art_contract` 72 checks PASS · `test_model_scale` 42 characters PASS · `test_flat_damage` PASS
+  · `test_render_scale` PASS · `test_fossils` PASS · `test_ship_parity` PASS.
+- `test_viewmodel_contract` FAILS with 12 errors, and it **failed before this work**:
+  `assets/player/viewmodels/rpg7_fp.glb` does not exist in the tree at all. Unrelated, pre-existing,
+  recorded here so nobody attributes it to the import change.

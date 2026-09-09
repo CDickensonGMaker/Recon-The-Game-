@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://wp2e5f7wh8kv"
-path="res://.godot/imported/nva_sapper_face_atlas_viet.jpg-f2701c94752128ba84a8ae6c43fccbf1.ctex"
+path.s3tc="res://.godot/imported/nva_sapper_face_atlas_viet.jpg-f2701c94752128ba84a8ae6c43fccbf1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bc1c04e0a9ad739eb882b007fb5513a1"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/nva_vc/characters/nva_sapper_face_atlas_viet.jpg"
-dest_files=["res://.godot/imported/nva_sapper_face_atlas_viet.jpg-f2701c94752128ba84a8ae6c43fccbf1.ctex"]
+dest_files=["res://.godot/imported/nva_sapper_face_atlas_viet.jpg-f2701c94752128ba84a8ae6c43fccbf1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

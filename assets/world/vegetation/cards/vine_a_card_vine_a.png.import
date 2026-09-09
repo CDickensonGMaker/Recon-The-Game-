@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cdri0b72emv1u"
-path="res://.godot/imported/vine_a_card_vine_a.png-12824d2090fd173bcb43582d6f561186.ctex"
+path.bptc="res://.godot/imported/vine_a_card_vine_a.png-12824d2090fd173bcb43582d6f561186.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "4e15e73d3f4978f0eebae0d85e63e537"
@@ -14,12 +15,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/world/vegetation/cards/vine_a_card_vine_a.png"
-dest_files=["res://.godot/imported/vine_a_card_vine_a.png-12824d2090fd173bcb43582d6f561186.ctex"]
+dest_files=["res://.godot/imported/vine_a_card_vine_a.png-12824d2090fd173bcb43582d6f561186.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

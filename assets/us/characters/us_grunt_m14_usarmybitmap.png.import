@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://y20u57osqv72"
-path="res://.godot/imported/us_grunt_m14_usarmybitmap.png-bb6f73f4431b06a496dd9791a9a71779.ctex"
+path.s3tc="res://.godot/imported/us_grunt_m14_usarmybitmap.png-bb6f73f4431b06a496dd9791a9a71779.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c35fb5c874324d0388c07e1e56631df6"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/us/characters/us_grunt_m14_usarmybitmap.png"
-dest_files=["res://.godot/imported/us_grunt_m14_usarmybitmap.png-bb6f73f4431b06a496dd9791a9a71779.ctex"]
+dest_files=["res://.godot/imported/us_grunt_m14_usarmybitmap.png-bb6f73f4431b06a496dd9791a9a71779.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

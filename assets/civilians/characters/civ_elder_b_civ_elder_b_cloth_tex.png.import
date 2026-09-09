@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://gbfbwate602v"
-path="res://.godot/imported/civ_elder_b_civ_elder_b_cloth_tex.png-efc2b69a0b88dd0a6ca464d43fc8aa93.ctex"
+path.s3tc="res://.godot/imported/civ_elder_b_civ_elder_b_cloth_tex.png-efc2b69a0b88dd0a6ca464d43fc8aa93.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "4adc991da6d44b9b1d2c2993d1f03e4a"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/civilians/characters/civ_elder_b_civ_elder_b_cloth_tex.png"
-dest_files=["res://.godot/imported/civ_elder_b_civ_elder_b_cloth_tex.png-efc2b69a0b88dd0a6ca464d43fc8aa93.ctex"]
+dest_files=["res://.godot/imported/civ_elder_b_civ_elder_b_cloth_tex.png-efc2b69a0b88dd0a6ca464d43fc8aa93.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

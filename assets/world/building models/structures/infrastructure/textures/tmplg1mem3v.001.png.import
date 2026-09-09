@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cin5y4rot5jv7"
-path="res://.godot/imported/tmplg1mem3v.001.png-541897988671da0cfd9945eaf2f6e1f7.ctex"
+path.s3tc="res://.godot/imported/tmplg1mem3v.001.png-541897988671da0cfd9945eaf2f6e1f7.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/world/building models/structures/infrastructure/textures/tmplg1mem3v.001.png"
-dest_files=["res://.godot/imported/tmplg1mem3v.001.png-541897988671da0cfd9945eaf2f6e1f7.ctex"]
+dest_files=["res://.godot/imported/tmplg1mem3v.001.png-541897988671da0cfd9945eaf2f6e1f7.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bkw11uc2cmdof"
-path="res://.godot/imported/arms_gloves_01.png-9e5db4fc7d6e7798aff0f7f6d292a65d.ctex"
+path.s3tc="res://.godot/imported/arms_gloves_01.png-9e5db4fc7d6e7798aff0f7f6d292a65d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/player/arms/arms_gloves_01.png"
-dest_files=["res://.godot/imported/arms_gloves_01.png-9e5db4fc7d6e7798aff0f7f6d292a65d.ctex"]
+dest_files=["res://.godot/imported/arms_gloves_01.png-9e5db4fc7d6e7798aff0f7f6d292a65d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

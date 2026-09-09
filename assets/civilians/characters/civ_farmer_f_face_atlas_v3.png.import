@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cy1prjsme78wn"
-path="res://.godot/imported/civ_farmer_f_face_atlas_v3.png-04ffadf5cf0d8c2d29f692f4efe2ee3d.ctex"
+path.s3tc="res://.godot/imported/civ_farmer_f_face_atlas_v3.png-04ffadf5cf0d8c2d29f692f4efe2ee3d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "df18c6afeb5614dcc3c057746bf2d689"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/civilians/characters/civ_farmer_f_face_atlas_v3.png"
-dest_files=["res://.godot/imported/civ_farmer_f_face_atlas_v3.png-04ffadf5cf0d8c2d29f692f4efe2ee3d.ctex"]
+dest_files=["res://.godot/imported/civ_farmer_f_face_atlas_v3.png-04ffadf5cf0d8c2d29f692f4efe2ee3d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

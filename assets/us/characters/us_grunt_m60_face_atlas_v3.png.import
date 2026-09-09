@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dsugmycb6bqd5"
-path="res://.godot/imported/us_grunt_m60_face_atlas_v3.png-7c4e77f820ac0d0b5ccf83672cb5ce21.ctex"
+path.s3tc="res://.godot/imported/us_grunt_m60_face_atlas_v3.png-7c4e77f820ac0d0b5ccf83672cb5ce21.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "df18c6afeb5614dcc3c057746bf2d689"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/us/characters/us_grunt_m60_face_atlas_v3.png"
-dest_files=["res://.godot/imported/us_grunt_m60_face_atlas_v3.png-7c4e77f820ac0d0b5ccf83672cb5ce21.ctex"]
+dest_files=["res://.godot/imported/us_grunt_m60_face_atlas_v3.png-7c4e77f820ac0d0b5ccf83672cb5ce21.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

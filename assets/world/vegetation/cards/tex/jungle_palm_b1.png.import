@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://tifv0eussw5f"
-path="res://.godot/imported/jungle_palm_b1.png-3b4326d3b189690185fbf51a7de15267.ctex"
+path.bptc="res://.godot/imported/jungle_palm_b1.png-3b4326d3b189690185fbf51a7de15267.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/world/vegetation/cards/tex/jungle_palm_b1.png"
-dest_files=["res://.godot/imported/jungle_palm_b1.png-3b4326d3b189690185fbf51a7de15267.ctex"]
+dest_files=["res://.godot/imported/jungle_palm_b1.png-3b4326d3b189690185fbf51a7de15267.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
