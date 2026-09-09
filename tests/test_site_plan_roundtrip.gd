@@ -48,6 +48,27 @@ func _ready() -> void:
 	if with_stations == 0:
 		_fail("no part in the manifest carries a work station - the part contract is empty")
 
+	# THE PART CONTRACT'S OPEN DOORS (ADR-043 §4). None of these is consumed by anything yet -
+	# the combo resolver is post-demo work - and that is exactly why they need a probe. A field
+	# nothing reads is a field that quietly stops being populated, and the cost of discovering
+	# that after forty parts are authored is a second migration.
+	for id_any in reg.parts.keys():
+		var e: Dictionary = reg.parts[id_any]
+		for field in ["crew", "demands", "supplies", "stations", "props"]:
+			if not e.has(field):
+				_fail("part '%s' has no '%s' field - the part contract lost a door"
+					% [String(id_any), String(field)])
+				break
+		# Work types must arrive as bare strings. The moment one is an enum or an int, the
+		# vocabulary is back in code and a second war cannot add work_firestep without
+		# editing site_planner.gd.
+		for st_any in (e.get("stations", []) as Array):
+			var st: Dictionary = st_any
+			if not (st.get("work_type", null) is String):
+				_fail("part '%s' has a non-string work_type - the vocabulary left the data"
+					% String(id_any))
+				break
+
 	var plan := SitePlan.new()
 	plan.plan_name = PLAN_NAME
 	plan.flatten_radius = 24.0

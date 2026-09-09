@@ -99,8 +99,30 @@ func _read_manifest() -> void:
 			"enterable": bool(src.get("enterable", false)),
 			"stations": stations,
 			"props": props,
+			# His kit ask included "certian npcs thatll spawn with certian building combos".
+			# These three fields are the shape that keeps it expressible, and they are read
+			# HERE and consumed NOWHERE - deliberately. Nothing spawns off them yet; the
+			# combo resolver is post-demo work. What matters now is that a part CAN say it,
+			# because a data model that cannot express it forecloses the capability and
+			# costs a second migration to add later.
+			#
+			# All three are STRINGS, never enums: an enum would put the vocabulary back in
+			# code, which is the exact defect FSB_STRUCTURE_KINDS still has.
+			"crew": _string_list(src.get("crew", [])),
+			"demands": _string_list(src.get("demands", [])),
+			"supplies": _string_list(src.get("supplies", [])),
 			"model": "",
 		}
+
+
+static func _string_list(v: Variant) -> Array[String]:
+	var out: Array[String] = []
+	if v is Array:
+		for e in (v as Array):
+			var s: String = String(e)
+			if s != "":
+				out.append(s)
+	return out
 
 
 ## A manifest entry earns a model when kit/<id>.glb is on disk. Models with no manifest entry
