@@ -61,6 +61,17 @@ func _ready() -> void:
 	if has_flag(PERF_BEFORE_FLAG):
 		render_scale = 1.0
 		print("[PERF] --perf-before: render scale forced to 1.0, material budget off")
+	## --psx / --no-psx: the PSX treatment is the game's own art direction and it has
+	## shipped OFF since 2026-08-07 because its default-on was gated on "perf numbers"
+	## (psx_look.gd header, SHIP_AUDIT S5) - and the instrument that would have produced
+	## them was lying from that same day until 2026-09-08. A flag, not a settings write:
+	## a bench must never leave state behind that follows him into normal play.
+	if has_flag("--psx"):
+		psx_look = true
+		print("[PSX] --psx: PSX treatment FORCED ON for this run")
+	elif has_flag("--no-psx"):
+		psx_look = false
+		print("[PSX] --no-psx: PSX treatment FORCED OFF for this run")
 	apply_audio()
 	apply_vsync()
 	if has_flag("--print-fps"):

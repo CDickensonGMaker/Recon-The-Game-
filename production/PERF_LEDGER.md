@@ -1599,3 +1599,51 @@ headless boot `--quit-after 300` clean.
 - **UNEXPLAINED: a 35–70 ms idle script step in the QUIET and SPAWN phases with NO instrumented cause.**
   Present with nothing happening. Not chased this pass. Named here rather than rounded away.
 - Summoner observation, logged not chased: **"weird loading chunks happening."**
+
+---
+
+## 2026-09-09 — THE PSX TREATMENT, RULED OFF BY THE SUMMONER
+
+**His verdict, after walking it himself: "well that made it look and perform worse."**
+Both halves. This closes a question that had been open since 2026-08-07.
+
+### Why it was open for a month
+`psx_look.gd`'s own header gated default-on behind "perf numbers govern default-on
+(SHIP_AUDIT_2026-08-07.md S5)". The render-scale instrument began lying on **2026-08-07** —
+the same day — and did not stop until 2026-09-08. The number that would have settled this
+could not be produced, so the game's own stated art direction shipped switched off for a
+month. Nobody re-asked; the gate simply sat.
+
+### The measurement (windowed, seed 47225, vsync off, VRAM-compressed textures, his walk)
+
+| | PSX ON (scale 0.375) | PSX OFF (scale 0.75) |
+|---|---|---|
+| FPS avg | **22.5 – 32.9** | **20.7 – 44.4** |
+| GPU ms | **17.4 – 24.2** | **13.8 – 28.1** |
+| render thread ms | **2.25 – 6.13** | **0.86 – 4.74** |
+| draw calls | 1,584 – 2,368 | 196 – 1,708 |
+
+### THE FINDING THAT OUTLIVES THE RULING
+
+**A quarter of the pixels did not reduce GPU time.** 480x270 renders 25% of the pixels of
+960x540 and measured 17.4–24.2 ms against 13.8–28.1 ms — no better, and worse on average.
+
+**The frame is therefore NOT fill-bound at these resolutions.** That kills the fill-rate
+hypothesis outright. The render-scale ladder (48.1 / 33.1 / 22.7 ms at 1.0 / 0.75 / 0.5) was
+taken on the DRONE camera and does not describe the player's frame.
+
+Cost is in the treatment itself, not the resolution: a fullscreen dither pass, per-material
+conversion, and `PsxLook`'s `SceneTree.node_added` hook running on every node spawned. The
+render thread roughly doubled.
+
+### Ruled
+- **PSX treatment stays OFF.** His eyes and the numbers agree. Do not re-propose it as a perf
+  lever; it is not one. Re-proposing it as an ART change is his call alone.
+- `--psx` / `--no-psx` flags stay as instruments. They cost nothing when off and they are how
+  this was settled in one walk instead of another month.
+
+### Retracted, again
+The approved plan named the frame draw-call bound, then game-thread bound, then fill-bound.
+All three came from mislabelled or wrong-camera columns. **Three retractions on this question.**
+Nothing about where this frame goes is established except: GPU 14–28 ms is not the wall, and
+the drops are crater chunk-rebuild and tree-break on the physics tick (measured, 2026-09-08).
