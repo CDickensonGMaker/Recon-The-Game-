@@ -55,6 +55,120 @@ func _update_think_lod(delta: float) -> void:
 	else:
 		_think_interval_current = THINK_INTERVAL
 
+
+## ---------- THE BEHAVIOURAL LOD (Summoner's ruling, 2026-09-09) ----------
+## Full rationale and the three guards live in scripts/ai/ai_lod.gd. Here is only the
+## per-man state and the decision.
+var ai_tier: int = AILod.Tier.NEAR
+var _lod_eval_t: float = 0.0
+var _lod_far_dwell: float = 0.0
+## Per-man phase, so 45 men never re-decide their tier on one physics frame.
+var _lod_phase: float = 0.0
+## Far-tier decision clock: posture and aim at FAR_DECIDE_S, legs every frame.
+var _far_decide_t: float = 0.0
+## His slot in the wave, as a world offset off the objective. Computed once on the
+## first far advance, so the wave arrives line-abreast on a front instead of nose to
+## tail down one bearing. Costs one normalise, once, per man.
+var _far_lane: Vector3 = Vector3.ZERO
+var _far_lane_set: bool = false
+var _far_lane_src: Vector3 = Vector3.ZERO
+
+
+## Re-decide this man's tier. Runs for GATED men too: promotion must never depend on
+## the body gate, or a man standing still at 85 m could never be promoted by the player
+## walking up to him.
+func _update_ai_lod(delta: float) -> void:
+	_lod_eval_t += delta
+	if _lod_eval_t < AILod.EVAL_INTERVAL_S + _lod_phase:
+		return
+	var step: float = _lod_eval_t
+	_lod_eval_t = 0.0
+	var want: int = _lod_decide(step)
+	if want == ai_tier:
+		return
+	ai_tier = want
+	AILod.set_tier(self, want)
+	if want == AILod.Tier.FAR:
+		# A demoted man gives his hot slot back at once - it is the scarce thing, and
+		# the near men are the ones who need it (ADR-026 Part B).
+		EnemySquad.release_hot(self)
+	# NOTHING ELSE IS RESET. No state change, no posture snap, no target drop, no
+	# animation restart: he carries his stance, his intent, his prone latch and his
+	# target across the handoff and finishes what he was doing. That is the whole
+	# reason the handoff is invisible.
+
+
+func _lod_decide(step: float) -> int:
+	if not AILod.is_enabled():
+		return AILod.Tier.NEAR
+	# THE EXEMPT. The sapper is the demolition party - few, and doing the one thing
+	# that decides the siege; his breach behaviour is never demoted by distance. Nor
+	# is a medic working a casualty, nor a spider hole waiting to be stepped on (his
+	# whole behaviour is a one-shot trigger at 7 m).
+	#
+	# A DOWNED man is not listed here on purpose: _physics_process returns before this
+	# is ever reached for him, so a clause here would be a claim no code path proves.
+	# He gives his seat back in _become_downed instead - he is not thinking, and the
+	# promoted count must not carry him.
+	if silent_infiltrator or _aid_target != null \
+			or (is_spider_hole and not _spider_triggered):
+		_lod_far_dwell = 0.0
+		return AILod.Tier.NEAR
+	var player := GameManager.player as Node3D
+	if player == null or not is_instance_valid(player):
+		# NO ANCHOR, NO CHANGE. The LOD measures distance from the player and there is
+		# no honest answer without one. Holding the tier is the only safe reading:
+		# returning FAR would put an AI-vs-AI arena (no player at all) entirely on the
+		# cheap brain, and returning NEAR would promote all 45 men the instant he dies -
+		# the slideshow, at the exact moment he is watching his own death.
+		_lod_far_dwell = 0.0
+		return ai_tier
+	var d: float = global_position.distance_to(player.global_position)
+	if d <= AILod.PROMOTE_M or (d < AILod.STICKY_MAX_M and _lod_sticky()):
+		_lod_far_dwell = 0.0
+		return AILod.Tier.NEAR
+	if ai_tier == AILod.Tier.NEAR:
+		if d < AILod.DEMOTE_M:
+			_lod_far_dwell = 0.0
+			return AILod.Tier.NEAR   # inside the hysteresis band - keep what he has
+		_lod_far_dwell += step
+		if _lod_far_dwell < AILod.DEMOTE_DWELL_S:
+			return AILod.Tier.NEAR   # let him finish
+	return AILod.Tier.FAR
+
+
+## PROMOTION IS NOT ONLY DISTANCE. A man who is shooting at the player, has just been
+## shot by the player or one of his squad, or holds one of them as his target, thinks
+## properly wherever he stands.
+##
+## Deliberately blind to the GARRISON. Being shot at by a bunker 200 m away is not a
+## reason to run a tactical brain - going to ground, returning fire and pressing on is
+## exactly what the far tier already does, and promoting on it would promote the whole
+## wave and bound nothing.
+##
+## Every test here is O(1) on state the man has already computed. A promotion rule that
+## costs a raycast pays for the thing it exists to save.
+func _lod_sticky() -> bool:
+	var now: float = float(Time.get_ticks_msec())
+	if now - _last_attacker_ms < AILod.STICKY_MS and _attacker_is_players_side():
+		return true
+	if target != null and is_instance_valid(target):
+		if _target_is_player():
+			return true
+		var ab := target as AllyBase
+		if ab != null and ab.squad_member:
+			return true
+	return false
+
+
+func _attacker_is_players_side() -> bool:
+	if _last_attacker == null or not is_instance_valid(_last_attacker):
+		return false
+	if _last_attacker == GameManager.player:
+		return true
+	var ab := _last_attacker as AllyBase
+	return ab != null and ab.squad_member
+
 var target: Node3D = null
 var last_known_target_pos: Vector3 = Vector3.ZERO
 var target_last_seen_time: float = 0.0
@@ -362,6 +476,13 @@ func _ready() -> void:
 	add_to_group("enemies")
 	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
 	_router.setup(nav_agent, get_tree(), "enemy")
+	# De-phase the LOD decision and the far-tier posture beat. Forty-five men spawned
+	# in the same second otherwise re-decide on the same physics frame forever, which
+	# turns a 4 Hz cost into one 45-wide spike every quarter second.
+	var h: int = absi(hash(get_instance_id()))
+	_lod_phase = float(h % 97) * 0.001          # 0-96 ms of jitter
+	_far_decide_t = float(h % 199) * 0.001      # 0-198 ms of jitter
+	AILod.set_tier(self, ai_tier)               # he is born NEAR until he decides otherwise
 
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
 	_apply_personality()
@@ -420,6 +541,7 @@ func _ready() -> void:
 ## hold freed instances (the registry has no cleanup sweep by design).
 func _exit_tree() -> void:
 	AgentRegistry.unregister(self)
+	AILod.set_tier(self, AILod.Tier.FAR)   # a freed man is nobody's near tier
 
 
 ## Remove a LIVING man from the world without a death. `died` never fires, so
@@ -923,6 +1045,7 @@ func _physics_process(delta: float) -> void:
 	_update_decay(capped_delta)
 
 	_update_think_lod(capped_delta)
+	_update_ai_lod(capped_delta)
 	think_timer += capped_delta
 	var usec_think: int = 0
 	if think_timer >= _think_interval_current:
@@ -1044,8 +1167,12 @@ func _think() -> void:
 	# combat brain. The rest of the fight runs cheap behavior with no per-think
 	# targeting or LOS raycast. A cold fighter promotes itself the instant a hot
 	# slot frees (promote-on-death). Non-combat units are never tiered.
+	# THE HOT SET IS NOW THE NEAR TIER'S. HOT_CAP is 50 and the assault fields 45, so
+	# before the behavioural LOD every man in the siege claimed a slot and ADR-026
+	# Part B's tiering never engaged once in the fight it was built for. A FAR man
+	# never asks for a slot, which is what finally makes the cap reachable.
 	if alert_tier == AlertTier.COMBAT:
-		if EnemySquad.is_hot(self) or EnemySquad.request_hot(self):
+		if ai_tier == AILod.Tier.NEAR and (EnemySquad.is_hot(self) or EnemySquad.request_hot(self)):
 			_refresh_separation()
 			_think_full_combat()
 		else:
@@ -1802,6 +1929,10 @@ func _update_state_for_goal() -> void:
 ## ============================================
 
 func _execute(delta: float) -> void:
+	if ai_tier == AILod.Tier.FAR:
+		_execute_far(delta)
+		return
+
 	if _body_hot:
 		_update_sprite()
 
@@ -1887,6 +2018,188 @@ func _update_aim(delta: float) -> void:
 const ASSAULT_URGENCY: float = 1.55
 func _execute_assault(delta: float) -> void:
 	_move_toward(assault_objective, delta, ASSAULT_URGENCY)
+
+
+## ============================================
+## THE FAR TIER - the cheap half of the behavioural LOD
+## ============================================
+##
+## CHEAP IS NOT ABSENT (Pillar 1, and the Summoner's own guard on this design). At 150 m
+## a man in the wave still walks his lane, still goes flat when rounds crack past him,
+## still fires toward the firebase, still dies and still counts to the ledger. What he
+## stops paying for is what the player cannot read at that range:
+##   - the per-frame animation DECISION (the clip still plays at full framerate; only
+##     the choice of which clip is taken at FAR_DECIDE_S)
+##   - the per-frame `look_at` and aim slew
+##   - the navmesh path query (NavRouter.step -> get_next_path_position every tick)
+##   - the per-man tactical evaluation: cover search, flanking geometry, separation
+##   - a firefight fire cadence, which is also the largest single cost in ai.execute:
+##     every round is a raycast, a bullet, a muzzle flash node tree, a noise signal to
+##     ~60 listeners and a suppression sweep over every ally
+##
+## EVERYTHING HERE IS A RATE LIMIT ON THE SHIPPED PATH, NOT A SECOND COPY OF IT. A
+## forked far-tier animation or damage path would drift away from the near one inside a
+## month (NO MORE DRIFT, 2026-07-19) and the two halves of the fight would stop agreeing.
+
+## Posture and aim decision rate for a far man. 5 Hz: a 200 ms latency on which clip he
+## is playing is invisible at 80 m and beyond, and it is the whole reason _update_sprite
+## stops being a per-man per-frame cost.
+##
+## NAMED CONSEQUENCE, so nobody rediscovers it as a bug: ModelActor.set_facing damps the
+## body yaw with the PHYSICS delta, and it is now called 5 times a second instead of 30,
+## so a far man turns roughly 6x slower. For a wave walking one bearing that reads
+## better than the truth did - no head snapping across a field. He is back on the 30 Hz
+## turn the instant he promotes.
+const FAR_DECIDE_S: float = 0.2
+## Burst gap for marching fire. A man crossing open ground toward a wire fires in bursts
+## with real gaps; a man in a close firefight fires on 0.4-1.2 s (see _execute_combat).
+## This is a BEHAVIOUR difference, not a budget: it is what the far tier is doing.
+const FAR_BURST_MIN_S: float = 1.6
+const FAR_BURST_MAX_S: float = 3.4
+## How wide the wave spreads across its objective. Without a lane the whole cell walks
+## the same bearing into the same metre of wire and reads as a queue.
+const FAR_LANE_M: float = 16.0
+
+
+func _execute_far(delta: float) -> void:
+	_far_decide_t += delta
+	if _far_decide_t >= FAR_DECIDE_S:
+		var decide_dt: float = _far_decide_t
+		_far_decide_t = 0.0
+		if _body_hot:
+			_update_sprite()
+		_update_aim(decide_dt)
+
+	# The medic keeps his contract at every tier: his legs belong to the casualty.
+	# (He is exempt from demotion anyway while he holds one - this is the belt.)
+	if _aid_target != null:
+		_execute_aid(delta)
+		return
+
+	# THE WAVE. Straight at the objective, at a run, firing toward the firebase.
+	#
+	# DELIBERATELY UNLIKE THE NEAR PATH. There, contact hands an undriven man's legs
+	# back to the combat brain and he stops to fight. Here he keeps walking and shoots
+	# on the move, which is the Summoner's design in his own words: "just run in a
+	# straight line and shoot toward the firebase". He is handed back to the combat
+	# brain by PROMOTION - by getting close to the player - and by nothing else.
+	#
+	# ARRIVAL IS MEASURED AT HIS OWN LANE POINT, not at the objective: his slot is up
+	# to FAR_LANE_M off it, so measuring at the objective would leave every man on the
+	# flanks of the wave permanently 16 m short of "arrived" and hovering.
+	if assault_objective != Vector3.ZERO:
+		if assault_driven \
+				or global_position.distance_to(_far_target_point()) > ASSAULT_ARRIVE_M:
+			_far_advance(delta)
+			return
+		assault_objective = Vector3.ZERO
+
+	# THE FOUR FIGHTING STATES COLLAPSE TO ONE. Cover geometry, flanking arcs and the
+	# separation solve are per-man tactical evaluation the player cannot read at this
+	# range; what he can read is men advancing and firing, and that is what is left.
+	if current_state == Enums.AIState.COMBAT \
+			or current_state == Enums.AIState.ADVANCING \
+			or current_state == Enums.AIState.FLANKING \
+			or current_state == Enums.AIState.SEEKING_COVER:
+		_far_engage(delta)
+	elif current_state == Enums.AIState.SUPPRESSED:
+		_execute_suppressed(delta)
+	elif current_state == Enums.AIState.RETREATING:
+		# A man running for the treeline still ROUTES: the break is a gameplay outcome
+		# (ADR-035 §4) and it must not walk him into a wall on the way out.
+		_execute_retreating(delta)
+	else:
+		# IDLE and ALERT are already velocity lerps and a sentry sweep. Left alone
+		# rather than reimplemented - a far patrol is a handful of men, not 45.
+		_execute_idle(delta)
+
+
+## His own slot in the wave: a fixed world offset perpendicular to his approach bearing,
+## solved ONCE. The wave then arrives line-abreast on a front of ~2 x FAR_LANE_M instead
+## of nose to tail down one bearing.
+func _far_target_point() -> Vector3:
+	# Re-solved when the objective MOVES - a breach re-aim (siege_director._redirect_
+	# through_breach) or a withdrawal hands him a new point, and a lane perpendicular to
+	# the old bearing would push him sideways across the new one.
+	if not _far_lane_set or assault_objective.distance_squared_to(_far_lane_src) > 4.0:
+		_far_lane_set = true
+		_far_lane_src = assault_objective
+		_far_lane = Vector3.ZERO
+		var to: Vector3 = assault_objective - global_position
+		to.y = 0.0
+		if to.length() > 0.01:
+			var side: Vector3 = Vector3(-to.z, 0.0, to.x).normalized()
+			# Deterministic from the instance, so a replay of the same seed puts the
+			# same man in the same slot (ADR-010: one seed per operation).
+			var f: float = float(absi(hash(get_instance_id())) % 2001) * 0.001 - 1.0
+			_far_lane = side * f * FAR_LANE_M
+	return assault_objective + _far_lane
+
+
+## Head-on at the wire. No navmesh query: between the treeline and the firebase there is
+## open ground, gravity and move_and_slide already carry him over it, and the path query
+## is the thing being paid for. He is handed back to the router the moment he promotes.
+func _far_advance(delta: float) -> void:
+	var to: Vector3 = _far_target_point() - global_position
+	to.y = 0.0
+	var dir: Vector3 = to.normalized() if to.length() > 0.01 else Vector3.ZERO
+	_far_step(dir, delta, ASSAULT_URGENCY)
+	# A satchel man never fires (silent_infiltrator) and _far_fire knows it.
+	_far_fire(delta)
+
+
+## A far man in contact who is not driving an objective: close to his preferred range
+## and shoot. No cover point, no bound, no flank - and no path.
+func _far_engage(delta: float) -> void:
+	if target == null or not is_instance_valid(target):
+		_far_step(Vector3.ZERO, delta, 0.0)
+		return
+	var to: Vector3 = target.global_position - global_position
+	to.y = 0.0
+	var d: float = to.length()
+	var dir: Vector3 = Vector3.ZERO
+	if d > 0.01:
+		if d > preferred_range * 1.3:
+			dir = to / d
+		elif d < preferred_range * 0.5:
+			dir = -to / d
+	_far_step(dir, delta, 0.75)
+	_far_fire(delta)
+
+
+## The only place a far man writes velocity. GOING TO GROUND STILL WORKS: suppression
+## and the pin are what make a wave look like men rather than a queue, they cost one
+## float compare, and they stay. Legs are written EVERY frame - deciding them at 5 Hz
+## would read as a stutter even at 150 m.
+func _far_step(dir: Vector3, delta: float, speed_mult: float) -> void:
+	if dir.length() > 0.1:
+		facing_dir = dir   # eyes follow movement, exactly as _move_toward does
+	var v: float = move_speed * speed_mult * _suppression_move_mult()
+	velocity.x = lerpf(velocity.x, dir.x * v, delta * 8.0)
+	velocity.z = lerpf(velocity.z, dir.z * v, delta * 8.0)
+
+
+## MARCHING FIRE. Real rounds, real flash, real tracers, real noise - the Fairness Law
+## telegraph is not an optimisation target and a far man's round can still kill, so
+## outcomes stay coherent. What changes is the CADENCE: bursts with real gaps, because
+## that is what a man crossing open ground actually does.
+func _far_fire(delta: float) -> void:
+	if silent_infiltrator or weapon_data == null:
+		return
+	if target == null or not is_instance_valid(target):
+		return
+	if not has_line_of_sight:
+		return   # a cold man fires only at what he can witness (same rule as the cheap think)
+	grenade_cooldown = maxf(0.0, grenade_cooldown - delta)
+	if not can_fire or suppression_level >= CombatPosture.SUPPRESS_FIRE_CEILING:
+		return
+	if burst_count < MAX_BURST:
+		_fire_at_target()
+		burst_count += 1
+		return
+	burst_count = 0
+	can_fire = false
+	fire_timer = randf_range(FAR_BURST_MIN_S, FAR_BURST_MAX_S) * _tempo()
 
 
 func _execute_idle(delta: float) -> void:
@@ -3049,6 +3362,7 @@ func _become_downed() -> void:
 	is_downed = true
 	downed_pool.append(self)
 	EnemySquad.release_hot(self)  # out of the fight: free the hot slot for a live man
+	AILod.set_tier(self, AILod.Tier.FAR)  # ...and his near-tier seat: he is not thinking
 	current_hp = 1
 	_downed_bleed_s = randf_range(45.0, 90.0)
 	_downed_fx_s = randf_range(1.5, 4.0)
@@ -3105,6 +3419,7 @@ func _die() -> void:
 	if is_instance_valid(_last_attacker):
 		killer = _last_attacker
 	EnemySquad.release_hot(self)  # a dead man holds no hot slot - promote a live one
+	AILod.set_tier(self, AILod.Tier.FAR)  # ...nor a near-tier seat (the census counts the LIVING)
 	SquadCoord.release_exposure(SquadCoord.SIDE_ENEMY, squad_id, self)
 	if not is_downed:
 		VOManager.play_enemy("man_down", self, true)  # downed men already cried out

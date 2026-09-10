@@ -1,5 +1,58 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-AA. THE BEHAVIOURAL LOD — BUILT 2026-09-09 (night). **UNMEASURED. Two double-clicks are yours.**
+
+**Your design, verbatim:** *"make the assault waves just attack head on in two large waves that just
+run in a straight line and shoot toward the firebase and the sappers are trying to break in and than
+once an enemy npc gets within 40-80ms of the player the turn into a real thinking enemy to attack the
+player"*
+
+Built exactly that. `scripts/ai/ai_lod.gd` (new) + the far tier in `scripts/enemies/enemy_base.gd`.
+
+| the rule | the number | where |
+|---|---|---|
+| promote to the full thinking brain | **80 m** — the outer edge of your 40-80 band | `AILod.PROMOTE_M` |
+| demote back to the wave | **past 105 m**, and only after **3 s** of quiet out there | `DEMOTE_M`, `DEMOTE_DWELL_S` |
+| promotion is not ONLY distance | shooting at you, shot by you or your squad, or holding one of you as a target — **capped at 160 m** so one shared target cannot promote a whole squad at 300 m | `_lod_sticky()` |
+| sappers | **never demoted by distance.** `silent_infiltrator` is the marker; they keep the breach brain at 400 m | `_lod_decide()` |
+| the hot set | HOT_CAP is 50 and the assault fields 45, so **ADR-026 Part B's tiering had never once engaged in this fight.** A far man no longer asks for a slot, which is what finally makes the cap mean something | `_think()` |
+
+**What a far man still does, because cheap is not absent:** walks his own lane (a fixed ±16 m slot off
+the objective, so 45 men arrive on a FRONT and not in a queue), keeps advancing and firing while in
+contact instead of stopping to fight, goes to ground when suppression pins him, fires real rounds with
+real flash and real tracers — and dies, bleeds, counts to the ledger and trips the wire through code
+this change never touched. What he stops paying for: the navmesh path query, the per-frame animation
+decision, the per-frame `look_at`, cover/flank/separation solves, and a close-firefight fire cadence.
+
+### THE TWO DOUBLE-CLICKS — only you can take them
+
+1. **`probe_ai_lod.bat`** — headless, ~25 s, no window. Twelve assertions on the rules above. **Run it
+   first**: a fast log from a wrong LOD is worth nothing. *(NEVER RUN — you were playing another game.)*
+2. **`perf_stress_lod_off.bat`, then `perf_stress.bat`.** Same build, one flag apart. The BEFORE log
+   says `lod OFF`; the AFTER log says `lod ON`. Both carry a new row beside every `[FPS]` row:
+
+   `[AILOD] near N (window peak P, mean M) of L live enemies | hot slots H/50 | lod ON/OFF`
+
+   **`window peak` is the number that decides whether this works.** If it is not far below the live
+   enemy count during the assault, the LOD is not doing its job and no frame-time gain from it should
+   be believed. *(NEVER RUN. Nobody has a measured promoted count yet — see the ledger.)*
+
+**And check the OUTCOME, not just the frame time.** Your third guard was that the far tier must not
+change who wins the siege. The one place it plausibly could: a far man no longer seeks cover. That
+mostly does not bite — a man still marching had no cover behaviour under the old code either
+(`_execute_assault` ignores cover by design), and men close enough to be taking real cover near the
+wire are close enough to you to be promoted. But it is a *reading*, not a measurement. Compare the two
+logs on `[Siege]` lines: does the assault still break at about the same strength, and do sappers still
+get holes in the wall?
+
+### ONE THING I DID NOT DO, and it is yours to rule
+
+You said **two large waves, head on**. The assault is still **four squads across 150° of arc with one
+as a base of fire** (`SiegeDirector.ASSAULT_SQUADS`, `SQUAD_SPREAD_DEG`, `SUPPORT_SQUAD`) — the shape
+decreed 2026-08-13. That shape costs nothing per frame, so it is not the performance problem, and
+changing it would change **who wins the siege**, which your own third guard forbids an optimisation
+from doing. Say the word and it is two constants.
+
 ## 0000-A. THE KIT'S FOUR JOBS — DONE 2026-09-09 (night). Two rows left for you.
 
 **Your spec, verbatim:** *"so that means we need to have the different pieces that make up that

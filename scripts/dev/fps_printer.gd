@@ -126,6 +126,11 @@ func _process(delta: float) -> void:
 		_gpu_ever = true
 	if _raw != null:
 		_raw.store_line("%d,%d,%d,%.4f,%.4f,%.4f" % [_frame_id, _windows, Time.get_ticks_usec(), ms, g, r])
+	## THE PROMOTED-MAN COUNT (Summoner's standing ask, 2026-09-09): how many enemies run
+	## the full thinking brain at once. Sampled EVERY FRAME - a once-per-window sample
+	## would miss every peak by construction, which is the same instrument defect as the
+	## spike catcher that averaged over its own window.
+	AILod.census()
 	if _t < WINDOW_S:
 		return
 	var wall_s: float = float(Time.get_ticks_usec() - _wall_t0) / 1000000.0
@@ -165,6 +170,7 @@ func _process(delta: float) -> void:
 		if stall_p != "":
 			print(stall_p)
 		StallLedger.reset_window()
+		AILod.flush_window()   # a frozen scene's census is not this window's either
 		if _raw != null:
 			_raw.flush()
 		_t = 0.0
@@ -194,6 +200,14 @@ func _process(delta: float) -> void:
 	if stall != "":
 		print(stall)
 	StallLedger.reset_window()
+	## The LOD row rides with the frame row so the promoted count and the frame time it
+	## bought are never quoted from two different runs. `lod OFF` means --ai-lod-off:
+	## every man is near and this is the BEFORE side of the A/B.
+	print("[AILOD] near %d (window peak %d, mean %.1f) of %d live enemies | hot slots %d/%d | lod %s"
+		% [AILod.promoted_count(), AILod.window_peak, AILod.window_mean(),
+			AgentRegistry.enemies.size(), EnemySquad.hot_count(), EnemySquad.HOT_CAP,
+			"ON" if AILod.is_enabled() else "OFF"])
+	AILod.flush_window()
 	## GPU ms reads 0.0 under the dummy renderer and stays 0.0 if measurement was never
 	## enabled. Either way the row is not a GPU measurement and must say so out loud.
 	if _windows == 3 and not _gpu_ever and DisplayServer.get_name() != "headless":

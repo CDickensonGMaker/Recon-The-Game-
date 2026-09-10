@@ -3125,3 +3125,49 @@ One bug the run exposed and it is fixed: the single-event targets park probe/sie
 **Guarded by `tests/test_demo_arc.tscn` — 26 checks, PASS, in the suite and in `$Graduated`.** It
 asserts the shipping arc is untouched with the flag absent, and pins the constants THE SESSION ENTRY
 GATE is written against: probe 1395, siege 1440, 45 men, 06:30 start, 38x/20x, seed 29072026.
+
+---
+
+## 2026-09-09 — THE BEHAVIOURAL LOD (built, **NOT MEASURED**)
+
+**The finding it answers.** The 45-man assault runs at **~2.7 fps** and `ai.execute` is the dominant
+exclusive span in every measured window: **2,650-3,010 ms per 5 s over ~4,408 calls = 0.60-0.68 ms per
+man per physics tick.** GPU is under a third of the frame. Forty-five men roughly double the physics
+script step (18-21 ms with no siege, 38-43 ms under the assault).
+
+**What was in that 0.6 ms, by reading (not by profiling — no run was possible):**
+
+| per man, per tick, inside `ai.execute` | why it is expensive |
+|---|---|
+| `_update_sprite()` | ~100 lines: a `get_node_or_null("Burning")` NodePath lookup, the intent state map, a **string concatenation** in `SpriteStateMap.clip_for`, `set_facing` (a `global_rotation` decompose+recompose), `set_locomotion_speed` |
+| `_update_aim()` | a `look_at()` basis rebuild every frame |
+| `_move_toward()` -> `NavRouter.step()` | `NavigationAgent3D.get_next_path_position()` every tick, and a `map_get_path` on every restake |
+| `_fire_at_target()` | **the largest single term.** Per round: a physics raycast, a bullet, `GunFX.muzzle_flash` (**four new nodes and two new QuadMesh resources, built and freed per shot**), `NoiseBus.emit_noise` (a signal to ~60 connected listeners, each doing a distance test) and `CombatManager.suppress_along_shot` (a near-miss sweep over every ally). At 45 men on a firefight cadence this dominates. |
+
+**The design (Summoner's ruling, verbatim in `CALEB_TODO_7_22_updated.md` §0000-AA).** Promote at 80 m,
+demote past 105 m after a 3 s dwell, promote also on player involvement (capped at 160 m), sappers
+exempt. `scripts/ai/ai_lod.gd` + `EnemyBase._execute_far`.
+
+**It also revives a dead optimisation.** ADR-026 Part B's hot set has `HOT_CAP = 50`; the assault
+fields **45**. Every man in that fight was hot, and the tiering it was built for **had never engaged
+once**. A far man no longer requests a slot.
+
+### WHAT IS NOT KNOWN, and must not be written down as if it were
+
+- **No before/after frame time exists.** Nothing was run: the machine was in use.
+- **No promoted-man count exists.** The instrument is built (`[AILOD]` row, sampled EVERY FRAME by
+  `FpsPrinter`, reporting window peak and mean beside the `[FPS]` row) but it has produced no number.
+  A predicted count is not a count. **Read `window peak` off his log before believing any of this.**
+- The A/B is one build and one flag: `--ai-lod-off` restores every man to the full brain.
+  `perf_stress_lod_off.bat` is the BEFORE, `perf_stress.bat` is the AFTER.
+- Correctness: `tools/probe_ai_lod.tscn` (`probe_ai_lod.bat`), 12 assertions — the band, the dwell,
+  the hysteresis walked both ways, the sapper exemption, sticky promotion and its ceiling, that a far
+  man still advances and still holds a front, the census, and the off switch. **Also never run.**
+
+### A finding this pass surfaced and did NOT act on
+
+`GunFX.muzzle_flash` allocates a 3-node subtree plus two `QuadMesh` resources **per round fired**, capped
+only by 96 concurrent flashes. At 45 men firing that is hundreds of node constructions per second inside
+the physics step. The far tier's burst cadence reduces the round count, which reduces this as a side
+effect — but the allocation itself is untouched and unmeasured. **A pooled flash is the obvious next
+lever and it needs a measurement first, not a rewrite.**

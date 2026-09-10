@@ -150,7 +150,19 @@ V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 
 - **Bench hardware (ADR-026 Amendment C, 2026-09-08, closed):** the Quadro P620 is dead (Code 43, driver clean, GPU faults back; bought used with the fault). **The Intel UHD is the permanent bench.** Keep it as the punishment floor; it is NOT the design target, and a number from it justifies no atmosphere cut on its own. **Judging the unclamped look requires someone else's machine.** For the record: the Compatibility renderer has never once been measured — a fact, not a work item; Amendment A stands.
 - **Feature gate:** ACTIVE, held by **THE DEMO PLAYTHROUGH** (repointed 2026-08-06, `GAME_GUIDE.md:400`; PLAYTEST R4 is DEFERRED post-launch, not retired). See the tracking docs for current truth.
 - **Where the build lags the vision (vision wins):** detection pip, jungle feel (item 6), save hardening (atomic write + future-version reject), the gating FPS number.
-- **Biggest single wound:** perf without a gate number — the frame is CPU-bound in the AI and nothing mechanically fails a regression. *(The stealth economy is no longer the wound: the witness rule and ±25 scoring both shipped.)*
+- **Biggest single wound:** perf without a gate number — the frame is CPU-bound in the AI and nothing mechanically fails a regression.
+- **The AI cost, named 2026-09-09:** the 45-man assault runs at **~2.7 fps** and `ai.execute` is the
+  dominant exclusive span in every window — **0.60-0.68 ms per man per physics tick** over ~4,408
+  calls per 5 s; GPU is under a third of the frame. The Summoner's **behavioural LOD** (promote at
+  80 m, demote past 105 m after a 3 s dwell, sappers exempt) is **BUILT** — `scripts/ai/ai_lod.gd`,
+  `EnemyBase._execute_far` — and **MEASURED BY NOBODY**. Two double-clicks are his:
+  `probe_ai_lod.bat` (12 correctness assertions) then `perf_stress_lod_off.bat` / `perf_stress.bat`
+  (one build, one flag apart). **Quote no gain and no promoted count until an `[AILOD]` row exists
+  in one of his logs.** Full entry: `production/PERF_LEDGER.md`, task rows:
+  `production/CALEB_TODO_7_22_updated.md` §0000-AA.
+- **A dead optimisation this exposed:** ADR-026 Part B's hot set caps at 50 and the assault fields
+  45, so **every man in that fight was hot and the tiering had never once engaged.** A far-tier man
+  no longer requests a slot. *(The stealth economy is no longer the wound: the witness rule and ±25 scoring both shipped.)*
 - ~~Live design decision in flight~~ **DECIDED 2026-07-10: ADR-016 ratified by direct Summoner decree**
   ("pure flat base × zone; drops the dice entirely") and shipped same-day with its probe. ADR-003's
   dice core is superseded; its locational model and one-grammar law survive.
