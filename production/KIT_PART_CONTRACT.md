@@ -110,6 +110,37 @@ that a human can read. The names no longer have to encode the contract, which is
 freedom the kit was supposed to buy. **The July exports have all of that as of 2026-09-09**; the
 outstanding half is the tower and HQ art, specified in §8.
 
+> ## 0c · THREE MORE THINGS THE JULY EXPORTS GET WRONG, and none of them is a name
+>
+> **Measured 2026-09-09 (late) by stamping all seven parts into one 81-part firebase and rendering
+> it at eye height** — `tools/probe_firebase_site.tscn`, `tools/shot_firebase_site.tscn`,
+> `data/site_plans/fsb_kit_alpha.json`. The collision census above was the naming half. This is what
+> was left, and only the last one is invisible from inside the engine.
+>
+> 1. **BOTH BUNKERS DRAW WHITE.** `fb_bunker_fighting.glb` and `fb_bunker_mg.glb` carry **0 embedded
+>    images**, and their materials — `fb_earth`, `fb_timber`, `fb_psp`, `fb_sandbag_wall`, `fb_crate` —
+>    have neither a `baseColorTexture` nor a `baseColorFactor`, which draws at the white default.
+>    Every one of those names is the exact basename of a PNG in
+>    `assets/.../firebase/tex/`, and every primitive using them carries TEXCOORD_0. It is the pack
+>    step of a review export, nothing more. `tools/pack_kit_textures.py --apply` embeds them by name
+>    (4 and 5 images, 407 KB and 982 KB, both under the 1 MB law) and refuses any material with no
+>    matching PNG or no UVs rather than guessing. **His re-export makes the tool redundant, which is
+>    the correct end state.**
+> 2. **THREE PARTS ARE CENTRE-ORIGIN, violating §2.1.** `fb_sandbag_heavy` spans Y ±0.54,
+>    `fb_sandbag_light` ±0.44, `fb_FoxholeSandbags` ±0.18 — symmetric about the origin, so at
+>    `pos.y = 0` half of each is underground. The two bunkers and the gate are CORRECT (the bunkers
+>    put 205 and 229 verts on the y=0 plane and dig a sump below it; the gate's minY is exactly 0).
+>    `tools/gen_site_plan_firebase.py` carries an `OFFSET_Y` table that compensates, and it names the
+>    measurement so the offsets can be set to 0.0 the day the masters are fixed.
+> 3. **`fb_emplacement_m101` HAS A BURIED CREWMAN.** `grunt_*_ammo` occupies Y −1.97 … −0.70 while
+>    `MC_pit_floor` bottoms at −0.39: the ammo bearer's head is roughly 1.3 m below his own floor.
+>    The part's `minY -1.97` is that man, not the gun. The other three baked crew render as untextured
+>    bare skin in a spread pose.
+>
+> **And one code finding, from the same run:** `[NAVROOF] 5 structure(s) have WALKABLE navmesh on the
+> roof`, `fb_gate_tower` among them. NavBaker's roof-cull prefixes do not know the kit part names, so
+> a man can path onto the tower and the bunker tops. Recorded, not fixed.
+
 ## 1 · THE TWO CONTRACTS, AND THE ONE FACT PEOPLE GET WRONG
 
 | | reads the name of | default |
@@ -276,6 +307,24 @@ For each of the three pieces, in order **bunker → HQ → gate house**:
 - [ ] A man can stand at every station the part declares, at the posture it implies.
 
 **None of these may be run until the perf baseline is taken and the machine is released.**
+
+> **RUN 2026-09-09 (late), on the seven parts that exist rather than on the three proof pieces.**
+> The bar above is written per-piece and two of the three pieces are still his art, so the whole kit
+> was put through it at once instead: `data/site_plans/fsb_kit_alpha.json`, 81 parts, one boot.
+> `test_site_plan_roundtrip`, `test_kit_editor_state`, `test_fsb_colonly_contract` and
+> `test_marker_navmesh` all green; 0 SCRIPT ERROR; no embedded image over 1 MB.
+> `tools/probe_firebase_site.tscn` adds four measurements the per-piece list does not ask for and a
+> firebase needs — **flat ground under every part over its own footprint** (0.000 m worst),
+> **every collider in a ballistics group**, **a garrison with its demands met** (15 posts / 19 men,
+> gate guard posted, and 0 posted for the same gate alone as a control), and **a perimeter that is
+> closed except at the gate** (from outside, gate shut, the path dies 20.2 m short; blow the gate
+> tower and the way in runs through the gateway).
+>
+> **The one it made explicit: a fighting bay is not a wall.** Five 0.35 m sandbag rings left in the
+> parapet line were each a step-over for a 0.40 m nav agent, and the twelve 1 m shoulders beside the
+> corner bunkers were walk-throughs. The base was open on seventeen bearings and looked closed. The
+> bays moved 2.2 m behind the parapet and a seal pass fills any remaining gap wider than 0.55 m.
+> **Nothing in this document would have caught that, and a screenshot never will.**
 
 
 ---

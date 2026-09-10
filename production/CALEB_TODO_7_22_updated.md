@@ -47,6 +47,67 @@ into vertices), no `.001` anywhere, no embedded image over 1 MB. If the export m
 
 ---
 
+## 0000-A2. A WHOLE FIREBASE, BUILT OUT OF THE SEVEN PARTS — 2026-09-09 (late). WALK IT.
+
+**Your word:** *"theres just a few more art days i need to do fixing up models but lets use what we
+have for now to prove the concept."* Done. **FSB KIT ALPHA — 81 parts, no `fb_tower`, no `fb_toc`,
+nothing waiting on your art.**
+
+**The plan:** `data/site_plans/fsb_kit_alpha.json` (authored by `tools/gen_site_plan_firebase.py`;
+edit it in the tool and CTRL+S overwrites it, which is correct).
+
+**Walk it:**
+`"C:\Users\caleb\_tools\godot47\Godot_v4.7-stable_win64_console.exe" --path C:\Users\caleb\RECONgame res://tools/kit_editor.tscn`
+— it opens with the plan loaded. **O** puts the site centre under your crosshair, **G** stamps it,
+**P** spawns you outside the gate on foot. (WASD/QE fly, SHIFT fast, ESC frees the mouse.)
+
+**It is a place, not a parts catalogue:** an irregular six-sided perimeter (not a circle — your ask),
+49 heavy bag-wall runs, 4 rifle bunkers on the corners and 2 M60 bunkers sited to graze — one
+enfilading the gate approach, one on the open north-west face — 5 fighting bays set 2.2 m BEHIND the
+parapet so a man shoots over it, the M101 in the middle laid north-east off the road axis with a
+ready-round revetment behind it, a blast traverse across the open ground, and a chicane inside the
+gate so a truck has to slow under every gun on the south wall.
+
+**PROVEN, all four, one headless boot** — `godot --headless --path . res://tools/probe_firebase_site.tscn`:
+
+| | number |
+|---|---|
+| **Ground flat under every part** | **15.37 m** of relief across the pad before → **0.00 m** across the inner 65 m, and **0.000 m worst under any of the 81 parts**, measured over each part's OWN footprint |
+| **Nothing bulletproof, nothing you walk through** | **80 Destructibles** for 80 parts that declare a kind, **118 live collision shapes**, **0 parts with no collider**, and **every collider in `hard_surface`/`soft_cover`**. The M101 is deliberately not a structure and still carries 24 shapes |
+| **Men at the posts the parts declare** | **15 posts, 19 men** (16 sentry, 2 gun crew, 1 arty crew), **0 unmet demands**. The gate demands `perimeter`, five part kinds supply it, **1 guard posted** — and the control: the same gate alone on open ground 120 m away posts **0** |
+| **It boots and can be walked** | **0 SCRIPT ERROR.** Navmesh baked from the live colliders: gun pit → gate **13.5 m** on foot. From outside with the gate SHUT the path dies **20.2 m short** — the perimeter is closed. Blow the gate tower (180 hp, one Destructible owns tower + leaves + posts) and the way in appears **39.2 m, passing 0.5–5.9 m from the gateway.** The gate is the only hole in it |
+
+Also green after the change: `test_site_plan_roundtrip`, `test_fsb_colonly_contract`,
+`test_kit_editor_state`, `test_marker_navmesh`.
+
+**Renders at eye height (1.62 m):** `production/renders/firebase_kit_alpha/` — 01 the approach,
+02 the gate, 03 inside at the gun. Re-shoot with
+`godot --path . --resolution 320x240 res://tools/shot_firebase_site.tscn` (window parks itself
+offscreen, renders through a 1600×900 SubViewport, never takes your screen).
+
+### FOUR THINGS THE RENDERS FOUND. All art, all yours, none blocking.
+
+1. **BOTH BUNKERS SHIPPED AS WHITE BOXES — fixed, but fix it properly in the blend.** Measured:
+   `fb_bunker_fighting.glb` and `fb_bunker_mg.glb` carried **0 embedded images**, and their materials
+   are named `fb_earth` / `fb_timber` / `fb_psp` / `fb_sandbag_wall` / `fb_crate` — the exact
+   basenames of PNGs that have sat in `assets/.../firebase/tex/` since July, with TEXCOORD_0 on every
+   one of those slots. Nothing was missing but the pack step of the July review export.
+   `python tools/pack_kit_textures.py --apply` embedded them (4 and 5 images; 407 KB / 982 KB, both
+   under your 1 MB law). **When your re-export packs its own textures this tool has nothing to do.**
+2. **THREE PARTS HAVE THE WRONG ORIGIN.** `fb_sandbag_heavy` (±0.54), `fb_sandbag_light` (±0.44) and
+   `fb_FoxholeSandbags` (±0.18) are centred on their geometry, not on the ground contact point
+   KIT_PART_CONTRACT §2.1 requires — at y=0 half the bag wall is underground. The plan compensates
+   with a Y offset per part. Re-export them to the contract and set their `OFFSET_Y` to 0.0 in
+   `tools/gen_site_plan_firebase.py`; nothing else moves.
+3. **ONE OF THE M101's BAKED CREW IS BURIED.** `grunt_*_ammo` sits at Y −1.97 … −0.70 while the pit
+   floor is at −0.39: the ammo bearer's head is about 1.3 m under his own floor. The other three are
+   untextured bare skin in a spread pose.
+4. **NAVMESH ON THE ROOFS.** `[NAVROOF] 5 structure(s) have WALKABLE navmesh on the roof`, including
+   `fb_gate_tower` — men can path onto the tower and the bunker tops. The kit part names are not in
+   NavBaker's roof-cull list. Code, not art; not touched this session.
+
+---
+
 ## 0000-B. THE MODULAR WORLD KIT — you authorised it 2026-09-09. Four calls are yours.
 
 **You ruled it mid-council:** *"but even before that we should make a modular world building tool kit"*

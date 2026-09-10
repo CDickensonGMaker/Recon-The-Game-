@@ -1,6 +1,9 @@
 ## kit_editor.gd - THE MODULAR WORLD BUILDING TOOL (ADR-043 §5), as an in-game dev mode.
 ##
 ## Launch: godot --path . res://tools/kit_editor.tscn
+##   KIT_PLAN=<name>  opens that plan out of data/site_plans/ (default: fsb_kit_alpha).
+##   L reloads it, O moves the site centre under the crosshair, G stamps, P spawns the
+##   player outside the gate so the place can be walked at eye height.
 ##
 ## IT IS NOT AN EDITOR PLUGIN, and the reason is a fact rather than a preference:
 ## scenes/levels/game_world.tscn is six lines and one empty Node3D. Every world node - terrain,
@@ -34,6 +37,9 @@ var _stamped: Node3D = null
 var _yaw: float = 0.0
 var _pitch: float = -0.35
 var _captured: bool = false
+## Set once the player is spawned. The fly camera and every editing key stand down: two
+## things reading WASD in the same frame is how a tool gets called broken.
+var _walking: bool = false
 
 
 func _ready() -> void:
@@ -48,6 +54,12 @@ func _ready() -> void:
 
 	_state.setup(KitRegistry.load_kit())
 	_set_status("kit: %d placeable part(s)" % _state.palette.size())
+
+	# OPEN A SAVED PLAN. A tool that can only ever start from an empty plan cannot be used
+	# to review one, and reviewing a place in the engine that renders it is the whole
+	# argument for the tool (ADR-041). KIT_PLAN names it; L reloads it from disk.
+	if _state.load_plan(_plan_name()):
+		_set_status("loaded plan '%s': %d part(s)" % [_plan_name(), _state.plan.parts.size()])
 
 	var scene: PackedScene = load("res://scenes/levels/game_world.tscn")
 	_world = scene.instantiate() as GameWorld
@@ -80,7 +92,7 @@ func _process(delta: float) -> void:
 
 
 func _fly(delta: float) -> void:
-	if _cam == null:
+	if _cam == null or _walking:
 		return
 	var dir := Vector3.ZERO
 	if Input.is_key_pressed(KEY_W):
@@ -101,6 +113,8 @@ func _fly(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _walking:
+		return      # the player owns the mouse and the keyboard now
 	var mm := event as InputEventMouseMotion
 	if mm != null and _captured:
 		_yaw -= mm.relative.x * MOUSE_SENS
@@ -158,6 +172,19 @@ func _unhandled_input(event: InputEvent) -> void:
 					if why == "" else "REFUSED: %s" % why)
 		KEY_G:
 			_stamp_preview()
+		KEY_L:
+			_set_status("loaded plan '%s'" % _plan_name() if _state.load_plan(_plan_name())
+				else "no plan '%s' in %s" % [_plan_name(), SitePlan.DIR])
+		KEY_O:
+			var hit: Vector3 = _aim_ground()
+			if hit == Vector3.INF:
+				_set_status("no ground under the crosshair")
+			else:
+				_origin = hit
+				_set_status("site centre moved to %s - press G to stamp there"
+					% str(hit.round()))
+		KEY_P:
+			_walk()
 
 
 ## Place at the ground point under the crosshair. The cast is against the REAL world, so a
@@ -201,7 +228,49 @@ func _stamp_preview() -> void:
 		% [_state.plan.parts.size(), (site.get("stations", []) as Array).size()])
 
 
+## WALK WHAT YOU JUST STAMPED. The tool builds the place against the real world; this is the
+## half that lets him check it at eye height, which is the only height that matters. Spawns
+## him OUTSIDE the gate if the plan has one, looking in - the approach is the view a place
+## has to earn.
+func _walk() -> void:
+	if _world == null or not _world.is_world_ready or _walking:
+		return
+	if _stamped == null or not is_instance_valid(_stamped):
+		_set_status("stamp it first (G) - there is nothing to walk yet")
+		return
+	var at: Vector3 = _site_centre()
+	var gate: Node3D = null
+	for c in _stamped.get_children():
+		var n := c as Node3D
+		if n != null and str(n.get_meta("part_id", "")).begins_with("fb_gate"):
+			gate = n
+			break
+	if gate != null:
+		var road: Vector3 = gate.global_transform.basis.z
+		road.y = 0.0
+		road = road.normalized()
+		if (gate.global_position + road).distance_to(at) < gate.global_position.distance_to(at):
+			road = -road
+		at = gate.global_position + road * 28.0
+	_world.spawn_player_at(at)
+	_walking = true
+	if _cam != null:
+		_cam.current = false
+	if _preview != null and is_instance_valid(_preview):
+		_preview.queue_free()
+		_preview = null
+	_set_status("WALKING - spawned %s. Restart the tool to edit again."
+		% ("outside the gate" if gate != null else "at the site centre"))
+
+
+func _plan_name() -> String:
+	var n: String = OS.get_environment("KIT_PLAN")
+	return n if n != "" else "fsb_kit_alpha"
+
+
 func _update_preview() -> void:
+	if _walking:
+		return
 	var id: String = _state.current_palette_id()
 	if id == "" or _state.registry == null:
 		return
@@ -284,7 +353,8 @@ func _draw_hud() -> void:
 		"WASD/QE fly  SHIFT fast  ESC free mouse",
 		"LMB place   RMB select   wheel or [ ] palette",
 		"arrows nudge  PgUp/PgDn height  , . rotate  DEL remove",
-		"CTRL+Z undo   CTRL+S save   G stamp through SitePlanner",
+		"CTRL+Z undo   CTRL+S save   L load '%s'   O set site centre" % _plan_name(),
+		"G stamp through SitePlanner   P spawn and WALK it",
 		"",
 		_status,
 	])

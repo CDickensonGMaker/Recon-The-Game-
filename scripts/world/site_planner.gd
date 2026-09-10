@@ -2671,8 +2671,12 @@ func _wire_structure_destructibles(root: Node3D) -> void:
 ## different names - fb_bunker_fighting.glb draws WB_bunker_rifle and collides as
 ## fb_bunker_fighting_000, so a name match finds nothing and the bunker stands through a
 ## satchel charge.
+## Returns the Destructible it built, so a caller that knows WHICH part this mesh came from
+## can say so on the node. Nothing else could: adoption reparents both the mesh and every
+## shape out of the part and onto a sibling of the compound, so after a stamp the part node
+## is empty and no probe can ask "is this part on the blast bus" by walking its children.
 func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int,
-		collider_root: Node = null) -> void:
+		collider_root: Node = null) -> Destructible:
 	var d := Destructible.new()
 	d.kind = kind
 	d.hp = hp
@@ -2721,6 +2725,7 @@ func _adopt_structure(mi: MeshInstance3D, kind: String, hp: int,
 	mi.reparent(d, true)      # keep_global_transform: the structure must not move
 	d.add_to_group(FSB_NAV_GEOM_GROUP)
 	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
+	return d
 
 
 ## THE CLAYMORES GO LIVE. gen_firebase_v3 rings the perimeter with 16 fb_claymore props
@@ -3212,7 +3217,12 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 			var mi := n as MeshInstance3D
 			if mi == null or not want.has(String(mi.name)):
 				continue
-			_adopt_structure(mi, kind, Destructible.hp_for(kind), part)
+			# part_id on the Destructible, because adoption empties the part node: the mesh
+			# and every shape move onto this sibling, so without the meta nothing can ask
+			# "is THIS part on the blast bus" afterwards without guessing by distance.
+			var d: Destructible = _adopt_structure(mi, kind, Destructible.hp_for(kind), part)
+			if d != null:
+				d.set_meta("part_id", pid)
 			wired += 1
 			break
 	if not no_collider.is_empty():

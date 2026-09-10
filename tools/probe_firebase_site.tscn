@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cfbsiteprobe09"]
+
+[ext_resource type="Script" path="res://tools/probe_firebase_site.gd" id="1_fbs"]
+
+[node name="ProbeFirebaseSite" type="Node"]
+script = ExtResource("1_fbs")
