@@ -1,5 +1,121 @@
 # CALEB'S LIST — everything on YOUR plate (2026-07-10)
 
+## 0000-AB. THE JOURNAL — BUILT 2026-09-09 from your sheet. **Press [J]. Three calls are yours.**
+
+Your art, your five tabs, your placement. `assets/ui/journal/source_art/journal_sheet_caleb.png` is
+untouched; `tools/gen_journal_slices.py` cuts 14 pieces out of it and the game never redraws a line
+of it. Design of record: `production/adr/ADR-045-the-journal.md` (PROPOSED).
+
+**[J] opens it, upper-left, five tabs down the right edge — GEAR / ORDERS / MISSION / LOG / MAP.**
+Click a tab. **[M] still opens the map sheet and still owns the pencil.** Opening one puts the other
+away.
+
+**The real fix is the LOG.** Every line the HUD showed you used to live 4.5 seconds and die —
+nothing in this game buffered a single message, ever. Now `MissionHUD.show_toast()` writes to a
+240-line ring first (`scripts/ui/field_log.gd`), stamped `D1 0632`. It had to hook the RENDERER, not
+the `toast` signal: four systems including every weapon jam and "YOU ARE DOWN" reach the HUD by group
+lookup and never touch that signal, so hooking the signal would have dropped ~45 call sites silently.
+
+**It does NOT pause.** Same law you set for the map sheet on 2026-07-28 — it is a held object, not a
+screen — and your own "upper left" placement says so. The mouse frees up so you can thumb the tabs,
+which means you cannot aim while you read it. **That is the part to feel in play, and call.**
+
+### THE THREE CALLS — only you can make them
+
+1. **Should it pause?** I ruled no, off your own map ruling. Three lines to reverse. Read it in a
+   firefight first.
+2. **The DA Form 20 has a blank NAME and SERIAL block, because the player has no name.**
+   `CampaignState.player_data` is a one-key dictionary and `grep player_name` returns nothing.
+   Invent one · let you type one at campaign start · or leave it blank as a deliberate everyman.
+   Blank ships until you rule.
+3. **Should [M] be retired INTO the journal?** Right now there are two doors onto one map. They share
+   one raster and one marking verb so neither can drift, but two doors is still two doors. I did not
+   do it during the demo gate — [M] is shipped and twice bug-fixed and I would not touch it this week.
+
+### WHAT I FOUND AND FIXED ON THE WAY
+
+- **A dev toast was shipping to players.** `terrain/vegetation/tree_cover_layer.gd` had NO debug gate
+  at all: four seconds into every world it toasted *"F9 ground-cover draw distance | F10 mesh LOD
+  sharpness | F12 bush draw distance"* and left F9/F10/F12 live for a paying player to press. Now
+  `OS.is_debug_build()`-gated like every other lens. SHIP_AUDIT M18 checked [J]/[H]/[G] and missed
+  this one. **My in-world probe found it by reading the log it had just polluted.**
+- **[J] took the dev siege lens's key, so the siege lens moved to [F8]** (`game_flow.gd:75`), with
+  its comment, `DEV_SIEGE_STRENGTH`'s comment, `DEMO_PLAYTEST_SCRIPT.md` and `PLAYER_MANUAL.md` all
+  corrected in the same change.
+- `PLAYER_MANUAL.md` still said E doubles as interact. It does not — F is interact everywhere
+  (ADR-012). Corrected.
+
+### WHAT THE TABS HONESTLY ARE
+
+**There is no inventory system in this game** — zero hits for `inventory` in `scripts/`. GEAR
+enumerates the ~12 loose counters on the Player (frag/smoke/claymore/satchel/flare/bandage/ration/
+repair kit + the rifle and its condition). It is a kit list. Nothing can be moved or dropped.
+**There is no quest system either** — zero hits, and `mission_state.gd:52-53` forbids ever adding a
+completion flag (ADR-029). ORDERS shows what the CO said and what you wrote on the map. MISSION,
+LOG and MAP are backed by real systems.
+
+**Proof:** `tests/probe_journal.tscn` (40 assertions) and `tests/probe_journal_in_world.tscn`
+(the journal inside the real demo arc) both PASS; headless boot and demo boot both 0 SCRIPT ERROR.
+
+**Not mine, still red:** `tests/test_fossils.tscn` FAILS on `scripts/ai/ai_lod.gd:156 mean_near` —
+zero references repo-wide, file unmodified vs HEAD, so it came in with the behavioural-LOD work
+above. It is most likely UNFINISHED (built for `tools/probe_ai_lod.gd` and never wired), not a
+fossil to delete, so I left it alone rather than deleting a perf function mid-perf-wave.
+
+
+## 0000-AB. THE MUZZLE FLASH STOPPED BUILDING ITSELF — 2026-09-09. **One double-click is yours.**
+
+Every round fired used to build a brand-new muzzle flash from nothing: a node, two quads, two mesh
+resources and a timer — **seven objects a shot**, thrown away 90 milliseconds later. With 45 men
+firing in the assault that is hundreds of object constructions a second, inside the physics step,
+in the frame that is already running at 2.7 fps.
+
+It now builds at most 96 flashes **for the whole mission** and reuses them. Per round: **zero**.
+
+| per round fired | before | after |
+|---|---|---|
+| nodes built | 4 | **0** |
+| mesh resources built | 2 | **0** |
+| flashes on screen at once | 96 | **96** (unchanged) |
+
+**Nothing about it looks different.** Same size, same random size jitter, same random roll, same
+lifetime, same fairness floor, same 96 on screen, same flame coming out of the barrel where you
+fixed it yesterday. Where reuse could have changed the look, the probe checks it.
+
+### THE DOUBLE-CLICK — only you can take it
+
+**`godot --headless --path . res://tools/probe_muzzle_flash_pool.tscn`** (~4 s, no window).
+
+It fires 32 rounds, lets them die, fires 32 more, and counts every object that did not exist before.
+Zero is a pass. It is written to **fail against yesterday's code**, and it carries a negative control
+that builds an old-style flash by hand to prove the counter can actually see one.
+
+**Nothing was run. You were playing another game.** So there is **no frame-time number** for this,
+and I am not claiming one. The allocation count is read off the code; the fps waits for you.
+
+### YOUR CALL — one line, about craters, not flashes
+
+While in there I found two things growing without a cap in `terrain/systems/damage_system.gd`, both
+per **blast** (not per bullet), and I left both alone on purpose:
+
+- **the crater burn marks** (`:330`) — one real `Decal` per blast, forever, cleared only at mission
+  end. Meanwhile the gun's own scorch marks cap at 12 and bullet holes at 48. That gap is the find.
+- **`damage_zones`** (`:214`) — a list nothing in the game ever reads. Only two probes read it, to
+  check that a blast registered.
+
+**The question:** should an old crater lose its burn mark when a new one lands (a cap, like the
+scorch marks), or do 30 minutes of shelling on one 512 m map simply not accumulate enough to matter?
+I did not cap it because craters that stop wearing their scar is a **visible** change to the world,
+on the destruction system you ruled on — that is yours, not mine. Say the word either way and it is
+a ten-minute change.
+
+**Also, one standing claim is dead:** I was told the muzzle flash "takes a position and never a
+direction, all 8 call sites pass only a point." **Not true since yesterday.** Every live caller
+passes an aim vector and the flame already comes out of the barrel. If that is still on anyone's
+list, cross it off.
+
+---
+
 ## 0000-AA. THE BEHAVIOURAL LOD — BUILT 2026-09-09 (night). **UNMEASURED. Two double-clicks are yours.**
 
 **Your design, verbatim:** *"make the assault waves just attack head on in two large waves that just

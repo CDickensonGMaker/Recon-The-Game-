@@ -220,7 +220,7 @@ var _bush_step: int = 0
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey):
+	if not OS.is_debug_build() or not (event is InputEventKey):
 		return
 	var k := event as InputEventKey
 	if not k.pressed or k.echo:
@@ -266,7 +266,12 @@ func apply_rings() -> void:
 				mmi.visibility_range_end = _ring_for(String(mmi.get_meta("species", "")))
 
 
+## Debug builds only, like every other dev lens (game_flow.gd:61). Ungated until
+## 2026-09-09 this printed a toast of perf dials into a SHIPPING player's face four
+## seconds into the arc, and left F9/F10/F12 live for him to press.
 func _announce_keys() -> void:
+	if not OS.is_debug_build():
+		return
 	await get_tree().create_timer(4.0).timeout
 	_say("F9 ground-cover draw distance  |  F10 mesh LOD sharpness  |  F12 bush draw distance")
 

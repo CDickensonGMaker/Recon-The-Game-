@@ -428,6 +428,19 @@ func _refresh_hint() -> void:
 			% PENCIL_KINDS[_pencil_kind]
 
 
+## Stow the sheet from outside. The journal calls this when it opens: the sheet and the
+## notebook are two hands, and only one of them may hold the mouse and the menu flag.
+func close() -> void:
+	if visible:
+		_set_open(false)
+
+
+## The rendered base sheet, so the journal's MAP page prints the same raster this control
+## does. There is one map in this game - a second renderer would be a second map.
+func sheet_texture() -> ImageTexture:
+	return _map_texture
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("map"):
 		_set_open(not visible)

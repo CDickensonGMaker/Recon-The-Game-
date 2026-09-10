@@ -15,6 +15,7 @@ var _markers: Dictionary = {}  # ally -> Label
 
 
 var topo_map: TopoMap
+var journal: Journal
 
 
 func setup(game_world: GameWorld, mission_director: FieldDirector, _plan: Dictionary) -> void:
@@ -23,11 +24,16 @@ func setup(game_world: GameWorld, mission_director: FieldDirector, _plan: Dictio
 	director.toast.connect(show_toast)
 	director.fire_menu_changed.connect(_on_fire_menu_changed)
 	add_to_group("mission_hud")
+	# The log is a mission artefact, not a career one: a new world starts a blank page.
+	FieldLog.clear()
 	_build()
 	# W41: topo map (M to toggle).
 	topo_map = TopoMap.new()
 	add_child(topo_map)
 	topo_map.setup(world, director)
+	journal = Journal.new()
+	add_child(journal)
+	journal.setup(world, director, self)
 	add_child(NAMEPLATE.new())
 
 
@@ -355,7 +361,12 @@ func show_fuse(text: String) -> void:
 	_fuse.visible = text != ""
 
 
+## THE capture point for the journal's LOG page. Not FieldDirector.toast: player.gd:342,
+## weapon_holder.gd:1029, hud.gd:308 and tree_cover_layer.gd:249 all reach this function
+## by group lookup and never touch the signal, so the renderer is the only place that
+## sees every line. A toast lives 4.5s; the log keeps it.
 func show_toast(text: String) -> void:
+	FieldLog.push(text)
 	var l := ReconUI.make_label(text, 17, Color(0.95, 0.85, 0.5))
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast_box.add_child(l)

@@ -1,5 +1,27 @@
 # ART MISSING — master list from AUDIT #3 (2026-07-11)
 
+## THE JOURNAL ART IS IN THE GAME — DONE 2026-09-09. Nothing owed.
+
+Caleb's `assets/ui/journal/source_art/journal_sheet_caleb.png` (1536x1024, 3.27 MB, **master, never
+written to**) is sliced by `tools/gen_journal_slices.py` into 14 alpha-keyed PNGs in
+`assets/ui/journal/`. Regenerate from the sheet; never hand-edit a slice (`tools/gen_cursors.py`
+precedent). Largest slice `map_topo.png` at **995 KB**, inside the 1 MB texture law.
+
+Bounding boxes were measured by connected-component labelling of the sheet, not eyeballed. Page
+geometry is measured too: first rule at 59 px, pitch 23 px, 15 rules per page, gutter centre 283 —
+so every line of text in the journal sits ON his printed rules at any resolution.
+
+**The alpha trap, for the next person who slices a sheet:** background is keyed by flood-filling dark
+pixels inward from the crop border, so dark printed ink INSIDE a piece stays opaque. That is wrong
+for a piece with a real HOLE — the rubber band's loop is enclosed, a border flood cannot reach it,
+and the band shipped as a **solid black blob** on the first cut. `pencil`, `paperclip` and
+`rubber_band` are keyed by threshold alone (`keep_interior=False`).
+
+**In use:** spread, 5 tabs (mirrored so the raised half protrudes right), pencil, paperclip, rubber
+band, DA Form 20, K-ration scrap, letter, folded topo. **Unused: `cover.png`** — there is no
+closed-journal state. Ship it or cut it.
+
+
 Everything below is verified absent (or stand-in) as of audit #3. Ordered by impact within each
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 

@@ -22,14 +22,15 @@ remembers what you do (intel, your roster).
 | Input | Action |
 |---|---|
 | WASD / Shift / Ctrl / Z / Space | Move / sprint / crouch / **prone** / jump |
-| Q / E | Lean (E doubles as context interact at prompts) |
+| Q / E | Lean left / right (E is lean ONLY — interact is F everywhere, ADR-012) |
 | Mouse 1 / Mouse 2 / R | Fire / aim / reload |
 | 1–4 | Rifle / pistol / grenade / medkit |
 | **5 / 6 / 7 / 8** | Smoke / claymore / pop flare / call resupply |
 | **F** | Interact (plant, loot, capture, tunnel, board, **armorer's bench**) |
 | **9 / 0** (hold) | Eat a ration / **field-strip the rifle** (12s, +25% condition, costs a kit) |
 | **B** (hold) | Binoculars — glass a man for 2s to mark him |
-| **M** | Topographic map |
+| **M** | Topographic map (the sheet you mark — world stays live, no pause) |
+| **J** | Journal — GEAR / ORDERS / MISSION / LOG / MAP, click the tabs. **Does not pause.** |
 | **T / Y** | Call CAS strike / mortar fire mission (needs the RTO alive) |
 | **F1–F4** *or* **C / H / X / N** | Squad: on me / hold / move there / weapons tight-free (dual-bound, `project.godot:211-231`) |
 

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cprobejournal01"]
+
+[ext_resource type="Script" path="res://tests/probe_journal.gd" id="1_jn"]
+
+[node name="ProbeJournal" type="Node"]
+script = ExtResource("1_jn")

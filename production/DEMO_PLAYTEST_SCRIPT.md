@@ -68,7 +68,8 @@ Do not expect all twenty jobs manned — expect seven, and expect them to be *di
 
 ## 5 · THE NIGHT — the siege (the demo's centrepiece)
 
-Debug build only: **[J]** triggers the siege early. Otherwise it opens on the 720s arc.
+Debug build only: **[F8]** triggers the siege early (moved off [J] on 2026-09-09 when [J] became
+the journal — `game_flow.gd:75`). Otherwise it opens on the 720s arc.
 
 | # | Watch for | Right looks like |
 |---|---|---|

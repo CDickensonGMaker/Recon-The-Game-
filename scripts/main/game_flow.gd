@@ -14,7 +14,7 @@ var mission_hud: MissionHUD = null
 var squad: SquadSystem = null
 var _debrief_pending: bool = false
 
-## Strength the [J] dev lens forces. The d50 ceiling, so the trigger exercises the
+## Strength the [F8] dev lens forces. The d50 ceiling, so the trigger exercises the
 ## assault at its worst case rather than an average night.
 const DEV_SIEGE_STRENGTH: int = 50
 
@@ -60,7 +60,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_pause()
 
 
-## THE DEV LENSES, debug builds only. [J] siege · [H] three sappers at the nearest real
+## THE DEV LENSES, debug builds only. [F8] siege · [H] three sappers at the nearest real
 ## parapet segment · [G] gun-and-napalm pass on your bearing · [O] +1 hour · [I] next period ·
 ## [U] cycle the clock speed. Time skips route through SimClock.advance(), NEVER
 ## set_time(): set_time moves the clock without emitting time_period_changed, so the
@@ -72,7 +72,7 @@ func _dev_keys(event: InputEvent) -> bool:
 			and not (event as InputEventKey).echo):
 		return false
 	match (event as InputEventKey).physical_keycode:
-		KEY_J:
+		KEY_F8:
 			get_viewport().set_input_as_handled()
 			return _dev_force_siege()
 		KEY_H:
