@@ -3166,8 +3166,100 @@ once**. A far man no longer requests a slot.
 
 ### A finding this pass surfaced and did NOT act on
 
-`GunFX.muzzle_flash` allocates a 3-node subtree plus two `QuadMesh` resources **per round fired**, capped
-only by 96 concurrent flashes. At 45 men firing that is hundreds of node constructions per second inside
+`GunFX.muzzle_flash` allocates a **4**-node subtree plus two `QuadMesh` resources **per round fired**, capped
+only by 96 concurrent flashes. *(This line said "3-node" until 2026-09-09; the table above it said four
+and the table was right — root + core + spikes + the `_expire` Timer. Corrected on contact.)* At 45 men firing that is hundreds of node constructions per second inside
 the physics step. The far tier's burst cadence reduces the round count, which reduces this as a side
 effect — but the allocation itself is untouched and unmeasured. **A pooled flash is the obvious next
 lever and it needs a measurement first, not a rewrite.**
+
+---
+
+## 2026-09-09 — THE FLASH POOL (built, allocation measured **statically only, NOT RUN**)
+
+**Answers the finding immediately above.** `GunFX.muzzle_flash` now hands out a pooled entry instead
+of minting one. `scripts/combat/gun_fx.gd:833` (the function), `:885-975` (the pool).
+
+### The allocation, before and after — read off the code, not off a run
+
+| per round fired | before | after (warm) |
+|---|---|---|
+| `Node3D` flash root | 1 | 0 |
+| `MeshInstance3D` (core, spikes) | 2 | 0 |
+| `Timer` (expiry) | 1 | 0 |
+| **nodes constructed** | **4** | **0** |
+| `QuadMesh` resources | 2 | 0 |
+| `Callable` for the expiry lambda | 1 | 0 |
+| `StandardMaterial3D` | 0 (already cached by `_muzzle_mat`) | 0 |
+| **objects constructed** | **7** | **0** |
+
+Construction is now bounded by `MAX_FLASHES` **per mission**, not per round: at most 96 entries =
+384 nodes + 192 meshes, built lazily on demand and freed by `reset_session()` at mission teardown.
+The concurrent ceiling is **unchanged at 96** (`MAX_FLASHES`), and so is the early-return that
+enforces it.
+
+At the assault's 45 men on a firefight cadence, that is the difference between hundreds of object
+constructions a second inside the physics step and none.
+
+### WHAT IS NOT KNOWN
+
+- **No frame time. Nothing was run — the machine was in use.** This entry claims an allocation
+  count, which is what static reading can prove, and nothing about fps. `ai.execute` may still be
+  dominated by `NoiseBus.emit_noise` (~60 listeners × a distance test, per round) and
+  `CombatManager.suppress_along_shot`; those are untouched.
+- The A/B is `tools/probe_muzzle_flash_pool.tscn` (`probe_muzzle_flash_pool.bat`). It fires a wave, lets it expire, fires the same
+  wave again, and counts objects that never existed before. **It fails against the pre-pool code**
+  (wave 2 there reads 4 nodes + 2 meshes per round instead of 0), and it carries a negative control
+  that builds a pre-pool round by hand and asserts the census sees it.
+
+### THE LOOK IS UNCHANGED, and three details carry that claim
+
+1. **Size jitter stays in `QuadMesh.size`, never node scale.** `_muzzle_mat()` does not set
+   `billboard_keep_scale` (unlike `_sheet_mat` and `_decal_mat`, which say why in their own
+   comments), so `BILLBOARD_ENABLED` **discards node scale** — jitter moved onto scale would have
+   silently flattened every flash to one size. Probe section D asserts node scale reads exactly 1.
+2. **Same RNG call order** — jitter, core pick, core roll, spike roll — so ADR-010 seeds are
+   byte-for-byte untouched.
+3. **Same subtree and child order** (core, spikes, Timer), which is the shape
+   `tests/test_fake_lights.gd` walks; same materials, same lifetime, same fairness floor.
+
+### THE BORE DEFECT WAS NOT ENTRENCHED — and the standing claim about it is REFUTED
+
+The brief for this change said `muzzle_flash()` "takes a position and never a direction; all 8 call
+sites pass only a point." **That has not been true since 2026-09-08.** The signature is
+`muzzle_flash(parent, pos, viewmodel, bore)` (`scripts/combat/gun_fx.gd:833`) and **all 7 live call
+sites pass a real aim vector**: `ally_base.gd:2253`, `enemy_base.gd:2874` and `:2911`,
+`game_world.gd:226`, `weapon_holder.gd:713`, `cas_airplane.gd:364`, `seat_system.gd:339`. The
+8th caller is `tests/test_fake_lights.gd:63`, which passes none on purpose. A non-zero bore already
+selects a `BILLBOARD_DISABLED` spike laid down the barrel (`_bore_basis`, `:952` pre-patch).
+Anyone still carrying "the flash has no direction" as an open defect should drop it.
+
+Pooling's own risk here is the opposite one: an entry last fired **with** a bore must not keep that
+aimed basis or aimed material when the next caller passes none. Probe section E fires the same
+entry both ways and asserts the fallback. That is the check that stops a pool from quietly
+entrenching one call shape.
+
+### NOT DONE IN THIS CHANGE, and why — `DamageSystem` growth
+
+Two uncapped things in `terrain/systems/damage_system.gd`, both real, both **deliberately left**:
+
+- **`damage_zones` (`:214`)** — one `Dictionary` appended per blast, cleared only by
+  `clear_all_damage()`. It has **no reader anywhere in the game**: repo-wide the only consumers are
+  `tests/test_smoke_all.gd:152` and `tools/probe_fire_parity.gd:86`, which diff its size to prove a
+  blast registered. A write-only list.
+- **scar decals (`:330`)** — one real `Decal` per blast, uncapped, while `GunFX`'s own scorch decals
+  cap at `MAX_SCORCH = 12` and bullet holes FIFO at `MAX_DECALS = 48`. That inconsistency is the
+  find.
+
+**Judgment: a LATER change, the two of them together, not this one.** Three reasons. They are a
+different frequency class — per *blast* (the brief called it "per impact"; it is not), one or two a
+second at worst, against 45 rounds a second, so they are not a term in `ai.execute` and bundling
+them would blur what this probe measures. Capping the scars is a **visible world change** — craters
+that stop wearing a burn mark — on a system governed by ADR-031, so it is his call, not mine.
+And `damage_zones` cannot be capped by reflex either: a ring buffer is invisible to the game but
+both probes above diff its size, so the cap has to sit well above their deltas or it breaks the
+instruments that watch destruction.
+
+**HIS CALL:** cap the blast scars (a FIFO like `MAX_SCORCH`, oldest crater loses its mark), or let
+them accumulate for a 30-minute demo and eat the growth? The demo is one day on one 512 m AO, so
+"leave it" may simply be right.

@@ -63,7 +63,7 @@ above. It is most likely UNFINISHED (built for `tools/probe_ai_lod.gd` and never
 fossil to delete, so I left it alone rather than deleting a perf function mid-perf-wave.
 
 
-## 0000-AB. THE MUZZLE FLASH STOPPED BUILDING ITSELF — 2026-09-09. **One double-click is yours.**
+## 0000-AC. THE MUZZLE FLASH STOPPED BUILDING ITSELF — 2026-09-09. **One double-click is yours.**
 
 Every round fired used to build a brand-new muzzle flash from nothing: a node, two quads, two mesh
 resources and a timer — **seven objects a shot**, thrown away 90 milliseconds later. With 45 men
@@ -84,7 +84,7 @@ fixed it yesterday. Where reuse could have changed the look, the probe checks it
 
 ### THE DOUBLE-CLICK — only you can take it
 
-**`godot --headless --path . res://tools/probe_muzzle_flash_pool.tscn`** (~4 s, no window).
+**`probe_muzzle_flash_pool.bat`** — in the repo root, double-click it. Headless, ~4 s, no window.
 
 It fires 32 rounds, lets them die, fires 32 more, and counts every object that did not exist before.
 Zero is a pass. It is written to **fail against yesterday's code**, and it carries a negative control

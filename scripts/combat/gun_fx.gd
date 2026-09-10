@@ -21,6 +21,7 @@ static var _sting_cooldown_until: int = 0
 static func reset_session() -> void:
 	_sting_cooldown_until = 0
 	_active_flashes = 0
+	_flash_pool_free()   ## pooled flash nodes outlive teardown on current_scene
 	_active_impacts = 0
 	bench_size_mult = 1.0
 	bench_muzzle_mult = 1.0
@@ -805,49 +806,176 @@ static func observed_muzzle_ms() -> float:
 ## muzzle flashes come off the top of the gun and go up instead of coming out the barrel
 ## and going outward" - this function had no direction parameter at all, so there was no
 ## orientation code to regress. There is now.
+##
+## POOLED, 2026-09-09. This used to mint a Node3D + 2 MeshInstance3D + 2 QuadMesh + a
+## Timer ON EVERY ROUND FIRED - 6 objects a shot, up to MAX_FLASHES alive at once. With
+## 45 men firing in the assault that is hundreds of constructions per second inside the
+## physics step. Nothing is constructed per round now: _flash_acquire() hands back an
+## entry built once and reused for the life of the mission.
+##
+## THE LOOK IS UNCHANGED, and each of these is load-bearing:
+##   * size jitter still goes into QuadMesh.size, NEVER node scale. _muzzle_mat does not
+##     set billboard_keep_scale (unlike _sheet_mat and _decal_mat, which say so in their
+##     own comments), so a BILLBOARD_ENABLED quad DISCARDS node scale - jitter applied as
+##     scale would silently vanish on the core and on the un-aimed spike. Mutating the
+##     pooled mesh costs a 4-vertex surface rebuild; minting one cost a Resource, an RID
+##     and a surface, plus the GDScript object.
+##   * same materials, same lifetime, same MAX_FLASHES ceiling, and the same RNG call
+##     ORDER (jitter -> core pick -> core roll -> spike roll), so ADR-010 seeds are
+##     byte-for-byte untouched.
+##   * same subtree shape and child ORDER - core, spikes, Timer - which is what
+##     tests/test_fake_lights.gd walks.
+##
+## The 2026-09-08 bore fix is untouched: `bore` still selects the BILLBOARD_DISABLED
+## aimed material, and a reused entry last fired WITH a bore is fully reset by the
+## transform and material writes below, so it falls back to the billboard roll when the
+## next caller has no direction. Pooling must not entrench that call shape - it does not.
 static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false,
 		bore: Vector3 = Vector3.ZERO) -> void:
 	if _active_flashes >= MAX_FLASHES:
 		return
+	var root: Node3D = _flash_acquire(parent)
+	## Ledger AFTER the acquire, never before: a null here means nothing was spawned, and
+	## SpawnLedger must not count a flash the player never saw.
+	if root == null:
+		return
 	SpawnLedger.note("muzzle_flash")
 	_active_flashes += 1
-	var root := Node3D.new()
-	parent.add_child(root)
 	root.global_position = pos
 
 	var size_jitter: float = randf_range(0.85, 1.25)
 	if not viewmodel:
 		size_jitter *= MUZZLE_OBSERVED_SCALE * bench_muzzle_mult
-	var core := MeshInstance3D.new()
-	var core_mesh := QuadMesh.new()
+	var core := root.get_child(FLASH_CORE) as MeshInstance3D
+	var core_mesh := core.mesh as QuadMesh
 	core_mesh.size = Vector2(0.5, 0.5) * size_jitter
-	core.mesh = core_mesh
 	var core_pick: int = randi() % 2 + 4
 	core.material_override = _muzzle_mat("muzzle_core_mat_%d" % core_pick, "particles/muzzle_0%d" % core_pick)
-	core.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
-	root.add_child(core)
+	## Whole-transform write, not rotation_degrees: a reused node must not inherit the
+	## previous shot's basis or scale. On a fresh node the two are identical.
+	core.transform = Transform3D(_roll_basis(randf_range(0.0, 360.0)), Vector3.ZERO)
 
-	var spikes := MeshInstance3D.new()
-	var spike_mesh := QuadMesh.new()
+	var spikes := root.get_child(FLASH_SPIKES) as MeshInstance3D
+	var spike_mesh := spikes.mesh as QuadMesh
 	spike_mesh.size = Vector2(1.0, 0.28) * size_jitter
-	spikes.mesh = spike_mesh
 	var aimed: Basis = _bore_basis(bore, pos, parent)
 	if aimed != Basis.IDENTITY:
 		# The quad is 1.0 x 0.28: its LONG axis is local X, so X is laid along the bore and
 		# the flame leaves the barrel pointing where the barrel points.
 		spikes.material_override = _muzzle_mat("muzzle_spike_mat_aimed", "particles/muzzle_01", false)
-		spikes.basis = aimed
+		spikes.transform = Transform3D(aimed, Vector3.ZERO)
 	else:
 		spikes.material_override = _muzzle_mat("muzzle_spike_mat", "particles/muzzle_01")
-		spikes.rotation_degrees = Vector3(0, 0, randf_range(0.0, 360.0))
-	root.add_child(spikes)
+		spikes.transform = Transform3D(_roll_basis(randf_range(0.0, 360.0)), Vector3.ZERO)
+
+	root.visible = true
 
 	## maxf keeps the fairness floor intact even if the bench knob is turned down.
 	var life: float = FLASH_SECONDS if viewmodel \
 		else maxf(FLASH_SECONDS, MUZZLE_OBSERVED_SECONDS * bench_muzzle_mult)
-	_expire(root, life, func() -> void:
-		_active_flashes -= 1
-		root.queue_free())
+	var t := root.get_child(FLASH_TIMER) as Timer
+	t.wait_time = life
+	t.start()
+
+
+## Screen-space roll about local Z - exactly what rotation_degrees(0, 0, r) built before
+## pooling, with no dependence on the node's euler order or its previous scale.
+static func _roll_basis(degrees: float) -> Basis:
+	return Basis(Vector3(0, 0, 1), deg_to_rad(degrees))
+
+
+## ---- the muzzle-flash pool -------------------------------------------------
+## A flash entry is a hidden Node3D with EXACTLY these three children, in this order.
+## tests/test_fake_lights.gd reads host.get_child(0) and recurses, so the shape and the
+## order are a contract here, not an implementation detail.
+const FLASH_CORE: int = 0
+const FLASH_SPIKES: int = 1
+const FLASH_TIMER: int = 2
+
+## Every entry ever built, live or free, bounded by MAX_FLASHES.
+static var _flash_pool: Array[Node3D] = []
+## The subset not currently on screen. A stack, so acquire is O(1) - the old code did no
+## search at all, and a per-shot linear scan would hand some of the win straight back.
+static var _flash_free: Array[Node3D] = []
+
+
+static func _flash_acquire(parent: Node) -> Node3D:
+	if parent == null:
+		return null
+	while not _flash_free.is_empty():
+		var e: Node3D = _flash_free.pop_back()
+		if not is_instance_valid(e):
+			continue   ## its parent was torn down under it
+		if e.get_parent() != parent:
+			## Callers other than the scene root exist - game_world._warm_effects passes its
+			## FXWarm node, the probes pass their own host. Migrate rather than rebuild.
+			e.reparent(parent, false)
+		return e
+	if _flash_pool.size() >= MAX_FLASHES:
+		_flash_prune()
+		if _flash_pool.size() >= MAX_FLASHES:
+			return null
+	return _flash_build(parent)
+
+
+## The ONLY place flash nodes and meshes are constructed. Runs at most MAX_FLASHES times
+## per mission. Deliberately does NOT touch cast_shadow or any other default the pre-pool
+## nodes carried - an unasked-for render-state change is a look change.
+static func _flash_build(parent: Node) -> Node3D:
+	var root := Node3D.new()
+	root.name = "MuzzleFlash"
+	root.visible = false
+	parent.add_child(root)
+
+	var core := MeshInstance3D.new()
+	core.mesh = QuadMesh.new()
+	root.add_child(core)
+
+	var spikes := MeshInstance3D.new()
+	spikes.mesh = QuadMesh.new()
+	root.add_child(spikes)
+
+	## Same self-contained-expiry doctrine as _expire(): the Timer is a CHILD, so it dies
+	## with the entry and a torn-down parent can never leave a callable holding a freed
+	## node. Connected ONCE here, never per shot.
+	var t := Timer.new()
+	t.one_shot = true
+	root.add_child(t)
+	## Lambda, not a bound static-func reference: every other expiry callback in this
+	## file is a lambda, and it is connected ONCE per entry, never per round.
+	t.timeout.connect(func() -> void:
+		_flash_release(root))
+
+	_flash_pool.append(root)
+	return root
+
+
+static func _flash_release(root: Node3D) -> void:
+	## `visible` is the in-use flag. Guarding on it makes a double release - a second
+	## timeout, or a release racing reset_session - a no-op instead of a negative count.
+	if not is_instance_valid(root) or not root.visible:
+		return
+	root.visible = false
+	_active_flashes = maxi(0, _active_flashes - 1)
+	_flash_free.append(root)
+
+
+static func _flash_prune() -> void:
+	for i in range(_flash_pool.size() - 1, -1, -1):
+		if not is_instance_valid(_flash_pool[i]):
+			_flash_pool.remove_at(i)
+
+
+## Entries hang off get_tree().current_scene, which SURVIVES _teardown_world() - the same
+## trap _sting_player carries. Without this, mission N+1 opens holding mission N's flash
+## nodes, and where the parent DID die, a pool of freed handles. MissionScope calls
+## reset_session(); the pool rebuilds lazily on the next shot.
+static func _flash_pool_free() -> void:
+	for e in _flash_pool:
+		if is_instance_valid(e):
+			e.queue_free()
+	_flash_pool.clear()
+	_flash_free.clear()
 
 
 ## Lay a quad's long axis (local X) down the bore and roll it to face the viewer, so a
