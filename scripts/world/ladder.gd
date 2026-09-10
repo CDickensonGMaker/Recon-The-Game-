@@ -42,10 +42,11 @@ const PAIR_RANGE: float = 6.0     ## a top marker further than this is a differe
 ## is no constant that works, only a test.
 ##
 ## REFUTED in the same measurement, so nobody re-derives it: NO SANDBAG IS INVOLVED.
-## The nearest sandbag mesh of any family is fb_sbg_seg_026 at 3.91m from any ladder
-## waypoint. What he read as sandbags is the tower's own parapet - deck 9.77, wall
-## band 9.8->10.65, roof 11.84 - and he tops out 0.20m above the deck in a 1.5m slot.
-## The asset is fine. No .blend needs touching for this.
+## The nearest sandbag mesh of any family measured 3.91m from any ladder waypoint (it
+## was fb_sbg_seg_026; that family left the bake on 2026-09-10 when the parapet became
+## kit parts, and test_ladder_dismount still passes against the kit wire). What he read
+## as sandbags is the tower's own parapet - deck 9.77, wall band 9.8->10.65, roof 11.84
+## - and he tops out 0.20m above the deck in a 1.5m slot. The asset is fine.
 ##
 ## WHY TIGHT BECOMES WEDGED rather than merely awkward: site_planner.gd:1823-1832
 ## forces backface_collision = true on every concave shape in the compound, applied

@@ -1904,6 +1904,56 @@ const FSB_AO_ROOM_M: float = 470.0
 const FSB_AO_ROOM_W: float = 0.5
 
 
+## THE PARAPET IS A KIT FAMILY NOW (ADR-043 §2 P4, his ruling 2026-09-10: "re-skin the
+## perimeter with the kit wall"). The bake ships without `fb_sbg_seg_*`; the wire is 224
+## `fb_sandbag_heavy` parts stamped from `data/site_plans/fsb_main_parapet.json` under the same
+## seated compound the bake root hangs from, so a GLB coordinate is still a plan coordinate.
+##
+## THE ONE THING THAT MUST SURVIVE THE SWAP is the group. `FSB_PARAPET_GROUP` is the SIEGE's
+## only runtime description of where the wire is - SiegeDirector measures the perimeter off it
+## (`siege_director.gd:427,679`) and reads a destroyed member as its breach axis - and three
+## probes locate the compound through it. The stamp hands back the Destructibles it adopted
+## precisely so they can be put in it here. FSB_NAV_GEOM_GROUP needs no help - `_adopt_structure`
+## already joins every Destructible it makes to it (`:2892`), which is how NavBaker still finds
+## a shape that has been reparented away from the model root it was handed.
+##
+## Sapper targeting needs nothing: `sapper_charge.gd:79` prioritises by Destructible KIND, and
+## the kit part declares `sandbag_wall` at the same 140 hp the bake's segments carried.
+## The wire's members are the only runtime description of where the perimeter IS. SiegeDirector
+## measures it off this group and reads a destroyed member as its breach axis
+## (`siege_director.gd:427,679`); three probes locate the compound through it.
+const FSB_PARAPET_GROUP: StringName = &"fsb_parapet"
+## EVERY Destructible that took a collider off a firebase mesh, parapet and structures alike.
+## NavBaker seeds its collider walk from this (`nav_baker.gd:490`), because a reparented shape
+## is no longer reachable from the model root it was handed.
+##
+## Deliberately NOT FSB_PARAPET_GROUP: that one is the SIEGE's map of the perimeter, so a
+## bunker joining it would move the wire.
+const FSB_NAV_GEOM_GROUP: StringName = &"fsb_nav_geom"
+
+
+const FSB_PARAPET_PLAN: String = "fsb_main_parapet"
+
+
+func _stamp_parapet(compound: Node3D, center: Vector3) -> void:
+	var plan: SitePlan = SitePlan.load_from(FSB_PARAPET_PLAN)
+	if plan == null:
+		push_error("[FSB] no parapet plan '%s' - THE FIREBASE HAS NO WIRE" % FSB_PARAPET_PLAN)
+		return
+	var site: Dictionary = stamp_site_plan(plan, center, null, compound)
+	if site.is_empty():
+		push_error("[FSB] the parapet refused to stamp - THE FIREBASE HAS NO WIRE")
+		return
+	var walls: Array = site.get("destructibles", []) as Array
+	for d_any in walls:
+		(d_any as Node).add_to_group(FSB_PARAPET_GROUP)
+	print("[FSB] parapet: %d kit wall(s) stamped, %d on the blast bus and in the wire group"
+		% [plan.parts.size(), walls.size()])
+	if walls.size() < plan.parts.size():
+		push_warning("[FSB] %d parapet part(s) did not reach the blast bus - that many holes "
+			% (plan.parts.size() - walls.size()) + "in the wire nothing can breach")
+
+
 ## Metres from the site centre to the NEAREST map edge - how much AO there is to patrol.
 static func ao_room(centre: Vector3, map_size: float) -> float:
 	return minf(minf(centre.x, map_size - centre.x), minf(centre.z, map_size - centre.z))
@@ -2040,7 +2090,16 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 	# positions, so none of them can tell the difference - which is the point.
 	compound.add_child(root)
 	_repair_glb_colliders(root)
-	_wire_parapet_destructibles(root)
+	_stamp_parapet(compound, center)
+	# THESE TWO WERE CHAINED ONTO THE TAIL OF _wire_parapet_destructibles, which the kit
+	# migration deleted. Neither is parapet work - the first stands the bunkers, towers and
+	# huts up on the blast bus, the second hangs the screen doors - and losing them with it
+	# would have made every structure in the compound invulnerable and every door static, in
+	# silence. They belong to the compound, so they are called from the compound.
+	_wire_structure_destructibles(root)
+	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented onto
+	# a Destructible by the pass above must still be findable.
+	print("[FSB] screen doors: %d hung" % SCREEN_DOOR.wire_all(root))
 	_wire_claymores(root, center)
 	# Tower ladders. Built AFTER the root is seated - Ladder caches world positions off the
 	# markers, so building before the move would bake them at the wrong height.
@@ -2095,19 +2154,19 @@ func place_firebase_main(center: Vector3) -> Dictionary:
 ##    The box is replaced with a trimesh off the object's own visual mesh, so the logs and
 ##    stumps stay the cover the design intends ("logs and stumps stay solid because the
 ##    player takes cover behind them") without the slab.
-## 3. THE PARAPET BOX HULLS - "I still cannot climb up the angled dirt mounds and see to shoot
-##    over the sandbags" (2026-07-29). The perimeter revetment is ~6m of sandbag wall following
-##    a CURVED path, and the default export wraps it in an axis-aligned box around that curve's
-##    whole bounding volume. On the diagonal runs that box is far fatter than the wall it
-##    represents: it overhangs the berm crest and swallows the 37-degree inner face, so the
-##    climb is into an invisible slab, not up a slope. It also seals every gap a round could go
-##    through. gen_firebase_v3.py now lists fb_sbg_seg_ as trimesh, but that only lands on a
-##    re-export - so the same re-mesh the vegetation gets is applied here today.
+## 3. THE PARAPET BOX HULLS - CLOSED 2026-09-10 by the kit migration, and recorded here rather
+##    than deleted because it is the defect that argued for the migration. His report was "I
+##    still cannot climb up the angled dirt mounds and see to shoot over the sandbags"
+##    (2026-07-29): the bake wrapped each ~6 m curved revetment in an axis-aligned box around
+##    the whole curve, far fatter than the wall on every diagonal run, sealing the gaps and
+##    turning the berm's 37-degree inner face into an invisible slab. The parapet is now 224
+##    stamped kit parts, each 2.28 m and straight, each carrying its own -colonly twin - so
+##    there is no curve for a box to swallow and nothing to re-mesh at load.
 const MOUND_COLLIDER_PREFIX: String = "fb_terrain_mound"
 ## Box-hulled in the shipped GLB, re-meshed from their own geometry at load. Both are already
 ## corrected at source; when the re-export lands these counts go to 0 and this all deletes.
 const VEG_COLLIDER_PREFIX: String = "fb_veg_"
-const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX, "fb_sbg_seg_"]
+const REMESH_COLLIDER_PREFIXES: Array[String] = [VEG_COLLIDER_PREFIX]
 
 
 ## THE INTERIOR PROPS ARE TOO NUMEROUS, not too heavy - and 545 of them are copies of 69
@@ -2490,233 +2549,6 @@ func _audit_floating_colliders(root: Node3D) -> void:
 	for i in range(mini(10, fam_keys.size())):
 		fl.append("%s=%d" % [fam_keys[i], int(fam[fam_keys[i]])])
 	print("[FSB] floating by family: %s" % ", ".join(fl))
-
-
-
-## THE PARAPET CAN BE BLOWN APART. gen_firebase_v3 has emitted the perimeter as 80 destructible
-## segments with HP since it was written, and `firebase_v3_destructibles.json` has been sitting
-## next to the GLB READ BY NOTHING - the 2026-07-28 council logged it as UNFINISHED and ADR-036
-## lists wiring it as step one. Nothing in the shipped world ever called Destructible.new(); the
-## firebase was incapable of taking a mark. That is the Summoner's ship gate item: "the base
-## attack has parts of the base blow up".
-##
-## The Destructible ADOPTS the segment the GLB already ships rather than adding geometry beside
-## it. Destructible IS a StaticBody3D, so it takes the segment's collision shape directly and
-## its mesh as a child - which is exactly what _do_destroy() expects to find when it hides the
-## intact wall and disables its cover. No second wall, no second collider.
-const FSB_DESTRUCTIBLES_JSON: String = "res://assets/world/building models/structures/firebase/kit/firebase_v3_destructibles.json"
-## Every parapet segment the exporter emits carries this, manifest entry or not - which is
-## what lets the reconciliation below see a segment the manifest never claimed.
-const FSB_PARAPET_MESH_PREFIX: String = "fb_sbg_seg_"
-## The wired segments are the only runtime description of where the wire IS. SiegeDirector
-## measures the perimeter off this group and reads a destroyed member as a breach.
-const FSB_PARAPET_GROUP: StringName = &"fsb_parapet"
-## EVERY Destructible that took a collider off the firebase model, parapet and structures
-## alike. NavBaker seeds its collider walk from this, because a reparented shape is no longer
-## reachable from the model root it was handed.
-##
-## Deliberately NOT FSB_PARAPET_GROUP: that one is the SIEGE's map of the perimeter -
-## SiegeDirector measures the wire's radius from it and reads a destroyed member as its breach
-## axis - so a bunker joining it would move the wire.
-const FSB_NAV_GEOM_GROUP: StringName = &"fsb_nav_geom"
-
-
-func _wire_parapet_destructibles(root: Node3D) -> void:
-	var f: FileAccess = FileAccess.open(FSB_DESTRUCTIBLES_JSON, FileAccess.READ)
-	if f == null:
-		push_warning("[FSB] no destructibles manifest - the parapet cannot be blown apart")
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if not (parsed is Dictionary):
-		return
-	var segments: Array = (parsed as Dictionary).get("segments", [])
-	var wired: int = 0
-	var missing: int = 0
-	var claimed: Dictionary = {}
-	for s in segments:
-		claimed[str((s as Dictionary).get("name", ""))] = true
-	for s in segments:
-		var seg: Dictionary = s
-		var mi := root.find_child(str(seg.get("name", "")), true, false) as MeshInstance3D
-		if mi == null:
-			missing += 1
-			continue
-		_wire_parapet_segment(mi, str(seg.get("kind", "sandbag_wall")), int(seg.get("hp", 140)))
-		wired += 1
-	# THE OTHER DIRECTION, and the one that fails silently. `missing` catches a manifest entry
-	# with no mesh - loud, because the wall visibly is not there. A mesh with no MANIFEST entry
-	# looks exactly like its 80 destructible twins and is INVULNERABLE - sappers spend real
-	# charges on a wall that cannot die. So a stray is HANDLED, not just named: co-located
-	# with its manifest twin = an export duplicate, hidden with its colliders disabled;
-	# standing apart = a real wall piece, adopted with its twin's kind and hp.
-	var unclaimed: Array[String] = []
-	var stack: Array[Node] = [root]
-	while not stack.is_empty():
-		var nd: Node = stack.pop_back()
-		for c in nd.get_children():
-			stack.append(c)
-		var nm := String(nd.name)
-		if nd is MeshInstance3D and nm.begins_with(FSB_PARAPET_MESH_PREFIX) and not claimed.has(nm):
-			unclaimed.append(nm)
-	var seg_by_name: Dictionary = {}
-	for s in segments:
-		seg_by_name[str((s as Dictionary).get("name", ""))] = s
-	var strays_adopted: int = 0
-	var strays_hidden: int = 0
-	for nm in unclaimed:
-		var stray := root.find_child(nm, true, false) as MeshInstance3D
-		if stray == null:
-			push_warning("[FSB] stray parapet %s vanished between census and handling" % nm)
-			continue
-		var base: String = nm
-		var ord_re := RegEx.new()
-		ord_re.compile("^(.*)_[0-9]+$")
-		var om: RegExMatch = ord_re.search(nm)
-		if om != null:
-			base = om.get_string(1)
-		# The manifest loop has already REPARENTED every claimed twin off `root`
-		# onto a Destructible under _parent - a root-only search reports every
-		# twin "absent" and a real co-located duplicate would be adopted as a
-		# SECOND stacked wall whose breach never reads open. Search both homes.
-		var twin := root.find_child(base, true, false) as MeshInstance3D
-		if twin == null and _parent != null:
-			twin = _parent.find_child(base, true, false) as MeshInstance3D
-		if twin != null and _mesh_center(twin).distance_to(_mesh_center(stray)) < 0.05:
-			stray.visible = false
-			_disable_parapet_colliders(stray)
-			strays_hidden += 1
-			print("[FSB] stray parapet %s co-locates with %s - duplicate hidden, colliders off"
-				% [nm, base])
-			continue
-		var twin_seg: Dictionary = seg_by_name.get(base, {})
-		_wire_parapet_segment(stray, str(twin_seg.get("kind", "sandbag_wall")),
-			int(twin_seg.get("hp", 140)))
-		strays_adopted += 1
-		wired += 1
-		print("[FSB] stray parapet %s adopted as destructible (manifest twin %s %s)"
-			% [nm, base, "found" if twin != null else "absent"])
-	print("[FSB] parapet: %d destructible segment(s) on the blast bus%s%s" % [wired,
-		"" if missing == 0 else ", %d named in the manifest but absent from the GLB" % missing,
-		"" if unclaimed.is_empty() else ", %d stray(s): %d adopted, %d duplicate(s) hidden"
-			% [unclaimed.size(), strays_adopted, strays_hidden]])
-	_audit_parapet_spread(root)
-	_wire_structure_destructibles(root)
-	# Screen doors LAST: they hang off the leaves the model carries, and a leaf reparented
-	# onto a Destructible by the pass above must still be findable.
-	var doors: int = SCREEN_DOOR.wire_all(root)
-	print("[FSB] screen doors: %d hung" % doors)
-
-
-## A wall that reads as ONE POINT is the failure this pass exists to prevent: every consumer
-## of a segment position (sapper target, perimeter measure, overrun call, breach scan, blast
-## radius) then aims at the compound centre, and one mortar round deletes the whole parapet.
-## The manifest's own span is 49.3-96.1m, so a range under a metre means the origins are dead.
-func _audit_parapet_spread(root: Node3D) -> void:
-	var center: Vector3 = root.global_position
-	var lo: float = INF
-	var hi: float = -INF
-	var n: int = 0
-	for node in _parent.get_tree().get_nodes_in_group(FSB_PARAPET_GROUP):
-		var d := node as Node3D
-		if d == null:
-			continue
-		n += 1
-		var r: float = Vector2(d.global_position.x - center.x, d.global_position.z - center.z).length()
-		lo = minf(lo, r)
-		hi = maxf(hi, r)
-	if n == 0:
-		return
-	print("[FSB] parapet radii: %d segment(s) spanning %.1f-%.1fm from centre" % [n, lo, hi])
-	if hi - lo < 1.0:
-		push_warning("[FSB] PARAPET COLLAPSED TO A POINT (%.1fm): every segment shares one position - "
-			% lo + "sapper targets, the perimeter and the blast bus are all reading the compound centre")
-
-
-## World centre of a mesh's BAKED geometry. In a flat GLB a node origin carries no
-## information - every parapet node in fsb_main_v3 is identity - so the AABB is the only
-## honest position. Same form _adopt_structure uses.
-static func _mesh_center(mi: MeshInstance3D) -> Vector3:
-	var aabb: AABB = mi.get_aabb()
-	return mi.global_transform * (aabb.position + aabb.size * 0.5)
-
-
-## Stand ONE parapet mesh up as a Destructible on the blast bus - the single
-## definition serving both the manifest loop and the stray-adoption pass.
-func _wire_parapet_segment(mi: MeshInstance3D, kind: String, hp: int) -> void:
-	var d := Destructible.new()
-	d.kind = kind
-	d.hp = hp
-	d.collision_layer = 1
-	d.collision_mask = 0
-	_parent.add_child(d)
-	# THE MESH NODE'S ORIGIN IS NOT THE WALL. fsb_main_v3 is a flat scene and 80 of the 81
-	# parapet nodes carry NO node transform - the geometry is baked into vertices - so
-	# mi.global_position is the model root for all of them, i.e. the compound centre.
-	# Read the baked AABB instead, the same form _adopt_structure uses. Everything that
-	# reads a segment position (sapper targets, the perimeter measure, the overrun call,
-	# the breach scan, the blast radius test) reads THIS node's origin and nothing else.
-	d.global_position = _mesh_center(mi)
-	# Take the segment's collider off its auto-generated body and onto the Destructible, so
-	# _do_destroy can disable it. A shape left nested under a child body survives the blast
-	# and the "destroyed" wall keeps stopping rounds.
-	# Same flat-GLB contract as _adopt_structure: the collider may be a SIBLING named
-	# <mesh name>_<ord>-colonly, not a child.
-	var seg_bodies: Array[Node] = []
-	for c in mi.get_children():
-		if c is StaticBody3D:
-			seg_bodies.append(c)
-	var seg_parent: Node = mi.get_parent()
-	if seg_parent != null:
-		for c in seg_parent.get_children():
-			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
-				seg_bodies.append(c)
-	var moved: int = 0
-	for c in seg_bodies:
-		var body := c as StaticBody3D
-		if body == null:
-			continue
-		for cc in body.get_children():
-			var shape := cc as CollisionShape3D
-			if shape == null:
-				continue
-			moved += 1
-			# All 80 parapet nodes happen to be identity today, which is the only
-			# reason this worked without it. A sibling collider need not be.
-			var keep: Transform3D = shape.global_transform
-			body.remove_child(shape)
-			d.add_child(shape)
-			shape.global_transform = keep
-		body.queue_free()
-	if moved == 0:
-		print("[TEMPSEG] %s: children=%d siblings=%d MOVED 0" % [mi.name,
-			mi.get_children().size(),
-			(seg_parent.get_children().size() if seg_parent != null else -1)])
-	mi.reparent(d, true)      # keep_global_transform: the wall must not move
-	AgentRegistry.register(d, AgentRegistry.Kind.PROP)
-	# The perimeter is also the SIEGE's map of itself: SiegeDirector measures the wire's
-	# radius from this group and reads a destroyed segment as its breach axis.
-	d.add_to_group(FSB_PARAPET_GROUP)
-	d.add_to_group(FSB_NAV_GEOM_GROUP)
-
-
-## Disable a duplicate stray's colliders in place - hidden art must not keep
-## stopping rounds or feeding the nav bake (the bake already skips disabled
-## shapes).
-func _disable_parapet_colliders(mi: MeshInstance3D) -> void:
-	var bodies: Array[Node] = []
-	for c in mi.get_children():
-		if c is StaticBody3D:
-			bodies.append(c)
-	var mp: Node = mi.get_parent()
-	if mp != null:
-		for c in mp.get_children():
-			if c is StaticBody3D and String(c.name).begins_with(String(mi.name)):
-				bodies.append(c)
-	for b in bodies:
-		for cc in b.get_children():
-			var shape := cc as CollisionShape3D
-			if shape != null:
-				shape.disabled = true
 
 
 ## THE REST OF THE COMPOUND CAN BE BLOWN APART TOO. The manifest describes ONLY the 80 parapet
@@ -3226,7 +3058,16 @@ func _plan_garrison(plan: SitePlan, reg: KitRegistry, compound: Node3D,
 	return posts
 
 
-func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = null) -> Dictionary:
+## `attach_to` is the family-migration door (ADR-043 §2). Given a parent, the stamp hangs its
+## compound UNDER that node at local zero and inherits its transform, instead of seating itself
+## on the terrain - which is what a family lifted out of an already-seated bake needs. The plan's
+## positions are then that parent's local space, and for the firebase that is the GLB's own
+## space, because ADR-043 P1's FirebaseCompound adds the bake root at IDENTITY.
+##
+## It is one path with one more argument, not a second placement path: everything below - the
+## contract gate, the adoption, the stations, the garrison - runs identically either way.
+func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = null,
+		attach_to: Node3D = null) -> Dictionary:
 	var reg: KitRegistry = registry if registry != null else KitRegistry.load_kit()
 	var why: String = plan.validate(reg)
 	if why != "":
@@ -3256,15 +3097,19 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 	# ground the building stands on. Clearing first, levelling last, so the final height is
 	# the pad's and not the clearing zone's partial lerp over it.
 	var seat_y: float = _terrain.get_height_at(center) if _terrain != null else center.y
-	if plan.flatten_radius > 0.0 and plan.flatten_strength > 0.0:
+	if attach_to == null and plan.flatten_radius > 0.0 and plan.flatten_strength > 0.0:
 		clear_and_flatten(center, plan.flatten_radius, plan.flatten_shoulder)
 		seat_y = flatten_pad(center, plan.flatten_radius, plan.flatten_strength,
 			plan.flatten_shoulder)
 	var compound := Node3D.new()
 	compound.name = "SitePlan_%s" % plan.plan_name
 	compound.set_meta("model_name", plan.plan_name)
-	_parent.add_child(compound)
-	compound.global_position = Vector3(center.x, seat_y, center.z)
+	if attach_to != null:
+		attach_to.add_child(compound)
+		compound.position = Vector3.ZERO
+	else:
+		_parent.add_child(compound)
+		compound.global_position = Vector3(center.x, seat_y, center.z)
 
 	var stations: Array = []
 	var placed: int = 0
@@ -3322,6 +3167,11 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 	# identity in every mesh name. That is strictly better than the bake's mechanism and it is
 	# what keeps the vocabulary in data (ADR-043 §4) instead of in a const array.
 	var wired: int = 0
+	# THE STAMP HANDS BACK THE STEEL IT MADE. _adopt_structure reparents the Destructible to
+	# the PLANNER'S parent - not under the compound - so a caller that needs to tag them (the
+	# firebase parapet joins FSB_PARAPET_GROUP, which is the siege's map of the perimeter) has
+	# no way to find them afterwards except by guessing at distance. Return them.
+	var made: Array[Node] = []
 	var no_collider: PackedStringArray = PackedStringArray()
 	for part_any in compound.get_children():
 		var part := part_any as Node3D
@@ -3351,6 +3201,7 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 			var d: Destructible = _adopt_structure(mi, kind, Destructible.hp_for(kind), part)
 			if d != null:
 				d.set_meta("part_id", pid)
+				made.append(d)
 			wired += 1
 			break
 	if not no_collider.is_empty():
@@ -3369,7 +3220,7 @@ func stamp_site_plan(plan: SitePlan, center: Vector3, registry: KitRegistry = nu
 
 	var site := {"kind": "site_plan", "plan": plan.plan_name, "center": center,
 		"nodes": [compound], "stations": stations, "wired": wired,
-		"no_collider": no_collider, "garrison": garrison,
+		"destructibles": made, "no_collider": no_collider, "garrison": garrison,
 		"radius": maxf(plan.flatten_radius, 16.0)}
 	placed_sites.append(site)
 	print("[PLAN] stamped '%s': %d part(s), %d station(s)"

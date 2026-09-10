@@ -18,8 +18,10 @@
 ## 0.55 -> 0.09, 0.70 -> 0.00, 0.85 -> 0.00, 1.20 -> 0.29, 1.50 -> 0.52.
 ##
 ## REFUTED and recorded so nobody re-derives it: NO SANDBAG IS INVOLVED. The nearest
-## sandbag mesh of any family is fb_sbg_seg_026, 3.91m from any ladder waypoint. What
-## he read as sandbags is the tower's own parapet. THE ASSET IS FINE.
+## sandbag mesh of any family measured 3.91m from any ladder waypoint (fb_sbg_seg_026,
+## a name that stopped existing on 2026-09-10 when the parapet became kit parts - this
+## test passes against the kit wire too). What he read as sandbags is the tower's own
+## parapet. THE ASSET IS FINE.
 ##
 ## WHAT THIS ASSERTS - the invariant, not the workaround: every point a Ladder will
 ## hand the player must (a) fit his capsule and (b) have ground under it. It goes RED

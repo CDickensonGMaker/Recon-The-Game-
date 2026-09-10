@@ -2397,3 +2397,86 @@ Two things found while measuring it, both worth keeping:
 - **`fb_sbg_seg_046.001` is a Blender duplicate with no manifest entry**, so
   `_wire_parapet_destructibles` never wires it and it ships INVULNERABLE among 80 destructible twins
   (ADR-043 names it). A migration drops it for free.
+
+## THE PERIMETER IS KIT PARTS NOW — ADR-043 §2 P4 DONE (2026-09-10)
+
+**His ruling: *"yes re-skin the perimeter with the kit wall."*** The bake ships without
+`fb_sbg_seg_*`; the wire is **224 `fb_sandbag_heavy` parts** stamped from
+`data/site_plans/fsb_main_parapet.json` under the same seated `FirebaseCompound` the GLB root
+hangs from. This is the ADR's decreed shape — *re-export the monolith minus family F, stamp F from
+the kit, delete the repair code that existed for F's baked form* — and all three halves landed.
+
+### THE NUMBERS, same probe on both states (`tools/probe_parapet_parity.tscn`)
+
+| | HEAD | after |
+|---|---|---|
+| members in `fsb_parapet` | 81 | **224** |
+| ring from compound centre | 47.9–99.6 m | **48.1–99.6 m** |
+| height span | 2.39 m | 2.38 m |
+| largest hole (the gateway) | 19.4 m @ bearing 149 | **19.0 m @ bearing 149** |
+| kind / hp | `sandbag_wall`, 140 | `sandbag_wall`, 140 |
+| **no collision shape** | **1** | **0** |
+| no ballistics group | 0 | 0 |
+| `fb_sbg_seg_` left in the bake | 81 | **0** |
+
+**The ring is reproduced, not re-derived.** Bake 41.0 MB / 5,648 nodes (was 44.6 MB / 5,810), md5
+`282775173fe097035c61639430454e56`, colonly contract 2,226 terminal / 0 stray. **Revert is one
+command**, exactly as ADR-043 promised: `git checkout` the GLB, or re-run `reexport_firebase_v3.py`
+without `--drop-prefix`.
+
+**235 lines of parapet repair code deleted** (`_wire_parapet_destructibles`,
+`_wire_parapet_segment`, `_audit_parapet_spread`, `_disable_parapet_colliders`, plus
+`FSB_DESTRUCTIBLES_JSON` / `FSB_PARAPET_MESH_PREFIX` and the `fb_sbg_seg_` entry in
+`REMESH_COLLIDER_PREFIXES`). The fossil probe reads the same 29/28 before and after, so the
+migration added none.
+
+### WHAT SURVIVED THE SWAP, and it was checked rather than assumed
+
+`FSB_PARAPET_GROUP` is the siege's ONLY runtime map of the wire (`siege_director.gd:427,679`), so
+the stamp now hands back the Destructibles it adopted and `_stamp_parapet` puts them in it. Sapper
+targeting needed nothing — `sapper_charge.gd:79` prioritises by KIND and the kit part already
+declares `sandbag_wall` at 140 hp. Gates run green after: `test_sapper_assault`,
+`test_firebase_defense`, `test_ladder_dismount`, `test_demo_arc` (26 checks), `test_patrol_world`,
+`test_site_plan_roundtrip`, `probe_kit_base_in_world`, and `probe_compound_nav` at **8 of 8
+bearings reaching the interior, 0 CUT**.
+
+### FIVE THINGS THE WORK FOUND, three of them my own instruments lying
+
+1. **`firebase_v3_destructibles.json` has NO YAW and its positions have DRIFTED up to 1.83 m from
+   the art.** All 80 `box` entries are the identical `[6.6, 0.37, 1.17]` — the generator's NOMINAL
+   master size, not a per-segment measurement. The segments are really **2.36–6.04 m**. The game
+   never noticed because the manifest is only a name → kind/hp lookup: `_wire_parapet_segment`
+   adopted the mesh the GLB shipped and seated on its own AABB. **Do not read that file as a
+   description of where the wire is.**
+2. **One of the 81 wire members at HEAD had no collision shape** — a wall in the perimeter nothing
+   could hit. It is the `fb_sbg_seg_046.001` Blender duplicate, adopted into the group and then had
+   its colliders disabled as a co-located twin. The migration drops it.
+3. **A gate that checks coverage per-segment cannot see a wire moved as a whole.** My first tiling
+   rounded down and left a 1.12 m hole in a 3.40 m segment; the per-segment gate caught that. It
+   could NOT catch tiling about the vertex CENTROID instead of the axis midpoint, because every
+   segment was fully covered *about the wrong point*. Both are fixed (`ceil`, and a measured
+   `mid_off`, worst 0.15 m).
+4. **My own first two hole measurements were wrong in opposite directions.** Centre-to-centre
+   flattered the bake by half a segment and read the gateway 4.3 m wider after the swap;
+   reading the Destructible's `basis.x` would have had every wall in the base running along world
+   +X, because `_adopt_structure` sets POSITION only and the rotation rides on the reparented mesh.
+   The probe now transforms the mesh's local AABB CORNERS — exact for a box, no axis assumed.
+5. **Deleting a function deletes what was chained onto its tail.** `_wire_parapet_destructibles`
+   ended with `_wire_structure_destructibles(root)` and `SCREEN_DOOR.wire_all(root)` — neither of
+   them parapet work. Losing them would have made **every bunker, tower and hut in the compound
+   invulnerable and every screen door static, in silence.** The fossil probe is what caught it.
+
+### THREE RED THINGS THAT ARE NOT MINE — measured against HEAD, identical both sides
+
+- **`test_fossils` FAILS at HEAD**: `scripts/ai/ai_lod.gd:156 func mean_near` is dead, 29 vs a
+  baseline of 28. It arrived with the 9/09 AI LOD commit. **Not deleted** — the fossil law demands
+  triage first and this reads as UNFINISHED (an instrumentation helper never wired), which is
+  yours to rule on, not mine to bury.
+- **`probe_bunker_entry` FAILS at HEAD with byte-identical numbers**: *"3 of 37 fire points take
+  the player UPRIGHT, 0 crouch-only, 34 no fit"*, most posts reporting "no floor under the post at
+  all". **This is your 2026-07-29 complaint** — *"I still cannot climb up the angled dirt mounds
+  and see to shoot over the sandbags"* — and **the re-skin did not move it one number.** Whatever
+  is wrong there is not the parapet's box hulls.
+- **`probe_firebase_penetration` cannot run at all**: it has a `.gd` and no `.tscn`. One of the 19
+  never-invoked probes the 9/07 audit named. Its ballistics check is partly covered by the parity
+  probe's "0 members carry no ballistics group".

@@ -45,7 +45,9 @@ const WIRE_PATH: String = "res://assets/us/props/emplacements/barbwire_card.glb"
 ## prefix -> [kind, source]. The HP for each kind lives in Destructible.HP_FOR - one table,
 ## because this list and the arena's and the world's all carried the same numbers by hand.
 const TARGET_KINDS: Array[Dictionary] = [
-	{"prefix": "fb_sbg_seg_", "kind": "sandbag_wall", "src": "fsb"},
+	# The parapet became kit parts on 2026-09-10 (ADR-043 section 2 P4), so the bench matches
+	# the part id the stamp uses. `fb_sbg_seg_` no longer exists in any export.
+	{"prefix": "fb_sandbag_heavy", "kind": "sandbag_wall", "src": "fsb"},
 	{"prefix": "fb_sandbag_stack_i", "kind": "sandbag_stack", "src": "fsb"},
 	{"prefix": "fb_bunker_fighting_i", "kind": "bunker", "src": "fsb"},
 	{"prefix": "fb_bunker_mg_i", "kind": "bunker_mg", "src": "fsb"},

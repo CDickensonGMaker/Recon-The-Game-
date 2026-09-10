@@ -1,6 +1,7 @@
 """Re-export fsb_main_v3.glb from the CANON blend, without rebuilding the firebase.
 
     blender --background --python tools/reexport_firebase_v3.py
+    blender --background --python tools/reexport_firebase_v3.py -- --drop-prefix fb_sbg_seg_
 
 Why this exists, and read it before reaching for gen_firebase_v3.py instead:
 
@@ -39,9 +40,17 @@ CANON_BLEND = os.path.join(gf.KIT_DIR, "firebase_v3.2.blend")
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     blend = CANON_BLEND
+    drop = []
     for i, a in enumerate(argv):
         if a == "--blend" and i + 1 < len(argv):
             blend = argv[i + 1]
+        # ADR-043 section 2: "re-export the monolith MINUS family F, stamp F from the kit."
+        # This is the minus. It deletes from the OPENED SCENE only - the blend is never saved,
+        # which the module docstring already states - so the revert is to run this again
+        # without the flag. That is the whole reason the ADR could call the migration
+        # reversible in one command.
+        if a == "--drop-prefix" and i + 1 < len(argv):
+            drop.append(argv[i + 1])
     if not os.path.exists(blend):
         raise SystemExit("canon blend not found: %s" % blend)
 
@@ -61,6 +70,20 @@ def main():
     if strays:
         print("STRAY parapet duplicates (ship INVULNERABLE - not in the manifest): %s"
               % ", ".join(sorted(strays)))
+
+    if drop:
+        # The -colonly twins are GENERATED inside export_firebase(), so dropping the visual
+        # meshes drops their colliders with them. Any that already exist in the blend are
+        # matched here too, because a stale twin left behind is an invisible wall.
+        doomed = [o for o in sc.objects
+                  if any(o.name.startswith(pre) for pre in drop)]
+        print("dropping %d object(s) matching %s" % (len(doomed), drop))
+        for o in doomed:
+            bpy.data.objects.remove(o, do_unlink=True)
+        left = [o.name for o in sc.objects
+                if any(o.name.startswith(pre) for pre in drop)]
+        if left:
+            raise RuntimeError("drop left %d object(s) behind: %s" % (len(left), left[:5]))
 
     size = v3.export_firebase()
     print("re-export done: %.2f MB" % size)
