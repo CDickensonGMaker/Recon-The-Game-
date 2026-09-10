@@ -16,6 +16,10 @@ const CampDirectorScript := preload("res://scripts/enemies/camp_director.gd")
 const AirTrafficScript := preload("res://scripts/ai/air_traffic.gd")
 const AmbientWarScript := preload("res://scripts/ai/ambient_war.gd")
 const ConvoySpawnerScript := preload("res://scripts/missions/convoy_spawner.gd")
+## The kit plan the patrol AO builds a satellite base from (ADR-043). A NAME, not a scene:
+## site plans are authored data under data/site_plans/ and tools/kit_editor.tscn writes them,
+## so re-laying this base is an editing session and never a code change.
+const KIT_SITE_PLAN: String = "fsb_kit_alpha"
 const DynamicMissionFactoryScript := preload("res://scripts/missions/dynamic_mission_factory.gd")
 
 const CODENAME_B: Array[String] = ["LANCE", "TIGER", "ARROW", "SABRE", "HAMMER", "SERPENT", "TALON", "BUFFALO", "DAGGER", "PYTHON"]
@@ -592,6 +596,31 @@ static func plan_patrol_world(world: GameWorld, op_seed: int) -> Dictionary:
 		if s_pos != Vector3.ZERO:
 			p.sites.append({"kind": "temple", "center": s_pos})
 
+	# THE KIT BASE. A satellite patrol base built out of the modular kit (ADR-043), stamped by
+	# stamp_site_plan() through the same planner that stamps every other site here.
+	#
+	# THIS IS THE WIRE THAT WAS MISSING. Until 2026-09-10 stamp_site_plan() had ZERO callers in
+	# scripts/ - every caller was a probe or tools/kit_editor.gd - so a plan authored in the
+	# tool could be measured and photographed and never played. ADR-043's own mechanical test
+	# is "does this phase's deliverable change what the player sees?", and a builder the game
+	# never calls does not.
+	#
+	# It is a SITE, not a replacement for the main firebase. fsb_kit_alpha is a 72 m compact
+	# base; place_firebase_main's monolith is 298 x 222 m and carries the gate, bunk, helipad
+	# and garrison markers the demo arc reads. Swapping one for the other is the family
+	# migration in ADR-043 section 2, not this change.
+	#
+	# Deeper than the villages and outside every keep-out, so it reads as somebody else's
+	# firebase out in the AO rather than an annex of the player's own.
+	var kit_plan: SitePlan = SitePlan.load_from(KIT_SITE_PLAN)
+	if kit_plan != null:
+		var pad: float = maxf(kit_plan.flatten_radius, 24.0)
+		var kit_pos: Vector3 = planner.find_site(rng, pad + 8.0, 140.0, [], gate, 420.0, 600.0)
+		if kit_pos != Vector3.ZERO:
+			p.sites.append({"kind": "site_plan", "center": kit_pos, "plan": KIT_SITE_PLAN})
+	else:
+		push_warning("[PLAN] site plan '%s' is missing - no kit base in this AO" % KIT_SITE_PLAN)
+
 	# First-sign craters: four sectors fanned across the gate's OUTWARD half-plane
 	# (ADR-029 amendment 2026-07-18) - the inward compass is the player's own base,
 	# and a crater must clear the wire by its own blast radius. Signs are
@@ -895,6 +924,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 				built_sites.append(_build_camp_site(world, director, planner, site, p, rng))
 			"temple":
 				built_sites.append(planner.stamp_temple_shrine(site.center, rng))
+			"site_plan":
+				built_sites.append(_build_site_plan(world, director, planner, site, rng))
 	for s: Vector3 in (p.first_signs as Array):
 		DamageSystem.apply_damage(s, DamageSystem.DamageType.LARGE_EXPLOSION,
 			rng.randf_range(0.8, FIRST_SIGN_INTENSITY_MAX))
@@ -1043,6 +1074,62 @@ static func _spawn_friendly_patrols(world: GameWorld, director: FieldDirector,
 ## medical_complex: blanket tops +0.575m, bare frames +0.520m - and LitterTeam.LITTER_Y,
 ## the deck a laying body already rides right, is 0.55m. See the cot branch below.
 const COT_DECK_Y: float = 0.55
+
+
+## Stamp a kit site plan and man it. The stamp itself is SitePlanner's (one path, ADR-028);
+## this function only turns the posts the part manifests asked for into people, through
+## Civilian.spawn - the one door (ADR-028 again). No second spawn authority, which is the
+## rule ADR-043 section 4 states in as many words.
+static func _build_site_plan(world: GameWorld, director: FieldDirector, planner: SitePlanner,
+		site: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var name: String = str(site.get("plan", KIT_SITE_PLAN))
+	var plan: SitePlan = SitePlan.load_from(name)
+	if plan == null:
+		push_warning("[PLAN] site plan '%s' vanished between plan and build" % name)
+		return {}
+	var reg: KitRegistry = KitRegistry.load_kit()
+	# stamp_site_plan REFUSES a plan whose parts break the contract rather than half-stamping
+	# it (ADR-042: an unrecognised mesh ships bulletproof and nothing says so). An empty return
+	# is that refusal, and it must not be dressed up as a built site.
+	var out: Dictionary = planner.stamp_site_plan(plan, site.center as Vector3, reg)
+	if out.is_empty():
+		push_warning("[PLAN] '%s' refused to stamp - no kit base in this AO" % name)
+		return {}
+	_man_site_plan(world, director, out.get("garrison", []) as Array, rng)
+	return out
+
+
+## EVERY MAN GETS HIS OWN STATION, spread by INDEX around the post and never rolled - the same
+## rule as the firebase garrison above, and for the same reason: a random ring lets two men
+## roll onto the same metre, and no NPC in this game avoids any other NPC.
+static func _man_site_plan(world: GameWorld, director: FieldDirector, posts: Array,
+		rng: RandomNumberGenerator) -> void:
+	var made: int = 0
+	for entry in posts:
+		var post: Dictionary = entry
+		var post_pos: Vector3 = post.get("pos", Vector3.ZERO)
+		var occupation: String = str(post.get("occupation", ""))
+		if occupation == "":
+			continue
+		var men_n: int = maxi(1, int(post.get("men", 1)))
+		for mi in range(men_n):
+			var a: float = TAU * float(mi) / float(men_n) + rng.randf_range(-0.3, 0.3)
+			var r: float = 1.8 if men_n > 1 else rng.randf_range(0.0, 1.0)
+			var station: Vector3 = post_pos + Vector3(cos(a), 0.0, sin(a)) * r
+			var pos: Vector3 = station
+			# floor_y, never surface_y: inside a stamped compound the PART is the ground, and
+			# surface_y returns the first hit from above - which is a bunker roof.
+			pos.y = world.floor_y(pos) + 0.5
+			var man: Civilian = Civilian.spawn(world, pos, director, false,
+				CivilianScript.models_for(occupation), true)
+			man.occupation = occupation
+			man.role = str(post.get("role", ""))
+			var wp: Vector3 = station
+			wp.y = world.floor_y(wp)
+			man.working_point_pos = wp
+			man.add_to_group("firebase_garrison")
+			made += 1
+	print("[PLAN] kit base manned: %d post(s), %d man/men" % [posts.size(), made])
 
 
 static func _build_firebase_garrison(world: GameWorld, director: FieldDirector,

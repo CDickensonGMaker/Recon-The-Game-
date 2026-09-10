@@ -2286,3 +2286,114 @@ withholds for 88 pages. Where he appears belongs with whoever builds his encount
 description field**: *"DATA AHEAD OF WIRING - no code loads this file; the wired marksman is
 nva_marksman.tres (mission_generator.gd)."* That is the FOSSIL LAW's exact shape: data that reads as
 live and is not. Left in place this wave.
+
+## THE KIT BASE IS IN THE GAME, AND THE SITE PICKER WAS SITING THE FIREBASE IN A HOLLOW (2026-09-10)
+
+**His words: *"wire it up and fix the site picker."*** Both done, both probed. Two findings below are
+corrections to claims made earlier in the same session — they are stated as corrections on purpose.
+
+### 1 · `stamp_site_plan` HAD ZERO CALLERS IN `scripts/` — IT HAS ONE NOW
+
+Every caller was a probe or `tools/kit_editor.gd`. A plan authored in the tool could be measured,
+photographed and walked, and never reached a world the player builds — which is exactly the
+"parked-but-built" deliverable ADR-043's mechanical test refuses.
+
+**SHIPPED:** the patrol AO now plans and stamps a satellite kit base through the one path.
+`mission_generator.gd` gains `KIT_SITE_PLAN` (`"fsb_kit_alpha"`, a NAME not a scene — re-laying the
+base is an editing session in `tools/kit_editor.tscn`, never a code change), a `site_plan` entry in
+`p.sites` beside `village`/`vc_camp`/`temple`, a `"site_plan"` case in `build_patrol_world`'s match,
+and `_build_site_plan` / `_man_site_plan`. Men come through `Civilian.spawn` — the one door
+(ADR-028). No flag, no parallel builder, no second spawn authority.
+
+**IT IS A SITE, NOT A REPLACEMENT FOR THE MAIN FIREBASE**, and the reason is measured, not a
+preference: `fsb_kit_alpha` is a 72 m compact base; `place_firebase_main`'s monolith is 298 x 222 m
+and carries the gate, bunk, helipad and garrison markers the demo arc reads. Swapping one for the
+other is the family migration in ADR-043 §2 — see §3, which is his call.
+
+**PROVEN:** `tools/probe_kit_base_in_world.tscn` — plans a real AO, builds it through the SHIPPING
+`build_patrol_world`, then goes looking for the base in the finished world.
+> `[KIT] planned at (374.8126, 0.0, 1039.401) (deterministic)` · `546 m from the main firebase centre`
+> `[KIT] built: 81 part node(s)` · `[KIT] steel: 80 Destructible(s) of 80, 0 with no shape`
+> `[KIT] men: 19 garrison body/bodies within 48 m` · **PASS**
+
+**ONE LESSON THE PROBE LEARNED THE HARD WAY, recorded because it will bite the next reader.** Its
+first run reported **0 of 80 on the blast bus** while the stamp's own line said 80. `_adopt_structure`
+parents the `Destructible` to the PLANNER'S parent — the world — and empties the part node
+(`site_planner.gd:2792`, and the comment at `:3321` says so). A `Destructible` is a `StaticBody3D`
+that takes the mesh's own collider with it; it was never going to be a child of the compound.
+**Searching the compound subtree for a stamped site's steel measures nothing.**
+
+### 2 · THE GAME PICKED FLAT GROUND AND THE TOOL PICKED A HILL — off the same seed
+
+`tools/firebase_site_pick.gd` scored **prominence − relief**. `plan_firebase_main_center()`
+(`site_planner.gd`) scored slope, water, separation and flatness, and had **no prominence term at
+all**. Two copies of a scoring function, one of them missing a term.
+
+**SHIPPED:** `SitePlanner.prominence()` and `SitePlanner.relief()` are now the single authority and
+`firebase_site_pick.gd` delegates to both. The game's pick gains the prominence term, on an ELLIPSE
+sized off its own rectangular footprint (`FSB_OUTLOOK_M` 40 m beyond the wire), **capped at
+`FSB_PROMINENCE_CAP` 4.0 m** — the defect is being overlooked, not failing to be the highest thing
+on the map.
+
+**AND THE CANDIDATE POOL WENT 120 → 480 (`FSB_SITE_CANDIDATES`), which was the bigger half of the
+bug.** The Pareto scan measured it: on the 1280 m patrol map, ground that is BOTH as flat as the old
+pick and not overlooked is **1 candidate in 300**. At 120 draws the score was right and the picker
+never saw such a site — which reads exactly like a bad weight and is not.
+
+**PROVEN:** `tools/probe_site_pick.tscn`, control = the same function with `prominence_w = 0.0`.
+> `[TERM] 8 seeds: mean prominence -1.61 m -> +2.44 m, 6 rescued from a hollow, 0 worse` · **PASS**
+
+**AND A THIRD TERM THE FIRST TWO MADE NECESSARY: `FSB_AO_ROOM_M` / `FSB_AO_ROOM_W`.**
+With prominence on, seed 31337 moved the gate from (811, 808) - mid-map - to **(975, 1105) on a
+1280 m map**. `FSB_EDGE_MARGIN` only guarantees the FOOTPRINT fits; it says nothing about there
+being a war outside it, and with the base in the corner **one of the four quadrants the pacing
+contract requires a village in had no land in it**. The score now wants 470 m of map on every side
+(the outer edge of the planner's own village band), clamped to what the map can offer so the 512 m
+demo map penalises every candidate equally instead of being swamped. Gated in the probe:
+`[ROOM] 8 seeds: 0 short of 470 m`.
+
+**`test_patrol_world` WAS RED AT HEAD AND IS GREEN NOW**, which is worth stating precisely because
+the middle of this work made it look worse before it made it better:
+
+| | gate | road points on a building | blind control | result |
+|---|---|---|---|---|
+| HEAD | 811, 808 | 0 of 157 (nearest 82.2 m) | **0 intrusions** | **FAIL** - *"the blind control also scores zero - this seed cannot prove the fix"* |
+| prominence, no AO room | 975, 1105 | **2 of 166** (nearest 2.4 m) | 31 intrusions | FAIL x2 - and quadrant 0 empty |
+| shipping | 631, 663 | **0 of 141** (nearest 5.7 m) | 2 intrusions | **PASS** |
+
+At HEAD the road-vs-building check was a **broken instrument on this seed**: its own blind control
+found nothing to fix, so it failed itself. The intermediate state is the interesting row - it is the
+first time that check ever had a real workout, and the road clearance removed 29 of 31 intrusions
+and left 2. That defect is real and is now un-measured again on the shipping seed; **if roads
+through huts ever get reported, that row is the lead.**
+
+**TWO CORRECTIONS TO EARLIER CLAIMS IN THIS SESSION:**
+- **The 0.540 m "worst seat error" on `fb_sandbag_heavy` is not an art defect.** It is a deliberate
+  compensation: the master is exported with its origin at the geometry CENTRE (Y −0.54..+0.54,
+  symmetric) and `tools/gen_site_plan_firebase.py` documents and offsets for it.
+- **The hollow was not caused by the missing prominence term alone.** At 480 candidates the picker
+  finds +1.42 m ground on seed 4242 with the term switched OFF. The term still earns its place —
+  6 of 8 seeds are rescued by it — but the sample size was the primary defect.
+
+### 3 · HIS CALL: THE PARAPET FAMILY MIGRATION IS AN ART DECISION, NOT A WIRE
+
+ADR-043 §8 puts **P4 PARAPET FIRST**. It is blocked on a ruling, because the two walls are not the
+same wall. Measured this session off the GLBs (node scale 0.01, −90° X, so these are world metres):
+
+| | length | height | thickness |
+|---|---|---|---|
+| bake `fb_sbg_seg_*` (80 of them) | **6.60 m** | 1.17 m | 0.37 m |
+| kit `fb_sandbag_heavy` | **2.28 m** | 1.08 m | **1.17 m** |
+
+Migrating the family re-tiles 80 long thin walls as ~230 short fat ones — **a visible re-skin of his
+whole perimeter**, plus a re-export of the 43 MB monolith. That is his ruling, not mine.
+
+Two things found while measuring it, both worth keeping:
+- **`firebase_v3_destructibles.json` cannot drive the migration on its own: it carries NO YAW.** All
+  80 `box` entries are the identical `[6.6, 0.37, 1.17]` — the segment's LOCAL extent — so a plan
+  built off it would stand the entire perimeter axis-aligned. Orientation exists only in the
+  vertices (80 of the 81 parapet nodes carry no node transform, which `site_planner.gd:2525` already
+  says). Recoverable exactly by the XZ principal axis; not recoverable from the manifest.
+- **`fb_sbg_seg_046.001` is a Blender duplicate with no manifest entry**, so
+  `_wire_parapet_destructibles` never wires it and it ships INVULNERABLE among 80 destructible twins
+  (ADR-043 names it). A migration drops it for free.

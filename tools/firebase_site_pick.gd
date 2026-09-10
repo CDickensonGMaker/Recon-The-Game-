@@ -14,6 +14,11 @@
 ## has to cut. A firebase goes on a flat-topped hill.
 extends RefCounted
 
+## The outlook ring this picker measures prominence on. It stays a CIRCLE here because a kit
+## site plan has a circular pad; the game's rectangular monolith uses an ellipse sized off its
+## own footprint (SitePlanner.FSB_OUTLOOK_M). Same function, different ring.
+const OUTLOOK_RING_M: float = 54.0
+
 
 ## {centre: Vector3 (y=0, as find_site returns it), prominence: float, relief: float}.
 ## `centre` is Vector3.ZERO when the map has no site with this footprint.
@@ -27,14 +32,12 @@ static func pick(planner: SitePlanner, terrain: Node, rng: RandomNumberGenerator
 		var c: Vector3 = planner.find_site(rng, radius)
 		if c == Vector3.ZERO:
 			continue
-		var h: float = terrain.get_height_at(c)
-		var ring: float = 0.0
-		var n: int = 12
-		for k in range(n):
-			var a: float = TAU * float(k) / float(n)
-			ring += terrain.get_height_at(c + Vector3(cos(a), 0.0, sin(a)) * 54.0)
-		var prom: float = h - ring / float(n)
-		var rel: Array = relief(terrain, c, pad_radius)
+		# BOTH TERMS COME OUT OF SitePlanner, and that is the point of this file since
+		# 2026-09-10. They used to be local copies, the game's own picker had no prominence
+		# term at all, and the two scored different hills off the same seed - so the tool
+		# photographed one base and the game built another.
+		var prom: float = SitePlanner.prominence(terrain, c, OUTLOOK_RING_M, OUTLOOK_RING_M)
+		var rel: Array = SitePlanner.relief(terrain, c, pad_radius)
 		var relief_m: float = rel[1] - rel[0]
 		var score: float = prom - relief_m
 		if score > best_score:
@@ -45,20 +48,7 @@ static func pick(planner: SitePlanner, terrain: Node, rng: RandomNumberGenerator
 	return {"centre": best, "prominence": best_prom, "relief": best_relief}
 
 
-## [min_y, max_y] of the terrain over a disc. Reads the HEIGHTMAP, never a raycast: a
-## raycast hits the building and reports the roof, which is how "hanging bulbs at +7.8 m"
-## was once measured as correct.
+## Kept as a name only. The measurement lives in SitePlanner so the probe, the render pass
+## and the game all read one instrument (see pick() above).
 static func relief(terrain: Node, centre: Vector3, radius: float, samples: int = 15) -> Array:
-	var lo: float = 1.0e9
-	var hi: float = -1.0e9
-	for iz in range(samples):
-		for ix in range(samples):
-			var fx: float = float(ix) / float(samples - 1) * 2.0 - 1.0
-			var fz: float = float(iz) / float(samples - 1) * 2.0 - 1.0
-			if Vector2(fx, fz).length() > 1.0:
-				continue
-			var h: float = terrain.get_height_at(
-				Vector3(centre.x + fx * radius, 0.0, centre.z + fz * radius))
-			lo = minf(lo, h)
-			hi = maxf(hi, h)
-	return [lo, hi]
+	return SitePlanner.relief(terrain, centre, radius, samples)

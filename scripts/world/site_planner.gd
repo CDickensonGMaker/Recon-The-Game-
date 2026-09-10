@@ -1795,17 +1795,142 @@ func _footprint_height_range(center: Vector3) -> float:
 	return hi - lo
 
 
+## HOW FAR THIS GROUND STANDS ABOVE THE GROUND AROUND IT. Positive on a hilltop, negative in
+## a hollow. The ring is an ELLIPSE, not a circle, so a rectangular footprint is sampled the
+## same distance beyond its wire on every bearing instead of 149 m out on one axis and 111 m
+## on the other. Samples that fall off the map are skipped rather than clamped: a clamped
+## sample reads the edge cell twice and quietly pulls every coastal site toward the shore.
+##
+## READS THE HEIGHTMAP, NEVER A RAYCAST. A raycast hits whatever has been placed and reports
+## its roof, which is how "hanging bulbs at +7.8 m" was once measured as correct.
+##
+## ONE AUTHORITY, TWO CALLERS. plan_firebase_main_center() scores with it and
+## tools/firebase_site_pick.gd delegates to it, so the ground the tool photographs and the
+## ground the game builds on cannot drift apart. That drift is exactly what this function was
+## written to close: the two pickers disagreed until 2026-09-10.
+static func prominence(terrain: Node, centre: Vector3, ring_x: float, ring_z: float,
+		samples: int = 12) -> float:
+	if terrain == null or samples <= 0:
+		return 0.0
+	var map_size: float = float(terrain.map_size) if "map_size" in terrain else 0.0
+	var here: float = terrain.get_height_at(centre)
+	var total: float = 0.0
+	var n: int = 0
+	for k in range(samples):
+		var a: float = TAU * float(k) / float(samples)
+		var p := Vector3(centre.x + cos(a) * ring_x, 0.0, centre.z + sin(a) * ring_z)
+		if map_size > 0.0 and (p.x < 0.0 or p.z < 0.0 or p.x > map_size or p.z > map_size):
+			continue
+		total += terrain.get_height_at(p)
+		n += 1
+	if n == 0:
+		return 0.0
+	return here - total / float(n)
+
+
+## [min_y, max_y] of the terrain over a disc. The other half of the pick, and the same
+## instrument rule as prominence(): heightmap, never a raycast.
+static func relief(terrain: Node, centre: Vector3, radius: float, samples: int = 15) -> Array:
+	var lo: float = 1.0e9
+	var hi: float = -1.0e9
+	if terrain == null:
+		return [0.0, 0.0]
+	for iz in range(samples):
+		for ix in range(samples):
+			var fx: float = float(ix) / float(samples - 1) * 2.0 - 1.0
+			var fz: float = float(iz) / float(samples - 1) * 2.0 - 1.0
+			if Vector2(fx, fz).length() > 1.0:
+				continue
+			var h: float = terrain.get_height_at(
+				Vector3(centre.x + fx * radius, 0.0, centre.z + fz * radius))
+			lo = minf(lo, h)
+			hi = maxf(hi, h)
+	if lo > hi:
+		return [0.0, 0.0]
+	return [lo, hi]
+
+
+## How far beyond the wire the outlook ring is measured. 40 m is a rifle-fight distance and
+## the scale the defect was reported at - "four of six bunkers were looking straight into
+## rising ground 12-18 m out" (tools/firebase_site_pick.gd). Ground that overlooks the wire
+## from 40 m is ground a machine gun sits on.
+const FSB_OUTLOOK_M: float = 40.0
+## Weight on the prominence term. 2.0 matches the flatness penalty already in the score.
+const FSB_PROMINENCE_W: float = 2.0
+## AND IT IS CAPPED, which is the whole lesson of the first run of tools/probe_site_pick.gd.
+##
+## Uncapped, the term did its job too well: it moved the pick off a hollow 3.02 m BELOW the
+## ground outside its own wire and onto a summit 13.22 m above it - and bought that height
+## with 9.87 m of extra relief across a 298 x 222 m footprint. That is the ridge-shoulder
+## failure tools/firebase_site_pick.gd already records in its own header ("leaving a 7 m cut
+## face in front of the same bunkers"). A firebase that has to cut 20 m of hill flat is not
+## on high ground, it is in a quarry.
+##
+## The defect being fixed is BEING OVERLOOKED, not failing to be the highest thing on the map.
+## 4 m clear of the ground 40 m out is enough that nothing fires down into the compound; past
+## that the term stops paying, and flatness - which is still weighted 2.0 and uncapped - picks
+## the winner among the sites that qualify. A flat-topped hill, which is his own words.
+const FSB_PROMINENCE_CAP: float = 4.0
+## HOW MANY CENTRES THE PICKER LOOKS AT, and it was 120 until 2026-09-10.
+##
+## MEASURED, tools/probe_site_pick.gd's Pareto scan: on the 1280 m patrol map the ground that
+## is BOTH as flat as the old pick and not overlooked is 1 candidate in 300. At 120 draws the
+## score was right and the picker simply never saw such a site - it was choosing the best of a
+## pool that did not contain one, which reads exactly like a bad weight and is not.
+##
+## The flattest legal centre on the map carries 10.50 m of relief and stands +1.72 m over its
+## ring; the best PROMINENT one stands +18.11 m and carries 31.47 m. Relief and height are
+## strongly coupled here, so the pick has to be able to FIND the rare corner rather than be
+## bribed toward the summit. 480 draws costs ~61 height samples each, once, at world build.
+const FSB_SITE_CANDIDATES: int = 480
+## HOW MUCH AO THE BASE NEEDS AROUND IT, and this term exists because the prominence term
+## above went and found high ground in a CORNER.
+##
+## MEASURED on seed 31337: prominence alone moved the gate from (811, 808) - mid-map - to
+## (975, 1105) on a 1280 m map. FSB_EDGE_MARGIN only guarantees the FOOTPRINT fits; it says
+## nothing about there being a war outside it. With the base in the corner, one of the four
+## quadrants the pacing contract requires a village in (mission_generator.gd, and
+## tests/test_patrol_world.gd asserts it at ~500 m) has no land in it at all.
+##
+## 470 m is the outer edge of the village band the planner itself uses, so this asks for
+## exactly the room the AO is about to be filled with and no more. It is clamped to what the
+## map can actually offer, so on the 512 m demo map - where no centre can be 470 m from every
+## edge - every candidate is penalised equally and the term stops deciding anything instead of
+## swamping the score.
+const FSB_AO_ROOM_M: float = 470.0
+## Per metre short of that room. 0.5 makes 100 m of missing AO cost 50 points, which outranks
+## the whole prominence term (capped at 8) on purpose: a base on a hill with no war around it
+## is worse than a base on flat ground with one.
+const FSB_AO_ROOM_W: float = 0.5
+
+
+## Metres from the site centre to the NEAREST map edge - how much AO there is to patrol.
+static func ao_room(centre: Vector3, map_size: float) -> float:
+	return minf(minf(centre.x, map_size - centre.x), minf(centre.z, map_size - centre.z))
+
+
 ## Pure site pick for the AABB center: fits in-map with margin, prefers dry flat
 ## ground across the WHOLE footprint (not just the clear-disc centers), stays
 ## off paddies/reserved points. Flatness dominates the score on purpose - the
 ## seat/sculpt pass downstream can blend a gentle site, it cannot fix a ridge.
-func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
+##
+## AND IT PREFERS HIGH GROUND, since 2026-09-10. Flatness alone put fsb_kit_alpha in a hollow
+## with four of six bunkers firing into rising ground 12-18 m out; the tool grew a prominence
+## term to fix it and the GAME never got one, so the tool and the game picked different hills
+## off the same seed. A firebase goes on a flat-topped hill: the score is BOTH.
+## `prominence_w` exists for ONE caller: tools/probe_site_pick.gd passes 0.0 to reproduce the
+## pre-2026-09-10 score exactly, so the probe's before/after is the same function twice and
+## not a hand-copied rival of it. The game never passes it.
+func plan_firebase_main_center(rng: RandomNumberGenerator,
+		prominence_w: float = FSB_PROMINENCE_W) -> Vector3:
 	var map_size: float = _terrain.map_size
 	var min_x: float = FSB_HALF.x + FSB_EDGE_MARGIN
 	var min_z: float = FSB_HALF.y + FSB_EDGE_MARGIN
 	var best := Vector3(map_size * 0.5, 0.0, map_size * 0.5)
 	var best_score: float = -1.0e9
-	for _i in range(120):
+	# Clamped to what this map can give: dead centre is the most room any centre can have.
+	var room_want: float = minf(FSB_AO_ROOM_M, map_size * 0.5)
+	for _i in range(FSB_SITE_CANDIDATES):
 		var c := Vector3(rng.randf_range(min_x, map_size - min_x), 0.0,
 			rng.randf_range(min_z, map_size - min_z))
 		var score: float = 0.0
@@ -1815,6 +1940,9 @@ func plan_firebase_main_center(rng: RandomNumberGenerator) -> Vector3:
 				score -= 10.0
 			score -= _grid.get_slope(p)
 		score -= _footprint_height_range(c) * 2.0
+		score += minf(prominence(_terrain, c, FSB_HALF.x + FSB_OUTLOOK_M,
+			FSB_HALF.y + FSB_OUTLOOK_M), FSB_PROMINENCE_CAP) * prominence_w
+		score -= maxf(0.0, room_want - ao_room(c, map_size)) * FSB_AO_ROOM_W
 		for r in _reserved:
 			if c.distance_to(r) < 240.0:
 				score -= 25.0
