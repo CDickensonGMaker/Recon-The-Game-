@@ -2480,3 +2480,37 @@ bearings reaching the interior, 0 CUT**.
 - **`probe_firebase_penetration` cannot run at all**: it has a `.gd` and no `.tscn`. One of the 19
   never-invoked probes the 9/07 audit named. Its ballistics check is partly covered by the parity
   probe's "0 members carry no ballistics group".
+
+### CORRECTION, SAME DAY: `probe_bunker_entry` WAS THE BROKEN INSTRUMENT
+
+**His word closed it: *"in the last versions i could see over the sandbags etc so that had been
+resolved."* He was right and the probe was slandering the base.**
+
+It located the compound by **averaging the parapet ring's positions** and calling that the model
+origin. The wire is not a circle - it runs 48-100 m from the middle, it has a gateway cut out of one
+side, and **it sits up on the berm**. Measured: the centroid is **3.45 m** off the true origin
+horizontally and **4.83 m too high** (`(259.43, 179.03, 255.67)` vs `FirebaseCompound` at
+`(256.0, 174.20, 256.0)`). The floor ray only reaches 2.0 m down, so from 4.8 m up it hit nothing -
+which is the literal text of the failure, 34 times over.
+
+`FirebaseCompound.global_position` IS the offset every consumer uses. The probe reads it now.
+
+| | reading the fence | reading the building |
+|---|---|---|
+| upright | **3 of 37** | **29 of 37** |
+| crouch-only | 0 | 5 |
+| no fit | **34** | **3** |
+
+Nav agrees: **32 of 37 reachable, 0 SEALED.**
+
+**This does not change yesterday's conclusion, and the reason matters**: the numbers were identical
+before and after the kit migration, so the migration still caused none of it. But the number itself
+was garbage on both sides, and it was being carried as a standing red gate.
+
+**What is left is now worth chasing, because it is real:**
+- **5 crouch-only.** Two of them (posts 22, 23) are blocked by `Chunk_1_1/RaycastCollision` - that is
+  the TERRAIN heightfield intruding into a bunker interior, not the model. Three are blocked by
+  `fb_bunker_fighting_i` itself.
+- **3 no fit**, and **5 OFF-MESH** of 37.
+- **`PHYSICS: 10 of 32 nav-reachable routes pass the player's capsule, 22 blocked`** - a separate
+  pass, unexamined, and now the largest unexplained number in the probe.

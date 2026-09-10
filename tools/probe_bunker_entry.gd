@@ -27,6 +27,17 @@ const REACH_TOL_M: float = 1.6
 const SAMPLE_UP_M: float = 0.4
 
 
+static func _find_by_name(root: Node, want: String) -> Node3D:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n.name == want:
+			return n as Node3D
+		for c in n.get_children():
+			stack.append(c)
+	return null
+
+
 func _ready() -> void:
 	await get_tree().process_frame
 	print("\n=== BUNKER ENTRY ===\n")
@@ -58,19 +69,33 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	# _fsb_work_markers is MODEL space. Every consumer adds `center - FSB_AABB_CENTER`
-	# (site_planner.gd:1072), and FSB_AABB_CENTER is the origin, so the compound centre IS
-	# the offset. The parapet rings the wire, so its centroid is that centre.
-	var ring: Array = get_tree().get_nodes_in_group(&"fsb_parapet")
-	if ring.is_empty():
-		print("  [FAIL] no fsb_parapet members - cannot locate the compound")
+	# _fsb_work_markers is MODEL space. Every consumer adds `center - FSB_AABB_CENTER`, and
+	# FSB_AABB_CENTER is the origin - so the offset is EXACTLY the seated compound's own world
+	# position, which ADR-043 P1's `FirebaseCompound` node carries. Read it.
+	#
+	# IT USED TO AVERAGE THE PARAPET RING AND CALL THAT THE CENTRE, and that was wrong by
+	# metres. The wire is not a circle: it runs 48 to 100 m from the middle and it has a
+	# gateway cut out of one side, so its centroid sits off the model origin - and EVERY post
+	# inherited that error, which is how 34 of 37 fire points came to report "no floor under
+	# the post at all" while the base was fine to stand and shoot in. A probe that locates a
+	# building by averaging its fence measures a building that is not there.
+	var centre := Vector3.ZERO
+	var compound: Node3D = _find_by_name(get_tree().root, "FirebaseCompound")
+	if compound == null:
+		print("  [FAIL] no FirebaseCompound in the tree - cannot locate the base")
 		get_tree().quit(1)
 		return
-	var centre := Vector3.ZERO
-	for d in ring:
-		if d is Node3D and is_instance_valid(d):
-			centre += (d as Node3D).global_position
-	centre /= float(ring.size())
+	centre = compound.global_position
+	var ring: Array = get_tree().get_nodes_in_group(&"fsb_parapet")
+	if not ring.is_empty():
+		var wire_mid := Vector3.ZERO
+		for d in ring:
+			if d is Node3D and is_instance_valid(d):
+				wire_mid += (d as Node3D).global_position
+		wire_mid /= float(ring.size())
+		print("  compound origin %s; the parapet centroid this probe used to trust is %s, "
+			% [str(centre), str(wire_mid)]
+			+ "%.2f m away" % Vector2(wire_mid.x - centre.x, wire_mid.z - centre.z).length())
 	for i in range(posts.size()):
 		posts[i] = centre + posts[i]
 
