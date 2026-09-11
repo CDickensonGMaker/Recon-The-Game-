@@ -50,6 +50,32 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 		seated.y = world.floor_y(pos) + 0.5
 	var parent: Node = world if world != null else get_parent()
 	var enemy: EnemyBase = EnemyBase.spawn_enemy(parent, seated, data_path)
+	_track_enemy(enemy, group_tag)
+	return enemy
+
+
+## Build a man now, park him, and hand him back untracked - he is not in the fight, not on
+## the roster, not a group the debrief can score. The 45-120 ms this costs lands HERE, in
+## whatever quiet second the caller chose, instead of at the pop ring (perf audit 2026-09-10).
+func prewarm_enemy(data_path: String) -> EnemyBase:
+	SpawnLedger.note("prewarm_enemy")
+	var parent: Node = world if world != null else get_parent()
+	return EnemyBase.spawn_enemy(parent, Vector3(0.0, -500.0, 0.0), data_path, true)
+
+
+## The second half of spawn_tracked_enemy for a man prewarm_enemy() built: seat him, wake
+## him, and track him exactly as a fresh spawn would be. Same authority, same ledger.
+func activate_tracked_enemy(enemy: EnemyBase, pos: Vector3, group_tag: String = "") -> EnemyBase:
+	SpawnLedger.note("activate_tracked_enemy")
+	var seated := pos
+	if world and world.terrain_manager:
+		seated.y = world.floor_y(pos) + 0.5
+	enemy.activate(seated)
+	_track_enemy(enemy, group_tag)
+	return enemy
+
+
+func _track_enemy(enemy: EnemyBase, group_tag: String) -> void:
 	# Same group_tag -> same fireteam. hash gives a stable per-group id; lone
 	# spawns (empty tag) stay -1 (no coordination).
 	enemy.squad_id = hash(group_tag) if not group_tag.is_empty() else -1
@@ -58,7 +84,6 @@ func spawn_tracked_enemy(pos: Vector3, data_path: String, group_tag: String = ""
 	# CONTACT LEDGER (ADR-006): a group must be registered the moment it spawns,
 	# or there is nothing for the debrief to score as avoided.
 	state.register_group(enemy.squad_id if enemy.squad_id >= 0 else enemy.get_instance_id())
-	return enemy
 
 
 ## SimClock is an autoload with no class_name (sim_clock.gd:5) - absent from both

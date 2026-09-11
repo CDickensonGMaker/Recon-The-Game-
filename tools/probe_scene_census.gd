@@ -31,6 +31,16 @@ func _ready() -> void:
 	var mmi_instances: int = 0
 	var mmi_tris_total: int = 0
 	var mmi_no_range: int = 0
+	# IN-RANGE CANDIDATES: a headless run cannot frustum-cull, but it can answer "how many
+	# of these nodes are inside their own visibility range from where the player stands" -
+	# which is the draw-call population a camera turning on the spot would sweep through.
+	var eye: Vector3 = Vector3.ZERO
+	var player: Node3D = GameManager.player as Node3D
+	if player != null:
+		eye = player.global_position
+	var mmi_in_range: int = 0
+	var mmi_in_range_inst: int = 0
+	var mi_in_range: int = 0
 	var shapes: int = 0
 	var concave: int = 0
 	var lights: int = 0
@@ -71,6 +81,9 @@ func _ready() -> void:
 				mi_tris += t
 				if mi.visibility_range_end <= 0.0:
 					mi_no_range += 1
+				var dm: float = mi.global_position.distance_to(eye)
+				if mi.visibility_range_end <= 0.0 or dm <= mi.visibility_range_end:
+					mi_in_range += 1
 				var key: String = mi.mesh.resource_path.get_file() if mi.mesh.resource_path != "" else String(mi.name)
 				var rec: Array = top_meshes.get(key, [0, 0])
 				rec[0] += 1
@@ -89,6 +102,12 @@ func _ready() -> void:
 				mmi_tris_total += per * cnt
 				if mmi.visibility_range_end <= 0.0:
 					mmi_no_range += 1
+				var aabb: AABB = mmi.get_aabb()
+				var half: float = (aabb.size * 0.5).length()
+				var d: float = mmi.global_position.distance_to(eye) - half
+				if mmi.visibility_range_end <= 0.0 or d <= mmi.visibility_range_end:
+					mmi_in_range += 1
+					mmi_in_range_inst += cnt
 		elif n is CollisionShape3D:
 			shapes += 1
 			if (n as CollisionShape3D).shape is ConcavePolygonShape3D:
@@ -118,6 +137,8 @@ func _ready() -> void:
 		% [mi_n, mi_surfaces, mi_tris, mi_no_range])
 	print("[CENSUS] MultiMeshInstance3D %d, instances %d, instanced tris %d, %d with NO visibility range"
 		% [mmi_n, mmi_instances, mmi_tris_total, mmi_no_range])
+	print("[CENSUS] IN RANGE from the player at %s: %d MultiMesh node(s) carrying %d instance(s), %d MeshInstance3D"
+		% [str(eye), mmi_in_range, mmi_in_range_inst, mi_in_range])
 	print("[CENSUS] CollisionShape3D %d (%d concave trimesh)" % [shapes, concave])
 	print("[CENSUS] lights %d (%d with shadows), decals %d, particles %d, audio3d %d"
 		% [lights, light_shadows, decals, particles, audio])

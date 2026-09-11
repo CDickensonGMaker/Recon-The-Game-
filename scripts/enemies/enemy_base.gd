@@ -472,9 +472,11 @@ var _removed: Array[String] = []
 var _killed_explosive: bool = false
 
 
+## True while a pre-warmed man is parked and not yet in the fight. See spawn_enemy().
+var dormant: bool = false
+
+
 func _ready() -> void:
-	add_to_group("enemies")
-	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
 	_router.setup(nav_agent, get_tree(), "enemy")
 	# De-phase the LOD decision and the far-tier posture beat. Forty-five men spawned
 	# in the same second otherwise re-decide on the same physics frame forever, which
@@ -482,7 +484,6 @@ func _ready() -> void:
 	var h: int = absi(hash(get_instance_id()))
 	_lod_phase = float(h % 97) * 0.001          # 0-96 ms of jitter
 	_far_decide_t = float(h % 199) * 0.001      # 0-198 ms of jitter
-	AILod.set_tier(self, ai_tier)               # he is born NEAR until he decides otherwise
 
 	personality = [Enums.AIPersonality.AGGRESSIVE, Enums.AIPersonality.DEFENSIVE, Enums.AIPersonality.BALANCED].pick_random()
 	_apply_personality()
@@ -526,7 +527,6 @@ func _ready() -> void:
 	target_aim_dir = current_aim_dir
 	facing_dir = current_aim_dir
 
-	NoiseBus.noise_emitted.connect(_on_noise_heard)
 	var gw := get_tree().get_first_node_in_group("game_world")
 	if gw != null and "gameplay_grid" in gw:
 		_grid = gw.gameplay_grid
@@ -535,6 +535,42 @@ func _ready() -> void:
 		visible = false
 		collision_layer = 0
 		collision_mask = 1
+
+	if dormant:
+		_park_dormant()
+	else:
+		_go_live()
+
+
+## Everything that makes a man EXIST to the rest of the game: the enemies group, the agent
+## registry, the LOD roster and the noise bus. A dormant man does none of it; activate() does.
+func _go_live() -> void:
+	add_to_group("enemies")
+	AgentRegistry.register(self, AgentRegistry.Kind.ENEMY)
+	AILod.set_tier(self, ai_tier)               # he is born NEAR until he decides otherwise
+	if not NoiseBus.noise_emitted.is_connected(_on_noise_heard):
+		NoiseBus.noise_emitted.connect(_on_noise_heard)
+
+
+## PROCESS_MODE_DISABLED is the whole trick: with the default DISABLE_MODE_REMOVE every
+## CollisionObject3D under him - his capsule and all his hitzone areas - leaves the physics
+## space, the AnimationPlayer stops ticking, and no _physics_process runs. Nothing can see,
+## hear, hit or path around him. He costs a node in the tree and nothing per frame.
+func _park_dormant() -> void:
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+
+
+## Put a pre-warmed man into the world at `pos`. No-op for a man already live.
+func activate(pos: Vector3) -> void:
+	if not dormant:
+		return
+	dormant = false
+	global_position = pos
+	process_mode = Node.PROCESS_MODE_INHERIT
+	visible = not is_spider_hole
+	reset_physics_interpolation()
+	_go_live()
 
 
 ## Mission teardown frees live men without a death path - the roster must not
@@ -812,6 +848,9 @@ func _near_cover() -> bool:
 ## Drive the clip from the AI. Called every frame from _execute(), never from
 ## _think() - think is LOD-throttled to 0.6s past 150m and animation would run
 ## at 1.6 fps.
+var _burn_node: Node = null
+
+
 func _update_sprite() -> void:
 	if sprite_actor == null:
 		return
@@ -823,7 +862,13 @@ func _update_sprite() -> void:
 	# Resolved by NODE NAME, not by class: a `class_name` is not registered until
 	# the editor rescans, and a script that only compiles after an editor visit
 	# is a script that breaks every headless run.
-	var burn: Node = get_node_or_null("Burning")
+	# Resolved once and kept, not per tick: this was a NodePath lookup for every man on every
+	# physics tick whether or not anyone had ever set him alight (perf audit 2026-09-10, the
+	# 0.6 ms-per-man budget). Re-resolved only while null, so a Burning node added later is
+	# still found the tick after it lands.
+	if _burn_node == null or not is_instance_valid(_burn_node):
+		_burn_node = get_node_or_null("Burning")
+	var burn: Node = _burn_node
 	if burn != null and burn.has_method("is_burning") and bool(burn.call("is_burning")) \
 			and sprite_actor is ModelActor:
 		# "" once he has dropped: the ragdoll owns the skeleton and any clip
@@ -1981,6 +2026,9 @@ func _execute(delta: float) -> void:
 			_execute_retreating(delta)
 
 
+var _last_look_dir: Vector3 = Vector3.ZERO
+
+
 func _update_aim(delta: float) -> void:
 	if not target or not has_line_of_sight:
 		return
@@ -2005,8 +2053,14 @@ func _update_aim(delta: float) -> void:
 	var flat_aim: Vector3 = current_aim_dir
 	flat_aim.y = 0
 	if flat_aim.length() > 0.1:
-		look_at(global_position + flat_aim)
 		facing_dir = current_aim_dir
+		# look_at() rebuilds the whole basis; a man holding his aim on a target that has not
+		# moved was paying for it every tick for nothing. Skipped until the flat aim has moved
+		# about a third of a degree since the last set.
+		var fa: Vector3 = flat_aim.normalized()
+		if fa.dot(_last_look_dir) < 0.99998:
+			look_at(global_position + flat_aim)
+			_last_look_dir = fa
 
 
 ## Drive the satchel to the objective at a run, ignoring cover and contact. The
@@ -3577,10 +3631,16 @@ func _target_is_player() -> bool:
 ## FACTORY
 ## ============================================
 
-static func spawn_enemy(parent: Node, pos: Vector3, data_path: String) -> EnemyBase:
+## `dormant` builds the whole man - model, clips, hitzones, the 45-120 ms of it - and then
+## parks him: invisible, out of physics, off every roster, deaf to the noise bus. He is not in
+## the world until activate() says so. This is how a marching cell pre-warms its men during
+## the quiet minutes instead of paying for each one at the pop ring (perf audit 2026-09-10).
+static func spawn_enemy(parent: Node, pos: Vector3, data_path: String,
+		dormant: bool = false) -> EnemyBase:
 	SpawnLedger.note("EnemyBase.spawn_enemy")
 	var enemy := EnemyBase.new()
 	enemy.enemy_data_path = data_path
+	enemy.dormant = dormant
 
 	var col := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()

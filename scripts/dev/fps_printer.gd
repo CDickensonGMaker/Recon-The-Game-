@@ -52,16 +52,26 @@ func _ready() -> void:
 	## frames on 60Hz half-steps, which is both a pacing artefact and a throughput lie.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
+	# THE CATCH-UP SPIRAL LEVER (perf audit 2026-09-10). Physics runs at 30 Hz and Godot lets a
+	# slow frame run up to max_physics_steps_per_frame (default 8) ticks to catch the clock up
+	# - so a 100 ms GPU stall on the iGPU buys itself EIGHT physics ticks of 45-man AI on the
+	# next frame, which is the death spiral marching_cell.gd already names. Headless never
+	# sees it (no GPU wait), so it can only be measured windowed: `--phys-steps=N` sets the
+	# cap for one run and the ATTACHED line records it. 2-3 is the value to try.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--phys-steps="):
+			Engine.max_physics_steps_per_frame = maxi(1, int(a.get_slice("=", 1)))
 	## Every row states the scale it was DRAWN at, read off the live viewport. A row that
 	## quotes a project setting is not a measurement of anything (fixed 2026-09-08).
 	## The measurement contract (PERF_LEDGER) needs scale AND renderer on every number. The
 	## renderer comes from the RENDERING SERVER: Godot strips
 	## `rendering/renderer/rendering_method` on save when it equals the desktop default, so
 	## the project setting agrees with reality by luck and proves nothing.
-	print("[FPS] printer ATTACHED - %ss windows | vsync forced OFF | render scale %.3f (live) | mode %d | renderer %s/%s"
+	print("[FPS] printer ATTACHED - %ss windows | vsync forced OFF | render scale %.3f (live) | mode %d | renderer %s/%s | max physics steps/frame %d"
 		% [WINDOW_S, get_viewport().scaling_3d_scale, get_viewport().scaling_3d_mode,
 			RenderingServer.get_current_rendering_method(),
-			RenderingServer.get_current_rendering_driver_name()])
+			RenderingServer.get_current_rendering_driver_name(),
+			Engine.max_physics_steps_per_frame])
 	print("[FPS] texture state: %s" % _texture_state())
 	_wall_t0 = Time.get_ticks_usec()
 	_open_raw()
@@ -182,6 +192,9 @@ func _process(delta: float) -> void:
 		_gpu.clear()
 		_render.clear()
 		return
+	print("[ANIM] %d of %d animated actors throttled to %.0f Hz | anim lod %s" % [
+		ModelActor.far_animated, ModelActor.live_animated, ModelActor.ANIM_FAR_HZ,
+		"ON" if ModelActor.anim_lod_enabled() else "OFF"])
 	print("[FPS] %.1f WALL fps (%d frames / %.2fs real; sum_delta said %.2fs) | %.1f avg (worst frame %.1fms, 1%% low %.1f fps) | median %.1fms p95 %.1fms p99 %.1fms | scale %.2f | gpu %.2fms (window mean of %d) render_thread %.2fms | draw calls %d | primitives %d | idle_max %.2fms phys_max %.2fms nav_max %.2fms (1s bucket MAXIMA, not per-frame) | bodies %d pairs %d islands %d" % [
 		float(_frames) / maxf(0.001, wall_s), _frames, wall_s, _t,
 		float(_frames) / _t, _worst_ms, _one_percent_low(),

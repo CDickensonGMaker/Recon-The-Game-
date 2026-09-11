@@ -85,11 +85,100 @@ func flinch(world_dir: Vector3, strength: float) -> void:
 	_flinch.punch(local.normalized(), strength)
 
 
+## THE ANIMATION THROTTLE (perf audit 2026-09-10 section 2). The demo world ticks 93
+## AnimationPlayers at boot and ~140 in the siege, every one at full rate whether the man is
+## in the player's face or 300 m off in the fog with his back to the camera. Godot's own
+## tracker puts ~100 animated characters at 60 fps as the practical ceiling and 3-4x that
+## with the players paused (godot#74540). Past ANIM_FAR_M - the same 80 m the AI LOD promotes
+## at - or off-screen beyond ANIM_OFFSCREEN_M, the player switches to MANUAL callback mode
+## and is advanced by hand at ANIM_FAR_HZ. Nothing is reset across the switch: the clip, its
+## phase and its blend are the same object, only how often it moves. The hitzones ride the
+## skeleton, so a far man's hit geometry is at most 1/ANIM_FAR_HZ stale - at 80 m and beyond.
+##
+## Re-evaluated every ANIM_CHECK_S with per-actor jitter, so ninety men do not all re-decide
+## on the same frame. Hysteresis: promote inside ANIM_NEAR_M, demote past ANIM_FAR_M.
+const ANIM_FAR_M: float = 80.0
+const ANIM_NEAR_M: float = 65.0
+const ANIM_OFFSCREEN_M: float = 30.0
+const ANIM_FAR_HZ: float = 10.0
+const ANIM_CHECK_S: float = 0.25
+static var far_animated: int = 0
+## Live actors with an AnimationPlayer, for the [ANIM] row in --print-fps.
+static var live_animated: int = 0
+## `--anim-lod-off` on the user command line disables the throttle for a one-flag A/B, the
+## same shape as `--ai-lod-off`. Read once.
+static var _lod_off: int = -1
+var _anim_far: bool = false
+var _anim_check_t: float = 0.0
+var _anim_accum: float = 0.0
+
+
 func _ready() -> void:
 	set_physics_process(false)
+	_anim_check_t = float(absi(hash(get_instance_id())) % 250) * 0.001
+
+
+func _process(delta: float) -> void:
+	if _anim == null:
+		return
+	if not _anim_counted:
+		_anim_counted = true
+		live_animated += 1
+	_anim_check_t -= delta
+	if _anim_check_t <= 0.0:
+		_anim_check_t = ANIM_CHECK_S
+		_decide_anim_tier()
+	if not _anim_far:
+		return
+	_anim_accum += delta
+	if _anim_accum >= 1.0 / ANIM_FAR_HZ:
+		if _anim.is_playing():
+			_anim.advance(_anim_accum)
+		_anim_accum = 0.0
+
+
+static func anim_lod_enabled() -> bool:
+	if _lod_off < 0:
+		_lod_off = 1 if OS.get_cmdline_user_args().has("--anim-lod-off") else 0
+	return _lod_off == 0
+
+
+func _decide_anim_tier() -> void:
+	var cam: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
+	var want_far: bool = false
+	if cam != null and anim_lod_enabled():
+		var p: Vector3 = global_position + Vector3.UP * 0.9
+		var d: float = cam.global_position.distance_to(p)
+		if _anim_far:
+			want_far = d > ANIM_NEAR_M or (d > ANIM_OFFSCREEN_M and not cam.is_position_in_frustum(p))
+		else:
+			want_far = d > ANIM_FAR_M or (d > ANIM_OFFSCREEN_M and not cam.is_position_in_frustum(p))
+	if want_far == _anim_far:
+		return
+	_anim_far = want_far
+	if want_far:
+		_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_anim_accum = 0.0
+		far_animated += 1
+	else:
+		_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+		far_animated = maxi(0, far_animated - 1)
+
+
+var _anim_counted: bool = false
+
+
+func _exit_tree_anim_tier() -> void:
+	if _anim_counted:
+		_anim_counted = false
+		live_animated = maxi(0, live_animated - 1)
+	if _anim_far:
+		_anim_far = false
+		far_animated = maxi(0, far_animated - 1)
 
 
 func _exit_tree() -> void:
+	_exit_tree_anim_tier()
 	if _flinch != null:
 		_live_flinches -= 1
 		_flinch = null

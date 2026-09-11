@@ -71,6 +71,16 @@ func is_spent() -> bool:
 	return materialized and live_strength() == 0
 
 
+## THE RESERVE. Men built during the march and parked, so the pop ring pays activate()
+## (a teleport and four registrations) instead of spawn (45-120 ms of model, clips and
+## hitzones per man - "spawn.man 119.5 ms", perf audit 2026-09-10). Filled through the SAME
+## per-frame token budget the pop uses, so pre-warming cannot hitch either; a cell that
+## marches for two minutes fills its reserve in the first second of them. A cell that
+## withdraws or is reaped frees whatever it never used.
+var _reserve: Array[EnemyBase] = []
+var _prewarmed: int = 0
+
+
 func _physics_process(delta: float) -> void:
 	if materialized:
 		if _spawn_left > 0:
@@ -78,6 +88,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_physics_process(false)
 		return
+	_prewarm_tick()
 	_step_timer += delta
 	if _step_timer < STEP_INTERVAL:
 		return
@@ -180,13 +191,33 @@ func _spawn_tick() -> void:
 		_spawn_left -= 1
 
 
+func _prewarm_tick() -> void:
+	while _prewarmed < strength and MarchingCell._take_spawn_token():
+		StallLedger.begin("spawn.prewarm")
+		var man: EnemyBase = director.prewarm_enemy(data_path)
+		StallLedger.end()
+		_prewarmed += 1
+		if man != null:
+			_reserve.append(man)
+
+
 func _spawn_one() -> void:
 	var a: float = _rng.randf_range(0.0, TAU)
 	var r: float = _rng.randf_range(1.5, 5.0)
 	var pos: Vector3 = global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)
-	StallLedger.begin("spawn.man")
-	var man: EnemyBase = director.spawn_tracked_enemy(pos, data_path, group_tag)
-	StallLedger.end()
+	var man: EnemyBase = null
+	while man == null and not _reserve.is_empty():
+		var parked: EnemyBase = _reserve.pop_back()
+		if is_instance_valid(parked):
+			man = parked
+	if man != null:
+		StallLedger.begin("spawn.activate")
+		director.activate_tracked_enemy(man, pos, group_tag)
+		StallLedger.end()
+	else:
+		StallLedger.begin("spawn.man")
+		man = director.spawn_tracked_enemy(pos, data_path, group_tag)
+		StallLedger.end()
 	if man == null:
 		return
 	man.add_to_group(group_tag)
@@ -208,6 +239,7 @@ func withdraw_to(rally: Vector3) -> Array[EnemyBase]:
 	# A withdrawing cell stops birthing men - the unspawned stagger remainder
 	# would otherwise arrive INTO the retreat.
 	_spawn_left = 0
+	_free_reserve()
 	var leaving: Array[EnemyBase] = []
 	for m in men:
 		if not is_instance_valid(m) or m.is_dead():
@@ -231,6 +263,18 @@ func withdraw_to(rally: Vector3) -> Array[EnemyBase]:
 		m.assault_driven = true
 		leaving.append(m)
 	return leaving
+
+
+func _free_reserve() -> void:
+	for m in _reserve:
+		if is_instance_valid(m):
+			m.queue_free()
+	_reserve.clear()
+	_prewarmed = strength
+
+
+func _exit_tree() -> void:
+	_free_reserve()
 
 
 func _seat_on_terrain() -> void:

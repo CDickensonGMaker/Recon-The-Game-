@@ -290,17 +290,34 @@ func _tick_rebakes(delta: float) -> void:
 	_dirty.clear()
 
 
+## THE COLLECT IS SLICED (perf audit 2026-09-10). Source-geometry collection - terrain
+## sampling for a 370 m box plus a walk over every collider in the compound - measured
+## 285.9 ms in ONE idle step during the siege, the single largest stall in the ledger. The
+## Recast solve after it was already async; the collection was not. It now runs as a job
+## that spends at most COLLECT_BUDGET_MS per frame and starts the bake when it is done.
+## Nothing leaves the main thread: the node walk, the face copies and the source resource
+## are all touched from here and only here, so no thread-safety surface is added.
+##
+## The price is latency: a 286 ms collect at 6 ms a frame is ~48 frames, ~1.5 s at 30 fps,
+## before the bake even starts. A breach rebake therefore reaches the navmesh a second or
+## two later than it did - against a Recast solve that already took longer than that.
+const COLLECT_BUDGET_MS: float = 6.0
+var _job: Dictionary = {}
+
+
 func _process(delta: float) -> void:
 	_tick_rebakes(delta)
+	if not _job.is_empty():
+		StallLedger.begin("nav.collect")
+		_collect_slice()
+		StallLedger.end()
+		return
 	if _active_mesh != null:
 		if NavigationServer3D.is_baking_navigation_mesh(_active_mesh):
 			return
 		_active_mesh = null
 	if _queue.is_empty():
 		return
-	## The Recast solve is async, but source-geometry collection (terrain sampling +
-	## every collider walked into face arrays) is synchronous ON THIS THREAD, and so is
-	## the completion callback's navmesh assignment. This span is that main-thread half.
 	StallLedger.begin("nav.collect")
 	_start_bake(_queue.pop_front())
 	StallLedger.end()
@@ -346,29 +363,92 @@ func _start_bake(job: Dictionary) -> void:
 		return
 
 	var source := NavigationMeshSourceGeometryData3D.new()
-	StallLedger.begin("nav.terrain")
-	_add_terrain(source, box)
-	StallLedger.end()
-	var carved: int = 0
 	var croot: Node3D = job.get("colliders", null) as Node3D
-	if croot != null and is_instance_valid(croot):
-		StallLedger.begin("nav.colliders")
-		carved = -_add_colliders(source, croot, box) - 1   # negative = collider count, see below
-		StallLedger.end()
-		# AND the stamped structures inside it. The firebase box is 370m and now swallows
-		# whole village and ruin sites, whose own regions are pulled clear of it to stop
-		# the overlap that severed every path between them. Its collider walk only knows
-		# firebase geometry, so without this a hut inside the wire's box would be baked
-		# straight through - navmesh disagreeing with physics, which is the one thing this
-		# baker exists to prevent.
-		StallLedger.begin("nav.structures")
-		_add_structures(source, box)
-		StallLedger.end()
-	else:
-		StallLedger.begin("nav.structures")
-		carved = _add_structures(source, box)
-		StallLedger.end()
+	# The job carries every input the old synchronous body held on its stack, plus a phase
+	# cursor. _collect_slice() advances it; _finish_job() does what the tail of this
+	# function used to do.
+	_job = {"job": job, "nav": nav, "source": source, "box": box, "croot": croot,
+		"phase": 0, "iz": 0, "faces": PackedVector3Array(), "shapes": [], "si": 0,
+		"added": 0, "carved": 0}
+	_collect_slice()
 
+
+## One frame's worth of collection. Phases: 0 terrain rows -> 1 collider list -> 2 collider
+## faces -> 3 structures -> 4 start the bake.
+func _collect_slice() -> void:
+	var t0: int = Time.get_ticks_usec()
+	var budget: int = int(COLLECT_BUDGET_MS * 1000.0)
+	var source: NavigationMeshSourceGeometryData3D = _job.source
+	var box: AABB = _job.box
+	while Time.get_ticks_usec() - t0 < budget:
+		match int(_job.phase):
+			0:
+				if not _terrain_row(box):
+					source.add_faces(_job.faces, Transform3D.IDENTITY)
+					_job.faces = PackedVector3Array()
+					_job.phase = 1
+			1:
+				var croot: Node3D = _job.croot
+				if croot != null and is_instance_valid(croot):
+					_job.shapes = _collect_shapes(_collider_roots(croot), box)
+				_job.si = 0
+				_job.phase = 2
+			2:
+				var shapes: Array = _job.shapes
+				if int(_job.si) >= shapes.size():
+					_job.phase = 3
+				else:
+					var cs: CollisionShape3D = shapes[int(_job.si)] as CollisionShape3D
+					_job.si = int(_job.si) + 1
+					if cs != null and is_instance_valid(cs) and _add_shape(source, cs):
+						_job.added = int(_job.added) + 1
+			3:
+				var croot: Node3D = _job.croot
+				if croot != null and is_instance_valid(croot):
+					# negative = collider count, see _on_bake_done
+					_job.carved = -int(_job.added) - 1
+					_add_structures(source, box)
+				else:
+					_job.carved = _add_structures(source, box)
+				_job.phase = 4
+			_:
+				_finish_job()
+				return
+
+
+## Emit ONE row of terrain quads into the job's face buffer. False when the box is done.
+func _terrain_row(box: AABB) -> bool:
+	var nz: int = int(box.size.z / GRID_STEP)
+	var iz: int = int(_job.iz)
+	if iz >= nz:
+		return false
+	var x0: float = box.position.x
+	var z0: float = box.position.z
+	var nx: int = int(box.size.x / GRID_STEP)
+	var faces: PackedVector3Array = _job.faces
+	var az: float = z0 + float(iz) * GRID_STEP
+	var bz: float = az + GRID_STEP
+	for ix in range(nx):
+		var ax: float = x0 + float(ix) * GRID_STEP
+		var bx: float = ax + GRID_STEP
+		var p00 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, az)), az)
+		var p10 := Vector3(bx, _terrain.get_height_at(Vector3(bx, 0, az)), az)
+		var p01 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, bz)), bz)
+		var p11 := Vector3(bx, _terrain.get_height_at(Vector3(bx, 0, bz)), bz)
+		faces.append(p00); faces.append(p10); faces.append(p11)
+		faces.append(p00); faces.append(p11); faces.append(p01)
+	_job.faces = faces
+	_job.iz = iz + 1
+	return true
+
+
+func _finish_job() -> void:
+	var nav: NavigationMesh = _job.nav
+	var source: NavigationMeshSourceGeometryData3D = _job.source
+	var box: AABB = _job.box
+	var croot: Node3D = _job.croot
+	var carved: int = int(_job.carved)
+	_job = {}
 	var region := NavigationRegion3D.new()
 	region.name = "NavRegion_%d" % regions_live
 	get_parent().add_child(region)
@@ -414,28 +494,6 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 ## The chunk mesh steps at chunk_size/grid_resolution = 256/64 = 4.0m, exactly the
 ## heightmap resolution, and get_height_at() is bilinear over the same grid. So
 ## sampling the heightmap at 4m is indistinguishable from parsing the chunk mesh,
-## while being decoupled from chunk lifetime, transforms and crater rebuilds.
-func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void:
-	var x0: float = box.position.x
-	var z0: float = box.position.z
-	var nx: int = int(box.size.x / GRID_STEP)
-	var nz: int = int(box.size.z / GRID_STEP)
-	var faces := PackedVector3Array()
-	for iz in range(nz):
-		for ix in range(nx):
-			var ax: float = x0 + float(ix) * GRID_STEP
-			var az: float = z0 + float(iz) * GRID_STEP
-			var bx: float = ax + GRID_STEP
-			var bz: float = az + GRID_STEP
-			var p00 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, az)), az)
-			var p10 := Vector3(bx, _terrain.get_height_at(Vector3(bx, 0, az)), az)
-			var p01 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, bz)), bz)
-			var p11 := Vector3(bx, _terrain.get_height_at(Vector3(bx, 0, bz)), bz)
-			faces.append(p00); faces.append(p10); faces.append(p11)
-			faces.append(p00); faces.append(p11); faces.append(p01)
-	source.add_faces(faces, Transform3D.IDENTITY)
-
-
 ## Feed the firebase's OWN colliders into the bake, walked by hand.
 ##
 ## NavigationServer3D.parse_source_geometry_data() was tried first and is not usable here: it
@@ -476,7 +534,7 @@ func _add_terrain(source: NavigationMeshSourceGeometryData3D, box: AABB) -> void
 const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "door_", "fb_hootch_roof_"]
 
 
-func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, box: AABB) -> int:
+func _collider_roots(root: Node3D) -> Array[Node]:
 	var roots: Array[Node] = [root]
 	# SitePlanner reparents the ~80 perimeter segments and the adopted structures onto
 	# Destructibles under GameWorld BEFORE this bake runs, and this walk only descends
@@ -491,11 +549,21 @@ func _add_colliders(source: NavigationMeshSourceGeometryData3D, root: Node3D, bo
 		var dn := d as Node3D
 		if dn != null and is_instance_valid(dn):
 			roots.append(dn)
-	return _walk_shapes(source, roots, box)
+	return roots
 
 
 func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node], box: AABB) -> int:
 	var added: int = 0
+	for cs in _collect_shapes(roots, box):
+		if _add_shape(source, cs as CollisionShape3D):
+			added += 1
+	return added
+
+
+## The traversal half of the old _walk_shapes: every enabled, in-box, non-ignored shape under
+## the roots, as a flat list the sliced collect can chew through a few per frame.
+func _collect_shapes(roots: Array[Node], box: AABB) -> Array:
+	var out: Array = []
 	var stack: Array[Node] = roots.duplicate()
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -514,56 +582,65 @@ func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node]
 				break
 		if skip:
 			continue
-		# ONE get_faces() PER SHAPE. ConcavePolygonShape3D.get_faces() COPIES the whole face
-		# array, and the flipped-winding branch below used to ask for a second copy of the
-		# same shape - 1,985 double-sided shapes in this compound, so ~2,000 redundant copies
-		# of trimesh geometry per bake. That is the breach re-bake's 320 ms.
-		var faces: PackedVector3Array = _shape_faces(cs.shape)
-		if faces.is_empty():
-			continue
-		var raw: PackedVector3Array = faces
-		StallLedger.begin("nav.cull")
-		faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
+		out.append(cs)
+	return out
+
+
+## The per-shape half: faces, roof cull, add, and the flipped copy where physics is
+## double-sided. Returns true when the shape contributed anything.
+func _add_shape(source: NavigationMeshSourceGeometryData3D, cs: CollisionShape3D) -> bool:
+	if cs == null or cs.shape == null:
+		return false
+	var owner_name: String = String(cs.get_parent().name)
+	# ONE get_faces() PER SHAPE. ConcavePolygonShape3D.get_faces() COPIES the whole face
+	# array, and the flipped-winding branch below used to ask for a second copy of the
+	# same shape - 1,985 double-sided shapes in this compound, so ~2,000 redundant copies
+	# of trimesh geometry per bake. That is the breach re-bake's 320 ms.
+	var faces: PackedVector3Array = _shape_faces(cs.shape)
+	if faces.is_empty():
+		return false
+	var raw: PackedVector3Array = faces
+	StallLedger.begin("nav.cull")
+	faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
+	StallLedger.end()
+	StallLedger.begin("nav.addfaces")
+	source.add_faces(faces, cs.global_transform)
+	StallLedger.end()
+	# THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward
+	# (2048 shapes; physics is repaired via backface_collision -
+	# site_planner._force_backface_collision), but the bake reads WINDING, not
+	# that flag: a down-facing floor contributes no walkable surface, so the
+	# whole compound's mesh sat on the flat terrain seat ~1.7m under the mound
+	# and routes tunnelled through berm volume ("the AI can get in and I
+	# can't", measured by tools/probe_bunker_entry). Where physics is
+	# double-sided, the nav source must be too (Summoner decree 2026-08-13:
+	# "make the ai walk all the real geometry in the game").
+	#
+	# Flipped faces of NON-ground shapes still respect the roof line for EVERY
+	# family - a tower top or chow-hall roof was never walkable before the
+	# flip and must not become so because of it. Ground sheets are exempt from
+	# that cull: the mound spans the compound, so its crests sit far above its
+	# own lowest point and the height rule would amputate the berms the flip
+	# exists to restore.
+	var concave := cs.shape as ConcavePolygonShape3D
+	if concave != null and concave.backface_collision:
+		StallLedger.begin("nav.flip")
+		var flipped: PackedVector3Array = _flip_faces(raw)
 		StallLedger.end()
-		StallLedger.begin("nav.addfaces")
-		source.add_faces(faces, cs.global_transform)
-		StallLedger.end()
-		# THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward
-		# (2048 shapes; physics is repaired via backface_collision -
-		# site_planner._force_backface_collision), but the bake reads WINDING, not
-		# that flag: a down-facing floor contributes no walkable surface, so the
-		# whole compound's mesh sat on the flat terrain seat ~1.7m under the mound
-		# and routes tunnelled through berm volume ("the AI can get in and I
-		# can't", measured by tools/probe_bunker_entry). Where physics is
-		# double-sided, the nav source must be too (Summoner decree 2026-08-13:
-		# "make the ai walk all the real geometry in the game").
-		#
-		# Flipped faces of NON-ground shapes still respect the roof line for EVERY
-		# family - a tower top or chow-hall roof was never walkable before the
-		# flip and must not become so because of it. Ground sheets are exempt from
-		# that cull: the mound spans the compound, so its crests sit far above its
-		# own lowest point and the height rule would amputate the berms the flip
-		# exists to restore.
-		var concave := cs.shape as ConcavePolygonShape3D
-		if concave != null and concave.backface_collision:
-			StallLedger.begin("nav.flip")
-			var flipped: PackedVector3Array = _flip_faces(raw)
+		var is_ground: bool = false
+		for gp in NAV_GROUND_PREFIXES:
+			if owner_name.begins_with(gp):
+				is_ground = true
+				break
+		if not is_ground:
+			StallLedger.begin("nav.cullflip")
+			flipped = _cull_above_base(flipped, cs.global_transform)
 			StallLedger.end()
-			var is_ground: bool = false
-			for gp in NAV_GROUND_PREFIXES:
-				if owner_name.begins_with(gp):
-					is_ground = true
-					break
-			if not is_ground:
-				StallLedger.begin("nav.cullflip")
-				flipped = _cull_above_base(flipped, cs.global_transform)
-				StallLedger.end()
-			if not flipped.is_empty():
-				StallLedger.begin("nav.addfaces")
-				source.add_faces(flipped, cs.global_transform)
-				StallLedger.end()
-		added += 1
-	return added
+		if not flipped.is_empty():
+			StallLedger.begin("nav.addfaces")
+			source.add_faces(flipped, cs.global_transform)
+			StallLedger.end()
+	return true
 
 
 ## The compound's ground-of-record sheets (the model IS the ground, ruling

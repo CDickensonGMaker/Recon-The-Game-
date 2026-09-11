@@ -3263,3 +3263,71 @@ instruments that watch destruction.
 **HIS CALL:** cap the blast scars (a FIFO like `MAX_SCORCH`, oldest crater loses its mark), or let
 them accumulate for a 30-minute demo and eat the growth? The demo is one day on one 512 m AO, so
 "leave it" may simply be right.
+
+### 2026-09-10 — THE FIX WAVE: the siege floor was a physics catch-up spiral, and the cap quadruples it
+
+**His word: *"ok lets loop and fix all of these"*** (the audit is `production/PERF_AUDIT_2026-09-10.md`).
+Everything below is HEADLESS — CPU only, gpu ms reads 0 — and every A/B is PAIRED (back to back on the
+same box, control alongside) because the box's load moved by 2× between morning and evening:
+the untouched baseline read **min window 19.0 fps** at 22:12 and **10.3 mean / 3.7 min** two hours
+later. **On this machine a lone number is not a measurement; only a pair is.**
+
+**THE FINDING THAT CHANGES THE STORY.** In every evening run the siege windows lock at **exactly
+3.7–3.8 fps with 285–299 ms frames**. That is not a slow frame, it is `max_physics_steps_per_frame`
+(engine default **8**) × a 30 Hz tick that has gone over 33 ms: the engine runs eight catch-up ticks
+of 45-man AI inside one frame to make up the clock, which makes THAT frame slower still —
+`marching_cell.gd` already names the death spiral. It reproduces headless, so it is not the GPU;
+windowed on the Intel UHD the GPU stall is what first pushes the tick over budget.
+
+**PAIRED A/B, `--phys-steps=2` vs default 8, same code, same seed, back to back:**
+
+| | siege floor | mean | mean worst frame | tick (phys_max) |
+|---|---|---|---|---|
+| cap 8 (default) | **3.7 fps** | 14.8 | 242 ms | 65.9 ms |
+| cap 2 | **14.9 fps** | 27.1 | **99 ms** | 61.3 ms |
+
+The tick itself did not get cheaper — it is still ~60 ms at the peak, and that is the real remaining
+work — but it stopped being multiplied by eight. **Shipped as `physics/common/max_physics_steps_per_frame=2`
+in `project.godot`.** The trade, stated: when a tick runs over budget the SIM runs slower than the
+wall clock instead of the frame rate collapsing (the day/night `SimClock` advances on `_process`, so
+the clock itself stays honest). On a machine whose tick fits in 33 ms the cap never engages.
+`perf_stress_phys3.bat` runs the cap at 3 for his eye; `--phys-steps=N` on any launch.
+
+**THE REST OF THE WAVE, each paired where it could be:**
+
+- **Animation throttle** (`model_actor.gd`): past 80 m or off-screen beyond 30 m the
+  `AnimationPlayer` goes to MANUAL callback mode and is advanced at 10 Hz. `[ANIM] 42 of 61
+  animated actors throttled` mid-siege. Paired A/B (`--anim-lod-off`): **18.9 vs 10.4 mean fps**,
+  same floor. ON is the shipped default.
+- **Soldier pre-warm** (`enemy_base.gd` `dormant`, `field_director.prewarm_enemy` /
+  `activate_tracked_enemy`, `marching_cell._reserve`): a marching cell builds its men during the
+  march — invisible, `PROCESS_MODE_DISABLED` (which removes every collider from Jolt, the docs'
+  `DISABLE_MODE_REMOVE` default), off every roster — and the pop ring pays `activate()`.
+  `spawn.man 119.5 ms` per man at the wire → `spawn.activate 1.9 ms worst`. ADR-035's pop-ring and
+  lit-circle contracts are untouched: nothing is visible, audible or hittable until the pop.
+- **Canopy MultiMesh buckets 64 → 128 m** for the 12 canopy species (`tree_cover_layer.gd
+  CANOPY_BUCKET`): nodes **3,631 → 3,038**; in range from the player, **395 MultiMesh nodes carrying
+  7,747 instances** (new census line, no before-number — the first census predates it).
+- **MultiMesh built by one `buffer` write** instead of one `set_instance_transform` server call per
+  plant (the `veg.tree_cover_mmi 13–44 ms` rebuild after a felled tree).
+- **`nav.collect` time-sliced** (`nav_baker.gd`): 285.9 ms in one idle step → a job spending at most
+  6 ms a frame, the async Recast bake unchanged. Cost is ~1.5 s more latency on a breach rebake.
+- Per-man micro: `Burning` node lookup cached; `look_at()` skipped until the aim moves a third
+  of a degree; Huey/Chinook airframe meshes get a 1,200 m visibility range (were unbounded at
+  ~50k tris each).
+- Interleaved A/B of ALL of today's code vs the stashed baseline, current→base→current:
+  **24.7 / 10.3 / 17.0 mean fps** — today's code is a gain in the same conditions, and the spread
+  between the two "current" runs is the box's own noise.
+
+**Gates green after:** `test_sapper_assault`, `test_firebase_defense`, `probe_ai_lod`,
+`test_demo_arc` (26), `test_nav_path`, `probe_compound_nav`, `probe_bunker_entry`,
+`probe_parapet_parity` — and `probe_bunker_entry` at its corrected 29 of 37 (its 3-of-37 was the
+instrument, fixed the same day). **Closing headless siege run with everything in:** windows 20,
+**mean 70.5 fps, floor 15.0, mean worst frame 82 ms, max worst 97 ms** — against this evening's
+paired control at 14.8 / 3.7 / 242 / 298. `nav.collect` now shows as `95 ms over 45 slices,
+worst slice 14.3 ms` where it was one 286 ms step.
+
+**NOT DONE, named:** the Huey/M101 art budget (his art); worker-threading the terrain chunk and
+scatter builds (item 5 proper — the nav slice is the safe first third of it); and his two windowed
+A/Bs — `perf_walk_compat.bat` (Compatibility renderer, one flag, decree stands until he lifts it)
+and `perf_walk_d3d12.bat` — which only his window can answer.

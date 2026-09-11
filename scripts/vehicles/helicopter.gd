@@ -44,6 +44,9 @@ var _rotor_rpm: float = 0.0      ## 0..1, spools up/down with state
 ## The rotors are driven in code, not by the GLB's baked clips: those are six
 ## separate rotation/scale tracks that would need an AnimationTree to play
 ## together, and code lets the RPM spool with the flight state.
+const AIRFRAME_VISIBILITY_END_M: float = 1200.0
+
+
 func _ready() -> void:
 	# Built before the model lookup: the rotor is audible whether or not the GLB
 	# resolved, and _ready returns early when it did not.
@@ -69,6 +72,16 @@ func _ready() -> void:
 		push_warning("[%s] tail rotor '%s' not found - tail will not spin" % [name, tail_rotor_node])
 
 	_pick_markings(root)
+
+	# AN AIRFRAME IS ~50k TRIANGLES AND THERE ARE TWELVE OF THEM (perf audit 2026-09-10:
+	# huey_v3.glb is 604k of the demo world's 1.52M static triangles, with no visibility
+	# range - so a ship parked on the far pad or reaped at the map edge was culled only by the
+	# frustum, at full detail). The canopy is gone into fog by 350 m; a helicopter above the
+	# fog still reads at a kilometre, so the cut sits well past anything a player can see
+	# through the haze and never pops a flight overhead.
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		(mi as GeometryInstance3D).visibility_range_end = AIRFRAME_VISIBILITY_END_M
+		(mi as GeometryInstance3D).visibility_range_end_margin = 50.0
 
 	# Recenter on the fuselage's AABB centre, NOT its node origin, for airframes whose
 	# origin is off the hull. MUST be basis-aware: a scene that rotates Model has to map

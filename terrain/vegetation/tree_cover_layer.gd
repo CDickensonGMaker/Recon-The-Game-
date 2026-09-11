@@ -99,6 +99,20 @@ var bush_ring: float = BUSH_RING_M
 ## +/-181m - that WAS the invisible-jungle bug. 64m buckets bound the error to
 ## +/-45m without exploding the node count.
 const BUCKET: float = 64.0
+## THE CANOPY GETS A BIGGER BUCKET, and the audit that decided it is
+## production/PERF_AUDIT_2026-09-10.md section 3.3. The demo world held 3,631
+## MultiMeshInstance3D nodes averaging 7.8 instances each - 27 species x 64 m cells - and
+## that is where the 1,200-2,400 draw calls came from: a node per species per cell, every one
+## culled and submitted on its own. MultiMesh exists to make thousands of instances ONE draw.
+##
+## The 64 m cell was chosen for visibility_range, which culls against a node's whole AABB
+## (godot#79471): small cells cull tight. That still matters for the GROUND COVER, whose
+## 150 m ring is short enough that a 256 m node would draw grass a whole cell past it. It
+## does NOT matter for the canopy, which draws to 350 m into fog - a 128 m cell whose near
+## edge is inside the ring draws at most ~128 m of extra depth that is already fogged out.
+## Canopy species (trees, bamboo, palms, banana, bushes, vines) take this bucket; the
+## SMALL_PREFIXES keep 64 m. Four cells become one for 12 of the 27 species.
+const CANOPY_BUCKET: float = 128.0
 const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 
 var _solid_mesh: Dictionary = {}   ## name -> Mesh (the real model; there is no second tier)
@@ -332,6 +346,14 @@ func _report_cover_split(names: Array) -> void:
 
 ## How far this species draws. Ground cover stops at small_ring, bushes at bush_ring when he
 ## has dialled one in, everything else is canopy out to view_distance.
+## Cell size for a species' MultiMesh buckets - see CANOPY_BUCKET.
+func _bucket_for(nm: String) -> float:
+	for pre in SMALL_PREFIXES:
+		if nm.begins_with(pre):
+			return BUCKET
+	return CANOPY_BUCKET
+
+
 func _ring_for(nm: String) -> float:
 	if bush_ring > 0.0 and bush_ring < view_distance:
 		for b: String in BUSH_PREFIXES:
@@ -372,7 +394,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		if not _solid_mesh.has(nm):
 			continue
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		var key: Array = [nm, int(floor(xf.origin.x / BUCKET)), int(floor(xf.origin.z / BUCKET))]
+		var cell: float = _bucket_for(nm)
+		var key: Array = [nm, int(floor(xf.origin.x / cell)), int(floor(xf.origin.z / cell))]
 		if not groups.has(key):
 			groups[key] = []
 		(groups[key] as Array).append(xf)
@@ -645,8 +668,20 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
 	mm.instance_count = xforms.size()
+	# ONE buffer write, not one server call per instance. set_instance_transform is a
+	# RenderingServer round-trip each; a chunk rebuild after a felled tree paid it for every
+	# plant in every bucket of the chunk - that is the "veg.tree_cover_mmi 13-44 ms" the
+	# siege ledger keeps naming. The buffer layout is the engine's documented 12 floats per
+	# TRANSFORM_3D instance, the same one vegetation_manager._materialize_vegetation writes.
+	var buf := PackedFloat32Array()
+	buf.resize(xforms.size() * 12)
 	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
+		var xf: Transform3D = xforms[i]
+		var b: int = i * 12
+		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
+		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
+		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
+	mm.buffer = buf
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.position = origin
