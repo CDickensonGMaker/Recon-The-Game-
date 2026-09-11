@@ -3484,3 +3484,24 @@ Council record: `production/war_room/2026-09-11_siege_waves/`. Feel numbers (8 /
 are his to rule. `AILod.mean_near` deleted (born dead); fossil gate green at 28.
 Gates: `probe_ai_lod` 13/13, `test_sapper_assault`, `test_siege`, `test_fossils`,
 `test_firebase_defense`, `test_demo_arc`.
+
+### 2026-09-11 — THE UNNAMED 50 ms: the squad strip rebuilt itself twice a second
+
+Every 5 s window on BOTH sides of the pre-fix/post-fix audit carried a 30-90 ms idle frame that
+no ledger span named. Two instruments found it: `FrameSentinel.Mark` (a clock stamp as the tree
+enters each subtree - process order is group-insertion order, not tree order, so it names the
+subtree, not the node) and a `proc.<script>` span around every game-side `_process` (28 scripts,
+`_process` -> `_process_step`). The answer was `proc.mission_hud` 27-59 ms: `_update_squad_strip`
+freed ~20 labels and built ~20 new ones every 0.5 s, and a Label's first layout is the cost. It
+had been there for every playtest. Now the rows are composed as data, compared to what is drawn,
+and only changed labels are re-texted. **Worst idle frame per window: 30-90 ms unnamed ->
+11-30 ms, every one named** (`audit_proc.log` vs `audit_hudfix.log`). New names that surfaced
+once the big one was gone: `proc.burning` 49 ms once, `proc.seat_system` 9 ms, `nav.collect`
+29-41 ms (the breach rebake, being cut). The printer now prints its own report frame's cost
+(9-22 ms) so the instrument is never quoted as the game.
+
+**The pre-fix vs HEAD audit (worktree at 9ccc40dc vs 259c2568, alternating, headless):** assault
+fps 48 -> 55 (pair 1) and 21 -> 37 (pair 2, heavier box load); 1% low 9.8 -> 17.5 and 6.2 ->
+12.5; worst frame 155/222 ms mean -> 70/84, max 282/296 -> 97/98. Quiet walk unchanged (70-77).
+The stutter halved and the tail doubled; the average moved less. Not 60. The GPU half is his
+window only: the other session's patrol row read GPU 37.8 ms at 720p, 1,274 draws, 529k tris.

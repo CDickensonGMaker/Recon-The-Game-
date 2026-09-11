@@ -216,7 +216,15 @@ func _relative_transform(node: Node3D, ancestor: Node3D) -> Transform3D:
 ## Recycled on a clock, not on distance: a player who walks away and comes back inside the
 ## fight should find his rifle. Never freed while he is standing on it - but the reprieve
 ## is COUNTED, because standing nearby is the default state at the wire.
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.world_weapon")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_age += delta
 	if _age < LIFETIME_S:
 		return

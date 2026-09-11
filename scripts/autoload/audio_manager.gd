@@ -542,7 +542,15 @@ func _has_amb_setting() -> bool:
 	return GameSettings != null and "ambience_volume_db" in GameSettings
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.audio_manager")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if _headless or _duck_until_ms == 0:
 		return
 	if Time.get_ticks_msec() < _duck_until_ms:

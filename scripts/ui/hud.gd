@@ -54,7 +54,15 @@ func _ready() -> void:
 	add_to_group("combat_hud")  # R96: photo mode hides this
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.hud")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	# Flash bleed warning (the downed clock shares the flash - both are death clocks)
 	if health_system and (health_system.is_bleeding or health_system.is_downed):
 		bleed_flash_timer += delta * 4.0

@@ -207,7 +207,15 @@ func _build_flame() -> void:
 	emb.emitting = true
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.burning")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_t += delta
 	if not _dropped and _t >= BURN_S * STYLE_DOWN[_style]:
 		_drop()

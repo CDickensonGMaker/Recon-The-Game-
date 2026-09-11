@@ -54,7 +54,15 @@ func _ready() -> void:
 	modulate.a = 0.0
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.squad_nameplate")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_target = _find_looked_at()
 	if _target != null:
 		var m: Dictionary = (_target as AllyBase).member

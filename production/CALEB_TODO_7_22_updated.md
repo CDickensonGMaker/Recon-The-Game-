@@ -2533,3 +2533,10 @@ None of these were measured with you on the gun. Your siege playtest is still th
 Still yours from before: the two windowed A/Bs (`perf_walk_compat.bat`, `perf_walk_d3d12.bat`,
 `perf_stress_phys3.bat`), the render-scale-0.5 try, the Huey/M101 art budget.
 Full record: `production/war_room/2026-09-11_siege_waves/synthesis.md`.
+
+## PARKED, POST-DEMO (his idea, 2026-09-11): aircraft only become full 3D when they are hit
+
+"only if they roll a hit and down in the AA tables do we get a crashing 3d model (which than
+leads to a rescue the pilot mission, but this is post demo launch ideas)". The flying Hueys and
+the AC-47 are cards / low-poly LODs (being built now); an AA-table hit swaps in the crashed
+airframe and opens a rescue-the-pilot mission. Not built. Do not build before the demo ships.

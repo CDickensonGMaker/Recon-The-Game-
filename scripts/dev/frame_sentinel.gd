@@ -66,8 +66,46 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _is_front:
 		StallLedger.idle_frame_begin()
+		StallLedger.mark("<front sentinel>")
 	else:
 		StallLedger.idle_frame_end()
+
+
+## ---------- THE MARKS ----------
+## A FrameMark is a priority-0 node placed as the FIRST child of a subtree. The SceneTree
+## runs equal-priority nodes in tree order, parent before children, so the mark fires when
+## the tree ENTERS that subtree - everything since the previous mark is the subtree before
+## it, late-added children included (they are appended after the mark, inside their own
+## parent, and finish before the next sibling's mark). Installed under every child of the
+## root and of the current scene, and refreshed each window so a subtree built after boot
+## gets one too. Costs one static call per mark per frame.
+const MARK_GROUP: StringName = &"stall_mark"
+const MARK_DEPTH: int = 2
+
+
+static func refresh_marks(tree: SceneTree) -> void:
+	if tree == null or tree.root == null:
+		return
+	_mark_children(tree.root, 1)
+
+
+static func _mark_children(parent: Node, depth: int) -> void:
+	for c in parent.get_children():
+		if c is FrameSentinel or c.is_in_group(MARK_GROUP):
+			continue
+		var has: bool = c.get_child_count() > 0 and (c.get_child(0) as Node).is_in_group(MARK_GROUP)
+		if not has:
+			var m := Mark.new()
+			# Name + script, because a script-made node is "@Node@5" and that names nothing.
+			var scr: Script = c.get_script() as Script
+			m.label = String(c.name) + ("" if scr == null else "[" + scr.resource_path.get_file() + "]")
+			m.name = "StallMark_" + String(c.name)
+			m.add_to_group(MARK_GROUP)
+			m.process_mode = Node.PROCESS_MODE_ALWAYS
+			c.add_child(m)
+			c.move_child(m, 0)
+		if depth < MARK_DEPTH:
+			_mark_children(c, depth + 1)
 
 
 func _physics_process(_delta: float) -> void:
@@ -75,3 +113,16 @@ func _physics_process(_delta: float) -> void:
 		StallLedger.physics_frame_begin()
 	else:
 		StallLedger.physics_frame_end()
+
+
+## One clock stamp as the SceneTree enters a subtree. An inner class, not a class_name: a
+## headless run does not rescan the global class cache, so a new class_name is a parse
+## error everywhere until the editor has been opened once.
+class Mark extends Node:
+	var label: String = ""
+
+	func _ready() -> void:
+		set_process(true)
+
+	func _process(_delta: float) -> void:
+		StallLedger.mark(label)

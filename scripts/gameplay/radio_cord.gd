@@ -63,7 +63,15 @@ func _path_length() -> float:
 	return a.distance_to(g) + g.distance_to(b)
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.radio_cord")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if port == null or endpoint == null:
 		visible = false
 		return

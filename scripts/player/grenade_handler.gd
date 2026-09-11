@@ -85,7 +85,15 @@ func _hide_grenade() -> void:
 	grenade_viewmodel.play_action_then_stow(CLIP_THROW)
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.grenade_handler")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if not is_cooking:
 		return
 

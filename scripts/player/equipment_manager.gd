@@ -38,7 +38,15 @@ func setup(ctrl: CharacterBody3D, wpn: WeaponHolder, hp: HealthSystem, gren: Nod
 	grenade_handler = gren
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.equipment_manager")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
 

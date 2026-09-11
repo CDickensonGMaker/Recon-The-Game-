@@ -70,7 +70,15 @@ func clear_plan() -> void:
 		_im.clear_surfaces()
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.fire_preview")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if not _live or _im == null:
 		return
 	_pulse += delta

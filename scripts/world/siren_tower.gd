@@ -135,7 +135,15 @@ func silence() -> void:
 			p.play()
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.siren_tower")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if not _sounding:
 		return
 	# A tower whose mesh has been destroyed stops crying from its own crater.

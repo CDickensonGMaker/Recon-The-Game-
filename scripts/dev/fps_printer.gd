@@ -36,6 +36,12 @@ var _frame_id: int = 0
 ## Averaging a run that ends on the card published ~15 fps for a 2.7 fps fight. A paused row
 ## is not a measurement of the game and must SAY SO rather than rely on the reader knowing.
 var _paused_frames: int = 0
+## What the printer's OWN report frame cost last window. Every window's "worst idle step"
+## was 30-80 ms with nothing named (2026-09-11 audit, both sides of the A/B) - and the one
+## frame a window that the ledger cannot name is the frame this printer spends building and
+## printing its rows. Measured and printed so the instrument's cost is never quoted as the
+## game's.
+var _report_ms: float = 0.0
 
 
 func _ready() -> void:
@@ -143,6 +149,7 @@ func _process(delta: float) -> void:
 	AILod.census()
 	if _t < WINDOW_S:
 		return
+	var report_t0: int = Time.get_ticks_usec()
 	var wall_s: float = float(Time.get_ticks_usec() - _wall_t0) / 1000000.0
 	var gpu: float = _mean(_gpu)
 	var render_ms: float = _mean(_render)
@@ -192,6 +199,7 @@ func _process(delta: float) -> void:
 		_gpu.clear()
 		_render.clear()
 		return
+	print("[FPS] printer's own report frame last window: %.1f ms" % _report_ms)
 	print("[ANIM] %d of %d animated actors throttled to %.0f Hz | anim lod %s" % [
 		ModelActor.far_animated, ModelActor.live_animated, ModelActor.ANIM_FAR_HZ,
 		"ON" if ModelActor.anim_lod_enabled() else "OFF"])
@@ -213,6 +221,7 @@ func _process(delta: float) -> void:
 	if stall != "":
 		print(stall)
 	StallLedger.reset_window()
+	FrameSentinel.refresh_marks(get_tree())
 	## The LOD row rides with the frame row so the promoted count and the frame time it
 	## bought are never quoted from two different runs. `lod OFF` means --ai-lod-off:
 	## every man is near and this is the BEFORE side of the A/B.
@@ -245,6 +254,7 @@ func _process(delta: float) -> void:
 	_ms.clear()
 	_gpu.clear()
 	_render.clear()
+	_report_ms = float(Time.get_ticks_usec() - report_t0) / 1000.0
 
 
 ## Nearest-rank percentile of this window's frame times, in ms. Higher is worse.

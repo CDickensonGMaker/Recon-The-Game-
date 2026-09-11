@@ -559,7 +559,15 @@ func _setup_hud() -> void:
 var _fps_log_timer: float = 0.0
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.game_world")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if not _amb_emitters.is_empty():
 		_amb_reseat_t += delta
 		if _amb_reseat_t >= 6.0:   # re-seat every 6s so the treeline "moves"

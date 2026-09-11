@@ -64,7 +64,15 @@ func _ready() -> void:
 	current_hp = max_hp
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.health_system")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if is_healing:
 		_update_healing(delta)
 

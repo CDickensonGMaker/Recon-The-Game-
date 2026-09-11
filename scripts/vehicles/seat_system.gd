@@ -373,7 +373,15 @@ func _pilot_clip() -> String:
 
 ## Re-dress the crew seats when the flight state changes. Runs on _process
 ## rather than _physics_process because player_boarding owns the physics tick.
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.seat_system")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	var heli := _vehicle as Helicopter
 	if heli == null:
 		return

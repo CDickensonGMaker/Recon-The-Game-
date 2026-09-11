@@ -75,6 +75,14 @@ static var _worst_phys_excl: Dictionary = {}
 static var _worst_idle_us: int = 0
 static var _worst_idle_causes: Dictionary = {}
 static var _worst_idle_excl: Dictionary = {}
+## THE MARKS (2026-09-11). Every window's worst idle step read 30-90 ms with NOTHING named,
+## on both sides of the perf A/B: the span instruments only see code that calls begin/end,
+## and the frame that hurt was spent somewhere that never does. FrameMark nodes sit as the
+## first child of each subtree the sentinels bracket and stamp the clock as the SceneTree
+## reaches them (tree order, priority 0), so the worst frame can be cut into "which subtree
+## - and everything the engine ran inside it - took the time", named or not.
+static var _marks: Array = []          # [[label, usec], ...] for the frame in flight
+static var _worst_idle_marks: Array = []
 static var _phys_steps: int = 0
 static var _phys_total_us: int = 0
 static var _stalls: int = 0
@@ -177,7 +185,13 @@ static func idle_frame_begin() -> void:
 		return
 	_step.clear()
 	_step_excl.clear()
+	_marks.clear()
 	_idle_t0 = Time.get_ticks_usec()
+
+
+static func mark(label: String) -> void:
+	if _on:
+		_marks.append([label, Time.get_ticks_usec()])
 
 
 static func idle_frame_end() -> void:
@@ -190,6 +204,29 @@ static func idle_frame_end() -> void:
 		_worst_idle_us = dt
 		_worst_idle_causes = _step.duplicate()
 		_worst_idle_excl = _step_excl.duplicate()
+		_worst_idle_marks = _marks.duplicate()
+		_worst_idle_marks.append(["<back sentinel>", Time.get_ticks_usec()])
+
+
+## The worst idle frame cut by the marks: each entry is the time from the previous mark to
+## this one, i.e. the subtree that ran in between. Top `n` by cost.
+static func _rank_marks(n: int) -> String:
+	if _worst_idle_marks.is_empty():
+		return "(no marks installed)"
+	var segs: Array = []
+	var prev: int = _idle_t0
+	# _idle_t0 belongs to the frame in flight; recover the worst frame's own start instead.
+	prev = int(_worst_idle_marks[0][1])
+	var first_label: String = String(_worst_idle_marks[0][0])
+	for i in range(1, _worst_idle_marks.size()):
+		var m: Array = _worst_idle_marks[i]
+		segs.append([float(int(m[1]) - prev) / 1000.0, "%s..%s" % [first_label if i == 1 else String(_worst_idle_marks[i - 1][0]), String(m[0])]])
+		prev = int(m[1])
+	segs.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) > float(b[0]))
+	var out: PackedStringArray = []
+	for i in range(mini(n, segs.size())):
+		out.append("%s %.1fms" % [String(segs[i][1]), float(segs[i][0])])
+	return ", ".join(out)
 
 
 ## Causes ranked by EXCLUSIVE time - the ordering that answers "where did the window go",
@@ -244,6 +281,7 @@ static func report(window_ms: float = 0.0) -> String:
 	lines.append("[STALL] idle script span: WORST %.2fms | worst idle step was: %s"
 		% [float(_worst_idle_us) / 1000.0,
 			_rank_step(_worst_idle_causes, _worst_idle_excl, 6)])
+	lines.append("[STALL]   worst idle frame by subtree (mark..mark): %s" % _rank_marks(6))
 	lines.append("[STALL] window totals (excl(incl)/worst xN, ranked by EXCL): %s"
 		% _rank(_total, 12))
 	## SELF-CHECK. Physics steps are serial on the main thread, so their spans cannot sum to
@@ -291,6 +329,7 @@ static func reset_window() -> void:
 	_worst_idle_us = 0
 	_worst_idle_causes.clear()
 	_worst_idle_excl.clear()
+	_worst_idle_marks.clear()
 	_phys_steps = 0
 	_phys_total_us = 0
 	_phys_first_us = 0

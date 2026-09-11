@@ -194,7 +194,15 @@ func _on_page_input(event: InputEvent) -> void:
 		_page.queue_redraw()
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.journal")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if visible:
 		_page.queue_redraw()
 

@@ -27,7 +27,15 @@ static func plant(scene_root: Node, at: Vector3, mouth: Node3D, who: Node) -> Sa
 	return c
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.satchel_charge")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_left -= delta
 	var whole: int = maxi(0, int(ceil(_left)))
 	if whole != _shown:

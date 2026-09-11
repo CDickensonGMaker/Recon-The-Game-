@@ -88,7 +88,15 @@ func _setup(species: String, home: Vector3, grazing: Array, terrain: TerrainMana
 		NoiseBus.noise_emitted.connect(_on_noise)
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.animal_routine")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_think += delta
 	if _think >= THINK_INTERVAL:
 		_think = 0.0

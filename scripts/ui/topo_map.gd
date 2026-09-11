@@ -498,6 +498,14 @@ func _exit_tree() -> void:
 		GameManager.is_in_menu = false
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.topo_map")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if visible and _overlay:
 		_overlay.queue_redraw()

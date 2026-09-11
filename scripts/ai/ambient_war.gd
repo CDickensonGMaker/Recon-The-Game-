@@ -203,7 +203,15 @@ func _spawn_visual(kind: String, pos: Vector3) -> void:
 
 ## Drive every live firefight, then expire the finished ones. The roster only ever grew
 ## before, and every entry it held was a live audio source.
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.ambient_war")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	var now: int = Time.get_ticks_msec()
 	for i in range(_active.size() - 1, -1, -1):
 		var e: Dictionary = _active[i]

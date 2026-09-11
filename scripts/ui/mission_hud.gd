@@ -242,6 +242,12 @@ func show_damage_direction(rel_angle: float) -> void:
 var _squad_panel: PanelContainer
 var _squad_header: Label
 var _squad_rows: VBoxContainer
+## The rows as last drawn ([text, size, color] each), so a poll that changes nothing costs
+## nothing. This strip used to free every label and build ~20 new ones twice a second, and
+## a Label's first layout is the expensive part: 27-59 ms in one frame, every half second,
+## in every playtest there has ever been. It was the "worst idle step" of every window in
+## the 2026-09-11 audit and no span could name it until every _process was wrapped.
+var _squad_rows_drawn: Array = []
 
 
 const STATUS_COLOR := {
@@ -274,9 +280,10 @@ func _update_squad_strip(delta: float) -> void:
 		col.add_child(_squad_rows)
 		add_child(_squad_panel)
 	var fire_mode := "WEAPONS FREE" if squad.weapons_free else "WEAPONS TIGHT"
-	_squad_header.text = "SQUAD // %s" % fire_mode
-	for c in _squad_rows.get_children():
-		c.queue_free()
+	var header: String = "SQUAD // %s" % fire_mode
+	if _squad_header.text != header:
+		_squad_header.text = header
+	var rows: Array = []
 	for a in squad.members:
 		if not is_instance_valid(a):
 			continue
@@ -285,16 +292,35 @@ func _update_squad_strip(delta: float) -> void:
 		if not a.is_dead():
 			var hp_frac: float = float(a.current_hp) / float(a.max_hp)
 			status = "OK" if hp_frac > 0.6 else ("HIT" if hp_frac > 0.25 else "CRIT")
-		_squad_rows.add_child(ReconUI.make_label(squad_row(m, status), 12,
-			STATUS_COLOR.get(status, ReconUI.OLIVE)))
-		_squad_rows.add_child(ReconUI.make_label(squad_role_row(m), 10, ReconUI.DIM))
+		rows.append([squad_row(m, status), 12, STATUS_COLOR.get(status, ReconUI.OLIVE)])
+		rows.append([squad_role_row(m), 10, ReconUI.DIM])
 		var mos := str(m.get("mos", ""))
 		if mos == "RTO":
 			var rs := _radio_row(a, status == "KIA")
-			_squad_rows.add_child(ReconUI.make_label(str(rs[0]), 11, rs[1]))
+			rows.append([str(rs[0]), 11, rs[1]])
 		elif mos == "POINTMAN" and status != "KIA":
-			_squad_rows.add_child(ReconUI.make_label(
-				"   scanning %dm" % int(squad.point_scan_radius()), 11, ReconUI.DIM))
+			rows.append(["   scanning %dm" % int(squad.point_scan_radius()), 11, ReconUI.DIM])
+	if rows == _squad_rows_drawn:
+		return
+	# Only the rows that changed touch a Label; labels are kept and re-texted, never rebuilt.
+	var have: Array[Node] = _squad_rows.get_children()
+	for i in rows.size():
+		var r: Array = rows[i]
+		if i < have.size():
+			var l := have[i] as Label
+			var old: Array = _squad_rows_drawn[i] if i < _squad_rows_drawn.size() else []
+			if old.is_empty() or old[0] != r[0]:
+				l.text = str(r[0])
+			if old.is_empty() or old[1] != r[1]:
+				l.add_theme_font_size_override("font_size", int(r[1]))
+			if old.is_empty() or old[2] != r[2]:
+				l.add_theme_color_override("font_color", r[2] as Color)
+			l.visible = true
+		else:
+			_squad_rows.add_child(ReconUI.make_label(str(r[0]), int(r[1]), r[2] as Color))
+	for i in range(rows.size(), have.size()):
+		have[i].queue_free()
+	_squad_rows_drawn = rows
 
 
 ## His NAME leads the readout, the role rides under it (Summoner, 2026-07-25).
@@ -379,7 +405,15 @@ func show_toast(text: String) -> void:
 const DIRS: Array[String] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.mission_hud")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if world == null or world.player == null:
 		return
 	_update_squad_strip(_delta)

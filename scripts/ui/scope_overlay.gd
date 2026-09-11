@@ -25,7 +25,15 @@ func setup(wpn: WeaponHolder) -> void:
 	_weapon_holder = wpn
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.scope_overlay")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	var tex: Texture2D = null
 	if _weapon_holder and _weapon_holder.current_weapon:
 		tex = _weapon_holder.current_weapon.scope_overlay

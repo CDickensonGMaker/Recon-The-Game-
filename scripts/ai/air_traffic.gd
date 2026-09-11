@@ -865,7 +865,15 @@ func _advance_cycle(f: Dictionary, heli: Helicopter, now: int) -> void:
 
 ## Retire arrived and over-age flights. The roster only ever appended, so a long
 ## mission grew it without bound and every entry held a live aircraft.
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.air_traffic")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	_tick_load(delta)
 	var now: int = Time.get_ticks_msec()
 	for i in range(_in_flight.size() - 1, -1, -1):

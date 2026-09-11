@@ -374,7 +374,15 @@ func _on_player_bullet_hit(killed: bool, headshot: bool) -> void:
 	target_hit.emit(killed, headshot)
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.weapon_holder")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
 

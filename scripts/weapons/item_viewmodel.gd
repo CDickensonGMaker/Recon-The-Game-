@@ -187,7 +187,15 @@ func _on_finished(_name: StringName) -> void:
 
 
 ## Keep the lens honest while the player ADSes or the camera FOV moves.
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(_delta: float) -> void:
+	StallLedger.begin("proc.item_viewmodel")
+	_process_step(_delta)
+	StallLedger.end()
+
+
+func _process_step(_delta: float) -> void:
 	if not visible or not ViewmodelLens.ENABLED or _meshes.is_empty() or _camera == null:
 		return
 	ViewmodelLens.set_fov(_meshes, ViewmodelLens.effective_fov(ITEM_FOV, _camera.fov))

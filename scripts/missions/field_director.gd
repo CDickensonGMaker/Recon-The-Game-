@@ -258,7 +258,15 @@ const F4_SCENE := preload("res://scenes/vehicles/f4_phantom.tscn")  # F-4, fast 
 var _cas_cooldown: float = 0.0
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.field_director")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if _ended:
 		return
 	_cas_cooldown = maxf(0.0, _cas_cooldown - delta)

@@ -52,7 +52,15 @@ func _notification(what: int) -> void:
 		get_tree().quit()
 
 
+## Ledger span for the whole idle step of this script - the stall audit of 2026-09-11 found
+## 30-90 ms idle frames every window that no span could name.
 func _process(delta: float) -> void:
+	StallLedger.begin("proc.save_manager")
+	_process_step(delta)
+	StallLedger.end()
+
+
+func _process_step(delta: float) -> void:
 	if context == "menu":
 		return
 	_autosave_t += delta
