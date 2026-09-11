@@ -103,6 +103,15 @@ static var _ruin_cache: Dictionary = {}
 
 ## First mesh out of a ruin GLB, cached per kind. Returns null when the kind has no ruin
 ## authored - the caller then falls back to simply clearing the intact mesh.
+## Load every ruin mesh at world build, not at the first collapse. ruin_mesh_for() does a
+## synchronous load() + instantiate the first time a KIND dies, which means the first bunker
+## of the siege paid a disk read inside destructible.drain. Cheap at boot, where nobody is
+## shooting; call it beside GunFX.warm.
+static func warm_ruins() -> void:
+	for k in RUIN_FOR.keys():
+		ruin_mesh_for(String(k))
+
+
 static func ruin_mesh_for(k: String) -> Mesh:
 	if _ruin_cache.has(k):
 		return _ruin_cache[k] as Mesh
@@ -259,9 +268,20 @@ func _scatter_rubble() -> void:
 		var off := Vector3(rng.randf_range(-1.2, 1.2), 0.1, rng.randf_range(-1.2, 1.2))
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.4, 0.9))
 		_rubble_xforms.append(Transform3D(b, global_position + off))
+	# ONE buffer write. instance_count reallocates the whole multimesh, and this used to follow
+	# it with a RenderingServer call per piece of rubble EVER scattered - 4 per destroyed wall,
+	# so a siege that levels 200 walls was 800 server calls per destruction by the end, inside
+	# destructible.drain (93.5 ms worst in the 2026-09-10 siege ledger).
 	_rubble_mm.instance_count = _rubble_xforms.size()
+	var buf := PackedFloat32Array()
+	buf.resize(_rubble_xforms.size() * 12)
 	for i in range(_rubble_xforms.size()):
-		_rubble_mm.set_instance_transform(i, _rubble_xforms[i])
+		var xf: Transform3D = _rubble_xforms[i]
+		var b: int = i * 12
+		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
+		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
+		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
+	_rubble_mm.buffer = buf
 
 
 func _ensure_rubble_mm() -> void:

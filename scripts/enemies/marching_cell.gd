@@ -191,8 +191,23 @@ func _spawn_tick() -> void:
 		_spawn_left -= 1
 
 
+## ONE a frame for the reserve, not the pop's two. A pre-warmed man is still 8-12 ms of model,
+## clips and passes on the main thread (spawn.anim_library, sp.height, sp.dupes, sp.gibrig in the
+## ledger); two a frame during the march was a 20 ms frame nobody asked for, and the march is
+## minutes long - one a frame fills a 12-man cell in half a second.
+static var _prewarm_frame: int = -1
+
+
+static func _take_prewarm_token() -> bool:
+	var f: int = Engine.get_process_frames()
+	if f == _prewarm_frame:
+		return false
+	_prewarm_frame = f
+	return true
+
+
 func _prewarm_tick() -> void:
-	while _prewarmed < strength and MarchingCell._take_spawn_token():
+	while _prewarmed < strength and MarchingCell._take_prewarm_token():
 		StallLedger.begin("spawn.prewarm")
 		var man: EnemyBase = director.prewarm_enemy(data_path)
 		StallLedger.end()

@@ -2737,6 +2737,13 @@ static func cover_blocked_from(space_state: PhysicsDirectSpaceState3D, candidate
 
 
 func _find_cover_point() -> Vector3:
+	StallLedger.begin("ai.cover")
+	var out: Vector3 = _find_cover_point_impl()
+	StallLedger.end()
+	return out
+
+
+func _find_cover_point_impl() -> Vector3:
 	var threat_pos: Vector3 = last_known_target_pos if last_known_target_pos != Vector3.ZERO else global_position
 	var space_state := get_world_3d().direct_space_state
 	var candidates: Array[Vector3] = []
@@ -2876,7 +2883,17 @@ func _projectile() -> ProjectileData:
 	return _proj_cache
 
 
+## Attributed as "ai.fire" (perf audit 2026-09-10): the single worst ai.execute step in the
+## siege ledger was 11 ms and nothing said which of the per-shot costs - the raycast, the
+## bullet, the flash, the noise fan-out to every listener, the suppression sweep over every
+## ally - it was. The wrapper costs one call; the answer costs nothing else.
 func _fire_at_target() -> void:
+	StallLedger.begin("ai.fire")
+	_fire_at_target_impl()
+	StallLedger.end()
+
+
+func _fire_at_target_impl() -> void:
 	if silent_infiltrator:
 		return  # the satchel is his weapon - a sapper never squeezes a trigger
 	if not weapon_data or not target:
@@ -2954,7 +2971,9 @@ func _fire_at_target() -> void:
 			return
 
 	# A hit is not a near-miss (that is damage, handled below).
+	StallLedger.begin("ai.suppress")
 	CombatManager.suppress_along_shot(origin, final_aim, self, result)
+	StallLedger.end()
 
 	# The round is a live BulletSystem bullet - muzzle spawn, gravity drop, travel
 	# time, arrival damage/FX through the shared resolver. The tracer IS the bullet;

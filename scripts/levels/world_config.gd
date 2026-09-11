@@ -44,4 +44,9 @@ const NAV_SITE_KINDS: Array[String] = ["village", "firebase_main", "aa_site", "o
 ## so a napalm run mid-firefight never eats a whole frame on the Intel-UHD floor (ADR-026).
 const TERRAIN_HOLES_ENABLED: bool = true   ## off-switch: false = scar-decal only, no heightmap dig
 const TERRAIN_DEFORMS_PER_FRAME: int = 1   ## queued chunk-rebuilds drained per frame (raise to dig faster)
-const STRUCTURE_LEVELS_PER_FRAME: int = 2  ## queued building destructions drained per frame (area-leveling)
+## ONE per frame, not two (2026-09-10). A single _do_destroy measured ~29 ms on the siege
+## ledger even after the ruin cache was warmed and the rubble went to one buffer write - the
+## two explosion FX, the fire hazard and the crater enqueue are what is left - so draining two
+## was a 58 ms step (destructible.drain worst). One halves the step; a volley that levels five
+## walls takes five frames instead of three, which nobody can see.
+const STRUCTURE_LEVELS_PER_FRAME: int = 1  ## queued building destructions drained per frame (area-leveling)

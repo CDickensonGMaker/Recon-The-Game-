@@ -3331,3 +3331,32 @@ worst slice 14.3 ms` where it was one 286 ms step.
 scatter builds (item 5 proper — the nav slice is the safe first third of it); and his two windowed
 A/Bs — `perf_walk_compat.bat` (Compatibility renderer, one flag, decree stands until he lifts it)
 and `perf_walk_d3d12.bat` — which only his window can answer.
+
+### 2026-09-10 — FIX WAVE, second pass: the trunk ring was a per-shot zone update
+
+Ranked off the closing run's own stall totals, not the plan. Headless, paired against the previous
+commit's closing run (`stress_final`).
+
+- **`veg.trunk_ring` 1,498 ms → 61 ms over the run, worst 18.0 → 1.7 ms.** Two findings on the way,
+  and the instrument taught both: (1) a per-chunk cell index for the trunk scan made the span read
+  0.02 ms — because a `PackedInt32Array` is a VALUE in GDScript and `(cells[k] as
+  PackedInt32Array).append(i)` appended to a copy; the ring placed nothing and three tree-cover tests
+  went red. Fixed. (2) With the index working the cost did not move at all, so it was split into
+  `ring.scan` / `ring.place`: **scan 3.16 ms, place 0.00**. The scan was the THREAT ZONES:
+  `bullet_system.gd:86` files a shooter zone on EVERY shot and `_add_zone` ran a full ring update
+  immediately — 430 scans in a 150 s siege, each testing every trunk in every zone-touching chunk
+  against every zone segment. Zone updates now coalesce into the next physics tick, and cells are
+  rejected against each zone's footprint rect before any trunk in them is tested.
+- **`destructible.drain` worst 93.5 → 53.1 ms**: the ruin meshes are loaded at world build
+  (`Destructible.warm_ruins()` beside `GunFX.warm`) instead of at the first collapse of each kind;
+  rubble goes into the MultiMesh as one buffer write instead of a server call per piece ever
+  scattered; `STRUCTURE_LEVELS_PER_FRAME` 2 → 1 (one `_do_destroy` still costs ~29 ms — the two
+  explosion FX, the fire hazard, the crater — and that is the next thing to open).
+- Pre-warm drips one man a frame (not the pop's two).
+- `ai.fire` / `ai.suppress` / `ai.cover` spans added so the next pass can see inside `ai.execute`'s
+  11 ms worst step.
+
+**Closing run this pass: mean 94.9 fps, floor 43.0, mean worst frame 72 ms** (previous commit's
+close 70.5 / 15.0 / 82; this evening's pre-wave control 14.8 / 3.7 / 242). Gates green:
+`test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`, `test_destructible`,
+`probe_destructible_placement`, `test_sapper_assault`, `test_firebase_defense`, `test_demo_arc`.

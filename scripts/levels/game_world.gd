@@ -55,6 +55,7 @@ func _ready() -> void:
 	# the first burn patch (tools/probe_raid_cost.tscn, 2026-08-31). Idempotent.
 	GunFX.warm(self)
 	FireHazard.warm(self)
+	Destructible.warm_ruins()
 
 
 func _setup_environment() -> void:

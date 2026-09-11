@@ -63,6 +63,9 @@ const RING_RADIUS := 70.0
 ## Measured worst 70m-ring demand (seed 47225, whole AO, mission density boost applied):
 ## 919 candidates. 1280 = ~40% headroom.
 const POOL_MAX: int = 1280
+## Trunk index cell for the ring walk (see generate_for_chunk). 32 m against a 70 m ring means
+## a walk touches ~25 cells instead of a chunk's every trunk.
+const TRUNK_CELL_M: float = 32.0
 const RING_INTERVAL: float = 0.25
 const RING_MOVE_EPS: float = 2.0
 const PARK_POS := Vector3(0.0, -4000.0, 0.0)
@@ -125,6 +128,8 @@ var chunk_origins: Dictionary = {}
 ## coord -> {positions: PackedVector3Array, radii: PackedFloat32Array, bounds: Rect2 (XZ)}
 ## for COVER_TRUNK instances - pure candidate data, bodied only inside the ring.
 var _chunk_trunks: Dictionary = {}
+## Last update's placement count, for the probe/ledger reader.
+var _ring_stat_wanted: int = 0
 var _chunk_bodies: Dictionary = {}         ## coord -> Dictionary(candidate idx -> StaticBody3D)
 var _pool: Array[StaticBody3D] = []
 var _free_bodies: Array[StaticBody3D] = []
@@ -133,6 +138,7 @@ var _shape_by_radius: Dictionary = {}      ## radius -> shared CylinderShape3D
 var ring_center_override := Vector3.INF
 var _last_center := Vector3.INF
 var _ring_elapsed: float = 0.0
+var _ring_dirty: bool = false
 var _pool_starved: bool = false
 
 
@@ -175,7 +181,11 @@ func _add_zone(a: Vector3, b: Vector3, r: float, duration_s: float) -> void:
 				evict = i
 		_zones.remove_at(evict)
 	_zones.append({"a": a, "b": b, "r": r, "until_ms": until})
-	_update_ring(_resolve_center())
+	# COALESCED, not immediate. bullet_system files a shooter zone on EVERY shot; with 45 men
+	# firing, an immediate full ring update per new zone was ~3 scans a second on top of the
+	# interval (430 scans in a 150 s siege, 3.2 ms each - the whole veg.trunk_ring cost). The
+	# next physics tick picks the flag up, which is inside the flight time of any round.
+	_ring_dirty = true
 
 
 func _prune_zones() -> void:
@@ -442,8 +452,27 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
 		for p: Vector3 in trunk_pos:
 			bounds = bounds.expand(Vector2(p.x, p.z))
+		# CELL INDEX for the ring walk. _update_ring used to test every trunk in every near
+		# chunk against the player on every update - thousands of distance checks each
+		# quarter second, 5 ms mean and 18 ms worst in the siege ledger (veg.trunk_ring,
+		# 1.5 s over one run). Bucketed by TRUNK_CELL_M the walk touches only the cells the
+		# ring actually covers.
+		# Built as plain Arrays and packed at the end: a PackedInt32Array is a VALUE in
+		# GDScript, so `(cells[ck] as PackedInt32Array).append(i)` appends to a copy and the
+		# dictionary keeps an empty one - which is exactly how the first version of this
+		# index placed zero cover bodies and three tree-cover tests went red.
+		var lists: Dictionary = {}
+		for i: int in trunk_pos.size():
+			var ck := Vector2i(int(floor(trunk_pos[i].x / TRUNK_CELL_M)),
+				int(floor(trunk_pos[i].z / TRUNK_CELL_M)))
+			if not lists.has(ck):
+				lists[ck] = []
+			(lists[ck] as Array).append(i)
+		var cells: Dictionary = {}
+		for ck_any in lists.keys():
+			cells[ck_any] = PackedInt32Array(lists[ck_any] as Array)
 		_chunk_trunks[coord] = {"positions": trunk_pos, "radii": trunk_rad,
-			"heights": trunk_hgt, "bounds": bounds}
+			"heights": trunk_hgt, "bounds": bounds, "cells": cells}
 	# Same-frame refresh so a blast rebuild never leaves in-ring trunks bodiless.
 	StallLedger.begin("mmi.ring")
 	_update_ring(_resolve_center())
@@ -536,8 +565,9 @@ func _physics_process(delta: float) -> void:
 		center == Vector3.INF or _last_center == Vector3.INF
 		or (Vector2(center.x, center.z) - Vector2(_last_center.x, _last_center.z)).length_squared()
 			> RING_MOVE_EPS * RING_MOVE_EPS)
-	if _ring_elapsed < RING_INTERVAL and not moved:
+	if _ring_elapsed < RING_INTERVAL and not moved and not _ring_dirty:
 		return
+	_ring_dirty = false
 	StallLedger.begin("veg.trunk_ring")
 	_update_ring(center)
 	StallLedger.end()
@@ -568,6 +598,20 @@ func _update_ring(center: Vector3) -> void:
 	var c2 := Vector2(center.x, center.z) if has_player else Vector2.ZERO
 	var r2: float = RING_RADIUS * RING_RADIUS
 	var wanted: Array = []   ## [dist2, coord, idx] per wanted candidate without a body
+	# Attributed in two halves: the SCAN (which trunks want a body) and the PLACE (moving pool
+	# bodies through the physics server). The cell index made the scan cheap and the total did
+	# not move, which is how the ledger learned the cost was never the scan.
+	StallLedger.begin("ring.scan")
+	# Each zone's XZ footprint once per update, so a cell can be rejected against zones the
+	# same way it is rejected against the ring - before any trunk in it is tested.
+	var zone_rects: Array[Rect2] = []
+	for z: Dictionary in _zones:
+		var za: Vector3 = z["a"]
+		var zb: Vector3 = z["b"]
+		var zr: float = float(z["r"])
+		var zrect := Rect2(Vector2(minf(za.x, zb.x), minf(za.z, zb.z)), Vector2.ZERO)
+		zrect = zrect.expand(Vector2(maxf(za.x, zb.x), maxf(za.z, zb.z))).grow(zr)
+		zone_rects.append(zrect)
 	for coord: Vector2i in _chunk_trunks:
 		var data: Dictionary = _chunk_trunks[coord]
 		var assigned: Dictionary = _chunk_bodies.get(coord, {})
@@ -579,16 +623,49 @@ func _update_ring(center: Vector3) -> void:
 				_release_chunk(coord)
 			continue
 		var positions: PackedVector3Array = data["positions"]
-		for i: int in positions.size():
+		# TWO PASSES, NEITHER OVER THE WHOLE CHUNK. First the bodies already out: each is
+		# re-tested and parked if it left the ring and every zone. Then the candidates: only
+		# the trunks in index cells the ring (or a zone) can reach are looked at. Same
+		# decisions as the old single pass over every trunk; a fraction of the work.
+		var stale: Array = []
+		for i_any in assigned.keys():
+			var i: int = int(i_any)
 			var p: Vector3 = positions[i]
 			var d2: float = (Vector2(p.x, p.z) - c2).length_squared() if near_player else 1e18
-			var want: bool = d2 <= r2 or (near_zone and _zone_wants(p))
-			if want:
-				if not assigned.has(i):
+			if not (d2 <= r2 or (near_zone and _zone_wants(p))):
+				stale.append(i)
+		for i_any in stale:
+			_park_body(assigned[i_any])
+			assigned.erase(i_any)
+		var cells: Dictionary = data.get("cells", {})
+		for ck_any in cells.keys():
+			var ck: Vector2i = ck_any
+			var cx0: float = float(ck.x) * TRUNK_CELL_M
+			var cz0: float = float(ck.y) * TRUNK_CELL_M
+			var cell_in_ring: bool = false
+			if near_player:
+				# Nearest point of the cell's square to the player, against the ring radius.
+				var nx: float = clampf(c2.x, cx0, cx0 + TRUNK_CELL_M)
+				var nz: float = clampf(c2.y, cz0, cz0 + TRUNK_CELL_M)
+				cell_in_ring = (Vector2(nx, nz) - c2).length_squared() <= r2
+			var cell_in_zone: bool = false
+			if near_zone:
+				var crect := Rect2(cx0, cz0, TRUNK_CELL_M, TRUNK_CELL_M)
+				for zrect: Rect2 in zone_rects:
+					if zrect.intersects(crect):
+						cell_in_zone = true
+						break
+			if not cell_in_ring and not cell_in_zone:
+				continue
+			for i: int in (cells[ck] as PackedInt32Array):
+				if assigned.has(i):
+					continue
+				var p: Vector3 = positions[i]
+				var d2: float = (Vector2(p.x, p.z) - c2).length_squared() if near_player else 1e18
+				if (cell_in_ring and d2 <= r2) or (cell_in_zone and _zone_wants(p)):
 					wanted.append([d2, coord, i])
-			elif assigned.has(i):
-				_park_body(assigned[i])
-				assigned.erase(i)
+	StallLedger.end()
+	StallLedger.begin("ring.place")
 	var capacity: int = _free_bodies.size() + (POOL_MAX - _pool.size())
 	if wanted.size() > capacity:
 		if not _pool_starved:
@@ -609,6 +686,8 @@ func _update_ring(center: Vector3) -> void:
 		if not _chunk_bodies.has(coord):
 			_chunk_bodies[coord] = {}
 		(_chunk_bodies[coord] as Dictionary)[idx] = body
+	StallLedger.end()
+	_ring_stat_wanted = wanted.size()
 
 
 func _release_chunk(coord: Vector2i) -> void:
