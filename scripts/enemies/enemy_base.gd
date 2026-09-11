@@ -1173,7 +1173,9 @@ func _physics_process(delta: float) -> void:
 			velocity.z = flat.y
 	var t_move: int = Time.get_ticks_usec()
 	if _body_hot:
+		StallLedger.begin("ai.slide")
 		move_and_slide()
+		StallLedger.end()
 		_step_accum += Vector2(velocity.x, velocity.z).length() * capped_delta
 		if _step_accum >= 0.85:
 			_step_accum = 0.0

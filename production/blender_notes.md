@@ -2646,3 +2646,316 @@ Measured stature, off evaluated mesh bounds: the shared body is **1.8000 m bare 
 handover. 6'2" (1.8796 m) is therefore armature scale **1.0442**, +8.0 cm, +4.4%; the
 1.1024 figure came from the 1.705 premise. Export normalises helmet-top to 1.7132 (ADR-002),
 k=0.9265, so the shipped bare body is 1.6677 m.
+
+## 2026-09-11 · `huey_v3_lod` + `ac47_spooky_lod` shipped — 60,354 -> 2,743 tris on the Huey
+
+Caleb: *"we need to make headless on blender LOW POLY or even CARDS of the hueys and ac47
+that are flying around since they might be causing some performance issues."*
+
+**Both originals are byte-untouched.** `huey_v3.blend` / `.blend1` / `.glb` still Aug 12,
+`ac47_spooky_v2.blend` / `.glb` still Aug 14. Nothing was opened in the GUI; both LODs are
+built by importing the SHIPPING GLB, so the node names, hierarchy and transforms are exactly
+what Godot sees rather than what the master .blend thinks.
+
+| file | source tris | LOD tris | surfaces | bytes |
+|---|---|---|---|---|
+| `assets/us/vehicles/huey_v3_lod.glb` | 60,354 | **2,743** (4.5%) | 146 -> 91 | 2.33 MB -> 0.26 MB |
+| `assets/us/aircraft/ac47_spooky_lod.glb` | 2,713 | **1,870** (68.9%) | 10 -> 10 | 0.37 MB -> 0.34 MB |
+
+All counts are **re-import** counts (`tools/verify_aircraft_lod.py`), not in-Blender counts —
+the glTF exporter mutates meshes and only the round trip is honest.
+
+### Where the Huey's 60k actually was — it is four objects, not "a dense model"
+
+| group | objects | tris | share |
+|---|---|---|---|
+| `MARK_ARMY_l_M` / `_r_M` — a 0.69 m "ARMY" decal SHRINKWRAPPED onto the boom | 2 | 24,000 | 39.8% |
+| `pintle_l_m60` / `pintle_r_m60` — door guns, **8 materials each** | 2 | 21,104 | 35.0% |
+| `V[ABC]_*` marking text (nose art / serial / unit) | 18 | 6,710 | 11.1% |
+| `fuselage_fwd` + `fuselage_aft` — the only geometry that IS the Huey | 2 | 3,464 | 5.7% |
+| `rack_m16_*` + `rack_m79` — cabin weapon rack, 11 more materials | 6 | 2,638 | 4.4% |
+| everything else — hull panels, skids, doors, rotors, seats, cockpit | 73 | 2,438 | 4.0% |
+
+**93.5% of the airframe is four objects.** The 73 objects that make up the actual helicopter
+are 12-tri boxes and cannot be improved. Any future "the Huey is heavy" claim should start
+here: a shrinkwrap modifier applied on export turned two small decals into 24,000 triangles.
+
+### What the LOD does, per object
+* two ARMY decals + 18 variant text meshes -> **zero-face meshes**. The object, its name, its
+  type and its transform survive the glTF round trip; only the geometry is gone. A solid quad
+  standing in for lettering renders as a BRIGHT WHITE BLOCK and is worse than no marking —
+  that was the first attempt and the profile render convicted it.
+* `pintle_*_m60` 10,552 -> **36**: barrel + receiver + butt, three boxes fitted to the donor's
+  own mesh-local bbox, one material instead of eight. Child empties (`*_MuzzlePoint`,
+  `*_grip_fore`, `*_grip_trigger`) keep their exact local transforms.
+* `fuselage_fwd` 2,998 -> **849**, with a 0.30 m slab around the y=-0.815 seam PINNED.
+  `fuselage_aft` is **left alone at 466** — the boom taper is the most recognisable line on a
+  Huey and 466 tris is not what costs 604k. (First attempt decimated both and left a visible
+  step at the boom root.)
+* rack weapons and `Center Bench` -> bbox boxes; doors / skid rails / glass / antennas lightly cut.
+* `cargo_*` untouched: they are the only objects using the packed 256px `fb_crate` texture, so
+  box-replacing them would destroy the only UVs in the file. The build asserts this
+  (UV-safety gate) rather than assuming it.
+
+### Name contract — verified, not assumed
+Every object name in `huey_v3.glb` was grepped against every `.gd` and `.tscn` in the repo.
+Only these are referenced: `New_Blade_1`, `New_TailBlade_2_002` (helicopter.gd exports +
+probe_huey_frame.gd), `VARIANT_A/B/C` (helicopter.gd::_pick_markings), `fuselage_fwd`,
+`fuselage_aft` (probe_huey_frame.gd), the 18 `seat_*` (seat_system.gd, heli_lift.gd), and the
+rotor_spin.gd hint nodes. **All 156 names are preserved anyway** — nothing is deleted or
+renamed — so the LOD is a literal drop-in. Max world-transform delta across every shared
+node: **7.2e-7 m**. World AABB identical (14.63 x 14.00 x 4.41, min z 0.000).
+
+AC-47 contract: `gun_muzzle_1/2/3` empties preserved (1.5e-8 m), the slotted `prop_spin`
+action survives the round trip, and the three `-colonly` hulls are **asserted byte-stable**
+(24/36/36 tris) — collision must never move when the visual mesh does.
+
+### The AC-47 was never the problem, and the measurement says so
+`ac47_spooky_v2.glb` is **2,713 tris** (2,617 visible + 96 collider) and `SpectreGunship`
+flies exactly one at a time for 30 s per fire mission. It was already inside the 3,000 target
+before this job started. The LOD saves 843 tris on one aircraft = **0.055%** of the demo
+world's 1.52M. A first pass at airframe=700 / props=110 flattened the nose into a slab and
+cost the prop blades their cross, so the shipped reduction was deliberately backed off to be
+invisible. **Recommendation: leave `ac47_spooky_v2.glb` wired in `spectre_gunship.gd:11`.**
+
+### LIVE DEFECT FOUND IN THE SHIPPING ASSET (not introduced here, deliberately reproduced)
+**All six `seat_bench_*` markers in `huey_v3.glb` sit exactly 18.000 m off the airframe in
++X.** Measured by `tools/audit_huey_seat_markers.py` against the `uh1` table in seat_system.gd:
+
+    seat_bench_1  GLB (17.750, 1.125, -4.015)   table (-0.250, 1.125, -4.015)   18.000 m
+    seat_bench_4  GLB (18.250, 1.125, -4.015)   table ( 0.250, 1.125, -4.015)   18.000 m
+    ... all six identical, worst 18.000 m. Every other seat_* is within 0.469 m.
+
+18.0 m is the offset of the `PV_*` side-by-side preview copy that `tools/export_huey_v3.py`
+skips **by name prefix** — the bench empties do not carry the `PV_` prefix, so they shipped
+from the preview copy instead of from the real ship. `seat_system.gd:452` prefers a real
+marker over the fallback table, so the six centre-bench berths (PASSENGER_SEATS, filled once
+the eight door-lip seats are taken) seat men 18 m off the ship's side, about 10 m clear of the
+rotor tip. The ship even LOGS "all 18 seat_* sockets found in the model - fallback table
+retired". The LOD reproduces this verbatim on purpose: a LOD that behaves differently from the
+asset it replaces is a worse trap than the bug. **Fix belongs in `huey_v3.blend` — move the
+six empties onto the real airframe, or prefix them `PV_` — not in the LOD.**
+
+### Tooling (re-runnable from an empty scene, headless only, writes no .blend)
+
+    tools/build_huey_v3_lod.py           blender -b --factory-startup --python <it>
+    tools/build_ac47_spooky_lod.py       "
+    tools/verify_aircraft_lod.py         -- <orig.glb> <lod.glb> [budget]   RE-IMPORT gate
+    tools/render_aircraft_lod_compare.py -- <orig> <lod> <prefix> <gap>
+    tools/audit_huey_seat_markers.py     -- <huey glb...>
+
+The verifier gates: tri budget, name set, per-node world transform, world AABB, embedded image
+over 1MB (Caleb's texture law), mesh health, and the code-name contract. Both files:
+**VERIFY PASS, 0 failures.** Renders (4 angles each, original left / LOD right) live in the
+session scratchpad as `huey_cmp_*.png` and `ac47_cmp_*.png`.
+
+### NOT built, with the arithmetic
+**Cards.** Ten Hueys at the new 2,743 = 27,430 tris of a 1.52M world (1.8%). Replacing them
+with 12-tri cards recovers 1.8% of triangles at the cost of a baked 512px atlas, a new Godot
+impostor tier, and a billboard that cannot represent a banking helicopter with a turning
+rotor. The LOD already took 604,368 -> ~27,430, a 22x cut. **The next real lever is DRAW
+CALLS, not triangles: the LOD is still 91 mesh surfaces per airframe (910 across ten ships).**
+Merging the roughly 70 non-referenced static hull parts by material would take that to about
+12 per airframe. That is a bigger structural change than a LOD and wants his ruling first.
+
+### Godot side, NOT done here (out of lane)
+`huey.tscn` still instances `huey_v3.glb`; `spectre_gunship.gd:11` still preloads
+`ac47_spooky_v2.glb`. Neither new `.glb.import` sidecar exists yet — Godot writes them on the
+next editor open. Nothing was committed and no existing asset was renamed or deleted.
+
+---
+
+## 2026-09-11 · THE NECKLACE KIT, and what the "neck gaps" actually were
+
+Pipeline (all re-runnable): `tools/build_necklace_kit.py` (cord + 15 slots + 7 charms from
+`us_base_v3` as a READ-ONLY fit dummy) -> `tools/dress_cow_gus_necklace.py` (run ON the cast
+file: strips the old blob necklace, applies `tools/fix_cow_neck_uvs.py` to all three heads,
+hangs cord + 5 ears on `PSXRig_gus_ears`) -> `tools/export_cow_cast.py` -> `tools/render_cow_cast.py`.
+`build_cow_cast.py` 4b no longer builds a necklace; `build_ear_necklace_prop.py` and
+`assets/world/props/ear_necklace.*` are deleted (superseded, referenced by nothing).
+
+**The "dark band behind the jaw / pale banded neck" was never a gap. Measured on
+`us_grunt_joined_*` (vertex hash 65c3014e4844 = the canonical body, 0 changed verts):**
+- the canonical head wrap parks ALL EXPOSED SKIN - 20 neck polys AND 62 hand/rolled-sleeve
+  forearm polys - on ONE 2-3 px patch of the face cell, at 52% across / 45% down = the NOSE
+  of the portrait. Only 14 of the 112 face-material polys carry a real spread wrap.
+- 10 scalp polys plus the 2 behind-the-jaw-under-the-ear polys (z 1.590-1.664, normals
+  +-0.93 x) and the 2 nape polys sit on ONE hair texel at 22% down the cell.
+- on the stock `face_atlas_v5` those texels are mid skin (0.65,0.45,0.32) and dark-brown
+  hair (0.17,0.11,0.07). The CoW-painted cells put a nose HIGHLIGHT (0.82,0.63,0.53) and
+  near-BLACK hair (0.09,0.05,0.04) there. Pale neck + pale hands, black wedge behind the jaw.
+  The "triangle seams" are per-face flat shading of a single flat colour.
+- open edges: 16 at head/neck, 22 at neck/torso - overlapping shells, identical in
+  `us_base_v3`, invisible at 640x480. Not the defect.
+**Fix** (`fix_cow_neck_uvs.py`): move only those collapsed loops (314 loops, 88 polys per
+body) to the texel of the SAME cell nearest the lower-cheek mean (77/62/87/72). No re-unwrap,
+no vertex moved, hair above the ear untouched. The hidden `grunt_head_*` donors have no
+collapsed polys and were not touched. **Any future painted face cell will hit this again
+unless the paint step keeps the nose-centre texel at cheek tone - or this fix is run.**
+
+**Kit facts.** Cord 320 tris, 3.5 mm, 0.751 m loop, front arc 0.516 m, 15 slots at 33.3 mm
+pitch (36 mm ear -> 2.7 mm overlap). Charms 32-68 tris each, one `necklace_kit_mat` on a
+256x256 `necklace_kit_tex.png`, Closest. Slot table in `necklace_slots.json` (rest-world AND
+Neck-bone-local matrices + Neck/Spine2 weights). Cord GLB is Neck-bone-local like the shipped
+chest gear; NOT verified in Godot from here.
+
+**Traps hit, all measured:**
+- a mesh parented OBJECT-wise to a PSXRig needs `matrix_parent_inverse = R(90x)^-1` or it lies
+  flat (-1.37 m clearance reading); `us_grunt_joined` carries exactly that inverse.
+- a downward ray at the nape from z 1.9 hits the HEAD; the cord climbed to z 1.80.
+- a radial ray from r 0.35 at collar height hits the T-pose ARMS; the cord went 0.35 m wide.
+- the collar/shoulder crease is two overlapping shells: settle the centreline with
+  `closest_point_on_mesh`, then settle each RING, or 2 verts still cut 3 mm.
+- a straight-down ear from a collarbone slot buries its tip 17 mm (63/450 verts) because the
+  upper chest bulges 34 deg forward; aim the hang at the surface 50 mm below the slot.
+- a zero-thickness double-sided plate (dog tag) is an invalid mesh; glTF silently dropped 12
+  of 32 tris. Give plates their own verts per side.
+- `BLENDER_EEVEE_NEXT` is gone in 5.0.1; the enum is `BLENDER_EEVEE` again.
+- appending an object whose armature modifier points at another file's rig leaves an orphan
+  armature datablock behind after you remove the rig object; purge before saving.
+
+## 2026-09-11 · Cutscene talking heads — `production/cinematics/talking_heads/` (decree `war_room/talking_heads_2026-09-11.md`)
+
+Capability build, NOT a cutscene: rigged heads with working mouths for the animator. One file
+`talking_heads.blend` (no .blend1), rebuilt from an empty scene by `tools/th_textures.py` (PIL,
+samples Caleb's art) then `tools/th_build.py` (headless, saves after every milestone) then
+`tools/th_render.py` (Eevee 640x480 proofs + mp4). `build_report.json` holds every gate number.
+Game files were only appended from.
+
+**Cast on disk (conquest_of_worms_us_cast.blend):** Michael (`grunt_head_michael`,
+`face_atlas_michael`) and Gus (`grunt_head_gus_arrival` / `grunt_head_gus_ears`, both
+`face_atlas_gus`). Both Gus heads are vert/UV/poly IDENTICAL (measured), so ONE `cs_head_gus`
+serves both states. No Sgt and no Champs model exists in the file.
+
+**Human head recipe (`cs_head_<name>`, 147 v / 284 tris, +114 verts over the 33-vert game head):**
+the 4 face quads are a 3x3 bilinear patch; a 13x8 grid is laid in (s,t) with rows on the
+MEASURED atlas features (mouth line v=0.0498, lip top 0.0545, nose base 0.0604, lower lid
+0.0765, upper lid 0.0835, brow 0.087 of the 10x7 cell grid) and columns on mouth corners
+(u 0.0415/0.0554) / pupils / eye corners. The mouth line is split into two coincident rows only
+between the corners, joined by 4 zero-area faces on `cs_mouth_interior` — `jaw_open` drops the
+lower row so the lens opens dark. Neck ring (verts 14,1,2,11,31,32,16,15) untouched: max deviation
+0.0 vs the game head; all 33 original verts 0.0. Skinning = the game head's own weights
+interpolated (the ring is Neck 0.45-0.56 / Head 0.34-0.55, NOT 100% Head — a 100%-Head ring would
+pop the seam the moment the neck bends). Keys and measured max travel: jaw_open 12.4 mm,
+mouth_wide 8.3, mouth_pucker 8.8, blink 9.6, brow_up 6.0, brow_down 5.5.
+
+**Neck finding for the cast-file fix:** the game heads' lower side polys P1/P4/P7 (verts 1,2,11 +
+mirrors 15,16,32) sample u 0.0155-0.095, v 0.008-0.033 of cell (0,0) — the BLACK band under the
+face — luminance 0.008-0.028 on both atlases. Only 6 loops on each cutscene head needed lifting
+(to v 0.011-0.020); the centre chin verts 14/1 already sit on neck skin.
+
+**Skull (`cs_skull` 202 v / 400 tris + `cs_mandible` 65 v / 126 tris, ONE mesh datablock each,
+linked-duplicated under both rigs, materials per OBJECT slot):** a lat/long cage projected from
+outside onto the CC0 CDmir skull (rays toward C=(0,0.2,-0.2) ref units), rows on measured
+features (brow z+0.02, orbit -0.15/-0.35, cheek -0.50, nasal -0.68, alveolar -1.0, tips -1.22),
+orbit columns 8/16/25/34 deg (the outer rim is at 34, not 28 — the lateral rim sits 0.2 units
+back). Sockets are geometry (floor -0.51..-0.56 vs rim -0.85..-0.96); nasal centre pushed to
+y=-0.70. Scale 0.0779 (222 mm vertex-menton), crown at z 1.800 = the PSX head crown, y-centred
+on the PSX head. Measured: W/H 0.686 (ref 0.674), L/H 0.911 (ref 0.893), 149 x 198 x 217 mm.
+`jaw` bone under `mixamorig:Head` at the condyle (0, -0.032, 1.656), hinge axis = bone local X;
+open 25 deg: 0 verts inside the cage, lower tooth row 40-42 mm clear of the upper strip, chin
+travel 48.4 mm (zombie) / 46.1 mm (sniper, 0.952 rig). The talk test peaks at 14 deg (25 is a yell).
+
+**Dressings:** sniper atlas sampled off `cow_sniper_sheet_1024.png` (rot skin, cheek, side hair,
+teeth patch, goatee; bald crown) — he wears no headgear in his source file, so none here. Zombie
+atlas off `zed_cult_b_zombie_face_atlas_v1.png` c6r5/c2r4 (+45% gain; it is black under a helmet)
+with gore blobs off the shared gore sheet. Helmet = `m1_ace` from `helmet_variants.blend` (the
+comic's Issue 1 back cover has an ace in the band) with a generated ace-of-CLUBS card (the comic
+says clubs, the game card is spades). The `helmets.json` socket route lands on the FIT truth to
+0.1 mm ((0.0019,-0.0413,1.7519) vs (0.002,-0.041,1.752)); crown 1.8478 vs the ART log's 1.8489.
+Canonical PSX-head seat on the skull: 0 through, 5.4 mm min clearance, brim 21.6 mm BELOW the
+supraorbital margin (it covers the socket tops). Shipped seat: raised 24.7 mm so the brim sits
+3 mm above the supraorbital margin; 0 through, 8.9-75.6 mm clearance, crown 75.5 mm over the
+skull. One line in `th_build.py` (`dz`) flips it back to the game seat.
+
+**Traps:** `ERDLCamo`/`Webbing` on the M1 are procedural noise (the game exporter flattens them),
+so the cover renders flat green in Eevee. Rigs keep their appended object rotation (+90 X, or the
+NVA quaternion (0.707,0.707,0,0)); pose channels keyed to identity at frame 0 (upright T-pose).
+
+### 2026-09-11 (same day, second pass) · markings restored as textured quads + hull merged by material
+
+Coordinator's ruling, and it is the right one: **the markings are authored identity, not
+clutter.** `helicopter.gd::_pick_markings` shows one VARIANT set per ship so a flight of
+slicks does not read as the same airframe repeated, and any art loss is Caleb's call to make,
+not mine. The zero-face version from the first pass is withdrawn.
+
+| | first pass | shipped |
+|---|---|---|
+| tris (re-import) | 2,743 | **2,787** |
+| markings | absent (0 tris) | **present, 44 tris, 22 decals** |
+| mesh surfaces | 91 | **32** (source: 146) |
+| glTF primitives | — | **124 -> 32** |
+| objects | 156 | 76 |
+| materials | 15 | **14** (source: 32) |
+| bytes | 0.26 MB | 0.33 MB |
+
+**Markings.** Every decal is rebuilt as a 2-tri quad in the same plane, position and size as
+the original, sampling one baked atlas `assets/us/vehicles/huey_v3_lod_markings.png`
+(512x512 RGBA, **39.9 KB**, nearest filtering). The bake is a pure-Python rasteriser in
+`tools/build_huey_v3_lod.py`, not a render bake: each decal's triangles are projected onto its
+own two widest local axes, 3x supersampled, box-downsampled, and written into a 2x11 cell
+grid. RGB is `MarkingWhite`'s own linear base colour (0.92, 0.92, 0.90) so the colour is his;
+alpha is coverage. 22 decals cost **44 triangles instead of 30,710**.
+
+**alphaMode MASK, not BLEND — and this took a probe to get right.** On Blender 5.0.1, linking
+`Image.Alpha` straight into `Principled.Alpha` exports `alphaMode=BLEND` every time, and
+`Material.surface_render_method` **does not exist in 5.0.1 at all** (it is not on the type, so
+`hasattr` guards on it are silent no-ops). Inserting a Math node (GREATER_THAN or ROUND)
+between texture alpha and Principled alpha is what makes the exporter write `MASK`. Proven by
+`tools/probe_gltf_alpha_mode.py`, which exports five material variants and reads the alphaMode
+back out of the GLB JSON chunk. This matters on a performance job: BLEND would have put four
+sorted, non-depth-writing transparent draws on every airframe.
+
+Structure as Godot sees it (`tools/check_huey_lod_variants.py`, run on the exported GLB):
+`VARIANT_A/B/C` are still EMPTY (Node3D), each with exactly ONE child mesh
+`VARIANT_X_markings` (12 tris = its 6 decals, 24 unique UVs, one material). Node3D visibility
+is hierarchical, so `_pick_markings` toggling the parent still shows exactly one set per ship.
+The four always-visible boom decals merge into one root object `MARK_ARMY` (8 tris).
+
+**The merge.** 74 static meshes merged into 12 batches, one per material; world transforms are
+baked into the vertices and verts are NOT welded across faces, so the triangle count is
+exactly preserved (that is the gate). Negative-scale objects (e.g. `cabin_panel_aft_l`, scale
+-0.038/-0.507/-0.577) get their winding reversed on the way in, or they would ship inside out.
+Per-polygon `use_smooth` is carried.
+
+**15 meshes deliberately NOT merged**, because merging them into a world-static batch would
+break something that moves: `fuselage_fwd`, `fuselage_aft`, `door_l`, `door_r` (+ their
+`door_window_*` children), `MainRotorMast`, `TailRotorMast`, `New_Blade_2`, `New_Rotor_Hub`,
+`New_Rotor_Flybar`, `New_TailBlade_1`, `New_TailBlade_Hub`, `pintle_l_m60`, `pintle_r_m60`.
+All 45 empties are untouched (they cost no draw call and carry every `seat_*`, pintle, grip
+and socket name).
+
+**Names: 31/31 referenced kept, 96 unreferenced dropped, 16 added.** The referenced set came
+from re-scanning every `.gd`/`.tscn`/`.tres` in the repo (892 files) for each of the 156 object
+names as a **bare substring**. That matters — see the defect below.
+
+**Why 32 surfaces and not the ~12 I first estimated.** The floor is 15 meshes that must stay
+separate + 12 material batches + 4 marking objects + one two-material cargo batch. Going lower
+means consolidating his material palette, which is an art call, not a build setting. 146 -> 32
+is a 4.6x cut in draw units; the glTF primitive count (124 -> 32) is the number to quote.
+
+**One small art change, flagged.** The cabin rack weapons are 12-tri boxes now, not his donor
+guns, so carrying donor materials (`BlackAlu.002`, `Walnut`) on them bought nothing and cost
+two surfaces and two stray materials in a shipped file. They now take `huey_panel_black`, which
+is already in the Huey's palette. Say the word and it goes back.
+
+**Merge geometry gate: world surface area per material, source vs LOD.** Every material that
+was not deliberately touched is preserved exactly — `huey_deck` 16.823 -> 16.823, `huey_metal`
+1.196 -> 1.196, `huey_webbing` 0.475 -> 0.475, `fb_crate` 9.127 -> 9.127, `CrateCross`
+0.031 -> 0.031. The ones that moved, moved for a named reason: `huey_od_exterior`
+108.726 -> 98.547 (fuselage decimation), `Glass` 4.468 -> 3.485 (window decimation),
+`MarkingWhite` 0.490 -> 0.000 and `huey_lod_markings` 0.000 -> 1.514 (quads are solid
+rectangles; the alpha does the cutting), and eleven donor-gun materials to 0.000.
+
+### SECOND LIVE DEFECT, found by widening the name scan
+**`heli_lift.gd` swings the cargo doors on nodes called `Door_Left` / `Door_Right`
+(`DOOR_L_NAME` / `DOOR_R_NAME`, lines 33-34). `huey_v3.glb` has no such objects — its doors
+are `door_l` and `door_r`.** `_find_doors` therefore binds nothing and `_physics_process`
+returns on its first line, so the Huey's cargo doors have never opened. Not introduced here;
+found because the first name scan searched for QUOTED literals and missed `_door_l`, and the
+re-scan as a bare substring caught it. `door_l`/`door_r` are kept as separate named objects in
+the LOD precisely so the fix stays possible. **Caleb's call** - either rename the objects in
+`huey_v3.blend` or change the two constants.
+
+The `seat_bench_*` 18.000 m defect is **untouched in the LOD, as instructed** - re-measured on
+the shipped `huey_v3_lod.glb`, still exactly 18.000 m. It is Caleb's call.

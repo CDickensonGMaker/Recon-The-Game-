@@ -3554,3 +3554,24 @@ audit); `SeatSystem` now rejects a marker further than 12 m from the airframe an
 table, with a warning - the gates print it live. The fix proper is in huey_v3.blend / the
 exporter: his call. `huey_v3_lod.glb` exists at 2,743 tris (60,354 before, 93.5% of it two
 decals, two pintle guns and lettering); wiring waits on the markings-as-quads pass.
+
+### 2026-09-11 — the Huey is 2,787 triangles and 32 surfaces (was 60,354 and 146)
+
+His ask: "LOW POLY or even CARDS of the hueys and ac47 that are flying around". Headless Blender,
+masters untouched, every count a RE-IMPORT count (`tools/verify_aircraft_lod.py`). 93.5% of the
+airframe was two shrinkwrapped "ARMY" decals (12,000 tris each), two pintle M60s (10,552 each)
+and lettering; the hull itself was 2,438 tris of 12-tri boxes. The LOD keeps every node a script
+names (rotors, masts, seats, doors, VARIANT_A/B/C, fuselage_fwd/aft), the 22 markings come back
+as 44 triangles of quads on a 40 KB baked atlas (alpha MASK, not BLEND - probed, because Blender
+5.0.1 exports BLEND unless a Math node sits on the alpha), and 74 static parts merged into 12
+per-material batches. `huey.tscn` instances it now; ten ships = 27,870 tris where there were
+603,540. The AC-47 measured 2,713 tris already - no LOD wired, the file deleted.
+Two live defects it found, both his call: six `seat_bench_*` empties 18 m off the airframe (guarded
+in SeatSystem) and `heli_lift.gd` looking for `Door_Left/Door_Right` on a GLB whose doors are
+`door_l/door_r` - the cargo doors have never opened; the constants now match the GLB.
+Cards: not built - ten ships at 2,787 are 1.8% of the world's triangles and a billboard cannot
+bank or turn a rotor. The draw-call side was the real lever and it is taken.
+Gates: test_huey_sim, probe_huey_frame, test_seat_system, test_demo_arc 26/26.
+Also: `ai.slide` span around move_and_slide - 110-240 ms per 5 s window in the assault (2-5%),
+so the heavy physics steps (100+ of 150 over 20 ms mid-assault) are NOT the slide and NOT
+ai.execute (2-18%); the physics remainder is unspanned and the next instrument names it.
