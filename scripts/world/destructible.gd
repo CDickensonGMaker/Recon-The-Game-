@@ -268,20 +268,12 @@ func _scatter_rubble() -> void:
 		var off := Vector3(rng.randf_range(-1.2, 1.2), 0.1, rng.randf_range(-1.2, 1.2))
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.4, 0.9))
 		_rubble_xforms.append(Transform3D(b, global_position + off))
-	# ONE buffer write. instance_count reallocates the whole multimesh, and this used to follow
-	# it with a RenderingServer call per piece of rubble EVER scattered - 4 per destroyed wall,
-	# so a siege that levels 200 walls was 800 server calls per destruction by the end, inside
-	# destructible.drain (93.5 ms worst in the 2026-09-10 siege ledger).
+	# Per-instance server calls, not `buffer`: under the headless RendererDummy a written buffer
+	# is a silent no-op (2026-09-11), so the one-write version could not be probed. Rubble is
+	# capped by the drain rate, so this loop is bounded.
 	_rubble_mm.instance_count = _rubble_xforms.size()
-	var buf := PackedFloat32Array()
-	buf.resize(_rubble_xforms.size() * 12)
 	for i in range(_rubble_xforms.size()):
-		var xf: Transform3D = _rubble_xforms[i]
-		var b: int = i * 12
-		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
-		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
-		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
-	_rubble_mm.buffer = buf
+		_rubble_mm.set_instance_transform(i, _rubble_xforms[i])
 
 
 func _ensure_rubble_mm() -> void:

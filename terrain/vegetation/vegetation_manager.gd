@@ -248,7 +248,11 @@ func _find_first_mesh(node: Node) -> Mesh:
 	return null
 
 
-func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
+## `partial` is the world-metre rect of ground that moved (a crater's patch) or the spot a
+## felled log settled on. With it, and a chunk the tree layer already draws, the redraw is a
+## diff against what is standing instead of a rebuild of everything - see TreeCoverLayer.update_chunk.
+func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
+		partial: Rect2 = Rect2()) -> void:
 	if _meshes.is_empty():
 		return
 
@@ -287,7 +291,7 @@ func generate_for_chunk(chunk_coord: Vector2i, heightmap: Object, chunk_size: fl
 		_build_placement_cache(chunk_coord, heightmap, chunk_size)
 
 	# Materialize from cache - ONE branch, shared with clear_area() (see _rematerialize).
-	_rematerialize(chunk_coord, heightmap, chunk_size)
+	_rematerialize(chunk_coord, heightmap, chunk_size, partial)
 
 
 ## world_x/world_z are passed for water proximity checks
@@ -600,15 +604,39 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 ## survive chunk rebuilds because _build_scatter re-emits them, and the pooled 70m ring
 ## bodies them on demand. Cleared per-mission in clear_all().
 var _fell_registry: Array = []
+## Next plant uid (see _build_scatter). Never reused within a mission.
+var _next_uid: int = 1
+## coord -> the rect a just-settled log landed in, consumed by rebuild_chunk so the redraw
+## for it is the local path.
+var _fell_partial: Dictionary = {}
 
 
+## A settled tree's snag and log. When the chunk's cached scatter is current they are APPENDED
+## to it - the generator would have emitted them as ordinary candidates on the next miss, and
+## nothing else in the list moves - and the chunk is marked for a local redraw around them.
+## A chunk with no current cache is dirtied as before and takes the full path.
 func add_fell_entries(entries: Array) -> void:
 	_scatter_epoch += 1
-	for e in entries:
-		if (e as Dictionary).has("chunk"):
-			_dirty_scatter((e as Dictionary)["chunk"] as Vector2i)
 	for e: Dictionary in entries:
 		_fell_registry.append(e)
+		if not e.has("chunk"):
+			continue
+		var cc: Vector2i = e["chunk"]
+		var hit: Dictionary = _scatter_cache.get(cc, {}) as Dictionary
+		if hit.is_empty() or int(hit["epoch"]) < int(_scatter_dirty.get(cc, 0)):
+			_dirty_scatter(cc)
+			continue
+		var live: Dictionary = {"name": String(e["name"]), "xf": e["xf"] as Transform3D,
+			"fell": true, "uid": _next_uid}
+		_next_uid += 1
+		if e.has("trunk_r"):
+			live["trunk_r"] = e["trunk_r"]
+			live["trunk_h"] = e.get("trunk_h", 1.0)
+		(hit["scatter"] as Array).append(live)
+		var o: Vector3 = (e["xf"] as Transform3D).origin
+		var spot := Rect2(Vector2(o.x, o.z), Vector2.ZERO).grow(1.0)
+		var have: Rect2 = _fell_partial.get(cc, Rect2())
+		_fell_partial[cc] = spot if have.size == Vector2.ZERO else have.merge(spot)
 
 
 ## A pin hole over one promoted tree, so no later _build_scatter re-emits the standing
@@ -627,18 +655,33 @@ func rebuild_chunk(chunk_coord: Vector2i) -> void:
 	if hm == null:
 		return
 	var cs: float = _terrain_manager.chunk_size
+	var partial: Rect2 = _fell_partial.get(chunk_coord, Rect2())
+	_fell_partial.erase(chunk_coord)
+	if partial.size != Vector2.ZERO and _tree_cover != null and _tree_cover.has_chunk(chunk_coord):
+		_rematerialize(chunk_coord, hm, cs, partial)
+		return
 	clear_chunk_visuals(chunk_coord)
 	_rematerialize(chunk_coord, hm, cs)
 
 
 ## ONE place that decides how a chunk's vegetation is built. Called by generate_for_chunk()
 ## and by clear_area() -- never duplicate this branch.
-func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> void:
+func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
+		partial: Rect2 = Rect2()) -> void:
 	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
 		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
 		StallLedger.begin("veg.build_scatter")
 		var scatter: Array = _build_scatter(chunk_coord, heightmap, chunk_size)
 		StallLedger.end()
+		# THE LOCAL PATH (2026-09-11). A crater re-seats the plants on the moved ground and a
+		# settled log adds two entries; neither is a reason to free and re-instance every
+		# bucket in a 256 m chunk. When the tree layer already draws this chunk and the caller
+		# named the ground that changed, it is handed the new list and diffs it by entry uid.
+		if partial.size != Vector2.ZERO and _tree_cover.has_chunk(chunk_coord):
+			StallLedger.begin("veg.tree_cover_partial")
+			_tree_cover.update_chunk(chunk_coord, scatter, partial)
+			StallLedger.end()
+			return
 		StallLedger.begin("veg.tree_cover_mmi")
 		# THE CANOPY IS ALWAYS REBUILT, and an in-place re-seat was BUILT, MEASURED AND
 		# REMOVED rather than left in as an unexercised path. The re-seat needs the plant
@@ -740,6 +783,12 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 				e["trunk_r"] = f["trunk_r"]
 				e["trunk_h"] = f.get("trunk_h", 1.0)
 			scatter.append(e)
+	# A STABLE IDENTITY per plant, so a later partial update can diff the list it is handed
+	# against the list the tree layer drew without comparing dictionaries by value.
+	for e: Dictionary in scatter:
+		if not e.has("uid"):
+			e["uid"] = _next_uid
+			_next_uid += 1
 	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter}
 	StallLedger.end()
 	return scatter

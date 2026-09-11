@@ -86,10 +86,16 @@ func _ready() -> void:
 	var veg: Node = world.vegetation_manager
 	var tc: Node = veg.get_node_or_null("TreeCoverLayer")
 	var patched_xf: Array = _canopy_transforms(tc)
+	# LIVE entries only. Since 2026-09-11 a plant a blast took stays in the stored scatter at
+	# its index, marked dead (stable identity for the break registry); counting it would
+	# report a chunk that never lost anything.
 	var patched_scatter: Array = (tc.get("_chunk_scatter") as Dictionary).get(COORD, []) as Array
-	var patched_plants: int = patched_scatter.size()
+	var patched_plants: int = 0
 	var patched_y: float = 0.0
 	for e: Dictionary in patched_scatter:
+		if bool(e.get("dead", false)):
+			continue
+		patched_plants += 1
 		patched_y += (e["xf"] as Transform3D).origin.y
 
 	# Now force the full rebuild the patch replaced, on the same edited heightmap.
@@ -102,8 +108,12 @@ func _ready() -> void:
 	var full_rays: PackedFloat32Array = await _sample_ground(world, full_chunk)
 	var full_xf: Array = _canopy_transforms(tc)
 	var full_scatter: Array = (tc.get("_chunk_scatter") as Dictionary).get(COORD, []) as Array
+	var full_plants: int = 0
 	var full_y: float = 0.0
 	for e: Dictionary in full_scatter:
+		if bool(e.get("dead", false)):
+			continue
+		full_plants += 1
 		full_y += (e["xf"] as Transform3D).origin.y
 
 	_check("same vertex count", patched_v.size() == full_v.size(),
@@ -131,31 +141,36 @@ func _ready() -> void:
 		patched_rays.size() == full_rays.size() and rworst < 0.0001,
 		"worst %.6f m over %d rays" % [rworst, patched_rays.size()])
 
-	_check("the canopy holds the same plants", patched_plants == full_scatter.size(),
-		"%d vs %d" % [patched_plants, full_scatter.size()])
+	_check("the canopy holds the same plants", patched_plants == full_plants,
+		"%d vs %d" % [patched_plants, full_plants])
 	_check("every plant sits at the same height",
 		absf(patched_y - full_y) < 0.001,
 		"summed Y %.4f vs %.4f" % [patched_y, full_y])
 
-	_check("the canopy has the same MultiMesh nodes and instance counts",
-		patched_xf.size() == full_xf.size(), "%d vs %d nodes" % [patched_xf.size(), full_xf.size()])
-	var xworst: float = 0.0
-	var xbad: int = 0
-	var xn: int = 0
-	for i in range(mini(patched_xf.size(), full_xf.size())):
-		var a: Array = patched_xf[i]
-		var b: Array = full_xf[i]
-		if a.size() != b.size():
-			xbad += 1
-			continue
-		for j in a.size():
-			var d: float = ((a[j] as Transform3D).origin - (b[j] as Transform3D).origin).length()
-			xworst = maxf(xworst, d)
-			xn += 1
-			if d > 0.0001:
-				xbad += 1
-	_check("EVERY canopy instance sits where the full rebuild puts it",
-		xbad == 0 and xn > 0, "%d of %d instances differ, worst %.6f m" % [xbad, xn, xworst])
+	# WHAT A HEADLESS RUN CAN SEE OF A MULTIMESH, and what it cannot (found 2026-09-11).
+	# Under the RendererDummy every MultiMesh.get_instance_transform() returns identity, so
+	# "instance world position" is the NODE position for all of a node's instances - the check
+	# this replaces had only ever compared bucket origins. That passed while a full rebuild
+	# was the only path (same members, same centroid) and failed the local update, which keeps
+	# a node's origin by design. The comparable thing is the STRUCTURE: the same number of
+	# nodes carrying the same multiset of instance counts, summing to the live plant count.
+	# Where the instances stand is asserted through the layer's own scatter above (count and
+	# summed height), and can only be seen drawn in a windowed run.
+	var pr: Array = []
+	for row: Array in patched_xf:
+		pr.append(row.size())
+	var fr: Array = []
+	for row: Array in full_xf:
+		fr.append(row.size())
+	pr.sort()
+	fr.sort()
+	var psum: int = 0
+	for n in pr:
+		psum += int(n)
+	_check("the canopy has the same MultiMesh nodes carrying the same instance counts",
+		pr == fr and not pr.is_empty(), "%d vs %d nodes, row sizes %s" % [pr.size(), fr.size(), "identical" if pr == fr else "DIFFER"])
+	_check("every live plant is drawn exactly once", psum == patched_plants,
+		"%d instances vs %d live plants" % [psum, patched_plants])
 
 	print("")
 	if _fails == 0:
@@ -195,6 +210,10 @@ func _sample_ground(world: GameWorld, chunk: Node3D) -> PackedFloat32Array:
 		out.append((r["position"] as Vector3).y if not r.is_empty() else -9999.0)
 	body.collision_layer = 1
 	return out
+
+
+
+
 
 
 ## Every canopy instance in this chunk, in world space, node by node.

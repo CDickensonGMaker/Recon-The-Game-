@@ -389,7 +389,11 @@ func _patch_chunk_region(coord: Vector2i, cell_region: Rect2i, cells_per_chunk: 
 	StallLedger.end()
 
 	if vegetation_manager:
-		_queue_veg_regen(coord)
+		# The edited cells, in world metres, ride along so the vegetation can re-seat only the
+		# plants that stood on ground that moved instead of rebuilding the chunk.
+		_queue_veg_regen(coord, Rect2(
+			Vector2(float(cell_region.position.x), float(cell_region.position.y)) * cell_size,
+			Vector2(float(cell_region.size.x), float(cell_region.size.y)) * cell_size))
 	return true
 
 
@@ -417,14 +421,24 @@ func _patch_chunk_region(coord: Vector2i, cell_region: Rect2i, cells_per_chunk: 
 ## Chunk-deduped: eight canisters walking one treeline queue the same four coords once,
 ## not thirty-two times.
 var _veg_regen_queue: Array[Vector2i] = []
+## coord -> the union of edited rects (world metres) waiting on that chunk. A zero-size rect
+## means "the whole chunk" and wins over any partial that merges into it.
+var _veg_regen_rect: Dictionary = {}
 ## One chunk per frame. Same reasoning and the same number as TreeCoverLayer's
 ## REGEN_PER_FRAME: a single re-derive is 14-30 ms and two in a frame is the stall.
 const VEG_REGEN_PER_FRAME: int = 1
 
 
-func _queue_veg_regen(coord: Vector2i) -> void:
+func _queue_veg_regen(coord: Vector2i, rect: Rect2 = Rect2()) -> void:
 	if not _veg_regen_queue.has(coord):
 		_veg_regen_queue.append(coord)
+		_veg_regen_rect[coord] = rect
+		return
+	var have: Rect2 = _veg_regen_rect.get(coord, Rect2())
+	if have.size == Vector2.ZERO or rect.size == Vector2.ZERO:
+		_veg_regen_rect[coord] = Rect2()
+	else:
+		_veg_regen_rect[coord] = have.merge(rect)
 
 
 func _drain_veg_regen() -> void:
@@ -434,8 +448,10 @@ func _drain_veg_regen() -> void:
 	StallLedger.begin("terrain.veg_generate")
 	for _i in range(mini(VEG_REGEN_PER_FRAME, _veg_regen_queue.size())):
 		var coord: Vector2i = _veg_regen_queue.pop_front()
+		var rect: Rect2 = _veg_regen_rect.get(coord, Rect2())
+		_veg_regen_rect.erase(coord)
 		if chunks.has(coord):
-			vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size)
+			vegetation_manager.generate_for_chunk(coord, heightmap, chunk_size, rect)
 	StallLedger.end()
 
 

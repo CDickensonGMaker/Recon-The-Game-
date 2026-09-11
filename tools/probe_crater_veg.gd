@@ -71,7 +71,14 @@ func _ready() -> void:
 	for _i in 30:
 		await get_tree().process_frame
 
-	var after: Array = (tc.get("_chunk_scatter") as Dictionary).get(coord, []) as Array
+	# LIVE entries only: since 2026-09-11 a plant a blast took stays in the stored scatter,
+	# marked dead, so the break registry's indices stay valid. Counting it would report a
+	# chunk that never lost anything and a hole full of standing trees.
+	var after_all: Array = (tc.get("_chunk_scatter") as Dictionary).get(coord, []) as Array
+	var after: Array = []
+	for e: Dictionary in after_all:
+		if not bool(e.get("dead", false)):
+			after.append(e)
 	var survivors_in_hole: int = 0
 	var radius: float = BOOM_RADIUS_GUESS
 	for e: Dictionary in after:
@@ -83,10 +90,11 @@ func _ready() -> void:
 	_check("the chunk lost plants at all", after.size() < before_n,
 		"%d -> %d plants in chunk %s" % [before_n, after.size(), coord])
 
-	var mmi_calls: int = StallLedger.count("veg.tree_cover_mmi")
+	# A redraw is either the full rebuild or the local update; the contract is one per load.
+	var mmi_calls: int = StallLedger.count("veg.tree_cover_mmi") + StallLedger.count("veg.tree_cover_partial")
 	var gen_calls: int = StallLedger.count("terrain.veg_generate")
-	_check("ONE canopy rebuild per chunk load, not two", mmi_calls == gen_calls and gen_calls > 0,
-		"veg.tree_cover_mmi x%d vs terrain.veg_generate x%d" % [mmi_calls, gen_calls])
+	_check("ONE canopy redraw per chunk load, not two", mmi_calls == gen_calls and gen_calls > 0,
+		"veg.tree_cover_mmi+partial x%d vs terrain.veg_generate x%d" % [mmi_calls, gen_calls])
 	var hits: int = StallLedger.count("veg.scatter_hit")
 	var misses: int = StallLedger.count("veg.scatter_miss")
 	print("  (scatter cache this window: %d hit / %d miss)" % [hits, misses])

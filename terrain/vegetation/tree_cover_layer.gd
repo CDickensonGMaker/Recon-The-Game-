@@ -572,49 +572,205 @@ func remove_scatter_entries(coord: Vector2i, indices: Array) -> void:
 			if assigned.has(t):
 				_park_body(assigned[t])
 				assigned.erase(t)
-	for key_any in keys.keys():
-		_rebuild_bucket(coord, key_any as Array)
+	_rebuild_buckets(coord, keys)
 	StallLedger.end()
 
 
-## Rebuild ONE bucket's MultiMesh from the chunk's live entries that fall in it. The node's
-## origin is the centroid it was built with, so the locals below are relative to that - the
-## node does not move, its AABB only ever shrinks.
-func _rebuild_bucket(coord: Vector2i, key: Array) -> void:
-	var buckets: Dictionary = _chunk_buckets.get(coord, {})
-	if not buckets.has(key):
+## True when this layer draws `coord` and holds its scatter - the precondition for a local
+## update instead of a rebuild.
+func has_chunk(coord: Vector2i) -> bool:
+	return _chunk_nodes.has(coord) and _chunk_scatter.has(coord) and _chunk_buckets.has(coord)
+
+
+## THE LOCAL REDRAW (perf audit 2026-09-10, plan item 3). `scatter_new` is the vegetation
+## manager's current list for this chunk: the same plant dictionaries the layer drew (they
+## carry a `uid`), re-seated on the current heightmap, minus whatever a hole took, plus any
+## log that settled. `rect` is the ground that moved. Three diffs, each touching only the
+## MultiMesh bucket(s) involved:
+##   ADDED   - in the new list, not in ours: appended to our stored scatter at the END (every
+##             existing index stays valid for the break registry), given a trunk if it has one,
+##             registered with TreeBreakSystem, its bucket rebuilt or created.
+##   REMOVED - in ours, live, not in the new list: marked dead in place, trunk retired, body
+##             parked, unregistered, bucket rebuilt.
+##   MOVED   - live and standing inside `rect`: bucket rebuilt at the new Y, trunk re-seated,
+##             body parked so the ring re-places it on the new ground.
+## Nothing else in the chunk is freed, instanced, re-registered or re-derived.
+func update_chunk(coord: Vector2i, scatter_new: Array, rect: Rect2) -> void:
+	if not has_chunk(coord):
+		generate_for_chunk(coord, scatter_new)
 		return
-	var rec: Dictionary = buckets[key]
-	var mmi: MultiMeshInstance3D = rec["node"] as MultiMeshInstance3D
-	if mmi == null or not is_instance_valid(mmi):
-		buckets.erase(key)
-		return
-	var origin: Vector3 = rec["origin"]
-	var nm: String = String(key[0])
-	var locals: Array = []
-	for e: Dictionary in _chunk_scatter[coord]:
-		if bool(e.get("dead", false)) or String(e.get("name", "")) != nm:
+	StallLedger.begin("veg.partial_update")
+	var old: Array = _chunk_scatter[coord]
+	var trunks: Dictionary = _chunk_trunks.get(coord, {})
+	var trunk_of: Dictionary = _chunk_trunk_of.get(coord, {})
+	if not _chunk_trunk_of.has(coord):
+		_chunk_trunk_of[coord] = trunk_of
+	var assigned: Dictionary = _chunk_bodies.get(coord, {})
+	var keys: Dictionary = {}
+	var have: Dictionary = {}
+	for i: int in old.size():
+		var e0: Dictionary = old[i]
+		if e0.has("uid"):
+			have[int(e0["uid"])] = i
+	# ADDED
+	var seen: Dictionary = {}
+	var added_pairs: Array = []
+	for e: Dictionary in scatter_new:
+		var uid: int = int(e.get("uid", -1))
+		seen[uid] = true
+		if uid < 0 or have.has(uid):
 			continue
+		var nm: String = String(e.get("name", ""))
+		if not _solid_mesh.has(nm):
+			continue
+		var idx: int = old.size()
+		old.append(e)
+		have[uid] = idx
+		added_pairs.append([idx, e])
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		if _bucket_key(nm, xf.origin) != key:
+		keys[_bucket_key(nm, xf.origin)] = true
+		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
+		if r > 0.0:
+			trunks = _add_trunk(coord, trunks, xf.origin, r, float(e.get("trunk_h", TRUNK_HEIGHT)))
+			trunk_of[idx] = (trunks["positions"] as PackedVector3Array).size() - 1
+	# REMOVED
+	var removed_idx: Array = []
+	var grown: Rect2 = rect.grow(2.0)
+	for i: int in old.size():
+		var e: Dictionary = old[i]
+		if bool(e.get("dead", false)):
 			continue
-		locals.append(Transform3D(xf.basis, xf.origin - origin))
-	if locals.is_empty():
-		buckets.erase(key)
-		(_chunk_nodes[coord] as Array).erase(mmi)
-		mmi.queue_free()
+		var uid: int = int(e.get("uid", -1))
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		var nm: String = String(e.get("name", ""))
+		if uid >= 0 and not seen.has(uid):
+			e["dead"] = true
+			removed_idx.append(i)
+			keys[_bucket_key(nm, xf.origin)] = true
+			if trunk_of.has(i) and not trunks.is_empty():
+				var t: int = int(trunk_of[i])
+				var radii: PackedFloat32Array = trunks["radii"]
+				radii[t] = 0.0
+				trunks["radii"] = radii
+				if assigned.has(t):
+					_park_body(assigned[t])
+					assigned.erase(t)
+			continue
+		# MOVED: standing on the ground that changed. The new Y is already in xf (the cache
+		# hit re-seated it in place); the bucket and the trunk just have to catch up.
+		if grown.has_point(Vector2(xf.origin.x, xf.origin.z)):
+			keys[_bucket_key(nm, xf.origin)] = true
+			if trunk_of.has(i) and not trunks.is_empty():
+				var t2: int = int(trunk_of[i])
+				var positions: PackedVector3Array = trunks["positions"]
+				positions[t2] = xf.origin
+				trunks["positions"] = positions
+				if assigned.has(t2):
+					_park_body(assigned[t2])
+					assigned.erase(t2)
+	_rebuild_buckets(coord, keys)
+	if not added_pairs.is_empty():
+		TreeBreakSystem.register_entries(self, coord, added_pairs)
+	if not removed_idx.is_empty():
+		TreeBreakSystem.unregister_entries(self, coord, removed_idx)
+	_ring_dirty = true
+	StallLedger.end()
+
+
+## Append one trunk to a chunk's collider arrays (creating them for a chunk that had none),
+## keeping the cell index and bounds in step. Returns the (possibly new) trunks dictionary.
+func _add_trunk(coord: Vector2i, trunks: Dictionary, pos: Vector3, r: float, h: float) -> Dictionary:
+	if trunks.is_empty():
+		trunks = {"positions": PackedVector3Array(), "radii": PackedFloat32Array(),
+			"heights": PackedFloat32Array(), "bounds": Rect2(Vector2(pos.x, pos.z), Vector2.ZERO),
+			"cells": {}}
+		_chunk_trunks[coord] = trunks
+	var positions: PackedVector3Array = trunks["positions"]
+	var radii: PackedFloat32Array = trunks["radii"]
+	var heights: PackedFloat32Array = trunks["heights"]
+	var t: int = positions.size()
+	positions.append(pos)
+	radii.append(r)
+	heights.append(h)
+	trunks["positions"] = positions
+	trunks["radii"] = radii
+	trunks["heights"] = heights
+	trunks["bounds"] = (trunks["bounds"] as Rect2).expand(Vector2(pos.x, pos.z))
+	var cells: Dictionary = trunks["cells"]
+	var ck := Vector2i(int(floor(pos.x / TRUNK_CELL_M)), int(floor(pos.z / TRUNK_CELL_M)))
+	var packed: PackedInt32Array = cells.get(ck, PackedInt32Array())
+	packed.append(t)
+	cells[ck] = packed
+	return trunks
+
+
+## ONE pass over the chunk's scatter for every touched bucket at once, then each bucket is
+## rebuilt from its own members. The first version of this scanned the whole chunk - 9,700
+## plants - once PER bucket, and a crater touching a few dozen (species, cell) keys cost 138 ms,
+## more than the full rebuild it replaced. Touched keys x plants is the wrong shape; plants +
+## touched keys is the right one.
+func _rebuild_buckets(coord: Vector2i, keys: Dictionary) -> void:
+	if keys.is_empty() or not _chunk_scatter.has(coord):
 		return
+	var members: Dictionary = {}
+	for key_any in keys.keys():
+		members[key_any] = []
+	for e: Dictionary in _chunk_scatter[coord]:
+		if bool(e.get("dead", false)):
+			continue
+		var nm: String = String(e.get("name", ""))
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		var key: Array = _bucket_key(nm, xf.origin)
+		if members.has(key):
+			(members[key] as Array).append(xf)
+	for key_any in keys.keys():
+		_rebuild_bucket(coord, key_any as Array, members[key_any] as Array)
+
+
+## Rebuild ONE bucket's MultiMesh from `members` (its live transforms) - or create the bucket
+## when a settled log opens a (species, cell) the chunk did not have, or free it when the last
+## member is gone. An existing node keeps the origin it was built with, so the locals below
+## are relative to that: the node does not move, its AABB only ever shrinks.
+func _rebuild_bucket(coord: Vector2i, key: Array, members: Array) -> void:
+	var buckets: Dictionary = _chunk_buckets.get(coord, {})
+	var nm: String = String(key[0])
+	var mmi: MultiMeshInstance3D = null
+	var origin: Vector3 = Vector3.ZERO
+	if buckets.has(key):
+		var rec: Dictionary = buckets[key]
+		mmi = rec["node"] as MultiMeshInstance3D
+		origin = rec["origin"]
+		if mmi == null or not is_instance_valid(mmi):
+			buckets.erase(key)
+			mmi = null
+	if members.is_empty():
+		if mmi != null:
+			buckets.erase(key)
+			(_chunk_nodes[coord] as Array).erase(mmi)
+			mmi.queue_free()
+		return
+	if mmi == null:
+		if not _solid_mesh.has(nm):
+			return
+		for xf: Transform3D in members:
+			origin += xf.origin
+		origin /= float(members.size())
+		var locals0: Array = []
+		for xf: Transform3D in members:
+			locals0.append(Transform3D(xf.basis, xf.origin - origin))
+		mmi = _multimesh(_solid_mesh[nm], locals0, 0.0, _ring_for(nm), origin)
+		mmi.set_meta("species", nm)
+		add_child(mmi)
+		(_chunk_nodes[coord] as Array).append(mmi)
+		buckets[key] = {"node": mmi, "origin": origin}
+		return
+	var locals: Array = []
+	for xf: Transform3D in members:
+		locals.append(Transform3D(xf.basis, xf.origin - origin))
 	var mm: MultiMesh = mmi.multimesh
 	mm.instance_count = locals.size()
-	var buf := PackedFloat32Array()
-	buf.resize(locals.size() * 12)
 	for i in locals.size():
-		var xf: Transform3D = locals[i]
-		var b: int = i * 12
-		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
-		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
-		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
-	mm.buffer = buf
+		mm.set_instance_transform(i, locals[i])
 
 
 ## Assigned pool bodies right now (cover exists inside the ring). For the probe.
@@ -812,20 +968,15 @@ func _multimesh(mesh: Mesh, xforms: Array, vis_begin: float, vis_end: float,
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
 	mm.instance_count = xforms.size()
-	# ONE buffer write, not one server call per instance. set_instance_transform is a
-	# RenderingServer round-trip each; a chunk rebuild after a felled tree paid it for every
-	# plant in every bucket of the chunk - that is the "veg.tree_cover_mmi 13-44 ms" the
-	# siege ledger keeps naming. The buffer layout is the engine's documented 12 floats per
-	# TRANSFORM_3D instance, the same one vegetation_manager._materialize_vegetation writes.
-	var buf := PackedFloat32Array()
-	buf.resize(xforms.size() * 12)
+	# NOT `multimesh.buffer`. That one-write path was tried on 2026-09-10 and REVERTED the next
+	# day: under the headless RendererDummy `buffer` is a silent no-op (a written buffer reads
+	# back as every instance at the origin, and the engine's own getter returns []), so every
+	# headless probe of the canopy measured nothing and the shipping renderer was never checked.
+	# set_instance_transform goes through the server the same way on both. Buckets are small
+	# now (a local rebuild touches tens of instances), so the per-instance call is not the cost
+	# it was when a whole chunk went through here.
 	for i in xforms.size():
-		var xf: Transform3D = xforms[i]
-		var b: int = i * 12
-		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
-		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
-		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
-	mm.buffer = buf
+		mm.set_instance_transform(i, xforms[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.position = origin

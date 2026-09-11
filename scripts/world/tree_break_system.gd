@@ -100,6 +100,66 @@ func register_chunk(layer: Node3D, coord: Vector2i, scatter: Array) -> void:
 ## so unregistering a chunk that has many trees in one cell was quadratic in that cell - and
 ## every chunk rebuild in a crater or a tree break calls this first. Marking dead and then
 ## rebuilding each touched cell in one pass is the same answer at O(entries).
+## Register a few entries appended to a chunk that is already registered (a settled log's
+## snag and lying trunk). `pairs` is [[idx, entry], ...] with idx the entry's index in the
+## layer's stored scatter - the same idx register_chunk would have given it.
+func register_entries(layer: Node3D, coord: Vector2i, pairs: Array) -> void:
+	var key: String = _chunk_key(layer, coord)
+	for pair: Array in pairs:
+		var i: int = int(pair[0])
+		var e: Dictionary = pair[1]
+		var nm: String = String(e.get("name", ""))
+		if not is_breakable(nm):
+			continue
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		var entry: Dictionary = {
+			"species": nm, "xf": xf, "layer": layer, "coord": coord, "idx": i,
+			"cell": _cell_of(xf.origin), "dead": false,
+		}
+		if not _chunks.has(key):
+			_chunks[key] = []
+		(_chunks[key] as Array).append(entry)
+		var cell: Vector2i = entry["cell"]
+		if not _cells.has(cell):
+			_cells[cell] = []
+		(_cells[cell] as Array).append(entry)
+
+
+## Drop the entries at these scatter indices - plants a crater's hole took, which no blast
+## ever scheduled to fall, so _consume never saw them. Same dead-mark-then-filter shape as
+## unregister_chunk, scoped to the cells they stood in.
+func unregister_entries(layer: Node3D, coord: Vector2i, indices: Array) -> void:
+	var key: String = _chunk_key(layer, coord)
+	if not _chunks.has(key) or indices.is_empty():
+		return
+	var drop: Dictionary = {}
+	for i in indices:
+		drop[int(i)] = true
+	var touched: Dictionary = {}
+	var kept_chunk: Array = []
+	for entry: Dictionary in _chunks[key]:
+		if drop.has(int(entry["idx"])):
+			entry["dead"] = true
+			touched[entry["cell"]] = true
+		else:
+			kept_chunk.append(entry)
+	if kept_chunk.is_empty():
+		_chunks.erase(key)
+	else:
+		_chunks[key] = kept_chunk
+	for cell: Vector2i in touched:
+		if not _cells.has(cell):
+			continue
+		var kept: Array = []
+		for e: Dictionary in (_cells[cell] as Array):
+			if not bool(e.get("dead", false)):
+				kept.append(e)
+		if kept.is_empty():
+			_cells.erase(cell)
+		else:
+			_cells[cell] = kept
+
+
 func unregister_chunk(layer: Node3D, coord: Vector2i) -> void:
 	var key: String = _chunk_key(layer, coord)
 	if not _chunks.has(key):

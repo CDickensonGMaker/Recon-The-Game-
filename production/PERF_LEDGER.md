@@ -3383,3 +3383,37 @@ close 70.5 / 15.0 / 82; this evening's pre-wave control 14.8 / 3.7 / 242). Gates
 Gates green: `probe_napalm_stall`, `test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`,
 `test_destructible`, `test_sapper_assault`, `test_demo_arc`. Closing run: mean 83.1, floor 39.4,
 worst 71 ms (box noise band with the previous pass's 94.9 / 43.0 / 72).
+
+### 2026-09-11 — FIX WAVE, fourth pass: craters and settled logs are local too, and a blind instrument
+
+- **A crater no longer rebuilds its chunk's canopy.** The terrain patch passes the edited cells
+  (world metres) through `_queue_veg_regen` → `generate_for_chunk(…, partial)` → `_rematerialize` →
+  `TreeCoverLayer.update_chunk`, which diffs the manager's current list against what the layer drew
+  **by plant `uid`** (stamped in `_build_scatter`): ADDED entries are appended at the end (indices
+  stay valid for the break registry), REMOVED are marked dead in place, MOVED (inside the edited
+  rect) get their bucket rebuilt at the new height and their trunk re-seated. **A settled log takes
+  the same path**: `add_fell_entries` appends to a current cache instead of dirtying the chunk, and
+  `rebuild_chunk` runs the local update around it. Break registry gains `register_entries` /
+  `unregister_entries`. Full-chunk rebuilds in the siege: **112 → 21** (`mmi.group` 854 → 154 ms).
+- **First cut was slower than the rebuild it replaced** — `veg.partial_update` 1,694 ms, worst
+  138.7 — because `_rebuild_bucket` rescanned all ~9,700 plants once PER touched bucket. One pass
+  over the chunk for every touched key (`_rebuild_buckets`): **404 ms / 61 calls, worst 12.3**.
+- **THE BLIND INSTRUMENT.** `tools/probe_chunk_patch` read 1,344 of 2,132 canopy instances "in the
+  wrong place, worst 206 m" after a local update, against identical plant counts and summed
+  heights. Measured: 2,132 instances resolved to **134 distinct positions = the node count**.
+  Under the headless `RendererDummy`, `MultiMesh.get_instance_transform()` returns IDENTITY for
+  every instance, so that check had only ever compared bucket ORIGINS — which a full rebuild
+  re-centres and a local update keeps by design. It passed for a year by coincidence. The check now
+  compares what the dummy can see (node count, the multiset of per-node instance counts, and that
+  every live plant is drawn once); where the plants stand is asserted through the layer's own
+  scatter, and only a windowed run can see it drawn. `probe_crater_veg` and `probe_chunk_patch`
+  now count LIVE entries (dead-in-place is the contract).
+- **`MultiMesh.buffer` writes reverted to `set_instance_transform`** (tree cover, rubble). Under the
+  dummy a written buffer reads back as every instance at the origin and the getter returns `[]`,
+  so the one-write path could not be probed and the shipping renderer was never checked for it.
+  `set_instance_transform` is the path his eyes have seen for months. Buckets are small now; the
+  per-instance call is no longer the cost it was when a whole chunk went through it.
+
+Gates green: `probe_chunk_patch` (all), `probe_crater_veg` (all), `probe_napalm_stall`,
+`test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`, `test_destructible`,
+`test_demo_arc`. Closing run: mean 87.7, floor 30.1, worst 69 ms (box noise band).
