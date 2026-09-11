@@ -387,15 +387,12 @@ func _consume(doomed: Array[Dictionary]) -> void:
 			layer.remove_scatter_entries(job["coord"] as Vector2i, job["idx"] as Array)
 
 
-## CLOSED 2026-09-09 - the chunk rebuild IS coalesced now, and this comment used to say the
-## opposite. _consume updates the stored scatter immediately and marks the chunk dirty;
-## TreeCoverLayer._flush_regen rebuilds ONE chunk per frame (tree_cover_layer.gd:340-352).
-## The precondition this block set - "measure the assault frame first; if it is real, batch
-## it" - was met: treebreak.consume measured 55.4 ms worst in the 45-man assault and is now
-## gone from the report, replaced by veg.regen_flush at 19.6 mean / 24.7 worst.
-## Deferring is safe because the felled entry leaves the registry, _chunks and _chunk_scatter
-## BEFORE _consume returns, so every other path that rebuilds the chunk in the window already
-## reads a scatter it is absent from.
+## THE REDRAW IS LOCAL NOW (2026-09-11). _consume marks the entry dead and hands the layer the
+## indices; TreeCoverLayer.remove_scatter_entries retires that tree's trunk and rebuilds the ONE
+## MultiMesh bucket it drew from. The whole-chunk rebuild (and the one-chunk-per-frame flush
+## that paced it, veg.regen_flush) is gone - it was ~40 ms per felled tree in the siege.
+## Deferring the redraw is still safe for the same reason as before: the felled entry leaves
+## the registry and _chunks BEFORE _consume returns.
 ## THE HALF-STATE INVARIANT, and why the consume moved in here from apply_blast.
 ##
 ## A trunk waiting its turn in `_fall_queue` is STANDING IN EVERY SYSTEM: it is still in
@@ -498,6 +495,23 @@ func _spawn_broken(entry: Dictionary) -> BrokenTree:
 ## Keyed by layer instance id, because `_solid_mesh` is per-TreeCoverLayer: a second layer
 ## has its own cache and must still be allowed its own first load.
 var _parts_loaded: Dictionary = {}   ## "layer_id|species" -> true
+
+
+## Load every breakable species' stump/stem/crown at world build, not at the first tree the
+## siege fells. _ensure_parts_loaded does three GLB extracts the first time a species breaks -
+## tb.load_species measured 96.9 ms in ONE idle step of the 2026-09-10 siege ledger, inside the
+## frame the first shell landed in. Called once by VegetationManager after the layer has its
+## species; a bench that never gives the layer a species pays nothing.
+func warm_parts(layer: Node3D) -> void:
+	if layer == null or not layer.has_method("load_species"):
+		return
+	StallLedger.begin("tb.warm_parts")
+	for nm_any in _bands.keys():
+		var nm: String = String(nm_any)
+		if "_solid_mesh" in layer and not (layer.get("_solid_mesh") as Dictionary).has(nm):
+			continue
+		_ensure_parts_loaded(layer, nm)
+	StallLedger.end()
 
 
 func _ensure_parts_loaded(layer: Node3D, nm: String) -> void:

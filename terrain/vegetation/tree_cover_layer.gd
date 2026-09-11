@@ -120,6 +120,13 @@ const RANGE_MARGIN: float = 8.0   ## hysteresis on the hard PS2 snap
 
 var _solid_mesh: Dictionary = {}   ## name -> Mesh (the real model; there is no second tier)
 var _chunk_nodes: Dictionary = {}  ## coord -> Array[Node] (MMIs)
+## coord -> { [species, cx, cz] -> {"node": MultiMeshInstance3D, "origin": Vector3} }. The
+## bucket a felled tree came out of is rebuilt alone (remove_scatter_entries); nothing else in
+## the chunk is touched.
+var _chunk_buckets: Dictionary = {}
+## coord -> Dictionary(scatter idx -> trunk idx), so a felled entry can retire its own trunk
+## without rebuilding the chunk's trunk arrays.
+var _chunk_trunk_of: Dictionary = {}
 var _chunk_scatter: Dictionary = {}  ## coord -> Array (the scatter as built, for single-instance removal)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
 ## transform read-back is blind headless in this build)
@@ -356,6 +363,12 @@ func _report_cover_split(names: Array) -> void:
 
 ## How far this species draws. Ground cover stops at small_ring, bushes at bush_ring when he
 ## has dialled one in, everything else is canopy out to view_distance.
+## The bucket a plant of species `nm` at `origin` draws from: [species, cell x, cell z].
+func _bucket_key(nm: String, origin: Vector3) -> Array:
+	var cell: float = _bucket_for(nm)
+	return [nm, int(floor(origin.x / cell)), int(floor(origin.z / cell))]
+
+
 ## Cell size for a species' MultiMesh buckets - see CANOPY_BUCKET.
 func _bucket_for(nm: String) -> float:
 	for pre in SMALL_PREFIXES:
@@ -399,13 +412,18 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	var trunk_pos := PackedVector3Array()
 	var trunk_rad := PackedFloat32Array()
 	var trunk_hgt := PackedFloat32Array()
-	for e: Dictionary in scatter:
+	var trunk_of: Dictionary = {}
+	for si: int in scatter.size():
+		var e: Dictionary = scatter[si]
+		# A felled entry stays in the array at its index (stable identity for TreeBreakSystem's
+		# idx and for _chunk_trunk_of) and is simply not drawn.
+		if bool(e.get("dead", false)):
+			continue
 		var nm: String = String(e.get("name", ""))
 		if not _solid_mesh.has(nm):
 			continue
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		var cell: float = _bucket_for(nm)
-		var key: Array = [nm, int(floor(xf.origin.x / cell)), int(floor(xf.origin.z / cell))]
+		var key: Array = _bucket_key(nm, xf.origin)
 		if not groups.has(key):
 			groups[key] = []
 		(groups[key] as Array).append(xf)
@@ -415,6 +433,7 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		# trunk_r/trunk_h ride on the scatter entry; a plain plant falls back to the table.
 		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
 		if r > 0.0:
+			trunk_of[si] = trunk_pos.size()
 			trunk_pos.append(xf.origin)
 			trunk_rad.append(r)
 			trunk_hgt.append(float(e.get("trunk_h", TRUNK_HEIGHT)))
@@ -422,6 +441,7 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 	StallLedger.end()
 	StallLedger.begin("mmi.build")
 	var nodes: Array[Node] = []
+	var buckets: Dictionary = {}
 	for key: Array in groups:
 		var nm: String = key[0]
 		var xforms: Array = groups[key]
@@ -441,12 +461,15 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		# (Godot uniquifies duplicates). The live toggle re-reads it.
 		mmi_node.set_meta("species", nm)
 		nodes.append(mmi_node)
+		buckets[key] = {"node": mmi_node, "origin": centroid}
 	StallLedger.end()
 	StallLedger.begin("mmi.addchild")
 	for node: Node in nodes:
 		add_child(node)
 	StallLedger.end()
 	_chunk_nodes[coord] = nodes
+	_chunk_buckets[coord] = buckets
+	_chunk_trunk_of[coord] = trunk_of
 	chunk_origins[coord] = origins
 	if trunk_pos.size() > 0:
 		var bounds := Rect2(Vector2(trunk_pos[0].x, trunk_pos[0].z), Vector2.ZERO)
@@ -482,6 +505,8 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 func clear_chunk(coord: Vector2i) -> void:
 	chunk_origins.erase(coord)
 	_chunk_trunks.erase(coord)
+	_chunk_buckets.erase(coord)
+	_chunk_trunk_of.erase(coord)
 	_chunk_scatter.erase(coord)
 	TreeBreakSystem.unregister_chunk(self, coord)
 	_release_chunk(coord)
@@ -502,51 +527,94 @@ func _exit_tree() -> void:
 	TreeBreakSystem.unregister_layer(self)
 
 
-## Drop specific instances (a promoted tree's standing original) and rebuild the chunk
-## from its stored scatter. TreeBreakSystem is the only caller.
-## THE STORED SCATTER IS UPDATED NOW; THE MULTIMESH IS REBUILT LATER.
+## A FELLED TREE COSTS ITS OWN BUCKET, NOT ITS CHUNK (perf audit 2026-09-10, item 3 of the
+## plan: "make vegetation/destruction updates local and bounded").
 ##
-## This used to call generate_for_chunk immediately, which is a FULL MultiMesh rebuild of a
-## 256m chunk - measured 14-32 ms, and treebreak.consume at 55.4 ms in the 45-man assault is
-## two of them back to back. One blast fells up to twelve trees and a CBU beat queues hundreds,
-## so the pile-up is real and its own comment (tree_break_system._process) asked for exactly
-## this once the assault frame had been measured. It has been.
+## This used to compact the chunk's scatter and mark it dirty, and the flush rebuilt the WHOLE
+## chunk: every bucket freed and re-instanced, the trunk arrays re-derived, TreeBreakSystem
+## re-registered - mmi.group + mmi.register + mmi.ring + mmi.build, ~40 ms in one frame for one
+## tree, ~65 times across the siege. Now the entry is marked dead IN PLACE (its index stays
+## valid for the break registry's `idx` and for _chunk_trunk_of), its trunk is retired by
+## zeroing its radius, and only the MultiMesh bucket it drew from is rebuilt from the bucket's
+## survivors - one buffer write. Nothing else in the chunk is touched. The vegetation manager
+## already files a break hole for the same tree, so a later FULL rebuild of the chunk from its
+## cache omits it there too.
 ##
-## THE INVALIDATION, and why deferring is safe here: the entry is marked dead in the registry,
-## pulled from _chunks, pulled from _chunk_scatter BEFORE this returns, and a break hole is
-## filed with the VegetationManager. So every OTHER path that could rebuild this chunk in the
-## window - a crater, a veg clear - reads a scatter the felled tree is already absent from.
-## What is deferred is only the redraw, and BrokenTree spawning is itself queued at
-## BREAKS_PER_FRAME, so the standing trunk and its broken replacement stay in step.
+## chunk_origins is left as built: it is probe truth for placed origins, not a live list.
 func remove_scatter_entries(coord: Vector2i, indices: Array) -> void:
 	if not _chunk_scatter.has(coord):
 		return
-	# Dictionary, not Array.has: this ran a linear scan per entry against the doomed list,
-	# which is O(entries x felled) over a chunk holding thousands of plants.
-	var drop: Dictionary = {}
-	for i in indices:
-		drop[int(i)] = true
-	var old: Array = _chunk_scatter[coord]
-	var kept: Array = []
-	for i in old.size():
-		if not drop.has(i):
-			kept.append(old[i])
-	_chunk_scatter[coord] = kept
-	if not _regen_dirty.has(coord):
-		_regen_dirty.append(coord)
+	StallLedger.begin("veg.partial_regen")
+	var scatter: Array = _chunk_scatter[coord]
+	var trunk_of: Dictionary = _chunk_trunk_of.get(coord, {})
+	var trunks: Dictionary = _chunk_trunks.get(coord, {})
+	var assigned: Dictionary = _chunk_bodies.get(coord, {})
+	var keys: Dictionary = {}
+	for i_any in indices:
+		var i: int = int(i_any)
+		if i < 0 or i >= scatter.size():
+			continue
+		var e: Dictionary = scatter[i]
+		if bool(e.get("dead", false)):
+			continue
+		e["dead"] = true
+		var nm: String = String(e.get("name", ""))
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		keys[_bucket_key(nm, xf.origin)] = true
+		if trunk_of.has(i) and not trunks.is_empty():
+			var t: int = int(trunk_of[i])
+			# Read out, write, store back: a PackedFloat32Array is a VALUE, so indexing through
+			# `as` would retire a copy and leave the real radius standing (the exact slip that
+			# emptied the trunk index earlier today).
+			var radii: PackedFloat32Array = trunks["radii"]
+			radii[t] = 0.0   # retired: the ring skips r <= 0
+			trunks["radii"] = radii
+			if assigned.has(t):
+				_park_body(assigned[t])
+				assigned.erase(t)
+	for key_any in keys.keys():
+		_rebuild_bucket(coord, key_any as Array)
+	StallLedger.end()
 
 
-## Chunks whose stored scatter has changed and whose MultiMesh has not caught up yet.
-var _regen_dirty: Array[Vector2i] = []
-## One chunk per frame. A rebuild is 14-32 ms; two in a frame is the stall this exists to stop.
-const REGEN_PER_FRAME: int = 1
-
-func _flush_regen() -> void:
-	var n: int = mini(REGEN_PER_FRAME, _regen_dirty.size())
-	for _i in n:
-		var coord: Vector2i = _regen_dirty.pop_front()
-		if _chunk_scatter.has(coord):
-			generate_for_chunk(coord, _chunk_scatter[coord])
+## Rebuild ONE bucket's MultiMesh from the chunk's live entries that fall in it. The node's
+## origin is the centroid it was built with, so the locals below are relative to that - the
+## node does not move, its AABB only ever shrinks.
+func _rebuild_bucket(coord: Vector2i, key: Array) -> void:
+	var buckets: Dictionary = _chunk_buckets.get(coord, {})
+	if not buckets.has(key):
+		return
+	var rec: Dictionary = buckets[key]
+	var mmi: MultiMeshInstance3D = rec["node"] as MultiMeshInstance3D
+	if mmi == null or not is_instance_valid(mmi):
+		buckets.erase(key)
+		return
+	var origin: Vector3 = rec["origin"]
+	var nm: String = String(key[0])
+	var locals: Array = []
+	for e: Dictionary in _chunk_scatter[coord]:
+		if bool(e.get("dead", false)) or String(e.get("name", "")) != nm:
+			continue
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		if _bucket_key(nm, xf.origin) != key:
+			continue
+		locals.append(Transform3D(xf.basis, xf.origin - origin))
+	if locals.is_empty():
+		buckets.erase(key)
+		(_chunk_nodes[coord] as Array).erase(mmi)
+		mmi.queue_free()
+		return
+	var mm: MultiMesh = mmi.multimesh
+	mm.instance_count = locals.size()
+	var buf := PackedFloat32Array()
+	buf.resize(locals.size() * 12)
+	for i in locals.size():
+		var xf: Transform3D = locals[i]
+		var b: int = i * 12
+		buf[b] = xf.basis.x.x; buf[b + 1] = xf.basis.y.x; buf[b + 2] = xf.basis.z.x; buf[b + 3] = xf.origin.x
+		buf[b + 4] = xf.basis.x.y; buf[b + 5] = xf.basis.y.y; buf[b + 6] = xf.basis.z.y; buf[b + 7] = xf.origin.y
+		buf[b + 8] = xf.basis.x.z; buf[b + 9] = xf.basis.y.z; buf[b + 10] = xf.basis.z.z; buf[b + 11] = xf.origin.z
+	mm.buffer = buf
 
 
 ## Assigned pool bodies right now (cover exists inside the ring). For the probe.
@@ -555,10 +623,6 @@ func collider_count() -> int:
 
 
 func _physics_process(delta: float) -> void:
-	if not _regen_dirty.is_empty():
-		StallLedger.begin("veg.regen_flush")
-		_flush_regen()
-		StallLedger.end()
 	_ring_elapsed += delta
 	var center: Vector3 = _resolve_center()
 	var moved: bool = center != _last_center and (
@@ -627,12 +691,13 @@ func _update_ring(center: Vector3) -> void:
 		# re-tested and parked if it left the ring and every zone. Then the candidates: only
 		# the trunks in index cells the ring (or a zone) can reach are looked at. Same
 		# decisions as the old single pass over every trunk; a fraction of the work.
+		var radii: PackedFloat32Array = data["radii"]
 		var stale: Array = []
 		for i_any in assigned.keys():
 			var i: int = int(i_any)
 			var p: Vector3 = positions[i]
 			var d2: float = (Vector2(p.x, p.z) - c2).length_squared() if near_player else 1e18
-			if not (d2 <= r2 or (near_zone and _zone_wants(p))):
+			if radii[i] <= 0.0 or not (d2 <= r2 or (near_zone and _zone_wants(p))):
 				stale.append(i)
 		for i_any in stale:
 			_park_body(assigned[i_any])
@@ -658,7 +723,7 @@ func _update_ring(center: Vector3) -> void:
 			if not cell_in_ring and not cell_in_zone:
 				continue
 			for i: int in (cells[ck] as PackedInt32Array):
-				if assigned.has(i):
+				if assigned.has(i) or radii[i] <= 0.0:
 					continue
 				var p: Vector3 = positions[i]
 				var d2: float = (Vector2(p.x, p.z) - c2).length_squared() if near_player else 1e18

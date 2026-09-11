@@ -137,6 +137,7 @@ func _ready() -> void:
 		_tree_cover = TreeCoverLayerScript.new()
 		_tree_cover.name = "TreeCoverLayer"
 		_tree_cover.load_species(_all_species())
+		TreeBreakSystem.warm_parts(_tree_cover)
 		add_child(_tree_cover)
 	elif use_jungle_patches:
 		_patch_layer = JunglePatchLayerScript.new()

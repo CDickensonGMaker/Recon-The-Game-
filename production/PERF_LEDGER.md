@@ -3360,3 +3360,26 @@ commit's closing run (`stress_final`).
 close 70.5 / 15.0 / 82; this evening's pre-wave control 14.8 / 3.7 / 242). Gates green:
 `test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`, `test_destructible`,
 `probe_destructible_placement`, `test_sapper_assault`, `test_firebase_defense`, `test_demo_arc`.
+
+### 2026-09-11 — FIX WAVE, third pass: a felled tree costs its own bucket, not its chunk
+
+- **`tb.load_species` 96.9 ms worst → 0.** The first tree of each species to fall paid three GLB
+  extracts inside the frame the shell landed in. `TreeBreakSystem.warm_parts()` runs at world build,
+  beside the ruin warm-up.
+- **Felled-tree redraw is LOCAL now.** `remove_scatter_entries` used to compact the chunk's scatter
+  and flush a full `generate_for_chunk` (every bucket freed and re-instanced, trunks re-derived,
+  break registry re-registered: `mmi.group`+`register`+`build`+`ring`, ~40 ms in one frame per tree).
+  Now the entry is marked dead IN PLACE — its index stays valid for the break registry — its trunk
+  is retired by radius, and only the MultiMesh bucket it drew from is rebuilt from survivors as one
+  buffer write. **`veg.partial_regen` 38 calls, worst 4.4 ms.** The regen queue, its flush and
+  `REGEN_PER_FRAME` are deleted (fossil law). `chunk_origins` is left as built (probe truth).
+- **Second `PackedFloat32Array`-is-a-value slip caught on review**, same class as the morning's:
+  `(trunks["radii"] as PackedFloat32Array)[t] = 0.0` retires a copy. Read out, write, store back.
+- **Still rebuilding whole chunks: CRATERS.** `mmi.group` 854 ms / 112 calls in this run — every
+  mortar impact's heightmap edit re-queues the chunk's vegetation and `_rematerialize` rebuilds it
+  all. Next pass: the same partial machinery for a crater (kill the plants inside the hole, re-seat
+  Y for the rest of the edited rect, rebuild only the touched buckets).
+
+Gates green: `probe_napalm_stall`, `test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`,
+`test_destructible`, `test_sapper_assault`, `test_demo_arc`. Closing run: mean 83.1, floor 39.4,
+worst 71 ms (box noise band with the previous pass's 94.9 / 43.0 / 72).
