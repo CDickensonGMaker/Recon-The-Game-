@@ -127,6 +127,15 @@ var _chunk_buckets: Dictionary = {}
 ## coord -> Dictionary(scatter idx -> trunk idx), so a felled entry can retire its own trunk
 ## without rebuilding the chunk's trunk arrays.
 var _chunk_trunk_of: Dictionary = {}
+## coord -> the vegetation manager's 32 m cell index over the SAME scatter array this layer
+## holds (indices -> entries). The manager keeps it in step when it appends a settled log.
+## With it, a local update reads the cells a rect touches instead of the whole chunk.
+var _chunk_cells: Dictionary = {}
+## coord -> how many entries of the shared array this layer has already taken in. Anything
+## appended past it is a newcomer (a settled log's snag or lying trunk).
+var _chunk_known: Dictionary = {}
+## Cell size of that index - must match VegetationManager.CACHE_CELL_M.
+const CACHE_CELL_M: float = 32.0
 var _chunk_scatter: Dictionary = {}  ## coord -> Array (the scatter as built, for single-instance removal)
 ## coord -> PackedVector3Array of placed WORLD origins (probe truth; MultiMesh
 ## transform read-back is blind headless in this build)
@@ -398,11 +407,13 @@ func solid_mesh_for(species: String) -> Mesh:
 ## scatter: Array of {name: String, xf: Transform3D}. Builds, for this chunk:
 ##   - ONE MultiMesh per (species, 64 m bucket) drawing the real model 0..view_distance
 ##   - trunk collider CANDIDATES per COVER instance (bodied by the ring, not here)
-func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
+func generate_for_chunk(coord: Vector2i, scatter: Array, cache_cells: Dictionary = {}) -> void:
 	StallLedger.begin("mmi.clear")
 	clear_chunk(coord)
 	StallLedger.end()
 	_chunk_scatter[coord] = scatter
+	_chunk_cells[coord] = cache_cells
+	_chunk_known[coord] = scatter.size()
 	StallLedger.begin("mmi.register")
 	TreeBreakSystem.register_chunk(self, coord, scatter)
 	StallLedger.end()
@@ -508,6 +519,8 @@ func clear_chunk(coord: Vector2i) -> void:
 	_chunk_trunks.erase(coord)
 	_chunk_buckets.erase(coord)
 	_chunk_trunk_of.erase(coord)
+	_chunk_cells.erase(coord)
+	_chunk_known.erase(coord)
 	_chunk_scatter.erase(coord)
 	TreeBreakSystem.unregister_chunk(self, coord)
 	_release_chunk(coord)
@@ -596,11 +609,102 @@ func has_chunk(coord: Vector2i) -> bool:
 ##   MOVED   - live and standing inside `rect`: bucket rebuilt at the new Y, trunk re-seated,
 ##             body parked so the ring re-places it on the new ground.
 ## Nothing else in the chunk is freed, instanced, re-registered or re-derived.
-func update_chunk(coord: Vector2i, scatter_new: Array, rect: Rect2) -> void:
+func update_chunk(coord: Vector2i, scatter_new: Array, rect: Rect2, cache_cells: Dictionary = {}) -> void:
 	if not has_chunk(coord):
-		generate_for_chunk(coord, scatter_new)
+		generate_for_chunk(coord, scatter_new, cache_cells)
 		return
 	StallLedger.begin("veg.partial_update")
+	var old: Array = _chunk_scatter[coord]
+	if not cache_cells.is_empty():
+		_chunk_cells[coord] = cache_cells
+	var index: Dictionary = _chunk_cells.get(coord, {})
+	if not is_same(scatter_new, old) or index.is_empty():
+		_update_chunk_full(coord, scatter_new, rect)
+		StallLedger.end()
+		return
+	# THE FAST SHAPE (2026-09-11): the manager and this layer hold the SAME array now (the
+	# prune marks dead in place, a settled log appends), so nothing has to be diffed by uid.
+	# Newcomers are the tail past _chunk_known; removals are dead-since-drawn entries in the
+	# cells the blast could reach; moved plants are the live ones in the edited rect. Nothing
+	# outside those cells is read. The first version of this walked the chunk twice per
+	# update - 9,700 entries each - for a 20 m hole: veg.partial_update 970 ms over a siege.
+	var trunks: Dictionary = _chunk_trunks.get(coord, {})
+	var trunk_of: Dictionary = _chunk_trunk_of.get(coord, {})
+	if not _chunk_trunk_of.has(coord):
+		_chunk_trunk_of[coord] = trunk_of
+	var assigned: Dictionary = _chunk_bodies.get(coord, {})
+	var keys: Dictionary = {}
+	# ADDED - the tail.
+	var known: int = int(_chunk_known.get(coord, old.size()))
+	var added_pairs: Array = []
+	for idx in range(known, old.size()):
+		var e: Dictionary = old[idx]
+		if bool(e.get("dead", false)):
+			continue
+		var nm: String = String(e.get("name", ""))
+		if not _solid_mesh.has(nm):
+			continue
+		added_pairs.append([idx, e])
+		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+		keys[_bucket_key(nm, xf.origin)] = true
+		var r: float = float(e.get("trunk_r", COVER_TRUNK.get(nm, 0.0)))
+		if r > 0.0:
+			trunks = _add_trunk(coord, trunks, xf.origin, r, float(e.get("trunk_h", TRUNK_HEIGHT)))
+			trunk_of[idx] = (trunks["positions"] as PackedVector3Array).size() - 1
+	_chunk_known[coord] = old.size()
+	# REMOVED and MOVED - the cells the rect (grown for the footprint's feather) can reach.
+	var reach: Rect2 = rect.grow(10.0)
+	var moved_in: Rect2 = rect.grow(2.0)
+	var removed_idx: Array = []
+	var c0 := Vector2i(floori(reach.position.x / CACHE_CELL_M), floori(reach.position.y / CACHE_CELL_M))
+	var c1 := Vector2i(floori(reach.end.x / CACHE_CELL_M), floori(reach.end.y / CACHE_CELL_M))
+	for cx in range(c0.x, c1.x + 1):
+		for cz in range(c0.y, c1.y + 1):
+			var ck := Vector2i(cx, cz)
+			if not index.has(ck):
+				continue
+			for i: int in (index[ck] as PackedInt32Array):
+				if i >= known:
+					continue   # a newcomer, handled above
+				var e: Dictionary = old[i]
+				var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+				var nm: String = String(e.get("name", ""))
+				if bool(e.get("dead", false)):
+					if not bool(e.get("drawn", false)):
+						continue
+					removed_idx.append(i)
+					keys[_bucket_key(nm, xf.origin)] = true
+					if trunk_of.has(i) and not trunks.is_empty():
+						var t: int = int(trunk_of[i])
+						var radii: PackedFloat32Array = trunks["radii"]
+						radii[t] = 0.0
+						trunks["radii"] = radii
+						if assigned.has(t):
+							_park_body(assigned[t])
+							assigned.erase(t)
+					continue
+				if moved_in.has_point(Vector2(xf.origin.x, xf.origin.z)):
+					keys[_bucket_key(nm, xf.origin)] = true
+					if trunk_of.has(i) and not trunks.is_empty():
+						var t2: int = int(trunk_of[i])
+						var positions: PackedVector3Array = trunks["positions"]
+						positions[t2] = xf.origin
+						trunks["positions"] = positions
+						if assigned.has(t2):
+							_park_body(assigned[t2])
+							assigned.erase(t2)
+	_rebuild_buckets(coord, keys)
+	if not added_pairs.is_empty():
+		TreeBreakSystem.register_entries(self, coord, added_pairs)
+	if not removed_idx.is_empty():
+		TreeBreakSystem.unregister_entries(self, coord, removed_idx)
+	_ring_dirty = true
+	StallLedger.end()
+
+
+## The general diff, for a caller that hands over a DIFFERENT array than the one this layer
+## drew, or a chunk with no index. Every entry is visited; correct, and the slow shape.
+func _update_chunk_full(coord: Vector2i, scatter_new: Array, rect: Rect2) -> void:
 	var old: Array = _chunk_scatter[coord]
 	var trunks: Dictionary = _chunk_trunks.get(coord, {})
 	var trunk_of: Dictionary = _chunk_trunk_of.get(coord, {})
@@ -678,7 +782,6 @@ func update_chunk(coord: Vector2i, scatter_new: Array, rect: Rect2) -> void:
 	if not removed_idx.is_empty():
 		TreeBreakSystem.unregister_entries(self, coord, removed_idx)
 	_ring_dirty = true
-	StallLedger.end()
 
 
 ## Append one trunk to a chunk's collider arrays (creating them for a chunk that had none),
@@ -719,19 +822,45 @@ func _rebuild_buckets(coord: Vector2i, keys: Dictionary) -> void:
 	var members: Dictionary = {}
 	for key_any in keys.keys():
 		members[key_any] = []
-	for e: Dictionary in _chunk_scatter[coord]:
-		var nm: String = String(e.get("name", ""))
-		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
-		var key: Array = _bucket_key(nm, xf.origin)
-		if not members.has(key):
-			continue
-		if bool(e.get("dead", false)):
-			e.erase("drawn")
-			continue
-		(members[key] as Array).append(xf)
-		e["drawn"] = true
+	var scatter: Array = _chunk_scatter[coord]
+	var index: Dictionary = _chunk_cells.get(coord, {})
+	if index.is_empty():
+		for e: Dictionary in scatter:
+			_member_of(e, members)
+	else:
+		# Only the index cells under the touched buckets, each visited once.
+		var wanted: Dictionary = {}
+		for key_any in keys.keys():
+			var key: Array = key_any
+			var size: float = _bucket_for(String(key[0]))
+			var x0: float = float(key[1]) * size
+			var z0: float = float(key[2]) * size
+			var c0 := Vector2i(floori(x0 / CACHE_CELL_M), floori(z0 / CACHE_CELL_M))
+			var c1 := Vector2i(floori((x0 + size - 0.001) / CACHE_CELL_M), floori((z0 + size - 0.001) / CACHE_CELL_M))
+			for cx in range(c0.x, c1.x + 1):
+				for cz in range(c0.y, c1.y + 1):
+					wanted[Vector2i(cx, cz)] = true
+		for ck_any in wanted.keys():
+			if not index.has(ck_any):
+				continue
+			for i: int in (index[ck_any] as PackedInt32Array):
+				_member_of(scatter[i], members)
 	for key_any in keys.keys():
 		_rebuild_bucket(coord, key_any as Array, members[key_any] as Array)
+
+
+## Sort one entry into `members` if its bucket is being rebuilt; keeps the `drawn` mark honest.
+func _member_of(e: Dictionary, members: Dictionary) -> void:
+	var nm: String = String(e.get("name", ""))
+	var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
+	var key: Array = _bucket_key(nm, xf.origin)
+	if not members.has(key):
+		return
+	if bool(e.get("dead", false)):
+		e.erase("drawn")
+		return
+	(members[key] as Array).append(xf)
+	e["drawn"] = true
 
 
 ## Rebuild ONE bucket's MultiMesh from `members` (its live transforms) - or create the bucket

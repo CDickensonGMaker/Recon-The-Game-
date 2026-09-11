@@ -700,9 +700,10 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
 		# settled log adds two entries; neither is a reason to free and re-instance every
 		# bucket in a 256 m chunk. When the tree layer already draws this chunk and the caller
 		# named the ground that changed, it is handed the new list and diffs it by entry uid.
+		var cells: Dictionary = (_scatter_cache.get(chunk_coord, {}) as Dictionary).get("cells", {})
 		if partial.size != Vector2.ZERO and _tree_cover.has_chunk(chunk_coord):
 			StallLedger.begin("veg.tree_cover_partial")
-			_tree_cover.update_chunk(chunk_coord, scatter, partial)
+			_tree_cover.update_chunk(chunk_coord, scatter, partial, cells)
 			StallLedger.end()
 			return
 		StallLedger.begin("veg.tree_cover_mmi")
@@ -713,7 +714,7 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
 		# changed list is exactly the case the re-seat has to refuse. Measured with a success
 		# counter (not a span, which counts attempts): 0 successes in the crater bench.
 		clear_chunk_visuals(chunk_coord)
-		_tree_cover.generate_for_chunk(chunk_coord, scatter)
+		_tree_cover.generate_for_chunk(chunk_coord, scatter, cells)
 		StallLedger.end()
 	elif _patch_layer != null and _patch_layer.enabled and _chunk_terrain.has(chunk_coord):
 		clear_chunk_visuals(chunk_coord)

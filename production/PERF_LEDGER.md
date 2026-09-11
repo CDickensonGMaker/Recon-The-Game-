@@ -3441,3 +3441,24 @@ Gates green: `probe_crater_veg`, `probe_chunk_patch`, `probe_napalm_stall`, `tes
 (~9,700 samples for a 20 m hole). It now takes the edited rect and re-seats only the plants standing
 in it, found through the cache's cell index: **`veg.scatter_hit` 417 → 125 ms over the siege.**
 `probe_chunk_patch`'s summed-height equivalence (patched vs full rebuild) still holds exactly.
+
+### 2026-09-11 — FIX WAVE, seventh pass: the local update reads only the cells it touches
+
+The manager and the layer hold the SAME scatter array now (the prune marks dead in place, a
+settled log appends), so `update_chunk` no longer diffs by uid: newcomers are the tail past
+`_chunk_known`, removals are dead-since-drawn entries in the cells the blast could reach, moved
+plants are the live ones in the edited rect — all through the cache's 32 m cell index, which the
+manager hands the layer. `_rebuild_buckets` reads only the index cells under the touched buckets.
+The general uid diff is kept as `_update_chunk_full` for a caller that hands over a different array.
+**`veg.partial_update` 970 → 196 ms (worst 17.1 → 10.8); `veg.partial_regen` 252 → 96 ms (worst
+8.1 → 3.1).** One parse error on the way (a parameter named like a local) — caught by the gates,
+not the game. Gates green: `probe_chunk_patch`, `probe_crater_veg`, `probe_napalm_stall`,
+`test_tree_cover_lod`, `test_tree_cover_wired`, `test_trunk_ring`, `test_sapper_assault`,
+`test_demo_arc`.
+
+**Where the ledger stands after seven passes (headless siege, 150 s):** `ai.execute` 3.3 s /
+85k calls (0.04 ms each - steady per-man cost, worst 14 ms which is not in `ai.fire`/`ai.cover`
+and reads as `move_and_slide` against the compound), `ai.think` 1.1 s, the per-man spawn passes
+~1.9 s (all inside the pre-warm drip now), `nav.collect` 0.5 s sliced (worst 17 ms = one large
+shape per slice). **Every stall class over 20 ms that the ledger could name is gone.** What is
+left is steady per-man CPU and the GPU half, which only his window can measure.
