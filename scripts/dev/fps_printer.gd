@@ -216,6 +216,15 @@ func _process(delta: float) -> void:
 	## The LOD row rides with the frame row so the promoted count and the frame time it
 	## bought are never quoted from two different runs. `lod OFF` means --ai-lod-off:
 	## every man is near and this is the BEFORE side of the A/B.
+	var fd: Node = get_tree().get_first_node_in_group("mission_director")
+	if fd != null and "siege" in fd and fd.get("siege") != null:
+		var ws: Dictionary = (fd.get("siege") as SiegeDirector).wave_status()
+		if bool(ws.get("active", false)):
+			print("[WAVE] cap %d | materialized %d | marching %d | held %d | killed %d of %d | t+%.0fs | waves %s"
+				% [int(ws.cap), int(ws.materialized), int(ws.marching), int(ws.held),
+					int(ws.killed), int(ws.peak), float(ws.elapsed),
+					"ON" if SiegeDirector.waves_enabled() else "OFF"])
+			print("[WAVE]   %s" % (fd.get("siege") as SiegeDirector).survivors_status())
 	print("[AILOD] near %d (window peak %d, mean %.1f) of %d live enemies | hot slots %d/%d | lod %s"
 		% [AILod.promoted_count(), AILod.window_peak, AILod.window_mean(),
 			AgentRegistry.enemies.size(), EnemySquad.hot_count(), EnemySquad.HOT_CAP,

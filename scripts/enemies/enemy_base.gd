@@ -98,6 +98,17 @@ func _update_ai_lod(delta: float) -> void:
 	# reason the handoff is invisible.
 
 
+## Seconds a far man may sit at velocity ~0 with an unreached objective before he is promoted
+## to path around whatever is holding him.
+const FAR_PINNED_S: float = 2.5
+var _far_pinned_s: float = 0.0
+## Promoted for being pinned: he keeps the near brain until the objective is reached or
+## dropped. Without this the ordinary dwell rule demoted him ~2 s later, the far tier
+## walked him straight back into the same wall, and he pinned again - a 5 s cycle that
+## never covered a metre.
+var _pin_promoted: bool = false
+
+
 func _lod_decide(step: float) -> int:
 	if not AILod.is_enabled():
 		return AILod.Tier.NEAR
@@ -127,7 +138,30 @@ func _lod_decide(step: float) -> int:
 	if d <= AILod.PROMOTE_M or (d < AILod.STICKY_MAX_M and _lod_sticky()):
 		_lod_far_dwell = 0.0
 		return AILod.Tier.NEAR
+	# A PINNED FAR MAN IS A NEAR MAN (2026-09-11). The far tier steers straight at its objective
+	# by design and never asks the navmesh, so a wall between him and it holds him against
+	# it until dawn - measured: six pressed men, velocity 0.00, at the wire for four minutes
+	# with the fight 60 m away. He promotes to think his way round it and demotes again by
+	# the ordinary rule once he is moving and far. Bounded: only a man who is stuck, and
+	# stuck is rare in the open ground the far tier was written for.
+	if ai_tier == AILod.Tier.FAR and assault_objective != Vector3.ZERO \
+			and global_position.distance_to(assault_objective) > ASSAULT_ARRIVE_M:
+		if velocity.length_squared() < 0.04:
+			_far_pinned_s += step
+			if _far_pinned_s >= FAR_PINNED_S:
+				_far_pinned_s = 0.0
+				_lod_far_dwell = 0.0
+				_pin_promoted = true
+				return AILod.Tier.NEAR
+		else:
+			_far_pinned_s = 0.0
 	if ai_tier == AILod.Tier.NEAR:
+		if _pin_promoted:
+			if assault_objective != Vector3.ZERO \
+					and global_position.distance_to(assault_objective) > ASSAULT_ARRIVE_M:
+				_lod_far_dwell = 0.0
+				return AILod.Tier.NEAR
+			_pin_promoted = false
 		if d < AILod.DEMOTE_M:
 			_lod_far_dwell = 0.0
 			return AILod.Tier.NEAR   # inside the hysteresis band - keep what he has
@@ -203,8 +237,10 @@ const ASSAULT_ARRIVE_M: float = 8.0
 ## men running at the wire is the 2026-07-29 playtest bug.
 var siege_press: bool = false
 ## A demolition infiltrator never fires and never barks contact - the satchel is his
-## weapon. Silence is an invariant here, independent of the assault-move override, so
-## clearing the objective can never turn a "sapper" back into a live gun. Set from data.
+## weapon. Independent of the assault-move override, so clearing the objective can never
+## turn a "sapper" back into a live gun: only the SATCHEL ends it. SapperCharge lifts the
+## silence once the charge is set and he is clear of it (his ruling 2026-09-11 - "he needs
+## a gun and just joins the attack after placing a bomb"). Set from data.
 var silent_infiltrator: bool = false
 var has_line_of_sight: bool = false
 var target_visible_duration: float = 0.0
@@ -327,6 +363,13 @@ var _stuck_t: float = 0.0
 var _unstick_t: float = 0.0
 var _unstick_dir: float = 1.0
 var _unstick_flips: int = 0
+## The planar speed his legs were ASKED for this frame (_move_toward / _far_step), before
+## the slide. "Commanded to move" used to be read off `velocity` - but velocity is lerped
+## from last frame's POST-slide value, and a man pushing square into a wall has that eaten
+## to ~0 every frame, so he never read as wanting to move and the watchdog never fired for
+## the one case it exists for. Measured 2026-09-11: assault men at the parapet, velocity
+## 0.00, objective 48-178 m away, standing there until dawn.
+var _move_intent: float = 0.0
 
 func _update_unstick(delta: float) -> void:
 	if _unstick_t > 0.0:
@@ -337,7 +380,7 @@ func _update_unstick(delta: float) -> void:
 		return
 	_stuck_t += delta
 	if _stuck_t >= 1.0:
-		var wants_move: bool = Vector2(velocity.x, velocity.z).length() > 1.0
+		var wants_move: bool = _move_intent > 0.5
 		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
 			_unstick_t = 0.6
 			_unstick_dir = -_unstick_dir  # alternate sides so corners release
@@ -1088,6 +1131,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= gravity * capped_delta
 
 	_update_decay(capped_delta)
+	_move_intent = 0.0
 
 	_update_think_lod(capped_delta)
 	_update_ai_lod(capped_delta)
@@ -2063,6 +2107,21 @@ func _update_aim(delta: float) -> void:
 			_last_look_dir = fa
 
 
+## One line on why this man is or is not moving - read by the siege's dawn dump. Diagnostic.
+func legs_status() -> String:
+	var off: float = -1.0
+	var navfin: String = "-"
+	if _router != null:
+		var snapped: Vector3 = _router.nearest_mesh_point(global_position)
+		off = Vector2(snapped.x - global_position.x, snapped.z - global_position.z).length()
+		if _router.agent != null:
+			navfin = str(_router.agent.is_navigation_finished())
+	return "intent %.2f prone %s trans %s low %s supp %.2f crippled %s box %d off %.1f navfin %s unstick %d" % [
+		_move_intent, str(_prone), str(_in_prone_transition()), str(_low_posture),
+		suppression_level, str(is_crippled), _router.box if _router != null else -9, off, navfin,
+		_unstick_flips]
+
+
 ## Drive the satchel to the objective at a run, ignoring cover and contact. The
 ## behaviour node (sapper_charge.gd) owns the detonation; this owns only the legs.
 ##
@@ -2229,6 +2288,7 @@ func _far_step(dir: Vector3, delta: float, speed_mult: float) -> void:
 	if dir.length() > 0.1:
 		facing_dir = dir   # eyes follow movement, exactly as _move_toward does
 	var v: float = move_speed * speed_mult * _suppression_move_mult()
+	_move_intent = dir.length() * v
 	velocity.x = lerpf(velocity.x, dir.x * v, delta * 8.0)
 	velocity.z = lerpf(velocity.z, dir.z * v, delta * 8.0)
 
@@ -2606,6 +2666,7 @@ func _move_toward(pos: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 		direction = direction.normalized()
 		facing_dir = direction  # eyes follow movement (perception FOV)
 	var suppress_mult: float = _suppression_move_mult()
+	_move_intent = direction.length() * move_speed * speed_mult * suppress_mult
 	velocity.x = lerpf(velocity.x, direction.x * move_speed * speed_mult * suppress_mult, delta * 8.0)
 	velocity.z = lerpf(velocity.z, direction.z * move_speed * speed_mult * suppress_mult, delta * 8.0)
 

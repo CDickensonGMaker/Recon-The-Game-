@@ -34,6 +34,44 @@ const BREAK_BASE_RATIO: float = 0.575
 ## trickles in and never reads as the mass attack the roll describes.
 const LIVE_CAP: int = 50
 
+## ---------- THE WAVES (his ruling 2026-09-11) ----------
+## "what if we tried smaller waves for the assault? so its like a ramping up of intensity
+## because even in hell let loose you see like 5 guys at once and it feels like you're gonna
+## be over run."
+##
+## The roll is unchanged - a 45-man night still fields 45 men - but they arrive as a TIDE,
+## not a wall. The cap on MATERIALIZED men starts at WAVE_CAP_START the moment the probe
+## becomes the assault and climbs linearly to WAVE_CAP_END over WAVE_RAMP_S; the dead on
+## the wire buy the held cells their room in between, exactly as _thaw_held_cells already
+## worked. So the first minute is eight men you can beat, the third minute is a wave you
+## cannot, and the whole force has still come by the time the ramp tops out. LIVE_CAP above
+## stays the hard ceiling nothing may exceed.
+##
+## Sappers are held for the first SAPPER_HOLD_S: wave one is riflemen at the wire, the
+## demolition party comes in behind them with the pressure already on. Probes are exempt -
+## eleven men holding off in the dark is already the small wave.
+##
+## The cost side is the same lever: what the laptop pays for is men who are near, animated
+## and shooting at once, not men on the roster. A wave shape that keeps the expensive tier
+## at a dozen is the pre-warm and the AI LOD doing what they were built for.
+##
+## `--siege-waves-off` restores the flat LIVE_CAP for a one-flag A/B.
+## MEASURED, first cut (2026-09-11, headless, no player): END 26 over 240 s DEADLOCKED. The cap
+## counts every materialized man - the base of fire at its 90 m standoff and the sappers who
+## already went through - so at 27 present against a ceiling of 26 the last eight riflemen were
+## never released, the garrison ran out of men who would close, and the night ran to dawn at
+## 10 of 45 down. The flat cap broke the assault at 125 s with 23 down. The ramp therefore
+## PACES ARRIVAL and nothing else: it climbs to the full LIVE_CAP, so by WAVE_RAMP_S every
+## cell the roll fielded is allowed in, and the fight resolves the way the roll intended.
+const WAVE_CAP_START: int = 8
+const WAVE_CAP_END: int = LIVE_CAP
+const WAVE_RAMP_S: float = 180.0
+const SAPPER_HOLD_S: float = 40.0
+static var _waves_off: int = -1
+## The clock the ramp runs on: set when the ASSAULT opens (open_siege past the probe size, or
+## the reinforce that turns a probe into one), never by the probe.
+var _wave_t0: float = -1.0
+
 ## A siege is decided inside the night (600 real seconds, sim_clock.gd:17) and must
 ## be triggered early enough in NIGHT that this fits before dawn.
 const MAX_DURATION_S: float = 480.0
@@ -269,6 +307,7 @@ func open_siege(forced_strength: int = 0) -> void:
 	nights_run += 1
 	is_probe = run_strength <= PROBE_MAX
 	_elapsed = 0.0
+	_wave_t0 = -1.0 if is_probe else 0.0
 	_mortar_timer = _rng.randf_range(MORTAR_FIRST_MIN_S, MORTAR_FIRST_MAX_S)
 	_press_clock = 0.0
 	_press_phase = 0
@@ -306,6 +345,7 @@ func reinforce(extra: int) -> void:
 		# schedule a probe was keeping.
 		_illum_timer = ILLUM_FIRST_S
 		_press_clock = PRESS_CYCLE_S
+		_wave_t0 = _elapsed
 	# THE REINFORCEMENT SPLITS TOO. This used to spawn one undifferentiated body under the
 	# single "siege_assault" tag - and it is the path the demo actually takes to reach full
 	# strength, so the squad split would have existed everywhere except where it is watched.
@@ -412,6 +452,9 @@ const BREACH_SCAN_S: float = 1.5
 ## How far INSIDE the wire the re-aim lands - through the hole, into the
 ## compound, so the press continues rather than parking men in the gap.
 const BREACH_INSIDE_M: float = 12.0
+## A squad re-aims through a hole only when the hole is this close to where the squad
+## stands - its own face of the wire, not a gap around the far side.
+const BREACH_REAIM_M: float = 70.0
 var _breach_scan_t: float = 0.0
 var _dead_segs: Dictionary = {}
 
@@ -457,6 +500,15 @@ func _redirect_through_breach(hole: Vector3) -> void:
 		if absf(angle_difference(cell_bearing, hole_bearing)) \
 				>= absf(angle_difference(cell_bearing, gate_bearing)):
 			continue
+		# ON THIS CELL'S OWN FACE, or not at all (2026-09-11). "Nearer the hole than the gate"
+		# was measured by BEARING alone, so a hole a quarter of the compass away out-scored a
+		# gate half a compass away and the squad was sent through it - an objective 177 m off,
+		# with the compound in between. A far-tier man steers straight (that is the far tier's
+		# whole design) and the parapet stopped him dead; the per-man dump on a night that ran
+		# to dawn read six of them pressed, velocity 0.00, 60 m from the centre with an
+		# objective 177 m away. A hole is a way in for the men standing in front of it.
+		if Vector2(hole.x - cell.global_position.x, hole.z - cell.global_position.z).length() > BREACH_REAIM_M:
+			continue
 		cell.objective = inside
 		for m in cell.men:
 			if m != null and is_instance_valid(m) and not m.is_dead():
@@ -497,6 +549,7 @@ func _run_siege(step: float) -> void:
 	_light_check()
 	_enforce_live_cap()
 	_rotate_press(step)
+	_reaim_stalled(step)
 	_scan_breaches(step)
 	_check_overrun()
 	if _elapsed >= MAX_DURATION_S:
@@ -548,11 +601,85 @@ func _light_check() -> void:
 	for c in cells:
 		if is_instance_valid(c) and c.materialized:
 			live += c.live_strength()
+	var cap: int = wave_cap()
 	for c in cells:
-		if live >= LIVE_CAP:
+		if live >= cap:
 			return
 		if is_instance_valid(c) and not c.materialized and c.materialize_if_lit():
 			live += c.live_strength()
+
+
+static func waves_enabled() -> bool:
+	if _waves_off < 0:
+		_waves_off = 1 if OS.get_cmdline_user_args().has("--siege-waves-off") else 0
+	return _waves_off == 0
+
+
+## How many men may be materialized right now. The flat LIVE_CAP for a probe, for the A/B
+## flag, and before the assault has opened; the ramp otherwise.
+func wave_cap() -> int:
+	if is_probe or not waves_enabled() or _wave_t0 < 0.0:
+		return LIVE_CAP
+	var t: float = clampf((_elapsed - _wave_t0) / WAVE_RAMP_S, 0.0, 1.0)
+	return mini(LIVE_CAP, int(round(lerpf(float(WAVE_CAP_START), float(WAVE_CAP_END), t))))
+
+
+## For the printer's [WAVE] row and the outcome probe.
+func wave_status() -> Dictionary:
+	var mat: int = 0
+	var held: int = 0
+	var marching: int = 0
+	for c in cells:
+		if not is_instance_valid(c):
+			continue
+		if c.materialized:
+			mat += c.live_strength()
+		elif c.is_physics_processing():
+			marching += c.strength
+		else:
+			held += c.strength
+	return {"cap": wave_cap(), "materialized": mat, "held": held, "marching": marching,
+		"killed": killed_count(), "peak": run_peak, "elapsed": _elapsed, "active": active}
+
+
+## WHAT THE LIVING ATTACKERS ARE DOING, for the printer. Added 2026-09-11 when the paced
+## assault ran to dawn with 27 men alive and 18 dead - one short of the break - and nothing in
+## the log could say whether they were queued at the wire, stalled in the dark out of the
+## garrison's 56 m night sight, or standing at a base-of-fire post nobody was shooting at.
+## Distance bands are from the compound centre; the wire runs 48-100 m out.
+func survivors_status() -> String:
+	var states: Dictionary = {}
+	var tiers: Dictionary = {"RELAXED": 0, "SUSPICIOUS": 0, "ALERT": 0, "COMBAT": 0}
+	var bands: Dictionary = {"<60": 0, "60-100": 0, "100-150": 0, "150+": 0}
+	var pressed: int = 0
+	var near: int = 0
+	var n: int = 0
+	var obj_d: float = 0.0
+	for c in cells:
+		if not is_instance_valid(c) or not c.materialized:
+			continue
+		for m in c.men:
+			if not is_instance_valid(m) or m.is_dead():
+				continue
+			n += 1
+			var st: String = Enums.AIState.keys()[int(m.current_state)]
+			states[st] = int(states.get(st, 0)) + 1
+			var tk: String = EnemyBase.AlertTier.keys()[int(m.alert_tier)]
+			tiers[tk] = int(tiers.get(tk, 0)) + 1
+			var d: float = Vector2(m.global_position.x - fsb_center.x,
+				m.global_position.z - fsb_center.z).length()
+			var band: String = "<60" if d < 60.0 else ("60-100" if d < 100.0 else ("100-150" if d < 150.0 else "150+"))
+			bands[band] = int(bands.get(band, 0)) + 1
+			if m.siege_press:
+				pressed += 1
+			if m.ai_tier == AILod.Tier.NEAR:
+				near += 1
+			if m.assault_objective != Vector3.ZERO:
+				obj_d += m.global_position.distance_to(m.assault_objective)
+	if n == 0:
+		return "no living attackers"
+	return "%d alive: states %s | tiers %s | from centre %s | pressed %d | near-tier %d | mean dist to own objective %.0f m" % [
+		n, str(states), str(tiers), str(bands), pressed, near, obj_d / float(n)]
 
 
 ## The cells defer the spike; this bounds it. A deferred cell is logged, never
@@ -571,37 +698,55 @@ func _light_check() -> void:
 const THAW_HEADROOM: int = 6
 
 func _enforce_live_cap() -> void:
+	var cap: int = wave_cap()
 	var materialized_men: int = 0
 	for c in cells:
 		if is_instance_valid(c) and c.materialized:
 			materialized_men += c.live_strength()
-	if materialized_men < LIVE_CAP:
-		if materialized_men <= LIVE_CAP - THAW_HEADROOM:
+	if materialized_men < cap:
+		# Headroom scales with the cap: a 6-man margin against an 8-man wave would never
+		# release anything until the wave was all but dead.
+		var headroom: int = mini(THAW_HEADROOM, maxi(2, cap / 4))
+		if materialized_men <= cap - headroom:
 			_thaw_held_cells(materialized_men)
 		return
 	for c in cells:
 		if is_instance_valid(c) and not c.materialized and c.is_physics_processing():
 			c.set_physics_process(false)
 			print("[Siege] cell of %d held at the ring - live cap %d reached"
-				% [c.strength, LIVE_CAP])
+				% [c.strength, cap])
 
 
 ## The dead on the wire are what buy the held cells their room. Released one at a time
 ## and only while its own strength still fits, so a 12-man cell cannot resume into 4
 ## slots and re-breach the cap the moment it arrives.
 func _thaw_held_cells(materialized_men: int) -> void:
-	var room: int = LIVE_CAP - materialized_men
+	var cap: int = wave_cap()
+	var room: int = cap - materialized_men
+	# Riflemen first, sappers behind them - and never a sapper cell inside SAPPER_HOLD_S of
+	# the assault opening. Build order put the demolition party at the head of `cells`.
+	var hold_sappers: bool = waves_enabled() and not is_probe and _wave_t0 >= 0.0 \
+		and (_elapsed - _wave_t0) < SAPPER_HOLD_S
+	var order: Array = []
 	for c in cells:
+		if is_instance_valid(c) and not c.carries_charge:
+			order.append(c)
+	if not hold_sappers:
+		for c in cells:
+			if is_instance_valid(c) and c.carries_charge:
+				order.append(c)
+	for c_any in order:
+		var c: MarchingCell = c_any
 		if room <= 0:
 			return
-		if not is_instance_valid(c) or c.materialized or c.is_physics_processing():
+		if c.materialized or c.is_physics_processing():
 			continue
 		if c.strength > room:
 			continue
 		c.set_physics_process(true)
 		room -= c.strength
 		print("[Siege] cell of %d released from the ring - %d live of cap %d"
-			% [c.strength, materialized_men, LIVE_CAP])
+			% [c.strength, materialized_men, cap])
 
 
 ## ---------- LIGHTING THE WIRE ----------
@@ -664,6 +809,64 @@ func _rotate_press(step: float) -> void:
 	if pressed > 0 and _press_phase % 4 == 1:
 		print("[Siege] press wave %d: %s rushing, %d of %d men crossing" % [
 			_press_phase, moving, pressed, total])
+
+
+## ---------- THE PRESS DOES NOT LET GO ----------
+## FOUND 2026-09-11 by pacing the assault (WAVE_CAP_*): every paced night ran to dawn with
+## 25-31 men alive and the kill count flat for four minutes. survivors_status() said what
+## they were doing - ALL of them ALERT with no target, 60-150 m from the compound centre and
+## ~7 m from their own objective. A man sent at the wire ARRIVES (assault_objective clears,
+## enemy_base._execute), sees nobody through the dark (the garrison's night sight is 56 m
+## and he is standing further out than that), and waits there as an ordinary ALERT enemy
+## for a contact that never comes. The flood hid it: 45 men lose 42.5% in the first rush and
+## the break fires before anyone has time to stand still.
+##
+## A besieger with no target and nothing to walk to is sent at the compound again - the
+## same bench aim inside the wire, UNDRIVEN, so contact still hands his legs back to the
+## combat brain the moment he sees someone. Sappers keep their own contract; the base of
+## fire keeps its post. This is not a wave rule - it ships with the flat cap too, because
+## a flat cap that happened to break early was the only thing hiding it.
+const REAIM_IDLE_S: float = 6.0
+var _reaim_t: float = 0.0
+
+
+func _reaim_stalled(step: float) -> void:
+	if is_probe:
+		return
+	_reaim_t += step
+	if _reaim_t < REAIM_IDLE_S:
+		return
+	_reaim_t = 0.0
+	var sent: int = 0
+	for c in cells:
+		if not is_instance_valid(c) or not c.materialized:
+			continue
+		# The base of fire is where it is on purpose.
+		if c.group_tag.ends_with("_%d" % SUPPORT_SQUAD):
+			continue
+		for m in c.men:
+			if not is_instance_valid(m) or m.is_dead():
+				continue
+			if m.assault_objective != Vector3.ZERO or m.target != null:
+				continue
+			# A sapper keeps his own contract while the satchel is live; spent, he is a
+			# rifleman like any other (SapperCharge.spent).
+			if c.carries_charge and not _sapper_spent(m):
+				continue
+			if m.current_state != Enums.AIState.IDLE and m.current_state != Enums.AIState.ALERT:
+				continue
+			m.assault_objective = objective
+			m.assault_driven = false
+			sent += 1
+	if sent > 0:
+		print("[Siege] press: %d stalled attacker(s) sent back at the wire" % sent)
+
+
+func _sapper_spent(m: EnemyBase) -> bool:
+	for ch in m.get_children():
+		if ch is SapperCharge and not (ch as SapperCharge).spent():
+			return false
+	return true
 
 
 ## ---------- INSIDE THE WIRE ----------
@@ -901,6 +1104,24 @@ func _break_siege(reason: String) -> void:
 	active = false
 	var killed: int = killed_count()
 	var survivors: int = live_strength()
+	print("[Siege] ended (%s) at t+%.0fs, %d of %d down - %s" % [reason, _elapsed, killed, run_peak, survivors_status()])
+	# Per-man detail on a night that ran to dawn: the histogram says WHAT the survivors are,
+	# this says WHO, so a stall can be read man by man.
+	if reason == "dawn":
+		for c in cells:
+			if not is_instance_valid(c) or not c.materialized:
+				continue
+			for m in c.men:
+				if not is_instance_valid(m) or m.is_dead():
+					continue
+				var d_obj: float = m.global_position.distance_to(m.assault_objective) if m.assault_objective != Vector3.ZERO else -1.0
+				print("[Siege]   %-18s tier %s state %-13s alert %-10s obj %6.1f m driven %s press %s vel %.2f floor %s hp %d pos (%.0f,%.0f,%.0f) fsb-d %.0f | %s" % [
+					c.group_tag, "NEAR" if m.ai_tier == AILod.Tier.NEAR else "FAR",
+					Enums.AIState.keys()[int(m.current_state)], EnemyBase.AlertTier.keys()[int(m.alert_tier)],
+					d_obj, str(m.assault_driven), str(m.siege_press), m.velocity.length(), str(m.is_on_floor()),
+					m.current_hp, m.global_position.x, m.global_position.y, m.global_position.z,
+					Vector2(m.global_position.x - fsb_center.x, m.global_position.z - fsb_center.z).length(),
+					m.legs_status()])
 	var rally: Vector3 = fsb_center + Vector3(cos(sector_bearing), 0.0,
 		sin(sector_bearing)) * rally_m
 	for c in cells:

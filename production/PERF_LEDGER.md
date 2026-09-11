@@ -3462,3 +3462,25 @@ and reads as `move_and_slide` against the compound), `ai.think` 1.1 s, the per-m
 ~1.9 s (all inside the pre-warm drip now), `nav.collect` 0.5 s sliced (worst 17 ms = one large
 shape per slice). **Every stall class over 20 ms that the ledger could name is gone.** What is
 left is steady per-man CPU and the GPU half, which only his window can measure.
+
+### 2026-09-11 — THE WAVES: the assault is a tide, and the night could not end
+
+His ask: smaller waves, ramping up, "five guys at once and it feels like you're gonna be over run."
+Built as a moving cap on MATERIALIZED men (`SiegeDirector.wave_cap`: 8 at the assault's opening,
+linear to the full LIVE_CAP 50 over 180 s; sappers held 40 s; probes exempt; `--siege-waves-off`
+is the A/B). Paired, back to back, same seed, garrison only (`wp_on2`/`wp_off2`): **near-tier peak
+19 vs 38; fps during the assault 25–101 (most windows 50–90) vs 13.6–30.6; 1% low 10–29 vs 10–13.**
+Worst frame unchanged (41–97 vs 76–98 ms) — the stall classes are gone, what is left is per-man.
+
+**The find:** every paced night ran to dawn. The flood had been hiding a siege that cannot end:
+spent sappers stood 26 m out at full health forever (`_withdraw` never released their legs), the
+stuck watchdog read velocity the slide had already eaten and never fired for a wall, a pinned far
+man promoted then demoted straight back into the same wall, a bearing-only breach re-aim sent
+squads through a hole on the far side, and a man who reached his objective with no target stood
+ALERT until dawn. All five fixed; his ruling on the sapper: **"he needs a gun and just joins the
+attack after placing a bomb"** — shipped (the PPSh was in his data all along, only the silence
+flag muted him). Paced night now breaks at t+139 s / 22 down; flood at t+71 s / 23 down.
+Council record: `production/war_room/2026-09-11_siege_waves/`. Feel numbers (8 / 180 s / 40 s)
+are his to rule. `AILod.mean_near` deleted (born dead); fossil gate green at 28.
+Gates: `probe_ai_lod` 13/13, `test_sapper_assault`, `test_siege`, `test_fossils`,
+`test_firebase_defense`, `test_demo_arc`.

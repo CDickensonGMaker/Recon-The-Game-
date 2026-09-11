@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "vc_sapper"
 display_name = "VC Sapper"
-description = "Demolition infiltrator. Creeps the wire in the dark with a satchel charge; does not fire - his job is the breach, not the firefight."
+description = "Demolition infiltrator. Creeps the wire in the dark with a satchel charge; fires only once the satchel is set - then he joins the assault with his gun."
 max_hp = 55
 move_speed = 4.4
 preferred_range = 6.0

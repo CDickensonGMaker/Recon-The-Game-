@@ -66,9 +66,6 @@ static var _near: Dictionary = {}
 ## The high-water mark for the run. THIS is the number that decides whether the design
 ## works, and it is measured, never assumed (the Summoner's standing ask, 2026-09-09).
 static var peak_near: int = 0
-## Sum/count for a mean across the run, so one spike cannot masquerade as the norm.
-static var _census_sum: int = 0
-static var _census_n: int = 0
 
 ## A/B switch. `--ai-lod-off` restores the pre-LOD behaviour - every man NEAR - so the
 ## before and the after come out of ONE build and cannot be two different games.
@@ -136,8 +133,6 @@ static func census() -> int:
 	var n: int = promoted_count()
 	peak_near = maxi(peak_near, n)
 	window_peak = maxi(window_peak, n)
-	_census_sum += n
-	_census_n += 1
 	_window_sum += n
 	_window_n += 1
 	return n
@@ -153,13 +148,7 @@ static func flush_window() -> void:
 	_window_n = 0
 
 
-static func mean_near() -> float:
-	return float(_census_sum) / float(maxi(1, _census_n))
-
-
 static func reset() -> void:
 	_near.clear()
 	peak_near = 0
-	_census_sum = 0
-	_census_n = 0
 	flush_window()

@@ -34,6 +34,18 @@ const WITHDRAW_M: float = 26.0
 
 var target_pos: Vector3 = Vector3.ZERO
 var _armed: bool = false
+## Set and run, then JOIN THE ATTACK (his ruling 2026-09-11: "he needs a gun and just joins
+## the attack after placing a bomb"). The withdrawal used to leave assault_driven up for the
+## rest of the night: he reached the point 26 m out and stood on it, driven, at full health
+## until dawn - six of them on every paced night. Now the run out is only to clear his own
+## fuse; at the withdraw point he is a rifleman aimed at the compound with the PPSh he
+## already carries (data/enemies/*_sapper.tres weapon_path), silence lifted.
+var _withdrawing: bool = false
+
+
+## True once the charge is placed and he is clear of it - nothing left here to protect.
+func spent() -> bool:
+	return not _armed and not _withdrawing
 
 
 ## ZERO is "no objective": an unset satchel must never arm, or it detonates at
@@ -171,6 +183,8 @@ func _begin_planting(enemy: EnemyBase) -> void:
 
 func _physics_process(_delta: float) -> void:
 	if not _armed:
+		if _withdrawing:
+			_tick_withdraw()
 		return
 	var enemy := get_parent() as EnemyBase
 	if enemy == null or enemy.is_dead():
@@ -216,7 +230,6 @@ func _detonate(enemy: EnemyBase) -> void:
 		SATCHEL_PLATEAU, SATCHEL_FALLOFF)
 	_release()
 	_withdraw(enemy, at)
-	set_physics_process(false)
 
 
 ## Turn him around and send him out past the blast. He is NOT made safe - the fuse is a race
@@ -234,3 +247,22 @@ func _withdraw(enemy: EnemyBase, from: Vector3) -> void:
 	# assault_driven stays TRUE so the withdrawal outranks the fight the same way the
 	# approach did - a man running from his own satchel does not stop to trade shots.
 	enemy.assault_driven = true
+	_withdrawing = true
+	set_physics_process(true)
+
+
+## Clear of the blast: his legs are his own again.
+func _tick_withdraw() -> void:
+	var enemy := get_parent() as EnemyBase
+	if enemy == null or enemy.is_dead():
+		_withdrawing = false
+		set_physics_process(false)
+		return
+	if enemy.global_position.distance_to(enemy.assault_objective) > EnemyBase.ASSAULT_ARRIVE_M:
+		return
+	enemy.silent_infiltrator = false
+	enemy.assault_driven = false
+	enemy.assault_objective = _objective
+	_withdrawing = false
+	set_physics_process(false)
+	print("[SAPPER] charge set - joining the attack with the gun")

@@ -2514,3 +2514,22 @@ was garbage on both sides, and it was being carried as a standing red gate.
 - **3 no fit**, and **5 OFF-MESH** of 37.
 - **`PHYSICS: 10 of 32 nav-reachable routes pass the player's capsule, 22 blocked`** - a separate
   pass, unexamined, and now the largest unexplained number in the probe.
+
+## THE WAVES — the assault ramps, and five AI stalls it was hiding are fixed (2026-09-11)
+
+Your "smaller waves" is in: 8 men at the opening, climbing to the full 50 over three minutes,
+sappers held 40 s. Paired A/B, garrison only: near-tier peak 19 vs 38, assault fps 25–101 vs
+14–31. The night still ends (broken at 2:19 vs the flood's 1:11, same body count).
+
+**Your ruling shipped:** a sapper sets his charge, clears his own fuse, then joins the attack with
+the PPSh he always carried.
+
+**Three feel numbers for you** (`scripts/missions/siege_director.gd`, one line each):
+- `WAVE_CAP_START 8` — the first wave you see
+- `WAVE_RAMP_S 180` — seconds from the first wave to the full wall
+- `SAPPER_HOLD_S 40` — how long the riflemen have the wire before the satchels come
+None of these were measured with you on the gun. Your siege playtest is still the only gate.
+
+Still yours from before: the two windowed A/Bs (`perf_walk_compat.bat`, `perf_walk_d3d12.bat`,
+`perf_stress_phys3.bat`), the render-scale-0.5 try, the Huey/M101 art budget.
+Full record: `production/war_room/2026-09-11_siege_waves/synthesis.md`.
