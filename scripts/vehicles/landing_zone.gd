@@ -43,7 +43,17 @@ static func on_pad(p: Vector3, margin: float = 8.0) -> bool:
 	return false
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.landing_zone")
+	_physics_step_landing_zone(delta)
+	StallLedger.end()
+
+
+func _physics_step_landing_zone(delta: float) -> void:
 	_check_timer += delta
 	threat_level = maxf(0.0, threat_level - THREAT_DECAY * delta)
 	if _check_timer < THREAT_CHECK_INTERVAL:

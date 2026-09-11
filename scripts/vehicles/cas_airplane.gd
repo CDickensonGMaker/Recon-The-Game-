@@ -254,7 +254,17 @@ func _impact() -> void:
 	queue_free()
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.cas_airplane")
+	_physics_step_cas_airplane(delta)
+	StallLedger.end()
+
+
+func _physics_step_cas_airplane(delta: float) -> void:
 	if _shot_down:
 		_fly_crash(delta)
 		return

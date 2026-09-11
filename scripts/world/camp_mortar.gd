@@ -116,7 +116,17 @@ func _silence(reason: String) -> void:
 	print("[CampMortar] silenced (%s) - no more fire today, night walk cancelled" % reason)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.camp_mortar")
+	_physics_step_camp_mortar(delta)
+	StallLedger.end()
+
+
+func _physics_step_camp_mortar(delta: float) -> void:
 	_elapsed += minf(delta, 0.066)
 	_poll += delta
 	if _poll < 1.0:

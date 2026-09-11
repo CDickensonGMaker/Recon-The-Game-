@@ -921,7 +921,17 @@ func sleep_ragdoll() -> void:
 ## Bone poses must be written in ASCENDING bone-index order: set_bone_global_pose
 ## converts against parent globals, so a child written before its parent reads a
 ## stale parent. _bake_ids is sorted once at bind time to hold that order.
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(_delta: float) -> void:
+	StallLedger.begin("phys.model_actor")
+	_physics_step_model_actor(_delta)
+	StallLedger.end()
+
+
+func _physics_step_model_actor(_delta: float) -> void:
 	if _skel == null or _ragdoll_sim == null or not _ragdoll_sim.is_simulating_physics():
 		return
 	var to_skel: Transform3D = _skel.global_transform.affine_inverse()

@@ -461,7 +461,35 @@ func _call_for_aid() -> void:
 		player.global_position)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
+## A MAN WHO IS NOT MOVING DOES NOT SLIDE (2026-09-11). move_and_slide against the compound's
+## 2,440 collision shapes cost the garrison 17.0 s of a 180 s siege - 9.5% of all wall time -
+## for 36 men standing at their posts (ally.slide; the enemies' ai.slide read 4.4 s for as many
+## men, because theirs walk). He slides when his legs ask for anything, when he is off the
+## floor, and on a heartbeat otherwise, so ground that moves under him (a crater, a push) is
+## still found within IDLE_SLIDE_S. Same rule in ally_base.gd and enemy_base.gd - keep them identical.
+const IDLE_SLIDE_S: float = 0.2
+var _idle_slide_t: float = 0.0
+
+
+func _slide_due(delta: float) -> bool:
+	_idle_slide_t += delta
+	if velocity.length_squared() > 0.0025 or not is_on_floor() or _idle_slide_t >= IDLE_SLIDE_S:
+		_idle_slide_t = 0.0
+		return true
+	return false
+
+
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.civilian")
+	_physics_step_civilian(delta)
+	StallLedger.end()
+
+
+func _physics_step_civilian(delta: float) -> void:
 	if state == CivState.GONE:
 		return
 	# The spawner sets occupation/working_point AFTER spawn() returns, so first
@@ -531,7 +559,8 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0
 			velocity.z = 0
 	_update_unstick(delta)
-	move_and_slide()
+	if _slide_due(delta):
+		move_and_slide()
 	# Face travel. Without this the only yaw a civilian ever gets is the one
 	# SeatSystem.unseat() stamps from the seat socket, and heli-delivered men
 	# cross the pad locked at the door's sideways heading.

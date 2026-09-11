@@ -160,7 +160,17 @@ func _burn01() -> float:
 	return minf(ignite, fade)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.illum_flare")
+	_physics_step_illum_flare(delta)
+	StallLedger.end()
+
+
+func _physics_step_illum_flare(delta: float) -> void:
 	if not _anchor_armed:
 		_anchor_armed = true
 		_anchor_x = global_position.x

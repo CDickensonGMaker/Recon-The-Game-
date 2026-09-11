@@ -147,7 +147,17 @@ func _on_cast_died(_a: Variant = null, _b: Variant = null, _c: Variant = null, _
 
 ## Poll safety net for agents without a `damaged` signal (EnemyBase/AllyBase
 ## report hp, not hits) and for combat-target acquisition.
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(_delta: float) -> void:
+	StallLedger.begin("phys.scripted_sequence")
+	_physics_step_scripted_sequence(_delta)
+	StallLedger.end()
+
+
+func _physics_step_scripted_sequence(_delta: float) -> void:
 	if not _running or _aborted or _handed_off:
 		return
 	for agent in _cast:

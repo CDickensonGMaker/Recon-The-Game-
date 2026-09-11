@@ -99,7 +99,17 @@ func release_man(civ: Civilian) -> void:
 		_playing = false
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.gun_crew_performance")
+	_physics_step_gun_crew_performance(delta)
+	StallLedger.end()
+
+
+func _physics_step_gun_crew_performance(delta: float) -> void:
 	_tick_t -= delta
 	if _tick_t <= 0.0:
 		_tick_t = TICK_S

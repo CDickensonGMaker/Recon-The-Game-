@@ -211,7 +211,17 @@ func _shut_doors_now() -> void:
 	_door_t = 0.0
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.heli_lift")
+	_physics_step_heli_lift(delta)
+	StallLedger.end()
+
+
+func _physics_step_heli_lift(delta: float) -> void:
 	if _door_l == null and _door_r == null:
 		return
 	var target: float = 1.0 if _door_want_open else 0.0

@@ -82,7 +82,17 @@ var _reserve: Array[EnemyBase] = []
 var _prewarmed: int = 0
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.marching_cell")
+	_physics_step_marching_cell(delta)
+	StallLedger.end()
+
+
+func _physics_step_marching_cell(delta: float) -> void:
 	if materialized:
 		if _spawn_left > 0:
 			_spawn_tick()

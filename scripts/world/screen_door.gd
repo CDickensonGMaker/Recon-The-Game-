@@ -215,7 +215,17 @@ func _on_body_exited(_body: Node3D) -> void:
 	_inside = maxi(0, _inside - 1)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.screen_door")
+	_physics_step_screen_door(delta)
+	StallLedger.end()
+
+
+func _physics_step_screen_door(delta: float) -> void:
 	var step: float = minf(delta, 0.066)
 	if _inside > 0:
 		_hold = HOLD_AFTER_EXIT

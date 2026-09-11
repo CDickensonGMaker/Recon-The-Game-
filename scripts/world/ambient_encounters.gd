@@ -131,7 +131,17 @@ func encounter_active() -> bool:
 	return _live != ""
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.ambient_encounters")
+	_physics_step_ambient_encounters(delta)
+	StallLedger.end()
+
+
+func _physics_step_ambient_encounters(delta: float) -> void:
 	_elapsed += minf(delta, 0.066)
 	_poll += delta
 	if _poll < 0.5:

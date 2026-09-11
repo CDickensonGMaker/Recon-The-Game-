@@ -914,7 +914,17 @@ func collider_count() -> int:
 	return _pool.size() - _free_bodies.size()
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.tree_cover_layer")
+	_physics_step_tree_cover_layer(delta)
+	StallLedger.end()
+
+
+func _physics_step_tree_cover_layer(delta: float) -> void:
 	_ring_elapsed += delta
 	var center: Vector3 = _resolve_center()
 	var moved: bool = center != _last_center and (

@@ -86,7 +86,17 @@ func _build() -> void:
 	_stand.position = Vector3(0.0, 0.0, 0.6)   # behind the lip, feet on the ground
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(_delta: float) -> void:
+	StallLedger.begin("phys.mg_emplacement")
+	_physics_step_mg_emplacement(_delta)
+	StallLedger.end()
+
+
+func _physics_step_mg_emplacement(_delta: float) -> void:
 	# Self-heal (mirrors SeatSystem.occupant()): a freed or dead occupant releases
 	# the post so a replacement can take it - no dangling flag, no corpse holding it.
 	if occupant == null:

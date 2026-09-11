@@ -510,7 +510,17 @@ func _process_revive(delta: float) -> void:
 
 ## ---------- ROLE EFFECTS + BARKS ----------
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.squad_system")
+	_physics_step_squad_system(delta)
+	StallLedger.end()
+
+
+func _physics_step_squad_system(delta: float) -> void:
 	_prune_freed()
 	_bark_cooldown = maxf(0.0, _bark_cooldown - delta)
 	_thumper_cooldown = maxf(0.0, _thumper_cooldown - delta)

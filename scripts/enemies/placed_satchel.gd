@@ -52,7 +52,17 @@ static func place(host: Node, at: Vector3, by: Node, dmg: int, dmg_min: int,
 	return s
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.placed_satchel")
+	_physics_step_placed_satchel(delta)
+	StallLedger.end()
+
+
+func _physics_step_placed_satchel(delta: float) -> void:
 	_fuse -= delta
 	if _fuse <= 0.0:
 		_blow()

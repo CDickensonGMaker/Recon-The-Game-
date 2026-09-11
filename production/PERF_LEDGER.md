@@ -3575,3 +3575,27 @@ Gates: test_huey_sim, probe_huey_frame, test_seat_system, test_demo_arc 26/26.
 Also: `ai.slide` span around move_and_slide - 110-240 ms per 5 s window in the assault (2-5%),
 so the heavy physics steps (100+ of 150 over 20 ms mid-assault) are NOT the slide and NOT
 ai.execute (2-18%); the physics remainder is unspanned and the next instrument names it.
+
+### 2026-09-11 — the garrison's move_and_slide was 9.5% of the whole siege
+
+Every game-side `_physics_process` now runs inside a `phys.<script>` span (41 scripts, per-script
+step names so a subclass can never be dispatched from its parent's wrapper), and the allies'
+step inside `ally.think / ally.execute / ally.hitzone / ally.slide / ally.traits`. Read on a
+quiet box (no other Godot), 180 s stress: **`ally.slide` 17.0 s** - `move_and_slide` for 36
+garrison men standing at their posts against the compound's 2,440 collision shapes - against
+`ai.slide` 4.4 s for as many enemies who actually walk. A man whose legs ask for nothing, who is
+on the floor, slides on a 5 Hz heartbeat now instead of 30 Hz (`_slide_due`, identical in
+ally_base / enemy_base / civilian). Back to back, quiet box: **ally.slide 17.0 -> 4.4 s; assault
+fps 90.8 -> 107.3 (min 55 -> 84), 1% low 28.8 -> 32.2, p95 23.9 -> 20.1 ms, p99 28.7 -> 24.6.**
+
+**Where the CPU stands on a quiet box (headless, this tree):** quiet walk ~120 fps (median 6.7
+ms), the 45-man assault ~107 fps (median 5.9, p99 24.6, worst 44 ms mean). Every "20-37 fps
+assault" row earlier today was read with one to three other Godot processes on the box (the
+agents' paired runs) and is not the game. **The CPU is not the wall any more; the GPU is** - his
+window (`scratchpad/renderer_ab.sh`, Forward+/Mobile/Compatibility, the same patrol view) is the
+measurement that is left, and it needs his go because it takes the screen.
+Remaining named CPU: ally.execute 7.8 s, ally.hitzone 5.2 s (36 hot bodies re-synced every step
+while the garrison is ALERT), ally.think 4.8 s (a flat 0.15 s think with no distance LOD - the
+enemies have one), phys.civilian 3.7 s (villagers nowhere near the fight).
+Gates: test_demo_arc 26/26, test_firebase_defense, test_sapper_assault, test_siege, probe_ai_lod
+13/13, test_huey_sim, test_fossils.

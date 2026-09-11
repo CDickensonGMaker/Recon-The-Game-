@@ -49,7 +49,17 @@ static func place(parent: Node, terrain: Node, world_pos: Vector3, facing: float
 	return trap
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.punji_trap")
+	_physics_step_punji_trap(delta)
+	StallLedger.end()
+
+
+func _physics_step_punji_trap(delta: float) -> void:
 	if not _armed or _sprung:
 		return
 	_scan_timer += delta

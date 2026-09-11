@@ -114,7 +114,17 @@ func fire(wd: WeaponData, shooter: Node, from: Vector3, dir: Vector3,
 	bullet_spawned.emit(shooter, wd)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.bullet_system")
+	_physics_step_bullet_system(delta)
+	StallLedger.end()
+
+
+func _physics_step_bullet_system(delta: float) -> void:
 	if _bullets.is_empty():
 		return
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state

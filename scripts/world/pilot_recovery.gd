@@ -190,7 +190,17 @@ func _spawn_pickets(pos: Vector3) -> void:
 	lg.global_position = MissionGenerator._seat(world, at)
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.pilot_recovery")
+	_physics_step_pilot_recovery(delta)
+	StallLedger.end()
+
+
+func _physics_step_pilot_recovery(delta: float) -> void:
 	_elapsed += minf(delta, 0.066)
 	_poll += delta
 	if _poll < 1.0:

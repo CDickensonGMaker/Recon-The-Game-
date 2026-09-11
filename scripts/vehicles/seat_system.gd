@@ -781,7 +781,17 @@ func _egress() -> Array:
 	return [Vector3.ZERO, Vector3(1.0, 0.0, 0.0)]
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.seat_system")
+	_physics_step_seat_system(delta)
+	StallLedger.end()
+
+
+func _physics_step_seat_system(delta: float) -> void:
 	_interact_cd = maxf(0.0, _interact_cd - delta)
 	if not player_boarding or _fading or _vehicle == null:
 		return

@@ -1086,7 +1086,35 @@ func _setup_hurtbox() -> void:
 ## Meters walked since the last audible footstep (~one stride).
 var _step_accum: float = 0.0
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
+## A MAN WHO IS NOT MOVING DOES NOT SLIDE (2026-09-11). move_and_slide against the compound's
+## 2,440 collision shapes cost the garrison 17.0 s of a 180 s siege - 9.5% of all wall time -
+## for 36 men standing at their posts (ally.slide; the enemies' ai.slide read 4.4 s for as many
+## men, because theirs walk). He slides when his legs ask for anything, when he is off the
+## floor, and on a heartbeat otherwise, so ground that moves under him (a crater, a push) is
+## still found within IDLE_SLIDE_S. Same rule in ally_base.gd and civilian.gd - keep them identical.
+const IDLE_SLIDE_S: float = 0.2
+var _idle_slide_t: float = 0.0
+
+
+func _slide_due(delta: float) -> bool:
+	_idle_slide_t += delta
+	if velocity.length_squared() > 0.0025 or not is_on_floor() or _idle_slide_t >= IDLE_SLIDE_S:
+		_idle_slide_t = 0.0
+		return true
+	return false
+
+
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.enemy_base")
+	_physics_step_enemy_base(delta)
+	StallLedger.end()
+
+
+func _physics_step_enemy_base(delta: float) -> void:
 	var t_start: int = Time.get_ticks_usec()
 	_body_hot = _body_gate_open()
 	if _body_hot:
@@ -1173,9 +1201,10 @@ func _physics_process(delta: float) -> void:
 			velocity.z = flat.y
 	var t_move: int = Time.get_ticks_usec()
 	if _body_hot:
-		StallLedger.begin("ai.slide")
-		move_and_slide()
-		StallLedger.end()
+		if _slide_due(capped_delta):
+			StallLedger.begin("ai.slide")
+			move_and_slide()
+			StallLedger.end()
 		_step_accum += Vector2(velocity.x, velocity.z).length() * capped_delta
 		if _step_accum >= 0.85:
 			_step_accum = 0.0

@@ -1634,7 +1634,17 @@ func _update_photo_fly(delta: float) -> void:
 	global_position += (move + Vector3.UP * vertical) * PHOTO_FLY_SPEED * delta
 
 
+## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
+## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
+## The step name is per script on purpose: a shared virtual name would let a subclass's
+## body be dispatched from its parent's wrapper.
 func _physics_process(delta: float) -> void:
+	StallLedger.begin("phys.player")
+	_physics_step_player(delta)
+	StallLedger.end()
+
+
+func _physics_step_player(delta: float) -> void:
 	if not GameManager.can_player_act():
 		return
 
