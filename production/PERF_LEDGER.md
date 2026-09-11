@@ -3434,3 +3434,10 @@ counts live entries and still holds: 9,472 vs 9,472, 0 mismatches.
 
 Gates green: `probe_crater_veg`, `probe_chunk_patch`, `probe_napalm_stall`, `test_trunk_ring`,
 `test_tree_cover_lod`, `test_destructible`, `test_sapper_assault`, `test_demo_arc`.
+
+### 2026-09-11 — FIX WAVE, sixth pass: the cache re-seat is local too
+
+`_build_scatter`'s cache hit re-sampled the heightmap for EVERY plant in the chunk on every crater
+(~9,700 samples for a 20 m hole). It now takes the edited rect and re-seats only the plants standing
+in it, found through the cache's cell index: **`veg.scatter_hit` 417 → 125 ms over the siege.**
+`probe_chunk_patch`'s summed-height equivalence (patched vs full rebuild) still holds exactly.

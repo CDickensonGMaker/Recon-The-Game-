@@ -694,7 +694,7 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
 	if canopy_source == CanopySource.TREE_COVER and _tree_cover != null and _chunk_terrain.has(chunk_coord):
 		# Individual-species near-solid+collider / far-card LOD from the terrain grid.
 		StallLedger.begin("veg.build_scatter")
-		var scatter: Array = _build_scatter(chunk_coord, heightmap, chunk_size)
+		var scatter: Array = _build_scatter(chunk_coord, heightmap, chunk_size, partial)
 		StallLedger.end()
 		# THE LOCAL PATH (2026-09-11). A crater re-seats the plants on the moved ground and a
 		# settled log adds two entries; neither is a reason to free and re-instance every
@@ -730,7 +730,12 @@ func _rematerialize(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
 ## Derive a per-species {name, xf} scatter from this chunk's terrain grid, deterministically
 ## from mission_seed (ADR-010). TYPE_PROPS governs how many; TYPE_SPECIES which. Fed to
 ## TreeCoverLayer.generate_for_chunk when the canopy is TREE_COVER.
-func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float) -> Array:
+## `partial`: the ground that moved. On a cache hit only the plants standing in it are
+## re-seated; the rest of the chunk did not move and is not touched. Without it the hit path
+## re-sampled the heightmap for every plant in the chunk on every crater - veg.scatter_hit
+## 417 ms over a siege, ~9,700 samples a round for a 20 m hole.
+func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float,
+		partial: Rect2 = Rect2()) -> Array:
 	var scatter: Array = []
 	if not _chunk_terrain.has(chunk_coord):
 		return scatter
@@ -740,12 +745,32 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 		# the cached list. This is the crater path - the shell moved the dirt, not the trees.
 		StallLedger.begin("veg.scatter_hit")
 		var cached: Array = hit["scatter"]
-		for e: Dictionary in cached:
-			if bool(e.get("dead", false)):
-				continue
-			var xf: Transform3D = e["xf"]
-			xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
-			e["xf"] = xf
+		if partial.size != Vector2.ZERO and hit.has("cells"):
+			var grown: Rect2 = partial.grow(2.0)
+			var cells: Dictionary = hit["cells"]
+			var c0 := Vector2i(floori(grown.position.x / CACHE_CELL_M), floori(grown.position.y / CACHE_CELL_M))
+			var c1 := Vector2i(floori(grown.end.x / CACHE_CELL_M), floori(grown.end.y / CACHE_CELL_M))
+			for cx in range(c0.x, c1.x + 1):
+				for cz in range(c0.y, c1.y + 1):
+					var ck := Vector2i(cx, cz)
+					if not cells.has(ck):
+						continue
+					for i: int in (cells[ck] as PackedInt32Array):
+						var e: Dictionary = cached[i]
+						if bool(e.get("dead", false)):
+							continue
+						var xf: Transform3D = e["xf"]
+						if not grown.has_point(Vector2(xf.origin.x, xf.origin.z)):
+							continue
+						xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
+						e["xf"] = xf
+		else:
+			for e: Dictionary in cached:
+				if bool(e.get("dead", false)):
+					continue
+				var xf: Transform3D = e["xf"]
+				xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
+				e["xf"] = xf
 		StallLedger.end()
 		return cached
 	StallLedger.begin("veg.scatter_miss")
