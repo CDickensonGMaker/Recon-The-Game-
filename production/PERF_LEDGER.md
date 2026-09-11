@@ -3505,3 +3505,15 @@ fps 48 -> 55 (pair 1) and 21 -> 37 (pair 2, heavier box load); 1% low 9.8 -> 17.
 12.5; worst frame 155/222 ms mean -> 70/84, max 282/296 -> 97/98. Quiet walk unchanged (70-77).
 The stutter halved and the tail doubled; the average moved less. Not 60. The GPU half is his
 window only: the other session's patrol row read GPU 37.8 ms at 720p, 1,274 draws, 529k tris.
+
+### 2026-09-11 — the autosave's 15 ms was the file swap, not the save
+
+`proc.save_manager` 14.6-16.8 ms once every 30 s of play. Spanned in three: collect + stringify +
+write = 1.4 ms; the other 15 ms was remove-.bak / rotate / rename-.tmp-into-place - three
+filesystem calls Windows takes its time over. The rotation runs on a WorkerThreadPool task now;
+the next save joins the previous swap before it writes, and a manual, exit or firebase save
+waits for its own swap (`sync`) so a listing or a quit right after sees the file. Autosave is
+the only async caller. After: `proc.save_manager` out of every window's top 12.
+`test_save_roundtrip` PASS (sections, meta, atomic swap, .bak fallback, version reject, tiers).
+Also: a refused dig's veg clear took the full-chunk path - `veg.tree_cover_mmi` 14/4/4 rows -> 0
+with the hole footprint passed through (dd01ba2b).

@@ -69,7 +69,7 @@ func _process_step(delta: float) -> void:
 		# Autosave obeys the tier: hub is always fine; in-mission only on REGULAR.
 		if (context == "hub" or tier() == Tier.REGULAR) and _player_alive() \
 				and GameManager.can_player_act():
-			save_game(AUTOSAVE_SLOT, "AUTOSAVE")
+			save_game(AUTOSAVE_SLOT, "AUTOSAVE", false)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -108,24 +108,59 @@ func can_manual_save() -> bool:
 ## Atomic write-and-swap: the slot file always holds a COMPLETE save. Write to
 ## .tmp, verify, rotate the previous good file to .bak, then rename .tmp into
 ## place - a crash at any step leaves either the old save or the .bak intact.
-func save_game(slot: int, save_name: String = "") -> bool:
+## `sync` false lets the rotation finish on the worker (the 30 s autosave); a manual, exit or
+## firebase save waits for it, so a listing or a quit right after sees the file in place.
+func save_game(slot: int, save_name: String = "", sync: bool = true) -> bool:
+	# Three spans, because the autosave was a 15-20 ms idle frame every 30 s of play (stall
+	# audit 2026-09-11) and which third owned it decided what could leave the main thread.
+	_await_swap()
+	StallLedger.begin("save.collect")
 	var data := collect()
 	data.meta.save_name = save_name if save_name != "" else "SLOT %d" % slot
+	StallLedger.end()
+	StallLedger.begin("save.stringify")
 	var json := JSON.stringify(data.to_dict(), "\t")
+	StallLedger.end()
 	var path := _slot_path(slot)
 	var tmp := path + ".tmp"
+	StallLedger.begin("save.write")
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
+		StallLedger.end()
 		push_error("[SAVE] cannot open %s" % tmp)
 		return false
 	f.store_string(json)
 	f.flush()
 	var write_err: Error = f.get_error()
 	f.close()
+	StallLedger.end()
 	if write_err != OK:
 		DirAccess.remove_absolute(tmp)
 		push_error("[SAVE] write failed for %s (err %d)" % [tmp, write_err])
 		return false
+	# THE SWAP LEAVES THE MAIN THREAD (2026-09-11). Collect + stringify + write measured 1.4 ms
+	# of a 16.8 ms autosave; the other 15 ms was the three filesystem calls below - remove the
+	# old .bak, rotate, rename .tmp into place - which Windows (and whatever scans new files)
+	# takes its time over. They touch no scene state, so they run on a worker; the next save
+	# waits for the last swap before it writes its own .tmp, so the rotation stays ordered.
+	_swap_task = WorkerThreadPool.add_task(_swap_into_place.bind(tmp, path))
+	if sync:
+		_await_swap()
+	return true
+
+
+## Pending .tmp -> slot rotation from the last save; the next save joins it first.
+var _swap_task: int = -1
+
+
+func _await_swap() -> void:
+	if _swap_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_swap_task)
+		_swap_task = -1
+
+
+## Atomic rotate: .bak <- slot <- .tmp. Filesystem only; runs off the main thread.
+func _swap_into_place(tmp: String, path: String) -> void:
 	var bak := path + ".bak"
 	if FileAccess.file_exists(path):
 		# Windows rename refuses an existing target - clear the old .bak first.
@@ -135,8 +170,6 @@ func save_game(slot: int, save_name: String = "") -> bool:
 	var swap_err: Error = DirAccess.rename_absolute(tmp, path)
 	if swap_err != OK:
 		push_error("[SAVE] cannot swap %s into place (err %d)" % [tmp, swap_err])
-		return false
-	return true
 
 
 func collect() -> SaveData:
