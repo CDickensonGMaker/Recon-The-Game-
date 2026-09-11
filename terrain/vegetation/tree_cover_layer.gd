@@ -427,6 +427,7 @@ func generate_for_chunk(coord: Vector2i, scatter: Array) -> void:
 		if not groups.has(key):
 			groups[key] = []
 		(groups[key] as Array).append(xf)
+		e["drawn"] = true
 		origins.append(xf.origin)
 		# Collider per ENTRY, not per species: a blast-shortened snag and a lying log are
 		# the same species as the tree they came from and must not inherit its full post.
@@ -638,12 +639,15 @@ func update_chunk(coord: Vector2i, scatter_new: Array, rect: Rect2) -> void:
 	var grown: Rect2 = rect.grow(2.0)
 	for i: int in old.size():
 		var e: Dictionary = old[i]
-		if bool(e.get("dead", false)):
-			continue
 		var uid: int = int(e.get("uid", -1))
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
 		var nm: String = String(e.get("name", ""))
-		if uid >= 0 and not seen.has(uid):
+		# The manager's prune marks a plant dead IN the shared dictionary; if it was drawn
+		# when that happened it is a removal here, whatever list it is still listed in.
+		var died_drawn: bool = bool(e.get("dead", false)) and bool(e.get("drawn", false))
+		if bool(e.get("dead", false)) and not died_drawn:
+			continue
+		if died_drawn or (uid >= 0 and not seen.has(uid)):
 			e["dead"] = true
 			removed_idx.append(i)
 			keys[_bucket_key(nm, xf.origin)] = true
@@ -716,13 +720,16 @@ func _rebuild_buckets(coord: Vector2i, keys: Dictionary) -> void:
 	for key_any in keys.keys():
 		members[key_any] = []
 	for e: Dictionary in _chunk_scatter[coord]:
-		if bool(e.get("dead", false)):
-			continue
 		var nm: String = String(e.get("name", ""))
 		var xf: Transform3D = e.get("xf", Transform3D.IDENTITY)
 		var key: Array = _bucket_key(nm, xf.origin)
-		if members.has(key):
-			(members[key] as Array).append(xf)
+		if not members.has(key):
+			continue
+		if bool(e.get("dead", false)):
+			e.erase("drawn")
+			continue
+		(members[key] as Array).append(xf)
+		e["drawn"] = true
 	for key_any in keys.keys():
 		_rebuild_bucket(coord, key_any as Array, members[key_any] as Array)
 

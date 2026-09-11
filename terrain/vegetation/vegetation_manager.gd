@@ -469,15 +469,35 @@ func _prune_scatter_cache(chunk_coord: Vector2i, hole: Dictionary) -> bool:
 	var hit: Dictionary = _scatter_cache.get(chunk_coord, {}) as Dictionary
 	if hit.is_empty() or int(hit["epoch"]) < int(_scatter_dirty.get(chunk_coord, 0)):
 		return false
-	var kept: Array = []
-	for e: Dictionary in hit["scatter"]:
-		var o: Vector3 = (e["xf"] as Transform3D).origin
-		if not bool(e.get("fell", false)) and _hole_removes(hole, o.x, o.z):
-			continue
-		kept.append(e)
-	hit["scatter"] = kept
+	# DEAD IN PLACE, OVER THE CELLS THE HOLE REACHES (2026-09-11). This used to walk every
+	# entry in the chunk and rebuild the list without the ones the hole took - ~9,700
+	# dictionary reads and appends per touched chunk, four chunks for a mortar round, inside
+	# the frame the shell landed in: dz.crater 49 ms worst in the siege ledger. The index says
+	# which cells the footprint can touch; a plant it takes is marked dead where it stands
+	# (its uid and index stay valid for everything downstream, which now skips dead entries),
+	# and nothing else in the chunk is read.
+	var scatter: Array = hit["scatter"]
+	var cells: Dictionary = hit.get("cells", {})
+	if cells.is_empty():
+		cells = _index_cells(scatter)
+		hit["cells"] = cells
+	var c: Vector3 = hole["c"]
+	var reach: float = sqrt(float(hole.get("r2_out", hole["r2"]))) + FEATHER_WOBBLE_M
+	var c0 := Vector2i(floori((c.x - reach) / CACHE_CELL_M), floori((c.z - reach) / CACHE_CELL_M))
+	var c1 := Vector2i(floori((c.x + reach) / CACHE_CELL_M), floori((c.z + reach) / CACHE_CELL_M))
+	for cx in range(c0.x, c1.x + 1):
+		for cz in range(c0.y, c1.y + 1):
+			var ck := Vector2i(cx, cz)
+			if not cells.has(ck):
+				continue
+			for i: int in (cells[ck] as PackedInt32Array):
+				var e: Dictionary = scatter[i]
+				if bool(e.get("dead", false)) or bool(e.get("fell", false)):
+					continue
+				var o: Vector3 = (e["xf"] as Transform3D).origin
+				if _hole_removes(hole, o.x, o.z):
+					e["dead"] = true
 	hit["epoch"] = _scatter_epoch
-	_scatter_cache[chunk_coord] = hit
 	return true
 
 
@@ -633,6 +653,9 @@ func add_fell_entries(entries: Array) -> void:
 			live["trunk_r"] = e["trunk_r"]
 			live["trunk_h"] = e.get("trunk_h", 1.0)
 		(hit["scatter"] as Array).append(live)
+		if hit.has("cells"):
+			_index_add(hit["cells"] as Dictionary, (hit["scatter"] as Array).size() - 1,
+				(live["xf"] as Transform3D).origin)
 		var o: Vector3 = (e["xf"] as Transform3D).origin
 		var spot := Rect2(Vector2(o.x, o.z), Vector2.ZERO).grow(1.0)
 		var have: Rect2 = _fell_partial.get(cc, Rect2())
@@ -718,6 +741,8 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 		StallLedger.begin("veg.scatter_hit")
 		var cached: Array = hit["scatter"]
 		for e: Dictionary in cached:
+			if bool(e.get("dead", false)):
+				continue
 			var xf: Transform3D = e["xf"]
 			xf.origin.y = heightmap.sample_world(xf.origin.x, xf.origin.z)
 			e["xf"] = xf
@@ -789,9 +814,38 @@ func _build_scatter(chunk_coord: Vector2i, heightmap: Object, chunk_size: float)
 		if not e.has("uid"):
 			e["uid"] = _next_uid
 			_next_uid += 1
-	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter}
+	_scatter_cache[chunk_coord] = {"epoch": _scatter_epoch, "scatter": scatter,
+		"cells": _index_cells(scatter)}
 	StallLedger.end()
 	return scatter
+
+
+## THE CACHE'S OWN SPATIAL INDEX: scatter indices bucketed by CACHE_CELL_M so a blast footprint
+## can be applied to the plants it can reach instead of to the whole chunk. Built as plain
+## Arrays and packed at the end - a PackedInt32Array is a VALUE in GDScript and appending
+## through `as` appends to a copy (the trap tree_cover_layer.gd already paid for).
+const CACHE_CELL_M: float = 32.0
+
+
+func _index_cells(scatter: Array) -> Dictionary:
+	var lists: Dictionary = {}
+	for i: int in scatter.size():
+		var o: Vector3 = ((scatter[i] as Dictionary)["xf"] as Transform3D).origin
+		var ck := Vector2i(floori(o.x / CACHE_CELL_M), floori(o.z / CACHE_CELL_M))
+		if not lists.has(ck):
+			lists[ck] = []
+		(lists[ck] as Array).append(i)
+	var cells: Dictionary = {}
+	for ck_any in lists.keys():
+		cells[ck_any] = PackedInt32Array(lists[ck_any] as Array)
+	return cells
+
+
+static func _index_add(cells: Dictionary, i: int, o: Vector3) -> void:
+	var ck := Vector2i(floori(o.x / CACHE_CELL_M), floori(o.z / CACHE_CELL_M))
+	var packed: PackedInt32Array = cells.get(ck, PackedInt32Array())
+	packed.append(i)
+	cells[ck] = packed
 
 
 ## Lay this bundle's share of its field's row lattice. The lattice is anchored to the 48 m

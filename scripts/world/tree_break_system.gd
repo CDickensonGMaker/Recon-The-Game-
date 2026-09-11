@@ -79,6 +79,8 @@ func register_chunk(layer: Node3D, coord: Vector2i, scatter: Array) -> void:
 	var list: Array = []
 	for i in scatter.size():
 		var e: Dictionary = scatter[i]
+		if bool(e.get("dead", false)):
+			continue
 		var nm: String = String(e.get("name", ""))
 		if not is_breakable(nm):
 			continue

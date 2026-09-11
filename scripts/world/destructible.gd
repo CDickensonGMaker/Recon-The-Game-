@@ -216,8 +216,13 @@ func _do_destroy() -> void:
 	if destroyed_mesh == null:
 		destroyed_mesh = ruin_mesh_for(kind)
 	# Over the swap, not after it: same frame, so the intact->ruin cut lands inside the flash.
+	# Attributed in five spans (2026-09-11): one destruction measured ~29 ms in the siege ledger
+	# after the ruin cache was warmed, and nothing said which of the two blasts, the fire, the
+	# rubble, the nav rebake or the crater it was.
+	StallLedger.begin("dz.blast")
 	GunFX.play_explosion_3d(get_tree().current_scene if is_inside_tree() else self,
 		global_position, blast_for(kind))
+	StallLedger.end()
 	for c in get_children():
 		if c is MeshInstance3D:
 			(c as MeshInstance3D).visible = false
@@ -229,22 +234,32 @@ func _do_destroy() -> void:
 		add_child(mi)
 	var burn: Array = BURN_FOR.get(kind, [])
 	if not burn.is_empty() and is_inside_tree():
+		StallLedger.begin("dz.fire")
 		FireHazard.create_at(get_tree().current_scene, global_position,
 			float(burn[0]), float(burn[1]))
+		StallLedger.end()
 	remove_from_group("soft_cover")
 	remove_from_group("hard_surface")
 	# THE HOLE MUST BE WALKABLE, or destruction is decoration. The colliders above are now
 	# disabled and NavBaker._add_colliders already skips disabled shapes, so the navmesh is
 	# correct the moment it is rebuilt - nothing ever rebuilt it. Debounced inside the baker:
 	# one satchel kills several segments and they all name the same ground.
+	StallLedger.begin("dz.nav")
 	var baker: NavBaker = NavBaker.instance(self)
 	if baker != null:
 		baker.breach_at(global_position)
+	StallLedger.end()
+	StallLedger.begin("dz.rubble")
 	_scatter_rubble()
+	StallLedger.end()
 	# The blast that killed it also scars the ground (this crater rides the terrain throttle).
+	StallLedger.begin("dz.crater")
 	DamageSystem.apply_damage(global_position, DamageSystem.DamageType.BUNKER_COLLAPSE, 1.0)
+	StallLedger.end()
 	# visual_mult 1.0: collapse dust, not ordnance - the spectacle mult stays off.
+	StallLedger.begin("dz.dust")
 	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_grenade", 1.0)
+	StallLedger.end()
 	NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
 	# THE SWEEP CLOSES ON THE SURFACE STASH TOO. Emptying a tunnel cache already reported in
 	# (field_director.report_stash_cleared); blowing the above-ground one is the same verb and

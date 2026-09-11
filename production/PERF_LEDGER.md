@@ -3417,3 +3417,20 @@ worst 71 ms (box noise band with the previous pass's 94.9 / 43.0 / 72).
 Gates green: `probe_chunk_patch` (all), `probe_crater_veg` (all), `probe_napalm_stall`,
 `test_trunk_ring`, `test_tree_cover_wired`, `test_tree_cover_lod`, `test_destructible`,
 `test_demo_arc`. Closing run: mean 87.7, floor 30.1, worst 69 ms (box noise band).
+
+### 2026-09-11 — FIX WAVE, fifth pass: the blast's own cost was the cache prune
+
+`_do_destroy` was split into five spans; **`dz.crater` was all of it: 5.6 ms mean, 49.1 ms worst**
+— `DamageSystem.apply_damage` → `clear_area` → `_prune_scatter_cache`, which walked every entry of
+every touched chunk (~9,700 each, four chunks for a round) and rebuilt the list without the ones the
+hole took, inside the frame the shell landed in. The cache now carries its own 32 m cell index
+(`_index_cells`, kept in step by `add_fell_entries`); a hole is applied only to the cells its
+footprint reaches, and a plant it takes is **marked dead where it stands** — `uid` and index stay
+valid for everything downstream, all of which now skips dead entries (the manager's re-seat, the
+break registry's `register_chunk`, the layer's draw). The layer treats an entry that died in the
+shared dictionary after it was drawn (`drawn` flag) as a removal and rebuilds only its bucket.
+**`dz.crater` fell out of the ledger's top-N entirely.** `probe_crater_veg`'s "pruned == regenerated"
+counts live entries and still holds: 9,472 vs 9,472, 0 mismatches.
+
+Gates green: `probe_crater_veg`, `probe_chunk_patch`, `probe_napalm_stall`, `test_trunk_ring`,
+`test_tree_cover_lod`, `test_destructible`, `test_sapper_assault`, `test_demo_arc`.

@@ -103,7 +103,12 @@ func _ready() -> void:
 	# from the cached scatter instead of throwing the chunk away, on the argument that
 	# _build_scatter draws every RNG value for a candidate before it tests the hole. That is
 	# an argument until this compares the two answers.
-	var pruned: Array = ((vm.get("_scatter_cache") as Dictionary).get(coord, {}) as Dictionary).get("scatter", []) as Array
+	# LIVE entries: the prune marks dead in place now (2026-09-11) instead of rebuilding the list.
+	var pruned_all: Array = ((vm.get("_scatter_cache") as Dictionary).get(coord, {}) as Dictionary).get("scatter", []) as Array
+	var pruned: Array = []
+	for pe: Dictionary in pruned_all:
+		if not bool(pe.get("dead", false)):
+			pruned.append(pe)
 	vm.set("_scatter_epoch", int(vm.get("_scatter_epoch")) + 1)
 	vm.call("_dirty_scatter", coord)
 	var regen: Array = vm.call("_build_scatter", coord, world.terrain_manager.heightmap,
