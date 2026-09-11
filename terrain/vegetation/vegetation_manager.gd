@@ -608,13 +608,20 @@ func clear_area(center: Vector3, radius: float, chunk_size: float, heightmap: Ob
 				if _chunk_terrain.has(Vector2i(cx3, cz3)):
 					rebuilt += 1
 		return rebuilt
+	# THE HOLE'S OWN FOOTPRINT rides along (2026-09-11). Past the per-mission dig ceiling
+	# DamageSystem skips the dig and calls this with defer_rebuild false - and this branch
+	# rebuilt every touched chunk in FULL: mmi.group 18-23 ms + mmi.register 12-13 ms +
+	# build 5 ms + scatter re-seat 9 ms, ~45 ms a chunk, for a bomb 260 m behind the player.
+	# With the footprint named, _rematerialize takes the same local path a crater takes;
+	# a chunk the tree layer does not draw yet (roads and the firebase at load) still goes full.
+	var foot := Rect2(Vector2(center.x - outer, center.z - outer), Vector2(outer * 2.0, outer * 2.0))
 	for cx in range(min_cx, max_cx + 1):
 		for cz in range(min_cz, max_cz + 1):
 			var chunk_coord := Vector2i(cx, cz)
 			if not _chunk_terrain.has(chunk_coord):
 				continue
 			if heightmap:
-				_rematerialize(chunk_coord, heightmap, chunk_size)
+				_rematerialize(chunk_coord, heightmap, chunk_size, foot)
 			rebuilt += 1
 	return rebuilt
 
