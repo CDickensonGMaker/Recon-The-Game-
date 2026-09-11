@@ -2540,3 +2540,15 @@ Full record: `production/war_room/2026-09-11_siege_waves/synthesis.md`.
 leads to a rescue the pilot mission, but this is post demo launch ideas)". The flying Hueys and
 the AC-47 are cards / low-poly LODs (being built now); an AA-table hit swaps in the crashed
 airframe and opens a rescue-the-pilot mission. Not built. Do not build before the demo ships.
+
+## FPS FIREPOWER DAY (2026-09-11) — what landed, what is running, what is yours
+
+Landed and pushed: the 50 ms hitch every half-second in EVERY playtest was the HUD squad strip
+rebuilding 20 labels (7cc86dbc) · a refused dig rebuilt whole foliage chunks, 45 ms each
+(dd01ba2b) · the autosave's 15 ms was Windows file rotation, now off the main thread (e0235e95).
+Running as agents: Huey + AC-47 low-poly LODs in headless Blender (your idea), the reinforce spawn
+burst (~20 ms a man for 30 frames), the breach nav rebake (~0.5 s a hole).
+Yours: **the renderer A/B** — you lifted the 7/17 no ("its costing us performance"); the test is
+`scratchpad/renderer_ab.sh` (Forward+, Mobile, Compatibility, same patrol view, ~4 min on your
+screen) and it needs your "go" because it takes the screen. Target you named: 45-59, "enough
+that its enjoyable".

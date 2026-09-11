@@ -3517,3 +3517,19 @@ the only async caller. After: `proc.save_manager` out of every window's top 12.
 `test_save_roundtrip` PASS (sections, meta, atomic swap, .bak fallback, version reject, tiers).
 Also: a refused dig's veg clear took the full-chunk path - `veg.tree_cover_mmi` 14/4/4 rows -> 0
 with the hole footprint passed through (dd01ba2b).
+
+### 2026-09-11 — the reinforce's 34 men are built before the reinforce exists
+
+`reinforce()` created its cells at the reinforce moment, so the "pre-warm" drip ran INSIDE the
+assault's opening: 30 men built in the window after `[Siege] reinforced +34`, ~22 ms each
+(dr.rehang 261 ms + spawn.model_setup 368 ms + hitzones 61 ms), 39 physics steps >= 20 ms,
+median frame 23.5 ms - the frames the player is watching the wire. Activation was 0.6 ms a man;
+the build was the cost. Now a demo-mode probe stocks a RESERVE at its open (`_stock_reserve`,
+sized for the worst 2d6 sapper split, drip in `_process` on MarchingCell's shared token, yielding
+to cells still filling their own), `_spawn_cells_for` seeds every new cell from it, leftovers
+freed at the break. Paired (like-for-like pair 2, one foreign Godot each side): **steps >= 20 ms
+in the reinforce window 32 -> 10 (pair 1: 39 -> 1), spawn spans in that window: none**;
+`[Siege] reserve: 34 of 34 men came pre-built`. The sacrifice, named: the probe-open window
+carries 49 builds now (idle-side, 50 ms idle worst there) and 15 surplus dormant men cover the
+roll. Follow-ups: stock at nightfall instead of the probe's open; let demo_game pass the exact
+reinforce size. Gates: test_siege, test_sapper_assault, probe_ai_lod 13/13, test_fossils.

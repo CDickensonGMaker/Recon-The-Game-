@@ -1,8 +1,8 @@
 ## siege_director.gd - The night assault on the firebase (ADR-035). Owns cadence,
 ## the assault's strength ledger, the attack sector, the ranging mortars, the break
-## and THE REAP. It spawns nothing itself: every body comes from
-## FieldDirector.spawn_tracked_enemy through a MarchingCell, so the single spawn
-## authority is untouched.
+## and THE REAP. It spawns nothing itself: every body comes from FieldDirector -
+## spawn_tracked_enemy / activate_tracked_enemy through a MarchingCell, prewarm_enemy for
+## the reserve the cells are seeded from - so the single spawn authority is untouched.
 class_name SiegeDirector
 extends Node
 
@@ -319,6 +319,7 @@ func open_siege(forced_strength: int = 0) -> void:
 	if nights_run == 1:
 		sector_bearing = _rng.randf_range(0.0, TAU)
 	_build_cells()
+	_stock_reserve()
 	siege_began.emit(run_strength, is_probe)
 
 
@@ -406,16 +407,23 @@ func _build_cells() -> void:
 func _build_assault(count: int) -> void:
 	if count <= 0:
 		return
-	var sappers: int = mini(_rng.randi_range(1, 6) + _rng.randi_range(1, 6), count)
+	var roll: int = 0
+	for _die in range(SAPPER_DICE):
+		roll += _rng.randi_range(1, SAPPER_DIE_FACES)
+	var sappers: int = mini(roll, count)
 	var regulars: int = count - sappers
 	# Sappers stay one body: they are the demolition party, they carry the charges, and
 	# _rotate_press already excludes them from the press for that reason.
-	_spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true, sector_bearing, objective)
+	var seeded: int = _spawn_cells_for(sappers, SAPPER_DATA, "siege_sappers", true,
+		sector_bearing, objective)
 	if regulars <= 0:
+		_report_reserve(seeded, count)
 		return
 	# A probe is a reconnaissance, not an assault - it stays a single body.
 	if is_probe:
-		_spawn_cells_for(regulars, REGULAR_DATA, "siege_assault", false, sector_bearing, objective)
+		seeded += _spawn_cells_for(regulars, REGULAR_DATA, "siege_assault", false,
+			sector_bearing, objective)
+		_report_reserve(seeded, count)
 		return
 	var per: int = maxi(1, int(floor(float(regulars) / float(ASSAULT_SQUADS))))
 	var spread: float = deg_to_rad(SQUAD_SPREAD_DEG)
@@ -437,9 +445,10 @@ func _build_assault(count: int) -> void:
 			var out: Vector3 = Vector3(cos(lane), 0.0, sin(lane))
 			var wall: float = _wall_radius_at(fsb_center + out * 100.0)
 			aim = fsb_center + out * (wall + SUPPORT_STANDOFF_M)
-		_spawn_cells_for(n, REGULAR_DATA, tag, false, lane, aim)
+		seeded += _spawn_cells_for(n, REGULAR_DATA, tag, false, lane, aim)
 	print("[Siege] assault split into %d squads on %.0f deg of arc (squad %d is the base of fire)"
 		% [ASSAULT_SQUADS, SQUAD_SPREAD_DEG, SUPPORT_SQUAD])
+	_report_reserve(seeded, count)
 
 
 ## ---------- BREACHES ----------
@@ -519,9 +528,11 @@ func _redirect_through_breach(hole: Vector3) -> void:
 			% [hole.x, hole.z, moved])
 
 
+## Returns how many of `count` men came pre-built from the reserve.
 func _spawn_cells_for(count: int, data: String, tag: String, charges: bool,
-		bearing: float, aim: Vector3) -> void:
+		bearing: float, aim: Vector3) -> int:
 	var remaining: int = count
+	var seeded: int = 0
 	while remaining > 0:
 		var size: int = mini(remaining, _rng.randi_range(CELL_MIN, CELL_MAX))
 		if remaining - size > 0 and remaining - size < CELL_MIN:
@@ -537,7 +548,115 @@ func _spawn_cells_for(count: int, data: String, tag: String, charges: bool,
 		cell.materialize_center = fsb_center
 		add_child(cell)
 		cell.setup(director, at, aim, size, data, tag, int(_rng.randi()))
+		var men: Array[EnemyBase] = _draw_reserve(data, size)
+		cell.seed_reserve(men)
+		seeded += men.size()
 		cells.append(cell)
+	return seeded
+
+
+## ---------- THE RESERVE (2026-09-11) ----------
+## Men for the reinforce() the arc will call, built while the probe is still marching. A
+## marching cell pre-warms its OWN men one a frame, but reinforce() creates its cells at the
+## reinforce moment, so that drip ran inside the assault's opening: measured 2026-09-11
+## (headless --stress, before this reserve), the 34-man reinforce at t+45 s cost 34 consecutive
+## physics steps of ~22 ms each - dr.rehang 261 ms + spawn.model_setup 368 ms + spawn.hitzones
+## 61 ms over 30 men in one window, 39 steps >= 20 ms, 37 fps, median frame 23.5 ms - the
+## frames in which the player is watching the wire. Activation was 0.6 ms a man in the same
+## run (spawn.activate 6.8 ms x12): the cost is the build, and the build must precede the
+## reinforce's existence.
+##
+## Sized for the WORST split, because the demolition party is rolled at reinforce time and a
+## man IS his EnemyData - a sapper cannot stand in for a rifleman. reinforce() has one caller,
+## the demo arc (demo_game.gd:648), so only a demo-mode probe stocks it; the full game's d50
+## never grows and the reserve stays empty. Whatever the roll leaves is freed with the siege.
+## The drip shares MarchingCell's one-a-frame token and yields to any cell still filling its
+## own reserve: the probe's men pop first and are built first.
+const SAPPER_DICE: int = 2
+const SAPPER_DIE_FACES: int = 6
+var _reserve: Dictionary = {}       ## data_path -> Array[EnemyBase], dormant men
+var _reserve_due: Dictionary = {}   ## data_path -> men still to build
+var _reserve_t0: int = 0
+var _reserve_frames: int = 0
+
+
+func _stock_reserve() -> void:
+	if not GameFlow.demo_mode or not is_probe:
+		return
+	var extra: int = LIVE_CAP - run_strength
+	if extra <= 0:
+		return
+	_reserve_due[SAPPER_DATA] = mini(SAPPER_DICE * SAPPER_DIE_FACES, extra)
+	_reserve_due[REGULAR_DATA] = maxi(0, extra - SAPPER_DICE)
+	_reserve_t0 = Time.get_ticks_msec()
+	_reserve_frames = 0
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	for c in cells:
+		if is_instance_valid(c) and c.reserve_short():
+			return
+	for data: String in _reserve_due.keys():
+		if int(_reserve_due[data]) <= 0:
+			continue
+		if not MarchingCell.take_prewarm_token():
+			return
+		StallLedger.begin("spawn.prewarm")
+		var man: EnemyBase = director.prewarm_enemy(data)
+		StallLedger.end()
+		_reserve_due[data] = int(_reserve_due[data]) - 1
+		_reserve_frames += 1
+		if man != null:
+			if not _reserve.has(data):
+				_reserve[data] = [] as Array[EnemyBase]
+			(_reserve[data] as Array).append(man)
+		return
+	set_process(false)
+	if not _reserve_due.is_empty():
+		var parts: PackedStringArray = PackedStringArray()
+		for data: String in _reserve.keys():
+			parts.append("%d %s" % [(_reserve[data] as Array).size(), data.get_file().get_basename()])
+		print("[Siege] reserve stocked for the reinforce: %s - %d builds over %d ms, one a frame"
+			% [", ".join(parts), _reserve_frames, Time.get_ticks_msec() - _reserve_t0])
+		_reserve_due.clear()
+
+
+func _draw_reserve(data: String, n: int) -> Array[EnemyBase]:
+	var out: Array[EnemyBase] = []
+	if not _reserve.has(data):
+		return out
+	var pool: Array = _reserve[data]
+	while out.size() < n and not pool.is_empty():
+		var m: EnemyBase = pool.pop_back() as EnemyBase
+		if is_instance_valid(m):
+			out.append(m)
+	return out
+
+
+func _report_reserve(seeded: int, count: int) -> void:
+	if seeded <= 0:
+		return
+	var left: int = 0
+	for data: String in _reserve.keys():
+		left += (_reserve[data] as Array).size()
+	print("[Siege] reserve: %d of %d men came pre-built, %d still dormant" % [seeded, count, left])
+
+
+func _free_reserve() -> void:
+	set_process(false)
+	for data: String in _reserve.keys():
+		for m in _reserve[data]:
+			if is_instance_valid(m):
+				(m as EnemyBase).queue_free()
+	_reserve.clear()
+	_reserve_due.clear()
+
+
+## The reserve's men live under the world, not under this node - a director torn down with
+## the world still up would leave them parked there forever.
+func _exit_tree() -> void:
+	_free_reserve()
 
 
 ## ---------- THE RUNNING FIGHT ----------
@@ -1139,6 +1258,7 @@ func _break_siege(reason: String) -> void:
 				_reap_clock[m.get_instance_id()] = 0.0
 		c.queue_free()
 	cells.clear()
+	_free_reserve()
 	# The run's pool carries: nights 2-3 field the survivors, and a wiped assault
 	# ends the run rather than re-rolling a fresh fifty.
 	run_strength = survivors

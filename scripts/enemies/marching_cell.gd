@@ -72,11 +72,12 @@ func is_spent() -> bool:
 
 
 ## THE RESERVE. Men built during the march and parked, so the pop ring pays activate()
-## (a teleport and four registrations) instead of spawn (45-120 ms of model, clips and
-## hitzones per man - "spawn.man 119.5 ms", perf audit 2026-09-10). Filled through the SAME
-## per-frame token budget the pop uses, so pre-warming cannot hitch either; a cell that
-## marches for two minutes fills its reserve in the first second of them. A cell that
-## withdraws or is reaped frees whatever it never used.
+## (a teleport and four registrations - measured 0.6 ms a man, spawn.activate 6.8 ms x12,
+## 2026-09-11) instead of spawn (45-120 ms of model, clips and hitzones per man - "spawn.man
+## 119.5 ms", perf audit 2026-09-10). Filled one a frame so pre-warming cannot hitch either. A
+## cell that withdraws or is reaped frees whatever it never used. A cell created for a
+## reinforce() is SEEDED from SiegeDirector's reserve instead, because a drip that starts
+## when the cell is born starts inside the fight.
 var _reserve: Array[EnemyBase] = []
 var _prewarmed: int = 0
 
@@ -88,7 +89,6 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_physics_process(false)
 		return
-	_prewarm_tick()
 	_step_timer += delta
 	if _step_timer < STEP_INTERVAL:
 		return
@@ -176,6 +176,7 @@ func materialize() -> void:
 	if materialized or director == null:
 		return
 	materialized = true
+	set_process(false)
 	_spawn_left = strength
 	# NO first-man exemption: an illum flare materializes every lit cell in the
 	# SAME frame (ADR-035 scopes the button to the lit circle, but the circle
@@ -191,14 +192,16 @@ func _spawn_tick() -> void:
 		_spawn_left -= 1
 
 
-## ONE a frame for the reserve, not the pop's two. A pre-warmed man is still 8-12 ms of model,
-## clips and passes on the main thread (spawn.anim_library, sp.height, sp.dupes, sp.gibrig in the
-## ledger); two a frame during the march was a 20 ms frame nobody asked for, and the march is
-## minutes long - one a frame fills a 12-man cell in half a second.
+## ONE a frame for the reserve, not the pop's two. A pre-warmed man is ~22 ms of model, dress
+## and hitzones on the main thread (dr.rehang 8.7 + spawn.model_setup 12.3 + spawn.hitzones 2.0
+## ms a man, measured 2026-09-11); two a frame during the march was a 40 ms frame nobody asked
+## for, and the march is minutes long. A build frame runs ~45 ms all-in on the demo world (34
+## builds in ~1.5 s, 2026-09-11), so one a frame fills a 12-man cell in about half a second.
+## The token is shared with SiegeDirector's reserve so the whole siege builds one man a frame.
 static var _prewarm_frame: int = -1
 
 
-static func _take_prewarm_token() -> bool:
+static func take_prewarm_token() -> bool:
 	var f: int = Engine.get_process_frames()
 	if f == _prewarm_frame:
 		return false
@@ -206,14 +209,34 @@ static func _take_prewarm_token() -> bool:
 	return true
 
 
-func _prewarm_tick() -> void:
-	while _prewarmed < strength and MarchingCell._take_prewarm_token():
+## The drip runs on the RENDER frame, where the token is keyed, and not on the physics tick:
+## a cell the wave cap holds has its physics off (siege_director._enforce_live_cap) and must
+## keep building its men - the hold is on its march, never on its reserve. Otherwise a held
+## cell resumes an unfinished drip when it thaws, which is mid-fight by definition.
+func _process(_delta: float) -> void:
+	if materialized or _prewarmed >= strength:
+		set_process(false)
+		return
+	if MarchingCell.take_prewarm_token():
 		StallLedger.begin("spawn.prewarm")
 		var man: EnemyBase = director.prewarm_enemy(data_path)
 		StallLedger.end()
 		_prewarmed += 1
 		if man != null:
 			_reserve.append(man)
+
+
+func reserve_short() -> bool:
+	return not materialized and _prewarmed < strength
+
+
+## Men built before this cell existed (SiegeDirector's reserve, stocked while the probe was
+## still marching). Counted as pre-warmed so the drip only builds what the reserve could not.
+func seed_reserve(men: Array[EnemyBase]) -> void:
+	for m in men:
+		if is_instance_valid(m):
+			_reserve.append(m)
+			_prewarmed += 1
 
 
 func _spawn_one() -> void:
@@ -281,6 +304,7 @@ func withdraw_to(rally: Vector3) -> Array[EnemyBase]:
 
 
 func _free_reserve() -> void:
+	set_process(false)
 	for m in _reserve:
 		if is_instance_valid(m):
 			m.queue_free()
