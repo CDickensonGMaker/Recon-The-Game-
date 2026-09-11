@@ -442,6 +442,11 @@ func _dress_pilots() -> void:
 ## inside the Model subtree); generate any missing one from the airframe's
 ## fallback layout.
 ## Idempotent - the public API calls it lazily in case someone seats pre-frame-1.
+## Further than this from the vehicle origin and a seat marker is a stray, not a berth.
+## A Huey is 17 m long; a Chinook 30 m. Generous on purpose - the defect it catches is 18 m.
+const SOCKET_MAX_M: float = 12.0
+
+
 func _scan_sockets() -> void:
 	if _scanned or _vehicle == null:
 		return
@@ -451,8 +456,18 @@ func _scan_sockets() -> void:
 		# GLB empties arrive as plain Node3D - never type-check for Marker3D here.
 		var existing := _vehicle.find_child(String(seat_name), true, false) as Node3D
 		if existing != null:
-			_sockets[seat_name] = existing
-			continue
+			# A SOCKET OUTSIDE THE AIRFRAME IS NOT A SOCKET (2026-09-11). huey_v3.glb ships all
+			# six seat_bench_* empties 18.000 m off in +X - the PV_* preview copy's offset,
+			# which the exporter skips by name prefix and the bench empties lack - and this
+			# preference seated six men in mid-air beside the ship. Measured by
+			# tools/audit_huey_seat_markers.py; the fix belongs in the blend, this is the guard.
+			var off: float = (_vehicle.global_transform.affine_inverse()
+				* existing.global_position).length()
+			if off <= SOCKET_MAX_M:
+				_sockets[seat_name] = existing
+				continue
+			push_warning("[SeatSystem] %s: marker %s sits %.1f m from the airframe - ignored, table used"
+				% [_vehicle.name, String(seat_name), off])
 		var entry: Array = _layout()[seat_name]
 		var m := Marker3D.new()
 		m.name = String(seat_name)

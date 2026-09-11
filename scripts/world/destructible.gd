@@ -241,7 +241,7 @@ func _do_destroy() -> void:
 	remove_from_group("soft_cover")
 	remove_from_group("hard_surface")
 	# THE HOLE MUST BE WALKABLE, or destruction is decoration. The colliders above are now
-	# disabled and NavBaker._add_colliders already skips disabled shapes, so the navmesh is
+	# disabled and NavBaker's collider walk already skips disabled shapes, so the navmesh is
 	# correct the moment it is rebuilt - nothing ever rebuilt it. Debounced inside the baker:
 	# one satchel kills several segments and they all name the same ground.
 	StallLedger.begin("dz.nav")

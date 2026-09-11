@@ -3533,3 +3533,24 @@ in the reinforce window 32 -> 10 (pair 1: 39 -> 1), spawn spans in that window: 
 carries 49 builds now (idle-side, 50 ms idle worst there) and 15 surplus dormant men cover the
 roll. Follow-ups: stock at nightfall instead of the probe's open; let demo_game pass the exact
 reinforce size. Gates: test_siege, test_sapper_assault, probe_ai_lod 13/13, test_fossils.
+
+### 2026-09-11 — the breach rebake is a third of what it was, and it never stacks
+
+`nav_baker.gd` from `_tick_rebakes` down: a box mid-collect restarts, mid-bake stays dirty and
+re-queues once after landing (1.5 s quiet window, 6 s cap) - max one in flight + one pending;
+every phase resumable under a usec deadline (terrain by row, the collider walk one node at a
+time, shapes by triangle chunk); per-shape world-space faces cached and validated on shape +
+transform (2,440 shapes, 11 MB), so a rebake re-reads only the segment that died. Paired, clean
+box (A3/B3): **per rebake ~330 -> ~110 ms, worst slice 23 -> 7 ms, no stacked pairs, no
+nav.cull/nav.flip in any rebake window**; 420 s night: 4 rebakes, 11 breach press lines, ended
+broken at t+130 s. Mesh byte-identical to the eye of every audit (verts 6304 = 6304, roof verdict
+identical, test_marker_navmesh 5 = 5). Left: terrain re-sample ~45 ms per rebake (needs a dirty-row
+signal from terrain/), satchels 5-10 s apart still bake once each. Gates: test_siege,
+test_demo_arc, test_nav_path, test_marker_navmesh, test_fossils.
+
+Also this pass: **six of the Huey's bench seats shipped 18 m outside the ship** (`seat_bench_*`
+empties in huey_v3.glb carry the PV_ preview copy's +18 m X, found by the LOD build's marker
+audit); `SeatSystem` now rejects a marker further than 12 m from the airframe and uses the
+table, with a warning - the gates print it live. The fix proper is in huey_v3.blend / the
+exporter: his call. `huey_v3_lod.glb` exists at 2,743 tris (60,354 before, 93.5% of it two
+decals, two pintle guns and lettering); wiring waits on the markings-as-quads pass.

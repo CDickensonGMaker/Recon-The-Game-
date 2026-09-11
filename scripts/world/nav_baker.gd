@@ -60,17 +60,21 @@ var _total_ms: int = 0
 ## ---------- BREACHING ----------
 ## "sites != chunks -> a crater never triggers a re-bake" is right about CRATERS and wrong
 ## about STRUCTURES. A satchel that drops a parapet segment or a bunker has changed what a
-## man can walk through, and until this existed the hole was cosmetic: _add_colliders
+## man can walk through, and until this existed the hole was cosmetic: the collider walk
 ## already skips `disabled` shapes and Destructible._do_destroy already disables them, so
 ## the mesh was correct the moment it was rebuilt - nothing ever rebuilt it.
 ##
 ## Debounced, because a satchel kills several segments in one blast and each would
-## otherwise queue its own bake of the same box.
+## otherwise queue its own bake of the same box. The quiet window is trailing - every
+## breach re-arms it - so REBAKE_MAX_WAIT_S caps how long a stream of them (wire cards
+## under mortar fire) can hold the hole shut; a bake in flight still finishes first.
 const REBAKE_DEBOUNCE_S: float = 1.5
+const REBAKE_MAX_WAIT_S: float = 6.0
 ## Completed jobs, kept so a breach can re-run the one that owns its ground.
 var _baked: Array[Dictionary] = []
 var _dirty: Array[int] = []
 var _dirty_timer: float = 0.0
+var _dirty_wait: float = 0.0
 
 
 static func clear() -> void:
@@ -272,37 +276,88 @@ func _remember(box: AABB, region: NavigationRegion3D, croot: Node3D) -> void:
 	_baked.append({"box": box, "region": region, "colliders": croot})
 
 
+## A dirty box becomes AT MOST ONE job. Measured 2026-09-11 (B1_before.log, one 200 s
+## stress night): 14 parapet breaches became 7 re-bake prints and 6 full 370 m bakes, twice
+## as a PAIR queued two lines apart that both baked in full, because a box already
+## collecting or baking still took a second queue entry. A box mid-collect now restarts
+## its collect (the dead segment is skipped on the re-read); a box mid-bake stays dirty,
+## re-arms the quiet window and is queued ONCE when that bake has landed - queuing it the
+## frame the bake landed (A1_after.log) made every breach that fell in that gap a THIRD
+## bake; a box already queued is left alone.
 func _tick_rebakes(delta: float) -> void:
 	if _dirty.is_empty():
 		return
 	_dirty_timer -= delta
-	if _dirty_timer > 0.0:
+	_dirty_wait += delta
+	if _dirty_timer > 0.0 and _dirty_wait < REBAKE_MAX_WAIT_S:
 		return
+	var later: Array[int] = []
+	var queued: int = 0
 	for i in _dirty:
 		if i < 0 or i >= _baked.size():
 			continue
 		var j: Dictionary = _baked[i]
-		var job: Dictionary = {"box": j["box"]}
+		var box: AABB = j["box"]
+		if _active_mesh != null and _active_box.is_equal_approx(box):
+			later.append(i)
+			continue
+		if not _job.is_empty() and (_job.box as AABB).is_equal_approx(box):
+			_queue.push_front(_job.job)
+			_job = {}
+			queued += 1
+			continue
+		if _is_queued(box):
+			continue
+		var job: Dictionary = {"box": box}
 		if j.get("colliders", null) != null:
 			job["colliders"] = j["colliders"]
 		_queue.append(job)
-	print("[NavBaker] breach: re-baking %d region(s)" % _dirty.size())
-	_dirty.clear()
+		queued += 1
+	if queued > 0:
+		print("[NavBaker] breach: re-baking %d region(s)" % queued)
+	if not later.is_empty():
+		if not _fold_announced:
+			print("[NavBaker] breach: folded into the bake in flight")
+		_dirty_timer = REBAKE_DEBOUNCE_S
+	else:
+		_dirty_wait = 0.0
+	_fold_announced = not later.is_empty()
+	_dirty = later
 
 
-## THE COLLECT IS SLICED (perf audit 2026-09-10). Source-geometry collection - terrain
-## sampling for a 370 m box plus a walk over every collider in the compound - measured
-## 285.9 ms in ONE idle step during the siege, the single largest stall in the ledger. The
-## Recast solve after it was already async; the collection was not. It now runs as a job
-## that spends at most COLLECT_BUDGET_MS per frame and starts the bake when it is done.
-## Nothing leaves the main thread: the node walk, the face copies and the source resource
-## are all touched from here and only here, so no thread-safety surface is added.
+func _is_queued(box: AABB) -> bool:
+	for q in _queue:
+		if ((q as Dictionary)["box"] as AABB).is_equal_approx(box):
+			return true
+	return false
+
+
+## THE COLLECT IS SLICED, BOUNDED BY THE CLOCK, AND CACHED (2026-09-11). Every phase runs
+## under COLLECT_BUDGET_MS of main-thread time per frame, measured in usec, and a shape too
+## big for the budget is chewed a chunk of triangles at a time - a slice used to run to
+## the end of whatever item it was on, and one item was 53 ms. Nothing leaves the main
+## thread: the node walk, the face copies and the source resource are all touched from
+## here and only here, so no thread-safety surface is added.
 ##
-## The price is latency: a 286 ms collect at 6 ms a frame is ~48 frames, ~1.5 s at 30 fps,
-## before the bake even starts. A breach rebake therefore reaches the navmesh a second or
-## two later than it did - against a Recast solve that already took longer than that.
+## The price is latency: at 6 ms a frame a first-bake collect is ~1.5 s at 30 fps before
+## the Recast solve, which takes 2-5 s on its own thread, can start.
 const COLLECT_BUDGET_MS: float = 6.0
 var _job: Dictionary = {}
+## The box the async Recast solve is working on, so a breach in it is folded, not queued.
+var _active_box: AABB = AABB()
+var _fold_announced: bool = false
+
+## World-space faces per CollisionShape3D, keyed by instance id: {xf, shape, fwd, flip}.
+## A breach re-bake re-reads ~2,400 colliders of which exactly one changed; measured
+## 2026-09-11 (B1_before.log) that re-read cost ~300 ms of main-thread time per re-bake,
+## six re-bakes a night. A cached shape costs two add_faces() calls. An entry is ignored
+## when the shape's transform or resource differs, and dropped when the node is freed; a
+## disabled shape is skipped before the cache is asked, so a dead segment never replays.
+var _face_cache: Dictionary = {}
+var _cache_reported: int = -1
+## Usec per triangle of the cull loop, measured as it runs, so a chunk is sized to the
+## budget left in the slice rather than to an item count.
+var _tri_us: float = 1.0
 
 
 func _process(delta: float) -> void:
@@ -368,51 +423,60 @@ func _start_bake(job: Dictionary) -> void:
 	# cursor. _collect_slice() advances it; _finish_job() does what the tail of this
 	# function used to do.
 	_job = {"job": job, "nav": nav, "source": source, "box": box, "croot": croot,
-		"phase": 0, "iz": 0, "faces": PackedVector3Array(), "shapes": [], "si": 0,
-		"added": 0, "carved": 0}
+		"phase": 0, "iz": 0, "faces": PackedVector3Array(), "stack": [],
+		"shapes": [], "si": 0, "cur": {}, "added": 0, "carved": 0}
 	_collect_slice()
 
 
-## One frame's worth of collection. Phases: 0 terrain rows -> 1 collider list -> 2 collider
-## faces -> 3 structures -> 4 start the bake.
+## One frame's worth of collection. Phases: 0 terrain rows -> 1 seed the collider walk ->
+## 2 walk it, a node at a time -> 3 read the shapes, a chunk of triangles at a time ->
+## 4 carve the box-hull structures and start the bake. Each phase is a named span so the
+## ledger says WHICH phase a fat slice was, instead of the whole collect wearing it.
 func _collect_slice() -> void:
 	var t0: int = Time.get_ticks_usec()
-	var budget: int = int(COLLECT_BUDGET_MS * 1000.0)
+	var deadline: int = t0 + int(COLLECT_BUDGET_MS * 1000.0)
 	var source: NavigationMeshSourceGeometryData3D = _job.source
 	var box: AABB = _job.box
-	while Time.get_ticks_usec() - t0 < budget:
+	while Time.get_ticks_usec() < deadline:
 		match int(_job.phase):
 			0:
-				if not _terrain_row(box):
+				StallLedger.begin("nav.terrain")
+				var more: bool = true
+				while more and Time.get_ticks_usec() < deadline:
+					more = _terrain_row(box)
+				if not more:
 					source.add_faces(_job.faces, Transform3D.IDENTITY)
 					_job.faces = PackedVector3Array()
 					_job.phase = 1
+				StallLedger.end()
 			1:
-				var croot: Node3D = _job.croot
-				if croot != null and is_instance_valid(croot):
-					_job.shapes = _collect_shapes(_collider_roots(croot), box)
-				_job.si = 0
+				StallLedger.begin("nav.walk")
+				_seed_walk(box)
 				_job.phase = 2
+				StallLedger.end()
 			2:
-				var shapes: Array = _job.shapes
-				if int(_job.si) >= shapes.size():
+				StallLedger.begin("nav.walk")
+				var more: bool = true
+				while more and Time.get_ticks_usec() < deadline:
+					more = _walk_step(box)
+				if not more:
 					_job.phase = 3
-				else:
-					var cs: CollisionShape3D = shapes[int(_job.si)] as CollisionShape3D
-					_job.si = int(_job.si) + 1
-					if cs != null and is_instance_valid(cs) and _add_shape(source, cs):
-						_job.added = int(_job.added) + 1
+				StallLedger.end()
 			3:
+				if not _shape_step(source, deadline):
+					_job.phase = 4
+			4:
+				StallLedger.begin("nav.structures")
+				var carved: int = int(_job.carved) + _add_structures(source, box)
 				var croot: Node3D = _job.croot
-				if croot != null and is_instance_valid(croot):
-					# negative = collider count, see _on_bake_done
-					_job.carved = -int(_job.added) - 1
-					_add_structures(source, box)
-				else:
-					_job.carved = _add_structures(source, box)
-				_job.phase = 4
+				# negative = collider count, see _on_bake_done
+				_job.carved = (-int(_job.added) - 1) if (croot != null and is_instance_valid(croot)) else carved
+				_job.phase = 5
+				StallLedger.end()
 			_:
+				StallLedger.begin("nav.finish")
 				_finish_job()
+				StallLedger.end()
 				return
 
 
@@ -442,6 +506,222 @@ func _terrain_row(box: AABB) -> bool:
 	return true
 
 
+## Roots of the collider walk: the site's collider root, every Destructible that took a
+## collider off it (FSB_NAV_GEOM_GROUP - SitePlanner reparents the perimeter and the
+## adopted structures onto Destructibles under GameWorld BEFORE this bake runs, so a walk
+## of the root alone left the entire perimeter wall out of the mesh), and the enterable
+## models whose own -col trimeshes ARE their collision (nav_trimesh: SitePlanner adds no
+## box hull for them, and projecting a footprint would carve their doorway out of the mesh
+## the physics leaves open).
+##
+## Walked a node at a time rather than with find_children(): one engine-side walk of the
+## ~8k-node compound was the single unsliceable item left in the collect, measured
+## 2026-09-11 at 7-14 ms (A1_after.log) and 8-21 ms under load (A2_after.log).
+func _seed_walk(box: AABB) -> void:
+	var stack: Array = []
+	var croot: Node3D = _job.croot
+	if croot != null and is_instance_valid(croot):
+		stack.append(croot)
+		for d in get_tree().get_nodes_in_group(SitePlanner.FSB_NAV_GEOM_GROUP):
+			if d != null and is_instance_valid(d):
+				stack.append(d)
+	for n in get_tree().get_nodes_in_group("nav_blockers"):
+		var body := n as Node3D
+		if body == null or not is_instance_valid(body):
+			continue
+		if bool(body.get_meta("nav_trimesh", false)) and NavBaker._xz_contains(box, body.global_position):
+			stack.append(body)
+			_job.carved = int(_job.carved) + 1
+	_job.stack = stack
+
+
+## Pop one node: push its children, keep it if it is an enabled, in-box, non-ignored
+## shape. False when the stack is spent.
+func _walk_step(box: AABB) -> bool:
+	var stack: Array = _job.stack
+	if stack.is_empty():
+		return false
+	var n := stack.pop_back() as Node
+	if n == null or not is_instance_valid(n):
+		return true
+	for c in n.get_children():
+		stack.append(c)
+	var cs := n as CollisionShape3D
+	if cs == null or cs.disabled or cs.shape == null:
+		return true
+	if not NavBaker._xz_contains(box, cs.global_position):
+		return true
+	if NavBaker._has_prefix(String(cs.get_parent().name), NAV_IGNORE_PREFIXES):
+		return true
+	_job.shapes.append(cs)
+	return true
+
+
+## Read one shape into the source - from the cache in two calls, or a chunk of its
+## triangles at a time on a miss. False when the shape list is spent.
+func _shape_step(source: NavigationMeshSourceGeometryData3D, deadline: int) -> bool:
+	var shapes: Array = _job.shapes
+	var si: int = int(_job.si)
+	if si >= shapes.size():
+		return false
+	var cur: Dictionary = _job.cur
+	if cur.is_empty():
+		var cs := shapes[si] as CollisionShape3D
+		# Re-checked here, not only in the filter: a segment that died between the two
+		# phases must not bake solid.
+		if cs == null or not is_instance_valid(cs) or cs.disabled or cs.shape == null:
+			_job.si = si + 1
+			return true
+		var hit: Dictionary = _face_cache.get(cs.get_instance_id(), {})
+		if not hit.is_empty() and hit.shape == cs.shape \
+				and (hit.xf as Transform3D).is_equal_approx(cs.global_transform):
+			_emit(source, hit.fwd, hit.flip)
+			_job.added = int(_job.added) + 1
+			_job.si = si + 1
+			return true
+		cur = _begin_shape(cs)
+		if cur.is_empty():
+			_job.si = si + 1
+			return true
+		_job.cur = cur
+	if int(cur.i) < (cur.wv as PackedVector3Array).size() - 2:
+		_cull_chunk(cur, deadline)
+		return true
+	_end_shape(source, cur)
+	_job.cur = {}
+	_job.added = int(_job.added) + 1
+	_job.si = si + 1
+	return true
+
+
+## Maps a vertex to (y, y, y) / (z, z, z), so Array.min()/max() - which order Vector3
+## lexicographically - order by that one component, in C++.
+const Y_ONLY := Transform3D(Basis(Vector3.ZERO, Vector3.ONE, Vector3.ZERO), Vector3.ZERO)
+const Z_ONLY := Transform3D(Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ONE), Vector3.ZERO)
+
+
+## [min, max] of one world axis over `wv` without a GDScript loop. `axis` is IDENTITY for
+## x, Y_ONLY / Z_ONLY for the others.
+static func _axis_span(wv: PackedVector3Array, axis: Transform3D) -> Vector2:
+	var a: Array = Array(axis * wv)
+	return Vector2(float((a.min() as Vector3).x), float((a.max() as Vector3).x))
+
+
+static func _has_prefix(owner_name: String, prefixes: Array[String]) -> bool:
+	for p in prefixes:
+		if owner_name.begins_with(p):
+			return true
+	return false
+
+
+## ONE get_faces() per shape, transformed to world space once, in C++. Decides whether the
+## height rule has anything to do: it cuts triangles sitting entirely above the shape's
+## own base + NAV_ROOF_HEIGHT_M, so a shape that never reaches its own roof line - a 1.2 m
+## sandbag part, and most of the compound is parts - needs no triangle loop at all.
+##
+## Ground sheets are exempt from every cut: the mound spans the compound, so its crests sit
+## far above its own lowest point and the height rule would amputate the berms.
+func _begin_shape(cs: CollisionShape3D) -> Dictionary:
+	var raw: PackedVector3Array = _shape_faces(cs.shape)
+	if raw.is_empty():
+		return {}
+	var xf: Transform3D = cs.global_transform
+	var owner_name: String = String(cs.get_parent().name)
+	var wv: PackedVector3Array = xf * raw
+	var ground: bool = NavBaker._has_prefix(owner_name, NAV_GROUND_PREFIXES)
+	var listed: bool = NavBaker._has_prefix(owner_name, NAV_ROOF_CULL_PREFIXES)
+	var concave := cs.shape as ConcavePolygonShape3D
+	var ds: bool = concave != null and concave.backface_collision
+	var span: Vector2 = NavBaker._axis_span(wv, Y_ONLY)
+	var cut: float = span.x + NAV_ROOF_HEIGHT_M
+	# The loop serves three readers: the listed roof cull, the flipped-face cull, and the
+	# first-bake audit that counts what an unlisted structure WOULD have lost. count_only
+	# is the audit alone - nothing downstream needs the kept faces.
+	var loop: bool = span.y >= cut and not ground and (listed or ds or not _roof_audit_done)
+	return {"cs": cs, "xf": xf, "name": owner_name, "wv": wv, "cut": cut, "base": span.x,
+		"listed": listed, "ds": ds, "count_only": not (listed or ds), "loop": loop,
+		"i": 0 if loop else wv.size(), "kept": PackedVector3Array(), "over": 0}
+
+
+## The height rule, one budget-sized chunk of triangles. A triangle is roof only if ALL of
+## it is above the cut - a wall crossing the line stays, or the structure loses the sides
+## that hold its floor in.
+func _cull_chunk(cur: Dictionary, deadline: int) -> void:
+	var wv: PackedVector3Array = cur.wv
+	var left: int = deadline - Time.get_ticks_usec()
+	var n: int = clampi(int(float(left) / _tri_us), 32, 1 << 20)
+	var start: int = int(cur.i)
+	var i: int = start
+	var end: int = mini(i + n * 3, wv.size() - 2)
+	var cut: float = cur.cut
+	var over: int = 0
+	var t0: int = Time.get_ticks_usec()
+	StallLedger.begin("nav.cull")
+	if bool(cur.count_only):
+		while i < end:
+			if wv[i].y >= cut and wv[i + 1].y >= cut and wv[i + 2].y >= cut:
+				over += 1
+			i += 3
+	else:
+		var kept: PackedVector3Array = cur.kept
+		cur.kept = PackedVector3Array()
+		while i < end:
+			if wv[i].y >= cut and wv[i + 1].y >= cut and wv[i + 2].y >= cut:
+				over += 1
+			else:
+				kept.append(wv[i]); kept.append(wv[i + 1]); kept.append(wv[i + 2])
+			i += 3
+		cur.kept = kept
+	StallLedger.end()
+	var done: int = (i - start) / 3
+	if done > 0:
+		_tri_us = maxf(0.05, lerpf(_tri_us, float(Time.get_ticks_usec() - t0) / float(done), 0.5))
+	cur.i = i
+	cur.over = int(cur.over) + over
+
+
+## THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward (physics is repaired
+## via backface_collision - site_planner._force_backface_collision), but the bake reads
+## WINDING, not that flag: a down-facing floor contributes no walkable surface, so the
+## whole compound's mesh sat on the flat terrain seat ~1.7 m under the mound and routes
+## tunnelled through berm volume. Where physics is double-sided, the nav source is too
+## (Summoner decree 2026-08-13: "make the ai walk all the real geometry in the game").
+## The flipped copy of a NON-ground shape still respects the roof line - a tower top was
+## never walkable before the flip and must not become so because of it. reverse() on the
+## whole array reverses every triangle's winding; the order of triangles is not read.
+func _end_shape(source: NavigationMeshSourceGeometryData3D, cur: Dictionary) -> void:
+	var cs: CollisionShape3D = cur.cs
+	var wv: PackedVector3Array = cur.wv
+	var listed: bool = cur.listed
+	var culled: PackedVector3Array = cur.kept if (bool(cur.loop) and not bool(cur.count_only)) else wv
+	var fwd: PackedVector3Array = culled if listed else wv
+	var flip: PackedVector3Array = PackedVector3Array()
+	if bool(cur.ds):
+		StallLedger.begin("nav.flip")
+		flip = culled.duplicate()
+		flip.reverse()
+		StallLedger.end()
+	# ADR-042 clause 1: a prefix list must name what it MISSED. An unlisted structure whose
+	# up-facing geometry reaches above its own roof line bakes that roof as walkable floor.
+	# Counted on the first bake, reported once, never silently dropped - the flipped pass
+	# culls universally, so this is the ONLY door a roof can still walk through. The roof
+	# geometry does not change when a wall comes down, so the first answer stands.
+	var over: int = int(cur.over)
+	if over > 0 and not listed and not _roof_audit_done:
+		_record_roof_miss(String(cur.name), over, float(cur.base), wv)
+	_face_cache[cs.get_instance_id()] = {"xf": cur.xf, "shape": cs.shape, "fwd": fwd, "flip": flip}
+	_emit(source, fwd, flip)
+
+
+func _emit(source: NavigationMeshSourceGeometryData3D, fwd: PackedVector3Array,
+		flip: PackedVector3Array) -> void:
+	StallLedger.begin("nav.addfaces")
+	source.add_faces(fwd, Transform3D.IDENTITY)
+	if not flip.is_empty():
+		source.add_faces(flip, Transform3D.IDENTITY)
+	StallLedger.end()
+
+
 func _finish_job() -> void:
 	var nav: NavigationMesh = _job.nav
 	var source: NavigationMeshSourceGeometryData3D = _job.source
@@ -449,12 +729,24 @@ func _finish_job() -> void:
 	var croot: Node3D = _job.croot
 	var carved: int = int(_job.carved)
 	_job = {}
+	for id in _face_cache.keys():
+		if not is_instance_id_valid(int(id)):
+			_face_cache.erase(id)
+	if _face_cache.size() != _cache_reported:
+		_cache_reported = _face_cache.size()
+		var verts: int = 0
+		for e in _face_cache.values():
+			verts += ((e as Dictionary).fwd as PackedVector3Array).size() \
+				+ ((e as Dictionary).flip as PackedVector3Array).size()
+		print("[NavBaker] face cache: %d shapes, %d world verts (%.1f MB)" % [
+			_face_cache.size(), verts, float(verts) * 12.0 / 1048576.0])
 	var region := NavigationRegion3D.new()
 	region.name = "NavRegion_%d" % regions_live
 	get_parent().add_child(region)
 	region.global_transform = Transform3D.IDENTITY   # source geometry is world-space
 
 	_active_mesh = nav
+	_active_box = box
 	_bake_start_ms = Time.get_ticks_msec()
 	NavigationServer3D.bake_from_source_geometry_data_async(
 		nav, source, _on_bake_done.bind(region, nav, box, carved, croot))
@@ -534,131 +826,11 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 const NAV_IGNORE_PREFIXES: Array[String] = ["fb_veg_", "door_", "fb_hootch_roof_"]
 
 
-func _collider_roots(root: Node3D) -> Array[Node]:
-	var roots: Array[Node] = [root]
-	# SitePlanner reparents the ~80 perimeter segments and the adopted structures onto
-	# Destructibles under GameWorld BEFORE this bake runs, and this walk only descends
-	# the root it was handed - so the entire perimeter wall was absent from the mesh and
-	# pathing routed men into solid berm. They live in their own group; seed from it.
-	#
-	# NAV_IGNORE_PREFIXES tests the collider's PARENT name, which for these is the
-	# Destructible. That used to make every adopted structure anonymous to the contract;
-	# _adopt_structure now names the Destructible after its mesh (site_planner.gd), so the
-	# prefix reads through the reparent and the old caveat no longer applies.
-	for d in get_tree().get_nodes_in_group(SitePlanner.FSB_NAV_GEOM_GROUP):
-		var dn := d as Node3D
-		if dn != null and is_instance_valid(dn):
-			roots.append(dn)
-	return roots
-
-
-func _walk_shapes(source: NavigationMeshSourceGeometryData3D, roots: Array[Node], box: AABB) -> int:
-	var added: int = 0
-	for cs in _collect_shapes(roots, box):
-		if _add_shape(source, cs as CollisionShape3D):
-			added += 1
-	return added
-
-
-## The traversal half of the old _walk_shapes: every enabled, in-box, non-ignored shape under
-## the roots, as a flat list the sliced collect can chew through a few per frame.
-func _collect_shapes(roots: Array[Node], box: AABB) -> Array:
-	var out: Array = []
-	var stack: Array[Node] = roots.duplicate()
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.append(c)
-		var cs := n as CollisionShape3D
-		if cs == null or cs.disabled or cs.shape == null:
-			continue
-		if not NavBaker._xz_contains(box, cs.global_position):
-			continue
-		var owner_name: String = String(cs.get_parent().name)
-		var skip: bool = false
-		for p in NAV_IGNORE_PREFIXES:
-			if owner_name.begins_with(p):
-				skip = true
-				break
-		if skip:
-			continue
-		out.append(cs)
-	return out
-
-
-## The per-shape half: faces, roof cull, add, and the flipped copy where physics is
-## double-sided. Returns true when the shape contributed anything.
-func _add_shape(source: NavigationMeshSourceGeometryData3D, cs: CollisionShape3D) -> bool:
-	if cs == null or cs.shape == null:
-		return false
-	var owner_name: String = String(cs.get_parent().name)
-	# ONE get_faces() PER SHAPE. ConcavePolygonShape3D.get_faces() COPIES the whole face
-	# array, and the flipped-winding branch below used to ask for a second copy of the
-	# same shape - 1,985 double-sided shapes in this compound, so ~2,000 redundant copies
-	# of trimesh geometry per bake. That is the breach re-bake's 320 ms.
-	var faces: PackedVector3Array = _shape_faces(cs.shape)
-	if faces.is_empty():
-		return false
-	var raw: PackedVector3Array = faces
-	StallLedger.begin("nav.cull")
-	faces = _cull_roof_faces(owner_name, faces, cs.global_transform)
-	StallLedger.end()
-	StallLedger.begin("nav.addfaces")
-	source.add_faces(faces, cs.global_transform)
-	StallLedger.end()
-	# THE GROUND WAS INVISIBLE TO THIS BAKE. The shipped GLB winds inward
-	# (2048 shapes; physics is repaired via backface_collision -
-	# site_planner._force_backface_collision), but the bake reads WINDING, not
-	# that flag: a down-facing floor contributes no walkable surface, so the
-	# whole compound's mesh sat on the flat terrain seat ~1.7m under the mound
-	# and routes tunnelled through berm volume ("the AI can get in and I
-	# can't", measured by tools/probe_bunker_entry). Where physics is
-	# double-sided, the nav source must be too (Summoner decree 2026-08-13:
-	# "make the ai walk all the real geometry in the game").
-	#
-	# Flipped faces of NON-ground shapes still respect the roof line for EVERY
-	# family - a tower top or chow-hall roof was never walkable before the
-	# flip and must not become so because of it. Ground sheets are exempt from
-	# that cull: the mound spans the compound, so its crests sit far above its
-	# own lowest point and the height rule would amputate the berms the flip
-	# exists to restore.
-	var concave := cs.shape as ConcavePolygonShape3D
-	if concave != null and concave.backface_collision:
-		StallLedger.begin("nav.flip")
-		var flipped: PackedVector3Array = _flip_faces(raw)
-		StallLedger.end()
-		var is_ground: bool = false
-		for gp in NAV_GROUND_PREFIXES:
-			if owner_name.begins_with(gp):
-				is_ground = true
-				break
-		if not is_ground:
-			StallLedger.begin("nav.cullflip")
-			flipped = _cull_above_base(flipped, cs.global_transform)
-			StallLedger.end()
-		if not flipped.is_empty():
-			StallLedger.begin("nav.addfaces")
-			source.add_faces(flipped, cs.global_transform)
-			StallLedger.end()
-	return true
-
-
 ## The compound's ground-of-record sheets (the model IS the ground, ruling
 ## 2026-07-29). Same two families combat_manager treats as BLAST_PROOF - the
 ## coincidence is real but the meanings differ, so the list is declared here,
 ## not shared.
 const NAV_GROUND_PREFIXES: Array[String] = ["fb_terrain_mound", "fb_berm_ring"]
-
-
-## Reverse each triangle's winding so its face normal inverts.
-func _flip_faces(faces: PackedVector3Array) -> PackedVector3Array:
-	var out: PackedVector3Array = PackedVector3Array()
-	out.resize(faces.size())
-	for i in range(0, faces.size() - 2, 3):
-		out[i] = faces[i]
-		out[i + 1] = faces[i + 2]
-		out[i + 2] = faces[i + 1]
-	return out
 
 
 ## Structures whose ROOF bakes as walkable floor. Each is ONE mesh - roof and interior floor
@@ -705,60 +877,16 @@ const NAV_ROOF_HEIGHT_M: float = 1.9
 const ROOF_JUDGE_MAX_M: float = 40.0
 
 
-## Drop the roof triangles of a monolithic structure while keeping its floor. Returns the
-## faces unchanged for everything else, which is nearly every shape in the compound.
-func _cull_roof_faces(owner_name: String, faces: PackedVector3Array,
-		xform: Transform3D) -> PackedVector3Array:
-	var match_found: bool = false
-	for p in NAV_ROOF_CULL_PREFIXES:
-		if owner_name.begins_with(p):
-			match_found = true
-			break
-	if not match_found:
-		# ADR-042 clause 1: a prefix list must name what it MISSED. A structure whose
-		# up-facing geometry reaches above its own roof line and matches nothing here
-		# bakes that roof as walkable floor. Counted, reported once per bake, never
-		# silently dropped - the flipped-winding pass culls universally, so this is the
-		# ONLY door a roof can still walk through.
-		# Ground sheets are exempt for the same reason the flipped pass exempts them: the
-		# mound spans the compound, so its crests sit far above its own lowest point and
-		# the height rule would call every berm a roof.
-		for gp in NAV_GROUND_PREFIXES:
-			if owner_name.begins_with(gp):
-				return faces
-		# THE AUDIT IS A LOAD-TIME QUESTION, NOT A PER-BAKE ONE, and it was not free: counting
-		# what this pass would have culled cost 97.9 ms of the breach re-bake's 314 ms - an
-		# instrument I added tonight, charging a third of the stall it was meant to help
-		# investigate, on every hole a sapper blows. The roof geometry does not change when a
-		# wall comes down, so the answer from the first bake is still the answer.
-		if not _roof_audit_done:
-			var over: int = _count_above_base(faces, xform)
-			if over > 0:
-				# A triangle above the roof line is only a CANDIDATE - Recast still has to
-				# accept its slope, its winding and the headroom over it - so the roof plane
-				# and the XZ footprint are kept too, and the honest question is put to the
-				# BAKED MESH afterwards. A count alone cannot answer it.
-				_record_roof_miss(owner_name, over, faces, xform)
-		return faces
-	return _cull_above_base(faces, xform)
-
-
-## Ran once, on the first bake only - see the gate in _cull_roof_faces.
+## Ran once, on the first bake only - see the gate in _begin_shape / _end_shape.
 var _roof_audit_done: bool = false
 
-func _record_roof_miss(owner_name: String, over: int, faces: PackedVector3Array,
-		xform: Transform3D) -> void:
+func _record_roof_miss(owner_name: String, over: int, base_y: float,
+		wv: PackedVector3Array) -> void:
 	var rec: Dictionary = _roof_misses.get(owner_name, {}) as Dictionary
-	var base_y: float = INF
-	var lo := Vector2(INF, INF)
-	var hi := Vector2(-INF, -INF)
-	for v in faces:
-		var w: Vector3 = xform * v
-		base_y = minf(base_y, w.y)
-		lo.x = minf(lo.x, w.x)
-		lo.y = minf(lo.y, w.z)
-		hi.x = maxf(hi.x, w.x)
-		hi.y = maxf(hi.y, w.z)
+	var xs: Vector2 = NavBaker._axis_span(wv, Transform3D.IDENTITY)
+	var zs: Vector2 = NavBaker._axis_span(wv, Z_ONLY)
+	var lo := Vector2(xs.x, zs.x)
+	var hi := Vector2(xs.y, zs.y)
 	rec["tris"] = int(rec.get("tris", 0)) + over
 	rec["cut_y"] = minf(float(rec.get("cut_y", INF)), base_y + NAV_ROOF_HEIGHT_M)
 	rec["lo"] = Vector2(minf(float((rec.get("lo", lo) as Vector2).x), lo.x),
@@ -834,44 +962,6 @@ func _report_roof_misses(nav: NavigationMesh = null) -> void:
 	_roof_misses.clear()
 
 
-## How many triangles _cull_above_base WOULD remove, without building the array it returns.
-func _count_above_base(faces: PackedVector3Array, xform: Transform3D) -> int:
-	var base_y: float = INF
-	for v in faces:
-		base_y = minf(base_y, (xform * v).y)
-	var cut: float = base_y + NAV_ROOF_HEIGHT_M
-	var n: int = 0
-	for i in range(0, faces.size() - 2, 3):
-		if (xform * faces[i]).y >= cut and (xform * faces[i + 1]).y >= cut 				and (xform * faces[i + 2]).y >= cut:
-			n += 1
-	return n
-
-
-## The height rule itself, shared by the listed roof cull and the flipped-face
-## pass: cut every triangle sitting entirely above the shape's own base + the
-## roof line.
-func _cull_above_base(faces: PackedVector3Array, xform: Transform3D) -> PackedVector3Array:
-	var base_y: float = INF
-	for v in faces:
-		var wy: float = (xform * v).y
-		if wy < base_y:
-			base_y = wy
-	var cut: float = base_y + NAV_ROOF_HEIGHT_M
-	var kept: PackedVector3Array = PackedVector3Array()
-	for i in range(0, faces.size() - 2, 3):
-		var a: Vector3 = xform * faces[i]
-		var b: Vector3 = xform * faces[i + 1]
-		var c: Vector3 = xform * faces[i + 2]
-		# a triangle is roof only if ALL of it is up there - a wall crossing the line stays,
-		# or the structure loses the sides that hold its floor in.
-		if a.y >= cut and b.y >= cut and c.y >= cut:
-			continue
-		kept.append(faces[i])
-		kept.append(faces[i + 1])
-		kept.append(faces[i + 2])
-	return kept
-
-
 ## Triangles for the shape kinds the firebase GLB actually imports: `-colonly` trimeshes come
 ## in as ConcavePolygonShape3D, and the generator's box hulls as BoxShape3D. Anything else is
 ## approximated from its own AABB rather than skipped - an unrecognised shape that silently
@@ -911,22 +1001,17 @@ func _shape_faces(shape: Shape3D) -> PackedVector3Array:
 ## exact match for CollisionTable's BoxShape3D + y_offset, needs no GLB mesh
 ## parsing and no scene walk - and, crucially, it matches the collider that
 ## move_and_slide() actually hits, so navmesh and physics never disagree.
+## Enterable (nav_trimesh) models are not here: their own colliders were walked in phase 1.
 func _add_structures(source: NavigationMeshSourceGeometryData3D, box: AABB) -> int:
 	var carved: int = 0
 	for n in get_tree().get_nodes_in_group("nav_blockers"):
 		var body := n as Node3D
 		if body == null or not is_instance_valid(body):
 			continue
+		if bool(body.get_meta("nav_trimesh", false)):
+			continue
 		var p: Vector3 = body.global_position
 		if not NavBaker._xz_contains(box, p):
-			continue
-		# An enterable model's own -col trimeshes ARE its collision (SitePlanner adds no
-		# box hull for it). Projecting its footprint instead would carve the interior and
-		# the doorway out of the mesh that the physics leaves open.
-		if bool(body.get_meta("nav_trimesh", false)):
-			var one: Array[Node] = [body]
-			if _walk_shapes(source, one, box) > 0:
-				carved += 1
 			continue
 		var size: Vector3 = body.get_meta("nav_box", Vector3.ZERO)
 		if size.length() < 0.01:
