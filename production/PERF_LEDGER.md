@@ -3599,3 +3599,24 @@ while the garrison is ALERT), ally.think 4.8 s (a flat 0.15 s think with no dist
 enemies have one), phys.civilian 3.7 s (villagers nowhere near the fight).
 Gates: test_demo_arc 26/26, test_firebase_defense, test_sapper_assault, test_siege, probe_ai_lod
 13/13, test_huey_sim, test_fossils.
+
+### 2026-09-11 — MOBILE RENDERER SHIPPED, on his word, on a measured pair
+
+His ruling, verbatim: "did we change to the mobile or compatability rendering yet? i know i said no
+before but its costing us performance" ... "ok lets use the mobile rendering than". The 7/17 decree
+is lifted by him. Measured first: `tests/windowed_patrol_perf.tscn` on HIS screen, same patrol
+view, seed 47225, render scale 1.0, Intel UHD, three renderers back to back, and then a clean
+Forward+ / Mobile pair with the window inert to keys (his key presses had been dismissing the
+title splash and tearing the sampled world down - two of the first four runs read a menu):
+
+| renderer | fps (mean of 19 drawn seconds) | draws | prims |
+|---|---|---|---|
+| Forward+ (was shipping) | **29.4** (26-30.5) | 856 | 387k |
+| Compatibility | 33.1 (32-34) | 1,745 | 550k |
+| **Mobile** | **40.9** (37-45.8) | 1,159 | 420k |
+
+`project.godot`: `renderer/rendering_method="mobile"`. Headless gates are renderer-blind
+(dummy) - test_demo_arc 26/26 still. **The LOOK is his:** Mobile drops SDFGI/SSR/SSAO/SSIL/
+volumetric fog (none in the world setup) and caps lights per mesh at 8; jungle edges, night
+darkness and wet ground want his eye. Reversal is one line. The harness now samples second by
+second and excludes any second the window drew nothing (`[PERFSEC]`, MIN_DRAWS 100).

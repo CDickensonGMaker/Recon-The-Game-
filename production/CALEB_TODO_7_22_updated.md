@@ -2552,3 +2552,12 @@ Yours: **the renderer A/B** — you lifted the 7/17 no ("its costing us performa
 `scratchpad/renderer_ab.sh` (Forward+, Mobile, Compatibility, same patrol view, ~4 min on your
 screen) and it needs your "go" because it takes the screen. Target you named: 45-59, "enough
 that its enjoyable".
+
+## MOBILE RENDERER IS ON (your ruling, 2026-09-11)
+
+Measured on your screen, same view: Forward+ 29.4 → Mobile 40.9 fps (+39%). Shipped in
+project.godot. **Your look check:** jungle edges, night darkness, wet ground, tracers, the
+scar decals - if anything reads wrong, say so; reversal is one line
+(`renderer/rendering_method="forward_plus"`). Compatibility measured 33.1 - not taken.
+Note: the perf test windows are the game booted headless-style with the title splash armed -
+a key press in one sends it to the menu. Fixed in the harness now; nothing in your game.
