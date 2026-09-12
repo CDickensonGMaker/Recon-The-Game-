@@ -2561,3 +2561,27 @@ scar decals - if anything reads wrong, say so; reversal is one line
 (`renderer/rendering_method="forward_plus"`). Compatibility measured 33.1 - not taken.
 Note: the perf test windows are the game booted headless-style with the title splash armed -
 a key press in one sends it to the menu. Fixed in the harness now; nothing in your game.
+
+## THE GUN CREW, what the instrument says (2026-09-11)
+
+"im seeing people at the artillery gun but its not the shirtless crewmembers and they didnt
+really do the animations." Measured with a new `[CREW]` line (one per change): at 06:00 the
+howitzer crew is captured 4/4, playing, piece bound - the loop WORKS by day. Three things are
+by ruling, not defect, and each reads as "men at the gun doing nothing":
+1. The shirtless figures baked into the M101 chunk are HIDDEN on purpose - the crew are real
+   garrison soldiers puppeted at the gun (ruling 2026-08-04).
+2. Only ONE of the four howitzers has a crew (FSB_ARTY_CREWS_PER_TYPE = 1: "crewing all eight
+   pits would spend the whole compound"). The other three guns have idle garrison near them.
+3. At stand-to (the siege, 20:18 in the stress arc) the crew is RELEASED to fight, and from
+   23:00 to 04:00 they REST standing at the pit. Night = no gun animation, by design.
+Your calls: crew all four guns (12 more men out of the work budget) · a resting pose at the
+pit instead of standing idle · keep the crew on the gun through the siege (they would then not
+fight). Say which.
+
+## CONQUEST OF WORMS characters (your notes 2026-09-11)
+- "the heads and faces need to wrap more around the heads more" - the face atlas only covers
+  the front; the texture needs to wrap around the sides of the skull.
+- "we could just get away with the mouths not moving and move the heads up and down" - talk =
+  head nod, no lip sync. Not started: the cow_* cast files are uncommitted in the tree from
+  another session (conquest_of_worms_us_cast.blend, cow_gus_*.glb, cow_michael_*.glb, renders)
+  - which session owns them, and is it finished, before an agent opens that blend?

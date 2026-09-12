@@ -52,6 +52,7 @@ var _tick_t: float = 0.0
 var _piece: AnimationPlayer = null
 var _piece_extras: Array[AnimationPlayer] = []
 var _piece_searched: bool = false
+var _last_summary: String = ""
 
 
 func _ready() -> void:
@@ -137,6 +138,10 @@ func _evaluate() -> void:
 	var on_duty: bool = CivilianSchedules.action_for("gun_crew_arty", _sim_hour()) \
 		== CivilianSchedules.ACTION_WORK
 	if not on_duty:
+		if _playing:
+			_playing = false
+			print("[CREW] %s pit (%.0f,%.0f): off duty at %.1fh - %d released" % [
+				kind, global_position.x, global_position.z, _sim_hour(), _captured.size()])
 		_release_all()
 		return
 	var joined: bool = false
@@ -144,6 +149,24 @@ func _evaluate() -> void:
 		if not _captured.has(m) and _eligible(m):
 			_capture(m)
 			joined = true
+	# THE CREW SAYS WHAT IT IS DOING (2026-09-11: "im seeing people at the artillery gun ...
+	# they didnt really do the animations"). One line per change, never per tick: who is on
+	# the roster, who was captured, whether the piece was found. Silence was the defect's
+	# only symptom.
+	var summary: String = "%s pit (%.0f,%.0f): members %d, captured %d, playing %s, piece %s" % [
+		kind, global_position.x, global_position.z, _members.size(),
+		_captured.size(), str(_playing), "bound" if is_instance_valid(_piece) else ("none" if _piece_searched else "unsearched")]
+	if summary != _last_summary:
+		_last_summary = summary
+		print("[CREW] %s at %.1fh" % [summary, _sim_hour()])
+		if _captured.is_empty():
+			for m in _members:
+				if is_instance_valid(m):
+					print("[CREW]   %s state %s puppet %s physics %s board %s dist-to-post %.1f m" % [
+						m.name, Civilian.CivState.keys()[int(m.state)], str(m.puppet),
+						str(m.is_physics_processing()), str(m.board_target != Vector3.ZERO),
+						Vector2(m.global_position.x - m.working_point_pos.x,
+							m.global_position.z - m.working_point_pos.z).length()])
 	if _captured.is_empty():
 		return
 	if joined or not _playing:
