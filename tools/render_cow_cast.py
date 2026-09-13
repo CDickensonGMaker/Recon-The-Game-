@@ -29,7 +29,7 @@ TAG = next((a.split("=", 1)[1] for a in argv if a.startswith("--tag=")), "")
 
 HIDE_PREFIX = ("Base_Human", "grunt_", "cap_", "head_frag_",
                "helmet_camo_shell", "helmet_bugjuice")
-TAGS = ["michael", "gus_arrival", "gus_ears"]
+TAGS = ["michael", "gus_arrival", "gus_ears", "mccleary", "mccleary_helmet", "champs"]
 
 
 def family(tag):
@@ -41,7 +41,10 @@ def is_donor(o):
 
 
 def export_set(tag):
-    return [o for o in family(tag) if not is_donor(o)]
+    # hide_get(): McCleary's bandana family carries helmet_shell_worn HIDDEN (height reference
+    # only, export_cow_cast NOEXPORT drops it); sheet() below forces hide_render False on the
+    # export set, so a hidden-but-listed helmet rendered over the bandana (2026-09-13)
+    return [o for o in family(tag) if not is_donor(o) and not o.hide_get()]
 
 
 def wbb(objs):
@@ -67,7 +70,9 @@ for o in list(D.objects):
         D.objects.remove(o, do_unlink=True)
 
 for t in TAGS:
-    rig = D.objects["PSXRig_" + t]
+    rig = D.objects.get("PSXRig_" + t)
+    if rig is None:
+        continue
     rig.data.pose_position = 'POSE' if USE_POSE else 'REST'
 bpy.context.view_layer.update()
 

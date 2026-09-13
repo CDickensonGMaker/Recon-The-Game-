@@ -1215,3 +1215,30 @@ piece on the man's own uniform sheet (2 materials per man), GLBs 1.38-1.50 MB, n
 1 MB. Renders (from the exports): `production/renders_conquest_of_worms/ww1_LINEUP_all_seven.png` +
 `ww1_<tag>_{front,threequarter,portrait}_tpose.png`. Details + the four instrument fixes in
 `production/blender_notes.md` 2026-09-12. Owed: Caleb's eye; Godot-side dresser behaviour unverified.
+
+## GORE CORPSE SHIPPED — 2026-09-12 (Caleb: "lets make just one person gored out with their guts and maggots")
+
+One whole US grunt, dead on his back, gutted: `assets/world/props/gore_corpse/gore_corpse_us.glb` (1292 tris of 1400,
+663 KB, atlas 511 KB, no image over 1 MB), studio `assets/world/props/gore_corpse.blend`, contract
+`gore_corpse_manifest.json`, pipeline `tools/gore_corpse/build_gore_corpse.py` + `verify_gore_corpse.py` (PASS, 47
+checks). Death pose keyed on the PSXRig bones and baked: right arm flung past the shoulder, left hand on the wound,
+left leg frog-bent, head rolled left, jaw dropped; every contact solved to <= 1.2 mm of the ground. Belly open sternum
+to pelvis, rib edge, intestine heap over the right hip, liver + stomach, dark pool + smear, blood collar on the cloth,
+maggot strips on the cavity and the heap, `fx_maggots_01..03` + `fx_flies_01`, M1 upturned beside the head. Renders
+`production/renders_conquest_of_worms/gore_corpse_us_{4m,1p5m,top,face}.png` — **his look verdict is the open gate.**
+NVA/VC = a FACTIONS row (declared, not built). Same 3 Godot rows owed as the piles (`MATERIALS`/`STRUCTURES`/
+`FSB_STRUCTURE_KINDS`+`HP_FOR`, prefix `gore_corpse_`). The six pile GLBs untouched (their shared `make_hull` was
+fixed for duplicate faces but they were not rebuilt). Details: `production/blender_notes.md` 2026-09-12 (late).
+
+## 2026-09-13 · WW1 cast QUALITY PASS (Caleb: "do a better job fixing up the ww1 soldiers" / "guns totally dismantled")
+Rifles were whole all along (one object, 25 islands in a 1.30 m envelope, GLB round-trip identical) - the 1.05 m
+lineup and the T-pose hang crossed each rifle into the next man. Renders now pose the imported rig into a measured
+rest carry (muzzle 0.27-0.29 m off the ground, butt 0.14-0.15 m behind the hip; GLBs stay T-pose). Seven DIFFERENT
+faces from `newfaceatlas.png` (TPS-warped, detected landmarks; moustaches, stubble, lines, the boy's scar) via the
+rewritten `tools/build_ww1_face_cells.py`; heads on the roster grunt wrap per Caleb's ruling
+(`tools/copy_grunt_head_uvs.py`, 30/30 + 20 neck polys at 0.00 mm). Kit re-measured: 1888 pouches 0.160 x 0.062 x
+0.132, kepi a low cap with a short visor, oval bidon/Feldflasche, cloth folds + puttee wraps painted, fatigue
+blotches gone. GLBs re-exported (1.38-1.49 MB, images < 1 MB). Renders: `ww1_LINEUP_all_seven.png`,
+`ww1_<tag>_{front,threequarter,side,portrait}_tpose.png`, `ww1_FACES_all_seven.png`. **Owed: Caleb's eye - and his
+call on the roster wrap's side-of-head ear smear vs the full-cell projection.** Details `production/blender_notes.md`
+2026-09-13.

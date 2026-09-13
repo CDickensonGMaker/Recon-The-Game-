@@ -25,15 +25,24 @@ from flatten_procedural_colors import flatten, assert_none_white
 CAST = r"C:\Users\caleb\RECONgame\assets\us\characters\conquest_of_worms_us_cast.blend"
 OUT_DIR = r"C:\Users\caleb\RECONgame\assets\us\characters"
 TARGET_HEIGHT = 1.7132                       # ADR-002, top of helmet, feet at origin
-TAGS = ["michael", "gus_arrival", "gus_ears"]
+TAGS = ["michael", "gus_arrival", "gus_ears", "mccleary", "mccleary_helmet", "champs"]
 GLB = {"michael": "cow_michael_crawford.glb",
        "gus_arrival": "cow_gus_arrival.glb",
-       "gus_ears": "cow_gus_ears.glb"}
+       "gus_ears": "cow_gus_ears.glb",
+       "mccleary": "cow_mccleary.glb",
+       "mccleary_helmet": "cow_mccleary_helmet.glb",
+       "champs": "cow_champs.glb"}
 # Suffix-stripping truncates the journal, so pin its shipped name:
 #   journal_michael      -> "journal"        (tag "michael")
+#   rank_champs          -> "rank"           (tag "champs")  - the brief names the object rank_champs
 # The necklace ships as necklace_cord + charm_ear_06..10 (tools/dress_cow_gus_necklace.py).
-ALIAS = {"journal": "journal_michael"}
+ALIAS = {"journal": "journal_michael", "rank": "rank_champs"}
 HEIGHT_EXCLUDE = ("radio", "antenna", "prc25", "handset")
+# Measured for the height box, then DELETED before export (bare names after the suffix strip).
+# McCleary's default state wears a bandana; his helmet is kept hidden in the family so the ADR-002
+# helmet-top normalisation gives him the same k as the rest of the squad (a bare 1.80 m head would
+# have scaled him 2.7% taller than his squadmates), and it must not ship in the bandana GLB.
+NOEXPORT = {"mccleary": ["helmet_shell_worn"]}
 
 
 def export_one(tag):
@@ -46,6 +55,14 @@ def export_one(tag):
     for o in list(bpy.data.objects):
         if o not in keep:
             bpy.data.objects.remove(o, do_unlink=True)
+    # purge the orphan MESH datablocks the removed objects leave behind: the REVIEW_APPENDED
+    # sniper carries head_frag_01..07 meshes, and with those still in bpy.data.meshes the frags
+    # built below were named head_frag_01.001.. and imported into Godot under that name
+    # (measured on the first McCleary export, 2026-09-13; begins_with("head_frag_") still
+    # matched, so it was a naming defect, not a gib defect)
+    for me in list(bpy.data.meshes):
+        if me.users == 0:
+            bpy.data.meshes.remove(me)
     for o in bpy.data.objects:
         o.hide_set(False)
         o.hide_viewport = False
@@ -93,6 +110,13 @@ def export_one(tag):
             mx = Vector(map(max, mx, w))
         ev.to_mesh_clear()
     h = mx.z - mn.z
+    for bare in NOEXPORT.get(tag, []):
+        o = bpy.data.objects.get(bare)
+        if o is None:
+            raise SystemExit("ABORT %s: NOEXPORT object %s not in the family (height box would be wrong)" % (tag, bare))
+        meshes.remove(o)
+        bpy.data.objects.remove(o, do_unlink=True)
+        print("  %-12s %s measured for height (%.4f m), dropped from the export" % (tag, bare, h), flush=True)
     if not (1.60 <= h <= 2.00):
         raise SystemExit("ABORT %s: height box %.3f m outside 1.60-2.00; parts=%s"
                          % (tag, h, [o.name for o in parts]))

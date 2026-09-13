@@ -114,8 +114,14 @@ def measure_cell(block):
     Hh, W = a.shape[:2]
     lum = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
     ls = box3(lum)
-    skin = (lum > 0.30) & (a[..., 0] > a[..., 2] + 0.08)
-    f = {}
+    # skin threshold is ADAPTIVE (2026-09-13, Champs): a light cell's neck reads lum 0.55 and the
+    # fixed 0.30 held; a Black cell's neck reads 0.28 and every skin test failed on the right
+    # answer. 0.6 x the neck luminance, capped at the old 0.30 so every light cell measures
+    # exactly as before. tools/build_cow_face_cell.py carries the same rule (skin_thr).
+    neck_l = float(lum[131:150, 38:90].mean())
+    skin_t = min(0.30, 0.6 * neck_l)
+    skin = (lum > skin_t) & (a[..., 0] > a[..., 2] + 0.08)
+    f = {"skin_thr": round(skin_t, 3)}
     eyes = []
     for x0, x1 in ((30, 63), (67, 100)):
         win = ls[55:80, x0:x1]
@@ -139,7 +145,12 @@ def measure_cell(block):
     nb = ls[int(ey) + 5: my - 8, 60:71]
     iy, ix = np.unravel_index(nb.argmax(), nb.shape)
     hi_y = int(ey) + 5 + iy                                   # nose-tip highlight
-    r0, r1 = int(ey) + 12, my - 9
+    # nostril band: a fixed 12-23 rows under the eye line, NOT 'up to the mouth - 9': on a moustached
+    # cell the 98-118 band reports the moustache (row ~100) as the mouth, which capped this search at
+    # row 91 and returned the cheek at 85 as the nostril - a 4 px error in one of the three vertical
+    # anchors of the FRONT affine (measured on the 2026-09-13 poilu_a cell). Every cell measured so
+    # far has its nostrils at eye + 19..21.
+    r0, r1 = int(ey) + 12, int(ey) + 23
     nband = ls[r0:r1, 54:72].mean(axis=1)
     nostril_y = r0 + int(nband.argmin())
     f["nose_tip"] = ((eyes[0][0] + eyes[1][0]) / 2.0, (hi_y + nostril_y) / 2.0)
@@ -164,7 +175,7 @@ def measure_cell(block):
         bys.append(ey_ - 11 + int(colp.argmin()))
     f["brow_y"] = (bys[0] + bys[1]) / 2.0
     col = ls[:, 55:75].mean(axis=1)
-    f["hair_y"] = int(np.argmax(col > 0.28))
+    f["hair_y"] = int(np.argmax(col > 0.28 * min(1.0, neck_l / 0.50)))     # same scaling as the skin test
     ears = {}
     for nm, (x0, x1) in (("ear_l", (10, 36)), ("ear_r", (94, 120))):
         m = skin[62:104, x0:x1]
@@ -194,7 +205,7 @@ def measure_cell(block):
     assert f["hair_band"]["lum"] < 0.2 and f["hair_band"]["skin"] < 0.05, f["hair_band"]
     assert f["hair_dome"]["lum"] < 0.2 and f["hair_dome"]["skin"] < 0.05, f["hair_dome"]
     assert f["under_ear_r"]["skin"] > 0.9 and f["under_ear_l"]["skin"] > 0.9, (f["under_ear_r"], f["under_ear_l"])
-    assert f["neck"]["skin"] > 0.95 and f["neck"]["lum"] > 0.45, f["neck"]
+    assert f["neck"]["skin"] > 0.95 and f["neck"]["lum"] > (0.45 if skin_t >= 0.30 else 0.20), f["neck"]
     assert 60 < ey < 85 and 95 < my < 120 and 120 < f["chin_y"] < 135 and 30 < f["hair_y"] < 48, f
     return f
 

@@ -86,3 +86,42 @@ overrides "never re-unwrap the head" for the CoW cast; the stock roster wrap is 
   US webbing on French and German bodies. Not started on finish work.
 - RULED: "queue the ww1 finish after the piles." WW1 finish pass (period kit, rifles in hand,
   WW1 webbing, painted greatcoats/helmets) starts when the gore piles land.
+- RULED (9/12 night): "the gore piles arent quite what i was thinking. lets make just one person
+  gored out with their guts and maggots … and once we get that good we can go from there." One
+  whole US grunt, dead on his back, cavity open, guts spilled, face intact. The six piles stay
+  on disk but are NOT the direction. Get the single corpse right first, then variants.
+- He edits faces himself in his live Blender window now (cast file open with sniper + WW1
+  appended into REVIEW_APPENDED; strip before export). Write-back + re-export is my job when
+  he says done.
+- 2026-09-13, Caleb, verbatim: "McCleary is a larger and bulkier dude with large forarms and a
+  larger jaw always chewing on a cigar and has a bandana on most the time but someitmes has a
+  helmet. Lt Champs is a younger but sharp black guy with a real cool head on his shoulders."
+  → McCleary: bulk + forearms + jaw + cigar + bandana default / helmet alt. Champs: young Black
+  Lt., composed. Also ruled: corpse legs flat, no twisted elbows, guts+maggots must READ; WW1
+  needs a real quality pass; Sgt + Champs get built now.
+- 2026-09-13, Caleb, verbatim: "i think the real win is making a gore pile of one single person
+  for each npc type in a few various ways as well as a few that are propped up onto trees or
+  something and all of them can be sprinkled into the terrain." → DIRECTION: a corpse matrix,
+  factions (US / NVA / VC / civilian) × poses (supine, prone, propped against a tree, slumped
+  sitting), from the one-command `tools/gore_corpse/build_gore_corpse.py`; the engine sprinkles
+  them through the AO stamp (propped ones need a tree anchor). Six-man piles are dead. Gate:
+  the single US supine corpse (v2) gets his look verdict first.
+- 2026-09-13, Caleb, verbatim: "we could have a dogtag recovery from dead us soldiers and pilots
+  they find, as well as intel or chance to recover a item for your necklace." → CORPSES ARE
+  INTERACTABLE. Design for the engine decree (not built):
+    · US dead + downed pilots → dog tags (KIA recovery; feeds rank/standing per ADR-018 and the
+      squad's read of you — Pillar 4; a pilot's tags are worth more, he was somebody's air).
+    · NVA/VC dead → chance of INTEL (map / document / diary → reveals a site or a patrol route
+      on the seeded AO; Pillar 3, the world generates the story).
+    · Any corpse → chance of a NECKLACE CHARM from the charm library (tooth, crucifix, round,
+      P-38, medallion, dog tags); ears stay the atrocity path (`_take_ear`, witnessed, H&M cost
+      per ADR-019). Charm vs ear is the moral fork on the same body.
+    · One interact verb on the corpse prop; loot table by faction row; the corpse matrix props
+      carry a `loot_socket` empty where the hand goes.
+  Engine wave = placement + soft-cover rows + maggot/fly fx + this loot verb, one decree.
+- RULED 2026-09-13 (corpse interact): SEARCH is the prompted verb (hold interact, weapon lowered
+  ~3 s) → tags / intel / charm by loot roll. TAKING AN EAR IS NEVER PROMPTED — knife out, crouch
+  at the head, hold attack; witnessed per `_take_ear`. Caleb: "we have to at least tell the
+  player about it once because otherwise its just a hidden system" → the teach is GUS, once,
+  diegetic: first enemy body searched with Gus in the squad, he says it (or does it, Issue 3 p9
+  beat) and offers the next one. No UI ever names it. If Gus is dead it is never taught.

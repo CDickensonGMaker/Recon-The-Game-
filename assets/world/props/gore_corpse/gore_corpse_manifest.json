@@ -1,0 +1,448 @@
+{
+  "contract": {
+    "ballistics": "Placed by place_structure: CollisionTable.is_soft(<glb basename>) decides. Owed row: scripts/world/collision_table.gd MATERIALS[\"gore_corpse_us\"] = Mat.THATCH (soft) and a STRUCTURES row {box, y_offset, footprint, scale 1.0, mesh: true} from footprint_m/bbox.",
+    "destruction": "Owed rows: {\"prefix\": \"gore_corpse_\", \"kind\": \"gore_corpse\"} in site_planner.FSB_STRUCTURE_KINDS and \"gore_corpse\": <hp> in Destructible.HP_FOR. Until they exist the prop is loud-warned and HARD.",
+    "collider": "<name>_000-colonly: convex hull trimesh of the body + viscera + helmet (pool, smear and maggots excluded).",
+    "maggots": "maggot_mass mesh = ~150 geometry grubs (8 tris each, UV pinned to the cream block in the sheet's top-right 7x7 px) over two small decal patches (UV 0..0.875 of one 64x64 frame), material gore_pile_maggots. Swap the albedo between maggots_a.png and maggots_b.png at ~6 Hz (the block is identical in both, so only the patches crawl); both PNGs ship beside the GLB.",
+    "anchors": "Empties fx_maggots_01 (gut tear in the cavity), fx_maggots_02 (gut tear on the ground), fx_maggots_03 (mouth), fx_flies_01 (0.30 m above the cavity) - hang particle emitters here. Metres, Blender Z-up, origin under the pelvis.",
+    "origin": "Ground contact z = 0 at the pelvis (Hips bone head XY). The footprint is NOT centred on the origin: read bbox_min/bbox_max.",
+    "materials": "Two on the corpse: <name>_mat (baked uniform + face + helmet + VISCERA atlas, Closest) and gore_cap_mat (the shared 128^2 gore sheet: cavity walls, pool, smear, wound ring). maggot_mass carries gore_pile_maggots.",
+    "guts": "One continuous intestine tube (see corpses.<f>.guts: loops, tube_dia_mm, tears). Painted on gore_corpse_viscera.png (source only; baked into the atlas)."
+  },
+  "corpses": {
+    "us": {
+      "tris": 2064,
+      "budget": 2200,
+      "ok": true,
+      "tris_maggots": 1224,
+      "tris_collider": 42,
+      "footprint_m": [
+        0.896,
+        2.046
+      ],
+      "height_m": 0.319,
+      "bbox_min": [
+        -0.599,
+        -1.044,
+        -0.0
+      ],
+      "bbox_max": [
+        0.297,
+        1.001,
+        0.319
+      ],
+      "origin": "ground contact under the pelvis (Hips bone head XY), z = 0",
+      "ground_gate": [
+        [
+          "corpse_body",
+          -0.0001
+        ],
+        [
+          "gore_gut",
+          0.003
+        ],
+        [
+          "gore_mesentery",
+          0.0144
+        ],
+        [
+          "gore_liver",
+          0.2064
+        ],
+        [
+          "gore_pool",
+          0.006
+        ],
+        [
+          "gore_smear",
+          0.005
+        ],
+        [
+          "gore_helmet",
+          0.0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 1129,
+        "verts_inside_gt_8mm": 98,
+        "worst_m": -0.1647,
+        "worst_pairs": [
+          [
+            "gore_gut",
+            "gore_mesentery",
+            63,
+            -0.046
+          ],
+          [
+            "gore_gut",
+            "corpse_body",
+            17,
+            -0.049
+          ],
+          [
+            "gore_mesentery",
+            "gore_gut",
+            13,
+            -0.011
+          ],
+          [
+            "corpse_body",
+            "gore_mesentery",
+            3,
+            -0.165
+          ],
+          [
+            "gore_liver",
+            "corpse_body",
+            2,
+            -0.018
+          ]
+        ],
+        "gut_in_body": {
+          "flagged_by_closest_point": 17,
+          "proven_inside_by_ray": 0,
+          "worst_flagged": [
+            [
+              -0.049,
+              [
+                -0.173,
+                0.061,
+                0.252
+              ]
+            ],
+            [
+              -0.049,
+              [
+                -0.171,
+                0.053,
+                0.252
+              ]
+            ],
+            [
+              -0.049,
+              [
+                -0.17,
+                0.069,
+                0.252
+              ]
+            ],
+            [
+              -0.047,
+              [
+                -0.166,
+                0.047,
+                0.25
+              ]
+            ],
+            [
+              -0.017,
+              [
+                -0.144,
+                0.05,
+                0.246
+              ]
+            ],
+            [
+              -0.017,
+              [
+                -0.143,
+                0.066,
+                0.246
+              ]
+            ]
+          ],
+          "worst_proven": []
+        }
+      },
+      "anchors": {
+        "fx_maggots_01": [
+          0.046,
+          0.189,
+          0.238
+        ],
+        "fx_maggots_02": [
+          -0.33,
+          0.142,
+          0.039
+        ],
+        "fx_maggots_03": [
+          0.111,
+          0.572,
+          0.19
+        ],
+        "fx_flies_01": [
+          0.01,
+          0.135,
+          0.499
+        ]
+      },
+      "cavity": [
+        0.01,
+        0.135,
+        0.199
+      ],
+      "coil": [
+        -0.262,
+        0.108,
+        0.0
+      ],
+      "tears": [
+        [
+          0.046,
+          0.189,
+          0.218
+        ],
+        [
+          -0.33,
+          0.142,
+          0.019
+        ]
+      ],
+      "mouth": [
+        0.111,
+        0.572,
+        0.18
+      ],
+      "guts": {
+        "loops": 5,
+        "loops_cavity": 3,
+        "loops_ground": 2,
+        "tube_dia_mm": 32.0,
+        "sides": 12,
+        "rings": 60,
+        "length_m": 1.448,
+        "tris_tube": 1436,
+        "tris_mesentery": 20,
+        "tris_liver": 36,
+        "tear_cavity": [
+          0.046,
+          0.177,
+          0.218
+        ],
+        "tear_ground": [
+          -0.33,
+          0.13,
+          0.019
+        ],
+        "cavity_runs_y": [
+          0.172,
+          0.134,
+          0.096,
+          0.058
+        ],
+        "floor_ext": [
+          -0.0909,
+          0.1082,
+          0.0168,
+          0.2301
+        ],
+        "flank_edge_x": -0.156
+      },
+      "maggots": {
+        "grubs": 150,
+        "per_clump": {
+          "tear": 76,
+          "mouth": 12,
+          "eye": 6,
+          "ground": 26,
+          "rim": 30
+        },
+        "tris_grubs": 1200,
+        "decal_patches": 2,
+        "patch_z": [
+          0.203,
+          0.004
+        ],
+        "eye_xy": [
+          0.086,
+          0.605
+        ]
+      },
+      "atlas": "gore_corpse_us_atlas.png",
+      "atlas_res": 1024,
+      "materials": [
+        "gore_corpse_us_mat",
+        "gore_cap_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_corpse_us",
+        "maggot_mass",
+        "gore_corpse_us_000-colonly",
+        "fx_maggots_01",
+        "fx_maggots_02",
+        "fx_maggots_03",
+        "fx_flies_01"
+      ],
+      "glb": "assets/world/props/gore_corpse/gore_corpse_us.glb",
+      "glb_bytes": 758028,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_corpse_us_4m.png",
+        "production/renders_conquest_of_worms/gore_corpse_us_1p5m.png",
+        "production/renders_conquest_of_worms/gore_corpse_us_top.png",
+        "production/renders_conquest_of_worms/gore_corpse_us_face.png",
+        "production/renders_conquest_of_worms/gore_corpse_us_guts.png",
+        "production/renders_conquest_of_worms/gore_corpse_us_maggots.png"
+      ],
+      "pose_contacts": {
+        "head": {
+          "min_z": 0.0009,
+          "touching": 1
+        },
+        "arm_r": {
+          "min_z": 0.0007,
+          "touching": 3
+        },
+        "arm_l": {
+          "min_z": -0.0,
+          "touching": 2
+        },
+        "hand_r": {
+          "min_z": 0.0007,
+          "touching": 1
+        },
+        "hand_l": {
+          "min_z": 0.0917,
+          "touching": 0
+        },
+        "forearm_r": {
+          "min_z": 0.0032,
+          "touching": 2
+        },
+        "forearm_l": {
+          "min_z": 0.0072,
+          "touching": 0
+        },
+        "uparm_r": {
+          "min_z": 0.0169,
+          "touching": 0
+        },
+        "uparm_l": {
+          "min_z": -0.0,
+          "touching": 2
+        },
+        "leg_r": {
+          "min_z": -0.0001,
+          "touching": 8
+        },
+        "leg_l": {
+          "min_z": 0.0008,
+          "touching": 9
+        },
+        "foot_l": {
+          "min_z": 0.0008,
+          "touching": 2
+        },
+        "foot_r": {
+          "min_z": -0.0001,
+          "touching": 1
+        },
+        "shin_l": {
+          "min_z": 0.002,
+          "touching": 4
+        },
+        "shin_r": {
+          "min_z": 0.002,
+          "touching": 3
+        },
+        "thigh_l": {
+          "min_z": 0.002,
+          "touching": 3
+        },
+        "thigh_r": {
+          "min_z": 0.002,
+          "touching": 4
+        },
+        "torso": {
+          "min_z": 0.0037,
+          "touching": 1
+        }
+      },
+      "pose_gates": {
+        "legs_mm_above_ground": {
+          "thigh_r": 38.0,
+          "shin_r": 0.3,
+          "foot_r": -0.1,
+          "thigh_l": 25.8,
+          "shin_l": 6.7,
+          "foot_l": 0.8
+        },
+        "legs_ok": false,
+        "arm_r": {
+          "elbow_deg": 34.4,
+          "forearm_twist_deg": -4.0,
+          "forearm_swing_deg": 35.0,
+          "uparm_twist_deg": -152.9,
+          "uparm_swing_deg": 67.5,
+          "hand_twist_deg": 0.0,
+          "hand_swing_deg": 0.0,
+          "elbow_point": [
+            -0.417,
+            -0.803,
+            -0.427
+          ],
+          "elbow_point_z": -0.427,
+          "elbow_point_out": 0.417,
+          "crease": [
+            0.417,
+            0.803,
+            0.427
+          ],
+          "palm_normal": [
+            0.891,
+            0.433,
+            0.135
+          ],
+          "ok": true
+        },
+        "arm_l": {
+          "elbow_deg": 46.9,
+          "forearm_twist_deg": 0.1,
+          "forearm_swing_deg": 47.1,
+          "uparm_twist_deg": -49.9,
+          "uparm_swing_deg": 41.5,
+          "hand_twist_deg": 0.0,
+          "hand_swing_deg": 0.0,
+          "elbow_point": [
+            0.677,
+            0.359,
+            -0.642
+          ],
+          "elbow_point_z": -0.642,
+          "elbow_point_out": 0.677,
+          "crease": [
+            -0.677,
+            -0.359,
+            0.642
+          ],
+          "palm_normal": [
+            -0.688,
+            0.412,
+            0.598
+          ],
+          "ok": true
+        },
+        "knee_l_deg": 12.1,
+        "knee_r_deg": 1.5,
+        "legs_flattened_mm": {
+          "thigh_l": {
+            "min_mm": 2.0,
+            "moved": 3
+          },
+          "shin_l": {
+            "min_mm": 2.0,
+            "moved": 4
+          },
+          "thigh_r": {
+            "min_mm": 2.0,
+            "moved": 4
+          },
+          "shin_r": {
+            "min_mm": 2.0,
+            "moved": 3
+          }
+        }
+      }
+    }
+  }
+}

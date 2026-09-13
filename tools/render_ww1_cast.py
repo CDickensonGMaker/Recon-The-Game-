@@ -26,7 +26,7 @@ import sys
 import math
 import json
 import numpy as np
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 ROOT = r"C:\Users\caleb\RECONgame"
 CHAR = os.path.join(ROOT, "assets", "ww1", "characters")
@@ -60,7 +60,7 @@ FIGURES = [
      "Pickelhaube + Ueberzug, NO number | M1907/10 Feldrock | steingrau | Gewehr 98",
      (95, 99, 82)),
 ]
-SPACING = 1.05
+SPACING = 1.0
 DONOR_PREFIX = ("grunt_", "cap_", "head_frag_", "Base_Human", "Icosphere")
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -243,6 +243,101 @@ def load(tag):
     return new, visible, joined[0], [o for o in new if o.parent is None]
 
 
+# ---------------------------------------------------------------------------
+# THE REST CARRY. The export stance is the T-pose (the game's shared clips need it), but a
+# 1.3 m rifle bone-parented to a T-posed hand hangs 0.7 m out to the side at 66 deg, and at
+# 1.05 m lineup spacing it crossed the next man: what Caleb saw 2026-09-13 was a butt in
+# one hand and a muzzle poking out of the neighbour's hip - "totally dismantled". Nothing
+# in the mesh was apart (every rifle: one object, 25 kit islands inside one 1.30 x 0.05 x
+# 0.24 envelope, bore continuous, GLB round-trip identical). So the RENDER drops both arms
+# to the sides and turns the right forearm until the rifle hangs muzzle-down-forward beside
+# the leg; the GLB is untouched (the pose is set on the imported rig, keyed nowhere).
+# Measured, not eyeballed: the muzzle's height off the ground and the stock's distance to
+# a point behind the hip are printed per man and gated (muzzle > 0.03 m up, butt within 0.30 m).
+# ---------------------------------------------------------------------------
+def _bone_world_rot(rig, pb):
+    return (rig.matrix_world @ pb.matrix).to_3x3()
+
+
+def _aim_bone(rig, pb, target_dir_world):
+    """Rotate a pose bone (about its head, in its own basis) so its axis points along target_dir_world."""
+    bpy.context.view_layer.update()
+    R = _bone_world_rot(rig, pb)
+    cur = (R @ Vector((0.0, 1.0, 0.0))).normalized()
+    rot_w = cur.rotation_difference(Vector(target_dir_world).normalized()).to_matrix()
+    q_l = (R.inverted() @ rot_w @ R).to_quaternion()
+    pb.rotation_mode = 'QUATERNION'
+    pb.rotation_quaternion = (pb.rotation_quaternion.to_matrix() @ q_l.to_matrix()).to_quaternion()
+    bpy.context.view_layer.update()
+
+
+def _twist(rig, pb, base_q, deg, axis_local):
+    pb.rotation_quaternion = base_q
+    bpy.context.view_layer.update()
+    R = _bone_world_rot(rig, pb)
+    axis_w = (R @ Vector(axis_local)).normalized()
+    q_l = (R.inverted() @ Matrix.Rotation(math.radians(deg), 3, axis_w) @ R).to_quaternion()
+    pb.rotation_quaternion = (base_q.to_matrix() @ q_l.to_matrix()).to_quaternion()
+    bpy.context.view_layer.update()
+
+
+def rest_carry(new, rifle, tag):
+    rig = next(o for o in new if o.type == 'ARMATURE')
+    pb = {b.name: rig.pose.bones[b.name] for b in rig.data.bones}
+    for side, sx in (("Left", 1.0), ("Right", -1.0)):
+        _aim_bone(rig, pb["mixamorig:%sArm" % side], (sx * 0.17, 0.0, -1.0))
+        _aim_bone(rig, pb["mixamorig:%sForeArm" % side], (sx * 0.10, -0.12, -1.0))
+    if rifle is None:
+        return None
+    me = rifle.data
+    muz_l = min(me.vertices, key=lambda v: v.co.x).co.copy()      # built muzzle along -X
+    butt_l = max(me.vertices, key=lambda v: v.co.x).co.copy()
+    hip = rig.matrix_world @ pb["mixamorig:RightUpLeg"].head
+    # trail arms: the butt rides just behind and below the hip, the bore shallow and forward
+    thigh_mid = Vector((hip.x, hip.y + 0.10, hip.z - 0.10))
+    fa, hand = pb["mixamorig:RightForeArm"], pb["mixamorig:RightHand"]
+    base_q, base_h = fa.rotation_quaternion.copy(), hand.rotation_quaternion.copy()
+    best = None
+    # search the forearm twist and the wrist flex for the hang: muzzle forward and down, off
+    # the ground, the butt up by the hip
+    def set_hand(wx, wz):
+        hand.rotation_quaternion = base_h
+        bpy.context.view_layer.update()
+        R = _bone_world_rot(rig, hand)
+        ax, az = (R @ Vector((1.0, 0.0, 0.0))).normalized(), (R @ Vector((0.0, 0.0, 1.0))).normalized()
+        rot = Matrix.Rotation(math.radians(wz), 3, az) @ Matrix.Rotation(math.radians(wx), 3, ax)
+        q_l = (R.inverted() @ rot @ R).to_quaternion()
+        hand.rotation_quaternion = (base_h.to_matrix() @ q_l.to_matrix()).to_quaternion()
+        bpy.context.view_layer.update()
+    for tw in range(-180, 180, 15):
+        _twist(rig, fa, base_q, tw, (0.0, 1.0, 0.0))
+        for wx in range(-60, 61, 20):
+            for wz in range(-40, 41, 20):
+                set_hand(wx, wz)
+                M = rifle.matrix_world
+                muz, butt = M @ muz_l, M @ butt_l
+                bore = (muz - butt).normalized()
+                score = (-bore.y) * 1.0 + (-bore.z) * 0.5 - (butt - thigh_mid).length * 2.5 - abs(muz.x - hip.x) * 1.5
+                if muz.z < 0.03 or butt.z < 0.03:
+                    score -= 10.0
+                if best is None or score > best[0]:
+                    best = (score, tw, (wx, wz))
+    score, tw, wr = best
+    _twist(rig, fa, base_q, tw, (0.0, 1.0, 0.0))
+    set_hand(*wr)
+    M = rifle.matrix_world
+    muz, butt = M @ muz_l, M @ butt_l
+    bore = (muz - butt).normalized()
+    d_thigh = (butt - thigh_mid).length
+    print("   %-13s REST CARRY: forearm twist %+d wrist %s | muzzle %.3f m off the ground at y %+.3f (forward is -y), "
+          "butt z %.3f, %.3f m from the hip point | bore (%.2f, %.2f, %.2f) | %s"
+          % (tag, tw, wr, muz.z, muz.y, butt.z, d_thigh, bore.x, bore.y, bore.z,
+             "OK" if (muz.z > 0.03 and d_thigh < 0.30) else "!! not a carry"), flush=True)
+    assert muz.z > 0.03, "%s: the muzzle is in the ground (%.3f)" % (tag, muz.z)
+    assert d_thigh < 0.30, "%s: the butt is %.3f m from the hip" % (tag, d_thigh)
+    return dict(twist=tw, wrist=wr, muzzle_z=muz.z, butt_to_thigh=d_thigh)
+
+
 def hide_all():
     for o in D.objects:
         if o.type == 'MESH':
@@ -262,6 +357,7 @@ def lineup():
     shown, rows = [], []
     for i, (tag, name, year, kit, coat) in enumerate(FIGURES):
         new, visible, body, roots = load(tag)
+        rest_carry(new, next((o for o in visible if o.name.startswith("rifle_")), None), tag)
         mn, mx = wbb(visible)
         bmn, bmx = wbb([body])
         # measure as imported, move only in X, drop each man's own feet to z=0.
@@ -311,19 +407,24 @@ def sheets():
             if o.type in ('MESH', 'ARMATURE', 'EMPTY'):
                 D.objects.remove(o, do_unlink=True)
         new, visible, body, roots = load(tag)
+        rest_carry(new, next((o for o in visible if o.name.startswith("rifle_")), None), tag)
         mn, mx = wbb(visible)
         for r in roots:
             r.location.z -= mn.z
         bpy.context.view_layer.update()
-        # frame on the BODY, not on the whole set: a T-pose rifle sticks a metre out to
-        # one side and centring on the full bbox shrinks the man to nothing.
+        # frame on the body's height, centred on the whole set (the rifle now hangs beside
+        # the leg, so the set is only ~0.3 m wider than the man)
         bmn, bmx = wbb([body])
+        smn, smx = wbb(visible)
         c = (bmn + bmx) * 0.5
+        c.x = (smn.x + smx.x) * 0.5
         h = bmx.z - bmn.z
         light_rig(c, h * 0.5)
         focus = Vector((c.x, c.y, bmn.z + h * 0.5))
         ortho = h * 1.14
-        for lbl, th in (("front", 0.0), ("threequarter", -38.0)):
+        # file names keep the _tpose suffix (the paths are the contract); the stance IN them is
+        # the rest carry above - the GLB itself is the T-pose
+        for lbl, th in (("front", 0.0), ("threequarter", -38.0), ("side", -90.0)):
             p = shoot(os.path.join(OUTDIR, "ww1_%s_%s_tpose.png" % (tag, lbl)),
                       focus, ortho, th, 3.0, (900, 1400), span_hint=h)
             made.append(p)
@@ -343,9 +444,33 @@ def sheets():
     return made
 
 
+def faces_strip():
+    """ww1_FACES_all_seven.png: the seven portraits side by side, labelled. Blender's Python has
+    no PIL under --factory-startup, so the tiling shells out to the system Python."""
+    import subprocess
+    tags = [f[0] for f in FIGURES]
+    names = [f[1] for f in FIGURES]
+    code = "\n".join([
+        "import sys",
+        "from PIL import Image, ImageDraw",
+        "out, tags, names = sys.argv[1], sys.argv[2].split(','), sys.argv[3].split('|')",
+        "ims = [Image.open(out + '/ww1_%s_portrait_tpose.png' % t).convert('RGB') for t in tags]",
+        "w, h = ims[0].size",
+        "s = Image.new('RGB', (len(ims) * (w + 6), h + 34), (30, 30, 32))",
+        "d = ImageDraw.Draw(s)",
+        "for i, (im, n, t) in enumerate(zip(ims, names, tags)):",
+        "    s.paste(im, (i * (w + 6), 0))",
+        "    d.text((i * (w + 6) + 8, h + 8), '%s  [%s]' % (n, t), fill=(235, 235, 225))",
+        "s.save(out + '/ww1_FACES_all_seven.png')",
+        "print('FACES ->', out + '/ww1_FACES_all_seven.png', s.size)",
+    ])
+    subprocess.run(["python", "-c", code, OUTDIR.replace("\\", "/"), ",".join(tags), "|".join(names)], check=True)
+
+
 print("=== rendering the WW1 cast FROM THE SHIPPED GLBs ===", flush=True)
 if "all" in WHAT or "lineup" in WHAT:
     lineup()
 if "all" in WHAT or "sheets" in WHAT:
     sheets()
+    faces_strip()
 print("RENDERS -> %s" % OUTDIR, flush=True)

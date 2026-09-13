@@ -1025,17 +1025,22 @@ def bake_atlas(obj, key, res):
 
 def make_hull(obj, name):
     """Low convex hull as the -colonly collider: what a bullet asks 'soft or hard' of."""
+    # verts ONLY: hulling a bmesh that still holds the source faces leaves those faces
+    # under the hull (the exporter flags the mesh "not valid"; seen 2026-09-12 on the corpse)
     bm = bmesh.new()
-    bm.from_mesh(obj.data)
+    for v in obj.data.vertices:
+        bm.verts.new(v.co)
+    bm.verts.ensure_lookup_table()
     res = bmesh.ops.convex_hull(bm, input=bm.verts)
     interior = [g for g in res["geom_interior"] if isinstance(g, bmesh.types.BMVert)]
     unused = [g for g in res["geom_unused"] if isinstance(g, bmesh.types.BMVert)]
-    bmesh.ops.delete(bm, geom=interior + unused, context='VERTS')
+    bmesh.ops.delete(bm, geom=list(set(interior + unused)), context='VERTS')
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(18), verts=bm.verts, edges=bm.edges)
     bmesh.ops.triangulate(bm, faces=bm.faces)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
+    me.validate(verbose=False)
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
     return o

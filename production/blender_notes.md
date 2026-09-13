@@ -3578,3 +3578,241 @@ the darkest 3x3 of that patch (815,112). Head 169 v / 252 tris, block 90 v / 120
   mesh that already had them) — same fossil the skulls had; the humans' owner should strip it.
 - The molar clearance at 25 deg is 26 mm, not the old 40: the old number was a ridge that sat 4 mm clear at rest and the
   molars are 64 mm from the hinge; the incisors (the mouth) clear 32.5 mm. Gate is per class now.
+
+## 2026-09-12 (late) · GORE CORPSE — one whole man, gutted (Caleb: "the gore piles arent quite what i was thinking. lets make just one person gored out with their guts and maggots")
+
+Headless only (Blender 5.0.1, `-b --factory-startup`); `conquest_of_worms_us_cast.blend` was open in his window and
+was never touched. One command builds it from a clean scene, one verifies the SHIPPED bytes:
+
+```
+blender -b --factory-startup --python tools/gore_corpse/build_gore_corpse.py   [-- --norender --stop=pose|viscera --faction=us]
+blender -b --factory-startup --python tools/gore_corpse/verify_gore_corpse.py  (PASS, 47 checks, exit 1 on any failure)
+```
+
+Ships: `assets/world/props/gore_corpse/gore_corpse_us.glb` (**1292 tris** of 1400, GLB 663 KB, 3 embedded images: the
+1024² baked atlas 511 KB, the shared 128² gore sheet 28 KB, `maggots_a` 8 KB — `shrink_oversized_textures.py` finds
+nothing), `gore_corpse_us_atlas.png`, `maggots_a/b.png`, `gore_corpse_manifest.json`; studio `assets/world/props/
+gore_corpse.blend` (9.2 MB: the corpse + the parked keyed rig/donor with the master sheets quartered in memory).
+Renders `production/renders_conquest_of_worms/gore_corpse_us_{4m,1p5m,top,face}.png` from 1.6 m eye height.
+Nodes: `gore_corpse_us` (2 materials: `gore_corpse_us_mat` atlas + `gore_cap_mat` sheet), `maggot_mass` (24 tris,
+`gore_pile_maggots`, two 3x2 strips: cavity + gut heap), `gore_corpse_us_000-colonly` (52-tri convex hull),
+`fx_maggots_01` (0.008, 0.134, 0.229 cavity) `_02` (-0.402, 0.084, 0.040 heap) `_03` (0.111, 0.572, 0.190 mouth),
+`fx_flies_01` (0.008, 0.134, 0.479). **Origin = ground contact under the pelvis (Hips head XY), NOT the footprint
+centre** — bbox -0.91..0.53 x -1.03..0.88 x 0..0.314 m, footprint 1.44 x 1.92. Same three Godot rows owed as the
+piles (`MATERIALS["gore_corpse_us"] = Mat.THATCH` + a `STRUCTURES` row + a `gore_corpse_` prefix in
+`FSB_STRUCTURE_KINDS`/`HP_FOR`); until then it is loud-warned and HARD.
+
+**The man.** `us_base_v3.blend` -> `PSXRig` + `us_grunt_joined` (434 tris, `us_grunt_mat` + `face_atlas_mat`) appended
+read-only (`bpy.data.libraries.load(link=False)`), `cap_torso` appended only to carry `gore_cap_mat` in; the M1 is
+`helmet_variants.blend:helm_cover` collapsed 204 -> 90 tris. **The rig's own X+90 was never written.** Facing was
+MEASURED from the head's face-material polys only (-0.081, -0.997) — `donors.facing_of` on the joined body is wrong
+because the hands share the skin material; on a head-only donor it is right.
+
+**The pose is on the bones and every contact is solved, not eyeballed.** `rot_world(rig, bone, world_axis, deg)`
+sets `pb.matrix` from a rotation about a WORLD axis through the bone head (children follow, their `matrix_basis`
+untouched); `aim_bone` points a bone at a world direction; `solve_drop` bisects an angle until the lowest vertex of a
+bone-region (dominant vertex group, so "the hand" means the hand) sits on the ground datum (the torso's lowest point
+after Hips <- Rx-90). Result, measured on the baked mesh: head 0.9 mm · right hand 0.8 mm · right arm lowest 0.8 mm
+(upper arm 10 mm, forearm 14 mm — sloping from the shoulder, both ends down) · left upper arm 0.6 mm · **left hand
+199 mm = on the belly flank, 1.4 mm proud of the cloth** (probed with a self-skipping ray cast) · right foot 1.2 mm ·
+left (frog) boot 0.7 mm with the shin 24 mm up (a boot on its side is taller than the calf: correct) · torso 1.1 mm.
+Jaw: 6 under-jaw verts dropped 16 mm on the donor before the bake + a 30x22 mm dark quad (sheet field) 3 mm proud at
+the painted lip line, weighted 100 % Head so it rode the roll. Pose keyed on frame 1 before the bake.
+
+**The gutting** happens on the baked world-space mesh, so it is faction-agnostic: the 4 belly-up abdomen quads whose
+verts are Hips/Spine/Spine1-dominated, |x| < 10 cm of the hips, are deleted (278 mm sternum -> pelvis); the rim is
+extruded 75 mm down at 0.55/0.62 scale and floored (floor = dark disc (1,3), side walls red (0,2), the head-end wall
+the pale disc (2,1) = the costal margin); the two long rim edges extrude 45 mm out and 30 mm up as peeled cloth
+flaps that copy their rim loops' uniform UVs; a 35 mm collar of field-texel quads 6 mm proud is the blood soak on the
+cloth. Viscera: intestine r 24 mm (colon calibre 4.8 cm; small intestine is 2.5-3 cm and read as string at r 17 mm —
+tried, rejected by render), 5 sides, three tubes: cavity -> over the -X rim -> down the flank -> a loop on the ground
+-> a second loop draped OVER the first (support = body + first tube) -> a stub; a short loop on the cavity floor;
+liver 11x8x6 and stomach 8x6.5x4.5 lumps in the pocket. Pool = the piles' 10-gon but on the sheet's dark FIELD (a
+disc stretched over a metre is 3 cm pink texels — the first render was a neon rug), 0.72 x 0.60 m under the hip, plus
+a 6-gon smear from the hip to the heap. Maggot strips sit 6 mm proud of the measured viscera top (cavity 0.222 m) and
+the HEAP'S CREST (0.130 m, found by a 7x7 support sweep — the ring's hollow centre reads ground). Anatomy sources:
+small intestine 2.5-3 cm / large 4.8-7.6 cm dia (bionumbers 111127, Cleveland Clinic), liver 20x15x11 (piles entry).
+
+**Re-dress for NVA/VC** = a `FACTIONS` row (file, rig, body objects to join, headgear + decimate ratio, face material
+name); the pose solver, belly cut, viscera, bake and export never look at faction. Declared: NVA `grunt_*` pieces on
+`PSXRig` + `pith_helmet_worn`; VC `vc_sapper_joined` on `vc_sapper_PSXRig` + `rice_hat`. Not built: the NVA facing/
+weights and the VC khaki-vs-pyjama UV split (piles entry above) need their own measured run.
+
+**Caught by measurement or render this build:**
+1. **`make_hull` in the piles builder hulled a bmesh that still held the SOURCE faces** — the exporter flagged the
+   collider "not valid". Fixed at the shared function (verts-only bmesh + `validate()`); the six pile GLBs were NOT
+   rebuilt (Caleb: keep them) — their colliders carry the duplicate faces, harmless to a trimesh but owed.
+2. A ray cast for "the surface under the hand" hits the HAND'S OWN back first — `surface_z_under` skips faces of the
+   region being tested and re-casts 3 mm below the hit. Casting from the vertex DOWNWARD instead returns the inside of
+   the torso once the hand has sunk in: a clean number for the wrong reason.
+3. A rope tube cannot support its own coil: build the heap as separate tubes so each drapes over the last.
+4. The 24-bit 1024² bake was 1.04 MB — 40 KB over the law. Quantised to 256 colours (PIL inside Blender's Python, no
+   dither) = 511 KB, face detail kept; the exporter ships the palette PNG bytes as-is.
+5. Landing the frog-leg's boot with the ankle drags the shared ankle verts down; land the whole leg, then the boot,
+   twice — they converge (0.7 mm).
+6. An arm folded across the belly from an elbow ON the ground cannot reach the belly's crest (0.29 m up, forearm
+   0.27 m): the hand rests on the flank instead. Measured before it was drawn; a hand target on the crest would have
+   buried the hand in the chest (the first probe said so: hand low 0.06 m, "surface" 0.03 m = the inside of the back).
+
+## 2026-09-13 · GORE CORPSE v2 — legs flat, no spun elbows, guts that read, maggots as geometry (Caleb: "the leg in the air doesnt look right so we should just have the legs laying down also make sure youre not twisting the arms so they make weird spun up elbows and the intestines part doesnt really read or the worms")
+
+Same two commands as v1 (`build_gore_corpse.py` / `verify_gore_corpse.py`, headless, Blender 5.0.1). Verifier now
+**68 checks, PASS**. Ships **2064 tris of 2200** (budget raised by the brief) + `maggot_mass` 1224 tris, GLB 758 KB,
+3 embedded images (atlas 504 KB quantised, gore sheet 28 KB, maggots_a 7 KB), `shrink_oversized_textures.py` finds
+nothing. New source file `gore_corpse/gore_corpse_viscera.png` (128², builder-painted, baked INTO the atlas so the
+corpse keeps two materials). Renders: `gore_corpse_us_{4m,1p5m,top,face}.png` + `_guts.png` (0.8 m into the
+cavity) + `_maggots.png` (0.4 m on the ground-tear clump). The parked rig/donor and the studio .blend as before.
+
+**Pose gates (all measured on the rig, recorded in the manifest as `pose_gates`, gated by the verifier):**
+- Legs: both flat, 10-12° apart, left knee 12.1° bent IN the ground plane, boots fallen outward. Boots 0.8 / -0.1 mm.
+  **A straight leg's THIGH cannot touch this donor's ground: its lowest vertex is the thigh root, 26-44 mm above
+  the shoulder-blade datum (the low-poly thigh is inset behind the buttock), and a hip sag that drops it buries the
+  knee (25° -> shin 70 mm underground).** Fix = dead weight on the STATIC mesh: `flatten_undersides()` presses every
+  downward-facing thigh/calf vertex within 50 mm of the ground to 2 mm (3-4 verts per part moved; top silhouette
+  untouched). Manifest keeps both numbers: `legs_mm_above_ground` (rig, pre-flatten: thigh_r 38.0, thigh_l 25.8,
+  shin_l 6.7) and `legs_flattened_mm` (shipped: 2.0 everywhere).
+- Arms: `twist_swing()` splits each bone's `matrix_basis` (rest-relative, parent-independent) into a twist about the
+  bone's own Y and a swing — that is the "spun elbow" number. Right: forearm twist -4.0°, elbow 34.4°, elbow point
+  (-0.42,-0.80,-0.43) = down/out. Left: twist 0.1°, elbow 46.9°, point (0.68,0.36,-0.64). Hand twists 0.
+  How: every arm move is a shoulder rotation (`rot_world` about the bone head) or a hinge about the axis
+  `forearm_dir x palm_normal` (perpendicular to the bone => zero twist by construction); the palm normal is measured
+  off the MESH (thumb centroid vs palm centroid; right = thumb x fingers, left = fingers x thumb, calibrated on the
+  A-pose donor where thumbs face forward) and the humerus roll is an exhaustive 3° scan for the best palm fit.
+  v1's `rot_world(RightForeArm, forearm_axis, 160)` was the spun elbow.
+- **The wound hand is now on the hip/upper thigh, not the belly (hand_l min_z 0.092).** With the elbow on the
+  ground and the bend capped at 60° the hand's reach rises 1:1 while the flank is a 3:1 slope — it cannot get on
+  top of the belly (v1 needed ~100° of bend to reach the flank at 0.199). The hinge bend is solved by bisection
+  against the TOP surface under the hand (`solve_rest_on_body` casts from 3 m down with the hand's faces skipped;
+  nothing under it = ground): +2.1° beyond 45.
+
+**Guts (manifest `guts`):** ONE tube, r 16 mm (32 across; Cleveland Clinic: jejunum ~2.5 cm), 12 sides, smooth,
+60 rings, 1.45 m, 1436 tris; 5 hairpin loops (3 on the cavity floor as 4 runs at pitch 38 mm, 2 on the ground
+beside the hip, runs 140 mm), exits over the -X flap and down the flank. Rings are placed by `decimate_path`:
+one wherever the centreline has turned 22°, else every 36 mm (hairpins 4-5 rings, runs 2-3) — the same 60 rings
+buy 1.45 m instead of 1.2. Height from `lift_on_supports` (ray under the axis AND 4 points r away, 3-wide max,
+3-tap mean, **then clamped never below the cast's demand**). The run length is PROBED per run and per turn
+(`floor_half_x`: first x whose support is >5 mm above the floor) — the floor polygon is not a rectangle and a
+hairpin whose +-r sample read the sloped wall stood straight up in the first render. Pocket depth 55 mm (was 75):
+at a 30° eye line an 80 mm pocket hides 139 mm of floor behind the near rim. Paint: strip v 0..0.25 tiles one
+crease per 40 mm (u = arc/0.16), wet stripe pinned to world-up by building each ring's frame from Z (not parallel
+transport), blood cell on the first/last 40 mm which also taper to half radius; mesentery 6-gon per hairpin at
+r*0.9 above its support (20 tris); liver on the strip's red-brown cell under the costal wall; the stomach is gone.
+References: Cleveland Clinic jejunum (2.5 cm, coiled loops), NCBI StatPearls small intestine (4-6 m convoluted,
+mesentery = the double fold anchoring the loops), LA Film School prop-guts tutorial (one continuous stuffed tube
+scrunched into loops, glossy coat, blood last).
+
+**Maggots (manifest `maggots`):** 150 grubs of 8 tris (octahedron 9 x 3.4 x 2.8 mm, bowed, 0.8/1.0/1.25 scale,
+random yaw, +-12° pitch) placed by support cast on body + viscera + patches: tears 76, rim 30 (10 spots of 3),
+mouth 12, eye corner 6 (mouth + 45 mm up the face, 25 mm to the upper eye), ground loops/pool edge 26. UV pinned
+to a cream 7x7 block painted into BOTH maggot frames' top-right corner (identical, so the engine's a/b flip crawls
+the decal patches only); the two 2-frame decal patches shrank to 60x45 / 70x50 mm, UV 0..0.875 (never see the
+block), and sit 45 mm BEYOND each torn end on the floor/ground — the first placement put the cavity patch on top
+of the tube. `clean_maggots` triangulates only: `remove_doubles` would weld touching grubs' tips.
+
+**Caught by measurement this build:**
+1. **`penetration_report` calls "under a peeled flap" inside the body** — 17 gut verts flagged to -49 mm at the -X
+   flap's outer edge; the flap is a single-sided sheet and below its top is air. `inside_detail()` now re-tests
+   every flagged vertex with a downward ray: a face hit from BEHIND is inside, anything else is overhang.
+   Result 17 flagged / **0 proven**. Keep both numbers in the manifest.
+2. The 3-tap mean in `lift_on_supports` undercut the clearance where the support drops away — harmless here (the
+   ray proved air) but clamped anyway.
+3. First gut render: a hairpin standing vertical (wall under the +-r sample). Probe the floor, don't assume it.
+4. `solve_rest_on_body` cast DOWN from 2 mm under the hand: "None" everywhere once the hand was beside the body,
+   and the inside of the back once it sank. Cast from above with the hand's own faces skipped.
+
+## 2026-09-13 · WW1 CAST QUALITY PASS — Caleb: "we need to do a better job fixing up the ww1 soldiers" / "their guns are totally dismantled tho"
+
+**The rifles were never dismantled - the LINEUP was.** Measured on `conquest_of_worms_ww1.blend` and on the
+re-imported GLB: every `rifle_lebel_*` / `rifle_gew98_*` is one object of 25 kit islands (buttstock 32 v, barrel,
+fore-end, hand-guard, receiver, bolt+handle+knob, bands, mag, trigger group...) all inside one 1.300 x 0.05 x 0.24 m
+envelope in object space - barrel x -0.98..-0.27 at bore z 0.037-0.057, fore-end under it z 0.002-0.043, receiver
+-0.27..-0.05, stock -0.02..+0.32 - i.e. assembled exactly as the Mosin kit in `weapons_vc.blend` (muzzle 0, butt
++1.294, bore 0.412). The GLB round-trips it (476 tris, same bbox). What Caleb saw: a 1.3 m rifle bone-parented to a
+T-POSED RightHand hangs 0.73 m outward and 0.74 m down at 66 deg (muzzle world (-1.37, +0.27, 0.41) vs the hand at
+(-0.64, 0.01, 1.15)) - the same hang as the US cast's M16 (`m16_world_rifleman`: muzzle (0.26, 0.18, 0.57) from the
+hand at 0.86) - and `render_ww1_cast.py` stood the men 1.05 m apart, so each rifle crossed into the next man: a
+butt in one fist, a barrel behind the neighbour's pouches, a muzzle poking out of his hip. The per-man front frame
+cropped the rifle at the frame edge for the same reason. Pieces, not a gun.
+
+**Fix = the render, not the mesh.** `render_ww1_cast.py` now poses the IMPORTED rig into a rest carry before every
+shot (the GLB stays the T-pose the shared clips need; nothing is keyed): both arms aimed down 10 deg off the body
+(`_aim_bone`: world-direction -> bone-basis quaternion), then a search over the right forearm twist (-180..180 by
+15) x wrist flex (-60..60) x wrist deviation (-40..40) scored on bore forward (-y), bore down, butt near a point
+0.10 m behind/below the hip, muzzle on the man's line, with a -10 penalty for anything under the ground. Result on
+all seven: twist -45, wrist (-60,-40), bore (-0.03, -0.87, -0.49), **muzzle 0.272 m (Lebel) / 0.292 m (Gew98) off
+the ground, butt z 0.868 and 0.154 / 0.143 m from the hip point** - gated (muzzle > 0.03, butt < 0.30). Lineup
+spacing 1.05 -> 1.00 with the arms down (men fill 81 % of the frame). Per-man sheets frame on the whole set's x
+centre (the rifle now adds ~0.3 m beside the leg) and gain a `_side` view. The `_tpose` suffix on the sheet files is
+kept because the paths are the contract; the stance IN them is the carry, and the docstring says so.
+
+**Faces - seven different men.** `tools/build_ww1_face_cells.py` rewritten: the 9/12 cells were six picks off
+`face_atlas_v5` rows 2-3 = one template head. Now each man is a distinct painted head from
+`face_source/newfaceatlas.png` TPS-warped onto the template's landmark pixels (Michael's method,
+`build_cow_michael_face_cell.py`) and composited into his old cell as the FRAME (ears / neck / hair mass /
+background). Donors: Louie r0c6 (both states, one man), poilu_a r1c0 (+ heavy moustache, stubble, lines - the Gaston
+type, Issue 2 p9), poilu_b r3c0 (young, clean), poilu_1916 r2c1 (+ drooping moustache, lines - Durand, Issue 2
+p9/p11), german_boy r1c1 (+ the scar, kept at the 9/12 path), german_line r2c5 (+ clipped moustache, stubble, lines).
+Landmarks are DETECTED (the donors' framing varies ~25 px / 20 %): chin + centre from the skin mask, head top from
+the warm/dark foreground, pupils = the darkest SYMMETRIC pair scored dark-8-px-above (brow) minus bright-8-px-below
+(cheek) so the brow pair and the inner-canthus shadow both lose, mouth = darkest row near a fraction prior with
+sub-pixel corner crossings, hairline = first row at 85 % of the forehead plateau (blond hair PASSES a skin-colour
+test), face width at the JAW (the ears are skin-coloured and attach between the eye and nostril rows - every width
+taken there included them). Compositing: donor face inside the template's outline polygon only (hairline-5 down),
+above row 48 only where the donor has skin (his temple hair landed as blocks), the donor's low-frequency luminance
+replaced by the template's (a 6x box-blur gain 0.55-1.45 - the first previews showed every face as a lighter oval
+on the darker template cheeks), template hair mass recoloured luminance-preserving with a SOFT lum weight (a hard
+mask left highlights in the old colour and a hard edge = a flat brown dome), highlights compressed above 0.25 (the
+projection tool's hair band must read < 5 % skin), lit half mirrored, jaw contour blended 60 % into the TEMPLATE's
+own pixels (a fixed shadow colour read as a beard line, a fixed lit colour as a pale chinstrap - both seen),
+lower-lip shadow lifted 55 % (see the tool fix below), nostril shadows painted (the template's are lum 0.31 and
+lose to a moustache). Gates on the written PNG (measure_cell arithmetic on sRGB bytes): pupils within 1.5 px of
+(49,73)/(76,73) on all six, lip line 104-105, nostril 93, chin 128-129, hairline 34-39, hair band lum 0.084-0.188,
+pairwise face-region difference >= 83 % (bar 55 %), every cell < 45 % identical to its frame.
+
+**`project_cow_head_uvs.py` instrument fix:** the nostril search ran "eye+12 .. mouth-9"; on a moustached cell the
+98-118 mouth band reports the moustache (row ~100) as the mouth, the nostril window shrank to rows 85-91 and
+returned the CHEEK at 85 - a 4 px error in one of the FRONT affine's three vertical anchors (nose_tip). Now a fixed
+band eye+12..eye+23 (every cell measured has its nostrils at eye+19..21). The lower-lip shadow was the other half:
+with the moustache as "mouth" the chin search starts +12 = row 112, where a donor's lip shadow (0.30) beat the chin
+crease at 128 and put the chin 16 px high (measured on poilu_a before the lift).
+
+**Heads on the roster wrap (Caleb 9/12 night: "fix all the uv wraps to match the grunts").** New
+`tools/copy_grunt_head_uvs.py`: appends `grunt_head_rifleman` + `us_grunt_joined_rifleman` from `us_base_v3.blend`
+(read-only; removed before the save), matches every face-material head poly by CENTRE (12 mm) and every loop by
+vertex (5 mm), copies the UV shifted from the source cell origin to the target's own cell origin. Result on all 14
+heads (7 bodies + 7 gib donors): **30/30 head polys from grunt_head, the 20 neck polys from the joined body, 0
+unmatched, residual 0.00 mm** - the brief's "26 of 30, 4 front polys without a partner" is not what this file
+measures; all 30 match at 0.00 mm. One texel of tolerance on the cell-rect gate: the roster wrap itself reaches v
+0.1435 in a 0.1429 cell (inherited). Pipeline order: `project_cow_head_uvs.py --tags` (its gates + measurements)
+THEN `copy_grunt_head_uvs.py --tags` (the shipped wrap). **What it looks like:** the roster look - the 4 front quads
+carry cell cols 24-102 x rows 40-156, the side quads carry the painted EAR stretched over the whole side of the
+head, top/back on single texels. A rendered `us_grunt_rifleman.glb` portrait shows the same smear; that is the
+game's head. The full-cell projection read better at portrait distance (ears behind the jaw, face across the
+front). Caleb's call.
+
+**Kit, measured:** cartouchiere Mle 1888 = 15 x 13 cm (lapetitepiece.fr / augrenierduder.fr) -> pouches 0.160 x
+0.062 x 0.132 in the 1.8 m file (were 0.122 x 0.064 x 0.106); German 1909 pouches 0.206 x 0.068 x 0.119 (z +5 %);
+kepi M1914 under the couvre-kepi = a soft LOW cylinder with a SHORT visor (lekepi.fr M1914/M1915,
+lesfrancaisaverdun-1916.fr couvre-kepi): 0.190 x 0.212 x 0.098 (was 0.118 tall) and the peak-only verts pulled back
+24 mm - in LOCAL space from the MESH's own y extent, not from the object matrix (place() converges per man and its
+scale differs in the 6th decimal; the per-index hash gate refused the first version: 3 kepis, 2 hashes). Kepi
+sweatband vertex 16-20 mm inside the skull is the hat allowance. Bidon 2 L and Feldflasche are FLAT OVAL flasks
+now: the rod donor (officer_cigar, a cylinder) stood on end and box-scaled to 0.095 x 0.150 x 0.200 / 0.070 x 0.105
+x 0.165 is an elliptical cylinder; the canteen box was a brick. Uniform sheets: the source-photo luminance ratio
+clipped 0.84-1.22 (was 0.72-1.32: the blurred jungle-fatigue pockets came through as black blotches on the 1916
+coat), vertical fold noise on torso/arm/hip (amp 0.14-0.18) with a 10 % darkening toward the region bottom, French
+puttees = a 12-deg tape spiral every 9 px with a roll, German Marschstiefel = a shin highlight, boots grained.
+Skirt / Adrian / Pickelhaube / Y-braces / Brotbeutel untouched from 9/12.
+
+**Numbers (shipped):** seven GLBs 1.38-1.49 MB, every embedded image < 1 MB, `shrink_oversized_textures.py --apply`
+= 0 to do; bare body 1.6678 m, headgear tops 1.6975 (kepi, was 1.7132) / 1.7420 (Adrian, Pickelhaube) / 1.7781
+(kepi + cerveliere); 41-bone PSXRig; gibs 5/5 caps 5/5 by name; ALL build gates pass (hash, smear, weights,
+visibility, caps, texture budget, intersection 0 on every new piece, rifles within 3 %, skirt, UV swatch). Renders
+from the GLBs: `ww1_LINEUP_all_seven.png`, `ww1_<tag>_{front,threequarter,side,portrait}_tpose.png`,
+`ww1_FACES_all_seven.png`. Looked at: rifles whole and held muzzle-down-forward in every view, seven faces that
+are seven men (moustaches on a / 1916 / line, the scar on the boy), kepi a low cap, pouches the right size.
+
+**Not verified:** the Godot side (no engine run); no WW1 model is referenced by any script yet
+(`grep ww1 scripts/` = nothing). **Not done:** the rifle bolt handle still sticks out 78 mm (kit geometry); Lebel vs
+Gew98 differ only by length, fore-end and the sight; the 1916 gas-mask tin; the Y-brace path is still the US
+suspender geometry recoloured; ears on the roster wrap.

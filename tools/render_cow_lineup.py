@@ -1,4 +1,6 @@
-"""render_cow_lineup.py - all four Conquest of Worms characters, ONE camera, ONE ground line.
+"""render_cow_lineup.py - the Conquest of Worms US-side cast, ONE camera, ONE ground line.
+
+    ... --python tools/render_cow_lineup.py [-- four|six]      (default six, 2026-09-13)
 
     "C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe" --background ^
         --factory-startup --python tools/render_cow_lineup.py
@@ -22,7 +24,10 @@ from mathutils import Vector
 D = bpy.data
 ROOT = r"C:\Users\caleb\RECONgame"
 OUTDIR = os.path.join(ROOT, "production", "renders_conquest_of_worms")
-OUT = os.path.join(OUTDIR, "cow_LINEUP_all_four.png")
+import sys
+_ARGV = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+SET = "four" if "four" in _ARGV else "six"
+OUT = os.path.join(OUTDIR, "cow_LINEUP_all_%s.png" % SET)
 os.makedirs(OUTDIR, exist_ok=True)
 
 FIGURES = [
@@ -31,6 +36,12 @@ FIGURES = [
     ("gus_ears", os.path.join(ROOT, "assets", "us", "characters", "cow_gus_ears.glb")),
     ("sniper", os.path.join(ROOT, "assets", "nva_vc", "characters", "cow_sniper.glb")),
 ]
+if SET == "six":
+    # the sniper from his OWN GLB (never the REVIEW_APPENDED copy in the cast file)
+    FIGURES += [
+        ("mccleary", os.path.join(ROOT, "assets", "us", "characters", "cow_mccleary.glb")),
+        ("champs", os.path.join(ROOT, "assets", "us", "characters", "cow_champs.glb")),
+    ]
 SPACING = 1.15
 DONOR_PREFIX = ("grunt_", "cap_", "head_frag_", "Base_Human", "Icosphere",
                 "helmet_camo_shell", "helmet_bugjuice")
@@ -212,7 +223,7 @@ bpy.ops.render.render(write_still=True)
 print("RENDERED %s  ortho=%.3f  %dx%d" % (OUT, ortho, RES_X, RES_Y), flush=True)
 
 # framing numbers the label pass needs, so it never has to guess
-with open(os.path.join(OUTDIR, "_lineup_frame.txt"), "w") as f:
+with open(os.path.join(OUTDIR, "_lineup_frame%s.txt" % ("" if SET == "four" else "_six")), "w") as f:
     f.write("%f %f %d %d\n" % (c.x, ortho, RES_X, RES_Y))
     for i, (tag, h, bare, s) in enumerate(heights):
         f.write("%s %f %f %f\n" % (tag, i * SPACING, h, bare))

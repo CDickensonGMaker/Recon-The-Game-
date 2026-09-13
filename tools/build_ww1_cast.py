@@ -679,7 +679,10 @@ def plan(o, swatch, mode="box", polys=None):
 #   over the brims; visor 50 mm, neck guard 44 mm (151ril). Shell here 0.290 x 0.215 x 0.140.
 # Pickelhaube M1895 (IWM object records): L 24-26.7 cm, W 16.5-19 cm, H 22-25 cm w/ spike
 HEAD_TOP = 1.7999                    # measured top of the body mesh, rest space
-KEPI = dict(dims=(0.190, 0.215, 0.118), c=(0.0, -0.012, 1.790))
+# kepi M1914 under its couvre-kepi: a soft LOW cylinder (crown ~9 cm in the file's 1.8 m
+# frame) with a SHORT visor. The 9/12 box (0.190 x 0.215 x 0.118 with the officer donor's
+# full peak) read as a shako. Visor verts are pulled back 22 mm after placement.
+KEPI = dict(dims=(0.190, 0.212, 0.098), c=(0.0, -0.010, 1.783), visor_pull=0.024)
 CERV = dict(dims=(0.178, 0.190, 0.082), c=(0.0, -0.004, 1.878))
 ADRIAN = dict(dims=(0.215, 0.290, 0.140), c=(0.0, -0.010, 1.786))
 CREST = dict(dims=(0.030, 0.210, 0.036), c=(0.0, -0.010, 1.862))
@@ -1047,6 +1050,18 @@ for t in TAGS:
         lo = min(z for _, z in zs)
         peak = [i for i, z in zs if z < lo + 0.030]
         crown = [i for i, z in zs if z >= lo + 0.030]
+        # short visor: the peak-only verts (not shared with the crown) slide back toward the
+        # crown by visor_pull, in LOCAL space (the object frame carries the box scale)
+        crown_v = {vi for i in crown for vi in o.data.polygons[i].vertices}
+        peak_v = {vi for i in peak for vi in o.data.polygons[i].vertices} - crown_v
+        # the local delta from the MESH's own extent, not from the object matrix: place()
+        # converges per man and its scale differs in the 6th decimal, which the per-index
+        # hash gate rightly refuses
+        ly = [v.co.y for v in o.data.vertices]
+        dl = Vector((0.0, KEPI["visor_pull"] * (max(ly) - min(ly)) / KEPI["dims"][1], 0.0))
+        for vi in peak_v:
+            o.data.vertices[vi].co += dl
+        o.data.update()
         plan(o, "kepi", "cyl", crown)
         plan(o, "leather", "box", peak)
         bone_parent(o, t, "mixamorig:Head")
@@ -1160,15 +1175,17 @@ for t in TAGS:
         if not (pouch and flap):
             raise SystemExit("ABORT %s: missing web_pouch/web_flap %s" % (t, side))
         if fr:
-            # M1888/1905 cartouchiere: a stiff leather box ~0.12 x 0.06 x 0.10
+            # cartouchiere Mle 1888: 15 x 13 cm (lapetitepiece.fr / augrenierduder.fr listings),
+            # ~5.5 cm deep -> 0.160 x 0.062 x 0.132 in this 1.8 m file. The 9/12 pouch was
+            # 0.122 x 0.064 x 0.106, a third too small.
             for o in (pouch, flap):
-                scale_in_place(o, (0.86, 0.80, 0.80))
+                scale_in_place(o, (1.13, 0.78, 1.00))
             newp, newf = "cart_pouch_%s_%s" % (side, t), "cart_flap_%s_%s" % (side, t)
             sw = "pouch_fr"
         else:
-            # M1909 Patronentasche: three cells, ~0.20 wide. Two per man.
+            # M1909 Patronentasche: three cells, ~0.20 x 0.06 x 0.12. Two per man.
             for o in (pouch, flap):
-                scale_in_place(o, (1.45, 0.85, 0.85))
+                scale_in_place(o, (1.45, 0.85, 1.05))
             newp, newf = "ammo_pouch_%s_%s" % (side, t), "ammo_flap_%s_%s" % (side, t)
             sw = "pouch_de"
         pouch.name = newp
@@ -1221,9 +1238,10 @@ for t in TAGS:
         made.append(mus)
         z_b = 1.000
         bx = skirt_x_at(z_b, -1) - BIDON["dims"][0] * 0.5 - 0.004
-        bid, _ = place("canteen", t, "bidon", BIDON["dims"], (bx, 0.06, z_b),
-                       rot=Matrix.Rotation(math.radians(90), 4, 'Z'))
-        plan(bid, "bidon", "box")
+        # the 2 L bidon is a FLAT OVAL flask: the rod donor (a cylinder) stood on end and
+        # scaled to the flask box is an elliptical cylinder, which the canteen box was not
+        bid, _ = place("rod", t, "bidon", BIDON["dims"], (bx, 0.06, z_b), canon=ROD_UP)
+        plan(bid, "bidon", "cyl")
         bone_parent(bid, t, "mixamorig:Hips")
         made.append(bid)
         print("   %-14s musette at x=%+.3f (skirt +x %.3f) | bidon at x=%+.3f" % (t, rx, skirt_x_at(z_m, +1), bx))
@@ -1233,9 +1251,8 @@ for t in TAGS:
         plan(bb, "canvas", "box")
         bone_parent(bb, t, "mixamorig:Hips")
         made.append(bb)
-        ff, _ = place("canteen", t, "feldflasche", FELDFLASCHE["dims"], (-0.215, -0.075, 0.965),
-                      rot=Matrix.Rotation(math.radians(90), 4, 'Z'))
-        plan(ff, "felt", "box")
+        ff, _ = place("rod", t, "feldflasche", FELDFLASCHE["dims"], (-0.215, -0.075, 0.965), canon=ROD_UP)
+        plan(ff, "felt", "cyl")
         bone_parent(ff, t, "mixamorig:Hips")
         made.append(ff)
 
@@ -1669,10 +1686,53 @@ def build_uniform_sheet(tag, spec, obj, out_png):
         tgt = np.array(TARGET[r], dtype=np.float32)
         # keep the photographic detail (pockets, folds, buttons, laces) and change only
         # the hue/value: FAILURE MODE 8 - a flat fill reads as an untextured mannequin.
-        k = np.clip(lum[md] / max(base_l, 1.0), 0.72, 1.32)[:, None]
+        # 0.84-1.22, not 0.72-1.32: the wider band let the blurred jungle-fatigue pockets and
+        # sleeve shadows through as black blotches on a 1915 capote (seen 9/13, worst on the
+        # 1916 coat); the folds painted below carry the cloth instead
+        k = np.clip(lum[md] / max(base_l, 1.0), 0.84, 1.22)[:, None]
         a[md] = np.clip(tgt[None, :] * k, 0, 255)
         painted |= md
         rep.append((r, counts[r], int(m.sum()), int(md.sum()), base_l, TARGET[r]))
+
+    # --- cloth: folds, weight and wrap into the recoloured regions -------------------
+    # A flat recolour of the blurred fatigue photo reads as paper. Wool falls in vertical
+    # folds, the coat darkens under the belt and toward the hem, puttees are a spiral of
+    # 8 cm tape, and a jackboot has a shin highlight. All painted in the SHEET's frame:
+    # the leg and arm islands run vertically on it (measured: leg u[0.399,0.646] over
+    # v[0.61,0.80]), so vertical streaks are folds and horizontal lines are wraps.
+    yy, xx = np.mgrid[0:SHEET_H, 0:SHEET_W].astype(np.float32)
+    rng = np.random.default_rng(int(hashlib.sha1(tag.encode()).hexdigest()[:6], 16))
+    fold = _noise(SHEET_H, max(2, SHEET_W // 6), 9.0, rng, octaves=2)
+    from PIL import Image as _I
+    fold = np.array(_I.fromarray(((fold + 0.5) * 255).astype(np.uint8)).resize((SHEET_W, SHEET_H), _I.BILINEAR)).astype(np.float32) / 255.0 - 0.5
+    for r, amp in (("torso", 0.16), ("arm", 0.14), ("hip", 0.18)):
+        m = dilate(lab == REG.index(r) + 1, 5)
+        if not m.any():
+            continue
+        ys = np.nonzero(m.any(axis=1))[0]
+        y0, y1 = ys.min(), ys.max()
+        # weight: darker toward the bottom of the region (under the belt / the hem shadow)
+        grad = 1.0 - 0.10 * np.clip((yy - y0) / max(y1 - y0, 1), 0, 1)
+        k = (1.0 + amp * 2.0 * fold) * grad
+        a[m] = np.clip(a[m] * k[m][:, None], 0, 255)
+    m = dilate(lab == REG.index("puttee") + 1, 5)
+    if m.any() and spec["nation"] == "fr":
+        # puttee: 8 cm tape spiralled up the calf = a dark line every ~9 px of the island,
+        # tilted 12 deg, plus a soft roll between the lines
+        ph = (yy * math.cos(math.radians(12)) - xx * math.sin(math.radians(12))) / 9.0
+        wrap = 0.5 + 0.5 * np.cos(2.0 * math.pi * ph)
+        k = 0.86 + 0.14 * wrap - 0.10 * (np.abs(ph - np.round(ph)) < 0.12)
+        a[m] = np.clip(a[m] * k[m][:, None], 0, 255)
+    elif m.any():
+        # Marschstiefel: black leather, a vertical shin highlight and a crease band at the ankle
+        ys = np.nonzero(m.any(axis=1))[0]
+        xs_ = np.nonzero(m.any(axis=0))[0]
+        cxm = (xs_.min() + xs_.max()) * 0.5
+        hi = 1.0 + 0.55 * np.exp(-((xx - cxm) / max(8.0, (xs_.max() - xs_.min()) * 0.10)) ** 2)
+        a[m] = np.clip(a[m] * hi[m][:, None], 0, 255)
+    m = dilate(lab == REG.index("boot") + 1, 5)
+    if m.any():
+        a[m] = np.clip(a[m] * (1.0 + 0.18 * 2.0 * fold[m])[:, None], 0, 255)
 
     # Everything the body never samples becomes one flat colour. It costs nothing to look
     # at and it makes the PNG compress to almost nothing, which is how this sheet stays
