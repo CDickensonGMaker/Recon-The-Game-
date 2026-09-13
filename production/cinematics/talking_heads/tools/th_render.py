@@ -2,6 +2,8 @@
 
     "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python th_render.py [-- --visemes] [-- --lines] [-- --head michael]
 
+  --match    renders/sniper_match.png   : his game portrait (production/renders_conquest_of_worms/sniper_portrait_front.png)
+             beside the cutscene head rendered front-on, same framing - the "is it the same man" check
   --visemes  renders/<head>_visemes.png : the 9 Rhubarb shapes side by side (humans: shape keys; skulls: jaw angles)
   --lines    renders/<head>_line.mp4    : the line keyed by th_lipsync.py, audio muxed by ffmpeg, plus two labelled
              spot-check stills renders/<head>_line_f<N>_<cue>.png (loudest open cue, and a silent X cue)
@@ -15,13 +17,14 @@ sys.path.insert(0, HERE)
 import th_face as F
 
 OUT_DIR = os.path.dirname(HERE)
-BLEND = os.path.join(OUT_DIR, "talking_heads.blend")
-RENDERS = os.path.join(OUT_DIR, "renders")
+BLEND = os.environ.get("TH_BLEND") or os.path.join(OUT_DIR, "talking_heads.blend")      # TH_BLEND/TH_RENDERS: dry runs on a scratch copy
+RENDERS = os.environ.get("TH_RENDERS") or os.path.join(OUT_DIR, "renders")
 LIPSYNC = os.path.join(OUT_DIR, "lipsync")
 os.makedirs(RENDERS, exist_ok=True)
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-DO_VIS = "--visemes" in ARGS or "--lines" not in ARGS
-DO_LINES = "--lines" in ARGS or "--visemes" not in ARGS
+DO_MATCH = "--match" in ARGS
+DO_VIS = "--visemes" in ARGS or ("--lines" not in ARGS and not DO_MATCH)
+DO_LINES = "--lines" in ARGS or ("--visemes" not in ARGS and not DO_MATCH)
 ONLY = ARGS[ARGS.index("--head") + 1] if "--head" in ARGS else None
 FFMPEG = shutil.which("ffmpeg")
 FACE_FRACTION = 0.65
@@ -74,14 +77,14 @@ def bounds(objs, frame):
     return lo, hi
 
 
-def frame_head(tag, fraction=FACE_FRACTION, aim_dz=0.0):
+def frame_head(tag, fraction=FACE_FRACTION, aim_dz=0.0, yaw_deg=-8.0):
     objs = [bpy.data.objects[n] for n in HEADS[tag]]
     lo, hi = bounds(objs, 0)
     H = hi.z - lo.z
     centre = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2 + aim_dz))
     face_pt = Vector((centre.x, lo.y, centre.z))
     dist = H / (2 * math.tan(vfov / 2) * fraction)
-    yaw = math.radians(-8.0)
+    yaw = math.radians(yaw_deg)
     d = Vector((math.sin(yaw), -math.cos(yaw), 0.0))
     cam.location = face_pt + d * dist
     cam.rotation_euler = (face_pt - cam.location).to_track_quat('-Z', 'Y').to_euler()
@@ -215,8 +218,36 @@ def line_render(tag):
     return {"mp4": mp4, "frames": n, "wav": meta["wav"], "stills": stills}
 
 
+def match_render():
+    """renders/sniper_match.png: the game portrait beside the cutscene head, both front-on, head ~70% of frame height."""
+    portrait = os.path.join(os.path.dirname(os.path.dirname(OUT_DIR)), "renders_conquest_of_worms", "sniper_portrait_front.png")
+    assert os.path.exists(portrait), portrait
+    sc.render.resolution_x, sc.render.resolution_y = 450, 540
+    vf = 2 * math.atan((cam_data.sensor_width * 540 / 450 / 2) / cam_data.lens)
+    global vfov
+    saved = vfov; vfov = vf
+    frame_head("sniper", fraction=0.72, aim_dz=0.0, yaw_deg=0.0)
+    vfov = saved
+    tmp = os.path.join(RENDERS, "_match_sniper.png")
+    render(tmp, 0)
+    label(tmp, "cutscene head  cs_skull_sniper + cs_mandible_sniper  (his game head split on the painted mouth, jaw shut)")
+    port = os.path.join(RENDERS, "_match_portrait.png")
+    shutil.copy(portrait, port)
+    label(port, "game portrait  sniper_portrait_front.png")
+    out = os.path.join(RENDERS, "sniper_match.png")
+    tile(out, 2, [port, tmp])
+    os.remove(tmp); os.remove(port)
+    sc.render.resolution_x, sc.render.resolution_y = 640, 480
+    return out
+
+
 info = {}
+if DO_MATCH:
+    info["sniper_match"] = match_render()
+    print("[TH-RENDER] match", info["sniper_match"])
 for tag in HEADS:
+    if DO_MATCH and not (DO_VIS or DO_LINES):
+        break
     if ONLY and tag != ONLY:
         continue
     info[tag] = frame_head(tag)

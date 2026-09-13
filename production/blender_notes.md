@@ -3403,3 +3403,178 @@ refused by the envelope gate). Round base r 25 mm x 12 mm, spike frustum 11 -> 4
 Overall L 0.329 / H 0.225 / W 0.190. Number "112" is a front projection of the two front face columns
 into the numbered swatch, low on the front; cover seams at cyl u 0.25/0.75 and a rim hem line. Both
 Germans re-exported (1.37 / 1.39 MB, headgear top 1.7420), lineup + their sheets re-rendered.
+
+## 2026-09-12 (night) · GUS'S FRECKLES — healed off the cell, re-scattered inside the FRONT footprint (Caleb: "fix gus face than re add the frekles")
+
+**Tool:** `tools/fix_gus_freckles.py` (numpy+PIL, deterministic seed 20260912, `--dry` writes to %TEMP% only). Record of
+what it did: `assets/us/characters/cow_gus_face_cell_freckles.json`.
+
+**The defect, measured:** the 2026-09-09 freckles were **20 hard-edged blotches, 152 core px (166 with the antialiased
+rim), bbox x 29-99 y 80-107**, lum 66-100 on 115-160 skin. Two sat on the ear lobes (29-31,105-107 L; 97-99,96-98 R),
+a 27-px cluster at 80-88 x 97-103 on the right cheek. The SIDE quads (`project_cow_head_uvs.py`) sample cell columns
+**74.65 -> 83.95 -> 89.03 (rows 119 -> 85 -> 45) out to the face edge 80.9 / 90.8 / 97.0 on the right, mirrored left**
+— i.e. they OVERLAP the FRONT quads' outer columns, and stretch them over 92 mm. Every blotch in x 75-97 / 33-55 was a
+streak in profile.
+
+**Heal:** fleck = (9x9 median - lum > 30) AND (max 8-neighbour - lum > 25) in the face zone x 33-99 y 80-103, minus the
+crease columns (x<=34 / >=93 at rows 80-84) and the right-lobe under-shadow ramp (rows 99+, x>=98), plus the left-lobe
+blotch box. Nostrils, the mouth line (53-74 x 104-107), the lip shadow and the ear canals are soft ramps and fail the
+hardness test. Iterative normalised 3x3 fill from unmasked skin; gate = every healed px within 40 lum of the clean 9x9
+mean (worst 38.2 = the nose-bridge highlight at 63-64,90 and the two px where the right-lobe blotch meets the lobe
+shadow; both heal toward their true neighbours). Eyes/brows/lips/hair/ears untouched — gate: no pixel outside the
+fleck mask and the freckle mask changed.
+
+**Freckles:** 44 dots (22 x 1 px, 6 x 2h, 10 x 2v, 6 x 2x2), 78 px painted, bbox **x 49-79 y 82-100**. Allowed footprint
+= inside a FRONT poly AND >= 3 px from every SIDE poly AND rows 82-101, minus nostrils (55-73 x 93-100) and lips
+(y>100 at 48-80) = **x 47-80 y 82-100, 417 px**; density = gaussians on the bridge (64,87) and the upper cheeks
+(52,92)/(76,92), thinned x0.55 per px within 4 px of the footprint edge so the scatter has no straight border. Dot colour
+= local skin x 0.50-0.76 with a red bias (carries the shading under it); 1-px gap between dots so none merge.
+
+**Where it went:** cell -> both Gus atlas cells (body col 0 row_b 4 at atlas (0,323); donor col 0 row_b 0 at (0,970);
+466 atlas px changed, all inside those two cells, size 1296x1132 kept). The atlas is PACKED in both
+`conquest_of_worms_us_cast.blend` and `talking_heads.blend`: unpack(USE_ORIGINAL) -> reload -> pack, verified
+|packed - png| = 0.0 through a second image datablock, saved without .blend1 (cast blend 55.8 -> 49.7 MB: the save
+compacted it; 167 objects / 164 meshes / 0 orphans after). Blender reads those pixels as LINEAR floats — the old fleck
+(sRGB 104) is 0.14, healed skin (174) is 0.42; a gate written in sRGB terms fails on the right answer.
+`cow_gus_arrival.glb` (2.50 MB) + `cow_gus_ears.glb` (2.86 MB) re-exported via `export_cow_cast.py`, face atlas
+shipped at 745x651 / 0.85 MB, `shrink_oversized_textures.py --apply` = 0 to do. Cast renders redone to the same paths
+(front/threequarter/side/back/portrait/portrait34, both states); `th_render.py -- --head gus` redid gus_visemes /
+gus_eyes / gus_line.mp4 + stills. Looked at: side = clean cheek in profile under the ear, no streak; portrait /
+portrait34 = a freckle band across the nose bridge and inner cheeks, outer cheeks clean; cutscene still f058 same.
+**Not done:** `th_textures.py` does not touch Gus (it builds the skull/zombie/card/mouth atlases) — the cutscene head
+samples `face_atlas_gus` straight off the packed atlas, so no rebuild was needed and geometry was not touched.
+Re-running `fix_gus_freckles.py` on its own output re-detects the new dots as flecks and repaints the same scatter.
+
+
+## 2026-09-12 (night) · MICHAEL GETS HIS OWN FACE — Caleb: "micheal and gus are sharing the same base face too" / "give micheal a different face" / "i like the way gus face looks"
+
+**The finding first:** the old Michael cell (face_atlas_v5 row 2 col 9) and Gus's (row 2 col 7) were the same
+generated template head with different hair/moustache flecks — and so is EVERY light-skin cell on
+`face_source/face_atlas_v4.png` and `v5.png` (rows 2-3, 20 cells: one head). "Pick a different base from the
+roster atlases" cannot be done on those sheets. The only source in `face_source/` with genuinely distinct heads is
+`newfaceatlas.png` (36 painted men, 9x4, 101x220 px cells; `us_grunt_transparent faces.png` and
+`recovered_face_atlas_v3.png` hold different-style sketched heads). Face-region luminance correlation with Gus's
+cell: old Michael 0.695 -> new 0.307.
+
+**What the panels draw (G: `Rotten Sewer Productions/Comics/Conquest of worms/Conquest of Worms Reboot/Issue 1/`):**
+p4 top = his eyes, POV: big, wide, heavy hooded lids, thick brows low and close, lines under; p14 panel 2 ("Hold up
+Mike") = soft rounded profile, small nose, small o-mouth, no stubble; p15 panel 3 ("No! No! AHH!") = long narrow
+face, huge wide-set eyes, spiky forward fringe on the forehead, long straight nasal bridge with a broad flared tip,
+deep nasolabial lines, wide mouth, smooth; p15 panel 5 = profile, short tousled hair falling forward, big ear, heavy
+brow, long straight nose, thin lips, small receding chin, long neck; p16 "Flares" = wide worried eyes under the
+brim, long nose, thin pressed mouth, pointed chin. Draft card (bible line 26): eyes BLUE, hair BROWN, 6'2" 155 lb, 17.
+
+**Base used:** `newfaceatlas.png` row 3 col 3 (0-based) — dark tousled forward fringe, low knitted brows, long
+straight nose with a broad tip, thin lips, lean cheeks. Tool: `tools/build_cow_michael_face_cell.py` (numpy TPS
+warp, no scipy on this box). The TEMPLATE cell (2,9) stays as the FRAME only — ears, neck, warm-brown background,
+outer hair mass — because `project_cow_head_uvs.measure_cell` asserts on those regions and solves the FRONT affine
+from painted pupils / nostrils / mouth / chin / hairline / ear centroids. The donor is warped so its landmarks land
+on the OLD cell's landmark PIXELS: pupils (49,73)/(76,73), nostril 93, mouth 105, corners 52.1/72.9 (old 52.2/72.1),
+chin 130 (old 128), hairline 36 (old 38), brow 67 (old 66). Reworked: blue irises, hair brown at band lum 0.129
+(Gus 0.092, old Michael 0.130), jaw 49 px at the mouth row vs the template's 61 (the template's square jaw
+outside the new outline shaded x0.74 into the side shadow), chin tuft / cheek streak / chin cleft painted out,
+nasolabial folds blended 45%, skin pulled 40% toward the template mean (the neck below is template skin), lit half
+MIRRORED across the pupil axis (the donor is lit from one side; his shadow jaw came out grey on the first portrait
+and the side quads streaked it), inner brow ends lifted 1.5 px (worried, not angry), lids pinned 3.5 px either side
+of the pupil (the 0.6 vertical squeeze had made the donor's eyes slits), lip line deepened along the painted mouth
+(the donor's was 0.28 against 0.40 skin and vanished at 75 px), nose-tip catch light painted (his bridge ridge
+out-brightened the tip and `measure_cell`'s nose_tip landed 6 px high, tilting the affine: residual 6.4 -> 2.7 px),
+jaw contour blended 70% into the under-ear shadow colour (it read as a chinstrap beard at 75 px; a multiplicative
+lift went orange). No freckles — Gus's mark.
+
+**Pipeline (Michael only, Gus's files never opened for writing):** `build_cow_michael_face_cell.py` (gates = a copy
+of measure_cell's arithmetic on sRGB bytes/255, exactly what `Image.pixels` hands Blender) ->
+`tools/repaint_cow_michael_face.py -- --save` (ONE session on the shared cast file: paints BOTH Michael cells —
+body col 1 row_b 4, donor col 0 row_b 0 — reads them back bit-exact, asserts Gus's atlas pixel-hash unchanged,
+runs `project_cow_head_uvs` with `--tags michael`, saves with save_version 0) -> `export_cow_cast.py -- michael`
+(2.30 MB, every image <= 0.86 MB, `shrink_oversized_textures.py --apply` found nothing) -> `render_cow_cast.py --
+michael` -> `tools/refresh_th_michael_texture.py -- --save` (repacks the atlas into `talking_heads.blend`, gates
+`cs_head_michael`'s UVs against the NEW paint: eye-loop centroid 1.12 px off each pupil, lip-line rows 0.5, corners
+0.5/0.9 — no geometry rebuild; `th_textures.py` is the SKULL atlas builder and never touched Michael) ->
+`th_render.py -- --visemes --lines --head michael`.
+
+**Projection residuals (px):** chin 0.62/0.40, nose_tip 0.62/2.72, brow 0.62/1.05 (old cell: 0.6/0.6, 0.6/2.0,
+0.6/1.1); affine sx 528.9 / sz 537.8 px/m (old 528.7 / 515.7 — sz moved because chin 128->130 and hairline 38->36);
+painted eyes land at z 1.6745 (old 1.675-1.678), mouth 1.6150 (old 1.613-1.616); ear centroids 61%/58% of head
+depth, unchanged. Reimported GLB: PSXRig 41 bones, 63 meshes (incl. the importer's Icosphere), 4850 tris, face atlas
+746x652 at 892 KB, hair-band rgb of the shipped cell (0.171,0.123,0.078) = the new cell's.
+
+**Files:** `assets/us/characters/cow_michael_face_cell.png` (34 KB), `cow_michael_face_atlas.png`,
+`cow_michael_crawford.glb`, `conquest_of_worms_us_cast.blend`, `production/cinematics/talking_heads/talking_heads.blend`,
+renders `production/renders_conquest_of_worms/cow_michael_{front,threequarter,side,back,portrait,portrait34}_tpose.png`
+and `production/cinematics/talking_heads/renders/michael_{visemes,eyes,line_f033_C,line_f059_X}.png` + `michael_line.mp4`.
+`tools/build_cow_face_atlases.py` no longer writes Michael's cell (it would have put the template back).
+
+**Traps this cost:**
+- `Image.pixels` on an 8-bit image = sRGB bytes/255; a PIL copy of the detector on `np.array(img)/255` agrees to the
+  pixel. Do the gates in PIL first, Blender second.
+- A grey halo around the donor heads on `newfaceatlas.png` passes an abs-diff-from-background mask; use warm
+  (r-b > 0.035) OR near-black (lum < 0.10) for the head. Clamped bilinear sampling outside the donor cell returns the
+  collar's edge pixels as a solid block — zero the mask where the warp leaves the cell.
+- Recolouring the template hair by mean ratio lifted its near-black background (lum 0.04-0.08) into a grey block.
+  Fixed gain from the old band mean instead.
+- An additive/std colour match lifted the pupils 0.04 -> 0.26 and the eye detector took the sideburns. Multiplicative.
+- `measure_cell` picks the darkest 3x3 in a fixed window: the donor's thick brows out-darkened his pupils until the
+  pupils were forced to 0.05 and the brows floored at 0.13.
+- Two of my "fixes" I could not see at the Read tool's downscale — verify with a pixel dump, not a thumbnail.
+
+**Not verified:** the Godot side (no engine run); `grunt_dresser` still treats the named atlas as rerollable exactly
+as before. The other agent's Gus edits were in the cast file before my open (22:10 save) and are in it after
+(pixel hash of `cow_gus_face_atlas` asserted unchanged across my session) — but a Gus save landing inside my
+~20 s open->save window would have been lost; none was observed (file mtimes 22:10 -> 22:28 -> 22:35 are mine).
+
+### 2026-09-12 (evening) · talking heads: real teeth on the zombie skull, and the sniper's OWN head as the talking head
+
+Caleb: "the skulls teeth for the talking skulls look weird" and "why does the skull sniper head not look like that
+guys actual head." Both right. New stage `production/cinematics/talking_heads/tools/th_skulls.py` (standalone on the
+saved .blend, or called by `th_build.py` before its final save; the humans are never rebuilt). Constants in `th_spec.py`.
+
+**The zig-zag WAS the cage.** The skull cage's "tips" row is projected by rays from C, and across the front columns
+the ref cranium (which has no teeth in its component) was hit at ref z -1.089 / -1.215 / -1.138 / -1.037 / -0.948 —
+a sawtooth 7-21 mm deep — and the atlas painted a tooth strip along it. `build_report.json` never showed it because
+no gate measured the row. Now the 7 front verts of that row sit on the measured maxillary alveolar margin (CDmir
+cranium min z at |x|<0.12 = -1.093, i.e. 85 mm under the vertex) along the measured labial arch, and the mandible
+ridge (7 verts, |th|<=40) on the measured crest (-1.303; the old ridge also had a 9 mm ray-miss notch at col 0).
+Moves: 3.5-12.8 mm on the maxilla, 4.1-9.4 mm on the mandible.
+
+**Dental arch, measured on the reference's own teeth** (the CDmir OBJ keeps all 32 as separate components; ref
+units, +x): upper centres I1 (0.061,-0.913) I2 (0.166,-0.904) C (0.233,-0.855) PM1 (0.267,-0.786) PM2 (0.307,-0.701)
+M1 (0.347,-0.611) M2 (0.379,-0.521) M3 (0.392,-0.433); molar centre width 61.0 mm, canine 36.3, depth 37.4, upper
+incisal edge at -1.24 (11.4 mm crown under the margin), lower incisor tips -1.18, lower labial 2.2 mm behind the
+upper. `th_spec.UP_LABIAL` is the labial line (centre + half depth outward); the lower labial line is the upper one
+offset inward by `th_skulls.lower_inset()` = the upper anteriors' lingual-slope thickness at the overbite height
++ 0.8 mm (2.55 mm zombie, 3.26 mm sniper) — a fixed 2.5 mm INTERSECTED the uppers (hull test caught it).
+Built: 6 blocks per side (I1 I2 C PM1 PM2 merged-M, widths scaled 1.07x to fill the 59.6 mm labial arc), 5 quads
+each (open at the buried end), tip taper 0.78, 1.0 mm gaps (0.6 mm vanished at 320x240), overbite 1.5 mm, posteriors
+0.5 mm under the uppers AND under the canine's overbite zone. Zombie: upper right I2 + lower left pm1 missing, upper
+left C snapped to 45%. Measured on the build: molar labial width 66.1 / 60.9 mm, canine 41.1 / 34.4, arch depth
+32.7 / 30.5, incisor 9.1 mm wide x 11.0 crown, overjet 2.54 mm labial-to-labial (1.54 from the upper edge).
+Tris: skull 400 -> 510, mandible 126 -> 236 (+220 of the 260 budget). Zombie atlas: strips are bone with a 2 px
+gum line, ivory patch at px (2,188)-(14,212) with dark gum rows and 1 px dark side edges (the gap line between teeth).
+
+**Sniper = his shipped head, not a skull.** `vc_guerilla_joined` in `conquest_of_worms_sniper.blend` carries the
+real head (62 polys, y > 1.55, front face cell of his 1024 sheet at px 17-263 x 21-186); the file's `grunt_head`
+object has STALE UVs (its face polys sit on the trousers, px 352-501 x 624-816) — never read the head from it.
+Game data is Y-up (x, up, +z front); the talking-head frame is (x, -z, y). The painted slit is rows 164-166, px
+117-160; the lower-face tris paint at ~0.8 px/mm (the cell is narrower than the geometry there), so +-24 px is a
+53 mm mouth in 3D (corners +-0.0265, bite line z 1.5974 at y -0.1192, corners 0.8 mm off the plane). Band = +5 / -6
+mm around the slit (the moustache above and the goatee below survive), cut with a 5-plane convex clipper that
+interpolates UVs and weights; head keeps everything outside the box, the chin block (|x| <= x_c, below the band, in
+front of y -0.0625) is 100% jaw. Teeth: 8 upper (I1 7.2, I2 5.5, C 6.4, PM1 6.0 mm; 6.5 mm crowns) hang 0.5 mm
+inside the upper skin edge, 8 lower (5.1-6.5 mm; 6.0 crowns) stand on the block floor; texels = his painted teeth
+patch cells (843-855 / 859-871 / 826-838, rows 93-102 — row 104 is his gap line and made the tips black), cavity =
+the darkest 3x3 of that patch (815,112). Head 169 v / 252 tris, block 90 v / 120 tris, one material, packed sheet.
+`renders/sniper_match.png` = portrait vs cutscene head front-on; same man, the proof rig's key is hotter.
+
+**Traps this pass:**
+- `obj.data = new_mesh` DROPS THE VERTEX GROUPS (names live on the mesh since 3.0): the deform layer's indices point at
+  nothing and the armature deforms nothing — measured as 0.0 mm chin travel at 25 deg. Recreate the groups in the
+  deform layer's order after the swap (`th_skulls.swap_mesh` asserts it).
+- A key on frame 0 changes nothing at frame 20: the saved file sits on whatever frame the last tool left; `frame_set(0)`
+  before evaluating a keyed pose.
+- A rectangular cavity side wall whose front edge stays at the mouth corner's y pokes 11 mm out of the lower cheek
+  (the chin skin recedes) — a dark bar under the corner in every shut frame. Walls now follow the block's cut edge.
+- `cs_head_michael/gus` carry a full duplicate `.001` vertex-group set (68 groups; from creating groups on a copied
+  mesh that already had them) — same fossil the skulls had; the humans' owner should strip it.
+- The molar clearance at 25 deg is 26 mm, not the old 40: the old number was a ridge that sat 4 mm clear at rest and the
+  molars are 64 mm from the hinge; the incisors (the mouth) clear 32.5 mm. Gate is per class now.

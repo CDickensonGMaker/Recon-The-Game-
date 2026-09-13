@@ -137,7 +137,11 @@ def build(donor_cell, out_name, do_freckles):
 
 
 if __name__ == "__main__":
-    build(MICHAEL_CELL, "cow_michael_face_cell.png", False)
+    # Michael's cell is NOT cut from face_atlas_v5 any more (Caleb, 2026-09-12: "micheal and gus are
+    # sharing the same base face" - every light cell on v5 is the same template head). It is built by
+    # tools/build_cow_michael_face_cell.py off newfaceatlas.png; MICHAEL_CELL above is only the FRAME
+    # (ears / neck / background) that script keeps. Running this file must not overwrite it.
+    print("cow_michael_face_cell.png: built by tools/build_cow_michael_face_cell.py (not from v5) - skipped")
     build(GUS_CELL, "cow_gus_face_cell.png", True)    # FRECKLES ON - Caleb ruled, see the note below
 
 # FRECKLES: REMOVED 2026-09-09, then REINSTATED the same day on CALEB'S RULING:

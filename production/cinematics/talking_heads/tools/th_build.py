@@ -657,14 +657,11 @@ save("M2 skull")
 
 
 # ----------------------------------------------------------------------------------------------- 4. dressings + helmet
-mat_sn = new_image_material("cs_skull_sniper_mat", os.path.join(TEX, "cs_skull_sniper_atlas.png"))
 mat_zb = new_image_material("cs_skull_zombie_mat", os.path.join(TEX, "cs_skull_zombie_atlas.png"))
 for me_ in (skull.data, mand.data):
     me_.materials.clear(); me_.materials.append(mat_zb)
-for o in (skull, mand):
+for o in (skull, mand, skull_s, mand_s):        # the sniper pair is placeholder scaffolding here: th_skulls.py replaces it with his own head
     o.material_slots[0].link = 'OBJECT'; o.material_slots[0].material = mat_zb
-for o in (skull_s, mand_s):
-    o.material_slots[0].link = 'OBJECT'; o.material_slots[0].material = mat_sn
 # helmet: m1_ace (the comic's beat is an ace in the band, Issue 1 back cover) on the ZOMBIE skull, socket placed by helmets.json
 sock = helm["m1_ace_socket_head"]
 parts = [helm["m1_ace_cover"], helm["m1_ace_band"], helm["m1_ace_card_ace"]]
@@ -743,6 +740,14 @@ log(f"helmet raised {dz*1000:.1f} mm from the gameplay PSX-head seat so the brim
 seated = helmet_fit("seated_brim_at_brow")
 assert seated["skull_verts_through_shell"] == 0, "skull pokes through the helmet shell"
 save("M3 dressings + helmet")
+
+
+# ----------------------------------------------------------------------------------------------- 4b. teeth + the sniper's own head
+# th_skulls.py: real dental arches on the zombie cage, and cs_skull_sniper/cs_mandible_sniper rebuilt from his shipped
+# head split on the painted mouth (the skull pair above only exists to seat the jaw bone and prove the hinge).
+import th_skulls
+th_skulls.run(REPORT, log)
+save("M3b teeth + sniper head")
 
 
 # ----------------------------------------------------------------------------------------------- 5. actions

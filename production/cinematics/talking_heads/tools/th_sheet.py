@@ -22,6 +22,8 @@ def tile(out, cols, paths):
     rows = (len(ims) + cols - 1) // cols
     sheet = Image.new("RGB", (w * cols, h * rows))
     for i, im in enumerate(ims):
+        if im.size != (w, h):
+            im = im.resize((w, h), Image.LANCZOS)          # mixed sources (a game portrait beside a render) take the first tile's size
         sheet.paste(im, ((i % cols) * w, (i // cols) * h))
     sheet.save(out)
 

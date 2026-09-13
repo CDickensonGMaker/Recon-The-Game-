@@ -1,6 +1,6 @@
 """Generate the talking-head skull atlases (256x256) by SAMPLING Caleb's own art, never inventing a palette.
     python th_textures.py
-Sniper: assets/nva_vc/characters/cow_sniper_sheet_1024.png (his hand-painted sheet, current 2026-09-09 look).
+The sniper has NO atlas here any more: his cutscene head is his own game head on his own sheet (th_skulls.py, 2026-09-12).
 Zombie: assets/zombies/characters/zed_cult_b_zombie_face_atlas_v1.png + zed_rotted_recovered_gore_tex.png.
 Also: helmet_card_ace_clubs.png (the comic's ace of CLUBS, Issue 1 back cover) and cs_mouth_interior.png."""
 import os
@@ -69,22 +69,28 @@ def sockets_and_nose(dst, dark, rim):
     d.polygon([(X(0.5), Y(vt) + 3), (X(S.cr_u(-hw)), Y(vb) - 1), (X(S.cr_u(hw)), Y(vb) - 1)], fill=dark)
 
 
-def teeth_strip(dst, box, patch=None, pale=(214, 200, 168), gap=(48, 30, 24), gum=(92, 40, 36), flip=False):
+def bone_strip(dst, box, patch, gum, gum_at_top):
+    """The alveolar bone band the teeth hang from / stand on: skull-coloured, with a 2 px dark gum line on the tooth
+    side. The teeth themselves are GEOMETRY (th_skulls.py) - nothing tooth-shaped is painted here any more."""
     x0, y0, x1, y1 = box
-    if patch is not None:
-        p = patch.resize((x1 - x0, y1 - y0), Image.NEAREST)
-        if flip:
-            p = p.transpose(Image.FLIP_TOP_BOTTOM)
-        dst.paste(p, (x0, y0))
-        return
+    tile(dst, patch, box)
     d = ImageDraw.Draw(dst)
-    d.rectangle(box, fill=pale)
-    n = max(6, (x1 - x0) // 5)
-    for i in range(n + 1):
-        x = x0 + int(i * (x1 - x0) / n)
-        d.line((x, y0, x, y1), fill=gap)
-    gy = (y1 - 3, y1) if flip else (y0, y0 + 3)
-    d.rectangle((x0, gy[0], x1, gy[1]), fill=gum)
+    d.rectangle((x0, y0, x1, y0 + 1) if gum_at_top else (x0, y1 - 2, x1, y1), fill=gum)
+
+
+def tooth_patch(dst, box, ivory, gum, edge):
+    """Crown texels for the tooth blocks: ivory with speckle, the root/gum rows dark at the top, the worn edge at the bottom."""
+    x0, y0, x1, y1 = box
+    d = ImageDraw.Draw(dst)
+    d.rectangle(box, fill=ivory)
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            if random.random() < 0.3:
+                k = random.randint(0, 30)
+                dst.putpixel((x, y), tuple(max(0, c - k) for c in ivory))
+    d.rectangle((x0, y0, x1, y0 + 2), fill=gum)
+    d.rectangle((x0, y1 - 1, x1, y1), fill=edge)
+    d.line((x0, y0, x0, y1), fill=gum); d.line((x1, y0, x1, y1), fill=gum)      # dark outline = the gap between teeth
 
 
 def mandible_rows(dst, skin_patch, teeth_fn, inner_col, beard=None):
@@ -95,28 +101,6 @@ def mandible_rows(dst, skin_patch, teeth_fn, inner_col, beard=None):
     ImageDraw.Draw(dst).rectangle((0, Y(v[2]), A, Y(v[4]) + 2), fill=inner_col)  # inner faces = gum/dark
     if beard is not None:
         blob(dst, beard, X(0.5), (Y(v[1]) + Y(v[2])) // 2 + 2, 22, (Y(v[2]) - Y(v[1])) // 2 + 2)
-
-
-def build_sniper():
-    sh = Image.open(os.path.join(R, r"assets\nva_vc\characters\cow_sniper_sheet_1024.png")).convert("RGB")
-    boxes = {"forehead": (120, 30, 185, 70), "cheek": (88, 115, 125, 150), "hair": (858, 152, 925, 232),
-             "beard": (118, 172, 185, 208), "teeth": (790, 96, 895, 124), "crown": (658, 48, 702, 92),
-             "neckskin": (30, 175, 100, 215), "rotskin": (765, 152, 840, 232)}
-    P = {k: sh.crop(b) for k, b in boxes.items()}
-    im = Image.new("RGB", (A, A))
-    tile(im, P["rotskin"], (0, 0, A, A))                                          # mummified skin everywhere
-    tile(im, P["cheek"], (X(S.cr_u(-75)), Y(row_v("brow")), X(S.cr_u(75)), Y(row_v("alv"))))  # face: cheek skin
-    tile(im, P["crown"], (0, 0, A, Y(row_v("dome2"))))                            # bald crown
-    for box in ((0, Y(row_v("dome3")), X(S.cr_u(-58)), Y(row_v("alv"))),
-                (X(S.cr_u(58)), Y(row_v("dome3")), A, Y(row_v("alv")))):
-        tile(im, P["hair"], box)                                                   # side/back hair
-    sockets_and_nose(im, dark=(22, 14, 11), rim=(74, 48, 36))
-    teeth_strip(im, (X(S.cr_u(-S.TEETH_COL)), Y(row_v("alv")), X(S.cr_u(S.TEETH_COL)), Y(row_v("tips")) + 1), patch=P["teeth"])
-    mandible_rows(im, P["neckskin"], lambda box: teeth_strip(im, box, patch=P["teeth"], flip=True),
-                  inner_col=(38, 16, 14), beard=P["beard"])
-    ImageDraw.Draw(im).rectangle((0, Y(row_v("tips")) + 1, A, Y(S.CR_V_BOT)), fill=(30, 12, 10))   # palate = dark
-    im.save(os.path.join(OUT, "cs_skull_sniper_atlas.png"))
-    return im
 
 
 def build_zombie():
@@ -139,11 +123,12 @@ def build_zombie():
                              (X(S.cr_u(35)), Y(row_v("nasal")), 10, 8)):
         blob(im, gore, cx, cy, rx, ry)                                             # open wounds off the shared gore sheet
     sockets_and_nose(im, dark=(8, 6, 6), rim=(40, 42, 30))
-    pale, gap, gum = (196, 184, 140), (30, 22, 18), (70, 30, 30)
-    teeth_strip(im, (X(S.cr_u(-S.TEETH_COL)), Y(row_v("alv")), X(S.cr_u(S.TEETH_COL)), Y(row_v("tips")) + 1), pale=pale, gap=gap, gum=gum)
-    mandible_rows(im, fore, lambda box: teeth_strip(im, box, pale=pale, gap=gap, gum=gum, flip=True), inner_col=(30, 10, 10))
+    gum = (58, 26, 24)
+    bone_strip(im, (X(S.cr_u(-S.TEETH_COL)), Y(row_v("alv")), X(S.cr_u(S.TEETH_COL)), Y(row_v("tips")) + 1), fore, gum, gum_at_top=False)
+    mandible_rows(im, fore, lambda box: bone_strip(im, box, fore, gum, gum_at_top=True), inner_col=(30, 10, 10))
     blob(im, gore, X(S.md_u(-45)), (Y(S.MD_ROW_V[1]) + Y(S.MD_ROW_V[2])) // 2, 12, 8)
     ImageDraw.Draw(im).rectangle((0, Y(row_v("tips")) + 1, A, Y(S.CR_V_BOT)), fill=(22, 8, 8))     # palate = dark
+    tooth_patch(im, S.ZB_TOOTH_PATCH_PX, ivory=(160, 146, 106), gum=(52, 22, 20), edge=(126, 112, 78))   # rotted ivory
     im.save(os.path.join(OUT, "cs_skull_zombie_atlas.png"))
     return im
 
@@ -182,12 +167,8 @@ def build_mouth():
 
 
 if __name__ == "__main__":
-    a = build_sniper()
     b = build_zombie()
     build_card()
     build_mouth()
-    prev = Image.new("RGB", (A * 4 + 8, A * 2))
-    prev.paste(a.resize((A * 2, A * 2), Image.NEAREST), (0, 0))
-    prev.paste(b.resize((A * 2, A * 2), Image.NEAREST), (A * 2 + 8, 0))
-    prev.save(os.path.join(OUT, "_preview_atlases.png"))
+    b.resize((A * 2, A * 2), Image.NEAREST).save(os.path.join(OUT, "_preview_atlases.png"))
     print("wrote", sorted(os.listdir(OUT)))
