@@ -29,10 +29,10 @@ TAGS = ["michael", "gus_arrival", "gus_ears"]
 GLB = {"michael": "cow_michael_crawford.glb",
        "gus_arrival": "cow_gus_arrival.glb",
        "gus_ears": "cow_gus_ears.glb"}
-# Suffix-stripping truncates two of the new props, so pin their shipped names:
+# Suffix-stripping truncates the journal, so pin its shipped name:
 #   journal_michael      -> "journal"        (tag "michael")
-#   necklace_ears_gus_ears -> "necklace_ears" (tag "gus_ears")
-ALIAS = {"journal": "journal_michael", "necklace_ears": "necklace_ears_gus"}
+# The necklace ships as necklace_cord + charm_ear_06..10 (tools/dress_cow_gus_necklace.py).
+ALIAS = {"journal": "journal_michael"}
 HEIGHT_EXCLUDE = ("radio", "antenna", "prc25", "handset")
 
 

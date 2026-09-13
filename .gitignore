@@ -111,3 +111,9 @@ suite_run.txt
 
 # Agent scratch: throwaway probe scripts and import logs, never shipped.
 _scratch/
+
+# Rhubarb Lip Sync CLI (156 MB, downloadable: github.com/DanielSWolf/rhubarb-lip-sync v1.14.0) - tools/th_lipsync.py fetches nothing, it expects this folder
+tools/rhubarb/
+
+# talking-head proof renders/mp4s: regenerable via tools/th_render.py + th_lipsync.py
+production/cinematics/talking_heads/renders/

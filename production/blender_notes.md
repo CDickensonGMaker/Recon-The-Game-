@@ -2959,3 +2959,447 @@ the LOD precisely so the fix stays possible. **Caleb's call** - either rename th
 
 The `seat_bench_*` 18.000 m defect is **untouched in the LOD, as instructed** - re-measured on
 the shipped `huey_v3_lod.glb`, still exactly 18.000 m. It is Caleb's call.
+
+## 2026-09-11 · CoW heads re-projected onto the full painted cell (Caleb's ruling)
+
+Ruling verbatim: "the faces are too small for the heads where we need to spread out the uv more
+so it fits better." Tool: `tools/project_cow_head_uvs.py` (run on the cast file, then with
+`--talking-heads` on `talking_heads.blend`; `--save` to write; idempotent, no vertex moves, no
+.blend1). Then `export_cow_cast.py`, `shrink_oversized_textures.py --apply` (nothing left over
+1 MB), `render_cow_cast.py`, `th_render.py --stills-only`.
+
+**What the defect was, measured on the shipping body:** the 4 front quads sampled cell px
+x 45-90 of 130 (nose to cheek, eyes at 49/76 sat on the quads' outer edges), the 4 side quads
+took cheeks+ears, and 20 head polys sat on ONE texel (10 on hair, 6 on the neck-fix skin texel,
+the rest degenerate). The gib donor `grunt_head_*` carried a DIFFERENT island from the body
+(chin at cell row 156 vs the body's 128 from the top) in a DIFFERENT cell (donors col 0 row 0;
+Michael's body col 1 row 4 from the bottom, Gus's col 0 row 4). Always derive the cell from
+the island you are replacing.
+
+**Projection, per head:** cell features measured in the atlas block (Michael: pupils (49,73)
+(76,73), nose tip row 91, mouth 105, chin 128, hairline 38, ear centroids (23.1,84.0)
+(105.0,85.4); Gus: (51,74) (76,74), 92, 105, 129, 41, (22.2,86.7) (105.3,86.6)). Mesh
+landmarks by position: chin v14, nose tip v29 (most forward vert), brow v24 (top of the front
+quads), ears v3/v17 (widest at ear height). Affine (least squares): Michael sx 528.7 / sz
+515.7 px/m, Gus 536.4 / 503.4 — near-isotropic, so the painting's proportions ARE the head's.
+Residuals (px): Michael chin 0.6/0.6, nose 0.6/2.0, brow 0.6/1.1, ears y -2.6/-1.1; Gus chin
+0.1/0.4, nose 0.1/2.6, brow 0.1/1.0, ears y -1.9/-2.0. Painted eyes land at z 1.675-1.678
+(46-47 % chin->crown), mouth at z 1.613-1.616. Side quads (SUPERSEDED 2026-09-12, see the ear entry below - the shear put the ear on the cheek): front projection sheared outward by
+depth (K 141-148 px/m) so v3/v9 reach the ear's OUTER edge (col 118 vs edge 119.5) — pure
+front projection put them on the ear centroid, cut the helix off and stretched the side 4.5x;
+the shear halves that to ~2.1x (density ratio 0.22 -> 0.47). A separate ±60° side strip was
+measured and rejected: the side quads' columns are fixed by their x extent either way, so a
+strip changes nothing but the seam. Crown: top projection into hair rows 8-30; back / rear-side
+above the ear line: back projection into hair rows 14-34 (lum 0.09-0.13, skin 0); behind the
+jaw + lower nape: side strip onto the shadowed skin under each painted ear (rows 102-126,
+cols 98-112 / 17-31, skin 1.0); body neck (20 polys): painted neck rows 131-149 (lum 0.55-0.60).
+Hands/forearms untouched on the neck-fix texel. The cell has a WHITE grid line at px<3 and
+rows 159-161 — the safe-rect gate (px>=3, py<=158) is what keeps it off the mesh.
+
+**Cutscene heads — known consequence, FIXED 2026-09-12 (see the entry below; the paragraph stands as the
+record of the defect):** the projection applied exactly (148
+front polys, added verts interpolate), but `th_build.py` placed its animated rows (mouth split
+t=0.545, blink/brow rows) where the OLD wrap put the painted features. Under the new wrap the
+mouth lens (z 1.6463) is 33 mm above the painted lips (z 1.613) and 10 mm above the nostrils;
+blink verts (z 1.699-1.707) sit on the painted brow, 24-31 mm above the eyes. gus_f24 shows the
+mouth opening at the nose. Fix = re-derive ROWS/COLS from the affine (mouth t≈0.32, nose base
+≈0.42, eyes ≈0.68, brow ≈0.79) and rebuild via th_build.py — a geometry rebuild, outside the
+"no geometry changes" brief.
+
+**Also true and unchanged:** the export shrinks each face atlas to ~745x651 for the 1 MB law,
+so the whole head ships on a ~75x93 px cell.
+
+## 2026-09-12 · Talking heads, production pass — mouth loops on the paint, Rhubarb visemes, real lines
+
+Caleb's verdict on the flap test: "none of this is really production level finished at all." What shipped instead
+(`production/cinematics/talking_heads/`, pipeline `th_textures.py` -> `th_build.py` (+ new `th_face.py`) ->
+`th_lipsync.py` -> `th_render.py` (+ `th_sheet.py` for PIL)), all re-runnable from an empty scene, `talking_heads.blend`
+written in place, no .blend1:
+
+**The defect first.** Yesterday's `project_cow_head_uvs.py` moved the paint under the cutscene heads but `th_build.py`
+still cut its animated rows where the OLD wrap had the features: mouth loop z 1.6463 vs painted lips 1.613 (33 mm),
+blink verts 24-31 mm above the eyes. Fix = every patch vertex is now SOLVED onto the bilinear face patch so that the
+projection's own `front()` (affine + side shear, exposed as `solve_front()`) lands it on its painted pixel: mouth line
+row 105 (both men), corners 52.2/72.1 (Michael) 53.1/71.6 (Gus), nostril row 93/94, pupils (49,73)(76,73) / (51,74)
+(76,74), eyebrows 66/69, chin 128/129. Gate reads the UVs BACK after re-projection: lip line 0.0 mm, pupils 1.0 mm
+(the loop centre is half a pixel above the pupil by construction), corners 0.0 mm. `build_report.json`
+`paint_gate_*`. Tool changes: `measure_cell` now also returns `nostril_y`, `mouth_l/r` (sub-pixel threshold crossing
+of the dark line) and `brow_y` (darkest band 3-11 px above the pupil — the first version reached the LASH line and
+averaged 66 and 70 into 68); `classify()` only emits NECK for `us_grunt_joined_*` — the head's new chin quads sit
+entirely below z 1.60 and were being called neck.
+
+**The shear is discontinuous at x = 0.** `front()` applies sgn(x)*K*(y-Y0); on the eye rows (y 14 mm forward of Y0)
+that is a +-2.1 px jump across the centre line, so a target 0.6 px left of centre solves to x = -5 mm on one side or
++3 mm on the other. Centre-column verts of the eye rows are pinned to s = 0.5 (x = 0) and accept the 0.6 px; the
+mouth is centred on the PAINTED mouth (1.1-1.8 px left of the mesh centre, i.e. the paintings are slightly asymmetric).
+Consequence worth knowing: the pupils sit at x = +-31.7 mm on the mesh (pure affine would say +-27.6) — a realistic
+63 mm interpupillary, courtesy of the ear-fitted shear.
+
+**Mesh (per human head): 130 v / 224 tris (184 face + 40 cavity), 95 quads + 34 tris, 0 n-gons.** Lip edge (5 verts
+per lip, the 3 mid pairs coincident at rest), ring 1 = vermilion border (12), ring 2 = outer loop (12) whose top edge
+IS the nostril row (T2a = nose wing 5-poles, v29 the nose tip is its centre); lip corners are 4-poles at the painted
+corners. One deliberate triangle per side between the nostril wing and the inner eye corner (the 4-vert nostril row
+meets the 5-vert lid row). Chin row 2.5 px above v15. Eyes: outer corner / pupil / inner corner columns at pupil -+6 px,
+lids at pupil -3.5/+2.5 px, brow row at the painted eyebrow but >= 3 px above the lid (Gus's brows are painted 1.5 px
+above his lids). Cavity behind the lips: roof, upper teeth strip (7 mm back, 9 mm tall), floor, lower teeth, 2 side
+caps, back wall (22 mm back, +-(hw+6 px)), 2-quad tongue; 64x32 `cs_mouth_interior.png` (teeth band with 6 teeth, dark,
+tongue pink). Skinning = bilerp of the game head's own weights; cavity verts take the lip-row weights.
+
+**Cavity depth must be measured from the LOCAL surface, not from one mean.** First build put the teeth ends and side
+caps at "mean lip y + 7 mm" and the back wall at "+22 mm": the face curves back 4-7 mm from the lip centre to the
+corners and much more toward the jaw, so the caps poked 1 mm out of the cheek under each mouth corner and the back wall
+9 mm out of the jaw — dark slivers in the A/X/F renders, invisible to every numeric gate I had. Now every cavity vertex
+is `surf_y(x, z) + depth` (bisection on the patch) and the build asserts >= 4 mm inside (measured 7.0 mm min).
+
+**Visemes** (`th_face.VISEME_PARAMS`, measured in `build_report.json` `visemes_*`): recipe per shape = jaw drop J
+(lower lip 1.0, ring-1 bottom 0.95/0.9/0.7, ring-2 bottom 0.8/0.75/0.55, corners 0.45, chin 0.65, lower teeth +
+tongue 0.85, plus 0.12*J back for the condyle arc), upper-lip raise U (lip 1.0, ring 1 0.6/0.55/0.3), lower-lip extra
+Lx (peels the lip off the lower teeth), corner width W, forward F. Numbers: A lips pressed 2 mm back, width 0.95 ·
+B gap 5.5 mm, upper teeth 3.5 mm + lower 1.5 mm visible, jaw 0 · C gap 14, lower lip 11, chin 5.2 · D gap 23, lower
+lip 19, chin 10.4, dark gap between the tooth rows 14.1 · E gap 10, width 0.84, 2 mm forward · F gap 5, width 0.64
+(Michael) / 0.61 (Gus), 4.5 mm forward, 1.5 mm of upper teeth (a first F at U=2 showed a full tooth row: puckers hide
+teeth) · G lower lip 4 mm back + 1.5 up under the raised upper lip · H tongue tip +10 mm, 3 mm behind the lips, in
+front of the teeth · X 0. blink drops the three upper-lid verts onto the lower-lid row (11.6-11.9 mm); blink_L/R are
+the CHARACTER's sides (+X = his left); brow_up 5.5, brow_down 4.8 mm. Old `jaw_open/mouth_wide/mouth_pucker` and the
+72-frame flap actions are gone (fossil law); the old `_f00/f24/f48` + `_talk.mp4` renders deleted.
+
+**Rhubarb Lip Sync 1.14.0** (`tools/rhubarb/`, gitignored, 156 MB) `-f json -r pocketSphinx -d <text>`; `th_lipsync.py`
+keys each cue one-hot with a 1-frame LINEAR ramp at 24 fps (Blender 5: F-curves live in
+`action.layers[0].strips[0].channelbag(ad.action_slot).fcurves`; `action.fcurves` is gone; `sequence_editor.strips`
+not `.sequences`, and an EMPTY strips collection is falsy — test `hasattr`, not the value). Skulls: `jaw` bone
+quaternion about the stored `jaw_axis` by the cue table (X/A 0, G 2, B 4, F 5, E 7, H 8, C 11, D 18 deg). Verification
+in the tool: each cue's first and mid frame evaluated (0 wrong of 92 across the four lines), and openness vs the wav's
+per-frame RMS (stdlib `wave`): loudest quarter 6.4-9.9 deg vs quietest 0.0-2.9 deg on every line.
+**Rhubarb mis-reads `ryan/squad_fall_back.wav`** — both recognisers, with or without the dialog hint, put a closed-lip
+A on the "aw" of "fall": mouth shut on 7 of 16 loud frames, jaw 0 deg at the RMS peak. The dialog hint changed NOTHING on
+any of these two-word barks (identical cue lists). Scored 15 Ryan takes; `squad_treeline.wav` is the clean one (0/22,
+18 deg at the peak) and the sniper speaks it. Shipped lines: Michael john/contact_front (64 f), Gus john/man_down (61 f),
+sniper ryan/treeline (34 f), zombie john/fire_in_hole (35 f, 2 of 16 loud frames shut — under the warning bar).
+
+**Renders** (`th_render.py`, Eevee 640x480, -8 deg yaw, head 65% of frame height): `<head>_line.mp4` with the wav muxed
+(ffprobe: h264 + aac, 63/61/33/34 frames), spot stills `<head>_line_f<N>_<cue>.png` (loudest open cue + a silent cue,
+labelled), `<head>_visemes.png` 3x3 mouth close-ups (fraction 1.25, aim 20 mm below centre), `<head>_eyes.png`. Blender's
+Python has no PIL: labels/tiling shell out to the system Python (`th_sheet.py`). Looked at: lips close on A/X, open
+dark on C/D with both tooth rows, teeth on B, pucker on F, tongue on H, skull jaw 18 deg on "tree" and shut on the tail
+silence, blink at frame 29 of Michael's line.
+
+**Also true:** `production/cinematics/talking_heads/` and `tools/project_cow_head_uvs.py` are UNTRACKED in git (yesterday's
+work was never committed); the face-lighting crease down the centre line is the 4-quad game head's own two-plane face
+under a directional key (PSX flat shading, not a mesh defect); the MGS framing is unchanged from yesterday and is
+Caleb's call; a `.gdignore` now sits in the folder so Godot stops importing the renders (it had made `.import`
+sidecars for yesterday's PNGs).
+
+## 2026-09-12 (later) · EARS PUSHED BACK — Caleb: "we just need to push the ears back to the sides of all their heads"
+
+**Measured before:** the 2026-09-11 side shear ran the painted ear across the side quads (face edge -> widest ring,
+y -0.115..-0.024), so the ear centroid landed at y **-0.0645 = 27% of head depth** from the face plane — on the
+cheek, in front of the jaw corner (v2/v16, y -0.0213). The rear-side polys behind the widest ring (P10 3-0-8-9,
+P4 2-0-3, P7 2-11-0 and mirrors, y -0.024..+0.057) carried hair and under-ear skin.
+
+**Fix (`tools/project_cow_head_uvs.py`, solved from the ear correspondence, no vertex moved):**
+- FRONT is a pure affine again (px = cx + sx*x); the shear is gone.
+- new SIDE group (|n.x| > 0.85, n.y < 0 = the 3 side quads per side): face-edge verts keep the FRONT value (seam
+  exact), the widest-ring verts take the painted CHEEK column 8 px inside the face outline at that height
+  (canonical edge chain v1/v10/v7). A UV seam sits on the widest ring.
+- new EAR group (|n.x| > 0.85, n.y > 0, centre z < 1.72 = the 3 rear-side polys per side): column by DEPTH —
+  the ear/cheek crease (+2 px; measured as the darkest column between cheek and ear centroid over the ear rows:
+  95 / 31 Michael, 95 / 32 Gus) on the widest ring, the cell's usable edge (cw-3.5 / 3.5) on the rear verts
+  (y 0.0569) — 358 / 321-333 px/m. Rows use the face's own vertical affine, so the ear sits level with the painted
+  ear (between the eye line and the nose base) automatically.
+- **After:** painted ear centroid at y **-0.0019 / -0.0059 (Michael R/L) and -0.0011 / -0.0008 (Gus) = 58-60% of
+  head depth**, behind the jaw corner; moved back **59-63 mm**. Ear reads 66-67 mm wide on the head (the 80 mm
+  rear-side poly and the cell's 7 px of background beyond the ear fix the slope; a real ear is ~35, the painted
+  frontal ear 47 — the price of one poly between the widest ring and the rear verts).
+- gates in the tool: no SIDE loop samples ear paint within the ear's rows; ear centroid y > -0.0213 and 50-70%
+  of depth; group counts FRONT 6 / SIDE 6 / EAR 6 / TOP 4 / HAIR 6 / LOWER 2 (+NECK 20) per game head.
+- applied to all three cast heads (bodies + donors), GLBs re-exported (2.4-2.7 MB, every embedded image < 1 MB),
+  cast portrait/portrait34/threequarter/side renders redone to the same paths, talking heads rebuilt (the face
+  patch re-solves through the new affine: paint gate still 0.0 mm lips / 1.0 mm pupils), lines re-keyed, viseme
+  sheets redone. Looked at the side/threequarter crops: ear behind the jaw under the helmet rim, cheek skin in
+  front of it; behind the ear the cell's dark background reads as hair shadow.
+- **Known consequence:** the side quads stretch ~4-8 cheek columns over 92 mm, so anything painted on that
+  column streaks — Gus's freckles become two brown streaks on his cheek in the side view. That is his cell's paint
+  (freckles were meant to be removed 2026-09-09 and are still in `cow_gus_face_cell`), not the mapping.
+
+## 2026-09-12 · THE EARS: one severed pinna, five decay stages (`tools/build_necklace_kit.py` 4a)
+
+Caleb: "the cut off ears need to be more realistic, as well as a few in various stages of
+decay" + "from fresh to rotten" (fifth stage). Ladder: **fresh -> days -> rotten -> dried -> old**,
+all derived from ONE 114-tri / 59-vert mesh by scale + measured curl/flatten/swell/shrivel, all
+on the hang contract (origin = cord hole on the helix rim 5 mm under the crown, back/cut plane
+at y = 0, -Z down / -Y front in the file). `charm_ear` in the kit and `charm_ear.glb` = the
+**days** stage (alias, same mesh data) so `dress_cow_gus_necklace.py`'s append still resolves.
+
+**Reference used (no imagination):** anthropometry - adult male auricle 63.1 +-3.6 mm tall,
+~31-35 mm wide, lobe 18 x 19 mm, concha 27 mm, projection ~17 mm (PubMed 34821348;
+researchgate 302500148 / 325715107); form - Gray's Anatomy plates 904 (front) and 905
+(cartilage from behind, PD, Wikimedia Commons) and Commons `Earcov.JPG` (colour photo, living
+ear); structure - StatPearls NBK470359 (helix / antihelix / scapha / concha / tragus /
+antitragus / lobule; the lobule has no cartilage); decay colour timeline - PMC10247854
+forensic mummification series (wet phase: green/grey discoloration, marbling, slippage,
+bloating; yellow-orange parchment at 3-10 days; red-brown to black leather from ~6 days; ears,
+fingers, toes desiccate first); trophy context - Wikipedia "Human trophy collecting", Salon
+2006 Tiger Force. Wellcome tsantsa photos (CC BY 4.0) checked for dried-skin grain only - the
+ears are under the hair, so NOT a form reference. **No colour photo of a dried severed ear was
+found; the dried/old colours are the forensic series' words, not a swatch. UNVERIFIED.**
+
+**Geometry.** Five concentric rings in ear-plane mm (A outline 12, B helix crest 12, C scapha
+12, D antihelix 12, E concha floor 6) + a 5-vert cut ring K sharing three outline verts at the
+tragus/crus edge. Depths forward of the cut plane: rim edge 10, helix crest 15, scapha 10.5,
+antihelix 13, concha floor 2.5, meatus 1.5 (real concha depth ~12-15 mm below the crest).
+Tragus tip stands 6.5 mm, notch bites the front edge 7 mm, lobe 18.5 tall x 14.5 wide (the
+attached part of a real 19 mm lobe is on the head). Zero n-gons (gated), closed shell, normals
+outside (gated: front mean n.y -0.68, cut +0.99).
+
+| stage | scale | size w x d x h mm | curl / flat / swell / shrivel | colour |
+|---|---|---|---|---|
+| fresh | 1.00 | 31.5 x 15.5 x 63.0 | 0 / 1.0 / 0 / 0 | cheek tone warmed pink, wet red cut, painted sheen |
+| days | 0.85 | 25.9 x 12.4 x 52.7 | 0.2 / 0.92 / 0 / 0 | dulled, brown from the rim in, crust on the cut side |
+| rotten | 0.98 | 32.6 x 18.2 x 63.4 | 0.05 / 1.05 / 1.0 mm / 0.3 | green-grey mottle, purple marbling, pale slipping rim, dark wet cut |
+| dried | 0.65 | 18.7 x 7.3 x 39.0 | 0.6 / 0.65 / 0 / 0.45 | leather brown, cracks |
+| old | 0.55 | 15.4 x 5.1 x 32.5 | 0.8 / 0.5 / 0 / 0.75 | near-black, cracked, banded shrivel |
+
+**Texture.** `necklace_kit_tex.png` grew 256 -> 512; the old 64-px cells keep their pixel
+positions in the bottom-left quadrant, so the other charms' UVs changed only as fractions of a
+bigger sheet (and were all re-exported). Ears: 128-px front cells painted by RING MEMBERSHIP in
+the same mm space the mesh is built in (point-in-polygon per ring), 64-px back and cut cells.
+One material, Closest, roughness 0.8 for everything - **"slightly glossy" is painted sheen,
+not a per-stage roughness** (one texture, one material rule). GLBs 229 KB each with the sheet
+embedded; shrinker ran, nothing to shrink.
+
+**Fit.** Slots were re-fitted against the LARGEST ear (rotten, 33 x 19 mm): no slot needed a
+pitch/yaw correction. Mixed string of 15 (5 old, 5 dried, 2 days, 2 fresh, 1 rotten, odd slots
+mirrored for left/right ears - preview only, GLBs are one handedness): 0 verts inside the
+body, min clearance 2.0 mm, largest back-face gap 5.0 mm.
+
+**Traps hit:**
+- **A planar UV normalised PER FACE smears the whole cell over every face.** That is exactly
+  why the old ear was "a flat leathery disc": `planar_uv(cell, vs, idx)` takes the bbox of the
+  face's own verts. Use one fixed bbox per projection so the paint lands on the geometry it
+  describes. The other charms still use per-face UVs on plain noise cells, which is harmless.
+- Twelve evenly-inset concentric rings give an ALMOND, not an ear. The ear silhouette at 50 px
+  is: broad round crown, widest at the upper third, a 7 mm bite at the tragus/notch, and a lobe
+  narrower than the crown. Trace those four from the plate; the rings inherit them.
+- The "swell" stage displaced along vertex normals at 1.4 mm inflated the rim outward and
+  washed the concha out at 1 m; 1.0 mm plus a darker concha palette reads.
+- `finish()`'s n-gon gate must be ear-only: the dog tag / medallion / round caps are n-gon
+  plates by design and the glTF exporter triangulates them (32 / 54 / 68 tris on readback).
+- An `Icosphere`-free readback: the charm GLBs import as exactly one mesh + the sheet.
+
+**Unverified:** the look in Godot (no engine here); whether a hanging ear should tilt its top
+in toward the cord (the rim sits 10-15 mm in front of the cord centreline; a real strung ear
+would lean ~4 deg) - left flat per the contract; dried/old colour against a real specimen.
+
+### 2026-09-12 (same day) · Gus re-dressed with the mixed five
+`tools/dress_cow_gus_necklace.py -- --ears-only [--stages=old,dried,old,days,fresh]` re-hangs
+cord + ears from the kit without touching the blobs step or the neck fix; the cord is
+re-appended WITH the ears so both share one `necklace_kit_mat` / 512 sheet (gated - the old
+cord carried the 256 sheet and would have shipped a second material). Slots 06=old 07=dried
+08=old 09=days 10=fresh (the newest at the end). Measured on Gus: 0 verts inside, min clearance
+2.3 mm (cord 1.5), ear origins <= 1.0 mm off the cord centreline. `cow_gus_ears.glb` re-exported
+(2.73 MB, 60 meshes + 7 frags, gibs 5/5). Renders re-shot. **Note for Caleb: the rifle sling
+crosses the chest over slots 07-08 and hides most of two ears in a front view** - pre-existing,
+not a necklace defect.
+
+---
+
+## 2026-09-12 · GORE PILES — six shoot-through body-part heaps from the real gib donors
+
+Headless only (Blender 5.0.1, `-b --factory-startup`). Caleb's window never touched; the donor
+files were opened by `bpy.data.libraries.load(link=False)` and never saved. Everything is
+regenerated by one command and gated from a clean scene on the SHIPPED bytes:
+
+```
+blender -b --factory-startup --python tools/gore_piles/build_gore_piles.py   [-- --norender --only=us_small,...]
+blender -b --factory-startup --python tools/gore_piles/verify_gore_piles.py  (exit 1 on any failure)
+```
+
+Studio file `assets/world/props/gore_piles.blend` (6.9 MB, six piles on 6 m slots + the parked
+donor library with its master sheets quartered in-memory so the file is not a third copy of
+`ref_factions`/`better textures`). GLBs + baked atlases + `maggots_a/b.png` + the JSON contract in
+`assets/world/props/gore_piles/`. Renders `production/renders_conquest_of_worms/gore_pile_<key>_{4m,1p5m,top}.png`
+and the 6-up `gore_piles_sheet.png`.
+
+| pile | tris (budget) | footprint m | height m | GLB KB | atlas |
+|---|---|---|---|---|---|
+| gore_pile_us_small | 895 (900) | 1.36 x 1.13 | 0.57 | 344 | 512², 266 KB |
+| gore_pile_us_large | 1661 (1800) | 1.69 x 1.84 | 0.60 | 836 | 1024², 714 KB |
+| gore_pile_nva_small | 869 (900) | 1.26 x 1.11 | 0.49 | 332 | 512², 251 KB |
+| gore_pile_nva_large | 1664 (1800) | 1.65 x 1.90 | 0.74 | 786 | 1024², 673 KB |
+| gore_pile_vc_small | 859 (900) | 1.29 x 1.28 | 0.48 | 332 | 512², 257 KB |
+| gore_pile_vc_large | 1539 (1800) | 1.65 x 1.85 | 0.77 | 773 | 1024², 658 KB |
+
+Every embedded image is under Caleb's 1 MB law (`shrink_oversized_textures.py --apply` found nothing
+to do). Two materials per GLB: `gore_pile_<key>_mat` (the baked atlas, Closest) and
+`gore_pile_maggots`. Origin = ground contact z 0, footprint centred in XY (the medical_crate /
+m26_grenade world-prop convention, NOT the held-prop convention).
+
+**Donors, measured.** US: `grunt_*` 434 tris on `us_grunt_mat` (a 3600x5700 master sheet - the
+reason everything is BAKED into one atlas per pile), M1 = `helm_cover` from `helmet_variants.blend`
+decimated 204 -> 77 tris by collapse. NVA: `grunt_*` ~400 tris (`NVA_Uniform` + `Skin_VC`, rig
+scale 0.952 baked in), `pith_helmet_worn` 70, `head_frag_02/05/07`. VC: cut from `vc_sapper_joined`
+by dominant vertex group (the `make_vc_gibs.py` region table) because the split `grunt_*` pieces
+carry the KHAKI UV layout and `BlackPajama.001` sits on a different layout; `rice_hat` 44 tris.
+**No sandal mesh exists in the project** - the NVA foot is painted; nothing to place.
+
+**The cap_* donors were NOT used, and this is deliberate.** They are rig-bound quads that sit
+inside the skin at a bone and only look right on a collapsed limb; on a static severed piece they
+render as floating panes (US `cap_uparm_l` is 2 polys spanning 0.345 m; the NVA set has NO UVs and
+no `cap_torso`). Every severed piece's cross-section is its own open boundary loop filled
+(`bmesh.ops.holes_fill`), oriented outward against the piece centroid and planar-projected onto one
+of the 16 wound discs of the SAME `gore_cap_mat` sheet (`recovered_gore_tex.png`, byte-identical to
+the NVA copy). The opened torso is the belly faces deleted, the rim extruded 7 cm inward at 0.55
+scale and floored - a gore pocket the intestine rope starts inside.
+
+**Viscera.** Intestine = 4/5-sided rope on a Catmull-Rom path, r 0.030/0.034 (colon ~4.8 cm,
+verified), draped by measurement over whatever is under each sample (`support_z_under`), clamped
+to z >= 4 mm; liver = 6x4 sphere jittered to 0.20 x 0.14 x 0.09 (adult liver 20 x 15 x 11 cm,
+verified); blood pool = 10-gon at z 6 mm, 0.40-0.42 of the footprint, on disc (0,1) of the sheet.
+Maggots are NOT modelled: `maggot_mass` is a 3x2 strip 6 mm proud of the cavity on a 64x64
+two-frame texture whose base is the sheet's field texel and whose specks are its palest pixel.
+
+**Settling is measured, not eyeballed.** `settle()` drops each piece until the lowest of its
+verts + edge midpoints + face centres touches ground or an earlier piece (object-space `ray_cast`);
+`tilt_settle()` then rotates it about that contact in the sense that lowers its centroid until a
+second contact >= 12 cm away lands (22 deg cap for torso/head/hat, 35 deg for limbs), undoing any
+step that pushes it INTO a neighbour (`inside_count` via `closest_point_on_mesh`). Gates in the
+manifest: lowest vertex >= -2 mm on every pile (all pass), per-piece tilt and contact count, and a
+proximity-filtered penetration report - remaining overlaps are the rope's deliberate start inside
+the cavity and rope-vs-limb side overlaps of <= 9 cm (vc_large 161 verts, worst 0.188 m against the
+pocket; us_small 15 verts, worst 0.071 m). Caleb judges whether that reads.
+
+**THE SOFT-COVER CONTRACT, as it actually is.** There is NO name prefix that makes a WORLD-PLACED
+prop soft. `site_planner.FSB_SOFT_PREFIXES` is walked only for colliders inside the firebase GLB.
+A pile dropped by `place_structure` gets its ballistics from `CollisionTable.is_soft(<glb basename>)`
+(`scripts/world/collision_table.gd`) and its destructibility from `_destructible_kind_for` (exact map,
+then the `FSB_STRUCTURE_KINDS` prefixes). Shipped names honour both paths: GLB basename and visual
+mesh = `gore_pile_<faction>_<size>`, collider `gore_pile_<faction>_<size>_000-colonly` (convex hull,
+68-96 tris, marker terminal). **Godot side still needs, per pile (NOT done here, out of lane):**
+`MATERIALS["gore_pile_us_small"] = Mat.THATCH` (soft) + a `STRUCTURES` row with `mesh: true` and
+the manifest's box/footprint, and one `{"prefix": "gore_pile_", "kind": "gore_pile"}` row in
+`FSB_STRUCTURE_KINDS` + `HP_FOR["gore_pile"]`. Until those rows exist the pile is a loud
+`push_warning` and HARD by default - the exact failure the skill warns about.
+
+**Engine contract for the fx** (also in `gore_piles_manifest.json`): empties `fx_maggots_01..03`
+(cavity centre + two spill points) and `fx_flies_01` (0.25 m above the cavity), metres, pile origin;
+`maggot_mass` UV 0..1 = one frame, swap albedo `maggots_a.png` <-> `maggots_b.png` at ~6 Hz.
+
+**Six things this build learned, each caught by a measurement or a render:**
+1. **The evaluated mesh's `.materials` are copy-on-write IDs.** Assigning them into a new mesh's
+   slots crashed 5.0.1 non-deterministically (`deg_expand_eval_copy_datablock`) - sometimes ten
+   bakes later. Use `obj.data.materials` / `mt.original`. Same family: creating and linking
+   objects while reading evaluated meshes races the threaded eval copy; collect first,
+   `materialise()` after. And `wm.read_factory_settings(use_empty=True)` inside a `--python`
+   script crashes the first depsgraph build after an append - clear the scene by hand.
+2. **bmesh names its UV layer `Float2`; the donors say `UVMap`; `object.join()` merges BY NAME.**
+   Every generated part landed in a second UV layer and baked at (0,0): the pool came out black
+   and the guts the field colour. Normalise to one named layer before any join.
+3. **A contact test that casts from the point it is testing misses the face it rests on** (rounding
+   puts the origin a hair below the surface, the ray hits the underside) and reports "no contact"
+   with a straight face - every piece cantilevered on one point and the tilt loop never ran. Cast
+   from 8 mm above.
+4. **Arms are T-pose: their long axis is X.** A rotation cheat-sheet written for the Z-up legs stood
+   a forearm on end with the hand in the air and the first render is the only thing that caught it.
+5. **The glTF exporter drops DUPLICATE faces silently** (same three verts, either winding) -
+   `holes_fill` closed a loop a neighbouring fill had already closed, 24-38 per NVA/VC pile, and
+   the Blender count disagreed with the shipped count. Dedupe by sorted vertex tuple in the clean
+   pass; the verifier compares the SHIPPED GLB to the manifest and now agrees.
+6. **A flat-colour island eats the packer.** The blood pool took 40 % of a 512² atlas because
+   smart-project sizes islands by 3-D area. Keep flat-colour faces out of the packer and park them
+   in a reserved corner.
+
+## 2026-09-12 · CONQUEST OF WORMS WW1 cast FINISHED (louie_1915 / louie_adrian / poilu_a / poilu_b / poilu_1916 / german_boy / german_line)
+
+Caleb: "did we finish making the ww1 soldiers" - no; this is the finish pass. Pipeline, all re-runnable
+from `us_base_v3.blend` (never written to): `tools/build_ww1_face_cells.py` -> `tools/build_ww1_cast.py`
+-> `tools/project_cow_head_uvs.py -- --tags <7 tags> --save` -> `tools/export_ww1_cast.py` ->
+`tools/shrink_oversized_textures.py --apply` -> `tools/render_ww1_cast.py`. ALL GATES PASS on the
+shipped file; renders are from the exported GLBs.
+
+**What the 9/09 "white blocks" were: a colour-space bug, not missing paint.** `mat_flat` wrote sRGB bytes
+/255 into the Principled Base Color (a LINEAR socket, and glTF's baseColorFactor is linear too), so every
+flat kit piece rendered ~2x too bright and clipped to white. `srgb_to_linear()` now. Moot for the kit
+anyway: every piece is UV-mapped onto swatches painted into the unused rows (720-1540) of the man's own
+1024x1621 uniform sheet, so each man ships on ONE uniform image + ONE face atlas (2 materials on the
+visible set; `gore_cap_mat` on the hidden caps).
+
+**Why the rifles floated over the heads:** v1 replayed the M16's OBJECT frame onto a different mesh with
+its own origin, then scaled that mesh about its bbox centre. The Vietnam mechanism, measured on
+`us_base_v3` (`m16_world_rifleman`; `m79_world` in `cow_michael_crawford.glb` is the same): child of
+`mixamorig:RightHand`, bone-local loc (0.027, 0.314, 0.065) rot (-151, 20, -78), the mesh's grip at
+local (+0.22, 0, -0.07), muzzle along local -X. The WW1 rifles are the Mosin parts kit from
+`assets/nva_vc/weapons_vc.blend` (muzzle at x=0, butt +1.294, bore z 0.412 - the only full-stocked
+bolt-action in the project) re-origined at the stock wrist (kit (0.975, 0.264, 0.365)), scaled to
+1.300 (Lebel: fore-end fattened for the tube magazine) / 1.250 (Gew98), bayonet/rod/sight-hood dropped,
+476 tris, hung at `m16_frame @ Translation(M16_GRIP)`. Origin lands 0.105 m from the RightHand head,
+same diagonal hang in the T-pose as the US cast's guns. Gate: raw length within 3 % of real, parent
+BONE/RightHand, grip < 0.14 m from the wrist.
+
+**Capote skirt** = a 16x8 loft of the joined body's OWN cross-sections (edge/plane intersections at
+z 1.06..0.42 - a vertex band is useless, the thigh is ONE quad from z 0.55 to 0.90) + a cloth offset
+growing 12 -> 78 mm toward the hem; 224 tris; skinned Hips -> Left/RightUpLeg by height and side so it
+walks with him; top ring under the belt (z 1.060 vs belt 1.072-1.134), hem z 0.420 (knee 0.538).
+Built ONCE and copied: evaluating each rig separately hands back coordinates that differ in the 6th
+decimal (float32 armature deform at x=18) and the per-index hash gate rightly refused it. Same lesson
+for the pouches: scale/translate the inherited webbing in LOCAL space, never through matrix_world.
+Vertex groups ride on the mesh datablock in Blender 5 - `mesh.copy()` carries them; re-adding made
+`.001` orphans that failed the weights gate.
+
+**Kit:** the rifleman's own `web_belt/buckle/pouch_*/flap_*/susp_*` are KEPT (v1's STRIP list said
+`web_suspender`/`web_strap`, names that do not exist, which is why the M1956 set shipped green) and
+re-cut: French = 1888 leather set (pouches x0.86/0.80/0.80, third pouch copied to the small of the back,
+Y-braces leather, musette (ruck_pocket donor, 0.09 x 0.27 x 0.23) left hip, 2 L bidon (canteen donor,
+0.095 x 0.15 x 0.20) right hip, both placed against the skirt's MEASURED side extent at their height);
+German = 1909 triple pouches (front pouches x1.45), braces deleted, Brotbeutel right rear hip,
+Feldflasche in front of it, no skirt. Pickelhaube: spike ON (Issue 2 p13 and Issue 3 p5 draw it);
+dome deepened to 0.232 (this head is 0.206 deep - the 0.200 dome had the peak strip 12/28 verts inside
+the skull) and the regimental number is painted on the cover's front polys, not a plate. Adrian shell
+0.215 x 0.290 x 0.140 (IMA original 0.219 x 0.297 x 0.140 over the brims), M1 band polys deleted, RF
+grenade on the front strip, crest 0.030 x 0.210 x 0.036. All French rifles are the Lebel (the brief's
+spec); v1's Berthier for the poilus is gone.
+
+**Heads:** full-cell projection on all seven (bodies + `grunt_head_*` donors), same tool as the CoW
+cast, `--tags` added. Two detector fixes in `project_cow_head_uvs.py`: lip band 98-118 not 100-135
+(a light-lipped cell's chin crease out-darkened the lips); chin search from mouth+12 not +5 (a
+moustache reads as the mouth and the lip line as the chin). The boy's scar was moved to cell cols
+76-83: its dark edge at col 91 was being taken for the ear/cheek crease (search window cols 90-101)
+and failed the "no side loop on ear paint" gate.
+
+**Face-cell bug that shipped 9/09:** `np.sin(np.pi * 1.0)` is -8.7e-8 in float32; `** 0.6` of a
+negative base is NaN, and every pixel past the scar's lower endpoint went NaN -> black. That was the
+wedge over the boy's jaw. Clamp the sine; assert no NaN.
+
+**Inherited detail is not neutral:** the "US ARMY" name tape and jungle-fatigue pocket flaps survived
+a hue swap and read as lettering on a 1915 capote. Source is Gaussian-blurred (2.2 px) and the
+luminance ratio clipped to 0.72-1.32 before recolouring.
+
+**Instrument fixed:** `render_ww1_cast.py`'s exposure probe forgot the world's 0.45 strength, put the
+background at 132 instead of ~92 and counted the whole frame as subject (1.24 M of 1.26 M px) while
+printing confident medians. Now lit/authored 0.89-1.15 across the seven, blown < 0.7 %.
+
+**Numbers:** bare body 1.6678 m every man (ADR-002 datum), headgear tops 1.7132 (kepi) / 1.7420
+(Adrian) / 1.7781 (kepi+cerveliere) / 1.8018 (Pickelhaube); feet at z 0.00000; 41-bone `PSXRig`;
+gibs 10/10 by exact name; visible tris 1422-2286 (Michael 3650 - the WW1 men carry no ruck); GLBs
+1.38-1.50 MB, largest embedded image 854 KB; wyrm `glb_textures` clean for the seven. Body
+intersection gate (signed distance < -4 mm confirmed by 3-axis ray parity, 5 cm proximity filter):
+0 on every new piece; the inherited German pouch backs sit 3/12 inside the body exactly as the US
+roster ships them; the kepi has 1 sweatband vertex 16 mm inside the skull (allowed to 20 mm for hats).
+
+**Not done / unverified:** the 1916 gas-mask tin is NOT built - no WW1 page draws one. The Godot
+side is unverified (no engine run here): `grunt_dresser._rides_face_atlas` keys on "face_atlas" in the
+texture path and WILL treat these named faces as rerollable exactly as it does the CoW cast.
+`assets/ww1/characters/ww1_<tag>_ww1_<tag>_{uniform,face_atlas}.png` (14 files, 9/09 19:26) are
+Godot's extracted copies from the v1 import, not this pipeline's output - stale, not deleted here.
+
+### 2026-09-12 (later) · Pickelhaube REBUILT (coordinator: "wide flat lampshade with a post")
+
+The scrub-cap dome + strip visor is gone. `build_pickelhaube()` in `tools/build_ww1_cast.py`: one object,
+166 tris, lathed against the MEASURED head (widest +-0.080 x / y -0.130..+0.074 at z 1.74, ear line
+1.657, crown 1.800). Skull W 0.190 x D 0.234 x H 0.123 (rim z 1.685, closes 8 mm over the scalp; H/W 0.65 -
+this head's crown stands 0.143 above the ear line, so 0.55 cannot clear it), 12 segs x 5 rings, every ring
+>= 5 mm off the head (intersection gate 0/88). Squared visor 50 mm forward / 12 mm drop, neck guard 45 mm
+back / 30 mm drop, both pushed fore/aft only (a radial push made it 25 cm wide with wings - measured,
+refused by the envelope gate). Round base r 25 mm x 12 mm, spike frustum 11 -> 4 mm over 50 mm + 10 mm tip.
+Overall L 0.329 / H 0.225 / W 0.190. Number "112" is a front projection of the two front face columns
+into the numbered swatch, low on the front; cover seams at cyl u 0.25/0.75 and a rim hem line. Both
+Germans re-exported (1.37 / 1.39 MB, headgear top 1.7420), lineup + their sheets re-rendered.

@@ -1,0 +1,6 @@
+{
+ "michael": {"wav": "assets/audio/vo/john/squad_contact_front.wav", "text": "contact front"},
+ "gus": {"wav": "assets/audio/vo/john/squad_man_down.wav", "text": "man down"},
+ "sniper": {"wav": "assets/audio/vo/ryan/squad_treeline.wav", "text": "treeline"},
+ "zombie": {"wav": "assets/audio/vo/john/squad_fire_in_hole.wav", "text": "fire in the hole"}
+}

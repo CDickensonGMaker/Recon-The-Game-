@@ -1,0 +1,890 @@
+{
+ "gus_states_identical": true,
+ "gus_states_uv_max_dev_px": 0.0,
+ "layout_michael": {
+  "lip_py": 105.5,
+  "mouth_cx": 62.15574214151518,
+  "mouth_hw_px": 9.959608254680404,
+  "nostril_py": 93.5,
+  "chin_py": 120.98412402888175,
+  "v15_py": 123.48412402888175,
+  "eye_L": [
+   "49",
+   "73"
+  ],
+  "eye_R": [
+   "76",
+   "73"
+  ],
+  "ul": {
+   "L": 70.0,
+   "R": 70.0
+  },
+  "ll": {
+   "L": 76.0,
+   "R": 76.0
+  },
+  "brow": {
+   "L": 66.0,
+   "R": 66.0
+  },
+  "brow_y_painted": 66.0
+ },
+ "neck_uv_michael": {
+  "loops_lifted": 0,
+  "samples": []
+ },
+ "projection_michael": {
+  "groups": {
+   "HAIR": 6,
+   "SIDE": 18,
+   "FRONT": 72,
+   "EAR": 6,
+   "TOP": 4,
+   "LOWER": 2
+  },
+  "res": {
+   "chin": [
+    0.62,
+    0.62
+   ],
+   "nose_tip": [
+    0.62,
+    1.97
+   ],
+   "brow": [
+    0.62,
+    1.11
+   ]
+  },
+  "aff": {
+   "sx": 528.6925016143249,
+   "cx": 63.61555104306342,
+   "sz": 515.6583349203785,
+   "tz": 937.5407548797591
+  },
+  "cell": [
+   0,
+   0
+  ],
+  "ear_centroid_y": {
+   "R": -0.0019406680002406196,
+   "L": -0.005852206718952355
+  },
+  "ear_depth_fraction": {
+   "R": 0.5976806947355757,
+   "L": 0.5770936488476192
+  },
+  "ear_width_mm": {
+   "R": 67.11597278200347,
+   "L": 65.50260805166685
+  },
+  "ear_before_y": -0.0645
+ },
+ "paint_gate_michael": {
+  "lip_line_dev_mm_max": 0.0,
+  "lip_line_dev_mm_mean": 0.0,
+  "lip_line_z": 1.6136,
+  "painted_lip_row": 105.5,
+  "mouth_corner_dev_mm": {
+   "L": 0.0,
+   "R": 0.0
+  },
+  "eyes": {
+   "L": {
+    "loop_centre_px": [
+     49.5,
+     73.0
+    ],
+    "pupil_px": [
+     49.5,
+     73.5
+    ],
+    "dev_mm": [
+     -0.0,
+     -0.97
+    ]
+   },
+   "R": {
+    "loop_centre_px": [
+     76.5,
+     73.0
+    ],
+    "pupil_px": [
+     76.5,
+     73.5
+    ],
+    "dev_mm": [
+     0.0,
+     -0.97
+    ]
+   }
+  },
+  "nostril_row_dev_mm": 0.0,
+  "brow_row_px": {
+   "L": 66.0,
+   "R": 66.0
+  },
+  "painted_brow_row": 66.5
+ },
+ "shape_keys_michael": {
+  "A": 2.05,
+  "B": 3.0,
+  "C": 11.04,
+  "D": 19.1,
+  "E": 8.1,
+  "F": 7.45,
+  "G": 4.27,
+  "H": 14.43,
+  "X": 0.0,
+  "blink": 11.64,
+  "blink_L": 11.64,
+  "blink_R": 11.64,
+  "brow_up": 5.5,
+  "brow_down": 4.77
+ },
+ "visemes_michael": {
+  "A": {
+   "lip_gap_mm": 0.0,
+   "lower_lip_drop_mm": 0.0,
+   "upper_lip_raise_mm": 0.0,
+   "width_mm": 35.7,
+   "width_ratio": 0.947,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 1.0,
+   "lower_teeth_visible_mm": -1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": -2.0,
+   "tongue_rise_mm": 0.0
+  },
+  "B": {
+   "lip_gap_mm": 5.5,
+   "lower_lip_drop_mm": 3.0,
+   "upper_lip_raise_mm": 2.5,
+   "width_mm": 39.7,
+   "width_ratio": 1.053,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 3.5,
+   "lower_teeth_visible_mm": 1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 0.0
+  },
+  "C": {
+   "lip_gap_mm": 14.0,
+   "lower_lip_drop_mm": 11.0,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 41.7,
+   "width_ratio": 1.106,
+   "chin_drop_mm": 5.2,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": 2.7,
+   "dark_gap_mm": 7.3,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -6.8
+  },
+  "D": {
+   "lip_gap_mm": 23.0,
+   "lower_lip_drop_mm": 19.0,
+   "upper_lip_raise_mm": 4.0,
+   "width_mm": 39.7,
+   "width_ratio": 1.053,
+   "chin_drop_mm": 10.4,
+   "upper_teeth_visible_mm": 5.0,
+   "lower_teeth_visible_mm": 3.9,
+   "dark_gap_mm": 14.1,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -13.6
+  },
+  "E": {
+   "lip_gap_mm": 10.0,
+   "lower_lip_drop_mm": 8.0,
+   "upper_lip_raise_mm": 2.0,
+   "width_mm": 31.8,
+   "width_ratio": 0.841,
+   "chin_drop_mm": 3.9,
+   "upper_teeth_visible_mm": 3.0,
+   "lower_teeth_visible_mm": 1.4,
+   "dark_gap_mm": 5.6,
+   "lips_forward_mm": 2.0,
+   "tongue_rise_mm": -5.1
+  },
+  "F": {
+   "lip_gap_mm": 5.0,
+   "lower_lip_drop_mm": 4.5,
+   "upper_lip_raise_mm": 0.5,
+   "width_mm": 23.8,
+   "width_ratio": 0.63,
+   "chin_drop_mm": 2.3,
+   "upper_teeth_visible_mm": 1.5,
+   "lower_teeth_visible_mm": 0.0,
+   "dark_gap_mm": 3.5,
+   "lips_forward_mm": 4.5,
+   "tongue_rise_mm": -3.0
+  },
+  "G": {
+   "lip_gap_mm": 3.5,
+   "lower_lip_drop_mm": 0.5,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 37.7,
+   "width_ratio": 1.0,
+   "chin_drop_mm": 1.3,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": -2.7,
+   "dark_gap_mm": 2.2,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -1.7
+  },
+  "H": {
+   "lip_gap_mm": 13.0,
+   "lower_lip_drop_mm": 10.0,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 39.7,
+   "width_ratio": 1.053,
+   "chin_drop_mm": 4.5,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": 2.6,
+   "dark_gap_mm": 6.5,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 10.0
+  },
+  "X": {
+   "lip_gap_mm": 0.0,
+   "lower_lip_drop_mm": 0.0,
+   "upper_lip_raise_mm": 0.0,
+   "width_mm": 37.7,
+   "width_ratio": 1.0,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 1.0,
+   "lower_teeth_visible_mm": -1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 0.0
+  }
+ },
+ "head_michael": {
+  "verts": 130,
+  "verts_added": 97,
+  "tris": 224,
+  "face_material_tris": 184,
+  "cavity_tris": 40,
+  "polys_by_size": {
+   "4": 95,
+   "3": 34
+  },
+  "ngons": 0,
+  "neck_ring_max_dev_m": 0.0,
+  "all_orig_verts_max_dev_m": 0.0,
+  "cavity_faces": 21
+ },
+ "layout_gus": {
+  "lip_py": 105.5,
+  "mouth_cx": 62.31510510929594,
+  "mouth_hw_px": 9.243717470344734,
+  "nostril_py": 94.5,
+  "chin_py": 121.86511226101959,
+  "v15_py": 124.36511226101959,
+  "eye_L": [
+   "51",
+   "74"
+  ],
+  "eye_R": [
+   "76",
+   "74"
+  ],
+  "ul": {
+   "L": 71.0,
+   "R": 71.0
+  },
+  "ll": {
+   "L": 77.0,
+   "R": 77.0
+  },
+  "brow": {
+   "L": 68.0,
+   "R": 68.0
+  },
+  "brow_y_painted": 69.0
+ },
+ "neck_uv_gus": {
+  "loops_lifted": 0,
+  "samples": []
+ },
+ "projection_gus": {
+  "groups": {
+   "HAIR": 6,
+   "SIDE": 18,
+   "FRONT": 72,
+   "EAR": 6,
+   "TOP": 4,
+   "LOWER": 2
+  },
+  "res": {
+   "chin": [
+    0.09,
+    0.37
+   ],
+   "nose_tip": [
+    0.09,
+    2.56
+   ],
+   "brow": [
+    0.09,
+    0.98
+   ]
+  },
+  "aff": {
+   "sx": 536.4297302453964,
+   "cx": 64.09435005530403,
+   "sz": 503.41350215105297,
+   "tz": 919.0911386505753
+  },
+  "cell": [
+   0,
+   0
+  ],
+  "ear_centroid_y": {
+   "R": -0.0011131750969160838,
+   "L": -0.0008194030565408239
+  },
+  "ear_depth_fraction": {
+   "R": 0.602035920542547,
+   "L": 0.6035820891761009
+  },
+  "ear_width_mm": {
+   "R": 67.11597278200347,
+   "L": 66.08023246129353
+  },
+  "ear_before_y": -0.0645
+ },
+ "paint_gate_gus": {
+  "lip_line_dev_mm_max": 0.0,
+  "lip_line_dev_mm_mean": 0.0,
+  "lip_line_z": 1.6161,
+  "painted_lip_row": 105.5,
+  "mouth_corner_dev_mm": {
+   "L": 0.0,
+   "R": 0.0
+  },
+  "eyes": {
+   "L": {
+    "loop_centre_px": [
+     51.5,
+     74.0
+    ],
+    "pupil_px": [
+     51.5,
+     74.5
+    ],
+    "dev_mm": [
+     0.0,
+     -0.99
+    ]
+   },
+   "R": {
+    "loop_centre_px": [
+     76.5,
+     74.0
+    ],
+    "pupil_px": [
+     76.5,
+     74.5
+    ],
+    "dev_mm": [
+     0.0,
+     -0.99
+    ]
+   }
+  },
+  "nostril_row_dev_mm": 0.0,
+  "brow_row_px": {
+   "L": 68.0,
+   "R": 68.0
+  },
+  "painted_brow_row": 69.5
+ },
+ "shape_keys_gus": {
+  "A": 2.05,
+  "B": 3.0,
+  "C": 11.04,
+  "D": 19.1,
+  "E": 8.1,
+  "F": 7.45,
+  "G": 4.27,
+  "H": 14.25,
+  "X": 0.0,
+  "blink": 11.92,
+  "blink_L": 11.92,
+  "blink_R": 11.92,
+  "brow_up": 5.5,
+  "brow_down": 4.77
+ },
+ "visemes_gus": {
+  "A": {
+   "lip_gap_mm": 0.0,
+   "lower_lip_drop_mm": 0.0,
+   "upper_lip_raise_mm": 0.0,
+   "width_mm": 32.6,
+   "width_ratio": 0.942,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 1.0,
+   "lower_teeth_visible_mm": -1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": -2.0,
+   "tongue_rise_mm": 0.0
+  },
+  "B": {
+   "lip_gap_mm": 5.5,
+   "lower_lip_drop_mm": 3.0,
+   "upper_lip_raise_mm": 2.5,
+   "width_mm": 36.6,
+   "width_ratio": 1.058,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 3.5,
+   "lower_teeth_visible_mm": 1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 0.0
+  },
+  "C": {
+   "lip_gap_mm": 14.0,
+   "lower_lip_drop_mm": 11.0,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 38.6,
+   "width_ratio": 1.115,
+   "chin_drop_mm": 5.2,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": 2.7,
+   "dark_gap_mm": 7.3,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -6.8
+  },
+  "D": {
+   "lip_gap_mm": 23.0,
+   "lower_lip_drop_mm": 19.0,
+   "upper_lip_raise_mm": 4.0,
+   "width_mm": 36.6,
+   "width_ratio": 1.058,
+   "chin_drop_mm": 10.4,
+   "upper_teeth_visible_mm": 5.0,
+   "lower_teeth_visible_mm": 3.9,
+   "dark_gap_mm": 14.1,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -13.6
+  },
+  "E": {
+   "lip_gap_mm": 10.0,
+   "lower_lip_drop_mm": 8.0,
+   "upper_lip_raise_mm": 2.0,
+   "width_mm": 28.6,
+   "width_ratio": 0.827,
+   "chin_drop_mm": 3.9,
+   "upper_teeth_visible_mm": 3.0,
+   "lower_teeth_visible_mm": 1.4,
+   "dark_gap_mm": 5.6,
+   "lips_forward_mm": 2.0,
+   "tongue_rise_mm": -5.1
+  },
+  "F": {
+   "lip_gap_mm": 5.0,
+   "lower_lip_drop_mm": 4.5,
+   "upper_lip_raise_mm": 0.5,
+   "width_mm": 20.6,
+   "width_ratio": 0.597,
+   "chin_drop_mm": 2.3,
+   "upper_teeth_visible_mm": 1.5,
+   "lower_teeth_visible_mm": 0.0,
+   "dark_gap_mm": 3.5,
+   "lips_forward_mm": 4.5,
+   "tongue_rise_mm": -3.0
+  },
+  "G": {
+   "lip_gap_mm": 3.5,
+   "lower_lip_drop_mm": 0.5,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 34.6,
+   "width_ratio": 1.0,
+   "chin_drop_mm": 1.3,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": -2.7,
+   "dark_gap_mm": 2.2,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": -1.7
+  },
+  "H": {
+   "lip_gap_mm": 13.0,
+   "lower_lip_drop_mm": 10.0,
+   "upper_lip_raise_mm": 3.0,
+   "width_mm": 36.6,
+   "width_ratio": 1.058,
+   "chin_drop_mm": 4.5,
+   "upper_teeth_visible_mm": 4.0,
+   "lower_teeth_visible_mm": 2.6,
+   "dark_gap_mm": 6.4,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 10.0
+  },
+  "X": {
+   "lip_gap_mm": 0.0,
+   "lower_lip_drop_mm": 0.0,
+   "upper_lip_raise_mm": 0.0,
+   "width_mm": 34.6,
+   "width_ratio": 1.0,
+   "chin_drop_mm": 0.0,
+   "upper_teeth_visible_mm": 1.0,
+   "lower_teeth_visible_mm": -1.5,
+   "dark_gap_mm": 0.5,
+   "lips_forward_mm": 0.0,
+   "tongue_rise_mm": 0.0
+  }
+ },
+ "head_gus": {
+  "verts": 130,
+  "verts_added": 97,
+  "tris": 224,
+  "face_material_tris": 184,
+  "cavity_tris": 40,
+  "polys_by_size": {
+   "4": 95,
+   "3": 34
+  },
+  "ngons": 0,
+  "neck_ring_max_dev_m": 0.0,
+  "all_orig_verts_max_dev_m": 0.0,
+  "cavity_faces": 21
+ },
+ "skull_placement": {
+  "scale": 0.07784830101343058,
+  "y0": -0.04486251008170565,
+  "z0": 1.7168035207069468
+ },
+ "orbit_depths_ref": {
+  "orbU@16deg": -0.551,
+  "orbU@25deg": -0.517,
+  "orbL@16deg": -0.531,
+  "orbL@25deg": -0.49,
+  "brow@16deg": -0.904,
+  "cheek@25deg": -0.82,
+  "orbU@8deg": -0.703,
+  "orbU@34deg": -0.744,
+  "orbU@0deg": -0.956
+ },
+ "skull_proportions": {
+  "cranium_W_m": 0.148991659283638,
+  "cranium_L_m": 0.19779055565595627,
+  "cranium_H_m": 0.17474472522735596,
+  "total_H_m": 0.2171642780303955,
+  "W_over_Htot": 0.6860781185328478,
+  "L_over_Htot": 0.9107877108051464,
+  "W_over_L": 0.7532799470102063,
+  "orbit_centre_spacing_m": 0.0420719524559719,
+  "orbit_spacing_over_W": 0.28237790395956863,
+  "ref_W_over_Htot": 0.6734579373706912,
+  "ref_L_over_Htot": 0.8930462531121787,
+  "ref_orbit_spacing_over_W": 0.37490236917469405,
+  "skull_tris": 400,
+  "skull_verts": 202,
+  "mandible_tris": 126,
+  "mandible_verts": 65,
+  "ngons": 0
+ },
+ "jaw_hinge_world_m": [
+  0.0,
+  -0.0324,
+  1.6561
+ ],
+ "mandible_verts_pushed_out": [
+  [
+   -78,
+   "outer_top",
+   7.6
+  ],
+  [
+   -78,
+   "inner_top",
+   6.3
+  ],
+  [
+   78,
+   "outer_top",
+   7.9
+  ],
+  [
+   78,
+   "inner_top",
+   6.3
+  ]
+ ],
+ "jaw_gate_zombie": {
+  "rest": {
+   "deg": 0.0,
+   "mandible_verts_inside_skull": 0,
+   "inside_list": [],
+   "lower_tooth_row_to_skull_min_mm": 4.38,
+   "any_vert_to_skull_min_mm": 0.53,
+   "chin_world": [
+    -0.0147,
+    -0.1142,
+    1.5798
+   ]
+  },
+  "open25": {
+   "deg": 25.0,
+   "mandible_verts_inside_skull": 0,
+   "inside_list": [],
+   "lower_tooth_row_to_skull_min_mm": 41.87,
+   "any_vert_to_skull_min_mm": 1.65,
+   "chin_world": [
+    -0.0147,
+    -0.0743,
+    1.5524
+   ]
+  },
+  "chin_travel_mm": 48.4
+ },
+ "jaw_gate_sniper": {
+  "rest": {
+   "deg": 0.0,
+   "mandible_verts_inside_skull": 0,
+   "inside_list": [],
+   "lower_tooth_row_to_skull_min_mm": 4.17,
+   "any_vert_to_skull_min_mm": 0.51,
+   "chin_world": [
+    -0.014,
+    -0.1087,
+    1.5036
+   ]
+  },
+  "open25": {
+   "deg": 25.0,
+   "mandible_verts_inside_skull": 0,
+   "inside_list": [],
+   "lower_tooth_row_to_skull_min_mm": 39.85,
+   "any_vert_to_skull_min_mm": 1.57,
+   "chin_world": [
+    -0.014,
+    -0.0707,
+    1.4775
+   ]
+  },
+  "chin_travel_mm": 46.1
+ },
+ "helmet_socket_world": [
+  0.0019,
+  -0.0413,
+  1.7519
+ ],
+ "helmet_fit_canonical_psx_head_seat": {
+  "skull_verts_through_shell": 0,
+  "skull_verts_under_helmet": 115,
+  "clearance_mm_min_max": [
+   5.4,
+   75.9
+  ],
+  "brim_front_z": 1.6928,
+  "supraorbital_margin_z": 1.7145,
+  "brim_minus_supraorbital_mm": -21.6,
+  "crown_z": 1.8478,
+  "crown_over_skull_top_mm": 50.8
+ },
+ "helmet_raise_applied_mm": 24.7,
+ "helmet_fit_seated_brim_at_brow": {
+  "skull_verts_through_shell": 0,
+  "skull_verts_under_helmet": 92,
+  "clearance_mm_min_max": [
+   8.9,
+   75.6
+  ],
+  "brim_front_z": 1.7175,
+  "supraorbital_margin_z": 1.7145,
+  "brim_minus_supraorbital_mm": 3.1,
+  "crown_z": 1.8725,
+  "crown_over_skull_top_mm": 75.5
+ },
+ "objects": [
+  "PSXRig_gus",
+  "PSXRig_michael",
+  "PSXRig_sniper",
+  "PSXRig_zombie",
+  "cs_head_gus",
+  "cs_head_michael",
+  "cs_mandible_sniper",
+  "cs_mandible_zombie",
+  "cs_skull_sniper",
+  "cs_skull_zombie",
+  "cs_zombie_helmet_band",
+  "cs_zombie_helmet_card_ace",
+  "cs_zombie_helmet_cover",
+  "grunt_head_gus_ears",
+  "grunt_head_michael",
+  "m1_ace_socket_head"
+ ],
+ "actions": [
+  "anim_gus",
+  "anim_michael",
+  "anim_sniper",
+  "anim_zombie"
+ ],
+ "images": [
+  [
+   "cow_gus_face_atlas",
+   [
+    1296,
+    1132
+   ],
+   true
+  ],
+  [
+   "cow_michael_face_atlas",
+   [
+    1296,
+    1132
+   ],
+   true
+  ],
+  [
+   "cs_mouth_interior.png",
+   [
+    64,
+    32
+   ],
+   true
+  ],
+  [
+   "cs_skull_sniper_atlas.png",
+   [
+    256,
+    256
+   ],
+   true
+  ],
+  [
+   "cs_skull_zombie_atlas.png",
+   [
+    256,
+    256
+   ],
+   true
+  ],
+  [
+   "helmet_card_ace.png",
+   [
+    64,
+    96
+   ],
+   false
+  ],
+  [
+   "helmet_card_ace_clubs.png",
+   [
+    64,
+    96
+   ],
+   true
+  ]
+ ],
+ "materials": [
+  "ERDLCamo",
+  "HelmCard",
+  "HelmCardClubs",
+  "Webbing",
+  "cs_mouth_interior",
+  "cs_skull_sniper_mat",
+  "cs_skull_zombie_mat",
+  "face_atlas_gus",
+  "face_atlas_michael"
+ ],
+ "lipsync": {
+  "gus": {
+   "wav": "C:\\Users\\caleb\\RECONgame\\assets\\audio\\vo\\john\\squad_man_down.wav",
+   "text": "man down",
+   "frames": 61,
+   "duration_s": 2.54,
+   "rhubarb": "Rhubarb Lip Sync version 1.14.0",
+   "action": "line_gus",
+   "verify": {
+    "cue_frames_checked": 30,
+    "cue_frames_wrong": 0,
+    "wrong": [],
+    "loud_frames_rms_gt_0.3": 21,
+    "loud_frames_with_mouth_shut": 0,
+    "shut_loud_frames": [],
+    "openness_deg_loudest_quarter": 8.67,
+    "openness_deg_quietest_quarter": 2.13,
+    "rms_loudest_quarter": 0.486,
+    "rms_quietest_quarter": 0.0009,
+    "peak_rms_frame": 38,
+    "openness_at_peak_deg": 11.0
+   }
+  },
+  "michael": {
+   "wav": "C:\\Users\\caleb\\RECONgame\\assets\\audio\\vo\\john\\squad_contact_front.wav",
+   "text": "contact front",
+   "frames": 64,
+   "duration_s": 2.64,
+   "rhubarb": "Rhubarb Lip Sync version 1.14.0",
+   "action": "line_michael",
+   "verify": {
+    "cue_frames_checked": 28,
+    "cue_frames_wrong": 0,
+    "wrong": [],
+    "loud_frames_rms_gt_0.3": 13,
+    "loud_frames_with_mouth_shut": 0,
+    "shut_loud_frames": [],
+    "openness_deg_loudest_quarter": 9.88,
+    "openness_deg_quietest_quarter": 2.88,
+    "rms_loudest_quarter": 0.4118,
+    "rms_quietest_quarter": 0.0006,
+    "peak_rms_frame": 3,
+    "openness_at_peak_deg": 18.0
+   }
+  },
+  "sniper": {
+   "wav": "C:\\Users\\caleb\\RECONgame\\assets\\audio\\vo\\ryan\\squad_treeline.wav",
+   "text": "treeline",
+   "frames": 34,
+   "duration_s": 1.39,
+   "rhubarb": "Rhubarb Lip Sync version 1.14.0",
+   "action": "anim_sniper",
+   "verify": {
+    "cue_frames_checked": 16,
+    "cue_frames_wrong": 0,
+    "wrong": [],
+    "loud_frames_rms_gt_0.3": 22,
+    "loud_frames_with_mouth_shut": 0,
+    "shut_loud_frames": [],
+    "openness_deg_loudest_quarter": 9.75,
+    "openness_deg_quietest_quarter": 1.0,
+    "rms_loudest_quarter": 0.7465,
+    "rms_quietest_quarter": 0.0418,
+    "peak_rms_frame": 4,
+    "openness_at_peak_deg": 18.0
+   }
+  },
+  "zombie": {
+   "wav": "C:\\Users\\caleb\\RECONgame\\assets\\audio\\vo\\john\\squad_fire_in_hole.wav",
+   "text": "fire in the hole",
+   "frames": 35,
+   "duration_s": 1.45,
+   "rhubarb": "Rhubarb Lip Sync version 1.14.0",
+   "action": "anim_zombie",
+   "verify": {
+    "cue_frames_checked": 18,
+    "cue_frames_wrong": 0,
+    "wrong": [],
+    "loud_frames_rms_gt_0.3": 16,
+    "loud_frames_with_mouth_shut": 2,
+    "shut_loud_frames": [
+     20,
+     21
+    ],
+    "openness_deg_loudest_quarter": 6.38,
+    "openness_deg_quietest_quarter": 0.0,
+    "rms_loudest_quarter": 0.6249,
+    "rms_quietest_quarter": 0.0042,
+    "peak_rms_frame": 4,
+    "openness_at_peak_deg": 11.0
+   }
+  }
+ }
+}

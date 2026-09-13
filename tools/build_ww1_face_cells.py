@@ -61,9 +61,16 @@ CAST = {
 # threshold. So the jaw was read off a 4x render of the actual cell: chin bottom ~0.77,
 # jaw corner ~0.735. Do not "restore" the 0.90 figure - it is the sheet's chin, not this
 # cell's, and the render is the evidence.
-SCAR_A = (0.665, 0.448)
-SCAR_B = (0.622, 0.735)
-SCAR_W = 3.2                    # px at the native 129x162 cell, at mid-length
+# 2026-09-12: widened and lengthened. The 3.2 px mark shipped at ~1.9 px on the exported
+# ~75x93 cell and did not read in the portrait render; the bible calls it "large,
+# deliberate" and it is the hinge of the series. Now runs from the outer eye corner to the
+# jaw and is 5.5 px wide at mid-length (3.2 px shipped).
+# x kept INSIDE cell column ~86: project_cow_head_uvs.py finds the ear/cheek crease as the
+# darkest column in cols 90-101 over the ear rows, and the first placement's dark edge
+# (to col 91) was taken for the crease, which failed its "no side loop on ear paint" gate.
+SCAR_A = (0.640, 0.440)
+SCAR_B = (0.585, 0.745)
+SCAR_W = 5.5                    # px at the native 129x162 cell, at mid-length
 
 
 def cell_rect(w, h, row, col):
@@ -112,15 +119,20 @@ def scar(a):
     d = np.hypot(xx - (x0 + t * dx), yy - (y0 + t * dy))
     # TAPER. A constant-width line reads as a stick laid on the cheek; a real scar is
     # widest at its middle and closes to a point. Half-width is modulated along t.
-    taper = 0.35 + 0.65 * np.sin(np.pi * np.clip(t, 0.0, 1.0)) ** 0.6
+    # np.sin(pi * 1.0) is -8.7e-8 in float32 and a negative base under a fractional power is
+    # NaN; every pixel past the lower endpoint (t clipped to 1.0) went NaN and then black -
+    # the wedge over the boy's jaw that shipped 2026-09-09. Clamp the sine at zero.
+    taper = 0.35 + 0.65 * np.clip(np.sin(np.pi * np.clip(t, 0.0, 1.0)), 0.0, 1.0) ** 0.6
     hw = half * taper
     core = np.clip(1.0 - d / hw, 0.0, 1.0)
     edge = np.clip(1.0 - (d - hw) / (hw * 1.6), 0.0, 1.0) * (d >= hw)
-    dark = np.array([0.58, 0.40, 0.38], dtype=np.float32)      # shadowed groove
-    pale = np.array([1.14, 1.02, 1.00], dtype=np.float32)      # raised scar tissue
+    dark = np.array([0.62, 0.42, 0.40], dtype=np.float32)      # shadowed groove
+    pale = np.array([1.10, 0.94, 0.90], dtype=np.float32)      # raised scar tissue, pink
     out *= (1.0 + (pale - 1.0) * core[..., None])
     out *= (1.0 + (dark - 1.0) * edge[..., None])
     out = np.clip(out, 0, 255)
+    if np.isnan(out).any():
+        raise SystemExit("ABORT scar: NaN in the painted cell")
 
     # MEASURE the mark we just made, do not assume it landed.
     before = a.astype(np.float32)

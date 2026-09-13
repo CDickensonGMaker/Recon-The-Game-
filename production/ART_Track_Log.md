@@ -1188,3 +1188,30 @@ Full measurements: `production/blender_notes.md`, 2026-09-09 (night).
 - exists in `assets/civilians/characters/civ_anim_workbench.blend` and was **never merged into
 `assets/shared/anim_library.glb`**. It has zero callers. `plant_seeds` is the stand-in that ships.
 Merging it is a separate art job and was not started.
+
+## GORE PILES SHIPPED — 2026-09-12 (Caleb: "gibbed us soldier piles and nva and vc piles ... guts and maggots")
+
+Six static world props, built from the real gib donors, headless, re-runnable, gated:
+`assets/world/props/gore_piles/gore_pile_{us,nva,vc}_{small,large}.glb` (895/1661/869/1664/859/1539 tris,
+footprints 1.1-1.9 m, all images < 1 MB), studio `assets/world/props/gore_piles.blend`, contract
+`gore_piles_manifest.json`, pipeline `tools/gore_piles/build_gore_piles.py` + `verify_gore_piles.py`
+(PASS, 6/6 from a clean scene). Renders `production/renders_conquest_of_worms/gore_pile_*_{4m,1p5m,top}.png`
++ `gore_piles_sheet.png` - **his look verdict is the open gate.** Faction reads: M1 + OD + boot /
+pith + khaki / conical hat + black pyjamas; opened torso, intestine rope, liver, dark pool, maggot
+decal strip + `fx_maggots_01..03` / `fx_flies_01` anchors.
+**Owed on the Godot side before a pile is soft cover or blast-removable (3 data rows, no re-export):**
+`CollisionTable.MATERIALS` + `STRUCTURES` per pile and a `gore_pile_` row in `FSB_STRUCTURE_KINDS` /
+`HP_FOR` - see `production/blender_notes.md` 2026-09-12. Placed without them the pile is loud-warned
+and HARD. No sandal mesh exists in the project (NVA feet are painted); the rig `cap_*` donors were
+replaced by boundary-fill cross-sections on the same gore sheet, stated and measured in the notes.
+
+## 2026-09-12 · Conquest of Worms WW1 cast FINISHED (7 GLBs)
+`assets/ww1/characters/ww1_{louie_1915,louie_adrian,poilu_a,poilu_b,poilu_1916,german_boy,german_line}.glb`
+re-exported from `conquest_of_worms_ww1.blend` (rebuilt by `tools/build_ww1_cast.py`): capote skirts
+lofted off the body, 1888/1909 leather sets, musette/bidon/Brotbeutel/Feldflasche, Adrian with RF badge +
+crest, covered Pickelhaube with spike and painted number, Lebel 1.300 m / Gew98 1.250 m from the Mosin kit
+hung in the RightHand like the M16, full-cell head projection on all seven, the boy's cheek scar. Every
+piece on the man's own uniform sheet (2 materials per man), GLBs 1.38-1.50 MB, no embedded image over
+1 MB. Renders (from the exports): `production/renders_conquest_of_worms/ww1_LINEUP_all_seven.png` +
+`ww1_<tag>_{front,threequarter,portrait}_tpose.png`. Details + the four instrument fixes in
+`production/blender_notes.md` 2026-09-12. Owed: Caleb's eye; Godot-side dresser behaviour unverified.

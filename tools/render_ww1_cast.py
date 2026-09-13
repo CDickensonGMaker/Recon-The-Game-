@@ -42,16 +42,16 @@ FIGURES = [
      "kepi over the cerveliere era | capote M1914 Poiret (single-breasted) | Lebel",
      (150, 161, 171)),
     ("poilu_a", "POILU, LINE (older man)", "May 1915",
-     "bare kepi, red band | capote M1877 (DOUBLE-breasted) | pantalon garance | Berthier",
+     "bare kepi, red band | capote M1877 (DOUBLE-breasted) | pantalon garance | Lebel",
      (58, 66, 84)),
     ("poilu_b", "POILU, LINE (young)", "May 1915",
-     "kepi + cerveliere worn ON TOP | capote M1914, dark 'English' cloth | Berthier",
+     "kepi + cerveliere worn ON TOP | capote M1914, dark 'English' cloth | Lebel",
      (101, 110, 122)),
     ("louie_adrian", "LOUIE", "September 1915",
      "casque Adrian M15 | capote M1914 Poiret, UNCHANGED | Lebel",
      (150, 161, 171)),
     ("poilu_1916", "POILU, LINE", "1916",
-     "casque Adrian M15 | capote M1915 (DOUBLE-breasted) | Berthier",
+     "casque Adrian M15 | capote M1915 (DOUBLE-breasted) | Lebel",
      (133, 145, 153)),
     ("german_boy", "THE YOUNG GERMAN (spared)", "1915",
      "Pickelhaube + Ueberzug, GREEN number | M1907/10 Feldrock | Gewehr 98 | SCARRED CHEEK",
@@ -182,7 +182,10 @@ def exposure_probe(path, target_rgb, label):
     img.pixels.foreach_get(buf)
     a = (buf.reshape(h, w, img.channels)[..., :3] * 255.0).astype(np.float32)
     D.images.remove(img)
-    bg = np.array([0.235, 0.235, 0.245]) ** (1 / 2.2) * 255.0
+    # the world is 0.235 grey at STRENGTH 0.45; the first version forgot the strength,
+    # put the background at 132 instead of ~92, and so counted the whole frame as subject
+    # (1.24 M of 1.26 M px) - a probe that measured nothing while printing numbers.
+    bg = (np.array([0.235, 0.235, 0.245]) * 0.45) ** (1 / 2.2) * 255.0
     d = np.abs(a - bg[None, None, :]).sum(axis=2)
     m = d > 26
     if m.sum() < 500:

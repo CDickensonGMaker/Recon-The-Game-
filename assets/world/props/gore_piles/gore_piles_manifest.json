@@ -1,0 +1,1404 @@
+{
+  "contract": {
+    "ballistics": "Placed by place_structure: CollisionTable.is_soft(<glb basename>) decides. Add to scripts/world/collision_table.gd MATERIALS: \"<name>\": Mat.THATCH (soft, shoot-through) and STRUCTURES: {box, y_offset, footprint, scale 1.0, mesh: true}. Inside a firebase GLB the collider prefix must be in site_planner.FSB_SOFT_PREFIXES; none of the nine covers gore_pile_.",
+    "destruction": "Add {\"prefix\": \"gore_pile_\", \"kind\": \"gore_pile\"} to site_planner.FSB_STRUCTURE_KINDS and \"gore_pile\": <hp> to Destructible.HP_FOR. Both the placed path (_destructible_kind_for on the glb basename) and the firebase walk (mesh name) match that prefix.",
+    "collider": "<name>_000-colonly: convex hull trimesh of the pile (pool and maggots excluded).",
+    "maggots": "maggot_mass mesh, material gore_pile_maggots, UV 0..1 = one 64x64 frame. Swap the albedo between maggots_a.png and maggots_b.png at ~6 Hz for the crawl; both PNGs ship beside the GLBs.",
+    "anchors": "Empties fx_maggots_01..03 (cavity centre + two spill points) and fx_flies_01 (0.25 m above the cavity) - hang particle emitters here. Positions in the manifest are metres, Blender Z-up, pile origin at ground centre.",
+    "origin": "Ground contact at z=0, XY centred on the footprint like medical_crate / m26_grenade."
+  },
+  "piles": {
+    "us_small": {
+      "tris": 895,
+      "budget": 900,
+      "pieces": [
+        {
+          "name": "gore_pile_us_small",
+          "min_z": -0.0,
+          "contact": [
+            -0.042,
+            0.198,
+            0.208
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.356,
+        1.131
+      ],
+      "height_m": 0.573,
+      "bbox_min": [
+        -0.678,
+        -0.566,
+        -0.0
+      ],
+      "bbox_max": [
+        0.678,
+        0.566,
+        0.573
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "us_small_torso_open",
+          0.2109,
+          5.0,
+          2
+        ],
+        [
+          "us_small_p00_us_leg_r_straight",
+          0.0,
+          0.0,
+          1
+        ],
+        [
+          "us_small_p01_us_leg_l_straight",
+          0.0058,
+          12.5,
+          2
+        ],
+        [
+          "us_small_p02_us_leg_l_bent",
+          0.0,
+          2.5,
+          3
+        ],
+        [
+          "us_small_p03_us_forearm_r_bent",
+          0.0691,
+          35.0,
+          1
+        ],
+        [
+          "us_small_p04_us_uparm_r_straight",
+          -0.0,
+          10.0,
+          3
+        ],
+        [
+          "us_small_p05_us_head_straight",
+          0.1155,
+          5.0,
+          1
+        ],
+        [
+          "us_small_p06_us_hat",
+          0.1758,
+          20.0,
+          7
+        ],
+        [
+          "us_small_p08_us_forearm_l_straight",
+          0.4861,
+          35.0,
+          3
+        ],
+        [
+          "us_small_p09_us_forearm_l_bent",
+          0.196,
+          35.0,
+          1
+        ],
+        [
+          "us_small_guts",
+          0.0047,
+          0.0,
+          0
+        ],
+        [
+          "us_small_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "us_small_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 505,
+        "verts_inside_gt_8mm": 15,
+        "worst_m": -0.0707,
+        "worst_pairs": [
+          [
+            "us_small_p02_us_leg_l_bent",
+            "us_small_p09_us_forearm_l_bent",
+            2,
+            -0.012
+          ],
+          [
+            "us_small_p09_us_forearm_l_bent",
+            "us_small_guts",
+            2,
+            -0.016
+          ],
+          [
+            "us_small_guts",
+            "us_small_p02_us_leg_l_bent",
+            2,
+            -0.02
+          ],
+          [
+            "us_small_guts",
+            "us_small_p09_us_forearm_l_bent",
+            2,
+            -0.013
+          ],
+          [
+            "us_small_torso_open",
+            "us_small_guts",
+            1,
+            -0.009
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 68,
+      "atlas": "gore_pile_us_small_atlas.png",
+      "atlas_res": 512,
+      "men_worth": 2,
+      "anchors": {
+        "fx_maggots_01": [
+          -0.109,
+          0.239,
+          0.416
+        ],
+        "fx_maggots_02": [
+          -0.009,
+          0.289,
+          0.396
+        ],
+        "fx_maggots_03": [
+          -0.059,
+          0.079,
+          0.356
+        ],
+        "fx_flies_01": [
+          -0.109,
+          0.239,
+          0.666
+        ]
+      },
+      "cavity": [
+        -0.109,
+        0.239,
+        0.416
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_us_small.glb",
+      "glb_bytes": 352324,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_us_small_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_us_small_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_us_small_top.png"
+      ],
+      "materials": [
+        "gore_pile_us_small_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_us_small",
+        "us_small_maggot_mass",
+        "gore_pile_us_small_000-colonly",
+        "us_small_fx_maggots_01",
+        "us_small_fx_maggots_02",
+        "us_small_fx_maggots_03",
+        "us_small_fx_flies_01"
+      ]
+    },
+    "us_large": {
+      "tris": 1661,
+      "budget": 1800,
+      "pieces": [
+        {
+          "name": "gore_pile_us_large",
+          "min_z": -0.0,
+          "contact": [
+            0.025,
+            0.203,
+            0.204
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.694,
+        1.839
+      ],
+      "height_m": 0.598,
+      "bbox_min": [
+        -0.847,
+        -0.92,
+        -0.0
+      ],
+      "bbox_max": [
+        0.847,
+        0.92,
+        0.598
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "us_large_torso_open",
+          0.1968,
+          2.5,
+          2
+        ],
+        [
+          "us_large_p00_us_torso_straight",
+          -0.0,
+          0.0,
+          3
+        ],
+        [
+          "us_large_p01_us_torso_straight",
+          0.0,
+          2.5,
+          2
+        ],
+        [
+          "us_large_p02_us_leg_r_straight",
+          -0.0,
+          2.5,
+          1
+        ],
+        [
+          "us_large_p03_us_leg_l_straight",
+          0.0,
+          35.0,
+          4
+        ],
+        [
+          "us_large_p04_us_leg_l_bent",
+          0.1863,
+          35.0,
+          2
+        ],
+        [
+          "us_large_p05_us_leg_r_bent",
+          -0.0,
+          5.0,
+          3
+        ],
+        [
+          "us_large_p06_us_leg_l_straight",
+          0.0,
+          17.5,
+          4
+        ],
+        [
+          "us_large_p07_us_forearm_r_bent",
+          0.3772,
+          35.0,
+          1
+        ],
+        [
+          "us_large_p08_us_forearm_r_straight",
+          0.0,
+          35.0,
+          6
+        ],
+        [
+          "us_large_p09_us_uparm_r_straight",
+          -0.0,
+          10.0,
+          3
+        ],
+        [
+          "us_large_p10_us_uparm_l_straight",
+          0.0,
+          22.5,
+          3
+        ],
+        [
+          "us_large_p11_us_head_straight",
+          0.1982,
+          22.5,
+          1
+        ],
+        [
+          "us_large_p12_us_hat",
+          0.142,
+          7.5,
+          4
+        ],
+        [
+          "us_large_p13_us_hat",
+          0.2445,
+          0.0,
+          10
+        ],
+        [
+          "us_large_p15_us_forearm_l_straight",
+          0.4712,
+          35.0,
+          3
+        ],
+        [
+          "us_large_p16_us_forearm_l_bent",
+          0.1683,
+          30.0,
+          4
+        ],
+        [
+          "us_large_p17_us_forearm_r_bent",
+          0.2804,
+          17.5,
+          2
+        ],
+        [
+          "us_large_p18_us_uparm_r_straight",
+          0.2817,
+          2.5,
+          2
+        ],
+        [
+          "us_large_p19_us_head_straight",
+          0.0,
+          22.5,
+          3
+        ],
+        [
+          "us_large_guts",
+          0.0093,
+          0.0,
+          0
+        ],
+        [
+          "us_large_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "us_large_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 789,
+        "verts_inside_gt_8mm": 18,
+        "worst_m": -0.0609,
+        "worst_pairs": [
+          [
+            "us_large_guts",
+            "us_large_p04_us_leg_l_bent",
+            3,
+            -0.014
+          ],
+          [
+            "us_large_guts",
+            "us_large_p16_us_forearm_l_bent",
+            3,
+            -0.048
+          ],
+          [
+            "us_large_p04_us_leg_l_bent",
+            "us_large_guts",
+            2,
+            -0.015
+          ],
+          [
+            "us_large_p16_us_forearm_l_bent",
+            "us_large_guts",
+            2,
+            -0.013
+          ],
+          [
+            "us_large_p01_us_torso_straight",
+            "us_large_p03_us_leg_l_straight",
+            1,
+            -0.027
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 88,
+      "atlas": "gore_pile_us_large_atlas.png",
+      "atlas_res": 1024,
+      "men_worth": 5,
+      "anchors": {
+        "fx_maggots_01": [
+          -0.035,
+          -0.019,
+          0.402
+        ],
+        "fx_maggots_02": [
+          0.065,
+          0.031,
+          0.382
+        ],
+        "fx_maggots_03": [
+          0.015,
+          -0.179,
+          0.342
+        ],
+        "fx_flies_01": [
+          -0.035,
+          -0.019,
+          0.652
+        ]
+      },
+      "cavity": [
+        -0.035,
+        -0.019,
+        0.402
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_us_large.glb",
+      "glb_bytes": 855692,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_us_large_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_us_large_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_us_large_top.png"
+      ],
+      "materials": [
+        "gore_pile_us_large_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_us_large",
+        "us_large_maggot_mass",
+        "gore_pile_us_large_000-colonly",
+        "us_large_fx_maggots_01",
+        "us_large_fx_maggots_02",
+        "us_large_fx_maggots_03",
+        "us_large_fx_flies_01"
+      ]
+    },
+    "nva_small": {
+      "tris": 869,
+      "budget": 900,
+      "pieces": [
+        {
+          "name": "gore_pile_nva_small",
+          "min_z": -0.0,
+          "contact": [
+            -0.098,
+            -0.218,
+            0.124
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.262,
+        1.113
+      ],
+      "height_m": 0.488,
+      "bbox_min": [
+        -0.631,
+        -0.557,
+        -0.0
+      ],
+      "bbox_max": [
+        0.631,
+        0.557,
+        0.488
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "nva_small_torso_open",
+          0.1318,
+          5.0,
+          5
+        ],
+        [
+          "nva_small_p00_nva_leg_r_straight",
+          -0.0,
+          0.0,
+          1
+        ],
+        [
+          "nva_small_p01_nva_leg_l_straight",
+          0.0,
+          2.5,
+          8
+        ],
+        [
+          "nva_small_p02_nva_leg_l_bent",
+          -0.0,
+          0.0,
+          6
+        ],
+        [
+          "nva_small_p03_nva_forearm_r_bent",
+          0.0335,
+          35.0,
+          1
+        ],
+        [
+          "nva_small_p04_nva_head_straight",
+          0.1998,
+          22.5,
+          5
+        ],
+        [
+          "nva_small_p05_nva_hat",
+          0.1649,
+          12.5,
+          10
+        ],
+        [
+          "nva_small_p07_nva_forearm_l_straight",
+          0.3395,
+          22.5,
+          7
+        ],
+        [
+          "nva_small_p08_nva_headfrag_02",
+          0.2336,
+          22.5,
+          4
+        ],
+        [
+          "nva_small_guts",
+          0.0124,
+          0.0,
+          0
+        ],
+        [
+          "nva_small_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "nva_small_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 802,
+        "verts_inside_gt_8mm": 63,
+        "worst_m": -0.0857,
+        "worst_pairs": [
+          [
+            "nva_small_p05_nva_hat",
+            "nva_small_p02_nva_leg_l_bent",
+            14,
+            -0.021
+          ],
+          [
+            "nva_small_p02_nva_leg_l_bent",
+            "nva_small_guts",
+            12,
+            -0.014
+          ],
+          [
+            "nva_small_liver",
+            "nva_small_p01_nva_leg_l_straight",
+            6,
+            -0.023
+          ],
+          [
+            "nva_small_p01_nva_leg_l_straight",
+            "nva_small_torso_open",
+            4,
+            -0.011
+          ],
+          [
+            "nva_small_p01_nva_leg_l_straight",
+            "nva_small_p02_nva_leg_l_bent",
+            4,
+            -0.086
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 77,
+      "atlas": "gore_pile_nva_small_atlas.png",
+      "atlas_res": 512,
+      "men_worth": 2,
+      "anchors": {
+        "fx_maggots_01": [
+          -0.076,
+          0.072,
+          0.253
+        ],
+        "fx_maggots_02": [
+          0.024,
+          0.122,
+          0.233
+        ],
+        "fx_maggots_03": [
+          -0.026,
+          -0.088,
+          0.193
+        ],
+        "fx_flies_01": [
+          -0.076,
+          0.072,
+          0.503
+        ]
+      },
+      "cavity": [
+        -0.076,
+        0.072,
+        0.253
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_nva_small.glb",
+      "glb_bytes": 340236,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_nva_small_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_nva_small_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_nva_small_top.png"
+      ],
+      "materials": [
+        "gore_pile_nva_small_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_nva_small",
+        "nva_small_maggot_mass",
+        "gore_pile_nva_small_000-colonly",
+        "nva_small_fx_maggots_01",
+        "nva_small_fx_maggots_02",
+        "nva_small_fx_maggots_03",
+        "nva_small_fx_flies_01"
+      ]
+    },
+    "nva_large": {
+      "tris": 1664,
+      "budget": 1800,
+      "pieces": [
+        {
+          "name": "gore_pile_nva_large",
+          "min_z": -0.0,
+          "contact": [
+            0.166,
+            -0.269,
+            0.404
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.648,
+        1.904
+      ],
+      "height_m": 0.742,
+      "bbox_min": [
+        -0.824,
+        -0.952,
+        -0.0
+      ],
+      "bbox_max": [
+        0.824,
+        0.952,
+        0.742
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "nva_large_torso_open",
+          0.305,
+          0.0,
+          1
+        ],
+        [
+          "nva_large_p00_nva_torso_straight",
+          0.0,
+          0.0,
+          6
+        ],
+        [
+          "nva_large_p01_nva_torso_straight",
+          -0.0,
+          2.5,
+          3
+        ],
+        [
+          "nva_large_p02_nva_leg_r_straight",
+          0.0542,
+          2.5,
+          4
+        ],
+        [
+          "nva_large_p03_nva_leg_l_straight",
+          0.0,
+          22.5,
+          6
+        ],
+        [
+          "nva_large_p04_nva_leg_l_bent",
+          0.2147,
+          17.5,
+          6
+        ],
+        [
+          "nva_large_p05_nva_leg_r_bent",
+          0.0,
+          7.5,
+          9
+        ],
+        [
+          "nva_large_p06_nva_leg_l_straight",
+          0.0696,
+          10.0,
+          4
+        ],
+        [
+          "nva_large_p07_nva_forearm_r_bent",
+          0.219,
+          2.5,
+          5
+        ],
+        [
+          "nva_large_p08_nva_forearm_r_straight",
+          -0.0,
+          32.5,
+          12
+        ],
+        [
+          "nva_large_p09_nva_uparm_r_straight",
+          0.0,
+          10.0,
+          2
+        ],
+        [
+          "nva_large_p10_nva_uparm_l_straight",
+          0.0881,
+          35.0,
+          2
+        ],
+        [
+          "nva_large_p11_nva_head_straight",
+          0.3248,
+          2.5,
+          1
+        ],
+        [
+          "nva_large_p12_nva_hat",
+          0.4195,
+          22.5,
+          7
+        ],
+        [
+          "nva_large_p13_nva_hat",
+          0.2007,
+          5.0,
+          8
+        ],
+        [
+          "nva_large_p15_nva_forearm_l_straight",
+          0.5289,
+          25.0,
+          7
+        ],
+        [
+          "nva_large_p16_nva_forearm_l_bent",
+          0.1355,
+          0.0,
+          19
+        ],
+        [
+          "nva_large_p17_nva_forearm_r_bent",
+          0.1067,
+          17.5,
+          10
+        ],
+        [
+          "nva_large_p18_nva_uparm_r_straight",
+          0.3221,
+          7.5,
+          2
+        ],
+        [
+          "nva_large_p19_nva_head_straight",
+          0.5403,
+          22.5,
+          3
+        ],
+        [
+          "nva_large_p20_nva_headfrag_02",
+          -0.0,
+          17.5,
+          3
+        ],
+        [
+          "nva_large_p21_nva_headfrag_05",
+          0.0,
+          0.0,
+          6
+        ],
+        [
+          "nva_large_p22_nva_headfrag_07",
+          0.0,
+          22.5,
+          22
+        ],
+        [
+          "nva_large_guts",
+          0.0099,
+          0.0,
+          0
+        ],
+        [
+          "nva_large_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "nva_large_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 1609,
+        "verts_inside_gt_8mm": 66,
+        "worst_m": -0.0881,
+        "worst_pairs": [
+          [
+            "nva_large_p12_nva_hat",
+            "nva_large_p18_nva_uparm_r_straight",
+            10,
+            -0.052
+          ],
+          [
+            "nva_large_p04_nva_leg_l_bent",
+            "nva_large_guts",
+            8,
+            -0.014
+          ],
+          [
+            "nva_large_guts",
+            "nva_large_p01_nva_torso_straight",
+            7,
+            -0.068
+          ],
+          [
+            "nva_large_p00_nva_torso_straight",
+            "nva_large_p06_nva_leg_l_straight",
+            6,
+            -0.047
+          ],
+          [
+            "nva_large_p00_nva_torso_straight",
+            "nva_large_p13_nva_hat",
+            6,
+            -0.064
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 85,
+      "atlas": "gore_pile_nva_large_atlas.png",
+      "atlas_res": 1024,
+      "men_worth": 5,
+      "anchors": {
+        "fx_maggots_01": [
+          0.035,
+          -0.046,
+          0.414
+        ],
+        "fx_maggots_02": [
+          0.135,
+          0.004,
+          0.394
+        ],
+        "fx_maggots_03": [
+          0.085,
+          -0.206,
+          0.354
+        ],
+        "fx_flies_01": [
+          0.035,
+          -0.046,
+          0.664
+        ]
+      },
+      "cavity": [
+        0.035,
+        -0.046,
+        0.414
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_nva_large.glb",
+      "glb_bytes": 804780,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_nva_large_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_nva_large_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_nva_large_top.png"
+      ],
+      "materials": [
+        "gore_pile_nva_large_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_nva_large",
+        "nva_large_maggot_mass",
+        "gore_pile_nva_large_000-colonly",
+        "nva_large_fx_maggots_01",
+        "nva_large_fx_maggots_02",
+        "nva_large_fx_maggots_03",
+        "nva_large_fx_flies_01"
+      ]
+    },
+    "vc_small": {
+      "tris": 859,
+      "budget": 900,
+      "pieces": [
+        {
+          "name": "gore_pile_vc_small",
+          "min_z": 0.0,
+          "contact": [
+            0.017,
+            0.209,
+            0.175
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.288,
+        1.282
+      ],
+      "height_m": 0.484,
+      "bbox_min": [
+        -0.644,
+        -0.641,
+        0.0
+      ],
+      "bbox_max": [
+        0.644,
+        0.641,
+        0.484
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "vc_small_torso_open",
+          0.1403,
+          2.5,
+          2
+        ],
+        [
+          "vc_small_p00_vc_leg_r_straight",
+          -0.0,
+          0.0,
+          1
+        ],
+        [
+          "vc_small_p01_vc_leg_l_straight",
+          -0.0,
+          2.5,
+          8
+        ],
+        [
+          "vc_small_p02_vc_leg_l_bent",
+          -0.0,
+          5.0,
+          7
+        ],
+        [
+          "vc_small_p03_vc_forearm_r_bent",
+          0.0453,
+          35.0,
+          1
+        ],
+        [
+          "vc_small_p04_vc_uparm_r_straight",
+          0.0,
+          10.0,
+          2
+        ],
+        [
+          "vc_small_p05_vc_head_straight",
+          0.1879,
+          22.5,
+          4
+        ],
+        [
+          "vc_small_p06_vc_hat",
+          0.1224,
+          22.5,
+          1
+        ],
+        [
+          "vc_small_p08_vc_forearm_l_straight",
+          0.3499,
+          25.0,
+          4
+        ],
+        [
+          "vc_small_p09_vc_forearm_l_bent",
+          0.0239,
+          12.5,
+          5
+        ],
+        [
+          "vc_small_guts",
+          0.011,
+          0.0,
+          0
+        ],
+        [
+          "vc_small_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "vc_small_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 547,
+        "verts_inside_gt_8mm": 34,
+        "worst_m": -0.1509,
+        "worst_pairs": [
+          [
+            "vc_small_guts",
+            "vc_small_torso_open",
+            7,
+            -0.12
+          ],
+          [
+            "vc_small_p01_vc_leg_l_straight",
+            "vc_small_p02_vc_leg_l_bent",
+            4,
+            -0.097
+          ],
+          [
+            "vc_small_p01_vc_leg_l_straight",
+            "vc_small_p04_vc_uparm_r_straight",
+            4,
+            -0.151
+          ],
+          [
+            "vc_small_p09_vc_forearm_l_bent",
+            "vc_small_p00_vc_leg_r_straight",
+            4,
+            -0.013
+          ],
+          [
+            "vc_small_p02_vc_leg_l_bent",
+            "vc_small_p01_vc_leg_l_straight",
+            3,
+            -0.074
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 64,
+      "atlas": "gore_pile_vc_small_atlas.png",
+      "atlas_res": 512,
+      "men_worth": 2,
+      "anchors": {
+        "fx_maggots_01": [
+          -0.082,
+          0.25,
+          0.27
+        ],
+        "fx_maggots_02": [
+          0.018,
+          0.3,
+          0.25
+        ],
+        "fx_maggots_03": [
+          -0.031,
+          0.09,
+          0.21
+        ],
+        "fx_flies_01": [
+          -0.082,
+          0.25,
+          0.52
+        ]
+      },
+      "cavity": [
+        -0.082,
+        0.25,
+        0.27
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_vc_small.glb",
+      "glb_bytes": 340048,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_vc_small_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_vc_small_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_vc_small_top.png"
+      ],
+      "materials": [
+        "gore_pile_vc_small_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_vc_small",
+        "vc_small_maggot_mass",
+        "gore_pile_vc_small_000-colonly",
+        "vc_small_fx_maggots_01",
+        "vc_small_fx_maggots_02",
+        "vc_small_fx_maggots_03",
+        "vc_small_fx_flies_01"
+      ]
+    },
+    "vc_large": {
+      "tris": 1539,
+      "budget": 1800,
+      "pieces": [
+        {
+          "name": "gore_pile_vc_large",
+          "min_z": -0.0,
+          "contact": [
+            0.166,
+            -0.269,
+            0.406
+          ]
+        }
+      ],
+      "footprint_m": [
+        1.649,
+        1.853
+      ],
+      "height_m": 0.765,
+      "bbox_min": [
+        -0.824,
+        -0.927,
+        -0.0
+      ],
+      "bbox_max": [
+        0.824,
+        0.927,
+        0.765
+      ],
+      "ok": true,
+      "ground_gate": [
+        [
+          "vc_large_torso_open",
+          0.305,
+          0.0,
+          2
+        ],
+        [
+          "vc_large_p00_vc_torso_straight",
+          0.0,
+          0.0,
+          2
+        ],
+        [
+          "vc_large_p01_vc_torso_straight",
+          0.0,
+          2.5,
+          2
+        ],
+        [
+          "vc_large_p02_vc_leg_r_straight",
+          0.0531,
+          2.5,
+          2
+        ],
+        [
+          "vc_large_p03_vc_leg_l_straight",
+          0.0,
+          22.5,
+          6
+        ],
+        [
+          "vc_large_p04_vc_leg_l_bent",
+          0.2523,
+          15.0,
+          1
+        ],
+        [
+          "vc_large_p05_vc_leg_r_bent",
+          -0.0,
+          7.5,
+          4
+        ],
+        [
+          "vc_large_p06_vc_leg_l_straight",
+          0.1404,
+          2.5,
+          4
+        ],
+        [
+          "vc_large_p07_vc_forearm_r_bent",
+          0.2192,
+          2.5,
+          2
+        ],
+        [
+          "vc_large_p08_vc_forearm_r_straight",
+          -0.0,
+          27.5,
+          20
+        ],
+        [
+          "vc_large_p09_vc_uparm_r_straight",
+          0.0,
+          5.0,
+          1
+        ],
+        [
+          "vc_large_p10_vc_uparm_l_straight",
+          0.1341,
+          35.0,
+          1
+        ],
+        [
+          "vc_large_p11_vc_head_straight",
+          0.3182,
+          10.0,
+          1
+        ],
+        [
+          "vc_large_p12_vc_hat",
+          0.3784,
+          22.5,
+          1
+        ],
+        [
+          "vc_large_p13_vc_hat",
+          0.1645,
+          5.0,
+          3
+        ],
+        [
+          "vc_large_p15_vc_forearm_l_straight",
+          0.5323,
+          27.5,
+          4
+        ],
+        [
+          "vc_large_p16_vc_forearm_l_bent",
+          0.1239,
+          5.0,
+          11
+        ],
+        [
+          "vc_large_p17_vc_forearm_r_bent",
+          0.1043,
+          20.0,
+          11
+        ],
+        [
+          "vc_large_p18_vc_uparm_r_straight",
+          0.4505,
+          7.5,
+          4
+        ],
+        [
+          "vc_large_p19_vc_head_straight",
+          0.5318,
+          22.5,
+          2
+        ],
+        [
+          "vc_large_guts",
+          0.0121,
+          0.0,
+          0
+        ],
+        [
+          "vc_large_liver",
+          0.0,
+          0.0,
+          0
+        ],
+        [
+          "vc_large_pool",
+          0.006,
+          0.0,
+          0
+        ]
+      ],
+      "penetration": {
+        "verts_tested": 941,
+        "verts_inside_gt_8mm": 161,
+        "worst_m": -0.1883,
+        "worst_pairs": [
+          [
+            "vc_large_p16_vc_forearm_l_bent",
+            "vc_large_guts",
+            39,
+            -0.058
+          ],
+          [
+            "vc_large_torso_open",
+            "vc_large_guts",
+            24,
+            -0.125
+          ],
+          [
+            "vc_large_p02_vc_leg_r_straight",
+            "vc_large_guts",
+            24,
+            -0.188
+          ],
+          [
+            "vc_large_p04_vc_leg_l_bent",
+            "vc_large_guts",
+            22,
+            -0.076
+          ],
+          [
+            "vc_large_p01_vc_torso_straight",
+            "vc_large_guts",
+            16,
+            -0.16
+          ]
+        ]
+      },
+      "tris_maggots": 12,
+      "tris_collider": 79,
+      "atlas": "gore_pile_vc_large_atlas.png",
+      "atlas_res": 1024,
+      "men_worth": 5,
+      "anchors": {
+        "fx_maggots_01": [
+          0.09,
+          0.052,
+          0.425
+        ],
+        "fx_maggots_02": [
+          0.19,
+          0.102,
+          0.405
+        ],
+        "fx_maggots_03": [
+          0.14,
+          -0.108,
+          0.365
+        ],
+        "fx_flies_01": [
+          0.09,
+          0.052,
+          0.675
+        ]
+      },
+      "cavity": [
+        0.09,
+        0.052,
+        0.425
+      ],
+      "glb": "assets/world/props/gore_piles/gore_pile_vc_large.glb",
+      "glb_bytes": 791188,
+      "renders": [
+        "production/renders_conquest_of_worms/gore_pile_vc_large_4m.png",
+        "production/renders_conquest_of_worms/gore_pile_vc_large_1p5m.png",
+        "production/renders_conquest_of_worms/gore_pile_vc_large_top.png"
+      ],
+      "materials": [
+        "gore_pile_vc_large_mat",
+        "gore_pile_maggots"
+      ],
+      "nodes": [
+        "gore_pile_vc_large",
+        "vc_large_maggot_mass",
+        "gore_pile_vc_large_000-colonly",
+        "vc_large_fx_maggots_01",
+        "vc_large_fx_maggots_02",
+        "vc_large_fx_maggots_03",
+        "vc_large_fx_flies_01"
+      ]
+    }
+  }
+}

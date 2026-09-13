@@ -10,7 +10,8 @@ Three variants, all in the one file (psx-npc-pipeline standing rule):
   michael      <- grenadier family (he carries the M79 "Thumper"), + a rifleman ruck
                   transplanted across, + journal_michael tucked under the ruck flap
   gus_arrival  <- rifleman family, kit REDUCED (no bandolier, one canteen)
-  gus_ears     <- gus_arrival + necklace_ears_gus + bag_gus (medic satchel, no crosses)
+  gus_ears     <- gus_arrival + bag_gus (medic satchel, no crosses); the necklace is hung
+                  afterwards by tools/dress_cow_gus_necklace.py from necklace_kit.blend
 
 Assembly only. No vertex of any donor body is touched; variants are placed by moving
 the ARMATURE OBJECT (psx-npc-pipeline FAILURE MODE 1).
@@ -30,13 +31,6 @@ OUT = os.path.join(CHAR, "conquest_of_worms_us_cast.blend")
 
 MICHAEL, GUS_A, GUS_E = "michael", "gus_arrival", "gus_ears"
 LAYOUT = {MICHAEL: 0.0, GUS_A: 3.0, GUS_E: 6.0}
-
-# Ear anthropometry, measured from the literature and cross-checked on three
-# populations: mean adult auricular height 63.4 mm (SD 6.2), width 33.8 mm (SD 6.3);
-# Indian males 61.1 mm, Singaporean Chinese males 60.7 mm. A pinna cut at its root
-# loses the concha attachment, so the trophy is shorter than the living ear.
-EAR_H, EAR_W, EAR_T = 0.070, 0.040, 0.005
-N_EARS = 7
 
 # French pocket carnet de route, the format Louie would have carried in 1915:
 # 9 x 14 cm ("pocket"). One documented poilu carnet de route runs 12 x 19 cm, which
@@ -351,155 +345,11 @@ print("BUILT journal_%s  %d v / %d p  dims %.3f x %.3f x %.3f  top z=%.3f (flap 
          *(jmx - jmn), jmx.z, fmx.z), flush=True)
 
 
-# --- 4b. necklace_ears_gus ---------------------------------------------------
-# Bible I3 p9: "the ears have become a necklace worn openly in camp."
-gx = LAYOUT[GUS_E]
-torso = D.objects["us_grunt_joined_" + GUS_E]
-dg = bpy.context.evaluated_depsgraph_get()
-ev = torso.evaluated_get(dg)
-
-
-def chest_front(z):
-    """Measure the front surface of the chest at height z. Object space, then back to
-    world (verify-in-object-space rule) - a world-space ray_cast answers a different
-    question."""
-    p_world = Vector((gx, -0.60, z))
-    p_local = torso.matrix_world.inverted() @ p_world
-    ok, loc, nor, idx = ev.closest_point_on_mesh(p_local)
-    if not ok:
-        raise SystemExit("ABORT: closest_point_on_mesh failed at z=%.3f" % z)
-    return (torso.matrix_world @ loc)
-
-
-for z in (1.50, 1.46, 1.42, 1.38, 1.34):
-    w = chest_front(z)
-    print("MEASURE chest front z=%.2f -> world (%.4f, %.4f, %.4f)"
-          % (z, w.x, w.y, w.z), flush=True)
-
-CH_Y = chest_front(1.40).y          # front skin of the sternum
-NECK_Z = 1.470                      # clavicle line (Neck bone head sits at z 1.5014)
-CORD_DROP = 0.145
-CORD_RX, CORD_RY = 0.105, 0.086
-CORD_R = 0.0042
-print("MEASURE sternum front y=%.4f  -> cord front y=%.4f" % (CH_Y, CH_Y - 0.016), flush=True)
-
-cord_mat = mat_flat("necklace_cord", (0.014, 0.011, 0.008), rough=0.95)
-# Dried/cured tissue, taken off real leather reference, not invented: "Dark Leather"
-# #532E21 = sRGB(83,46,33) -> linear (0.087,0.027,0.015); pushed one step darker still,
-# because VALUE is what separates the trophy from pale skin and pale fatigues at range.
-ear_mat = mat_flat("ear_flesh", (0.062, 0.022, 0.013), rough=0.90)
-
-SEG = 12
-
-
-def cord_point(t):
-    """t in [0,1); t=0 at the BACK of the neck, t=0.5 at the front."""
-    a = t * 2.0 * math.pi
-    x = gx + CORD_RX * math.sin(a)
-    y = -0.010 + CORD_RY * math.cos(a)
-    drop = CORD_DROP * ((1.0 - math.cos(a)) * 0.5) ** 1.25
-    # pull the front of the loop clear of the chest skin
-    if math.cos(a) < 0.0:
-        y = min(y, CH_Y - 0.016)
-    return Vector((x, y, NECK_Z - drop))
-
-
-verts, faces = [], []
-for i in range(SEG):
-    p = cord_point(i / float(SEG))
-    q = cord_point((i + 1) % SEG / float(SEG))
-    d = (q - p)
-    d.normalize()
-    side = d.cross(Vector((0, 0, 1)))
-    if side.length < 1e-6:
-        side = Vector((1, 0, 0))
-    side.normalize()
-    up = side.cross(d).normalized()
-    b = len(verts)
-    for pt in (p, q):
-        verts += [pt + side * CORD_R + up * CORD_R, pt - side * CORD_R + up * CORD_R,
-                  pt - side * CORD_R - up * CORD_R, pt + side * CORD_R - up * CORD_R]
-    faces += [(b + 0, b + 4, b + 5, b + 1), (b + 1, b + 5, b + 6, b + 2),
-              (b + 2, b + 6, b + 7, b + 3), (b + 3, b + 7, b + 4, b + 0)]
-me = D.meshes.new("necklace_cord")
-me.from_pydata(verts, [], faces)
-me.update()
-me.materials.append(cord_mat)
-cord = D.objects.new("necklace_cord", me)
-link(cord)
-
-# PINNA OUTLINE, traced off ear anatomy rather than invented. At this size the only
-# thing that says "ear" is the SILHOUETTE, and it has three features:
-#   * the helix - a long C sweeping up the front edge, over the top and down the back
-#   * the intertragic notch - the one CONCAVE bite in the outline, between the
-#     antitragus and the lobe. A convex blob reads as a petal; the notch is what stops it.
-#   * the lobule - a rounded bulge hanging below that notch
-# u is across the ear (front of the head is -u), v is up. Wound clockwise from the top.
-EAR_OUTLINE = [(-0.04, 0.50), (0.18, 0.46), (0.36, 0.30), (0.44, 0.08), (0.40, -0.14),
-               (0.26, -0.26), (0.20, -0.34),                       # antitragus
-               (0.24, -0.44), (0.10, -0.50), (-0.04, -0.42),       # lobule
-               (-0.10, -0.30), (-0.24, -0.20),                     # intertragic notch + tragus
-               (-0.34, 0.02), (-0.40, 0.24), (-0.30, 0.42)]
-# The concha bowl, on the front face only, one step darker. A flat card with no interior
-# reads as a chip of leather; the bowl is what makes it a specific object.
-EAR_CONCHA = [(0.02, 0.22), (0.20, 0.10), (0.20, -0.10), (0.06, -0.20), (-0.10, -0.10),
-              (-0.12, 0.10)]
-ear_inner_mat = mat_flat("ear_inner", (0.030, 0.011, 0.007), rough=0.92)
-ear_objs = []
-for k in range(N_EARS):
-    # spread over the front arc of the loop; the tilt is baked into the OUTLINE, never
-    # applied as an object rotation - the mesh is authored in world coords with an
-    # identity object transform, so an object rotation pivots about the world origin
-    # and throws the ear metres away. (Caught by the world-bbox print, not by eye.)
-    t = 0.16 + (0.68 * k / float(N_EARS - 1))
-    anchor = cord_point(t % 1.0)
-    nrm = Vector((0, -1, 0))
-    side = Vector((1, 0, 0))
-    ang = math.radians(((k * 37) % 41) - 20)
-    ca, sa = math.cos(ang), math.sin(ang)
-    zj = -0.006 * ((k * 5) % 3)
-    vs, fs = [], []
-    n = len(EAR_OUTLINE)
-
-    def place(u, v, depth):
-        uu = u * EAR_W
-        vv = v * EAR_H - EAR_H * 0.52 + zj
-        ru = uu * ca - vv * sa
-        rv = uu * sa + vv * ca
-        return anchor + side * ru + Vector((0, 0, 1)) * rv + nrm * depth
-
-    # mirror alternate ears so it reads as a mix of lefts and rights off different men
-    mir = -1.0 if (k % 2) else 1.0
-    for sgn in (1, -1):
-        for (u, v) in EAR_OUTLINE:
-            vs.append(place(u * mir, v, sgn * EAR_T * 0.5))
-    fs.append(tuple(range(n)))                       # front
-    fs.append(tuple(reversed(range(n, 2 * n))))      # back
-    for i in range(n):
-        j = (i + 1) % n
-        fs.append((i, j, n + j, n + i))
-    c0 = len(vs)
-    for (u, v) in EAR_CONCHA:
-        vs.append(place(u * mir, v, EAR_T * 0.5 + 0.0007))
-    fs.append(tuple(range(c0, c0 + len(EAR_CONCHA))))
-    m2 = D.meshes.new("ear_%02d" % k)
-    m2.from_pydata(vs, [], fs)
-    m2.update()
-    m2.materials.append(ear_mat)
-    m2.materials.append(ear_inner_mat)
-    m2.polygons[-1].material_index = 1
-    ear_objs.append(link(D.objects.new("ear_%02d" % k, m2)))
-
-necklace = join_into([cord] + ear_objs, "necklace_ears_" + GUS_E)
-bone_parent(necklace, rig_gus_e, "mixamorig:Spine2")
-nmn, nmx = wbb(necklace)
-print("BUILT necklace_ears_%s  %d v / %d p (%d tris)  world x[%.3f,%.3f] y[%.3f,%.3f] z[%.3f,%.3f]"
-      % (GUS_E, len(necklace.data.vertices), len(necklace.data.polygons),
-         sum(len(p.vertices) - 2 for p in necklace.data.polygons),
-         nmn.x, nmx.x, nmn.y, nmx.y, nmn.z, nmx.z), flush=True)
-print("       one ear = %.1f mm tall x %.1f mm wide (lit. lit. mean adult auricle 63.4 x 33.8 mm; "
-      "head mesh is %.1f mm tall)" % (EAR_H * 1000, EAR_W * 1000,
-                                      D.objects["grunt_head_" + GUS_E].dimensions.z * 1000), flush=True)
+# --- 4b. the necklace ---------------------------------------------------------
+# Bible I3 p9: "the ears have become a necklace worn openly in camp." Built and hung by
+# tools/build_necklace_kit.py + tools/dress_cow_gus_necklace.py (decree 2026-09-11: a
+# cord with 15 slots, ears as their own charm GLBs). Run the dresser on this file after
+# this script; nothing here welds ears onto him any more.
 
 
 # ---------------------------------------------------------------------------
