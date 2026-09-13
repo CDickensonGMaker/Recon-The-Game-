@@ -535,19 +535,26 @@ func _tick_opening() -> void:
 		if _clock < GATE_ORDER_AT_S:
 			return
 		_gate_order_issued = true
-		for a in squad.members:
+		# One point for eight men stacked six of them at 0.00 m on the gate for the whole
+		# opening (census 2026-09-13). Each man takes his own slot in a file leading out of
+		# the compound, the pointman on the gate itself.
+		for i in range(squad.members.size()):
+			var a: AllyBase = squad.members[i] as AllyBase
 			if is_instance_valid(a) and not a.is_dead():
-				a.set_order(AllyBase.OrderMode.MOVE_TO, gate)
+				a.set_order(AllyBase.OrderMode.MOVE_TO,
+					FriendlyPatrolGroup.file_slot(i, gate, d.fsb_center))
 		d.toast.emit("SQUAD MOVING OUT")
 		print("[DEMO] opening: squad ordered to the gate at %.0fs" % _clock)
 		return
 	var arrived: int = 0
 	var alive: int = 0
-	for a in squad.members:
+	for i in range(squad.members.size()):
+		var a: AllyBase = squad.members[i] as AllyBase
 		if not is_instance_valid(a) or a.is_dead():
 			continue
 		alive += 1
-		if a.global_position.distance_to(gate) <= GATE_ORDER_ARRIVE_M:
+		if a.global_position.distance_to(
+				FriendlyPatrolGroup.file_slot(i, gate, d.fsb_center)) <= GATE_ORDER_ARRIVE_M:
 			arrived += 1
 	var timed_out: bool = _clock >= GATE_ORDER_AT_S + GATE_ORDER_MAX_S
 	# Third expiry: the beat is "your squad leaving without you", and it is over the

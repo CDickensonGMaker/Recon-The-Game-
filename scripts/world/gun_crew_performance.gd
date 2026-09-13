@@ -94,7 +94,7 @@ func release_man(civ: Civilian) -> void:
 	if civ != null and is_instance_valid(civ) and civ.state != Civilian.CivState.GONE:
 		civ.puppet = false
 		civ.crew_driver = null
-		civ._last_clip = ""
+		civ._anim_key = ""
 	if _captured.is_empty():
 		_stop_piece()
 		_playing = false

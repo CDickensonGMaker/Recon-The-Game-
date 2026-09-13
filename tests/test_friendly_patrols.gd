@@ -105,10 +105,19 @@ func _check_they_move() -> void:
 	fp._advance_route()
 	if fp._wp != 1:
 		_fail("patrol did not advance to the next leg on arrival (wp = %d)" % fp._wp)
+	# Every man is re-ordered onto the new leg - and onto his OWN slot on it. A file of
+	# three behind the pointman spans FILE_SPACING_M * 2 back along the leg; an element
+	# sent to one identical point stacks at every waypoint (2026-09-13 council).
+	var reach: float = FriendlyPatrolGroup.FILE_SPACING_M * float(fp._men.size() - 1) 		+ FriendlyPatrolGroup.FILE_LATERAL_M + 0.01
+	var slots: Dictionary = {}
 	for man in fp._men:
 		var a: AllyBase = man
-		if a.order_pos != fp.route[1]:
-			_fail("a patrolman was not re-ordered onto the new leg")
+		if a.order_pos.distance_to(fp.route[1]) > reach:
+			_fail("a patrolman was ordered %.1fm off the new leg (file reach %.1fm)" % [
+				a.order_pos.distance_to(fp.route[1]), reach])
+		slots[a.order_pos] = true
+	if slots.size() != fp._men.size():
+		_fail("patrolmen share a slot: %d distinct order_pos for %d men" % [slots.size(), fp._men.size()])
 	# NEGATIVE CONTROL: a lead far from the waypoint must NOT advance the leg, or
 	# the element would teleport through its route regardless of walking.
 	var before: int = fp._wp

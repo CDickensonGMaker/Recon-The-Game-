@@ -30,19 +30,19 @@ func _make(pos: Vector3, occ: String) -> Civilian:
 	return c
 
 
-## Drive the schedule by hand: walk_paddy every frame, target = DEST. This keeps
-## the probe independent of SimClock's wall time. last_pick_hour must be pinned
-## to the CURRENT hour or _bt_tick's rollover refresh overwrites the hand-set
-## action with whatever the farmer template says at wall time.
+## Drive the schedule by hand: walk_paddy every frame, target = DEST. The clock is
+## parked inside the farmer's walk_paddy window (05:00-06:30) and paused, so the
+## schedule agrees with the hand-set action instead of re-picking over it.
 func _drive(civs: Array, frames: int) -> void:
 	var clock: Node = get_node_or_null(^"/root/SimClock")
-	var hour: float = float(clock.sim_hour) if clock != null else 12.0
+	if clock != null:
+		clock.paused = true
+		clock.sim_hour = 5.5
 	for _f in range(frames):
 		for x in civs:
 			var c: Civilian = x as Civilian
 			if c.state != CivScript.CivState.WANDER:
 				continue
-			c._bt_bb["last_pick_hour"] = hour
 			c._bt_bb["scheduled_action"] = &"walk_paddy"
 			c._bt_bb["target_pos"] = DEST
 			c._bt_tick(DT)

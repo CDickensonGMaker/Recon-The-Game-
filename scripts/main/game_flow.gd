@@ -770,6 +770,12 @@ func enter_hub() -> void:
 			push_warning("[ROOF-PROBE] probe_roof_spawn.gd absent in this build")
 		else:
 			world.add_child(roof.new())
+	if args.has("--npc-census"):
+		var census: GDScript = load("res://tools/probe_npc_census.gd") as GDScript
+		if census == null:
+			push_warning("[NPC-CENSUS] probe_npc_census.gd absent in this build")
+		else:
+			world.add_child(census.new())
 	if args.has("--pen-probe"):
 		var pen: GDScript = load("res://tools/probe_firebase_penetration.gd") as GDScript
 		if pen == null:

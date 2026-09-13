@@ -1787,6 +1787,12 @@ func _poll_firebase_threat() -> void:
 ## The garrison stands to and fights. Each firebase Civilian hands off 1:1 to an
 ## AllyBase holding his post (GarrisonDefender.promote). Idempotent while stood-to;
 ## re-armed by _garrison_stand_down (siege dawn, or the alarm all-clear above).
+## Held by the NPC census only (tools/probe_npc_census.gd): it measures camp life, and a
+## stand-to turned the whole garrison into defenders between its samples (2026-09-13).
+## Nothing in the game sets it.
+var stand_to_held: bool = false
+
+
 ## Doors in: siege, the multi-man wire poll, a delivery into a fight, and
 ## garrison_alarm() - a soldier who HEARS enemy fire or takes a hit answers it
 ## (Summoner ruling 2026-08-04: garrison men are soldiers, not civilians).
@@ -1798,7 +1804,7 @@ func _garrison_stand_to() -> void:
 	# men promote, so a settled garrison costs one empty iteration. The IN-FLIGHT guard is
 	# the real mutual exclusion - this function awaits the spawn token, so two overlapping
 	# calls would hand the same civilian to promote() twice.
-	if _standing_to:
+	if _standing_to or stand_to_held:
 		return
 	_standing_to = true
 	var first: bool = not _garrison_stood_to

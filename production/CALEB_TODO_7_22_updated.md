@@ -2585,3 +2585,18 @@ fight). Say which.
   head nod, no lip sync. Not started: the cow_* cast files are uncommitted in the tree from
   another session (conquest_of_worms_us_cast.blend, cow_gus_*.glb, cow_michael_*.glb, renders)
   - which session owns them, and is it finished, before an agent opens that blend?
+
+## THE NPC FIRST BATCH — cooks aim at the stove now, your squad files out of the gate, and the men who cannot leave their quarters are named (2026-09-13)
+
+Built from your 40-minute demo handoff (saved as production/DEMO_40MIN_HANDOFF_2026-09-13.md). Council record: production/war_room/2026-09-13_npc_first_batch/ (results.md holds the numbers). The computer froze mid-build; the evening session finished and gated it.
+
+What changed in play: a mess cook is sent to his range, a sentry to his post, off-duty men to the seat or pit their job names; the schedule re-picks at fractional boundaries (the 19:30 / 19:54 / 20:18 supper sittings used to be skipped); a stationary change of job re-dresses the man; the chow sit-down timer cannot land on a man who has walked off; ambient patrols AND YOUR OWN SQUAD leaving the gate walk in a staggered file instead of stacking on one point (six men stood inside each other at the gate for the whole opening); a defender who survives the night goes home, not back to the wire; the Huey replacements no longer walk toward the map edge.
+
+Measured on the shipped seed, four samples, same instrument before and after: men aiming at the wrong place 61 -> 0; overlapping bodies 64 -> 25; men on roofs 0.
+
+What it did NOT fix, and it is the next blocker: about 24 garrison men (the six detail men, both night sentries, both cooks, the off-duty group) now aim at the right post and never move. They stood still before the batch too. They have no walkable route out of their quarters (the nav answers "no path" and they walk into the wall). That is the placement / nav-connectivity work, N2 in your handoff. The cook now points at the stove and still stands in his hooch.
+
+**YOUR CALLS:**
+- The census probe holds the garrison stand-to for its run (a wire poll promoted 46 men mid-census and the probe read an empty camp as clean). It is a probe-only switch on FieldDirector. Fine as is, or do you want the alarm measured too?
+- Three tests were already red before this batch and are not on the runner red list: the group walk closes 4.0 m where it wants 5; the friendly-patrol test crashes in the terrain watchdog on an empty heightmap; the garrison test counts the 17 pre-warmed reinforcement men parked off-map and says the firebase was populated twice. Fix them next, or list them as known red?
+- Branches, per your ruling: the batch is committed on BaseGame-V1 and merged into RPG-build; both pushed under their own names; origin/master left where it was. Say if master should follow BaseGame-V1.

@@ -105,8 +105,7 @@ func _run() -> void:
 		return
 	print("Negative control: PASS (unknown action fell through to idle)")
 
-	# 7. The schedule must actually drive the tree across the day. Each hour is
-	# ticked twice: the pick only refreshes on an integer-hour change.
+	# 7. The schedule must actually drive the tree across the day.
 	var seen: Dictionary = {}
 	for h in range(0, 24):
 		clock.sim_hour = float(h) + 0.5
@@ -123,6 +122,81 @@ func _run() -> void:
 		return
 	print("Day sweep: PASS (%d distinct actions: %s)" % [seen.size(), seen.keys()])
 
+	# 8. FRACTIONAL WINDOWS. The supper sittings open at 19.5 / 19.9 / 20.3 and last 0.4 h;
+	# a pick that only refreshes on the integer hour misses a whole sitting. Sweep the evening
+	# in 0.02 h steps, one tick each, and the live action must agree with the schedule at
+	# EVERY step - not just at h+0.5.
+	var diner: Civilian = CivScript.new()
+	diner.name = "diner_%d" % 7
+	diner.home = Vector3(100, 0, 100)
+	diner.working_point_pos = Vector3(130, 0, 100)
+	diner.occupation = "mess_hall"
+	diner.is_garrison = true
+	add_child(diner)
+	diner.global_position = Vector3(100, 0, 100)
+	diner.build_bt()
+	var evening_seen: Dictionary = {}
+	var h_f: float = 19.4
+	while h_f < 20.8:
+		clock.sim_hour = h_f
+		diner._bt_tick(0.016)
+		var want_f: StringName = SchedulesScript.action_for("mess_hall", h_f, String(diner.name))
+		if diner.scheduled_action() != want_f:
+			print("FAIL: %.2fh -> scheduled %s, schedule says %s (fractional window missed)" % [
+				h_f, diner.scheduled_action(), want_f])
+			get_tree().quit(1)
+			return
+		evening_seen[String(want_f)] = true
+		h_f += 0.02
+	if not evening_seen.has("work"):
+		print("FAIL: the diner's supper sitting never opened between 19.4 and 20.8: %s" % [evening_seen.keys()])
+		get_tree().quit(1)
+		return
+	print("Fractional sweep: PASS (19.4-20.8h at 0.02h steps, actions: %s)" % [evening_seen.keys()])
+
+	# 9. THE COOK COOKS AT THE STOVE. A garrison mess_cook's working point IS his range; the
+	# schedule's `cook` must resolve there, not to his hooch (the 2026-09-13 wrong-place defect).
+	var cook: Civilian = CivScript.new()
+	cook.home = Vector3(200, 0, 200)
+	cook.working_point_pos = Vector3(240, 0, 210)
+	cook.occupation = "mess_cook"
+	cook.is_garrison = true
+	add_child(cook)
+	cook.global_position = cook.home
+	cook.build_bt()
+	clock.sim_hour = 10.5
+	cook._bt_tick(0.016)
+	var cook_target: Vector3 = cook._bt_bb.get("target_pos", Vector3.ZERO)
+	if cook.scheduled_action() != &"cook":
+		print("FAIL: mess_cook at 10.5h scheduled %s, expected cook" % cook.scheduled_action())
+		get_tree().quit(1)
+		return
+	if cook_target.distance_to(cook.working_point_pos) > 0.1:
+		print("FAIL: cook resolves to %s, %.1fm from his range at %s" % [
+			cook_target, cook_target.distance_to(cook.working_point_pos), cook.working_point_pos])
+		get_tree().quit(1)
+		return
+	# Negative control: asleep he goes home - and home is SHARED quarters, so he gets his
+	# own spot near it, never the marker itself.
+	clock.sim_hour = 23.0
+	cook._bt_tick(0.016)
+	var bed: Vector3 = cook._bt_bb.get("target_pos", Vector3.ZERO)
+	var d_bed: float = bed.distance_to(cook.home)
+	if d_bed > 3.5 or d_bed < 0.5:
+		print("FAIL: asleep the cook should resolve 0.5-3.5m from home, got %.2fm" % d_bed)
+		get_tree().quit(1)
+		return
+	# Determinism: the same man resolves the same bed every time (ADR-010).
+	cook._bt_bb["scheduled_action"] = &"__reset__"
+	cook._bt_tick(0.016)
+	if cook._bt_bb.get("target_pos", Vector3.ZERO) != bed:
+		print("FAIL: the cook's bed moved between two identical picks - an unseeded roll survives")
+		get_tree().quit(1)
+		return
+	print("Cook target: PASS (cook -> his range exactly; sleep -> his own spot by shared quarters, deterministic)")
+
 	civ.queue_free()
+	diner.queue_free()
+	cook.queue_free()
 	print("=== STEP 2 PASS ===")
 	get_tree().quit(0)

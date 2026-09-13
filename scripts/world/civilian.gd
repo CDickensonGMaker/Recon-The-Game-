@@ -30,7 +30,11 @@ var _wander_target: Vector3
 var _saw_player_at: Vector3 = Vector3.ZERO
 var _inform_clock: float = -1.0
 var actor: ModelActor = null
-var _last_clip: String = ""
+## want | scheduled action | role: the three axes the clip pickers below branch on. Keyed on
+## the posture alone, a stationary change of job (work -> cook, rest -> talk) never re-dressed.
+var _anim_key: String = ""
+## Bumped on every re-dress; a delayed transition (the chow sit-down) fires only against its own.
+var _anim_gen: int = 0
 ## Per-villager unarmed idle, picked deterministically at spawn so a village is a
 ## crowd of individuals and not four copies of one pose (ADR-010: same seed, same ville).
 var _idle_variant: String = "idle_unarmed_2"
@@ -611,18 +615,17 @@ func _animate() -> void:
 				want = "walking_unarmed" if moving else "stooped"
 			_:
 				want = "walking_unarmed" if moving else "idle"
-	if want == _last_clip:
+	var key: String = want + "|" + String(scheduled_action()) + "|" + role
+	if key == _anim_key:
 		return
-	_last_clip = want
+	_anim_key = key
+	_anim_gen += 1
+	var before: String = actor.current_action
 	if is_garrison:
 		# The working party fills sandbags; the seedling is a village prop only.
 		_set_seedling(false)
 		_play_garrison(want)
-		# HIS OWN PHASE, HIS OWN SPEED. Every garrison man is spawned in one frame and starts
-		# his loop at frame 0, so two men who draw the same variant are twins down to the
-		# frame ("lots of them are doing things in sync at the same time so it looks weird").
-		if actor != null and is_instance_valid(actor):
-			actor.desync_loop(_idle_seed ^ hash(want))
+		_desync_if_changed(before, want)
 		return
 	# CIVILIAN CHAINS CARRY NO ARMED CLIP. `idle` and `idle_crouching` are the
 	# RIFLEMAN idle and the rifleman weapon crouch - with either at the head of a
@@ -636,6 +639,7 @@ func _animate() -> void:
 		var act: StringName = scheduled_action()
 		if act == &"sit" and occupation == "elder":
 			actor.play_first(_rotate(["praying", "praying_b", "sitting_idle_b"]))
+			_desync_if_changed(before, want)
 			return
 		if VILLAGE_ACTION_CLIPS.has(act):
 			var played: String = actor.play_first(_rotate(VILLAGE_ACTION_CLIPS[act] as Array))
@@ -643,6 +647,7 @@ func _animate() -> void:
 			# degraded to its idle tail he is standing about, and a bundle in the fist
 			# would be the prop asserting work the body is not doing.
 			_set_seedling(act == &"work" and played == "plant_seeds")
+			_desync_if_changed(before, want)
 			return
 	_set_seedling(false)
 	match want:
@@ -662,7 +667,15 @@ func _animate() -> void:
 			actor.play_first(["walking_unarmed", "running_unarmed"])
 		_:
 			actor.play_first([_idle_variant, "idle_unarmed"])
-	# Same reason as the garrison branch above: a ville of sixteen must not breathe in unison.
+	_desync_if_changed(before, want)
+
+
+## HIS OWN PHASE, HIS OWN SPEED - but only when the clip actually changed. Every man is spawned
+## in one frame and starts his loop at frame 0, so two men on one clip are twins down to the
+## frame; re-seeking a clip that did not change is a visible pop.
+func _desync_if_changed(before: String, want: String) -> void:
+	if actor == null or not is_instance_valid(actor) or actor.current_action == before:
+		return
 	actor.desync_loop(_idle_seed ^ hash(want))
 
 
@@ -840,9 +853,7 @@ func _play_garrison(want: String) -> void:
 				_chow_seated = true
 				if actor.play_first(["chow_sit_down"]) != "":
 					get_tree().create_timer(CHOW_SIT_S).timeout.connect(
-						func() -> void:
-							if actor != null and is_instance_valid(actor):
-								actor.play_first(table))
+						_chow_sit_done.bind(_anim_gen, table))
 					return
 			actor.play_first(table)
 			return
@@ -874,6 +885,19 @@ func _play_garrison(want: String) -> void:
 			actor.play_first(["walk_forward", "walking_unarmed"])
 		_:
 			actor.play_first(["idle", "idle_unarmed"])
+
+
+## The table hold after the sit-down beat. Dropped if the man has been re-dressed since
+## (walked, fled, been re-scheduled) or has stood up: a stale beat must never land on a
+## later state.
+func _chow_sit_done(gen: int, table: Array[String]) -> void:
+	if gen != _anim_gen or not _chow_seated:
+		return
+	if actor == null or not is_instance_valid(actor):
+		return
+	var before: String = actor.current_action
+	actor.play_first(table)
+	_desync_if_changed(before, "seated")
 
 
 ## Attach/free the e-tool on the man's own skeleton. Parented under the rig's hand
@@ -996,6 +1020,10 @@ func _set_shovel(on: bool) -> void:
 	_shovel = att
 
 
+## Closer than this and he has arrived; must sit under WORK_ARRIVE_M or a settle never succeeds.
+const STOP_M: float = 0.35
+
+
 func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 	# Routing is for the men you can see walking. A villager 300m out crossing a paddy has
 	# nothing to path around, and a populated AO carries 16-40 of them - each path query is
@@ -1003,10 +1031,13 @@ func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 	var dir: Vector3 = _router.step(global_position, target) if lod_tier == LOD_FULL \
 		else (target - global_position)
 	dir.y = 0
-	if dir.length() > 1.0:
-		dir = dir.normalized()
-		velocity.x = lerpf(velocity.x, dir.x * speed, delta * 6.0)
-		velocity.z = lerpf(velocity.z, dir.z * speed, delta * 6.0)
+	var dist: float = dir.length()
+	if dist > STOP_M:
+		# Full speed beyond a metre, proportional inside it: a man stops ON his marker
+		# instead of coasting to rest short of it.
+		var want: Vector3 = dir / dist * speed * minf(1.0, dist)
+		velocity.x = lerpf(velocity.x, want.x, delta * 6.0)
+		velocity.z = lerpf(velocity.z, want.z, delta * 6.0)
 	else:
 		velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
 		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
@@ -1162,7 +1193,6 @@ func build_bt() -> void:
 		CivilianSchedulesS.ACTION_TALK: talk,
 	}
 	_bt_bb["by_action"] = by_action
-	_bt_bb["last_pick_hour"] = -1.0
 	_bt_bb["home"] = home
 	_bt = BTSelectorS.new([
 		BTActionS.new(Callable(self, "_bt_dispatch"), "dispatch"),
@@ -1216,16 +1246,20 @@ func _bt_dispatch(civ: Civilian, bb: Dictionary) -> int:
 func _bt_tick(delta: float) -> void:
 	if _bt == null:
 		build_bt()
-	# Refresh the schedule pick each sim hour so the BT walks the civilian
-	# toward a new working_point when the period rolls over.
-	var hour: float = _read_sim_hour()
-	var last_hour: float = float(_bt_bb.get("last_pick_hour", -1.0))
-	if int(hour) != int(last_hour):
-		_bt_bb["last_pick_hour"] = hour
-		# The man's own node name, the same identity the work offset derives from below
-		# (:870) - it is what makes his mess sitting identical every run.
-		var picked: StringName = CivilianSchedulesS.action_for(occupation, hour, String(name))
+	# Re-pick the moment the schedule's answer changes, or the places it was resolved from
+	# move. The windows are fractional (a supper sitting is 0.4 h), so a refresh on the integer
+	# hour missed whole sittings; and a replacement is handed his bunk AFTER his first tick
+	# (heli_lift._deliver), so a target resolved from his flight-origin home walked him back
+	# off the map. The man's own node name is the identity his sitting and his spot derive
+	# from (ADR-010).
+	var picked: StringName = CivilianSchedulesS.action_for(occupation, _read_sim_hour(),
+		String(name))
+	if picked != StringName(_bt_bb.get("scheduled_action", &"")) \
+			or (_bt_bb.get("resolved_home", Vector3.INF) as Vector3) != home \
+			or (_bt_bb.get("resolved_post", Vector3.INF) as Vector3) != working_point_pos:
 		_bt_bb["scheduled_action"] = picked
+		_bt_bb["resolved_home"] = home
+		_bt_bb["resolved_post"] = working_point_pos
 		_bt_bb["target_pos"] = _resolve_target(picked)
 	_bt_bb["delta"] = delta
 	_bt.tick(self, _bt_bb)
@@ -1352,18 +1386,45 @@ func place_for_current_hour() -> void:
 	_wander_target = target
 
 
-func _resolve_target(action: StringName) -> Vector3:
-	# Working_point is the only position-bound location today. Other actions
-	# (fire/market/home) fall back to home with a small wander. Every return is
-	# clamped through the guarded helper - a marker inside a carved hut footprint
-	# is a destination no body can stand on, and place_for_current_hour teleports
-	# straight to this value.
+## Garrison occupations whose working point is also where they rest, sit and talk: a seat
+## marker, a pit, a set, a ward. Everyone else loafs by his quarters.
+const POST_OFF_DUTY: Array[String] = [
+	"off_duty", "mess_hall", "gun_crew", "gun_crew_arty", "radioman", "medic", "patient",
+]
+const HOME_SPREAD_MIN_M: float = 1.0
+const HOME_SPREAD_MAX_M: float = 3.0
+
+
+## Whether `action` binds this man to his working point. The census probe carries the same
+## table on purpose, so it can disagree with this function.
+func _post_bound(action: StringName) -> bool:
+	if working_point_pos == Vector3.ZERO:
+		return false
 	if action == CivilianSchedulesS.ACTION_WALK_PADDY or action == CivilianSchedulesS.ACTION_WORK \
 			or action == CivilianSchedulesS.ACTION_FISH:
-		if working_point_pos != Vector3.ZERO:
-			return _router.nearest_mesh_point(working_point_pos)
-	return _router.nearest_mesh_point(
-		home + Vector3(randf_range(-3.0, 3.0), 0, randf_range(-3.0, 3.0)))
+		return true
+	if not is_garrison:
+		return false
+	if action == CivilianSchedulesS.ACTION_COOK:
+		return true
+	if action == CivilianSchedulesS.ACTION_REST or action == CivilianSchedulesS.ACTION_SIT \
+			or action == CivilianSchedulesS.ACTION_TALK:
+		return POST_OFF_DUTY.has(occupation)
+	return false
+
+
+## A post is exact. Quarters are shared, so every man gets his own spot by them, from his
+## own name (ADR-010: never Time, never an unseeded roll). Every return is clamped through
+## the guarded helper - a marker inside a carved hut footprint is a destination no body can
+## stand on, and place_for_current_hour teleports straight to this value.
+func _resolve_target(action: StringName) -> Vector3:
+	if _post_bound(action):
+		return _router.nearest_mesh_point(working_point_pos)
+	var h: int = absi(hash(String(name) + "/home"))
+	var a: float = float(h % 360) * (TAU / 360.0)
+	var r: float = HOME_SPREAD_MIN_M + float((h / 360) % 100) / 100.0 \
+		* (HOME_SPREAD_MAX_M - HOME_SPREAD_MIN_M)
+	return _router.nearest_mesh_point(home + Vector3(cos(a), 0.0, sin(a)) * r)
 
 
 # ---- BT actions ------------------------------------------------------------
@@ -1380,62 +1441,32 @@ func _bt_do_idle(_civ: Civilian, bb: Dictionary) -> int:
 	_wander_target = global_position
 	return BTNodeS.BTStatus.SUCCESS
 
+## The walks go where the schedule resolved them, like every other action: a fixed offset
+## from a SHARED home put every man of one hooch on the same square metre of fire.
+const WALK_HOME_SPEED: float = 1.6
+const WALK_OUT_SPEED: float = 1.4
+
 func _bt_walk_home(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"walk_home"
-	bb["speed"] = 1.6
-	_wander_target = home
-	if global_position.distance_to(home) < 1.5:
-		return BTNodeS.BTStatus.SUCCESS
-	return BTNodeS.BTStatus.RUNNING
+	return _bt_settle(&"walk_home", bb, WALK_HOME_SPEED)
 
 func _bt_walk_working(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"walk_paddy"
-	bb["speed"] = 1.4
-	_wander_target = bb.get("target_pos", working_point_pos) if bb.has("target_pos") else working_point_pos
-	if global_position.distance_to(_wander_target) < 1.5:
-		return BTNodeS.BTStatus.SUCCESS
-	return BTNodeS.BTStatus.RUNNING
+	return _bt_settle(&"walk_paddy", bb, WALK_OUT_SPEED)
 
 func _bt_walk_fire(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"walk_fire"
-	bb["speed"] = 1.4
-	var fire := home + Vector3(2.0, 0, 2.0)
-	_wander_target = fire
-	if global_position.distance_to(fire) < 1.5:
-		return BTNodeS.BTStatus.SUCCESS
-	return BTNodeS.BTStatus.RUNNING
+	return _bt_settle(&"walk_fire", bb, WALK_OUT_SPEED)
 
 func _bt_walk_market(_civ: Civilian, bb: Dictionary) -> int:
-	active_action = &"walk_market"
-	bb["speed"] = 1.4
-	_wander_target = home + Vector3(-3.0, 0, 4.0)
-	if global_position.distance_to(_wander_target) < 1.5:
-		return BTNodeS.BTStatus.SUCCESS
-	return BTNodeS.BTStatus.RUNNING
+	return _bt_settle(&"walk_market", bb, WALK_OUT_SPEED)
 
-## A post is somewhere to BE. This used to freeze the man wherever he already stood, which
-## is why twelve scheduled actions collapsed into four behaviours and why the firebase night
-## shift only LOOKED manned - place_for_current_hour() teleports everyone at spawn, so the
-## sentries, gun crew, radioman and quartermaster appeared on station and then never walked
-## to one again for the rest of the night. The 487 work markers (measured 2026-08-24) were
-## already resolved into bb["target_pos"] every sim hour and nothing read them.
-## ARRIVE MUST BE SMALLER THAN JITTER, or the anti-overlap offset cannot ever produce a
-## step: place_for_current_hour teleports a man ONTO his raw marker, _bt_settle then aims him
-## 1.5m off it, and a 1.6m arrive radius reported SUCCESS on frame one. Two men sharing a
-## marker stayed stacked and nobody ever walked to a post all day (measured 2026-09-09).
+## Arrival radius; STOP_M sits under it so the walk can end inside it.
 const WORK_ARRIVE_M: float = 0.7
-const WORK_JITTER_M: float = 1.5
 const WORK_SPEED: float = 1.1
 
 
-## THE ONE SETTLE IMPLEMENTATION. There were SEVEN of these and they were byte-identical
-## freezes, so twelve scheduled actions collapsed into four behaviours: the cook cooked wherever
-## he happened to be standing, the sleeper slept on his feet in the open, and the firebase night
-## shift only LOOKED manned because place_for_current_hour() teleports everyone at spawn.
-## `bb["target_pos"]` was resolved from the marker set every sim hour and read by nothing.
-##
-## Walk there, then hold. The destination is whatever the schedule resolved for THIS action, so
-## this function never needs to know which action it is serving.
+## THE ONE SETTLE IMPLEMENTATION. Walk to whatever the schedule resolved for THIS action, then
+## hold. A post is exact - the firebase deals one station per man and the village deals its
+## work points without replacement - and quarters already carry a per-man spread from
+## _resolve_target, so nothing is added here.
 func _bt_settle(action: StringName, bb: Dictionary, speed: float) -> int:
 	active_action = action
 	var dest: Vector3 = bb.get("target_pos", Vector3.ZERO)
@@ -1449,11 +1480,7 @@ func _bt_settle(action: StringName, bb: Dictionary, speed: float) -> int:
 		_wander_target = home
 		return BTNodeS.BTStatus.RUNNING
 	if dest != Vector3.ZERO:
-		# Two men sent to one marker must not stand in each other. The offset comes from the
-		# name so it is identical every run (ADR-010 - never Time, never an unseeded roll).
-		var a: float = float(absi(hash(name)) % 360) * (TAU / 360.0)
-		var at: Vector3 = _router.nearest_mesh_point(
-			dest + Vector3(cos(a), 0.0, sin(a)) * WORK_JITTER_M)
+		var at: Vector3 = _router.nearest_mesh_point(dest)
 		if global_position.distance_to(at) > WORK_ARRIVE_M:
 			bb["speed"] = speed
 			_wander_target = at

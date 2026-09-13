@@ -12,6 +12,10 @@ extends LazyGroup
 var route: Array[Vector3] = []
 ## Arrival tolerance. Wider than the squad's, because nobody is dressing on him.
 const WAYPOINT_REACHED_M: float = 6.0
+## The element walks a staggered file: man i is FILE_SPACING_M * i behind the pointman on the
+## leg, offset FILE_LATERAL_M to alternate sides. One shared waypoint stacked them at every leg.
+const FILE_SPACING_M: float = 2.5
+const FILE_LATERAL_M: float = 0.8
 ## A man who has seen an enemy this recently counts the element as in contact.
 const CONTACT_TTL_MS: float = 10000.0
 
@@ -49,11 +53,12 @@ func _spawn_men() -> void:
 	# AllyBase defaults to FOLLOW (ally_base.gd:152), which walks to the player.
 	# These men are not his: every one of them is taken off the follow chain here,
 	# and a routeless element holds its ground rather than falling back to it.
-	for man in _men:
+	for i in range(_men.size()):
 		if route.is_empty():
-			man.set_order(AllyBase.OrderMode.HOLD)
+			_men[i].set_order(AllyBase.OrderMode.HOLD)
 		else:
-			man.set_order(AllyBase.OrderMode.MOVE_TO, route[0])
+			_men[i].set_order(AllyBase.OrderMode.MOVE_TO,
+				file_slot(i, route[0], global_position))
 	# LazyGroup halts physics once the men exist; this element keeps walking and
 	# keeps score, so it must tick on.
 	call_deferred("set_physics_process", true)
@@ -87,10 +92,27 @@ func _advance_route() -> void:
 		return
 	if lead.global_position.distance_to(route[_wp]) > WAYPOINT_REACHED_M:
 		return
+	var from: Vector3 = route[_wp]
 	_wp = (_wp + 1) % route.size()
-	for man in _men:
+	for i in range(_men.size()):
+		var man: AllyBase = _men[i]
 		if man != null and is_instance_valid(man) and not man.is_dead():
-			man.set_order(AllyBase.OrderMode.MOVE_TO, route[_wp])
+			man.set_order(AllyBase.OrderMode.MOVE_TO, file_slot(i, route[_wp], from))
+
+
+## Man i's slot on the leg from `from` to `to`: the pointman on the waypoint, the rest in a
+## staggered file behind him along the leg. Static: the demo's gate order files the player's
+## own squad out of the compound with it (demo_game.gd), so there is one file, not two.
+static func file_slot(i: int, to: Vector3, from: Vector3) -> Vector3:
+	if i == 0:
+		return to
+	var leg := Vector3(to.x - from.x, 0.0, to.z - from.z)
+	if leg.length_squared() < 0.01:
+		leg = Vector3.FORWARD
+	var back: Vector3 = -leg.normalized()
+	var side := Vector3(-back.z, 0.0, back.x)
+	var lateral: float = FILE_LATERAL_M if i % 2 == 1 else -FILE_LATERAL_M
+	return to + back * FILE_SPACING_M * float(i) + side * lateral
 
 
 func _first_living() -> AllyBase:

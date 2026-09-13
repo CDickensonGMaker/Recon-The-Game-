@@ -72,33 +72,43 @@ func _check_one(body: Node3D) -> void:
 	var space: PhysicsDirectSpaceState3D = _world.get_world_3d().direct_space_state
 	if space == null:
 		return
+	var verdict: String = roof_verdict(space, body)
+	if verdict == "":
+		return
+	_fails += 1
+	print("  [FAIL] %s %s" % [body.name, verdict])
+
+
+## THE ONE ROOF TEST. "" when the man stands on ground, a step, a berm lip or a floor under a
+## roof; otherwise a sentence naming the surface and the room under it. Shared with
+## probe_npc_census.gd so two probes cannot disagree about what a roof is.
+static func roof_verdict(space: PhysicsDirectSpaceState3D, body: Node3D) -> String:
 	var feet: Vector3 = body.global_position
 	var floor_hit: Dictionary = _cast(space, feet + Vector3.UP * 0.5,
 		feet + Vector3.DOWN * FOOT_REACH_M, body)
 	if floor_hit.is_empty():
-		return   # airborne or falling: not this probe's gate
+		return ""   # airborne or falling: not this test's gate
 	var floor_pos: Vector3 = floor_hit.position
 	var support: String = _body_name(floor_hit.collider)
 	if _is_ground(support):
-		return
+		return ""
 	# A structure surface is only a roof if there is a room under it.
 	var under: Dictionary = _cast(space, floor_pos + Vector3.DOWN * 0.15,
 		floor_pos + Vector3.DOWN * UNDER_REACH_M, body)
 	if under.is_empty():
-		return
+		return ""
 	var gap: float = floor_pos.y - (under.position as Vector3).y
 	if gap < ROOM_HEADROOM_M:
-		return
+		return ""
 	var over: Dictionary = _cast(space, feet + Vector3.UP * 0.5,
 		feet + Vector3.UP * OVERHEAD_REACH_M, body)
 	if not over.is_empty():
-		return   # he is INSIDE, under the roof, which is where he belongs
-	_fails += 1
-	print("  [FAIL] %s stands on '%s' at y=%.2f - %.2fm of open room under him (floor '%s')" % [
-		body.name, support, floor_pos.y, gap, _body_name(under.collider)])
+		return ""   # he is INSIDE, under the roof, which is where he belongs
+	return "stands on '%s' at y=%.2f - %.2fm of open room under him (floor '%s')" % [
+		support, floor_pos.y, gap, _body_name(under.collider)]
 
 
-func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
+static func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
 		exclude: Node3D) -> Dictionary:
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.collision_mask = 1   # world layer: terrain and placed structures both
@@ -111,7 +121,7 @@ func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
 
 ## The named body is not always the collider: adopted GLB structures hang their shapes
 ## on unnamed StaticBody3D children of the named mesh node.
-func _body_name(collider: Object) -> String:
+static func _body_name(collider: Object) -> String:
 	var n: Node = collider as Node
 	if n == null:
 		return "?"
@@ -126,7 +136,7 @@ func _body_name(collider: Object) -> String:
 	return n.name
 
 
-func _is_ground(nm: String) -> bool:
+static func _is_ground(nm: String) -> bool:
 	for g in GROUND_NAMES:
 		if nm.begins_with(g):
 			return true

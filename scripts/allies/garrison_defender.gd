@@ -106,6 +106,7 @@ static func promote(civ: Civilian, director: FieldDirector, fsb_center: Vector3)
 	ally.set_meta("garrison_unit", unit)
 	ally.set_meta("garrison_role", role)
 	ally.set_meta("garrison_dig_ok", dig)
+	ally.set_meta("garrison_home", civ.home)
 	return ally
 
 
@@ -151,6 +152,10 @@ static func stand_down(ally: AllyBase, director: FieldDirector) -> Civilian:
 	civ.role = str(ally.get_meta("garrison_role", ""))
 	civ.dig_ok = bool(ally.get_meta("garrison_dig_ok", false))
 	civ.working_point_pos = post
+	# His quarters, not the wire: spawn() seats home where he STOOD, which is his post.
+	var quarters: Vector3 = ally.get_meta("garrison_home", Vector3.ZERO) as Vector3
+	if quarters != Vector3.ZERO:
+		civ.home = quarters
 	civ.add_to_group("firebase_garrison")
 	return civ
 

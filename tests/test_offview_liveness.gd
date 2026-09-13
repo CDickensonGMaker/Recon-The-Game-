@@ -48,7 +48,7 @@ func _picks_new_action_across_hour(tier: int) -> bool:
 	civ.set("occupation", "farmer")
 	civ.set("lod_tier", tier)
 	# Stale pick from an earlier hour; a live civilian must overwrite it.
-	var bb: Dictionary = {"last_pick_hour": 3.0, "scheduled_action": &"stale"}
+	var bb: Dictionary = {"scheduled_action": &"stale"}
 	civ.set("_bt_bb", bb)
 	# Freeze the tier: _update_lod only recomputes every LOD_RECOMPUTE_S, and we
 	# step by less than that, so the tier we set is the tier under test.
