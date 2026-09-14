@@ -228,6 +228,8 @@ var _box_timer: float = 0.0
 ## Threshold sits below IDLE_SPEED (0.8) - civilians amble where soldiers run.
 const UNSTICK_WANTS_MOVE: float = 0.5
 const UNSTICK_SPEED: float = 1.6
+## What _step_toward asked for this frame, before the slide had its say.
+var _want_speed: float = 0.0
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
 var _unstick_t: float = 0.0
@@ -243,7 +245,10 @@ func _update_unstick(delta: float) -> void:
 		return
 	_stuck_t += delta
 	if _stuck_t >= 1.0:
-		var wants_move: bool = Vector2(velocity.x, velocity.z).length() > UNSTICK_WANTS_MOVE
+		# The WANTED speed, not the body's: a cot or a locker in the way cancels the slid
+		# velocity every frame, so a man walking into furniture read as one who did not want
+		# to move, and never sidestepped (census 2026-09-13: test_move named the props).
+		var wants_move: bool = _want_speed > UNSTICK_WANTS_MOVE
 		if wants_move and global_position.distance_to(_stuck_pos) < 0.3:
 			_unstick_t = 0.6
 			_unstick_dir = -_unstick_dir  # alternate sides so corners release
@@ -269,7 +274,7 @@ func _rescue_snap() -> void:
 	off.y = 0.0
 	if off.length() <= NavRouter.OFF_MESH_M:
 		return
-	global_position = snapped
+	global_position = _seated(snapped)
 	reset_physics_interpolation()
 
 # L1 LOD. 3 tiers matching enemy_base.gd:39-54. Hysteresis band (5m) prevents
@@ -362,6 +367,13 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 		nav.path_desired_distance = 0.7
 		nav.target_desired_distance = 1.0
 		nav.path_max_distance = 5.0
+		# The baked mesh sits 0.05-0.85 m (mean 0.42) ABOVE the compound floor (census
+		# 2026-09-13, 53 stuck rows), and the agent passes a path point only when the man is
+		# within path_desired_distance of it in THREE dimensions. The agent SUBTRACTS this from
+		# every path point, so a positive value brings the points down to his feet; negative
+		# raised them 0.45 further (measured) and he stands under the first one for good with an
+		# XZ step inside STOP_M.
+		nav.path_height_offset = 0.45
 		nav.avoidance_enabled = false
 		civ.add_child(nav)
 	# A PERSON, not a pill. Deterministic per position so the same village rebuilds
@@ -1038,9 +1050,11 @@ func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 		var want: Vector3 = dir / dist * speed * minf(1.0, dist)
 		velocity.x = lerpf(velocity.x, want.x, delta * 6.0)
 		velocity.z = lerpf(velocity.z, want.z, delta * 6.0)
+		_want_speed = want.length()
 	else:
 		velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
 		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
+		_want_speed = 0.0
 
 
 ## Arity is a CONTRACT: every caller (bullet_system.gd, weapon_holder.gd) passes
@@ -1380,10 +1394,19 @@ func place_for_current_hour() -> void:
 		CivilianSchedulesS.action_for(occupation, hour, String(name)))
 	if target == Vector3.ZERO:
 		return
-	# Markers carry valid ground Y; a nav-clamped point carries the mesh's Y,
-	# which sits at most a cell-height under it - gravity settles either.
-	global_position = target
+	global_position = _seated(target)
 	_wander_target = target
+
+
+## A teleport lands on the PHYSICS floor, the way the spawner seats him (mission_generator
+## floor_y + 0.5): a nav-clamped point carries the mesh's Y, and the mesh was measured
+## 0.05-0.85 m off the compound floor (census 2026-09-13). Gravity settles a man dropped
+## from half a metre up; it never lifts one wedged inside the mound plate, and a wedged man
+## reads a full-speed step and a zero slide every frame for the rest of the day.
+func _seated(p: Vector3) -> Vector3:
+	if director == null or not is_instance_valid(director) or director.world == null:
+		return p
+	return Vector3(p.x, director.world.floor_y(p) + 0.5, p.z)
 
 
 ## Garrison occupations whose working point is also where they rest, sit and talk: a seat

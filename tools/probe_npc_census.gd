@@ -150,12 +150,86 @@ func _sample(label: String) -> void:
 				flag = "walking"
 				walking += 1
 			else:
-				# Off the mesh (a quarters spot inside a carved footprint) or off the floor: the
-				# two ways a man aimed at his post stands still with the route in front of him.
-				var mesh_pt: Vector3 = NavigationServer3D.map_get_closest_point(
-					civ.get_world_3d().navigation_map, civ.global_position)
-				flag = "STUCK (off-mesh %.2fm, %s)" % [_xz(civ.global_position, mesh_pt),
-					"on floor" if civ.is_on_floor() else "OFF FLOOR y=%.2f" % civ.global_position.y]
+				# Off the mesh (a quarters spot inside a carved footprint), off the floor, or no
+				# route at all: the three ways a man aimed at his post stands still. The route is
+				# asked of the map directly, from where he stands to where the resolver sent him -
+				# under two points is the server's own "no path".
+				var map: RID = civ.get_world_3d().navigation_map
+				var mesh_pt: Vector3 = NavigationServer3D.map_get_closest_point(map,
+					civ.global_position)
+				var route: int = NavigationServer3D.map_get_path(map, civ.global_position,
+					post_nav, true).size()
+				# A map route with a man who does not walk it is either the agent calling itself
+				# finished, or the body sliding against something the mesh never carved.
+				var agent: NavigationAgent3D = civ._router.agent
+				var fin: String = "no agent" if agent == null else (
+					"agent FINISHED %.1fm short" % _xz(civ.global_position, agent.target_position)
+					if agent.is_navigation_finished() else "agent pathing %d pts"
+					% agent.get_current_navigation_path().size())
+				# The floor is a slide contact every frame; what stops him is the steepest contact.
+				# Reported by angle from up, against the body's own climb limit, so a 50-degree
+				# sandbag skirt (floor to a flat-normal test, wall to the physics) is named.
+				var wall: String = "no contact"
+				var steepest: float = -1.0
+				var limit: float = rad_to_deg(civ.floor_max_angle)
+				for ci in range(civ.get_slide_collision_count()):
+					var hit: KinematicCollision3D = civ.get_slide_collision(ci)
+					if hit == null:
+						continue
+					var deg: float = rad_to_deg(hit.get_angle())
+					if deg > steepest:
+						steepest = deg
+						var col: Object = hit.get_collider()
+						wall = "%s '%s' at %.0f deg (limit %.0f)" % [
+							"BLOCKED by" if deg > limit else "on",
+							(col as Node).name if col is Node else "?", deg, limit]
+				# What the mover is actually handed: the router's step for this man toward his own
+				# target (the same call _step_toward makes), the speed the tree gave him, and
+				# whether the target sits inside his baked box (outside it the router steers direct).
+				var step: Vector3 = civ._router.step(civ.global_position, civ._wander_target)
+				var inbox: bool = civ._router.box >= 0 \
+					and NavBaker.box_contains(civ._router.box, civ._wander_target)
+				# The agent advances past a path point only when the man is within
+				# path_desired_distance of it in THREE dimensions; a mesh that sits under or over
+				# his feet keeps him on the first point forever while his XZ step reads as arrived.
+				var nxt: String = "-"
+				if agent != null:
+					var np: Vector3 = agent.get_next_path_position()
+					nxt = "next xz %.2fm dy %+.2fm" % [_xz(civ.global_position, np),
+						np.y - civ.global_position.y]
+				# A body that slides to zero on a flat floor with nothing in front of it is INSIDE
+				# something: ask the space what overlaps his capsule, excluding himself.
+				var inside: String = "inside nothing"
+				var col_node: CollisionShape3D = civ.get_node_or_null("CollisionShape3D") as CollisionShape3D
+				if col_node != null and col_node.shape != null:
+					var q := PhysicsShapeQueryParameters3D.new()
+					q.shape = col_node.shape
+					q.transform = col_node.global_transform
+					q.collision_mask = 1
+					q.exclude = [civ.get_rid()]
+					var hits: Array[Dictionary] = space.intersect_shape(q, 6)
+					if not hits.is_empty():
+						var names: PackedStringArray = []
+						for hd in hits:
+							var o: Object = hd.get("collider")
+							names.append((o as Node).name if o is Node else "?")
+						inside = "inside %s" % ", ".join(names)
+				# The body's own answer to "what stops a 10 cm step toward the target?"
+				var probe: String = "10cm step free"
+				var ahead := Vector3(step.x, 0.0, step.z)
+				if ahead.length() > 0.001:
+					var kc := KinematicCollision3D.new()
+					if civ.test_move(civ.global_transform, ahead.normalized() * 0.1, kc):
+						var c: Object = kc.get_collider()
+						probe = "10cm step HITS '%s' normal.y %.2f depth %.3f" % [
+							(c as Node).name if c is Node else "?", kc.get_normal().y,
+							kc.get_depth()]
+				flag = "STUCK (off-mesh %.2fm dy %+.2fm, %s, %s, %s, %s, step %.2fm, speed %.2f, inbox %s, %s, %s, %s)" % [
+					_xz(civ.global_position, mesh_pt), mesh_pt.y - civ.global_position.y,
+					"on floor" if civ.is_on_floor() else "OFF FLOOR y=%.2f" % civ.global_position.y,
+					"NO ROUTE" if route < 2 else "route %d pts" % route, fin, wall,
+					Vector2(step.x, step.z).length(), float(civ._bt_bb.get("speed", -1.0)),
+					str(inbox), nxt, inside, probe]
 				stuck_here += 1
 		print("  %-28s %-12s %-14s %-10s->%-10s post %5.1fm home %5.1fm tgt %5.1fm tier %d box %2d v %.2f %-22s %s" % [
 			civ.name, civ.occupation, civ.role, String(sched), String(civ.active_action),

@@ -32,21 +32,43 @@ The census exits 1 on AFTER (stuck + overlaps remain). Every remaining row is na
 - Run 1 of AFTER threw 21 `SCRIPT ERROR`s from `gun_crew_performance.gd:97` writing the renamed
   `_last_clip` at every stand-to promotion — the rename had missed one caller. Fixed; runs 2-3 are clean.
 
-## What remains, named
+## What remains, named — and then measured to the prop (runs 4-14, same evening)
 
-**STUCK (53 rows, ~24 men, every sample).** Same signature on every row: `tier 0`, `box 0`, on the
-floor, 0.00-1.2 m off the navmesh, `_wander_target` on the post, velocity 0.00 for the whole 75 s
-settle. The router logged five `[NAV-FALLBACK] ... no path - falling back to direct steering` for
-garrison men (33-84 m to target); direct steering meets geometry and `move_and_slide` zeroes the
-velocity every frame, so `_update_unstick`'s `wants_move` (0.5 m/s, read from that velocity) never
-trips and the rescue snap never runs. **Pre-existing:** the same six detail men and both cooks stood
-at 0.00 m/s at home in BEFORE (flagged WRONG-TARGET there only because the old jitter aimed them
-1.5 m off the post). Cause class: no route from a man's quarters/spawn spot to his post (nav
-connectivity / placement — N2, `probe_interior_nav` / `probe_chowhall_nav` are the instruments), plus
-the unstick threshold that cannot see a wall-blocked man (bounded fix candidate: measure `wants_move`
-from the wanted velocity, not the slid one). Sub-class: the two cooks and the diner DID walk 55-83 m
-and stopped 2.7-4.3 m from their markers, stacked at 0.00-0.03 m — the chow-hall markers' nearest
-mesh point is one spot, so exact stations expose an unmeshed interior the old 1.5 m jitter hid.
+**STUCK (53 rows, ~24 men, every sample in run 3).** Same signature on every row: `tier 0`,
+`box 0`, on the floor, aimed at the post, velocity 0.00 for the whole 75 s settle. **Pre-existing:**
+the same six detail men and both cooks stood at 0.00 m/s at home in BEFORE (flagged WRONG-TARGET
+there only because the old jitter aimed them 1.5 m off the post).
+
+Eleven more census runs, each adding one column to the STUCK row, walked the cause down:
+
+| column (run) | what it showed |
+|---|---|
+| navmesh route from the man to his target (4) | 43 of 49 rows HAVE a route (2-34 points); "no route out of quarters" was wrong for most |
+| agent state + slide contact (5) | 16 rows: agent has a path, no wall contact, velocity 0; 13 rows: agent reports FINISHED with the target 3-107 m away; 9 rows blocked by two named sandbag hooches and the radio chair |
+| router step, tree speed, in-box (6) | every stuck man is handed a non-zero step (0.3-107 m) at a non-zero speed toward a target inside his box — the mover is not starved |
+| mesh height under the feet (7) | the navmesh sits +0.05 to +0.85 m (mean +0.42) ABOVE the floor the men stand on; 49 of 53 next path points were unreachable in 3D within `path_desired_distance` 0.7 |
+| `path_height_offset` -0.45 → +0.45 (8, 9) | the agent SUBTRACTS the offset (negative raised the points 0.45 further, stuck 53 → 59); +0.45 puts the points at the feet (next dy ±0.2) — and frees nobody (48) |
+| steepest slide contact by angle (10) | most stuck men rest on `fb_terrain_mound` at 1-4°; only the sandbag-hooch three are at 90° |
+| mover counters (11) | `want` 1.10, velocity 0.22 before the slide (rebuilt from zero every frame), **0.00 after `move_and_slide`**, every tick slides |
+| seat teleports on `floor_y` + overlap probe (12) | nothing overlaps any stuck man's capsule; the seat (spawner's own rule, now on both teleports) leaves stuck at 39, off-floor rows gone |
+| **`test_move` 10 cm toward the target (13)** | **names the blocker on every row: `fb_int_cot_m1/m2`, `fb_int_locker_p0/m0`, `fb_int_radiotable`, `tent_frame_chowhall`, `MC_pit_floor` — vertical faces (normal.y ≈ 0)** |
+| unstick reads the WANTED speed (14) | **stuck 53 → 26** (per sample 4 / 7 / 6 / 9 against 5 / 13 / 18 / 17), 20 rows now counted walking across the four samples, wrong-target 0, overlaps 15, roofs 0, script errors 0; the 26 left still `test_move` into cots (`m1/m2/p1`), a locker, the radio chair, the tent frame and `MC_pit_floor` — a sidestep does not get a man out of a furnished hooch, and the rescue snap waits until nobody can see him |
+
+**The stall, in one sentence:** a man's home spread or exact post puts him against interior
+furniture (cots, lockers, the radio table), the chow-hall tent frame or the mortar-pit lip; the
+navmesh is not carved for those props, so the agent's route runs straight through them; the body
+cannot, `move_and_slide` cancels the motion every frame, and `_update_unstick` read that cancelled
+velocity as "does not want to move", so the sidestep and the rescue snap never ran. The +0.42 m mesh
+height and the agent-vs-server "finished with a route" disagreement are real and recorded, but
+neither was the stall.
+
+**Shipped from this (same change):** `_update_unstick` reads `_want_speed` (what `_step_toward`
+asked for) instead of the slid velocity, so a man walking into furniture sidesteps after one second
+and rescue-snaps after three flips when unseen; `path_height_offset` +0.45 (measured geometry, not
+the stall); both teleports (`place_for_current_hour`, `_rescue_snap`) seat on `floor_y` + 0.5 like
+the spawner. **Not shipped (N2/N3):** carve `fb_int_*`, the tent frames and the pit lip into the nav
+bake or keep the quarters spread clear of them; the chow-hall markers whose nearest mesh point is one
+spot (cooks + diner stacked at 0.00-0.03 m, 2.7-4.3 m from their markers — the old jitter hid it).
 
 **OVERLAPS (25 pairs).** The chow-hall stack above (3 pairs × 2 samples); heli replacements arriving
 in file to neighbouring bunks (`@9712/@9731/@9750`, 3 pairs × 2 samples); a shared-quarters spread
