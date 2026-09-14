@@ -42,7 +42,12 @@ var _stuck: int = 0
 var _overlaps: int = 0
 var _roofs: int = 0
 var _offmesh: int = 0
+var _arrived: int = 0
+var _away: int = 0
 var _samples: int = 0
+## Within this of the resolved post he has ARRIVED (Civilian.WORK_ARRIVE_M). The gate that
+## matters: the absence of a stuck flag counts a man who is merely moving (2026-09-13).
+const ARRIVED_M: float = 0.7
 
 
 func _ready() -> void:
@@ -77,8 +82,8 @@ func _ready() -> void:
 		if _world == null or not is_instance_valid(_world):
 			break
 		_sample("%.1fh" % h)
-	print("[NPC-CENSUS] %d samples: %d wrong-target, %d stuck, %d overlaps, %d roofs, %d posts off the mesh (content, not counted)" % [
-		_samples, _wrong, _stuck, _overlaps, _roofs, _offmesh])
+	print("[NPC-CENSUS] %d samples: %d wrong-target, %d stuck, %d overlaps, %d roofs, %d posts off the mesh (content, not counted) | post-bound rows: %d ARRIVED, %d AWAY" % [
+		_samples, _wrong, _stuck, _overlaps, _roofs, _offmesh, _arrived, _away])
 	if _wrong == 0 and _stuck == 0 and _overlaps == 0 and _roofs == 0:
 		print("*** EVERY MAN IS WHERE HIS SCHEDULE PUT HIM, ALONE, ON A FLOOR. ***")
 	get_tree().quit(1 if (_wrong + _stuck + _overlaps + _roofs) > 0 else 0)
@@ -104,6 +109,8 @@ func _sample(label: String) -> void:
 	var stuck_here: int = 0
 	var walking: int = 0
 	var skipped: int = 0
+	var arrived_here: int = 0
+	var away_here: int = 0
 	for n in AgentRegistry.civilians:
 		var civ: Civilian = n as Civilian
 		if civ == null or not is_instance_valid(civ) or not civ.is_inside_tree():
@@ -134,11 +141,18 @@ func _sample(label: String) -> void:
 		var clip: String = civ.actor.current_action if civ.actor != null else "-"
 		var bound: bool = _post_bound(civ, sched)
 		var flag: String = ""
+		# The resolver sends him to the post's nearest MESH point, not the raw marker. A
+		# marker off the mesh by more than the tolerance is content to fix, not a man in
+		# the wrong place - named, counted apart, not failed.
+		var post_nav: Vector3 = Vector3.ZERO
+		if bound and civ.working_point_pos != Vector3.ZERO:
+			post_nav = civ._router.nearest_mesh_point(civ.working_point_pos)
+			var d_nav: float = _xz(civ.global_position, post_nav)
+			if d_nav <= ARRIVED_M:
+				arrived_here += 1
+			elif d_nav > WRONG_PLACE_M:
+				away_here += 1
 		if bound and civ.working_point_pos != Vector3.ZERO and d_post > WRONG_PLACE_M:
-			# The resolver sends him to the post's nearest MESH point, not the raw marker. A
-			# marker off the mesh by more than the tolerance is content to fix, not a man in
-			# the wrong place - named, counted apart, not failed.
-			var post_nav: Vector3 = civ._router.nearest_mesh_point(civ.working_point_pos)
 			var aiming: bool = _xz(civ._wander_target, post_nav) <= 1.0
 			if aiming and _xz(civ.global_position, post_nav) <= WRONG_PLACE_M:
 				flag = "post off-mesh by %.1fm" % _xz(post_nav, civ.working_point_pos)
@@ -221,9 +235,19 @@ func _sample(label: String) -> void:
 					var kc := KinematicCollision3D.new()
 					if civ.test_move(civ.global_transform, ahead.normalized() * 0.1, kc):
 						var c: Object = kc.get_collider()
-						probe = "10cm step HITS '%s' normal.y %.2f depth %.3f" % [
+						# The blocker's top over his feet decides whether the bake called it a
+						# step (agent_max_climb) while the body calls it a wall.
+						var top: float = -99.0
+						if c is CollisionObject3D:
+							for ch in (c as Node).get_children():
+								var cs := ch as CollisionShape3D
+								if cs != null and cs.shape != null:
+									var bb: AABB = cs.global_transform * cs.shape.get_debug_mesh().get_aabb()
+									top = maxf(top, bb.end.y)
+						probe = "10cm step HITS '%s' normal.y %.2f contact %+.2fm top %+.2fm" % [
 							(c as Node).name if c is Node else "?", kc.get_normal().y,
-							kc.get_depth()]
+							kc.get_position().y - civ.global_position.y,
+							top - civ.global_position.y]
 				flag = "STUCK (off-mesh %.2fm dy %+.2fm, %s, %s, %s, %s, step %.2fm, speed %.2f, inbox %s, %s, %s, %s)" % [
 					_xz(civ.global_position, mesh_pt), mesh_pt.y - civ.global_position.y,
 					"on floor" if civ.is_on_floor() else "OFF FLOOR y=%.2f" % civ.global_position.y,
@@ -259,8 +283,11 @@ func _sample(label: String) -> void:
 	_stuck += stuck_here
 	_overlaps += overlaps_here
 	_roofs += roofs_here
-	print("[NPC-CENSUS %s] %d bodies (%d skipped: far/puppet/boarding/fled), %d wrong-target, %d stuck, %d still walking, %d overlaps, %d roofs" % [
-		label, bodies.size(), skipped, wrong_here, stuck_here, walking, overlaps_here, roofs_here])
+	_arrived += arrived_here
+	_away += away_here
+	print("[NPC-CENSUS %s] %d bodies (%d skipped: far/puppet/boarding/fled), %d wrong-target, %d stuck, %d still walking, %d overlaps, %d roofs | post-bound: %d ARRIVED, %d AWAY" % [
+		label, bodies.size(), skipped, wrong_here, stuck_here, walking, overlaps_here, roofs_here,
+		arrived_here, away_here])
 
 
 func _post_bound(civ: Civilian, action: StringName) -> bool:

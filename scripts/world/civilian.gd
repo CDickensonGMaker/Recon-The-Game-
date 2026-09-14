@@ -230,6 +230,9 @@ const UNSTICK_WANTS_MOVE: float = 0.5
 const UNSTICK_SPEED: float = 1.6
 ## What _step_toward asked for this frame, before the slide had its say.
 var _want_speed: float = 0.0
+var _want_dir: Vector3 = Vector3.ZERO
+## Forward reach of one step-up; under the capsule radius so the test cannot skip a face.
+const STEP_FORWARD_M: float = 0.25
 var _stuck_pos: Vector3 = Vector3.ZERO
 var _stuck_t: float = 0.0
 var _unstick_t: float = 0.0
@@ -273,6 +276,9 @@ func _rescue_snap() -> void:
 	var off: Vector3 = snapped - global_position
 	off.y = 0.0
 	if off.length() <= NavRouter.OFF_MESH_M:
+		return
+	# The snap is a long move by definition; only the landing's ground is judged here.
+	if not _clear_spot(global_position, snapped, INF):
 		return
 	global_position = _seated(snapped)
 	reset_physics_interpolation()
@@ -577,6 +583,7 @@ func _physics_step_civilian(delta: float) -> void:
 	_update_unstick(delta)
 	if _slide_due(delta):
 		move_and_slide()
+		_step_up_if_blocked()
 	# Face travel. Without this the only yaw a civilian ever gets is the one
 	# SeatSystem.unseat() stamps from the seat socket, and heli-delivered men
 	# cross the pad locked at the door's sideways heading.
@@ -1051,6 +1058,7 @@ func _step_toward(target: Vector3, speed: float, delta: float) -> void:
 		velocity.x = lerpf(velocity.x, want.x, delta * 6.0)
 		velocity.z = lerpf(velocity.z, want.z, delta * 6.0)
 		_want_speed = want.length()
+		_want_dir = dir / dist
 	else:
 		velocity.x = lerpf(velocity.x, 0.0, delta * 6.0)
 		velocity.z = lerpf(velocity.z, 0.0, delta * 6.0)
@@ -1409,6 +1417,54 @@ func _seated(p: Vector3) -> Vector3:
 	return Vector3(p.x, director.world.floor_y(p) + 0.5, p.z)
 
 
+## A spot is clear when the mesh did not have to drag it far and the ground under it is not
+## furniture: a home spread or a rescue snap that lands on a cot top, or in the eroded gap
+## beside a footlocker, leaves a man standing still with a valid route through the prop
+## (census 2026-09-13: cots, lockers, the radio set, the pit kerb). Physics-frame only - the
+## space is locked outside it, and a test scene without a world has nothing to refuse.
+const SNAP_MOVED_M: float = 0.3
+const FURNITURE_PREFIX: String = "fb_int_"
+
+
+func _clear_spot(raw: Vector3, at: Vector3, snap_limit: float = SNAP_MOVED_M) -> bool:
+	if Vector2(at.x - raw.x, at.z - raw.z).length() > snap_limit:
+		return false
+	if not Engine.is_in_physics_frame() or not is_inside_tree():
+		return true
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return true
+	var q := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.4, at + Vector3.DOWN * 2.0)
+	q.collision_mask = 1
+	q.exclude = [get_rid()]
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return true
+	var col: Node = hit.collider as Node
+	return col == null or not col.name.begins_with(FURNITURE_PREFIX)
+
+
+## A civilian climbs what the bake climbs. The mesh treats every face under
+## NavBaker.AGENT_MAX_CLIMB as a step (a locker, the pit kerb, a cot rail) and routes over it; the
+## capsule has no step of its own and slid to a stop against it every frame. When the mover
+## wanted to go and the slide gave nothing back, test the step - up, then forward along the
+## wanted direction - and take it; gravity settles the landing. Civilians only: the assault
+## must not vault the sandbag skirts the mesh already climbs.
+func _step_up_if_blocked() -> void:
+	if _want_speed < 0.3 or not is_on_floor():
+		return
+	if Vector2(velocity.x, velocity.z).length() > 0.05:
+		return
+	var up := Vector3.UP * NavBaker.AGENT_MAX_CLIMB
+	if test_move(global_transform, up):
+		return
+	var fwd: Vector3 = _want_dir * STEP_FORWARD_M
+	if test_move(global_transform.translated(up), fwd):
+		return
+	global_position += up + fwd
+	reset_physics_interpolation()
+
+
 ## Garrison occupations whose working point is also where they rest, sit and talk: a seat
 ## marker, a pit, a set, a ward. Everyone else loafs by his quarters.
 const POST_OFF_DUTY: Array[String] = [
@@ -1416,6 +1472,7 @@ const POST_OFF_DUTY: Array[String] = [
 ]
 const HOME_SPREAD_MIN_M: float = 1.0
 const HOME_SPREAD_MAX_M: float = 3.0
+const HOME_SPREAD_TRIES: int = 8
 
 
 ## Whether `action` binds this man to his working point. The census probe carries the same
@@ -1447,7 +1504,16 @@ func _resolve_target(action: StringName) -> Vector3:
 	var a: float = float(h % 360) * (TAU / 360.0)
 	var r: float = HOME_SPREAD_MIN_M + float((h / 360) % 100) / 100.0 \
 		* (HOME_SPREAD_MAX_M - HOME_SPREAD_MIN_M)
-	return _router.nearest_mesh_point(home + Vector3(cos(a), 0.0, sin(a)) * r)
+	# The angle walks the golden step past a spot that is furniture or a mesh hole, so the
+	# same man gets the same spot every run (ADR-010) and never a cot top.
+	var at: Vector3 = Vector3.ZERO
+	for _try in range(HOME_SPREAD_TRIES):
+		var raw: Vector3 = home + Vector3(cos(a), 0.0, sin(a)) * r
+		at = _router.nearest_mesh_point(raw)
+		if _clear_spot(raw, at):
+			return at
+		a += 2.399963
+	return at
 
 
 # ---- BT actions ------------------------------------------------------------

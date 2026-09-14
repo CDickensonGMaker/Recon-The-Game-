@@ -33,9 +33,11 @@ var _snap_src: Vector3 = Vector3.ZERO
 var _snap_out: Vector3 = Vector3.ZERO
 var _snap_valid: bool = false
 
-## Further than this off the mesh and he is not standing on it. Generous: the mesh sits a
-## cell-height under the ground and an agent on a slope reads a little off.
-const OFF_MESH_M: float = 1.2
+## Further than this off the mesh and he is not standing on it. The agent radius, compared
+## XZ-flat: the 1.2 m it used to be left a man 0.9-1.2 m off the mesh - placed in the eroded gap
+## beside a hole the furniture punched - refused by BOTH escape hatches, this step-back and
+## Civilian._rescue_snap, for the rest of the day (census 2026-09-13, 8-10 of 26 stuck rows).
+const OFF_MESH_M: float = 0.5
 
 ## How far a target may be pulled onto the mesh. A garrison post inside a bunker footprint is
 ## routinely 5-8m off walkable ground; anything beyond a hootch's width is not a post that

@@ -385,11 +385,10 @@ func _start_bake(job: Dictionary) -> void:
 	var map: RID = get_tree().root.get_world_3d().navigation_map
 
 	var nav := NavigationMesh.new()
-	# Read cell size from the SERVER, never hardcode it. project.godot has no
-	# [navigation] section, so the map runs at the 0.25 default while the old
-	# bake_navigation() set 0.5 -- Godot refuses to merge a region whose cell size
-	# differs from the map's, and skips it silently. That defect would have
-	# survived fixing every other one.
+	# Read cell size from the SERVER, never hardcode it: Godot refuses to merge a region
+	# whose cell size differs from the map's, and skips it silently. project.godot sets
+	# navigation/3d/default_cell_height = 0.2 (cell size stays the 0.25 default), so the
+	# climb below lands on 0.40 = two voxels.
 	nav.cell_size = NavigationServer3D.map_get_cell_size(map)
 	nav.cell_height = NavigationServer3D.map_get_cell_height(map)
 	# Agent metrics pre-snapped to voxel units - the baker quantizes them anyway

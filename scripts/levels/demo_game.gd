@@ -539,8 +539,12 @@ func _tick_opening() -> void:
 		# opening (census 2026-09-13). Each man takes his own slot in a file leading out of
 		# the compound, the pointman on the gate itself.
 		for i in range(squad.members.size()):
-			var a: AllyBase = squad.members[i] as AllyBase
-			if is_instance_valid(a) and not a.is_dead():
+			# Validity first: a freed member cannot be cast (the stress assault frees the dead).
+			var raw: Variant = squad.members[i]
+			if not is_instance_valid(raw):
+				continue
+			var a: AllyBase = raw as AllyBase
+			if a != null and not a.is_dead():
 				a.set_order(AllyBase.OrderMode.MOVE_TO,
 					FriendlyPatrolGroup.file_slot(i, gate, d.fsb_center))
 		d.toast.emit("SQUAD MOVING OUT")
@@ -549,8 +553,11 @@ func _tick_opening() -> void:
 	var arrived: int = 0
 	var alive: int = 0
 	for i in range(squad.members.size()):
-		var a: AllyBase = squad.members[i] as AllyBase
-		if not is_instance_valid(a) or a.is_dead():
+		var raw: Variant = squad.members[i]
+		if not is_instance_valid(raw):
+			continue
+		var a: AllyBase = raw as AllyBase
+		if a == null or a.is_dead():
 			continue
 		alive += 1
 		if a.global_position.distance_to(
