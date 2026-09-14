@@ -1813,9 +1813,16 @@ func _garrison_stand_to() -> void:
 	# Dripped through the global spawn gate: promoting the whole garrison in one
 	# frame is the same worst-frame class the crucible ledger named (each promote
 	# is a full AllyBase instantiation). ~2 men a frame, the wire cannot tell.
+	# The piece is served through an ALARM. An artillery crew promoted for two hunters near
+	# the wire dropped the gun and HELD at the pit as riflemen for the rest of the day - the
+	# "frozen by the gun" of his 2026-09-14 playtest (the all-clear needs 90 s with nobody
+	# inside 90 m, which a loitering hunter team never gives). They stand to for a SIEGE.
+	var siege_on: bool = siege != null and is_instance_valid(siege) and siege.active
 	for n in get_tree().get_nodes_in_group("firebase_garrison"):
 		var civ := n as Civilian
 		if civ == null:
+			continue
+		if civ.occupation == "gun_crew_arty" and not siege_on:
 			continue
 		while not MarchingCell._take_spawn_token():
 			await get_tree().process_frame

@@ -199,6 +199,7 @@ func _on_terrain_ready() -> void:
 
 	_warm_effects()
 
+	_build_edge_fence()
 	is_world_ready = true
 
 
@@ -429,6 +430,37 @@ func surface_y(at: Vector3) -> float:
 	return maxf(ground, (hit.position as Vector3).y)
 
 
+## The slice has an edge and nothing past it. Four invisible walls on the world layer at
+## x = 0, x = map_size, z = 0, z = map_size, tall enough for any terrain this heightmap
+## produces, so no body - the player included - can walk off into the fall/re-seat loop
+## (his playtest 2026-09-14). Nav never routes out there; this is for legs, not paths.
+const EDGE_FENCE_T: float = 2.0
+const EDGE_FENCE_H: float = 400.0
+
+
+func _build_edge_fence() -> void:
+	var fence := StaticBody3D.new()
+	fence.name = "EdgeFence"
+	fence.collision_layer = 1
+	fence.collision_mask = 0
+	var m: float = map_size
+	var mid_y: float = EDGE_FENCE_H * 0.5
+	var walls: Array = [
+		[Vector3(-EDGE_FENCE_T * 0.5, mid_y, m * 0.5), Vector3(EDGE_FENCE_T, EDGE_FENCE_H, m + EDGE_FENCE_T * 2.0)],
+		[Vector3(m + EDGE_FENCE_T * 0.5, mid_y, m * 0.5), Vector3(EDGE_FENCE_T, EDGE_FENCE_H, m + EDGE_FENCE_T * 2.0)],
+		[Vector3(m * 0.5, mid_y, -EDGE_FENCE_T * 0.5), Vector3(m + EDGE_FENCE_T * 2.0, EDGE_FENCE_H, EDGE_FENCE_T)],
+		[Vector3(m * 0.5, mid_y, m + EDGE_FENCE_T * 0.5), Vector3(m + EDGE_FENCE_T * 2.0, EDGE_FENCE_H, EDGE_FENCE_T)],
+	]
+	for w in walls:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = w[1]
+		shape.shape = box
+		shape.position = w[0]
+		fence.add_child(shape)
+	add_child(fence)
+
+
 ## Clears fsb_main_v3's authored 14.5 m without starting so high that a distant
 ## overhead (canopy, a hootch roof) is picked up instead of the ground.
 const SURFACE_PROBE_UP: float = 18.0
@@ -594,6 +626,20 @@ func _physics_process(delta: float) -> void:
 	_reseat_timer = 0.0
 	# Never re-seat a tunnel rat.
 	if "_in_tunnel" in player and player._in_tunnel != null:
+		return
+	# Outside the slice there is no collider and the heightmap keeps answering, so a man who
+	# walked off the edge was seated a metre above nothing every two seconds and fell again
+	# (his playtest 2026-09-14). Inside first, then the floor.
+	var margin: float = EDGE_FENCE_T + 1.0
+	var p: Vector3 = player.global_position
+	if p.x < margin or p.x > map_size - margin or p.z < margin or p.z > map_size - margin:
+		var back := Vector3(clampf(p.x, margin, map_size - margin), p.y,
+			clampf(p.z, margin, map_size - margin))
+		back.y = surface_y(back) + 1.0
+		push_warning("[RESEAT] player was off the map at (%.0f, %.0f) - back inside at (%.0f, %.0f)" % [
+			p.x, p.z, back.x, back.z])
+		player.global_position = back
+		player.velocity = Vector3.ZERO
 		return
 	var ground_y: float = surface_y(player.global_position)
 	if player.global_position.y < ground_y - RESEAT_DEPTH:

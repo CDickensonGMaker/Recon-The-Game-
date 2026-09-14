@@ -2606,3 +2606,13 @@ What it did NOT fix, and it is the next blocker: about 24 garrison men (the six 
 **What is left is the bake, not the men:** carve the fb_int_* props, the tent frames and the pit lip into the navmesh (or keep the quarters spread clear of them), and the chow-hall markers whose nearest mesh point is one spot. That is the N2 placement work; it starts with a probe that walks every garrison man 10 cm toward his post and names what he hits, which the census now does.
 
 - YOUR CALL: the three parameter changes above (unstick reads wanted speed, path_height_offset 0.45, floor seat on teleport) shipped on the census gate alone; if you want them behind a council first, say so and they come out in one commit.
+
+## YOUR PLAYTEST OF 2026-09-14 - what you said, what it was, what moved (perf_walk_20260914_131847.log)
+
+You: frame rates a lot stronger, bombs no longer lag out, much happier with the game state. Measured from your log: 57 samples, mean 37.5 fps, median 34, best 74, worst 7 (Forward Mobile on the Intel UHD). The worst physics step was the terrain watchdog at 58 ms - it re-seats the pre-warmed reinforcement men who are parked OFF the map and fall forever; a perf item for the next wave, not tonight.
+
+The three things you named, and their causes:
+- Sandbag ring = flat planes. The 9/10 re-skin stamps the ring from fb_sandbag_heavy, which is the sandbag_heavy asset you BANNED on 7/29 (broken flat shells). The modeler agent is rebuilding that one kit part at the same footprint and naming (your old baked walls first if they survive in firebase_v3.2.blend, else fresh), 300-600 tris, texture under 1 MB, renders to production/renders_firebase/. YOUR CALL when the renders land: keep or repaint.
+- Fell off the map edge into a re-seat loop. Past 512 m there is no collider and the heightmap keeps answering, so the re-seat put you a metre above nothing every two seconds. SHIPPED: the re-seat clamps you back inside the map first, and the world builds an invisible fence at its four edges (aircraft are unaffected).
+
+- Gun crews frozen by the piece. Your log: at 06:30 both crews were captured and playing; at 07:00 an ALARM stand-to (two hunters inside 90 m) promoted 38 men, and the crews held at the pit as riflemen for the day because the all-clear needs 90 s with nobody inside 90 m. SHIPPED: artillery crews stand to for a SIEGE only; an alarm leaves them at the gun. Watch for it in your next run.
