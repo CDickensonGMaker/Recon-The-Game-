@@ -24,6 +24,8 @@ const CIVILIAN_HURTBOX_LAYER: int = 512
 var state: CivState = CivState.WANDER
 var home: Vector3
 var is_informer: bool = false
+## Preloaded, not by class_name: a global class is not registered until the editor rescans.
+const HmLedgerS := preload("res://scripts/world/hm_ledger.gd")
 var director: FieldDirector
 var _hp: int = 20
 var _wander_target: Vector3
@@ -1087,6 +1089,12 @@ func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL,
 
 func _die(attacker: Node, zone: String, amount: int) -> void:
 	state = CivState.GONE
+	# Hearts & Minds: a villager killed by the player's own hand is the deed a ville holds
+	# hardest (HmLedgerS.band -> hostile). The province, not the score, remembers it.
+	if attacker != null and attacker == GameManager.player and village_center != Vector3.ZERO:
+		var key: int = HmLedgerS.place_key(village_center)
+		CampaignState.hearts.note("civ/%d/%s/killed" % [key, String(name)],
+			HmLedgerS.KIND_KILLED, key, _read_sim_hour())
 	AgentRegistry.unregister(self)
 	set_physics_process(false)
 	_set_shovel(false)
@@ -1178,6 +1186,10 @@ func _transform_to_vc() -> void:
 		if not actor.setup(vc_pick):
 			vc_pick = "vc_regular_m"
 			actor.setup(vc_pick)
+	if village_center != Vector3.ZERO:
+		var key: int = HmLedgerS.place_key(village_center)
+		CampaignState.hearts.note("informer/%d/talked" % key, HmLedgerS.KIND_INFORMER, key,
+			_read_sim_hour())
 	if director:
 		director.on_informer_escaped(global_position, _saw_player_at)
 
@@ -1275,7 +1287,7 @@ func _bt_tick(delta: float) -> void:
 	# off the map. The man's own node name is the identity his sitting and his spot derive
 	# from (ADR-010).
 	var picked: StringName = CivilianSchedulesS.action_for(occupation, _read_sim_hour(),
-		String(name))
+		String(name), _wary())
 	if picked != StringName(_bt_bb.get("scheduled_action", &"")) \
 			or (_bt_bb.get("resolved_home", Vector3.INF) as Vector3) != home \
 			or (_bt_bb.get("resolved_post", Vector3.INF) as Vector3) != working_point_pos:
@@ -1289,6 +1301,14 @@ func _bt_tick(delta: float) -> void:
 	if _group_walk_apply():
 		speed = GROUP_WALK_SPEED
 	_step_toward(_wander_target, speed, delta)
+
+
+## The village's reading of the player, from the province's ledger: a band, never a number.
+## Garrison men and the AO's loose figures have no village and read quiet.
+func _wary() -> bool:
+	if village_center == Vector3.ZERO:
+		return false
+	return CampaignState.hearts.band(HmLedgerS.place_key(village_center)) != HmLedgerS.BAND_QUIET
 
 
 ## The action the schedule named this hour. Stable for the whole hour, unlike
@@ -1399,7 +1419,7 @@ func place_for_current_hour() -> void:
 		return
 	var hour: float = SimClock.sim_hour if SimClock != null else 12.0
 	var target: Vector3 = _resolve_target(
-		CivilianSchedulesS.action_for(occupation, hour, String(name)))
+		CivilianSchedulesS.action_for(occupation, hour, String(name), _wary()))
 	if target == Vector3.ZERO:
 		return
 	global_position = _seated(target)

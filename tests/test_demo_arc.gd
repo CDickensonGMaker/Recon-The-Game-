@@ -31,13 +31,21 @@ func _ready() -> void:
 	# 2. The arc constants themselves. A dev flag is not the only way to move a demo; an
 	# edit is. These are the numbers the playtest gate is written against
 	# (CLAUDE.md, THE SESSION ENTRY GATE) and they are law until he re-decrees them.
-	_ok(DemoGame.PROBE_AT_S == 1395.0, "PROBE_AT_S moved from 1395")
-	_ok(DemoGame.SIEGE_AT_S == 1440.0, "SIEGE_AT_S moved from 1440")
+	# Re-pinned 2026-09-14 on his "45 minute demo" (council 2026-09-13_rpg_45min_hearts_and_minds):
+	# 27x day, 12x night, night at 1667 s, probe 1740, assault 1800, backstop 3000.
+	_ok(DemoGame.PROBE_AT_S == 1740.0, "PROBE_AT_S moved from 1740")
+	_ok(DemoGame.SIEGE_AT_S == 1800.0, "SIEGE_AT_S moved from 1800")
 	_ok(DemoGame.SIEGE_STRENGTH == 45, "SIEGE_STRENGTH moved from 45 - the assault is not the assault")
 	_ok(DemoGame.PROBE_STRENGTH == 11, "PROBE_STRENGTH moved from 11")
 	_ok(DemoGame.START_HOUR == 6.5, "START_HOUR moved from 06:30")
-	_ok(DemoGame.DAY_RATIO == 38.0, "DAY_RATIO moved from 38x")
-	_ok(DemoGame.NIGHT_RATIO == 20.0, "NIGHT_RATIO moved from 20x")
+	_ok(DemoGame.DAY_RATIO == 27.0, "DAY_RATIO moved from 27x")
+	_ok(DemoGame.NIGHT_RATIO == 12.0, "NIGHT_RATIO moved from 12x")
+	# The seam and the end, derived: night must fall before the probe, the backstop must sit
+	# before midnight at the night ratio.
+	var to_seam: float = (DemoGame.NIGHT_HOUR - DemoGame.START_HOUR) * 3600.0 / DemoGame.DAY_RATIO
+	_ok(to_seam < DemoGame.PROBE_AT_S, "night falls after the probe (%.0f s vs %.0f)" % [to_seam, DemoGame.PROBE_AT_S])
+	var end_hour: float = DemoGame.NIGHT_HOUR + (DemoGame.END_BACKSTOP_S - to_seam) * DemoGame.NIGHT_RATIO / 3600.0
+	_ok(end_hour < 24.0, "the backstop crosses midnight (%.2f)" % end_hour)
 	_ok(DemoGame.DEMO_SEED == 29072026, "DEMO_SEED moved - two stress runs are no longer comparable")
 
 	# 3. Bare `--stress` still means assault, so no existing bench invocation changed meaning.

@@ -7,6 +7,8 @@ signal mission_failed(result: Dictionary)
 signal toast(text: String)
 
 var state := MissionState.new()
+## Preloaded, not by class_name: a global class is not registered until the editor rescans.
+const HmLedgerS := preload("res://scripts/world/hm_ledger.gd")
 var world: GameWorld
 var _ended: bool = false
 var _live_enemies: Array[EnemyBase] = []
@@ -36,6 +38,71 @@ func _on_noise_evidence(type: int, pos: Vector3, _radius: float, source_team: in
 		_src: Node = null) -> void:
 	if evidence != null:
 		evidence.on_noise(type, pos, source_team, float(Time.get_ticks_msec()) * 0.001)
+	if type == NoiseBus.NoiseType.GUNSHOT and source_team == 0:
+		_note_fire_near_villages(pos)
+
+
+## Hearts & Minds, the village's first producer (council 2026-09-14). The player's own
+## gunfire inside VILLAGE_FIRE_M of a ville, with no live enemy inside VILLAGE_CONTACT_M of
+## it, is fire discipline broken - ADR-038 §4 calls that allegiance itself. Return fire at
+## the informer's responders is not misconduct, hence the contact test. One deed per patrol
+## per ville: the id carries the patrol count.
+const VILLAGE_FIRE_M: float = 60.0
+const VILLAGE_CONTACT_M: float = 80.0
+var _village_centers: Array[Vector3] = []
+
+
+func _note_fire_near_villages(pos: Vector3) -> void:
+	for center in _known_village_centers():
+		if Vector2(pos.x - center.x, pos.z - center.z).length() > VILLAGE_FIRE_M:
+			continue
+		if _hostile_within(center, VILLAGE_CONTACT_M):
+			continue
+		var key: int = HmLedgerS.place_key(center)
+		CampaignState.hearts.note("fire/%d/p%d" % [key, CampaignState.missions_played],
+			HmLedgerS.KIND_FIRE, key, SimClock.sim_hour)
+
+
+## The villages this AO holds, read once off the villagers themselves (every villager carries
+## his village's centre, mission_generator.gd:1310).
+func _known_village_centers() -> Array[Vector3]:
+	if _village_centers.is_empty():
+		for n in AgentRegistry.civilians:
+			var civ: Civilian = n as Civilian
+			if civ == null or civ.village_center == Vector3.ZERO:
+				continue
+			if not _village_centers.has(civ.village_center):
+				_village_centers.append(civ.village_center)
+	return _village_centers
+
+
+func _hostile_within(center: Vector3, radius: float) -> bool:
+	for n in AgentRegistry.enemies:
+		var e: Node3D = n as Node3D
+		if e == null or not is_instance_valid(e):
+			continue
+		if e.has_method("is_dead") and bool(e.call("is_dead")):
+			continue
+		if Vector2(e.global_position.x - center.x, e.global_position.z - center.z).length() <= radius:
+			return true
+	return false
+
+
+## Hearts & Minds, the enemy's first consumer (council 2026-09-14). At the night seam the
+## warning comes up the road - or it does not: a ville whose informer reached his people has
+## nobody left who would send a kid. The line names a subject and nothing else (ADR-038 §2a);
+## the stand-to it brings is the same one the probe brings 73 s later.
+const HM_LINES: Dictionary = {
+	"kid_up_the_road": "SIX: THE VILLE SENT A KID UP THE ROAD. SOMETHING'S MOVING TONIGHT.",
+}
+
+
+func night_warning() -> void:
+	for center in _known_village_centers():
+		if CampaignState.hearts.has("informer/%d/talked" % HmLedgerS.place_key(center)):
+			return
+	toast.emit(HM_LINES["kid_up_the_road"])
+	_garrison_stand_to()
 
 
 ## Spawn an enemy seated on terrain and wire its death into mission counters.

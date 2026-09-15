@@ -21,6 +21,12 @@ var _dirty: bool = false
 
 var threat_level: float = BASE_THREAT
 var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason: String}]
+## Hearts & Minds (ADR-019/038): the deeds the province holds against the player, by place.
+## Never a number; consumers read a band (HmLedger.band). Saved with the campaign.
+## Preloaded, not by class_name: a global class is not registered until the editor rescans, and
+## an autoload that fails to parse takes every headless run down with it.
+const HmLedgerS := preload("res://scripts/world/hm_ledger.gd")
+var hearts: RefCounted = HmLedgerS.new()
 ## The player's HIDDEN reputation (ADR-032): banked AAR score. NEVER shown as a
 ## number anywhere - it surfaces only as title() and the armory tiers it opens.
 var reputation: int = 0
@@ -313,6 +319,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "threat_level", threat_level)
 	cfg.set_value("campaign", "threat_modifiers", threat_modifiers)
 	cfg.set_value("campaign", "reputation", reputation)
+	cfg.set_value("campaign", "hearts", hearts.to_save())
 	cfg.set_value("campaign", "roster", roster)
 	cfg.set_value("campaign", "missions_played", missions_played)
 	cfg.set_value("campaign", "mission_log", mission_log)
@@ -361,6 +368,7 @@ func load_campaign() -> void:
 	threat_modifiers = cfg.get_value("campaign", "threat_modifiers", [])
 	# Pre-ADR-032 saves banked this pool under "team_xp" - same points, new name.
 	reputation = int(cfg.get_value("campaign", "reputation", cfg.get_value("campaign", "team_xp", 0)))
+	hearts.from_save(cfg.get_value("campaign", "hearts", {}))
 	roster = cfg.get_value("campaign", "roster", [])
 	missions_played = int(cfg.get_value("campaign", "missions_played", 0))
 	mission_log = cfg.get_value("campaign", "mission_log", [])
@@ -451,6 +459,7 @@ func reset_campaign() -> void:
 	_dirty = false
 	threat_level = BASE_THREAT
 	threat_modifiers = []
+	hearts = HmLedgerS.new()
 	reputation = 0
 	roster = []
 	missions_played = 0

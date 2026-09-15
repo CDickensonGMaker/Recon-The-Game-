@@ -46,17 +46,23 @@ const START_HOUR: float = 6.5
 ## 06:30 at 38x reaches NIGHT (sim 19.0, sim_clock.period_at) at ~1184s. The ratio seam
 ## below tracks MissionWeather.is_night - the same authority the siege rolls on - so the
 ## slow-down lands when night actually falls, wherever the boot put the clock.
-const DAY_RATIO: float = 38.0
+## 27x, not 38x (council 2026-09-14, his "45 minute demo"): 06:30 reaches NIGHT (sim 19.0) at
+## 1667 s, DUSK (17:00) at 1400 s - the walk home is lit as dusk - and the day carries the
+## village twice, the shoot-down and the escort. The assault's own length is a siege-pacing
+## council, not a clock: it breaks on the 42.5% rule at ~139 s whatever this reads.
+const DAY_RATIO: float = 27.0
 
 ## NIGHT RUNS SLOW, and for the opposite reason the briefing assumed. Acceleration past
 ## midnight breaks three things: it re-arms a second siege roll, it unlatches the
 ## fire-support allotment through `_granted_day` (an exploit named in its own comment at
 ## `field_director.gd:1159,1451-1453`), and it RAISES THE SUN during the night attack. At 20x
 ## the ~616 s from the 19:00 seam cover ~3h25m and the arc ends ~22:25 - same sim day.
-const NIGHT_RATIO: float = 20.0
+## 12x (council 2026-09-14): from the 19:00 seam at 1667 s the run to the 3000 s backstop
+## covers ~4.4 sim hours and ends ~23:27 - same day, no midnight, no second siege roll.
+const NIGHT_RATIO: float = 12.0
 
-const PROBE_AT_S: float = 1395.0     ## first contact on the wire, just after stand-to
-const SIEGE_AT_S: float = 1440.0     ## the assault - 360 s of it, the tuning SIEGE_AIR_BEATS assumes
+const PROBE_AT_S: float = 1740.0     ## first contact on the wire, 73 s after the 1667 s seam
+const SIEGE_AT_S: float = 1800.0     ## the assault at 30:00; SIEGE_AIR_BEATS ride relative to it
 
 ## THE RAID ENDS THE DEMO, NOT A STOPWATCH (his ruling 2026-08-07: "there shouldn't really be
 ## a dead cut off time, it's just like whenever the end of the firebase raid happened").
@@ -71,7 +77,7 @@ const SIEGE_AT_S: float = 1440.0     ## the assault - 360 s of it, the tuning SI
 ## every cell dead-ended, or a break that cannot compute - because an unbounded demo is worse
 ## than an early one. Generous on purpose: at ~24 min to the assault it leaves a 21-minute
 ## fight before it ever bites.
-const END_BACKSTOP_S: float = 2700.0
+const END_BACKSTOP_S: float = 3000.0   ## 23:27 sim at 12x from the 1667 s seam; never midnight
 
 ## THE DAWN CARD IS DEAD (Law 2, and his ruling Q1). Making the sun genuinely come up costs
 ## the three exploits above, so the demo no longer claims it. The last image is a flight of
@@ -617,6 +623,9 @@ func _physics_process(delta: float) -> void:
 		SimClock.real_to_sim_ratio = NIGHT_RATIO
 		print("[DEMO] night at %.0fs - clock %.0fx -> %.0fx, sim %05.2f"
 			% [_clock, DAY_RATIO, NIGHT_RATIO, SimClock.sim_hour])
+		# The warning comes up the road at the seam, or it does not (Hearts & Minds).
+		if _flow.director != null and is_instance_valid(_flow.director):
+			_flow.director.night_warning()
 	match _phase:
 		0:
 			if _clock >= probe_at:

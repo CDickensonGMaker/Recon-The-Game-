@@ -227,7 +227,10 @@ func _roll_kill(t: Node3D) -> void:
 		return
 	if not plane.in_transit() or plane.is_shot_down():
 		return
-	if _rng.randf() >= KILL_CHANCE:
+	# The demo's main outing IS the downed pilot (council 2026-09-14): the first eligible pass
+	# is hit, the roll is the open world's. PilotRecovery still holds its own gates (one event
+	# a day, hold-fire, no siege, no other encounter).
+	if not GameFlow.demo_mode and _rng.randf() >= KILL_CHANCE:
 		return
 	var pr := get_tree().get_first_node_in_group("pilot_recovery") as PilotRecovery
 	if pr != null:

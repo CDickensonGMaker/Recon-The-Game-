@@ -25,7 +25,12 @@ const ACTION_TALK: StringName = &"talk"
 ## `who` is the man's NAME, used only to derive a deterministic sitting for the mess hall
 ## (ADR-010: same man, same sitting, every boot). Optional so every existing caller and the
 ## suite keep working unchanged - an unnamed man simply eats in the first sitting.
-static func action_for(occupation: String, sim_hour: float, who: String = "") -> StringName:
+## `wary` is the village's reading of the player (HmLedger.band != quiet): a wary ville keeps
+## its people home for the afternoon - the paddy empty at midday, the elder off his bench.
+## Nothing is said; the world's reading is never a line (ADR-038 §2). A morning that was
+## already worked stays worked, so the reading is only visible to a man who comes back.
+static func action_for(occupation: String, sim_hour: float, who: String = "",
+		wary: bool = false) -> StringName:
 	var name_seed: int = absi(hash(who))
 	match occupation:
 		"farmer":
@@ -39,6 +44,8 @@ static func action_for(occupation: String, sim_hour: float, who: String = "") ->
 				return ACTION_REST
 			if sim_hour < 13.0:
 				return ACTION_WALK_HOME
+			if wary and sim_hour < 17.0:
+				return ACTION_REST
 			if sim_hour < 17.0:
 				return ACTION_WORK
 			if sim_hour < 18.0:
@@ -88,6 +95,8 @@ static func action_for(occupation: String, sim_hour: float, who: String = "") ->
 			if sim_hour < 11.0:
 				return ACTION_TALK
 			if sim_hour < 12.0:
+				return ACTION_REST
+			if wary and sim_hour < 17.0:
 				return ACTION_REST
 			if sim_hour < 14.0:
 				return ACTION_TALK
