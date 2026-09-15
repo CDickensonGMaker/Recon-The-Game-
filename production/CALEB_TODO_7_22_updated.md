@@ -2669,3 +2669,11 @@ BaseGame-V1 33e97e13 -> RPG-build b16918cb. Both pushed. origin/master untouched
 - test_firebase_garrison was a REAL DEFECT: the kit base's 19 men were in the main wire's garrison group, so a stand-to at fsb_main promoted men 450 m away and the lift's ledger counted them as replacements. They are "kit_garrison" now. GREEN.
 - test_group_walk was a STALE REGISTER: the centroid measure cancels on a five-man household whose lead is the rearmost man (followers walk backward into their slots). It measures the lead's closure now (stricter: 10 m, not 5). GREEN.
 - The squad's gate-order stack (0/8 arrived, both sizes) is still the overlap floor - named, left.
+
+## TWO MORE LEFTOVERS CLOSED (2026-09-15, autonomous)
+
+BaseGame-V1 859bbe2a -> RPG-build 593b3460. Both pushed.
+
+- THE CROSSING no longer aborts one run in three. The cause was NOT the gate-order stack: a squad man "acquires a target" the moment an enemy is inside his sight cap with no line-of-sight test, and the beat runner read any target as combat - a dormant ambient patrol 66-75 m off through the jungle (once seated 1 m from the ford) was aborting it. A cast man now aborts a beat only when he is really IN CONTACT (his own engage test), and the beat refuses to fire while any man is in contact. Six seeded runs, six fires.
+- The monkey bridge BLOWS and CUTS: one M79 / M26 / satchel at mid-span drops it (140 hp, sandbag band), six M60 rounds cut it, rifles bite nothing; no burned-hut swap, no crater on the ford floor. YOUR VETO: this is the one exception to your 2026-08-07 "only explosives bring a building down" ruling - MG fire cuts a bamboo bridge (0.6 bite, 42 floor). Also found on the way: a destroyed placed hut left its nested meshes drawn and its hulls solid (fixed).
+- STILL NAMED: the squad's gate-order stack (0/8 arrived at both sizes) - not the abort's cause, so left; it is the census's overlap floor (17-32 across tonight's runs). The unattributed +3-5 stuck at 512 left named.
