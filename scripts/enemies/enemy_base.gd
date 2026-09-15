@@ -3887,6 +3887,11 @@ static func spawn_enemy(parent: Node, pos: Vector3, data_path: String,
 		nav.target_desired_distance = 1.0
 		nav.path_max_distance = 5.0
 		nav.avoidance_enabled = false   # explicit: RVO is a second silent no-op
+		# 0 = uncapped. The engine's 4096-polygon cap stops a flood over the firebase's
+		# 6.8-8k polys before it finishes, and the truncated retry fails outright (one engine
+		# error print per query) and returns a two-point stub instead of the path to the
+		# nearest reachable point.
+		nav.path_search_max_polygons = 0
 		enemy.add_child(nav)
 
 	enemy.collision_layer = 4

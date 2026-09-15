@@ -41,6 +41,18 @@ func _ready() -> void:
 		print("[DEMO-PLAN] aa %s r=%.0f" % [_xz(a), _r(fc, a)])
 	for s2: Vector3 in (p.get("first_signs", []) as Array):
 		print("[DEMO-PLAN] sign %s r=%.0f" % [_xz(s2), _r(fc, s2)])
+	if p.has("stream"):
+		var stream: Dictionary = p.stream
+		var pts: PackedVector2Array = stream.points
+		print("[DEMO-PLAN] stream %d pts from %.1f,%.1f to %.1f,%.1f" % [
+			pts.size(), pts[0].x, pts[0].y, pts[pts.size() - 1].x, pts[pts.size() - 1].y])
+		for fname: String in (stream.fords as Dictionary).keys():
+			var f: Vector3 = (stream.fords as Dictionary)[fname]
+			print("[DEMO-PLAN] ford %s %s r=%.0f" % [fname, _xz(f), _r(fc, f)])
+		print("[DEMO-PLAN] runner %s" % _xz(stream.runner_stand))
+	if p.has("way_station"):
+		var ws: Vector3 = (p.way_station as Dictionary).center
+		print("[DEMO-PLAN] way_station %s r=%.0f" % [_xz(ws), _r(fc, ws)])
 	get_tree().quit(0)
 
 

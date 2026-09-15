@@ -373,6 +373,9 @@ static func spawn(parent: Node, pos: Vector3, mission_director: FieldDirector, i
 		nav.path_desired_distance = 0.7
 		nav.target_desired_distance = 1.0
 		nav.path_max_distance = 5.0
+		# 0 = uncapped: the engine's 4096-polygon search cap truncates a flood over the
+		# firebase's 6.8-8k polys and returns a two-point stub (enemy_base.gd, same line).
+		nav.path_search_max_polygons = 0
 		# The baked mesh sits 0.05-0.85 m (mean 0.42) ABOVE the compound floor (census
 		# 2026-09-13, 53 stuck rows), and the agent passes a path point only when the man is
 		# within path_desired_distance of it in THREE dimensions. The agent SUBTRACTS this from

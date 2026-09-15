@@ -2592,6 +2592,9 @@ static func spawn_ally(parent: Node, pos: Vector3) -> AllyBase:
 		nav.target_desired_distance = 1.0
 		nav.path_max_distance = 5.0
 		nav.avoidance_enabled = false   # explicit: RVO is a second silent no-op
+		# 0 = uncapped: the engine's 4096-polygon search cap truncates a flood over the
+		# firebase's 6.8-8k polys and returns a two-point stub (enemy_base.gd, same line).
+		nav.path_search_max_polygons = 0
 		ally.add_child(nav)
 
 	ally.collision_layer = 2  # Player layer (so enemies target them)

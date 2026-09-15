@@ -312,6 +312,27 @@ total 20–31h.** Irreducible core is steps 1–3; steps 4–5 are the ones that
 | 6 | Integration + fixing what the probes find | 3–4 |
 | 7–8 | Caleb authoring village + temple (temple must re-instate `_stamp_temple_vegetation`, `:498-519`) | 6–12 |
 
+## AMENDMENT A — THAWED FOR THE DEMO AO (Summoner, 2026-09-15)
+
+**His ruling, verbatim: "yes"** — to the decision list put to him in `production/CALEB_TODO_7_22_updated.md`
+(the 9/14 evening wave), item 1: *"Thaw ADR-041 for the demo AO (the stream with three fords, the
+band-gated way-station, THE CROSSING beat)? ... Yes or no."* Council record:
+`production/war_room/2026-09-14_rpg_dealer_hq_map/` (synthesis ruling 2, discussion S6, the GD's sheet in
+`analysis/game_designer.md` §1).
+
+**What is thawed, and only this:** the demo AO's `plan_demo_world` may carry an authored STREAM (impassable
+water > `WADE_DEPTH_M`, three fords — the village ford, the ambush ford, the VC monkey-bridge), the paddies
+on its south bank, and a WAY-STATION 130 m past the village whose population reads the Hearts & Minds band
+at runtime (quiet: a lean-to and sacks; wary: two men and a cache; hostile: a four-man picket covering the
+village ford). THE CROSSING beat rides the ford on the existing `ScriptedSequence` runner. The governing
+law of §1 is unchanged: these are PLAN entries drawn from the one seed by the one builder — marks and
+layout inside planner-chosen discs; no site `.tscn`, no second placement path, no scene that knows its
+world position. The frozen-file list below stays frozen for every OTHER purpose named in this ADR (the
+village scene, the temple scene, hand-placed spawns, the flatten profile).
+
+**Not thawed:** the village and temple as authored scenes (§12's price is still unpaid), `scenes/world/`,
+the clause-1 probe rule. The `FieldDirector.SLEEP_POST_LAUNCH` leak mechanism stays forbidden.
+
 ## FROZEN FILES (the scope wall's enforcement surface)
 
 **Nothing in this ADR is authorised. These paths are FROZEN against it until the Summoner thaws them by

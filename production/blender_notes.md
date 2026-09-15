@@ -4005,4 +4005,60 @@ scene order). `fsb_main_v3_mound.json` IS rewritten by every export from constan
 images are 9,051,883 B each (`better textures`, `recovered_ref_factions`, the 3600x5700 faction sheets on the
 staged crews) - they are EXEMPT from that tool by name (`TARGET_NAMES`) and only `shrink_master_sheets.py`
 touches them (dry run: 9.1 -> 3.6 MB at 0.5, still over the law; `kit/fb_emplacement_m101.glb` carries the
-same sheet). Pre-existing; not applied here - the overseer's call.
+same sheet). Pre-existing; not applied here - the overseer's call. **Applied 2026-09-15, see the entry below.**
+
+## 2026-09-15 - The 9 MB faction sheets brought to the 1 MB law IN the blend (Caleb: "yes")
+
+Scripts (re-runnable, `_scratch/sheet_law_2026-09-15/`): `shrink_in_blend.py [--save]`, `swap_m101.py [--apply]`,
+`render_fig.py`, `glb_images.py` (lists every embedded image with bytes, flags > 1 MB), `sheet_800x1267.png`.
+
+**What the sheet is.** `better textures` / `recovered_ref_factions` are ONE image: three packed datablocks in
+`firebase_v3.2.blend` (`ref_factions.001`, `ref_factions.002`, `recovered_ref_factions.002`), all 3600x5700 RGBA,
+all md5 d9c1bfad1580aa27629d524e79d88d37, 9,051,883 B each. It is the photo-sourced UNIFORM/GEAR sheet (jackets,
+trousers, boots, webbing, patches) - **no faces on it.** Faces live on `face_atlas_v5` (fsb, 648x566 shipped) and
+`face_atlas_v3` (M101 kit, 480x448); both untouched. Users: 132 meshes - the medical crews, wounded, patients,
+OFF0-2 officers (body parts + canteens). `ref_factions.002`'s only material (`us_grunt_mat.042`) sits in slot 0 of the
+three surgeon `_us_grunt_joined` meshes with ZERO faces assigned (gown/boots are solid materials) - a 9 MB image
+shipped for nothing. Measured texel density at 3600 wide: 762-1047 px/m, 857 overall; the 160 px/m rule of record
+wants 1/5.4 of that.
+
+**Why `shrink_oversized_textures.py` never touched them:** `process()` skips any image whose name is in
+`shrink_master_sheets.TARGET_NAMES` ("exempt by name"); only `shrink_master_sheets.py` handles those, and it halves
+(9.1 -> 3.6 MB), still over the law.
+
+**What landed:** 800x1267 RGBA PNG, 972,515 B, md5 a38a3b3c4f44eabf7cd9fbcc223c447b, 190 px/m. Premultiplied-alpha
+LANCZOS (46% of the sheet is alpha 0 over BLACK rgb - a straight resize bleeds black into every garment edge),
+PIL `optimize=True`. PNG kept (source is PNG; alpha unlinked, so the exporter could have taken a JPEG - 1800x2850 q92
+is 724 KB - but that is 4x the VRAM for a density the rule does not want; RGB-only PNG would save 18% and was not
+taken so the alpha survives). 1024x1620 = 1.45 MB and 900x1425 = 1.18 MB as PNG - both over; the bytes are content,
+not pixels. Packed with `image.pack(data=png, data_len=len)` so the exporter writes THOSE bytes verbatim
+(`encode_image.__encode_from_image`: packed + not dirty + PNG magic -> raw copy).
+
+**Trap: `image.reload()` on a packed image whose `filepath` exists on disk RE-PACKS FROM DISK.** It turned
+`ref_factions.002` into an 11.68 MB pack of `assets/us/characters/recovered_ref_factions.png` and silently kept the
+other two (their files are gone - Desktop path / '' - "Keeping packed image"). Use `image.buffers_free()` after
+`pack(data=)`; the next access loads from the packed data. Filepaths were kept as-is because the glTF image NAME is the
+filepath basename - change it and Godot's extracted `fsb_main_v3_better textures.png` gets a new name.
+
+**Blend saved** (`save_version=0`, compress): 50,557,163 -> 25,419,628 B. `firebase_v3.2.blend1` in the kit folder is
+dated 2026-09-06 - pre-existing, not created here.
+
+**Export** (`reexport_firebase_v3.py`, canon recipe): `fsb_main_v3.glb` 44,699,844 -> 28,541,104 B, md5
+8f3469b6c674e1953354faf933f18f2a -> 16f197c1365c51ff98b4b48f79b355be, 5810 nodes, 2307 -colonly all terminal, 0
+stray, mound.json md5 14d869e6b9259bc63a66b245eca48662 unchanged. 30 images; largest now 972,515 B (the two sheets),
+then hooch_posters_atlas 788,680, face_atlas_v5 571,989 - those three are still halved AT EXPORT by
+`shrink.process` (packed at 1.3-2.0 MB in the blend; legal in the GLB, not yet "born lean"). Dry run: 0 oversized.
+
+**`kit/fb_emplacement_m101.glb`** has no blend source on disk (July review export + `add_kit_colliders.py` JSON
+patch). Its `better textures` bufferView carried the same md5, so `swap_m101.py` replaced only that view's bytes and
+re-based the offsets: 13,565,304 -> 5,485,232 B, md5 bd364c4eac08b013bc0f3b55650ba711 ->
+b52be86140e3f5f98223581b74f2c566, 354 nodes, names and extras asserted identical. The sidecar
+`fb_emplacement_m101_better textures.png` (9 MB) beside it is Godot's extraction and will be regenerated on import.
+
+**Render verdict** (`production/renders_firebase/crews_AFTER_{garrison,m101}.png`, before | after, Workbench flat
+texture, 720 px): medic at 3 m and gunner at 6 m are indistinguishable at PSX distance - pocket lines, cuff, boot
+laces, webbing all read; only the sub-pixel fabric weave is gone. Faces did not change (different atlas).
+
+**Left:** the three 1.3-2.0 MB packed atlases above could be shrunk in the blend the same way so the export-time
+halving becomes a no-op; the surgeon slot-0 sheet with zero faces is a dead material slot; the README's "2019
+objects" is stale (3364 opened). Godot gate (`--headless --import`, census) is the overseer's.

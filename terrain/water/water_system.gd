@@ -316,9 +316,12 @@ func _append_static_quads(cells: Array[Vector2i], elevation: float,
 
 
 ## Append a triangle ribbon for a river/creek path, following the terrain downhill.
+## `surfaces` (one Y per point) seats an authored channel's sheet where its plan says;
+## empty means the hydrology seat, CHANNEL_WATER_DEPTH over the bed.
 func _append_river_strip(points: PackedVector2Array, widths: PackedFloat32Array,
 		verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array,
-		colors: PackedColorArray, indices: PackedInt32Array) -> void:
+		colors: PackedColorArray, indices: PackedInt32Array,
+		surfaces: PackedFloat32Array = PackedFloat32Array()) -> void:
 	if points.size() < 2:
 		return
 
@@ -338,6 +341,8 @@ func _append_river_strip(points: PackedVector2Array, widths: PackedFloat32Array,
 		var bank_r: float = _heightmap.sample_world(right.x, right.y)
 		# Seat the sheet IN the carved bed, never above the banks it runs between.
 		var y: float = minf(bed + CHANNEL_WATER_DEPTH, minf(bank_l, bank_r) - RIVER_RECESS)
+		if i < surfaces.size():
+			y = surfaces[i]
 		y = maxf(y, bed + 0.05)
 
 		# Downstream heading -> COLOR.b as angle/TAU, biased into 0.02..0.98 so
@@ -373,6 +378,90 @@ func _append_river_strip(points: PackedVector2Array, widths: PackedFloat32Array,
 		var r1: int = l1 + 2
 		indices.append_array([l0, c1, c0, l0, l1, c1])
 		indices.append_array([c0, r1, r0, c0, c1, r1])
+
+
+## An AUTHORED channel over a bed TerrainManager.carve_channel already cut (the site plan's
+## stream, ADR-041 thaw 2026-09-15). `surfaces` is the sheet's Y per point. Every cell inside
+## the point's reach that the sheet stands over becomes RIVER at its own depth - the wade
+## gate in GameplayGrid reads it like any hydrology creek - and the generation snapshot is
+## updated so reseat_region keeps it. One extra mesh, one draw call, next to CombinedWater.
+func stamp_channel(points: PackedVector2Array, widths: PackedFloat32Array,
+		surfaces: PackedFloat32Array) -> Rect2:
+	if _heightmap == null or points.size() < 2 or _gen_terrain.is_empty():
+		return Rect2()
+	var min_c := Vector2i(water_map_size, water_map_size)
+	var max_c := Vector2i(0, 0)
+	var cells: int = 0
+	for i in points.size():
+		var p: Vector2 = points[i]
+		var half_w: float = widths[i] * 0.5
+		var reach: float = half_w + maxf(half_w * 0.6, water_map_cell_size)
+		var r_cells: int = int(ceil(reach / water_map_cell_size)) + 1
+		var cc: Vector2i = _heightmap.world_to_cell(p.x, p.y)
+		for dz in range(-r_cells, r_cells + 1):
+			for dx in range(-r_cells, r_cells + 1):
+				var cx: int = cc.x + dx
+				var cz: int = cc.y + dz
+				if cx < 0 or cx >= water_map_size or cz < 0 or cz >= water_map_size:
+					continue
+				if sqrt(float(dx * dx + dz * dz)) * water_map_cell_size > reach:
+					continue
+				var idx: int = cz * water_map_size + cx
+				var terrain: float = _heightmap.get_cell(cx, cz) * _heightmap.height_scale
+				var depth: float = surfaces[i] - terrain
+				if depth < 0.05:
+					continue
+				var depth_index: int = clampi(int(depth * 2.0), 0, 31)
+				# Neighbouring points overlap; the deeper reading stands (the sheet steps
+				# down the gradient point by point, the floor does not).
+				if (water_map[idx] & 7) == WaterBodyDataClass.Type.RIVER 						and ((water_map[idx] >> 3) & 0x1F) >= depth_index:
+					continue
+				water_map[idx] = WaterBodyDataClass.Type.RIVER | (depth_index << 3)
+				_gen_water_map[idx] = water_map[idx]
+				_gen_terrain[idx] = _heightmap.get_cell(cx, cz)
+				if _hydrology != null and idx < _hydrology.water_type_full.size():
+					_hydrology.water_type_full[idx] = WaterBodyDataClass.Type.RIVER
+					_hydrology.water_surface_full[idx] = surfaces[i]
+				cells += 1
+				min_c = Vector2i(mini(min_c.x, cx), mini(min_c.y, cz))
+				max_c = Vector2i(maxi(max_c.x, cx), maxi(max_c.y, cz))
+	if cells == 0:
+		return Rect2()
+
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var colors := PackedColorArray()
+	var indices := PackedInt32Array()
+	# The strip is a hair wider than the cut, so the sheet dies into the shoulder, not at
+	# the lip of the flat floor where the bank sample would read as bed.
+	var strip_w := PackedFloat32Array()
+	strip_w.resize(widths.size())
+	for i in widths.size():
+		strip_w[i] = widths[i] + maxf(widths[i] * 0.3, water_map_cell_size)
+	_append_river_strip(points, strip_w, verts, normals, uvs, colors, indices, surfaces)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var array_mesh := ArrayMesh.new()
+	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := ShaderMaterial.new()
+	mat.shader = WATER_SHADER
+	array_mesh.surface_set_material(0, mat)
+	var mi := MeshInstance3D.new()
+	mi.name = "AuthoredWater"
+	mi.mesh = array_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_water_container.add_child(mi)
+
+	var rect := Rect2(Vector2(min_c) * water_map_cell_size,
+		Vector2(max_c - min_c + Vector2i.ONE) * water_map_cell_size)
+	print("[WaterSystem] authored channel: %d point(s), %d cell(s)" % [points.size(), cells])
+	return rect
 
 
 ## Distance (in cells) from a cell to the nearest cell outside the body.

@@ -583,10 +583,11 @@ static var demo_mode: bool = false
 ## the whole wayfinding system - no quest marker teaches a location like opening your eyes
 ## in it (War Room 2026-08-28, UX lens).
 static var player_rack: Vector3 = Vector3.ZERO
-## 512 until the 1024 slice passes its own gate: on 2026-09-14 the assault at 1024 never
-## reached the wire (the cells stalled 60-150 m out on "could not find the most reachable
-## polygons", 0 of those at 512). The bigger map is one flag away, never a silent default.
-const DEMO_MAP_SIZE: float = 512.0
+## 1024 since 2026-09-15 (his ruling): the 9/14 stall at this size was NavigationAgent3D's
+## 4096-polygon search cap truncating a flood over the firebase's nav island, not the map
+## (`path_search_max_polygons = 0` at every agent); the assault reaches the wire and ends,
+## the stream and its fords exist only at this size, and `--demo-map=512` is his A/B control.
+const DEMO_MAP_SIZE: float = 1024.0
 
 
 ## `--demo-map=N` builds the demo slice at N metres for his paired A/B (512 is the
@@ -788,6 +789,12 @@ func enter_hub() -> void:
 			push_warning("[ROOF-PROBE] probe_roof_spawn.gd absent in this build")
 		else:
 			world.add_child(roof.new())
+	if args.has("--nav-ring-probe"):
+		var ring: GDScript = load("res://tools/probe_nav_ring.gd") as GDScript
+		if ring == null:
+			push_warning("[NAV-RING] probe_nav_ring.gd absent in this build")
+		else:
+			world.add_child(ring.new())
 	if args.has("--npc-census"):
 		var census: GDScript = load("res://tools/probe_npc_census.gd") as GDScript
 		if census == null:

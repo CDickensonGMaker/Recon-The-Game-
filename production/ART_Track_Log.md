@@ -22,6 +22,19 @@ band, DA Form 20, K-ration scrap, letter, folded topo. **Unused: `cover.png`** â
 closed-journal state. Ship it or cut it.
 
 
+## THE CREW SHEETS ARE AT LAW - DONE 2026-09-15 (his ruling "yes")
+
+The one 3600x5700 uniform/gear sheet packed three times into `firebase_v3.2.blend` (`ref_factions.001/.002`,
+`recovered_ref_factions.002`, 9.05 MB each embedded) was resized IN THE BLEND to 800x1267 (972 KB PNG,
+190 px/m against the 160 rule) and the compound re-exported by the canon recipe: `fsb_main_v3.glb` 44.7 ->
+28.5 MB, md5 `16f197c1365c51ff98b4b48f79b355be`, largest embedded image 972,515 B, `shrink_oversized_textures`
+dry run 0. `kit/fb_emplacement_m101.glb` (no blend source) had that bufferView's bytes swapped with the JSON
+asserted identical: 13.6 -> 5.5 MB. Faces were never on this sheet (they live on `face_atlas_v5/v3`).
+Renders read back: `production/renders_firebase/crews_AFTER_{garrison,m101}.png` - indistinguishable at
+720 px; only sub-pixel weave is gone. The blend itself fell 50.6 -> 25.4 MB. Trap logged in
+`production/blender_notes.md`: `image.reload()` on a packed image RE-PACKS FROM DISK.
+
+
 ## THE TOC IS A BUNKER A MAN CAN STAND IN, THE GATE SITS ON THE MOUND, DUCKBOARDS FROM EVERY DOOR - DONE 2026-09-14 (his eye pending)
 
 His list, verbatim: *"can we headlessly fix the HQ bunker and spend some time making it proper ... adding
