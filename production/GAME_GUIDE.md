@@ -393,10 +393,12 @@ stand-to → probe on the wire → the assault → gunships circling, and the pl
 2026-09-13/14):** the day is **45 real minutes** at 27x (`DAY_RATIO 27`, night at 1667 s, assault at
 1800 s); the 11:30 pad-cycle slick is SHOT DOWN by the camp ZPU in view (`PilotRecovery`, survivors by
 a seeded roll, led home on foot — `--crash-probe` is its gate); HQ's three taskings and the dealer's
-two asks read the H&M ledger (`hm_ledger.gd`, bands, never numbers); `--demo-map=N` builds the slice
-at 1024 m (the 4x4 chunk grid; 512 stays the default until the 1024 assault reaches the wire — it
-stalled 60–150 m out on 2026-09-14). The Early Access date above was his target, not a deadline
-(memory `recon-ea-date-is-his-target-not-a-deadline`).
+two asks read the H&M ledger (`hm_ledger.gd`, bands, never numbers); **the demo slice is 1024 m
+since 2026-09-15** (`GameFlow.DEMO_MAP_SIZE`; the 9/14 stall was NavigationAgent3D's 4096-polygon
+search cap, not the map; `--demo-map=512` is his A/B control) and carries the authored STREAM with
+three fords and the band-gated way-station (ADR-041 Amendment A, his "yes" of 2026-09-15). The
+Early Access date above was his target, not a deadline (memory
+`recon-ea-date-is-his-target-not-a-deadline`).
 
 **The AO is NOT bare, and none of it may be cut.** `plan_demo_world`
 (`scripts/missions/mission_generator.gd:666-775`) stamps **one village** (`:716`), **one enemy

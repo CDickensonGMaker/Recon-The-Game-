@@ -2636,13 +2636,13 @@ Council: production/war_room/2026-09-14_rpg_dealer_hq_map/ (briefing has your wo
 
 **MAP - not the default yet, and why:** 890 m does not exist (the heightmap rounds to 256 m chunks: 768 or 1024). 1024 is one flag away and its layout scales the plan (village ~300 m, camp ~330 m on the far flank, siege form-up ON the map for the first time), the 512 layout is byte-identical without the flag. But at 1024 the assault never reached the wire (the cells stalled 60-150 m out: "could not find the most reachable polygons", 34k of them, 0 at 512) - so the default stays 512 until that nav corridor is fixed. Proxies 512 vs 1024: build 14.1 vs 13.8 s, static memory 870 vs 961 MB, nodes 19.8k vs 29.7k, MultiMesh instances 28k vs 98k. No fps sentence from anyone: perf_walk at both sizes is your pair.
 
-**YOUR CALLS:**
-- Thaw ADR-041 for the demo AO (the stream with three fords, the band-gated way-station, THE CROSSING beat)? The GD's sheet is in analysis/game_designer.md. Yes or no.
-- The dealer is a thaw of the FROZEN "RPG shop" (GAME_GUIDE section 6). Confirm, or he comes out.
-- The Skyraider lost its demo guarantee (one event a day; the slick takes it). Fine?
-- A CRIT survivor at a third pace makes the walk home 3-4 real minutes. Fine, or cap at HIT?
-- The two 9 MB embedded sheets in fsb_main_v3.glb (crew sheets) break your 1 MB texture law and predate tonight. Shrink (9.1 -> 3.6 MB, still over) or leave?
-- The --import run rewrote 40-odd Conquest-of-Worms texture files in the tree (the other session's lane) - left uncommitted for that session.
-- master still sits at daf621cd; whether it follows BaseGame-V1 is still yours.
+**YOUR CALLS - RULED 2026-09-15, your word "yes" to the list:**
+- RULED 1: ADR-041 THAWED for the demo AO (the stream with three fords, the band-gated way-station, THE CROSSING beat). Recorded as ADR-041 Amendment A. Built the same night - see the 9/15 section below.
+- RULED 2: the dealer thaw CONFIRMED - Poteet is canon.
+- RULED 3: the Skyraider losing its demo guarantee - accepted.
+- RULED 4: the CRIT pace CAPPED - a wounded man never makes the walk home more than two real minutes longer than a healthy man's from the same wreck (PilotRecovery.capped_pace, probed).
+- RULED 5: the two 9 MB crew sheets - brought to the texture law (see the 9/15 section).
+- (not a ruling) The --import run rewrote 40-odd Conquest-of-Worms texture files in the tree (the other session's lane) - left uncommitted for that session.
+- STILL OPEN 6: master still sits at daf621cd; whether it follows BaseGame-V1 is yours. origin/master untouched.
 
 **Still red, named:** test_firebase_garrison (57 men, the parked reserve - pre-existing), test_group_walk (household closed 4.1 m of 5 - pre-existing); the census's 14-19 stuck / 5-13 overlaps is the N2 furniture class; the 1024 assault nav stall.

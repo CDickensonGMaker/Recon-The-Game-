@@ -522,6 +522,14 @@ func _extract_and_carve_rivers() -> void:
 	var mask: Dictionary = {}
 	for path in river_paths:
 		_carve_riverbed(path, mask)
+	var deepest: float = _apply_cut_mask(mask)
+	print("[TerrainManager] Carved %d hydrology channels, %d cell(s), deepest cut %.2fm (cap %.2fm)"
+		% [river_paths.size(), mask.size(), deepest, CHANNEL_CARVE_DEPTH])
+
+
+## Subtract each cell's cut (cell key -> METRES) from the heightmap once. Returns the
+## deepest cut. Pre-chunk: nothing is rebuilt here.
+func _apply_cut_mask(mask: Dictionary) -> float:
 	var deepest: float = 0.0
 	for key in mask:
 		var d: float = float(mask[key])
@@ -531,8 +539,58 @@ func _extract_and_carve_rivers() -> void:
 		var nx: int = int(key) % heightmap.size
 		heightmap.set_cell(nx, nz,
 			maxf(0.0, heightmap.get_cell(nx, nz) - heightmap.meters_to_norm(d)))
-	print("[TerrainManager] Carved %d hydrology channels, %d cell(s), deepest cut %.2fm (cap %.2fm)"
-		% [river_paths.size(), mask.size(), deepest, CHANNEL_CARVE_DEPTH])
+	return deepest
+
+
+## An AUTHORED channel, cut after the chunks stand: the site plan's stream (ADR-041 thaw,
+## 2026-09-15). `points` are world XZ, `widths` the floor width per point, `floors` the bed's
+## ABSOLUTE height per point in metres - a flat floor at that height, then the same shoulder
+## ramp as _carve_riverbed back to grade. Absolute, not a cut below grade: the ground
+## crossing the line slopes, and a relative cut leaves the floor tilted with it, so the
+## sheet WaterSystem.stamp_channel seats afterwards would stand shallow on the high bank.
+## Only ever lowers ground. Returns the world rect the edit touched.
+func carve_channel(points: PackedVector2Array, widths: PackedFloat32Array,
+		floors: PackedFloat32Array) -> Rect2:
+	if heightmap == null or points.size() < 2:
+		return Rect2()
+	var mask: Dictionary = {}
+	var min_c := Vector2i(heightmap.size, heightmap.size)
+	var max_c := Vector2i(0, 0)
+	for i in points.size():
+		var p: Vector2 = points[i]
+		var half_w: float = widths[i] * 0.5
+		var shoulder: float = maxf(half_w * 0.6, heightmap.cell_size)
+		var reach: float = half_w + shoulder
+		var carve_radius: int = clampi(int(ceil(reach / heightmap.cell_size)), 2, 14)
+		var center_cell: Vector2i = heightmap.world_to_cell(p.x, p.y)
+		for dz in range(-carve_radius, carve_radius + 1):
+			for dx in range(-carve_radius, carve_radius + 1):
+				var nx: int = center_cell.x + dx
+				var nz: int = center_cell.y + dz
+				if nx < 0 or nx >= heightmap.size or nz < 0 or nz >= heightmap.size:
+					continue
+				var dist_m: float = sqrt(float(dx * dx + dz * dz)) * heightmap.cell_size
+				if dist_m > reach:
+					continue
+				var falloff: float = 1.0 - smoothstep(half_w, reach, dist_m)
+				var grade: float = heightmap.norm_to_meters(heightmap.get_cell(nx, nz))
+				var cut: float = maxf(0.0, grade - floors[i]) * falloff
+				if cut <= 0.0:
+					continue
+				var key: int = nz * heightmap.size + nx
+				mask[key] = maxf(float(mask.get(key, 0.0)), cut)
+				min_c = Vector2i(mini(min_c.x, nx), mini(min_c.y, nz))
+				max_c = Vector2i(maxi(max_c.x, nx), maxi(max_c.y, nz))
+	if mask.is_empty():
+		return Rect2()
+	_apply_cut_mask(mask)
+	var affected := Rect2i(min_c, max_c - min_c + Vector2i.ONE)
+	_rebuild_chunks_in_region(affected)
+	var world_rect := Rect2(
+		Vector2(float(affected.position.x), float(affected.position.y)) * cell_size,
+		Vector2(float(affected.size.x), float(affected.size.y)) * cell_size)
+	region_rebuilt.emit(world_rect)
+	return world_rect
 
 
 ## Smooth a river path with windowed averaging

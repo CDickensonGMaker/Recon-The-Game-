@@ -20,6 +20,8 @@ var _clamp_src: Vector3 = Vector3.ZERO
 var _clamp_out: Vector3 = Vector3.ZERO
 var _clamp_valid: bool = false
 var _warned: bool = false
+var _diag_done: bool = false
+static var _diag_left: int = 16
 ## True on the frame target_position moved: the new path is async and has not landed.
 var _restaked: bool = false
 
@@ -141,6 +143,17 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		_self_valid = true
 	var off: Vector3 = _self_out - from
 	off.y = 0.0
+	if OS.is_debug_build() and not _diag_done and _diag_left > 0 and to.distance_to(from) > 5.0:
+		_diag_done = true
+		_diag_left -= 1
+		var path: PackedVector3Array = NavRouter.server_path(map, from, _clamp_out)
+		var tail: float = path[path.size() - 1].distance_to(_clamp_out) if path.size() > 0 else -1.0
+		print("[NAV-DIAG] %s at %s box=%d/at=%d off_mesh=%.2fm owner=%s | to %s box_at=%d clamp=%.2fm owner=%s | agent_path=%d server_path=%d tail=%.1fm" % [
+			label, from, box, NavBaker.box_index_at(from), off.length(),
+			NavigationServer3D.map_get_closest_point_owner(map, from),
+			to, NavBaker.box_index_at(to), to.distance_to(_clamp_out),
+			NavigationServer3D.map_get_closest_point_owner(map, _clamp_out),
+			agent.get_current_navigation_path().size(), path.size(), tail])
 	if off.length() > OFF_MESH_M:
 		return off
 
@@ -156,11 +169,13 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 	# 3. The agent's path simply has not landed yet. NavigationAgent3D computes
 	#    asynchronously and is_navigation_finished() reads true in that window, which is
 	#    indistinguishable from "no route" unless you ASK. So before claiming there is no
-	#    path, put the question to the server directly: a real absence returns under 2
-	#    points. Paid only on the failure path, and only until the one-shot fires.
+	#    path, put the question to the server directly. An absent route is NOT an empty
+	#    array - the server hands back the start and the nearest point on the start polygon -
+	#    so judge by where the path ENDS. Paid only on the failure path, and only until the
+	#    one-shot fires.
 	var flat := Vector3(direct.x, 0.0, direct.z)
 	if OS.is_debug_build() and flat.length_squared() > 25.0 and not _warned and not _restaked \
-			and NavigationServer3D.map_get_path(map, _self_out, _clamp_out, true).size() < 2:
+			and not NavRouter.server_reaches(map, _self_out, _clamp_out):
 		_warned = true
 		# Name the region honestly: under a lab navmesh `box` is -1 and meaningless,
 		# and printing "-1" reads as a bug in the box lookup rather than a missing path.
@@ -175,3 +190,26 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		push_warning("[NAV-FALLBACK] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
 			label, where, flat.length()])
 	return direct
+
+
+## A path query with NO polygon cap. The engine's 4096 default is hit by any query that
+## floods the firebase mesh, and a capped flood does not just stop: its retry fails and
+## returns a two-point stub, one engine error print each time.
+static func server_path(map: RID, from: Vector3, to: Vector3) -> PackedVector3Array:
+	var q := NavigationPathQueryParameters3D.new()
+	q.map = map
+	q.start_position = from
+	q.target_position = to
+	q.path_search_max_polygons = 0
+	var res := NavigationPathQueryResult3D.new()
+	NavigationServer3D.query_path(q, res)
+	return res.path
+
+
+## True when a route exists whose last point lands within 2 m (XZ) of `to`.
+static func server_reaches(map: RID, from: Vector3, to: Vector3) -> bool:
+	var path: PackedVector3Array = NavRouter.server_path(map, from, to)
+	if path.size() < 2:
+		return false
+	var tail: Vector3 = path[path.size() - 1]
+	return Vector2(tail.x - to.x, tail.z - to.z).length() <= 2.0

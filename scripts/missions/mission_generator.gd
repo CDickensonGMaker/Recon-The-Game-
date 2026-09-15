@@ -907,7 +907,174 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	# stamps the flag; sites/routes draw in build via AmbientEncounters.attach,
 	# appended after every existing draw, and the dice are unseeded.
 	p["ambient_encounters"] = true
+
+	# THE STREAM + THE WAY-STATION (ADR-041 thawed for the demo AO, Caleb 2026-09-15; the AO
+	# sheet, war_room/2026-09-14_rpg_dealer_hq_map/analysis/game_designer.md §1.1-1.4). Both
+	# hang off the village already chosen above and draw nothing before it, so every line the
+	# plan wrote so far is what it was. They need ROOM: the wire's corner reaches 157 m on
+	# the village diagonal and at 512 the village stands 185 m out, so the 512 slice has no
+	# bank to put a stream on and ships without one - `g` names the sizes that do.
+	if g > 0.0:
+		_plan_stream(world, rng, p, planner, village)
 	return p
+
+
+## Stream geometry: reads 1.5 m in the water map (> GameplayGrid.WADE_DEPTH_M, impassable)
+## everywhere but the three fords, which read 0.5 m (a wade). The cut is the water depth plus
+## HydrologyMap.CHANNEL_SURFACE_DROP, the same seat every hydrology creek gets.
+const STREAM_WIDTH_M: float = 9.0
+const STREAM_DEPTH_M: float = 1.85
+const FORD_DEPTH_M: float = 0.55
+const STREAM_STEP_M: float = 6.0
+const STREAM_WOBBLE_M: float = 10.0
+## The stream runs this far short of the village (the huts stand on the far bank) and at
+## least this far clear of the wire's nearest corner, or it is refused.
+const STREAM_VILLAGE_SETBACK_M: float = 80.0
+const STREAM_WIRE_CLEARANCE_M: float = 20.0
+## F2 the ambush ford and F3 the monkey-bridge, along the stream from F1 the village ford.
+const FORD_F2_ALONG_M: float = 110.0
+const FORD_F3_ALONG_M: float = -140.0
+## The runner's stand on the far bank of F1, and the way-station past the ville.
+const RUNNER_STAND_ACROSS_M: float = 22.0
+const RUNNER_STAND_ASIDE_M: float = 14.0
+const WAY_STATION_PAST_VILLE_M: float = 130.0
+const DEFENDERS_PAST_VILLE_M: float = 60.0
+
+
+## One bank-to-bank line across the slice, perpendicular to the wire->village bearing and
+## STREAM_VILLAGE_SETBACK_M short of the village, with a fixed sine wobble so it is not a
+## ruler. No draw: the geometry is the seed's village. Writes p.stream and p.way_station.
+## Refused, with the reason printed, when the wire's corner leaves no bank on that bearing
+## (768 m: the village stands ~242 m out against a ~184 m corner).
+static func _plan_stream(world: GameWorld, rng: RandomNumberGenerator, p: Dictionary,
+		planner: SitePlanner, village: Vector3) -> void:
+	var fsb: Vector3 = p.fsb_center
+	var to_v := Vector3(village.x - fsb.x, 0.0, village.z - fsb.z)
+	var axis: Vector3 = to_v.normalized()
+	var perp := Vector3(-axis.z, 0.0, axis.x)
+	var d_s: float = to_v.length() - STREAM_VILLAGE_SETBACK_M
+	var wire_reach: float = 0.0
+	var fr: Rect2 = planner._fsb_rect
+	for corner: Vector2 in [fr.position, fr.end, Vector2(fr.position.x, fr.end.y), Vector2(fr.end.x, fr.position.y)]:
+		wire_reach = maxf(wire_reach, (corner.x - fsb.x) * axis.x + (corner.y - fsb.z) * axis.z)
+	if d_s < wire_reach + STREAM_WIRE_CLEARANCE_M:
+		print("[DEMO] stream refused: village %.0f m out, wire corner %.0f m - no bank between"
+			% [to_v.length(), wire_reach])
+		return
+	var map_size: float = world.map_size
+	var margin: float = 8.0
+	var points := PackedVector2Array()
+	var ts := PackedFloat32Array()
+	var t: float = -map_size
+	while t <= map_size:
+		# The wobble only ever bows AWAY from the wire: d_s is the near edge, not the mean.
+		var along: float = d_s + STREAM_WOBBLE_M * (0.5 + 0.5 * sin(t / 47.0))
+		var pt: Vector3 = fsb + axis * along + perp * t
+		if pt.x >= margin and pt.x <= map_size - margin and pt.z >= margin and pt.z <= map_size - margin:
+			points.append(Vector2(pt.x, pt.z))
+			ts.append(t)
+		t += STREAM_STEP_M
+	if points.size() < 4:
+		print("[DEMO] stream refused: %d point(s) inside the slice" % points.size())
+		return
+	var widths := PackedFloat32Array()
+	var depths := PackedFloat32Array()
+	widths.resize(points.size())
+	depths.resize(points.size())
+	widths.fill(STREAM_WIDTH_M)
+	depths.fill(STREAM_DEPTH_M)
+
+	# F1 sits where the straight walk from the gate to the village meets the line; F2 and F3
+	# are set distances along it. Each ford is the nearest point and its two neighbours.
+	var gate: Vector3 = p.gate_pos
+	var gate_along: float = (gate.x - fsb.x) * axis.x + (gate.z - fsb.z) * axis.z
+	var v_along: float = to_v.length()
+	var u: float = clampf((d_s - gate_along) / maxf(v_along - gate_along, 1.0), 0.0, 1.0)
+	var x1: Vector3 = gate + (village - gate) * u
+	var t1: float = (x1.x - fsb.x) * perp.x + (x1.z - fsb.z) * perp.z
+	var out_v: Vector3 = p.gate_out
+	var side: float = 1.0 if (out_v.x * perp.x + out_v.z * perp.z) >= 0.0 else -1.0
+	var fords: Dictionary = {}
+	var ford_ts: Dictionary = {"F1": t1, "F2": t1 + FORD_F2_ALONG_M * side, "F3": t1 + FORD_F3_ALONG_M * side}
+	for fname: String in ford_ts.keys():
+		var want: float = float(ford_ts[fname])
+		var best: int = -1
+		var best_d: float = INF
+		for i in ts.size():
+			var d: float = absf(ts[i] - want)
+			if d < best_d:
+				best_d = d
+				best = i
+		if best < 0 or best_d > STREAM_STEP_M:
+			continue
+		for j in range(maxi(0, best - 1), mini(points.size(), best + 2)):
+			depths[j] = FORD_DEPTH_M
+		var fp := Vector3(points[best].x, 0.0, points[best].y)
+		fp.y = world.terrain_manager.get_height_at(fp)
+		fords[fname] = fp
+	if not fords.has("F1"):
+		print("[DEMO] stream refused: no F1 on the walk to the village")
+		return
+	var f1: Vector3 = fords["F1"]
+	# The ville's daytime defenders keep to its far side and sleep until the player is on
+	# them (LazyGroup, 120 m): at the centre they stand ~75 m off F1, and a squad man at the
+	# log takes a target at 100 m and more, which aborts the crossing beat before the runner
+	# is ever seen. Sixty metres past the huts they are ~140 m from the log: not there yet.
+	for grp in p.enemy_groups:
+		var g: Dictionary = grp
+		if str(g.get("tag", "")) == "village_defenders_0":
+			var far: Vector3 = village + axis * DEFENDERS_PAST_VILLE_M
+			far.y = world.terrain_manager.get_height_at(far)
+			g["pos"] = far
+			g["lazy"] = true
+	var stand: Vector3 = f1 + axis * RUNNER_STAND_ACROSS_M - perp * (side * RUNNER_STAND_ASIDE_M)
+	stand.y = world.terrain_manager.get_height_at(stand)
+	p["stream"] = {"points": points, "widths": widths, "depths": depths, "fords": fords,
+		"axis": axis, "runner_stand": stand}
+	print("[DEMO] stream: %d points, %.0f m out on the village bearing, fords %s"
+		% [points.size(), d_s, ", ".join(fords.keys())])
+
+	var ws_target: Vector3 = village + axis * WAY_STATION_PAST_VILLE_M
+	var ws: Vector3 = _passable_near(world, rng, ws_target, 6.0, 40.0, 60)
+	if ws == Vector3.ZERO:
+		ws = ws_target
+		ws.y = world.terrain_manager.get_height_at(ws)
+	p["way_station"] = {"center": ws, "village": village, "covers": f1}
+	print("[DEMO] way-station %.0f m past the ville" % Vector2(ws.x - village.x, ws.z - village.z).length())
+
+
+## The stream on the ground (build, never plan): vegetation off the corridor, the bed cut,
+## the sheet seated, the grid told, and F1's log. p.stream is the plan's shape; the sheet
+## sits the hydrology drop below grade and the floor the planned depth under the sheet.
+## Nothing here draws.
+static func _stamp_stream(world: GameWorld, planner: SitePlanner, stream: Dictionary) -> void:
+	var points: PackedVector2Array = stream.points
+	var widths: PackedFloat32Array = stream.widths
+	var depths: PackedFloat32Array = stream.depths
+	var tm: TerrainManager = world.terrain_manager
+	var surfaces := PackedFloat32Array()
+	var floors := PackedFloat32Array()
+	surfaces.resize(points.size())
+	floors.resize(points.size())
+	for i in points.size():
+		var grade: float = tm.heightmap.sample_world(points[i].x, points[i].y)
+		surfaces[i] = grade - HydrologyMap.CHANNEL_SURFACE_DROP
+		floors[i] = surfaces[i] - depths[i]
+	var veg: Node = world.vegetation_manager
+	if veg != null and veg.has_method("clear_area"):
+		for i in range(0, points.size(), 2):
+			veg.clear_area(Vector3(points[i].x, 0.0, points[i].y), widths[i] * 0.5 + 2.0,
+				tm.chunk_size, tm.heightmap, true)
+	var rect: Rect2 = tm.carve_channel(points, widths, floors)
+	var wrect: Rect2 = world.water_system.stamp_channel(points, widths, surfaces)
+	if world.gameplay_grid != null and rect.size != Vector2.ZERO:
+		world.gameplay_grid.rebuild_rect(rect.merge(wrect) if wrect.size != Vector2.ZERO else rect)
+	var fords: Dictionary = stream.fords
+	if fords.has("F1"):
+		var f1: Vector3 = fords["F1"]
+		var axis: Vector3 = stream.axis
+		planner.place_prop("res://assets/world/vegetation/fallen_log_a.glb", f1,
+			rad_to_deg(atan2(axis.x, axis.z)))
 
 
 static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dictionary) -> Dictionary:
@@ -922,6 +1089,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	var fsb: Dictionary = planner.place_firebase_main(p.fsb_center as Vector3)
 	built_sites.append(fsb)
 	_build_firebase_garrison(world, director, fsb.center as Vector3, rng)
+	if p.has("stream"):
+		_stamp_stream(world, planner, p.stream)
 	for site in p.sites:
 		match str(site.kind):
 			"village":
@@ -956,6 +1125,19 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 			world.terrain_manager.chunk_size, world.terrain_manager.heightmap)
 
 	_spawn_enemy_groups(world, director, p, rng)
+
+	# THE RUNNER (THE CROSSING beat, writer.md PICK 2): the ville's informer stands at the
+	# far-bank tree line of F1 with the ville as his place, so the word he carries lands on
+	# `informer/<ville>/talked` like any villager's. Spawned last: no draw before him moves.
+	if p.has("stream"):
+		var stand: Vector3 = (p.stream as Dictionary).runner_stand
+		stand.y = world.floor_y(stand) + 0.5
+		var runner: Civilian = Civilian.spawn(world, stand, director, true)
+		runner.name = "FarBankRunner"
+		runner.village_center = (p.village_centers as Array)[0]
+		runner.home = stand
+		runner.build_bt()
+		runner.add_to_group("far_bank_runner")
 
 	# S28: the ZPU stands beside the camp when the plan named a crew for it, and
 	# PilotRecovery rides only where a ZPU stands - no gun, no shoot-down.

@@ -8,6 +8,7 @@ extends Node
 const TITLE_SPLASH := preload("res://scripts/ui/screens/title_splash.gd")
 const DEALER_TABLE := preload("res://scripts/world/dealer_table.gd")
 const BEAT_BOOK := preload("res://scripts/missions/beat_book.gd")
+const WAY_STATION := preload("res://scripts/world/way_station.gd")
 
 var current_screen: Node = null
 var world: GameWorld = null
@@ -604,10 +605,11 @@ static var demo_mode: bool = false
 ## the whole wayfinding system - no quest marker teaches a location like opening your eyes
 ## in it (War Room 2026-08-28, UX lens).
 static var player_rack: Vector3 = Vector3.ZERO
-## 512 until the 1024 slice passes its own gate: on 2026-09-14 the assault at 1024 never
-## reached the wire (the cells stalled 60-150 m out on "could not find the most reachable
-## polygons", 0 of those at 512). The bigger map is one flag away, never a silent default.
-const DEMO_MAP_SIZE: float = 512.0
+## 1024 since 2026-09-15 (his ruling): the 9/14 stall at this size was NavigationAgent3D's
+## 4096-polygon search cap truncating a flood over the firebase's nav island, not the map
+## (`path_search_max_polygons = 0` at every agent); the assault reaches the wire and ends,
+## the stream and its fords exist only at this size, and `--demo-map=512` is his A/B control.
+const DEMO_MAP_SIZE: float = 1024.0
 
 
 ## `--demo-map=N` builds the demo slice at N metres for his paired A/B (512 is the
@@ -738,7 +740,9 @@ func enter_hub() -> void:
 	# Poteet's table beside the dump (both worlds); the authored beats ride the demo day only.
 	DEALER_TABLE.stamp(world, director, patrol_plan.get("fsb_center", Vector3.ZERO) as Vector3)
 	if demo_mode:
-		BEAT_BOOK.attach(world, director)
+		BEAT_BOOK.attach(world, director, patrol_plan)
+		if patrol_plan.has("way_station"):
+			WAY_STATION.attach(world, director, patrol_plan.way_station)
 	# Death outside the wire is a field AAR, then you wake at the firebase
 	# (Pillar 5) - same debrief pipeline, patrol framing.
 	director.mission_failed.connect(_on_mission_ended)
@@ -821,6 +825,12 @@ func enter_hub() -> void:
 			push_warning("[NPC-CENSUS] probe_npc_census.gd absent in this build")
 		else:
 			world.add_child(census.new())
+	if args.has("--nav-ring-probe"):
+		var ring: GDScript = load("res://tools/probe_nav_ring.gd") as GDScript
+		if ring == null:
+			push_warning("[NAV-RING] probe_nav_ring.gd absent in this build")
+		else:
+			world.add_child(ring.new())
 	if args.has("--crash-probe"):
 		var crash: GDScript = load("res://tools/probe_crash_recovery.gd") as GDScript
 		if crash == null:
@@ -833,6 +843,12 @@ func enter_hub() -> void:
 			push_warning("[DEALER-PROBE] probe_dealer.gd absent in this build")
 		else:
 			world.add_child(dealer.new())
+	if args.has("--stream-probe"):
+		var stream: GDScript = load("res://tools/probe_stream.gd") as GDScript
+		if stream == null:
+			push_warning("[STREAM-PROBE] probe_stream.gd absent in this build")
+		else:
+			world.add_child(stream.new())
 	if args.has("--pen-probe"):
 		var pen: GDScript = load("res://tools/probe_firebase_penetration.gd") as GDScript
 		if pen == null:
